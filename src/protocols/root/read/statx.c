@@ -227,8 +227,11 @@ brix_statx_process_path(brix_ctx_t *ctx, ngx_stream_brix_srv_conf_t *conf,
     struct stat st;
 
     /* Internal artifacts (sidecars, upload temps) are invisible → report as
-     * absent, same as a stat miss. */
-    if (brix_is_internal_name(reqpath_buf)) {
+     * absent, same as a stat miss (brix_cache_store_endpoint on lifts it for a
+     * trusted cache-store surface — see the kXR_open guard in open_request.c). */
+    if (!conf->common.cache_store_endpoint
+        && brix_is_internal_name(reqpath_buf))
+    {
         BRIX_RETURN_ERR(ctx, c, BRIX_OP_STATX, "STATX", reqpath_buf, "-",
                           kXR_NotFound, "file not found");
     }

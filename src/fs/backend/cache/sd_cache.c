@@ -193,12 +193,15 @@ sd_cache_open_common(brix_sd_instance_t *inst, const char *path,
         return NULL;
     }
 
-    /* WRITE / CREATE / TRUNC: pass through and invalidate the cached copy. */
+    /* WRITE / CREATE / TRUNC: pass through and invalidate the cached copy.
+     * The evicted size is stamped on the obj so the protocol adopt site can
+     * account it (the decorator has no request context here). */
     if (rq->sd_flags & (BRIX_SD_O_WRITE | BRIX_SD_O_CREATE | BRIX_SD_O_TRUNC)) {
         obj = brix_sd_open_maybe_cred(src, path, rq->sd_flags, rq->mode,
                                       rq->cred, err_out);
         if (obj != NULL) {
-            (void) brix_cstore_evict(&st->cstore, path);
+            obj->cache_evicted_bytes =
+                brix_cstore_evict_sized(&st->cstore, path);
         }
         return obj;
     }
@@ -206,6 +209,7 @@ sd_cache_open_common(brix_sd_instance_t *inst, const char *path,
     /* READ: a COMPLETE cinfo is an authoritative hit. */
     obj = cache_open_serve_hit(st, path, err_out);
     if (obj != NULL) {
+        obj->cache_outcome = BRIX_SD_CACHE_OUTCOME_HIT;
         return obj;
     }
 
@@ -223,13 +227,18 @@ sd_cache_open_common(brix_sd_instance_t *inst, const char *path,
     /* MISS: partial-serve (slice mode) or fill from the source + serve. */
     obj = cache_open_miss_serve(inst, st, path, rq->cred, err_out);
     if (obj != NULL) {
+        obj->cache_outcome = BRIX_SD_CACHE_OUTCOME_MISS;
         return obj;
     }
 
     /* Declined or failed: serve from the source (a sick cache never fails a read,
-     * section 16). */
-    return brix_sd_open_maybe_cred(src, path, rq->sd_flags, rq->mode,
-                                   rq->cred, err_out);
+     * section 16).  Still a MISS — the cache was consulted and could not serve. */
+    obj = brix_sd_open_maybe_cred(src, path, rq->sd_flags, rq->mode,
+                                  rq->cred, err_out);
+    if (obj != NULL) {
+        obj->cache_outcome = BRIX_SD_CACHE_OUTCOME_MISS;
+    }
+    return obj;
 }
 
 /* Plain open slot (service credential / no per-user cred). */
@@ -276,6 +285,7 @@ static const brix_sd_driver_t brix_sd_cache_driver = {
     .open_cred        = sd_cache_open_cred,
     .close            = sd_cache_close,
     .pread            = sd_cache_pread,
+    .read_advise      = sd_cache_read_advise,
     .fstat            = sd_cache_fstat,
     .read_sendfile_fd = sd_cache_read_sendfile_fd,
     .stat          = sd_cache_stat,
@@ -360,114 +370,13 @@ brix_sd_cache_destroy(brix_sd_instance_t *inst)
     free(inst);
 }
 
-/* ---- async-fill seam (SP2 "shell -> full") --------------------------------
- * The decorator's open() runs the miss-fill INLINE - correct on a worker thread
- * (the stream fill task, a WebDAV/S3 PUT worker) but a stall on the event loop
- * when the fill reads a remote source or writes a remote store (a socket wire
- * client cannot do blocking I/O on the un-pumped loop; an in-process store just
- * freezes the worker for the transfer). The HTTP read plane therefore probes
- * whether an inline open would block, runs the fill on the thread pool, and
- * re-enters. These three entrypoints expose exactly that - without making the
- * SD open() contract asynchronous. See src/shared/http_cache_fill.c. */
-
+/* The identity predicate lives here because the driver vtable is static to
+ * this TU; the caller-driven evict/cached-bytes probes and the SP2 async-fill
+ * offload trio it gates live in sd_cache_maint.c. */
 int
 brix_sd_cache_instance_is(const brix_sd_instance_t *inst)
 {
     return (inst != NULL && inst->driver == &brix_sd_cache_driver) ? 1 : 0;
-}
-
-/* Evict `key` from this decorator's cache store, if `inst` is a cache decorator
- * (a no-op otherwise). The namespace VFS ops (delete/rename) dispatch on the
- * unwrapped leaf instance so per-user credentials thread to the origin driver,
- * which skips the decorator's own unlink/rename and therefore its evict side
- * effect; the caller invokes this after a successful leaf op to keep the store
- * coherent. Mirrors the evict in sd_cache_unlink()/sd_cache_rename(). */
-void
-brix_sd_cache_evict(brix_sd_instance_t *inst, const char *key)
-{
-    sd_cache_inst_state  *st;
-
-    if (!brix_sd_cache_instance_is(inst) || key == NULL) {
-        return;
-    }
-    st = SD_CACHE_ST(inst);
-    (void) brix_cstore_evict(&st->cstore, key);
-}
-
-/* Would a read-open of `key` block the calling thread on slow (remote) I/O? 1
- * only for a cache MISS whose whole-file fill would touch a non-local tier - the
- * source exposes no local fd (a remote read: xroot/http/s3/ceph) or the cache
- * store is not a local POSIX dir (a remote write: e.g. a rados store). A COMPLETE
- * hit, a slice-mode object (open returns without filling), a local->local copy,
- * or a non-cache instance all return 0 (serve inline). No blocking call - the
- * cinfo probe hits the per-worker L1 / a local sidecar. */
-int
-brix_sd_cache_fill_needs_offload(brix_sd_instance_t *inst, const char *key)
-{
-    sd_cache_inst_state  *st;
-    brix_cache_cinfo_t  ci;
-    int                   src_slow;
-    int                   store_slow;
-
-    if (!brix_sd_cache_instance_is(inst) || key == NULL) {
-        return 0;
-    }
-    st = SD_CACHE_ST(inst);
-
-    /* A COMPLETE cached object is served from the store with no fill —
-     * unless its phase-68 TTL has passed (an expired manifest refills; the
-     * failed-refill path serves it stale within the 10x-TTL bound). */
-    if (brix_cstore_cinfo_load(&st->cstore, key, &ci) == NGX_OK
-        && (ci.flags & BRIX_CINFO_F_COMPLETE))
-    {
-        if (!(st->policy.cvmfs_manifest_ttl > 0
-              && brix_cache_cinfo_expired(&ci, time(NULL)) == 1))
-        {
-            return 0;
-        }
-        /* expired: fall through to the miss logic (refill if a slow tier) */
-    }
-    /* Slice/partial mode (LOCAL store): open() returns a partial object without a
-     * whole-file fill, so the open call itself does not block. */
-    if (st->policy.slice_size > 0
-        && st->cstore.meta_mode == BRIX_CMETA_LOCAL)
-    {
-        return 0;
-    }
-    /* A miss: the inline open would run the whole-file fill. Offload iff a slow
-     * tier is involved - a remote source read or a remote store write. */
-    src_slow   = (brix_sd_caps(st->source) & BRIX_SD_CAP_FD) == 0;
-    store_slow = (st->cstore.meta_mode != BRIX_CMETA_LOCAL);
-    return (src_slow || store_slow) ? 1 : 0;
-}
-
-/* Run the whole-file fill for `key` (source -> cache store + cinfo) on the
- * CALLING thread - the worker-thread half of the offload. NGX_OK (cached),
- * NGX_DECLINED (admission declined - not cached), NGX_ERROR (fill failure).
- * Safe off the event loop: pure driver pread/pwrite + cstore ops, no nginx pool. */
-ngx_int_t
-brix_sd_cache_fill_key(brix_sd_instance_t *inst, const char *key,
-    const brix_sd_cred_t *cred)
-{
-    return brix_sd_cache_fill_key_ex(inst, key, cred, 0, NULL);
-}
-
-/* As brix_sd_cache_fill_key, but with the phase-92 store-then-evict passthrough
- * opt-in threaded through (see sd_cache_fill / sd_cache.h). When *out_pt is set
- * to 1 on an NGX_OK return, the object was filled ONLY under the passthrough
- * policy: the caller must evict `key` (brix_sd_cache_evict) after serving it. */
-ngx_int_t
-brix_sd_cache_fill_key_ex(brix_sd_instance_t *inst, const char *key,
-    const brix_sd_cred_t *cred, int allow_pt, int *out_pt)
-{
-    if (out_pt != NULL) {
-        *out_pt = 0;
-    }
-    if (!brix_sd_cache_instance_is(inst) || key == NULL) {
-        errno = EINVAL;
-        return NGX_ERROR;
-    }
-    return sd_cache_fill(SD_CACHE_ST(inst), key, cred, allow_pt, out_pt);
 }
 
 /* The cache STORE instance (where served objects live), or NULL for a non-cache

@@ -383,6 +383,13 @@ typedef struct {
     ngx_atomic_t  cache_watermark_evicted_files; /* counter: files reaped by the reaper */
     ngx_atomic_t  cache_watermark_evicted_bytes; /* counter: bytes reaped by the reaper */
 
+    /* Background block prefetch (sd_cache_prefetch.c — sole owner). Process-
+     * wide: the detached thread-pool jobs carry no per-proto/per-server
+     * context, like the watermark reaper above. */
+    ngx_atomic_t  cache_prefetch_jobs_total;     /* counter: background jobs posted */
+    ngx_atomic_t  cache_prefetch_blocks_total;   /* counter: blocks filled by prefetch */
+    ngx_atomic_t  cache_prefetch_failures_total; /* counter: jobs that failed (open/fill) */
+
     /* Write-back-staging backpressure (stage_admit.c). usage_ratio is a GAUGE in
      * ppm (staging filesystem occupancy); the throttle counters split by action. */
     ngx_atomic_t  wt_stage_usage_ratio_ppm;      /* gauge: staging fs occupancy, ppm */
@@ -463,6 +470,9 @@ typedef struct {
     ngx_atomic_t  cms_idle_closes_total;        /* A1: server post-login idle watchdog closed */
     ngx_atomic_t  cms_cap_rejections_total;     /* A1: accept refused (global or per-IP cap) */
     ngx_atomic_t  cms_frame_yields_total;       /* A2: read-loop yielded (flood fairness) */
+    ngx_atomic_t  cms_logins_total;             /* A3: client LOGIN frames sent upward */
+    ngx_atomic_t  cms_connect_failures_total;   /* A3: upward dial never became a live link */
+    ngx_atomic_t  cms_registered_links;         /* A3: GAUGE — upward links currently logged in */
     ngx_atomic_t  ocsp_timeouts_total;          /* E1: OCSP fetch hit the socket deadline */
     ngx_atomic_t  auth_l1_hits_total;           /* E2: auth-gate verdict served from L1 */
     ngx_atomic_t  auth_l1_misses_total;         /* E2: auth-gate L1 miss (fell to L2/eval) */

@@ -41,6 +41,7 @@ won't come up. Each item cost real time at least once.
 | Relative `tests/` path or a saved nodeid list yields "12 workers [0 items]" | `conftest._chdir_scratch()` chdirs every xdist worker into a scratch dir before collection; a relative arg resolves to nothing | Always pass absolute test paths / nodeids under xdist |
 | `pkill -f pytest` / `pkill -f run_suite` / `pkill -f nginx` kills your own shell (exit 144) | These patterns self-match the invoking shell/wrapper | Use exact-comm `pkill -9 -x nginx`/`-x xrootd`, or `pgrep ... \| grep -v $$`; use `brutal_teardown.sh` as the canonical reaper (scans `/proc/*/cmdline` for test-path markers, skips `$$`/`$PPID`) |
 | A resilience/fault-proxy or destructive test flakes when run inside the shared fleet | The shared fleet (11094-12126) is itself flaky to bring up and shares state with everything else | Resilience/fault-proxy/destructive suites must self-provision dedicated nginx+xrootd on a private high port block, own PKI/data dir — never call `start-all` for them |
+| Every token **accept**-case fails while every **reject**-case passes (e.g. `test_wr_01/02/04_*_accept` red on webdav *and* s3, `test_wr_03_read_scope_denies_write` and all `*_reject` green) | Fleet **signing-key desync**, never a scope/authz code bug: `TokenForge` is minting with keys the servers no longer trust, so *all* tokens die at authN — reject-expecting tests then pass trivially. An interrupted `restart` (it boots ~76 servers and regenerates PKI, easily >2 min) leaves the dedicated instances (`/tmp/xrd-test/dedicated/webdav-token`, `s3-bearer`, …) holding stale keys, and can abort mid-PKI-regen so the main nginx `[emerg]`s on a missing `ca.key`/`hostcert.pem` | Do not chase it into `scopes.c`/`validate.c`. Re-run `restart` to completion in the background with a long timeout — it may need two passes (first wipes and regenerates PKI, second converges) — and confirm `/tmp/xrd-test/pki/{ca/ca.key,server/hostcert.pem,user/proxy.pem}` all exist before re-testing |
 | A conformance/harness test "fails" and it looks like a server bug | Historically, ~90% of the time the *test* carried a stale assumption, not the server | Always verify differentially against a real stock `xrootd`/`XrdCl` reference before touching `src/`; see the conformance section below |
 | Test failures/timeouts/high load and you're about to write "environmental, not code" | **BANNED.** This exact excuse buried a real crash-loop bug (uninitialized reaper timer, fixed `66efecd0`) for weeks — see the postmortem below | Check `coredumpctl list --since=-1h`, worker PID churn, and error.log for repeated startup banners BEFORE attributing anything to load |
 
@@ -149,6 +150,89 @@ self-evident from `tests/README.md`:
   aborting the whole xdist run with "Different tests collected between gwN".
   Fixed with a `try/except OSError` fallback to repo root; this had been
   silently breaking full-suite runs.
+- **Render nginx config templates with token substitution, never
+  `str.format()`.** An nginx config is full of literal `{ }` blocks, so
+  `.format()` raises `KeyError: ' '` on `events { }` before it ever reaches a
+  placeholder. Use `.replace()`-style token substitution — and note the
+  converse trap from the gsiftp client work: a template *comment* that names
+  its own `{PLACEHOLDER}` gets substituted too.
+- **The session-start wipe is not unconditional.** `conftest`'s
+  `shutil.rmtree(TEST_ROOT, ignore_errors=True)` silently fails on a mode-`0555`
+  directory holding `0444` files (a PKI fixture left one under
+  `registry/xrdhttp/ca-public/`), leaving a *partially* wiped tree — worse than
+  no wipe, because the survivors are stale. A fixture that chmods a directory
+  read-only must restore the mode in teardown.
+- **`TMPDIR` inside the fleet root may not exist.** It points at
+  `/tmp/xrd-test/tmp`, so `tempfile.mktemp()` with no `dir=` hands back a path
+  the client cannot create; with `xrdcp` that surfaces as rc 54, a *transport*
+  failure, in every case including the clean control — a diagnosis that sends
+  you looking at the wire.
+- **Fixed test ports must sit below the ephemeral floor.** Anything ≥ 32768 can
+  collide with an OS-assigned ephemeral port and is a latent bind flake, not a
+  stable choice.
+- **A suite that hardcodes ports instead of using the per-session tile
+  allocator collides deterministically** with a second concurrent run or a
+  leaked origin, and it presents as mass "mount failed" rather than as a port
+  error. `PortBlock` tiles have their own trap: a fresh block allocated by a
+  later test restarts at `base+10` and lands on the module fixture's live
+  instances — stash the fixture's block and continue its sequence instead. And
+  because `_CANON_HI` shifts whenever `PORT_BLOCKS` is edited under a running
+  session, an edit can silently point a suite at a *foreign* origin.
+- **Concurrent sessions clobber shared state mid-run.** A shared `/tmp` freeze
+  directory or the shared build tree produces "unknown directive" reds that look
+  like config regressions; rerun with a private `TEST_ROOT` and `NGINX_BIN`
+  before believing them. Related: lint tests such as
+  `test_no_new_direct_nginx_launches` trip on *other sessions'* untracked WIP
+  files, so check `git status` provenance before claiming ownership of a lint
+  failure.
+- **Some suites are only flaky under host saturation** (load 6–21 from other
+  sessions) and pass 100% solo. Establish that before treating a rotating
+  failure set as a product bug — but note that "the host is overloaded" is a
+  banned *diagnosis* absent evidence (§4.1); the point here is to reproduce
+  solo, not to hand-wave.
+- **Assert robust properties, not fragile counts, against a live cluster.** A
+  strict `count_frames(LOGIN) == base` flaked on a single incidental re-dial
+  under an 8-minute serial run; a second LOGIN legitimately re-registers a
+  second entry, so an aggregate `STATFS` doubles — assert "still alive and
+  ≥ expected", not equality. Where a node may be mid-reconnect, wrap the send
+  and assert survival.
+- **`bytes([expr for i in ...])` is a list comprehension and raises
+  `TypeError`** — use a generator: `bytes(expr for ...)`. Easy to miss when
+  hand-building wire frames.
+- **Wire-speaking stubs: three fixed traps.** (1) A stub manager's `stop()` must
+  `shutdown(SHUT_RDWR)` its *accepted* connections, not just the listener —
+  otherwise a lingering serve thread answers post-mortem locates and a failover
+  test sees both ports alive. (2) The client-side session bootstrap order is
+  handshake send → `kXR_protocol` send → **then** read both responses; reading
+  between the two sends deadlocks. (3) The node sets `logged_in = 1` when the
+  login frame is *sent*, not when the manager answers, so any stub that merely
+  accepts TCP counts as a registered link — and conversely a **refused** dial
+  surfaces on the read side, so count it in teardown, not at connect time.
+- **A suite that skips on build failure hides the breakage.** Read the *skip
+  count*, not just pass/fail: a lab whose fixture self-skips when its binary
+  does not compile reports 0 failures forever.
+- **The CI-lane modules rebuild the shared tree if you forget `-m "not slow"`.**
+  Both `test_ci_guards.py::test_ci_coverage_runner_green` and
+  `test_ci_asan_lane.py::test_ci_asan_runner_green` are `@pytest.mark.slow` and
+  each triggers a real instrumented `make -j` in `/tmp/nginx-1.28.3`, replacing
+  `objs/nginx` for every session and the whole fleet. Always deselect slow for
+  the fast check. When you *do* need an instrumented or otherwise special build,
+  build to a private `--builddir` and point the tests at it with
+  `TEST_NGINX_BIN=$BD/nginx` rather than mutating the shared tree — and
+  remember a rebuild of the shared binary runs from `/tmp/nginx-1.28.3`, not
+  from the repo root.
+- **Back-to-back isolated runs of the KDC labs all-skip** on a port-18800
+  teardown lag; let it settle and retry, and pass an explicit
+  `--basetemp=<scratch>` to dodge the shared-basetemp rotation race.
+- **Do not diagnose a PKI problem with a hand-rolled
+  `pki_helpers.blitz_test_pki()` + `manage_test_servers start-dedicated`
+  fleet.** A stale orphan nginx squatting on 18450–18456 holds boot-time certs
+  while the blitz rewrites the CA underneath it, which turns a clean signal into
+  a contradiction. Reap first, then measure.
+- **This WSL2 kernel accepts `O_DIRECT` on tmpfs** (`/dev/shm`), so the
+  "tmpfs rejects O_DIRECT" fallback is not deterministically testable here. The
+  unit's security-negative case uses an invalid fd (`fcntl(F_GETFL)` fails)
+  instead.
 
 ### 1.4 Migrating self-provisioning tests onto pre-started dedicated instances
 
@@ -198,6 +282,95 @@ server sequentially were serializing two independent 5s socket timeouts into
 10s per case; running both probes as GIL-released threads (`_run_pair`)
 overlapped the waits and cut `conf_framing` from 51.3s to 31.3s (-39%), a
 pattern applicable to the rest of the `conf_*` differential families.
+
+### 1.6 Per-test server declaration, and the subset boot that was dead code
+
+Booting all 120 fleet instances for every run is most of the cost of a focused
+test. The fix was to make each test *declare* the dedicated servers it uses, via
+markers applied by an idempotent codemod (`tools/add_registry_markers.py`, 547
+markers across 50 files), and hard-fail at collection when a collected test
+touches a server it never declared. The policy — marker syntax, exemptions, the
+`REGISTRY_STRICT_DECLARATIONS=0` report-only escape — is in
+`tests/configs/REGISTRY_MIGRATION.md` § "Declaring Servers (collection gate)".
+Detection is by *port-constant reference*, resolved through an authoritative
+port→owning-spec map (`tests/fleet_ports.py`), which is itself linted so no port
+value can be owned by two specs. Of the tree, ~4600 tests are serverless, ~1470
+touch only the always-on backbone (7 core specs, reached via fixtures and
+therefore never declared), and 547 touch a dedicated spec.
+
+Two lessons outlived the migration.
+
+**The opt-in subset boot had never once run.** The fleet started from
+`pytest_sessionstart`, which fires *before collection*, so the subset computed in
+`pytest_collection_modifyitems` was invisible and `start_registered(None)` booted
+all 120 every time — the feature was dead code that read as working. Moving fleet
+start to `pytest_collection_finish` fixed it: that runs after `-m`/`-k`
+deselection, so the boot set is the exact subset (with `--collect-only`, empty,
+attach, remote and worker sessions all skipped). Under xdist the controller never
+collects, so it keeps the full-fleet path from `sessionstart`. General form: **a
+lazily-computed optimisation whose input is produced after its consumer runs is
+indistinguishable from a working one until you measure the boot.**
+
+**Subset selection exposes a whole class of invisible dependency.** A module-level
+*autouse* session fixture that waits on a dedicated spec's port is invisible to
+per-test attribution — only the test that took the fixture as a parameter declared
+the spec, so any `--lf`/`-k` subset from that module *without* that test booted no
+such server and the autouse fixture errored every test in the module at its port
+wait. The fix was to drop `autouse=True` where there was a single real consumer.
+Audit for this whenever a module's tests error at a port-wait fixture only under
+subset selection and pass when the whole module runs.
+
+Also fixed in the same lane, both real flakes rather than harness artefacts: a
+cluster fixture demanded a redirect to one specific data server, but selection
+tie-breaks by registration order and parallel bring-up can register the other
+first (25s timeout, last status 4004) — it now accepts either; and a select-wake
+helper judged the *first* locate, which is `kXR_error` by design until the
+parent-CMS link is up, so it now retries to a deadline.
+
+### 1.7 The host-literal guard decays, so run it in every sweep
+
+A 15-wave sweep removed 1233 hardcoded network host literals (`localhost`,
+`0.0.0.0`, `127.0.0.1`, `::1` and friends) from `tests/`, replacing them with
+env-overridable constants in `tests/settings.py` (`HOST`, `BIND_HOST`,
+`SERVER_HOST`, `HOST6`, `BIND_HOST6`, `url_host()`), so a move to k8s pods is one
+config change. The AST guard `tests/test_no_hardcoded_hosts.py` is
+zero-tolerance with no baseline.
+
+The migration taxonomy is worth reusing verbatim, because every wave reduced to
+it: a **dial/connect target** becomes `HOST`/`SERVER_HOST`/`HOST6`; a
+**bind/listen/readiness-probe** target becomes `BIND_HOST`/`BIND_HOST6`; and a
+literal that **is the subject under test** — a cert CN/SAN, an SSRF or fuzz
+payload, a host ACL rule, an asserted log or metric value, a krb5 principal, a
+deliberate numeric-IPv4 forcing, a wildcard `0.0.0.0` bind — keeps its literal and
+takes an inline `# net-literal-allow: <reason>` marker. The reason is mandatory;
+a bare marker is rejected by the guard's own regex. One addition from the later
+burndown: **loopback inside a test network namespace must be annotated, never
+routed through `settings.HOST`**, because `HOST` names the host's fleet address
+and does not follow into the netns.
+
+Two durable warnings:
+
+- **This is not a one-and-done migration.** The guard was clean on 2026-07-22 and
+  **red again with 45 literals across 14 modules by 2026-08-04** — every new test
+  module reintroduces them. Run `pytest tests/test_no_hardcoded_hosts.py` as part
+  of any test-suite sweep, not once per migration.
+- **The guard is necessary, not sufficient.** It scans `tests/*.py` for
+  *literals*; it does not check `cmdscripts/*.py` f-string correctness, so two
+  migration artefacts reached runtime. A plain string that received a `{HOST}`
+  substitution but was never made an f-string passed the literal `{HOST}` to
+  curl/xrdcp/nginx-config (find with
+  `grep -rnE '(^|[^f])"[^"]*\{(HOST|BIND_HOST|SERVER_HOST)\}'`, then exclude hits
+  inside multiline `f"""` blocks); and a `from settings import ...` was injected
+  into a *generated standalone script* that nginx runs as its own subprocess,
+  where `settings` is not on `sys.path` — `ModuleNotFoundError`, staging fails,
+  tape/S3-Glacier residency tests fail. A migrated cmdscript needs a live scenario
+  run, not just a green guard.
+
+Marker mechanics that save time: `#` is a valid comment in nginx-config, bash and
+`krb5.conf`, so markers work *inside* triple-quoted config blocks (the guard scans
+the whole AST node span), but adjacent `Constant` nodes each need their own marker
+in their own span. Migrating a module constant means replacing the whole
+`HOST = "127.0.0.1"` line with `from settings import HOST` so the name rebinds.
 
 ---
 
@@ -829,3 +1002,72 @@ signing string or a generated URL is a truncation / smuggling primitive. Fixed w
 `docs/07-security/hyper-hardening-plan.md` C-1 item 5. TRAP for anyone touching a
 `strchr`-based membership test: `strchr(set, 0)` is always a hit — guard `c != '\0'`
 whenever the scanned byte can be NUL.
+
+---
+
+## 9. CMS/AAA federation join under network noise (2026-08-05)
+
+**What was untested.** BriX had heavy CMS coverage — hostile framing, wire PUP
+conformance, mesh interop, and (phase-97) cross-implementation manager parity.
+All of it spoke to its peer over a *clean loopback socket*. A real CMS AAA site
+reaches its redirector over a WAN, and the join is a handshake across that link,
+so nothing had ever asked whether a node can join, or stay joined, while the
+link is impaired. Separately, nothing on the node could answer "am I still in
+the cluster?" — `brix_cms_read_timeouts_total` reports a symptom fired, not
+membership.
+
+**The oracle came first.** Three fields were added to the Phase-51 resilience
+block: `brix_cms_logins_total`, `brix_cms_connect_failures_total`, and the gauge
+`brix_cms_registered_links`. The gauge is emitted by hand with `mw_printf`
+rather than through `mw_emit_scalar`, which hard-codes `# TYPE … counter` — the
+`frm_metrics.c` pattern. A gauge mislabelled as a counter is worse than no
+metric at all, because `rate()` over it returns plausible nonsense.
+
+**TRAP — a refused connect does not necessarily surface at `connect()`.** The
+three obvious failure sites in `src/net/cms/connect.c` (the
+`ngx_event_connect_peer()` error branch, the connect deadline, the login write)
+were all instrumented first, and a deliberately refused dial still counted
+**zero**. A standalone probe pointed at a dead port showed why: the log carried
+`recv() failed (111: Connection refused)` while `grep -c "will keep retrying"`
+returned 0, proving the `connect_peer` branch never ran. On loopback — and on
+any path where the peer resets rather than drops — the refusal is reported on
+the **read** side (`cms_recv_accumulate` → `cms_conn_fail`, `src/net/cms/recv.c`),
+a fourth site nobody would think to instrument. The fix was to stop counting at
+failure sites altogether and count in `ngx_brix_cms_disconnect()`, the one
+funnel every failed join passes through exactly once: `logged_in` set means a
+link is leaving the cluster (decrement the gauge), clear means the dial never
+became a link (increment failures). Generalisable: when an error can be
+delivered by more than one event handler, instrument the teardown, not the
+detection.
+
+**The suite.** `tests/test_cms_aaa_join_noise.py` — 13 tests, fully
+unprivileged. The WAN is `client/bin/brix-fault-proxy` (phase-89), a userspace
+TCP relay with a live control port, which is what removes the need for `netem`
+and therefore for root. Topology: a raw kXR client drives the node's data plane,
+the node dials a `ManagerPeer` redirector stand-in *through* the proxy, and the
+node's own `/metrics` is the assertion oracle. `ManagerPeer` (in
+`test_cms_resilience.py`) was extended additively to record every frame code in
+arrival order — recording the *order* is what lets a test prove LOGIN arrived
+first and intact after the link chopped and reordered it.
+
+Coverage: join through latency+jitter, LOGIN reassembly under segmentation and
+reordering, heartbeats under sustained noise; outage by silence, by refusal, by
+accept-then-close and by mid-stream sever, plus rejoin on heal; a corrupting,
+oversized-framing (`0xFFFF` dlen), storming redirector; and a 200-connection
+storm plus 150 connect/abort cycles that must leave the gauge at exactly 1.
+Every test additionally asserts data-plane liveness and scans `error.log` for
+`exited on signal`/`SIGSEGV`/`Assertion` — "the federation leg broke" must never
+mean "the site stopped serving data".
+
+**TRAP — `brix-fault-proxy`'s `block` is accept-then-close, not refuse.** The
+accept loop closes the client immediately, so the node sees a *successful*
+connect and no connect failure is counted. That cost one failing test before it
+was understood. Both modes are now covered: `ImpairedLink.down()` kills the
+proxy outright for a true `ECONNREFUSED`, and `block` got its own test, since an
+overloaded `cmsd` really does behave that way.
+
+**Also.** The default 30 s `pytest.ini` timeout cannot hold a test that
+deliberately waits out a backoff window; the module carries
+`pytest.mark.timeout(180)` (precedent: `test_chaos_mesh.py`).
+
+Full design record: `docs/refactor/phase-98-cms-aaa-federation-join-under-noise.md`.

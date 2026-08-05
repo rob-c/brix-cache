@@ -625,6 +625,11 @@ def pytest_configure(config):
         "markers",
         "registry_servers(*names): test requires the named server registry specs",
     )
+    config.addinivalue_line(
+        "markers",
+        "matrix(protocols, auths, tls, backends): expand this test over the "
+        "coverage matrix — see tests/matrix_layer.py and pytest_generate_tests",
+    )
 
 
 # Load the multi-user permission conformance fixtures (mu_fleet, cast, apply_policy, ...).
@@ -991,6 +996,55 @@ def lifecycle():
 @pytest.fixture
 def command_runner(registry):
     return registry.run_cmd
+
+
+# --------------------------------------------------------------------------- #
+# The (protocol × auth × tls × backend) parametrization layer.                  #
+# --------------------------------------------------------------------------- #
+def pytest_generate_tests(metafunc):
+    """Expand `@pytest.mark.matrix(...)` into one case per coverage cell.
+
+    Before this hook the suite had no generative parametrization at all: every
+    cell of the matrix was a hand-written module with its own template, which is
+    why the matrix was sparse and re-sparsified with each new backend
+    (docs/refactor/testsuite-combinatorial-coverage-audit-2026-08-04.md item 19).
+    Unreachable combinations are parametrized too and skip with the product
+    reason from `matrix_layer.supported()`, so "empty" and "impossible" stay
+    distinguishable in the report.
+    """
+    if "matrix_node" not in metafunc.fixturenames:
+        return
+    mark = metafunc.definition.get_closest_marker("matrix")
+    if mark is None:
+        raise pytest.UsageError(
+            f"{metafunc.definition.nodeid}: requests the `matrix_node` fixture "
+            "but carries no @pytest.mark.matrix(...) to expand")
+    import matrix_layer
+    cells, ids = matrix_layer.expand(**mark.kwargs)
+    metafunc.parametrize("matrix_node", cells, ids=ids, indirect=True)
+
+
+@pytest.fixture(scope="module")
+def matrix_node(request, tmp_path_factory):
+    """Stand up the parametrized cell; one instance per cell, not per test."""
+    import matrix_layer
+    from server_launcher import LifecycleHarness
+
+    cell = request.param
+    token = None
+    if cell.auth == "token":
+        from utils.make_token import TokenIssuer
+        ti = TokenIssuer(matrix_layer.TOKEN_DIR)
+        if not os.path.exists(ti.key_path):
+            ti.init_keys()
+        token = ti.generate(scope="storage.read:/ storage.modify:/")
+    harness = LifecycleHarness()
+    try:
+        yield matrix_layer.make_node(
+            cell, tmp=tmp_path_factory.mktemp(f"matrix-{cell.id}"),
+            lifecycle=harness, token=token)
+    finally:
+        harness.close()
 
 
 @pytest.fixture(scope="session")

@@ -22,7 +22,75 @@
 
 #define SD_STAGE_SRC(inst)  (((sd_stage_inst_state *) (inst)->state)->source)
 
+/* sd_stage_store_mkparents — create `key`'s parent chain inside the stage STORE.
+ *
+ * WHAT: EEXIST-tolerant prefix walk calling the store driver's mkdir slot for
+ *       every directory component before the key's last '/'.
+ * WHY:  The stage store is a PRIVATE spool, not a client-visible namespace: a
+ *       client mkdir (or the kXR_mkpath/kXR_async pre-create) builds the chain in
+ *       the EXPORT, never in the spool, so the store's create-open of a nested key
+ *       failed ENOENT — with a stage tier configured, a write to ANY subdirectory
+ *       was impossible. The staged (whole-object) leg never hit this because the
+ *       POSIX store's staged_open mkpaths its own parents; this is that same rule
+ *       for the write-back leg.
+ * HOW:  Copies the parent prefix and mkdirs each component in turn with mode 0700
+ *       (service-owned spool), tolerating EEXIST. A flat key, or a store with no
+ *       mkdir slot, is NGX_OK — the open then decides, exactly as before. */
+static ngx_int_t
+sd_stage_store_mkparents(sd_stage_inst_state *is, const char *key)
+{
+    char        acc[PATH_MAX];
+    const char *last = strrchr(key, '/');
+    size_t      plen, j;
+
+    if (last == NULL || last == key || is->store->driver->mkdir == NULL) {
+        return NGX_OK;
+    }
+
+    plen = (size_t) (last - key);
+    if (plen >= sizeof(acc)) {
+        errno = ENAMETOOLONG;
+        return NGX_ERROR;
+    }
+    memcpy(acc, key, plen);
+    acc[plen] = '\0';
+
+    for (j = 1; j <= plen; j++) {
+        char sep = acc[j];
+
+        if (sep != '/' && sep != '\0') {
+            continue;
+        }
+        acc[j] = '\0';
+        if (is->store->driver->mkdir(is->store, acc, 0700) != NGX_OK
+            && errno != EEXIST)
+        {
+            return NGX_ERROR;
+        }
+        acc[j] = sep;
+    }
+    return NGX_OK;
+}
+
 /* ---- open dispatch -------------------------------------------------------- */
+
+/* The one write-open entry both open slots share: build the spool-side parent
+ * chain for a creating open, then hand off to the write-back open. Only a CREATE
+ * may materialise a new key, so a plain update open never mkdirs. */
+static brix_sd_obj_t *
+sd_stage_open_write(brix_sd_instance_t *inst, sd_stage_inst_state *is,
+    const char *path, int sd_flags, mode_t mode, const brix_sd_cred_t *cred,
+    int *err_out)
+{
+    if ((sd_flags & BRIX_SD_O_CREATE)
+        && sd_stage_store_mkparents(is, path) != NGX_OK)
+    {
+        if (err_out != NULL) { *err_out = errno ? errno : EIO; }
+        return NULL;
+    }
+    return sd_stage_open_writeback(inst, is, path, sd_flags, mode, cred,
+                                    err_out);
+}
 
 static brix_sd_obj_t *
 sd_stage_open(brix_sd_instance_t *inst, const char *path, int sd_flags,
@@ -34,8 +102,8 @@ sd_stage_open(brix_sd_instance_t *inst, const char *path, int sd_flags,
      * flush to the backend). Read open → the source's own object, so read byte-I/O
      * bypasses the decorator entirely. */
     if (sd_flags & BRIX_SD_O_WRITE) {
-        return sd_stage_open_writeback(inst, is, path, sd_flags, mode, NULL,
-                                        err_out);
+        return sd_stage_open_write(inst, is, path, sd_flags, mode, NULL,
+                                    err_out);
     }
     return is->source->driver->open(is->source, path, sd_flags, mode, err_out);
 }
@@ -52,7 +120,7 @@ sd_stage_open(brix_sd_instance_t *inst, const char *path, int sd_flags,
  *       opens use the service account for the source open on credential-aware
  *       backends.
  *
- * HOW:  Write → sd_stage_open_writeback(... cred); read →
+ * HOW:  Write → sd_stage_open_write(... cred); read →
  *       brix_sd_open_maybe_cred(source, ..., cred). */
 static brix_sd_obj_t *
 sd_stage_open_cred(brix_sd_instance_t *inst, const char *path, int sd_flags,
@@ -61,8 +129,8 @@ sd_stage_open_cred(brix_sd_instance_t *inst, const char *path, int sd_flags,
     sd_stage_inst_state *is = inst->state;
 
     if (sd_flags & BRIX_SD_O_WRITE) {
-        return sd_stage_open_writeback(inst, is, path, sd_flags, mode, cred,
-                                        err_out);
+        return sd_stage_open_write(inst, is, path, sd_flags, mode, cred,
+                                    err_out);
     }
     return brix_sd_open_maybe_cred(is->source, path, sd_flags, mode, cred,
                                     err_out);

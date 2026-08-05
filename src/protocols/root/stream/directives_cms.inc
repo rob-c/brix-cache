@@ -3,9 +3,11 @@
  * #included into ngx_stream_brix_commands[] in module.c (compiler concatenates;
  * setters/enum tables from module_enums.h stay visible). Not a standalone TU.
  */
-    /* Optional CMS manager registration/heartbeat. */
+    /* Optional CMS manager registration/heartbeat.  Repeatable, and each line
+     * takes one or more host:port endpoints — every manager gets its own
+     * concurrent login/heartbeat link (redundant-manager parity, cap 15). */
     { ngx_string("brix_cms_manager"),
-      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      NGX_STREAM_SRV_CONF | NGX_CONF_1MORE,
       brix_conf_set_cms_manager,
       NGX_STREAM_SRV_CONF_OFFSET,
       0,

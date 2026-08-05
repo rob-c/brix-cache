@@ -79,8 +79,11 @@ sd_http_xml_tag_is(const char *q, const char *local, size_t llen)
 }
 
 /* Next start-tag whose local name is `local`, in [p, end); returns the '<' or
- * NULL. Skips close/comment/PI tags ("</", "<!", "<?"). */
-static const char *
+ * NULL. Skips close/comment/PI tags ("</", "<!", "<?"). Shared with the write
+ * path's resourcetype probe (sd_http_write.c) — declared in
+ * sd_http_internal.h so both PROPFIND readers use ONE namespace-prefix-aware
+ * tag scanner rather than a substring search that a filename could spoof. */
+const char *
 sd_http_xml_open(const char *p, const char *end, const char *local)
 {
     size_t llen = strlen(local);
@@ -189,8 +192,12 @@ sd_http_raw_push(sd_http_raw_ent **rv, size_t *rn, size_t *rc,
 }
 
 /* Extract one <response> block's decoded child name, '/'-segment depth and
- * d_type. Returns 1 when the block yielded a usable name, 0 otherwise (no
- * href, an unterminated tag, or the collection's own trailing-slash href). */
+ * d_type. Returns 1 when the block yielded a usable HREF, 0 otherwise (no href
+ * or an unterminated tag). `name` may come back EMPTY — that is the listing of
+ * the export root, whose self href is "/" and therefore has no basename. The
+ * caller must still count that response's depth: dropping it entirely made the
+ * shallowest surviving entry a CHILD, so min_depth came out one too deep and
+ * `dirlist /` on an http-backed export returned nothing at all. */
 static int
 sd_http_response_ent(const char *blk, const char *stop, char *name, size_t nsz,
     int *depth, unsigned char *dt)
@@ -214,7 +221,7 @@ sd_http_response_ent(const char *blk, const char *stop, char *name, size_t nsz,
     sd_http_url_decode(gt + 1, (size_t) (he - (gt + 1)), dec, sizeof(dec));
     sd_http_href_split(dec, name, nsz, depth);
     *dt = (sd_http_xml_open(blk, stop, "collection") != NULL) ? DT_DIR : DT_REG;
-    return name[0] != '\0';
+    return 1;
 }
 
 
@@ -234,12 +241,16 @@ sd_http_collect_responses(const char *xml, const char *end,
         unsigned char dt;
 
         if (sd_http_response_ent(blk, stop, name, sizeof(name), &depth, &dt)) {
-            if (sd_http_raw_push(rv, rn, rc, name, dt, depth) != 0) {
-                errno = ENOMEM;
-                return -1;
-            }
+            /* Depth is counted for EVERY response, including the nameless root
+             * self entry; only named responses can become listing entries. */
             if (*min_depth < 0 || depth < *min_depth) {
                 *min_depth = depth;
+            }
+            if (name[0] != '\0'
+                && sd_http_raw_push(rv, rn, rc, name, dt, depth) != 0)
+            {
+                errno = ENOMEM;
+                return -1;
             }
         }
         blk = nxt;
@@ -321,6 +332,76 @@ sd_http_dir_key(const char *path, char *key, size_t cap)
     key[kl] = '\0';
 }
 
+/* One PROPFIND request's identity: the key, the resolved credential, the depth
+ * ("0" = this resource, "1" = its children) and whether the request is pinned to
+ * the primary endpoint. Bundled so the shared issue helper keeps a small
+ * parameter list; every field is immutable for the life of the call. */
+typedef struct {
+    const char *key;
+    const char *auth;        /* resolved "Authorization: …\r\n" line, or NULL */
+    const char *cert_pem;
+    int         depth;
+    int         force_primary;
+} sd_http_pf_t;
+
+/* sd_http_propfind_errno — the one PROPFIND status→errno verdict.
+ *
+ * WHAT: 0 iff `status` is a usable 207 multistatus; otherwise the errno the
+ *       driver reports.
+ * WHY:  Both PROPFIND readers (the Depth:1 listing and the Depth:0 type probe)
+ *       must answer an origin's refusal identically — a 405/501 is "this origin
+ *       speaks no WebDAV" for a listing exactly as it is for a type question, and
+ *       a divergence there would make a path appear to exist to one caller and
+ *       not the other.
+ * HOW:  Pure mapping: 404/409 (absent, or a path that cannot exist under a
+ *       non-collection parent) ⇒ ENOENT; 401/403 ⇒ EACCES; 405/501 ⇒ ENOTSUP;
+ *       anything else non-207 ⇒ EIO. */
+static int
+sd_http_propfind_errno(int status)
+{
+    if (status == 207)                     { return 0; }
+    if (status == 404 || status == 409)    { return ENOENT; }
+    if (status == 401 || status == 403)    { return EACCES; }
+    if (status == 405 || status == 501)    { return ENOTSUP; }
+    return EIO;
+}
+
+/* sd_http_propfind_issue — send ONE PROPFIND and hand back a usable 207.
+ *
+ * WHAT: Composes the Depth + credential headers, runs the request, and returns 0
+ *       with `resp` holding a 207 the caller must free — or -1 with *err_out set
+ *       (the response is already freed).
+ * WHY:  The listing (Depth:1) and the type probe (Depth:0) differ only in the
+ *       depth, the endpoint pinning and what they do with the body; sharing the
+ *       issue+verdict keeps one wire spelling and one refusal map for both.
+ * HOW:  `pf` carries the whole request identity so the parameter list stays
+ *       small; force_primary is the caller's because a type verdict must pin the
+ *       endpoint the mutation will act on while a listing may fail over. */
+static int
+sd_http_propfind_issue(sd_http_inst_state *is, const sd_http_pf_t *pf,
+    brix_s3_resp_t *resp, int *err_out)
+{
+    char          hdrs[SD_HTTP_AUTH_MAX + 32];
+    sd_http_req_t rq = { is, "PROPFIND", pf->key, hdrs, pf->cert_pem, resp,
+                         pf->force_primary };
+    int           rc;
+
+    snprintf(hdrs, sizeof(hdrs), "Depth: %d\r\n%s", pf->depth,
+             (pf->auth != NULL) ? pf->auth : "");
+
+    if (sd_http_request_fo(&rq, NULL) != 0) {
+        *err_out = EIO;
+        return -1;
+    }
+    rc = sd_http_propfind_errno(resp->status);
+    if (rc != 0) {
+        is->transport->resp_free(resp);
+        *err_out = rc;
+        return -1;
+    }
+    return 0;
+}
+
 /* Issue the PROPFIND Depth:1 and parse its 207 body into `ds`. 0 on success,
  * -1 with *err_out set (ENOENT/EACCES/ENOTSUP/EIO/ENOMEM). */
 static int
@@ -329,41 +410,14 @@ sd_http_propfind(sd_http_inst_state *is, const char *key,
     int *err_out)
 {
     brix_s3_resp_t resp;
-    char           hdrs[SD_HTTP_AUTH_MAX + 32];
-    sd_http_req_t  rq = { is, "PROPFIND", key, hdrs, cert_pem, &resp,
+    sd_http_pf_t   pf = { key, auth_hdr, cert_pem, 1 /* children */,
                           g_sd_http_force_primary };
     const void    *body;
     size_t         blen = 0;
     char          *xml;
     int            rc;
 
-    snprintf(hdrs, sizeof(hdrs), "Depth: 1\r\n%s",
-             (auth_hdr != NULL) ? auth_hdr : "");
-
-    if (sd_http_request_fo(&rq, NULL) != 0) {
-        *err_out = EIO;
-        return -1;
-    }
-    if (resp.status == 404) {
-        is->transport->resp_free(&resp);
-        *err_out = ENOENT;
-        return -1;
-    }
-    if (resp.status == 401 || resp.status == 403) {
-        is->transport->resp_free(&resp);
-        *err_out = EACCES;
-        return -1;
-    }
-    /* 405 Method Not Allowed / 501 Not Implemented ⇒ the origin is a plain HTTP
-     * source with no WebDAV: report "no directory support", never guess. */
-    if (resp.status == 405 || resp.status == 501) {
-        is->transport->resp_free(&resp);
-        *err_out = ENOTSUP;
-        return -1;
-    }
-    if (resp.status != 207) {
-        is->transport->resp_free(&resp);
-        *err_out = EIO;
+    if (sd_http_propfind_issue(is, &pf, &resp, err_out) != 0) {
         return -1;
     }
 
@@ -390,6 +444,49 @@ sd_http_propfind(sd_http_inst_state *is, const char *key,
         *err_out = ENOMEM;
         return -1;
     }
+    return 0;
+}
+
+/* sd_http_probe_type — "does this path exist, and is it a collection?"
+ *
+ * WHAT: PROPFIND Depth:0 against ONE path. Returns 0 with *is_coll set, or -1
+ *       with *err_out = ENOENT (absent), EACCES, ENOTSUP (the origin speaks no
+ *       WebDAV) or EIO.
+ * WHY:  HTTP has one spelling for both kinds of resource — a HEAD of a
+ *       collection and a HEAD of an empty file are the same 200 with
+ *       Content-Length 0 — so every caller that must not confuse the two needs
+ *       this extra round trip. Two did, and both were wrong without it: DELETE
+ *       is one method for files and collections, so `sd_http_unlink` ignored its
+ *       `is_dir` argument and an rmdir of a regular FILE destroyed it; and
+ *       `sd_http_stat` reported EVERY path as a regular file, so a collection
+ *       stat'd as a 0-byte object — which made `mkdir -p` over an existing
+ *       directory fail EEXIST once the mkpath walk started checking the type.
+ * HOW:  PROPFIND with an empty (allprop) body and "Depth: 0", carrying whatever
+ *       credential the caller resolved, pinned to the primary endpoint (a type
+ *       verdict must describe the same origin the mutation or stat will act on).
+ *       A 207 body containing <resourcetype><collection/> is a collection; the
+ *       tag scan is the namespace-aware sd_http_xml_open the listing parser
+ *       uses, so a file NAMED "collection" cannot spoof it. */
+int
+sd_http_probe_type(sd_http_inst_state *is, const char *key, const char *auth,
+    const char *cert_pem, int *is_coll, int *err_out)
+{
+    brix_s3_resp_t resp;
+    sd_http_pf_t   pf = { key, auth, cert_pem, 0 /* this resource only */,
+                          1 /* force_primary: pin the endpoint the caller acts on */ };
+    const void    *body;
+    size_t         blen = 0;
+
+    if (sd_http_propfind_issue(is, &pf, &resp, err_out) != 0) {
+        return -1;
+    }
+
+    body = is->transport->resp_body(&resp, &blen);
+    *is_coll = (body != NULL && blen > 0
+                && sd_http_xml_open((const char *) body,
+                                    (const char *) body + blen,
+                                    "collection") != NULL) ? 1 : 0;
+    is->transport->resp_free(&resp);
     return 0;
 }
 

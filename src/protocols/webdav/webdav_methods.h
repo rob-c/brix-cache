@@ -35,6 +35,24 @@ ngx_int_t webdav_delete_path_recursive(ngx_log_t *log, const char *root_canon,
     const char *path);
 /* MKCOL: create one collection (201; 409 if parent missing, 405 if exists). */
 ngx_int_t webdav_handle_mkcol(ngx_http_request_t *r);
+
+/*
+ * CNS reporting for the http{} plane (phase-97 §5). Call on the SUCCESS path of
+ * a namespace mutation, with `path`/`src`/`dst` as resolved (root_canon-prefixed)
+ * on-disk paths. Each is a silent no-op unless this node is a federation data
+ * server with a live manager link, so call sites need no gate of their own.
+ * Best-effort: they never fail the operation they report.
+ */
+/* A created or overwritten object: probed through the confined VFS, then
+ * reported as ADD (file) or MKDIR (collection). */
+void webdav_cns_note_written(ngx_http_request_t *r, const char *path);
+/* A removed object. No probe — apply ignores size/mtime for DEL/RMDIR. */
+void webdav_cns_note_removed(ngx_http_request_t *r, const char *path,
+    int is_dir);
+/* A completed rename, as ONE subtree-aware MV (a DEL+ADD pair would strand the
+ * recorded children of a moved collection). */
+void webdav_cns_note_moved(ngx_http_request_t *r, const char *src,
+    const char *dst);
 /* PROPFIND: 207 Multi-Status (Depth 0/1) incl. live + dead properties + locks. */
 ngx_int_t webdav_handle_propfind(ngx_http_request_t *r);
 /* PROPPATCH: set/remove dead (xattr) properties; rejects protected DAV: props. */

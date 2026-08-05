@@ -145,6 +145,16 @@ void brix_metric_op_done(brix_proto_t proto, brix_metric_op_t op,
 void brix_metric_op_latency(brix_proto_t proto, brix_metric_op_t op,
     ngx_msec_t latency_usec);
 /*
+ * Record ONLY the io_ops_total[proto][op][err] bump — no byte totals, no
+ * latency observation.  The mirror of brix_metric_op_latency, for completion
+ * paths that own the op row but have no request-scoped duration to file (the
+ * third-party-copy path: its clock lives in the TPC registry across a detached
+ * thread, and a 0 µs sample would falsify the lowest latency bucket).
+ * Lock-free; no-ops on an out-of-range proto/op/err triple or detached SHM.
+ */
+void brix_metric_op_count(brix_proto_t proto, brix_metric_op_t op,
+    brix_err_class_t err);
+/*
  * brix_metric_backend_bytes — add a completed data op's byte count to the
  * per-backend storage totals (io_bytes_{read,written}_backend). backend_name
  * is the storage driver's census name (fs_list.h); NULL ⇒ "posix" (the
@@ -161,6 +171,13 @@ void brix_metric_backend_bytes(const char *backend_name,
  */
 void brix_metric_cache_result(brix_proto_t proto, unsigned int hit,
     size_t bytes_evicted);
+/*
+ * Record a protocol-driven cache invalidation (delete/rename/write-open over a
+ * cached path): adds bytes to cache_bytes_evicted[proto] without a hit/miss
+ * bump. Distinct from the per-server policy-engine and watermark-reaper
+ * eviction families. No-op on zero bytes, out-of-range proto, detached SHM.
+ */
+void brix_metric_cache_evicted(brix_proto_t proto, uint64_t bytes);
 /*
  * Credential-gate terminal outcomes (Phase 2 Task 3).
  *

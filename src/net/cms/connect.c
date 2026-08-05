@@ -5,6 +5,7 @@
 #include "core/compat/log_diag.h"
 #include "core/compat/lifecycle_timing.h"   /* monotonic clock for settle timing */
 #include "observability/sesslog/sesslog_ngx.h"
+#include "observability/metrics/metrics_macros.h"  /* A3: federation-join counters */
 
 #include <ngx_event_connect.h>
 #include <netinet/in.h>
@@ -52,17 +53,17 @@ ngx_brix_cms_manager_cstr(ngx_brix_cms_ctx_t *ctx, char *dst,
     size_t n;
 
     if (ctx == NULL || dst == NULL || dst_size == 0
-        || ctx->conf->cms.manager.data == NULL)
+        || ctx->mgr_name.data == NULL)
     {
         return "-";
     }
 
-    n = ctx->conf->cms.manager.len;
+    n = ctx->mgr_name.len;
     if (n >= dst_size) {
         n = dst_size - 1;
     }
     if (n > 0) {
-        ngx_memcpy(dst, ctx->conf->cms.manager.data, n);
+        ngx_memcpy(dst, ctx->mgr_name.data, n);
     }
     dst[n] = '\0';
 
@@ -80,8 +81,8 @@ ngx_brix_cms_sess_begin(ngx_brix_cms_ctx_t *ctx)
                                 ctx->conf->access_log_fd,
                                 BRIX_SESS_PROTO_CMS,
                                 BRIX_SESS_DIR_OUT,
-                                (const char *) ctx->conf->cms.manager.data,
-                                ctx->conf->cms.manager.len,
+                                (const char *) ctx->mgr_name.data,
+                                ctx->mgr_name.len,
                                 BRIX_SESS_AM_HOST, NULL);
 }
 
@@ -179,7 +180,7 @@ ngx_brix_cms_schedule_retry(ngx_brix_cms_ctx_t *ctx)
         if ((ngx_msec_int_t) (ctx->fast_deadline - now) > 0) {
             ngx_log_debug2(NGX_LOG_DEBUG_EVENT, ctx->cycle->log, 0,
                            "brix: CMS fast-retry to %V (attempt %ui)",
-                           &ctx->conf->cms.manager, ctx->connect_attempts);
+                           &ctx->mgr_name, ctx->connect_attempts);
             ngx_brix_cms_schedule(ctx, ctx->fast_retry);
             return;
         }
@@ -193,7 +194,7 @@ ngx_brix_cms_schedule_retry(ngx_brix_cms_ctx_t *ctx)
             "the connection",
             "confirm cmsd is listening and that brix_cms_manager matches its "
             "host:port; this node stays OUT of the cluster until it connects",
-            &ctx->conf->cms.manager);
+            &ctx->mgr_name);
     }
 
     /* Cap max backoff at 10× the heartbeat interval so a short cms_interval
@@ -253,6 +254,23 @@ ngx_brix_cms_disconnect(ngx_brix_cms_ctx_t *ctx)
 
     ngx_close_connection(c);
 
+    if (ctx->logged_in) {
+        /* This link leaves the cluster now — drop the gauge exactly once per
+         * login/teardown pair (the flag is cleared immediately below). */
+        BRIX_RESIL_METRIC_DEC(cms_registered_links);
+
+    } else {
+        /*
+         * Torn down before LOGIN ever went out: this dial never became a link,
+         * so it is a failed join attempt.  Counted HERE rather than at each
+         * failure site because a refused dial can surface on any of three of
+         * them — connect deadline, login write, or (on loopback, the common
+         * one) the read side reporting ECONNREFUSED — and every one of them
+         * funnels through this teardown exactly once.
+         */
+        BRIX_RESIL_METRIC_INC(cms_connect_failures_total);
+    }
+
     ctx->connection = NULL;
     ctx->logged_in = 0;
     ctx->in_pos = 0;
@@ -307,14 +325,16 @@ ngx_brix_cms_write_handler(ngx_event_t *ev)
         }
 
         ctx->logged_in = 1;
+        BRIX_RESIL_METRIC_INC(cms_logins_total);
+        BRIX_RESIL_METRIC_INC(cms_registered_links);
         ctx->backoff = ngx_min((ngx_msec_t) ctx->conf->cms.interval * 1000,
                                (ngx_msec_t) NGX_BRIX_CMS_BACKOFF_INITIAL);
 
         ngx_log_error(NGX_LOG_NOTICE, ev->log, 0,
                       "brix: CMS login sent to %V",
-                      &ctx->conf->cms.manager);
+                      &ctx->mgr_name);
         brix_cms_log_action(ev->log, "login",
-                            (const char *) ctx->conf->cms.manager.data,
+                            (const char *) ctx->mgr_name.data,
                             "out", NULL, 1,
                             ctx->conf->manager_mode
                                 ? "sub-manager registering up (Manager bit)"
@@ -328,7 +348,7 @@ ngx_brix_cms_write_handler(ngx_event_t *ev)
             ngx_log_error(NGX_LOG_NOTICE, ev->log, 0,
                           "brix: CMS registered with %V after %uL ms "
                           "(%ui connect attempt(s), %s)",
-                          &ctx->conf->cms.manager,
+                          &ctx->mgr_name,
                           (brix_phase_now_ns() - ctx->start_ns) / 1000000ull,
                           ctx->connect_attempts,
                           ctx->is_loopback ? "loopback" : "remote");
@@ -363,7 +383,7 @@ ngx_brix_cms_write_handler(ngx_event_t *ev)
         ngx_log_error(NGX_LOG_WARN, ev->log, 0,
                       "brix: CMS write handler: send_load failed");
         brix_cms_log_action(ev->log, "load",
-                            (const char *) ctx->conf->cms.manager.data,
+                            (const char *) ctx->mgr_name.data,
                             "out", NULL, 0, "send_load failed");
         ngx_brix_cms_set_end_hint(ctx, BRIX_SESS_END_ERROR);
         ngx_brix_cms_disconnect(ctx);
@@ -398,9 +418,9 @@ ngx_brix_cms_connect(ngx_brix_cms_ctx_t *ctx)
     ctx->connect_attempts++;
 
     ngx_memzero(&ctx->peer, sizeof(ctx->peer));
-    ctx->peer.sockaddr = ctx->conf->cms.addr->sockaddr;
-    ctx->peer.socklen = ctx->conf->cms.addr->socklen;
-    ctx->peer.name = &ctx->conf->cms.addr->name;
+    ctx->peer.sockaddr = ctx->mgr_addr->sockaddr;
+    ctx->peer.socklen = ctx->mgr_addr->socklen;
+    ctx->peer.name = &ctx->mgr_addr->name;
     ctx->peer.get = ngx_event_get_peer;
     ctx->peer.log = ctx->cycle->log;
     ctx->peer.log_error = NGX_ERROR_ERR;
@@ -414,7 +434,8 @@ ngx_brix_cms_connect(ngx_brix_cms_ctx_t *ctx)
             "confirm cmsd is listening and that brix_cms_manager matches "
             "its host:port; this node will keep retrying and stays OUT of the "
             "cluster until it connects",
-            &ctx->conf->cms.manager);
+            &ctx->mgr_name);
+        BRIX_RESIL_METRIC_INC(cms_connect_failures_total);
         ngx_brix_cms_schedule_retry(ctx);
         return;
     }
@@ -487,7 +508,7 @@ ngx_brix_cms_timer(ngx_event_t *ev)
         ngx_log_error(NGX_LOG_WARN, ev->log, 0,
                       "brix: CMS load heartbeat failed");
         brix_cms_log_action(ev->log, "load",
-                            (const char *) ctx->conf->cms.manager.data,
+                            (const char *) ctx->mgr_name.data,
                             "out", NULL, 0, "heartbeat send failed");
         ngx_brix_cms_set_end_hint(ctx, BRIX_SESS_END_ERROR);
         ngx_brix_cms_disconnect(ctx);
@@ -496,7 +517,7 @@ ngx_brix_cms_timer(ngx_event_t *ev)
     }
 
     brix_cms_log_action(ev->log, "load",
-                        (const char *) ctx->conf->cms.manager.data,
+                        (const char *) ctx->mgr_name.data,
                         "out", NULL, 1,
                         ctx->conf->manager_mode ? "aggregate space heartbeat"
                                                 : "free-space heartbeat");

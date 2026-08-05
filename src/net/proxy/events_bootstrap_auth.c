@@ -426,7 +426,7 @@ proxy_bs_login_sec_ztn(brix_proxy_ctx_t *proxy)
  * WHAT: Scan the successful login reply for an embedded security hint and,
  *       if one matches our policy, proactively send the kXR_auth credential.
  * WHY:  Token-only servers embed a security challenge in the login response:
- *       [sessid:16][&P=ztn,v:10000] — and the nginx-xrootd server (and stock
+ *       [sessid:16][&P=ztn,0:4096:] — and the nginx-xrootd server (and stock
  *       xrootd) advertise SSS the same way ("&P=sss,...") — NOT via
  *       kXR_authmore. Without this, SSS/ztn upstream auth silently never
  *       happens and the forwarded open is rejected NotAuthorized.

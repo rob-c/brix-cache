@@ -185,13 +185,28 @@ SPECS: dict[str, ObjectUnitSpec] = {
 }
 
 
+def coverage_flags(required: tuple[Path, ...]) -> list[str]:
+    """``--coverage`` iff the module objects were compiled with it.
+
+    A tree configured for gcov (the coverage lane) emits a ``.gcno`` beside every
+    object and leaves ``__gcov_init``/``__gcov_merge_add`` references in it. The
+    unit harness links those objects directly, so without the gcov runtime the
+    link dies on undefined ``__gcov_*`` — a failure of the BUILD TREE's flags,
+    not of the code under test. Keyed off the ``.gcno`` so a normal tree links
+    exactly as before.
+    """
+    return ["--coverage"] if any(obj.with_suffix(".gcno").is_file()
+                                 for obj in required) else []
+
+
 def run_one(name: str, base: Path) -> list[tuple[bool, str]]:
     spec = SPECS[name]
     missing = [str(path) for path in spec.required if not path.is_file()]
     if missing:
         return [result(True, f"SKIP {name}: build required object(s) first: {', '.join(missing)}")]
     binary = base / spec.binary
-    built = compile_binary(binary, list(spec.args), cwd=REPO_ROOT)
+    built = compile_binary(binary, list(spec.args) + coverage_flags(spec.required),
+                           cwd=REPO_ROOT)
     if built.returncode != 0:
         return [result(False, f"compile {name} failed: {(built.stderr or built.stdout)[-3000:]}")]
     ran = run([str(binary)], cwd=REPO_ROOT)

@@ -486,3 +486,64 @@ location / {
 ```
 
 ---
+
+### `brix_webdav_upload_resume on|off`
+
+**Context:** `location` · **Default:** `on`
+
+Enables resumable `Content-Range` PUT. With it on, a PUT carrying
+`Content-Range: bytes <start>-<end>/<total>` is written into a durable,
+identity-keyed **partial** instead of the destination, and the destination is
+published only when the chunk covering the last byte of `<total>` arrives. Each
+intermediate chunk answers `200` with `X-Upload-Offset: <next expected offset>`;
+the final chunk answers `201`. The stream is **append-only** — a chunk that does
+not begin exactly at the current partial size is refused `409` with the honest
+`X-Upload-Offset`, and the partial is kept so the client can resume from the
+offset the server actually holds. The partial survives an nginx restart, so a
+client interrupted mid-upload resumes where it left off rather than re-sending.
+
+A PUT with no `Content-Range` is unaffected: it stages beside its destination and
+commits on completion regardless of this setting. Turning this `off` makes a
+`Content-Range` PUT fall through to that same whole-body path, so a client that
+was chunking gets its last chunk written as the entire object — turn it off only
+for clients that never send `Content-Range`.
+
+```nginx
+location / {
+    brix_webdav on;
+    brix_export /data;
+    brix_allow_write on;
+    brix_webdav_upload_resume on;   # the default; shown for clarity
+}
+```
+
+---
+
+### `brix_webdav_stage_dir <path>`
+
+**Context:** `location` · **Default:** unset (partial lives beside the destination)
+
+Directory holding the resumable-upload partials described above — the HTTP-plane
+counterpart of `brix_stage_dir`. Point it at a fast device to absorb in-flight
+uploads there. When it lands on a **different filesystem** than the export, the
+commit cannot be a `rename(2)` (the kernel answers `EXDEV`), so the server copies
+the partial to a temp *adjacent to the destination*, fsyncs it, and renames that
+temp into place: the publish stays atomic from a reader's point of view, and the
+staged copy is dropped afterwards. Before a cross-device commit the server writes
+a durable pending-commit marker, so an upload interrupted between the copy and
+the rename is finished by the startup reaper rather than stranded.
+
+The path must be writable by the worker and must resolve **outside** the export
+root — a stage dir inside the export is refused at `nginx -t`.
+
+```nginx
+location / {
+    brix_webdav on;
+    brix_export /data;                        # bulk storage
+    brix_allow_write on;
+    brix_webdav_upload_resume on;
+    brix_webdav_stage_dir /srv/fast/staging;  # NVMe; commit copies across
+}
+```
+
+---

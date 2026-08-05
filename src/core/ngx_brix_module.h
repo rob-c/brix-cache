@@ -170,8 +170,9 @@ char *brix_conf_set_inherit_parent_group(ngx_conf_t *cf, ngx_command_t *cmd,
  * to the manager map (validates IPv6 brackets and port range). */
 char *brix_conf_set_manager_map(ngx_conf_t *cf, ngx_command_t *cmd,
     void *conf);
-/* "brix_cms_manager <host:port>": resolve and store the CMS heartbeat
- * endpoint (one per server block; duplicate is an error). */
+/* "brix_cms_manager <host:port> [<host:port> ...]": resolve and append CMS
+ * heartbeat endpoints (repeatable; up to 15 redundant managers, each logged
+ * into concurrently; the same endpoint twice is an error). */
 char *brix_conf_set_cms_manager(ngx_conf_t *cf, ngx_command_t *cmd,
     void *conf);
 /* "brix_upstream <host:port>": parse the proxy upstream address

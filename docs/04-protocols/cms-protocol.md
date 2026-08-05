@@ -207,9 +207,13 @@ values (the early nginx constants had `SUSPEND`/`RESUME` swapped and wrong — �
 
 ## 5. Negotiation A — nginx as data server (outbound CMS client)
 
-This is the `src/net/cms/` client half. One **independent connection per nginx
-worker** (see §8) is opened to `brix_cms_manager`. Lifecycle in
-`src/net/cms/connect.c`:
+This is the `src/net/cms/` client half. One connection **per configured
+manager** (up to 15; see §8 for the worker-0 gate) is opened to the
+`brix_cms_manager` set — every manager gets its own heartbeat context, login
+and streamid lane (seed = manager index, stride = manager count, so replies
+never collide in the worker-keyed pending table). Registry-miss lookups rotate
+round-robin over the logged-in links (`ngx_brix_cms_pick_ctx`) and fail over
+when a link drops. Lifecycle in `src/net/cms/connect.c`:
 
 ```
 worker init ──► ngx_brix_cms_start()           (arm 1 s initial-delay timer)
@@ -534,7 +538,7 @@ real interop failure against a real `cmsd`:
 
 | Directive | Block | Default | Purpose |
 |---|---|---|---|
-| `brix_cms_manager host:port` | stream server | — | upstream manager to register with (enables the CMS client) |
+| `brix_cms_manager host:port [...]` | stream server | — | upstream manager(s) to register with (enables the CMS client); up to 15 endpoints, the node logs into ALL of them, locates rotate over live links, CNS events fan out to every link |
 | `brix_cms_paths /a:/b` | stream server | export root | namespace prefixes to advertise in `kYR_login` |
 | `brix_cms_interval secs` | stream server | 30 | `kYR_load` heartbeat period |
 | `brix_cms_server on` | stream server | off | accept inbound data-server CMS registrations (enables the CMS server / manager listener) |

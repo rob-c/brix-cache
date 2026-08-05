@@ -39,6 +39,9 @@ brix_metric_value(ngx_atomic_t *counter)
  * matching in-use servers[] slots so the exporter can fold legacy stream activity
  * into the unified stream-protocol values, keeping /metrics output continuous.
  * They are export-time read-only aggregations — never used on the record path.
+ * The op fold is restricted to READ/WRITE: namespace ops are observed by the
+ * VFS layer into the unified counters directly, so folding their wire-ledger
+ * slots too would double-count every stat/delete/mkdir/rename/dirlist.
  */
 static unsigned long long
 brix_unified_legacy_stream_bytes(ngx_brix_metrics_t *shm,
@@ -99,19 +102,12 @@ brix_unified_legacy_stream_op(ngx_brix_metrics_t *shm,
     case BRIX_METRIC_OP_WRITE:
         return brix_unified_legacy_stream_op_slot(shm, BRIX_OP_WRITE, ok)
              + brix_unified_legacy_stream_op_slot(shm, BRIX_OP_WRITEV, ok);
-    case BRIX_METRIC_OP_STAT:
-        return brix_unified_legacy_stream_op_slot(shm, BRIX_OP_STAT, ok)
-             + brix_unified_legacy_stream_op_slot(shm, BRIX_OP_STATX, ok);
-    case BRIX_METRIC_OP_DELETE:
-        return brix_unified_legacy_stream_op_slot(shm, BRIX_OP_RM, ok)
-             + brix_unified_legacy_stream_op_slot(shm, BRIX_OP_RMDIR, ok);
-    case BRIX_METRIC_OP_MKDIR:
-        return brix_unified_legacy_stream_op_slot(shm, BRIX_OP_MKDIR, ok);
-    case BRIX_METRIC_OP_RENAME:
-        return brix_unified_legacy_stream_op_slot(shm, BRIX_OP_MV, ok);
-    case BRIX_METRIC_OP_DIRLIST:
-        return brix_unified_legacy_stream_op_slot(shm, BRIX_OP_DIRLIST, ok);
     default:
+        /* Namespace ops (stat/delete/mkdir/rename/dirlist/...) are observed
+         * once by the VFS layer for every protocol including root://; folding
+         * the wire ledger for them here would count each op twice. Only the
+         * AIO data plane (READ/WRITE) bypasses VFS observation and needs the
+         * legacy fold. */
         return 0;
     }
 }

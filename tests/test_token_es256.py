@@ -13,8 +13,12 @@ accept an invalid signature or false-deny every legitimate EC token.
 These tests stand up a self-contained WebDAV token-auth server whose JWKS holds
 a real EC P-256 public key, then:
   * a correctly ES256-signed token authenticates (200)   — the dark path
-  * a token with one signature byte flipped is rejected (403)
-  * a token whose signature is the DER form (len != 64) is rejected (403)
+  * a token with one signature byte flipped is rejected (401)
+  * a token whose signature is the DER form (len != 64) is rejected (401)
+
+401, not 403: RFC 6750 §3 makes a credential that fails validation an
+`invalid_token` (401 + WWW-Authenticate: Bearer); 403 is reserved for a
+token that verifies but lacks the scope for the path.
 """
 
 import base64
@@ -129,7 +133,7 @@ def test_bad_es256_signature_rejected(es256_server):
     raw = bytearray(base64.urlsafe_b64decode(sig_b64 + "=="))
     raw[0] ^= 0xFF                                          # corrupt r
     bad = si + "." + _b64u(bytes(raw))
-    assert _get(bad) == 403, "a corrupted ES256 signature must be rejected"
+    assert _get(bad) == 401, "a corrupted ES256 signature must be rejected"
 
 
 def test_der_form_signature_rejected(es256_server):
@@ -138,4 +142,4 @@ def test_der_form_signature_rejected(es256_server):
     token, der = _es256_token(es256_server, raw_sig_override=b"")
     si = token.rsplit(".", 1)[0]
     bad = si + "." + _b64u(der)
-    assert _get(bad) == 403, "DER-encoded (non-64-byte) ES256 sig must be rejected"
+    assert _get(bad) == 401, "DER-encoded (non-64-byte) ES256 sig must be rejected"

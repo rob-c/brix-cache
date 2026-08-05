@@ -13,6 +13,35 @@ brix_tpc_metric_proto(ngx_uint_t protocol)
     }
 }
 
+/*
+ * brix_tpc_metric_book — the ONE place a terminal TPC outcome reaches the
+ * unified counters.
+ *
+ * WHAT: Books the transfer twice over, into two families that answer different
+ *       questions: brix_tpc_transfers_total/_bytes_total (TPC-specific, carries
+ *       the pull/push direction) and brix_io_ops_total{op="tpc"} (the unified
+ *       per-op ledger, so a TPC shows up alongside every other operation the
+ *       server performed).
+ * WHY:  `op="tpc"` was a declared-but-unreachable slot: the WebDAV op mapping
+ *       named it for COPY, but the protocol-level op_done is deliberately
+ *       restricted to the data plane (READ/WRITE) to avoid double-booking the
+ *       VFS-observed namespace ops, so nothing ever incremented it. Booking it
+ *       here — the single call site both transports already funnel through —
+ *       gives the row exactly one owner (see the owner table in
+ *       docs/08-metrics-monitoring/metrics-bug-patterns.md, Pattern 6).
+ * HOW:  Count-only for the unified row: a TPC has no request-scoped duration
+ *       to file (see brix_metric_op_count).
+ */
+static void
+brix_tpc_metric_book(ngx_uint_t protocol, ngx_uint_t direction, size_t bytes,
+    brix_err_class_t err)
+{
+    brix_proto_t proto = brix_tpc_metric_proto(protocol);
+
+    brix_metric_tpc(proto, direction == BRIX_TPC_DIR_PUSH, bytes, err);
+    brix_metric_op_count(proto, BRIX_METRIC_OP_TPC, err);
+}
+
 void
 brix_tpc_metric_transfer(ngx_uint_t protocol, ngx_uint_t direction,
     ngx_uint_t event, size_t bytes, ngx_log_t *log)
@@ -28,12 +57,8 @@ brix_tpc_metric_transfer(ngx_uint_t protocol, ngx_uint_t direction,
                    protocol, direction, event, bytes);
 
     if (event == BRIX_TPC_METRIC_SUCCESS) {
-        brix_metric_tpc(brix_tpc_metric_proto(protocol),
-                          direction == BRIX_TPC_DIR_PUSH,
-                          bytes, BRIX_ERR_NONE);
+        brix_tpc_metric_book(protocol, direction, bytes, BRIX_ERR_NONE);
     } else if (event == BRIX_TPC_METRIC_ERROR) {
-        brix_metric_tpc(brix_tpc_metric_proto(protocol),
-                          direction == BRIX_TPC_DIR_PUSH,
-                          bytes, BRIX_ERR_OTHER);
+        brix_tpc_metric_book(protocol, direction, bytes, BRIX_ERR_OTHER);
     }
 }

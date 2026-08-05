@@ -91,17 +91,37 @@ typedef struct {
 #define BRIX_CMS_ROLE_MANAGER     2   /* kYR_manager (0x2), manVOps inbound */
 #define BRIX_CMS_ROLE_SUPERVISOR  3   /* kYR_manager|kYR_server (0xA), supVOps */
 
+/* One configured CMS manager endpoint (an entry of brix_cms_conf_t.managers).
+ * The raw string is NUL-terminated (brix_copy_conf_string) so log/action sites
+ * can borrow it as a C string. */
+typedef struct {
+    ngx_str_t    raw;    /* directive text, e.g. "127.0.0.1:1213" */
+    ngx_addr_t  *addr;   /* resolved address (first A record) */
+} brix_cms_manager_ent_t;
+
+/* Redundant-manager cap — stock cmsd client parity (XrdCmsFinder.hh MaxMan). */
+#define NGX_BRIX_CMS_MAX_MANAGERS  15
+
 /* CMS manager heartbeat + client-side network-fault resilience.  Grouped as one
  * sub-struct so the per-server config block stays navigable; every field is
  * reached as conf->cms.<field>.  (The advertised listen_port stays a top-level
  * field — it is not CMS-specific.) */
 typedef struct {
     ngx_msec_t          locate_timeout;   /* [brix_cms_locate_timeout 5s] */
-    ngx_str_t           manager;          /* [brix_cms_manager host:port] — raw directive */
-    ngx_addr_t         *addr;             /* resolved manager address */
+    ngx_str_t           manager;          /* first manager's raw host:port (role/gate logs) */
+    ngx_addr_t         *addr;             /* first manager's resolved address — the
+                                             "has upstream" gate everywhere */
+    ngx_array_t        *managers;         /* brix_cms_manager_ent_t[] — ALL managers from
+                                             [brix_cms_manager h:p ...] (repeatable);
+                                             NULL when the directive is absent */
     ngx_str_t           paths;            /* [brix_cms_paths /data] — exported path list */
     time_t              interval;         /* [brix_cms_interval 60] — heartbeat period */
-    ngx_brix_cms_ctx_t *ctx;              /* runtime connection / timer state (heap) */
+    ngx_brix_cms_ctx_t **ctxs;            /* runtime: one heartbeat ctx per manager (heap;
+                                             worker 0 only — NULL elsewhere) */
+    ngx_uint_t          nctxs;            /* runtime: live ctx count; the "CMS client
+                                             started on this worker" gate */
+    ngx_uint_t          rr;               /* runtime: round-robin cursor for locate
+                                             rotation across logged-in managers */
     ngx_uint_t          suspended;        /* set by kYR_status suspend; cleared by resume */
     ngx_msec_t          read_timeout;     /* [brix_cms_read_timeout] manager inactivity
                                              deadline; unset => max(3*interval, 90s). 0=off */

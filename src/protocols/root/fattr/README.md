@@ -144,9 +144,16 @@ ops run inline.
   an error count. `fattr_errno_to_xrd()` maps `ENODATA → kXR_AttrNotFound` and
   `ERANGE → kXR_ArgTooLong`, delegating everything else to the shared
   `brix_kxr_from_errno()`.
-- **xattr-unsupported filesystems degrade, not error.** `fattr_list()` treats
-  `ENOTSUP`/`EOPNOTSUPP` as an empty result (`list.c:219-223`) rather than a
-  protocol error.
+- **xattr-unsupported filesystems and backends degrade, not error.**
+  `fattr_list()` treats `ENOTSUP`/`EOPNOTSUPP`/`ENOSYS` as an empty result
+  rather than a protocol error. All three spell "no extended attributes here",
+  from different layers: the local POSIX path and the VFS's own NULL-driver
+  checks raise `ENOTSUP` (`fs/vfs/vfs_xattr.c`), while the storage seam raises
+  `ENOSYS` when the *leaf* driver has no slot
+  (`brix_sd_listxattr_maybe_cred`, `fs/backend/sd_cred_forward.h`) — the shape a
+  composed tier over an xattr-less origin produces. get/set/del stay per-attr
+  refusals (`kXR_Unsupported`). Covered by
+  `tests/test_backend_caps_negative.py`.
 - **`kXR_fa_recurse` is a LOCAL EXTENSION** (flag 0x20, not in upstream XRootD),
   only honored for path-form directory targets. It is bounded by
   `FATTR_RECURSE_MAX_DEPTH` (16), per-dir list buffer

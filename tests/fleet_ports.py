@@ -287,6 +287,7 @@ CMDSCRIPTS_PORTS = {
     "tpc_fwd_live": (29200, 8),
     "user_backend_cred": (29208, 9),
     "xroot_gateway_regress": (29219, 2),
+    "cvmfs_repo_cli": (29221, 4),
 }
 
 

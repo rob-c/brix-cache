@@ -17,6 +17,7 @@
  */
 #include "cvmfs/client/client.h"   /* not required, keeps include-path uniform */
 #include "core/version.h"
+#include "core/progname.h"  /* brix_prog_base(): argv[0] personality dispatch */
 #include "cli/suggest.h"    /* brix_suggest(): did-you-mean at unknown-type sites */
 #include "cli/cli_hint.h"   /* brix_cli_hint(): TTY-gated hint output */
 
@@ -141,20 +142,63 @@ extern int xrootdfs_aio_main(int argc, char **argv) __attribute__((weak));
 int brix_overlay_cli_list(const char *mountdir, FILE *out);
 int brix_overlay_cli_reset(const char *mountdir);
 
-int main(int argc, char **argv) {
-    /* --help / --version before any dispatch. */
+/* argv[0] personality (git/busybox model, as xrdcksum/xrddiag): invoked as
+ * `brixcvmfs` (symlink to brixMount) the umbrella IS the cvmfs driver — mount,
+ * --check/--prewarm/--rw and the `brixcvmfs repo` release-manager surface — with
+ * no `cvmfs` type keyword. Other names fall through to type dispatch. */
+static int brixcvmfs_personality(int argc, char **argv) {
     if (argc >= 2 && strcmp(argv[1], "--version") == 0) {
-        printf("brixMount (BriX-Cache client) %s\n", brix_client_version());
+        printf("brixcvmfs (BriX-Cache client) %s\n", brix_client_version());
         return 0;
     }
-    if (argc >= 2 && (strcmp(argv[1], "--help") == 0 || strcmp(argv[1], "-h") == 0)) {
+    if (argc >= 2 && (strcmp(argv[1], "--help") == 0 ||
+                      strcmp(argv[1], "-h") == 0)) {
+        printf("usage: brixcvmfs <repo.fqrn> <mountpoint> [fuse-opts]\n"
+               "       brixcvmfs --rw <repo.fqrn> <mountpoint> [fuse-opts]\n"
+               "       brixcvmfs --check <repo.fqrn>\n"
+               "       brixcvmfs --prewarm <repo.fqrn>\n"
+               "       brixcvmfs repo mkfs|info|resign|transaction|abort|"
+               "publish|fsck|gc|tag ...\n"
+               BRIX_USAGE_FOOTER("brixcvmfs"));
+        return 0;
+    }
+    if (argc >= 2 && strcmp(argv[1], "--rw") == 0) {
+        argv[1] = argv[0];                 /* brixcvmfs --rw <repo> <mnt> */
+        return brixcvmfs_rw_main(argc - 1, argv + 1);
+    }
+    return brixcvmfs_main(argc, argv);
+}
+
+/* --help / --version before any dispatch. Returns 1 when it answered (exit code
+ * in *rc), 0 to continue into dispatch. */
+static int brixmount_early_flags(int argc, char **argv, int *rc) {
+    if (argc < 2) return 0;
+    if (strcmp(argv[1], "--version") == 0) {
+        printf("brixMount (BriX-Cache client) %s\n", brix_client_version());
+        *rc = 0;
+        return 1;
+    }
+    if (strcmp(argv[1], "--help") == 0 || strcmp(argv[1], "-h") == 0) {
         /* drivers table not yet built — print without the type list. */
         fprintf(stdout,
             "brixMount — a hardened, iron-clad FUSE mount, battle-tested against bad/evil networks\n"
             "usage: brixMount <type> <endpoint> <mountdir> [fuse-opts]\n"
             "  types: cvmfs  cvmfs-rw  autofs  eos  root  roots\n"
             BRIX_USAGE_FOOTER("brixMount"));
-        return 0;
+        *rc = 0;
+        return 1;
+    }
+    return 0;
+}
+
+int main(int argc, char **argv) {
+    int rc = 0;
+
+    if (strcmp(brix_prog_base(argv[0]), "brixcvmfs") == 0) {
+        return brixcvmfs_personality(argc, argv);
+    }
+    if (brixmount_early_flags(argc, argv, &rc)) {
+        return rc;
     }
 
     int orc = brixmount_overlay_route(argc, argv,

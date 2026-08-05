@@ -277,6 +277,56 @@ pins one origin and suppresses the failover unified origin relies on, so do not
 combine them; unified origin wants the default `failover`. Config is rejected at
 startup if `unified_origin` is on without an http `storage_backend`.
 
+### 3.6 Stratum-0 mode (`brix_cvmfs_stratum0_root`) — phase-96
+
+The third wire shape: the location serves a **repotool-published repo tree**
+as the master copy instead of caching someone else's. The directive is a
+strict alias for `brix_export` (fs path = root + full URI), so the published
+repo must live at `<root>/cvmfs/<fqrn>/` — point it at the directory *above*
+`cvmfs/`:
+
+```nginx
+location /cvmfs/ {
+    brix_cvmfs on;
+    brix_cvmfs_stratum0_root /srv/stratum0;   # repo at /srv/stratum0/cvmfs/<fqrn>/
+    brix_cvmfs_geo_answer rtt;                # optional; applies unchanged
+}
+```
+
+What the alias buys over a bare `brix_export`:
+
+- **The Stratum-0 contract is enforced at `nginx -t`**: combining it with
+  cache-fill grammar — `brix_cache_store`, an http(s)
+  `brix_storage_backend`, or `brix_cvmfs_upstream_allow` — or with a second
+  root (`brix_export`) is an EMERG. A Stratum-0 has no upstream; a config
+  that says otherwise is a mistake, not a hybrid.
+- **The `.cvmfs_master_replica` marker** is answered (GET/HEAD, 200,
+  `text/plain`) so a real Stratum-1's `cvmfs_server add-replica` recognizes
+  the endpoint as a replication source. The marker is *synthesized in
+  `gate.c`* — never a file on disk, never a shape in the shared URL
+  classifier — and only when this directive is set, so a plain `brix_export`
+  cache node still 403s it (a cache cannot be spoofed into advertising
+  itself as a master copy).
+- Everything else is the ordinary serve plane: write methods 405, GeoAPI
+  answers, per-class accounting unchanged.
+
+**Replication story: there is no push protocol.** A correct on-disk repo +
+HTTP GET *is* the Stratum-1 feed — `cvmfs_server add-replica
+http://s0:port/cvmfs/<fqrn> <keys>` on any stock Stratum-1 pulls manifest,
+whitelist, reflog and CAS exactly as the official server would feed it.
+
+**Securing it is pure configuration (phase-96 S14, proven):** `brix_scvmfs
+on` + an authz mode composes unchanged because the scvmfs preamble runs
+before the gate — manifest, CAS, GeoAPI *and the replication marker* all sit
+behind the credential wall, and `.cvmfspublished` is not fetchable
+anonymously when gated. Lanes: `tests/test_cvmfs_stratum0_serve.py` (open,
+incl. a real brixMount leg), `tests/test_cvmfs_stratum0_scvmfs.py`
+(x509 + VOMS gated). Publishing itself lives on the tool surface
+(`brixcvmfs repo …`: `mkfs → transaction → publish`, plus fsck/gc/tags) — the
+server never writes. **Full unprivileged deployment cookbook:
+`docs/05-operations/cvmfs-stratum0.md`** (condensed runbook in
+`deploy/cvmfs/README.md`).
+
 ---
 
 ## 4. Cache semantics per class
@@ -692,11 +742,48 @@ locations with `brix_scvmfs on`:
 1. **TLS required** — the listener must be `listen … ssl`; a plain
    request is refused (nginx core 400s it before we run; the preamble
    guards mixed listeners as well).
-2. **Optional client authz** — `brix_scvmfs_authz bearer` validates
-   `Authorization: Bearer` tokens through the **same SciTokens issuer
-   registry** the WebDAV and stream token paths use (READ scope suffices
-   for a read-only protocol; no registry loaded ⇒ fail closed).
-   VOMS/GSI client-cert mode is future work.
+2. **Optional client authz** — four modes, all fail-closed:
+   - `bearer` validates `Authorization: Bearer` tokens through the **same
+     SciTokens issuer registry** the WebDAV and stream token paths use
+     (READ scope suffices for a read-only protocol; no registry loaded ⇒
+     fail closed).
+   - `x509` requires a client certificate that nginx's own
+     `ssl_verify_client` chain validated to `X509_V_OK`, then resolves the
+     **EEC** — the leaf for a bare cert, or the first non-proxy cert in the
+     chain, so a GSI proxy authenticates as the identity that issued it —
+     and gates its subject DN against the optional multi-occurrence
+     `brix_scvmfs_x509_dn <glob>` allow-list (first match wins; empty means
+     any verified client). The crypto is nginx's; this mode is policy glue.
+   - `voms` layers a VOMS-VO gate on top of that same EEC-DN check. The
+     proxy's VOMS AC is lifted using the mandatory `brix_scvmfs_vomsdir`
+     (per-VO LSC directory) and `brix_scvmfs_voms_cert_dir` (VOMS signing
+     CA), both validated at merge time, and the carried VO names are gated
+     against the optional `brix_scvmfs_voms <glob>` allow-list (empty means
+     any client carrying at least one VO). **No VOMS AC is a 403, never a
+     bypass.**
+
+   The validated DN is published as `ctx->token_sub`, so it keys QoS and
+   attestation the same way a bearer subject does.
+
+   Three configuration traps in the cert modes:
+   - Use `ssl_verify_client optional`, **not** `optional_no_ca`. The
+     preamble trusts `SSL_get_verify_result`, so nginx must actually
+     perform the chain verification. A consequence worth knowing when
+     writing tests: under `optional`, nginx **core** rejects a
+     presented-but-unverifiable certificate with 400 before the handler
+     runs, so an untrusted-CA case can legitimately be 400 or 401. A
+     missing certificate reaches the handler (401); a verified certificate
+     whose DN is not allow-listed is 403.
+   - GSI proxy chains need `X509_V_FLAG_ALLOW_PROXY_CERTS` on the TLS
+     context or nginx core fails the handshake with "proxy certificates not
+     allowed"; the module sets it from a postconfiguration hook, mirroring
+     the WebDAV proxy-certs path.
+   - That hook must walk `clcf->static_locations` (plus regex locations)
+     recursively rather than `clcf->locations`: `brix_scvmfs_authz` is a
+     *location* directive, but by postconfiguration nginx has already
+     folded the location queue into the static tree, so the queue is empty.
+     Guard for a NULL `clcf->loc_conf` on the server's implicit core
+     location.
 3. An admitted request sets `ctx->secure`, which **unlocks https
    authorities** in proxy mode (plain `cvmfs://` refuses them) and counts
    in `brix_scvmfs_requests_total`.
@@ -921,10 +1008,15 @@ many clients: that is `CVMFS_TIMEOUT` set shorter than the fill latency.
 | `brix_cvmfs_geo_answer off\|rtt` | off | answer the geo API locally, RTT-ranked, vs. relay upstream (§3.3) |
 | `brix_cvmfs_geo_cache_ttl <sec>` | 60 | per-worker geo RTT cache TTL (§3.3) |
 | `brix_cvmfs_geo_max_servers <n>` | 16 | geo-answer probed-list cap (§3.3) |
+| `brix_cvmfs_stratum0_root <dir>` | "" (off) | Stratum-0 mode: serve the published repo at `<dir>/cvmfs/<fqrn>/` (alias for `brix_export` + `nginx -t` EMERG on any cache-fill grammar in the block + `.cvmfs_master_replica` marker) (§3.6) |
 | `brix_cvmfs_trace on\|off` | off | promote the file/upstream trace lines from DEBUG to INFO (see "Per-request trace logging") |
 | `brix_thread_pool <name>` | default | async fill/relay pool |
 | `brix_scvmfs on\|off` | off | EXPERIMENTAL secure preamble (§8; needs `listen … ssl`) |
-| `brix_scvmfs_authz none\|bearer` | none | scvmfs client authz mode |
+| `brix_scvmfs_authz none\|bearer\|x509\|voms` | none | scvmfs client authz mode (§8) |
+| `brix_scvmfs_x509_dn <glob>` | "" (any verified client) | `x509`/`voms` modes: EEC subject-DN allow-list, repeatable, first match wins (§8) |
+| `brix_scvmfs_vomsdir <dir>` | — | `voms` mode: per-VO LSC directory (required) (§8) |
+| `brix_scvmfs_voms_cert_dir <dir>` | — | `voms` mode: VOMS signing-CA directory (required) (§8) |
+| `brix_scvmfs_voms <glob>` | "" (any VO) | `voms` mode: VO-name allow-list, repeatable (§8) |
 
 ---
 

@@ -32,6 +32,8 @@ import time
 
 import pytest
 
+from settings import HOST
+
 pytestmark = pytest.mark.timeout(120)
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -61,7 +63,7 @@ def _nsrun(ns, *argv, **kw):
 
 def _free_port():
     s = socket.socket()
-    s.bind(("127.0.0.1", 0))
+    s.bind((HOST, 0))
     p = s.getsockname()[1]
     s.close()
     return p
@@ -69,7 +71,7 @@ def _free_port():
 
 def _ctl(ns, port, cmd):
     """Send one control command to the in-namespace control port, return reply."""
-    code = ('import socket,sys;s=socket.socket();s.connect(("127.0.0.1",%d));'
+    code = ('import socket,sys;s=socket.socket();s.connect(("127.0.0.1",%d));'  # net-literal-allow: loopback INSIDE the test network namespace
             's.sendall(sys.stdin.buffer.read());sys.stdout.write(s.recv(768)'
             '.decode())' % port)
     r = subprocess.run(["ip", "netns", "exec", ns, "python3", "-c", code],
@@ -113,7 +115,7 @@ def _spawn(bfp, ns, extra):
     listen, ctl, tgt = _free_port(), _free_port(), _free_port()
     proc = subprocess.Popen(
         ["ip", "netns", "exec", ns, bfp, "--listen", str(listen),
-         "--target", f"127.0.0.1:{tgt}", "--control", str(ctl),
+         "--target", f"127.0.0.1:{tgt}", "--control", str(ctl),  # net-literal-allow: loopback INSIDE the test network namespace
          "--quiet", "--privileged"] + extra,
         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     for _ in range(100):
@@ -198,7 +200,7 @@ def test_priv_refused_without_optin(bfp):
     """`priv` commands must report 'not enabled' unless --privileged was given."""
     listen, ctl, tgt = _free_port(), _free_port(), _free_port()
     proc = subprocess.Popen(
-        [bfp, "--listen", str(listen), "--target", f"127.0.0.1:{tgt}",
+        [bfp, "--listen", str(listen), "--target", f"{HOST}:{tgt}",
          "--control", str(ctl), "--quiet"],
         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     try:
@@ -206,7 +208,7 @@ def test_priv_refused_without_optin(bfp):
         reply = ""
         while time.time() < deadline:
             try:
-                with socket.create_connection(("127.0.0.1", ctl), timeout=0.3) as s:
+                with socket.create_connection((HOST, ctl), timeout=0.3) as s:
                     s.sendall(b"priv netem delay 10\n")
                     reply = s.recv(768).decode()
                     break
@@ -220,7 +222,7 @@ def test_priv_refused_without_optin(bfp):
 
 def test_priv_iface_without_privileged_exits_2(bfp):
     r = subprocess.run(
-        [bfp, "--listen", "1", "--target", "127.0.0.1:2", "--control", "3",
+        [bfp, "--listen", "1", "--target", f"{HOST}:2", "--control", "3",
          "--priv-iface", "lo"],
         capture_output=True, text=True, timeout=10)
     assert r.returncode == 2
@@ -235,7 +237,7 @@ def test_hostile_iface_name_refused(bfp):
     """A shell-metacharacter / nonexistent --priv-iface must be refused before
     the subsystem arms (defence in depth atop the no-shell execvp design)."""
     r = subprocess.run(
-        [bfp, "--listen", "1", "--target", "127.0.0.1:2", "--control", "3",
+        [bfp, "--listen", "1", "--target", f"{HOST}:2", "--control", "3",
          "--privileged", "--priv-iface", "lo; touch /tmp/bfp_pwned"],
         capture_output=True, text=True, timeout=10)
     assert r.returncode == 2

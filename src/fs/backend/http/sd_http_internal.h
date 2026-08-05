@@ -114,6 +114,22 @@ void sd_http_write_path(const sd_http_inst_state *is, const char *key,
     char *dst, size_t cap);
 int  sd_http_request_fo(const sd_http_req_t *rq, sd_http_endpoint **used);
 
+/* PROPFIND XML seam (sd_http_dir.c): next start-tag in [p,end) whose LOCAL name
+ * is `local`, namespace-prefix- and case-insensitive, skipping close/comment/PI
+ * tags. Returns the '<' or NULL. The write path's resourcetype probe uses it so
+ * "is this a collection?" is answered by one tag scanner in both readers. */
+const char *sd_http_xml_open(const char *p, const char *end,
+    const char *local);
+
+/* Resource-type probe (sd_http_dir.c): PROPFIND Depth:0 on ONE key, answering
+ * "does it exist, and is it a collection?" — 0 with *is_coll set, or -1 with
+ * *err_out = ENOENT/EACCES/ENOTSUP/EIO. HTTP cannot distinguish a collection
+ * from an empty object on a HEAD, so the stat slot (sd_http_read.c) and the
+ * delete slot (sd_http_write.c) both go through this one probe rather than
+ * guessing differently. `auth` is a resolved header line or NULL. */
+int sd_http_probe_type(sd_http_inst_state *is, const char *key,
+    const char *auth, const char *cert_pem, int *is_coll, int *err_out);
+
 /* Per-open credential resolution shared by the read and write legs — cred_gate
  * refuses a proxy-only cred the transport cannot present in deny mode;
  * resolve_open_cred turns a cred into a bearer header line + x509 cert path

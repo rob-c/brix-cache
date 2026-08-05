@@ -18,8 +18,8 @@ Three rules cover all four protocols (`brix_root`, `brix_webdav`, `brix_s3`, `br
   once and every brix location inherits it: `brix_export`, `brix_storage_backend`,
   `brix_cache_store`, `brix_cache_verify`, `brix_cache_max_object`, `brix_cache_evict_at`,
   `brix_cache_evict_to`, `brix_cache_index_cache`, `brix_cache_meta`,
-  `brix_cache_slice_size`, `brix_stage`, `brix_stage_store`, `brix_stage_flush`,
-  `brix_thread_pool`.
+  `brix_cache_slice_size`, `brix_cache_prefetch`, `brix_cache_prefetch_window`,
+  `brix_stage`, `brix_stage_store`, `brix_stage_flush`, `brix_thread_pool`.
 - **Bare `brix_*` cross-protocol directives** — work identically across all protocols:
   `brix_allow_write`, `brix_read_only`, `brix_compress`, `brix_ktls`, `brix_metrics`,
   `brix_health`, `brix_credential`.
@@ -590,6 +590,43 @@ or a positive multiple of 1 MiB.
 brix_cache_slice 128m;
 ```
 
+### `brix_cache_prefetch <n>` / `brix_cache_prefetch_window <size>`
+
+**Default:** `0` (off) / `8m`
+
+Background block prefetch for the **unified slice cache** (`brix_cache_store` +
+`brix_cache_slice_size`, any protocol plane). When a client reads a slice-cached
+object sequentially, the serving engine issues a WILLNEED hint through the
+storage-driver `read_advise` slot and the cache decorator fills the *absent
+successor blocks* on a worker thread — so the next blocks are already local when
+the reader gets there, instead of costing one synchronous origin round-trip
+each (XrdPfc `pfc.prefetch` parity).
+
+- `brix_cache_prefetch <n>` — max in-flight background fill jobs per worker
+  (`0`–`64`; `0` disables the feature entirely: hints are discarded and no
+  speculative origin read ever happens).
+- `brix_cache_prefetch_window <size>` — how far speculation may run ahead of
+  the read cursor (`0` = unbounded to end of object, otherwise ≥ `64k`). The
+  window is a *rolling runway*: each handle keeps a prefetch frontier, so a
+  long sequential stream is continuously topped up to at most `window` bytes
+  ahead of the reader — never burst-then-starve, never re-posted.
+
+Sequential detection lives in the engines: the `root://` read path suppresses
+the hint on random access (disable-on-random parity), and the HTTP
+memory-backed serve loop only speculates for requests of at least 1 MiB, so
+small metadata GETs never amplify origin traffic. Jobs authenticate to the
+origin with the credential captured at open, need the `default` nginx thread
+pool, and skip blocks the foreground filled meanwhile. Observability:
+`brix_cache_prefetch_jobs_total`, `brix_cache_prefetch_blocks_total`,
+`brix_cache_prefetch_failures_total` on `/metrics`.
+
+```nginx
+brix_cache_store       posix:/var/cache/brix;
+brix_cache_slice_size  1m;
+brix_cache_prefetch    4;
+brix_cache_prefetch_window 16m;
+```
+
 ### `brix_write_through on|off`
 
 **Default:** `off`
@@ -711,13 +748,48 @@ brix_cache_eviction_threshold 0.85;
 
 ---
 
-### `brix_cms_manager host:port`
+### `brix_cache_store_endpoint on|off`
 
-Registers this data server with an XRootD CMS manager and starts a per-worker
-heartbeat connection. The manager address is resolved during config parsing.
+**Default:** `off` — valid on the HTTP planes (`http|server|location`) and, since the root:// plane gained it, on `stream server`.
+
+Declares this server the **trusted remote cache-STORE surface** for a cache node whose `brix_cache_store` points at it. Internal reserved names — `<key>.cinfo`, `<key>.meta`, stage markers — are answered as absent on every ordinary export (a client must not be able to read or create one). A cache node running `brix_cache_meta sidecar` against a remote store writes exactly such a name beside each object, so without this switch the sidecar `kXR_open` is refused `kXR_NotFound` (3011), every cinfo store fails, and the tier silently refills on every read.
 
 ```nginx
-brix_cms_manager cms-manager.example.org:1213;
+stream {
+    server {                       # the store node
+        listen 1096;
+        brix_root on;
+        brix_export /srv/cachestore;
+        brix_allow_write on;
+        brix_cache_store_endpoint on;
+    }
+}
+```
+
+The switch lifts the reserved-name guard for `kXR_open`/`kXR_stat`/`kXR_statx` **only**. Directory listings still skip internal names (a cache addresses its sidecars by exact name, so nothing needs them enumerated), and export confinement is untouched. Leave it `off` on every client-facing export.
+
+---
+
+### `brix_cms_manager host:port [host:port ...]`
+
+Registers this data server with one or more XRootD CMS managers and starts a
+heartbeat connection to EVERY one of them concurrently (stock `all.manager`
+parity: a node joins the whole redundant manager set, not just the first).
+Manager addresses are resolved during config parsing.
+
+Accepts multiple endpoints on one directive and/or repeated directives — the
+entries accumulate, capped at 15 (stock `XrdCmsFinder MaxMan`).  A duplicate
+endpoint (same resolved address) is rejected at parse time: stock managers
+blacklist a second login from the same node identity, so a duplicate would
+break the node's cluster membership rather than add redundancy.
+
+Registry-miss lookups (`kXR_locate`, manager-mode open/stat/query paths)
+rotate round-robin over the logged-in links (stock `ClientMan` rotation) and
+fail over automatically when a manager drops; CNS namespace events fan out to
+every live link so each redundant manager keeps a complete inventory.
+
+```nginx
+brix_cms_manager cms-a.example.org:1213 cms-b.example.org:1213;
 brix_cms_paths /store;
 brix_cms_interval 30s;
 ```

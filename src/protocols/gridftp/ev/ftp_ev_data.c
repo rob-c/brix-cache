@@ -56,6 +56,7 @@ ev_do_pasv(ftp_ev_t *fc, int extended)
     unsigned            port;
 
     fc->active = 0;                             /* PASV/EPSV overrides PORT   */
+    ngx_memzero(&local, sizeof(local));         /* getsockname may leave it   */
 
     if (fc->pasv_fd >= 0) {
         (void) close(fc->pasv_fd);
@@ -213,6 +214,7 @@ ev_port_screen_target(ftp_ev_t *fc, const struct sockaddr_in *tgt)
     brix_net_target_policy_t pol;
     char                     err[128];
 
+    ngx_memzero(&peer, sizeof(peer));           /* getpeername may leave it   */
     if (getpeername(fc->c->fd, (struct sockaddr *) &peer, &plen) != 0
         || peer.sin_family != AF_INET)
     {
@@ -246,10 +248,14 @@ static ngx_int_t
 ev_do_port(ftp_ev_t *fc, const char *arg, int extended)
 {
     struct sockaddr_in tgt;
-    in_addr_t          addr;
-    unsigned           port;
+    in_addr_t          addr = 0;
+    unsigned           port = 0;
     ngx_int_t          rc;
 
+    /* Seeded, not merely declared: the parsers write (addr, port) only on their
+     * success path, so a helper that ever signalled an error as NGX_DECLINED
+     * would leave the caller dialling an uninitialised address.  Zero makes that
+     * degrade into the "501 Bad data port" arm below instead. */
     ngx_memzero(&tgt, sizeof(tgt));
     tgt.sin_family = AF_INET;
 
@@ -408,99 +414,117 @@ ev_connect_handler(ngx_event_t *wev)
 }
 
 
-/* Bring the data connection up under the event loop.  Passive: wrap the pending
- * listener and arm its accept event.  Active: open a non-blocking socket bound to
- * the control channel's local IP, start the connect, and arm the write event.
- * Returns NGX_OK once the relevant event is armed (completion is asynchronous)
- * or NGX_ERROR if the socket could not be set up. */
-ngx_int_t
-brix_ftp_ev_data_open(ftp_ev_dc_t *dc)
+/* ev_data_open_passive — PASV/EPSV: the listener fd is already open and
+ * non-blocking, so wrap it in a connection and arm its accept event. */
+static ngx_int_t
+ev_data_open_passive(ftp_ev_dc_t *dc)
 {
     ftp_ev_t *fc = dc->fc;
 
-    if (!fc->active) {
-        /* Passive: the listener fd is already open (PASV/EPSV) and non-blocking. */
-        if (fc->pasv_fd < 0) {
-            return NGX_ERROR;
-        }
-        dc->lc = ngx_get_connection(fc->pasv_fd, fc->c->log);
-        if (dc->lc == NULL) {
-            (void) close(fc->pasv_fd);
-            fc->pasv_fd = -1;
-            return NGX_ERROR;
-        }
-        dc->lc->log         = fc->c->log;
-        dc->lc->read->log   = fc->c->log;
-        dc->lc->data        = dc;
-        /* MODE E STOR keeps the listener open to accept every parallel stream; all
-         * other transfers take a single connection and retire the listener. */
-        dc->lc->read->handler = (dc->mode_e && dc->writing)
-                                ? brix_ftp_ev_eb_accept
-                                : ev_accept_handler;
-        if (ngx_handle_read_event(dc->lc->read, 0) != NGX_OK) {
-            ngx_close_connection(dc->lc);            /* also closes pasv_fd    */
-            fc->pasv_fd = -1;
-            dc->lc = NULL;
-            return NGX_ERROR;
-        }
-        ngx_add_timer(dc->lc->read, BRIX_FTP_EV_IO_TIMEO);
-        return NGX_OK;
+    if (fc->pasv_fd < 0) {
+        return NGX_ERROR;
     }
+    dc->lc = ngx_get_connection(fc->pasv_fd, fc->c->log);
+    if (dc->lc == NULL) {
+        (void) close(fc->pasv_fd);
+        fc->pasv_fd = -1;
+        return NGX_ERROR;
+    }
+    dc->lc->log         = fc->c->log;
+    dc->lc->read->log   = fc->c->log;
+    dc->lc->data        = dc;
+    /* MODE E STOR keeps the listener open to accept every parallel stream; all
+     * other transfers take a single connection and retire the listener. */
+    dc->lc->read->handler = (dc->mode_e && dc->writing)
+                            ? brix_ftp_ev_eb_accept
+                            : ev_accept_handler;
+    if (ngx_handle_read_event(dc->lc->read, 0) != NGX_OK) {
+        ngx_close_connection(dc->lc);            /* also closes pasv_fd    */
+        fc->pasv_fd = -1;
+        dc->lc = NULL;
+        return NGX_ERROR;
+    }
+    ngx_add_timer(dc->lc->read, BRIX_FTP_EV_IO_TIMEO);
+    return NGX_OK;
+}
 
-    /* Active: connect out to the armed, peer-pinned target. */
+
+/* ev_data_open_active — PORT/EPRT: dial the armed, peer-pinned target from a
+ * fresh non-blocking socket sourced on the control channel's local IP. */
+static ngx_int_t
+ev_data_open_active(ftp_ev_dc_t *dc)
+{
+    ftp_ev_t           *fc = dc->fc;
+    struct sockaddr_in  local;
+    socklen_t           llen = sizeof(local);
+    int                 dfd;
+    int                 rc;
+
+    fc->active = 0;                          /* one-shot: consume the arm  */
+    ngx_memzero(&local, sizeof(local));      /* getsockname may leave it   */
+
+    dfd = socket(AF_INET, SOCK_STREAM, 0);
+    if (dfd < 0) {
+        return NGX_ERROR;
+    }
+    if (ngx_nonblocking(dfd) == -1) {
+        (void) close(dfd);
+        return NGX_ERROR;
+    }
+    if (getsockname(fc->c->fd, (struct sockaddr *) &local, &llen) == 0
+        && local.sin_family == AF_INET)
     {
-        struct sockaddr_in local;
-        socklen_t          llen = sizeof(local);
-        int                dfd;
-        int                rc;
-
-        fc->active = 0;                          /* one-shot: consume the arm  */
-
-        dfd = socket(AF_INET, SOCK_STREAM, 0);
-        if (dfd < 0) {
-            return NGX_ERROR;
+        local.sin_port = 0;                  /* ephemeral source port      */
+        /* Best-effort source pinning: if the bind fails the kernel picks
+         * the source address itself, which is still a usable data leg —
+         * so log it and carry on rather than failing the transfer. */
+        if (bind(dfd, (struct sockaddr *) &local, sizeof(local)) != 0) {
+            ngx_log_error(NGX_LOG_INFO, fc->c->log, ngx_errno,
+                          "brix: gsiftp(ev) data-leg source bind failed; "
+                          "letting the kernel choose");
         }
-        if (ngx_nonblocking(dfd) == -1) {
-            (void) close(dfd);
-            return NGX_ERROR;
-        }
-        if (getsockname(fc->c->fd, (struct sockaddr *) &local, &llen) == 0
-            && local.sin_family == AF_INET)
-        {
-            local.sin_port = 0;                  /* ephemeral source port      */
-            (void) bind(dfd, (struct sockaddr *) &local, sizeof(local));
-        }
-
-        dc->dconn = brix_ftp_ev_wrap_conn(fc, dfd);
-        if (dc->dconn == NULL) {
-            (void) close(dfd);
-            return NGX_ERROR;
-        }
-        dc->dconn->data          = dc;
-        dc->dconn->write->handler = ev_connect_handler;
-        dc->connecting            = 1;
-        dc->tls_client            = 1;   /* we dialled out: TLS client role    */
-
-        rc = connect(dfd, (struct sockaddr *) &fc->active_sa,
-                     sizeof(fc->active_sa));
-        if (rc == -1 && ngx_socket_errno != NGX_EINPROGRESS) {
-            ngx_log_error(NGX_LOG_ERR, fc->c->log, ngx_socket_errno,
-                          "brix: GridFTP(ev) active data connect() failed");
-            ngx_close_connection(dc->dconn);
-            dc->dconn = NULL;
-            return NGX_ERROR;
-        }
-        if (ngx_handle_write_event(dc->dconn->write, 0) != NGX_OK) {
-            ngx_close_connection(dc->dconn);
-            dc->dconn = NULL;
-            return NGX_ERROR;
-        }
-        /* Whether connect() returned 0 (immediate, loopback) or EINPROGRESS, let
-         * the write event drive ev_connect_handler — running the hand-off out of
-         * this stack keeps us from re-entering the control loop synchronously. */
-        ngx_add_timer(dc->dconn->write, BRIX_FTP_EV_IO_TIMEO);
-        return NGX_OK;
     }
+
+    dc->dconn = brix_ftp_ev_wrap_conn(fc, dfd);
+    if (dc->dconn == NULL) {
+        (void) close(dfd);
+        return NGX_ERROR;
+    }
+    dc->dconn->data          = dc;
+    dc->dconn->write->handler = ev_connect_handler;
+    dc->connecting            = 1;
+    dc->tls_client            = 1;   /* we dialled out: TLS client role    */
+
+    rc = connect(dfd, (struct sockaddr *) &fc->active_sa,
+                 sizeof(fc->active_sa));
+    if (rc == -1 && ngx_socket_errno != NGX_EINPROGRESS) {
+        ngx_log_error(NGX_LOG_ERR, fc->c->log, ngx_socket_errno,
+                      "brix: GridFTP(ev) active data connect() failed");
+        ngx_close_connection(dc->dconn);
+        dc->dconn = NULL;
+        return NGX_ERROR;
+    }
+    if (ngx_handle_write_event(dc->dconn->write, 0) != NGX_OK) {
+        ngx_close_connection(dc->dconn);
+        dc->dconn = NULL;
+        return NGX_ERROR;
+    }
+    /* Whether connect() returned 0 (immediate, loopback) or EINPROGRESS, let
+     * the write event drive ev_connect_handler — running the hand-off out of
+     * this stack keeps us from re-entering the control loop synchronously. */
+    ngx_add_timer(dc->dconn->write, BRIX_FTP_EV_IO_TIMEO);
+    return NGX_OK;
+}
+
+
+/* Bring the data connection up under the event loop; NGX_OK once the relevant
+ * event is armed (completion is asynchronous), NGX_ERROR if the socket could
+ * not be set up.  The arm is one-shot: ev_data_open_active consumes fc->active
+ * so a second transfer without a fresh PORT/EPRT falls back to passive. */
+ngx_int_t
+brix_ftp_ev_data_open(ftp_ev_dc_t *dc)
+{
+    return dc->fc->active ? ev_data_open_active(dc) : ev_data_open_passive(dc);
 }
 
 
@@ -512,7 +536,8 @@ brix_ftp_ev_data_open(ftp_ev_dc_t *dc)
 void
 brix_ftp_ev_data_finish(ftp_ev_dc_t *dc, ngx_int_t rc)
 {
-    ftp_ev_t *fc = dc->fc;
+    ftp_ev_t *fc        = dc->fc;
+    int       committed = (rc == NGX_OK);
 
     if (dc->eb_conns != NULL) {
         brix_ftp_ev_eb_teardown(dc);                 /* close live MODE E streams */
@@ -529,6 +554,16 @@ brix_ftp_ev_data_finish(ftp_ev_dc_t *dc, ngx_int_t rc)
         /* A writer still open here means the transfer failed before commit. */
         brix_vfs_writer_abort(dc->writer);
         dc->writer = NULL;
+        committed  = 0;                  /* nothing was published              */
+    }
+
+    /* phase-97 §5: this is the single completion for every transfer shape
+     * (stream, MODE E, active, passive) and it runs on the event loop, so one
+     * report here covers a committed STOR/APPE however it was carried.  Only for
+     * a transfer that both succeeded and got past the commit — an aborted writer
+     * left the path untouched. */
+    if (committed && dc->writing) {
+        brix_ftp_ev_cns_note_stored(fc, dc->abs);
     }
     if (dc->dconn != NULL) {
         if (dc->dconn->ssl != NULL) {

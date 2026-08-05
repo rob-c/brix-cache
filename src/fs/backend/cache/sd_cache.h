@@ -66,8 +66,15 @@ int brix_sd_cache_instance_is(const brix_sd_instance_t *inst);
 /* Evict `key` from the decorator's cache store (no-op if `inst` is not a cache
  * decorator or `key` is NULL). The namespace VFS delete/rename ops dispatch on
  * the unwrapped leaf (for per-user cred threading) and so bypass the decorator's
- * own unlink/rename evict; they call this afterwards to keep the store coherent. */
-void brix_sd_cache_evict(brix_sd_instance_t *inst, const char *key);
+ * own unlink/rename evict; they call this afterwards to keep the store coherent.
+ * Returns the logical bytes evicted (0 when nothing was cached) for
+ * brix_metric_cache_evicted accounting. */
+uint64_t brix_sd_cache_evict(brix_sd_instance_t *inst, const char *key);
+
+/* Logical size of the cached copy of `key` (0 when uncached or `inst` is not a
+ * cache decorator). Read-only pre-probe for eviction accounting on paths where
+ * the evict happens inside the decorator (e.g. staged open). */
+uint64_t brix_sd_cache_cached_bytes(brix_sd_instance_t *inst, const char *key);
 
 /* 1 iff a read-open of `key` would block on slow (remote) I/O and should be
  * offloaded; 0 to serve inline (hit / local / slice / non-cache). Non-blocking. */

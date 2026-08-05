@@ -206,6 +206,16 @@ brix_on_disconnect(brix_ctx_t *ctx, ngx_connection_t *c)
     size_t     session_total_bytes;
     ngx_msec_t now;
 
+    /* Idempotency: kXR_endsess (session/lifecycle.c) runs this full teardown
+     * while the TCP connection stays open; the eventual close funnels back in
+     * here.  Every step below either releases a resource or commits final
+     * metric/log totals — running any of them twice corrupts the accounting
+     * (connections_active underflow, doubled bytes_rx/tx totals). */
+    if (ctx->disconnect_done) {
+        return;
+    }
+    ctx->disconnect_done = 1;
+
     now = ngx_current_msec;
     ctx->destroyed = 1;
 

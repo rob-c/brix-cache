@@ -139,6 +139,12 @@ features target **Linux (libfuse3), macOS (macFUSE/FSKit), and Windows
   a distinct feature and out of scope here.
 - **Write-back to Stratum-1 / distributed consensus** — the proxy stays a cache;
   G16 virtual repos are read-only compositions.
+  *Reconciliation (2026-08-04):* phase-96 reversed the adjacent "we never
+  author repos" reading — BriX now publishes Stratum-0 repos on the **tool
+  surface** (`brixcvmfs repo …`, honoring the G14 tool-not-directive ruling)
+  and serves them read-only via `brix_cvmfs_stratum0_root`. The serve plane
+  still never writes; write-back to a Stratum-1 remains a non-goal. See
+  `phase-96-cvmfs-stratum0-publishing.md` §0.0.
 - **Replacing the wire protocol** — G2/G10/G14 are *additional* endpoints; a
   client that doesn't speak them falls back to stock per-chunk GETs (fail-safe).
 - **New crypto** — G8/G15 reuse the existing verified-fetch + signing spine;

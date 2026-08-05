@@ -43,6 +43,26 @@ s3_handle_head(ngx_http_request_t *r,
     }
 
     if (vst.is_directory) {
+        /* A directory is not an object — EXCEPT through the folder-marker
+         * convention: the key "prefix/" names the folder itself, and HEAD on it
+         * is how a client (including our own sd_remote driver, whose stat
+         * classifies a path as a directory precisely by probing "path/") asks
+         * whether the folder exists.  Answer 200 + zero length, the read side of
+         * the marker PUT in put_inner.c.  Any other key that lands on a
+         * directory stays 404 NoSuchKey. */
+        size_t klen = ngx_strlen(fs_path);
+
+        if (klen > 1 && fs_path[klen - 1] == '/') {
+            if (brix_http_set_file_headers(r, vst.mtime, 0, 0,
+                                             NULL, 0, 0, 0, 0) != NGX_OK)
+            {
+                BRIX_S3_METRIC_INC(events_total[BRIX_S3_EVENT_INTERNAL_ERROR]);
+                return NGX_HTTP_INTERNAL_SERVER_ERROR;
+            }
+            ngx_http_send_header(r);
+            return ngx_http_send_special(r, NGX_HTTP_LAST);
+        }
+
         return s3_fail(r, NGX_HTTP_NOT_FOUND, "NoSuchKey",
                        "The specified key does not exist.",
                        BRIX_S3_EVENT_NO_SUCH_KEY);
@@ -269,6 +289,13 @@ s3_handle_delete(ngx_http_request_t *r,
      * as DELETE_MISSING. errno is read only on the NGX_ERROR branch. */
     s3_vfs_ctx(r, fs_path, cf, &vctx);
     rc = brix_vfs_unlink(&vctx);
+
+    /* phase-97 §5: evict the manager's entry only for a removal that actually
+     * happened. The idempotent-missing (ENOENT) case removed nothing, and a
+     * failed unlink left the object live — neither may retract it. */
+    if (rc == NGX_OK) {
+        brix_cns_emit_at(cf->common.root_canon, BRIX_CNS_DEL, fs_path, 0, 0);
+    }
 
     return s3_delete_respond(r, (rc == NGX_OK) ? 0 : errno);
 }

@@ -310,8 +310,12 @@ stat_query_path(brix_ctx_t *ctx, ngx_connection_t *c,
     }
 
     /* Internal artifacts (sidecars, upload temps) are invisible → report as
-     * absent, never leaking their size/mtime/existence. */
-    if (brix_is_internal_name(tgt->reqpath)) {
+     * absent, never leaking their size/mtime/existence.  A trusted cache-store
+     * surface (brix_cache_store_endpoint on) is the sole exception: the cache
+     * node stats its own "<key>.cinfo" sidecar before reading it back. */
+    if (!conf->common.cache_store_endpoint
+        && brix_is_internal_name(tgt->reqpath))
+    {
         BRIX_BAIL_ERR(ctx, c, BRIX_OP_STAT, "STAT", tgt->reqpath, "-",
                         kXR_NotFound, "file not found", rc);
     }

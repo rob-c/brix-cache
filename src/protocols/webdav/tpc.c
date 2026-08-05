@@ -219,20 +219,26 @@ webdav_tpc_add_bearer_header(ngx_http_request_t *r, ngx_array_t *headers,
  */
 /*
  * webdav_tpc_source_guard — enforce the brix_webdav_tpc_source_guard naming
- * allowlist on a COPY pull's SOURCE authority.
+ * allowlist on the REMOTE PEER authority of a COPY: the Source host on a pull,
+ * the Destination host on a push.
  *
- * WHAT: when the guard is on, refuse the pull unless the source host is on
+ * WHAT: when the guard is on, refuse the transfer unless the peer host is on
  *   conf->tpc_source_allow (exact host or leading-'.' domain suffix); on a
  *   refusal emit a signal=tpc_egress guard-audit line (banned by the
  *   [xrootd-guard-tpc_egress] jail) and return NGX_HTTP_FORBIDDEN.
- * WHY:  a native TPC pull and a WebDAV COPY pull are the same SSRF primitive —
- *   the destination server dials the source — so both planes enforce the same
- *   NAMING control ahead of any outbound connection. Shares the pure verdict
- *   core (brix_tpc_source_guard_check) with the native path so the two can
- *   never disagree, and mirrors gate.c's proxyabuse emit shape.
- * HOW:  split the host out of source_url with brix_net_target_parse (no DNS),
+ * WHY:  a native TPC pull, a WebDAV COPY pull and a WebDAV COPY push are the
+ *   same SSRF primitive — this server dials a client-named authority — so every
+ *   plane enforces the same NAMING control ahead of any outbound connection.
+ *   Push was originally exempt (it returned before this gate), leaving the
+ *   Destination authority vetted only by the Layer-1 address-range preflight in
+ *   tpc_thread_ssrf_preflight(); this gate closes that asymmetry. Shares the
+ *   pure verdict core (brix_tpc_source_guard_check) with the native path so the
+ *   two can never disagree, and mirrors gate.c's proxyabuse emit shape.
+ * HOW:  split the host out of peer_url with brix_net_target_parse (no DNS),
  *   copy it NUL-terminated, run the verdict; allow (NGX_OK) when the guard is
- *   off or the host matches, else format + log the audit line and forbid.
+ *   off or the host matches, else format + log the audit line and forbid. An
+ *   unparseable URL yields an empty host, which no allowlist matches — so the
+ *   guard fails CLOSED rather than waving a malformed authority through.
  */
 static ngx_int_t
 webdav_tpc_source_guard(ngx_http_request_t *r,
@@ -339,7 +345,20 @@ ngx_http_brix_webdav_tpc_handle_copy(ngx_http_request_t *r)
     n_streams = webdav_tpc_parse_stream_count(r, conf);
 
     if (source_hdr == NULL) {
-        /* Push mode: Destination present, no Source. */
+        /* Push mode: Destination present, no Source. The peer we will dial is
+         * the Destination authority, so it faces the same naming allowlist a
+         * pull's Source does — vetted here, before any outbound leg starts. */
+        char *dest_url = webdav_tpc_pstrndup0(r->pool, dest_hdr->value.data,
+                                              dest_hdr->value.len);
+        if (dest_url == NULL) {
+            return NGX_HTTP_INTERNAL_SERVER_ERROR;
+        }
+
+        rc = webdav_tpc_source_guard(r, conf, dest_url);
+        if (rc != NGX_OK) {
+            return rc;
+        }
+
         return webdav_tpc_handle_push(r, conf, dest_hdr);
     }
 

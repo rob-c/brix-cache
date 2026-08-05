@@ -99,6 +99,22 @@ typedef struct {
     ngx_uint_t     tpc_marker_interval; /* seconds between Perf Markers; 0 = 201 only */
     ngx_uint_t     tpc_max_streams;     /* max parallel streams per pull; 0 = single */
 
+    /* --- HTTP-TPC pull completion gate (the HTTP analogue of the native
+     * brix_tpc_require_source_size / brix_tpc_verify_checksum pair).  Both are
+     * evaluated after the last byte lands in the staged temp and before it is
+     * committed, so a refused pull leaves no file behind.
+     *   tpc_require_source_size  [brix_webdav_tpc_require_source_size on|off]
+     *       off (default): a source that declares no Content-Length is pulled
+     *       anyway; on: such a pull is refused as unverifiable.  Whenever the
+     *       source DOES declare a length it is always compared against the bytes
+     *       received — that comparison needs no opt-in, only one of the gates on.
+     *   tpc_verify_digest  [brix_webdav_tpc_verify_checksum <alg>]
+     *       "" (default) = off.  Non-empty names the RFC-3230 algorithm sent as
+     *       Want-Digest on the completion probe; the returned Digest: is
+     *       recomputed over the staged temp and must match, fail-closed. */
+    ngx_flag_t     tpc_require_source_size;
+    ngx_str_t      tpc_verify_digest;
+
     /* [brix_webdav_tpc_credential_forward on|off] default ON.  When on, a TPC
      * PULL acts as the END USER against the source by default: it resolves the
      * requesting identity's delegated x509 proxy (webdav_tpc_user_proxy_resolve)

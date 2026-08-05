@@ -355,9 +355,17 @@ sd_frm_staged_commit(brix_sd_staged_t *st, int noreplace)
     }
     /* Publish: migrate the online-buffer object to tape. */
     rc = ss->fst->mss->migrate(ss->fst->mss_ctx, ss->key);
+    if (rc != 0) {
+        /* Ownership contract: only a SUCCESSFUL commit consumes the handle. A
+         * failed migrate must leave st+ss valid — every caller aborts a failed
+         * commit (stage_engine, cstb_pump_and_commit, cache fetch), and abort
+         * frees them. Freeing here made that mandatory abort a use-after-free,
+         * a double free, and a second purge of the online buffer. */
+        return NGX_ERROR;
+    }
     free(ss);
     free(st);
-    return (rc == 0) ? NGX_OK : NGX_ERROR;
+    return NGX_OK;
 }
 
 static void

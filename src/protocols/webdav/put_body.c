@@ -185,6 +185,10 @@ webdav_put_aio_done(ngx_event_t *ev)
 
     webdav_put_persist_checksums(r, (const char *) t->path);   /* §8.3 */
 
+    /* Same report as the synchronous commit; this is the thread-offload path's
+     * event-loop completion, so the CMS connection is safe to touch here. */
+    webdav_cns_note_written(r, (const char *) t->path);
+
     status = t->created ? NGX_HTTP_CREATED : NGX_HTTP_NO_CONTENT;
     webdav_send_status_only(r, (ngx_uint_t) status);
 }

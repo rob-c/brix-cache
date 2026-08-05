@@ -229,9 +229,14 @@ class LiveRun(AbstractContextManager["LiveRun"]):
         input: str | bytes | None = None,
         env: dict[str, str] | None = None,
         check: bool = True,
+        binary: bool = False,
     ) -> subprocess.CompletedProcess[str]:
         command = [str(item) for item in argv]
-        text = not isinstance(input, bytes)
+        # Text mode is inferred from `input`, which is wrong for a command that
+        # WRITES binary (xrdfs cat of a random payload): decoding then raises
+        # UnicodeDecodeError inside communicate() and the caller never sees a
+        # return code.  `binary=True` opts the streams out explicitly.
+        text = not binary and not isinstance(input, bytes)
         proc = subprocess.Popen(
             command,
             cwd=str(cwd) if cwd else None,

@@ -202,6 +202,13 @@ brix_tier_fill_cache_policy(ngx_http_brix_shared_conf_t *common,
                       ? -1 : (int) common->cache_batch_cinfo;
     pol.l1_entries    = common->cache_index_cache;
     pol.slice_size    = common->cache_slice_size;
+    /* Background block prefetch (audit §4.1): merged defaults are 0 (off) and
+     * 8 MiB, but guard UNSET for a conf that reaches registration unmerged. */
+    pol.prefetch_jobs = (common->cache_prefetch == NGX_CONF_UNSET
+                         || common->cache_prefetch <= 0)
+                      ? 0 : (ngx_uint_t) common->cache_prefetch;
+    pol.prefetch_window = (common->cache_prefetch_window == NGX_CONF_UNSET_SIZE)
+                        ? 8 * 1024 * 1024 : common->cache_prefetch_window;
     /* phase-68 digest-verification mode — the posix-store constraint it
      * carries is validated by the caller against the parsed store driver. */
     pol.verify = (common->cache_verify_mode == NGX_CONF_UNSET_UINT)

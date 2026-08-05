@@ -22,6 +22,7 @@ Run:
 """
 
 import os
+import re
 import socket
 import struct
 import tempfile
@@ -320,6 +321,30 @@ class TestXrootdTokenProtocol:
             assert len(body) > 16, "login response too short for params"
             params = body[16:].decode("ascii", errors="replace")
             assert "&P=ztn" in params, f"ztn not in login params: {params!r}"
+        finally:
+            sock.close()
+
+    def test_ztn_params_match_the_stock_client_grammar(self):
+        """The ztn block must be `&P=ztn,<expiry>:<maxtsz>:`.
+
+        XrdSecProtocolztn's constructor parses the server parameters with
+        strtoll() (minimum acceptable token lifetime) then strtol() (maximum
+        accepted token size), demanding a ':' after each field and maxtsz > 0.
+        BriX advertised `&P=ztn,v:10000` for its whole life, which every stock
+        XrdCl rejected with "Secztn: Malformed client parameters" — so no stock
+        client could ever use token auth over root://.  Pin the grammar here so
+        the interop fix cannot silently regress.
+        """
+        sock = _raw_handshake()
+        try:
+            _send_protocol(sock)
+            status, body = _send_login(sock)
+            assert status == kXR_ok
+            params = body[16:].decode("ascii", errors="replace")
+            match = re.search(r"&P=ztn,(-?\d+):(-?\d+):", params)
+            assert match, f"ztn block is not <expiry>:<maxtsz>:  {params!r}"
+            assert int(match.group(2)) > 0, \
+                f"maxtsz must be positive, got {match.group(2)}"
         finally:
             sock.close()
 

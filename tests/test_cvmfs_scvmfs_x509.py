@@ -76,7 +76,7 @@ def pki(tmp_path_factory):
     rogue CA+leaf outside the server's trust store."""
     d = tmp_path_factory.mktemp("scvmfs_x509")
     ca_crt, ca_key = _self_signed(d, "BriX Test CA", "ca")
-    srv_crt, srv_key = _self_signed(d, "localhost", "server")
+    srv_crt, srv_key = _self_signed(d, "localhost", "server")  # net-literal-allow: throwaway TLS cert subject
     alice = _leaf(d, "alice", ca_crt, ca_key, "alice")
     bob = _leaf(d, "bob", ca_crt, ca_key, "bob")
     rogue_ca_crt, rogue_ca_key = _self_signed(d, "Rogue CA", "rogue_ca")

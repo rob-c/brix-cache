@@ -164,10 +164,25 @@ sd_posix_rename(brix_sd_instance_t *inst, const char *src, const char *dst,
     int noreplace)
 {
     sd_posix_state_t *st = inst->state;
+    char              abssrc[PATH_MAX];
+    char              absdst[PATH_MAX];
 
     (void) noreplace;   /* overwrite_dirs=0: stock replace-file semantics */
+
+    /* The vtable contract is a root-RELATIVE key; brix_ns_rename takes
+     * ABSOLUTE paths under root_canon and refuses anything outside it as a
+     * cross-root move (EXDEV), so build the absolutes here (matches
+     * sd_posix_mkdir/sd_posix_unlink — the relative form always failed). */
+    if ((size_t) snprintf(abssrc, sizeof(abssrc), "%s%s",
+                          st->root_canon, src) >= sizeof(abssrc)
+        || (size_t) snprintf(absdst, sizeof(absdst), "%s%s",
+                             st->root_canon, dst) >= sizeof(absdst))
+    {
+        errno = ENAMETOOLONG;
+        return NGX_ERROR;
+    }
     return sd_posix_ns_result(
-        brix_ns_rename(inst->log, st->root_canon, src, dst, 0));
+        brix_ns_rename(inst->log, st->root_canon, abssrc, absdst, 0));
 }
 
 ngx_int_t
@@ -175,13 +190,30 @@ sd_posix_server_copy(brix_sd_instance_t *inst, const char *src,
     const char *dst, off_t *bytes_out)
 {
     sd_posix_state_t     *st = inst->state;
-    brix_ns_copy_opts_t opts;
+    brix_ns_copy_opts_t   opts;
+    char                  abssrc[PATH_MAX];
+    char                  absdst[PATH_MAX];
     ngx_int_t             rc;
+
+    /* Same contract as sd_posix_rename: the vtable key is root-RELATIVE, but
+     * brix_ns_local_copy strips root_canon off ABSOLUTE paths and treats a
+     * non-match as a cross-root copy (EXDEV).  Handing it the relative form
+     * failed every server-side COPY on a driver-backed export — WebDAV COPY
+     * answered 403 and S3 CopyObject 500 — while a plain export (NULL driver,
+     * VFS namespace path) worked, which is why it went unnoticed. */
+    if ((size_t) snprintf(abssrc, sizeof(abssrc), "%s%s",
+                          st->root_canon, src) >= sizeof(abssrc)
+        || (size_t) snprintf(absdst, sizeof(absdst), "%s%s",
+                             st->root_canon, dst) >= sizeof(absdst))
+    {
+        errno = ENAMETOOLONG;
+        return NGX_ERROR;
+    }
 
     ngx_memzero(&opts, sizeof(opts));
     opts.overwrite = 1;
     rc = sd_posix_ns_result(
-        brix_ns_local_copy(inst->log, st->root_canon, src, dst, &opts));
+        brix_ns_local_copy(inst->log, st->root_canon, abssrc, absdst, &opts));
 
     if (rc == NGX_OK && bytes_out != NULL) {
         struct stat sb;

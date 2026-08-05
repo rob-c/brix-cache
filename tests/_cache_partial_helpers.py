@@ -72,7 +72,8 @@ def _optline(directive, value, indent="        "):
 
 def make_cache_node(backend, *, tmp, lifecycle, slice_size=None, max_file_size=None,
                     max_object=None, deny_prefix=None, include_regex=None,
-                    origin_backend="posix", allow_write=False):
+                    origin_backend="posix", allow_write=False,
+                    prefetch=None, prefetch_window=None):
     """Start a cache node in front of `backend` through the registry lifecycle
     harness, returning a CacheNode.
 
@@ -89,6 +90,10 @@ def make_cache_node(backend, *, tmp, lifecycle, slice_size=None, max_file_size=N
         seed_origin writes into the backend's own dir.
     """
     base = str(tmp)
+    # Background block prefetch (audit §4.1): both directives collapse to ""
+    # when unset so the default-off suite configs stay byte-identical.
+    prefetch_lines = (_optline("brix_cache_prefetch", prefetch)
+                      + _optline("brix_cache_prefetch_window", prefetch_window))
 
     if backend == "xroot":
         origin_root = os.path.join(base, "origin")
@@ -137,6 +142,7 @@ def make_cache_node(backend, *, tmp, lifecycle, slice_size=None, max_file_size=N
                 "CACHE_MAX_OBJECT": _optline("brix_cache_max_object", max_file_size),
                 "CACHE_DENY_PREFIX": _optline("brix_cache_deny_prefix", deny_prefix),
                 "CACHE_INCLUDE_REGEX": _optline("brix_cache_include_regex", include_regex),
+                "CACHE_PREFETCH": prefetch_lines,
             },
             reason="cache partial-fill xroot cache node"))
         node = CacheNode(lifecycle, cache_ep.port, cache_dir, backend, backend_port,
@@ -179,6 +185,7 @@ def make_cache_node(backend, *, tmp, lifecycle, slice_size=None, max_file_size=N
                 "CACHE_MAX_OBJECT": _optline("brix_cache_max_object", max_file_size),
                 "CACHE_DENY_PREFIX": _optline("brix_cache_deny_prefix", deny_prefix),
                 "CACHE_INCLUDE_REGEX": _optline("brix_cache_include_regex", include_regex),
+                "CACHE_PREFETCH": prefetch_lines,
             },
             reason="cache partial-fill http cache node"))
         node = CacheNode(lifecycle, cache_ep.port, cache_dir, backend, backend_port,
@@ -214,6 +221,7 @@ def make_cache_node(backend, *, tmp, lifecycle, slice_size=None, max_file_size=N
             "CACHE_MAX_OBJECT": _optline("brix_cache_max_object", max_object),
             "CACHE_DENY_PREFIX": _optline("brix_cache_deny_prefix", deny_prefix),
             "CACHE_INCLUDE_REGEX": _optline("brix_cache_include_regex", include_regex),
+            "CACHE_PREFETCH": prefetch_lines,
         },
         reason="cache partial-fill local backend cache node"))
     node = CacheNode(lifecycle, cache_ep.port, store, backend, None,

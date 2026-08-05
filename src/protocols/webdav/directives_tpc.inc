@@ -110,6 +110,21 @@
       offsetof(ngx_http_brix_webdav_loc_conf_t, tpc_max_streams),
       NULL },
 
+    /* HTTP-TPC pull completion gate (see webdav_loc_conf.h). */
+    { ngx_string("brix_webdav_tpc_require_source_size"),
+      NGX_HTTP_LOC_CONF | NGX_CONF_FLAG,
+      ngx_conf_set_flag_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_brix_webdav_loc_conf_t, tpc_require_source_size),
+      NULL },
+
+    { ngx_string("brix_webdav_tpc_verify_checksum"),
+      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
+      brix_webdav_conf_set_tpc_verify_digest,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      0,
+      NULL },
+
     { ngx_string("brix_webdav_tpc_credential_forward"),
       NGX_HTTP_LOC_CONF | NGX_CONF_FLAG,
       ngx_conf_set_flag_slot,

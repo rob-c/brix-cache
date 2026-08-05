@@ -196,14 +196,22 @@ s3_mpu_assemble(ngx_http_request_t *r, ngx_log_t *log, const char *root_canon,
  */
 static void
 s3_mpu_send_result(ngx_http_request_t *r, ngx_uint_t method_slot,
-    const ngx_str_t *bucket, const char *fs_path, const struct stat *st,
-    const char *crc64_b64)
+    const ngx_str_t *bucket, const char *root_canon, const char *fs_path,
+    const struct stat *st, const char *crc64_b64)
 {
     char       crc64_xml[128];
     char       etag[64];
     char       xml_buf[512];
     size_t     xml_len;
     ngx_buf_t *b;
+
+    /* phase-97 §5: the reassembled object is already renamed into place by the
+     * time this runs, and this is the event loop — the only context allowed to
+     * touch the worker's CMS link (s3_mpu_assemble runs on a pool thread). The
+     * stat was taken on the temp fd just before the rename, so it is the exact
+     * published size. */
+    brix_cns_emit_at(root_canon, BRIX_CNS_ADD, fs_path, (uint64_t) st->st_size,
+                     (uint64_t) st->st_mtime);
 
     crc64_xml[0] = '\0';
     if (crc64_b64[0] != '\0') {
@@ -287,8 +295,8 @@ s3_mpu_aio_done(ngx_event_t *ev)
         s3_metrics_finalize_request_method(r, t->method_slot, t->http_status);
         return;
     }
-    s3_mpu_send_result(r, t->method_slot, &t->bucket, t->fs_path, &t->st,
-                       t->crc64_b64);
+    s3_mpu_send_result(r, t->method_slot, &t->bucket, t->root_canon,
+                       t->fs_path, &t->st, t->crc64_b64);
 }
 
 static void
@@ -418,7 +426,8 @@ s3_multipart_complete_body_handler_inner(ngx_http_request_t *r)
                 s3_metrics_finalize_request_method(r, method_slot, status);
                 return;
             }
-            s3_mpu_send_result(r, method_slot, &cf->bucket, fs_path, &st2, crc);
+            s3_mpu_send_result(r, method_slot, &cf->bucket,
+                               cf->common.root_canon, fs_path, &st2, crc);
         }
     }
 }

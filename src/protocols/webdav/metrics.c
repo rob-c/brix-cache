@@ -301,6 +301,9 @@ webdav_metrics_response(ngx_http_request_t *r, ngx_int_t rc)
     ngx_uint_t method;
     ngx_uint_t status;
     ngx_uint_t status_class;
+    brix_metric_op_t uop;
+    ngx_time_t *tp;
+    ngx_msec_int_t elapsed_ms;
     brix_sess_t *sess;
     char path[BRIX_SESSLOG_PATH_MAX];
     char errscratch[BRIX_SESSLOG_ERR_MAX];
@@ -323,9 +326,25 @@ webdav_metrics_response(ngx_http_request_t *r, ngx_int_t rc)
                                                        sizeof(errscratch)));
     webdav_sess_finish_xfer(r, sess, webdav_sess_mode(r, method), status);
     BRIX_WEBDAV_METRIC_INC(responses_total[method][status_class]);
-    brix_metric_op_done(BRIX_PROTO_WEBDAV, webdav_unified_op(method),
-                          0, 0,
-                          brix_metric_err_from_http_status(status));
+
+    /* Only the data-plane methods (GET→READ, PUT→WRITE) are emitted here:
+     * namespace methods (HEAD/DELETE/MKCOL/MOVE/PROPFIND/...) are already
+     * observed once by the VFS layer, so a second protocol-level op_done
+     * would double-count them. Bytes stay 0 — the scrape-time fold supplies
+     * io_bytes from the per-server tx/rx ledgers. Latency is the full
+     * request duration (clamped for clock steps). */
+    uop = webdav_unified_op(method);
+    if (uop == BRIX_METRIC_OP_READ || uop == BRIX_METRIC_OP_WRITE) {
+        tp = ngx_timeofday();
+        elapsed_ms = (ngx_msec_int_t) ((tp->sec - r->start_sec) * 1000
+                                       + (tp->msec - r->start_msec));
+        if (elapsed_ms < 0) {
+            elapsed_ms = 0;
+        }
+        brix_metric_op_done(BRIX_PROTO_WEBDAV, uop, 0,
+                            (uint64_t) elapsed_ms * 1000,
+                            brix_metric_err_from_http_status(status));
+    }
 }
 
 /**

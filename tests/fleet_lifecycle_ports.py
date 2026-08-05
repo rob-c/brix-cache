@@ -194,6 +194,91 @@ LIFECYCLE_EXCLUSIVE_PORTS: dict[str, dict] = {
     "lc-pipeline-depth-32": {"port": 31192},
     # phase-33 P5 userspace-TLS A/B harness self-test (test_perf_ab_gate.py).
     "lc-perf-ab-tls": {"port": 31193},
+    # CMS 4-tier cluster (test_cms_tier_topology.py): ONE nginx master hosting
+    # six cmsd node identities as separate stream server blocks, each needing its
+    # own listen.  The primary port is the root manager; the other five are
+    # template placeholders the config addresses by node name.  The whole tree is
+    # a mutation subject (the test reads the settle sequence out of its error
+    # log), so it takes an exclusive block serialised by xdist_group("lc-cms-tier").
+    "lc-cms-tier": {"port": 31200, "extra": {"PORT_SUB1": 31201,
+                                             "PORT_LEAFA": 31202,
+                                             "PORT_LEAFB": 31203,
+                                             "PORT_SUB2": 31204,
+                                             "PORT_LEAFC": 31205}},
+    # Paged-I/O + readv against the NON-posix storage drivers
+    # (test_pgio_nonposix.py): one pblock:// export and one block:<device>
+    # export.  Both are mutation subjects — the tests pgwrite into them and one
+    # asserts the device file did not grow — so each takes an exclusive port,
+    # serialised by xdist_group("lc-pgio-nonposix").
+    "lc-pgio-pblock": {"port": 31210},
+    "lc-pgio-block": {"port": 31211},
+    # Cross-device (EXDEV) staged commit over the WebDAV plane
+    # (test_stage_cross_device_commit.py): one HTTP export whose
+    # `brix_webdav_stage_dir` sits on tmpfs, so every PUT commit has to take the
+    # copy+fsync+rename fallback instead of rename(2).  The tests PUT, overwrite
+    # and DELETE in the export and read the stage dir between requests, so it is
+    # a mutation subject on an exclusive port, serialised by
+    # xdist_group("lc-stage-xdev").
+    "lc-stage-xdev": {"port": 31212},
+    # Backend capability negatives against the REAL sd_http driver struct
+    # (test_backend_caps_negative.py): a WebDAV origin plus two root:// exports
+    # backed by it — one with the default write-stage tier, one with
+    # `brix_stage off` — so an xattr-less backend is reached both through a
+    # composed tier (leaf-dispatch ENOSYS) and directly (ENOTSUP).  The tests
+    # write through the origin, so the whole instance is a mutation subject on
+    # exclusive ports, serialised by xdist_group("lc-caps-http").
+    "lc-caps-http": {"port": 31213,
+                     "extra": {"ORIGIN_PORT": 31214,
+                               "STAGE_OFF_PORT": 31215}},
+    # Nested S3 gateway (test_s3_nested_gateway.py): an S3 front whose storage
+    # backend is a co-hosted s3:// origin, i.e. `brix_s3 on` on both ends of the
+    # same transfer.  The two blocks carry DIFFERENT SigV4 keys on purpose — that
+    # is what pins the per-secret signing-key cache — and the tests PUT/DELETE
+    # through the front, so both ports are mutation subjects held exclusively and
+    # serialised by xdist_group("lc-s3-nested").
+    "lc-s3-nested": {"port": 31216,
+                     "extra": {"ORIGIN_PORT": 31217}},
+    # Namespace MUTATIONS through a storage driver (test_ns_mutation_gateways.py):
+    # one plain-POSIX root:// export as the control, plus two root:// gateways
+    # over co-hosted origins — one `http://` (sd_http) and one `root://`
+    # (sd_xroot) — so mkdir/rm/rmdir/mv/dirlist answers can be compared against
+    # the POSIX truth on the same operations.  Every test creates and destroys
+    # namespace entries on all four ports, so the instance is a mutation subject
+    # held exclusively and serialised by xdist_group("lc-ns-gateways").
+    # worker_processes 2: both gateways connect back to origins in this same
+    # nginx (see the template header).
+    "lc-ns-gateways": {"port": 31218,
+                       "extra": {"HTTP_ORIGIN_PORT": 31219,
+                                 "GW_HTTP_PORT": 31220,
+                                 "GW_XROOT_PORT": 31221}},
+    # TLS x send-path behavioural matrix (test_tls_sendfile_matrix.py): the same
+    # objects served over {cleartext, TLS} x {posix, pblock}, where pblock is the
+    # backend that actually takes BOTH branches of the INVARIANT-2 fork depending
+    # on the requested range.  The tests PUT their own fixtures into both exports,
+    # so the instance is a mutation subject on an exclusive block, serialised by
+    # xdist_group("lc-tls-sendfile").
+    "lc-tls-sendfile": {"port": 31222,
+                        "extra": {"TLS_PORT": 31223,
+                                  "PB_PORT": 31224,
+                                  "PB_TLS_PORT": 31225}},
+    # Store-then-evict cache passthrough beyond the WebDAV plane
+    # (test_cache_passthrough_planes.py): a WebDAV origin plus S3, CVMFS and
+    # root:// fronts over it, each with its own cache store, in passthrough-on
+    # and passthrough-off pairs.  Every test fills and evicts cache entries, so
+    # the instance is a mutation subject on an exclusive block, serialised by
+    # xdist_group("lc-cache-passthrough").
+    "lc-cache-passthrough": {"port": 31226,
+                             "extra": {"S3_PORT": 31228,
+                                       "S3_OFF_PORT": 31229,
+                                       "CV_PORT": 31230,
+                                       "CV_OFF_PORT": 31231,
+                                       "ROOT_PORT": 31232}},
+
+    # S3 REST front over a native root:// origin in the same nginx — the write
+    # half of the S3 x xroot cell. {PORT} is the origin (stream) so the
+    # registry's readiness probe watches the listener the front depends on.
+    "lc-s3-xroot": {"port": 31233,
+                    "extra": {"S3_PORT": 31234}},
 }
 
 # Non-binding placeholder port for standalone `nginx_t` parse tests (nginx -t
@@ -261,6 +346,14 @@ LIFECYCLE_SHARED_PORTS: dict[str, dict] = {
     "lc-rdoctor-empty": {"port": 30041},
     "lc-rdoctor-sss": {"port": 30042},
     "lc-rdoctor-token": {"port": 30043},
+    # phase-93 config-audit (test_config_audit.py) — one anon export, serialised
+    # under xdist_group("lc-cfgaudit").
+    "lc-cfgaudit-anon": {"port": 30459},
+    # phase-93 tpc-egress self-test (test_xrddiag_tpc_egress.py) — two
+    # TPC-capable gateways (default SSRF policy vs allow_local=on), one live per
+    # test, serialised under xdist_group("lc-tpcegress").
+    "lc-tpceg-default": {"port": 30460},
+    "lc-tpceg-local": {"port": 30461},
     # xrddiag compare --davs — ONE nginx, root primary + two WebDAV planes
     # (match / mismatch) as owned extra listens.
     "lc-xrddiag-compare-davs": {"port": 30044,
@@ -619,6 +712,12 @@ LIFECYCLE_SHARED_PORTS: dict[str, dict] = {
     "gridftp-verify-posix": {"port": 30438},
     "gridftp-vo": {"port": 30450},
     "gridftp-vo-gsi": {"port": 30451},
+    # test_xrdcp_gsiftp.py — gateways for the NATIVE brix xrdcp gsiftp client
+    # (client/lib/protocols/ftp): one cleartext ftp:// control listen and two GSI
+    # gateways (trusting / empty trust store for the security negative).
+    "xrdcp-gsiftp-plain": {"port": 30452},
+    "xrdcp-gsiftp-gsi": {"port": 30453},
+    "xrdcp-gsiftp-untrusting": {"port": 30454},
     "gridftp-pasv-range": {"port": 30439},
     "gridftp-pasv-xfer": {"port": 30440},
     "gridftp-pasv-exhaust": {"port": 30441},
@@ -738,6 +837,35 @@ LIFECYCLE_SHARED_PORTS: dict[str, dict] = {
     "resil-nginx-anon": {"port": 30362},
     "resil-nginx-webdav-anon": {"port": 30363},
     "resil-nginx-s3-anon": {"port": 30364},
+    # The TLS and token legs of the same sweep harness: the fault sweeps were
+    # cleartext+GSI only, so neither the TLS record layer nor a token login had
+    # ever met loss, truncation or corruption.
+    "resil-nginx-tls-anon": {"port": 30462},
+    "resil-nginx-token": {"port": 30463},
+    # resilience/run_http_reorder.py's WebDAV origin.  The runner is standalone
+    # (not collected by pytest), so this omission went unnoticed until
+    # test_sweep_runners.py drove it: without the entry the registry refuses the
+    # spec and the sweep dies before it starts.
+    "resil-http-reorder": {"port": 30464},
+    # The three SERVER-SIDE legs of the sweep (audit §6): every other resilience
+    # module damages the client->server leg, so a fault on a leg the client
+    # cannot see had never been injected at all.  `resil-nginx-http-front` is a
+    # root:// front whose storage backend is a remote http:// origin reached
+    # through the proxy; `resil-nginx-tpc-dest` is a TPC destination whose PULL
+    # leg goes through it; `resil-nginx-sss` closes the last unswept login
+    # mechanism.
+    # 30468/30469 rather than 30465/30466: those two were already owned by
+    # `lc-matrix-*` below, and a shared-band port may have exactly one owner —
+    # two instances on one fixed port is a bind() race, not a sharing scheme.
+    "resil-nginx-http-front": {"port": 30468},
+    "resil-nginx-tpc-dest": {"port": 30469},
+    "resil-nginx-sss": {"port": 30467},
+    # tests/matrix_layer.py — the (protocol × auth × tls × backend) cells.  Two
+    # names for the whole matrix: only one cell is up at a time (every matrix
+    # module carries xdist_group("lc-matrix")), and the origin name is only
+    # bound for the remote-backend cells.
+    "lc-matrix-node": {"port": 30465},
+    "lc-matrix-origin": {"port": 30466},
     # test_lifecycle_speed.py (group lc-speed) — keypool boot-speed subject; one
     # running instance per test (the _SEQ counter is retired for a fixed name).
     # Binds a primary listen plus a GSI plane listen (GSI_PORT).
@@ -861,6 +989,105 @@ LIFECYCLE_SHARED_PORTS: dict[str, dict] = {
     # per-worker negative-stat cache enabled via BRIX_NEG_STAT_CACHE=1 in the
     # spec env, single-listen single-worker anon root export.
     "lc-negstat": {"port": 30455},
+    # test_cachemx_*.py (group lc-cachemx, serial) — BriX-Cache metrics
+    # conformance matrix.  One anon posix origin, one multi-plane cache subject
+    # (stream none/gsi/token/sss + http webdav/davs/davs-gsi/s3/s3-sigv4 + a
+    # /metrics listener), one eviction/watermark trim subject rendered with
+    # test-computed watermarks, and a cms manager + cache data-server pair for
+    # the cmsd:// route.  All files share xdist_group("lc-cachemx") so these
+    # fixed shared-band ports never have two concurrent drivers.
+    "lc-cachemx-origin": {"port": 30470, "extra": {"METRICS_PORT": 30488}},
+    "lc-cachemx": {"port": 30471,
+                   "extra": {"GSI_PORT": 30472, "TOK_PORT": 30473,
+                             "SSS_PORT": 30474, "METRICS_PORT": 30475,
+                             "HTTP_PORT": 30476, "DAVS_PORT": 30477,
+                             "DAVS_GSI_PORT": 30478, "S3_PORT": 30479,
+                             "S3_SIG_PORT": 30480,
+                             "S3_TLS_PORT": 30506,
+                             "DAV_ORIGIN_PORT": 30507,
+                             "DAV_TPC_PORT": 30508}},
+    "lc-cachemx-evict": {"port": 30481, "extra": {"METRICS_PORT": 30482}},
+    "lc-cachemx-redir": {"port": 30483,
+                         "extra": {"CMS_PORT": 30484, "METRICS_PORT": 30485}},
+    "lc-cachemx-cmsds": {"port": 30486, "extra": {"METRICS_PORT": 30487}},
+    # `unix` auth peer-trust matrix (test_unix_auth_wire.py) — three read-only
+    # instances differing only in listen address and brix_unix_trust_remote; the
+    # two "remote" ones bind this host's non-loopback address so the peer the
+    # server sees is not loopback.  One xdist_group("lc-unix-auth") serialises them.
+    "lc-unix-loopback": {"port": 30489},
+    "lc-unix-remote-deny": {"port": 30490},
+    "lc-unix-remote-trust": {"port": 30491},
+    # Macaroon over the root:// stream plane (test_macaroon_root_wire.py): one
+    # instance with a single secret, one with a rotated secret pair so the
+    # grace-period old-secret retry has a live path.  xdist_group
+    # ("lc-macaroon-root") serialises them.
+    "lc-macaroon-root": {"port": 30492},
+    "lc-macaroon-root-rotate": {"port": 30493},
+
+    # brix_authdb authorization granularity behind the four non-GSI mechanisms
+    # (test_authdb_mechanism_scope.py): one server per mechanism, each with the
+    # same rule shapes (user scope + group/VO scope + host scope).  xdist_group
+    # ("lc-authdb-mech") serialises them.
+    "lc-authdb-pwd": {"port": 30494},
+    "lc-authdb-sss": {"port": 30495},
+    "lc-authdb-host": {"port": 30496},
+    "lc-authdb-krb5": {"port": 30497},
+
+    # HTTP-TPC pull completion gate (test_webdav_tpc_completion_gate.py): one
+    # COPY destination per gate setting — both halves on, size half only, and
+    # neither (the non-vacuity control).  All three pull from the same in-test
+    # https fake source.  xdist_group ("lc-tpc-gate") serialises them.
+    "lc-tpcgate-both": {"port": 30498},
+    "lc-tpcgate-size": {"port": 30499},
+    "lc-tpcgate-off": {"port": 30500},
+
+    # Native root:// TPC × WLCG token auth (test_tpc_token_auth.py): one nginx,
+    # four brix_root planes — token-auth source, plus three destinations that
+    # differ only in how the outbound source leg is credentialed (passthrough,
+    # static bearer file, nothing).  xdist_group ("lc-tpc-token") serialises it.
+    "lc-tpc-token": {"port": 30501,
+                     "extra": {"PORT_SRC": 30502, "PORT_BFILE": 30503,
+                               "PORT_NOPASS": 30504}},
+
+    # root:// trusted cache-STORE surface (test_mu_sidecar_hidden.py): same
+    # export and the same planted sidecars as "lc-mu-sidecar-root", but with
+    # brix_cache_store_endpoint on, so the reserved-name guard is lifted for
+    # open/stat.  Paired with the default node so both halves of the switch are
+    # asserted against one namespace.
+    "lc-mu-sidecar-store": {"port": 30505},
+    # CMS/AAA federation-join node (test_cms_aaa_join_noise.py): dials its
+    # redirector through a brix-fault-proxy on an ephemeral port, so only the
+    # data listen and the /metrics listen are ledgered here.
+    "lc-cms-aaa-node": {"port": 30509, "extra": {"METRICS_PORT": 30510}},
+    # phase-97 §5: one export, four planes (root:// + WebDAV + S3 + gridftp) all
+    # reporting into one manager inventory (test_cns_http.py).  The root:// port
+    # is the primary; the other three planes bind the extras.  Dials the shared
+    # "lc-cns-manager" CMS port, so it is serial with the other CNS suites.
+    "lc-cns-http-data": {"port": 30511, "extra": {"HTTP_PORT": 30512,
+                                                  "S3_PORT": 30513,
+                                                  "FTP_PORT": 30514}},
+    # CMS multi-manager redundancy (test_cms_multi_manager.py): one manager-mode
+    # parent-lookup node and one CNS-emit data node, each dialling TWO in-test
+    # stub managers on ephemeral ports (client-side listeners, Phase-6 exempt).
+    # xdist_group ("lc-cms-multi") serialises the file over these fixed ports.
+    "lc-cms-multi-node": {"port": 30515},
+    "lc-cms-multi-emit": {"port": 30516},
+    # The s3:// sibling of `resil-nginx-http-front` above: a root:// front whose
+    # storage backend is a remote S3 origin reached through the fault proxy.  A
+    # second name rather than a reuse of the http one because both fronts are up
+    # at once in test_server_leg_faults.py, and it is numerically here rather
+    # than beside its sibling because 30470+ was already taken by the cachemx
+    # block when the resilience band was allocated.
+    "resil-nginx-s3-front": {"port": 30517},
+    # Background block-prefetch WebDAV front (test_vfs_prefetch.py): a slice
+    # partial cache served memory-backed over a throwaway http static origin
+    # (origin port is registry-assigned; only the front + its /metrics listen
+    # are ledgered).  The suite is serial (shares the cache-partial harness
+    # doctrine), so one fixed pair suffices.
+    "lc-vfs-prefetch-webdav": {"port": 30518, "extra": {"METRICS_PORT": 30519}},
+    # 30506/30507/30508 are the cachemx matrix's S3-over-TLS, remote-origin
+    # WebDAV and HTTP-TPC WebDAV planes; they live in the "lc-cachemx" extras
+    # block above, out of numeric order because that entry predates them.
 }
 
 # Non-binding placeholder for lifecycle-shared-band `nginx -t`-only instances

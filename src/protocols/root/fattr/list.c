@@ -370,8 +370,17 @@ fattr_list_read_names(brix_ctx_t *ctx, ngx_connection_t *c,
                    : brix_vfs_flistxattr(vctx, fd, NULL, 0);
     if (list_sz < 0) {
         out.done = 1;
-        /* Filesystem with no xattr support → empty list, not an error. */
-        if (errno == ENOTSUP || errno == EOPNOTSUPP) {
+        /* Filesystem/backend with no xattr support → empty list, not an error.
+         * Three errnos mean exactly that here, depending on where the "no
+         * xattrs" verdict came from: the local POSIX path and the VFS's own
+         * NULL-driver checks report ENOTSUP/EOPNOTSUPP (vfs_xattr.c), while the
+         * storage seam reports a driver without the slot as ENOSYS
+         * (brix_sd_listxattr_maybe_cred, sd_cred_forward.h) — which is what a
+         * composed tier over an xattr-less leaf (e.g. brix_stage over an http
+         * origin) produces. Treating ENOSYS as a hard error made fattr list
+         * answer kXR_FSError for a perfectly healthy backend that simply has no
+         * extended attributes. */
+        if (errno == ENOTSUP || errno == EOPNOTSUPP || errno == ENOSYS) {
             BRIX_OP_OK(ctx, BRIX_OP_FATTR);
             out.rc = brix_send_ok(ctx, c, NULL, 0);
             return out;

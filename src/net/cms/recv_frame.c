@@ -199,14 +199,14 @@ cms_frame_status(ngx_brix_cms_ctx_t *ctx, uint32_t streamid, u_char code)
         ngx_log_error(NGX_LOG_NOTICE, ctx->cycle->log, 0,
                       "brix: CMS suspend received — new logins paused");
         brix_cms_log_action(ctx->cycle->log, "status",
-                            (const char *) ctx->conf->cms.manager.data,
+                            (const char *) ctx->mgr_name.data,
                             "in", NULL, 1, "manager suspended this node");
     } else if (mod & CMS_ST_RESUME) {
         ctx->conf->cms.suspended = 0;
         ngx_log_error(NGX_LOG_NOTICE, ctx->cycle->log, 0,
                       "brix: CMS resume received — accepting logins");
         brix_cms_log_action(ctx->cycle->log, "status",
-                            (const char *) ctx->conf->cms.manager.data,
+                            (const char *) ctx->mgr_name.data,
                             "in", NULL, 1, "manager resumed this node");
     } else {
         ngx_log_debug1(NGX_LOG_DEBUG_EVENT, ctx->cycle->log, 0,
@@ -254,7 +254,7 @@ cms_frame_redirect(ngx_brix_cms_ctx_t *ctx, uint32_t streamid, u_char code)
                                   host, (int) port);
         *dp = '\0';
         brix_cms_log_action(ctx->cycle->log, "redirect",
-                            (const char *) ctx->conf->cms.manager.data,
+                            (const char *) ctx->mgr_name.data,
                             "in", NULL, 1, (const char *) detail);
     }
 
@@ -284,7 +284,7 @@ cms_frame_forward(ngx_brix_cms_ctx_t *ctx, uint32_t streamid, u_char code)
 
     r = brix_cms_route_lookup(XRDCMS_ROLE_NODE, code);
     brix_cms_log_action(ctx->cycle->log, r != NULL ? r->name : "forward-op",
-                        (const char *) ctx->conf->cms.manager.data,
+                        (const char *) ctx->mgr_name.data,
                         "in", NULL, rc == NGX_OK,
                         "manager-forwarded namespace op executed on this node");
     return rc;
@@ -319,7 +319,7 @@ cms_frame_disc(ngx_brix_cms_ctx_t *ctx, uint32_t streamid, u_char code)
     ngx_log_error(NGX_LOG_NOTICE, ctx->cycle->log, 0,
                   "brix: CMS node: manager requested disconnect");
     brix_cms_log_action(ctx->cycle->log, "disconnect",
-                        (const char *) ctx->conf->cms.manager.data,
+                        (const char *) ctx->mgr_name.data,
                         "in", NULL, 1, "manager asked this node to disconnect");
     ngx_brix_cms_set_end_hint(ctx, BRIX_SESS_END_SERVER);
     ngx_brix_cms_disconnect(ctx);

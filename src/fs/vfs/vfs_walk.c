@@ -350,6 +350,42 @@ brix_vfs_mkdir_path(ngx_log_t *log, const char *root_canon,
 }
 
 /*
+ * brix_vfs_backend_leaf_isdir — does `logical` already exist AS A DIRECTORY in
+ * the driver's namespace?
+ *
+ * WHAT: Stats `logical` through the leaf instance (credential-scoped when
+ *       `cred` is set) and reports whether the entry is a directory.
+ *
+ * WHY:  The driver mkpath walks tolerate EEXIST so an already-present prefix is
+ *       benign — but at the FINAL component that tolerance decided the whole
+ *       operation. A remote origin holding a regular file at the mkdir target
+ *       answers EEXIST, and the walk reported success: the client was told a
+ *       directory existed where its own data was. Every intermediate component
+ *       is self-checking (the next level's mkdir under a regular file fails
+ *       ENOTDIR at the origin), so only the leaf needs this probe. Mirrors the
+ *       POSIX-side rule in brix_mkdir_existed (fs/path/mkdir.c).
+ *
+ * HOW:  brix_sd_stat_maybe_cred + st.is_dir. Fails closed — a driver with no
+ *       stat slot, or a stat that errors, is reported as "not a directory" so
+ *       the caller surfaces EEXIST rather than inventing success.
+ */
+int
+brix_vfs_backend_leaf_isdir(brix_sd_instance_t *leaf, const char *logical,
+    const brix_sd_cred_t *cred)
+{
+    brix_sd_stat_t st;
+
+    if (leaf == NULL || leaf->driver == NULL || leaf->driver->stat == NULL) {
+        return 0;
+    }
+    ngx_memzero(&st, sizeof(st));
+    if (brix_sd_stat_maybe_cred(leaf, logical, &st, cred) != NGX_OK) {
+        return 0;
+    }
+    return st.is_dir ? 1 : 0;
+}
+
+/*
  * brix_vfs_backend_mkpath — recursively create `logical` (export-relative,
  * leading-slash) and every missing parent through a NON-default backend driver's
  * mkdir slot, tolerating EEXIST. The driver namespace is inherently confined to
@@ -365,6 +401,7 @@ brix_vfs_backend_mkpath(const char *root_canon, const char *logical,
     brix_sd_instance_t *sd = brix_vfs_backend_resolve(root_canon, log);
     char   acc[PATH_MAX];
     size_t i = 0, j = 0;
+    int    leaf_existed = 0;
 
     if (sd == NULL || sd->driver == NULL || sd->driver->mkdir == NULL) {
         /* Not a real failure — the caller falls back to its own confined/
@@ -394,11 +431,41 @@ brix_vfs_backend_mkpath(const char *root_canon, const char *logical,
             acc[j++] = logical[i++];
         }
         acc[j] = '\0';
-        if (j > 1                          /* skip the bare "/" root */
-            && sd->driver->mkdir(sd, acc, mode) != NGX_OK
-            && errno != EEXIST) {
-            return -1;
+        if (j > 1) {                       /* skip the bare "/" root */
+            leaf_existed = 0;
+            if (sd->driver->mkdir(sd, acc, mode) != NGX_OK) {
+                if (errno != EEXIST) {
+                    return -1;
+                }
+                leaf_existed = 1;
+            }
         }
     }
+
+    /* `acc` now holds the full path and leaf_existed records how its own mkdir
+     * ended: an EEXIST there is benign only over a directory (see
+     * brix_vfs_backend_leaf_isdir). */
+    if (leaf_existed && !brix_vfs_backend_leaf_isdir(sd, acc, NULL)) {
+        errno = EEXIST;
+        return -1;
+    }
     return 0;
+}
+
+/* brix_vfs_enumerate_catalog — driver-agnostic backend-catalog enumeration
+ * (inventory/drift), the driver-plane counterpart of the namespace walk above.
+ * Dispatches to the bound driver's optional `enumerate` verb; a backend with no
+ * native object catalog (POSIX — the namespace IS the catalog) leaves the verb
+ * NULL, and this reports ENOTSUP via NGX_DECLINED so the engine falls back to
+ * walking the namespace with brix_vfs_walk(). See vfs.h.  (Lives here rather
+ * than in vfs_dir.c: it enumerates a backend catalog, not a directory stream.) */
+ngx_int_t
+brix_vfs_enumerate_catalog(brix_sd_instance_t *sd, int want_stat,
+    brix_sd_catalog_cb cb, void *ctx)
+{
+    if (sd == NULL || sd->driver == NULL || sd->driver->enumerate == NULL) {
+        errno = ENOTSUP;
+        return NGX_DECLINED;
+    }
+    return sd->driver->enumerate(sd, want_stat, cb, ctx);
 }

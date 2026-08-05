@@ -147,4 +147,27 @@ ngx_int_t brix_try_post_write_aio(brix_ctx_t *ctx, ngx_connection_t *c,
     const xrdp_pg_bad_t *bad, size_t bad_count,
     const char *fallback_log, ngx_flag_t *posted);
 
+/*
+ * §6 CNS emit wrappers that must observe the object before reporting it.
+ *
+ * brix_root_cns_emit_moved   — a completed rename: probes the destination and
+ *   emits one two-path BRIX_CNS_MV so the manager carries the recorded subtree
+ *   with it.  A destination that cannot be observed degrades to a DEL of the
+ *   source rather than to an invented size.
+ * brix_root_cns_emit_resized — a completed path-based mutation that changed the
+ *   size (kXR_truncate): re-emits ADD with the observed size/mtime, which the
+ *   inventory upserts.  Handle-based truncate deliberately does NOT call this —
+ *   kXR_close already emits the authoritative ADD for a writable handle, so an
+ *   emit here would be a redundant frame per truncate on an open file.
+ *
+ * Both are no-ops unless the export is in `brix_cns emit` mode, so the probe is
+ * never paid for on a node that is not a federation data server.
+ */
+void brix_root_cns_emit_moved(brix_ctx_t *ctx, ngx_connection_t *c,
+    ngx_stream_brix_srv_conf_t *conf, const char *src_resolved,
+    const char *dst_resolved);
+
+void brix_root_cns_emit_resized(brix_ctx_t *ctx, ngx_connection_t *c,
+    ngx_stream_brix_srv_conf_t *conf, const char *resolved);
+
 #endif /* BRIX_WRITE_H */

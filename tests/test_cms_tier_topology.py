@@ -38,196 +38,48 @@ holds (all control-plane actions come from one worker even with N workers), and
 Run:
     PYTHONPATH=tests pytest tests/test_cms_tier_topology.py -v
 
-The nginx used must carry the CMS auto-role feature: the test auto-selects one
-by launching a one-node manager and confirming it emits a 'cmsd role:' line —
-it prefers $TEST_NGINX_BIN, then a locally-built dynamic module (via system
-nginx), then a statically-linked objs/nginx (as built fresh in CI).  It skips
-cleanly if no feature-capable nginx is found.
+The whole tree is one registry instance (``lc-cms-tier``) rendered from the
+committed ``configs/nginx_cms_tier.conf`` template: the primary listen is the
+root manager and the other five listens come from that ledger entry's ``extra``
+ports.  The nginx under test must carry the CMS auto-role feature — a binary
+that parses the directives but predates the feature emits no 'cmsd role:' line
+at all, so the fixture skips (rather than fails) when the settle window closes
+with zero role lines.
 """
 
-import os
 import re
-import shutil
-import socket
-import subprocess
-import sys
 import time
 from pathlib import Path
 
 import pytest
 
+from server_launcher import LifecycleHarness
+from server_registry import NginxInstanceSpec
+
 # Fixture setup launches nginx + polls for cluster settle; that easily exceeds
 # the repo-default 30s per-test timeout (which is charged to the first test that
 # triggers the module-scoped fixture).  Give the whole module generous headroom.
-pytestmark = pytest.mark.timeout(120)
+pytestmark = [pytest.mark.timeout(120),
+              pytest.mark.uses_lifecycle_harness,
+              pytest.mark.xdist_group("lc-cms-tier")]
 
-try:
-    from settings import NGINX_BIN as _SETTINGS_NGINX_BIN
-except Exception:  # pragma: no cover - settings import is best-effort
-    _SETTINGS_NGINX_BIN = None
-
-HOST = "127.0.0.1"
-REPO = Path(__file__).resolve().parent.parent
+from settings import HOST
 
 # --------------------------------------------------------------------------- #
-# Topology declaration — the single source of truth for the expected tree.
-# `upstream` names another node (its cmsd parent) or None for the root manager.
+# Topology declaration — the single source of truth for the expected tree, and
+# the contract with configs/nginx_cms_tier.conf: `port_key` names the template
+# placeholder each node listens on (None = the instance's primary port, i.e. the
+# root manager).  `upstream` names another node (its cmsd parent) or None.
 # --------------------------------------------------------------------------- #
 NODES = [
-    {"name": "mgr",   "role": "manager",     "cms_server": True,  "upstream": None},
-    {"name": "sub1",  "role": "sub-manager", "cms_server": True,  "upstream": "mgr"},
-    {"name": "leafA", "role": "client",      "cms_server": False, "upstream": "sub1"},
-    {"name": "leafB", "role": "client",      "cms_server": False, "upstream": "sub1"},
-    {"name": "sub2",  "role": "sub-manager", "cms_server": True,  "upstream": "sub1"},
-    {"name": "leafC", "role": "client",      "cms_server": False, "upstream": "sub2"},
+    {"name": "mgr",   "role": "manager",     "upstream": None,   "port_key": None},
+    {"name": "sub1",  "role": "sub-manager", "upstream": "mgr",  "port_key": "PORT_SUB1"},
+    {"name": "leafA", "role": "client",      "upstream": "sub1", "port_key": "PORT_LEAFA"},
+    {"name": "leafB", "role": "client",      "upstream": "sub1", "port_key": "PORT_LEAFB"},
+    {"name": "sub2",  "role": "sub-manager", "upstream": "sub1", "port_key": "PORT_SUB2"},
+    {"name": "leafC", "role": "client",      "upstream": "sub2", "port_key": "PORT_LEAFC"},
 ]
 
-
-# --------------------------------------------------------------------------- #
-# Locate a brix-capable nginx (static objs/nginx, or system nginx + the dynamic
-# module) so the test runs both in CI and on a deployed host.
-# --------------------------------------------------------------------------- #
-def _module_prelude():
-    """load_module lines for the dynamic brix build, or '' if not found."""
-    so_candidates = [
-        REPO / "build" / "modules" / "ngx_stream_brix_module.so",
-        Path("/usr/lib64/nginx/modules/ngx_stream_brix_module.so"),
-        Path("/usr/share/nginx/modules/ngx_stream_brix_module.so"),
-    ]
-    for so in so_candidates:
-        if so.exists():
-            stream_so = so.with_name("ngx_stream_module.so")
-            lines = []
-            if stream_so.exists():
-                lines.append(f'load_module "{stream_so}";')
-            lines.append(f'load_module "{so}";')
-            return "\n".join(lines) + "\n"
-    return ""
-
-
-def _probe_feature(nginx_bin, prelude, workdir, idx):
-    """True only if (nginx_bin + prelude) not merely parses brix_cms_server but
-    actually emits the auto-role proof line — i.e. it carries THIS feature.
-
-    A binary can understand the directives yet predate the auto-role work (a
-    stale statically-linked objs/nginx), so we launch a one-node manager and
-    confirm 'cmsd role:' shows up before trusting it."""
-    pdir = workdir / f"probe{idx}"
-    pdir.mkdir(exist_ok=True)
-    port = _free_ports(1)[0]
-    log = pdir / "error.log"
-    cfg = pdir / "probe.conf"
-    cfg.write_text(
-        f"{prelude}"
-        f"error_log {log} notice;\n"
-        f"pid {pdir/'nginx.pid'};\n"
-        "events { worker_connections 64; }\n"
-        f"stream {{ server {{ listen {HOST}:{port}; brix_cms_server on; "
-        f"brix_listen_port {port}; }} }}\n"
-    )
-    if subprocess.run([nginx_bin, "-t", "-c", str(cfg)],
-                      capture_output=True, text=True).returncode != 0:
-        return False
-    if subprocess.run([nginx_bin, "-c", str(cfg)],
-                      capture_output=True, text=True).returncode != 0:
-        return False
-    try:
-        deadline = time.time() + 6
-        while time.time() < deadline:
-            if log.exists() and "cmsd role:" in log.read_text(errors="replace"):
-                return True
-            time.sleep(0.25)
-        return False
-    finally:
-        subprocess.run([nginx_bin, "-c", str(cfg), "-s", "stop"],
-                       capture_output=True, text=True)
-
-
-def _resolve_nginx(workdir):
-    """Return (nginx_bin, module_prelude) for an nginx that carries the auto-role
-    feature, or pytest.skip if none does.
-
-    Priority: an explicit TEST_NGINX_BIN, then the locally-built dynamic module
-    (freshest brix on a deployed host), then a statically-linked objs/nginx
-    (freshest in CI, where the module is compiled in and no prelude is needed)."""
-    prelude = _module_prelude()
-    env_bin = os.environ.get("TEST_NGINX_BIN")
-    candidates = []
-    if env_bin:
-        candidates += [(env_bin, ""), (env_bin, prelude)]
-    if prelude:  # a locally-built .so exists → try it via system nginx first
-        for b in (shutil.which("nginx"), "/usr/sbin/nginx"):
-            if b:
-                candidates.append((b, prelude))
-    for b in (_SETTINGS_NGINX_BIN, shutil.which("nginx"), "/usr/sbin/nginx"):
-        if b:
-            candidates.append((b, ""))
-
-    seen, idx = set(), 0
-    for b, pre in candidates:
-        key = (b, pre)
-        if key in seen:
-            continue
-        seen.add(key)
-        if not (os.path.isfile(b) and os.access(b, os.X_OK)):
-            continue
-        idx += 1
-        if _probe_feature(b, pre, workdir, idx):
-            return b, pre
-    pytest.skip("no auto-role-capable nginx found (set TEST_NGINX_BIN to a brix "
-                "nginx built with the CMS auto-role feature, or build the module "
-                "so build/modules/ngx_stream_brix_module.so exists)")
-
-
-def _free_ports(n):
-    """Grab n distinct free loopback TCP ports (closed just before launch)."""
-    socks, ports = [], []
-    for _ in range(n):
-        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        s.bind((HOST, 0))
-        socks.append(s)
-        ports.append(s.getsockname()[1])
-    for s in socks:
-        s.close()
-    return ports
-
-
-# --------------------------------------------------------------------------- #
-# Config rendering
-# --------------------------------------------------------------------------- #
-def _render_conf(nodes_by_name, prelude, workdir):
-    blocks = []
-    for node in NODES:
-        port = nodes_by_name[node["name"]]["port"]
-        up = node["upstream"]
-        lines = [f"    server {{  # {node['name']} ({node['role']})",
-                 f"        listen {HOST}:{port};",
-                 f"        brix_listen_port {port};"]
-        if node["cms_server"]:
-            lines.append("        brix_cms_server on;")
-        else:
-            # leaf client needs *some* stream handler; it only registers upward.
-            lines.append('        return "";')
-        if up is not None:
-            up_port = nodes_by_name[up]["port"]
-            lines.append(f"        brix_cms_manager {HOST}:{up_port};")
-        lines.append("        brix_cms_paths /;")
-        lines.append("        brix_cms_interval 2;   # fast heartbeat for the test")
-        lines.append("    }")
-        blocks.append("\n".join(lines))
-
-    conf = (
-        f"{prelude}"
-        "worker_processes 3;   # >1 so the worker-0 single-connection gate is exercised\n"
-        f"error_log {workdir/'error.log'} notice;\n"
-        f"pid {workdir/'nginx.pid'};\n"
-        "events { worker_connections 256; }\n"
-        "stream {\n" + "\n".join(blocks) + "\n}\n"
-    )
-    path = workdir / "tier.conf"
-    path.write_text(conf)
-    return path
 
 
 # --------------------------------------------------------------------------- #
@@ -289,22 +141,29 @@ def _parse(text):
 # Fixture: bring the whole tree up once, wait for it to settle, tear down.
 # --------------------------------------------------------------------------- #
 @pytest.fixture(scope="module")
-def tier(tmp_path_factory):
-    workdir = tmp_path_factory.mktemp("cms-tier")
-    nginx_bin, prelude = _resolve_nginx(workdir)
+def tier():
+    harness = LifecycleHarness()
+    try:
+        yield from _tier(harness)
+    finally:
+        harness.close()
 
-    ports = _free_ports(len(NODES))
-    nodes_by_name = {n["name"]: {**n, "port": p} for n, p in zip(NODES, ports)}
-    conf = _render_conf(nodes_by_name, prelude, workdir)
 
-    check = subprocess.run([nginx_bin, "-t", "-c", str(conf)],
-                           capture_output=True, text=True)
-    assert check.returncode == 0, f"nginx -t failed:\n{check.stderr}"
-
-    start = subprocess.run([nginx_bin, "-c", str(conf)],
-                           capture_output=True, text=True)
-    assert start.returncode == 0, f"nginx start failed:\n{start.stderr}"
-
+def _tier(harness):
+    endpoint = harness.start(NginxInstanceSpec(
+        name="lc-cms-tier",
+        template="nginx_cms_tier.conf",
+        protocol="root",
+        reason="CMS 4-tier cluster: role derivation + tree edges from the log.",
+    ))
+    # The template's listens ARE the topology: the primary port is the root
+    # manager, the rest come from the ledger entry's extra ports by node key.
+    nodes_by_name = {
+        n["name"]: {**n, "port": endpoint.port if n["port_key"] is None
+                    else int(endpoint.extra_ports[n["port_key"]])}
+        for n in NODES
+    }
+    workdir = Path(endpoint.prefix) / "logs"
     logpath = workdir / "error.log"
     expected_roles = len(NODES)
     expected_edges = sum(1 for n in NODES if n["upstream"] is not None)   # 5
@@ -314,32 +173,28 @@ def tier(tmp_path_factory):
     # roles-complete + edges-complete implies the whole tree has wired up.
     deadline = time.time() + 25
     parsed = ({}, set(), set(), set(), set(), 0)
-    try:
-        while time.time() < deadline:
-            text = logpath.read_text(errors="replace") if logpath.exists() else ""
-            parsed = _parse(text)
-            roles, edges_in = parsed[0], parsed[1]
-            if (len(roles) >= expected_roles
-                    and len(edges_in) >= expected_edges):
-                break
-            time.sleep(0.5)
-        text = logpath.read_text(errors="replace")
-        yield {
-            "nodes": nodes_by_name,
-            "log": text,
-            "parsed": _parse(text),
-            "workdir": workdir,
-        }
-    finally:
-        subprocess.run([nginx_bin, "-c", str(conf), "-s", "stop"],
-                       capture_output=True, text=True)
-        # belt-and-braces: kill the master if the pidfile survived
-        pidfile = workdir / "nginx.pid"
-        if pidfile.exists():
-            try:
-                os.kill(int(pidfile.read_text().strip()), 15)
-            except (ProcessLookupError, ValueError, OSError):
-                pass
+    while time.time() < deadline:
+        text = logpath.read_text(errors="replace") if logpath.exists() else ""
+        parsed = _parse(text)
+        roles, edges_in = parsed[0], parsed[1]
+        if (len(roles) >= expected_roles
+                and len(edges_in) >= expected_edges):
+            break
+        time.sleep(0.5)
+    text = logpath.read_text(errors="replace")
+    parsed = _parse(text)
+    # Zero role lines after a full settle window means this binary parses the
+    # CMS directives but predates the auto-role feature (nothing to assert
+    # against) — the old in-module probe launch expressed the same skip.
+    if not parsed[0]:
+        pytest.skip("nginx under test emits no 'cmsd role:' line — build one "
+                    "with the CMS auto-role feature (see module docstring)")
+    yield {
+        "nodes": nodes_by_name,
+        "log": text,
+        "parsed": parsed,
+        "workdir": workdir,
+    }
 
 
 # --------------------------------------------------------------------------- #

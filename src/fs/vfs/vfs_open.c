@@ -232,6 +232,8 @@ brix_vfs_open_via_driver(brix_vfs_ctx_t *ctx, ngx_uint_t flags,
     brix_sd_ucred_t  ustore;
     brix_sd_cred_t   ucred;
     int              use_cred = 0;
+    unsigned         cache_outcome;
+    uint64_t         cache_evicted;
 
     if (ctx->sd == NULL || ctx->sd->driver == brix_sd_default_driver()
         || ctx->sd->driver->open == NULL)
@@ -259,6 +261,12 @@ brix_vfs_open_via_driver(brix_vfs_ctx_t *ctx, ngx_uint_t flags,
         return NGX_ERROR;
     }
 
+    /* Capture the sd_cache read-open verdict (and any write-open invalidation
+     * byte count) NOW: a successful adopt copies the object into the handle and
+     * frees a heap shell, so `o` must not be dereferenced after the call. */
+    cache_outcome = o->cache_outcome;
+    cache_evicted = o->cache_evicted_bytes;
+
     if (brix_vfs_adopt_obj(ctx, path, o,
             (flags & BRIX_VFS_O_WRITE) ? 1u : 0u, fh) != NGX_OK)
     {
@@ -272,6 +280,19 @@ brix_vfs_open_via_driver(brix_vfs_ctx_t *ctx, ngx_uint_t flags,
         errno = err;
         return NGX_ERROR;
     }
+
+    /* A composed sd_cache tier stamps its read-open verdict on the object; this
+     * layer is the first that knows the requesting protocol, so account the
+     * unified hit/miss counters here (parity with the legacy cache_root path in
+     * brix_vfs_open_try_cache). NONE = no cache tier consulted this open. */
+    if (cache_outcome != BRIX_SD_CACHE_OUTCOME_NONE) {
+        brix_metric_cache_result(brix_vfs_metrics_proto(ctx),
+            cache_outcome == BRIX_SD_CACHE_OUTCOME_HIT ? 1 : 0, 0);
+    }
+
+    /* WRITE/CREATE/TRUNC through a cache tier invalidated the cached copy;
+     * the decorator stamped the evicted size on the object. */
+    brix_metric_cache_evicted(brix_vfs_metrics_proto(ctx), cache_evicted);
 
     return NGX_OK;
 }

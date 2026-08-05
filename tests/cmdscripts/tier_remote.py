@@ -33,13 +33,18 @@ class TierTopology:
             for name in names:
                 (root / name).mkdir()
 
-    def stream(self, directory: Path, port: int, writable: bool) -> Path:
+    def stream(self, directory: Path, port: int, writable: bool, *, store: bool = False) -> Path:
         write = " brix_allow_write on;" if writable else ""
+        # A cache node writes "<key>.cinfo" beside the object in sidecar meta
+        # mode, and a reserved name is answered kXR_NotFound on every ordinary
+        # export.  brix_cache_store_endpoint declares this server the trusted
+        # store surface where those names are legitimate targets.
+        store_surface = " brix_cache_store_endpoint on;" if store else ""
         return self.run.write(
             directory / "nginx.conf",
             f"""daemon on; error_log {directory}/logs/e.log info; pid {directory}/nginx.pid;
 events {{ worker_connections 64; }}
-stream {{ server {{ listen {BIND_HOST}:{port}; brix_root on; brix_export {directory}/root; brix_auth none;{write} }} }}
+stream {{ server {{ listen {BIND_HOST}:{port}; brix_root on; brix_export {directory}/root; brix_auth none;{write}{store_surface} }} }}
 """,
         )
 
@@ -68,7 +73,7 @@ http {{ client_body_temp_path {self.client}/tmp; server {{ listen {BIND_HOST}:{s
     ) -> None:
         self.run.start_nginx(self.origin, self.stream(self.origin, self.origin_port, origin_writable), self.origin_port)
         if include_store:
-            self.run.start_nginx(self.store, self.stream(self.store, self.store_port, True), self.store_port)
+            self.run.start_nginx(self.store, self.stream(self.store, self.store_port, True, store=True), self.store_port)
         self.run.start_nginx(self.client, self.cache(directives, writable=cache_writable), self.client_port)
 
     @property
@@ -128,7 +133,10 @@ def remote_store(nginx: Path | None = None, *, sidecar: bool = False) -> int:
         first = run.root / "cold.bin"
         cold = topology.download("s.bin", first)
         cached = topology.store / "root/s.bin"
-        sidecar_file = topology.store / "root/s.bin.xrdcinfo"
+        # ".cinfo", not ".xrdcinfo": BRIX_XMETA_SIDECAR_SUFFIX in
+        # src/fs/meta/xmeta_carrier.h — the stock-compatible prefix is what
+        # makes the sidecar readable as an XrdPfc cinfo file, the suffix is not.
+        sidecar_file = topology.store / "root/s.bin.cinfo"
         checks = [(cold == 200 and sha256(first) == digest, "cold GET byte-exact"), (cached.exists(), "object bytes stored remotely")]
         if sidecar:
             checks.append((sidecar_file.exists(), "sidecar cinfo object stored remotely"))
@@ -153,8 +161,14 @@ def remote_evict(nginx: Path | None = None) -> int:
         first = run.root / "first.bin"
         cold = topology.download("e.bin", first)
         cached = topology.store / "root/e.bin"
+        # Snapshot every existence check AT the step it describes: the checks
+        # below are evaluated after the refill has re-created both the origin
+        # object and its cached copy, so a late .exists() would report the
+        # refilled state and the eviction assertion would be vacuous.
+        cold_cached = cached.exists()
         deleted = topology.delete("e.bin")
         time.sleep(0.2)
+        evicted = not cached.exists() and not original.exists()
         refilled_digest = random_file(original, 300000)
         refill = run.root / "refill.bin"
         refill_status = topology.download("e.bin", refill)
@@ -165,9 +179,9 @@ def remote_evict(nginx: Path | None = None) -> int:
         latest = run.root / "latest.bin"
         latest_status = topology.download("e.bin", latest)
         return _result([
-            (cold == 200 and sha256(first) == digest and cached.exists(), "cold GET filled remote cache"),
+            (cold == 200 and sha256(first) == digest and cold_cached, "cold GET filled remote cache"),
             (deleted in (200, 204), f"DELETE accepted ({deleted})"),
-            (not cached.exists() and not original.exists(), "DELETE evicted remote cache and origin"),
+            (evicted, "DELETE evicted remote cache and origin"),
             (refill_status == 200 and sha256(refill) == refilled_digest, "fresh GET re-fills after eviction"),
             (overwrite in (200, 201, 204), f"overwrite accepted ({overwrite})"),
             (latest_status == 200 and sha256(latest) == replacement_digest, "post-overwrite GET serves new bytes"),

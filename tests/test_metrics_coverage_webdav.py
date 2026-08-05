@@ -119,8 +119,10 @@ class TestWebdavLifecycleCounters:
                   f"Destination: {_url('/cov_wd_mv_dst.txt')}",
                   _url("/cov_wd_mv_src.txt"))
         assert r.stdout in ("201", "204"), r.stdout
-        # MOVE maps to the OTHER method bucket in the exporter table.
-        assert _req(snap, "OTHER") >= 1                 # RENAME
+        # MOVE has its own method bucket (it used to fall into OTHER; the slot
+        # was added with the unified rename accounting — see
+        # test_cachemx_move_rename.py, which pins the enum position).
+        assert _req(snap, "MOVE") >= 1                  # RENAME
 
     def test_copy(self):
         local = _local("cov_wd_cp.txt")

@@ -306,6 +306,7 @@ brix_merge_srv_cluster_addrs(ngx_stream_brix_srv_conf_t *conf,
     if (conf->cms.addr == NULL && prev->cms.addr != NULL) {
         conf->cms.addr = prev->cms.addr;
         conf->cms.manager = prev->cms.manager;
+        conf->cms.managers = prev->cms.managers;
     }
 
     if (conf->http_handoff_addr == NULL && prev->http_handoff_addr != NULL) {

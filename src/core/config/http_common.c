@@ -326,11 +326,12 @@ static ngx_command_t  brix_http_common_commands[] = {
       offsetof(ngx_http_brix_common_conf_t, common.cache_verify_mode),
       &brix_http_cache_verify_enum },
 
-    /* The 12 tier directives: brix_cache_store, brix_cache_cold_store,
+    /* The tier directives: brix_cache_store, brix_cache_cold_store,
      * brix_stage, brix_stage_store, brix_stage_flush, brix_cache_max_object,
      * brix_cache_evict_at, brix_cache_evict_to, brix_cache_index_cache,
      * brix_cache_meta, brix_cache_slice_size, brix_cache_global_cas,
-     * brix_cache_passthrough, brix_cache_passthrough_max. */
+     * brix_cache_passthrough, brix_cache_passthrough_max, brix_cache_prefetch,
+     * brix_cache_prefetch_window. */
     BRIX_TIER_DIRECTIVES("brix_", ngx_http_brix_common_conf_t,
                          BRIX_HTTP_ALL_CONF, NGX_HTTP_LOC_CONF_OFFSET),
 
@@ -451,6 +452,8 @@ brix_shared_adopt_unified(ngx_http_brix_shared_conf_t *dst,
     BRIX_ADOPT_VAL(cache_index_cache, (size_t) NGX_CONF_UNSET_SIZE);
     BRIX_ADOPT_VAL(cache_meta_mode,   NGX_CONF_UNSET_UINT);
     BRIX_ADOPT_VAL(cache_slice_size,  (size_t) NGX_CONF_UNSET_SIZE);
+    BRIX_ADOPT_VAL(cache_prefetch,    NGX_CONF_UNSET);
+    BRIX_ADOPT_VAL(cache_prefetch_window, (size_t) NGX_CONF_UNSET_SIZE);
     BRIX_ADOPT_VAL(cache_verify_mode, NGX_CONF_UNSET_UINT);
     BRIX_ADOPT_VAL(cache_global_cas,  NGX_CONF_UNSET);
     BRIX_ADOPT_VAL(cache_passthrough, NGX_CONF_UNSET);

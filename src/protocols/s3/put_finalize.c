@@ -41,6 +41,7 @@ s3_commit_put(ngx_http_request_t *r, ngx_log_t *log, const char *root_canon,
     if (rc == NGX_OK) {
         brix_vfs_ctx_t  fctx;
         brix_vfs_stat_t fst;
+        ngx_int_t       probed;
 
         brix_vfs_ctx_init(&fctx, r->pool, log, BRIX_PROTO_S3, root_canon,
             NULL, 0 /* allow_write */, 0 /* is_tls */, NULL, final_path);
@@ -56,10 +57,19 @@ s3_commit_put(ngx_http_request_t *r, ngx_log_t *log, const char *root_canon,
                 s3_vfs_bind_deleg(r, acf, &fctx);
             }
         }
-        bytes = (brix_vfs_probe(&fctx, 1 /* no-follow */, &fst) == NGX_OK
-                 && fst.is_regular) ? (size_t) fst.size : 0;
+        probed = brix_vfs_probe(&fctx, 1 /* no-follow */, &fst);
+        bytes = (probed == NGX_OK && fst.is_regular) ? (size_t) fst.size : 0;
         brix_xfer_finish(BRIX_XFER_STAGE, "in", final_path, NULL, bytes,
                            BRIX_XFER_OK, 0, log);
+
+        /* phase-97 §5: report the published object to the CNS manager, reusing
+         * the ledger's probe rather than paying for a second one. Only a probe
+         * that actually observed the object may be reported — an invented size
+         * would be served to clients as truth. */
+        if (probed == NGX_OK) {
+            brix_cns_emit_at(root_canon, BRIX_CNS_ADD, final_path,
+                             (uint64_t) fst.size, (uint64_t) fst.mtime);
+        }
     } else {
         e = errno;
         brix_xfer_finish(BRIX_XFER_STAGE, "in", final_path, NULL, 0,

@@ -63,6 +63,7 @@ static void row_to_dirent(sqlite3_stmt *st, cvmfs_dirent_t *e) {
     int64_t hardlinks = sqlite3_column_int64(st, 5);
     e->linkcount = (uint32_t) (hardlinks & 0xffffffffu);   /* low 32 = linkcount */
     if (e->linkcount == 0) e->linkcount = 1;
+    e->hardlink_group = (uint32_t) ((uint64_t) hardlinks >> 32);
 
     const unsigned char *sym = sqlite3_column_text(st, 6);
     if (sym && (e->flags & CVMFS_FLAG_LINK)) {
@@ -208,4 +209,52 @@ int cvmfs_catalog_property(cvmfs_catalog_t *c, const char *key, char *out, size_
     }
     sqlite3_finalize(st);
     return found;
+}
+
+int cvmfs_catalog_counter(cvmfs_catalog_t *c, const char *name, int64_t *out) {
+    sqlite3_stmt *st = NULL;
+    int rc = sqlite3_prepare_v2(c->db,
+            "SELECT value FROM statistics WHERE counter=?", -1, &st, NULL);
+    if (rc != SQLITE_OK) {
+        /* no statistics table at all (pre-S8 catalog) reads as absent */
+        return rc == SQLITE_ERROR ? 0 : -1;
+    }
+    sqlite3_bind_text(st, 1, name, -1, SQLITE_STATIC);
+
+    int found = 0;
+    if (sqlite3_step(st) == SQLITE_ROW) {
+        *out = sqlite3_column_int64(st, 0);
+        found = 1;
+    }
+    sqlite3_finalize(st);
+    return found;
+}
+
+long cvmfs_catalog_xattr(cvmfs_catalog_t *c, const char *path,
+                         unsigned char *out, size_t outcap) {
+    int64_t m1, m2;
+    cvmfs_catalog_md5path(path, &m1, &m2);
+
+    sqlite3_stmt *st = NULL;
+    if (sqlite3_prepare_v2(c->db,
+            "SELECT xattr FROM catalog WHERE md5path_1=? AND md5path_2=?",
+            -1, &st, NULL) != SQLITE_OK)
+        return -1;
+    sqlite3_bind_int64(st, 1, m1);
+    sqlite3_bind_int64(st, 2, m2);
+
+    long n = -1;
+    if (sqlite3_step(st) == SQLITE_ROW) {
+        if (sqlite3_column_type(st, 0) != SQLITE_BLOB) {
+            n = 0;
+        } else {
+            int blen = sqlite3_column_bytes(st, 0);
+            if (blen >= 0 && (size_t) blen <= outcap) {
+                memcpy(out, sqlite3_column_blob(st, 0), (size_t) blen);
+                n = blen;
+            }
+        }
+    }
+    sqlite3_finalize(st);
+    return n;
 }

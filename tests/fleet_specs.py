@@ -511,22 +511,34 @@ def dedicated_specs() -> list[NginxInstanceSpec]:
              env={"UPSTREAM_PORT": str(S.UPSTREAM_GOTORLS_NOTLS_BACKEND_PORT)},
              requires=("upstream-gotorls-notls-be",)),
         # --- stub-backed upstream proxies (proxy to upstream_protocol_stubs.py) --
-        # nginx starts regardless of the stub being up; the stub proc is a
-        # stage-4 spec the consuming tests depend on, not nginx startup.
+        # nginx starts regardless of the stub being up, but the *test* is
+        # meaningless without it: a front with a dead upstream answers every
+        # locate with kXR_error, which silently masquerades as "the proxy
+        # forwarded an error".  Under the zero-boot gate a `registry_server`
+        # marker boots only the dependency closure, so each front must name the
+        # stub proc explicitly or it runs against nothing (2026-08-05).
+
         _ded("stub-upstream-redirect", "nginx_upstream_wait.conf", S.STUB_REDIRECT_NGINX_PORT,
-             env={"UPSTREAM_PORT": str(S.STUB_REDIRECT_BACKEND_PORT)}),
+             env={"UPSTREAM_PORT": str(S.STUB_REDIRECT_BACKEND_PORT)},
+             requires=("upstream-stubs",)),
         _ded("stub-upstream-wait", "nginx_upstream_wait.conf", S.STUB_WAIT_NGINX_PORT,
-             env={"UPSTREAM_PORT": str(S.STUB_WAIT_BACKEND_PORT)}),
+             env={"UPSTREAM_PORT": str(S.STUB_WAIT_BACKEND_PORT)},
+             requires=("upstream-stubs",)),
         _ded("stub-upstream-waitresp", "nginx_upstream_wait.conf", S.STUB_WAITRESP_NGINX_PORT,
-             env={"UPSTREAM_PORT": str(S.STUB_WAITRESP_BACKEND_PORT)}),
+             env={"UPSTREAM_PORT": str(S.STUB_WAITRESP_BACKEND_PORT)},
+             requires=("upstream-stubs",)),
         _ded("stub-upstream-error", "nginx_upstream_auth.conf", S.STUB_ERROR_NGINX_PORT,
-             env={"UPSTREAM_PORT": str(S.STUB_ERROR_BACKEND_PORT)}),
+             env={"UPSTREAM_PORT": str(S.STUB_ERROR_BACKEND_PORT)},
+             requires=("upstream-stubs",)),
         _ded("stub-upstream-auth", "nginx_stub_upstream_auth.conf", S.STUB_AUTH_NGINX_PORT,
-             env={"UPSTREAM_PORT": str(S.STUB_AUTH_BACKEND_PORT)}),
+             env={"UPSTREAM_PORT": str(S.STUB_AUTH_BACKEND_PORT)},
+             requires=("upstream-stubs",)),
         _ded("stub-upstream-auth-nofile", "nginx_upstream_wait.conf", S.STUB_AUTH_NOFILE_NGINX_PORT,
-             env={"UPSTREAM_PORT": str(S.STUB_AUTH_NOFILE_BACKEND_PORT)}),
+             env={"UPSTREAM_PORT": str(S.STUB_AUTH_NOFILE_BACKEND_PORT)},
+             requires=("upstream-stubs",)),
         _ded("stub-upstream-gotorls", "nginx_upstream_wait.conf", S.STUB_GOTORLS_NGINX_PORT,
-             env={"UPSTREAM_PORT": str(S.STUB_GOTORLS_BACKEND_PORT)}),
+             env={"UPSTREAM_PORT": str(S.STUB_GOTORLS_BACKEND_PORT)},
+             requires=("upstream-stubs",)),
         # real-upstream-redirect: proxy to a live XRootD redirector (cluster-redir).
         _ded("real-upstream-redirect", "nginx_upstream_wait.conf", S.REAL_REDIRECT_NGINX_PORT,
              env={"UPSTREAM_PORT": str(S.CLUSTER_REDIR_PORT)},

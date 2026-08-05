@@ -346,6 +346,60 @@ cvmfs_gate_count(ngx_http_brix_cvmfs_ctx_t *ctx, ngx_uint_t cls)
     }
 }
 
+/* Phase-96 S13: the Stratum-0 replication marker. A real Stratum-1
+ * (cvmfs_server add-replica) probes /<repo>/.cvmfs_master_replica to
+ * recognize a replication source; the classifier calls the dot-file REJECT
+ * (it is not client traffic), so a stratum0 location answers it here —
+ * synthesized, never from disk (the serve plane stays read-only and the
+ * marker cannot be spoofed into a repo by a write elsewhere). Accounted as
+ * MANIFEST: it is repo metadata, exactly like .cvmfspublished. */
+#define CVMFS_MASTER_REPLICA_TAIL     "/.cvmfs_master_replica"
+#define CVMFS_MASTER_REPLICA_TAIL_LEN (sizeof(CVMFS_MASTER_REPLICA_TAIL) - 1)
+
+static int
+cvmfs_uri_is_master_replica(const ngx_str_t *uri)
+{
+    return uri->len > CVMFS_MASTER_REPLICA_TAIL_LEN
+           && ngx_memcmp(uri->data + uri->len - CVMFS_MASTER_REPLICA_TAIL_LEN,
+                         CVMFS_MASTER_REPLICA_TAIL,
+                         CVMFS_MASTER_REPLICA_TAIL_LEN) == 0;
+}
+
+static ngx_int_t
+cvmfs_gate_marker(ngx_http_request_t *r, ngx_http_brix_cvmfs_ctx_t *ctx)
+{
+    static const char body[] =
+        "This repository is a Stratum-0 master copy "
+        "(replication source for cvmfs_server add-replica).\n";
+    ngx_buf_t   *b;
+    ngx_chain_t  out;
+    ngx_int_t    rc;
+
+    cvmfs_gate_count(ctx, BRIX_CVMFS_CLASS_MANIFEST);
+
+    r->headers_out.status = NGX_HTTP_OK;
+    r->headers_out.content_length_n = (off_t) (sizeof(body) - 1);
+    ngx_str_set(&r->headers_out.content_type, "text/plain");
+    r->headers_out.content_type_len = r->headers_out.content_type.len;
+
+    rc = ngx_http_send_header(r);
+    if (rc == NGX_ERROR || rc > NGX_OK || r->header_only) {
+        return rc;
+    }
+
+    b = ngx_pcalloc(r->pool, sizeof(*b));
+    if (b == NULL) {
+        return NGX_HTTP_INTERNAL_SERVER_ERROR;
+    }
+    b->pos = b->start = (u_char *) body;
+    b->last = b->end = (u_char *) body + sizeof(body) - 1;
+    b->memory = 1;
+    b->last_buf = 1;
+    out.buf = b;
+    out.next = NULL;
+    return ngx_http_output_filter(r, &out);
+}
+
 /* Class routing — the accounted per-class dispatch tail of the gate. */
 static ngx_int_t
 cvmfs_gate_route(ngx_http_request_t *r, ngx_http_brix_cvmfs_loc_conf_t *lcf,
@@ -396,6 +450,14 @@ cvmfs_gate_route(ngx_http_request_t *r, ngx_http_brix_cvmfs_loc_conf_t *lcf,
         return brix_cvmfs_dict_handle(r, lcf);
     case CVMFS_URL_REJECT:
     default:
+        /* Phase-96 S13: on a Stratum-0 the replication marker is the ONE
+         * dot-file answered instead of rejected (GET/HEAD already enforced
+         * by the earlier method gate; repo authz already ran above). */
+        if (lcf->cvmfs.stratum0_root.len > 0
+            && cvmfs_uri_is_master_replica(&r->uri))
+        {
+            return cvmfs_gate_marker(r, ctx);
+        }
         return cvmfs_reject(r, NGX_HTTP_FORBIDDEN,
                             "path is not a CVMFS traffic shape");
     }

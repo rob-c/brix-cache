@@ -233,9 +233,20 @@ xmeta_sidecar_read(brix_sd_instance_t *store, const char *key,
 
 /* ---- public API ------------------------------------------------------------ */
 
-ngx_int_t
-brix_xmeta_save(brix_sd_instance_t *store, const char *key,
-    const brix_xmeta_t *m)
+/*
+ * WHAT: Encode and persist *m for `key`, optionally forcing the sidecar carrier.
+ * WHY:  The xattr is the better carrier by default, but an operator who
+ *       configured `brix_cache_meta sidecar` has a reason the server cannot
+ *       see (a store whose xattrs are silently dropped by a middlebox, or a
+ *       cache another XrdPfc reader must be able to interpret); honouring the
+ *       preference is the whole point of the directive.
+ * HOW:  `force_sidecar` skips the xattr attempt entirely and falls straight
+ *       through to the sidecar write, which then removes any stale xattr copy
+ *       so the object never carries two records.
+ */
+static ngx_int_t
+xmeta_save_carrier(brix_sd_instance_t *store, const char *key,
+    const brix_xmeta_t *m, int force_sidecar)
 {
     uint8_t  *buf = NULL;
     size_t    len = 0;
@@ -249,7 +260,8 @@ brix_xmeta_save(brix_sd_instance_t *store, const char *key,
         return NGX_ERROR;
     }
 
-    if (store->driver->setxattr != NULL && len <= BRIX_XMETA_XATTR_MAX) {
+    if (!force_sidecar
+        && store->driver->setxattr != NULL && len <= BRIX_XMETA_XATTR_MAX) {
         rc = store->driver->setxattr(store, key, BRIX_XMETA_XATTR_NAME,
                                      buf, len, 0);
         if (rc == NGX_OK) {
@@ -277,6 +289,20 @@ brix_xmeta_save(brix_sd_instance_t *store, const char *key,
                                           BRIX_XMETA_XATTR_NAME);
     }
     return NGX_OK;
+}
+
+ngx_int_t
+brix_xmeta_save(brix_sd_instance_t *store, const char *key,
+    const brix_xmeta_t *m)
+{
+    return xmeta_save_carrier(store, key, m, 0);
+}
+
+ngx_int_t
+brix_xmeta_save_sidecar(brix_sd_instance_t *store, const char *key,
+    const brix_xmeta_t *m)
+{
+    return xmeta_save_carrier(store, key, m, 1);
 }
 
 /* ---- Map a brix_xmeta_decode() result to the load API's ngx_int_t ----

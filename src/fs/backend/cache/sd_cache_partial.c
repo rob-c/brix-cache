@@ -47,29 +47,9 @@
  * fill on pread; it is never sendfiled (it may have holes). A fully-filled object's
  * cinfo becomes COMPLETE and subsequent opens take the whole-file hit fast path. */
 
-typedef struct {
-    brix_sd_instance_t *source;
-    brix_sd_obj_t      *src_obj;          /* lazily opened on the first miss   */
-    int                   cache_fd;         /* the RW (sparse) cache object      */
-    off_t                 size;
-    uint32_t              block_size;
-    uint32_t              mode;             /* origin perm bits recorded in cinfo */
-    uint64_t              mtime;
-    uint64_t              nblocks;
-    uint8_t              *bitmap;           /* present blocks (in-memory mirror) */
-    size_t                bitmap_len;
-    ngx_log_t            *log;
-    char                  key[1024];
-    char                  cache_path[PATH_MAX];   /* for cinfo record_block      */
-    /* Per-user credential copies for deferred (range-fill) source opens.
-     * A partial-fill block may be filled on a later pread after the request
-     * context — and its brix_sd_cred_t — is gone; embedding NUL-terminated
-     * copies here ensures later opens can still authenticate as the owner.
-     * cred_proxy[0] == '\0' means no per-user credential (service cred). */
-    char                  cred_proxy[1024];     /* x509_proxy path, or "" */
-    char                  cred_key[128];        /* ucred key stem, or ""  */
-    char                  cred_principal[512];  /* principal string, or "" */
-} sd_cache_partial_t;
+/* sd_cache_partial_t lives in sd_cache_internal.h (moved for the background
+ * prefetch executor, sd_cache_prefetch.c, which consults the bitmap and
+ * snapshots the key/credential); this file remains its sole author. */
 
 /* Lazily open the partial object's source for a deferred range-fill.
  *
@@ -175,8 +155,10 @@ partial_block_copy(sd_cache_partial_t *p, off_t bstart, size_t blen)
     return 0;
 }
 
-/* Fetch block `blk` from the source into the cache object + mark it present. */
-static int
+/* Fetch block `blk` from the source into the cache object + mark it present.
+ * Non-static: the background prefetch executor (sd_cache_prefetch.c) fills
+ * absent blocks through this on a thread-owned partial object. */
+int
 sd_cache_fill_block(sd_cache_partial_t *p, uint64_t blk)
 {
     off_t   bstart = (off_t) blk * p->block_size;

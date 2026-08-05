@@ -79,9 +79,66 @@ brix_open_mode_guard(brix_ctx_t *ctx, ngx_connection_t *c,
 }
 
 /*
+ * D-2 byte-hygiene: reject an opaque carrying a control / non-ASCII /
+ * shell-metacharacter byte before any handler (TPC src/dst URL, delegated-
+ * token mode, compression, ZIP member) parses, logs, or forwards it. A
+ * well-formed opaque percent-encodes anything outside the unreserved/
+ * structural set, so this is a zero-false-positive gate at the parse edge.
+ * The strict half (opt-in) additionally enforces the schema — oss.asize must
+ * be an unsigned integer and every key must fall in a recognized namespace.
+ * NGX_DECLINED to proceed; otherwise the response rc.
+ */
+static ngx_int_t
+brix_open_opaque_guard(brix_ctx_t *ctx, ngx_connection_t *c,
+    ngx_stream_brix_srv_conf_t *conf, int op, const char *md)
+{
+	char          opq_raw[BRIX_MAX_PATH + 1];
+	unsigned char bad_byte;
+
+	if (!open_extract_opaque(ctx->recv.payload, ctx->recv.cur_dlen,
+							 opq_raw, sizeof(opq_raw))) {
+		return NGX_DECLINED;
+	}
+
+	if (brix_opaque_illegal_byte(opq_raw, &bad_byte)) {
+		ngx_log_error(NGX_LOG_INFO, c->log, 0,
+					  "brix: rejecting kXR_open — illegal opaque byte 0x%02xd",
+					  (int) bad_byte);
+		BRIX_RETURN_ERR(ctx, c,
+						  op,
+						  "OPEN", "-", md,
+						  kXR_ArgInvalid, "illegal byte in opaque");
+	}
+
+	if (conf->opaque_strict) {
+		char badkey[64];
+		int  verdict = brix_opaque_schema_check(opq_raw, badkey,
+												sizeof(badkey));
+
+		if (verdict != BRIX_OPAQUE_SCHEMA_OK) {
+			ngx_log_error(NGX_LOG_INFO, c->log, 0,
+						  "brix: rejecting kXR_open — opaque schema %s for key \"%s\"",
+						  verdict == BRIX_OPAQUE_SCHEMA_BAD_TYPE
+							  ? "type mismatch" : "unknown key",
+						  badkey);
+			BRIX_RETURN_ERR(ctx, c,
+							  op,
+							  "OPEN", "-", md,
+							  kXR_ArgInvalid,
+							  verdict == BRIX_OPAQUE_SCHEMA_BAD_TYPE
+								  ? "opaque parameter type mismatch"
+								  : "unknown opaque parameter");
+		}
+	}
+
+	return NGX_DECLINED;
+}
+
+/*
  * Pre-resolution guards + path extraction: server-mode rejection (via
- * brix_open_mode_guard), missing/invalid payload, ".." rejection, depth cap, and
- * the internal-name hide.  Fills clean_path (the CGI-stripped wire path).
+ * brix_open_mode_guard), opaque byte-hygiene (brix_open_opaque_guard),
+ * missing/invalid payload, ".." rejection, depth cap, and the internal-name
+ * hide.  Fills clean_path (the CGI-stripped wire path).
  * NGX_DECLINED to proceed; otherwise the response rc.
  */
 static ngx_int_t
@@ -104,53 +161,9 @@ brix_open_precheck(brix_ctx_t *ctx, ngx_connection_t *c,
 						  kXR_ArgMissing, "no path given");
 	}
 
-	/* D-2 byte-hygiene: reject an opaque carrying a control / non-ASCII /
-	 * shell-metacharacter byte before any handler (TPC src/dst URL, delegated-
-	 * token mode, compression, ZIP member) parses, logs, or forwards it. A
-	 * well-formed opaque percent-encodes anything outside the unreserved/
-	 * structural set, so this is a zero-false-positive gate at the parse edge. */
-	{
-		char          opq_raw[BRIX_MAX_PATH + 1];
-		unsigned char bad_byte;
-
-		if (open_extract_opaque(ctx->recv.payload, ctx->recv.cur_dlen,
-								 opq_raw, sizeof(opq_raw))) {
-			if (brix_opaque_illegal_byte(opq_raw, &bad_byte)) {
-				ngx_log_error(NGX_LOG_INFO, c->log, 0,
-							  "brix: rejecting kXR_open — illegal opaque byte 0x%02xd",
-							  (int) bad_byte);
-				BRIX_RETURN_ERR(ctx, c,
-								  op,
-								  "OPEN", "-", md,
-								  kXR_ArgInvalid, "illegal byte in opaque");
-			}
-
-			/* D-2 strict half (opt-in): once the bytes are clean, enforce the
-			 * schema — oss.asize must be an unsigned integer and every key must
-			 * fall in a recognized namespace. Off by default (stock accepts
-			 * both unchecked); on, a typed-wrong or unknown key is refused with
-			 * kXR_ArgInvalid, named in the log, before any handler parses it. */
-			if (conf->opaque_strict) {
-				char badkey[64];
-				int  verdict = brix_opaque_schema_check(opq_raw, badkey,
-														sizeof(badkey));
-
-				if (verdict != BRIX_OPAQUE_SCHEMA_OK) {
-					ngx_log_error(NGX_LOG_INFO, c->log, 0,
-								  "brix: rejecting kXR_open — opaque schema %s for key \"%s\"",
-								  verdict == BRIX_OPAQUE_SCHEMA_BAD_TYPE
-									  ? "type mismatch" : "unknown key",
-								  badkey);
-					BRIX_RETURN_ERR(ctx, c,
-									  op,
-									  "OPEN", "-", md,
-									  kXR_ArgInvalid,
-									  verdict == BRIX_OPAQUE_SCHEMA_BAD_TYPE
-										  ? "opaque parameter type mismatch"
-										  : "unknown opaque parameter");
-				}
-			}
-		}
+	rc = brix_open_opaque_guard(ctx, c, conf, op, md);
+	if (rc != NGX_DECLINED) {
+		return rc;
 	}
 
 	/* Strip XRootD CGI query string ("?oss.asize=N" etc.) from the path.
@@ -182,8 +195,14 @@ brix_open_precheck(brix_ctx_t *ctx, ngx_connection_t *c,
 
 	/* Internal metadata/staging artifacts are invisible: a client may neither
 	 * read one nor create one.  Answer as absent so an internal name is
-	 * indistinguishable from a genuinely missing path. */
-	if (brix_is_internal_name(clean_path)) {
+	 * indistinguishable from a genuinely missing path.
+	 *
+	 * brix_cache_store_endpoint is the one trusted exception (same switch the
+	 * HTTP planes carry, src/core/compat/path.c): a server declared as a remote
+	 * cache-STORE surface must accept the "<key>.cinfo" sidecar a cache node
+	 * writes beside the object, or `brix_cache_meta sidecar` over root:// can
+	 * never persist its metadata. OFF everywhere else, so default-deny stands. */
+	if (!conf->common.cache_store_endpoint && brix_is_internal_name(clean_path)) {
 		BRIX_RETURN_ERR(ctx, c,
 						  op,
 						  "OPEN", clean_path, md,

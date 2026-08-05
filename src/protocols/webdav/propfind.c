@@ -306,7 +306,11 @@ propfind_body_handler(ngx_http_request_t *r)
     rc = propfind_do(r);
     brix_imp_request_end();
 
-    ngx_http_finalize_request(r, rc);
+    /* Metrics-aware finalize: the dispatch wrapper saw NGX_DONE for this
+     * request and skipped its response accounting, so the async re-entry
+     * point owns booking responses_total — exactly as the PUT/PROPPATCH/
+     * SEARCH body handlers do. */
+    webdav_metrics_finalize_request(r, rc);
 }
 
 

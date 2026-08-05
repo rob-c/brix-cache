@@ -946,11 +946,24 @@ class TestAuth:
         """
         The token endpoint is optional-auth; the dedicated GSI endpoint is
         required-auth and must reject a request without the proxy cert.
+
+        The GSI endpoint also carries a JWKS, so it is bearer-protected and owes
+        a missing credential 401 + `WWW-Authenticate: Bearer` (RFC 6750 §3), not
+        403 — 403 is reserved for insufficient_scope on a *valid* token, and is
+        what a cert-only export (no JWKS) still returns.
         """
         url_path, content = scratch_file
         code = _http_code_no_cert(f"{BASE_URL}{url_path}")
         if AUTH_MODE == "gsi":
-            assert code == 403, f"Anonymous GET should fail on GSI, got {code}"
+            assert code == 401, f"Anonymous GET should fail on GSI, got {code}"
+            rc, hdrs, _ = _curl_no_cert("-D", "-", "-o", "/dev/null",
+                                        f"{BASE_URL}{url_path}")
+            assert rc == 0
+            if isinstance(hdrs, bytes):
+                hdrs = hdrs.decode("utf-8", "replace")
+            assert "www-authenticate: bearer" in hdrs.lower(), (
+                f"401 without a Bearer challenge violates RFC 6750 §3: {hdrs!r}"
+            )
         else:
             assert code == 200, (
                 f"Anonymous GET should succeed with optional token auth, got {code}"

@@ -28,6 +28,7 @@
 #define BRIX_CNS_DEL     2   /* file unlinked */
 #define BRIX_CNS_MKDIR   3
 #define BRIX_CNS_RMDIR   4
+#define BRIX_CNS_MV      5   /* rename: two paths, subtree-aware (see _rename) */
 
 #define BRIX_CNS_PATH_MAX 512
 
@@ -59,6 +60,26 @@ void brix_cns_inv_init(brix_cns_inv_t *inv, uint32_t capacity);
  * on success, -1 on a bad path / unknown op / table full. Caller holds the lock. */
 int brix_cns_inv_apply(brix_cns_inv_t *inv, uint8_t op, const char *path,
         uint64_t size, uint64_t mtime, uint32_t server_id);
+
+/*
+ * Apply one rename. Moves the entry at `oldp` to `newp` AND re-prefixes every
+ * entry that lives *under* `oldp` (i.e. whose path starts with `oldp` followed
+ * by '/'), so renaming a directory carries its whole recorded subtree instead of
+ * stranding the children at a path the cluster no longer has. `size`/`mtime`/
+ * `is_dir` describe the destination as the data server observed it after the
+ * rename and are authoritative for the moved entry; a source the manager never
+ * recorded is inserted rather than dropped, so an inventory that missed the
+ * original ADD still converges.
+ *
+ * A child whose re-prefixed path would exceed BRIX_CNS_PATH_MAX is *removed*
+ * rather than truncated — a truncated path would fabricate an entry naming a
+ * file that does not exist, and a miss is always safer than a wrong hit.
+ *
+ * Returns 0 on success, -1 on a bad argument or a full table. Caller holds the
+ * lock.
+ */
+int brix_cns_inv_rename(brix_cns_inv_t *inv, const char *oldp, const char *newp,
+        uint64_t size, uint64_t mtime, int is_dir, uint32_t server_id);
 
 /* Look `path` up. On a hit fills size/mtime/is_dir (any may be NULL) and returns
  * 0; returns 1 on a miss, -1 on a bad argument. Caller holds the lock. */

@@ -212,6 +212,33 @@ with its HTTP/TPC scheduler and monitoring model.
   into place on success. BriX-Cache uses `tmp_path` + `rename/link` logic in
   `src/protocols/webdav/tpc.c` and the native TPC launcher stages a local file and then
   returns the open response once the pull finishes (see `src/tpc/engine/done.c`).
+- **Completion gate before the commit (BriX-Cache only).** Staging alone does not
+  say the *whole* file arrived: "curl stopped without an error" is also what a
+  chunked source that dies mid-body, a truncating middlebox, or a corrupting one
+  produce. Two opt-in directives close that, mirroring the native pair
+  `brix_tpc_require_source_size` / `brix_tpc_verify_checksum`:
+  - `brix_webdav_tpc_require_source_size on|off` (default off)
+  - `brix_webdav_tpc_verify_checksum <alg>` (default unset; any algorithm
+    `brix_checksum_parse` accepts — `adler32`, `crc32`, `crc32c`, `md5`, `sha1`,
+    `sha256`, `crc64`, `crc64nvme`, `zcrc32` — validated at config parse time, so
+    a typo is `[emerg]` rather than a silently disabled gate)
+
+  When either is on, `webdav_tpc_verify_pulled()`
+  (`src/protocols/webdav/tpc_verify.c`) issues one HEAD against the source —
+  carrying `Want-Digest: <alg>` when the checksum half is on — over the same
+  secured handle configuration the pull used (TLS pin, rebind guard, client
+  credential, transfer headers). The declared `Content-Length` is compared with
+  the staged temp's size (a disagreement is unambiguous truncation and always
+  refuses; a source that declares *no* length refuses only under
+  `require_source_size`), then the returned RFC-3230 `Digest` is recomputed over
+  the temp through a confined `brix_vfs_open_fd()`. The checksum half is
+  fail-closed: no `Digest`, an unparseable one, an algorithm brix cannot compute,
+  or a mismatch all refuse. Refusals are `502`; every pull tier already treats
+  that as a failed transfer, so the staged temp is aborted and nothing is
+  published. The gate hangs off `webdav_tpc_run_curl_pull()` and the multi-stream
+  Range driver, which between them cover all three tiers (202-marker, thread-pool,
+  synchronous) exactly once. Push is unaffected — both gates are pull concepts.
+  Tests: `tests/test_webdav_tpc_completion_gate.py`.
 
 ### 9) Monitoring and metrics
 
@@ -284,6 +311,9 @@ Add a small set of `brix_webdav_tpc_*` directives to make behavior tunable:
 - `brix_webdav_tpc_source_guard on|off` + `brix_webdav_tpc_source_allow <host> […]`
   — source-host naming allowlist (SSRF Layer 2; see §4). **Implemented.**
 - `brix_webdav_tpc_cacert <path>` / `brix_webdav_tpc_cert` / `tpc_key` — CA/cred options.
+- `brix_webdav_tpc_require_source_size on|off` +
+  `brix_webdav_tpc_verify_checksum <alg>` — pull completion gate (size +
+  RFC-3230 digest; see §8). No `XrdHttpTpc` equivalent. **Implemented.**
 
 These map directly to the knobs used in the official `XrdHttpTpc` module.
 

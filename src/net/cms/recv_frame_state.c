@@ -85,6 +85,7 @@ cms_frame_state(ngx_brix_cms_ctx_t *ctx, uint32_t streamid, u_char code)
     const u_char  *payload = ctx->inbuf + NGX_BRIX_CMS_HDR_LEN;
     size_t         plen = ctx->in_need - NGX_BRIX_CMS_HDR_LEN;
     char           pathz[1024];
+    char           safe[256];
     size_t         pl;
     struct stat    st;
 
@@ -94,16 +95,23 @@ cms_frame_state(ngx_brix_cms_ctx_t *ctx, uint32_t streamid, u_char code)
         return NGX_OK;
     }
 
+    /* WS6: cms_state_extract_path bounds the path and rejects "..", but it
+     * accepts every other byte — including CR/LF.  The probe comes from the
+     * manager leg, so an unsanitised %s here lets a hostile (or compromised)
+     * manager forge whole lines into error.log.  Every log site below uses the
+     * escaped rendering; the wire/VFS calls keep the real path. */
+    brix_sanitize_log_string(pathz, safe, sizeof(safe));
+
     if (ctx->conf->manager_mode) {
         char      host[256];
         uint16_t  dport;
         if (brix_srv_select(pathz, 0, host, sizeof(host), &dport)) {
-            ngx_log_debug2(NGX_LOG_DEBUG_EVENT, ctx->cycle->log, 0,
+            ngx_log_debug1(NGX_LOG_DEBUG_EVENT, ctx->cycle->log, 0,
                            "brix: CMS state(mgr): registry serves "
-                           "\"%*s\", replying kYR_have", pl, payload);
+                           "\"%s\", replying kYR_have", safe);
             brix_cms_log_action(ctx->cycle->log, "state-probe",
-                                (const char *) ctx->conf->cms.manager.data,
-                                "in", pathz, 1,
+                                (const char *) ctx->mgr_name.data,
+                                "in", safe, 1,
                                 "sub-manager: a downstream node holds it "
                                 "-> kYR_have");
             return ngx_brix_cms_send_have(ctx, streamid, pathz, pl);
@@ -134,9 +142,20 @@ cms_frame_state(ngx_brix_cms_ctx_t *ctx, uint32_t streamid, u_char code)
                     sent++;
                 }
             }
+            if (sent == 0) {
+                /* Parked a leg no child will ever answer: the entry now just
+                 * holds relay-table capacity until its TTL reaps it, and the
+                 * parent degrades to "not here".  Logged unconditionally —
+                 * a debug-only counter is invisible in the builds that hit
+                 * this, which is every production one. */
+                ngx_log_error(NGX_LOG_INFO, ctx->cycle->log, 0,
+                              "brix: CMS state(mgr): relayed \"%s\" down to no "
+                              "eligible node; parent will read silence",
+                              safe);
+            }
             ngx_log_debug2(NGX_LOG_DEBUG_EVENT, ctx->cycle->log, 0,
                            "brix: CMS state(mgr): relayed \"%s\" down to "
-                           "%ui node(s)", pathz, sent);
+                           "%ui node(s)", safe, sent);
         }
         return NGX_OK;
     }
@@ -158,18 +177,17 @@ cms_frame_state(ngx_brix_cms_ctx_t *ctx, uint32_t streamid, u_char code)
     if (ctx->conf->rootfd >= 0
         && brix_stat_beneath(ctx->conf->rootfd, pathz, &st) == 0)
     {
-        ngx_log_debug2(NGX_LOG_DEBUG_EVENT, ctx->cycle->log, 0,
-                       "brix: CMS state: have \"%*s\", "
-                       "replying kYR_have", pl, payload);
+        ngx_log_debug1(NGX_LOG_DEBUG_EVENT, ctx->cycle->log, 0,
+                       "brix: CMS state: have \"%s\", "
+                       "replying kYR_have", safe);
         brix_cms_log_action(ctx->cycle->log, "state-probe",
-                            (const char *) ctx->conf->cms.manager.data,
-                            "in", pathz, 1, "file present on export -> kYR_have");
+                            (const char *) ctx->mgr_name.data,
+                            "in", safe, 1, "file present on export -> kYR_have");
         return ngx_brix_cms_send_have(ctx, streamid, pathz, pl);
     }
 
-    ngx_log_debug2(NGX_LOG_DEBUG_EVENT, ctx->cycle->log, 0,
-                   "brix: CMS state: do not have \"%*s\"",
-                   pl, payload);
+    ngx_log_debug1(NGX_LOG_DEBUG_EVENT, ctx->cycle->log, 0,
+                   "brix: CMS state: do not have \"%s\"", safe);
     return NGX_OK;
 }
 
@@ -215,6 +233,13 @@ cms_super_fan_down(ngx_brix_cms_ctx_t *ctx, u_char code,
         }
     }
 
+    if (sent == 0) {
+        /* A forwarded op that reached nobody is a silently dropped op — the
+         * one outcome of this function worth seeing without a debug build. */
+        ngx_log_error(NGX_LOG_WARN, ctx->cycle->log, 0,
+                      "brix: CMS super: forwarded op=%ui reached no node — "
+                      "dropped", (ngx_uint_t) code);
+    }
     ngx_log_debug2(NGX_LOG_DEBUG_EVENT, ctx->cycle->log, 0,
                    "brix: CMS super: forwarded op=%ui down to %ui node(s)",
                    (ngx_uint_t) code, sent);

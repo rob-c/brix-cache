@@ -48,7 +48,8 @@ PORT_BLOCKS = {
     "fuse_posix": 13360, "fuse_read": 13380, "fuse_refresh_failover": 13400,
     "fuse_trust": 13420, "fuse_whitelist": 13440, "fuse_pin": 13460,
     "srv_bundle": 13480, "srv_dict": 13500, "srv_scvmfs_x509": 13520,
-    "srv_scvmfs_voms": 13540,
+    "srv_scvmfs_voms": 13540, "srv_stratum0": 13560, "srv_s0_scvmfs": 13580,
+    "srv_s0_quickstart": 13600,
 }
 # NOTE: the prefetch/prewarm suites (test_cvmfs_prefetch.py, test_cvmfs_prewarm.py)
 # deliberately use OS-assigned ephemeral ports (bind port 0) instead of a block

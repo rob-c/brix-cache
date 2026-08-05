@@ -3,6 +3,7 @@
  * Phase-38 split of xrdcp.c; behavior-identical.
  */
 #include "xrdcp_internal.h"
+#include "protocols/ftp/ftp_client.h"   /* gsiftp:// SIZE/MDTM for --sync */
 
 
 /* Relay a web->web copy through a private local temp file (download then upload).
@@ -89,41 +90,88 @@ copy_one_with_retry(const char *src, const char *dst, const brix_copy_opts *o,
 }
 
 
-/* Size + mtime of a regular file at `url` (root:// or local). 0 with *size and
- * *mtime set if it exists as a regular file; -1 otherwise (missing, a directory,
- * web, or error).  The -1-on-web behavior keeps --sync always copying web
- * targets: an undeterminable comparison must copy, never skip. */
+/* SIZE + MDTM over a fresh gsiftp:// session.  A server that answers only one of
+ * the two leaves the other at -1, which counts as undeterminable here. */
+static int
+entry_meta_ftp(const char *url, const brix_opts *co, long long *size,
+               long long *mtime)
+{
+    brix_status st;
+    int64_t     fsize = -1, fmtime = -1;
+
+    brix_status_clear(&st);
+    if (brix_ftp_url_stat(url, co, &fsize, &fmtime, &st) != 0 || fsize < 0
+        || fmtime < 0) {
+        return -1;              /* unknown ⇒ --sync copies, never skips wrongly */
+    }
+    *size  = (long long) fsize;
+    *mtime = (long long) fmtime;
+    return 0;
+}
+
+
+static int
+entry_meta_local(const char *path, long long *size, long long *mtime)
+{
+    struct stat sb;
+
+    if (stat(path, &sb) != 0 || !S_ISREG(sb.st_mode)) {
+        return -1;
+    }
+    *size  = (long long) sb.st_size;
+    *mtime = (long long) sb.st_mtime;
+    return 0;
+}
+
+
+static int
+entry_meta_root(const brix_url *u, const brix_opts *co, long long *size,
+                long long *mtime)
+{
+    brix_conn     c;
+    brix_statinfo si;
+    brix_status   st;
+    int           ok;
+
+    brix_status_clear(&st);
+    if (brix_connect(&c, u, co, &st) != 0) {
+        return -1;
+    }
+    ok = (brix_stat(&c, u->path, &si, &st) == 0 && !(si.flags & kXR_isDir));
+    if (ok) {
+        *size  = (long long) si.size;
+        *mtime = (long long) si.mtime;
+    }
+    brix_close(&c);
+    return ok ? 0 : -1;
+}
+
+
+/* Size + mtime of a regular file at `url` (root://, gsiftp:// or local). 0 with
+ * *size and *mtime set if it exists as a regular file; -1 otherwise (missing, a
+ * directory, web, or error).  The -1-on-web behavior keeps --sync always copying
+ * web targets: an undeterminable comparison must copy, never skip. */
 int
 entry_meta(const char *url, const brix_opts *co, long long *size, long long *mtime)
 {
     brix_url    u;
     brix_status st;
+
     if (brix_is_web_url(url)) {
         return -1;   /* no cheap stat for web; --sync always copies web targets */
+    }
+    if (brix_is_ftp_url(url)) {
+        return entry_meta_ftp(url, co, size, mtime);
     }
     brix_status_clear(&st);
     if (brix_url_parse(url, &u, &st) != 0) {
         return -1;
     }
     if (u.scheme == XRDC_SCHEME_LOCAL) {
-        struct stat sb;
-        if (stat(u.path, &sb) != 0 || !S_ISREG(sb.st_mode)) { return -1; }
-        *size  = (long long) sb.st_size;
-        *mtime = (long long) sb.st_mtime;
-        return 0;
+        return entry_meta_local(u.path, size, mtime);
     }
     if (u.scheme == XRDC_SCHEME_ROOT || u.scheme == XRDC_SCHEME_ROOTS) {
-        brix_conn     c;
-        brix_statinfo si;
-        int           ok;
-        if (brix_connect(&c, &u, co, &st) != 0) { return -1; }
-        ok = (brix_stat(&c, u.path, &si, &st) == 0 && !(si.flags & kXR_isDir));
-        if (ok) {
-            *size  = (long long) si.size;
-            *mtime = (long long) si.mtime;
-        }
-        brix_close(&c);
-        return ok ? 0 : -1;
+        return entry_meta_root(&u, co, size, mtime);
     }
     return -1;
 }

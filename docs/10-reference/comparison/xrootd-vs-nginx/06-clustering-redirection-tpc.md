@@ -121,7 +121,7 @@ blocking native-TPC pull (a detached thread-pool task) and one `statvfs` in
 | Daemon model | Separate `cmsd` per node, sharing config with `xrootd` | In-process; both halves are nginx stream modules |
 | Role set | 9 roles (`XrdCmsRole.hh`): meta-manager, manager, supervisor, server, proxy-manager/super/server, peer-manager, peer | Effective roles: **data server** (default), **manager/redirector** (`brix_manager_mode on`), **sub-manager** (manager_mode + CMS client up to a meta), **supervisor flag** (`brix_supervisor`, sets `kXR_attrSuper`) |
 | Role directive | `all.role manager` / `all.role server` / `all.role meta manager` (`XrdCmsConfig.cc xrole()`) | `brix_manager_mode on;` (redirector) + `brix_cms_server on;` (accept registrations); a leaf data node sets `brix_cms_manager host:port` to register upward |
-| Manager address | `all.manager <host>:<cmsport>` (`ManList`) | leaf: `brix_cms_manager <host>:<port>`; meta tier: a sub-manager runs both `brix_cms_server` and `brix_cms_manager` (memory: multi-tier mesh "D" validated) |
+| Manager address | `all.manager <host>:<cmsport>` (`ManList`, up to `MaxMan`=15, logs into all + ClientMan rotation) | leaf: `brix_cms_manager <host>:<port> [...]` — same 15-endpoint cap, concurrent logins into all, round-robin locate rotation + failover (2026-08-05); meta tier: a sub-manager runs both `brix_cms_server` and `brix_cms_manager` (memory: multi-tier mesh "D" validated) |
 | Membership store | `XrdCmsCluster` node table + `XrdCmsClustID` masks | SHM server registry `src/net/manager/registry.c` (`brix_srv_entry_t`: host/port/paths/free_mb/util_pct), spinlock-guarded, shared across workers |
 
 The module does not reproduce the full nine-role taxonomy. It implements the

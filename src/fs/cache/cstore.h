@@ -152,6 +152,11 @@ int brix_cstore_partial_open(brix_cstore_t *cs, const char *key, mode_t mode,
  * Idempotent: NGX_OK even when already absent. */
 ngx_int_t brix_cstore_evict(brix_cstore_t *cs, const char *key);
 
+/* As brix_cstore_evict, but returns the logical size of the evicted cached
+ * object (0 when nothing was cached). Measure-before-evict — a repeat evict
+ * reports 0, so byte totals built from it never double-count. */
+uint64_t brix_cstore_evict_sized(brix_cstore_t *cs, const char *key);
+
 /* Load `key`'s cinfo header into *ci (L1 first, then the store). Returns NGX_OK,
  * NGX_DECLINED when no record exists, or NGX_ERROR on a store I/O failure. */
 ngx_int_t brix_cstore_cinfo_load(brix_cstore_t *cs, const char *key,

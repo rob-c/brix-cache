@@ -444,6 +444,48 @@ without a cluster / ceph build:
 W0 gets its own regression gate: the **full existing suite stays green on POSIX**
 after the io-core generalization, before any Ceph code lands.
 
+### 11.1 Running the live lab (as realized — `tests/test_ceph_live.py`)
+
+`tests/test_ceph_live.py` is the native, opt-in, Docker-gated suite that runs the
+librados `sd_ceph` driver plus the operator smokes against a live single-node
+`quay.io/ceph/demo` cluster. It is the **native-side exception** to the
+`tests/` = native / `k8s-tests/` = cluster split: Ceph needs a real cluster but
+is driven from the native tree.
+
+    PHASE81_RUN_CEPH_PORTS=1 PYTHONPATH=tests pytest tests/test_ceph_live.py -v
+
+The module's own `timeout` mark is 1800 s, overriding the repo-wide 30 s default.
+Prereq image, built once:
+
+    docker build -f tests/ceph/Dockerfile.build -t xrd-ceph-build tests/ceph
+
+The session fixture `ceph_lab` orchestrates everything once:
+`ceph_harness.cmd_start()` brings up the demo MON/MGR/OSD and creates pool
+`xrdtest`; `ceph_operator.build_in_container()` builds the module inside the
+`xrd-ceph-build` image into an `xrd-ceph-work` container (~11 min); then it
+ensures `xrdcp`/`xrdfs` are present. Five tests follow — `sd_ceph_live`,
+`sd_ceph_cred_live`, `ceph_export_smoke` (xrdcp + WebDAV round-trip),
+`rescue_tools`, `py_migrate`. **A skip is treated as a failure**, because the
+fixture has already guaranteed the lab is up.
+
+- `CEPH_LAB_REUSE=1` reuses an already-built work container (~17 s, the local
+  iteration loop).
+- `CEPH_LAB_TEARDOWN=1` removes the containers on exit; the default deliberately
+  leaves them running for reuse.
+
+Harness facts worth keeping: the embedded `nginx.conf` in `ceph_export_smoke` /
+`cephfs_ro_smoke` must pass `-p "$RUN"` and provide `$RUN/logs`, because a module
+build has no `make install` and the default prefix `/usr/local/nginx` is absent —
+without it `nginx -t` dies in `mkdir(proxy_temp)`. The export smoke also needs
+`client_max_body_size 0` for its 1.5 MB WebDAV PUT.
+
+Not covered by this lab, for want of infrastructure the demo image lacks:
+`cephfs_ro_live`/`cephfs_ro_smoke` (need a seeded CephFS — MDS plus
+metadata/data pools; the demo is mon/mgr/osd only) and `striper_migrate` (needs
+`libradosstriper-devel`, absent from the SIG stream the image tracks). Those stay
+in the k8s suite or manual runs. A transient docker build under contention can
+exit 144 — retry when the box is quiet; it is not a real failure.
+
 ---
 
 ## 12. Workstreams & effort

@@ -219,21 +219,57 @@ brix_mkdir_walk(const brix_mkdir_walk_t *w, char *tmp, char *p)
 }
 
 /*
+ * WHAT: Classify an EEXIST from a level backend: benign only when the entry
+ *       already at that path IS a directory.
+ *
+ * WHY:  `mkdir -p` tolerates an existing target because the caller's intent —
+ *       "a directory is here afterwards" — is already satisfied. A regular file
+ *       in that position satisfies nothing: swallowing its EEXIST made
+ *       `xrdfs mkdir -p /file` and MKCOL-with-parents report success over a
+ *       regular file, so a client believed a directory existed where its data
+ *       actually was, and the next write into that "directory" failed ENOTDIR
+ *       with no explanation. coreutils mkdir -p reports the same conflict.
+ *       Intermediate components need no special case: the next level's mkdir
+ *       under a regular file fails ENOTDIR on its own.
+ *
+ * HOW:  Callers pass the result of their own confinement-appropriate stat
+ *       probe. Directory → EXISTED (walk continues). Anything else, including a
+ *       probe that failed → ERROR with errno=EEXIST, mkdir(2)'s own code for
+ *       "something else is in the way" (fail closed: an unstattable entry is
+ *       never assumed to be a directory).
+ */
+static int
+brix_mkdir_existed(int is_dir)
+{
+    if (is_dir) {
+        return BRIX_MKDIR_EXISTED;
+    }
+    errno = EEXIST;
+    return BRIX_MKDIR_ERROR;
+}
+
+/*
  * WHAT: make_level backend for the unconstrained variant — a plain mkdir(2).
  *
  * WHY:  Used where the caller only needs directory creation without export
  *       confinement (e.g. rename intermediate directories).
  *
- * HOW:  mkdir(dir, mode); map success to CREATED, EEXIST to EXISTED, any other
+ * HOW:  mkdir(dir, mode); map success to CREATED, EEXIST to EXISTED when a
+ *       stat(2) confirms a directory (see brix_mkdir_existed), any other
  *       failure to ERROR with errno intact.
  */
 static int
 brix_mkdir_level_plain(const brix_mkdir_walk_t *w, const char *dir)
 {
+    struct stat sb;
+
     if (mkdir(dir, w->mode) == 0) {
         return BRIX_MKDIR_CREATED;
     }
-    return (errno == EEXIST) ? BRIX_MKDIR_EXISTED : BRIX_MKDIR_ERROR;
+    if (errno != EEXIST) {
+        return BRIX_MKDIR_ERROR;
+    }
+    return brix_mkdir_existed(stat(dir, &sb) == 0 && S_ISDIR(sb.st_mode));
 }
 
 /*
@@ -244,15 +280,25 @@ brix_mkdir_level_plain(const brix_mkdir_walk_t *w, const char *dir)
  *       export root.
  *
  * HOW:  brix_mkdir_confined_canon(log, root_canon, dir, mode); classify the
- *       result as CREATED / EXISTED / ERROR.
+ *       result as CREATED / EXISTED / ERROR. The EEXIST probe runs through the
+ *       impersonation-aware confined stat (following a trailing symlink, as
+ *       mkdir -p does) so it cannot be steered outside the export root either.
  */
 static int
 brix_mkdir_level_confined(const brix_mkdir_walk_t *w, const char *dir)
 {
+    struct stat sb;
+
     if (brix_mkdir_confined_canon(w->log, w->root_canon, dir, w->mode) == 0) {
         return BRIX_MKDIR_CREATED;
     }
-    return (errno == EEXIST) ? BRIX_MKDIR_EXISTED : BRIX_MKDIR_ERROR;
+    if (errno != EEXIST) {
+        return BRIX_MKDIR_ERROR;
+    }
+    return brix_mkdir_existed(
+        brix_lstat_confined_canon(w->log, w->root_canon, dir, &sb,
+                                  0 /* follow */) == 0
+        && S_ISDIR(sb.st_mode));
 }
 
 /*
@@ -264,14 +310,23 @@ brix_mkdir_level_confined(const brix_mkdir_walk_t *w, const char *dir)
  *
  * HOW:  brix_mkdir_beneath(rootfd, dir + root_len, mode) — the export-relative
  *       path is dir past the root prefix; classify CREATED / EXISTED / ERROR.
+ *       The EEXIST probe is brix_stat_beneath through the same rootfd, so it
+ *       shares the mkdir's confinement.
  */
 static int
 brix_mkdir_level_beneath(const brix_mkdir_walk_t *w, const char *dir)
 {
+    struct stat sb;
+
     if (brix_mkdir_beneath(w->rootfd, dir + w->root_len, w->mode) == 0) {
         return BRIX_MKDIR_CREATED;
     }
-    return (errno == EEXIST) ? BRIX_MKDIR_EXISTED : BRIX_MKDIR_ERROR;
+    if (errno != EEXIST) {
+        return BRIX_MKDIR_ERROR;
+    }
+    return brix_mkdir_existed(
+        brix_stat_beneath(w->rootfd, dir + w->root_len, &sb) == 0
+        && S_ISDIR(sb.st_mode));
 }
 
 /*

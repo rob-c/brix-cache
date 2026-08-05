@@ -17,6 +17,8 @@ from cmdscripts.c_regression_units import run_checks
         "mu_unit",
         "chunk_geometry",
         "staged_commit_contract",
+        "staged_contract_tiers",
+        "staged_contract_origin",
         "shared_thread_pool",
         "fd_kind",
         "stage_reconcile",

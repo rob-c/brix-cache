@@ -904,11 +904,13 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/fs/backend/stage/sd_stage.c \
     $ngx_addon_dir/src/fs/backend/stage/sd_stage_write.c \
     $ngx_addon_dir/src/fs/backend/cache/sd_cache.c \
+    $ngx_addon_dir/src/fs/backend/cache/sd_cache_maint.c \
     $ngx_addon_dir/src/fs/backend/cache/sd_cache_fill.c \
     $ngx_addon_dir/src/fs/backend/cache/sd_cache_fill_verify.c \
     $ngx_addon_dir/src/fs/backend/cache/sd_cache_fill_demote.c \
     $ngx_addon_dir/src/fs/backend/cache/sd_cache_manifest.c \
     $ngx_addon_dir/src/fs/backend/cache/sd_cache_partial.c \
+    $ngx_addon_dir/src/fs/backend/cache/sd_cache_prefetch.c \
     $ngx_addon_dir/src/fs/backend/cache/sd_cache_forward.c \
     $ngx_addon_dir/src/fs/backend/cache/sd_cache_policy.c \
     $ngx_addon_dir/src/fs/backend/frm/sd_frm.c \
@@ -1597,6 +1599,7 @@ ngx_module_srcs="$ngx_addon_dir/src/protocols/webdav/module.c \
                   $ngx_addon_dir/src/protocols/webdav/tpc_curl_multi.c \
                   $ngx_addon_dir/src/protocols/webdav/tpc_curl_setup.c \
                   $ngx_addon_dir/src/protocols/webdav/tpc_curl_pmark.c \
+                  $ngx_addon_dir/src/protocols/webdav/tpc_verify.c \
                   $ngx_addon_dir/src/protocols/webdav/tpc_thread.c \
                   $ngx_addon_dir/src/protocols/webdav/tpc_marker.c \
                   $ngx_addon_dir/src/protocols/webdav/tpc_marker_start.c \

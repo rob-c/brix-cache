@@ -104,6 +104,18 @@
       offsetof(ngx_http_brix_cvmfs_loc_conf_t, cvmfs.enable),
       NULL },
 
+    /* Stratum-0 alias (phase-96 S13): names the published repo tree this
+     * location serves (same effect as brix_export) and makes the intent
+     * explicit — the merge refuses cache-fill upstream grammar in the same
+     * block, and the gate answers /.cvmfs_master_replica so a real
+     * Stratum-1 (cvmfs_server add-replica) recognizes a replication source. */
+    { ngx_string("brix_cvmfs_stratum0_root"),
+      NGX_HTTP_MAIN_CONF | NGX_HTTP_SRV_CONF | NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_str_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_brix_cvmfs_loc_conf_t, cvmfs.stratum0_root),
+      NULL },
+
     { ngx_string("brix_cvmfs_manifest_ttl"),
       NGX_HTTP_MAIN_CONF | NGX_HTTP_SRV_CONF | NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
       ngx_conf_set_sec_slot,

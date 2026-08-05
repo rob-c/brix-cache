@@ -278,6 +278,7 @@ Representative exposed metric names (grepped from `src/observability/metrics/*.c
 | Proxy | `brix_proxy_opens_total`, `brix_proxy_reconnects_total`, `brix_proxy_upstream_auth_errors_total`, `brix_proxy_abandoned_handles_total` |
 | PMark | `brix_pmark_firefly_sent_total`, `brix_pmark_flowlabel_set_total`, `brix_pmark_flows_started_total` |
 | Resilience | `brix_auth_l1_hits_total`/`_misses_total`, `brix_ocsp_timeouts_total`, `brix_cms_read_timeouts_total`, `brix_acc_nss_breaker_open_total` |
+| Cluster membership | `brix_cms_logins_total`, `brix_cms_connect_failures_total`, `brix_cms_registered_links` (gauge — `0` means this node has fallen out of the federation) |
 | FRM (tape) | `brix_frm_stage_success_total`, `brix_frm_stage_fail_total`, `brix_frm_reject_inflight_total` |
 
 **Low-cardinality label rule (security boundary, enforced).**

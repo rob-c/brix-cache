@@ -364,15 +364,19 @@ That operational detail is easy to forget and explains a lot of “the fix compi
 Token-authenticated stream listeners advertise `ztn` in the `kXR_protocol` security info and in the `kXR_login` parameter block:
 
 ```
-&P=ztn,v:10000
+&P=ztn,0:4096:
 ```
 
+The parameter text is `<expiry>:<maxtsz>:` — the minimum token lifetime (seconds) the client's token must still have, `0` for "no requirement", and the maximum token size the server will accept. **Both colons are mandatory and `maxtsz` must be positive:** `XrdSecProtocolztn`'s constructor parses them with `strtoll()`/`strtol()` and aborts the login with *"Secztn: Malformed client parameters"* otherwise. The reference server's default is `-maxsz 4096`, which is what BriX advertises. (BriX previously emitted `v:10000`, borrowed from the GSI dialect; no stock XrdCl could authenticate with a token against it. Pinned by `tests/test_token_auth.py::test_ztn_params_match_the_stock_client_grammar`.)
+
 The client then sends a single `kXR_auth` request. The payload starts with the four-byte credential prefix `ztn\0`, followed immediately by the compact JWT bytes. There is no multi-round challenge/response sequence like GSI.
+
+`XrdSecProtocolztn` also refuses to run over a **cleartext** connection ("security protocol 'ztn' disallowed for non-TLS connections") and refuses to read a `BEARER_TOKEN_FILE` that is group- or world-readable. Token auth over `root://` is therefore always a TLS topology with `0600` credentials.
 
 When `brix_auth both` is configured, the server advertises token first and then GSI:
 
 ```
-&P=ztn,v:10000&P=gsi,v:10000,c:ssl,ca:<hash>
+&P=ztn,0:4096:&P=gsi,v:10000,c:ssl,ca:<hash>
 ```
 
 The auth handler routes by the credential type in the request: `ztn` goes to JWT/JWKS validation; `gsi` goes to the GSI certificate exchange.

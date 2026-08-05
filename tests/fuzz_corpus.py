@@ -42,7 +42,7 @@ def _lcg(seed: int, n: int) -> bytes:
 # HTTP-family corpus (nginx http core + WebDAV/S3 request handling)
 # ===========================================================================
 
-_HOST = b"Host: localhost\r\n"
+_HOST = b"Host: localhost\r\n"  # net-literal-allow: fuzz-payload Host header, not a dial target
 CANON_GET = b"GET /fuzz_probe HTTP/1.1\r\n" + _HOST + b"\r\n"
 CANON_PUT = (
     b"PUT /fuzz_probe.txt HTTP/1.1\r\n" + _HOST

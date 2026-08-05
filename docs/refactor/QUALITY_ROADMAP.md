@@ -320,7 +320,12 @@ brix_cvmfs_apply_rules(...)    // Extract rule application
 > 20-digit `14695981039346656037` (`0xcbf29ce484222325`). This is a copy-paste typo
 > that is now **load-bearing**: `pblock_xform.c` derives encryption keys from it, so
 > "correcting" it to canonical would change key/hash output and break existing
-> encrypted pblock data. Left byte-identical; flagged here, not fixed.
+> encrypted pblock data. Left byte-identical; flagged here, not fixed. Avalanche
+> and distribution are fine either way — only *stability* matters for these keys,
+> and they have been shipping with the typo. If a future sweep wants every call
+> site on `core/fnv.h`, give these four a distinct
+> `BRIX_FNV1A64_OFFSET_BASIS_LEGACY` macro; do **not** fold them into the
+> canonical one.
 
 **Current State:**
 - 100+ hardcoded constants throughout codebase

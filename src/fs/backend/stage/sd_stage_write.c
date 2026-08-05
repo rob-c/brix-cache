@@ -495,7 +495,10 @@ sd_stage_staged_commit(brix_sd_staged_t *st, int noreplace)
          * set by the inner commit. */
         return NGX_ERROR;
     }
-    /* ss->inner is consumed by the commit above. */
+    /* ss->inner is consumed (freed) by the commit above — drop the dangling
+     * pointer so a later sd_stage_staged_abort (which the caller MUST run if a
+     * write-back step below fails) does not abort an already-released handle. */
+    ss->inner = NULL;
 
     /* 2a. ASYNC write-back (SP4): the object is durable on the stage store now, so
      * the commit succeeds immediately; the scheduler flushes it to the backend and
@@ -532,13 +535,21 @@ sd_stage_staged_commit(brix_sd_staged_t *st, int noreplace)
                                      (ss->cred.key[0] != '\0') ? &ss->cred : NULL);
 
     /* 3. on success drop the stage buffer copy; on failure keep it for retry. */
-    if (rc == NGX_OK && store->driver->unlink != NULL) {
+    if (rc != NGX_OK) {
+        /* Ownership contract again: the handle is only consumed on SUCCESS. A
+         * failed inline flush must leave st+ss valid so the caller's
+         * staged_abort releases them exactly once (it now skips the consumed
+         * ss->inner). Freeing here made the mandatory abort a use-after-free
+         * plus a double-free of both allocations. */
+        return rc;
+    }
+    if (store->driver->unlink != NULL) {
         (void) store->driver->unlink(store, ss->key, 0);
     }
 
     free(ss);
     free(st);
-    return rc;
+    return NGX_OK;
 }
 
 void
@@ -547,7 +558,9 @@ sd_stage_staged_abort(brix_sd_staged_t *st)
     sd_stage_staged_state *ss = st->state;
     sd_stage_inst_state   *is = ss->is;
 
-    if (is->store->driver->staged_abort != NULL) {
+    /* ss->inner is NULL once the inner commit consumed it (a write-back failure
+     * after step 1 still lands here) — only an unpublished handle is aborted. */
+    if (ss->inner != NULL && is->store->driver->staged_abort != NULL) {
         is->store->driver->staged_abort(ss->inner);
     }
     free(ss);

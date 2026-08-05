@@ -100,11 +100,12 @@ stat_manager_route(brix_ctx_t *ctx, ngx_connection_t *c,
         }
     }
 
-    /* Registry miss — ask CMS parent if configured. */
-    if (conf->cms.ctx != NULL) {
-        uint32_t streamid;
+    /* Registry miss — ask a CMS parent if configured. */
+    if (conf->cms.nctxs > 0) {
+        ngx_brix_cms_ctx_t *cms = ngx_brix_cms_pick_ctx(conf);
+        uint32_t            streamid;
 
-        streamid = ngx_brix_cms_next_streamid(conf->cms.ctx);
+        streamid = ngx_brix_cms_next_streamid(cms);
         if (brix_pending_insert(streamid, ngx_pid, c->fd,
                                   c->number,
                                   ctx->recv.cur_streamid,
@@ -113,7 +114,7 @@ stat_manager_route(brix_ctx_t *ctx, ngx_connection_t *c,
             ctx->cms_wait_streamid = streamid;
             ctx->state = XRD_ST_WAITING_CMS;
             ngx_add_timer(c->read, conf->cms.locate_timeout);
-            if (ngx_brix_cms_send_locate(conf->cms.ctx, streamid,
+            if (ngx_brix_cms_send_locate(cms, streamid,
                                            reqpath) == NGX_OK)
             {
                 *rc = NGX_AGAIN;

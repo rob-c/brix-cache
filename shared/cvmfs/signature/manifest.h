@@ -21,6 +21,8 @@ typedef struct {
     long                 ttl;               /* 'D' seconds */
     long                 timestamp;         /* 'T' */
     char                 repo_name[256];    /* 'N' */
+    cvmfs_hash_t         history;           /* 'H' tag/history object (len 0 = absent) */
+    cvmfs_hash_t         reflog_checksum;   /* 'Y' .cvmfsreflog checksum (len 0 = absent) */
     const unsigned char *signed_body;       size_t signed_body_len;  /* thru "--\n" */
     cvmfs_hash_t         signed_hash;       /* hash line after "--", parsed */
     const unsigned char *signed_hash_text;  size_t signed_hash_text_len; /* raw ASCII

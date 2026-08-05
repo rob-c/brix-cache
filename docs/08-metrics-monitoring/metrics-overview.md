@@ -132,6 +132,58 @@ See [extended-metrics.md](./extended-metrics.md) for WebDAV and S3 IP-version co
 
 ---
 
+## Cluster Membership Metrics (CMS / AAA federation)
+
+When `brix_cms_manager` is set, the node dials its redirector and registers
+upward. These three families answer the only question a federation operator
+actually asks during an incident — *is this site still in the cluster?* — from
+the node's own `/metrics`, without shell access to the manager.
+
+```
+brix_cms_logins_total 4
+brix_cms_connect_failures_total 37
+brix_cms_registered_links 1
+```
+
+| Metric | Type | Meaning |
+| --- | --- | --- |
+| `brix_cms_logins_total` | counter | LOGIN frames this node sent upward. Increments once per successful join, so a rising value with a flat `registered_links` means the node is flapping. |
+| `brix_cms_connect_failures_total` | counter | Upward dials that were torn down before LOGIN ever went out — refused, unreachable, or past the connect deadline. |
+| `brix_cms_registered_links` | **gauge** | Upward links currently logged in. **`0` means this node is out of the cluster** and the redirector will stop sending it clients. |
+
+The outbound CMS client runs on worker 0 only (stock `cmsd` admits one
+connection per SID), so the gauge has a single writer and needs no
+per-worker aggregation. It is decremented in the link teardown path, which
+is also where a never-logged-in dial is counted as a failure: on loopback — and
+on any path where the peer resets rather than dropping — a refused dial
+surfaces on the **read** side (`recv()` returning `ECONNREFUSED`), not at
+`ngx_event_connect_peer()`, so teardown is the one funnel every failed join
+passes through exactly once.
+
+Useful alerts:
+
+```promql
+# This site has fallen out of the federation.
+brix_cms_registered_links == 0
+
+# Joined but not staying joined — link is flapping, not down.
+rate(brix_cms_logins_total[15m]) > 0 and brix_cms_registered_links == 0
+
+# Redirector unreachable; backoff is working if this rises slowly, not linearly.
+rate(brix_cms_connect_failures_total[5m]) > 0
+```
+
+Retry is exponential with jitter (6 s initial, capped at 60 s and at 10×
+`brix_cms_interval`), so a sustained outage produces a handful of failures per
+minute — not hundreds. A steep `connect_failures` slope is itself the signal
+that backoff has regressed to a hot loop.
+
+Coverage: `tests/test_cms_aaa_join_noise.py` drives join, outage, rejoin and
+hostile-redirector cases across an impaired link and asserts on all three
+families.
+
+---
+
 ## Cache Metrics
 
 ### `brix_cache_occupancy_ratio`
@@ -227,6 +279,24 @@ brix_cache_dirty_reaped_total{port="1094",auth="anon",reason="incomplete"} 0
 brix_cache_dirty_reaped_total{port="1094",auth="anon",reason="completed"} 12
 ```
 
+### `brix_cache_prefetch_jobs_total` / `brix_cache_prefetch_blocks_total` / `brix_cache_prefetch_failures_total`
+
+Background block prefetch (`brix_cache_prefetch` +
+`brix_cache_prefetch_window` on a slice cache): jobs posted, blocks filled by
+those jobs, and jobs that failed (origin/cache open or fill error — the
+foreground serving path is unaffected). **Process-wide, unlabeled** — the
+detached thread-pool jobs carry no per-server context (same shape as the
+watermark group). Sole owner: `src/fs/backend/cache/sd_cache_prefetch.c`
+(Pattern 6). `jobs_total` increments at post time on the event loop;
+`blocks_total`/`failures_total` at job completion. A rising `failures_total`
+with a healthy origin usually means cache-volume permission or space trouble.
+
+```
+brix_cache_prefetch_jobs_total 42
+brix_cache_prefetch_blocks_total 168
+brix_cache_prefetch_failures_total 0
+```
+
 ---
 
 ## Request Metrics
@@ -259,7 +329,7 @@ WebDAV counters are global to the nginx instance and intentionally avoid path, D
 
 Metrics:
 
-- `brix_webdav_requests_total{method}` - requests by method
+- `brix_webdav_requests_total{method}` - requests by method (`OPTIONS`, `HEAD`, `GET`, `PUT`, `DELETE`, `MKCOL`, `COPY`, `PROPFIND`, `MOVE`, `OTHER`; MOVE has been first-class since the 2026-08 conformance pass — it previously folded into `OTHER`)
 - `brix_webdav_responses_total{method,status_class}` - responses by method and HTTP status class
 - `brix_webdav_auth_total{result}` - auth outcomes (`none`, `cert_ok`, `token_ok`, `anonymous_fallback`, `rejected`)
 - `brix_webdav_bytes_rx_total` - bytes accepted into WebDAV writes
@@ -366,10 +436,92 @@ Metrics:
 brix_unique_users_current 42
 brix_unique_users_total 1873
 brix_user_evictions_total 156
-brix_user_sessions_total{hash=a1b2c3d4} 5
+brix_user_sessions_total{hash="a1b2c3d4"} 5
 ```
 
 See [extended-metrics.md](./extended-metrics.md) for configuration notes and full details.
+
+---
+
+## Accounting Ownership & Accuracy Invariants
+
+Verified end-to-end by the conformance suite (`tests/test_cachemx_*.py` — 2070
+tests across 24 files driving real transfers over root://, WebDAV
+(plain/TLS/token/cert), S3 (anonymous/SigV4), and cmsd redirection, asserting
+exact per-request counter deltas). Beyond the per-plane flow suites it pins:
+the complete 196-family catalogue (name + type, drift-checked in both
+directions — `test_cachemx_catalog.py`), every family's HELP text
+(`test_cachemx_help_text.py`, snapshot in `tests/_cachemx_catalog_data.py`)
+and label-key schema incl. strict exposition-format residue checking
+(`test_cachemx_label_schema.py`, schema pinned from the C emitters in
+`tests/_cachemx_catalog_schema.py`; 26 families are CONDITIONAL — HELP/TYPE
+always exposed, sample rows only under subsystem traffic), MOVE/rename
+accounting incl. the full WebDAV precondition error ladder
+(`test_cachemx_move_rename.py`), the namespace-method edges
+(MKCOL/HEAD/PROPFIND/DELETE/OPTIONS/Range windows —
+`test_cachemx_namespace_methods.py`, re-proven per authenticated plane with
+1:1 auth-row coupling in `test_cachemx_http_method_planes.py`), Range-window
+byte-exactness incl. clamps, suffix/open-ended forms, 416s and the
+malformed-Range regression pin (`test_cachemx_range_windows.py`),
+byte-exactness across a 1 B – 64 KiB size ladder per flow
+(`test_cachemx_accuracy_matrix.py`) extended to the 3 B – 1 MiB chunked
+regime (`test_cachemx_size_ladder_ext.py`), repetition linearity (N ops move
+every counter by exactly N× — `test_cachemx_repetition.py`), multi-op
+lifecycle algebra and cross-dialect cache-hit accounting
+(`test_cachemx_sequences.py`), auth-result edges and the hashed
+user-session identity pins (`test_cachemx_auth_matrix.py`), and cross-plane
+ledger isolation plus requests==responses conservation
+(`test_cachemx_ownership.py`). A per-family grid layer (traffic burst over
+every plane, then structural checks parametrized across the full catalogue —
+shared parser in `tests/_cachemx_grid.py`) adds: HELP-before-TYPE-before-
+sample ordering, duplicate-series rejection, finite/non-negative sample
+values and counter monotonicity across two traffic-separated scrapes
+(`test_cachemx_family_grid.py`); per-key label-value grammars (`port`, `le`,
+`status_class` incl. the `other` overflow class, `hash`, enum-shaped keys)
+plus full histogram invariants — cumulative buckets, `+Inf` == `_count`,
+finite `_sum` (`test_cachemx_family_semantics.py`). Three credential-route
+grids complete the matrix: GET/PUT byte-exactness across dav/davs+bearer/
+davsg+cert/s3/s3sig at three sizes and all four stream security planes at
+two (`test_cachemx_plane_size_grid.py`); per-plane wire-ledger ok/error
+splits for mv/rm/rmdir/mkdir/absent-read — pinning the deliberate stock-
+parity idempotence of mkdir-over-existing (EEXIST tolerated, do_Mkdir) and
+rmdir-of-absent (ENOENT tolerated, do_Rmdir), which book **ok** rows, not
+errors (`test_cachemx_stream_wire_errors.py`); and N-op linearity per
+credential route (`test_cachemx_linearity_grid.py`).
+
+**Single-owner rule.** Every unified `brix_io_*` row is booked by exactly one layer
+(see [metrics-bug-patterns.md](./metrics-bug-patterns.md) Pattern 6 for the owner
+table and the double-count bugs this rule closed):
+
+- WebDAV/S3 READ + WRITE ops and latency: the protocol response path, once per
+  request, with full-request latency. Bytes come from the per-protocol rx/tx wire
+  ledgers at scrape time.
+- Stream (root://) READ + WRITE ops: the per-server wire-ledger fold. These carry
+  **no latency observations** — `brix_io_latency_usec{proto="stream",op="read"}`
+  staying at zero under pure streaming reads is correct, not a bug.
+- Namespace ops (stat/delete/mkdir/rename/dirlist, all protocols): the VFS
+  observer, with per-call latency.
+- Per-backend `brix_storage_io_bytes_*`: the VFS/staged-commit layer (books the
+  committed object size exactly once per publish).
+
+**Eviction accounting is a three-family split:**
+
+1. Policy-engine purges: `brix_cache_evictions_total` / `brix_cache_evicted_bytes_total`
+   per cache instance (exact file count and byte sum of purged objects).
+2. Watermark reaper trims: the same instance families, driven by occupancy
+   watermarks.
+3. Protocol-driven evictions (rm/DELETE/rename-over-cached/write-open-over-cached):
+   the per-protocol evicted-bytes family, booking the exact cached size of the
+   displaced copy. These do NOT move the per-instance eviction families.
+
+**`brix_cache_eviction_threshold_ratio` is policy-engine-only**: it has no sample
+under watermark-based trimming, even when an eviction threshold is configured on
+the instance. Absence of this gauge is the expected exposition for
+watermark-managed caches.
+
+**Auth accounting is singular**: each request books exactly one auth-result row
+(e.g. all eight `brix_s3_auth_total` result labels sum to +1 per request; a WebDAV
+`optional`-auth plane books `anonymous_fallback` for credential-less requests).
 
 ---
 

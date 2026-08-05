@@ -75,9 +75,20 @@ _MARKER = "uses_lifecycle_harness"
 # races the shared registry fleet — the same standalone-lab shape as the redteam
 # entry.  (It surfaced here only once the guard learned to see `str(nginx_bin)`
 # argv0; it was an unflagged direct launcher long before.)
+# `_perf_netem_helpers.py` is the third entry of that same standalone-lab class,
+# and the one case the registry structurally CANNOT own: the nginx it starts runs
+# inside a private network namespace (`unshare -n`) at the far end of a synthesized
+# `veth`+`netem` link, so its listen is unreachable from the host the registry
+# probes for readiness and its port cannot collide with a fleet port at all.  It
+# is a helper module (never collected as a test) driven by the operator-invoked
+# phase-33 A/B throughput harness, and it reaps its own master in the namespace
+# it created.  Like the two entries above it is documented, not a target for
+# migration — but it is still ON the list, so an accidental second launcher in
+# the file would not slip past the guard.
 LAUNCH_BACKLOG = frozenset({
     "userns/e2e_redteam.py",
     "cmdscripts/system_live_ports.py",
+    "_perf_netem_helpers.py",
 })
 
 

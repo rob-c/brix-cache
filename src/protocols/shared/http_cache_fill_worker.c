@@ -236,7 +236,10 @@ brix_http_cache_fill_done(ngx_event_t *ev)
      * one closes — and prevents the un-admissible object from lingering in the
      * cache. Best-effort: a residual copy is simply re-served-and-re-evicted. */
     if (ok && t->passthrough) {
-        brix_sd_cache_evict(t->inst, t->key);
+        /* Deliberately NOT counted as a cache eviction: the object was spooled
+         * only to serve these waiters, never retained, so accounting it would
+         * inflate cache_bytes_evicted with bytes that were never "cached". */
+        (void) brix_sd_cache_evict(t->inst, t->key);
         ngx_log_error(NGX_LOG_INFO, ev->log, 0,
             "xrootd-fill: event=passthrough-evict key=\"%s\" — served an "
             "un-admissible object then dropped it from the cache", t->key);

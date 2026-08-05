@@ -452,21 +452,40 @@ brix_vfs_elapsed_usec(uint64_t start_ns)
  * from start_msec, then emit one metric (brix_metric_op_done) and one access
  * log line (brix_access_log_emit) for op. bytes is the transferred count;
  * result may be NULL. Borrows path (does not copy). Restores errno=sys_errno on
- * return so the caller can propagate it unchanged. */
+ * return so the caller can propagate it unchanged.
+ *
+ * ctx == NULL means there is no request context — an internal maintenance op
+ * (e.g. the integrity code persisting checksum sidecars via the NULL-ctx
+ * f-xattr variants). Those are not client I/O: observing them would default
+ * the proto label to "stream" and misattribute s3/webdav-triggered sidecar
+ * touches, so they are deliberately not metered or access-logged. */
 static ngx_inline void
-brix_vfs_observe_ctx_op(const brix_vfs_ctx_t *ctx, const char *path,
+brix_vfs_observe_ctx_op_ex(const brix_vfs_ctx_t *ctx, const char *path,
     brix_metric_op_t op, const brix_vfs_io_result_t *result,
-    size_t bytes, ngx_int_t rc, int sys_errno, uint64_t start_ns)
+    size_t bytes, ngx_int_t rc, int sys_errno, uint64_t start_ns,
+    unsigned meter_io)
 {
     brix_err_class_t err;
     ngx_msec_t         latency_usec;
+
+    if (ctx == NULL) {
+        errno = sys_errno;
+        return;
+    }
 
     err = rc == NGX_OK ? BRIX_ERR_NONE
                        : brix_metric_err_from_errno(sys_errno);
     latency_usec = brix_vfs_elapsed_usec(start_ns);
 
-    brix_metric_op_done(brix_vfs_metrics_proto(ctx), op, bytes,
-                          latency_usec, err);
+    /* meter_io == 0: the owning protocol books the unified io_ops/latency row
+     * for this operation itself (data-plane READ/WRITE via *_metrics_response,
+     * bytes via the per-protocol wire-ledger fold), so emitting it here too
+     * would double-count. Backend byte totals and the access-log line stay
+     * VFS-owned either way. */
+    if (meter_io) {
+        brix_metric_op_done(brix_vfs_metrics_proto(ctx), op, bytes,
+                              latency_usec, err);
+    }
 
     /* Per-backend storage byte totals (staged-commit writes, VFS-metered
      * reads). ctx->sd == NULL is the default-POSIX instance. */
@@ -480,6 +499,16 @@ brix_vfs_observe_ctx_op(const brix_vfs_ctx_t *ctx, const char *path,
     brix_access_log_emit(ctx, path, op, result, bytes, err, latency_usec);
 
     errno = sys_errno;
+}
+
+/* Full observer: metric + backend bytes + access log. */
+static ngx_inline void
+brix_vfs_observe_ctx_op(const brix_vfs_ctx_t *ctx, const char *path,
+    brix_metric_op_t op, const brix_vfs_io_result_t *result,
+    size_t bytes, ngx_int_t rc, int sys_errno, uint64_t start_ns)
+{
+    brix_vfs_observe_ctx_op_ex(ctx, path, op, result, bytes, rc, sys_errno,
+                                 start_ns, 1);
 }
 
 /* Handle-keyed convenience wrapper for brix_vfs_observe_ctx_op: pulls ctx and

@@ -211,6 +211,31 @@ typedef struct brix_ctx_s {
     ngx_uint_t  destroyed;
 
     /*
+     * Disconnect-finalization guard.
+     * Set to 1 by the first brix_on_disconnect() run; later invocations
+     * return immediately.  `destroyed` cannot serve this purpose: the
+     * deferred-teardown path (brix_defer_teardown_if_writing) sets it
+     * BEFORE the deferred brix_on_disconnect() runs.  Without this guard
+     * a kXR_endsess for the connection's own session (session/lifecycle.c)
+     * finalizes metrics once, and the eventual TCP close finalizes them
+     * again — double-counting bytes_tx/rx_total and driving the
+     * connections_active gauge negative (uint64 wrap).
+     */
+    ngx_uint_t  disconnect_done;
+
+    /*
+     * One-shot marker: the current kXR_open was parked while an offloaded
+     * composed-cache fill ran (fs/cache/open_or_fill.c).  The resumed open
+     * then finds a COMPLETE cinfo and sd_cache reports a HIT, but the
+     * client-visible outcome of THIS open is a miss — the bytes came from
+     * the origin.  The driver-adopt bump (open_resolved_file_open.c)
+     * consumes the flag to account the miss; the resume path clears it
+     * unconditionally after the re-open so it can never leak onto a later
+     * request.
+     */
+    ngx_uint_t  open_fill_miss;
+
+    /*
      * TLS upgrade state (kXR_ableTLS).
      * Set to 1 when we send kXR_haveTLS in a kXR_protocol response.
      * The next recv is the ClientHello; cleared when the TLS handshake

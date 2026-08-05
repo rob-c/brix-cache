@@ -1,4 +1,4 @@
-"""Stage write-back hydration: partial overwrite of an existing backend object.
+"""Stage write-back tier: hydration of an existing object + the spool namespace.
 
 Regression for the sd_stage_wb_hydrate change: an update-open through the
 write-stage tier of an object that already exists on the backend must seed the
@@ -20,6 +20,15 @@ Covers the mandated triplet:
                       than the backend object and must NOT be clobbered by
                       hydration: the flushed result is the staged bytes plus
                       the overlay, not the resurrected backend content.
+
+The second half covers the write-back tier's SPOOL namespace
+(sd_stage_store_mkparents): the stage store is a private buffer, so the parent
+chain of a nested key exists there only if the tier builds it — before that fix a
+create-open of ANY subdirectory key failed kXR_NotFound with a stage tier
+configured, because the client's mkdir/mkpath had built the chain in the export
+and on the origin, never in the spool.  Triplet: a nested create lands
+byte-exact; an unwritable spool fails the open cleanly instead of stranding
+bytes; and a traversal key never materialises a directory outside the spool.
 
 Run:
   TEST_SKIP_SERVER_SETUP=1 PYTHONPATH=tests \
@@ -71,6 +80,7 @@ def hyd(lifecycle, tmp_path):
     s = S()
     s.port = ep.port
     s.origin = origin
+    s.gw = gw
     s.stage = stage
     return s
 
@@ -133,6 +143,105 @@ def test_new_object_create_unaffected(hyd, tmp_path):
     assert r.returncode == 0, \
         f"create through the gateway failed: {r.stderr.decode(errors='replace')}"
     assert (hyd.origin / name).read_bytes() == b"N" * 5000
+
+
+def test_driver_backed_write_diverts_upload_resume(hyd, tmp_path):
+    """The P80.2 resume divert fires for a DRIVER-backed export.
+
+    brix_upload_resume defaults ON, and its skeleton is a local POSIX file under
+    the export root — meaningless here, where storage is the root:// origin.  A
+    write that kept resume enabled would strand the bytes in a
+    `<name>.xrdresume.<hex>.part` inside the gateway export instead of taking the
+    whole-object staged seam to the backend.  The divert must key on the driver
+    being something other than the DEFAULT POSIX one: every plain `brix_export`
+    also owns a default-POSIX census row (phase-68), so a divert that merely
+    asks "is a backend registered?" disables staging for ordinary local exports
+    (test_shutdown_resume.py::test_upload_resume_stage_dir is that side of it).
+    """
+    if XRDCP is None:
+        pytest.skip("xrdcp not available")
+    name = "hyd_divert.bin"
+    src = tmp_path / "divert.bin"
+    src.write_bytes(b"D" * 4096)
+
+    r = subprocess.run(
+        [XRDCP, "-f", str(src), f"root://{HOST}:{hyd.port}//{name}"],
+        capture_output=True, timeout=30)
+    assert r.returncode == 0, \
+        f"driver-backed create failed: {r.stderr.decode(errors='replace')}"
+
+    assert (hyd.origin / name).read_bytes() == b"D" * 4096, \
+        "bytes never reached the backend — the write took the local skeleton"
+    leftovers = [p.name for p in hyd.gw.iterdir() if ".xrdresume." in p.name]
+    assert leftovers == [], \
+        f"resume skeleton written under a driver-backed export: {leftovers}"
+    assert not (hyd.gw / name).exists(), \
+        "the object was published into the gateway export instead of the backend"
+
+
+def _nested_write(port, name, payload, flags=OpenFlags.NEW | OpenFlags.MAKEPATH):
+    """Create `name` (a nested key) through the gateway and return the open status.
+    Writes + closes only when the open succeeded, so a refused open is reported
+    as such rather than raising."""
+    f = client.File()
+    st, _ = f.open(f"root://{HOST}:{port}//{name}", flags)
+    if not st.ok:
+        return st
+    try:
+        wst, _ = f.write(payload, offset=0)
+        assert wst.ok, f"nested pwrite failed: {wst.message}"
+    finally:
+        cst, _ = f.close()
+        assert cst.ok, f"nested close (sync flush) failed: {cst.message}"
+    return st
+
+
+def test_nested_key_lands_through_the_spool(hyd):
+    """Success: a create-open of a subdirectory key builds the chain in the
+    private stage store and the bytes reach the origin byte-exact."""
+    name = "nst/deep/nested.bin"
+    payload = b"Q" * 9000
+
+    st = _nested_write(hyd.port, name, payload)
+    assert st.ok, f"nested create through the stage tier failed: {st.message}"
+
+    dst = hyd.origin / name
+    assert dst.is_file(), \
+        "the nested object never reached the origin — the spool open failed"
+    assert dst.read_bytes() == payload, "nested object landed corrupt"
+    assert (hyd.stage / "nst" / "deep").is_dir(), \
+        "the tier did not build the key's parent chain inside the stage store"
+
+
+def test_nested_create_refused_when_the_spool_is_unwritable(hyd):
+    """Error path: the spool mkdir failure surfaces as a failed open — the write
+    is never accepted against a spool that cannot hold it."""
+    name = "ro_spool/nested.bin"
+    os.chmod(hyd.stage, 0o555)
+    try:
+        st = _nested_write(hyd.port, name, b"Z" * 64)
+    finally:
+        os.chmod(hyd.stage, 0o755)
+
+    assert not st.ok, \
+        "open succeeded although the stage store could not hold the key"
+    assert not (hyd.stage / "ro_spool").exists(), "spool chain built anyway"
+    assert not (hyd.origin / name).exists(), \
+        "bytes reached the origin from a write the spool could not stage"
+
+
+def test_traversal_key_creates_nothing_outside_the_spool(hyd, tmp_path):
+    """Security-negative: a key escaping the export must be refused BEFORE any
+    directory is created — neither the spool nor the filesystem above the lab
+    roots may gain a component from it."""
+    st = _nested_write(hyd.port, "../esc/pwned.bin", b"X" * 32)
+
+    assert not st.ok, "a traversal key was accepted for a staged write"
+    for root in (hyd.stage, hyd.gw, hyd.origin, tmp_path):
+        assert not (root / "esc").exists(), \
+            f"traversal materialised a directory under {root}"
+    assert not (tmp_path.parent / "esc").exists(), \
+        "traversal escaped the lab root entirely"
 
 
 def test_stale_staged_copy_not_clobbered(hyd):

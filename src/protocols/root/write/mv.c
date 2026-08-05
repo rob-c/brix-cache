@@ -8,6 +8,7 @@
 #include "protocols/root/write/backend_async_root.h"  /* backend-async mv park */
 #include "fs/vfs/vfs.h"   /* brix_vfs_rename_path (thread-safe confined rename) */
 #include "fs/vfs/vfs_backend_registry.h"   /* per-export backend resolve */
+#include "protocols/root/write/write.h"    /* brix_root_cns_emit_moved (§6 CNS) */
 
 /*
  * mv_req_t — per-request path state threaded through the mv helpers.
@@ -428,6 +429,10 @@ brix_handle_mv(brix_ctx_t *ctx, ngx_connection_t *c,
 	if (mv_execute(ctx, c, conf, &mv) != NGX_OK) {
 		return ctx->write_rc;
 	}
+
+	/* §6 CNS: a rename is the one mutation that must move the manager's whole
+	 * recorded subtree, not just one entry — see brix_root_cns_emit_moved. */
+	brix_root_cns_emit_moved(ctx, c, conf, mv.src_resolved, mv.dst_resolved);
 
 	BRIX_RETURN_OK(ctx, c, BRIX_OP_MV, "MV", mv.src_resolved, mv.dst_resolved, 0);
 }

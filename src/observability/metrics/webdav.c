@@ -28,6 +28,7 @@ static const char *brix_webdav_method_names[BRIX_WEBDAV_NMETHODS] = {
     "MKCOL",
     "COPY",
     "PROPFIND",
+    "MOVE",
     "OTHER",
 };
 

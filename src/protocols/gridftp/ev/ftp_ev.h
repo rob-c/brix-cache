@@ -30,6 +30,8 @@
 
 #include "core/types/identity.h"         /* brix_identity_t                    */
 #include "auth/gssapi/gsi_mech.h"        /* brix_gssapi_srv_t (RFC 2228 GSI)   */
+#include "net/cms/cns_inventory.h"       /* BRIX_CNS_* op codes                */
+#include "net/cms/cns_emit.h"            /* phase-97 §5: CNS emit, gridftp side */
 
 #include <netinet/in.h>                  /* struct sockaddr_in (active target) */
 
@@ -214,6 +216,10 @@ ngx_int_t brix_ftp_ev_cmd_stat(ftp_ev_t *fc, const char *arg);
 ngx_int_t brix_ftp_ev_cmd_cksm(ftp_ev_t *fc, const char *arg);
 ngx_int_t brix_ftp_ev_cmd_rnfr(ftp_ev_t *fc, const char *arg);
 ngx_int_t brix_ftp_ev_cmd_rnto(ftp_ev_t *fc, const char *arg);
+
+/* phase-97 §5: report a committed STOR/APPE at `abs` to the CNS manager.  Lives
+ * with the namespace verbs; called from brix_ftp_ev_data_finish (event loop). */
+void      brix_ftp_ev_cns_note_stored(ftp_ev_t *fc, const char *abs);
 
 /* ---- ftp_ev_sec.c : RFC 2228 GSI control-channel handshake ---- */
 ngx_int_t brix_ftp_ev_cmd_auth(ftp_ev_t *fc, const char *arg);

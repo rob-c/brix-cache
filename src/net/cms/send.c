@@ -366,20 +366,25 @@ ngx_brix_cms_send_pong(ngx_brix_cms_ctx_t *ctx, uint32_t streamid)
 /*
  * ngx_brix_cms_next_streamid — monotonic stream ID allocator.
  *
- * WHAT: Returns the next available stream ID for outgoing CMS frames, wrapping from
- *      UINT32_MAX back to 1 on overflow. WHY: Each CMS frame must carry a unique streamid
- *      so the manager can correlate requests with responses; wrapping ensures continuous
- *      allocation without running out of IDs over long-lived connections. HOW: Increment
- *      ctx->next_streamid, wrap at UINT32_MAX → 1, return current value. */
+ * WHAT: Returns the next available stream ID for outgoing CMS frames on this
+ *      manager link, advancing by streamid_stride and wrap-resetting to the
+ *      link's seed near UINT32_MAX. WHY: Each CMS frame must carry a unique
+ *      streamid so a reply correlates back to its pending entry — and the
+ *      pending table is keyed per WORKER, not per link, so the redundant
+ *      manager links each draw from a disjoint residue class (seed = manager
+ *      index, stride = manager count) and can never mint a colliding id.
+ *      HOW: advance by stride (never 0: seed < stride, so seed+stride >= 1),
+ *      resetting to the seed before the addition could overflow. */
 
 uint32_t
 ngx_brix_cms_next_streamid(ngx_brix_cms_ctx_t *ctx)
 {
-    if (ctx->next_streamid == UINT32_MAX) {
-        ctx->next_streamid = 1;
-    } else {
-        ctx->next_streamid++;
+    uint32_t stride = (ctx->streamid_stride > 0) ? ctx->streamid_stride : 1;
+
+    if (ctx->next_streamid >= UINT32_MAX - stride) {
+        ctx->next_streamid = ctx->streamid_seed;
     }
+    ctx->next_streamid += stride;
     return ctx->next_streamid;
 }
 

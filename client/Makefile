@@ -118,8 +118,10 @@ LIB_SRCS   := \
   lib/protocols/root/frame.c lib/protocols/root/frame_roundtrip.c lib/protocols/root/ops_ext.c lib/protocols/root/ops_file.c lib/protocols/root/ops_file_pg.c lib/protocols/root/ops_file_rw.c lib/protocols/root/ops_fs.c lib/protocols/root/ops_meta.c \
   lib/protocols/http/http.c lib/protocols/http/http_download.c lib/protocols/http/http_req.c lib/protocols/http/http_upload.c lib/protocols/http/web_ka.c lib/protocols/http/webfile.c lib/protocols/http/webfile_io.c lib/protocols/http/weblist.c \
   lib/protocols/s3/s3.c \
+  lib/protocols/ftp/ftp_ctl.c lib/protocols/ftp/ftp_data.c lib/protocols/ftp/ftp_gsi.c lib/protocols/ftp/ftp_gsi_cred.c lib/protocols/ftp/ftp_login.c lib/protocols/ftp/ftp_ops.c lib/protocols/ftp/ftp_screen.c \
+  $(SRC)/fs/backend/gsiftp/gftp_reply.c $(SRC)/fs/backend/gsiftp/gftp_mlsx.c \
   lib/protocols/shared/checksum.c lib/protocols/shared/cks_verify.c lib/protocols/shared/cksum_manifest.c lib/protocols/shared/zip.c lib/protocols/shared/zip_write.c \
-  lib/xfer/copy.c lib/xfer/copy_block.c lib/xfer/copy_cksum_verify.c lib/xfer/copy_filter.c lib/xfer/copy_local.c lib/xfer/copy_pump.c lib/xfer/copy_recursive.c lib/xfer/copy_recursive_ul.c lib/xfer/copy_remote.c lib/xfer/copy_upload.c lib/xfer/copy_web_download.c lib/xfer/copy_zip.c \
+  lib/xfer/copy.c lib/xfer/copy_block.c lib/xfer/copy_gsiftp.c lib/xfer/copy_cksum_verify.c lib/xfer/copy_filter.c lib/xfer/copy_local.c lib/xfer/copy_pump.c lib/xfer/copy_recursive.c lib/xfer/copy_recursive_ul.c lib/xfer/copy_remote.c lib/xfer/copy_upload.c lib/xfer/copy_web_download.c lib/xfer/copy_zip.c \
   lib/posix/fuse_ops.c lib/posix/posix_map.c \
   lib/cli/cli_cksum.c lib/cli/cli_conn.c lib/cli/cli_cred.c lib/cli/cli_hint.c lib/cli/cli_opts.c lib/cli/jsonout.c lib/cli/suggest.c lib/cli/xferjournal.c \
   lib/observability/capture.c lib/observability/trace.c \
@@ -182,12 +184,16 @@ FUSE3_LIBS   := $(shell pkg-config --libs fuse3 2>/dev/null)
 PRELOAD_SO   := libbrixposix_preload.so
 OPT_BINS     := $(PRELOAD_SO)
 OPT_EXES     :=
+OPT_LINKS    :=
 # The FUSE mount is ONE binary (xrootdfs) that contains both drivers: the
 # async/resilient default and the simple synchronous fallback, selected at run
 # time by `--legacy` (front-end apps/xrootdfs_main.c).
 ifeq ($(HAVE_FUSE3),yes)
   OPT_EXES += $(BINDIR)/xrootdfs
   OPT_EXES += $(BINDIR)/brixMount
+  # brixcvmfs = argv[0] personality of brixMount (symlink, built alongside;
+  # installed as a link too — see install-bin, NOT copied as a second binary).
+  OPT_LINKS += $(BINDIR)/brixcvmfs
 endif
 
 # Ceph operator tools (apps/ceph/) — migration + rescue utilities linking
@@ -269,8 +275,8 @@ xrdprep_OBJS      := apps/prep/xrdprep.o
 ALL_OBJS := $(LIB_OBJS) $(foreach b,$(BINS),$($(b)_OBJS))
 DEPS     := $(ALL_OBJS:.o=.d)
 
-.PHONY: all proto clean lib install install-bin install-man install-completions install-automount compat install-compat example-test test libbrix.pc $(BINS) $(CKSUM_LINKS) $(DIAG_LINKS) xrootdfs brixMount
-all: $(BIN_EXES) $(LINK_EXES) $(OPT_BINS) $(OPT_EXES) $(STANDALONE_EXES)
+.PHONY: all proto clean lib install install-bin install-man install-completions install-automount compat install-compat example-test test libbrix.pc $(BINS) $(CKSUM_LINKS) $(DIAG_LINKS) xrootdfs brixMount brixcvmfs
+all: $(BIN_EXES) $(LINK_EXES) $(OPT_BINS) $(OPT_EXES) $(OPT_LINKS) $(STANDALONE_EXES)
 
 # Keep intermediates (apps/*.o, lib/*.o built via the chained pattern rules). Without
 # this, GNU make auto-deletes them after `make all`, so a later `make <tool>` must
@@ -292,12 +298,15 @@ $(BINS): %: $(BINDIR)/%
 $(CKSUM_LINKS) $(DIAG_LINKS): %: $(BINDIR)/%
 xrootdfs: $(BINDIR)/xrootdfs
 brixMount: $(BINDIR)/brixMount
+brixcvmfs: $(BINDIR)/brixcvmfs
 
 # Multi-call symlinks (stock tool names → their dispatcher binary).
 $(addprefix $(BINDIR)/,$(CKSUM_LINKS)): $(BINDIR)/xrdcksum
 	ln -sf xrdcksum $@
 $(addprefix $(BINDIR)/,$(DIAG_LINKS)): $(BINDIR)/xrddiag
 	ln -sf xrddiag $@
+$(BINDIR)/brixcvmfs: $(BINDIR)/brixMount
+	ln -sf brixMount $@
 
 $(BIN_EXES): | proto $(BINDIR)
 
@@ -367,7 +376,14 @@ BRIX_CVMFS_OBJS := \
   $(SHARED_DIR)/cvmfs/filter/xorf.o       $(SHARED_DIR)/cvmfs/index/pathidx.o \
   $(SHARED_DIR)/cvmfs/dict/dict.o         $(SHARED_DIR)/cvmfs/bundle/bundle.o \
   $(SHARED_DIR)/cvmfs/fetch/fetch_bundle.o $(SHARED_DIR)/cvmfs/platform/platform.o \
-  $(SHARED_DIR)/cache/cas_pack.o
+  $(SHARED_DIR)/cache/cas_pack.o \
+  $(SHARED_DIR)/cvmfs/signature/sign.o    $(SHARED_DIR)/cvmfs/catalog/catalog_write.o \
+  $(SHARED_DIR)/cvmfs/object/object_write.o $(SHARED_DIR)/cvmfs/reflog/reflog.o \
+  $(SHARED_DIR)/cvmfs/history/history.o \
+  $(SHARED_DIR)/cvmfs/publish/changeset.o $(SHARED_DIR)/cvmfs/publish/publish.o \
+  $(SHARED_DIR)/cvmfs/publish/publish_dirtab.o \
+  $(SHARED_DIR)/cvmfs/publish/publish_counters.o $(SHARED_DIR)/cvmfs/publish/fsck.o \
+  $(SHARED_DIR)/cvmfs/publish/admin.o
 
 # shared cvmfs core: pure C, needs -I../shared (no client/lib, no ngx); the
 # phase-90..92 filter (xorf.c) also reaches src/core/fnv.h, so add -I$(SRC) too.
@@ -388,6 +404,13 @@ BRIXCVMFS_SPLIT := apps/fs/brixcvmfs_mount.o apps/fs/brixcvmfs_ops.o \
                    apps/fs/brixcvmfs_transport.o
 $(BRIXCVMFS_SPLIT): apps/fs/%.o: apps/fs/%.c | proto
 	$(CC) $(ALL_CFLAGS) $(FUSE3_CFLAGS) -I$(SHARED_DIR) -DBRIXCVMFS_NO_MAIN -c $< -o $@
+# Phase-96 Stratum-0 repo CLI (`brixcvmfs repo`): pure tool surface, no FUSE.
+apps/fs/brixcvmfs_repo.o: apps/fs/brixcvmfs_repo.c | proto
+	$(CC) $(ALL_CFLAGS) -I$(SHARED_DIR) -c $< -o $@
+apps/fs/brixcvmfs_publish.o: apps/fs/brixcvmfs_publish.c | proto
+	$(CC) $(ALL_CFLAGS) -I$(SHARED_DIR) -c $< -o $@
+apps/fs/brixcvmfs_admin.o: apps/fs/brixcvmfs_admin.c | proto
+	$(CC) $(ALL_CFLAGS) -I$(SHARED_DIR) -c $< -o $@
 apps/fs/brixmount.o: apps/fs/brixmount.c | proto
 	$(CC) $(ALL_CFLAGS) $(FUSE3_CFLAGS) -I$(SHARED_DIR) -c $< -o $@
 BRIXAUTOFS_OBJS := apps/fs/brixautofs.o apps/fs/brixautofs_ext.o
@@ -397,7 +420,8 @@ apps/fs/brixautofs_ext.o: apps/fs/brixautofs_ext.c | proto
 	$(CC) $(ALL_CFLAGS) $(FUSE3_CFLAGS) -I$(SHARED_DIR) -c $< -o $@
 
 BRIXMOUNT_OBJS := apps/fs/brixmount.o apps/fs/brixcvmfs.o apps/fs/brixcvmfs_rw.o \
-                  $(BRIXCVMFS_SPLIT) \
+                  $(BRIXCVMFS_SPLIT) apps/fs/brixcvmfs_repo.o \
+                  apps/fs/brixcvmfs_publish.o apps/fs/brixcvmfs_admin.o \
                   apps/fs/brixautofs.o apps/fs/brixautofs_ext.o \
                   $(BRIX_CVMFS_OBJS) apps/fs/xrootdfs.o $(XROOTDFS_SPLIT) \
                   apps/fs/xrootdfs_usage.o
@@ -637,6 +661,7 @@ install-bin: $(BIN_EXES) $(OPT_BINS) $(OPT_EXES) $(STANDALONE_EXES) install-comp
 	for l in $(CKSUM_LINKS); do ln -sf xrdcksum $(DESTDIR)$(PREFIX)/bin/$$l; done
 	for l in $(DIAG_LINKS); do ln -sf xrddiag $(DESTDIR)$(PREFIX)/bin/$$l; done
 	for e in $(OPT_EXES); do [ -f $$e ] && install -m755 $$e $(DESTDIR)$(PREFIX)/bin/ || true; done
+	[ -f $(BINDIR)/brixMount ] && ln -sf brixMount $(DESTDIR)$(PREFIX)/bin/brixcvmfs || true
 	for so in $(OPT_BINS); do [ -f $$so ] && install -m755 $$so $(DESTDIR)$(LIBDIR)/ || true; done
 	for m in man/*.1; do install -m644 $$m $(DESTDIR)$(PREFIX)/share/man/man1/; done
 	for m in man/*.7; do install -m644 $$m $(DESTDIR)$(PREFIX)/share/man/man7/; done
@@ -783,7 +808,7 @@ install-automount:
 # vfs_s3_smoke is excluded (needs an external S3 endpoint; run it manually).
 # Each test is a standalone main() linking the client lib + libxrdproto, the
 # same recipe as the Build+run comment in each test's header.
-CLIENT_UNIT_TESTS := cli_opts_unit cli_cred_unit cred_unit cred_store_unit cred_refresh_unit vfs_posix_unit vfs_block_unit vfs_s3_creds_unit jsonout_unit copy_filter_unit xferjournal_unit relsafe_unit ckmanifest_unit envalias_unit xrdrc_defaults_unit suggest_unit uring_direct_unit
+CLIENT_UNIT_TESTS := cli_opts_unit cli_cred_unit cred_unit cred_store_unit cred_refresh_unit vfs_posix_unit vfs_block_unit vfs_s3_creds_unit jsonout_unit copy_filter_unit xferjournal_unit relsafe_unit ckmanifest_unit envalias_unit xrdrc_defaults_unit suggest_unit uring_direct_unit ftp_client_unit
 # The tests predate the phase-69 bucket reshuffle and include bucket-local
 # headers bare ("cred.h"); add the bucket dirs rather than churning the tests.
 TEST_INC := -Ilib/auth/cred -Ilib/auth/sss -Ilib/fs -Ilib/cli -Ilib/core/types -Ilib/core/config -Ilib/net

@@ -160,6 +160,17 @@ brix_login_respond_anon(brix_ctx_t *ctx, ngx_connection_t *c, const char *user)
  *       INCLUDING the trailing NUL (clients treat the block as C-string data).
  *       The GSI-capable modes advertise a version that gates signed-DH.
  */
+/* XrdSecProtocolztn client parameters, byte-frozen against the stock client.
+ *
+ * The reference server emits "<expiry>:<maxtsz>:" — a decimal minimum token
+ * lifetime the client must satisfy (0 = no requirement) and a decimal maximum
+ * accepted token size, each closed by a colon.  XrdSecProtocolztn's constructor
+ * parses them with strtoll()/strtol() and demands the colon after each field
+ * plus maxtsz > 0; anything else aborts the login with "Secztn: Malformed
+ * client parameters", which is exactly what the earlier "v:10000" form did to
+ * every stock XrdCl.  4096 matches the reference server's default -maxsz. */
+#define BRIX_ZTN_PARMS  "0:4096:"
+
 static size_t
 brix_login_build_parms(ngx_stream_brix_srv_conf_t *conf,
     char *parms, size_t cap)
@@ -172,7 +183,7 @@ brix_login_build_parms(ngx_stream_brix_srv_conf_t *conf,
 
     if (conf->auth == BRIX_AUTH_TOKEN) {
         /* Token-only: advertise ztn, no CA hash needed. */
-        return (size_t) snprintf(parms, cap, "&P=ztn,v:10000") + 1;
+        return (size_t) snprintf(parms, cap, "&P=ztn," BRIX_ZTN_PARMS) + 1;
     }
     if (conf->auth == BRIX_AUTH_SSS) {
         /* XRootD SSS: bf32 ('0'), v2 server ('+'), client chooses keytab. */
@@ -197,7 +208,7 @@ brix_login_build_parms(ngx_stream_brix_srv_conf_t *conf,
     if (conf->auth == BRIX_AUTH_BOTH) {
         /* Both: token first (preferred), then GSI. */
         return (size_t) snprintf(parms, cap,
-                                 "&P=ztn,v:10000&P=gsi,v:%u,c:ssl,ca:%s",
+                                 "&P=ztn," BRIX_ZTN_PARMS "&P=gsi,v:%u,c:ssl,ca:%s",
                                  gsi_ver, conf->gsi_ca_hashes) + 1;
     }
 

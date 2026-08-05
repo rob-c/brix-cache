@@ -65,6 +65,10 @@ void ngx_http_brix_webdav_tpc_create_loc_conf(
 void ngx_http_brix_webdav_tpc_merge_loc_conf(
     ngx_http_brix_webdav_loc_conf_t *conf,
     ngx_http_brix_webdav_loc_conf_t *prev);
+/* brix_webdav_tpc_verify_checksum <alg> setter (tpc_config.c): validates the
+ * RFC-3230 algorithm name at parse time and stores its canonical form. */
+char *brix_webdav_conf_set_tpc_verify_digest(ngx_conf_t *cf,
+    ngx_command_t *cmd, void *conf);
 /* TPC header lookup, value comparison, and NUL-copy helpers.
  * Macro aliases to compat equivalents — call sites unchanged, no wrapper functions. */
 #define webdav_tpc_find_header(r, name, name_len) \

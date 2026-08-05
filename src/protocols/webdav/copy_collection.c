@@ -220,6 +220,9 @@ webdav_copy_collection_done(ngx_event_t *ev)
     ngx_int_t                      status = t->http_status;
 
     if (status == NGX_HTTP_CREATED || status == NGX_HTTP_NO_CONTENT) {
+        /* The copy ran on a pool thread; this is its event-loop completion, the
+         * only place the worker's CMS connection may be written. */
+        webdav_cns_note_written(r, t->job.dst_path);
         webdav_send_status_only(r, (ngx_uint_t) status);
         return;
     }

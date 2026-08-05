@@ -1,7 +1,15 @@
 # Phase 91 — `gsiftp://` Storage Backend (Outbound GridFTP Gateway + Full Auth Matrix)
 
 **Date:** 2026-07-28
-**Status:** PLAN — not yet implemented
+**Status:** PLAN — the *storage driver* is not yet implemented. The two pure
+kernels this plan calls for, `gftp_reply.c` (reply parser, incl. 227/229 address
+extraction) and `gftp_mlsx.c` (MLSx fact-line parser), were landed early and sat
+unwired; as of 2026-08-05 they are compiled into `libbrix.a` and consumed by the
+**client-side** GridFTP engine (`client/lib/protocols/ftp/`, `xrdcp gsiftp://` —
+see [native-client-tools.md](../04-protocols/native-client-tools.md) and
+`tests/test_xrdcp_gsiftp.py`). The client is an *initiator*, not the outbound
+`brix_sd_gsiftp` storage driver described below; that driver is still unwritten,
+but its parsing layer now has a production consumer and live coverage.
 **Depends on:** Phase 55 (storage-driver seam `brix_sd_*`), Phase 70 (full credential
 delegation), Phase 82 (inbound GridFTP gateway — supplies reusable protocol/crypto
 kernels), Phase 60/80 (`sd_remote`/S3 outbound-origin template), the unified VFS

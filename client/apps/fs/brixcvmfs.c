@@ -409,12 +409,20 @@ int brixcvmfs_main(int argc, char **argv) {
         return brixcvmfs_check(argv[2]);
     if (argc >= 3 && strcmp(argv[1], "--prewarm") == 0)
         return brixcvmfs_prewarm(argv[2]);
+    if (argc >= 2 && strcmp(argv[1], "repo") == 0) {
+        if (brixcvmfs_repo_main == NULL) {
+            fprintf(stderr, "brixcvmfs: repo driver not linked in this build\n");
+            return 2;
+        }
+        return brixcvmfs_repo_main(argc - 1, argv + 1);
+    }
 
     if (argc < 3) {
         fprintf(stderr,
             "usage: brixcvmfs <repo.fqrn> <mountpoint> [fuse-opts]\n"
             "       brixcvmfs --check <repo.fqrn>\n"
-            "       brixcvmfs --prewarm <repo.fqrn>\n");
+            "       brixcvmfs --prewarm <repo.fqrn>\n"
+            "       brixcvmfs repo mkfs|info|resign ...\n");
         return 2;
     }
 

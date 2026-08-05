@@ -103,11 +103,18 @@ int brix_vfs_rmdir_path(ngx_log_t *log, const char *root_canon,
 /* Confined mkdir of a single directory (mode). 0 / -1 with errno set (EEXIST if
  * it already exists — caller decides whether that is benign). */
 /* Recursively create `logical` (export-relative) + missing parents through a
- * NON-default backend driver's mkdir slot (EEXIST tolerated). NGX_DECLINED for a
- * default POSIX export (caller uses its own confined/group-policy mkpath); 0 on
- * success; -1/errno on failure. */
+ * NON-default backend driver's mkdir slot. An existing prefix is tolerated; an
+ * existing FINAL component only when it is a directory (else -1/EEXIST).
+ * NGX_DECLINED for a default POSIX export (caller uses its own confined/
+ * group-policy mkpath); 0 on success; -1/errno on failure. */
 int brix_vfs_backend_mkpath(const char *root_canon, const char *logical,
     mode_t mode, ngx_log_t *log);
+/* 1 iff `logical` already exists as a DIRECTORY in the leaf driver's namespace
+ * (credential-scoped when cred != NULL). Fails closed: no stat slot, or a stat
+ * error, reports 0. Used by the mkpath walks to decide whether a leaf EEXIST is
+ * benign. */
+int brix_vfs_backend_leaf_isdir(brix_sd_instance_t *leaf, const char *logical,
+    const brix_sd_cred_t *cred);
 int brix_vfs_mkdir_path(ngx_log_t *log, const char *root_canon,
     const char *logical, mode_t mode);
 

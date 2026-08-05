@@ -388,19 +388,53 @@ sd_http_fstat(brix_sd_obj_t *obj, brix_sd_stat_t *out)
 
 /* sd_http_stat_fill — fill a brix_sd_stat_t from a HEAD-probed size.
  *
- * WHAT: Zero `out` then stamp the regular-file snapshot the size probe produced.
+ * WHAT: Zero `out` then stamp the file-or-collection snapshot the probes
+ *       produced.
  * WHY:  The plain and credential-scoped stat slots derive an identical stat
- *       snapshot from the HEAD Content-Length; factoring it keeps the two slots
- *       from drifting on the mode/is_reg fields.
- * HOW:  ngx_memzero + size/mode/is_reg — the http origin exposes only read-only
- *       regular files (0444), same shape the object snapshot uses. */
+ *       snapshot; factoring it keeps the two slots from drifting on the
+ *       mode/is_reg/is_dir fields.
+ * HOW:  ngx_memzero + size/mode/type — the http origin exposes read-only
+ *       regular files (0444) and traversable collections (0555), the same shape
+ *       the object snapshot uses. */
 static void
-sd_http_stat_fill(brix_sd_stat_t *out, int64_t size)
+sd_http_stat_fill(brix_sd_stat_t *out, int64_t size, int is_dir)
 {
     ngx_memzero(out, sizeof(*out));
     out->size   = (off_t) size;
-    out->mode   = S_IFREG | 0444;
-    out->is_reg = 1;
+    out->mode   = is_dir ? (S_IFDIR | 0555) : (S_IFREG | 0444);
+    out->is_dir = is_dir ? 1 : 0;
+    out->is_reg = is_dir ? 0 : 1;
+}
+
+/* sd_http_stat_is_dir — is a HEAD-visible path actually a WebDAV collection?
+ *
+ * WHAT: 1 iff a PROPFIND Depth:0 says the path is a collection; 0 for anything
+ *       else, INCLUDING a probe that cannot be answered.
+ * WHY:  A HEAD cannot tell a collection from an empty object — both are 200 with
+ *       Content-Length 0 — so stat used to report every path as a regular file.
+ *       Callers that branch on the type then took the file branch on a
+ *       directory: `xrdfs stat` of a collection through an http-backed export
+ *       reported a plain object, and the mkpath walk's "the level that already
+ *       existed — is it a directory?" check answered no, so `mkdir -p` over an
+ *       existing directory failed EEXIST.
+ * HOW:  Only ambiguous answers pay for the second round trip: a HEAD that
+ *       reported a non-zero size is a file by construction and returns
+ *       immediately. Fails closed to "not a directory", so an origin that speaks
+ *       no WebDAV (PROPFIND 405/501 → ENOTSUP) keeps exactly the flat-object
+ *       view it had before — a plain HTTP/cvmfs origin has no collections. */
+static int
+sd_http_stat_is_dir(sd_http_inst_state *is, const char *path, int64_t size,
+    const char *auth, const char *cert_pem)
+{
+    int is_coll = 0, err = 0;
+
+    if (size != 0) {
+        return 0;
+    }
+    if (sd_http_probe_type(is, path, auth, cert_pem, &is_coll, &err) != 0) {
+        return 0;
+    }
+    return is_coll;
 }
 
 ngx_int_t
@@ -409,14 +443,15 @@ sd_http_stat(brix_sd_instance_t *inst, const char *path,
 {
     sd_http_inst_state *is = inst->state;
     int64_t             size = 0;
+    const char         *auth = is->auth_hdr[0] ? is->auth_hdr : NULL;
 
     /* Plain namespace stat runs on the instance's static credential — the
      * anonymous/service path used when no per-user credential is threaded. */
-    if (sd_http_head_size(is, path, is->auth_hdr[0] ? is->auth_hdr : NULL,
-                          NULL, &size) != 0) {
+    if (sd_http_head_size(is, path, auth, NULL, &size) != 0) {
         return NGX_ERROR;                       /* errno set by head_size */
     }
-    sd_http_stat_fill(out, size);
+    sd_http_stat_fill(out, size,
+                      sd_http_stat_is_dir(is, path, size, auth, NULL));
     return NGX_OK;
 }
 
@@ -450,6 +485,7 @@ sd_http_stat_cred(brix_sd_instance_t *inst, const char *path,
     int64_t             size = 0;
     char                open_auth[SD_HTTP_AUTH_MAX];
     const char         *open_cert;
+    const char         *auth;
 
     if (sd_http_cred_gate(is, cred) != 0) {
         return NGX_ERROR;                       /* errno = EACCES (set by gate) */
@@ -457,13 +493,15 @@ sd_http_stat_cred(brix_sd_instance_t *inst, const char *path,
 
     open_cert = sd_http_resolve_open_cred(is, cred, open_auth,
                                           sizeof(open_auth));
+    auth = open_auth[0] ? open_auth
+                        : (is->auth_hdr[0] ? is->auth_hdr : NULL);
 
-    if (sd_http_head_size(is, path,
-                          open_auth[0] ? open_auth
-                                       : (is->auth_hdr[0] ? is->auth_hdr : NULL),
-                          open_cert, &size) != 0) {
+    if (sd_http_head_size(is, path, auth, open_cert, &size) != 0) {
         return NGX_ERROR;                       /* errno set by head_size */
     }
-    sd_http_stat_fill(out, size);
+    /* The type probe carries the SAME identity as the size probe — a per-user
+     * credential must not degrade to an anonymous PROPFIND. */
+    sd_http_stat_fill(out, size,
+                      sd_http_stat_is_dir(is, path, size, auth, open_cert));
     return NGX_OK;
 }

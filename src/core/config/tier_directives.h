@@ -3,7 +3,8 @@
  * directive table (<pfx>{cache_store,cache_cold_store,stage,stage_store,
  * stage_flush,cache_max_object,cache_evict_at,cache_evict_to,
  * cache_index_cache,cache_meta,cache_slice_size,cache_global_cas,
- * cache_passthrough,cache_passthrough_max}).
+ * cache_passthrough,cache_passthrough_max,cache_prefetch,
+ * cache_prefetch_window}).
  *
  * WHAT: BRIX_TIER_DIRECTIVES(pfx, conf_t, ctx, conf_off) expands to the twelve
  *       ngx_command_t initializers every protocol module declares for its
@@ -132,6 +133,22 @@ static ngx_conf_enum_t  brix_tier_cache_meta_enum[] = {
       ngx_conf_set_off_slot,                                                  \
       conf_off,                                                               \
       offsetof(conf_t, common.cache_passthrough_max),                         \
+      NULL },                                                                 \
+    { ngx_string(pfx "cache_prefetch"),   /* <n>: max in-flight background    \
+                                           * block-prefetch jobs per worker   \
+                                           * (0 = off) */                     \
+      (ctx) | NGX_CONF_TAKE1,                                                 \
+      ngx_conf_set_num_slot,                                                  \
+      conf_off,                                                               \
+      offsetof(conf_t, common.cache_prefetch),                                \
+      NULL },                                                                 \
+    { ngx_string(pfx "cache_prefetch_window"), /* <size>: max bytes one       \
+                                                * WILLNEED hint may queue for \
+                                                * background fill */          \
+      (ctx) | NGX_CONF_TAKE1,                                                 \
+      ngx_conf_set_size_slot,                                                 \
+      conf_off,                                                               \
+      offsetof(conf_t, common.cache_prefetch_window),                         \
       NULL }
 
 /*

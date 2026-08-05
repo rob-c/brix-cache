@@ -14,7 +14,8 @@ resumable batch manifests.
 .PP
 \fISRC\fR and \fIDST\fR may be a \fBroot://host[:port]//path\fR URL,
 a web URL (\fBdavs://\fR, \fBhttp(s)://\fR, \fBdav://\fR,
-\fBs3://\fR, \fBs3s://\fR), a local path, or \fB\-\fR (stdin/stdout).
+\fBs3://\fR, \fBs3s://\fR), a GridFTP URL (\fBgsiftp://\fR, \fBftp://\fR),
+a local path, or \fB\-\fR (stdin/stdout).
 Web-to-web copies relay through a local temporary file.
 Multiple sources, a glob, or \fB\-\-from\fR imply that \fIDST\fR is a directory.
 .SH OPTIONS
@@ -192,6 +193,22 @@ WebDAV/HTTP endpoint.
 \fBdavs://\fR and \fBhttps://\fR enable TLS;
 \fBdav://\fR and \fBhttp://\fR are cleartext.
 .TP
+.BR gsiftp:// " | " ftp:// host [: port ]/ path
+GridFTP endpoint; default port 2811 for \fBgsiftp://\fR, 21 for \fBftp://\fR.
+\fBgsiftp://\fR authenticates the control channel with GSI (RFC 2228
+\fBAUTH GSSAPI\fR/\fBADAT\fR) using the X.509 proxy named by
+\fB\-\-proxy\fR or \fBX509_USER_PROXY\fR, falling back to
+\fI/tmp/x509up_u<uid>\fR, and delegates it to the server;
+the trust store comes from \fB\-\-ca\-dir\fR or \fBX509_CERT_DIR\fR.
+A \fBgsiftp://\fR endpoint is never downgraded to an anonymous login: a
+missing or unusable proxy fails the copy.
+\fBftp://\fR logs in anonymously with no protection and is meant for testing.
+Data moves over a passive channel (\fBEPSV\fR, falling back to \fBPASV\fR);
+the client refuses a data address that is not the control peer, and always
+refuses a privileged data port.
+Third-party (\fBgsiftp\fR to \fBgsiftp\fR) and recursive copies are not
+supported by this client — use the server's TPC surface for those.
+.TP
 .BR s3:// " | " s3s:// host [: port ]/ bucket / key
 S3 SigV4 endpoint.
 \fBs3s://\fR enables TLS.
@@ -233,7 +250,14 @@ Path to the configuration file (default \fI~/.xrdrc\fR).
 Default WebDAV/HTTP bearer token (same as \fB\-T\fR).
 .TP
 .B X509_USER_PROXY
-GSI proxy certificate path (used by \fB\-\-auth gsi\fR and \fB\-\-auto\-refresh\fR).
+GSI proxy certificate path (used by \fB\-\-auth gsi\fR, \fBgsiftp://\fR and
+\fB\-\-auto\-refresh\fR).
+.TP
+.B BRIX_GSIFTP_ALLOW_OFFPEER
+Set to \fB1\fR to let a GridFTP server steer the data channel to an address
+other than the control peer.  Off by default because an attacker-controlled
+reply would otherwise turn the client into an FTP-bounce relay; the privileged
+port refusal still applies with it set.
 .TP
 .B OIDC_ACCOUNT
 Default oidc-agent account for \fB\-\-auto\-refresh\fR.

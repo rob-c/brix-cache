@@ -105,6 +105,66 @@ brix_cvmfs_reject_unsupported(ngx_conf_t *cf,
 }
 
 /*
+ * cvmfs_stratum0_apply() — phase-96 S13: resolve the brix_cvmfs_stratum0_root
+ * alias.
+ *
+ * WHAT: When the directive is set, refuse every cache-fill upstream shape in
+ *   the same block (an http(s) brix_storage_backend, a brix_cache_store fill
+ *   tier, a brix_cvmfs_upstream_allow proxy allowlist) and refuse an
+ *   ambiguous double root (brix_export AND the alias), then anchor the
+ *   export root at the Stratum-0 tree.
+ *
+ * WHY: A Stratum-0 has no upstream — it IS the origin. Letting fill grammar
+ *   coexist would silently turn the master copy into a cache node; the alias
+ *   exists precisely so the intent is visible and enforced at nginx -t.
+ *
+ * HOW: Runs before the posix-root rewrite so conf->common.root feeds the
+ *   normal brix_prepare_export_root path unchanged. No-op when unset.
+ */
+static char *
+cvmfs_stratum0_apply(ngx_conf_t *cf, ngx_http_brix_cvmfs_loc_conf_t *conf)
+{
+    if (conf->cvmfs.stratum0_root.len == 0) {
+        return NGX_CONF_OK;
+    }
+
+    if (conf->common.root.len > 0) {
+        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            "brix_cvmfs_stratum0_root and brix_export both name an export "
+            "root - the alias replaces brix_export; configure exactly one");
+        return NGX_CONF_ERROR;
+    }
+
+    if (conf->common.storage_backend.len >= 4
+        && ngx_strncasecmp(conf->common.storage_backend.data,
+                           (u_char *) "http", 4) == 0)
+    {
+        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            "brix_cvmfs_stratum0_root: a Stratum-0 has no upstream - remove "
+            "the http(s) brix_storage_backend from this block");
+        return NGX_CONF_ERROR;
+    }
+
+    if (conf->common.cache_store.len > 0) {
+        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            "brix_cvmfs_stratum0_root: a Stratum-0 serves its published "
+            "tree directly - remove brix_cache_store (cache-fill) from "
+            "this block");
+        return NGX_CONF_ERROR;
+    }
+
+    if (conf->cvmfs.upstream_allow != NULL) {
+        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            "brix_cvmfs_stratum0_root: a Stratum-0 has no upstream - remove "
+            "brix_cvmfs_upstream_allow (proxy mode) from this block");
+        return NGX_CONF_ERROR;
+    }
+
+    conf->common.root = conf->cvmfs.stratum0_root;
+    return NGX_CONF_OK;
+}
+
+/*
  * cvmfs_merge_cache() — the cvmfs-enabled export/backend/cache build block.
  *
  * WHAT: When enable=1: reject unsupported storage grammar, force read-only,
@@ -132,6 +192,12 @@ cvmfs_merge_cache(ngx_conf_t *cf, ngx_http_brix_cvmfs_loc_conf_t *conf)
      * else: staging, slicing, and explicit writes make no sense for a
      * read-only content-addressed site cache. */
     if (brix_cvmfs_reject_unsupported(cf, conf) != NGX_CONF_OK) {
+        return NGX_CONF_ERROR;
+    }
+
+    /* Phase-96 S13: Stratum-0 alias — refuse cache-fill upstream grammar,
+     * then anchor the export root at the published tree. */
+    if (cvmfs_stratum0_apply(cf, conf) != NGX_CONF_OK) {
         return NGX_CONF_ERROR;
     }
 

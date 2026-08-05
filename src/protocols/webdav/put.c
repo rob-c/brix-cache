@@ -144,6 +144,11 @@ webdav_put_commit(ngx_http_request_t *r, const char *path,
     brix_xfer_finish(BRIX_XFER_STAGE, "in", path, NULL, xfer_bytes,
                      BRIX_XFER_OK, 0, r->connection->log);
 
+    /* Published — report the object at its committed size. Deliberately AFTER
+     * the commit, never at open time: until the staged temp is published there
+     * is nothing at this path for the manager to hand a client. */
+    webdav_cns_note_written(r, path);
+
     status = created ? NGX_HTTP_CREATED : NGX_HTTP_NO_CONTENT;
     r->headers_out.status = status;
     r->headers_out.content_length_n = 0;

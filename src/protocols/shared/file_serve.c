@@ -53,6 +53,7 @@
 #include "observability/dashboard/dashboard_tracking.h"
 #include "observability/metrics/unified.h"    /* brix_metric_backend_bytes */
 #include "fs/cache/open.h"
+#include "fs/backend/sd.h"                    /* BRIX_SD_ADV_WILLNEED (read-ahead) */
 #include "protocols/webdav/webdav.h"          /* brix_tcp_congestion (webdav-owned directive) */
 #include "protocols/root/connection/netopt.h"      /* brix_apply_tcp_congestion */
 
@@ -107,6 +108,38 @@ typedef struct {
  * NGX_ERROR. The caller still owns closing `fh`. */
 #define BRIX_SERVE_MEM_CHUNK  (256 * 1024)
 
+/* Read-ahead for the memory-backed loop: after each chunk, hint the next
+ * WINDOW bytes off the read cursor via the driver's read_advise slot
+ * (WILLNEED) — on a slice partial-cache handle that queues a background block
+ * fill ahead of the foreground preads. The driver keeps a per-handle rolling
+ * frontier, so the repeated per-chunk hints cost one bitmap peek and
+ * speculation stays a continuous runway bounded by ITS prefetch window (and
+ * the object size) — the hint is deliberately NOT clamped to the request
+ * range, so a client walking a file in sequential range GETs gets successor
+ * blocks warmed beyond each request. Ignored entirely unless
+ * brix_cache_prefetch is on. Requests below ADV_MIN never speculate — a small
+ * metadata GET must not amplify origin traffic. The first hint fires only
+ * after the first chunk completes, so the block the foreground is filling
+ * right now is present and gets skipped, never fetched twice. */
+#define BRIX_SERVE_MEM_ADV_WINDOW     (8 * 1024 * 1024)
+#define BRIX_SERVE_MEM_ADV_MIN        (1024 * 1024)
+
+/* Close the response body with a bare last_buf (HEAD or an empty range). */
+static ngx_int_t
+brix_serve_send_empty_body(ngx_http_request_t *r)
+{
+    ngx_buf_t   *b = ngx_calloc_buf(r->pool);
+    ngx_chain_t  out;
+
+    if (b == NULL) {
+        return NGX_ERROR;
+    }
+    b->last_buf = 1;
+    out.buf  = b;
+    out.next = NULL;
+    return ngx_http_output_filter(r, &out);
+}
+
 static ngx_int_t
 brix_serve_memory_backed(ngx_http_request_t *r, brix_vfs_file_t *fh,
     off_t start, off_t len)
@@ -122,16 +155,7 @@ brix_serve_memory_backed(ngx_http_request_t *r, brix_vfs_file_t *fh,
     }
 
     if (r->header_only || len <= 0) {
-        ngx_buf_t   *b = ngx_calloc_buf(r->pool);
-        ngx_chain_t  out;
-
-        if (b == NULL) {
-            return NGX_ERROR;
-        }
-        b->last_buf = 1;
-        out.buf  = b;
-        out.next = NULL;
-        return ngx_http_output_filter(r, &out);
+        return brix_serve_send_empty_body(r);
     }
 
     while (done < len) {
@@ -171,6 +195,12 @@ brix_serve_memory_backed(ngx_http_request_t *r, brix_vfs_file_t *fh,
             return rc;
         }
         done += n;
+
+        if (len >= BRIX_SERVE_MEM_ADV_MIN) {
+            (void) brix_vfs_file_read_advise(fh, start + done,
+                                             BRIX_SERVE_MEM_ADV_WINDOW,
+                                             BRIX_SD_ADV_WILLNEED);
+        }
     }
 
     return NGX_OK;

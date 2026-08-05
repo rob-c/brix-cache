@@ -24,6 +24,72 @@ Related, narrower build facts:
 - **A compiler warning was reporting a real bug, and the obvious "fix" would have hidden it (2026-08-03).** `make -C client` succeeded but emitted two `-Wformat-truncation=` warnings from `client/apps/fs/brixcvmfs_transport.c`: `to_https()` rewrote `http://` → `https://` with `snprintf` into a destination the same size as the source and ignored the return value, so GCC computed the output as "between 9 and 1025 bytes into a destination of size 1024". The cheap ways to silence it — casting the result to `(void)`, or adding `-Wno-format-truncation` — would have left the defect: a **truncated URL is a different URL**, so the TLS probe would `GET` an object nobody asked for and the resulting 4xx would be misread as "this mirror has no TLS", silently demoting the mirror to cleartext. The fix was semantic: consume `snprintf`'s return and report *not rewritten* when it would not fit (the caller then uses the plain http URL against the **right** object), guard the `httpurl` build the same way (a truncation there means fetching a different object and hash-failing it, so the mirror is failed instead), and size the https buffer `BRIXCVMFS_URL_HTTPS_MAX = BRIXCVMFS_URL_MAX + 1` — since `s/http:/https:/` adds exactly one byte, anything that fitted as http always fits as https, which makes the refusal path unreachable for the transport's own longest legal URL *and* removes GCC's computed range overlap. Locked in by the `cvmfs_url_rewrite` C unit (`tests/c/cvmfs_url_rewrite_test.c`), which `#include`s the TU to reach the statics, stubs its ten project externals so nothing touches the network, and compiles `-O2 -D_FORTIFY_SOURCE=2 -Wall -Wextra -Werror` — the exact shape that warned, so the warning's return is a test failure rather than build noise. General rule: `-Wformat-truncation` at `-Wall`'s level fires only when the return value is unused, which means it is nearly always pointing at a *silent* truncation the code has no branch for.
 - Dynamic RPM modules need their libs in `ngx_module_libs`, not just `CORE_LIBS` — `CORE_LIBS` only links the nginx binary; each dynamic `.so` links against `ngx_module_libs`, and a lib present only in `CORE_LIBS` produces a `.so` that `dlopen`s with an undefined symbol on stock nginx. `ngx_module_libs` is also not reset between `. auto/module` blocks — set it explicitly every block, or one module silently inherits another's libs.
 - Cookie API differs by nginx version (`headers_in.cookie` vs `.cookies` array, the 1.23.0 boundary) — the only version-guarded site in `src/` is `src/dashboard/auth.c`'s cookie finder.
+- **C unit tests link a hermetic object closure, so nginx's own helpers are not
+  there.** Reaching for `ngx_cpystrn` (or any `ngx_*` string/pool helper) in code
+  that a unit test compiles standalone produces an undefined reference at link
+  time even though the module build is clean — use plain libc (`snprintf`) in
+  any TU a unit driver `#include`s or links. Three more recurring shapes in the
+  same family:
+  - The unit drivers compile with a blanket `-Werror` that the real build does
+    not use, so `-Wformat-truncation` is *fatal there and only there*. Cap the
+    offending field explicitly (`%.72s` into `f[5][80]`) rather than widening
+    the buffer by guesswork.
+  - The client `Makefile` already passes `-D_GNU_SOURCE`, so a TU that defines
+    it again is a redefinition warning → error. Guard with `#ifndef`.
+  - Adding a call inside a fanned-out function obliges every existing unit
+    driver that stubs that TU's externals to gain the new stubs too; the link
+    error names them, but the fix belongs in the driver, not in the product
+    code.
+- **An unbalanced double quote in the repo-root `config` silently drops
+  sources.** nginx's `auto/configure` *sources* the file with `.`, and the shell
+  is lax: configure limps past the broken quote, still prints "+
+  ngx_stream_brix_module was configured", and produces a working binary — but
+  every source after the stray quote is gone from that module's
+  `ngx_module_srcs`. The instance that caught it (fixed in `7c773d633`) was a
+  file-size split that added its new sibling as a fresh
+  `ngx_module_srcs="$ngx_addon_dir/.../ftp_module_gsi.c \` line, duplicating the
+  `ngx_module_srcs="` prefix instead of writing a bare continuation
+  `$ngx_addon_dir/... \`, thereby opening a second unterminated quote. The
+  tell-tale was the binary *growing* ~400 KB (29.9 M → 30.3 M) once the dropped
+  gridftp `ev/*.c` sources finally compiled in. **Rule: run `bash -n config`
+  after any edit to `config`** — HEAD is clean, so a fresh failure is yours.
+  `bash -n` catches this; a successful `make` does not. One
+  `ngx_module_srcs="` per block, bare continuation lines, last line closes the
+  quote.
+- **A harness or unit driver that compiles a config struct must carry the same
+  `-DBRIX_HAVE_*` defines as the module build.** Every feature gate
+  (`LIBXML2`, `JANSSON`, `KRB5`, `SECCOMP`, `ZLIB`, `ZSTD`, `LZMA`, `BROTLI`,
+  `BZIP2`, `LZ4`, `SQLITE`) adds fields to `ngx_stream_brix_srv_conf_t`, so a
+  sub-struct that sits *past* them lands at a different offset in a harness
+  compiled without them. This is the mixed-ABI failure above, arriving through a
+  second build system — it presents as a SIGSEGV in the harness, not as a
+  compile error.
+- **nginx wipes the worker environment.** Anything the runtime must read from
+  the environment needs an explicit `env NAME;` in the config (the outbound
+  krb5 leg needs `env KRB5_CONFIG; env KRB5_KTNAME;` to find the KDC at all).
+  The corollary for test doubles: a mock `.so` that captures its configuration
+  in an `__attribute__((constructor))` reads it at **dlopen time in the master**,
+  during config parse — a plain worker-side `getenv()` for the same variable
+  comes back empty.
+- **`.gitignore` blanket-ignores `tools/*`**, so a CI guard that walks the tree
+  with `rglob` picks up ignored, half-written scratch files and dies on them.
+  Enumerate with `git ls-files --cached --others --exclude-standard` instead —
+  that is the same set a fresh clone would see, which is what a guard is
+  actually asserting about.
+- **De-static'ing a helper to share it across a split can collide with a global
+  already in `libbrix.a`.** The symptom is a duplicate-symbol link error in one
+  binary only (whichever links both). Prefix uniquely when promoting a former
+  `static` to external linkage.
+- **A verbatim file split can silently re-key a path-keyed static-analyzer
+  baseline finding onto the new sibling**, so CI fails on a finding that is
+  byte-identical to one already suppressed — and local stays green if the local
+  clang does not reproduce it. Bound it by treating CI-only baseline entries as
+  legitimate and re-keying them as part of the split, not as a new defect.
+- **`minikube image load` does not always replace a cached image** (buildkit
+  writes a manifest list, and the load is a no-op against the existing tag), so
+  a rebuilt server image silently keeps serving the old binary. Use
+  `minikube image rm` followed by `docker save … | minikube ssh -- docker load`,
+  and verify by **config digest**, never by tag name.
 - `-fno-semantic-interposition` measured as a no-op on this non-PIE build; `-ffunction-sections/-fdata-sections/--gc-sections` measured as not worth it (nginx's `-Wl,-E` pins ~2400 dynamic symbols as GC roots, killing the win). PGO (`-fprofile-generate`/`-fprofile-use`) gave a real, reproducible `.text` shrink (~13%) and a real cold/hot function split, but a naive wall-clock A/B overstated the throughput win by conflating it with warm-machine/turbo state — always interleave/reproduce A/B on this box, never trust one-shot deltas.
 
 ## 2. Codebase-wide layout and identity refactors
@@ -77,7 +143,59 @@ That traceback names a Python import, so it reads as "the guard is broken" and s
 - A related, now-fixed, family of self-rearming polling timers (FRM stage scheduler at 500ms with no idle short-circuit, a zero-interval CMS misconfiguration with no floor, and a health-check scan re-arming at a 100ms floor regardless of whether anything was due) was previously diagnosed as "idle mesh CPU load" and fixed on 2026-06-15 — this is a legitimate, verified root cause (unlike the "host overload" excuse above) and remains a good example of what a *real* load investigation looks like: `top -H`, `perf top`, `strace -c -f` on the actual worker.
 - Struct/field ABI changes recur as a build-hygiene class distinct from the general header-dep issue above — every incident (context.h, config.h, tunables.h, csi_tagstore.h) was independently rediscovered and independently cost real debugging time before the "any struct-layout header change needs a clean rebuild" rule stuck. Treat this as a standing pre-flight check, not a one-off fix.
 - **SHM mutex lost-wakeup (2026-06-23) is the origin story for invariant #10 (SHM mutex spin+yield only, never a bare semaphore).** Concurrent `root://` transfers under multi-worker nginx randomly stalled 60-450s (n=8 aggregate read throughput collapsed ~5700→26 MiB/s) — root cause was `ngx_shmtx`'s POSIX-semaphore mode losing a wakeup under heavy cross-worker lock contention (a worker parks in `sem_wait` forever even though the lock word is already free), not a WSL2/epoll issue as first suspected. Fixed by forcing spin+`ngx_sched_yield`-only mode (`semaphore=0`) at the single chokepoint every module SHM table mutex is created through (`xrootd_shm_table_mutex_create`). A sequel bug (2026-07-01) showed the spin-only fix had also removed the semaphore's incidental dead-holder recovery: a worker SIGKILLed mid-critical-section (reload's `worker_shutdown_timeout`, OOM) leaves the lock word set to its own now-dead PID forever, because nginx's `ngx_unlock_mutexes()` (run on every worker death) only force-unlocks the accept mutex and each shared-memory zone's own slab-pool mutex — it has no knowledge of module-embedded locks. Fix: bind the table mutex to the slab pool's own recoverable lock word (`&sp->lock`) instead of an embedded one, so a worker death auto-recovers it for free.
+- **Concurrent sessions share one build tree, and there is no lock — build in a private copy.** Every agent session on this box uses the same `/tmp/nginx-1.28.3` and the same fleet ports (`/tmp/xrd-test`). A second `./configure` half-rewrites `objs/ngx_auto_config.h` and the top `Makefile` under yours, which surfaces as *someone else's* failure landing in your terminal: `./configure: error: can not detect int size`; `NGX_CONF_PATH` / `NGX_ERROR_LOG_PATH` / `NGX_MAX_SIZE_T_VALUE` undeclared; `make: No rule to make target 'build'`. Check `pgrep -af configure` for a PID whose scratchpad path names a *different* session UUID before touching your own code. The recipe for immunity:
+  1. `cp -a` the **source** dirs out of `/tmp/nginx-1.28.3` (`src/ auto/ conf/ configure` — everything except `objs/` and the top `Makefile`, which are precisely the contended artefacts) into `/tmp/nginx-<purpose>-<session-prefix>`.
+  2. Launch configure+make **setsid-detached**, because the harness teardown kills plain background configures (exit 143/144 and "Shell cwd was reset"): `setsid bash -c '<build> > log 2>&1; touch done' </dev/null >/dev/null 2>&1 &`, then poll for the `done` sentinel.
+  3. Use the **full** module set — the canonical line, with a **literal** `--add-module` path (`$REPO` on the same line expands empty). Dropping `--with-http_dav_module` yields a binary the fleet rejects with `unknown directive "dav_methods"`.
+  4. Point the tests at it with **both** env vars — `TEST_NGINX_BIN=<priv>/objs/nginx` for pytest and `NGINX_BIN=<priv>/objs/nginx` for `manage_test_servers`/conftest. They are different names and both are read.
+
+  To verify without the contended standing fleet, do not run the fleet-based suite at all (conftest's `pytest_sessionstart` either fights the other session's fleet or attaches to a phantom). Write a standalone script that calls `L.start_pair()` — it spawns its own pair on dynamic ports using `TEST_NGINX_BIN` — and connect to `ctx["our_port"]`, **not** the module-level `OUR_PORT`/`FLEET_OUR_PORT` constant, which names the contended standing fleet. `TEST_SKIP_SERVER_SETUP=1` skips conftest's fleet lifecycle.
 - The `nginx addon build does not track header deps` fact also broke a single-object rebuild shortcut: `make objs/addon/<sub>/x.o` from the nginx build root is a silent no-op if the `.o` already exists (the top Makefile has no addon rule for it) — must `rm -f` the object first and invoke `make -f objs/Makefile objs/addon/<sub>/x.o` explicitly to force a true single-file recompile.
+
+## 6. Coverage instrumentation — the link line, and the policy that gates the floor
+
+A C unit can report **0% coverage while passing**, and the cause is usually the
+link line rather than the capture path. `cred_mint.c` read 0% because its unit
+harness linked the pre-built `cred_mint.o` without `--coverage`. Under a gcov
+build every addon object is compiled `--coverage` and exports
+`__gcov_init/_exit/_merge_*`, so linking without it fails on undefined symbols
+(the unit never runs at all) and, even if it linked, the flush runtime is absent
+so nothing is written. The fix is to detect the instrumented build rather than
+hardcode a flag: `_coverage_link_flags()` (`tests/cmdscripts/c_auth_units.py`)
+scans link arguments for any `.o` with a sibling `.gcno` and only then prepends
+`--coverage`, so ordinary builds are untouched. `cred_mint.c` went 0% → 81%.
+**Do not add `-O0` to the instrumented compile** — `_FORTIFY_SOURCE=2` requires
+`-O`; keep the original optimisation level and add only `--coverage`.
+
+That fix invalidated a planning assumption worth flagging, because it had been
+written down as a constraint: direct C units linking a real `.o` *do* move that
+file's coverage number, so the cheapest route to a dark 0% file is a `tests/c`
+unit, not a live driver. Where a function is `static` and unreachable, un-static
+it and declare it in the header — but note that the runner links
+`/tmp/nginx-1.28.3/objs/addon/...`, a *different* object from the repo build
+tree's `./build/modules/...`, so that tree must be rebuilt before the link sees
+the new global symbol (the three-build-systems trap again).
+
+Tooling note: lcov 2.x pulls `Capture::Tiny` and other CPAN dependencies that
+need root, so this box runs **lcov 1.16 unprivileged in `~/.local/bin`** — a
+self-contained single-Perl release with no dependencies. `get_version.sh` has to
+be copied next to the binary or `--version` misreads, which is cosmetic.
+
+What remains before a coverage floor can become blocking is **policy, not
+tooling**, per the hyper-hardening B-1 lesson: never flip a numeric gate to
+blocking before a reviewed baseline from a clean full-tier run exists. A floor
+read off an unreviewed local partial run violates exactly that rule. The
+graduation runbook, gated on the fleet booting green in CI, is
+`operator_build build_coverage` → full-tier fleet under `COVERAGE_TEST_CMD` →
+read the `src/` + `client/` line rate → commit `COVERAGE_MIN = measured − margin`.
+
+Related hazard, learned the hard way: `tools/ci/coverage.py` reconfigures and
+rebuilds the **shared** `/tmp/nginx-1.28.3` tree with `--coverage`, so running it
+casually — or via `pytest tests/test_ci_guards.py` without `-m "not slow"` —
+replaces `objs/nginx` with an instrumented `-O0` binary for every other session
+and any live fleet. See
+[ci-guards-burndown-2026-07-21.md](ci-guards-burndown-2026-07-21.md)
+§"Run this module with `-m \"not slow\"`".
 
 ---
 
@@ -133,7 +251,30 @@ Generalizes to any feature that changes the security posture or needs elevated p
 - The remote CI box (`xrd1.edi.scotgrid.ac.uk`) runs the test harness **as root**; this WSL2 box runs it non-root. Code that passes remote but breaks locally should be checked against this class first (e.g. a harness helper that `exit 1`s under `set -e` when non-root, or a file-mode test that assumes root can always overwrite restrictive permission bits) before assuming a real regression.
 - Judge a suite run by what survives a **serial** re-run of the failures, never by the first parallel pass — xdist-parallel runs on this box reclassify a rotating set of load-induced flakes as green on serial rerun; real failures persist. Reset (`stop-all` + `brutal_teardown.sh` + `pkill -x nginx`) between heavy runs — the box itself degrades under sustained repeated load (orphaned masters, climbing load average) in a way that makes diagnosis on a degraded box unreliable.
 
-## 7. Who Rob is and what this project is for
+## 7. Tooling language policy — Python replaces bash, and the bash original gets deleted
+
+Rob has instructed repeatedly, across several separate efforts, that shell scripts in
+this repo be rewritten in Python and the `.sh` originals **removed**, not left beside
+the port. It applied to the whole test fleet (`tests/manage_test_servers.sh` and its
+satellites → `cmdscripts/` + `RegistryLauncher`) and applies equally to the
+`tools/ci/check_*.sh` guard fleet. The reasoning is bash's unsafe word-splitting and
+quoting, locale-dependent `sort`, and the fact that a shell guard cannot be unit-tested
+the way `tests/test_source_guards.py` tests the Python ones.
+
+The corollary is the part that has gone wrong before: **"it's bash for consistency with
+the sibling guards" is not a valid reason to keep a `.sh`.** The goal is to eliminate
+bash from the tree, so converting one guard makes converting its siblings the *right*
+follow-on, not a consistency violation to be avoided.
+
+How to do the port faithfully: keep the contract identical (same stdout messages, same
+exit codes, same backlog-file format), rewire every caller (`.github/workflows/guards.yml`,
+`tools/ci/README.md`, `tests/source_guards_lib.py`, and the sibling guards' header
+comments), run both the guard itself and `tests/test_source_guards.py`, then delete the
+`.sh`. Prefer importing shared logic in-process (the `tools/readability.py` pattern) over
+shelling out to a subprocess, and use explicit codepoint ordering rather than relying on
+the ambient locale the way bash's `sort` does.
+
+## 8. Who Rob is and what this project is for
 
 Rob Currie is a HEP (High Energy Physics) systems engineer building **nginx-xrootd** (rebranded mid-project to **BriX**) — an nginx module serving the native XRootD `root://` binary protocol (stream module) alongside WebDAV over HTTPS (`davs://`), S3, and CVMFS, with the long-run direction of a WLCG-storage "swiss-army-knife" (native clients, FUSE mount, broad protocol/backend coverage) rather than a narrow gateway replacement. The original, still-live deployment driver: replacing a lightweight production XRootD gateway at a real HEP site backed by CephFS, where VO (Virtual Organization)-based access control via VOMS proxy certificates, group/GID inheritance under paths (CephFS doesn't reliably propagate setgid), Prometheus metrics visibility, comprehensive test coverage, and a better TCP stack than standalone XRootD were the explicit priorities from day one.
 

@@ -5,8 +5,9 @@ Comprehensive HTTPS status-code and RFC compliance tests for the TLS WebDAV
 endpoint (port 8444, required x509 GSI proxy-cert auth).
 
 Targets the dedicated HTTPS+GSI server (port 8444, brix_webdav_auth required).
-All requests require a valid GSI proxy certificate; unauthenticated requests
-return 401 Unauthorized.
+All requests require a valid GSI proxy certificate; because the export also
+accepts bearer tokens, unauthenticated requests return 401 Unauthorized with a
+`WWW-Authenticate: Bearer` challenge rather than a bare 403.
 
 Tests assert RFC-correct behaviour directly; regressions must fail normally.
 
@@ -132,29 +133,37 @@ class TestAuthentication:
         assert r.status_code == 200
         assert r.content == content
 
-    def test_get_without_cert_403_required_auth(self):
-        """Required-auth mode: unauthenticated requests are rejected with 403."""
-        path, _, _ = _existing_file()
-        r = _get(path, session=_sa())
-        assert r.status_code == 403
+    # This export enables bearer tokens alongside the client cert, so an
+    # unauthenticated request is a challengeable one: RFC 6750 §3 wants
+    # 401 + `WWW-Authenticate: Bearer`, not a dead-end 403.  (A cert-ONLY
+    # export keeps the historical 403 — see webdav_bearer_enabled() in
+    # src/protocols/webdav/access_auth.c.)  These four asserted 403 from
+    # before the challenge landed, contradicting this module's own docstring;
+    # they now also pin the challenge header, which is the half that actually
+    # makes a client retry with a credential.
+    def _assert_bearer_challenge(self, r):
+        assert r.status_code == 401
+        assert r.headers.get("WWW-Authenticate", "").startswith("Bearer")
 
-    def test_put_without_cert_403_required_auth(self):
-        """Required-auth mode: unauthenticated PUT is rejected with 403."""
+    def test_get_without_cert_401_challenged(self):
+        """Required-auth mode: unauthenticated GET is challenged, not refused."""
+        path, _, _ = _existing_file()
+        self._assert_bearer_challenge(_get(path, session=_sa()))
+
+    def test_put_without_cert_401_challenged(self):
+        """Required-auth mode: unauthenticated PUT is challenged, not refused."""
         path = f"/{_PFX}anon_{_uid()}.txt"
-        r = _put(path, b"anon upload", session=_sa())
-        assert r.status_code == 403
+        self._assert_bearer_challenge(_put(path, b"anon upload", session=_sa()))
 
-    def test_head_without_cert_403(self):
-        """Required-auth mode: unauthenticated HEAD is rejected with 403."""
+    def test_head_without_cert_401_challenged(self):
+        """Required-auth mode: unauthenticated HEAD is challenged, not refused."""
         path, _, _ = _existing_file()
-        r = _head(path, session=_sa())
-        assert r.status_code == 403
+        self._assert_bearer_challenge(_head(path, session=_sa()))
 
-    def test_propfind_without_cert_403(self):
-        """Required-auth mode: unauthenticated PROPFIND is rejected with 403."""
+    def test_propfind_without_cert_401_challenged(self):
+        """Required-auth mode: unauthenticated PROPFIND is challenged."""
         path, _, _ = _existing_file()
-        r = _propfind(path, depth="0", session=_sa())
-        assert r.status_code == 403
+        self._assert_bearer_challenge(_propfind(path, depth="0", session=_sa()))
 
 
 # ---------------------------------------------------------------------------

@@ -120,7 +120,11 @@ def xroot_cachestore_serve(nginx: Path | None = None) -> int:
                 (directory / name).mkdir(exist_ok=True)
         store_conf = run.write(store / "nginx.conf", f"""daemon on; error_log {store}/logs/e.log info; pid {store}/nginx.pid;
 events {{ worker_connections 64; }}
-stream {{ server {{ listen {BIND_HOST}:{sport}; brix_root on; brix_export {store}/root; brix_auth none; brix_allow_write on; }} }}
+stream {{ server {{ listen {BIND_HOST}:{sport}; brix_root on; brix_export {store}/root; brix_auth none; brix_allow_write on;
+  # The node persists its cinfo as a "<key>.cinfo" sidecar here; a reserved name
+  # is answered kXR_NotFound on an ordinary export, so S has to declare itself
+  # the trusted cache-STORE surface or the warm hit refills forever.
+  brix_cache_store_endpoint on; }} }}
 """)
         node_conf = run.write(node / "nginx.conf", f"""daemon on; error_log {node}/logs/e.log info; pid {node}/nginx.pid;
 thread_pool default threads=2;

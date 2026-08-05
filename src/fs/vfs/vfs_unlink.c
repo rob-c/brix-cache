@@ -166,7 +166,8 @@ brix_vfs_delete_via_driver(brix_vfs_ctx_t *ctx, const brix_sd_driver_t *drv,
         /* The leaf dispatch above skipped the cache decorator's own unlink (and
          * so its cstore evict); evict here so a DELETE does not leave a stale
          * cached copy on the store. No-op when ctx->sd is not a cache. */
-        brix_sd_cache_evict(ctx->sd, logical);
+        brix_metric_cache_evicted(brix_vfs_metrics_proto(ctx),
+                                    brix_sd_cache_evict(ctx->sd, logical));
     }
     brix_vfs_observe_ctx_op(ctx, path, BRIX_METRIC_OP_DELETE, NULL, 0,
                               rc, saved_errno, start);

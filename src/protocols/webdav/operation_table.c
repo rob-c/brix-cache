@@ -33,7 +33,7 @@ const brix_http_operation_t brix_webdav_operations[] = {
       BRIX_PROTO_OP_WRITE },
     { "MKCOL",    NGX_HTTP_MKCOL,    BRIX_WEBDAV_METHOD_MKCOL,    0,
       BRIX_PROTO_OP_WRITE },
-    { "MOVE",     NGX_HTTP_MOVE,     BRIX_WEBDAV_METHOD_OTHER,    0,
+    { "MOVE",     NGX_HTTP_MOVE,     BRIX_WEBDAV_METHOD_MOVE,     0,
       BRIX_PROTO_OP_WRITE },
     { "COPY",     NGX_HTTP_COPY,     BRIX_WEBDAV_METHOD_COPY,     0,
       BRIX_PROTO_OP_WRITE | BRIX_PROTO_OP_TPC },
