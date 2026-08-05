@@ -633,7 +633,6 @@ const tail = [
     border: var(--border);
     box-shadow: var(--shadow-sm);
   }
-  .band--sunken .faq-item { background: var(--panel); }
 
   .faq-q {
     font-family: var(--display);
@@ -661,8 +660,9 @@ const tail = [
     display: grid; place-items: center;
     border: var(--border-2);
     background: var(--accent);
+    color: var(--on-accent);
   }
-  .faq-item[open] > .faq-q::after { content: '−'; background: var(--paper); }
+  .faq-item[open] > .faq-q::after { content: '−'; background: var(--paper); color: var(--ink); }
   .faq-q:hover::after { transform: translate(-2px, calc(-50% - 2px)); box-shadow: 3px 3px 0 var(--ink); }
 
   .faq-a { padding: 0 1.2rem 1.2rem; display: grid; gap: 0.7rem; border-top: var(--border-2); }
@@ -676,7 +676,11 @@ const tail = [
   }
   .score-line { font-size: 0.95rem; }
   .score-chip { font-size: 0.68rem; margin-right: 0.5ch; vertical-align: 0.1em; padding: 0.18em 0.5em; }
-  .band--ink .chip--ghost { color: var(--paper); border-color: var(--paper); }
+  /* :global() because .band--ink is emitted by Band.astro — an unwrapped
+     `.band--ink .chip--ghost` here would be scoped to *this* page's cid and
+     never match the section element. The chip's own 2px --ink border is the
+     page ink, which vanishes against the inverted surface. */
+  :global(.band--ink) .chip--ghost { color: var(--inv-fg); border-color: var(--inv-fg); }
 
   .faq-doclink { text-align: center; margin-bottom: 1.6rem; font-size: 0.85rem; }
 

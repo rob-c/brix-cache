@@ -359,7 +359,8 @@ const mine = {
   .nt-cmp-mine { border-top: 9px solid var(--accent); box-shadow: var(--shadow-sm), inset 0 0 0 1px color-mix(in srgb, var(--accent) 22%, transparent); }
   .nt-cmp-h { display: flex; flex-direction: column; gap: 0.15rem; }
   .nt-cmp-t { font-family: var(--display); font-weight: 700; font-stretch: 112%; font-size: 1.18rem; line-height: 1.06; }
-  .nt-cmp-eg { font-size: 0.72rem; color: var(--ink-2); word-break: break-word; }
+  /* sits on .band--ink .panel — page ink-2 is unreadable there in light mode */
+  .nt-cmp-eg { font-size: 0.72rem; color: var(--inv-muted); word-break: break-word; }
   .nt-cmp-meta { font-size: 0.74rem; color: var(--accent); font-weight: 600; margin-bottom: 0.1rem; }
   .nt-cmp p.muted { font-size: 0.9rem; }
   .nt-cmp-foot { margin-top: 1.4rem; max-width: var(--measure); font-size: 0.92rem; }

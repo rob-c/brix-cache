@@ -5,6 +5,7 @@
 #include "webdav_module_internal.h"
 #include "fs/path/path.h"        /* brix_parse_authdb, brix_normalize_policy_path, rule types */
 #include "core/config/config.h"  /* brix_copy_conf_string */
+#include "auth/protbind/protbind.h"  /* shared brix_protbind grammar */
 
 /*
  * NOTE: the grid-PKI certificate directive setters
@@ -42,6 +43,23 @@ webdav_conf_authdb(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     }
 
     return NGX_CONF_OK;
+}
+
+
+/*
+ * brix_webdav_protbind <host-template> [none | [only] <proto>...] — bind an
+ * ordered set of credential sources to a host template (the HTTP face of the
+ * stream brix_protbind / XRootD sec.protbind).  The grammar and every error
+ * message come from the shared engine in src/auth/protbind/, so a site can
+ * write the same stanza on both protocols and get the same decision; only
+ * gsi/ztn/pwd have an HTTP transport, and the rest are ignored at request time.
+ */
+char *
+webdav_conf_protbind(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
+{
+    ngx_http_brix_webdav_loc_conf_t *wlcf = conf;
+
+    return brix_protbind_conf(cf, cmd, &wlcf->protbind);
 }
 
 

@@ -7,23 +7,25 @@
 /*
  * brix_handle_sigver - XRootD request signing (kXR_sigver).
  *
- * Protocol flow:
- *   1. Client sends kXR_sigver with HMAC-SHA256(signing_key, seqno || next_hdr
- *      [|| next_payload]) as the body, and expectrid = opcode of the next request.
- *   2. We save the HMAC and seqno in pending state on ctx.
- *   3. brix_dispatch() verifies the HMAC before routing the following request.
+ * Protocol flow (stock XrdSecProtect secver 0):
+ *   1. Client sends kXR_sigver whose body is the session-cipher encryption of
+ *      SHA-256(seqno || next_hdr [|| next_payload]), IV-prepended on the
+ *      signed-DH path, with expectrid = opcode of the next request.
+ *   2. We save the signature blob and seqno in pending state on ctx.
+ *   3. brix_dispatch() verifies the signature before routing the following
+ *      request.
  *
- * For GSI sessions signing_active is 1 and signing_key = SHA-256(DH secret).
+ * For GSI sessions signing_active is 1 and the sigver ctx holds its own copy of
+ * the negotiated session cipher + key (first key_len bytes of the DH secret).
  * For token/anonymous sessions we accept sigver without verification; legitimate
  * clients should not send it unsolicited, but some do (e.g. when connecting to an
  * unknown server type).
  *
- * Only HMAC-SHA256 without RSA (kXR_SHA256, kXR_rsaKey unset) is verified.
+ * Only SHA-256 without RSA (kXR_SHA256, kXR_rsaKey unset) is verified.
  * RSA-signed requests are accepted without checking the asymmetric signature.
  */
-/* Handle kXR_sigver — store the expected HMAC-SHA256 signature and monotonic
- * sequence number for verifying the NEXT signed request (the seqno blocks
- * replay). */
+/* Handle kXR_sigver — store the expected signature blob and monotonic sequence
+ * number for verifying the NEXT signed request (the seqno blocks replay). */
 ngx_int_t
 brix_handle_sigver(brix_ctx_t *ctx, ngx_connection_t *c)
 {
@@ -50,17 +52,23 @@ brix_handle_sigver(brix_ctx_t *ctx, ngx_connection_t *c)
         if ((req.crypto & kXR_HashMask_sig) == kXR_SHA256_sig
             && !(req.crypto & kXR_rsaKey_sig))
         {
-            /* Need exactly 32 bytes of HMAC in the body. */
-            if (ctx->recv.cur_dlen < 32 || ctx->recv.payload == NULL) {
+            /* The body is the encrypted 32-byte hash: at least one cipher
+             * block beyond a possible IV, at most IV(16) + padded hash (48). */
+            if (ctx->recv.cur_dlen < 32 || ctx->recv.payload == NULL
+                || ctx->recv.cur_dlen > sizeof(ctx->sigver.sig))
+            {
                 return brix_send_error(ctx, c, kXR_ArgInvalid,
-                                         "sigver body too short");
+                                         "sigver body length invalid");
             }
 
             ctx->sigver.pending = 1;
             ctx->sigver.expectrid = expectrid;
+            ctx->sigver.sid[0] = ctx->recv.hdr_buf[0];
+            ctx->sigver.sid[1] = ctx->recv.hdr_buf[1];
             ctx->sigver.seqno = seqno;
             ctx->sigver.nodata = (req.flags & kXR_nodata_sig) ? 1 : 0;
-            ngx_memcpy(ctx->sigver.hmac, ctx->recv.payload, 32);
+            ctx->sigver.sig_len = (int) ctx->recv.cur_dlen;
+            ngx_memcpy(ctx->sigver.sig, ctx->recv.payload, ctx->recv.cur_dlen);
 
             ngx_log_debug2(NGX_LOG_DEBUG_STREAM, c->log, 0,
                            "brix: sigver pending expectrid=%d seqno=%llu",

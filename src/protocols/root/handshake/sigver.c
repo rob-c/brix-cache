@@ -1,14 +1,15 @@
 #include "handshake.h"
 #include "auth/gsi/gsi_core.h"   /* brix_gsi_sigver_required (shared policy) */
 
-/* sigver.c — request signature verification (kXR_sigver HMAC-SHA256) and security-level enforcement
+/* sigver.c — request signature verification (kXR_sigver, stock XrdSecProtect
+ * secver 0) and security-level enforcement.
  * WHAT: Owns the "verify" half of XRootD request signing. Three entry points:
  *       brix_verify_pending_sigver() consumes the sigver state recorded when a
  *       kXR_sigver request arrived and validates that the immediately-following
- *       covered request matches the expected opcode and HMAC; the static
- *       brix_verify_sigver_hmac() recomputes the HMAC-SHA256 over the seqno,
- *       request header, and (unless sigver_nodata) the payload, comparing it in
- *       constant time against the client-supplied ctx->sigver.hmac; and
+ *       covered request matches the expected opcode, streamid, and signature;
+ *       the static brix_verify_sigver_sig() decrypts the client's signature
+ *       blob with the negotiated GSI session cipher and compares it against
+ *       SHA-256(seqno || header || payload-unless-nodata) in constant time; and
  *       brix_signing_enforce_level() rejects opcodes that the configured
  *       brix_security_level requires to be signed but were not.
  *
@@ -21,49 +22,53 @@
  *       "record intent" and "check intent against next request" responsibilities
  *       in separate, single-purpose files.
  *
- * HOW:  kXR_sigver records pending state (expected reqid, supplied HMAC, nodata
- *       flag, seqno) elsewhere; dispatch then calls brix_verify_pending_sigver()
- *       on the next request, which gates on ctx->sigver.signing_active, matches
- *       sigver_expectrid against cur_reqid, and delegates the cryptographic check
- *       to brix_verify_sigver_hmac() using ctx->sigver.signing_key via OpenSSL EVP_MAC
- *       (HMAC/SHA256, MAC + ctx cached on ctx for reuse). On success it sets
- *       ctx->sigver.verified; brix_signing_enforce_level() later consults that
- *       flag plus brix_sigver_opcode_requires() (a level 0-4 policy table) to
- *       decide whether an unsigned opcode is permitted. */
+ * HOW:  kXR_sigver records pending state (expected reqid, streamid, signature
+ *       blob, nodata flag, seqno) elsewhere; dispatch then calls
+ *       brix_verify_pending_sigver() on the next request, which gates on
+ *       ctx->sigver.signing_active, matches expectrid + streamid against the
+ *       covered request, and delegates the cryptographic check to
+ *       brix_verify_sigver_sig() using the sigver-owned copy of the session
+ *       cipher (ctx->sigver.sig_cipher/sig_key — armed by
+ *       gsi_arm_request_signing(), surviving the §F6 delegation cleanse). On
+ *       success it sets ctx->sigver.verified; brix_signing_enforce_level()
+ *       later consults that flag plus brix_sigver_opcode_requires() (a level
+ *       0-4 policy table) to decide whether an unsigned opcode is permitted. */
 
 /*
- * Recompute and compare the HMAC-SHA256 over the covered request. Lazily fetches
- * the OpenSSL "HMAC" EVP_MAC and allocates an EVP_MAC_CTX (both cached on ctx for
- * reuse across requests), keys it with the 32-byte ctx->sigver.signing_key, and updates
- * it with the big-endian seqno, the request header (ctx->recv.hdr_buf,
- * XRD_REQUEST_HDR_LEN), and — unless ctx->sigver.nodata or there is no payload —
- * the request payload. The digest is compared against ctx->sigver.hmac with
- * CRYPTO_memcmp (constant time). Returns BRIX_DISPATCH_CONTINUE on a match;
- * otherwise sends kXR_ServerError on a computation failure or kXR_NotAuthorized
- * on a digest mismatch and returns that send's result.
+ * Decrypt and compare the signature over the covered request (stock
+ * XrdSecProtect secver 0: the blob is the session-cipher encryption of the
+ * plain SHA-256 over seqno_be(8) || request header(24) || payload — payload
+ * omitted when the nodata flag was set).  brix_gsi_sigver_verify() decrypts
+ * with the sigver-owned session key (IV-stripped on the signed-DH path) and
+ * CRYPTO_memcmp's the 32-byte hash. Returns BRIX_DISPATCH_CONTINUE on a match;
+ * otherwise sends kXR_ServerError when the armed cipher cannot be resolved or
+ * kXR_NotAuthorized on a signature mismatch and returns that send's result.
  */
 static ngx_int_t
-brix_verify_sigver_hmac(brix_ctx_t *ctx, ngx_connection_t *c)
+brix_verify_sigver_sig(brix_ctx_t *ctx, ngx_connection_t *c)
 {
-    u_char computed[32];
+    brix_gsi_cipher_t cipher;
 
-    /* Shared HMAC (libxrdproto gsi_core) — recomputes over the SAME covered bytes
-     * the client signs: seqno_be(8) || request header(24) || (payload unless the
-     * nodata flag). Single source of the covered-byte layout. */
-    if (!brix_gsi_sigver_hmac(ctx->sigver.signing_key, ctx->sigver.seqno,
-                                ctx->recv.hdr_buf, ctx->recv.payload, ctx->recv.cur_dlen,
-                                ctx->sigver.nodata, computed))
-    {
+    if (!brix_gsi_cipher_lookup(ctx->sigver.sig_cipher, &cipher)) {
         ngx_log_error(NGX_LOG_ERR, c->log, 0,
-                      "brix: sigver HMAC calculation failed for reqid=%d",
-                      (int) ctx->recv.cur_reqid);
+                      "brix: sigver session cipher \"%s\" unavailable for reqid=%d",
+                      ctx->sigver.sig_cipher, (int) ctx->recv.cur_reqid);
         return brix_send_error(ctx, c, kXR_ServerError,
                                  "signature verification failed");
     }
 
-    if (CRYPTO_memcmp(computed, ctx->sigver.hmac, 32) != 0) {
+    /* Shared kernel (libxrdproto gsi_core) — decrypts the blob and recomputes
+     * over the SAME covered bytes the client signs. Single source of the
+     * covered-byte layout with the native client's signer. */
+    if (!brix_gsi_sigver_verify(&cipher, ctx->sigver.sig_key,
+                                  ctx->sigver.sig_use_iv,
+                                  ctx->sigver.sig, (size_t) ctx->sigver.sig_len,
+                                  ctx->sigver.seqno, ctx->recv.hdr_buf,
+                                  ctx->recv.payload, ctx->recv.cur_dlen,
+                                  ctx->sigver.nodata))
+    {
         ngx_log_error(NGX_LOG_WARN, c->log, 0,
-                      "brix: sigver HMAC mismatch for reqid=%d",
+                      "brix: sigver signature mismatch for reqid=%d",
                       (int) ctx->recv.cur_reqid);
         return brix_send_error(ctx, c, kXR_NotAuthorized,
                                  "signature verification failed");
@@ -104,7 +109,21 @@ brix_verify_pending_sigver(brix_ctx_t *ctx, ngx_connection_t *c)
                                          "signed request opcode mismatch");
             }
 
-            rc = brix_verify_sigver_hmac(ctx, c);
+            /* Stock parity (XrdSecProtect::Verify): the sigver frame and the
+             * covered request must share a streamid — the hash covers the
+             * header as sent, so a stream mismatch can never verify anyway;
+             * failing early gives a precise diagnostic. */
+            if (ctx->sigver.sid[0] != ctx->recv.hdr_buf[0]
+                || ctx->sigver.sid[1] != ctx->recv.hdr_buf[1])
+            {
+                ngx_log_error(NGX_LOG_WARN, c->log, 0,
+                              "brix: sigver streamid mismatch for reqid=%d",
+                              (int) ctx->recv.cur_reqid);
+                return brix_send_error(ctx, c, kXR_InvalidRequest,
+                                         "signed request streamid mismatch");
+            }
+
+            rc = brix_verify_sigver_sig(ctx, c);
             if (rc != BRIX_DISPATCH_CONTINUE) {
                 return rc;
             }

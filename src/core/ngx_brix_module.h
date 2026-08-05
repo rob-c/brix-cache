@@ -161,6 +161,10 @@ char *brix_conf_set_require_vo(ngx_conf_t *cf, ngx_command_t *cmd,
 /* "authdb <file>": load an identity-based ACL ruleset (u/g/p/a + privs). */
 char *brix_conf_set_authdb(ngx_conf_t *cf, ngx_command_t *cmd,
     void *conf);
+/* "brix_protbind <host-template> [none | [only] <proto>...]": append a
+ * per-host authentication-protocol binding (XRootD sec.protbind). */
+char *brix_conf_set_protbind(ngx_conf_t *cf, ngx_command_t *cmd,
+    void *conf);
 /* "inherit_parent_group <prefix>": append a rule taking group ownership from
  * the parent directory rather than file metadata under that prefix. */
 char *brix_conf_set_inherit_parent_group(ngx_conf_t *cf, ngx_command_t *cmd,

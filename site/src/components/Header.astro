@@ -19,6 +19,56 @@ const isActive = (href: string) => path.endsWith(href);
       ))}
       <a href={DOCS_URL} class="nav-link">Docs</a>
       <a href={REPO_URL} class="nav-link nav-cta">GitHub ↗</a>
+
+      <button type="button" class="theme-btn" hidden>
+        <span class="theme-ico" aria-hidden="true">◐</span><span class="theme-name">AUTO</span>
+      </button>
+      <script is:inline>
+        /* Inline and adjacent to the button so it runs during parse — the label
+           is correct on first paint and there is no dead control without JS.
+           Cycles auto → light → dark; "auto" removes the key so the media query
+           takes over again and later OS changes are followed live. */
+        (function () {
+          var btn = document.currentScript.previousElementSibling;
+          var root = document.documentElement;
+          var KEY = 'brix-theme';
+          var ORDER = ['auto', 'light', 'dark'];
+          var GLYPH = { auto: '◐', light: '○', dark: '●' };
+
+          function stored() {
+            try {
+              var v = localStorage.getItem(KEY);
+              return v === 'light' || v === 'dark' ? v : 'auto';
+            } catch (e) {
+              return 'auto';
+            }
+          }
+
+          function apply(mode) {
+            if (mode === 'auto') delete root.dataset.theme;
+            else root.dataset.theme = mode;
+            btn.querySelector('.theme-ico').textContent = GLYPH[mode];
+            btn.querySelector('.theme-name').textContent = mode.toUpperCase();
+            btn.setAttribute(
+              'aria-label',
+              'Colour theme: ' + (mode === 'auto' ? 'auto, following your system' : mode) +
+                '. Activate to change.'
+            );
+          }
+
+          apply(stored());
+          btn.hidden = false;
+
+          btn.addEventListener('click', function () {
+            var next = ORDER[(ORDER.indexOf(stored()) + 1) % ORDER.length];
+            try {
+              if (next === 'auto') localStorage.removeItem(KEY);
+              else localStorage.setItem(KEY, next);
+            } catch (e) {}
+            apply(next);
+          });
+        })();
+      </script>
     </nav>
   </div>
 </header>
@@ -66,12 +116,33 @@ const isActive = (href: string) => path.endsWith(href);
     border: 2px solid transparent;
   }
   .nav-link:hover { border-color: var(--ink); }
-  .nav-link.on { background: var(--accent); border-color: var(--ink); }
+  .nav-link.on { background: var(--accent); border-color: var(--ink); color: var(--on-accent); }
   .nav-cta { border-color: var(--ink); box-shadow: 3px 3px 0 var(--ink); }
-  .nav-cta:hover { background: var(--accent); }
+  .nav-cta:hover { background: var(--accent); color: var(--on-accent); }
+
+  .theme-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5ch;
+    font-family: var(--mono);
+    font-size: 0.82rem;
+    font-weight: 600;
+    padding: 0.35em 0.6em;
+    border: 2px solid var(--ink);
+    background: transparent;
+    color: inherit;
+    cursor: pointer;
+  }
+  /* the script unhides it, so no-JS visitors never get a dead control — and
+     because that runs during parse there is no layout shift */
+  .theme-btn[hidden] { display: none; }
+  .theme-btn:hover { background: var(--accent); color: var(--on-accent); }
+  .theme-ico { font-size: 1.05em; line-height: 1; }
 
   @media (max-width: 640px) {
     .nav-link:not(.nav-cta) { padding: 0.3em 0.45em; }
     .brand { font-size: 1.2rem; }
+    /* aria-label carries the name, so dropping the word costs nothing */
+    .theme-name { display: none; }
   }
 </style>

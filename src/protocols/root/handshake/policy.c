@@ -1,4 +1,5 @@
 #include "handshake.h"
+#include "fs/vfs/vfs_secgate.h"   /* per-capability TLS gate (brix_tls_require) */
 
 /*
  * brix_check_token_scope — enforce WLCG token scopes on a path operation.
@@ -79,6 +80,66 @@ brix_min_sec_enforce(brix_ctx_t *ctx, ngx_connection_t *c,
     }
 
     return BRIX_DISPATCH_CONTINUE;
+}
+
+/* tls_require_opcode_caps — capability set an opcode exercises (vfs_secgate
+ * mask bits).  login/auth → LOGIN; the read/write families → SESSION|DATA;
+ * the handshake/session-control opcodes (protocol/bind/ping/endsess/set/
+ * sigver) → 0 so the in-protocol TLS upgrade path is never blocked by the
+ * very policy that demands it; everything else (stat/dirlist/open/mkdir/…)
+ * → SESSION.  TPC is gated at its own choke point (read/open_tpc.c) where
+ * the tpc.* opaque keys are actually parsed. */
+static ngx_uint_t
+tls_require_opcode_caps(ngx_uint_t reqid)
+{
+    switch (reqid) {
+    case kXR_login:
+    case kXR_auth:
+        return BRIX_TLSREQ_LOGIN;
+    case kXR_read:
+    case kXR_readv:
+    case kXR_pgread:
+    case kXR_write:
+    case kXR_writev:
+    case kXR_pgwrite:
+        return BRIX_TLSREQ_SESSION | BRIX_TLSREQ_DATA;
+    case kXR_protocol:
+    case kXR_bind:
+    case kXR_ping:
+    case kXR_endsess:
+    case kXR_set:
+    case kXR_sigver:
+        return 0;
+    default:
+        return BRIX_TLSREQ_SESSION;
+    }
+}
+
+ngx_int_t
+brix_tls_require_enforce(brix_ctx_t *ctx, ngx_connection_t *c,
+    ngx_stream_brix_srv_conf_t *conf)
+{
+    ngx_uint_t  refused, is_tls;
+
+    if (conf->common.tls_require == 0) {
+        return BRIX_DISPATCH_CONTINUE;
+    }
+
+    is_tls = (c->ssl != NULL && c->ssl->connection != NULL);
+    refused = brix_tls_gate_refused(conf->common.tls_require,
+                                    tls_require_opcode_caps(
+                                        ctx->recv.cur_reqid),
+                                    is_tls);
+    if (refused == 0) {
+        return BRIX_DISPATCH_CONTINUE;
+    }
+
+    ngx_log_error(NGX_LOG_WARN, c->log, 0,
+        "brix: cleartext request refused by brix_tls_require %s "
+        "(opcode=%d)",
+        brix_tls_cap_name(refused), (int) ctx->recv.cur_reqid);
+    return brix_send_error(ctx, c, kXR_TLSRequired,
+        "server security policy requires TLS for this capability");
 }
 
 ngx_int_t

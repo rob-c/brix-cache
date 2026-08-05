@@ -16,6 +16,14 @@
     ngx_uint_t  auth;    /* [brix_auth none|gsi|token|both] — one of the
                             BRIX_AUTH_* constants in tunables.h */
 
+    /* Per-host authentication-protocol bindings (XRootD sec.protbind).
+     * brix_protbind_rule_t[] in configuration order; NULL = no rules, in which
+     * case `auth` above decides alone.  A matching rule replaces that decision
+     * with its own ORDERED protocol list, which drives both the "&P=" sec token
+     * advertised at kXR_login and the credential accepted at kXR_auth.  See
+     * src/auth/protbind/. */
+    ngx_array_t *protbind;   /* [brix_protbind <tpl> none|[only] <proto>...] */
+
     /* ---- GSI / x509 settings (used when auth = gsi or both) ---- */
     ngx_str_t   certificate;      /* [brix_certificate /etc/grid.pem] */
     ngx_str_t   certificate_key;  /* [brix_certificate_key /etc/grid.key] */
@@ -119,6 +127,12 @@
                                      prepare_command path still fires). */
 
     /* ---- JWT / WLCG bearer-token settings (used when auth = token or both) ---- */
+    ngx_flag_t  ztn_cleartext;   /* [brix_ztn_cleartext on|off] — off (default,
+                                    stock parity) refuses a ztn bearer token on
+                                    a cleartext connection (kXR_TLSRequired) and
+                                    drops ztn from the cleartext login sec
+                                    token; on restores the historical accept-
+                                    anywhere behaviour for lab/test setups. */
     ngx_str_t   token_jwks;      /* [brix_token_jwks /etc/xrd/jwks.json] */
     ngx_str_t   token_issuer;    /* [brix_token_issuer https://cilogon.org] */
     ngx_str_t   token_audience;  /* [brix_token_audience https://storage.example.org] */

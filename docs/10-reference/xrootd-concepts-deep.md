@@ -406,8 +406,10 @@ list operations.
 
 `kXR_sigver` is a request signing protocol activated after a GSI session
 establishes a shared session key. Once signing is in effect, each write-path
-request must be preceded by a `kXR_sigver` request carrying an HMAC signature
-over the request header and key fields. Sequence numbers must strictly increase.
+request must be preceded by a `kXR_sigver` request carrying a signature — a
+SHA-256 hash of the covered bytes, encrypted with the negotiated session cipher
+(XrdSecProtect secver 0) — over the request header and key fields. Sequence
+numbers must strictly increase.
 
 The purpose is to prevent replay attacks on write operations when the transport
 is not encrypted. An attacker who can observe the wire cannot replay a signed

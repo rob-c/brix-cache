@@ -12,6 +12,20 @@
   each CI guard enforces and how the backlog ratchets work.
 - **API docs:** `tools/gen-docs.sh` builds the Doxygen tree locally; CI
   publishes it at `/apidocs/` on the gh-pages site on every `src/` push.
+- **gh-pages must stay one commit deep.** `.github/workflows/site.yml` publishes
+  with `force_orphan: true`. Each deploy is a full ~21k-file Doxygen tree whose
+  regenerated HTML/JS barely delta-compresses, so *keeping* that history cost
+  ~10 MB per deploy: 35 accumulated snapshots reached 343 MB and made up 80% of
+  a 427 MB clone. Truncating gh-pages to a single orphan commit took a fresh
+  clone to 90 MB. Never drop `force_orphan`, and never point a second workflow
+  at gh-pages. The branch is pure build output — its history has no value.
+- **Auditing clone size:** scope the scan to `refs/remotes/origin/*` +
+  `refs/tags/*`, *not* `git rev-list --all`. `--all` also walks local-only tool
+  refs — this repo carries `refs/codex/turn-diffs/checkpoints/…` holding stale
+  build artefacts (an `.rpm`, compiled `tests/fuzz/fuzz_*` harnesses, ~7 MB).
+  A clone fetches only `refs/heads/*` and `refs/tags/*`, so those never ship.
+  Scanning `--all` makes them look like history bloat and invites a pointless
+  `filter-repo` rewrite of `main`.
 
 ## Source layout
 

@@ -253,7 +253,6 @@ typedef struct {
     ngx_str_t   zone_name;       /* [brix_throttle_zone <rate-limit zone>] */
     void       *zone;            /* brix_rl_zone_t* resolved at postconfig */
     ngx_uint_t  max_open_files;  /* [brix_throttle_max_open_files] */
-    ngx_uint_t  max_active_conn; /* [brix_throttle_max_active_connections] */
     /* phase-92: XrdBwm-style bandwidth reservation (default off). A read open
      * reserves its file size against the named per-worker byte budget; over-budget
      * opens are refused with kXR_Overloaded. Engine: net/ratelimit/reservation.c. */

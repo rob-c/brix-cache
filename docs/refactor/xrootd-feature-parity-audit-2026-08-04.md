@@ -43,10 +43,16 @@ The genuinely missing feature bodies, ranked by size:
    whole-file mode + RAM tier (XrdRmc / `pfc.ram` / oss.memfile mmap/mlock).
 6. **Space groups + generic quota** (`oss.space` multi-partition, `oss.cgroup`
    selection, usage/quota ledgers outside pblock; wire reports `oss.quota=-1`).
-7. **`sec.protbind` per-host auth policy + true multi-protocol sectoken** (one auth
-   scheme per listener today; only ztn+gsi composes).
-8. **Per-capability TLS gating** (`xrootd.tls login/session/data/tpc` bits) — BriX has
-   a coarse 3-step `brix_min_sec_level` floor instead and never advertises kXR_tls*.
+7. ~~**`sec.protbind` per-host auth policy + true multi-protocol sectoken** (one auth
+   scheme per listener today; only ztn+gsi composes).~~
+   **LANDED 2026-08-05** as a generic VFS engine (`src/auth/protbind/`) shared by
+   both frontends: `brix_protbind` (stream) and `brix_webdav_protbind` (HTTP),
+   with arbitrary ordered multi-protocol sectoken emission
+   (`tests/c/protbind_test.c`, `tests/test_protbind_parse.py`).
+8. ~~**Per-capability TLS gating** (`xrootd.tls login/session/data/tpc` bits)~~
+   **LANDED 2026-08-05** as the generic VFS `brix_tls_require` mask (all four
+   planes) + kXR_tls* advertisement + `brix_ztn_cleartext` stock-parity default
+   (`src/fs/vfs/vfs_secgate.c`, `tests/test_tls_require.py`).
 9. **OssArc dataset→zip tape aggregation**; **frm_purged tape-buffer purge policy**
    (explicitly scoped out at FRM dissolution — revisit).
 10. **Client-side ecosystem holes**: tried=/triedrc= never emitted by BriX clients
@@ -71,7 +77,8 @@ Verified against `XProtocol.hh`, `XrdXrootdXeq*.cc`, `XrdXrootdConfig.cc`,
 **PRESENT (byte-faithful, spot list):** 20-byte hello + 12-byte legacy response; all
 33 opcodes dispatched with kXR_Unsupported fallback; login/auth multi-round; endsess
 (correct previous-session semantics); ping; set (incl. cms.space appid); sigver
-HMAC-SHA256 with seqno replay guard + pedantic payload-coverage rule; bind with
+secver-0 (session-cipher-encrypted SHA-256, stock XrdSecProtect) with seqno
+replay guard + pedantic payload-coverage rule; bind with
 capability-restricted secondaries; chmod/mkdir(+mkpath)/mv (incl. arg1len==0 quirk)/
 rm/rmdir/truncate (dual fhandle/path mode); dirlist chunked streaming + kXR_dstat +
 kXR_dcksm; stat ASCII body + kXR_vfs + vendor statNoFollow + handle-stat (invariant 7);
@@ -255,7 +262,7 @@ self-registration after fill.
 
 ## 5. Security (XrdSec* / XrdAcc / SciTokens / Macaroons / VOMS / TLS)
 
-**PRESENT:** full sigver verify path (HMAC-SHA256, seqno replay, constant-time,
+**PRESENT:** full sigver verify path (stock secver-0, seqno replay, constant-time,
 pedantic payload rule); 5 security levels; GSI byte-faithful (certreq/cert rounds,
 XrdSutBuffer framing, DH+session cipher, PoP, signed-DH v10400 both directions,
 foreign-CA issuer-hash fix + regression guard, CRL modes+reload+*.r0, proxy
@@ -282,9 +289,9 @@ handshake inflight caps.
 
 | # | Gap | Status | Notes |
 |---|-----|--------|-------|
-| 1 | **`sec.protbind`** per-host templates (none/only) + arbitrary ordered multi-protocol sectoken (one scheme/listener; only ztn+gsi composes via `both`) | MISSING/PARTIAL | host-template→auth table at `session/login.c` |
+| 1 | ~~**`sec.protbind`** per-host templates (none/only) + arbitrary ordered multi-protocol sectoken (one scheme/listener; only ztn+gsi composes via `both`)~~ **LANDED 2026-08-05**: generic engine in `src/auth/protbind/` (XrdOucNList-compatible templates, `none`/`only`/default modes, first-match-wins, per-connection reverse-DNS cache) driving `kXR_protocol` advertisement, the ordered `&P=` sectoken and the `kXR_auth` credtype gate — plus the HTTP/WebDAV frontend through the *same* parser and resolver. Naming a scheme in a rule now pulls its keys/certs into startup validation. | DONE | `auth/protbind/{match,policy,config,peer}.c`, `session/{protocol,login}.c`, `webdav/access_auth.c`; `tests/c/protbind_test.c`, `tests/test_protbind_parse.py` |
 | 2 | **Signing-level table conformance**: BriX compatible=nothing (stock: chmod/fattr/mv/rm/trunc…); standard signs writes (stock: intense); intense signs ~all (stock exempts reads until pedantic). Plus no `relaxed`/`force`/local-remote split; no kXR_signLikely heuristics; **sss sessions never signing-keyed** (signing_active=0 — tamperable) | DIVERGENT/PARTIAL | interop-relevant vs stock clients; `gsi_core.c`, `sigver.c:148` |
-| 3 | **Per-capability TLS** (`xrootd.tls login/session/data/tpc` + `-cap` exceptions + kXR_tls* advertisement) — coarse `brix_min_sec_level` floor instead; ztn accepted over cleartext unless opted in (stock refuses) | PARTIAL/DIVERGENT | `handshake/policy.c` |
+| 3 | ~~**Per-capability TLS** (`xrootd.tls login/session/data/tpc` + `-cap` exceptions + kXR_tls* advertisement) — coarse `brix_min_sec_level` floor instead; ztn accepted over cleartext unless opted in (stock refuses)~~ **LANDED 2026-08-05**: generic VFS `brix_tls_require` mask (stream pre-dispatch + native-TPC choke + WebDAV + S3), kXR_tlsLogin/Sess/Data/TPC advertised at `kXR_protocol`, ztn now refused over cleartext by default (`brix_ztn_cleartext` lab opt-in) | DONE | `fs/vfs/vfs_secgate.c`, `handshake/policy.c`, `tests/test_tls_require.py` |
 | 4 | VOMS: FQAN-pattern→user mapfile (XrdVomsMapfile); vomsfun certfmt/grpopt/vos/grps filters; global "AC required" independent of path rules | MISSING/PARTIAL | identity mapping by FQAN absent; authz by VO present |
 | 5 | SciTokens: rule-based name_mapfile (sub/path/group predicates — BriX flat JSON only); upstream-compatible `onmissing passthrough/allow/deny` for tokenless requests | PARTIAL | `subject_map.c`, `issuer_registry.h:43` |
 | 6 | sss v2 entity breadth: vorg/role/caps/**endorsements**/attr pairs/proxied creds not parsed; XrdSecsssID per-connection registry (multiplexing proxies); --getcreds | PARTIAL/MISSING | `sss_internal.h:15-24` |
@@ -322,7 +329,7 @@ Dig re-shaped to `/.well-known/dig/` with RESOLVE_BENEATH + principal allow-file
 
 | # | Gap | Status | Notes |
 |---|-----|--------|-------|
-| 1 | **HTTP redirect-to-dataserver dormant**: `xrdhttp_send_redirect`/Location+X-Xrootd-Redir-* fully implemented, **zero call sites**; no `http.secretkey` signed-CGI handoff | PARTIAL (unwired) | biggest HTTP-plane hole for redirector deployments |
+| 1 | **HTTP redirect-to-dataserver missing**: the dormant `xrdhttp_send_redirect`/Location+X-Xrootd-Redir-* scaffolding was **removed 2026-08-05** (phase-95 W1); no `http.secretkey` signed-CGI handoff | MISSING | biggest HTTP-plane hole for redirector deployments; needs a mesh-selection call site, not the old scaffolding (in git history if the header shape is wanted) |
 | 2 | **HTTP-TPC checksum verification**: no Repr-Digest HEAD cross-check, no RequireChecksumVerification (native TPC has verify; WebDAV COPY trusts transfer) | MISSING | |
 | 3 | **TPC push skips Layer-2 egress allowlist** (pull enforces) | KNOWN BUG (verified audit finding) | |
 | 4 | Want-Digest q-value/multi-algorithm negotiation (first token only) | PARTIAL | `xrdhttp_normalize_rfc3230_algo` |
@@ -393,14 +400,15 @@ submit phase (`ssi_dispatch.c:98-106`).
 (`is_write` early-return exempts writes; TPC unreserved). Collapsed semantics:
 binary grant/refuse (no queued state/Dispatch wake), release by bytes not handle, no
 Incoming/Outgoing flows, no SchedParms, no visa, no policy engine, no logger;
-`brix_resv_status` has zero callers; per-worker static (budget × workers — SHM
-upgrade flagged); "bandwidth" budget is actually a concurrent-bytes admission cap.
+`brix_resv_status` has no product caller (it is the unit test's observation point);
+per-worker static (budget × workers — SHM upgrade flagged); "bandwidth" budget is actually a concurrent-bytes admission cap.
 
 **XrdThrottle — PARTIAL, split picture.** Missing upstream's triple: throttle.data
 (rate pacing of in-flight streams), throttle.iops, loadshed, max_wait_time, fairness
 algorithm, delay-not-reject opens. `throttle_compat.c`: max_open_files PRESENT
-(per-DN, e2e tested); max_active_connections parsed-but-DEAD; IO-load concurrency +
-userconfig per-user INI implemented with ZERO call sites (dead engines). What runs
+(per-DN, e2e tested) and is now the ONLY engine in that file — phase-95 deleted
+max_active_connections (parsed-but-dead directive), the IO-load concurrency metric
+and the userconfig per-user INI, all of which had zero call sites. What runs
 instead (EXTRA, identity-richer but semantically different): SHM-shared
 `brix_rate_limit_zone/rule` (req/s), `brix_bandwidth_limit` (bytes/s leaky bucket on
 every root:// data path), `brix_concurrency_limit`, keyed by VO/issuer/IP/DN-hash/
@@ -422,8 +430,10 @@ Cache-fill paths are un-throttled. `source-verified-xrootd-comparison.md:265`
    (§2.2) + stage-aware selection (§2.5) still open.
 6. Cache prefetch (§4.1) + cold-file age purge (§4.2) + onlyifcached (§4.4).
 7. Space groups/cgroup/quota generalization (§3.1–3).
-8. sec.protbind + multi-protocol sectoken (§5.1); signing-table conformance (§5.2).
-9. Per-capability TLS gating + kXR_tls* advertisement (§5.3).
+8. ~~sec.protbind + multi-protocol sectoken (§5.1)~~ **LANDED 2026-08-05**
+   (`src/auth/protbind/`, both frontends); signing-table conformance (§5.2) still open.
+9. ~~Per-capability TLS gating + kXR_tls* advertisement (§5.3)~~ **LANDED
+   2026-08-05** (`brix_tls_require` + `brix_ztn_cleartext`).
 10. OssArc zip aggregation (§3.5); tape-buffer purge engine (§3.4).
 11. HTTP redirect-to-dataserver wiring (§6.1) + HTTP-TPC checksum verify (§6.2).
 12. Preload write/readdir/stdio (§7.8); xrootdfs fan-out + sss identity (§7.9);
@@ -437,10 +447,10 @@ Cache-fill paths are un-throttled. `source-verified-xrootd-comparison.md:265`
 
 ### 9.2 Verified bugs / dead code found during this audit
 - TPC push skips Layer-2 egress allowlist (pull enforces) — pre-existing verified finding.
-- `xrdhttp_send_redirect` implemented, zero call sites (dormant HTTP redirects).
+- ~~`xrdhttp_send_redirect` implemented, zero call sites (dormant HTTP redirects).~~ **REMOVED 2026-08-05** (phase-95 W1) — the function and its three redirect-only static helpers are gone from `xrdhttp_response.c`; a future implementation starts from a mesh-selection call site rather than from dormant scaffolding.
 - `--tpc delegate` hardcodes `tpc.dlgon=0` (silent downgrade), `client/lib/xfer/copy_remote.c:311-325`.
 - xrdfs multi-path stat/rm/cat silently act on last path only.
-- Throttle: `max_active_connections` parsed-never-enforced; IO-load + userconfig engines have zero call sites; `brix_resv_status` no callers (no query/metrics surface).
+- ~~Throttle: `max_active_connections` parsed-never-enforced; IO-load + userconfig engines have zero call sites~~ **REMOVED 2026-08-05** (phase-95 W2, deletion variant) — the `brix_throttle_max_active_connections` directive, the `brix_throttle_userconfig_*` INI matcher, the `brix_throttle_charge_io`/`ioload_over` load metric and the `io_time_us`/`io_window` SHM node fields are all gone. `max_open_files` is the one throttle engine with an admission point and it stays. `brix_resv_status` KEPT deliberately: it has no product caller but it is the observation point for `tests/c/test_reservation.c`, which covers the live `brix_resv_schedule`/`done` engine — deleting it would trade dead code for lost coverage.
 - Preload `fill_stat()` duplicates and under-fills vs `posix_map.c:17` helper (no st_ino/blksize/blocks).
 - sss/ztn/krb5 sessions never signing-keyed (`sigver.c:148` signing_active=0) — request-tamper protection silently absent off-GSI.
 - `xrootdfs_usage.c:47-48` claims utimens/chown/symlink unsupported — they are implemented.

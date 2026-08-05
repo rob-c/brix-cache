@@ -129,6 +129,50 @@ brix_auth gsi;
 
 ---
 
+### `brix_protbind <host-template> [none | [only] <protocol>...]`
+
+**Default:** none (every peer gets the `brix_auth` set)
+**Context:** `stream { server { … } }`
+
+Per-host authentication policy — the BriX equivalent of XRootD's
+`sec.protbind`. Each occurrence appends one rule; at connection time the
+**first** rule whose template matches the peer wins, so specific templates must
+come before the `*` catch-all. Protocol names are `gsi`, `ztn` (alias `token`),
+`sss`, `unix`, `krb5`, `host` and `pwd`.
+
+- `<protocol>...` — offer these protocols first, then the remaining protocols of
+  the `brix_auth` base set
+- `only <protocol>...` — offer exactly these and nothing else
+- `none` — this peer authenticates anonymously
+
+Host templates follow XRootD's `XrdOucNList` rules: at most one `*`, matched
+case-insensitively against the peer's reverse-DNS name, falling back to its IP
+literal. Reverse DNS is only performed when at least one rule has a non-`*`
+template, and the result is cached for the life of the connection.
+
+The resolved set drives all three stages consistently: the `kXR_protocol`
+capability reply, the `&P=…` blocks of the `kXR_login` security token (emitted
+in the rule's order — an arbitrary ordered multi-protocol token, not just the
+`both` composition), and the `kXR_auth` credential-type gate, which re-checks
+membership because a client may offer any credtype regardless of what was
+advertised.
+
+Naming a protocol in a rule pulls the listener into that protocol's startup
+configuration, so its prerequisites (`brix_certificate`, `brix_token_jwks`,
+`brix_sss_keytab`, …) are validated at config time rather than failing the
+first handshake.
+
+```nginx
+brix_protbind mon.example.org none;          # monitoring probes: anonymous
+brix_protbind *.farm.local only unix;        # on-site: unix only
+brix_protbind * gsi ztn;                     # everyone else: GSI, then tokens
+```
+
+See [`brix_webdav_protbind`](#brix_webdav_protbind-host-template-none--only-protocol)
+for the HTTP/WebDAV face of the same policy.
+
+---
+
 ### `brix_tls on|off`
 
 **Default:** `off`
@@ -155,6 +199,55 @@ server {
     brix_trusted_ca      /etc/grid-security/certificates/ca.pem;
     brix_tls on;
 }
+```
+
+---
+
+### `brix_tls_require none|[all|login|session|data|tpc|-<cap>]...`
+
+**Default:** `none`
+
+Per-capability TLS gating (the stock `xrootd.tls` policy). Each named
+capability must arrive over a TLS-encrypted connection; a cleartext request
+that exercises a required capability is refused with `kXR_TLSRequired`
+(`root://`) or `403` (WebDAV / S3):
+
+- `login` — `kXR_login` / `kXR_auth` themselves
+- `session` — every post-login operation (locks the whole session, like stock)
+- `data` — data-plane transfers (read/readv/pgread/write/writev/pgwrite;
+  HTTP GET/PUT bodies)
+- `tpc` — third-party-copy opens (native `tpc.*` opens and WebDAV `COPY`)
+- `all` — all four; `-<cap>` subtracts one (e.g. `all -tpc`); `none` (alone)
+  disables gating
+
+Tokens fold left-to-right. The enforced mask is advertised to `root://`
+clients as `kXR_tlsLogin`/`kXR_tlsSess`/`kXR_tlsData`/`kXR_tlsTPC` bits in
+the `kXR_protocol` reply, so conformant clients upgrade pre-emptively instead
+of eating a refusal. Available on the stream server and every HTTP plane
+(WebDAV, S3). Finer-grained than the `brix_min_sec_level` session floor: a
+`data`-only mask leaves cleartext metadata (stat/dirlist) untouched.
+
+```nginx
+brix_tls_require session data;   # cleartext may login; nothing else
+```
+
+---
+
+### `brix_ztn_cleartext on|off`
+
+**Default:** `off`
+
+Stock XRootD refuses `ztn` (bearer-token) authentication over a cleartext
+connection: a bearer token is replayable by any on-path observer. BriX
+matches that default — a cleartext `kXR_login` on a token listener drops the
+`ztn` offer (refusing the login outright when no other protocol remains), and
+a cleartext `kXR_auth` with a `ztn` credential is refused with
+`kXR_TLSRequired`. `brix_ztn_cleartext on` opts a listener back into
+cleartext ztn for lab and test rigs that drive the raw wire without TLS.
+Never enable it on a production listener.
+
+```nginx
+brix_ztn_cleartext on;   # lab only: raw cleartext ztn drivers
 ```
 
 ---

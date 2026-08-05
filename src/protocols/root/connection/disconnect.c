@@ -92,9 +92,9 @@ brix_release_disconnect_owned_buffers(brix_ctx_t *ctx)
     brix_stream_wmirror_cleanup(ctx);
 }
 
-/* Free OpenSSL crypto objects from authentication: the GSI DH key (EVP_PKEY) and
- * the sigver MAC context (EVP_MAC_CTX/EVP_MAC). These persist through a normal
- * session and are released only on disconnect. */
+/* Free OpenSSL crypto objects from authentication: the GSI DH key (EVP_PKEY)
+ * and the sigver copy of the session signing key. These persist through a
+ * normal session and are released only on disconnect. */
 
 static void
 brix_release_disconnect_crypto_state(brix_ctx_t *ctx)
@@ -107,15 +107,11 @@ brix_release_disconnect_crypto_state(brix_ctx_t *ctx)
     /* §F6: release any captured X.509 delegation state + cleanse the session key. */
     brix_gsi_delegation_cleanup(ctx);
 
-    if (ctx->sigver.mac_ctx != NULL) {
-        EVP_MAC_CTX_free(ctx->sigver.mac_ctx);
-        ctx->sigver.mac_ctx = NULL;
-    }
-
-    if (ctx->sigver.mac != NULL) {
-        EVP_MAC_free(ctx->sigver.mac);
-        ctx->sigver.mac = NULL;
-    }
+    /* The sigver-owned session-key copy (armed by gsi_arm_request_signing)
+     * outlives the §F6 cleanse above by design — scrub it here. */
+    OPENSSL_cleanse(ctx->sigver.sig_key, sizeof(ctx->sigver.sig_key));
+    ctx->sigver.sig_keylen = 0;
+    ctx->sigver.signing_active = 0;
 }
 
 /*

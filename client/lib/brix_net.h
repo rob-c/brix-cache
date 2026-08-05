@@ -112,12 +112,12 @@ typedef struct {
     /* --- auth / signing (M4) --- */
     void    *ssl_ctx;            /* SSL_CTX* (owned); freed on close */
     int      sec_level;          /* server's signing security level (0 = none) */
-    int      signing_active;     /* GSI established a signing key */
+    int      sec_odata;          /* server secopt kXR_secOData: sign write payloads */
+    int      signing_active;     /* GSI session cipher armed AND sec_level >= 2 */
     uint64_t sig_seqno;          /* monotonic kXR_sigver sequence number */
-    uint8_t  signing_key[32];    /* SHA256(DH shared secret) */
 
-    /* --- GSI X.509 delegation (client → server), captured in gsi round-2 so the
-     * follow-up kXGS_pxyreq round can reuse the agreed session cipher --- */
+    /* --- GSI session cipher, captured in gsi round-2: reused by a follow-up
+     * kXGS_pxyreq delegation round AND by kXR_sigver request signing --- */
     int      gsi_deleg_ready;    /* 1 = session cipher below is valid */
     uint8_t  gsi_deleg_key[64];  /* agreed AES session key */
     size_t   gsi_deleg_keylen;

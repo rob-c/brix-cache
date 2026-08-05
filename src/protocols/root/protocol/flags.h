@@ -143,6 +143,18 @@
                                           before any further requests */
 #define kXR_tlsLogin      0x04000000u  /* the kXR_login exchange specifically
                                           requires TLS protection */
+#define kXR_tlsData       0x01000000u  /* data-bearing requests require TLS */
+#define kXR_tlsGPF        0x02000000u  /* get/put-file requests require TLS
+                                          (advertised for spec completeness;
+                                          gpf itself is not implemented) */
+#define kXR_tlsSess       0x08000000u  /* whole post-login session requires
+                                          TLS */
+#define kXR_tlsTPC        0x10000000u  /* third-party-copy requests require
+                                          TLS */
+#define kXR_tlsGPFA       0x20000000u  /* anonymous get/put-file requires TLS
+                                          (spec completeness, never set) */
+#define kXR_tlsAny        0x1f000000u  /* mask of all per-capability TLS
+                                          requirement bits */
 
 /* ------------------------------------------------------------------ */
 /* Protocol security requirement options                               */
@@ -270,15 +282,16 @@
 /* kXR_sigver — request signing (HMAC-SHA256)                          */
 /* ------------------------------------------------------------------ */
 /*
- * Each signed request is preceded by a kXR_sigver frame carrying an HMAC
- * over the next request's header (and optionally its payload).
- * The HMAC key is SHA-256(DH-shared-secret) negotiated during GSI auth.
+ * Each signed request is preceded by a kXR_sigver frame carrying the stock
+ * XrdSecProtect secver-0 signature: SHA-256 over seqno || the next request's
+ * header (and optionally its payload), encrypted with the GSI session cipher
+ * (keyed by the first key_len bytes of the DH shared secret).
  */
-#define kXR_SHA256_sig    0x01  /* HMAC algorithm is HMAC-SHA256 */
+#define kXR_SHA256_sig    0x01  /* signature hash is SHA-256 */
 #define kXR_HashMask_sig  0x0f  /* mask to extract the hash algorithm ID */
 #define kXR_rsaKey_sig    0x80  /* signing key is RSA-based (not DH-derived) */
-#define kXR_nodata_sig    0x01  /* payload bytes were NOT included in the HMAC
-                                   (only the 24-byte request header was signed) */
+#define kXR_nodata_sig    0x01  /* payload bytes were NOT included in the hash
+                                   (only seqno + the 24-byte header was signed) */
 
 /* ------------------------------------------------------------------ */
 /* kXR_set — modifier byte values                                      */

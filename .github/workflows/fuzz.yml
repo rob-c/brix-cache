@@ -45,6 +45,17 @@ jobs:
           # Longer soak on the nightly cron; fast smoke on PR/push.
           FUZZ_TIME: ${{ github.event_name == 'schedule' && '600' || '60' }}
         run: python3 -m cmdscripts.fuzz_all
+      # A crash is only actionable if the input that caused it survives the run.
+      # cmdscripts.fuzz_all points libFuzzer's -artifact_prefix here; without
+      # this step the reproducer dies with the runner and triage is left with a
+      # truncated log (that is what happened to fuzz_b64url on 2026-08-05).
+      - name: Upload crash reproducers
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fuzz-reproducers
+          path: tests/fuzz/artifacts/
+          if-no-files-found: ignore
 
   # Nightly (and manual) corpus write-back — the git-write half of B-3.
   # NEVER runs on pull_request: an untrusted PR must not be able to push. It

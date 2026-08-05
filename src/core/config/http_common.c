@@ -8,6 +8,7 @@
 #include "fs/backend/sd.h"                 /* BRIX_CRED_* (phase-70 §4) */
 #include "auth/s3/sts.h"                   /* BRIX_STS_FLAVOR_* (phase-70 §5.5) */
 #include "core/config/config.h"            /* brix_conf_set_backend_sss_keytab */
+#include "fs/vfs/vfs_secgate.h"            /* brix_conf_set_tls_require */
 
 #include <stdio.h>
 #include <openssl/pem.h>
@@ -291,6 +292,15 @@ static ngx_command_t  brix_http_common_commands[] = {
       offsetof(ngx_http_brix_common_conf_t, common.strict_security),
       NULL },
 
+    /* Per-capability TLS gating (stock xrootd.tls parity): ops exercising a
+     * listed capability are refused with 403 on cleartext transports. */
+    { ngx_string("brix_tls_require"),
+      BRIX_HTTP_ALL_CONF|NGX_CONF_1MORE,
+      brix_conf_set_tls_require,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_brix_common_conf_t, common.tls_require),
+      NULL },
+
     { ngx_string("brix_access_log"),
       BRIX_HTTP_ALL_CONF|NGX_CONF_TAKE1,
       ngx_conf_set_str_slot,
@@ -440,6 +450,7 @@ brix_shared_adopt_unified(ngx_http_brix_shared_conf_t *dst,
     BRIX_ADOPT_VAL(read_only,         NGX_CONF_UNSET);
     BRIX_ADOPT_VAL(compress,          NGX_CONF_UNSET);
     BRIX_ADOPT_VAL(strict_security,   NGX_CONF_UNSET);
+    BRIX_ADOPT_VAL(tls_require,       NGX_CONF_UNSET_UINT);
     BRIX_ADOPT_VAL(session_log,       NGX_CONF_UNSET);
     BRIX_ADOPT_VAL(stage_enable,      NGX_CONF_UNSET);
     BRIX_ADOPT_VAL(stage_flush_async, NGX_CONF_UNSET_UINT);

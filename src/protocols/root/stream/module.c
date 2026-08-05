@@ -32,6 +32,7 @@
 #include "fs/backend/sd.h"  /* BRIX_CRED_* (phase-70 §4) */
 #include "auth/s3/sts.h"    /* BRIX_STS_FLAVOR_* (phase-70 §5.5) */
 #include "core/config/tier_directives.h"   /* shared tier-grammar X-macro */
+#include "fs/vfs/vfs_secgate.h"            /* brix_conf_set_tls_require */
 
 #include <stdio.h>
 #include <openssl/pem.h>

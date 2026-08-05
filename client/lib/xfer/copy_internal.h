@@ -146,8 +146,38 @@ int download_stream_body(const download_body_ctx *j, pump_sink_fn sink, void *si
 /* copy.c */
 int resilient_setup(brix_conn *c, const brix_url *su, const brix_opts *co, brix_statinfo *si, int max_stall_ms, brix_status *st);
 
+/*
+ * WHAT: The invariant inputs of one local download — the (caller-owned) control
+ *       connection, the source/destination URLs, the source stat info, the
+ *       options, and the bound-streams set.
+ * WHY:  copy_download runs the transfer down two branches (stdout / local file)
+ *       that both thread the same six inputs into their body + cksum helpers.
+ *       Bundling them into one shared struct keeps every download helper
+ *       under the 5-parameter gate and makes the branch bodies a flat sequence.
+ * HOW:  Populated once by copy_download after resilient_setup; passed by const
+ *       pointer to download_to_stdout / download_to_local_file, which read
+ *       su/du/si/o and pass c/ss through to download_stream_body.
+ */
+typedef struct {
+    brix_conn            *c;
+    const brix_url       *su;
+    const brix_url       *du;
+    const brix_statinfo  *si;
+    const brix_copy_opts *o;
+    brix_streamset       *ss;
+} download_job_t;
+
+
 /* copy_local.c */
 int copy_download(const brix_url *su, const brix_url *du, const brix_copy_opts *o, const brix_opts *co, brix_status *st);
+/* Shared with copy_local_parallel.c: fold the checksum verdict into the transfer
+ * rc after a good download (local_path NULL ≡ stdout). */
+int download_reconcile_cksum(const download_job_t *job, const char *local_path, brix_status *st);
+
+/* copy_local_parallel.c — the phase-94 concurrent striped download. Returns 1
+ * when it handled the transfer (verdict in *out_rc), 0 when not eligible and the
+ * caller should run the serial pump. */
+int copy_download_parallel(const download_job_t *job, int *out_rc, brix_status *st);
 
 /*
  * WHAT: The invariant inputs of one resilient upload-body stream — the source

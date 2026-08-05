@@ -446,6 +446,7 @@ ngx_brix_stream_deps="$ngx_addon_dir/src/core/ngx_brix_module.h \
                         $ngx_addon_dir/src/core/types/identity.h \
                         $ngx_addon_dir/src/fs/vfs/vfs.h \
                         $ngx_addon_dir/src/fs/vfs/vfs_internal.h \
+                        $ngx_addon_dir/src/fs/vfs/vfs_secgate.h \
                         $ngx_addon_dir/src/fs/xfer/xfer.h \
                         $ngx_addon_dir/src/fs/xfer/stage_engine.h \
                         $ngx_addon_dir/src/fs/xfer/backend_async_queue.h \
@@ -795,6 +796,7 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/fs/vfs/vfs_backend_config_ceph.c \
     $ngx_addon_dir/src/fs/vfs/vfs_backend_config_http.c \
     $ngx_addon_dir/src/fs/vfs/vfs_backend_config_s3.c \
+    $ngx_addon_dir/src/fs/vfs/vfs_secgate.c \
     $ngx_addon_dir/src/fs/vfs/vfs_io_core.c \
     $ngx_addon_dir/src/fs/vfs/vfs_io_core_dirlist.c \
     $ngx_addon_dir/src/fs/vfs/vfs_read.c \
@@ -899,10 +901,12 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/fs/backend/http/sd_http_select.c \
     $ngx_addon_dir/src/fs/backend/http/sd_http_read.c \
     $ngx_addon_dir/src/fs/backend/http/sd_http_write.c \
+    $ngx_addon_dir/src/fs/backend/http/sd_http_mutate.c \
     $ngx_addon_dir/src/fs/backend/http/sd_http_dir.c \
     $ngx_addon_dir/src/fs/backend/http/sd_http_introspect.c \
     $ngx_addon_dir/src/fs/backend/stage/sd_stage.c \
     $ngx_addon_dir/src/fs/backend/stage/sd_stage_write.c \
+    $ngx_addon_dir/src/fs/backend/stage/sd_stage_wb.c \
     $ngx_addon_dir/src/fs/backend/cache/sd_cache.c \
     $ngx_addon_dir/src/fs/backend/cache/sd_cache_maint.c \
     $ngx_addon_dir/src/fs/backend/cache/sd_cache_fill.c \
@@ -1247,6 +1251,10 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/auth/s3/sts_sign.c \
     $ngx_addon_dir/src/auth/s3/sts_http.c \
     $ngx_addon_dir/src/auth/host/auth.c \
+    $ngx_addon_dir/src/auth/protbind/match.c \
+    $ngx_addon_dir/src/auth/protbind/policy.c \
+    $ngx_addon_dir/src/auth/protbind/config.c \
+    $ngx_addon_dir/src/auth/protbind/peer.c \
     $ngx_addon_dir/src/auth/pwd/auth.c \
     $ngx_addon_dir/src/auth/pwd/pwdfile.c \
     $ngx_addon_dir/src/auth/sss/auth_crypto_helpers.c \

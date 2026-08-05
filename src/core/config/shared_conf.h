@@ -47,6 +47,7 @@ ngx_http_brix_shared_init(ngx_http_brix_shared_conf_t *conf)
     conf->read_only          = NGX_CONF_UNSET;
     conf->compress           = NGX_CONF_UNSET;
     conf->strict_security    = NGX_CONF_UNSET;
+    conf->tls_require        = NGX_CONF_UNSET_UINT;
     conf->access_log.len     = 0;
     conf->access_log.data    = NULL;
     conf->access_log_file    = NULL;
@@ -355,6 +356,7 @@ ngx_http_brix_shared_merge(ngx_conf_t *cf,
     ngx_conf_merge_value(conf->read_only, prev->read_only, 0);
     ngx_conf_merge_value(conf->compress, prev->compress, 0);
     ngx_conf_merge_value(conf->strict_security, prev->strict_security, 0);
+    ngx_conf_merge_uint_value(conf->tls_require, prev->tls_require, 0);
     ngx_conf_merge_str_value(conf->access_log, prev->access_log, "");
     if (conf->access_log.len > 0
         && ngx_strcmp(conf->access_log.data, (u_char *) "off") != 0)

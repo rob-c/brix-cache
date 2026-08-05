@@ -137,35 +137,33 @@ gsi_chain_from_plaintext(const u_char *plain, int plain_len, ngx_log_t *log)
 }
 
 /*
- * gsi_store_signing_key — WHAT: derive signing_key = SHA-256(secret) and, on
- * success, install it into ctx->sigver and set signing_active. WHY: both the
- * unsigned and signed-DH kXGC_cert paths derive the kXR_sigver HMAC key the
- * SAME way (SHA-256 over the raw DH shared secret) — this is the single point of
- * truth so the two paths stay byte-identical. HOW: pure digest over `secret`;
- * only mutates ctx when all three EVP digest steps succeed (fail-quiet, matching
- * prior behaviour where a digest failure simply left signing inactive). Returns
- * 1 if signing was activated, 0 otherwise (caller may log on the 1 branch).
+ * gsi_arm_request_signing — WHAT: arm kXR_sigver verification by copying the
+ * just-persisted session cipher (ctx->gsi.sess_*) into the sigver-owned fields
+ * and setting signing_active. WHY: the signature scheme is stock XrdSecProtect
+ * secver 0 — the covered-bytes SHA-256 encrypted with the SESSION cipher — and
+ * the verifier must outlive a §F6 delegation round, which cleanses
+ * ctx->gsi.sess_key; sigver therefore keeps its own copy. HOW: validates that a
+ * cipher was persisted and resolves in the allowlist with a key long enough;
+ * only then copies name + key + IV flag and activates. Call immediately after
+ * gsi_persist_session_cipher (both round-2 paths). Returns 1 if armed, 0 not.
  */
 int
-gsi_store_signing_key(brix_ctx_t *ctx, const unsigned char *secret,
-                      size_t secret_len)
+gsi_arm_request_signing(brix_ctx_t *ctx)
 {
-    EVP_MD_CTX   *mdctx = EVP_MD_CTX_new();
-    unsigned int  dlen = 32;
-    u_char        digest[32];
-    int           ok = 0;
+    brix_gsi_cipher_t cipher;
 
-    if (mdctx
-        && EVP_DigestInit_ex(mdctx, EVP_sha256(), NULL) == 1
-        && EVP_DigestUpdate(mdctx, secret, secret_len) == 1
-        && EVP_DigestFinal_ex(mdctx, digest, &dlen) == 1)
+    if (ctx->gsi.sess_keylen <= 0
+        || !brix_gsi_cipher_lookup(ctx->gsi.sess_cipher, &cipher)
+        || ctx->gsi.sess_keylen < cipher.key_len)
     {
-        ngx_memcpy(ctx->sigver.signing_key, digest, 32);
-        ctx->sigver.signing_active = 1;
-        ok = 1;
+        return 0;
     }
-    if (mdctx) {
-        brix_evp_md_ctx_free(mdctx);
-    }
-    return ok;
+    ngx_memcpy(ctx->sigver.sig_cipher, ctx->gsi.sess_cipher,
+               sizeof(ctx->sigver.sig_cipher));
+    ngx_memcpy(ctx->sigver.sig_key, ctx->gsi.sess_key,
+               (size_t) ctx->gsi.sess_keylen);
+    ctx->sigver.sig_keylen = ctx->gsi.sess_keylen;
+    ctx->sigver.sig_use_iv = ctx->gsi.sess_use_iv;
+    ctx->sigver.signing_active = 1;
+    return 1;
 }

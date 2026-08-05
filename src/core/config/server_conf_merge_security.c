@@ -42,6 +42,14 @@ brix_merge_srv_gsi_acc(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *conf,
     ngx_stream_brix_srv_conf_t *prev)
 {
     ngx_conf_merge_uint_value(conf->auth,   prev->auth,        BRIX_AUTH_NONE);
+
+    /* protbind rules are inherited whole: a server block that states none of
+     * its own keeps the outer block's host policy, but the moment it states one
+     * it owns the ordering, and silently prepending the parent's rules would
+     * change which template matches first. */
+    if (conf->protbind == NULL) {
+        conf->protbind = prev->protbind;
+    }
     ngx_conf_merge_uint_value(conf->gsi_signed_dh, prev->gsi_signed_dh,
                               BRIX_GSI_SDH_OFF);
     ngx_conf_merge_value(conf->gsi_max_inflight, prev->gsi_max_inflight, 256);
@@ -155,8 +163,6 @@ brix_merge_srv_tokens(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *conf,
     ngx_conf_merge_ptr_value(conf->throttle.zone, prev->throttle.zone, NULL);
     ngx_conf_merge_uint_value(conf->throttle.max_open_files,
                               prev->throttle.max_open_files, 0);
-    ngx_conf_merge_uint_value(conf->throttle.max_active_conn,
-                              prev->throttle.max_active_conn, 0);
     ngx_conf_merge_str_value(conf->throttle.bwm_zone_name,
                              prev->throttle.bwm_zone_name, "");
     ngx_conf_merge_size_value(conf->throttle.bwm_budget,
@@ -237,6 +243,7 @@ brix_merge_srv_authtail(ngx_stream_brix_srv_conf_t *conf,
     ngx_conf_merge_ptr_value(conf->host_allow,      prev->host_allow,      NULL);
     ngx_conf_merge_uint_value(conf->security_level, prev->security_level, 0);
     ngx_conf_merge_uint_value(conf->min_sec_level, prev->min_sec_level, 0);
+    ngx_conf_merge_value(conf->ztn_cleartext, prev->ztn_cleartext, 0);
     ngx_conf_merge_value(conf->opaque_strict, prev->opaque_strict, 0);
     ngx_conf_merge_value(conf->tls,             prev->tls,             0);
     /* kTLS default OFF (phase-33 P5): software kTLS regresses vs OpenSSL's

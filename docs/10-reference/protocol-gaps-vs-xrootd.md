@@ -40,7 +40,7 @@ All 32 active opcodes in the protocol 5.2 table are implemented. The legacy `kXR
 | `kXR_pgwrite` (3026) | ✅ | Per-page CRC32c |
 | `kXR_locate` (3027) | ✅ | Wildcard, redirect, local |
 | `kXR_truncate` (3028) | ✅ | |
-| `kXR_sigver` (3029) | ✅ | HMAC-SHA256 |
+| `kXR_sigver` (3029) | ✅ | secver-0 (session-cipher-encrypted SHA-256) |
 | `kXR_pgread` (3030) | ✅ | Per-page CRC32c |
 | `kXR_writev` (3031) | ✅ | |
 | `kXR_clone` (3032) | ✅ | Server-side range copy |
@@ -107,7 +107,7 @@ All 32 active opcodes in the protocol 5.2 table are implemented. The legacy `kXR
 | TLS for full session | `kXR_tlsSess` | ⚠️ | Follows login TLS |
 | TLS for TPC | `kXR_tlsTPC` | ✅ | |
 | GPF TLS | `kXR_tlsGPF`/`kXR_tlsGPFA` | ❌ | Grouped parallel fetch over TLS |
-| Request signing | `kXR_sigver` | ✅ | HMAC-SHA256 envelope |
+| Request signing | `kXR_sigver` | ✅ | secver-0 envelope (stock XrdSecProtect) |
 | Security levels | none/compatible/standard/intense/pedantic | ✅ | All five implemented |
 
 ---

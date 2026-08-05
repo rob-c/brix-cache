@@ -114,6 +114,7 @@ src/fs/             storage plane (VFS = sole storage truth): vfs/ core/ backend
                     xfer/ path/ cache/ scan/
 src/auth/           identity + authz: gsi/ token/ sss/ krb5/ pwd/ unix/ host/ voms/
                     crypto/ authz/ (acl + acc engine) impersonate/
+                    protbind/ (per-host protocol binding — frontend-agnostic)
 src/net/            clustering/proxying/shadowing: cms/ manager/ upstream/ proxy/
                     ratelimit/ tap/ mirror/ guard/ httpguard/
 src/observability/  metrics/ pmark/ dashboard/ accesslog/
@@ -140,6 +141,7 @@ Full mapping: [phase-66-map.tsv](../refactor/phase-66-map.tsv).
 |---|---|
 | handshake / dispatch | `handshake/dispatch.c`, `dispatch_session.c` |
 | auth (GSI/token/SSS) | `session/login.c`, `src/auth/gsi/parse_x509.c`, `src/auth/token/validate.c`, `src/auth/sss/` |
+| which auth protocols a peer may use (`sec.protbind`) | `src/auth/protbind/` — `match.c` (templates), `policy.c` (resolve), `config.c` (grammar, both frontends), `peer.c` (per-conn rDNS cache); consumers: `session/protocol.c`, `session/login.c`, `src/protocols/webdav/access_auth.c` |
 | protocol lifecycle | `session/protocol.c`, `lifecycle.c` |
 | bind / session | `session/bind.c`, `registry.c` |
 | acl / policy / voms | `handshake/policy.c`, `src/auth/authz/acl.c`, `authdb.c`, `src/auth/voms/` |

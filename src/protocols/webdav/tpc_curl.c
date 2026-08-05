@@ -207,7 +207,7 @@ tpc_core_open_local(webdav_tpc_curl_ctx_t *ctx)
  */
 static ngx_int_t
 tpc_core_setup(webdav_tpc_curl_ctx_t *ctx, char *errbuf
-#ifdef CURLOPT_XFERINFOFUNCTION
+#if CURL_AT_LEAST_VERSION(7, 32, 0)
                , webdav_tpc_curl_progress_t *progress
 #endif
                )
@@ -225,7 +225,7 @@ tpc_core_setup(webdav_tpc_curl_ctx_t *ctx, char *errbuf
     curl_easy_setopt(ctx->curl, CURLOPT_NOSIGNAL, 1L);
     curl_easy_setopt(ctx->curl, CURLOPT_FAILONERROR, 1L);
 
-#ifdef CURLOPT_XFERINFOFUNCTION
+#if CURL_AT_LEAST_VERSION(7, 32, 0)
     if (ctx->transfer_id != 0) {
         ngx_memzero(progress, sizeof(*progress));
         progress->transfer_id = ctx->transfer_id;
@@ -239,7 +239,7 @@ tpc_core_setup(webdav_tpc_curl_ctx_t *ctx, char *errbuf
 #endif
 
     /* Restrict to HTTPS only — equivalent to curl --proto =https */
-#ifdef CURLOPT_PROTOCOLS_STR
+#if CURL_AT_LEAST_VERSION(7, 85, 0)
     curl_easy_setopt(ctx->curl, CURLOPT_PROTOCOLS_STR, "https");
 #else
     curl_easy_setopt(ctx->curl, CURLOPT_PROTOCOLS, (long) CURLPROTO_HTTPS);
@@ -332,7 +332,7 @@ webdav_tpc_run_curl_core(ngx_log_t *log,
     webdav_tpc_curl_ctx_t ctx;
     char                  errbuf[CURL_ERROR_SIZE];
     ngx_int_t             rc;
-#ifdef CURLOPT_XFERINFOFUNCTION
+#if CURL_AT_LEAST_VERSION(7, 32, 0)
     webdav_tpc_curl_progress_t progress;
 #endif
 #ifdef WEBDAV_TPC_PMARK_SOCKCB
@@ -354,7 +354,7 @@ webdav_tpc_run_curl_core(ngx_log_t *log,
     BRIX_WEBDAV_METRIC_INC(tpc_total[BRIX_WEBDAV_TPC_CURL_STARTED]);
 
     rc = tpc_core_setup(&ctx, errbuf
-#ifdef CURLOPT_XFERINFOFUNCTION
+#if CURL_AT_LEAST_VERSION(7, 32, 0)
                         , &progress
 #endif
                         );

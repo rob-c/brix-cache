@@ -1,6 +1,7 @@
 #include "open_internal.h"
 #include "protocols/root/path/op_path.h"
 #include "net/manager/registry.h"
+#include "fs/vfs/vfs_secgate.h"   /* brix_tls_require tpc capability gate */
 
 #include <string.h>
 
@@ -183,6 +184,22 @@ tpc_handle_source(brix_ctx_t *ctx, ngx_connection_t *c,
 	return NGX_DECLINED;
 }
 
+/* Role predicates over the parsed tpc.* opaque keys: a WRITE open naming a
+ * source host is the destination leg; a READ open carrying any of key/dst/org
+ * is the source leg (registration or consume — tpc_handle_source splits them).
+ * A non-TPC open matches neither and falls through to the normal open path. */
+static int
+tpc_open_is_dest(int is_write, const brix_tpc_params_t *tpc)
+{
+	return is_write && tpc->has_src && tpc->src_host[0] != '\0';
+}
+
+static int
+tpc_open_is_source(int is_write, const brix_tpc_params_t *tpc)
+{
+	return !is_write && (tpc->has_key || tpc->has_dst || tpc->has_org);
+}
+
 ngx_int_t
 brix_open_handle_tpc(brix_ctx_t *ctx, ngx_connection_t *c,
     ngx_stream_brix_srv_conf_t *conf, int is_write, uint16_t options,
@@ -190,6 +207,7 @@ brix_open_handle_tpc(brix_ctx_t *ctx, ngx_connection_t *c,
 {
 	char                 opaque[BRIX_MAX_PATH + 1];
 	brix_tpc_params_t  tpc;
+	int                  is_dest, is_source;
 
 	if (!(ctx->recv.payload != NULL && ctx->recv.cur_dlen > 0
 	      && open_extract_opaque(ctx->recv.payload, ctx->recv.cur_dlen,
@@ -199,11 +217,28 @@ brix_open_handle_tpc(brix_ctx_t *ctx, ngx_connection_t *c,
 		return NGX_DECLINED;
 	}
 
-	if (is_write && tpc.has_src && tpc.src_host[0] != '\0') {
+	is_dest   = tpc_open_is_dest(is_write, &tpc);
+	is_source = tpc_open_is_source(is_write, &tpc);
+
+	/* Per-capability TLS gate (brix_tls_require tpc): a TPC-role open —
+	 * either role, either leg — on a cleartext connection is refused at
+	 * this single choke point, where the tpc.* opaque keys are parsed. */
+	if ((is_dest || is_source)
+	    && brix_tls_gate_refused(conf->common.tls_require, BRIX_TLSREQ_TPC,
+	                             c->ssl != NULL
+	                             && c->ssl->connection != NULL))
+	{
+		BRIX_RETURN_ERR(ctx, c,
+		                  is_write ? BRIX_OP_OPEN_WR : BRIX_OP_OPEN_RD,
+		                  "OPEN", "-", "tpc", kXR_TLSRequired,
+		                  "server security policy requires TLS for TPC");
+	}
+
+	if (is_dest) {
 		return tpc_handle_dest(ctx, c, conf, &tpc, options, mode_bits);
 	}
 
-	if (!is_write && (tpc.has_key || tpc.has_dst || tpc.has_org)) {
+	if (is_source) {
 		return tpc_handle_source(ctx, c, conf, &tpc);
 	}
 

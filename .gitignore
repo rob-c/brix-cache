@@ -158,6 +158,10 @@ opencode.json
 *.gcda
 /coverage/
 
+# crash/leak/timeout reproducers dropped by a failing fuzz run (CI uploads them
+# as a build artifact; locally they are throwaway — the corpus is what persists)
+tests/fuzz/artifacts/
+
 # compiled wire-protocol fuzz harnesses (corpus_* seed dirs ARE committed)
 tests/fuzz/fuzz_gsi_bucket
 tests/fuzz/fuzz_macaroon_frame

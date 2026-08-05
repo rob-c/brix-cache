@@ -551,7 +551,7 @@
 | `xrootd_tcp_keepalive` | `brix_tcp_keepalive` |
 | `xrootd_tcp_user_timeout` | `brix_tcp_user_timeout` |
 | `xrootd_thread_pool` | `brix_thread_pool` |
-| `xrootd_throttle_max_active_connections` | `brix_throttle_max_active_connections` |
+| `xrootd_throttle_max_active_connections` | *(removed 2026-08-05, phase-95 — the directive parsed but enforced nothing; delete it from your config)* |
 | `xrootd_throttle_max_open_files` | `brix_throttle_max_open_files` |
 | `xrootd_throttle_zone` | `brix_throttle_zone` |
 | `xrootd_tls` | `brix_tls` |

@@ -92,26 +92,34 @@ class TestRootFileSizes:
 # root:// — kXR_sigver request signing (security_level intense)
 # --------------------------------------------------------------------------- #
 class TestSigverEnforcement:
-    """At `intense` the server requires a kXR_sigver signature (HMAC keyed by
-    signing_key = SHA-256 of the GSI DH secret) on the protected opcodes.  GSI
-    auth itself completes (it is pre-key), arming `signing_active`; the very next
-    real op then fails with kXR_error 3010 ("request signing required") because
-    the unsigned-by-default stock client does not sign — proving the enforcement
-    is correctly wired to the GSI session key."""
+    """At `intense` the server requires a kXR_sigver signature (stock
+    XrdSecProtect secver 0: SHA-256 of the covered bytes, encrypted with the
+    negotiated GSI session cipher) on the protected opcodes.  The stock client
+    reads the advertised seclvl from the kXR_protocol response and signs what
+    stock's intense table covers (open/read/write/close) — those must VERIFY
+    and succeed.  BriX's level-3 table is deliberately stricter than stock's:
+    dirlist (and the stat stock leaves unsigned on the upload path) still
+    arrive unsigned and must draw kXR_error 3010 "request signing required" —
+    the 3010 (not an auth error) proves GSI auth completed and armed
+    enforcement first."""
 
     def test_unsigned_dirlist_refused(self, pki, nginx_root_sigver):
-        # The 3010 (not an auth error) proves GSI auth succeeded first, then the
-        # protected dirlist was rejected for lacking a signature.
+        # Stock's intense table does not sign kXR_dirlist; BriX level 3
+        # requires it, so the unsigned dirlist is refused post-auth.
         r = _run([STOCK_XRDFS, nginx_root_sigver["url"], "ls", "/"], env=pki["env"])
         assert r.returncode != 0 and "signing" in r.stderr.lower(), \
             f"intense must refuse the unsigned dirlist: {r.stderr}"
 
-    def test_unsigned_read_refused(self, pki, nginx_root_sigver, tmp_path):
+    def test_signed_read_verifies(self, pki, nginx_root_sigver, tmp_path):
+        # Stock signs open/pgread/close at intense; the server must decrypt
+        # each blob with the GSI session cipher, match the SHA-256, and let
+        # the whole copy through — end-to-end secver-0 interop.
         out = str(tmp_path / "sv.txt")
         r = _run([STOCK_XRDCP, "-f", f"{nginx_root_sigver['url']}//hello.txt", out],
                  env=pki["env"])
-        assert r.returncode != 0 and "signing" in r.stderr.lower(), \
-            f"intense must refuse the unsigned open/read: {r.stderr}"
+        assert r.returncode == 0, \
+            f"signed stock read must verify at intense: {r.stderr}"
+        assert open(out).read() == "hello-gsi-handshake\n"
 
     def test_unsigned_write_refused(self, pki, nginx_root_sigver, tmp_path):
         src = str(tmp_path / "svu.bin")
@@ -120,6 +128,50 @@ class TestSigverEnforcement:
                  env=pki["env"])
         assert r.returncode != 0 and "signing" in r.stderr.lower(), \
             f"intense must refuse the unsigned write: {r.stderr}"
+
+
+class TestNativeSigver:
+    """Native client against the intense (sigver) instance.  The native signer
+    follows the shared brix_gsi_sigver_required() table — the same one the
+    server enforces — so unlike stock it signs EVERY protected opcode at level
+    3 (dirlist included) and all operations succeed."""
+
+    def _skip(self):
+        assert os.path.exists(NATIVE_XRDFS) and os.path.exists(NATIVE_XRDCP), \
+            "native client/bin/xrd{fs,cp} must be built (make -C client)"
+
+    def test_native_signed_dirlist(self, pki, nginx_root_sigver):
+        # Stock's unsigned dirlist is refused above; the native client signs
+        # it, so the same op on the same instance must succeed.
+        self._skip()
+        r = _run([NATIVE_XRDFS, "--auth", "gsi", nginx_root_sigver["url"],
+                  "ls", "/"], env=pki["env"])
+        assert r.returncode == 0, f"native signed dirlist: {r.stderr}"
+        assert "hello.txt" in r.stdout
+
+    def test_native_signed_read(self, pki, nginx_root_sigver, tmp_path):
+        self._skip()
+        out = str(tmp_path / "nsv.txt")
+        r = _run([NATIVE_XRDCP, "--auth", "gsi", "-f",
+                  f"{nginx_root_sigver['url']}//hello.txt", out], env=pki["env"])
+        assert r.returncode == 0, f"native signed read: {r.stderr}"
+        assert open(out).read() == "hello-gsi-handshake\n"
+
+    def test_native_signed_write_roundtrip(self, pki, nginx_root_sigver, tmp_path):
+        # kXR_write is signed with the payload EXCLUDED from the hash
+        # (kXR_nodata_sig — the server does not advertise kXR_secOData below
+        # pedantic); the readback proves the whole signed mutate path.
+        self._skip()
+        src = str(tmp_path / "nsw.bin")
+        blob = _big(src, 256 * 1024)
+        up = _run([NATIVE_XRDCP, "--auth", "gsi", "-f", src,
+                   f"{nginx_root_sigver['url']}//nsw.bin"], env=pki["env"])
+        assert up.returncode == 0, f"native signed write: {up.stderr}"
+        back = str(tmp_path / "nswb.bin")
+        dl = _run([NATIVE_XRDCP, "--auth", "gsi", "-f",
+                   f"{nginx_root_sigver['url']}//nsw.bin", back], env=pki["env"])
+        assert dl.returncode == 0, f"native signed readback: {dl.stderr}"
+        assert open(back, "rb").read() == blob
 
 
 # --------------------------------------------------------------------------- #

@@ -47,8 +47,10 @@ would move a frozen baseline under us.
 |---|---|---|---|
 | `check_config_coverage.py` | every `src/**/*.c` is built via `./config`, or allowlisted with a reason; no stale `./config` entries | inline allowlist | edit allowlist |
 | `check_client_build_coverage.py` | every `.c` under `client/` + the client-only `shared/{cvmfs,cache}` is named by `client/Makefile`, or is a `*_unit.c`/`*_unittest.c` driver, or is allowlisted with a reason | inline allowlist (empty) | edit allowlist |
+| `check_make_recipes.py` | no target in a hand-maintained Makefile carries two recipes — make keeps the last and silently drops the other copy's prerequisites, so the object stops rebuilding when they change (SKIPs where `make` is absent) | inline `MAKEFILES` | edit list |
 | `check_vfs_seam.py` | no new storage-plane bypasses of the VFS (tier-2 confined-helper calls, tier-1.5 direct SD vtable I/O) | `vfs_seam_backlog.txt`, `_ns`, `_client` | `--regen` |
 | `check_http_helper_reimpl.py` | protocols must not regrow private copies of the shared HTTP helpers (header scan, preconditions, ETag) | inline allowlist | edit allowlist |
+| `check_curl_enum_ifdef.py` | no `#ifdef`/`#ifndef`/`defined()` preprocessor test on a `CURLOPT_*`/`CURLINFO_*` name — those are enum constants, so the test is always false and silently deletes the branch it guards; gate on `CURL_AT_LEAST_VERSION(maj, min, patch)` instead | — | — |
 | `check_auth_verdict_sentinel.py` | the session verdict `login.auth_done = 1` may be raised only by a credential handler / session login-bind path — not from a proxy/TPC/dispatch/op file (C-3 `NGX_OK`-on-deny discipline) | inline `ALLOW` | edit allowlist |
 | `check_sd_driver_conformance.py` | every `fs_list.h` storage driver ships a conforming `brix_sd_driver_t` (+ prints the op-coverage matrix) | — | — |
 | `check_shm_mutex.py` | SHM tables are created via `brix_shm_table_*` — no bare `ngx_shmtx_create()` call outside `src/core/compat/shm_slots.c` (INVARIANT #10) | — | — |

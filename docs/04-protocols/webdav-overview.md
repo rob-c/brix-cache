@@ -140,28 +140,31 @@ server {
 ## Authentication
 
 Authentication is controlled by `brix_webdav_auth` and applies to every
-request that reaches the location block.
+request that reaches the location block. `brix_webdav_protbind` may narrow or
+reorder the credential sources per peer.
 
 ```text
 Incoming request
       │
       ▼
-  auth == none? ──► proceed as anonymous
+  Resolve the peer's protocol binding (brix_webdav_protbind,
+  default gsi → ztn → pwd)
       │
       ▼
-  Try GSI proxy cert (mTLS)
-      │ verified?
-      ├─► yes: proceed as <DN>
+  auth == none, or the peer is bound to "none"? ──► proceed as anonymous
       │
       ▼
-  Try Authorization: Bearer <jwt>
-      │ verified?
-      ├─► yes: proceed as <sub> + scopes
+  For each bound protocol, in the bound order:
+      gsi  ─ GSI proxy cert (mTLS) ──► verified? proceed as <DN>
+      ztn  ─ Authorization: Bearer <jwt> ──► verified? proceed as <sub> + scopes
+      pwd  ─ Authorization: Basic ──► verified? proceed as <user>
+      (protocols with no HTTP transport are skipped)
       │
       ▼
   auth == optional? ──► proceed as anonymous
       │
-  auth == required? ──► HTTP 403 Forbidden
+  auth == required? ──► challenge for a BOUND scheme
+                        (401 Basic / 401 Bearer), else HTTP 403 Forbidden
 ```
 
 ### Auth modes
@@ -173,6 +176,32 @@ Incoming request
 | `required` | Unauthenticated requests get HTTP 403 |
 
 Default is `optional`.
+
+### Per-host protocol binding
+
+`brix_webdav_protbind <host-template> [none | [only] <protocol>...]` is the
+HTTP face of the stream `brix_protbind` directive (XRootD's `sec.protbind`).
+Both frontends share one parser and one resolver, so the same stanza written in
+a `stream` server block and an `http` location block yields the same decision
+for the same peer.
+
+```nginx
+location / {
+    brix_webdav on;
+    brix_webdav_auth required;
+
+    brix_webdav_protbind mon.example.org none;    # probes: anonymous
+    brix_webdav_protbind *.farm.local only pwd;   # on-site: Basic only
+    brix_webdav_protbind * gsi ztn;               # everyone else
+}
+```
+
+Only `gsi`, `ztn` (alias `token`) and `pwd` have an HTTP transport; the other
+names parse — so one policy can be shared with the root:// listener — and are
+skipped at request time. A challenge is only offered for a scheme the peer is
+actually bound to, so a `only pwd` peer never sees a `WWW-Authenticate: Bearer`
+header and vice versa. Full grammar and matching rules:
+[`brix_protbind`](../03-configuration/directives.md#brix_protbind-host-template-none--only-protocol).
 
 ### GSI / X.509 proxy certificates
 
@@ -397,6 +426,26 @@ Authentication policy. Default: `optional`.
   valid credential is present
 - `required` — requests without a valid certificate or token are rejected with
   HTTP 403
+
+Context: `location`
+
+---
+
+#### `brix_webdav_protbind`
+
+```nginx
+brix_webdav_protbind <host-template> [none | [only] <protocol>...];
+```
+
+Bind an ordered set of credential sources to a host template. May be repeated;
+the first matching rule wins, so put `*` last. Protocol names are `gsi`, `ztn`
+(alias `token`), `sss`, `unix`, `krb5`, `host` and `pwd`, of which only
+`gsi`/`ztn`/`pwd` have an HTTP transport. Default: unset — every peer gets
+`gsi`, `ztn`, `pwd` in that order.
+
+Shares its grammar, host matching and resolution with the stream
+[`brix_protbind`](../03-configuration/directives.md#brix_protbind-host-template-none--only-protocol);
+see [Per-host protocol binding](#per-host-protocol-binding) above.
 
 Context: `location`
 

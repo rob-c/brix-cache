@@ -12,6 +12,7 @@
 #include "auth_gate_l1.h"
 #include "core/compat/crypto.h"
 #include "auth/authz/acc/acc.h"
+#include "auth/protbind/protbind.h"                /* shared peer-hostname cache */
 #include "auth/impersonate/impersonate.h"          /* P80.21: brix_idmap_gate_* */
 #include "observability/metrics/metrics_macros.h"   /* Phase 51 (E6): auth-gate L1 counters */
 
@@ -134,36 +135,25 @@ brix_acc_gate_identity(brix_ctx_t *ctx, const char **name,
  * connection (cached on ctx) and returns that, falling back to the IP.
  * WHY: the opt-in PTR lookup was the engine's deepest nesting; hoisting it
  * keeps the per-connection caching side effect at the edge.
- * HOW: mutates only ctx->login.acc_host* (the connection-scoped cache); the
- * verdict-relevant return value is a borrowed string owned by ctx or "?".
+ * HOW: delegates to the shared per-connection hostname cache
+ * (brix_protbind_peer_host_cached — the one owner of that lookup, so a session
+ * running both XrdAcc host rules and protbind templates resolves once), then
+ * falls back to the IP or "?" when the peer has no PTR record.
  */
 static const char *
 brix_acc_gate_host(brix_ctx_t *ctx, ngx_connection_t *c,
     ngx_stream_brix_srv_conf_t *conf)
 {
     const char *host = (ctx->login.peer_ip[0] != '\0') ? ctx->login.peer_ip : "?";
+    const char *resolved;
 
     if (!conf->acc.resolve_hosts) {
         return host;
     }
 
-    if (!ctx->login.acc_host_done) {
-        char        hbuf[256];
-        const char *h;
+    resolved = brix_protbind_peer_host_cached(ctx, c);
 
-        ctx->login.acc_host_done = 1;
-        h = brix_acc_resolve_peer(c->sockaddr, c->socklen, hbuf, sizeof(hbuf));
-        if (h != NULL) {
-            size_t  n   = ngx_strlen(h);
-            char   *dup = ngx_pnalloc(c->pool, n + 1);
-            if (dup != NULL) {
-                ngx_memcpy(dup, h, n + 1);
-                ctx->login.acc_host = dup;
-            }
-        }
-    }
-
-    return (ctx->login.acc_host != NULL) ? ctx->login.acc_host : host;
+    return (resolved != NULL) ? resolved : host;
 }
 
 /*

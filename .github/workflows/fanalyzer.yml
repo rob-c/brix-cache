@@ -39,10 +39,14 @@ jobs:
     steps:
       - name: Install build deps + pinned gcc toolchain
         run: |
+          # jansson-devel + librados-devel live in CRB on EL9 (and librados2-devel
+          # is the EL7-era package name — it does not exist on EL9).
+          dnf -y install dnf-plugins-core
+          dnf config-manager --set-enabled crb
           dnf -y install git gcc make python3 tar \
             openssl-devel zlib-devel pcre2-devel \
             libcurl-devel sqlite-devel krb5-devel \
-            jansson-devel libxml2-devel librados2-devel
+            jansson-devel libxml2-devel librados-devel
           gcc --version
       - uses: actions/checkout@v4
       - name: Fetch and configure nginx with the module

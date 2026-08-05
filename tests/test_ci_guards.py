@@ -47,6 +47,8 @@ def _have(tool: str) -> bool:
 _FAST = [
     "check_config_coverage",
     "check_client_build_coverage",
+    "check_make_recipes",
+    "check_curl_enum_ifdef",
     "check_http_helper_reimpl",
     "check_metric_cardinality",
     "check_auth_verdict_sentinel",
@@ -100,6 +102,46 @@ def test_brix_namespace_guard_catches_drift(rel: str, content: str) -> None:
     assert "_brix_ns_probe" in out, out
 
 
+# --- curl enum-ifdef guard: negatives + comment immunity ----------------------
+# The green assertion above proves the tree is clean; these prove the guard
+# bites on both anti-pattern forms (the 2026-08 asan-lane root cause: curl
+# options are enum constants, so preprocessor tests on them are always false)
+# and stays quiet on doc comments and legitimate CURL_AT_LEAST_VERSION gates.
+@pytest.mark.parametrize(
+    "content",
+    [
+        "#ifdef CURLOPT_PROBE_FAKE\ncurl_easy_setopt(c, CURLOPT_PROBE_FAKE, 1L);\n#endif\n",
+        "#ifndef CURLINFO_PROBE_FAKE\n#error no\n#endif\n",
+        "#if defined(CURLOPT_PROBE_FAKE) && defined(CURLOPT_OTHER_FAKE)\n#endif\n",
+    ],
+)
+def test_curl_enum_ifdef_guard_catches_drift(content: str) -> None:
+    probe = _REPO / "src/core/_curl_enum_probe.h"
+    probe.write_text(content)
+    try:
+        rc, out = _run("check_curl_enum_ifdef")
+    finally:
+        probe.unlink()
+    assert rc != 0, f"guard missed injected curl enum #ifdef:\n{out}"
+    assert "_curl_enum_probe" in out, out
+
+
+def test_curl_enum_ifdef_guard_ignores_comments_and_version_gates() -> None:
+    probe = _REPO / "src/core/_curl_enum_probe.h"
+    probe.write_text(
+        "/* an always-false test like #ifdef CURLOPT_PROTOCOLS_STR or\n"
+        " * defined(CURLOPT_XFERINFOFUNCTION) must be gated on the version */\n"
+        "#if CURL_AT_LEAST_VERSION(7, 85, 0)\n"
+        "curl_easy_setopt(c, CURLOPT_PROTOCOLS_STR, \"https\");\n"
+        "#endif\n"
+    )
+    try:
+        rc, out = _run("check_curl_enum_ifdef")
+    finally:
+        probe.unlink()
+    assert rc == 0, f"guard false-positived on a comment or version gate:\n{out}"
+
+
 # --- file-size guard: client/ coverage + client/tests carve-out --------------
 # The green assertion above proves the live tree is clean; this proves the
 # Phase-38 extension that widened the scan from src/ to *also* cover client/
@@ -138,6 +180,83 @@ def test_file_size_guard_scans_client_and_excludes_client_tests(tmp_path) -> Non
     assert "client/lib/small_client.c" not in listed
     assert "client/tests/c/big_test.c" not in listed, "client/tests/ must be carved out"
     assert "client/tests/big_test.h" not in listed, "client/tests/ must be carved out"
+
+
+# --- duplicate-recipe guard: negative + fail-closed ---------------------------
+# The green assertion above proves the live Makefiles are clean (they were not
+# until 2026-08-05: client/Makefile gave six objects two recipes each, and the
+# copy make kept for apps/fs/brixautofs_ext.o was the one WITHOUT the
+# apps/fs/brixautofs.h prerequisite, so editing that header left the object
+# stale). These drive the guard's run(root=...) against a temp tree, so they
+# neither depend on nor disturb the real Makefiles.
+def _load_check_make_recipes():
+    import importlib.util
+
+    path = CI / "check_make_recipes.py"
+    spec = importlib.util.spec_from_file_location("check_make_recipes", path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def _fake_tree(root: Path, bodies: dict[str, str]) -> None:
+    """Write a Makefile for every directory the guard checks."""
+    cmr = _load_check_make_recipes()
+    for rel in cmr.MAKEFILES:
+        d = root / rel
+        d.mkdir(parents=True, exist_ok=True)
+        (d / "Makefile").write_text(bodies.get(rel, "all:\n\t@true\n"))
+
+
+@pytest.mark.skipif(not _have("make"), reason="needs make to parse the Makefile")
+def test_make_recipe_guard_catches_a_second_recipe(tmp_path) -> None:
+    cmr = _load_check_make_recipes()
+    _fake_tree(
+        tmp_path,
+        {
+            "client": (
+                "OBJS := a.o b.o\n"
+                "$(OBJS): %.o: %.c hdr.h\n"
+                "\t@echo first $<\n"
+                "a.o: a.c\n"          # second recipe, and it drops hdr.h
+                "\t@echo second $<\n"
+                "all: $(OBJS)\n"
+            )
+        },
+    )
+    ok, msgs = cmr.run(tmp_path)
+    assert not ok, "guard missed a target with two recipes"
+    assert any("a.o" in m and "DUPLICATE RECIPE" in m for m in msgs), msgs
+
+
+@pytest.mark.skipif(not _have("make"), reason="needs make to parse the Makefile")
+def test_make_recipe_guard_passes_a_single_recipe(tmp_path) -> None:
+    cmr = _load_check_make_recipes()
+    _fake_tree(
+        tmp_path,
+        {
+            "client": (
+                "OBJS := a.o b.o\n"
+                "$(OBJS): %.o: %.c hdr.h\n"
+                "\t@echo only $<\n"
+                "LINK_LIST := a.o b.o\n"   # a list that reuses the objects is fine
+                "all: $(LINK_LIST)\n"
+            )
+        },
+    )
+    ok, msgs = cmr.run(tmp_path)
+    assert ok, f"guard false-positived on a single-recipe Makefile: {msgs}"
+
+
+@pytest.mark.skipif(not _have("make"), reason="needs make to parse the Makefile")
+def test_make_recipe_guard_fails_closed_on_a_missing_makefile(tmp_path) -> None:
+    """A Makefile that moved must redden the guard, not silently drop from it."""
+    cmr = _load_check_make_recipes()
+    _fake_tree(tmp_path, {})
+    (tmp_path / cmr.MAKEFILES[0] / "Makefile").unlink()
+    ok, msgs = cmr.run(tmp_path)
+    assert not ok, "guard passed while one of its Makefiles was gone"
+    assert any("MISSING" in m for m in msgs), msgs
 
 
 # --- template-ref ratchet: negatives ------------------------------------------

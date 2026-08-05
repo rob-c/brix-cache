@@ -6,7 +6,6 @@
  *     X-Xrootd-Requuid / X-Xrootd-Tpc-Token header capture.
  *   - Response injection: X-Xrootd-Requuid echo, X-Xrootd-Status kXR error codes,
  *     X-Xrootd-Wait / X-Xrootd-Retry back-pressure headers.
- *   - Redirect dialect: X-Xrootd-Redir-Host/Port + tpc.key / xrd.opaque passthrough.
  *   - TPC shim: synthesise Source:/Destination: headers from ?tpc.src= / ?tpc.dst=.
  *   - Checksum: Digest: header computed on-demand for xrd.want.cksum requests.
  *   - HTTP→kXR status mapping for X-Xrootd-Status.

@@ -168,7 +168,12 @@ Important implemented features:
 - `--pgrw` uses `kXR_pgread` / `kXR_pgwrite` with per-page CRC32c.
 - `--cksum <algo>[:source|:print|:<value>]` supports at least `adler32`,
   `crc32c`, and `md5` in the copy path.
-- `-S/--streams N` opens secondary `kXR_bind` data streams.
+- `-S/--streams N` opens secondary `kXR_bind` data streams. The pumps fan full
+  request frames across the bound connections, which only BriX serves (stock
+  treats a bound path as a `pathid`-directed data channel and never answers a
+  request frame there), so after binding the client probes
+  `kXR_Qconfig "brix.substreams"` and silently falls back to primary-only
+  unless the reply carries the `=rw` marker.
 - `--tpc first|only|delegate` attempts native server-side third-party copy for
   remote-to-remote XRootD transfers.
 - WebDAV/HTTP transfers use bearer tokens from `--token` or `$BEARER_TOKEN`.

@@ -21,6 +21,66 @@ what changed for a user of the server.
 
 ### Security
 
+- **Per-host authentication policy (`brix_protbind` / `brix_webdav_protbind`) —
+  stock `sec.protbind` parity, plus a true multi-protocol security token.**
+  A new frontend-agnostic engine (`src/auth/protbind/`) parses
+  `<host-template> [none | [only] <protocol>...]` once and resolves it once, so
+  the `root://` stream server and the HTTP/WebDAV location block accept the
+  same grammar and reach the same decision for the same peer. Host templates
+  follow XRootD's `XrdOucNList` rules (at most one `*`, case-insensitive,
+  matched against reverse DNS with an IP-literal fallback); rules are ordered
+  and first-match-wins, so `*` goes last. Reverse DNS is skipped entirely when
+  every template is `*` — the dominant configuration — and is otherwise
+  resolved once per connection and cached.
+
+  The resolved set is now the single source of truth for all three stages that
+  previously re-derived their own answer from `brix_auth`: the `kXR_protocol`
+  capability reply, the `kXR_login` security token — which can now advertise an
+  **arbitrary ordered set** of `&P=` blocks rather than only the pre-baked
+  `both` (ztn+gsi) composition — and the `kXR_auth` credential-type gate, which
+  re-checks membership because a client may offer any credtype regardless of
+  what was advertised. On the HTTP side the same set orders the GSI / bearer /
+  Basic sources and, importantly, restricts which `WWW-Authenticate` challenges
+  are offered, so a peer bound to `only pwd` is never invited to present a
+  bearer token.
+
+  A configuration with no `brix_protbind` line is unchanged byte-for-byte:
+  the base set reproduces the previous `brix_auth` semantics exactly, and both
+  orderings are pinned as regression assertions in `tests/c/protbind_test.c`.
+  Naming a protocol in a rule now also pulls that protocol into startup
+  validation, so a rule referencing a scheme whose keys, certificate or
+  principal are absent is an `[emerg]` at config time instead of a failure on
+  the first handshake.
+  (`src/auth/protbind/{match,policy,config,peer}.c`,
+  `src/protocols/root/session/{protocol,login}.c`,
+  `src/protocols/webdav/access_auth.c`; `tests/c/protbind_test.c`,
+  `tests/test_protbind_parse.py`.)
+
+- **Per-capability TLS gating (`brix_tls_require`) — stock `xrootd.tls`
+  parity as a generic VFS feature.** One 4-bit mask
+  (`none | [all|login|session|data|tpc|-<cap>]...`, parsed/enforced in
+  `src/fs/vfs/vfs_secgate.c`) now gates cleartext requests on every plane:
+  the `root://` stream pre-dispatch refuses masked opcodes with
+  `kXR_TLSRequired` (handshake opcodes stay exempt so the in-protocol TLS
+  upgrade always works), the native-TPC open choke point and both WebDAV
+  `COPY` TPC legs enforce the `tpc` bit, and the WebDAV/S3 dispatchers map
+  refusals to `403`. The enforced mask is advertised to clients as
+  `kXR_tlsLogin/tlsSess/tlsData/tlsTPC` bits in the `kXR_protocol` reply
+  (mask `none` leaves the flags word byte-identical to before). Finer-grained
+  than the `brix_min_sec_level` floor: `data` alone leaves cleartext
+  metadata untouched. Covered by `tests/test_tls_require.py` (13 wire +
+  parse cases).
+- **Cleartext `ztn` (bearer-token) authentication is now refused by
+  default, matching stock XRootD.** A bearer token on a cleartext
+  connection is replayable by any on-path observer; stock `XrdSecztn`
+  refuses to offer it there. BriX now drops `ztn` from the cleartext
+  `kXR_login` sec token (refusing the login with `kXR_TLSRequired` when no
+  other protocol remains) and rejects a cleartext `kXR_auth` carrying a
+  `ztn` credential even if a client volunteers one. The new
+  `brix_ztn_cleartext on` stream directive opts a listener back in for lab
+  rigs that drive the raw wire without TLS (the bundled test fleet configs
+  are opted in; production listeners should never be).
+
 - **Two S3 endpoints in one server no longer share a signing key.** The
   worker-local SigV4 signing-key cache was keyed on date + region only, not on
   the secret it came from. One worker verifies for every `brix_s3` block in the
@@ -78,7 +138,87 @@ what changed for a user of the server.
   carrying `\n cmsd-action …` and asserts the escaped `\x0A` appears while no
   `error.log` line *begins* with `cmsd-action`.
 
+- **`b64url_decode` overran an exactly-sized output buffer by up to two bytes.**
+  OpenSSL's `EVP_DecodeUpdate` writes three bytes for every four base64
+  characters and subtracts the padding from the *reported* count only, so a
+  padded token wrote past the length the decoder returns — while the capacity
+  check explicitly admitted a caller who sized `out_max` to exactly that length.
+  Every bearer token decodes through this function before any authentication
+  runs. The decode now lands in the decoder's own buffer and only the bytes that
+  are really there are copied out, so the advertised contract ("`out_max` ≥ the
+  decoded length") is the one that holds. The over-write is real on OpenSSL
+  3.0.x (what the CI runner links, and what had been reddening the `fuzz_b64url`
+  lane on nearly every push) and absent on 3.5, which is why it never reproduced
+  on an EL9 dev box — the fix does not depend on which one is linked. `tests/unit/test_b64url.c` pins each
+  padding width with a canary past `out_max`, so a plain non-sanitizer run
+  catches a regression.
+
+- **The curl feature gates were all dead, and a guard now keeps them alive.**
+  `CURLOPT_*`/`CURLINFO_*` are enum constants, not macros, so every
+  `#ifdef CURLOPT_…` in the tree evaluated false and silently deleted the branch
+  it guarded — that is what disabled the TPC progress callback, the pmark socket
+  callbacks and S3 connection-age recycling, and what left the deprecated
+  `CURLOPT_PROTOCOLS` on the live path where the ASan lane failed the build on
+  `-Werror=deprecated-declarations`. All sites now gate on
+  `CURL_AT_LEAST_VERSION(maj, min, patch)`, which re-enables those features, and
+  `tools/ci/check_curl_enum_ifdef.py` (wired into `guards.yml`, tested in
+  `tests/test_ci_guards.py`) fails the build if the pattern comes back.
+
+- **A fuzz crash in CI is now reproducible.** The runner left libFuzzer's
+  `crash-<sha1>` input in the runner's working directory, where nothing collected
+  it, and excerpted only the *tail* of the output — discarding the sanitizer's
+  diagnosis, which is printed first. A `fuzz_b64url` failure on 2026-08-05 was
+  therefore un-triageable from its own log. `cmdscripts.fuzz_all` now directs
+  reproducers to `tests/fuzz/artifacts/<target>/`, names them in the failure
+  line, and keeps both ends of the output; `fuzz.yml` uploads that directory as
+  the `fuzz-reproducers` artifact on failure.
+
 ### Fixed
+
+- **`kXR_sigver` request signing now speaks stock XrdSecProtect secver-0 —
+  signed stock clients verify instead of being rejected.** The previous scheme
+  was self-invented (HMAC-SHA256 keyed by SHA-256 of the DH secret), so at
+  `brix_security_level intense` every signed request from a stock `xrdcp`
+  failed verification. The shared `gsi_core` kernels
+  (`brix_gsi_sigver_{hash,sign,verify}`) now implement the reference scheme:
+  plain SHA-256 over `seqno_be(8) || request header(24) || payload` (payload
+  excluded for `kXR_write`/`kXR_pgwrite` unless `kXR_secOData` was negotiated),
+  encrypted with the negotiated GSI session cipher, fresh IV prepended for
+  signed-DH peers. One source compiles into both the server verifier and the
+  native client signer, and the native client now also parses the server's
+  `ServerResponseReqs_Protocol` signing trailer correctly (it previously read a
+  fictitious layout and never signed at all). Covered by a new C unit test
+  (`client/tests/c/sigver_kernel_unit.c`: roundtrip in both IV modes, nodata
+  exclusion, and tamper negatives) plus live signed-stock and signed-native
+  suites; the strict level-3 policy (everything non-exempt, including
+  `kXR_dirlist`) is deliberately kept and its unsigned-op refusals re-proven.
+
+- **`xrdcp --streams` against a stock server hung forever instead of copying.**
+  The Phase-94 pumps fan complete `kXR_read`/`kXR_write` request frames across
+  `kXR_bind` secondaries — a BriX extension. A stock server treats a bound path
+  as a `pathid`-directed data channel and never answers a request frame that
+  arrives there, so the first fanned write waited for a response that could
+  never come. BriX now advertises the capability via `kXR_Qconfig`
+  (`brix.substreams=rw`; an unknown key is merely echoed, per the `do_Qconf`
+  convention), and `brix_streams_open()` probes it after binding, tearing the
+  secondaries down again and running primary-only when the marker is absent.
+  Substream fan-out against BriX itself is unchanged, at the cost of one RTT
+  when streams are requested.
+
+- **A header edit could leave a client object stale, and the build only said so
+  in a warning nobody reads.** `client/Makefile` gave six objects two recipes
+  each. make does not treat that as an error: it keeps the last recipe, drops
+  the first, and prints `overriding recipe for target`. For the five brixcvmfs
+  split objects both copies were identical, so it cost only noise — but
+  `apps/fs/brixautofs_ext.o` was covered both by the `$(BRIXAUTOFS_OBJS)` rule,
+  which depends on `apps/fs/brixautofs.h`, and by a standalone rule below it
+  that does not. The standalone one won, so editing that header rebuilt
+  `brixautofs.o` and not `brixautofs_ext.o`, linking a stale object against a
+  changed struct until someone ran `make clean`. Both duplicates are gone
+  (`BRIXCVMFS_SPLIT` is now a link list, not a second rule), and the new
+  `tools/ci/check_make_recipes.py` guard fails the `guards` lane on any target
+  that regrows a second recipe — it asks `make --dry-run` rather than parsing
+  Makefiles itself, costs ~0.3s across all three, and skips where make is absent.
 
 - **A WebDAV auth test asserted a status the RFC forbids.** The GSI fixture
   endpoint carries a JWKS as well as a CA dir, so it is bearer-protected and
@@ -325,6 +465,38 @@ what changed for a user of the server.
   `MDTM` agree, and adds a security-negative test that every byte of a fact line
   is printable ASCII.
 
+### Removed
+
+- **`brix_throttle_max_active_connections` (breaking config change).** The
+  directive parsed and merged cleanly but had zero readers, so it never capped
+  anything — a config that set it got no protection while reading as though it
+  did. It is now gone; a config that still names it fails `nginx -t` with
+  "unknown directive". **Action:** delete the line. The per-user cap that *is*
+  enforced is `brix_throttle_max_open_files`, charged on `kXR_open` and released
+  on close/disconnect, and it is unchanged. Reintroducing a connection cap
+  requires landing the login admission point in the same change as the counter.
+
+- **Dead throttle engines and the dormant HTTP redirect path.** Three
+  fully-implemented subsystems with no call site anywhere in the tree were
+  deleted rather than left to imply behaviour they never had (parity audit
+  §9.2; plan and rationale in
+  [`docs/refactor/phase-95-audit-deadcode-burndown.md`](docs/refactor/phase-95-audit-deadcode-burndown.md)):
+  the XrdThrottle `userconfig` INI matcher
+  (`brix_throttle_userconfig_load`/`_match` and its rule tables), the IO-load
+  concurrency metric (`brix_throttle_charge_io`/`brix_throttle_ioload_over`,
+  together with the `io_time_us`/`io_window` fields in the SHM node they were
+  the only readers of), and the XrdHttp redirect dialect
+  (`xrdhttp_send_redirect` plus the `X-Xrootd-Redir-Host`/`-Port` emitters —
+  HTTP clients were never redirected by it; the `root://` plane's own
+  redirector is untouched). Also removed: `brix_protbind_proto_name`, whose
+  only caller was its own unit test — every `&P=` block spells its protocol
+  name inline with that protocol's parameters.
+
+  `tests/test_deadcode_removed.py` pins the removals: it fails if any of these
+  symbols returns as code rather than as a comment, and separately asserts that
+  the surviving open-files cap still has its charge point and both release
+  points, so a later cleanup cannot silently disarm it.
+
 ### Changed
 
 - **Agent-memory knowledge folded into the repo docs.** Everything durable that
@@ -351,10 +523,16 @@ what changed for a user of the server.
   §4.10); and through the phase-97 CMS/CNS work every red was a concurrent
   session's `TEST_ROOT` wipe or fixed-port contention and none was a code defect,
   so on a shared box a red is re-run solo before the diff is read
-  (`history-testing-and-incidents.md` §1.3). The memory store went from 672 KB to
-  140 KB (21%): each entry is now frontmatter plus one line — the doc pointer, the
-  commit/date/file archaeology, and its cross-links — and only the operating rules
-  keep imperative text, each carrying a doc reference for the why.
+  (`history-testing-and-incidents.md` §1.3). The memory store went from 672 KB
+  across 350 files to 128 KB across 243 (19%): each surviving entry is
+  frontmatter plus one line — the doc pointer, the commit/date/file archaeology,
+  and its cross-links — and only the operating rules keep imperative text, each
+  carrying a doc reference for the why. A final pass deleted the 107 memories
+  whose whole body had become a bare pointer at the history tree, which every
+  session is already told to read: a pointer at a pointer carries nothing, so
+  their one-line summaries were folded into `development-history.md` as the
+  **Appendix — the folded memory index**, a slug → *what happened* lookup grouped
+  by owning document, for when an old note or commit message names one of them.
 - **Two red CI guards re-greened, neither of which was reporting real debt.**
   `check_doc_links` failed on a single untracked link *target*
   (`docs/05-operations/cvmfs-stratum0.md`, written during the Stratum-0 work and

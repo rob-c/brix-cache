@@ -1085,6 +1085,19 @@ LIFECYCLE_SHARED_PORTS: dict[str, dict] = {
     # are ledgered).  The suite is serial (shares the cache-partial harness
     # doctrine), so one fixed pair suffices.
     "lc-vfs-prefetch-webdav": {"port": 30518, "extra": {"METRICS_PORT": 30519}},
+    # Per-capability TLS gating subjects (test_tls_require.py): one throwaway
+    # nginx per brix_tls_require mask / ztn-cleartext posture, all serialised
+    # under xdist_group("lc-tlsreq") so the block never has concurrent drivers.
+    "lc-tlsreq-session": {"port": 30520},
+    "lc-tlsreq-data": {"port": 30521},
+    "lc-tlsreq-login": {"port": 30522},
+    "lc-tlsreq-except": {"port": 30523},
+    "lc-tlsreq-tls": {"port": 30524},
+    "lc-tlsreq-adv": {"port": 30525},
+    "lc-tlsreq-adv-none": {"port": 30526},
+    "lc-tlsreq-ztn-refuse": {"port": 30527},
+    "lc-tlsreq-ztn-optin": {"port": 30528},
+    "lc-tlsreq-ztn-tls": {"port": 30529},
     # 30506/30507/30508 are the cachemx matrix's S3-over-TLS, remote-origin
     # WebDAV and HTTP-TPC WebDAV planes; they live in the "lc-cachemx" extras
     # block above, out of numeric order because that entry predates them.

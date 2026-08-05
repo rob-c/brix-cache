@@ -896,6 +896,107 @@ the production path rather than an analogue of it.
 
 ---
 
+## `sec.protbind` parity as a generic engine (2026-08-05)
+
+Closing §5.1 of `docs/refactor/xrootd-feature-parity-audit-2026-08-04.md`. The
+gap was really two: no per-host authentication policy at all, and a security
+token that could only ever name one scheme per listener (the sole exception
+being `brix_auth both`, whose ztn+gsi string was pre-baked). The requirement
+was that the fix be a **generic VFS feature**, not a root-protocol-private one,
+so the engine lives in `src/auth/protbind/` and knows nothing about either
+frontend.
+
+What is worth remembering:
+
+- **Advertisement and enforcement are different questions, and both must read
+  the same answer.** Before this change three sites independently re-derived
+  the allowed set from `conf->auth`: the `kXR_protocol` capability reply, the
+  `kXR_login` `&P=` token, and the `kXR_auth` credtype gate. Any per-host
+  policy bolted onto one of them would have silently disagreed with the other
+  two. All three now call `brix_protbind_resolve*()`. The credtype gate still
+  re-checks membership rather than trusting what was advertised — a client is
+  free to offer a credtype nobody offered it.
+- **The HTTP frontend needed the challenge set narrowed, not just the source
+  loop.** Restricting which of GSI/bearer/Basic are *tried* is the obvious
+  half; the half that leaks policy is `WWW-Authenticate`. A peer bound to
+  `only pwd` that still receives a `Bearer` challenge has been told the server
+  accepts tokens. `access_authenticate()` therefore gates both.
+- **Reverse DNS is the cost, and the common config doesn't need it.**
+  `brix_protbind_needs_hostname()` returns false when every template is `*`,
+  which is the overwhelming majority of real stanzas, so the default path adds
+  no lookup at all. When a lookup is required it goes through the existing
+  circuit-breaker-bounded `brix_acc_resolve_peer()` and is cached in the same
+  per-connection slot the XrdAcc host rules already use — `brix_acc_gate_host()`
+  was refactored to read that cache rather than resolve a second time.
+- **The deferred landmine was startup validation.** A rule may name a scheme
+  that `brix_auth` did not select, and the first implementation left that
+  scheme's keys, certificate or principal unloaded — a config that starts
+  cleanly and then fails every handshake. `brix_protbind_any_names()` widens
+  all six startup gates (`auth/{gsi,token,krb5,sss}/config.c`,
+  `core/config/process.c`, `core/config/process_server_init.c`), turning it
+  into an `[emerg]`. A `none` rule lists no protocols, so it correctly drags
+  nothing in — `tests/test_protbind_parse.py` pins both directions.
+- **Backward compatibility is pinned, not assumed.** `brix_protbind_base_set()`
+  reproduces the old `brix_auth` semantics exactly, including `both` →
+  `{ztn, gsi}` *in that order*, and `brix_protbind_resolve()` copies the base
+  verbatim when no rule matches. A config with no `brix_protbind` line emits a
+  byte-identical sec token. Both orderings are explicit regression assertions in
+  `tests/c/protbind_test.c` rather than an incidental property.
+
+Gotchas for whoever touches this next:
+
+- Three `policy.o` and two `match.o` objects exist under `objs/addon`, so the
+  C-unit runner in `tests/cmdscripts/c_auth_units.py` uses **explicit** object
+  paths; `find_obj("policy.o")` resolves to `addon/config/policy.o` and links
+  the wrong translation unit.
+- `protbind.h` must be included *after* the header that pulls in the ngx core
+  types. Inserting it after the first `#include` line in a file whose first
+  include is a system header (`<unistd.h>` in `core/config/process.c`) produces
+  twenty `unknown type name 'ngx_str_t'` errors.
+- The directive diagnostic is emitted by the shared engine from `cmd->name`, so
+  both frontends report with their own directive name and cannot drift. Do not
+  reintroduce a per-module wrapper that logs it — that is exactly the duplicated
+  block `tools/ci/check_duplication.py` flagged.
+
+---
+
+## `b64url_decode` overran an exactly-sized buffer, on OpenSSL 3.0 only (2026-08-05)
+
+Found by the `fuzz_b64url` harness, which had been reddening the `fuzz` lane on
+most pushes. Every bearer token reaches this decoder **before** any
+authentication decision, so the overflow is pre-auth and attacker-length-driven.
+
+- **The bug.** OpenSSL's `evp_decodeblock_int()` writes three bytes for every
+  four base64 characters unconditionally (`ret += 3`), while `EVP_DecodeUpdate()`
+  reports `ret += decoded_len - eof` — it subtracts the padding from the
+  *reported* count only. A padded token therefore has up to two bytes written
+  past the length the decode says it produced. `b64url_decode()` decoded
+  straight into the caller's buffer and sized its capacity check to the reported
+  length (`padded_len / 4 * 3 - pad`), so it explicitly admitted a caller who
+  sized `out_max` exactly — and then wrote past it. The fix decodes into a
+  private buffer and `memcpy`s out only the bytes that are really there. The
+  client's `ftp_gsi_cred.c` meets the same hazard and was already safe because it
+  allocates the full 3/4 width; that is the other correct answer.
+- **Why it never reproduced.** OpenSSL 3.5 no longer writes those bytes; 3.0.x
+  does. The CI runner links 3.0.x, an EL9 dev box links 3.5 — so a canary probe,
+  a 2111-case exact-fit ASan sweep, and direct EVP instrumentation all came back
+  clean locally while CI stayed red. Two traps inside that: `openssl version`
+  prints the **CLI's** version, not the linked library's (`rpm -q openssl-libs`
+  is authoritative, and here they differed across exactly the release that
+  changed the behaviour), and the local evidence was strong enough to argue for
+  backing the fix out. It was resolved by transcribing OpenSSL 3.0.13's decode
+  path verbatim and driving both the old and new wrappers against it under ASan:
+  old → `heap-buffer-overflow … WRITE of size 1`, matching CI's signature; new →
+  survives. The regression test in `tests/unit/test_b64url.c` therefore only
+  *fires* on 3.0.x; on 3.5 it passes against the old code too, which is the
+  bug's whole history in one sentence.
+- **The standing rule.** A decoder's contract may not depend on which library
+  version happens to be linked. Do not collapse the private buffer back on the
+  grounds that the overflow does not reproduce — the comment in
+  `src/auth/token/b64url.c` says so at the site for that reason.
+
+---
+
 ## Part 2 — Design-decision inventory
 
 A quick-reference table of the explicit, deliberate design choices behind
@@ -1490,6 +1591,7 @@ config — that is a deliberate opt-in feature decision (a
 
 | Feature | Status | Key files/directives | Notes |
 |---|---|---|---|
+| Per-host protocol binding (`sec.protbind` parity) + ordered multi-protocol sectoken | Done 2026-08-05, both frontends | `src/auth/protbind/{match,policy,config,peer}.c`, `brix_protbind` (stream), `brix_webdav_protbind` (http) | Generic engine, deliberately not root-protocol-private. See the section below. |
 | XrdAcc authorization port | All 9 milestones done, validated; 7 residual parity gaps (RA1–RC1) also closed | `src/acc/`, `xrootd_authdb_format xrdacc` | Dual-engine — native format unchanged, xrdacc is opt-in. See below. |
 | Per-user backend credentials (Ph 1–3) | Implemented, tested, reviewed ready-to-merge — check current git log for merge status | `src/fs/backend/ucred.c`, `src/fs/vfs/vfs_cred.c`, `brix_sd_cred_t` (`sd.h`) | See dedicated section below. |
 | Credential-forwarding matrix (normal access) | Done — 16 PASS/4 GAP/4 SKIP, gaps are upstream stock limitations | `tests/lib/fwd_matrix.sh`, ports 21960-21999 | See narrative above. |

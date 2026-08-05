@@ -49,6 +49,17 @@ brix_dispatch(brix_ctx_t *ctx, ngx_connection_t *c,
         return rc;
     }
 
+    /*
+     * Per-capability TLS gate (brix_tls_require) — BEFORE the session opcodes
+     * so the `login` capability gates kXR_login/kXR_auth themselves; the
+     * classifier exempts the handshake/control opcodes so a client can always
+     * reach the in-protocol TLS upgrade this policy demands.
+     */
+    rc = brix_tls_require_enforce(ctx, c, conf);
+    if (rc != BRIX_DISPATCH_CONTINUE) {
+        return rc;
+    }
+
     rc = brix_dispatch_session_opcode(ctx, c, conf);
     if (rc != BRIX_DISPATCH_CONTINUE) {
         return rc;

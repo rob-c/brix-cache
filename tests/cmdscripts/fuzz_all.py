@@ -8,6 +8,7 @@ import os
 from cmdscripts.compile_run import REPO_ROOT, result, run
 
 FUZZ_DIR = REPO_ROOT / "tests" / "fuzz"
+ARTIFACT_DIR = FUZZ_DIR / "artifacts"
 SAN = ["-O1", "-g", "-fsanitize=fuzzer,address,undefined"]
 
 
@@ -125,19 +126,50 @@ BUILD_ARGS = {
 }
 
 
+def excerpt(text: str, head: int = 1800, tail: int = 2000) -> str:
+    """Keep BOTH ends of a libFuzzer run.
+
+    libFuzzer prints the sanitizer diagnosis (error class, faulting address,
+    stack) first and the run statistics last. A tail-only excerpt therefore
+    reports that something crashed while discarding what crashed and where —
+    which is exactly what cost us the 2026-08-05 fuzz_b64url triage, where the
+    CI log held no error line at all and the reproducer was never uploaded.
+    """
+    text = (text or "").strip()
+    if len(text) <= head + tail:
+        return text
+    return f"{text[:head]}\n[... {len(text) - head - tail} bytes elided ...]\n{text[-tail:]}"
+
+
 def run_checks(base: Path, fuzz_time: str | None = None) -> list[tuple[bool, str]]:
     seconds = fuzz_time or os.environ.get("FUZZ_TIME", "60")
     results: list[tuple[bool, str]] = []
     for target, build_args in BUILD_ARGS.items():
         built = run(build_args, cwd=FUZZ_DIR)
         if built.returncode != 0:
-            results.append(result(False, f"build {target} failed: {(built.stderr or built.stdout)[-2500:]}"))
+            results.append(result(False, f"build {target} failed: {excerpt(built.stderr or built.stdout)}"))
             continue
         corpus = FUZZ_DIR / f"corpus_{target.removeprefix('fuzz_')}"
         corpus.mkdir(exist_ok=True)
+        # Per-target artifact dir: libFuzzer otherwise drops crash-<sha1> into the
+        # cwd, where nothing collects it and the reproducing input is lost.
+        artifacts = ARTIFACT_DIR / target
+        artifacts.mkdir(parents=True, exist_ok=True)
         run([str(FUZZ_DIR / target), "-runs=0", str(corpus)], cwd=FUZZ_DIR)
-        ran = run([str(FUZZ_DIR / target), f"-max_total_time={seconds}", str(corpus)], cwd=FUZZ_DIR)
-        results.append(result(ran.returncode == 0, f"{target} fuzzed for {seconds}s: {(ran.stderr or ran.stdout)[-2500:]}"))
+        ran = run(
+            [
+                str(FUZZ_DIR / target),
+                f"-max_total_time={seconds}",
+                f"-artifact_prefix={artifacts}/",
+                str(corpus),
+            ],
+            cwd=FUZZ_DIR,
+        )
+        detail = excerpt(ran.stderr or ran.stdout)
+        reproducers = sorted(p for p in artifacts.iterdir() if p.is_file())
+        if reproducers:
+            detail += "\nreproducers: " + ", ".join(str(p) for p in reproducers)
+        results.append(result(ran.returncode == 0, f"{target} fuzzed for {seconds}s: {detail}"))
     return results
 
 

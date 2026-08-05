@@ -9,16 +9,16 @@
  *       descriptor, and every method that crosses the sd_stage.c /
  *       sd_stage_write.c file boundary.
  * WHY:  sd_stage.c (the decorator core: read/namespace/xattr/dir forwarders, the
- *       open dispatch, the driver descriptor, and instance lifecycle) and
- *       sd_stage_write.c (the two interposed WRITE paths — the write-back
- *       byte-I/O object and the staged-upload path) were one 725-line file;
+ *       open dispatch, the driver descriptor, and instance lifecycle),
+ *       sd_stage_write.c (the staged-upload path + shared cred helpers), and
+ *       sd_stage_wb.c (the write-back byte-I/O object) were one 725-line file;
  *       splitting keeps each focused and under the 500-line cap. The driver table
  *       lives in sd_stage.c and dispatches to the write methods in
- *       sd_stage_write.c, while the write-back open in sd_stage_write.c stamps
- *       objects with the driver defined in sd_stage.c — so exactly those symbols
- *       become non-static and are declared here.
- * HOW:  Both translation units include this header; nothing here is exported
- *       beyond the stage backend.
+ *       sd_stage_write.c / sd_stage_wb.c, while the write-back open in
+ *       sd_stage_wb.c stamps objects with the driver defined in sd_stage.c — so
+ *       exactly those symbols become non-static and are declared here.
+ * HOW:  All three translation units include this header; nothing here is
+ *       exported beyond the stage backend.
  */
 
 #include <ngx_core.h>
@@ -26,6 +26,7 @@
 
 #include "fs/backend/sd.h"          /* brix_sd_* driver / instance / object types */
 #include "fs/tier/tier.h"          /* brix_stage_policy_t */
+#include "fs/xfer/stage_engine.h"   /* brix_stage_cred_t (shared cred helpers) */
 
 /* Decorator instance state: the wrapped source (flush target), the stage store
  * (upload buffer), the flush policy, and the export anchor for SP4 reconcile.
@@ -47,6 +48,15 @@ extern const brix_sd_driver_t brix_sd_stage_driver;
 /* ---- write paths implemented in sd_stage_write.c, dispatched from sd_stage.c
  *      (the open dispatch calls the write-back open; the driver table above
  *      routes byte-I/O and the staged-upload ops to the methods below). ------- */
+
+/* Shared per-user cred capture (sd_stage_write.c): record the caller's identity
+ * into a durable stage cred slot at open time, test whether one was recorded,
+ * and scrub the in-memory bearer before the state is freed. Used by both the
+ * staged-upload path (sd_stage_write.c) and the write-back object
+ * (sd_stage_wb.c). */
+void sd_stage_record_cred(brix_stage_cred_t *dst, const brix_sd_cred_t *cred);
+int  sd_stage_cred_present(const brix_stage_cred_t *c);
+void sd_stage_cred_wipe(brix_stage_cred_t *c);
 
 /* Write open → a writable object on the stage store carrying the owner identity
  * for the eventual flush. Called by sd_stage_open / sd_stage_open_cred. */

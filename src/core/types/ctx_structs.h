@@ -109,21 +109,27 @@ typedef struct {
 } brix_ctx_pmark_t;
 
 /* kXR_sigver request-signing state (GSI sessions).  The client wraps each
- * request in a kXR_sigver envelope carrying an HMAC-SHA256 over the next
- * request's header (and optionally payload); the replay guard requires seqno >
- * last_seqno.  signing_key = SHA-256(DH-shared-secret) set at kXGC_cert. */
+ * request in a kXR_sigver envelope carrying the stock XrdSecProtect secver-0
+ * signature: the GSI session cipher's encryption of SHA-256(seqno_be(8) ||
+ * header(24) || payload-unless-nodata), IV-prepended on the signed-DH path.
+ * The replay guard requires seqno > last_seqno.  The cipher material is a COPY
+ * (armed at kXGC_cert) so delegation's ctx->gsi.sess_key cleanse cannot disarm
+ * signing mid-session. */
 typedef struct {
-    u_char       signing_key[32];  /* HMAC-SHA256 key (SHA-256 of DH secret) */
-    int          signing_active;   /* 1 = signing_key is valid and in use */
+    char         sig_cipher[24];   /* session cipher name (kXRS_cipher_alg) */
+    u_char       sig_key[32];      /* session key (first key_len of DH secret) */
+    int          sig_keylen;       /* valid bytes in sig_key (0 = unset) */
+    int          sig_use_iv;       /* 1 = IV-prepended blobs (signed-DH peer) */
+    int          signing_active;   /* 1 = cipher/key are valid and in use */
     uint64_t     last_seqno;       /* highest seqno accepted so far */
-    int          pending;          /* 1 = next dispatch must verify the HMAC */
+    int          pending;          /* 1 = next dispatch must verify the signature */
     int          verified;         /* 1 = current request passed sigver verification */
     uint16_t     expectrid;        /* the opcode the sigver envelope covers */
+    u_char       sid[2];           /* streamid of the sigver frame (must match) */
     uint64_t     seqno;            /* seqno from the kXR_sigver frame */
-    int          nodata;           /* 1 = payload was excluded from the HMAC */
-    u_char       hmac[32];         /* expected HMAC bytes to check against */
-    EVP_MAC      *mac;             /* cached OpenSSL HMAC provider handle */
-    EVP_MAC_CTX  *mac_ctx;         /* reusable HMAC context for signed reqs */
+    int          nodata;           /* 1 = payload was excluded from the hash */
+    u_char       sig[64];          /* signature blob (BRIX_GSI_SIGVER_SIG_MAX) */
+    int          sig_len;          /* valid bytes in sig */
 } brix_ctx_sigver_t;
 
 /* GSI handshake + X.509 proxy delegation state.  dh_key is the ephemeral DH key

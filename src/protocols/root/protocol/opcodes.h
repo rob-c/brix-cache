@@ -71,7 +71,7 @@
 #define kXR_pgwrite   3026  /* paged write with per-page CRC32 integrity (xrdcp v5) */
 #define kXR_locate    3027  /* locate file replicas (returns host:port list) */
 #define kXR_truncate  3028  /* truncate file by path or open handle */
-#define kXR_sigver    3029  /* request-signing envelope (HMAC-SHA256) */
+#define kXR_sigver    3029  /* request-signing envelope (secver-0: session-cipher-encrypted SHA-256) */
 #define kXR_pgread    3030  /* paged read with per-page CRC32c integrity */
 #define kXR_writev    3031  /* scatter-gather write */
 #define kXR_clone     3032  /* server-side range copy (protocol v5.2.0) */

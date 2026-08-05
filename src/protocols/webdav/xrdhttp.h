@@ -5,7 +5,6 @@
  *   - Detection of XrdHttp clients via X-Xrootd-Proto header
  *   - Extraction of ?xrd.* and ?tpc.* query parameters per the XrdHttp URL dialect
  *   - Response header injection: X-Xrootd-Requuid, X-Xrootd-Status, X-Xrootd-Wait/Retry
- *   - XrdHttp redirect dialect: X-Xrootd-Redir-Host, X-Xrootd-Redir-Port, opaque passthrough
  *   - Multipart/byteranges GET for efficient vector reads (kXR_readv over HTTP)
  *   - URI-based TPC via ?tpc.src= / ?tpc.dst= query parameters
  *   - ?xrd.stats XML statistics endpoint
@@ -118,20 +117,11 @@ void xrdhttp_parse_request(ngx_http_request_t *r);
 ngx_int_t xrdhttp_add_response_headers(ngx_http_request_t *r,
                                         ngx_int_t http_status);
 
-/* ---- redirect helpers ---- */
-
-/*
- * Build and send an HTTP redirect response using the XrdHttp redirect dialect:
- *   - Location: <location_url>[?<opaque>] (tpc.key and xrd.opaque appended)
- *   - X-Xrootd-Redir-Host: <redir_host>  (if non-NULL)
- *   - X-Xrootd-Redir-Port: <redir_port>  (if redir_port > 0)
- *   - X-Xrootd-Requuid / X-Xrootd-Status from context
- * Sends a 307 Temporary Redirect.  Returns NGX_HTTP_TEMPORARY_REDIRECT.
- */
-ngx_int_t xrdhttp_send_redirect(ngx_http_request_t *r,
-                                  const char *location_url,
-                                  const char *redir_host,
-                                  int         redir_port);
+/* NOTE: the XrdHttp redirect dialect (xrdhttp_send_redirect + the
+ * X-Xrootd-Redir-Host/Port emitters) was removed in phase-95 — it had zero call
+ * sites, so HTTP clients were never redirected by it.  A real implementation
+ * needs a mesh-selection call site and a signed-CGI handoff; the root:// plane
+ * does its own redirects via brix_send_redirect (response/control.c). */
 
 /* ---- multipart/byteranges (vector read) ---- */
 

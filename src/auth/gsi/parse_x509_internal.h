@@ -28,8 +28,7 @@ void gsi_capture_fullproxy(brix_ctx_t *ctx, const u_char *plain,
 STACK_OF(X509) *gsi_chain_from_plaintext(const u_char *plain, int plain_len,
                                          ngx_log_t *log);
 
-int gsi_store_signing_key(brix_ctx_t *ctx, const unsigned char *secret,
-                          size_t secret_len);
+int gsi_arm_request_signing(brix_ctx_t *ctx);
 
 STACK_OF(X509) *brix_gsi_parse_x509_signed(brix_ctx_t *ctx,
                                            ngx_connection_t *c);

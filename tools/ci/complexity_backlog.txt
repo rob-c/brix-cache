@@ -31,7 +31,6 @@ src/fs/backend/pblock/sd_pblock_staged.c::sd_pblock_staged_commit	20
 src/fs/backend/pblock/sd_pblock_staged.c::sd_pblock_staged_open_as	16
 src/fs/backend/s3/sd_s3.c::sd_s3_pread	21
 src/fs/backend/s3/sd_s3_write.c::sd_s3_pwrite	18
-src/fs/backend/stage/sd_stage_write.c::sd_stage_open_writeback	16
 src/fs/cache/origin_protocol.c::brix_cache_origin_query_checksum	17
 src/fs/vfs/vfs_rename.c::brix_vfs_rename	17
 src/fs/vfs/vfs_writer.c::brix_vfs_writer_open	21
@@ -44,12 +43,10 @@ src/protocols/gridftp/ev/ftp_ev_io.c::brix_ftp_ev_process	17
 src/protocols/gridftp/ev/ftp_ev_mode_e_recv.c::brix_ftp_ev_eb_accept	17
 src/protocols/gridftp/ftp_module_gsi.c::brix_ftp_build_gsi	17
 src/protocols/root/read/clone.c::brix_handle_clone	20
-src/protocols/root/read/open_request.c::brix_open_precheck	16
 src/protocols/root/read/open_resolved_file.c::brix_open_resolved_file	17
 src/protocols/root/read/open_resolved_file_open.c::brix_open_map_open_error	16
 src/protocols/root/write/mv.c::mv_execute	16
 src/protocols/webdav/config_merge.c::webdav_validate_auth_paths	16
 src/protocols/webdav/module_directives_cert.c::webdav_conf_pick_ca_file	21
-src/protocols/webdav/module_init.c::brix_http_delegated_cred_variable	16
 src/protocols/webdav/put_body_digest.c::webdav_digest_value_hex	16
 src/tpc/outbound/source_stream.c::tpc_verify_source_checksum	19

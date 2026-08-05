@@ -295,6 +295,22 @@ brix_qconfig_emit_bind_max(ngx_stream_brix_srv_conf_t *conf,
     return brix_qconfig_append(resp, resp_sz, pos, "%d\n", 15);
 }
 
+/* WHAT: Emits the bound-substream request capability for the "brix.substreams" query key.
+ * WHY: This server dispatches full kXR_read/kXR_write request frames arriving ON a bound
+ *      secondary connection (each write self-addresses via offset + SHM-published fhandle);
+ *      stock servers instead treat bound paths as pathid-directed data channels and never
+ *      answer a request frame sent there. The native client probes this key after kXR_bind
+ *      and tears its secondaries down without the "=rw" marker, so it never deadlocks on a
+ *      request a stock peer will not answer (an unknown key merely echoes "brix.substreams").
+ * HOW: Single fixed-string append. */
+static ngx_flag_t
+brix_qconfig_emit_substreams(ngx_stream_brix_srv_conf_t *conf,
+    char *resp, size_t resp_sz, size_t *pos)
+{
+    (void) conf;
+    return brix_qconfig_append(resp, resp_sz, pos, "brix.substreams=rw\n");
+}
+
 /* WHAT: Emits the max parallel-I/O streams per request for the "pio_max" query key.
  * WHY: The reference do_Qconf returns a bare integer (maxPio+1; stock default 5); XrdCl parses it with
  *      atoi(), so a "pio_max=" prefix would break it.
@@ -354,6 +370,7 @@ static const brix_qconfig_entry_t  brix_qconfig_table[] = {
     { "cmpread",       brix_qconfig_emit_cmpread       },
     { "cmpwrite",      brix_qconfig_emit_cmpwrite      },
     { "xrdfs.ext",     brix_qconfig_emit_xrdfs_ext     },
+    { "brix.substreams", brix_qconfig_emit_substreams  },
     { "version",       brix_qconfig_emit_version       },
     { "bind_max",      brix_qconfig_emit_bind_max      },
     { "pio_max",       brix_qconfig_emit_pio_max       },

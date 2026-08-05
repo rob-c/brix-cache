@@ -83,7 +83,7 @@ sts_http_get(const char *url, sts_resp_t *resp, long *http_status,
     curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, errbuf);
     curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L);
     curl_easy_setopt(curl, CURLOPT_URL, url);
-#ifdef CURLOPT_PROTOCOLS_STR
+#if CURL_AT_LEAST_VERSION(7, 85, 0)
     curl_easy_setopt(curl, CURLOPT_PROTOCOLS_STR, "http,https");
 #else
     curl_easy_setopt(curl, CURLOPT_PROTOCOLS,
@@ -165,7 +165,7 @@ sts_http_post(const char *url, const char *host, const sts_post_t *pd,
     curl_easy_setopt(curl, CURLOPT_POSTFIELDS, pd->body);
     curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, (long) ngx_strlen(pd->body));
     curl_easy_setopt(curl, CURLOPT_HTTPHEADER, hdrs);
-#ifdef CURLOPT_PROTOCOLS_STR
+#if CURL_AT_LEAST_VERSION(7, 85, 0)
     curl_easy_setopt(curl, CURLOPT_PROTOCOLS_STR, "http,https");
 #else
     curl_easy_setopt(curl, CURLOPT_PROTOCOLS,
