@@ -310,16 +310,31 @@ cmd_status_report(char *reply, size_t rsz)
         return;
     }
     pthread_mutex_lock(&g_res_lock);
-    snprintf(reply + used, rsz - used,
-"proto tls=%d/%d http=%d/%d record=%d replay=%d/%s exec=%d | tls_rw=%lu http_rw=%lu "
+    int k4 = snprintf(reply + used, rsz - used,
+"proto tls=%d/%d http=%d/%d hold=%d/%d record=%d replay=%d/%s exec=%d | "
+"tls_rw=%lu http_rw=%lu held=%lu "
 "recorded=%luB replayed=%luB | bisect[%s] recovery[%s]\n",
         fp_tls_active(&g_tls_up), fp_tls_active(&g_tls_down),
         fp_http_active(&g_http_up), fp_http_active(&g_http_down),
+        fp_http_hold_active(&g_http_up), fp_http_hold_active(&g_http_down),
         fp_replay_recording(), g_replay_active, g_replay_updir ? "up" : "down",
         fp_oracle_enabled(),
-        C.tls_rewrites, C.http_rewrites, C.recorded, C.replayed,
+        C.tls_rewrites, C.http_rewrites, C.held, C.recorded, C.replayed,
         g_bisect_result, g_recovery_result);
     pthread_mutex_unlock(&g_res_lock);
+    if (k4 < 0 || (used += (size_t) k4) >= rsz) {
+        return;
+    }
+    snprintf(reply + used, rsz - used,
+"dpi idle-reap=%d/%s eat-100=%d rst-after=%ldB/%ldms drop-fin=%d/%d "
+"classify=%ldB/%dkbps syn-drop=%dppm hello-reset=%d | "
+"reaped=%lu ate100=%lu fin_dropped=%lu throttled=%lu classify_kills=%lu "
+"syn_dropped=%lu hello_reset=%lu\n",
+        g_idle_reap_ms, g_idle_reap_rst ? "rst" : "black-hole", g_eat_100,
+        g_rst_after_bytes, g_rst_after_ms, g_drop_fin_up, g_drop_fin_down,
+        g_classify_bytes, g_classify_kbps, g_syn_drop_ppm, g_hello_reset_thresh,
+        C.reaped, C.ate_100, C.fin_dropped, C.throttled, C.classify_kills,
+        C.syn_dropped, C.hello_reset);
 }
 
 /* Machine-readable snapshot (a subset, for test harnesses / dashboards). */
@@ -334,7 +349,12 @@ cmd_status_json(char *reply, size_t rsz)
 "\"severs\":%lu,\"corrupt\":%lu,\"dups\":%lu,\"refused\":%lu,"
 "\"dropped\":%lu,\"repeated\":%lu,\"injected\":%lu,\"replaced\":%lu,"
 "\"triggered\":%lu,\"mangled\":%lu,\"fanout_conns\":%lu,"
-"\"tls_rewrites\":%lu,\"http_rewrites\":%lu,\"recorded\":%lu,\"replayed\":%lu,"
+"\"tls_rewrites\":%lu,\"http_rewrites\":%lu,\"held\":%lu,"
+"\"recorded\":%lu,\"replayed\":%lu,"
+"\"reaped\":%lu,\"ate_100\":%lu,\"fin_dropped\":%lu,\"throttled\":%lu,"
+"\"hello_reset\":%lu,\"classify_kills\":%lu,\"syn_dropped\":%lu,"
+"\"udp_in\":%lu,\"udp_out\":%lu,\"udp_dropped\":%lu,\"udp_reaped\":%lu,"
+"\"udp_held\":%lu,"
 "\"blocked\":%d,\"hang\":%d,\"epoch\":%u,\"chaos\":%d,\"flap\":%d,"
 "\"fanout\":%d,\"global_rate_kbps\":%d,\"accept_pause_ms\":%d,"
 "\"recording\":%d,\"replay\":%d,\"exec\":%d}\n",
@@ -342,7 +362,10 @@ cmd_status_json(char *reply, size_t rsz)
         C.severs, C.corrupt, C.dups, C.refused,
         C.dropped, C.repeated, C.injected, C.replaced,
         C.triggered, C.mangled, C.fanout_conns,
-        C.tls_rewrites, C.http_rewrites, C.recorded, C.replayed,
+        C.tls_rewrites, C.http_rewrites, C.held, C.recorded, C.replayed,
+        C.reaped, C.ate_100, C.fin_dropped, C.throttled,
+        C.hello_reset, C.classify_kills, C.syn_dropped,
+        C.udp_in, C.udp_out, C.udp_dropped, C.udp_reaped, C.udp_held,
         g_blocked, g_hang, g_drop_epoch, g_chaos_on, g_flap_on,
         g_fanout, g_global_rate_kbps, g_accept_pause_ms,
         fp_replay_recording(), g_replay_active, fp_oracle_enabled());
@@ -394,6 +417,8 @@ cmd_set_dispatch(const char *verb, char *args, char *reply, size_t rsz)
     return cmd_set_lever(verb, args) || cmd_set_epoch(verb)
         || cmd_set_misc(verb, args) || cmd_set_ext(verb, args, reply, rsz)
         || cmd_set_attack(verb, args, reply, rsz)
+        || cmd_set_dpi(verb, args, reply, rsz)
+        || cmd_set_udp(verb, args, reply, rsz)
         || cmd_set_proto(verb, args, reply, rsz)
         || cmd_set_oracle(verb, args, reply, rsz);
 }

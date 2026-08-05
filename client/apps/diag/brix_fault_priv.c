@@ -246,6 +246,45 @@ fp_priv_enabled(void)
     return g_on;
 }
 
+/* `priv frag-drop` / `priv first-not-syn-drop` — kernel-crafted verdicts a
+ * mis-configured DPI imposes that TCP-flow-centric proxies cannot fake:
+ *   frag-drop        — drop every IP fragment (fragmented large UDP / EDNS0 DNS
+ *                      dies while small requests succeed).
+ *   first-not-syn    — after state loss (failover / ECMP rehash) drop any packet
+ *                      to the listen port that isn't a fresh SYN (mid-stream
+ *                      freeze).  Uses conntrack `invalid`.
+ * Each (re)creates the shared table with just its rule, so it is mutually
+ * exclusive with `cut` (last writer wins); torn down with the table on exit. */
+static int
+special_apply(const char *what, char *reply, size_t rsz)
+{
+    char rs[768];
+    int  n = snprintf(rs, sizeof(rs),
+        "add table inet brix_fault_proxy\n"
+        "delete table inet brix_fault_proxy\n"
+        "add table inet brix_fault_proxy\n"
+        "add chain inet brix_fault_proxy in "
+            "{ type filter hook input priority -150; policy accept; }\n");
+    if (strcmp(what, "frag-drop") == 0) {
+        n += snprintf(rs + n, sizeof(rs) - n,
+            "add rule inet brix_fault_proxy in ip frag-off & 0x1fff != 0 drop\n");
+    } else if (strcmp(what, "first-not-syn-drop") == 0) {
+        n += snprintf(rs + n, sizeof(rs) - n,
+            "add rule inet brix_fault_proxy in tcp dport %d ct state invalid drop\n",
+            g_listen_port);
+    } else {
+        snprintf(reply, rsz, "err: unknown priv verdict '%s'\n", what);
+        return -1;
+    }
+    char *argv[] = { "nft", "-f", "-", NULL };
+    if (priv_run_stdin(argv, rs) != 0) {
+        snprintf(reply, rsz, "err: nft failed (see proxy stderr)\n");
+        return -1;
+    }
+    g_nft_on = 1;
+    return 0;
+}
+
 /* `priv cut <mode> [up|down]` — install the nft verdict for one direction. */
 static void
 priv_cut(char *rest, char *reply, size_t rsz)
@@ -286,6 +325,15 @@ priv_dispatch(const char *verb, char *rest, char *reply, size_t rsz)
         if (cut_clear() != 0) {
             snprintf(reply, rsz, "err: nft delete failed\n");
         }
+    } else if (strcmp(verb, "frag-drop") == 0 ||
+               strcmp(verb, "first-not-syn-drop") == 0) {
+        special_apply(verb, reply, rsz);
+    } else if (strcmp(verb, "strip-opt") == 0) {
+        /* TCP-option stripping (WScale/SACK) needs an NFQUEUE/eBPF option-rewrite
+         * that isn't portable via nft alone — degrade with a clear reason rather
+         * than pretend.  The rcvbuf/sndbuf clamps approximate the window effect. */
+        snprintf(reply, rsz, "err: strip-opt requires NFQUEUE/eBPF option "
+                             "surgery (unavailable); approximate with rcvbuf\n");
     } else if (strcmp(verb, "mtu") == 0) {
         cmd_mtu(rest, reply, rsz);
     } else if (strcmp(verb, "clear") == 0) {
