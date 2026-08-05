@@ -25,6 +25,7 @@ struct brix_webfile {
     int      tls;
     int      verify;
     char     ca_dir[512];
+    char     client_cert[512];     /* X.509 proxy PEM for mutual TLS; "" => none */
     char     hostport[300];        /* Host: header value (IPv6-bracketed) */
     char     path[XRDC_PATH_MAX];
     char     auth[2200];           /* "Authorization: Bearer ...\r\n" or "" */

@@ -15,7 +15,7 @@ web_read_suite(const brix_weburl *u, const char *xtra, int verify, const char *c
 
     brix_status_clear(&st);
     if (brix_http_req(u->host, u->port, u->tls, "OPTIONS", "/", xtra, NULL, 0,
-                      5000, verify, ca, &resp, &st) != 0) {
+                      5000, verify, ca, NULL, &resp, &st) != 0) {
         snprintf(b->err, sizeof(b->err), "%s", st.msg);
         bat_add(b, "OPTIONS", 0, "%s", st.msg);
         return -1;
@@ -36,7 +36,7 @@ web_read_suite(const brix_weburl *u, const char *xtra, int verify, const char *c
                  xtra ? xtra : "");
         brix_status_clear(&st);
         if (brix_http_req(u->host, u->port, u->tls, "PROPFIND", "/", hdr, body,
-                          strlen(body), 5000, verify, ca, &resp, &st) == 0) {
+                          strlen(body), 5000, verify, ca, NULL, &resp, &st) == 0) {
             bat_add(b, "PROPFIND", resp.status == 207 ? 1 : 0, "HTTP %d", resp.status);
             brix_http_resp_free(&resp);
         } else { bat_add(b, "PROPFIND", 0, "%s", st.msg); }
@@ -61,7 +61,7 @@ web_put_get_verify(const brix_weburl *u, const char *fpath, const char *xtra,
     brix_status_clear(&st);
     if (fd >= 0 && brix_http_upload(u->host, u->port, u->tls, fpath, xtra,
                                     bat_upload_src_fd, &fd,
-                                    (long long) sizeof(payload), verify, ca, 10000,
+                                    (long long) sizeof(payload), verify, ca, NULL, 10000,
                                     &st_code, &st) == 0) {
         bat_add(b, "PUT", (st_code >= 200 && st_code < 300) ? 1 : 0, "HTTP %d", st_code);
     } else { bat_add(b, "PUT", 0, "%s", st.msg); }
@@ -71,7 +71,7 @@ web_put_get_verify(const brix_weburl *u, const char *fpath, const char *xtra,
     fd = tmpfile_with(NULL, 0);
     brix_status_clear(&st);
     if (fd >= 0 && brix_http_download(u->host, u->port, u->tls, fpath, xtra, verify,
-                                      ca, fd, 10000, &st_code, &blen, &st) == 0
+                                      ca, NULL, fd, 10000, &st_code, &blen, &st) == 0
         && blen == (long long) sizeof(payload)) {
         lseek(fd, 0, SEEK_SET);
         ok = (read(fd, rbuf, sizeof(rbuf)) == (ssize_t) sizeof(payload)
@@ -95,7 +95,7 @@ web_move_delete(const brix_weburl *u, const char *dir, const char *fpath,
              u->tls ? "https" : "http", u->host, u->port, mpath, xtra ? xtra : "");
     brix_status_clear(&st);
     if (brix_http_req(u->host, u->port, u->tls, "MOVE", fpath, dst, NULL, 0,
-                      5000, verify, ca, &resp, &st) == 0) {
+                      5000, verify, ca, NULL, &resp, &st) == 0) {
         bat_add(b, "MOVE", (resp.status >= 200 && resp.status < 300) ? 1 : 0,
                 "HTTP %d", resp.status);
         brix_http_resp_free(&resp);
@@ -104,14 +104,14 @@ web_move_delete(const brix_weburl *u, const char *dir, const char *fpath,
     /* DELETE the (moved) file and the collection */
     brix_status_clear(&st);
     if (brix_http_req(u->host, u->port, u->tls, "DELETE", mpath, xtra, NULL, 0,
-                      5000, verify, ca, &resp, &st) == 0) {
+                      5000, verify, ca, NULL, &resp, &st) == 0) {
         bat_add(b, "DELETE", (resp.status >= 200 && resp.status < 300) ? 1 : 0,
                 "HTTP %d", resp.status);
         brix_http_resp_free(&resp);
     } else { bat_add(b, "DELETE", 0, "%s", st.msg); }
     { brix_status rs; brix_status_clear(&rs);
       if (brix_http_req(u->host, u->port, u->tls, "DELETE", dir, xtra, NULL, 0,
-                        5000, verify, ca, &resp, &rs) == 0) { brix_http_resp_free(&resp); } }
+                        5000, verify, ca, NULL, &resp, &rs) == 0) { brix_http_resp_free(&resp); } }
 }
 
 /* MKCOL/PUT/GET-verify/MOVE/DELETE cycle under a temp collection. */
@@ -131,7 +131,7 @@ web_write_suite(const brix_weburl *u, const char *xtra, int verify, const char *
     /* MKCOL */
     brix_status_clear(&st);
     if (brix_http_req(u->host, u->port, u->tls, "MKCOL", dir, xtra, NULL, 0,
-                      5000, verify, ca, &resp, &st) == 0) {
+                      5000, verify, ca, NULL, &resp, &st) == 0) {
         bat_add(b, "MKCOL", (resp.status == 201 || resp.status == 405) ? 1 : 0,
                 "HTTP %d", resp.status);
         brix_http_resp_free(&resp);
@@ -185,7 +185,7 @@ s3_put(const brix_weburl *u, const char *uri, const char *ak, const char *sk,
     fd = tmpfile_with(payload, payload_len);
     if (fd >= 0 && brix_http_upload(u->host, u->port, u->tls, uri, hdrs,
                                     bat_upload_src_fd, &fd,
-                                    (long long) payload_len, verify, ca, 10000,
+                                    (long long) payload_len, verify, ca, NULL, 10000,
                                     &st_code, &st) == 0) {
         bat_add(b, "PUT", (st_code >= 200 && st_code < 300) ? 1 : 0, "HTTP %d", st_code);
     } else { bat_add(b, "PUT", 0, "%s", st.msg); }
@@ -212,7 +212,7 @@ s3_get_verify(const brix_weburl *u, const char *uri, const char *ak, const char 
     }
     fd = tmpfile_with(NULL, 0);
     if (fd >= 0 && brix_http_download(u->host, u->port, u->tls, uri, hdrs, verify,
-                                      ca, fd, 10000, &st_code, &blen, &st) == 0
+                                      ca, NULL, fd, 10000, &st_code, &blen, &st) == 0
         && blen == (long long) payload_len) {
         lseek(fd, 0, SEEK_SET);
         ok = (read(fd, rbuf, sizeof(rbuf)) == (ssize_t) payload_len
@@ -239,7 +239,7 @@ s3_delete(const brix_weburl *u, const char *uri, const char *ak, const char *sk,
     {
         brix_http_resp resp;
         if (brix_http_req(u->host, u->port, u->tls, "DELETE", uri, hdrs, NULL, 0,
-                          5000, verify, ca, &resp, &st) == 0) {
+                          5000, verify, ca, NULL, &resp, &st) == 0) {
             bat_add(b, "DELETE", (resp.status >= 200 && resp.status < 300) ? 1 : 0,
                     "HTTP %d", resp.status);
             brix_http_resp_free(&resp);

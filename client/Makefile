@@ -783,7 +783,7 @@ install-automount:
 # vfs_s3_smoke is excluded (needs an external S3 endpoint; run it manually).
 # Each test is a standalone main() linking the client lib + libxrdproto, the
 # same recipe as the Build+run comment in each test's header.
-CLIENT_UNIT_TESTS := cli_opts_unit cli_cred_unit cred_unit cred_store_unit cred_refresh_unit vfs_posix_unit vfs_block_unit vfs_s3_creds_unit jsonout_unit copy_filter_unit xferjournal_unit relsafe_unit ckmanifest_unit envalias_unit xrdrc_defaults_unit suggest_unit uring_direct_unit
+CLIENT_UNIT_TESTS := cli_opts_unit cli_cred_unit cred_unit cred_store_unit cred_refresh_unit vfs_posix_unit vfs_block_unit vfs_s3_creds_unit jsonout_unit copy_filter_unit xferjournal_unit relsafe_unit ckmanifest_unit envalias_unit xrdrc_defaults_unit suggest_unit uring_direct_unit web_proxy_pem_unit
 # The tests predate the phase-69 bucket reshuffle and include bucket-local
 # headers bare ("cred.h"); add the bucket dirs rather than churning the tests.
 TEST_INC := -Ilib/auth/cred -Ilib/auth/sss -Ilib/fs -Ilib/cli -Ilib/core/types -Ilib/core/config -Ilib/net

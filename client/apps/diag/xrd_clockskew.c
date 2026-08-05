@@ -62,7 +62,7 @@ xrd_clockskew_http(const char *endpoint, xrd_probe *p, char *err, size_t errsz)
     brix_status_clear(&st);
     if (brix_http_req(w.host, w.port, w.tls, "HEAD", w.path[0] ? w.path : "/",
                       NULL, NULL, 0, 5000, 0 /*verify off for a clock probe*/,
-                      NULL, &resp, &st) != 0) {
+                      NULL, NULL, &resp, &st) != 0) {
         snprintf(err, errsz, "%s", st.msg);
         return -1;
     }

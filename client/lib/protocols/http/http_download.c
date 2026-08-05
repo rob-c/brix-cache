@@ -280,6 +280,7 @@ httpx_download_exchange(brix_io *io, const char *host, int port,
 static int
 http_download_attempt(const char *host, int port, int tls, const char *path,
                       const char *extra_headers, int verify, const char *ca_dir,
+                      const char *client_cert,
                       int out_fd, int timeout_ms, long long total_got,
                       int *http_status, long long *body_this, brix_status *st)
 {
@@ -288,8 +289,8 @@ http_download_attempt(const char *host, int port, int tls, const char *path,
     int      rc;
 
     *body_this = 0;
-    if (httpx_connect(&io, host, port, tls, verify, ca_dir, timeout_ms,
-                      &tls_ctx, st) != 0) {
+    if (httpx_connect(&io, host, port, tls, verify, ca_dir, client_cert,
+                      timeout_ms, &tls_ctx, st) != 0) {
         return -1;
     }
     if (total_got > 0) {
@@ -335,6 +336,7 @@ http_download_should_retry(int seekable, int window_ms, uint64_t deadline,
 int
 brix_http_download(const char *host, int port, int tls, const char *path,
                    const char *extra_headers, int verify, const char *ca_dir,
+                   const char *client_cert,
                    int out_fd, int timeout_ms, int *http_status,
                    long long *body_len, brix_status *st)
 {
@@ -367,8 +369,8 @@ brix_http_download(const char *host, int port, int tls, const char *path,
         int        rc;
 
         rc = http_download_attempt(host, port, tls, path, extra_headers, verify,
-                                   ca_dir, out_fd, timeout_ms, total_got,
-                                   http_status, &body_this, st);
+                                   ca_dir, client_cert, out_fd, timeout_ms,
+                                   total_got, http_status, &body_this, st);
         total_got += body_this;
         if (rc == 0) {
             if (body_len != NULL) { *body_len = total_got; }

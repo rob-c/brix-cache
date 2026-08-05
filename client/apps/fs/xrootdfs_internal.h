@@ -72,6 +72,7 @@ extern int        g_streams;
 extern brix_url   g_url;
 extern int          g_web;
 extern const char  *g_web_ca;
+extern const char  *g_web_proxy;
 extern int          g_web_verify;
 extern brix_weburl  g_weburl;
 extern size_t     g_writeback;

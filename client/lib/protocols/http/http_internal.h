@@ -41,7 +41,7 @@ int httpx_body_complete(const char *buf, size_t total, size_t body_off, long lon
 int httpx_exchange(brix_io *io, const char *host, int port, const char *method, const char *path, const char *extra_headers, const void *body, size_t blen, int timeout_ms, brix_http_resp *resp, brix_status *st);
 
 /* http.c */
-int httpx_connect(brix_io *io, const char *host, int port, int tls, int verify, const char *ca_dir, int timeout_ms, void **tls_ctx, brix_status *st);
+int httpx_connect(brix_io *io, const char *host, int port, int tls, int verify, const char *ca_dir, const char *client_cert, int timeout_ms, void **tls_ctx, brix_status *st);
 ssize_t bsrc_read(body_src *s, void *buf, size_t n, brix_status *st);
 int bsrc_getline(body_src *s, char *out, size_t outsz, brix_status *st);
 int write_all_fd(int fd, const char *buf, size_t n, brix_status *st);

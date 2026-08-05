@@ -685,6 +685,88 @@ main(void)
             BRIX_SD_CRED_BEARER | BRIX_SD_CRED_PROXY_PEM | BRIX_SD_CRED_SSS;
     }
 
+    /* ---- PASSTHROUGH bearer NUL-termination (verbatim-forward safety) ------
+     * brix_vfs_deleg_bearer hands cred->bearer to presenters that format it with
+     * "%s" (sd_http/sd_stage build "Authorization: Bearer %s"), so it MUST be
+     * NUL-terminated and EXACTLY the captured bytes. The captured bag bearer is a
+     * length-counted ngx_str_t with NO trailing NUL (webdav auth_token.c allocates
+     * `len` bytes), so a borrow-the-pointer materialiser lets "%s" over-read into
+     * adjacent bytes — intermittently forwarding a longer, malformed token the
+     * origin rejects (403). These cases back the raw JWT with a buffer whose byte
+     * immediately after the token is NON-ZERO, so an over-read is observable. */
+    {
+        brix_deleg_live_t  bag4;
+        char              *backing;
+        const char        *jwt = "eyJhbGciOiJSUzI1NiJ9.PAYLOAD.SIGNATURE";
+        size_t             jlen = strlen(jwt);
+
+        accept_mask = BRIX_SD_CRED_BEARER;
+
+        /* 18. SUCCESS: a non-NUL-terminated bearer (token bytes followed by 0xFF
+         *     filler, no NUL within the captured length) materialises to a
+         *     cred.bearer that is exactly `jlen` bytes and NUL-terminated — proving
+         *     the materialiser copies+terminates rather than borrowing the pointer.
+         *     Under the old borrow, "%s"/strlen would run past into the 0xFF filler
+         *     (strlen(cred.bearer) > jlen) and the origin would see a garbage token. */
+        backing = malloc(jlen + 32);
+        assert(backing != NULL);
+        memset(backing, 0xFF, jlen + 32);   /* NO NUL anywhere near the token */
+        memcpy(backing, jwt, jlen);
+        memset(&ctx, 0, sizeof(ctx));
+        memset(&bag4, 0, sizeof(bag4));
+        ctx.pool = (ngx_pool_t *) &ctx;
+        ctx.log  = &test_log;
+        ctx.deleg_live      = &bag4;
+        bag4.have_proxy_pem = 0;
+        bag4.mode           = BRIX_CRED_PASSTHROUGH;
+        bag4.bearer.data    = (u_char *) backing;   /* NOT NUL-terminated */
+        bag4.bearer.len     = jlen;
+        bag4.sts            = NULL;
+        memset(&cred, 0, sizeof(cred));
+        use_cred = 0; err = 0;
+        rc = brix_vfs_deleg_live_cred(&ctx, &cred, &use_cred, &err);
+        assert(rc == NGX_OK && use_cred == 1);
+        assert(cred.bearer != NULL);
+        assert(strlen(cred.bearer) == jlen);              /* no over-read */
+        assert(memcmp(cred.bearer, jwt, jlen) == 0);      /* exact bytes */
+        assert(cred.bearer[jlen] == '\0');                /* terminated */
+        assert((const char *) cred.bearer != (const char *) backing); /* copied */
+        free((void *) cred.bearer);
+        free(backing);
+
+        /* 19. ISOLATION (security-neg): a SECOND, SHORTER token that reuses the
+         *     SAME backing region (simulating pool reuse across concurrent
+         *     requests, the field failure mode) must forward its OWN bytes only —
+         *     never the longer prior token's trailing bytes. A borrow-the-pointer
+         *     materialiser would forward whatever now sits after the short token. */
+        backing = malloc(jlen + 32);
+        assert(backing != NULL);
+        memset(backing, 'Z', jlen + 32);    /* stale non-NUL bytes after the token */
+        memcpy(backing, jwt, 12);           /* short token: first 12 bytes only */
+        memset(&ctx, 0, sizeof(ctx));
+        memset(&bag4, 0, sizeof(bag4));
+        ctx.pool = (ngx_pool_t *) &ctx;
+        ctx.log  = &test_log;
+        ctx.deleg_live      = &bag4;
+        bag4.have_proxy_pem = 0;
+        bag4.mode           = BRIX_CRED_PASSTHROUGH;
+        bag4.bearer.data    = (u_char *) backing;
+        bag4.bearer.len     = 12;
+        bag4.sts            = NULL;
+        memset(&cred, 0, sizeof(cred));
+        use_cred = 0; err = 0;
+        rc = brix_vfs_deleg_live_cred(&ctx, &cred, &use_cred, &err);
+        assert(rc == NGX_OK && use_cred == 1 && cred.bearer != NULL);
+        assert(strlen(cred.bearer) == 12);                /* exactly the short token */
+        assert(memcmp(cred.bearer, jwt, 12) == 0);
+        assert(strchr(cred.bearer, 'Z') == NULL);         /* no stale-byte leakage */
+        free((void *) cred.bearer);
+        free(backing);
+
+        accept_mask =
+            BRIX_SD_CRED_BEARER | BRIX_SD_CRED_PROXY_PEM | BRIX_SD_CRED_SSS;
+    }
+
     X509_STORE_free(store);
     free(good);
     free(rogue);

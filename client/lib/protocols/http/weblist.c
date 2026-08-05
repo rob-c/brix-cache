@@ -361,8 +361,9 @@ brix_s3_list(const brix_weburl *u, const char *ak, const char *sk,
             brix_strv_free(acc.arr, acc.n);
             return -1;
         }
+        /* S3 authenticates with SigV4 (INV-6), never an X.509 client cert. */
         if (brix_http_req(u->host, u->port, u->tls, "GET", path, hdrs[0] ? hdrs : NULL,
-                          NULL, 0, XRDC_WEBLIST_TIMEOUT, verify, ca_dir, &r, st) != 0) {
+                          NULL, 0, XRDC_WEBLIST_TIMEOUT, verify, ca_dir, NULL, &r, st) != 0) {
             brix_strv_free(acc.arr, acc.n);
             return -1;
         }
@@ -389,7 +390,8 @@ brix_s3_list(const brix_weburl *u, const char *ak, const char *sk,
 
 int
 brix_webdav_mkcol(const brix_weburl *u, const char *path, const char *bearer,
-                  int verify, const char *ca_dir, brix_status *st)
+                  int verify, const char *ca_dir, const char *client_cert,
+                  brix_status *st)
 {
     char           headers[8192];
     brix_http_resp r;
@@ -402,7 +404,7 @@ brix_webdav_mkcol(const brix_weburl *u, const char *path, const char *bearer,
     }
     if (brix_http_req(u->host, u->port, u->tls, "MKCOL", path,
                       headers[0] ? headers : NULL, NULL, 0, XRDC_WEBLIST_TIMEOUT,
-                      verify, ca_dir, &r, st) != 0) {
+                      verify, ca_dir, client_cert, &r, st) != 0) {
         return -1;
     }
     /* 201 = created; 200 = ok; 405 (Method Not Allowed) / 301 = the collection
@@ -521,7 +523,8 @@ webdav_list_scan_body(const char *body, weblist_acc_t *acc, brix_status *st)
 
 int
 brix_webdav_list(const brix_weburl *u, const char *bearer, int verify,
-                 const char *ca_dir, char ***paths, size_t *n_out, brix_status *st)
+                 const char *ca_dir, const char *client_cert,
+                 char ***paths, size_t *n_out, brix_status *st)
 {
     char           headers[8192];
     brix_http_resp r;
@@ -535,7 +538,7 @@ brix_webdav_list(const brix_weburl *u, const char *bearer, int verify,
     }
     webdav_list_build_headers(bearer, headers, sizeof(headers));
     if (brix_http_req(u->host, u->port, u->tls, "PROPFIND", u->path, headers,
-                      NULL, 0, XRDC_WEBLIST_TIMEOUT, verify, ca_dir, &r, st) != 0) {
+                      NULL, 0, XRDC_WEBLIST_TIMEOUT, verify, ca_dir, client_cert, &r, st) != 0) {
         return -1;
     }
     if (r.status != 207 && r.status != 200) {
