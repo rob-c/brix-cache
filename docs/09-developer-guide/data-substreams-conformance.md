@@ -139,6 +139,51 @@ benchmark driver likewise opens `Delete | Update | MakePath`, and commits cleanl
 staged-commit fd lifecycle is a genuine BriX server-side bug on the `wrto` branch and is tracked
 for a server-side fix; it is *not* a client conformance gap.
 
+## XRootD.jl native client internals (as of v0.3, 2026-08-04)
+
+The Julia library at `/root/dev/XRootD.jl` (github rob-c/XRootD.jl, `main`)
+underwent a **complete rewrite**: as of v0.3 it is a **native pure-Julia** XRootD
+wire client over `Sockets` — no more CxxWrap/XrdCl C++ binding, no `XRootD_jll`
+runtime dependency. It is a Julia translation of the nginx-xrootd `libxrdc` C
+client, so its semantics track BriX's own client. Layers: `Wire` (codecs) ·
+`Session` (connections/TLS/auth/env) · `XrdCl` (`File`/`FileSystem` public API) ·
+`Storage` · `Tools`. After pulling, run `Pkg.resolve()` + `Pkg.instantiate()`
+(new deps: HTTP, OpenSSL, URIs…).
+
+`data_streams` plumbing:
+
+- `Session.data_streams()` in `src/Session/env.jl`: `XRDC_DATA_STREAMS` (native,
+  counts EXTRA links, wins) → else `XRD_SUBSTREAMSPERCHANNEL` (XrdCl's, counts the
+  control link, so N→N-1) → else `DEFAULT_DATA_STREAMS=1`. Clamps ≥0;
+  unparseable→default. Exported from `XrdCl`.
+- `File` struct (`src/Client/file.jl`): replaced single `pathid::UInt8` with
+  `pathids::Vector{UInt8}` + `rr::Int`. `Base.open(...; data_streams=Session.data_streams())`
+  auto-binds that many `kXR_bind` data paths after a successful open (gated on
+  `f.owns_conn`, non-fatal on refuse). `data_pathid` round-robins over the live
+  bound paths; reads/writes already route through it.
+- Julia tests: `test/session/test_env.jl` (env logic),
+  `test/conformance/test_datapath.jl` (open-default auto-bind / ds=0 / ds=3
+  round-robin). Auto-bind-on-open changed suite defaults, so `conf_file` in
+  `test/conformance/server.jl` now pins `data_streams=0` to keep the
+  explicit-bind conformance tests unaffected.
+
+### brixbench Julia driver
+
+`/root/dev/brixbench/drivers/bench_julia/bench_julia.jl` was rewritten for the
+native API; `vector_read` is now implemented via `readv` (previously
+"unsupported"). **17/17 ops green against BOTH** the official origin (`:21095`)
+and the BriX benchmark gateway (`:21094`, which runs `brix_data_substreams off`
+so bind is refused cleanly → control-link fallback). Wired into `run_matrix.sh`
+as the `julia` client. go-hep's default was also confirmed lowered 8→1 in
+`/root/dev/hep/xrootd/env.go`.
+
+### `kXR_open_wrto` root cause (server side)
+
+The staged-commit failure is in `brix_close_posc_commit`
+(`src/protocols/root/read/close.c`): it fsyncs an already-closed
+`ctx->files[idx].fd` → **EBADF**. Reproduces with stock XrdCl too. Latent BriX
+server bug on the `wrto` branch (not yet fixed server-side).
+
 ## Tests
 
 - `tests/test_session_bind.py` — ON/default acceptance + bound-read correctness (7 classes:

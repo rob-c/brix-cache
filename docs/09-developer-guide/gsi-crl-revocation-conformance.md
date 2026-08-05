@@ -77,6 +77,22 @@ X509_USER_PROXY=<proxy> xrdfs root://localhost:21199/ ls /   # stock
 X509_USER_PROXY=<proxy> xrdfs root://localhost:21296/ ls /   # BriX
 ```
 
+### Exact rig artifacts (xrd1)
+
+- CA hash `03628dcb`; second EEC's CA hash `f79132b2`. Revoked user1 EEC
+  `/DC=test/DC=xrootd/CN=Test User/CN=12345`, serial
+  `6E8E67D548DA1B2FF5F628C9DB38882B801AF53A`; user2 fresh keypair signed by the CA, serial `2001`.
+- Combined CRL `pki/ca/combined.crl.pem` (revokes `6E8E…` + `2001`), built via
+  `openssl ca -revoke` + `openssl ca -gencrl` with `pki/ca/ca-full.cnf`, installed as
+  `certdir-revoked/{03628dcb,f79132b2}.r0` (both servers restarted to clear the CRL cache).
+- Stock origin `:21199`:
+  `sec.protocol /usr/lib64 gsi -certdir:certdir-revoked -crl:3
+  -crldir:/tmp/xrd-test/certdir-revoked -gridmap:… -gmapopt:1` (`-crl:3` = require-not-expired).
+- BriX gateway `:21296`, config `configs/nginx-brix-gsi-revoked.conf`
+  (`brix_crl /tmp/xrd-test/certdir-revoked; brix_crl_mode require;`).
+- Proxies under `/tmp/xrd-test/proxies/` (revoked-user 12 h proxy also at `/tmp/xrd-test/x509up`,
+  `voms-proxy-init -rfc` → 2-cert chain); the format/EEC sweep is `/tmp/xrd-test/sweep.sh`.
+
 ## Verification matrix (breadth)
 
 Held to a controlled standard — two independent EECs, four proxy formats, and a

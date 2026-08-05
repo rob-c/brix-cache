@@ -117,6 +117,40 @@ token yields `login as nobody`.
   on the inline (default whole-object gateway) path. Unit tests: `stage_bearer_thread`,
   `sreq_compat` (C-regression suite).
 
+### Cell 4 write-back fix — implementation detail (see [[token-https-writeback-fix]])
+
+**Full call path of the delegated write-back:** WebDAV PUT → `brix_vfs_staged_open` →
+`staged_open_driver` (resolves the backend cred via `brix_vfs_backend_cred`, which for
+`brix_backend_delegation passthrough` + token auth materialises the JWT into `cred->bearer` via
+`brix_vfs_deleg_bearer`) → `sd_stage_staged_open_cred` (records it) → `sd_stage_staged_commit` →
+`brix_stage_run_inline_cred` → `stage_engine_run` → `stage_engine_move` → the destination
+`sd_http` `staged_open_cred` turns `cred->bearer` into `Authorization: Bearer` on the commit PUT.
+
+**Two hidden root causes beyond "no bearer field"** (both silently demoted a keyless passthrough
+bearer to the service cred): (1) `sd_stage_record_cred` (`src/fs/backend/stage/sd_stage_write.c`)
+**early-returned on an empty store key** — a passthrough bearer carries no store key, so the token
+was never recorded; (2) the whole staged-write flush **gated the cred on `ss->cred.key[0]`** (a
+key-only ternary) at 4+ call sites. Fix replaced both with `sd_stage_cred_present()` =
+`key[0] || bearer[0]`.
+
+**Secret hygiene:** the in-memory-only `char bearer[4096]` is the final field of
+`brix_stage_cred_t` (`src/fs/xfer/stage_engine.h`); `BRIX_SREQ_IDENTITY_SIZE` =
+`offsetof(brix_sreq_t,cred) + offsetof(cred,bearer)`, so the journal writers
+(`stage_journal_write`/`_update_rec`) persist only that identity prefix and a raw bearer **never**
+hits disk. `brix_sreq_decode` accepts `[IDENTITY_SIZE, sizeof]` (+ legacy `offsetof(cred)`) and
+**force-zeroes** `cred.bearer`. `sd_stage_cred_wipe()` (`OPENSSL_cleanse`) scrubs the token after
+the sync flush and on abort/close. `stage_engine_run` presents a live bearer with **no store
+re-resolve** (a bearer has no cred file); sync inline path only. The x509 async write-back path is
+unaffected (its proxy is a `.pem` store file, re-resolved by key).
+
+**Tests:** `stage_bearer_thread` (`tests/c/test_stage_bearer_thread.c`, mock src/dst drivers —
+success: bearer reaches backend `staged_open_cred`; error: empty cred → service open; sec-neg:
+x509 key-only cred presents no bearer); `sreq_compat` extended (bearer never within the persisted
+`BRIX_SREQ_IDENTITY_SIZE` prefix; decode always yields an empty bearer); `flush_deadletter` helpers
+updated to the new persisted-record size. (The separate NUL-termination over-read fix also updated
+the stale `run_deleg_gate` object list in `tests/cmdscripts/c_auth_units.py` — added
+`vfs_deleg_x509.o`, which `vfs_deleg.o` now needs for `brix_vfs_deleg_proxy`.)
+
 ---
 
 ## Task-F full-surface re-verification (2026-08-05, fixed binary)
@@ -250,6 +284,80 @@ bag bearer with a buffer whose bytes **after** the captured length are non-zero 
 against the borrow-the-pointer code (`strlen` runs into the filler) and PASS with the copy.
 
 ---
+
+## Task-H direct-vs-BriX control (2026-08-05) — two origin-capability gaps BriX fills
+
+All data+metadata ops were run 3× each **both** through BriX **and** straight to the official
+origin, every op origin-log verified. Direct harnesses: `https_bearer/verify_direct_https.sh`
+(curl → origin `:51361`) and `root_ztn/verify_direct_root.sh` (STOCK client → `roots://:36269` —
+the direct root baseline deliberately uses the **stock** client because of the bundled-client ztn
+gap noted below). Batch logs: `{https_bearer,root_ztn}/logs/BATCH_*_{brix,direct}_run{1,2,3}.log`.
+
+- **BriX-fronted: 93/93** (https 16×3 + root 15×3) all `subject/login=alice`, bob-control=bob,
+  zero service/unknown.
+- **Direct: 87/93** — the 6 "fails" are **not** delegation failures (every op still logs alice);
+  they are two **origin-capability gaps that BriX transparently fills**:
+  1. https `Want-Digest: adler32` HEAD → origin **405** (no digest support configured) vs BriX
+     **200** — BriX serves the checksum digest itself.
+  2. root:// checksum (`xrdfs query checksum`) → origin **[3013] "query chksum is not supported"**
+     rc54 (no `xrootd.chksum` directive) vs BriX **PASS** — BriX computes the checksum itself.
+  Everything else is byte-for-byte parity direct vs fronted. Direct negative controls: no-token /
+  wrong-issuer → origin **403** (vs front **401** — the front rejects earlier; both correctly deny).
+
+## Finding — the bundled BriX client cannot ztn *directly* to a stock XRootD origin (2026-08-05)
+
+`client/bin/xrdfs` → `roots://origin` fails `Invalid ztn response code (AuthFailed)`; the origin
+logs `User authentication failed; Invalid ztn response code` with **no** SciTokens line (the failure
+is protocol-level — the token is never parsed). The **same** token + **same** origin works in three
+other configurations: (a) STOCK `/usr/bin/xrdfs roots://origin` → `login as alice`; (b) bundled
+client → BriX front → origin → PASS; (c) BriX's own origin-leg ztn client → stock origin → PASS. So
+the gap is **only** the standalone bundled client's ztn-client handshake against a *real* xrootd (it
+works against the more-lenient BriX ztn server). Hypothesis (unverified): the bundled ztn request
+omits or mis-frames a parameter that stock `XrdSecztn` requires. This is why `verify_direct_root.sh`
+uses the stock client for the official-server baseline. The bundled client needs
+`X509_CERT_DIR=/tmp/xrd-test/pki/ca` for TLS trust (honoured via `brix_resolve_ca_dir` →
+`conn.c getenv("X509_CERT_DIR")`; the CA dir must be hash-linked); token discovery via
+`brix_token_discover()` reads `$BEARER_TOKEN`. BriX advertises ztn for `brix_auth token`
+(`&P=ztn,v:10000`) and the bundled client presents its bearer via `brix_token_discover()` when the
+server offers ztn.
+
+## ZTN token origin config (reusable)
+
+`sec.protocol ztn` + `sec.protbind * ztn` + `ofs.authorize 1` + `ofs.authlib
+libXrdAccSciTokens-5.so config=scitokens.cfg`; `scitokens.cfg` `[Global] audience=` + `[Issuer]
+issuer=<oidc-https> base_path=/ default_user=…`. XRootD SciTokens fetches the issuer JWKS via HTTPS
+OIDC discovery → it needs a **live HTTPS OIDC server + CA trust** (the harness supplies both via
+bwrap + an augmented ca-bundle). Stock xrootd must run **`-R nobody`** (it refuses to run as
+superuser). Note: even with `default_user=fwduser` in `scitokens.cfg`, XRootD ztn still logs `login
+as <token-sub>` — the token subject **is** the login identity; `default_user` is only the fallback.
+So `login as alice` remains the clean delegation proof.
+
+## Operational gotchas (these WILL recur)
+
+- **Rig JWTs are 1 h TTL.** A stale rig fails **every** op at the front with **401**
+  (`subj:{none}`, origin never contacted) — looks like an auth regression but is just expiry.
+  Re-mint per rig: `python3 utils/make_token.py gen --sub <u> --scope "storage.read:/
+  storage.create:/ storage.modify:/" --issuer <ISS> --audience nginx-xrootd -o <out> <RIG_TOK_DIR>`
+  where `<RIG_TOK_DIR>` holds the `signing_key.pem` + `jwks.json` matching that rig's live OIDC.
+  Issuers are **per-rig**: **https rig** `ISS=https://localhost:37647`, authority
+  `/tmp/xrdhttp-bearer-rig/tok`, tokens → `https_bearer/tok/{alice,bob,wrongiss}.jwt`; **root rig**
+  `ISS=https://localhost:37529`, authority + tokens under
+  `/tmp/xrd-test/tmp/fwd_delegdrv.<rand>/{tok,token_{alice,bob}.jwt}`. `wrongiss` = add
+  `--kind wrong-issuer`. (Where no PyJWT is on the box, mint via `cryptography` with
+  `tok/signing_key.pem`, kid `test-key-1`, RS256, keeping iss/aud/scope.) For the 32 MiB PUT add
+  `client_max_body_size 64m` to the front conf.
+- **A still-running front can run a STALE binary.** After a rebuild, a running front keeps the old
+  exec'd inode — **HUP only re-reads config, not the binary**. Check the front's `lstart` against
+  the binary mtime; if older, QUIT the master and relaunch the SAME cmdline. Both fronts use the
+  fixed `/tmp/xrdhttp-deleg/nginx-build/objs/nginx`: https `-c …/https_bearer/brix_front_nginx.conf`;
+  root `-p …/fwd_delegdrv.<rand>/front_deleg -c …/front_deleg/nginx.conf`.
+- **`cp` is aliased to `cp -i`.** A half-swapped binary (the interactive prompt silently blocked
+  the copy) made `mkdir` keep failing *after* the fix was built — use `command cp -f … </dev/null`
+  to swap the front binary.
+- **Handle-lifecycle timing, not delegation:** reusing a namespace path across runs can race a
+  prior run's still-open origin read-handle (async close) → `Output file … already opened by 1
+  reader; open denied` on the next upload. `verify_full_matrix.sh` uses a FRESH per-run namespace
+  (`/mx_$$`) to avoid it.
 
 ## Reproduce
 
