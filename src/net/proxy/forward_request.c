@@ -252,16 +252,49 @@ brix_proxy_queue_and_flush(brix_proxy_ctx_t *proxy, brix_ctx_t *ctx,
 }
 
 /*
- * WHAT: Handle kXR_stat/truncate/fattr forwarding — translate the fhandle at
- *       body[0], or (for a path-based truncate) capture the path for audit.
- * WHY:  These ops carry an fhandle only when body[0] is nonzero; a zero fhandle
- *       means the op is path-based and needs audit capture instead.
+ * WHAT: Handle kXR_stat forwarding — translate the fhandle only for a
+ *       stat-by-open-handle; forward path/vfs stats (incl. statvfs) untranslated.
+ * WHY:  kXR_stat's wire layout differs from kXR_truncate/kXR_fattr: byte 4 is the
+ *       `options` field (ClientStatRequest in XProtocol.hh), NOT an fhandle — the
+ *       fhandle lives at byte 16. Reading byte 4 as the fhandle broke the statvfs
+ *       variant, which sets options=kXR_vfs(1): the nonzero options byte was taken
+ *       for a live fhandle and rejected with kXR_InvalidRequest. A path-form stat
+ *       and statvfs both zero the fhandle and must pass through verbatim.
+ * HOW:  Translate the fhandle at byte 16 only when its significant (first) byte is
+ *       nonzero (open-handle stat); otherwise the op is path/vfs-based — leave the
+ *       options byte and payload untouched. Returns NGX_OK, or NGX_ABORT/NGX_ERROR
+ *       via proxy_reject_request().
+ */
+static ngx_int_t
+brix_proxy_forward_statx(brix_proxy_ctx_t *proxy, brix_ctx_t *ctx,
+                         ngx_connection_t *c, u_char *req, size_t total)
+{
+    (void) total;
+    /* ClientStatRequest: options@4, reserved[11], fhandle@16. The 1-byte local
+     * handle sits in the fhandle's first byte; zero => path/vfs form (statvfs). */
+    if (req[16] != 0) {
+        if (proxy_translate_fh(proxy, req + 16, 0) != 0) {
+            return proxy_reject_request(ctx, c, req, kXR_InvalidRequest,
+                                        "proxy: invalid file handle");
+        }
+    }
+    proxy->fwd_local_fh = -1;
+    return NGX_OK;
+}
+
+/*
+ * WHAT: Handle kXR_truncate/kXR_fattr forwarding — translate the fhandle at
+ *       byte 4, or (for a path-based truncate) capture the path for audit.
+ * WHY:  Both carry their fhandle at byte 4 (ClientTruncateRequest / ClientFattrRequest)
+ *       and only when it is nonzero; a zero fhandle means the truncate is path-based
+ *       and needs audit capture instead. (kXR_stat is handled separately by
+ *       brix_proxy_forward_statx — its byte 4 is the options field, not an fhandle.)
  * HOW:  Translates the fhandle when nonzero; else, for kXR_truncate, copies the
  *       payload path into the audit buffer. Returns NGX_OK, or NGX_ABORT/NGX_ERROR
  *       via proxy_reject_request() (req freed, error sent).
  */
 static ngx_int_t
-brix_proxy_forward_stat(brix_proxy_ctx_t *proxy, brix_ctx_t *ctx,
+brix_proxy_forward_trunc_fattr(brix_proxy_ctx_t *proxy, brix_ctx_t *ctx,
                         ngx_connection_t *c, uint16_t reqid,
                         u_char *req, size_t total)
 {
@@ -359,9 +392,11 @@ brix_proxy_translate_fh_op(brix_proxy_ctx_t *proxy, brix_ctx_t *ctx,
                                               + ctx->recv.cur_body_extra);
 
     case kXR_stat:
+        return brix_proxy_forward_statx(proxy, ctx, c, *req, *total);
+
     case kXR_truncate:
     case kXR_fattr:
-        return brix_proxy_forward_stat(proxy, ctx, c, reqid, *req, *total);
+        return brix_proxy_forward_trunc_fattr(proxy, ctx, c, reqid, *req, *total);
 
     case kXR_readv:
     case kXR_writev:
