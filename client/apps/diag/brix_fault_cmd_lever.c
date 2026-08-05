@@ -81,6 +81,14 @@ clear_all(void)
     g_proxy_mode = 0;
     __atomic_add_fetch(&g_chaos_gen, 1, __ATOMIC_SEQ_CST);   /* stop any chaos */
     g_chaos_on = 0;
+    /* Phase-99 DPI/middlebox pathology levers. */
+    g_idle_reap_ms = 0; g_idle_reap_rst = 0; g_eat_100 = 0;
+    g_rst_after_bytes = 0; g_rst_after_ms = 0; g_rst_after_abortive = 0;
+    g_drop_fin_up = 0; g_drop_fin_down = 0;
+    g_classify_bytes = 0; g_classify_kbps = 0;
+    g_syn_drop_ppm = 0; g_hello_reset_thresh = 0;
+    g_udp_drop_ppm = 0; g_udp_hold_ms = 0; g_udp_reap_ms = 0;
+    g_udp_reorder_ppm = 0; g_udp_reorder_ms = 0;
     /* Attack-mocking levers. */
     g_accept_pause_ms = 0; g_fanout = 0; g_global_rate_kbps = 0;
     g_mangle_up.active = 0; g_mangle_down.active = 0;

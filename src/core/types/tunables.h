@@ -215,6 +215,23 @@
 #define BRIX_MAX_WRITE_PAYLOAD  (16 * 1024 * 1024)
 
 /*
+ * Streaming large plain kXR_write.  A single kXR_write whose dlen exceeds
+ * BRIX_WRITE_STREAM_CHUNK is delivered to the file / staged writer in bounded
+ * BRIX_WRITE_STREAM_CHUNK-sized installments instead of being buffered whole,
+ * so a client that sends one very large write (e.g. go-hep's 64 MiB inline
+ * WriteAtContext) is accepted with memory bounded to one chunk rather than the
+ * whole payload.  BRIX_MAX_WRITE_STREAM is the absolute per-write ceiling (a
+ * sanity bound on the dlen field, still well below the 4 GiB the wire allows) so
+ * a hostile dlen is rejected before streaming begins; the buffered fast path for
+ * writes <= BRIX_WRITE_STREAM_CHUNK is unchanged and still capped at
+ * BRIX_MAX_WRITE_PAYLOAD.  pgwrite/writev/chkpoint keep the 16 MiB cap — they
+ * carry per-page CRC / descriptor structure that the chunk streamer does not
+ * split, and stock clients already chunk them below the cap.
+ */
+#define BRIX_WRITE_STREAM_CHUNK  (8 * 1024 * 1024)
+#define BRIX_MAX_WRITE_STREAM    (1024u * 1024u * 1024u)
+
+/*
  * Maximum kXR_prepare payload.  XrdCl sends a newline-separated list of paths;
  * allow a moderately sized batch without growing the payload receive buffer.
  */

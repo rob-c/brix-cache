@@ -33,7 +33,8 @@ int webfile_window_ms(void);
 
 void
 brix_kaconn_init(brix_kaconn *k, const char *host, int port, int tls,
-                 int verify, const char *ca_dir, int timeout_ms)
+                 int verify, const char *ca_dir, const char *client_cert,
+                 int timeout_ms)
 {
     memset(k, 0, sizeof(*k));
     k->io.fd = -1;
@@ -43,6 +44,9 @@ brix_kaconn_init(brix_kaconn *k, const char *host, int port, int tls,
     k->verify = verify;
     if (ca_dir != NULL) {
         snprintf(k->ca_dir, sizeof(k->ca_dir), "%s", ca_dir);
+    }
+    if (client_cert != NULL) {
+        snprintf(k->client_cert, sizeof(k->client_cert), "%s", client_cert);
     }
     k->timeout_ms = timeout_ms > 0 ? timeout_ms : 30000;
     brix_format_host_port(k->host, (uint16_t) k->port, k->hostport,
@@ -77,6 +81,7 @@ brix_kaconn_connect(brix_kaconn *k, brix_status *st)
     k->io.timeout_ms = k->timeout_ms;
     if (k->tls && brix_tls_client(&k->io, k->host, k->verify, k->verify,
                                   k->ca_dir[0] ? k->ca_dir : NULL,
+                                  k->client_cert[0] ? k->client_cert : NULL,
                                   &k->tls_ctx, st) != 0) {
         close(k->io.fd);
         k->io.fd = -1;
@@ -216,10 +221,11 @@ brix_kaconn_read_body(brix_kaconn *k, const brix_ka_hdr *hdr,
 
 void
 brix_webmeta_init(brix_webmeta *m, const char *host, int port, int tls,
-                  int verify, const char *ca_dir, const char *bearer,
-                  int timeout_ms)
+                  int verify, const char *ca_dir, const char *client_cert,
+                  const char *bearer, int timeout_ms)
 {
-    brix_kaconn_init(&m->ka, host, port, tls, verify, ca_dir, timeout_ms);
+    brix_kaconn_init(&m->ka, host, port, tls, verify, ca_dir, client_cert,
+                     timeout_ms);
     if (bearer != NULL && bearer[0] != '\0') {
         snprintf(m->auth, sizeof(m->auth),
                  "Authorization: Bearer %s\r\n", bearer);

@@ -48,6 +48,12 @@ static const brix_sd_driver_t brix_sd_http_driver = {
     .unlink        = sd_http_unlink,
     .mkdir         = sd_http_mkdir,
     .rename        = sd_http_rename,
+    /* phase-70 §5.1: per-user credential-scoped namespace mutation — the origin
+     * authorizes MKCOL/MOVE/DELETE AS the forwarded end user, not the service
+     * credential (mirrors open_cred/staged_open_cred/stat_cred). */
+    .unlink_cred   = sd_http_unlink_cred,
+    .mkdir_cred    = sd_http_mkdir_cred,
+    .rename_cred   = sd_http_rename_cred,
     .staged_open   = sd_http_staged_open,
     .staged_open_cred = sd_http_staged_open_cred,
     .staged_write  = sd_http_staged_write,

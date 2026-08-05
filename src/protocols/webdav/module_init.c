@@ -3,6 +3,7 @@
  * Phase-38 split of module.c; behavior-identical.
  */
 #include "webdav_module_internal.h"
+#include "delegation_internal.h"      /* delegation_find_eec (shared EEC scan) */
 #include "core/seccomp/seccomp.h"    /* brix_seccomp_install_once */
 #include "protocols/cvmfs/cvmfs.h"   /* $brix_protocol: cvmfs claim */
 #include "auth/crypto/store_policy.h" /* brix_px_classify, brix_x509_oneline */
@@ -73,31 +74,40 @@ brix_http_protocol_variable(ngx_http_request_t *r,
  * bare cert, else the first non-proxy cert (brix_px_classify) in the
  * presented chain (RFC 3820 proxies chain leaf → parent proxies → EEC).
  * Returns a BORROWED reference (owned by `leaf`'s refcount or by the
- * connection's chain) or NULL when every presented cert is a proxy.
+ * connection's chain) or NULL when no end-entity can be recovered — e.g. a
+ * RESUMED TLS session, which re-sends no Certificate message so no chain is
+ * exposed (see the resumed-session diagnostic in the variable handler).
  */
 static X509 *
 delegated_cred_find_eec(SSL *sc, X509 *leaf)
 {
-    STACK_OF(X509)  *chain;
-    int              i, n;
+    X509 *eec;
 
     if (brix_px_classify(leaf) == BRIX_PX_NONE) {
         return leaf;
     }
 
-    /* Server side: SSL_get_peer_cert_chain excludes the leaf. */
-    chain = SSL_get_peer_cert_chain(sc);
-    n = (chain != NULL) ? sk_X509_num(chain) : 0;
-
-    for (i = 0; i < n; i++) {
-        X509 *cert = sk_X509_value(chain, i);
-
-        if (brix_px_classify(cert) == BRIX_PX_NONE) {
-            return cert;
-        }
+    /* Primary: the chain the peer sent. Server side SSL_get_peer_cert_chain
+     * excludes the leaf, so the EEC is normally its first non-proxy entry
+     * (delegation_find_eec — the same scan the upload endpoint uses). */
+    eec = delegation_find_eec(SSL_get_peer_cert_chain(sc));
+    if (eec != NULL) {
+        return eec;
     }
 
+    /* Fallback (defense in depth): a TLS stack may present the EEC such that
+     * SSL_get_peer_cert_chain() does not surface it even on a full handshake.
+     * The chain OpenSSL rebuilt during verification holds the full path
+     * (leaf → EEC → CA), so its first non-proxy entry is the EEC. Reachable
+     * only after the caller confirmed X509_V_OK, so it cannot admit an
+     * unverified identity — worst case is still fail-closed (NULL). Note this
+     * verified chain is ALSO empty on a resumed session; the true fix for
+     * resumption is to disable it on the gateway (see the handler below). */
+#if OPENSSL_VERSION_NUMBER >= 0x10100000L
+    return delegation_find_eec(SSL_get0_verified_chain(sc));
+#else
     return NULL;
+#endif
 }
 
 
@@ -125,13 +135,56 @@ delegated_cred_find_eec(SSL *sc, X509 *leaf)
  * files cannot feed proxy_ssl_certificate.  Expired → empty, with an info
  * log naming the DN so operators can see who must re-delegate.
  */
+/* Recover the delegated end-entity DN from the request's verified client chain.
+ * Returns 1 with `dn` filled on success; 0 (dn left empty) when there is no
+ * usable EEC — no/failed client cert, or a RESUMED TLS session that re-sent no
+ * Certificate message (warned, since the delegated identity would otherwise
+ * silently degrade to the origin's anonymous user). */
+static int
+delegated_cred_peer_dn(ngx_connection_t *c, char *dn, size_t dnsz)
+{
+    X509 *leaf, *eec;
+
+    if (c->ssl == NULL
+        || SSL_get_verify_result(c->ssl->connection) != X509_V_OK)
+    {
+        return 0;
+    }
+
+    leaf = SSL_get_peer_certificate(c->ssl->connection);
+    if (leaf == NULL) {
+        return 0;
+    }
+
+    dn[0] = '\0';
+    eec = delegated_cred_find_eec(c->ssl->connection, leaf);
+    if (eec != NULL) {
+        brix_x509_oneline(X509_get_subject_name(eec), dn, dnsz);
+    }
+    X509_free(leaf);
+
+    if (dn[0] == '\0') {
+        /* Never de-privilege in silence: with resumption disabled on the
+         * gateway this branch is unreachable; when it is hit, name the fix. */
+        if (SSL_session_reused(c->ssl->connection)) {
+            ngx_log_error(NGX_LOG_WARN, c->log, 0,
+                "brix_delegated_cred: no end-entity certificate available on a "
+                "RESUMED TLS session; the delegated credential cannot be "
+                "resolved and the request will proceed WITHOUT it. Disable TLS "
+                "resumption on the delegation gateway server block: "
+                "\"ssl_session_tickets off; ssl_session_cache off;\"");
+        }
+        return 0;
+    }
+    return 1;
+}
+
 ngx_int_t
 brix_http_delegated_cred_variable(ngx_http_request_t *r,
     ngx_http_variable_value_t *v, uintptr_t data)
 {
     ngx_http_brix_webdav_loc_conf_t *wdcf;
     ngx_connection_t                  *c;
-    X509                              *leaf, *eec;
     ngx_str_t                         *dir;
     brix_sd_ucred_t                    cred;
     ngx_int_t                          rc;
@@ -152,25 +205,7 @@ brix_http_delegated_cred_variable(ngx_http_request_t *r,
 
     c = r->connection;
 
-    if (c->ssl == NULL
-        || SSL_get_verify_result(c->ssl->connection) != X509_V_OK)
-    {
-        return NGX_OK;
-    }
-
-    leaf = SSL_get_peer_certificate(c->ssl->connection);
-    if (leaf == NULL) {
-        return NGX_OK;
-    }
-
-    dn[0] = '\0';
-    eec = delegated_cred_find_eec(c->ssl->connection, leaf);
-    if (eec != NULL) {
-        brix_x509_oneline(X509_get_subject_name(eec), dn, sizeof(dn));
-    }
-    X509_free(leaf);
-
-    if (dn[0] == '\0') {
+    if (!delegated_cred_peer_dn(c, dn, sizeof(dn))) {
         return NGX_OK;
     }
 

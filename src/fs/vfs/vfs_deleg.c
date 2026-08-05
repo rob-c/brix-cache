@@ -161,13 +161,30 @@ brix_vfs_deleg_deny(brix_vfs_ctx_t *ctx, int *use_cred, int *err_out,
  * WHY:  A bearer needs no temp file — the byte string is handed straight to the
  *       origin ZTN presenter (§5.4 zero-provisioning path).
  *
- * HOW:  The bytes are owned by the request pool (via the bag) and outlive the
- *       op, so the pointer is borrowed rather than copied. */
+ * HOW:  cred->bearer is a bare `const char *` that downstream presenters format
+ *       with "%s" (sd_http/sd_stage build "Authorization: Bearer %s"); it MUST be
+ *       NUL-terminated. The captured bag bearer is a length-counted ngx_str_t
+ *       (allocated `len` bytes, no trailing NUL — see webdav auth_token.c), so
+ *       borrowing bearer.data directly makes "%s" read past the token into
+ *       adjacent pool bytes until a stray NUL — intermittently (pool-layout
+ *       dependent, worse under concurrency) appending garbage that yields a
+ *       malformed JWT the origin rejects (403). Copy into a NUL-terminated
+ *       pool buffer so the presented token is always exactly the captured bytes. */
 static ngx_int_t
 brix_vfs_deleg_bearer(brix_vfs_ctx_t *ctx, brix_sd_cred_t *cred,
     int *use_cred)
 {
-    cred->bearer = (const char *) ctx->deleg_live->bearer.data;
+    ngx_str_t *b = &ctx->deleg_live->bearer;
+    u_char    *z;
+
+    z = ngx_pnalloc(ctx->pool, b->len + 1);
+    if (z == NULL) {
+        return NGX_ERROR;
+    }
+    ngx_memcpy(z, b->data, b->len);
+    z[b->len] = '\0';
+
+    cred->bearer = (const char *) z;
     cred->mode   = BRIX_CRED_PASSTHROUGH;
     *use_cred    = 1;
 

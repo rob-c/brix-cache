@@ -572,6 +572,7 @@ FAULT_PROXY_SRCS := apps/diag/brix_fault_proxy.c apps/diag/brix_fault_priv.c \
 	apps/diag/brix_fault_toxic.c apps/diag/brix_fault_route.c \
 	apps/diag/brix_fault_relay.c apps/diag/brix_fault_pump.c \
 	apps/diag/brix_fault_cmd_lever.c apps/diag/brix_fault_cmd_attack.c \
+	apps/diag/brix_fault_cmd_dpi.c apps/diag/brix_fault_udp.c \
 	apps/diag/brix_fault_report.c apps/diag/brix_fault_cli.c
 FAULT_PROXY_HDRS := apps/diag/brix_fault_priv.h apps/diag/brix_fault_priv_internal.h \
 	apps/diag/brix_fault_ext.h \
@@ -808,7 +809,7 @@ install-automount:
 # vfs_s3_smoke is excluded (needs an external S3 endpoint; run it manually).
 # Each test is a standalone main() linking the client lib + libxrdproto, the
 # same recipe as the Build+run comment in each test's header.
-CLIENT_UNIT_TESTS := cli_opts_unit cli_cred_unit cred_unit cred_store_unit cred_refresh_unit vfs_posix_unit vfs_block_unit vfs_s3_creds_unit jsonout_unit copy_filter_unit xferjournal_unit relsafe_unit ckmanifest_unit envalias_unit xrdrc_defaults_unit suggest_unit uring_direct_unit ftp_client_unit
+CLIENT_UNIT_TESTS := cli_opts_unit cli_cred_unit cred_unit cred_store_unit cred_refresh_unit vfs_posix_unit vfs_block_unit vfs_s3_creds_unit jsonout_unit copy_filter_unit xferjournal_unit relsafe_unit ckmanifest_unit envalias_unit xrdrc_defaults_unit suggest_unit uring_direct_unit ftp_client_unit web_proxy_pem_unit
 # The tests predate the phase-69 bucket reshuffle and include bucket-local
 # headers bare ("cred.h"); add the bucket dirs rather than churning the tests.
 TEST_INC := -Ilib/auth/cred -Ilib/auth/sss -Ilib/fs -Ilib/cli -Ilib/core/types -Ilib/core/config -Ilib/net

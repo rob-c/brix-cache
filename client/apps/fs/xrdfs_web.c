@@ -118,8 +118,10 @@ web_ls_print_dir(const web_ctx *w, const char *path, int want_long,
     size_t       n = 0, k, plen;
     char         prefix[XRDC_PATH_MAX + 2];
     const char  *sep;
+    char         proxybuf[512];
+    const char  *pcert = brix_web_proxy_pem(proxybuf, sizeof(proxybuf));
 
-    if (brix_web_readdir(w->u, path, w->bearer, w->verify, w->ca_dir,
+    if (brix_web_readdir(w->u, path, w->bearer, w->verify, w->ca_dir, pcert,
                          &ents, &n, st) != 0) {
         return -1;
     }
@@ -171,11 +173,14 @@ web_stat(const web_ctx *w, const char *cwd, int argc, char **argv)
     brix_status   st;
     brix_statinfo si;
     char          path[XRDC_PATH_MAX];
+    char          proxybuf[512];
+    const char   *pcert;
 
     if (argc < 2) { fprintf(stderr, "usage: stat <path>\n"); return 50; }
     web_build_path(w->base, cwd, argv[1], path, sizeof(path));
     brix_status_clear(&st);
-    if (brix_web_stat(w->u, path, w->bearer, w->verify, w->ca_dir, &si, &st) != 0) {
+    pcert = brix_web_proxy_pem(proxybuf, sizeof(proxybuf));
+    if (brix_web_stat(w->u, path, w->bearer, w->verify, w->ca_dir, pcert, &si, &st) != 0) {
         return xrdfs_web_report_err("stat", path, &st, 0, w);
     }
     print_statinfo(path, &si);

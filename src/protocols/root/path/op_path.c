@@ -114,8 +114,23 @@ op_path_existence_gate(ngx_stream_brix_srv_conf_t *conf, ngx_log_t *log,
                ? NGX_OK : NGX_DECLINED;
     }
 
-    /* WRITE: the parent directory must already exist (target may not). Derive
-     * the parent by trimming the last '/'-separated component. */
+    /* WRITE: the parent directory must already exist (target may not). For a
+     * NON-POSIX backend, skip this parent probe for the SAME reason the EXISTING
+     * case above skips its target probe: the operation's own driver call
+     * (mkpath/rename/open-write) validates the parent and returns
+     * ENOENT→NotFound, so the probe is a redundant catalog lookup — and worse, it
+     * runs on an UNAUTHENTICATED probe ctx (op_path_probe binds no per-user
+     * credential/delegation), so on a delegated auth-required origin the parent
+     * stat is rejected as the anonymous service identity and a perfectly valid
+     * destination is wrongly refused ("invalid destination path"). That is the
+     * same missing-credential-on-a-namespace-leg class as the mkdir_cred fix; the
+     * driver is the single existence check. The default POSIX export keeps the
+     * confined parent lstat below (its probe is local and needs no credential). */
+    if (brix_vfs_backend_resolve(conf->common.root_canon, log) != NULL) {
+        return NGX_OK;
+    }
+
+    /* Derive the parent by trimming the last '/'-separated component. */
     {
         char        parent[BRIX_MAX_PATH + 1];
         size_t      len = ngx_strlen(reqpath);

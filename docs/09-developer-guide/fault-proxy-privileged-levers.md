@@ -96,9 +96,47 @@ ping-pong scratch buffers so no stage overwrites its input.
   `drop-type`, `flip` (MAC break), `alert`, `off`. Walks 5-byte record headers.
   `fp_tls_cfg_init()` installs `-1` sentinels (zero-init would read `set-type=0`
   as active), called before `parse_args` and in `clear`.
+- **Phase-99 DPI/middlebox pathology levers (root-free)** — reproduce the
+  "works in Chrome, kills XRootD/GridFTP/FTS" failures of an overloaded/mis-
+  configured cloud DPI (`docs/refactor/phase-99-dpi-middlebox-pathology-levers.md`;
+  dispatch in `brix_fault_cmd_dpi.c`, relay glue in `brix_fault_pump.c`, accept-loop
+  glue in `brix_fault_proxy.c`): **`idle-reap <ms> [black-hole|rst]`** (conntrack
+  idle eviction — silent freeze or forged RST), **`eat-100-continue`** (swallow a
+  100 interim so an `Expect: 100-continue` upload hangs), **`rst-after <ms>`** /
+  **`max-bytes <n> [rst|fin]`** (classify-and-kill guillotines, folded into
+  `pump_severed`/the byte total), **`drop-fin [up|down]`** (asymmetric teardown via
+  per-direction EOF suppression in `relay_pump`), **`classify-throttle <bytes>
+  <kbps>`** (volume slow-lane paced in the pump), **`hello-split-reset <thresh>`**
+  (RST an oversized TLS ClientHello read from the record header — split-safe),
+  **`syn-drop <ppm>`** (silent accept drop), **`alg-rewrite <src> <dst>`** (FTP
+  PASV endpoint rewrite over the `replace` mutation buffers). Counters: `reaped
+  ate_100 fin_dropped throttled hello_reset classify_kills syn_dropped`; status
+  gained a `dpi …` line. All reset by `clear_all`. Below-TCP siblings live under
+  `--privileged`: **`priv frag-drop`** (drop IP fragments), **`priv
+  first-not-syn-drop`** (`ct state invalid` drop), **`priv strip-opt`** (degrades
+  with a clear reason — needs NFQUEUE/eBPF). A root-free **UDP relay** (`--udp
+  "<listen> <host:port>"`, `brix_fault_udp.c`) carries the "UDP vs TCP" class:
+  `udp-drop <ppm>`, `udp-hold-until-tcp <ms>`, `udp-reap <ms>`, `udp-reorder
+  <ppm> <ms>`. Tests: `tests/test_fault_proxy_dpi.py`,
+  `tests/test_fault_proxy_udp.py`, and the Wave-B cases in
+  `tests/test_fault_proxy_privileged.py`.
 - **`http` (`--http`):** `cl-te`/`te-cl` (request-smuggling desync), `dup-cl`,
   `obfuscate-te 1|2|3`, `naked-lf`, `inject-header`, `append`, `off`. All-zero
-  cfg is inert.
+  cfg is inert. **`header-hold <thresh> <ms> [partial|whole]`** replicates the DPI
+  middlebox anti-feature that stalls an HTTP(S) request once its *header block*
+  reaches `<thresh>` bytes (e.g. a fat client-cert PEM in an XrdHttp request
+  header): `whole` (default) delays the whole segment by `<ms>`, `partial`
+  releases the first `<thresh>` bytes then holds the remainder. Unlike the
+  smuggling levers this is a *timing* effect applied in the relay pump
+  (`fp_http_hold_decide()` in `brix_fault_pump.c`), not a buffer rewrite, so it is
+  deliberately **excluded from `fp_http_active()`**; it fires only on a complete,
+  over-threshold header block (`CRLFCRLF` present) so a body-only segment is never
+  held. Counter `held`; status shows `hold=<up>/<down>`. Tests:
+  `tests/test_fault_proxy_header_hold.py`. Phase-99 added the store-and-forward
+  sibling **`http body-hold <thresh> <ms> [partial|whole]`** (stalls on body size —
+  bytes after the terminator) and **`http strip-header <name>`** (drops a header
+  line, e.g. `Range` → full-object read); both also live in `fp_http_cfg`,
+  `body-hold` excluded from `fp_http_active()` like `header-hold`.
 - **`record <path>|off` / `replay <path>|off` / `replay dir up|down`:** framed
   capture (magic `BFPR\1`, `[dir:1][ts_ms:8BE][len:4BE][bytes]`); replay is a
   synthetic peer with no upstream dial.

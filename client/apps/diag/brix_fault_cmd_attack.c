@@ -395,6 +395,81 @@ http_lever_append(fp_http_cfg *H[2], const char *rbuf)
     return rc;
 }
 
+/* `header-hold <thresh> <ms> [partial|whole]` — DPI header-size stall. Stalls a
+ * request once its header block reaches <thresh> bytes; `partial` releases the
+ * first <thresh> bytes first, otherwise the whole segment is held. */
+static int
+http_lever_hold(fp_http_cfg *H[2], char *rbuf)
+{
+    char *tt = strtok(rbuf, " ");
+    char *mt = strtok(NULL, " ");
+    char *pt = strtok(NULL, " ");
+    if (!tt || !mt) {
+        return HTTP_BADARG;
+    }
+    int thr     = atoi(tt);
+    int ms      = atoi(mt);
+    int partial = pt && strcmp(pt, "partial") == 0;
+    if (thr <= 0 || ms < 0) {
+        return HTTP_BADARG;
+    }
+    for (int j = 0; j < 2; j++) {
+        if (!H[j]) {
+            continue;
+        }
+        H[j]->hold_thresh  = thr;
+        H[j]->hold_ms      = ms;
+        H[j]->hold_partial = partial;
+    }
+    return HTTP_OK;
+}
+
+/* `body-hold <thresh> <ms> [partial|whole]` — DPI store-and-forward stall keyed
+ * on body size (the header-hold sibling). */
+static int
+http_lever_body_hold(fp_http_cfg *H[2], char *rbuf)
+{
+    char *tt = strtok(rbuf, " ");
+    char *mt = strtok(NULL, " ");
+    char *pt = strtok(NULL, " ");
+    if (!tt || !mt) {
+        return HTTP_BADARG;
+    }
+    int thr     = atoi(tt);
+    int ms      = atoi(mt);
+    int partial = pt && strcmp(pt, "partial") == 0;
+    if (thr <= 0 || ms < 0) {
+        return HTTP_BADARG;
+    }
+    for (int j = 0; j < 2; j++) {
+        if (!H[j]) {
+            continue;
+        }
+        H[j]->body_hold_thresh  = thr;
+        H[j]->body_hold_ms      = ms;
+        H[j]->body_hold_partial = partial;
+    }
+    return HTTP_OK;
+}
+
+/* `strip-header <name>` — drop any header line named <name> (Range removal turns
+ * an XRootD vector read into a full-object download; Connection churn, etc.). */
+static int
+http_lever_strip(fp_http_cfg *H[2], const char *rbuf)
+{
+    if (!rbuf || !*rbuf) {
+        return HTTP_BADARG;
+    }
+    for (int j = 0; j < 2; j++) {
+        if (!H[j]) {
+            continue;
+        }
+        H[j]->strip_len = (int) snprintf((char *) H[j]->strip_name,
+            sizeof(H[j]->strip_name), "%s", rbuf);
+    }
+    return HTTP_OK;
+}
+
 /* Dispatch one `http` sub-verb. Caller holds g_ext_lock. */
 static int
 http_apply(const char *sub, char *rbuf, int d)
@@ -413,6 +488,15 @@ http_apply(const char *sub, char *rbuf, int d)
     }
     if (strcmp(sub, "append") == 0) {
         return http_lever_append(H, rbuf);
+    }
+    if (strcmp(sub, "header-hold") == 0) {
+        return http_lever_hold(H, rbuf);
+    }
+    if (strcmp(sub, "body-hold") == 0) {
+        return http_lever_body_hold(H, rbuf);
+    }
+    if (strcmp(sub, "strip-header") == 0) {
+        return http_lever_strip(H, rbuf);
     }
     return http_lever_scalar_all(H, sub, rbuf);
 }
@@ -434,7 +518,8 @@ cmd_set_http(char *args, char *reply, size_t rsz)
 
     if (rc == HTTP_UNKNOWN) {
         snprintf(reply, rsz, "err: http <cl-te|te-cl|dup-cl|obfuscate-te|naked-lf|"
-                             "inject-header|append|off> ...\n");
+                             "inject-header|append|header-hold|body-hold|"
+                             "strip-header|off> ...\n");
     } else if (rc == HTTP_BADARG) {
         snprintf(reply, rsz, "err: bad http argument (payload hex:/str:)\n");
     }

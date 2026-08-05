@@ -265,6 +265,11 @@ void brix_tls_free(brix_conn *c);
  * string; never allocates. Use everywhere a ca_dir is needed so the client
  * trusts grid (IGTF) CAs without requiring $X509_CERT_DIR to be set. */
 const char *brix_resolve_ca_dir(const char *opt_ca_dir);
+/* Resolve the X.509 proxy PEM to present as the client cert on davs mutual TLS:
+ * $X509_USER_PROXY → /tmp/x509up_u<euid>. Writes into buf; returns buf only when
+ * the file is readable, else NULL. Feed the result to brix_tls_client()'s
+ * client_cert / the http-client `client_cert` args. */
+const char *brix_web_proxy_pem(char *buf, size_t buflen);
 /* Transparent TLS transfer used by sock.c when io->ssl != NULL (0 / -1). */
 int brix_tls_read(brix_io *io, void *buf, size_t n, brix_status *st);
 int brix_tls_write(brix_io *io, const void *buf, size_t n, brix_status *st);
@@ -300,8 +305,11 @@ int brix_connect_no_login(brix_conn *c, const brix_url *u, const brix_opts *o,
                           brix_status *st);
 /* Standalone TLS client handshake on a connected socket (the HTTP(S) client, not the
  * root:// in-protocol upgrade). On success io->ssl is live + *out_ctx is the SSL_CTX. */
+/* client_cert: X.509 proxy PEM (cert+key+chain) to present for mutual TLS, or
+ * NULL/"" for none. Resolve it with brix_web_proxy_pem(). */
 int  brix_tls_client(brix_io *io, const char *host, int verify_peer, int verify_host,
-                     const char *ca_dir, void **out_ctx, brix_status *st);
+                     const char *ca_dir, const char *client_cert, void **out_ctx,
+                     brix_status *st);
 void brix_tls_client_free(brix_io *io, void *ctx);
 void brix_tls_client_info(const brix_io *io, const char **ver, const char **cipher);
 
@@ -326,7 +334,8 @@ typedef struct {
 int  brix_http_req(const char *host, int port, int tls, const char *method,
                    const char *path, const char *extra_headers,
                    const void *body, size_t blen, int timeout_ms, int verify,
-                   const char *ca_dir, brix_http_resp *resp, brix_status *st);
+                   const char *ca_dir, const char *client_cert,
+                   brix_http_resp *resp, brix_status *st);
 void brix_http_resp_free(brix_http_resp *resp);
 /* Copy the value of response header `name` (case-insensitive) into out[outsz];
  * 1 if found, 0 if absent. */
@@ -350,12 +359,14 @@ typedef ssize_t (*brix_http_body_src_fn)(void *ctx, uint8_t *buf, int64_t off,
  * 0 / -1 (st set). */
 int  brix_http_download(const char *host, int port, int tls, const char *path,
                         const char *extra_headers, int verify, const char *ca_dir,
+                        const char *client_cert,
                         int out_fd, int timeout_ms, int *http_status,
                         long long *body_len, brix_status *st);
 int  brix_http_upload(const char *host, int port, int tls, const char *path,
                       const char *extra_headers, brix_http_body_src_fn src,
                       void *src_ctx, long long clen, int verify,
-                      const char *ca_dir, int timeout_ms, int *http_status,
+                      const char *ca_dir, const char *client_cert,
+                      int timeout_ms, int *http_status,
                       brix_status *st);
 
 /* Resumable upload: streams the source as Content-Range PUT chunks, each on a
@@ -367,6 +378,7 @@ int  brix_http_upload_resumable(const char *host, int port, int tls,
                       const char *path, const char *extra_headers,
                       brix_http_body_src_fn src, void *src_ctx,
                       long long clen, int verify, const char *ca_dir,
+                      const char *client_cert,
                       int timeout_ms, int max_stall_ms, int *http_status,
                       brix_status *st);
 
@@ -404,12 +416,14 @@ void brix_glob_free(char **arr, size_t n);
  * every FILE beneath it (subdirs excluded). bearer NULL ⇒ anonymous. 0 / -1 (st set).
  * Free *paths with brix_strv_free. */
 int  brix_webdav_list(const brix_weburl *u, const char *bearer, int verify,
-                      const char *ca_dir, char ***paths, size_t *n_out, brix_status *st);
+                      const char *ca_dir, const char *client_cert,
+                      char ***paths, size_t *n_out, brix_status *st);
 /* MKCOL a WebDAV collection at `path` on the endpoint `u` (for recursive upload).
  * bearer NULL ⇒ anonymous. Idempotent: an already-existing collection (405/301)
  * is treated as success. 0 / -1 (st set). */
 int  brix_webdav_mkcol(const brix_weburl *u, const char *path, const char *bearer,
-                       int verify, const char *ca_dir, brix_status *st);
+                       int verify, const char *ca_dir, const char *client_cert,
+                       brix_status *st);
 /* List object keys under an s3:// URL's prefix via paginated, SigV4-signed
  * ListObjectsV2. The bucket is the first path component; the prefix is the rest.
  * ak/sk NULL ⇒ anonymous. Returns full object keys. 0 / -1. Free with brix_strv_free. */
@@ -422,11 +436,13 @@ void brix_strv_free(char **arr, size_t n);
 /* Single-resource stat via PROPFIND Depth:0 → size/mtime/is-dir (FUSE getattr).
  * bearer NULL ⇒ anonymous; verify+ca_dir apply to TLS (https/davs). 0 / -1. */
 int  brix_web_stat(const brix_weburl *u, const char *path, const char *bearer,
-                   int verify, const char *ca_dir, brix_statinfo *si, brix_status *st);
+                   int verify, const char *ca_dir, const char *client_cert,
+                   brix_statinfo *si, brix_status *st);
 /* Directory listing via PROPFIND Depth:1 → child entries with stat (FUSE readdir).
  * Allocates *ents (free with free()); each entry has name + have_stat + st. 0 / -1. */
 int  brix_web_readdir(const brix_weburl *u, const char *path, const char *bearer,
-                      int verify, const char *ca_dir, brix_dirent **ents,
+                      int verify, const char *ca_dir, const char *client_cert,
+                      brix_dirent **ents,
                       size_t *n, brix_status *st);
 /* Pooled keep-alive variants (Phase-86): the FUSE driver's getattr/readdir path.
  * `pool` is a brix_cpool of brix_webmeta (one origin+identity per pool); each
@@ -442,6 +458,7 @@ typedef struct brix_webfile brix_webfile;
 /* Open (stats first; fails if a directory). *si_out (optional) gets the stat. */
 brix_webfile *brix_webfile_open(const brix_weburl *u, const char *path,
                                 const char *bearer, int verify, const char *ca_dir,
+                                const char *client_cert,
                                 int timeout_ms, brix_statinfo *si_out,
                                 brix_status *st);
 int64_t  brix_webfile_size(const brix_webfile *wf);

@@ -44,6 +44,35 @@ ngx_int_t brix_staged_append(brix_ctx_t *ctx, ngx_connection_t *c, int idx,
                                int64_t offset, const u_char *buf, size_t len,
                                ngx_int_t *rc);
 
+/* Reply-free, metric-free append core (see write_staged.c) — the primitive the
+ * chunked streaming writer applies per chunk. Returns one of: */
+#define BRIX_STAGED_APPEND_OK     0
+#define BRIX_STAGED_APPEND_ORDER  1   /* offset != writer's expected offset */
+#define BRIX_STAGED_APPEND_IO     2   /* writer I/O error (errno preserved) */
+int brix_staged_append_raw(brix_ctx_t *ctx, int idx, int64_t offset,
+                             const u_char *buf, size_t len);
+
+/*
+ * Streaming large plain kXR_write (write_stream.c).  A single kXR_write whose
+ * dlen exceeds BRIX_WRITE_STREAM_CHUNK is delivered to the fd / staged writer in
+ * bounded chunks with a single final ack, instead of buffering the whole payload.
+ *
+ * brix_write_stream_begin      — called from the recv header phase: decode +
+ *   validate the write handle, set ctx->recv.sw_* state, and rewrite cur_dlen to
+ *   the first chunk length.  Returns 1 when streaming was armed (the shared
+ *   payload-buffer setup then allocates one chunk), 0 when the handle is not
+ *   streamable (SSI / write_codec / require_pgwrite) and the caller should fall
+ *   back to the buffered path.
+ * brix_write_stream_apply_chunk — apply the just-received chunk (payload buffer,
+ *   cur_dlen bytes) at sw_base_off+sw_done; latch the first error into sw_err.
+ * brix_write_stream_finish     — send exactly one reply (kXR_ok, or the latched
+ *   error), log, count the op, and clear the streaming state.
+ */
+ngx_flag_t brix_write_stream_begin(brix_ctx_t *ctx, ngx_connection_t *c,
+                                     ngx_stream_brix_srv_conf_t *conf);
+void brix_write_stream_apply_chunk(brix_ctx_t *ctx, ngx_connection_t *c);
+ngx_int_t brix_write_stream_finish(brix_ctx_t *ctx, ngx_connection_t *c);
+
 /* Commit the handle's staged whole object (single backend PUT) — the kXR_sync /
  * kXR_close hook for a staged write handle. Idempotent: a second call after a
  * successful commit is a no-op success (sync-then-close). On commit failure sets

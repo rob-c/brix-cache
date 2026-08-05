@@ -93,13 +93,20 @@ stage_journal_write(const stage_pending_t *p)
     snprintf(rec.dst_key, sizeof(rec.dst_key), "%s", p->dst_key);
     snprintf(rec.export_root, sizeof(rec.export_root), "%s", p->export_root);
     rec.cred        = p->cred;    /* copy the owner identity into the durable record */
+    /* The cred's trailing bearer is IN-MEMORY ONLY: a live secret that would be
+     * expired by replay time.  Scrub it from the stack record and persist only
+     * the identity prefix (BRIX_SREQ_IDENTITY_SIZE), so a raw token never lands
+     * on disk regardless of the write length below. */
+    ngx_memzero(rec.cred.bearer, sizeof(rec.cred.bearer));
     rec.enqueued_at = (int64_t) time(NULL);
 
     fd = open(path, O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC, 0600);
     if (fd < 0) {
         return;
     }
-    if (write(fd, &rec, sizeof(rec)) == (ssize_t) sizeof(rec)) {
+    if (write(fd, &rec, BRIX_SREQ_IDENTITY_SIZE)
+        == (ssize_t) BRIX_SREQ_IDENTITY_SIZE)
+    {
         (void) fsync(fd);
     }
     (void) close(fd);
@@ -152,7 +159,12 @@ stage_journal_update_rec(const char *journal_dir, const brix_sreq_t *rec)
     if (fd < 0) {
         return;
     }
-    if (write(fd, rec, sizeof(*rec)) == (ssize_t) sizeof(*rec)) {
+    /* Persist only the identity prefix — never the in-memory-only cred.bearer
+     * (a decoded rec already carries a zeroed bearer, but the shorter write keeps
+     * the on-disk record shape identical to stage_journal_write's). */
+    if (write(fd, rec, BRIX_SREQ_IDENTITY_SIZE)
+        == (ssize_t) BRIX_SREQ_IDENTITY_SIZE)
+    {
         (void) fsync(fd);
     }
     (void) close(fd);

@@ -144,8 +144,51 @@ static const brix_s3_transport_t g_fake_transport = {
     .resp_free   = fake_resp_free,
 };
 
+/* ---- cred-capable fake transport ---------------------------------------------
+ * Adds request_cred (a per-request mutual-TLS client cert) so the x509-proxy
+ * namespace path can be exercised, and records the presented cert PATH plus which
+ * transport slot fired (request vs request_cred). The plain g_fake_transport above
+ * deliberately leaves .request_cred NULL — that is the "cannot present a client
+ * cert" transport the deny-mode security test needs. */
+static char g_last_cert[512];
+static int  g_used_cred_path = 0;   /* 1 iff request_cred (mutual-TLS) fired */
+
+static int
+fake_request_cred(void *tctx, const char *host, int port, int tls,
+    const char *method, const char *path_and_query, const char *headers,
+    const void *body, size_t body_len, int timeout_ms,
+    const char *client_cert_pem, brix_s3_resp_t *resp, char *errbuf,
+    size_t errcap)
+{
+    (void) tctx; (void) host; (void) port; (void) tls;
+    (void) body; (void) body_len; (void) timeout_ms; (void) errbuf; (void) errcap;
+
+    g_calls++;
+    g_used_cred_path = 1;
+    snprintf(g_last_method, sizeof(g_last_method), "%s", method);
+    snprintf(g_last_path, sizeof(g_last_path), "%s", path_and_query);
+    snprintf(g_last_hdrs, sizeof(g_last_hdrs), "%s", headers ? headers : "");
+    snprintf(g_last_cert, sizeof(g_last_cert), "%s",
+             client_cert_pem ? client_cert_pem : "");
+
+    resp->opaque = NULL;
+    if (g_fail) {
+        return -1;
+    }
+    resp->status = g_status;
+    return 0;
+}
+
+static const brix_s3_transport_t g_fake_transport_cred = {
+    .request      = fake_request,
+    .request_cred = fake_request_cred,
+    .resp_header  = fake_resp_header,
+    .resp_body    = fake_resp_body,
+    .resp_free    = fake_resp_free,
+};
+
 static brix_sd_instance_t *
-build_instance(void)
+build_instance_xport(const brix_s3_transport_t *xport)
 {
     brix_sd_http_cfg_t cfg;
 
@@ -154,10 +197,16 @@ build_instance(void)
     cfg.port      = 9999;
     cfg.tls       = 0;
     cfg.base_path = "/base";
-    cfg.transport = &g_fake_transport;
+    cfg.transport = xport;
     cfg.timeout_ms = 2000;
 
     return brix_sd_http_create(&cfg, NULL);  /* log=NULL -> logging inert */
+}
+
+static brix_sd_instance_t *
+build_instance(void)
+{
+    return build_instance_xport(&g_fake_transport);
 }
 
 /* Test 1 (success): MKCOL 201 and MOVE 201/204 -> NGX_OK, correct wire. */
@@ -273,12 +322,134 @@ test_rename_noreplace_no_clobber(void)
     brix_sd_http_destroy(inst);
 }
 
+/* Test 4 (cred success): the *_cred namespace slots thread the requesting user's
+ * forwarded credential onto the MKCOL/MOVE/DELETE wire — a WLCG bearer as the
+ * Authorization header, an x509 proxy as the mutual-TLS client cert — so the
+ * origin authorizes the op AS the user, not the static service credential. This is
+ * the source-level guarantee behind the origin-log "operation=mkdir/mv/del
+ * subject=alice" evidence. */
+static void
+test_mutate_cred_success(void)
+{
+    brix_sd_instance_t *inst = build_instance_xport(&g_fake_transport_cred);
+    brix_sd_cred_t      cred;
+
+    assert(inst != NULL);
+    /* The credential-scoped namespace slots are wired. */
+    assert(inst->driver->mkdir_cred  != NULL);
+    assert(inst->driver->rename_cred != NULL);
+    assert(inst->driver->unlink_cred != NULL);
+
+    /* Bearer → Authorization header on the plain request path (no client cert). */
+    memset(&cred, 0, sizeof(cred));
+    cred.bearer = "USER.JWT.ALICE";
+
+    g_status = 201; g_fail = 0; g_calls = 0; g_used_cred_path = 0;
+    assert(inst->driver->mkdir_cred(inst, "/d", 0755, &cred) == NGX_OK);
+    assert(strcmp(g_last_method, "MKCOL") == 0);
+    assert(strstr(g_last_hdrs, "Authorization: Bearer USER.JWT.ALICE") != NULL);
+    assert(g_used_cred_path == 0);              /* bearer → plain request path   */
+
+    g_status = 201; g_fail = 0;
+    assert(inst->driver->rename_cred(inst, "/a", "/b", 0, &cred) == NGX_OK);
+    assert(strcmp(g_last_method, "MOVE") == 0);
+    assert(strstr(g_last_hdrs, "Authorization: Bearer USER.JWT.ALICE") != NULL);
+    assert(strstr(g_last_hdrs, "Destination: http://127.0.0.1:9999/base/b")
+           != NULL);                            /* dst leg carries the user too  */
+
+    g_status = 204; g_fail = 0;
+    assert(inst->driver->unlink_cred(inst, "/gone", 0, &cred) == NGX_OK);
+    assert(strcmp(g_last_method, "DELETE") == 0);
+    assert(strstr(g_last_hdrs, "Authorization: Bearer USER.JWT.ALICE") != NULL);
+
+    /* x509 proxy (no bearer) → presented as the mutual-TLS client cert via the
+     * transport's request_cred slot; NOT anonymous, NOT the static header. */
+    memset(&cred, 0, sizeof(cred));
+    cred.x509_proxy = "/tmp/alice.proxy.pem";
+    g_status = 201; g_fail = 0; g_calls = 0; g_used_cred_path = 0;
+    g_last_cert[0] = '\0';
+    assert(inst->driver->mkdir_cred(inst, "/dx", 0755, &cred) == NGX_OK);
+    assert(g_used_cred_path == 1);              /* mutual-TLS request_cred path  */
+    assert(strcmp(g_last_cert, "/tmp/alice.proxy.pem") == 0);
+
+    printf("  ok   4: mkdir/rename/unlink_cred thread the user bearer (header) "
+           "and x509 proxy (client cert) onto the wire\n");
+    brix_sd_http_destroy(inst);
+}
+
+/* Test 5 (cred error): an origin that DENIES the forwarded user credential
+ * (403/401) surfaces as an error, never a masked success. mkdir/rename map
+ * 401/403 → EACCES; unlink's contract maps any non-{204,200,404} → EIO. */
+static void
+test_mutate_cred_denied_by_origin(void)
+{
+    brix_sd_instance_t *inst = build_instance_xport(&g_fake_transport_cred);
+    brix_sd_cred_t      cred;
+
+    assert(inst != NULL);
+    memset(&cred, 0, sizeof(cred));
+    cred.bearer = "USER.JWT.ALICE";
+
+    g_status = 403; g_fail = 0; errno = 0;
+    assert(inst->driver->mkdir_cred(inst, "/d", 0755, &cred) == NGX_ERROR
+           && errno == EACCES);
+
+    g_status = 401; g_fail = 0; errno = 0;
+    assert(inst->driver->rename_cred(inst, "/a", "/b", 0, &cred) == NGX_ERROR
+           && errno == EACCES);
+
+    g_status = 403; g_fail = 0; errno = 0;
+    assert(inst->driver->unlink_cred(inst, "/gone", 0, &cred) == NGX_ERROR
+           && errno == EIO);
+
+    printf("  ok   5: origin-denied forwarded-cred mkdir/rename -> EACCES, "
+           "unlink -> EIO (never a masked success)\n");
+    brix_sd_http_destroy(inst);
+}
+
+/* Test 6 (security-neg): a proxy-only credential the transport CANNOT present (no
+ * request_cred slot) MUST be refused in deny mode — never silently downgraded to
+ * the anonymous/service credential on the wire. The refusal fires BEFORE any wire
+ * op (g_calls == 0), so a per-user namespace mutation can never leak onto the
+ * service identity. */
+static void
+test_mutate_cred_no_silent_fallback(void)
+{
+    brix_sd_instance_t *inst = build_instance_xport(&g_fake_transport);  /* no request_cred */
+    brix_sd_cred_t      cred;
+
+    assert(inst != NULL);
+    memset(&cred, 0, sizeof(cred));
+    cred.x509_proxy    = "/tmp/alice.proxy.pem";   /* proxy-only, no bearer      */
+    cred.fallback_deny = 1;                         /* service fallback forbidden */
+
+    g_status = 201; g_fail = 0; g_calls = 0; errno = 0;
+    assert(inst->driver->mkdir_cred(inst, "/d", 0755, &cred) == NGX_ERROR);
+    assert(errno == EACCES);
+    assert(g_calls == 0);                           /* refused BEFORE the wire   */
+
+    g_status = 201; g_fail = 0; g_calls = 0; errno = 0;
+    assert(inst->driver->rename_cred(inst, "/a", "/b", 0, &cred) == NGX_ERROR);
+    assert(errno == EACCES && g_calls == 0);
+
+    g_status = 204; g_fail = 0; g_calls = 0; errno = 0;
+    assert(inst->driver->unlink_cred(inst, "/gone", 0, &cred) == NGX_ERROR);
+    assert(errno == EACCES && g_calls == 0);
+
+    printf("  ok   6: proxy-only + deny + no-mutual-TLS transport -> EACCES, "
+           "zero wire ops (no silent service-credential fallback)\n");
+    brix_sd_http_destroy(inst);
+}
+
 int
 main(void)
 {
     test_mutate_success();
     test_mutate_errors();
     test_rename_noreplace_no_clobber();
+    test_mutate_cred_success();
+    test_mutate_cred_denied_by_origin();
+    test_mutate_cred_no_silent_fallback();
     printf("test_sd_http_mutate: ALL PASS\n");
     return 0;
 }

@@ -609,6 +609,22 @@ def sreq_compat(base: Path, ngx_src: Path = DEFAULT_NGX_SRC) -> tuple[bool, str]
     )
 
 
+def stage_bearer_thread(base: Path, ngx_src: Path = DEFAULT_NGX_SRC) -> tuple[bool, str]:
+    """Token write-back bearer threading: brix_stage_run_inline_cred (the sync
+    inline FLUSH the WebDAV/https whole-object gateway uses) presents a live WLCG
+    bearer to the destination backend's staged_open_cred, closing the token+https
+    write-back gap. Mock src/dst drivers capture the cred the backend receives;
+    the four stage_engine.o externals are stubbed in the test. See
+    test_stage_bearer_thread.c."""
+    obj = _need_obj(ngx_src, "objs/addon/xfer/stage_engine.o")
+    if isinstance(obj, str):
+        return result(True, obj)
+    return _compile_and_run(
+        base / "test_stage_bearer_thread",
+        ["-O", "-Wall", *_nginx_includes(ngx_src), str(TEST_C / "test_stage_bearer_thread.c"), str(obj)],
+    )
+
+
 def _brix_have_defines(ngx_src: Path) -> list[str]:
     """The -DBRIX_HAVE_*=n feature flags the module was actually built with.
 
@@ -836,6 +852,20 @@ def sd_http_mutate(base: Path, ngx_src: Path = DEFAULT_NGX_SRC) -> tuple[bool, s
     )
 
 
+def sd_mkdir_cred_forward(base: Path, ngx_src: Path = DEFAULT_NGX_SRC) -> tuple[bool, str]:
+    # brix_sd_mkdir_maybe_cred (src/fs/backend/sd_cred_forward.h) — the mkdir
+    # credential-forwarding dispatch that makes the xroot driver's new mkdir_cred
+    # slot reachable. Header-only inline over a fake driver: no origin, no network,
+    # so it links with no addon objects (only the nginx include path for the SD
+    # struct + ngx_inline). Exercises cred+slot -> cred slot, NULL/allow-mode
+    # fallback -> plain slot, and the deny-mode security property (fallback_deny +
+    # no cred slot -> EACCES, plain never called).
+    return _compile_and_run(
+        base / "test_sd_mkdir_cred_forward",
+        ["-O", "-Wall", str(TEST_C / "test_sd_mkdir_cred_forward.c"), *_nginx_includes(ngx_src)],
+    )
+
+
 def reservation(base: Path, ngx_src: Path = DEFAULT_NGX_SRC) -> tuple[bool, str]:
     # XrdBwm bandwidth-reservation engine (reservation.o) wired in phase-92 to the
     # root:// read-open path. Pure C over libc (snprintf/strcmp) — no ngx runtime —
@@ -934,6 +964,7 @@ RUNNERS = {
     "stage_reconcile": stage_reconcile,
     "compression": compression,
     "sreq_compat": sreq_compat,
+    "stage_bearer_thread": stage_bearer_thread,
     "sd_remote_wrongkind": sd_remote_wrongkind,
     "sd_remote_server_copy": sd_remote_server_copy,
     "sd_remote_opendir": sd_remote_opendir,
@@ -941,6 +972,7 @@ RUNNERS = {
     "sd_remote_setattr": sd_remote_setattr,
     "sd_http_dir": sd_http_dir,
     "sd_http_mutate": sd_http_mutate,
+    "sd_mkdir_cred_forward": sd_mkdir_cred_forward,
     "reservation": reservation,
     "gftp_parse": gftp_parse,
     "cvmfs_url_rewrite": cvmfs_url_rewrite,

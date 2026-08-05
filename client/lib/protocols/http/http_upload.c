@@ -31,6 +31,7 @@ typedef struct {
     const char           *extra_headers;
     int                   verify;
     const char           *ca_dir;
+    const char           *client_cert;
     brix_http_body_src_fn src;
     void                 *src_ctx;
     long long             clen;
@@ -350,7 +351,7 @@ httpx_resumable_attempt(const httpx_upload_ctx_t *c,
     int     rc;
 
     if (httpx_connect(&io, c->host, c->port, c->tls, c->verify, c->ca_dir,
-                      c->timeout_ms, &tls_ctx, c->st) != 0) {
+                      c->client_cert, c->timeout_ms, &tls_ctx, c->st) != 0) {
         return -1;
     }
     rc = httpx_chunk_core(c, &io, rng);
@@ -388,12 +389,14 @@ int
 brix_http_upload_resumable(const char *host, int port, int tls, const char *path,
                            const char *extra_headers, brix_http_body_src_fn src,
                            void *src_ctx, long long clen, int verify,
-                           const char *ca_dir, int timeout_ms, int max_stall_ms,
+                           const char *ca_dir, const char *client_cert,
+                           int timeout_ms, int max_stall_ms,
                            int *http_status, brix_status *st)
 {
     httpx_upload_ctx_t c = {
         .host = host, .port = port, .tls = tls, .path = path,
         .extra_headers = extra_headers, .verify = verify, .ca_dir = ca_dir,
+        .client_cert = client_cert,
         .src = src, .src_ctx = src_ctx, .clen = clen, .timeout_ms = timeout_ms,
         .http_status = http_status, .st = st,
     };
@@ -449,11 +452,13 @@ int
 brix_http_upload(const char *host, int port, int tls, const char *path,
                  const char *extra_headers, brix_http_body_src_fn src,
                  void *src_ctx, long long clen, int verify, const char *ca_dir,
+                 const char *client_cert,
                  int timeout_ms, int *http_status, brix_status *st)
 {
     httpx_upload_ctx_t c = {
         .host = host, .port = port, .tls = tls, .path = path,
         .extra_headers = extra_headers, .verify = verify, .ca_dir = ca_dir,
+        .client_cert = client_cert,
         .src = src, .src_ctx = src_ctx, .clen = clen, .timeout_ms = timeout_ms,
         .http_status = http_status, .st = st,
     };
@@ -462,8 +467,8 @@ brix_http_upload(const char *host, int port, int tls, const char *path,
     int      rc;
 
     if (http_status != NULL) { *http_status = 0; }
-    if (httpx_connect(&io, host, port, tls, verify, ca_dir, timeout_ms,
-                      &tls_ctx, st) != 0) {
+    if (httpx_connect(&io, host, port, tls, verify, ca_dir, client_cert,
+                      timeout_ms, &tls_ctx, st) != 0) {
         return -1;
     }
 

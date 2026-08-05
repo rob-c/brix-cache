@@ -246,6 +246,7 @@ static const brix_sd_driver_t brix_sd_xroot_driver = {
     .stat_cred           = sd_xroot_stat_cred,
     .unlink_cred         = sd_xroot_unlink_cred,
     .rename_cred         = sd_xroot_rename_cred,
+    .mkdir_cred          = sd_xroot_mkdir_cred,
     .truncate_path_cred  = sd_xroot_truncate_path_cred,
     .server_copy_cred    = sd_xroot_server_copy_cred,
     .getxattr_cred       = sd_xroot_getxattr_cred,

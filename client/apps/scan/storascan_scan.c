@@ -86,7 +86,7 @@ scan_login(const scan_ep *ep, const scan_args_t *sa,
     if (brix_http_req(ep->host, ep->port, ep->tls, "POST", "/brix/login",
                       "Content-Type: application/x-www-form-urlencoded\r\n",
                       body, (size_t) n, 15000, sa->insecure ? 0 : 1, NULL,
-                      &resp, st) != 0)
+                      NULL, &resp, st) != 0)
     {
         return -1;
     }
@@ -400,7 +400,7 @@ scan_fetch(const char *mode, const scan_ep *ep, const scan_args_t *sa,
 
     snprintf(fullpath, sizeof(fullpath), "/brix/api/v1/scan?%s", query);
     if (brix_http_req(ep->host, ep->port, ep->tls, "GET", fullpath, hdr,
-                      NULL, 0, 120000, sa->insecure ? 0 : 1, NULL, resp, &st) != 0)
+                      NULL, 0, 120000, sa->insecure ? 0 : 1, NULL, NULL, resp, &st) != 0)
     {
         fprintf(stderr, "xrdstorascan: %s: %s\n", mode, st.msg);
         return brix_shellcode(&st);

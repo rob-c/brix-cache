@@ -108,7 +108,7 @@ http_davs_extras(const http_probe_ctx *pc, doctor_ep *e)
 
     brix_status_clear(&st);
     if (brix_http_req(pc->host, pc->port, pc->tls, "OPTIONS", pc->path, NULL,
-                      NULL, 0, pc->tmo, pc->verify, NULL, &r, &st) == 0) {
+                      NULL, 0, pc->tmo, pc->verify, NULL, NULL, &r, &st) == 0) {
         if (brix_http_header(&r, "DAV", val, sizeof(val))) {
             int class2 = (strstr(val, "2") != NULL);
             dx_record(e, &(dx_note){ "davs-class", DX_OK, r.status,
@@ -131,7 +131,7 @@ http_davs_extras(const http_probe_ctx *pc, doctor_ep *e)
     }
     brix_status_clear(&st);
     if (brix_http_req(pc->host, pc->port, pc->tls, "PROPFIND", pc->path,
-                      "Depth: 1\r\n", NULL, 0, pc->tmo, pc->verify, NULL, &r,
+                      "Depth: 1\r\n", NULL, 0, pc->tmo, pc->verify, NULL, NULL, &r,
                       &st) == 0) {
         if (r.status == 207) {
             dx_record(e, &(dx_note){ "davs-listing", DX_OK, 207,
@@ -178,11 +178,11 @@ doctor_http(const diag_args *a, const dx_url_t *u, doctor_ep *e)
      * ranged GET if HEAD is refused, so we still measure connect/TLS. */
     brix_status_clear(&st);
     if (brix_http_req(u->host, u->port, u->tls, "HEAD", u->path, NULL, NULL, 0,
-                      pc.tmo, pc.verify, NULL, &r, &st) != 0) {
+                      pc.tmo, pc.verify, NULL, NULL, &r, &st) != 0) {
         brix_status_clear(&st);
         if (brix_http_req(u->host, u->port, u->tls, "GET", u->path,
                           "Range: bytes=0-0\r\n", NULL, 0, pc.tmo, pc.verify,
-                          NULL, &r, &st) != 0) {
+                          NULL, NULL, &r, &st) != 0) {
             dx_http_fail(e, u->tls, &st);
             return;
         }
@@ -300,7 +300,7 @@ s3_sigv4_probe(const http_probe_ctx *pc, const char *ak, const char *sk,
     }
     brix_status_clear(&st);
     if (brix_http_req(pc->host, pc->port, pc->tls, "GET", pc->path, hdrs, NULL,
-                      0, pc->tmo, pc->verify, NULL, &r, &st) != 0) {
+                      0, pc->tmo, pc->verify, NULL, NULL, &r, &st) != 0) {
         dx_record(e, &(dx_note){ "s3-sigv4", DX_WARN, st.kxr, "signed request failed to complete", "" });
         return;
     }
@@ -341,7 +341,7 @@ doctor_s3(const diag_args *a, const dx_url_t *u, doctor_ep *e)
     /* Stage 1: reachability + TLS via an unauthenticated GET. */
     brix_status_clear(&st);
     if (brix_http_req(u->host, u->port, u->tls, "GET", u->path, NULL, NULL, 0,
-                      pc.tmo, pc.verify, NULL, &r, &st) != 0) {
+                      pc.tmo, pc.verify, NULL, NULL, &r, &st) != 0) {
         dx_http_fail(e, u->tls, &st);
         return;
     }

@@ -34,8 +34,9 @@ s3t_request(void *tctx, const char *host, int port, int tls,
     }
     brix_status_clear(&st);
     /* verify=0, ca_dir=NULL — matches the original vfs_s3 request policy. */
+    /* S3 authenticates with SigV4 (INV-6), never an X.509 client cert. */
     if (brix_http_req(host, port, tls, method, path_and_query, headers,
-                      body, body_len, timeout_ms, 0, NULL, r, &st) != 0) {
+                      body, body_len, timeout_ms, 0, NULL, NULL, r, &st) != 0) {
         if (errbuf != NULL && errcap > 0) {
             snprintf(errbuf, errcap, "%s", st.msg);
         }
