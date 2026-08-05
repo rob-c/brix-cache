@@ -41,6 +41,22 @@ typedef struct {
     unsigned char inj_name[64];  int inj_name_len;   /* inject-header name  */
     unsigned char inj_val[192];  int inj_val_len;    /* inject-header value */
     unsigned char append[512];   int append_len;     /* bytes smuggled after msg */
+    /* DPI header-size hold: mimic a deep-packet-inspection middlebox that stalls
+     * a request once its header block crosses a byte threshold (e.g. a fat
+     * client-cert PEM in an XrdHttp request header). Timing effect only — applied
+     * by the relay pump, not by fp_http_rewrite(), so it is NOT part of
+     * fp_http_active(). */
+    int  hold_thresh;    /* hold when the header block is >= this many bytes (0=off) */
+    int  hold_ms;        /* how long to stall the connection thread                  */
+    int  hold_partial;   /* 1: release the first hold_thresh bytes, then hold the
+                          *    remainder; 0: hold the whole segment                  */
+    /* body-hold: the store-and-forward sibling of header-hold — stall once the
+     * BODY (bytes after CRLFCRLF, or a bodyless continuation segment) reaches a
+     * threshold.  Also a timing effect, also excluded from fp_http_active(). */
+    int  body_hold_thresh;
+    int  body_hold_ms;
+    int  body_hold_partial;
+    unsigned char strip_name[64];  int strip_len;  /* drop header lines named this */
 } fp_http_cfg;
 
 /* Tallies (added, not reset). */
@@ -62,5 +78,32 @@ int fp_http_active(const fp_http_cfg *c);
 size_t fp_http_rewrite(const unsigned char *in, size_t n,
                        unsigned char *out, size_t outcap,
                        const fp_http_cfg *c, fp_http_stats *st, int *applied);
+
+/* Size of the HTTP header block in `in[0..n)`: the byte offset of the CRLFCRLF
+ * that terminates the headers.  Returns `n` when the buffer holds no complete
+ * header block (the terminator has not arrived yet). */
+size_t fp_http_header_len(const unsigned char *in, size_t n);
+
+/* True if the DPI header-size hold is armed. */
+int fp_http_hold_active(const fp_http_cfg *c);
+
+/* True if the DPI body-size hold is armed. */
+int fp_http_body_hold_active(const fp_http_cfg *c);
+
+/* Body-size sibling of fp_http_hold_decide(): measures the bytes AFTER the
+ * header terminator (or the whole segment when it carries no header block, i.e.
+ * a body continuation) and decides the store-and-forward stall the same way. */
+int fp_http_body_hold_decide(const fp_http_cfg *c, const unsigned char *in,
+                             size_t n, size_t *release);
+
+/* Decide the DPI hold for the bytes in `in[0..n)`.  Returns 1 and sets
+ * *release when the buffer carries a COMPLETE header block whose size is
+ * >= c->hold_thresh: *release is the number of leading bytes to forward before
+ * the stall (0 for a whole-message hold, min(hold_thresh, n) for a partial one).
+ * Returns 0 (and leaves *release untouched) when the hold is disarmed, no
+ * complete header block is present, or the header is under the threshold — so a
+ * body-only segment never trips the hold. */
+int fp_http_hold_decide(const fp_http_cfg *c, const unsigned char *in, size_t n,
+                        size_t *release);
 
 #endif /* BRIX_FAULT_HTTP_H */

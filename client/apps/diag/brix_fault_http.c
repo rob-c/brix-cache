@@ -13,7 +13,8 @@ int
 fp_http_active(const fp_http_cfg *c)
 {
     return c->add_cl || c->add_te || c->dup_cl || c->obfuscate_te ||
-           c->naked_lf || c->inj_name_len > 0 || c->append_len > 0;
+           c->naked_lf || c->inj_name_len > 0 || c->append_len > 0 ||
+           c->strip_len > 0;
 }
 
 /* Case-insensitive: does the header line start with `name`? */
@@ -30,6 +31,26 @@ hdr_is(const unsigned char *line, size_t len, const char *name)
         }
     }
     return 1;
+}
+
+/* True when `line` is a header whose name matches the configured strip target
+ * (case-insensitive, the name terminated by optional spaces then a colon). */
+static int
+hdr_stripped(const unsigned char *line, size_t llen, const fp_http_cfg *c)
+{
+    if (c->strip_len <= 0 || llen < (size_t) c->strip_len) {
+        return 0;
+    }
+    for (int i = 0; i < c->strip_len; i++) {
+        if (tolower(line[i]) != tolower(c->strip_name[i])) {
+            return 0;
+        }
+    }
+    size_t j = (size_t) c->strip_len;
+    while (j < llen && (line[j] == ' ' || line[j] == '\t')) {
+        j++;
+    }
+    return j < llen && line[j] == ':';
 }
 
 /* Emit one header line followed by the configured line ending. */
@@ -101,8 +122,8 @@ emit_added_headers(unsigned char *out, size_t cap, size_t *o,
 
 /* Offset of the CRLFCRLF that ends the header block, or `n` when the buffer
  * holds no complete header block (the caller then leaves the bytes alone). */
-static size_t
-http_header_end(const unsigned char *in, size_t n)
+size_t
+fp_http_header_len(const unsigned char *in, size_t n)
 {
     for (size_t i = 0; i + 3 < n; i++) {
         if (in[i] == '\r' && in[i + 1] == '\n' &&
@@ -111,6 +132,65 @@ http_header_end(const unsigned char *in, size_t n)
         }
     }
     return n;
+}
+
+int
+fp_http_hold_active(const fp_http_cfg *c)
+{
+    return c->hold_thresh > 0;
+}
+
+int
+fp_http_hold_decide(const fp_http_cfg *c, const unsigned char *in, size_t n,
+                    size_t *release)
+{
+    if (c->hold_thresh <= 0) {
+        return 0;
+    }
+    size_t hlen = fp_http_header_len(in, n);
+    if (hlen == n) {
+        return 0;                         /* no complete header block -> pass */
+    }
+    if (hlen < (size_t) c->hold_thresh) {
+        return 0;                         /* header under the threshold -> pass */
+    }
+    if (c->hold_partial) {
+        *release = (size_t) c->hold_thresh < n ? (size_t) c->hold_thresh : n;
+    } else {
+        *release = 0;                     /* whole-message hold */
+    }
+    return 1;
+}
+
+int
+fp_http_body_hold_active(const fp_http_cfg *c)
+{
+    return c->body_hold_thresh > 0;
+}
+
+int
+fp_http_body_hold_decide(const fp_http_cfg *c, const unsigned char *in, size_t n,
+                         size_t *release)
+{
+    if (c->body_hold_thresh <= 0) {
+        return 0;
+    }
+    size_t hlen = fp_http_header_len(in, n);
+    /* Body bytes = those after CRLFCRLF; a segment with no header block is treated
+     * as a pure body continuation (its whole length counts). */
+    size_t body = (hlen == n) ? n : n - (hlen + 4);
+    if (body < (size_t) c->body_hold_thresh) {
+        return 0;
+    }
+    if (c->body_hold_partial) {
+        /* Release everything up to and including the threshold-th body byte. */
+        size_t hdr = (hlen == n) ? 0 : hlen + 4;
+        size_t rel = hdr + (size_t) c->body_hold_thresh;
+        *release = rel < n ? rel : n;
+    } else {
+        *release = 0;
+    }
+    return 1;
 }
 
 /* Copy every header line through, rewriting Transfer-Encoding on the way when
@@ -131,7 +211,9 @@ http_emit_headers(const unsigned char *in, size_t hlen,
         }
         const unsigned char *line = in + ls;
         size_t               llen = le - ls;
-        if (llen > 0) {
+        if (llen > 0 && hdr_stripped(line, llen, c)) {
+            st->headers_added++;   /* count the drop as a header edit */
+        } else if (llen > 0) {
             if (c->obfuscate_te && hdr_is(line, llen, "transfer-encoding")) {
                 emit_te_obfuscated(out, outcap, o, line, llen, c->obfuscate_te, lf);
                 st->te_obf++;
@@ -152,7 +234,7 @@ fp_http_rewrite(const unsigned char *in, size_t n,
                 const fp_http_cfg *c, fp_http_stats *st, int *applied)
 {
     *applied = 0;
-    size_t hlen = http_header_end(in, n);          /* header bytes, no terminator */
+    size_t hlen = fp_http_header_len(in, n);        /* header bytes, no terminator */
     if (hlen == n) {
         return 0;                                  /* no header block here */
     }

@@ -548,6 +548,7 @@ FAULT_PROXY_SRCS := apps/diag/brix_fault_proxy.c apps/diag/brix_fault_priv.c \
 	apps/diag/brix_fault_toxic.c apps/diag/brix_fault_route.c \
 	apps/diag/brix_fault_relay.c apps/diag/brix_fault_pump.c \
 	apps/diag/brix_fault_cmd_lever.c apps/diag/brix_fault_cmd_attack.c \
+	apps/diag/brix_fault_cmd_dpi.c apps/diag/brix_fault_udp.c \
 	apps/diag/brix_fault_report.c apps/diag/brix_fault_cli.c
 FAULT_PROXY_HDRS := apps/diag/brix_fault_priv.h apps/diag/brix_fault_priv_internal.h \
 	apps/diag/brix_fault_ext.h \

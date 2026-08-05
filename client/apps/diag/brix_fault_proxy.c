@@ -152,6 +152,25 @@ volatile int      g_proxy_mode = 0;
 char              g_proxy_src[128];
 char              g_proxy_dst[128];
 
+/* Phase-99 DPI/middlebox pathology levers. */
+volatile int      g_idle_reap_ms      = 0;
+volatile int      g_idle_reap_rst     = 0;
+volatile int      g_eat_100           = 0;
+volatile long     g_rst_after_bytes   = 0;
+volatile long     g_rst_after_ms      = 0;
+volatile int      g_rst_after_abortive = 0;
+volatile int      g_drop_fin_up       = 0;
+volatile int      g_drop_fin_down     = 0;
+volatile long     g_classify_bytes    = 0;
+volatile int      g_classify_kbps     = 0;
+volatile int      g_syn_drop_ppm      = 0;
+volatile int      g_hello_reset_thresh = 0;
+volatile int      g_udp_drop_ppm      = 0;
+volatile int      g_udp_hold_ms       = 0;
+volatile int      g_udp_reap_ms       = 0;
+volatile int      g_udp_reorder_ppm   = 0;
+volatile int      g_udp_reorder_ms    = 0;
+
 struct fp_mutbuf  g_up_mut, g_down_mut;
 pthread_mutex_t   g_ext_lock = PTHREAD_MUTEX_INITIALIZER;
 
@@ -221,6 +240,17 @@ fp_accept_loop(fp_route *route, int lfd)
             brix_fp_event(CBUMP(refused, 1), NULL, "refuse", "block", NULL, 0);
             close(client);        /* outage: refuse */
             continue;
+        }
+        /* syn-drop: silently drop a fraction of accepted clients (no RST) so the
+         * connection looks like it never happened — connect-timeout under load. */
+        if (g_syn_drop_ppm > 0) {
+            static unsigned syn_seed = 0;
+            if (syn_seed == 0) { syn_seed = g_seed ? g_seed : 0x9e3779b9u; }
+            if ((unsigned) (rand_r(&syn_seed) % 1000000) < (unsigned) g_syn_drop_ppm) {
+                CBUMP(syn_dropped, 1);
+                close(client);
+                continue;
+            }
         }
         if (g_max_conns > 0
             && __atomic_load_n(&C.active, __ATOMIC_RELAXED) >= (unsigned long) g_max_conns) {
@@ -306,6 +336,44 @@ fp_arm_privileged(const fp_config *cfg)
     return FP_CONTINUE;
 }
 
+/* Launch the scripted-timeline thread (detached) if --script was given. */
+static void
+fp_spawn_script(const char *script_path)
+{
+    if (script_path == NULL) {
+        return;
+    }
+    pthread_t st;
+    if (pthread_create(&st, NULL, script_thread, (void *) script_path) == 0) {
+        pthread_detach(st);
+    }
+}
+
+/* Parse `--udp "<listen> <host:port>"` and launch the datagram relay thread
+ * (detached).  Best-effort: a malformed spec warns and is ignored (TCP runs). */
+static void
+fp_spawn_udp(const char *spec)
+{
+    if (spec == NULL) {
+        return;
+    }
+    fp_udp_cfg *uc = calloc(1, sizeof(*uc));
+    char        uhost[256] = "";
+    if (uc && sscanf(spec, "%d %255[^:]:%d",
+                     &uc->listen_port, uhost, &uc->port) == 3) {
+        snprintf(uc->host, sizeof(uc->host), "%s", uhost);
+        pthread_t ut;
+        if (pthread_create(&ut, NULL, fp_udp_thread, uc) == 0) {
+            pthread_detach(ut);
+            return;
+        }
+        free(uc);
+        return;
+    }
+    free(uc);
+    fprintf(stderr, "brix-fault-proxy: --udp needs \"<listen> <host:port>\"\n");
+}
+
 int
 main(int argc, char **argv)
 {
@@ -366,12 +434,8 @@ main(int argc, char **argv)
     *cfdp = ctlfd;
     pthread_create(&ct, NULL, control_thread, cfdp);
 
-    if (cfg.script_path != NULL) {
-        pthread_t st;
-        if (pthread_create(&st, NULL, script_thread, (void *) cfg.script_path) == 0) {
-            pthread_detach(st);
-        }
-    }
+    fp_spawn_script(cfg.script_path);
+    fp_spawn_udp(cfg.udp_spec);
 
     if (!cfg.quiet) {
         fp_print_banner(&cfg);
