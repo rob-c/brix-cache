@@ -5,7 +5,7 @@
 **One-line:** stock XRootD v5.9.6 loads a CRL that revokes a proxy's End-Entity Certificate,
 records the revocation, then authenticates the delegated proxy anyway; BriX (matching
 openssl, the reference verifier) rejects it. See also
-[gsi-benchmark-rig](gsi-benchmark-rig-2026-08-04) context and
+[gsi-benchmark-rig](gsi-benchmark-rig-2026-08-04.md) context and
 [xrdsecgsi-handshake](xrdsecgsi-handshake.md), [wlcg-ca-conformance](wlcg-ca-conformance.md).
 
 This came out of the Phase-2 authenticated conformance benchmark (5 clients — PyXRootD,

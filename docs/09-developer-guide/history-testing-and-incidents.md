@@ -184,7 +184,11 @@ self-evident from `tests/README.md`:
   before believing them. Related: lint tests such as
   `test_no_new_direct_nginx_launches` trip on *other sessions'* untracked WIP
   files, so check `git status` provenance before claiming ownership of a lint
-  failure.
+  failure. This class dominates: through the phase-97 CMS/CNS closure work,
+  **every** red turned out to be a concurrent session's `TEST_ROOT` wipe or
+  fixed-port contention and **none** was a code defect — so on a shared box the
+  first move for any red is to re-run it alone in a private root, not to read the
+  diff.
 - **Some suites are only flaky under host saturation** (load 6–21 from other
   sessions) and pass 100% solo. Establish that before treating a rotating
   failure set as a product bug — but note that "the host is overloaded" is a
