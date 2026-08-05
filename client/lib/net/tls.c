@@ -367,6 +367,48 @@ brix_tls_read_some(brix_io *io, void *buf, size_t n, size_t *got, brix_status *s
  * success io->ssl holds the live SSL and *out_ctx the SSL_CTX (caller frees both via
  * brix_tls_client_free). 0 / -1.
  */
+/* Prepare the client SSL_CTX: load a client certificate for mutual TLS (davs GSI
+ * delegation) when given — the proxy PEM holds cert + private key + EEC chain in
+ * one file, so one path loads both — then configure server verification (allowing
+ * RFC-3820 proxy certs).  Any credential/CA failure is fatal: proceeding
+ * anonymously would misrepresent who is connecting.  Returns 0, or -1 with *st
+ * set (caller frees ctx). */
+static int
+tls_prepare_ctx(SSL_CTX *ctx, int verify_peer, const char *ca_dir,
+                const char *client_cert, brix_status *st)
+{
+    if (client_cert != NULL && client_cert[0] != '\0') {
+        if (SSL_CTX_use_certificate_chain_file(ctx, client_cert) != 1) {
+            tls_err(st, XRDC_EAUTH, "load client cert");
+            return -1;
+        }
+        if (SSL_CTX_use_PrivateKey_file(ctx, client_cert, SSL_FILETYPE_PEM) != 1) {
+            tls_err(st, XRDC_EAUTH, "load client key");
+            return -1;
+        }
+        if (SSL_CTX_check_private_key(ctx) != 1) {
+            tls_err(st, XRDC_EAUTH, "client cert/key mismatch");
+            return -1;
+        }
+    }
+    if (!verify_peer) {
+        SSL_CTX_set_verify(ctx, SSL_VERIFY_NONE, NULL);
+        return 0;
+    }
+    SSL_CTX_set_verify(ctx, SSL_VERIFY_PEER, NULL);
+    if (ca_dir != NULL && ca_dir[0] != '\0') {
+        if (SSL_CTX_load_verify_locations(ctx, NULL, ca_dir) != 1) {
+            tls_err(st, XRDC_EAUTH, "load CA dir");
+            return -1;
+        }
+    } else {
+        SSL_CTX_set_default_verify_paths(ctx);
+    }
+    X509_VERIFY_PARAM_set_flags(SSL_CTX_get0_param(ctx),
+                                X509_V_FLAG_ALLOW_PROXY_CERTS);
+    return 0;
+}
+
 int
 brix_tls_client(brix_io *io, const char *host, int verify_peer, int verify_host,
                 const char *ca_dir, const char *client_cert, void **out_ctx,
@@ -384,45 +426,9 @@ brix_tls_client(brix_io *io, const char *host, int verify_peer, int verify_host,
     }
     SSL_CTX_set_min_proto_version(ctx, TLS1_2_VERSION);
 
-    /* Present a client certificate for mutual TLS (davs GSI delegation): the
-     * proxy PEM holds the proxy cert + private key + EEC chain in one file, so
-     * the same path loads both the chain and the key. Independent of server
-     * verification. Failure here is fatal — the caller asked to authenticate
-     * with this identity, so silently proceeding anonymously would misrepresent
-     * who is connecting. */
-    if (client_cert != NULL && client_cert[0] != '\0') {
-        if (SSL_CTX_use_certificate_chain_file(ctx, client_cert) != 1) {
-            tls_err(st, XRDC_EAUTH, "load client cert");
-            SSL_CTX_free(ctx);
-            return -1;
-        }
-        if (SSL_CTX_use_PrivateKey_file(ctx, client_cert, SSL_FILETYPE_PEM) != 1) {
-            tls_err(st, XRDC_EAUTH, "load client key");
-            SSL_CTX_free(ctx);
-            return -1;
-        }
-        if (SSL_CTX_check_private_key(ctx) != 1) {
-            tls_err(st, XRDC_EAUTH, "client cert/key mismatch");
-            SSL_CTX_free(ctx);
-            return -1;
-        }
-    }
-
-    if (verify_peer) {
-        SSL_CTX_set_verify(ctx, SSL_VERIFY_PEER, NULL);
-        if (ca_dir != NULL && ca_dir[0] != '\0') {
-            if (SSL_CTX_load_verify_locations(ctx, NULL, ca_dir) != 1) {
-                tls_err(st, XRDC_EAUTH, "load CA dir");
-                SSL_CTX_free(ctx);
-                return -1;
-            }
-        } else {
-            SSL_CTX_set_default_verify_paths(ctx);
-        }
-        X509_VERIFY_PARAM_set_flags(SSL_CTX_get0_param(ctx),
-                                    X509_V_FLAG_ALLOW_PROXY_CERTS);
-    } else {
-        SSL_CTX_set_verify(ctx, SSL_VERIFY_NONE, NULL);
+    if (tls_prepare_ctx(ctx, verify_peer, ca_dir, client_cert, st) != 0) {
+        SSL_CTX_free(ctx);
+        return -1;
     }
 
     ssl = SSL_new(ctx);

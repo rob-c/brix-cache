@@ -135,13 +135,56 @@ delegated_cred_find_eec(SSL *sc, X509 *leaf)
  * files cannot feed proxy_ssl_certificate.  Expired → empty, with an info
  * log naming the DN so operators can see who must re-delegate.
  */
+/* Recover the delegated end-entity DN from the request's verified client chain.
+ * Returns 1 with `dn` filled on success; 0 (dn left empty) when there is no
+ * usable EEC — no/failed client cert, or a RESUMED TLS session that re-sent no
+ * Certificate message (warned, since the delegated identity would otherwise
+ * silently degrade to the origin's anonymous user). */
+static int
+delegated_cred_peer_dn(ngx_connection_t *c, char *dn, size_t dnsz)
+{
+    X509 *leaf, *eec;
+
+    if (c->ssl == NULL
+        || SSL_get_verify_result(c->ssl->connection) != X509_V_OK)
+    {
+        return 0;
+    }
+
+    leaf = SSL_get_peer_certificate(c->ssl->connection);
+    if (leaf == NULL) {
+        return 0;
+    }
+
+    dn[0] = '\0';
+    eec = delegated_cred_find_eec(c->ssl->connection, leaf);
+    if (eec != NULL) {
+        brix_x509_oneline(X509_get_subject_name(eec), dn, dnsz);
+    }
+    X509_free(leaf);
+
+    if (dn[0] == '\0') {
+        /* Never de-privilege in silence: with resumption disabled on the
+         * gateway this branch is unreachable; when it is hit, name the fix. */
+        if (SSL_session_reused(c->ssl->connection)) {
+            ngx_log_error(NGX_LOG_WARN, c->log, 0,
+                "brix_delegated_cred: no end-entity certificate available on a "
+                "RESUMED TLS session; the delegated credential cannot be "
+                "resolved and the request will proceed WITHOUT it. Disable TLS "
+                "resumption on the delegation gateway server block: "
+                "\"ssl_session_tickets off; ssl_session_cache off;\"");
+        }
+        return 0;
+    }
+    return 1;
+}
+
 ngx_int_t
 brix_http_delegated_cred_variable(ngx_http_request_t *r,
     ngx_http_variable_value_t *v, uintptr_t data)
 {
     ngx_http_brix_webdav_loc_conf_t *wdcf;
     ngx_connection_t                  *c;
-    X509                              *leaf, *eec;
     ngx_str_t                         *dir;
     brix_sd_ucred_t                    cred;
     ngx_int_t                          rc;
@@ -162,38 +205,7 @@ brix_http_delegated_cred_variable(ngx_http_request_t *r,
 
     c = r->connection;
 
-    if (c->ssl == NULL
-        || SSL_get_verify_result(c->ssl->connection) != X509_V_OK)
-    {
-        return NGX_OK;
-    }
-
-    leaf = SSL_get_peer_certificate(c->ssl->connection);
-    if (leaf == NULL) {
-        return NGX_OK;
-    }
-
-    dn[0] = '\0';
-    eec = delegated_cred_find_eec(c->ssl->connection, leaf);
-    if (eec != NULL) {
-        brix_x509_oneline(X509_get_subject_name(eec), dn, sizeof(dn));
-    }
-    X509_free(leaf);
-
-    if (dn[0] == '\0') {
-        /* Fail closed. A RESUMED TLS session re-sends no Certificate message,
-         * so neither the peer nor the verified chain exposes the EEC and the
-         * delegated identity silently degrades to the origin's anonymous user.
-         * Never de-privilege in silence: warn with the one-line operator fix.
-         * With resumption disabled on the gateway this branch is unreachable. */
-        if (SSL_session_reused(c->ssl->connection)) {
-            ngx_log_error(NGX_LOG_WARN, c->log, 0,
-                "brix_delegated_cred: no end-entity certificate available on a "
-                "RESUMED TLS session; the delegated credential cannot be "
-                "resolved and the request will proceed WITHOUT it. Disable TLS "
-                "resumption on the delegation gateway server block: "
-                "\"ssl_session_tickets off; ssl_session_cache off;\"");
-        }
+    if (!delegated_cred_peer_dn(c, dn, sizeof(dn))) {
         return NGX_OK;
     }
 

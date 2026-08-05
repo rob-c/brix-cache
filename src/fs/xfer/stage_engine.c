@@ -291,6 +291,64 @@ stage_engine_move(const stage_move_ep_t *ep, const brix_sd_cred_t *cred,
  *       4. On failure + deny=0: log WARN, move with service cred (credp=NULL).
  *       5. Pass the principal through to the audit line (was hard-coded NULL).
  */
+/* Select the credential the flush should present to the destination: a live
+ * WLCG bearer (token write-back), a resolved per-user x509 proxy, or the service
+ * credential (leaves *credp NULL).  On a hard deny it books the DENIED audit line
+ * (errno=EACCES) and returns BRIX_XFER_DENIED; otherwise BRIX_XFER_OK, with
+ * *credp pointing at *sdcred when a per-user identity was selected.  *sdcred and
+ * *ru are owned by the caller so the borrowed secrets outlive the move. */
+static brix_xfer_result_t
+stage_select_cred(const brix_stage_cred_t *cred, brix_stage_kind_t kind,
+    const char *dst_key, const char *principal, ngx_log_t *log,
+    brix_sd_cred_t *sdcred, brix_sd_ucred_t *ru, const brix_sd_cred_t **credp)
+{
+    if (cred != NULL && cred->bearer[0] != '\0') {
+        /* Token write-back: the live WLCG bearer captured at write-back-open time
+         * IS the credential — there is no on-disk cred file to re-resolve (unlike
+         * x509, whose delegated proxy lives at <dir>/<key>.pem).  Present it
+         * directly to the destination staged_open so the deferred commit PUT
+         * authenticates to the origin as the END USER, not the service account.
+         * Only reached on the SYNC inline flush: the bearer is never journaled,
+         * so `cred` is still the live request-scoped credential here.  No expiry
+         * re-check / deny gate applies — the token was just validated in-request. */
+        ngx_memzero(sdcred, sizeof(*sdcred));
+        sdcred->bearer    = cred->bearer;
+        sdcred->principal = cred->principal;
+        *credp = sdcred;
+        return BRIX_XFER_OK;
+    }
+    if (cred == NULL || cred->key[0] == '\0') {
+        return BRIX_XFER_OK;                     /* service credential */
+    }
+    if (brix_sd_ucred_resolve(cred->dir, cred->key, ru) == NGX_OK) {
+        ngx_memzero(sdcred, sizeof(*sdcred));
+        sdcred->x509_proxy = ru->path;
+        sdcred->principal  = cred->principal;
+        *credp = sdcred;
+        return BRIX_XFER_OK;
+    }
+    if (cred->deny) {
+        /* Hard deny: missing or expired per-user credential; refuse to flush
+         * under the service identity — the caller opted into strict mode. */
+        ngx_log_error(NGX_LOG_ERR, log, 0,
+            "xrootd stage: %s of \"%s\" DENIED - per-user credential "
+            "key=%s principal=\"%s\" %s (fallback=deny)",
+            brix_stage_kind_str(kind), dst_key, cred->key,
+            cred->principal[0] ? cred->principal : "-",
+            ru->expired ? "EXPIRED" : "missing");
+        brix_xfer_finish(stage_kind_to_xfer(kind), stage_kind_dir(kind),
+            dst_key, principal, 0, BRIX_XFER_DENIED, EACCES, log);
+        errno = EACCES;
+        return BRIX_XFER_DENIED;
+    }
+    /* Soft fallback: warn and continue under the service credential. */
+    ngx_log_error(NGX_LOG_WARN, log, 0,
+        "xrootd stage: per-user credential key=%s %s - flushing "
+        "\"%s\" with the service credential (fallback=allow)",
+        cred->key, ru->expired ? "EXPIRED" : "missing", dst_key);
+    return BRIX_XFER_OK;
+}
+
 brix_xfer_result_t
 stage_engine_run(brix_stage_kind_t kind, brix_sd_instance_t *src,
     const char *src_key, brix_sd_instance_t *dst, const char *dst_key,
@@ -314,45 +372,9 @@ stage_engine_run(brix_stage_kind_t kind, brix_sd_instance_t *src,
         principal = cred->principal;
     }
 
-    if (cred != NULL && cred->bearer[0] != '\0') {
-        /* Token write-back: the live WLCG bearer captured at write-back-open time
-         * IS the credential — there is no on-disk cred file to re-resolve (unlike
-         * x509, whose delegated proxy lives at <dir>/<key>.pem).  Present it
-         * directly to the destination staged_open so the deferred commit PUT
-         * authenticates to the origin as the END USER, not the service account.
-         * Only reached on the SYNC inline flush: the bearer is never journaled,
-         * so `cred` is still the live request-scoped credential here.  No expiry
-         * re-check / deny gate applies — the token was just validated in-request. */
-        ngx_memzero(&sdcred, sizeof(sdcred));
-        sdcred.bearer    = cred->bearer;
-        sdcred.principal = cred->principal;
-        credp = &sdcred;
-    } else if (cred != NULL && cred->key[0] != '\0') {
-        if (brix_sd_ucred_resolve(cred->dir, cred->key, &ru) == NGX_OK) {
-            ngx_memzero(&sdcred, sizeof(sdcred));
-            sdcred.x509_proxy = ru.path;
-            sdcred.principal  = cred->principal;
-            credp = &sdcred;
-        } else if (cred->deny) {
-            /* Hard deny: missing or expired per-user credential; refuse to flush
-             * under the service identity — the caller opted into strict mode. */
-            ngx_log_error(NGX_LOG_ERR, log, 0,
-                "xrootd stage: %s of \"%s\" DENIED - per-user credential "
-                "key=%s principal=\"%s\" %s (fallback=deny)",
-                brix_stage_kind_str(kind), dst_key, cred->key,
-                cred->principal[0] ? cred->principal : "-",
-                ru.expired ? "EXPIRED" : "missing");
-            brix_xfer_finish(stage_kind_to_xfer(kind), stage_kind_dir(kind),
-                dst_key, principal, 0, BRIX_XFER_DENIED, EACCES, log);
-            errno = EACCES;
-            return BRIX_XFER_DENIED;
-        } else {
-            /* Soft fallback: warn and continue under the service credential. */
-            ngx_log_error(NGX_LOG_WARN, log, 0,
-                "xrootd stage: per-user credential key=%s %s - flushing "
-                "\"%s\" with the service credential (fallback=allow)",
-                cred->key, ru.expired ? "EXPIRED" : "missing", dst_key);
-        }
+    if (stage_select_cred(cred, kind, dst_key, principal, log,
+                          &sdcred, &ru, &credp) == BRIX_XFER_DENIED) {
+        return BRIX_XFER_DENIED;   /* errno=EACCES set, audit booked, no proxy */
     }
 
     {
