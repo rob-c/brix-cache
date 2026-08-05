@@ -42,7 +42,7 @@ jobs:
             libcurl-devel sqlite-devel krb5-devel \
             jansson-devel libxml2-devel librados-devel
           clang --version
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Install CodeChecker
         run: pip install --user codechecker
       - name: Fetch and configure nginx with the module
@@ -59,7 +59,7 @@ jobs:
             tools/ci/run_codechecker.py 2>&1 | tee /tmp/codechecker-report.txt
       - name: Upload findings
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: codechecker-report
           path: /tmp/codechecker-report.txt

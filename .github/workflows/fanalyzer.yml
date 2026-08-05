@@ -48,7 +48,7 @@ jobs:
             libcurl-devel sqlite-devel krb5-devel \
             jansson-devel libxml2-devel librados-devel
           gcc --version
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Fetch and configure nginx with the module
         run: |
           curl -fsSL https://nginx.org/download/nginx-1.28.3.tar.gz | tar -xz -C /tmp
@@ -62,7 +62,7 @@ jobs:
             tools/ci/run_fanalyzer.py 2>&1 | tee /tmp/fanalyzer-report.txt
       - name: Upload findings
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: fanalyzer-report
           path: |
