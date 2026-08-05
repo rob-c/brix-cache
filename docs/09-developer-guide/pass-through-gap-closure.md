@@ -114,6 +114,13 @@ Note: this suite **skips** without a static `NGINX_BIN`. All fixes were also
 verified live via the `xrd` client (truncate shrink/grow land on the origin;
 missing→`NotFound`, read-only→`NotAuthorized`; checksum bilateral).
 
+## Operational gotcha — never `kill -HUP` to swap the test gateway `.so`
+
+On the `:21094` test gateway, swapping the freshly-built `.so` and sending the
+nginx master a `kill -HUP` (reconfigure) killed the master mid-reconfigure.
+**Restart the instance fresh instead of HUP-reloading it** when the module binary
+has changed.
+
 ## Result and next step
 
 All five pass-through gaps (statx, isdir, locate, rename, truncate) are closed and
