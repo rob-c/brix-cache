@@ -1,0 +1,25 @@
+var gate_8c =
+[
+    [ "cvmfs_neg_slot", "structcvmfs__neg__slot.html", "structcvmfs__neg__slot" ],
+    [ "CVMFS_MASTER_REPLICA_TAIL", "gate_8c.html#a80ea28b029b1a4839278275ad0c0853c", null ],
+    [ "CVMFS_MASTER_REPLICA_TAIL_LEN", "gate_8c.html#a9b99921df706577a88300b0db3a8cc18", null ],
+    [ "CVMFS_NEG_SLOTS", "gate_8c.html#a9a1fadb591d336443fceaec4f75e4f5b", null ],
+    [ "brix_cvmfs_gate", "gate_8c.html#a10e3a1afb23c96a0df88bfd3c9d2bf0b", null ],
+    [ "brix_cvmfs_notify_status", "gate_8c.html#a00c1208cbaaae01be8e0d5a7b054ccf3", null ],
+    [ "cvmfs_gate_authz", "gate_8c.html#a8a200a76f0495206da0cffb72f529223", null ],
+    [ "cvmfs_gate_cas", "gate_8c.html#ac5f6b84279a66ddb64902cdc8f4f52d3", null ],
+    [ "cvmfs_gate_count", "gate_8c.html#a1328c64ea75354a541a76f27d2197891", null ],
+    [ "cvmfs_gate_marker", "gate_8c.html#ab690677986a9da525fad64e8f43e9d80", null ],
+    [ "cvmfs_gate_meta", "gate_8c.html#a53172eb23b02b9e297c42117ae6be2e0", null ],
+    [ "cvmfs_gate_method", "gate_8c.html#a60842e87fc6834350b9ef09a6bcf5b2d", null ],
+    [ "cvmfs_gate_proxy_bind", "gate_8c.html#a0813d165846e3db4f7a081bd48d52f4f", null ],
+    [ "cvmfs_gate_route", "gate_8c.html#a5fbb04b88831bd8e85bd95cc25aa0015", null ],
+    [ "cvmfs_guard_emit", "gate_8c.html#a9b7b629ebedcf16ecc34e40cac6d932f", null ],
+    [ "cvmfs_guard_proxyabuse", "gate_8c.html#a9bf3d2db89196398627524df26335e66", null ],
+    [ "cvmfs_neg_check", "gate_8c.html#aeaf3c9d6145e2409451f636af6b1ab19", null ],
+    [ "cvmfs_neg_hash", "gate_8c.html#a85625e6de9d5c3217a7cfd14b40ad00b", null ],
+    [ "cvmfs_neg_store", "gate_8c.html#adcfe116db69738fc86a176306c94f706", null ],
+    [ "cvmfs_reject", "gate_8c.html#a4906216cc3a55bb8153df66473e8252f", null ],
+    [ "cvmfs_uri_is_master_replica", "gate_8c.html#aa217fdfb11b7a27e98c4cc931f5c992a", null ],
+    [ "cvmfs_neg", "gate_8c.html#a4c1e71360345cf40e0a036f71e45b839", null ]
+];

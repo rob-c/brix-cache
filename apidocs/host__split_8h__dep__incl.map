@@ -1,0 +1,17 @@
+<map id="src/core/compat/host_split.h" name="src/core/compat/host_split.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="493,5,651,45"/>
+<area shape="rect" id="Node000002" href="$diag__doctor__audit_8c.html" title=" " alt="" coords="16,93,173,133"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="480,44,186,96,174,98,173,93,185,91,479,39"/>
+<area shape="rect" id="Node000004" href="$diag__doctor__proto_8c.html" title=" " alt="" coords="197,93,355,133"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="495,52,342,96,340,91,493,47"/>
+<area shape="rect" id="Node000005" href="$xrdmapc_8c.html" title=" " alt="" coords="379,101,576,126"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="543,57,492,102,489,98,539,53"/>
+<area shape="rect" id="Node000006" href="$url_8c.html" title=" " alt="" coords="601,101,735,126"/>
+<area shape="poly" id="edge5_Node000001_Node000006" title=" " alt="" coords="605,53,657,98,653,102,602,57"/>
+<area shape="rect" id="Node000007" href="$host__split_8c.html" title=" " alt="" coords="759,93,918,133"/>
+<area shape="poly" id="edge6_Node000001_Node000007" title=" " alt="" coords="644,47,781,91,779,96,643,52"/>
+<area shape="rect" id="Node000008" href="$parse_8c.html" title=" " alt="" coords="942,101,1106,126"/>
+<area shape="poly" id="edge7_Node000001_Node000008" title=" " alt="" coords="665,41,931,91,968,98,967,103,930,96,664,46"/>
+<area shape="rect" id="Node000003" href="$diag__doctor__audit__unittest_8c.html" title=" " alt="" coords="5,181,184,221"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="97,147,97,181,92,181,92,147"/>
+</map>

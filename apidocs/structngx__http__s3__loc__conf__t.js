@@ -1,0 +1,26 @@
+var structngx__http__s3__loc__conf__t =
+[
+    [ "acc", "structngx__http__s3__loc__conf__t.html#aee5112fa6d861ab54401c91487c921da", null ],
+    [ "access_key", "structngx__http__s3__loc__conf__t.html#a6bfcffec245bb3d237de2ebfb4343175", null ],
+    [ "allow_unsigned_session_token", "structngx__http__s3__loc__conf__t.html#adfa91fe24768ab17eee1bc9a8c9d5ddb", null ],
+    [ "bucket", "structngx__http__s3__loc__conf__t.html#a2c53e34c5da663f8b262cb2330df7b4d", null ],
+    [ "cache_root", "structngx__http__s3__loc__conf__t.html#ab71f2662f5a0cfc94003e2726823f37d", null ],
+    [ "cache_root_canon", "structngx__http__s3__loc__conf__t.html#ac710f9a529ed6b55000545cacf057e97", null ],
+    [ "common", "structngx__http__s3__loc__conf__t.html#abae5b8721da1cd9bf144304d76b39cb8", null ],
+    [ "jwks_key_count", "structngx__http__s3__loc__conf__t.html#a7faf22c43db4b4cf52ce4519157126c9", null ],
+    [ "jwks_keys", "structngx__http__s3__loc__conf__t.html#a34b5af7c6fc2f196507c5bbaebd0dc2d", null ],
+    [ "list_cache", "structngx__http__s3__loc__conf__t.html#af98b8cd49132d73b929c07ebffcb9262", null ],
+    [ "list_cache_ttl", "structngx__http__s3__loc__conf__t.html#a87038b0c84de4d7b75eb7fc0658cf19f", null ],
+    [ "max_keys", "structngx__http__s3__loc__conf__t.html#afaba936eb6537b271d3d149e2d97b8f9", null ],
+    [ "mpu_max_age", "structngx__http__s3__loc__conf__t.html#ac00b390f791c4d9b879a94dbeb43d928", null ],
+    [ "region", "structngx__http__s3__loc__conf__t.html#ae8c4908808645fb87c58cb931b117112", null ],
+    [ "secret_key", "structngx__http__s3__loc__conf__t.html#a11c0977f21d8b7128a7a1c8987133985", null ],
+    [ "token_audience", "structngx__http__s3__loc__conf__t.html#a3f5f6bf05dcedd4539d8c2e8b130c705", null ],
+    [ "token_clock_skew", "structngx__http__s3__loc__conf__t.html#ac2ca14ff6d58e83de2318ca62d1a3808", null ],
+    [ "token_enable", "structngx__http__s3__loc__conf__t.html#ab9adb6997b1b6a61348a199326bcd98d", null ],
+    [ "token_issuer", "structngx__http__s3__loc__conf__t.html#a6c91a0046df935500c49541ba4d64578", null ],
+    [ "token_jwks", "structngx__http__s3__loc__conf__t.html#a5ca386794a5df0fe0dd3a9cc90fcf4cc", null ],
+    [ "verify_chunk_signatures", "structngx__http__s3__loc__conf__t.html#a6528d9cdce9f9b4d85630067ae7293d2", null ],
+    [ "zip_access", "structngx__http__s3__loc__conf__t.html#a962a274e4f94eef1a994426aed0c96f7", null ],
+    [ "zip_cd_max_bytes", "structngx__http__s3__loc__conf__t.html#ad145e1057e8e3198e5adfd29cafd6e7c", null ]
+];

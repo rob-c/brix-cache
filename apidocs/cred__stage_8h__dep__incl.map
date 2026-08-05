@@ -1,0 +1,11 @@
+<map id="src/core/compat/cred_stage.h" name="src/core/compat/cred_stage.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="320,5,479,45"/>
+<area shape="rect" id="Node000002" href="$cred__stage_8c.html" title=" " alt="" coords="5,93,164,133"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="318,52,154,96,153,91,316,46"/>
+<area shape="rect" id="Node000003" href="$gsi__upstream_8c.html" title=" " alt="" coords="189,101,399,126"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="367,56,310,102,307,98,364,52"/>
+<area shape="rect" id="Node000004" href="$tpc__cred__exchange_8c.html" title=" " alt="" coords="423,93,586,133"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="435,52,483,91,480,95,431,56"/>
+<area shape="rect" id="Node000005" href="$tpc__token__exchange_8c.html" title=" " alt="" coords="610,93,765,133"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="477,47,625,91,624,96,475,52"/>
+</map>

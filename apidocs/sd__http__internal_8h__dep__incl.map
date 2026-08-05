@@ -1,0 +1,17 @@
+<map id="src/fs/backend/http/sd_http_internal.h" name="src/fs/backend/http/sd_http_internal.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="527,5,672,45"/>
+<area shape="rect" id="Node000002" href="$sd__http_8c.html" title=" " alt="" coords="5,93,151,133"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="513,41,350,64,162,96,151,98,150,93,162,91,349,59,512,35"/>
+<area shape="rect" id="Node000003" href="$sd__http__dir_8c.html" title=" " alt="" coords="175,93,320,133"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="514,50,321,97,320,92,513,45"/>
+<area shape="rect" id="Node000004" href="$sd__http__introspect_8c.html" title=" " alt="" coords="345,93,502,133"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="550,54,463,96,461,91,547,49"/>
+<area shape="rect" id="Node000005" href="$sd__http__mutate_8c.html" title=" " alt="" coords="527,93,672,133"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="602,59,602,93,597,93,597,59"/>
+<area shape="rect" id="Node000006" href="$sd__http__read_8c.html" title=" " alt="" coords="696,93,841,133"/>
+<area shape="poly" id="edge5_Node000001_Node000006" title=" " alt="" coords="650,49,733,91,730,96,647,54"/>
+<area shape="rect" id="Node000007" href="$sd__http__select_8c.html" title=" " alt="" coords="865,93,1011,133"/>
+<area shape="poly" id="edge6_Node000001_Node000007" title=" " alt="" coords="686,46,866,91,864,96,685,51"/>
+<area shape="rect" id="Node000008" href="$sd__http__write_8c.html" title=" " alt="" coords="1035,93,1180,133"/>
+<area shape="poly" id="edge7_Node000001_Node000008" title=" " alt="" coords="686,36,843,60,1024,91,1035,93,1034,98,1023,96,843,65,685,41"/>
+</map>

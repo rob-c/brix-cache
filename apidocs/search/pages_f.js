@@ -1,0 +1,28 @@
+var searchData=
+[
+  ['macaroon_20bearer_20token_20validation_0',['token — WLCG/SciToken JWT and macaroon bearer-token validation',['../md_src_2auth_2token_2README.html',1,'']]],
+  ['machine_20for_20tt_20root_3a_20tt_1',['connection — TCP connection lifecycle, framing, and the async I/O state machine for &lt;tt&gt;root://&lt;/tt&gt;',['../md_src_2protocols_2root_2connection_2README.html',1,'']]],
+  ['manager_20—_20cluster_20redirector_20control_20plane_20server_20registry_20redirect_20cache_20active_20health_20checks_2',['manager — Cluster / redirector control plane (server registry, redirect cache, active health checks)',['../md_src_2net_2manager_2README.html',1,'']]],
+  ['manager_20side_20server_3',['cms — XRootD CMS cluster membership (heartbeat client + manager-side server)',['../md_src_2net_2cms_2README.html',1,'']]],
+  ['manager_20side_20server_20to_20server_20query_4',['upstream — outbound XRootD redirector/proxy client (manager-side server-to-server query)',['../md_src_2net_2upstream_2README.html',1,'']]],
+  ['marking_5',['pmark — SciTags packet marking',['../md_src_2observability_2pmark_2README.html',1,'']]],
+  ['marking_20dashboard_20and_20access_20logs_6',['observability — metrics, packet marking, dashboard, and access logs',['../md_src_2observability_2README.html',1,'']]],
+  ['math_7',['shared — cross-protocol helper library (HTTP file serving + overflow-safe size math)',['../md_src_2protocols_2shared_2README.html',1,'']]],
+  ['member_20access_20phase_2057_20w2_8',['src/protocols/root/zip — ZIP member access (phase-57 W2)',['../md_src_2protocols_2root_2zip_2README.html',1,'']]],
+  ['membership_20heartbeat_20client_20manager_20side_20server_9',['cms — XRootD CMS cluster membership (heartbeat client + manager-side server)',['../md_src_2net_2cms_2README.html',1,'']]],
+  ['memory_10',['shm — generic cross-worker key/value store and token-bucket rate limiter in nginx shared memory',['../md_src_2core_2shm_2README.html',1,'']]],
+  ['memory_20counters_20and_20the_20prometheus_20tt_20metrics_20tt_20exporter_11',['metrics — shared-memory counters and the Prometheus &lt;tt&gt;/metrics&lt;/tt&gt; exporter',['../md_src_2observability_2metrics_2README.html',1,'']]],
+  ['meta_20—_20unified_20per_20file_20metadata_20sidecar_20xmeta_12',['meta — unified per-file metadata sidecar (xmeta)',['../md_src_2fs_2meta_2README.html',1,'']]],
+  ['metadata_20sidecar_20xmeta_13',['meta — unified per-file metadata sidecar (xmeta)',['../md_src_2fs_2meta_2README.html',1,'']]],
+  ['method_20webdav_20precondition_20helpers_14',['webdav/methods — Per-method WebDAV precondition helpers',['../md_src_2protocols_2webdav_2methods_2README.html',1,'']]],
+  ['methods_20—_20per_20method_20webdav_20precondition_20helpers_15',['webdav/methods — Per-method WebDAV precondition helpers',['../md_src_2protocols_2webdav_2methods_2README.html',1,'']]],
+  ['metrics_20—_20shared_20memory_20counters_20and_20the_20prometheus_20tt_20metrics_20tt_20exporter_16',['metrics — shared-memory counters and the Prometheus &lt;tt&gt;/metrics&lt;/tt&gt; exporter',['../md_src_2observability_2metrics_2README.html',1,'']]],
+  ['metrics_20packet_20marking_20dashboard_20and_20access_20logs_17',['observability — metrics, packet marking, dashboard, and access logs',['../md_src_2observability_2README.html',1,'']]],
+  ['mirror_20—_20fire_20and_20forget_20traffic_20mirroring_20shadow_20replay_20for_20xrootd_20and_20webdav_18',['mirror — fire-and-forget traffic mirroring (shadow replay) for XRootD and WebDAV',['../md_src_2net_2mirror_2README.html',1,'']]],
+  ['mirroring_19',['&lt;tt&gt;src/fs/cache/&lt;/tt&gt; — XCache-style read-through cache and write-through origin mirroring',['../md_src_2fs_2cache_2README.html',1,'']]],
+  ['mirroring_20shadow_20replay_20for_20xrootd_20and_20webdav_20',['mirror — fire-and-forget traffic mirroring (shadow replay) for XRootD and WebDAV',['../md_src_2net_2mirror_2README.html',1,'']]],
+  ['modules_21',['&lt;tt&gt;client/lib/sec/&lt;/tt&gt; — native client authentication modules',['../md_client_2lib_2auth_2sec_2README.html',1,'']]],
+  ['monitor_20rest_20admin_20write_20api_22',['dashboard — live HTTPS transfer monitor + REST admin write API',['../md_src_2observability_2dashboard_2README.html',1,'']]],
+  ['move_23',['webdav/fs — Confined local-filesystem copy engine for WebDAV COPY/MOVE',['../md_src_2protocols_2webdav_2fs_2README.html',1,'']]],
+  ['mutating_20opcode_20handlers_20the_20stream_20write_20path_24',['write — XRootD mutating-opcode handlers (the stream write path)',['../md_src_2protocols_2root_2write_2README.html',1,'']]]
+];

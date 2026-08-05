@@ -1,0 +1,7 @@
+<map id="src/protocols/root/connection/recv_frame_bounds.h" name="src/protocols/root/connection/recv_frame_bounds.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="111,5,285,60"/>
+<area shape="rect" id="Node000002" href="$recv__frame__bounds_8c.html" title=" " alt="" coords="5,108,180,163"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="162,72,122,110,118,106,159,68"/>
+<area shape="rect" id="Node000003" href="$recv__process_8c.html" title=" " alt="" coords="205,115,402,155"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="237,68,285,113,281,117,234,71"/>
+</map>

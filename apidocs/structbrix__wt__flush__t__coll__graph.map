@@ -1,0 +1,11 @@
+<map id="brix_wt_flush_t" name="brix_wt_flush_t">
+<area shape="rect" id="Node000001" title=" " alt="" coords="57,299,177,324"/>
+<area shape="rect" id="Node000002" href="$structngx__stream__brix__srv__conf__t.html" title=" " alt="" coords="5,196,164,236"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="98,248,115,297,110,299,93,250"/>
+<area shape="rect" id="Node000003" href="$structngx__brix__srv__metrics__t.html" title=" " alt="" coords="189,203,362,229"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="245,238,138,301,135,296,243,233"/>
+<area shape="rect" id="Node000004" href="$structngx__brix__proxy__metrics__t.html" title=" " alt="" coords="180,108,371,133"/>
+<area shape="poly" id="edge3_Node000003_Node000004" title=" " alt="" coords="278,147,278,203,273,203,273,147"/>
+<area shape="rect" id="Node000005" href="$structngx__brix__proxy__upstream__metrics__t.html" title=" " alt="" coords="180,5,371,45"/>
+<area shape="poly" id="edge4_Node000004_Node000005" title=" " alt="" coords="278,59,278,108,273,108,273,59"/>
+</map>

@@ -1,0 +1,21 @@
+<map id="src/core/compat/cred_stage.c" name="src/core/compat/cred_stage.c">
+<area shape="rect" id="Node000001" title=" " alt="" coords="321,5,480,45"/>
+<area shape="rect" id="Node000002" href="$cred__stage_8h.html" title=" " alt="" coords="5,93,111,119"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="322,47,121,93,120,88,321,42"/>
+<area shape="rect" id="Node000004" title=" " alt="" coords="135,93,203,119"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="346,48,216,91,215,86,344,43"/>
+<area shape="rect" id="Node000005" title=" " alt="" coords="227,93,294,119"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="368,48,295,89,292,84,366,43"/>
+<area shape="rect" id="Node000006" title=" " alt="" coords="319,93,389,119"/>
+<area shape="poly" id="edge5_Node000001_Node000006" title=" " alt="" coords="392,47,370,83,366,80,387,44"/>
+<area shape="rect" id="Node000007" title=" " alt="" coords="413,93,484,119"/>
+<area shape="poly" id="edge6_Node000001_Node000007" title=" " alt="" coords="415,44,437,80,432,83,410,47"/>
+<area shape="rect" id="Node000008" title=" " alt="" coords="509,93,583,119"/>
+<area shape="poly" id="edge7_Node000001_Node000008" title=" " alt="" coords="437,43,514,84,511,89,434,48"/>
+<area shape="rect" id="Node000009" title=" " alt="" coords="607,93,703,119"/>
+<area shape="poly" id="edge8_Node000001_Node000009" title=" " alt="" coords="462,43,606,87,604,92,461,48"/>
+<area shape="rect" id="Node000010" title=" " alt="" coords="727,93,813,119"/>
+<area shape="poly" id="edge9_Node000001_Node000010" title=" " alt="" coords="481,41,714,90,713,95,480,46"/>
+<area shape="rect" id="Node000003" title=" " alt="" coords="21,167,95,192"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="61,119,61,153,55,153,55,119"/>
+</map>

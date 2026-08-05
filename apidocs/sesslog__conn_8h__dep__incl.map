@@ -1,0 +1,13 @@
+<map id="src/core/http/sesslog_conn.h" name="src/core/http/sesslog_conn.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="356,5,512,45"/>
+<area shape="rect" id="Node000002" href="$sesslog__conn_8c.html" title=" " alt="" coords="5,93,161,133"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="345,51,161,96,159,91,343,46"/>
+<area shape="rect" id="Node000003" href="$protocols_2cvmfs_2handler_8c.html" title=" " alt="" coords="186,93,335,133"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="385,54,300,96,297,91,383,49"/>
+<area shape="rect" id="Node000004" href="$handler__finalize_8c.html" title=" " alt="" coords="359,93,509,133"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="437,59,437,93,431,93,431,59"/>
+<area shape="rect" id="Node000005" href="$protocols_2s3_2metrics_8c.html" title=" " alt="" coords="533,101,721,126"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="490,49,603,98,601,103,488,53"/>
+<area shape="rect" id="Node000006" href="$protocols_2webdav_2metrics_8c.html" title=" " alt="" coords="746,93,906,133"/>
+<area shape="poly" id="edge5_Node000001_Node000006" title=" " alt="" coords="526,44,746,92,745,97,525,49"/>
+</map>

@@ -1,0 +1,21 @@
+<map id="client/apps/diag/brix_fault_proxy_state.h" name="client/apps/diag/brix_fault_proxy_state.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="720,5,875,45"/>
+<area shape="rect" id="Node000002" href="$brix__fault__cli_8c.html" title=" " alt="" coords="5,93,160,133"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="707,36,465,59,318,75,172,96,160,98,160,93,172,91,318,70,464,53,706,31"/>
+<area shape="rect" id="Node000003" href="$brix__fault__cmd__attack_8c.html" title=" " alt="" coords="184,93,339,133"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="707,41,541,65,351,96,339,98,338,93,350,91,540,60,706,36"/>
+<area shape="rect" id="Node000004" href="$brix__fault__cmd__dpi_8c.html" title=" " alt="" coords="363,93,517,133"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="707,51,518,96,517,91,706,46"/>
+<area shape="rect" id="Node000005" href="$brix__fault__cmd__lever_8c.html" title=" " alt="" coords="541,93,696,133"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="747,54,659,96,657,91,745,49"/>
+<area shape="rect" id="Node000006" href="$brix__fault__proxy_8c.html" title=" " alt="" coords="720,93,875,133"/>
+<area shape="poly" id="edge5_Node000001_Node000006" title=" " alt="" coords="800,59,800,93,795,93,795,59"/>
+<area shape="rect" id="Node000007" href="$brix__fault__pump_8c.html" title=" " alt="" coords="899,93,1053,133"/>
+<area shape="poly" id="edge6_Node000001_Node000007" title=" " alt="" coords="850,49,938,91,936,96,848,54"/>
+<area shape="rect" id="Node000008" href="$brix__fault__relay_8c.html" title=" " alt="" coords="1077,93,1232,133"/>
+<area shape="poly" id="edge7_Node000001_Node000008" title=" " alt="" coords="889,46,1078,91,1077,96,888,51"/>
+<area shape="rect" id="Node000009" href="$brix__fault__report_8c.html" title=" " alt="" coords="1256,93,1411,133"/>
+<area shape="poly" id="edge8_Node000001_Node000009" title=" " alt="" coords="889,36,1055,60,1244,91,1256,93,1255,98,1244,96,1054,65,888,41"/>
+<area shape="rect" id="Node000010" href="$brix__fault__udp_8c.html" title=" " alt="" coords="1435,93,1589,133"/>
+<area shape="poly" id="edge9_Node000001_Node000010" title=" " alt="" coords="889,31,1131,53,1277,70,1423,91,1435,93,1434,98,1422,96,1276,75,1130,59,888,36"/>
+</map>

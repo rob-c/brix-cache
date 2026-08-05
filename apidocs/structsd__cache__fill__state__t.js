@@ -1,0 +1,19 @@
+var structsd__cache__fill__state__t =
+[
+    [ "allow_pt", "structsd__cache__fill__state__t.html#a46b111be236017ed93969b52f5550f63", null ],
+    [ "buf", "structsd__cache__fill__state__t.html#ad62f428d8820dc5f6529e0885126a476", null ],
+    [ "cks_alg", "structsd__cache__fill__state__t.html#ada3196e0737269ab3570820d46ea9632", null ],
+    [ "cks_hex", "structsd__cache__fill__state__t.html#a2351e3c1c73c5c5a40a02a86164775f0", null ],
+    [ "from_cold", "structsd__cache__fill__state__t.html#a87a5a15fcbec561a1d7064c11256f7df", null ],
+    [ "from_peer", "structsd__cache__fill__state__t.html#a135b246b37294fca825363769ffb8215", null ],
+    [ "off", "structsd__cache__fill__state__t.html#a65f964405bcbf704bcad91dcd2612bdc", null ],
+    [ "origin_alg", "structsd__cache__fill__state__t.html#acd0840a284b9d288839fadd160ae5965", null ],
+    [ "origin_hex", "structsd__cache__fill__state__t.html#a7be4c6945336e0aaeff1cdd4ebec5f9f", null ],
+    [ "passthrough", "structsd__cache__fill__state__t.html#a4a517e6974d4aa77521852b64d63452c", null ],
+    [ "snap", "structsd__cache__fill__state__t.html#a10971d8a3315a32340ae0c13a065b1de", null ],
+    [ "so", "structsd__cache__fill__state__t.html#a311e23f9aa2b195b3b51a0c040aaa2bd", null ],
+    [ "src", "structsd__cache__fill__state__t.html#abf0a2540aec26cdbd0bb334e4279d1fd", null ],
+    [ "staged", "structsd__cache__fill__state__t.html#a5b25410aa97776af952b9901e55e5f1a", null ],
+    [ "t0", "structsd__cache__fill__state__t.html#aa5b2b8f0e29212ae47dc08bb5b6036c2", null ],
+    [ "verified", "structsd__cache__fill__state__t.html#ad70f3e73a0a48e6b9b7a5d613625d88a", null ]
+];

@@ -1,0 +1,17 @@
+<map id="src/fs/backend/s3/sd_s3.h" name="src/fs/backend/s3/sd_s3.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="227,5,414,31"/>
+<area shape="rect" id="Node000002" href="$sd__s3__transport_8h.html" title=" " alt="" coords="252,79,389,104"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="323,31,323,65,318,65,318,31"/>
+<area shape="rect" id="Node000003" title=" " alt="" coords="88,152,163,177"/>
+<area shape="poly" id="edge7_Node000001_Node000003" title=" " alt="" coords="227,27,163,34,100,45,47,60,27,70,14,80,9,90,9,99,21,117,46,132,76,145,74,150,43,137,18,121,4,101,4,89,10,77,24,65,45,55,99,39,163,29,226,22"/>
+<area shape="rect" id="Node000004" title=" " alt="" coords="272,152,368,177"/>
+<area shape="poly" id="edge9_Node000001_Node000004" title=" " alt="" coords="349,29,379,48,393,61,404,78,407,99,397,118,380,134,360,148,357,143,377,130,393,115,402,98,399,80,389,65,376,52,346,33"/>
+<area shape="rect" id="Node000005" href="$meta__advisory_8h.html" title=" " alt="" coords="24,79,227,104"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="290,33,171,76,169,71,288,28"/>
+<area shape="rect" id="Node000006" title=" " alt="" coords="465,79,536,104"/>
+<area shape="poly" id="edge8_Node000001_Node000006" title=" " alt="" coords="350,28,459,71,457,76,348,33"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="290,107,171,150,169,145,288,102"/>
+<area shape="poly" id="edge3_Node000002_Node000004" title=" " alt="" coords="323,104,323,138,318,138,318,104"/>
+<area shape="poly" id="edge6_Node000005_Node000003" title=" " alt="" coords="128,104,128,138,123,138,123,104"/>
+<area shape="poly" id="edge5_Node000005_Node000004" title=" " alt="" coords="158,102,277,145,275,150,156,107"/>
+</map>

@@ -1,0 +1,26 @@
+var backend__async__queue_8c =
+[
+    [ "brix_baq_pending_t", "structbrix__baq__pending__t.html", "structbrix__baq__pending__t" ],
+    [ "BRIX_BAQ_MAX_PENDING", "backend__async__queue_8c.html#a83f9445ac52e060ef2072ad362795709", null ],
+    [ "baq_apply", "backend__async__queue_8c.html#aa5a6b25e591dcf7e47e10dc78d2c0470", null ],
+    [ "baq_apply_idempotent", "backend__async__queue_8c.html#a27f1767e5f9ffcaeec40c54be8bc2a59", null ],
+    [ "baq_drain_all", "backend__async__queue_8c.html#ae0fd13cd53771a5c84d76567476a12f1", null ],
+    [ "baq_drain_event_handler", "backend__async__queue_8c.html#aff9b0e70713820169fc7e60c65b520cd", null ],
+    [ "baq_journal_remove", "backend__async__queue_8c.html#a3cc602324fafe0b458261b2979ca6b6e", null ],
+    [ "baq_journal_write", "backend__async__queue_8c.html#a80bac96f1cdb27fd80a03c1f738fea9a", null ],
+    [ "baq_post_drain", "backend__async__queue_8c.html#a2784f7f0eacbb053586bd88acd7abc43", null ],
+    [ "baq_reconcile_one", "backend__async__queue_8c.html#aeeeb23d872d6ce2dd1f1ee132851f4b7", null ],
+    [ "baq_reqid_mint", "backend__async__queue_8c.html#a135fd85f3686c8b48e2305c8e5436c13", null ],
+    [ "baq_size_triggered", "backend__async__queue_8c.html#ae32a022f0ef7aae4f4f9517468977704", null ],
+    [ "baq_time_triggered", "backend__async__queue_8c.html#afaf0e3a99d2455a00c5fd7f44e3651a4", null ],
+    [ "brix_baq_drop_client", "backend__async__queue_8c.html#aad0d79baef25f847e294c9c852a4a71d", null ],
+    [ "brix_baq_enqueue", "backend__async__queue_8c.html#a1c4847b6c7444943e0e20a3e914ea026", null ],
+    [ "brix_baq_init", "backend__async__queue_8c.html#a4b1b5228d74a8c1d862b1e0d90aea530", null ],
+    [ "brix_baq_reconcile", "backend__async__queue_8c.html#af58d16b5c1cf7222c5d1ef95e3ef4bc5", null ],
+    [ "brix_baq_tick", "backend__async__queue_8c.html#a598a5b5b1dde3ff0ae31d37852f3a87c", null ],
+    [ "baq_count", "backend__async__queue_8c.html#ad53bf9934c795784cac93736c0a47ea9", null ],
+    [ "baq_drain_ev", "backend__async__queue_8c.html#a9532cd564b4a94e088aa836c06dc5487", null ],
+    [ "baq_journal_dir", "backend__async__queue_8c.html#a4f20b163c1bda37d78244783cd3a1b87", null ],
+    [ "baq_pending", "backend__async__queue_8c.html#aafb4296a27263a36ced7678880824c40", null ],
+    [ "baq_reqid_seq", "backend__async__queue_8c.html#a5f16d3217656b845ec7f23f5f51b3331", null ]
+];

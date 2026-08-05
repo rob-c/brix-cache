@@ -1,0 +1,27 @@
+var fuse__ops_8h =
+[
+    [ "brix_fuse_ctx_stat", "structbrix__fuse__ctx__stat.html", "structbrix__fuse__ctx__stat" ],
+    [ "brix_fuse_ctx_dir", "structbrix__fuse__ctx__dir.html", "structbrix__fuse__ctx__dir" ],
+    [ "brix_fuse_ctx_mkdir", "structbrix__fuse__ctx__mkdir.html", "structbrix__fuse__ctx__mkdir" ],
+    [ "brix_fuse_ctx_mv", "structbrix__fuse__ctx__mv.html", "structbrix__fuse__ctx__mv" ],
+    [ "brix_fuse_ctx_chmod", "structbrix__fuse__ctx__chmod.html", "structbrix__fuse__ctx__chmod" ],
+    [ "brix_fuse_ctx_trunc", "structbrix__fuse__ctx__trunc.html", "structbrix__fuse__ctx__trunc" ],
+    [ "brix_fuse_ctx_setattr", "structbrix__fuse__ctx__setattr.html", "structbrix__fuse__ctx__setattr" ],
+    [ "brix_fuse_ctx_link2", "structbrix__fuse__ctx__link2.html", "structbrix__fuse__ctx__link2" ],
+    [ "brix_fuse_op_fn", "fuse__ops_8h.html#a4f2a03470ba08f273993feb79c1315f1", null ],
+    [ "brix_fuse_conn_healthy", "fuse__ops_8h.html#af4b28efd09ba465d79aecb28cef877a0", null ],
+    [ "brix_fuse_errno", "fuse__ops_8h.html#af8b461fdc8bc2a641de63afc552256af", null ],
+    [ "brix_fuse_op_chmod", "fuse__ops_8h.html#ab6bbf0eca81c570163081c781cfa55c9", null ],
+    [ "brix_fuse_op_dirlist", "fuse__ops_8h.html#a22d452e23d58a8a81b1aa4fb58650208", null ],
+    [ "brix_fuse_op_link", "fuse__ops_8h.html#a1556f005c5053d2721a0ab64bf05998e", null ],
+    [ "brix_fuse_op_lstat", "fuse__ops_8h.html#a4b8e2bf7de3c6a7a4d146803f4827451", null ],
+    [ "brix_fuse_op_mkdir", "fuse__ops_8h.html#a534652b7353b90c15faa106202f6f884", null ],
+    [ "brix_fuse_op_mv", "fuse__ops_8h.html#a0640350d2fd6edbc7d6295180c0746a7", null ],
+    [ "brix_fuse_op_rm", "fuse__ops_8h.html#a0d775e8094a60cf1a267649e35b12168", null ],
+    [ "brix_fuse_op_rmdir", "fuse__ops_8h.html#a3520b48eb7861c9e1840abe6b1f50ae1", null ],
+    [ "brix_fuse_op_setattr", "fuse__ops_8h.html#aa1fc2760b1b7acb5847f9062da49c233", null ],
+    [ "brix_fuse_op_stat", "fuse__ops_8h.html#ae342f316ab5ec1708ca0ebac59f6d6b4", null ],
+    [ "brix_fuse_op_symlink", "fuse__ops_8h.html#a53e903eccf942e0a068316c7502b94b2", null ],
+    [ "brix_fuse_op_trunc", "fuse__ops_8h.html#a7a47fc3a99859287e627701dbc190325", null ],
+    [ "brix_fuse_run", "fuse__ops_8h.html#a6860c3b881bacf73d16800f6868a9f23", null ]
+];

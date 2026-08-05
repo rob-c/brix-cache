@@ -1,0 +1,7 @@
+<map id="brix_sd_http_cfg_t" name="brix_sd_http_cfg_t">
+<area shape="rect" id="Node000001" title=" " alt="" coords="97,93,239,119"/>
+<area shape="rect" id="Node000002" href="$structbrix__s3__transport__t.html" title=" " alt="" coords="5,5,152,31"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="102,38,157,91,154,95,99,42"/>
+<area shape="rect" id="Node000003" href="$structbrix__sd__http__ep__cfg__t.html" title=" " alt="" coords="177,5,341,31"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="238,42,182,95,179,91,235,38"/>
+</map>

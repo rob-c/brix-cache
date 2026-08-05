@@ -1,0 +1,26 @@
+var attest_8c =
+[
+    [ "cvmfs_attest_session_t", "structcvmfs__attest__session__t.html", "structcvmfs__attest__session__t" ],
+    [ "CVMFS_ATTEST_HASHES", "attest_8c.html#a7eb5e60e44f6878d46a752859ed6e6d9", null ],
+    [ "CVMFS_ATTEST_HEADER", "attest_8c.html#ab7bf40f618043e4f1f3b7f13fcbe9628", null ],
+    [ "CVMFS_ATTEST_HEX_MAX", "attest_8c.html#a2f1d0d01fca73a8149ea8b0a246a6590", null ],
+    [ "CVMFS_ATTEST_LABEL_MAX", "attest_8c.html#ad8488474ac0f572051c85445996b4d2a", null ],
+    [ "CVMFS_ATTEST_PAYLOAD_TYPE", "attest_8c.html#a302245fbf0a278d1f9ef9d934bda42e2", null ],
+    [ "CVMFS_ATTEST_SESSIONS", "attest_8c.html#a7c1702276e2b5415d296839ec46a894d", null ],
+    [ "CVMFS_ATTEST_TAIL", "attest_8c.html#a6e54f4de623f46f68e345d850879c0c2", null ],
+    [ "brix_cvmfs_attest_gate", "attest_8c.html#a50fe3678d0c60bdda32f10f0f953dac7", null ],
+    [ "brix_cvmfs_attest_observe", "attest_8c.html#a01bde612cbe1feae238b3b91d0a84bbd", null ],
+    [ "cvmfs_attest_capture_label", "attest_8c.html#a7938ee2815caaa17a39f886350c2b79f", null ],
+    [ "cvmfs_attest_claim", "attest_8c.html#a5c82e8c170d1ea833a0da5fc5c878e97", null ],
+    [ "cvmfs_attest_find", "attest_8c.html#a5e720a2e6a9e5a294f0a04187aa6caab", null ],
+    [ "cvmfs_attest_gated_authz", "attest_8c.html#adda00d901e488d3fabf72e4f484a1691", null ],
+    [ "cvmfs_attest_key_cleanup", "attest_8c.html#a059953e0b235c51deb29bdadfeb955cb", null ],
+    [ "cvmfs_attest_label_ok", "attest_8c.html#a8bfd5a920a1d0a7a7f043abd9082b17e", null ],
+    [ "cvmfs_attest_pae", "attest_8c.html#a8da5f0ac911463ca6593cec51ffe7c09", null ],
+    [ "cvmfs_attest_record", "attest_8c.html#a1d96f826ccb424a6bc77285dcfa8084f", null ],
+    [ "cvmfs_attest_serve_record", "attest_8c.html#af860e4583e0fe5b7e9c8a1420727259d", null ],
+    [ "cvmfs_attest_sign", "attest_8c.html#a0b19999d58d5141b6674c8241e436a53", null ],
+    [ "cvmfs_conf_attest", "attest_8c.html#a3be29df341ae5fa1f54ad4333bf701b4", null ],
+    [ "cvmfs_attest_seq", "attest_8c.html#ab5f2517ceeb05c9b0110186d146af217", null ],
+    [ "cvmfs_attest_tab", "attest_8c.html#a43296ddbfdfff88dd3f8a1fc7c8bcb71", null ]
+];

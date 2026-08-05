@@ -1,0 +1,25 @@
+var client__ops_8c =
+[
+    [ "brix_imp_chmod", "client__ops_8c.html#acdcb9b263abbb339b6067a6d91eb2fa0", null ],
+    [ "brix_imp_chown_gid", "client__ops_8c.html#aabf0085df2a8227298051b34a98b98d9", null ],
+    [ "brix_imp_getxattr", "client__ops_8c.html#ab32c77e545357dbf909204de5a37c50e", null ],
+    [ "brix_imp_link", "client__ops_8c.html#a1779217b801031d51faed3f63a1bfa27", null ],
+    [ "brix_imp_listxattr", "client__ops_8c.html#a118bd29c84d4e4eb348e8a5cf8f5c5e1", null ],
+    [ "brix_imp_mkdir", "client__ops_8c.html#af8744082ff59c425053c7a8a99bc90f2", null ],
+    [ "brix_imp_open", "client__ops_8c.html#a1583ff660afb481526fa3fc5b8bcc5a1", null ],
+    [ "brix_imp_readlink", "client__ops_8c.html#a9624d445b892e26b407634c025804c19", null ],
+    [ "brix_imp_removexattr", "client__ops_8c.html#adc53b9099a7ee3425204139017bcb4b0", null ],
+    [ "brix_imp_rename", "client__ops_8c.html#a77f191acb1e7bd857ebcb1bc8657a159", null ],
+    [ "brix_imp_rename_noreplace", "client__ops_8c.html#a0de4fd320b6e428ad9578b281c6c9434", null ],
+    [ "brix_imp_rmdir", "client__ops_8c.html#a6d01bebf66cbe69546795801e8cf3954", null ],
+    [ "brix_imp_setattr", "client__ops_8c.html#a80e437cb5888a71551c8d09d9e0e305f", null ],
+    [ "brix_imp_setxattr", "client__ops_8c.html#a36d7a77348aa38223b13146791ca88e3", null ],
+    [ "brix_imp_stat", "client__ops_8c.html#a6f7372fe0fbc53bdb8cf23a5b976e345", null ],
+    [ "brix_imp_symlink", "client__ops_8c.html#a5cc21f9ac7e10396fa02d1eaed089768", null ],
+    [ "brix_imp_truncate", "client__ops_8c.html#a6c0e91ff4f492bfd2e67e1ca92edf1c6", null ],
+    [ "brix_imp_unlink", "client__ops_8c.html#a4bd19fa51eb50688c38abccc8f883c21", null ],
+    [ "imp_call_status", "client__ops_8c.html#a1ba40281e9178366e411b62fcc7f8ca7", null ],
+    [ "imp_get_or_list", "client__ops_8c.html#ac7dff9705e06d9178585ad0824bd8fd2", null ],
+    [ "imp_status_errno", "client__ops_8c.html#a238af7a1642fa33d65667094d503b663", null ],
+    [ "imp_unpack_stat", "client__ops_8c.html#aeb255fcb6239a1d01dcf48727af7fe92", null ]
+];

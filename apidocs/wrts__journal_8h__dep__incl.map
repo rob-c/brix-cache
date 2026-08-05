@@ -1,0 +1,31 @@
+<map id="src/protocols/root/write/wrts_journal.h" name="src/protocols/root/write/wrts_journal.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="1133,5,1287,45"/>
+<area shape="rect" id="Node000002" href="$core_2aio_2write_8c.html" title=" " alt="" coords="5,108,151,133"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="1119,32,627,54,358,73,247,84,163,96,109,110,108,105,161,91,246,79,357,68,627,49,1119,27"/>
+<area shape="rect" id="Node000003" href="$close_8c.html" title=" " alt="" coords="175,101,309,141"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="1119,29,967,32,768,42,545,62,432,77,323,96,294,103,293,98,321,91,432,72,545,57,767,36,966,27,1119,24"/>
+<area shape="rect" id="Node000004" href="$open__resolved__file_8c.html" title=" " alt="" coords="334,93,489,148"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="1119,32,996,39,841,51,671,69,501,96,490,98,489,93,500,91,670,64,841,45,995,34,1118,27"/>
+<area shape="rect" id="Node000005" href="$open__resolved__file__dispatch_8c.html" title=" " alt="" coords="513,93,667,148"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="1119,36,917,58,798,75,680,96,668,99,667,93,679,91,797,69,916,53,1118,31"/>
+<area shape="rect" id="Node000006" href="$open__resolved__file__finalize_8c.html" title=" " alt="" coords="691,93,846,148"/>
+<area shape="poly" id="edge5_Node000001_Node000006" title=" " alt="" coords="1120,44,995,67,859,96,847,99,845,94,857,91,994,61,1119,39"/>
+<area shape="rect" id="Node000007" href="$open__resolved__file__open_8c.html" title=" " alt="" coords="870,93,1025,148"/>
+<area shape="poly" id="edge6_Node000001_Node000007" title=" " alt="" coords="1145,52,1022,96,1020,91,1143,47"/>
+<area shape="rect" id="Node000008" href="$open__resolved__file__staging_8c.html" title=" " alt="" coords="1049,93,1203,148"/>
+<area shape="poly" id="edge7_Node000001_Node000008" title=" " alt="" coords="1186,57,1152,95,1148,91,1182,54"/>
+<area shape="rect" id="Node000009" href="$pgwrite_8c.html" title=" " alt="" coords="1228,101,1363,141"/>
+<area shape="poly" id="edge8_Node000001_Node000009" title=" " alt="" coords="1239,54,1280,99,1276,102,1235,57"/>
+<area shape="rect" id="Node000010" href="$sync_8c.html" title=" " alt="" coords="1387,101,1521,141"/>
+<area shape="poly" id="edge9_Node000001_Node000010" title=" " alt="" coords="1273,48,1406,98,1404,103,1271,53"/>
+<area shape="rect" id="Node000011" href="$protocols_2root_2write_2write_8c.html" title=" " alt="" coords="1545,101,1680,141"/>
+<area shape="poly" id="edge10_Node000001_Node000011" title=" " alt="" coords="1301,40,1413,62,1535,91,1559,98,1558,103,1533,96,1412,67,1300,45"/>
+<area shape="rect" id="Node000012" href="$write__stream_8c.html" title=" " alt="" coords="1705,101,1865,141"/>
+<area shape="poly" id="edge11_Node000001_Node000012" title=" " alt="" coords="1301,33,1483,55,1693,91,1723,98,1722,103,1692,96,1482,60,1300,38"/>
+<area shape="rect" id="Node000013" href="$writev_8c.html" title=" " alt="" coords="1889,101,2024,141"/>
+<area shape="poly" id="edge12_Node000001_Node000013" title=" " alt="" coords="1302,27,1418,33,1562,45,1720,64,1877,91,1905,98,1904,103,1876,96,1719,69,1561,50,1417,39,1301,32"/>
+<area shape="rect" id="Node000014" href="$writev__aio_8c.html" title=" " alt="" coords="2048,101,2191,141"/>
+<area shape="poly" id="edge13_Node000001_Node000014" title=" " alt="" coords="1301,25,1444,29,1628,39,1832,59,2037,91,2067,98,2065,103,2036,96,1832,64,1627,45,1444,34,1301,30"/>
+<area shape="rect" id="Node000015" href="$wrts__journal_8c.html" title=" " alt="" coords="2215,101,2370,141"/>
+<area shape="poly" id="edge14_Node000001_Node000015" title=" " alt="" coords="1302,24,1471,26,1696,36,1949,56,2078,71,2204,91,2236,98,2234,103,2203,96,2077,76,1949,61,1695,41,1471,31,1302,29"/>
+</map>

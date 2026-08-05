@@ -1,0 +1,9 @@
+<map id="ngx_http_brix_cvmfs_ctx_t" name="ngx_http_brix_cvmfs_ctx_t">
+<area shape="rect" id="Node000001" title=" " alt="" coords="176,108,335,148"/>
+<area shape="rect" id="Node000002" href="$structngx__brix__cvmfs__repo__metrics__t.html" title=" " alt="" coords="5,5,167,45"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="131,50,225,106,222,110,128,55"/>
+<area shape="rect" id="Node000003" href="$structbrix__sess__xfer__t.html" title=" " alt="" coords="191,13,319,38"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="258,52,258,108,253,108,253,52"/>
+<area shape="rect" id="Node000004" href="$structbrix__cvmfs__virtual__t.html" title=" " alt="" coords="343,13,498,38"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="392,48,329,86,289,110,286,106,326,82,389,43"/>
+</map>

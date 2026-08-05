@@ -1,0 +1,13 @@
+<map id="brix_token_registry_args_t" name="brix_token_registry_args_t">
+<area shape="rect" id="Node000001" title=" " alt="" coords="101,269,247,309"/>
+<area shape="rect" id="Node000002" href="$structbrix__token__registry__t.html" title=" " alt="" coords="5,181,164,207"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="107,215,158,267,154,271,103,218"/>
+<area shape="rect" id="Node000003" href="$structbrix__token__issuer__t.html" title=" " alt="" coords="11,93,159,119"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="87,133,87,181,82,181,82,133"/>
+<area shape="rect" id="Node000004" href="$structbrix__jwks__key__t.html" title=" " alt="" coords="21,5,148,31"/>
+<area shape="poly" id="edge3_Node000003_Node000004" title=" " alt="" coords="87,45,87,93,82,93,82,45"/>
+<area shape="rect" id="Node000005" href="$structbrix__token__claims__t.html" title=" " alt="" coords="189,181,341,207"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="246,218,194,271,191,267,242,215"/>
+<area shape="rect" id="Node000006" href="$structbrix__token__scope__t.html" title=" " alt="" coords="191,93,338,119"/>
+<area shape="poly" id="edge5_Node000005_Node000006" title=" " alt="" coords="267,133,267,181,262,181,262,133"/>
+</map>

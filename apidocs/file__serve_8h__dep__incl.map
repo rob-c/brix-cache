@@ -1,0 +1,23 @@
+<map id="src/protocols/shared/file_serve.h" name="src/protocols/shared/file_serve.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="385,5,538,45"/>
+<area shape="rect" id="Node000002" href="$vfs__browse_8c.html" title=" " alt="" coords="53,93,256,133"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="382,52,223,96,221,91,380,46"/>
+<area shape="rect" id="Node000003" href="$protocols_2cvmfs_2handler_8c.html" title=" " alt="" coords="5,181,155,221"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="406,54,325,96,298,116,269,136,208,163,148,184,146,179,206,158,267,131,295,112,323,91,404,49"/>
+<area shape="rect" id="Node000004" href="$object_8c.html" title=" " alt="" coords="179,189,357,214"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="423,55,371,95,319,147,280,190,276,186,315,143,368,91,420,51"/>
+<area shape="rect" id="Node000005" href="$object__meta_8c.html" title=" " alt="" coords="565,181,733,221"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="503,51,554,91,600,138,636,179,632,183,596,141,550,95,500,55"/>
+<area shape="rect" id="Node000006" href="$file__serve_8c.html" title=" " alt="" coords="667,93,821,133"/>
+<area shape="poly" id="edge5_Node000001_Node000006" title=" " alt="" coords="537,47,683,91,681,96,536,52"/>
+<area shape="rect" id="Node000007" href="$http__serve__offload_8h.html" title=" " alt="" coords="382,93,541,133"/>
+<area shape="poly" id="edge6_Node000001_Node000007" title=" " alt="" coords="464,59,464,93,459,93,459,59"/>
+<area shape="rect" id="Node000009" href="$webdav_2get_8c.html" title=" " alt="" coords="757,181,917,221"/>
+<area shape="poly" id="edge12_Node000001_Node000009" title=" " alt="" coords="513,49,592,91,624,112,657,131,719,157,778,179,776,184,717,162,655,136,622,116,589,96,510,54"/>
+<area shape="poly" id="edge7_Node000007_Node000003" title=" " alt="" coords="369,138,155,186,154,181,368,133"/>
+<area shape="poly" id="edge8_Node000007_Node000004" title=" " alt="" coords="407,141,295,191,293,186,405,137"/>
+<area shape="poly" id="edge9_Node000007_Node000005" title=" " alt="" coords="516,137,609,179,607,184,514,141"/>
+<area shape="rect" id="Node000008" href="$http__serve__offload_8c.html" title=" " alt="" coords="382,181,541,221"/>
+<area shape="poly" id="edge10_Node000007_Node000008" title=" " alt="" coords="464,147,464,181,459,181,459,147"/>
+<area shape="poly" id="edge11_Node000007_Node000009" title=" " alt="" coords="555,133,758,179,756,184,554,138"/>
+</map>

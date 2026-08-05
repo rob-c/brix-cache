@@ -1,0 +1,11 @@
+<map id="src/observability/metrics/unified_internal.h" name="src/observability/metrics/unified_internal.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="315,5,497,45"/>
+<area shape="rect" id="Node000002" href="$observability_2metrics_2unified_8c.html" title=" " alt="" coords="5,93,188,133"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="326,52,165,96,164,91,324,46"/>
+<area shape="rect" id="Node000003" href="$unified__export_8c.html" title=" " alt="" coords="212,93,395,133"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="374,56,328,95,324,91,371,52"/>
+<area shape="rect" id="Node000004" href="$unified__export__io_8c.html" title=" " alt="" coords="419,93,601,133"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="441,52,489,91,485,95,438,56"/>
+<area shape="rect" id="Node000005" href="$unified__record_8c.html" title=" " alt="" coords="625,93,808,133"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="488,46,649,91,648,96,487,52"/>
+</map>

@@ -1,0 +1,11 @@
+<map id="client/apps/fs/brixautofs_ext_internal.h" name="client/apps/fs/brixautofs_ext_internal.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="30,5,209,45"/>
+<area shape="rect" id="Node000002" title=" " alt="" coords="5,93,108,119"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="106,47,77,84,73,81,102,44"/>
+<area shape="rect" id="Node000003" href="$brixautofs_8h.html" title=" " alt="" coords="132,93,232,119"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="137,44,166,81,162,84,132,47"/>
+<area shape="rect" id="Node000004" title=" " alt="" coords="83,167,167,192"/>
+<area shape="poly" id="edge3_Node000003_Node000004" title=" " alt="" coords="175,121,145,158,141,154,170,117"/>
+<area shape="rect" id="Node000005" title=" " alt="" coords="191,167,287,192"/>
+<area shape="poly" id="edge4_Node000003_Node000005" title=" " alt="" coords="194,117,223,154,219,158,189,121"/>
+</map>
