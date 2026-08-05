@@ -12,7 +12,7 @@
 # --- ratchet guards: check_complexity.py (CCN) + check_duplication.py --------
 # CCN and clone-detection numbers are baseline-frozen, so the analyser version
 # is part of the contract.
-lizard>=1.17,<2
+lizard>=1.23.0,<2
 
 # --- static analysis lane: tools/ci/run_codechecker.py (needs clang-tidy) ----
 codechecker>=6.22,<7
