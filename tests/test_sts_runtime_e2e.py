@@ -51,14 +51,14 @@ from settings import BIND_HOST, HOST, NGINX_BIN
 from server_launcher import LifecycleHarness
 from server_registry import NginxInstanceSpec
 
-# Reuse the proven MinIO lab primitives (docker discovery + SigV4 crypto) so the
-# seeding path is identical to test_sts_minio_live and shares no drift surface.
+# Reuse the proven MinIO lab primitives (runtime discovery + SigV4 crypto) so
+# the seeding path is identical to test_sts_minio_live and shares no drift
+# surface.
 from test_sts_minio_live import (
     MINIO_IMAGES,
     REGION,
     ROOT_PW,
     ROOT_USER,
-    _have_docker,
     _http,
     _now,
     _pick_image,
@@ -66,6 +66,7 @@ from test_sts_minio_live import (
     _signing_key,
 )
 from cmdscripts.compile_run import REPO_ROOT, run
+from cmdscripts.container_runtime import container_runtime
 
 # Adjust import path for the token issuer utility (mirrors test_token_auth.py).
 import sys
@@ -129,15 +130,16 @@ def minio_store():
         pytest.skip("STS_MINIO_LIVE=0 set — skipping the live MinIO STS lab")
     if not os.access(NGINX_BIN, os.X_OK):
         pytest.skip(f"nginx not executable: {NGINX_BIN}")
-    if not _have_docker():
-        pytest.skip("docker not available")
-    image = _pick_image()
+    runtime = container_runtime()
+    if runtime is None:
+        pytest.skip("no working container runtime (docker or rootless podman)")
+    image = _pick_image(runtime)
     if image is None:
         pytest.skip("no local minio image (expected one of: "
                     + ", ".join(MINIO_IMAGES) + ")")
 
     cid = run(
-        ["docker", "run", "-d", "--rm", "-p", f"{MINIO_PORT}:9000",
+        [runtime, "run", "-d", "--rm", "-p", f"{MINIO_PORT}:9000",
          "-e", f"MINIO_ROOT_USER={ROOT_USER}",
          "-e", f"MINIO_ROOT_PASSWORD={ROOT_PW}",
          image, "server", "/data"],
@@ -166,7 +168,7 @@ def minio_store():
 
         yield host_port
     finally:
-        run(["docker", "rm", "-f", cid], cwd=REPO_ROOT)
+        run([runtime, "rm", "-f", cid], cwd=REPO_ROOT)
 
 
 @pytest.fixture(scope="module")

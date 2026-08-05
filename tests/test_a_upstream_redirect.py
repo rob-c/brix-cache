@@ -13,6 +13,15 @@ No Python server objects are created inside tests.
   test_locate_wait_then_redirect      nginx:11131 → stub:13121 (wait→redirect)
   test_locate_waitresp_then_redirect  nginx:11132 → stub:13122 (waitresp→redirect)
   TestUpstreamAuth.*                  nginx:11134–11136 → stubs:13124–13126
+  test_locate_redirect_target_*       nginx:11130 → stub:13120 (plain redirect)
+  test_upstream_error_code_*          nginx:11133 → stub:13123 (fixed kXR_error)
+
+The two stub-backed cells at 11130/13120 and 11133/13123 pair with the
+real-backend tests above them: a real xrootd chooses its own redirect target and
+its own error code, so those tests can only assert the response *kind*.  The
+stub emits bytes this repo picked, so these assert the bytes survive the proxy
+unchanged — the difference between "a redirect came back" and "the redirect came
+back intact".
 """
 
 import os
@@ -28,12 +37,23 @@ from settings import (
     REAL_REDIRECT_NGINX_PORT,
     STUB_AUTH_NGINX_PORT,
     STUB_AUTH_NOFILE_NGINX_PORT,
+    STUB_ERROR_BACKEND_PORT,
+    STUB_ERROR_NGINX_PORT,
     STUB_GOTORLS_NGINX_PORT,
+    STUB_REDIRECT_BACKEND_PORT,
+    STUB_REDIRECT_NGINX_PORT,
     STUB_WAIT_NGINX_PORT,
     STUB_WAITRESP_NGINX_PORT,
     TOKENS_DIR,
     TMP_DIR,
     UPSTREAM_ERROR_NGINX_PORT,
+    UPSTREAM_GOTORLS_NOTLS_NGINX_PORT,
+)
+from upstream_protocol_stubs import (
+    ERROR_CODE,
+    ERROR_MESSAGE,
+    REDIRECT_TARGET_HOST,
+    REDIRECT_TARGET_PORT,
 )
 
 pytestmark = pytest.mark.timeout(60)
@@ -144,6 +164,21 @@ def upstream_error_nginx():
 
 
 @pytest.fixture(scope="session")
+def gotorls_notls_nginx():
+    return _require_nginx(UPSTREAM_GOTORLS_NOTLS_NGINX_PORT, "upstream-gotorls-notls")
+
+
+@pytest.fixture(scope="session")
+def stub_redirect_nginx():
+    return _require_nginx(STUB_REDIRECT_NGINX_PORT, "stub-upstream-redirect")
+
+
+@pytest.fixture(scope="session")
+def stub_error_nginx():
+    return _require_nginx(STUB_ERROR_NGINX_PORT, "stub-upstream-error")
+
+
+@pytest.fixture(scope="session")
 def upstream_auth_nginx():
     return _require_nginx(STUB_AUTH_NGINX_PORT, "upstream-auth")
 
@@ -248,6 +283,98 @@ class TestUpstreamRedirect:
         assert status == kXR_error, f"expected kXR_error, got {status}"
         assert len(body) >= 4
 
+    # -- stub-backed pair: same two responses, exact bytes ----------------- #
+
+    @pytest.mark.registry_server("stub-upstream-redirect")
+    def test_locate_redirect_target_survives_the_proxy(self, stub_redirect_nginx):
+        """A plain kXR_redirect (no wait, no waitresp) reaches the client with
+        host and port unaltered.
+
+        test_locate_redirected above proves a redirect is forwarded, but its
+        upstream is a real redirector that picks its own target, so it can only
+        check the port it happens to know.  Here the target is a name no server
+        in the fleet owns, so an nginx that rewrote, truncated or re-resolved
+        the body could not accidentally pass.
+        """
+        sock = _xrd_handshake_login(HOST, stub_redirect_nginx["port"])
+        _send_locate(sock, "/data/file.root")
+        sock.settimeout(5)
+        status, body = _read_response(sock)
+        sock.close()
+
+        assert status == kXR_redirect, f"expected kXR_redirect, got {status}"
+        assert struct.unpack(">I", body[:4])[0] == REDIRECT_TARGET_PORT
+        assert body[4:].decode() == REDIRECT_TARGET_HOST
+
+    @pytest.mark.registry_server("stub-upstream-redirect")
+    def test_a_forwarded_redirect_never_names_the_internal_upstream(
+        self, stub_redirect_nginx
+    ):
+        """Security: the client must be sent where the upstream said, not to the
+        proxy's own listener or to the private backend behind it.
+
+        Either substitution is a real failure mode — pointing the client back at
+        the front is an infinite redirect loop, and pointing it at the backend
+        both bypasses the proxy and discloses internal topology to anyone who
+        can issue one locate.
+        """
+        sock = _xrd_handshake_login(HOST, stub_redirect_nginx["port"])
+        _send_locate(sock, "/data/file.root")
+        sock.settimeout(5)
+        status, body = _read_response(sock)
+        sock.close()
+
+        assert status == kXR_redirect, f"expected kXR_redirect, got {status}"
+        port = struct.unpack(">I", body[:4])[0]
+        host = body[4:].decode()
+        assert port not in (STUB_REDIRECT_NGINX_PORT, STUB_REDIRECT_BACKEND_PORT), \
+            f"redirect points back into the proxy chain (port {port})"
+        assert "127.0.0.1" not in host and "localhost" not in host, (  # net-literal-allow: the loopback forms ARE the subject — the redirect must not name either
+            f"redirect leaked a loopback target: {host!r}")
+
+    @pytest.mark.registry_server("stub-upstream-error")
+    def test_upstream_error_code_and_message_survive_the_proxy(self, stub_error_nginx):
+        """kXR_error is forwarded with its code and text intact.
+
+        test_upstream_error_forwarded can only assert the response *kind*: its
+        upstream is a real xrootd, so the code is whatever that server chose for
+        a missing path.  The stub returns kXR_NotAuthorized — a code no missing
+        path produces — so a proxy that synthesised its own error instead of
+        forwarding the upstream one fails here and only here.
+        """
+        sock = _xrd_handshake_login(HOST, stub_error_nginx["port"])
+        _send_locate(sock, "/data/file.root")
+        sock.settimeout(5)
+        status, body = _read_response(sock)
+        sock.close()
+
+        assert status == kXR_error, f"expected kXR_error, got {status}"
+        assert struct.unpack(">I", body[:4])[0] == ERROR_CODE
+        assert body[4:].split(b"\x00", 1)[0].decode() == ERROR_MESSAGE
+
+    @pytest.mark.registry_server("stub-upstream-error")
+    def test_a_forwarded_error_never_leaks_the_internal_upstream(self, stub_error_nginx):
+        """Security: forwarding an upstream error must not append the private
+        endpoint that produced it.
+
+        Error text is the classic place a proxy volunteers its own topology —
+        an unauthenticated client gets one locate and learns the backend's
+        address.  The stub's message contains no address, so anything
+        address-shaped in the body was added on the way out.
+        """
+        sock = _xrd_handshake_login(HOST, stub_error_nginx["port"])
+        _send_locate(sock, "/data/file.root")
+        sock.settimeout(5)
+        status, body = _read_response(sock)
+        sock.close()
+
+        assert status == kXR_error, f"expected kXR_error, got {status}"
+        text = body[4:].split(b"\x00", 1)[0].decode(errors="replace")
+        assert "127.0.0.1" not in text, (  # net-literal-allow: the upstream's loopback address IS the subject — it must not reach the client
+            f"error text leaked the upstream host: {text!r}")
+        assert str(STUB_ERROR_BACKEND_PORT) not in text, \
+            f"error text leaked the upstream port: {text!r}"
+
 
 # ------------------------------------------------------------------ #
 # Tests — upstream auth (kXR_authmore / kXR_gotoTLS)                  #
@@ -319,3 +446,35 @@ class TestUpstreamAuth:
 
         assert status == kXR_error, \
             f"expected kXR_error when gotoTLS but upstream_tls=off, got {status}"
+
+    @pytest.mark.registry_server("upstream-gotorls-notls")
+    def test_a_real_upstream_never_forces_tls_on_the_cleartext_leg(
+        self, gotorls_notls_nginx
+    ):
+        """The real-backend twin of the test above is unreachable BY DESIGN —
+        and this pins the reason so it stays that way.
+
+        `upstream-gotorls-notls` fronts a real xrootd, and looks like it should
+        drive the same abort.  It cannot: `brix_upstream_build_bootstrap()`
+        sends the cleartext kXR_protocol request with ``protocol_flags = 0``,
+        and an XRootD server answers kXR_gotoTLS only to a client that
+        advertised kXR_ableTLS (the manager health-check leg is the one caller
+        that does).  So the abort path is only drivable from a stub that sets
+        the flag unconditionally, which is what stub-upstream-gotorls is for.
+
+        Asserting the *absence* of the abort is what makes this a test rather
+        than a comment: if a future change advertises kXR_ableTLS on the
+        ordinary upstream leg, this flips and says so — at which point the real
+        backend can drive the abort and the stub twin becomes the redundant one.
+        """
+        sock = _xrd_handshake_login(HOST, gotorls_notls_nginx["port"])
+        _send_locate(sock, "/no-such-path/missing.root")
+        sock.settimeout(5)
+        status, _ = _read_response(sock)
+        sock.close()
+
+        # kXR_error here is the backend's honest "no such file", reached over a
+        # fully established cleartext leg — the handshake+login above would have
+        # raised had nginx aborted the connection instead.
+        assert status == kXR_error, \
+            f"expected the backend's own kXR_error, got {status}"

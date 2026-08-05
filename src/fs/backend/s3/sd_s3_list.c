@@ -417,6 +417,15 @@ sd_s3_list_page(const sd_s3_open_params *p, const char *prefix,
     if (rc != 0) {
         return rc;
     }
+    if (f == NULL) {
+        /* s3l_fetch's contract is rc == 0 ⇒ *f_out set.  Checked rather than
+         * assumed: every failure arm there closes the handle, so a future arm
+         * that returns 0 without publishing one would land as a null deref on
+         * the very next line. */
+        errno = EIO;
+        sd_s3_set_err(errbuf, errcap, "s3 list: fetch returned no handle");
+        return -1;
+    }
 
     body = f->transport->resp_body(&resp, &blen);
     if (body == NULL) {

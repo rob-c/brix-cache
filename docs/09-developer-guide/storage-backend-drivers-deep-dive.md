@@ -516,6 +516,39 @@ needs only a **server conf + a logical path** (no connection object, no log):
 
 ---
 
+### 4.4 Namespace mutation on the origin drivers — the type-probe contract
+
+The origin drivers (`sd_http` over WebDAV, `sd_xroot` over kXR) also carry the
+`mkdir`/`rmdir`/`unlink`/`stat` slots, and those slots are what a client's
+`mkdir`/`rm`/`rmdir`/`stat` reaches when the export's storage IS the origin. The
+combinatorial sweep behind `tests/test_ns_mutation_gateways.py` (37 tests, three-way
+POSIX ↔ `sd_http` ↔ `sd_xroot` comparison) pinned four rules that HTTP semantics do
+**not** give you for free:
+
+- **`rmdir` must refuse a non-collection.** WebDAV `DELETE` deletes whatever is at
+  the URL, so an unguarded `rmdir` slot destroyed a *regular file*. The driver now
+  runs a type probe first and returns `ENOTDIR`.
+- **`rmdir` must refuse a populated collection.** RFC 4918 §9.6 makes `DELETE` on a
+  collection **recursive** — an unguarded slot silently wiped a whole subtree where
+  POSIX would have said `ENOTEMPTY`. Recursive deletes are the VFS's job
+  (`brix_vfs_driver_rmtree`), never the slot's.
+- **Deleting something absent must fail.** A 404 from the origin is `ENOENT`, not
+  success; the earlier mapping reported a delete of a missing path as done.
+- **`stat` must probe the type.** A `HEAD` cannot tell a collection from a
+  zero-length object, so every path came back a regular file (and `mkdir -p` over a
+  regular file then reported success). Only `PROPFIND Depth: 0` +
+  `<resourcetype><collection/>` answers it — **cost: one extra RTT per stat of a
+  zero-sized entry**, which is the deliberate trade for a correct type.
+
+The probe path is shared: `sd_http_propfind_issue()` / `sd_http_propfind_errno()`
+in `sd_http_dir.c` issue both the listing PROPFIND (`Depth: 1`) and the type probe
+(`Depth: 0`). Status mapping is `207 → ok`, `404|409 → ENOENT`, `401|403 → EACCES`,
+`405|501 → ENOTSUP`, anything else `EIO`.
+
+Still open (no coverage yet): `gridftp × xroot` STOR, and `S3 × xroot` PUT/DELETE.
+
+---
+
 ## 5. The unified caching layer around the drivers
 
 The drivers are the bottom of a four-part caching machine:
@@ -542,6 +575,23 @@ The drivers are the bottom of a four-part caching machine:
   role (POSIX by default, or a configured backend) — a node can run pblock for its
   primary, a pblock read-cache, and a POSIX state tree, all at once.
 - The `.cinfo` v3 record is the single write-back/present-bitmap state.
+
+> **Lesson — the write-back spool is a private namespace the tier must build.**
+> `sd_stage` advertises `BRIX_SD_CAP_RANDOM_WRITE`, so `brix_vfs_writer_open` takes
+> the *random* branch — `brix_vfs_open(WRITE|CREATE|TRUNC)` **without**
+> `BRIX_VFS_O_MKDIRPATH`. The client's `kXR_mkpath` builds the parent chain in the
+> **export** and the flush builds it on the **origin**; nobody built it in the
+> **spool**, so with a stage tier configured a create of *any* nested key failed
+> `kXR_NotFound` (3011). `sd_stage_store_mkparents()` now walks the key's parents
+> through the store driver's `mkdir` slot on every create-open. The whole-object
+> *staged* leg never hit this — the POSIX store's `staged_open` mkpaths its own
+> parents. Consequence, accepted: with a stage tier a nested create **without**
+> `kXR_mkpath` now succeeds, matching every other driver-backed export (the flush
+> materialises the remote parents itself; a source-parent pre-check would break
+> nested uploads through a stage gateway to a remote origin). The stock-parity
+> "no mkpath ⇒ NotFound" tests run against plain POSIX exports and are unaffected.
+> Regression: `tests/test_stage_hydration.py` (nested lands byte-exact / unwritable
+> spool refuses the open / traversal key materialises nothing).
 
 > **Lesson — `.cinfo` is state, never a candidate.** The watermark reaper
 > enumerates the cache tree and evicts oldest-first. The eviction skip-list
@@ -604,6 +654,9 @@ Moving a driver into `<name>/` deepens its relative includes by one level:
 | 12 | `sed` `.` is a regex wildcard — it mangled `sd_pblock_catalog` | reorg |
 | 13 | New `.c` ⇒ `rm -rf objs && ./configure && make` (no incremental over stale objs) | build governance |
 | 14 | In-process `root://` GSI/token client lives in libxrdc — delegate via exec | auth parity |
+| 15 | WebDAV `DELETE` is type-blind and recursive — probe before `rmdir`/`unlink` | `sd_http` §4.4 |
+| 16 | `HEAD` cannot tell a collection from an empty object — `PROPFIND Depth: 0` can | `sd_http` stat |
+| 17 | The write-back spool is private: the tier builds the key's parents, not the client | `sd_stage` §5 |
 
 ---
 

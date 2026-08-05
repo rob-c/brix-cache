@@ -29,6 +29,8 @@ import time
 
 import pytest
 
+from settings import HOST
+
 pytestmark = pytest.mark.timeout(120)
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -47,7 +49,7 @@ def bfp():
 
 def _free_port():
     s = socket.socket()
-    s.bind(("127.0.0.1", 0))
+    s.bind((HOST, 0))
     p = s.getsockname()[1]
     s.close()
     return p
@@ -57,7 +59,7 @@ def _wait_port(port, deadline=5.0):
     end = time.time() + deadline
     while time.time() < end:
         try:
-            with socket.create_connection(("127.0.0.1", port), timeout=0.25):
+            with socket.create_connection((HOST, port), timeout=0.25):
                 return True
         except OSError:
             time.sleep(0.02)
@@ -73,7 +75,7 @@ class _CapEcho:
         self.first = []
         self._srv = socket.socket()
         self._srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        self._srv.bind(("127.0.0.1", self.port))
+        self._srv.bind((HOST, self.port))
         self._srv.listen(8)
         self._stop = False
         threading.Thread(target=self._run, daemon=True).start()
@@ -111,7 +113,7 @@ class _CapEcho:
 
 def _spawn(bfp, target_port, extra=None):
     listen, ctl = _free_port(), _free_port()
-    argv = [bfp, "--listen", str(listen), "--target", f"127.0.0.1:{target_port}",
+    argv = [bfp, "--listen", str(listen), "--target", f"{HOST}:{target_port}",
             "--control", str(ctl), "--quiet"] + (extra or [])
     proc = subprocess.Popen(argv, stdout=subprocess.DEVNULL,
                             stderr=subprocess.DEVNULL)
@@ -120,13 +122,13 @@ def _spawn(bfp, target_port, extra=None):
 
 
 def _ctl(port, cmd):
-    with socket.create_connection(("127.0.0.1", port), timeout=3) as s:
+    with socket.create_connection((HOST, port), timeout=3) as s:
         s.sendall((cmd + "\n").encode())
         return s.recv(1400).decode()
 
 
 def _roundtrip(listen, payload, wait=0.3):
-    with socket.create_connection(("127.0.0.1", listen), timeout=3) as s:
+    with socket.create_connection((HOST, listen), timeout=3) as s:
         s.sendall(payload)
         time.sleep(wait)
         s.settimeout(1.0)
@@ -199,7 +201,7 @@ def test_max_lifetime_guillotines_connection(bfp):
     proc, listen, ctl = _spawn(bfp, echo.port)
     try:
         _ctl(ctl, "max-lifetime 300")
-        s = socket.create_connection(("127.0.0.1", listen), timeout=3)
+        s = socket.create_connection((HOST, listen), timeout=3)
         s.sendall(b"ping")
         s.settimeout(2.0)
         start = time.time()

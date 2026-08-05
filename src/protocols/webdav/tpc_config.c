@@ -5,6 +5,9 @@
 
 #include "webdav.h"
 
+#include "core/compat/checksum.h"   /* brix_checksum_parse — verify-digest name */
+#include "core/compat/str_dup.h"    /* brix_pstrdupz */
+
 void
 ngx_http_brix_webdav_tpc_create_loc_conf(
     ngx_http_brix_webdav_loc_conf_t *conf)
@@ -20,6 +23,45 @@ ngx_http_brix_webdav_tpc_create_loc_conf(
     conf->tpc_marker_interval = NGX_CONF_UNSET_UINT;
     conf->tpc_max_streams     = NGX_CONF_UNSET_UINT;
     conf->tpc_credential_forward = NGX_CONF_UNSET;
+    conf->tpc_require_source_size = NGX_CONF_UNSET;
+}
+
+/* brix_webdav_tpc_verify_checksum <alg> — name the RFC-3230 algorithm the pull
+ * completion gate asks the source for (Want-Digest) and recomputes over the
+ * staged temp.  Same shape as brix_cache_verify_digest: brix_checksum_parse()
+ * rejects an unknown name at parse time and the canonical lowercase form is
+ * stored, so the runtime never has to re-validate it. */
+char *
+brix_webdav_conf_set_tpc_verify_digest(ngx_conf_t *cf, ngx_command_t *cmd,
+    void *conf)
+{
+    ngx_http_brix_webdav_loc_conf_t *wcf = conf;
+    ngx_str_t                       *value;
+    brix_checksum_alg_t              alg;
+    char                             norm[32];
+
+    value = cf->args->elts;
+    (void) cmd;
+
+    if (wcf->tpc_verify_digest.len > 0) {
+        return "is duplicate";
+    }
+
+    if (brix_checksum_parse((const char *) value[1].data, value[1].len,
+                            &alg, norm, sizeof(norm)) != NGX_OK)
+    {
+        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            "brix_webdav_tpc_verify_checksum: unknown algorithm \"%V\"",
+            &value[1]);
+        return NGX_CONF_ERROR;
+    }
+
+    if (brix_pstrdupz(cf->pool, &wcf->tpc_verify_digest,
+                      (u_char *) norm, ngx_strlen(norm)) != NGX_OK)
+    {
+        return NGX_CONF_ERROR;
+    }
+    return NGX_CONF_OK;
 }
 
 void
@@ -58,6 +100,14 @@ ngx_http_brix_webdav_tpc_merge_loc_conf(
     ngx_conf_merge_uint_value(conf->tpc_marker_interval,
                               prev->tpc_marker_interval, 0);
     ngx_conf_merge_uint_value(conf->tpc_max_streams, prev->tpc_max_streams, 1);
+
+    /* Completion gate: both halves default OFF so an existing deployment sees no
+     * new refusal.  A size comparison still runs whenever either half is on and
+     * the source declared a length — that is free and catches truncation. */
+    ngx_conf_merge_value(conf->tpc_require_source_size,
+                         prev->tpc_require_source_size, 0);
+    ngx_conf_merge_str_value(conf->tpc_verify_digest,
+                             prev->tpc_verify_digest, "");
 
     /* Per-user TPC credential forwarding defaults ON — a PULL presents the
      * requesting user's delegated proxy / forwards their bearer to the source by

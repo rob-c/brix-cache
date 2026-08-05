@@ -229,7 +229,7 @@ version in the low 6 bits — `XLoginCapVer`/`XLoginVersion`, `XProtocol.hh:404-
   login sessid confirmed conformant).
 - When auth is configured, the body is `sessid + "&P=..."` parameter block
   (`login.c:140-214`) advertising the required plugin(s) — e.g.
-  `&P=ztn,v:10000&P=gsi,v:<ver>,c:ssl,ca:<hash>`, `&P=sss,...`, `&P=krb5,...`,
+  `&P=ztn,0:4096:&P=gsi,v:<ver>,c:ssl,ca:<hash>`, `&P=sss,...`, `&P=krb5,...`,
   `&P=unix`, `&P=host`, `&P=pwd,...`. `auth_done` stays 0, forcing a `kXR_auth`
   follow-up (mirrors the reference setting `XRD_LOGGEDIN|XRD_NEED_AUTH`).
 

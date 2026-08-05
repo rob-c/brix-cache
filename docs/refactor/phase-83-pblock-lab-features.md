@@ -471,6 +471,18 @@ F5 ✅ F4 ✅ F9 ✅ F15 ✅. Wave D COMPLETE — F10 ✅ F6 ✅ F11 ✅ F12/F13
   reference moves from the live object to the history row and the refcount never
   hits 0. A failed push is **fail-open** (plain overwrite/delete, no history).
   Versions are trimmed to the newest N generations (oldest `gen` released first).
+- **Reachability — read this before writing a versioning test.** Capture fires
+  **only** on the atomic-publish overwrite path (`staged_commit`). WebDAV and S3
+  PUT set `BRIX_VFS_O_ATOMIC` and therefore version; the xrootd/`root://` wire
+  PUT opens with `brix_vfs_writer_open(BRIX_VFS_O_TRUNC)` and pblock advertises
+  `CAP_RANDOM_WRITE`, so it overwrites **in place** and no version is ever
+  captured. A native-wire test asserting "overwrite ⇒ new generation" fails for
+  a reason that has nothing to do with the history tables — drive versioning
+  over an atomic-publish protocol.
+- **Two independent event columns, deliberately.** A PUT records *create* at
+  open **and** *update* at close-touch. Folding them into one event slot lets
+  the close clobber the create, which loses the object's visibility for the
+  whole upload window.
 - **State:** `versions(path, gen, blob_id, …, PRIMARY KEY(path,gen))` + a
   `blob_id` index; `trash(trash_id INTEGER PK AUTOINCREMENT, path, blob_id, …,
   deleted_at)` + `path`/`blob_id` indexes. Path is **only ever a bound column —

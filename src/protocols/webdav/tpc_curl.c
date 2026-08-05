@@ -383,9 +383,18 @@ webdav_tpc_run_curl_pull(ngx_log_t *log,
                          uint64_t transfer_id,
                          const char *user_cert, const char *user_key)
 {
-    return webdav_tpc_run_curl_core(log, conf, transfer_headers,
-                                    0, tmp_path, source_url, "pull",
-                                    transfer_id, user_cert, user_key);
+    ngx_int_t rc = webdav_tpc_run_curl_core(log, conf, transfer_headers,
+                                            0, tmp_path, source_url, "pull",
+                                            transfer_id, user_cert, user_key);
+
+    /* A transfer that merely ended is not a transfer that completed: gate the
+     * staged temp on the source's declared size/digest before the caller
+     * commits it (no-op unless an operator enabled a half). */
+    if (rc != NGX_OK) {
+        return rc;
+    }
+    return webdav_tpc_verify_pulled(log, conf, source_url, tmp_path,
+                                    transfer_headers, user_cert, user_key);
 }
 
 

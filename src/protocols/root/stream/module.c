@@ -218,6 +218,19 @@ ngx_command_t ngx_stream_brix_commands[] = {
       offsetof(ngx_stream_brix_srv_conf_t, common.root),
       NULL },
 
+    /* Marks this server as a trusted remote cache-STORE surface: internal
+     * sidecar names (<key>.cinfo/.meta) become legitimate open/stat targets so a
+     * cache node using `brix_cache_store root://...` with `brix_cache_meta
+     * sidecar` can persist and re-read them. The HTTP planes carry the same
+     * directive (module_commands.c); default OFF keeps every client-facing
+     * export answering kXR_NotFound for a reserved name. */
+    { ngx_string("brix_cache_store_endpoint"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,
+      ngx_conf_set_flag_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_brix_srv_conf_t, common.cache_store_endpoint),
+      NULL },
+
     /* Selects the storage backend for this export: "posix" (default) or
      * "pblock" (block-based, rooted at brix_export; needs the sqlite build). */
     { ngx_string("brix_storage_backend"),

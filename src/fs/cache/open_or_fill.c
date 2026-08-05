@@ -245,6 +245,12 @@ brix_cache_fill_composed_done(ngx_event_t *ev)
 
     if (t->result == NGX_OK) {
         brix_log_access(ctx, c, "CACHE", t->cache_path, "fill", 1, 0, NULL, 0);
+
+        /* The fill ran because this open MISSED; the re-open below will find
+         * the just-written COMPLETE cinfo and sd_cache will call it a HIT.
+         * Mark the request so the driver-adopt metric bump accounts the
+         * client-visible miss instead. */
+        ctx->open_fill_miss = 1;
     }
 
     brix_open_request_t oreq = {
@@ -255,6 +261,7 @@ brix_cache_fill_composed_done(ngx_event_t *ev)
         .codec     = 0,
     };
     rc = brix_open_resolved_file(ctx, c, t->conf, &oreq);
+    ctx->open_fill_miss = 0;   /* one-shot: never leak onto a later request */
     if (rc != NGX_OK && ctx->state != XRD_ST_SENDING) {
         brix_send_error(ctx, c, kXR_ServerError,
                           "open after cache fill failed");

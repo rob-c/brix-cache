@@ -174,7 +174,7 @@ If `kXR_secreqs` was set, a signing-requirements trailer follows, tagged `'S'` [
 
 Request body [SPEC]: `pid` BE32 ‖ `username[8]` ‖ `ability2` (`kXR_ecredir`) ‖ `ability` (`kXR_fullurl`, `kXR_readrdok`, `kXR_hasipv64`, `kXR_onlyprv4/6`, `kXR_lclfile`, `kXR_redirflags`) ‖ `capver[1]` (low 6 bits = client generation, `kXR_ver005` = 2019 TLS-era; bit 0x80 = async-capable) ‖ reserved. The 8-byte username is *not* NUL-terminated at fixed length; the module rejects embedded NUL / non-printables to prevent `"a\0evil"` impersonation **[LOCAL]** (stock is laxer), and rejects a duplicate login with `kXR_InvalidRequest` **[SRC]**.
 
-Response [SPEC]: 16-byte `sessid` ‖ a **plain-text** security token. **[WIRE]** #3/#23: the token MUST be the `&P=` text dialect, not a binary `XrdSutBuffer` — e.g. `&P=ztn,v:10000` (token), `&P=gsi,v:10000,c:ssl,ca:<hash>` (GSI), or both concatenated with the preferred protocol first. Sending a binary buffer makes the client print "No protocols left to try" and disconnect. Anonymous mode completes login in one round-trip with an empty sec token.
+Response [SPEC]: 16-byte `sessid` ‖ a **plain-text** security token. **[WIRE]** #3/#23: the token MUST be the `&P=` text dialect, not a binary `XrdSutBuffer` — e.g. `&P=ztn,0:4096:` (token), `&P=gsi,v:10000,c:ssl,ca:<hash>` (GSI), or both concatenated with the preferred protocol first. Sending a binary buffer makes the client print "No protocols left to try" and disconnect. Anonymous mode completes login in one round-trip with an empty sec token.
 
 `kXR_endsess` (3023) kills a named session (16-byte sessid in the body block); `kXR_ping` (3011) is a login-gated liveness no-op.
 
@@ -361,7 +361,7 @@ Above the handshake, chain policy is where the module is deliberately **stricter
 
 ### 6.3 `ztn` — bearer tokens on the binary plane
 
-`credtype="ztn\0"`, payload = `ztn` prefix + the compact JWT (single round, no challenge) [WIRE] #23; the module also accepts the stock `XrdSecProtocolztn` TokenResp framing [SRC]. The advertisement is `&P=ztn,v:10000` at login, listed *first* when both token and GSI are offered.
+`credtype="ztn\0"`, payload = `ztn` prefix + the compact JWT (single round, no challenge) [WIRE] #23; the module also accepts the stock `XrdSecProtocolztn` TokenResp framing [SRC]. The advertisement is `&P=ztn,0:4096:` at login, listed *first* when both token and GSI are offered.
 
 **The same validator serves ztn and HTTP `Authorization: Bearer`** — one pipeline, one policy [LOCAL]:
 

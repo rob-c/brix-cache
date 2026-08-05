@@ -256,8 +256,10 @@ int brix_openat2_runtime_available(void);
 int brix_extract_path(ngx_log_t *log, const u_char *payload,
     size_t payload_len, char *out, size_t outsz, ngx_flag_t strip_cgi);
 
-/* Recursively create directory <path> with mode <mode>. Treats EEXIST on any
- * level as success. Returns 0, or -1 with errno set (ENAMETOOLONG if too long).
+/* Recursively create directory <path> with mode <mode>. A level that already
+ * exists is success ONLY when the existing entry is a directory; a regular file
+ * (or anything else) in the way fails -1/EEXIST, as coreutils mkdir -p does.
+ * Returns 0, or -1 with errno set (ENAMETOOLONG if too long).
  * No confinement — for trusted paths only. */
 int brix_mkdir_recursive(const char *path, mode_t mode);
 /* As above, but on each level it actually creates (not EEXIST) applies the
@@ -271,7 +273,8 @@ int brix_mkdir_recursive_policy(const char *path, mode_t mode,
  * ngx_str_t, skipping the internal brix_get_canonical_root() call.
  * Used by callers (e.g. S3 PUT) that have already resolved the canonical root.
  * <resolved> must lie under <root_canon> (else errno=EXDEV; EEXIST if equal).
- * Each level is created via the confined mkdirat; EEXIST is success. Optional
+ * Each level is created via the confined mkdirat; an existing level is success
+ * only when it is a directory (else -1/EEXIST). Optional
  * <rules> applies parent-group policy per level (best-effort). 0 / -1 (errno).
  */
 int brix_mkdir_recursive_confined_canon(ngx_log_t *log,
@@ -280,7 +283,8 @@ int brix_mkdir_recursive_confined_canon(ngx_log_t *log,
 /* As _confined_canon but creates each level via openat2(RESOLVE_BENEATH) under
  * an already-open <rootfd> (O_PATH dirfd of the export root) instead of
  * re-opening parents per call. <root_canon> is still used to derive the relative
- * path and bounds-check <resolved>. EEXIST is success; 0 / -1 with errno set. */
+ * path and bounds-check <resolved>. An existing level is success only when it
+ * is a directory (else -1/EEXIST); 0 / -1 with errno set. */
 int brix_mkdir_recursive_beneath(ngx_log_t *log, int rootfd,
     const char *root_canon, const char *resolved, mode_t mode,
     ngx_array_t *rules);

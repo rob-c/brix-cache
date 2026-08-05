@@ -243,6 +243,15 @@ struct brix_sd_instance_s {
 /* Opaque open object. fd is the real descriptor for CAP_FD backends, else
  * NGX_INVALID_FILE. snap is the metadata captured at open. state is driver-
  * private (object key/upload state for non-POSIX backends). */
+/* Read-open cache verdict stamped on the returned object by the sd_cache
+ * decorator (sd_cache_open_common).  NONE = the open never consulted a cache
+ * tier (no tier composed, write/create open, or admission-filtered path).
+ * The VFS open orchestrator — the first layer that knows the requesting
+ * protocol — translates HIT/MISS into brix_metric_cache_result(). */
+#define BRIX_SD_CACHE_OUTCOME_NONE  0u
+#define BRIX_SD_CACHE_OUTCOME_HIT   1u
+#define BRIX_SD_CACHE_OUTCOME_MISS  2u
+
 struct brix_sd_obj_s {
     const brix_sd_driver_t *driver;
     brix_sd_instance_t     *inst;
@@ -255,6 +264,13 @@ struct brix_sd_obj_s {
      * pool (e.g. POSIX) leave it 0. The per-open `state` is always released by
      * driver->close, independent of this flag. */
     unsigned                  heap_shell:1;
+    /* BRIX_SD_CACHE_OUTCOME_* verdict for this read-open (sd_cache only). */
+    unsigned                  cache_outcome:2;
+    /* Logical bytes the cache decorator evicted invalidating this path on a
+     * WRITE/CREATE/TRUNC open (sd_cache only; 0 otherwise — every driver
+     * zero-allocates its obj). The protocol adopt site accounts it via
+     * brix_metric_cache_evicted. */
+    uint64_t                  cache_evicted_bytes;
 };
 
 struct brix_sd_dir_s {

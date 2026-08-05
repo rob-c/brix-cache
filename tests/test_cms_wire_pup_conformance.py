@@ -1188,6 +1188,7 @@ def _start_peered_node(lifecycle, name, template, template_values, reason,
         peer.close()
         raise
     peer.node_port = ep.port
+    peer.ep = ep                # for _wait_log_contains on this instance
     if not peer.have_connection(timeout=20.0):
         peer.close()
         pytest.skip(f"{name} never opened a CMS connection to the peer")
@@ -1493,6 +1494,46 @@ class TestStateRelayRecursion:
                 is None, "silent miss must stay silent upward"
         finally:
             child.close()
+
+    def test_relay_to_no_eligible_node_is_silent_but_logged(self, super_stack):
+        """With relay ON and NO child logged in, a registry miss parks a leg
+        that nobody can answer.  The parent still reads silence (unchanged
+        wire behaviour), but the drop is visible at INFO — a debug-only
+        counter would be invisible in every build that hits this."""
+        super_stack.send_to_node(0x61D0000A, CMS_RR_STATE, CMS_MOD_RAW,
+                                 b"/elsewhere/nobody.bin\x00")
+        assert _wait_log_contains(
+            super_stack.ep, b"down to no eligible node"), \
+            "a relay that reached no node must say so in the error log"
+        assert super_stack.wait_for_code(CMS_RR_HAVE, timeout=2.0) is None, \
+            "a relay that reached no node must stay silent upward"
+
+    def test_state_probe_path_is_escaped_in_the_error_log(self, super_stack):
+        """Security-neg (WS6): the kYR_state path is manager-controlled and
+        ``cms_state_extract_path`` accepts every byte but NUL — including
+        CR/LF.  Logged raw it would let a hostile manager forge whole
+        ``cmsd-action`` lines into error.log; every log site must render it
+        through ``brix_sanitize_log_string``."""
+        forged = b"/elsewhere/x\ncmsd-action op=login peer=evil dir=in"
+        super_stack.send_to_node(0x61D0000B, CMS_RR_STATE, CMS_MOD_RAW,
+                                 forged + b"\x00")
+        # the escaped form must appear; the injected raw newline must not
+        assert _wait_log_contains(super_stack.ep, rb"/elsewhere/x\x0A"), \
+            "the probed path must reach the log hex-escaped"
+        path = os.path.join(super_stack.ep.prefix, "logs", "error.log")
+        with open(path, "rb") as fh:
+            for line in fh:
+                assert not line.startswith(b"cmsd-action"), \
+                    f"forged log line landed unescaped: {line!r}"
+
+    def test_supervisor_fan_down_to_no_node_is_logged(self, super_stack):
+        """A forwarded mutation that reaches no data node is a silently
+        dropped op — the one outcome of the fan-down worth a WARN."""
+        super_stack.send_to_node(
+            0x61D0000C, CMS_RR_MKDIR, 0,
+            _fwd_a_payload(b"mgr", b"755", b"/fan_down_nobody"))
+        assert _wait_log_contains(super_stack.ep, b"reached no node"), \
+            "a fan-down that reached no node must be logged"
 
     def test_unsolicited_child_have_cannot_reach_parent(self, super_stack):
         """Security-neg: a child kYR_have whose streamid was never issued by

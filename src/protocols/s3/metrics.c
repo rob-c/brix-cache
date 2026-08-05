@@ -274,9 +274,6 @@ s3_metrics_response_status(ngx_uint_t method_slot, ngx_uint_t http_status)
 
     status_class = brix_http_status_class(http_status);
     BRIX_S3_METRIC_INC(responses_total[method_slot][status_class]);
-    brix_metric_op_done(BRIX_PROTO_S3, s3_unified_op(method_slot),
-                          0, 0,
-                          brix_metric_err_from_http_status(http_status));
 }
 
 void
@@ -284,6 +281,9 @@ s3_metrics_response_method(ngx_http_request_t *r, ngx_uint_t method_slot,
     ngx_int_t handler_rc)
 {
     ngx_uint_t http_status;
+    brix_metric_op_t uop;
+    ngx_time_t *tp;
+    ngx_msec_int_t elapsed_ms;
     brix_sess_t *sess;
     char path[BRIX_SESSLOG_PATH_MAX];
     char errscratch[BRIX_SESSLOG_ERR_MAX];
@@ -307,6 +307,25 @@ s3_metrics_response_method(ngx_http_request_t *r, ngx_uint_t method_slot,
                                                        sizeof(errscratch)));
     s3_sess_finish_xfer(r, sess, method_slot, http_status);
     s3_metrics_response_status(method_slot, http_status);
+
+    /* Only data-plane methods (GET→READ, PUT→WRITE) emit an op_done here:
+     * namespace methods (HEAD/DELETE/list/...) are already observed once by
+     * the VFS layer, and a second protocol-level emission would double-count
+     * them. Bytes stay 0 — the scrape-time fold supplies io_bytes from the
+     * per-server tx/rx ledgers. Latency is the full request duration
+     * (clamped for clock steps). */
+    uop = s3_unified_op(method_slot);
+    if (uop == BRIX_METRIC_OP_READ || uop == BRIX_METRIC_OP_WRITE) {
+        tp = ngx_timeofday();
+        elapsed_ms = (ngx_msec_int_t) ((tp->sec - r->start_sec) * 1000
+                                       + (tp->msec - r->start_msec));
+        if (elapsed_ms < 0) {
+            elapsed_ms = 0;
+        }
+        brix_metric_op_done(BRIX_PROTO_S3, uop, 0,
+                            (uint64_t) elapsed_ms * 1000,
+                            brix_metric_err_from_http_status(http_status));
+    }
 }
 
 ngx_int_t

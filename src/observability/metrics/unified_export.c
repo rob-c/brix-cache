@@ -203,6 +203,37 @@ unified_emit_cache_watermark(metrics_writer_t *mw, ngx_brix_metrics_t *shm)
 }
 
 /*
+ * unified_emit_cache_prefetch — render the background block-prefetch families.
+ *
+ * WHAT: Emits the three sd_cache_prefetch.c counters (jobs posted, blocks
+ *       filled, failed jobs).
+ * WHY:  Process-wide like the watermark group — the detached thread-pool jobs
+ *       carry no per-proto/per-server context. Sole owner: sd_cache_prefetch.c.
+ * HOW:  Three unlabeled monotonic counters straight from the unified SHM.
+ */
+static void
+unified_emit_cache_prefetch(metrics_writer_t *mw, ngx_brix_metrics_t *shm)
+{
+    mw_printf(mw,
+        "# HELP brix_cache_prefetch_jobs_total Background cache prefetch jobs posted.\n"
+        "# TYPE brix_cache_prefetch_jobs_total counter\n"
+        "brix_cache_prefetch_jobs_total %llu\n",
+        brix_metric_value(&shm->unified.cache_prefetch_jobs_total));
+
+    mw_printf(mw,
+        "# HELP brix_cache_prefetch_blocks_total Cache blocks filled by background prefetch.\n"
+        "# TYPE brix_cache_prefetch_blocks_total counter\n"
+        "brix_cache_prefetch_blocks_total %llu\n",
+        brix_metric_value(&shm->unified.cache_prefetch_blocks_total));
+
+    mw_printf(mw,
+        "# HELP brix_cache_prefetch_failures_total Background cache prefetch jobs that failed.\n"
+        "# TYPE brix_cache_prefetch_failures_total counter\n"
+        "brix_cache_prefetch_failures_total %llu\n",
+        brix_metric_value(&shm->unified.cache_prefetch_failures_total));
+}
+
+/*
  * unified_emit_wt_stage — render the write-back-staging backpressure families.
  *
  * WHAT: Emits the wt_stage usage_ratio gauge and the throttled_total counter
@@ -367,6 +398,7 @@ brix_export_unified_metrics(metrics_writer_t *mw,
     unified_emit_cred_deleg(mw, shm);
     unified_emit_cache(mw, shm);
     unified_emit_cache_watermark(mw, shm);
+    unified_emit_cache_prefetch(mw, shm);
     unified_emit_wt_stage(mw, shm);
     unified_emit_auth(mw, shm);
     unified_emit_tpc(mw, shm);

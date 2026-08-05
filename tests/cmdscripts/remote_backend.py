@@ -101,7 +101,10 @@ def stream_write(nginx: Path | None = None) -> int:
         small_digest, big_digest = random_file(small, 300000), random_file(big, 2600000)
         target = f"root://{HOST}:11651"
         small_put = run.call([xrdcp, "-f", small, f"{target}//small.bin"], check=False).returncode
-        output = run.call([xrdfs, target, "cat", "/small.bin"], check=False).stdout.encode()
+        # binary=True: the payload is random bytes, so text-mode decoding of
+        # xrdfs' stdout would raise UnicodeDecodeError before the check runs.
+        output = run.call([xrdfs, target, "cat", "/small.bin"],
+                          check=False, binary=True).stdout
         stat_out = run.call([xrdfs, target, "stat", "/small.bin"], check=False).stdout
         big_put = run.call([xrdcp, "-f", big, f"{target}//big.bin"], check=False).returncode
         return _checks([

@@ -98,6 +98,71 @@ invokes each guard directly, with no pytest timeout wrapping it. Note:
 `check_doc_links` under pytest can also transiently exceed its cap under parallel
 load, but passes when run solo.
 
+## Follow-on: 2026-08-05 re-green of `check_doc_links` and `check_duplication`
+
+Both guards went red again in an unprivileged working tree. Neither red was a
+code defect; both are failure modes worth recognising on sight, because the
+guards report them in language that sounds like new debt.
+
+**`check_doc_links` — one untracked target, not a broken link.** The guard fails
+a relative markdown target that is missing on disk *or* present but not
+git-tracked, on the grounds that an untracked target "resolves locally, dead in
+every fresh clone". Exactly one link qualified:
+`docs/05-operations/cvmfs-stratum0.md`, written during the Stratum-0 publishing
+work and never `git add`ed. Tracking that single file cleared the guard. Seven
+other docs in the tree are still untracked and are deliberately left that way —
+nothing links to them, so they cost nothing; the guard only cares about link
+*targets*.
+
+**`check_duplication` — 10 FAILs, zero new duplication.** The 10 blocks lived in
+`src/` files, some of which had not been edited at all. The cause was a stale
+backlog: `lizard` keys a grandfathered block on its *exact* line spans
+(`file:start-end+file:start-end…`), so any edit above a duplicated block, or any
+regrouping of which spans lizard clusters together, invalidates the key and the
+block resurfaces as "new". Before regenerating, each FAIL was classified against
+the backlog by file set and span overlap: 9 were unambiguous churn, and the tenth
+(`src/protocols/root/read/locate.c`, five spans) turned out to be churn too — its
+five spans were the backlog's five shifted by a uniform +5 lines, all of them the
+same repeated `locate_try_*` prologue that unpacks `ctx`/`c`/`conf` from the
+locate context.
+
+`--regen` was then the correct remedy, and the resulting diff proves it: **10
+entries added — precisely the 10 FAILs — and 7 dropped**, 362 → 365. The dropped
+entries (`src/core/types/identity.c`, and the
+`net/cms/config.c`+`root/handoff/handoff.c`+`root/relay/relay.c` trio) are
+duplication that has since been factored out. No file appears among the added
+entries that was not already in the backlog, which is what makes the regen safe:
+a regen that silently freezes genuinely-new duplication would have to introduce a
+file or a block the ratchet had never seen.
+
+The lesson for future reds: a `check_duplication` FAIL in a file you did not
+touch is a *key* mismatch, not a finding. Classify before regenerating — the
+count of added entries must equal the count of FAILs, or the regen is hiding
+something.
+
+### Run this module with `-m "not slow"`, and mean it
+
+Verifying the above with a bare `pytest tests/test_ci_guards.py` is not merely
+slower — it is destructive on a shared box. `test_ci_coverage_runner_green`
+(`@pytest.mark.slow`, `timeout(1800)`) shells out to `tools/ci/coverage.py`,
+which runs `operator_build build_coverage`: a `./configure
+--with-cc-opt='--coverage -O0 -g'` **against `/tmp/nginx-1.28.3`, the one build
+tree every session and the whole test fleet share**, followed by a full rebuild.
+Ten minutes in, `objs/nginx` had been relinked as a 35.7 MB gcov binary with
+1132 `.gcno` files beside it, and any fleet still running was serving requests
+from an instrumented, `-O0` server — the [live suite
+freeze](lessons-brix-rebrand-and-suite-stabilization-2026-07.md) failure mode,
+self-inflicted.
+
+Recovery is the canonical configure from
+[agent-guide-extended.md](agent-guide-extended.md) with the coverage options
+dropped, then `make -j$(nproc)`; `ngx_auto_config.h` is regenerated with a new
+timestamp and every object depends on it, so the rebuild is genuinely full
+rather than a no-op relink. Confirm with `nm objs/nginx | grep -c gcov` (must be
+0) and delete the leftover `.gcno`/`.gcda`. The coverage lane is nightly
+territory: run it deliberately, on a box nobody else is using, not as a side
+effect of checking the guards.
+
 ## See also
 
 - [Fast-lane burndown 2026-07](fast-lane-burndown-2026-07.md) — sibling

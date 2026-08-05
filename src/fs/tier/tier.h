@@ -113,6 +113,12 @@ typedef struct {
                                                   cap for a passthrough fill (0 = the
                                                   max_file_size cap, or unbounded if
                                                   that too is 0)                  */
+    ngx_uint_t                  prefetch_jobs;   /* brix_cache_prefetch — max in-flight
+                                                  background block-prefetch jobs per
+                                                  worker (0 = prefetch off)      */
+    size_t                      prefetch_window; /* brix_cache_prefetch_window — max
+                                                  bytes one WILLNEED hint may queue
+                                                  for background fill            */
 } brix_cache_policy_t;
 
 /* ---- stage policy (§2.4) — the kept write-through decision, re-homed ------- */

@@ -145,9 +145,14 @@ locate_try_cms_parent(locate_ctx_t *lc, ngx_int_t *out_rc)
     brix_ctx_t                  *ctx = lc->ctx;
     ngx_connection_t            *c = lc->c;
     ngx_stream_brix_srv_conf_t  *conf = lc->conf;
+    ngx_brix_cms_ctx_t          *cms = ngx_brix_cms_pick_ctx(conf);
     uint32_t                     streamid;
 
-    streamid = ngx_brix_cms_next_streamid(conf->cms.ctx);
+    if (cms == NULL) {
+        return 0;
+    }
+
+    streamid = ngx_brix_cms_next_streamid(cms);
     if (brix_pending_insert(streamid, ngx_pid, c->fd, c->number,
                               ctx->recv.cur_streamid,
                               conf->cms.locate_timeout) != NGX_OK)
@@ -158,7 +163,7 @@ locate_try_cms_parent(locate_ctx_t *lc, ngx_int_t *out_rc)
     ctx->cms_wait_streamid = streamid;
     ctx->state = XRD_ST_WAITING_CMS;
     ngx_add_timer(c->read, conf->cms.locate_timeout);
-    if (ngx_brix_cms_send_locate(conf->cms.ctx, streamid, lc->reqpath) == NGX_OK)
+    if (ngx_brix_cms_send_locate(cms, streamid, lc->reqpath) == NGX_OK)
     {
         *out_rc = NGX_AGAIN;
         return 1;
@@ -339,7 +344,7 @@ locate_try_manager(locate_ctx_t *lc, ngx_int_t *out_rc)
     }
 
     /* Registry miss — ask the CMS parent via kYR_locate. */
-    if (conf->cms.ctx != NULL && locate_try_cms_parent(lc, out_rc)) {
+    if (conf->cms.nctxs > 0 && locate_try_cms_parent(lc, out_rc)) {
         return 1;
     }
 

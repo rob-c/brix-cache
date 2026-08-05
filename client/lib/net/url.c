@@ -427,3 +427,83 @@ brix_weburl_parse(const char *s, brix_weburl *out)
     }
     return weburl_copy_path(p, out);
 }
+
+
+/* GridFTP URLs — gsiftp:// (GSI, 2811) and ftp:// (anonymous, 21) */
+
+#define BRIX_FTP_GSI_PREFIX  "gsiftp://"
+#define BRIX_FTP_PLAIN_PREFIX "ftp://"
+
+int
+brix_is_ftp_url(const char *s)
+{
+    if (s == NULL) {
+        return 0;
+    }
+    return (starts_with(s, BRIX_FTP_GSI_PREFIX)
+            || starts_with(s, BRIX_FTP_PLAIN_PREFIX));
+}
+
+/*
+ * brix_ftpurl_parse — split a GridFTP URL into endpoint + server path.
+ *
+ * WHAT: gsiftp://host[:port][/path] and ftp://host[:port][/path] → *out, with the
+ *       scheme's default port and the `gsi` login selector.
+ * WHY:  copy routing and the session engine both need the endpoint before any
+ *       socket exists, and the gsiftp/ftp distinction is a security decision (GSI
+ *       vs anonymous), not a transport detail — so it is recorded in the parse.
+ * HOW:  prefix match, then the shared bracketed-IPv6-aware host:port split over
+ *       the authority slice; the remainder is the path, with the XRootD-style
+ *       "//" prefix collapsed to a single '/' so gsiftp://h//tmp/f and
+ *       gsiftp://h/tmp/f both name /tmp/f (as globus-url-copy resolves them).
+ *       Returns 0 on success, -1 for a foreign scheme or a malformed authority.
+ */
+int
+brix_ftpurl_parse(const char *s, brix_ftpurl *out)
+{
+    const char *p, *slash, *pp;
+    char        auth[288];
+    size_t      alen, plen;
+
+    if (s == NULL || out == NULL) {
+        return -1;
+    }
+    memset(out, 0, sizeof(*out));
+
+    if (starts_with(s, BRIX_FTP_GSI_PREFIX)) {
+        out->gsi = 1;
+        out->port = 2811;
+        p = s + sizeof(BRIX_FTP_GSI_PREFIX) - 1;
+    } else if (starts_with(s, BRIX_FTP_PLAIN_PREFIX)) {
+        out->port = 21;
+        p = s + sizeof(BRIX_FTP_PLAIN_PREFIX) - 1;
+    } else {
+        return -1;
+    }
+
+    slash = strchr(p, '/');
+    alen = slash ? (size_t) (slash - p) : strlen(p);
+    if (alen == 0 || alen >= sizeof(auth)) {
+        return -1;
+    }
+    memcpy(auth, p, alen);
+    auth[alen] = '\0';
+    if (brix_split_host_port(auth, out->host, sizeof(out->host), &out->port,
+                             out->port) != 0) {
+        return -1;
+    }
+    if (out->port <= 0 || out->port > 65535) {
+        return -1;
+    }
+
+    pp = slash ? slash : "/";
+    if (pp[0] == '/' && pp[1] == '/') {
+        pp++;
+    }
+    plen = strlen(pp);
+    if (plen >= sizeof(out->path)) {
+        return -1;
+    }
+    memcpy(out->path, pp, plen + 1);
+    return 0;
+}

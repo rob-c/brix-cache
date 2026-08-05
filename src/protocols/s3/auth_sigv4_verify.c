@@ -403,8 +403,19 @@ s3_verify_sigv4(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
         return NGX_OK;
     }
 
+    /*
+     * Stage guards: a rejecting stage emits its XML error itself and — because
+     * brix_http_send_xml_buffer returns the output-filter rc — hands back
+     * NGX_OK, so `rc != NGX_OK` alone can NOT detect the rejection. Without
+     * the r->header_sent check every failed stage fell through to the next:
+     * one bad request recorded an auth metric per stage PLUS the unconditional
+     * SIGV4_OK in s3_sigv4_finish, and the rejected request still got its
+     * identity subject bound. The handler's own header_sent guard kept the
+     * 4xx response intact, but the pipeline must stop at the first verdict:
+     * exactly one auth record per request, no identity binding on rejection.
+     */
     rc = s3_sigv4_parse_authz_header(r, &comp);
-    if (rc != NGX_OK) {
+    if (rc != NGX_OK || r->header_sent) {
         return rc;
     }
 
@@ -429,12 +440,12 @@ s3_verify_sigv4(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
                               (u_char *) comp.akid, cf->access_key.len) == 0;
 
     rc = s3_sigv4_check_session_token(r, cf, &comp);
-    if (rc != NGX_OK) {
+    if (rc != NGX_OK || r->header_sent) {
         return rc;
     }
 
     rc = s3_sigv4_resolve_request_time(r, &comp, &amz);
-    if (rc != NGX_OK) {
+    if (rc != NGX_OK || r->header_sent) {
         return rc;
     }
 
@@ -443,7 +454,7 @@ s3_verify_sigv4(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
     }
 
     rc = s3_sigv4_compare(r, &comp, sig.computed_hex, key_ok);
-    if (rc != NGX_OK) {
+    if (rc != NGX_OK || r->header_sent) {
         return rc;
     }
 

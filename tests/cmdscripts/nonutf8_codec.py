@@ -438,7 +438,7 @@ def build_vectors() -> list[Vec]:
     curated_opq = [
         ("empty", b""),
         ("all-permitted", b"oss.asize=123&tpc.key=v,w;x?y=z"),
-        ("ipv6-brackets", b"tpc.src=[::ffff:127.0.0.1]:1094"),
+        ("ipv6-brackets", b"tpc.src=[::ffff:127.0.0.1]:1094"),  # net-literal-allow: opaque-parser input under test
         ("unreserved", b"A.z-0_9~"),
         ("first-illegal-mid", b"oss.a=b c=d"),      # space -> illegal at the space
         ("high-byte-mid", b"oss.a=\xff"),

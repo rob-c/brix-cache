@@ -1,0 +1,143 @@
+.TH BRIXCVMFS 1 "2026-08-05" "brix client" "User Commands"
+.SH NAME
+brixcvmfs \- CVMFS client mount and Stratum-0 release-manager tool
+.SH SYNOPSIS
+.B brixcvmfs
+\fIREPOSITORY\fR \fIMOUNTDIR\fR [\fIfuse-opts\fR]
+.br
+.B brixcvmfs
+\fB\-\-rw\fR \fIREPOSITORY\fR \fIMOUNTDIR\fR [\fIfuse-opts\fR]
+.br
+.B brixcvmfs
+\fB\-\-check\fR \fIREPOSITORY\fR
+.br
+.B brixcvmfs
+\fB\-\-prewarm\fR \fIREPOSITORY\fR
+.br
+.B brixcvmfs repo
+\fISUBCOMMAND\fR [\fIargs\fR]
+.SH DESCRIPTION
+.B brixcvmfs
+is the CVMFS personality of the
+.BR brixMount (1)
+umbrella (same binary, selected by program name \(em
+\fBbrixMount cvmfs \fR... is equivalent).  It mounts CVMFS repositories
+read-only or with a local writable overlay, verifies them without
+mounting (\fB\-\-check\fR), warms a cache (\fB\-\-prewarm\fR), and \(em via the
+.B repo
+subcommand family \(em creates and publishes repositories as a Stratum-0
+release manager.  Everything runs unprivileged: mounts use FUSE3, and
+publishing writes only ordinary files under the repository directory.
+.SH REPO SUBCOMMANDS
+The release-manager surface.  \fIREPO_DIR\fR is the repository storage
+directory (conventionally \fI<webroot>/cvmfs/<fqrn>\fR so it can be served
+directly); \fIKEYS_DIR\fR defaults to \fIREPO_DIR\fR\fB/keys\fR.
+.TP
+.B repo mkfs \fIFQRN\fR \fIREPO_DIR\fR [\fIKEYS_DIR\fR]
+Create a repository: mint the RSA master key pair, repository certificate
+and key (reused if already present in \fIKEYS_DIR\fR), the 30-day signed
+whitelist, an empty root catalog and the signed manifest at revision 1.
+The parent of \fIREPO_DIR\fR must exist; refuses to run over an existing
+published repository.
+.TP
+.B repo info \fIREPO_DIR\fR [\fIKEYS_DIR\fR]
+Print revision, root catalog, certificate and whitelist state, verifying
+the full trust chain with the same parsers the client and proxy use.
+.TP
+.B repo resign \fIREPO_DIR\fR [\fIKEYS_DIR\fR]
+Re-mint the whitelist (30-day expiry) and re-sign the manifest.  Run from
+cron well inside the expiry window.
+.TP
+.B repo transaction \fIREPO_DIR\fR
+Open a publish transaction: takes the single-publisher lock and creates
+the staging tree \fIREPO_DIR\fR\fB/.brixtxn/upper\fR.  Stage changes by
+writing ordinary files there; delete a published path by creating a
+whiteout marker \fB.brix.wh.\fR\fINAME\fR in the corresponding directory.
+.TP
+.B repo abort \fIREPO_DIR\fR
+Discard the open transaction (removes \fB.brixtxn\fR and the lock).
+.TP
+.B repo publish \fIREPO_DIR\fR [\fIKEYS_DIR\fR] [\fB\-\-chunk\-size\fR \fIN\fR] [\fB\-\-dirtab\fR \fIF\fR]
+Turn the staged tree into the next revision: content-addressed objects,
+rewritten catalogs (only the touched subtree), reflog append, manifest
+re-sign, then an atomic manifest swap \(em a crashed publish never leaves a
+half-visible revision.  \fB\-\-chunk\-size\fR \fIN\fR splits files larger
+than \fIN\fR bytes into chunks (floor 4096); \fB\-\-dirtab\fR \fIF\fR applies
+a \fB.cvmfsdirtab\fR-style nested-catalog split policy file.
+.TP
+.B repo fsck \fIREPO_DIR\fR [\fB\-\-data\fR]
+Verify repository integrity: every catalog reachable from
+\fB.cvmfspublished\fR is fetched and CAS-verified, its self/subtree counters
+are recomputed from the actual rows, and xattr BLOBs are bounds-checked.
+\fB\-\-data\fR extends the sweep to the payload: the certificate and every
+referenced content object and file chunk is checked for presence and CAS
+identity \(em the on-disk rot check, linear in repository size, so plain
+\fBfsck\fR stays cheap enough to run after every publish and \fB\-\-data\fR
+belongs in a slower cron.  Never writes to the repository.
+.TP
+.B repo gc \fIREPO_DIR\fR [\fIKEYS_DIR\fR] (\fB\-\-keep\fR \fIN\fR | \fB\-\-keep\-since\fR \fIT\fR) [\fB\-\-grace\fR \fIS\fR]
+Reflog-anchored garbage collection: keep the newest \fIN\fR revisions (or
+those newer than epoch \fIT\fR), drop the rest from the reflog, then sweep
+unreferenced objects.  \fB\-\-grace\fR \fIS\fR protects objects younger than
+\fIS\fR seconds.  Tagged revisions are always kept.  Refuses to run against
+an open transaction.
+.TP
+.B repo tag add \fIREPO_DIR\fR \fINAME\fR [\fIKEYS_DIR\fR] [\fB\-m\fR \fIMESSAGE\fR]
+Name the current revision as a snapshot.
+.TP
+.B repo tag list \fIREPO_DIR\fR
+List snapshots (name, revision, root hash, timestamp, message).
+.TP
+.B repo tag rollback \fIREPO_DIR\fR \fINAME\fR [\fIKEYS_DIR\fR]
+Republish the tagged revision's root catalog as a \fInew\fR revision (the
+revision counter never rewinds).
+.SH MOUNT OPTIONS
+The mount forms accept the same \fIfuse-opts\fR as
+.BR brixMount (1)
+type \fBcvmfs\fR / \fBcvmfs\-rw\fR; see that page for the option table and
+the overlay maintenance commands (\fB\-\-overlay\-list\fR,
+\fB\-\-overlay\-reset\fR).
+.SH ENVIRONMENT
+.TP
+.B BRIXCVMFS_SERVER
+Pin a single server URL for the repository (e.g.
+\fBhttp://s0.example.org:8080/cvmfs/sw.example.org\fR).  The URL includes
+the fully-qualified repository name.
+.TP
+.B BRIXCVMFS_PUBKEY
+Path to the repository master public key (a \fB.pub\fR file, or a
+directory of rotated \fB*.pub\fR keys).
+.TP
+.B BRIXCVMFS_CACHE
+Local cache directory for mounts.
+.TP
+.B BRIXCVMFS_ETC
+Configuration cascade root (default \fI/etc/cvmfs\fR layout).
+.TP
+.B BRIXCVMFS_TMP
+Scratch directory override.
+.SH EXAMPLE
+An unprivileged single-node Stratum-0, from nothing to a mounted client:
+.PP
+.nf
+mkdir -p ~/stratum0/cvmfs
+brixcvmfs repo mkfs sw.example.org ~/stratum0/cvmfs/sw.example.org
+brixcvmfs repo transaction ~/stratum0/cvmfs/sw.example.org
+cp -r mytools ~/stratum0/cvmfs/sw.example.org/.brixtxn/upper/
+brixcvmfs repo publish ~/stratum0/cvmfs/sw.example.org
+# serve ~/stratum0 with nginx (brix_cvmfs_stratum0_root), then:
+export BRIXCVMFS_SERVER=http://localhost:8080/cvmfs/sw.example.org
+export BRIXCVMFS_PUBKEY=~/stratum0/cvmfs/sw.example.org/keys/sw.example.org.pub
+brixcvmfs sw.example.org ~/sw
+.fi
+.PP
+The full deployment cookbook (serving configuration, private repos,
+replication, maintenance cron) is in the distribution's
+\fIdocs/05-operations/cvmfs-stratum0.md\fR.
+.SH EXIT STATUS
+0 on success.  2 on a usage error or when the underlying driver fails.
+Subcommands return non-zero on any refused or failed operation.
+.SH SEE ALSO
+.BR brixMount (1),
+.BR fusermount3 (1),
+.BR brix\-env (7)

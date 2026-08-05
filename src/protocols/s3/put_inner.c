@@ -79,6 +79,72 @@ s3_put_try_sentinel(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
 }
 
 
+/* Folder-marker fast path: a PUT whose key ends in '/' is the AWS-conventional
+ * zero-byte "folder marker" (what our own sd_remote .mkdir slot emits for an
+ * s3:// backend, and what the aws CLI / boto "create folder" does).  It names a
+ * DIRECTORY, not an object: create the directory, finalize 200, and return 1.
+ * Returns 0 for a normal object key so the caller proceeds to the body write.
+ *
+ * Without this the marker key fell through to the object path, where the parent
+ * mkdir created the directory as a side effect and the atomic publish then tried
+ * to rename the staged temp file ONTO that directory — EINVAL, surfaced as 500,
+ * i.e. xrdfs mkdir over an s3:// backend answered kXR_IOError while still
+ * leaving the directory behind.  A body is refused rather than silently dropped:
+ * a marker carries no bytes, so a non-empty one is a malformed request. */
+static int
+s3_put_try_folder_marker(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
+    const u_char *fs_path)
+{
+    size_t         plen = ngx_strlen(fs_path);
+    char           dir[PATH_MAX];
+    brix_vfs_ctx_t vctx;
+    char           identity[128];
+
+    if (plen < 2 || fs_path[plen - 1] != '/') {
+        return 0;
+    }
+
+    if (r->headers_in.content_length_n > 0) {
+        brix_dashboard_http_error(r, "s3 folder marker with a body");
+        brix_dashboard_http_finish(r);
+        (void) s3_send_xml_error(r, NGX_HTTP_BAD_REQUEST, "InvalidRequest",
+            "A key ending in '/' denotes a folder and must be zero-length.");
+        s3_metrics_finalize_request_method(r, BRIX_S3_METHOD_PUT,
+                                           NGX_HTTP_BAD_REQUEST);
+        return 1;
+    }
+
+    if (plen >= sizeof(dir)) {
+        s3_put_finalize_error(r);
+        return 1;
+    }
+    memcpy(dir, fs_path, plen);
+    dir[plen - 1] = '\0';          /* drop the marker slash: mkdir the directory */
+
+    /* parents=1: clients create "a/b/c/" in one PUT without the intermediates.
+     * EEXIST is success — S3 PUT is idempotent, and the marker may re-land. */
+    s3_build_vfs_ctx(r, dir, cf, &vctx);
+    if (brix_vfs_mkdir(&vctx, 0755, 1 /* parents */) != NGX_OK
+        && errno != EEXIST)
+    {
+        int mk_errno = errno;   /* capture before logging clobbers it */
+        brix_log_safe_path(r->connection->log, NGX_LOG_ERR, mk_errno,
+                             "s3: folder-marker mkdir(\"%s\") failed", dir);
+        s3_put_finalize_fs_error(r, mk_errno);
+        return 1;
+    }
+
+    s3_dashboard_identity(r, cf, identity, sizeof(identity));
+    (void) brix_dashboard_http_start_identity(r, (const char *) fs_path,
+        identity, "", BRIX_XFER_PROTO_S3, BRIX_XFER_DIR_WRITE,
+        "PutObjectFolderMarker", 0);
+    BRIX_S3_METRIC_INC(events_total[BRIX_S3_EVENT_DIR_SENTINEL]);
+    BRIX_S3_METRIC_INC(put_body_total[BRIX_S3_PUT_EMPTY]);
+    s3_put_finalize_empty_ok(r);
+    return 1;
+}
+
+
 /*
  * s3put_ensure_parent_dirs — create the object's parent prefix if absent.
  *
@@ -187,6 +253,11 @@ s3put_precondition(s3put_state_t *st)
 
     /* Directory-sentinel objects take a separate create-dir-and-return path. */
     if (s3_put_try_sentinel(st->r, st->cf, st->fs_path)) {
+        return NGX_DONE;
+    }
+
+    /* So do trailing-slash folder markers (the AWS-conventional form). */
+    if (s3_put_try_folder_marker(st->r, st->cf, st->fs_path)) {
         return NGX_DONE;
     }
 

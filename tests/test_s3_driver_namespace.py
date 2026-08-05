@@ -16,21 +16,27 @@ security-neg) is proven hermetically, success/error/security-neg per slot, in th
 C unit tests/c/test_sd_remote_rename.c (7 sub-tests) against a fake transport that
 honours "key/" markers.
 
-This HTTP suite covers the marker-FREE, object-level slice that a POSIX-backed
-brix_s3 origin can faithfully serve — the MOVE (rename) path and its guards:
+This HTTP suite covers the object-level slice — the MOVE (rename) path and its
+guards:
 
   * success      MOVE file            -> sd_remote_rename (CopyObject + DELETE)
   * error        MOVE missing source  -> rename ENOENT -> 404
   * security-neg MOVE Overwrite:F over existing -> rename noreplace EEXIST -> 412
 
-The marker-dependent slots (MKCOL/mkdir, rmdir, directory-aware stat, deep-prefix
-auto-create) are DELIBERATELY not driven here: the co-hosted posix-backed brix_s3
-origin recognises directories via a `.xrdcls3.dirsentinel` sentinel object and
-cannot store a key ending in "/" (a staged commit to such a path fails EINVAL),
-so a "coll/" marker PUT 500s at that origin though it is correct on any real S3.
-Those slots need a real object store (MinIO) at the HTTP edge — the same
-docker-gated topology test_sts_minio_live.py uses — and are meanwhile fully
-covered by the C unit above.
+plus the marker-dependent collection slots (MKCOL/mkdir, directory-aware stat,
+object inside a created collection).
+
+Those marker slots were previously skipped here on the premise that the
+co-hosted posix-backed brix_s3 origin "cannot store a key ending in '/' (a
+staged commit to such a path fails EINVAL), so a 'coll/' marker PUT 500s". That
+was true, and it was an ORIGIN BUG rather than a property of the topology: the
+S3 server had no folder-marker path at all, on either the write or the read
+side. Both were added (s3/put_inner.c: marker PUT creates the directory;
+s3/object_meta.c: HEAD of a "prefix/" key reports it) and are covered directly
+on the S3 plane by test_s3_folder_marker_put.py — so the marker slots are now
+driven here for real. A live MinIO edge (test_sts_minio_live.py's docker-gated
+topology) remains the stronger dialect check, and the hermetic per-slot contract
+still lives in the C unit above.
 
 Topology (nginx_ce_driver_s3.conf): one nginx hosting a posix-backed brix_s3
 ORIGIN plus a WebDAV FRONT whose storage backend is that s3:// origin (staged by
@@ -136,6 +142,50 @@ def test_move_renames_file(ns_server):
     assert _req("GET", src).status_code == 404, "source survived the MOVE"
     g = _req("GET", dst, headers={"Accept-Encoding": "identity"})
     assert g.status_code == 200 and g.content == BODY, "dest missing moved bytes"
+
+
+def test_mkcol_creates_marker_collection(ns_server):
+    # success (marker slot): MKCOL over an s3:// backend is sd_remote_mkdir — a
+    # zero-byte "coll/" marker PUT at the origin. The collection must then be
+    # visible to the directory-aware stat (PROPFIND/HEAD) and usable as a prefix.
+    coll = f"nsdcoll_{uuid.uuid4().hex}"
+    m = _req("MKCOL", coll + "/")
+    assert m.status_code == 201, f"MKCOL: {m.status_code} {m.text[:200]}"
+
+    # Directory-aware stat: the driver classifies the path as a directory by
+    # probing the marker, so PROPFIND must find the collection it just made.
+    p = _req("PROPFIND", coll + "/", headers={"Depth": "0"})
+    assert p.status_code in (207, 200), f"PROPFIND on new collection: {p.status_code}"
+
+    # And it is a real prefix: an object lands inside and reads back.
+    key = f"{coll}/inside_{uuid.uuid4().hex}.bin"
+    assert _req("PUT", key, data=BODY).status_code in (200, 201, 204)
+    g = _req("GET", key, headers={"Accept-Encoding": "identity"})
+    assert g.status_code == 200 and g.content == BODY, "object inside collection"
+
+
+def test_mkcol_existing_collection_conflicts(ns_server):
+    # error (marker slot): MKCOL on a collection that already exists must be
+    # refused (405 Method Not Allowed per RFC 4918), not a silent second 201 —
+    # the driver's mkdir HEADs the marker first and reports EEXIST.
+    coll = f"nsdcoll_{uuid.uuid4().hex}"
+    first = _req("MKCOL", coll + "/")
+    assert first.status_code == 201, f"MKCOL: {first.status_code}"
+
+    again = _req("MKCOL", coll + "/")
+    assert again.status_code in (405, 409, 412), \
+        f"re-MKCOL of an existing collection should be refused, got {again.status_code}"
+
+
+def test_mkcol_traversal_rejected(ns_server):
+    # security-neg (marker slot): a traversal in the collection name must never
+    # create a prefix outside the export. Sent through requests' normalizer AND
+    # percent-encoded, since only the encoded form survives to the resolver.
+    name = f"nsdesc_{uuid.uuid4().hex}"
+    m = _req("MKCOL", f"%2e%2e/{name}/")
+    assert m.status_code not in (201, 204), \
+        f"traversal MKCOL must not create a collection, got {m.status_code}"
+    assert _req("PROPFIND", f"{name}/", headers={"Depth": "0"}).status_code == 404
 
 
 def test_move_missing_source_conflicts(ns_server):

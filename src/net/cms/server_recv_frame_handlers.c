@@ -556,6 +556,29 @@ cms_srv_frame_cns(brix_cms_srv_ctx_t *ctx, uint32_t streamid,
     for (i = 0; h[i] != '\0'; i++) {
         server_id = server_id * 33 + h[i];
     }
+
+    if (op == BRIX_CNS_MV) {
+        /* Two-path form: `path` is the source; the destination lives in the
+         * frame tail. A frame whose tail is missing or malformed is dropped
+         * whole — applying only the source half would delete a live entry on a
+         * rename that in fact succeeded. */
+        char newpath[BRIX_CNS_PATH_MAX + 1];
+        int  is_dir = 0;
+
+        if (brix_cns_event_decode_mv(payload, payload_len, &is_dir,
+                                       newpath, sizeof(newpath)) != NGX_OK)
+        {
+            ngx_log_error(NGX_LOG_WARN, ctx->c->log, 0,
+                          "brix: CMS server: malformed CNS rename from %s",
+                          ctx->host);
+            return;
+        }
+        (void) brix_cns_rename(path, newpath, size, mtime, is_dir, server_id);
+        ngx_log_debug2(NGX_LOG_DEBUG_STREAM, ctx->c->log, 0,
+                       "brix: CNS rename %s -> %s", path, newpath);
+        return;
+    }
+
     (void) brix_cns_apply(op, path, size, mtime, server_id);
     ngx_log_debug3(NGX_LOG_DEBUG_STREAM, ctx->c->log, 0,
                    "brix: CNS event op=%ud path=%s from %s",

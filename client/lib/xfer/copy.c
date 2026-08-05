@@ -462,6 +462,13 @@ brix_copy(const char *src, const char *dst, const brix_copy_opts *o,
         return copy_block(src, dst, o, co, st);
     }
 
+    /* GridFTP endpoints (gsiftp:// and plain ftp://) speak FTP over their own
+     * control/data channels, not the root:// session machinery — and, like the
+     * two schemes above, brix_url_parse would reject them. */
+    if (brix_is_ftp_url(src) || brix_is_ftp_url(dst)) {
+        return copy_gsiftp(src, dst, o, co, st);
+    }
+
     if (brix_copy_classify(src, dst, &route, st) != 0) {
         return -1;
     }

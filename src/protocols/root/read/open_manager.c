@@ -21,13 +21,14 @@ static ngx_int_t
 brix_open_cms_locate(brix_ctx_t *ctx, ngx_connection_t *c,
     ngx_stream_brix_srv_conf_t *conf, const char *clean_path)
 {
+	ngx_brix_cms_ctx_t *cms = ngx_brix_cms_pick_ctx(conf);
 	uint32_t streamid;
 
-	if (conf->cms.ctx == NULL) {
+	if (cms == NULL) {
 		return NGX_DECLINED;
 	}
 
-	streamid = ngx_brix_cms_next_streamid(conf->cms.ctx);
+	streamid = ngx_brix_cms_next_streamid(cms);
 	if (brix_pending_insert(streamid, ngx_pid, c->fd, c->number,
 	                          ctx->recv.cur_streamid,
 	                          conf->cms.locate_timeout) == NGX_OK)
@@ -35,7 +36,7 @@ brix_open_cms_locate(brix_ctx_t *ctx, ngx_connection_t *c,
 		ctx->cms_wait_streamid = streamid;
 		ctx->state = XRD_ST_WAITING_CMS;
 		ngx_add_timer(c->read, conf->cms.locate_timeout);
-		if (ngx_brix_cms_send_locate(conf->cms.ctx, streamid,
+		if (ngx_brix_cms_send_locate(cms, streamid,
 		                               clean_path) == NGX_OK)
 		{
 			return NGX_AGAIN;

@@ -3,7 +3,11 @@
  * common.c — shared helpers for write-side opcode handlers.
  *
  * Provides brix_try_post_write_aio() — AIO task setup and thread-pool
- * dispatch for kXR_write / kXR_pgwrite syscalls.
+ * dispatch for kXR_write / kXR_pgwrite syscalls — and the two §6 CNS emit
+ * wrappers whose only difference from the bare brix_cns_emit seam is that they
+ * must first observe the mutated object (size / mtime / dir-ness) through the
+ * VFS.  They live here rather than in net/cms because the observation needs a
+ * request-identity VFS context, which is root-plane knowledge.
  *
  * Note: path-based write opcodes (mkdir, mv, rmdir, truncate) perform auth via
  * brix_auth_gate() directly; chmod/rm dispatch through the op-descriptor
@@ -12,6 +16,80 @@
  * and has been removed.
  */
 #include "core/ngx_brix_module.h"
+#include "fs/vfs/vfs.h"                    /* brix_vfs_probe for size/mtime     */
+#include "protocols/root/path/op_path.h"   /* brix_root_vfs_bind_deleg          */
+#include "net/cms/cns.h"                   /* BRIX_CNS_ADD / BRIX_CNS_MKDIR     */
+#include "net/cms/cns_emit.h"              /* brix_cns_emit{,_rename}           */
+
+/*
+ * root_cns_probe — stat one mutated object with the requesting user's identity.
+ *
+ * WHAT: Fills *st for `path` through the VFS seam, bound exactly as every other
+ *       namespace op in this plane binds (identity + backend credential +
+ *       delegation), so a remote-backed export is probed as the CLIENT.
+ * WHY:  A CNS event carries size/mtime, and for a rename also the destination's
+ *       dir-ness.  Reading them with a raw stat() would both bypass the VFS seam
+ *       (INVARIANT 12) and read the wrong thing on a non-POSIX backend.
+ * HOW:  ctx_init + bind_backend_cred + bind_deleg + brix_vfs_probe, no-follow so
+ *       a symlink is reported as itself.  Returns NGX_OK on a hit.
+ */
+static ngx_int_t
+root_cns_probe(brix_ctx_t *ctx, ngx_connection_t *c,
+    ngx_stream_brix_srv_conf_t *conf, const char *path, brix_vfs_stat_t *st)
+{
+    brix_vfs_ctx_t vctx;
+
+    brix_vfs_ctx_init(&vctx, c->pool, c->log, BRIX_PROTO_ROOT,
+        conf->common.root_canon, NULL, conf->common.allow_write,
+        0 /* is_tls */, ctx->identity, path);
+    brix_vfs_ctx_bind_backend_cred(&vctx,
+        &conf->common.storage_credential_dir,
+        conf->common.storage_credential_fallback);
+    brix_root_vfs_bind_deleg(ctx, conf, &vctx);
+
+    return brix_vfs_probe(&vctx, 1 /* no-follow */, st);
+}
+
+void
+brix_root_cns_emit_moved(brix_ctx_t *ctx, ngx_connection_t *c,
+    ngx_stream_brix_srv_conf_t *conf, const char *src_resolved,
+    const char *dst_resolved)
+{
+    brix_vfs_stat_t st;
+
+    /* Gate BEFORE the probe: the probe is a real syscall, and CNS is off on
+     * every node that is not a federation data server. */
+    if (conf->cns_mode != BRIX_CNS_EMIT) {
+        return;
+    }
+    if (root_cns_probe(ctx, c, conf, dst_resolved, &st) != NGX_OK) {
+        /* The rename succeeded but the destination cannot be observed (a racing
+         * unlink, a backend that lost it).  Emitting a rename whose metadata we
+         * had to invent would seed the manager with a wrong size, so drop the
+         * source entry instead and let the next ADD re-establish the truth. */
+        brix_cns_emit(conf, BRIX_CNS_DEL, src_resolved, 0, 0);
+        return;
+    }
+    brix_cns_emit_rename(conf, src_resolved, dst_resolved,
+                           (uint64_t) st.size, (uint64_t) st.mtime,
+                           st.is_directory);
+}
+
+void
+brix_root_cns_emit_resized(brix_ctx_t *ctx, ngx_connection_t *c,
+    ngx_stream_brix_srv_conf_t *conf, const char *resolved)
+{
+    brix_vfs_stat_t st;
+
+    if (conf->cns_mode != BRIX_CNS_EMIT) {
+        return;
+    }
+    if (root_cns_probe(ctx, c, conf, resolved, &st) != NGX_OK) {
+        return;                            /* unobservable → leave the entry be */
+    }
+    brix_cns_emit(conf, st.is_directory ? BRIX_CNS_MKDIR : BRIX_CNS_ADD,
+                    resolved, (uint64_t) st.size, (uint64_t) st.mtime);
+}
 
 ngx_int_t
 brix_try_post_write_aio(brix_ctx_t *ctx, ngx_connection_t *c, int idx,

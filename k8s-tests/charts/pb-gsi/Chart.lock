@@ -1,0 +1,9 @@
+dependencies:
+- name: brix-common
+  repository: file://../brix-common
+  version: 0.1.0
+- name: topology-role
+  repository: file://../topology-role
+  version: 0.1.0
+digest: sha256:7eebaee116310ed6c69753e3c2d7a8c8211542e6373a347e88716a89c678bc7a
+generated: "2026-07-27T23:15:25.025754174+01:00"

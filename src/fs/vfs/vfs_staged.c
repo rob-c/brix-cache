@@ -10,21 +10,27 @@
  * WHY:  The upload paths called brix_staged_open/commit/abort directly, so the
  *       publish of a finished object — a real namespace mutation — produced no
  *       metric or access-log line. Funnelling the lifecycle through here books
- *       one BRIX_METRIC_OP_WRITE on commit (byte count = the committed object
- *       size) and inherits the write gate, while still delegating the temp-file
- *       and rename mechanics to compat/staged_file.
+ *       the per-backend byte totals and one access-log line on commit (byte
+ *       count = the committed object size) and inherits the write gate, while
+ *       still delegating the temp-file and rename mechanics to
+ *       compat/staged_file. The unified io_ops/latency WRITE row is NOT
+ *       emitted here: the owning protocol books it once at response time
+ *       (WebDAV/S3 *_metrics_response, root:// wire-ledger fold), and the
+ *       per-protocol rx-ledger fold supplies io_bytes_written.
  *
  * HOW:  brix_vfs_staged_open() write-gates, allocates the handle on ctx->pool,
  *       and opens the temp via brix_staged_open() with the final path taken
  *       from the resolved ctx. Callers write through the raw fd accessor
  *       (brix_vfs_staged_fd) — the same fd they used before. commit publishes
- *       onto the ctx path (RENAME_NOREPLACE when excl) and meters OP_WRITE;
- *       abort closes and optionally unlinks the temp. The handle struct lives in
+ *       onto the ctx path (RENAME_NOREPLACE when excl) and records backend
+ *       bytes + access log; abort closes and optionally unlinks the temp. The handle struct lives in
  *       vfs_internal.h; only the opaque type is exposed in vfs.h.
  */
 #include "vfs_internal.h"
 
 #include "core/compat/staged_file.h"
+#include "fs/backend/cache/sd_cache.h"   /* cached-bytes pre-probe: the decorator's
+                                          * staged_open evicts the cached copy */
 #include "fs/xfer/xfer.h"   /* unified transfer audit ledger (one line per publish) */
 
 #include <unistd.h>      /* pread for the write-back promote read loop */
@@ -122,6 +128,8 @@ staged_open_driver(brix_vfs_ctx_t *ctx, brix_vfs_staged_t *st,
     brix_sd_ucred_t  ustore;
     brix_sd_cred_t   ucred;
     int              use_cred = 0;
+    const char      *key = brix_vfs_export_relative(ctx, final_path);
+    uint64_t         cached_bytes;
 
     ngx_memzero(&ucred, sizeof(ucred));
     if (brix_vfs_backend_cred(ctx, &ustore, &ucred, &use_cred, err_out)
@@ -129,8 +137,13 @@ staged_open_driver(brix_vfs_ctx_t *ctx, brix_vfs_staged_t *st,
     {
         return NGX_ERROR;
     }
-    st->driver_staged = brix_sd_staged_open_maybe_cred(ctx->sd,
-        brix_vfs_export_relative(ctx, final_path), mode,
+
+    /* A cache decorator's staged_open evicts the cached copy of the final path
+     * internally (sd_cache_forward), so probe its size BEFORE dispatch and
+     * account it only if the open succeeds (a failed open evicts nothing). */
+    cached_bytes = brix_sd_cache_cached_bytes(ctx->sd, key);
+
+    st->driver_staged = brix_sd_staged_open_maybe_cred(ctx->sd, key, mode,
         use_cred ? &ucred : NULL, &sderr);
     /* Secret consumed by the staged-origin session; erase the stack copy
      * (A-4 / T4). */
@@ -142,6 +155,8 @@ staged_open_driver(brix_vfs_ctx_t *ctx, brix_vfs_staged_t *st,
         errno = sderr;
         return NGX_ERROR;
     }
+
+    brix_metric_cache_evicted(brix_vfs_metrics_proto(ctx), cached_bytes);
     return NGX_OK;
 }
 
@@ -269,8 +284,9 @@ brix_vfs_staged_tmp_path(const brix_vfs_staged_t *st)
 
 /* Atomically publish the staged temp onto the resolved ctx (final) path. When
  * `excl`, uses RENAME_NOREPLACE and fails with errno==EEXIST if the final path
- * already exists (caller maps to 412). Metered as OP_WRITE with the committed
- * object size. Returns NGX_OK or NGX_ERROR with errno set. */
+ * already exists (caller maps to 412). Books backend bytes + access log with
+ * the committed object size; the unified WRITE op row belongs to the owning
+ * protocol. Returns NGX_OK or NGX_ERROR with errno set. */
 ngx_int_t
 brix_vfs_staged_commit(brix_vfs_staged_t *st, unsigned excl)
 {
@@ -296,9 +312,9 @@ brix_vfs_staged_commit(brix_vfs_staged_t *st, unsigned excl)
         rc = st->ctx->sd->driver->staged_commit(st->driver_staged, excl);
         if (rc != NGX_OK) {
             saved_errno = errno;
-            brix_vfs_observe_ctx_op(st->ctx, final_path,
+            brix_vfs_observe_ctx_op_ex(st->ctx, final_path,
                                       BRIX_METRIC_OP_WRITE, NULL, 0, NGX_ERROR,
-                                      saved_errno, start);
+                                      saved_errno, start, 0);
             brix_xfer_finish(BRIX_XFER_STAGE, "in", final_path, NULL, 0,
                                BRIX_XFER_COMMIT_ERR, saved_errno, st->log);
             errno = saved_errno;
@@ -306,8 +322,8 @@ brix_vfs_staged_commit(brix_vfs_staged_t *st, unsigned excl)
         }
         bytes = (size_t) st->driver_total;
         st->driver_staged = NULL;   /* consumed by a successful commit */
-        brix_vfs_observe_ctx_op(st->ctx, final_path, BRIX_METRIC_OP_WRITE,
-                                  NULL, bytes, NGX_OK, 0, start);
+        brix_vfs_observe_ctx_op_ex(st->ctx, final_path, BRIX_METRIC_OP_WRITE,
+                                  NULL, bytes, NGX_OK, 0, start, 0);
         brix_xfer_finish(BRIX_XFER_STAGE, "in", final_path, NULL, bytes,
                            BRIX_XFER_OK, 0, st->log);
         return NGX_OK;
@@ -330,8 +346,8 @@ brix_vfs_staged_commit(brix_vfs_staged_t *st, unsigned excl)
                                 final_path);
     if (rc != NGX_OK) {
         saved_errno = errno;
-        brix_vfs_observe_ctx_op(st->ctx, final_path, BRIX_METRIC_OP_WRITE,
-                                  NULL, 0, NGX_ERROR, saved_errno, start);
+        brix_vfs_observe_ctx_op_ex(st->ctx, final_path, BRIX_METRIC_OP_WRITE,
+                                  NULL, 0, NGX_ERROR, saved_errno, start, 0);
         brix_xfer_finish(BRIX_XFER_STAGE, "in", final_path, NULL, 0,
                            BRIX_XFER_COMMIT_ERR, saved_errno, st->log);
         errno = saved_errno;
@@ -339,8 +355,8 @@ brix_vfs_staged_commit(brix_vfs_staged_t *st, unsigned excl)
     }
 
     brix_vfs_neg_stat_forget(st->ctx->root_canon, final_path);
-    brix_vfs_observe_ctx_op(st->ctx, final_path, BRIX_METRIC_OP_WRITE, NULL,
-                              bytes, NGX_OK, 0, start);
+    brix_vfs_observe_ctx_op_ex(st->ctx, final_path, BRIX_METRIC_OP_WRITE, NULL,
+                              bytes, NGX_OK, 0, start, 0);
     /* The publication record — the single place this committed object is
      * accounted for across all transfer kinds. */
     brix_xfer_finish(BRIX_XFER_STAGE, "in", final_path, NULL, bytes,

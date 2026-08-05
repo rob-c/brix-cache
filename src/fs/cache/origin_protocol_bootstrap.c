@@ -28,7 +28,7 @@
 #include <openssl/err.h>
 
 /* Extract the "gsi" protocol's parameter substring from a login advert that may
- * carry several "&P=<proto>,<parms>" entries (e.g. "&P=ztn,v:10000&P=gsi,v:10600,
+ * carry several "&P=<proto>,<parms>" entries (e.g. "&P=ztn,0:4096:&P=gsi,v:10600,
  * c:ssl,ca:HASH"). Returns a pointer INTO `parms` just past "gsi," (the v:/c:/ca:
  * list brix_gsi_parse_parms wants), or NULL when gsi is not advertised. */
 static const char *

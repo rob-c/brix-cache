@@ -144,6 +144,8 @@ cvmfs_merge_upstreams(ngx_conf_t *cf, ngx_http_brix_cvmfs_loc_conf_t *prev,
                              0);
     ngx_conf_merge_str_value(conf->cvmfs.quarantine_dir,
                              prev->cvmfs.quarantine_dir, "");
+    ngx_conf_merge_str_value(conf->cvmfs.stratum0_root,
+                             prev->cvmfs.stratum0_root, "");
     ngx_conf_merge_str_value(conf->cvmfs.master_key,
                              prev->cvmfs.master_key, "");
     ngx_conf_merge_ptr_value(conf->cvmfs.upstream_allow,

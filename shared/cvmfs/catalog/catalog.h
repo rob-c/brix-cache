@@ -36,6 +36,7 @@ typedef struct {
     int64_t      mtime;
     uint32_t     uid, gid;
     uint32_t     linkcount;
+    uint32_t     hardlink_group; /* high 32 of the hardlinks column (0 = none) */
     char         symlink[1024]; /* target when CVMFS_FLAG_LINK */
     int          has_hash;
     cvmfs_hash_t hash;          /* content hash for regular files */
@@ -69,5 +70,14 @@ int cvmfs_catalog_chunks(cvmfs_catalog_t *c, const char *path, cvmfs_chunk_cb cb
 
 /* Read a properties(key)→value string (e.g. "revision"). 1 if found. */
 int cvmfs_catalog_property(cvmfs_catalog_t *c, const char *key, char *out, size_t outlen);
+
+/* Read a statistics(counter)→value (e.g. "self_regular"). 1 if found, 0 if
+ * absent (older catalogs carry no statistics table), -1 on error. */
+int cvmfs_catalog_counter(cvmfs_catalog_t *c, const char *name, int64_t *out);
+
+/* Copy the packed xattr BLOB of `path` into out. Returns the BLOB length,
+ * 0 when the entry has no xattrs, -1 on absence/overflow/error. */
+long cvmfs_catalog_xattr(cvmfs_catalog_t *c, const char *path,
+                         unsigned char *out, size_t outcap);
 
 #endif /* BRIX_CVMFS_CATALOG_H */

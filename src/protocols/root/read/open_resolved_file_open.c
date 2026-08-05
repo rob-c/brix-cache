@@ -86,6 +86,28 @@ brix_open_oflags_to_sd(int oflags, int is_readable, int is_write)
     return sd;
 }
 
+/* A composed sd_cache tier stamps its read-open verdict and any write-open
+ * eviction size on the adopted object; the stream plane adopts objects here
+ * rather than via brix_vfs_open_via_driver, so account the unified cache
+ * hit/miss + evicted-bytes counters at this adopt site too (parity with the
+ * HTTP planes). NONE = no cache tier consulted this open. open_fill_miss: this
+ * open was parked for an offloaded fill — the tier now reports HIT off the
+ * just-filled cinfo, but the client-visible outcome of the open is a miss
+ * (open_or_fill.c sets and clears the marker). */
+static void
+brix_open_adopt_cache_accounting(const brix_open_args_t *a,
+    brix_vfs_ctx_t *vctx, const brix_file_t *fh)
+{
+    if (fh->sd_obj.cache_outcome != BRIX_SD_CACHE_OUTCOME_NONE) {
+        unsigned hit = (fh->sd_obj.cache_outcome == BRIX_SD_CACHE_OUTCOME_HIT)
+                       && !a->ctx->open_fill_miss;
+        brix_metric_cache_result(brix_vfs_metrics_proto(vctx), hit, 0);
+    }
+
+    brix_metric_cache_evicted(brix_vfs_metrics_proto(vctx),
+                                fh->sd_obj.cache_evicted_bytes);
+}
+
 /* Driver-backed kXR_open (Layer 3): open `logical` through the export's storage
  * driver into the handle's sd_obj, then synthesize a struct stat from the
  * driver's captured open snapshot so the rest of the open path (bookkeeping,
@@ -152,6 +174,8 @@ brix_open_resolved_via_driver(brix_open_args_t *a, brix_vfs_ctx_t *vctx,
         free(obj);
     }
     fh->sd_obj.heap_shell = 0;
+
+    brix_open_adopt_cache_accounting(a, vctx, fh);
 
     /* The driver's open may defer metadata (the POSIX driver deliberately skips
      * the fstat at open — see sd_posix_open). Populate the snapshot now via the

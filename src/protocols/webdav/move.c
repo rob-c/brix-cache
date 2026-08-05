@@ -158,6 +158,10 @@ webdav_move_execute_cred(const webdav_move_req_t *req, int *sys_errno)
         if (sys_errno != NULL) {
             *sys_errno = 0;
         }
+        /* NO CNS emit here: this function also runs on a thread-pool worker
+         * (collection MOVE), and the emit writes to the worker's CMS connection,
+         * which belongs to the event loop. Both callers report from their own
+         * event-loop completion instead. */
         return req->dst_existed ? NGX_HTTP_NO_CONTENT : NGX_HTTP_CREATED;
     }
 
@@ -217,6 +221,9 @@ webdav_move_collection_done(ngx_event_t *ev)
     ngx_int_t                      status = t->http_status;
 
     if (status == NGX_HTTP_CREATED || status == NGX_HTTP_NO_CONTENT) {
+        /* Back on the event loop, which is the only place the CMS connection may
+         * be touched — the rename itself ran on a pool thread. */
+        webdav_cns_note_moved(r, t->src_path, t->dst_path);
         webdav_send_status_only(r, (ngx_uint_t) status);
         return;
     }
@@ -375,6 +382,7 @@ webdav_move_run_sync(const webdav_move_req_t *req)
     rc = webdav_move_execute_cred(req, &sys_errno);
 
     if (rc == NGX_HTTP_CREATED || rc == NGX_HTTP_NO_CONTENT) {
+        webdav_cns_note_moved(r, req->src_path, req->dst_path);
         return webdav_send_no_body(r, (ngx_uint_t) rc);
     }
 

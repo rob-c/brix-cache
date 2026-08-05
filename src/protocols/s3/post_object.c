@@ -182,6 +182,12 @@ s3_post_write_object(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
             sb.st_size  = vst.size;
             s3_etag(&sb, etag, etag_sz);
             (void) s3_set_header(r, "ETag", etag);
+
+            /* phase-97 §5: report the published object, reusing the ETag probe.
+             * Only inside the probe-succeeded branch — the manager must never
+             * be handed a size nobody observed. */
+            brix_cns_emit_at(vctx.root_canon, BRIX_CNS_ADD, fs_path,
+                             (uint64_t) vst.size, (uint64_t) vst.mtime);
         } else {
             etag[0] = '\0';
         }

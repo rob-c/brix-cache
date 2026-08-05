@@ -11,7 +11,10 @@ was silently rejected (false-deny of an entire class of legitimate tokens).
 
 These tests exercise the audience check end-to-end over a self-contained
 token-auth WebDAV server (no fleet dependency): a valid token authenticates a
-GET (200); an invalid/mismatched audience is rejected (403).
+GET (200); an invalid/mismatched audience is rejected with 401 +
+`WWW-Authenticate: Bearer ... error="invalid_token"` — RFC 6750 §3 reserves 403
+for a *valid* token that is merely out of scope, so an audience the server does
+not accept is an invalid credential, not an authorization failure.
 """
 
 import os
@@ -102,8 +105,8 @@ def test_scalar_aud_match_accepted(aud_server):
 
 
 def test_scalar_aud_mismatch_rejected(aud_server):
-    assert _get(_sign(aud_server, "some-other-service")) == 403, \
-        "scalar aud != expected must be rejected"
+    assert _get(_sign(aud_server, "some-other-service")) == 401, \
+        "scalar aud != expected must be rejected as an invalid token"
 
 
 # --- the gap: aud as an ARRAY (RFC 7519 / WLCG / OIDC) ----------------------
@@ -124,10 +127,10 @@ def test_array_aud_expected_not_first_accepted(aud_server):
 
 def test_array_aud_without_expected_rejected(aud_server):
     tok = _sign(aud_server, ["https://other.example/aud", "https://nope"])
-    assert _get(tok) == 403, \
+    assert _get(tok) == 401, \
         "array aud NOT containing the expected audience must be rejected"
 
 
 def test_empty_array_aud_rejected(aud_server):
-    assert _get(_sign(aud_server, [])) == 403, \
+    assert _get(_sign(aud_server, [])) == 401, \
         "empty aud array must be rejected"

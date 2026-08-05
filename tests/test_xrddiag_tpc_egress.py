@@ -54,7 +54,7 @@ for _k in ("X509_USER_PROXY", "X509_CERT_DIR", "BEARER_TOKEN", "BEARER_TOKEN_FIL
 def _closed_loopback_port():
     """A loopback port with nothing listening: bind, read the number, close."""
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    s.bind(("127.0.0.1", 0))
+    s.bind((HOST, 0))
     port = s.getsockname()[1]
     s.close()
     return port
@@ -113,7 +113,7 @@ def _run(*args, timeout=60):
 
 def test_egress_refused_by_policy(gw_default):
     port = gw_default
-    target = f"127.0.0.1:{_closed_loopback_port()}"
+    target = f"{HOST}:{_closed_loopback_port()}"
     p = _run(f"root://{HOST}:{port}//probe.tmp", "--tpc-target", target,
              "--probe-timeout", "3000")
     assert p.returncode == 0, f"expected exit 0 (refused):\n{p.stdout}\n{p.stderr}"
@@ -123,7 +123,7 @@ def test_egress_refused_by_policy(gw_default):
 
 def test_egress_refused_json(gw_default):
     port = gw_default
-    target = f"127.0.0.1:{_closed_loopback_port()}"
+    target = f"{HOST}:{_closed_loopback_port()}"
     p = _run(f"root://{HOST}:{port}//probe.tmp", "--tpc-target", target,
              "--json", "--probe-timeout", "3000")
     assert p.returncode == 0, f"{p.stdout}\n{p.stderr}"
@@ -141,7 +141,7 @@ def test_egress_refused_json(gw_default):
 
 def test_egress_permitted_conn_refused(gw_allow_local):
     port = gw_allow_local
-    target = f"127.0.0.1:{_closed_loopback_port()}"
+    target = f"{HOST}:{_closed_loopback_port()}"
     p = _run(f"root://{HOST}:{port}//probe.tmp", "--tpc-target", target,
              "--probe-timeout", "4000")
     assert p.returncode == 3, f"expected exit 3 (permitted):\n{p.stdout}\n{p.stderr}"
@@ -154,7 +154,7 @@ def test_egress_permitted_conn_refused(gw_allow_local):
 
 def test_egress_permitted_json_shape(gw_allow_local):
     port = gw_allow_local
-    target = f"127.0.0.1:{_closed_loopback_port()}"
+    target = f"{HOST}:{_closed_loopback_port()}"
     p = _run(f"root://{HOST}:{port}//probe.tmp", "--tpc-target", target,
              "--json", "--probe-timeout", "4000")
     assert p.returncode == 3, f"{p.stdout}\n{p.stderr}"
@@ -178,7 +178,7 @@ def test_report_pii_free(gw_allow_local):
     """The report must carry no path body, token, or secret — only the verdict,
     the operator-named target, kXR codes and milliseconds."""
     port = gw_allow_local
-    target = f"127.0.0.1:{_closed_loopback_port()}"
+    target = f"{HOST}:{_closed_loopback_port()}"
     p = _run(f"root://{HOST}:{port}//probe.tmp", "--tpc-target", target,
              "--json", "--probe-timeout", "4000")
     blob = p.stdout

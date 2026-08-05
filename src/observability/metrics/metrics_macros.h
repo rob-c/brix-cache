@@ -139,6 +139,16 @@ brix_metrics_shared(void)
         }                                                                    \
     } while (0)
 
+/* Companion DEC for the one resilience field that is a GAUGE
+ * (cms_registered_links).  Counters must never use this. */
+#define BRIX_RESIL_METRIC_DEC(field)                                        \
+    do {                                                                     \
+        ngx_brix_metrics_t *_brix_metrics = brix_metrics_shared();     \
+        if (_brix_metrics != NULL) {                                       \
+            BRIX_ATOMIC_DEC(&_brix_metrics->field);                      \
+        }                                                                    \
+    } while (0)
+
 /* FRM tape-stage counters (phase-35) — global, low-cardinality.  Safe from the
  * stage scheduler/agent-reply path and the open/prepare/Tape-REST call sites;
  * no-op until the metrics SHM is mapped.  INC/DEC drive the in_flight gauge. */

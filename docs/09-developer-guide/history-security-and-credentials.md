@@ -722,6 +722,180 @@ incident + live table: `docs/refactor/phase-93-remote-config-performance-advisor
 
 ---
 
+## Phase 58 §5.8 — the outbound-GSI epic, and where an expiry gate has to live
+
+The "outbound GSI epic" (consuming a delegated proxy on the outbound leg of a
+native TPC pull) was gated for a long time behind ADR-3, on the belief that the
+native-TPC-over-GSI path was a protocol dead end. It was not: the blocker turned
+out to be a `tpc.org` host-string mismatch, fixed in `f36eb208`, after which the
+handshake and consume paths were already live-verified. The lesson is the
+familiar one about long-lived blockers — **re-test the premise before planning
+around it**; the epic's genuinely remaining work was two small sub-tasks, not the
+subsystem the gate implied.
+
+The durable design point is *where* the expiry check runs.
+`brix_tpc_proxy_pem_expired()` (`src/tpc/common/credential.c`) is called from
+`tpc_pull_attach_creds()` (`src/tpc/engine/launch.c`) **on the event loop, before
+the worker is posted**, so an expired captured proxy fails the pull with
+`kXR_NotAuthorized` instead of silently downgrading to the gateway's own
+identity — which would be an authorization downgrade, not an error. It has to be
+there because **the certreq worker path skips this validation entirely**; a gate
+on the worker side would simply not run for that case.
+
+Two details that look like bugs and are not: a *parse failure* returns -1 and
+deliberately does **not** refuse — only an affirmative `1` does, and the
+downstream handshake still validates the chain, so a malformed PEM is not turned
+into a novel denial. And the unit's fixtures (`tests/c/tpc_proxy_expiry_test.c`)
+forge certificates at a **fixed 2026-01-01 epoch** via `x509forge.py` rather than
+relative to now, which is what makes them robust against this box's
+clock-stepping (see the WSL2 clock issue).
+
+Outcome is observable rather than inferred:
+`brix_tpc_gsi_delegated_total{result="ok|expired|absent"}` is a closed
+low-cardinality enum (invariant #8) emitted unconditionally, so all three series
+appear at zero from the first scrape rather than springing into existence on
+first use. Full wiring and the metric table are in
+`docs/refactor/phase-58-xrootd-parity-batch.md` §5.8 and the observability
+reference.
+
+---
+
+## Phase 70 §5.5/§5.7 — closing the S3-STS and krb5 origin legs (2026-07-31 → 08-01)
+
+Part 4's feature table long carried these two backend-delegation legs as
+"container-blocked". They are not blocked any more, and closing them turned up
+four product fixes and a client wire bug that no local test could have caught.
+The per-increment detail lives in `docs/refactor/phase-70-*.md` §5.5.1/§5.5.2 and
+§5.7.1 and in the phase-88 audit §4; what follows is the part worth keeping once
+those phase docs go cold.
+
+### S3-STS: a bearer is an identity, not a forwardable secret
+
+The end-to-end leg (front-door bearer capture → VFS delegation gate → `sd_remote`
+S3 origin open) failed on a credential-precedence bug. `sd_remote.cred_accept`
+lists **both** `BEARER` and `S3`, so a captured WLCG bearer shadowed the STS
+branch in `brix_vfs_deleg_live_cred` and was forwarded verbatim; an S3 origin
+cannot consume a JWT, the driver fell back to the static key, and the origin
+answered 403. The fix moves the STS branch ahead of the bearer branch, narrowed
+to armed-STS only (`live->sts == NULL` still forwards a genuine bearer to
+xroot/https unchanged).
+
+The principle is worth stating on its own, because it generalises to every future
+origin driver: **on an S3 leg the caller's bearer supplies *identity* — it becomes
+the `RoleSessionName` — and is never itself a credential the origin can verify.**
+STS exists precisely as the "no forwardable S3 secret" leg.
+
+A second fix in the same area: the staging pre-flight probe
+(`open_resolved_file_staging.c`, `brix_open_probe`) initialised its VFS context
+with a NULL identity, so its STS exchange scoped to `anonymous` while the real
+open scoped to the caller. A policy-scoped `AssumeRole` can answer those two
+differently, which surfaces as a spurious `kXR_NotFound` — exactly the failure the
+probe's delegation exists to prevent. It now threads `ctx->identity`.
+
+Architectural consequence, non-obvious and easy to re-derive wrongly:
+`brix_root_vfs_bind_deleg` (`op_path.c`) early-returns unless a bearer or proxy is
+present, so **over `root://`, STS is armed only alongside a bearer** — which makes
+`brix_auth token` (ztn capture into `ctx->bearer_token`) the correct front door,
+and makes the precedence fix above load-bearing rather than cosmetic.
+
+Test technique worth reusing: `tests/test_sts_runtime_e2e.py` configures the
+static `brix_storage_credential` with a **deliberately wrong secret**, so a
+byte-exact read is itself the proof that the STS-minted temporary credential
+authenticated the origin — no log scraping, no mocking. When nginx is not built
+`--with-debug` there is no wire trace to fall back on; `docker run --network host
+minio/mc:latest ... mc admin trace --all --verbose` shows MinIO receiving the
+`AssumeRole` POST and the object GET signed with a temporary access key.
+
+### krb5: the async-lifetime problem, and why the answer is a file path
+
+A live `gss_cred_id_t` is request-scoped and cannot be embedded in the async
+`brix_cache_fill_t`, which runs on a worker thread and outlives the request. The
+solution mirrors how the GSI leg carries an X.509 proxy: **serialise the delegated
+TGT to a 0600 FILE ccache and carry the *path*, never the live handle**
+(`src/auth/krb5/carry.c`). Re-import happens on a fresh handle at the far end,
+with the `{krb5_context, krb5_ccache}` pair held alive for the credential's
+lifetime because the import retains the ccache handle.
+
+Two traps in that file, both of which cost a debug cycle:
+
+- Export must use RFC 5588 `gss_store_cred_into` with an explicit
+  `{"ccache", "FILE:<path>"}` store element, not the deprecated
+  `gss_krb5_copy_ccache`. The deprecated call does **not initialise** the target
+  ccache, so against a harness's `mkstemp`'d empty file it fails with
+  `KRB5_CC_FORMAT` "Bad format in credentials cache". Needs
+  `<gssapi/gssapi_ext.h>`.
+- `brix_krb5_file_ccname` renders `FILE:<path>` with plain `ngx_memcpy` rather
+  than `ngx_snprintf` so that `carry.o` links into the ngx-core-free
+  `krb5_forward_live` harness. **Any `ngx_snprintf` in a TU destined for that
+  harness is an undefined reference, and the suite then SKIPs rather than
+  failing** — a silent loss of coverage.
+
+The delegated TGT is a real forwardable *user* credential, so its branch in
+`brix_vfs_deleg_live_cred` sits immediately after the x509-proxy branch and
+*before* STS, which outranks bearer/SSS in turn. New accept-kind
+`BRIX_SD_CRED_GSS_KRB5`; the gate is fail-closed with `EACCES` before any origin
+contact when the leaf lacks it.
+
+### The client was speaking a dialect no reference implementation accepts
+
+Standing up a real stock `xrootd` + `libXrdSeckrb5` origin locally
+(`tests/test_krb5_xrootd_interop.py`, self-contained: its own xrootd and session
+MIT KDC) and tapping the stock `xrdfs` client produced the single most valuable
+finding of the arc, and one that **no test against our own server could ever have
+produced**:
+
+Our native client emitted a bare 4-byte `"krb5"` payload prefix. Our own acceptor
+tolerates it — `auth.c` auto-skips the optional NUL — but no reference XrdSec
+acceptor does: `XrdSecInterface.hh` requires the payload to *begin with the
+protocol name as a string*. The real wire is `"krb5\0"` (5 bytes, NUL-terminated)
+followed by the raw AP-REQ (ASN.1 `[APPLICATION 14]`, tag `0x6e`). This is the
+same shape of lesson as the GSI `kXRS_issuer_hash` bug above: **our server's
+leniency hides our client's non-conformance, so client wire correctness can only
+be established against a stock peer.**
+
+The same capture reclassified the outbound leg. Stock XRootD `&P=krb5` is a raw
+`krb5_rd_req` exchange, but `brix_krb5_deleg_negotiate` emitted a GSSAPI
+`gss_init_sec_context` token (tag `0x60`, mech-OID wrapper). That is not "no peer
+available to test against" — it is a **dialect gap**: the GSS outbound leg cannot
+authenticate to any stock krb5 origin, ever. The closure is
+`src/auth/krb5/apreq.c`, which builds `"krb5\0"` + raw AP-REQ from the carried
+TGT ccache and is byte-identical to the now-reference-verified client; production
+dispatch was switched to it, and the KDC-verified GSS engine is retained but
+unused.
+
+The multi-leg negotiation engine that preceded it is still the model for any
+future SASL-shaped origin leg: it requires `GSS_C_MUTUAL_FLAG` and fails closed if
+the origin completes without it, fails closed on an empty or premature reply or on
+a token still owed after `kXR_ok`, and carries an 8-leg runaway guard. Its wire
+codec (`kxr_wire.c`) is factored over `send`/`recv` function-pointer seams for a
+specific reason: the standalone C harness links nginx stubs, not the cache module,
+so **the same production frame bytes are driven by the test** — the tested path is
+the production path rather than an analogue of it.
+
+### krb5 test-harness traps
+
+- `gss_wrap` + `gss_unwrap` on the *same* acceptor context desynchronises: krb5
+  GSSAPI tracks sequence numbers per direction. A proof built that way is
+  measuring its own bug. Prove completion instead (acceptor reached
+  `GSS_S_COMPLETE`, observed principal, engine returned OK).
+- xrootd's `all.adminpath` becomes a unix socket, so it inherits `sun_path`'s
+  ~108-byte cap; a deep pytest `tmp_path` overflows it with "admin path too long".
+  Anchor admin and pid paths under a short `mkdtemp`.
+- krb5 authentication-failure stderr carries **non-UTF8 protocol-name bytes**, so
+  `subprocess(..., text=True)` raises `UnicodeDecodeError` *inside the harness*,
+  disguising a clean negative result as a harness crash. Capture bytes and decode
+  with `errors="replace"`.
+- The reference client selects the mechanism via the `XrdSecPROTOCOL=krb5`
+  environment variable.
+- `kinit -k -t` (no `-f`) yields a **non-forwardable** TGT. That is useful — it is
+  the security-negative — but the positive delegation test must `kinit -f` into a
+  dedicated `<KRB5_CCACHE>.fwd`.
+- `deleg_gate_test.c` deny cases need `ctx.storage_cred_deny = 1`; without it a
+  denial falls back to `NGX_OK` with `use_cred = 0` and the assertion silently
+  measures nothing.
+
+---
+
 ## Part 2 — Design-decision inventory
 
 A quick-reference table of the explicit, deliberate design choices behind
@@ -1320,7 +1494,7 @@ config — that is a deliberate opt-in feature decision (a
 | Per-user backend credentials (Ph 1–3) | Implemented, tested, reviewed ready-to-merge — check current git log for merge status | `src/fs/backend/ucred.c`, `src/fs/vfs/vfs_cred.c`, `brix_sd_cred_t` (`sd.h`) | See dedicated section below. |
 | Credential-forwarding matrix (normal access) | Done — 16 PASS/4 GAP/4 SKIP, gaps are upstream stock limitations | `tests/lib/fwd_matrix.sh`, ports 21960-21999 | See narrative above. |
 | TPC credential forwarding | Done, default-on | `brix_tpc_outbound_passthrough`, `brix_webdav_tpc_credential_forward` | Opportunistic-by-default per Rob's decision. |
-| Full backend delegation (phase-70/90) | Done for all local legs 2026-07-27 — PASSTHROUGH (bearer + full proxy incl. opt-in client sender), EXCHANGE (RFC 8693, load-validated endpoint, aud gate + mint cache), SSS injection; S3-STS/krb5 origin legs container-blocked (P90-70.1/.2) | `src/fs/vfs/vfs_deleg*.c`, `src/auth/token/{exchange,aud_match,exchange_cache}.c`, `gsi_add_fullproxy_bucket`, `brix_backend_sss_keytab` | Reference: `docs/10-reference/backend-delegation.md`; record: phase-90 register §2 + Phase 90 narrative above. |
+| Full backend delegation (phase-70/90) | Done for all local legs 2026-07-27 — PASSTHROUGH (bearer + full proxy incl. opt-in client sender), EXCHANGE (RFC 8693, load-validated endpoint, aud gate + mint cache), SSS injection. **S3-STS and krb5 origin legs closed 2026-07-31/08-01** (was container-blocked P90-70.1/.2) — see the Phase 70 §5.5/§5.7 section above; only an end-to-end handshake against a live third-party `&P=krb5` xrootd origin is still infra-blocked, with both the build and validate sides reference-proven. | `src/fs/vfs/vfs_deleg*.c`, `src/auth/token/{exchange,aud_match,exchange_cache}.c`, `src/auth/krb5/{carry,apreq,deleg_capture,kxr_wire}.c`, `gsi_add_fullproxy_bucket`, `brix_backend_sss_keytab` | Reference: `docs/10-reference/backend-delegation.md`; record: phase-90 register §2 + Phase 90 narrative above. |
 | Native TPC over GSI | RESOLVED 2026-07-19 (incl. stock `ofs.tpc` sources) | `src/tpc/`, `src/gsi/gsi_core.c` | **See RESOLVED item at top of this doc.** |
 | X.509 proxy delegation (F6) | Code-complete, e2e unverified | `xrootd_tpc_delegate` directive | Needs a real grid host to fully verify; WSL2 rig can't complete the `usedDNS` check. |
 | GSI signed-DH (server) | Done, stock-verified both directions | `xrootd_gsi_signed_dh off\|auto\|require` | 220 tests, 0 skips. |

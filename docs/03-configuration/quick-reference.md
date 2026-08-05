@@ -61,7 +61,7 @@ The most-used directives on one page. Start here when you know what you want to 
 | `brix_cache_origin_tls on\|off` | `server` | `off` | No |
 | `brix_cache_lock_timeout <time>` | `server` | `300s` | No |
 | `brix_cache_eviction_threshold <ratio\|percent>` | `server` | `0.9` | No |
-| `brix_cms_manager host:port` | `server` | — | No |
+| `brix_cms_manager host:port [...]` | `server` | — | Up to 15 endpoints (multi-arg/repeatable); node logs into all, locates rotate + fail over |
 | `brix_cms_paths <string>` | `server` | `brix_export` | No |
 | `brix_cms_interval <time>` | `server` | `30s` | No |
 | `brix_cms_vnid <string>` | `server` | — | Virtual network id carried in the CMS login envCGI (phase-89) |

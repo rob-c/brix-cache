@@ -273,6 +273,21 @@ privilege check (no accumulation, no compound identities, no templates):
 Privilege chars (native): `r` read (**implies** `l`), `l` lookup, `w`/`a`
 write/append, `d` delete, `m` mkdir, `k` admin.
 
+**Which `brix_auth` schemes may carry a native authdb.** Any scheme that
+establishes an identity: `gsi`, `token`, `both`, `sss`, `krb5`, `pwd`, `host`
+and `unix`. The `dn` a `u` rule matches is whatever that scheme stamps —
+the certificate DN (gsi), the token subject (token), the keytab entry's user
+(sss), the `auth_to_local`-mapped principal (krb5), the pwd-file user name
+(pwd), or the peer's reverse-DNS name (host). A `g` rule needs a scheme that
+fills the VO list: gsi/token (VOMS AC or token groups), `sss` (the keytab
+entry's group) or `pwd` (the optional 4th field of the pwd-file line); `krb5`
+and `host` carry no VO, so only `u`/`p`/`a` rules bind behind them. Only an
+**anonymous** server (`brix_auth none`, the default) is refused at
+`nginx -t` — there is no identity for the rules to match. Use
+`brix_authdb_format xrdacc` if you need anonymous `u *` rules.
+*(Before 2026-08-04 the gate whitelisted only `gsi`/`token`/`both`, which
+locked the other four mechanisms out of authorization entirely.)*
+
 > **Critical native-vs-xrdacc difference:** native `g` matches only the
 > **VO/credential group list**. It has **no** `/etc/group` or NIS resolution. If
 > you need to authorize on local UNIX groups, use `brix_authdb_format xrdacc`.

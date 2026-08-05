@@ -179,8 +179,6 @@ def _case_flip(which: str, region: str, frac_or_key):
             off = _hashline_off(blob, frac_or_key)
         elif region == "field":
             off = _field_off(blob, frac_or_key)
-        elif region == "expiry":
-            off = 2
         elif region == "wl_nline":
             off = blob.index(b"\nN") + 2
         elif region == "wl_fp":
@@ -188,6 +186,17 @@ def _case_flip(which: str, region: str, frac_or_key):
         else:
             raise AssertionError(region)
         forge.flip_byte(which, off)
+        return _check(pub, _serve(web))
+    return run
+
+
+def _case_wl_badstamps():
+    """No parsable timestamp anywhere: official E line AND the line-0 creation
+    stamp both malformed (honestly signed, so parsing — not body-binding — is
+    what must refuse)."""
+    def run() -> tuple[int, str, str]:
+        forge, web, pub = _forge()
+        forge.rewrite_whitelist(expiry="XXXXXXXXXXXXXX", created="YYYYYYYYYYYYYY")
         return _check(pub, _serve(web))
     return run
 
@@ -344,7 +353,7 @@ _CASES: list[tuple[str, str, object]] = [
     ("wl_hashline_mid", REFUSED, _case_flip("whitelist", "hashline", "mid")),
     ("wl_hashline_end", REFUSED, _case_flip("whitelist", "hashline", "end")),
     # whitelist body regions (pre-'--', NOT signature-covered).
-    ("wl_expiry", REFUSED, _case_flip("whitelist", "expiry", None)),   # → parse fail
+    ("wl_expiry", REFUSED, _case_wl_badstamps()),                      # → parse fail
     ("wl_fp", REFUSED, _case_flip("whitelist", "wl_fp", None)),        # legit fp no longer matches
     ("wl_nline", REFUSED, _case_flip("whitelist", "wl_nline", None)),  # repo name in wl
     # CAS objects — identity is SHA1 of stored bytes.

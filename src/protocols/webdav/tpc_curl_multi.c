@@ -327,6 +327,14 @@ webdav_tpc_run_curl_pull_multi(ngx_log_t *log,
 
     rc = tpc_ms_harvest(log, cm);
 
-    return webdav_tpc_run_curl_multi_finish(rc, cm, easy, hdrs, resolve,
-                                            n_streams, fd);
+    rc = webdav_tpc_run_curl_multi_finish(rc, cm, easy, hdrs, resolve,
+                                          n_streams, fd);
+    if (rc != NGX_OK) {
+        return rc;
+    }
+    /* Same completion gate the single-stream driver applies — a range stream
+     * that stopped short leaves a hole the pwrite assembly cannot see.  Runs
+     * after finish() so the streams' fd is closed and flushed first. */
+    return webdav_tpc_verify_pulled(log, conf, source_url, tmp_path,
+                                    transfer_headers, user_cert, user_key);
 }

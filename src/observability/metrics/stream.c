@@ -301,6 +301,20 @@ brix_export_resilience_metrics(metrics_writer_t *mw, ngx_brix_metrics_t *shm)
     mw_emit_scalar(mw, "brix_cms_frame_yields_total",
         "CMS read loops that yielded the worker after the per-wakeup frame cap.",
         &shm->cms_frame_yields_total);
+    mw_emit_scalar(mw, "brix_cms_logins_total",
+        "CMS LOGIN frames this node sent to its upstream manager (federation joins).",
+        &shm->cms_logins_total);
+    mw_emit_scalar(mw, "brix_cms_connect_failures_total",
+        "Upward CMS dials that never became a logged-in link (refused/unreachable/deadline).",
+        &shm->cms_connect_failures_total);
+    /* registered_links is a GAUGE — mw_emit_scalar declares TYPE counter, so
+     * emit the gauge banner + value by hand (the frm_metrics.c pattern). */
+    mw_printf(mw,
+        "# HELP brix_cms_registered_links Upward CMS links currently logged in "
+        "(0 = this node is OUT of the cluster).\n"
+        "# TYPE brix_cms_registered_links gauge\n"
+        "brix_cms_registered_links %lu\n",
+        (unsigned long) ngx_atomic_fetch_add(&shm->cms_registered_links, 0));
     mw_emit_scalar(mw, "brix_ocsp_timeouts_total",
         "OCSP fetches that hit the socket deadline (connect/handshake/read).",
         &shm->ocsp_timeouts_total);

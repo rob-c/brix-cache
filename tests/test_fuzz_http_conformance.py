@@ -87,7 +87,7 @@ def _exchange(port: int, tls: bool, raw: bytes) -> bytes | None:
     liveness probe, so a refusal now means the server died on a prior case."""
     sock = socket.create_connection((SERVER_HOST, port), timeout=_CONNECT_TIMEOUT)
     sock.settimeout(_READ_TIMEOUT)
-    conn = _TLS_CTX.wrap_socket(sock, server_hostname="localhost") if tls else sock
+    conn = _TLS_CTX.wrap_socket(sock, server_hostname="localhost") if tls else sock  # net-literal-allow: SNI must match the fixture cert subject
     try:
         try:
             conn.sendall(raw)
@@ -162,7 +162,7 @@ def _require_and_verify():
     for name, port, tls in HTTP_ENDPOINTS:
         if not _endpoint_up(port):
             continue
-        data = _exchange(port, tls, b"GET / HTTP/1.0\r\nHost: localhost\r\n\r\n")
+        data = _exchange(port, tls, b"GET / HTTP/1.0\r\nHost: localhost\r\n\r\n")  # net-literal-allow: probe payload Host header
         assert data and data[:5] == b"HTTP/", (
             f"{name}:{port} did not survive the fuzz corpus (teardown probe)"
         )

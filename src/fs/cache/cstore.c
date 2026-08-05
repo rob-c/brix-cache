@@ -307,6 +307,41 @@ brix_cstore_evict(brix_cstore_t *cs, const char *key)
     return NGX_OK;
 }
 
+/* As brix_cstore_evict, but returns the logical size (origin st_size, the same
+ * convention the watermark reaper uses) of the cached object that was dropped —
+ * 0 when nothing was cached under key. Measure-before-evict: a second evict of
+ * the same key reports 0, so callers can never double-count evicted bytes. */
+uint64_t
+brix_cstore_evict_sized(brix_cstore_t *cs, const char *key)
+{
+    uint64_t bytes = 0;
+
+    if (cs == NULL || cs->store == NULL || key == NULL) {
+        return 0;
+    }
+
+    if (cs->meta_mode == BRIX_CMETA_LOCAL) {
+        char        path[PATH_MAX];
+        struct stat sb;
+
+        if (cstore_local_path(cs, key, path, sizeof(path)) == 0
+            && stat(path, &sb) == 0     /* vfs-seam-allow: svc-owned cache tree */
+            && S_ISREG(sb.st_mode))
+        {
+            bytes = (uint64_t) sb.st_size;
+        }
+    } else {
+        brix_cache_cinfo_t ci;
+
+        if (brix_cstore_cinfo_load(cs, key, &ci) == NGX_OK) {
+            bytes = ci.size;
+        }
+    }
+
+    (void) brix_cstore_evict(cs, key);
+    return bytes;
+}
+
 /* ---- cinfo ---------------------------------------------------------------- */
 
 ngx_int_t
@@ -399,7 +434,12 @@ brix_cstore_cinfo_store(brix_cstore_t *cs, const char *key,
     if (brix_cache_cinfo_to_xmeta(ci, NULL, 0, &xm) != NGX_OK) {
         return NGX_ERROR;
     }
-    rc = brix_xmeta_save(cs->store, key, &xm);
+    /* SIDECAR is a request, not a hint: brix_xmeta_save() prefers the xattr
+     * whenever the store has one, so an explicitly configured sidecar mode has
+     * to bypass that or the directive does nothing on an xattr-capable store. */
+    rc = (cs->meta_mode == BRIX_CMETA_SIDECAR)
+         ? brix_xmeta_save_sidecar(cs->store, key, &xm)
+         : brix_xmeta_save(cs->store, key, &xm);
     brix_xmeta_free(&xm);
     if (rc == NGX_OK) {
         brix_cinfo_l1_put(cs->l1, key, ci);        /* write-through (§6.4) */

@@ -28,6 +28,8 @@ static void parse_kv_line(char key, const char *v, size_t vlen, cvmfs_manifest_t
     case 'D': o->ttl          = atol(tmp); break;
     case 'T': o->timestamp    = atol(tmp); break;
     case 'N': memcpy(o->repo_name, tmp, n); o->repo_name[n] = '\0'; break;
+    case 'H': cvmfs_hash_parse(v, vlen, &o->history);         break;
+    case 'Y': cvmfs_hash_parse(v, vlen, &o->reflog_checksum); break;
     default:  break;
     }
 }

@@ -117,6 +117,20 @@ int brix_is_block_url(const char *s);
 /* Parse a web URL into *out. 0 on success, -1 if not a recognized web URL. */
 int brix_weburl_parse(const char *s, brix_weburl *out);
 
+/* GridFTP endpoints: gsiftp:// (GSI-authenticated, default port 2811) and plain
+ * ftp:// (anonymous, default port 21). One struct covers both — `gsi` selects the
+ * login the session must perform, and a gsiftp:// endpoint never downgrades. */
+typedef struct {
+    int  gsi;                       /* 1 for gsiftp://, 0 for ftp://           */
+    char host[256];
+    int  port;
+    char path[XRDC_PATH_MAX];       /* absolute server path                    */
+} brix_ftpurl;
+/* Return 1 if `s` begins with the gsiftp:// or ftp:// scheme. */
+int brix_is_ftp_url(const char *s);
+/* Parse a GridFTP URL into *out. 0 on success, -1 if not one / malformed. */
+int brix_ftpurl_parse(const char *s, brix_ftpurl *out);
+
 
 /* Phase-38: decl groups live in concern sub-headers, included here so every
  * `#include "brix.h"` still sees the whole API (umbrella). */

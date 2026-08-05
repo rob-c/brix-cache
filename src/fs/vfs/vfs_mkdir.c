@@ -43,6 +43,7 @@ vfs_backend_mkpath_leaf(brix_sd_instance_t *leaf, const char *logical,
 {
     char   acc[PATH_MAX];
     size_t i = 0, j = 0;
+    int    leaf_existed = 0;
 
     if (leaf == NULL || leaf->driver->mkdir == NULL) {
         /* Not a real failure — the caller falls back to
@@ -71,11 +72,22 @@ vfs_backend_mkpath_leaf(brix_sd_instance_t *leaf, const char *logical,
             acc[j++] = logical[i++];
         }
         acc[j] = '\0';
-        if (j > 1
-            && brix_sd_mkdir_maybe_cred(leaf, acc, mode, cred) != NGX_OK
-            && errno != EEXIST) {
-            return -1;
+        if (j > 1) {
+            leaf_existed = 0;
+            if (brix_sd_mkdir_maybe_cred(leaf, acc, mode, cred) != NGX_OK) {
+                if (errno != EEXIST) {
+                    return -1;
+                }
+                leaf_existed = 1;
+            }
         }
+    }
+
+    /* EEXIST at the final component is benign only over a directory — same rule
+     * (and same probe) as the credential-less walk. */
+    if (leaf_existed && !brix_vfs_backend_leaf_isdir(leaf, acc, cred)) {
+        errno = EEXIST;
+        return -1;
     }
     return 0;
 }

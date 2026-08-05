@@ -119,7 +119,7 @@ stock clients — are made byte-identical to stock:
   sets `kXR_secreqs`, the `SecurityInfo` array lists the enabled protocols
   (`gsi`/`ztn`/`sss`/`unix`/`krb5`/`host`/`pwd`).
 - **Login:** the `&P=…` parameter block matches XRootD client expectations
-  (`&P=gsi,v:…`, `&P=ztn,v:10000`, `&P=sss,…`, etc.); a 16-byte session id is
+  (`&P=gsi,v:…`, `&P=ztn,0:4096:`, `&P=sss,…`, etc.); a 16-byte session id is
   returned; client-chosen 2-byte stream ids are echoed on every response.
 - **Errors:** the `kXR_error` (4003) reply carries a 4-byte big-endian code + text
   matching `XrdXrootdProtocol::Reply_Error`, fed by a consistent errno→kXR map

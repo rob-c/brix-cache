@@ -83,6 +83,65 @@ brix_cns_event_decode(const uint8_t *buf, size_t len, uint8_t *op,
     return NGX_OK;
 }
 
+size_t
+brix_cns_event_encode_mv(const char *oldpath, const char *newpath,
+                           uint64_t size, uint64_t mtime, int is_dir,
+                           uint8_t *buf, size_t bufsz)
+{
+    size_t olen = oldpath ? strlen(oldpath) : 0;
+    size_t nlen = newpath ? strlen(newpath) : 0;
+    size_t need;
+
+    if (olen == 0 || olen > BRIX_CNS_PATH_MAX
+        || nlen == 0 || nlen > BRIX_CNS_PATH_MAX)
+    {
+        return 0;
+    }
+    need = BRIX_CNS_HDR_LEN + olen + 2 + nlen;
+    if (bufsz < need) {
+        return 0;
+    }
+
+    if (brix_cns_event_encode(BRIX_CNS_MV, oldpath, size, mtime, buf,
+                                bufsz) == 0)
+    {
+        return 0;
+    }
+    buf[1] = is_dir ? 1 : 0;               /* rsvd[0] carries the dest's dir-ness */
+    buf[BRIX_CNS_HDR_LEN + olen]     = (uint8_t) (nlen >> 8);
+    buf[BRIX_CNS_HDR_LEN + olen + 1] = (uint8_t) nlen;
+    memcpy(buf + BRIX_CNS_HDR_LEN + olen + 2, newpath, nlen);
+    return need;
+}
+
+ngx_int_t
+brix_cns_event_decode_mv(const uint8_t *buf, size_t len, int *is_dir,
+                           char *newpath, size_t newsz)
+{
+    size_t olen, nlen, off;
+
+    if (buf == NULL || newpath == NULL || len < BRIX_CNS_HDR_LEN) {
+        return NGX_ERROR;
+    }
+    olen = ((size_t) buf[20] << 8) | buf[21];
+    off  = BRIX_CNS_HDR_LEN + olen;
+    if (olen == 0 || olen > BRIX_CNS_PATH_MAX || len < off + 2) {
+        return NGX_ERROR;
+    }
+    nlen = ((size_t) buf[off] << 8) | buf[off + 1];
+    if (nlen == 0 || nlen > BRIX_CNS_PATH_MAX || len < off + 2 + nlen
+        || nlen >= newsz)
+    {
+        return NGX_ERROR;
+    }
+    memcpy(newpath, buf + off + 2, nlen);
+    newpath[nlen] = '\0';
+    if (is_dir != NULL) {
+        *is_dir = (buf[1] != 0);
+    }
+    return NGX_OK;
+}
+
 /* ===================== inventory backing store ===================== */
 
 /* Cross-worker SHM zone (registered by brix_cns_configure). When present, the
@@ -168,6 +227,24 @@ brix_cns_apply(uint8_t op, const char *path, uint64_t size, uint64_t mtime,
     }
     if (shared) { ngx_shmtx_lock(&cns_mtx); }
     rc = brix_cns_inv_apply(inv, op, path, size, mtime, server_id);
+    if (shared) { ngx_shmtx_unlock(&cns_mtx); }
+    return (rc == 0) ? NGX_OK : NGX_ERROR;
+}
+
+ngx_int_t
+brix_cns_rename(const char *oldpath, const char *newpath, uint64_t size,
+                  uint64_t mtime, int is_dir, uint32_t server_id)
+{
+    ngx_flag_t       shared;
+    brix_cns_inv_t  *inv = cns_active_table(&shared);
+    int              rc;
+
+    if (inv == NULL) {
+        return NGX_ERROR;
+    }
+    if (shared) { ngx_shmtx_lock(&cns_mtx); }
+    rc = brix_cns_inv_rename(inv, oldpath, newpath, size, mtime, is_dir,
+                               server_id);
     if (shared) { ngx_shmtx_unlock(&cns_mtx); }
     return (rc == 0) ? NGX_OK : NGX_ERROR;
 }

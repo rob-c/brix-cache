@@ -139,7 +139,8 @@ def voms(tmp_path_factory):
     d = tmp_path_factory.mktemp("scvmfs_voms")
     # throwaway server TLS cert; the client trusts nothing (unverified ctx).
     _run("openssl", "req", "-x509", "-newkey", "rsa:2048", "-nodes", "-days", "1",
-         "-subj", "/CN=localhost", "-keyout", str(d / "server.key"),
+         "-subj", "/CN=localhost",  # net-literal-allow: throwaway TLS cert subject
+         "-keyout", str(d / "server.key"),
          "-out", str(d / "server.crt"))
     voms_crt, voms_key = _voms_signing_cert(d)
     vd = _vomsdir(d, voms_crt)

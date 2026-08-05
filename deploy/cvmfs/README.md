@@ -328,5 +328,66 @@ refused, and `brix_scvmfs_authz bearer` +
 WLCG/SciTokens read scope before the unchanged cvmfs core serves them.
 Client side needs `CVMFS_SERVER_URL=https://…` and an authz helper
 (`CVMFS_AUTHZ_HELPER`); WLCG proxy-mode traffic stays cleartext cvmfs://
-for now. **EXPERIMENTAL** — not part of the pilot; VOMS client-cert mode
-is not implemented yet.
+for now. **EXPERIMENTAL** — not part of the pilot. x509 EEC-DN
+(`brix_scvmfs_authz x509` + `brix_scvmfs_x509_dn`) and VOMS-VO
+(`brix_scvmfs_authz voms` + `brix_scvmfs_vomsdir` /
+`brix_scvmfs_voms_cert_dir` / `brix_scvmfs_voms`) client-cert modes landed
+in phase-92 alongside bearer.
+
+## Stratum-0 runbook (phase-96) — publish and serve the master copy
+
+> **Full unprivileged cookbook — keys, custom-file publishing, chunking,
+> nested catalogs, private repos, maintenance cron, the integrity model and a
+> troubleshooting table: docs/05-operations/cvmfs-stratum0.md.** What follows
+> is the condensed version.
+
+The same binary that runs a site cache can *be* the Stratum-0: publishing
+happens entirely on the tool surface (`brixcvmfs repo …` — the server never
+writes), and the serve plane is one directive.
+
+```sh
+# 1. mkfs — keys + empty signed revision 1 (repo lives under <root>/cvmfs/<fqrn>;
+#    mkfs creates the repo dir itself but not its parents)
+mkdir -p /srv/stratum0/cvmfs
+brixcvmfs repo mkfs sw.example.org /srv/stratum0/cvmfs/sw.example.org
+
+# 2. publish loop — open a transaction, stage into the RW overlay, publish
+brixcvmfs repo transaction /srv/stratum0/cvmfs/sw.example.org
+cp -r /path/to/new/release  /srv/stratum0/cvmfs/sw.example.org/.brixtxn/upper/
+brixcvmfs repo publish /srv/stratum0/cvmfs/sw.example.org   # or: abort
+```
+
+Serve it (see `docs/04-protocols/cvmfs.md` §3.6 for the full contract):
+
+```nginx
+location /cvmfs/ {
+    brix_cvmfs on;
+    brix_cvmfs_stratum0_root /srv/stratum0;
+    brix_cvmfs_geo_answer rtt;
+}
+```
+
+`nginx -t` refuses the alias combined with any cache-fill grammar
+(`brix_cache_store` / http `brix_storage_backend` /
+`brix_cvmfs_upstream_allow` / a second `brix_export`) — a Stratum-0 has no
+upstream. Clients mount with `CVMFS_SERVER_URL=http://s0:port/cvmfs/@fqrn@`
+and `CVMFS_PUBLIC_KEY=<repo>/keys/<fqrn>.pub`; a stock Stratum-1 replicates
+with `cvmfs_server add-replica` (the `.cvmfs_master_replica` marker is
+answered; the feed is plain HTTP GET — there is no push protocol).
+
+Maintenance cron (whitelist expires in 30 days; GC is ref-driven):
+
+```sh
+17 3 * * *  brixcvmfs repo resign /srv/stratum0/cvmfs/sw.example.org
+47 4 * * 0  brixcvmfs repo gc     /srv/stratum0/cvmfs/sw.example.org --keep 8
+23 5 * * 0  brixcvmfs repo fsck   /srv/stratum0/cvmfs/sw.example.org --data
+# `fsck` (no flag) is the cheap catalog/counter check — run it after every
+# publish; `--data` is the payload rot sweep, linear in repo size, hence weekly.
+# snapshot / rollback points:  brixcvmfs repo tag add|list|rollback …
+```
+
+**Private repo:** add the scvmfs block above (TLS listener + an authz mode)
+to the same location — gating is pure configuration and covers manifest,
+CAS, GeoAPI *and* the replication marker (proven:
+`tests/test_cvmfs_stratum0_scvmfs.py`; open-serve lane incl. a real client
+mount: `tests/test_cvmfs_stratum0_serve.py`).

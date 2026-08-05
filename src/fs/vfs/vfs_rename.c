@@ -149,8 +149,9 @@ brix_vfs_rename(brix_vfs_ctx_t *ctx, const brix_path_result_t *dst,
         /* The leaf dispatch above skips the cache decorator's own rename evict,
          * so drop both endpoints from the store here to keep it coherent. */
         if (rc == NGX_OK) {
-            brix_sd_cache_evict(ctx->sd, src_key);
-            brix_sd_cache_evict(ctx->sd, dst_key);
+            brix_metric_cache_evicted(brix_vfs_metrics_proto(ctx),
+                brix_sd_cache_evict(ctx->sd, src_key)
+                + brix_sd_cache_evict(ctx->sd, dst_key));
         }
 
         brix_vfs_observe_ctx_op(ctx, path, BRIX_METRIC_OP_RENAME, NULL, 0,

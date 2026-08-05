@@ -280,6 +280,7 @@ class ManagerPeer:
         self._lock = threading.Lock()
         self.connections = 0          # count of accepted node connections
         self.logins = 0               # count of LOGIN frames seen
+        self.frame_codes = []         # RR code of every frame parsed, in order
         self.conn = None
         self._stop = False
         self._thread = threading.Thread(target=self._accept_loop, daemon=True)
@@ -310,8 +311,9 @@ class ManagerPeer:
                 if len(buf) < CMS_HDR_LEN + dlen:
                     break
                 del buf[:CMS_HDR_LEN + dlen]
-                if code == CMS_RR_LOGIN:
-                    with self._lock:
+                with self._lock:
+                    self.frame_codes.append(code)
+                    if code == CMS_RR_LOGIN:
                         self.logins += 1
             try:
                 chunk = conn.recv(4096)
@@ -331,6 +333,20 @@ class ManagerPeer:
                     return True
             time.sleep(0.1)
         return False
+
+    def count_frames(self, code):
+        """How many frames of RR `code` have been parsed off any connection."""
+        with self._lock:
+            return self.frame_codes.count(code)
+
+    def wait_frames(self, code, n, timeout):
+        """Block up to `timeout` for `n` frames of RR `code` to arrive."""
+        deadline = time.time() + timeout
+        while time.time() < deadline:
+            if self.count_frames(code) >= n:
+                return True
+            time.sleep(0.1)
+        return self.count_frames(code) >= n
 
     def send_to_node(self, streamid, code, modifier, payload=b""):
         with self._lock:

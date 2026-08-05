@@ -30,6 +30,7 @@ pytestmark = pytest.mark.uses_lifecycle_harness
 
 kXR_login, kXR_open, kXR_write, kXR_close, kXR_stat = 3007, 3010, 3019, 3003, 3017
 kXR_mkdir, kXR_rm, kXR_rmdir = 3008, 3014, 3015
+kXR_mv, kXR_truncate = 3009, 3028
 kXR_ok, kXR_error = 0, 4003
 
 
@@ -110,6 +111,31 @@ def _ns_remove(ds_port, opcode, path):
     return st, body
 
 
+def _mv(ds_port, src, dst):
+    """kXR_mv: reserved(14) arg1len(2) dlen(4) + "src<SP>dst"."""
+    s = _session(ds_port)
+    payload = src.encode() + b" " + dst.encode()
+    s.sendall(struct.pack("!2sH14sHI", b"\x00\x15", kXR_mv, b"\x00" * 14,
+                          len(src.encode()), len(payload)) + payload)
+    st, body = _resp(s)
+    s.close()
+    return st, body
+
+
+def _truncate_path(ds_port, path, length):
+    """Path-based kXR_truncate: fhandle(4) offset(8) reserved(4) dlen(4) + path.
+
+    dlen > 0 selects the path form, which is the only size change with no
+    kXR_close behind it (see brix_root_cns_emit_resized)."""
+    s = _session(ds_port)
+    p = path.encode()
+    s.sendall(struct.pack("!2sH4sq4sI", b"\x00\x17", kXR_truncate, b"\x00" * 4,
+                          length, b"\x00" * 4, len(p)) + p)
+    st, body = _resp(s)
+    s.close()
+    return st, body
+
+
 def _poll_manager(mgr_port, path, want_ok, tries=40):
     """Poll the manager's CNS-backed stat until it (dis)appears; returns final st."""
     st = None
@@ -119,6 +145,22 @@ def _poll_manager(mgr_port, path, want_ok, tries=40):
             return st
         time.sleep(0.25)
     return st
+
+
+def _poll_manager_size(mgr_port, path, want_size, tries=40):
+    """Poll the manager's CNS-backed stat until it reports ``want_size``.
+
+    The stat body is "<id> <size> <flags> <modtime>"; returns the last observed
+    size (None if the path never became stat-able) so a mismatch reports it."""
+    size = None
+    for _ in range(tries):
+        st, body = _stat(mgr_port, path)
+        if st == kXR_ok:
+            size = int(body.decode(errors="replace").split()[1])
+            if size == want_size:
+                return size
+        time.sleep(0.25)
+    return size
 
 
 @pytest.fixture
@@ -230,6 +272,82 @@ def test_manager_reflects_mkdir_and_rmdir(cluster):
     assert _poll_manager(mgr_port, "/cns-dir", want_ok=False) != kXR_ok
 
 
+def test_manager_reflects_mv_file(cluster):
+    """§6 MV wire wrapper: a DS rename moves the manager's inventory entry.
+
+    Before phase-97 a rename emitted nothing at all, so the manager kept serving
+    the OLD path forever and never learned the new one."""
+    mgr_port, ds_port = cluster
+    payload = b"rename-me-payload-0123456789"
+    _write_file(ds_port, "/cns-mv-src.dat", payload)
+    assert _poll_manager(mgr_port, "/cns-mv-src.dat", want_ok=True) == kXR_ok
+
+    st, body = _mv(ds_port, "/cns-mv-src.dat", "/cns-mv-dst.dat")
+    assert st == kXR_ok, ("mv", st, body)
+
+    # Destination appears with the OBSERVED size (the emit probes the dst, it
+    # does not carry the request's word for it) ...
+    assert _poll_manager_size(mgr_port, "/cns-mv-dst.dat", len(payload)) == \
+        len(payload)
+    # ... and the source is gone in the same event.
+    assert _poll_manager(mgr_port, "/cns-mv-src.dat", want_ok=False) != kXR_ok
+
+
+def test_manager_reflects_mv_directory_subtree(cluster):
+    """§6 MV carries the whole recorded subtree, which is why a rename is one
+    event and not a DEL+ADD pair: a pair would strand every recorded child at a
+    path that no longer exists."""
+    mgr_port, ds_port = cluster
+    st, body = _mkdir(ds_port, "/cns-mvdir")
+    assert st == kXR_ok, ("mkdir", st, body)
+    child = b"subtree-child-payload"
+    _write_file(ds_port, "/cns-mvdir/child.dat", child)
+    assert _poll_manager(mgr_port, "/cns-mvdir/child.dat", want_ok=True) == kXR_ok
+
+    st, body = _mv(ds_port, "/cns-mvdir", "/cns-mvdir2")
+    assert st == kXR_ok, ("mv dir", st, body)
+
+    # The directory itself moved ...
+    assert _poll_manager(mgr_port, "/cns-mvdir2", want_ok=True) == kXR_ok
+    # ... and so did the child recorded beneath it, with its size intact.
+    assert _poll_manager_size(mgr_port, "/cns-mvdir2/child.dat", len(child)) == \
+        len(child)
+    # Neither old path survives.
+    assert _poll_manager(mgr_port, "/cns-mvdir/child.dat", want_ok=False) != kXR_ok
+    assert _poll_manager(mgr_port, "/cns-mvdir", want_ok=False) != kXR_ok
+
+
+def test_manager_reflects_path_truncate_size(cluster):
+    """§6 ADD re-emit on a path-based kXR_truncate: the only size change with no
+    kXR_close behind it. Without it the manager serves the pre-truncate size for
+    the lifetime of the inventory entry."""
+    mgr_port, ds_port = cluster
+    payload = b"x" * 512
+    _write_file(ds_port, "/cns-trunc.dat", payload)
+    assert _poll_manager_size(mgr_port, "/cns-trunc.dat", len(payload)) == \
+        len(payload)
+
+    st, body = _truncate_path(ds_port, "/cns-trunc.dat", 100)
+    assert st == kXR_ok, ("truncate", st, body)
+    assert _poll_manager_size(mgr_port, "/cns-trunc.dat", 100) == 100
+
+
+def test_mv_of_missing_source_creates_no_manager_entry(cluster):
+    """Negative: a rename that FAILS must not seed the manager with a phantom.
+
+    The emit hangs off the success path only, so a bogus source leaves the
+    inventory untouched — a client cannot conjure a manager-visible namespace
+    entry by asking for a rename it is not able to perform."""
+    mgr_port, ds_port = cluster
+    st, _ = _mv(ds_port, "/cns-mv-absent.dat", "/cns-mv-phantom.dat")
+    assert st != kXR_ok, "rename of a missing source must fail"
+
+    # Give any (incorrect) event time to land before declaring the path absent.
+    time.sleep(1.0)
+    assert _stat(mgr_port, "/cns-mv-phantom.dat")[0] != kXR_ok
+    assert _stat(mgr_port, "/cns-mv-absent.dat")[0] != kXR_ok
+
+
 def test_manager_reflects_async_backend_rm_delete(cluster_async):
     """phase-58: with brix_backend_async ON, a DS unlink is enqueued on the
     durable queue and only runs at flush time — the §6 DEL event is emitted by
@@ -243,6 +361,23 @@ def test_manager_reflects_async_backend_rm_delete(cluster_async):
     st, body = _ns_remove(ds_port, kXR_rm, "/cns-async-del.dat")
     assert st == kXR_ok, ("async rm", st, body)
     assert _poll_manager(mgr_port, "/cns-async-del.dat", want_ok=False) != kXR_ok
+
+
+def test_manager_reflects_async_backend_mv(cluster_async):
+    """phase-97: with brix_backend_async ON the rename is enqueued on the durable
+    queue and only runs at flush time, so the §6 MV event has to come from the
+    queue waker (baq_root_done) — the inline handler returned before the rename
+    happened. Convergence at the manager proves the late path emits."""
+    mgr_port, ds_port = cluster_async
+    payload = b"async-rename-payload-abc"
+    _write_file(ds_port, "/cns-async-mv-src.dat", payload)
+    assert _poll_manager(mgr_port, "/cns-async-mv-src.dat", want_ok=True) == kXR_ok
+
+    st, body = _mv(ds_port, "/cns-async-mv-src.dat", "/cns-async-mv-dst.dat")
+    assert st == kXR_ok, ("async mv", st, body)
+    assert _poll_manager_size(mgr_port, "/cns-async-mv-dst.dat", len(payload)) == \
+        len(payload)
+    assert _poll_manager(mgr_port, "/cns-async-mv-src.dat", want_ok=False) != kXR_ok
 
 
 def test_manager_reflects_async_backend_rmdir(cluster_async):

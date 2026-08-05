@@ -311,7 +311,18 @@ vfs_readdir_stat_child(brix_vfs_dir_t *dh, const char *name,
     int          n, rc;
 
     if (!brix_imp_client_active()) {
-        rc = fstatat(dirfd(dh->dir), name, &st, AT_SYMLINK_NOFOLLOW);
+        int dfd = dirfd(dh->dir);
+
+        if (dfd < 0) {
+            /* Only reachable with a torn-down handle; fstatat would answer
+             * EBADF and the entry would vanish with a misleading errno. */
+            ngx_log_error(NGX_LOG_ERR, dh->log, errno,
+                          "xrootd[disk]: dirlist of \"%s\" has no directory "
+                          "descriptor; entry \"%s\" omitted from the listing",
+                          dh->path, name);
+            return NGX_ERROR;
+        }
+        rc = fstatat(dfd, name, &st, AT_SYMLINK_NOFOLLOW);
         if (rc != 0) {
             if (errno != ENOENT) {
                 ngx_log_error(NGX_LOG_ERR, dh->log, errno,
@@ -576,20 +587,4 @@ brix_vfs_closedir(brix_vfs_dir_t *dh, ngx_log_t *log)
 
     dh->dir = NULL;
     return NGX_OK;
-}
-
-/* brix_vfs_enumerate_catalog — driver-agnostic backend-catalog enumeration
- * (inventory/drift). Dispatches to the bound driver's optional `enumerate` verb;
- * a backend with no native object catalog (POSIX — the namespace IS the catalog)
- * leaves the verb NULL, and this reports ENOTSUP via NGX_DECLINED so the engine
- * falls back to a namespace walk. See vfs.h. */
-ngx_int_t
-brix_vfs_enumerate_catalog(brix_sd_instance_t *sd, int want_stat,
-    brix_sd_catalog_cb cb, void *ctx)
-{
-    if (sd == NULL || sd->driver == NULL || sd->driver->enumerate == NULL) {
-        errno = ENOTSUP;
-        return NGX_DECLINED;
-    }
-    return sd->driver->enumerate(sd, want_stat, cb, ctx);
 }

@@ -194,6 +194,10 @@
 struct ngx_brix_cms_ctx_s {
     ngx_cycle_t                    *cycle;       /* nginx cycle (for pool, log) */
     ngx_stream_brix_srv_conf_t   *conf;        /* server block configuration */
+    ngx_addr_t                     *mgr_addr;    /* THIS link's manager address
+                                                    (one ctx per redundant manager) */
+    ngx_str_t                       mgr_name;    /* its raw host:port (NUL-terminated
+                                                    conf copy — log/action identity) */
     ngx_peer_connection_t           peer;        /* nginx upstream peer state */
     ngx_connection_t               *connection;  /* active TCP connection (NULL = disconnected) */
     brix_sess_t                    *sess;        /* lifecycle audit session */
@@ -213,9 +217,16 @@ struct ngx_brix_cms_ctx_s {
     ngx_uint_t                      connect_attempts; /* TCP connect tries this boot */
     uint64_t                        start_ns;       /* ctx creation (settle timing) */
     unsigned                        is_loopback:1;  /* manager addr is loopback     */
-    uint32_t                        next_streamid; /* per-worker monotone counter;
-                                                      wraps at UINT32_MAX; used as
-                                                      CMS locate correlation key */
+    uint32_t                        next_streamid; /* monotone counter advanced by
+                                                      streamid_stride; used as CMS
+                                                      locate correlation key */
+    uint32_t                        streamid_seed; /* wrap-reset base = this link's
+                                                      manager index (0-based) */
+    uint32_t                        streamid_stride; /* = manager count, so the
+                                                      redundant links draw from
+                                                      DISJOINT residue classes and a
+                                                      reply can never resume another
+                                                      link's pending locate */
     brix_cms_meter_t                meter;       /* Phase-89 W4 heartbeat load
                                                     meter (all-zeroes valid) */
     u_char                          inbuf[NGX_BRIX_CMS_MAX_FRAME]; /* receive accumulation buffer */
@@ -342,5 +353,13 @@ void  ngx_brix_cms_arm_read_deadline(ngx_brix_cms_ctx_t *ctx);
 /* connect.c — heartbeat/reconnect timer handler.  Non-static because cms_start.c
  * installs it on the context timer at worker init. */
 void  ngx_brix_cms_timer(ngx_event_t *ev);
+
+/* cms_start.c — pick the upstream link for the next locate/query.  Rotates
+ * round-robin across the LOGGED-IN redundant manager links (ClientMan-rotation
+ * parity); with every manager down it falls back to the first ctx so the send
+ * fails exactly like the legacy single-manager path (caller unwinds to its
+ * static-map/notFound leg).  NULL only when no CMS client runs on this worker
+ * — the "CMS parent configured here" gate. */
+ngx_brix_cms_ctx_t *ngx_brix_cms_pick_ctx(ngx_stream_brix_srv_conf_t *conf);
 
 #endif /* NGX_BRIX_CMS_INTERNAL_H */

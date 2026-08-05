@@ -214,6 +214,37 @@ brix_open_build_response(brix_open_args_t *a, u_char **out_buf,
 	return NGX_OK;
 }
 
+/* P80.2 resume divert, widened (cache-metrics conformance): the resume skeleton
+ * is a LOCAL POSIX file, so it is only meaningful when the export is served by
+ * the local filesystem. For ANY driver-backed export the dispatch gate
+ * (!use_resume) would route the write to the POSIX skeleton under the export
+ * root — for a remote backend that is the wrong storage domain entirely (bytes
+ * strand locally; with root_canon "/" the open hits the real filesystem root and
+ * fails EACCES → a spurious kXR_NotAuthorized). The original P80.2 check only
+ * caught staged-only backends (ns leaf without CAP_RANDOM_WRITE/.pwrite); a
+ * driver WITH pwrite (sd_xroot, composed sd_cache tiers) hit the same stranding
+ * through the other gate. Capability-driven (phase-71): decided by the registry
+ * resolve, never by backend scheme.
+ *
+ * The DEFAULT POSIX driver is explicitly not a divert: since phase-68 every
+ * plain `brix_export` registers a default-POSIX census row, so a bare
+ * "resolve() != NULL" test matches the most common configuration of all and
+ * would disable upload resume (and with it brix_stage_dir) for every local
+ * export. Local POSIX storage is exactly the case the resume skeleton is built
+ * for — same test brix_commit_staged uses to decide the same thing. */
+static ngx_flag_t
+brix_open_resume_diverted(ngx_stream_brix_srv_conf_t *conf, ngx_connection_t *c)
+{
+	brix_sd_instance_t *sd_dst =
+	    brix_vfs_backend_resolve(conf->common.root_canon, c->log);
+
+	if (sd_dst == NULL || sd_dst->driver == NULL) {
+		return 0;
+	}
+
+	return sd_dst->driver != brix_sd_default_driver();
+}
+
 /*
  *
  * WHAT: Opens the actual file on disk and allocates a file handle (fhandle). Called after path resolution.
@@ -267,18 +298,9 @@ brix_open_resolved_file(brix_ctx_t *ctx, ngx_connection_t *c,
 	a.use_posc   = (is_write && (options & kXR_posc)) ? 1 : 0;
 	a.use_resume = (is_write && conf->upload_resume) ? 1 : 0;
 
-	/* P80.2 resume divert: a staged-only primary (ns leaf without
-	 * CAP_RANDOM_WRITE or .pwrite) can never publish a local resume skeleton —
-	 * the dispatch gate (!use_resume) would route this write to the POSIX
-	 * skeleton file and the bytes would silently strand there instead of
-	 * reaching the backend. Drop resume for this open so the dispatch takes
-	 * the whole-object staged seam; the eligibility predicate is shared with
-	 * the dispatch so the two can never disagree. Capability-driven
-	 * (phase-71): decided by caps bits, never by backend scheme. */
-	if (a.use_resume
-	    && brix_open_write_needs_staged(&a,
-	           brix_vfs_backend_resolve(conf->common.root_canon, c->log)))
-	{
+	/* Driver-backed export → the local resume skeleton is the wrong storage
+	 * domain; rationale on brix_open_resume_diverted(). */
+	if (a.use_resume && brix_open_resume_diverted(conf, c)) {
 		a.use_resume = 0;
 	}
 

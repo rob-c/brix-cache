@@ -49,33 +49,33 @@ cms_addr_is_loopback(struct sockaddr *sa)
     return 0;
 }
 
-/* ngx_brix_cms_start — worker-init entry point (from config/process.c): allocate
- * the CMS context, seed the reconnect backoff from cms_interval (capped at
- * NGX_BRIX_CMS_BACKOFF_INITIAL), and schedule the first connect after
- * NGX_BRIX_CMS_INITIAL_DELAY (1s). Each worker keeps its own connection. */
-
-void
-ngx_brix_cms_start(ngx_cycle_t *cycle, ngx_stream_brix_srv_conf_t *conf)
+/* cms_ctx_create — allocate and arm ONE manager link's heartbeat context:
+ * seed the reconnect backoff from cms_interval (capped at
+ * NGX_BRIX_CMS_BACKOFF_INITIAL), resolve the cold-start settle profile from
+ * THIS manager's locality, seed the disjoint streamid lane (seed = manager
+ * index, stride = manager count), and schedule the first connect. */
+static ngx_brix_cms_ctx_t *
+cms_ctx_create(ngx_cycle_t *cycle, ngx_stream_brix_srv_conf_t *conf,
+    brix_cms_manager_ent_t *ent, ngx_uint_t index, ngx_uint_t nmgrs)
 {
     ngx_brix_cms_ctx_t  *ctx;
 
-    if (conf->cms.addr == NULL || conf->cms.ctx != NULL) {
-        return;
-    }
-
     ctx = ngx_pcalloc(cycle->pool, sizeof(ngx_brix_cms_ctx_t));
     if (ctx == NULL) {
-        ngx_log_error(NGX_LOG_ERR, cycle->log, 0,
-                      "brix: CMS heartbeat allocation failed");
-        return;
+        return NULL;
     }
 
     ctx->cycle = cycle;
     ctx->conf = conf;
+    ctx->mgr_addr = ent->addr;
+    ctx->mgr_name = ent->raw;
     ctx->backoff = ngx_min((ngx_msec_t) conf->cms.interval * 1000,
                            (ngx_msec_t) NGX_BRIX_CMS_BACKOFF_INITIAL);
     ctx->in_need = NGX_BRIX_CMS_HDR_LEN;
     ctx->start_ns = brix_phase_now_ns();
+    ctx->streamid_seed = (uint32_t) index;
+    ctx->streamid_stride = (uint32_t) nmgrs;
+    ctx->next_streamid = ctx->streamid_seed;
 
     /*
      * Resolve the cold-start settle profile once.  A loopback manager (same host)
@@ -83,7 +83,7 @@ ngx_brix_cms_start(ngx_cycle_t *cycle, ngx_stream_brix_srv_conf_t *conf)
      * an explicit directive overrides the locality default.  The fast-retry interval
      * is floored so a misconfigured "0" can never become a busy connect-storm.
      */
-    ctx->is_loopback = cms_addr_is_loopback(conf->cms.addr->sockaddr);
+    ctx->is_loopback = cms_addr_is_loopback(ent->addr->sockaddr);
 
     ctx->fast_retry = (conf->cms.connect_retry != NGX_CONF_UNSET_MSEC)
                       ? conf->cms.connect_retry
@@ -108,8 +108,6 @@ ngx_brix_cms_start(ngx_cycle_t *cycle, ngx_stream_brix_srv_conf_t *conf)
      */
     ctx->timer.cancelable = 1;
 
-    conf->cms.ctx = ctx;
-
     {
         /* First-connect delay: directive override, else the locality default
          * (0 for loopback — connect immediately; the fast-retry handles a miss). */
@@ -120,9 +118,77 @@ ngx_brix_cms_start(ngx_cycle_t *cycle, ngx_stream_brix_srv_conf_t *conf)
         ngx_brix_cms_schedule(ctx, init_delay);
     }
 
+    return ctx;
+}
+
+/* ngx_brix_cms_start — worker-init entry point (from config/process.c): start
+ * one independent heartbeat link PER configured manager (concurrent logins into
+ * every redundant manager, stock ManList parity).  Each worker that runs the
+ * client keeps its own connections. */
+
+void
+ngx_brix_cms_start(ngx_cycle_t *cycle, ngx_stream_brix_srv_conf_t *conf)
+{
+    ngx_uint_t               i, nmgrs;
+    brix_cms_manager_ent_t  *ents;
+
+    if (conf->cms.managers == NULL || conf->cms.nctxs != 0) {
+        return;
+    }
+
+    nmgrs = conf->cms.managers->nelts;
+    ents = conf->cms.managers->elts;
+
+    conf->cms.ctxs = ngx_pcalloc(cycle->pool,
+                                 nmgrs * sizeof(ngx_brix_cms_ctx_t *));
+    if (conf->cms.ctxs == NULL) {
+        ngx_log_error(NGX_LOG_ERR, cycle->log, 0,
+                      "brix: CMS heartbeat allocation failed");
+        return;
+    }
+
+    for (i = 0; i < nmgrs; i++) {
+        conf->cms.ctxs[i] = cms_ctx_create(cycle, conf, &ents[i], i, nmgrs);
+        if (conf->cms.ctxs[i] == NULL) {
+            ngx_log_error(NGX_LOG_ERR, cycle->log, 0,
+                          "brix: CMS heartbeat allocation failed");
+            conf->cms.ctxs = NULL;
+            conf->cms.nctxs = 0;
+            return;
+        }
+    }
+
+    conf->cms.nctxs = nmgrs;
+    conf->cms.rr = 0;
+
     ngx_log_error(NGX_LOG_NOTICE, cycle->log, 0,
-                  "brix: CMS heartbeat starting for manager %V",
-                  &conf->cms.manager);
+                  "brix: CMS heartbeat starting for manager %V (%ui manager(s))",
+                  &conf->cms.manager, nmgrs);
+}
+
+/* ngx_brix_cms_pick_ctx — rotate locate/query traffic across the logged-in
+ * manager links; see the declaration in cms_internal.h for the contract. */
+
+ngx_brix_cms_ctx_t *
+ngx_brix_cms_pick_ctx(ngx_stream_brix_srv_conf_t *conf)
+{
+    ngx_uint_t           i, start;
+    ngx_brix_cms_ctx_t  *ctx;
+
+    if (conf->cms.nctxs == 0) {
+        return NULL;
+    }
+
+    start = conf->cms.rr++;
+
+    for (i = 0; i < conf->cms.nctxs; i++) {
+        ctx = conf->cms.ctxs[(start + i) % conf->cms.nctxs];
+        if (ctx->connection != NULL && ctx->logged_in) {
+            return ctx;
+        }
+    }
+
+    return conf->cms.ctxs[start % conf->cms.nctxs];
 }
 
 /*
@@ -219,10 +285,11 @@ brix_cms_role_worker_init(ngx_cycle_t *cycle, ngx_stream_brix_srv_conf_t *xcf)
         if (has_upstream) {
             ngx_log_error(NGX_LOG_NOTICE, cycle->log, 0,
                           "brix: cmsd role: this node is a %s "
-                          "(listen :%d, upstream_manager=%V, "
+                          "(listen :%d, upstream_manager=%V (+%ui more), "
                           "accepts_downstream=%s, aggregates_up=%s)",
                           brix_cms_noderole_name(role), (int) xcf->listen_port,
                           &xcf->cms.manager,
+                          xcf->cms.managers->nelts - 1,
                           manager_capable ? "yes" : "no",
                           role == BRIX_CMS_NODEROLE_SUBMANAGER ? "yes" : "no");
         } else {

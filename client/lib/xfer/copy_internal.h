@@ -267,6 +267,10 @@ int copy_block_to_remote(const char *src_url, const char *dst_url, const brix_co
 int copy_vfs_to_vfs(const char *src_url, const char *dst_url, const brix_copy_opts *o, brix_status *st);
 int copy_block(const char *src, const char *dst, const brix_copy_opts *o, const brix_opts *co, brix_status *st);
 
+/* copy_gsiftp.c — gsiftp:// / ftp:// single-file transfer (exactly one endpoint
+ * may be a GridFTP URL; the other is local). */
+int copy_gsiftp(const char *src, const char *dst, const brix_copy_opts *o, const brix_opts *co, brix_status *st);
+
 /* copy_zip.c */
 int copy_zip_store(const brix_url *su, const brix_url *du, const brix_copy_opts *o, const brix_opts *co, brix_status *st);
 

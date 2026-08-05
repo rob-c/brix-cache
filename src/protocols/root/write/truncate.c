@@ -6,6 +6,7 @@
 #include "fs/cache/writethrough_metrics.h"
 #include "fs/vfs/vfs.h"   /* path-based truncate via the VFS seam */
 #include "protocols/root/path/op_path.h"  /* brix_root_vfs_bind_deleg (phase-70) */
+#include "protocols/root/write/write.h"   /* brix_root_cns_emit_resized (§6 CNS) */
 
 #include <fcntl.h>
 
@@ -82,6 +83,10 @@ brix_handle_truncate(brix_ctx_t *ctx, ngx_connection_t *c,
 		}
 		brix_log_access(ctx, c, "TRUNCATE", resolved, detail,
 						  1, 0, NULL, 0);
+		/* §6 CNS: a path-based truncate is the only size change with no
+		 * kXR_close behind it, so without this the manager inventory keeps
+		 * serving the pre-truncate size forever. */
+		brix_root_cns_emit_resized(ctx, c, conf, resolved);
 	} else {
 		/* Handle-based truncate bypasses path resolution and uses the already-open fd. */
 		int idx = (int)(unsigned char) req.fhandle[0];

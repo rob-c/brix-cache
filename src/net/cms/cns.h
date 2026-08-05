@@ -47,6 +47,15 @@
 /*
  * Fixed wire layout (raw, big-endian), followed by `name_len` path bytes:
  *   op[1] rsvd[3] size[8] mtime[8] name_len[2]
+ *
+ * BRIX_CNS_MV appends a second, length-prefixed path after the first:
+ *   … name_len[2] oldpath[name_len] name2_len[2] newpath[name2_len]
+ * and carries the destination's directory-ness in the first reserved byte
+ * (rsvd[0], which every other op leaves zero). Extending the frame this way is
+ * safe in both directions: CMS_RR_CNS is a private frame only our own peers
+ * parse, a pre-MV manager's decoder ignores the trailing bytes and then rejects
+ * the unknown op in brix_cns_inv_apply (a no-op, not a corrupt entry), and a
+ * pre-MV data server simply never emits one.
  */
 #define BRIX_CNS_HDR_LEN 22
 
@@ -61,10 +70,30 @@ ngx_int_t brix_cns_event_decode(const uint8_t *buf, size_t len, uint8_t *op,
                                   uint64_t *size, uint64_t *mtime,
                                   char *path, size_t pathsz);
 
+/* EITHER. Encode a BRIX_CNS_MV event (two paths). size/mtime/is_dir describe the
+ * destination as the data server observed it after the rename. Returns the total
+ * length, or 0 on overflow / an empty or oversize path. */
+size_t brix_cns_event_encode_mv(const char *oldpath, const char *newpath,
+                                  uint64_t size, uint64_t mtime, int is_dir,
+                                  uint8_t *buf, size_t bufsz);
+
+/* EITHER. Decode the second path of a BRIX_CNS_MV frame previously accepted by
+ * brix_cns_event_decode (which yields the FIRST path and ignores the tail).
+ * Fills is_dir and copies the new path into newpath[newsz]. NGX_OK / NGX_ERROR
+ * (a frame that carries no well-formed second path). */
+ngx_int_t brix_cns_event_decode_mv(const uint8_t *buf, size_t len, int *is_dir,
+                                     char *newpath, size_t newsz);
+
 /* LOOP-ONLY (manager). Apply a decoded event to the inventory (upsert on ADD/MKDIR,
  * remove on DEL/RMDIR). server_id tags the origin. NGX_OK / NGX_ERROR. */
 ngx_int_t brix_cns_apply(uint8_t op, const char *path, uint64_t size,
                            uint64_t mtime, uint32_t server_id);
+
+/* LOOP-ONLY (manager). Apply a decoded BRIX_CNS_MV event: move `oldpath` (and the
+ * whole recorded subtree beneath it) to `newpath`. NGX_OK / NGX_ERROR. */
+ngx_int_t brix_cns_rename(const char *oldpath, const char *newpath,
+                            uint64_t size, uint64_t mtime, int is_dir,
+                            uint32_t server_id);
 
 /* LOOP-ONLY (manager). Look a path up in the inventory; fills *out (S_IFREG/S_IFDIR
  * + size + mtime). NGX_OK on hit, NGX_DECLINED on miss. */

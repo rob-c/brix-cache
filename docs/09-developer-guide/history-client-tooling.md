@@ -774,3 +774,98 @@ Also of note: after enforcing the binding, `client_unittest.c`'s dummy
 hash-line fixtures made mount fail and the test crashed (NULL-deref on the
 unmounted catalog) instead of reporting — fixtures now compute real digests
 and the test bails out cleanly if mount fails.
+
+## 20. GridFTP in the native client — `xrdcp gsiftp://` (2026-08-05)
+
+The client could reach `root://`, WebDAV/HTTP and S3 but not GridFTP, so any
+transfer against the GridFTP servers still fronting a large share of WLCG
+storage needed the Globus toolkit alongside a tool that otherwise stands alone.
+The engine landed in `client/lib/protocols/ftp/` (control dialogue, RFC 2228
+`AUTH GSSAPI`/`ADAT`, GSI initiator + delegation, EPSV/PASV data channel,
+passive-reply screen) with `client/lib/xfer/copy_gsiftp.c` as the copy driver.
+Reference: [native-client-tools.md](../04-protocols/native-client-tools.md);
+live coverage in `tests/test_xrdcp_gsiftp.py`, kernels in
+`client/tests/c/ftp_client_unit.c`.
+
+What the work taught, beyond the protocol:
+
+* **Two rules had to live in the client, not the server.** A `gsiftp://` URL is
+  a security statement, so a missing or unusable proxy fails the copy rather
+  than falling back to the anonymous login the gateway would happily grant —
+  the test `test_gsi_without_proxy_is_not_downgraded` exists because the
+  gateway *does* accept anonymous, so only a client-side refusal is provable.
+  And the passive reply (`227`/`229`) names an address the client then dials:
+  unscreened, that turns any client into an FTP-bounce relay. A privileged
+  data port is refused outright; an off-peer address is refused unless
+  `BRIX_GSIFTP_ALLOW_OFFPEER=1`, which relaxes the *address* rule only and
+  never the port rule. Both live in one pure predicate (`ftp_screen.c`) so the
+  unit test can hit every branch without a socket.
+* **The Phase-91 kernels were finally consumed.** `gftp_reply.c` and
+  `gftp_mlsx.c` were written for an outbound storage driver that does not yet
+  exist and sat compiled-but-unwired. The client is the opposite role — an
+  initiator, not a backend — and reused them unchanged, which is the useful
+  half of "pure kernel, no I/O": the reply parser did not care who was
+  speaking. See the status note at the top of the phase-91 plan.
+* **Three de-duplication rewrites, not one.** `check_duplication` flagged the
+  obvious pairs (`cmd`/`cmd_expect`, the two login paths), and the first fix
+  for `RETR`/`STOR` — factoring out channel setup — still left the two pump
+  loops flagged. They only collapsed once the *loop itself* became one function
+  with a chunk-function parameter (`ftp_chunk_in`/`ftp_chunk_out`). The guard
+  was right: the direction of the copy was the only real difference.
+* **A conf template that names its own `{PLACEHOLDER}` in a comment gets that
+  comment substituted.** Extracting the Stratum-0 lab configs (an unrelated
+  guard failure this work cleared) produced a template whose header documented
+  `{LOCATION_LINES}`; the renderer replaced it there too, and the multi-line
+  value broke out of the comment into top-level config —
+  `"brix_cvmfs" directive is not allowed here`. Spell placeholder names without
+  braces in template comments.
+
+## 21. `xrdcp --verify` is fail-open, and it fails open exactly when it matters (2026-08-05)
+
+Found while closing the last leg of the combinatorial coverage audit §6 — fault
+injection on the *server's own* upstream fetch, where the client's connection is
+pristine and the only damage is on a leg the client cannot see
+(`tests/resilience/test_server_leg_faults.py`).
+
+`--verify` asks the server for the object's checksum after the transfer and
+compares it against what landed. Against a corrupted `s3://` origin leg, 20
+runs: **19 refused** on an adler32 mismatch (rc 51, nothing left behind), and on
+the twentieth the client printed
+
+    downloaded but checksum NOT verified: checksum computation failed (IOError)
+
+and **exited 0, keeping the corrupted file**.
+
+That is the documented policy, not an accident —
+`download_reconcile_cksum()` in `client/lib/xfer/copy_local.c` maps
+`XRDC_CK_MISMATCH` to a failure and `XRDC_CK_UNVERIFIED` to a warning, clearing
+the status, on the reasoning that a checksum *query* hiccup is not a transfer
+failure. In isolation that is right: refusing a good file because a metadata RPC
+glitched would be worse.
+
+What the fault injection showed is that the reasoning has a hidden premise. The
+server computes that checksum by **re-reading the object over the same leg that
+was damaged**, so "the transfer was corrupted" and "the checksum query failed"
+are not independent events — the second is *caused by* the first. The escape
+hatch opens preferentially on exactly the transfers `--verify` was reached for.
+
+The rate is driver-dependent, not policy-dependent: sd_http fetches in one GET
+and refused 20/20, sd_s3 issues many ranged GETs and so offers roughly thirty
+times more response-header bytes for a flip to land in. Any origin flaky enough
+to corrupt bodies will eventually corrupt a header.
+
+Consequences for the test suite: asserting `rc != 0` there would be a ~5% flaky
+test, so `test_verify_on_the_s3_origin_leg_refuses_or_states_it_could_not_check`
+asserts the union — refused, **or** rc 0 *accompanied by the explicit warning*.
+A silent pass on corrupt data still fails it, which is the regression worth
+catching, and the union is a truthful statement of what the client guarantees.
+
+Not fixed. The fix would be a strict mode (`UNVERIFIED` → failure) so a caller
+that asked for verification can insist on getting it; the default has to stay as
+it is for stock parity. Two related facts, measured in the same work: `--pgrw`
+cannot cover an origin leg at all (the per-page CRC32c is computed by the front
+over bytes it has *already* read from the origin), and `--cksum <alg>` with no
+`:source`/`:end2end` suffix prints a digest rather than comparing one
+(`copy_cksum_verify.c`). Of the three options that look like integrity checks on
+a remote-backend read, one works, one is fail-open, and one never checked
+anything.

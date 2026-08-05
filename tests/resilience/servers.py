@@ -243,6 +243,183 @@ class NginxAnon:
         return False
 
 
+class NginxTlsAnon:
+    """A dedicated nginx serving roots:// (TLS) with NO authentication on its own
+    port and data root — the TLS leg of the sweep harness, which was cleartext
+    everywhere.  Uses the resilience PKI (ensure_pki() must have run), so a client
+    verifies with X509_CERT_DIR=CA_DIR.  ``.port`` and ``.data`` mirror NginxAnon."""
+
+    def __init__(self, port=None):
+        self._port = port
+        self.harness = None
+        self.port = None
+        self.data = None
+
+    def __enter__(self):
+        ensure_pki()
+        self.harness = LifecycleHarness()
+        endpoint = self.harness.start(NginxInstanceSpec(
+            name="resil-nginx-tls-anon",
+            template="nginx_resilience_tls_anon.conf",
+            port=self._port,
+            protocol="root",
+            readiness="tcp",
+            template_values={"SERVER_CERT": SERVER_CERT,
+                             "SERVER_KEY": SERVER_KEY},
+        ))
+        self.port = endpoint.port
+        self.data = endpoint.data_root
+        return self
+
+    def __exit__(self, *exc):
+        if self.harness is not None:
+            self.harness.close()
+        return False
+
+
+class NginxTokenRoot:
+    """A dedicated nginx serving root:// behind WLCG-token auth (`brix_auth
+    token`) — the token leg of the sweep harness, which hard-coded GSI.  The
+    caller supplies an already-provisioned issuer (jwks path + issuer +
+    audience); ``.port`` and ``.data`` mirror NginxAnon."""
+
+    def __init__(self, jwks_path, issuer, audience, port=None):
+        self._port = port
+        self._jwks = jwks_path
+        self._issuer = issuer
+        self._audience = audience
+        self.harness = None
+        self.port = None
+        self.data = None
+
+    def __enter__(self):
+        self.harness = LifecycleHarness()
+        endpoint = self.harness.start(NginxInstanceSpec(
+            name="resil-nginx-token",
+            template="nginx_resilience_token.conf",
+            port=self._port,
+            protocol="root",
+            readiness="tcp",
+            template_values={"JWKS_PATH": self._jwks,
+                             "ISSUER": self._issuer,
+                             "AUDIENCE": self._audience},
+        ))
+        self.port = endpoint.port
+        self.data = endpoint.data_root
+        return self
+
+    def __exit__(self, *exc):
+        if self.harness is not None:
+            self.harness.close()
+        return False
+
+
+class NginxSssRoot:
+    """A dedicated nginx serving root:// behind SSS (shared-secret) auth on its
+    own port and data root — the last login mechanism with no fault coverage.
+    The caller supplies an already-minted keytab (see ``gen_sss_keytab`` in
+    tests/cms_mesh_lib.py, or xrdsssadmin-brix directly); the same file
+    authenticates the client, so one keytab serves both ends.  ``.port`` and
+    ``.data`` mirror NginxAnon."""
+
+    def __init__(self, keytab, port=None):
+        self._port = port
+        self._keytab = keytab
+        self.harness = None
+        self.port = None
+        self.data = None
+
+    def __enter__(self):
+        self.harness = LifecycleHarness()
+        endpoint = self.harness.start(NginxInstanceSpec(
+            name="resil-nginx-sss",
+            template="nginx_resilience_sss.conf",
+            port=self._port,
+            protocol="root",
+            readiness="tcp",
+            template_values={"KEYTAB": self._keytab},
+        ))
+        self.port = endpoint.port
+        self.data = endpoint.data_root
+        return self
+
+    def __exit__(self, *exc):
+        if self.harness is not None:
+            self.harness.close()
+        return False
+
+
+class NginxHttpOriginFront:
+    """A root:// front whose STORAGE BACKEND is a remote http:// origin.
+
+    Every other server here is damaged on its client-facing leg.  This one is
+    built so the damage lands on the leg the client cannot see: pass the fault
+    proxy's listen port as ``origin_port`` and the front's backend fetches all
+    cross it, while the client's own connection stays pristine.  ``brix_stage
+    off`` in the template keeps sd_http as the top driver so every read really
+    goes to the wire.  ``.data`` is the front's export root — which stays EMPTY,
+    because the bytes live on the origin."""
+
+    def __init__(self, origin_port, port=None):
+        self._port = port
+        self._origin_port = origin_port
+        self.harness = None
+        self.port = None
+        self.data = None
+
+    def __enter__(self):
+        self.harness = LifecycleHarness()
+        endpoint = self.harness.start(NginxInstanceSpec(
+            name="resil-nginx-http-front",
+            template="nginx_resilience_http_origin.conf",
+            port=self._port,
+            protocol="root",
+            readiness="tcp",
+            template_values={"ORIGIN_PORT": str(self._origin_port)},
+        ))
+        self.port = endpoint.port
+        self.data = endpoint.data_root
+        return self
+
+    def __exit__(self, *exc):
+        if self.harness is not None:
+            self.harness.close()
+        return False
+
+
+class NginxTpcDest:
+    """A native root:// third-party-copy DESTINATION (`brix_tpc_allow_local on`).
+
+    In a native TPC the destination dials the source, so aiming the client's
+    ``--tpc only`` source URL at a fault proxy puts the damage on the
+    destination->source PULL leg — a leg with no client on it.  ``.data`` is
+    where a committed copy lands, which is what the assertions read."""
+
+    def __init__(self, port=None):
+        self._port = port
+        self.harness = None
+        self.port = None
+        self.data = None
+
+    def __enter__(self):
+        self.harness = LifecycleHarness()
+        endpoint = self.harness.start(NginxInstanceSpec(
+            name="resil-nginx-tpc-dest",
+            template="nginx_resilience_tpc_dest.conf",
+            port=self._port,
+            protocol="root",
+            readiness="tcp",
+        ))
+        self.port = endpoint.port
+        self.data = endpoint.data_root
+        return self
+
+    def __exit__(self, *exc):
+        if self.harness is not None:
+            self.harness.close()
+        return False
+
+
 class NginxWebdavAnon:
     """A dedicated nginx serving WebDAV/HTTP with NO authentication
     (`brix_webdav_auth none`) on its own port and data root — the write-direction
@@ -303,6 +480,48 @@ class NginxS3Anon:
             protocol="http",
             readiness="tcp",
             template_values={"EXTRA_DIRECTIVES": self._extra},
+        ))
+        self.port = endpoint.port
+        self.data = endpoint.data_root
+        return self
+
+    def __exit__(self, *exc):
+        if self.harness is not None:
+            self.harness.close()
+        return False
+
+
+class NginxS3OriginFront:
+    """A root:// front whose STORAGE BACKEND is a remote s3:// origin.
+
+    The s3:// sibling of ``NginxHttpOriginFront``, and a separate class rather
+    than a parameter because the two drivers do not share a fetch path — sd_s3
+    signs its request, parses an S3 error document and has its own handling of a
+    short body, so a contract measured through sd_http says nothing about it.
+    Pass the fault proxy's listen port as ``origin_port`` and every backend fetch
+    crosses the damaged leg while the client's connection stays pristine;
+    ``bucket`` must match the origin's ``brix_s3_bucket``.  ``.data`` is the
+    front's export root, which stays EMPTY because the bytes live on the origin.
+    """
+
+    def __init__(self, origin_port, bucket=NginxS3Anon.bucket, port=None):
+        self._port = port
+        self._origin_port = origin_port
+        self._bucket = bucket
+        self.harness = None
+        self.port = None
+        self.data = None
+
+    def __enter__(self):
+        self.harness = LifecycleHarness()
+        endpoint = self.harness.start(NginxInstanceSpec(
+            name="resil-nginx-s3-front",
+            template="nginx_resilience_s3_origin.conf",
+            port=self._port,
+            protocol="root",
+            readiness="tcp",
+            template_values={"ORIGIN_PORT": str(self._origin_port),
+                             "BUCKET": self._bucket},
         ))
         self.port = endpoint.port
         self.data = endpoint.data_root

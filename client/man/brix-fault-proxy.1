@@ -139,6 +139,41 @@ open until it gives up.
 Start blocked: refuse connections (an outage) until an
 .B unblock
 control command.
+.SS Startup spellings of the extended levers
+Every lever in
+.BR "EXTENDED MITM AND DOS LEVERS" ,
+.B PROTOCOL SURGERY
+and
+.B ATTACK\-MOCKING LEVERS
+is also settable at startup under the matching \fB\-\-\fIname\fR flag, taking
+the same arguments as its control command (quote multi\-word arguments):
+\fB\-\-drop\-bytes\fR \fIPCT\fR,
+\fB\-\-repeat\-bytes\fR \fIPCT\fR,
+\fB\-\-delay\-first\fR \fIMS\fR,
+\fB\-\-replace\fR \fI'FIND REPL'\fR,
+\fB\-\-inject\fR \fIPAYLOAD\fR,
+\fB\-\-mss\fR \fIBYTES\fR,
+\fB\-\-rcvbuf\fR \fIBYTES\fR,
+\fB\-\-sndbuf\fR \fIBYTES\fR,
+\fB\-\-stall\fR \fBup\fR|\fBdown\fR,
+\fB\-\-max\-lifetime\fR \fIMS\fR,
+\fB\-\-proxy\-header\fR \fI'v1 SRC [DST]'\fR,
+\fB\-\-chaos\fR \fIMS\fR,
+\fB\-\-preset\fR \fINAME\fR (\fBlist\fR enumerates them),
+\fB\-\-trigger\fR \fI'DIR PATTERN COMMAND'\fR,
+\fB\-\-trigger\-once\fR \fI'DIR PATTERN COMMAND'\fR,
+\fB\-\-mangle\-len\fR \fI'DIR OFFSET OP VAL'\fR,
+\fB\-\-accept\-pause\fR \fIMS\fR,
+\fB\-\-fanout\fR \fIN\fR,
+\fB\-\-global\-rate\fR \fIKBPS\fR,
+\fB\-\-flap\fR \fI'UP DOWN'\fR and
+\fB\-\-ramp\fR \fI'LEVER A B MS'\fR.
+.TP
+.BI \-\-event\-log " FILE"
+Append a JSONL trail of discrete fault events (connection severed, refused) to
+\fIFILE\fR for offline analysis.  The control command
+.B event\-log \fIPATH\fR
+redirects the trail while running.
 .SS Protocol surgery and oracle
 Startup forms of the levers documented under
 .B PROTOCOL SURGERY

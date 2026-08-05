@@ -39,6 +39,13 @@
 ngx_int_t brix_xmeta_save(brix_sd_instance_t *store, const char *key,
     const brix_xmeta_t *m);
 
+/* As brix_xmeta_save, but skips the xattr carrier outright and writes the
+ * "<key>.cinfo" sidecar — what `brix_cache_meta sidecar` asks for. Without
+ * this the directive was inert on any xattr-capable store: the preferred
+ * carrier always won and the configured one was never used. */
+ngx_int_t brix_xmeta_save_sidecar(brix_sd_instance_t *store, const char *key,
+    const brix_xmeta_t *m);
+
 /* Load the record for `key` into *m (caller must brix_xmeta_free on OK).
  * Returns NGX_OK, NGX_DECLINED when nothing (valid) is recorded, or
  * NGX_ERROR on a hard store error / torn record (errno set). */

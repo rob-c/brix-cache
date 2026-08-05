@@ -30,6 +30,7 @@ usage_fp(FILE *out, const char *prog)
         "usage: %s [opts] <src>... <dst>\n"
         "  src/dst is root://host[:port]//path, a web URL, a local path, or '-'\n"
         "  web schemes (GET/PUT): davs:// http(s):// dav:// s3:// s3s://\n"
+        "  gridftp schemes: gsiftp:// (GSI proxy, delegated) ftp:// (anonymous)\n"
         "  web->web (e.g. davs://a/f s3://b/k) relays through a local temp file\n"
         "  multiple sources / a glob / --from <file> => <dst> is a directory\n"
         "  -f             overwrite an existing destination\n"

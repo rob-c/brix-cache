@@ -191,6 +191,12 @@ s3_handle_copy_object(ngx_http_request_t *r,
         ngx_memzero(&dst_sb, sizeof(dst_sb));
         dst_sb.st_size  = dvst.size;
         dst_sb.st_mtime = dvst.mtime;
+
+        /* phase-97 §5: a CopyObject publishes a NEW object at the destination,
+         * so the manager needs an ADD for it; the source is untouched and keeps
+         * its entry. Reuses the ETag probe — no second syscall. */
+        brix_cns_emit_at(cf->common.root_canon, BRIX_CNS_ADD, dst_fs_path,
+                         (uint64_t) dvst.size, (uint64_t) dvst.mtime);
     }
 
     s3_etag(&dst_sb, etag_buf, sizeof(etag_buf));

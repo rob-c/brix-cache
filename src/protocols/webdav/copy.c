@@ -354,6 +354,12 @@ webdav_handle_copy(ngx_http_request_t *r)
         return rc;
     }
 
+    /* A COPY publishes a NEW object at the destination, so the manager needs an
+     * ADD for it. The source is untouched and keeps its existing entry. (The
+     * offloaded collection copy reports from its own completion — it returned
+     * NGX_DONE above and never reaches here.) */
+    webdav_cns_note_written(r, req.dst_path);
+
     return webdav_send_no_body(r, req.dst_existed ? NGX_HTTP_NO_CONTENT
                                                   : NGX_HTTP_CREATED);
 }

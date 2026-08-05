@@ -121,6 +121,8 @@ ngx_http_brix_shared_init(ngx_http_brix_shared_conf_t *conf)
     conf->cache_batch_cinfo  = NGX_CONF_UNSET_UINT;
     conf->cache_index_cache  = NGX_CONF_UNSET_SIZE;
     conf->cache_slice_size   = NGX_CONF_UNSET_SIZE;
+    conf->cache_prefetch     = NGX_CONF_UNSET;
+    conf->cache_prefetch_window = NGX_CONF_UNSET_SIZE;
     conf->rootfd             = -1;   /* opened per worker at init_process */
     /* root_canon zeroed by ngx_pcalloc — no explicit memset needed */
     brix_pmark_conf_init(&conf->pmark);
@@ -470,6 +472,12 @@ ngx_http_brix_shared_merge(ngx_conf_t *cf,
     ngx_conf_merge_uint_value(conf->cache_batch_cinfo, prev->cache_batch_cinfo, 2);
     ngx_conf_merge_size_value(conf->cache_index_cache, prev->cache_index_cache, 0);
     ngx_conf_merge_size_value(conf->cache_slice_size, prev->cache_slice_size, 0);
+    /* Background block prefetch (audit §4.1): jobs default OFF — speculative
+     * origin reads are an explicit operator opt-in; window defaults to 8 MiB
+     * (clamps each WILLNEED hint queued for background fill). */
+    ngx_conf_merge_value(conf->cache_prefetch, prev->cache_prefetch, 0);
+    ngx_conf_merge_size_value(conf->cache_prefetch_window,
+                              prev->cache_prefetch_window, 8 * 1024 * 1024);
     /* 0 == BRIX_CACHE_VERIFY_OFF (fs/cache/verify.h; not included here — it
      * drags stream-typed cache internals into every HTTP module conf). */
     ngx_conf_merge_uint_value(conf->cache_verify_mode, prev->cache_verify_mode,

@@ -119,7 +119,9 @@ class RepoForge:
     def __init__(self, fqrn: str, webroot: str | os.PathLike, *,
                  revision: int = 1, ttl: int = 240, timestamp: int = 1700000000,
                  manifest_hash: str | None = None, whitelist_hash: str | None = None,
-                 whitelist_expiry: str = "20991231235959", properties: dict | None = None):
+                 whitelist_expiry: str = "20991231235959",
+                 whitelist_created: str = "20260101000000",
+                 properties: dict | None = None):
         self.fqrn = fqrn
         self.webroot = Path(webroot)
         self.repo_dir = self.webroot / "cvmfs" / fqrn
@@ -134,6 +136,9 @@ class RepoForge:
         self.manifest_hash = manifest_hash
         self.whitelist_hash = whitelist_hash
         self.whitelist_expiry = whitelist_expiry
+        # Official whitelists carry a creation stamp on line 0; a FIXED default
+        # keeps forged artifacts byte-deterministic (clients never check it).
+        self.whitelist_created = whitelist_created
         self.properties = dict(properties or {})
         # The root catalog records its own revision; the client cross-checks it
         # against the manifest 'S' to catch a rolled-back manifest (rollback/replay).
@@ -192,10 +197,17 @@ class RepoForge:
 
     @staticmethod
     def _rsa_sign(key: str | os.PathLike, msg: bytes) -> bytes:
-        """Raw RSA-PKCS#1-v1.5 over `msg` with no DigestInfo — real CVMFS scheme,
-        the exact EVP_PKEY_sign(RSA_PKCS1_PADDING, no md) path of brix_mkrepo.c."""
+        """Raw RSA-PKCS#1-v1.5 over `msg` with no DigestInfo — the official
+        WHITELIST scheme (and sign.c's sha1_digestinfo=0 path)."""
         return subprocess.run(["openssl", "pkeyutl", "-sign", "-inkey", str(key),
                                "-pkeyopt", "rsa_padding_mode:pkcs1"],
+                              input=msg, check=True, stdout=subprocess.PIPE).stdout
+
+    @staticmethod
+    def _rsa_sign_sha1(key: str | os.PathLike, msg: bytes) -> bytes:
+        """RSA-PKCS#1-SHA1 (DigestInfo) over `msg` — the official MANIFEST
+        scheme (and sign.c's sha1_digestinfo=1 path)."""
+        return subprocess.run(["openssl", "dgst", "-sha1", "-sign", str(key)],
                               input=msg, check=True, stdout=subprocess.PIPE).stdout
 
     # ---- catalog serialisation --------------------------------------------
@@ -206,6 +218,9 @@ class RepoForge:
             db_path.unlink()
         db = sqlite3.connect(str(db_path))
         db.executescript(_CATALOG_DDL)
+        # Stock stores symlink='' (never NULL) for non-symlinks; the official
+        # client string-retrieves the column unchecked and SIGSEGVs on NULL.
+        rows = [r[:11] + (r[11] if r[11] is not None else "",) + r[12:] for r in rows]
         db.executemany(
             "INSERT INTO catalog (md5path_1,md5path_2,parent_1,parent_2,hardlinks,hash,"
             "size,mode,mtime,flags,name,symlink,uid,gid,xattr) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,NULL)",
@@ -225,7 +240,9 @@ class RepoForge:
 
     def _dir_row(self, path: str, name: str, node: Dir, flags: int) -> tuple:
         m1, m2 = md5path(path)
-        p1, p2 = md5path(_parent(path))
+        # Stock convention: the root "" has parent_{1,2} = 0 (NOT self-parented —
+        # the official client SIGSEGVs listing a root that contains itself).
+        p1, p2 = md5path(_parent(path)) if path else (0, 0)
         return (m1, m2, p1, p2, 1, None, 0, node.mode | _IFDIR, node.mtime, flags, name, None,
                 node.uid, node.gid)
 
@@ -249,7 +266,10 @@ class RepoForge:
             m1, m2 = md5path(path)
             p1, p2 = md5path(parent_path)
             if isinstance(node, Dir) and node.nested:
-                ch, sz = self._build_catalog(path, name, node, is_nested=True, props={})
+                # root_prefix binds the catalog to its mount (stock rule; the
+                # official client mistranslates paths without it)
+                ch, sz = self._build_catalog(path, name, node, is_nested=True,
+                                             props={"root_prefix": path})
                 nested.append((path, ch, sz))
                 rows.append(self._dir_row(path, name, node, FLAG_DIR | FLAG_DIR_NESTED_MOUNT))
             elif isinstance(node, Dir):
@@ -295,12 +315,15 @@ class RepoForge:
         # Stock CVMFS hashes the body up to but EXCLUDING the "--\n" separator.
         ht = hashlib.sha1(body[:-3].encode()).hexdigest() if hash_text is None else hash_text
         raw = body.encode() + ht.encode() + b"\n"
-        sig = b"\x00" * 256 if stale_sig else self._rsa_sign(sign_key, ht.encode())
+        sig = b"\x00" * 256 if stale_sig else self._rsa_sign_sha1(sign_key, ht.encode())
         (self.repo_dir / ".cvmfspublished").write_bytes(raw + sig)
 
     def _write_whitelist(self, *, expiry: str, fingerprints: list, repo: str,
-                         hash_text: str | None, sign_key, stale_sig: bool) -> None:
-        lines = [expiry, "N" + repo, *fingerprints]
+                         hash_text: str | None, sign_key, stale_sig: bool,
+                         created: str | None = None) -> None:
+        # Official shape: creation stamp on line 0, authoritative E<expiry> line.
+        lines = [created or self.whitelist_created, "E" + expiry,
+                 "N" + repo, *fingerprints]
         body = "".join(l + "\n" for l in lines) + "--\n"
         # Stock CVMFS hashes the body up to but EXCLUDING the "--\n" separator.
         ht = hashlib.sha1(body[:-3].encode()).hexdigest() if hash_text is None else hash_text
@@ -390,8 +413,10 @@ class RepoForge:
 
     def rewrite_whitelist(self, *, expiry: str | None = None, fingerprints: list | None = None,
                           repo: str | None = None, hash_text: str | None = None,
-                          sign_key: str | os.PathLike | None = None, stale_sig: bool = False) -> None:
+                          sign_key: str | os.PathLike | None = None, stale_sig: bool = False,
+                          created: str | None = None) -> None:
         self._write_whitelist(
+            created=created,   # None → the forge's fixed creation stamp
             expiry=expiry if expiry is not None else self.whitelist_expiry,
             fingerprints=self.fingerprints() if fingerprints is None else fingerprints,
             repo=repo if repo is not None else self.fqrn,
@@ -412,7 +437,8 @@ class RepoForge:
 
 
 def _parent(path: str) -> str:
-    """Repo-root-relative parent path; the root ('') is its own parent (mkrepo)."""
+    """Repo-root-relative parent path ('' for top-level entries; the root row
+    itself bypasses this — it stores parent (0, 0), the stock convention)."""
     if path in ("", "/"):
         return ""
     return path.rsplit("/", 1)[0]

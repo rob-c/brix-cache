@@ -257,8 +257,10 @@ rogue_proxy = x509forge.make_proxy(rogue_eec, not_after_days=400)
 def run_deleg_gate(base: Path) -> list[tuple[bool, str]]:
     if shutil.which("openssl") is None:
         return [result(True, "SKIP openssl not on PATH")]
-    needed = ["vfs_deleg.o", "vfs_deleg_bind.o", "gsi_verify.o",
-              "gsi_upstream.o", "cred_stage.o"]
+    # vfs_deleg_x509.o holds brix_vfs_deleg_proxy(), split out of vfs_deleg.c by
+    # the file-size burndown; without it the harness link fails on that symbol.
+    needed = ["vfs_deleg.o", "vfs_deleg_bind.o", "vfs_deleg_x509.o",
+              "gsi_verify.o", "gsi_upstream.o", "cred_stage.o"]
     objs = [find_obj(n) for n in needed]
     missing = [n for n, o in zip(needed, objs) if o is None]
     if missing:

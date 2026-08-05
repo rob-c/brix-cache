@@ -58,6 +58,7 @@ _FAST = [
     "check_doc_links",
     "check_readme_coverage",
     "check_ports_doc",
+    "check_template_refs",
     "check_vfs_seam",
     "check_vfs_identity_branch",
     "check_brix_namespace",
@@ -137,6 +138,67 @@ def test_file_size_guard_scans_client_and_excludes_client_tests(tmp_path) -> Non
     assert "client/lib/small_client.c" not in listed
     assert "client/tests/c/big_test.c" not in listed, "client/tests/ must be carved out"
     assert "client/tests/big_test.h" not in listed, "client/tests/ must be carved out"
+
+
+# --- template-ref ratchet: negatives ------------------------------------------
+# The green assertion above proves the frozen backlog matches the tree; these
+# prove the ratchet turns only one way. A dead config template is the failure the
+# 2026-08-04 coverage audit found 49 instances of: it reads as coverage that
+# exists, so the next author copies it instead of the live `nginx_lc_*` twin.
+#
+# The probe names below are assembled from a stem + suffix rather than written
+# out whole, because this file is itself inside the tree the guard greps: a
+# literal `nginx_zz_....conf` here would BE a reference, and the probe would be
+# considered live. That is the guard working correctly, and it is why the
+# workaround belongs in the test rather than in an exclusion inside the guard.
+_PROBE_1 = "nginx_zz_template_ref_probe" + ".conf"
+_PROBE_2 = "nginx_zz_template_regen_probe" + ".conf"
+
+
+def test_template_ref_guard_catches_a_new_dead_template() -> None:
+    probe = _REPO / "tests" / "configs" / _PROBE_1
+    probe.write_text("# nothing in the repo names this file\n")
+    try:
+        rc, out = _run("check_template_refs")
+    finally:
+        probe.unlink()
+    assert rc != 0, f"guard missed a new unreferenced template:\n{out}"
+    assert _PROBE_1 in out, out
+
+
+def test_template_ref_guard_refuses_to_grow_its_own_backlog(tmp_path) -> None:
+    """``--regen`` is the shrink handle; it must not be usable to bless a new
+    dead template, which is the only way a ratchet quietly stops ratcheting."""
+    probe = _REPO / "tests" / "configs" / _PROBE_2
+    probe.write_text("# nothing in the repo names this file either\n")
+    try:
+        p = subprocess.run(
+            [sys.executable, str(CI / "check_template_refs.py"), "--regen"],
+            capture_output=True, text=True)
+    finally:
+        probe.unlink()
+    assert p.returncode != 0, f"--regen blessed a new entry:\n{p.stdout}{p.stderr}"
+    assert _PROBE_2 in p.stdout + p.stderr
+    backlog = (CI / "template_refs_backlog.txt").read_text()
+    assert _PROBE_2 not in backlog, (
+        "refused --regen must leave the backlog untouched")
+
+
+def test_template_ref_guard_reddens_on_a_stale_backlog_entry() -> None:
+    """A backlog entry that got wired up (or deleted) must fail too — otherwise
+    the frozen count drifts above the real one and the ratchet has slack."""
+    tr = _load("check_template_refs")
+    ok, messages, _ = tr.run()
+    assert ok, messages
+    stale = _REPO / "tests" / "test_zz_template_ref_stale_probe.py"
+    frozen = tr._backlog()[0]
+    stale.write_text(f'"""probe that names {frozen} so the backlog goes stale."""\n')
+    try:
+        rc, out = _run("check_template_refs")
+    finally:
+        stale.unlink()
+    assert rc != 0, f"guard missed a stale backlog entry:\n{out}"
+    assert frozen in out and "stale backlog entry" in out, out
 
 
 # --- lizard-backed ratchets ---------------------------------------------------
@@ -321,7 +383,7 @@ def test_python_deps_guard_accepts_guarded_optional_imports(tmp_path) -> None:
 def test_python_deps_guard_ignores_stdlib_and_local_modules(tmp_path) -> None:
     """Only third-party names need declaring — no false positives on our own."""
     root = _deps_tree(tmp_path, "", "", "import json\nimport settings\n")
-    (root / "tests/settings.py").write_text("HOST = 'localhost'\n")
+    (root / "tests/settings.py").write_text("HOST = 'localhost'\n")  # net-literal-allow: synthetic settings.py in a fixture repo tree
     ok, findings = _DEPS.run(root)
     assert ok, findings
 

@@ -151,3 +151,25 @@ opencode.json
 /package.json
 /package-lock.json
 /node_modules/
+
+# gcov instrumentation + lcov reports (coverage builds drop these next to every
+# object; the corpus itself is regenerable — see phase92 gcda/lcov tooling)
+*.gcno
+*.gcda
+/coverage/
+
+# compiled wire-protocol fuzz harnesses (corpus_* seed dirs ARE committed)
+tests/fuzz/fuzz_gsi_bucket
+tests/fuzz/fuzz_macaroon_frame
+tests/fuzz/fuzz_root_frame
+tests/fuzz/fuzz_sigv4_canonical
+tests/fuzz/fuzz_sss_frame
+
+# locally built RPMs staged for the k8s labs (multi-MB binaries, rebuilt per host)
+k8s-tests/rpms/
+
+# repo-root session scratch (probes, captures, local decks)
+/strace.pid
+/krb5_deleg_capture
+/test_zz_probe.py
+/August_Status.pptx

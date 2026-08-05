@@ -221,6 +221,15 @@ The full HTTP-TPC tuning surface is in `src/protocols/webdav/tpc_config.c`:
 | `brix_webdav_tpc_allow_local` / `_allow_private` | 0 / 1 | SSRF policy for loopback / RFC 1918 targets |
 | `brix_webdav_tpc_cert` / `_key` / `_cafile` / `_cadir` | inherit | Client X.509 material for the remote leg |
 | `brix_webdav_tpc_token_endpoint` / `_client_id` / `_client_secret` / `_token_scope` | "" / "" / "" / `storage.read` | RFC 8693 token-exchange parameters |
+| `brix_webdav_tpc_require_source_size` | off | Pull completion gate: refuse a source that declares no `Content-Length` |
+| `brix_webdav_tpc_verify_checksum` | "" (off) | Pull completion gate: re-probe with `Want-Digest: <alg>` and recompute the RFC-3230 `Digest` over the staged temp before commit |
+
+The last two are the HTTP twin of the native `brix_tpc_require_source_size` /
+`brix_tpc_verify_checksum` pair and behave identically: both default off, the size
+comparison runs whenever either is on and the source declared a length, and the
+checksum half is fail-closed (absent, unparseable, uncomputable or mismatching all
+refuse). A refusal is `502` and the staged temp is aborted, never committed —
+`src/protocols/webdav/tpc_verify.c`, `tests/test_webdav_tpc_completion_gate.py`.
 
 A related HTTP tape surface, the WLCG **Tape REST** API
 (`src/protocols/webdav/tape_rest.c`, gated by `brix_webdav_tape_rest`), is an nginx-forward

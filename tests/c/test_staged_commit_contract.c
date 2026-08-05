@@ -111,6 +111,14 @@ ngx_int_t brix_listxattr_confined_canon(void) { return NGX_ERROR; }
 ngx_int_t brix_removexattr_confined_canon(void) { return NGX_ERROR; }
 ngx_int_t brix_setxattr_confined_canon(void) { return NGX_ERROR; }
 ngx_int_t brix_setattr_confined_canon(void) { return NGX_ERROR; }
+/* staged_open's mkpath step: the test writes flat objects into an existing root,
+ * so "already there" is the honest answer. */
+int brix_mkdir_recursive_confined_canon(ngx_log_t *log, const char *root_canon,
+    const char *resolved, mode_t mode, ngx_array_t *rules)
+{
+    (void) log; (void) root_canon; (void) resolved; (void) mode; (void) rules;
+    return 0;
+}
 ngx_int_t brix_ns_delete(void) { return NGX_ERROR; }
 ngx_int_t brix_ns_local_copy(void) { return NGX_ERROR; }
 ngx_int_t brix_ns_mkdir(void) { return NGX_ERROR; }

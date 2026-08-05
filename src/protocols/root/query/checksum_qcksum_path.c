@@ -221,11 +221,12 @@ brix_qcksum_manager_bounce(brix_qcksum_req_t *rq, ngx_int_t *out_rc)
         return NGX_OK;
     }
 
-    /* Registry miss — ask the CMS parent via kYR_locate (async). */
-    if (conf->cms.ctx != NULL) {
-        uint32_t streamid;
+    /* Registry miss — ask a CMS parent via kYR_locate (async). */
+    if (conf->cms.nctxs > 0) {
+        ngx_brix_cms_ctx_t *cms = ngx_brix_cms_pick_ctx(conf);
+        uint32_t            streamid;
 
-        streamid = ngx_brix_cms_next_streamid(conf->cms.ctx);
+        streamid = ngx_brix_cms_next_streamid(cms);
         if (brix_pending_insert(streamid, ngx_pid, c->fd, c->number,
                                   ctx->recv.cur_streamid,
                                   conf->cms.locate_timeout) == NGX_OK)
@@ -233,7 +234,7 @@ brix_qcksum_manager_bounce(brix_qcksum_req_t *rq, ngx_int_t *out_rc)
             ctx->cms_wait_streamid = streamid;
             ctx->state = XRD_ST_WAITING_CMS;
             ngx_add_timer(c->read, conf->cms.locate_timeout);
-            if (ngx_brix_cms_send_locate(conf->cms.ctx, streamid,
+            if (ngx_brix_cms_send_locate(cms, streamid,
                                            pathbuf) == NGX_OK)
             {
                 *out_rc = NGX_AGAIN;

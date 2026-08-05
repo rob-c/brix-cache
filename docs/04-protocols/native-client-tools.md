@@ -107,6 +107,29 @@ client runtime into a deployment.
 Test and development binaries also exist under `client/tests` or the build
 output: `aio_smoke`, `aio_resil`, and `aio_mfile`.
 
+### Why exactly three tools carry a `-brix` suffix
+
+`mpxstats-brix`, `wait41-brix` and `xrdsssadmin-brix` are the only tools renamed,
+and the rule behind that is deliberate: these three collide with the stock
+XRootD **server** RPM, and BriX must stay co-installable alongside it. Every
+client and FUSE tool (`xrdcp`, `xrdfs`, `xrootdfs`, …) keeps its stock name **by
+design** — they are drop-in replacements, not co-installable alternatives, so a
+suffix there would defeat the point.
+
+`xrdsssadmin-brix` is a clean-room implementation and its CLI is **not** the
+stock one — a stock invocation silently mis-mints a keytab rather than failing:
+
+    # BriX
+    xrdsssadmin-brix -k/--keytab <FILE> add --id N --user U --group G --name NM
+    # stock (does NOT apply here)
+    xrdsssadmin -n 1 -k <keyname> -u <user> -g <group> add <path>
+
+`-k` names the keytab **file**, not a key; there are no `-n`/`-u`/`-g` flags and
+no positional path. Note also that in a dev checkout the tool lives in
+`client/bin/` and is never on `PATH`, so a `shutil.which()`-style lookup resolves
+`None` and whatever depends on it silently disappears — resolve through an
+explicit override, then the in-tree path, then `PATH`.
+
 ## `xrdcp`
 
 The native `xrdcp` accepts:
@@ -123,6 +146,7 @@ Each source or destination may be:
 - `roots://host[:port]//path`
 - a WebDAV/HTTP URL: `davs://`, `dav://`, `https://`, `http://`
 - an S3 URL: `s3://` or `s3s://`
+- a GridFTP URL: `gsiftp://` (default port 2811) or `ftp://` (default port 21)
 
 Common examples:
 
@@ -136,6 +160,7 @@ xrdcp --tpc first root://src.example//data/a.root root://dst.example//data/a.roo
 xrdcp -T "$BEARER_TOKEN" davs://dav.example:8443//data/a.root .
 xrdcp --s3-access "$AWS_ACCESS_KEY_ID" --s3-secret "$AWS_SECRET_ACCESS_KEY" \
   s3s://s3.example/bucket/object ./object
+xrdcp --proxy /tmp/x509up_u1000 gsiftp://gridftp.example:2811/data/a.root .
 ```
 
 Important implemented features:
@@ -149,6 +174,17 @@ Important implemented features:
 - WebDAV/HTTP transfers use bearer tokens from `--token` or `$BEARER_TOKEN`.
 - S3 transfers use SigV4 credentials from flags or standard AWS environment
   variables.
+- GridFTP transfers (`gsiftp://`, `ftp://`) run the RFC 959 control dialogue with
+  RFC 2228 `AUTH GSSAPI`/`ADAT` security on `gsiftp://`: the X.509 proxy from
+  `--proxy` / `$X509_USER_PROXY` (else `/tmp/x509up_u<uid>`) authenticates the
+  control channel and is delegated to the server, with the trust store from
+  `--ca-dir` / `$X509_CERT_DIR`. A `gsiftp://` endpoint is never downgraded to an
+  anonymous login — a missing or unusable proxy fails the copy. Data moves over a
+  passive channel (`EPSV`, falling back to `PASV`); the client refuses a
+  privileged data port outright and, unless `BRIX_GSIFTP_ALLOW_OFFPEER=1` is set,
+  refuses a data address that is not the control peer (FTP-bounce screen).
+  `gsiftp://`-to-`gsiftp://` and recursive GridFTP copies are not supported by the
+  client — the server's TPC surface owns those.
 - `--wire-trace[=N]`, `--timing`, `--capture`, and `--redirect-trace` expose
   client-side protocol diagnostics.
 - `--retry`, `--jobs`, and `--sync` support batch workflows.

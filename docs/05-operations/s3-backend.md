@@ -202,9 +202,37 @@ Reading the failure when only step 2 fails:
 |---|---|---|---|
 | root:// (XRootD) | yes | yes (staged) | `pgread`/`readv` vectored reads coalesce into ranged GETs |
 | WebDAV | yes | yes (PUT) | COPY/MOVE limited by the namespace-op gaps above |
-| S3 front (gateway's own S3 endpoint) | yes | yes | gateway re-signs to the origin; front and origin credentials are independent |
+| S3 front (gateway's own S3 endpoint) | yes | yes | gateway re-signs to the origin; front and origin credentials are independent — see §7 |
 
 Per-user origin credentials on the write/metadata path require the
 `*_cred` driver slots (P80.3); until your build has them, deny-mode per-user
 posture is fully enforced on reads, while writes use the service credential
 under `allow`.
+
+## 7. Nested S3: an S3 front over an `s3://` backend
+
+`brix_s3 on` in front of `brix_storage_backend s3://…` is the shape you get when
+a site re-exports someone else's bucket under its own endpoint and its own
+credentials. It works on every verb the plane matrix lists — PUT/GET/HEAD/
+ListObjects/DELETE — with two operational rules:
+
+- **`worker_processes` must be ≥ 2 when the origin is co-hosted** in the same
+  nginx. The front blocks on its synchronous outbound leg; with one worker there
+  is nobody left to accept the connection it just made to itself, and the first
+  request hangs forever. A remote origin has no such constraint.
+- **The front's `brix_export` still matters** (§2): it anchors path resolution
+  and authorization. Objects do not come to rest there — a local copy under the
+  export root means the gateway stopped being a gateway.
+
+**Credential independence, and why it is tested.** The front terminates the
+client's SigV4 with its own `brix_s3_access_key`/`brix_s3_secret_key` and signs
+the origin leg with `brix_storage_credential`; the client's `Authorization`
+header is never forwarded. One worker verifies for *every* `brix_s3` block in
+the configuration, so per-block key isolation is load-bearing: the worker-local
+signing-key cache is keyed on date **+ region + a digest of the secret**. Keyed
+on date+region alone (as it was before 2026-08-04) the first block to sign
+captured the cache slot, which both accepted requests forged against another
+block's access key id with the first block's secret and rejected the other
+block's own credential for the rest of the calendar day. If you run multiple S3
+endpoints with different keys in one nginx, `tests/test_s3_nested_gateway.py`
+is the regression pin for that behaviour.

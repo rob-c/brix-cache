@@ -17,6 +17,19 @@ metric slots (`push_started`, `push_success`), and 10 tests in
 now routes on which header is present (`Source:` → pull, `Destination:` → push,
 both or neither → 400).
 
+**Update 2026-08-04 — pull completion gate.** The pull direction gained the
+native plane's integrity pair: `brix_webdav_tpc_require_source_size on|off` and
+`brix_webdav_tpc_verify_checksum <alg>` (`src/protocols/webdav/tpc_verify.c`,
+`webdav_tpc_verify_pulled()`). Before the staged temp is committed, one HEAD
+re-probes the source (with `Want-Digest` when a checksum algorithm is set); the
+declared `Content-Length` is compared with what landed and the RFC-3230 `Digest`
+is recomputed over the temp. Both halves default off; refusals are `502` and the
+temp is aborted. Push is untouched — both gates are pull concepts. Surfaced by the
+2026-08-04 combinatorial coverage audit (P1-6) as a product gap: COPY had no
+completion gate at all while native TPC had both. Tests:
+`tests/test_webdav_tpc_completion_gate.py` (18). See
+`docs/04-protocols/http-tpc-reference.md` §8.
+
 **Why it matters:** FTS3 / FTS4 channel configuration can place transfers in
 either pull or push mode. Sites where the source server initiates the transfer
 (common when the destination is being written by a site with strict egress
@@ -379,7 +392,7 @@ rules. Operational caveats are documented below.
 
 **What is implemented** (`src/auth/authz/authdb.c`, `src/core/config/policy.c`):
 
-- `brix_authdb <path>` directive — registered as `NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1`, requires `brix_auth gsi`, `token`, or both
+- `brix_authdb <path>` directive — registered as `NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1`, requires any identity-establishing `brix_auth` scheme (`gsi`, `token`, `both`, `sss`, `krb5`, `pwd`, `host`, `unix`); only `brix_auth none` is refused, and `brix_authdb_format xrdacc` is exempt even there
 - Full authdb file parser: `[u|g|p|a] <id> <path> <privs>` line format, comments (`#`), blank lines
 - Identity types enforced: `u` (user DN matched against `ctx->dn`), `g` (VO group matched against `ctx->vo_list`), `a` (all/anonymous); wildcard `*` id accepted for `u` and `g`
 - Privilege flags: `r` (read + lookup), `l` (lookup only), `w`/`a` (update/append), `d` (delete), `m` (mkdir), `k` (admin)

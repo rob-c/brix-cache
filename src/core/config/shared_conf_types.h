@@ -238,6 +238,12 @@ typedef struct {
     ngx_uint_t          cache_batch_cinfo;  /* brix_cache_batch_cinfo (0 off/1 on/2 auto) */
     size_t              cache_index_cache;  /* brix_cache_index_cache (L1 entries) */
     size_t              cache_slice_size;   /* brix_cache_slice_size (0 = whole-file) */
+    ngx_int_t           cache_prefetch;     /* brix_cache_prefetch: max in-flight
+                                             * background block-prefetch jobs per
+                                             * worker (0 = off)                    */
+    size_t              cache_prefetch_window; /* brix_cache_prefetch_window: max
+                                             * bytes one WILLNEED hint may queue
+                                             * for background fill                 */
     /* Read-cache admission (deny/allow prefix + include regex).  The directives
      * live on the stream srv conf (they are stream-only and share the matcher
      * with write-through); the protocol finaliser bridges the already-merged

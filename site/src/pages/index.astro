@@ -1,9 +1,11 @@
 ---
+import { Image } from 'astro:assets';
 import Layout from '../layouts/Layout.astro';
 import Band from '../components/Band.astro';
 import ProtocolFan from '../components/ProtocolFan.astro';
 import Cta from '../components/Cta.astro';
 import { url, REPO_URL, DOCS_URL, PROTOCOLS, AUDIENCES } from '../lib/site';
+import knife from '../assets/brix-knife.png';
 
 const audienceBlurb: Record<string, string> = {
   Sysadmins: 'Place it in front of an existing xrootd server to add TLS, auth, and metrics while keeping client and backend configuration unchanged.',
@@ -96,6 +98,30 @@ const flow = [
         <div class="spec"><dt>clients</dt><dd>globus-url-copy · gfal2 · fts</dd></div>
       </dl>
     </article>
+  </Band>
+
+  <!-- SWISS-ARMY KNIFE -->
+  <Band id="knife">
+    <div class="knife">
+      <figure class="knife-figure panel">
+        <Image
+          src={knife}
+          alt="A red swiss-army knife bearing the BriX logo, its blades labeled CVMFS, root://, webdav, s3, gsiftp, x509, and tokens"
+          widths={[480, 960]}
+          sizes="(min-width: 900px) 540px, 100vw"
+        />
+      </figure>
+      <div class="stack">
+        <span class="eyebrow">The swiss-army knife</span>
+        <h2 class="display band-head">Every blade,<br />one handle.</h2>
+        <p class="lede muted">
+          Four wire protocols are only the start. The same binary and toolset fold in a CVMFS
+          site cache and FUSE client, x509 / GSI proxy handling, and WLCG bearer-token scope
+          enforcement — one shared core for auth, storage, caching, and metrics behind every
+          blade you open.
+        </p>
+      </div>
+    </div>
   </Band>
 
   <!-- HOW IT PLUGS IN -->
@@ -209,6 +235,12 @@ const flow = [
   .gftp-blurb { grid-column: 1; font-size: 0.95rem; }
   .gftp-specs { margin-top: 0; align-self: center; }
   @media (min-width: 820px) { .gftp-head { grid-column: 1; } .gftp-specs { grid-column: 2; grid-row: 1 / span 2; } }
+
+  /* swiss-army knife */
+  .knife { display: grid; gap: 2rem; align-items: center; }
+  @media (min-width: 900px) { .knife { grid-template-columns: 1fr 0.85fr; gap: 3rem; } }
+  .knife-figure { margin: 0; padding: 0; overflow: hidden; }
+  .knife-figure img { display: block; width: 100%; height: auto; }
 
   /* flow */
   .flow-intro { max-width: 60ch; margin-bottom: 1.8rem; }

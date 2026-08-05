@@ -64,9 +64,19 @@ _xrddiag() {
       -- "${COMP_WORDS[COMP_CWORD]}"))
     return
   fi
-  _brix_opts_filter "--tls --notlsok --noverifyhost --auth --wire-trace --timing
-    --version --json --interval --count --prometheus --sweep --davs
-    --cluster-url --probe-timeout --playback -S"
+  _brix_opts_filter "--tls --notlsok --no-verify-tls --noverifyhost --auth
+    --auth-suite --wire-trace --timing --version --json --full --interval
+    --count --prometheus --sweep --davs --davs-tls --cluster-url
+    --probe-timeout --timeout --playback --capture --vs-reference
+    --i-am-authorized --allow-write --all-servers --cap-threshold
+    --config-audit --deep-recon --latency --latency-count --map --map-format
+    --metrics-port --tpc-target -S" && return
+  local prev="${COMP_WORDS[COMP_CWORD-1]}"
+  case "$prev" in
+    --map-format) COMPREPLY=($(compgen -W "ascii tree dot mermaid" -- "${COMP_WORDS[COMP_CWORD]}")); return ;;
+    --auth)       COMPREPLY=($(compgen -W "gsi ztn krb5 sss unix" -- "${COMP_WORDS[COMP_CWORD]}")); return ;;
+    --playback|--capture) COMPREPLY=($(compgen -f -- "${COMP_WORDS[COMP_CWORD]}")); return ;;
+  esac
 }
 
 _xrdcksum() {
@@ -148,6 +158,37 @@ _brixmount() {
   COMPREPLY=($(compgen -d -- "${COMP_WORDS[COMP_CWORD]}"))
 }
 
+_brixcvmfs() {
+  local cur="${COMP_WORDS[COMP_CWORD]}"
+  # `repo` is the Stratum-0 release-manager surface; everything else is a mount.
+  if [[ "${COMP_WORDS[1]}" == "repo" ]]; then
+    case $COMP_CWORD in
+      2) COMPREPLY=($(compgen -W "mkfs info resign transaction abort publish
+           fsck gc tag" -- "$cur")) ;;
+      3) [[ "${COMP_WORDS[2]}" == "tag" ]] \
+           && COMPREPLY=($(compgen -W "add list rollback" -- "$cur")) \
+           || COMPREPLY=($(compgen -d -- "$cur")) ;;
+      *) case "${COMP_WORDS[2]}" in
+           publish) _brix_opts_filter "--chunk-size --dirtab" && return ;;
+           fsck)    _brix_opts_filter "--data" && return ;;
+           gc)      _brix_opts_filter "--keep --keep-since --grace" && return ;;
+           tag)     _brix_opts_filter "-m" && return ;;
+         esac
+         COMPREPLY=($(compgen -d -- "$cur")) ;;
+    esac
+    return
+  fi
+  if [[ $COMP_CWORD -eq 1 ]]; then
+    [[ "$cur" == -* ]] \
+      && COMPREPLY=($(compgen -W "--rw --check --prewarm --version" -- "$cur")) \
+      || COMPREPLY=($(compgen -W "repo" -- "$cur"))
+    return
+  fi
+  _brix_opts_filter "--rw --check --prewarm --version --overlay-list
+    --overlay-reset -o -f -d" && return
+  COMPREPLY=($(compgen -d -- "$cur"))
+}
+
 _xrdstorascan() {
   if [[ $COMP_CWORD -eq 1 ]]; then
     COMPREPLY=($(compgen -W "verify bench dump fill compare" \
@@ -187,12 +228,16 @@ _brixfaultproxy() {
   local opts="--listen --target --control --bind --insecure-bind --max-conns
     --seed --script --quiet --latency --jitter --chunk --drip --rate --lossy
     --reorder --corrupt --dup --truncate-at --fail-nth --heal-after --hang
-    --block --help --version -l -t -c -b -q -h -V"
+    --block --help --version -l -t -c -b -q -h -V
+    --accept-pause --chaos --delay-first --drop-bytes --event-log --fanout
+    --flap --global-rate --inject --mangle-len --max-lifetime --mss --preset
+    --priv-iface --privileged --proxy-header --ramp --rcvbuf --repeat-bytes
+    --replace --sndbuf --stall --trigger --trigger-once"
   _brix_opts_filter "$opts" && return
   local prev="${COMP_WORDS[COMP_CWORD-1]}"
   case "$prev" in
     --bind|-b)  COMPREPLY=($(compgen -W "127.0.0.1 ::1 0.0.0.0" -- "${COMP_WORDS[COMP_CWORD]}")); return ;;
-    --script)   COMPREPLY=($(compgen -f -- "${COMP_WORDS[COMP_CWORD]}")); return ;;
+    --script|--event-log) COMPREPLY=($(compgen -f -- "${COMP_WORDS[COMP_CWORD]}")); return ;;
   esac
   COMPREPLY=()
 }
@@ -223,6 +268,7 @@ complete -F _xrdgsiproxy xrdgsiproxy
 complete -F _xrdsssadmin xrdsssadmin-brix
 complete -F _xrootdfs xrootdfs
 complete -F _brixmount brixMount
+complete -F _brixcvmfs brixcvmfs
 complete -F _xrdstorascan xrdstorascan
 complete -F _brixfaultproxy brix-fault-proxy
 complete -F _xrdceph_striper_migrate xrdceph_striper_migrate xrdceph_striper_migrate.py

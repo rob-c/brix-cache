@@ -50,6 +50,8 @@
 #include "fs/vfs/vfs.h"             /* brix_vfs_ctx_t for s3_build_vfs_ctx() */
 #include "core/config/shared_conf.h"
 #include "core/compat/namespace_ops.h"
+#include "net/cms/cns_inventory.h"   /* BRIX_CNS_ADD / BRIX_CNS_DEL op codes  */
+#include "net/cms/cns_emit.h"        /* phase-97 §5: CNS emit from the S3 plane */
 #include "auth/authz/acc/acc.h"
 #include "core/http/etag.h"
 #include "core/compat/error_mapping.h"

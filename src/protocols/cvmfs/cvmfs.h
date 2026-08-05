@@ -77,6 +77,12 @@ typedef struct {
                                       .cvmfspublished/.cvmfswhitelist must
                                       verify the full signature chain before
                                       publish ("" = off, phase-85 F1)        */
+    ngx_str_t    stratum0_root;    /* brix_cvmfs_stratum0_root <dir>
+                                      (phase-96 S13): explicit Stratum-0
+                                      alias for brix_export — the location
+                                      serves THIS published repo tree and
+                                      refuses cache-fill upstream grammar
+                                      in the same block ("" = off)          */
     ngx_array_t *upstream_allow;   /* brix_cvmfs_upstream_allow host…       */
     ngx_uint_t   upstream_max;     /* brix_cvmfs_upstream_max (default 8)   */
     ngx_uint_t   origin_select;    /* brix_cvmfs_origin_select (T19)        */

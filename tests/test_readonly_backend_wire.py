@@ -1,20 +1,26 @@
 """
-Phase-71 deferred e2e wire tests: capability-gated errors on a read-only
-namespace backend, proven over the native root:// wire.
+Capability-gated namespace ops on an s3:// backend, proven over the native
+root:// wire — one test per side of the sd_remote capability word.
 
-An s3:// storage backend (sd_remote) advertises CAP_RANGE_READ | CAP_MEMFILE
-only — no CAP_DIRS_WRITE, no CAP_TRUNCATE.  With `brix_allow_write on` (so the
-write-token gate is OPEN and cannot mask the result), the phase-71 VFS dispatch
-guards must be what answers namespace mutations:
+The VFS dispatch guards are pure capability checks, so what an op answers is
+decided entirely by what the backend advertises (sd_remote.c:376):
 
-  * kXR_mkdir    -> kXR_NotAuthorized  (vfs_mkdir.c   !CAP_DIRS_WRITE -> EPERM)
-  * kXR_mv       -> kXR_NotAuthorized  (vfs_rename.c  !CAP_DIRS_WRITE -> EPERM)
-  * kXR_truncate -> kXR_Unsupported    (vfs_sync.c    !CAP_TRUNCATE   -> ENOTSUP)
+  * kXR_mkdir    -> kXR_ok           (CAP_DIRS_WRITE: `path/` marker object)
+  * kXR_mv       -> kXR_ok           (CAP_DIRS_WRITE: copy + delete)
+  * kXR_truncate -> kXR_Unsupported  (vfs_sync.c  !CAP_TRUNCATE -> ENOTSUP)
 
-and the same backend must still SERVE READS (the caps it does advertise), so a
-failure here is the capability gate, not a dead backend.  Data-plane writes are
-intentionally out of scope: they route through the phase-70 staged writer and
-are covered by test_pgwrite_staged_sync_gate.py against this very topology.
+and the same backend must still SERVE READS, so a failure here is the
+capability gate, not a dead backend.  Data-plane writes are intentionally out
+of scope: they route through the phase-70 staged writer and are covered by
+test_pgwrite_staged_sync_gate.py against this very topology.
+
+History: written for phase-71, when sd_remote advertised CAP_RANGE_READ |
+CAP_MEMFILE only and BOTH catalog ops answered kXR_NotAuthorized (EPERM).
+Phase-92 added marker-based namespace mutation, so the mkdir/mv assertions were
+inverted (and an end-to-end observability test added, since the phase-92 path
+had no wire coverage at all).  Truncate is unchanged: whole-object stores still
+have no CAP_TRUNCATE, and it remains the negative leg proving the gate is real
+rather than universally permissive.
 
 Run:
     PYTHONPATH=tests python3 -m pytest tests/test_readonly_backend_wire.py -v
@@ -166,28 +172,84 @@ def test_read_path_serves_bytes(node):
         sock.close()
 
 
-def test_mkdir_denied_eperm(node):
-    """No CAP_DIRS_WRITE: catalog mutation is refused at VFS dispatch with EPERM
-    -> kXR_NotAuthorized (never EROFS, never a backend call)."""
+def test_mkdir_granted_over_markers(node):
+    """CAP_DIRS_WRITE (phase-92): kXR_mkdir is GRANTED on an s3:// backend and
+    realised as a `path/` marker object, not refused at the VFS cap gate.
+
+    Regression note: this assertion is INVERTED from its phase-71 original.
+    sd_remote.c then advertised CAP_RANGE_READ|CAP_MEMFILE only, so vfs_mkdir.c's
+    cap check answered EPERM -> kXR_NotAuthorized. Phase-92 added
+    BRIX_SD_CAP_DIRS_WRITE plus real marker-based .mkdir/.rename slots
+    (sd_remote.c:376), and the gate at vfs_mkdir.c:182 is a pure cap check — so
+    the op now succeeds. The old assertion silently described retired behaviour
+    and had gone red; see docs/refactor/
+    testsuite-combinatorial-coverage-audit-2026-08-04.md §2.1.
+
+    Restoring this test also exposed the other half of the marker path: the S3
+    ORIGIN 500'd on the marker PUT (a trailing-slash key fell into the
+    object-write path and EINVAL'd on publish), so the driver reported EIO ->
+    kXR_IOError. Fixed by the folder-marker branch in s3/put_inner.c and covered
+    on the HTTP plane by test_s3_folder_marker_put.py.
+    """
     sock = _login(node)
     try:
         st, err, body = _mkdir(sock, b"/newdir")
-        assert st == kXR_error, f"mkdir must fail on a read-only catalog, got {st}"
-        assert err == kXR_NotAuthorized, \
-            f"expected kXR_NotAuthorized(EPERM), got {err} body={body!r}"
+        assert st == kXR_ok, \
+            f"mkdir must be granted via CAP_DIRS_WRITE, got st={st} err={err} body={body!r}"
     finally:
         sock.close()
 
 
-def test_rename_denied_eperm(node):
-    """No CAP_DIRS_WRITE: rename is refused at VFS dispatch with EPERM ->
-    kXR_NotAuthorized — even for an object that exists and is readable."""
+def test_rename_granted_over_markers(node):
+    """CAP_DIRS_WRITE (phase-92): kXR_mv is GRANTED on an s3:// backend and
+    realised as a copy+delete of the underlying object.
+
+    Inverted from the phase-71 original for the same reason as
+    test_mkdir_granted_over_markers. The destination is INSIDE the directory the
+    previous test created, so a pass also proves that mkdir produced a usable
+    prefix and not just a 200. The rename is then proven REAL (not merely
+    accepted) by test_rename_is_observable_end_to_end below — a status code alone
+    would not distinguish a granted rename from a silently-dropped one.
+    """
     sock = _login(node)
     try:
-        st, err, body = _mv(sock, b"/seeded.bin", b"/renamed.bin")
-        assert st == kXR_error, f"mv must fail on a read-only catalog, got {st}"
-        assert err == kXR_NotAuthorized, \
-            f"expected kXR_NotAuthorized(EPERM), got {err} body={body!r}"
+        st, err, body = _mv(sock, b"/seeded.bin", b"/newdir/seeded.bin")
+        assert st == kXR_ok, \
+            f"mv must be granted via CAP_DIRS_WRITE, got st={st} err={err} body={body!r}"
+    finally:
+        sock.close()
+
+
+def test_rename_is_observable_end_to_end(node):
+    """The granted rename actually MOVED the object: the new name serves the
+    original bytes and the old name is gone.
+
+    This is the positive phase-92 wire contract that had no test at all — the
+    marker/copy mutation path was previously exercised only as a side effect of
+    the (stale, failing) negative assertions above. Ordering: this runs after
+    test_rename_granted_over_markers within the module-scoped `node` fixture, so
+    /seeded.bin now lives at /newdir/seeded.bin.
+    """
+    sock = _login(node)
+    try:
+        fh = _open_read(sock, b"/newdir/seeded.bin")
+        st, data = _read_all(sock, fh, 0, len(node["seed"]))
+        assert st == kXR_ok and data == node["seed"], \
+            "the renamed object must serve the original bytes byte-exact"
+        _close(sock, fh)
+    finally:
+        sock.close()
+
+    # The source name must no longer resolve — a rename that merely COPIED would
+    # leave it readable and pass the assertion above.
+    sock = _login(node)
+    try:
+        sock.sendall(struct.pack("!2sHHH2s6s4sI", b"\x00\x02", kXR_open,
+                                 0, kXR_open_read, b"\x00\x00", b"\x00" * 6,
+                                 b"\x00" * 4, len(b"/seeded.bin")) + b"/seeded.bin")
+        status, body = _read_response(sock)
+        assert status == kXR_error, \
+            f"the pre-rename name must be gone, but open() returned st={status}"
     finally:
         sock.close()
 
@@ -198,7 +260,7 @@ def test_truncate_denied_enotsup(node):
     from the EPERM the catalog gates return)."""
     sock = _login(node)
     try:
-        st, err, body = _truncate_path(sock, b"/seeded.bin", 100)
+        st, err, body = _truncate_path(sock, b"/newdir/seeded.bin", 100)
         assert st == kXR_error, f"truncate must fail on an object store, got {st}"
         assert err == kXR_Unsupported, \
             f"expected kXR_Unsupported(ENOTSUP), got {err} body={body!r}"

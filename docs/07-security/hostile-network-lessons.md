@@ -94,6 +94,39 @@ whether the client had *declared* completion:
 
 Getting this backwards either discards resumable work or publishes a hole.
 
+## Injecting the faults: one rate cannot test two regimes, and the levers are sticky
+
+`brix-fault-proxy` corrupts per byte, at `pct * 10000` ppm (`fault_corrupt()`,
+`brix_fault_relay.c`). A handshake is a few hundred bytes; a payload is
+megabytes. The same nominal rate therefore lands in two completely different
+regimes, ~1000× apart:
+
+- **Credential regime** — `0.5 %`/byte mangles a login ~97 % of the time. This is
+  the rate for "does the auth leg fail safely".
+- **Integrity regime** — `0.0005 %`/byte spares the handshake ~99.85 % of the
+  time while flipping ~21 payload bytes with near-certainty. This is the rate for
+  "does a corrupted body get caught".
+
+Written with one rate for both, such a test decides on a coin toss: a repeat run
+flipped the same case from "pgread CRC mismatch" (rc 51) to "no usable auth
+protocol" (rc 53). Use two named constants, each with the arithmetic in a
+comment.
+
+Two corollaries, both of which produced wrong first diagnoses:
+
+- **`set_corrupt()` / `set_truncate()` arm one lever; they do not disarm the
+  others. Only `clear()` does.** A leftover `truncate-at` from a previous case
+  made unrelated legs report `rc=54` and read as a transport bug. Read
+  `fp.ctl("status")` — it reports a global flipped-byte counter — instead of
+  inferring the active fault from a client return code.
+- **A wedged connection leaves an orphan behind.** `LifecycleHarness.close()`
+  calls `launcher.stop()`, which fails against a stalled instance, and `close()`
+  swallows the exception — so the instance survives and port-conflicts every
+  later module using the same registry name. One stall probe turned a clean
+  suite into "5 failed, 9 errors"; the same suite was 84/0 after
+  `pgrep -f "registry/<name>-"` was cleared. `manage_test_servers stop-all` does
+  **not** reap lifecycle instances — it only touches the session fleet.
+
 ## Repair protocols are only sound where the repair channel exists
 
 "Accept-then-correct" (take a page now, fix it on a later rewrite) is a valid pattern only

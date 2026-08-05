@@ -100,7 +100,7 @@ brix_export_stream_tracking_metrics(metrics_writer_t *mw,
     for (i = 0; i < BRIX_USERS_MAX_TRACKED; i++) {
         ngx_brix_user_slot_t *u = &shm->user_tracking.slots[i];
         if (!u->id_hash) { continue; }
-        mw_printf(mw, "brix_user_sessions_total{hash=%08x} %lu\n",
+        mw_printf(mw, "brix_user_sessions_total{hash=\"%08x\"} %lu\n", /* metric-cardinality-allow: 8-hex identity hash, rows bounded by the fixed BRIX_USERS_MAX_TRACKED slot table with eviction */
                   u->id_hash, (unsigned long) ngx_atomic_fetch_add(&u->sessions_total, 0));
     }
 }

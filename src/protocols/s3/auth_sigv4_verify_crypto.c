@@ -44,10 +44,22 @@
  * */
 
 /* Worker-local one-slot cache: signing key is stable for one calendar day per
- * region, so cache the last key and avoid four HMAC rounds on every request. */
+ * region AND per secret, so cache the last key and avoid four HMAC rounds on
+ * every request.
+ *
+ * The secret fingerprint is part of the cache key, not an optimisation.  One
+ * worker serves every `brix_s3` server block in the configuration, and each
+ * block carries its own brix_s3_secret_key; a date+region-only slot let a
+ * request to server B be verified with server A's signing key — which both
+ * ACCEPTED a request forged with A's secret against B's (public) access key id
+ * and then rejected B's own legitimate credential for the rest of the calendar
+ * day, because the hit path never re-derives.  Keying on the secret keeps each
+ * block's key to itself; a digest is cached rather than the secret so the
+ * static holds no key material. */
 static struct {
     char   date[9];    /* YYYYMMDD\0, empty string means invalid */
     char   region[65];
+    u_char secret_fp[32];   /* SHA-256 of the secret this key was derived from */
     u_char key[32];
 } s_signing_key_cache;
 
@@ -60,18 +72,25 @@ static struct {
  * WHY:   The signing key is stable for one calendar day per region, so caching
  *        the last result avoids four HMAC rounds on the hot verify path (and on
  *        the post-policy path that also calls this).
- * HOW:   Return the cached key on a date+region hit; otherwise run the shared
- *        libxrdproto 4-round HMAC chain (byte-identical to the client sign path),
- *        then refresh the cache slot.
+ * HOW:   Return the cached key on a date+region+secret hit; otherwise run the
+ *        shared libxrdproto 4-round HMAC chain (byte-identical to the client sign
+ *        path), then refresh the cache slot.
  */
 int
 s3_sigv4_derive_signing_key_cached(const ngx_str_t *secret_key,
                                     const char *date, const char *region,
                                     u_char out[32])
 {
+    u_char secret_fp[32];
+
+    if (!brix_sha256(secret_key->data, secret_key->len, secret_fp)) {
+        return 0;
+    }
+
     if (s_signing_key_cache.date[0] != '\0'
         && strcmp(s_signing_key_cache.date, date) == 0
-        && strcmp(s_signing_key_cache.region, region) == 0)
+        && strcmp(s_signing_key_cache.region, region) == 0
+        && CRYPTO_memcmp(s_signing_key_cache.secret_fp, secret_fp, 32) == 0)
     {
         ngx_memcpy(out, s_signing_key_cache.key, 32);
         return 1;
@@ -88,6 +107,7 @@ s3_sigv4_derive_signing_key_cached(const ngx_str_t *secret_key,
                 (u_char *) date, sizeof(s_signing_key_cache.date));
     ngx_cpystrn((u_char *) s_signing_key_cache.region,
                 (u_char *) region, sizeof(s_signing_key_cache.region));
+    ngx_memcpy(s_signing_key_cache.secret_fp, secret_fp, 32);
     ngx_memcpy(s_signing_key_cache.key, out, 32);
     return 1;
 }

@@ -67,18 +67,21 @@ brix_merge_srv_gsi_acc(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *conf,
     ngx_conf_merge_str_value(conf->acc.gidretran, prev->acc.gidretran, "");
 
     /*
-     * The native authdb engine matches by DN/VO and so needs an authenticating
-     * scheme; the xrdacc engine also authorizes anonymous `u *` rules, so it is
-     * exempt.  Validated here, where both directives have settled.
+     * The native authdb engine matches by DN/VO, so it needs an authenticating
+     * scheme — but ANY of them will do: sss/krb5/pwd/host/unix all stamp
+     * ctx->login.dn (and pwd/sss also fill the VO list) exactly as gsi and
+     * token do, so u/g rules bind behind them too.  Only anonymous servers are
+     * rejected; the xrdacc engine is exempt even there, because it also
+     * authorizes anonymous `u *` rules.  Validated here, where both directives
+     * have settled.
      */
     if (conf->authdb.len > 0
         && conf->acc.format == BRIX_AUTHDB_FORMAT_NATIVE
-        && conf->auth != BRIX_AUTH_GSI && conf->auth != BRIX_AUTH_TOKEN
-        && conf->auth != (BRIX_AUTH_GSI | BRIX_AUTH_TOKEN))
+        && conf->auth == BRIX_AUTH_NONE)
     {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-            "brix_authdb (native format) requires brix_auth gsi, token "
-            "or both; use `brix_authdb_format xrdacc` for anonymous rules");
+            "brix_authdb (native format) requires an authenticating brix_auth "
+            "scheme; use `brix_authdb_format xrdacc` for anonymous rules");
         return NGX_CONF_ERROR;
     }
 
@@ -528,6 +531,26 @@ brix_merge_srv_storage(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *conf,
     {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
             "brix_cache_slice_size must be a positive multiple of 1m");
+        return NGX_CONF_ERROR;
+    }
+
+    /* Background block prefetch: the in-flight cap bounds detached thread-pool
+     * jobs per worker — an unbounded value would let one client queue arbitrary
+     * speculative origin traffic. */
+    if (conf->common.cache_prefetch != NGX_CONF_UNSET
+        && (conf->common.cache_prefetch < 0
+            || conf->common.cache_prefetch > 64))
+    {
+        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            "brix_cache_prefetch must be between 0 and 64");
+        return NGX_CONF_ERROR;
+    }
+    if (conf->common.cache_prefetch_window != NGX_CONF_UNSET_SIZE
+        && conf->common.cache_prefetch_window != 0
+        && conf->common.cache_prefetch_window < 64 * 1024)
+    {
+        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            "brix_cache_prefetch_window must be 0 or at least 64k");
         return NGX_CONF_ERROR;
     }
 

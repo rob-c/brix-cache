@@ -187,6 +187,7 @@ class _Gateway:
         ))
         self.harness = harness
         self.port = endpoint.port
+        self.data_root = endpoint.data_root   # the gateway's OWN export
         self._log = os.path.join(endpoint.prefix, "logs", "error.log")
 
     def close(self):
@@ -272,3 +273,134 @@ def test_mode_select_does_not_forward(xrd, tmp_path):
     assert after == before, (
         "upstream logged a NEW user DN login under `mode select` — the proxy was "
         f"forwarded when it must not have been (before={before} after={after})")
+
+
+# --------------------------------------------------------------------------- #
+# STOR — the write half of the gridftp x xroot cell.                           #
+#                                                                              #
+# `brix_gridftp_allow_write on` has been in this config since phase 82, but    #
+# only RETR was ever driven, so the whole sd_xroot write path (create-open,    #
+# chunked write, close) was configured-but-never-executed under delegation.    #
+# docs/refactor/testsuite-combinatorial-coverage-audit-2026-08-04.md item 14.  #
+# --------------------------------------------------------------------------- #
+def _upstream_bytes(xrd, name):
+    """Read an object straight off the upstream's export tree.
+
+    Deliberately NOT a RETR back through the gateway: reading it back the same
+    way it was written would pass even if the gateway had answered from its own
+    export instead of the xrootd, which is the exact confusion this cell exists
+    to rule out.
+    """
+    path = os.path.join(xrd.data, name)
+    if not os.path.exists(path):
+        return None
+    with open(path, "rb") as fh:
+        return fh.read()
+
+
+def test_delegated_stor_writes_through_to_the_upstream(gateway, xrd, tmp_path):
+    """STOR lands on the UPSTREAM, byte-exact, authenticated as the user.
+
+    Multi-chunk on purpose: a single-buffer upload would not exercise the
+    sd_xroot write loop's offset accounting at all.
+    """
+    payload = b"stored-through-xrootd \x00\xff " + os.urandom(300 * 1024)
+    src = os.path.join(str(tmp_path), "put.bin")
+    with open(src, "wb") as fh:
+        fh.write(payload)
+    before = xrd.log_text().count(USER_DN_MARK)
+
+    r = _guc(f"file://{src}", f"gsiftp://{SERVER_HOST}:{gateway.port}/stored.bin")
+    assert r.returncode == 0, (
+        f"delegated STOR failed rc={r.returncode}\n{r.stderr}\n"
+        f"--- gateway ---\n{gateway.error_log()}\n--- xrootd ---\n{xrd.log_text()}")
+
+    got = _upstream_bytes(xrd, "stored.bin")
+    assert got is not None, (
+        "STOR reported success but nothing reached the upstream export — the "
+        f"bytes went somewhere else\n{gateway.error_log()}")
+    assert got == payload, f"upstream object differs: {len(got)} vs {len(payload)}"
+    assert xrd.log_text().count(USER_DN_MARK) > before, (
+        "the write leg logged no user DN — the proxy was not forwarded for STOR")
+
+
+def test_stored_object_round_trips_back_through_the_gateway(gateway, xrd, tmp_path):
+    """The object written over gsiftp reads back identically over gsiftp.
+
+    Closes the STOR→RETR round trip that gridftp x pblock and gridftp x s3
+    already had and this cell did not.
+    """
+    payload = b"round-trip " + os.urandom(64 * 1024)
+    src = os.path.join(str(tmp_path), "rt.bin")
+    with open(src, "wb") as fh:
+        fh.write(payload)
+    assert _guc(f"file://{src}",
+                f"gsiftp://{SERVER_HOST}:{gateway.port}/rt.bin").returncode == 0
+    dst = os.path.join(str(tmp_path), "rt.out")
+    r = _guc(f"gsiftp://{SERVER_HOST}:{gateway.port}/rt.bin", f"file://{dst}")
+    assert r.returncode == 0, f"{r.stderr}\n{gateway.error_log()}"
+    with open(dst, "rb") as fh:
+        assert fh.read() == payload
+
+
+def test_overwriting_an_existing_upstream_object_replaces_it(gateway, xrd,
+                                                             tmp_path):
+    """A second STOR to the same name truncates rather than appending.
+
+    A write path that opens without truncation leaves the tail of the previous
+    object behind — invisible in the success rc, visible in the size.
+    """
+    xrd.place("clobber.bin", b"O" * 200000)
+    payload = b"N" * 5000
+    src = os.path.join(str(tmp_path), "clobber.src")
+    with open(src, "wb") as fh:
+        fh.write(payload)
+    r = _guc(f"file://{src}",
+             f"gsiftp://{SERVER_HOST}:{gateway.port}/clobber.bin")
+    assert r.returncode == 0, f"{r.stderr}\n{gateway.error_log()}"
+    assert _upstream_bytes(xrd, "clobber.bin") == payload, (
+        "overwrite did not truncate — the previous object's tail survived")
+
+
+def test_stor_creates_the_parent_chain_on_the_upstream_only(gateway, xrd,
+                                                            tmp_path):
+    """A STOR whose parent does not exist succeeds by building the chain UPSTREAM.
+
+    Measured, not assumed: the create-open mkpaths on the xrootd, so `no/such/
+    dir/orphan.bin` materialises under the upstream's export. The half of this
+    that is worth pinning is the *other* half — the gateway has a local
+    `brix_gridftp_export` of its own, and a write path that fell back to it
+    would look identical from the client (rc 0) while putting the bytes on the
+    wrong host entirely. So: present upstream, absent locally.
+    """
+    payload = b"z" * 1024
+    src = os.path.join(str(tmp_path), "orphan.bin")
+    with open(src, "wb") as fh:
+        fh.write(payload)
+    r = _guc(f"file://{src}",
+             f"gsiftp://{SERVER_HOST}:{gateway.port}/no/such/dir/orphan.bin")
+    assert r.returncode == 0, f"{r.stderr}\n{gateway.error_log()}"
+    assert _upstream_bytes(xrd, "no/such/dir/orphan.bin") == payload
+    stray = os.path.join(gateway.data_root, "no", "such", "dir", "orphan.bin")
+    assert not os.path.exists(stray), (
+        f"the write landed on the GATEWAY's local export, not the upstream: {stray}")
+
+
+def test_stor_traversal_is_refused(gateway, xrd, tmp_path):
+    """Security-negative: `..` must not write outside the upstream export.
+
+    The read side of this boundary was never tested either; a write that
+    escapes is strictly worse than a read that does.
+    """
+    src = os.path.join(str(tmp_path), "escape.bin")
+    with open(src, "wb") as fh:
+        fh.write(b"escaped")
+    target = os.path.join(os.path.dirname(xrd.data), "escaped.bin")
+    r = _guc(f"file://{src}",
+             f"gsiftp://{SERVER_HOST}:{gateway.port}/../escaped.bin")
+    assert not os.path.exists(target), (
+        f"traversal wrote OUTSIDE the upstream export: {target}")
+    if r.returncode == 0:
+        # Some clients normalise `..` away before it reaches the wire; then the
+        # write must have landed INSIDE the export, never above it.
+        assert _upstream_bytes(xrd, "escaped.bin") == b"escaped"

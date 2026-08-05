@@ -66,8 +66,14 @@ s3_delete_one(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
         cf->common.root_canon, cf->cache_root_canon, cf->common.allow_write,
         is_tls, (s3ctx != NULL) ? s3ctx->identity : NULL, fs_path);
 
-    if (brix_vfs_unlink(&vctx) == NGX_OK || errno == ENOENT) {
-        return NGX_OK;   /* deleted, or idempotent-missing */
+    if (brix_vfs_unlink(&vctx) == NGX_OK) {
+        /* phase-97 §5: a real removal — retract it from the manager inventory. */
+        brix_cns_emit_at(cf->common.root_canon, BRIX_CNS_DEL, fs_path, 0, 0);
+        return NGX_OK;
+    }
+
+    if (errno == ENOENT) {
+        return NGX_OK;   /* idempotent-missing: nothing removed, nothing to say */
     }
 
     if (errno == EACCES || errno == EPERM) {

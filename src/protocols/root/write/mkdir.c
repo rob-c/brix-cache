@@ -75,11 +75,14 @@ brix_handle_mkdir(brix_ctx_t *ctx, ngx_connection_t *c,
 		if (rc != NGX_OK) {
 			int err = errno;
 
-			/* Idempotency follows the reference do_Mkdir: only kXR_mkdirpath
-			 * (mkdir -p) tolerates an existing target — and the recursive helper
-			 * is itself idempotent (returns NGX_OK), so EEXIST only arises on a
-			 * plain single-level mkdir, which must fail kXR_ItExists. */
-			if (err == EEXIST && !recursive) {
+			/* Idempotency follows the reference do_Mkdir: kXR_mkdirpath
+			 * (mkdir -p) tolerates an existing target, but only when that target
+			 * is a DIRECTORY — the recursive helper returns NGX_OK for that case
+			 * and EEXIST when a regular file occupies the path (it used to
+			 * report success, so `xrdfs mkdir -p /file` claimed a directory
+			 * existed where the client's own data was). Either way EEXIST here
+			 * means a non-directory is in the way: kXR_ItExists. */
+			if (err == EEXIST) {
 				BRIX_RETURN_ERR(ctx, c, BRIX_OP_MKDIR, "MKDIR", resolved, "-",
 				                  kXR_ItExists, "file exists");
 			}

@@ -193,46 +193,30 @@ def test_proto_06_query_out_of_scope_reject():
 
 
 @pytest.mark.tokenconf
-def test_proto_07_header_and_query_precedence():
-    """PROTO-07: header valid + ?authz=garbage — characterise precedence.
+def test_proto_07_header_and_query_are_a_hard_400():
+    """PROTO-07: header valid + ?authz=garbage → 400 invalid_request.
 
-    WHAT: Both transport modes are present simultaneously.  This test observes
-          which one the server uses and records the finding.
-    WHY:  RFC6750 §2 recommends that if multiple transports are present the
-          server SHOULD reject with 400 or use a documented precedence.  We
-          characterise actual behaviour here; header-wins is the correct
-          outcome (more-specific, harder to forge by URL injection).
-    HOW:  GET with Authorization: Bearer <valid> and ?authz=garbage in the
-          URL.  "accept" means header won; "reject" means query won.
-
-    Finding: header-wins → accept is the expected and correct behaviour.
+    WHAT: Both bearer transports are present on one request.
+    WHY:  RFC6750 §2 MUST: "clients MUST NOT use more than one method to
+          transmit the token"; a server that picks a winner instead of
+          refusing lets an attacker append `?authz=` to a legitimately
+          header-authenticated URL and makes the audit trail ambiguous about
+          which credential was actually evaluated.  BriX refuses outright
+          (src/protocols/webdav/access_auth.c), and crucially does NOT let the
+          request fall through to Basic/anonymous.
+    HOW:  GET with `Authorization: Bearer <valid>` and `?authz=garbage`;
+          expect 400 and the `invalid_request` bearer challenge — never a 2xx.
     """
     tok = _forge().generate(scope="storage.read:/")
     url = f"https://{SERVER_HOST}:{WD}/test.txt?authz=garbage_not_a_jwt"
     headers = {"Authorization": f"Bearer {tok}"}
-    try:
-        resp = requests.get(url, headers=headers, verify=False, timeout=5)
-        code = resp.status_code
-        if code in (200, 206):
-            observed = "accept"
-        elif code in (401, 403):
-            observed = "reject"
-        elif code == 404:
-            observed = "notfound"
-        else:
-            observed = "accept" if 200 <= code < 300 else "reject"
-    except requests.RequestException:
-        observed = "reject"
-
-    # Characterisation: header-wins is correct per RFC6750 §2 recommendation.
-    # Assert the expected behaviour and document the finding.
-    assert observed == "accept", (
-        f"PROTO-07 precedence finding: observed={observed!r}. "
-        "Expected 'accept' (header-wins): valid Authorization header should "
-        "take precedence over malformed ?authz= query parameter. "
-        f"HTTP status={resp.status_code if 'resp' in dir() else 'N/A'}"
-    )
-
+    resp = requests.get(url, headers=headers, verify=False, timeout=5)
+    assert resp.status_code == 400, (
+        "a dual-transport bearer token must be a hard 400 invalid_request "
+        f"(RFC6750 §2), got {resp.status_code}")
+    assert "invalid_request" in resp.headers.get("WWW-Authenticate", ""), (
+        "the 400 must carry the invalid_request bearer challenge, got "
+        f"{resp.headers.get('WWW-Authenticate')!r}")
 
 @pytest.mark.tokenconf
 def test_proto_08_root_ztn_accept():

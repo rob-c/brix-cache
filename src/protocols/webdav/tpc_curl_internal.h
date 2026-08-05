@@ -87,6 +87,13 @@ void tpc_curl_apply_stall_bounds(CURL *curl, ngx_http_brix_webdav_loc_conf_t *co
 int tpc_curl_apply_conf(CURL *curl, ngx_http_brix_webdav_loc_conf_t *conf, const char *url, ngx_array_t *transfer_headers, ngx_log_t *log, const char *user_cert, const char *user_key, struct curl_slist **hdrs_out, struct curl_slist **resolve_out);
 off_t tpc_curl_head_size(ngx_log_t *log, ngx_http_brix_webdav_loc_conf_t *conf, const char *url, ngx_array_t *transfer_headers, const char *user_cert, const char *user_key);
 
+/* tpc_verify.c */
+/* Completion gate for a finished COPY pull: NGX_OK when the staged temp at
+ * @tmp_path agrees with the source (size, and digest when configured), else
+ * NGX_HTTP_BAD_GATEWAY so the caller aborts the staged file.  No-op — and no
+ * probe request — when both halves are off. */
+ngx_int_t webdav_tpc_verify_pulled(ngx_log_t *log, ngx_http_brix_webdav_loc_conf_t *conf, const char *source_url, const char *tmp_path, ngx_array_t *transfer_headers, const char *user_cert, const char *user_key);
+
 /* tpc_curl_pmark.c */
 size_t ms_write_cb(char *ptr, size_t size, size_t nmemb, void *userdata);
 int webdav_tpc_curl_progress(void *clientp, curl_off_t dltotal, curl_off_t dlnow, curl_off_t ultotal, curl_off_t ulnow);

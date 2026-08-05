@@ -37,8 +37,14 @@ ev_fmt_facts(char *out, size_t outsz, const brix_vfs_stat_t *st)
     time_t    t = st->mtime;
 
     mtime[0] = '\0';
-    if (gmtime_r(&t, &tm) != NULL) {
-        strftime(mtime, sizeof(mtime), "%Y%m%d%H%M%S", &tm);
+    if (gmtime_r(&t, &tm) == NULL
+        || strftime(mtime, sizeof(mtime), "%Y%m%d%H%M%S", &tm) == 0)
+    {
+        /* strftime leaves the buffer contents indeterminate when it returns 0,
+         * so a year gmtime_r accepts but the format cannot render would put
+         * uninitialised bytes straight into an MLST fact line.  Re-clamp to
+         * empty and emit "modify=" with no value rather than garbage. */
+        mtime[0] = '\0';
     }
     return (size_t) snprintf(out, outsz,
         "type=%s;size=%lld;modify=%s;perm=%s;",
@@ -92,63 +98,142 @@ brix_ftp_ev_cmd_size(ftp_ev_t *fc, const char *arg)
 }
 
 
-ngx_int_t
-brix_ftp_ev_cmd_mkd(ftp_ev_t *fc, const char *arg)
+/*
+ * brix_ftp_ev_cns_note_stored — report a committed STOR/APPE to the CNS manager.
+ *
+ * Lives here with the namespace verbs rather than in the data-channel teardown
+ * that calls it, so every gridftp CNS report is stated in one file.  The caller
+ * (brix_ftp_ev_data_finish) is the single event-loop completion for all transfer
+ * shapes, and the CMS connection may only be touched from the event loop.
+ *
+ * The size/mtime come from a probe of the committed path, not from the bytes
+ * counted on the wire: the manager serves them to clients verbatim, and a
+ * verifying commit can unlink what it just wrote.
+ */
+void
+brix_ftp_ev_cns_note_stored(ftp_ev_t *fc, const char *abs)
+{
+    brix_vfs_ctx_t  vctx;
+    brix_vfs_stat_t st;
+
+    if (!brix_cns_emit_active()) {
+        return;
+    }
+
+    brix_ftp_ev_vfs_ctx(fc, abs, &vctx);
+    if (brix_vfs_probe(&vctx, 1 /* no-follow */, &st) != NGX_OK) {
+        return;                  /* unobservable → report nothing over a guess */
+    }
+
+    brix_cns_emit_at(fc->conf->root_canon, BRIX_CNS_ADD, abs,
+                     (uint64_t) st.size, (uint64_t) st.mtime);
+}
+
+
+/*
+ * MKD, DELE and RMD are one transaction with three sets of words: refuse on a
+ * read-only export, resolve the argument inside it, run a single namespace op,
+ * report the result to the CNS manager, reply.  Table-driven rather than written
+ * out three times (coding-standards §8) — only `op`, the CNS op code and the
+ * four replies differ.
+ *
+ * `ok` is applied to `arg` so MKD can echo the created name back per RFC 959
+ * §4.2; the two fixed 250s simply consume none of it.  Every string below is a
+ * literal — `arg` is client-controlled and must never reach a format position.
+ */
+typedef struct {
+    ngx_int_t  (*op)(brix_vfs_ctx_t *vctx);
+    uint32_t     cns_op;
+    const char  *denied;        /* export is read-only                       */
+    const char  *unresolved;    /* argument would leave the export           */
+    const char  *op_failed;     /* the namespace op itself refused           */
+    const char  *ok;            /* success reply, formatted against `arg`    */
+} ftp_ev_ns_verb_t;
+
+
+/* Thin adapters so the three ops share one pointer type; the flags are the
+ * verbs' historical semantics — MKD does not create parents (RFC 959 has no
+ * such verb) and RMD is non-recursive (that is what DELE-per-entry is for). */
+static ngx_int_t
+ftp_ev_ns_mkdir(brix_vfs_ctx_t *vctx)
+{
+    return brix_vfs_mkdir(vctx, 0755, 0 /* no parents */);
+}
+
+
+static ngx_int_t
+ftp_ev_ns_rmdir(brix_vfs_ctx_t *vctx)
+{
+    return brix_vfs_rmdir(vctx, 0 /* non-recursive */);
+}
+
+
+static ngx_int_t
+ftp_ev_ns_mutate(ftp_ev_t *fc, const char *arg, const ftp_ev_ns_verb_t *v)
 {
     char           abs[PATH_MAX];
     brix_vfs_ctx_t vctx;
 
     if (!fc->conf->allow_write) {
-        return brix_ftp_ev_reply(fc, "550 Permission denied (read-only)\r\n");
+        return brix_ftp_ev_reply(fc, "%s", v->denied);
     }
     if (brix_ftp_ev_resolve(fc, arg, abs, sizeof(abs)) != 0) {
-        return brix_ftp_ev_reply(fc, "550 Cannot create directory\r\n");
+        return brix_ftp_ev_reply(fc, "%s", v->unresolved);
     }
     brix_ftp_ev_vfs_ctx(fc, abs, &vctx);
-    if (brix_vfs_mkdir(&vctx, 0755, 0) != NGX_OK) {
-        return brix_ftp_ev_reply(fc, "550 Cannot create directory\r\n");
+    if (v->op(&vctx) != NGX_OK) {
+        return brix_ftp_ev_reply(fc, "%s", v->op_failed);
     }
-    return brix_ftp_ev_reply(fc, "257 \"%s\" created\r\n", arg);
+
+    /* phase-97 §5: success path only — a refused mutation may neither seed a
+     * phantom entry nor retract a live one. */
+    brix_cns_emit_at(fc->conf->root_canon, v->cns_op, abs, 0, 0);
+    return brix_ftp_ev_reply(fc, v->ok, arg);
+}
+
+
+ngx_int_t
+brix_ftp_ev_cmd_mkd(ftp_ev_t *fc, const char *arg)
+{
+    static const ftp_ev_ns_verb_t  mkd = {
+        ftp_ev_ns_mkdir, BRIX_CNS_MKDIR,
+        "550 Permission denied (read-only)\r\n",
+        "550 Cannot create directory\r\n",
+        "550 Cannot create directory\r\n",
+        "257 \"%s\" created\r\n"
+    };
+
+    return ftp_ev_ns_mutate(fc, arg, &mkd);
 }
 
 
 ngx_int_t
 brix_ftp_ev_cmd_dele(ftp_ev_t *fc, const char *arg)
 {
-    char           abs[PATH_MAX];
-    brix_vfs_ctx_t vctx;
+    static const ftp_ev_ns_verb_t  dele = {
+        brix_vfs_unlink, BRIX_CNS_DEL,
+        "550 Permission denied (read-only)\r\n",
+        "550 No such file\r\n",
+        "550 Delete failed\r\n",
+        "250 File deleted\r\n"
+    };
 
-    if (!fc->conf->allow_write) {
-        return brix_ftp_ev_reply(fc, "550 Permission denied (read-only)\r\n");
-    }
-    if (brix_ftp_ev_resolve(fc, arg, abs, sizeof(abs)) != 0) {
-        return brix_ftp_ev_reply(fc, "550 No such file\r\n");
-    }
-    brix_ftp_ev_vfs_ctx(fc, abs, &vctx);
-    if (brix_vfs_unlink(&vctx) != NGX_OK) {
-        return brix_ftp_ev_reply(fc, "550 Delete failed\r\n");
-    }
-    return brix_ftp_ev_reply(fc, "250 File deleted\r\n");
+    return ftp_ev_ns_mutate(fc, arg, &dele);
 }
 
 
 ngx_int_t
 brix_ftp_ev_cmd_rmd(ftp_ev_t *fc, const char *arg)
 {
-    char           abs[PATH_MAX];
-    brix_vfs_ctx_t vctx;
+    static const ftp_ev_ns_verb_t  rmd = {
+        ftp_ev_ns_rmdir, BRIX_CNS_RMDIR,
+        "550 Permission denied (read-only)\r\n",
+        "550 No such directory\r\n",
+        "550 Remove directory failed\r\n",
+        "250 Directory removed\r\n"
+    };
 
-    if (!fc->conf->allow_write) {
-        return brix_ftp_ev_reply(fc, "550 Permission denied (read-only)\r\n");
-    }
-    if (brix_ftp_ev_resolve(fc, arg, abs, sizeof(abs)) != 0) {
-        return brix_ftp_ev_reply(fc, "550 No such directory\r\n");
-    }
-    brix_ftp_ev_vfs_ctx(fc, abs, &vctx);
-    if (brix_vfs_rmdir(&vctx, 0) != NGX_OK) {
-        return brix_ftp_ev_reply(fc, "550 Remove directory failed\r\n");
-    }
-    return brix_ftp_ev_reply(fc, "250 Directory removed\r\n");
+    return ftp_ev_ns_mutate(fc, arg, &rmd);
 }
 
 
@@ -359,5 +444,26 @@ brix_ftp_ev_cmd_rnto(ftp_ev_t *fc, const char *arg)
     if (brix_vfs_rename(&vctx, &dst, 0 /* don't clobber a dir dest */) != NGX_OK) {
         return brix_ftp_ev_reply(fc, "550 Rename failed\r\n");
     }
+
+    /* phase-97 §2: carry the entry across instead of dropping and re-adding it,
+     * so a directory rename re-parents its whole subtree in one event.  The
+     * size/mtime come from a probe of the destination — the manager serves them
+     * verbatim, so a guess would be served to clients as truth. */
+    if (brix_cns_emit_active()) {
+        brix_vfs_ctx_t  dctx;
+        brix_vfs_stat_t st;
+
+        brix_ftp_ev_vfs_ctx(fc, abs, &dctx);
+        if (brix_vfs_probe(&dctx, 1 /* no-follow */, &st) == NGX_OK) {
+            brix_cns_emit_rename_at(fc->conf->root_canon, fc->rnfr, abs,
+                                    (uint64_t) st.size, (uint64_t) st.mtime,
+                                    st.is_directory);
+        } else {
+            /* Unobservable at the destination — retract the source rather than
+             * leave the manager pointing at a name that no longer exists. */
+            brix_cns_emit_at(fc->conf->root_canon, BRIX_CNS_DEL, fc->rnfr, 0, 0);
+        }
+    }
+
     return brix_ftp_ev_reply(fc, "250 Rename successful\r\n");
 }

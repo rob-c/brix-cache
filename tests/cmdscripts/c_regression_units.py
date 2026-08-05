@@ -56,15 +56,31 @@ def _nm_has(symbol: str, objects: Iterable[Path]) -> bool:
     return proc.returncode == 0 and symbol in proc.stdout
 
 
+def _gcov_flags(objects: Iterable[Path]) -> list[str]:
+    """`--coverage` when the linked nginx objects are gcov-instrumented.
+
+    A coverage build (the lcov lane's ./configure --with-cc-opt=--coverage) stamps
+    __gcov_init/__gcov_exit/__gcov_merge_add references into every object, so a
+    harness that links one without the runtime dies at LD time — which is exactly
+    how the whole object-linked lane failed in a coverage tree. Detecting it from
+    the objects themselves keeps every runner working in both trees."""
+    objs = list(objects)
+    return ["--coverage"] if objs and _nm_has("__gcov_init", objs) else []
+
+
 def _cc(argv: list[str]) -> subprocess.CompletedProcess:
     return run([os.environ.get("CC", "cc"), *argv], cwd=REPO_ROOT)
 
 
 def _compile_and_run(binary: Path, argv: list[str]) -> tuple[bool, str]:
-    built = _cc(["-o", str(binary), *argv])
+    objs = [Path(a) for a in argv if a.endswith(".o") and Path(a).exists()]
+    built = _cc(["-o", str(binary), *argv, *_gcov_flags(objs)])
     if built.returncode != 0:
         return result(False, f"compile failed: {_tail(built)}")
-    ran = run([str(binary)], cwd=REPO_ROOT)
+    # A gcov-instrumented harness would otherwise write .gcda beside the shared
+    # nginx objects and clobber the lcov lane's profile with a foreign timestamp.
+    ran = run([str(binary)], cwd=REPO_ROOT,
+              env={"GCOV_PREFIX": str(binary.parent), "GCOV_PREFIX_STRIP": "99"})
     return result(ran.returncode == 0, f"{binary.name} exited {ran.returncode}: {_tail(ran)}")
 
 
@@ -312,6 +328,68 @@ def staged_commit_contract(base: Path, ngx_src: Path = DEFAULT_NGX_SRC) -> tuple
             str(TEST_C / "test_staged_commit_contract.c"),
             str(ns),
             str(staged),
+        ],
+    )
+
+
+def staged_contract_tiers(base: Path, ngx_src: Path = DEFAULT_NGX_SRC) -> tuple[bool, str]:
+    """Same ownership contract for the TIER-side publishers: sd_stage (write-stage
+    decorator) and sd_frm (tape migrate). Both used to free the handle on a FAILED
+    commit, so the caller's mandatory abort ran on freed memory; sd_stage also
+    re-aborted the inner store handle its own commit had already consumed. Drives
+    the real objects with fake store/source drivers, stubbed stage-engine entry
+    points and a scriptable MSS adapter, under ASan. See
+    test_staged_contract_tiers.c."""
+    stage = _need_obj(ngx_src, "objs/addon/stage/sd_stage_write.o")
+    frm = _need_obj(ngx_src, "objs/addon/frm/sd_frm.o")
+    if isinstance(stage, str):
+        return result(True, stage)
+    if isinstance(frm, str):
+        return result(True, frm)
+    return _compile_and_run(
+        base / "test_staged_contract_tiers",
+        [
+            "-O1",
+            "-g",
+            "-D_GNU_SOURCE",
+            "-fsanitize=address",
+            "-fno-omit-frame-pointer",
+            "-Wall",
+            *_nginx_includes(ngx_src, http=True, stream=True),
+            str(TEST_C / "test_staged_contract_tiers.c"),
+            str(stage),
+            str(frm),
+        ],
+    )
+
+
+def staged_contract_origin(base: Path, ngx_src: Path = DEFAULT_NGX_SRC) -> tuple[bool, str]:
+    """Same ownership contract for the ORIGIN-side publishers: sd_http (PUT),
+    sd_xroot (Mode-A write-through) and the sd_cache forwarding slots. These three
+    obey it today — the unit pins it per driver, over a scripted fake transport and
+    stubbed origin wire calls, under ASan. See test_staged_contract_origin.c."""
+    names = ["sd_http.o", "sd_http_select.o", "sd_http_read.o", "sd_http_write.o",
+             "sd_http_dir.o", "sd_xroot_staged.o", "sd_cache_forward.o"]
+    objs: list[Path] = []
+    for name in names:
+        obj = _find_obj(ngx_src, name)
+        if obj is None:
+            return result(True, f"SKIP: build first; missing {name}")
+        objs.append(obj)
+    return _compile_and_run(
+        base / "test_staged_contract_origin",
+        [
+            "-O1",
+            "-g",
+            "-D_GNU_SOURCE",
+            "-fsanitize=address",
+            "-fno-omit-frame-pointer",
+            "-Wall",
+            *_nginx_includes(ngx_src, http=True, stream=True),
+            str(TEST_C / "test_staged_contract_origin.c"),
+            *[str(obj) for obj in objs],
+            "-lssl",
+            "-lcrypto",
         ],
     )
 
@@ -610,13 +688,29 @@ def tier_s3_creds(base: Path, ngx_src: Path = DEFAULT_NGX_SRC) -> tuple[bool, st
     )
 
 
+# Object closure every sd_remote unit links: the driver, its S3 transport and
+# the crypto/format leaves the signer reaches. sd_s3_sign_ext.o carries
+# sd_s3_sign_ext(), which sd_s3_meta.c calls for the extended-header signature —
+# it lands in sd_remote.o's rodata slots, so the link needs it even when the
+# test never signs anything. Kept in one place: five runners share it, and a
+# per-runner copy is how sd_s3_sign_ext.o went missing from exactly one of them.
+SD_REMOTE_OBJS = [
+    "sd_remote.o", "sd_remote_meta.o", "sd_remote_xattr.o", "sd_remote_write.o",
+    "sd_remote_dir.o",
+    "sd_s3.o", "sd_s3_meta.o", "sd_s3_list.o", "meta_advisory.o", "sd_s3_write.o",
+    "sd_s3_sign.o", "sd_s3_sign_ext.o", "crypto.o", "hex.o", "sigv4.o", "uri.o",
+    "host_format.o", "crc32_ieee.o",
+]
+
+
 def sd_remote_wrongkind(base: Path, ngx_src: Path = DEFAULT_NGX_SRC) -> tuple[bool, str]:
     # sd_remote's getxattr/listxattr path (S3 x-amz-meta passthrough) pulls in
     # sd_s3_meta.o, which in turn needs meta_advisory.o for the advisory
     # encode/decode helpers — both were added when S3 listxattr landed but were
-    # never reflected in this hand-maintained object closure. sd_s3_list.o closes
-    # sd_remote's dir slots (opendir/readdir -> sd_s3_list_page).
-    names = ["sd_remote.o", "sd_remote_meta.o", "sd_remote_xattr.o", "sd_remote_write.o", "sd_s3.o", "sd_s3_meta.o", "sd_s3_list.o", "meta_advisory.o", "sd_s3_write.o", "sd_s3_sign.o", "crypto.o", "hex.o", "sigv4.o", "uri.o", "host_format.o", "crc32_ieee.o"]
+    # never reflected in this hand-maintained object closure. sd_remote_dir.o
+    # closes sd_remote's dir slots (opendir/readdir -> sd_s3_list_page in
+    # sd_s3_list.o); the whole closure now lives in SD_REMOTE_OBJS.
+    names = SD_REMOTE_OBJS
     objs: list[Path] = []
     for name in names:
         obj = _find_obj(ngx_src, name)
@@ -634,7 +728,7 @@ def sd_remote_server_copy(base: Path, ngx_src: Path = DEFAULT_NGX_SRC) -> tuple[
     # Same object closure as sd_remote_wrongkind (the copy path lives in
     # sd_remote_meta.o + sd_s3_meta.o and signs via sd_s3_sign.o); sd_s3_list.o
     # is pulled in transitively by sd_remote.o's dir slots.
-    names = ["sd_remote.o", "sd_remote_meta.o", "sd_remote_xattr.o", "sd_remote_write.o", "sd_s3.o", "sd_s3_meta.o", "sd_s3_list.o", "meta_advisory.o", "sd_s3_write.o", "sd_s3_sign.o", "crypto.o", "hex.o", "sigv4.o", "uri.o", "host_format.o", "crc32_ieee.o"]
+    names = SD_REMOTE_OBJS
     objs: list[Path] = []
     for name in names:
         obj = _find_obj(ngx_src, name)
@@ -651,7 +745,7 @@ def sd_remote_opendir(base: Path, ngx_src: Path = DEFAULT_NGX_SRC) -> tuple[bool
     # driver->opendir/readdir/closedir -> sd_remote_opendir -> sd_s3_list_page ->
     # transport. Same object closure as sd_remote_server_copy PLUS sd_s3_list.o
     # (the ListObjectsV2 pager + XML scanner) which the dir slots delegate to.
-    names = ["sd_remote.o", "sd_remote_meta.o", "sd_remote_xattr.o", "sd_remote_write.o", "sd_s3.o", "sd_s3_meta.o", "sd_s3_list.o", "meta_advisory.o", "sd_s3_write.o", "sd_s3_sign.o", "crypto.o", "hex.o", "sigv4.o", "uri.o", "host_format.o", "crc32_ieee.o"]
+    names = SD_REMOTE_OBJS
     objs: list[Path] = []
     for name in names:
         obj = _find_obj(ngx_src, name)
@@ -670,7 +764,7 @@ def sd_remote_rename(base: Path, ngx_src: Path = DEFAULT_NGX_SRC) -> tuple[bool,
     # over sd_s3_copy/delete/open_write (sd_s3_meta.o + sd_s3_write.o) and the
     # empty-vs-non-empty child probe (sd_s3_list.o). Same object closure as
     # sd_remote_opendir.
-    names = ["sd_remote.o", "sd_remote_meta.o", "sd_remote_xattr.o", "sd_remote_write.o", "sd_s3.o", "sd_s3_meta.o", "sd_s3_list.o", "meta_advisory.o", "sd_s3_write.o", "sd_s3_sign.o", "crypto.o", "hex.o", "sigv4.o", "uri.o", "host_format.o", "crc32_ieee.o"]
+    names = SD_REMOTE_OBJS
     objs: list[Path] = []
     for name in names:
         obj = _find_obj(ngx_src, name)
@@ -689,7 +783,7 @@ def sd_remote_setattr(base: Path, ngx_src: Path = DEFAULT_NGX_SRC) -> tuple[bool
     # set via sd_s3_list_meta/get_meta/set_meta (sd_s3_meta.o) and patch the
     # advisory blob (meta_advisory.o). Same object closure as sd_remote_rename
     # plus sd_remote_xattr.o.
-    names = ["sd_remote.o", "sd_remote_meta.o", "sd_remote_xattr.o", "sd_remote_write.o", "sd_s3.o", "sd_s3_meta.o", "sd_s3_list.o", "meta_advisory.o", "sd_s3_write.o", "sd_s3_sign.o", "crypto.o", "hex.o", "sigv4.o", "uri.o", "host_format.o", "crc32_ieee.o"]
+    names = SD_REMOTE_OBJS
     objs: list[Path] = []
     for name in names:
         obj = _find_obj(ngx_src, name)
@@ -833,6 +927,8 @@ RUNNERS = {
     "mu_unit": mu_unit,
     "chunk_geometry": chunk_geometry,
     "staged_commit_contract": staged_commit_contract,
+    "staged_contract_tiers": staged_contract_tiers,
+    "staged_contract_origin": staged_contract_origin,
     "shared_thread_pool": shared_thread_pool,
     "fd_kind": fd_kind,
     "stage_reconcile": stage_reconcile,

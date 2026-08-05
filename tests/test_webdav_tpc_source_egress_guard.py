@@ -78,6 +78,28 @@ def _copy(source_url, dst_path="/tpc_guard_dst.dat"):
         conn.close()
 
 
+def _copy_push(dest_url, src_path="/tpc_guard_src.dat"):
+    """Issue a WebDAV COPY PUSH naming dest_url; return the status.
+
+    Push is the mirror image of pull: no Source header, and the authority this
+    server dials is the one in Destination.  The guard runs before the local
+    source file is even stat'd, so src_path need not exist — a refusal is a 403
+    from the naming guard, never a 404 from the source lookup.
+    """
+    conn = http.client.HTTPConnection(HOST, WEBDAV_TPC_SRC_GUARD_PORT,
+                                      timeout=_TIMEOUT)
+    try:
+        conn.request("COPY", src_path, headers={
+            "Destination": dest_url,
+            "Credential": "none",
+        })
+        resp = conn.getresponse()
+        resp.read()
+        return resp.status
+    finally:
+        conn.close()
+
+
 def _log_tail(offset):
     """Return the error-log bytes appended since byte position `offset`."""
     try:
@@ -173,6 +195,51 @@ class TestWebdavSourceGuardRefuse:
         )
 
 
+class TestWebdavPushGuardRefuse:
+    """The allowlist is direction-symmetric: it also vets a PUSH destination.
+
+    A pull dials the Source authority; a push dials the Destination authority.
+    Both are an outbound leg to a host the requester named, so both face the same
+    naming allowlist — otherwise an operator who allowlisted their federation
+    could still be used to shovel local data at an arbitrary host by flipping the
+    header.  Push already had the Layer-1 address-range/DNS preflight
+    (tpc_thread.c), so this closes a naming-policy asymmetry rather than an open
+    SSRF hole; see docs/refactor/
+    testsuite-combinatorial-coverage-audit-2026-08-04.md §2.2.
+    """
+
+    @pytest.mark.registry_server("webdav-tpc-source-guard")
+    def test_nonallowlisted_destination_refused(self, guard_on):
+        host = "192.168.1.1"
+        off = _log_size()
+        status = _copy_push("https://%s//dst.dat" % host)
+        _await_log_flush()
+        assert status == 403, "expected 403, got %d" % status
+        assert _egress_line_for(_log_tail(off), host), (
+            "expected a signal=tpc_egress refusal line for push dest %s" % host
+        )
+
+    @pytest.mark.registry_server("webdav-tpc-source-guard")
+    def test_nonmatching_suffix_destination_refused(self, guard_on):
+        host = "host.example.org"
+        off = _log_size()
+        status = _copy_push("https://%s//dst.dat" % host)
+        _await_log_flush()
+        assert status == 403, "expected 403, got %d" % status
+        assert _egress_line_for(_log_tail(off), host), (
+            "sibling TLD must be refused on the push side too: %s" % host
+        )
+
+    @pytest.mark.registry_server("webdav-tpc-source-guard")
+    def test_unparseable_destination_refused(self, guard_on):
+        # Fail-closed: a Destination whose authority cannot be parsed must be
+        # refused, never passed through to the outbound leg "just in case".
+        status = _copy_push("not-a-url")
+        assert status >= 400, (
+            "an unparseable push destination must not be dialled, got %d" % status
+        )
+
+
 class TestWebdavSourceGuardAllow:
     """Allowlisted hosts pass the naming guard and fall through to curl."""
 
@@ -187,6 +254,18 @@ class TestWebdavSourceGuardAllow:
         _await_log_flush()
         assert not _egress_line_for(_log_tail(off), host), (
             "suffix-matched host must pass the naming guard: %s" % host
+        )
+
+    @pytest.mark.registry_server("webdav-tpc-source-guard")
+    def test_push_allowlisted_destination_falls_through(self, guard_on):
+        # Push side of the same rule: an allowlisted Destination authority is
+        # permitted by the naming guard and fails later at the outbound leg.
+        host = "host.example.com"
+        off = _log_size()
+        _copy_push("https://%s//dst.dat" % host)
+        _await_log_flush()
+        assert not _egress_line_for(_log_tail(off), host), (
+            "allowlisted push destination must pass the naming guard: %s" % host
         )
 
     @pytest.mark.registry_server("webdav-tpc-source-guard")

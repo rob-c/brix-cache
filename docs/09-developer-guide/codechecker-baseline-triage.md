@@ -109,3 +109,62 @@ P2 (95) both triaged to zero real bugs, with the analyzer's blind spots document
 attacker-reachable/consistency one-liners are fixed. The ratchet now holds a 131-finding floor: any
 *new* finding in changed code fails CI and won't be buried under these known-safe entries. Remaining
 MINORs are optional; apply them and re-run `tools/ci/run_codechecker.sh --regen` to drop them.
+
+---
+
+## Ratchet event — 11 new findings cleared (2026-08-05)
+
+The baseline has since been re-cut (`tools/ci/run_codechecker.py`, **17 entries** over 969 TUs, ≈216 s
+for a full run). A round of uncommitted feature work raised **11 new findings**, all of which the
+ratchet correctly refused. They were cleared to zero rather than absorbed into the baseline — the
+whole point of a ratchet is that new code does not get grandfathered. What that round is worth
+recording is the **ratio**: 1 real bug, 10 not.
+
+**The one real defect** — `src/protocols/gridftp/ev/ftp_ev_cmd.c` (`cert-err33-c`, `ev_fmt_facts`).
+`gmtime_r()` was checked; `strftime()`'s return was not. `strftime()` leaves its output buffer
+*indeterminate* when it returns 0, so an mtime `gmtime_r` accepts but the format cannot render put
+uninitialised stack bytes straight into an `MLST` `modify=` fact. Fixed by re-clearing the buffer on
+that arm (the fact degrades to a valueless `modify=`). This is the first finding in this file's
+history where `cert-err33-c` — the checker whose 20-strong auth/crypto cluster triaged to zero above —
+was pointing at something real. **The lesson is not "trust `cert-err33-c` more"; it is that the
+unchecked call worth chasing is the one whose failure leaves a buffer's contents undefined rather than
+merely unwritten.** An ignored `fclose` loses nothing; an ignored `strftime` leaks the stack.
+
+**The two most interesting false positives**, both flagged because the invariant that makes the code
+safe lives in a *different function*:
+
+- `src/protocols/cvmfs/swarm.c` — `security.ArrayBound` on `members[sw->self]`. `sw->self` stays `-1`
+  until `cvmfs_swarm_seed()` identifies this node, but the roster handler answers 503 while
+  `!sw->seeded` and the gossip timer gates on the same flag, so neither read site is reachable with a
+  negative index. A bounds guard was added anyway and **commented as defence-in-depth, not as a fix**:
+  it exists because the safety of the read depends on a gate two functions away, which a future caller
+  could skip with nothing local to stop it.
+- `src/fs/backend/s3/…` — `core.NullDereference`, same shape: a null the caller has already excluded.
+
+The remainder were the familiar blind spots catalogued in §"Why so many false positives".
+
+**Not found by the analyzer.** While clearing the above, a genuine pre-existing security bug was found
+by reading the surrounding code: CMS `kYR_state` probe paths reached `error.log` unsanitised, letting a
+hostile manager forge `cmsd-action` audit lines (fixed in `src/net/cms/recv_frame_state.c`; see the
+CHANGELOG Security entry). CodeChecker has no notion of log injection — **a clean ratchet is evidence
+about memory safety and undefined behaviour, and about nothing else.**
+
+**Operational note — read the clock before the assertion.** During this round
+`tests/test_ci_guards.py::test_ci_analyzer_runner_green[run_codechecker-CodeChecker]`
+failed once with a bare `assert 1 == 0`, and did not reproduce under three separate
+direct invocations. The tell was the **wall clock**: the red run completed both
+parametrizations in 63 s, where an honest pair takes ~306 s (CodeChecker alone is
+≈216 s over 969 TUs). The runner shells out to `make`, so a concurrent build in
+another session makes it bail early and exit non-zero with nothing to triage. **A
+sub-100 s `run_codechecker` failure is build contention, not a finding** — re-run it
+on a quiet tree before spending anything on it.
+
+**Collateral: four ratchet regressions from the same round.** Clearing analyzer findings by adding
+guards and comments pushed three functions past the CCN cap of 15 (`brix_cns_inv_rename` 20,
+`cvmfs_swarm_intro_caller` 16, `brix_ftp_ev_data_open` 16) and one file past the 600-line cap
+(`src/fs/vfs/vfs_dir.c`, 606). All four were repaired by decomposition, not by `--regen`:
+`inv_rename_subtree` + `inv_rename_dest_slot`, `cvmfs_swarm_intro_parse`, `ev_data_open_passive` +
+`ev_data_open_active`, and `brix_vfs_enumerate_catalog` relocated to `vfs_walk.c` (where it belongs —
+it enumerates a backend catalog, not a directory stream). **Budget for this:** a static-analysis
+burndown reliably costs a complexity burndown, because the fix for "prove this index is in range" is
+another branch.

@@ -637,7 +637,7 @@ kXR_protocol (requests security info)  ─>
 
 kXR_login                              ─>
                                         <─  session ID + auth challenge
-                                            "&P=ztn,v:10000"
+                                            "&P=ztn,0:4096:"
 
 kXR_auth [credtype: "ztn"]            ─>   "ztn\0<raw JWT bytes>"
                                         <─  JWT validated → kXR_ok (auth complete)

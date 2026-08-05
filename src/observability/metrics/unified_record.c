@@ -56,6 +56,43 @@ brix_metric_op_done(brix_proto_t proto, brix_metric_op_t op,
 }
 
 /*
+ * brix_metric_op_count — count-only recording, the mirror of
+ * brix_metric_op_latency.
+ *
+ * WHAT: Bump io_ops_total[proto][op][err] and nothing else — no byte totals,
+ *       no latency observation.
+ * WHY:  Some operations complete without a single request-scoped duration the
+ *       caller can honestly file. A third-party copy is the case that forced
+ *       this: its clock lives in the TPC registry across a detached thread, and
+ *       filing a 0 µs sample would pile fake weight into the lowest latency
+ *       bucket of a family whose other rows are real. Booking the op without a
+ *       latency sample keeps `brix_io_ops_total{op="tpc"}` truthful and leaves
+ *       `brix_io_latency_usec{op="tpc"}` honestly empty — exactly the split the
+ *       stream READ/WRITE rows already use (ops from the wire-ledger fold, no
+ *       latency).
+ * HOW:  Same validation and SHM resolution as brix_metric_op_done, one atomic.
+ */
+void
+brix_metric_op_count(brix_proto_t proto, brix_metric_op_t op,
+    brix_err_class_t err)
+{
+    ngx_brix_metrics_t *shm;
+
+    if (proto >= BRIX_PROTO_COUNT || op >= BRIX_METRIC_OP_COUNT
+        || err >= BRIX_ERR_COUNT)
+    {
+        return;
+    }
+
+    shm = brix_metrics_shared();
+    if (shm == NULL) {
+        return;
+    }
+
+    BRIX_ATOMIC_INC(&shm->unified.io_ops_total[proto][op][err]);
+}
+
+/*
  * brix_metric_op_latency — histogram-only recording (phase-56 D-2).
  *
  * Non-cumulative histogram: increment ONLY the single bucket this sample
@@ -161,6 +198,30 @@ brix_metric_cache_result(brix_proto_t proto, unsigned int hit,
         BRIX_ATOMIC_INC(&shm->unified.cache_misses[proto]);
     }
     BRIX_ATOMIC_ADD(&shm->unified.cache_bytes_evicted[proto], bytes_evicted);
+}
+
+/*
+ * brix_metric_cache_evicted — record a protocol-driven cache invalidation
+ * (delete / rename / write-open over a cached path) without a hit/miss bump.
+ * Distinct from the per-server policy-engine and watermark-reaper eviction
+ * families: this one attributes evicted bytes to the protocol whose request
+ * invalidated the cached copy. No-op for zero bytes.
+ */
+void
+brix_metric_cache_evicted(brix_proto_t proto, uint64_t bytes)
+{
+    ngx_brix_metrics_t *shm;
+
+    if (bytes == 0 || proto >= BRIX_PROTO_COUNT) {
+        return;
+    }
+
+    shm = brix_metrics_shared();
+    if (shm == NULL) {
+        return;
+    }
+
+    BRIX_ATOMIC_ADD(&shm->unified.cache_bytes_evicted[proto], bytes);
 }
 
 /*

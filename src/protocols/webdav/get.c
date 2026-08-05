@@ -45,12 +45,33 @@ webdav_serve_metrics(ngx_http_request_t *r,
 /* Re-entry trampoline for the off-event-loop cache fill: after the fill lands the
  * completion event re-runs the GET handler, which now finds a cache HIT and serves
  * it zero-copy. The fill helper carries no per-handler state (the request re-
- * resolves from r), so `data` is unused. */
+ * resolves from r), so `data` is unused.
+ *
+ * The result goes back through webdav_metrics_return for the same reason the
+ * synchronous dispatch does: the first pass parked with NGX_DONE, and
+ * webdav_metrics_response deliberately books nothing for a request that has not
+ * finished.  Without this the ONE request that actually paid for a cache fill
+ * was the one missing from brix_webdav_responses_total and from
+ * brix_io_ops_total{proto="webdav",op="read"} — its bytes still landed (they
+ * come from the scrape-time ledger fold), so ops and bytes disagreed on exactly
+ * the remote-backed exports where fills happen. */
 static ngx_int_t
 webdav_get_reenter(ngx_http_request_t *r, void *data)
 {
     (void) data;
-    return webdav_handle_get(r);
+    return webdav_metrics_return(r, webdav_handle_get(r));
+}
+
+/* Failure tail of the same park: a fill that ends 404/403/502 never re-enters
+ * the handler, so this is the only place the parked request can book its
+ * response.  Books and returns the status unchanged (the hook also exists to
+ * re-drive against another source; that is not this handler's policy). */
+static ngx_int_t
+webdav_get_fill_failed(ngx_http_request_t *r, void *data, ngx_int_t rc)
+{
+    (void) data;
+    webdav_metrics_response(r, rc);
+    return rc;
 }
 
 #include <fcntl.h>
@@ -236,7 +257,7 @@ get_offload_or_fill(ngx_http_request_t *r,
 
     fr = brix_http_cache_fill_if_needed(r, vctx->sd,
         brix_vfs_export_relative(vctx, path), &conf->common,
-        webdav_get_reenter, NULL, NULL);
+        webdav_get_reenter, NULL, webdav_get_fill_failed);
     if (fr == NGX_DONE) {
         return NGX_DONE;
     }
@@ -431,9 +452,13 @@ get_eval_conditionals(ngx_http_request_t *r, get_serve_state_t *st)
  * WHAT: run the shared ranged file serve and report the range/bytes metrics.
  * WHY: this is the common whole-file / single-range path; the TLS-memory vs
  *   cleartext-sendfile split is FROZEN inside brix_http_serve_file_ranged.
- * HOW: enable byte ranges, build the serve opts (weak ETag, compress flag,
- *   xrdhttp pre-header hook carrying `sb`), serve, then feed the result to the
- *   shared metrics reporter.
+ * HOW: disable the core range filter (the shared serve does its own range
+ *   parse and emits 206/416 itself; leaving allow_ranges on lets nginx
+ *   re-parse the same header and 416 a body already served — and ledgered —
+ *   as a full 200 when the Range is malformed, which RFC 9110 §14.2 says to
+ *   ignore), advertise Accept-Ranges explicitly, build the serve opts (weak
+ *   ETag, compress flag, xrdhttp pre-header hook carrying `sb`), serve, then
+ *   feed the result to the shared metrics reporter.
  */
 static ngx_int_t
 get_serve_full(ngx_http_request_t *r,
@@ -447,7 +472,8 @@ get_serve_full(ngx_http_request_t *r,
     brix_http_serve_result_t result;
     ngx_int_t                rc;
 
-    r->allow_ranges = 1;
+    r->allow_ranges = 0;
+    (void) brix_http_set_header(r, "Accept-Ranges", "bytes", NULL);
 
     ngx_memzero(&opts, sizeof(opts));
     opts.xfer_proto      = BRIX_XFER_PROTO_WEBDAV;

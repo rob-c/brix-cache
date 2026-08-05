@@ -72,6 +72,12 @@ byte-for-byte unchanged.
   (`docs/superpowers/specs/2026-07-04-cvmfs-brix-clever-client-design.md`) owns
   the *policy* tuning — reconcile at wave B start.
 - No distributed consensus / write-back to Stratum-1; the proxy stays a cache.
+  *Reconciliation (2026-08-04):* phase-96 deliberately reversed the adjacent
+  "we don't author repos" reading of this line — BriX now *publishes*
+  Stratum-0 repos, but on the **tool surface** (`brixcvmfs repo …` + shared
+  writers) and serves them read-only via `brix_cvmfs_stratum0_root`. The
+  server-side plane still never writes and there is still no write-back to
+  any Stratum-1; see `phase-96-cvmfs-stratum0-publishing.md` §0.0.
 - No production crypto review beyond correct use of the existing verified
   `signature/`+`object/` primitives.
 

@@ -122,7 +122,10 @@ cache_fill_open_src(sd_cache_inst_state *st, const char *key,
  * key. The gate is deliberately narrow: only a size-known source within the
  * passthrough cap qualifies, so a path-filtered object, an oversized object, or
  * a size-unknown (no Content-Length) origin still declines to the 502 slow-path.
- * Other planes (root://, cvmfs) never opt in, so their decline is unchanged. */
+ * fs->allow_pt is set in exactly ONE place — the shared HTTP cache-fill worker
+ * — so WebDAV, S3 AND cvmfs all inherit the opt-in by routing through it; only
+ * the root:// stream plane's own fill passes allow_pt = 0, leaving its decline
+ * unchanged. Pinned by tests/test_cache_passthrough_planes.py. */
 static ngx_int_t
 cache_fill_admit_src(sd_cache_inst_state *st, const char *key,
     sd_cache_fill_state_t *fs)

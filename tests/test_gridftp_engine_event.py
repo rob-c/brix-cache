@@ -158,6 +158,49 @@ def test_mkd_size_mlst_roundtrip(ev_gateway):
         c.close()
 
 
+def _modify_fact(reply):
+    """Pull the RFC 3659 ``modify=`` value out of an MLST reply."""
+    for chunk in reply.replace("\n", ";").split(";"):
+        if chunk.strip().startswith("modify="):
+            return chunk.strip()[len("modify="):]
+    raise AssertionError(f"no modify= fact in reply: {reply!r}")
+
+
+def test_mlst_modify_fact_is_well_formed_at_the_mtime_ceiling(ev_gateway):
+    """``modify=`` is a 14-digit UTC stamp for a normal file and at the
+    filesystem's largest representable mtime.
+
+    The fact is rendered by ``ev_fmt_facts`` into a fixed stack buffer whose
+    contents ``strftime`` leaves *indeterminate* when it cannot render the
+    broken-down time.  ext4 clamps any absurd ``utime`` to its own 34-bit
+    ceiling (year 2446), so the ceiling is the closest a real on-disk mtime
+    ever gets to that arm — pin it rather than assume it."""
+    _seed(ev_gateway, "facts_now.bin", b"x")
+    ceiling = _seed(ev_gateway, "facts_max.bin", b"x")
+    os.utime(ceiling, (2 ** 60, 2 ** 60))       # clamped by the filesystem
+    c = _Ctrl(ev_gateway.port)
+    try:
+        for name in ("facts_now.bin", "facts_max.bin"):
+            got = _modify_fact(c.cmd(f"MLST /{name}"))
+            assert got.isdigit() and len(got) == 14, (name, got)
+            assert 1970 <= int(got[:4]) <= 9999, (name, got)
+    finally:
+        c.close()
+
+
+def test_mlst_and_mdtm_report_the_same_timestamp(ev_gateway):
+    """MDTM's stamp and MLST's ``modify=`` fact are formatted independently;
+    a divergence means one of the two formatters lost its output."""
+    _seed(ev_gateway, "facts_pair.bin", b"x")
+    c = _Ctrl(ev_gateway.port)
+    try:
+        mdtm = c.cmd("MDTM /facts_pair.bin")
+        assert mdtm.startswith("213 "), mdtm
+        assert _modify_fact(c.cmd("MLST /facts_pair.bin")) == mdtm[4:].strip()
+    finally:
+        c.close()
+
+
 def test_cksm_and_rename(ev_gateway):
     data = b"checksum me please"
     _seed(ev_gateway, "ck.bin", data)
@@ -217,8 +260,8 @@ def test_port_eprt_parse_replies(ev_gateway):
         assert c.cmd("PORT %s,0,0" % ",".join(octs)) == "501 Bad data port"
 
         # extended malformed / unsupported family / bad address
-        assert c.cmd("EPRT |1|127.0.0.1") == "501 Bad EPRT argument"
-        assert c.cmd("EPRT |2|::1|%d|" % port) == "522 Only IPv4 (|1|) supported"
+        assert c.cmd("EPRT |1|127.0.0.1") == "501 Bad EPRT argument"  # net-literal-allow: malformed EPRT argument under test
+        assert c.cmd("EPRT |2|::1|%d|" % port) == "522 Only IPv4 (|1|) supported"  # net-literal-allow: IPv6 EPRT form the parser must refuse
         assert c.cmd("EPRT |1|999.1.2.3|%d|" % port) == "501 Bad EPRT address"
 
         # anti-FTP-bounce: an off-peer target is refused (no DCAU-A leg)
@@ -229,6 +272,26 @@ def test_port_eprt_parse_replies(ev_gateway):
 
 
 # ---- security-negative -----------------------------------------------------
+
+def test_mlst_facts_never_leak_stack_bytes(ev_gateway):
+    """The fact line carries nothing but printable ASCII.
+
+    ``ev_fmt_facts`` formats through a stack buffer that is only conditionally
+    written; if the timestamp arm ever failed without re-clamping, whatever the
+    stack held would be copied verbatim onto the control channel — a stack
+    disclosure to any peer that can reach the gateway.  Non-printable bytes in
+    the reply are the observable signature."""
+    path = _seed(ev_gateway, "facts_leak.bin", b"x")
+    os.utime(path, (2 ** 60, 2 ** 60))
+    c = _Ctrl(ev_gateway.port)
+    try:
+        raw = c.cmd("MLST /facts_leak.bin")
+        assert all(0x20 <= ord(ch) <= 0x7E or ch in "\r\n" for ch in raw), \
+            repr(raw)
+        assert "�" not in raw, repr(raw)   # decode(errors=replace) marker
+    finally:
+        c.close()
+
 
 def test_preauth_gate(ev_gateway):
     """A file/namespace verb before login is refused with 530."""

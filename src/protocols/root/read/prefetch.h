@@ -39,6 +39,14 @@
 void brix_prefetch_fd_range(ngx_log_t *log, int fd, off_t offset,
     size_t length);
 
+/* ---- Function: brix_prefetch_obj_range() ----
+ * Driver-object variant of brix_prefetch_fd_range() for handles without a raw
+ * fd (e.g. slice partial-cache objects, whose read_advise slot turns WILLNEED
+ * into a background block prefetch). Same guards; best-effort.
+ */
+void brix_prefetch_obj_range(ngx_log_t *log, brix_sd_obj_t *obj, off_t offset,
+    size_t length);
+
 /* ---- Function: brix_prefetch_read_file() ----
  * Provides intelligent sequential detection and windowed hinting based on read_last_end/read_ahead_end state tracking.
  * Sequential pattern detected → extended prefetch window (end + BRIX_READ_PREFETCH_WINDOW).

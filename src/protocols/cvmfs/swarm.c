@@ -350,6 +350,42 @@ cvmfs_swarm_roster_merge(cvmfs_swarm_ctx_t *sw, char *text, size_t len,
 
 /* ---- roster endpoint (request path, pre-classification) ----------------- */
 
+/* cvmfs_swarm_intro_parse — pull (label, gen) out of a "?from=<l>&gen=<g>"
+ * query string. Returns 0 on a usable introduction; -1 when the query is
+ * absent/oversized/malformed, or names THIS node (a node never introduces
+ * itself). Bounded copy first: r->args aliases the request buffer and is not
+ * NUL-terminated. */
+static int
+cvmfs_swarm_intro_parse(cvmfs_swarm_ctx_t *sw, const ngx_str_t *args,
+    char *label, unsigned long long *gen_out)
+{
+    char    qs[CVMFS_SWARM_LABEL_MAX + 64];
+    size_t  n;
+
+    if (args->len <= 5 || args->len >= sizeof(sw->resp)) {
+        return -1;
+    }
+    /* `self` stays -1 until cvmfs_swarm_seed identifies this node in the peer
+     * list.  The roster handler answers 503 while !sw->seeded, and seeding is
+     * what sets self — so today this cannot fire.  It is restated here because
+     * the members[sw->self] read below is only safe by virtue of a gate two
+     * functions away: a future caller that skipped the seeded check would read
+     * members[-1] with nothing local to stop it. */
+    if (sw->self < 0 || (ngx_uint_t) sw->self >= sw->n_members) {
+        return -1;
+    }
+    n = args->len < sizeof(qs) - 1 ? args->len : sizeof(qs) - 1;
+    ngx_memcpy(qs, args->data, n);
+    qs[n] = '\0';
+
+    if (sscanf(qs, "from=%271[^&]&gen=%llu", label, gen_out) != 2
+        || strcmp(label, sw->members[sw->self].label) == 0)
+    {
+        return -1;
+    }
+    return 0;
+}
+
 /* Push-pull introduction: a "?from=<label>&gen=<g>" query introduces the
  * CALLER as a live member (a contact is direct proof of life). Without
  * this, pull-only gossip can never spread a new member to nodes that do
@@ -357,22 +393,12 @@ cvmfs_swarm_roster_merge(cvmfs_swarm_ctx_t *sw, char *text, size_t len,
 static void
 cvmfs_swarm_intro_caller(cvmfs_swarm_ctx_t *sw, ngx_http_request_t *r)
 {
-    char                  qs[CVMFS_SWARM_LABEL_MAX + 64];
     char                  label[CVMFS_SWARM_LABEL_MAX];
     unsigned long long    gen = 0;
     int                   fresh = 0;
     cvmfs_swarm_member_t *m;
 
-    if (r->args.len <= 5 || r->args.len >= sizeof(sw->resp)) {
-        return;
-    }
-    ngx_memcpy(qs, r->args.data,
-               r->args.len < sizeof(qs) - 1 ? r->args.len
-                                             : sizeof(qs) - 1);
-    qs[r->args.len < sizeof(qs) - 1 ? r->args.len : sizeof(qs) - 1] = '\0';
-    if (sscanf(qs, "from=%271[^&]&gen=%llu", label, &gen) != 2
-        || strcmp(label, sw->members[sw->self].label) == 0)
-    {
+    if (cvmfs_swarm_intro_parse(sw, &r->args, label, &gen) != 0) {
         return;
     }
 

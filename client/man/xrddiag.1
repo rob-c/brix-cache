@@ -93,6 +93,25 @@ rejection, scope enforcement.
 \fB\-\-no\-verify\-tls\fR skips certificate chain verification (for self-signed endpoints).
 Each URL's scheme selects its own probe battery (root[s]://, http://, https://,
 davs://|dav://, s3://|s3s://, cms://).
+.IP
+Remote-advisor extensions:
+\fB\-\-config\-audit\fR scrapes and classifies the remote configuration,
+capacity and performance surface (Qconfig/Qspace/netfacts);
+\fB\-\-cap\-threshold\fR \fIPCT\fR sets the capacity-warning threshold for the
+audit; \fB\-\-all\-servers\fR fans a manager URL out to every located data
+server and diffs fleet uniformity; \fB\-\-map\fR draws the discovered CMS
+mesh (\fB\-\-map\-format\fR \fBascii\fR|\fBdot\fR|\fBmermaid\fR emits a
+pipeable graph for \fBdot \-Tpng\fR or a Mermaid renderer);
+\fB\-\-latency\fR times a bi-directional round-trip (xrootd stat plus cms
+locate plane) against every mesh node (\fB\-\-latency\-count\fR \fIN\fR
+samples per node); \fB\-\-deep\-recon\fR dumps read-only server
+reconnaissance (query stats, full Qconfig sweep, capability flags,
+authorized roots).
+.TP
+.B tpc\-egress \fIGATEWAY-URL\fR \-\-tpc\-target \fIHOST\fR[\fI:PORT\fR] [\-\-json]
+SSRF-control self-test: ask your OWN gateway to originate a TPC pull from
+the named source (\fB\-\-tpc\-target\fR) and report whether egress is
+refused (safe) or permitted (connection-refused vs filtered vs reached).
 .SH OPTIONS
 The following options apply globally to all subcommands:
 .TP

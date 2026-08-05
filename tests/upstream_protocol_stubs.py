@@ -3,14 +3,23 @@
 Persistent XRootD protocol stub backends for upstream-redirect tests.
 
 Started once by manage_test_servers.sh start-all; stays up for the entire
-test session.  Five threads each handle one fixed protocol scenario:
+test session.  Each thread handles one fixed protocol scenario:
 
+  13120  redirect  — login ok; locate → kXR_redirect stub.example.org:1194
   13121  wait      — login ok; locate → kXR_wait(1) + kXR_redirect retry.example.org:2094
   13122  waitresp  — login ok; locate → kXR_waitresp + kXR_redirect async.example.org:3094
+  13123  error     — login ok; locate → kXR_error(3010, "stub upstream refused this request")
   13124  auth      — login → kXR_authmore challenge; kXR_auth accepted; locate → redirect
                      Received credential written to STUB_RECEIVED_CRED_PATH.
   13125  auth-nofile — login → kXR_authmore challenge then close (no kXR_auth read)
   13126  gotorls   — kXR_protocol response with kXR_gotoTLS flag then close
+
+13120 and 13123 have live siblings that proxy to a REAL xrootd (`upstream-redirect`,
+`upstream-error`).  The stub forms exist because a real backend picks its own
+redirect target and its own error code, so the real-backend tests can only assert
+the response *kind*; the stubs let the tests assert the exact bytes survive the
+proxy.  They were declared in `fleet_specs.py` from the start and had no handler
+here until 2026-08-05 — see the coverage audit's dead-fleet-specs fold-in.
 
 Ports are read from the same TEST_STUB_*_BACKEND_PORT env vars used by settings.py.
 """
@@ -30,6 +39,7 @@ from settings import BIND_HOST
 # ------------------------------------------------------------------ #
 
 kXR_ok       = 0
+kXR_error    = 4003
 kXR_redirect = 4004
 kXR_wait     = 4005
 kXR_waitresp = 4006
@@ -51,8 +61,10 @@ RECEIVED_CRED = os.environ.get(
     "STUB_RECEIVED_CRED_PATH", os.path.join(_TMP_DIR, "received-auth-cred.bin")
 )
 
+REDIRECT_PORT = int(os.environ.get("TEST_STUB_REDIRECT_BACKEND_PORT",   "13120"))
 WAIT_PORT     = int(os.environ.get("TEST_STUB_WAIT_BACKEND_PORT",       "13121"))
 WAITRESP_PORT = int(os.environ.get("TEST_STUB_WAITRESP_BACKEND_PORT",   "13122"))
+ERROR_PORT    = int(os.environ.get("TEST_STUB_ERROR_BACKEND_PORT",      "13123"))
 AUTH_PORT     = int(os.environ.get("TEST_STUB_AUTH_BACKEND_PORT",       "13124"))
 NOFILE_PORT   = int(os.environ.get("TEST_STUB_AUTH_NOFILE_BACKEND_PORT","13125"))
 GOTORLS_PORT  = int(os.environ.get("TEST_STUB_GOTORLS_BACKEND_PORT",    "13126"))
@@ -112,8 +124,44 @@ def _redirect_body(host, port):
 
 
 # ------------------------------------------------------------------ #
+# Fixed payloads — imported by the tests so the expected bytes are     #
+# stated once, here, rather than duplicated as literals over there.    #
+# ------------------------------------------------------------------ #
+
+REDIRECT_TARGET_HOST = "stub.example.org"
+REDIRECT_TARGET_PORT = 1194
+
+#: kXR_NotAuthorized. Deliberately NOT kXR_NotFound: a real backend answers a
+#: missing path with 3011, so a proxy that synthesised its own error instead of
+#: forwarding the upstream one would still look right. 3010 cannot be faked.
+ERROR_CODE = 3010
+ERROR_MESSAGE = "stub upstream refused this request"
+
+
+# ------------------------------------------------------------------ #
 # Stub handlers — one connection per invocation                        #
 # ------------------------------------------------------------------ #
+
+def _handle_redirect(conn):
+    """Plain kXR_redirect, no wait and no waitresp preamble."""
+    _bootstrap_login_ok(conn)
+    sid  = _read_request(conn)
+    body = _redirect_body(REDIRECT_TARGET_HOST, REDIRECT_TARGET_PORT)
+    conn.sendall(_hdr(sid, kXR_redirect, len(body)))
+    conn.sendall(body)
+
+
+def _handle_error(conn):
+    """kXR_error with a fixed code and message, so the proxy's fidelity is checkable.
+
+    The message is NUL-terminated the way a real server sends it.
+    """
+    _bootstrap_login_ok(conn)
+    sid  = _read_request(conn)
+    body = struct.pack(">I", ERROR_CODE) + ERROR_MESSAGE.encode() + b"\x00"
+    conn.sendall(_hdr(sid, kXR_error, len(body)))
+    conn.sendall(body)
+
 
 def _handle_wait(conn):
     """kXR_wait(1) followed by kXR_redirect retry.example.org:2094."""
@@ -249,6 +297,8 @@ def main():
         fh.write(str(os.getpid()) + "\n")
 
     for port, handler in [
+        (REDIRECT_PORT, _handle_redirect),
+        (ERROR_PORT,    _handle_error),
         (WAIT_PORT,     _handle_wait),
         (WAITRESP_PORT, _handle_waitresp),
         (AUTH_PORT,     _handle_auth),

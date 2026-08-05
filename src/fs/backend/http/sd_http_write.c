@@ -276,36 +276,8 @@ sd_http_staged_abort(brix_sd_staged_t *h)
     free(h);
 }
 
-ngx_int_t
-sd_http_unlink(brix_sd_instance_t *inst, const char *path, int is_dir)
-{
-    sd_http_inst_state *is = inst->state;
-    brix_s3_resp_t    resp;
-    char                errbuf[256], full[SD_HTTP_PATH_MAX];
-
-    (void) is_dir;
-    sd_http_write_path(is, path, full, sizeof(full));
-    if (is->transport->request(is->tctx, is->eps[0].host, is->eps[0].port,
-                               is->eps[0].tls, "DELETE",
-                               full, is->auth_hdr[0] ? is->auth_hdr : NULL,
-                               NULL, 0, is->timeout_ms, &resp,
-                               errbuf, sizeof(errbuf)) != 0)
-    {
-        errno = EIO;
-        return NGX_ERROR;
-    }
-    /* Idempotent: 204/200 ok, 404 already gone. */
-    if (resp.status != 204 && resp.status != 200 && resp.status != 404) {
-        is->transport->resp_free(&resp);
-        errno = EIO;
-        return NGX_ERROR;
-    }
-    is->transport->resp_free(&resp);
-    return NGX_OK;
-}
-
 /* sd_http_status_to_errno — map a WebDAV mutation status to a POSIX errno for the
- * mkdir/rename slots. 401/403 → EACCES, 404/409 → ENOENT (target or its parent
+ * delete/mkdir/rename slots. 401/403 → EACCES, 404/409 → ENOENT (target or its parent
  * absent), 405 → EEXIST (method not allowed on an existing collection), 412 →
  * EEXIST (Overwrite:F precondition — dst already present), anything else → EIO.
  * The caller decides which codes count as success before calling this. */
@@ -321,6 +293,127 @@ sd_http_status_to_errno(long status)
     case 412: return EEXIST;
     default:  return EIO;
     }
+}
+
+/* sd_http_coll_empty — 1 iff the collection at `path` has no children, 0 if it
+ * has at least one, -1 (errno set) if the question could not be answered.
+ *
+ * A WebDAV DELETE of a collection is RECURSIVE (RFC 4918 §9.6), while the VFS
+ * only ever calls this slot non-recursively (a recursive delete is walked by
+ * brix_vfs_driver_rmtree). Without an emptiness gate the two disagree in the
+ * most expensive possible direction: `xrdfs rmdir` of a populated collection —
+ * an operation POSIX refuses with ENOTEMPTY — would erase the entire subtree on
+ * any origin that implements DELETE to spec. Asking first makes the answer the
+ * origin's dialect-independent one. */
+static int
+sd_http_coll_empty(brix_sd_instance_t *inst, const char *path)
+{
+    brix_sd_dir_t     *d;
+    brix_sd_dirent_t   ent;
+    int                err = EIO, rc;
+
+    d = sd_http_opendir(inst, path, &err);
+    if (d == NULL) {
+        errno = err ? err : EIO;
+        return -1;
+    }
+    rc = sd_http_readdir(d, &ent);
+    sd_http_closedir(d);
+    return (rc == NGX_DONE) ? 1 : 0;
+}
+
+/* sd_http_delete_gate — decide whether `path` may be deleted by this slot, given
+ * the caller's `is_dir` (VFS require_empty_dir) request. 0 = proceed, -1 with
+ * errno set = refuse without issuing anything.
+ *
+ * The rules are the POSIX ones the default backend applies, expressed over
+ * WebDAV's single DELETE method:
+ *   absent                 → ENOENT (a delete that removed nothing is not success)
+ *   rmdir of a non-dir     → ENOTDIR
+ *   any non-empty coll     → ENOTEMPTY (rm and rmdir alike; see sd_http_coll_empty)
+ *   empty collection       → allowed for BOTH spellings, matching brix_ns_delete,
+ *                            which removes an empty directory on a plain rm
+ *   no WebDAV at the origin (PROPFIND 405/501) → a file delete proceeds (such an
+ *                            origin has no collections); an rmdir is ENOTSUP
+ *                            rather than a guess. */
+static int
+sd_http_delete_gate(brix_sd_instance_t *inst, sd_http_inst_state *is,
+    const char *path, int is_dir)
+{
+    int is_coll = 0, perr = 0, empty;
+
+    if (sd_http_probe_type(is, path, is->auth_hdr[0] ? is->auth_hdr : NULL,
+                           NULL, &is_coll, &perr) != 0) {
+        if (perr != ENOTSUP) { errno = perr; return -1; }
+        if (is_dir)          { errno = ENOTSUP; return -1; }
+        return 0;
+    }
+    if (is_dir && !is_coll) {
+        errno = ENOTDIR;
+        return -1;
+    }
+    if (!is_coll) {
+        return 0;
+    }
+    empty = sd_http_coll_empty(inst, path);
+    if (empty < 0) {
+        return -1;                              /* errno set by the probe */
+    }
+    if (!empty) {
+        errno = ENOTEMPTY;
+        return -1;
+    }
+    return 0;
+}
+
+/* sd_http_unlink — vtable unlink/rmdir slot. The type/emptiness rules live in
+ * sd_http_delete_gate; nothing reaches the origin until they pass, so a
+ * mis-typed or over-broad delete can never be issued at all. Three behaviours
+ * this replaced were each a way of destroying or mis-reporting data: `is_dir`
+ * was discarded (an rmdir of a regular FILE deleted it), a 404 was reported as
+ * success (a delete of a missing object looked like a delete of a real one), and
+ * a non-empty collection was handed to DELETE (a recursive wipe where POSIX
+ * refuses ENOTEMPTY — this origin answers 409, which the shared status map read
+ * as ENOENT and the root layer then treated as idempotent rmdir SUCCESS). */
+ngx_int_t
+sd_http_unlink(brix_sd_instance_t *inst, const char *path, int is_dir)
+{
+    sd_http_inst_state *is = inst->state;
+    brix_s3_resp_t    resp;
+    char                errbuf[256], full[SD_HTTP_PATH_MAX];
+
+    if (sd_http_delete_gate(inst, is, path, is_dir) != 0) {
+        return NGX_ERROR;                       /* errno set by the gate */
+    }
+
+    sd_http_write_path(is, path, full, sizeof(full));
+
+    if (is->transport->request(is->tctx, is->eps[0].host, is->eps[0].port,
+                               is->eps[0].tls, "DELETE",
+                               full, is->auth_hdr[0] ? is->auth_hdr : NULL,
+                               NULL, 0, is->timeout_ms, &resp,
+                               errbuf, sizeof(errbuf)) != 0)
+    {
+        errno = EIO;
+        return NGX_ERROR;
+    }
+    if (resp.status != 204 && resp.status != 200) {
+        int status = (int) resp.status;
+
+        is->transport->resp_free(&resp);
+        /* 404 here means the entry the gate saw was removed underneath us — a
+         * concurrent delete, which is still "it is not there and I did not
+         * remove it": ENOENT, same as unlink(2) losing that race. 409 on a
+         * DELETE is the collection-not-empty conflict (the gate's race window:
+         * a child appeared after the emptiness probe), NOT the missing-parent
+         * ENOENT the shared status map assumes for MKCOL/MOVE. */
+        errno = (status == 404) ? ENOENT
+              : (status == 409) ? ENOTEMPTY
+              : sd_http_status_to_errno(status);
+        return NGX_ERROR;
+    }
+    is->transport->resp_free(&resp);
+    return NGX_OK;
 }
 
 /* sd_http_mkdir — create a collection at `path` via WebDAV MKCOL (RFC 4918 §9.3).

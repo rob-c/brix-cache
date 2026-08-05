@@ -35,6 +35,7 @@ import pytest
 import kdc_helpers
 from ephemeral_port import free_port
 from settings import (
+    HOST,
     KRB5_CCACHE,
     KRB5_CONF,
     KRB5_KEYTAB,
@@ -48,9 +49,8 @@ CLIENT_DIR = os.path.join(REPO, "client")
 XRDFS = os.path.join(CLIENT_DIR, "bin", "xrdfs")
 XRDCP = os.path.join(CLIENT_DIR, "bin", "xrdcp")
 
-# The reference server binds loopback; the client uses the advertised SPN, so the
-# literal host it dials need not match the principal's "localhost" instance.
-HOST = "127.0.0.1"
+# The reference server binds settings.HOST; the client uses the advertised SPN,
+# so the host it dials need not match the principal's instance name.
 
 
 def _find_seclib():

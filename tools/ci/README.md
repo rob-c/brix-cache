@@ -60,6 +60,7 @@ would move a frozen baseline under us.
 | `check_doc_links.py` | every relative markdown link in docs/ + src READMEs resolves to a git-tracked target | `doc_links_backlog.txt` (currently empty — keep it that way) | `--regen` |
 | `check_readme_coverage.py` | any depth≤2 `src/` dir with ≥2 C sources carries a README.md | — | — |
 | `check_ports_doc.py` | every `*_PORT*` constant in `tests/settings.py` has a row in `docs/10-reference/test-fleet-ports.md` | — | — |
+| `check_template_refs.py` | no NEW `tests/configs/*.conf` that nothing in the repo names; frozen dead templates may only be wired up or deleted | `template_refs_backlog.txt` | `--regen` (shrink-only) |
 | `check_python_deps.py` | every third-party Python import is declared in a requirements file; every requirement has a **lower AND upper** bound; nothing declared *optional* is imported at module scope | inline `IMPORT_TO_DIST` / `SYSTEM_MODULES` | edit the requirements file |
 | `check_version_sync.py` | the RPM spec's `%global upstream_version` fallback, the spec's newest `%changelog` entry and `CHANGELOG.md`'s newest entry all equal `BRIX_SERVER_VERSION_BARE` in `src/core/ident.h`; both changelogs are newest-first | — | `--show` prints all four |
 | `run_fanalyzer.py` | no NEW gcc `-fanalyzer` finding (UAF/leak/NULL-deref) vs baseline; needs a configured nginx build (`NGX_BUILD`) | `fanalyzer_baseline.txt` | `--regen` |

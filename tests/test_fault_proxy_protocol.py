@@ -40,6 +40,8 @@ import time
 
 import pytest
 
+from settings import HOST
+
 pytestmark = pytest.mark.timeout(180)
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -58,7 +60,7 @@ def bfp():
 
 def _free_port():
     s = socket.socket()
-    s.bind(("127.0.0.1", 0))
+    s.bind((HOST, 0))
     p = s.getsockname()[1]
     s.close()
     return p
@@ -68,7 +70,7 @@ def _wait_port(port, deadline=5.0):
     end = time.time() + deadline
     while time.time() < end:
         try:
-            with socket.create_connection(("127.0.0.1", port), timeout=0.25):
+            with socket.create_connection((HOST, port), timeout=0.25):
                 return True
         except OSError:
             time.sleep(0.02)
@@ -84,7 +86,7 @@ class _Echo:
         self.port = _free_port()
         self._srv = socket.socket()
         self._srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        self._srv.bind(("127.0.0.1", self.port))
+        self._srv.bind((HOST, self.port))
         self._srv.listen(64)
         self._stop = False
         threading.Thread(target=self._run, daemon=True).start()
@@ -124,7 +126,7 @@ class _Echo:
 
 def _spawn(bfp, target_port, enable_exec=False):
     listen, ctl = _free_port(), _free_port()
-    argv = [bfp, "--listen", str(listen), "--target", f"127.0.0.1:{target_port}",
+    argv = [bfp, "--listen", str(listen), "--target", f"{HOST}:{target_port}",
             "--control", str(ctl), "--quiet"]
     if enable_exec:
         argv.append("--enable-exec")
@@ -134,7 +136,7 @@ def _spawn(bfp, target_port, enable_exec=False):
 
 
 def _ctl(port, cmd):
-    with socket.create_connection(("127.0.0.1", port), timeout=3) as s:
+    with socket.create_connection((HOST, port), timeout=3) as s:
         s.sendall((cmd + "\n").encode())
         return s.recv(4096).decode()
 
@@ -143,7 +145,7 @@ def _roundtrip(listen, payload, wait=0.2):
     """Send `payload`, half-close, drain the reply. Tolerates a peer that closes
     first (replay mode answers then hangs up)."""
     out = b""
-    with socket.create_connection(("127.0.0.1", listen), timeout=3) as s:
+    with socket.create_connection((HOST, listen), timeout=3) as s:
         s.settimeout(2.0)
         try:
             s.sendall(payload)
@@ -290,7 +292,7 @@ def test_bisect_converges_to_minimal_reproducing_value(bfp, tmp_path):
         f.write("import socket,sys\n"
                 "s=socket.socket(); s.settimeout(0.12)\n"
                 "try:\n"
-                f" s.connect(('127.0.0.1',{listen})); s.sendall(b'x'); s.recv(16); sys.exit(0)\n"
+                f" s.connect(('{HOST}',{listen})); s.sendall(b'x'); s.recv(16); sys.exit(0)\n"
                 "except Exception: sys.exit(1)\n")
     try:
         r = _ctl(ctl, f"bisect latency 0 400 600 python3 {probe}")
@@ -309,7 +311,7 @@ def test_recovery_asserts_service_comes_back(bfp, tmp_path):
     probe = str(tmp_path / "health.py")
     with open(probe, "w") as f:
         f.write("import socket,sys\n"
-                f"s=socket.create_connection(('127.0.0.1',{listen}),1); s.sendall(b'ping')\n"
+                f"s=socket.create_connection(('{HOST}',{listen}),1); s.sendall(b'ping')\n"
                 "s.settimeout(1); r=s.recv(64); s.close(); sys.exit(0 if r==b'ping' else 1)\n")
     try:
         r = _ctl(ctl, f"recovery block | 200 | python3 {probe} | 5000")
