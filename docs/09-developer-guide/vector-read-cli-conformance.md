@@ -1,7 +1,7 @@
 # Vector-read (kXR_readv) CLI primitive & cross-client conformance
 
 **Status:** verified 2026-08-04 (xrd1). **Context:** closes the lone `vector_read` gap in the
-BriX-vs-stock client parity matrix (see [gsi-benchmark-rig](gsi-benchmark-rig-2026-08-04) and
+BriX-vs-stock client parity matrix (see [gsi-benchmark-rig](gsi-benchmark-rig-2026-08-04.md) and
 `brixbench/`).
 
 ## Summary

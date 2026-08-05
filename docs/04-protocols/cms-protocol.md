@@ -532,6 +532,18 @@ real interop failure against a real `cmsd`:
     accumulates into a fixed `inbuf` and only dispatches a *complete* frame, so a
     partial read across event ticks is safe.
 
+11. **`logged_in` is set when the login is *sent*, not when a response arrives.**
+    CMS login is unacknowledged in the success case, so there is no reply to latch
+    on; the outbound state machine marks the manager link logged-in at send time.
+    Anything that reads `logged_in` as "this manager accepted us" — a redundancy
+    test asserting a peer is live, a gauge decrement keyed on cluster membership —
+    is really only observing "we wrote bytes at it". With `brix_cms_manager`
+    carrying up to 15 endpoints, every configured manager therefore flips
+    `logged_in` on connect, and a manager that is refusing or silently dropping is
+    indistinguishable at this flag. Assert on downstream evidence instead — a
+    `kYR_locate` answer, a heartbeat round-trip, or the registered-links gauge
+    (§ phase-98) — never on `logged_in` alone.
+
 ---
 
 ## 9. Configuration directives

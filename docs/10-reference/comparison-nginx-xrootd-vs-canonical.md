@@ -182,6 +182,14 @@ missing from upstream XRootD.
 
 **Advantage:** Prevents log injection and garbled output from malicious or binary wire data.
 
+**Test-assertion trap:** the escape is emitted with **uppercase** hex digits — a
+newline becomes `\x0A`, never `\x0a`. Any test that asserts on sanitized output
+has to match that case, and a lowercase literal in the expectation fails in a way
+that reads like the sanitizer never ran. Every call site that logs attacker-
+influenced wire data must route through this helper; a raw `%V`/`%s` of a wire
+string is the log-injection bug this exists to prevent (a `kYR_state` path was
+found unsanitized this way in 2026-08).
+
 ---
 
 ## 5. Performance Optimizations Comparison

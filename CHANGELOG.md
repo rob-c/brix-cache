@@ -343,10 +343,18 @@ what changed for a user of the server.
   (`native-client-tools.md`); the fleet signing-key-desync signature — every
   token accept-case red while every reject-case passes — added to the
   testing field-guide table; and the standing Python-replaces-bash tooling
-  policy written down as `history-build-infra-and-decisions.md` Part 2 §7.
-  The memory store went from 672 KB to 236 KB (35%), every remaining entry a
-  pointer at the doc that now owns the material; only the operating rules keep
-  their imperative text, and those carry a doc reference too.
+  policy written down as `history-build-infra-and-decisions.md` Part 2 §7. A
+  second pass emptied the index file itself: `logged_in` is set when the CMS
+  login is *sent*, not acknowledged, so nothing may assert cluster membership on
+  it (`cms-protocol.md` §8 item 11); `brix_sanitize_log_string` emits **uppercase**
+  hex, which is a test-assertion trap (`comparison-nginx-xrootd-vs-canonical.md`
+  §4.10); and through the phase-97 CMS/CNS work every red was a concurrent
+  session's `TEST_ROOT` wipe or fixed-port contention and none was a code defect,
+  so on a shared box a red is re-run solo before the diff is read
+  (`history-testing-and-incidents.md` §1.3). The memory store went from 672 KB to
+  140 KB (21%): each entry is now frontmatter plus one line — the doc pointer, the
+  commit/date/file archaeology, and its cross-links — and only the operating rules
+  keep imperative text, each carrying a doc reference for the why.
 - **Two red CI guards re-greened, neither of which was reporting real debt.**
   `check_doc_links` failed on a single untracked link *target*
   (`docs/05-operations/cvmfs-stratum0.md`, written during the Stratum-0 work and
