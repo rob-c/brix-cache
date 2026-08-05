@@ -68,7 +68,7 @@ http_plane_md5(const char *host, int port, int tls, const char *path,
     }
     *http_out = 0;
     rc = brix_http_download(host, port, tls, path, extra_hdrs, verify, ca_dir,
-                            fd, 5000, http_out, &got, st);
+                            NULL, fd, 5000, http_out, &got, st);
     if (rc == 0 && *http_out == 200) {
         rc = brix_cksum_fd(fd, XRDC_CK_MD5, hex, hexsz, st);
     }

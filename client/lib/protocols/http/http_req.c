@@ -316,15 +316,16 @@ int
 brix_http_req(const char *host, int port, int tls, const char *method,
               const char *path, const char *extra_headers,
               const void *body, size_t blen, int timeout_ms, int verify,
-              const char *ca_dir, brix_http_resp *resp, brix_status *st)
+              const char *ca_dir, const char *client_cert,
+              brix_http_resp *resp, brix_status *st)
 {
     brix_io  io;
     void    *tls_ctx = NULL;
     int      rc;
 
     memset(resp, 0, sizeof(*resp));
-    if (httpx_connect(&io, host, port, tls, verify, ca_dir, timeout_ms,
-                      &tls_ctx, st) != 0) {
+    if (httpx_connect(&io, host, port, tls, verify, ca_dir, client_cert,
+                      timeout_ms, &tls_ctx, st) != 0) {
         return -1;
     }
     resp->tls = tls;

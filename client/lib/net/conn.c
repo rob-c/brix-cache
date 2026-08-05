@@ -70,6 +70,41 @@ brix_resolve_ca_dir(const char *opt_ca_dir)
     return NULL;
 }
 
+/*
+ * Resolve the X.509 proxy PEM to present as the CLIENT certificate on a davs/
+ * https mutual-TLS handshake — the HTTP-client analogue of the root:// GSI
+ * resolver (sec_gsi.c). Same precedence:
+ *   1. $X509_USER_PROXY  (xrdcp exports --proxy into it)
+ *   2. /tmp/x509up_u<euid>  (the grid default proxy location)
+ * A proxy PEM carries the proxy cert, its private key, and the EEC chain in one
+ * file, so the single returned path feeds both the cert-chain and the key.
+ * Writes into `buf` and returns it ONLY when the file exists and is readable;
+ * returns NULL otherwise (no proxy → the client presents no cert, and TLS only
+ * sends one when the server actually requests client auth, so this is safe for
+ * plain https endpoints). Never allocates.
+ */
+const char *
+brix_web_proxy_pem(char *buf, size_t buflen)
+{
+    const char *env;
+
+    if (buf == NULL || buflen == 0) {
+        return NULL;
+    }
+
+    env = getenv("X509_USER_PROXY");
+    if (env != NULL && env[0] != '\0') {
+        snprintf(buf, buflen, "%s", env);
+    } else {
+        snprintf(buf, buflen, "/tmp/x509up_u%u", (unsigned) geteuid());
+    }
+
+    if (access(buf, R_OK) != 0) {
+        return NULL;
+    }
+    return buf;
+}
+
 static void
 fill_username(char out[9])
 {

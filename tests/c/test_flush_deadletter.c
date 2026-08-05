@@ -93,7 +93,10 @@ static int g_checks, g_failed;
     else      { printf("  FAIL %s (line %d)\n", (name), __LINE__); g_failed++; } \
 } while (0)
 
-/* Write a synthetic brix_sreq_t to <dir>/<reqid>.req. */
+/* Write a synthetic brix_sreq_t to <dir>/<reqid>.req.  Mirrors the REAL journal
+ * writers (stage_journal_write / _update_rec): only the identity prefix is
+ * persisted — the in-memory-only cred.bearer is never written to disk, so the
+ * on-disk record is BRIX_SREQ_IDENTITY_SIZE bytes, not sizeof(brix_sreq_t). */
 static int
 write_req(const char *dir, const brix_sreq_t *rec)
 {
@@ -103,7 +106,9 @@ write_req(const char *dir, const brix_sreq_t *rec)
     snprintf(path, sizeof(path), "%s/%s.req", dir, rec->reqid);
     fd = open(path, O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC, 0600);
     if (fd < 0) { return -1; }
-    if (write(fd, rec, sizeof(*rec)) != (ssize_t) sizeof(*rec)) {
+    if (write(fd, rec, BRIX_SREQ_IDENTITY_SIZE)
+        != (ssize_t) BRIX_SREQ_IDENTITY_SIZE)
+    {
         close(fd);
         return -1;
     }
@@ -111,7 +116,9 @@ write_req(const char *dir, const brix_sreq_t *rec)
     return 0;
 }
 
-/* Read the on-disk record at <dir>/<reqid>.req into *out. */
+/* Read the on-disk record at <dir>/<reqid>.req into *out.  The persisted record
+ * is the identity prefix (BRIX_SREQ_IDENTITY_SIZE); zero *out first so the
+ * unpersisted bearer tail reads back empty, exactly as brix_sreq_decode does. */
 static int
 read_req(const char *dir, const char *reqid, brix_sreq_t *out)
 {
@@ -125,8 +132,9 @@ read_req(const char *dir, const char *reqid, brix_sreq_t *out)
     if (fd < 0) { return -1; }
     n = read(fd, buf, sizeof(buf));
     close(fd);
-    if ((size_t) n != sizeof(*out)) { return -1; }
-    memcpy(out, buf, sizeof(*out));
+    if ((size_t) n != BRIX_SREQ_IDENTITY_SIZE) { return -1; }
+    memset(out, 0, sizeof(*out));
+    memcpy(out, buf, (size_t) n);
     return 0;
 }
 

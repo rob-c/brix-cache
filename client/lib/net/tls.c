@@ -369,7 +369,8 @@ brix_tls_read_some(brix_io *io, void *buf, size_t n, size_t *got, brix_status *s
  */
 int
 brix_tls_client(brix_io *io, const char *host, int verify_peer, int verify_host,
-                const char *ca_dir, void **out_ctx, brix_status *st)
+                const char *ca_dir, const char *client_cert, void **out_ctx,
+                brix_status *st)
 {
     SSL_CTX *ctx;
     SSL     *ssl;
@@ -382,6 +383,30 @@ brix_tls_client(brix_io *io, const char *host, int verify_peer, int verify_host,
         return -1;
     }
     SSL_CTX_set_min_proto_version(ctx, TLS1_2_VERSION);
+
+    /* Present a client certificate for mutual TLS (davs GSI delegation): the
+     * proxy PEM holds the proxy cert + private key + EEC chain in one file, so
+     * the same path loads both the chain and the key. Independent of server
+     * verification. Failure here is fatal — the caller asked to authenticate
+     * with this identity, so silently proceeding anonymously would misrepresent
+     * who is connecting. */
+    if (client_cert != NULL && client_cert[0] != '\0') {
+        if (SSL_CTX_use_certificate_chain_file(ctx, client_cert) != 1) {
+            tls_err(st, XRDC_EAUTH, "load client cert");
+            SSL_CTX_free(ctx);
+            return -1;
+        }
+        if (SSL_CTX_use_PrivateKey_file(ctx, client_cert, SSL_FILETYPE_PEM) != 1) {
+            tls_err(st, XRDC_EAUTH, "load client key");
+            SSL_CTX_free(ctx);
+            return -1;
+        }
+        if (SSL_CTX_check_private_key(ctx) != 1) {
+            tls_err(st, XRDC_EAUTH, "client cert/key mismatch");
+            SSL_CTX_free(ctx);
+            return -1;
+        }
+    }
 
     if (verify_peer) {
         SSL_CTX_set_verify(ctx, SSL_VERIFY_PEER, NULL);

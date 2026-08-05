@@ -347,10 +347,12 @@ copy_web_upload(const brix_url *su, const brix_weburl *du, const brix_copy_opts 
          * restart (server brix_webdav_upload_resume).  A plain server commits on
          * the first whole-range chunk, so a single-shot upload still works. */
         int stall = copy_stall_ms(o, XRDC_DEFAULT_MAX_STALL_MS);
+        char        proxybuf[512];
+        const char *pcert = brix_web_proxy_pem(proxybuf, sizeof(proxybuf));
         rc = brix_http_upload_resumable(du->host, du->port, du->tls, du->path,
                           hdrs[0] ? hdrs : NULL, web_upload_src_vfs, vf,
                           (long long) vst.size,
-                          co ? co->verify_host : 1, co ? co->ca_dir : NULL,
+                          co ? co->verify_host : 1, co ? co->ca_dir : NULL, pcert,
                           XRDC_WEB_TIMEOUT_MS, stall, &status, st);
     }
     brix_vfs_close(vf);

@@ -84,6 +84,30 @@ sd_xroot_rename_cred(brix_sd_instance_t *inst, const char *src,
     return rc == 0 ? NGX_OK : NGX_ERROR;
 }
 
+/* mkdir_cred: create a directory (kXR_mkdir) under the user's credential — the
+ * per-user variant of sd_xroot_mkdir, so an explicit client MKDIR or the mkpath
+ * prefix-walk against a root:// backend authenticates AS the mapped user instead
+ * of the static service credential (parity with unlink_cred/rename_cred). */
+ngx_int_t
+sd_xroot_mkdir_cred(brix_sd_instance_t *inst, const char *path, mode_t mode,
+    const brix_sd_cred_t *cred)
+{
+    sd_xroot_inst_state        *is = inst->state;
+    brix_cache_origin_conn_t  oc;
+    brix_cache_fill_t        *t;
+    int                         rc, e = 0;
+
+    if (sd_xroot_session(is->conf, cred, &oc, &t, &e) != 0) {
+        errno = e; return NGX_ERROR;
+    }
+    rc = brix_cache_origin_mkdir(t, &oc, path, mode);
+    e = errno;
+    brix_cache_origin_close(&oc);
+    free(t);
+    errno = e;
+    return rc == 0 ? NGX_OK : NGX_ERROR;
+}
+
 /* truncate_path_cred: resize an origin object by path under the user's
  * credential (path-based kXR_truncate, no write-open). */
 ngx_int_t

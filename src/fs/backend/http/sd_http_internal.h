@@ -155,6 +155,18 @@ ngx_int_t sd_http_mkdir(brix_sd_instance_t *inst, const char *path,
     mode_t mode);
 ngx_int_t sd_http_rename(brix_sd_instance_t *inst, const char *src,
     const char *dst, int noreplace);
+/* Credential-scoped namespace mutation (sd_http_write.c): the same MKCOL/MOVE/
+ * DELETE as the plain slots, but presenting the requesting user's forwarded
+ * credential (WLCG bearer → Authorization header; x509 proxy → mutual-TLS client
+ * cert) to the origin instead of the static service credential — so the origin
+ * authorizes the namespace op AS the end user, mirroring open_cred/staged_open_cred/
+ * stat_cred (phase-70 §5.1). */
+ngx_int_t sd_http_unlink_cred(brix_sd_instance_t *inst, const char *path,
+    int is_dir, const brix_sd_cred_t *cred);
+ngx_int_t sd_http_mkdir_cred(brix_sd_instance_t *inst, const char *path,
+    mode_t mode, const brix_sd_cred_t *cred);
+ngx_int_t sd_http_rename_cred(brix_sd_instance_t *inst, const char *src,
+    const char *dst, int noreplace, const brix_sd_cred_t *cred);
 
 /* Directory-enumeration slots (sd_http_dir.c) — a WebDAV PROPFIND Depth:1 read
  * of the collection; opendir_cred presents the per-user credential. */

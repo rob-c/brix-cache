@@ -526,6 +526,14 @@ main(int argc, char **argv)
         return rc;
     }
 
+    /* Export --proxy into $X509_USER_PROXY so the davs/https leg's client-cert
+     * resolver (brix_web_proxy_pem) presents the same identity the root:// path
+     * already gets explicitly — the flag documents "overrides $X509_USER_PROXY",
+     * so it clobbers (overwrite=1) any inherited value. */
+    if (o.proxy != NULL && o.proxy[0] != '\0') {
+        setenv("X509_USER_PROXY", o.proxy, 1);
+    }
+
     /* Build credential store with alias resolution, glob expansion, and pre-flight.
      * C1: the store is INERT until C2 threads it through the auth path; NULL until
      * brix_cli_cred_store_build runs; freed on every exit path after construction. */

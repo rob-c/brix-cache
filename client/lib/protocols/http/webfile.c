@@ -151,7 +151,8 @@ webdav_parse_single(const char *body, size_t blen, brix_statinfo *si,
 
 int
 brix_web_stat(const brix_weburl *u, const char *path, const char *bearer,
-              int verify, const char *ca_dir, brix_statinfo *si, brix_status *st)
+              int verify, const char *ca_dir, const char *client_cert,
+              brix_statinfo *si, brix_status *st)
 {
     char           hdrs[2400];
     char           auth[2200];
@@ -161,7 +162,7 @@ brix_web_stat(const brix_weburl *u, const char *path, const char *bearer,
     web_auth(bearer, auth, sizeof(auth));
     snprintf(hdrs, sizeof(hdrs), "Depth: 0\r\n%s", auth);
     if (brix_http_req(u->host, u->port, u->tls, "PROPFIND", path, hdrs, NULL, 0,
-                      WEB_TIMEOUT_MS, verify, ca_dir, &r, st) != 0) {
+                      WEB_TIMEOUT_MS, verify, ca_dir, client_cert, &r, st) != 0) {
         return -1;
     }
     if (r.status == 404) {
@@ -434,7 +435,8 @@ webdav_parse_multi(const char *body, size_t blen, const char *self,
 
 int
 brix_web_readdir(const brix_weburl *u, const char *path, const char *bearer,
-                 int verify, const char *ca_dir, brix_dirent **ents_out,
+                 int verify, const char *ca_dir, const char *client_cert,
+                 brix_dirent **ents_out,
                  size_t *n_out, brix_status *st)
 {
     char           hdrs[2400];
@@ -448,7 +450,7 @@ brix_web_readdir(const brix_weburl *u, const char *path, const char *bearer,
     web_auth(bearer, auth, sizeof(auth));
     snprintf(hdrs, sizeof(hdrs), "Depth: 1\r\n%s", auth);
     if (brix_http_req(u->host, u->port, u->tls, "PROPFIND", path, hdrs, NULL, 0,
-                      WEB_TIMEOUT_MS, verify, ca_dir, &r, st) != 0) {
+                      WEB_TIMEOUT_MS, verify, ca_dir, client_cert, &r, st) != 0) {
         return -1;
     }
     if (r.status != 207 && r.status != 200) {

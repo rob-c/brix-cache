@@ -281,7 +281,10 @@ stage_engine_move(const stage_move_ep_t *ep, const brix_sd_cred_t *cred,
  *       quota / audit / ACL enforcement on the backend.  Deny mode makes the
  *       missing-credential case loud rather than silently promoting.
  *
- * HOW:  1. If cred is NULL or key[0]=='\0': move with service credential (NULL).
+ * HOW:  0. If cred carries a live bearer (token write-back): build brix_sd_cred_t
+ *          (bearer=cred->bearer, principal=cred->principal) and move with it — no
+ *          store re-resolve (a bearer has no on-disk cred file); sync path only.
+ *       1. Else if cred is NULL or key[0]=='\0': move with service cred (NULL).
  *       2. Call brix_sd_ucred_resolve(dir, key, &ru): on OK build brix_sd_cred_t
  *          (x509_proxy=ru.path, principal=cred->principal) and move with it.
  *       3. On failure + deny=1: log ERR, book DENIED audit line, EACCES, return.
@@ -311,7 +314,20 @@ stage_engine_run(brix_stage_kind_t kind, brix_sd_instance_t *src,
         principal = cred->principal;
     }
 
-    if (cred != NULL && cred->key[0] != '\0') {
+    if (cred != NULL && cred->bearer[0] != '\0') {
+        /* Token write-back: the live WLCG bearer captured at write-back-open time
+         * IS the credential — there is no on-disk cred file to re-resolve (unlike
+         * x509, whose delegated proxy lives at <dir>/<key>.pem).  Present it
+         * directly to the destination staged_open so the deferred commit PUT
+         * authenticates to the origin as the END USER, not the service account.
+         * Only reached on the SYNC inline flush: the bearer is never journaled,
+         * so `cred` is still the live request-scoped credential here.  No expiry
+         * re-check / deny gate applies — the token was just validated in-request. */
+        ngx_memzero(&sdcred, sizeof(sdcred));
+        sdcred.bearer    = cred->bearer;
+        sdcred.principal = cred->principal;
+        credp = &sdcred;
+    } else if (cred != NULL && cred->key[0] != '\0') {
         if (brix_sd_ucred_resolve(cred->dir, cred->key, &ru) == NGX_OK) {
             ngx_memzero(&sdcred, sizeof(sdcred));
             sdcred.x509_proxy = ru.path;
@@ -363,20 +379,28 @@ stage_engine_run(brix_stage_kind_t kind, brix_sd_instance_t *src,
  * WHAT: NGX_OK with *out filled from a full-size OR legacy (pre-cred) record
  *       buffer; NGX_ERROR for any other size (corrupt).
  *
- * WHY:  brix_sreq_t grew an appended cred; journals written before the upgrade
- *       must replay (with a zeroed cred -> service-credential flush, matching
- *       their pre-feature semantics).
+ * WHY:  brix_sreq_t grew an appended cred (and later an in-memory-only bearer
+ *       inside it); journals written before either upgrade must replay (with a
+ *       zeroed cred -> service-credential flush, matching pre-feature semantics).
  *
- * HOW:  legacy size == offsetof(brix_sreq_t, cred) because the cred is the
- *       final member; memzero then copy exactly n bytes. */
+ * HOW:  legacy size == offsetof(brix_sreq_t, cred) (pre-cred); a persisted record
+ *       is any size in [BRIX_SREQ_IDENTITY_SIZE, sizeof(brix_sreq_t)] (identity
+ *       through cred.deny — the writers never emit the trailing bearer).  memzero,
+ *       copy exactly n bytes, then re-zero cred.bearer to guarantee no token. */
 ngx_int_t
 brix_sreq_decode(const void *buf, size_t n, brix_sreq_t *out)
 {
-    if (n != sizeof(brix_sreq_t) && n != offsetof(brix_sreq_t, cred)) {
+    if (n != offsetof(brix_sreq_t, cred)
+        && !(n >= BRIX_SREQ_IDENTITY_SIZE && n <= sizeof(brix_sreq_t)))
+    {
         return NGX_ERROR;
     }
     ngx_memzero(out, sizeof(*out));
     ngx_memcpy(out, buf, n);
+    /* The bearer is never legitimately persisted; force it empty so a padded /
+     * legacy / crafted record can never resurrect a stale or forged token on the
+     * async replay path (the async flush re-resolves x509 from key/dir instead). */
+    ngx_memzero(out->cred.bearer, sizeof(out->cred.bearer));
     return NGX_OK;
 }
 
