@@ -56,6 +56,11 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: site/dist
           publish_branch: gh-pages
+          # gh-pages carries only build output, so its history has no value —
+          # but each deploy is a full 21k-file Doxygen snapshot that barely
+          # delta-compresses, so accumulating it dominated clone size. Publish
+          # a single orphan commit instead: the branch stays one snapshot deep.
+          force_orphan: true
           # If you adopt a custom domain, uncomment and set here (or rename
           # site/public/CNAME.example to site/public/CNAME):
           # cname: brix-cache.dev
