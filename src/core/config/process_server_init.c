@@ -23,6 +23,7 @@
  */
 
 #include "config.h"
+#include "auth/protbind/protbind.h"   /* brix_protbind_any_names */
 #include "process_internal.h"
 #include <unistd.h>                           /* open() for the confined export rootfd */
 #include "protocols/root/write/chkpoint.h"    /* brix_chkpoint_recover_root */
@@ -329,7 +330,8 @@ brix_init_server_watermark_timer(ngx_cycle_t *cycle,
 static ngx_int_t
 brix_init_server_crl_jwks(ngx_cycle_t *cycle, ngx_stream_brix_srv_conf_t *xcf)
 {
-    if ((xcf->auth != BRIX_AUTH_GSI && xcf->auth != BRIX_AUTH_BOTH)
+    if ((xcf->auth != BRIX_AUTH_GSI && xcf->auth != BRIX_AUTH_BOTH
+         && !brix_protbind_any_names(xcf->protbind, BRIX_AUTH_GSI))
         || xcf->crl.len == 0 || xcf->crl_reload == 0)
     {
         /* CRL timer not needed — but still check for JWKS refresh */

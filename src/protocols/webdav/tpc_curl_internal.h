@@ -27,7 +27,9 @@ typedef struct {
     unsigned             active:1;
 } webdav_tpc_pmark_rec_t;
 
-#if defined(CURLOPT_OPENSOCKETFUNCTION) && defined(CURLOPT_CLOSESOCKETFUNCTION)
+/* CURLOPT_* are enum constants, not macros, so defined(CURLOPT_...) is always
+ * false — gate on the curl version instead (CLOSESOCKETFUNCTION: 7.21.7). */
+#if CURL_AT_LEAST_VERSION(7, 21, 7)
 #define WEBDAV_TPC_PMARK_SOCKCB 1
 
 #endif /* socket callbacks available */
@@ -71,8 +73,6 @@ typedef struct {
 
 #ifndef BRIX_TPC_CONNECT_TIMEOUT_SECS
 #define BRIX_TPC_CONNECT_TIMEOUT_SECS  30L
-#endif
-#ifdef CURLOPT_XFERINFOFUNCTION
 #endif
 
 

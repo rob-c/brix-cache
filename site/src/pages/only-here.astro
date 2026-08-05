@@ -372,8 +372,11 @@ const themes: Theme[] = [
     vertical-align: 0.12em;
     background: var(--paper);
   }
-  .band--ink .oh-stock-label { background: transparent; border-color: var(--paper); }
+  /* :global() — .band--ink comes from Band.astro, so a scoped descendant
+     selector would never match it. Without these the label's --paper fill goes
+     paper-on-paper and the cite keeps page ink on the inverted panel. */
+  :global(.band--ink) .oh-stock-label { background: transparent; border-color: var(--inv-fg); }
   .oh-cite { font-size: 0.72rem; color: var(--ink-2); word-break: break-word; }
-  .band--ink .oh-cite { color: #a8a29e; }
+  :global(.band--ink) .oh-cite { color: var(--inv-muted); }
   .term .mt { margin-top: 0.6rem; }
 </style>

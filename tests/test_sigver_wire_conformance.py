@@ -3,13 +3,14 @@ tests/test_sigver_wire_conformance.py — raw-wire conformance for kXR_sigver.
 
 This suite drives the XRootD request-signing opcode (kXR_sigver, 3029) over
 raw TCP sockets, where the high-level Python client would otherwise hide the
-seqno/expectrid/HMAC framing.  It exercises the two halves of the handler
+seqno/expectrid/signature framing (secver-0: session-cipher-encrypted SHA-256).
+It exercises the two halves of the handler
 (src/protocols/root/session/signing.c records pending state; src/protocols/root/handshake/sigver.c verifies
 it before the covered request is routed).  The key behavioural split this file
 encodes: on a session whose signing_key is NOT active (anonymous / token auth,
 signing_active=0), kXR_sigver is a documented no-op — it is accepted with
 kXR_ok and NO pending verification is armed, so the seqno boundary / replay /
-expectrid / HMAC logic never fires.  Those verification paths only engage on a
+expectrid / signature logic never fires.  Those verification paths only engage on a
 GSI session with a Diffie-Hellman signing key; we run them against a real GSI
 endpoint when its proxy/CA assets exist and otherwise skip with a clear reason
 rather than asserting behaviour the no-key path never reaches.  Every hostile

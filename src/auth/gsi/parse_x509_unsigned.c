@@ -153,8 +153,10 @@ gsi_unsigned_decrypt_init(brix_ctx_t *ctx, const EVP_CIPHER *evp_cipher,
     }
     EVP_DecryptInit_ex(dctx, NULL, NULL, secret, iv);
     /* Persist the session cipher for a possible §F6 delegation round before
-     * scrubbing — unsigned path: zero IV (use_iv=0). */
+     * scrubbing — unsigned path: zero IV (use_iv=0) — and arm kXR_sigver
+     * request signing from that same material. */
     gsi_persist_session_cipher(ctx, cipher_name, secret, (int) use_len, 0);
+    (void) gsi_arm_request_signing(ctx);
     /* Key is now copied into dctx; scrub the plaintext secret immediately. */
     OPENSSL_cleanse(secret, secret_len);
     return dctx;
@@ -268,8 +270,10 @@ gsi_unsigned_build_peer(brix_ctx_t *ctx, ngx_connection_t *c,
  *   - ctx->recv.payload / ctx->recv.cur_dlen hold the raw kXGC_cert payload.
  *
  * Postconditions on success:
- *   - ctx->sigver.signing_key[0..31] contains the SHA-256 of the DH shared secret.
- *   - ctx->sigver.signing_active = 1 (enables kXR_sigver HMAC verification).
+ *   - ctx->sigver.sig_cipher/sig_key hold the negotiated session cipher + key
+ *     (first key_len bytes of the DH shared secret), armed by
+ *     gsi_arm_request_signing().
+ *   - ctx->sigver.signing_active = 1 (enables kXR_sigver verification).
  *   - Returns a non-empty STACK_OF(X509) with the client's proxy chain.
  *     Caller must call sk_X509_pop_free(chain, X509_free).
  *
@@ -322,11 +326,6 @@ brix_gsi_parse_x509(brix_ctx_t *ctx, ngx_connection_t *c)
     secret = gsi_unsigned_derive_secret(c, ctx->gsi.dh_key, peer, &secret_len);
     if (secret == NULL) {
         return NULL;
-    }
-
-    if (gsi_store_signing_key(ctx, secret, secret_len)) {
-        ngx_log_debug0(NGX_LOG_DEBUG_STREAM, log, 0,
-                       "brix: GSI signing key derived (HMAC-SHA256)");
     }
 
     ngx_log_debug2(NGX_LOG_DEBUG_STREAM, log, 0,

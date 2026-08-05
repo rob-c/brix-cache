@@ -1,0 +1,352 @@
+/*
+ * sd_stage_wb.c - the write-BACK object of the write-stage decorator (Option A /
+ * §12.2). Split from sd_stage_write.c (600-line ratchet); see sd_stage.h for the
+ * decorator contract and sd_stage_internal.h for the shared seam.
+ *
+ * WHAT: A random-access write open lands on the STAGE STORE as a normal writable
+ *       object; pwrite buffers there and fsync/close flush the whole object to
+ *       the backend through the one staging engine (brix_stage_run_inline_cred /
+ *       brix_stage_submit FLUSH). Includes the read-modify-write hydration that
+ *       seeds the stage copy from the backend before an update open, so a flush
+ *       can never truncate regions the client did not write.
+ * WHY:  The write-back object is one concept — the OTHER interposed write path
+ *       (the staged-upload / HTTP-PUT slot) stays in sd_stage_write.c — so each
+ *       file owns one concept and stays under the cap. The write-back path lets
+ *       root:// kXR_write reuse the SAME stage mechanism as the staged path.
+ * HOW:  The open dispatch in sd_stage.c calls sd_stage_open_writeback here for
+ *       write opens; the driver table in sd_stage.c routes byte-I/O to the
+ *       methods below. The captured cred records the owner identity at open time
+ *       (sd_stage_record_cred, shared seam) so a deferred or async flush
+ *       authenticates as the original user.
+ */
+#include "sd_stage.h"
+#include "sd_stage_internal.h"
+#include "fs/xfer/stage_engine.h"   /* brix_stage_run_inline / _submit (FLUSH) */
+
+#include <errno.h>
+#include <limits.h>
+#include <stdlib.h>
+#include <string.h>
+
+/* Write-BACK object state (Option A / §12.2): a random-access write open lands on
+ * the STAGE STORE as a normal writable object; pwrite buffers there, and fsync/close
+ * flush the whole object to the backend through the one staging engine. This lets
+ * root:// kXR_write (direct pwrite at arbitrary offsets) use the SAME stage mechanism
+ * as the staged (HTTP PUT) path, so writethrough_flush's bespoke loop is retired.
+ * `cred` records the owner identity at open time so the flush can authenticate as
+ * the original user even if the flush runs on a background thread or after a restart. */
+typedef struct {
+    sd_stage_inst_state  *is;              /* back-ref: source / store / policy   */
+    char                  key[PATH_MAX];   /* export-relative object key          */
+    brix_sd_obj_t       store_obj;       /* the writable stage-store object     */
+    off_t                 high_water;      /* max offset+len written (flush size) */
+    unsigned              dirty:1;         /* written since the last flush        */
+    brix_stage_cred_t    cred;            /* per-user identity (zeroed = service) */
+} sd_stage_wb_state;
+
+/* Seed the stage-store copy of `path` from the SOURCE object for a
+ * read-modify-write open.
+ *
+ * WHAT: When an update open (no TRUNC/EXCL) targets an object that already
+ *       exists on the backend, copy it source -> store through the one staging
+ *       engine (BRIX_STAGE_RECALL, the same generic pread -> staged_write
+ *       mover the nearline recall uses) BEFORE the write-back object opens.
+ *
+ * WHY:  The eventual flush replaces the WHOLE backend object with the staged
+ *       bytes, so an unhydrated partial overwrite would silently truncate every
+ *       region the client did not write. Hydrating also makes wb_pread return
+ *       the real object bytes during a read-write session.
+ *
+ * HOW:  1. No source stat slot -> nothing to probe, keep the old behaviour.
+ *       2. A non-empty stage copy already present (a durable staged object
+ *          kept for a flush retry) is NEWER than the backend - never clobber.
+ *       3. Source stat ENOENT / unreachable -> create semantics, proceed
+ *          unhydrated (the dead-origin write-back tier keeps absorbing
+ *          writes; unreachable is WARNed).  Empty source -> nothing to copy.
+ *       4. Otherwise run the inline RECALL with the caller's cred threaded;
+ *          a copy failure for an object that provably EXISTS fails the open
+ *          (errno set) - flushing a truncated object is never acceptable. */
+static ngx_int_t
+sd_stage_wb_hydrate(sd_stage_inst_state *is, const char *path,
+    const brix_sd_cred_t *cred)
+{
+    brix_sd_stat_t    sst, dst_st;
+    brix_stage_cred_t  scred;
+
+    if (is->source->driver->stat == NULL) {
+        return NGX_OK;
+    }
+    if (is->store->driver->stat != NULL
+        && is->store->driver->stat(is->store, path, &dst_st) == NGX_OK
+        && dst_st.size > 0)
+    {
+        return NGX_OK;
+    }
+    if (is->source->driver->stat(is->source, path, &sst) != NGX_OK) {
+        if (errno != ENOENT) {
+            ngx_log_error(NGX_LOG_WARN, is->log, errno,
+                "stage write-back: cannot probe source \"%s\" — proceeding "
+                "as a whole-object create (unreachable backend)", path);
+        }
+        return NGX_OK;
+    }
+    if (sst.size == 0 || !sst.is_reg) {
+        return NGX_OK;
+    }
+
+    ngx_memzero(&scred, sizeof(scred));
+    sd_stage_record_cred(&scred, cred);
+    if (brix_stage_run_inline_cred(BRIX_STAGE_RECALL, is->source, path,
+            is->store, path,
+            sd_stage_cred_present(&scred) ? &scred : NULL) != NGX_OK)
+    {
+        int e = errno ? errno : EIO;
+
+        ngx_log_error(NGX_LOG_ERR, is->log, e,
+            "stage write-back: hydrating existing object \"%s\" (%O bytes) "
+            "from the backend failed — refusing the update open (an "
+            "unhydrated flush would truncate it)", path, sst.size);
+        errno = e;
+        return NGX_ERROR;
+    }
+
+    /* The mover preserves the SOURCE-reported permission bits, and a remote
+     * driver may synthesize a read-only mode (sd_xroot reports r--r--r-- for
+     * an anonymous origin) — but this copy is the WRITE spool the wb open is
+     * about to open O_RDWR as the (cap-dropped) worker. Force owner-rw on the
+     * spool copy; the extra bits keep the source's visibility for the flush's
+     * mode-preserving PUT. Best-effort: a store without setattr keeps the
+     * mover's mode. */
+    if (is->store->driver->setattr != NULL) {
+        brix_sd_setattr_t at;
+
+        ngx_memzero(&at, sizeof(at));
+        at.set_mode = 1;
+        at.mode     = (sst.mode & 0777) | 0600;
+        (void) is->store->driver->setattr(is->store, path, &at);
+    }
+    return NGX_OK;
+}
+
+/* Wrap an opened stage-store object in a write-back handle: malloc the obj
+ * shell + wb state, adopt the store object BY VALUE (freeing a heap shell),
+ * record the owner identity, and stamp the stage driver so byte-I/O dispatches
+ * to the write-back methods below.  Owns store_obj on both paths — adopted on
+ * success, closed and freed on ENOMEM (the only failure). */
+static brix_sd_obj_t *
+sd_stage_wb_wrap(brix_sd_instance_t *inst, sd_stage_inst_state *is,
+    const char *path, brix_sd_obj_t *store_obj, const brix_sd_cred_t *cred)
+{
+    brix_sd_obj_t     *obj;
+    sd_stage_wb_state *wb;
+
+    obj = calloc(1, sizeof(*obj));
+    wb  = calloc(1, sizeof(*wb));
+    if (obj == NULL || wb == NULL) {
+        if (store_obj->driver->close != NULL) { store_obj->driver->close(store_obj); }
+        if (store_obj->heap_shell) { free(store_obj); }
+        free(obj);
+        free(wb);
+        return NULL;
+    }
+
+    wb->is         = is;
+    wb->high_water = 0;
+    wb->dirty      = 0;
+    ngx_cpystrn((u_char *) wb->key, (u_char *) path, sizeof(wb->key));
+    wb->store_obj  = *store_obj;                 /* adopt by value */
+    if (store_obj->heap_shell) { free(store_obj); }
+    wb->store_obj.heap_shell = 0;
+
+    /* Record the owner identity for the flush; zeroed cred = service account. */
+    sd_stage_record_cred(&wb->cred, cred);
+
+    obj->driver     = &brix_sd_stage_driver;   /* → the write-back methods below */
+    obj->inst       = inst;
+    obj->fd         = wb->store_obj.fd;          /* expose the stage fd (posix sendfile) */
+    obj->snap       = wb->store_obj.snap;
+    obj->state      = wb;
+    obj->heap_shell = 1;                         /* malloc'd shell; caller frees post-copy */
+    return obj;
+}
+
+/* Open the write-BACK object on the stage store (a normal writable object).
+ *
+ * WHAT: Opens a writable object on the stage store and wires a sd_stage_wb_state
+ *       that carries the owner identity for the eventual flush.
+ *
+ * WHY:  The returned obj carries the stage driver so its pwrite/pread/fsync/close
+ *       dispatch to the write-back methods below; the stage-store object is held
+ *       BY VALUE so the handle is self-contained.  Recording the caller's cred
+ *       in wb->cred ensures sd_stage_wb_flush can authenticate to the backend
+ *       as the original user rather than the service account.
+ *
+ * HOW:  Opens the stage STORE (always local) with a plain open — the store is
+ *       service-owned — then hands the opened object to sd_stage_wb_wrap above,
+ *       which adopts it and records the owner cred (zeroed = service path). */
+brix_sd_obj_t *
+sd_stage_open_writeback(brix_sd_instance_t *inst, sd_stage_inst_state *is,
+    const char *path, int sd_flags, mode_t mode,
+    const brix_sd_cred_t *cred, int *err_out)
+{
+    brix_sd_obj_t   *store_obj;
+    brix_sd_obj_t   *obj;
+    int                e = 0;
+
+    if (is->store->driver->open == NULL || is->store->driver->pwrite == NULL) {
+        if (err_out != NULL) { *err_out = ENOSYS; }
+        return NULL;
+    }
+    /* Read-modify-write hydration: an update open (not truncating, not an
+     * exclusive create) must seed the stage copy from the existing backend
+     * object first — the flush later replaces the WHOLE object. */
+    if ((sd_flags & (BRIX_SD_O_TRUNC | BRIX_SD_O_EXCL)) == 0
+        && sd_stage_wb_hydrate(is, path, cred) != NGX_OK)
+    {
+        if (err_out != NULL) { *err_out = errno ? errno : EIO; }
+        return NULL;
+    }
+    /* The stage store is service-owned (local POSIX); always open it plain. */
+    store_obj = is->store->driver->open(is->store, path, sd_flags, mode, &e);
+    if (store_obj == NULL) {
+        if (err_out != NULL) { *err_out = e; }
+        return NULL;
+    }
+
+    obj = sd_stage_wb_wrap(inst, is, path, store_obj, cred);
+    if (obj == NULL) {
+        if (err_out != NULL) { *err_out = ENOMEM; }
+        return NULL;
+    }
+    return obj;
+}
+
+/* ---- write-back byte-I/O (only reached for objects opened for write above) ------ */
+
+/* Flush the buffered stage object to the backend through the one staging engine.
+ * Persists the stage buffer first (fsync), then FLUSHes store→source by key.
+ *
+ * The flush MODE is a property of the tier (BRIX_WT_MODE_ASYNC comes from the
+ * `brix_stage_flush async` directive on this stage decorator), so this routing is
+ * defined by the backend, not global: a plain/sync stage export flushes inline as
+ * before; only an async (tape write-back) tier defers.
+ *
+ * ASYNC (tape write-back): the whole object is durable on the stage store after
+ * the fsync above, so the flush is submitted to the async staging queue and the
+ * close/fsync returns immediately. The scheduler drains it store→source and drops
+ * the stage copy on success; a transient origin failure leaves a FAILED record in
+ * the durable journal (last_errno stamped) and the restart reconcile re-drives it
+ * from the export anchor (o.export_root). The owner cred rides on the opts so the
+ * deferred flush authenticates as the original user.
+ *
+ * SYNC: flush inline and reflect the result; on success clear dirty, on failure
+ * keep the stage copy for retry. */
+static ngx_int_t
+sd_stage_wb_flush(sd_stage_wb_state *wb)
+{
+    sd_stage_inst_state *is = wb->is;
+    ngx_int_t            rc;
+
+    if (wb->store_obj.driver->fsync != NULL) {
+        (void) wb->store_obj.driver->fsync(&wb->store_obj);
+    }
+    if (!wb->dirty) {
+        return NGX_OK;
+    }
+
+    if (is->policy.flush_mode == BRIX_WT_MODE_ASYNC) {
+        brix_stage_opts_t o;
+
+        ngx_memzero(&o, sizeof(o));
+        o.async       = 1;
+        o.export_root = (is->root_canon[0] != '\0') ? is->root_canon : NULL;
+        o.cred        = sd_stage_cred_present(&wb->cred) ? &wb->cred : NULL;
+        /* phase74-fp: FLUSH moves bytes FROM the stage `store` TO the backend
+         * `source`, so store is the src and source the dst — same verified
+         * src/dst order as sd_stage_staged_commit's async submit. */
+        (void) brix_stage_submit(BRIX_STAGE_FLUSH, is->store, wb->key,  /* NOLINT(readability-suspicious-call-argument) */
+                                   is->source, wb->key, &o);
+        wb->dirty = 0;                   /* handed off to the durable queue */
+        return NGX_OK;
+    }
+
+    rc = brix_stage_run_inline_cred(BRIX_STAGE_FLUSH, is->store, wb->key,
+                                     is->source, wb->key,
+                                     sd_stage_cred_present(&wb->cred) ? &wb->cred : NULL);
+    if (rc == NGX_OK) {
+        wb->dirty = 0;
+    }
+    return rc;
+}
+
+ssize_t
+sd_stage_wb_pwrite(brix_sd_obj_t *obj, const void *buf, size_t len, off_t off)
+{
+    sd_stage_wb_state *wb = obj->state;
+    ssize_t            n  = wb->store_obj.driver->pwrite(&wb->store_obj, buf, len, off);
+
+    if (n > 0) {
+        wb->dirty = 1;
+        if (off + (off_t) n > wb->high_water) {
+            wb->high_water = off + (off_t) n;
+        }
+    }
+    return n;
+}
+
+ssize_t
+sd_stage_wb_pread(brix_sd_obj_t *obj, void *buf, size_t len, off_t off)
+{
+    sd_stage_wb_state *wb = obj->state;
+    return wb->store_obj.driver->pread
+         ? wb->store_obj.driver->pread(&wb->store_obj, buf, len, off) : -1;
+}
+
+ngx_int_t
+sd_stage_wb_ftruncate(brix_sd_obj_t *obj, off_t length)
+{
+    sd_stage_wb_state *wb = obj->state;
+    ngx_int_t          rc;
+
+    if (wb->store_obj.driver->ftruncate == NULL) {
+        errno = ENOSYS;
+        return NGX_ERROR;
+    }
+    rc = wb->store_obj.driver->ftruncate(&wb->store_obj, length);
+    if (rc == NGX_OK) {
+        wb->dirty      = 1;
+        wb->high_water = length;
+    }
+    return rc;
+}
+
+ngx_int_t
+sd_stage_wb_fstat(brix_sd_obj_t *obj, brix_sd_stat_t *out)
+{
+    sd_stage_wb_state *wb = obj->state;
+    return wb->store_obj.driver->fstat
+         ? wb->store_obj.driver->fstat(&wb->store_obj, out) : NGX_ERROR;
+}
+
+ngx_int_t
+sd_stage_wb_fsync(brix_sd_obj_t *obj)
+{
+    return sd_stage_wb_flush(obj->state);
+}
+
+ngx_int_t
+sd_stage_wb_close(brix_sd_obj_t *obj)
+{
+    sd_stage_wb_state *wb = obj->state;
+    ngx_int_t          rc = NGX_OK;
+
+    if (wb->dirty) {
+        rc = sd_stage_wb_flush(wb);          /* final flush if not already synced */
+    }
+    if (wb->store_obj.driver->close != NULL) {
+        (void) wb->store_obj.driver->close(&wb->store_obj);
+    }
+    sd_stage_cred_wipe(&wb->cred);            /* scrub the token before free */
+    free(wb);
+    return rc;
+}

@@ -4,6 +4,7 @@
  */
 
 #include "config.h"
+#include "auth/protbind/protbind.h"
 
 /* `authdb <path>` — load identity-based ACL rules.  Requires brix_auth gsi,
  * token, or both; stores the path and parses its entries into authdb_rules.
@@ -38,6 +39,19 @@ brix_conf_set_authdb(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     }
 
     return NGX_CONF_OK;
+}
+
+/* `brix_protbind <host-template> [none | [only] <proto>...]` — append a
+ * per-host authentication-protocol binding.  The grammar and every rejection
+ * message are owned by the shared engine in src/auth/protbind/ so the stream
+ * and HTTP frontends parse identically; this setter only names the array slot.
+ * Returns NGX_CONF_OK or NGX_CONF_ERROR. */
+char *
+brix_conf_set_protbind(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
+{
+    ngx_stream_brix_srv_conf_t *xcf = conf;
+
+    return brix_protbind_conf(cf, cmd, &xcf->protbind);
 }
 
 /* `brix_require_vo <path> <vo>` — append a VO ACL rule to vo_rules.  Returns

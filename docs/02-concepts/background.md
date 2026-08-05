@@ -187,7 +187,7 @@ and never will — see [Monitoring](../08-metrics-monitoring/monitoring-guide.md
 - Checksum queries: adler32, md5, sha1, sha256 (`kXR_query` `kXR_Qcksum`)
 - File location with static manager-map redirect (`kXR_locate`)
 - Parallel data streams via `kXR_bind` (secondary connections, pathid assignment)
-- Request signing envelope (`kXR_sigver`, HMAC-SHA256)
+- Request signing envelope (`kXR_sigver`, XrdSecProtect secver-0: session-cipher-encrypted SHA-256)
 - Server-side range copy (`kXR_clone`)
 - Checkpointed writes (`kXR_chkpoint`)
 - Staging hints (`kXR_prepare` with path validation)

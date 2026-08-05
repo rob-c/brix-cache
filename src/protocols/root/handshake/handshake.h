@@ -57,6 +57,17 @@ ngx_int_t brix_min_sec_enforce(brix_ctx_t *ctx, ngx_connection_t *c,
     ngx_stream_brix_srv_conf_t *conf);
 
 /*
+ * brix_tls_require_enforce — enforce the per-capability TLS mask
+ * (brix_tls_require, common.tls_require) on the current request BEFORE the
+ * session opcodes dispatch, so `login` gates kXR_login/kXR_auth themselves.
+ * Handshake/session-control opcodes (protocol/bind/ping/endsess/set/sigver)
+ * are exempt so the in-protocol TLS upgrade is never blocked.  Refuses with
+ * kXR_TLSRequired; returns BRIX_DISPATCH_CONTINUE when allowed.
+ */
+ngx_int_t brix_tls_require_enforce(brix_ctx_t *ctx, ngx_connection_t *c,
+    ngx_stream_brix_srv_conf_t *conf);
+
+/*
  * brix_dispatch_require_login — reject the request with kXR_NotAuthorized if
  * the session has not completed kXR_login yet.
  *

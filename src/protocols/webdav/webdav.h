@@ -272,6 +272,11 @@ char     *webdav_conf_revoke_cache(ngx_conf_t *cf, ngx_command_t *cmd,
 char     *webdav_conf_authdb(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);
 char     *webdav_conf_require_vo(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);
 
+/* brix_webdav_protbind <host-template> [none | [only] <proto>...] — per-host
+ * credential-source binding, parsed by the shared engine in src/auth/protbind/
+ * so the HTTP and root:// stanzas share one grammar (XRootD sec.protbind). */
+char     *webdav_conf_protbind(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);
+
 /* brix_client_certificate_folder <dir> — parse-time auto-pick of the stock
  * ssl_client_certificate from an OpenSSL hashed CA dir, matched against the
  * issuer of the server's own ssl_certificate leaf. */

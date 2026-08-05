@@ -387,7 +387,7 @@ s3o_apply_reuse(CURL *curl)
     curl_easy_setopt(curl, CURLOPT_TCP_KEEPALIVE, 1L);
     curl_easy_setopt(curl, CURLOPT_TCP_KEEPIDLE, 15L);
     curl_easy_setopt(curl, CURLOPT_TCP_KEEPINTVL, 15L);
-#ifdef CURLOPT_MAXAGE_CONN
+#if CURL_AT_LEAST_VERSION(7, 65, 0)
     curl_easy_setopt(curl, CURLOPT_MAXAGE_CONN, 20L);
 #endif
 }

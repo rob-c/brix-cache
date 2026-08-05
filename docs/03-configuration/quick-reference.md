@@ -32,6 +32,8 @@ The most-used directives on one page. Start here when you know what you want to 
 | `brix_proxy_read_timeout <ms>` | `server` | `60000` | Milliseconds allowed between upstream response bytes; 0 = no limit |
 | `brix_proxy_path_rewrite <strip> <add>` | `server` | — | Strip leading prefix from open/path requests then prepend `add` (e.g. `brix_proxy_path_rewrite /brix /data`) |
 | `brix_tls on\|off` | `server` | `off` | No |
+| `brix_tls_require none\|[all\|login\|session\|data\|tpc\|-<cap>]...` | `server` + HTTP planes | `none` | No |
+| `brix_ztn_cleartext on\|off` | `server` | `off` | No |
 | `brix_certificate <path>` | `server` | — | If `auth gsi` or `auth both` |
 | `brix_certificate_key <path>` | `server` | — | If `auth gsi` or `auth both` |
 | `brix_trusted_ca <path>` | `server` | — | If `auth gsi` or `auth both` |

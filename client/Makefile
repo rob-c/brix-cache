@@ -106,7 +106,7 @@ LIB_SRCS   := \
   lib/core/aio/aio.c lib/core/aio/aio_buffers.c lib/core/aio/aio_conn.c lib/core/aio/aio_engine.c lib/core/aio/aio_engine_cqe.c lib/core/aio/aio_io.c lib/core/aio/aio_mfile.c lib/core/aio/aio_mgr.c lib/core/aio/aio_timeouts.c lib/core/aio/uring.c lib/core/aio/uring_stub.c \
   lib/core/config/xrdrc.c lib/core/config/envalias.c \
   lib/core/types/status.c lib/core/types/units.c \
-  lib/net/conn.c lib/net/conn_explain.c lib/net/cpool.c lib/net/netdiag.c lib/net/netpref.c lib/net/nettmo.c lib/net/pool.c lib/net/resilient.c lib/net/sock.c lib/net/streams.c lib/net/tls.c lib/net/url.c \
+  lib/net/conn.c lib/net/conn_bootstrap.c lib/net/conn_explain.c lib/net/cpool.c lib/net/netdiag.c lib/net/netpref.c lib/net/nettmo.c lib/net/pool.c lib/net/resilient.c lib/net/sock.c lib/net/streams.c lib/net/tls.c lib/net/url.c \
   ../shared/net/proxy_env.c ../shared/net/proxy_connect.c \
   lib/auth/auth.c lib/auth/sigver.c \
   lib/auth/cred/cred.c lib/auth/cred/cred_bearer.c lib/auth/cred/cred_krb5.c lib/auth/cred/cred_s3.c lib/auth/cred/cred_sss.c lib/auth/cred/cred_x509.c lib/auth/cred/credinfo.c lib/auth/cred/credrefresh.c \
@@ -121,7 +121,7 @@ LIB_SRCS   := \
   lib/protocols/ftp/ftp_ctl.c lib/protocols/ftp/ftp_data.c lib/protocols/ftp/ftp_gsi.c lib/protocols/ftp/ftp_gsi_cred.c lib/protocols/ftp/ftp_login.c lib/protocols/ftp/ftp_ops.c lib/protocols/ftp/ftp_screen.c \
   $(SRC)/fs/backend/gsiftp/gftp_reply.c $(SRC)/fs/backend/gsiftp/gftp_mlsx.c \
   lib/protocols/shared/checksum.c lib/protocols/shared/cks_verify.c lib/protocols/shared/cksum_manifest.c lib/protocols/shared/zip.c lib/protocols/shared/zip_write.c \
-  lib/xfer/copy.c lib/xfer/copy_block.c lib/xfer/copy_gsiftp.c lib/xfer/copy_cksum_verify.c lib/xfer/copy_filter.c lib/xfer/copy_local.c lib/xfer/copy_pump.c lib/xfer/copy_recursive.c lib/xfer/copy_recursive_ul.c lib/xfer/copy_remote.c lib/xfer/copy_upload.c lib/xfer/copy_web_download.c lib/xfer/copy_zip.c \
+  lib/xfer/copy.c lib/xfer/copy_block.c lib/xfer/copy_gsiftp.c lib/xfer/copy_cksum_verify.c lib/xfer/copy_filter.c lib/xfer/copy_local.c lib/xfer/copy_local_parallel.c lib/xfer/copy_pump.c lib/xfer/copy_recursive.c lib/xfer/copy_recursive_ul.c lib/xfer/copy_remote.c lib/xfer/copy_upload.c lib/xfer/copy_web_download.c lib/xfer/copy_zip.c \
   lib/posix/fuse_ops.c lib/posix/posix_map.c \
   lib/cli/cli_cksum.c lib/cli/cli_conn.c lib/cli/cli_cred.c lib/cli/cli_hint.c lib/cli/cli_opts.c lib/cli/jsonout.c lib/cli/suggest.c lib/cli/xferjournal.c \
   lib/observability/capture.c lib/observability/trace.c \
@@ -397,13 +397,14 @@ BRIXCVMFS_OBJS := apps/fs/brixcvmfs.o apps/fs/brixcvmfs_rw.o apps/fs/brixcvmfs_r
                   apps/fs/brixcvmfs_prefetch.o apps/fs/brixcvmfs_transport.o
 $(BRIXCVMFS_OBJS): apps/fs/%.o: apps/fs/%.c | proto
 	$(CC) $(ALL_CFLAGS) $(FUSE3_CFLAGS) -I$(SHARED_DIR) -DBRIXCVMFS_NO_MAIN -c $< -o $@
-# Phase-90..92 split of the brixcvmfs driver: same FUSE3 + shared-cvmfs + NO_MAIN
-# flags as the two parents above.
+# Phase-90..92 split of the brixcvmfs driver. Link-list only: every member is
+# already in BRIXCVMFS_OBJS above, which owns the recipe. A second recipe here
+# would not be additive — make keeps the last one and drops the first, warning
+# "overriding recipe", so the prerequisites of whichever copy lost silently stop
+# triggering rebuilds.
 BRIXCVMFS_SPLIT := apps/fs/brixcvmfs_mount.o apps/fs/brixcvmfs_ops.o \
                    apps/fs/brixcvmfs_prefetch.o apps/fs/brixcvmfs_rw_ext.o \
                    apps/fs/brixcvmfs_transport.o
-$(BRIXCVMFS_SPLIT): apps/fs/%.o: apps/fs/%.c | proto
-	$(CC) $(ALL_CFLAGS) $(FUSE3_CFLAGS) -I$(SHARED_DIR) -DBRIXCVMFS_NO_MAIN -c $< -o $@
 # Phase-96 Stratum-0 repo CLI (`brixcvmfs repo`): pure tool surface, no FUSE.
 apps/fs/brixcvmfs_repo.o: apps/fs/brixcvmfs_repo.c | proto
 	$(CC) $(ALL_CFLAGS) -I$(SHARED_DIR) -c $< -o $@
@@ -413,10 +414,11 @@ apps/fs/brixcvmfs_admin.o: apps/fs/brixcvmfs_admin.c | proto
 	$(CC) $(ALL_CFLAGS) -I$(SHARED_DIR) -c $< -o $@
 apps/fs/brixmount.o: apps/fs/brixmount.c | proto
 	$(CC) $(ALL_CFLAGS) $(FUSE3_CFLAGS) -I$(SHARED_DIR) -c $< -o $@
+# brixautofs_ext.o is a member of this list, not a rule of its own: a separate
+# recipe for it used to sit below and win, and it carried no apps/fs/brixautofs.h
+# prerequisite — so an edit to that header left the _ext object stale.
 BRIXAUTOFS_OBJS := apps/fs/brixautofs.o apps/fs/brixautofs_ext.o
 $(BRIXAUTOFS_OBJS): apps/fs/%.o: apps/fs/%.c apps/fs/brixautofs.h | proto
-	$(CC) $(ALL_CFLAGS) $(FUSE3_CFLAGS) -I$(SHARED_DIR) -c $< -o $@
-apps/fs/brixautofs_ext.o: apps/fs/brixautofs_ext.c | proto
 	$(CC) $(ALL_CFLAGS) $(FUSE3_CFLAGS) -I$(SHARED_DIR) -c $< -o $@
 
 BRIXMOUNT_OBJS := apps/fs/brixmount.o apps/fs/brixcvmfs.o apps/fs/brixcvmfs_rw.o \
@@ -809,7 +811,7 @@ install-automount:
 # vfs_s3_smoke is excluded (needs an external S3 endpoint; run it manually).
 # Each test is a standalone main() linking the client lib + libxrdproto, the
 # same recipe as the Build+run comment in each test's header.
-CLIENT_UNIT_TESTS := cli_opts_unit cli_cred_unit cred_unit cred_store_unit cred_refresh_unit vfs_posix_unit vfs_block_unit vfs_s3_creds_unit jsonout_unit copy_filter_unit xferjournal_unit relsafe_unit ckmanifest_unit envalias_unit xrdrc_defaults_unit suggest_unit uring_direct_unit ftp_client_unit web_proxy_pem_unit
+CLIENT_UNIT_TESTS := cli_opts_unit cli_cred_unit cred_unit cred_store_unit cred_refresh_unit vfs_posix_unit vfs_block_unit vfs_s3_creds_unit jsonout_unit copy_filter_unit xferjournal_unit relsafe_unit ckmanifest_unit envalias_unit xrdrc_defaults_unit suggest_unit uring_direct_unit ftp_client_unit web_proxy_pem_unit sigver_kernel_unit
 # The tests predate the phase-69 bucket reshuffle and include bucket-local
 # headers bare ("cred.h"); add the bucket dirs rather than churning the tests.
 TEST_INC := -Ilib/auth/cred -Ilib/auth/sss -Ilib/fs -Ilib/cli -Ilib/core/types -Ilib/core/config -Ilib/net

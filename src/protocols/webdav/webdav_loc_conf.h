@@ -32,6 +32,13 @@ typedef struct {
     ngx_uint_t     verify_depth;    /* max proxy chain depth for VOMS proxies;
                                      * RFC 3820 §4 recommends <= 3 for WLCG */
     ngx_uint_t     auth;            /* webdav_auth_t: NONE/OPTIONAL/REQUIRED */
+    ngx_array_t   *protbind;        /* [brix_webdav_protbind <tpl> none|[only]
+                                     * <proto>...] brix_protbind_rule_t[]; NULL
+                                     * = every credential source is tried, in
+                                     * cert→token→basic order.  A matching rule
+                                     * restricts and reorders that list, or
+                                     * (`none`) waives authentication for the
+                                     * peer.  See src/auth/protbind/. */
     ngx_flag_t     proxy_certs;     /* 1 to accept RFC 3820 proxy certificates */
     ngx_str_t      ssl_client_capath; /* [brix_ssl_client_capath <dir>] OpenSSL
                                      * hashed CA directory (IGTF layout, e.g.

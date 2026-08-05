@@ -22,6 +22,32 @@
       offsetof(ngx_stream_brix_srv_conf_t, min_sec_level),
       brix_min_sec_levels },
 
+    /* Per-capability TLS gating (stock `xrootd.tls` parity) — refuse opcodes
+     * exercising a listed capability (login|session|data|tpc, `-cap` subtracts,
+     * `all`, `none`) on cleartext connections with kXR_TLSRequired, and
+     * advertise the matching kXR_tls* bits at kXR_protocol. Finer-grained axis
+     * than brix_min_sec_level compat (≈ `session`); enforced in
+     * brix_tls_require_enforce (policy.c) via the generic VFS gate
+     * (fs/vfs/vfs_secgate.h). */
+    { ngx_string("brix_tls_require"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_1MORE,
+      brix_conf_set_tls_require,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_brix_srv_conf_t, common.tls_require),
+      NULL },
+
+    /* ztn-over-cleartext opt-in — default off matches stock XRootD, which
+     * refuses to send/accept a ztn bearer token on an unencrypted connection.
+     * `on` restores the historical BriX accept-anywhere behaviour (labs, test
+     * fleets). Enforced at login parms build (session/login.c) and at the
+     * kXR_auth credential gate (auth/gsi/auth.c). */
+    { ngx_string("brix_ztn_cleartext"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,
+      ngx_conf_set_flag_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_brix_srv_conf_t, ztn_cleartext),
+      NULL },
+
     /* D-2: opt-in opaque (CGI) schema enforcement — off (default) leaves only
      * the always-on byte-hygiene gate; on additionally type-checks oss.asize as
      * an unsigned integer and rejects any opaque key outside the recognized

@@ -22,6 +22,25 @@ mkdir -p corpus_safe_size
 
 A clean run prints `Done … exit 0` with no crash artifacts.
 
+A **failing** run must leave enough behind to triage. `cmdscripts.fuzz_all` points
+libFuzzer at `tests/fuzz/artifacts/<target>/` (git-ignored), names every
+reproducer it finds in the failure line, and excerpts **both ends** of the
+libFuzzer output — the sanitizer prints its diagnosis (error class, faulting
+address, stack) first and the run statistics last, so a tail-only excerpt reports
+that something crashed while discarding what did. The CI lane uploads that
+directory as the `fuzz-reproducers` build artifact on failure. Replay one with
+`./fuzz_b64url tests/fuzz/artifacts/fuzz_b64url/crash-<sha1>`.
+
+Both halves were added on 2026-08-05, after a `fuzz_b64url` failure that had been
+reddening this lane on nearly every push proved un-triageable from its own log:
+the excerpt began *after* the sanitizer's verdict, so it named neither the error
+class nor the faulting frame. The fault (OpenSSL 3.0.x writing the padding bytes
+past the length `b64url_decode` reports — see `src/auth/token/b64url.c`) was
+found by reading the decoder against OpenSSL's own source instead, and it does
+not reproduce against OpenSSL 3.5, which is what a Fedora/EL9 dev box links.
+When a fuzz failure will not reproduce locally, **check the runner's library
+versions before doubting the finding**.
+
 ## Targets
 
 | Target | Parser under test | Status |

@@ -154,8 +154,9 @@ client `sigpxy`.
 
 **Message-digest negotiation.** Official advertises `DefMD = "sha256"`
 (`:161`, bucket `kXRS_md_alg`). The module advertises `"sha256:sha1"`
-(`cert_response.c:151`) but derives its signing key with a hard-wired SHA-256
-HMAC (`parse_x509.c`, `brix_gsi_sigver_hmac()` in `gsi_core.c:930`); a digest
+(`cert_response.c:151`) but hashes the sigver covered bytes with a hard-wired
+SHA-256 (`brix_gsi_sigver_hash()` in `gsi_core.c`, per XrdSecProtect secver 0);
+a digest
 **pick** function was not found module-side **(not verified)** — digest
 advertisement is effectively informational.
 

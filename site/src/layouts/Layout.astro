@@ -28,7 +28,17 @@ const fullTitle = title === 'BriX-Cache' ? title : `${title} · BriX-Cache`;
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>{fullTitle}</title>
     <meta name="description" content={description} />
-    <meta name="color-scheme" content="light" />
+    <meta name="color-scheme" content="light dark" />
+    <script is:inline>
+      /* Applies a stored theme override before first paint, so a manual choice
+         never flashes the other theme. "Auto" stores nothing at all, which
+         leaves the prefers-color-scheme media query in charge — including for
+         visitors with JavaScript off. The header button owns the UI. */
+      try {
+        var t = localStorage.getItem('brix-theme');
+        if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t;
+      } catch (e) {}
+    </script>
     <link rel="icon" href={url('/favicon.svg')} type="image/svg+xml" />
     <meta property="og:title" content={fullTitle} />
     <meta property="og:description" content={description} />

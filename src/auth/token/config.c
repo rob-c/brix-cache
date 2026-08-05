@@ -1,4 +1,5 @@
 #include "core/config/config.h"
+#include "auth/protbind/protbind.h"   /* brix_protbind_any_names */
 #include "issuer_registry.h"
 #include <sys/stat.h>
 
@@ -192,7 +193,11 @@ ngx_int_t
 brix_configure_token_auth(ngx_conf_t *cf,
     ngx_stream_brix_srv_conf_t *xcf)
 {
-    if (xcf->auth != BRIX_AUTH_TOKEN && xcf->auth != BRIX_AUTH_BOTH) {
+    /* Also load when a brix_protbind rule can select ztn on a listener whose
+     * brix_auth did not (see brix_protbind_any_names). */
+    if (xcf->auth != BRIX_AUTH_TOKEN && xcf->auth != BRIX_AUTH_BOTH
+        && !brix_protbind_any_names(xcf->protbind, BRIX_AUTH_TOKEN))
+    {
         return NGX_OK;
     }
 

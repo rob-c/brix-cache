@@ -4,6 +4,8 @@
 
 #include "core/ngx_brix_module.h"
 #include "core/compat/alloc_guard.h"
+#include "fs/vfs/vfs_secgate.h"   /* BRIX_TLSREQ_* → kXR_tls* advertisement */
+#include "auth/protbind/protbind.h" /* per-host protocol binding (sec.protbind) */
 
 /*
  * kXR_protocol - negotiate protocol version, auth protocols, and TLS support.
@@ -32,26 +34,32 @@ typedef struct {
 } protocol_want_t;
 
 /* WHAT: decode the kXR_protocol request into a protocol_want_t.
- * WHY:  isolates the request-byte decode and conf->auth fan-out so the handler
- *       body only deals with negotiation and response assembly.
- * HOW:  reads the client capability byte from the received body, maps the
- *       configured auth mode onto the per-protocol offer flags, and computes
- *       the two TLS decisions from the client flags + listener TLS config. */
+ * WHY:  isolates the request-byte decode and auth-policy fan-out so the handler
+ *       body only deals with negotiation and response assembly.  The offered
+ *       SecurityProtocol entries must name the SAME protocols the kXR_login sec
+ *       token will advertise and kXR_auth will accept, so all three read the
+ *       one resolved protbind set rather than re-deriving it from conf->auth.
+ * HOW:  reads the client capability byte from the received body, resolves the
+ *       per-host protocol binding for this peer, and computes the two TLS
+ *       decisions from the client flags + listener TLS config. */
 static void
-protocol_parse_client_req(brix_ctx_t *ctx,
+protocol_parse_client_req(brix_ctx_t *ctx, ngx_connection_t *c,
     ngx_stream_brix_srv_conf_t *conf, protocol_want_t *want)
 {
+    brix_protbind_set_t  bound;
+
     /* kXR_protocol packs client capability flags into the fifth byte of body[]. */
     want->client_flags = ctx->recv.cur_body[4];
-    want->gsi = (conf->auth == BRIX_AUTH_GSI
-                 || conf->auth == BRIX_AUTH_BOTH);
-    want->token = (conf->auth == BRIX_AUTH_TOKEN
-                   || conf->auth == BRIX_AUTH_BOTH);
-    want->sss = (conf->auth == BRIX_AUTH_SSS);
-    want->unx = (conf->auth == BRIX_AUTH_UNIX);
-    want->krb5 = (conf->auth == BRIX_AUTH_KRB5);
-    want->host = (conf->auth == BRIX_AUTH_HOST);
-    want->pwd = (conf->auth == BRIX_AUTH_PWD);
+
+    brix_protbind_resolve_ctx(ctx, c, conf->protbind, conf->auth, &bound);
+
+    want->gsi   = brix_protbind_allows(&bound, BRIX_AUTH_GSI);
+    want->token = brix_protbind_allows(&bound, BRIX_AUTH_TOKEN);
+    want->sss   = brix_protbind_allows(&bound, BRIX_AUTH_SSS);
+    want->unx   = brix_protbind_allows(&bound, BRIX_AUTH_UNIX);
+    want->krb5  = brix_protbind_allows(&bound, BRIX_AUTH_KRB5);
+    want->host  = brix_protbind_allows(&bound, BRIX_AUTH_HOST);
+    want->pwd   = brix_protbind_allows(&bound, BRIX_AUTH_PWD);
 
     /* kXR_wantTLS: client requires TLS; kXR_ableTLS: client is TLS-capable. */
     want->client_wants_tls = (want->client_flags & kXR_wantTLS) ? 1 : 0;
@@ -80,6 +88,24 @@ protocol_role_flags(const ngx_stream_brix_srv_conf_t *conf)
                ? kXR_attrCache : 0);
 }
 
+/* WHAT: the kXR_tls* requirement bits the brix_tls_require mask advertises.
+ * WHY:  stock clients decide when to upgrade from the per-capability bits in
+ *       the kXR_protocol reply (tlsSess/tlsData/tlsTPC/tlsLogin); advertising
+ *       the enforced policy lets a conformant client upgrade pre-emptively
+ *       instead of eating a kXR_TLSRequired refusal.
+ * HOW:  pure BRIX_TLSREQ_* → kXR_tls* mapping; 0 mask → 0 (the flags word is
+ *       byte-identical to the pre-feature advertisement). */
+static uint32_t
+protocol_tls_require_flags(const ngx_stream_brix_srv_conf_t *conf)
+{
+    ngx_uint_t  mask = conf->common.tls_require;
+
+    return ((mask & BRIX_TLSREQ_LOGIN)   ? kXR_tlsLogin : 0)
+        | ((mask & BRIX_TLSREQ_SESSION) ? kXR_tlsSess  : 0)
+        | ((mask & BRIX_TLSREQ_DATA)    ? kXR_tlsData  : 0)
+        | ((mask & BRIX_TLSREQ_TPC)     ? kXR_tlsTPC   : 0);
+}
+
 /* WHAT: the full ServerProtocolBody flags word (host-order).
  * WHY:  the capability advertisement is the heart of kXR_protocol; keeping it
  *       one pure expression makes the negotiated bit-set reviewable at a glance.
@@ -94,7 +120,10 @@ protocol_negotiate_flags(const ngx_stream_brix_srv_conf_t *conf,
         | protocol_role_flags(conf)
         | (conf->caps.collapse_redir ? kXR_collapseRedir : 0)
         | (conf->caps.recover_writes ? kXR_recoverWrts : 0)
-        | (want->offer_tls ? (kXR_haveTLS | kXR_gotoTLS | kXR_tlsLogin) : 0);
+        | (want->offer_tls
+               ? (kXR_haveTLS | kXR_gotoTLS | kXR_tlsLogin
+                  | protocol_tls_require_flags(conf))
+               : 0);
 }
 
 /* WHAT: write the 6-byte ServerResponseReqs_Protocol signing block at si.
@@ -154,7 +183,7 @@ brix_handle_protocol(brix_ctx_t *ctx, ngx_connection_t *c,
     size_t              bodylen, total;
     protocol_want_t     want;
 
-    protocol_parse_client_req(ctx, conf, &want);
+    protocol_parse_client_req(ctx, c, conf, &want);
 
     /* Reject if the client demands TLS but this listener has none configured. */
     if (want.client_wants_tls && (!conf->tls || conf->tls_ctx == NULL)) {

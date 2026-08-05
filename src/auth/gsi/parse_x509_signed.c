@@ -149,8 +149,8 @@ gsi_signed_select_key(const u_char *payload, size_t plen,
  * (mirrors the client's signed path in client/lib/sec/sec_gsi.c).  Recovers the
  * peer DH public from the RSA-signed kXRS_cipher, agrees the padded (HasPad=1)
  * DH secret, decrypts the IV-prepended kXRS_main, and returns the proxy chain.
- * Sets ctx->sigver.signing_key = SHA-256(secret) / signing_active for symmetry with
- * the unsigned path.  Returns STACK_OF(X509) * or NULL.
+ * Arms kXR_sigver request signing from the persisted session cipher for symmetry
+ * with the unsigned path.  Returns STACK_OF(X509) * or NULL.
  */
 STACK_OF(X509) *
 brix_gsi_parse_x509_signed(brix_ctx_t *ctx, ngx_connection_t *c)
@@ -198,7 +198,7 @@ brix_gsi_parse_x509_signed(brix_ctx_t *ctx, ngx_connection_t *c)
      * path always uses an IV-prepended main (use_iv=1). */
     gsi_persist_session_cipher(ctx, sc.name, sc.aeskey, sc.cipher.key_len, 1);
 
-    (void) gsi_store_signing_key(ctx, secret, secret_len);
+    (void) gsi_arm_request_signing(ctx);
     OPENSSL_cleanse(secret, secret_len);
 
     /* The negotiated session cipher (above).  This is the SIGNED-DH path, which

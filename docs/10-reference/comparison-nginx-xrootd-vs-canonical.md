@@ -45,7 +45,7 @@
 | kXR_pgwrite=3026 | Paged write with CRC32c | ✓ | ✓ | Implemented |
 | kXR_locate=3027 | Locate file replicas | ✓ | ✓ | Implemented |
 | kXR_truncate=3028 | Truncate file | ✓ | ✓ | Implemented |
-| kXR_sigver=3029 | Request-signing envelope (HMAC-SHA256) | ✓ | ✓ | Implemented (HMAC-SHA256, GSI DH key derivation, security level enforcement, replay protection) |
+| kXR_sigver=3029 | Request-signing envelope (secver-0) | ✓ | ✓ | Implemented (stock XrdSecProtect secver-0: session-cipher-encrypted SHA-256, security level enforcement, replay protection) |
 | kXR_pgread=3030 | Paged read with CRC32c integrity | ✓ | ✓ | Implemented |
 | kXR_writev=3031 | Scatter-gather write | ✓ | ✓ | Implemented |
 | kXR_clone=3032 | Server-side range copy (5.2.0) | ✓ | ✓ | Implemented |
@@ -347,8 +347,8 @@ without protocol conversion.
 ## 10. Recommendations
 
 ### ✓ Done: `kXR_sigver` handler — fully implemented
-- `src/protocols/root/session/signing.c` — parses ClientSigverRequest, validates seqno monotonicity (replay protection), stores HMAC pending state
-- `src/protocols/root/handshake/sigver.c` — HMAC-SHA256 verification before next dispatch; enforces `brix_security_level` directive
+- `src/protocols/root/session/signing.c` — parses ClientSigverRequest, validates seqno monotonicity (replay protection), stores the pending signature
+- `src/protocols/root/handshake/sigver.c` — secver-0 verification (decrypt with the GSI session cipher, compare SHA-256) before next dispatch; enforces `brix_security_level` directive
 - `src/protocols/root/handshake/dispatch_signing.c` — routes `kXR_sigver` to handler
 - GSI key derivation: `src/auth/gsi/parse_crypto_helpers.c` sets `ctx->signing_key` = SHA-256(DH shared secret), `ctx->signing_active = 1`
 

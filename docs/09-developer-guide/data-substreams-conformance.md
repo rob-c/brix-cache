@@ -121,7 +121,13 @@ falls back to the serial pump.
   op on the bound link, which holds for every server tested here.
 - **brix-xrdcp**: default `streams=4`; uploads *and* downloads fan out across the secondaries
   (writes land on bound conns for fd-exports, degrade to primary otherwise; reads are served on
-  bound conns and degrade to primary otherwise).
+  bound conns and degrade to primary otherwise). The fan-out is **capability-gated**: BriX serves
+  full request frames on bound paths, stock treats them as `pathid`-directed data channels and
+  never answers one (a fanned write would hang forever), so after binding, `brix_streams_open`
+  probes `kXR_Qconfig "brix.substreams"` and tears the secondaries down again unless the reply
+  carries the `=rw` marker (BriX answers it; stock echoes the unknown key). Covered by
+  `test_gsi_handshake.py::TestNativeAgainstStock::test_native_write_stock` (primary-only against
+  stock) and `test_xrdcp_client_options.py::test_qconfig_advertises_substreams_capability`.
 
 All six clients produce byte-correct transfers with the server default (ON); no client
 regresses when sub-streams are enabled, because the server degrades writes to inline safely and

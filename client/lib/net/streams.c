@@ -6,14 +6,16 @@
  * WHY:  `xrdcp --streams N` opens extra bound channels — the parallel-transfer
  *       affordance of the protocol.
  * HOW:  Each secondary re-runs handshake + kXR_protocol [+ TLS] then sends
- *       kXR_bind{primary sessid} (brix_bind in conn.c). NOTE: this nginx data
- *       server accepts the bind and logs it, but kXR_read carries no pathid
- *       (wire_core_requests.h ClientReadRequest), so the server does not actually
- *       fan reads across substreams — the binds are established and the transfer
- *       still runs on the primary. Establishing them is exactly what the gate
- *       (tests/test_xrdcp_client_options.py) checks: BIND access-log entries +
- *       byte-exact round-trip. Best-effort: a secondary that won't bind is
- *       skipped, never failing the copy.
+ *       kXR_bind{primary sessid} (brix_bind in conn.c). The Phase-94 pumps
+ *       then fan self-addressed kXR_read/kXR_write REQUEST FRAMES across the
+ *       bound secondaries — a BriX extension: stock servers treat a bound path
+ *       as a pathid-directed DATA channel (ClientWriteRequest.pathid) and
+ *       never answer a request frame arriving there, which would hang the
+ *       transfer.  So after binding, the primary probes kXR_Qconfig
+ *       "brix.substreams": without the "=rw" marker (BriX answers it, stock
+ *       echoes the unknown key) the secondaries are torn down again and the
+ *       whole transfer stays on the primary.  Best-effort throughout: a
+ *       secondary that won't bind is skipped, never failing the copy.
  */
 #include "brix.h"
 
@@ -43,6 +45,21 @@ brix_streams_open(brix_streamset *ss, brix_conn *primary, int streams,
             break;
         }
         ss->n++;
+    }
+
+    if (ss->n > 0) {
+        char        reply[64];
+        brix_status qst;
+
+        brix_status_clear(&qst);
+        if (brix_query(primary, kXR_Qconfig, "brix.substreams",
+                       reply, sizeof(reply), &qst) != 0
+            || strstr(reply, "=rw") == NULL)
+        {
+            /* Peer does not serve request frames on bound paths (stock
+             * semantics) — a fanned write would wait forever. Run primary-only. */
+            brix_streams_close(ss);
+        }
     }
     (void) st;
     return ss->n;

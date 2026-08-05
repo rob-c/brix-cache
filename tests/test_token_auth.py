@@ -282,32 +282,30 @@ class TestTokenGeneration:
 # =========================================================================
 
 class TestXrootdTokenProtocol:
-    """XRootD kXR_protocol should advertise 'ztn' security protocol."""
+    """kXR_protocol reply shape, and where 'ztn' is actually advertised."""
 
-    def test_protocol_advertises_ztn(self):
-        """Protocol response must include 'ztn' in SecurityInfo."""
+    def test_protocol_secreqs_block_is_not_shifted_by_a_security_vector(self):
+        """kXR_secreqs: theTag 'S' must sit at the fixed offset 8.
+
+        ServerResponseBody_Protocol is { pval, flags, secreq }, so a conformant
+        client reads theTag at offset 8 and the seclvl right behind it.  BriX
+        therefore emits NO leading SecurityInfo header and no binary
+        SecurityProtocol entries here — prepending either would shift 'S'
+        downfield and make strict clients (go-hep, XrdRust) misread the block.
+        The offered protocol list is advertised the standard way instead, as the
+        "&P=..." string in the kXR_login reply (test_login_returns_ztn_params).
+        """
         sock = _raw_handshake()
         try:
             status, body = _send_protocol(sock)
             assert status == kXR_ok
-            # Body: 8 bytes ServerProtocolBody + 4 bytes SecurityInfo header +
-            #        N*8 bytes SecurityProtocol entries
-            assert len(body) >= 12 + 8, f"response too short for ztn entry: {len(body)}"
-            # SecurityInfo starts at offset 8
-            si = body[8:]
-            # si[2] = count of protocol entries
-            count = si[2]
-            assert count >= 1, f"no security protocols advertised (count={count})"
-            # Check that "ztn" appears in an entry
-            entries_start = 4  # past SI header
-            found_ztn = False
-            for i in range(count):
-                entry = si[entries_start + i * 8 : entries_start + (i + 1) * 8]
-                proto = entry[:3].decode("ascii", errors="replace")
-                if proto == "ztn":
-                    found_ztn = True
-                    break
-            assert found_ztn, f"'ztn' not found in security protocol entries"
+            # 8-byte ServerProtocolBody + the 6-byte signing block, exactly.
+            assert len(body) == 8 + 6, \
+                f"unexpected kXR_protocol body length {len(body)}: {body!r}"
+            assert body[8:9] == b"S", \
+                f"theTag 'S' is not at offset 8 — body: {body!r}"
+            assert body[10] == 0, f"secver must be kXR_secver_0: {body!r}"
+            assert body[13] == 0, f"secvsz must be 0 (no secvec): {body!r}"
         finally:
             sock.close()
 

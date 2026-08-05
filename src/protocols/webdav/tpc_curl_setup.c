@@ -172,7 +172,7 @@ tpc_curl_apply_conf(CURL *curl,
     curl_easy_setopt(curl, CURLOPT_FAILONERROR, 1L);
     curl_easy_setopt(curl, CURLOPT_URL, url);
 
-#ifdef CURLOPT_PROTOCOLS_STR
+#if CURL_AT_LEAST_VERSION(7, 85, 0)
     curl_easy_setopt(curl, CURLOPT_PROTOCOLS_STR, "https");
 #else
     curl_easy_setopt(curl, CURLOPT_PROTOCOLS, (long) CURLPROTO_HTTPS);
@@ -249,7 +249,7 @@ tpc_curl_head_size(ngx_log_t *log,
 
     res = curl_easy_perform(curl);
     if (res == CURLE_OK) {
-#ifdef CURLINFO_CONTENT_LENGTH_DOWNLOAD_T
+#if CURL_AT_LEAST_VERSION(7, 55, 0)
         curl_off_t cl;
         curl_easy_getinfo(curl, CURLINFO_CONTENT_LENGTH_DOWNLOAD_T, &cl);
         content_length = (cl >= 0) ? (off_t) cl : -1;

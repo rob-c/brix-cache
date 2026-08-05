@@ -1,4 +1,5 @@
 #include "core/config/config.h"
+#include "auth/protbind/protbind.h"   /* brix_protbind_any_names */
 #include "auth/crypto/pki_build.h"
 #include "core/compat/lifecycle_timing.h"
 
@@ -358,7 +359,12 @@ brix_gsi_build_trust_store(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *xcf)
 ngx_int_t
 brix_configure_gsi(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *xcf)
 {
-    if (xcf->auth != BRIX_AUTH_GSI && xcf->auth != BRIX_AUTH_BOTH) {
+    /* A brix_protbind rule can select gsi on a listener whose brix_auth did
+     * not, so the trust store must load for that listener too — otherwise the
+     * rule would advertise a protocol with no certificate behind it. */
+    if (xcf->auth != BRIX_AUTH_GSI && xcf->auth != BRIX_AUTH_BOTH
+        && !brix_protbind_any_names(xcf->protbind, BRIX_AUTH_GSI))
+    {
         return NGX_OK;
     }
 

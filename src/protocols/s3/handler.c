@@ -44,6 +44,7 @@
 #include "core/http/http_query.h"
 #include "protocols/shared/deleg_capture.h"  /* phase-70 §5.1 proxy header capture */
 #include "fs/backend/sd.h"  /* enum brix_cred_mode / BRIX_CRED_SELECT */
+#include "fs/vfs/vfs_secgate.h"  /* per-capability TLS gate (brix_tls_require) */
 
 #include <limits.h>
 #include <stdlib.h>
@@ -325,6 +326,49 @@ s3_pmark_begin_if_enabled(ngx_http_request_t *r, ngx_http_s3_req_ctx_t *s3ctx,
 }
 
 /*
+ * s3_tls_gate - the per-capability TLS gate (brix_tls_require) for one request.
+ *
+ * WHAT: Builds the capability mask this request exercises and refuses it with
+ *   403 when brix_tls_require demands TLS for any exercised capability on a
+ *   cleartext connection.
+ * WHY: Extracted from ngx_http_s3_handler to keep the entry handler's branch
+ *   density under the CCN gate; shares the generic VFS mask/check with the
+ *   stream and WebDAV planes.  Every request exercises `session`; GET/PUT/POST
+ *   move object bytes → `data`; a SigV4-signed request presents a credential →
+ *   `login` (S3 has no TPC).  Refused cleartext requests get a plain 403
+ *   before any SigV4 or parse work.
+ * HOW: No-op (NGX_OK) when brix_tls_require is unset or the mask clears.
+ */
+static ngx_int_t
+s3_tls_gate(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf)
+{
+    ngx_uint_t caps;
+
+    if (cf->common.tls_require == 0) {
+        return NGX_OK;
+    }
+
+    caps = BRIX_TLSREQ_SESSION;
+    if (r->method == NGX_HTTP_GET || r->method == NGX_HTTP_PUT
+        || r->method == NGX_HTTP_POST)
+    {
+        caps |= BRIX_TLSREQ_DATA;
+    }
+    if (r->headers_in.authorization != NULL) {
+        caps |= BRIX_TLSREQ_LOGIN;
+    }
+    caps = brix_tls_gate_refused(cf->common.tls_require, caps,
+                                 r->connection->ssl != NULL);
+    if (caps != 0) {
+        ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
+            "brix: cleartext S3 request refused by brix_tls_require %s "
+            "(method=%V)", brix_tls_cap_name(caps), &r->method_name);
+        return NGX_HTTP_FORBIDDEN;
+    }
+    return NGX_OK;
+}
+
+/*
  * Main content handler - auth gate + method dispatch
  * */
 
@@ -373,6 +417,11 @@ ngx_http_s3_handler(ngx_http_request_t *r)
     cf = ngx_http_get_module_loc_conf(r, ngx_http_brix_s3_module);
     if (!cf->common.enable) {
         return NGX_DECLINED;
+    }
+
+    rc = s3_tls_gate(r, cf);
+    if (rc != NGX_OK) {
+        return rc;
     }
 
     /* AGPL-3.0 sec.13: offer remote users the source (X-Source header). */

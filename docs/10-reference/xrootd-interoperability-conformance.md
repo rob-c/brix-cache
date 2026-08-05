@@ -82,7 +82,8 @@ implements the full standard set:
 - **Write plane:** `kXR_write`, `kXR_pgwrite`, `kXR_writev`, `kXR_sync`,
   `kXR_truncate`, `kXR_mkdir`, `kXR_rm`, `kXR_rmdir`, `kXR_mv`, `kXR_chmod`,
   `kXR_chkpoint` (begin/commit/rollback/query/`ckpXeq`).
-- **Signing:** `kXR_sigver` (HMAC-SHA256 request-signing envelope).
+- **Signing:** `kXR_sigver` (XrdSecProtect secver-0 request-signing envelope:
+  SHA-256 of the covered bytes encrypted with the GSI session cipher).
 - An unrecognized opcode returns `kXR_InvalidRequest`, matching
   `XrdXrootdProtocol`.
 
@@ -223,6 +224,12 @@ wire and lets the module sit transparently in front of, or behind, stock servers
   3502, `kXR_link` 3503) are additive opcodes gated behind an advertised
   `xrdfs.ext` capability, so a stock client that does not negotiate the capability
   never sees them — no interop hazard.
+- **Bound-substream request fan-out** — BriX serves full `kXR_read`/`kXR_write`
+  request frames on `kXR_bind` secondaries; stock treats a bound path as a
+  `pathid`-directed data channel and never answers a request frame there. The
+  capability is advertised via `kXR_Qconfig "brix.substreams"` (`=rw`); the
+  native client probes it after binding and falls back to primary-only against
+  stock servers — no interop hazard.
 - **`kXR_gpfile`** (legacy grouped parallel fetch) is intentionally not
   implemented (retired in the v5 era).
 - The relay carries **no credential** (client↔upstream auth is end-to-end); the

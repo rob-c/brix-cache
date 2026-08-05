@@ -11,7 +11,8 @@
  * HOW:  All the DH/bucket/secret math lives in the shared gsi_core (compiled into
  *       both this client and the nginx module); this file is only the orchestration
  *       plus the two client-specific bits: loading the proxy PEM and AES-encrypting
- *       the inner buffer. signing_key = SHA256(secret) via libxrdproto's brix_sha256.
+ *       the inner buffer. The agreed session cipher (first key_len bytes of the
+ *       DH secret) is retained on the conn for delegation and kXR_sigver signing.
  *
  * Clean-room: every wire fact is the inverse of our own server code under src/auth/gsi.
  */
@@ -499,6 +500,13 @@ gsi_more(brix_conn *c, const uint8_t *sbody, uint32_t slen, uint8_t **payload,
     }
     if (c != NULL) {
         c->gsi_deleg_ready = 1;
+        /* Arm kXR_sigver request signing only when the server's advertised
+         * security level will demand signatures — the async engine refuses to
+         * attach signing-active connections (core/aio/aio.c), so a level-0
+         * server must keep this off. */
+        if (c->sec_level >= 2) {
+            c->signing_active = 1;
+        }
     }
     return 0;
 }

@@ -23,6 +23,7 @@
 #include "webdav_tpc.h"     /* webdav_tpc_find_header — COPY PULL/PUSH direction */
 #include "protocols/shared/deleg_capture.h"  /* phase-70 §5.1 proxy header capture */
 #include "fs/backend/sd.h"  /* enum brix_cred_mode / BRIX_CRED_SELECT */
+#include "auth/protbind/protbind.h"  /* per-host credential-source binding */
 #include "access_internal.h"
 
 /*
@@ -195,52 +196,132 @@ access_bearer_challenge(ngx_http_request_t *r, ngx_int_t status,
 }
 
 /*
+ * access_try_proto — run the HTTP credential source bound to one protbind id.
+ *
+ * WHAT: Maps a BRIX_AUTH_* protocol id onto its HTTP transport and runs it;
+ * returns NGX_DECLINED for an id with no HTTP transport at all.
+ *
+ * WHY: protbind is protocol-agnostic, so a rule may legitimately name a scheme
+ * that only exists on the root:// wire (sss, unix, krb5, host).  Skipping it
+ * here — rather than rejecting it at parse time — lets a site write ONE
+ * `<host> only gsi ztn sss` policy and have each frontend honour the part it
+ * can actually speak, which is exactly what XRootD's shared sec.protbind does.
+ *
+ * HOW: A switch over the three ids with an HTTP transport; the wrappers above
+ * keep their metric attribution unchanged.
+ */
+static ngx_int_t
+access_try_proto(ngx_uint_t proto, ngx_http_request_t *r,
+                 ngx_http_brix_webdav_loc_conf_t *conf)
+{
+    switch (proto) {
+    case BRIX_AUTH_GSI:   return access_try_cert(r, conf);
+    case BRIX_AUTH_TOKEN: return access_try_token(r, conf);
+    case BRIX_AUTH_PWD:   return access_try_basic(r, conf);
+    default:              return NGX_DECLINED;   /* no HTTP transport */
+    }
+}
+
+/*
+ * access_protbind_set — resolve this request's ordered credential-source set.
+ *
+ * WHAT: Fills *out with the protocols this peer may authenticate with, in the
+ * order they are to be tried.
+ *
+ * WHY: Without any brix_webdav_protbind rule the answer must be byte-identical
+ * to the historical gate — cert, then token, then Basic, enabled iff auth is
+ * not `none` — so an existing config cannot change behaviour.
+ *
+ * HOW: Build that historical order as the base set, hand the resolver the peer
+ * IP (always available) plus the reverse-resolved hostname (only when some
+ * template actually needs one — the wildcard-only case must never pay for DNS),
+ * and let the shared engine apply the first matching rule.
+ */
+static void
+access_protbind_set(ngx_http_request_t *r,
+                    ngx_http_brix_webdav_loc_conf_t *conf,
+                    brix_protbind_set_t *out)
+{
+    brix_protbind_set_t   base;
+    char                  peer_ip[NGX_INET6_ADDRSTRLEN + 1];
+    char                  host_buf[256];
+    const char           *peer_host = NULL;
+    size_t                n;
+
+    brix_protbind_http_base(conf->auth != WEBDAV_AUTH_NONE, &base);
+
+    n = ngx_min(r->connection->addr_text.len, sizeof(peer_ip) - 1);
+    ngx_memcpy(peer_ip, r->connection->addr_text.data, n);
+    peer_ip[n] = '\0';
+
+    if (brix_protbind_needs_hostname(conf->protbind)) {
+        peer_host = brix_acc_resolve_peer(r->connection->sockaddr,
+                                          r->connection->socklen,
+                                          host_buf, sizeof(host_buf));
+    }
+
+    brix_protbind_resolve(conf->protbind, &base, peer_host, peer_ip, out);
+}
+
+/*
  * access_authenticate — the authentication gate.
  *
- * WHAT: Runs the credential sources in order (GSI proxy cert, bearer token,
- * then Basic password) and applies the location's auth policy to the outcome.
+ * WHAT: Runs the credential sources bound to this peer, in order, and applies
+ * the location's auth policy to the outcome.  With no brix_webdav_protbind
+ * rule that order is the historical one: GSI proxy cert, bearer token, then
+ * Basic password.
  *
  * WHY: auth=required rejects unauthenticated requests — with a 401 Basic
  * challenge when a pwd db is configured (so browsers prompt for credentials),
  * else the historical 403; auth=optional lets them proceed as anonymous;
- * auth=none skips verification entirely.  Each outcome increments exactly
- * the same metric slot as before the decomposition.
+ * auth=none (or a `<host> none` binding) skips verification entirely.  Each
+ * outcome increments exactly the same metric slot as before the decomposition.
  *
  * HOW: Returns NGX_OK to continue (authenticated or anonymous) or the
- * metrics-counted rejection.
+ * metrics-counted rejection.  A challenge is only offered for a scheme this
+ * peer is actually bound to — challenging Basic on a host whose binding
+ * excludes pwd would invite a password that can never be accepted.
  */
 ngx_int_t
 access_authenticate(ngx_http_request_t *r,
                     ngx_http_brix_webdav_loc_conf_t *conf)
 {
-    ngx_int_t auth_rc;
-    ngx_int_t token_rc = NGX_DECLINED;
+    brix_protbind_set_t  bound;
+    ngx_int_t            auth_rc = NGX_DECLINED;
+    ngx_int_t            token_rc = NGX_DECLINED;
+    ngx_uint_t           index;
 
-    if (conf->auth == WEBDAV_AUTH_NONE) {
+    access_protbind_set(r, conf, &bound);
+
+    if (!bound.require_auth) {
         BRIX_WEBDAV_METRIC_INC(
             auth_total[BRIX_WEBDAV_AUTH_RESULT_NONE]);
         brix_metric_auth(BRIX_PROTO_WEBDAV, BRIX_AUTHN_NONE, 1);
         return NGX_OK;
     }
 
-    auth_rc = access_try_cert(r, conf);
-    if (auth_rc != NGX_OK) {
-        token_rc = access_try_token(r, conf);
-        auth_rc = token_rc;
+    for (index = 0; index < bound.count; index++) {
+        auth_rc = access_try_proto(bound.protos[index], r, conf);
+        if (auth_rc == NGX_OK) {
+            break;
+        }
+        if (bound.protos[index] == BRIX_AUTH_TOKEN) {
+            token_rc = auth_rc;
+            /* RFC 6750 §2 (SEC MUST): a dual-transport bearer token (header +
+             * query) is a hard 400 invalid_request — it must NOT fall through
+             * to a weaker source, nor to anonymous. */
+            if (token_rc == NGX_HTTP_BAD_REQUEST) {
+                break;
+            }
+        }
     }
 
-    /* RFC 6750 §2 (SEC MUST): a dual-transport bearer token (header + query) is a
-     * hard 400 invalid_request — it must NOT fall through to Basic/anonymous. */
     if (token_rc == NGX_HTTP_BAD_REQUEST) {
         BRIX_WEBDAV_METRIC_INC(
             auth_total[BRIX_WEBDAV_AUTH_RESULT_REJECTED]);
         brix_metric_auth(BRIX_PROTO_WEBDAV, BRIX_AUTHN_NONE, 0);
         return webdav_metrics_return(r,
             access_bearer_challenge(r, NGX_HTTP_BAD_REQUEST, "invalid_request"));
-    }
-
-    if (auth_rc != NGX_OK) {
-        auth_rc = access_try_basic(r, conf);
     }
 
     if (auth_rc != NGX_OK && conf->auth == WEBDAV_AUTH_REQUIRED) {
@@ -250,7 +331,9 @@ access_authenticate(ngx_http_request_t *r,
         ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
                       "brix_webdav: unauthenticated request rejected"
                       " (auth=required)");
-        if (conf->pwd_file.len > 0) {
+        if (conf->pwd_file.len > 0
+            && brix_protbind_allows(&bound, BRIX_AUTH_PWD))
+        {
             return webdav_metrics_return(r, access_basic_challenge(r));
         }
         /* RFC 6750 §3 (MUST): on a bearer-protected export, no/invalid credential
@@ -259,7 +342,9 @@ access_authenticate(ngx_http_request_t *r,
          * error="invalid_token" only when a bearer was actually presented but
          * failed validation (token_rc == 401); a missing credential gets the bare
          * challenge. Cert-only exports keep the historical 403. */
-        if (webdav_bearer_enabled(conf)) {
+        if (webdav_bearer_enabled(conf)
+            && brix_protbind_allows(&bound, BRIX_AUTH_TOKEN))
+        {
             const char *err =
                 (token_rc == NGX_HTTP_UNAUTHORIZED) ? "invalid_token" : NULL;
             return webdav_metrics_return(r,

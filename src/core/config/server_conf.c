@@ -50,7 +50,6 @@ brix_create_srv_security(ngx_stream_brix_srv_conf_t *conf)
     brix_acc_conf_init(&conf->acc);
     brix_csi_conf_init(&conf->csi);
     conf->throttle.max_open_files  = NGX_CONF_UNSET_UINT;
-    conf->throttle.max_active_conn = NGX_CONF_UNSET_UINT;
     conf->throttle.bwm_budget      = NGX_CONF_UNSET_SIZE;
     conf->prepare_command.len  = 0;
     conf->prepare_command.data = NULL;
@@ -74,6 +73,7 @@ brix_create_srv_security(ngx_stream_brix_srv_conf_t *conf)
     conf->rootfd       = -1;
     conf->security_level = NGX_CONF_UNSET_UINT;
     conf->min_sec_level = NGX_CONF_UNSET_UINT;
+    conf->ztn_cleartext = NGX_CONF_UNSET;
     conf->opaque_strict = NGX_CONF_UNSET;
     conf->tls          = NGX_CONF_UNSET;
     conf->tls_ktls     = NGX_CONF_UNSET;

@@ -291,7 +291,7 @@ brix_tx_http_post(ngx_pool_t *pool, const char *endpoint, const ngx_str_t *body,
         return NGX_ERROR;
     }
 
-#ifdef CURLOPT_PROTOCOLS_STR
+#if CURL_AT_LEAST_VERSION(7, 85, 0)
     curl_easy_setopt(curl, CURLOPT_PROTOCOLS_STR, "https");
 #else
     curl_easy_setopt(curl, CURLOPT_PROTOCOLS, (long) CURLPROTO_HTTPS);

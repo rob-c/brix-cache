@@ -1,19 +1,21 @@
 """
 Tests for kXR_sigver — request signing envelope verification.
 
-kXR_sigver wraps each subsequent request in an HMAC-SHA256 envelope.  For GSI
-sessions the signing key is SHA-256(DH shared secret).  The server verifies:
+kXR_sigver wraps each subsequent request in a stock XrdSecProtect secver-0
+envelope: SHA-256(seqno_be || hdr [+ payload]) encrypted with the negotiated
+GSI session cipher (fresh IV prepended for signed-DH peers).  The server
+verifies:
 
   - seqno must strictly increase (replay guard)
   - expectrid must match the actual opcode of the next request
-  - HMAC-SHA256(seqno_be || hdr [+ payload]) must match the envelope body
+  - the decrypted envelope body must equal the recomputed covered-bytes SHA-256
   - RSA-signed requests are accepted without verification
 
 This test suite exercises:
 
   - expectrid mismatch — valid sigver envelope followed by wrong opcode → kXR_NotAuthorized
   - Replay detection — seqno not strictly increasing → kXR_NotAuthorized
-  - Body too short — HMAC payload < 32 bytes → kXR_ArgInvalid
+  - Body too short — signature payload < 32 bytes → kXR_ArgInvalid
   - Anonymous/token sessions accept sigver without verification (no-op path)
   - RSA-signed sigver accepted without asymmetric signature verification
 
@@ -85,7 +87,7 @@ def _send_sigver(sock, streamid, body=b"", payload=b""):
     kXR_sigver is a request PREFIX, not a standalone request: on a VALID envelope
     the server arms pending-signature state and stays silent — the response is for
     the signed request that follows (reference ProcSig returns 0 without Send; cf.
-    src/protocols/root/session/signing.c).  An INVALID envelope (bad HMAC length, seqno replay)
+    src/protocols/root/session/signing.c).  An INVALID envelope (bad signature length, seqno replay)
     DOES draw an immediate kXR_error — read that with _recv_resp() instead.
     """
     hdr = struct.pack(">2sH", streamid, kXR_sigver) + body.ljust(16, b"\x00") + struct.pack(">I", len(payload))
@@ -205,7 +207,7 @@ class TestSigverReplay:
 
 
 # ---------------------------------------------------------------------------
-# Body too short — HMAC payload < 32 bytes
+# Body too short — signature payload < 32 bytes
 # ---------------------------------------------------------------------------
 
 class TestSigverBodyTooShort:
@@ -214,7 +216,7 @@ class TestSigverBodyTooShort:
         sock, streamid = _establish_gsi_session(gsi_tls_port)
 
         # signing_active=0 (anonymous login): the body length is never inspected,
-        # so a 16-byte HMAC is a silent no-op.  Active-path "sigver body too short"
+        # so a 16-byte signature is a silent no-op.  Active-path "sigver body too short"
         # (kXR_ArgInvalid) needs a live signing key — see the wire-conformance suite.
         sigver_hdr_body = struct.pack(">H", 3011) + b"\x00\x00" + struct.pack(">Q", 10) + bytes([0x01]) + b"\x00\x00\x00"
         _send_sigver(sock, streamid, body=sigver_hdr_body, payload=os.urandom(16))
@@ -227,11 +229,11 @@ class TestSigverBodyTooShort:
 # ---------------------------------------------------------------------------
 
 class TestSigverNoVerification:
-    """Verify that anonymous and token sessions accept sigver without HMAC check."""
+    """Verify that anonymous and token sessions accept sigver without signature check."""
 
     def test_anonymous_accepts_sigver(self):
         """On an anonymous session (signing_active=0), kXR_sigver is accepted
-        with kXR_ok but no HMAC verification occurs.
+        with kXR_ok but no signature verification occurs.
         """
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.connect((ANON_HOST, ANON_PORT))
@@ -255,7 +257,7 @@ class TestSigverNoVerification:
         _send_sigver(sock, b"\x00\x01", body=sigver_body)
 
         # The following ping must succeed: on an anonymous session signing is not
-        # active, so the pending sigver is accepted without an HMAC check.
+        # active, so the pending sigver is accepted without a signature check.
         status2, _ = _send_req(sock, b"\x00\x01", kXR_ping)
         assert status2 == kXR_ok, \
             f"anon sigver+ping should succeed without verification, got {status2}"
@@ -268,7 +270,7 @@ class TestSigverNoVerification:
 # ---------------------------------------------------------------------------
 
 class TestSigverRsaPath:
-    """Verify that RSA-signed sigver envelopes are accepted without HMAC check."""
+    """Verify that RSA-signed sigver envelopes are accepted without symmetric-signature check."""
 
     def test_rsa_sigver_accepted(self, gsi_tls_port):
         """kXR_sigver with kXR_rsaKey flag set must be accepted without

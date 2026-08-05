@@ -75,6 +75,12 @@ webdav_merge_base_conf(ngx_conf_t *cf, ngx_http_brix_webdav_loc_conf_t *prev,
     ngx_conf_merge_uint_value(conf->verify_depth, prev->verify_depth, 10);
     ngx_conf_merge_uint_value(conf->auth, prev->auth,
                               WEBDAV_AUTH_OPTIONAL);
+    /* Inherited whole (never merged element-wise): the rule ORDER decides which
+     * template matches first, so a location that states any rule of its own
+     * owns the whole policy. */
+    if (conf->protbind == NULL) {
+        conf->protbind = prev->protbind;
+    }
     brix_acc_http_merge_conf(&conf->acc, &prev->acc);
     ngx_conf_merge_value(conf->proxy_certs, prev->proxy_certs, 0);
     ngx_conf_merge_str_value(conf->ssl_client_capath,

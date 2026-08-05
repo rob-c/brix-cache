@@ -12,8 +12,9 @@
 #include <stdio.h>
 #include <openssl/core_names.h>
 #include <openssl/param_build.h>
-#include <openssl/dh.h>          
-#include <openssl/rand.h>        
+#include <openssl/dh.h>
+#include <openssl/rand.h>
+#include <openssl/crypto.h>      /* CRYPTO_memcmp / OPENSSL_cleanse (sigver) */        
 #include <openssl/pem.h>         
 #include <openssl/x509.h>        
 #include <openssl/evp.h>         

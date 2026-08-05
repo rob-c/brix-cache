@@ -4,7 +4,7 @@
  * Owns the ngx-free GSI kernels that are neither the round-2 cert-response
  * exchange nor a lower-level crypto primitive: the shared DH-params / cipher-
  * allowlist constants, the round-1 "gsi protocol parms" parser, the round-1
- * certreq builder, and the kXR_sigver opcode policy + HMAC. The round-2 cert-
+ * certreq builder, and the kXR_sigver opcode policy + signature kernels. The round-2 cert-
  * response state machine and its leaf helpers were split out to
  * gsi_core_cresp.c / gsi_core_cresp_util.c under the phase-79 file-size guard;
  * they share gsi_core_internal.h. Behaviour-identical to the original.
@@ -196,7 +196,10 @@ brix_gsi_sigver_required(uint16_t op, int level)
 }
 
 
-/* kXR_sigver HMAC — request signing (client) / verification (server). */
+/* kXR_sigver signature — request signing (client) / verification (server).
+ * Stock XrdSecProtect secver-0 scheme: SHA-256 over the covered bytes, then the
+ * hash is encrypted with the negotiated GSI session cipher (IV-prepended for
+ * signed-DH peers) — wire-compatible with stock clients and servers. */
 
 void
 brix_gsi_sigver_seqno_be(uint64_t seq, uint8_t out[8])
@@ -213,16 +216,16 @@ brix_gsi_sigver_seqno_be(uint64_t seq, uint8_t out[8])
 
 
 int
-brix_gsi_sigver_hmac(const uint8_t key[32], uint64_t seqno,
-                       const uint8_t hdr24[24], const uint8_t *payload,
-                       size_t plen, int nodata, uint8_t mac_out[32])
+brix_gsi_sigver_hash(uint64_t seqno, const uint8_t hdr24[24],
+                       const uint8_t *payload, size_t plen, int nodata,
+                       uint8_t hash_out[32])
 {
     uint8_t  seqbe[8];
     uint8_t *msg;
     size_t   mlen;
     int      cover_payload, ok;
 
-    if (key == NULL || hdr24 == NULL || mac_out == NULL) {
+    if (hdr24 == NULL || hash_out == NULL) {
         return 0;
     }
     cover_payload = (!nodata && payload != NULL && plen > 0);
@@ -237,7 +240,50 @@ brix_gsi_sigver_hmac(const uint8_t key[32], uint64_t seqno,
     if (cover_payload) {
         memcpy(msg + 32, payload, plen);
     }
-    ok = brix_hmac_sha256(key, 32, msg, mlen, mac_out);
+    ok = brix_sha256(msg, mlen, hash_out);
     free(msg);
+    return ok;
+}
+
+
+uint8_t *
+brix_gsi_sigver_sign(const brix_gsi_cipher_t *c, const uint8_t *key,
+                       int use_iv, uint64_t seqno, const uint8_t hdr24[24],
+                       const uint8_t *payload, size_t plen, int nodata,
+                       size_t *outlen)
+{
+    uint8_t hash[32];
+
+    if (c == NULL || key == NULL || outlen == NULL
+        || !brix_gsi_sigver_hash(seqno, hdr24, payload, plen, nodata, hash)) {
+        return NULL;
+    }
+    return brix_gsi_cipher_encrypt(c, key, hash, sizeof(hash), use_iv, outlen);
+}
+
+
+int
+brix_gsi_sigver_verify(const brix_gsi_cipher_t *c, const uint8_t *key,
+                         int use_iv, const uint8_t *sig, size_t siglen,
+                         uint64_t seqno, const uint8_t hdr24[24],
+                         const uint8_t *payload, size_t plen, int nodata)
+{
+    uint8_t  computed[32];
+    uint8_t *plain;
+    size_t   plain_len = 0;
+    int      ok;
+
+    if (c == NULL || key == NULL || sig == NULL || siglen == 0) {
+        return 0;
+    }
+    plain = brix_gsi_cipher_decrypt(c, key, sig, siglen, use_iv, &plain_len);
+    if (plain == NULL) {
+        return 0;
+    }
+    ok = (plain_len == sizeof(computed)
+          && brix_gsi_sigver_hash(seqno, hdr24, payload, plen, nodata, computed)
+          && CRYPTO_memcmp(computed, plain, sizeof(computed)) == 0);
+    OPENSSL_cleanse(plain, plain_len);
+    free(plain);
     return ok;
 }

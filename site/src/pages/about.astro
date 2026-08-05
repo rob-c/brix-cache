@@ -13,11 +13,14 @@ const clients = [
 ];
 
 // Headline numbers for the hero stat strip — all defensible from the tree.
+// Test count is what pytest itself reports, parametrisation expanded:
+//   cd tests && PYTHONPATH=. pytest --collect-only -q -o addopts=""
+// 36,596 collected from 851 files, no collection errors (2026-08-05).
 const stats = [
   { n: '4', l: 'wire protocols', s: 'root · dav · s3 · gsiftp' },
   { n: '32', l: 'XRootD opcodes', s: 'the full 5.2 verb set' },
   { n: '1', l: 'nginx binary', s: 'one event loop' },
-  { n: '~8.7k', l: 'tests', s: 'cross-checked vs. stock' },
+  { n: '~36.6k', l: 'tests', s: 'cross-checked vs. stock' },
 ];
 
 // Recently landed — the headline work of 2026. Each carries an honest status:
@@ -286,7 +289,10 @@ const backends = [
   .rstatus {
     align-self: flex-start; font-size: 0.62rem; font-weight: 700;
     letter-spacing: 0.06em; text-transform: uppercase;
-    border: var(--border-2); border-color: var(--tint); color: var(--paper);
+    /* an outline pill on .band--ink .panel — it has no background of its own,
+       so it takes the inverted surface's ink, not --paper (which is the page
+       colour and goes black-on-black in dark mode). */
+    border: var(--border-2); border-color: var(--tint); color: var(--inv-fg);
     padding: 0.18em 0.55em;
   }
   .rcard-t {
@@ -294,7 +300,8 @@ const backends = [
     font-size: 1.28rem; line-height: 1.05;
   }
   .rcard-d { font-size: 0.9rem; }
-  .rcard-cite { margin-top: auto; font-size: 0.7rem; color: #a8a29e; word-break: break-word; }
+  /* .rcard only ever sits on .band--ink, so it takes the inverted muted ink */
+  .rcard-cite { margin-top: auto; font-size: 0.7rem; color: var(--inv-muted); word-break: break-word; }
   .recent-more { margin-top: 1.8rem; font-size: 0.85rem; }
   .recent-more a { color: var(--accent); }
 
@@ -318,8 +325,8 @@ const backends = [
   .node b { font-size: 0.98rem; }
   .node small { font-family: var(--mono); font-size: 0.72rem; color: var(--ink-2); }
   .node .chip { align-self: flex-start; font-size: 0.8rem; }
-  .node--ink { background: var(--ink); color: var(--paper); box-shadow: 4px 4px 0 var(--tint); }
-  .node--ink small { color: #a8a29e; }
+  .node--ink { background: var(--inv-bg); color: var(--inv-fg); box-shadow: 4px 4px 0 var(--tint); }
+  .node--ink small { color: var(--inv-muted); }
 
   .arrow {
     display: flex; justify-content: center; padding: 0.7rem 0;
@@ -354,7 +361,10 @@ const backends = [
   }
   .bar b { font-family: var(--display); font-stretch: 112%; font-size: 1.2rem; }
   .bar--core { background: var(--panel); }
-  .bar--vfs { background: var(--accent); }
+  /* the bar itself is an accent slab, but the pills on it keep their own panel
+     surface — so they take the page ink back, not the on-accent ink. */
+  .bar--vfs { background: var(--accent); color: var(--on-accent); }
+  .bar--vfs .pill { color: var(--ink); }
   .bar-items { display: flex; gap: 0.45rem; flex-wrap: wrap; }
   .pill { border: var(--border-2); background: var(--panel); padding: 0.22em 0.6em; font-size: 0.76rem; font-weight: 600; }
   .vfs-sub { font-size: 0.8rem; }

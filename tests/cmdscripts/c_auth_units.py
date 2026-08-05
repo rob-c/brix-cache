@@ -484,6 +484,43 @@ def _run_token_unit(base: Path, name: str, harness: str,
     return [result(ok, f"{name} {message}")]
 
 
+def run_protbind(base: Path) -> list[tuple[bool, str]]:
+    """The per-host auth-protocol binding engine (XRootD sec.protbind): host
+    template matching, base sets, rule resolution and the membership gate that
+    admits a credential.  Objects are named by their FULL addon path — both
+    `policy.o` and `match.o` collide with same-named objects elsewhere in the
+    tree, so find_obj()'s first-match would link the wrong translation unit."""
+    objs = [OBJS / "addon/protbind/match.o", OBJS / "addon/protbind/policy.o"]
+    missing = [str(o) for o in objs if not o.exists()]
+    if missing:
+        return [result(True, f"SKIP build {' '.join(missing)} first")]
+    ngx_string = OBJS / "src/core/ngx_string.o"
+    if not ngx_string.exists():
+        return [result(True, "SKIP build nginx (ngx_string.o) first")]
+    ok, message = compile_and_run(
+        base / "test_protbind",
+        [
+            "-O",
+            "-Wall",
+            "-I",
+            "src",
+            "-I",
+            str(NGX_SRC / "src/core"),
+            "-I",
+            str(NGX_SRC / "src/event"),
+            "-I",
+            str(NGX_SRC / "src/os/unix"),
+            "-I",
+            str(OBJS),
+            "tests/c/protbind_test.c",
+            *[str(o) for o in objs],
+            str(ngx_string),
+            "-lcrypto",
+        ],
+    )
+    return [result(ok, f"protbind {message}")]
+
+
 def run_sts_units(base: Path) -> list[tuple[bool, str]]:
     """Exercise the S3 STS seam (phase-70 §5.5): the real sts_http.o parser +
     sts_sign.o SigV4 builder, linked against the production ngx_snprintf and
@@ -712,6 +749,7 @@ RUNNERS = {
     "deleg_find_eec": run_deleg_find_eec,
     "ucred": run_ucred,
     "sts_units": run_sts_units,
+    "protbind": run_protbind,
 }
 
 

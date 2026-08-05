@@ -241,7 +241,7 @@ the low bits), 16-byte session id, optional trailing CGI/security blob.
 | krb5 | ✅ | ✅ | ✅ (real, via `gokrb5`) | ✅ |
 | sss (shared secret) | ✅ | ✅ | ❌ | ✅ |
 | unix / host | ✅ | ✅ | ✅ | ✅ |
-| sigver (request signing) | ✅ | infra present, OFF in bundled server | ✅ (SHA-256 framing) | ✅ (shared HMAC, fail-closed) |
+| sigver (request signing) | ✅ | infra present, OFF in bundled server | ✅ (SHA-256 framing) | ✅ (shared secver-0 kernels, fail-closed) |
 
 > **go-hep cannot authenticate to grid storage.** It implements only unix, host,
 > and krb5 (the krb5 path is genuine, using `github.com/jcmturner/gokrb5/v8`).
@@ -469,8 +469,9 @@ single pass writes each CRC into its preceding gap — no copy
 
 ### 7.5 BriX-Cache (this project)
 * **The shared `gsi_core` seam is the headline architectural choice.** One
-  OpenSSL+libc file (bucket codec, DH, cipher negotiation, RSA POP, sigver HMAC +
-  policy) compiles byte-identically into both the server module and the client
+  OpenSSL+libc file (bucket codec, DH, cipher negotiation, RSA POP, sigver
+  secver-0 kernels + policy) compiles byte-identically into both the server
+  module and the client
   library (`shared/xrdproto/`, `-DXRDPROTO_NO_NGX`, enforced by an
   ngx-free-symbol check). Client and server are therefore *provably* wire-inverse,
   eliminating the "two implementations drift" bug class that dCache's

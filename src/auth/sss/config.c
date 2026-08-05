@@ -1,4 +1,5 @@
 #include "core/config/config.h"
+#include "auth/protbind/protbind.h"   /* brix_protbind_any_names */
 #include "core/compat/crypto.h"   /* brix_secret_page_guard (F3) */
 #include "core/compat/log_diag.h"
 #include "sss_keytab_kernel.h"   /* shared keytab line grammar + mode check */
@@ -235,7 +236,11 @@ brix_sss_upstream_needed(ngx_stream_brix_srv_conf_t *xcf)
 ngx_int_t
 brix_configure_sss_auth(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *xcf)
 {
-    int need_client   = (xcf->auth == BRIX_AUTH_SSS);
+    /* A brix_protbind rule can select sss on a listener whose brix_auth did
+     * not; such a listener still needs the client-side keytab loaded. */
+    int need_client   = (xcf->auth == BRIX_AUTH_SSS
+                         || brix_protbind_any_names(xcf->protbind,
+                                                    BRIX_AUTH_SSS));
     int need_upstream = brix_sss_upstream_needed(xcf);
 
     if (!need_client && !need_upstream) {

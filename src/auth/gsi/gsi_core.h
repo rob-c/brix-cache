@@ -165,14 +165,33 @@ int brix_gsi_build_cert_response_ex(const uint8_t *sbody, uint32_t slen,
 /* ---- kXR_sigver opcode policy ---- */
 int brix_gsi_sigver_required(uint16_t opcode, int level);
 
-/* ---- kXR_sigver HMAC (request signing / verification) ---- */
+/* ---- kXR_sigver signature (request signing / verification) ----
+ * Stock XrdSecProtect scheme (secver 0, kXR_SHA256): the signature blob is the
+ * GSI session cipher's encryption of SHA-256(seqno_be(8) || hdr24(24) ||
+ * [payload unless nodata]), with a fresh IV prepended when use_iv (signed-DH
+ * peers). Client (sign) and server (verify) share these so the covered-byte
+ * layout and blob framing stay single-source AND wire-compatible with stock. */
+
+/* Largest signature blob: aes-256-cbc IV(16) + PKCS7-padded SHA-256 (48). */
+#define BRIX_GSI_SIGVER_SIG_MAX  64
+
 /* Serialise a 64-bit sigver seqno to big-endian 8 bytes. */
 void brix_gsi_sigver_seqno_be(uint64_t seq, uint8_t out[8]);
-/* HMAC-SHA256(key, seqno_be(8) || hdr24(24) || [payload unless nodata]) into
- * mac_out[32]. Both the client (sign) and the server (verify) call this so the
- * covered-byte layout is single-source. Returns 1 on success, 0 on failure. */
-int  brix_gsi_sigver_hmac(const uint8_t key[32], uint64_t seqno,
-                            const uint8_t hdr24[24], const uint8_t *payload,
-                            size_t plen, int nodata, uint8_t mac_out[32]);
+/* SHA-256 over the covered bytes into hash_out[32]. Returns 1/0. */
+int  brix_gsi_sigver_hash(uint64_t seqno, const uint8_t hdr24[24],
+                            const uint8_t *payload, size_t plen, int nodata,
+                            uint8_t hash_out[32]);
+/* Sign: malloc'd signature blob ([IV ||] encrypt(hash)), *outlen set; NULL on
+ * failure. key must hold c->key_len bytes (first bytes of the DH secret). */
+uint8_t *brix_gsi_sigver_sign(const brix_gsi_cipher_t *c, const uint8_t *key,
+                                int use_iv, uint64_t seqno,
+                                const uint8_t hdr24[24], const uint8_t *payload,
+                                size_t plen, int nodata, size_t *outlen);
+/* Verify: decrypt sig[0..siglen) and constant-time compare against the
+ * recomputed covered-bytes hash. Returns 1 = verified, 0 = any failure. */
+int  brix_gsi_sigver_verify(const brix_gsi_cipher_t *c, const uint8_t *key,
+                              int use_iv, const uint8_t *sig, size_t siglen,
+                              uint64_t seqno, const uint8_t hdr24[24],
+                              const uint8_t *payload, size_t plen, int nodata);
 
 #endif /* BRIX_GSI_CORE_H */

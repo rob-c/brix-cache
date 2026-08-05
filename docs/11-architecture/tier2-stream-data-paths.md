@@ -559,7 +559,9 @@ Verifies authentication tokens (GSI, bearer token, SSS).
 **Opcode:** `kXR_sigver` (3029)  
 **Wire format:** `ClientSigVerBody { request_hash (N bytes), signature (N bytes) }` → `ServerSigVerBody { status (2B), dlen (4B) }`
 
-HMAC-SHA256 request signing for GSI sessions — verifies integrity of all subsequent requests.
+Secver-0 request signing for GSI sessions (SHA-256 of the covered bytes,
+encrypted with the negotiated session cipher) — verifies integrity of all
+subsequent requests.
 
 ---
 

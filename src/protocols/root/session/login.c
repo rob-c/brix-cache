@@ -5,6 +5,7 @@
 #include "core/ngx_brix_module.h"
 #include "registry.h"
 #include "core/compat/alloc_guard.h"
+#include "auth/protbind/protbind.h"
 #include "observability/sesslog/sesslog_ngx.h"
 
 /* Atomically increment the LOGIN-success metric counter. */
@@ -151,15 +152,6 @@ brix_login_respond_anon(brix_ctx_t *ctx, ngx_connection_t *c, const char *user)
     return brix_queue_response(ctx, c, buf, total);
 }
 
-/*
- * WHAT: Format the "&P=..." security parameter block for an authenticated mode.
- * WHY:  The client parses this block to decide which security plugin to load;
- *       each auth mode advertises a distinct protocol string.  Isolating the
- *       per-mode ladder here keeps the branch count out of the caller.
- * HOW:  Write into caller-owned `parms` (cap `sizeof`), returning the byte count
- *       INCLUDING the trailing NUL (clients treat the block as C-string data).
- *       The GSI-capable modes advertise a version that gates signed-DH.
- */
 /* XrdSecProtocolztn client parameters, byte-frozen against the stock client.
  *
  * The reference server emits "<expiry>:<maxtsz>:" — a decimal minimum token
@@ -171,53 +163,134 @@ brix_login_respond_anon(brix_ctx_t *ctx, ngx_connection_t *c, const char *user)
  * every stock XrdCl.  4096 matches the reference server's default -maxsz. */
 #define BRIX_ZTN_PARMS  "0:4096:"
 
+/*
+ * WHAT: Format ONE "&P=<proto>[,<parms>]" block for `proto` into `out`,
+ *       returning the byte count the block needs (snprintf semantics: the
+ *       would-be length even when it does not fit), or 0 when the server
+ *       cannot advertise that protocol.
+ * WHY:  The sec token is an ordered concatenation of per-protocol blocks, so
+ *       each protocol's byte-frozen parameter string has to be addressable on
+ *       its own rather than as one branch of a whole-token ladder.  Returning 0
+ *       for an unadvertisable protocol (krb5 with no service principal) is what
+ *       keeps a partial configuration from emitting "&P=krb5,(null)".
+ * HOW:  One snprintf per protocol; negative snprintf results are normalised to
+ *       0 so the caller's length arithmetic can never go backwards.
+ */
 static size_t
-brix_login_build_parms(ngx_stream_brix_srv_conf_t *conf,
-    char *parms, size_t cap)
+brix_login_proto_parm(ngx_stream_brix_srv_conf_t *conf, ngx_uint_t proto,
+    char *out, size_t cap)
 {
     /* Advertised GSI version drives the client's signed-DH decision:
      * >=BRIX_GSI_VERS_DHSIGNED (10400) lets capable clients use the
      * RSA-signed-DH variant.  Default 10000 (unsigned, universally
      * compatible) unless the brix_gsi_signed_dh policy opts in. */
-    unsigned gsi_ver = (conf->gsi_signed_dh != BRIX_GSI_SDH_OFF) ? 10600u : 10000u;
+    unsigned  gsi_ver = (conf->gsi_signed_dh != BRIX_GSI_SDH_OFF)
+                        ? 10600u : 10000u;
+    int       written;
 
-    if (conf->auth == BRIX_AUTH_TOKEN) {
-        /* Token-only: advertise ztn, no CA hash needed. */
-        return (size_t) snprintf(parms, cap, "&P=ztn," BRIX_ZTN_PARMS) + 1;
-    }
-    if (conf->auth == BRIX_AUTH_SSS) {
+    switch (proto) {
+
+    case BRIX_AUTH_TOKEN:
+        /* Token: advertise ztn, no CA hash needed. */
+        written = snprintf(out, cap, "&P=ztn," BRIX_ZTN_PARMS);
+        break;
+
+    case BRIX_AUTH_GSI:
+        written = snprintf(out, cap, "&P=gsi,v:%u,c:ssl,ca:%s",
+                           gsi_ver, conf->gsi_ca_hashes);
+        break;
+
+    case BRIX_AUTH_SSS:
         /* XRootD SSS: bf32 ('0'), v2 server ('+'), client chooses keytab. */
-        return (size_t) snprintf(parms, cap, "&P=sss,0.+%d:",
-                                 (int) conf->sss_lifetime) + 1;
-    }
-    if (conf->auth == BRIX_AUTH_UNIX) {
-        return (size_t) snprintf(parms, cap, "&P=unix") + 1;
-    }
-    if (conf->auth == BRIX_AUTH_KRB5) {
-        return (size_t) snprintf(parms, cap, "&P=krb5,%s",
-                                 (const char *) conf->krb5.principal.data) + 1;
-    }
-    if (conf->auth == BRIX_AUTH_HOST) {
+        written = snprintf(out, cap, "&P=sss,0.+%d:",
+                           (int) conf->sss_lifetime);
+        break;
+
+    case BRIX_AUTH_UNIX:
+        written = snprintf(out, cap, "&P=unix");
+        break;
+
+    case BRIX_AUTH_KRB5:
+        /* A krb5 block without the service principal is unusable to the
+         * client, and conf->krb5.principal.data is NULL until configured. */
+        if (conf->krb5.principal.len == 0
+            || conf->krb5.principal.data == NULL)
+        {
+            return 0;
+        }
+        written = snprintf(out, cap, "&P=krb5,%s",
+                           (const char *) conf->krb5.principal.data);
+        break;
+
+    case BRIX_AUTH_HOST:
         /* Phase 52 WS-C: host auth asserts no credential — bare protocol id. */
-        return (size_t) snprintf(parms, cap, "&P=host") + 1;
-    }
-    if (conf->auth == BRIX_AUTH_PWD) {
+        written = snprintf(out, cap, "&P=host");
+        break;
+
+    case BRIX_AUTH_PWD:
         /* Phase 52 WS-B: XrdSecpwd password protocol (v:10100, ssl crypto). */
-        return (size_t) snprintf(parms, cap, "&P=pwd,v:10100,c:ssl") + 1;
-    }
-    if (conf->auth == BRIX_AUTH_BOTH) {
-        /* Both: token first (preferred), then GSI. */
-        return (size_t) snprintf(parms, cap,
-                                 "&P=ztn," BRIX_ZTN_PARMS "&P=gsi,v:%u,c:ssl,ca:%s",
-                                 gsi_ver, conf->gsi_ca_hashes) + 1;
+        written = snprintf(out, cap, "&P=pwd,v:10100,c:ssl");
+        break;
+
+    default:
+        return 0;
     }
 
-    /* GSI-only.  The advertised version drives the client's signed-DH
-     * decision: >=10400 makes capable clients use the RSA-signed-DH
-     * variant.  Defaults to 10000 (unsigned, universal) unless the
-     * brix_gsi_signed_dh policy opts in. */
-    return (size_t) snprintf(parms, cap, "&P=gsi,v:%u,c:ssl,ca:%s",
-                             gsi_ver, conf->gsi_ca_hashes) + 1;
+    return (written < 0) ? 0 : (size_t) written;
+}
+
+/*
+ * WHAT: Format the full "&P=..." security parameter block for a resolved
+ *       protocol set, returning the byte count INCLUDING the trailing NUL
+ *       (clients treat the block as C-string data).  A return greater than
+ *       `cap` means the token did not fit and the caller must refuse.
+ * WHY:  Stock XRootD advertises an arbitrary ORDERED protocol list — that
+ *       order is the client's preference order — so the token is built by
+ *       concatenating one block per protocol in the order protbind resolved,
+ *       not by picking a single pre-baked string per auth mode.
+ * HOW:  Append each protocol's block, tracking the total the token WOULD need
+ *       separately from what actually fit, so a truncating token is detected
+ *       instead of silently advertising a half-written protocol list.
+ */
+static size_t
+brix_login_build_parms(ngx_stream_brix_srv_conf_t *conf,
+    const brix_protbind_set_t *set, char *parms, size_t cap, int drop_ztn)
+{
+    size_t      needed = 0;
+    ngx_uint_t  index;
+
+    parms[0] = '\0';
+
+    for (index = 0; index < set->count; index++) {
+        size_t  room = (needed < cap) ? cap - needed : 0;
+
+        /* ztn is a bearer token; on a cleartext connection (drop_ztn) it is
+         * withheld from the advertisement so a stock-compliant client never
+         * offers one where an on-path observer could replay it. */
+        if (drop_ztn && set->protos[index] == BRIX_AUTH_TOKEN) {
+            continue;
+        }
+
+        needed += brix_login_proto_parm(conf, set->protos[index],
+                                        parms + (cap - room), room);
+    }
+
+    return needed + 1;
+}
+
+/* Does the resolved protbind set contain the ztn/token protocol? */
+static int
+brix_login_set_has_token(const brix_protbind_set_t *set)
+{
+    ngx_uint_t  index;
+
+    for (index = 0; index < set->count; index++) {
+        if (set->protos[index] == BRIX_AUTH_TOKEN) {
+            return 1;
+        }
+    }
+
+    return 0;
 }
 
 /*
@@ -232,23 +305,52 @@ brix_login_build_parms(ngx_stream_brix_srv_conf_t *conf,
  */
 static ngx_int_t
 brix_login_respond_authenticated(brix_ctx_t *ctx, ngx_connection_t *c,
-    const char *user)
+    const char *user, const brix_protbind_set_t *set)
 {
     ngx_stream_brix_srv_conf_t *conf;
-    char     parms[256];
+    /* One block per advertised protocol; the GSI block alone can carry an
+     * 80-byte CA-hash list, so size for the full BRIX_PROTBIND_MAX_PROTOS. */
+    char     parms[1024];
     size_t   parms_len;
     u_char  *buf;
     size_t   total;
+    int      drop_ztn;
 
     /* Re-fetch the live merged srv_conf in case login inherited settings. */
     conf = ngx_stream_get_module_srv_conf(ctx->session, ngx_stream_brix_module);
 
-    parms_len = brix_login_build_parms(conf, parms, sizeof(parms));
+    /* Stock parity: never advertise the ztn bearer protocol on a cleartext
+     * connection unless brix_ztn_cleartext explicitly opts back in. */
+    drop_ztn = (c->ssl == NULL || c->ssl->connection == NULL)
+               && !conf->ztn_cleartext;
+
+    parms_len = brix_login_build_parms(conf, set, parms, sizeof(parms),
+                                       drop_ztn);
 
     /* Include the trailing NUL because clients treat the parameter block as C-string data. */
     if (parms_len > sizeof(parms)) {
         brix_send_error(ctx, c, kXR_ServerError,
                         "auth parameter block too long");
+        return NGX_DONE;
+    }
+
+    /* Token-only auth over cleartext with the ztn block withheld leaves the
+     * client nothing to authenticate with — refuse the login up front with
+     * the TLS-required error (the client's cue to reconnect with TLS),
+     * exactly as stock does, rather than a misleading config error. */
+    if (parms_len <= 1 && drop_ztn && brix_login_set_has_token(set)) {
+        brix_send_error(ctx, c, kXR_TLSRequired,
+                        "token authentication requires a TLS-encrypted "
+                        "connection");
+        return NGX_DONE;
+    }
+
+    /* An empty token would tell the client "authenticate, but with nothing" —
+     * the only way here is a protbind rule naming protocols this build cannot
+     * advertise, which is a configuration error, not a client error. */
+    if (parms_len <= 1) {
+        brix_send_error(ctx, c, kXR_ServerError,
+                        "no usable authentication protocol configured");
         return NGX_DONE;
     }
 
@@ -277,24 +379,30 @@ brix_login_respond_authenticated(brix_ctx_t *ctx, ngx_connection_t *c,
 }
 
 /* Handle kXR_login — accept a client username, generate a session id (sessid),
- * and begin auth negotiation (advertising the configured security requirement). */
+ * and begin auth negotiation (advertising the security protocols this peer is
+ * bound to).  The advertised set comes from brix_protbind (per-host rules)
+ * refined over brix_auth; with no rules it is exactly what brix_auth alone
+ * allowed, so an unconfigured server's sec token is byte-identical. */
 ngx_int_t
 brix_handle_login(brix_ctx_t *ctx, ngx_connection_t *c,
     ngx_stream_brix_srv_conf_t *conf)
 {
-    char       user[9];
-    char       user_log[64];
-    ngx_int_t  rc;
+    brix_protbind_set_t  bound;
+    char                 user[9];
+    char                 user_log[64];
+    ngx_int_t            rc;
 
     rc = brix_login_precheck_and_parse(ctx, c, conf, user, user_log);
     if (rc != NGX_OK) {
         return (rc == NGX_DONE) ? NGX_OK : rc;
     }
 
-    if (conf->auth == BRIX_AUTH_NONE) {
+    brix_protbind_resolve_ctx(ctx, c, conf->protbind, conf->auth, &bound);
+
+    if (!bound.require_auth) {
         return brix_login_respond_anon(ctx, c, user);
     }
 
-    rc = brix_login_respond_authenticated(ctx, c, user);
+    rc = brix_login_respond_authenticated(ctx, c, user, &bound);
     return (rc == NGX_DONE) ? NGX_OK : rc;
 }

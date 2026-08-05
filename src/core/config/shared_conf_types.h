@@ -296,6 +296,11 @@ typedef struct {
     ngx_flag_t          compress;           /* phase-42: outbound GET compression
                                              * (Accept-Encoding negotiated). Off by
                                              * default; bypasses sendfile when used. */
+    ngx_uint_t          tls_require;        /* [brix_tls_require <caps...>] —
+                                             * BRIX_TLSREQ_* capability mask
+                                             * (vfs_secgate.h): ops exercising a
+                                             * masked capability are refused on
+                                             * cleartext transports. 0 = off. */
     ngx_flag_t          strict_security;    /* [brix_strict_security on|off] (E-1)
                                              * — refuse valid-but-dangerous configs
                                              * at nginx -t instead of only warning:

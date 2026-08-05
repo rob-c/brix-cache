@@ -12,6 +12,7 @@
 
 #include <unistd.h>
 #include "config.h"
+#include "auth/protbind/protbind.h"   /* brix_protbind_any_names */
 #include "process_internal.h"              /* cross-file timer + per-server entry points */
 #include "net/proxy/proxy.h"
 #include "net/proxy/proxy_internal.h"      /* brix_proxy_pool_init / _shutdown */
@@ -253,7 +254,8 @@ ngx_stream_brix_init_process(ngx_cycle_t *cycle)
             continue;
         }
 
-        if ((xcf->auth == BRIX_AUTH_GSI || xcf->auth == BRIX_AUTH_BOTH)
+        if ((xcf->auth == BRIX_AUTH_GSI || xcf->auth == BRIX_AUTH_BOTH
+             || brix_protbind_any_names(xcf->protbind, BRIX_AUTH_GSI))
             && gsi_xcf == NULL)
         {
             /* Phase 33: warm the GSI DH key pool below — keypool sizing +

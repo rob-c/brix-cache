@@ -3,6 +3,7 @@
 #include "protocols/root/session/registry.h"
 #include "auth/crypto/ocsp.h"
 #include "auth/crypto/gsi_verify.h"
+#include "auth/protbind/protbind.h"
 #include <openssl/err.h>
 #include <openssl/pem.h>
 
@@ -129,37 +130,36 @@ brix_gsi_complete_auth(brix_ctx_t *ctx, ngx_connection_t *c,
  *
  * HOW:  `name` is the wire credential tag; only the first `cmp_len` of the
  *       4 wire bytes are significant (3-char tags accept any 4th byte, the
- *       stock-client behavior). `mode`/`mode_alt` are the brix_auth modes
- *       that admit the protocol (equal when only one mode does); `deny_msg`
- *       is the kXR_NotAuthorized text when the mode is off. `handler` is the
+ *       stock-client behavior). `proto` is the BRIX_AUTH_* id the resolved
+ *       protbind set must contain for the protocol to be admitted; `deny_msg`
+ *       is the kXR_NotAuthorized text when it is not bound. `handler` is the
  *       protocol's own kXR_auth handler; NULL marks the GSI row, whose step
  *       machine lives in this file (routing falls through to the caller).
  */
 typedef struct {
     const char  *name;                       /* credtype tag ("ztn", ...)   */
     size_t       cmp_len;                    /* significant tag bytes (3|4) */
-    ngx_uint_t   mode;                       /* admitting BRIX_AUTH_* mode  */
-    ngx_uint_t   mode_alt;                   /* second admitting mode       */
-    const char  *deny_msg;                   /* error when mode is off      */
+    ngx_uint_t   proto;                      /* BRIX_AUTH_* id to admit     */
+    const char  *deny_msg;                   /* error when not bound        */
     ngx_int_t  (*handler)(brix_ctx_t *ctx, ngx_connection_t *c,
                           ngx_stream_brix_srv_conf_t *conf);
 } gsi_auth_cred_route_t;
 
 /* Match order is load-bearing: it mirrors the original check ladder. */
 static const gsi_auth_cred_route_t  gsi_auth_cred_routes[] = {
-    { "ztn",  3, BRIX_AUTH_TOKEN, BRIX_AUTH_BOTH, "token auth not enabled",
+    { "ztn",  3, BRIX_AUTH_TOKEN, "token auth not enabled",
       brix_handle_token_auth },
-    { "sss",  3, BRIX_AUTH_SSS,   BRIX_AUTH_SSS,  "SSS auth not enabled",
+    { "sss",  3, BRIX_AUTH_SSS,   "SSS auth not enabled",
       brix_handle_sss_auth },
-    { "unix", 4, BRIX_AUTH_UNIX,  BRIX_AUTH_UNIX, "unix auth not enabled",
+    { "unix", 4, BRIX_AUTH_UNIX,  "unix auth not enabled",
       brix_handle_unix_auth },
-    { "krb5", 4, BRIX_AUTH_KRB5,  BRIX_AUTH_KRB5, "krb5 auth not enabled",
+    { "krb5", 4, BRIX_AUTH_KRB5,  "krb5 auth not enabled",
       brix_handle_krb5_auth },
-    { "host", 4, BRIX_AUTH_HOST,  BRIX_AUTH_HOST, "host auth not enabled",
+    { "host", 4, BRIX_AUTH_HOST,  "host auth not enabled",
       brix_handle_host_auth },
-    { "pwd",  4, BRIX_AUTH_PWD,   BRIX_AUTH_PWD,  "pwd auth not enabled",
+    { "pwd",  4, BRIX_AUTH_PWD,   "pwd auth not enabled",
       brix_handle_pwd_auth },
-    { "gsi",  3, BRIX_AUTH_GSI,   BRIX_AUTH_BOTH, "GSI auth not enabled",
+    { "gsi",  3, BRIX_AUTH_GSI,   "GSI auth not enabled",
       NULL },
 };
 
@@ -171,15 +171,18 @@ static const gsi_auth_cred_route_t  gsi_auth_cred_routes[] = {
  *       Isolating the routing keeps the dispatcher a pure step machine.
  *
  * HOW:  Reads the credtype from the wire, walks gsi_auth_cred_routes in
- *       order, enforces the configured auth mode (deny → kXR_NotAuthorized
+ *       order, enforces the peer's resolved protbind set (not bound → deny
  *       with the row's message), and invokes the row handler. Unknown tags
  *       are logged (sanitized) and denied. Returns NGX_DONE with *out_rc set
  *       to the final result, or NGX_OK when the credtype is GSI and GSI auth
- *       is enabled (the caller runs the GSI steps).
+ *       is bound (the caller runs the GSI steps).  Enforcing membership here
+ *       — rather than trusting what kXR_login advertised — is what makes the
+ *       binding a gate: a client may send any credtype it likes.
  */
 static ngx_int_t
 gsi_auth_route_credtype(brix_ctx_t *ctx, ngx_connection_t *c,
-                        ngx_stream_brix_srv_conf_t *conf, ngx_int_t *out_rc)
+                        ngx_stream_brix_srv_conf_t *conf,
+                        const brix_protbind_set_t *bound, ngx_int_t *out_rc)
 {
     char        credtype[5];
     char        safe_credtype[32];
@@ -204,9 +207,24 @@ gsi_auth_route_credtype(brix_ctx_t *ctx, ngx_connection_t *c,
             continue;
         }
 
-        if (conf->auth != rt->mode && conf->auth != rt->mode_alt) {
+        if (!brix_protbind_allows(bound, rt->proto)) {
             *out_rc = brix_send_error(ctx, c, kXR_NotAuthorized,
                                         rt->deny_msg);
+            return NGX_DONE;
+        }
+
+        /* ztn is a bearer token: on a cleartext connection it is replayable
+         * by any on-path observer, so stock XRootD refuses it there.  The
+         * cleartext login sec token already dropped ztn (session/login.c),
+         * but a client may send any credtype it likes — this is the gate
+         * that makes the policy real.  brix_ztn_cleartext on is the
+         * explicit lab/test opt-in. */
+        if (rt->proto == BRIX_AUTH_TOKEN && !conf->ztn_cleartext
+            && (c->ssl == NULL || c->ssl->connection == NULL))
+        {
+            *out_rc = brix_send_error(ctx, c, kXR_TLSRequired,
+                                        "ztn credential requires a "
+                                        "TLS-encrypted connection");
             return NGX_DONE;
         }
 
@@ -284,6 +302,7 @@ static ngx_int_t
 brix_handle_auth_inner(brix_ctx_t *ctx, ngx_connection_t *c)
 {
     ngx_stream_brix_srv_conf_t *conf;
+    brix_protbind_set_t           bound;
     uint32_t                      gsi_step;
     ngx_int_t                     rc;
 
@@ -295,13 +314,19 @@ brix_handle_auth_inner(brix_ctx_t *ctx, ngx_connection_t *c)
     conf = ngx_stream_get_module_srv_conf(ctx->session,
                                           ngx_stream_brix_module);
 
-    if (conf->auth == BRIX_AUTH_NONE) {
+    /* Re-resolve rather than caching the login-time verdict on the session:
+     * the inputs (config, peer address, cached hostname) cannot change within
+     * a connection, so the result is identical and no per-connection state is
+     * added to carry it. */
+    brix_protbind_resolve_ctx(ctx, c, conf->protbind, conf->auth, &bound);
+
+    if (!bound.require_auth) {
         ctx->login.auth_done = 1;
         return brix_send_ok(ctx, c, NULL, 0);
     }
 
     rc = NGX_ERROR;
-    if (gsi_auth_route_credtype(ctx, c, conf, &rc) == NGX_DONE) {
+    if (gsi_auth_route_credtype(ctx, c, conf, &bound, &rc) == NGX_DONE) {
         return rc;
     }
 

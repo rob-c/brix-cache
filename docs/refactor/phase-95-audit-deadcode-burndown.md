@@ -5,8 +5,8 @@ dead code) and §9.3 (stale docs). Five scoped workstreams, all owner-selected:
 
 | WS | Item | Verdict |
 |----|------|---------|
-| W1 | Dormant HTTP redirect path (`xrdhttp_send_redirect`, zero call sites) | **REMOVE** |
-| W2 | Unwired throttle engines (max_active_connections, userconfig INI, IO-load) | **WIRE UP** (recommended; per-engine detail below) |
+| W1 | Dormant HTTP redirect path (`xrdhttp_send_redirect`, zero call sites) | **REMOVE** — ✅ **DONE 2026-08-05** |
+| W2 | Unwired throttle engines (max_active_connections, userconfig INI, IO-load) | ~~**WIRE UP** (recommended)~~ → OP chose the documented **deletion variant** — ✅ **DONE 2026-08-05** |
 | W3 | xrdfs multi-path commands silently act on last path only | **WIRE UP** multi-path properly; hard-error where single-path |
 | W4 | Preload `fill_stat` under-filled duplicate of `posix_map.c` helper | **FIX** (delete duplicate, call shared helper) |
 | W5 | `xrootdfs_usage.c:46-47` claims utimens/chown/symlink unsupported — they are implemented | **FIX** usage text |
@@ -46,7 +46,7 @@ scaffolding provides. Keeping never-called code contradicts the repo's dead-code
 posture (same class as the §9.2 findings). Removal loses nothing: the function is
 in git history if a future phase wants the header-emission shape back.
 
-### Steps
+### Steps (all done 2026-08-05)
 1. Delete `xrdhttp_send_redirect` + the three redirect-only statics from
    `xrdhttp_response.c`. Check `loc_buf` constants (`XRDHTTP_TPC_URL_MAX`,
    `XRDHTTP_OPAQUE_MAX`) — if the last users in this TU go away, drop the
@@ -93,7 +93,34 @@ Four engines share the file; only one is alive:
 Upstream contract being reproduced: XrdThrottle `throttle.max_conn`,
 `throttle.userconfig`, and the `-concurrency` IO-service-time load metric.
 
-### Recommendation
+### Outcome (2026-08-05) — deletion variant taken
+OP directed "remove all now orphaned code", which selects the fallback this
+section already spells out.  All three engines are **deleted**, not wired:
+
+- directive `brix_throttle_max_active_connections` + `throttle.max_active_conn`
+  (declaration in `conf_structs.h`, init in `server_conf.c`, merge in
+  `server_conf_merge_security.c`, table entry in `directives_auth.inc`),
+- `brix_throttle_userconfig_load`/`_match`, `brix_throttle_uc_t`,
+  `brix_throttle_uc_rule_t`, `BRIX_THROTTLE_MAX_UC_RULES` and the `uc_kv` INI
+  callback (which was the file's only reason to include `auth/token/ini.h`),
+- `brix_throttle_charge_io`/`brix_throttle_ioload_over` and the `io_time_us` /
+  `io_window` fields they were the only readers of in `brix_rl_node_t`.
+
+`brix_throttle_open_inc`/`_dec` and `throttle_node_locked` stay: that engine has
+real admission points.  Removing the SHM node fields is a struct-layout change,
+so it landed with a clean addon rebuild (`struct_field_abi_clean_rebuild`).
+
+**Removing the directive is a deliberate config-surface break.**  A config that
+still sets `brix_throttle_max_active_connections` now fails `nginx -t` with
+"unknown directive" instead of silently ignoring a cap the admin believes is
+enforced — failing loudly is the safer of the two for a security control.  No
+in-repo config, fleet spec or test used it.
+
+Regression pin: `tests/test_deadcode_removed.py` fails if any removed symbol
+returns as code (comments naming it are allowed), and separately asserts the
+surviving open-files cap still has its charge and both release call sites.
+
+### Original recommendation (not taken)
 Wire all three. They are small, already unit-shaped, and complete the
 XrdThrottle contract the file's own header promises; parity audit §8 counts them
 as gaps either way, and `source-verified-xrootd-comparison.md:265` currently
@@ -317,6 +344,11 @@ against the text regressing when usage is next edited.)
 Usage/man text matches the ops tables; audit updated.
 
 ---
+
+## Status 2026-08-05
+
+W1 and W2 are **done** (W2 by deletion — see its Outcome section).  W3, W4 and
+W5 are untouched and remain the open half of this phase.
 
 ## Ordering & risk
 

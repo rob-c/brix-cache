@@ -173,6 +173,15 @@ ngx_command_t ngx_http_brix_webdav_commands[] = {
       0,
       NULL },
 
+    /* Per-host credential-source binding (XRootD sec.protbind), shared grammar
+     * with the stream-side brix_protbind. */
+    { ngx_string("brix_webdav_protbind"),
+      NGX_HTTP_LOC_CONF | NGX_CONF_2MORE,
+      webdav_conf_protbind,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      0,
+      NULL },
+
     { ngx_string("brix_webdav_crl"),
       NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
       ngx_conf_set_str_slot,

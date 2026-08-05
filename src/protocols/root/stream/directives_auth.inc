@@ -15,6 +15,16 @@
       offsetof(ngx_stream_brix_srv_conf_t, auth),
       brix_auth_modes },
 
+    /* Per-host refinement of brix_auth (XRootD sec.protbind): binds an ordered
+     * list of auth protocols to a host template.  Repeatable; first matching
+     * template wins, so the `*` catch-all goes last. */
+    { ngx_string("brix_protbind"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_2MORE,
+      brix_conf_set_protbind,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      0,
+      NULL },
+
     /* The next three directives are only consumed when brix_auth=gsi. */
     /* PEM file containing the server certificate presented during GSI auth. */
     { ngx_string("brix_certificate"),
@@ -281,12 +291,10 @@
       offsetof(ngx_stream_brix_srv_conf_t, throttle.max_open_files),
       NULL },
 
-    { ngx_string("brix_throttle_max_active_connections"),
-      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
-      ngx_conf_set_num_slot,
-      NGX_STREAM_SRV_CONF_OFFSET,
-      offsetof(ngx_stream_brix_srv_conf_t, throttle.max_active_conn),
-      NULL },
+    /* NOTE: `brix_throttle_max_active_connections` was removed in phase-95.  It
+     * parsed and merged cleanly but had zero readers, so it silently enforced
+     * nothing while reading like a security cap.  Reintroduce it only together
+     * with its admission point. */
 
     /* phase-92: XrdBwm-style read-bandwidth reservation (default off). The zone
      * names a per-worker byte budget; a read open reserves its file size and is

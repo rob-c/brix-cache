@@ -190,7 +190,11 @@ The server reply (`ServerResponseBody_Protocol`, `XProtocol.hh:1233-1237`) is
   (`protocol.c:116-132`): always `kXR_isServer`; `kXR_isManager` when
   `manager_map`/`manager_mode` is configured (and `kXR_attrSuper`/`kXR_attrVirtRdr`
   in the corresponding modes); and `kXR_haveTLS | kXR_gotoTLS | kXR_tlsLogin` when
-  it offers TLS.
+  it offers TLS, plus the `kXR_tlsSess`/`kXR_tlsData`/`kXR_tlsTPC` (and
+  redundant `kXR_tlsLogin`) requirement bits for whatever `brix_tls_require`
+  mask the listener enforces — the stock `xrootd.tls` per-capability policy,
+  enforced pre-dispatch with `kXR_TLSRequired` refusals
+  (`src/fs/vfs/vfs_secgate.c`, `handshake/policy.c`).
 - **TLS negotiation**: `offer_tls` is true when `conf->tls && tls_ctx` and the
   client set `kXR_ableTLS | kXR_wantTLS` (`protocol.c:80-83`). If the client
   *demands* TLS (`kXR_wantTLS`) but the server has none configured, the request is
@@ -285,7 +289,7 @@ tables in `src/protocols/root/handshake/dispatch_*.c`.
 | 3026 | `kXR_pgwrite` | `do_PgWrite`/`do_PgWIO` | `write/pgwrite.c` (`handle_pgwrite`) | yes | `fhandle+offset+pathid+reqflags`; per-page CRC32c, `kXR_ChkSumErr` on mismatch. Write-gated. |
 | 3027 | `kXR_locate` | `do_Locate` | `read/locate.c` (`handle_locate`) | yes | `options[2]`; host:port replica list. Consults `manager_map`. |
 | 3028 | `kXR_truncate` | `do_Truncate` | `write/truncate.c` (`handle_truncate`) | yes | `fhandle+offset` (by handle or by path). Write-gated. |
-| 3029 | `kXR_sigver` | `ProcSig` (not a `do_*`) | `session/signing.c` (`handle_sigver`) | yes | Request **prefix**: **no response on success** (fix #1/bug #1); `expectrid+version+flags+seqno+crypto`; HMAC-SHA256, monotonic seqno, `kXR_SigVerErr` on failure. |
+| 3029 | `kXR_sigver` | `ProcSig` (not a `do_*`) | `session/signing.c` (`handle_sigver`) | yes | Request **prefix**: **no response on success** (fix #1/bug #1); `expectrid+version+flags+seqno+crypto`; secver-0 (session-cipher-encrypted SHA-256), monotonic seqno, `kXR_SigVerErr` on failure. |
 | 3030 | `kXR_pgread` | `do_PgRead`/`do_PgRIO` | `read/pgread.c` (`handle_pgread`) | yes | `fhandle+offset+rlen`; `kXR_status(4007)` framing + per-page CRC32c; gapped in-place `preadv` layout. |
 | 3031 | `kXR_writev` | `do_WriteV`/`do_WriteVec` | `write/writev.c` (`handle_writev`) | yes | `options` + `write_list[]`; optional `doSync`. All fhandles validated before any write. Write-gated. |
 | 3032 | `kXR_clone` | `do_Clone` | `read/clone.c` (`handle_clone`) | yes | `dst fhandle` + `clone_list[]` (32-byte items); server-side range copy (v5.2.0). |

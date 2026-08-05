@@ -14,6 +14,7 @@ follow the section. Postmortems linked where they exist.
 | Manual TPC / fleet dead right after a pytest run | is the fleet still up? | [§6](#6-fleet-gone-after-a-pytest-run) |
 | Module directives rejected / behavior missing after a build | `objs/nginx -V` output | [§7](#7-configure-silently-built-a-bare-nginx) |
 | Connection refused on a test port | the ports registry | [§8](#8-connection-refused-on-a-test-port) |
+| One instance: every create/write op returns `kXR_NotFound`, reads fine | `ss -ltnp \| grep <port>` — is an orphan holding it? | [§8b](#8b-port-squatter-a-dedicated-instance-answers-with-stale-storage) |
 | Auth failures (GSI/token) | cert dates / CA config shape | [§9](#9-auth-failures) |
 | (any of the above) | debug tooling quick reference | [§10](#10-debug-tooling-quick-reference) |
 
@@ -159,6 +160,44 @@ serves, which auth), then:
 ss -tlnp | grep <port>                     # is anything listening?
 tests/manage_test_servers.sh start-all     # bring the fleet up
 tail -50 /tmp/xrd-test/logs/error.log      # if it should be up but isn't
+```
+
+## 8b. Port squatter: a dedicated instance answers with stale storage
+
+**What you see:** on one dedicated instance, every *write/create* case fails
+with `kXR_NotFound` (3011) while read-only cases on the same port pass — e.g.
+`test_open_flags_lifecycle.py` failing 8/12 on create/truncate/append/mkpath/
+POSC/exhaustion. The tests seed their files on disk and can `ls` them, so the
+data root plainly exists.
+
+**Root cause (seen 2026-08-05):** an *orphaned worker* from an earlier fleet
+(master gone, so PPID is the reaper, and `stop-all`/the pidfile can no longer
+reach it) still holds the port. `start-dedicated`/`start-all` therefore never
+binds — its own `logs/error.log` says `bind() … Address already in use` — and
+the client talks to the old worker, which resolves the export through the root
+descriptor it opened before teardown `rmtree`'d and recreated the data root.
+That descriptor points at the deleted inode, so every path under it is ENOENT.
+Nothing is wrong with the code under test; the run is talking to a ghost.
+
+**Check:**
+
+```bash
+ss -ltnp | grep <port>                                   # who really holds it
+ps -o pid,ppid,lstart,args -p <pid>                      # PPID != the fleet master => orphan
+tail -5 /tmp/xrd-test/registry/<instance>/logs/error.log # "Address already in use"
+```
+
+**Fix:** kill the orphan (`kill <pid>`; `pkill -9 nginx` if you own the whole
+box) and `python3 -m cmdscripts.manage_test_servers start-dedicated <instance>`.
+If you cannot kill it — another user/session owns it, or the environment blocks
+it — every dedicated port comes from a `TEST_*_PORT` env var read by both
+`settings.py` and `fleet_specs.py`, so relaunch onto a free port and run the
+module with the same variable exported, no code change needed:
+
+```bash
+export TEST_OPEN_FLAGS_LIFECYCLE_NGINX_PORT=12981
+python3 -m cmdscripts.manage_test_servers start-dedicated open-flags-lifecycle
+PYTHONPATH=. python3 -m pytest test_open_flags_lifecycle.py -q
 ```
 
 ## 9. Auth failures

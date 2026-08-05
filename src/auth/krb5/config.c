@@ -1,4 +1,5 @@
 #include "core/config/config.h"
+#include "auth/protbind/protbind.h"   /* brix_protbind_any_names */
 #include "core/compat/log_diag.h"
 
 /*
@@ -284,7 +285,11 @@ brix_configure_krb5_auth(ngx_conf_t *cf,
 #if (BRIX_HAVE_KRB5)
     ngx_int_t  rc;
 
-    if (xcf->auth != BRIX_AUTH_KRB5) {
+    /* Also load when a brix_protbind rule can select krb5 (see
+     * brix_protbind_any_names). */
+    if (xcf->auth != BRIX_AUTH_KRB5
+        && !brix_protbind_any_names(xcf->protbind, BRIX_AUTH_KRB5))
+    {
         return NGX_OK;
     }
 
@@ -317,7 +322,9 @@ brix_configure_krb5_auth(ngx_conf_t *cf,
 
     return NGX_OK;
 #else
-    if (xcf->auth == BRIX_AUTH_KRB5) {
+    if (xcf->auth == BRIX_AUTH_KRB5
+        || brix_protbind_any_names(xcf->protbind, BRIX_AUTH_KRB5))
+    {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
                            "brix_auth krb5 requested, but this build "
                            "was configured without Kerberos 5 support");

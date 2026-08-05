@@ -13,7 +13,7 @@ from pathlib import Path
 
 import pytest
 
-from settings import XRDCP_BIN
+from settings import XRDCP_BIN, XRDFS_BIN
 from official_interop_lib import worker_prefix
 
 
@@ -213,6 +213,34 @@ def test_xrdcp_streams_uses_secondary_bind_and_round_trips(test_env, tmp_path):
         "xrdcp --streams completed without any kXR_bind access-log entries; "
         "the transfer may have fallen back to a single primary connection.\n"
         f"access log tail:\n{_tail_access_log(test_env)}"
+    )
+
+
+def test_qconfig_advertises_substreams_capability(test_env):
+    """BriX must answer kXR_Qconfig "brix.substreams" with the "=rw" marker.
+
+    The native client's brix_streams_open() keeps its kXR_bind secondaries
+    only when this marker is present: stock servers echo an unknown key back
+    bare (the do_Qconf convention) and treat bound paths as pathid-directed
+    data channels, never answering a full request frame sent there — so the
+    client must fall back to primary-only against them.  Losing this
+    advertisement would silently degrade every --streams transfer to a single
+    connection.
+    """
+    if shutil.which(XRDFS_BIN) is None:
+        pytest.skip(f"{XRDFS_BIN} not found on PATH")
+
+    proc = subprocess.run(
+        [XRDFS_BIN, test_env["anon_url"], "query", "config", "brix.substreams"],
+        env=_anon_env(),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        timeout=60,
+    )
+    assert proc.returncode == 0, proc.stderr.decode(errors="replace")
+    out = proc.stdout.decode(errors="replace")
+    assert "brix.substreams=rw" in out, (
+        f"expected the brix.substreams=rw capability marker, got: {out!r}"
     )
 
 

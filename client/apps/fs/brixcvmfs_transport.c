@@ -182,10 +182,17 @@ static CURLcode http_get_range(CURL **slot, const char *proxy, const char *url,
      * The CAS layer hash-verifies content so a wrong body is caught, but that is
      * no help if the redirect makes libcurl read a LOCAL file or poke an
      * internal service in the first place: confine the scheme up front and cap
-     * the chain so a redirect loop can't wedge the mount either. Bitmask form
-     * (not the 7.85+ *_STR opts) for alma8-era libcurl portability. */
+     * the chain so a redirect loop can't wedge the mount either. The *_STR opts
+     * exist only from 7.85 (and the bitmask form is deprecated there), so gate
+     * on the header version — an enum option name is not #ifdef-able — keeping
+     * alma8-era libcurl portability. */
+#if CURL_AT_LEAST_VERSION(7, 85, 0)
+    curl_easy_setopt(c, CURLOPT_PROTOCOLS_STR, "http,https");
+    curl_easy_setopt(c, CURLOPT_REDIR_PROTOCOLS_STR, "http,https");
+#else
     curl_easy_setopt(c, CURLOPT_PROTOCOLS, (long)(CURLPROTO_HTTP | CURLPROTO_HTTPS));
     curl_easy_setopt(c, CURLOPT_REDIR_PROTOCOLS, (long)(CURLPROTO_HTTP | CURLPROTO_HTTPS));
+#endif
     curl_easy_setopt(c, CURLOPT_MAXREDIRS, 4L);
     /* TLS is defence-in-depth here (CVMFS content self-authenticates), but when
      * a user asks for -o tls we must fail CLOSED against a MITM / intercepting
@@ -461,10 +468,15 @@ int bundle_http_post(const char *proxy, const char *host,
         curl_easy_setopt(c, CURLOPT_LOW_SPEED_TIME, g_tcfg.low_speed_time_s);
         curl_easy_setopt(c, CURLOPT_FOLLOWLOCATION, 0L);   /* no redirected POSTs */
         curl_easy_setopt(c, CURLOPT_FAILONERROR, 1L);
+#if CURL_AT_LEAST_VERSION(7, 85, 0)
+        curl_easy_setopt(c, CURLOPT_PROTOCOLS_STR, "http,https");
+        curl_easy_setopt(c, CURLOPT_REDIR_PROTOCOLS_STR, "http,https");
+#else
         curl_easy_setopt(c, CURLOPT_PROTOCOLS,
                          (long) (CURLPROTO_HTTP | CURLPROTO_HTTPS));
         curl_easy_setopt(c, CURLOPT_REDIR_PROTOCOLS,
                          (long) (CURLPROTO_HTTP | CURLPROTO_HTTPS));
+#endif
         curl_easy_setopt(c, CURLOPT_RESUME_FROM_LARGE, (curl_off_t) 0);
         char sch[8], thost[256]; int tport;
         url_host(url, sch, sizeof(sch), thost, sizeof(thost), &tport);

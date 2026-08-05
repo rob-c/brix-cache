@@ -25,12 +25,18 @@ jobs:
       - name: client build coverage — every client/shared .c built or reasoned
         if: '!cancelled()'
         run: tools/ci/check_client_build_coverage.py
+      - name: make recipes — one target, one recipe
+        if: '!cancelled()'
+        run: tools/ci/check_make_recipes.py
       - name: vfs seam — no new storage-plane bypasses
         if: '!cancelled()'
         run: tools/ci/check_vfs_seam.py
       - name: http helper reimplementation
         if: '!cancelled()'
         run: tools/ci/check_http_helper_reimpl.py
+      - name: curl enum ifdef — no preprocessor tests on CURLOPT_/CURLINFO_ names
+        if: '!cancelled()'
+        run: tools/ci/check_curl_enum_ifdef.py
       - name: auth verdict sentinel — no unsanctioned auth_done setters (C-3)
         if: '!cancelled()'
         run: tools/ci/check_auth_verdict_sentinel.py
