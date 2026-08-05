@@ -33,10 +33,56 @@ static int raw_fetch(cvmfs_client_t *cl, const char *rel,
     return -1;
 }
 
-/* Fetch a CAS object's verified plaintext into a freshly malloc'd buffer. */
+/* Grow the transport landing buffer to hold `need` STORED bytes.
+ *
+ * Never shrinks: a mount that has already paid for a large object keeps the
+ * buffer for the next one, so a read-heavy workload allocates once. Refuses
+ * anything past the shared ceiling rather than trusting a size that ultimately
+ * comes from catalog metadata — the catalog is signature-verified, but a bound
+ * here keeps a bogus size field from turning into an unbounded allocation. */
+static int scratch_ensure(cvmfs_client_t *cl, size_t need)
+{
+    if (need > CVMFS_OBJECT_STORED_BOUND(CVMFS_OBJECT_MAX_BYTES)) return -1;
+
+    if (cl->scratch == NULL || cl->scratch_cap < need) {
+        unsigned char *grown = realloc(cl->scratch, need);
+        if (grown == NULL) return -1;
+        cl->scratch     = grown;
+        cl->scratch_cap = need;
+    }
+
+    /* Republish unconditionally, not just after a grow: cvmfs_client_mount()
+     * memsets cl->fetch, so a re-mount that reuses an already-large buffer
+     * would otherwise leave fetch.scratch NULL. */
+    cl->fetch.scratch     = cl->scratch;      /* fetch borrows, does not own */
+    cl->fetch.scratch_cap = cl->scratch_cap;
+    return 0;
+}
+
+int cvmfs_client_scratch_reserve(cvmfs_client_t *cl, size_t plain_bytes)
+{
+    size_t cap = plain_bytes ? plain_bytes : (size_t) CVMFS_OBJECT_DEFAULT_BYTES;
+    if (cap > (size_t) CVMFS_OBJECT_MAX_BYTES) return -1;
+    return scratch_ensure(cl, CVMFS_OBJECT_STORED_BOUND(cap));
+}
+
+/* Fetch a CAS object's verified plaintext into a freshly malloc'd buffer.
+ *
+ * `plain_hint` is the object's plaintext size when the caller knows it (file
+ * size for a whole-file object, chunk size for a 'P' chunk) and 0 when it does
+ * not (catalogs). Sizing from the hint is what lets a file of ANY publisher-
+ * legal size be read: both this plaintext buffer and the compressed landing
+ * buffer are fitted to the object instead of to a fixed constant. */
 static unsigned char *fetch_cas(cvmfs_client_t *cl, const cvmfs_hash_t *h, char suffix,
-                                size_t *outlen, long now) {
-    size_t cap = 16u * 1024u * 1024u;
+                                size_t plain_hint, size_t *outlen, long now) {
+    size_t cap = plain_hint ? plain_hint : (size_t) CVMFS_OBJECT_DEFAULT_BYTES;
+    if (cap > (size_t) CVMFS_OBJECT_MAX_BYTES) cap = (size_t) CVMFS_OBJECT_MAX_BYTES;
+
+    /* The STORED form can exceed the plaintext (incompressible input deflates
+     * to slightly more than it started), so the landing buffer is sized by the
+     * compression bound, not by `cap`. */
+    if (scratch_ensure(cl, CVMFS_OBJECT_STORED_BOUND(cap)) != 0) return NULL;
+
     unsigned char *buf = malloc(cap);
     if (buf == NULL) return NULL;
     if (cvmfs_fetch_object(&cl->fetch, h, suffix, buf, cap, outlen, now) != 0) {
@@ -51,7 +97,7 @@ static cvmfs_catalog_t *open_catalog_by_hash(cvmfs_client_t *cl, const cvmfs_has
                                              const char *tmp_dir, char *tmp_out,
                                              size_t tmp_out_sz, long now) {
     size_t         n = 0;
-    unsigned char *db = fetch_cas(cl, h, 'C', &n, now);
+    unsigned char *db = fetch_cas(cl, h, 'C', 0 /*size unknown*/, &n, now);
     if (db == NULL) return NULL;
 
     snprintf(tmp_out, tmp_out_sz, "%s/brixcvmfs.cat.%d.XXXXXX", tmp_dir, (int) getpid());
@@ -251,7 +297,7 @@ static int load_trust_and_catalog(cvmfs_client_t *cl, long now,
 
     /* 3. signing cert: fetch CAS object ('X'), check fingerprint ∈ whitelist. */
     size_t certn = 0;
-    unsigned char *cert = fetch_cas(cl, &m->certificate, 'X', &certn, now);
+    unsigned char *cert = fetch_cas(cl, &m->certificate, 'X', 0 /*small*/, &certn, now);
     if (cert == NULL) return -8;
     char fp[64];
     int fp_ok = cvmfs_cert_fingerprint(cert, certn, fp, sizeof(fp)) == 0
@@ -380,8 +426,13 @@ int cvmfs_client_mount(cvmfs_client_t *cl, const char *repo_name,
     cl->fetch.transport = transport;
     cl->fetch.transport_ud = ud;
     cl->fetch.store_form = CVMFS_STORE_COMPRESSED;
-    cl->fetch.scratch = cl->scratch;
-    cl->fetch.scratch_cap = sizeof(cl->scratch);
+    /* Start at the default and let scratch_ensure() grow it per object. Note
+     * this runs AFTER the memset of cl->fetch above, so the borrowed pointer is
+     * (re)published here on every mount. */
+    if (scratch_ensure(cl, CVMFS_OBJECT_STORED_BOUND(CVMFS_OBJECT_DEFAULT_BYTES)) != 0) {
+        brix_cas_destroy(&cl->cache);
+        return -1;
+    }
 
     /* Retry the whole trust chain, not just transport faults: the whitelist and
      * manifest are authenticated by SIGNATURE (not content hash), so a corrupted-
@@ -475,6 +526,12 @@ void cvmfs_client_umount(cvmfs_client_t *cl) {
         if (cl->root_catalog_tmp[0]) unlink(cl->root_catalog_tmp);
     }
     brix_cas_destroy(&cl->cache);
+
+    free(cl->scratch);
+    cl->scratch = NULL;
+    cl->scratch_cap = 0;
+    cl->fetch.scratch = NULL;
+    cl->fetch.scratch_cap = 0;
 }
 
 /* ---- read -------------------------------------------------------------- */
@@ -482,7 +539,7 @@ void cvmfs_client_umount(cvmfs_client_t *cl) {
 static int read_whole(cvmfs_client_t *cl, const cvmfs_dirent_t *e, uint64_t offset,
                       size_t len, unsigned char *buf, size_t *outlen, long now) {
     size_t         n = 0;
-    unsigned char *data = fetch_cas(cl, &e->hash, 0, &n, now);
+    unsigned char *data = fetch_cas(cl, &e->hash, 0, (size_t) e->size, &n, now);
     if (data == NULL) return -1;
     size_t avail = offset >= n ? 0 : n - (size_t) offset;
     size_t give  = len < avail ? len : avail;
@@ -505,7 +562,7 @@ static void chunk_read_cb(uint64_t coff, uint64_t csize, const cvmfs_hash_t *h, 
     if (cend <= r->offset || coff >= rend) return;          /* no overlap */
 
     size_t         cn = 0;
-    unsigned char *cd = fetch_cas(r->cl, h, 'P', &cn, r->now);
+    unsigned char *cd = fetch_cas(r->cl, h, 'P', (size_t) csize, &cn, r->now);
     if (cd == NULL) { r->err = 1; return; }
 
     uint64_t from = r->offset > coff ? r->offset : coff;

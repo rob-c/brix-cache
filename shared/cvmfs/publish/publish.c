@@ -543,6 +543,10 @@ int cvmfs_publish_run(const cvmfs_publish_opts_t *o, const cvmfs_changeset_t *cs
     px.chunk_size = o->chunk_size != 0 ? o->chunk_size : CVMFS_PUBLISH_CHUNK_DEFAULT;
     if (px.chunk_size < CVMFS_PUBLISH_CHUNK_FLOOR)
         return pub_fail(&px, "chunk size below the 4096-byte floor%s", "");
+    if (px.chunk_size > CVMFS_PUBLISH_CHUNK_CEIL)
+        return pub_fail(&px, "chunk size above the %ld-byte ceiling "
+                             "(a larger object cannot be read back)",
+                        CVMFS_PUBLISH_CHUNK_CEIL);
     snprintf(px.workdir, sizeof(px.workdir), "%s/.brix.publish.tmp", o->repo_dir);
     if (mkdir(px.workdir, 0755) != 0 && errno != EEXIST)
         return pub_fail(&px, "cannot create %s", px.workdir);

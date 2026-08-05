@@ -20,9 +20,16 @@
 
 #include <stddef.h>
 #include "cvmfs/publish/changeset.h"
+#include "cvmfs/object/object.h"
 
 #define CVMFS_PUBLISH_CHUNK_DEFAULT (32L * 1024 * 1024)
 #define CVMFS_PUBLISH_CHUNK_FLOOR   4096L
+
+/* Upper bound on --chunk-size, pinned to what a client can land in memory for
+ * a single object. Publishing above it would produce a repository whose own
+ * client reads it back as EIO, so it is refused at publish time rather than
+ * discovered at read time. Raise CVMFS_OBJECT_MAX_BYTES to raise this. */
+#define CVMFS_PUBLISH_CHUNK_CEIL    ((long) CVMFS_OBJECT_MAX_BYTES)
 
 typedef struct {
     const char *repo_dir;

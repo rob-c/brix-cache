@@ -55,7 +55,20 @@ static int serve_from_cache(brix_cas_store_t *cache, const char *key,
 
     size_t off = 0;
     for (;;) {
-        if (off == outcap) { close(fd); return -3; }     /* out too small */
+        if (off == outcap) {
+            /* Buffer full. That is only "out too small" if bytes REMAIN — an
+             * entry whose size exactly equals outcap is a perfect fit, not an
+             * overflow. Probe one byte to tell the two apart: callers size
+             * `out` to the object's exact plaintext length (the catalog knows
+             * it), so exact-fit is the COMMON case here, and treating it as an
+             * error fails every cached read of a correctly-sized object. */
+            char    probe;
+            ssize_t extra = read(fd, &probe, 1);
+            if (extra < 0 && errno == EINTR) continue;
+            if (extra < 0)  { close(fd); return -1; }
+            if (extra > 0)  { close(fd); return -3; }   /* genuinely too small */
+            break;                                     /* exact fit, at EOF */
+        }
         ssize_t r = read(fd, out + off, outcap - off);
         if (r < 0) { if (errno == EINTR) continue; close(fd); return -1; }
         if (r == 0) break;

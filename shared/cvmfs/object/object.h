@@ -16,6 +16,34 @@
 #include <stddef.h>
 #include "cvmfs/grammar/hash.h"
 
+/* ---- the single-object size contract ------------------------------------
+ *
+ * A CAS object is fetched whole into memory: the compressed bytes land in the
+ * fetch scratch, then inflate into a plaintext buffer. Both buffers are sized
+ * from the object's plaintext size, which the catalog always knows (file size
+ * for a whole-file object, chunk size for a 'P' chunk).
+ *
+ * CVMFS_OBJECT_MAX_BYTES is the ceiling on that allocation, and it is the
+ * SHARED contract between the two sides: the publisher refuses a --chunk-size
+ * above it (CVMFS_PUBLISH_CHUNK_CEIL), so it can never emit an object the
+ * client cannot land. Raising one without the other reintroduces exactly the
+ * failure this constant exists to prevent — a repository whose own client
+ * reads it back as EIO.
+ */
+#define CVMFS_OBJECT_MAX_BYTES     (256u * 1024u * 1024u)
+
+/* Buffer size to use when the plaintext size is not known ahead of the fetch
+ * (catalogs reached without a size column). Grown on demand up to the ceiling. */
+#define CVMFS_OBJECT_DEFAULT_BYTES (16u * 1024u * 1024u)
+
+/* Worst-case STORED size for `n` plaintext bytes. zlib's compressBound plus
+ * slack for the header/trailer: incompressible input (random data, already
+ * compressed payloads) deflates to slightly MORE than it started, which is the
+ * case that overflows a scratch buffer sized naively at the plaintext size. */
+#define CVMFS_OBJECT_STORED_BOUND(n) \
+    ((size_t) (n) + ((size_t) (n) >> 12) + ((size_t) (n) >> 14) \
+     + ((size_t) (n) >> 25) + 128u)
+
 /* Inflate a zlib stream `src`/`srclen` into `dst` (cap `dstcap`); *dstlen gets
  * the plaintext length. Returns 0 on success, -1 on corrupt input / overflow. */
 int cvmfs_object_inflate(const unsigned char *src, size_t srclen,

@@ -79,7 +79,14 @@ typedef struct {
     int                 cache_tiering;
     long                cache_seg_bytes;   /* <=0 = backend default */
 
-    unsigned char       scratch[8u * 1024u * 1024u];   /* transport landing */
+    /* Transport landing buffer for the COMPRESSED bytes of one CAS object.
+     * Heap-allocated and grown on demand to whatever the object being fetched
+     * needs (bounded by CVMFS_OBJECT_MAX_BYTES) — a fixed size here silently
+     * caps the largest readable file, because an object that does not fit is
+     * indistinguishable from a severed transfer and burns the retry budget
+     * before failing the read with EIO. */
+    unsigned char      *scratch;
+    size_t              scratch_cap;
 } cvmfs_client_t;
 
 /* Verify trust + load the root catalog. `master_pub_pem` is the repo master key.
@@ -97,6 +104,14 @@ int cvmfs_client_mount(cvmfs_client_t *cl, const char *repo_name,
                        cvmfs_transport_fn transport, void *ud, long now);
 
 void cvmfs_client_umount(cvmfs_client_t *cl);
+
+/* Ensure the transport landing buffer can hold a CAS object whose PLAINTEXT is
+ * `plain_bytes` (0 = the default size). The read path sizes the buffer itself
+ * per object; this is for callers that drive cvmfs_fetch_object() directly
+ * against cl->fetch — the prewarm and prefetch walks — which would otherwise
+ * inherit whatever the last read happened to leave. Returns 0, or -1 when the
+ * size is past CVMFS_OBJECT_MAX_BYTES or the allocation fails. */
+int cvmfs_client_scratch_reserve(cvmfs_client_t *cl, size_t plain_bytes);
 
 /* Resolve a repo-root-relative path (root = "/") to its dirent, following nested
  * catalog transitions. Returns 1 found, 0 absent, -1 error. */

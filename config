@@ -20,7 +20,23 @@
 # -Wconversion) do not and must stay opt-in (e.g. --with-cc-opt) for module-only audits.
 # Alternatively, pass via:  ./configure ... --with-cc-opt="-D_FORTIFY_SOURCE=2 ..."
 # For full RELRO/BIND_NOW, defaulted below (NGX_LD_OPT); override with --with-ld-opt.
-CFLAGS="$CFLAGS -D_GNU_SOURCE -D_FORTIFY_SOURCE=2 -fstack-protector-strong -fstack-clash-protection -fcf-protection=full -Wformat -Werror=format-security -Wvla -Wstrict-prototypes -Wold-style-definition"
+#
+# _FORTIFY_SOURCE is only added when nothing has defined it already. Ubuntu's
+# nginx is built with -D_FORTIFY_SOURCE=3 in --with-cc-opt, so appending our own
+# -D_FORTIFY_SOURCE=2 puts two conflicting -D flags on one command line — a
+# macro redefinition, which nginx's default -Werror turns into a hard build
+# failure on every translation unit. (Debian/Ubuntu gcc also predefines
+# _FORTIFY_SOURCE=3 at -O1+, but that alone is harmless: the spec backs off as
+# soon as the command line defines the macro itself.) An existing definition is
+# never weaker than 2, so deferring to it loses no hardening.
+brix_fortify_flag="-D_FORTIFY_SOURCE=2"
+if echo | ${CC:-cc} $CFLAGS -dM -E -x c - 2>/dev/null \
+        | grep -q '^#define _FORTIFY_SOURCE '; then
+    brix_fortify_flag=""
+    echo " + xrootd: _FORTIFY_SOURCE already defined (compiler default or --with-cc-opt); not overriding"
+fi
+
+CFLAGS="$CFLAGS -D_GNU_SOURCE $brix_fortify_flag -fstack-protector-strong -fstack-clash-protection -fcf-protection=full -Wformat -Werror=format-security -Wvla -Wstrict-prototypes -Wold-style-definition"
 
 # Additional exploit-mitigation flags that are NOT universally supported by the
 # compiler in $CC, so they are probed one-by-one and appended only when the

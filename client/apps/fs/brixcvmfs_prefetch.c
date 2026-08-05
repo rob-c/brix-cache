@@ -17,6 +17,7 @@
 #include "cvmfs/walk/walk.h"
 #include "cvmfs/bundle/bundle.h"
 #include "brixcvmfs_split.h"
+#include "brixcvmfs_internal.h"
 
 #include <pthread.h>
 #include <stdint.h>
@@ -134,6 +135,19 @@ static void pf_bundle_flush(pf_walk_ud_t *p) {
                 unsigned stored = 0, fb = 0;
                 (void) cvmfs_bundle_ingest(fx, g_pf.resp, rn, &stored, &fb);
             }
+        }
+    }
+
+    /* This loop drives cvmfs_fetch_object directly, so it owns the landing-buffer
+     * sizing the read path does for itself. The batch does not carry per-object
+     * sizes, so reserve once for the largest object the sweep will accept —
+     * prefetch is advisory, and a reserve failure just leaves the batch unfetched. */
+    {
+        cvmfs_client_t *pf_cl = brixcvmfs_client();
+        if (pf_cl == NULL
+            || cvmfs_client_scratch_reserve(pf_cl, BRIX_PF_OBJCAP) != 0) {
+            g_pf.nbatch = 0;
+            return;
         }
     }
 

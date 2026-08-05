@@ -38,6 +38,7 @@ brix_cvmfs_upstream_get(ngx_http_request_t *r,
     ngx_uint_t            i, cap;
     cvmfs_upstream_slot  *s;
     char                  suffix[160];
+    char                  hostz[sizeof(cvmfs_ups[0].host)];
     brix_sd_instance_t *inst;
     int                   n;
 
@@ -64,14 +65,22 @@ brix_cvmfs_upstream_get(ngx_http_request_t *r,
     }
 
     s = &cvmfs_ups[cvmfs_ups_n];
-    ngx_memcpy(s->host, host->data, host->len);
-    s->host[host->len] = '\0';
+
+    /* NUL-terminate into a local first, then copy. Formatting straight from
+     * s->host into s->up_root would pass two members of the SAME object as the
+     * restrict-qualified destination and a source of snprintf; gcc cannot prove
+     * they are disjoint and rejects it under -Wrestrict (fatal at
+     * _FORTIFY_SOURCE>=2 with nginx's -Werror). A separate source object makes
+     * the disjointness structural rather than something to be proved. */
+    ngx_memcpy(hostz, host->data, host->len);
+    hostz[host->len] = '\0';
+    ngx_memcpy(s->host, hostz, host->len + 1);
     s->port = port;
 
     /* Synthetic registry key: ALWAYS per-upstream — each Stratum-1 is a
      * distinct fetch origin (a distinct backend instance). */
     n = snprintf(s->up_root, sizeof(s->up_root), "/#cvmfs-up/%s:%u",
-                 s->host, (unsigned) port);
+                 hostz, (unsigned) port);
     if (n < 0 || (size_t) n >= sizeof(s->up_root)) {
         *status = NGX_HTTP_INTERNAL_SERVER_ERROR;
         return NULL;

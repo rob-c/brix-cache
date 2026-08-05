@@ -7,6 +7,8 @@
 #include "net/cpool.h"
 #include "protocols/http/web_ka.h"
 
+#include <unistd.h>     /* fork/setsid/pipe/dup2 — the daemonize helpers below */
+
 brix_pool *g_pool;
 
 /* Phase-86: pooled keep-alive WebDAV metadata (getattr/readdir) on web mounts.
@@ -114,6 +116,10 @@ static char         g_web_proxy_buf[512];
 const char         *g_web_proxy = NULL;  /* X.509 proxy PEM for davs mutual TLS */
  char         g_base[XRDC_PATH_MAX] = "";  /* URL path prefix (export base) */
 
+/* Defined with the daemonize helpers below; called from xfs_init() so the
+ * launching shell blocks until the mount is actually live. */
+static void xfs_daemon_ready(unsigned char status);
+
 /* Map a FUSE path ("/file") to the server path under the export base. With an
  * empty base the FUSE path is used verbatim; with base "/data" → "/data/file"
  * and "/" → "/data". Shared by BOTH transports (root:// and http/WebDAV) so a
@@ -218,6 +224,12 @@ void *
 xfs_init(struct fuse_conn_info *conn, struct fuse_config *cfg)
 {
     (void) conn;
+    /* The session is up and the mountpoint is live: release the waiting parent
+     * (no-op in the foreground). Doing it HERE rather than before fuse_main()
+     * means `xrootdfs … && ls /mnt` cannot race the mount. If fuse_main fails
+     * before init, the child exits, the pipe closes, and the parent's short
+     * read reports the failure. */
+    xfs_daemon_ready(0);
     cfg->attr_timeout     = g_attr_timeout;
     cfg->entry_timeout    = g_entry_timeout;
     cfg->negative_timeout = g_attr_timeout;
@@ -374,6 +386,115 @@ aio_set_base(const char *path)
 }
 
 
+/* ---- daemonize BEFORE any thread exists --------------------------------- *
+ *
+ * fuse_main() daemonizes by forking, and it does that AFTER the mount helpers
+ * below have built the metadata pool and the async data-stream manager. The
+ * manager owns a pthread (the aio event loop), and threads do NOT survive
+ * fork(): the daemon child inherits the sockets but nobody to drive them, so
+ * metadata still answers (the pool is synchronous on the calling thread) while
+ * the first read() blocks forever in the kernel waiting for a completion that
+ * can never arrive. Forking FIRST and letting the child do the whole setup puts
+ * every thread on the correct side of the fork.
+ *
+ * The parent deliberately does not exit at fork time: it waits for the child to
+ * report the setup outcome over a pipe, so the mount banner and any connect
+ * error still reach the terminal in order, and the shell still sees the real
+ * exit status — both of which a plain fuse_daemonize() would throw away.
+ */
+static int xfs_daemon_pipe = -1;    /* child's write end; -1 = foreground */
+
+/* 1 when the caller already asked FUSE to stay in the foreground. `-d` implies
+ * `-f` in libfuse, and `-o debug`/`-odebug` is the long spelling of `-d`. */
+static int
+xfs_wants_foreground(int fuse_argc, char **fuse_argv)
+{
+    for (int i = 1; i < fuse_argc; i++) {
+        const char *a = fuse_argv[i];
+        if (strcmp(a, "-f") == 0 || strcmp(a, "-d") == 0) return 1;
+        if (strcmp(a, "-odebug") == 0) return 1;
+        if (strcmp(a, "-o") == 0 && i + 1 < fuse_argc
+            && strcmp(fuse_argv[i + 1], "debug") == 0) return 1;
+    }
+    return 0;
+}
+
+/* Fork into the background. Returns 0 in the child (which continues with setup),
+ * never returns in the parent, and returns -1 if the fork itself failed. */
+static int
+xfs_daemonize(void)
+{
+    int fds[2];
+
+    if (pipe(fds) != 0) return -1;
+
+    pid_t pid = fork();
+    if (pid < 0) { close(fds[0]); close(fds[1]); return -1; }
+
+    if (pid > 0) {
+        /* Parent: block until the child reports, then exit with its status. A
+         * short read means the child died before reporting — treat as failure. */
+        unsigned char status = 1;
+        close(fds[1]);
+        ssize_t n = read(fds[0], &status, 1);
+        close(fds[0]);
+        _exit(n == 1 ? (int) status : 1);
+    }
+
+    close(fds[0]);
+    /* Detach from the controlling terminal and the cwd, but KEEP stdio until
+     * xfs_daemon_ready() — that is what carries diagnostics to the user. */
+    if (setsid() == (pid_t) -1) { /* already a leader; harmless */ }
+    if (chdir("/") != 0)         { /* non-fatal */ }
+    xfs_daemon_pipe = fds[1];
+    return 0;
+}
+
+/* Report the setup outcome to the waiting parent and detach stdio. Call exactly
+ * once per daemonized run: with 0 right before entering the FUSE loop, or with
+ * the intended exit code on any earlier failure. A no-op in the foreground. */
+static void
+xfs_daemon_ready(unsigned char status)
+{
+    if (xfs_daemon_pipe < 0) return;
+
+    ssize_t w = write(xfs_daemon_pipe, &status, 1);
+    (void) w;                       /* parent gone → nothing to report to */
+    close(xfs_daemon_pipe);
+    xfs_daemon_pipe = -1;
+
+    int nullfd = open("/dev/null", O_RDWR);
+    if (nullfd >= 0) {
+        (void) dup2(nullfd, STDIN_FILENO);
+        (void) dup2(nullfd, STDOUT_FILENO);
+        (void) dup2(nullfd, STDERR_FILENO);
+        if (nullfd > STDERR_FILENO) close(nullfd);
+    }
+}
+
+/* Daemonize (unless the caller asked for the foreground) and pin FUSE to the
+ * foreground so fuse_main() cannot fork a second time behind our threads.
+ * Returns 0 on success, or an exit code to return from the mount helper. */
+static int
+xfs_daemon_setup(int *fuse_argc, char **fuse_argv, size_t fuse_argv_cap)
+{
+    if (xfs_wants_foreground(*fuse_argc, fuse_argv)) return 0;
+
+    /* One slot for "-f" plus the NULL terminator. */
+    if ((size_t) *fuse_argc + 2 > fuse_argv_cap) {
+        fprintf(stderr, "xrootdfs: too many mount options\n");
+        return 2;
+    }
+    if (xfs_daemonize() != 0) {
+        fprintf(stderr, "xrootdfs: cannot daemonize: %s\n", strerror(errno));
+        return 2;
+    }
+    fuse_argv[(*fuse_argc)++] = (char *) "-f";
+    fuse_argv[*fuse_argc]     = NULL;
+    return 0;
+}
+
+
 /* WHAT: mount an HTTP(S)/WebDAV endpoint (read-only, ranged GET).
  * WHY:  isolates the whole web transport bring-up (URL parse, bearer/TLS
  *       policy, reachability probe) from the root:// path in main.
@@ -381,19 +502,30 @@ aio_set_base(const char *path)
  *       export root up front (fail the mount early if unreachable/denied),
  *       then hand off to fuse_main. Returns the process exit code. */
 static int
-aio_web_mount(int fuse_argc, char **fuse_argv, const char *endpoint)
+aio_web_mount(int fuse_argc, char **fuse_argv, size_t fuse_argv_cap,
+              const char *endpoint)
 {
     brix_status   st;
     brix_statinfo si;
+    int           drc;
+
+    /* Same rule as the root:// path: fork before the connection pool exists.
+     * The web pool is synchronous today, but keeping both transports on one
+     * ordering means a future background thread here cannot silently
+     * reintroduce the hang. */
+    drc = xfs_daemon_setup(&fuse_argc, fuse_argv, fuse_argv_cap);
+    if (drc != 0) return drc;
 
     brix_status_clear(&st);
     if (brix_weburl_parse(endpoint, &g_weburl) != 0) {
         fprintf(stderr, "xrootdfs: bad web URL: %s\n", endpoint);
+        xfs_daemon_ready(2);
         return 2;
     }
     if (g_weburl.is_s3) {
         fprintf(stderr, "xrootdfs: s3:// is not supported as a FUSE mount "
                         "(use http/https/dav/davs)\n");
+        xfs_daemon_ready(2);
         return 2;
     }
     g_web = 1;
@@ -411,6 +543,7 @@ aio_web_mount(int fuse_argc, char **fuse_argv, const char *endpoint)
         fprintf(stderr, "xrootdfs: %s://%s:%d%s: %s\n",
                 g_weburl.tls ? "https" : "http", g_weburl.host, g_weburl.port,
                 g_weburl.path, st.msg);
+        xfs_daemon_ready((unsigned char) brix_shellcode(&st));
         return brix_shellcode(&st);
     }
     fprintf(stderr,
@@ -428,8 +561,10 @@ aio_web_mount(int fuse_argc, char **fuse_argv, const char *endpoint)
     g_web_pool = brix_cpool_create(&WEB_VT, &g_web_tmpl, g_max_conns, &st);
     if (g_web_pool == NULL) {
         fprintf(stderr, "xrootdfs: web pool: %s\n", st.msg);
+        xfs_daemon_ready((unsigned char) brix_shellcode(&st));
         return brix_shellcode(&st);
     }
+    /* Success is signalled from xfs_init() once the mount is live. */
     int rc = fuse_main(fuse_argc, fuse_argv, &xfs_ops, NULL);
     brix_cpool_destroy(g_web_pool);
     g_web_pool = NULL;
@@ -459,18 +594,26 @@ aio_probe_ext(brix_status *st)
 /* WHAT: mount a root[s]:// endpoint (binary XRootD; read-write, resilient).
  * WHY:  isolates the async-driver bring-up (metadata pool + data-stream
  *       manager + extension probe) and its teardown ordering from main.
- * HOW:  parse the endpoint, derive the export base, create the pool then the
- *       manager (destroyed in reverse order after fuse_main returns), probe
- *       extensions, run fuse. Returns the process exit code. */
+ * HOW:  daemonize FIRST (so every thread lands in the daemon), then parse the
+ *       endpoint, derive the export base, create the pool then the manager
+ *       (destroyed in reverse order after fuse_main returns), probe extensions,
+ *       run fuse. Returns the process exit code. */
 static int
-aio_root_mount(int fuse_argc, char **fuse_argv, const char *endpoint)
+aio_root_mount(int fuse_argc, char **fuse_argv, size_t fuse_argv_cap,
+               const char *endpoint)
 {
     brix_status st;
     int         rc;
 
+    /* Before g_pool/g_mgr — the manager's event-loop thread must be created on
+     * the daemon side of the fork or every read() hangs. */
+    rc = xfs_daemon_setup(&fuse_argc, fuse_argv, fuse_argv_cap);
+    if (rc != 0) return rc;
+
     brix_status_clear(&st);
     if (brix_endpoint_parse(endpoint, &g_url, &st) != 0) {
         fprintf(stderr, "xrootdfs: %s\n", st.msg);
+        xfs_daemon_ready(2);
         return 2;
     }
 
@@ -483,6 +626,7 @@ aio_root_mount(int fuse_argc, char **fuse_argv, const char *endpoint)
     if (g_pool == NULL) {
         fprintf(stderr, "xrootdfs: connect %s:%d: %s\n",
                 g_url.host, g_url.port, st.msg);
+        xfs_daemon_ready((unsigned char) brix_shellcode(&st));
         return brix_shellcode(&st);
     }
     /* Default: connect all data streams up front (in parallel — ~1×RTT mount).
@@ -494,6 +638,7 @@ aio_root_mount(int fuse_argc, char **fuse_argv, const char *endpoint)
     if (g_mgr == NULL) {
         fprintf(stderr, "xrootdfs: async manager: %s\n", st.msg);
         brix_pool_destroy(g_pool);
+        xfs_daemon_ready((unsigned char) brix_shellcode(&st));
         return brix_shellcode(&st);
     }
 
@@ -506,6 +651,7 @@ aio_root_mount(int fuse_argc, char **fuse_argv, const char *endpoint)
             g_url.host, g_url.port, g_max_conns, g_streams, g_max_stall,
             g_ext_setattr, g_ext_symlink, g_ext_readlink, g_ext_link);
 
+    /* Success is signalled from xfs_init() once the mount is live. */
     rc = fuse_main(fuse_argc, fuse_argv, &xfs_ops, NULL);
 
     brix_mgr_destroy(g_mgr);
@@ -558,8 +704,10 @@ xrootdfs_aio_main(int argc, char **argv)
 
     /* HTTP(S)/WebDAV read-only mount when the endpoint is a web URL. */
     if (brix_is_web_url(endpoint)) {
-        return aio_web_mount(fuse_argc, fuse_argv, endpoint);
+        return aio_web_mount(fuse_argc, fuse_argv,
+                             sizeof(fuse_argv) / sizeof(fuse_argv[0]), endpoint);
     }
 
-    return aio_root_mount(fuse_argc, fuse_argv, endpoint);
+    return aio_root_mount(fuse_argc, fuse_argv,
+                          sizeof(fuse_argv) / sizeof(fuse_argv[0]), endpoint);
 }
