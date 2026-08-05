@@ -294,6 +294,7 @@ int brixcvmfs_check(const char *repo) {
  * job wave. No mount, single-threaded: reuses the client's own fetch ctx.
  * Exit 0 = every object landed; a fetch error or a tampered catalog ⇒ 1. */
 typedef struct {
+    cvmfs_client_t    *cl;
     cvmfs_fetch_ctx_t *fx;
     unsigned char     *out;
     cvmfs_failover_t   fo0;   /* pristine snapshot (blacklist reset, cf. F4) */
@@ -304,6 +305,14 @@ static int prewarm_visit(const cvmfs_walk_item_t *it, void *ud) {
     prewarm_ud_t *p = ud;
     if (it->kind == CVMFS_WALK_CATALOG) return 0;   /* the walk itself caches it */
     size_t n = 0;
+    /* This walk drives cvmfs_fetch_object directly, so it owns the landing-buffer
+     * sizing the read path does for itself. `it->size` is the catalog's plaintext
+     * size (0 when unrecorded — fall back to the whole object cap). */
+    if (cvmfs_client_scratch_reserve(p->cl, it->size ? (size_t) it->size
+                                                     : (size_t) BRIX_PF_OBJCAP) != 0) {
+        p->errs++;
+        return 0;
+    }
     if (cvmfs_fetch_object(p->fx, &it->hash, it->suffix,
                            p->out, BRIX_PF_OBJCAP, &n, mono_now()) == 0) {
         p->objs++;
@@ -320,7 +329,7 @@ int brixcvmfs_prewarm(const char *repo) {
     cvmfs_client_t *cl = brixcvmfs_open(repo, NULL, -1, 0, -1, NULL, 0, 0);
     if (cl == NULL) return 1;
 
-    prewarm_ud_t ud = { &cl->fetch, malloc(BRIX_PF_OBJCAP), cl->fo, 0, 0, 0 };
+    prewarm_ud_t ud = { cl, &cl->fetch, malloc(BRIX_PF_OBJCAP), cl->fo, 0, 0, 0 };
     int rc = -1;
     if (ud.out != NULL) {
         const cvmfs_hash_t *root = cl->pin_set ? &cl->pin_root
