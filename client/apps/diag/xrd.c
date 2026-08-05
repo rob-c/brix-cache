@@ -93,6 +93,7 @@ map_fs_arg(const char *arg, const char *ehost, int eport, int *mismatch)
 {
     char        resolved[XRDC_PATH_MAX];
     brix_url    u;
+    brix_weburl wu;
     brix_status st;
 
     *mismatch = 0;
@@ -105,6 +106,15 @@ map_fs_arg(const char *arg, const char *ehost, int eport, int *mismatch)
             return NULL;
         }
         return strdup(u.path[0] != '\0' ? u.path : "/");
+    }
+    /* WebDAV/http operand on the same endpoint → its path component (so a
+     * second URL operand, e.g. `xrd mv davs://h/a davs://h/b`, maps like root). */
+    if (brix_weburl_parse(resolved, &wu) == 0 && !wu.is_s3) {
+        if (strcmp(wu.host, ehost) != 0 || wu.port != eport) {
+            *mismatch = 1;
+            return NULL;
+        }
+        return strdup(wu.path[0] != '\0' ? wu.path : "/");
     }
     return strdup(arg);   /* a bare path or a flag — verbatim */
 }
@@ -353,44 +363,94 @@ static const xrd_dispatch_t XRD_DISPATCH[] = {
 
 
 /*
- * fs_split_t — result of scanning an fs-verb arg vector for a root:// endpoint:
- * the parsed URL, the reassembled connect endpoint, and which argv slot bore it.
+ * fs_split_t — result of scanning an fs-verb arg vector for a transport endpoint
+ * (root:// or a WebDAV http/https/dav/davs URL): the reassembled connect endpoint,
+ * its host/port/path (generic across schemes, so the mapper is scheme-agnostic),
+ * and which argv slot bore it.
  */
 typedef struct {
-    brix_url u;
-    char     endpoint[320];
-    int      ep_idx;
+    char endpoint[320];
+    char host[256];
+    int  port;
+    char path[XRDC_PATH_MAX];
+    int  ep_idx;
 } fs_split_t;
 
 
+/* Map a WebDAV proto to its scheme word for the xrdfs connect endpoint; NULL for
+ * s3/s3s, which xrdfs's WebDAV path does not serve (so those don't split). */
+static const char *
+web_scheme_name(brix_web_proto proto)
+{
+    switch (proto) {
+    case XRDC_WEB_HTTPS: return "https";
+    case XRDC_WEB_HTTP:  return "http";
+    case XRDC_WEB_DAVS:  return "davs";
+    case XRDC_WEB_DAV:   return "dav";
+    default:             return NULL;   /* s3/s3s: unsupported by xrdfs WebDAV */
+    }
+}
+
+
+/* Fill sp->{endpoint,host,port,path} for a resolved endpoint URL. Returns 1 when
+ * `resolved` is a root:// or WebDAV endpoint xrdfs can connect to, else 0. */
+static int
+fs_fill_endpoint(const char *resolved, fs_split_t *sp)
+{
+    brix_url    u;
+    brix_weburl wu;
+    brix_status st;
+    int         v6;
+
+    brix_status_clear(&st);
+    if (brix_url_parse(resolved, &u, &st) == 0
+        && (u.scheme == XRDC_SCHEME_ROOT || u.scheme == XRDC_SCHEME_ROOTS)) {
+        const char *scheme = (u.scheme == XRDC_SCHEME_ROOTS) ? "roots" : "root";
+        v6 = (strchr(u.host, ':') != NULL);
+        snprintf(sp->endpoint, sizeof(sp->endpoint), "%s://%s%s%s:%d", scheme,
+                 v6 ? "[" : "", u.host, v6 ? "]" : "", u.port);
+        snprintf(sp->host, sizeof(sp->host), "%s", u.host);
+        sp->port = u.port;
+        snprintf(sp->path, sizeof(sp->path), "%s", u.path);
+        return 1;
+    }
+    if (brix_weburl_parse(resolved, &wu) == 0) {
+        const char *scheme = web_scheme_name(wu.proto);
+        if (scheme == NULL) {
+            return 0;
+        }
+        v6 = (strchr(wu.host, ':') != NULL);
+        snprintf(sp->endpoint, sizeof(sp->endpoint), "%s://%s%s%s:%d", scheme,
+                 v6 ? "[" : "", wu.host, v6 ? "]" : "", wu.port);
+        snprintf(sp->host, sizeof(sp->host), "%s", wu.host);
+        sp->port = wu.port;
+        snprintf(sp->path, sizeof(sp->path), "%s", wu.path);
+        return 1;
+    }
+    return 0;
+}
+
+
 /*
- * WHAT: find the FIRST arg (argv[2..]) that resolves to a root:// URL; it fixes
- *       the connect endpoint (path depth doesn't matter — `root://h//` targets
- *       the root). Returns 1 with *sp filled, else 0.
+ * WHAT: find the FIRST arg (argv[2..]) that resolves to a transport endpoint URL
+ *       (root:// or WebDAV http/https/dav/davs); it fixes the connect endpoint
+ *       (path depth doesn't matter — `root://h//`/`davs://h/` target the root).
+ *       Returns 1 with *sp filled, else 0.
  * WHY:  scanning (rather than assuming argv[2]) lets flags precede the endpoint,
- *       e.g. `xrd df -h root://h//` or `xrd ln -s root://h//tgt root://h//link`.
- * HOW:  alias-resolve + URL-parse each arg; on the first root/roots hit,
- *       rebuild `scheme://host:port` (bracketing IPv6 hosts) into sp->endpoint.
+ *       e.g. `xrd df -h root://h//` or `xrd ln -s root://h//tgt root://h//link`;
+ *       extending it to WebDAV lets the wrapper split those verbs over davs too.
+ * HOW:  alias-resolve each arg, then fs_fill_endpoint() on the first hit.
  */
 static int
 fs_find_endpoint(int argc, char **argv, fs_split_t *sp)
 {
-    char        resolved[XRDC_PATH_MAX];
-    brix_status st;
-    int         i;
+    char resolved[XRDC_PATH_MAX];
+    int  i;
 
     sp->ep_idx = -1;
     for (i = 2; i < argc; i++) {
-        brix_status_clear(&st);
         brix_alias_resolve(argv[i], resolved, sizeof(resolved));
-        if (brix_url_parse(resolved, &sp->u, &st) == 0
-            && (sp->u.scheme == XRDC_SCHEME_ROOT
-                || sp->u.scheme == XRDC_SCHEME_ROOTS)) {
-            const char *scheme =
-                (sp->u.scheme == XRDC_SCHEME_ROOTS) ? "roots" : "root";
-            int         v6 = (strchr(sp->u.host, ':') != NULL);
-            snprintf(sp->endpoint, sizeof(sp->endpoint), "%s://%s%s%s:%d", scheme,
-                     v6 ? "[" : "", sp->u.host, v6 ? "]" : "", sp->u.port);
+        if (fs_fill_endpoint(resolved, sp)) {
             sp->ep_idx = i;
             return 1;
         }
@@ -419,12 +479,12 @@ fs_map_split_args(char **nv, int k, int argc, char **argv, fs_split_t *sp)
         int   mism = 0;
         char *m;
         if (i == sp->ep_idx) {
-            if (sp->u.path[0] == '/' && sp->u.path[1] != '\0') {
-                nv[k++] = strdup(sp->u.path);
+            if (sp->path[0] == '/' && sp->path[1] != '\0') {
+                nv[k++] = strdup(sp->path);
             }
             continue;
         }
-        m = map_fs_arg(argv[i], sp->u.host, sp->u.port, &mism);
+        m = map_fs_arg(argv[i], sp->host, sp->port, &mism);
         if (mism) {
             fprintf(stderr, "xrd %s: every path must be on the same endpoint "
                             "(%s)\n", argv[1], sp->endpoint);

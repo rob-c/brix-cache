@@ -417,6 +417,138 @@ brix_webdav_mkcol(const brix_weburl *u, const char *path, const char *bearer,
     return ok ? 0 : -1;
 }
 
+
+/* ---- Map a WebDAV mutation HTTP status onto an XRDC error code ----
+ *
+ * WHAT: Translates a non-success HTTP status from a DELETE/MOVE into the XRDC
+ *       error class the CLI reports (404→ENOENT, 401/403→EAUTH, else EPROTO), so
+ *       `xrdfs rm` on a missing path prints "not found" and a denied write prints
+ *       an auth error — matching the root:// semantics.
+ *
+ * WHY:  the shared brix_report_err chain branches on st->kxr; a bare EPROTO for
+ *       every failure would collapse "missing" and "forbidden" into one message.
+ *
+ * HOW:  small fixed mapping; anything unrecognised stays EPROTO (unexpected frame).
+ */
+static int
+webdav_status_to_xrdc(int http_status)
+{
+    if (http_status == 404 || http_status == 410) {
+        return XRDC_ENOENT;
+    }
+    if (http_status == 401 || http_status == 403) {
+        return XRDC_EAUTH;
+    }
+    return XRDC_EPROTO;
+}
+
+
+/* ---- Build the optional "Authorization: Bearer …" header block ----
+ *
+ * WHAT: Writes an "Authorization: Bearer <token>\r\n" line into buf when bearer
+ *       is non-empty, else leaves buf[0]=='\0'. Returns buf. Mirrors the inline
+ *       block in brix_webdav_mkcol so the write verbs share one auth shape.
+ *
+ * WHY:  the WebDAV mutation verbs (mkcol/delete/move) all carry the same optional
+ *       bearer header; keeping it in one helper avoids three copies drifting.
+ *
+ * HOW:  snprintf when a token is present; NUL-terminate empty otherwise.
+ */
+static char *
+webdav_bearer_header(const char *bearer, char *buf, size_t bufsz)
+{
+    if (bearer != NULL && bearer[0] != '\0') {
+        snprintf(buf, bufsz, "Authorization: Bearer %s\r\n", bearer);
+    } else {
+        buf[0] = '\0';
+    }
+    return buf;
+}
+
+
+/* ---- DELETE a WebDAV resource (file or empty collection) ----
+ *
+ * WHAT: Issues one WebDAV DELETE for `path` on endpoint `u`. Returns 0 on
+ *       success (200/202/204), -1 with *st set otherwise — 404/410 mapped to
+ *       XRDC_ENOENT, 401/403 to XRDC_EAUTH. bearer NULL ⇒ anonymous;
+ *       client_cert is the X.509 proxy PEM for mutual TLS (or NULL).
+ *
+ * WHY:  gives `xrdfs rm`/`rmdir` a WebDAV transport so write-metadata verbs work
+ *       over http/https/dav/davs, not only root://. DELETE is NOT made idempotent
+ *       on 404 (unlike MKCOL): removing a non-existent path is a real error the
+ *       user should see, matching the binary protocol's kXR_NotFound.
+ *
+ * HOW:  1. Build the optional bearer header.
+ *       2. brix_http_req(..., "DELETE", ...).
+ *       3. Accept 200/202/204; otherwise set a mapped status and fail.
+ */
+int
+brix_webdav_delete(const brix_weburl *u, const char *path, const char *bearer,
+                   int verify, const char *ca_dir, const char *client_cert,
+                   brix_status *st)
+{
+    char           headers[8192];
+    brix_http_resp r;
+    int            ok;
+
+    webdav_bearer_header(bearer, headers, sizeof(headers));
+    if (brix_http_req(u->host, u->port, u->tls, "DELETE", path,
+                      headers[0] ? headers : NULL, NULL, 0, XRDC_WEBLIST_TIMEOUT,
+                      verify, ca_dir, client_cert, &r, st) != 0) {
+        return -1;
+    }
+    ok = (r.status == 200 || r.status == 202 || r.status == 204);
+    if (!ok) {
+        brix_status_set(st, webdav_status_to_xrdc(r.status), 0,
+                        "DELETE returned HTTP %d", r.status);
+    }
+    brix_http_resp_free(&r);
+    return ok ? 0 : -1;
+}
+
+
+/* ---- MOVE (rename) a WebDAV resource ----
+ *
+ * WHAT: Issues one WebDAV MOVE of `path` to `dest_abs` (an absolute-URL
+ *       Destination) on endpoint `u`, with "Overwrite: T". Returns 0 on success
+ *       (200/201/204), -1 with *st set otherwise (mapped like DELETE).
+ *
+ * WHY:  backs `xrdfs mv` over WebDAV. The MOVE Destination MUST be an absolute
+ *       URI per RFC 4918; the caller supplies "<scheme>://host:port/newpath" so
+ *       this helper does not need to know the endpoint's external scheme.
+ *
+ * HOW:  1. Compose the "Destination: …\r\nOverwrite: T\r\n" block, appending the
+ *          optional bearer line.
+ *       2. brix_http_req(..., "MOVE", path, headers, ...).
+ *       3. Accept 200/201/204; otherwise set a mapped status and fail.
+ */
+int
+brix_webdav_move(const brix_weburl *u, const char *path, const char *dest_abs,
+                 const char *bearer, int verify, const char *ca_dir,
+                 const char *client_cert, brix_status *st)
+{
+    char           headers[8192];
+    char           bearer_hdr[8192];
+    brix_http_resp r;
+    int            ok;
+
+    webdav_bearer_header(bearer, bearer_hdr, sizeof(bearer_hdr));
+    snprintf(headers, sizeof(headers),
+             "Destination: %s\r\nOverwrite: T\r\n%s", dest_abs, bearer_hdr);
+    if (brix_http_req(u->host, u->port, u->tls, "MOVE", path,
+                      headers, NULL, 0, XRDC_WEBLIST_TIMEOUT,
+                      verify, ca_dir, client_cert, &r, st) != 0) {
+        return -1;
+    }
+    ok = (r.status == 200 || r.status == 201 || r.status == 204);
+    if (!ok) {
+        brix_status_set(st, webdav_status_to_xrdc(r.status), 0,
+                        "MOVE returned HTTP %d", r.status);
+    }
+    brix_http_resp_free(&r);
+    return ok ? 0 : -1;
+}
+
 /* ---- Build the PROPFIND request headers for a Depth: infinity listing ----
  *
  * WHAT: Writes "Depth: infinity" plus an optional bearer Authorization line into

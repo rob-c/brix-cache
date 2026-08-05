@@ -665,6 +665,8 @@ LIFECYCLE_SHARED_PORTS: dict[str, dict] = {
     "lc-tpc-token-exchange": {"port": 30277},
     "lc-upstream-multiround": {"port": 30278},
     "lc-webdav-verify-write": {"port": 30279},
+    "lc-xrdfs-web-write-rw": {"port": 30530},
+    "lc-xrdfs-web-write-ro": {"port": 30531},
     "lc-xrdhttp-guard": {"port": 30280},
     "lc-xrootd-conformance": {"port": 30281},
     # ---- Wave 7b: Part-B non-lc-named singletons + evil-actor targets ----

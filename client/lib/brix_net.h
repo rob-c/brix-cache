@@ -424,6 +424,19 @@ int  brix_webdav_list(const brix_weburl *u, const char *bearer, int verify,
 int  brix_webdav_mkcol(const brix_weburl *u, const char *path, const char *bearer,
                        int verify, const char *ca_dir, const char *client_cert,
                        brix_status *st);
+/* DELETE a WebDAV resource (file or empty collection) at `path`. bearer NULL ⇒
+ * anonymous; client_cert = X.509 proxy PEM for mutual TLS (or NULL). NOT
+ * idempotent on 404 (a missing target is a reported error). 0 / -1 (st set:
+ * 404→ENOENT, 401/403→EAUTH, else EPROTO). */
+int  brix_webdav_delete(const brix_weburl *u, const char *path, const char *bearer,
+                        int verify, const char *ca_dir, const char *client_cert,
+                        brix_status *st);
+/* MOVE (rename) the WebDAV resource at `path` to `dest_abs` — an ABSOLUTE URL
+ * ("<scheme>://host:port/newpath") per RFC 4918 — with Overwrite: T. bearer/
+ * client_cert as for delete. 0 / -1 (st set, mapped like delete). */
+int  brix_webdav_move(const brix_weburl *u, const char *path, const char *dest_abs,
+                      const char *bearer, int verify, const char *ca_dir,
+                      const char *client_cert, brix_status *st);
 /* List object keys under an s3:// URL's prefix via paginated, SigV4-signed
  * ListObjectsV2. The bucket is the first path component; the prefix is the rest.
  * ak/sk NULL ⇒ anonymous. Returns full object keys. 0 / -1. Free with brix_strv_free. */

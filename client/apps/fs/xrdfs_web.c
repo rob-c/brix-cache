@@ -176,8 +176,8 @@ web_stat(const web_ctx *w, const char *cwd, int argc, char **argv)
     char          proxybuf[512];
     const char   *pcert;
 
-    if (argc < 2) { fprintf(stderr, "usage: stat <path>\n"); return 50; }
-    web_build_path(w->base, cwd, argv[1], path, sizeof(path));
+    /* no explicit path arg → stat the endpoint's export base (like web_ls). */
+    web_build_path(w->base, cwd, argc >= 2 ? argv[1] : NULL, path, sizeof(path));
     brix_status_clear(&st);
     pcert = brix_web_proxy_pem(proxybuf, sizeof(proxybuf));
     if (brix_web_stat(w->u, path, w->bearer, w->verify, w->ca_dir, pcert, &si, &st) != 0) {
@@ -188,15 +188,153 @@ web_stat(const web_ctx *w, const char *cwd, int argc, char **argv)
 }
 
 
-/* Dispatch one command against a WebDAV endpoint. Read-only metadata ops only. */
+/* ---- Resolve an mv/rm-position arg to an absolute server path ----
+ *
+ * WHAT: Writes the absolute server path named by `arg` into out[outsz]. If `arg`
+ *       is itself a WebDAV URL on the same endpoint (the shape the `xrd` wrapper
+ *       forwards for a second operand, e.g. `xrdfs davs://h/a mv davs://h/b`),
+ *       its URL path component is used; otherwise `arg` is a cwd-relative path
+ *       resolved against the endpoint's export base.
+ *
+ * WHY:  the write-metadata verbs accept both a bare path and a full URL for each
+ *       operand — the same duality the root:// path enjoys — so `mv`/`rm` behave
+ *       identically whether invoked directly or via the `xrd` wrapper.
+ *
+ * HOW:  try brix_weburl_parse; on a WebDAV (non-S3) match copy its path, else
+ *       fall back to web_build_path over the export base.
+ */
+static void
+web_resolve_arg(const web_ctx *w, const char *cwd, const char *arg,
+                char *out, size_t outsz)
+{
+    brix_weburl wu;
+
+    if (arg != NULL && brix_weburl_parse(arg, &wu) == 0 && !wu.is_s3) {
+        snprintf(out, outsz, "%s", wu.path[0] != '\0' ? wu.path : "/");
+        return;
+    }
+    web_build_path(w->base, cwd, arg, out, outsz);
+}
+
+
+/* ---- Format the endpoint-absolute URL for a WebDAV MOVE Destination ----
+ *
+ * WHAT: Builds "<scheme>://<host>[:port]<path>" for `path` on the connection's
+ *       endpoint into out[outsz]; scheme is https/http by the endpoint's TLS bit
+ *       and an IPv6 host is bracketed. No return value.
+ *
+ * WHY:  RFC 4918 requires MOVE's Destination to be an absolute URI on the same
+ *       authority; the transport helper stays scheme-agnostic and lets the caller
+ *       (which owns the connection) name it.
+ *
+ * HOW:  pick the scheme from w->u->tls, bracket a ':'-bearing host, printf.
+ */
+static void
+web_dest_url(const web_ctx *w, const char *path, char *out, size_t outsz)
+{
+    const char *scheme = w->u->tls ? "https" : "http";
+    int         v6 = (strchr(w->u->host, ':') != NULL);
+
+    snprintf(out, outsz, "%s://%s%s%s:%d%s", scheme,
+             v6 ? "[" : "", w->u->host, v6 ? "]" : "", w->u->port, path);
+}
+
+
+/* Create a WebDAV collection (mkdir) — MKCOL, same auth shape as ls/stat. */
+static int
+web_mkdir(const web_ctx *w, const char *cwd, int argc, char **argv)
+{
+    brix_status st;
+    char        path[XRDC_PATH_MAX];
+    char        proxybuf[512];
+    const char *pcert = brix_web_proxy_pem(proxybuf, sizeof(proxybuf));
+
+    web_resolve_arg(w, cwd, argc >= 2 ? argv[1] : NULL, path, sizeof(path));
+    brix_status_clear(&st);
+    if (brix_webdav_mkcol(w->u, path, w->bearer, w->verify, w->ca_dir, pcert,
+                          &st) != 0) {
+        return xrdfs_web_report_err("mkdir", path, &st, 1, w);
+    }
+    return 0;
+}
+
+
+/* Delete a WebDAV file or empty collection (rm / rmdir) — DELETE. */
+static int
+web_delete(const web_ctx *w, const char *cwd, const char *op,
+           int argc, char **argv)
+{
+    brix_status st;
+    char        path[XRDC_PATH_MAX];
+    char        proxybuf[512];
+    const char *pcert;
+
+    if (argc < 2) {
+        fprintf(stderr, "usage: %s <path>\n", op);
+        return 50;
+    }
+    pcert = brix_web_proxy_pem(proxybuf, sizeof(proxybuf));
+    web_resolve_arg(w, cwd, argv[1], path, sizeof(path));
+    brix_status_clear(&st);
+    if (brix_webdav_delete(w->u, path, w->bearer, w->verify, w->ca_dir, pcert,
+                           &st) != 0) {
+        return xrdfs_web_report_err(op, path, &st, 1, w);
+    }
+    return 0;
+}
+
+
+/* Rename a WebDAV resource (mv) — MOVE with an absolute-URL Destination. */
+static int
+web_mv(const web_ctx *w, const char *cwd, int argc, char **argv)
+{
+    brix_status st;
+    char        src[XRDC_PATH_MAX], dst[XRDC_PATH_MAX], dest_url[XRDC_PATH_MAX + 320];
+    char        proxybuf[512];
+    const char *pcert;
+
+    if (argc < 2) {
+        fprintf(stderr, "usage: mv <src> <dst>\n");
+        return 50;
+    }
+    pcert = brix_web_proxy_pem(proxybuf, sizeof(proxybuf));
+    if (argc >= 3) {
+        web_resolve_arg(w, cwd, argv[1], src, sizeof(src));
+        web_resolve_arg(w, cwd, argv[2], dst, sizeof(dst));
+    } else {
+        /* single operand: src is the endpoint's export base, dst the operand
+         * (the `xrdfs davs://h/src mv davs://h/dst` direct form). */
+        web_resolve_arg(w, cwd, NULL, src, sizeof(src));
+        web_resolve_arg(w, cwd, argv[1], dst, sizeof(dst));
+    }
+    web_dest_url(w, dst, dest_url, sizeof(dest_url));
+    brix_status_clear(&st);
+    if (brix_webdav_move(w->u, src, dest_url, w->bearer, w->verify, w->ca_dir,
+                         pcert, &st) != 0) {
+        /* two-path op: mirror xrdfs's mv error line (src -> dst) then hint. */
+        fprintf(stderr, "xrdfs: mv %s -> %s failed: %s\n", src, dst, st.msg);
+        xrdfs_web_hints(&st, 1, w);
+        return 50;
+    }
+    return 0;
+}
+
+
+/* Dispatch one command against a WebDAV endpoint: read-only metadata (ls, stat)
+ * plus write-metadata (mkdir, rm, rmdir, mv). Data/byte ops and the interactive
+ * shell remain root:// only. */
 int
 web_dispatch(const web_ctx *w, int argc, char **argv)
 {
     const char *cmd = argv[0];
-    if (strcmp(cmd, "ls") == 0)   { return web_ls(w, "/", argc, argv); }
-    if (strcmp(cmd, "stat") == 0) { return web_stat(w, "/", argc, argv); }
+    if (strcmp(cmd, "ls") == 0)    { return web_ls(w, "/", argc, argv); }
+    if (strcmp(cmd, "stat") == 0)  { return web_stat(w, "/", argc, argv); }
+    if (strcmp(cmd, "mkdir") == 0) { return web_mkdir(w, "/", argc, argv); }
+    if (strcmp(cmd, "rm") == 0)    { return web_delete(w, "/", "rm", argc, argv); }
+    if (strcmp(cmd, "rmdir") == 0) { return web_delete(w, "/", "rmdir", argc, argv); }
+    if (strcmp(cmd, "mv") == 0)    { return web_mv(w, "/", argc, argv); }
     fprintf(stderr, "xrdfs: '%s' is not supported over an http(s)/WebDAV endpoint "
-                    "(read-only metadata only: ls, stat). Use a root:// endpoint for "
-                    "the full command set.\n", cmd);
+                    "(metadata only: ls, stat, mkdir, rm, rmdir, mv). Use a root:// "
+                    "endpoint for the full command set.\n", cmd);
     return 50;
 }

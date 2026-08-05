@@ -11,7 +11,7 @@ provides a complete filesystem client for XRootD servers.
 With no command it drops into an interactive shell (root:// only).
 With a command it runs that command and exits.
 .PP
-HTTP(S)/WebDAV endpoints support read-only metadata operations: \fBls\fR and \fBstat\fR.
+HTTP(S)/WebDAV endpoints support the metadata operations \fBls\fR, \fBstat\fR, \fBmkdir\fR, \fBrm\fR, \fBrmdir\fR and \fBmv\fR (served over PROPFIND / MKCOL / DELETE / MOVE). Byte-level and interactive commands remain root:// only.
 .SH OPTIONS
 .TP
 .B \-\-tls
@@ -172,7 +172,7 @@ An alias in \fI~/.xrdrc\fR may replace the \fIhost[:port]\fR component.
 Append a base path (\fBroot://host/base\fR) to root the session at that subtree.
 .TP
 .BR https:// " | " http:// " | " davs:// " | " dav:// host [: port ]/ path
-HTTP/WebDAV endpoint (read-only metadata: \fBls\fR and \fBstat\fR).
+HTTP/WebDAV endpoint (metadata: \fBls\fR, \fBstat\fR, \fBmkdir\fR, \fBrm\fR, \fBrmdir\fR, \fBmv\fR).
 TLS enabled for \fBhttps://\fR and \fBdavs://\fR.
 .SH EXAMPLES
 .nf

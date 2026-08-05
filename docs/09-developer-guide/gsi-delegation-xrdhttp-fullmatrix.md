@@ -38,6 +38,20 @@ Reusable drivers + configs: `/root/dev/brixbench/gsi_xrdhttp_deleg/`.
   `brix_delegation: DN mismatch` — the front-leg identity then carries the extra proxy
   CN (`…/CN=12345/CN=12346`) and no longer equals the uploaded proxy's EEC DN
   (`…/CN=12345`). Stored at `<cred_dir>/x5h-<sha256(EEC_DN)[:32]>.pem` (bob-owned 0600).
+- **Proxy minting on OpenSSL ≥3.5 (2026-08-05).** Do **not** mint alice's proxy with
+  `xrdgsiproxy init` for this rig: the proxy it produces on OpenSSL 3.5.x carries an
+  extra `Extended Key Usage: TLS Web Client Authentication`, `Key Usage`, and a
+  `Path Length Constraint: 0`, and OpenSSL 3.5.5's proxy-path validator then **rejects
+  the chain** (`verify … -allow_proxy_certs` → *error 20 at depth 0, unable to get local
+  issuer certificate*). This is client/tooling-side, **not** a BriX regression — the
+  *stock* origin rejects the same proxy direct (BriX out of path), and OpenSSL rejects
+  it locally. Mint instead with `gsi_xrdhttp_deleg/mint_alice_proxy.py` (a thin variant
+  of `tests/lib/fwd_mint_proxy.py`): it signs an RFC-3820 proxy **on top of the existing
+  alice EEC** (`usercert.pem`/`userkey.pem`) with a minimal `id-pe-proxyCertInfo`
+  (`id-ppl-inheritAll`, no pathlen, no EKU) — the exact encoding OpenSSL 3.5 accepts.
+  The leaf DN `…/CN=Test User/CN=12345/CN=<serial>` still maps to alice via the origin
+  gridmap (`…/CN=Test User/CN=12345`). `run_deleg_matrix.sh` and the drivers read this
+  proxy from `/tmp/xrd-test/pki/user/proxy_std.pem`; re-mint it (valid 24 h) before a run.
 
 ## Result — origin-log verified
 
@@ -51,8 +65,30 @@ Origin login tally across the whole run: **45 `login as alice`, 0 `login as bob`
 | **PyXRootD** (`xrd.http.dav.HTTPFileSystem`) | davs | mkdir·write·read·exists·stat·getsize·listdir·statx·rm·rmdir — 11/11 | ✅ (needs Python ≥3.10 for `slots=`) |
 | **go-hep** (`xrootd/xrdhttp`) | https | MkdirAll·Create·ReadAll·Stat·ReadAt·Statx·Rename·RemoveFile·RemoveDir — 9/9 | ✅ (`WithClientCertificate`+`WithRootCAs`) |
 | **XrdRust** (`xrd --cert/--key/--ca-file`) | davs | put·cat·ls·size·check·rm — 6/6 | ✅ — **rebuild with `cargo build --features full`** (default build has no TLS transport) |
-| **XRootD.jl** (`Storage/web.jl`) | davs | ops succeed at the front but **fail closed to `nobody`** | ❌ — see Finding 1 |
-| **BriX bundled client** (`client/bin/xrdcp`,`xrdfs` davs) | davs | stat (mutual TLS) — verified | ✅ presents X.509 proxy — **fixed**, see Finding 2 |
+| **XRootD.jl** (`Storage/web.jl`) | davs | mkcol·write·read·stat·range·listdir·move·rm·rmdir — 9/9 | ✅ **now delegates through the front** — Finding 1 fixed (see re-run below) |
+| **BriX bundled client** (`client/bin/xrdcp`,`xrdfs` davs) | davs | `xrdcp` put/get + `xrdfs` stat/ls — its whole davs surface | ✅ presents X.509 proxy — **fixed**, Finding 2. Mutating verbs (mkdir/mv/rm) are **root://-only by design** (`xrdfs` prints *"not supported over WebDAV … use a root:// endpoint"*, identically direct-to-origin), not a delegation gap. |
+
+### Re-run 2026-08-05 — Finding 1 resolved on the delegation path, fresh-proxy mint
+
+Re-ran the full matrix through the front (`:21212`) after (a) the Finding-1 operator fix
+(`ssl_session_tickets off; ssl_session_cache off;` on the gateway — see Finding 1) and
+(b) minting a fresh OpenSSL-3.5-valid alice proxy (see *Proxy minting* above). All five
+HTTP-capable clients pass and **`login as bob` stayed 0**:
+
+| client | ops | delegated as alice |
+|---|---|---|
+| curl | 16/16 (full WebDAV surface incl. subdir MKCOL/MOVE/DELETE) | ✅ |
+| PyXRootD (pure-py `xrd`, python3.11 + `PYTHONPATH`) | 11/11 | ✅ |
+| go-hep (run inside its module `/root/dev/hep`) | 9/9 | ✅ |
+| XrdRust (`/root/dev/XrdRust/.../xrd`) | 6/6 | ✅ |
+| **XRootD.jl** | **9/9 — now PASSES through the front** (was fail-closed-to-nobody) | ✅ |
+| BriX bundled `xrdcp`/`xrdfs` | put/get/stat/ls | ✅ |
+
+Controls: **negative** — a front request with no client proxy is refused at the TLS layer
+(`ssl_verify_client on` → **HTTP 400**), so a delegated identity cannot be spoofed;
+**direct-to-origin baseline** (`direct_baseline.sh` → `:21210`, BriX out of path) — every
+client authenticates straight to stock XrdHttp+GSI as alice, `nobody +0  bob +0`. Runner:
+`gsi_xrdhttp_deleg/run_deleg_matrix.sh`.
 
 **Negative control**: remove the stored `x5h-…pem` → the same alice-proxy ops still get
 200/201 at the origin but log `login as nobody` (origin's anonymous fallback), delta of
