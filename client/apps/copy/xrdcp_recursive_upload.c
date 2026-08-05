@@ -71,12 +71,14 @@ walk_handle_dir(web_upload_ctx *c, const walk_child_t *ch)
     if (!c->u->is_s3 && (c->fo == NULL || !c->fo->dry_run)) {
         char        rpath[XRDC_PATH_MAX * 2];
         brix_status mst;
+        char        proxybuf[512];
+        const char *pcert = brix_web_proxy_pem(proxybuf, sizeof(proxybuf));
 
         brix_status_clear(&mst);
         if (web_join(c->base, ch->rel, rpath, sizeof(rpath)) != 0
             || brix_webdav_mkcol(c->u, rpath, c->bearer,
                                  c->co ? c->co->verify_host : 1,
-                                 c->co ? c->co->ca_dir : NULL, &mst) != 0) {
+                                 c->co ? c->co->ca_dir : NULL, pcert, &mst) != 0) {
             fprintf(stderr, "xrdcp: mkcol %s: %s\n", ch->rel, mst.msg);
             c->fail++;
             return;   /* skip this subtree — its files would 409 */
@@ -215,9 +217,11 @@ recursive_web_upload(const char *localdir, const char *dst, const brix_copy_opts
      * the base collection on the remote. */
     if (!u.is_s3 && base[0] != '\0' && !fo.dry_run) {
         brix_status mst;
+        char        proxybuf[512];
+        const char *pcert = brix_web_proxy_pem(proxybuf, sizeof(proxybuf));
         brix_status_clear(&mst);
         if (brix_webdav_mkcol(&u, base, c.bearer, co ? co->verify_host : 1,
-                              co ? co->ca_dir : NULL, &mst) != 0) {
+                              co ? co->ca_dir : NULL, pcert, &mst) != 0) {
             fprintf(stderr, "xrdcp: mkcol %s: %s\n", base, mst.msg);
             /* proceed anyway — PUTs will surface any real problem */
         }

@@ -337,7 +337,7 @@ do_srr(const diag_args *a)
     }
     brix_status_clear(&st);
     if (brix_http_req(u.host, u.port, u.tls, "GET", u.path, NULL, NULL, 0, tmo,
-                      a->verify_tls, NULL, &r, &st) != 0) {
+                      a->verify_tls, NULL, NULL, &r, &st) != 0) {
         fprintf(stderr, "xrddiag: srr GET %s:%d%s: %s\n", u.host, u.port, u.path,
                 st.msg);
         return 51;
@@ -392,7 +392,7 @@ tape_poll_status(const dx_url_t *u, const diag_args *a, int tmo,
     snprintf(poll, sizeof(poll), "/api/v1/stage/%s", reqid);
     brix_status_clear(st);
     if (brix_http_req(u->host, u->port, u->tls, "GET", poll, NULL, NULL, 0, tmo,
-                      a->verify_tls, NULL, r, st) == 0) {
+                      a->verify_tls, NULL, NULL, r, st) == 0) {
         if (r->status == 200) {
             char state[32];
             char ondisk[16];
@@ -435,7 +435,7 @@ do_tape(const diag_args *a)
     brix_status_clear(&st);
     if (brix_http_req(u.host, u.port, u.tls, "POST", "/api/v1/stage",
                       "Content-Type: application/json\r\n", body, strlen(body),
-                      tmo, a->verify_tls, NULL, &r, &st) != 0) {
+                      tmo, a->verify_tls, NULL, NULL, &r, &st) != 0) {
         fprintf(stderr, "xrddiag: tape stage POST: %s\n", st.msg);
         return 51;
     }

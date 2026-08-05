@@ -577,7 +577,7 @@ corrupts one payload byte per record (breaking the record MAC);
 .B alert
 injects a one\-shot forged alert record.
 .TP
-.B http \fBcl\-te\fR | \fBte\-cl\fR | \fBdup\-cl\fR \fIVAL\fR | \fBobfuscate\-te\fR \fB1\fR|\fB2\fR|\fB3\fR | \fBnaked\-lf\fR | \fBinject\-header\fR \fINAME VAL\fR | \fBappend\fR \fIBYTES\fR | off
+.B http \fBcl\-te\fR | \fBte\-cl\fR | \fBdup\-cl\fR \fIVAL\fR | \fBobfuscate\-te\fR \fB1\fR|\fB2\fR|\fB3\fR | \fBnaked\-lf\fR | \fBinject\-header\fR \fINAME VAL\fR | \fBappend\fR \fIBYTES\fR | \fBheader\-hold\fR \fITHRESH MS\fR [\fBpartial\fR|\fBwhole\fR] | \fBbody\-hold\fR \fITHRESH MS\fR [\fBpartial\fR|\fBwhole\fR] | \fBstrip\-header\fR \fINAME\fR | off
 HTTP/1.1 request\-smuggling engine, operating on the header block up to the
 .B CRLFCRLF
 terminator:
@@ -599,8 +599,89 @@ re\-terminates lines with a bare LF;
 .B inject\-header
 and
 .B append
-add a header or trailing bytes.  A buffer with no header terminator passes
-through untouched.
+add a header or trailing bytes;
+.B header\-hold
+reproduces the DPI middlebox anti\-feature of stalling a request once its
+header block reaches
+.I THRESH
+bytes (e.g. a fat client\-cert PEM in an XrdHttp request header): the
+connection is held for
+.I MS
+milliseconds \(em
+.B whole
+(default) delays the entire segment, while
+.B partial
+releases the first
+.I THRESH
+bytes and then holds the remainder.  The hold fires only on a
+.B complete,
+over\-threshold header block, so a body\-only segment is never stalled.
+.B body\-hold
+is the store\-and\-forward sibling, stalling on
+.I body
+size instead (bytes after the header terminator).
+.B strip\-header
+drops any header line named
+.I NAME
+(stripping
+.B Range
+turns an XRootD vector read into a full\-object download).  A
+buffer with no header terminator passes through untouched.
+.SH DPI / MIDDLEBOX PATHOLOGY LEVERS
+Root\-free levers reproducing the failures an overloaded or mis\-configured cloud
+DPI/firewall inflicts on grid/HEP/storage tooling but not on a browser.  Each is a
+control verb (and a matching \fB\-\-\fR flag).
+.TP
+.B idle\-reap \fIMS\fR [\fBblack\-hole\fR|\fBrst\fR]
+Conntrack\-style eviction of a flow idle for
+.I MS
+ms: a silent black\-hole (frozen, no teardown \(em the real control\-channel
+killer) or a forged
+.BR rst .
+.TP
+.B eat\-100\-continue [\fBon\fR|\fBoff\fR]
+Swallow an interim \fBHTTP/1.x 100\fR response so an \fBExpect: 100\-continue\fR
+upload hangs.
+.TP
+.B rst\-after \fIMS\fR
+Classify\-and\-kill: the flow works, then dies with a forged RST after
+.I MS
+ms.
+.TP
+.B max\-bytes \fIN\fR [\fBrst\fR|\fBfin\fR]
+Byte guillotine: sever after
+.I N
+bytes (either direction), clean FIN by default.
+.TP
+.B drop\-fin [\fBup\fR|\fBdown\fR|\fBboth\fR|\fBoff\fR]
+Swallow a direction's EOF (asymmetric teardown \(em peers leak fds in
+CLOSE_WAIT/FIN_WAIT).
+.TP
+.B classify\-throttle \fIBYTES KBPS\fR
+Full rate until
+.I BYTES
+have crossed, then shunt the flow to a
+.I KBPS
+slow lane (a volume "looks like exfiltration" heuristic).
+.TP
+.B hello\-split\-reset \fITHRESH\fR
+Reset a TLS ClientHello whose declared record length is >=
+.I THRESH
+bytes (a first\-segment\-only DPI choking on a post\-quantum keyshare).
+.TP
+.B syn\-drop \fIPPM\fR
+Silently drop a fraction (parts per million) of accepted connections \(em
+connect timeouts under load, no RST.
+.TP
+.B alg\-rewrite \fISRC\fR \fIDST\fR [\fBup\fR|\fBdown\fR]
+FTP/GridFTP ALG: rewrite the \fISRC\fR \fBIPv4:port\fR embedded in a PASV reply
+to \fIDST\fR (installed as a byte find/replace on the selected direction).
+.SH UDP RELAY (\-\-udp)
+.B \-\-udp \fR"\fILISTEN HOST:PORT\fR"
+opens a UDP relay alongside the TCP proxy so the "UDP vs TCP" middlebox levers act
+on real datagrams: \fBudp\-drop \fIPPM\fR (loss), \fBudp\-hold\-until\-tcp \fIMS\fR
+(delay a flow's first datagram), \fBudp\-reap \fIMS\fR (short flow\-map timeout),
+\fBudp\-reorder \fIPPM MS\fR (per\-datagram hold\-back).
 .SH SESSION RECORD AND REPLAY
 .TP
 .B record \fIPATH\fR | off
@@ -725,6 +806,25 @@ is
 .TP
 .B priv uncut
 Remove the cut rules.
+.TP
+.B priv frag\-drop
+Drop every IP fragment (fragmented large UDP / EDNS0 DNS dies while small
+requests succeed).  Recreates the shared table, so mutually exclusive with
+.BR cut .
+.TP
+.B priv first\-not\-syn\-drop
+Drop any packet to the listen port that conntrack marks
+.B invalid
+(a state\-loss / ECMP\-rehash mid\-stream freeze).
+.TP
+.B priv strip\-opt \fISACK\fR|\fBwscale\fR|...
+TCP\-option stripping (the LFN throughput killer).  Needs NFQUEUE/eBPF option
+surgery that is not portable via
+.B nft
+alone, so this reports a clear reason and installs nothing; approximate the
+window effect with the root\-free
+.B rcvbuf
+lever.
 .TP
 .B priv mtu \fIBYTES\fR | restore
 Shrink the NIC MTU (a PMTU black hole / forced\-fragmentation stressor no relay

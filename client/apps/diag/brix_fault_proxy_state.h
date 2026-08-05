@@ -58,6 +58,16 @@ typedef struct {
     unsigned long dropped, repeated, injected, replaced;
     unsigned long triggered, mangled, fanout_conns;
     unsigned long tls_rewrites, http_rewrites, recorded, replayed;
+    unsigned long held;   /* segments stalled by the DPI header-size hold */
+    /* Phase-99 DPI/middlebox pathology levers. */
+    unsigned long reaped;        /* connections frozen/killed by idle-reap */
+    unsigned long ate_100;       /* 100-continue interim responses swallowed */
+    unsigned long fin_dropped;   /* EOFs not propagated (asymmetric teardown) */
+    unsigned long throttled;     /* segments paced by classify-throttle slow-lane */
+    unsigned long hello_reset;   /* oversized TLS ClientHellos reset */
+    unsigned long classify_kills;/* connections killed by rst-after/max-bytes */
+    unsigned long syn_dropped;   /* accepted clients silently dropped (syn-drop) */
+    unsigned long udp_in, udp_out, udp_dropped, udp_reaped, udp_held;
 } fp_counters;
 
 /* Payload-mutation config per direction (guarded by g_ext_lock). */
@@ -103,6 +113,7 @@ typedef struct {
     const char *script_path;
     const char *priv_iface;   /* --priv-iface: NIC for root-ful netem/mtu levers */
     const char *event_log;    /* --event-log: JSONL fault-event trail (NULL=off) */
+    const char *udp_spec;     /* --udp "<listen> <host:port>": enable UDP relay */
     int         privileged;   /* --privileged: arm the root-gated subsystem */
     int         insecure;
     int         quiet;
@@ -144,6 +155,27 @@ extern volatile long     g_max_life_ms;
 extern volatile unsigned g_chaos_gen;
 extern volatile int      g_chaos_ms;
 extern volatile int      g_chaos_on;
+
+/* Phase-99 DPI/middlebox pathology levers (root-free; reset by clear_all). */
+extern volatile int      g_idle_reap_ms;      /* freeze/kill a connection idle >= ms */
+extern volatile int      g_idle_reap_rst;     /* 1=forged RST, 0=silent black-hole */
+extern volatile int      g_eat_100;           /* swallow 100-continue on the down path */
+extern volatile long     g_rst_after_bytes;   /* kill after this many bytes (both dirs) */
+extern volatile long     g_rst_after_ms;      /* kill after this many ms (classify-and-kill) */
+extern volatile int      g_rst_after_abortive;/* teardown for rst-after: 1=RST 0=FIN */
+extern volatile int      g_drop_fin_up;       /* swallow the client->upstream EOF */
+extern volatile int      g_drop_fin_down;     /* swallow the upstream->client EOF */
+extern volatile long     g_classify_bytes;    /* slow-lane after this many bytes; 0=off */
+extern volatile int      g_classify_kbps;     /* slow-lane rate ceiling */
+extern volatile int      g_syn_drop_ppm;      /* silently drop accepted clients, ppm */
+extern volatile int      g_hello_reset_thresh;/* reset a TLS ClientHello >= this many bytes */
+
+/* Phase-99 Wave C — UDP relay levers (root-free; the "UDP vs TCP" class). */
+extern volatile int      g_udp_drop_ppm;      /* drop datagrams, ppm */
+extern volatile int      g_udp_hold_ms;       /* hold a flow's FIRST datagram by ms */
+extern volatile int      g_udp_reap_ms;       /* reap a UDP flow idle >= ms; 0=off */
+extern volatile int      g_udp_reorder_ppm;   /* per-datagram hold-back probability */
+extern volatile int      g_udp_reorder_ms;    /* hold-back applied to a reordered dgram */
 
 /* PROXY-protocol forgery (spoof a client source IP to the upstream). */
 extern volatile int      g_proxy_mode;
@@ -305,6 +337,14 @@ int
 cmd_mangle(char *args, char *reply, size_t rsz);
 int
 cmd_set_attack(const char *verb, char *args, char *reply, size_t rsz);
+int
+cmd_set_dpi(const char *verb, char *args, char *reply, size_t rsz);
+int
+cmd_set_udp(const char *verb, char *args, char *reply, size_t rsz);
+/* UDP relay listener config (parsed from --udp); host/port name the upstream. */
+typedef struct { int listen_port; char host[256]; int port; } fp_udp_cfg;
+void *
+fp_udp_thread(void *arg);   /* arg: fp_udp_cfg* (owned, freed on exit) */
 int
 cmd_set_tls(char *args, char *reply, size_t rsz);
 int

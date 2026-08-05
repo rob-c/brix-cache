@@ -59,19 +59,6 @@ protocol_parse_client_req(brix_ctx_t *ctx,
                        && (want->client_flags & (kXR_ableTLS | kXR_wantTLS)));
 }
 
-/* WHAT: number of SecurityProtocol entries the SecurityInfo trailer will carry.
- * WHY:  needed twice (body-length computation and trailer header) — computing
- *       it in one place keeps the two in lockstep.
- * HOW:  pure count over the offer flags. */
-static int
-protocol_sec_count(const protocol_want_t *want)
-{
-    return (want->gsi ? 1 : 0) + (want->token ? 1 : 0)
-         + (want->sss ? 1 : 0) + (want->unx ? 1 : 0)
-         + (want->krb5 ? 1 : 0) + (want->host ? 1 : 0)
-         + (want->pwd ? 1 : 0);
-}
-
 /* WHAT: the server-role capability bits (manager/supervisor/redirector/meta/
  *       proxy/cache) for the ServerProtocolBody flags word.
  * WHY:  splits the role half of the capability bit-ladder out of the
@@ -110,78 +97,28 @@ protocol_negotiate_flags(const ngx_stream_brix_srv_conf_t *conf,
         | (want->offer_tls ? (kXR_haveTLS | kXR_gotoTLS | kXR_tlsLogin) : 0);
 }
 
-/* WHAT: write one 8-byte SecurityProtocol entry (4-char tag + 4 zero bytes).
- * WHY:  the trailer emits up to seven identically-shaped entries; one writer
- *       replaces seven copies of the byte layout.
- * HOW:  copies the fixed 4-byte tag, zeroes the reserved tail, returns the
- *       advanced cursor so callers chain entries linearly. */
-static u_char *
-protocol_sec_entry_write(u_char *pe, const char tag[4])
-{
-    pe[0] = (u_char) tag[0]; pe[1] = (u_char) tag[1];
-    pe[2] = (u_char) tag[2]; pe[3] = (u_char) tag[3];
-    pe[4] = 0;   pe[5] = 0;   pe[6] = 0;   pe[7] = 0;
-    return pe + 8;
-}
-
-/* WHAT: write the SecurityInfo trailer (header + protocol entries + signing
- *       requirements) at si.
- * WHY:  the trailer is only present when the client set kXR_secreqs; hoisting
- *       it keeps the handler's response assembly linear.
- * HOW:  emits the 4-byte SecurityInfo header, one entry per offered auth
- *       protocol in the fixed wire order (sss, unix, krb5, host, pwd, ztn,
- *       gsi), then the 6-byte ServerResponseReqs_Protocol signing block.
- *       The caller sized the buffer with protocol_sec_count(). */
+/* WHAT: write the 6-byte ServerResponseReqs_Protocol signing block at si.
+ * WHY:  when the client sets kXR_secreqs the kXR_protocol reply carries this
+ *       block *immediately* after the 8-byte ServerProtocolBody — the wire
+ *       layout is ServerResponseBody_Protocol = { pval, flags, secreq }, so a
+ *       conformant client reads theTag ('S') at that fixed offset and the
+ *       seclvl right behind it.  This implementation deliberately emits NO
+ *       leading SecurityInfo header and NO binary SecurityProtocol entries:
+ *       the list of offered auth protocols is advertised the standard way, as
+ *       the "&P=gsi,...&P=ztn,..." string in the kXR_login response, never in
+ *       the protocol reply.  Prepending anything here shifts 'S' downfield and
+ *       makes strict clients (go-hep, XrdRust) misread the block.
+ * HOW:  emits theTag 'S', reserved/secver, secopt, the configured security
+ *       level (seclvl=0 => no signing required), and secvsz=0 (no secvec). */
 static void
-protocol_write_sec_trailer(const ngx_stream_brix_srv_conf_t *conf,
-    const protocol_want_t *want, u_char *si)
+protocol_write_sec_trailer(const ngx_stream_brix_srv_conf_t *conf, u_char *si)
 {
-    int     sec_count = protocol_sec_count(want);
-    u_char *pe;
-
-    /*
-     * SecurityInfo header:
-     *   byte 1 advertises whether security is required,
-     *   byte 2 is the number of following protocol entries.
-     * bytes 0 and 3 are left zero because this implementation does not use
-     * any of the optional legacy fields encoded there.
-     */
-    si[0] = 0;
-    si[1] = sec_count > 0 ? 0x01 : 0x00;
-    si[2] = (u_char) sec_count;
-    si[3] = 0;
-
-    pe = si + 4;
-    if (want->sss) {
-        pe = protocol_sec_entry_write(pe, "sss ");
-    }
-    if (want->unx) {
-        pe = protocol_sec_entry_write(pe, "unix");
-    }
-    if (want->krb5) {
-        pe = protocol_sec_entry_write(pe, "krb5");
-    }
-    if (want->host) {
-        pe = protocol_sec_entry_write(pe, "host");
-    }
-    if (want->pwd) {
-        pe = protocol_sec_entry_write(pe, "pwd ");
-    }
-    if (want->token) {
-        pe = protocol_sec_entry_write(pe, "ztn ");
-    }
-    if (want->gsi) {
-        pe = protocol_sec_entry_write(pe, "gsi ");
-    }
-
-    /* ServerResponseReqs_Protocol — signing level requirements.
-     * Always present when kXR_secreqs is set; seclvl=0 means none. */
-    pe[0] = 'S';                              /* theTag  */
-    pe[1] = 0;                                /* rsvd    */
-    pe[2] = 0;                                /* secver (kXR_secver_0) */
-    pe[3] = (conf->security_level >= 4) ? kXR_secOData : 0; /* secopt */
-    pe[4] = (u_char) conf->security_level;    /* seclvl  */
-    pe[5] = 0;                                /* secvsz=0: no secvec */
+    si[0] = 'S';                              /* theTag  */
+    si[1] = 0;                                /* rsvd    */
+    si[2] = 0;                                /* secver (kXR_secver_0) */
+    si[3] = (conf->security_level >= 4) ? kXR_secOData : 0; /* secopt */
+    si[4] = (u_char) conf->security_level;    /* seclvl  */
+    si[5] = 0;                                /* secvsz=0: no secvec */
 }
 
 #if (NGX_DEBUG)
@@ -227,13 +164,13 @@ brix_handle_protocol(brix_ctx_t *ctx, ngx_connection_t *c,
 
     /*
      * Base kXR_protocol reply is the fixed 8-byte ServerProtocolBody.
-     * If the client advertised security negotiation support, append the small
-     * SecurityInfo trailer describing which auth protocols we offer.
+     * If the client advertised security negotiation support (kXR_secreqs),
+     * append the 6-byte ServerResponseReqs_Protocol signing block directly
+     * behind it — the wire layout is { pval, flags, secreq } with nothing in
+     * between.
      */
     bodylen = sizeof(body);
     if (want.client_flags & kXR_secreqs) {
-        bodylen += 4;                                            /* SecurityInfo header */
-        bodylen += (size_t) protocol_sec_count(&want) * 8;       /* 8 bytes per SecurityProtocol entry */
         bodylen += 6;                                            /* ServerResponseReqs_Protocol */
     }
 
@@ -251,7 +188,7 @@ brix_handle_protocol(brix_ctx_t *ctx, ngx_connection_t *c,
     ngx_memcpy(buf + XRD_RESPONSE_HDR_LEN, &body, sizeof(body));
 
     if (want.client_flags & kXR_secreqs) {
-        protocol_write_sec_trailer(conf, &want,
+        protocol_write_sec_trailer(conf,
                                    buf + XRD_RESPONSE_HDR_LEN + sizeof(body));
     }
 

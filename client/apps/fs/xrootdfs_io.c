@@ -74,8 +74,8 @@ afh_open(const char *path, int writable, int force, struct fuse_file_info *fi)
         }
         char pbuf[XRDC_PATH_MAX];
         h->wf = brix_webfile_open(&g_weburl, srv_path(path, pbuf, sizeof(pbuf)),
-                                  g_bearer, g_web_verify, g_web_ca, g_max_stall,
-                                  NULL, &st);
+                                  g_bearer, g_web_verify, g_web_ca, g_web_proxy,
+                                  g_max_stall, NULL, &st);
         if (h->wf == NULL) {
             afh_free(h);
             return xfs_err(&st);

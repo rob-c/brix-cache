@@ -32,6 +32,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <openssl/crypto.h>          /* OPENSSL_cleanse (bearer scrub) */
+
 /* Staged-write object state: an upload lands on the stage store and is flushed
  * to the backend on commit.  `cred` records the owner identity so a deferred or
  * async flush can authenticate as the original user rather than the service account. */
@@ -60,10 +62,10 @@ typedef struct {
 
 /* Record the caller's per-user identity into a durable stage cred slot.
  *
- * WHAT: Copies key/principal/cred_dir/fallback_deny from an optional
- *       brix_sd_cred_t into `dst` (a brix_stage_cred_t embedded in the durable
- *       write-back or staged state). A NULL or empty-key cred leaves `dst`
- *       untouched (zeroed = service-credential path).
+ * WHAT: Copies key/principal/cred_dir/fallback_deny (and a live WLCG bearer, if
+ *       present) from an optional brix_sd_cred_t into `dst` (a brix_stage_cred_t
+ *       embedded in the durable write-back or staged state). A NULL or empty-key
+ *       cred leaves `dst` untouched (zeroed = service-credential path).
  *
  * WHY:  Both the write-back open and the staged open must capture the owner
  *       identity NOW, while the request context is live, so a deferred or async
@@ -71,16 +73,31 @@ typedef struct {
  *       the service account. Sharing one copier keeps the two capture sites
  *       byte-identical and keeps each caller's branch count in check.
  *
- * HOW:  1. Return immediately unless cred is non-NULL with a non-empty key.
+ * HOW:  1. Return immediately unless cred is non-NULL with a key OR a bearer.
  *       2. ngx_cpystrn key; principal/dir default to "" when their source
- *          pointer is NULL. 3. Narrow fallback_deny into dst->deny. */
+ *          pointer is NULL. 3. Narrow fallback_deny into dst->deny. 4. Copy a
+ *          live bearer when present — the in-memory-only slot the SYNC flush uses
+ *          to re-present a token that has no on-disk cred file to re-resolve. */
 static void
 sd_stage_record_cred(brix_stage_cred_t *dst, const brix_sd_cred_t *cred)
 {
-    if (cred == NULL || cred->key == NULL || cred->key[0] == '\0') {
+    int have_key;
+    int have_bearer;
+
+    if (cred == NULL) {
         return;
     }
-    ngx_cpystrn((u_char *) dst->key, (u_char *) cred->key, sizeof(dst->key));
+    have_key    = (cred->key    != NULL && cred->key[0]    != '\0');
+    have_bearer = (cred->bearer != NULL && cred->bearer[0] != '\0');
+    /* A passthrough WLCG bearer (brix_vfs_deleg_bearer) carries NO store key —
+     * the token IS the credential.  Record it on either kind of identity so the
+     * flush can re-present it; only a truly empty cred falls back to service. */
+    if (!have_key && !have_bearer) {
+        return;
+    }
+    if (have_key) {
+        ngx_cpystrn((u_char *) dst->key, (u_char *) cred->key, sizeof(dst->key));
+    }
     ngx_cpystrn((u_char *) dst->principal,
                 (u_char *) (cred->principal ? cred->principal : ""),
                 sizeof(dst->principal));
@@ -88,6 +105,33 @@ sd_stage_record_cred(brix_stage_cred_t *dst, const brix_sd_cred_t *cred)
                 (u_char *) (cred->cred_dir ? cred->cred_dir : ""),
                 sizeof(dst->dir));
     dst->deny = (uint8_t) cred->fallback_deny;
+    if (have_bearer) {
+        ngx_cpystrn((u_char *) dst->bearer, (u_char *) cred->bearer,
+                    sizeof(dst->bearer));
+    }
+}
+
+/* A recorded per-user identity is present when EITHER a store key (x509 proxy /
+ * s3 / ceph, re-resolved at flush time) OR a live bearer (token write-back,
+ * carried in memory) is set.  The flush gates on this rather than on key alone
+ * so a keyless passthrough bearer is not silently demoted to the service cred. */
+static int
+sd_stage_cred_present(const brix_stage_cred_t *c)
+{
+    return c->key[0] != '\0' || c->bearer[0] != '\0';
+}
+
+/* Cleanse the in-memory bearer once the SYNC flush that borrowed it has
+ * returned.  The stage state is freed right after, but free() does not scrub;
+ * OPENSSL_cleanse (used the same way by brix_sd_ucred_wipe) prevents the token
+ * from lingering in a reused heap block.  Non-secret identity fields are left
+ * intact.  NULL-safe. */
+static void
+sd_stage_cred_wipe(brix_stage_cred_t *c)
+{
+    if (c != NULL) {
+        OPENSSL_cleanse(c->bearer, sizeof(c->bearer));
+    }
 }
 
 /* Seed the stage-store copy of `path` from the SOURCE object for a
@@ -144,7 +188,7 @@ sd_stage_wb_hydrate(sd_stage_inst_state *is, const char *path,
     sd_stage_record_cred(&scred, cred);
     if (brix_stage_run_inline_cred(BRIX_STAGE_RECALL, is->source, path,
             is->store, path,
-            (scred.key[0] != '\0') ? &scred : NULL) != NGX_OK)
+            sd_stage_cred_present(&scred) ? &scred : NULL) != NGX_OK)
     {
         int e = errno ? errno : EIO;
 
@@ -289,7 +333,7 @@ sd_stage_wb_flush(sd_stage_wb_state *wb)
         ngx_memzero(&o, sizeof(o));
         o.async       = 1;
         o.export_root = (is->root_canon[0] != '\0') ? is->root_canon : NULL;
-        o.cred        = (wb->cred.key[0] != '\0') ? &wb->cred : NULL;
+        o.cred        = sd_stage_cred_present(&wb->cred) ? &wb->cred : NULL;
         /* phase74-fp: FLUSH moves bytes FROM the stage `store` TO the backend
          * `source`, so store is the src and source the dst — same verified
          * src/dst order as sd_stage_staged_commit's async submit. */
@@ -301,7 +345,7 @@ sd_stage_wb_flush(sd_stage_wb_state *wb)
 
     rc = brix_stage_run_inline_cred(BRIX_STAGE_FLUSH, is->store, wb->key,
                                      is->source, wb->key,
-                                     (wb->cred.key[0] != '\0') ? &wb->cred : NULL);
+                                     sd_stage_cred_present(&wb->cred) ? &wb->cred : NULL);
     if (rc == NGX_OK) {
         wb->dirty = 0;
     }
@@ -375,6 +419,7 @@ sd_stage_wb_close(brix_sd_obj_t *obj)
     if (wb->store_obj.driver->close != NULL) {
         (void) wb->store_obj.driver->close(&wb->store_obj);
     }
+    sd_stage_cred_wipe(&wb->cred);            /* scrub the token before free */
     free(wb);
     return rc;
 }
@@ -513,13 +558,14 @@ sd_stage_staged_commit(brix_sd_staged_t *st, int noreplace)
         ngx_memzero(&o, sizeof(o));
         o.async       = 1;
         o.export_root = (is->root_canon[0] != '\0') ? is->root_canon : NULL;
-        o.cred        = (ss->cred.key[0] != '\0') ? &ss->cred : NULL;
+        o.cred        = sd_stage_cred_present(&ss->cred) ? &ss->cred : NULL;
         /* phase74-fp: argument order verified against brix_stage_submit(kind,
          * src, src_key, dst, dst_key, opts) — a FLUSH moves bytes FROM the
          * stage `store` TO the backend instance (locally named `source`), so
          * store is the src and source the dst; the name swap is deliberate. */
         (void) brix_stage_submit(BRIX_STAGE_FLUSH, store, ss->key, source,  /* NOLINT(readability-suspicious-call-argument) */
                                    ss->key, &o);
+        sd_stage_cred_wipe(&ss->cred);       /* async never journals the token */
         free(ss);
         free(st);
         return NGX_OK;
@@ -532,7 +578,7 @@ sd_stage_staged_commit(brix_sd_staged_t *st, int noreplace)
      * FLUSH reads from the stage store and writes to the backend `source`. */
     rc = brix_stage_run_inline_cred(BRIX_STAGE_FLUSH, store, ss->key, source,  /* NOLINT(readability-suspicious-call-argument) */
                                      ss->key,
-                                     (ss->cred.key[0] != '\0') ? &ss->cred : NULL);
+                                     sd_stage_cred_present(&ss->cred) ? &ss->cred : NULL);
 
     /* 3. on success drop the stage buffer copy; on failure keep it for retry. */
     if (rc != NGX_OK) {
@@ -547,6 +593,7 @@ sd_stage_staged_commit(brix_sd_staged_t *st, int noreplace)
         (void) store->driver->unlink(store, ss->key, 0);
     }
 
+    sd_stage_cred_wipe(&ss->cred);           /* scrub the token after the flush */
     free(ss);
     free(st);
     return NGX_OK;
@@ -563,6 +610,7 @@ sd_stage_staged_abort(brix_sd_staged_t *st)
     if (ss->inner != NULL && is->store->driver->staged_abort != NULL) {
         is->store->driver->staged_abort(ss->inner);
     }
+    sd_stage_cred_wipe(&ss->cred);           /* scrub any recorded token on abort */
     free(ss);
     free(st);
 }

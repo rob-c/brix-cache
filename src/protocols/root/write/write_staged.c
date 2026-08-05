@@ -42,37 +42,28 @@
  * reply is sent here and *rc holds its return value. Returns NGX_OK when appended
  * (no reply sent yet); NGX_ERROR when the caller must return *rc immediately.
  */
-ngx_int_t
-brix_staged_append(brix_ctx_t *ctx, ngx_connection_t *c, int idx,
-    int64_t offset, const u_char *buf, size_t len, ngx_int_t *rc)
+/*
+ * brix_staged_append_raw — the reply-free core of a staged append: enforce the
+ * sequential-offset contract and forward the block to the write session, with the
+ * success-path byte accounting.  Returns BRIX_STAGED_APPEND_OK on success,
+ * BRIX_STAGED_APPEND_ORDER when `offset` is not the writer's expected offset (a
+ * whole-object backend cannot honour a random offset), or BRIX_STAGED_APPEND_IO
+ * on a writer I/O error (errno preserved).  Sends nothing and touches no metrics
+ * — the caller chooses the reply/log framing.  This is the primitive the chunked
+ * streaming writer (write_stream.c) applies per chunk without acking mid-stream.
+ */
+int
+brix_staged_append_raw(brix_ctx_t *ctx, int idx, int64_t offset,
+    const u_char *buf, size_t len)
 {
     brix_file_t *file = &ctx->files[idx];
-    char         detail[64];
 
-    snprintf(detail, sizeof(detail), "%lld+%zu", (long long) offset, len);
-
-    /* Sequential-append contract: a whole-object backend cannot honour a random
-     * offset. Refuse an out-of-order block cleanly — checked against the writer's
-     * own cursor so the error is deterministic (kXR_Unsupported) rather than
-     * relying on the writer's EINVAL — before corrupting the object (genuinely
-     * random-offset writes stay unsupported). */
     if (offset != (int64_t) brix_vfs_writer_expected_off(file->writer)) {
-        brix_log_access(ctx, c, "WRITE", file->path, detail, 0,
-                          kXR_Unsupported,
-                          "random-offset write to whole-object backend unsupported", 0);
-        BRIX_OP_ERR(ctx, BRIX_OP_WRITE);
-        *rc = brix_send_error(ctx, c, kXR_Unsupported,
-            "random-offset write to whole-object backend unsupported");
-        return NGX_ERROR;
+        return BRIX_STAGED_APPEND_ORDER;
     }
 
     if (brix_vfs_writer_write(file->writer, buf, len, offset) != NGX_OK) {
-        const char *ioerr = strerror(errno);
-        brix_log_access(ctx, c, "WRITE", file->path, detail, 0,
-                          kXR_IOError, ioerr, 0);
-        BRIX_OP_ERR(ctx, BRIX_OP_WRITE);
-        *rc = brix_send_error(ctx, c, kXR_IOError, ioerr);
-        return NGX_ERROR;
+        return BRIX_STAGED_APPEND_IO;
     }
 
     file->bytes_written       += len;
@@ -87,7 +78,43 @@ brix_staged_append(brix_ctx_t *ctx, ngx_connection_t *c, int idx,
         brix_transfer_slot_count_op(ngx_brix_dashboard_shm_zone->data,
                                       file->dashboard_slot, "write");
     }
-    return NGX_OK;
+    return BRIX_STAGED_APPEND_OK;
+}
+
+ngx_int_t
+brix_staged_append(brix_ctx_t *ctx, ngx_connection_t *c, int idx,
+    int64_t offset, const u_char *buf, size_t len, ngx_int_t *rc)
+{
+    char detail[64];
+    int  ar;
+
+    ar = brix_staged_append_raw(ctx, idx, offset, buf, len);
+    if (ar == BRIX_STAGED_APPEND_OK) {
+        return NGX_OK;
+    }
+
+    snprintf(detail, sizeof(detail), "%lld+%zu", (long long) offset, len);
+
+    if (ar == BRIX_STAGED_APPEND_ORDER) {
+        /* Sequential-append contract: refuse an out-of-order block cleanly
+         * (kXR_Unsupported) before corrupting the object. */
+        brix_log_access(ctx, c, "WRITE", ctx->files[idx].path, detail, 0,
+                          kXR_Unsupported,
+                          "random-offset write to whole-object backend unsupported", 0);
+        BRIX_OP_ERR(ctx, BRIX_OP_WRITE);
+        *rc = brix_send_error(ctx, c, kXR_Unsupported,
+            "random-offset write to whole-object backend unsupported");
+        return NGX_ERROR;
+    }
+
+    {
+        const char *ioerr = strerror(errno);
+        brix_log_access(ctx, c, "WRITE", ctx->files[idx].path, detail, 0,
+                          kXR_IOError, ioerr, 0);
+        BRIX_OP_ERR(ctx, BRIX_OP_WRITE);
+        *rc = brix_send_error(ctx, c, kXR_IOError, ioerr);
+    }
+    return NGX_ERROR;
 }
 
 /*

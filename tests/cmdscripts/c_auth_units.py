@@ -380,6 +380,78 @@ def run_gsi_eec(base: Path) -> list[tuple[bool, str]]:
             shutil.rmtree(owned, ignore_errors=True)
 
 
+# Forge the delegation EEC-scan corpus (Finding 1, gsi-delegation-xrdhttp): one
+# CA -> EEC -> two proxies with distinct serials. The EEC is the non-proxy the
+# scan must recover; the proxies are what it must skip and never return.
+DELEG_FIND_EEC_FORGE = """
+import pathlib, sys
+import x509forge
+
+d = pathlib.Path(sys.argv[1])
+ca = x509forge.make_ca("/DC=test/CN=Deleg EEC Scan CA")
+eec = x509forge.make_eec(ca, "/DC=test/CN=alice", not_after_days=4000)
+proxy = x509forge.make_proxy(eec, not_after_days=4000, serial=200001)
+proxy2 = x509forge.make_proxy(eec, not_after_days=4000, serial=200002)
+(d / "ca.pem").write_bytes(ca.pem)
+(d / "eec.pem").write_bytes(eec.pem)
+(d / "proxy.pem").write_bytes(proxy.pem)
+(d / "proxy2.pem").write_bytes(proxy2.pem)
+"""
+
+
+def run_deleg_find_eec(base: Path) -> list[tuple[bool, str]]:
+    """Finding 1 primitive: delegation_find_eec() recovers the EEC from a proxy
+    chain (success), fails closed on an empty/NULL chain (error), and never
+    returns a proxy in the EEC's place (security-negative). Links the REAL
+    delegation.o so a file-split or behavioral regression there fails here."""
+    if shutil.which("openssl") is None:
+        return [result(True, "SKIP openssl not on PATH")]
+    # find_obj("delegation.o") is AMBIGUOUS — there is also addon/gsi/delegation.o
+    # (the root:// GSI leg), which holds no delegation_find_eec. Resolve the
+    # webdav TU explicitly so the link never silently grabs the wrong object.
+    obj = next(iter(sorted((OBJS / "addon" / "webdav").rglob("delegation.o"))), None)
+    if obj is None:
+        return [result(True, "SKIP build src/protocols/webdav/delegation.o first")]
+    fixtures, owned = x509_fixture_dir("deleg_find_eec")
+    try:
+        forged = run(
+            ["python3", "-c", DELEG_FIND_EEC_FORGE, str(fixtures)],
+            cwd=REPO_ROOT,
+            env={"PYTHONPATH": "tests", **HERMETIC_ENV},
+        )
+        if forged.returncode != 0:
+            return [result(False, f"forge deleg_find_eec fixtures failed: {(forged.stderr or forged.stdout)[-3000:]}")]
+        ok, message = compile_and_run(
+            base / "test_deleg_find_eec",
+            [
+                "-O",
+                "-Wall",
+                "-I",
+                "src",
+                "-I",
+                "shared",
+                "-I",
+                str(NGX_SRC / "src/core"),
+                "-I",
+                str(NGX_SRC / "src/event"),
+                "-I",
+                str(NGX_SRC / "src/os/unix"),
+                "-I",
+                str(OBJS),
+                "tests/c/deleg_find_eec_test.c",
+                str(obj),
+                *X509_POLICY_SOURCES,
+                "-lssl",
+                "-lcrypto",
+            ],
+            env={"BRIX_DELEG_FIND_EEC_FIXTURES": str(fixtures)},
+        )
+        return [result(ok, f"deleg_find_eec {message}")]
+    finally:
+        if owned:
+            shutil.rmtree(owned, ignore_errors=True)
+
+
 # Shared link recipe for the two P90-70.9 token-gate units: the harness TU +
 # the real module objects; json.o drags in jansson, b64url/crypto need OpenSSL.
 def _run_token_unit(base: Path, name: str, harness: str,
@@ -637,6 +709,7 @@ RUNNERS = {
     "cred_mint": run_cred_mint,
     "deleg_gate": run_deleg_gate,
     "gsi_eec": run_gsi_eec,
+    "deleg_find_eec": run_deleg_find_eec,
     "ucred": run_ucred,
     "sts_units": run_sts_units,
 }

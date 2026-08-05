@@ -194,6 +194,54 @@ def test_teardown_restores_nft_and_mtu_on_signal(bfp, netns):
 
 
 # --------------------------------------------------------------------------- #
+# Phase-99 Wave B: below-TCP DPI verdicts (frag-drop / first-not-syn / strip-opt)#
+# --------------------------------------------------------------------------- #
+@needs_root
+def test_frag_drop_installs_and_tears_down(bfp, netns):
+    proc, _listen, ctl = _spawn(bfp, netns, ["--priv-iface", "lo"])
+    try:
+        assert "ok" in _ctl(netns, ctl, "priv frag-drop")
+        table = _nsrun(netns, "nft", "list", "table", "inet",
+                       "brix_fault_proxy").stdout
+        assert "frag-off" in table and "drop" in table
+    finally:
+        proc.terminate()
+        proc.wait(timeout=5)
+    # Auto-teardown removes the whole table.
+    assert "brix_fault_proxy" not in _nsrun(netns, "nft", "list", "tables").stdout
+
+
+@needs_root
+def test_first_not_syn_drop_installs_conntrack_verdict(bfp, netns):
+    proc, listen, ctl = _spawn(bfp, netns, ["--priv-iface", "lo"])
+    try:
+        assert "ok" in _ctl(netns, ctl, "priv first-not-syn-drop")
+        table = _nsrun(netns, "nft", "list", "table", "inet",
+                       "brix_fault_proxy").stdout
+        assert "ct state invalid" in table and "drop" in table
+        assert ("dport %d" % listen) in table       # scoped to the listen port
+    finally:
+        proc.terminate()
+        proc.wait(timeout=5)
+    assert "brix_fault_proxy" not in _nsrun(netns, "nft", "list", "tables").stdout
+
+
+@needs_root
+def test_strip_opt_degrades_gracefully(bfp, netns):
+    """TCP-option stripping needs NFQUEUE/eBPF; it must report a clear reason and
+    install nothing rather than silently pretend to work."""
+    proc, _listen, ctl = _spawn(bfp, netns, ["--priv-iface", "lo"])
+    try:
+        reply = _ctl(netns, ctl, "priv strip-opt wscale")
+        assert "err" in reply and "NFQUEUE" in reply
+        assert "brix_fault_proxy" not in _nsrun(
+            netns, "nft", "list", "tables").stdout
+    finally:
+        proc.terminate()
+        proc.wait(timeout=5)
+
+
+# --------------------------------------------------------------------------- #
 # ERROR                                                                        #
 # --------------------------------------------------------------------------- #
 def test_priv_refused_without_optin(bfp):

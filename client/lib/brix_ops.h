@@ -473,6 +473,16 @@ typedef struct {
     int         zip_append; /* --zip-append: like --zip but append to an existing
                            * (non-ZIP64) archive instead of overwriting. */
     int         streams;  /* -S/--streams N: attach N-1 kXR_bind secondaries */
+    int         parallel; /* --parallel: TRUE concurrent striped download — one
+                           * thread per bound connection, each pwrites its disjoint
+                           * byte range into the destination (real multi-stream
+                           * throughput, hides RTT on high-latency links).  Opt-in:
+                           * the parallel path is fail-closed (no single-link
+                           * resilient ride-out), so it is OFF by default and the
+                           * serial resilient fan-out stays the default.  Applies
+                           * only to a local-file download of a known-size plain
+                           * (non-compressed, non-pgrw) object; every other case
+                           * falls back to the serial pump. */
     int         tpc_mode; /* --tpc: 0=off, 1=first (fallback), 2=only, 3=delegate */
     const char *tpc_token_mode;  /* --tpc delegate token_mode value (optional) */
     int         recursive;/* -r: copy a directory tree (dirlist walk + mkdir + per-file) */

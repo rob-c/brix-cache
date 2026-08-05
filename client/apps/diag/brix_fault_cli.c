@@ -213,6 +213,10 @@ fp_apply_lever_opt(int opt, const char *optarg)
         {1037, "global-rate"}, {1038, "flap"},      {1039, "ramp"},
         {1041, "tls"},         {1042, "http"},      {1043, "record"},
         {1044, "replay"},
+        {1050, "idle-reap"},   {1051, "eat-100-continue"},
+        {1052, "rst-after"},   {1053, "max-bytes"}, {1054, "drop-fin"},
+        {1055, "classify-throttle"}, {1056, "hello-split-reset"},
+        {1057, "syn-drop"},    {1058, "alg-rewrite"},
     };
     char   cmd[2048];
     size_t i;
@@ -251,6 +255,7 @@ fp_store_core_opt(int opt, fp_config *cfg)
     case 1017: cfg->privileged = 1; break;
     case 1018: cfg->priv_iface = optarg; break;
     case 1045: cfg->event_log = optarg; break;
+    case 1046: cfg->udp_spec = optarg; break;
     default: return 0;
     }
     return 1;
@@ -373,6 +378,16 @@ fp_parse_args(int argc, char **argv, fp_config *cfg)
         {"record",        required_argument, NULL, 1043},
         {"replay",        required_argument, NULL, 1044},
         {"event-log",     required_argument, NULL, 1045},
+        {"udp",           required_argument, NULL, 1046},
+        {"idle-reap",     required_argument, NULL, 1050},
+        {"eat-100-continue", required_argument, NULL, 1051},
+        {"rst-after",     required_argument, NULL, 1052},
+        {"max-bytes",     required_argument, NULL, 1053},
+        {"drop-fin",      required_argument, NULL, 1054},
+        {"classify-throttle", required_argument, NULL, 1055},
+        {"hello-split-reset", required_argument, NULL, 1056},
+        {"syn-drop",      required_argument, NULL, 1057},
+        {"alg-rewrite",   required_argument, NULL, 1058},
         {"help",          no_argument,       NULL, 'h'},
         {"version",       no_argument,       NULL, 'V'},
         {0, 0, 0, 0},

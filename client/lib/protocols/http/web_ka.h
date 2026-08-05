@@ -18,6 +18,7 @@ typedef struct {
     int     tls;
     int     verify;
     char    ca_dir[512];          /* "" => default resolver */
+    char    client_cert[512];     /* X.509 proxy PEM for mutual TLS; "" => none */
     char    hostport[300];        /* Host: header value (IPv6-bracketed) */
     int     timeout_ms;
 } brix_kaconn;
@@ -30,7 +31,8 @@ typedef struct {
 } brix_ka_hdr;
 
 void brix_kaconn_init(brix_kaconn *k, const char *host, int port, int tls,
-                      int verify, const char *ca_dir, int timeout_ms);
+                      int verify, const char *ca_dir, const char *client_cert,
+                      int timeout_ms);
 int  brix_kaconn_connect(brix_kaconn *k, brix_status *st);
 void brix_kaconn_disconnect(brix_kaconn *k);
 int  brix_kaconn_read_headers(brix_kaconn *k, char *hbuf, size_t hbufsz,
@@ -44,8 +46,8 @@ typedef struct {
 } brix_webmeta;
 
 void brix_webmeta_init(brix_webmeta *m, const char *host, int port, int tls,
-                       int verify, const char *ca_dir, const char *bearer,
-                       int timeout_ms);
+                       int verify, const char *ca_dir, const char *client_cert,
+                       const char *bearer, int timeout_ms);
 /* Keep-alive PROPFIND of `path` at `depth` (0=stat, 1=readdir). On success
  * body_out/len_out own the NUL-terminated response body (free()). Deadline-
  * bounded reconnect-on-sever (webfile_window_ms()). status→kXR: 404 NotFound,

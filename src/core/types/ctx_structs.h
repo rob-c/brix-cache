@@ -210,6 +210,22 @@ typedef struct {
     size_t     payload_pos;        /* bytes accumulated so far */
     u_char    *payload_buf;        /* reusable receive buffer */
     size_t     payload_buf_size;   /* allocated size of payload_buf */
+
+    /* Streaming large plain kXR_write.  When sw_active is set the payload is a
+     * SINGLE bounded chunk (payload_buf holds BRIX_WRITE_STREAM_CHUNK bytes) and
+     * cur_dlen is repurposed as the CURRENT chunk length rather than the whole
+     * write; each filled chunk is applied to the fd / staged writer at
+     * sw_base_off+sw_done and one ack is sent after the last chunk.  See
+     * write_stream.c. */
+    unsigned    sw_active:1;       /* a chunked streaming write is in progress */
+    unsigned    sw_staged:1;       /* route: staged append (else direct pwrite) */
+    unsigned    sw_drain:1;        /* handle unusable: discard bytes, err at end */
+    int         sw_idx;            /* file-handle slot being written */
+    int64_t     sw_base_off;       /* wire offset of the logical write */
+    uint32_t    sw_total;          /* total logical write length (original dlen) */
+    uint32_t    sw_done;           /* bytes already applied */
+    int         sw_err;            /* latched kXR_* error code (0 = none yet) */
+    const char *sw_errmsg;         /* latched error detail string */
 } brix_ctx_recv_t;
 
 /* Output response ring + write-pipelining state (Phase 29/32).  A response is

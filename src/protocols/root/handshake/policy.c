@@ -114,9 +114,14 @@ brix_dispatch_require_write(brix_ctx_t *ctx, ngx_connection_t *c,
         return rc;
     }
 
-    if (ctx->is_bound) {
+    /* Phase 94: a bound secondary may carry a plain kXR_write data payload for a
+     * primary-published writable handle (parallel upload) — but nothing else
+     * (no open/close/mkdir/mv/rm/writev/pgwrite): those stay primary-only so a
+     * secondary can never mutate the namespace or the handle table. */
+    if (ctx->is_bound && ctx->recv.cur_reqid != kXR_write) {
         return brix_send_error(ctx, c, kXR_NotAuthorized,
-                                 "bound streams may only read primary handles");
+                                 "bound streams may only read or write primary "
+                                 "handles");
     }
 
     if (!conf->common.allow_write) {

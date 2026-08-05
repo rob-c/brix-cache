@@ -43,6 +43,7 @@ ngx_http_brix_shared_init(ngx_http_brix_shared_conf_t *conf)
     conf->allow_write        = NGX_CONF_UNSET;
     conf->verify_write       = NGX_CONF_UNSET;
     conf->require_pgwrite    = NGX_CONF_UNSET;
+    conf->data_substreams    = NGX_CONF_UNSET;
     conf->read_only          = NGX_CONF_UNSET;
     conf->compress           = NGX_CONF_UNSET;
     conf->strict_security    = NGX_CONF_UNSET;
@@ -350,6 +351,7 @@ ngx_http_brix_shared_merge(ngx_conf_t *cf,
     ngx_conf_merge_value(conf->allow_write, prev->allow_write, 0);
     ngx_conf_merge_value(conf->verify_write, prev->verify_write, 0);
     ngx_conf_merge_value(conf->require_pgwrite, prev->require_pgwrite, 0);
+    ngx_conf_merge_value(conf->data_substreams, prev->data_substreams, 1);
     ngx_conf_merge_value(conf->read_only, prev->read_only, 0);
     ngx_conf_merge_value(conf->compress, prev->compress, 0);
     ngx_conf_merge_value(conf->strict_security, prev->strict_security, 0);

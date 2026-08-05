@@ -301,7 +301,8 @@ httpx_parse(char *buf, size_t total, brix_http_resp *resp)
  * 0 / -1 (st set; socket closed on failure). */
 int
 httpx_connect(brix_io *io, const char *host, int port, int tls, int verify,
-              const char *ca_dir, int timeout_ms, void **tls_ctx, brix_status *st)
+              const char *ca_dir, const char *client_cert, int timeout_ms,
+              void **tls_ctx, brix_status *st)
 {
     memset(io, 0, sizeof(*io));
     *tls_ctx = NULL;
@@ -310,7 +311,8 @@ httpx_connect(brix_io *io, const char *host, int port, int tls, int verify,
         return -1;
     }
     io->timeout_ms = timeout_ms;
-    if (tls && brix_tls_client(io, host, verify, verify, ca_dir, tls_ctx, st) != 0) {
+    if (tls && brix_tls_client(io, host, verify, verify, ca_dir, client_cert,
+                               tls_ctx, st) != 0) {
         close(io->fd);
         io->fd = -1;
         return -1;

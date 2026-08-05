@@ -25,7 +25,15 @@ brix_max_payload_for_request(uint16_t reqid)
  * HOW:  table of the opcodes that carry large bodies (writes, readv segments,
  *       auth, prepare); everything else is a path plus a small fixed body. */
 {
-    if (reqid == kXR_pgwrite || reqid == kXR_write || reqid == kXR_writev
+    /* A plain kXR_write is delivered in bounded chunks (see BRIX_WRITE_STREAM_*),
+     * so its dlen may legitimately exceed the buffered 16 MiB cap; bound it only
+     * by the streaming ceiling.  pgwrite/writev/chkpoint still buffer the whole
+     * body (per-page CRC / descriptor structure), so they keep the 16 MiB cap. */
+    if (reqid == kXR_write) {
+        return BRIX_MAX_WRITE_STREAM;
+    }
+
+    if (reqid == kXR_pgwrite || reqid == kXR_writev
         || reqid == kXR_chkpoint) {
         return BRIX_MAX_WRITE_PAYLOAD;
     }

@@ -124,10 +124,14 @@ mkcol_parents(const mkcol_ctx_t *m, const char *rel, brix_status *st)
         int w = snprintf(acc + blen, sizeof(acc) - blen, "/%.*s",
                          (int) (slash - rel), rel);
         if (w < 0 || blen + (size_t) w >= sizeof(acc)) { return -1; }
-        if (brix_webdav_mkcol(m->du, acc, m->bearer,
-                              m->co ? m->co->verify_host : 1,
-                              m->co ? m->co->ca_dir : NULL, st) != 0) {
-            return -1;
+        {
+            char        proxybuf[512];
+            const char *pcert = brix_web_proxy_pem(proxybuf, sizeof(proxybuf));
+            if (brix_webdav_mkcol(m->du, acc, m->bearer,
+                                  m->co ? m->co->verify_host : 1,
+                                  m->co ? m->co->ca_dir : NULL, pcert, st) != 0) {
+                return -1;
+            }
         }
     }
     return 0;
@@ -245,8 +249,12 @@ ensure_web_dst_base(const char *dstroot, const brix_copy_opts *fo,
     dbearer = (fo != NULL && fo->bearer != NULL) ? fo->bearer
                                                  : getenv("BEARER_TOKEN");
     brix_status_clear(&st);
-    (void) brix_webdav_mkcol(&du, dbase, dbearer, co ? co->verify_host : 1,
-                             co ? co->ca_dir : NULL, &st);   /* best-effort */
+    {
+        char        proxybuf[512];
+        const char *pcert = brix_web_proxy_pem(proxybuf, sizeof(proxybuf));
+        (void) brix_webdav_mkcol(&du, dbase, dbearer, co ? co->verify_host : 1,
+                                 co ? co->ca_dir : NULL, pcert, &st); /* best-effort */
+    }
 }
 
 
@@ -500,8 +508,10 @@ recursive_web_download(const char *src, const char *dstdir, const brix_copy_opts
         return recursive_s3_download(&u, dstdir, &fo, co, retries);
     }
     bearer = (o != NULL && o->bearer != NULL) ? o->bearer : getenv("BEARER_TOKEN");
+    char        proxybuf[512];
+    const char *pcert = brix_web_proxy_pem(proxybuf, sizeof(proxybuf));
     if (brix_webdav_list(&u, bearer, co ? co->verify_host : 1,
-                         co ? co->ca_dir : NULL, &paths, &n, &st) != 0) {
+                         co ? co->ca_dir : NULL, pcert, &paths, &n, &st) != 0) {
         fprintf(stderr, "xrdcp: list %s: %s\n", src, st.msg);
         return 1;
     }

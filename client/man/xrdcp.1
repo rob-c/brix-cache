@@ -148,7 +148,13 @@ Store the local source as a STORE member of the destination ZIP archive
 Like \fB\-\-zip\fR but append to an existing archive.
 .TP
 .BR \-S ", " \-\-streams " \fIN\fR"
-Open N\-1 secondary \fBkXR_bind\fR data streams.
+Open N\-1 secondary \fBkXR_bind\fR data streams. Sub\-streams are on by
+default (4); \fB\-S 1\fR disables them.
+.TP
+.B \-\-parallel
+True concurrent striped download: one thread per data stream, each reading a
+disjoint range. Opt\-in \(em the default serial fan\-out keeps the
+single\-link resilient ride\-out, which this mode gives up.
 .TP
 .B \-\-tpc " first\|only\|delegate"
 Server-side third-party copy (remote to remote).

@@ -110,6 +110,8 @@ const struct fuse_operations xfs_ops = {
 const char  *g_bearer = NULL;     /* --token / $BEARER_TOKEN (else anon) */
 int                 g_web_verify = 1;    /* TLS server-cert verification (https) */
 const char         *g_web_ca = NULL;     /* CA hash dir (else $X509_CERT_DIR) */
+static char         g_web_proxy_buf[512];
+const char         *g_web_proxy = NULL;  /* X.509 proxy PEM for davs mutual TLS */
  char         g_base[XRDC_PATH_MAX] = "";  /* URL path prefix (export base) */
 
 /* Map a FUSE path ("/file") to the server path under the export base. With an
@@ -400,11 +402,12 @@ aio_web_mount(int fuse_argc, char **fuse_argv, const char *endpoint)
     }
     g_web_verify = g_opts.verify_host;
     g_web_ca = brix_resolve_ca_dir(g_opts.ca_dir);
+    g_web_proxy = brix_web_proxy_pem(g_web_proxy_buf, sizeof(g_web_proxy_buf));
     /* export base = the URL path, trailing '/' trimmed; "/" → "" (verbatim). */
     aio_set_base(g_weburl.path);
     /* fail the mount up front if the export root is unreachable/denied. */
     if (brix_web_stat(&g_weburl, g_base[0] ? g_base : "/", g_bearer,
-                      g_web_verify, g_web_ca, &si, &st) != 0) {
+                      g_web_verify, g_web_ca, g_web_proxy, &si, &st) != 0) {
         fprintf(stderr, "xrootdfs: %s://%s:%d%s: %s\n",
                 g_weburl.tls ? "https" : "http", g_weburl.host, g_weburl.port,
                 g_weburl.path, st.msg);
@@ -419,7 +422,8 @@ aio_web_mount(int fuse_argc, char **fuse_argv, const char *endpoint)
     /* Pool the metadata path: the probe above validated endpoint/auth/TLS, so
      * slot-0's eager connect will not be the first failure point. */
     brix_webmeta_init(&g_web_tmpl, g_weburl.host, g_weburl.port, g_weburl.tls,
-                      g_web_verify, g_web_ca, g_bearer, 0 /* → default 30 s */);
+                      g_web_verify, g_web_ca, g_web_proxy, g_bearer,
+                      0 /* → default 30 s */);
     brix_status_clear(&st);
     g_web_pool = brix_cpool_create(&WEB_VT, &g_web_tmpl, g_max_conns, &st);
     if (g_web_pool == NULL) {

@@ -41,7 +41,20 @@ brix_handle_bind(brix_ctx_t *ctx, ngx_connection_t *c,
     size_t             total;
     ngx_uint_t         token_auth = 0;
 
-    (void) conf;
+    /*
+     * brix_data_substreams off: refuse the bind so the client streams every
+     * request — and its data — inline on the primary connection (pathid 0).  A
+     * data path is an optimisation, not a requirement (go-hep session.go), so a
+     * refused bind is a clean fallback; this is the supported posture when
+     * fronting a client that would otherwise stream WRITE payloads on a secondary
+     * connection, which BriX does not yet service as a cross-connection data-path.
+     */
+    if (!conf->common.data_substreams) {
+        brix_log_access(ctx, c, "BIND", "-", "-", 0, kXR_Unsupported,
+                          "data substreams disabled (brix_data_substreams off)", 0);
+        return brix_send_error(ctx, c, kXR_Unsupported,
+                                 "data substreams disabled on this server");
+    }
 
     xrdw_sessid_req_unpack(((ClientRequestHdr *) ctx->recv.hdr_buf)->body, &req);
 

@@ -37,6 +37,7 @@ web_connect(brix_webfile *wf, brix_status *st)
     wf->io.timeout_ms = wf->timeout_ms;
     if (wf->tls && brix_tls_client(&wf->io, wf->host, wf->verify, wf->verify,
                                    wf->ca_dir[0] ? wf->ca_dir : NULL,
+                                   wf->client_cert[0] ? wf->client_cert : NULL,
                                    &wf->tls_ctx, st) != 0) {
         close(wf->io.fd);
         wf->io.fd = -1;
@@ -332,14 +333,14 @@ web_get_range(brix_webfile *wf, int64_t off, void *buf, size_t len,
 
 brix_webfile *
 brix_webfile_open(const brix_weburl *u, const char *path, const char *bearer,
-                  int verify, const char *ca_dir, int timeout_ms,
-                  brix_statinfo *si_out, brix_status *st)
+                  int verify, const char *ca_dir, const char *client_cert,
+                  int timeout_ms, brix_statinfo *si_out, brix_status *st)
 {
     brix_webfile *wf;
     brix_statinfo si;
 
     /* stat first: confirms existence + gives the size (and feeds getattr). */
-    if (brix_web_stat(u, path, bearer, verify, ca_dir, &si, st) != 0) {
+    if (brix_web_stat(u, path, bearer, verify, ca_dir, client_cert, &si, st) != 0) {
         return NULL;
     }
     if (si.flags & kXR_isDir) {
@@ -357,6 +358,9 @@ brix_webfile_open(const brix_weburl *u, const char *path, const char *bearer,
     wf->verify = verify;
     if (ca_dir != NULL) {
         snprintf(wf->ca_dir, sizeof(wf->ca_dir), "%s", ca_dir);
+    }
+    if (client_cert != NULL) {
+        snprintf(wf->client_cert, sizeof(wf->client_cert), "%s", client_cert);
     }
     snprintf(wf->path, sizeof(wf->path), "%s", path);
     web_auth(bearer, wf->auth, sizeof(wf->auth));

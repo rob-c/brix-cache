@@ -3,7 +3,8 @@
  * WHAT: The per-segment fault kernels — clamp, delay, corrupt, the aggregate rate
  *       gate — and the two forwarding entry points every relayed byte passes
  *       through, plus the config snapshots (ext/TLS/HTTP/trigger/mangle) the
- *       hot path takes under g_ext_lock.
+ *       hot path takes under g_ext_lock.  Also the per-connection relay thread
+ *       (dial + tune + pump) and the replay-mode synthetic peer that drive them.
  *
  * WHY:  Split out of brix_fault_proxy.c, which was far over the 600-line cap
  *       (coding-standards §1). The program's shared lever state stayed where
@@ -21,8 +22,11 @@
 #include "brix_fault_toxic.h"
 #include <errno.h>
 #include <netdb.h>
+#include <netinet/in.h>
+#include <netinet/tcp.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/socket.h>
 #include <unistd.h>
 
 /* Blocking connect to host:port (best-effort, first address that works). */
@@ -454,4 +458,111 @@ apply_http(int is_up, const char *in, ssize_t n, unsigned char *out, int *applie
         CBUMP(http_rewrites, 1);
     }
     return on;
+}
+
+/* Replay mode: act as a synthetic peer, feeding the client the recorded byte
+ * timeline (the g_replay_updir direction) with the original inter-segment
+ * timing.  No live upstream is dialled.  The store is immutable while replay is
+ * active, so it is read lock-free. */
+void
+replay_to_client(int cfd, unsigned epoch)
+{
+    int                want = g_replay_updir ? 1 : 0;
+    unsigned long long last = 0;
+    int                started = 0;
+    for (size_t k = 0; k < g_replay_store.n; k++) {
+        fp_replay_rec *r = &g_replay_store.recs[k];
+        if (r->is_up != want) {
+            continue;
+        }
+        if (started) {
+            long long d = (long long) r->ts_ms - (long long) last;
+            if (d > 0 && d < 60000) {          /* honour original gaps, cap at 60s */
+                usleep((useconds_t) d * 1000);
+            }
+        }
+        last = r->ts_ms;
+        started = 1;
+        if (g_blocked || g_drop_epoch != epoch) {
+            break;
+        }
+        if (r->len > 0 &&
+            write_all(cfd, (const char *) r->bytes, (ssize_t) r->len) != 0) {
+            break;
+        }
+        CBUMP(replayed, (unsigned long) r->len);
+    }
+}
+
+void *
+relay_thread(void *arg)
+{
+    relay_arg *ra = (relay_arg *) arg;
+    int        cfd = ra->client_fd;
+    unsigned   epoch = ra->epoch;
+    unsigned long conn_id = ra->conn_id;
+    fp_route  *route = ra->route;
+    free(ra);
+
+    t_conn_id = conn_id;   /* attribute deep-path fault events to this connection */
+    fp_event_set_route(fp_route_name(route));   /* tag this thread's events */
+
+    unsigned seed = g_seed + (unsigned) conn_id * 2654435761u;
+
+    if (relay_predial(cfd, epoch, conn_id)) {
+        return NULL;
+    }
+
+    /* Replay: synthesise the response from a recorded session, no upstream. */
+    if (g_replay_active) {
+        replay_to_client(cfd, epoch);
+        close(cfd);
+        CDEC(active);
+        return NULL;
+    }
+
+    int ufd = dial_route(route);
+    if (ufd < 0) {
+        close(cfd);
+        CDEC(active);
+        return NULL;
+    }
+    /* Egress NODELAY on BOTH ends so chunk/drip pieces are delivered as separate
+     * segments (otherwise the kernel coalesces them and the peer never sees a
+     * partial PDU).  The accept side already set NODELAY on cfd. */
+    { int one = 1;
+      setsockopt(ufd, IPPROTO_TCP, TCP_NODELAY, &one, sizeof(one));
+      setsockopt(cfd, IPPROTO_TCP, TCP_NODELAY, &one, sizeof(one)); }
+
+    apply_conn_tuning(cfd, ufd);
+    send_proxy_header(ufd, cfd);   /* forged PROXY header, before any client bytes */
+
+    /* fanout: open (and hold) extra upstream connections per client connection to
+     * drain the server's accept/worker pool — a connection-amplification attack. */
+    int extra[16];
+    int nextra = 0;
+    int fo = g_fanout;
+    if (fo > 0) {
+        if (fo > 16) {
+            fo = 16;
+        }
+        for (int k = 0; k < fo; k++) {
+            int f = dial_route(route);
+            if (f >= 0) {
+                extra[nextra++] = f;
+                CBUMP(fanout_conns, 1);
+            }
+        }
+    }
+
+    /* Own the per-direction byte totals here so per-route accounting survives
+     * every relay_pump exit path (sever / max-life / EOF). */
+    unsigned long up_ctr = 0, down_ctr = 0;
+    relay_pump(cfd, ufd, epoch, seed, &up_ctr, &down_ctr);
+    fp_route_add_bytes(route, up_ctr, down_ctr);
+
+    for (int k = 0; k < nextra; k++) {
+        close(extra[k]);
+    }
+    return NULL;
 }

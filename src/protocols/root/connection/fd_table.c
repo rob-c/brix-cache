@@ -120,29 +120,24 @@ brix_local_file_matches_shared_handle(const brix_file_t *file,
            && ngx_strcmp(file->path, shared->path) == 0;
 }
 
-/* brix_reopen_bound_read_handle — reopen a bound secondary's stale fd to match the
- * primary's shared entry via a cache-aware confined open (O_RDONLY|O_NOCTTY|O_CLOEXEC),
- * refreshing all file metadata from the fresh fstat; NGX_DECLINED (revoke) if the
- * filesystem object's device/inode changed. */
-
-static ngx_int_t
-brix_reopen_bound_read_handle(brix_ctx_t *ctx, ngx_connection_t *c,
-    int handle_index, const brix_shared_handle_entry_t *shared)
+/* brix_bound_confined_open — cache-aware confined (re)open of a primary-published
+ * shared entry's path with the given flags, validating the reopened object's
+ * device/inode against the published tuple.  Returns a fresh caller-owned fd, or
+ * -1 on open/fstat failure or a device/inode mismatch (path replaced since publish;
+ * the fd is closed before returning).  Shared by the bound READ (O_RDONLY) and
+ * bound WRITE (O_WRONLY) reopen paths so the confinement + stale-reference check
+ * lives in exactly one place. */
+static int
+brix_bound_confined_open(brix_ctx_t *ctx, ngx_connection_t *c,
+    const brix_shared_handle_entry_t *shared, int open_flags, struct stat *st)
 {
     ngx_stream_brix_srv_conf_t *conf;
-    brix_file_t                *file;
-    struct stat                   st;
-    int                           fd;
-    int                           open_flags;
-
-    if (!shared->readable || shared->path[0] == '\0') {
-        return NGX_DECLINED;
-    }
+    int                         fd;
 
     conf = ngx_stream_get_module_srv_conf(ctx->session,
                                           ngx_stream_brix_module);
     if (conf == NULL) {
-        return NGX_ERROR;
+        return -1;
     }
 
     /*
@@ -150,7 +145,6 @@ brix_reopen_bound_read_handle(brix_ctx_t *ctx, ngx_connection_t *c,
      * still opens it with the same confinement helper so a stale or corrupted
      * shared-memory entry cannot escape the configured export root.
      */
-    open_flags = O_RDONLY | O_NOCTTY | O_CLOEXEC;
     if (shared->from_cache) {
         fd = open(shared->path, open_flags | O_NOFOLLOW);  /* vfs-seam-allow: separate server-managed cache-root domain (from_cache), opened as worker; O_NOFOLLOW so a stray symlink in the svc-owned cache tree is not followed */
     } else {
@@ -171,24 +165,49 @@ brix_reopen_bound_read_handle(brix_ctx_t *ctx, ngx_connection_t *c,
 
     if (fd < 0) {
         ngx_log_debug2(NGX_LOG_DEBUG_STREAM, c->log, errno,
-                       "brix: bound handle reopen failed handle=%d path=%s",
-                       handle_index, shared->path);
-        return NGX_DECLINED;
+                       "brix: bound handle confined open failed path=%s flags=%d",
+                       shared->path, open_flags);
+        return -1;
     }
 
-    if (fstat(fd, &st) != 0) {
+    if (fstat(fd, st) != 0) {
         ngx_log_debug1(NGX_LOG_DEBUG_STREAM, c->log, errno,
-                       "brix: fstat failed on bound handle=%d",
-                       handle_index);
+                       "brix: fstat failed on bound reopen path=%s", shared->path);
         close(fd);
-        return NGX_DECLINED;
+        return -1;
     }
 
-    if (st.st_dev != shared->device || st.st_ino != shared->inode) {
+    if (st->st_dev != shared->device || st->st_ino != shared->inode) {
         close(fd);
         ngx_log_debug1(NGX_LOG_DEBUG_STREAM, c->log, 0,
-                       "brix: bound handle=%d path changed before reopen",
-                       handle_index);
+                       "brix: bound handle path changed before reopen path=%s",
+                       shared->path);
+        return -1;
+    }
+
+    return fd;
+}
+
+/* brix_reopen_bound_read_handle — reopen a bound secondary's stale fd O_RDONLY to
+ * match the primary's shared entry (via brix_bound_confined_open), refreshing all
+ * file metadata from the fresh fstat; NGX_DECLINED (revoke) if the object's
+ * device/inode changed. */
+
+static ngx_int_t
+brix_reopen_bound_read_handle(brix_ctx_t *ctx, ngx_connection_t *c,
+    int handle_index, const brix_shared_handle_entry_t *shared)
+{
+    brix_file_t *file;
+    struct stat  st;
+    int          fd;
+
+    if (!shared->readable || shared->path[0] == '\0') {
+        return NGX_DECLINED;
+    }
+
+    fd = brix_bound_confined_open(ctx, c, shared,
+                                  O_RDONLY | O_NOCTTY | O_CLOEXEC, &st);
+    if (fd < 0) {
         return NGX_DECLINED;
     }
 
@@ -216,6 +235,78 @@ brix_reopen_bound_read_handle(brix_ctx_t *ctx, ngx_connection_t *c,
 
     ngx_log_debug2(NGX_LOG_DEBUG_STREAM, c->log, 0,
                    "brix: bound handle=%d reopened shared path=%s",
+                   handle_index, shared->path);
+    return NGX_OK;
+}
+
+/* brix_local_file_matches_shared_write_handle — 1 iff the bound secondary's local
+ * fd still matches the primary's published WRITABLE entry (same device/inode/path,
+ * locally writable).  No size check: a write handle's size grows as bytes land, so
+ * only object identity is validated (Phase 94). */
+static ngx_flag_t
+brix_local_file_matches_shared_write_handle(const brix_file_t *file,
+    const brix_shared_handle_entry_t *shared)
+{
+    if (file->fd < 0 || file->path == NULL || !file->writable
+        || !shared->writable)
+    {
+        return 0;
+    }
+
+    return file->device == shared->device
+           && file->inode == shared->inode
+           && ngx_strcmp(file->path, shared->path) == 0;
+}
+
+/* brix_reopen_bound_write_handle — Phase 94: reopen a bound secondary's fd O_WRONLY
+ * to match the primary's published writable entry.  Disjoint-offset pwrites from
+ * this fd are POSIX-safe against the primary's and other secondaries' fds on the
+ * same inode.  NO O_CREAT/O_TRUNC — the primary already created the file at open, so
+ * a substream write only fills its own byte range.  NGX_DECLINED on a device/inode
+ * change (path replaced since publish). */
+
+static ngx_int_t
+brix_reopen_bound_write_handle(brix_ctx_t *ctx, ngx_connection_t *c,
+    int handle_index, const brix_shared_handle_entry_t *shared)
+{
+    brix_file_t *file;
+    struct stat  st;
+    int          fd;
+
+    if (!shared->writable || shared->path[0] == '\0') {
+        return NGX_DECLINED;
+    }
+
+    fd = brix_bound_confined_open(ctx, c, shared,
+                                  O_WRONLY | O_NOCTTY | O_CLOEXEC, &st);
+    if (fd < 0) {
+        return NGX_DECLINED;
+    }
+
+    file = &ctx->files[handle_index];
+    file->fd             = fd;
+    file->writable       = 1;
+    file->readable       = shared->readable ? 1 : 0;
+    file->from_cache     = shared->from_cache ? 1 : 0;
+    file->is_regular     = S_ISREG(st.st_mode) ? 1 : 0;
+    file->device         = st.st_dev;
+    file->inode          = st.st_ino;
+    file->cached_size    = (off_t) st.st_size;
+    file->read_last_end  = -1;
+    file->read_ahead_end = 0;
+    file->bytes_read     = 0;
+    file->bytes_written  = 0;
+    file->open_time      = ngx_current_msec;
+
+    if (brix_set_fhandle_path(ctx, c, handle_index, shared->path)
+        != NGX_OK)
+    {
+        brix_free_fhandle(ctx, handle_index);
+        return NGX_ERROR;
+    }
+
+    ngx_log_debug2(NGX_LOG_DEBUG_STREAM, c->log, 0,
+                   "brix: bound handle=%d reopened WRITABLE shared path=%s",
                    handle_index, shared->path);
     return NGX_OK;
 }
@@ -273,6 +364,66 @@ brix_ensure_read_handle(brix_ctx_t *ctx, ngx_connection_t *c,
     }
 
     return brix_reopen_bound_read_handle(ctx, c, handle_index, &shared);
+}
+
+/* brix_ensure_write_handle — Phase 94 write-side mirror of brix_ensure_read_handle.
+ * For an unbound (primary) session the write handle is already open locally, so
+ * NGX_OK iff a kernel fd / driver object / staged writer exists. For a bound
+ * secondary, re-validate against the primary's shared WRITABLE entry every write:
+ * a published-read-only or absent entry → revoke (NGX_DECLINED); a stale-but-still-
+ * published entry → reopen a fresh matching O_WRONLY fd. Invariant: a bound
+ * secondary never writes a handle the primary did not publish as writable. */
+ngx_int_t
+brix_ensure_write_handle(brix_ctx_t *ctx, ngx_connection_t *c,
+    int handle_index)
+{
+    brix_shared_handle_entry_t shared;
+
+    if (handle_index < 0 || handle_index >= BRIX_MAX_FILES) {
+        return NGX_DECLINED;
+    }
+
+    if (!ctx->is_bound) {
+        return (ctx->files[handle_index].fd >= 0
+                || ctx->files[handle_index].sd_obj.driver != NULL
+                || ctx->files[handle_index].writer != NULL)
+               ? NGX_OK : NGX_DECLINED;
+    }
+
+    if (!brix_session_handle_lookup_hint(ctx->bound_sessid, handle_index,
+                                           &ctx->files[handle_index]
+                                                .shared_handle_slot_hint,
+                                           &shared))
+    {
+        if (ctx->files[handle_index].fd >= 0) {
+            brix_free_fhandle(ctx, handle_index);
+        }
+        return NGX_DECLINED;
+    }
+
+    /* A published read-only handle is a data channel a bound conn may only read. */
+    if (!shared.writable) {
+        if (ctx->files[handle_index].fd >= 0
+            && ctx->files[handle_index].writable)
+        {
+            brix_free_fhandle(ctx, handle_index);
+        }
+        return NGX_DECLINED;
+    }
+
+    if (brix_local_file_matches_shared_write_handle(&ctx->files[handle_index],
+                                                      &shared))
+    {
+        return NGX_OK;
+    }
+
+    if (ctx->files[handle_index].fd >= 0
+        || ctx->files[handle_index].path != NULL)
+    {
+        brix_free_fhandle(ctx, handle_index);
+    }
+
+    return brix_reopen_bound_write_handle(ctx, c, handle_index, &shared);
 }
 
 /* The handle-slot teardown machinery (brix_free_fhandle / brix_close_all_files
@@ -345,6 +496,21 @@ ngx_flag_t
 brix_validate_write_handle(brix_ctx_t *ctx, ngx_connection_t *c,
     int handle_index, const char *verb, ngx_uint_t op, ngx_int_t *rc)
 {
+    /* Phase 94: a bound secondary carrying a write reopens the primary's
+     * published writable handle in this worker (mirror of the read path). A
+     * primary session short-circuits (its handle is already open locally). */
+    if (ctx->is_bound) {
+        ngx_int_t ensure_rc = brix_ensure_write_handle(ctx, c, handle_index);
+        if (ensure_rc != NGX_OK) {
+            if (ensure_rc == NGX_ERROR) {
+                BRIX_BAIL_ERR(ctx, c, op, verb, "-", "-", kXR_ServerError,
+                                "could not prepare write handle", rc);
+            }
+            BRIX_BAIL_ERR(ctx, c, op, verb, "-", "-", kXR_FileNotOpen,
+                            "invalid file handle", rc);
+        }
+    }
+
     if (!brix_validate_file_handle(ctx, c, handle_index, verb, op, rc)) {
         return 0;
     }

@@ -57,17 +57,35 @@
  *       per-user credential is absent or expired rather than silently promoting as
  *       the service identity.
  *
- * HOW:  This struct is memcpy'd verbatim into brix_sreq_t (the on-disk journal
- *       record) as the FINAL member.  NO bitfields, NO pointers, NO embedded
- *       structs with alignment holes — the layout must be byte-stable across
- *       builds.  Field sizes match BRIX_UCRED_{KEY,PRINC,PATH}_MAX constants from
- *       ucred.h (128 / 512 / 1024) so there is no truncation risk at assignment.
+ * HOW:  The IDENTITY prefix of this struct (key/principal/dir/deny) is memcpy'd
+ *       verbatim into brix_sreq_t (the on-disk journal record) as the FINAL
+ *       member.  NO bitfields, NO pointers, NO embedded structs with alignment
+ *       holes — the layout must be byte-stable across builds.  Field sizes match
+ *       BRIX_UCRED_{KEY,PRINC,PATH}_MAX constants from ucred.h (128 / 512 / 1024)
+ *       so there is no truncation risk at assignment.  The trailing `bearer`
+ *       field is IN-MEMORY ONLY: the journal writers persist only the leading
+ *       BRIX_SREQ_IDENTITY_SIZE bytes (which stop before it), so a raw WLCG
+ *       bearer NEVER reaches disk (see the field comment).
  */
 typedef struct {
     char    key[128];       /* filesystem-safe credential filename stem (ucred_key) */
     char    principal[512]; /* canonical principal string (DN or JWT sub)           */
     char    dir[1024];      /* credential directory path (brix_sd_ucred_dir)        */
     uint8_t deny;           /* 1 = EACCES on missing/expired cred; 0 = service-cred */
+    /* --- IN-MEMORY ONLY, NEVER PERSISTED (see BRIX_SREQ_IDENTITY_SIZE) ---------
+     * A live WLCG bearer captured at write-back-open time so a SYNC (inline)
+     * staged-commit flush can re-present the END USER's token to the origin.
+     * Unlike x509 (whose delegated proxy is stored as <dir>/<key>.pem and
+     * re-resolved by key at flush time), a bearer has no on-disk credential
+     * file, so the token itself must ride in memory to the inline flush.  The
+     * journal writers (stage_journal_write / _update_rec) persist only the first
+     * BRIX_SREQ_IDENTITY_SIZE bytes of the record — which end at `deny` — so this
+     * field is never written to disk: a bearer is a secret AND would be expired
+     * by async-replay time.  The ASYNC/journaled flush therefore keeps the
+     * key/dir resolution path; token write-back is delegated on the inline path
+     * only.  Size matches BRIX_UCRED_BEARER_MAX (ucred.h); kept a literal here to
+     * avoid a ucred.h dependency in this seam header, as key/principal/dir do. */
+    char    bearer[4096];
 } brix_stage_cred_t;
 
 /* The four async-staging kinds (Appendix I). Values are stable wire identities so
@@ -117,6 +135,18 @@ typedef struct {
      * replay old journal records with a zeroed (service-credential) cred. */
     brix_stage_cred_t    cred;
 } brix_sreq_t;
+
+/* The number of leading bytes of a brix_sreq_t the journal writers persist:
+ * everything through brix_stage_cred_t.deny, and NOTHING of the trailing
+ * in-memory-only cred.bearer.  Keeping the bearer (a live secret, expired by
+ * replay time) off disk is a hard requirement; excluding it also keeps the
+ * on-disk record shape identical to the pre-bearer layout, so journals written
+ * by an older build (whose full record == this size, modulo trailing struct
+ * padding) still decode.  brix_sreq_decode accepts the pre-cred legacy size
+ * (offsetof cred) and any size in [BRIX_SREQ_IDENTITY_SIZE, sizeof(brix_sreq_t)],
+ * always yielding a zeroed bearer. */
+#define BRIX_SREQ_IDENTITY_SIZE \
+    (offsetof(brix_sreq_t, cred) + offsetof(brix_stage_cred_t, bearer))
 
 /* Per-submit options. `async` requests park-and-defer (SP4); `conn` is the client
  * connection a parked open is woken on; `open_options` is echoed back to it;
@@ -189,17 +219,21 @@ ngx_int_t brix_stage_run_inline(brix_stage_kind_t kind,
 /*
  * Decode one durable request record from a raw buffer with size-tolerance.
  *
- * WHAT: Returns NGX_OK with *out filled when n == sizeof(brix_sreq_t) (current
- *       full record) or n == offsetof(brix_sreq_t, cred) (legacy pre-cred record,
- *       which yields a zeroed cred = service-credential flush).  Returns NGX_ERROR
- *       for any other n (corrupt or from an incompatible future version).
+ * WHAT: Returns NGX_OK with *out filled when n == offsetof(brix_sreq_t, cred)
+ *       (legacy pre-cred record, yielding a zeroed cred = service-credential
+ *       flush) or n is in [BRIX_SREQ_IDENTITY_SIZE, sizeof(brix_sreq_t)] (a
+ *       persisted record — identity through cred.deny, never the in-memory-only
+ *       cred.bearer).  Returns NGX_ERROR for any other n (corrupt / incompatible).
  *
- * WHY:  brix_sreq_t grew a trailing brix_stage_cred_t; journals written before
- *       the upgrade must replay without data loss.  The zeroed-cred path preserves
- *       the pre-feature semantics: flush under the service identity.
+ * WHY:  brix_sreq_t grew a trailing brix_stage_cred_t (and later an in-memory
+ *       bearer inside it); journals written before either upgrade must replay
+ *       without data loss.  The zeroed-cred path preserves the pre-feature
+ *       semantics: flush under the service identity.
  *
- * HOW:  ngx_memzero + ngx_memcpy(out, buf, n) — the memzero ensures the cred
- *       fields are zero when a legacy-size record is decoded.
+ * HOW:  ngx_memzero + ngx_memcpy(out, buf, n), then unconditionally re-zero
+ *       out->cred.bearer — the bearer is never legitimately on disk, so forcing
+ *       it empty stops a padded/legacy/crafted record from resurrecting a stale
+ *       or forged token on the async replay path.
  */
 ngx_int_t brix_sreq_decode(const void *buf, size_t n, brix_sreq_t *out);
 
