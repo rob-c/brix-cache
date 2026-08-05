@@ -28,8 +28,32 @@ const flow = [
   description="BriX-Cache teaches nginx to speak root://, WebDAV, and S3 — a modular WLCG storage interface with x509/token auth and Prometheus monitoring, all in one binary."
   accent="root"
 >
+  <!-- SWISS-ARMY KNIFE -->
+  <Band id="knife" first={true}>
+    <div class="knife">
+      <figure class="knife-figure panel">
+        <Image
+          src={knife}
+          alt="A red swiss-army knife bearing the BriX logo, its blades labeled CVMFS, root://, webdav, s3, gsiftp, x509, and tokens"
+          widths={[480, 960]}
+          sizes="(min-width: 900px) 540px, 100vw"
+        />
+      </figure>
+      <div class="stack">
+        <span class="eyebrow">The swiss-army knife</span>
+        <h2 class="display band-head">Every blade,<br />one handle.</h2>
+        <p class="lede muted">
+          Four wire protocols are only the start. The same binary and toolset fold in a CVMFS
+          site cache and FUSE client, x509 / GSI proxy handling, and WLCG bearer-token scope
+          enforcement — one shared core for auth, storage, caching, and metrics behind every
+          blade you open.
+        </p>
+      </div>
+    </div>
+  </Band>
+
   <!-- HERO -->
-  <Band first={true}>
+  <Band>
     <div class="hero">
       <div class="hero-copy stack">
         <span class="eyebrow">Modular WLCG storage interface</span>
@@ -98,30 +122,6 @@ const flow = [
         <div class="spec"><dt>clients</dt><dd>globus-url-copy · gfal2 · fts</dd></div>
       </dl>
     </article>
-  </Band>
-
-  <!-- SWISS-ARMY KNIFE -->
-  <Band id="knife">
-    <div class="knife">
-      <figure class="knife-figure panel">
-        <Image
-          src={knife}
-          alt="A red swiss-army knife bearing the BriX logo, its blades labeled CVMFS, root://, webdav, s3, gsiftp, x509, and tokens"
-          widths={[480, 960]}
-          sizes="(min-width: 900px) 540px, 100vw"
-        />
-      </figure>
-      <div class="stack">
-        <span class="eyebrow">The swiss-army knife</span>
-        <h2 class="display band-head">Every blade,<br />one handle.</h2>
-        <p class="lede muted">
-          Four wire protocols are only the start. The same binary and toolset fold in a CVMFS
-          site cache and FUSE client, x509 / GSI proxy handling, and WLCG bearer-token scope
-          enforcement — one shared core for auth, storage, caching, and metrics behind every
-          blade you open.
-        </p>
-      </div>
-    </div>
   </Band>
 
   <!-- HOW IT PLUGS IN -->
