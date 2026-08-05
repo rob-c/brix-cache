@@ -110,8 +110,14 @@ def test_web_stat(data_file):
 
 
 def test_web_unsupported_command_is_clear(data_file):
-    """A mutating command over WebDAV fails with a clear, non-cryptic message."""
-    r = _run(_WEB, "mkdir", "newdir")
+    """A data/byte command over WebDAV fails with a clear, non-cryptic message.
+
+    The metadata verbs (ls/stat/mkdir/rm/rmdir/mv) are served over WebDAV; a
+    byte-level op like `cat` is still root:// only and must say so clearly (not
+    the old 'scheme not supported by native client').
+    """
+    r = _run(_WEB, "cat", _RELPATH)
     assert r.returncode != 0
     assert "not supported over an http(s)/WebDAV endpoint" in r.stderr
+    assert "metadata only: ls, stat, mkdir, rm, rmdir, mv" in r.stderr
     assert "scheme not supported" not in r.stderr

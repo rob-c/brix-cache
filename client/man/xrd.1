@@ -19,8 +19,12 @@ credential helpers in-process. \fI~/.xrdrc\fR aliases are resolved everywhere.
 .PP
 Filesystem verbs accept either a bare endpoint plus a path, or a full
 \fIroot://host[:port]//path\fR URL (or an alias resolving to one), which is split
-into the connect endpoint and the path. Multi-path verbs (\fBmv\fR, \fBln\fR)
-require every path to be on the same endpoint. Flags may precede the endpoint
+into the connect endpoint and the path. The same splitting applies to WebDAV
+endpoints (\fIhttp[s]://\fR, \fIdav[s]://\fR), so \fBxrd mkdir davs://h/d\fR and
+\fBxrd mv davs://h/a davs://h/b\fR route to the WebDAV metadata surface (the
+verbs \fBls\fR, \fBstat\fR, \fBmkdir\fR, \fBrm\fR, \fBrmdir\fR, \fBmv\fR; byte-level
+verbs stay root:// only). Multi-path verbs (\fBmv\fR, \fBln\fR) require every path
+to be on the same endpoint. Flags may precede the endpoint
 (e.g. \fBxrd df -h root://h//\fR, \fBxrd ln -s root://h//t root://h//l\fR).
 .SH TRANSFER
 .TP
