@@ -50,6 +50,64 @@ typedef struct {
 static brix_cms_perf_t  brix_cms_perf;
 
 /*
+ * perf_skip_blanks — first non-blank offset at or after a cursor.
+ *
+ * WHAT: Returns the first offset >= cursor whose byte is neither space nor
+ *       tab, or len when the remainder of the line is blank.
+ * WHY:  Both the field walk and the trailing-junk check need it, and they must
+ *       agree on what a column separator is — a monitor may pad columns, but
+ *       nothing else counts as blank.
+ * HOW:  1. Advance while in range and the byte is ' ' or '\t'.
+ *       2. Return the offset reached.
+ */
+static size_t
+perf_skip_blanks(const u_char *line, size_t len, size_t cursor)
+{
+    while (cursor < len && (line[cursor] == ' ' || line[cursor] == '\t')) {
+        cursor++;
+    }
+    return cursor;
+}
+
+
+/*
+ * perf_parse_field — one blank-prefixed decimal column, clamped to 100.
+ *
+ * WHAT: Reads the digit run starting at the first non-blank byte at or after
+ *       *cursor, stores it clamped to 100 in *out and advances *cursor past
+ *       it.  Returns 0 on success, -1 when no digit is there or the value
+ *       exceeds 1000.  *cursor and *out are untouched on failure.
+ * WHY:  A monitor value is a percentage; anything over 1000 is a garbled line,
+ *       not a big number, so bound the accumulator rather than let it wrap.
+ * HOW:  1. Skip blanks; reject when the line ends or the byte is not a digit.
+ *       2. Accumulate decimal digits, rejecting past 1000.
+ *       3. Publish the clamped value and the new cursor.
+ */
+static int
+perf_parse_field(const u_char *line, size_t len, size_t *cursor, uint8_t *out)
+{
+    ngx_uint_t  value = 0;
+    size_t      at = perf_skip_blanks(line, len, *cursor);
+
+    if (at >= len || line[at] < '0' || line[at] > '9') {
+        return -1;
+    }
+
+    while (at < len && line[at] >= '0' && line[at] <= '9') {
+        value = value * 10 + (ngx_uint_t) (line[at] - '0');
+        if (value > 1000) {
+            return -1;
+        }
+        at++;
+    }
+
+    *cursor = at;
+    *out = (uint8_t) (value > 100 ? 100 : value);
+    return 0;
+}
+
+
+/*
  * perf_parse_line — parse "cpu net xeq mem pag" into vals[5].
  *
  * WHAT: Five whitespace-separated decimal integers, each clamped to 100.
@@ -57,36 +115,22 @@ static brix_cms_perf_t  brix_cms_perf;
  *       its previous values).
  * WHY:  A monitor emitting a partial/garbled line must not zero the node's
  *       advertised load — reject, don't guess.
- * HOW:  Manual cursor walk (no sscanf — bounded, locale-free).
+ * HOW:  1. Parse five fields in turn; any rejection fails the line.
+ *       2. Require the remainder to be blank — trailing junk is malformed.
  */
 static int
 perf_parse_line(const u_char *line, size_t len, uint8_t out5[5])
 {
     size_t      cursor = 0;
-    ngx_uint_t  field, value;
+    ngx_uint_t  field;
 
     for (field = 0; field < 5; field++) {
-        while (cursor < len && (line[cursor] == ' ' || line[cursor] == '\t')) {
-            cursor++;
-        }
-        if (cursor >= len || line[cursor] < '0' || line[cursor] > '9') {
+        if (perf_parse_field(line, len, &cursor, &out5[field]) != 0) {
             return -1;
         }
-        value = 0;
-        while (cursor < len && line[cursor] >= '0' && line[cursor] <= '9') {
-            value = value * 10 + (ngx_uint_t) (line[cursor] - '0');
-            if (value > 1000) {
-                return -1;
-            }
-            cursor++;
-        }
-        out5[field] = (uint8_t) (value > 100 ? 100 : value);
     }
 
-    while (cursor < len && (line[cursor] == ' ' || line[cursor] == '\t')) {
-        cursor++;
-    }
-    return (cursor == len) ? 0 : -1;   /* trailing junk = malformed */
+    return (perf_skip_blanks(line, len, cursor) == len) ? 0 : -1;
 }
 
 static void perf_spawn(brix_cms_perf_t *pf);

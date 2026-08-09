@@ -43,7 +43,7 @@ in this repo (§6 status box). See §0.1 for what landed and the design refineme
   round-robin over primary+secondaries; a read a secondary won't serve falls back to the primary
   read (`kXR_read` has no pathid → routed by connection, served against the published handle).
 - `copy_local.c` `copy_download_parallel` — opt-in `--parallel` thread-per-connection striped
-  download for true concurrent throughput (see §5 status box); `xrdcp_parse.c` parses `--parallel`.
+  download for true concurrent throughput (see §5 status box); `xrdcp_parse_transport.c` parses `--parallel`.
 - `BRIX_STREAMS_DEBUG` prints `upload substreams=<n> chunks-on-secondaries=<m>` and
   `download substreams=<n> chunks-on-secondaries=<m>`.
 

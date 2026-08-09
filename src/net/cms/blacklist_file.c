@@ -199,6 +199,67 @@ blfile_parse_redirect(const char *tok, size_t len,
     return 0;
 }
 
+/*
+ * WHAT: advance `p` past any spaces/tabs, stopping at `end`; returns the new
+ *       cursor.
+ * WHY:  the action tail is whitespace-separated in two places and both must
+ *       treat tab and space identically — one skipper keeps them from drifting.
+ * HOW:  bounded walk; never reads at or past `end`.
+ */
+static const char *
+blfile_skip_ws(const char *p, const char *end)
+{
+    while (p < end && (*p == ' ' || *p == '\t')) {
+        p++;
+    }
+
+    return p;
+}
+
+
+/*
+ * WHAT: parse the ` redirect <host:port>` action tail in [tail,tail_end) into
+ *       *out.  Returns 0 on success, -1 on anything malformed.
+ * WHY:  §2.13 allows exactly one action keyword with exactly one argument.
+ *       Interior whitespace in the argument is rejected rather than truncated
+ *       at, so a line that means two things can never be read as one — a
+ *       silently-truncated redirect target would bounce nodes at the wrong
+ *       manager.
+ * HOW:  1. skip leading whitespace and require the literal `redirect` followed
+ *          by whitespace (not a prefix of a longer keyword).
+ *       2. skip to the argument and reject an empty or whitespace-bearing one.
+ *       3. hand the argument to blfile_parse_redirect for host/port validation.
+ */
+static int
+blfile_parse_action_tail(const char *tail, const char *tail_end,
+    brix_cms_blfile_entry_t *out)
+{
+    size_t  kw_len = sizeof("redirect") - 1;
+    size_t  arg_len;
+
+    tail = blfile_skip_ws(tail, tail_end);
+
+    if ((size_t) (tail_end - tail) <= kw_len + 1
+        || memcmp(tail, "redirect", kw_len) != 0
+        || (tail[kw_len] != ' ' && tail[kw_len] != '\t'))
+    {
+        return -1;
+    }
+
+    tail = blfile_skip_ws(tail + kw_len, tail_end);
+    arg_len = (size_t) (tail_end - tail);
+
+    if (arg_len == 0
+        || memchr(tail, ' ', arg_len) != NULL
+        || memchr(tail, '\t', arg_len) != NULL)
+    {
+        return -1;
+    }
+
+    return blfile_parse_redirect(tail, arg_len, out);
+}
+
+
 int
 brix_cms_blfile_parse_line(const char *line, size_t len,
     brix_cms_blfile_entry_t *out)
@@ -219,33 +280,8 @@ brix_cms_blfile_parse_line(const char *line, size_t len,
     }
     head_len = (ws != NULL) ? (size_t) (ws - line) : len;
 
-    if (ws != NULL) {
-        const char *tail = ws;
-        const char *tail_end = line + len;
-        size_t      kw_len;
-
-        while (tail < tail_end && (*tail == ' ' || *tail == '\t')) {
-            tail++;
-        }
-        kw_len = sizeof("redirect") - 1;
-        if ((size_t) (tail_end - tail) <= kw_len + 1
-            || memcmp(tail, "redirect", kw_len) != 0
-            || (tail[kw_len] != ' ' && tail[kw_len] != '\t'))
-        {
-            return -1;
-        }
-        tail += kw_len;
-        while (tail < tail_end && (*tail == ' ' || *tail == '\t')) {
-            tail++;
-        }
-        if (tail == tail_end
-            || memchr(tail, ' ', (size_t) (tail_end - tail)) != NULL
-            || memchr(tail, '\t', (size_t) (tail_end - tail)) != NULL
-            || blfile_parse_redirect(tail, (size_t) (tail_end - tail),
-                                     out) != 0)
-        {
-            return -1;
-        }
+    if (ws != NULL && blfile_parse_action_tail(ws, line + len, out) != 0) {
+        return -1;
     }
 
     return blfile_parse_hostspec(line, head_len, out);

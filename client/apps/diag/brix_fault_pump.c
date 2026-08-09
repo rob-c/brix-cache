@@ -25,287 +25,6 @@
 #include <string.h>
 #include <unistd.h>
 
-#define FP_PSWAP(a, b) do { unsigned char *fp_t_ = (a); (a) = (b); (b) = fp_t_; } while (0)
-
-/* One direction's bytes as they travel the transform chain.  `cur`/`n` are the
- * current payload; `dst`/`alt` are the two ping-pong scratch buffers, so a
- * length-changing stage never overwrites its own input. */
-typedef struct {
-    const char    *cur;
-    ssize_t        n;
-    unsigned char *dst;
-    unsigned char *alt;
-} pump_chain;
-
-/* Adopt the `n` bytes a stage just wrote to `dst` as the new payload, and flip
- * the scratch buffers so the next stage writes to the other one. */
-static void
-chain_take(pump_chain *ch, size_t n)
-{
-    ch->n   = (ssize_t) n;
-    ch->cur = (const char *) ch->dst;
-    FP_PSWAP(ch->dst, ch->alt);
-}
-
-/* The protocol-aware rewriters: TLS record surgery, then HTTP request
- * smuggling.  Both may change the payload length. */
-static void
-pump_rewrite(int is_up, pump_chain *ch)
-{
-    if (fp_tls_active(is_up ? &g_tls_up : &g_tls_down)) {
-        chain_take(ch, apply_tls(is_up, ch->cur, ch->n, ch->dst));
-    }
-    if (fp_http_active(is_up ? &g_http_up : &g_http_down)) {
-        int    applied = 0;
-        size_t on = apply_http(is_up, ch->cur, ch->n, ch->dst, &applied);
-        if (applied) {
-            chain_take(ch, on);
-        }
-    }
-}
-
-/* Byte-level MITM mutation (drop/repeat/inject/replace).  Returns 1 when every
- * byte was dropped, i.e. there is nothing left to forward. */
-static int
-pump_mutate(int is_up, volatile lever_t *L, pump_chain *ch, unsigned *seed)
-{
-    fp_ext_mut    mut;
-    unsigned char fbuf[128], rbuf[256], ibuf[512];
-
-    if (!ext_snapshot(is_up, L, &mut, fbuf, rbuf, ibuf)) {
-        return 0;
-    }
-    fp_ext_stats st = { 0, 0, 0, 0 };
-    size_t on = fp_ext_mutate((const unsigned char *) ch->cur, (size_t) ch->n,
-                              ch->dst, FP_SCRATCH, &mut, seed, &st);
-    chain_take(ch, on);
-    if (st.dropped)  { CBUMP(dropped,  st.dropped); }
-    if (st.repeated) { CBUMP(repeated, st.repeated); }
-    if (st.injected) { CBUMP(injected, st.injected); }
-    if (st.replaced) { CBUMP(replaced, st.replaced); }
-    return ch->n == 0;
-}
-
-/* eat-100-continue: on the down path, splice out a leading "HTTP/1.x 100 ...
- * CRLFCRLF" interim response so an Expect: 100-continue upload hangs waiting for
- * a 100 the middlebox ate.  Returns 1 when a 100 was removed (ch flipped). */
-static int
-pump_eat_100(pump_chain *ch)
-{
-    const unsigned char *in = (const unsigned char *) ch->cur;
-    size_t n = (size_t) ch->n;
-    /* "HTTP/1.x 100": "HTTP/1." at [0..6], minor version at [7], SP at [8],
-     * status "100" at [9..11]. */
-    if (n < 12 || memcmp(in, "HTTP/1.", 7) != 0 || in[8] != ' ' ||
-        memcmp(in + 9, "100", 3) != 0) {
-        return 0;
-    }
-    for (size_t i = 0; i + 3 < n; i++) {
-        if (in[i] == '\r' && in[i + 1] == '\n' &&
-            in[i + 2] == '\r' && in[i + 3] == '\n') {
-            size_t drop = i + 4;
-            memcpy(ch->dst, in + drop, n - drop);
-            chain_take(ch, n - drop);
-            return 1;
-        }
-    }
-    return 0;
-}
-
-/* hello-split-reset: true when `buf` opens a TLS handshake ClientHello whose
- * DECLARED record length is >= `thresh` — caught from the record header even
- * when the ClientHello is split across TCP segments (post-quantum keyshares,
- * fat SNI/cert lists blow past one MSS and a first-segment-only DPI resets). */
-static int
-tls_hello_oversized(const char *buf, ssize_t nr, int thresh)
-{
-    const unsigned char *b = (const unsigned char *) buf;
-    if (thresh <= 0 || nr < 6) {
-        return 0;
-    }
-    if (b[0] != 0x16 || b[5] != 0x01) {   /* handshake record, ClientHello */
-        return 0;
-    }
-    int rec_len = (b[3] << 8) | b[4];     /* TLSPlaintext.length (BE16) */
-    return rec_len >= thresh;
-}
-
-/* hello-split-reset: an oversized TLS ClientHello on the request path is RST by
- * a DPI that only inspects the first segment.  Returns 2 (severed + CDEC) or 0. */
-static int
-pump_hello_reset(int is_up, const char *buf, ssize_t nr, int cfd, int ufd)
-{
-    if (is_up && tls_hello_oversized(buf, nr, g_hello_reset_thresh)) {
-        CBUMP(hello_reset, 1);
-        sever(cfd, ufd, 1);
-        CDEC(active);
-        return 2;
-    }
-    return 0;
-}
-
-/* delay-first: hold back only the opening chunk of this direction, then clear
- * the per-direction first-chunk flag. */
-static void
-pump_delay_first(volatile lever_t *L, int *firstflag)
-{
-    if (L->delayfirst_ms > 0 && *firstflag) {
-        usleep((useconds_t) L->delayfirst_ms * 1000);
-    }
-    *firstflag = 0;
-}
-
-/* eat-100-continue on the down path.  Returns 1 when nothing remains to forward
- * (the whole payload was an interim 100 that got swallowed). */
-static int
-pump_eat_100_dir(int is_up, pump_chain *ch)
-{
-    if (!is_up && g_eat_100 && pump_eat_100(ch)) {
-        CBUMP(ate_100, 1);
-        if (ch->n == 0) {
-            return 1;
-        }
-    }
-    return 0;
-}
-
-/* DPI stall levers applied just before forwarding: HTTP header-size hold, body
- * hold (store-and-forward), and volume classify-throttle.  Each hold forwards
- * any withheld prefix itself and trims `ch` to the remainder.  Returns 2 if a
- * forward error severed the pair (already closed + CDEC), else 0. */
-static int
-pump_dpi_stalls(int is_up, pump_chain *ch, int to, int cfd, int ufd,
-                unsigned epoch, volatile lever_t *L, unsigned *seed,
-                unsigned long *conn_ctr, unsigned long *glob_ctr)
-{
-    fp_http_cfg *HC  = is_up ? &g_http_up : &g_http_down;
-    size_t       rel = 0;
-    if (fp_http_hold_active(HC) &&
-        fp_http_hold_decide(HC, (const unsigned char *) ch->cur,
-                            (size_t) ch->n, &rel)) {
-        if (rel > 0 &&
-            forward_faulted(to, (char *) ch->cur, (ssize_t) rel, epoch, L,
-                            seed, conn_ctr, glob_ctr) != 0) {
-            sever(cfd, ufd, g_abortive);
-            CDEC(active);
-            return 2;
-        }
-        usleep((useconds_t) HC->hold_ms * 1000);
-        CBUMP(held, 1);
-        ch->cur += rel;
-        ch->n   -= (ssize_t) rel;      /* forward the withheld remainder below */
-    }
-    rel = 0;
-    if (fp_http_body_hold_active(HC) &&
-        fp_http_body_hold_decide(HC, (const unsigned char *) ch->cur,
-                                 (size_t) ch->n, &rel)) {
-        if (rel > 0 &&
-            forward_faulted(to, (char *) ch->cur, (ssize_t) rel, epoch, L,
-                            seed, conn_ctr, glob_ctr) != 0) {
-            sever(cfd, ufd, g_abortive);
-            CDEC(active);
-            return 2;
-        }
-        usleep((useconds_t) HC->body_hold_ms * 1000);
-        CBUMP(held, 1);
-        ch->cur += rel;
-        ch->n   -= (ssize_t) rel;
-    }
-    /* classify-throttle: once a direction crosses the volume heuristic the flow
-     * is shunted to a <kbps> slow lane (misclassified bulk = "exfiltration"). */
-    if (g_classify_kbps > 0 && g_classify_bytes > 0 && ch->n > 0 &&
-        *conn_ctr + (unsigned long) ch->n > (unsigned long) g_classify_bytes) {
-        long us = (long) ((double) ch->n * 1000000.0 /
-                          ((double) g_classify_kbps * 1024.0));
-        CBUMP(throttled, 1);
-        if (us > 0) {
-            usleep((useconds_t) us);
-        }
-    }
-    return 0;
-}
-
-/* Relay one poll-ready direction through the fault engine.  Returns 0 to keep
- * looping, 1 on EOF/read error (caller closes both ends), 2 if a fault severed
- * the pair (already closed + CDEC, caller just returns). */
-int
-relay_pump_dir(int i, struct pollfd *pfd, int cfd, int ufd,
-               char *buf, size_t bufsz, unsigned char *scratch,
-               unsigned char *scratch2, unsigned epoch,
-               unsigned *seed, unsigned long *up_ctr, unsigned long *down_ctr,
-               int *firstflag)
-{
-    if (!(pfd[i].revents & (POLLIN | POLLHUP | POLLERR))) {
-        return 0;
-    }
-    int from = pfd[i].fd;
-    int to   = pfd[i ^ 1].fd;
-    ssize_t nr = read(from, buf, bufsz);
-    if (nr <= 0) {
-        return 1;
-    }
-    int is_up = (i == 0);
-    t_fwd_up = is_up;   /* so a deep truncate event can name its direction */
-    volatile lever_t *L = is_up ? &g_up : &g_down;
-    unsigned long *conn_ctr = is_up ? up_ctr : down_ctr;
-
-    /* toxicity: an unafflicted direction gets a clean-lever pass-through, so
-     * armed byte levers (corrupt/latency/…) do not fire on this connection. */
-    static const lever_t g_clean_lever;
-    if (!(is_up ? t_afflict_up : t_afflict_down)) {
-        L = (volatile lever_t *) &g_clean_lever;
-    }
-
-    if (pump_hello_reset(is_up, buf, nr, cfd, ufd) == 2) {
-        return 2;
-    }
-
-    /* Stateful, content-addressed faults on the RAW bytes (before any mutation
-     * changes their length/offset). */
-    trig_check(is_up, buf, nr);
-    mangle_apply(is_up, buf, nr, *conn_ctr);
-
-    pump_delay_first(L, firstflag);
-
-    /* Transform chain: each length-changing stage ping-pongs between scratch A
-     * and B so it never overwrites its own input — TLS record surgery, then HTTP
-     * request smuggling, then byte-level MITM mutation. */
-    pump_chain ch = { buf, nr, scratch, scratch2 };
-
-    pump_rewrite(is_up, &ch);
-    if (pump_mutate(is_up, L, &ch, seed)) {
-        return 0;       /* every byte was dropped — nothing to forward */
-    }
-
-    if (pump_eat_100_dir(is_up, &ch)) {
-        return 0;       /* nothing left after the 100 was removed */
-    }
-
-    /* Session recording: capture exactly what we are about to forward. */
-    if (fp_replay_recording()) {
-        fp_replay_record(is_up, now_ms_since(g_t0),
-                         (const unsigned char *) ch.cur, (size_t) ch.n);
-        CBUMP(recorded, (unsigned long) ch.n);
-    }
-
-    unsigned long *glob_ctr = is_up ? &C.up_bytes : &C.down_bytes;
-
-    /* DPI header/body-size holds and classify-throttle — a complete,
-     * over-threshold header block (e.g. a fat client-cert PEM in an XrdHttp
-     * request) stalls, as does bulk that crosses the volume heuristic. */
-    if (pump_dpi_stalls(is_up, &ch, to, cfd, ufd, epoch, L, seed,
-                        conn_ctr, glob_ctr) == 2) {
-        return 2;
-    }
-
-    if (forward_faulted(to, (char *) ch.cur, ch.n, epoch, L, seed,
-                        conn_ctr, glob_ctr) != 0) {
-        sever(cfd, ufd, g_abortive);
-        CDEC(active);
-        return 2;
-    }
-    return 0;
-}
 
 /* Milliseconds elapsed since `t0` on the monotonic clock. */
 static long
@@ -440,6 +159,105 @@ pump_both_dirs(struct pollfd *pfd, int cfd, int ufd, char *buf, size_t bufsz,
     return done ? 1 : 0;
 }
 
+/* ---- Abortive-teardown checks run before every poll cycle ----
+ *
+ * WHAT: Returns 1 when a control-plane lever has already torn the connection
+ *       down (both fds closed, CDEC done) and the pump must return at once;
+ *       0 to keep pumping.
+ *
+ * WHY:  All three levers end the connection the same way — without the graceful
+ *       teardown at the bottom of relay_pump — so grouping them makes that
+ *       "already closed, do not close again" contract a single fact rather than
+ *       three separate ones the loop has to remember.
+ *
+ * HOW:  1. sever: the drop epoch moved past this connection.
+ *       2. idle-reap: no activity within the window.
+ *       3. rst-after-bytes: the byte budget for this connection is spent.
+ */
+static int
+pump_torn_down(int cfd, int ufd, unsigned epoch, struct timespec *t0,
+               struct timespec *act, int *frozen,
+               unsigned long up_ctr, unsigned long down_ctr)
+{
+    if (pump_severed(cfd, ufd, epoch, t0)) {
+        return 1;
+    }
+    if (pump_idle_reap(cfd, ufd, act, frozen)) {
+        return 1;
+    }
+
+    return pump_rst_after_bytes(cfd, ufd, up_ctr, down_ctr) ? 1 : 0;
+}
+
+
+/* ---- Wait one poll cycle ----
+ *
+ * WHAT: Returns 1 when at least one side is readable and the caller should
+ *       forward, 0 when this cycle has nothing to do, -1 when poll() failed
+ *       for real.
+ *
+ * WHY:  A 100 ms cap (not an indefinite wait) is what makes the fault levers
+ *       take effect on an idle connection — the loop has to come back and
+ *       re-read them.  EINTR is not a failure; folding it in here keeps the
+ *       caller's error path honest.
+ *
+ * HOW:  1. poll both ends with the short cap.
+ *       2. Map EINTR to "nothing to do", any other error to failure.
+ *       3. A frozen (black-holed) connection forwards nothing even when
+ *          readable, but still stamps no activity — it must reap on schedule.
+ *       4. Stamp last-activity only on a readable end, so a writable-only
+ *          wakeup cannot hold the idle reaper off forever.
+ */
+static int
+pump_wait(struct pollfd *pfd, int frozen, struct timespec *act)
+{
+    int  pr = poll(pfd, 2, 100);
+
+    if (pr < 0) {
+        return (errno == EINTR) ? 0 : -1;
+    }
+    if (pr == 0 || frozen) {
+        return 0;   /* re-check fault flags / black-holed: forward nothing */
+    }
+
+    if (pfd[0].revents & POLLIN || pfd[1].revents & POLLIN) {
+        clock_gettime(CLOCK_MONOTONIC, act);
+    }
+
+    return 1;
+}
+
+
+/* ---- Graceful teardown after EOF ----
+ *
+ * WHAT: Applies the slow-close delay, closes both ends and drops the active
+ *       count.
+ *
+ * WHY:  slow-close delays the FIN so a peer sees a connection that lingers
+ *       after its last byte; it is contradictory with an abortive RST, which
+ *       wins.  This path is reached only from the loop's EOF exit — the
+ *       lever-driven exits close their own fds.
+ *
+ * HOW:  1. Take the larger of the two per-direction delays.
+ *       2. Sleep it unless an abortive close is armed.
+ *       3. Close both ends and CDEC.
+ */
+static void
+pump_teardown(int cfd, int ufd)
+{
+    int  sc = g_up.slow_close_ms > g_down.slow_close_ms
+              ? g_up.slow_close_ms : g_down.slow_close_ms;
+
+    if (sc > 0 && !g_abortive) {
+        usleep((useconds_t) sc * 1000);
+    }
+
+    close(cfd);
+    close(ufd);
+    CDEC(active);
+}
+
+
 /* Bidirectional relay loop: shuttle bytes each way through the fault engine
  * until EOF, a control-plane sever, or a poll error.  Closes both ends + CDEC
  * before returning. */
@@ -467,30 +285,21 @@ relay_pump(int cfd, int ufd, unsigned epoch, unsigned seed,
     act = t0;                       /* last-activity (either direction) */
 
     for (;;) {
-        if (pump_severed(cfd, ufd, epoch, &t0)) {
-            return;
-        }
-        if (pump_idle_reap(cfd, ufd, &act, &frozen)) {
-            return;
-        }
-        if (pump_rst_after_bytes(cfd, ufd, *up_ctr, *down_ctr)) {
-            return;
+        if (pump_torn_down(cfd, ufd, epoch, &t0, &act, &frozen,
+                           *up_ctr, *down_ctr)) {
+            return;         /* closed + CDEC already done by the lever */
         }
         pump_halfclose(cfd, ufd, &hc_done, hc_epoch);
         pump_arm_events(pfd, hc_done, eof, frozen);
-        int pr = poll(pfd, 2, 100);
-        if (pr < 0) {
-            if (errno == EINTR) {
-                continue;
-            }
+
+        int ready = pump_wait(pfd, frozen, &act);
+        if (ready < 0) {
             break;
         }
-        if (pr == 0 || frozen) {
-            continue;   /* re-check fault flags / black-holed: forward nothing */
+        if (ready == 0) {
+            continue;
         }
-        if (pfd[0].revents & POLLIN || pfd[1].revents & POLLIN) {
-            clock_gettime(CLOCK_MONOTONIC, &act);
-        }
+
         int outcome = pump_both_dirs(pfd, cfd, ufd, buf, sizeof(buf), scratch,
                                      scratch2, epoch, &seed, up_ctr, down_ctr,
                                      first, eof);
@@ -501,16 +310,8 @@ relay_pump(int cfd, int ufd, unsigned epoch, unsigned seed,
             break;          /* EOF (both ends, or not suppressed) */
         }
     }
-    /* slow-close: delay the FIN after EOF by the larger per-direction lever
-     * (contradictory with an abortive RST, which wins — slow-close is ignored). */
-    int sc = g_up.slow_close_ms > g_down.slow_close_ms
-             ? g_up.slow_close_ms : g_down.slow_close_ms;
-    if (sc > 0 && !g_abortive) {
-        usleep((useconds_t) sc * 1000);
-    }
-    close(cfd);
-    close(ufd);
-    CDEC(active);
+
+    pump_teardown(cfd, ufd);
 }
 
 /* Format a socket address as "ip:port" (v6 bracketed) for a PROXY header. */

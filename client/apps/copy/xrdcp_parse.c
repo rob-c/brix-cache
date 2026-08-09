@@ -15,6 +15,7 @@
  *       through xrdcp_internal.h. No goto; early-return throughout.
  */
 #include "xrdcp_internal.h"
+#include "xrdcp_parse_internal.h"
 #include "core/version.h"
 #include "core/progname.h"  /* brix_prog_base(): argv[0]-derived identity + footer */
 
@@ -353,78 +354,6 @@ xrdcp_parse_auth_data_option(xrdcp_cli_state *s, int argc, char **argv, size_t *
 }
 
 
-static int
-xrdcp_parse_transport_option(xrdcp_cli_state *s, int argc, char **argv, size_t *i)
-{
-    const char     *a = argv[*i];
-    brix_copy_opts *o = s->o->copt;
-
-    if (strcmp(a, "--zip") == 0) { o->zip = 1; return 1; }
-    if (strcmp(a, "--zip-append") == 0) { o->zip_append = 1; return 1; }
-    if ((strcmp(a, "-S") == 0 || strcmp(a, "--streams") == 0)
-        && *i + 1 < (size_t) argc) {
-        o->streams = atoi(argv[++(*i)]);
-        return 1;
-    }
-    /* --parallel: TRUE concurrent striped download (one thread per bound stream,
-     * disjoint pwrite ranges).  Opt-in — fail-closed, no single-link resilient
-     * ride-out; the serial resilient fan-out stays the default. */
-    if (strcmp(a, "--parallel") == 0) { o->parallel = 1; return 1; }
-    /* --sources N (phase-100 extreme copy): block-stealing download from up to
-     * N replicas (metalink mirrors / locate discovery).  1 = plain single
-     * source; the engine caps at 16 distinct connections. */
-    if (strcmp(a, "--sources") == 0 && *i + 1 < (size_t) argc) {
-        int n = atoi(argv[++(*i)]);
-        if (n < 1 || n > 16) {
-            fprintf(stderr, "xrdcp: --sources: expected a count in 1..16, "
-                            "got '%s'\n", argv[*i]);
-            usage(argv[0]);
-            return 50;
-        }
-        o->sources = n;
-        return 1;
-    }
-    /* --no-metalink: copy .meta4/.metalink sources as plain files instead of
-     * resolving them as virtual redirectors (phase-100). */
-    if (strcmp(a, "--no-metalink") == 0) { o->metalink_off = 1; return 1; }
-    /* --max-stall / --no-retry are parsed by brix_opts_parse_arg into the shared
-     * brix_opts (s->o->conn) — which runs first in xrdcp_parse_option — and are
-     * folded into copt by finalize_resilience_posture().  Do NOT duplicate the
-     * flag here: a second handler is unreachable dead code and a second source of
-     * truth for the give-up window. */
-    /* Match the longer --io-uring-direct spellings BEFORE the --io-uring ones so
-     * the shorter prefix does not swallow them. */
-    if (strcmp(a, "--io-uring-direct") == 0) {
-        o->io_uring_direct = 1;
-        return 1;
-    }
-    if (strcmp(a, "--io-uring-direct=on") == 0)  { o->io_uring_direct = 1; return 1; }
-    if (strcmp(a, "--io-uring-direct=off") == 0) { o->io_uring_direct = 0; return 1; }
-    if (strncmp(a, "--io-uring=", 11) == 0) {
-        int v = brix_cli_parse_io_uring(a + 11);
-        if (v < 0) {
-            fprintf(stderr, "xrdcp: --io-uring: invalid mode '%s' (use on|off|auto)\n",
-                    a + 11);
-            usage(argv[0]);
-            return 50;
-        }
-        o->io_uring = v;
-        return 1;
-    }
-    if (strcmp(a, "--io-uring") == 0 && *i + 1 < (size_t) argc) {
-        const char *m = argv[++(*i)];
-        int v = brix_cli_parse_io_uring(m);
-        if (v < 0) {
-            fprintf(stderr, "xrdcp: --io-uring: invalid mode '%s' (use on|off|auto)\n",
-                    m);
-            usage(argv[0]);
-            return 50;
-        }
-        o->io_uring = v;
-        return 1;
-    }
-    return 0;
-}
 
 
 static int
@@ -499,7 +428,7 @@ xrdcp_parse_option(xrdcp_cli_state *s, int argc, char **argv, size_t *i)
     if (rc) { return rc; }
     rc = xrdcp_parse_auth_data_option(s, argc, argv, i);
     if (rc) { return rc; }
-    rc = xrdcp_parse_transport_option(s, argc, argv, i);
+    rc = xrdcp_parse_transport_option(s->o->copt, argc, argv, i);
     if (rc) { return rc; }
     rc = xrdcp_parse_remote_auth_option(s, argc, argv, i);
     if (rc) { return rc; }

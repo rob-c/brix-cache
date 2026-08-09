@@ -48,7 +48,7 @@ is a deferred throughput-only optimisation, not a correctness gap.
 | capability | state | code |
 |---|---|---|
 | Open N-1 secondaries and `kXR_bind` them to the session | ✅ | `client/lib/net/streams.c` `brix_streams_open` |
-| `-S`/`--streams N` option | ✅ | `client/apps/copy/xrdcp_parse.c:364` |
+| `-S`/`--streams N` option | ✅ | `client/apps/copy/xrdcp_parse_transport.c:179` |
 | Default stream count | ✅ **4 / ON** | `xrdcp.c` `opts.streams = 4` |
 | Move **upload** data over the secondaries (round-robin write fan-out, safe fallback) | ✅ **built (Phase 94)** | `copy_pump.c` `pump_sink_remote`; `copy_upload.c` |
 | Move **download** data over the secondaries (round-robin read fan-out, safe fallback) | ✅ **built (Phase 94)** | `copy_pump.c` `pump_src_secondary`/`pump_src_remote`; `copy_local.c` |

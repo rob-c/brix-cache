@@ -34,6 +34,13 @@ from a locate on the source.
 
 ### 2.1 `client/lib/xfer/metalink.c` + `metalink.h` — parser (pure, no I/O)
 
+> Split on the 600-line file gate (2026-08-09): the bounded XML lexing layer —
+> `ml_find_ci` / `ml_tag_open` / `ml_attr` / `ml_elem_text` and the entity
+> decoder — now lives in `metalink_lex.c` behind `metalink_internal.h`;
+> `metalink.c` keeps the document semantics (ranking, digest folding, file-scope
+> collection, the public API). Pure move, no behaviour change.
+
+
 - `brix_metalink_is_name(s)` — case-insensitive `.meta4` / `.metalink` suffix
   on the URL path (query stripped).
 - `brix_metalink_parse(xml, len, out, st)` — self-contained tag scanner (no

@@ -196,24 +196,19 @@ brix_merge_srv_mirror(ngx_stream_brix_srv_conf_t *conf,
 }
 
 /*
- * WHAT: merge the CMS client group (Phase 50) — locate timeout, paths, the
- *       heartbeat interval, and the resilience deadlines (read/send/keepalive/
- *       tcp_user + the connect-backoff pair left UNSET for worker-time choice).
- * WHY:  the read-timeout auto-derivation depends on the just-merged interval;
- *       isolating it keeps that ordering explicit.
- * HOW:  merge interval (floored at 1s to avoid a busy-loop heartbeat), then
- *       derive read_timeout = max(3×interval, 90s) when unset, and default
- *       tcp_user_timeout to the read timeout.
+ * WHAT: merge the CMS selection knobs — load weight, path affinity, rm/rmdir
+ *       fan-out, cluster role, state relay, the delay-server floor and the
+ *       scheduler weight vector.
+ * WHY:  several of these are process-wide set-once installs (one registry, one
+ *       weight vector), so they must all be resolved in the same pass, before
+ *       fork — grouping them makes that shared property visible.
+ * HOW:  merge each directive, clamp the ones that are hints rather than
+ *       contracts, then install the process-wide values.
  */
 static void
-brix_merge_srv_cms(ngx_stream_brix_srv_conf_t *conf,
+brix_merge_srv_cms_selection(ngx_stream_brix_srv_conf_t *conf,
     ngx_stream_brix_srv_conf_t *prev)
 {
-    ngx_conf_merge_msec_value(conf->cms.locate_timeout, prev->cms.locate_timeout,
-                              5000);
-    ngx_conf_merge_str_value(conf->cms.paths,       prev->cms.paths,       "");
-    ngx_conf_merge_str_value(conf->cms.vnid,        prev->cms.vnid,        "");
-
     /* Phase-89 W4: load-weighted selection knob (0 = legacy scoring).  Values
      * are clamped, not rejected — the weight is a balancing hint.  Applied
      * process-wide like brix_manager_stale_after (set once before fork). */
@@ -290,7 +285,21 @@ brix_merge_srv_cms(ngx_stream_brix_srv_conf_t *conf,
 
     /* §2.5: stage-aware selection (off = legacy least-utilised pick). */
     ngx_conf_merge_value(conf->cms.stage_select, prev->cms.stage_select, 0);
+}
 
+
+/*
+ * WHAT: merge the CMS data-plane feeds — loc-cache TTL policy, shared-filesystem
+ *       mode, the external perf program and the advertised alternate data server.
+ * WHY:  these describe where the cluster's load and location facts come from,
+ *       independent of how a server is then chosen from them.
+ * HOW:  merge each directive, install the two loc-cache TTLs process-wide when
+ *       configured, and inherit an unset altds string from the parent.
+ */
+static void
+brix_merge_srv_cms_feeds(ngx_stream_brix_srv_conf_t *conf,
+    ngx_stream_brix_srv_conf_t *prev)
+{
     /* §2.6: loc-cache TTL policy (process-wide set-once).  fxhold keeps the
      * legacy 30s default unless configured; emptylife 0 = negatives off. */
     ngx_conf_merge_msec_value(conf->cms.fxhold,    prev->cms.fxhold,    0);
@@ -317,7 +326,24 @@ brix_merge_srv_cms(ngx_stream_brix_srv_conf_t *conf,
     if (conf->cms.altds.len == 0 && prev->cms.altds.len > 0) {
         conf->cms.altds = prev->cms.altds;
     }
+}
 
+
+/*
+ * WHAT: merge the heartbeat interval and the resilience deadlines that derive
+ *       from it (read/send/keepalive/tcp_user + the connect-backoff pair left
+ *       UNSET for worker-time choice).
+ * WHY:  the read-timeout auto-derivation depends on the just-merged interval;
+ *       isolating it keeps that ordering explicit and unbreakable — no directive
+ *       merged after this point can change what the deadlines derived from.
+ * HOW:  merge the interval (floored at 1s to avoid a busy-loop heartbeat), then
+ *       derive read_timeout = max(3×interval, 90s) when unset, and default
+ *       tcp_user_timeout to the read timeout.
+ */
+static void
+brix_merge_srv_cms_deadlines(ngx_stream_brix_srv_conf_t *conf,
+    ngx_stream_brix_srv_conf_t *prev)
+{
     ngx_conf_merge_value(conf->cms.interval,        prev->cms.interval,    30);
     if (conf->cms.interval < 1) {
         /* 0 would arm a 0ms heartbeat timer AND zero the reconnect backoff
@@ -359,6 +385,31 @@ brix_merge_srv_cms(ngx_stream_brix_srv_conf_t *conf,
                               NGX_CONF_UNSET_MSEC);
     ngx_conf_merge_msec_value(conf->cms.connect_retry, prev->cms.connect_retry,
                               NGX_CONF_UNSET_MSEC);
+}
+
+
+/*
+ * WHAT: merge the CMS client group (Phase 50) — locate timeout, paths and vnid,
+ *       then the selection knobs, the data-plane feeds and the resilience
+ *       deadlines.
+ * WHY:  the group is too wide to read as one body, and its one real ordering
+ *       constraint (deadlines derive from the merged heartbeat interval) is
+ *       easiest to enforce as call order.
+ * HOW:  merge the three plain directives, then run the three groups in the
+ *       order their dependencies require — deadlines last.
+ */
+static void
+brix_merge_srv_cms(ngx_stream_brix_srv_conf_t *conf,
+    ngx_stream_brix_srv_conf_t *prev)
+{
+    ngx_conf_merge_msec_value(conf->cms.locate_timeout, prev->cms.locate_timeout,
+                              5000);
+    ngx_conf_merge_str_value(conf->cms.paths,       prev->cms.paths,       "");
+    ngx_conf_merge_str_value(conf->cms.vnid,        prev->cms.vnid,        "");
+
+    brix_merge_srv_cms_selection(conf, prev);
+    brix_merge_srv_cms_feeds(conf, prev);
+    brix_merge_srv_cms_deadlines(conf, prev);
 }
 
 /*

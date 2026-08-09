@@ -145,15 +145,17 @@ tree is as described here.
 
 The adopted v1.3.0 core arrived as one 2814-line file, ~4.7x the repo's 600-line
 cap (`tools/ci/check_file_size.py`, whose ratchet backlog is empty by policy —
-files are split, never grandfathered). It is now **seven** TUs, each under 500
+files are split, never grandfathered). It is now **nine** TUs, each under 500
 lines, carved on the boundaries the monolith already had:
 
 | TU | Owns |
 |----|------|
 | `brix_fault_proxy.c` | program lifecycle: `main`, `fp_accept_loop`, signal handling, `fp_arm_privileged`, the banner — and the **single definition site** for the process-global lever/counter state |
 | `brix_fault_relay.c` | the data-path fault kernels: `dial`, `sever`, `fault_clamp_seg`, `fault_delays`, `fault_corrupt`, `global_rate_gate`, `forward_segment`, `forward_faulted`, trigger/mangle/TLS/HTTP application |
-| `brix_fault_pump.c` | the per-connection relay itself: `relay_pump_dir`, `relay_pump`, `relay_thread`, connection tuning, PROXY-header emission, replay-to-client |
-| `brix_fault_cmd_lever.c` | the lever-setting half of the verb grammar plus the threads that drive levers over time (`heal`, `chaos`, `flap`, `ramp`) |
+| `brix_fault_pump.c` | the poll loop itself: `relay_pump`, the sever/idle-reap/half-close/RST conditions, teardown, connection tuning, PROXY-header emission |
+| `brix_fault_pump_dir.c` | the per-direction transform chain feeding that loop: ping-pong buffers, rewrite/inject/mutate, the 100-continue eater, ClientHello reset, DPI stalls, `relay_pump_dir` |
+| `brix_fault_cmd_lever.c` | the lever-setting half of the verb grammar plus the threads that drive core levers over time (`heal`, `chaos`) |
+| `brix_fault_cmd_ext.c` | the wide-config half of that grammar — payload replace/inject, proxy leg, header stall, chaos schedule — plus the `flap` / `ramp` threads |
 | `brix_fault_cmd_attack.c` | the composite-attack half: `preset`, `trigger`, `mangle`, `tls`, `http`, `replay` |
 | `brix_fault_report.c` | readback and orchestration: `status`/`status json`, oracle + proto verbs, `bisect`, `recovery`, `apply_command`, the control and script threads |
 | `brix_fault_cli.c` | argv → `fp_config`: `usage`, option application, target parsing, bind/listen setup |

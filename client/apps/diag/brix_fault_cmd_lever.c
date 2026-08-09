@@ -19,6 +19,7 @@
 #include "brix_fault_buf.h"
 #include "brix_fault_toxic.h"
 #include <ctype.h>
+#include <stddef.h>   /* offsetof(): the fid_dir_ints descriptor table */
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -76,6 +77,146 @@ reset_lever(volatile lever_t *L)
     if ((d) != 1) g_down.f = (v);                 \
 } while (0)
 
+/* ---- Percent operand -> ppm ----
+ *
+ * WHAT: Converts a percentage operand to parts-per-million, returning 0 on
+ *       success and -1 when the operand is negative.
+ *
+ * WHY:  `toxicity` and `refuse` both take a percentage and both store ppm; one
+ *       converter keeps the clamp and the rounding identical between them, so a
+ *       fix to either cannot drift.
+ *
+ * HOW:  1. atof the operand and refuse a negative.
+ *       2. Clamp above 100% — over-saturating is an operator typo, not a fault.
+ *       3. Scale to ppm with round-to-nearest.
+ */
+static int
+fid_pct_to_ppm(const char *args, int *ppm)
+{
+    double  pct = atof(args);
+
+    if (pct < 0.0) {
+        return -1;
+    }
+    if (pct > 100.0) {
+        pct = 100.0;
+    }
+
+    *ppm = (int) (pct * 10000.0 + 0.5);
+    return 0;
+}
+
+
+/*
+ * WHAT: One `set <verb> <n> [up|down|both]` lever — a non-negative int written
+ *       to one `volatile int` field of lever_t on the named direction(s).
+ * WHY:  These verbs differ only in name and target field, so express the family
+ *       as data rather than an else-if ladder (coding-standards §8.6).
+ * HOW:  `field` is an offsetof into lever_t, applied by cmd_set_dir_int.
+ */
+typedef struct {
+    const char *verb;
+    size_t      field;
+} fid_dir_int_t;
+
+static const fid_dir_int_t  fid_dir_ints[] = {
+    { "slow-close", offsetof(lever_t, slow_close_ms) },
+    { "rate",       offsetof(lever_t, rate_kbps)     },
+    { "burst",      offsetof(lever_t, burst_bytes)   },
+};
+
+
+/* ---- Directional non-negative int levers ----
+ *
+ * WHAT: Handles the table above, returning 1 when `verb` was one of them (set
+ *       or refused with an `err` reply) and 0 when it was not.
+ *
+ * WHY:  `rate` here deliberately shadows the unchecked cmd_set_lever branch —
+ *       cmd_set_dispatch wires this first so a negative KB/s is refused rather
+ *       than latched.
+ *
+ * HOW:  1. Match the verb against the table.
+ *       2. Strip the direction token FIRST (dir_of rewrites `args`), then parse
+ *          the remaining number, and refuse a negative without touching state.
+ *       3. Write the value through the row's offsetof on the named side(s).
+ */
+static int
+cmd_set_dir_int(const char *verb, char *args, char *reply, size_t rsz)
+{
+    size_t  n;
+    int     d, v;
+
+    for (n = 0; n < sizeof(fid_dir_ints) / sizeof(fid_dir_ints[0]); n++) {
+        if (strcmp(verb, fid_dir_ints[n].verb) != 0) {
+            continue;
+        }
+
+        d = dir_of(args);
+        v = atoi(args);
+        if (v < 0) {
+            fp_reply(reply, rsz, "err: %s < 0\n", verb);
+            return 1;
+        }
+
+        if (d != 2) {
+            *(volatile int *) ((volatile char *) &g_up
+                               + fid_dir_ints[n].field) = v;
+        }
+        if (d != 1) {
+            *(volatile int *) ((volatile char *) &g_down
+                               + fid_dir_ints[n].field) = v;
+        }
+        return 1;
+    }
+
+    return 0;
+}
+
+
+/* ---- set latency-dist <uniform|normal> <mean> [sigma] ----
+ *
+ * WHAT: Arms the jitter distribution on the named direction(s); always returns
+ *       1 (the verb is consumed either way, malformed operands producing an
+ *       `err` reply and no state change).
+ *
+ * WHY:  This is the only fidelity verb with a compound operand, so it owns its
+ *       own parse rather than forcing the shared helpers to grow a shape field.
+ *
+ * HOW:  1. Strip the direction token, then sscanf shape + mean + optional sigma.
+ *       2. Refuse a missing/negative mean and an unknown shape name before any
+ *          write, so a rejected command leaves the previous distribution armed.
+ *       3. Write mean, shape and sigma together — a partial arm would mean a
+ *          normal distribution running with the previous sigma.
+ */
+static int
+cmd_set_latency_dist(char *args, char *reply, size_t rsz)
+{
+    int   d = dir_of(args);
+    char  shape[16] = "";
+    int   mean = -1, sigma = 0, dist;
+    int   nf = sscanf(args, "%15s %d %d", shape, &mean, &sigma);
+
+    if (nf < 2 || mean < 0) {
+        fp_reply(reply, rsz, "err: latency-dist <uniform|normal> <mean> [sigma]\n");
+        return 1;
+    }
+
+    if (strcmp(shape, "uniform") == 0) {
+        dist = 0;
+    } else if (strcmp(shape, "normal") == 0) {
+        dist = 1;
+    } else {
+        fp_reply(reply, rsz, "err: unknown distribution\n");
+        return 1;
+    }
+
+    FID_SET_DIR(d, jitter_ms, mean);
+    FID_SET_DIR(d, lat_dist, dist);
+    FID_SET_DIR(d, lat_sigma_ms, sigma);
+    return 1;
+}
+
+
 /* Phase-B fidelity verbs, each validated so a malformed operand is refused with
  * an `err` reply and leaves the lever unchanged.  Handles toxicity/slow-close/
  * connect-delay/refuse/burst/latency-dist plus a validated `rate` (overriding
@@ -84,56 +225,48 @@ reset_lever(volatile lever_t *L)
 int
 cmd_set_fidelity(const char *verb, char *args, char *reply, size_t rsz)
 {
+    int  ppm;
+
     if (strcmp(verb, "toxicity") == 0) {
         int d = dir_of(args);
-        double pct = atof(args);
-        if (pct < 0.0) { fp_reply(reply, rsz, "err: toxicity < 0\n"); return 1; }
-        if (pct > 100.0) { pct = 100.0; }
-        int ppm = (int) (pct * 10000.0 + 0.5);
-        if (d != 2) { g_toxicity_up_ppm = ppm; }
-        if (d != 1) { g_toxicity_down_ppm = ppm; }
-    } else if (strcmp(verb, "slow-close") == 0) {
-        int d = dir_of(args), ms = atoi(args);
-        if (ms < 0) { fp_reply(reply, rsz, "err: slow-close < 0\n"); return 1; }
-        FID_SET_DIR(d, slow_close_ms, ms);
-    } else if (strcmp(verb, "connect-delay") == 0 ||
-               strcmp(verb, "accept-delay") == 0) {
-        int ms = atoi(args);
-        if (ms < 0) { fp_reply(reply, rsz, "err: connect-delay < 0\n"); return 1; }
-        g_connect_delay_ms = ms;
-    } else if (strcmp(verb, "refuse") == 0) {
-        double pct = atof(args);
-        if (pct < 0.0) { fp_reply(reply, rsz, "err: refuse < 0\n"); return 1; }
-        if (pct > 100.0) { pct = 100.0; }
-        g_refuse_ppm = (int) (pct * 10000.0 + 0.5);
-    } else if (strcmp(verb, "rate") == 0) {
-        int d = dir_of(args), kbps = atoi(args);
-        if (kbps < 0) { fp_reply(reply, rsz, "err: rate < 0\n"); return 1; }
-        FID_SET_DIR(d, rate_kbps, kbps);
-    } else if (strcmp(verb, "burst") == 0) {
-        int d = dir_of(args), b = atoi(args);
-        if (b < 0) { fp_reply(reply, rsz, "err: burst < 0\n"); return 1; }
-        FID_SET_DIR(d, burst_bytes, b);
-    } else if (strcmp(verb, "latency-dist") == 0) {
-        int d = dir_of(args);
-        char shape[16] = "";
-        int mean = -1, sigma = 0;
-        int nf = sscanf(args, "%15s %d %d", shape, &mean, &sigma);
-        if (nf < 2 || mean < 0) {
-            fp_reply(reply, rsz, "err: latency-dist <uniform|normal> <mean> [sigma]\n");
+        if (fid_pct_to_ppm(args, &ppm) != 0) {
+            fp_reply(reply, rsz, "err: toxicity < 0\n");
             return 1;
         }
-        int dist;
-        if (strcmp(shape, "uniform") == 0)      { dist = 0; }
-        else if (strcmp(shape, "normal") == 0)  { dist = 1; }
-        else { fp_reply(reply, rsz, "err: unknown distribution\n"); return 1; }
-        FID_SET_DIR(d, jitter_ms, mean);
-        FID_SET_DIR(d, lat_dist, dist);
-        FID_SET_DIR(d, lat_sigma_ms, sigma);
-    } else {
-        return 0;
+        if (d != 2) { g_toxicity_up_ppm = ppm; }
+        if (d != 1) { g_toxicity_down_ppm = ppm; }
+        return 1;
     }
-    return 1;
+
+    if (strcmp(verb, "refuse") == 0) {
+        if (fid_pct_to_ppm(args, &ppm) != 0) {
+            fp_reply(reply, rsz, "err: refuse < 0\n");
+            return 1;
+        }
+        g_refuse_ppm = ppm;
+        return 1;
+    }
+
+    if (strcmp(verb, "connect-delay") == 0 ||
+        strcmp(verb, "accept-delay") == 0) {
+        int ms = atoi(args);
+        if (ms < 0) {
+            fp_reply(reply, rsz, "err: connect-delay < 0\n");
+            return 1;
+        }
+        g_connect_delay_ms = ms;
+        return 1;
+    }
+
+    if (cmd_set_dir_int(verb, args, reply, rsz)) {
+        return 1;
+    }
+
+    if (strcmp(verb, "latency-dist") == 0) {
+        return cmd_set_latency_dist(args, reply, rsz);
+    }
+
+    return 0;
 }
 
 void
@@ -328,186 +461,5 @@ chaos_thread(void *arg)
         }
         apply_command(cmd, NULL, 0);
     }
-    return NULL;
-}
-
-/* Store a `replace <find> <repl>` (or clear on "off") into the named direction. */
-int
-ext_set_replace(int d, char *findtok, char *repltok, char *reply, size_t rsz)
-{
-    if (!findtok || strcmp(findtok, "off") == 0) {
-        pthread_mutex_lock(&g_ext_lock);
-        if (d != 2) { g_up_mut.find_len = 0; }
-        if (d != 1) { g_down_mut.find_len = 0; }
-        pthread_mutex_unlock(&g_ext_lock);
-        return 0;
-    }
-    unsigned char fb[128], rb[256];
-    int fl = fp_ext_parse_payload(findtok, fb, sizeof(fb));
-    int rl = repltok ? fp_ext_parse_payload(repltok, rb, sizeof(rb)) : 0;
-    if (fl <= 0 || rl < 0) {
-        snprintf(reply, rsz, "err: bad replace payload (use hex:.. or str:..)\n");
-        return -1;
-    }
-    pthread_mutex_lock(&g_ext_lock);
-    if (d != 2) {
-        memcpy(g_up_mut.find, fb, (size_t) fl); g_up_mut.find_len = fl;
-        memcpy(g_up_mut.repl, rb, (size_t) rl); g_up_mut.repl_len = rl;
-    }
-    if (d != 1) {
-        memcpy(g_down_mut.find, fb, (size_t) fl); g_down_mut.find_len = fl;
-        memcpy(g_down_mut.repl, rb, (size_t) rl); g_down_mut.repl_len = rl;
-    }
-    pthread_mutex_unlock(&g_ext_lock);
-    return 0;
-}
-
-/* Store a one-shot `inject <payload>` for the named direction. */
-int
-ext_set_inject(int d, char *tok, char *reply, size_t rsz)
-{
-    unsigned char ib[512];
-    int il = fp_ext_parse_payload(tok, ib, sizeof(ib));
-    if (il <= 0) {
-        snprintf(reply, rsz, "err: bad inject payload (use hex:.. or str:..)\n");
-        return -1;
-    }
-    pthread_mutex_lock(&g_ext_lock);
-    if (d != 2) { memcpy(g_up_mut.inject, ib, (size_t) il); g_up_mut.inject_len = il; }
-    if (d != 1) { memcpy(g_down_mut.inject, ib, (size_t) il); g_down_mut.inject_len = il; }
-    pthread_mutex_unlock(&g_ext_lock);
-    return 0;
-}
-
-/* Configure the forged PROXY-protocol header: `proxy-header v1|v2 SRC [DST]`. */
-int
-ext_set_proxy(char *args, char *reply, size_t rsz)
-{
-    char *mode = strtok(args, " ");
-    char *src  = strtok(NULL, " ");
-    char *dst  = strtok(NULL, " ");
-    if (!mode || strcmp(mode, "off") == 0) {
-        g_proxy_mode = 0;
-        return 0;
-    }
-    int m = (strcmp(mode, "v1") == 0) ? 1 : (strcmp(mode, "v2") == 0) ? 2 : 0;
-    if (m == 0 || !src) {
-        snprintf(reply, rsz, "err: proxy-header needs v1|v2 SRC [DST]\n");
-        return -1;
-    }
-    pthread_mutex_lock(&g_ext_lock);
-    snprintf(g_proxy_src, sizeof(g_proxy_src), "%s", src);
-    snprintf(g_proxy_dst, sizeof(g_proxy_dst), "%s", dst ? dst : "");
-    pthread_mutex_unlock(&g_ext_lock);
-    g_proxy_mode = m;
-    return 0;
-}
-
-/* `stall|unstall [dir]` — hold or release one direction's pump. */
-static void
-ext_set_stall(char *args, int on)
-{
-    int d = dir_of(args);
-    if (d != 2) { g_stall_up = on; }
-    if (d != 1) { g_stall_down = on; }
-}
-
-/* `chaos [<ms>|off]` — a background thread flipping levers at random. Every arm
- * bumps g_chaos_gen so the previously-detached thread retires itself. */
-static void
-ext_set_chaos(const char *args)
-{
-    if (strcmp(args, "off") == 0 || args[0] == '\0') {
-        __atomic_add_fetch(&g_chaos_gen, 1, __ATOMIC_SEQ_CST);
-        g_chaos_on = 0;
-        return;
-    }
-    int ms = atoi(args);
-    g_chaos_ms = ms > 10 ? ms : 100;
-    unsigned gen = __atomic_add_fetch(&g_chaos_gen, 1, __ATOMIC_SEQ_CST);
-    pthread_t th;
-    if (pthread_create(&th, NULL, chaos_thread, (void *) (uintptr_t) gen) == 0) {
-        pthread_detach(th);
-        g_chaos_on = 1;
-    }
-}
-
-/* Extended, still-root-free levers: socket-level stress (mss/rcvbuf/sndbuf),
- * backpressure (stall/unstall), connection lifetime, payload MITM (inject/
- * replace), PROXY-header forgery, and the chaos monkey. Returns 1 if handled. */
-int
-cmd_set_ext(const char *verb, char *args, char *reply, size_t rsz)
-{
-    if (strcmp(verb, "mss") == 0) {
-        g_mss = atoi(args);
-    } else if (strcmp(verb, "rcvbuf") == 0) {
-        g_rcvbuf = atoi(args);
-    } else if (strcmp(verb, "sndbuf") == 0) {
-        g_sndbuf = atoi(args);
-    } else if (strcmp(verb, "max-lifetime") == 0) {
-        g_max_life_ms = atol(args);
-    } else if (strcmp(verb, "stall") == 0) {
-        ext_set_stall(args, 1);
-    } else if (strcmp(verb, "unstall") == 0) {
-        ext_set_stall(args, 0);
-    } else if (strcmp(verb, "inject") == 0) {
-        int d = dir_of(args);
-        ext_set_inject(d, args, reply, rsz);
-    } else if (strcmp(verb, "replace") == 0) {
-        int d = dir_of(args);
-        char *f = strtok(args, " ");
-        char *r = strtok(NULL, " ");
-        ext_set_replace(d, f, r, reply, rsz);
-    } else if (strcmp(verb, "proxy-header") == 0) {
-        ext_set_proxy(args, reply, rsz);
-    } else if (strcmp(verb, "chaos") == 0) {
-        ext_set_chaos(args);
-    } else {
-        return 0;
-    }
-    return 1;
-}
-
-/* Flap the listener in/out of service (a load balancer removing/adding the
- * backend): block for down_ms, unblock for up_ms, repeat until superseded. */
-void *
-flap_thread(void *arg)
-{
-    unsigned gen = (unsigned) (uintptr_t) arg;
-    while (__atomic_load_n(&g_flap_gen, __ATOMIC_SEQ_CST) == gen) {
-        apply_command((char[]){"unblock"}, NULL, 0);
-        usleep((useconds_t) (g_flap_up_ms > 0 ? g_flap_up_ms : 500) * 1000);
-        if (__atomic_load_n(&g_flap_gen, __ATOMIC_SEQ_CST) != gen) {
-            break;
-        }
-        apply_command((char[]){"block"}, NULL, 0);
-        usleep((useconds_t) (g_flap_down_ms > 0 ? g_flap_down_ms : 500) * 1000);
-    }
-    apply_command((char[]){"unblock"}, NULL, 0);   /* leave service restored */
-    return NULL;
-}
-
-/* Sweep a numeric lever from start to end over ms (a degrading link / a server
- * warming up under load). Stops early if superseded (clear / new ramp epoch). */
-void *
-ramp_thread(void *arg)
-{
-    struct ramp_arg *r = arg;
-    const int steps = 20;
-    int per = r->ms / steps;
-    if (per < 10) {
-        per = 10;
-    }
-    for (int s = 0; s <= steps; s++) {
-        if (__atomic_load_n(&g_ramp_gen, __ATOMIC_SEQ_CST) != r->gen) {
-            break;
-        }
-        double v = r->start + (r->end - r->start) * s / steps;
-        char   cmd[64];
-        snprintf(cmd, sizeof(cmd), "%s %g", r->lever, v);
-        apply_command(cmd, NULL, 0);
-        usleep((useconds_t) per * 1000);
-    }
-    free(r);
     return NULL;
 }

@@ -330,16 +330,20 @@ webdav_run_lock_startup_sweep(ngx_conf_t *cf,
     }
 }
 
+/*
+ * WHAT: refuse an auth optional/required export that configures no credential
+ *       verifier at all.  Returns NGX_CONF_OK or NGX_CONF_ERROR.
+ * WHY:  without one, every client is rejected — the misconfiguration should
+ *       fail `nginx -t`, not surface as 403s in production.
+ * HOW:  accept any of an x509 CA (cadir/cafile), a token verifier (JWKS /
+ *       issuer registry / macaroon secret), a Basic password db, or (§6.1) the
+ *       shared redirect secret (brix_http_secretkey) that authenticates a
+ *       signed redirect handoff.
+ */
 static char *
-webdav_validate_auth_paths(ngx_conf_t *cf,
+webdav_require_verifier(ngx_conf_t *cf,
     ngx_http_brix_webdav_loc_conf_t *conf)
 {
-    /* auth optional/required needs at least ONE credential verifier: an x509
-     * CA (cadir/cafile), a token verifier (JWKS / issuer registry / macaroon
-     * secret), a Basic password db, or (§6.1) the shared redirect secret
-     * (brix_http_secretkey) that authenticates a signed redirect handoff —
-     * otherwise every client is rejected and the misconfiguration should fail
-     * `nginx -t`, not surface as 403s. */
     if ((conf->auth == WEBDAV_AUTH_OPTIONAL
          || conf->auth == WEBDAV_AUTH_REQUIRED)
         && conf->cadir.len == 0 && conf->cafile.len == 0
@@ -353,6 +357,42 @@ webdav_validate_auth_paths(ngx_conf_t *cf,
             "macaroon_secret, or brix_webdav_pwd_file");
         return NGX_CONF_ERROR;
     }
+
+    return NGX_CONF_OK;
+}
+
+/*
+ * WHAT: stat-check the three x509 trust-material paths.  Returns NGX_CONF_OK
+ *       or NGX_CONF_ERROR.
+ * WHY:  an unreadable CA directory yields an empty trust store, which fails
+ *       every client certificate at request time instead of at config time.
+ * HOW:  each path is checked for the exact kind (directory / regular file /
+ *       either) and the access modes the verifier will need.
+ */
+static char *
+webdav_validate_ca_paths(ngx_conf_t *cf,
+    ngx_http_brix_webdav_loc_conf_t *conf)
+{
+    if (webdav_validate_path(cf, "brix_webdav_cadir", &conf->cadir,
+                             WEBDAV_PATH_DIRECTORY, R_OK | X_OK) != NGX_OK
+        || webdav_validate_path(cf, "brix_webdav_cafile", &conf->cafile,
+                                WEBDAV_PATH_REGULAR_FILE, R_OK) != NGX_OK
+        || webdav_validate_path(cf, "brix_webdav_crl", &conf->crl,
+                                WEBDAV_PATH_FILE_OR_DIRECTORY, R_OK) != NGX_OK)
+    {
+        return NGX_CONF_ERROR;
+    }
+
+    return NGX_CONF_OK;
+}
+
+static char *
+webdav_validate_auth_paths(ngx_conf_t *cf,
+    ngx_http_brix_webdav_loc_conf_t *conf)
+{
+    if (webdav_require_verifier(cf, conf) != NGX_CONF_OK) {
+        return NGX_CONF_ERROR;
+    }
     /* E-1: a writable export that does not REQUIRE authentication lets an
      * unauthenticated client create/overwrite/delete objects. Warn always;
      * refuse under strict security. */
@@ -364,13 +404,7 @@ webdav_validate_auth_paths(ngx_conf_t *cf,
     {
         return NGX_CONF_ERROR;
     }
-    if (webdav_validate_path(cf, "brix_webdav_cadir", &conf->cadir,
-                             WEBDAV_PATH_DIRECTORY, R_OK | X_OK) != NGX_OK
-        || webdav_validate_path(cf, "brix_webdav_cafile", &conf->cafile,
-                                WEBDAV_PATH_REGULAR_FILE, R_OK) != NGX_OK
-        || webdav_validate_path(cf, "brix_webdav_crl", &conf->crl,
-                                WEBDAV_PATH_FILE_OR_DIRECTORY, R_OK) != NGX_OK)
-    {
+    if (webdav_validate_ca_paths(cf, conf) != NGX_CONF_OK) {
         return NGX_CONF_ERROR;
     }
     if (webdav_validate_cors_origins(cf, conf) != NGX_OK) {

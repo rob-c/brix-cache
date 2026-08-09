@@ -264,6 +264,88 @@ access_protbind_set(ngx_http_request_t *r,
     brix_protbind_resolve(conf->protbind, &base, peer_host, peer_ip, out);
 }
 
+/* ---- Run the bound authentication schemes in order ----
+ *
+ * WHAT: Returns the first NGX_OK, else the last rejection; *token_rc carries
+ *       the bearer leg's own result so the caller can shape the challenge.
+ *
+ * WHY:  RFC 6750 §2 (SEC MUST): a dual-transport bearer token (header + query)
+ *       is a hard 400 invalid_request — it must NOT fall through to a weaker
+ *       source, nor to anonymous.  That is the one rejection that stops the
+ *       walk rather than continuing it.
+ *
+ * HOW:  1. Try each bound scheme in binding order.
+ *       2. Stop on success.
+ *       3. Record the bearer result, and stop early on the 400.
+ */
+static ngx_int_t
+access_run_bound(ngx_http_request_t *r,
+                 ngx_http_brix_webdav_loc_conf_t *conf,
+                 const brix_protbind_set_t *bound, ngx_int_t *token_rc)
+{
+    ngx_int_t   auth_rc = NGX_DECLINED;
+    ngx_uint_t  index;
+
+    for (index = 0; index < bound->count; index++) {
+        auth_rc = access_try_proto(bound->protos[index], r, conf);
+        if (auth_rc == NGX_OK) {
+            break;
+        }
+        if (bound->protos[index] == BRIX_AUTH_TOKEN) {
+            *token_rc = auth_rc;
+            if (*token_rc == NGX_HTTP_BAD_REQUEST) {
+                break;
+            }
+        }
+    }
+
+    return auth_rc;
+}
+
+
+/* ---- Pick the rejection an auth=required export must answer with ----
+ *
+ * WHAT: Returns the challenge/status for a request that reached the end of the
+ *       bound schemes without authenticating.
+ *
+ * WHY:  A challenge is only offered for a scheme this peer is actually bound
+ *       to — challenging Basic on a host whose binding excludes pwd would
+ *       invite a password that can never be accepted.
+ *
+ * HOW:  1. Password file + pwd bound → Basic challenge.
+ *       2. RFC 6750 §3 (MUST): on a bearer-protected export, no/invalid
+ *          credential → 401 + WWW-Authenticate: Bearer (403 =
+ *          insufficient_scope, emitted by the authz tier for a
+ *          valid-but-unscoped token).  Attribute error="invalid_token" only
+ *          when a bearer was actually presented but failed validation
+ *          (token_rc == 401); a missing credential gets the bare challenge.
+ *       3. Cert-only exports keep the historical 403.
+ */
+static ngx_int_t
+access_required_challenge(ngx_http_request_t *r,
+                          ngx_http_brix_webdav_loc_conf_t *conf,
+                          const brix_protbind_set_t *bound,
+                          ngx_int_t token_rc)
+{
+    const char  *err;
+
+    if (conf->pwd_file.len > 0
+        && brix_protbind_allows(bound, BRIX_AUTH_PWD))
+    {
+        return access_basic_challenge(r);
+    }
+
+    if (webdav_bearer_enabled(conf)
+        && brix_protbind_allows(bound, BRIX_AUTH_TOKEN))
+    {
+        err = (token_rc == NGX_HTTP_UNAUTHORIZED) ? "invalid_token" : NULL;
+        return access_bearer_challenge(r, NGX_HTTP_UNAUTHORIZED, err);
+    }
+
+    return NGX_HTTP_FORBIDDEN;
+}
+
+
 /*
  * access_authenticate — the authentication gate.
  *
@@ -290,7 +372,6 @@ access_authenticate(ngx_http_request_t *r,
     brix_protbind_set_t  bound;
     ngx_int_t            auth_rc = NGX_DECLINED;
     ngx_int_t            token_rc = NGX_DECLINED;
-    ngx_uint_t           index;
 
     /* §6.1: a signed redirect handoff (brixrdr.* CGI, verified against
      * brix_http_secretkey) IS this request's authentication — the manager
@@ -317,21 +398,7 @@ access_authenticate(ngx_http_request_t *r,
         return NGX_OK;
     }
 
-    for (index = 0; index < bound.count; index++) {
-        auth_rc = access_try_proto(bound.protos[index], r, conf);
-        if (auth_rc == NGX_OK) {
-            break;
-        }
-        if (bound.protos[index] == BRIX_AUTH_TOKEN) {
-            token_rc = auth_rc;
-            /* RFC 6750 §2 (SEC MUST): a dual-transport bearer token (header +
-             * query) is a hard 400 invalid_request — it must NOT fall through
-             * to a weaker source, nor to anonymous. */
-            if (token_rc == NGX_HTTP_BAD_REQUEST) {
-                break;
-            }
-        }
-    }
+    auth_rc = access_run_bound(r, conf, &bound, &token_rc);
 
     if (token_rc == NGX_HTTP_BAD_REQUEST) {
         BRIX_WEBDAV_METRIC_INC(
@@ -348,26 +415,8 @@ access_authenticate(ngx_http_request_t *r,
         ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
                       "brix_webdav: unauthenticated request rejected"
                       " (auth=required)");
-        if (conf->pwd_file.len > 0
-            && brix_protbind_allows(&bound, BRIX_AUTH_PWD))
-        {
-            return webdav_metrics_return(r, access_basic_challenge(r));
-        }
-        /* RFC 6750 §3 (MUST): on a bearer-protected export, no/invalid credential
-         * → 401 + WWW-Authenticate: Bearer (403 = insufficient_scope, emitted by
-         * the authz tier for a valid-but-unscoped token). Attribute
-         * error="invalid_token" only when a bearer was actually presented but
-         * failed validation (token_rc == 401); a missing credential gets the bare
-         * challenge. Cert-only exports keep the historical 403. */
-        if (webdav_bearer_enabled(conf)
-            && brix_protbind_allows(&bound, BRIX_AUTH_TOKEN))
-        {
-            const char *err =
-                (token_rc == NGX_HTTP_UNAUTHORIZED) ? "invalid_token" : NULL;
-            return webdav_metrics_return(r,
-                access_bearer_challenge(r, NGX_HTTP_UNAUTHORIZED, err));
-        }
-        return webdav_metrics_return(r, NGX_HTTP_FORBIDDEN);
+        return webdav_metrics_return(r,
+            access_required_challenge(r, conf, &bound, token_rc));
     }
 
     if (auth_rc != NGX_OK) {

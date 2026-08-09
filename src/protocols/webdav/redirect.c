@@ -178,53 +178,62 @@ rdr_send_307(ngx_http_request_t *r, u_char *loc, size_t loc_len)
     return webdav_metrics_return(r, ngx_http_send_special(r, NGX_HTTP_LAST));
 }
 
-ngx_int_t
-webdav_redirect_dataserver(ngx_http_request_t *r,
-    ngx_http_brix_webdav_loc_conf_t *conf)
+/*
+ * rdr_eligible — may this request be handed off to a data server at all?
+ *
+ * WHAT: Returns 1 when the redirect leg applies, 0 to serve locally.
+ * WHY:  Loop guard: a request that already carries a signed handoff landed on
+ *       a node that (mis)configures BOTH roles — serve locally rather than
+ *       bouncing the client around the mesh.  Only the three body-bearing
+ *       methods are worth a round trip; everything else is cheaper here.
+ * HOW:  1. the directive must be on.  2. GET/HEAD/PUT only.  3. no
+ *       brixrdr.mac in the query (brix_http_query_has returns 1 on a match, 0
+ *       otherwise — NOT an NGX_OK code; HAS_VALUE_OK is required because the
+ *       key carries the hex MAC as its value).  4. the URI must fit the
+ *       caller's path buffer.
+ */
+static int
+rdr_eligible(ngx_http_request_t *r, ngx_http_brix_webdav_loc_conf_t *conf,
+    size_t path_cap)
 {
-    char        path[WEBDAV_MAX_PATH];
-    char        ds_host[256];
-    uint16_t    ds_port;
-    int         for_write;
-    u_char     *loc, *cursor, *end;
-    size_t      loc_size;
-    uintptr_t   esc;
-
     if (!conf->redirect_dataserver) {
-        return NGX_DECLINED;
+        return 0;
     }
     if (r->method != NGX_HTTP_GET && r->method != NGX_HTTP_HEAD
         && r->method != NGX_HTTP_PUT)
     {
-        return NGX_DECLINED;
+        return 0;
     }
-
-    /* Loop guard: a request that already carries a signed handoff landed on
-     * a node that (mis)configures BOTH roles — serve locally rather than
-     * bouncing the client around the mesh.  (brix_http_query_has returns 1 on
-     * a match, 0 otherwise — NOT an NGX_OK code; HAS_VALUE_OK is required
-     * because the key carries the hex MAC as its value.) */
     if (brix_http_query_has(r->args, "brixrdr.mac",
                               BRIX_HTTP_QUERY_HAS_VALUE_OK) == 1)
     {
-        return NGX_DECLINED;
+        return 0;
     }
 
-    if (r->uri.len == 0 || r->uri.len >= sizeof(path)) {
-        return NGX_DECLINED;
-    }
-    ngx_memcpy(path, r->uri.data, r->uri.len);
-    path[r->uri.len] = '\0';
+    return (r->uri.len != 0 && r->uri.len < path_cap);
+}
 
-    for_write = (r->method == NGX_HTTP_PUT);
-    if (!brix_srv_select(path, for_write, ds_host, sizeof(ds_host),
-                           &ds_port))
-    {
-        return NGX_DECLINED;   /* no registered data server — serve locally */
-    }
-    if (conf->redirect_port > 0) {
-        ds_port = (uint16_t) conf->redirect_port;
-    }
+
+/*
+ * rdr_build_location — render the absolute redirect target.
+ *
+ * WHAT: Allocates and fills the Location value; returns it with *out_len set,
+ *       or NULL when the allocation failed.
+ * WHY:  The buffer is sized from the escaped URI up front, so every writer
+ *       below is bounded by `end` and no length can be recomputed wrongly
+ *       halfway through.  A signed-CGI overflow degrades to an unsigned
+ *       redirect rather than a truncated (and therefore forged-looking) one.
+ * HOW:  scheme + host + port, then the escaped path, the client's own args,
+ *       and finally the signed identity CGI when a secret key is configured.
+ */
+static u_char *
+rdr_build_location(ngx_http_request_t *r,
+    ngx_http_brix_webdav_loc_conf_t *conf, const char *path,
+    const char *ds_host, uint16_t ds_port, size_t *out_len)
+{
+    u_char     *loc, *cursor, *end, *signed_cursor;
+    size_t      loc_size;
+    uintptr_t   esc;
 
     /* scheme + host + port + escaped path + client args + signed CGI. */
     esc = ngx_escape_uri(NULL, r->uri.data, r->uri.len, NGX_ESCAPE_URI);
@@ -234,7 +243,7 @@ webdav_redirect_dataserver(ngx_http_request_t *r,
              + 1024;
     loc = ngx_pnalloc(r->pool, loc_size);
     if (loc == NULL) {
-        return webdav_metrics_return(r, NGX_HTTP_INTERNAL_SERVER_ERROR);
+        return NULL;
     }
     end = loc + loc_size;
 
@@ -249,8 +258,7 @@ webdav_redirect_dataserver(ngx_http_request_t *r,
     }
 
     if (conf->http_secretkey.len > 0) {
-        u_char *signed_cursor =
-            rdr_append_signed_cgi(r, conf, path, cursor, end);
+        signed_cursor = rdr_append_signed_cgi(r, conf, path, cursor, end);
 
         if (signed_cursor != NULL) {
             cursor = signed_cursor;
@@ -261,12 +269,50 @@ webdav_redirect_dataserver(ngx_http_request_t *r,
         }
     }
 
+    *out_len = (size_t) (cursor - loc);
+    return loc;
+}
+
+
+ngx_int_t
+webdav_redirect_dataserver(ngx_http_request_t *r,
+    ngx_http_brix_webdav_loc_conf_t *conf)
+{
+    char        path[WEBDAV_MAX_PATH];
+    char        ds_host[256];
+    uint16_t    ds_port;
+    int         for_write;
+    u_char     *loc;
+    size_t      loc_len;
+
+    if (!rdr_eligible(r, conf, sizeof(path))) {
+        return NGX_DECLINED;
+    }
+
+    ngx_memcpy(path, r->uri.data, r->uri.len);
+    path[r->uri.len] = '\0';
+
+    for_write = (r->method == NGX_HTTP_PUT);
+    if (!brix_srv_select(path, for_write, ds_host, sizeof(ds_host),
+                           &ds_port))
+    {
+        return NGX_DECLINED;   /* no registered data server — serve locally */
+    }
+    if (conf->redirect_port > 0) {
+        ds_port = (uint16_t) conf->redirect_port;
+    }
+
+    loc = rdr_build_location(r, conf, path, ds_host, ds_port, &loc_len);
+    if (loc == NULL) {
+        return webdav_metrics_return(r, NGX_HTTP_INTERNAL_SERVER_ERROR);
+    }
+
     ngx_log_error(NGX_LOG_INFO, r->connection->log, 0,
                   "brix_webdav: redirecting %V %s to %s:%d%s",
                   &r->method_name, path, ds_host, (int) ds_port,
                   conf->http_secretkey.len > 0 ? " (signed)" : "");
 
-    return rdr_send_307(r, loc, (size_t) (cursor - loc));
+    return rdr_send_307(r, loc, loc_len);
 }
 
 /*

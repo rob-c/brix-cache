@@ -223,6 +223,200 @@ static void test_oversized_url_skipped(void)     /* security-neg */
 }
 
 
+/* ---- entity decoding (ml_entity_named / ml_entity_numeric / ml_entity_at) ----
+ *
+ * The decoder feeds the transport, so every case below is asserted on the URL
+ * that survives the parse rather than on the helper: what matters is the exact
+ * byte string brix-xrdcp would dial.
+ */
+
+/* Parse a one-mirror document whose URL is `url`; copy the survivor out. */
+static void
+one_url(const char *url, char *out, size_t outsz)
+{
+    brix_metalink ml;
+    brix_status st;
+    char doc[4096];
+    int n;
+
+    n = snprintf(doc, sizeof(doc),
+                 "<metalink><file name=\"x\"><url priority=\"1\">%s</url>"
+                 "</file></metalink>", url);
+    assert(n > 0 && (size_t) n < sizeof(doc));
+
+    brix_status_clear(&st);
+    assert(brix_metalink_parse(doc, (size_t) n, &ml, &st) == 0);
+    assert(ml.n_urls == 1);
+    assert(strlen(ml.urls[0].rank_url) < outsz);
+    memcpy(out, ml.urls[0].rank_url, strlen(ml.urls[0].rank_url) + 1);
+}
+
+
+static void test_entity_decoding(void)           /* success */
+{
+    char got[XRDC_METALINK_URL_MAX];
+
+    /* all five predefined entities, in one value */
+    one_url("root://h:1094//f?a=&amp;&amp;b=&lt;x&gt;&amp;c=&quot;q&quot;"
+            "&amp;d=&apos;s&apos;", got, sizeof(got));
+    assert(strcmp(got, "root://h:1094//f?a=&&b=<x>&c=\"q\"&d='s'") == 0);
+
+    /* real-world metalinks emit upper/mixed case entity names */
+    one_url("root://h:1094//f?a=1&AMP;b=2&Quot;c&QUOT;", got, sizeof(got));
+    assert(strcmp(got, "root://h:1094//f?a=1&b=2\"c\"") == 0);
+
+    /* numeric forms, decimal and hex, upper and lower x */
+    one_url("root://h:1094//f?p=&#65;&#x42;&#67;&#X44;&#x2f;&#47;",
+            got, sizeof(got));
+    assert(strcmp(got, "root://h:1094//f?p=ABCD//") == 0);
+}
+
+
+static void test_entity_malformed_left_verbatim(void)  /* error */
+{
+    char got[XRDC_METALINK_URL_MAX];
+
+    /* no ';' at all: the '&' is an ordinary byte, not the start of an entity */
+    one_url("root://h:1094//f?a=1&amp", got, sizeof(got));
+    assert(strcmp(got, "root://h:1094//f?a=1&amp") == 0);
+
+    /* a name that is not one of the five predefined entities */
+    one_url("root://h:1094//f?a=&nbsp;b", got, sizeof(got));
+    assert(strcmp(got, "root://h:1094//f?a=&nbsp;b") == 0);
+
+    /* numeric marker with no digits, decimal and hex */
+    one_url("root://h:1094//f?a=&#;&#x;b", got, sizeof(got));
+    assert(strcmp(got, "root://h:1094//f?a=&#;&#x;b") == 0);
+
+    /* ';' past the 11-byte entity cap: bounded scan, so no match.  A stray '&'
+     * in a long URL must cost a bounded look-ahead, never a walk to the end. */
+    one_url("root://h:1094//f?a=&abcdefghijkl;b", got, sizeof(got));
+    assert(strcmp(got, "root://h:1094//f?a=&abcdefghijkl;b") == 0);
+}
+
+
+static void test_entity_non_ascii_and_nul_refused(void)  /* security-neg */
+{
+    char got[XRDC_METALINK_URL_MAX];
+
+    /* &#0; must NOT fold to a NUL: that would truncate the dialled URL at the
+     * entity and silently retarget the copy at a prefix of the mirror. */
+    one_url("root://h:1094//f?a=&#0;&#x0;&evil", got, sizeof(got));
+    assert(strcmp(got, "root://h:1094//f?a=&#0;&#x0;&evil") == 0);
+    assert(strlen(got) == strlen("root://h:1094//f?a=&#0;&#x0;&evil"));
+
+    /* >= U+0080 is left verbatim rather than lossily folded to one byte: the
+     * transport takes bytes, and inventing an encoding here would dial a host
+     * the document never named. */
+    one_url("root://h:1094//f?a=&#128;&#233;&#x1F600;", got, sizeof(got));
+    assert(strcmp(got, "root://h:1094//f?a=&#128;&#233;&#x1F600;") == 0);
+
+    /* The scheme gate runs on the DECODED text.  The positive control proves
+     * it: an entity-spelt "root" is accepted and stored decoded — so the
+     * entity-obfuscated file:// mirror beside it was judged as file://, not
+     * waved through as an unrecognised literal. */
+    {
+        brix_metalink ml;
+        brix_status st;
+        static const char doc[] =
+            "<metalink><file name=\"x\">"
+            "<url priority=\"1\">&#102;ile:///etc/passwd</url>"
+            "<url priority=\"2\">&#114;oot://ok.example:1094//f</url>"
+            "</file></metalink>";
+
+        brix_status_clear(&st);
+        assert(brix_metalink_parse(doc, sizeof(doc) - 1, &ml, &st) == 0);
+        assert(ml.n_urls == 1);
+        assert(ml.n_skipped == 1);
+        assert(strcmp(ml.urls[0].rank_url, "root://ok.example:1094//f") == 0);
+    }
+}
+
+
+/* ---- file-scope collection (ml_earliest / ml_take_size|hash|url) ---- */
+
+static void
+parse_scope(const char *body, brix_metalink *ml)
+{
+    brix_status st;
+    char doc[4096];
+    int n;
+
+    n = snprintf(doc, sizeof(doc),
+                 "<metalink><file name=\"x\">%s</file></metalink>", body);
+    assert(n > 0 && (size_t) n < sizeof(doc));
+    brix_status_clear(&st);
+    assert(brix_metalink_parse(doc, (size_t) n, ml, &st) == 0);
+}
+
+
+static void test_file_scope_tag_order(void)      /* success */
+{
+    static const char *const orders[] = {
+        "<size>77</size>"
+        "<hash type=\"md5\">0123456789abcdef0123456789abcdef</hash>"
+        "<url priority=\"1\">root://a:1094//f</url>"
+        "<url priority=\"2\">root://b:1094//f</url>",
+
+        "<url priority=\"1\">root://a:1094//f</url>"
+        "<url priority=\"2\">root://b:1094//f</url>"
+        "<hash type=\"md5\">0123456789abcdef0123456789abcdef</hash>"
+        "<size>77</size>",
+
+        "<hash type=\"md5\">0123456789abcdef0123456789abcdef</hash>"
+        "<url priority=\"1\">root://a:1094//f</url>"
+        "<size>77</size>"
+        "<url priority=\"2\">root://b:1094//f</url>",
+
+        "<url priority=\"2\">root://b:1094//f</url>"
+        "<size>77</size>"
+        "<url priority=\"1\">root://a:1094//f</url>"
+        "<hash type=\"md5\">0123456789abcdef0123456789abcdef</hash>",
+    };
+    size_t i;
+
+    /* The single-pass scan consumes whichever element comes first, so every
+     * permutation of the three kinds must produce the same parse. */
+    for (i = 0; i < sizeof(orders) / sizeof(orders[0]); i++) {
+        brix_metalink ml;
+
+        parse_scope(orders[i], &ml);
+        assert(ml.size == 77);
+        assert(strcmp(ml.hash_algo, "md5") == 0);
+        assert(strcmp(ml.hash_hex,
+                      "0123456789abcdef0123456789abcdef") == 0);
+        assert(ml.n_urls == 2);
+        assert(strcmp(ml.urls[0].rank_url, "root://a:1094//f") == 0);
+        assert(strcmp(ml.urls[1].rank_url, "root://b:1094//f") == 0);
+    }
+}
+
+
+static void test_size_first_valid_wins(void)     /* error + security-neg */
+{
+    brix_metalink ml;
+
+    /* Repeated <size>: the first valid one is authoritative.  Honouring a later
+     * element would let a trailing tag resize a transfer already sized — and a
+     * short size is how a truncated download is made to look complete. */
+    parse_scope("<size>100</size><size>1</size>"
+                "<url priority=\"1\">root://a:1094//f</url>", &ml);
+    assert(ml.size == 100);
+
+    /* A negative size is not "valid but small": it is skipped, and the next
+     * well-formed element still gets its chance. */
+    parse_scope("<size>-9</size><size>42</size>"
+                "<url priority=\"1\">root://a:1094//f</url>", &ml);
+    assert(ml.size == 42);
+
+    /* Only a negative size: nothing is adopted, and the parse reports unknown
+     * (-1) rather than a bogus length the copy would trust. */
+    parse_scope("<size>-9</size>"
+                "<url priority=\"1\">root://a:1094//f</url>", &ml);
+    assert(ml.size == -1);
+}
+
+
 int
 main(void)
 {
@@ -235,6 +429,11 @@ main(void)
     test_mirror_cap_keeps_best();
     test_bogus_digests_ignored();
     test_oversized_url_skipped();
+    test_entity_decoding();
+    test_entity_malformed_left_verbatim();
+    test_entity_non_ascii_and_nul_refused();
+    test_file_scope_tag_order();
+    test_size_first_valid_wins();
     printf("metalink_unit: ALL PASS\n");
     return 0;
 }

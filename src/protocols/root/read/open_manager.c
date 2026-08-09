@@ -50,6 +50,79 @@ brix_open_cms_locate(brix_ctx_t *ctx, ngx_connection_t *c,
 }
 
 /*
+ * WHAT: §2.5 stage-aware read routing.  Returns a terminal redirect, or
+ *       NGX_DECLINED when this leg does not apply or finds nothing.
+ * WHY:  prefer the recorded HOLDER (kYR_have loc cache); when a fan-out proved
+ *       no node holds the file (negative entry), the read needs a recall, so
+ *       route it to the roomiest stage-capable node rather than the least
+ *       utilised one.  Writes never take this leg — they create the file.
+ * HOW:  1. gate on write/stage_select. 2. a HIT redirects at the holder.
+ *       3. a NEG redirects at a stage-capable node when one exists.
+ */
+static ngx_int_t
+open_dyn_try_stage(brix_ctx_t *ctx, ngx_connection_t *c,
+    ngx_stream_brix_srv_conf_t *conf, int is_write, const char *clean_path,
+    int op)
+{
+	char      redir_host[256];
+	uint16_t  redir_port;
+	int       loc;
+
+	if (is_write || !conf->cms.stage_select) {
+		return NGX_DECLINED;
+	}
+
+	loc = brix_loc_cache_lookup2(clean_path, redir_host,
+	                               sizeof(redir_host), &redir_port);
+	if (loc == BRIX_LOC_HIT) {
+		BRIX_RETURN_REDIR(ctx, c, op, "OPEN", clean_path,
+		                    "loc-cache", redir_host, redir_port);
+	}
+	if (loc == BRIX_LOC_NEG
+	    && brix_srv_select_stage(clean_path, redir_host,
+	                               sizeof(redir_host), &redir_port)) {
+		BRIX_RETURN_REDIR(ctx, c, op, "OPEN", clean_path,
+		                    "stage-select", redir_host, redir_port);
+	}
+
+	return NGX_DECLINED;
+}
+
+/*
+ * WHAT: registry selection.  Returns a terminal redirect, or NGX_DECLINED on a
+ *       registry miss.
+ * WHY:  open may redirect to a server whose CMS heartbeat just dropped (a
+ *       transient blip under load blacklists it for 30 s though its data plane
+ *       is still serving) — better than a false NotFound for a file that
+ *       exists.  kXR_locate stays strict.  A truly dead target just makes the
+ *       client's connect fail and the tried/triedrc retry converges to
+ *       NotFound.
+ * HOW:  select including blacklisted candidates, seed the collapse cache for
+ *       reads, then redirect.
+ */
+static ngx_int_t
+open_dyn_try_registry(brix_ctx_t *ctx, ngx_connection_t *c,
+    ngx_stream_brix_srv_conf_t *conf, int is_write, const char *clean_path,
+    int op)
+{
+	char      redir_host[256];
+	uint16_t  redir_port;
+
+	if (!brix_srv_select_or_blacklisted(clean_path, is_write, redir_host,
+	                      sizeof(redir_host), &redir_port)) {
+		return NGX_DECLINED;
+	}
+
+	if (!is_write && conf->caps.collapse_redir) {
+		brix_redir_cache_insert(clean_path, redir_host, redir_port,
+		                          conf->caps.collapse_redir_ttl);
+	}
+	BRIX_RETURN_REDIR(ctx, c, op,
+	                    "OPEN", clean_path, "registry",
+	                    redir_host, redir_port);
+}
+
+/*
  * Dynamic manager redirect: registry select → collapse-redir cache → CMS parent
  * locate, with the tried-exhausted short-circuit.  Returns a terminal result
  * (redirect / not-found / NGX_AGAIN parked on CMS) or NGX_DECLINED to fall
@@ -96,39 +169,14 @@ brix_open_manager_dynamic(brix_ctx_t *ctx, ngx_connection_t *c,
 		                    redir_host, redir_port);
 	}
 
-	/* §2.5: stage-aware reads — prefer the recorded HOLDER (kYR_have loc
-	 * cache), else, when a fan-out proved no node holds the file (negative
-	 * entry), route the recall to the roomiest stage-capable node. */
-	if (!is_write && conf->cms.stage_select) {
-		int loc = brix_loc_cache_lookup2(clean_path, redir_host,
-		                                   sizeof(redir_host), &redir_port);
-		if (loc == BRIX_LOC_HIT) {
-			BRIX_RETURN_REDIR(ctx, c, op, "OPEN", clean_path,
-			                    "loc-cache", redir_host, redir_port);
-		}
-		if (loc == BRIX_LOC_NEG
-		    && brix_srv_select_stage(clean_path, redir_host,
-		                               sizeof(redir_host), &redir_port)) {
-			BRIX_RETURN_REDIR(ctx, c, op, "OPEN", clean_path,
-			                    "stage-select", redir_host, redir_port);
-		}
+	crc = open_dyn_try_stage(ctx, c, conf, is_write, clean_path, op);
+	if (crc != NGX_DECLINED) {
+		return crc;
 	}
 
-	/* Open may redirect to a server whose CMS heartbeat just dropped (a
-	 * transient blip under load blacklists it for 30 s though its data plane
-	 * is still serving) — better than a false NotFound for a file that
-	 * exists.  kXR_locate stays strict.  A truly dead target just makes the
-	 * client's connect fail and the tried/triedrc retry converges to
-	 * NotFound. */
-	if (brix_srv_select_or_blacklisted(clean_path, is_write, redir_host,
-	                      sizeof(redir_host), &redir_port)) {
-		if (!is_write && conf->caps.collapse_redir) {
-			brix_redir_cache_insert(clean_path, redir_host, redir_port,
-			                          conf->caps.collapse_redir_ttl);
-		}
-		BRIX_RETURN_REDIR(ctx, c, op,
-		                    "OPEN", clean_path, "registry",
-		                    redir_host, redir_port);
+	crc = open_dyn_try_registry(ctx, c, conf, is_write, clean_path, op);
+	if (crc != NGX_DECLINED) {
+		return crc;
 	}
 
 	/* Registry miss — ask the CMS parent via kYR_locate. */

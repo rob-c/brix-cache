@@ -216,6 +216,142 @@ __thread int t_afflict_up = 1;
 __thread int t_afflict_down = 1;
 __thread int t_fwd_up = 0;   /* direction of the segment currently forwarding */
 
+/* ---- Accept-path probability gate ----
+ *
+ * WHAT: Returns non-zero when a ppm lever fires for this connection, zero when
+ *       the lever is off or the draw missed.
+ *
+ * WHY:  `refuse` and `syn-drop` draw the same way and must stay independent of
+ *       each other and of the relay-path RNG; one gate keeps the ppm scale and
+ *       the seeding rule in a single place.
+ *
+ * HOW:  1. An unarmed lever (ppm <= 0) never draws, so it costs nothing.
+ *       2. Seed on first use from `g_seed` when the run is seeded, else from
+ *          the caller's distinct constant — two levers seeded alike would fire
+ *          on exactly the same connections.
+ *       3. Draw in [0, 1e6) and compare against ppm.
+ */
+static int
+fp_ppm_hit(int ppm, unsigned *seed, unsigned seed_init)
+{
+    if (ppm <= 0) {
+        return 0;
+    }
+
+    if (*seed == 0) {
+        *seed = g_seed ? g_seed : seed_init;
+    }
+
+    return (unsigned) (rand_r(seed) % 1000000) < (unsigned) ppm;
+}
+
+
+/* ---- Admission decision for one accepted client ----
+ *
+ * WHAT: Returns 1 when `client` should be relayed; returns 0 having already
+ *       closed the fd and bumped the matching counter when a lever refused it.
+ *
+ * WHY:  Keeps every "refuse a new connection" rule in one place, so the accept
+ *       loop cannot grow a path that admits a client the levers meant to drop.
+ *       Ownership of the fd moves here on refusal — the caller never has to
+ *       decide whether it was closed.
+ *
+ * HOW:  1. block: a hard outage refuses everything.
+ *       2. refuse: probabilistically drop a fraction of NEW connections (a
+ *          flaky listener).  Independent of block; does not sever live
+ *          connections and does not bump the drop epoch.
+ *       3. syn-drop: silently drop a fraction of accepted clients (no RST) so
+ *          the connection looks like it never happened — connect-timeout under
+ *          load.
+ *       4. max-conns: refuse once the live-connection cap is reached.
+ */
+static int
+fp_accept_admit(int client)
+{
+    static unsigned  refuse_seed = 0;
+    static unsigned  syn_seed = 0;
+
+    if (g_blocked) {
+        brix_fp_event(CBUMP(refused, 1), NULL, "refuse", "block", NULL, 0);
+        close(client);        /* outage: refuse */
+        return 0;
+    }
+
+    if (fp_ppm_hit(g_refuse_ppm, &refuse_seed, 0x27d4eb2fu)) {
+        brix_fp_event(CBUMP(refused, 1), NULL, "refuse", "refuse", NULL, 0);
+        close(client);
+        return 0;
+    }
+
+    if (fp_ppm_hit(g_syn_drop_ppm, &syn_seed, 0x9e3779b9u)) {
+        CBUMP(syn_dropped, 1);
+        close(client);
+        return 0;
+    }
+
+    if (g_max_conns > 0
+        && __atomic_load_n(&C.active, __ATOMIC_RELAXED) >= (unsigned long) g_max_conns) {
+        brix_fp_event(CBUMP(refused, 1), NULL, "refuse", "max-conns", NULL, 0);
+        close(client);        /* connection cap reached */
+        return 0;
+    }
+
+    return 1;
+}
+
+
+/* ---- Hand an admitted client to a detached relay thread ----
+ *
+ * WHAT: Takes ownership of `client`: either a running relay thread owns it, or
+ *       it has been closed and the live-connection gauge has been rolled back.
+ *
+ * WHY:  `active` is a GAUGE and is bumped before the thread exists (the thread
+ *       cannot bump it for itself without racing the cap check), so a failed
+ *       spawn must decrement it or the cap leaks toward permanent refusal.
+ *       `conns` and the route's per-route count are cumulative TOTALS and are
+ *       deliberately not rolled back — an accepted-then-dropped connection did
+ *       happen.  Keeping that asymmetry in one function is what makes it
+ *       auditable.
+ *
+ * HOW:  1. Disable Nagle so the injected timing is the proxy's, not the
+ *          kernel's.
+ *       2. Snapshot the drop epoch into the per-connection argument, so a later
+ *          `sever` can tell this connection from one opened after it.
+ *       3. On spawn failure, close and roll the counters back.
+ */
+static void
+fp_spawn_relay(fp_route *route, int client)
+{
+    int         one = 1;
+    relay_arg  *ra;
+    pthread_t   t;
+
+    setsockopt(client, IPPROTO_TCP, TCP_NODELAY, &one, sizeof(one));
+
+    ra = malloc(sizeof(*ra));
+    if (ra == NULL) {
+        close(client);
+        return;
+    }
+
+    ra->client_fd = client;
+    ra->epoch = __atomic_load_n(&g_drop_epoch, __ATOMIC_SEQ_CST);
+    ra->conn_id = CBUMP(conns, 1);
+    ra->route = route;
+    CBUMP(active, 1);
+    fp_route_inc_conns(route);
+
+    if (pthread_create(&t, NULL, relay_thread, ra) != 0) {
+        close(client);
+        CDEC(active);
+        free(ra);
+        return;
+    }
+
+    pthread_detach(t);
+}
+
+
 /* Accept clients for `route` on `lfd`, spawning a detached relay thread per
  * connection (subject to the outage/connection-cap levers).  Returns when the
  * route is stopped (fp_route_alive(route) == 0) or on a non-EINTR accept error.
@@ -243,57 +379,9 @@ fp_accept_loop(fp_route *route, int lfd)
             }
             break;
         }
-        if (g_blocked) {
-            brix_fp_event(CBUMP(refused, 1), NULL, "refuse", "block", NULL, 0);
-            close(client);        /* outage: refuse */
-            continue;
+        if (fp_accept_admit(client)) {
+            fp_spawn_relay(route, client);
         }
-        /* refuse: probabilistically drop a fraction of NEW connections (a flaky
-         * listener).  Independent of block; does not sever live connections and
-         * does not bump the drop epoch.  Bumps the `refused` counter. */
-        if (g_refuse_ppm > 0) {
-            static unsigned refuse_seed = 0;
-            if (refuse_seed == 0) { refuse_seed = g_seed ? g_seed : 0x27d4eb2fu; }
-            if ((unsigned) (rand_r(&refuse_seed) % 1000000) < (unsigned) g_refuse_ppm) {
-                brix_fp_event(CBUMP(refused, 1), NULL, "refuse", "refuse", NULL, 0);
-                close(client);
-                continue;
-            }
-        }
-        /* syn-drop: silently drop a fraction of accepted clients (no RST) so the
-         * connection looks like it never happened — connect-timeout under load. */
-        if (g_syn_drop_ppm > 0) {
-            static unsigned syn_seed = 0;
-            if (syn_seed == 0) { syn_seed = g_seed ? g_seed : 0x9e3779b9u; }
-            if ((unsigned) (rand_r(&syn_seed) % 1000000) < (unsigned) g_syn_drop_ppm) {
-                CBUMP(syn_dropped, 1);
-                close(client);
-                continue;
-            }
-        }
-        if (g_max_conns > 0
-            && __atomic_load_n(&C.active, __ATOMIC_RELAXED) >= (unsigned long) g_max_conns) {
-            brix_fp_event(CBUMP(refused, 1), NULL, "refuse", "max-conns", NULL, 0);
-            close(client);        /* connection cap reached */
-            continue;
-        }
-        int one = 1;
-        setsockopt(client, IPPROTO_TCP, TCP_NODELAY, &one, sizeof(one));
-        relay_arg *ra = malloc(sizeof(*ra));
-        ra->client_fd = client;
-        ra->epoch = __atomic_load_n(&g_drop_epoch, __ATOMIC_SEQ_CST);
-        ra->conn_id = CBUMP(conns, 1);
-        ra->route = route;
-        CBUMP(active, 1);
-        fp_route_inc_conns(route);
-        pthread_t t;
-        if (pthread_create(&t, NULL, relay_thread, ra) != 0) {
-            close(client);
-            CDEC(active);
-            free(ra);
-            continue;
-        }
-        pthread_detach(t);
     }
 }
 

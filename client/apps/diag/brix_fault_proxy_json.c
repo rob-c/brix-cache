@@ -246,16 +246,106 @@ json_object_get(const char *json, const char *key, char *out, size_t outsz)
     }
 }
 
+/* ---- Copy a bare (non-string) JSON value verbatim ----
+ *
+ * WHAT: Copies the token at `*pp` up to ',' or '}' into `out`, advancing `*pp`
+ *       past it.  Returns 1 when a non-empty token was copied, -1 when the
+ *       value was empty (a malformed member such as `{"k":}`).
+ *
+ * WHY:  Copying verbatim is the point: 5242880 stays an integer and 0.02 stays
+ *       0.02, where reprojecting through a numeric parse and %g would not
+ *       round-trip.  An empty value is a parse error, not an empty string.
+ *
+ * HOW:  1. Copy bytes until the member terminator, truncating at `outsz` but
+ *          still consuming the whole token so the caller's cursor stays sane.
+ *       2. Trim trailing space/tab left by the separator.
+ *       3. NUL-terminate and report whether anything survived.
+ */
+static int
+json_copy_bare(const char **pp, char *out, size_t outsz)
+{
+    const char  *p = *pp;
+    size_t       o = 0;
+
+    while (*p != '\0' && *p != ',' && *p != '}') {
+        if (o + 1 < outsz) { out[o++] = *p; }
+        p++;
+    }
+    while (o > 0 && (out[o - 1] == ' ' || out[o - 1] == '\t')) { o--; }
+
+    out[o] = '\0';
+    *pp = p;
+    return o > 0 ? 1 : -1;
+}
+
+
+/* ---- Decode the value of the member the cursor is sitting on ----
+ *
+ * WHAT: Returns 1 with `out` filled, or -1 when the value is malformed.
+ *
+ * WHY:  A caller that has just matched a key should not have to know whether
+ *       the value is quoted — that is the only difference between the two
+ *       paths, and it belongs here.
+ *
+ * HOW:  1. A leading quote means a string: decode escapes.
+ *       2. Anything else is a bare token: copy it verbatim.
+ */
+static int
+json_take_member_value(const char **pp, char *out, size_t outsz)
+{
+    if (**pp == '"') {
+        return json_parse_string(pp, out, outsz) == 0 ? 1 : -1;
+    }
+
+    return json_copy_bare(pp, out, outsz);
+}
+
+
+/* ---- Step over an unwanted member ----
+ *
+ * WHAT: Skips the value at `*pp` and the separator after it.  Returns 1 when
+ *       another member follows, 0 at the end of the object, -1 on malformed
+ *       input.
+ *
+ * WHY:  Gives the search loop a single tri-state step, so "key absent" (0) and
+ *       "object broken" (-1) stay distinguishable all the way out to the
+ *       caller instead of collapsing into one failure.
+ *
+ * HOW:  1. Skip the value (nested objects/arrays included).
+ *       2. Classify the next non-space byte: ',' continues, '}' ends, anything
+ *          else is malformed.
+ */
+static int
+json_advance_member(const char **pp)
+{
+    if (json_skip_value(pp) != 0) {
+        return -1;
+    }
+
+    *pp = json_skip_ws(*pp);
+    if (**pp == ',') { (*pp)++; return 1; }
+    if (**pp == '}') { return 0; }
+
+    return -1;
+}
+
+
 /*
  * Like json_object_get, but also accepts a NON-string value (number/bool/null):
  * a string value is decoded, a bare token is copied verbatim (so 5242880 stays
  * an integer and 0.02 stays 0.02 — never reprojected through %g).  Returns 1 and
  * fills `out` on success, 0 if the key is absent, -1 if the object is malformed.
+ *
+ * HOW: walk the members once; on a key match take the value, otherwise step to
+ *      the next member — the tri-state step is what keeps "absent" (0) and
+ *      "malformed" (-1) distinct all the way to the caller.
  */
 int
 fp_json_get(const char *json, const char *key, char *out, size_t outsz)
 {
-    const char *p = json_skip_ws(json);
+    const char  *p = json_skip_ws(json);
+    int          rc;
+
     if (*p != '{') {
         return -1;
     }
@@ -263,33 +353,21 @@ fp_json_get(const char *json, const char *key, char *out, size_t outsz)
     if (*p == '}') {
         return 0;
     }
+
     for (;;) {
         char kbuf[64];
+
         if (json_member_key(&p, kbuf, sizeof kbuf) != 0) {
             return -1;
         }
-        int match = (strcmp(kbuf, key) == 0);
-        if (match && *p == '"') {
-            return json_parse_string(&p, out, outsz) == 0 ? 1 : -1;
+        if (strcmp(kbuf, key) == 0) {
+            return json_take_member_value(&p, out, outsz);
         }
-        if (match) {
-            /* bare token: copy up to ',' or '}' (trimming trailing space). */
-            size_t o = 0;
-            while (*p != '\0' && *p != ',' && *p != '}') {
-                if (o + 1 < outsz) { out[o++] = *p; }
-                p++;
-            }
-            while (o > 0 && (out[o - 1] == ' ' || out[o - 1] == '\t')) { o--; }
-            out[o] = '\0';
-            return o > 0 ? 1 : -1;
+
+        rc = json_advance_member(&p);
+        if (rc <= 0) {
+            return rc;   /* 0 = key absent, -1 = malformed */
         }
-        if (json_skip_value(&p) != 0) {
-            return -1;
-        }
-        p = json_skip_ws(p);
-        if (*p == ',') { p++; continue; }
-        if (*p == '}') { return 0; }
-        return -1;
     }
 }
 

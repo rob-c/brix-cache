@@ -127,7 +127,7 @@ LIB_SRCS   := \
   lib/protocols/ftp/ftp_ctl.c lib/protocols/ftp/ftp_data.c lib/protocols/ftp/ftp_gsi.c lib/protocols/ftp/ftp_gsi_cred.c lib/protocols/ftp/ftp_login.c lib/protocols/ftp/ftp_ops.c lib/protocols/ftp/ftp_screen.c \
   $(SRC)/fs/backend/gsiftp/gftp_reply.c $(SRC)/fs/backend/gsiftp/gftp_mlsx.c \
   lib/protocols/shared/checksum.c lib/protocols/shared/cks_verify.c lib/protocols/shared/cksum_manifest.c lib/protocols/shared/zip.c lib/protocols/shared/zip_write.c \
-  lib/xfer/copy.c lib/xfer/copy_block.c lib/xfer/copy_gsiftp.c lib/xfer/copy_cksum_verify.c lib/xfer/copy_filter.c lib/xfer/copy_local.c lib/xfer/copy_local_parallel.c lib/xfer/copy_metalink.c lib/xfer/copy_pump.c lib/xfer/copy_recursive.c lib/xfer/copy_recursive_ul.c lib/xfer/copy_remote.c lib/xfer/copy_upload.c lib/xfer/copy_web_download.c lib/xfer/copy_xcp.c lib/xfer/copy_xcp_sources.c lib/xfer/copy_zip.c lib/xfer/metalink.c \
+  lib/xfer/copy.c lib/xfer/copy_block.c lib/xfer/copy_gsiftp.c lib/xfer/copy_cksum_verify.c lib/xfer/copy_filter.c lib/xfer/copy_local.c lib/xfer/copy_local_parallel.c lib/xfer/copy_metalink.c lib/xfer/copy_pump.c lib/xfer/copy_recursive.c lib/xfer/copy_recursive_ul.c lib/xfer/copy_remote.c lib/xfer/copy_upload.c lib/xfer/copy_web_download.c lib/xfer/copy_xcp.c lib/xfer/copy_xcp_sources.c lib/xfer/copy_zip.c lib/xfer/metalink.c lib/xfer/metalink_lex.c \
   lib/posix/fuse_ops.c lib/posix/posix_map.c \
   lib/cli/cli_cksum.c lib/cli/cli_conn.c lib/cli/cli_cred.c lib/cli/cli_hint.c lib/cli/cli_opts.c lib/cli/jsonout.c lib/cli/suggest.c lib/cli/xferjournal.c \
   lib/observability/capture.c lib/observability/trace.c \
@@ -264,7 +264,7 @@ COMPAT_COMPLETION_NAMES := $(foreach n,xrd xrdfs xrdcp xrdcksum xrdprep xrdgsipr
 # phase-69: apps regrouped into tool-family subdirs — each CLI's translation units
 # are listed in a <name>_OBJS variable (the Phase-38 split siblings are just extra
 # entries). The single link rule below expands these via .SECONDEXPANSION.
-xrdcp_OBJS        := apps/copy/xrdcp.o apps/copy/xrdcp_transfer.o apps/copy/xrdcp_recursive.o apps/copy/xrdcp_dispatch.o apps/copy/xrdcp_parse.o apps/copy/xrdcp_recursive_upload.o
+xrdcp_OBJS        := apps/copy/xrdcp.o apps/copy/xrdcp_transfer.o apps/copy/xrdcp_recursive.o apps/copy/xrdcp_dispatch.o apps/copy/xrdcp_parse.o apps/copy/xrdcp_parse_transport.o apps/copy/xrdcp_recursive_upload.o
 xrdfs_OBJS        := apps/fs/xrdfs.o apps/fs/xrdfs_data.o apps/fs/xrdfs_data_content.o apps/fs/xrdfs_data_wc.o apps/fs/xrdfs_data_xfer.o apps/fs/xrdfs_data_xfer_vec.o apps/fs/xrdfs_walk.o apps/fs/xrdfs_fmt.o apps/fs/xrdfs_attr.o apps/fs/xrdfs_meta.o apps/fs/xrdfs_web.o
 xrd_OBJS          := apps/diag/xrd.o apps/diag/xrd_battery.o apps/diag/xrd_battery_web.o apps/diag/xrd_doctor.o apps/diag/xrd_doctor_json.o apps/diag/xrd_clockskew.o apps/diag/xrd_mount.o apps/diag/xrd_usage.o
 xrddiag_OBJS      := apps/diag/xrddiag.o apps/diag/diag_check.o apps/diag/diag_check_probe.o apps/diag/diag_bench.o apps/diag/diag_metabench.o apps/diag/diag_watch.o apps/diag/diag_topology.o apps/diag/diag_compare.o apps/diag/diag_doctor.o apps/diag/diag_doctor_json.o apps/diag/diag_doctor_probe.o apps/diag/diag_doctor_proto.o apps/diag/diag_doctor_audit.o apps/diag/diag_doctor_graph.o apps/diag/diag_doctor_latency.o apps/diag/diag_doctor_recon.o apps/diag/diag_doctor_eos.o apps/diag/diag_doctor_eos_fileinfo.o apps/diag/diag_tpc_egress.o apps/diag/diag_authsuite.o apps/diag/diag_misc.o \
@@ -579,7 +579,9 @@ FAULT_PROXY_SRCS := apps/diag/brix_fault_proxy.c apps/diag/brix_fault_priv.c \
 	apps/diag/brix_fault_proxy_event.c apps/diag/brix_fault_proxy_json.c \
 	apps/diag/brix_fault_toxic.c apps/diag/brix_fault_route.c \
 	apps/diag/brix_fault_relay.c apps/diag/brix_fault_pump.c \
-	apps/diag/brix_fault_cmd_lever.c apps/diag/brix_fault_cmd_attack.c \
+	apps/diag/brix_fault_pump_dir.c \
+	apps/diag/brix_fault_cmd_lever.c apps/diag/brix_fault_cmd_ext.c \
+	apps/diag/brix_fault_cmd_attack.c \
 	apps/diag/brix_fault_cmd_dpi.c apps/diag/brix_fault_cmd_json.c \
 	apps/diag/brix_fault_udp.c \
 	apps/diag/brix_fault_report.c apps/diag/brix_fault_cli.c
@@ -843,6 +845,19 @@ test: $(CLIENT_LIB) proto | $(BINDIR)
 	@bash man/check_man.sh
 	@echo "== completions guard"
 	@bash completions/check_completions.sh
+
+# Build ONE unit test: `make <name>-unit` compiles tests/c/<name>_unit.c with
+# the same recipe the `test` target uses (dashes in the goal map to the source
+# file's underscores).  The pytest fast-tier wrappers drive individual units
+# this way, so a single C unit can run without the full `make test` sweep.
+%-unit: $(CLIENT_LIB) proto | $(BINDIR)
+	@t=$(subst -,_,$@); \
+	case " $(WHOLEARCH_TESTS) " in \
+	*" $$t "*) lib='-Wl,--whole-archive $(CLIENT_LIB) -Wl,--no-whole-archive' ;; \
+	*)         lib='$(CLIENT_LIB)' ;; \
+	esac; \
+	$(CC) $(ALL_CFLAGS) $(TEST_INC) tests/c/$$t.c \
+	  $$lib $(PROTO_LIB) $(LDLIBS) -o $(BINDIR)/$$t
 
 # Build the sample consumer against the INSTALLED library via pkg-config.
 example-test:
