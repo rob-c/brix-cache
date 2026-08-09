@@ -36,9 +36,21 @@ on:
   workflow_dispatch:
   schedule:
     - cron: '0 6 * * *'   # nightly, after fuzz (04:00) + coverage windows
+
+permissions:
+  contents: read
+
+# Only a superseded PR run is worth cancelling: the nightly cron shares
+# `main` as its ref, and killing it because someone pushed would silently
+# drop the broad sanitized tier this lane exists for.
+concurrency:
+  group: asan-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   asan:
     runs-on: ubuntu-latest
+    timeout-minutes: 120
     steps:
       - uses: actions/checkout@v4
       - name: Install build deps

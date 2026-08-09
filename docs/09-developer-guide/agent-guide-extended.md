@@ -73,6 +73,30 @@ sources ended up unbuilt on main. **Guard `tools/ci/check_client_build_coverage.
 `*_unittest.c` and the `client/tests|examples|bin/` trees are excused; its
 allowlist is empty and should stay that way).
 
+**What CI asks about the build, so you can ask it locally first.**
+`.github/workflows/build.yml` is the "main compiles and runs" gate, and its two
+build-graph questions are the ones an incremental developer tree cannot answer:
+
+```
+make -C /tmp/nginx-1.28.3 && make -C client   # a SECOND make must recompile nothing
+make -C client clean && rm -f shared/xrdproto/libxrdproto.a && make -C client -j1
+```
+
+The first catches a target that is never up to date (a phony masquerading as a
+file, a recipe that rewrites its own target); the second catches a link with no
+rule to rebuild what it links — an order-only `| proto` prerequisite orders work
+but does not make the archive buildable, which is how a broken clean build
+reached main. It then runs `tools/ci/smoke.py`: boot the built module on an
+ephemeral port under a private `TEST_ROOT` and pull one byte-exact `root://`
+read with the `xrdcp` from the same build. Run it after any build change; it
+takes seconds and needs nothing installed.
+
+**Ratchet backlogs may only shrink**, and that is now enforced —
+`tools/ci/check_ratchet_monotonic.py` fails the build if any backlog gains an
+entry or raises an allowance against the PR's base. Never resolve a red
+`check_file_size` / `check_complexity` / `check_todo_fixme` by appending to its
+backlog; split the file, cut the complexity, remove the marker.
+
 ---
 
 ## CODE STYLE headlines (full text)

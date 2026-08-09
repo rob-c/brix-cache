@@ -30,9 +30,18 @@ on:
   workflow_dispatch:
   schedule:
     - cron: '0 3 * * 1'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fanalyzer-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   fanalyzer:
     runs-on: ubuntu-latest
+    timeout-minutes: 90
     # Pin the toolchain to the dev distro so -fanalyzer findings reproduce the
     # frozen baseline exactly — the prerequisite for making this gate blocking.
     container: almalinux:9

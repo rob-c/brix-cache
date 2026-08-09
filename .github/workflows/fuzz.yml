@@ -27,9 +27,22 @@ on:
   workflow_dispatch:
   schedule:
     - cron: '0 4 * * *'
+
+# Read-only by default; `corpus-writeback` re-grants itself write below — the
+# only job in this repo that pushes, and never on pull_request.
+permissions:
+  contents: read
+
+concurrency:
+  group: fuzz-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   fuzz:
     runs-on: ubuntu-latest
+    # The nightly soak is FUZZ_TIME=600 per harness across the full set, so the
+    # ceiling has to clear ~10 harnesses x 10 min plus the clang builds.
+    timeout-minutes: 180
     steps:
       - uses: actions/checkout@v4
       - name: Install build deps
@@ -64,6 +77,7 @@ jobs:
   corpus-writeback:
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
+    timeout-minutes: 120
     permissions:
       contents: write
     steps:

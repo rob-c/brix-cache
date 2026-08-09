@@ -42,6 +42,7 @@ won't come up. Each item cost real time at least once.
 | `pkill -f pytest` / `pkill -f run_suite` / `pkill -f nginx` kills your own shell (exit 144) | These patterns self-match the invoking shell/wrapper | Use exact-comm `pkill -9 -x nginx`/`-x xrootd`, or `pgrep ... \| grep -v $$`; use `brutal_teardown.sh` as the canonical reaper (scans `/proc/*/cmdline` for test-path markers, skips `$$`/`$PPID`) |
 | A resilience/fault-proxy or destructive test flakes when run inside the shared fleet | The shared fleet (11094-12126) is itself flaky to bring up and shares state with everything else | Resilience/fault-proxy/destructive suites must self-provision dedicated nginx+xrootd on a private high port block, own PKI/data dir — never call `start-all` for them |
 | Every token **accept**-case fails while every **reject**-case passes (e.g. `test_wr_01/02/04_*_accept` red on webdav *and* s3, `test_wr_03_read_scope_denies_write` and all `*_reject` green) | Fleet **signing-key desync**, never a scope/authz code bug: `TokenForge` is minting with keys the servers no longer trust, so *all* tokens die at authN — reject-expecting tests then pass trivially. An interrupted `restart` (it boots ~76 servers and regenerates PKI, easily >2 min) leaves the dedicated instances (`/tmp/xrd-test/dedicated/webdav-token`, `s3-bearer`, …) holding stale keys, and can abort mid-PKI-regen so the main nginx `[emerg]`s on a missing `ca.key`/`hostcert.pem` | Do not chase it into `scopes.c`/`validate.c`. Re-run `restart` to completion in the background with a long timeout — it may need two passes (first wipes and regenerates PKI, second converges) — and confirm `/tmp/xrd-test/pki/{ca/ca.key,server/hostcert.pem,user/proxy.pem}` all exist before re-testing |
+| A CI lane that boots the fleet reports **success** in seconds, having tested nothing (`asan: SKIP — sanitized fleet failed to boot on this runner`) | `start-all` aborted because a spec tagged `critical` **skipped** — `ref-anon` calls `pytest.skip("selected xrootd binary is unavailable: xrootd")` and no GitHub runner image ships stock XRootD. The launcher treated "not installed here" the same as "broken", and the lane script treats a boot failure as a missing prerequisite, so the two combined into a green check | Fixed 2026-08-09 (`_absorb_or_reraise`): `critical` is fatal on a real FAILURE only; a `pytest.skip` from any spec is absorbed and logged. When a lane's log says SKIP, read it as RED — no lane that skips its fleet is evidence of anything |
 | A conformance/harness test "fails" and it looks like a server bug | Historically, ~90% of the time the *test* carried a stale assumption, not the server | Always verify differentially against a real stock `xrootd`/`XrdCl` reference before touching `src/`; see the conformance section below |
 | Test failures/timeouts/high load and you're about to write "environmental, not code" | **BANNED.** This exact excuse buried a real crash-loop bug (uninitialized reaper timer, fixed `66efecd0`) for weeks — see the postmortem below | Check `coredumpctl list --since=-1h`, worker PID churn, and error.log for repeated startup banners BEFORE attributing anything to load |
 
@@ -117,6 +118,23 @@ self-evident from `tests/README.md`:
   systemic exit-1 cause was fixed: `start_all_dedicated` called
   `make_token.py gen` without first `init`-ing the tokens dir on a fully
   clean tree.
+- **`critical` in a spec's tags means "a FAILURE here is fatal", not "this must
+  exist".** Only two specs carry it: `main` (the shared nginx) and `ref-anon`
+  (the stock reference xrootd). Until 2026-08-09 the launcher let *any*
+  exception from a critical spec abort `start-all`, including the
+  `pytest.skip("selected xrootd binary is unavailable: xrootd")` that
+  `_start_xrootd` raises when the binary simply isn't installed — so on a host
+  without stock XRootD (every GitHub runner) the whole fleet refused to boot,
+  and the `asan` lane sailed through green having exercised nothing. The
+  verdict now lives in one place, `_absorb_or_reraise`
+  (`tests/_server_launcher_part2_mixina.py`), shared by the sequential and the
+  threaded start path: a `pytest.skip.Exception` is "unavailable on this host"
+  → log and continue, whatever the tags; anything else from a critical spec
+  still propagates. `main` can't reach the skip branch (its start path raises
+  `RegistryCommandFailure`), so an unbindable main nginx remains fatal.
+  Guarded by `tests/test_fleet_criticality.py` — whose absorb cases convert a
+  propagating skip into a `pytest.fail`, because otherwise the guard itself
+  would go quietly *skipped*-green at the exact moment the bug returned.
 - **Resource exhaustion from accumulated restarts.** Repeated `start-all`
   cycles leave orphans (seen: 44-79 nginx + 15 xrootd processes, host memory
   down to 100-500Mi free) until the OOM killer starts silently killing

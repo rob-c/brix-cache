@@ -107,28 +107,54 @@ class _RegistryLauncherMixinA:
         return manifest
 
     def _start_guarded(self, spec: NginxInstanceSpec) -> None:
-        if "critical" in spec.tags:
-            # Main nginx / main reference xrootd: a failure here is fatal — the
-            # suite cannot run without them, so let it propagate.
-            self.start(spec)
-            return
         # Non-critical fleet members mirror bash `start_x || true`: an
         # optional-daemon skip (missing libs/tooling) or a transient start
-        # failure must not abort the whole start-all. Log and press on.
+        # failure must not abort the whole start-all. Critical ones abort on a
+        # real failure but not on "not installed here" — see _absorb_or_reraise.
         try:
             self.start(spec)
         except (Exception, pytest.skip.Exception) as exc:  # noqa: BLE001
-            sys.stderr.write(
-                f"\n[registry] non-critical spec '{spec.name}' did not start "
-                f"({type(exc).__name__}: {exc}); continuing.\n"
-            )
+            self._absorb_or_reraise(spec, exc)
+
+    @staticmethod
+    def _absorb_or_reraise(spec: NginxInstanceSpec, exc: BaseException) -> None:
+        """Decide whether an instance that did not start aborts the whole fleet.
+
+        WHAT: re-raise for a genuine start FAILURE on a `critical` spec; log and
+        return for every other combination.
+
+        WHY: `critical` means "no suite without this" — main nginx binding its
+        ports, the reference xrootd answering root://. But an instance can also
+        decline to start because a prerequisite is simply not installed on this
+        host, and every `pytest.skip` raised in this launcher is exactly that
+        signal (stock `xrootd`, the XrdHttp libs, `haproxy`, an external
+        subsystem, root privileges). Treating the two alike meant a runner
+        without stock XRootD aborted `start-all` outright: the `asan` CI lane
+        booted no fleet at all and then passed by skipping, i.e. shipped a green
+        check that had exercised nothing. An absent binary must skip the tests
+        that need it, not delete the fleet.
+
+        HOW: `pytest.skip.Exception` is the "unavailable here" marker; anything
+        else from a critical spec propagates unchanged. `main` cannot reach the
+        skip branch — its start path raises RegistryCommandFailure — so a broken
+        or unbindable main nginx is still fatal, and the differential suites that
+        need `ref-anon` skip on their own when its port never answers.
+        """
+        if "critical" in spec.tags and not isinstance(exc, pytest.skip.Exception):
+            raise exc
+        scope = "critical" if "critical" in spec.tags else "non-critical"
+        sys.stderr.write(
+            f"\n[registry] {scope} spec '{spec.name}' did not start "
+            f"({type(exc).__name__}: {exc}); continuing.\n"
+        )
 
     def _start_level(self, level: Sequence[NginxInstanceSpec], workers: int) -> None:
         # Each worker only ever `list.append`s to self._owned / assigns a distinct
         # key into self._xrootd_procs/_external_stops — both GIL-atomic in CPython,
         # so no extra lock is needed. Critical failures still propagate: a raised
         # future re-raises here, aborting the whole start (critical specs live at
-        # level 0, so nothing dependent has launched yet).
+        # level 0, so nothing dependent has launched yet). The parallel and the
+        # sequential path share one verdict — _absorb_or_reraise.
         with ThreadPoolExecutor(max_workers=min(workers, len(level))) as pool:
             futures = {pool.submit(self.start, spec): spec for spec in level}
             for future in as_completed(futures):
@@ -136,12 +162,7 @@ class _RegistryLauncherMixinA:
                 try:
                     future.result()
                 except (Exception, pytest.skip.Exception) as exc:  # noqa: BLE001
-                    if "critical" in spec.tags:
-                        raise
-                    sys.stderr.write(
-                        f"\n[registry] non-critical spec '{spec.name}' did not start "
-                        f"({type(exc).__name__}: {exc}); continuing.\n"
-                    )
+                    self._absorb_or_reraise(spec, exc)
 
     @staticmethod
     def _start_workers() -> int:

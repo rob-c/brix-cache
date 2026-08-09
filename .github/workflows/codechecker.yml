@@ -23,9 +23,18 @@ on:
   workflow_dispatch:
   schedule:
     - cron: '0 4 * * 1'   # Mondays 04:00, an hour after fanalyzer
+
+permissions:
+  contents: read
+
+concurrency:
+  group: codechecker-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   codechecker:
     runs-on: ubuntu-latest
+    timeout-minutes: 90
     # Pin the toolchain to the dev distro so the Clang SA / clang-tidy finding set
     # reproduces the frozen baseline exactly — the prerequisite for blocking.
     container: almalinux:9

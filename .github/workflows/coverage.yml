@@ -16,9 +16,20 @@ on:
   workflow_dispatch:
   schedule:
     - cron: '0 5 * * 1'   # Mondays 05:00, after fanalyzer (03:00) + codechecker (04:00)
+
+permissions:
+  contents: read
+
+# Cron/dispatch only: never cancel a run in flight — the weekly figure is the
+# whole product of this lane.
+concurrency:
+  group: coverage-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   coverage:
     runs-on: ubuntu-latest
+    timeout-minutes: 180
     continue-on-error: true
     steps:
       - uses: actions/checkout@v4

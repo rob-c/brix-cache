@@ -13,9 +13,18 @@ on:
   pull_request:
   push:
     branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: guards-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   guards:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
         with:
@@ -90,3 +99,9 @@ jobs:
       - name: version sync — ident.h, RPM spec and CHANGELOG agree
         if: '!cancelled()'
         run: tools/ci/check_version_sync.py
+      # Guards the guards: every ratchet above compares the tree against a frozen
+      # backlog, so appending to the backlog is the one way to turn any of them
+      # green while making the code worse. Backlogs may shrink, never grow.
+      - name: ratchet monotonicity — no backlog may grow
+        if: '!cancelled()'
+        run: tools/ci/check_ratchet_monotonic.py --base "${{ github.event.pull_request.base.sha || github.event.before }}"

@@ -69,6 +69,7 @@ _FAST = [
     "check_gridftp_interop_image",
     "check_python_deps",
     "check_version_sync",
+    "check_ratchet_monotonic",
 ]
 
 def _load_check_file_size():

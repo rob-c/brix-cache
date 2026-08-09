@@ -1,0 +1,118 @@
+# The "main compiles and runs" gate.
+#
+# Every other lane is either static (guards, loc), analyzer-only (fanalyzer,
+# codechecker compile but never link a runnable tree from a clean checkout), or
+# tolerant of not running at all (asan/coverage exit 0 when a prerequisite is
+# missing). That left two whole classes of breakage able to reach main with a
+# green tick:
+#
+#   1. Does not COMPILE from a clean checkout. A developer tree always carries
+#      artefacts from the last build, which is precisely what hid the
+#      `No rule to make target '../shared/xrdproto/libxrdproto.a'` hole for
+#      months — see docs/09-developer-guide/history-build-infra-and-decisions.md
+#      § 1. Only a tree where the artefact is absent asks the question.
+#   2. Compiles but does not RUN. Nothing in CI executed the module end to end
+#      except `asan`, and `asan` SKIPs (exit 0) whenever its fleet does not
+#      boot, which on a runner without stock XRootD it never did.
+#
+# So this lane builds from scratch and then makes the built binaries serve one
+# real byte-exact root:// read (tools/ci/smoke.py). It installs nothing exotic:
+# the smoke config is anonymous cleartext root:// only — no PKI, no tokens, no
+# krb5, no stock xrootd — so the lane is deterministic and hard to skip.
+#
+# Deliberately NOT here: the pytest suite. This is the floor — "main works" —
+# not the conformance programme.
+name: build
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# A superseded push has nothing to tell us; cancel it rather than queue it.
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      # The asan lane's dependency set plus libbz2-dev (the client's optional
+      # bzip2 probe) — keep the two in step: a divergence shows up as "builds
+      # under asan, not under build" and wastes an hour. `pytest` is a real
+      # build-lane dependency, not a test one: tools/ci/smoke.py drives the
+      # harness's own launcher, which imports pytest for its skip signalling.
+      - name: Install build deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends build-essential \
+            libssl-dev zlib1g-dev libpcre3-dev libpcre2-dev \
+            libcurl4-openssl-dev libsqlite3-dev libkrb5-dev \
+            libjansson-dev libxml2-dev librados-dev libbz2-dev
+          pip install --user pytest
+
+      - name: Fetch nginx source
+        run: curl -fsSL https://nginx.org/download/nginx-1.28.3.tar.gz | tar -xz -C /tmp
+
+      - name: Configure nginx with the module
+        run: |
+          cd /tmp/nginx-1.28.3
+          ./configure --with-stream --with-stream_ssl_module \
+            --with-http_ssl_module --with-http_dav_module --with-threads \
+            --add-module="$GITHUB_WORKSPACE"
+
+      - name: Build the module (make -j)
+        run: make -j"$(nproc)" -C /tmp/nginx-1.28.3
+
+      - name: Build the client + shared protocol core (make -j)
+        run: make -j"$(nproc)" -C client
+
+      # A second `make` that recompiles anything means a rule is always out of
+      # date (a phony masquerading as a file, a missing header dependency, a
+      # recipe that rewrites its own target). That silently multiplies every
+      # later build and hides real dependency errors, so it is a failure here.
+      - name: Re-running make must be a no-op
+        run: |
+          set -o pipefail
+          make -C /tmp/nginx-1.28.3 2>&1 | tee /tmp/remake-nginx.log
+          make -C client            2>&1 | tee /tmp/remake-client.log
+          if grep -qE '^[[:space:]]*(cc|gcc|clang|ar) ' /tmp/remake-nginx.log /tmp/remake-client.log; then
+            echo "::error::a second make recompiled — some target is never up to date"
+            grep -nE '^[[:space:]]*(cc|gcc|clang|ar) ' /tmp/remake-nginx.log /tmp/remake-client.log | head -20
+            exit 1
+          fi
+
+      # The clean-tree question, asked directly and at -j1 so it is about the
+      # GRAPH and not about a race: with the protocol archive deleted, every
+      # target that LINKS it must still know how to rebuild it. This is the exact
+      # shape of the bug that kept `asan` red — an order-only `| proto` orders
+      # work but does not make the archive buildable.
+      - name: Client rebuilds from clean with the protocol archive absent (-j1)
+        run: |
+          make -C client clean
+          rm -f shared/xrdproto/libxrdproto.a
+          make -C client -j1
+
+      # Compiling is not running: boot the built module on an ephemeral port and
+      # pull a payload back through it with the client built above, byte-exact.
+      - name: The built module serves a real root:// read
+        env:
+          NGINX_SRC: /tmp/nginx-1.28.3
+          BRIX_SMOKE_KEEP: "1"        # keep the scratch tree for the log upload below
+        run: tools/ci/smoke.py
+
+      - name: Upload the smoke's server logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-smoke-logs
+          path: /tmp/brix-smoke-*/registry/*/logs/*.log
+          if-no-files-found: ignore
+          retention-days: 7

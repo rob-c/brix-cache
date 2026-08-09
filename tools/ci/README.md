@@ -65,6 +65,8 @@ would move a frozen baseline under us.
 | `check_template_refs.py` | no NEW `tests/configs/*.conf` that nothing in the repo names; frozen dead templates may only be wired up or deleted | `template_refs_backlog.txt` | `--regen` (shrink-only) |
 | `check_python_deps.py` | every third-party Python import is declared in a requirements file; every requirement has a **lower AND upper** bound; nothing declared *optional* is imported at module scope | inline `IMPORT_TO_DIST` / `SYSTEM_MODULES` | edit the requirements file |
 | `check_version_sync.py` | the RPM spec's `%global upstream_version` fallback, the spec's newest `%changelog` entry and `CHANGELOG.md`'s newest entry all equal `BRIX_SERVER_VERSION_BARE` in `src/core/ident.h`; both changelogs are newest-first | — | `--show` prints all four |
+| `check_ratchet_monotonic.py` | guards the guards: no ratchet backlog above may GROW vs the PR's base revision — no new grandfathered entry, no raised allowance. Analyzer baselines and `duplication_backlog.txt` are deliberately out of scope (see its header) | every other backlog in this table | — (fix the code) |
+| `smoke.py` | the built `objs/nginx` + `client/bin/xrdcp` serve one byte-exact `root://` read on an ephemeral port; fails — never skips — when an artefact is missing. Run by `.github/workflows/build.yml`, not by `guards.yml` | — | — |
 | `run_fanalyzer.py` | no NEW gcc `-fanalyzer` finding (UAF/leak/NULL-deref) vs baseline; needs a configured nginx build (`NGX_BUILD`) | `fanalyzer_baseline.txt` | `--regen` |
 | `run_codechecker.py` | no NEW Clang Static Analyzer + clang-tidy finding vs baseline; needs a configured nginx build (`NGX_BUILD`) + `CodeChecker` + clang/clang-tidy | `codechecker_baseline.txt` | `--regen` |
 | `asan.py` | ASan+UBSan build (`build_sanitizer`) boots the fleet + drives real root:// I/O; FAILS on any heap error / UB / unsuppressed leak (hyper-hardening B-2); needs a compiler + configured nginx build (`NGINX_SRC`) | `tests/lsan.supp` | — |
@@ -82,6 +84,11 @@ only on NEW ones. Rules:
 - Never hand-edit a backlog to silence a failure. The failure is the point.
 - A red-and-ignored gate is worse than no gate: both size ratchets drifted
   (18 and 12 violations respectively) during the period nothing ran them.
+
+Those first two rules are no longer honour-system: `check_ratchet_monotonic.py`
+diffs every backlog against the PR's base revision and fails on any growth, so
+"append the offending file to the backlog" — the one edit that turns any of
+these guards green while making the code worse — is itself a red build.
 
 ## Two file-size regimes (both intentional)
 

@@ -9,9 +9,18 @@ on:
   pull_request:
   push:
     branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: loc-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   loc:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
         with:
