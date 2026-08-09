@@ -1037,6 +1037,7 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/tpc/common/egress_guard.c \
     $ngx_addon_dir/src/tpc/engine/parse.c \
     $ngx_addon_dir/src/tpc/outbound/io.c \
+    $ngx_addon_dir/src/tpc/outbound/io_xfer.c \
     $ngx_addon_dir/src/tpc/outbound/tls.c \
     $ngx_addon_dir/src/tpc/outbound/connect.c \
     $ngx_addon_dir/src/tpc/outbound/bootstrap.c \

@@ -11,18 +11,29 @@ same pattern test_ci_guards.py uses for check_file_size.
 A slow, self-skipping runner test drives the *real* orchestrator end to end
 (build + fleet + scan) when the configured nginx tree is present — nightly
 territory, exactly like test_ci_coverage_runner_green.
+
+Since 2026-08-09 the lane is also a REQUIRED status check on main, which makes
+its self-skips load-bearing in the other direction: a required check that exits
+0 for a missing prerequisite is indistinguishable from one that passed, and
+that is exactly how a sanitized fleet which could not boot stayed invisible.
+The BRIX_CI_STRICT section below guards the conversion of every such skip into
+a failure on the workflow — and only there, so a laptop without a compiler
+still skips rather than failing.
 """
 
 from __future__ import annotations
 
 import importlib.util
+import os
 import subprocess
 import sys
 from pathlib import Path
 
 import pytest
+import yaml
 
 CI = Path(__file__).resolve().parents[1] / "tools" / "ci"
+ASAN_YML = Path(__file__).resolve().parents[1] / ".github/workflows/asan.yml"
 
 
 def _load_asan():
@@ -136,6 +147,93 @@ def test_asan_nightly_drives_write_mirror_disconnect_suite():
         "nightly ASAN_TEST_CMD2 must drive the write-mirror data-write suite"
 
 
+# --- BRIX_CI_STRICT: on the gating lane, a skip is not a pass ----------------
+# The tolerant default is preserved for interactive runs; the workflow opts in.
+def test_skip_is_still_a_pass_for_an_unset_strict_flag(monkeypatch, capsys):
+    monkeypatch.delenv("BRIX_CI_STRICT", raising=False)
+    assert asan.skip_or_fail("no nginx source") == 0
+    assert "asan: SKIP — no nginx source" in capsys.readouterr().out
+
+
+def test_missing_nginx_source_skips_a_local_run(monkeypatch, tmp_path, capsys):
+    """The whole lane, driven for real: absent prerequisite, tolerant mode."""
+    monkeypatch.delenv("BRIX_CI_STRICT", raising=False)
+    monkeypatch.setenv("NGINX_SRC", str(tmp_path / "no-such-nginx"))
+    assert asan.main() == 0
+    assert "SKIP" in capsys.readouterr().out
+
+
+def test_strict_turns_every_skip_into_a_failure(monkeypatch, capsys):
+    monkeypatch.setenv("BRIX_CI_STRICT", "1")
+    assert asan.skip_or_fail("sanitized fleet failed to boot") == 1
+    out = capsys.readouterr().out
+    assert "asan: FAIL — sanitized fleet failed to boot" in out
+    assert "not a pass" in out
+    assert "asan: SKIP" not in out
+
+
+def test_missing_nginx_source_fails_the_ci_lane(monkeypatch, tmp_path, capsys):
+    monkeypatch.setenv("BRIX_CI_STRICT", "1")
+    monkeypatch.setenv("NGINX_SRC", str(tmp_path / "no-such-nginx"))
+    assert asan.main() == 1
+    assert "FAIL" in capsys.readouterr().out
+
+
+def test_the_workflow_sets_the_strict_flag_on_the_driver_step():
+    """The flag has to reach the step that runs the lane, not merely the file."""
+    workflow = yaml.safe_load(ASAN_YML.read_text(encoding="utf-8"))
+    drivers = [
+        step
+        for job in workflow["jobs"].values()
+        for step in job["steps"]
+        if "tools/ci/asan.py" in (step.get("run") or "")
+    ]
+    assert drivers, "no step runs tools/ci/asan.py"
+    for step in drivers:
+        assert str((step.get("env") or {}).get("BRIX_CI_STRICT")) == "1"
+
+
+@pytest.mark.parametrize("value", ["", "0", "false", "yes", "TRUE", " 1"])
+def test_only_an_exact_one_enables_strict_mode(monkeypatch, value):
+    """A typo'd flag must fail open (tolerant), never silently half-enable."""
+    monkeypatch.setenv("BRIX_CI_STRICT", value)
+    assert asan.strict() is False
+
+
+def test_no_skip_path_bypasses_the_helper():
+    """Every 'SKIP' the lane can print must come from ``skip_or_fail``.
+
+    A new prerequisite written as ``print("asan: SKIP …"); return 0`` would
+    restore the exact pathology this section exists to prevent, and would do so
+    without touching a single test.
+    """
+    lines = (CI / "asan.py").read_text().splitlines()
+    helper_start = next(
+        n for n, line in enumerate(lines, 1) if line.startswith("def skip_or_fail")
+    )
+    helper_end = next(
+        (n for n, line in enumerate(lines, 1)
+         if n > helper_start and line and not line[0].isspace()),
+        len(lines),
+    )
+    stray = [
+        (n, line.strip())
+        for n, line in enumerate(lines, 1)
+        if "asan: SKIP" in line and not helper_start < n < helper_end
+    ]
+    assert not stray, f"skip printed outside skip_or_fail(): {stray}"
+
+
+def test_no_unconditional_return_zero_guards_a_prerequisite():
+    """``return 0`` may only appear as the lane's success verdict."""
+    body = (CI / "asan.py").read_text().split("def main(")[1]
+    returns = [line.strip() for line in body.splitlines() if line.strip() == "return 0"]
+    assert len(returns) == 1, (
+        "main() has more than one 'return 0' — a prerequisite is short-circuiting "
+        "to success again; route it through skip_or_fail()"
+    )
+
+
 # --- real orchestrator, end to end (nightly, self-skipping) ------------------
 # asan.py self-skips (exit 0) when the compiler / configured nginx source / a
 # bootable fleet are absent, and otherwise does a full sanitized build + fleet
@@ -143,8 +241,13 @@ def test_asan_nightly_drives_write_mirror_disconnect_suite():
 @pytest.mark.slow
 @pytest.mark.timeout(2400)
 def test_ci_asan_runner_green():
+    # Explicitly tolerant: this test asserts the orchestrator's own health, not
+    # whether THIS host can host a sanitized fleet. An inherited BRIX_CI_STRICT
+    # (a shell left over from reproducing the CI lane) would otherwise turn a
+    # legitimate local skip into a spurious failure.
+    env = {k: v for k, v in os.environ.items() if k != "BRIX_CI_STRICT"}
     p = subprocess.run(
-        [sys.executable, str(CI / "asan.py")], capture_output=True, text=True
+        [sys.executable, str(CI / "asan.py")], capture_output=True, text=True, env=env
     )
     assert p.returncode == 0, (
         f"tools/ci/asan.py failed (exit {p.returncode}):\n{p.stdout}\n{p.stderr}"

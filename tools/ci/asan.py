@@ -81,6 +81,35 @@ def run_or_abort(cmd, **kwargs) -> subprocess.CompletedProcess:
     return proc
 
 
+def strict() -> bool:
+    """True when a missing prerequisite must FAIL rather than skip.
+
+    Set by ``.github/workflows/asan.yml``.  On a required status check a skip
+    is indistinguishable from a pass, so every ``return 0`` below is a way for
+    the lane to go green having sanitized nothing — which is exactly how a
+    fleet that could not boot stayed invisible until 2026-08-09.  Interactive
+    and cross-platform runs keep the tolerant behaviour: a laptop without a
+    compiler or an nginx tarball should skip, not fail.
+    """
+    return os.environ.get("BRIX_CI_STRICT") == "1"
+
+
+def skip_or_fail(reason: str) -> int:
+    """Report an unmet prerequisite and return this run's exit code.
+
+    One helper for every early exit so a future prerequisite cannot
+    accidentally reintroduce an unconditional ``return 0``; the companion test
+    asserts no bare skip-then-return survives in this file.
+    """
+    if strict():
+        print(f"asan: FAIL — {reason}")
+        print("asan: BRIX_CI_STRICT=1 — this lane gates main, so a skipped "
+              "sanitizer run is not a pass. Fix the prerequisite.")
+        return 1
+    print(f"asan: SKIP — {reason}")
+    return 0
+
+
 def _reports_with_findings(log_dir: str) -> list[tuple[str, str]]:
     """Return (path, text) for every asan.<pid> report holding a real finding."""
     hits = []
@@ -125,11 +154,9 @@ def main() -> int:
         "python3 -m pytest test_sanitizer_smoke.py -v"
 
     if not os.access(f"{nginx_src}/configure", os.X_OK):
-        print(f"asan: SKIP — nginx source not found at {nginx_src} (set NGINX_SRC)")
-        return 0
+        return skip_or_fail(f"nginx source not found at {nginx_src} (set NGINX_SRC)")
     if shutil.which("cc") is None and shutil.which("gcc") is None and shutil.which("clang") is None:
-        print("asan: SKIP — no C compiler on PATH")
-        return 0
+        return skip_or_fail("no C compiler on PATH")
 
     os.makedirs(log_dir, exist_ok=True)
     # Clear stale reports so the verdict reflects THIS run only.
@@ -169,14 +196,16 @@ def main() -> int:
         cwd=tests, env=san_env,
     )
     if boot.returncode != 0:
-        # Fleet-boot capacity is runner-dependent; never hard-fail the build on
-        # infrastructure. Tear down whatever came up and SKIP.
-        print("asan: SKIP — sanitized fleet failed to boot on this runner")
+        # Fleet-boot capacity is runner-dependent, so an interactive run treats
+        # this as infrastructure and skips.  Under BRIX_CI_STRICT the lane is a
+        # required check: a fleet that will not boot means nothing was
+        # sanitized, and the runner has been shown to host all 126 instances.
+        # Tear down whatever came up either way.
         subprocess.run(
             ["python3", "-m", "cmdscripts.manage_test_servers", "stop-all"],
             cwd=tests, env=san_env,
         )
-        return 0
+        return skip_or_fail("sanitized fleet failed to boot on this runner")
 
     print("asan: 3/4 driving I/O through the sanitized fleet…")
     print(f"          $ASAN_TEST_CMD = {test_cmd}")

@@ -374,8 +374,20 @@ def _xdist_requested(config) -> bool:
 
 
 def _validate_requested_paths(config) -> None:
-    """Reject nonexistent explicit test paths before starting the xdist fleet."""
-    root = Path(str(config.rootpath))
+    """Reject nonexistent explicit test paths before starting the xdist fleet.
+
+    Relative arguments resolve against the *invocation* directory, exactly as
+    pytest itself resolves them — not against rootdir.  The repo-root habit
+    (``pytest tests/foo.py``) makes the two look interchangeable, but a lane
+    that runs from ``tests/`` (``tools/ci/asan.py`` drives
+    ``pytest test_sanitizer_smoke.py`` with ``cwd=tests``) passes a name that
+    exists only under the invocation dir; resolving against rootdir rejected a
+    file pytest would have collected fine, aborting the lane with UsageError.
+    Rootdir stays as a fallback for pytest builds without
+    ``invocation_params``.
+    """
+    invocation = getattr(getattr(config, "invocation_params", None), "dir", None)
+    root = Path(str(invocation if invocation is not None else config.rootpath))
     missing = []
     for argument in config.args:
         path_text = str(argument).split("::", 1)[0]

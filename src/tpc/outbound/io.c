@@ -21,81 +21,48 @@
  *      tpc_start_tls after a kXR_gotoTLS), send/recv route through SSL_write/
  *      SSL_read instead of the raw fd. The SSL sits on a blocking fd in the
  *      thread-pool worker, so a single SSL_write/SSL_read completes or errors;
- *      <=0 is treated as a hard failure exactly like the plain recv()/send() path. */
+ *      <=0 is treated as a hard failure exactly like the plain recv()/send() path.
+ *
+ *      The transfer loop itself lives in io_xfer.c — one copy shared by both
+ *      directions, in a TU free of nginx headers so it is unit-testable over a
+ *      socketpair (io_xfer_unittest.c). */
 #include "tpc/engine/tpc_internal.h"
 
+#include "io_xfer.h"
 
 #include <errno.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 #include <limits.h>
 #include <openssl/ssl.h>
 
-/* WHAT: Send all bytes from buf over fd using send() loop — continues on EINTR, returns -1 on any other failure. Returns 0 on full write success. Caller: thread.c, bootstrap.c, source.c (wire I/O pipeline). */
+/* WHAT: Resolve the pull's TLS session, or NULL when the leg is still cleartext.
+ *       t may be NULL on the pre-session legs (connect/bootstrap probes). */
+
+static SSL *
+tpc_session_ssl(brix_tpc_pull_t *t)
+{
+    return (t != NULL) ? (SSL *) t->tls : NULL;
+}
+/* WHAT: Send all bytes from buf over fd — continues on EINTR, returns -1 on any other failure. Returns 0 on full write success. Caller: thread.c, bootstrap.c, source.c (wire I/O pipeline). */
 
 int
 tpc_send_all(brix_tpc_pull_t *t, int fd, const void *buf, size_t len)
 {
-    const u_char *cursor = buf;
-    SSL          *ssl = (t != NULL) ? (SSL *) t->tls : NULL;
-
-    while (len > 0) {
-        ssize_t bytes_sent;
-
-        if (ssl != NULL) {
-            int n = SSL_write(ssl, cursor, (int) (len > INT_MAX ? INT_MAX : len));
-            if (n <= 0) {
-                return -1;
-            }
-            bytes_sent = n;
-        } else {
-            bytes_sent = send(fd, cursor, len, 0);
-            if (bytes_sent < 0 && errno == EINTR) {
-                continue;
-            }
-            if (bytes_sent <= 0) {
-                return -1;
-            }
-        }
-
-        cursor += (size_t) bytes_sent;
-        len -= (size_t) bytes_sent;
-    }
-
-    return 0;
+    /* The loop lives in io_xfer.c so send and recv cannot drift apart; the
+     * const is dropped only to reach it, and the send direction never writes
+     * through the pointer. */
+    return brix_tpc_xfer_all(tpc_session_ssl(t), fd, (void *) (uintptr_t) buf,
+                             len, BRIX_TPC_XFER_SEND);
 }
-/* WHAT: Receive exactly len bytes into buf over fd using recv() loop — continues on EINTR, returns -1 on any other failure. Returns 0 on full read success. Caller: tpc_recv_response (header + payload), thread.c (wire I/O pipeline). */
+/* WHAT: Receive exactly len bytes into buf over fd — continues on EINTR, returns -1 on any other failure. Returns 0 on full read success. Caller: tpc_recv_response (header + payload), thread.c (wire I/O pipeline). */
 
 static int
 tpc_recv_exact(brix_tpc_pull_t *t, int fd, void *buf, size_t len)
 {
-    u_char *cursor = buf;
-    SSL    *ssl = (t != NULL) ? (SSL *) t->tls : NULL;
-
-    while (len > 0) {
-        ssize_t bytes_read;
-
-        if (ssl != NULL) {
-            int n = SSL_read(ssl, cursor, (int) (len > INT_MAX ? INT_MAX : len));
-            if (n <= 0) {
-                return -1;
-            }
-            bytes_read = n;
-        } else {
-            bytes_read = recv(fd, cursor, len, 0);
-            if (bytes_read < 0 && errno == EINTR) {
-                continue;
-            }
-            if (bytes_read <= 0) {
-                return -1;
-            }
-        }
-
-        cursor += (size_t) bytes_read;
-        len -= (size_t) bytes_read;
-    }
-
-    return 0;
+    return brix_tpc_xfer_all(tpc_session_ssl(t), fd, buf, len,
+                             BRIX_TPC_XFER_RECV);
 }
 
 /*

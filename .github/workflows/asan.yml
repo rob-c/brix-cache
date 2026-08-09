@@ -67,6 +67,10 @@ jobs:
         env:
           NGINX_SRC: /tmp/nginx-1.28.3
           PYTHONPATH: tests
+          # Required status check: a skipped run reports green, so an unmet
+          # prerequisite (no nginx source, no compiler, fleet will not boot)
+          # must FAIL here instead of quietly sanitizing nothing.
+          BRIX_CI_STRICT: "1"
           # Nightly cron widens the driver from the smoke to the fast tier
           # (attach mode); PR/push keeps the deterministic smoke.  The fast tier
           # carries the READ-side disconnect UAF coverage — test_aio.py::

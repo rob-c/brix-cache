@@ -119,6 +119,25 @@ a prompt to either extract the shared helper (the right fix) or `--regen`
 after review. Duplicates that disappear are always OK; `--regen` ratchets
 them out of the backlog.
 
+**What "after review" means, from the 2026-08-09 sweep.** The guard is
+advisory — deliberately not wired into `guards.yml` — because most of what
+it reports on this codebase is not extractable: an `ngx_command_t` table,
+an `ngx_conf_enum_t` name table, a `{ errno, "token" }` map, a chain of
+`ngx_strncmp` token tests and nginx's module-registration boilerplate are
+all mandatory literal forms, and a macro that collapsed them would destroy
+the grep-ability of directive names, which is worth more than the line
+count. That sweep read all 162 live blocks: **one** was genuine algorithmic
+duplication (`tpc_send_all` / `tpc_recv_exact` — the same transfer loop with
+send/recv swapped, extracted to `src/tpc/outbound/io_xfer.c` and now
+unit-tested over a socketpair), and the other 161 were the shapes above,
+self-overlaps, or grandfathered blocks that had merely shifted. So: read the
+report before regenerating, fix what is real, and regenerate the rest —
+"regen because it is red" is how a ratchet becomes decoration. One
+category is worth attacking if this file is ever revisited:
+`src/fs/backend/xroot/sd_xroot_ns_cred.c`, where five credential-scoped
+VFS entry points repeat the same session-open / call / errno / close / free
+scaffolding around a single differing `brix_cache_origin_*` call.
+
 ## Coverage (report-only lane)
 
 `coverage.py` builds a gcov-instrumented module + client
@@ -150,11 +169,16 @@ sanitizer signature**. A match — heap error, UB, or an *unsuppressed* leak (th
 third-party library leaks are curated out by `tests/lsan.supp`) — fails the job;
 the scan, not `abort_on_error`, is the gate, and it covers both the fleet and
 the sanitized client `xrdcp` the smoke spawns. Unlike the report-only coverage
-lane it is **blocking on PRs**: it self-skips cleanly (exit 0) when the
-compiler / configured nginx source (`NGINX_SRC`) / a bootable fleet are absent,
-so a green tree can never be reddened by missing infra, only by a real finding
-(`.github/workflows/asan.yml` — PR/push smoke + nightly fast-tier cron, artifact
-upload of any reports). Guarded locally by `tests/test_ci_asan_lane.py`.
+lane it is **blocking on PRs** and a required status check on `main`. Run by
+hand it self-skips cleanly (exit 0) when the compiler / configured nginx source
+(`NGINX_SRC`) / a bootable fleet are absent, so a laptop missing infra is never
+reddened. On the workflow that tolerance is wrong — a skipped required check
+reports green — so `.github/workflows/asan.yml` sets `BRIX_CI_STRICT: "1"` and
+every skip path (`asan.skip_or_fail()`) becomes a failure naming the unmet
+prerequisite (`.github/workflows/asan.yml` — PR/push smoke + nightly fast-tier
+cron, artifact upload of any reports). Guarded locally by
+`tests/test_ci_asan_lane.py`, which also pins statically that no new
+prerequisite can reintroduce a bare skip-then-`return 0`.
 
 An optional `ASAN_TEST_CMD2` runs a **second** driver command in the same
 sanitized+attached fleet after `ASAN_TEST_CMD` and before stop+scan (both legs'
