@@ -57,10 +57,11 @@ xcp_note_error(xcp_shared_t *sh, const brix_status *st)
  *      back sooner and naturally take more blocks; the steal arm keeps the
  *      transfer from ending at the slowest source's pace.
  *
- * HOW: 1. One rotating-scan pass CASing TODO→BUSY (the per-worker start hint
- *         spreads workers across the table so they do not contend block 0).
- *         2. A second pass latches the first un-stolen BUSY block. At most one
- *         stealer per block bounds duplicate fetches to 2x.
+ * HOW: 1. One rotating-scan pass CASing XCP_TODO→XCP_BUSY (the per-worker
+ *         start hint spreads workers across the table so they do not contend
+ *         block 0).
+ *         2. A second pass latches the first un-stolen XCP_BUSY block. At most
+ *         one stealer per block bounds duplicate fetches to 2x.
  */
 static ssize_t
 xcp_claim(xcp_shared_t *sh, unsigned hint, int *stole)
@@ -169,14 +170,14 @@ xcp_fetch_block(xcp_worker_t *w, brix_conn *c, brix_file *f, size_t idx,
 
 /* ---- Undo a claim this worker cannot finish ----
  *
- * WHAT: Return a fresh-claimed block to TODO, or release the stealer latch of
- *       a stolen one (unless the block completed meanwhile).
+ * WHAT: Return a fresh-claimed block to XCP_TODO, or release the stealer latch
+ *       of a stolen one (unless the block completed meanwhile).
  *
- * WHY: A dying worker must never strand a block in BUSY — the survivors' claim
- *      scan only picks up TODO entries.
+ * WHY: A dying worker must never strand a block in XCP_BUSY — the survivors'
+ *      claim scan only picks up XCP_TODO entries.
  *
- * HOW: CAS BUSY→TODO for claims (a DONE result means the stealer won — leave
- *      it); plain latch clear for steals.
+ * HOW: CAS XCP_BUSY→XCP_TODO for claims (an XCP_DONE result means the stealer
+ *      won — leave it); plain latch clear for steals.
  */
 static void
 xcp_release_block(xcp_shared_t *sh, size_t idx, int stole)

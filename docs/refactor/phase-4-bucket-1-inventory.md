@@ -21,6 +21,27 @@ per-file `@pytest.mark.xdist_group(...)` serialisation. Plan + PROGRESS:
   couples two tests to one spec, so apply dedup ONLY where free and low-risk. Default =
   ledger every instance.
 
+### Where the ledger lives (updated 2026-08-09)
+
+The two dicts outgrew a single file (the shared band alone reached 432 entries / ~1100
+logical LoC, past the `lint_loc` MUST tier). The data now sits in three modules, split by
+band and — for the shared band — at the conversion-wave boundaries the entries were already
+grouped by:
+
+| Module | Holds |
+|---|---|
+| `tests/fleet_ports_exclusive.py` | `LIFECYCLE_EXCLUSIVE_PORTS` (31000–31999) + `PARSE_PLACEHOLDER_PORT` |
+| `tests/fleet_ports_shared_waves.py` | `LIFECYCLE_SHARED_PORTS_WAVES` — conversion waves 1–7a |
+| `tests/fleet_ports_shared_phase5.py` | `LIFECYCLE_SHARED_PORTS_PHASE5` — wave-7b singletons, the Phase-5 close-out, and everything ledgered since |
+
+`tests/fleet_lifecycle_ports.py` is now only the import surface: it merges the two shared
+halves into `LIFECYCLE_SHARED_PORTS` and re-exports all five public names, so no consumer
+changed. **A new entry goes in `fleet_ports_shared_phase5.py`** (or
+`fleet_ports_exclusive.py` for a mutation subject) — appending to the module the later work
+already lands in. A name declared in both halves raises at import (`{**a, **b}` would
+otherwise resolve it silently, and the collision linter cannot see a port that the merge
+has already discarded); `test_fleet_ports.py` covers the merge and that rejection.
+
 ## Key mechanics learned
 
 - `LifecycleHarness.register` (server_launcher.py:1046) already: `fixed_port, fixed_extra =

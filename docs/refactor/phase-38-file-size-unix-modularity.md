@@ -1108,6 +1108,95 @@ latter also has no top-level `def test_` — a per-attack-scenario package by ha
 The tooling (`pysplit.py`/`pysplit_func.py` + the run-verify gate) finishes these
 as the documented separate effort.
 
+### 7.6 P4 continued — the 2026-08-09 wave (the `tests/` tree back under the tiers)
+
+`lint_loc --report` on the post-port-ladder tree listed one 🔴 and four 🟠 files.
+Four were split; the fifth must not be (see below).  Which idiom a file gets is
+decided by one question — *do the parts refer backwards to each other?*
+
+| Before | After (raw lines) | Idiom |
+|---|---|---|
+| `tests/fleet_lifecycle_ports.py` 1137 🔴 | façade 91 + `fleet_ports_exclusive` 299 + `fleet_ports_shared_waves` 408 + `fleet_ports_shared_phase5` 475 | **plain modules** — a ledger is data with no backward references, so each half imports standalone.  The façade merges the two shared halves in ladder-slot order and raises on a spec name declared in both (`{**a, **b}` would silently pick one, and the collision linter cannot see a port the merge already discarded). |
+| `tests/_test_proxy_protocol_edges_helpers.py` 749 🟠 | 297 + `_test_proxy_protocol_edges_stub.py` 412 + `_test_proxy_protocol_edges_fixtures.py` 240 | **`split_continuation.load`** — the stub upstream and the nginx-front fixtures close over the module's ports, wire constants and client helpers.  Re-importing the parent instead would re-run its `free_ports()` allocation and hand out a second, different set of ports. |
+| `tests/conftest_part4.py` 741 🟠 | 477 + `conftest_part5.py` 441 | **`split_continuation.load`** — appended to `conftest.py`'s existing part chain.  part4 keeps the fleet-health baseline + sentinel watchdog; part5 takes the pytest hooks and the session fixtures. |
+| `tests/test_cms_parity_wave.py` 688 🟠 | 436 tests + `_test_cms_parity_wave_helpers.py` 366 | **`split_continuation.reexport`** — the Phase-38 helpers-module pattern: every non-`test_*` top-level statement moves to the helpers module, which `reexport` copies back (private names included) into the test module's namespace. |
+
+Verification actually performed (the §8 gate, per file): a line-multiset A/B of
+the pre-split source against the split set proving **0 code lines and 0 comment
+lines lost** (the split scripts live under the session scratchpad and are
+re-runnable); a namespace A/B importing both versions and comparing every public
+and private name, function bytecode (`co_code`/`co_names`), class member sets,
+`__doc__`, `pytestmark` and the fixture set; and a run A/B — `test_fleet_ports`
+20 passed, `test_proxy_protocol_edges{,_b}` 11 passed, `test_cms_parity_wave`
+**16 failed / 3 passed before and after, identically** (a stale
+`/tmp/nginx-1.28.3/objs/nginx` predating the CMS parity wave rejects
+`peer`: `nginx: [emerg] invalid value "peer"` — an environment red, not a split
+red; the pre-split file was re-run in place to prove it).  Full-suite collection
+is clean (36 506 tests).  `loc_baseline.txt` regenerated: **empty** — no file in
+the repo now exceeds the 800-logical hard threshold, so the ratchet is at its
+tightest setting.
+
+**Splits move code past name-keyed allowlists — check the linters that hold
+them.** `test_server_registry_lint` was red for two reasons, both pure
+relocation: the launcher's own `nginx -t`/start argv had moved into shard
+`_server_launcher_part2_mixinc.py` (so it read as a *test* growing a direct
+launch — it is infra, and joins `server_launcher.py` in `INFRA_ALLOW`), and the
+`LAUNCH_BACKLOG` entry `userns/e2e_redteam.py` had moved into shard
+`e2e_redteam_part4.py` (so the old entry read as *stale* and the new file as a
+*new offender*). The backlog entry was renamed, not added to: its size is
+unchanged, which is what "the allowlist may only shrink" is protecting. Rule for
+the next split: **any file-name allowlist (`INFRA_ALLOW`, `LAUNCH_BACKLOG`,
+`INLINE_CONFIG_BACKLOG`, the `loc`/complexity/TODO baselines) is keyed on paths
+the split just changed** — re-run those guards before declaring a split done.
+
+### 7.7 `tests/userns/e2e_redteam*` — the 🟠 that must NOT be split, because the suite is already dead
+
+§7.5 flagged `userns/e2e_redteam` as *unverifiable here* and left it for hand
+work.  It was nevertheless split mechanically into 78 files
+(`e2e_redteam.py` + `e2e_redteam_part2..part77.py`) wired with
+`from e2e_redteam_partN import *`.  That split broke the suite outright.  Three
+independent facts, each reproducible in seconds:
+
+1. **It does not import.**  `PYTHONPATH=tests python3 tests/userns/e2e_redteam.py <dir>`
+   dies during import: `e2e_redteam_part3.py:111 NameError: name '_KXR_OPEN_READ'
+   is not defined` (a `def` default argument, so it fires at definition time).
+2. **31 names are defined nowhere in the whole 78-file set** — the raw-kXR wire
+   layer (`_kxr_connect`, `_kxr_send_recv`, `_kxr_session`, `_kxr_handshake_bytes`,
+   `_kxr_login_bytes`, `_kxr_oneshot`, `_kxr_read_response`, the `_KXR_*`
+   opcode/flag constants), the CRC64-NVME helpers (`_crc64nvme`,
+   `_crc64nvme_b64`), `_raw_get_header`, `_raw_get_validators`, `_s3_post_form`,
+   `_dead_xattr_count`, `_dead_xattr_has_value`.  They existed pre-split:
+   `git show f4804763:tests/userns/e2e_redteam.py` still has
+   `_KXR_OPEN_READ = 0x0010` at line 816.  The split **dropped a region of the
+   original file**.
+3. **`import *` cannot carry the shared helpers anyway.**  `ok`, `fail`, `mint`,
+   `http`, `s3`, `xrd_fs`, `xrd_avail` are defined only in `e2e_redteam.py`;
+   a function defined in a shard resolves its globals in *that shard's* module
+   dict, which never receives them — `run_combo_symlink_crossproto_toctou(...)`
+   raises `NameError: name 'mint' is not defined` on its second statement.
+   **75 of the 77 files** read names bound only in another module.  On top of
+   that, `if __name__ == "__main__": sys.exit(main())` sits in
+   `e2e_redteam_part77.py`, which is always an imported module — so even a
+   successful import would run **nothing** and print nothing, and the pytest
+   wrapper's `assert "ALL PASSED" in run.stdout` is the only thing standing
+   between this and a silent green.
+
+This is the §7.5 warning — *"a broken test split is worse than a long file"* —
+realised on the tree's largest security test.  The repair, not a further split,
+is the next action, and it is exactly what `split_continuation` exists for:
+
+1. Restore the dropped definitions from `f4804763:tests/userns/e2e_redteam.py`
+   (the 31 names above) into `e2e_redteam.py` beside the other constants.
+2. Replace `from e2e_redteam_part2 import *` in `e2e_redteam.py` and the 75
+   `from e2e_redteam_partN import *` lines in `e2e_redteam_part2.py` with
+   `split_continuation.load(globals(), __file__, …)`, so all 78 files execute
+   into **one** namespace — which also makes part77's `__main__` guard fire,
+   because the exec'd shard inherits the entry script's `__name__`.
+3. Re-run the static audit (it must report 0 unresolvable names) and then the
+   userns wrapper on a host with `newuidmap` + `/etc/subuid`.
+4. Only then re-tier: `e2e_redteam_part38.py` (721 🟠) is one 690-line function,
+   so its split needs the shared namespace to be sound first.
+
 ---
 
 ## 8. Verification (per split PR)

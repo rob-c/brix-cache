@@ -19,6 +19,8 @@ import os
 import re
 from pathlib import Path
 
+import pytest
+
 import settings
 import fleet_specs
 import fleet_ports as fp
@@ -319,6 +321,60 @@ def test_lifecycle_ledgers_are_banded_and_collision_free():
         "lifecycle ledger ports outside their (want, got) band: " f"{misbanded}"
     )
     assert not collisions, f"lifecycle ledger port collisions: {collisions}"
+
+
+def test_lifecycle_shared_halves_merge_without_loss():
+    """The two lifecycle-shared ledger halves must merge into the mapping every
+    consumer imports, entry for entry and in declaration order.
+
+    The band data is split across ``fleet_ports_shared_waves`` and
+    ``fleet_ports_shared_phase5`` for file size only.  A half left out of
+    ``fleet_lifecycle_ports``' merge would drop its instances back onto the
+    removed dynamic-port path; a reordered merge would silently shift every
+    ladder slot after the move, because ``rebase_lifecycle_ledger`` assigns
+    slots by iteration order.
+    """
+    from fleet_lifecycle_ports import LIFECYCLE_SHARED_PORTS
+    from fleet_ports_shared_phase5 import LIFECYCLE_SHARED_PORTS_PHASE5
+    from fleet_ports_shared_waves import LIFECYCLE_SHARED_PORTS_WAVES
+
+    halves = (LIFECYCLE_SHARED_PORTS_WAVES, LIFECYCLE_SHARED_PORTS_PHASE5)
+    assert list(LIFECYCLE_SHARED_PORTS) == [n for half in halves for n in half]
+    for half in halves:
+        for name, entry in half.items():
+            assert LIFECYCLE_SHARED_PORTS[name] is entry, (
+                f"{name} is not the same entry object after the merge, so the "
+                f"in-place ladder rebase would leave this half holding a "
+                f"historical seed port"
+            )
+
+
+def test_lifecycle_shared_halves_reject_a_duplicate_name():
+    """A spec name declared in BOTH halves must fail the import outright.
+
+    ``{**a, **b}`` resolves a repeated key silently (b wins), so the same name
+    carrying two ports would hand one instance the other's listen — and the
+    collision linter above cannot see it, because after the merge only one entry
+    survives.  ``fleet_lifecycle_ports`` rejects the overlap instead.
+    """
+    import importlib
+
+    import fleet_lifecycle_ports
+    import fleet_ports_shared_phase5 as phase5
+    import fleet_ports_shared_waves as waves
+
+    stolen = next(iter(phase5.LIFECYCLE_SHARED_PORTS_PHASE5))
+    original = waves.LIFECYCLE_SHARED_PORTS_WAVES
+    waves.LIFECYCLE_SHARED_PORTS_WAVES = dict(original, **{stolen: {"port": 1}})
+    try:
+        with pytest.raises(AssertionError, match=stolen):
+            importlib.reload(fleet_lifecycle_ports)
+    finally:
+        waves.LIFECYCLE_SHARED_PORTS_WAVES = original
+        importlib.reload(fleet_lifecycle_ports)
+
+    assert fleet_lifecycle_ports.lifecycle_ports_for(stolen)[0] == \
+        phase5.LIFECYCLE_SHARED_PORTS_PHASE5[stolen]["port"]
 
 
 def test_cmdscripts_ledger_is_banded_and_collision_free():

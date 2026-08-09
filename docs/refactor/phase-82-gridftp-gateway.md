@@ -2103,3 +2103,53 @@ skip is the VOMS cell — no VOMS proxy present).
 
 **Residual now.** Only the datachan-pinned passive/TPC cells on a dual-endpoint
 deployment — topology/infra, not code.
+
+---
+
+## P82.14 — the drift guard's own negative tests corrupted the tree they guard (2026-08-09)
+
+`check_gridftp_interop_image` went red on committed damage to
+`tests/configs/nginx_gridftp_interop.conf`: the `{FTP_PORT}` placeholder had
+become a hardcoded `2810` (both in the header comment and on the listener) and
+the `brix_gridftp_storage_backend pblock;` line was gone, leaving a
+whitespace-only line behind. So the ftp:// leg would have listened on a literal
+port outside the ladder, and the P82.6 non-posix cell would have round-tripped
+**posix** while claiming to prove the pblock backend.
+
+**Cause — not an editing mistake.** The two mutations are character-for-character
+the ones `tests/test_gridftp_interop_local.py` performs on purpose:
+`orig.replace("{FTP_PORT}", "2810")` and
+`orig.replace("brix_gridftp_storage_backend pblock;", "")`. Those drift tests wrote
+the damage into the **tracked** file and restored it in a `finally`. A run that
+dies before the restore — SIGKILL on a timeout, an xdist worker crash, an
+interrupted session — leaves the real config mutated, and the next commit sweeps
+it in. That is exactly what happened at `568d6ec0`, whose entire diff for this
+file is the two replacements.
+
+**Fix, in two parts.**
+
+1. *Repair.* The three lines were restored by hand (never `git restore` — house
+   rule); the file is now byte-identical to `568d6ec0^`.
+2. *Prevention.* `check_gridftp_interop_image.py` grew a `--root DIR` option:
+   the path constants became `*_REL` strings and `check()` takes a root, so the
+   guard can be pointed at a copy of the tree. All four drift tests now build a
+   throwaway `tmp_path` tree (`_tree_copy`) carrying the five files the guard
+   reads, damage the **copy** through a `_damage()` helper that asserts the
+   pattern was actually present, and run the guard with `--root`. No `finally`,
+   nothing to restore, and no way for an interrupted run to touch the repo.
+
+**Tests.** `tests/test_gridftp_interop_local.py` 15 → 17: the four drift
+negatives were rewritten onto the copy, plus
+`test_guard_green_on_an_undamaged_copy` (an untouched copy must reach every check
+and come back green — otherwise the negatives would pass vacuously) and
+`test_guard_rejects_a_root_that_is_not_a_directory` (a `--root` typo exits 2
+rather than silently checking the real tree and reporting OK). 17 passed, and
+`git status` on `tests/configs/` is clean after the run.
+
+**Generalisation.** Any guard negative that mutates a tracked file has this
+failure mode. `check_file_size`'s tests already take the hermetic route
+(`list_oversized(root=...)`); `test_ci_guards.py`'s `check_brix_namespace` /
+`check_curl_enum_ifdef` negatives still write probe headers into `src/` and
+`client/` — those only *create* files, so an interrupted run leaves an obvious
+untracked `_brix_ns_probe.h` rather than silent corruption, but the same
+`--root`/injected-tree treatment would close them too.

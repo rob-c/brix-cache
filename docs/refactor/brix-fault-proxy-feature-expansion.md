@@ -1089,7 +1089,9 @@ For **each** new `.c`:
 
 ## 6. Port allocation
 
-Reserve a contiguous block in `tests/fleet_lifecycle_ports.py` **after** the
+Reserve a contiguous block in the lifecycle ledger (`tests/fleet_ports_exclusive.py`
+for the 31000-band entries below; `tests/fleet_lifecycle_ports.py` is now just the
+merged import surface) **after** the
 `gridftp-xproto` entry (31194 + extra 31195). Ports 31196–31210 are currently
 unallocated (highest live entry is 31195; next used is 31999).
 
@@ -1110,7 +1112,8 @@ unallocated (highest live entry is 31195; next used is 31999).
 
 Add each as a normal `{"port": N}` ledger entry (control ports either as a second
 key or via an `"extra"` map like `gridftp-xproto`'s `DAV_PORT`). Confirm no
-collision at add time (`grep -oE '3[12][0-9]{3}' tests/fleet_lifecycle_ports.py`).
+collision at add time (`grep -ohE '3[12][0-9]{3}' tests/fleet_ports_exclusive.py
+tests/fleet_ports_shared_*.py`).
 
 ---
 

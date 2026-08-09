@@ -75,9 +75,9 @@ class LifecycleHarness:
             # lifecycle spec with no port must either be on the ledger (by name)
             # or pass an explicit port.
             raise RuntimeError(
-                f"lifecycle spec {spec.name!r} has no fixed port: add it to "
-                f"fleet_lifecycle_ports (LIFECYCLE_SHARED_PORTS or "
-                f"LIFECYCLE_EXCLUSIVE_PORTS) and serialise its file with "
+                f"lifecycle spec {spec.name!r} has no fixed port: add it to the "
+                f"lifecycle ledger (fleet_ports_shared_phase5 — or "
+                f"fleet_ports_exclusive for a mutation subject) and serialise with "
                 f"@pytest.mark.xdist_group, or pass an explicit port (e.g. "
                 f"SHARED_PARSE_PLACEHOLDER_PORT for a parse-only nginx -t check)."
             )

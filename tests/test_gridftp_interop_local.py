@@ -34,6 +34,22 @@ REPO = Path(__file__).resolve().parents[1]
 GUARD = REPO / "tools/ci/check_gridftp_interop_image.py"
 
 
+def _load_guard():
+    """The guard as a module, for its path contract — one source of truth.
+
+    The drift tests below run it as a subprocess (that is how CI invokes it), but
+    they must copy exactly the files it reads; importing the constants keeps the
+    copy in step with the guard when a check is added.
+    """
+    spec = importlib.util.spec_from_file_location("check_gridftp_interop_image", GUARD)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+_guard = _load_guard()
+
+
 # --- command-plan wiring -----------------------------------------------------
 
 def _plan(**over):
@@ -200,9 +216,42 @@ def test_s3_backend_leg_config_validates(tmp_path):
 
 # --- the CI guard: green on the tree, red on drift ---------------------------
 
-def _run_guard() -> tuple[int, str]:
-    p = subprocess.run([sys.executable, str(GUARD)], capture_output=True, text=True)
+DOCKERFILE_REL = _guard.DOCKERFILE_REL
+GATEWAY_CONF_REL = _guard.GATEWAY_CONF_REL
+S3_CONF_REL = _guard.S3_CONF_REL
+
+
+def _run_guard(root: Path | None = None) -> tuple[int, str]:
+    argv = [sys.executable, str(GUARD)]
+    if root is not None:
+        argv += ["--root", str(root)]
+    p = subprocess.run(argv, capture_output=True, text=True)
     return p.returncode, p.stdout + p.stderr
+
+
+def _tree_copy(tmp_path: Path) -> Path:
+    """A throwaway copy of every file the guard reads, at its repo-relative path.
+
+    The drift tests below damage a config on purpose.  Doing that to the tracked
+    file — restoring it in a ``finally`` — is what put a hardcoded 2810 and a
+    deleted ``brix_gridftp_storage_backend pblock`` line into the repo once
+    already: an interrupted run never reaches its restore step.  Damaging a copy
+    cannot corrupt the tree no matter how the run dies.
+    """
+    root = tmp_path / "tree"
+    for rel in (*_guard.CONTRACT_FILES, gil.INTEROP_TEST):
+        dst = root / rel
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(REPO / rel, dst)
+    return root
+
+
+def _damage(root: Path, rel: str, old: str, new: str) -> None:
+    """Rewrite one file of the copy, asserting the pattern was actually there."""
+    path = root / rel
+    text = path.read_text()
+    assert old in text, f"{rel} no longer contains {old!r} — update this test"
+    path.write_text(text.replace(old, new))
 
 
 def test_interop_image_guard_green():
@@ -210,53 +259,52 @@ def test_interop_image_guard_green():
     assert rc == 0, out
 
 
-def test_guard_reddens_when_dockerfile_drops_a_client_stack():
-    df = REPO / "k8s-tests/Dockerfiles/gridftp-client/Dockerfile"
-    orig = df.read_text()
+def test_guard_green_on_an_undamaged_copy(tmp_path):
+    """--root must be a faithful lens on the tree, not a way to pass vacuously:
+    an untouched copy has to reach every check and come back green, otherwise the
+    drift tests below would prove nothing."""
+    rc, out = _run_guard(_tree_copy(tmp_path))
+    assert rc == 0, out
+
+
+def test_guard_reddens_when_dockerfile_drops_a_client_stack(tmp_path):
+    root = _tree_copy(tmp_path)
     dropped = gil.INTEROP_CLIENT_PACKAGES[1]  # gfal2 stack
-    try:
-        df.write_text(orig.replace(dropped, "some-other-pkg"))
-        rc, out = _run_guard()
-    finally:
-        df.write_text(orig)
+    _damage(root, DOCKERFILE_REL, dropped, "some-other-pkg")
+    rc, out = _run_guard(root)
     assert rc != 0 and dropped in out, out
 
 
-def test_guard_reddens_when_gateway_config_loses_a_listener():
-    conf = REPO / "tests/configs/nginx_gridftp_interop.conf"
-    orig = conf.read_text()
-    try:
-        conf.write_text(orig.replace("{FTP_PORT}", "2810"))
-        rc, out = _run_guard()
-    finally:
-        conf.write_text(orig)
+def test_guard_reddens_when_gateway_config_loses_a_listener(tmp_path):
+    root = _tree_copy(tmp_path)
+    _damage(root, GATEWAY_CONF_REL, "{FTP_PORT}", "2810")
+    rc, out = _run_guard(root)
     assert rc != 0 and "FTP_PORT" in out, out
 
 
-def test_guard_reddens_when_gateway_config_drops_pblock_backend():
+def test_guard_reddens_when_gateway_config_drops_pblock_backend(tmp_path):
     """Dropping the pblock backend registration would silently degrade the
     non-posix backend interop cell to a posix round-trip — the guard must fire."""
-    conf = REPO / "tests/configs/nginx_gridftp_interop.conf"
-    orig = conf.read_text()
-    try:
-        conf.write_text(orig.replace("brix_gridftp_storage_backend pblock;", ""))
-        rc, out = _run_guard()
-    finally:
-        conf.write_text(orig)
+    root = _tree_copy(tmp_path)
+    _damage(root, GATEWAY_CONF_REL, "brix_gridftp_storage_backend pblock;", "")
+    rc, out = _run_guard(root)
     assert rc != 0 and "pblock" in out, out
 
 
-def test_guard_reddens_when_s3_config_drops_s3_backend():
+def test_guard_reddens_when_s3_config_drops_s3_backend(tmp_path):
     """Dropping the s3:// backend registration from the separate s3-leg config
     would silently degrade the object-store backend interop cell to a posix
     round-trip — the guard fires."""
-    conf = REPO / "tests/configs/nginx_gridftp_interop_s3.conf"
-    orig = conf.read_text()
-    try:
-        conf.write_text(orig.replace(
+    root = _tree_copy(tmp_path)
+    _damage(root, S3_CONF_REL,
             "brix_gridftp_storage_backend    s3://{BIND_HOST}:{S3_ORIGIN_PORT}/testbucket;",
-            ""))
-        rc, out = _run_guard()
-    finally:
-        conf.write_text(orig)
+            "")
+    rc, out = _run_guard(root)
     assert rc != 0 and "s3" in out, out
+
+
+def test_guard_rejects_a_root_that_is_not_a_directory(tmp_path):
+    """--root is operator input: a typo must fail loudly, not silently check the
+    real tree (which would report OK and hide the drift the caller asked about)."""
+    rc, out = _run_guard(tmp_path / "no-such-tree")
+    assert rc == 2 and "no such root" in out, out

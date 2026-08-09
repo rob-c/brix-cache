@@ -26,8 +26,12 @@ PY_FILES = [p for p in TESTS.rglob("*.py") if ".pytest_cache" not in p.parts]
 SH_FILES = [p for p in TESTS.rglob("*.sh") if ".pytest_cache" not in p.parts]
 
 # Registry/infra files that own the launch primitive itself, plus this lint.
+# ``_server_launcher_part2_mixinc.py`` is server_launcher.py's own shard — the
+# file-size split moved the `nginx -t` / start argv out of the parent, so it is
+# the same infra, not a test that grew a launch of its own.
 INFRA_ALLOW = {
     "server_launcher.py",
+    "_server_launcher_part2_mixinc.py",
     "conftest.py",
     "test_server_registry_lint.py",
 }
@@ -86,7 +90,10 @@ _MARKER = "uses_lifecycle_harness"
 # migration — but it is still ON the list, so an accidental second launcher in
 # the file would not slip past the guard.
 LAUNCH_BACKLOG = frozenset({
-    "userns/e2e_redteam.py",
+    # Same entry as ever, renamed: the redteam file-size split moved the direct
+    # launch from e2e_redteam.py into shard part4.  Backlog size is unchanged --
+    # this is a relocation, not a new offender.
+    "userns/e2e_redteam_part4.py",
     "cmdscripts/system_live_ports.py",
     "_perf_netem_helpers.py",
 })
