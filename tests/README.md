@@ -23,11 +23,36 @@ Anything that needs Docker, Kubernetes, Helm, or a cluster to run belongs in
 
 | Command | What it runs | Time | Use when |
 |---|---|---|---|
-| `PYTHONPATH=tests python3 -m cmdscripts.operator_runtime suite --pr` | The `not slow` set (~6,990 tests): parallel bulk (`-n12`) + a small serial lane, one flake-filter re-run | **<5min** | The PR gate |
+| `PYTHONPATH=tests python3 -m cmdscripts.operator_runtime suite --pr` | The `not slow` set (~6,990 tests): parallel bulk (`-n12`) + a small serial lane, single-pass | **<5min** | The PR gate |
 | `PYTHONPATH=tests python3 -m cmdscripts.operator_runtime suite --fast` | Just the parallel bulk (`-m "not slow and not serial"`) — no serial lane | **~4min** | Fastest iteration ("did I break something") |
 | `PYTHONPATH=tests python3 -m cmdscripts.operator_runtime suite --nightly` | The deferred `slow` set (~1,770): resilience/chaos/fault-injection, throughput/perf/topology, conformance, clientconf, interop, … | ~8min | Pre-release / nightly CI |
-| `PYTHONPATH=tests python3 -m cmdscripts.operator_runtime suite` | The full 4-lane suite (`--pr` + `--nightly` coverage) with the full flake-rerun ladder | **~10–12min** | The authoritative release gate |
+| `PYTHONPATH=tests python3 -m cmdscripts.operator_runtime suite` | The full 4-lane suite (`--pr` + `--nightly` coverage), single-pass with no automatic failure reruns | **~10–12min** | The authoritative release gate |
 | `PYTHONPATH=tests pytest tests/test_X.py -v` | One file/test | seconds | Focused debugging |
+
+Select arbitrary server binaries on any suite-runner command with
+`--nginx-bin` and `--xrootd-bin`. The runner validates them before collection
+and propagates the resolved paths to the registry and dedicated management
+helpers:
+
+```bash
+TEST_ROOT=/tmp/brix-tests/custom TEST_PORT_START=20000 \
+PYTHONPATH=tests python3 -m cmdscripts.operator_runtime suite -n 8 \
+  --nginx-bin /path/to/nginx --xrootd-bin /path/to/xrootd
+```
+
+For an nginx built with `--with-stream=dynamic`, the runner reads its
+`--modules-path` from `nginx -V` and automatically loads the stream core,
+combined BriX module, and xrdhttp filter when all three are installed there.
+For project modules kept elsewhere, pass the two BriX modules. The runner
+discovers and prepends the selected distribution's `ngx_stream_module.so` from
+`nginx -V`, avoiding Ubuntu/AlmaLinux module-directory differences:
+
+```bash
+PYTHONPATH=tests python3 -m cmdscripts.operator_runtime suite -n 8 \
+  --nginx-bin /usr/sbin/nginx --xrootd-bin /usr/bin/xrootd \
+  --nginx-load-module /path/to/ngx_stream_brix_module.so \
+  --nginx-load-module /path/to/ngx_http_brix_xrdhttp_filter_module.so
+```
 
 **`--pr` + `--nightly` together cover the same tests as the full run.** The split
 line is `slow` (auto-applied by module name; see `_SLOW_MODULE_HINTS` in
@@ -78,10 +103,9 @@ Bypass a single push with `git push --no-verify` (or `SKIP_FAST_TESTS=1 git push
 
 ## Triaging a fast-lane failure
 
-The parallel pool occasionally trips a *load-correlated* flake (a ConnectionReset,
-a GSI-handshake hiccup). `--fast` already re-runs failures once serially to filter
-these. To triage by hand, re-run the failing tests **quiet + serial** — a real bug
-fails again, a flake passes:
+Every lane is single-pass: the runner never automatically reruns a failed test.
+Use the first failure report and the per-instance logs below `TEST_ROOT` to fix
+the defect directly. A focused manual invocation remains available when needed:
 
 ```bash
 PYTHONPATH=tests pytest <failed::tests> -p no:xdist -q

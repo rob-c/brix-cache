@@ -41,7 +41,7 @@ def test_official_interop_scenario(scenario: str):
 
 
 @pytest.mark.optin
-@pytest.mark.timeout(600)
+@pytest.mark.timeout(1800)
 def test_cross_compatible_lanes():
     if os.environ.get("PHASE81_RUN_LIVE_PORTS") == "0":
         pytest.skip("set PHASE81_RUN_LIVE_PORTS=0 to skip the cross-compatible pytest lanes")

@@ -209,7 +209,10 @@ def run_one(name: str, base: Path) -> list[tuple[bool, str]]:
                            cwd=REPO_ROOT)
     if built.returncode != 0:
         return [result(False, f"compile {name} failed: {(built.stderr or built.stdout)[-3000:]}")]
-    ran = run([str(binary)], cwd=REPO_ROOT)
+    # detect_leaks=0: an object-linked unit that inherits -fsanitize=address from
+    # a contaminated tree must not fail on LeakSanitizer's exit report; real heap
+    # errors still abort.
+    ran = run([str(binary)], cwd=REPO_ROOT, env={"ASAN_OPTIONS": "detect_leaks=0"})
     return [result(ran.returncode == 0, f"{name} exited {ran.returncode}: {(ran.stderr or ran.stdout)[-3000:]}")]
 
 

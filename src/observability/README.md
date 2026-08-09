@@ -13,5 +13,5 @@ the built-in HTML dashboard, and the per-request access log.
 
 **Invariant:** metric labels are low-cardinality only — never paths,
 bucket names, or UUIDs (CLAUDE.md INVARIANT 8). New protocols get their
-metric families generated from the central `proto_list.h` row — don't
+metric families generated from the central `src/core/types/proto_list.h` row — don't
 hand-add exporter entries.

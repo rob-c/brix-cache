@@ -69,7 +69,12 @@ def ev(tmp_path_factory):
     cache_dir = work / "cache"
     cache_dir.mkdir()
     used = statvfs_used_pct(str(cache_dir))
-    high, low = max(1, used - 2), max(0, used - 5)
+    # Zero is rejected by the watermark parser. Keep a valid low < high pair;
+    # normal test filesystems are already above 2%, so high remains below live
+    # occupancy and the first fill deterministically triggers the reaper.
+    high, low = max(2, used - 2), max(1, used - 5)
+    if low >= high:
+        low = high - 1
 
     harness = LifecycleHarness()
     try:

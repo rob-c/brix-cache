@@ -27,6 +27,11 @@ from pathlib import Path
 
 import pytest
 
+from cmdscripts.live_common import (
+    inject_nginx_load_modules,
+    inject_nginx_runtime_paths,
+)
+
 # conftest chdir()s into a scratch dir — anchor imports on this file's dir.
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "cvmfs"))
 
@@ -254,6 +259,8 @@ http {{ server {{ listen {BIND_HOST}:1;
     }}
 }} }}
 """)
+    inject_nginx_load_modules(conf)
+    inject_nginx_runtime_paths(conf, tmp_path)
     r = subprocess.run([NGINX_BIN, "-t", "-p", str(tmp_path), "-c", str(conf)],
                        capture_output=True, text=True, timeout=30)
     assert r.returncode != 0, f"expected nginx -t to refuse: {directives}"

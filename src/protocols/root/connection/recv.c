@@ -5,6 +5,7 @@
 #include "budget.h"
 #include "deadline.h"
 #include "net/manager/pending.h"
+#include "net/manager/loc_cache.h"   /* §2.6: negative entry on fan-out expiry */
 #include "fs/xfer/stage_waiter.h"
 #include "protocols/root/handoff/handoff.h"
 #include "recv_frame.h"
@@ -57,8 +58,20 @@ brix_recv_pre_loop(ngx_stream_session_t *s, ngx_connection_t *c,
 
     if (rev->timedout) {
         if (ctx->state == XRD_ST_WAITING_CMS) {
-            /* kYR_select did not arrive in time - tell client to retry. */
+            /* kYR_select did not arrive in time - tell client to retry.
+             * §2.6: a kYR_state fan-out that expired with NO kYR_have proved
+             * (within this window) that no probed node holds the path —
+             * record a negative location entry so the client's retry answers
+             * immediately instead of re-parking.  Only state fan-outs carry a
+             * probe path; CMS-parent locates never poison the cache. */
+            char probe_path[1024];
+
             rev->timedout = 0;
+            if (brix_pending_take_path(ctx->cms_wait_streamid, ngx_pid,
+                                         probe_path, sizeof(probe_path)))
+            {
+                brix_loc_cache_insert_negative(probe_path);
+            }
             brix_pending_remove(ctx->cms_wait_streamid, ngx_pid);
             ctx->state = XRD_ST_REQ_HEADER;
             brix_send_wait(ctx, c, 5);

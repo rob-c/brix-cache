@@ -17,6 +17,7 @@ import socket
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 from contextlib import contextmanager
 from pathlib import Path
@@ -25,7 +26,8 @@ import urllib.request
 from cmdscripts.compile_run import REPO_ROOT
 from cmdscripts.live_common import LiveRun
 from lib_py.util import wait_tcp
-from settings import BIND_HOST, HOST
+from settings import BIND_HOST, HOST, TEST_PORT_START
+from port_ladder import CVMFS_CONFORMANCE_OFFSET
 
 MOCK = str(REPO_ROOT / "tests/cvmfs/mock_stratum1.py")
 BRIXMOUNT = os.environ.get("BRIXMOUNT_BIN", str(REPO_ROOT / "client/bin/brixMount"))
@@ -35,90 +37,60 @@ NGINX_BIN = os.environ.get("NGINX_BIN") or (
 
 # Each corpus file owns a 20-port block (design doc §"Port blocks"). Mock origins
 # take base+0..9, nginx instances base+10..19 — no collisions under xdist since a
-# module runs in a single worker and distinct files own distinct blocks. The bases
-# below are *canonical* (offset 0); the whole map is shifted by a per-session base
-# offset (see `_SESSION_OFFSET`) so two sessions never draw the same absolute port
-# for the same file. The relative layout is preserved, so per-file structure a test
+# module runs in a single worker and distinct files own distinct blocks. The
+# per-file relative layout is preserved (index*20), so per-file structure a test
 # relies on (e.g. srv_proxy's guaranteed-dead ports at base+17..19) still holds.
-PORT_BLOCKS = {
-    "srv_gate": 13100, "srv_manifest": 13120, "srv_cas": 13140, "srv_http": 13160,
-    "srv_proxy": 13180, "srv_geo": 13200, "srv_resilience": 13220, "srv_config": 13240,
-    "srv_verify": 13260, "srv_authz": 13280,
-    "fuse_cache": 13300, "fuse_catalog": 13320, "fuse_manifest_parse": 13340,
-    "fuse_posix": 13360, "fuse_read": 13380, "fuse_refresh_failover": 13400,
-    "fuse_trust": 13420, "fuse_whitelist": 13440, "fuse_pin": 13460,
-    "srv_bundle": 13480, "srv_dict": 13500, "srv_scvmfs_x509": 13520,
-    "srv_scvmfs_voms": 13540, "srv_stratum0": 13560, "srv_s0_scvmfs": 13580,
-    "srv_s0_quickstart": 13600,
-}
+#
+# The whole map is anchored to THIS suite's TEST_PORT_START, immediately past the
+# fixed-fleet ladder (port_ladder.CVMFS_CONFORMANCE_OFFSET), so every mock/nginx
+# port stays within TEST_PORT_START+2000 — part of the main fleet's port band, not
+# an absolute 13100+ range disconnected from it.  A second suite run with a
+# different TEST_PORT_START therefore draws a fully DISJOINT range automatically
+# (no cross-suite / debug collision) — which replaces the old absolute per-session
+# tiling.  `CVMFS_CONFORMANCE_PORT_BASE` still pins the sub-ladder base explicitly
+# for CI/debugging when TEST_PORT_START anchoring is not wanted.
+_CANONICAL_ORDER = (
+    "srv_gate", "srv_manifest", "srv_cas", "srv_http", "srv_proxy", "srv_geo",
+    "srv_resilience", "srv_config", "srv_verify", "srv_authz",
+    "fuse_cache", "fuse_catalog", "fuse_manifest_parse", "fuse_posix", "fuse_read",
+    "fuse_refresh_failover", "fuse_trust", "fuse_whitelist", "fuse_pin",
+    "srv_bundle", "srv_dict", "srv_scvmfs_x509", "srv_scvmfs_voms", "srv_stratum0",
+    "srv_s0_scvmfs", "srv_s0_quickstart", "srv_smoke",
+)
+# +1 matches port_ladder._port(offset, 0) = PORT_START + offset + 1, so this
+# category begins exactly where the fixed-fleet ladder ends (no gap, no overlap).
+_CVMFS_BASE = int(os.environ.get("CVMFS_CONFORMANCE_PORT_BASE",
+                                 TEST_PORT_START + CVMFS_CONFORMANCE_OFFSET + 1))
+PORT_BLOCKS = {name: _CVMFS_BASE + i * 20 for i, name in enumerate(_CANONICAL_ORDER)}
 # NOTE: the prefetch/prewarm suites (test_cvmfs_prefetch.py, test_cvmfs_prewarm.py)
 # deliberately use OS-assigned ephemeral ports (bind port 0) instead of a block
-# here: they control both the origin and the client's $BRIXCVMFS_SERVER, and a
-# new block entry would shift _CANON_HI/_TILE under sessions already running.
+# here: they control both the origin and the client's $BRIXCVMFS_SERVER.
 
-# The canonical map occupies [_CANON_LO, _CANON_HI); we tile that span across a wide
-# range and hand each session one free tile, so concurrent sessions (multiple devs,
-# CI shards, agent runs on one host) get fully disjoint windows.  Each tile carries
-# one extra port past the block span: a lock port this process binds and HOLDS, so
-# claiming a tile is atomic across processes (12 xdist workers starting at once
-# must never probe the same tile "free" and both settle on it).
-_CANON_LO = min(PORT_BLOCKS.values())
-_CANON_HI = max(PORT_BLOCKS.values()) + 20
-_TILE = (_CANON_HI - _CANON_LO) + 1
-_TILE_LOCK: socket.socket | None = None   # held for process lifetime on purpose
-# Stay below the OS ephemeral range (typically 32768+) so a tile never fights
-# outbound connections' auto-assigned ports.
-_N_TILES = (32768 - _CANON_LO) // _TILE
-# SystemRandom is immune to pytest-randomly's global seeding, so two sessions seeded
-# identically for reproducibility still pick independent tiles.
-_SYSRAND = random.SystemRandom()
+# TEST_PORT_START now separates concurrent suites, so no per-session tile shift is
+# applied on top of the anchored bases.
+_SESSION_OFFSET = 0
+
+# A dedicated sub-range, just past the 26 file blocks, for suites that spin up MANY
+# short-lived mock origins CONCURRENTLY (the fuse-trust tamper matrix runs ~30 at
+# once through a thread pool — far more than a single 10-port block).  Still within
+# TEST_PORT_START+2000; hand out a distinct fixed port per caller, thread-safely,
+# so these mocks never fall back to an OS-ephemeral port (which would escape the
+# +2000 fleet band).
+_MATRIX_WIDTH = 48
+_MATRIX_BASE = _CVMFS_BASE + len(_CANONICAL_ORDER) * 20
+_matrix_lock = threading.Lock()
+_matrix_next = 0
 
 
-def _claim_tile(tile_lo: int) -> bool:
-    """Atomically claim the tile by binding and HOLDING its lock port (the extra
-    port past the block span), then probe a spread of sentinel ports transiently
-    to skip tiles occupied by listeners that don't use the lock protocol.  Bind
-    is atomic across processes: of two workers racing for a tile, exactly one
-    wins the lock port and the loser moves on."""
-    global _TILE_LOCK
-    lock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    try:
-        lock.bind((BIND_HOST, tile_lo + _TILE - 1))
-    except OSError:
-        lock.close()
-        return False
-    for d in (0, _TILE // 3, 2 * _TILE // 3, _TILE - 2):
-        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        try:
-            s.bind((BIND_HOST, tile_lo + d))
-        except OSError:
-            lock.close()
-            return False
-        finally:
-            s.close()
-    _TILE_LOCK = lock
-    return True
-
-
-def _pick_session_offset() -> int:
-    """Choose a per-process offset (a multiple of _TILE) into a tile claimed via
-    its lock port. Tiles are disjoint and the claim is atomic, so concurrent
-    processes (xdist workers, other sessions on the host) can never share one.
-    `CVMFS_CONFORMANCE_PORT_BASE` pins tile 0's absolute base for CI/debugging."""
-    env = os.environ.get("CVMFS_CONFORMANCE_PORT_BASE")
-    if env:
-        return int(env) - _CANON_LO
-    order = list(range(_N_TILES))
-    _SYSRAND.shuffle(order)
-    for t in order:
-        if _claim_tile(_CANON_LO + t * _TILE):
-            return t * _TILE
-    return 0                                        # all tiles busy: fall back to canonical
-
-
-# Computed once per process; every PortBlock in this session shares it, so a mock and
-# its nginx (allocated in the same process) stay paired.
-_SESSION_OFFSET = _pick_session_offset()
+def matrix_port() -> int:
+    """Return a distinct fixed port from the cvmfs matrix sub-range (round-robin,
+    thread-safe).  Anchored to TEST_PORT_START, so every port stays within +2000
+    of the start and a second suite draws a disjoint range."""
+    global _matrix_next
+    with _matrix_lock:
+        p = _MATRIX_BASE + (_matrix_next % _MATRIX_WIDTH)
+        _matrix_next += 1
+    return p
 
 
 class PortBlock:

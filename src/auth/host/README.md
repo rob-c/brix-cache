@@ -33,5 +33,5 @@ this code.
 | `auth.c` | `brix_handle_host_auth(ctx, c, conf)` — per-connection runtime auth. Reverse-resolves the peer via `brix_acc_resolve_peer()` (the same circuit-breaker-bounded `getnameinfo` path XrdAcc host rules use), matches it against `brix_host_allow`, and on a match sets the connection identity (`ctx->dn` = the resolved hostname) + session registry entry + metrics, returning `kXR_ok`; otherwise `kXR_NotAuthorized`. Static helpers: `brix_host_pattern_match` (exact or leading-`.` domain-suffix match, case-insensitive) and `brix_host_allowed` (allowlist scan). |
 
 There are no headers in this directory. The public entry point
-`brix_handle_host_auth` is declared in `../ngx_brix_module.h`; the allowlist
+`brix_handle_host_auth` is declared in `src/core/ngx_brix_module.h`; the allowlist
 (`brix_host_allow`) and `auth` selector live on `ngx_stream_brix_srv_conf_t`.

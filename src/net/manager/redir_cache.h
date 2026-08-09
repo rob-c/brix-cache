@@ -37,4 +37,7 @@ int brix_redir_cache_lookup(const char *path,
 void brix_redir_cache_insert(const char *path,
     const char *host, uint16_t port, ngx_msec_t ttl_ms);
 
+/* §2.7 — kXR_refresh: expire the cached redirect for path (no-op on miss). */
+void brix_redir_cache_invalidate(const char *path);
+
 #endif /* BRIX_REDIR_CACHE_H */

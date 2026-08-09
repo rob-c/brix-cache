@@ -78,70 +78,74 @@ const isActive = (href: string) => path.endsWith(href);
     position: sticky;
     top: 0;
     z-index: 50;
-    background: var(--paper);
-    border-bottom: var(--border);
+    background: color-mix(in srgb, var(--paper) 86%, transparent);
+    backdrop-filter: blur(8px);
+    border-bottom: 1px solid var(--line);
   }
   .bar {
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 1rem;
-    min-height: 62px;
+    min-height: 60px;
   }
   .brand {
     font-family: var(--display);
-    font-weight: 800;
-    font-stretch: 125%;
-    font-size: 1.4rem;
-    letter-spacing: -0.02em;
+    font-weight: 700;
+    font-size: 1.3rem;
+    letter-spacing: -0.03em;
     text-decoration: none;
     display: inline-flex;
     align-items: center;
-    gap: 0.4ch;
+    gap: 0.45ch;
   }
-  .brand-mark { color: var(--accent); font-size: 1.1em; }
+  .brand-mark { color: var(--accent); font-size: 1.15em; line-height: 1; }
   .nav {
     display: flex;
     align-items: center;
-    gap: 0.35rem;
+    gap: 0.15rem;
     flex-wrap: wrap;
     justify-content: flex-end;
   }
   .nav-link {
     font-family: var(--mono);
-    font-size: 0.82rem;
-    font-weight: 600;
+    font-size: 0.8rem;
+    font-weight: 500;
     text-decoration: none;
-    padding: 0.35em 0.6em;
-    border: 2px solid transparent;
+    padding: 0.4em 0.65em;
+    border-radius: 5px;
+    border: 1px solid transparent;
+    color: var(--ink-2);
   }
-  .nav-link:hover { border-color: var(--ink); }
-  .nav-link.on { background: var(--accent); border-color: var(--ink); color: var(--on-accent); }
-  .nav-cta { border-color: var(--ink); box-shadow: 3px 3px 0 var(--ink); }
-  .nav-cta:hover { background: var(--accent); color: var(--on-accent); }
+  .nav-link:hover { color: var(--ink); background: var(--band); }
+  .nav-link.on { background: color-mix(in srgb, var(--accent) 15%, transparent); border-color: color-mix(in srgb, var(--accent) 34%, transparent); color: var(--accent); }
+  .nav-cta { color: var(--ink); border-color: var(--line-2); }
+  .nav-cta:hover { border-color: var(--ink-2); background: transparent; }
 
   .theme-btn {
     display: inline-flex;
     align-items: center;
     gap: 0.5ch;
     font-family: var(--mono);
-    font-size: 0.82rem;
-    font-weight: 600;
-    padding: 0.35em 0.6em;
-    border: 2px solid var(--ink);
+    font-size: 0.76rem;
+    font-weight: 500;
+    letter-spacing: 0.04em;
+    padding: 0.4em 0.65em;
+    border-radius: 5px;
+    border: 1px solid var(--line-2);
     background: transparent;
-    color: inherit;
+    color: var(--ink-2);
     cursor: pointer;
   }
   /* the script unhides it, so no-JS visitors never get a dead control — and
      because that runs during parse there is no layout shift */
   .theme-btn[hidden] { display: none; }
-  .theme-btn:hover { background: var(--accent); color: var(--on-accent); }
+  .theme-btn:hover { color: var(--ink); border-color: var(--ink-2); }
   .theme-ico { font-size: 1.05em; line-height: 1; }
 
   @media (max-width: 640px) {
-    .nav-link:not(.nav-cta) { padding: 0.3em 0.45em; }
-    .brand { font-size: 1.2rem; }
+    .nav-link:not(.nav-cta) { padding: 0.32em 0.5em; }
+    .brand { font-size: 1.15rem; }
     /* aria-label carries the name, so dropping the word costs nothing */
     .theme-name { display: none; }
   }

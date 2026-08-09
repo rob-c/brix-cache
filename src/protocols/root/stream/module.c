@@ -407,16 +407,16 @@ ngx_command_t ngx_stream_brix_commands[] = {
       offsetof(ngx_stream_brix_srv_conf_t, common.pblock_block_size),
       NULL },
 
-    /* ---- tier-grammar directives (split into directives_tier.inc) ---- */
-#include "directives_tier.inc"
-    /* ---- authentication directives (split into directives_auth.inc) ---- */
-#include "directives_auth.inc"
+    /* ---- tier-grammar directives (split into directives_tier.h) ---- */
+#include "directives_tier.h"
+    /* ---- authentication directives (split into directives_auth.h) ---- */
+#include "directives_auth.h"
 
-    /* ---- wire security + codec directives (split into directives_security.inc) ---- */
-#include "directives_security.inc"
+    /* ---- wire security + codec directives (split into directives_security.h) ---- */
+#include "directives_security.h"
 
-    /* ---- TPC directives (split into directives_tpc.inc) ---- */
-#include "directives_tpc.inc"
+    /* ---- TPC directives (split into directives_tpc.h) ---- */
+#include "directives_tpc.h"
     /* Optional observability and runtime-tuning directives. */
     { ngx_string("brix_access_log"),
       NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
@@ -449,8 +449,8 @@ ngx_command_t ngx_stream_brix_commands[] = {
       offsetof(ngx_stream_brix_srv_conf_t, manager_mode),
       NULL },
 
-    /* ---- node capability directives (split into directives_caps.inc) ---- */
-#include "directives_caps.inc"
+    /* ---- node capability directives (split into directives_caps.h) ---- */
+#include "directives_caps.h"
 
     /* Per-connection in-flight pipeline window (out_ring + rd_pool slots).  A
      * deeper pipeline absorbs more wire latency/jitter (packet reordering,
@@ -492,16 +492,16 @@ ngx_command_t ngx_stream_brix_commands[] = {
       offsetof(ngx_stream_brix_srv_conf_t, backend_async_wait),
       NULL },
 
-    /* ---- clustering/proxy/traffic directives (split into directives_net.inc) ---- */
-#include "directives_net.inc"
+    /* ---- clustering/proxy/traffic directives (split into directives_net.h) ---- */
+#include "directives_net.h"
 
-    /* ---- read-through cache directives (split into directives_cache.inc) ---- */
-#include "directives_cache.inc"
+    /* ---- read-through cache directives (split into directives_cache.h) ---- */
+#include "directives_cache.h"
 
-    /* ---- write-through directives (split into directives_writethrough.inc) ---- */
-#include "directives_writethrough.inc"
-    /* ---- CMS clustering directives (split into directives_cms.inc) ---- */
-#include "directives_cms.inc"
+    /* ---- write-through directives (split into directives_writethrough.h) ---- */
+#include "directives_writethrough.h"
+    /* ---- CMS clustering directives (split into directives_cms.h) ---- */
+#include "directives_cms.h"
 
     /* (legacy brix_proxy_path_rewrite removed — see the note above) */
 
@@ -535,11 +535,11 @@ ngx_command_t ngx_stream_brix_commands[] = {
       offsetof(ngx_stream_brix_srv_conf_t, ocsp.stapling),
       NULL },
 
-    /* ---- SHM zone directives (split into directives_zones.inc) ---- */
-#include "directives_zones.inc"
+    /* ---- SHM zone directives (split into directives_zones.h) ---- */
+#include "directives_zones.h"
 
-    /* ---- SciTags pmark directives (split into directives_pmark.inc) ---- */
-#include "directives_pmark.inc"
+    /* ---- SciTags pmark directives (split into directives_pmark.h) ---- */
+#include "directives_pmark.h"
 
     /* Required terminator so nginx knows where the directive table ends. */
     ngx_null_command

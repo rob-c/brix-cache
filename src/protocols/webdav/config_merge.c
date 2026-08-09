@@ -110,6 +110,15 @@ webdav_merge_base_conf(ngx_conf_t *cf, ngx_http_brix_webdav_loc_conf_t *prev,
     }
     ngx_conf_merge_value(conf->dig_enable, prev->dig_enable, 0);
     ngx_conf_merge_value(conf->require_digest, prev->require_digest, 0);
+
+    /* §6.1: HTTP redirect-to-dataserver + signed-CGI handoff. */
+    ngx_conf_merge_value(conf->redirect_dataserver,
+                         prev->redirect_dataserver, 0);
+    ngx_conf_merge_value(conf->redirect_port,   prev->redirect_port,   0);
+    ngx_conf_merge_uint_value(conf->redirect_scheme, prev->redirect_scheme,
+                              BRIX_WEBDAV_RDR_HTTP);
+    ngx_conf_merge_value(conf->redirect_window, prev->redirect_window, 120);
+    ngx_conf_merge_str_value(conf->http_secretkey, prev->http_secretkey, "");
     ngx_conf_merge_ptr_value(conf->dig_exports, prev->dig_exports, NULL);
     ngx_conf_merge_str_value(conf->dig_auth_file, prev->dig_auth_file, "");
     ngx_conf_merge_value(conf->delegation_endpoint,
@@ -327,13 +336,16 @@ webdav_validate_auth_paths(ngx_conf_t *cf,
 {
     /* auth optional/required needs at least ONE credential verifier: an x509
      * CA (cadir/cafile), a token verifier (JWKS / issuer registry / macaroon
-     * secret), or a Basic password db — otherwise every client is rejected
-     * and the misconfiguration should fail `nginx -t`, not surface as 403s. */
+     * secret), a Basic password db, or (§6.1) the shared redirect secret
+     * (brix_http_secretkey) that authenticates a signed redirect handoff —
+     * otherwise every client is rejected and the misconfiguration should fail
+     * `nginx -t`, not surface as 403s. */
     if ((conf->auth == WEBDAV_AUTH_OPTIONAL
          || conf->auth == WEBDAV_AUTH_REQUIRED)
         && conf->cadir.len == 0 && conf->cafile.len == 0
         && conf->token_jwks.len == 0 && conf->token_config.len == 0
-        && conf->token_macaroon_secret.len == 0 && conf->pwd_file.len == 0)
+        && conf->token_macaroon_secret.len == 0 && conf->pwd_file.len == 0
+        && conf->http_secretkey.len == 0)
     {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
             "brix_webdav: auth optional/required needs a credential verifier "

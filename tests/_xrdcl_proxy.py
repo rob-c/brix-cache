@@ -24,6 +24,7 @@ import atexit
 import base64
 import builtins
 import collections
+import functools
 import json
 import os
 import subprocess
@@ -40,6 +41,59 @@ _WORKER = os.path.join(os.path.dirname(os.path.abspath(__file__)),
 _CALL_TIMEOUT = float(os.environ.get("XRDCL_PROXY_TIMEOUT", "90"))
 
 
+@functools.lru_cache(maxsize=1)
+def _worker_python():
+    """Return an interpreter able to import the real XRootD bindings.
+
+    Importing ``XRootD`` in pytest is not a capability check: ``tests/XRootD``
+    is deliberately a shadow package and therefore always imports.  Starting
+    the worker with an empty request stream exercises its shadow-path removal
+    and real binding import without creating any client handles.
+
+    The test runner and the bindings do not have to live in the same Python
+    environment.  This matters on build hosts where ``pytest`` is provided by
+    the system interpreter but pyxrootd is installed in the test virtualenv.
+    ``TEST_XRDCL_PYTHON`` is the authoritative override; the remaining entries
+    cover the active virtualenv and the conventional project test environments.
+    """
+    repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    candidates = [
+        os.environ.get("TEST_XRDCL_PYTHON"),
+        os.environ.get("XRDCL_PYTHON"),
+        os.path.join(os.environ.get("VIRTUAL_ENV", ""), "bin", "python"),
+        sys.executable,
+        os.path.join(repo_root, ".venv", "bin", "python"),
+        os.path.expanduser("~/.venvs/brix/bin/python"),
+        "/root/.venvs/brix/bin/python",
+    ]
+    seen = set()
+    for candidate in candidates:
+        if not candidate:
+            continue
+        candidate = os.path.abspath(candidate)
+        if candidate in seen or not os.access(candidate, os.X_OK):
+            continue
+        seen.add(candidate)
+        try:
+            probe_env = dict(os.environ)
+            probe_env["XRDCL_IMPORT_PROBE"] = "1"
+            result = subprocess.run(
+                [candidate, "-u", _WORKER], input="", text=True,
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                timeout=10, env=probe_env,
+            )
+        except (OSError, subprocess.SubprocessError):
+            continue
+        if result.returncode == 0:
+            return candidate
+    return None
+
+
+def real_bindings_available():
+    """Return whether any isolated worker can import real XRootD bindings."""
+    return _worker_python() is not None
+
+
 class XrdClWorkerError(RuntimeError):
     """Raised when the isolated worker errors, dies, or times out."""
 
@@ -49,11 +103,16 @@ class XrdClWorkerError(RuntimeError):
 # ==========================================================================
 class _Worker:
     def __init__(self):
+        worker_python = _worker_python()
+        if worker_python is None:
+            raise XrdClWorkerError(
+                "no Python interpreter with real XRootD bindings found; "
+                "set TEST_XRDCL_PYTHON=/path/to/python")
         env = dict(os.environ)
         # The worker must import the REAL bindings; keep it off the shadow.
         env["PYTHONDONTWRITEBYTECODE"] = "1"
         self._proc = subprocess.Popen(
-            [sys.executable, "-u", _WORKER],
+            [worker_python, "-u", _WORKER],
             stdin=subprocess.PIPE, stdout=subprocess.PIPE,
             stderr=subprocess.DEVNULL, env=env, text=True, bufsize=1,
         )
@@ -329,149 +388,5 @@ _RESP_TYPES = {
     "VectorReadInfo": VectorReadInfo,
 }
 
-
-def _decode_response(payload):
-    """Inverse of the worker's _encode_response.
-
-    Markers: __bytes__ (binary), __status__ (an XRootDStatus), __list__ (a
-    list), __dict__ (a plain dict, e.g. a copy-job result), __type__ (a typed
-    response object).  Bare lists/dicts are decoded element-wise too.
-    """
-    if payload is None:
-        return None
-    if isinstance(payload, list):
-        return [_decode_response(x) for x in payload]
-    if isinstance(payload, dict):
-        if "__bytes__" in payload:
-            return base64.b64decode(payload["__bytes__"])
-        if "__status__" in payload:
-            return Status(payload["__status__"])
-        if "__list__" in payload:
-            return [_decode_response(x) for x in payload["__list__"]]
-        if "__tuple__" in payload:
-            return tuple(_decode_response(x) for x in payload["__tuple__"])
-        if "__dict__" in payload:
-            return {k: _decode_response(v)
-                    for k, v in payload["__dict__"].items()}
-        t = payload.get("__type__")
-        if t is not None:
-            cls = _RESP_TYPES.get(t)
-            if cls is not None:
-                return cls(payload)
-            return _Generic(payload)
-        # Plain dict with no marker — decode values.
-        return {k: _decode_response(v) for k, v in payload.items()}
-    return payload
-
-
-def _encode_arg(a):
-    if isinstance(a, (bytes, bytearray, memoryview)):
-        return {"__bytes__": base64.b64encode(bytes(a)).decode("ascii")}
-    if isinstance(a, (list, tuple)):
-        return [_encode_arg(x) for x in a]
-    return a
-
-
-def _encode_args(args, kwargs):
-    return ([_encode_arg(a) for a in args],
-            {k: _encode_arg(v) for k, v in kwargs.items()})
-
-
-# ==========================================================================
-# Proxy objects — the public API mirrored by the shadow package.
-# ==========================================================================
-class _RemoteObject:
-    _NEW_OP = None      # subclass: worker op that constructs the remote object
-    _CALL_OP = None     # subclass: worker op that invokes a method
-
-    def __init__(self, *ctor_args, **ctor_kwargs):
-        req = {"op": self._NEW_OP}
-        self._init_request(req, ctor_args, ctor_kwargs)
-        self._w = _worker()
-        self._h = self._w.call(req)["h"]
-
-    def _init_request(self, req, args, kwargs):
-        pass
-
-    def _invoke(self, method, args, kwargs):
-        enc_args, enc_kwargs = _encode_args(list(args), dict(kwargs))
-        # pyxrootd accepts a per-op timeout kwarg; honour it for our wait too.
-        op_timeout = kwargs.get("timeout", 0) or 0
-        wait = max(_CALL_TIMEOUT, float(op_timeout) + 15) if op_timeout else _CALL_TIMEOUT
-        msg = _worker().call(
-            {"op": self._CALL_OP, "h": self._h,
-             "method": method, "args": enc_args, "kwargs": enc_kwargs},
-            timeout=wait)
-        # A plain-value method (e.g. File.is_open() -> bool) returns the value
-        # directly; status-returning methods return the (status, response) pair.
-        if "value" in msg:
-            return _decode_response(msg["value"])
-        status = Status(msg.get("status"))
-        resp = _decode_response(msg.get("response"))
-        return status, resp
-
-    def __getattr__(self, name):
-        # Any unknown attribute is treated as a remote method.
-        if name.startswith("_"):
-            raise AttributeError(name)
-
-        def _method(*args, **kwargs):
-            return self._invoke(name, args, kwargs)
-        return _method
-
-    def __del__(self):
-        # Finalizer: queue the handle for release WITHOUT any blocking call or
-        # lock acquisition (see _Worker._pending_releases).  deque.append is
-        # atomic; the release is flushed on the next call().
-        try:
-            w = self._w
-            if w is not None and w._alive:
-                w._pending_releases.append(self._h)
-        except Exception:
-            pass
-
-
-class FileSystem(_RemoteObject):
-    _NEW_OP = "fs_new"
-    _CALL_OP = "fs_call"
-
-    def _init_request(self, req, args, kwargs):
-        url = args[0] if args else kwargs.get("url")
-        req["url"] = url
-
-
-class File(_RemoteObject):
-    _NEW_OP = "file_new"
-    _CALL_OP = "file_call"
-
-    # Context-manager support (tests use ``with client.File() as f:``).
-    def __enter__(self):
-        return self
-
-    def __exit__(self, *exc):
-        try:
-            self._invoke("close", (), {})
-        except Exception:
-            pass
-        return False
-
-
-class CopyProcess(_RemoteObject):
-    _NEW_OP = "cp_new"
-    _CALL_OP = "cp_call"
-
-
-class URL:
-    """Local-looking URL parser backed by the worker's real XrdCl URL."""
-    def __init__(self, url):
-        fields = _worker().call({"op": "url_parse", "url": url})["fields"]
-        self._f = fields
-
-    def is_valid(self):
-        return bool(self._f.get("is_valid"))
-
-    def __getattr__(self, name):
-        f = object.__getattribute__(self, "_f")
-        if name in f:
-            return f[name]
-        raise AttributeError(name)
+from split_continuation import load as _load_continuations
+_load_continuations(globals(), __file__, "_xrdcl_proxy_part2.py")

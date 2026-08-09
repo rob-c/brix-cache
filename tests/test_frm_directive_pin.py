@@ -2,7 +2,7 @@
 
 The src/frm dissolution (phase-64) retired the FRM subsystem but 21
 ``brix_frm_*`` directives survived in
-src/protocols/root/stream/directives_net.inc, contra the phase-64 §13c-step-4
+src/protocols/root/stream/directives_net.h, contra the phase-64 §13c-step-4
 plan.  ADR-3 (docs/refactor/phase-89-design-backlog-burndown.md §D.1) records
 the ratify-vs-migrate decision as PENDING OP confirmation; until it is taken,
 operator configs in the field depend on this exact grammar.
@@ -25,7 +25,7 @@ import pytest
 
 from settings import BIND_HOST, NGINX_BIN
 
-# The pinned inventory — must match directives_net.inc exactly.  A directive
+# The pinned inventory — must match directives_net.h exactly.  A directive
 # added or removed there without touching this list is the drift this test
 # exists to catch (grep 'ngx_string("brix_frm' to regenerate).
 FRM_DIRECTIVES = """\

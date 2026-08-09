@@ -257,3 +257,44 @@ brix_redir_cache_insert(const char *path,
 
     ngx_shmtx_unlock(&brix_redir_mutex);
 }
+
+/*
+ * brix_redir_cache_invalidate — §2.7 kXR_refresh support.
+ *
+ * WHAT: Expires the cached redirect for path, if present.
+ * WHY:  A kXR_refresh locate must bypass AND flush the collapse cache so the
+ *       next non-refresh request re-resolves too (stock refresh semantics).
+ * HOW:  Same probe window as lookup; on the match, backdate expires (in_use
+ *       stays set — expired entries are already invisible to lookups and
+ *       claimable by inserts).
+ */
+void
+brix_redir_cache_invalidate(const char *path)
+{
+    brix_redir_cache_t       *c;
+    brix_redir_cache_entry_t *e;
+    ngx_uint_t                  probe, nprobe, start;
+    ngx_msec_t                  now;
+
+    c = redir_cache();
+    if (c == NULL) {
+        return;
+    }
+
+    now    = ngx_current_msec;
+    start  = (ngx_uint_t) redir_hash(path) % c->capacity;
+    nprobe = (c->capacity < BRIX_REDIR_PROBE_MAX)
+             ? c->capacity : BRIX_REDIR_PROBE_MAX;
+
+    ngx_shmtx_lock(&brix_redir_mutex);
+
+    for (probe = 0; probe < nprobe; probe++) {
+        e = &c->entries[(start + probe) % c->capacity];
+        if (e->in_use && ngx_strcmp(e->path, path) == 0) {
+            e->expires = now;
+            break;
+        }
+    }
+
+    ngx_shmtx_unlock(&brix_redir_mutex);
+}

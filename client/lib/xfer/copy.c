@@ -429,25 +429,23 @@ brix_copy_route(const char *src, const copy_route_t *r, const brix_copy_opts *o,
 }
 
 
+/*
+ * WHAT: Dispatch ONE concrete single-source transfer: scheme routing (web /
+ *       block / gridftp / root-family classify) and the direction ladder.
+ *       This is everything brix_copy does after the metalink branch.
+ * WHY:  The phase-100 metalink virtual redirector re-enters the copy engine
+ *       once per mirror; splitting the post-metalink body out lets that loop
+ *       (and the bounded metalink-document fetch) reuse the full transport
+ *       matrix without recursing into metalink detection.
+ * HOW:  Exactly the former brix_copy tail: web scheme check first
+ *       (brix_url_parse is root-only), then block://, then gsiftp/ftp, then
+ *       classify + route.
+ */
 int
-brix_copy(const char *src, const char *dst, const brix_copy_opts *o,
-          const brix_opts *co_in, brix_status *st)
+copy_dispatch_one(const char *src, const char *dst, const brix_copy_opts *o,
+                  const brix_opts *co, brix_status *st)
 {
     copy_route_t route;
-
-    /* copy.c manages its OWN reconnect/retry — resilient_setup() for the multi-RTT
-     * bring-up and the read pump (pump_src_remote) for mid-transfer severs. Disable
-     * the library's op-level baked resilience on the connections this path owns, so
-     * stat/dirlist/mkdir don't double-retry inside copy's already-bounded loops. */
-    brix_opts co_local;
-    if (co_in != NULL) {
-        co_local = *co_in;
-    } else {
-        memset(&co_local, 0, sizeof(co_local));
-        co_local.verify_host = 1;
-    }
-    co_local.no_retry = 1;
-    const brix_opts *co = &co_local;
 
     /* Web schemes (davs/http(s)/s3) take the HTTP transfer path, never the root://
      * session machinery. Check before brix_url_parse (which is root-only). */
@@ -473,4 +471,34 @@ brix_copy(const char *src, const char *dst, const brix_copy_opts *o,
         return -1;
     }
     return brix_copy_route(src, &route, o, co, st);
+}
+
+
+int
+brix_copy(const char *src, const char *dst, const brix_copy_opts *o,
+          const brix_opts *co_in, brix_status *st)
+{
+    /* copy.c manages its OWN reconnect/retry — resilient_setup() for the multi-RTT
+     * bring-up and the read pump (pump_src_remote) for mid-transfer severs. Disable
+     * the library's op-level baked resilience on the connections this path owns, so
+     * stat/dirlist/mkdir don't double-retry inside copy's already-bounded loops. */
+    brix_opts co_local;
+    if (co_in != NULL) {
+        co_local = *co_in;
+    } else {
+        memset(&co_local, 0, sizeof(co_local));
+        co_local.verify_host = 1;
+    }
+    co_local.no_retry = 1;
+    const brix_opts *co = &co_local;
+
+    /* Phase-100: a .meta4/.metalink source is a VIRTUAL REDIRECTOR — resolve
+     * the document (any transport) and fail over across its ranked mirrors.
+     * Detected on the raw string so every scheme can carry one; --no-metalink
+     * (or the resolver's own inner fetch) routes it as a plain file below. */
+    if (o != NULL && copy_is_metalink_src(src, o)) {
+        return copy_metalink_run(src, dst, o, co, st);
+    }
+
+    return copy_dispatch_one(src, dst, o, co, st);
 }

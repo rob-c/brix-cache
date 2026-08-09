@@ -11,6 +11,7 @@ import sys
 import tempfile
 
 from settings import BIND_HOST, HOST
+from cmdscripts.live_common import inject_nginx_load_modules, inject_nginx_runtime_paths
 
 
 def _run_nginx_test(nginx: Path, prefix: Path, name: str, expect_fail: bool, body: str) -> tuple[bool, str]:
@@ -22,6 +23,8 @@ events {{ worker_connections 64; }}
 http {{ {body} }}
 """
     )
+    inject_nginx_load_modules(config)
+    inject_nginx_runtime_paths(config, prefix)
     proc = subprocess.Popen(
         [str(nginx), "-t", "-c", str(config), "-p", str(prefix)],
         stdout=subprocess.PIPE,

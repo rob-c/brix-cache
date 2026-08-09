@@ -250,8 +250,28 @@ typedef struct {
      * ingest digest (RFC-3230 Digest / legacy Content-MD5) is refused, for
      * deployments that decline writes they cannot verify.  Default off.  A digest
      * that IS present is always verified over the staged bytes before commit,
-     * regardless of this flag.  Placed last to keep the struct's ABI stable. */
+     * regardless of this flag. */
     ngx_flag_t                require_digest;
+
+    /* ---- §6.1: HTTP redirect-to-dataserver + signed-CGI handoff ----
+     * Manager side: with redirect_dataserver on (and the stream module's CMS
+     * registry populated), a GET/HEAD/PUT is answered 307 to the registry-
+     * selected data server instead of served locally.  http_secretkey (both
+     * sides) signs the authenticated identity into the redirect CGI
+     * (brixrdr.exp/usr/vo/mac, HMAC-SHA256) so the data server can adopt it
+     * without a second authentication round; the data-server side verifies
+     * fail-closed within redirect_window seconds.  redirect_port 0 = the
+     * registry entry's (root://) port — the stock shared-port model;
+     * deployments running HTTP on its own port set it explicitly.
+     * Placed last to keep the struct's ABI stable. */
+    ngx_flag_t                redirect_dataserver;
+    ngx_int_t                 redirect_port;
+    ngx_uint_t                redirect_scheme;  /* BRIX_WEBDAV_RDR_* */
+    ngx_int_t                 redirect_window;  /* seconds; default 120 */
+    ngx_str_t                 http_secretkey;
 } ngx_http_brix_webdav_loc_conf_t;
+
+#define BRIX_WEBDAV_RDR_HTTP   0
+#define BRIX_WEBDAV_RDR_HTTPS  1
 
 #endif /* NGX_HTTP_BRIX_WEBDAV_LOC_CONF_H */

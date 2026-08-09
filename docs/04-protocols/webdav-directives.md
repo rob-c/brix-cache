@@ -547,3 +547,91 @@ location / {
 ```
 
 ---
+
+## HTTP redirect-to-dataserver (§6.1 — cluster redirector on the HTTP plane)
+
+A WebDAV manager can point clients at the data server holding a file instead of
+proxying the bytes itself, mirroring the `root://` plane's `kXR_redirect`. The
+manager selects the target from the same CMS registry (`brix_srv_select`) and,
+when a shared key is configured, signs the authenticated identity into the
+redirect URL so the data server needs no second authentication round. Covered by
+`tests/test_webdav_redirect_ds.py`.
+
+### `brix_webdav_redirect_dataserver on|off`
+
+**Context:** `location` · **Default:** `off`
+
+Manager side. When on, a `GET`/`HEAD`/`PUT` whose path matches a registered data
+server is answered `307 Temporary Redirect` to that server instead of served
+locally. `DECLINED` (served locally) when no data server matches or the request
+already carries a signed handoff (loop guard). Requires the CMS registry to be
+populated (a companion `brix_cms_server on;` stream listener).
+
+### `brix_webdav_redirect_port <port>` / `brix_webdav_redirect_scheme http|https`
+
+**Defaults:** `0` (the registry entry's `root://` port) / `http`
+
+The HTTP port and scheme of the redirect `Location`. Set the port explicitly
+when the data servers run HTTP on a different port than their `root://` listen;
+set the scheme to `https` when they serve WebDAV over TLS (the manager cannot
+probe their TLS posture, so the operator states it).
+
+### `brix_http_secretkey <key>` *(both manager and data server)*
+
+**Context:** `location` · **Default:** unset
+
+Shared HMAC key (stock `http.secretkey` analogue). On the **manager** it signs
+the authenticated identity into the redirect CGI as
+`brixrdr.exp/usr/vo/mac` — an `HMAC-SHA256` over `method\npath\nexpiry\nuser\nvo`,
+so a grant cannot be replayed as a different method, against a different file, or
+past its expiry. On the **data server** the same key verifies that CGI
+(constant-time compare, expiry-bounded) and adopts the embedded identity, so a
+redirected client's request is authenticated by the redirector's vouching rather
+than re-presenting credentials. A request carrying the CGI with a bad, expired,
+or foreign-key MAC is refused `403`, fail-closed; a request without the CGI falls
+through to normal authentication. `brix_http_secretkey` counts as a credential
+verifier for `brix_webdav_auth required`, so a data server can require auth while
+accepting only signed redirects.
+
+The BriX redirect CGI is a documented dialect — it is **not** byte-compatible
+with stock XrdHttp's redirect hash (the upstream tree was unavailable to verify
+its exact format), but the trust model is identical: possession of the shared key
+proves the redirector vouches for the identity.
+
+### `brix_webdav_redirect_window <secs>`
+
+**Context:** `location` · **Default:** `120`
+
+Validity window of a signed redirect CGI: the manager stamps `expiry = now +
+window`, and the data server refuses a handoff whose expiry has passed.
+
+```nginx
+# Manager: WebDAV front + CMS server, redirects to data servers.
+http {
+    server {
+        listen 8443 ssl;
+        location / {
+            brix_webdav on;
+            brix_webdav_redirect_dataserver on;
+            brix_webdav_redirect_port 8444;
+            brix_webdav_redirect_scheme https;
+            brix_http_secretkey "shared-cluster-hmac-key";
+        }
+    }
+}
+
+# Data server: verifies the signed handoff, requires auth.
+http {
+    server {
+        listen 8444 ssl;
+        location / {
+            brix_webdav on;
+            brix_export /data;
+            brix_webdav_auth required;
+            brix_http_secretkey "shared-cluster-hmac-key";
+        }
+    }
+}
+```
+
+---

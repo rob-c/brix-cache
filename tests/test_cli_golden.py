@@ -51,7 +51,7 @@ from typing import Dict, List, Optional, Tuple
 import pytest
 
 from cli_pty import run_pipe, TIMEOUT_S
-from settings import HOST
+from settings import HOST, NGINX_ANON_PORT
 
 # ---------------------------------------------------------------------------
 # Paths and constants
@@ -64,7 +64,7 @@ GOLDEN_FILE = GOLDEN_DIR / "cli_baseline.json"
 
 # Fleet connection parameters (mirror conftest / settings.py defaults).
 _HOST = os.environ.get("TEST_HOST", HOST)
-_ANON_PORT = int(os.environ.get("TEST_NGINX_ANON_PORT", "11094"))
+_ANON_PORT = NGINX_ANON_PORT
 FLEET_ADDR = f"{_HOST}:{_ANON_PORT}"
 
 # ---------------------------------------------------------------------------

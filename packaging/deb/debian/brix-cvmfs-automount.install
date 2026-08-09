@@ -1,0 +1,5 @@
+sbin/mount.cvmfs usr/sbin
+etc/auto.cvmfs
+etc/auto.master.d/cvmfs.autofs
+usr/lib/systemd/system/brixcvmfs-automount.service
+usr/lib/systemd/system/brixcvmfs@.service

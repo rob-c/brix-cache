@@ -2,7 +2,7 @@
 
 **Scope:** `src/auth/impersonate/` (`idmap.c`, `idmap_gridmap.c`, `idmap_denylist.c`,
 `broker.c`, `broker_creds.c`, `broker_ops.c`), directive registration in
-`src/protocols/root/stream/directives_tier.inc`, tests in `tests/userns/`,
+`src/protocols/root/stream/directives_tier.h`, tests in `tests/userns/`,
 `tests/mu_authz_lib/`, and the gridmap-ownership root suite
 (`tests/test_impersonation_gridmap_root.py`).
 **Companion:** [`../06-authentication/impersonation.md`](../06-authentication/impersonation.md),
@@ -60,7 +60,7 @@ never be asked to act as a system account. `brix_idmap_min_uid` defaults to
 
 ## 4. Directives
 
-The impersonation directives are registered in `src/protocols/root/stream/directives_tier.inc` and
+The impersonation directives are registered in `src/protocols/root/stream/directives_tier.h` and
 live in the **`stream {}`** block (one broker per nginx instance; the same broker also governs the
 `http{}` webdav/S3 servers):
 

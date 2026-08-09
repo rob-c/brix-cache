@@ -25,10 +25,10 @@ The handler is **fail-closed by construction** — every layer denies by default
 
 | File | Responsibility |
 |---|---|
-| `dig.h` | Public contract: the URI prefix (`/.well-known/dig/`) and the `brix_dig_handle()` entry point. The export type and prototype are shared via `webdav.h` (the config setter lives with the WebDAV directives). |
+| `dig.h` | Public contract: the URI prefix (`/.well-known/dig/`) and the `brix_dig_handle()` entry point. The export type and prototype are shared via `src/protocols/webdav/webdav.h` (the config setter lives with the WebDAV directives). |
 | `dig.c` | The handler and all of its enforcement: principal resolution, allow-file authorization, method/confinement checks, and the confined open+serve. |
 
 ## See also
 
-- `../path/beneath.h` — the `RESOLVE_BENEATH` confined-open primitive.
+- `src/fs/path/beneath.h` — the `RESOLVE_BENEATH` confined-open primitive.
 - `../webdav/README.md` — the HTTP dispatch that routes the dig prefix here.

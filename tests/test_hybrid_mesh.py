@@ -42,6 +42,7 @@ import pytest
 
 import cms_mesh_lib as cml
 import hybrid_mesh_lib as hml
+from settings import ARTIFACTS_DIR
 
 P = hml.PORTS
 HOST = hml.HOST
@@ -277,7 +278,7 @@ def test_webdav_download_via_redirector():
     nginx f serves via the single-port handoff.  Sweeps until each backend has
     served at least once (proves cross-backend WebDAV through the redirector)."""
     served = set()
-    out = "/tmp/hm_dav_probe.out"
+    out = os.path.join(ARTIFACTS_DIR, "hm_dav_probe.out")
     for i in range(24):
         r = _webdav_get(P["g_http"], f"{EXPORT}/{hml.SEED_REL}", out,
                         tls=True, follow=True)

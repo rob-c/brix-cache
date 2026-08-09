@@ -2,18 +2,23 @@
 
 import os
 
-TEST_ROOT = os.environ.get("TEST_ROOT", "/tmp/xrd-test")
+TEST_ROOT = os.path.abspath(os.path.expanduser(
+    os.environ.get("TEST_ROOT", "/tmp/xrd-test")))
+# Publish the normalized path before launchers capture the environment. A
+# relative root would otherwise change meaning after pytest enters TEST_ROOT/cwd.
+os.environ["TEST_ROOT"] = TEST_ROOT
 REGISTRY_ROOT = os.environ.get(
     "TEST_REGISTRY_ROOT", os.path.join(TEST_ROOT, "registry")
 )
 REGISTRY_MANIFEST = os.environ.get(
     "TEST_REGISTRY_MANIFEST", os.path.join(REGISTRY_ROOT, "manifest.json")
 )
+FLEET_READY = os.path.join(REGISTRY_ROOT, ".fleet-ready")
 REGISTRY_ENABLED = os.environ.get("TEST_SERVER_REGISTRY", "1") != "0"
 REGISTRY_START = os.environ.get("TEST_REGISTRY_START", "1") != "0"
 REGISTRY_KEEP_LOGS = os.environ.get("TEST_REGISTRY_KEEP_LOGS", "0") == "1"
 REGISTRY_STRICT_TEMPLATES = os.environ.get("TEST_REGISTRY_STRICT_TEMPLATES", "1") != "0"
-REGISTRY_PORT_BASE = os.environ.get("TEST_REGISTRY_PORT_BASE")
+TEST_PORT_START = int(os.environ.get("TEST_PORT_START", "10000"))
 
 
 # ---------------------------------------------------------------------------
@@ -87,6 +92,7 @@ COMPRESS_DATA_ROOT = os.path.join(TEST_ROOT, "data-compress")
 INTEROP_OUR_PORT = int(os.environ.get("TEST_INTEROP_OUR_PORT", "21200"))
 INTEROP_OFF_PORT = int(os.environ.get("TEST_INTEROP_OFF_PORT", "21201"))
 TMP_DIR = os.path.join(TEST_ROOT, "tmp")
+ARTIFACTS_DIR = os.path.join(TEST_ROOT, "artifacts")
 # Scratch working directory the whole test session chdir()s into, so any
 # cwd-relative artifact a spawned process makes (e.g. an xrootd `-n` instance
 # dir) lands inside the temp tree and never in the repo.
@@ -105,6 +111,11 @@ os.environ["TMPDIR"] = TMP_DIR
 _tempfile.tempdir = TMP_DIR
 
 NGINX_BIN = os.environ.get("TEST_NGINX_BIN", "/tmp/nginx-1.28.3/objs/nginx")
+# A dedicated ASan/UBSan-instrumented nginx(+brix), supplied the SAME way as
+# NGINX_BIN — operator `--asan-nginx-bin` / `TEST_ASAN_NGINX_BIN`.  The sanitizer
+# lane (tools/ci/asan.py) and any test that wants a sanitized server point at
+# this instead of the plain fleet binary; empty means "build it / use default".
+ASAN_NGINX_BIN = os.environ.get("TEST_ASAN_NGINX_BIN", "")
 BRIX_BIN = os.environ.get("TEST_BRIX_BIN", "xrootd")
 XRDFS_BIN = os.environ.get("TEST_XRDFS_BIN", "xrdfs")
 XRDCP_BIN = os.environ.get("TEST_XRDCP_BIN", "xrdcp")
@@ -551,3 +562,19 @@ MIRROR_SHADOW_PORT = int(os.environ.get("TEST_MIRROR_SHADOW_PORT", "32003"))
 # Mock RFC 7662 token-introspection endpoint (test_phase21_proxy_filter.py):
 # stateless — 'revoked' in the token -> active:false, else active:true.
 INTROSPECT_IDP_PORT = int(os.environ.get("TEST_INTROSPECT_IDP_PORT", "32004"))
+
+# Historical literals formerly embedded directly in registry-owned templates
+# and fleet specs. Keeping the old values here records their development ports.
+NGINX_DASHBOARD_PORT = int(os.environ.get("TEST_NGINX_DASHBOARD_PORT", "8445"))
+ZIP_ROOT_PORT = int(os.environ.get("TEST_ZIP_ROOT_PORT", "21196"))
+ZIP_WEBDAV_PORT = int(os.environ.get("TEST_ZIP_WEBDAV_PORT", "21198"))
+ZIP_S3_PORT = int(os.environ.get("TEST_ZIP_S3_PORT", "21199"))
+CHAOS_DISCOVERY_CMS_PORT = int(
+    os.environ.get("TEST_CHAOS_DISCOVERY_CMS_PORT", "11167"))
+
+# Rebase every named test port onto the contiguous TEST_PORT_START ladder.
+# Each default above is deliberately retained as the original port used by the
+# test that introduced it.  The ladder, rather than those historical values,
+# is the runtime source of truth.
+from port_ladder import rebase_settings as _rebase_settings
+_rebase_settings(globals())

@@ -101,6 +101,12 @@ static const kxr_name_entry_t  kxr_error_names[] = {
     { kXR_Impossible,     "Impossible"     },
     { kXR_Conflict,       "Conflict"       },
     { kXR_TooManyErrs,    "TooManyErrs"    },
+    { kXR_SigVerErr,      "SigVerErr"      },
+    { kXR_DecryptErr,     "DecryptErr"     },
+    { kXR_BadPayload,     "BadPayload"     },
+    { kXR_noReplicas,     "noReplicas"     },
+    { kXR_ReqTimedOut,    "ReqTimedOut"    },
+    { kXR_TimerExpired,   "TimerExpired"   },
 };
 
 /*

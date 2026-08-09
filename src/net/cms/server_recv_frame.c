@@ -52,6 +52,10 @@ cms_srv_blfile_tick(brix_cms_srv_ctx_t *ctx, ngx_uint_t force,
 {
     brix_cms_blfile_poll(&ctx->conf->blfile, &ctx->conf->blacklist_file,
                            ctx->interval_ms * 3, force, log);
+    /* §2.13: whitelist mode — same cadence, inverted enforcement (the two
+     * directives are mutually exclusive, so at most one poll acts). */
+    brix_cms_wlfile_poll(&ctx->conf->wlfile, &ctx->conf->whitelist_file,
+                           ctx->interval_ms * 3, force, log);
 }
 
 static void
@@ -83,9 +87,109 @@ brix_cms_srv_ping_timer(ngx_event_t *ev)
  * defer registration until authentication succeeds without duplicating the
  * register/log/timer sequence.
  */
+/*
+ * cms_srv_login_admission — §2.9/§2.13 pre-registration gates.
+ *
+ * WHAT: Runs the three admission policies that can refuse/redirect a node
+ *       BEFORE it enters the registry: (1) a blacklist entry with a
+ *       `redirect` action answers kYR_try naming the alternate manager and
+ *       closes; (2) whitelist mode closes a login from any host matching no
+ *       entry; (3) the ManTree-style max_direct cap redirects a NEW data
+ *       server ("S") to the least-utilised registered supervisor.  Returns 0
+ *       when the login was intercepted (connection closed / redirected), 1
+ *       to proceed with registration.
+ * WHY:  Stock parity: cms.blacklist redirect targets and the login-time
+ *       redirect-to-supervisor are both LOGIN verdicts, not post-registration
+ *       drains — the node must never transit the selectable state.
+ * HOW:  Force a file poll first (fresh entries), consult brix_cms_blfile_find
+ *       for the peer, then the registry counters for the tree cap.  A node
+ *       already registered (reconnect) is exempt from max_direct so a
+ *       heartbeat blip cannot bounce an established member.
+ */
+static int
+cms_srv_login_admission(brix_cms_srv_ctx_t *ctx)
+{
+    ngx_log_t *log = (ctx->c != NULL) ? ctx->c->log : ngx_cycle->log;
+
+    cms_srv_blfile_tick(ctx, 1, log);
+
+    /* (1) blacklist `redirect` action: bounce instead of admit. */
+    {
+        const brix_cms_blfile_entry_t *e =
+            brix_cms_blfile_find(&ctx->conf->blfile, ctx->host, ctx->port);
+
+        if (e != NULL && e->has_redirect) {
+            ngx_log_error(NGX_LOG_NOTICE, log, 0,
+                "brix: CMS server: login from blacklisted %s:%d "
+                "redirected to %s:%d", ctx->host, (int) ctx->port,
+                e->redirect_host, (int) e->redirect_port);
+            brix_cms_log_action_hp(log, "login-redirect", ctx->host,
+                                   (int) ctx->port, "in", NULL, 1,
+                                   "blacklist redirect entry -> kYR_try");
+            (void) brix_cms_srv_send_try(ctx, e->redirect_host,
+                                           e->redirect_port);
+            cms_srv_fail_close(ctx, BRIX_SESS_END_SERVER);
+            return 0;
+        }
+    }
+
+    /* (2) whitelist mode: only listed hosts may join. */
+    if (ctx->conf->whitelist_file.len > 0
+        && ctx->conf->wlfile.nentries > 0
+        && brix_cms_blfile_find(&ctx->conf->wlfile, ctx->host,
+                                  ctx->port) == NULL)
+    {
+        ngx_log_error(NGX_LOG_NOTICE, log, 0,
+            "brix: CMS server: login from %s:%d refused — not on the "
+            "whitelist", ctx->host, (int) ctx->port);
+        brix_cms_log_action_hp(log, "login", ctx->host, (int) ctx->port,
+                               "in", NULL, 0, "host not whitelisted");
+        cms_srv_fail_close(ctx, BRIX_SESS_END_SERVER);
+        return 0;
+    }
+
+    /* (3) §2.9 ManTree offload: a NEW data server past the direct cap is
+     * redirected to a supervisor.  Supervisors/managers/peers always land
+     * directly (they ARE the tree), as does a reconnecting known server. */
+    if (ctx->conf->max_direct > 0
+        && ctx->node_role != NULL && ctx->node_role[0] == 'S'
+        && !brix_srv_is_blacklisted(ctx->host, ctx->port)
+        && brix_srv_count_servers() >= (ngx_uint_t) ctx->conf->max_direct
+        && !brix_srv_is_registered(ctx->host, ctx->port))
+    {
+        char      sup_host[256];
+        uint16_t  sup_port;
+
+        if (brix_srv_find_supervisor(sup_host, sizeof(sup_host),
+                                       &sup_port))
+        {
+            ngx_log_error(NGX_LOG_NOTICE, log, 0,
+                "brix: CMS server: direct-server cap (%i) reached — "
+                "offloading %s:%d to supervisor %s:%d",
+                (int) ctx->conf->max_direct, ctx->host, (int) ctx->port,
+                sup_host, (int) sup_port);
+            brix_cms_log_action_hp(log, "login-offload", ctx->host,
+                                   (int) ctx->port, "in", NULL, 1,
+                                   "max_direct reached -> kYR_try supervisor");
+            (void) brix_cms_srv_send_try(ctx, sup_host, sup_port);
+            cms_srv_fail_close(ctx, BRIX_SESS_END_SERVER);
+            return 0;
+        }
+        /* No supervisor to offload to: admit directly — refusing outright
+         * would shrink the cluster below what static config can serve. */
+    }
+
+    return 1;
+}
+
 void
 cms_srv_complete_login(brix_cms_srv_ctx_t *ctx)
 {
+    /* §2.9/§2.13: admission gates may redirect/refuse BEFORE registration. */
+    if (!cms_srv_login_admission(ctx)) {
+        return;
+    }
+
     brix_srv_register(ctx->host, ctx->port, ctx->paths,
                          ctx->free_mb, ctx->util_pct);
     if (ctx->vnid[0] != '\0') {

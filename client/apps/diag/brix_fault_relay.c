@@ -131,17 +131,35 @@ fault_clamp_seg(ssize_t seg, int piece, long trunc, unsigned long conn_ctr)
     return seg;
 }
 
-/* Apply direction `L`'s pacing/jitter/reorder delays before a segment write. */
+/* Apply direction `L`'s pacing/jitter/reorder delays before a segment write.
+ * `sent` is the bytes already forwarded this direction, so a token-bucket
+ * `burst` budget can be spent up front (no pacing until the budget is used). */
 void
-fault_delays(ssize_t seg, unsigned *seed, const lever_t *L)
+fault_delays(ssize_t seg, unsigned *seed, const lever_t *L, unsigned long sent)
 {
     if (L->jitter_ms > 0) {
-        usleep((useconds_t) (rand_r(seed) % (unsigned) (L->jitter_ms + 1)) * 1000);
+        long ms;
+        if (L->lat_dist == 1) {
+            /* Normal(mean=jitter_ms, sigma=lat_sigma_ms) via Irwin-Hall (sum of
+             * 12 uniforms - 6 ≈ N(0,1)); no libm.  Clamped to [0, ...]. */
+            double u = 0.0;
+            for (int j = 0; j < 12; j++) {
+                u += (double) (rand_r(seed) % 100000u) / 100000.0;
+            }
+            double z = u - 6.0;
+            ms = (long) ((double) L->jitter_ms + z * (double) L->lat_sigma_ms);
+            if (ms < 0) { ms = 0; }
+        } else {
+            ms = rand_r(seed) % (unsigned) (L->jitter_ms + 1);
+        }
+        usleep((useconds_t) ms * 1000);
     }
     if (L->reorder_ppm > 0 && (int) (rand_r(seed) % 1000000u) < L->reorder_ppm) {
         usleep((useconds_t) L->reorder_ms * 1000);
     }
-    if (L->rate_kbps > 0) {
+    /* rate: pace to the ceiling, but spend any `burst` credit up front — while
+     * the bytes forwarded so far are within the burst budget, forward unpaced. */
+    if (L->rate_kbps > 0 && (L->burst_bytes <= 0 || (long) sent >= L->burst_bytes)) {
         usleep((useconds_t) ((long long) seg * 1000000
                              / ((long long) L->rate_kbps * 1024)));
     }
@@ -154,45 +172,18 @@ fault_corrupt(char *buf, ssize_t off, ssize_t seg, unsigned *seed, int cor)
     if (cor <= 0) {
         return;
     }
+    long flips = 0;
     for (ssize_t k = 0; k < seg; k++) {
         if ((int) (rand_r(seed) % 1000000u) < cor) {
             buf[off + k] ^= (char) (1u << (rand_r(seed) % 8u));
             CBUMP(corrupt, 1);
+            flips++;
         }
     }
-}
-
-/* Aggregate token-bucket gate: pace this segment against a single uplink ceiling
- * shared across ALL relays (simulates a saturated shared link / upstream link).
- * Briefly holds g_gr_lock to update the shared tokens, then sleeps unlocked. */
-void
-global_rate_gate(ssize_t seg)
-{
-    int kbps = g_global_rate_kbps;
-    if (kbps <= 0) {
-        return;
-    }
-    double rate = (double) kbps * 1024.0;   /* bytes / second */
-    pthread_mutex_lock(&g_gr_lock);
-    struct timespec now;
-    clock_gettime(CLOCK_MONOTONIC, &now);
-    if (!g_gr_init) {
-        g_gr_last = now;
-        g_gr_tokens = 0.0;
-        g_gr_init = 1;
-    }
-    double elapsed = (now.tv_sec - g_gr_last.tv_sec)
-                   + (now.tv_nsec - g_gr_last.tv_nsec) / 1e9;
-    g_gr_tokens += elapsed * rate;
-    if (g_gr_tokens > rate) {
-        g_gr_tokens = rate;   /* cap the burst at ~1s of credit */
-    }
-    g_gr_last = now;
-    g_gr_tokens -= (double) seg;
-    double deficit = g_gr_tokens < 0.0 ? -g_gr_tokens : 0.0;
-    pthread_mutex_unlock(&g_gr_lock);
-    if (deficit > 0.0) {
-        usleep((useconds_t) (deficit / rate * 1e6));
+    /* One batched corrupt event per segment — the COUNT only, never a byte. */
+    if (flips > 0) {
+        brix_fp_event(t_conn_id, t_fwd_up ? "up" : "down", "corrupt", NULL,
+                      "count", flips);
     }
 }
 
@@ -207,10 +198,13 @@ forward_segment(int to, char *buf, ssize_t off, ssize_t n, unsigned epoch,
 {
     ssize_t seg = fault_clamp_seg(n - off, piece, L->truncate_at, *conn_ctr);
     if (seg < 0) {
+        /* Emit a discrete truncate event (with the exact cut offset) in addition
+         * to the sever that follows — no payload bytes, only the boundary. */
+        brix_fp_event(t_conn_id, t_fwd_up ? "up" : "down", "truncate", NULL, "at", L->truncate_at);
         return fault_sever("truncate");
     }
 
-    fault_delays(seg, seed, L);
+    fault_delays(seg, seed, L, *conn_ctr);
 
     if (L->lossy_ppm > 0 && (int) (rand_r(seed) % 1000000u) < L->lossy_ppm) {
         return fault_sever("lossy");   /* application-visible "loss" = sever the stream */
@@ -234,6 +228,7 @@ forward_segment(int to, char *buf, ssize_t off, ssize_t n, unsigned epoch,
     *wrote = seg;
 
     if (L->truncate_at > 0 && (long) *conn_ctr >= L->truncate_at) {
+        brix_fp_event(t_conn_id, t_fwd_up ? "up" : "down", "truncate", NULL, "at", L->truncate_at);
         return fault_sever("truncate");   /* deterministic mid-transfer cut */
     }
     return 0;
@@ -509,8 +504,20 @@ relay_thread(void *arg)
 
     unsigned seed = g_seed + (unsigned) conn_id * 2654435761u;
 
+    /* toxicity: decide once per connection which directions this relay afflicts.
+     * A separate RNG stream (tseed) so the afflicted-set is reproducible under
+     * --seed without perturbing the byte-fault stream. */
+    unsigned tseed = seed ^ 0x5bd1e995u;
+    t_afflict_up   = (int) (rand_r(&tseed) % 1000000u) < g_toxicity_up_ppm;
+    t_afflict_down = (int) (rand_r(&tseed) % 1000000u) < g_toxicity_down_ppm;
+
     if (relay_predial(cfd, epoch, conn_id)) {
         return NULL;
+    }
+
+    /* connect-delay: model slow upstream dial / SYN-ACK latency. */
+    if (g_connect_delay_ms > 0) {
+        usleep((useconds_t) g_connect_delay_ms * 1000);
     }
 
     /* Replay: synthesise the response from a recorded session, no upstream. */

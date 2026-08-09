@@ -7,7 +7,7 @@ operation on a path*. Identity establishment (GSI, tokens, SSS, krb5, …)
 lives in the sibling directories; everything here runs after identity is
 known. It is security-load-bearing: the auth gate is the SOLE authorization
 checkpoint on the cached-serve path (the 2026-07-06 cache-authz fix made
-`root/read/open_cache.c` run the FULL gate — serve and fill helpers are
+`src/protocols/root/read/open_cache.c` run the FULL gate — serve and fill helpers are
 deliberately auth-free so this gate cannot be bypassed).
 
 Two rule sources are compiled at postconfig: VO ACL rules (`acl.c`) and
@@ -35,6 +35,12 @@ serializes auth decisions across workers on the GSI hot path.
 | `auth_gate_l1.c` / `auth_gate_l1.h` | per-worker lockless direct-mapped L1 over the SHM verdict cache |
 | `auth_cache.c` / `auth_cache.h` | the optional cross-worker SHM verdict cache (`brix_auth_cache` directive) |
 
+### Other files
+
+| File | Responsibility |
+|---|---|
+| `authdb_parse.c` | read a full authdb file into a heap buffer, enforcing the size policy. |
+
 ## Invariants, security & gotchas
 
 1. The gate is the sole authorization checkpoint on the cached-read path.
@@ -53,5 +59,5 @@ serializes auth decisions across workers on the GSI hot path.
 ## See also
 
 - [../gsi/README.md](../gsi/README.md), [../token/README.md](../token/README.md) — identity establishment
-- [../../protocols/root/read/](../../protocols/root/read/) — `open_cache.c`, the hot caller
+- [../../protocols/root/read/](../../protocols/root/read/) — `src/protocols/root/read/open_cache.c`, the hot caller
 - [../../../docs/09-developer-guide/cache-authz-best-practice.md](../../../docs/09-developer-guide/cache-authz-best-practice.md)

@@ -60,15 +60,15 @@ distinct from the inline transparent-forwarding *proxy mode* (`src/net/proxy/`,
 - **`brix_up_bs_t`** — ordered bootstrap phases: `HANDSHAKE → PROTOCOL → TLS → LOGIN → AUTH → DONE`. Each phase consumes one server response; reaching `DONE` triggers `brix_upstream_send_request()`.
 - **`brix_up_state_t`** — coarse connection state used by the read handler to choose its dispatch: `CONNECTING` (awaiting `SO_ERROR`), `BOOTSTRAP` (responses → state machine), `REQUEST` (response → `forward_response`), `ASYNC` (post-`kXR_waitresp`, also → `forward_response`).
 - **`BRIX_UP_WAIT_MAX`** (60) — ceiling clamped onto any `kXR_wait` seconds value, bounding the retry timer.
-- **Config fields** (in `ngx_stream_brix_srv_conf_t`, `../types/config.h`): `upstream_host`/`upstream_port`/`upstream_addr` (address), `upstream_tls`/`upstream_tls_ca`/`upstream_tls_name`/`upstream_tls_ctx` (outbound TLS, ctx built at postconfiguration in `../config/runtime_server.c`), and `upstream_token_file` (ztn credential).
+- **Config fields** (in `ngx_stream_brix_srv_conf_t`, `src/core/types/config.h`): `upstream_host`/`upstream_port`/`upstream_addr` (address), `upstream_tls`/`upstream_tls_ca`/`upstream_tls_name`/`upstream_tls_ctx` (outbound TLS, ctx built at postconfiguration in `src/core/config/runtime_server.c`), and `upstream_token_file` (ztn credential).
 
 ## Control & data flow
 
-**Entry.** Manager-mode opcode handlers `../read/locate.c` (kXR_locate) and
-`../read/open_request.c` (kXR_open) call `brix_upstream_start(ctx, c, conf)`
+**Entry.** Manager-mode opcode handlers `src/protocols/root/read/locate.c` (kXR_locate) and
+`src/protocols/root/read/open_request.c` (kXR_open) call `brix_upstream_start(ctx, c, conf)`
 only after the local `brix_stat_beneath()` misses *and* `upstream_host` is set.
 `start.c` saves the client request, opens the outbound socket, sets
-`ctx->state = XRD_ST_UPSTREAM`, and returns. While parked, `../connection/recv.c`
+`ctx->state = XRD_ST_UPSTREAM`, and returns. While parked, `src/protocols/root/connection/recv.c`
 treats inbound bytes on the client connection as a no-op (just re-arms the read
 event) so nothing reorders the in-flight query.
 
@@ -81,17 +81,17 @@ the phase machine (calling out to `tls.c` on `kXR_gotoTLS` and `auth.c` on
 `brix_upstream_cleanup()`, queue the rewrapped frame via
 `brix_queue_response()` / `brix_send_error()` (`../connection/`,
 `../response/`), reset `ctx->state = XRD_ST_REQ_HEADER`, and call
-`brix_schedule_read_resume()` (`../connection/event_sched.h`) to wake the
+`brix_schedule_read_resume()` (`src/protocols/root/connection/event_sched.h`) to wake the
 client read loop.
 
-**Calls out to.** Path extraction `brix_extract_path()` (`../path/path.h`);
+**Calls out to.** Path extraction `brix_extract_path()` (`src/fs/path/path.h`);
 wire-header construction `brix_build_resp_hdr()` and `brix_send_waitresp()`
 (`../response/`); client-side response queueing / error / resume
-(`../connection/`); token file read `brix_token_read_file()` (`../token/file.h`);
+(`../connection/`); token file read `brix_token_read_file()` (`src/auth/token/file.h`);
 wire constants and request/response structs (`../protocol/`). The outbound TLS
-`ngx_ssl_t` context is assembled at config time in `../config/runtime_server.c`.
+`ngx_ssl_t` context is assembled at config time in `src/core/config/runtime_server.c`.
 
-**Teardown.** On client disconnect, `../connection/disconnect.c` calls
+**Teardown.** On client disconnect, `src/protocols/root/connection/disconnect.c` calls
 `brix_upstream_cleanup(ctx->upstream)` so an in-flight query never leaks its
 socket or timer.
 
@@ -150,16 +150,16 @@ socket or timer.
   `bootstrap.c`'s `XRD_UP_BS_LOGIN` handler on the advertised credtype and add a
   config field + directive (the address directive parser lives here in
   `directives.c`; the `brix_upstream_tls*` / `brix_upstream_token_file`
-  directives are registered in `../stream/module.c` and merged in
-  `../config/`, with the SSL context built in `../config/runtime_server.c`).
+  directives are registered in `src/protocols/root/stream/module.c` and merged in
+  `../config/`, with the SSL context built in `src/core/config/runtime_server.c`).
 
 ## See also
 
-- `../read/locate.c`, `../read/open_request.c` — the two call sites that start an upstream query.
-- `../connection/recv.c`, `../connection/disconnect.c`, `../connection/event_sched.h` — client-connection parking, teardown hook, and read resume.
+- `src/protocols/root/read/locate.c`, `src/protocols/root/read/open_request.c` — the two call sites that start an upstream query.
+- `src/protocols/root/connection/recv.c`, `src/protocols/root/connection/disconnect.c`, `src/protocols/root/connection/event_sched.h` — client-connection parking, teardown hook, and read resume.
 - `../response/` — `brix_build_resp_hdr`, `brix_send_error`, `brix_send_waitresp`.
-- `../path/path.h` — `brix_extract_path`; `../token/file.h` — token file reader; `../protocol/` — wire structs/constants.
-- `../config/runtime_server.c`, `../types/config.h` — upstream config fields and outbound TLS context.
+- `src/fs/path/path.h` — `brix_extract_path`; `src/auth/token/file.h` — token file reader; `../protocol/` — wire structs/constants.
+- `src/core/config/runtime_server.c`, `src/core/types/config.h` — upstream config fields and outbound TLS context.
 - `../manager/` — the SHM server registry / redirect cache that decides *whether* to redirect; this subsystem confirms the chosen server.
 - `../proxy/` — inline transparent XRootD forwarding (`brix_proxy_upstream`), a different mode from this redirector query.
 - `../tpc/` — native third-party copy via the SHM key registry.

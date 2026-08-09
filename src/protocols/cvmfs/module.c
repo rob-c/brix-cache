@@ -12,7 +12,7 @@
  *      as the location's content handler — the location IS the protocol
  *      endpoint; no WebDAV dispatch is involved.
  *   3. Directive table: the brix_cvmfs_* family (split into the two
- *      directives_*.inc fragments) and its enums.
+ *      directives_*.h fragments) and its enums.
  *   4. nginx $cvmfs_* variables + pre/post-configuration + init-process
  *      and the ngx_module_t definition.
  *
@@ -357,11 +357,11 @@ static ngx_conf_enum_t  brix_cvmfs_geo_answer_enum[] = {
 
 static ngx_command_t ngx_http_brix_cvmfs_commands[] = {
 
-    /* ---- origin resilience directives (split into directives_resilience.inc) ---- */
-#include "directives_resilience.inc"
+    /* ---- origin resilience directives (split into directives_resilience.h) ---- */
+#include "directives_resilience.h"
 
-    /* ---- cvmfs core + scvmfs + tier directives (split into directives_core.inc) ---- */
-#include "directives_core.inc"
+    /* ---- cvmfs core + scvmfs + tier directives (split into directives_core.h) ---- */
+#include "directives_core.h"
 
     ngx_null_command
 };

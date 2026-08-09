@@ -38,3 +38,11 @@ MODE E reassembly, TLS/security glue, path handling, transfers). This top
 directory owns the module/config skeleton and the shared security/framing
 primitives the engine consumes. The control-channel GSSAPI accept engine itself
 is `src/auth/gssapi/gsi_mech.c`.
+
+### Other files
+
+| File | Responsibility |
+|---|---|
+| `ftp_module_gsi.c` | GridFTP gateway RFC 2228 GSI security-layer setup: build the host TLS context (cert/key) and the client-proxy trust store from the brix_gridftp_gsi / _certificate / _certificate_key / _trusted_ca directives. |
+| `ftp_module_internal.h` | gridftp/ftp_module_internal.h — cross-file seam between the GridFTP module descriptor / directive setters (ftp_module.c) and the concept siblings split out of it (ftp_module_gsi.c). |
+| `ftp_module_merge.c` | the GridFTP gateway's parent→child config merge. |

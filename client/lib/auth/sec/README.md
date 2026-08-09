@@ -9,7 +9,7 @@ bucket math used by the crypto-bearing modules (GSI, pwd) lives in the common
 `gsi_core` (compiled into both this client and the server module), so these files
 are mostly orchestration plus their protocol-specific framing.
 
-`client/lib/auth.c` selects which module to offer based on what the server
+`client/lib/auth/auth.c` selects which module to offer based on what the server
 advertises, trying strongest-first; the weak host/unix/pwd schemes are preferred
 **last** and are intended for trusted/closed networks (under TLS).
 
@@ -31,13 +31,13 @@ advertises, trying strongest-first; the weak host/unix/pwd schemes are preferred
 - **No libXrdSec.** Every credential is built from first principles here +
   `gsi_core` + libxrdproto primitives (e.g. `brix_sha256`).
 - **Strongest-first selection** with the spoofable/cleartext-adjacent schemes
-  (`host`, `unix`, `pwd`) preferred last — see `client/lib/auth.c`.
+  (`host`, `unix`, `pwd`) preferred last — see `client/lib/auth/auth.c`.
 - **Wire-exact framing.** Each payload matches the server decoder byte-for-byte
   (the `XProtocol.hh kXR_auth` credtype tag + the scheme's body); the per-file
   header docblocks cite the exact server-side counterpart.
 
 ## See also
 
-- `../README.md` — the `libbrix` library overview.
+- `../../README.md` — the `libbrix` library overview.
 - Server side: [`src/auth/gsi/`](../../../src/auth/gsi/), [`src/auth/token/`](../../../src/auth/token/),
   [`src/auth/sss/`](../../../src/auth/sss/), [`src/auth/krb5/`](../../../src/auth/krb5/).

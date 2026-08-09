@@ -304,14 +304,25 @@ tpc_setup_source(tpc_state_t *s, tpc_params_t *p, brix_status *st)
  *       in one helper so the wire layout lives in a single place and copy_tpc's
  *       run stage reads as a sequence of opens.
  * HOW:  Emit tpc.key/src/lfn/dlg/spr/tpr/dlgon/stage in the stock order. tpc.dlg
- *       names the originally-requested source endpoint and is inert while
- *       tpc.dlgon=0 (this client never delegates; emitted for XrdCl wire parity).
- *       oss.asize is appended only when the best-effort stat learned the size.
+ *       names the originally-requested source endpoint; tpc.dlgon states whether
+ *       the destination should read the source AS THIS CLIENT using a delegated
+ *       credential (1) or with its own service identity (0).
+ *
+ *       dlgon tracks the requested --tpc mode: `--tpc delegate` (XRDC_TPC_DELEGATE)
+ *       emits 1, every other mode emits 0. Hardcoding 0 here was a silent
+ *       downgrade — `--tpc delegate` produced a byte-identical request to
+ *       `--tpc first`, so a destination that honours dlgon never ran the
+ *       delegated flow and the mode did nothing (audit §7.5 / §9.2).
+ *       This client CAN satisfy the delegation it advertises: the GSI driver
+ *       answers the destination's kXGS_pxyreq round with a signed delegated
+ *       proxy (sec_gsi.c gsi_sigpxy), and --tpc-token-mode carries the bearer
+ *       equivalent. oss.asize is appended only when the stat learned the size.
  */
 static void
 tpc_build_dst_opaque(char *dst_opaque, size_t need, const tpc_params_t *p)
 {
     char asize[48];
+    int  dlgon = (p->o != NULL && p->o->tpc_mode == XRDC_TPC_DELEGATE) ? 1 : 0;
 
     asize[0] = '\0';
     if (p->size >= 0) {
@@ -319,9 +330,9 @@ tpc_build_dst_opaque(char *dst_opaque, size_t need, const tpc_params_t *p)
     }
     snprintf(dst_opaque, need,
              "tpc.key=%s&tpc.src=%s&tpc.lfn=%s&tpc.dlg=%s:%d&tpc.spr=root"
-             "&tpc.tpr=root&tpc.dlgon=0%s&tpc.stage=copy%s%s",
-             p->key, p->src_hp, p->su->path, p->su->host, p->su->port, asize,
-             p->tok ? "&tpc.token_mode=" : "", p->tok ? p->tok : "");
+             "&tpc.tpr=root&tpc.dlgon=%d%s&tpc.stage=copy%s%s",
+             p->key, p->src_hp, p->su->path, p->su->host, p->su->port, dlgon,
+             asize, p->tok ? "&tpc.token_mode=" : "", p->tok ? p->tok : "");
 }
 
 
@@ -388,11 +399,23 @@ copy_tpc(const brix_url *su, const brix_url *du, const brix_copy_opts *o,
          const brix_opts *co, brix_status *st)
 {
     tpc_state_t   s = { 0 };
+    brix_opts     co_deleg;
     tpc_params_t  p = {
         .su = su, .du = du, .o = o, .co = co, .size = -1,
         .tok = (o->tpc_token_mode && o->tpc_token_mode[0])
                    ? o->tpc_token_mode : NULL,
     };
+
+    /* `--tpc delegate` means "the destination reads the source AS ME", which is
+     * only true if this client actually hands over a delegated proxy when the
+     * destination asks (kXGS_pxyreq).  Arm that on the sessions this copy owns —
+     * emitting tpc.dlgon=1 while refusing the delegation round would be the same
+     * silent downgrade one layer down (audit §7.5). */
+    if (o->tpc_mode == XRDC_TPC_DELEGATE && co != NULL) {
+        co_deleg = *co;
+        co_deleg.gsi_delegate = 1;
+        p.co = &co_deleg;
+    }
 
     /* 1. Placement: key + source session + best-effort stat. */
     if (tpc_setup_source(&s, &p, st) != 0) {

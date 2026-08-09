@@ -154,18 +154,74 @@ brix_sigver_opcode_requires(uint16_t opcode, ngx_uint_t level)
 }
 
 /*
+ * WHAT: Handle an opcode that the configured security level requires signed, on
+ *       a session that CANNOT sign (its auth protocol established no session
+ *       key — sss/ztn/krb5/unix/host; only GSI arms one today). Returns
+ *       BRIX_DISPATCH_CONTINUE to accept it unsigned, or the refusal result.
+ *
+ * WHY:  Audit §5.2/§9.2 — this case used to return CONTINUE before any check ran,
+ *       so `brix_security_level intense` on an sss server enforced NOTHING and
+ *       said nothing about it. The tamper protection an operator believed they
+ *       had configured was silently absent. Being unable to sign is a property of
+ *       the session's auth protocol, so the honest answers are "tell me" (always)
+ *       and "refuse" (when the operator opts in) — never "quietly allow".
+ *
+ * HOW:  Log once per session (the condition cannot change mid-session, so a
+ *       per-request line would flood with no new information), then refuse with
+ *       kXR_NotAuthorized when brix_signing_required is on, else continue with
+ *       today's behaviour. Default-off keeps every existing non-GSI deployment
+ *       working: turning it on rejects stock clients that never sign, which is a
+ *       deployment decision rather than a default.
+ */
+static ngx_int_t
+brix_signing_unsignable_session(brix_ctx_t *ctx, ngx_connection_t *c,
+    ngx_stream_brix_srv_conf_t *conf)
+{
+    if (!ctx->sigver.unsignable_logged) {
+        ctx->sigver.unsignable_logged = 1;
+        ngx_log_error(NGX_LOG_WARN, c->log, 0,
+                      "brix: brix_security_level=%d requires signed requests but "
+                      "this session's auth protocol established no signing key "
+                      "(only GSI does); requests are %s. Set "
+                      "brix_signing_required on to refuse them.",
+                      (int) conf->security_level,
+                      conf->signing_required ? "REFUSED" : "accepted UNSIGNED");
+    }
+    if (conf->signing_required) {
+        return brix_send_error(ctx, c, kXR_NotAuthorized,
+                                 "request signing required but this session "
+                                 "cannot sign");
+    }
+    return BRIX_DISPATCH_CONTINUE;
+}
+
+/*
  * brix_signing_enforce_level — enforce the configured brix_security_level.
  *
  * Checks whether the current opcode requires a signature at the configured
  * security level.  If it does and the request was not signed (verified_signing=0),
- * rejects the request with kXR_NotAuthorized.
+ * rejects the request with kXR_NotAuthorized.  A session that cannot sign at all
+ * is routed to brix_signing_unsignable_session rather than silently passing
+ * (audit §5.2/§9.2).
  */
 ngx_int_t
 brix_signing_enforce_level(brix_ctx_t *ctx, ngx_connection_t *c,
     ngx_stream_brix_srv_conf_t *conf)
 {
-    if (!ctx->sigver.signing_active || conf->security_level == 0) {
+    if (conf->security_level == 0) {
         return BRIX_DISPATCH_CONTINUE;
+    }
+
+    if (!ctx->sigver.signing_active) {
+        /* No signing key on this session. Only opcodes the level actually
+         * requires signed are affected — the session-state machine (login/
+         * protocol/auth/endsess/ping/bind) stays exempt exactly as for a
+         * signing-capable session, so this can never lock out the handshake. */
+        if (!brix_sigver_opcode_requires(ctx->recv.cur_reqid,
+                                         conf->security_level)) {
+            return BRIX_DISPATCH_CONTINUE;
+        }
+        return brix_signing_unsignable_session(ctx, c, conf);
     }
 
     if (brix_sigver_opcode_requires(ctx->recv.cur_reqid, conf->security_level)) {

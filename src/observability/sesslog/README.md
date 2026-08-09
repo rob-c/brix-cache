@@ -22,3 +22,11 @@ shutdown backstop.
 Protocol hooks should call only the glue API. Do not format `SESS` lines in a
 protocol handler; add enum values or fields in the formatter first so tests and
 all planes keep one grammar.
+
+### Other files
+
+| File | Responsibility |
+|---|---|
+| `sesslog.h` | The variable fields of an AUTH event — outcome, method, and the identity/error strings — bundled for the fmt_auth formatter. |
+| `sesslog_err.c` | One (numeric code -> stable token) mapping row. |
+| `sesslog_ngx.h` | nginx-facing lifecycle API for session audit logs. |

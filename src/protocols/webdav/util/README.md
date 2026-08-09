@@ -52,7 +52,7 @@ headers around 228–229).
 This subsystem defines no types of its own. It consumes constants and signatures
 from `../../compat/`:
 
-- **`brix_http_urldecode()` result codes** (`../../compat/uri.h`):
+- **`brix_http_urldecode()` result codes** (`src/core/compat/uri.h`):
   `BRIX_URLDECODE_OK` (0), `BRIX_URLDECODE_OVERFLOW` (1),
   `BRIX_URLDECODE_NUL_BYTE` (2), `BRIX_URLDECODE_BADARG` (3). `uri.c` maps
   these to `NGX_OK` / `414` / `400` / `500` respectively (BADARG and any unknown
@@ -82,13 +82,13 @@ from `../../compat/`:
   when building XML response bodies.
 
 **Calls out to:**
-- `../../compat/uri.c` (`brix_http_urldecode`) — the actual RFC 3986 decoder.
-- `../../compat/xml.c` (`brix_xml_escaped_len`, `brix_xml_escape`) — the
+- `src/core/compat/uri.c` (`brix_http_urldecode`) — the actual RFC 3986 decoder.
+- `src/core/compat/xml.c` (`brix_xml_escaped_len`, `brix_xml_escape`) — the
   actual two-pass escaper (length pre-sizing, then escape into the sized buffer).
 
 The decoded/escaped output then flows on into the rest of the WebDAV lifecycle:
 the decoded path goes through kernel confinement in `../../path/` (see
-`../../path/README.md`, `beneath.c` / RESOLVE_BENEATH) before any syscall; the
+`../../../fs/path/README.md`, `src/fs/path/beneath.c` / RESOLVE_BENEATH) before any syscall; the
 escaped XML is written into response chains by the calling method handler.
 
 ## Invariants, security & gotchas
@@ -135,7 +135,7 @@ escaped XML is written into response chains by the calling method handler.
   `.c` in the top-level `config` (`NGX_ADDON_SRCS`, alongside the existing
   `src/protocols/webdav/util/uri.c`) and the header in the headers list.
 - **Add a new response-body escaper (e.g. JSON):** mirror `xml.c` — add the flag
-  handling to `../../compat/xml.c` (or the relevant compat module) and keep the
+  handling to `src/core/compat/xml.c` (or the relevant compat module) and keep the
   pool-allocating, NULL-on-failure wrapper here so callers stay protocol-clean.
 - **Do not** add stateful or I/O-performing code here; this layer is intentionally
   pure transformation. Anything touching the filesystem belongs in `../../fs/` or
@@ -145,9 +145,9 @@ escaped XML is written into response chains by the calling method handler.
 
 - `../README.md` — WebDAV method-handler subsystem (callers: `path.c`, `copy.c`,
   `move.c`, `propfind.c`, `lock.c`, `methods_basic.c`, `search.c`, `dead_props.c`).
-- `../../compat/uri.h` / `../../compat/xml.h` — the all-protocol decode/escape
+- `src/core/compat/uri.h` / `src/core/compat/xml.h` — the all-protocol decode/escape
   implementations this subsystem wraps; `../../compat/log.{c,h}` — where the
   former safe-path log helper now lives.
-- `../../path/README.md` — path canonicalisation and RESOLVE_BENEATH confinement
+- `../../../fs/path/README.md` — path canonicalisation and RESOLVE_BENEATH confinement
   that consumes the decoded path.
 - `../../README.md` — master subsystem index.

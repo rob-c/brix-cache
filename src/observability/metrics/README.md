@@ -66,6 +66,26 @@ per-user views are made safe with bounded LRU tables and FNV-1a hashing
 | `access_log.c` | `brix_access_log_emit()` — emits one JSON access-log line per VFS op (ts, proto, op, path, bytes, latency, status, from_cache, auth method, subject) with `\uXXXX` escaping; this is where free-form identity/path safely lives. |
 | `tracking.c` | `brix_track_vo_activity()` and `brix_track_unique_user()` — maintain the bounded VO and unique-user LRU tables (FNV-1a identity hashing, overflow/eviction accounting) so high-cardinality identity never reaches a label. |
 
+### Other files
+
+| File | Responsibility |
+|---|---|
+| `cvmfs.c` | Prometheus export for the cvmfs:// protocol plane (phase-68). |
+| `frm_metrics.c` | Emits the brix_frm_* metric families from the shared metrics block: stage requests/dedup/reject counters, success and fail-by-reason counters, the in-flight gauge, the evict/migrate/purge/cmsd-have/async counters, and a. |
+| `health.c` | ngx_http_brix_health_handler() serves GET/HEAD /healthz as a small JSON document so an external load balancer or a Kubernetes liveness/ readiness probe has a cheap endpoint to poll. |
+| `metrics_cvmfs.h` | metrics/metrics_cvmfs.h. |
+| `metrics_frm.h` | metrics/metrics_frm.h. |
+| `metrics_http_labels.h` | metrics/metrics_http_labels.h. |
+| `metrics_proxy.h` | metrics/metrics_proxy.h. |
+| `metrics_s3.h` | metrics/metrics_s3.h. |
+| `metrics_webdav.h` | metrics/metrics_webdav.h. |
+| `stream_family.c` | The descriptor-table infrastructure (srv_family_desc_t + the shared slot-scan emitter) and every per-server stream-layer metric family it drives: connections, transfer-heap budget, payload/wire/frame bytes, fault-timeout. |
+| `stream_internal.h` | declares the per-server-family emit helpers that live in stream_family.c but are driven from the top-level scrape sequence in stream.c (brix_export_prometheus_metrics). |
+| `unified_export.c` | Renders the cred_select, cache (hits/misses/evicted + watermark reaper), write-back staging, auth, and tpc Prometheus families, and hosts the brix_export_unified_metrics entry point that fans out over every unified_emit_. |
+| `unified_export_io.c` | Renders the three brix_io_* Prometheus families — io_bytes_{read, written}, io_ops_total, and the io_latency_usec histogram — and hosts the two helpers shared with the rest of the exporter: brix_metric_value (lock-free c. |
+| `unified_internal.h` | Declares the handful of symbols that the unified metrics implementation shares ACROSS its four .c files but that are NOT part of the public unified.h API: the two label tables the exporter indexes directly (auth + tpc-di. |
+| `unified_record.c` | Implements the hot-path record helpers protocol handlers call to bump the unified SHM counters — brix_metric_op_done (io ops/bytes/latency), brix_metric_backend_bytes (per-backend byte totals), brix_metric_cache_result /. |
+
 ## Key types & data structures
 
 - **`ngx_brix_metrics_t`** (`metrics.h`) — the root SHM object stored in
@@ -127,16 +147,16 @@ handler emits `brix_kv_metrics_emit()` (KV zones). All reads use
 `ngx_atomic_fetch_add(..., 0)`.
 
 **Calls out to siblings.** `cluster.c` reads the manager registry SHM
-(`../manager/registry.h`, `brix_srv_snapshot`) — see [../manager/README.md](../../net/manager/README.md)
-and [../cms/README.md](../../net/cms/README.md) for how that registry is populated.
-`stream_cache.c` reports on the [../cache/README.md](../../fs/cache/README.md) read-through/
-write-through subsystem via `../compat/fs_usage.h`. `unified.c` and `access_log.c`
-consume identity from `../types/identity.h`, and `writer.c` reads KV stats from
-`../shm/kv.h`. The op slots correspond to handlers in
-[../read/README.md](../../protocols/root/read/README.md) and [../write/README.md](../../protocols/root/write/README.md);
-async completions that bump counters originate in [../aio/README.md](../../core/aio/README.md);
+(`src/net/manager/registry.h`, `brix_srv_snapshot`) — see [../../net/manager/README.md](../../net/manager/README.md)
+and [../../net/cms/README.md](../../net/cms/README.md) for how that registry is populated.
+`stream_cache.c` reports on the [../../fs/cache/README.md](../../fs/cache/README.md) read-through/
+write-through subsystem via `src/core/compat/fs_usage.h`. `unified.c` and `access_log.c`
+consume identity from `src/core/types/identity.h`, and `writer.c` reads KV stats from
+`src/core/shm/kv.h`. The op slots correspond to handlers in
+[../../protocols/root/read/README.md](../../protocols/root/read/README.md) and [../../protocols/root/write/README.md](../../protocols/root/write/README.md);
+async completions that bump counters originate in [../../core/aio/README.md](../../core/aio/README.md);
 path-confinement rejections feed `path_depth_violations_total` from
-[../path/README.md](../../fs/path/README.md).
+[../../fs/path/README.md](../../fs/path/README.md).
 
 ## Invariants, security & gotchas
 
@@ -209,8 +229,8 @@ path-confinement rejections feed `path_depth_violations_total` from
 ## See also
 
 - [../README.md](../README.md) — master subsystem index
-- [../manager/README.md](../../net/manager/README.md), [../cms/README.md](../../net/cms/README.md) — the cluster registry `cluster.c` reads
-- [../cache/README.md](../../fs/cache/README.md) — read-through/write-through counters surfaced by `stream_cache.c`
-- [../read/README.md](../../protocols/root/read/README.md), [../write/README.md](../../protocols/root/write/README.md), [../aio/README.md](../../core/aio/README.md) — handlers/async completions that drive the op slots
-- [../path/README.md](../../fs/path/README.md) — confinement layer feeding `path_depth_violations_total`
-- [../webdav/README.md](../../protocols/webdav/README.md), [../s3/README.md](../../protocols/s3/README.md), [../dashboard/README.md](../dashboard/README.md) — protocol surfaces and the richer (high-cardinality) dashboard API
+- [../../net/manager/README.md](../../net/manager/README.md), [../../net/cms/README.md](../../net/cms/README.md) — the cluster registry `cluster.c` reads
+- [../../fs/cache/README.md](../../fs/cache/README.md) — read-through/write-through counters surfaced by `stream_cache.c`
+- [../../protocols/root/read/README.md](../../protocols/root/read/README.md), [../../protocols/root/write/README.md](../../protocols/root/write/README.md), [../../core/aio/README.md](../../core/aio/README.md) — handlers/async completions that drive the op slots
+- [../../fs/path/README.md](../../fs/path/README.md) — confinement layer feeding `path_depth_violations_total`
+- [../../protocols/webdav/README.md](../../protocols/webdav/README.md), [../../protocols/s3/README.md](../../protocols/s3/README.md), [../dashboard/README.md](../dashboard/README.md) — protocol surfaces and the richer (high-cardinality) dashboard API

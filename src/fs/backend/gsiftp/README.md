@@ -1,6 +1,6 @@
 # `src/fs/backend/gsiftp/` — outbound `gsiftp://` storage driver
 
-Kind **ORIGIN** (`fs_list.h`): an SD driver that backs a BriX export with a
+Kind **ORIGIN** (`src/core/types/fs_list.h`): an SD driver that backs a BriX export with a
 *remote* GridFTP / gsiftp server (dCache, DPM/StoRM, Globus GridFTP,
 XRootD-gsiftp), authenticating with the full WLCG credential matrix. This is the
 **outbound** mirror of the phase-82 *inbound* gateway (`src/protocols/gridftp/`):
@@ -24,7 +24,7 @@ tested by `tests/c/gftp_parse_test.c`, fast-tier runner `gftp_parse`):
 
 | File | Concern |
 |---|---|
-| `gftp_reply.{c,h}` | control-channel reply parser: 3-digit + multiline `-` continuation framing; SSRF-critical `227` (PASV/IPv4) and `229` (EPSV, RFC 2428) address decoders with per-octet bounds checks — the caller screens the extracted address through `net_target.h` before dialling. |
+| `gftp_reply.{c,h}` | control-channel reply parser: 3-digit + multiline `-` continuation framing; SSRF-critical `227` (PASV/IPv4) and `229` (EPSV, RFC 2428) address decoders with per-octet bounds checks — the caller screens the extracted address through `src/core/compat/net_target.h` before dialling. |
 | `gftp_mlsx.{c,h}` | MLSD/MLST fact-line parser (RFC 3659 §7): inverts `type=;size=;modify=;…` into size/type/UTC-mtime/name; rejects traversal (`/`) and control-byte names, drops overflowing numeric facts. |
 
 Planned (subsequent waves, per the phase-91 plan §3/§13): `sd_gsiftp.{c,h}`

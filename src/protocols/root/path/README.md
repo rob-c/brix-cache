@@ -25,6 +25,12 @@ directory guarantees the *string* handed to the VFS is well-formed.
 | `op_path.h` | the pre-gate contract |
 | `stat_body.c` | format `struct stat` into the kXR_stat/kXR_statx 4-field wire body (VFS and non-VFS modes) |
 
+### Other files
+
+| File | Responsibility |
+|---|---|
+| `opaque_validate.c` / `.h` | brix_opaque_illegal_byte() scans a NUL-terminated opaque query string (everything after '?' in a wire path: oss.* / tpc.* / auth.* / xrd.* / xrdcl.* key=value pairs) and reports the first byte outside the set a well-form. |
+
 ## Invariants, security & gotchas
 
 1. A payload with an embedded NUL anywhere but the final byte is rejected —

@@ -19,7 +19,8 @@ Three rules cover all four protocols (`brix_root`, `brix_webdav`, `brix_s3`, `br
   `brix_cache_store`, `brix_cache_verify`, `brix_cache_max_object`, `brix_cache_evict_at`,
   `brix_cache_evict_to`, `brix_cache_index_cache`, `brix_cache_meta`,
   `brix_cache_slice_size`, `brix_cache_prefetch`, `brix_cache_prefetch_window`,
-  `brix_stage`, `brix_stage_store`, `brix_stage_flush`, `brix_thread_pool`.
+  `brix_cache_only_if_cached`, `brix_stage`, `brix_stage_store`,
+  `brix_stage_flush`, `brix_thread_pool`.
 - **Bare `brix_*` cross-protocol directives** — work identically across all protocols:
   `brix_allow_write`, `brix_read_only`, `brix_compress`, `brix_ktls`, `brix_metrics`,
   `brix_health`, `brix_credential`.
@@ -229,6 +230,52 @@ of eating a refusal. Available on the stream server and every HTTP plane
 
 ```nginx
 brix_tls_require session data;   # cleartext may login; nothing else
+```
+
+---
+
+### `brix_signing_required on|off`
+
+**Default:** `off`
+
+Makes `brix_security_level` **fail-closed** on a session that cannot sign
+requests at all.
+
+`brix_security_level` (`none|compatible|standard|intense|pedantic`) says which
+opcodes must arrive wrapped in a `kXR_sigver` envelope. Producing that
+signature needs a session key, and **only GSI establishes one** — an `sss`,
+`ztn`, `krb5`, `unix`, `host` or anonymous session has no key material to sign
+with. Historically such a session skipped the level check entirely and was
+served unsigned, silently: an operator who set `brix_security_level intense`
+on a token listener got *no* tamper protection and nothing in the log said so.
+
+That gap is now always **visible** and optionally **closed**:
+
+- **off** (default) — the request is still served unsigned, but the session
+  logs one `WARN` naming the configured level and stating that requests are
+  being `accepted UNSIGNED`. One line per session, not per request.
+- **on** — the request is refused with `kXR_NotAuthorized`
+  (`"request signing required but this session cannot sign"`), so the
+  directive means what it reads like it means.
+
+Off by default because turning it on rejects **every** client whose auth
+protocol does not sign — including stock clients using `sss`/`ztn`/`krb5` —
+which is a deployment decision, not a safe default. Turn it on when the
+listener is GSI-only and you want the signing level to be load-bearing.
+
+Session state-machine opcodes (`login`, `protocol`, `auth`, `endsess`, `ping`,
+`sigver`, `bind`) stay exempt at every level, exactly as they do for a
+signing-capable session — so this can never lock out the handshake itself.
+
+> **Note:** this closes the *silent-bypass* half of the gap. Actually deriving
+> a signing key for `sss`/`krb5` (both carry key material, and stock signs
+> `sss`) is a wire change requiring matched client and server derivation, and
+> is tracked separately in the parity audit §5.2.
+
+```nginx
+brix_auth             gsi;
+brix_security_level   intense;
+brix_signing_required on;      # unsignable sessions are refused, not waved through
 ```
 
 ---
@@ -720,6 +767,72 @@ brix_cache_prefetch    4;
 brix_cache_prefetch_window 16m;
 ```
 
+### `brix_cache_only_if_cached on|off`
+
+**Default:** `off`
+
+Serve **only** what this cache already holds. A read whose object is not a
+cache hit is refused with `kXR_NotFound` instead of being filled from the
+origin (XrdPfc `pfc.onlyifcached` parity).
+
+The point is topology, not policy hygiene: a node in this mode contributes the
+copies it has and never becomes an origin puller, so a client that asks for
+something it does not hold gets a clean "not here" and fails over to another
+replica — rather than making this node fetch across the WAN on its behalf.
+The refusal is deliberately `kXR_NotFound` and not a server error, because a
+client retries a server error against the *same* node but moves on from a
+not-found.
+
+Placement of the gate matters and is fixed:
+
+- **after** the cache-hit test — an object that IS cached still serves normally;
+- **before** the admission filter and before the fill / nearline-recall paths —
+  otherwise a path the admission policy declined would still reach the source,
+  which is exactly the bypass this mode exists to prevent.
+
+Writes are never gated; they pass through as usual. A *partial* (slice) hit
+counts as a miss — upstream's `minsize` / `minfrac` partial-hit thresholds are
+not implemented.
+
+```nginx
+brix_cache_store          posix:/var/cache/brix;
+brix_cache_only_if_cached on;
+```
+
+### `brix_cache_cold_max_age <time>`
+
+**Default:** `0` (off)
+
+Age-based purge of **clean read-through fills**: a cached object nothing has
+touched for longer than this is removed regardless of occupancy (XrdPfc
+`pfc.purgecoldfiles` parity).
+
+The watermark reaper (`brix_cache_high_watermark`) only runs once the
+filesystem crosses its high-water mark, so on a roomy cache an object nobody
+reads is kept forever. This horizon releases it. Losing it costs nothing: a
+clean read-fill is re-fetchable from the origin, which is why only *clean*
+fills are eligible — dirty write-back staging is bounded separately by
+`brix_cache_dirty_max_age`, and a finished write-back copy by that same
+horizon.
+
+Age is measured from the **later of atime and mtime**. atime alone is not
+trustworthy — `relatime` coarsens it and `noatime` freezes it entirely, which
+would make every file look ancient and purge a hot cache. Taking the later of
+the two degrades safely: on a `noatime` mount the age is effectively measured
+from the fill instead of the last read, so the purge can only ever be too slow,
+never too eager.
+
+Off by default, deliberately: unlike the dirty horizon (which bounds a leak)
+this one **discards otherwise-serviceable cache**, so it is only ever an
+explicit operator choice. It runs on the same per-worker maintenance timer as
+the stale-dirty reaper — that timer is now armed by *either* horizon.
+Observability: `brix_cache_dirty_reaped_total{reason="cold"}` on `/metrics`.
+
+```nginx
+brix_cache_store        posix:/var/cache/brix;
+brix_cache_cold_max_age 7d;
+```
+
 ### `brix_write_through on|off`
 
 **Default:** `off`
@@ -968,6 +1081,127 @@ executor is silent on success, so aggregation is a deadline window: no
 `kXR_error` with that node's text. Single-holder paths keep the redirect path.
 **Gotcha:** the window is a msec slot — write `600ms`; a bare `600` parses as
 600 *seconds*.
+
+---
+
+### CMS parity wave (2026-08-09 — stock `cms.*` selection/topology parity)
+
+Every directive below defaults to the previous behaviour; leaving them unset is
+a no-op. Covered by `tests/test_cms_parity_wave.py`.
+
+#### `brix_cms_delay_servers <n>` / `brix_cms_delay_hold <secs>`
+
+**Defaults:** `0` (off) / `5`
+
+SUPCount floor (stock `cms.delay servers`). While fewer than `n` **data
+servers** (roles `S`/proxy-server `PS`) are registered, the manager answers
+every `kXR_locate`/`kXR_open`/`kXR_stat` with `kXR_wait <delay_hold>` instead of
+redirecting — a fresh manager with 1 of 20 nodes up must not funnel the whole
+grid onto that one node. Managers, supervisors and peers do not count toward the
+floor.
+
+#### `brix_cms_sched cpu N io N runq N mem N pag N space N fuzz N maxload N`
+
+**Default:** all `0` (legacy `brix_cms_load_weight` scoring)
+
+Component-weighted selection (stock `cms.sched`). Any non-zero weight switches
+read scoring to the weighted mean of the five heartbeat `theLoad` bytes (cpu,
+net/io, xeq/runq, mem, pag) plus the disk-utilisation `space` component; write
+scoring keeps `free_mb` as the base, discounted by machine load. `fuzz N` (0–100)
+treats two read candidates whose blended metric differs by ≤N% as equal and
+rotates round-robin between them; `maxload N` demotes a node whose blended
+machine load exceeds N to a last-resort tier below stale-but-live nodes
+(graceful degradation, never a hard refusal — the SUPCount floor covers the
+not-ready case). Each value is 0–100; unknown keys fail `nginx -t`.
+
+#### `brix_cms_stage_select on|off`
+
+**Default:** `off`
+
+Stage-aware selection (stock two-phase select). A read of a file no node holds
+(loc-cache miss, or a `brix_cms_emptylife` negative entry) is routed to the
+roomiest **stage-capable** node (one that advertised the `kYR_status` stage bit)
+instead of the least-utilised node — the recall lands on the node with the most
+free space. Requires `brix_cms_locate_window` (or the negative cache) to know a
+path has no live holder.
+
+#### `brix_cms_fxhold <time>` / `brix_cms_emptylife <time>`
+
+**Defaults:** unset (30 s legacy TTL) / `0` (off)
+
+`brix_cms_fxhold` sets the positive location-cache TTL (stock `cms.fxhold`
+defaults to 8 h; BriX keeps the legacy 30 s unless set). `brix_cms_emptylife`
+enables a **negative** location cache: a `kYR_state` fan-out that expires with no
+`kYR_have` records "no node holds this path" for the given TTL, so a client's
+retry answers `kXR_NotFound` immediately instead of re-parking through another
+full window. Both are msec slots — write `8h`, `30s`.
+
+#### `brix_cms_dfs on|off`
+
+**Default:** `off`
+
+Shared-filesystem mode (stock `cms.dfs`). Every node sees every file, so the
+per-file `kYR_state` fan-out is pure overhead — with `on`, locate skips the
+probe entirely and selects by load among all registered nodes exporting the
+path.
+
+#### `brix_cms_server_max_direct <n>` *(CMS-server block)*
+
+**Default:** `0` (off)
+
+ManTree-style login offload. Once `n` direct data servers (`S`) are registered,
+a **new** server login is answered `kYR_try` naming the least-utilised
+registered supervisor (`R`) and closed; the node re-dials the supervisor,
+forming the tree. Supervisors, managers, peers and reconnecting known members
+are never offloaded. The node honours an unsolicited login `kYR_try`
+(re-targeting its heartbeat link, reverting to the configured manager after
+repeated failures or a redirect chain >4 deep). Full stock ManTree tree
+*negotiation* (superport self-instantiation, ClustID dedup) is a documented
+divergence.
+
+#### `brix_cms_perf_pgm <cmd>` / `brix_cms_perf_interval <time>`
+
+**Defaults:** unset (off) / `30s`
+
+External machine-load feed (stock `cms.perf pgm`). A long-lived child process is
+spawned once per CMS-client worker; each stdout line `cpu net xeq mem pag` (five
+0–100 integers) overrides the `/proc` meter's figures in the `kYR_load`
+heartbeat while fresher than `2×interval`. A dead feed is respawned with backoff;
+a stale or missing feed silently falls back to `/proc` — the heartbeat is never
+blocked.
+
+#### `brix_cms_altds <port> [monitor]` / `brix_cms_altds_interval <time>`
+
+**Defaults:** off / `10s`
+
+Alternate (foreign) data server (stock `cms.altds`). The CMS login advertises
+`<port>` as this node's data port, so clients selected here are redirected to a
+co-located foreign data server (e.g. a stock `xrootd` on the same host — the
+manager records the connection's peer address, so only the port is
+advertisable). With `monitor`, a periodic non-blocking loopback probe of the
+port drives `kYR_status` suspend/resume on every manager link when the foreign DS
+dies or returns.
+
+#### `brix_cms_whitelist_file <path>` *(CMS-server block)*
+
+**Default:** unset
+
+Inverse of `brix_cms_blacklist_file`: **only** hosts matching an entry may
+register — a login from any other host is refused at admission and closed. Same
+line grammar (host, `host:port`, IPv4 CIDR, `*` patterns), same mtime-poll +
+re-assert cadence. Mutually exclusive with `brix_cms_blacklist_file`.
+
+The blacklist file additionally accepts (2026-08-09) `*` host **patterns**
+(XrdOucNList rules — at most one `*`) and a per-entry `redirect <host:port>`
+action that answers a matching node's login with `kYR_try` naming the alternate
+manager (instead of only draining it).
+
+#### `brix_cms_role peer|proxy` (added to `auto|server|manager|supervisor`)
+
+`peer` logs in with the `kYR_peer` Mode bit (no `kYR_server`): the manager
+registers it as an overflow cluster consulted only as a last resort before
+`kXR_NotFound`, never in normal selection. `proxy` logs in `kYR_proxy|kYR_server`
+— a proxy data server selectable like any other.
 
 ---
 

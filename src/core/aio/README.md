@@ -14,7 +14,7 @@ and only the protocol/wire work runs back on the event loop.
 Since phase-54 these workers do **not** carry their own copies of the raw
 syscalls. Every `_thread` body fills a POD `brix_vfs_job_t` and calls the
 VFS-owned, thread-safe I/O core `brix_vfs_io_execute()`
-([`../fs/vfs_io_core.c`](../../fs/README.md)); the inline fallbacks (no pool, or
+([`src/fs/vfs/vfs_io_core.c`](../../fs/README.md)); the inline fallbacks (no pool, or
 post failed) call the exact same core on the event loop for one bounded unit of
 work. So the **offloaded and inline-fallback raw I/O — read/write/readv/writev/
 pgread and the dirlist worker's scan — now flows through the VFS layer**, and
@@ -103,10 +103,20 @@ All code here compiles only under `NGX_THREADS`.
 | `buffers.c` | Shared response-chain builders + scratch lifecycle. `brix_build_chunked_chain` (memory, multi-frame), `brix_build_sendfile_chain` (zero-copy `in_file=1`), `brix_build_window_chain` (one window frame w/ explicit status), and the static single-chunk helpers. Plus `brix_get_pool_scratch` (grow-only reusable buffer), `brix_release_read_buffer`, `brix_trim_scratch`. |
 | `reads.c` | `kXR_read` + `kXR_pgread` workers/callbacks. `brix_read_aio_thread`/`_done` (plain read), `brix_pgread_aio_thread`/`_done` (page reads w/ per-4096-byte CRC32C). Also the Phase 31 windowed-read driver `brix_read_window_pump` and its `brix_read_window_emit` helper. |
 | `write.c` | `kXR_write`/`kXR_pgwrite`/`kXR_writev` workers/callbacks. `brix_write_aio_thread`/`_done` (single `pwrite`) and `brix_writev_write_aio_thread`/`_done` (multi-segment `pwrite` loop + optional per-fd `fsync`). On success updates byte counters, write-through dirty marking, and the write recovery journal. |
-| `readv.c` | `kXR_readv` worker/callback. `brix_readv_aio_thread` fills the pre-laid-out segment payloads via `brix_readv_read_segments` (defined in [`../read/readv.c`](../../protocols/root/read/README.md)); `brix_readv_aio_done` builds the chain and updates per-handle counters. |
+| `readv.c` | `kXR_readv` worker/callback. `brix_readv_aio_thread` fills the pre-laid-out segment payloads via `brix_readv_read_segments` (defined in [`src/protocols/root/read/readv.c`](../../protocols/root/read/README.md)); `brix_readv_aio_done` builds the chain and updates per-handle counters. |
 | `dirlist.c` | `kXR_dirlist` worker/callback. `brix_dirlist_aio_thread` opens the dir, iterates entries, runs optional `fstatat` + `brix_dirlist_checksum_token`, and builds the *complete* wire response (oksofar chunks + final ok) into one buffer. `brix_dirlist_aio_done` queues it. Caps output at `BRIX_DIRLIST_AIO_RESPONSE_MAX` (4 MiB → `E2BIG`). |
 | `resume.c` | Shared completion plumbing. `brix_aio_restore_stream`/`_restore_request` (re-seat streamid / reset to `XRD_ST_REQ_HEADER`, with `destroyed` guard), `brix_aio_post_task` (post to pool, set `XRD_ST_AIO`, fall back to sync on NULL/full pool), `brix_aio_resume` (re-arm write vs read event after a `_done`). |
 | `config.c` | `brix_configure_thread_pools`: postconfiguration pass that resolves each XRootD stream server's pool name (or `"default"`) to a concrete `ngx_thread_pool_t`. Hard-fails (`NGX_LOG_EMERG`) if `brix_cache` is enabled without a pool; otherwise just disables async I/O with a notice. |
+
+### Other files
+
+| File | Responsibility |
+|---|---|
+| `buffers_scratch.c` | Per-connection scratch- and read-buffer lifecycle for the synchronous read paths and thread-pool AIO completions (phase-79 split from `buffers.c`). |
+| `buffers_sendfile.c` | File-backed (sendfile) response-chain builders plus the pgread response chain (phase-79 split from `buffers.c`). |
+| `fd_kind.c` | `brix_fd_kind(fd)` — classify what an fd refers to right now ("regular"/"socket"/"fifo"/"dir"/"other", or "stale" when `fstat` fails). |
+| `pgreads.c` | Thread-pool offload for the stream `kXR_pgread` opcode (the pgread half of the AIO read family; `reads.c` keeps windowed memory reads and plain `kXR_read`). |
+| `uring_bringup.c` / `uring_probe.c` / `uring_reap.c` | phase-79 splits of `uring.c`: ring bring-up, the memoized "should this build/host/worker use io_uring" gating + §32 startup fail-fast validator, and the UAF-safe generation-stamped completion reaper. |
 
 ## Key types & data structures
 
@@ -170,14 +180,14 @@ draining (`XRD_ST_SENDING`) or the **read** event otherwise, so pipelined
 requests already in the kernel buffer run before the next `epoll_wait`. The
 scheduling hooks themselves live in
 [`../connection/`](../../protocols/root/connection/README.md) (`brix_schedule_write_resume` /
-`brix_schedule_read_resume`, `event_sched.c`).
+`brix_schedule_read_resume`, `src/protocols/root/connection/event_sched.c`).
 
 **Windowed-read loop (Phase 31):** a memory-backed read (TLS / non-regular file)
 larger than `BRIX_READ_WINDOW` is served one window at a time.
 `brix_read_window_pump` reads the next window (async if a pool exists, else
 inline) and `brix_read_window_emit` frames it as `kXR_oksofar` (or `kXR_ok` on
 the final window / short read). The next window is read only after the previous
-chunk drains — so `connection/send.c` calls `brix_read_window_pump` again on
+chunk drains — so `src/protocols/root/connection/send.c` calls `brix_read_window_pump` again on
 send-completion (`send.c:78`) — bounding resident heap to ~one window per stream
 regardless of request size.
 
@@ -217,7 +227,7 @@ postconfiguration ([`../config/`](../config/README.md)); the resolved
   nginx's large-allocation list while stale pointers (reused
   `read_aio_task->databuf`) still referenced the freed block on a big read
   followed by a big readv (`buffers.c:37`). The ctx owns these and frees them at
-  disconnect (`write_scratch` cleanup added in `connection/disconnect.c`).
+  disconnect (`write_scratch` cleanup added in `src/protocols/root/connection/disconnect.c`).
 - **`brix_release_read_buffer` must skip scratch slots.** It only `ngx_pfree`s
   single-request buffers (e.g. a dirlist response); it is a deliberate no-op for
   `read_scratch`/`read_hdr_scratch`/`write_scratch` (`buffers.c:82`). Freeing a
@@ -268,19 +278,19 @@ sync and async paths can share it.
 
 ## See also
 
-- [`../read/README.md`](../../protocols/root/read/README.md) — `kXR_read`/`readv`/`pgread` handler
+- [`../../protocols/root/read/README.md`](../../protocols/root/read/README.md) — `kXR_read`/`readv`/`pgread` handler
   bodies; defines `brix_readv_read_segments`.
-- [`../write/README.md`](../../protocols/root/write/README.md) — `kXR_write`/`pgwrite`/`writev`
+- [`../../protocols/root/write/README.md`](../../protocols/root/write/README.md) — `kXR_write`/`pgwrite`/`writev`
   handlers; write recovery journal (`wrts_journal`).
-- [`../dirlist/README.md`](../../protocols/root/dirlist/README.md) — `kXR_dirlist` handler and
+- [`../../protocols/root/dirlist/README.md`](../../protocols/root/dirlist/README.md) — `kXR_dirlist` handler and
   `brix_dirlist_checksum_token` / `dcksm`.
-- [`../connection/README.md`](../../protocols/root/connection/README.md) — recv/send loop, event
+- [`../../protocols/root/connection/README.md`](../../protocols/root/connection/README.md) — recv/send loop, event
   scheduling, `XRD_ST_*` state machine, scratch cleanup at disconnect.
-- [`../cache/README.md`](../../fs/cache/README.md) — read-through/write-through; why the
+- [`../../fs/cache/README.md`](../../fs/cache/README.md) — read-through/write-through; why the
   cache requires a thread pool.
-- [`../path/README.md`](../../fs/path/README.md) — `RESOLVE_BENEATH` confinement and
+- [`../../fs/path/README.md`](../../fs/path/README.md) — `RESOLVE_BENEATH` confinement and
   `brix_log_access`.
-- [`../response/README.md`](../../protocols/root/response/README.md) — wire framing helpers
+- [`../../protocols/root/response/README.md`](../../protocols/root/response/README.md) — wire framing helpers
   (`brix_build_resp_hdr`, `brix_send_error`, pgread/pgwrite status).
 - [`../config/README.md`](../config/README.md) — postconfiguration ordering for
   `brix_configure_thread_pools`.

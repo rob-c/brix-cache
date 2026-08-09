@@ -22,7 +22,7 @@ import sys
 
 from cmdscripts.compile_run import REPO_ROOT
 from cmdscripts.live_common import LiveRun
-from settings import SERVER_HOST
+from settings import NGINX_ANON_PORT, SERVER_HOST
 
 BRIX_SRC = Path(os.environ.get("BRIX_SRC", "/tmp/brix-src"))
 TEST_DIR = BRIX_SRC / "tests/XRootD"
@@ -39,7 +39,7 @@ _XRD_ENV_DEFAULTS = {
 
 
 def anon_port() -> int:
-    return int(os.environ.get("NGINX_ANON_PORT", "11094"))
+    return NGINX_ANON_PORT
 
 
 def _host_url() -> str:
@@ -250,9 +250,24 @@ XRDHTTP_TESTS = [
 
 def _run_backend(backend: str, files: list[str], extra: list[str]) -> int:
     print(f"\n== Running cross-compatible tests against {backend} ==")
-    env = {**os.environ, "TEST_CROSS_BACKEND": backend}
+    test_root = Path(os.environ.get("TEST_ROOT", "/tmp/xrd-test")).resolve()
+    basetemp = test_root / "artifacts" / "official-interop" / backend
+    basetemp.mkdir(parents=True, exist_ok=True)
+    env = {
+        **os.environ,
+        "TEST_CROSS_BACKEND": backend,
+        # This command is invoked by a test inside the already-running suite.
+        # The child must attach to that fleet and must never stop or rebuild it.
+        "TEST_SKIP_SERVER_SETUP": "1",
+        "TEST_OWN_FLEET": "0",
+    }
     return subprocess.call(
-        [sys.executable, "-m", "pytest", *files, *extra],
+        [
+            sys.executable, "-m", "pytest", *files,
+            "--basetemp", str(basetemp),
+            "-p", "no:randomly", "-p", "no:rerunfailures",
+            "-o", "addopts=", *extra,
+        ],
         cwd=str(REPO_ROOT), env=env,
     )
 

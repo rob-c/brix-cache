@@ -4,7 +4,7 @@
 
 This is the destination server acting as an XRootD *client*: for each
 native-TPC pull, a thread-pool worker (`thread.c::brix_tpc_pull_thread()`,
-posted by [../engine/](../engine/)'s `launch.c`) opens its own connection
+posted by [../engine/](../engine/)'s `src/tpc/engine/launch.c`) opens its own connection
 to the remote source, authenticates, opens the file, and pulls the bytes.
 Everything here is deliberately blocking — it owns a whole pool thread for
 the transfer's duration and must never run on the event loop.
@@ -28,6 +28,16 @@ pull (open, read loop, close) using the three blocking I/O primitives in
 | `source.c` | open/read/close of the remote file; drives the byte pull |
 | `tls.c` | blocking client TLS handshake over the TPC socket |
 | `tpc_token.c` | OAuth2/OIDC access-token fetch for token-authenticated sources |
+
+### Other files
+
+| File | Responsibility |
+|---|---|
+| `source_internal.h` | cross-file seam for the TPC remote-source pull, split (phase-79 file-size burndown) from a single oversized source.c into three cohesive units with zero behaviour change:. |
+| `source_open.c` | tpc_open_source() builds a ClientOpenRequest for the remote origin (src_path + opaque tpc.key/org or a delegated authenticated read), sends the kXR_open, resolves the reply through the asynchronous XRootD flow-control st. |
+| `source_stream.c` | tpc_stream_to_dst() streams the whole origin into t->dst_fd one TPC_CHUNK_SIZE kXR_read window at a time (draining the kXR_oksofar/kXR_ok frame sequence per request, writing each frame's body through the VFS core), then. |
+| `tpc_token_exchange.c` | Fetches a delegated OAuth2 access token by exchanging the destination's own bearer (subject) token at an external OAuth2 token endpoint, via a fork/exec of curl. |
+| `tpc_token_internal.h` | Cross-declares the two functions that call across the tpc_token.c / tpc_token_exchange.c file boundary. |
 
 ## Invariants, security & gotchas
 

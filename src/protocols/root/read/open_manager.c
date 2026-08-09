@@ -1,6 +1,7 @@
 #include "open_internal.h"
 #include "net/manager/registry.h"
 #include "net/manager/redir_cache.h"
+#include "net/manager/loc_cache.h"   /* §2.5: holder / negative lookup */
 #include "net/manager/pending.h"
 #include "net/cms/cms_internal.h"
 
@@ -64,6 +65,16 @@ brix_open_manager_dynamic(brix_ctx_t *ctx, ngx_connection_t *c,
 	uint16_t  redir_port;
 	ngx_int_t crc;
 
+	/* §2.2 (cms.delay servers): below the registered-server floor every open
+	 * is held with kXR_wait — never funnel the grid onto a half-formed
+	 * cluster's first node. */
+	if (brix_srv_below_floor()) {
+		brix_log_access(ctx, c, "OPEN", clean_path, "floor-hold",
+		                  1, 0, NULL, 0);
+		BRIX_OP_OK(ctx, op);
+		return brix_send_wait(ctx, c, (unsigned) conf->cms.delay_hold);
+	}
+
 	/* tried/triedrc: a read whose client has already visited every server
 	 * holding this path (all returned enoent) must get not-found, not yet
 	 * another redirect — otherwise it loops to the client redirect limit.
@@ -83,6 +94,24 @@ brix_open_manager_dynamic(brix_ctx_t *ctx, ngx_connection_t *c,
 		BRIX_RETURN_REDIR(ctx, c, BRIX_OP_OPEN_RD, "OPEN",
 		                    clean_path, "redir-cache",
 		                    redir_host, redir_port);
+	}
+
+	/* §2.5: stage-aware reads — prefer the recorded HOLDER (kYR_have loc
+	 * cache), else, when a fan-out proved no node holds the file (negative
+	 * entry), route the recall to the roomiest stage-capable node. */
+	if (!is_write && conf->cms.stage_select) {
+		int loc = brix_loc_cache_lookup2(clean_path, redir_host,
+		                                   sizeof(redir_host), &redir_port);
+		if (loc == BRIX_LOC_HIT) {
+			BRIX_RETURN_REDIR(ctx, c, op, "OPEN", clean_path,
+			                    "loc-cache", redir_host, redir_port);
+		}
+		if (loc == BRIX_LOC_NEG
+		    && brix_srv_select_stage(clean_path, redir_host,
+		                               sizeof(redir_host), &redir_port)) {
+			BRIX_RETURN_REDIR(ctx, c, op, "OPEN", clean_path,
+			                    "stage-select", redir_host, redir_port);
+		}
 	}
 
 	/* Open may redirect to a server whose CMS heartbeat just dropped (a

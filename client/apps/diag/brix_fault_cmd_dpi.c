@@ -18,6 +18,7 @@
 #endif
 
 #include "brix_fault_proxy_state.h"
+#include <unistd.h>
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -113,4 +114,41 @@ cmd_set_dpi(const char *verb, char *args, char *reply, size_t rsz)
         return 0;
     }
     return 1;
+}
+
+
+/* Aggregate token-bucket gate: pace this segment against a single uplink ceiling
+ * shared across ALL relays (simulates a saturated shared link / upstream link).
+ * Briefly holds g_gr_lock to update the shared tokens, then sleeps unlocked.
+ * (Lives here rather than in the relay TU only to keep that file under the
+ * 600-line cap; it is a relay data-path helper, declared in the state header.) */
+void
+global_rate_gate(ssize_t seg)
+{
+    int kbps = g_global_rate_kbps;
+    if (kbps <= 0) {
+        return;
+    }
+    double rate = (double) kbps * 1024.0;   /* bytes / second */
+    pthread_mutex_lock(&g_gr_lock);
+    struct timespec now;
+    clock_gettime(CLOCK_MONOTONIC, &now);
+    if (!g_gr_init) {
+        g_gr_last = now;
+        g_gr_tokens = 0.0;
+        g_gr_init = 1;
+    }
+    double elapsed = (now.tv_sec - g_gr_last.tv_sec)
+                   + (now.tv_nsec - g_gr_last.tv_nsec) / 1e9;
+    g_gr_tokens += elapsed * rate;
+    if (g_gr_tokens > rate) {
+        g_gr_tokens = rate;   /* cap the burst at ~1s of credit */
+    }
+    g_gr_last = now;
+    g_gr_tokens -= (double) seg;
+    double deficit = g_gr_tokens < 0.0 ? -g_gr_tokens : 0.0;
+    pthread_mutex_unlock(&g_gr_lock);
+    if (deficit > 0.0) {
+        usleep((useconds_t) (deficit / rate * 1e6));
+    }
 }

@@ -1,0 +1,380 @@
+"""
+tests/test_metadata_stress.py
+
+Metadata-operation STRESS test — hammer the server with paced ~100 req/s of
+metadata ops/queries (stat, dirlist, locate, PROPFIND) against both a STANDALONE
+fileserver and a MESH (redirector), and verify the server either serves it all
+or sheds load *cleanly* (kXR_wait on stream, HTTP 429) — never crashing, hanging,
+erroring, or falling over.
+
+This is distinct from tests/load_test.py (which measures bulk-transfer throughput
+under max concurrency).  Here we:
+  * RATE-PACE to a target req/s (default 100) for a fixed duration, and
+  * focus on cheap+expensive METADATA paths, and
+  * assert the rate-limiter protects the server rather than the server toppling.
+
+The module's policy (src/net/ratelimit/ratelimit_stream.c) is the thing under test:
+  * stat / statx / ping / query  -> NEVER rate-limited  (cheap; always answered)
+  * open / read / dirlist / locate -> rate-limited       (expensive; shed cleanly)
+So the invariants we assert are:
+  1. NO fall-over: the server passes a health check after the storm.
+  2. NO errors: every response is a well-formed served / redirect / kXR_wait /
+     429 — never a 5xx, a malformed frame, a hang, or a dropped connection.
+  3. Cheap metadata (stat) stays available and fast even at 100 req/s (exempt).
+  4. Expensive metadata (dirlist / locate) is either fully served (server keeps
+     up) or rate-limited cleanly (kXR_wait / 429) when a limit is configured.
+
+Tunables (env): METADATA_STRESS_RATE (default 100), METADATA_STRESS_SECS
+(default 6), METADATA_STRESS_WORKERS (default 16).
+
+Run:
+    TEST_SKIP_SERVER_SETUP=1 PYTHONPATH=tests pytest tests/test_metadata_stress.py -v -s
+"""
+
+import os
+import socket
+import struct
+import threading
+import time
+
+import pytest
+
+from settings import HOST, BIND_HOST
+from fleet_lifecycle_ports import lifecycle_ports_for
+from server_registry import NginxInstanceSpec
+
+pytestmark = [pytest.mark.uses_lifecycle_harness,
+              pytest.mark.xdist_group("lc-metadata-stress")]
+
+# ---- wire constants (XProtocol; mirror tests/test_a_robustness.py) ----
+kXR_dirlist  = 3004
+kXR_stat     = 3017
+kXR_locate   = 3027
+kXR_ok       = 0
+kXR_redirect = 4004
+kXR_wait     = 4005
+
+RATE    = int(os.environ.get("METADATA_STRESS_RATE", "100"))
+SECS    = float(os.environ.get("METADATA_STRESS_SECS", "6"))
+WORKERS = int(os.environ.get("METADATA_STRESS_WORKERS", "16"))
+
+
+def _seed_dir(tmp_path, nfiles=64):
+    data = tmp_path / "data"
+    (data / "dir").mkdir(parents=True, exist_ok=True)
+    (data / "test.txt").write_text("hello\n")
+    for i in range(nfiles):
+        (data / "dir" / f"f{i}.txt").write_text(f"content {i}\n")
+    return data
+
+
+# --------------------------------------------------------------------------- #
+# Registry specs — throwaway servers driven by the LifecycleHarness            #
+# --------------------------------------------------------------------------- #
+
+def _stream_spec(data, rl_rule=""):
+    rl_zone = "brix_rate_limit_zone zone=rls:4m;" if rl_rule else ""
+    return NginxInstanceSpec(
+        name="lc-metadata-stress-stream",
+        template="nginx_lc_metadata_stress_stream.conf",
+        protocol="root",
+        template_values={"BIND_HOST": BIND_HOST, "DATA_DIR": str(data),
+                         "RL_ZONE": rl_zone, "RL_RULE": rl_rule},
+        reason="metadata-op stress against a standalone root:// fileserver")
+
+
+def _http_spec(data, rl_rule=""):
+    rl_zone = "brix_rate_limit_zone zone=rlh:4m;" if rl_rule else ""
+    return NginxInstanceSpec(
+        name="lc-metadata-stress-http",
+        template="nginx_lc_metadata_stress_http.conf",
+        protocol="webdav",
+        template_values={"BIND_HOST": BIND_HOST, "DATA_DIR": str(data),
+                         "RL_ZONE": rl_zone, "RL_RULE": rl_rule},
+        reason="metadata-op stress against a standalone WebDAV fileserver")
+
+
+def _mesh_spec(rl_rule=""):
+    rl_zone = "brix_rate_limit_zone zone=rlm:4m;" if rl_rule else ""
+    # The redirector answers locate itself; the advertised target need not be
+    # live, so the fixed (never-bound) ledger DS_PORT stands in for the data node.
+    ds_port = lifecycle_ports_for("lc-metadata-stress-mesh")[1]["DS_PORT"]
+    return NginxInstanceSpec(
+        name="lc-metadata-stress-mesh",
+        template="nginx_lc_metadata_stress_mesh.conf",
+        protocol="root",
+        template_values={"BIND_HOST": BIND_HOST, "MGR_TARGET": f"{HOST}:{ds_port}",
+                         "RL_ZONE": rl_zone, "RL_RULE": rl_rule},
+        reason="metadata-op stress against a root:// redirector (manager_map)")
+
+
+# --------------------------------------------------------------------------- #
+# Raw XRootD stream session + metadata ops                                     #
+# --------------------------------------------------------------------------- #
+
+def _xrd_login(host, port, timeout=6):
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s.settimeout(timeout)
+    s.connect((host, port))
+    s.sendall(struct.pack(">IIIII", 0, 0, 0, 4, 2012))
+    s.sendall(struct.pack(">BB H I BB 10x I", 0, 1, 3006, 0x00000520, 0x02, 0x03, 0))
+    s.recv(16)
+    hdr = s.recv(8)
+    dlen = struct.unpack(">I", hdr[4:8])[0]
+    if dlen:
+        s.recv(dlen)
+    s.sendall(struct.pack(">BB H I 8s BB B B I", 0, 1, 3007, 0,
+                          b"test\x00\x00\x00\x00", 0, 0, 5, 0, 0))
+    hdr = s.recv(8)
+    dlen = struct.unpack(">I", hdr[4:8])[0]
+    if dlen:
+        s.recv(dlen)
+    return s
+
+
+def _recv_status(s):
+    rhdr = s.recv(8)
+    if len(rhdr) < 8:
+        return None
+    status = struct.unpack(">H", rhdr[2:4])[0]
+    dlen = struct.unpack(">I", rhdr[4:8])[0]
+    got = 0
+    while got < dlen:
+        c = s.recv(dlen - got)
+        if not c:
+            break
+        got += len(c)
+    return status
+
+
+def _op_stat(s, path="/test.txt"):
+    p = path.encode() + b"\x00"
+    s.sendall(struct.pack(">BBH16sI", 0, 1, kXR_stat, b"\x00" * 16, len(p)) + p)
+    return _recv_status(s)
+
+
+def _op_dirlist(s, path="/dir"):
+    p = path.encode() + b"\x00"
+    s.sendall(struct.pack(">BBH16sI", 0, 1, kXR_dirlist, b"\x00" * 16, len(p)) + p)
+    return _recv_status(s)
+
+
+def _op_locate(s, path="/dir/f0.txt"):
+    p = path.encode() + b"\x00"
+    s.sendall(struct.pack(">BBHH14sI", 0, 1, kXR_locate, 0, b"\x00" * 14, len(p)) + p)
+    return _recv_status(s)
+
+
+def _http_propfind(port, path="/dir"):
+    """One-shot PROPFIND on a fresh connection (used by the low-rate tests)."""
+    try:
+        with socket.create_connection((HOST, port), timeout=4) as s:
+            s.sendall((f"PROPFIND {path} HTTP/1.1\r\nHost: x\r\nDepth: 0\r\n"
+                       "Content-Length: 0\r\nConnection: close\r\n\r\n").encode())
+            s.settimeout(4)
+            data = b""
+            while b"\r\n\r\n" not in data:
+                c = s.recv(4096)
+                if not c:
+                    break
+                data += c
+        if not data:
+            return None
+        return int(data.split(b"\r\n", 1)[0].split()[1])
+    except OSError:
+        return None
+
+
+def _http_session(port):
+    s = socket.create_connection((HOST, port), timeout=8)
+    s.settimeout(8)
+    return s
+
+
+def _op_propfind_ka(s, path="/dir"):
+    """Keep-alive PROPFIND: reuse a persistent connection, framing the response
+    by Content-Length so the socket can serve the next request.  This removes
+    the per-request TCP connect/teardown that otherwise caps HTTP throughput far
+    below the rate limiter — real WebDAV clients reuse connections the same way.
+    Returns the status code, or None to make the hammer re-establish the conn."""
+    s.sendall((f"PROPFIND {path} HTTP/1.1\r\nHost: x\r\nDepth: 0\r\n"
+               "Content-Length: 0\r\nConnection: keep-alive\r\n\r\n").encode())
+    buf = b""
+    while b"\r\n\r\n" not in buf:
+        c = s.recv(4096)
+        if not c:
+            return None
+        buf += c
+    head, rest = buf.split(b"\r\n\r\n", 1)
+    status = int(head.split(b"\r\n", 1)[0].split()[1])
+    cl = None
+    for line in head.split(b"\r\n")[1:]:
+        if line[:15].lower() == b"content-length:":
+            cl = int(line.split(b":", 1)[1].strip())
+            break
+    if cl is None:
+        return None          # chunked / close-delimited — can't safely reuse
+    body = rest
+    while len(body) < cl:
+        c = s.recv(cl - len(body))
+        if not c:
+            return None
+        body += c
+    return status
+
+
+# --------------------------------------------------------------------------- #
+# Rate-paced hammer                                                            #
+# --------------------------------------------------------------------------- #
+
+def _classify_stream(st):
+    if st in (kXR_ok, kXR_redirect):
+        return "served"
+    if st == kXR_wait:
+        return "throttled"
+    return "errored"          # None (dropped), 4003, or anything unexpected
+
+
+def _classify_http(st):
+    if st in (200, 206, 207):
+        return "served"
+    if st == 429:
+        return "throttled"
+    if st is not None and 400 <= st < 500:
+        return "served"       # well-formed client-side answer (e.g. 405) — not a fall-over
+    return "errored"          # None (dropped) or 5xx
+
+
+def _paced_hammer(make_session, do_op, classify, close_session=None,
+                  rate=RATE, secs=SECS, workers=WORKERS):
+    """Dispatch do_op(session) at ~`rate` ops/sec (aggregate) for `secs`, spread
+    over `workers` threads each owning a persistent session.
+
+    Each worker runs its OWN interleaved schedule (worker w fires global ticks
+    w, w+workers, w+2·workers, … at start + idx/rate) and accumulates into LOCAL
+    counters, merged only at join.  There is no shared counter or per-op lock in
+    the hot path — that is what lets the harness offer multi-thousand req/s
+    without the GIL serialising every dispatch.  A worker that falls behind its
+    schedule stops sleeping and fires back-to-back, so the offered rate tracks
+    the server's ceiling when the server (not the schedule) is the limit.
+
+    A session that errors is transparently re-created so one dead socket doesn't
+    snowball.  Returns {dispatched, served, throttled, errored, lat:[...]}."""
+    step = 1.0 / rate
+    start = time.perf_counter()
+    deadline = start + secs
+    locals_ = [None] * workers
+
+    def worker(wid):
+        try:
+            sess = make_session()
+        except Exception:
+            sess = None
+        disp = served = throttled = errored = 0
+        lat = []
+        j = 0
+        while True:
+            target = start + (wid + j * workers) * step
+            now = time.perf_counter()
+            if now >= deadline:
+                break
+            if target > now:
+                if target >= deadline:
+                    break
+                time.sleep(target - now)
+            j += 1
+            if sess is None:
+                try:
+                    sess = make_session()
+                except Exception:
+                    disp += 1
+                    errored += 1
+                    continue
+            t0 = time.perf_counter()
+            try:
+                st = do_op(sess)
+            except Exception:
+                st = None
+            dt = time.perf_counter() - t0
+            kind = classify(st)
+            disp += 1
+            if kind == "served":
+                served += 1
+                lat.append(dt)
+            elif kind == "throttled":
+                throttled += 1
+            else:
+                errored += 1
+                if close_session and sess is not None:
+                    try:
+                        close_session(sess)
+                    except Exception:
+                        pass
+                sess = None
+        if close_session and sess is not None:
+            try:
+                close_session(sess)
+            except Exception:
+                pass
+        locals_[wid] = (disp, served, throttled, errored, lat)
+
+    threads = [threading.Thread(target=worker, args=(w,)) for w in range(workers)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+
+    res = {"dispatched": 0, "served": 0, "throttled": 0, "errored": 0, "lat": []}
+    for tup in locals_:
+        if tup is None:
+            continue
+        d, s, th, e, la = tup
+        res["dispatched"] += d
+        res["served"] += s
+        res["throttled"] += th
+        res["errored"] += e
+        res["lat"].extend(la)
+    return res
+
+
+def _pct(values, p):
+    if not values:
+        return 0.0
+    s = sorted(values)
+    return s[min(len(s) - 1, int(len(s) * p))]
+
+
+def _report(label, res):
+    lat = res["lat"]
+    print(f"\n[{label}] dispatched={res['dispatched']} served={res['served']} "
+          f"throttled={res['throttled']} errored={res['errored']} "
+          f"p50={_pct(lat,0.5)*1000:.1f}ms p95={_pct(lat,0.95)*1000:.1f}ms "
+          f"p99={_pct(lat,0.99)*1000:.1f}ms", flush=True)
+
+
+def _assert_no_fallover(res, label, min_dispatch_frac=0.5):
+    # We actually applied meaningful load.
+    assert res["dispatched"] >= RATE * SECS * min_dispatch_frac, \
+        f"{label}: only dispatched {res['dispatched']} ops (hammer stalled?)"
+    # Errors (dropped connections / 5xx / malformed) are the fall-over signal.
+    # Tolerate a tiny number of transient socket races, not a collapse.
+    tol = max(3, int(res["dispatched"] * 0.01))
+    assert res["errored"] <= tol, \
+        f"{label}: {res['errored']} errored responses (>{tol}) — server fell over"
+    # Something must have been answered.
+    assert res["served"] + res["throttled"] > 0, f"{label}: nothing answered"
+
+
+def _server_healthy_stream(port):
+    try:
+        s = _xrd_login(HOST, port, timeout=4)
+        st = _op_stat(s, "/test.txt")
+        s.close()
+        return st == kXR_ok
+    except OSError:
+        return False
+
+
+# =========================================================================== #
+# STANDALONE                                                                   #
+# =========================================================================== #

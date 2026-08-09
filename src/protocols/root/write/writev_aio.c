@@ -96,7 +96,7 @@ writev_try_aio(const writev_run_t *run, int do_sync, ngx_flag_t *posted)
 		{
 			ngx_log_debug2(NGX_LOG_DEBUG_STREAM, c->log, 0,
 			    "brix: writev AIO recovery replay skip"
-			    " offset=%lld len=%u", (long long) off, wlen);
+			    " offset=%lld len=%ud", (long long) off, wlen);
 			seg_descs[i].wlen = 0;
 		}
 

@@ -17,7 +17,7 @@ import time
 
 import pytest
 
-from settings import NGINX_ANON_PORT, HOST, DATA_ROOT
+from settings import ARTIFACTS_DIR, NGINX_ANON_PORT, HOST, DATA_ROOT
 from metrics_helpers import Snapshot, fetch, value, xrdcp, xrdfs
 
 client = pytest.importorskip("XRootD.client", reason="pyxrootd required")
@@ -291,7 +291,8 @@ class TestRootByteCounters:
         with open(src, "wb") as fh:
             fh.write(os.urandom(self.PAYLOAD))
         snap = Snapshot()
-        r = xrdcp("-f", f"{ANON}//cov_bytes_dl.bin", "/tmp/cov_bytes_dl.out")
+        out = os.path.join(ARTIFACTS_DIR, "cov_bytes_dl.out")
+        r = xrdcp("-f", f"{ANON}//cov_bytes_dl.bin", out)
         assert r.returncode == 0, r.stderr
         time.sleep(1.0)
         after = fetch()

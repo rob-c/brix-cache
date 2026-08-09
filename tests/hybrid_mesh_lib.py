@@ -104,7 +104,12 @@ PORTS = {
     "f_dav_http": _p("HYBRID_DS_F_DAV_HTTP_PORT", 11328),
 }
 
-PORT_MIN, PORT_MAX = 11300, 11330
+# Values above are the original development ports. This registry-owned external
+# orchestrator receives its runtime ports from the central per-run ladder.
+from port_ladder import rebase_named_ports
+PORTS = rebase_named_ports(PORTS, category="hybrid-mesh")
+
+PORT_MIN, PORT_MAX = min(PORTS.values()), max(PORTS.values())
 
 # S3 bucket name == the cluster export's leaf, so an S3 object `key` lands at
 # <store>/mesh/key — i.e. the SAME on-disk path as root:// "/mesh/key".  That is

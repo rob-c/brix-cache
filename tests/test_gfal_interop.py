@@ -14,13 +14,13 @@ import shutil
 import subprocess
 
 import pytest
-from settings import HOST
+from settings import HOST, NGINX_ANON_PORT, NGINX_WEBDAV_PORT
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 NATIVE_XRDCRC32C = os.path.join(REPO, "client", "bin", "xrdcrc32c")
 
-ROOT_BASE = f"root://{HOST}:11094"
-DAVS_BASE = f"davs://{HOST}:8443"
+ROOT_BASE = f"root://{HOST}:{NGINX_ANON_PORT}"
+DAVS_BASE = f"davs://{HOST}:{NGINX_WEBDAV_PORT}"
 CA_DIR = os.path.join(os.environ.get("TEST_ROOT", "/tmp/xrd-test"), "pki", "ca")
 
 
@@ -118,15 +118,17 @@ def _run_matrix(base, work, tmp_path, check_stat_size, with_crc32c):
 
 def test_gfal_brix_plugin_root(workfile, tmp_path):
     """gfal2 xrootd plugin (official XrdCl) ↔ our root:// stream module."""
-    if not _port_open(11094):
-        pytest.skip("fleet root:// :11094 not listening (run manage_test_servers.sh start)")
+    if not _port_open(NGINX_ANON_PORT):
+        pytest.skip(
+            f"fleet root:// :{NGINX_ANON_PORT} not listening "
+            "(run manage_test_servers start-all)")
     _run_matrix(ROOT_BASE, workfile, tmp_path, check_stat_size=True, with_crc32c=True)
 
 
 def test_gfal_http_plugin_davs(workfile, tmp_path):
     """gfal2 http plugin ↔ our WebDAV (davs:// over TLS)."""
-    if not _port_open(8443):
-        pytest.skip("fleet davs:// :8443 not listening")
+    if not _port_open(NGINX_WEBDAV_PORT):
+        pytest.skip(f"fleet davs:// :{NGINX_WEBDAV_PORT} not listening")
     if not os.path.isdir(CA_DIR):
         pytest.skip(f"fleet CA {CA_DIR} absent — cannot verify davs:// TLS")
     # gfal-stat over davs:// now returns the correct size: we no longer emit RFC

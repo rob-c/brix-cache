@@ -47,7 +47,7 @@ def _read(rel):
     assert p.exists(), f"missing {rel}"
     text = p.read_text(encoding="utf-8")
     # Two refactors split source out of the file being read: the ngx_command_t
-    # directive table into per-concern directives_*.inc fragments, and the big
+    # directive table into per-concern directives_*.h fragments, and the big
     # brix_ctx_t / srv-conf structs into *_structs.h sub-structs — both #included
     # back into the original.  Inline those siblings so a presence check against
     # module.c / context.h sees the full effective source.
@@ -55,7 +55,7 @@ def _read(rel):
     def _inc(m):
         frag = p.parent / m.group(1)
         return frag.read_text(encoding="utf-8") if frag.exists() else m.group(0)
-    return _re.sub(r'#include "(directives_[a-z0-9_]+\.inc|[a-z0-9_]+_structs\.h)"',
+    return _re.sub(r'#include "(directives_[a-z0-9_]+\.h|[a-z0-9_]+_structs\.h)"',
                    _inc, text)
 
 

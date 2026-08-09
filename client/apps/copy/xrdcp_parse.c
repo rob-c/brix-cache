@@ -370,6 +370,23 @@ xrdcp_parse_transport_option(xrdcp_cli_state *s, int argc, char **argv, size_t *
      * disjoint pwrite ranges).  Opt-in — fail-closed, no single-link resilient
      * ride-out; the serial resilient fan-out stays the default. */
     if (strcmp(a, "--parallel") == 0) { o->parallel = 1; return 1; }
+    /* --sources N (phase-100 extreme copy): block-stealing download from up to
+     * N replicas (metalink mirrors / locate discovery).  1 = plain single
+     * source; the engine caps at 16 distinct connections. */
+    if (strcmp(a, "--sources") == 0 && *i + 1 < (size_t) argc) {
+        int n = atoi(argv[++(*i)]);
+        if (n < 1 || n > 16) {
+            fprintf(stderr, "xrdcp: --sources: expected a count in 1..16, "
+                            "got '%s'\n", argv[*i]);
+            usage(argv[0]);
+            return 50;
+        }
+        o->sources = n;
+        return 1;
+    }
+    /* --no-metalink: copy .meta4/.metalink sources as plain files instead of
+     * resolving them as virtual redirectors (phase-100). */
+    if (strcmp(a, "--no-metalink") == 0) { o->metalink_off = 1; return 1; }
     /* --max-stall / --no-retry are parsed by brix_opts_parse_arg into the shared
      * brix_opts (s->o->conn) — which runs first in xrdcp_parse_option — and are
      * folded into copt by finalize_resilience_posture().  Do NOT duplicate the

@@ -1,4 +1,5 @@
-from _test_evil_actor_v3_helpers import *  # noqa: F401,F403  (Phase-38 split shared header)
+from split_continuation import reexport as _reexport
+_reexport(globals(), "_test_evil_actor_v3_helpers")
 
 def test_a1_roots_tls_windowed_read(srv):
     if not _tls_available(srv):

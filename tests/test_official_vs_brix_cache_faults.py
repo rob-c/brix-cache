@@ -176,6 +176,7 @@ def link(lifecycle, tmp_path):
                     "CACHE_STORE": str(cache_dir),
                     "CACHE_SLICE_SIZE": "", "CACHE_MAX_OBJECT": "",
                     "CACHE_DENY_PREFIX": "", "CACHE_INCLUDE_REGEX": "",
+                    "CACHE_PREFETCH": "",
                 }))
             cache_url = f"root://{HOST}:{cache.port}//big.bin"
             direct_url = f"root://{HOST}:{proxy.listen}//big.bin"

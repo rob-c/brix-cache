@@ -1,0 +1,168 @@
+#!/usr/bin/make -f
+# debian/rules for nginx-mod-brix-cache — the deb counterpart of
+# packaging/rpm/nginx-mod-brix-cache.spec (%build/%install).  Driven by
+# packaging/deb/build-deb.sh, which stages the source tree, unpacks the
+# matching nginx source, and exports:
+#
+#   NGINX_SRC_DIR      unpacked nginx source tree of the EXACT version the
+#                      target host runs (nginx refuses dynamic modules built
+#                      against any other version)
+#   BRIX_NGINX_FLAVOR  org    — nginx.org packages for Ubuntu (stream compiled
+#                               in statically; default, mirrors the RPM
+#                               builders' nginx.org repo)
+#                      distro — Ubuntu archive nginx (stream is the separate
+#                               libnginx-mod-stream dynamic module, added to
+#                               Depends via the brix:nginx-abi substvar)
+#
+# Both nginx flavours are built --with-compat, so one module binary per nginx
+# version serves either; the flavour only changes the generated Depends line.
+
+export DEB_BUILD_MAINT_OPTIONS = hardening=+all
+include /usr/share/dpkg/architecture.mk
+include /usr/share/dpkg/buildflags.mk
+
+BRIX_NGINX_FLAVOR ?= org
+NGINX_SRC_DIR ?=
+
+# phase-44 io_uring engine: default ON, same as the spec's %bcond_without
+# uring.  Double-gated — this env opt-in plus ./configure's liburing
+# pkg-config probe (liburing-dev is in Build-Depends).
+export BRIX_ENABLE_IO_URING = 1
+
+TMP := $(CURDIR)/debian/tmp
+MODDIR := usr/lib/nginx/modules
+# Sorts after libnginx-mod-stream's 50-mod-stream.conf in the
+# /etc/nginx/modules-enabled/*.conf include glob: the stream core must dlopen
+# first so its symbols back ours via RTLD_GLOBAL on distro nginx.
+MODCONF := 60-mod-brix-cache.conf
+
+JOBS := $(patsubst parallel=%,%,$(filter parallel=%,$(DEB_BUILD_OPTIONS)))
+ifeq ($(JOBS),)
+JOBS := $(shell nproc)
+endif
+
+%:
+	dh $@
+
+nginx-src-check:
+	@test -n "$(NGINX_SRC_DIR)" -a -x "$(NGINX_SRC_DIR)/configure" || { \
+	    echo "error: NGINX_SRC_DIR must point at an unpacked nginx source tree"; \
+	    echo "       (run this build via packaging/deb/build-deb.sh)"; \
+	    exit 1; }
+
+override_dh_auto_configure: nginx-src-check
+	# Same module-relevant flags as the spec's %nginx_modconfigure call;
+	# --with-compat normalises the module signature so the .so loads into
+	# any --with-compat nginx of the same version (both Ubuntu-archive and
+	# nginx.org builds are --with-compat).
+	cd $(NGINX_SRC_DIR) && ./configure \
+	    --with-compat \
+	    --with-threads \
+	    --with-stream=dynamic \
+	    --with-stream_ssl_module \
+	    --with-http_ssl_module \
+	    --with-http_dav_module \
+	    --with-cc-opt="$(CFLAGS) $(CPPFLAGS)" \
+	    --with-ld-opt="$(LDFLAGS)" \
+	    --add-dynamic-module=$(CURDIR)
+
+override_dh_auto_build:
+	$(MAKE) -j$(JOBS) -C $(NGINX_SRC_DIR) modules
+	# Native client tools: build from clean so every object carries the
+	# dpkg-buildflags (PIE/RELRO/BIND_NOW parity with the RPM's optflags +
+	# build_ldflags).  The shared protocol core is built first, explicitly,
+	# because the client's own `proto` target does not forward CFLAGS.
+	$(MAKE) -C client clean
+	$(MAKE) -C shared/xrdproto clean
+	$(MAKE) -j$(JOBS) -C shared/xrdproto CFLAGS="$(CFLAGS) $(CPPFLAGS)"
+	$(MAKE) -j$(JOBS) -C client CFLAGS="$(CFLAGS) $(CPPFLAGS)" LDFLAGS="$(LDFLAGS)"
+	# Build-time assertion that no Ceph operator tool was silently
+	# gate-skipped (the Build-Depends guarantee the Ceph dev packages).
+	$(MAKE) -j$(JOBS) -C client ceph-tools CFLAGS="$(CFLAGS) $(CPPFLAGS)" LDFLAGS="$(LDFLAGS)"
+	for t in xrdceph_striper_migrate xrdceph_cephfs_to_striper \
+	         xrdrados_rescue xrdcephfs_rescue xrdceph_migrate; do \
+	    test -x client/bin/$$t || exit 1; \
+	done
+
+override_dh_auto_install:
+	# --- nginx dynamic modules (phase-47 W1: exactly TWO .so files) ---
+	install -Dpm0755 $(NGINX_SRC_DIR)/objs/ngx_stream_brix_module.so \
+	    $(TMP)/$(MODDIR)/ngx_stream_brix_module.so
+	install -Dpm0755 $(NGINX_SRC_DIR)/objs/ngx_http_brix_xrdhttp_filter_module.so \
+	    $(TMP)/$(MODDIR)/ngx_http_brix_xrdhttp_filter_module.so
+	# Loader snippet, Debian nginx convention: shipped in modules-available,
+	# symlinked into /etc/nginx/modules-enabled by postinst.  Combined module
+	# first so its symbols back the filter via RTLD_GLOBAL.
+	install -d $(TMP)/usr/share/nginx/modules-available
+	{ \
+	    echo 'load_module "/$(MODDIR)/ngx_stream_brix_module.so";'; \
+	    echo 'load_module "/$(MODDIR)/ngx_http_brix_xrdhttp_filter_module.so";'; \
+	} > $(TMP)/usr/share/nginx/modules-available/$(MODCONF)
+	# phase-47 W3: example server config (never auto-activates) + logrotate.
+	install -Dpm0644 contrib/brix-cache.conf.example \
+	    $(TMP)/etc/nginx/conf.d/brix-cache.conf.example
+	install -Dpm0644 contrib/logrotate.d/brix $(TMP)/etc/logrotate.d/brix
+	# phase-47 W4: Grafana dashboard + Prometheus alert rules.
+	install -Dpm0644 contrib/grafana-dashboard.json \
+	    $(TMP)/usr/share/brix/grafana-dashboard.json
+	install -Dpm0644 contrib/prometheus-alerts.yml \
+	    $(TMP)/usr/share/brix/prometheus-alerts.yml
+	# --- native client tools + brix- prefixed flavour + automount stack ---
+	$(MAKE) -C client install-bin DESTDIR=$(TMP) PREFIX=/usr \
+	    LIBDIR=/usr/lib/$(DEB_HOST_MULTIARCH)
+	$(MAKE) -C client install-compat DESTDIR=$(TMP) PREFIX=/usr \
+	    LIBDIR=/usr/lib/$(DEB_HOST_MULTIARCH)
+	$(MAKE) -C client install-automount DESTDIR=$(TMP) PREFIX=/usr \
+	    UNITDIR=/usr/lib/systemd/system
+	# install-compat prefixes every non-FUSE man page; brixcvmfs.1 is a FUSE
+	# alias page (a .so redirect to brixMount.1) its skip list misses, and the
+	# generated brix-brixcvmfs name exists in no package flavour — drop it.
+	rm -f $(TMP)/usr/share/man/man1/brix-brixcvmfs.1
+	# --- test-suite (brix-cache-tests, arch-independent data) ---
+	install -d $(TMP)/usr/share/brix
+	cp -a tests $(TMP)/usr/share/brix/tests
+	# Never ship the prebuilt test nginx binary, python bytecode caches, or
+	# stray compiled test helpers (e.g. tests/fuzz corpora artefacts).
+	rm -f $(TMP)/usr/share/brix/tests/nginx-bin
+	find $(TMP)/usr/share/brix/tests -name '__pycache__' -type d -exec rm -rf {} + 2>/dev/null || :
+	find $(TMP)/usr/share/brix/tests -name '*.pyc' -delete
+	find $(TMP)/usr/share/brix/tests -type f \
+	    -exec sh -c 'head -c4 "$$1" | od -An -tx1 | grep -q "7f 45 4c 46"' _ {} \; -delete
+	install -Dpm0644 conftest.py      $(TMP)/usr/share/brix/conftest.py
+	install -Dpm0644 pytest.ini       $(TMP)/usr/share/brix/pytest.ini
+	install -Dpm0644 requirements.txt $(TMP)/usr/share/brix/requirements.txt
+
+# The nginx dependency is version-locked: a dynamic module only loads into
+# the exact nginx version it was built against (nginx checks at dlopen), so
+# generate the bound from the nginx source we actually compiled with.  The
+# distro flavour additionally needs the stream core module package.
+override_dh_gencontrol:
+	set -e; \
+	v=$$(sed -n 's/^#define NGINX_VERSION *"\([^"]*\)".*/\1/p' \
+	    $(NGINX_SRC_DIR)/src/core/nginx.h); \
+	test -n "$$v"; \
+	dep="nginx (>= $$v), nginx (<< $$v.1~)"; \
+	if [ "$(BRIX_NGINX_FLAVOR)" = "distro" ]; then \
+	    dep="$$dep, libnginx-mod-stream"; \
+	fi; \
+	echo "brix:nginx-abi=$$dep" >> debian/nginx-mod-brix-cache.substvars; \
+	dh_gencontrol
+
+# Parity with the RPM's %systemd_post (preset-driven, no auto-enable): the
+# operator opts in with `systemctl enable --now brixcvmfs-automount`.
+override_dh_installsystemd:
+	dh_installsystemd --no-enable --no-start
+
+# Everything `make install-*` stages must be claimed by exactly one package —
+# the deb counterpart of rpmbuild's unpackaged-files check.
+override_dh_missing:
+	dh_missing --fail-missing
+
+override_dh_auto_test:
+
+override_dh_auto_clean:
+	[ -z "$(NGINX_SRC_DIR)" ] || rm -rf $(NGINX_SRC_DIR)/objs $(NGINX_SRC_DIR)/Makefile
+	$(MAKE) -C client clean || true
+	$(MAKE) -C shared/xrdproto clean || true
+
+.PHONY: nginx-src-check

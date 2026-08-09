@@ -208,7 +208,7 @@ writev_write_segment(brix_ctx_t *ctx, ngx_connection_t *c,
 	    brix_wrts_is_replay(&ctx->files[idx], offset, wlen))
 	{
 		ngx_log_debug2(NGX_LOG_DEBUG_STREAM, c->log, 0,
-		    "brix: writev recovery replay skip offset=%lld len=%u",
+		    "brix: writev recovery replay skip offset=%lld len=%ud",
 		    (long long) offset, wlen);
 		*bytes_written_total += (size_t) wlen;
 		*data_ptr += wlen;

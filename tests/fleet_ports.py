@@ -30,18 +30,34 @@ from __future__ import annotations
 
 import settings as S
 import fleet_specs
+from port_ladder import (
+    CMDSCRIPTS_OFFSET,
+    CMDSCRIPTS_WIDTH,
+    CMS_MESH_OFFSET,
+    CMS_MESH_WIDTH,
+    HYBRID_MESH_OFFSET,
+    HYBRID_MESH_WIDTH,
+    LIFECYCLE_EXCLUSIVE_OFFSET,
+    LIFECYCLE_EXCLUSIVE_WIDTH,
+    LIFECYCLE_SHARED_OFFSET,
+    LIFECYCLE_SHARED_WIDTH,
+    PLACEHOLDERS_OFFSET,
+    PLACEHOLDERS_WIDTH,
+    PORT_START,
+    SETTINGS_OFFSET,
+    SETTINGS_WIDTH,
+    rebase_cmdscripts,
+)
 
 
 # --- port bands -------------------------------------------------------------
 #
-# Every fixed listen port lives in exactly one documented band.  The bands give
-# new fixed-port allocations a collision-free home and keep the three
-# server-launch families from overlapping each other's ranges:
+# Every central allocation lives in one contiguous, lane-relative band. The
+# historical values remain in the source ledgers as provenance; PORT_BANDS is
+# the runtime layout selected by TEST_PORT_START:
 #
-#   * ``legacy-fleet`` grandfathers every port that predates the fixed-port
-#     migration — the whole historical 8080-29012 block (main nginx standard
-#     listens, dedicated fleet instances, CMS cluster topologies, synthetic CMS
-#     payload ports).  New ports SHOULD NOT be added here; use a band below.
+#   * ``registry`` contains settings.py fleet, mock, synthetic/dead-target and
+#     test-fixture values.
 #   * ``lifecycle-shared`` — Phase-4 shared, idempotent lifecycle singletons: one
 #     named registry spec per distinct config, shared by every declaring test.
 #   * ``lifecycle-exclusive`` — Phase-4 mutation / lifecycle-subject singletons
@@ -54,7 +70,7 @@ import fleet_specs
 #     reach ``endpoint_for``; each script owns a fixed contiguous block from
 #     ``CMDSCRIPTS_PORTS`` (was ``settings.free_ports`` before the migration).
 #
-# Ranges are half-open-friendly inclusive [lo, hi] and MUST NOT overlap.
+# Ranges are inclusive [lo, hi], adjacent, and MUST NOT overlap.
 #
 # CRITICAL — every band here holds *fixed server listen* ports, so every band
 # MUST stay BELOW the OS ephemeral (local) port range floor.  On Linux that
@@ -62,15 +78,27 @@ import fleet_specs
 # inside the ephemeral range is a latent flake: an outbound *client* socket can
 # transiently claim that number as its source port, and nginx then fails to bind
 # with ``Address already in use`` — intermittently, only when the race lands.
-# The Phase-4/Phase-2 bands were originally placed at 34000-36999 (inside the
-# ephemeral range) and produced exactly that flake; they now live at 30000-32499,
-# entirely below the 32768 floor.  ``test_fleet_ports`` lints this invariant.
+# Choose TEST_PORT_START so the complete lane remains below the host's ephemeral
+# floor when possible. ``test_fleet_ports`` lints the active lane.
+def _band(name, offset, width, description):
+    return (name, PORT_START + offset + 1, PORT_START + offset + width, description)
+
+
 PORT_BANDS = (
-    ("legacy-fleet", 8080, 29019, "grandfathered pre-migration fixed listens"),
-    ("cmdscripts", 29020, 29999, "standalone cmdscripts self-launchers"),
-    ("lifecycle-shared", 30000, 30999, "shared idempotent lifecycle singletons"),
-    ("lifecycle-exclusive", 31000, 31999, "mutation/lifecycle-subject singletons"),
-    ("mocks", 32000, 32499, "registry-managed Python mock singletons"),
+    _band("registry", SETTINGS_OFFSET, SETTINGS_WIDTH,
+          "fleet, mock, synthetic and test-fixture settings ports"),
+    _band("lifecycle-shared", LIFECYCLE_SHARED_OFFSET, LIFECYCLE_SHARED_WIDTH,
+          "shared idempotent lifecycle singletons"),
+    _band("lifecycle-exclusive", LIFECYCLE_EXCLUSIVE_OFFSET,
+          LIFECYCLE_EXCLUSIVE_WIDTH, "mutation/lifecycle-subject singletons"),
+    _band("cmdscripts", CMDSCRIPTS_OFFSET, CMDSCRIPTS_WIDTH,
+          "standalone cmdscripts self-launchers"),
+    _band("cms-mesh", CMS_MESH_OFFSET, CMS_MESH_WIDTH,
+          "registry-owned CMS mesh orchestrator listeners"),
+    _band("hybrid-mesh", HYBRID_MESH_OFFSET, HYBRID_MESH_WIDTH,
+          "registry-owned hybrid mesh orchestrator listeners"),
+    _band("placeholders", PLACEHOLDERS_OFFSET, PLACEHOLDERS_WIDTH,
+          "non-binding nginx -t placeholder values"),
 )
 
 
@@ -98,6 +126,7 @@ _MAIN_SHARED_CONSTS = (
     "NGINX_WEBDAV_GSI_TLS_PORT",
     "NGINX_HTTP_WEBDAV_PORT",
     "NGINX_S3_PORT",
+    "NGINX_DASHBOARD_PORT",
 )
 
 # Secondary listens owned by a dedicated spec but injected through its ``env``
@@ -108,6 +137,8 @@ _SECONDARY_CONSTS = {
     # extra HTTP/S3 listens of a single multi-protocol export
     "READONLY_HTTP_S3_PORT": "readonly-http",
     "COMPRESS_S3_PORT": "compress",
+    "ZIP_WEBDAV_PORT": "zip",
+    "ZIP_S3_PORT": "zip",
     # CRL roles that also front a WebDAV / reload-stub listen
     "WEBDAV_CRL_PORT": "crl",
     "WEBDAV_DIR_PORT": "crl-dir",
@@ -131,6 +162,7 @@ _SECONDARY_CONSTS = {
     "CLUSTER_ESC_CMS_PORT": "cluster-esc-sub",
     "CLUSTER_TRY_CMS_PORT": "cluster-try",
     "CMS_TEST_CMS_PORT": "cms-test-mgr",
+    "CHAOS_DISCOVERY_CMS_PORT": "chaos-discovery-redir",
     # IPv6 manager's CMS + HTTP listens (template-driven, one instance)
     "IPV6_MGR_CMS_PORT": "ipv6-mgr",
     "IPV6_MGR_HTTP_PORT": "ipv6-mgr",
@@ -188,6 +220,7 @@ def _port_constants() -> dict[str, int]:
         n: getattr(S, n)
         for n in dir(S)
         if n.isupper()
+        and n != "TEST_PORT_START"
         and isinstance(getattr(S, n), int)
         and 1024 <= getattr(S, n) <= 65535
     }
@@ -289,6 +322,10 @@ CMDSCRIPTS_PORTS = {
     "xroot_gateway_regress": (29219, 2),
     "cvmfs_repo_cli": (29221, 4),
 }
+
+# Tuple bases above are the original ports used by each developed command test.
+# Convert the blocks to their contiguous runtime positions in the lane.
+CMDSCRIPTS_PORTS = rebase_cmdscripts(CMDSCRIPTS_PORTS)
 
 
 def cmdscript_ports(stem: str, count: "int | None" = None) -> "list[int]":

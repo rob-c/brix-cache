@@ -25,8 +25,8 @@ need only include the subsystem's small public headers.
 
 In the request lifecycle this subsystem runs in the **auth/access phase**, before
 any path is opened. The stream (`root://`) login path reaches it via
-`../handshake/policy.c` and `../gsi/token.c`; WebDAV reaches it via
-`../webdav/auth_token.c` (access-phase handler); S3-with-OIDC and TPC credential
+`src/protocols/root/handshake/policy.c` and `../gsi/token.c`; WebDAV reaches it via
+`src/protocols/webdav/auth_token.c` (access-phase handler); S3-with-OIDC and TPC credential
 flows use `oauth2.c`/`file.c`. Validation only *authenticates* the token and parses
 its scopes — the caller must still call `brix_token_check_read()` /
 `brix_token_check_write()` for the specific path before granting access, and that
@@ -75,6 +75,22 @@ the cache identity — claims are never served across server/location blocks.
 | `scopes.h` | Scope struct + parse/check prototypes (mirrors `token.h` for callers that need only scopes). |
 | `oauth2.h` / `file.h` / `b64url.h` / `json.h` / `token_cache.h` | Public headers for the corresponding helpers. |
 
+### Other files
+
+| File | Responsibility |
+|---|---|
+| `aud_match.c` / `.h` | brix_token_backend_aud_ok() — does the client token's `aud` claim accept the backend, per the `brix_backend_token_audience_ok` list? |
+| `exchange.c` / `.h` | brix_token_exchange() POSTs an RFC 8693 token-exchange grant to an OAuth2 token endpoint and returns the minted access_token. |
+| `exchange_cache.c` / `.h` | Direct-mapped (subject-token, audience) → minted-token cache with a hard TTL clamp, for the phase-70 §5.4 EXCHANGE leg. |
+| `ini.c` / `.h` | Reads an INI file and dispatches every `key = value` line to a caller callback, tracking the current `[section]`. |
+| `ini_unittest.c` | standalone unit test for the INI parser (token/ini.c). |
+| `issuer_registry.c` / `.h` | Loads the upstream XRootD `scitokens.cfg` INI into a read-only table of issuers, each with its iss URL, audiences, base_path/restricted_path namespace scope, authorization strategy, and (optional) per-issuer JWKS. |
+| `jwt_sign.c` / `.h` | ES256 JWT minting (see jwt_sign.h for the contract). |
+| `subject_map.c` / `.h` | Reads a small JSON map file { "<subject>": "<user>", .. |
+| `validate_internal.h` | Declares the decoded-JOSE-header carrier (token_hdr_t), the two log-sanitising helpers used on every rejection path (token_sanitize_for_log, brix_token_malformed), and the two signature-plane entry points that cross a tr. |
+| `validate_registry.c` | The issuer-registry entry points that sit above brix_token_validate(): brix_token_peek_iss() reads the "iss" claim WITHOUT trusting the signature so the registry can pick which issuer's keys to verify against; brix_token. |
+| `validate_sig.c` | Owns the two trust-boundary steps that must run — and pass — before any payload claim is believed: token_check_header() base64url-decodes the JWS protected header, extracts "alg"/"kid", and rejects any algorithm other th. |
+
 ## Key types & data structures
 
 - **`brix_token_claims_t`** (`token.h`) — the output of all validation. Fixed-size,
@@ -102,20 +118,20 @@ parse the scope claim. Success populates a caller-supplied `brix_token_claims_t`
 
 Callers into this subsystem:
 
-- `../handshake/policy.c` and `../gsi/token.c` — stream `root://` login auth.
-- `../webdav/auth_token.c` — WebDAV access-phase Bearer auth, including macaroon
+- `src/protocols/root/handshake/policy.c` and `../gsi/token.c` — stream `root://` login auth.
+- `src/protocols/webdav/auth_token.c` — WebDAV access-phase Bearer auth, including macaroon
   old-secret grace-period fallback during key rotation.
-- `../webdav/macaroon_endpoint.c` — calls `brix_macaroon_issue()` for delegation.
-- `../webdav/tpc_cred_parse.c`, `../tpc/tpc_token.c`, `../tpc/gsi_outbound_common.c`,
-  `../upstream/auth.c` — TPC/redirector credential handling (`oauth2.c`/`file.c`).
-- `../types/identity.c` — folds token claims into the unified identity model.
+- `src/protocols/webdav/macaroon_endpoint.c` — calls `brix_macaroon_issue()` for delegation.
+- `src/protocols/webdav/tpc_cred_parse.c`, `src/tpc/outbound/tpc_token.c`, `src/tpc/gsi/gsi_outbound_common.c`,
+  `src/net/upstream/auth.c` — TPC/redirector credential handling (`oauth2.c`/`file.c`).
+- `src/core/types/identity.c` — folds token claims into the unified identity model.
 
 Key material is loaded at config time by `config.c` (calling `jwks.c`) into the
 server-conf `jwks_keys[]`, then kept fresh per-worker by `refresh.c`. Scope decisions
 made *after* validation feed `../path/` ACL/confinement: a granted scope is necessary
-but the actual filesystem access still goes through `../path/beneath.c` confinement.
+but the actual filesystem access still goes through `src/fs/path/beneath.c` confinement.
 The validated-claims cache (`token_cache.c`) sits on top of `../shm/` (`brix_kv_t`)
-and uses `../compat/crypto.h` for the SHA-256 fingerprint.
+and uses `src/core/compat/crypto.h` for the SHA-256 fingerprint.
 
 ## Invariants, security & gotchas
 
@@ -131,12 +147,12 @@ and uses `../compat/crypto.h` for the SHA-256 fingerprint.
   `/database`. Permission strings are matched by exact length (`token_scope_set_permission`).
 - **Validation only authenticates; it does not authorize a path.** Callers must run
   `brix_token_check_read/_write()` per path, and real access is still gated by
-  `../path/beneath.c` (RESOLVE_BENEATH). Token scope ≠ filesystem permission.
+  `src/fs/path/beneath.c` (RESOLVE_BENEATH). Token scope ≠ filesystem permission.
 - **Log-injection defense.** Every untrusted claim is run through
   `token_sanitize_for_log()` (escapes control/non-ASCII to `\xHH`) before hitting the
   error log — a wire string must never be logged raw.
 - **Clock skew is bounded, not zero.** `exp`/`nbf` are checked against the server
-  clock with a `BRIX_TOKEN_CLOCK_SKEW_SECS` (30s, `../types/tunables.h`) grace
+  clock with a `BRIX_TOKEN_CLOCK_SKEW_SECS` (30s, `src/core/types/tunables.h`) grace
   window; deployments still need NTP.
 - **Macaroon HMAC chain is order-sensitive.** Any tampered/reordered caveat yields a
   mismatched final signature (`macaroon_parse_core`). Caveats *narrow* authority:
@@ -181,11 +197,11 @@ and uses `../compat/crypto.h` for the SHA-256 fingerprint.
 
 ## See also
 
-- `../path/README.md` — RESOLVE_BENEATH confinement and ACLs that consume token scopes.
+- `../../fs/path/README.md` — RESOLVE_BENEATH confinement and ACLs that consume token scopes.
 - `../gsi/README.md` — the x509-proxy auth domain (token claims fold into the same identity).
-- `../webdav/README.md` — WebDAV Bearer/macaroon auth and the macaroon issuance endpoint.
-- `../handshake/README.md` / `../session/README.md` — stream `root://` login that invokes validation.
-- `../shm/README.md` — the KV zone backing `token_cache.c`.
-- `../types/README.md` — `tunables.h` (clock skew) and the unified `identity` model.
-- `../compat/README.md` — `crypto.h` (SHA-256) and `hex.h` used here.
+- `../../protocols/webdav/README.md` — WebDAV Bearer/macaroon auth and the macaroon issuance endpoint.
+- `../../protocols/root/handshake/README.md` / `../../protocols/root/session/README.md` — stream `root://` login that invokes validation.
+- `../../core/shm/README.md` — the KV zone backing `token_cache.c`.
+- `../../core/types/README.md` — `src/core/types/tunables.h` (clock skew) and the unified `identity` model.
+- `../../core/compat/README.md` — `src/core/compat/crypto.h` (SHA-256) and `src/core/compat/hex.h` used here.
 - `../README.md` — master subsystem index.

@@ -29,6 +29,8 @@ from settings import (
 
 from settings import TEST_ROOT as _TEST_ROOT
 
+pytestmark = pytest.mark.xdist_group("authdb")
+
 AUTHDB_URL  = f"root://{url_host(HOST)}:{AUTHDB_PORT}"
 AUTHDB_DATA = os.path.join(_TEST_ROOT, "data-authdb")
 AUTHDB_FILE = os.path.join(AUTHDB_DATA, "authdb")

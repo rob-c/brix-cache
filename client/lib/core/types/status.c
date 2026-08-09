@@ -78,6 +78,13 @@ brix_status_retryable(const brix_status *st)
     case kXR_inProgress:    /* operation transiently in progress elsewhere */
     case kXR_noserver:      /* cluster: no server right now, maybe shortly */
     case kXR_ServerError:   /* generic server-side fault, often transient */
+    /* Audit §1 gap 5 — reference codes a STOCK server may send that BriX
+     * previously decoded as "Unknown" and classified fatal. All three are
+     * transient by definition: the object's replicas may return, and a request
+     * or server timer that expired says nothing about the request's validity. */
+    case kXR_noReplicas:    /* object has no reachable replica right now */
+    case kXR_ReqTimedOut:   /* the request outran its time budget */
+    case kXR_TimerExpired:  /* a server-side wait/stage timer expired */
         return 1;
     default:
         return 0;

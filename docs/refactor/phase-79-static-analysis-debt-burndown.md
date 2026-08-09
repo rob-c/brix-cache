@@ -24,10 +24,10 @@
 > git-clean before editing) were split into 16 new `.c` + a `webdav.h`→webdav_loc_conf.h header
 > split; full host build clean, 1004 webdav smoke tests pass. (b) **`config.h`'s 691-line ABI
 > struct** — instead of the risky field-access refactor across 204 files / ~2800 `conf->field`
-> sites, the struct's field declarations were moved into 3 concern-grouped `.inc` fragments
-> `#include`d INSIDE the struct body (the repo's established `.inc` pattern, cf. module_commands.c).
+> sites, the struct's field declarations were moved into 3 concern-grouped `.h` fragments
+> `#include`d INSIDE the struct body (the repo's established `.h` pattern, cf. module_commands.c).
 > The struct assembles byte-identically → ZERO ABI change, ZERO consumer change, config.h 813→131;
-> a clean rebuild across all 204 consumers is the compile-proof of identical layout. **The `.inc`
+> a clean rebuild across all 204 consumers is the compile-proof of identical layout. **The `.h`
 > field fragments are the maintainability win: config.h is now a scannable overview and the fields
 > live in navigable concern files (auth/net/cache), each < 500.**
 >
@@ -378,7 +378,7 @@ Work landed in the working tree (uncommitted; `--regen` + commit remain OP-owned
   client build.)
 - **FINAL state: 0 file-size failures.** Every oversized file in the tree (145 at phase start) is
   now under the 500-line cap — including the last 12 (11 webdav split with OP authorization; the
-  config.h ABI struct fragmented via `.inc` includes with zero ABI/consumer change). All three
+  config.h ABI struct fragmented via `.h` includes with zero ABI/consumer change). All three
   ratchet guards that can be green ARE green (complexity, duplication, file-size). **OP-owned END
   steps remain:** `--regen` the four ratchet baselines (or leave frozen — the tree now beats
   every cap), then commit — no git write has been run.
@@ -829,7 +829,7 @@ Git-tracked C/C++ files over the 500-line cap: **192**
 - [ ] `src/auth/gsi/proxy_req.c` — **828** lines (over by 328)
 - [ ] `src/net/mirror/stream_wmirror.c` — **824** lines (over by 324)
 - [ ] `src/auth/s3/sts.c` — **815** lines (over by 315)
-- [x] `src/core/types/config.h` — **813** lines — SPLIT (zero-ABI/zero-consumer via .inc struct-fragment pattern) → config.h 131 + srv_conf_fields_{auth,net,cache}.inc; struct assembles byte-identically, clean build across all 204 consumers
+- [x] `src/core/types/config.h` — **813** lines — SPLIT (zero-ABI/zero-consumer via .h struct-fragment pattern) → config.h 131 + srv_conf_fields_{auth,net,cache}.h; struct assembles byte-identically, clean build across all 204 consumers
 - [ ] `src/protocols/s3/aws_chunked.c` — **801** lines (over by 301)
 - [ ] `src/core/http/http_body.c` — **797** lines (over by 297)
 - [ ] `src/protocols/root/read/open_request.c` — **789** lines (over by 289)
@@ -916,7 +916,7 @@ Git-tracked C/C++ files over the 500-line cap: **192**
 - [ ] `client/preload/brixposix_preload.c` — **598** lines (over by 98)
 - [ ] `src/fs/cache/origin_ns.c` — **593** lines (over by 93)
 - [x] `src/protocols/root/write/chkpoint.c` — **589** lines — SPLIT → 294 + chkpoint_recover.c (325); build clean
-- [x] `src/protocols/webdav/module.c` — **587** lines — SPLIT → 33 + module_commands.c + directives_tpc.inc; ngx_module_t glue retained
+- [x] `src/protocols/webdav/module.c` — **587** lines — SPLIT → 33 + module_commands.c + directives_tpc.h; ngx_module_t glue retained
 - [x] `src/protocols/webdav/dead_props.c` — **586** lines — SPLIT → 384 + dead_props_keys.c
 - [ ] `src/net/cms/connect.c` — **582** lines (over by 82)
 - [ ] `src/fs/cache/cinfo.c` — **582** lines (over by 82)

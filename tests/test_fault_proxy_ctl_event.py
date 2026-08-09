@@ -20,8 +20,9 @@ event-log
 * SUCCESS  — a configured `--event-log` records one JSONL object per discrete
              fault (refuse on a blocked accept, sever on a truncate cut), each a
              well-formed object carrying only structural metadata.
-* ERROR    — an unopenable `--event-log` path fails closed at startup (exit 2),
-             never launching a relay that silently drops its audit trail.
+* ERROR    — an unopenable `--event-log` path fails closed at startup (exit 1, a
+             runtime/environment failure — not a CLI usage error), never
+             launching a relay that silently drops its audit trail.
 * SECURITY — relayed payload bytes are NEVER written to the log: a known secret
              pushed through a severed transfer appears nowhere in the JSONL.
 
@@ -277,7 +278,11 @@ def test_event_log_records_refuse_and_sever(bfp, tmp_path):
         assert sever["reason"] == "truncate"
         # every record is structural metadata: fixed key set, numeric conn id
         for e in events:
-            assert set(e) <= {"t", "route", "conn", "dir", "event", "reason"}
+            # structural metadata only — numeric offsets/counts (at/count) are
+            # structural, never payload bytes; the security property is that no
+            # relayed byte is ever written, verified by test_log_holds_no_payload.
+            assert set(e) <= {"t", "route", "conn", "dir", "event", "reason",
+                              "at", "count"}
             assert isinstance(e["conn"], int)
     finally:
         proc.terminate()
@@ -290,15 +295,16 @@ def test_event_log_records_refuse_and_sever(bfp, tmp_path):
 # --------------------------------------------------------------------------- #
 
 def test_event_log_bad_path_fails_closed(bfp, tmp_path):
-    """An unopenable --event-log path fails closed at startup (exit 2): the proxy
-    must not launch a relay that silently drops its audit trail."""
+    """An unopenable --event-log path fails closed at startup (exit 1, a runtime
+    failure — not a CLI usage error): the proxy must not launch a relay that
+    silently drops its audit trail."""
     bad = tmp_path / "no-such-dir" / "events.jsonl"   # parent does not exist
     r = subprocess.run(
         [bfp, "--listen", str(_free_port()), "--target", f"{HOST}:{_free_port()}",
          "--control", str(_free_port()), "--event-log", str(bad), "--quiet"],
         capture_output=True, text=True, timeout=10,
     )
-    assert r.returncode == 2, r.stdout + r.stderr
+    assert r.returncode == 1, r.stdout + r.stderr
     assert "event-log" in r.stderr
     assert not bad.exists()
 

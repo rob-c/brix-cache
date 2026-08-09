@@ -6,7 +6,7 @@ Native third-party copy lets a client orchestrate a direct
 server-to-server transfer: the destination server pulls from the source
 server without the bytes touching the client. This directory is the
 destination-side control plane. `brix_tpc_prepare_pull()` (`launch.c`) is
-the entry point, invoked from `root/read/open_request.c` when a `kXR_open`
+the entry point, invoked from `src/protocols/root/read/open_request.c` when a `kXR_open`
 carries TPC opaque parameters (parsed by `parse.c`).
 
 The rendezvous between the client's two opens (source-side key
@@ -27,6 +27,12 @@ thread pool to the nginx event loop.
 | `noop.c` | refusing stand-ins when native TPC is compiled out |
 | `tpc_internal.h` | shared types, constants, and declarations for the TPC cluster |
 
+### Other files
+
+| File | Responsibility |
+|---|---|
+| `launch_prepare.c` | The prepare pipeline (split verbatim out of launch.c on 2026-07-14 for file-size). |
+
 ## Invariants, security & gotchas
 
 1. The SHM key table mutex MUST be spin+yield via `brix_shm_table_alloc()`
@@ -42,4 +48,4 @@ thread pool to the nginx event loop.
 
 - [../outbound/README.md](../outbound/README.md) — the blocking source-session client
 - [../gsi/README.md](../gsi/README.md) — outbound GSI auth for the pull socket
-- [../../protocols/root/read/](../../protocols/root/read/) — `open_request.c`, the caller
+- [../../protocols/root/read/](../../protocols/root/read/) — `src/protocols/root/read/open_request.c`, the caller

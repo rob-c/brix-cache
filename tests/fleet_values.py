@@ -62,6 +62,7 @@ def session_template_values(env: Mapping[str, str] | None = None) -> dict[str, s
         "GSI_TLS_PORT": env.get("NGINX_GSI_TLS_PORT", "11096"),
         "TOKEN_PORT": env.get("NGINX_TOKEN_PORT", "11097"),
         "METRICS_PORT": env.get("NGINX_METRICS_PORT", "9100"),
+        "DASHBOARD_PORT": env.get("NGINX_DASHBOARD_PORT", "8445"),
         "WEBDAV_PORT": env.get("NGINX_WEBDAV_PORT", "8443"),
         "WEBDAV_GSI_TLS_PORT": env.get("NGINX_WEBDAV_GSI_TLS_PORT", "8444"),
         "HTTP_WEBDAV_PORT": env.get("NGINX_HTTP_WEBDAV_PORT", "8080"),

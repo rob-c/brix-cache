@@ -168,6 +168,22 @@ ngx_brix_cms_schedule_retry(ngx_brix_cms_ctx_t *ctx)
         return;
     }
 
+    /* §2.9: while retargeted by a login kYR_try, three consecutive failed
+     * connects to the redirect target fall the link back to the CONFIGURED
+     * manager — a dead supervisor must not orphan the node. */
+    if (ctx->retargeted && !ctx->logged_in) {
+        if (++ctx->retarget_fails >= 3) {
+            ngx_log_error(NGX_LOG_NOTICE, ctx->cycle->log, 0,
+                "brix: CMS retarget %V unreachable — reverting to "
+                "configured manager %V", &ctx->mgr_name, &ctx->orig_name);
+            ctx->mgr_addr = ctx->orig_addr;
+            ctx->mgr_name = ctx->orig_name;
+            ctx->retargeted = 0;
+            ctx->retarget_depth = 0;
+            ctx->retarget_fails = 0;
+        }
+    }
+
     /* Cold-start fast-retry window. */
     if (!ctx->ever_logged_in && ctx->fast_window > 0) {
         now = ngx_current_msec;
@@ -325,6 +341,7 @@ ngx_brix_cms_write_handler(ngx_event_t *ev)
         }
 
         ctx->logged_in = 1;
+        ctx->retarget_fails = 0;   /* §2.9: the retarget (if any) worked */
         BRIX_RESIL_METRIC_INC(cms_logins_total);
         BRIX_RESIL_METRIC_INC(cms_registered_links);
         ctx->backoff = ngx_min((ngx_msec_t) ctx->conf->cms.interval * 1000,

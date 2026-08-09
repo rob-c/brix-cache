@@ -1,0 +1,204 @@
+# tests/test_cvmfs_conformance_fuse_manifest_parse.py — Phase-84 Wave-3
+#
+# Conformance corpus for the CVMFS .cvmfspublished manifest parser + signature
+# trust gate (row `fuse_manifest_parse`). Drives `brixMount cvmfs --check <fqrn>`
+# (exit 0 = healthy trust chain + root catalog) against forged repos served off a
+# single long-lived webroot mock; each case rewrites ONLY the manifest in place
+# and an autouse fixture restores the pristine bytes afterwards, so exactly one
+# openssl keypair/cert is minted for the whole module (keygen is slow).
+#
+# Official .cvmfspublished spec (cvmfs manifest.cc): key-value lines terminated by
+# '\n' — C=root catalog hash, B=catalog size, R=root-path md5, X=cert obj hash,
+# S=revision, N=fqrn, T=timestamp, D=TTL — then a "--\n" separator, the printed
+# hash-line, and a raw RSA signature to EOF. The official client requires C, N and
+# X and binds the printed hash-line to the digest of the signed body. Divergences
+# from that (brix laxer) are pinned with xfail(strict=True) + a DIVERGENCE note.
+import hashlib
+import os
+import shutil
+import subprocess
+import sys
+import tempfile
+import time
+import urllib.request
+
+import pytest
+
+# conftest chdir()s into a scratch dir — anchor imports on this file's dir.
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "cvmfs"))
+
+from cmdscripts import exec_wrapper
+from conformance_common import BRIXMOUNT, PortBlock, check_repo, fuse_mount
+from repo_forge import Dir, File, RepoForge
+from settings import HOST
+
+REPO = "test.cern.ch"
+
+_FUSE_READY = (os.path.exists("/dev/fuse") and shutil.which("fusermount3") is not None
+               and os.path.exists(BRIXMOUNT))
+requires_fuse = pytest.mark.skipif(not _FUSE_READY, reason="fuse mount prerequisites missing")
+requires_brixmount = pytest.mark.skipif(not os.path.exists(BRIXMOUNT),
+                                        reason=f"brixMount not built: {BRIXMOUNT}")
+
+# Each case can retry its `--check` a few times when a saturated box outruns the
+# 60s per-call cap (see `check()`); give the whole test wall-clock room so the
+# 30s default per-test timeout never guillotines a legitimate retry mid-flight.
+pytestmark = [requires_brixmount, pytest.mark.timeout(300)]
+
+# The forged tree read back by mounts and by --check's root-dir walk.
+TREE = {"hello": File(b"Hello forged CVMFS!\n"),
+        "sub": Dir({"leaf.txt": File(b"leaf\n")}),
+        "empty": Dir({})}
+
+
+# ---- module fixtures: one forge + one cert + one mock ----------------------
+
+@pytest.fixture(scope="module")
+def forge():
+    work = tempfile.mkdtemp(prefix="fuse_manifest_parse.")
+    web = os.path.join(work, "web")
+    pub = os.path.join(work, "repo.pub")
+    f = RepoForge(REPO, web).build(TREE, pub)
+    f.pub = pub                                        # stash for callers
+    f.pristine = f.artifact_path("manifest").read_bytes()
+    try:
+        yield f
+    finally:
+        f.close()
+        shutil.rmtree(work, ignore_errors=True)
+
+
+@pytest.fixture(scope="module")
+def mock_url(forge):
+    port = PortBlock("fuse_manifest_parse").mock()
+    proc = subprocess.Popen(
+        [sys.executable, os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                      "cvmfs", "mock_stratum1.py"),
+         "--port", str(port), "--repo", REPO, "--webroot", str(forge.webroot)],
+        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    for _ in range(50):
+        if proc.poll() is not None:            # bind failed → a squatter owns the port
+            raise RuntimeError(f"webroot mock exited (rc={proc.returncode}); port "
+                               f"{port} likely held by a stale mock from a killed run")
+        try:
+            urllib.request.urlopen(f"http://{HOST}:{port}/ctl/log", timeout=0.3)
+            break
+        except Exception:
+            time.sleep(0.1)
+    else:
+        proc.terminate()
+        raise RuntimeError("webroot mock did not start")
+    # Prove the listener is *our* mock serving *this* forge, not a squatter.
+    served = urllib.request.urlopen(
+        f"http://{HOST}:{port}/cvmfs/{REPO}/.cvmfspublished", timeout=5).read()
+    assert served == forge.pristine, "port occupied by a foreign mock/webroot"
+    try:
+        yield f"http://{HOST}:{port}/cvmfs/{REPO}"
+    finally:
+        proc.terminate()
+        try:
+            proc.wait(3)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+
+
+@pytest.fixture(scope="module")
+def brixcvmfs(forge):
+    """A `brixcvmfs`-shaped shim: `brixMount cvmfs "$@"` so `--check <fqrn>` routes
+    to the CVMFS driver's check path (check_repo runs `<bin> --check <fqrn>`)."""
+    d = tempfile.mkdtemp(prefix="brixcvmfs_wrap.")
+    wrap = exec_wrapper.install(
+        d, "brixcvmfs", target=os.path.abspath(BRIXMOUNT), prepend=["cvmfs"])
+    try:
+        yield wrap
+    finally:
+        shutil.rmtree(d, ignore_errors=True)
+
+
+@pytest.fixture(autouse=True)
+def _restore_manifest(forge):
+    """Every case mutates the manifest in place; put the pristine bytes back after."""
+    yield
+    forge.artifact_path("manifest").write_bytes(forge.pristine)
+
+
+# ---- manifest byte forging helpers -----------------------------------------
+
+def _fields(forge, **override):
+    """The valid field map, with per-key overrides; a None value drops the key."""
+    f = forge._manifest_fields()
+    f.update(override)
+    return {k: v for k, v in f.items() if v is not None}
+
+
+def write_manifest(forge, *, fields=None, lines=None, hash_text=None, sign_key=None,
+                   stale_sig=False, marker=True, hashline=True, sig=True, crlf=False):
+    """Write an arbitrary .cvmfspublished. `lines` (explicit "Kvalue" strings, order
+    and duplicates preserved) wins over `fields`; the signature always covers the
+    printed `hash_text` with the repo cert key (the exact brix/CVMFS scheme)."""
+    if lines is None:
+        src = fields if fields is not None else _fields(forge)
+        lines = [f"{k}{v}" for k, v in src.items()]
+    text = "".join(l + "\n" for l in lines)
+    if marker:
+        text += "--\n"
+    # The signed hash-line is the manifest body's own SHA-1 digest (body-bound
+    # signature): default to the real digest of the body up to but EXCLUDING the
+    # "--\n" separator — exactly what an official publisher, repo_forge._write_manifest,
+    # and the body-bound verifier (verify.c body_bound_to_hash) all compute.
+    # `hash_text` overrides it to forge a body/hash mismatch.
+    if hash_text is None:
+        body_for_hash = text[:-3] if marker else text
+        ht = forge.manifest_hash or hashlib.sha1(body_for_hash.encode()).hexdigest()
+    else:
+        ht = hash_text
+    if hashline:
+        text += ht + "\n"
+    if crlf:
+        text = text.replace("\n", "\r\n")
+    raw = text.encode()
+    if sig:
+        raw += b"\x00" * 256 if stale_sig else forge._rsa_sign(
+            sign_key or forge.cert_key, ht.encode())
+    forge.artifact_path("manifest").write_bytes(raw)
+
+
+ACCEPT, REFUSE = 0, 1
+
+
+def check(forge, mock_url, brixcvmfs, want=None):
+    """Run `--check` against the (already-mutated) manifest with a private cache and
+    return the exit code (0=accept, 1=refuse).
+
+    A manifest verdict is deterministic in the parser, so accept-expecting cases pass
+    `want=ACCEPT`: a REFUSE then can only be a transient origin-fetch hiccup (this host
+    runs several Wave-3 conformance agents — and often the developer's other concurrent
+    sessions — in parallel at high load), and we retry a few times so the deterministic
+    verdict wins. A genuine logic-refuse stays REFUSE across every attempt and still
+    fails the assertion.
+
+    A `subprocess.TimeoutExpired` is never a verdict — under a saturated box brixMount's
+    fixed trust-chain backoff can outrun the per-call cap — so it is always retryable,
+    on both the accept and the refuse path. Refuse-expecting cases still take their
+    verdict from the first clean exit (no verdict-driven retries) to hold the wall-time
+    budget; only a timeout re-runs them."""
+    attempts = 4 if want == ACCEPT else 3
+    rc = REFUSE
+    for _ in range(attempts):
+        cache = tempfile.mkdtemp(prefix="mparse_cache.")
+        try:
+            rc = check_repo(REPO, mock_url, forge.pub, cache=cache,
+                            brixcvmfs=brixcvmfs, timeout=60).returncode
+        except subprocess.TimeoutExpired:
+            continue                       # saturated box, not a verdict — retry
+        finally:
+            shutil.rmtree(cache, ignore_errors=True)
+        if want != ACCEPT or rc == want:   # refuse: first clean exit wins
+            break
+    return rc
+
+
+# ---- baseline --------------------------------------------------------------
+
+def _pad_line(nbytes):
+    return "Z" + "q" * nbytes

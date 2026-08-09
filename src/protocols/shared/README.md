@@ -22,18 +22,18 @@ There are two concerns, deliberately kept separate:
    error XML, WebDAV `XrdHttp` checksum headers, per-protocol metric labels) stay
    in the caller, exposed through an options struct and a pre-header hook.
 
-2. **Overflow-checked size arithmetic** (`safe_size.h`, header-only). The
+2. **Overflow-checked size arithmetic** (`src/core/compat/safe_size.h`, header-only). The
    primitives `brix_size_mul`/`brix_size_add` and the array allocators
    `brix_palloc_array`/`brix_pcalloc_array`/`brix_alloc_array` turn
    attacker-controlled `n * sizeof(elem)` allocations into a clean `NULL`/error
    instead of a wrapped, undersized buffer that the caller then overflows. They
    are used wherever a count or length comes off the wire — currently the readv
-   segment array (`../read/readv.c`) and the cache eviction-candidate growth
-   (`../cache/evict_candidates.c`).
+   segment array (`src/protocols/root/read/readv.c`) and the cache eviction-candidate growth
+   (`src/fs/cache/evict_candidates.c`).
 
 Build registration: the serve pair is registered in the top-level nginx module
 `config` (the header at `config:168`, the source at `config:247`) and compiled as
-part of the normal build. `safe_size.h` is *not* in `config` — it is header-only
+part of the normal build. `src/core/compat/safe_size.h` is *not* in `config` — it is header-only
 (`static ngx_inline`), so consumers pick it up purely by `#include`, with no new
 translation unit and no `./configure` change.
 
@@ -43,7 +43,7 @@ translation unit and no `./configure` change.
 |---|---|
 | `file_serve.c` | Implements `brix_http_serve_file_ranged()` — the 5-phase shared HTTP body-send pipeline: (1) parse `Range:` via `brix_http_parse_range`, short-circuiting to `416` if unsatisfiable; (2) emit `Last-Modified`/`Content-Length`/`Content-Range`/ETag via `brix_http_set_file_headers` and fire the optional `pre_header_send` hook; (3) start dashboard transfer tracking via `brix_dashboard_http_start_identity`; (4) `dup()` the fd, release the VFS handle, send the range via `brix_http_send_file_range`; (5) post-send byte accounting (`brix_dashboard_http_add`) + cache-access recording (`brix_cache_record_access`) for cache-backed handles. |
 | `file_serve.h` | Public interface: `brix_http_serve_file_ranged()` prototype, the `brix_http_serve_opts_t` input struct, the `brix_http_serve_result_t` output struct, the `brix_http_pre_header_fn` hook typedef, and the `BRIX_SERVE_RANGE_FULL/_PARTIAL/_UNSATISFIED` outcome constants. |
-| `safe_size.h` | Header-only (all `static ngx_inline`, no new translation unit): `brix_size_mul`/`brix_size_add` (overflow-detecting via `__builtin_*_overflow`, with a portable fallback for other compilers) and `brix_palloc_array`/`brix_pcalloc_array` (request-pool) / `brix_alloc_array` (heap, for the long-lived stream path) array allocators that return `NULL` on overflow, on a zero-size request, or on OOM. Compiles standalone under `BRIX_SAFE_SIZE_STANDALONE` for the fuzz target. |
+| `src/core/compat/safe_size.h` | Header-only (all `static ngx_inline`, no new translation unit): `brix_size_mul`/`brix_size_add` (overflow-detecting via `__builtin_*_overflow`, with a portable fallback for other compilers) and `brix_palloc_array`/`brix_pcalloc_array` (request-pool) / `brix_alloc_array` (heap, for the long-lived stream path) array allocators that return `NULL` on overflow, on a zero-size request, or on OOM. Compiles standalone under `BRIX_SAFE_SIZE_STANDALONE` for the fuzz target. |
 
 ## Key types & data structures
 
@@ -61,11 +61,11 @@ translation unit and no `./configure` change.
   and `bytes_sent` (0 on `header_only`, 416, or error). The shared code
   deliberately does **not** increment protocol metrics itself — labels are
   protocol-specific, so the caller does it from these fields.
-- **`brix_vfs_file_t` / `brix_vfs_stat_t`** (from `../fs/vfs.h`) — the
+- **`brix_vfs_file_t` / `brix_vfs_stat_t`** (from `src/fs/vfs/vfs.h`) — the
   already-open handle and its stat snapshot that the caller hands in. Accessed
   here only through VFS accessors: `brix_vfs_file_fd`, `brix_vfs_file_path`,
   `brix_vfs_file_from_cache`, `brix_vfs_close`.
-- **`safe_size.h`** defines no types — just inline functions over plain `size_t`.
+- **`src/core/compat/safe_size.h`** defines no types — just inline functions over plain `size_t`.
 
 ## Control & data flow
 
@@ -76,21 +76,21 @@ translation unit and no `./configure` change.
 - S3 `GetObject` — `../s3/object.c` (`#include "../shared/file_serve.h"`).
 
 Each caller has already run access-phase auth, confined the path under the export
-root (see `../path/README.md`), and opened the file through the VFS (possibly
+root (see `../../fs/path/README.md`), and opened the file through the VFS (possibly
 satisfied from cache). It builds an `brix_http_serve_opts_t`, calls in with the
 open handle + stat, and reads back `brix_http_serve_result_t` to bump its own
 range/bytes metrics.
 
 Inside, the module calls out to:
-- `../compat/range.h` — `brix_http_parse_range` (RFC 7233 `Range:` parsing).
-- `../compat/http_file_response.h` — `brix_http_set_file_headers` and
+- `src/core/compat/range.h` — `brix_http_parse_range` (RFC 7233 `Range:` parsing).
+- `src/core/http/http_file_response.h` — `brix_http_set_file_headers` and
   `brix_http_send_file_range` (the actual nginx header emission and
   sendfile/range body send).
-- `../dashboard/dashboard_tracking.h` — `brix_dashboard_http_start_identity` /
+- `src/observability/dashboard/dashboard_tracking.h` — `brix_dashboard_http_start_identity` /
   `_add` / `_error` / `_finish` for live transfer monitoring.
-- `../cache/open.h` — `brix_cache_record_access` to update LRU access stats when
+- `src/fs/cache/open.h` — `brix_cache_record_access` to update LRU access stats when
   the bytes came from a cache-backed handle (`brix_vfs_file_from_cache`).
-- `../fs/vfs.h` — handle accessors and `brix_vfs_close`.
+- `src/fs/vfs/vfs.h` — handle accessors and `brix_vfs_close`.
 
 **Ownership contract:** the function **always closes the VFS handle** (on the
 416 early-out, on the header-build failure, on dup failure, and before the body
@@ -99,17 +99,17 @@ sent over a `dup()`'d fd so nginx's chain/sendfile machinery owns its own
 descriptor independent of the VFS handle's lifetime — the handle can be reused or
 evicted by the cache/fd-cache layer while nginx is still streaming the duplicate.
 
-**`safe_size.h` — usage flow.** Pure utility, no control flow of its own.
+**`src/core/compat/safe_size.h` — usage flow.** Pure utility, no control flow of its own.
 Wire-driven allocation sites compute the size with `brix_size_mul` (or allocate
 directly with the `*_array` helpers) and bail on `NGX_ERROR`/`NULL`. Current
 callers:
-- `../read/readv.c` — the readv segment-descriptor array, guarded both by an
+- `src/protocols/root/read/readv.c` — the readv segment-descriptor array, guarded both by an
   explicit `brix_size_mul(segment_count, sizeof(*ranges), …)` pre-check
   (`readv.c:87`) and by allocation through `brix_alloc_array(c->log,
   segment_count, …)` (`readv.c:301`), because the count comes straight off the
   client's `kXR_readv` request.
-- `../cache/evict_candidates.c` — the eviction-candidate list realloc growth, sized
-  with `brix_size_mul(new_cap, sizeof(list->elts[0]), …)` (`evict_candidates.c:237`)
+- `src/fs/cache/evict_candidates.c` — the eviction-candidate list realloc growth, sized
+  with `brix_size_mul(new_cap, sizeof(list->elts[0]), …)` (`src/fs/cache/evict_candidates.c:237`)
   before the buffer is grown.
 
 The header also compiles standalone for the libFuzzer target
@@ -140,12 +140,12 @@ the nginx includes and supply its own `ngx_int_t`/`size_t`/alloc shims.
   sets. Do not add `BRIX_*_METRIC_INC` calls here.
 - **TLS vs cleartext is handled downstream, not here.** The actual buffer choice
   (TLS memory-backed vs cleartext file-backed + sendfile) lives in
-  `brix_http_send_file_range` / `../compat/http_file_response.c`. Do not add a
+  `brix_http_send_file_range` / `src/core/http/http_file_response.c`. Do not add a
   raw `b->memory`/sendfile branch in this file; route through the compat helper so
   the two body paths never get mixed.
-- **`safe_size.h` is fail-NULL, not fail-truncate.** On overflow the math helpers
+- **`src/core/compat/safe_size.h` is fail-NULL, not fail-truncate.** On overflow the math helpers
   return `NGX_ERROR` and leave `*out` unspecified — callers must check the return
-  and not read `*out` (`safe_size.h:36-37`). The `*_array` allocators fold
+  and not read `*out` (`src/core/compat/safe_size.h:36-37`). The `*_array` allocators fold
   overflow, a zero-size request, and OOM into a single `NULL`, so one callsite
   check covers all three.
 - **Pool vs heap allocator must match the buffer's lifetime.** Use
@@ -153,9 +153,9 @@ the nginx includes and supply its own `ngx_int_t`/`size_t`/alloc shims.
   the request pool is destroyed) and `brix_alloc_array` (free with `ngx_free`)
   only for the long-lived stream path where a connection/persistent buffer
   outlives any request pool — see the readv stream consumer above.
-- **`safe_size.h` adds no `.c` and no `./configure` change.** All functions are
-  `static ngx_inline`; adopting them is `#include "../shared/safe_size.h"` plus a
-  call. The mandate (header comment, `safe_size.h:1-24`) is that *every*
+- **`src/core/compat/safe_size.h` adds no `.c` and no `./configure` change.** All functions are
+  `static ngx_inline`; adopting them is `#include "core/compat/safe_size.h"` plus a
+  call. The mandate (header comment, `src/core/compat/safe_size.h:1-24`) is that *every*
   wire-driven `n * sizeof(...)` and `len + 1` size computation migrates to these —
   the readv segment array and the cache eviction realloc were the seed sites.
 
@@ -203,9 +203,9 @@ to `config` (`NGX_ADDON_SRCS`); header-only helpers need no registration.
 - [`../README.md`](../README.md) — master subsystem index.
 - [`../webdav/README.md`](../webdav/README.md) — WebDAV `GET` caller of `file_serve.c`.
 - [`../s3/README.md`](../s3/README.md) — S3 `GetObject` caller of `file_serve.c`.
-- [`../compat/README.md`](../../core/compat/README.md) — `range.h` / `http_file_response.h` (range parse + header/body send).
-- [`../fs/README.md`](../../fs/README.md) — VFS handle/stat types and accessors.
-- [`../cache/README.md`](../../fs/cache/README.md) — cache-backed handles + `evict_candidates.c` (safe_size consumer).
-- [`../read/README.md`](../root/read/README.md) — `readv.c` segment array (safe_size consumer).
-- [`../dashboard/README.md`](../../observability/dashboard/README.md) — live transfer tracking hooks.
-- [`../path/README.md`](../../fs/path/README.md) — path confinement that precedes every serve.
+- [`../../core/compat/README.md`](../../core/compat/README.md) — `src/core/compat/range.h` / `src/core/http/http_file_response.h` (range parse + header/body send).
+- [`../../fs/vfs/README.md`](../../fs/README.md) — VFS handle/stat types and accessors.
+- [`../../fs/cache/README.md`](../../fs/cache/README.md) — cache-backed handles + `src/fs/cache/evict_candidates.c` (safe_size consumer).
+- [`../root/read/README.md`](../root/read/README.md) — `readv.c` segment array (safe_size consumer).
+- [`../../observability/dashboard/README.md`](../../observability/dashboard/README.md) — live transfer tracking hooks.
+- [`../../fs/path/README.md`](../../fs/path/README.md) — path confinement that precedes every serve.

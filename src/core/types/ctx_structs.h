@@ -130,6 +130,13 @@ typedef struct {
     int          nodata;           /* 1 = payload was excluded from the hash */
     u_char       sig[64];          /* signature blob (BRIX_GSI_SIGVER_SIG_MAX) */
     int          sig_len;          /* valid bytes in sig */
+    int          unsignable_logged; /* 1 = this session already logged that it
+                                     * cannot sign while a signing level is
+                                     * configured (audit §5.2). One line per
+                                     * session, not per request: the condition is
+                                     * a property of the session's auth protocol,
+                                     * so repeating it per opcode would be a log
+                                     * flood with no added information. */
 } brix_ctx_sigver_t;
 
 /* GSI handshake + X.509 proxy delegation state.  dh_key is the ephemeral DH key

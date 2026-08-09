@@ -53,6 +53,12 @@ HELP = {
         'Cache misses by protocol.',
     'brix_cache_occupancy_ratio':
         'Filesystem occupancy ratio for brix_cache_export.',
+    'brix_cache_prefetch_blocks_total':
+        'Cache blocks filled by background prefetch.',
+    'brix_cache_prefetch_failures_total':
+        'Background cache prefetch jobs that failed.',
+    'brix_cache_prefetch_jobs_total':
+        'Background cache prefetch jobs posted.',
     'brix_cache_usage_ratio':
         'Cache filesystem occupancy (0-1).',
     'brix_cache_watermark_evicted_bytes_total':
@@ -71,6 +77,12 @@ HELP = {
         'CMS server connections reaped by the post-login idle watchdog.',
     'brix_cms_login_timeouts_total':
         'CMS server connections closed for not completing LOGIN before the deadline.',
+    'brix_cms_logins_total':
+        'CMS LOGIN frames this node sent to its upstream manager (federation joins).',
+    'brix_cms_connect_failures_total':
+        'Upward CMS dials that never became a logged-in link (refused/unreachable/deadline).',
+    'brix_cms_registered_links':
+        'Upward CMS links currently logged in (0 = this node is OUT of the cluster).',
     'brix_cms_read_timeouts_total':
         'CMS client reconnects after the manager went silent past the read timeout.',
     'brix_config_generation':

@@ -264,12 +264,22 @@ The reason is derived per file from its `.cinfo` write-back state:
 |---|---|---|
 | `abandoned` | Un-flushed dirty data aged past `brix_cache_dirty_max_age` and was **never** written back (`flush_gen == 0`). | **Yes** — full |
 | `incomplete` | Aged dirty data on a file that **had** a prior successful write-back (`flush_gen > 0`) and was re-dirtied; only the trailing dirty episode is discarded. | Partial |
-| `completed` | A **clean**, fully written-back staging copy (`flush_gen > 0`) reclaimed once its last flush aged out — bytes are safely on the origin. A read-through fill (`flush_gen == 0`, clean) is left for occupancy-driven eviction. | No |
+| `completed` | A **clean**, fully written-back staging copy (`flush_gen > 0`) reclaimed once its last flush aged out — bytes are safely on the origin. | No |
+| `cold` | A **clean read-through fill** (`flush_gen == 0`) untouched for longer than `brix_cache_cold_max_age`, purged regardless of occupancy. Off unless that directive is set; without it a clean read-fill is left for occupancy-driven eviction. | No — re-fetchable |
 
 A non-zero `abandoned`/`incomplete` rate means write-back data is being discarded
 before it reaches the origin/backend (origin unreachable, flush failing, or
 `brix_cache_dirty_max_age` too short) — pair it with
-`brix_wt_flushes_total{result="error"}`. A `completed` rate is benign cleanup.
+`brix_wt_flushes_total{result="error"}`. A `completed` rate is benign cleanup,
+and so is `cold`: a rising `cold` rate simply means the working set is smaller
+than the cache and objects are ageing out on schedule. If `cold` is high while
+hit rate drops, `brix_cache_cold_max_age` is shorter than the real re-access
+interval.
+
+A removal the reaper cannot complete is **not** counted here — it logs
+`cache reaper could not remove "<path>" (left in place)` at error level
+instead, so a stuck store shows up as a log signal rather than as phantom
+counter progress.
 
 Labels: `port`, `auth`, `reason`
 
@@ -277,6 +287,7 @@ Labels: `port`, `auth`, `reason`
 brix_cache_dirty_reaped_total{port="1094",auth="anon",reason="abandoned"} 3
 brix_cache_dirty_reaped_total{port="1094",auth="anon",reason="incomplete"} 0
 brix_cache_dirty_reaped_total{port="1094",auth="anon",reason="completed"} 12
+brix_cache_dirty_reaped_total{port="1094",auth="anon",reason="cold"} 41
 ```
 
 ### `brix_cache_prefetch_jobs_total` / `brix_cache_prefetch_blocks_total` / `brix_cache_prefetch_failures_total`

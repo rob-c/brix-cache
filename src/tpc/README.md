@@ -13,12 +13,12 @@ third-party copy. WebDAV HTTP-TPC (the `COPY` method with `Source:`/`Credential:
 headers) is an entirely separate transport living in `../webdav/` (`tpc*.c`);
 the two share only the protocol-neutral core in [`common/`](common/README.md).
 
-TPC enters from the stream open path (`../read/open_request.c`) and, crucially,
+TPC enters from the stream open path (`src/protocols/root/read/open_request.c`) and, crucially,
 is driven in **two phases keyed off `kXR_sync`**. Phase one — `kXR_open` —
 validates the source, performs the SSRF preflight, creates and confines the local
 destination file, generates/echoes the rendezvous `tpc.key`, and returns an open
 handle immediately (`engine/launch.c::brix_tpc_prepare_pull`). Phase two — driven by
-`kXR_sync` (`../write/sync.c`): the **first** sync *arms* the transfer
+`kXR_sync` (`src/protocols/root/write/sync.c`): the **first** sync *arms* the transfer
 (`ctx->tpc_armed`), the **second** sync *fires* it
 (`engine/launch.c::brix_tpc_start_pull`), posting the blocking pull to the nginx
 thread pool. This arm/flush handshake matches `xrdcp`/`gfal` TPC semantics and
@@ -71,19 +71,19 @@ protocol-neutral spine shared with WebDAV HTTP-TPC.
 
 ## Key types & data structures
 
-- **`brix_tpc_params_t`** (`tpc_internal.h`) — parsed `tpc.*` opaque fields:
+- **`brix_tpc_params_t`** (`engine/tpc_internal.h`) — parsed `tpc.*` opaque fields:
   raw `src`/`dst`, decomposed `src_host`/`src_port`/`src_path`, `key`, `org`,
   `lfn`, `stage`, `token_mode`, plus a `has_*` flag per field. Produced by
-  `parse.c`, consumed by `launch.c`.
-- **`brix_tpc_pull_t`** (`tpc_internal.h`) — the per-pull task context,
+  `engine/parse.c`, consumed by `engine/launch.c`.
+- **`brix_tpc_pull_t`** (`engine/tpc_internal.h`) — the per-pull task context,
   heap-allocated inside the `ngx_thread_task` in `start_pull`, populated from the
-  `brix_file_t` slot, and freed implicitly with the pool after `done.c`
+  `brix_file_t` slot, and freed implicitly with the pool after `engine/done.c`
   consumes the result. Carries the connection/ctx/conf back-refs, the deferred
   `streamid`, source coordinates, `tpc_key`/`tpc_org`, `token_mode` +
   `delegated_token` + `token_scope`, `dst_path`/`dst_fd`/`fhandle_idx`,
   `reply_kind` (`BRIX_TPC_REPLY_OPEN`/`_SYNC`), `transfer_id`, and the
   out-params `result`/`xrd_error`/`bytes_written`/`err_msg`.
-- **`brix_tpc_key_table_t` / `brix_tpc_key_entry_t`** (`key_registry.h`) —
+- **`brix_tpc_key_table_t` / `brix_tpc_key_entry_t`** (`engine/key_registry.h`) —
   the SHM rendezvous table: `BRIX_TPC_KEY_SLOTS` (256) fixed entries, each a
   128-byte key + absolute-ms `expiry` + `in_use`, guarded by an
   `ngx_shmtx_sh_t` spinlock so all workers share one key namespace.
@@ -94,17 +94,17 @@ protocol-neutral spine shared with WebDAV HTTP-TPC.
 
 ## Control & data flow
 
-**Entry.** `kXR_open` with a `tpc.src=` opaque → `../read/open_request.c` calls
-`brix_tpc_parse_opaque()` (`parse.c`) then `brix_tpc_launch_pull()`
-(`launch.c`). The open path also consumes a presented `tpc.key` via the SHM
+**Entry.** `kXR_open` with a `tpc.src=` opaque → `src/protocols/root/read/open_request.c` calls
+`brix_tpc_parse_opaque()` (`engine/parse.c`) then `brix_tpc_launch_pull()`
+(`engine/launch.c`). The open path also consumes a presented `tpc.key` via the SHM
 registry (`brix_tpc_key_consume`) on the source side. `kXR_sync`
-(`../write/sync.c`) drives the two-phase arm/flush, the second sync calling
+(`src/protocols/root/write/sync.c`) drives the two-phase arm/flush, the second sync calling
 `brix_tpc_start_pull()`.
 
 **Calls out to:**
 - [`../path/`](../fs/path/README.md) — destination open is confined via
   `brix_open_beneath(conf->rootfd, ...)` against the per-worker root fd
-  (`RESOLVE_BENEATH`); `launch.c` strips the `root_canon` prefix to pass the
+  (`RESOLVE_BENEATH`); `engine/launch.c` strips the `root_canon` prefix to pass the
   *logical* path so the root is not doubled.
 - [`../aio/`](../core/aio/README.md) — the thread→event-loop handoff reuses the same
   `brix_aio_restore_request` / `brix_aio_resume` machinery; the connection
@@ -121,50 +121,50 @@ registry (`brix_tpc_key_consume`) on the source side. `kXR_sync`
   add/update/remove, metrics, progress emit.
 
 **Returns** by framing a `kXR_ok` `ServerOpenBody` (fhandle + optional statbuf,
-with `tpc.key` appended for client extraction) or `kXR_*` error in `done.c`, then
+with `tpc.key` appended for client extraction) or `kXR_*` error in `engine/done.c`, then
 `brix_queue_response` + `brix_aio_resume`.
 
 ## Invariants, security & gotchas
 
 - **Confinement is mandatory.** The destination file is opened only through
-  `brix_open_beneath(conf->rootfd, dst_logical, ...)`. `launch.c` deliberately
+  `brix_open_beneath(conf->rootfd, dst_logical, ...)`. `engine/launch.c` deliberately
   strips the `root_canon` prefix from the authz/logging path before passing it to
   `openat2`, because passing the absolute path would double the root and fail
-  with `ENOENT` (`launch.c:230-252`). Never add a raw `open` on a client path.
+  with `ENOENT` (`engine/launch.c:230-252`). Never add a raw `open` on a client path.
 - **SSRF defense is two-stage.** `brix_tpc_check_src_policy` (event thread)
-  rejects the source *before* the destination file is created; `connect.c`
+  rejects the source *before* the destination file is created; `outbound/connect.c`
   re-checks **every** resolved `addrinfo` candidate against the same
   `allow_local`/`allow_private` policy at connect time, closing the
   resolve-time/connect-time TOCTOU gap.
-- **Parse fails closed.** `parse.c` zeroes the whole struct up front and, on any
+- **Parse fails closed.** `engine/parse.c` zeroes the whole struct up front and, on any
   src-spec parse failure, clears `src_host`/`src_path`/`src_port` entirely so a
-  partially-parsed source can never reach `connect()` (`parse.c:222-239`). Port
+  partially-parsed source can never reach `connect()` (`engine/parse.c:222-239`). Port
   is validated to 1–65535.
 - **Off-loop allocation discipline.** Everything in the thread-pool files
-  (`thread.c`, `connect.c`, `bootstrap.c`, `source.c`, `io.c`, `gsi_outbound_*`,
-  `tpc_token.c`) uses `malloc`/`free` and raw socket syscalls — `ngx_palloc` is
-  not thread-safe here. Only `launch.c`/`done.c` may use `c->pool`.
+  (`outbound/thread.c`, `outbound/connect.c`, `outbound/bootstrap.c`, `outbound/source.c`, `outbound/io.c`, `gsi/gsi_outbound_*`,
+  `outbound/tpc_token.c`) uses `malloc`/`free` and raw socket syscalls — `ngx_palloc` is
+  not thread-safe here. Only `engine/launch.c`/`engine/done.c` may use `c->pool`.
 - **Body-size cap.** `tpc_recv_response` rejects any response whose `dlen >
   TPC_RESP_MAX_BODY` before allocating, bounding a hostile source's memory
-  influence (`io.c:114`).
-- **Peer-response tolerance.** `source.c` accepts both the minimal 4-byte
+  influence (`outbound/io.c:114`).
+- **Peer-response tolerance.** `outbound/source.c` accepts both the minimal 4-byte
   fhandle reply and the full `ServerOpenBody`, and accumulates `kXR_oksofar`
   frames per `kXR_read` until the terminal `kXR_ok` — required for interop with
   reference XRootD origins.
-- **Single-use rendezvous keys.** `key_registry.c::brix_tpc_key_consume`
+- **Single-use rendezvous keys.** `engine/key_registry.c::brix_tpc_key_consume`
   removes the key on a successful match (replay protection); `_validate` only
   checks presence. Both lazy-expire stale entries during the scan. Slot
   exhaustion silently drops a register — callers tolerate this.
 - **Connection-closed cleanup.** If the client disconnects mid-pull,
-  `done.c::brix_aio_restore_request` fails and the callback unlinks the
+  `engine/done.c::brix_aio_restore_request` fails and the callback unlinks the
   partial destination file, closes `dst_fd`, frees the fhandle slot, and marks
   the shared transfer `ERROR` — no half-written files are left exposed.
-- **GSI is hand-rolled.** `gsi_outbound_exchange.c` implements the DH key
+- **GSI is hand-rolled.** `gsi/gsi_outbound_exchange.c` implements the DH key
   exchange and `kXGS_cert` payload assembly directly against OpenSSL rather than
   via a GSSAPI library; server-cert verification (with
   `X509_V_FLAG_ALLOW_PROXY_CERTS`) is only performed when `conf->gsi_store` is
   configured.
-- **Subprocess token fetch.** `tpc_token.c` fork/execs `oidc-token`/`curl`; it
+- **Subprocess token fetch.** `outbound/tpc_token.c` fork/execs `oidc-token`/`curl`; it
   uses an end-of-options `--` terminator before the endpoint URL and avoids
   `access()`-before-`execve` TOCTOU. The RFC 8693 body is written to a `mkstemp`
   temp file that is `unlink`ed on every exit path.
@@ -172,26 +172,26 @@ with `tpc.key` appended for client extraction) or `kXR_*` error in `done.c`, the
 ## Entry points / extending
 
 - **Add a `tpc.*` opaque parameter:** extend `brix_tpc_params_t` + its `has_*`
-  flag (`tpc_internal.h`), add a key match in `tpc_parse_token` (`parse.c`),
+  flag (`engine/tpc_internal.h`), add a key match in `tpc_parse_token` (`engine/parse.c`),
   carry it onto the `brix_file_t` in `brix_tpc_prepare_pull` and onto
-  `brix_tpc_pull_t` in `brix_tpc_start_pull` (`launch.c`), then act on it in
+  `brix_tpc_pull_t` in `brix_tpc_start_pull` (`engine/launch.c`), then act on it in
   the worker.
 - **Add a source auth method:** detect it from the login `&P=` block in
-  `tpc_outbound_finish_login` (`gsi_outbound_finish.c`) and add the handler
+  `tpc_outbound_finish_login` (`gsi/gsi_outbound_finish.c`) and add the handler
   alongside `tpc_outbound_ztn` / `tpc_outbound_gsi`.
 - **Add a token-delegation mode:** add a `ngx_strcmp` branch in
-  `tpc_fetch_delegated_token` (`tpc_token.c`) and a fetch helper next to
+  `tpc_fetch_delegated_token` (`outbound/tpc_token.c`) and a fetch helper next to
   `tpc_token_oidc_agent` / `tpc_token_rfc8693`.
 - **Tune the rendezvous TTL/slots:** `BRIX_TPC_KEY_TTL_MS` /
-  `BRIX_TPC_KEY_SLOTS` (`key_registry.h`); the runtime TTL override is the
+  `BRIX_TPC_KEY_SLOTS` (`engine/key_registry.h`); the runtime TTL override is the
   `brix_tpc_key_ttl` directive.
 
 ## See also
 
 - [`common/README.md`](common/README.md) — shared TPC authz/credential/registry/metrics core.
-- [`../webdav/README.md`](../protocols/webdav/README.md) — the other TPC transport (HTTP `COPY`).
-- [`../path/README.md`](../fs/path/README.md) — `RESOLVE_BENEATH` confinement.
-- [`../aio/README.md`](../core/aio/README.md) — thread-pool / event-loop handoff pattern.
-- [`../read/README.md`](../protocols/root/read/README.md) · [`../write/README.md`](../protocols/root/write/README.md) — open decode and `kXR_sync` arm/flush trigger.
-- [`../token/README.md`](../auth/token/README.md) — bearer files and OAuth2 token parsing.
+- [`../protocols/webdav/README.md`](../protocols/webdav/README.md) — the other TPC transport (HTTP `COPY`).
+- [`../fs/path/README.md`](../fs/path/README.md) — `RESOLVE_BENEATH` confinement.
+- [`../core/aio/README.md`](../core/aio/README.md) — thread-pool / event-loop handoff pattern.
+- [`../protocols/root/read/README.md`](../protocols/root/read/README.md) · [`../protocols/root/write/README.md`](../protocols/root/write/README.md) — open decode and `kXR_sync` arm/flush trigger.
+- [`../auth/token/README.md`](../auth/token/README.md) — bearer files and OAuth2 token parsing.
 - [`../README.md`](../README.md) — master subsystem index.

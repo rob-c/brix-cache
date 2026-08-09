@@ -82,11 +82,11 @@ writes into are owned elsewhere:
 - `webdav_lock_parse_depth` → reads `Depth` → returns `NGX_OK` (with
   `depth_infinity` set) or `NGX_HTTP_BAD_REQUEST`.
 - `webdav_lock_parse_body` → reads the buffered request body and delegates to
-  `brix_xml_parse_lockinfo` in [`../../compat/xml.c`](../../../core/compat/README.md)
+  `brix_xml_parse_lockinfo` in [`src/core/compat/xml.c`](../../../core/compat/README.md)
   to extract `owner` and `exclusive`.
 
 **Calls out to:**
-- [`../../compat/xml.c`](../../../core/compat/README.md) — `brix_xml_parse_lockinfo`
+- [`src/core/compat/xml.c`](../../../core/compat/README.md) — `brix_xml_parse_lockinfo`
   (XXE-hardened libxml2 parse of the `<lockinfo>` body).
 - `webdav_tpc_find_header` (declared in `../webdav.h`, defined in
   `../xrdhttp.c`) — the canonical header-lookup helper.
@@ -96,7 +96,7 @@ writes into are owned elsewhere:
   reads/writes and the `423`/`507`/`200` responses.
 - Path-confinement and the actual xattr persistence: `../prop_xattr.c`
   (`webdav_lock_xattr_read/write/delete`) and
-  [`../../path/README.md`](../../../fs/path/README.md) (`resolve_path`/RESOLVE_BENEATH
+  [`../../../fs/path/README.md`](../../../fs/path/README.md) (`resolve_path`/RESOLVE_BENEATH
   runs before any of this).
 - Mutating methods that gate on locks before acting: `../dispatch.c`,
   `../methods_basic.c` (DELETE), `../copy.c`, `../move.c`, `../namespace.c`.
@@ -106,7 +106,7 @@ writes into are owned elsewhere:
 - **No path/syscall access here.** These helpers operate purely on already-parsed
   HTTP headers and the buffered request body. They never touch the filesystem and
   must never be given a raw client path — confinement
-  ([`../../path/README.md`](../../../fs/path/README.md), `openat2`+`RESOLVE_BENEATH`)
+  ([`../../../fs/path/README.md`](../../../fs/path/README.md), `openat2`+`RESOLVE_BENEATH`)
   is the caller's responsibility and has already happened by the time `../lock.c`
   invokes them.
 - **Timeout is always clamped and bounded.** `webdav_lock_parse_timeout`
@@ -129,7 +129,7 @@ writes into are owned elsewhere:
   raw buffer to `brix_xml_parse_lockinfo`, which enforces
   `BRIX_XML_MAX_LOCKINFO_BODY` and parses with `XML_PARSE_NONET` +
   `XML_PARSE_NO_XXE` (no external entities / network) — the anti-XXE protection
-  lives in `compat/xml.c`, not here.
+  lives in `src/core/compat/xml.c`, not here.
 - **Defaults are RFC-fail-safe.** `webdav_lock_parse_body` defaults
   `exclusive = 1` (RFC 4918 §9.10) and writes `owner[0]='\0'` before parsing,
   so a missing/garbled body yields a valid exclusive lock with an empty owner
@@ -155,7 +155,7 @@ To add support for a **new LOCK request header or body element**:
    `webdav_handle_unlock` / `webdav_check_locks`) and stamp the result into the
    `webdav_lock_xattr_t` record if it must persist.
 4. For body fields, prefer extending `brix_xml_parse_lockinfo` in
-   `../../compat/xml.c` over hand-rolling XML parsing here.
+   `src/core/compat/xml.c` over hand-rolling XML parsing here.
 5. If you add a **new `.c` file** in this directory, register it in the
    top-level `config` script (`NGX_ADDON_SRCS`/`NGX_ADDON_DEPS`) and re-run
    `./configure` — not in `src/core/config/config.h`.
@@ -168,8 +168,8 @@ To add support for a **new LOCK request header or body element**:
 - [`../README.md`](../README.md) — WebDAV subsystem overview and method router
   (the lock state machine `lock.c` and its xattr persistence `prop_xattr.c` live
   one level up).
-- [`../../compat/README.md`](../../../core/compat/README.md) — `brix_xml_parse_lockinfo`
+- [`../../../core/compat/README.md`](../../../core/compat/README.md) — `brix_xml_parse_lockinfo`
   and the XML/HTTP-header compatibility helpers.
-- [`../../path/README.md`](../../../fs/path/README.md) — path confinement /
+- [`../../../fs/path/README.md`](../../../fs/path/README.md) — path confinement /
   RESOLVE_BENEATH applied before any lock operation.
 - [`../../README.md`](../../README.md) — master subsystem index.

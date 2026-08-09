@@ -48,7 +48,7 @@ stable and cheap, matching `XrdClS3` expectations.
 | `s3.h` | Public header: `ngx_http_s3_loc_conf_t` config, `ngx_http_s3_req_ctx_t` per-request ctx, `s3_entry_t`, the `XML_APPEND`/`XML_APPEND_ELEM` flat-buffer macros, and every cross-file prototype. |
 | `module.c` | nginx module descriptor: directive table (`brix_s3*`), create/merge loc-conf, root + optional cache-root canonicalization, persistent confinement rootfd (`brix_http_open_rootfd`), thread-pool binding (postconfiguration), and `clcf->handler = ngx_http_s3_handler` install. |
 | `handler.c` | The content handler `ngx_http_s3_handler`: URI parse (`s3_parse_uri`), SigV4 gate, OPTIONS/CORS preflight, list/`?uploads`/`?delete`/POST-form flag detection, key→fs_path resolution, and method dispatch to every sub-handler. The single chokepoint all S3 traffic passes through. |
-| `operation_table.c` | `brix_s3_operations[]` descriptor table (method → metric slot + capability flags) consumed by `../compat/protocol_caps.c` for metric-slot lookup and the OPTIONS `Allow` header. |
+| `operation_table.c` | `brix_s3_operations[]` descriptor table (method → metric slot + capability flags) consumed by `src/core/compat/protocol_caps.c` for metric-slot lookup and the OPTIONS `Allow` header. |
 | `util.c` | Shared helpers: `s3_resolve_key` (confined key→path via `brix_http_resolve_path`), `s3_etag` (synthetic `"mtime-size"`), `s3_send_xml_error`, `s3_set_header`, `s3_object_crc64nvme_b64` (compute/cache CRC-64/NVME → base64-of-8-big-endian-bytes for `x-amz-checksum-crc64nvme`). |
 | `metrics.c` | Per-method request/response accounting: `s3_metrics_method_slot`, `s3_metrics_request_method`, `s3_metrics_return_method`, `s3_metrics_finalize_request_method`, plus the unified-metric op mapping (`s3_unified_op`). NGX_DONE (async body) defers final accounting to the callback. |
 | `object.c` | GetObject / HeadObject / DeleteObject. GET opens via the cache-aware VFS and hands the whole range/header/send pipeline to `brix_http_serve_file_ranged`; HEAD stats and sends headers only; DELETE uses idempotent `brix_ns_delete`. GET/HEAD echo `x-amz-checksum-crc64nvme` + `x-amz-checksum-type: FULL_OBJECT` **from the xattr cache only** (no read-path recompute), and the stored `x-amz-meta-*` user metadata (`s3_echo_user_metadata`). |
@@ -70,7 +70,7 @@ stable and cheap, matching `XrdClS3` expectations.
 | `checksum.c` | Multi-algorithm full-object checksums (phase-43 W1): `s3_checksum_b64` (crc32/crc32c/sha1/sha256/crc64nvme → base64 wire form via the shared integrity engine), `s3_put_checksum_apply` (select/verify/echo on PUT, conflict → 400), `s3_put_trailer_checksum_apply` (aws-chunked trailer), `s3_echo_object_checksums` (GET/HEAD echo gated on `x-amz-checksum-mode`). |
 | `aws_chunked.{c,h}` | AWS streaming (`aws-chunked`) request-body decoder (phase-43 W0): `s3_body_is_aws_chunked` detection + `s3_aws_chunked_decode_to_fd` streaming state machine that strips chunk framing, enforces `x-amz-decoded-content-length`, and captures a trailer checksum. The fix that stops default SDK clients corrupting every uploaded object. |
 | `tagging.{c,h}` | Object tagging + canned subresources (phase-43 W5): `x-amz-tagging` header + `GET`/`PUT`/`DELETE ?tagging` stored in the `user.s3.tagging` xattr; canned `GetBucketVersioning`/`GetBucketAcl`/`GetObjectAcl`/`?cors` probe-satisfiers; `PUT ?acl` → 501. |
-| `usermeta.{c,h}` | User-defined object metadata (`x-amz-meta-*`): the whole set stored as one URL-encoded `k=v&k=v` blob in the `user.s3.usermeta` xattr beside the object (VFS xattr surface, impersonation-correct, keys lowercased). `s3_apply_put_user_metadata` persists it on PutObject (all 3 finalize paths); `s3_echo_user_metadata` emits `x-amz-meta-<k>` on GET/HEAD; `s3_user_meta_copy` carries it on CopyObject COPY (REPLACE stores the request's set). Validated end-to-end against the shared `sd_s3` driver's `get_meta`/`set_meta` (`tests/run_s3_usermeta.sh`, `tests/run_sd_s3_meta.sh`). |
+| `usermeta.{c,h}` | User-defined object metadata (`x-amz-meta-*`): the whole set stored as one URL-encoded `k=v&k=v` blob in the `user.s3.usermeta` xattr beside the object (VFS xattr surface, impersonation-correct, keys lowercased). `s3_apply_put_user_metadata` persists it on PutObject (all 3 finalize paths); `s3_echo_user_metadata` emits `x-amz-meta-<k>` on GET/HEAD; `s3_user_meta_copy` carries it on CopyObject COPY (REPLACE stores the request's set). Validated end-to-end against the shared `sd_s3` driver's `get_meta`/`set_meta` (`tests/test_cmd_s3_usermeta.py`, `tests/c/sd_s3_meta_smoke.c`). |
 | `list_walk.c` | `s3_walk` recursive directory walker + `entry_cmp` comparator + `s3_entry_fill_stat` (used by both V1 and V2). phase-45 W1: classifies dir/file/symlink from readdir `d_type` (an `lstat` fallback only on `DT_UNKNOWN`) and collects only a pooled, right-sized key into the caller's growable `ngx_array_t` — NO per-entry size/mtime/ETag stat. `s3_entry_fill_stat()` then `lstat`s **only the emitted page slice**, so list stats scale with the page, not the bucket; symlinks are still never listed or traversed. |
 | `auth_sigv4_parse.c` | SigV4 component parsing: `parse_authorization` (header form) and `parse_presigned_authorization` (`X-Amz-*` query form) → `sigv4_components_t`; `get_header`; 3-slash credential-scope split (AKID/DATE/REGION). |
 | `auth_sigv4_canonical.c` | `build_canonical_qs`: SigV4 canonical query string — decode, sort by name then value, percent-encode, and (for the signed-header form) exclude `X-Amz-Signature` (self-reference). |
@@ -84,6 +84,26 @@ stable and cheap, matching `XrdClS3` expectations.
 | `multipart_complete_list_uploads.c` | ListMultipartUploads (`GET /<bucket>/?uploads`): scan bucket root for `.<key>.mpu-<id>` staging dirs, sort by key, paginate (`key-marker`/`max-uploads`, cap 1000), `ListMultipartUploadsResult` XML. |
 | `multipart_complete_upload_part_copy.c` | UploadPartCopy (`PUT ?partNumber=N&uploadId=<id>` + `x-amz-copy-source`): confined source→part-file copy loop, `CopyPartResult` XML. |
 | `multipart_internal.h` | `MPU_MAX_PART_NUMBER` (10000) and the `mpu_validate_upload_id` / `mpu_rmdir_recursive` prototypes shared across the multipart files. |
+
+### Other files
+
+| File | Responsibility |
+|---|---|
+| `auth_bearer.c` / `.h` | Implements Bearer-token detection and JWT validation for S3 requests. |
+| `aws_chunked_encoding.c` | Owns the two header-inspection predicates the S3 PUT path consults before decoding: s3_body_is_aws_chunked() (does the body use the aws-chunked application-layer framing?) and s3_aws_chunked_has_inner_ coding() (does Con. |
+| `aws_chunked_internal.h` | Cross-declares the framing-parser context (s3_chunk_ctx_t), its parser state enum (s3_chunk_state_t), the two line/extension caps, and the exactly-two functions that call across the decoder's translation units: s3_chunk_. |
+| `aws_chunked_parse.c` | Owns the byte-level chunk framing parser — the per-state scanners (size line, extension, CRLF terminators, payload, trailer), the decoded-payload writer, the trailer-line capture, and the security- relevant per-chunk sig. |
+| `delete_objects_internal.h` | Internal seam for the S3 DeleteObjects handler split across delete_objects.c (body read, batch loop, response finalise) and delete_objects_xml.c (the DeleteResult XML rendering + <Delete> DOM navigation helpers). |
+| `delete_objects_xml.c` | DeleteResult XML rendering + <Delete> DOM navigation helpers for the S3 DeleteObjects handler (POST /bucket/?delete). |
+| `handler_dispatch.c` | Owns the S3 content handler's post-authentication routing. |
+| `handler_object_route.c` | Routes a resolved object request (/<bucket>/<key>) to the correct S3 sub-handler by HTTP method — GetObject/ListParts/tagging/ACL (GET), HeadObject (HEAD), PutObject/UploadPart/UploadPartCopy/CopyObject/tagging (PUT), De. |
+| `list_cache.c` / `.h` | Decide whether an n-entry listing is cacheable, warning once if not. |
+| `list_common.c` | The four steps that ListObjects V1 (list_objects_v1.c) and V2 (list_objects_v2.c) perform identically — parse max-keys, acquire a sorted key listing (cache-or-walk), paginate it, emit the Contents/CommonPrefixes body, an. |
+| `module_internal.h` | Declares the per-concern location-merge helpers that are DEFINED in module_merge.c but REFERENCED from the merge orchestrator in module.c. |
+| `module_merge.c` | The four merge concerns invoked by the ngx_http_s3_merge_loc_conf orchestrator (which stays in module.c as an nginx module-context callback): preamble (unified-directive adopt + shared common merge), scalars (protocol-lo. |
+| `s3_handler_internal.h` | Cross-declares the handful of S3 content-handler functions that call across the three handler translation units (handler.c, handler_dispatch.c, handler_object_route.c). |
+| `s3_handlers.h` | s3/s3_handlers.h. |
+| `s3_ops.h` | multipart / copy / delete-objects / checksum operation declarations, split (phase-79 file-size burndown) out of the oversized s3.h with zero behaviour change. |
 
 ## Key types & data structures
 
@@ -109,7 +129,7 @@ stable and cheap, matching `XrdClS3` expectations.
   PUT write.
 - **`s3_post_form_t`** / **`s3_post_field_t`** (`post_object.c`) — accumulated
   browser-form fields, policy, signature, and the file part for POST Object.
-- **Metric slot enums** (`../metrics/metrics.h`) — `BRIX_S3_METHOD_*`,
+- **Metric slot enums** (`src/observability/metrics/metrics.h`) — `BRIX_S3_METHOD_*`,
   `BRIX_S3_AUTH_*`, `BRIX_S3_RANGE_*`, `BRIX_S3_PUT_*`,
   `BRIX_S3_EVENT_*`: all low-cardinality (no bucket names, keys, or DNs).
 
@@ -128,25 +148,25 @@ empty-key rejection → `s3_resolve_key` → per-method dispatch. Async write pa
 
 **Calls out to:**
 
-- `../path/README.md` — kernel `RESOLVE_BENEATH` confinement and canonicalization,
+- `../../fs/path/README.md` — kernel `RESOLVE_BENEATH` confinement and canonicalization,
   reached through `s3_resolve_key` → `brix_http_resolve_path` and the
   `brix_*_confined_canon` family (open/mkdir/unlink/rename); the persistent
   confinement rootfd is opened in `module.c`.
-- `../fs/README.md` — `brix_vfs_open`/`_stat`/`_close` for cache-aware GET/HEAD
+- `../../fs/vfs/README.md` — `brix_vfs_open`/`_stat`/`_close` for cache-aware GET/HEAD
   (`object.c`); the VFS also fronts the optional `cache_root` read-through.
 - `../shared/file_serve.h` — `brix_http_serve_file_ranged`, the range-parse →
   header → body-send pipeline shared with WebDAV GET (`object.c`).
-- `../cache/README.md` — read-through fill when `brix_s3_cache_root` is set.
-- `../aio/README.md` — the thread pool that the PUT fast path posts to so large
+- `../../fs/cache/README.md` — read-through fill when `brix_s3_cache_root` is set.
+- `../../core/aio/README.md` — the thread pool that the PUT fast path posts to so large
   in-memory writes never block the event loop.
-- `../compat/` — staged-file atomic write (`staged_file.h`), HTTP body/header/query
-  helpers, XML emit/escape, URL en/decode, `copy_range.h`, `etag.h`, the
-  `brix_ns_*` namespace API (`namespace_ops.h`) for delete/copy, and SigV4
-  crypto (`crypto.h`, `hex.h`).
-- `../metrics/README.md` — S3 Prometheus counters and the unified auth/op metrics
+- `../compat/` — staged-file atomic write (`src/core/compat/staged_file.h`), HTTP body/header/query
+  helpers, XML emit/escape, URL en/decode, `src/core/compat/copy_range.h`, `src/core/http/etag.h`, the
+  `brix_ns_*` namespace API (`src/core/compat/namespace_ops.h`) for delete/copy, and SigV4
+  crypto (`src/core/compat/crypto.h`, `src/core/compat/hex.h`).
+- `../../observability/metrics/README.md` — S3 Prometheus counters and the unified auth/op metrics
   (`unified.h`, `http_common.h`).
 - `../dashboard/` — live transfer tracking on writes (`brix_dashboard_http_*`).
-- `../token/b64url.h` — base64url codec for ListObjectsV2 continuation tokens.
+- `src/auth/token/b64url.h` — base64url codec for ListObjectsV2 continuation tokens.
 
 ## Invariants, security & gotchas
 
@@ -219,7 +239,7 @@ empty-key rejection → `s3_resolve_key` → per-method dispatch. Async write pa
   `ngx_http_s3_commands[]` (`module.c`), and a `ngx_conf_merge_*` line in
   `ngx_http_s3_merge_loc_conf`. Pure directive additions do not require a
   `./configure` re-run; new source files do.
-- **Add a metric:** define the slot in `../metrics/metrics.h`, then increment with
+- **Add a metric:** define the slot in `src/observability/metrics/metrics.h`, then increment with
   `BRIX_S3_METRIC_INC`/`_ADD` at the callsite. Keep labels low-cardinality (no
   paths, bucket names, or keys).
 - **Touch SigV4:** changes go in the `auth_sigv4_*.c` trio behind
@@ -230,9 +250,9 @@ empty-key rejection → `s3_resolve_key` → per-method dispatch. Async write pa
 
 - [`../README.md`](../README.md) — master subsystem index
 - [`../webdav/README.md`](../webdav/README.md) — sibling HTTP protocol (WebDAV/HTTPS)
-- [`../path/README.md`](../../fs/path/README.md) — confinement & canonical path resolution
-- [`../fs/README.md`](../../fs/README.md) — cache-aware VFS (open/read/stat)
-- [`../cache/README.md`](../../fs/cache/README.md) — read-through / write-through cache
-- [`../aio/README.md`](../../core/aio/README.md) — thread-pool I/O offload
-- [`../metrics/README.md`](../../observability/metrics/README.md) — Prometheus counters & unified metrics
-- [`../compat/README.md`](../../core/compat/README.md) — staged-file, HTTP, XML, crypto, namespace helpers
+- [`../../fs/path/README.md`](../../fs/path/README.md) — confinement & canonical path resolution
+- [`../../fs/vfs/README.md`](../../fs/README.md) — cache-aware VFS (open/read/stat)
+- [`../../fs/cache/README.md`](../../fs/cache/README.md) — read-through / write-through cache
+- [`../../core/aio/README.md`](../../core/aio/README.md) — thread-pool I/O offload
+- [`../../observability/metrics/README.md`](../../observability/metrics/README.md) — Prometheus counters & unified metrics
+- [`../../core/compat/README.md`](../../core/compat/README.md) — staged-file, HTTP, XML, crypto, namespace helpers

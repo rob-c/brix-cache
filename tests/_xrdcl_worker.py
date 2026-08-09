@@ -64,6 +64,12 @@ _strip_shadow_paths()
 
 from XRootD import client as _xrd  # noqa: E402  (real bindings)
 
+# Some pyxrootd builds crash while their process-global C++ state is torn down
+# at interpreter shutdown.  A capability probe only needs to prove the import;
+# bypass teardown so that a successful import is not reported as unavailable.
+if os.environ.get("XRDCL_IMPORT_PROBE") == "1":
+    os._exit(0)
+
 
 # --------------------------------------------------------------------------
 # Object registries — handles handed back to the parent are just integers.

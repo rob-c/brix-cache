@@ -1,4 +1,5 @@
-from _test_conf_errors_helpers import *  # noqa: F401,F403  (Phase-38 split shared header)
+from split_continuation import reexport as _reexport
+_reexport(globals(), "_test_conf_errors_helpers")
 
 def test_qcksum_nonexistent(srv):
     """query checksum of a nonexistent file -> OUR rejects (NotFound); STOCK may

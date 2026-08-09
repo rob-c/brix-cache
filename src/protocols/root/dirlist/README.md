@@ -18,12 +18,12 @@ handler parses the request, confines the requested path beneath the export root,
 applies an auth gate, opens the directory with `openat(O_DIRECTORY)`, iterates
 with `readdir`/`fstatat`, and frames the result. This is the stream-protocol
 sibling of the HTTP enumeration paths — WebDAV `PROPFIND`
-(`../webdav/propfind.c`) and S3 `ListObjectsV2` (`../s3/list.c`) — which present
+(`../webdav/propfind.c`) and S3 `ListObjectsV2` (`src/protocols/s3/list_objects_v2.c`) — which present
 the *same* on-disk export through different wire encodings.
 
 Two execution modes exist. The default is **synchronous**: the full
 enumeration runs inline on the event loop. An **AIO/thread-pool** variant lives
-in `../aio/dirlist.c` (`brix_dirlist_aio_thread` / `_done`) and offloads the
+in `src/core/aio/dirlist.c` (`brix_dirlist_aio_thread` / `_done`) and offloads the
 blocking `readdir`/`fstatat`/checksum work; however, in `handler.c` it is
 currently gated off behind `if (0 && ...)` because the AIO path could complete
 without delivering a response frame, wedging `xrdfs` readiness probes in
@@ -31,9 +31,9 @@ one-worker test deployments. Reviewers should treat the synchronous path as the
 live code path.
 
 Since phase-54 the VFS-owned thread-safe core `brix_vfs_io_execute()` has an
-`OPENDIR` op (in [`../fs/vfs_io_core.c`](../../../fs/README.md)) that scans a confined
+`OPENDIR` op (in [`src/fs/vfs/vfs_io_core.c`](../../../fs/README.md)) that scans a confined
 directory fd and builds the `kXR_dirlist` wire body off the event loop. **It is
-wired into the `../aio/dirlist.c` worker only** — and that worker is currently
+wired into the `src/core/aio/dirlist.c` worker only** — and that worker is currently
 gated off (see above) — so the **live** path is still the synchronous
 `fdopendir`/`readdir` loop in `handler.c`. Routing that live path through the
 core (and ungating the worker) is the tracked follow-up that finishes bringing
@@ -41,7 +41,7 @@ dirlist into the unified VFS I/O core.
 
 In **manager / redirector mode** the handler does not enumerate locally at all:
 it selects a registered data server via `brix_srv_select()`
-(`../manager/registry.h`) and replies with `kXR_redirect`, or `kXR_Overloaded`
+(`src/net/manager/registry.h`) and replies with `kXR_redirect`, or `kXR_Overloaded`
 if no server is available.
 
 ## Files
@@ -52,6 +52,12 @@ if no server is available.
 | `dcksm.c` | `kXR_dcksm` (checksum) support: `brix_dirlist_checksum_algorithm()` parses the `?cks.type=<algo>` CGI parameter (default `adler32`); `brix_dirlist_checksum_token()` computes one entry's digest into an `algo:hexdigest` token; `brix_dirlist_make_dcksm_stat_body()` formats the extended 9-field stat body used in checksum mode. |
 | `dcksm.h` | Prototypes/contract for the three `dcksm.c` helpers. Note: `_checksum_token` takes `ngx_log_t*` (not `ngx_connection_t*`) so it is safe to call from a thread-pool worker. |
 | `dirlist.h` | Public prototype for `brix_handle_dirlist()` (the subsystem's only external entry point), called from the read-opcode dispatcher. |
+
+### Other files
+
+| File | Responsibility |
+|---|---|
+| `dirlist_handler_internal.h` | brix_dirlist_walk_t — per-request dirlist state threaded through the decode → redirect → open → stream pipeline below. |
 
 ## Key types & data structures
 
@@ -70,14 +76,14 @@ if no server is available.
   When stat is requested the block opens with a fixed lead-in `".\n0 0 0 0\n"`
   (the reference XRootD dstat preamble for the current directory).
 - **`brix_integrity_info_t` / `brix_integrity_opts_t`**
-  (`../compat/integrity_info.h`) — checksum result + options used by
+  (`src/core/compat/integrity_info.h`) — checksum result + options used by
   `brix_dirlist_checksum_token()`; it enables the xattr digest cache
   (`allow_xattr_cache` / `update_xattr_cache`) so repeated listings do not
   re-hash unchanged files.
-- **`brix_dirlist_aio_t`** (`../aio/aio.h`) — the offload context for the
+- **`brix_dirlist_aio_t`** (`src/core/aio/aio.h`) — the offload context for the
   (currently disabled) thread-pool variant: carries the resolved path, streamid,
   flags, a `BRIX_DIRLIST_AIO_RESPONSE_MAX` (4 MiB) response buffer, and error
-  fields. Defined and consumed in `../aio/dirlist.c`.
+  fields. Defined and consumed in `src/core/aio/dirlist.c`.
 
 ## Control & data flow
 
@@ -89,14 +95,14 @@ Inside the handler (`handler.c`):
 1. **Parse** `options`; reject an empty payload with `kXR_ArgMissing`.
 2. **Checksum negotiation** (if `kXR_dcksm`): `brix_dirlist_checksum_algorithm()`
    (`dcksm.c`) → reject unsupported algorithms with `kXR_ServerError`.
-3. **Extract path:** `brix_extract_path()` (`../path/path.h`) parses the
+3. **Extract path:** `brix_extract_path()` (`src/fs/path/path.h`) parses the
    NUL-terminated path (and strips trailing CGI) from the payload.
 4. **Manager mode:** if `conf->manager_mode`, `brix_srv_select()`
-   (`../manager/registry.h`) → `BRIX_RETURN_REDIR` (`kXR_redirect`) or
+   (`src/net/manager/registry.h`) → `BRIX_RETURN_REDIR` (`kXR_redirect`) or
    `kXR_Overloaded`. No local I/O occurs.
-5. **Confinement + auth:** `brix_beneath_full_path()` (`../path/beneath.h`)
+5. **Confinement + auth:** `brix_beneath_full_path()` (`src/fs/path/beneath.h`)
    builds the logging path; the real open uses `brix_open_beneath(conf->rootfd,
-   reqpath, O_RDONLY|O_DIRECTORY)` (`../path/beneath.h`), which performs the
+   reqpath, O_RDONLY|O_DIRECTORY)` (`src/fs/path/beneath.h`), which performs the
    kernel-level `RESOLVE_BENEATH` confinement. `brix_auth_gate()`
    (`../path/auth_gate`) authorizes the lookup (`BRIX_AUTH_LOOKUP`).
 6. **Iterate:** `fdopendir` → `readdir`; per entry, skip `.`/`..`, skip
@@ -112,9 +118,9 @@ Inside the handler (`handler.c`):
 
 **Calls out to:** `../path/` (extract/confine/auth/access-log), `../manager/`
 (server selection in manager mode), `../compat/checksum.{c,h}` +
-`../compat/integrity_info.h` (digest compute + xattr cache), `../response` /
+`src/core/compat/integrity_info.h` (digest compute + xattr cache), `../response` /
 connection send for framing, `../metrics` for counters, and optionally
-`../aio/dirlist.c` for the thread-pool variant.
+`src/core/aio/dirlist.c` for the thread-pool variant.
 
 ## Invariants, security & gotchas
 
@@ -168,18 +174,18 @@ connection send for framing, `../metrics` for counters, and optionally
 - **Adjust framing/chunk size:** change `chunk_cap` (64 KiB) in `handler.c`; the
   `XRD_RESPONSE_HDR_LEN` reservation and `kXR_oksofar`/`kXR_ok` boundary logic
   must stay intact.
-- **Re-enable AIO offload:** work in `../aio/dirlist.c` and the gated block in
+- **Re-enable AIO offload:** work in `src/core/aio/dirlist.c` and the gated block in
   `handler.c`; the offload context (`brix_dirlist_aio_t`) and the 4 MiB
-  `BRIX_DIRLIST_AIO_RESPONSE_MAX` cap are defined in `../aio/aio.h`.
+  `BRIX_DIRLIST_AIO_RESPONSE_MAX` cap are defined in `src/core/aio/aio.h`.
 
 ## See also
 
 - `../handshake/README.md` — read-opcode dispatcher that invokes this handler
 - `../path/README.md` — `RESOLVE_BENEATH` confinement, path extraction, auth gate, access log
-- `../manager/README.md` — `brix_srv_select()` server selection for manager-mode redirects
-- `../aio/README.md` — thread-pool offload variant (`dirlist.c`) and `brix_dirlist_aio_t`
-- `../compat/README.md` — checksum / integrity (xattr-cached digest) helpers
+- `../../../net/manager/README.md` — `brix_srv_select()` server selection for manager-mode redirects
+- `../../../core/aio/README.md` — thread-pool offload variant (`src/core/aio/dirlist.c`) and `brix_dirlist_aio_t`
+- `../../../core/compat/README.md` — checksum / integrity (xattr-cached digest) helpers
 - `../read/README.md` — sibling stat/open/read stream operations sharing the export root
-- `../webdav/README.md` — `PROPFIND`, the HTTP enumeration of the same export
-- `../s3/README.md` — `ListObjectsV2`, the S3 enumeration of the same export
+- `../../webdav/README.md` — `PROPFIND`, the HTTP enumeration of the same export
+- `../../s3/README.md` — `ListObjectsV2`, the S3 enumeration of the same export
 - `../README.md` — master subsystem index

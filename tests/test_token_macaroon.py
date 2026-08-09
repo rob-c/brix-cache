@@ -11,7 +11,7 @@ import hmac
 import hashlib
 import base64
 import time
-from settings import SERVER_HOST
+from settings import NGINX_WEBDAV_PORT, SERVER_HOST
 
 
 def make_packet(key, value):
@@ -55,7 +55,7 @@ def macaroon_token(macaroon_secret):
         macaroon_secret,
         "test-subject",
         ["activity:DOWNLOAD", "before:2026-12-31T23:59:59Z"],
-        location=f"https://{SERVER_HOST}:8443",
+        location=f"https://{SERVER_HOST}:{NGINX_WEBDAV_PORT}",
     )
 
 
@@ -225,7 +225,7 @@ def test_old_key_token_is_structurally_valid(old_macaroon_secret):
         old_macaroon_secret,
         "test-subject",
         ["activity:DOWNLOAD", "before:2026-12-31T23:59:59Z"],
-        location=f"https://{SERVER_HOST}:8443",
+        location=f"https://{SERVER_HOST}:{NGINX_WEBDAV_PORT}",
     )
     packets = decode_packets(token)
     keys = [k for k, _ in packets]

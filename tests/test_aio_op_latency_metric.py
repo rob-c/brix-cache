@@ -166,7 +166,7 @@ def _fn_body(text, name):
 
 DONE_CALLBACKS = [
     ("src/core/aio/reads.c", "brix_read_aio_done"),
-    ("src/core/aio/reads.c", "brix_pgread_aio_done"),
+    ("src/core/aio/pgreads.c", "brix_pgread_aio_done"),
     ("src/core/aio/readv.c", "brix_readv_aio_done"),
     ("src/core/aio/write.c", "brix_write_aio_done_pipelined"),
     ("src/core/aio/write.c", "brix_write_aio_done_serial"),

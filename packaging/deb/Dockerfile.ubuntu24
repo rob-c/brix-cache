@@ -1,0 +1,72 @@
+# Container-based .deb builder for Ubuntu 24.04 (noble)
+#
+# Usage (normally via packaging/deb/build-deb-container.sh):
+#   docker build -f packaging/deb/Dockerfile.ubuntu24 \
+#     --build-arg NGINX_FLAVOR=org \
+#     -t brix-deb-builder:ubuntu24 .
+#
+#   # Extract the .debs:
+#   docker run --rm -v "$PWD/dist:/out" brix-deb-builder:ubuntu24 \
+#     cp -r /artifacts/. /out/
+#
+# The build requires network access to install packages and to download the
+# nginx source tarball matching the target nginx version.  The resulting
+# image contains the built .debs under /artifacts/.
+
+FROM ubuntu:24.04 AS builder
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Step 1: toolchain + packaging tools + every Build-Depends from
+# packaging/deb/debian/control.  Ceph dev packages come from universe, which
+# the stock ubuntu image already enables.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        build-essential debhelper dpkg-dev pkg-config \
+        curl ca-certificates gnupg \
+        libssl-dev libpcre2-dev zlib1g-dev libxml2-dev libjansson-dev \
+        libcurl4-openssl-dev libkrb5-dev comerr-dev libcrypt-dev \
+        libsqlite3-dev libfuse3-dev libzstd-dev liblz4-dev liburing-dev \
+        librados-dev libradospp-dev libradosstriper-dev libcephfs-dev
+
+# org: nginx.org packages for Ubuntu (stream compiled in; stable branch —
+#      same repo the RPM builders use on EL).
+# distro: Ubuntu-archive nginx (1.24.0 on noble) + libnginx-mod-stream.
+ARG NGINX_FLAVOR=org
+
+# Step 2: for the org flavor, add the nginx.org apt repo so build-deb.sh can
+# resolve the current stable version from apt-cache madison.  Keep the apt
+# lists in the image either way — build-deb.sh queries them at build time.
+RUN set -e; \
+    if [ "$NGINX_FLAVOR" = "org" ]; then \
+        curl -fsSL https://nginx.org/keys/nginx_signing.key \
+            | gpg --dearmor -o /usr/share/keyrings/nginx-archive-keyring.gpg; \
+        . /etc/os-release; \
+        echo "deb [signed-by=/usr/share/keyrings/nginx-archive-keyring.gpg] http://nginx.org/packages/ubuntu ${VERSION_CODENAME} nginx" \
+            > /etc/apt/sources.list.d/nginx.list; \
+    fi; \
+    apt-get update
+
+# Explicit overrides only; empty means "derive" (VERSION from
+# src/core/ident.h, NGINX_VERSION from apt for the chosen flavor).
+ARG VERSION=""
+ARG NGINX_VERSION=""
+
+# Copy the source tree (filtered by the repo-root .dockerignore whitelist).
+WORKDIR /build/src
+COPY . .
+
+# Step 3: build.  build-deb.sh stages the tree, generates debian/changelog,
+# downloads + unpacks the matching nginx source, and runs dpkg-buildpackage.
+RUN packaging/deb/build-deb.sh \
+        -f "$NGINX_FLAVOR" \
+        ${VERSION:+-v "$VERSION"} \
+        ${NGINX_VERSION:+-n "$NGINX_VERSION"} \
+        -o /artifacts
+
+
+FROM ubuntu:24.04 AS final
+
+COPY --from=builder /artifacts /artifacts
+
+# Print the built packages by default.
+CMD ["find", "/artifacts", "-name", "*.deb"]

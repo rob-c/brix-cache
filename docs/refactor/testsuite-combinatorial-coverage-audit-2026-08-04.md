@@ -313,7 +313,7 @@ overwrite, rename, unlink, or dir ops).
 1. ~~**`unix` × root://**~~ — **CLOSED 2026-08-04** by
    `tests/test_unix_auth_wire.py` (21 cases). Was: `src/auth/unix/auth.c`
    (`brix_handle_unix_auth`, `brix_unix_trust_remote` at
-   `directives_auth.inc:414`), accepted by `module_enums.c:40-51`, with the only
+   `directives_auth.h:414`), accepted by `module_enums.c:40-51`, with the only
    reference in the entire suite a *source-string guard*
    (`test_cross_protocol_shared_helpers_b.py:584,596,607`) asserting the literals
    exist — no handshake ever executed. It was the highest-value auth gap because
@@ -337,7 +337,7 @@ overwrite, rename, unlink, or dir ops).
    `tests/test_macaroon_root_wire.py` (17 cases) +
    `tests/configs/nginx_root_macaroon.conf`, two lifecycle instances
    (`lc-macaroon-root`, `lc-macaroon-root-rotate`). Was: `brix_macaroon_secret`/
-   `_old` registered on the stream module (`directives_auth.inc:343-354`) with
+   `_old` registered on the stream module (`directives_auth.h:343-354`) with
    every macaroon test targeting WebDAV. The suite now drives the same C
    validator through the kXR `ztn` credential: accept + a post-auth read proving
    `activity:DOWNLOAD` really conveys `storage.read`, wrong secret, one flipped

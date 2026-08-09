@@ -24,6 +24,7 @@ import tempfile
 import pytest
 from XRootD import client
 from XRootD.client.flags import DirListFlags, OpenFlags, QueryCode, StatInfoFlags
+from _xrdcl_proxy import real_bindings_available
 from settings import (
     CA_DIR,
     DATA_ROOT,
@@ -32,6 +33,12 @@ from settings import (
     PROXY_STD,
     SERVER_HOST,
 )
+
+pytestmark = [
+    pytest.mark.registry_server("main"),
+    pytest.mark.skipif(
+        not real_bindings_available(), reason="real libXrdCl bindings unavailable"),
+]
 
 # ---------------------------------------------------------------------------
 # Configuration
@@ -49,15 +56,15 @@ TEST_FILES = {
 
 
 @pytest.fixture(scope="module")
-def anon_fs():
-    return client.FileSystem(ANON_URL)
+def anon_fs(test_env):
+    return client.FileSystem(test_env["anon_url"])
 
 
 @pytest.fixture(scope="module")
-def gsi_fs():
+def gsi_fs(test_env):
     os.environ["X509_CERT_DIR"] = CA_DIR
     os.environ["X509_USER_PROXY"] = PROXY_PEM
-    fs = client.FileSystem(GSI_URL)
+    fs = client.FileSystem(test_env["gsi_url"])
     return fs
 
 

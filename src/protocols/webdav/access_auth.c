@@ -24,6 +24,7 @@
 #include "protocols/shared/deleg_capture.h"  /* phase-70 §5.1 proxy header capture */
 #include "fs/backend/sd.h"  /* enum brix_cred_mode / BRIX_CRED_SELECT */
 #include "auth/protbind/protbind.h"  /* per-host credential-source binding */
+#include "redirect.h"                /* §6.1: signed redirect-CGI source */
 #include "access_internal.h"
 
 /*
@@ -290,6 +291,22 @@ access_authenticate(ngx_http_request_t *r,
     ngx_int_t            auth_rc = NGX_DECLINED;
     ngx_int_t            token_rc = NGX_DECLINED;
     ngx_uint_t           index;
+
+    /* §6.1: a signed redirect handoff (brixrdr.* CGI, verified against
+     * brix_http_secretkey) IS this request's authentication — the manager
+     * already authenticated the client.  Tried FIRST and fail-closed: a bad
+     * MAC is a 403, never a fall-through to weaker sources. */
+    auth_rc = webdav_redirect_signed_auth(r, conf);
+    if (auth_rc == NGX_OK) {
+        return NGX_OK;
+    }
+    if (auth_rc != NGX_DECLINED) {
+        BRIX_WEBDAV_METRIC_INC(
+            auth_total[BRIX_WEBDAV_AUTH_RESULT_REJECTED]);
+        brix_metric_auth(BRIX_PROTO_WEBDAV, BRIX_AUTHN_NONE, 0);
+        return webdav_metrics_return(r, auth_rc);
+    }
+    auth_rc = NGX_DECLINED;
 
     access_protbind_set(r, conf, &bound);
 

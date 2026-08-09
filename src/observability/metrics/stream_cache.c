@@ -241,8 +241,9 @@ stream_cache_emit_eviction_counters(metrics_writer_t *mw,
  *       and split by the `reason` label to distinguish data-loss severity.
  * HOW:  Header then, per active server, one row per reap reason ("abandoned" =
  *       un-flushed dirty discarded; "incomplete" = re-dirtied after a prior flush;
- *       "completed" = a finished write-back staging copy reclaimed), each read via
- *       the lock-free ngx_atomic_fetch_add(&x, 0) load idiom.
+ *       "completed" = a finished write-back staging copy reclaimed; "cold" = a
+ *       clean read-fill purged by age), each read via the lock-free
+ *       ngx_atomic_fetch_add(&x, 0) load idiom.
  */
 static void
 stream_cache_emit_dirty_reaped(metrics_writer_t *mw,
@@ -252,6 +253,7 @@ stream_cache_emit_dirty_reaped(metrics_writer_t *mw,
         [BRIX_CACHE_REAP_ABANDONED]  = "abandoned",
         [BRIX_CACHE_REAP_INCOMPLETE] = "incomplete",
         [BRIX_CACHE_REAP_COMPLETED]  = "completed",
+        [BRIX_CACHE_REAP_COLD]       = "cold",
     };
     ngx_brix_srv_metrics_t *srv;
     ngx_uint_t              i;

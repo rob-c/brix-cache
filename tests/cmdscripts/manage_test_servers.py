@@ -66,15 +66,23 @@ def _launcher():
 
 def start_all() -> int:
     import fleet_prep  # noqa: PLC0415 — session artifact generator
+    from settings import FLEET_READY, TEST_ROOT as NORMALIZED_TEST_ROOT
 
+    Path(FLEET_READY).unlink(missing_ok=True)
     fleet_prep.prepare()
     specs = _register()
     _launcher().start_registered(specs)
+    marker = Path(FLEET_READY)
+    marker.parent.mkdir(parents=True, exist_ok=True)
+    marker.write_text(NORMALIZED_TEST_ROOT + "\n", encoding="utf-8")
     print(f"start-all: {len(specs)} fleet instances launched")
     return 0
 
 
 def stop_all() -> int:
+    from settings import FLEET_READY
+
+    Path(FLEET_READY).unlink(missing_ok=True)
     specs = _register()
     _launcher().stop_registered(specs)
     print("stop-all: fleet stopped")
@@ -129,7 +137,7 @@ def status() -> int:
         ("main-nginx", S.NGINX_ANON_PORT),
         ("manager", S.MANAGER_PORT),
         ("readonly", S.READONLY_PORT),
-        ("ref-anon", getattr(S, "REF_PORT", 11098)),
+        ("ref-anon", S.REF_BRIX_PORT),
     ]
     rc = 0
     for label, port in probes:

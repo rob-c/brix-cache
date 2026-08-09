@@ -483,6 +483,20 @@ typedef struct {
                            * only to a local-file download of a known-size plain
                            * (non-compressed, non-pgrw) object; every other case
                            * falls back to the serial pump. */
+    int         sources;  /* --sources N (phase-100 extreme copy): download from
+                           * up to N replicas concurrently with block stealing.
+                           * Replicas come from the metalink mirror list, else a
+                           * kXR_locate on the source, else the single source
+                           * duplicated. 0/1 = off (single-source paths). */
+    int         metalink_off; /* --no-metalink: treat .meta4/.metalink sources
+                           * as plain files. Also forced on internally for the
+                           * metalink document fetch + per-mirror dispatch so
+                           * resolution can never recurse. */
+    /* Internal (resolver-owned, never set by CLI): the ranked root-family
+     * mirror list a metalink resolved to, threaded to the extreme-copy engine.
+     * Pointers borrow the resolver's storage for the dispatch call. */
+    const char *const *xcp_mirrors;
+    size_t             xcp_n_mirrors;
     int         tpc_mode; /* --tpc: 0=off, 1=first (fallback), 2=only, 3=delegate */
     const char *tpc_token_mode;  /* --tpc delegate token_mode value (optional) */
     int         recursive;/* -r: copy a directory tree (dirlist walk + mkdir + per-file) */

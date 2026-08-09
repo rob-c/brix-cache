@@ -75,8 +75,8 @@ pytestmark = [pytest.mark.timeout(300),
 # Raw-socket connections go straight to these ports, so they must be the live
 # fleet pair (worker_port() shifts into an unbound per-worker band → refused).
 # See _test_conf_sessions_helpers.py for the full rationale.
-OUR_PORT = L.FLEET_OUR_PORT
-OFF_PORT = L.FLEET_OFF_PORT
+OUR_PORT = L.worker_port(14062)   # per-worker band (was shared L.FLEET_OUR_PORT → 20003 collisions)
+OFF_PORT = L.worker_port(14063)
 BIND = BIND_HOST
 
 # opcodes / status

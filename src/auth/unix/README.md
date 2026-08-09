@@ -39,25 +39,25 @@ place.
 
 | File | Responsibility |
 |---|---|
-| `auth.c` | The whole subsystem. Exports `brix_handle_unix_auth()` (declared in `../ngx_brix_module.h`). Internals: `brix_unix_peer_is_loopback()` (peer-address trust gate), `brix_unix_name_byte_ok()` + `brix_unix_copy_name()` (allow-list character validation + bounded copy of user/group), and `brix_unix_track_identity()` (VO-activity / unique-user metrics). |
+| `auth.c` | The whole subsystem. Exports `brix_handle_unix_auth()` (declared in `src/core/ngx_brix_module.h`). Internals: `brix_unix_peer_is_loopback()` (peer-address trust gate), `brix_unix_name_byte_ok()` + `brix_unix_copy_name()` (allow-list character validation + bounded copy of user/group), and `brix_unix_track_identity()` (VO-activity / unique-user metrics). |
 
 ## Key types & data structures
 
 This subsystem defines no types of its own; it reads/writes shared ones:
 
-- **`brix_ctx_t`** (`../types/context.h`) — per-TCP-connection session
+- **`brix_ctx_t`** (`src/core/types/context.h`) — per-TCP-connection session
   context. On success this handler sets `auth_done = 1`, clears
   `token_auth = 0`, and fills `dn[512]`, `vo_list[512]`, `primary_vo[128]`,
   and the canonical `identity` pointer. It reads the accumulated request via
   `ctx->payload` / `ctx->cur_dlen` and the issued `ctx->sessid`.
-- **`ngx_stream_brix_srv_conf_t`** (`../types/config.h`) — server config; only
+- **`ngx_stream_brix_srv_conf_t`** (`src/core/types/config.h`) — server config; only
   field consulted is `unix_trust_remote` (the `NGX_CONF_UNSET`/merge-default-`0`
   flag behind the `brix_unix_trust_remote on|off` directive).
-- **`brix_identity_t`** (`../types/identity.h`) — the canonical Phase-2
+- **`brix_identity_t`** (`src/core/types/identity.h`) — the canonical Phase-2
   identity object; populated via `brix_identity_set_dn(..., BRIX_AUTHN_UNIX)`
   and `brix_identity_set_vos_csv()`. `BRIX_AUTHN_UNIX` (`0x10`) is the
   auth-method tag stamped onto the identity and into metrics.
-- **Size caps** (`../types/tunables.h`): `BRIX_SSS_USER_MAX` (128) and
+- **Size caps** (`src/core/types/tunables.h`): `BRIX_SSS_USER_MAX` (128) and
   `BRIX_SSS_GROUP_MAX` (64) bound the parsed names; the `safe_user`/
   `safe_group` log buffers are `×4` to leave room for `\xNN` escaping.
 
@@ -66,7 +66,7 @@ This subsystem defines no types of its own; it reads/writes shared ones:
 **Entry:** `brix_handle_unix_auth(ctx, c, conf)` is called only from
 `brix_handle_auth_inner()` in [`../gsi/auth.c`](../gsi/auth.c) (the kXR_auth
 credtype router), which is itself reached from the stream handshake dispatcher
-[`../handshake/dispatch.c`](../../protocols/root/handshake/dispatch.c) after `kXR_login`.
+[`src/protocols/root/handshake/dispatch.c`](../../protocols/root/handshake/dispatch.c) after `kXR_login`.
 
 **Wire payload parsed:** the kXR_auth body for this scheme is
 `"unix\0"` followed by `user[ group]` (space-separated). The handler validates
@@ -74,16 +74,16 @@ the `"unix\0"` tag, skips leading spaces, then extracts the user token and an
 optional group token.
 
 **Calls out to:**
-- `../session/registry.h` → `brix_session_register(sessid, dn, vo_list, 0)`
+- `src/protocols/root/session/registry.h` → `brix_session_register(sessid, dn, vo_list, 0)`
   records the authenticated session for `kXR_bind` / cluster coordination.
-- `../metrics/unified.h` → `brix_metric_auth(BRIX_PROTO_STREAM,
+- `src/observability/metrics/unified.h` → `brix_metric_auth(BRIX_PROTO_ROOT,
   BRIX_AUTHN_UNIX, ok)` on every outcome; plus `brix_track_vo_activity()`
   and `brix_track_unique_user()` (via `brix_metrics_shared()`) on success.
-- `../types/identity.h` identity setters for the canonical identity object.
+- `src/core/types/identity.h` identity setters for the canonical identity object.
 - `brix_sanitize_log_string()` (project-wide helper) before logging any
   wire-derived bytes.
 - Response/exit is via the `BRIX_RETURN_OK` / `BRIX_RETURN_ERR` macros
-  (`../types/tunables.h`) which fold access-log + per-op metric + `kXR_ok`/
+  (`src/core/types/tunables.h`) which fold access-log + per-op metric + `kXR_ok`/
   `kXR_error` framing into one call; `kXR_NoMemory` errors go through
   `brix_send_error()` directly.
 
@@ -139,9 +139,9 @@ handler set drives [`../path/`](../../fs/path/) ACL/VO authorization.
   setters — do not relax `brix_unix_name_byte_ok()` without a security review.
 - **Adjust the trust policy:** the directive `brix_unix_trust_remote` is wired
   in the live `ngx_stream_brix_commands[]` table in
-  [`../stream/module.c`](../../protocols/root/stream/module.c)
-  → field `unix_trust_remote` in `../types/config.h`, defaulted in
-  [`../config/server_conf.c`](../../core/config/server_conf.c). To add finer-grained
+  [`src/protocols/root/stream/module.c`](../../protocols/root/stream/module.c)
+  → field `unix_trust_remote` in `src/core/types/config.h`, defaulted in
+  [`src/core/config/server_conf.c`](../../core/config/server_conf.c). To add finer-grained
   trust (e.g. a CIDR allow-list) extend `brix_unix_peer_is_loopback()` and the
   config plumbing — keep the default fail-closed.
 - **Add a sibling auth scheme:** mirror this file's shape (peer gate → parse →

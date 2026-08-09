@@ -89,8 +89,9 @@ def prepare(env=None) -> dict:
     log_dir = Path(env.get("LOG_DIR", str(test_root / "logs")))
     tokens_dir = test_root / "tokens"
     jwks_refresh_dir = tokens_dir / "jwks-refresh"
+    artifacts_dir = test_root / "artifacts"
 
-    for d in (test_root, log_dir, tokens_dir, jwks_refresh_dir):
+    for d in (test_root, log_dir, tokens_dir, jwks_refresh_dir, artifacts_dir):
         d.mkdir(parents=True, exist_ok=True)
 
     # 1) PKI + user proxies.

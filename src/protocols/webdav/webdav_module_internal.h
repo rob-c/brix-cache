@@ -21,6 +21,7 @@
 #include <limits.h>
 extern ngx_conf_enum_t  webdav_auth_values[];
 extern ngx_conf_enum_t  brix_webdav_cks_xattr_formats[];
+extern ngx_conf_enum_t  brix_webdav_redirect_schemes[];   /* §6.1 */
 
 extern ngx_command_t ngx_http_brix_webdav_commands[];
 extern ngx_http_module_t ngx_http_brix_webdav_module_ctx;

@@ -136,7 +136,7 @@ brix_send_attn_asynresp(brix_ctx_t *ctx, ngx_connection_t *c,
     }
 
     ngx_log_debug2(NGX_LOG_DEBUG_STREAM, c->log, 0,
-        "brix: sending kXR_attn asynresp status=%d bodylen=%u",
+        "brix: sending kXR_attn asynresp status=%d bodylen=%ud",
         (int) resp_status, bodylen);
 
     return brix_queue_response(ctx, c, buf, total);

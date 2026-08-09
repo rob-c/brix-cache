@@ -145,7 +145,7 @@ brix_cms_wake_pending_session(ngx_log_t *log, uint32_t streamid,
     }
 
     ngx_log_error(NGX_LOG_INFO, log, 0,
-                  "brix: CMS select: redirecting client fd=%d to %s:%u",
+                  "brix: CMS select: redirecting client fd=%d to %s:%ud",
                   conn_fd, host, (unsigned) port);
 
     ngx_del_timer(client_conn->read);
@@ -216,11 +216,92 @@ cms_frame_status(ngx_brix_cms_ctx_t *ctx, uint32_t streamid, u_char code)
     return NGX_OK;
 }
 
+/*
+ * cms_frame_login_retarget — §2.9: an UNSOLICITED kYR_try (streamid 0) is
+ * the manager redirecting this node's LOGIN elsewhere (ManTree supervisor
+ * offload, or a blacklist `redirect` entry).
+ *
+ * WHAT: Re-points this heartbeat link at the named manager and reconnects.
+ *       Returns NGX_OK always (a refused/malformed retarget just keeps the
+ *       current link).
+ * WHY:  Without honoring the login redirect, a manager at its direct-server
+ *       cap can only drop us — the tree never forms.  The original address
+ *       is preserved so repeated failures (or a redirect chain > 4 deep)
+ *       fall back to configuration.
+ * HOW:  Validate host chars (same allowlist as the locate redirect), accept
+ *       IP literals only (registry hosts are the peer's numeric address —
+ *       a hostname here would mean blocking DNS in the event loop), build
+ *       the sockaddr on the cycle pool, swap ctx->mgr_addr/mgr_name, then
+ *       disconnect + immediate reconnect.
+ */
+static ngx_int_t
+cms_frame_login_retarget(ngx_brix_cms_ctx_t *ctx, const char *host,
+    uint16_t port)
+{
+    ngx_addr_t  *addr;
+    u_char      *name;
+    size_t       name_len;
+
+    if (ctx->retarget_depth >= 4) {
+        ngx_log_error(NGX_LOG_WARN, ctx->cycle->log, 0,
+            "brix: CMS login retarget chain too deep — staying on %V",
+            &ctx->mgr_name);
+        return NGX_OK;
+    }
+
+    addr = ngx_pcalloc(ctx->cycle->pool, sizeof(ngx_addr_t));
+    name = ngx_pnalloc(ctx->cycle->pool,
+                       ngx_strlen(host) + sizeof(":65535"));
+    if (addr == NULL || name == NULL) {
+        return NGX_OK;
+    }
+
+    if (ngx_parse_addr_port(ctx->cycle->pool, addr, (u_char *) host,
+                            ngx_strlen(host)) != NGX_OK)
+    {
+        ngx_log_error(NGX_LOG_WARN, ctx->cycle->log, 0,
+            "brix: CMS login retarget to non-literal host \"%s\" refused "
+            "(IP literals only)", host);
+        return NGX_OK;
+    }
+    ngx_inet_set_port(addr->sockaddr, port);
+
+    name_len = (size_t)
+        (ngx_snprintf(name, ngx_strlen(host) + sizeof(":65535"),
+                      "%s:%d%Z", host, (int) port) - name) - 1;
+    addr->name.data = name;
+    addr->name.len  = name_len;
+
+    if (!ctx->retargeted) {
+        ctx->orig_addr = ctx->mgr_addr;
+        ctx->orig_name = ctx->mgr_name;
+        ctx->retargeted = 1;
+    }
+    ctx->retarget_depth++;
+    ctx->retarget_fails = 0;
+    ctx->mgr_addr = addr;
+    ctx->mgr_name.data = name;
+    ctx->mgr_name.len  = name_len;
+
+    ngx_log_error(NGX_LOG_NOTICE, ctx->cycle->log, 0,
+        "brix: CMS login redirected — re-dialing %V (was %V)",
+        &ctx->mgr_name, &ctx->orig_name);
+    brix_cms_log_action(ctx->cycle->log, "login-retarget",
+                        (const char *) ctx->mgr_name.data, "out", NULL, 1,
+                        "manager answered login with kYR_try");
+
+    ngx_brix_cms_set_end_hint(ctx, BRIX_SESS_END_SERVER);
+    ngx_brix_cms_disconnect(ctx);
+    ngx_brix_cms_schedule(ctx, 10);
+    return NGX_OK;
+}
+
 /* cms_frame_redirect — kYR_select / kYR_try: the manager resolved a pending
  * kYR_locate and names a server.  Both payloads carry a NUL-terminated hostname
  * + 2-byte big-endian port (kYR_try is an ordered list of such entries — use
  * only the first; the client retries remaining entries itself), so one handler
- * serves both opcodes.  Truncated payloads are silently ignored. */
+ * serves both opcodes.  Truncated payloads are silently ignored.  §2.9: an
+ * unsolicited kYR_try on streamid 0 is a LOGIN retarget, not a locate answer. */
 static ngx_int_t
 cms_frame_redirect(ngx_brix_cms_ctx_t *ctx, uint32_t streamid, u_char code)
 {
@@ -244,6 +325,22 @@ cms_frame_redirect(ngx_brix_cms_ctx_t *ctx, uint32_t streamid, u_char code)
     }
 
     port = ngx_brix_cms_get16(payload + host_len + 1);
+
+    /* §2.9: an unsolicited kYR_try (streamid 0 — never a locate correlation
+     * id, see ngx_brix_cms_next_streamid) is a LOGIN retarget.  Host chars
+     * are validated with the same allowlist the locate wake uses, so a
+     * hostile manager cannot inject a poisoned dial target. */
+    if (streamid == 0 && code == CMS_RR_TRY) {
+        if (!brix_net_host_chars_valid(host, host_len)) {
+            char  safe[256];
+            brix_sanitize_log_string(host, safe, sizeof(safe));
+            ngx_log_error(NGX_LOG_WARN, ctx->cycle->log, 0,
+                "brix: CMS login retarget to invalid host \"%s\" refused",
+                safe);
+            return NGX_OK;
+        }
+        return cms_frame_login_retarget(ctx, host, port);
+    }
 
     {
         u_char  detail[320];
@@ -379,6 +476,13 @@ cms_frame_role_ok(ngx_brix_cms_ctx_t *ctx, u_char code)
         break;
     case BRIX_CMS_ROLE_SUPERVISOR:
         role = XRDCMS_ROLE_SUPER;
+        break;
+    case BRIX_CMS_ROLE_PEER:
+    case BRIX_CMS_ROLE_PROXY:
+        /* §2.17: a peer/proxy leg accepts the same restricted (non-
+         * destructive) upward set as a sub-manager — a remote cluster's
+         * manager must not drive namespace mutations into this one. */
+        role = XRDCMS_ROLE_SUBMAN;
         break;
     default:
         return 1;

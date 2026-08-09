@@ -17,6 +17,10 @@ import subprocess
 
 import pytest
 
+from cmdscripts.live_common import (
+    inject_nginx_load_modules,
+    inject_nginx_runtime_paths,
+)
 from settings import BIND_HOST, NGINX_BIN
 
 STREAM_PORT = 13401
@@ -47,6 +51,8 @@ http {{ server {{ listen {BIND_HOST}:{HTTP_PORT};
     }}
 }} }}
 """)
+    inject_nginx_load_modules(conf)
+    inject_nginx_runtime_paths(conf, root)
     p = subprocess.run([str(NGINX_BIN), "-t", "-p", str(root), "-c", str(conf)],
                        capture_output=True, text=True, timeout=30)
     return p.returncode, p.stderr + p.stdout

@@ -1,0 +1,15 @@
+usr/bin/brix-xrdceph_striper_migrate
+usr/bin/brix-xrdceph_cephfs_to_striper
+usr/bin/brix-xrdrados_rescue
+usr/bin/brix-xrdcephfs_rescue
+usr/bin/brix-xrdceph_migrate
+usr/share/man/man1/brix-xrdceph_cephfs_to_striper.1
+usr/share/man/man1/brix-xrdceph_migrate.1
+usr/share/man/man1/brix-xrdceph_striper_migrate.1
+usr/share/man/man1/brix-xrdcephfs_rescue.1
+usr/share/man/man1/brix-xrdrados_rescue.1
+usr/share/bash-completion/completions/brix-xrdceph_striper_migrate
+usr/share/bash-completion/completions/brix-xrdceph_cephfs_to_striper
+usr/share/bash-completion/completions/brix-xrdrados_rescue
+usr/share/bash-completion/completions/brix-xrdcephfs_rescue
+usr/share/bash-completion/completions/brix-xrdceph_migrate

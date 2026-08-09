@@ -279,6 +279,17 @@ LIFECYCLE_EXCLUSIVE_PORTS: dict[str, dict] = {
     # registry's readiness probe watches the listener the front depends on.
     "lc-s3-xroot": {"port": 31233,
                     "extra": {"S3_PORT": 31234}},
+
+    # Audit-fix subjects (test_audit_fixes_2026_08_09.py), all serialised under
+    # xdist_group("lc-audit-fixes").  Each mutates its own cache/export state:
+    #   only-if-cached — a read MISS must be refused, never filled (§4.4);
+    #   cold-purge     — the reaper must delete a clean read-fill by age (§4.2);
+    #   signing        — brix_security_level over an anonymous (unsignable)
+    #                    session, reconfigured between required-on and -off so
+    #                    the pair costs ONE ladder slot instead of two (§5.2).
+    "lc-audit-onlyifcached": {"port": 31240},
+    "lc-audit-coldpurge": {"port": 31241},
+    "lc-audit-signing": {"port": 31242},
 }
 
 # Non-binding placeholder port for standalone `nginx_t` parse tests (nginx -t
@@ -1074,6 +1085,19 @@ LIFECYCLE_SHARED_PORTS: dict[str, dict] = {
     # xdist_group ("lc-cms-multi") serialises the file over these fixed ports.
     "lc-cms-multi-node": {"port": 30515},
     "lc-cms-multi-emit": {"port": 30516},
+    # 2026-08-09 CMS parity wave (test_cms_parity_wave.py): ONE manager name
+    # and ONE node name reused sequentially with per-test {CMS_EXTRA} policy
+    # directives; xdist_group("lc-cms-parity") serialises the file.  Fake
+    # data-node peers and the in-test stub manager use client-side/ephemeral
+    # sockets (Phase-6 exempt); only these nginx binds are ledgered.
+    "lc-cms-parity-mgr": {"port": 30540, "extra": {"CMS_PORT": 30545}},
+    "lc-cms-parity-node": {"port": 30541},
+    # HTTP redirect-to-dataserver (§6.1, test_webdav_redirect_ds.py): a
+    # manager (stream CMS server + http webdav front) and a data-server-side
+    # verifier instance; xdist_group("lc-webdav-redirect") serialises.
+    "lc-webdav-redirect-mgr": {"port": 30542,
+                               "extra": {"HTTP_PORT": 30543, "CMS_PORT": 30546}},
+    "lc-webdav-redirect-ds": {"port": 30544, "extra": {"HTTP_PORT": 30547}},
     # The s3:// sibling of `resil-nginx-http-front` above: a root:// front whose
     # storage backend is a remote S3 origin reached through the fault proxy.  A
     # second name rather than a reuse of the http one because both fronts are up
@@ -1100,6 +1124,9 @@ LIFECYCLE_SHARED_PORTS: dict[str, dict] = {
     "lc-tlsreq-ztn-refuse": {"port": 30527},
     "lc-tlsreq-ztn-optin": {"port": 30528},
     "lc-tlsreq-ztn-tls": {"port": 30529},
+    # kXR_bind refusal subject (test_bind_substreams.py), owned by one
+    # module-scoped lifecycle and serialised as bind-substreams-off.
+    "lc-bind-substreams-off": {"port": 30530},
     # 30506/30507/30508 are the cachemx matrix's S3-over-TLS, remote-origin
     # WebDAV and HTTP-TPC WebDAV planes; they live in the "lc-cachemx" extras
     # block above, out of numeric order because that entry predates them.
@@ -1123,3 +1150,13 @@ def lifecycle_ports_for(name: str) -> tuple[int | None, dict[str, int]]:
     if entry is None:
         return None, {}
     return entry["port"], dict(entry.get("extra", {}))
+
+
+# Values written in the two ledgers above are the original ports used by the
+# tests that introduced them.  Runtime listeners are packed into the shared
+# TEST_PORT_START ladder only after the complete ledgers have been declared.
+from port_ladder import placeholder_port, rebase_lifecycle_ledger
+rebase_lifecycle_ledger(LIFECYCLE_SHARED_PORTS, shared=True)
+rebase_lifecycle_ledger(LIFECYCLE_EXCLUSIVE_PORTS, shared=False)
+SHARED_PARSE_PLACEHOLDER_PORT = placeholder_port(0)
+PARSE_PLACEHOLDER_PORT = placeholder_port(1)

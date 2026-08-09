@@ -405,6 +405,7 @@ copy_download(const brix_url *su, const brix_url *du, const brix_copy_opts *o,
     job.si = &si;
     job.o = o;
     job.ss = &ss;
+    job.co = co;
 
     if (to_stdout) {
         rc = download_to_stdout(&job, st);
@@ -423,6 +424,15 @@ copy_download(const brix_url *su, const brix_url *du, const brix_copy_opts *o,
                         du->path);
         brix_close(&c);
         return -1;
+    }
+
+    /* Phase-100 extreme copy (--sources N): multi-source block-stealing
+     * download over metalink mirrors / locate replicas.  Returns 1 when it
+     * handled the transfer; 0 falls through to --parallel, then serial. */
+    if (copy_download_xcp(&job, &rc, st)) {
+        brix_streams_close(&ss);
+        brix_close(&c);
+        return rc;
     }
 
     /* Opt-in TRUE concurrent striped download (--parallel): one thread per bound

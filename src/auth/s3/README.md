@@ -22,7 +22,7 @@ File split (phase-79 — formerly one 815-line file, split by concern):
   `brix_sigv4_signing_key()` and `brix_hmac_sha256`/`brix_sha256` from
   `core/compat/`. No I/O, no allocation.
 - `sts_http.c` — the side-effecting edge: libcurl GET (TLS verified, protocols
-  pinned to http/https, mirroring `webdav/tpc_curl.c`) and libxml2 parsing of
+  pinned to http/https, mirroring `src/protocols/webdav/tpc_curl.c`) and libxml2 parsing of
   the XML reply. A no-libxml2 build fails closed.
 - `sts_internal.h` — the cross-file contract: `sts_req_t` / `sts_resp_t` /
   `sts_creds_buf_t`, the `BRIX_STS_RESP_MAX` (64 KiB) response bound, and the

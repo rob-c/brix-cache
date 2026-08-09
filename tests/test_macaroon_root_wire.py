@@ -1,7 +1,7 @@
 """Macaroons over root:// — the stream-plane twin of the WebDAV battery.
 
 `brix_macaroon_secret` is registered on the stream server too
-(src/protocols/root/stream/directives_auth.inc), and `brix_auth token` routes a
+(src/protocols/root/stream/directives_auth.h), and `brix_auth token` routes a
 dot-free bearer to the macaroon validator (src/auth/gsi/token.c
 tokenauth_validate).  Every existing macaroon test drives that validator over
 HTTP, so the whole cell "macaroon × root://" was empty

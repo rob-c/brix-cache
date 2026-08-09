@@ -1,4 +1,5 @@
-from _test_conf_prepfattr_helpers import *  # noqa: F401,F403  (Phase-38 split shared header)
+from split_continuation import reexport as _reexport
+_reexport(globals(), "_test_conf_prepfattr_helpers")
 
 @pytest.mark.parametrize("path", PREP_EXISTING)
 def test_prepare_nostage_rc_parity(srv, path):

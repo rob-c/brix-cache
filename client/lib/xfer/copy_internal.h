@@ -165,6 +165,8 @@ typedef struct {
     const brix_statinfo  *si;
     const brix_copy_opts *o;
     brix_streamset       *ss;
+    const brix_opts      *co;  /* connection options (cred store) — the xcp
+                                * engine dials its own replica connections */
 } download_job_t;
 
 
@@ -178,6 +180,25 @@ int download_reconcile_cksum(const download_job_t *job, const char *local_path, 
  * when it handled the transfer (verdict in *out_rc), 0 when not eligible and the
  * caller should run the serial pump. */
 int copy_download_parallel(const download_job_t *job, int *out_rc, brix_status *st);
+/* Shared with copy_xcp.c: commit (fsync+rename) a successful concurrent
+ * download and reconcile its checksum, or abort the temp — always closes vf. */
+int download_commit_or_abort(const download_job_t *job, brix_vfs_file *vf,
+                             int rc, brix_status *st);
+
+/* copy_xcp.c — the phase-100 extreme copy (multi-source block-stealing
+ * download, --sources N). Same handled?/fall-through contract as
+ * copy_download_parallel; runs BEFORE it in copy_download. */
+int copy_download_xcp(const download_job_t *job, int *out_rc, brix_status *st);
+
+/* copy_metalink.c — phase-100 metalink virtual redirector. */
+int copy_is_metalink_src(const char *src, const brix_copy_opts *o);
+int copy_metalink_run(const char *src, const char *dst, const brix_copy_opts *o,
+                      const brix_opts *co, brix_status *st);
+
+/* copy.c — one classified single-source dispatch (everything brix_copy does
+ * AFTER the metalink branch); the mirror-failover loop re-enters here. */
+int copy_dispatch_one(const char *src, const char *dst, const brix_copy_opts *o,
+                      const brix_opts *co, brix_status *st);
 
 /*
  * WHAT: The invariant inputs of one resilient upload-body stream — the source

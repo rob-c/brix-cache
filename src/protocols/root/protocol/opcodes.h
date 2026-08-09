@@ -168,14 +168,20 @@
 #define kXR_ChkSumErr       3019  /* CRC32c checksum mismatch in pgwrite payload */
 #define kXR_inProgress      3020  /* a conflicting operation is already in progress */
 #define kXR_overQuota       3021  /* caller has exceeded their storage quota */
+#define kXR_SigVerErr       3022  /* kXR_sigver signature verification failed */
+#define kXR_DecryptErr      3023  /* a credential/payload could not be decrypted */
 #define kXR_Overloaded      3024  /* server is too busy; client should try later */
 #define kXR_fsReadOnly      3025  /* filesystem is mounted read-only */
+#define kXR_BadPayload      3026  /* request payload is malformed for this opcode */
 #define kXR_AttrNotFound    3027  /* named extended attribute does not exist */
 #define kXR_TLSRequired     3028  /* this operation requires TLS to be active */
+#define kXR_noReplicas      3029  /* no replica of the object is currently available */
 #define kXR_AuthFailed      3030  /* authentication credentials were rejected */
 #define kXR_Impossible      3031  /* request is logically impossible */
 #define kXR_Conflict        3032  /* conflicting options or state */
 #define kXR_TooManyErrs     3033  /* too many errors — server giving up */
+#define kXR_ReqTimedOut     3034  /* the request itself exceeded its time budget */
+#define kXR_TimerExpired    3035  /* a server-side timer (wait/stage) expired */
 
 /* ------------------------------------------------------------------ */
 /* kXR_status encoding base                                             */

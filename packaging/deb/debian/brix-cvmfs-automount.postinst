@@ -1,0 +1,15 @@
+#!/bin/sh
+# postinst for brix-cvmfs-automount: the umbrella daemon's mount farm lives
+# under /var/lib/brixcvmfs (children mount in .mnt and surface as symlinks);
+# 0700 root:root, matching the RPM's %attr.
+set -e
+
+case "$1" in
+    configure)
+        chmod 0700 /var/lib/brixcvmfs
+        ;;
+esac
+
+#DEBHELPER#
+
+exit 0

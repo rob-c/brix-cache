@@ -21,7 +21,8 @@ import socket
 import subprocess
 import time
 
-from settings import BIND_HOST, TEST_ROOT
+from settings import BIND_HOST, TEST_ROOT, TEST_PORT_START
+from port_ladder import INTEROP_WORKER_OFFSET
 
 BIND = BIND_HOST
 
@@ -111,29 +112,42 @@ FLEET_OFF_DATA = os.path.join(TEST_ROOT, "data-interop-off")
 # look in tree B → FileNotFoundError).  `worker_port()` shifts every conformance
 # port into a private per-worker band, lifted clear of the shared fleet
 # (max ~18456) so the two never collide.
-_WORKER_BAND_LIFT = 16000     # lift conf ports above the shared fleet's range
-_WORKER_BAND_STRIDE = 1000    # per-worker band width (> max conf base-port span ~923)
-_WORKER_BAND_COUNT = 44       # wrap so a huge -n never overflows 16-bit ports
-
-
-def _worker_index():
-    """0-based pytest-xdist worker index ('gw3' -> 3); 0 when run serially."""
-    w = os.environ.get("PYTEST_XDIST_WORKER", "")
-    if w.startswith("gw"):
-        try:
-            return int(w[2:]) % _WORKER_BAND_COUNT
-        except ValueError:
-            return 0
-    return 0
+# Every distinct interop `base` in use today.  Each maps to one fixed slot in the
+# ladder's INTEROP category; the owning module is pinned to a single xdist worker
+# (conftest auto-xdist_group keyed on the module), so a fixed port per base is
+# collision-free and the two-workers-on-one-port cross-talk above cannot happen.
+# Register a NEW base by adding it here (and bump port_ladder.INTEROP_WORKER_WIDTH
+# if the count exceeds it).
+_INTEROP_BASES = (
+    14002, 14003, 14004, 14005, 14006, 14007, 14008, 14009, 14010, 14011,
+    14012, 14013, 14020, 14021, 14022, 14023, 14026, 14027, 14030, 14031,
+    14032, 14033, 14034, 14035, 14036, 14037, 14038, 14039, 14042, 14043,
+    14044, 14045, 14048, 14049, 14050, 14051, 14052, 14053, 14054, 14055,
+    14056, 14057, 14058, 14059, 14060, 14061, 14062, 14063, 14064, 14065,
+    14066, 14067, 14068, 14069, 14070, 14071, 14912, 14913, 14924, 14925,
+    14980,
+)
+_INTEROP_SLOT = {b: i for i, b in enumerate(_INTEROP_BASES)}
+# Anchored to TEST_PORT_START (+1 matches port_ladder._port(offset, 0)); a second
+# suite on a different TEST_PORT_START draws a disjoint range.
+_INTEROP_LADDER_BASE = int(os.environ.get(
+    "INTEROP_WORKER_PORT_BASE", TEST_PORT_START + INTEROP_WORKER_OFFSET + 1))
 
 
 def worker_port(base):
-    """Map a module's fixed conformance port into this worker's private band.
+    """Fixed ladder port for a differential-interop module's conformance `base`.
 
-    Deterministic and collision-free: distinct base ports stay distinct within a
-    worker (same shift applied to all), and per-worker bands never overlap because
-    the stride exceeds the span of all conformance base ports."""
-    return base + _WORKER_BAND_LIFT + _worker_index() * _WORKER_BAND_STRIDE
+    In the contiguous python-test port range (INTEROP category) within
+    TEST_PORT_START+2000 — no longer the old absolute 30000-49925 per-worker band.
+    The owning module runs on ONE xdist worker (conftest pins it), so one fixed
+    port per base is collision-free."""
+    try:
+        return _INTEROP_LADDER_BASE + _INTEROP_SLOT[base]
+    except KeyError:
+        raise KeyError(
+            f"worker_port({base}): unregistered interop base — add it to "
+            f"official_interop_lib._INTEROP_BASES (and bump "
+            f"port_ladder.INTEROP_WORKER_WIDTH if needed)")
 
 
 def worker_tag():
@@ -458,295 +472,5 @@ def _nobody_ids():
     except (KeyError, OSError):
         return None
 
-
-def chown_stock(*paths):
-    """chown each path (recursively, for dirs) to `nobody` so the stock server
-    can chmod/own it. Best-effort: a no-op when not privileged or when `nobody`
-    is absent, so the harness degrades gracefully instead of erroring."""
-    ids = _nobody_ids()
-    if ids is None:
-        return
-    uid, gid = ids
-
-    def _one(p):
-        try:
-            # Skip when already owned: chown always bumps ctime even when the
-            # ids are unchanged, and the trees are shared across xdist workers —
-            # a redundant chown here makes another worker's stat parity checks
-            # (M/CTime) flap mid-test.
-            st = os.stat(p, follow_symlinks=False)
-            if st.st_uid == uid and st.st_gid == gid:
-                return
-        except OSError:
-            pass
-        try:
-            os.chown(p, uid, gid, follow_symlinks=False)
-        except (OSError, NotImplementedError):
-            try:
-                os.chown(p, uid, gid)
-            except OSError:
-                pass
-
-    for path in paths:
-        if not path or not os.path.exists(path):
-            continue
-        if os.path.isdir(path) and not os.path.islink(path):
-            for dirpath, dirnames, filenames in os.walk(path):
-                for name in dirnames + filenames:
-                    _one(os.path.join(dirpath, name))
-            _one(path)
-        else:
-            _one(path)
-
-
-def worker_reachable(*dirs):
-    """Make each directory usable by the de-escalated `nobody` worker.
-
-    Since the always-on worker privilege drop (brix_imp_worker_deescalate), a
-    root-launched worker serves as `nobody`.  Test dirs created under pytest's
-    tmp_path sit below root-0700 `pytest-of-root/pytest-N` parents, so the
-    worker cannot even TRAVERSE to them, let alone write.  chown_stock each
-    leaf to `nobody`, then add o+x/g+x up the parent chain to /tmp so the
-    worker can reach it (traversal only — no read bit added).  Best-effort,
-    no-op unprivileged."""
-    for d in dirs:
-        chown_stock(str(d))
-    for d in dirs:
-        p = os.path.abspath(str(d))
-        while p not in ("/", "/tmp"):
-            try:
-                mode = os.stat(p).st_mode & 0o7777
-                if mode & 0o011 != 0o011:
-                    os.chmod(p, mode | 0o011)
-            except OSError:
-                break
-            p = os.path.dirname(p)
-
-
-def harmonize_perms(*roots):
-    """Make the kXR readable/writable/xset stat flags AGREE across the pair, and
-    grant the stock server (which runs as `nobody`) the access it needs.
-
-    The fleet runs our nginx workers as root but the stock xrootd as `nobody`
-    (-R; xrootd refuses to run as superuser). brix derives the stat flags from an
-    owner/group/other permission check against geteuid()/getegid()
-    (brix_stat_flags_from_stat, mirroring XrdXrootdProtocol::StatGen). For a file
-    OWNED BY THE SEEDING PROCESS (root) that neither server owns as `nobody`, root
-    matches the OWNER triad while nobody matches the OTHER triad — so a plain
-    0644 seed reports readable|writable to our server but readable-only to the
-    stock server, a spurious divergence. Mirroring the owner triad into the group
-    and other triads makes owner-match and other-match identical, so both servers
-    report the same flags AND `nobody` gains the read/write/traverse it needs to
-    serve and mutate the tree. Applied byte-for-byte identically to both roots, so
-    every differential stays exact. Symlinks are skipped (their own mode is
-    irrelevant; the target is harmonized in its own right)."""
-    def _mirror(p):
-        try:
-            if os.path.islink(p):
-                return
-            m = os.stat(p).st_mode
-            owner = (m >> 6) & 0o7
-            mirrored = (owner << 6) | (owner << 3) | owner
-            # Skip when already mirrored: chmod bumps ctime even when the mode
-            # is unchanged, and re-runs from other xdist workers' start_pair()
-            # would flap M/CTime under concurrent stat-parity tests.
-            if (m & 0o777) != mirrored:
-                os.chmod(p, mirrored)
-        except OSError:
-            pass
-
-    for root in roots:
-        if not root or not os.path.exists(root):
-            continue
-        if os.path.isdir(root):
-            for dirpath, dirnames, filenames in os.walk(root):
-                for name in dirnames + filenames:
-                    _mirror(os.path.join(dirpath, name))
-            _mirror(root)                         # the export root itself
-        else:
-            _mirror(root)                         # a single seeded file
-
-
-def _wait_both(t=15.0):
-    """True once BOTH fleet ports accept a connection (bounded)."""
-    return _wait(FLEET_OUR_PORT, t) and _wait(FLEET_OFF_PORT, t)
-
-
-def start_pair(base=None, rich=True, our_port=None, off_port=None):
-    """Provision an in-process differential pair via the registry LifecycleHarness.
-
-    The differential-conformance fleet is no longer a fixed-port cross-process
-    standing fleet attached-to via start_all_dedicated; each conf module spins its
-    OWN pair in-process on dynamically-allocated ports, orchestrated by a
-    LifecycleHarness this call owns:
-      * "our server"  — our nginx-xrootd, template ``nginx_lc_interop_our.conf``
-      * "off server"  — the STOCK xrootd, kind="xrootd", template
-                        ``xrootd_interop_anon.cfg`` (the launcher spawns the real
-                        daemon and reaps its process group on teardown)
-    Both export the byte-identical deterministic tree seeded on FLEET_OUR_DATA /
-    FLEET_OFF_DATA. Under the in-process harness both servers run as the invoking
-    user, so their kXR stat flags already agree without root/nobody harmonisation
-    (harmonize_perms/chown_stock stay as belt-and-braces no-ops off-root).
-
-    ``base`` is retained for signature compatibility and ignored.  ``our_port`` /
-    ``off_port`` are the fixed per-worker listens (every call site passes
-    ``L.worker_port(base)``); the pair binds them directly — the old dynamic
-    free_port allocation was retired in Phase 5. Returns (procs, ctx) where procs == the
-    owning harness list (stop_pair closes it) and ctx carries the same keys
-    callers use: our/off root:// urls, our_data/off_data disk roots, and
-    our_port/off_port for the raw-wire clients. Raises RuntimeError on launch
-    failure so each srv fixture's ``except RuntimeError: pytest.skip(...)`` turns a
-    missing toolchain / launch error into a clean skip, never a fixture ERROR."""
-    from server_launcher import LifecycleHarness
-    from server_registry import NginxInstanceSpec
-
-    try:
-        os.makedirs(FLEET_OUR_DATA, exist_ok=True)
-        os.makedirs(FLEET_OFF_DATA, exist_ok=True)
-        # Clear PRIOR-run create-exclusive leftovers before re-seeding, so a
-        # rerun's WRITE_NEW opens don't hit "file exists" (root cause #1).
-        _wipe_stale_working_files(FLEET_OUR_DATA)
-        _wipe_stale_working_files(FLEET_OFF_DATA)
-        tree = make_rich_tree if rich else make_tree
-        tree(FLEET_OUR_DATA)
-        tree(FLEET_OFF_DATA)
-        harmonize_perms(FLEET_OUR_DATA, FLEET_OFF_DATA)
-        chown_stock(FLEET_OFF_DATA)
-    except Exception as exc:                      # noqa: BLE001 — re-raise as skip
-        raise RuntimeError(f"interop tree seed failed: {exc}") from exc
-
-    # Fixed ports, per-worker isolation.  Every call site passes fixed per-worker
-    # ports via L.worker_port(base) (a deterministic band unique to this xdist
-    # worker); bind those directly rather than the retired dynamic free_port
-    # fallback.  The instance name carries worker_tag() so concurrent workers use
-    # distinct registry prefixes for their own fixed-port pairs.  (A caller that
-    # omits the ports would now fail loudly in endpoint_for — intended.)
-    tag = worker_tag()
-    harness = LifecycleHarness()
-    try:
-        our_ep = harness.start(NginxInstanceSpec(
-            name="lc-interop-our-%s" % tag,
-            template="nginx_lc_interop_our.conf",
-            port=our_port,
-            protocol="root", readiness="tcp",
-            data_root=FLEET_OUR_DATA))
-        off_ep = harness.start(NginxInstanceSpec(
-            name="lc-interop-off-%s" % tag,
-            template="xrootd_interop_anon.cfg",
-            port=off_port,
-            kind="xrootd", protocol="root", readiness="tcp",
-            data_root=FLEET_OFF_DATA))
-    except Exception as exc:                      # noqa: BLE001 — clean up, re-raise as skip
-        harness.close()
-        raise RuntimeError(f"interop pair launch failed: {exc}") from exc
-
-    ctx = {"our": our_url(our_ep.port), "off": off_url(off_ep.port),
-           "our_data": FLEET_OUR_DATA, "off_data": FLEET_OFF_DATA,
-           "our_port": our_ep.port, "off_port": off_ep.port}
-    return [harness], ctx
-
-
-def _kill_proc(p):
-    """Terminate p and its whole process group (servers fork children — nginx
-    workers, the stock xrootd's helpers — that survive a bare SIGTERM and would
-    otherwise accumulate across themed files and exhaust the box)."""
-    if not p:
-        return
-    try:
-        pgid = os.getpgid(p.pid)
-    except (ProcessLookupError, OSError):
-        pgid = None
-    for sig in (signal.SIGTERM, signal.SIGKILL):
-        try:
-            if pgid is not None:
-                os.killpg(pgid, sig)
-            else:
-                p.send_signal(sig)
-        except (ProcessLookupError, OSError):
-            break
-        try:
-            p.wait(timeout=5)
-            return
-        except subprocess.TimeoutExpired:
-            continue
-
-
-def stop_pair(procs):
-    for item in procs:
-        close = getattr(item, "close", None)
-        if callable(close):
-            item.close()          # in-process LifecycleHarness owns the pair
-        else:
-            _kill_proc(item)      # stock-xrootd Popen (start_official_server)
-
-
-def err_code(stderr_or_out):
-    """Extract a coarse error category from xrdfs/xrdcp output for differential
-    error-conformance (the tools print '[ERROR] ... (code)' / named errors)."""
-    s = (stderr_or_out or "").lower()
-    for key in ("no such file", "not found", "not authorized", "permission",
-                "invalid", "already exists", "not a directory", "is a directory",
-                "not empty", "no space", "unsupported", "exists"):
-        if key in s:
-            return key
-    return "ok" if not s.strip() else "other"
-
-
-def start_our_server(base, data, port=OUR_PORT):
-    """Start our nginx-xrootd anon server over ``data`` via the registry harness.
-
-    Returns the owning ``LifecycleHarness`` (truthy; tear down with
-    ``stop_pair([...])``, which routes it through ``.close()``), or ``None`` if
-    it failed to come up so the two direct callers — test_official_interop.py's
-    ``srv`` fixture and test_deep_tree_special_files.py's ``our`` fixture — keep
-    their ``if not proc: pytest.skip(...)`` contract.  The port is pinned to the
-    caller's ``port`` (a worker_port band) so ``our_url(port)`` still names the
-    live listener; ``base`` is retained for signature compatibility (the harness
-    owns its own prefix)."""
-    from server_launcher import LifecycleHarness
-    from server_registry import NginxInstanceSpec
-
-    harness = LifecycleHarness()
-    try:
-        harness.start(NginxInstanceSpec(
-            name="off-interop-our-%d" % port,
-            template="nginx_official_interop_anon.conf",
-            port=port, protocol="root", readiness="tcp",
-            data_root=data,
-            template_values={"BIND_HOST": BIND}))
-    except Exception:                                 # launch/bind failure -> clean skip
-        harness.close()
-        return None
-    return harness
-
-
-def start_official_server(base, data, port=OFF_PORT):
-    cfg = os.path.join(base, "xrootd.cfg")
-    admin = os.path.join(base, "admin")
-    os.makedirs(admin, exist_ok=True)
-    with open(cfg, "w") as f:
-        f.write(
-            f"xrd.port {port}\n"
-            "all.export /\n"
-            f"oss.localroot {data}\n"
-            f"all.adminpath {admin}\n"
-            f"all.pidpath {admin}\n"
-            "xrootd.async off\n")
-    p = subprocess.Popen([OFF_XROOTD, "-c", cfg, "-l", os.path.join(base, "xrd.log")],
-                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                         start_new_session=True)
-    return p if _wait(port) else None
-
-
-def run(argv, timeout=60):
-    """Run a command; return (rc, stdout, stderr)."""
-    r = subprocess.run(argv, capture_output=True, text=True, timeout=timeout)
-    return r.returncode, r.stdout, r.stderr
-
-
-def our_url(port=OUR_PORT):
-    return f"root://{BIND}:{port}"
-
-
-def off_url(port=OFF_PORT):
-    return f"root://{BIND}:{port}"
+from split_continuation import load as _load_continuations
+_load_continuations(globals(), __file__, "official_interop_lib_part2.py")

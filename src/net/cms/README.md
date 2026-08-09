@@ -13,7 +13,7 @@ both) of two roles, implemented as two cooperating halves:
   itself with a `kYR_login`, then sends periodic load/space heartbeats so the
   manager keeps it active and eligible for client selection. This half is
   compiled into the main module and started per-worker from
-  `../config/process.c` (`ngx_brix_cms_start`).
+  `src/core/config/process.c` (`ngx_brix_cms_start`).
 - **Manager-side server** (`server_*.c`, `server.h`) — a separate stream
   module, `ngx_stream_brix_cms_srv_module`, enabled with
   `brix_cms_server on;`. It *accepts* CMS connections *down* from data nodes,
@@ -24,8 +24,8 @@ both) of two roles, implemented as two cooperating halves:
 These two halves close the loop that makes nginx-xrootd usable as a CMS
 redirector/manager. When a client issues `kXR_locate`/`kXR_open`/`kXR_stat`/
 `kXR_query` against a node running in manager mode, the read-path handlers
-(`../read/locate.c`, `../read/open_request.c`, `../read/stat.c`,
-`../query/checksum_qcksum.c`) suspend the client session (`XRD_ST_WAITING_CMS`),
+(`src/protocols/root/read/locate.c`, `src/protocols/root/read/open_request.c`, `src/protocols/root/read/stat.c`,
+`src/protocols/root/query/checksum_qcksum.c`) suspend the client session (`XRD_ST_WAITING_CMS`),
 record a pending-locate entry (`../manager/pending.c`), and emit a CMS
 `kYR_locate` upstream via this subsystem's `ngx_brix_cms_send_locate`. When
 the manager answers with `kYR_select`/`kYR_try`, `recv.c` wakes the suspended
@@ -92,6 +92,18 @@ data servers in either direction.
 | `blacklist_file.c` / `blacklist_file.h` | File-driven server blacklist (phase-89 W6′): pure line parsing/matching + a stat/read/re-assert poll driver behind `brix_cms_blacklist_file`. |
 | `reqid_map.c` / `reqid_map.h` | CMS↔engine request-id sidecar SHM map (phase-89 W2/ADR-2b): keyed by the manager's prepadd reqid, holds the engine reqid + notify/prty; built via `brix_shm_table_*` (INVARIANT #10), mirroring `../manager/loc_cache.c`. |
 
+### Other files
+
+| File | Responsibility |
+|---|---|
+| `action_log.h` | brix_cms_log_action(): op + peer + direction + path + result + detail. |
+| `altds.c` / `.h` | A periodic nonblocking TCP connect probe of the co-located foreign data server (127.0.0.1:<brix_cms_altds port>). |
+| `cms_start.c` | The once-per-worker entry the module calls from config/process.c — derive this node's cmsd role from (manager_capable, has_upstream), allocate the CMS context, resolve the cold-start settle profile from manager locality,. |
+| `cns_inventory.c` / `.h` | the pure CNS inventory table ops. See cns_inventory.h. |
+| `cns_inventory_unittest.c` | standalone unit test for the CNS inventory table. |
+| `perf_pgm.c` / `.h` | Spawns the operator's load program once per CMS-client worker with its stdout on a pipe; each stdout line "cpu net xeq mem pag" (five 0-100 integers, whitespace-separated) becomes the current machine-load override consum. |
+| `recv_frame_state.c` | Two manager-frame handlers that both walk the namespace rather than just answering from context: cms_frame_state (kYR_state — "do you hold <path>?", answered kYR_have / silence) with its pure payload validator, and cms_s. |
+
 ## Key types & data structures
 
 - **`ngx_brix_cms_ctx_s`** (`cms_internal.h`) — per-manager client state, one
@@ -126,7 +138,7 @@ strings are tagless, length-prefixed `[u16 len][bytes + trailing NUL]` where
 `len` counts the NUL — matching `XrdOucPup`.
 
 **Client half (this node is a data server).**
-`../config/process.c` calls `ngx_brix_cms_start` once per worker when
+`src/core/config/process.c` calls `ngx_brix_cms_start` once per worker when
 `cms_addr` is configured. A one-shot timer (`INITIAL_DELAY = 1s`) fires
 `_connect`; on connect the write handler sends `kYR_login`
 (`CmsLoginData`: version/mode/PID/space/port/paths) then `kYR_status`
@@ -143,8 +155,8 @@ After the CIDR/SSS gates, `kYR_login` is parsed and the node is registered in
 unregisters it.
 
 **Client-locate redirect loop (manager mode).** Read-path handlers
-(`../read/locate.c`, `../read/open_request.c`, `../read/stat.c`,
-`../query/checksum_qcksum.c`) that cannot serve a path locally call
+(`src/protocols/root/read/locate.c`, `src/protocols/root/read/open_request.c`, `src/protocols/root/read/stat.c`,
+`src/protocols/root/query/checksum_qcksum.c`) that cannot serve a path locally call
 `ngx_brix_cms_next_streamid` + `brix_pending_insert` (`../manager/pending.c`),
 set the client session to `XRD_ST_WAITING_CMS`, and emit `ngx_brix_cms_send_locate`
 upstream. The manager's `kYR_select`/`kYR_try` reply arrives on `recv.c`, which
@@ -155,7 +167,7 @@ worker, restores its stream id, and emits `kXR_redirect` via
 **On-demand selection (`kYR_state` → `kYR_have`).** When the manager asks "do
 you hold `<path>`?", `recv.c` answers `kYR_have` only if the node can serve it:
 in manager mode by consulting `brix_srv_select` over the registry; on a data
-node by a kernel-confined `brix_stat_beneath` probe (`../path/beneath.h`).
+node by a kernel-confined `brix_stat_beneath` probe (`src/fs/path/beneath.h`).
 Otherwise it stays silent, so the manager won't select it.
 
 Outbound bytes always go through `frame_io.c`; the read loops decode via
@@ -179,7 +191,7 @@ SSS verification delegates to `../sss`.
   the CMS port can self-report arbitrary `host:port:paths` (redirect poisoning).
   Three layered, vanilla-compatible controls gate registration (`server_auth.c`):
   W1a SSS `kYR_xauth` credential check (fail-closed when a keytab is set), W1b
-  accept-time CIDR allowlist, W1c host-character validation in `registry.c`.
+  accept-time CIDR allowlist, W1c host-character validation in `../manager/registry.c`.
   With neither allowlist nor keytab, the server fails *open* but warns once.
 - **SSS registration is deferred until DONE.** When a keytab is configured,
   `kYR_login` does **not** register the node; the manager sends its parms
@@ -233,8 +245,8 @@ SSS verification delegates to `../sss`.
 ## See also
 
 - [../manager/README.md](../manager/README.md) — SHM server registry, blacklist, `brix_srv_select`, and the pending-locate table this subsystem wakes.
-- [../read/README.md](../../protocols/root/read/README.md) — `locate`/`open`/`stat` handlers that originate `kYR_locate` and consume `kXR_redirect`.
-- [../path/README.md](../../fs/path/README.md) — `brix_stat_beneath` / RESOLVE_BENEATH confinement used by the `kYR_state` probe.
-- [../sss/README.md](../../auth/sss/README.md) — shared SSS keytab loader and credential verifier used for cluster auth (W1a).
-- [../handshake/README.md](../../protocols/root/handshake/README.md) and [../connection/README.md](../../protocols/root/connection/README.md) — the stream client lifecycle whose sessions are suspended/redirected here.
+- [../../protocols/root/read/README.md](../../protocols/root/read/README.md) — `locate`/`open`/`stat` handlers that originate `kYR_locate` and consume `kXR_redirect`.
+- [../../fs/path/README.md](../../fs/path/README.md) — `brix_stat_beneath` / RESOLVE_BENEATH confinement used by the `kYR_state` probe.
+- [../../auth/sss/README.md](../../auth/sss/README.md) — shared SSS keytab loader and credential verifier used for cluster auth (W1a).
+- [../../protocols/root/handshake/README.md](../../protocols/root/handshake/README.md) and [../../protocols/root/connection/README.md](../../protocols/root/connection/README.md) — the stream client lifecycle whose sessions are suspended/redirected here.
 - [../README.md](../README.md) — master subsystem index.

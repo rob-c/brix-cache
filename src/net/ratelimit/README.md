@@ -46,6 +46,13 @@ note matters: this is the `brix_rate_limit_zone` / `_rule` / `_bandwidth` /
 | `ratelimit_http.c` | HTTP/WebDAV enforcement. `brix_rl_http_access_handler` (ACCESS phase: per-rule rate/bandwidth/concurrency check → 429 via `rl_reject`), `brix_rl_http_log_handler` (LOG phase: charge bytes, release concurrency slot). |
 | `ratelimit_stream.c` | XRootD stream enforcement. `brix_rl_stream_gate` (per-opcode gate → `kXR_wait`), `brix_rl_charge_ctx` (post-send byte charge), `brix_rl_release_ctx` (release per-connection concurrency slot on disconnect). Carries the opcode allowlist (`rl_op_rate_limited`), the path-bearing check (`rl_op_path_bearing`), and per-ctx key caching. |
 
+### Other files
+
+| File | Responsibility |
+|---|---|
+| `reservation.c` / `.h` | grant/queue/release of byte-budget reservations against named zones. |
+| `throttle_compat.c` / `.h` | the per-user open-file counters that reproduce upstream's `throttle.max_open_files` on top of the existing SHM leaky-bucket engine. |
+
 ## Key types & data structures
 
 - **`brix_rl_key_type_t`** (`ratelimit.h`) — the six identity dimensions:
@@ -77,16 +84,16 @@ note matters: this is the `brix_rate_limit_zone` / `_rule` / `_bandwidth` /
   zone lock then sorted by `throttle_count` descending (insertion sort, small N).
 
 Per-connection / per-request state lives **outside** this subsystem on
-`brix_ctx_t` (stream, `../types/context.h`: `rl_bw_rule`/`rl_bw_key`,
+`brix_ctx_t` (stream, `src/core/types/context.h`: `rl_bw_rule`/`rl_bw_key`,
 `rl_conc_rule`/`rl_conc_key`, and the `rl_key_cache[BRIX_RL_RULE_CACHE_MAX]`
 + `rl_key_cache_valid` bitmask) and on the WebDAV request ctx (HTTP:
 `rl_bw_rule`/`rl_key_str`, `rl_conc_rule`/`rl_conc_key`).
-`BRIX_RL_RULE_CACHE_MAX` is defined as 8 in `../types/tunables.h`.
+`BRIX_RL_RULE_CACHE_MAX` is defined as 8 in `src/core/types/tunables.h`.
 
 ## Directive reference (configuration surface)
 
 Declared once at config time; setters live in `ratelimit_keys.c`, registered in
-both `../stream/module.c` and `../webdav/module.c`.
+both `src/protocols/root/stream/module.c` and `src/protocols/webdav/module.c`.
 
 ```nginx
 # 1. Declare a shared zone (size clamped up to 64 KiB minimum). Same NAME in
@@ -118,7 +125,7 @@ under the shared tag. `brix_rate_limit_rule` / `brix_bandwidth_limit` /
 implementation serves both planes. Source files are listed in `config`
 (`NGX_ADDON_SRCS`).
 
-**Stream plane.** `../handshake/dispatch.c` (`dispatch.c:64`) calls
+**Stream plane.** `src/protocols/root/handshake/dispatch.c` (`dispatch.c:64`) calls
 `brix_rl_stream_gate` *after* login/proxy checks and *before* the data-plane
 opcode handler. The gate limits only data-plane opcodes (`kXR_open`, `kXR_read`,
 `kXR_readv`, `kXR_pgread`, `kXR_write`, `kXR_writev`, `kXR_pgwrite`,
@@ -127,13 +134,13 @@ limited so keepalive and health checks are unaffected. It derives the key
 (caching identity-stable keys on the ctx to avoid per-read re-hashing), runs the
 rate → bandwidth → concurrency checks, and on throttle returns
 `brix_send_wait` (see `../response/`). It stashes the matched bandwidth
-rule/key on the ctx; the read (`../read/read.c:191`, `../read/pgread.c:292`) and
-write (`../write/write.c:149`, `../write/pgwrite.c:303`) handlers call
+rule/key on the ctx; the read (`src/protocols/root/read/read.c:191`, `src/protocols/root/read/pgread.c:292`) and
+write (`src/protocols/root/write/write.c:149`, `src/protocols/root/write/pgwrite.c:303`) handlers call
 `brix_rl_charge_ctx` after sending bytes. The connection-lifetime concurrency
-slot is released by `brix_rl_release_ctx` from `../connection/disconnect.c:291`
+slot is released by `brix_rl_release_ctx` from `src/protocols/root/connection/disconnect.c:291`
 (`brix_on_disconnect`).
 
-**HTTP/WebDAV plane.** `../webdav/postconfig.c` registers
+**HTTP/WebDAV plane.** `src/protocols/webdav/postconfig.c` registers
 `brix_rl_http_access_handler` (ACCESS phase, after the auth handler so
 identity is populated) and `brix_rl_http_log_handler` (LOG phase). The access
 handler reads identity from the WebDAV request ctx, resolves the request path
@@ -145,11 +152,11 @@ size (`content_length_n`, falling back to `connection->sent - header_size`) and
 releases the concurrency slot exactly once.
 
 **Observability.** Counters increment via the local `BRIX_RL_METRIC_INC`
-macro into the metrics SHM (`../metrics/metrics.h`): `rl_throttled_http_total`,
+macro into the metrics SHM (`src/observability/metrics/metrics.h`): `rl_throttled_http_total`,
 `rl_throttled_stream_total`, `rl_eviction_total`, `rl_zone_full_errors`. They
-are exported by `../metrics/ratelimit.c` (`brix_export_ratelimit_metrics`) and
+are exported by `src/observability/metrics/ratelimit.c` (`brix_export_ratelimit_metrics`) and
 the live per-principal snapshot is served at `/xrootd/api/v1/ratelimit`
-(`../dashboard/module.c:446`) by `../dashboard/api.c`
+(`src/observability/dashboard/module.c:446`) by `src/observability/dashboard/api.c`
 (`dashboard_build_v1_ratelimit` → `brix_rl_snapshot`).
 
 ## Invariants, security & gotchas
@@ -213,24 +220,24 @@ the live per-principal snapshot is served at `/xrootd/api/v1/ratelimit`
   the type string to `rl_parse_key`.
 - **Add a directive:** add a setter in `ratelimit_keys.c` (model on
   `rl_add_rule` / `brix_rl_conc_directive`) and register it in *both*
-  `../stream/module.c` and `../webdav/module.c` command tables with the rules
+  `src/protocols/root/stream/module.c` and `src/protocols/webdav/module.c` command tables with the rules
   array `offset`.
-- **Add a metric:** add an `ngx_atomic_t rl_*` field in `../metrics/metrics.h`,
+- **Add a metric:** add an `ngx_atomic_t rl_*` field in `src/observability/metrics/metrics.h`,
   bump it with `BRIX_RL_METRIC_INC(field)`, and export it in
-  `../metrics/ratelimit.c`.
+  `src/observability/metrics/ratelimit.c`.
 - **Limit a new stream opcode:** add it to `rl_op_rate_limited` (and
   `rl_op_path_bearing` if its payload starts with the path) in
   `ratelimit_stream.c`.
 
 ## See also
 
-- `../handshake/README.md` — stream dispatcher that invokes the gate (`dispatch.c:64`)
-- `../webdav/README.md` — HTTP method router + access/log phase registration (`postconfig.c`)
-- `../read/README.md`, `../write/README.md` — call `brix_rl_charge_ctx` after sending bytes
-- `../response/README.md` — `brix_send_wait` (kXR_wait framing)
-- `../path/README.md` — `resolve_path` used for VOLUME-rule path matching
-- `../connection/README.md` — `brix_on_disconnect` releases the stream concurrency slot
-- `../metrics/README.md` — Prometheus export of the throttle/eviction counters
-- `../dashboard/README.md` — `/xrootd/api/v1/ratelimit` snapshot endpoint
-- `../types/README.md` — `brix_ctx_t` rate-limit fields + `tunables.h`
+- `../../protocols/root/handshake/README.md` — stream dispatcher that invokes the gate (`dispatch.c:64`)
+- `../../protocols/webdav/README.md` — HTTP method router + access/log phase registration (`src/protocols/webdav/postconfig.c`)
+- `../../protocols/root/read/README.md`, `../../protocols/root/write/README.md` — call `brix_rl_charge_ctx` after sending bytes
+- `../../protocols/root/response/README.md` — `brix_send_wait` (kXR_wait framing)
+- `../../fs/path/README.md` — `resolve_path` used for VOLUME-rule path matching
+- `../../protocols/root/connection/README.md` — `brix_on_disconnect` releases the stream concurrency slot
+- `../../observability/metrics/README.md` — Prometheus export of the throttle/eviction counters
+- `../../observability/dashboard/README.md` — `/xrootd/api/v1/ratelimit` snapshot endpoint
+- `../../core/types/README.md` — `brix_ctx_t` rate-limit fields + `src/core/types/tunables.h`
 - `../README.md` — master subsystem index

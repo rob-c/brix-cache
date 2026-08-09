@@ -22,13 +22,13 @@ import subprocess
 import uuid
 
 import pytest
-from settings import HOST
+from settings import HOST, NGINX_ANON_PORT
 
 _REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 _BIN  = os.path.join(_REPO, "client", "bin")
 
 _TEST_HOST = os.environ.get("TEST_HOST", HOST)
-_ANON_PORT = int(os.environ.get("TEST_NGINX_ANON_PORT", "11094"))
+_ANON_PORT = NGINX_ANON_PORT
 _FLEET_URL = f"root://{_TEST_HOST}:{_ANON_PORT}/"
 
 

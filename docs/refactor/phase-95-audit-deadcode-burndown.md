@@ -86,7 +86,7 @@ Four engines share the file; only one is alive:
 | Engine | Symbols | State |
 |--------|---------|-------|
 | Per-user open-files cap | `brix_throttle_open_inc/dec` | **LIVE** — inc at `open_resolved_file_finalize.c:139`, dec at close.c / disconnect.c. Keep as-is. |
-| Per-user active-connections cap | directive `brix_throttle_max_active_connections` (`directives_auth.inc:284`, default at `server_conf.c:53`, merge at `server_conf_merge_security.c:155`) | **PARSED, NEVER READ** — `conf->throttle.max_active_conn` has zero readers. |
+| Per-user active-connections cap | directive `brix_throttle_max_active_connections` (`directives_auth.h:284`, default at `server_conf.c:53`, merge at `server_conf_merge_security.c:155`) | **PARSED, NEVER READ** — `conf->throttle.max_active_conn` has zero readers. |
 | userconfig INI (per-user maxconn override) | `brix_throttle_userconfig_load/match` (:43/:51) | **ZERO call sites**; no directive even exposes a path. Precedence engine (exact > longest-glob > `*`) fully implemented + commented. |
 | IO-load concurrency | `brix_throttle_charge_io` (:97), `brix_throttle_ioload_over` (:120) | **ZERO call sites**; no directives for interval/concurrency. |
 
@@ -99,7 +99,7 @@ section already spells out.  All three engines are **deleted**, not wired:
 
 - directive `brix_throttle_max_active_connections` + `throttle.max_active_conn`
   (declaration in `conf_structs.h`, init in `server_conf.c`, merge in
-  `server_conf_merge_security.c`, table entry in `directives_auth.inc`),
+  `server_conf_merge_security.c`, table entry in `directives_auth.h`),
 - `brix_throttle_userconfig_load`/`_match`, `brix_throttle_uc_t`,
   `brix_throttle_uc_rule_t`, `BRIX_THROTTLE_MAX_UC_RULES` and the `uc_kv` INI
   callback (which was the file's only reason to include `auth/token/ini.h`),
@@ -149,7 +149,7 @@ leave them dead a second time. Decision point for OP at implementation start.
 
 ### W2b — userconfig INI
 1. New directive `brix_throttle_userconfig <path>` (add to
-   `directives_auth.inc` next to :270-291 block; field in
+   `directives_auth.h` next to :270-291 block; field in
    `brix_throttle_conf_t`, `conf_structs.h:233-242`).
 2. Load at postconfiguration into a per-server `brix_throttle_uc_t`; parse
    failure ⇒ config error (fails `nginx -t`), matching the loader's errbuf

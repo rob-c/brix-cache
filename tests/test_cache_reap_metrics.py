@@ -124,13 +124,34 @@ def _scrape(port):
         return resp.read().decode("utf-8", "replace")
 
 
+def _sanitizer_flags(objects):
+    """`-fsanitize=...` matching however the linked nginx objects were built.
+
+    An object compiled with -fsanitize=address/undefined embeds __asan_*/
+    __ubsan_* references, so a harness that links it without the matching
+    runtime dies at LD time with `undefined reference to __asan_*`. The nginx
+    tree these objects come from may be a sanitized build, so probe with one nm
+    pass rather than assuming. Same helper idea as
+    cmdscripts/c_regression_units.py::_sanitizer_flags.
+    """
+    proc = subprocess.run(["nm", *objects], capture_output=True, text=True)
+    syms = proc.stdout if proc.returncode == 0 else ""
+    flags = []
+    if "__asan_" in syms:
+        flags.append("-fsanitize=address")
+    if "__ubsan" in syms:
+        flags.append("-fsanitize=undefined")
+    return flags
+
+
 def test_cache_reap_reason_metrics(lifecycle, tmp_path):
     # 1. Build the cinfo planter against the module's own cinfo.o.
     src = tmp_path / "planter.c"
     src.write_text(_PLANTER_SRC)
     planter = tmp_path / "planter"
-    subprocess.run([_CC, "-O", "-o", str(planter), str(src), _CINFO_O] + _CINFO_DEPS,
-                   check=True)
+    objs = [_CINFO_O] + _CINFO_DEPS
+    subprocess.run([_CC, "-O", "-o", str(planter), str(src)] + objs
+                   + _sanitizer_flags(objs), check=True)
 
     state = tmp_path / "state"
     root = tmp_path / "root"
@@ -143,7 +164,12 @@ def test_cache_reap_reason_metrics(lifecycle, tmp_path):
         return str(p)
 
     def plant(op, path):
-        subprocess.run([str(planter), op, path], check=True)
+        # A planter that inherited -fsanitize=address from a sanitized nginx
+        # tree would otherwise fail on LeakSanitizer's exit report (this driver
+        # is not written to free); disable only leak detection — real heap
+        # errors still abort.
+        subprocess.run([str(planter), op, path], check=True,
+                       env={**os.environ, "ASAN_OPTIONS": "detect_leaks=0"})
 
     # 2. Plant one file per reap reason, plus a clean (no-record) control.
     abandoned = data_file("abandoned.bin")

@@ -311,7 +311,7 @@ dir. Static helpers get file-local `ftp_` prefix (root precedent:
 - `static char *ftp_conf_set_auth_mode(ngx_conf_t*, …)` — enum
   `gssapi|cleartext-test` (pattern: `brix_ssi_executor_enum`,
   `src/protocols/root/stream/module.c:38` +
-  `directives_tpc.inc:69`).
+  `directives_tpc.h:69`).
 - `ngx_int_t ngx_stream_brix_ftp_postconfiguration(ngx_conf_t *cf)` —
   SHM zone hookup (P82.4), metrics registration.
 
@@ -963,7 +963,7 @@ parity with native/HTTP TPC.
 | `brix_gridftp_max_parallel <n>` | srv | 8 | clamp on OPTS Parallelism / SPOR streams |
 | `brix_gridftp_marker_interval <t>` | srv | 5s | 111/112 markers |
 | `brix_gridftp_idle_timeout <t>` | srv | 300s | control channel (data idle fixed 60s) |
-| `brix_gridftp_auth gssapi\|cleartext-test` | srv | gssapi | enum `ftp_conf_set_auth_mode`; `cleartext-test` refused unless build/test flag set (pattern: `brix_ssi_cta_executor`, `directives_tpc.inc:69`) |
+| `brix_gridftp_auth gssapi\|cleartext-test` | srv | gssapi | enum `ftp_conf_set_auth_mode`; `cleartext-test` refused unless build/test flag set (pattern: `brix_ssi_cta_executor`, `directives_tpc.h:69`) |
 | `brix_gridftp_cred_dir <path>` | srv | — | feeds `brix_vfs_ctx_bind_backend_cred` (vfs.h:145) |
 | `brix_gridftp_data_token_zone <size>` | main | 1m | SHM zone for §1.10 (P82.4) |
 

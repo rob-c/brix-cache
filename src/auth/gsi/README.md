@@ -25,13 +25,13 @@ optionally resolves VOMS VO membership. The SHA-256 of the DH secret becomes the
 session signing key used downstream for `kXR_sigver` request integrity.
 
 In the request lifecycle this code runs *after* `kXR_login` and *before* any data
-operation: `connection/handler.c` → `handshake/dispatch.c` →
-`handshake/dispatch_session.c` calls `brix_handle_auth()` here. On success it
+operation: `src/protocols/root/connection/handler.c` → `src/protocols/root/handshake/dispatch.c` →
+`src/protocols/root/handshake/dispatch_session.c` calls `brix_handle_auth()` here. On success it
 sets `ctx->auth_done = 1`, populates the unified `ctx->identity`, and registers
 the session so that bind operations and CMS/manager cross-node coordination can
 proceed. Configuration-time setup (loading the cert/key/CA store, caching the PEM
 the server hands out, warming the DH key pool) also lives here and is driven from
-`config/postconfiguration.c` and `config/process.c`.
+`src/core/config/postconfiguration.c` and `src/core/config/process.c`.
 
 GSI authentication is the most CPU-expensive credential path in the gateway, so
 two performance concerns shaped this code: (1) a per-worker pool of
@@ -52,7 +52,7 @@ attacker or a handshake burst can impose.
 | `token.c` | `brix_handle_token_auth()` — the `ztn` (WLCG/SciToken JWT) path. Extracts the bearer token, checks the cross-worker token cache, validates signature/issuer/audience via `brix_token_validate()` (with macaroon grace-period key rotation), then sets identity/DN/VO/scopes and registers the session. |
 | `config.c` | `brix_configure_gsi()` (load cert/key/CA, cache server PEM, compute CA issuer hash) and `brix_rebuild_gsi_store()` (atomic, hot-reloadable `X509_STORE` rebuild from CA + CRLs with `X509_V_FLAG_ALLOW_PROXY_CERTS`). |
 | `pki.c` | `brix_check_pki_consistency_stream()` — stream-config wrapper that validates the CA↔CRL pairing at config time via `crypto/pki_check.c`; non-fatal so the server still starts with a broken CRL. |
-| `gsi_internal.h` | Shared internal declarations for the three in-directory handlers (`brix_gsi_send_cert`, `brix_handle_token_auth`, `brix_handle_sss_auth`); pulls in `ngx_brix_module.h` for ngx + OpenSSL EVP types. |
+| `gsi_internal.h` | Shared internal declarations for the three in-directory handlers (`brix_gsi_send_cert`, `brix_handle_token_auth`, `brix_handle_sss_auth`); pulls in `src/core/ngx_brix_module.h` for ngx + OpenSSL EVP types. |
 | `gsi_core.c` | **Shared, ngx-free** GSI crypto kernels (compiled into both the module *and* `libxrdproto`). After the Phase-38 split, keeps the cert-request/response assembly (`brix_gsi_build_cert_response`) + `kXR_sigver` HMAC helpers + the fixed DH-params PEM. |
 | `gsi_buf.c` | XrdSutBuffer bucket scan (`brix_gsi_find_bucket`) + builder (`brix_gbuf_*`). *(Phase 38 split of `gsi_core.c`.)* |
 | `gsi_dh.c` | Diffie-Hellman keygen/encode/decode/derive (`brix_gsi_dh_*`). *(Phase 38 split of `gsi_core.c`.)* |
@@ -60,16 +60,34 @@ attacker or a handshake burst can impose.
 | `gsi_rsa.c` | RSA sign / encrypt-private / decrypt-public + `brix_gsi_rand`. *(Phase 38 split of `gsi_core.c`.)* |
 | `gsi_core_internal.h` | Private (ngx-free) split contract shared by the `gsi_core`/`gsi_buf`/`gsi_dh`/`gsi_cipher`/`gsi_rsa` family. |
 
+### Other files
+
+| File | Responsibility |
+|---|---|
+| `auth_cert.c` | gsi_promote_fullproxy — validate an OPTIONAL client-pushed full proxy (kXRS_x509_fullproxy, phase-70 §5.1) captured during kXGC_cert and, if it passes, promote its bytes to ctx->deleg_proxy_pem for backend PASSTHROUGH. |
+| `delegation.c` / `.h` | The destination's GSI-server side of proxy delegation. |
+| `gsi_core.h` | ngx-free GSI/sigver crypto + wire kernels (shared by the nginx module and the native client; see gsi_core.c). |
+| `gsi_core_cresp.c` | The client/dest round-2 exchange — resolve the server DH public (signed-DH via kXRS_cipher, else plain kXRS_puk), negotiate the session cipher, agree the AES session key, sign the server tag with the proxy key, and assem. |
+| `gsi_core_cresp_util.c` | The self-contained, stateless helpers the round-2 cert-response builder (gsi_core_cresp.c) leans on: extract a peer certificate's public key from a PEM bucket (gsi_cresp_cert_pubkey), export an EVP_PKEY public part as PE. |
+| `parse_x509_internal.h` | cross-file declarations for the GSI kXGC_cert parse split. |
+| `parse_x509_signed.c` | agree the padded (HasPad=1) signed-DH shared secret from our private key and the recovered peer public. |
+| `parse_x509_unsigned.c` | agree the UNPADDED (HasPad=0) DH shared secret for the unsigned kXGC_cert path. |
+| `proxy_req.c` / `.h` | brix_gsi_build_pxyreq() generates the proxy-certificate REQUEST a GSI server sends to a delegating client (the kXGS_pxyreq main payload): a fresh RSA keypair + a self-signed X509_REQ whose subject is the parent's plus a. |
+| `proxy_req_assemble.c` | brix_gsi_assemble_proxy() ASSEMBLES the usable delegated credential: given the client-signed proxy cert (PEM), the request private key we generated in brix_gsi_build_pxyreq() (reqkey), and the signer's EEC chain (PEM), i. |
+| `proxy_req_internal.h` | Declares the RFC-3820 GSI OID / RSA-strength constants, the standalone-build compatibility shim + <core/compat/safe_size.h> include used by all three translation units, and the single function that crosses a TU boundary. |
+| `proxy_req_sign.c` | brix_gsi_sign_pxyreq() ISSUES a proxy certificate: given the delegating client's signer EEC/proxy (PEM) + private key and a DER X509_REQ produced by brix_gsi_build_pxyreq(), it validates the request, builds an X.509 v3 p. |
+| `proxy_req_unittest.c` | *(no header summary)*. |
+
 ## Key types & data structures
 
-- **`brix_ctx_t`** (`../types/context.h`) — the per-connection state this code
+- **`brix_ctx_t`** (`src/core/types/context.h`) — the per-connection state this code
   reads and mutates: `cur_body`/`payload`/`cur_dlen` (current `kXR_auth` frame),
   `gsi_dh_key` (server ephemeral `EVP_PKEY`, lives only between round 1 and 2),
   `signing_key[32]` + `signing_active` (HMAC key for `kXR_sigver`), `dn`,
   `primary_vo`, `vo_list`, `bearer_token`, `token_scopes[]`/`token_scope_count`,
   `identity` (unified identity object), `auth_done`, `auth_fail_count`,
   `logged_in`, `sessid`.
-- **`ngx_stream_brix_srv_conf_t`** (`../types/config.h`) — server config
+- **`ngx_stream_brix_srv_conf_t`** (`src/core/types/config.h`) — server config
   holding the GSI trust material: `auth` (`BRIX_AUTH_GSI/TOKEN/SSS/UNIX/KRB5/BOTH/NONE`),
   `gsi_cert`/`gsi_key`/`gsi_store`/`gsi_cert_pem`(+`_len`)/`gsi_ca_hashes`,
   `trusted_ca`/`crl`/`certificate`/`certificate_key`, `vomsdir`/`voms_cert_dir`,
@@ -89,7 +107,7 @@ attacker or a handshake burst can impose.
 ## Control & data flow
 
 Execution **enters** at `brix_handle_auth()`, called from
-`../handshake/dispatch_session.c` (the `kXR_auth` opcode case) once
+`src/protocols/root/handshake/dispatch_session.c` (the `kXR_auth` opcode case) once
 `ctx->logged_in` is set. From there:
 
 - **GSI round 1** → `brix_gsi_send_cert()` (`cert_response.c`), which pulls a
@@ -97,24 +115,24 @@ Execution **enters** at `brix_handle_auth()`, called from
   `gsi_find_bucket()` (`buffer.c`) to locate the client `rtag`. The server cert
   PEM it ships was cached at config time by `brix_configure_gsi()` (`config.c`).
 - **GSI round 2** → `brix_gsi_parse_x509()` (`parse_x509.c`) + the helpers in
-  `parse_crypto_helpers.c`, then chain verification in `../crypto/` (`gsi_verify.h`),
+  `parse_crypto_helpers.c`, then chain verification in `../crypto/` (`src/auth/crypto/gsi_verify.h`),
   optional revocation via `../crypto/ocsp.h`, and VOMS attribute extraction in
   `../voms/` (`brix_extract_voms_info`, runtime-dlopen, gated by
   `brix_voms_available()`).
 - **Token (`ztn`)** → `token.c` → `../token/` (`brix_token_validate`,
-  `token_cache.h`, `macaroon.h`).
+  `src/auth/token/token_cache.h`, `src/auth/token/macaroon.h`).
 - **`sss` / `krb5` / `unix`** → routed by `auth.c` to `../sss/`, `../krb5/`,
   and the unix handler respectively — not implemented here.
 
-On success every path calls `../session/registry.h`
+On success every path calls `src/protocols/root/session/registry.h`
 (`brix_session_register`), populates `ctx->identity`
 (`brix_identity_set_*`), records per-VO/per-user counters via `../metrics/`
 (`brix_metrics_shared`, `brix_track_vo_activity`, `brix_track_unique_user`),
 and emits an access-log line via `brix_log_access`. The GSI/token-derived
-`ctx->signing_key` is later consumed by `../handshake/sigver.c` and
-`../session/signing.c` to verify `kXR_sigver`-signed requests. Config-time
-entry is from `../config/postconfiguration.c` (calls `brix_configure_gsi`) and
-`../config/process.c` (calls `brix_gsi_keypool_init` per worker and re-runs
+`ctx->signing_key` is later consumed by `src/protocols/root/handshake/sigver.c` and
+`src/protocols/root/session/signing.c` to verify `kXR_sigver`-signed requests. Config-time
+entry is from `src/core/config/postconfiguration.c` (calls `brix_configure_gsi`) and
+`src/core/config/process.c` (calls `brix_gsi_keypool_init` per worker and re-runs
 `brix_rebuild_gsi_store` on the CRL-refresh timer).
 
 ## Invariants, security & gotchas
@@ -169,7 +187,7 @@ entry is from `../config/postconfiguration.c` (calls `brix_configure_gsi`) and
   route to a sibling subsystem (mirror the `sss`/`krb5` pattern). Declare the
   handler in `gsi_internal.h`.
 - **Add a GSI config directive:** add the field to
-  `ngx_stream_brix_srv_conf_t` (`../types/config.h`), wire the command in the
+  `ngx_stream_brix_srv_conf_t` (`src/core/types/config.h`), wire the command in the
   config subsystem, then load/validate it in `brix_configure_gsi()`
   (`config.c`). Register any new `.c` file in the top-level `config` script
   (`$ngx_addon_dir/src/auth/gsi/…`) and re-run `./configure`.
@@ -177,19 +195,19 @@ entry is from `../config/postconfiguration.c` (calls `brix_configure_gsi`) and
   `cert_response.c` (`cipher_alg`/`md_alg`) and the accepted set in
   `brix_gsi_select_cipher_name()` (`parse_crypto_helpers.c`).
 - **Tune the DH key pool:** the `BRIX_GSI_KEYPOOL_*` knobs live in
-  `../types/tunables.h`.
+  `src/core/types/tunables.h`.
 
 ## See also
 
-- `../handshake/README.md` — opcode dispatch and `kXR_sigver` verification
+- `../../protocols/root/handshake/README.md` — opcode dispatch and `kXR_sigver` verification
   (consumes `ctx->signing_key`).
-- `../session/README.md` — login, the session registry, and request signing.
+- `../../protocols/root/session/README.md` — login, the session registry, and request signing.
 - `../crypto/README.md` — `brix_gsi_verify_chain`, OCSP, CA-store building,
   PKI/CRL consistency checks.
 - `../voms/README.md` — VOMS VO-membership extraction.
 - `../token/README.md` — JWT validation, the token cache, and macaroon secrets.
 - `../sss/README.md`, `../krb5/` — the other credential handlers this dispatcher
   routes to.
-- `../config/README.md` — directive registration and the CRL-refresh / key-pool
+- `../../core/config/README.md` — directive registration and the CRL-refresh / key-pool
   worker init hooks.
 - `../README.md` — master subsystem index.

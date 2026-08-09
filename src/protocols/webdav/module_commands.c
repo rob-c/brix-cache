@@ -36,6 +36,14 @@ ngx_conf_enum_t  brix_webdav_cks_xattr_formats[] = {
     { ngx_null_string, 0 }
 };
 
+/* §6.1: scheme of the redirect Location URL — the manager cannot probe the
+ * data servers' TLS posture, so the operator states it. */
+ngx_conf_enum_t  brix_webdav_redirect_schemes[] = {
+    { ngx_string("http"),  BRIX_WEBDAV_RDR_HTTP  },
+    { ngx_string("https"), BRIX_WEBDAV_RDR_HTTPS },
+    { ngx_null_string, 0 }
+};
+
 ngx_command_t ngx_http_brix_webdav_commands[] = {
 
     { ngx_string("brix_webdav"),
@@ -116,8 +124,8 @@ ngx_command_t ngx_http_brix_webdav_commands[] = {
       NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
       brix_acc_http_set_gidretran, 0, 0, NULL },
 
-    /* ---- storage/tier directives (split into directives_storage.inc) ---- */
-#include "directives_storage.inc"
+    /* ---- storage/tier directives (split into directives_storage.h) ---- */
+#include "directives_storage.h"
 
     { ngx_string("brix_webdav_vomsdir"),
       NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
@@ -299,7 +307,7 @@ ngx_command_t ngx_http_brix_webdav_commands[] = {
       offsetof(ngx_http_brix_webdav_loc_conf_t, delegation_endpoint),
       NULL },
 
-#include "directives_tpc.inc"
+#include "directives_tpc.h"
 
     { ngx_string("brix_webdav_pwd_file"),
       NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
@@ -506,10 +514,10 @@ ngx_command_t ngx_http_brix_webdav_commands[] = {
       offsetof(ngx_http_brix_webdav_loc_conf_t, open_file_cache_events),
       NULL },
 
-    /* ---- clustering/traffic directives (split into directives_net.inc) ---- */
-#include "directives_net.inc"
-    /* ---- SHM zone + pmark directives (split into directives_zones.inc) ---- */
-#include "directives_zones.inc"
+    /* ---- clustering/traffic directives (split into directives_net.h) ---- */
+#include "directives_net.h"
+    /* ---- SHM zone + pmark directives (split into directives_zones.h) ---- */
+#include "directives_zones.h"
 
     ngx_null_command
 };

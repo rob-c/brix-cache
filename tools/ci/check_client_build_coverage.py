@@ -39,6 +39,7 @@
 # (client_build_coverage); the verdict is kept in lockstep.
 
 import os
+import re
 import sys
 from pathlib import Path
 
@@ -100,14 +101,31 @@ def _named(makefile: str, rel: str) -> bool:
     return any(f"{stem}{ext}" in makefile for ext in (".c", ".o", ".pic.o"))
 
 
+def _included_sources(root: Path) -> set[str]:
+    """Return `.c` continuation files compiled through a direct include."""
+    included: set[str] = set()
+    for top in SCAN:
+        for owner in (root / top).rglob("*.c"):
+            text = owner.read_text(errors="replace")
+            for name in re.findall(r'^\s*#\s*include\s+"([^"]+\.c)"', text,
+                                   re.MULTILINE):
+                target = (owner.parent / name).resolve()
+                try:
+                    included.add(str(target.relative_to(root.resolve())))
+                except ValueError:
+                    continue
+    return included
+
+
 def run(root: Path = ROOT) -> tuple[bool, list[str]]:
     """Return (ok, messages) — one message per violation, in emission order."""
     makefile = _makefile(root)
+    included = _included_sources(root)
     allow_set = set(ALLOWLIST)
     msgs: list[str] = []
 
     for rel in _tree_files(root):
-        if rel not in allow_set and not _named(makefile, rel):
+        if rel not in allow_set and rel not in included and not _named(makefile, rel):
             msgs.append(
                 f"NOT BUILT: {rel} — add it to client/Makefile, or allowlist it "
                 f"here with a reason"

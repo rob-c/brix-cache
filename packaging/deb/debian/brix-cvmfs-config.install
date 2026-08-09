@@ -1,0 +1,9 @@
+etc/cvmfs/default.d/60-brix.conf
+etc/cvmfs/domain.d/cern.ch.conf
+etc/cvmfs/domain.d/egi.eu.conf
+etc/cvmfs/domain.d/opensciencegrid.org.conf
+etc/cvmfs/config.d/README
+etc/cvmfs/keys/README.md
+etc/cvmfs/keys/cern.ch
+etc/cvmfs/keys/egi.eu
+etc/cvmfs/keys/opensciencegrid.org

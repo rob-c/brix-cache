@@ -486,7 +486,7 @@ uses the default class; limit=0 disables (parity).
   `cvmfs: qos class "<c>" fill budget exhausted (sub "<s>", <n> fills/s)`.
 - **Files:** `cvmfs.h` (`brix_cvmfs_qos_t`, `lcf->qos`, `ctx->token_sub`),
   `secure.c` (parser `cvmfs_conf_qos` + matcher + `brix_cvmfs_qos_check`),
-  `directives_core.inc`, `module.c`/`cvmfs_module_merge.c` (ptr init/merge),
+  `directives_core.h`, `module.c`/`cvmfs_module_merge.c` (ptr init/merge),
   `handler.c` (enforcement), `cvmfs_module_internal.h`.
 - **Tests:** `tests/test_cvmfs_qos.py` — 6 green: throttled class bounded
   while an unclassified sub flows; cache hits flow after budget spent;
@@ -530,7 +530,7 @@ object outside the snapshot → clean 404; TTL expiry → normal error.
   clean 404" is answered by the T13 negative memo only while the origin can
   still answer 404s; during a TOTAL outage an uncached object is a 5xx —
   refusal either way, documented divergence.)
-- **Plumbing:** `cvmfs.h` `offline_ttl` → `directives_core.inc` sec slot →
+- **Plumbing:** `cvmfs.h` `offline_ttl` → `directives_core.h` sec slot →
   `module.c`/`cvmfs_module_merge.c` (UNSET/merge 0) → `cvmfs_module_build.c` →
   `shared_conf.h cache_offline_ttl` → `runtime_server_backend.c` →
   `tier.h` policy `cvmfs_offline_ttl` → `sd_cache_policy.c`. No new state, no
@@ -577,7 +577,7 @@ downgrade is loud, never silent. Existing trace consumers are
 substring-anchored and unaffected.
 
 **Files:** `cvmfs.h` (`origin_http_version` + `brix_cvmfs_origin_http_e`),
-`module.c` (enum table + UNSET init), `directives_resilience.inc`,
+`module.c` (enum table + UNSET init), `directives_resilience.h`,
 `cvmfs_module_merge.c` (merge + config-time capability gate + setter),
 `s3_transport.{c,h}` (`g_origin_http_version`, `s3o_apply_http_version`,
 `s3o_negotiated_proto`, `proto=` trace field).

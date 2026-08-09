@@ -1,82 +1,59 @@
-"""Pin the atomic port-tile claim in cvmfs/conformance_common.
+"""Pin the cvmfs conformance port-block anchoring in cvmfs/conformance_common.
 
-Each process (xdist worker, concurrent session) claims a tile by binding and
-HOLDING its lock port, so two workers can never settle on the same tile — the
-transient-probe scheme this replaced let 12 workers race the probe window and
-collide, which surfaced as ConnectionReset storms across the qos/transcode
-conformance suites under -n 12.
+The mock-Stratum-1 + nginx port blocks are anchored to THIS suite's
+TEST_PORT_START (immediately past the fixed-fleet ladder,
+port_ladder.CVMFS_CONFORMANCE_OFFSET) so every port stays within
+TEST_PORT_START+2000 — part of the main fleet's band, not an absolute 13100+
+range disconnected from it.  A second suite on a different TEST_PORT_START then
+draws a fully disjoint range automatically (no cross-suite / debug collision),
+which replaces the old absolute per-session tile scheme.
 """
 
-import socket
+import os
 
 import pytest
 
 from cvmfs import conformance_common as cc
-from settings import BIND_HOST
+from port_ladder import CVMFS_CONFORMANCE_OFFSET
+from settings import TEST_PORT_START
+
+# An explicit CVMFS_CONFORMANCE_PORT_BASE override deliberately unpins the map
+# from TEST_PORT_START (CI/debug), so the anchoring invariants only hold without it.
+_ANCHORED = os.environ.get("CVMFS_CONFORMANCE_PORT_BASE") is None
 
 
-@pytest.fixture
-def spare_tile():
-    """A tile base whose ports are free right now, with module state restored."""
-    saved = cc._TILE_LOCK
-    cc._TILE_LOCK = None
-    # Find a tile whose lock port is currently bindable, far from the session's.
-    for t in reversed(range(cc._N_TILES)):
-        lo = cc._CANON_LO + t * cc._TILE
-        try:
-            probe = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            probe.bind((BIND_HOST, lo + cc._TILE - 1))
-            probe.close()
-            break
-        except OSError:
-            continue
-    else:
-        pytest.skip("no free tile on this host")
-    yield lo
-    if cc._TILE_LOCK is not None and cc._TILE_LOCK is not saved:
-        cc._TILE_LOCK.close()
-    cc._TILE_LOCK = saved
+def test_all_conformance_ports_within_2000_of_test_port_start():
+    """The user-facing invariant: no cvmfs port is more than 2000 above the start
+    of the port range, so a second suite on a different TEST_PORT_START cannot
+    collide with this one."""
+    if not _ANCHORED:
+        pytest.skip("CVMFS_CONFORMANCE_PORT_BASE pins the base away from the ladder")
+    for name, base in cc.PORT_BLOCKS.items():
+        # a block hands out base+0..base+19 (mock 0..9, nginx 10..19)
+        assert TEST_PORT_START <= base and base + 19 <= TEST_PORT_START + 2000, (
+            f"cvmfs block {name} ({base}..{base + 19}) escapes "
+            f"[{TEST_PORT_START}, {TEST_PORT_START + 2000}]")
 
 
-def test_claim_holds_the_lock_port_so_a_rival_loses(spare_tile):
-    assert cc._claim_tile(spare_tile) is True
-    won = cc._TILE_LOCK
-    assert won is not None
-    # A rival process's claim is a fresh bind of the same lock port: it must lose
-    # while the winner holds it.
-    rival = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    with pytest.raises(OSError):
-        rival.bind((BIND_HOST, spare_tile + cc._TILE - 1))
-    rival.close()
+def test_blocks_are_anchored_to_test_port_start():
+    if not _ANCHORED:
+        pytest.skip("CVMFS_CONFORMANCE_PORT_BASE pins the base explicitly")
+    # +1 matches port_ladder._port(offset, 0): the category starts right where
+    # the fixed-fleet ladder ends.
+    assert cc._CVMFS_BASE == TEST_PORT_START + CVMFS_CONFORMANCE_OFFSET + 1
+    assert min(cc.PORT_BLOCKS.values()) == cc._CVMFS_BASE
+    # sits just past the fixed-fleet ladder, never overlapping it
+    assert cc._CVMFS_BASE > TEST_PORT_START
 
 
-def test_released_tile_is_claimable_again(spare_tile):
-    assert cc._claim_tile(spare_tile) is True
-    cc._TILE_LOCK.close()
-    cc._TILE_LOCK = None
-    assert cc._claim_tile(spare_tile) is True
+def test_blocks_are_distinct_and_20_apart_preserving_relative_layout():
+    bases = sorted(cc.PORT_BLOCKS.values())
+    assert len(set(bases)) == len(bases), "each corpus file must own a distinct block"
+    assert all(b - a == 20 for a, b in zip(bases, bases[1:])), \
+        "the per-file 20-port relative layout (mock base+0..9, nginx base+10..19) must hold"
 
 
-def test_occupied_sentinel_fails_the_claim_and_releases_the_lock(spare_tile):
-    # Squat a sentinel port (not the lock port): the claim must fail AND must
-    # not leak the lock bind, or the tile would look taken forever.
-    squatter = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    squatter.bind((BIND_HOST, spare_tile))
-    try:
-        assert cc._claim_tile(spare_tile) is False
-        assert cc._TILE_LOCK is None
-        relock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        relock.bind((BIND_HOST, spare_tile + cc._TILE - 1))
-        relock.close()
-    finally:
-        squatter.close()
-
-
-def test_lock_port_sits_outside_every_block_span():
-    """The lock port (tile offset _TILE-1) must never collide with a port a
-    PortBlock can hand out (offsets 0.._TILE-2)."""
-    lock_offset = cc._TILE - 1
-    for base in cc.PORT_BLOCKS.values():
-        top_offset = (base + 19) - cc._CANON_LO   # last port the block hands out
-        assert top_offset < lock_offset
-    assert cc._TILE == (cc._CANON_HI - cc._CANON_LO) + 1
+def test_no_per_session_tile_shift_applied():
+    """TEST_PORT_START separates concurrent suites now, so no absolute tile offset
+    is layered on top of the anchored bases."""
+    assert cc._SESSION_OFFSET == 0

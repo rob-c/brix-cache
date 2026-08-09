@@ -213,6 +213,22 @@ sd_cache_open_common(brix_sd_instance_t *inst, const char *path,
         return obj;
     }
 
+    /* Cache-only serving (audit §4.4, upstream pfc.onlyifcached): the hit test
+     * above already failed, so this read would have to reach the origin. Refuse
+     * it as ENOENT instead — a client seeing "not here" fails over to another
+     * replica, which is the whole point of the mode: this node contributes only
+     * what it already holds and never becomes an origin puller.
+     *
+     * Placed AFTER the hit test (a cached object still serves) and BEFORE both
+     * the admission filter and the fill paths — otherwise an admission-declined
+     * or nearline path would quietly reach the source anyway, which is the exact
+     * bypass the mode exists to prevent. */
+    if (st->policy.only_if_cached) {
+        if (err_out != NULL) { *err_out = ENOENT; }
+        errno = ENOENT;
+        return NULL;
+    }
+
     /* Path-filtered out: serve straight from the source, never cache. */
     if (!sd_cache_admit(&st->policy, path, -1)) {
         return brix_sd_open_maybe_cred(src, path, rq->sd_flags, rq->mode,

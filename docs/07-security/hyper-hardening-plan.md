@@ -1199,8 +1199,8 @@ reaching the gate is a data/metadata request. Mirrors the fail-closed shape of
 so neither the client nor the upstream leg can be independently walked down.
 
 Plumbing: enum table `brix_min_sec_levels` (module_enums.c), conf field
-`min_sec_level` (srv_conf_fields_cache.inc) + `NGX_CONF_UNSET_UINT`/merge-to-0,
-directive (directives_security.inc), `BRIX_MIN_SEC_*` macros + decl (handshake.h).
+`min_sec_level` (srv_conf_fields_cache.h) + `NGX_CONF_UNSET_UINT`/merge-to-0,
+directive (directives_security.h), `BRIX_MIN_SEC_*` macros + decl (handshake.h).
 
 **Test (LANDED).** `tests/test_min_sec_level.py` 4/4 — raw-wire XRootD client
 (reuses test_phase25_ratelimit's stat/open/status parsing): (1) cleartext session
@@ -1301,7 +1301,7 @@ under enforce.
 **Finding + fix (LANDED).** New tri-state directive `brix_seccomp off|audit|enforce`
 (default `off`, `NGX_STREAM_SRV_CONF|TAKE1`, enum-slot, mirrors the `brix_io_uring`
 pattern — enum in `tunables.h` `BRIX_SECCOMP_*`, table in `module_enums.c`, field in
-`srv_conf_fields_cache.inc`, `NGX_CONF_UNSET_UINT` create + `merge_uint` default-off).
+`srv_conf_fields_cache.h`, `NGX_CONF_UNSET_UINT` create + `merge_uint` default-off).
 The process-global mode is the **strictest value across all enabled server blocks**
 (`off < audit < enforce` by enum order), resolved in `process.c` and installed **once
 at the TAIL of `ngx_stream_brix_init_process`** — after every one-shot setup syscall has

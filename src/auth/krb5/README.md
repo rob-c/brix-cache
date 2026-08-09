@@ -50,16 +50,22 @@ capture) and `brix_backend_krb5_forwardable on` (outbound drive).
 | `kxr_wire.c` / `.h` | `brix_krb5_kxr_wire()` — the `brix_krb5_wire_fn` transceiver over a real origin connection, framing each negotiation leg as `kXR_auth` credtype `"krb5"` ↔ `kXR_authmore`/`kXR_ok`. |
 
 The public runtime/config entry points (`brix_handle_krb5_auth`,
-`brix_configure_krb5_auth`) are declared in `../ngx_brix_module.h` and
-`../config/config.h`; the delegation modules expose their own local headers
+`brix_configure_krb5_auth`) are declared in `src/core/ngx_brix_module.h` and
+`src/core/config/config.h`; the delegation modules expose their own local headers
 (above). The persistent Kerberos objects, the `krb5_*` tunable fields, and the
-`delegate` flag live on `ngx_stream_brix_srv_conf_t` in `../types/config.h`; the
+`delegate` flag live on `ngx_stream_brix_srv_conf_t` in `src/core/types/config.h`; the
 per-connection delegation round state lives in `brix_ctx_krb5_t`
-(`../types/context.h`).
+(`src/core/types/context.h`).
+
+### Other files
+
+| File | Responsibility |
+|---|---|
+| `apreq.c` / `.h` | raw-krb5 AP-REQ builder for the outbound origin leg (§5.7). |
 
 ## Key types & data structures
 
-- **`ngx_stream_brix_srv_conf_t`** (`../types/config.h`) — per-server-block
+- **`ngx_stream_brix_srv_conf_t`** (`src/core/types/config.h`) — per-server-block
   config. Kerberos fields:
   - `krb5_principal` (`ngx_str_t`) — host service principal, e.g.
     `xrootd/host@REALM`. Required when `auth == krb5`.
@@ -70,11 +76,11 @@ per-connection delegation round state lives in `brix_ctx_krb5_t`
   - `krb5_context`, `krb5_keytab_obj`, `krb5_principal_obj` — the parsed,
     long-lived libkrb5 handles built once at config time and reused for every
     connection (only present under `BRIX_HAVE_KRB5`).
-- **`brix_ctx_t`** (`../types/context.h`) — per-connection state. On success
+- **`brix_ctx_t`** (`src/core/types/context.h`) — per-connection state. On success
   this code sets `auth_done = 1`, `token_auth = 0`, copies the mapped principal
   into `ctx->dn`, and updates `ctx->identity` via `brix_identity_set_dn(...,
   BRIX_AUTHN_KRB5)`.
-- **`BRIX_AUTH_KRB5`** (`../types/tunables.h`, value `6`) — the configured
+- **`BRIX_AUTH_KRB5`** (`src/core/types/tunables.h`, value `6`) — the configured
   auth mode the credential is gated against.
 - **libkrb5 types** — `krb5_auth_context`, `krb5_ticket`, `krb5_data`,
   `krb5_address`, `krb5_error_code` are used transiently inside
@@ -84,11 +90,11 @@ per-connection delegation round state lives in `brix_ctx_krb5_t`
 
 Entry into this subsystem:
 
-1. **Config time** — `../config/postconfiguration.c` calls
+1. **Config time** — `src/core/config/postconfiguration.c` calls
    `brix_configure_krb5_auth(cf, xcf)` in its per-server auth-setup pass
    (alongside GSI/TLS/token/SSS setup). The `brix_krb5_principal`,
    `brix_krb5_keytab`, and `brix_krb5_ip_check` directives are declared in
-   the live `ngx_stream_brix_commands[]` table in `../stream/module.c`
+   the live `ngx_stream_brix_commands[]` table in `src/protocols/root/stream/module.c`
    and bound directly to the conf fields
    by nginx's standard `ngx_conf_set_str_slot`/`ngx_conf_set_flag_slot`.
 
@@ -116,17 +122,17 @@ Inside `brix_handle_krb5_auth` the flow is:
 
 Calls out to sibling subsystems:
 
-- `../path/README.md` — `brix_sanitize_log_string()` escapes the principal
+- `../../fs/path/README.md` — `brix_sanitize_log_string()` escapes the principal
   before it is logged (the principal is attacker-influenced wire data).
-- `../metrics/README.md` — `brix_metric_auth(BRIX_PROTO_STREAM,
+- `../../observability/metrics/README.md` — `brix_metric_auth(BRIX_PROTO_ROOT,
   BRIX_AUTHN_KRB5, ok)` records auth success/failure; `brix_track_unique_user`
   feeds the unique-identity cardinality estimator. The
   `BRIX_RETURN_OK`/`BRIX_RETURN_ERR`/`BRIX_OP_ERR` macros wrap access log
   + op-counter + send.
-- `../session/registry.h` — `brix_session_register(ctx->sessid, ctx->dn,
+- `src/protocols/root/session/registry.h` — `brix_session_register(ctx->sessid, ctx->dn,
   ctx->vo_list, 0)` records the authenticated session for later `kXR_bind`
   resumption.
-- `../types/identity.h` — `brix_identity_set_dn()` stores the DN with the
+- `src/core/types/identity.h` — `brix_identity_set_dn()` stores the DN with the
   `BRIX_AUTHN_KRB5` method on the unified identity object.
 - `../gsi/README.md` — the upstream dispatcher that routes the `krb5`
   credential type here.
@@ -174,19 +180,19 @@ Calls out to sibling subsystems:
 ## Entry points / extending
 
 - **Add a krb5 tunable directive** (e.g. a new mapping option): add the field to
-  the Kerberos block of `ngx_stream_brix_srv_conf_t` in `../types/config.h`,
+  the Kerberos block of `ngx_stream_brix_srv_conf_t` in `src/core/types/config.h`,
   register the `ngx_command_t` in the live `ngx_stream_brix_commands[]` table
-  in `../stream/module.c` (`NGX_STREAM_SRV_CONF`). Set its default
+  in `src/protocols/root/stream/module.c` (`NGX_STREAM_SRV_CONF`). Set its default
   in the srv-conf merge, and consume it
   in `brix_configure_krb5_auth` (validation) and/or `brix_handle_krb5_auth`
   (runtime). No new top-level config block, so no `./configure` re-run is needed
   unless you add a new source file.
 - **Add a new stream credential type** (not krb5): follow this subsystem as the
   template — implement an `brix_configure_<type>_auth` (call it from
-  `../config/postconfiguration.c`) and an `brix_handle_<type>_auth`, declare
-  both in `../config/config.h` / `../ngx_brix_module.h`, add the credtype
+  `src/core/config/postconfiguration.c`) and an `brix_handle_<type>_auth`, declare
+  both in `src/core/config/config.h` / `src/core/ngx_brix_module.h`, add the credtype
   branch in `../gsi/auth.c`, register the auth-mode constant in
-  `../types/tunables.h` and the auth-method slot in `../metrics/unified.h`, and
+  `src/core/types/tunables.h` and the auth-method slot in `src/observability/metrics/unified.h`, and
   list the new `.c` files in the top-level `config` build script.
 - **The two public symbols** are `brix_configure_krb5_auth` (config) and
   `brix_handle_krb5_auth` (runtime); everything else in this directory is
@@ -198,8 +204,8 @@ Calls out to sibling subsystems:
   (gsi/token/sss/unix/krb5).
 - `../token/README.md`, `../sss/README.md`, `../unix/README.md` — sibling
   stream credential types.
-- `../session/README.md` — session registry used to record the authenticated DN.
-- `../metrics/README.md` — auth counters and unique-user tracking.
-- `../path/README.md` — log-string sanitization helper.
-- `../config/README.md` — `postconfiguration` auth-setup pass.
+- `../../protocols/root/session/README.md` — session registry used to record the authenticated DN.
+- `../../observability/metrics/README.md` — auth counters and unique-user tracking.
+- `../../fs/path/README.md` — log-string sanitization helper.
+- `../../core/config/README.md` — `postconfiguration` auth-setup pass.
 - `../README.md` — master subsystem index.

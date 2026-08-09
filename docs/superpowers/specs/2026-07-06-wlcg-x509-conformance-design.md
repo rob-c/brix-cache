@@ -154,7 +154,7 @@ modes and gains test coverage.
 
 New shared-trust-store fields on the common conf
 (`src/core/config/config.h` + `directives.c` merge, per the standard recipe):
-`signing_policy_mode`, `crl_mode`. Both stream (`directives_auth.inc`) and
+`signing_policy_mode`, `crl_mode`. Both stream (`directives_auth.h`) and
 WebDAV (`webdav/module.c`) directive tables reference the same setters.
 No `./configure` rerun needed except for the new source files added to
 `./config` (`signing_policy.c`, plus test binaries).

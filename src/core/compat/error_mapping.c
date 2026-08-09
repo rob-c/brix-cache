@@ -146,6 +146,18 @@ static const brix_kxr_errno_entry_t brix_kxr_errno_table[] = {
     { kXR_TLSRequired,    EACCES },
     { kXR_Overloaded,     EBUSY },
     { kXR_noserver,       EHOSTUNREACH },
+    /* Audit §1 gap 5 — the reference codes BriX previously had no spelling for.
+     * A signature/decrypt failure is an authorization refusal to a POSIX caller
+     * (never EIO: retrying identical bytes cannot help); a malformed payload is
+     * EINVAL like the other argument faults; "no replica right now" is the
+     * per-object twin of kXR_noserver; and both timeout codes are ETIMEDOUT so
+     * a FUSE/preload caller sees a timeout rather than a generic I/O error. */
+    { kXR_SigVerErr,      EACCES },
+    { kXR_DecryptErr,     EACCES },
+    { kXR_BadPayload,     EINVAL },
+    { kXR_noReplicas,     EHOSTUNREACH },
+    { kXR_ReqTimedOut,    ETIMEDOUT },
+    { kXR_TimerExpired,   ETIMEDOUT },
 };
 
 int

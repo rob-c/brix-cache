@@ -15,9 +15,33 @@ the map to the specs it describes:
     shared listens, which its spec does not enumerate).
 """
 
+import os
+import re
+from pathlib import Path
+
 import settings
 import fleet_specs
 import fleet_ports as fp
+from port_ladder import PORT_COUNT, PORT_FIRST, PORT_LAST
+
+
+_NET_LITERAL_ALLOW = "net-literal-allow:"
+_PORT_CONTEXT = re.compile(
+    r"(?i)(?:\bport\b|\blisten\b|\bbind\s*\(|://[^\s'\"]*:)"
+)
+_PORT_NUMBER = re.compile(r"(?<![\d.])([1-9][0-9]{3,4})(?![\d.])")
+
+
+def _template_port_literals(path: Path):
+    """Yield concrete ports in active registry-template network directives."""
+    for lineno, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+        code = line.split("#", 1)[0]
+        if _NET_LITERAL_ALLOW in line or not _PORT_CONTEXT.search(code):
+            continue
+        for match in _PORT_NUMBER.finditer(code):
+            value = int(match.group(1))
+            if 1024 <= value <= 65535:
+                yield lineno, value, code.strip()
 
 
 def _spec_names():
@@ -34,6 +58,135 @@ def test_every_port_constant_is_owned_or_exempt():
         "settings.py port constants with no owner and no exemption — add each to "
         f"fleet_ports.CONST_TO_SPEC (owned) or EXEMPT_PORTS (not a fleet server): {missing}"
     )
+
+
+def test_complete_port_ladder_is_contiguous_without_gaps():
+    """Every central allocation occupies exactly one lane-relative slot."""
+    from fleet_lifecycle_ports import (
+        LIFECYCLE_EXCLUSIVE_PORTS,
+        LIFECYCLE_SHARED_PORTS,
+        PARSE_PLACEHOLDER_PORT,
+        SHARED_PARSE_PLACEHOLDER_PORT,
+    )
+
+    allocated = set(fp._port_constants().values())
+    for ledger in (LIFECYCLE_SHARED_PORTS, LIFECYCLE_EXCLUSIVE_PORTS):
+        for entry in ledger.values():
+            allocated.add(entry["port"])
+            allocated.update(entry.get("extra", {}).values())
+    for base, span in fp.CMDSCRIPTS_PORTS.values():
+        allocated.update(range(base, base + span))
+    from cms_mesh_lib import PORTS as cms_mesh_ports
+    from hybrid_mesh_lib import PORTS as hybrid_mesh_ports
+    allocated.update(cms_mesh_ports.values())
+    allocated.update(hybrid_mesh_ports.values())
+    allocated.update((PARSE_PLACEHOLDER_PORT, SHARED_PARSE_PLACEHOLDER_PORT))
+    # cvmfs conformance sub-ladder: 27 file blocks x 20 + the fuse-trust matrix
+    # sub-range, anchored just past the fixed-fleet ladder (all within +2000).
+    from cvmfs.conformance_common import (
+        PORT_BLOCKS as cvmfs_blocks, _MATRIX_BASE, _MATRIX_WIDTH)
+    for base in cvmfs_blocks.values():
+        allocated.update(range(base, base + 20))
+    allocated.update(range(_MATRIX_BASE, _MATRIX_BASE + _MATRIX_WIDTH))
+    # differential-interop per-file fixed ports (INTEROP category)
+    import official_interop_lib as _oil
+    allocated.update(_oil.worker_port(b) for b in _oil._INTEROP_BASES)
+
+    assert allocated == set(range(PORT_FIRST, PORT_LAST + 1))
+    assert len(allocated) == PORT_COUNT
+
+
+def test_settings_ports_are_exported_to_managed_children():
+    assert PORT_FIRST <= settings.NGINX_ANON_PORT <= PORT_LAST
+    assert os.environ["NGINX_ANON_PORT"] == str(settings.NGINX_ANON_PORT)
+    assert os.environ["TEST_NGINX_ANON_PORT"] == str(settings.NGINX_ANON_PORT)
+
+
+def test_registry_specs_have_no_port_values_outside_the_ladder():
+    """Catch literal primary, extra, and generic template-env port escapes."""
+    outside = []
+    for spec in fleet_specs._all_specs():
+        values = [("port", spec.port), *spec.extra_ports.items()]
+        values.extend(
+            (f"env.{key}", int(value))
+            for key, value in spec.env.items()
+            if "PORT" in key and str(value).isdigit()
+        )
+        outside.extend(
+            (spec.name, key, value) for key, value in values
+            if value is not None and not PORT_FIRST <= value <= PORT_LAST
+        )
+    assert not outside, f"registry spec ports escaped TEST_PORT_START ladder: {outside}"
+
+
+def test_registry_nginx_templates_have_no_numeric_listen_literals():
+    """Owned listeners must be placeholders populated by the central registry."""
+    literal = re.compile(
+        r"\blisten\s+(?:\[[^]]+\]:|[^;\s]+:)?[1-9][0-9]{3,4}\b")
+    offenders = []
+    for spec in fleet_specs._all_specs():
+        if spec.kind != "nginx" or not spec.template:
+            continue
+        path = Path(__file__).parent / "configs" / spec.template
+        for lineno, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+            code = line.split("#", 1)[0]
+            if literal.search(code):
+                offenders.append((spec.name, spec.template, lineno, code.strip()))
+    assert not offenders, f"registry templates contain fixed listen literals: {offenders}"
+
+
+def test_no_manual_ports_in_central_registry_runtime():
+    """Registry-owned runtime endpoints must use central port placeholders.
+
+    This catches the easy-to-miss form that a listen-only lint cannot see: a
+    registry server is correctly moved by ``TEST_PORT_START`` while a client,
+    cache origin, redirect target, or secondary backend still dials its original
+    numeric port.  Use a settings/ledger constant or a rendered placeholder.
+    Specs themselves are covered by
+    ``test_registry_specs_have_no_port_values_outside_the_ladder`` above. This
+    companion scans every config they render, including backend/origin URLs and
+    not merely ``listen`` directives. Deliberate non-listening parser vectors
+    may use a literal only with a same-line ``net-literal-allow: <why>`` reason.
+    """
+    tests_root = Path(__file__).parent
+    offenders = []
+
+    # Every template reached by the central registry is runtime configuration.
+    for spec in fleet_specs._all_specs():
+        if not spec.template:
+            continue
+        path = tests_root / "configs" / spec.template
+        if not path.exists():
+            continue
+        offenders.extend(
+            (path.relative_to(tests_root).as_posix(), line, port, source)
+            for line, port, source in _template_port_literals(path)
+        )
+
+    detail = "\n".join(
+        f"  {path}:{line}: port {port}: {source}"
+        for path, line, port, source in offenders
+    )
+    assert not offenders, (
+        "manual ports in registry-owned runtime configs bypass the central "
+        "TEST_PORT_START registry; use a rendered port placeholder. "
+        "For an intentional non-listening parser/security vector, add "
+        f"'net-literal-allow: <reason>' on that line:\n{detail}"
+    )
+
+
+def test_manual_port_guard_catches_backend_literals(tmp_path):
+    """Regression: the stale cache-origin shape must never evade the guard."""
+    config = tmp_path / "port_guard.conf"
+    config.write_text(
+        "listen {BIND_HOST}:{PORT};\n"
+        "brix_storage_backend root://localhost:{ANON_PORT};\n"  # net-literal-allow: port-guard fixture
+        "brix_storage_backend root://localhost:11094;\n",  # net-literal-allow: port-guard fixture
+        encoding="utf-8",
+    )
+    assert list(_template_port_literals(config)) == [
+        (3, 11094, "brix_storage_backend root://localhost:11094;")  # net-literal-allow: expected fixture
+    ]
 
 
 def test_no_constant_is_both_owned_and_exempt():

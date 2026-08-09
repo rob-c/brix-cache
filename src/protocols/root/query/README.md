@@ -50,8 +50,18 @@ nginx-xrootd does not embed the `XrdOfs` plugin layer.
 | `metadata.c` | `kXR_QStats` (`brix_query_stats`, XML server stats), `kXR_Qxattr` (`brix_query_xattr`, `oss.*` attrs + `user.U.*` xattrs — its stat goes through `brix_vfs_probe` and its list/get through the VFS xattr seam, never raw `stat`/`listxattr`), `kXR_QFinfo` (`brix_query_finfo`, placeholder `"0"`), and the `Qvisa`/`Qopaque`/`Qopaquf`/`Qopaqug` FSctl/fctl hooks that validate then return reference-compatible "unsupported". |
 | `prepare.c` | `kXR_prepare` (`brix_handle_prepare`) staging-hint handler and `kXR_QPrep` (`brix_query_prep_status`) per-path availability query. FRM-off mode returns legacy `A <path>` / `M <path>` lines and request id `"0"`; FRM-enabled mode delegates durable queue state and request ids to `../frm/`. Includes the `..`/`.` pre-check `brix_prepare_has_forbidden_component`. |
 | `prepare_cmd.c` | `brix_prepare_invoke_command` — fire-and-forget **double-fork** + `execv` of the configured `brix_prepare_command` with confined, auth-checked absolute paths; closes all inherited fds ≥ 3 in the grandchild. |
-| `set.c` | `kXR_set` (`brix_handle_set`) — accepts advisory hints; parses/logs `appid` `"cms.space <total> <free>"` capacity reports and `clttl` TTL hints; always replies `kXR_ok`. (Includes `ngx_brix_module.h` directly, not `query_internal.h`.) |
+| `set.c` | `kXR_set` (`brix_handle_set`) — accepts advisory hints; parses/logs `appid` `"cms.space <total> <free>"` capacity reports and `clttl` TTL hints; always replies `kXR_ok`. (Includes `src/core/ngx_brix_module.h` directly, not `query_internal.h`.) |
 | `util.c` | Standalone file/fd checksum helpers (`brix_query_adler32_{fd,file}`, `brix_query_crc32_{fd,file}`, `brix_query_digest_{fd,file}`) wrapping `../compat/checksum`; the `_file` variants use `brix_open_confined` + `brix_sanitize_log_string`. |
+
+### Other files
+
+| File | Responsibility |
+|---|---|
+| `checksum_qcksum_internal.h` | Shared internal seam for the kXR_Qcksum decomposition — the per-request scope struct, the default-algorithm macros, and the prototypes for the helpers that cross the checksum_qcksum.c / checksum_qcksum_path.c split. |
+| `checksum_qcksum_path.c` | kXR_Qcksum path variant — algorithm selection, the full security chain (algo select + path extract + manager bounce + beneath canon + auth gate), the confined VFS open (or cache-origin redirect), and the async-offload /. |
+| `prepare_check.c` | brix_prepare_check_path() validates ONE newline-separated path from the prepare payload: length/extract/forbidden-component pre-checks, confined stat, and the three prepare authorization tiers. |
+| `prepare_internal.h` | helpers shared across the kXR_prepare / kXR_QPrep translation units (prepare.c, prepare_qprep.c). |
+| `prepare_qprep.c` | answers "is each of these paths resident?" for paths named in a prior kXR_prepare (or inline in the query). |
 
 ## Key types & data structures
 
@@ -72,7 +82,7 @@ nginx-xrootd does not embed the `XrdOfs` plugin layer.
   `algo`, the `max_depth`/`max_files` caps, and a heap-allocated `resp`/`resp_len`
   the worker grows and `_done` frees.
 - **`ctx->prepare_paths` / `prepare_paths_len` / `prepare_reqid[32]`**
-  (`../types/context.h`): legacy FRM-off per-session staging state set by a
+  (`src/core/types/context.h`): legacy FRM-off per-session staging state set by a
   `kXR_stage` prepare so a later `kXR_QPrep` with no inline paths can report
   status against the original list. `prepare_paths` is `ngx_alloc`-d and
   freed/replaced on each new stage; in this fallback mode `prepare_reqid` is
@@ -90,7 +100,7 @@ nginx-xrootd does not embed the `XrdOfs` plugin layer.
 ## Control & data flow
 
 Entry is always one stream opcode dispatched after auth by `../handshake`
-(`dispatch_read.c` for query/prepare, `dispatch_session.c` for set). Inside the
+(`src/protocols/root/handshake/dispatch_read.c` for query/prepare, `src/protocols/root/handshake/dispatch_session.c` for set). Inside the
 subsystem the handlers call out to:
 
 - **Path confinement** for every client-supplied path: `brix_extract_path`
@@ -102,22 +112,22 @@ subsystem the handlers call out to:
   / Qopaquf) or the explicit `authdb → VO ACL → token scope` triple
   (`brix_check_authdb`, `brix_check_vo_acl_identity`, `brix_check_token_scope`
   in prepare / QPrep), all `BRIX_AUTH_READ`. See `../path/README.md`.
-- **Checksum math** is delegated to `../compat/README.md`: `brix_integrity_get_fd`
+- **Checksum math** is delegated to `../../../core/compat/README.md`: `brix_integrity_get_fd`
   (with xattr-cache opts) for Qcksum, `brix_checksum_u32_fd` for the Qckscan
   walk, and `brix_checksum_parse` for algorithm name → enum.
-- **Async offload** uses `../aio/README.md`: `ngx_thread_task_alloc`,
+- **Async offload** uses `../../../core/aio/README.md`: `ngx_thread_task_alloc`,
   `brix_task_bind`, `brix_aio_post_task` (which falls back to sync if the
   queue is full), `brix_aio_restore_request`, and `brix_aio_resume`.
 - **Cluster behavior** (Qcksum, path variant): in `manager_mode` the query is
   bounced like `stat`/`open` — `brix_srv_select` against the SHM registry
-  (`../manager/README.md`) yields `BRIX_RETURN_REDIR`; a registry miss triggers
-  an async `kYR_locate` to the parent via `../cms/README.md`
+  (`../../../net/manager/README.md`) yields `BRIX_RETURN_REDIR`; a registry miss triggers
+  an async `kYR_locate` to the parent via `../../../net/cms/README.md`
   (`ngx_brix_cms_send_locate`, `brix_pending_insert`, `XRD_ST_WAITING_CMS`,
   returning `NGX_AGAIN`). On a data server, a read-through cache miss (`ENOENT`
   with `cache_origin_host` set) redirects to the origin instead of returning
   not-found.
 - **Filesystem capacity** (`space.c`) is read via `brix_fs_usage_stat`
-  (`../compat/fs_usage.h`).
+  (`src/core/compat/fs_usage.h`).
 - **Responses** are framed by `../response/README.md`: `brix_send_ok`,
   `brix_send_error`, and the macros `BRIX_RETURN_OK` / `BRIX_RETURN_ERR` /
   `BRIX_RETURN_REDIR`. `kXR_prepare kXR_notify` builds a combined ok+notify
@@ -125,7 +135,7 @@ subsystem the handlers call out to:
   sends it via `brix_queue_response`.
 - **Metrics & access log**: every handler bumps a fixed `BRIX_OP_QUERY_*`
   (or `BRIX_OP_SET`) ok/err slot via `BRIX_OP_OK` / `BRIX_OP_ERR`
-  (`../metrics/README.md`) and emits an `brix_log_access` line.
+  (`../../../observability/metrics/README.md`) and emits an `brix_log_access` line.
 
 ## Invariants, security & gotchas
 
@@ -169,7 +179,7 @@ subsystem the handlers call out to:
   missing file is `kXR_NotFound` and a directory target is `kXR_isDirectory`).
   In FRM-off mode `kXR_cancel` / `kXR_evict` are accepted as no-ops; with
   `brix_frm on`, `kXR_cancel` removes queued records and `kXR_evict` is treated
-  as backend-delegated. See `../frm/README.md`.
+  as backend-delegated. See `../../../fs/xfer/README.md`.
 - **`kXR_QPrep` treats unauthorized as missing.** Both non-existent and
   auth-denied paths are reported as `M`, matching reference behavior — the auth
   triple and the `S_ISREG` stat must all pass for an `A`.
@@ -191,7 +201,7 @@ subsystem the handlers call out to:
   modifiers at debug level.
 - **Low-cardinality metrics.** Handlers increment fixed `BRIX_OP_QUERY_*` slots
   (note: several slots are intentionally shared, e.g. `BRIX_OP_QUERY_CKSUM` and
-  `BRIX_OP_QUERY_SPACE` both map to slot `17` in `../metrics/metrics.h`); paths,
+  `BRIX_OP_QUERY_SPACE` both map to slot `17` in `src/observability/metrics/metrics.h`); paths,
   algorithms, and reqids are never used as metric labels.
 
 ## Entry points / extending
@@ -222,10 +232,10 @@ case. Always keep the sync and async paths byte-identical.
 
 - `../handshake/README.md` — opcode routing that calls into this subsystem
 - `../path/README.md` — path confinement, authdb, VO ACL, token-scope auth gate
-- `../compat/README.md` — checksum / digest / integrity-info + fs-usage helpers
-- `../aio/README.md` — thread-pool offload, restore/resume contract
+- `../../../core/compat/README.md` — checksum / digest / integrity-info + fs-usage helpers
+- `../../../core/aio/README.md` — thread-pool offload, restore/resume contract
 - `../response/README.md` — `send_ok`/`send_error` and the attn-frame builders
-- `../manager/README.md` and `../cms/README.md` — manager-mode redirect + locate
+- `../../../net/manager/README.md` and `../../../net/cms/README.md` — manager-mode redirect + locate
 - `../read/README.md` — sibling stream data plane sharing the same AIO pattern
-- `../metrics/README.md` — `BRIX_OP_QUERY_*` / `BRIX_OP_SET` counters
+- `../../../observability/metrics/README.md` — `BRIX_OP_QUERY_*` / `BRIX_OP_SET` counters
 - `../README.md` — master subsystem index

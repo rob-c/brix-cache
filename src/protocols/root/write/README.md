@@ -25,12 +25,12 @@ The data-carrying opcodes (`write`/`pgwrite`/`writev`) follow a uniform AIO
 fork: when a thread pool is configured they detach the received payload from
 `ctx->payload_buf` and post a `pwrite(2)` task to
 [`../aio`](../../../core/aio/README.md) (the worker thread + completion callbacks live in
-`../aio/write.c`, *not* in this directory), letting the event loop read the next
+`src/core/aio/write.c`, *not* in this directory), letting the event loop read the next
 header while disk I/O proceeds. With no thread pool, or if the task queue is
 full, they fall back to an inline synchronous `pwrite(2)` that rebuilds the same
 response. Either way, since phase-54 the `pwrite`/writev/pgwrite byte movement runs
 through the VFS-owned thread-safe core `brix_vfs_io_execute()`
-([`../fs/vfs_io_core.c`](../../../fs/README.md)) rather than a syscall reimplemented here, so
+([`src/fs/vfs/vfs_io_core.c`](../../../fs/README.md)) rather than a syscall reimplemented here, so
 short-write and error handling are shared with the rest of the VFS. Namespace opcodes are
 path-based: they resolve the client path beneath
 the export root, run the auth gate, and perform a single confined syscall via
@@ -58,10 +58,26 @@ origin flush by [`../cache`](../../../fs/cache/README.md)).
 | `chmod.c` / `rm.c` / `rmdir.c` | Thin handlers that delegate to the op-descriptor interpreter: `brix_dispatch_op(ctx, c, conf, kXR_<op>)`. |
 | `op_table.h` | Declares `brix_op_desc_t` (declarative descriptor: opcode, log verb, metric slot, auth level, write-required, path mode, `exec` callback), `brix_op_exec_t`, and `brix_dispatch_op()`. |
 | `op_table.c` | The descriptor table + interpreter for "resolve → auth → one syscall → ok/err" ops. Holds `exec_chmod` (`chmod`), `exec_rm` (`brix_ns_delete`, retries as recursive dir-delete on `EISDIR`), `exec_rmdir` (`brix_ns_delete` with `require_directory`). |
-| `common.c` | `brix_try_post_write_aio()` — the shared thread-pool dispatch for `write`/`pgwrite`: allocates an `brix_write_aio_t` task, binds `brix_write_aio_thread`/`brix_write_aio_done` (defined in `../aio/write.c`), posts it; sets `*posted` so callers know whether to fall back to sync. |
+| `common.c` | `brix_try_post_write_aio()` — the shared thread-pool dispatch for `write`/`pgwrite`: allocates an `brix_write_aio_t` task, binds `brix_write_aio_thread`/`brix_write_aio_done` (defined in `src/core/aio/write.c`), posts it; sets `*posted` so callers know whether to fall back to sync. |
 | `chkpoint.h` / `chkpoint.c` | `kXR_chkpoint` dispatcher and the begin/commit/rollback/query sub-handlers, plus `brix_chkpoint_recover_root()` — startup scan that rolls back abandoned `<path>.ckp` snapshots left by a crash. |
 | `chkpoint_xeq.h` / `chkpoint_xeq.c` | `ckp_xeq()` — parses the inner 24-byte sub-request header and executes a `write`/`pgwrite`/`truncate`/`writev` **under an active checkpoint** (all segments must target the checkpointed handle). |
 | `wrts_journal.h` / `wrts_journal.c` | Per-handle fixed-size ring journal for `kXR_recoverWrts`: `open` (arm), `record` (append committed write), `is_replay` (exact offset+length match → skip), `flush` (clear on sync/close). |
+
+### Other files
+
+| File | Responsibility |
+|---|---|
+| `backend_async_root.c` / `.h` | Bridges a kXR_rm / kXR_rmdir request into the backend-async queue: on enqueue the connection is parked in XRD_ST_WAITING_BAQ (the recv loop yields on that state, half-duplex, so no further PDU is read and the request's s. |
+| `chkpoint_recover.c` | kXR_chkpoint — startup recovery of abandoned .ckp snapshots. |
+| `chkpoint_xeq_internal.h` | The embedded sub-request a kXR_ckpXeq frame carries: its 24-byte ClientRequestHdr, the streamed body that follows, and the body length declared by that header. |
+| `chkpoint_xeq_write.c` | Writes one checkpoint payload range through the VFS I/O core and reports the byte count, errno, and short-write state to the caller. |
+| `ext_ops.c` / `.h` | POSIX-completeness operations the base XRootD protocol has no wire op for: set-mtime/atime + chown (kXR_setattr), symbolic links (kXR_symlink / kXR_readlink) and hard links (kXR_link). |
+| `pgw_fob.c` / `.h` | src/write/pgw_fob.c — kXR_pgwrite CSE uncorrected-page registry (see pgw_fob.h). |
+| `write_compress.c` | brix_write_compressed() serves a kXR_write for a handle opened for write with the opaque "?xrootd.compress=<codec>" while the server has brix_write_compress on. |
+| `write_staged.c` | The write/sync/close hooks for a root:// write handle whose backend LEAF advertises NO random write (BRIX_SD_CAP_RANDOM_WRITE) and has no pwrite slot — a whole-object store (sd_http/s3 and any driver whose write is a sin. |
+| `write_stream.c` | A single kXR_write whose dlen exceeds BRIX_WRITE_STREAM_CHUNK is delivered to the open file / staged writer in bounded, chunk-sized installments instead of being buffered whole and written once. |
+| `writev_aio.c` | Holds writev_try_aio — the single function that, when a thread pool is configured, flattens the validated write_list descriptors into a self-contained decoded array, builds the writev AIO task, and posts it to a worker t. |
+| `writev_internal.h` | Cross-declares the invariant vector context (writev_run_t) and the single function that crosses the writev.c / writev_aio.c file boundary (writev_try_aio). |
 
 ## Key types & data structures
 
@@ -83,7 +99,7 @@ origin flush by [`../cache`](../../../fs/cache/README.md)).
 - **`brix_writev_aio_t` / `brix_writev_seg_desc_t`** (`writev.c` builds
   them) — the segment-descriptor array plus task carrying `payload_buf`
   ownership and the `do_sync` flag.
-- **Recovery-journal state on `brix_file_t`** (`../types/file.h`):
+- **Recovery-journal state on `brix_file_t`** (`src/core/types/file.h`):
   `wrts_enabled`, `wrts_journal[BRIX_WRTS_JOURNAL_SLOTS]`, `wrts_head`,
   `wrts_count`, `wrts_gen`, each entry an `brix_wrts_entry_t {offset, length,
   gen}`.
@@ -104,7 +120,7 @@ origin flush by [`../cache`](../../../fs/cache/README.md)).
        ├ kXR_pgwrite  → pgwrite.c : brix_handle_pgwrite()  → decode+CRC → kXR_status
        ├ kXR_writev   → writev.c  : brix_handle_writev()
        │     (data ops) → common.c:brix_try_post_write_aio()
-       │                    ├ thread pool → ../aio/write.c worker pwrite → done cb sends reply
+       │                    ├ thread pool → src/core/aio/write.c worker pwrite → done cb sends reply
        │                    └ no pool/queue full → inline pwrite, build reply here
        ├ kXR_sync     → sync.c    : fsync + journal flush + wt-flush / TPC arm→pull
        ├ kXR_truncate → truncate.c: handle- or path-based ftruncate
@@ -123,7 +139,7 @@ Calls outward to sibling subsystems:
 - **[`../aio`](../../../core/aio/README.md)** — thread-pool task plumbing
   (`brix_aio_post_task`, `brix_task_bind`, `BRIX_GET_SCRATCH`); the
   `*_aio_thread`/`*_aio_done` callbacks for both `write` and `writev` live in
-  `../aio/write.c`.
+  `src/core/aio/write.c`.
 - **[`../compat`](../../../core/compat/README.md)** — `brix_ns_mkdir` / `brix_ns_rename`
   / `brix_ns_delete` (confined namespace syscalls), `brix_crc32c_copy`,
   `brix_copy_range`, `brix_staged_*`, and the `brix_kxr_*` errno→kXR
@@ -176,7 +192,7 @@ Calls outward to sibling subsystems:
   `write_scratch` scratch buffer (`BRIX_GET_SCRATCH`) and passes
   `payload_to_free = NULL` so the callback must **not** free it
   (`pgwrite.c:265-267`). Note: `ctx->write_scratch` is freed explicitly during
-  connection teardown in `disconnect.c`.
+  connection teardown in `src/protocols/root/connection/disconnect.c`.
 - **Event loop, no blocking.** Async completions run on the single event-loop
   thread and must rebuild the response identically to the sync path; handlers
   never sleep or block (invariant #3).
@@ -222,10 +238,10 @@ and a `case` in `ckp_xeq()`'s `switch (sub_reqid)`.
 
 - [`../read/README.md`](../read/README.md) — the read-side opcode peer.
 - [`../handshake/README.md`](../handshake/README.md) — the opcode dispatcher and write gate.
-- [`../aio/README.md`](../../../core/aio/README.md) — thread-pool offload; the write AIO worker/done callbacks.
+- [`../../../core/aio/README.md`](../../../core/aio/README.md) — thread-pool offload; the write AIO worker/done callbacks.
 - [`../path/README.md`](../../../fs/path/README.md) — confinement and the auth gate.
-- [`../compat/README.md`](../../../core/compat/README.md) — confined namespace syscalls, CRC32c, errno→kXR mapping.
-- [`../cache/README.md`](../../../fs/cache/README.md) — write-through dirty tracking and origin flush.
-- [`../tpc/README.md`](../../../tpc/README.md) — native third-party copy (sync-driven pull).
-- [`../types/README.md`](../../../core/types/README.md) — `brix_file_t` (journal + checkpoint state).
+- [`../../../core/compat/README.md`](../../../core/compat/README.md) — confined namespace syscalls, CRC32c, errno→kXR mapping.
+- [`../../../fs/cache/README.md`](../../../fs/cache/README.md) — write-through dirty tracking and origin flush.
+- [`../../../tpc/README.md`](../../../tpc/README.md) — native third-party copy (sync-driven pull).
+- [`../../../core/types/README.md`](../../../core/types/README.md) — `brix_file_t` (journal + checkpoint state).
 - [`../README.md`](../README.md) — subsystem master index.

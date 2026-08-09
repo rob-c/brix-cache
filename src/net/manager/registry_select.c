@@ -70,9 +70,14 @@ typedef struct {
 
 
 /*
- * srv_sel_state_t - full three-tier selection accumulator for one scan.
+ * srv_sel_state_t - full selection-ladder accumulator for one scan.
  *   fresh - live: not stale AND not blacklisted (the preferred tier)
  *   any   - not blacklisted, any staleness (stale-but-live fallback)
+ *   over  - §2.3: live but over the cms.sched maxload ceiling — used only
+ *           when every cooler node is gone (graceful degradation to the
+ *           least-loaded overloaded node instead of a false NotFound)
+ *   peer  - §2.17: a peer cluster's entry ("P" role) — consulted only when
+ *           no local server (fresh, stale, or overloaded) can serve
  *   black - blacklisted last-resort candidate (only when allow_blacklisted)
  * `for_write` fixes the metric direction for the whole scan: writes maximise
  * free_mb, reads minimise util_pct.
@@ -86,11 +91,15 @@ typedef struct {
 typedef struct {
     srv_sel_tier_t fresh;
     srv_sel_tier_t any;
+    srv_sel_tier_t over;
+    srv_sel_tier_t peer;
     srv_sel_tier_t black;
     int            for_write;
     /* Phase-89 W5: every fresh-tier candidate seen this scan (not just the
-     * metric winner), so the affinity hash can pick a stable member. */
+     * metric winner), so the affinity hash can pick a stable member.  §2.3:
+     * the metric is kept alongside so the fuzz band can compare members. */
     int            fresh_cands[SRV_SEL_AFFINITY_MAX];
+    uint32_t       fresh_vals[SRV_SEL_AFFINITY_MAX];
     ngx_uint_t     n_fresh;
 } srv_sel_state_t;
 
@@ -117,6 +126,8 @@ srv_sel_state_init(srv_sel_state_t *st, int for_write)
     st->for_write = for_write;
     srv_sel_tier_init(&st->fresh, for_write);
     srv_sel_tier_init(&st->any, for_write);
+    srv_sel_tier_init(&st->over, for_write);
+    srv_sel_tier_init(&st->peer, for_write);
     srv_sel_tier_init(&st->black, for_write);
     st->n_fresh = 0;
 }
@@ -153,36 +164,14 @@ srv_sel_tier_offer(srv_sel_tier_t *tier, int idx, uint32_t metric, int for_write
 
 
 /* WHAT: Classify one matched slot and fold it into the right selection tier(s).
- * WHY:  Isolates the per-slot policy — blacklisted → black tier only; live →
- *       always the `any` tier, and additionally the `fresh` tier when not stale.
- *       Staleness uses a signed msec diff so ngx_current_msec wrap is tolerated.
- * HOW:  Compute metric by direction, then route: black slots update only black;
- *       live slots update any, and fresh when not stale. */
-/*
- * srv_sel_load_metric — blend the heartbeat machine load into the selection
- * metric behind brix_cms_load_weight (Phase-89 W4).  Weight 0 (the default)
- * returns the input untouched — byte-identical to the pre-W4 scoring.
- * Reads minimise the metric: blend as ((100-w)*util + w*load)/100 so a
- * loaded node scores worse.  Writes maximise free_mb: scale it down by up to
- * w% at full load (free - free*w*load/10000) so capacity still dominates and
- * the direction of comparison is unchanged.
- */
-static uint32_t
-srv_sel_load_metric(uint32_t metric, uint32_t load_pct, int for_write)
-{
-    ngx_uint_t  w = brix_srv_load_weight;
-
-    if (w == 0) {
-        return metric;
-    }
-    if (for_write) {
-        return metric - (uint32_t) ((uint64_t) metric * w * load_pct / 10000);
-    }
-    return (uint32_t) (((100 - w) * (uint64_t) metric + w * (uint64_t) load_pct)
-                       / 100);
-}
-
-
+ * WHY:  Isolates the per-slot policy — blacklisted → black tier only; peers
+ *       (§2.17) → their own last-resort-before-black tier; maxload-exceeded
+ *       nodes (§2.3) → the `over` tier; live → always the `any` tier, and
+ *       additionally the `fresh` tier when not stale.  Staleness uses a signed
+ *       msec diff so ngx_current_msec wrap is tolerated.
+ * HOW:  Compute the metric (srv_sel_metric — legacy load-weight blend or the
+ *       §2.3 cms.sched component blend, registry_select_sched.c), then route
+ *       the slot to its tier. */
 static void
 srv_sel_state_consider(srv_sel_state_t *st, int idx, const brix_srv_entry_t *e,
     int is_black)
@@ -190,12 +179,26 @@ srv_sel_state_consider(srv_sel_state_t *st, int idx, const brix_srv_entry_t *e,
     uint32_t   metric;
     ngx_uint_t is_stale;
 
-    metric = srv_sel_load_metric(st->for_write ? e->free_mb : e->util_pct,
-                                 e->load_pct, st->for_write);
+    metric = srv_sel_metric(e, st->for_write);
 
     if (is_black) {
         /* allow_blacklisted only — a last-resort tier below live servers. */
         srv_sel_tier_offer(&st->black, idx, metric, st->for_write);
+        return;
+    }
+
+    /* §2.17: a peer cluster ("P") is consulted only when NO local server can
+     * serve — it never competes with local capacity, however stale/loaded. */
+    if (e->role[0] == 'P' && e->role[1] == '\0') {
+        srv_sel_tier_offer(&st->peer, idx, metric, st->for_write);
+        return;
+    }
+
+    /* §2.3: a node over the cms.sched maxload ceiling drops below every
+     * cooler node (incl. stale ones) but still beats shipping to a peer or a
+     * blacklisted node — graceful degradation, not a refusal. */
+    if (srv_sel_over_maxload(e)) {
+        srv_sel_tier_offer(&st->over, idx, metric, st->for_write);
         return;
     }
 
@@ -213,6 +216,7 @@ srv_sel_state_consider(srv_sel_state_t *st, int idx, const brix_srv_entry_t *e,
     if (!is_stale) {
         srv_sel_tier_offer(&st->fresh, idx, metric, st->for_write);
         if (st->n_fresh < SRV_SEL_AFFINITY_MAX) {
+            st->fresh_vals[st->n_fresh] = metric;
             st->fresh_cands[st->n_fresh++] = idx;
         }
     }
@@ -238,9 +242,10 @@ srv_sel_path_hash(const char *path)
 
 
 /* WHAT: Resolve the accumulated tiers to the winning slot index (or -1).
- * WHY:  Fixes the tier priority in one place: a live-fresh server always beats a
- *       stale-live one, which always beats a blacklisted last-resort one.
- * HOW:  Prefer fresh, then any, then black. */
+ * WHY:  Fixes the tier priority in one place: a live-fresh server always beats
+ *       a stale-live one, which beats an overloaded one (§2.3 maxload), which
+ *       beats a peer cluster (§2.17), which beats a blacklisted last resort.
+ * HOW:  Walk the ladder top-down, returning the first non-empty tier. */
 static int
 srv_sel_state_winner(const srv_sel_state_t *st)
 {
@@ -250,7 +255,65 @@ srv_sel_state_winner(const srv_sel_state_t *st)
     if (st->any.idx >= 0) {
         return st->any.idx;
     }
+    if (st->over.idx >= 0) {
+        return st->over.idx;
+    }
+    if (st->peer.idx >= 0) {
+        return st->peer.idx;
+    }
     return st->black.idx;
+}
+
+/*
+ * srv_sel_fuzz_pick — §2.3: cms.sched fuzz round-robin band.
+ *
+ * WHAT: When >1 fresh candidate's metric sits within fuzz percent of the best
+ *       metric, treat them as equal and rotate a per-worker cursor over the
+ *       band, returning the picked slot index.  Returns `best` unchanged when
+ *       fuzz is off, the band is a singleton, or the ladder winner is not from
+ *       the fresh tier.
+ * WHY:  Strict metric comparison pins all traffic to one node when several
+ *       are effectively equally loaded; stock cms.sched fuzz spreads it.  The
+ *       rotation is per-worker (a plain static) — deterministic alternation,
+ *       no shared state, matching the balancing-hint (not SLA) posture.
+ * HOW:  Compute the band bound from the best fresh metric (reads: best +
+ *       fuzz%; writes: best - fuzz%), collect band members in scan order, and
+ *       index them with an advancing counter.
+ */
+static int
+srv_sel_fuzz_pick(const srv_sel_state_t *st, int best)
+{
+    static ngx_uint_t  rotate;
+    int                band[SRV_SEL_AFFINITY_MAX];
+    ngx_uint_t         i, n_band = 0;
+    uint64_t           bound;
+
+    if (brix_srv_sched.fuzz == 0 || st->n_fresh < 2
+        || best != st->fresh.idx)
+    {
+        return best;
+    }
+
+    if (st->for_write) {
+        bound = (uint64_t) st->fresh.val
+                * (100 - brix_srv_sched.fuzz) / 100;
+    } else {
+        bound = (uint64_t) st->fresh.val
+                * (100 + brix_srv_sched.fuzz) / 100;
+    }
+
+    for (i = 0; i < st->n_fresh; i++) {
+        if (st->for_write ? ((uint64_t) st->fresh_vals[i] >= bound)
+                          : ((uint64_t) st->fresh_vals[i] <= bound))
+        {
+            band[n_band++] = st->fresh_cands[i];
+        }
+    }
+
+    if (n_band < 2) {
+        return best;
+    }
+    return band[rotate++ % n_band];
 }
 
 
@@ -324,9 +387,12 @@ srv_select_core(const char *path, int for_write, int allow_blacklisted,
      * path stick to one server (cache locality).  LOCKED precedence (phase-61
      * note 2): the filter above already excluded blacklisted/stale slots, so a
      * drained host is never sticky; an empty/singleton fresh tier keeps the
-     * ladder winner unchanged. */
+     * ladder winner unchanged.  §2.3: affinity wins over the fuzz band (a
+     * sticky path must not rotate); fuzz applies only without affinity. */
     if (brix_srv_affinity && st.n_fresh > 1) {
         best = st.fresh_cands[srv_sel_path_hash(path) % st.n_fresh];
+    } else {
+        best = srv_sel_fuzz_pick(&st, best);
     }
 
     if (best >= 0) {

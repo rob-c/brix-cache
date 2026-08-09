@@ -51,7 +51,7 @@ deployments (it hands off to [`../proxy/`](../../../net/proxy/README.md) and
 ## Key types & data structures
 
 This subsystem owns no struct of its own; it manipulates the per-connection
-`brix_ctx_t` (defined in [`../types/context.h`](../../../core/types/README.md)) and the
+`brix_ctx_t` (defined in [`src/core/types/context.h`](../../../core/types/README.md)) and the
 stream server config `ngx_stream_brix_srv_conf_t`. The fields it reads/writes:
 
 - **Routing input:** `ctx->cur_reqid` (parsed opcode, host byte order, e.g.
@@ -91,8 +91,8 @@ connection/recv.c: ngx_stream_brix_recv()
        1. sigver.c: brix_verify_pending_sigver()   # check HMAC of prior kXR_sigver
        2. sigver.c: brix_signing_enforce_level()    # reject unsigned op if policy demands
        3. dispatch_session.c: brix_dispatch_session_opcode()  # protocol/login/auth/ping/set/endsess/bind
-       4. [proxy_enable && logged_in] → proxy/forward.c: brix_proxy_dispatch()   # short-circuit
-       5. ratelimit/ratelimit.c: brix_rl_stream_gate()  # may answer kXR_wait
+       4. [proxy_enable && logged_in] → src/net/proxy/forward_relay_dispatch.c: brix_proxy_dispatch()   # short-circuit
+       5. src/net/ratelimit/ratelimit.c: brix_rl_stream_gate()  # may answer kXR_wait
        6. dispatch_read.c:  brix_dispatch_read_opcode()  → then stream mirror/wmirror hooks
        7. dispatch_write.c: brix_dispatch_write_opcode() → then stream mirror/wmirror hooks
        8. dispatch_signing.c: brix_dispatch_signing_opcode()  # kXR_sigver only
@@ -123,7 +123,7 @@ siblings:
 
 **Auth happens elsewhere; gating happens here.** `dispatch_session.c` routes
 `kXR_auth` to its handler `brix_handle_auth()`, which lives in
-[`../gsi/`](../../../auth/gsi/README.md) (`gsi/auth.c` — the credential-type front door),
+[`../gsi/`](../../../auth/gsi/README.md) (`src/auth/gsi/auth.c` — the credential-type front door),
 *not* in `session/`. From there it dispatches by credential type to
 [`../gsi/`](../../../auth/gsi/README.md) (GSI proxy chains), [`../token/`](../../../auth/token/README.md)
 (JWT/WLCG bearer), [`../sss/`](../../../auth/sss/README.md) (shared secret), and
@@ -208,13 +208,13 @@ requests): add a phase in `brix_dispatch` (`dispatch.c`) returning
   [`../dirlist/README.md`](../dirlist/README.md),
   [`../query/README.md`](../query/README.md),
   [`../fattr/README.md`](../fattr/README.md) — opcode handlers.
-- [`../proxy/README.md`](../../../net/proxy/README.md),
-  [`../manager/README.md`](../../../net/manager/README.md) — proxy/redirector handoff.
-- [`../ratelimit/README.md`](../../../net/ratelimit/README.md),
-  [`../mirror/README.md`](../../../net/mirror/README.md) — the rate-limit gate and
+- [`../../../net/proxy/README.md`](../../../net/proxy/README.md),
+  [`../../../net/manager/README.md`](../../../net/manager/README.md) — proxy/redirector handoff.
+- [`../../../net/ratelimit/README.md`](../../../net/ratelimit/README.md),
+  [`../../../net/mirror/README.md`](../../../net/mirror/README.md) — the rate-limit gate and
   shadow-replay hooks fired inside `brix_dispatch`.
 - [`../protocol/README.md`](../protocol/README.md),
-  [`../types/README.md`](../../../core/types/README.md) — wire structs/opcodes and
+  [`../../../core/types/README.md`](../../../core/types/README.md) — wire structs/opcodes and
   `brix_ctx_t`.
 - [`../response/README.md`](../response/README.md) — `brix_send_error` /
   `brix_queue_response` framing helpers.

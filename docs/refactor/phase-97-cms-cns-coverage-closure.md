@@ -226,7 +226,7 @@ teardown could no longer find. This is the pre-existing
 
 This section was originally written as *out of scope*, on the reasoning that
 `brix_cns` is a `stream{}`-only directive
-(`src/protocols/root/stream/directives_tpc.inc`), that `brix_cns_emit()` needs an
+(`src/protocols/root/stream/directives_tpc.h`), that `brix_cns_emit()` needs an
 `ngx_stream_brix_srv_conf_t`, and that bridging it to `http{}` would take a new
 directive **plus** a per-worker CMS-context accessor — a global, which CLAUDE.md
 forbids.

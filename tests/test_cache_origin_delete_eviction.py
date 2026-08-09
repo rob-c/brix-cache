@@ -30,7 +30,8 @@ from _cache_partial_helpers import (
 # serial + registry lifecycle: each test boots its own cache+origin pair, and the
 # slice read path is flagged crash-prone under concurrency (see
 # test_cache_partial_fill.py); mirror its markers.
-pytestmark = [pytest.mark.serial, pytest.mark.uses_lifecycle_harness]
+pytestmark = [pytest.mark.serial, pytest.mark.uses_lifecycle_harness,
+              pytest.mark.xdist_group("lc-cache-partial")]
 
 kXR_rm = 3014
 BLK = 1024 * 1024

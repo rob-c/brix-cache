@@ -141,6 +141,10 @@ ngx_http_brix_webdav_create_loc_conf(ngx_conf_t *cf)
     conf->dig_enable = NGX_CONF_UNSET;
     conf->require_digest = NGX_CONF_UNSET;
     conf->delegation_endpoint = NGX_CONF_UNSET;
+    conf->redirect_dataserver = NGX_CONF_UNSET;      /* §6.1 */
+    conf->redirect_port       = NGX_CONF_UNSET;
+    conf->redirect_scheme     = NGX_CONF_UNSET_UINT;
+    conf->redirect_window     = NGX_CONF_UNSET;
     conf->dig_exports = NGX_CONF_UNSET_PTR;
     conf->authdb_rules = NGX_CONF_UNSET_PTR;   /* created on first brix_webdav_authdb */
     conf->vo_rules = NGX_CONF_UNSET_PTR;       /* created on first brix_webdav_require_vo */

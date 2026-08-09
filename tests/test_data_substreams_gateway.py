@@ -40,6 +40,8 @@ import time
 from pathlib import Path
 
 import pytest
+from config_templates import render_config_to_path
+from settings import ARTIFACTS_DIR, BIND_HOST, HOST
 
 _REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 _XRDCP = os.path.join(_REPO, "client", "bin", "xrdcp")
@@ -64,37 +66,32 @@ def _det(n, seed=3):
     return (p * full + p[:rem])
 
 
-def _origin_conf(base: Path) -> str:
+def _origin_conf(base: Path, destination: Path) -> None:
     root, logs = base / "origin/root", base / "origin/logs"
-    return (
-        f"daemon on; error_log {logs}/e.log info; pid {base}/origin/nginx.pid;\n"
-        f"load_module {_STREAM_MOD};\nload_module {_BRIX_MOD};\n"
-        f"worker_processes 2;\nevents {{ worker_connections 64; }}\n"
-        f"stream {{ server {{ listen 127.0.0.1:{_OPORT}; brix_root on;\n"
-        f"    brix_export {root}; brix_auth none; brix_allow_write on; }} }}\n")
+    render_config_to_path(
+        "nginx_data_substreams_origin.conf", destination,
+        BIND_HOST=BIND_HOST, PORT=_OPORT, DATA_DIR=str(root), LOG_DIR=str(logs),
+        PID_FILE=str(base / "origin/nginx.pid"), STREAM_MODULE=_STREAM_MOD,
+        BRIX_MODULE=_BRIX_MOD,
+    )
 
 
-def _gateway_conf(base: Path) -> str:
+def _gateway_conf(base: Path, destination: Path) -> None:
     export, stage, logs = base / "gw/gw", base / "gw/stage", base / "gw/logs"
-    return (
-        f"daemon on; error_log {logs}/e.log info; pid {base}/gw/nginx.pid;\n"
-        f"load_module {_STREAM_MOD};\nload_module {_BRIX_MOD};\n"
-        f"worker_processes 2;\nthread_pool gwpool threads=4 max_queue=4096;\n"
-        f"events {{ worker_connections 64; }}\n"
-        f"stream {{ server {{\n"
-        f"    listen 127.0.0.1:{_GPORT}; brix_root on; brix_auth none;\n"
-        f"    brix_export {export}; brix_allow_write on; brix_thread_pool gwpool;\n"
-        f"    brix_storage_backend root://127.0.0.1:{_OPORT};\n"
-        f"    brix_stage on; brix_stage_store posix:{stage}; brix_stage_flush sync;\n"
-        f"    brix_access_log {logs}/access.log;\n"
-        f"}} }}\n")
+    render_config_to_path(
+        "nginx_data_substreams_gateway.conf", destination,
+        BIND_HOST=BIND_HOST, PORT=_GPORT, HOST=HOST, ORIGIN_PORT=_OPORT,
+        DATA_DIR=str(export), STAGE_DIR=str(stage), LOG_DIR=str(logs),
+        PID_FILE=str(base / "gw/nginx.pid"), STREAM_MODULE=_STREAM_MOD,
+        BRIX_MODULE=_BRIX_MOD,
+    )
 
 
 def _wait_listen(port, deadline_s=8.0):
     end = time.monotonic() + deadline_s
     while time.monotonic() < end:
         try:
-            with socket.create_connection(("127.0.0.1", port), timeout=0.5):
+            with socket.create_connection((HOST, port), timeout=0.5):
                 return True
         except OSError:
             time.sleep(0.1)
@@ -113,7 +110,7 @@ def _stop(pidfile: Path):
 def gateway_rig():
     if not _HAVE:
         pytest.skip("gateway rig needs nginx + stream/brix modules + brix-xrdcp")
-    base = Path(f"/tmp/brix_subs_gw_{os.getpid()}")
+    base = Path(ARTIFACTS_DIR) / f"brix_subs_gw_{os.getpid()}"
     subprocess.run(["rm", "-rf", str(base)], check=False)
     for sub in ("origin/root", "origin/logs", "gw/gw", "gw/stage", "gw/logs"):
         (base / sub).mkdir(parents=True, exist_ok=True)
@@ -122,8 +119,8 @@ def gateway_rig():
     subprocess.run(["chmod", "-R", "0777", str(base)], check=False)
 
     oconf, gconf = base / "origin.conf", base / "gw.conf"
-    oconf.write_text(_origin_conf(base))
-    gconf.write_text(_gateway_conf(base))
+    _origin_conf(base, oconf)
+    _gateway_conf(base, gconf)
 
     started = []
     try:
@@ -157,7 +154,7 @@ class TestGatewayBoundWriteFanout:
         env = dict(os.environ, BRIX_STREAMS_DEBUG="1")
         res = subprocess.run(
             [_XRDCP, "-f", "--streams", "4", str(src),
-             f"root://127.0.0.1:{_GPORT}//gwup.bin"],
+             f"root://{HOST}:{_GPORT}//gwup.bin"],
             capture_output=True, text=True, env=env, timeout=180)
         assert res.returncode == 0, f"gateway upload failed: {res.stderr[-800:]}"
 

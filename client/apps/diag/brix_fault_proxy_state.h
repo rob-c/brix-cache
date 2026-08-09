@@ -148,6 +148,11 @@ extern int               g_max_conns;
 /* Extended (still root-free) connection-level levers. */
 extern volatile int      g_stall_up;
 extern volatile int      g_stall_down;
+/* Phase-B connection-scoped fidelity levers (root-free; reset by clear_all). */
+extern volatile int      g_toxicity_up_ppm;   /* fraction of conns the up levers afflict, ppm (default 1e6=100%) */
+extern volatile int      g_toxicity_down_ppm; /* same, down direction */
+extern volatile int      g_connect_delay_ms;  /* usleep after accept, before dial */
+extern volatile int      g_refuse_ppm;        /* probabilistic new-connection refusal, ppm */
 extern volatile int      g_mss;
 extern volatile int      g_rcvbuf;
 extern volatile int      g_sndbuf;
@@ -238,6 +243,13 @@ extern fp_counters C;
  * through the hot relay signatures.  0 outside a relay thread. */
 extern __thread unsigned long t_conn_id;
 
+/* Per-connection toxicity gate: decided once at relay start from the per-direction
+ * toxicity fraction.  When a direction is not afflicted its byte levers are
+ * skipped (clean pass-through).  1 outside a relay thread (fully afflicted). */
+extern __thread int t_afflict_up;
+extern __thread int t_afflict_down;
+extern __thread int t_fwd_up;
+
 /* ---- cross-TU seams (definition sites named in each TU's banner) -------- */
 
 void
@@ -253,7 +265,7 @@ fault_sever(const char *reason);
 ssize_t
 fault_clamp_seg(ssize_t seg, int piece, long trunc, unsigned long conn_ctr);
 void
-fault_delays(ssize_t seg, unsigned *seed, const lever_t *L);
+fault_delays(ssize_t seg, unsigned *seed, const lever_t *L, unsigned long sent);
 void
 fault_corrupt(char *buf, ssize_t off, ssize_t seg, unsigned *seed, int cor);
 void
@@ -315,6 +327,10 @@ int
 cmd_set_epoch(const char *verb);
 int
 cmd_set_misc(const char *verb, const char *args);
+int
+cmd_set_fidelity(const char *verb, char *args, char *reply, size_t rsz);
+void
+cmd_metrics_report(char *reply, size_t rsz);
 void *
 chaos_thread(void *arg);
 int
@@ -367,6 +383,8 @@ void
 cmd_status_json(char *reply, size_t rsz);
 void
 apply_command(char *line, char *reply, size_t rsz);
+void
+apply_json_command(const char *json, char *reply, size_t rsz);
 void *
 control_thread(void *arg);
 void *

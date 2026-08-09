@@ -1,0 +1,5 @@
+usr/bin/brixMount
+usr/bin/brixcvmfs
+usr/share/man/man1/brixMount.1
+usr/share/man/man1/brixcvmfs.1
+usr/share/bash-completion/completions/brixMount

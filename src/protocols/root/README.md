@@ -27,16 +27,16 @@ dispatch boundary.
 | [handshake/](handshake/) | opcode routers (read/write/session/signing), client hello, policy, sigver | `dispatch.c` |
 | [session/](session/) | login, protocol negotiation, bind, ping/endsess, SHM session registry | dispatched |
 | [protocol/](protocol/) | header-only wire-format constants, opcodes, codecs (mirror of XProtocol.hh) | — |
-| [read/](read/) | kXR_open/read/readv/pgread/stat/locate/close/clone + prefetch | `open_request.c` |
+| [read/](read/) | kXR_open/read/readv/pgread/stat/locate/close/clone + prefetch | `read/open_request.c` |
 | [write/](write/) | kXR_write/pgwrite/writev/sync/truncate, namespace ops (mkdir/rm/mv/chmod), chkpoint | dispatched |
 | [query/](query/) | kXR_query + kXR_prepare (staging) | dispatched |
 | [dirlist/](dirlist/) | kXR_dirlist + per-entry checksum (`cks.type` CGI) | `handler.c` |
 | [fattr/](fattr/) | kXR_fattr get/set/del/list via the VFS xattr seam | `dispatch.c` |
-| [zip/](zip/) | `?xrdcl.unzip=` archive-member serving (security-critical read-only ZIP locator) | `zip_http.c` |
+| [zip/](zip/) | `?xrdcl.unzip=` archive-member serving (security-critical read-only ZIP locator) | `zip/zip_http.c` |
 | [path/](path/) | wire-path extraction, sanitization, CGI stripping, stat-body formatting | `extract.c` |
-| [response/](response/) | wire response framing: basic, async kXR_attn, kXR_status(4007), CRC32c | `basic.c` |
-| [handoff/](handoff/) | non-XRootD clients on a root:// port spliced to the HTTP/WebDAV listener | `handoff.c` |
-| [relay/](relay/) | transparent pass-through relay + tap + bad-actor guard hook | `relay.c` |
+| [response/](response/) | wire response framing: basic, async kXR_attn, kXR_status(4007), CRC32c | `response/basic.c` |
+| [handoff/](handoff/) | non-XRootD clients on a root:// port spliced to the HTTP/WebDAV listener | `handoff/handoff.c` |
+| [relay/](relay/) | transparent pass-through relay + tap + bad-actor guard hook | `relay/relay.c` |
 
 ## Control & data flow
 

@@ -1,4 +1,5 @@
-from _test_proxy_protocol_edges_helpers import *  # noqa: F401,F403  (Phase-38 split shared header)
+from split_continuation import reexport as _reexport
+_reexport(globals(), "_test_proxy_protocol_edges_helpers")
 
 def test_handle_map_saturation_clean_error(saturation_stack):
     """Open files until the proxy's fixed-size local handle map (BRIX_MAX_FILES

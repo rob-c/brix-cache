@@ -56,9 +56,34 @@ The `pytest` session automatically manages the test infrastructure: it generates
 
 Everything lives under `TEST_ROOT` (default `/tmp/xrd-test`, overridden by the `TEST_ROOT` environment variable):
 
+Use an absolute per-run path when multiple suite invocations share a host:
+
+```bash
+TEST_ROOT=/tmp/brix-tests/lane-a TEST_PORT_START=10000 PYTHONPATH=tests pytest tests/ -v
+TEST_ROOT=/tmp/brix-tests/lane-b TEST_PORT_START=12000 PYTHONPATH=tests pytest tests/ -v
+```
+
+Use `-n auto` to run tests concurrently within either lane. The checked-in
+pytest configuration selects xdist's `loadgroup` scheduler so lifecycle and
+other fixed-resource groups remain serialized:
+
+```bash
+TEST_ROOT=/tmp/brix-tests/lane-a TEST_PORT_START=10000 PYTHONPATH=tests pytest tests/ -n auto
+```
+
+`TEST_ROOT` is normalized to an absolute path and propagated to every managed
+subprocess. Each root owns its own registry manifest, prefixes, data, PKI, logs,
+temporary files, and session CWD. Pytest attaches to an existing fleet only
+when that root's manifest identifies it; a listener belonging to another root
+is reported as a port collision and is never stopped or cleaned up. The central
+port ladder contains 1,150 slots: a base of 10000 means ports 10001..11150.
+Concurrent lanes must use bases at least 1,150 apart; 12000 is a convenient next
+base. `TEST_PORT_START` is inherited by all managed processes.
+
 ```
 /tmp/xrd-test/
 ├── conf/                    main nginx config (from tests/configs/nginx_shared.conf)
+├── artifacts/               explicit test outputs that must survive beyond tmp_path
 ├── data/                    test files served by all servers
 │   ├── test.txt             5-byte ASCII seed file
 │   ├── random.bin           5 MiB random data (re-generated each session)

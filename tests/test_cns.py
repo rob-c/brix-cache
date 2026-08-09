@@ -26,7 +26,10 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "."))
 from server_registry import NginxInstanceSpec  # noqa: E402
 from settings import BIND_HOST  # noqa: E402
 
-pytestmark = pytest.mark.uses_lifecycle_harness
+pytestmark = [
+    pytest.mark.uses_lifecycle_harness,
+    pytest.mark.xdist_group("lc-cns"),
+]
 
 kXR_login, kXR_open, kXR_write, kXR_close, kXR_stat = 3007, 3010, 3019, 3003, 3017
 kXR_mkdir, kXR_rm, kXR_rmdir = 3008, 3014, 3015

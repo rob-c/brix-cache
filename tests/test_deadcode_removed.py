@@ -35,7 +35,7 @@ SEARCH_ROOTS = ["src", "client", "shared"]
 def _grep(symbol):
     """Every occurrence of `symbol` in the buildable tree, as 'path:line: text'."""
     proc = subprocess.run(
-        ["grep", "-rn", "--include=*.c", "--include=*.h", "--include=*.inc",
+        ["grep", "-rn", "--include=*.c", "--include=*.h", "--include=*.h",
          "-w", symbol, *SEARCH_ROOTS],
         cwd=REPO, capture_output=True, text=True,
     )

@@ -132,3 +132,109 @@ brix_conf_set_cms_manager(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 
     return NGX_CONF_OK;
 }
+
+/*
+ * brix_conf_set_cms_sched — §2.3: parse the stock cms.sched grammar.
+ *
+ * WHAT: "brix_cms_sched cpu 30 io 10 runq 5 mem 10 pag 10 space 35 fuzz 20
+ *       maxload 80" — key/value pairs, each value 0-100; any subset of keys.
+ * WHY:  Component-weighted selection (stock cms.sched parity).  Kept as a
+ *       key/value walk so config lines read like the stock directive; unknown
+ *       keys or out-of-range values are config-time errors, not surprises.
+ * HOW:  Walk cf->args two at a time into the matching conf->cms.sched_*
+ *       field; the merge step installs the vector via brix_srv_set_sched.
+ */
+char *
+brix_conf_set_cms_sched(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
+{
+    ngx_stream_brix_srv_conf_t  *xcf = conf;
+    ngx_str_t                   *value = cf->args->elts;
+    ngx_uint_t                   i;
+    ngx_int_t                    n;
+    ngx_int_t                   *slot;
+
+    (void) cmd;
+
+    if ((cf->args->nelts - 1) % 2 != 0) {
+        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            "brix_cms_sched: expects key/value pairs");
+        return NGX_CONF_ERROR;
+    }
+
+    for (i = 1; i + 1 < cf->args->nelts; i += 2) {
+        if (ngx_strcmp(value[i].data, "cpu") == 0) {
+            slot = &xcf->cms.sched_cpu;
+        } else if (ngx_strcmp(value[i].data, "io") == 0) {
+            slot = &xcf->cms.sched_io;
+        } else if (ngx_strcmp(value[i].data, "runq") == 0) {
+            slot = &xcf->cms.sched_runq;
+        } else if (ngx_strcmp(value[i].data, "mem") == 0) {
+            slot = &xcf->cms.sched_mem;
+        } else if (ngx_strcmp(value[i].data, "pag") == 0) {
+            slot = &xcf->cms.sched_pag;
+        } else if (ngx_strcmp(value[i].data, "space") == 0) {
+            slot = &xcf->cms.sched_space;
+        } else if (ngx_strcmp(value[i].data, "fuzz") == 0) {
+            slot = &xcf->cms.sched_fuzz;
+        } else if (ngx_strcmp(value[i].data, "maxload") == 0) {
+            slot = &xcf->cms.sched_maxload;
+        } else {
+            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+                "brix_cms_sched: unknown key \"%V\"", &value[i]);
+            return NGX_CONF_ERROR;
+        }
+
+        n = ngx_atoi(value[i + 1].data, value[i + 1].len);
+        if (n == NGX_ERROR || n < 0 || n > 100) {
+            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+                "brix_cms_sched: \"%V %V\" — value must be 0-100",
+                &value[i], &value[i + 1]);
+            return NGX_CONF_ERROR;
+        }
+        *slot = n;
+    }
+
+    return NGX_CONF_OK;
+}
+
+/*
+ * brix_conf_set_cms_altds — §2.12: parse "brix_cms_altds <port> [monitor]".
+ *
+ * WHAT: Stores the co-located foreign data server's port (advertised as this
+ *       node's dPort in the CMS login) and the optional liveness-monitor
+ *       opt-in.  Port must be 1-65535.
+ * WHY:  cms.altds parity — the cmsd half of a node can front a foreign data
+ *       server (e.g. a stock xrootd on the same host).  Same-host only: a
+ *       stock manager records the CONNECTION's peer IP as the data address,
+ *       so only the port is advertisable.
+ * HOW:  ngx_atoi the port; "monitor" enables the probe (default off).
+ */
+char *
+brix_conf_set_cms_altds(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
+{
+    ngx_stream_brix_srv_conf_t  *xcf = conf;
+    ngx_str_t                   *value = cf->args->elts;
+    ngx_int_t                    port;
+
+    (void) cmd;
+
+    port = ngx_atoi(value[1].data, value[1].len);
+    if (port == NGX_ERROR || port < 1 || port > 65535) {
+        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            "brix_cms_altds: invalid port \"%V\"", &value[1]);
+        return NGX_CONF_ERROR;
+    }
+    xcf->cms.altds_port = port;
+    xcf->cms.altds = value[1];
+
+    if (cf->args->nelts == 3) {
+        if (ngx_strcmp(value[2].data, "monitor") != 0) {
+            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+                "brix_cms_altds: expected \"monitor\", got \"%V\"", &value[2]);
+            return NGX_CONF_ERROR;
+        }
+        xcf->cms.altds_monitor = 1;
+    }
+
+    return NGX_CONF_OK;
+}

@@ -19,7 +19,8 @@
 #                   (the guard survives, just at the correct offset)
 import struct
 
-from _test_proxy_mode_helpers import *  # noqa: F401,F403 (fixture + wire helpers + constants)
+from split_continuation import reexport as _reexport
+_reexport(globals(), "_test_proxy_mode_helpers")
 
 kXR_vfs = 1
 

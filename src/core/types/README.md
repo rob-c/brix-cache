@@ -23,7 +23,7 @@ header instead.
 
 Where they sit in the request lifecycle: a `root://` TCP accept allocates one
 `brix_ctx_t` from the connection pool (`ngx_pcalloc(c->pool, sizeof(brix_ctx_t))` in
-`../connection/handler.c:33`) and zero-fills it; the handler then marks every file slot
+`src/protocols/root/connection/handler.c:33`) and zero-fills it; the handler then marks every file slot
 free (`files[i].fd = -1`, `handler.c:73`), generates the 16-byte session ID, and points
 `ctx->metrics` at the SHM slot (`handler.c:95-102`). That struct then carries *all* session
 state — input accumulation, auth identity, the open-file table, the pipelined output ring,
@@ -45,7 +45,7 @@ the tunables, the auth-mode constants, and the `brix_identity_t` principal defin
 | `state.h` | `brix_state_t` — the per-connection state-machine enum that drives the read/write event callbacks (`XRD_ST_HANDSHAKE → REQ_HEADER → REQ_PAYLOAD`, plus `SENDING`, `AIO`, `TLS_HANDSHAKE`, `UPSTREAM`, `PROXY`, `WAITING_CMS`); plus opaque forward decls for `brix_upstream_t`, `brix_proxy_ctx_t`, `ngx_brix_cms_ctx_t` so `context.h` can hold pointers without pulling those headers. |
 | `file.h` | `brix_file_t` — one slot per open XRootD file handle (**array index = the 4-byte handle the client echoes back**); also `brix_wrts_entry_t` + `BRIX_WRTS_JOURNAL_SLOTS` (the per-handle write-recovery ring). Tracks `fd`, resolved `path`, byte counters, immutable open-time `device`/`inode`/`is_regular`/`cached_size`, read-ahead hints, slice-cache state, `kXR_chkpoint`, `kXR_posc`, native-TPC-destination, write-through dirty state + async-flush task, the `wrts_journal[]` replay ring, and the dashboard/SHM-handle slot hints. |
 | `context.h` | `brix_ctx_t` — the per-TCP-connection session context (everything below); plus the two helper structs it embeds: `brix_resp_slot_t` (one output-ring slot: flat-buffer tail OR chain tail + reusable one-chunk read-response chain structs + per-slot `hdr_bytes[BRIX_SLOT_HDR_MAX]`) and `brix_read_slot_t` (one concurrent-AIO read pool entry: raw buffer + thread task + in-use bit). |
-| `config.h` | `ngx_stream_brix_srv_conf_t` — the per-`server {}` config block, with every field annotated by the `[nginx.conf directive]` that populates it; plus its helper types: `brix_sss_key_t`, `brix_auth_type_t` + `BRIX_AUTH_*` priv bits, `brix_authdb_rule_t`, `brix_vo_rule_t`, `brix_group_rule_t`, `brix_manager_map_t`, `brix_proxy_upstream_t`. Pulls in `../mirror/mirror.h`, `../cache/writethrough_decision.h`, `../config/shared_conf.h`, `../shm/kv.h`, `../path/auth_cache.h`, `../shm/rate_limit.h`. |
+| `config.h` | `ngx_stream_brix_srv_conf_t` — the per-`server {}` config block, with every field annotated by the `[nginx.conf directive]` that populates it; plus its helper types: `brix_sss_key_t`, `brix_auth_type_t` + `BRIX_AUTH_*` priv bits, `brix_authdb_rule_t`, `brix_vo_rule_t`, `brix_group_rule_t`, `brix_manager_map_t`, `brix_proxy_upstream_t`. Pulls in `src/net/mirror/mirror.h`, `src/fs/cache/writethrough_decision.h`, `../config/shared_conf.h`, `../shm/kv.h`, `src/auth/authz/auth_cache.h`, `../shm/rate_limit.h`. |
 | `identity.h` | `brix_identity_t` — the **canonical, protocol-agnostic authenticated principal** (DN/subject/issuer, VO list, OAuth scopes, `BRIX_AUTHN_*` method bitmask, `is_authenticated/is_admin/has_write_scope/has_read_scope` flags) plus its accessor/builder API. The one shape policy and audit code reason about regardless of which wire auth produced it. |
 | `identity.c` | The only `.c` here: implements the `brix_identity_*` builders/accessors — `_alloc`, `_set_dn`/`_set_subject`/`_set_vos_csv`/`_set_token_claims`, CSV/space splitters, `_check_token_scope` (delegates to `brix_token_check_read/write`), `_method_name`, and `_describe`. All allocation is pool-based (`ngx_pcalloc`/`ngx_pnalloc`). Registered for build in the top-level `config` file (`NGX_ADDON_SRCS`, `config:268`), **not** in `src/core/config/config.h`. |
 
@@ -113,7 +113,7 @@ the tunables, the auth-mode constants, and the `brix_identity_t` principal defin
 Nothing "runs" in `src/core/types/` except the `identity.c` helpers — these headers are
 **included, not called**. The flow is:
 
-1. `../connection/handler.c` allocates and zero-fills `brix_ctx_t` per TCP accept,
+1. `src/protocols/root/connection/handler.c` allocates and zero-fills `brix_ctx_t` per TCP accept,
    sets every `files[i].fd = -1`, copies `protocol_label`/`peer_ip`/`ip_version`, builds the
    session ID, and points `ctx->metrics` at the SHM slot.
 2. `../handshake/` and `../session/` advance `ctx->state` (`state.h`) and fill the auth
@@ -122,7 +122,7 @@ Nothing "runs" in `src/core/types/` except the `identity.c` helpers — these he
    (`brix_identity_set_dn` / `_set_subject` / `_set_token_claims` / `_set_vos_csv`).
 3. Protocol handlers (`../read/`, `../write/`, `../dirlist/`, `../query/`, …) read the
    per-server config out of `ngx_stream_brix_srv_conf_t`, allocate/free `files[]` slots
-   (free via `brix_free_fhandle()` in `../connection/fd_table.c`), and stage responses
+   (free via `brix_free_fhandle()` in `src/protocols/root/connection/fd_table.c`), and stage responses
    into the `out_ring` slots.
 4. Blocking file I/O detours through `../aio/` using the cached thread tasks on the ctx;
    the completion callback checks `ctx->destroyed` before touching anything.
@@ -130,11 +130,11 @@ Nothing "runs" in `src/core/types/` except the `identity.c` helpers — these he
    (`brix_token_check_read/write`); `brix_identity_set_token_claims` consumes a
    `brix_token_claims_t` produced there.
 
-Sibling subsystems that consume these types most directly: `../connection/README.md`
+Sibling subsystems that consume these types most directly: `../../protocols/root/connection/README.md`
 (allocates/drives the ctx), `../config/README.md` (creates and merges the srv_conf),
-`../read/README.md` and `../write/README.md` (use `files[]`, scratch buffers, AIO tasks),
-`../path/README.md` (resolves the ACL rules), `../token/README.md` and `../gsi/README.md`
-(produce the identity), and `../metrics/README.md` (the SHM struct `ctx->metrics` points at).
+`../../protocols/root/read/README.md` and `../../protocols/root/write/README.md` (use `files[]`, scratch buffers, AIO tasks),
+`../../fs/path/README.md` (resolves the ACL rules), `../../auth/token/README.md` and `../../auth/gsi/README.md`
+(produce the identity), and `../../observability/metrics/README.md` (the SHM struct `ctx->metrics` points at).
 
 ## Invariants, security & gotchas
 
@@ -192,12 +192,12 @@ Sibling subsystems that consume these types most directly: `../connection/README
   `ngx_command_t` and merge it in `../config/`. No `./configure` re-run unless it's a new
   top-level block. (See the build-governance note in `CLAUDE.md`.)
 - **Add a tunable / metric macro →** define it in `tunables.h` with a WHAT/WHY comment;
-  if it's a per-op metric, also wire the enum/field per the `../metrics/README.md` recipe.
+  if it's a per-op metric, also wire the enum/field per the `../../observability/metrics/README.md` recipe.
 - **Add per-connection state →** add the field to `brix_ctx_t` (`context.h`); it is
-  zero-initialised by the `ngx_pcalloc` in `../connection/handler.c`, so document the
+  zero-initialised by the `ngx_pcalloc` in `src/protocols/root/connection/handler.c`, so document the
   meaning of zero. Prefer a `void*` + cast over adding a heavy include to this header.
 - **Add per-handle state →** add to `brix_file_t` (`file.h`) and ensure
-  `brix_free_fhandle()` (`../connection/fd_table.c`) resets/frees it on close.
+  `brix_free_fhandle()` (`src/protocols/root/connection/fd_table.c`) resets/frees it on close.
 - **Add an auth method →** add an `BRIX_AUTHN_*` bit (`identity.h`), teach
   `brix_identity_method_name()` (`identity.c`) about it, and have the verifier call the
   appropriate `brix_identity_set_*` builder. If it's a wire mode, also add an
@@ -208,11 +208,11 @@ Sibling subsystems that consume these types most directly: `../connection/README
 ## See also
 
 - `../README.md` — master source-tree index
-- `../connection/README.md` — allocates and drives `brix_ctx_t`; owns `brix_free_fhandle()`
+- `../../protocols/root/connection/README.md` — allocates and drives `brix_ctx_t`; owns `brix_free_fhandle()`
 - `../config/README.md` — creates and merges `ngx_stream_brix_srv_conf_t`
-- `../read/README.md`, `../write/README.md` — primary consumers of `files[]`, scratch buffers, AIO tasks
+- `../../protocols/root/read/README.md`, `../../protocols/root/write/README.md` — primary consumers of `files[]`, scratch buffers, AIO tasks
 - `../aio/README.md` — thread-pool tasks cached on the ctx
-- `../token/README.md`, `../gsi/README.md` — produce `brix_identity_t`
-- `../path/README.md` — consumes the `config.h` ACL/VO/group rule structs
-- `../metrics/README.md` — the SHM struct `ctx->metrics` and the `op_ok`/`op_err` arrays
+- `../../auth/token/README.md`, `../../auth/gsi/README.md` — produce `brix_identity_t`
+- `../../fs/path/README.md` — consumes the `config.h` ACL/VO/group rule structs
+- `../../observability/metrics/README.md` — the SHM struct `ctx->metrics` and the `op_ok`/`op_err` arrays
 - `src/core/ngx_brix_module.h` — the umbrella header that includes these in dependency order

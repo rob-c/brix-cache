@@ -26,6 +26,7 @@ brix_cms_srv_create_conf(ngx_conf_t *cf)
     conf->max_connections_per_ip = NGX_CONF_UNSET;
     conf->tcp_keepalive    = NGX_CONF_UNSET;
     conf->tcp_user_timeout = NGX_CONF_UNSET_MSEC;
+    conf->max_direct       = NGX_CONF_UNSET;
 
     return conf;
 }
@@ -81,6 +82,20 @@ brix_cms_srv_merge_conf(ngx_conf_t *cf, void *parent, void *child)
 
     /* Phase-89 W6′ (unset = feature off; blfile poll state stays zeroed). */
     ngx_conf_merge_str_value(conf->blacklist_file, prev->blacklist_file, "");
+
+    /* §2.13: whitelist mode — mutually exclusive with the blacklist file
+     * (one file must be the authority; mixing them invites contradictory
+     * re-asserts every poll). */
+    ngx_conf_merge_str_value(conf->whitelist_file, prev->whitelist_file, "");
+    if (conf->whitelist_file.len > 0 && conf->blacklist_file.len > 0) {
+        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            "brix_cms_whitelist_file and brix_cms_blacklist_file are "
+            "mutually exclusive");
+        return NGX_CONF_ERROR;
+    }
+
+    /* §2.9: ManTree-style supervisor offload (0 = off). */
+    ngx_conf_merge_value(conf->max_direct, prev->max_direct, 0);
 
     return NGX_CONF_OK;
 }
@@ -288,12 +303,30 @@ static ngx_command_t  brix_cms_srv_commands[] = {
       NULL },
 
     /* Phase-89 W6′: operator blacklist file (host / host:port / IPv4 CIDR
-     * per line; mtime-polled, re-asserted — the file wins over undrain). */
+     * per line; §2.13 adds `*` host patterns + per-entry `redirect <h:p>`;
+     * mtime-polled, re-asserted — the file wins over undrain). */
     { ngx_string("brix_cms_blacklist_file"),
       NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
       ngx_conf_set_str_slot,
       NGX_STREAM_SRV_CONF_OFFSET,
       offsetof(ngx_stream_brix_cms_srv_conf_t, blacklist_file),
+      NULL },
+
+    /* §2.13: whitelist mode — ONLY matching hosts may register. */
+    { ngx_string("brix_cms_whitelist_file"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_str_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_brix_cms_srv_conf_t, whitelist_file),
+      NULL },
+
+    /* §2.9: at this many direct data servers, redirect new server logins to
+     * a registered supervisor (kYR_try) — ManTree-style tree formation. */
+    { ngx_string("brix_cms_server_max_direct"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_num_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_brix_cms_srv_conf_t, max_direct),
       NULL },
 
     ngx_null_command

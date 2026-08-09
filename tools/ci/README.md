@@ -46,7 +46,7 @@ would move a frozen baseline under us.
 | Script | Invariant enforced | Backlog / baseline | Regen |
 |---|---|---|---|
 | `check_config_coverage.py` | every `src/**/*.c` is built via `./config`, or allowlisted with a reason; no stale `./config` entries | inline allowlist | edit allowlist |
-| `check_client_build_coverage.py` | every `.c` under `client/` + the client-only `shared/{cvmfs,cache}` is named by `client/Makefile`, or is a `*_unit.c`/`*_unittest.c` driver, or is allowlisted with a reason | inline allowlist (empty) | edit allowlist |
+| `check_client_build_coverage.py` | every `.c` under `client/` + the client-only `shared/{cvmfs,cache}` is named by `client/Makefile`, directly included as a continuation, is a `*_unit.c`/`*_unittest.c` driver, or is allowlisted with a reason | inline allowlist (empty) | edit allowlist |
 | `check_make_recipes.py` | no target in a hand-maintained Makefile carries two recipes — make keeps the last and silently drops the other copy's prerequisites, so the object stops rebuilding when they change (SKIPs where `make` is absent) | inline `MAKEFILES` | edit list |
 | `check_vfs_seam.py` | no new storage-plane bypasses of the VFS (tier-2 confined-helper calls, tier-1.5 direct SD vtable I/O) | `vfs_seam_backlog.txt`, `_ns`, `_client` | `--regen` |
 | `check_http_helper_reimpl.py` | protocols must not regrow private copies of the shared HTTP helpers (header scan, preconditions, ETag) | inline allowlist | edit allowlist |

@@ -36,32 +36,11 @@
 #include "fs/vfs/vfs.h"                 /* existence probe via the backend seam */
 #include "core/negcache/negcache.h"    /* E-4: locate-harvest backoff */
 #include "net/manager/registry.h"
-#include "net/manager/redir_cache.h"
 #include "net/manager/pending.h"
-#include "net/manager/loc_cache.h"     /* Phase-89 W3: dynamic location */
 #include "net/cms/cms_internal.h"
-#include "net/cms/server.h"            /* W3: node fan-out set + kYR_state */
+#include "locate_internal.h"           /* locate_ctx_t + locate_try_manager */
 
 #include <arpa/inet.h>
-
-/*
- * locate_ctx_t — per-request state threaded through the locate steps.
- *
- * WHAT: Bundles the connection/config context, the confined request-path buffer
- *       and the wildcard flag so each step takes them as one parameter.
- * WHY:  Keeps the discovery helpers below the parameter-count gate and makes the
- *       shared inputs explicit (no globals), per §8 explicit-data-flow.
- * HOW:  Populated by locate_resolve_reqpath (which fills reqpath/is_wildcard) and
- *       read by the query steps; reqpath points at the orchestrator's stack buffer.
- */
-typedef struct {
-    brix_ctx_t                  *ctx;
-    ngx_connection_t            *c;
-    ngx_stream_brix_srv_conf_t  *conf;
-    char                        *reqpath;    /* confined path buffer (NUL-term) */
-    size_t                       reqpath_sz;
-    int                          is_wildcard;
-} locate_ctx_t;
 
 /*
  * locate_resolve_reqpath — parse, confine and validate the requested path.
@@ -86,9 +65,10 @@ locate_resolve_reqpath(locate_ctx_t *lc, ngx_int_t *out_rc)
 
     /* options: kXR_prefname (0x0100) = prefer DNS names over IPs in response.
      * We always store the server's registered hostname so this is the default.
-     * Parse the field so the compiler sees req as used. */
+     * §2.7: kXR_refresh (0x0080) = the client wants the caches bypassed AND
+     * flushed — honoured in locate_try_manager. */
     xrdw_locate_req_unpack(((ClientRequestHdr *) ctx->recv.hdr_buf)->body, &req);
-    (void) req.options;
+    lc->refresh = (req.options & kXR_refresh) != 0;
 
     if (ctx->recv.cur_dlen == 0 || ctx->recv.payload == NULL) {
         BRIX_OP_ERR(ctx, BRIX_OP_LOCATE);
@@ -103,6 +83,20 @@ locate_resolve_reqpath(locate_ctx_t *lc, ngx_int_t *out_rc)
         *out_rc = brix_send_error(ctx, c, kXR_ArgInvalid,
                                     "invalid path payload");
         return 1;
+    }
+
+    /* A locate path may be PREFIXED with a star -- XrdCl's "locate a server for
+     * a possibly-nonexistent (new) file" form.  Every `xrdfs ls`/read/write does
+     * a Locate first and sends star-then-path (e.g. `ls /` sends star then a
+     * slash).  The reference server strips the marker and answers with a data
+     * server even when the path does not yet exist.  Strip it here and remember
+     * to tolerate a stat miss (locate_check_data_server).  A BARE star is the
+     * distinct self/all wildcard (is_wildcard) and is left intact so its
+     * reqpath stays a lone star. */
+    if (lc->reqpath[0] == '*' && lc->reqpath[1] != '\0') {
+        lc->tolerate_missing = 1;
+        ngx_memmove(lc->reqpath, lc->reqpath + 1,
+                    ngx_strlen(lc->reqpath + 1) + 1);
     }
 
     lc->is_wildcard = (lc->reqpath[0] == '*' && lc->reqpath[1] == '\0');
@@ -124,231 +118,6 @@ locate_resolve_reqpath(locate_ctx_t *lc, ngx_int_t *out_rc)
         return 1;
     }
 
-    return 0;
-}
-
-/*
- * locate_try_cms_parent — suspend the stream and ask the CMS parent to locate.
- *
- * WHAT: On a registry miss under a configured CMS parent, registers a pending
- *       entry, arms the locate-timeout timer, moves the stream to
- *       XRD_ST_WAITING_CMS, and sends a kYR_locate upstream.
- * WHY:  CMS-backed discovery is asynchronous — the reply arrives on a later event
- *       and resumes the suspended stream, so this leg returns NGX_AGAIN.
- * HOW:  Returns 1 with *out_rc = NGX_AGAIN when the suspend succeeded; returns 0
- *       (unwinding pending/timer/state on send failure) so the caller falls
- *       through to the static map / notFound path, exactly as the original.
- */
-static int
-locate_try_cms_parent(locate_ctx_t *lc, ngx_int_t *out_rc)
-{
-    brix_ctx_t                  *ctx = lc->ctx;
-    ngx_connection_t            *c = lc->c;
-    ngx_stream_brix_srv_conf_t  *conf = lc->conf;
-    ngx_brix_cms_ctx_t          *cms = ngx_brix_cms_pick_ctx(conf);
-    uint32_t                     streamid;
-
-    if (cms == NULL) {
-        return 0;
-    }
-
-    streamid = ngx_brix_cms_next_streamid(cms);
-    if (brix_pending_insert(streamid, ngx_pid, c->fd, c->number,
-                              ctx->recv.cur_streamid,
-                              conf->cms.locate_timeout) != NGX_OK)
-    {
-        return 0;
-    }
-
-    ctx->cms_wait_streamid = streamid;
-    ctx->state = XRD_ST_WAITING_CMS;
-    ngx_add_timer(c->read, conf->cms.locate_timeout);
-    if (ngx_brix_cms_send_locate(cms, streamid, lc->reqpath) == NGX_OK)
-    {
-        *out_rc = NGX_AGAIN;
-        return 1;
-    }
-
-    ngx_del_timer(c->read);
-    ctx->state = XRD_ST_REQ_HEADER;
-    brix_pending_remove(streamid, ngx_pid);
-    return 0;
-}
-
-/*
- * locate_try_dynamic — Phase-89 W3: file-granular location via the loc cache
- * and, on a miss, an on-demand kYR_state fan-out to this worker's nodes.
- *
- * WHAT: With brix_cms_locate_window > 0, first consults the SHM loc cache
- *       (path → node that answered kYR_have recently); on a hit, redirects.
- *       On a miss, sends kYR_state to up to cms_state_fanout logged-in node
- *       connections whose export prefixes cover the path, parks the client
- *       (pending table + XRD_ST_WAITING_CMS) for the window, and lets the
- *       first kYR_have win (cms_srv_frame_have wakes the client).
- * WHY:  Prefix registration cannot know which node HOLDS a file — every node
- *       exporting "/" matches every path.  This is stock cmsd's on-demand
- *       existence query, scoped per-worker (cross-worker fan-out is the PR-8
- *       aggregation plane).
- * HOW:  Returns 1 with the terminal result in *out_rc (redirect, or NGX_AGAIN
- *       after a successful park); returns 0 — unwinding the pending entry —
- *       when the flag is off or no node could be probed, so the caller falls
- *       through to registry prefix selection exactly as before.  Window
- *       expiry reuses the shared XRD_ST_WAITING_CMS timeout (kXR_wait 5).
- */
-static int
-locate_try_dynamic(locate_ctx_t *lc, ngx_int_t *out_rc)
-{
-    brix_ctx_t                  *ctx = lc->ctx;
-    ngx_connection_t            *c = lc->c;
-    ngx_stream_brix_srv_conf_t  *conf = lc->conf;
-    char                         redir_host[256];
-    uint16_t                     redir_port;
-    uint32_t                     streamid;
-    ngx_uint_t                   i, sent;
-    brix_cms_srv_ctx_t          *node;
-
-    if (conf->caps.cms_locate_window == 0) {
-        return 0;
-    }
-
-    if (brix_loc_cache_lookup(lc->reqpath, redir_host,
-                                sizeof(redir_host), &redir_port))
-    {
-        brix_log_access(ctx, c, "LOCATE", lc->reqpath, "loc-cache",
-                          1, 0, NULL, 0);
-        BRIX_OP_OK(ctx, BRIX_OP_LOCATE);
-        *out_rc = brix_send_redirect(ctx, c, redir_host, redir_port);
-        return 1;
-    }
-
-    /* Park BEFORE probing (mirrors locate_try_cms_parent): the pending entry
-     * must exist when the first kYR_have echoes our streamid back. */
-    streamid = brix_cms_srv_next_streamid();
-    if (brix_pending_insert(streamid, ngx_pid, c->fd, c->number,
-                              ctx->recv.cur_streamid,
-                              conf->caps.cms_locate_window) != NGX_OK)
-    {
-        return 0;
-    }
-
-    sent = 0;
-    for (i = 0; i < brix_cms_srv_node_count()
-                && sent < conf->caps.cms_state_fanout; i++)
-    {
-        node = brix_cms_srv_node_at(i);
-        if (node == NULL || !node->logged_in
-            || !brix_srv_paths_cover(node->paths, lc->reqpath)
-            || brix_srv_is_blacklisted(node->host, node->port))
-        {
-            continue;
-        }
-        if (brix_cms_srv_send_state(node, streamid, lc->reqpath) == NGX_OK) {
-            sent++;
-        }
-    }
-
-    if (sent == 0) {
-        brix_pending_remove(streamid, ngx_pid);
-        return 0;    /* no probe-able node in this worker — fall through */
-    }
-
-    ctx->cms_wait_streamid = streamid;
-    ctx->state = XRD_ST_WAITING_CMS;
-    ngx_add_timer(c->read, conf->caps.cms_locate_window);
-    ngx_log_debug2(NGX_LOG_DEBUG_STREAM, c->log, 0,
-                   "brix: W3 locate: kYR_state fan-out to %ui nodes for %s",
-                   sent, lc->reqpath);
-    *out_rc = NGX_AGAIN;
-    return 1;
-}
-
-/*
- * locate_try_manager — resolve a path via the manager-mode discovery chain.
- *
- * WHAT: In manager_mode (non-wildcard), tries in order: the collapse-redir cache,
- *       the W3 dynamic-location leg (loc cache / kYR_state fan-out, only when
- *       brix_cms_locate_window > 0), the live server registry (seeding the
- *       cache on hit), then the async CMS parent leg.
- * WHY:  Manager nodes hold no data; they redirect clients to the best serving
- *       endpoint. Ordering the cheap cache before the registry before the async
- *       CMS round-trip minimises latency.
- * HOW:  Returns 1 when a leg produced a terminal result (redirect reply stored
- *       through *out_rc, or NGX_AGAIN from the CMS suspend); returns 0 to fall
- *       through to the static-map path. Behaviour is byte-identical to inline.
- */
-static int
-locate_try_manager(locate_ctx_t *lc, ngx_int_t *out_rc)
-{
-    brix_ctx_t                  *ctx = lc->ctx;
-    ngx_connection_t            *c = lc->c;
-    ngx_stream_brix_srv_conf_t  *conf = lc->conf;
-    char                         redir_host[256];
-    uint16_t                     redir_port;
-    char                         list_buf[2048];
-    int                          list_len;
-
-    if (!conf->manager_mode || lc->is_wildcard) {
-        return 0;
-    }
-
-    /* Phase-89 W5: multi-source locate — answer with the FULL live server set
-     * ("S<r|w>host:port" entries, kXR_ok) so the client picks by locality
-     * (lateral redirect) instead of following a single kXR_redirect.  Placed
-     * before the single-entry collapse cache, which cannot represent a set.
-     * Only live (non-blacklisted, host-validated at registration) entries can
-     * appear; an empty set falls through to the single-select / CMS legs. */
-    if (conf->cms.locate_multi) {
-        list_len = brix_srv_locate_all(lc->reqpath, 0, list_buf,
-                                         sizeof(list_buf));
-        if (list_len > 0) {
-            brix_log_access(ctx, c, "LOCATE", lc->reqpath, "registry-multi",
-                              1, 0, NULL, 0);
-            BRIX_OP_OK(ctx, BRIX_OP_LOCATE);
-            *out_rc = brix_send_ok(ctx, c, list_buf,
-                                     (uint32_t) (list_len + 1));
-            return 1;
-        }
-    }
-
-    /* Collapse-redir cache: fast path — single recently-resolved server. */
-    if (conf->caps.collapse_redir
-        && brix_redir_cache_lookup(lc->reqpath, redir_host,
-                                     sizeof(redir_host), &redir_port))
-    {
-        brix_log_access(ctx, c, "LOCATE", lc->reqpath, "redir-cache",
-                          1, 0, NULL, 0);
-        BRIX_OP_OK(ctx, BRIX_OP_LOCATE);
-        *out_rc = brix_send_redirect(ctx, c, redir_host, redir_port);
-        return 1;
-    }
-
-    /* W3 dynamic location: loc-cache hit or kYR_state fan-out + park.
-     * Off (brix_cms_locate_window 0, the default) => zero behavior change. */
-    if (locate_try_dynamic(lc, out_rc)) {
-        return 1;
-    }
-
-    /* Registry: redirect to the best available server for this path. */
-    if (brix_srv_select(lc->reqpath, 0, redir_host,
-                          sizeof(redir_host), &redir_port))
-    {
-        if (conf->caps.collapse_redir) {
-            brix_redir_cache_insert(lc->reqpath, redir_host, redir_port,
-                                      conf->caps.collapse_redir_ttl);
-        }
-        brix_log_access(ctx, c, "LOCATE", lc->reqpath, "registry",
-                          1, 0, NULL, 0);
-        BRIX_OP_OK(ctx, BRIX_OP_LOCATE);
-        *out_rc = brix_send_redirect(ctx, c, redir_host, redir_port);
-        return 1;
-    }
-
-    /* Registry miss — ask the CMS parent via kYR_locate. */
-    if (conf->cms.nctxs > 0 && locate_try_cms_parent(lc, out_rc)) {
-        return 1;
-    }
-
-    /* Fall through to static-map / notFound if suspend fails or no CMS. */
     return 0;
 }
 
@@ -439,6 +208,14 @@ locate_check_data_server(locate_ctx_t *lc, ngx_int_t *out_rc)
             BRIX_OP_OK(ctx, BRIX_OP_LOCATE);
             *out_rc = brix_upstream_start(ctx, c, conf);
             return 1;
+        }
+
+        /* '*'-prefixed (create/new-file) locate: a standalone data server
+         * answers with itself even when the file does not yet exist — the
+         * client is about to create it (this is also what makes `xrdfs ls`
+         * proceed to dirlist).  Fall through to the local-location reply. */
+        if (lc->tolerate_missing) {
+            return 0;
         }
 
         /* E-4: throttle a locate-harvest loop — a principal already over its

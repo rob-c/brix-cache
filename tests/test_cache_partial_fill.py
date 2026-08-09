@@ -16,7 +16,8 @@ from _cache_partial_helpers import (
 # through the registry lifecycle harness, and the slice-cache origin read path
 # SIGSEGVs under heavy concurrency — so this suite runs in the suite runner's
 # SERIAL lane, not the -n12 parallel pool.
-pytestmark = [pytest.mark.serial, pytest.mark.uses_lifecycle_harness]
+pytestmark = [pytest.mark.serial, pytest.mark.uses_lifecycle_harness,
+              pytest.mark.xdist_group("lc-cache-partial")]
 
 BLK = 1024 * 1024  # 1 MiB slice granule (matches the proven brix_cache_slice 1m)
 

@@ -22,7 +22,7 @@ single-threaded event loop and must never block — blocking `pread`/`preadv` is
 to the thread pool in `../aio/`, with the completion callback rebuilding the response
 chain identically to the synchronous path. Since phase-54 the AIO-offloaded and the
 window-pump inline-fallback read/pgread/readv bodies run through the VFS-owned
-thread-safe core `brix_vfs_io_execute()` ([`../fs/vfs_io_core.c`](../../../fs/README.md))
+thread-safe core `brix_vfs_io_execute()` ([`src/fs/vfs/vfs_io_core.c`](../../../fs/README.md))
 rather than a `pread` reimplemented here; these handlers own validation, framing, and
 scheduling. The zero-copy `sendfile` branch and the `preadv2(RWF_NOWAIT)` warm-cache
 probe stay separate by design (they move bytes without a core buffer). Responses are
@@ -36,8 +36,9 @@ The read path is also where the gateway's three operating modes diverge. In a pl
 bytes. In **manager/redirector** mode `kXR_open` / `kXR_stat` / `kXR_locate` do not touch
 the filesystem — they pick a backend via `brix_srv_select()` (`../manager/`), reply
 `kXR_redirect`, and fall back to a CMS `kYR_locate` round-trip (`../cms/`) on a registry
-miss. The **XCache** path (`open_cache.c`, `slice_read.c`) serves reads from a local
-cache root, filling whole files or per-slice fragments from an origin on miss.
+miss. The **XCache** path (`open_cache.c`) serves reads from a local cache root,
+filling whole files — or only the touched `brix_cache_slice_size` windows via the
+composed `sd_cache` tier driver (`src/fs/backend/cache/`) — from an origin on miss.
 
 This subsystem also enforces the read-side security gates: kernel path confinement
 (`RESOLVE_BENEATH` via `../path/`), the authdb / VO-ACL / token-scope `brix_auth_gate`,
@@ -51,15 +52,14 @@ and the global `allow_write` policy for write-mode opens.
 | `open_overview.c` | Module-level WHAT/WHY documentation for the open lifecycle; defines `open_extract_opaque()` (splits the CGI `?...` opaque string off the open payload, trimming a trailing NUL). |
 | `open_request.c` | `brix_handle_open()` — the `kXR_open` protocol entry point: parses `ClientOpenRequest`, detects write-mode, parses TPC opaque params (destination *pull* vs source *serve* rendezvous via `tpc.key`/`tpc.dst`/`tpc.org`), runs manager-mode redirect / static-map / CMS-locate, strips the CGI query, validates depth, resolves the path (read = must-exist via `brix_stat_beneath`, write = `mkpath`-aware), runs the auth gate, then delegates to the cached-read or resolved-file opener. |
 | `open_resolved_file.c` | `brix_open_resolved_file()` — derives `open(2)` flags from XRootD options, builds the POSC staging temp path, runs the pre-flight existence/type checks through `brix_open_probe` (a `brix_vfs_probe` wrapper) — *export* paths only; the upload-stage partial check stays raw-as-worker (marked) — allocates an `fhandle` slot, opens the **export** target through the VFS (`brix_vfs_open_fd_at`) while the separate **cache**/**stage** domains are opened raw-as-worker (svc-owned, behind `vfs-seam-allow` markers; the VFS would mis-resolve them under impersonation), `fstat`s and rejects directories, initialises all per-handle bookkeeping (readable/writable, device/inode, cached size, read-ahead cursors, write-through, write-recovery journal, dashboard slot), evaluates the write-through decision, and assembles the `ServerOpenBody` (+ optional `retstat`) response. |
-| `open_cache.c` | `brix_open_cached_read()` — XCache read-open: VO-ACL check against the auth root (`brix_check_vo_acl_identity`), then either dispatch to slice caching (`brix_open_slice_handle`, when `cache_slice_size > 0` and an origin host is set), serve a whole-file cache hit (`brix_open_resolved_file` with `is_write=0`), or trigger a background origin fill (`brix_cache_open_or_fill`, in `../cache/`). |
-| `slice_read.c` / `slice_read.h` | Phase 26 slice cache: `brix_open_slice_handle()` registers a "slice-mode" handle (fd parked on `/dev/null`) after an async fill of slice 0 yields the origin size; `brix_read_from_slices()` enumerates the slices covering a request, stitches per-slice cache files on a full hit, or schedules a fill of the first missing slice and suspends (re-entered by `brix_slice_read_resume`). |
-| `read.c` | `brix_handle_read()` — `kXR_read`: validates the handle, caps `rlen` at `BRIX_READ_REQUEST_MAX`, then chooses one of four data paths: zero-copy sendfile (cleartext **or** active kTLS, `brix_ktls_send_active`), per-window `kXR_oksofar` streaming for large memory reads (`brix_read_window_pump`), a `preadv2(RWF_NOWAIT)` warm-cache fast path, or AIO/synchronous `pread` into scratch. Routes slice-mode handles to `brix_read_from_slices`, and (phase-42 W4) handles whose `read_codec` was negotiated to `brix_read_compressed`. |
+| `open_cache.c` | `brix_open_cached_read()` — XCache read-open: runs the FULL three-tier auth gate (authdb + VO ACL + token scope, the 2026-07-06 cache-authz fix) against the **export-root** path, then serves a whole-file cache hit (`brix_open_resolved_file` with `is_write=0`) or triggers a background origin fill (`brix_cache_open_or_fill`, in `../cache/`). Slice/partial serving happens below the VFS in the composed `sd_cache` tier driver (`src/fs/backend/cache/`). |
+| `read.c` | `brix_handle_read()` — `kXR_read`: validates the handle, caps `rlen` at `BRIX_READ_REQUEST_MAX`, then chooses one of four data paths: zero-copy sendfile (cleartext **or** active kTLS, `brix_ktls_send_active`), per-window `kXR_oksofar` streaming for large memory reads (`brix_read_window_pump`), a `preadv2(RWF_NOWAIT)` warm-cache fast path, or AIO/synchronous `pread` into scratch. Routes (phase-42 W4) handles whose `read_codec` was negotiated to `brix_read_compressed`. |
 | `read_compress.c` | Phase-42 W4 inline read compression: `brix_read_compressed()` — the opt-in `kXR_read` path for a handle opened with `?xrootd.compress=<codec>` (gated by `brix_read_compress`). Synchronously reads a `BRIX_READ_CHUNK_MAX`-bounded plaintext window, compresses it as one self-contained codec frame (`src/core/compat/codec_core.c`) into the `cmp_scratch` keep-slot, and queues it as a single response (the native client inflates). Strictly isolated so the default plaintext path in `read.c` is byte-identical; pgread/readv never reach it, preserving the pgread CRC32c invariant. |
-| `readv.c` | `brix_handle_readv()` + `brix_readv_read_segments()` — `kXR_readv`: two-phase (validate all handles + size, then allocate one scratch buffer), builds the wire body up front so `preadv` lands bytes directly at `payload_ptr`, coalesces contiguous same-fd ranges (`brix_range_vector_next_coalesced_run`, max 64 iovecs) into fewer `preadv` syscalls, AIO-offloads or runs inline; rejects slice-mode handles with `kXR_Unsupported`. |
-| `pgread.c` | `brix_handle_pgread()` + `brix_pgread_encode_pages()` — `kXR_pgread`: page-mode read with `kXR_status` (`ServerStatusResponse_pgRead`) framing and per-page CRC32c, computed in a single fused copy via `brix_crc32c_copy()`; AIO or inline `pread`; rejects slice-mode handles. |
+| `readv.c` | `brix_handle_readv()` + `brix_readv_read_segments()` — `kXR_readv`: two-phase (validate all handles + size, then allocate one scratch buffer), builds the wire body up front so `preadv` lands bytes directly at `payload_ptr`, coalesces contiguous same-fd ranges (`brix_range_vector_next_coalesced_run`, max 64 iovecs) into fewer `preadv` syscalls, AIO-offloads or runs inline. |
+| `pgread.c` | `brix_handle_pgread()` + `brix_pgread_encode_pages()` — `kXR_pgread`: page-mode read with `kXR_status` (`ServerStatusResponse_pgRead`) framing and per-page CRC32c, computed in a single fused copy via `brix_crc32c_copy()`; AIO or inline `pread`. |
 | `prefetch.c` / `prefetch.h` | Best-effort `POSIX_FADV_WILLNEED` read-ahead: `brix_prefetch_fd_range` (basic fd-range hint, ≥1 MiB guard), `brix_prefetch_read_file` (sequential-pattern detection with windowed extension keyed on `read_last_end`/`read_ahead_end`), `brix_prefetch_flush`, and `brix_prefetch_readv_segments` (merge nearby same-fd ranges). HEP-tuned constants (1 MiB min, 32 MiB window, 8 MiB low-water). |
 | `read.h` | Declarations + WHAT/WHY for the three byte-transfer opcodes and the shared `brix_pgread_encode_pages` page encoder. |
-| `stat.c` / `stat.h` | `brix_handle_stat()` — `kXR_stat` dual-mode: path → `brix_stat_beneath`; handle → `fstat`, **except** a driver-backed handle (`files[idx].sd_obj.driver` non-default, e.g. pblock) reports via the driver's `fstat` so the logical object size is correct rather than block 0's (the bare fd is only block 0); zip-member → archive `fstat` + member `cached_size`; slice-mode → synthesized from `cached_size`. Manager-mode registry/CMS-locate redirect; `brix_cache_path_flag()` adds `kXR_cachersp`; body formatted by `brix_make_stat_body`. |
+| `stat.c` / `stat.h` | `brix_handle_stat()` — `kXR_stat` dual-mode: path → `brix_stat_beneath`; handle → `fstat`, **except** a driver-backed handle (`files[idx].sd_obj.driver` non-default, e.g. pblock) reports via the driver's `fstat` so the logical object size is correct rather than block 0's (the bare fd is only block 0); zip-member → archive `fstat` + member `cached_size`. Manager-mode registry/CMS-locate redirect; `brix_cache_path_flag()` adds `kXR_cachersp`; body formatted by `brix_make_stat_body`. |
 | `statx.c` / `statx.h` | `brix_handle_statx()` — `kXR_statx` batched stat of up to 256 NUL-separated paths into one inline-line response, applying the **full** authdb + VO-ACL + token-scope gate per path and emitting an `"0 0 0 0"` sentinel for inaccessible/missing entries; last `\n` replaced with `\0`. |
 | `locate.c` / `locate.h` | `brix_handle_locate()` — `kXR_locate`: manager-mode registry / collapse-redir cache / CMS redirect, static-map redirect, wildcard (`*`) pass-through, or local existence + auth gate returning an `S<rw>host:port` endpoint string (IPv4/IPv6/localhost forms). |
 | `close.c` / `close.h` | `brix_handle_close()` — `kXR_close`: logs throughput before freeing, performs the POSC `fsync` + atomic `rename`, runs the write-through close-time flush (`brix_wt_flush_on_close`), flushes the write-recovery journal (`brix_wrts_flush`), releases the dashboard slot, and `brix_free_fhandle()`s the slot. |
@@ -73,10 +73,10 @@ and the global `allow_write` policy for write-mode opens.
   populates it (`fd`, `readable`/`writable`, `is_regular`, `from_cache`, `device`/`inode`,
   `cached_size`, `bytes_read`/`bytes_written`, `open_time`, the `read_last_end`/
   `read_ahead_end` prefetch cursors, the `wt_*` write-through fields, the `wrts_*`
-  write-recovery ring, `posc_final_path`, `dashboard_slot`, and the `slice_mode` /
-  `slice_size` / `slice_cache_path` / `slice_clean_path` cache fields); every other
+  write-recovery ring, `posc_final_path`, `dashboard_slot`, and the `slice_size`
+  cache field); every other
   opcode reads it; `kXR_close` frees it. A slot is "in use" iff `fd >= 0`.
-- **`brix_ctx_t`** (`../types/context.h`): the per-connection context carrying
+- **`brix_ctx_t`** (`src/core/types/context.h`): the per-connection context carrying
   `files[]`, `cur_streamid`, `payload`/`cur_dlen`, the reusable AIO task handles
   (`read_aio_task`, `readv_aio_task`, `pgread_aio_task`), the `read_scratch` buffer and
   its size, the windowed-read cursor (`rd_win_*`), `session_bytes`, the
@@ -94,10 +94,6 @@ and the global `allow_write` policy for write-mode opens.
 - **`brix_read_aio_t` / `brix_readv_aio_t` / `brix_pgread_aio_t`** (`../aio/`):
   the task payloads carrying `fd`, `offset`, `rlen`, the scratch pointer, and the
   `streamid` needed to restore the suspended request in the done callback.
-- **`brix_cache_fill_t`** (`../cache/`): reused by `slice_read.c` to carry the slice
-  index/start/len, cache/part/lock paths, and the original `kXR_read`
-  (`slice_read_idx`/`_offset`/`_rlen`) so the read handler can be re-entered after a
-  slice fill lands.
 
 ## Control & data flow
 
@@ -123,22 +119,23 @@ bound and calls one `brix_handle_*()`. From there:
   `brix_build_pgread_status`, `brix_make_stat_body`,
   `brix_send_ok`/`_error`/`_wait`/`_redirect`/`_redirect_tpc`,
   `brix_queue_response`/`_chain`, `brix_release_read_buffer`.
-- **Caching** → [`../cache/`](../../../fs/cache/README.md): `brix_cache_open_or_fill`,
-  `brix_cache_slice_fill_thread`, slice enumeration (`brix_slice_enumerate`,
-  `brix_slice_path`, `../cache/slice.h`); and the write-through decision/flush
-  (`../cache/writethrough_*`, `conf->wt_decision.fn`).
+- **Caching** → [`../cache/`](../../../fs/cache/README.md): `brix_cache_open_or_fill`
+  through the cstore adapter (partial fills via the composed `sd_cache` tier,
+  `src/fs/backend/cache/`); and the write-through decision
+  (`src/fs/cache/writethrough_decision.c`, `conf->wt_decision.fn`) with flushes
+  submitted to the stage engine (`src/fs/xfer/stage_engine.c`).
 - **Cluster** → [`../manager/`](../../../net/manager/README.md) (`brix_srv_select`,
   `brix_redir_cache_lookup`/`_insert`, `brix_manager_tried_exhausted`,
   `brix_find_manager_map`) and [`../cms/`](../../../net/cms/README.md)
-  (`ngx_brix_cms_send_locate` + `../manager/pending.c` for the suspended-request table).
+  (`ngx_brix_cms_send_locate` + `src/net/manager/pending.c` for the suspended-request table).
 - **TPC** → [`../tpc/`](../../../tpc/README.md): `brix_tpc_parse_opaque`,
   `brix_tpc_key_register`/`_consume`/`_generate_key`, `brix_tpc_prepare_pull`,
   `brix_tpc_check_authz`, plus `brix_send_redirect_tpc`.
 - **Upstream proxy** → [`../upstream/`](../../../net/upstream/README.md): `brix_upstream_start`
   when a local read/stat/locate misses but an upstream origin is configured.
 - **Cross-cutting** → write-recovery journal (`../write/wrts_journal.h`,
-  `brix_wrts_open`/`_flush`), POSC temp paths (`../compat/tmp_path.h`,
-  `brix_make_tmp_path`), mirror replay (`../mirror/stream_wmirror.h`,
+  `brix_wrts_open`/`_flush`), POSC temp paths (`src/core/compat/tmp_path.h`,
+  `brix_make_tmp_path`), mirror replay (`src/net/mirror/stream_wmirror.h`,
   `brix_stream_wmirror_on_open`), session publish (`../session/registry.h`,
   `brix_session_handle_publish`), rate-limit bandwidth charge (`brix_rl_charge_ctx`,
   `../ratelimit/`), and the live-transfer dashboard (`../dashboard/`,
@@ -164,11 +161,6 @@ bound and calls one `brix_handle_*()`. From there:
   (`pgread.c:69–71`), matching `AsyncPageReader::InitIOV` — digest first, then page data —
   with a `kXR_status` header carrying the next expected offset. Getting the order or the
   per-page size (`kXR_pgPageSZ`) wrong silently corrupts xrdcp v5 transfers.
-- **Slice-mode handles are read-only and `kXR_read`-only.** Their fd is parked on
-  `/dev/null` as a "slot in use" sentinel; `readv`/`pgread`/`stat` must special-case
-  them (`files[idx].slice_mode`) — `readv`/`pgread` reject with `kXR_Unsupported`,
-  `stat` synthesizes the size from `cached_size`. A raw `pread` on the sentinel fd
-  returns empty data, not cached bytes.
 - **Memory budget + windowing bound resident heap.** Large memory-path reads admit only
   one `BRIX_READ_WINDOW` (~2 MiB) and stream via `kXR_oksofar` (`read.c`); `readv`
   admits its whole response (up to `BRIX_MAX_READV_TOTAL` = 256 MiB) against the
@@ -193,15 +185,14 @@ bound and calls one `brix_handle_*()`. From there:
 - **AIO/CMS suspension uses `streamid`, not the connection.** Done callbacks call
   `brix_aio_restore_request(ctx, streamid)` before touching `ctx`; if it returns false
   the original request is gone (client disconnected) and the callback must bail without
-  resuming. The slice read-resume only resumes the connection when the re-run leaves
-  `XRD_ST_AIO`. `readv` total bytes must equal the requested run or it errors as
+  resuming. `readv` total bytes must equal the requested run or it errors as
   "past EOF".
 - **`readv` segment math is overflow-checked.** `brix_size_mul`, the
   `BRIX_READV_MAXSEGS` cap, and per-segment offset+length overflow guards run before
   any `malloc`/`preadv` (`readv.c`) — defense in depth over the recv-layer payload cap
   (a malformed-payload `kXR_ArgInvalid` enters at `readv.c:214`). Note the documented
   `read_scratch` corruption gotcha (phase-29 blocker) when refactoring the shared
-  scratch buffer across `read.c`/`readv.c`/`slice_read.c` — it is reused across requests
+  scratch buffer across `read.c`/`readv.c` — it is reused across requests
   on one connection, so a stale pointer or premature release silently corrupts data.
 
 ## Entry points / extending
@@ -232,10 +223,10 @@ write-through decision engine in `../cache/` rather than threading new state thr
 - [`../handshake/README.md`](../handshake/README.md) — opcode dispatch into this module.
 - [`../write/README.md`](../write/README.md) — sibling write opcodes sharing the handle table.
 - [`../path/README.md`](../../../fs/path/README.md) — confinement, resolution, and the auth gate.
-- [`../aio/README.md`](../../../core/aio/README.md) — thread-pool offload and suspend/resume.
+- [`../../../core/aio/README.md`](../../../core/aio/README.md) — thread-pool offload and suspend/resume.
 - [`../response/README.md`](../response/README.md) — wire framing and response chains.
-- [`../cache/README.md`](../../../fs/cache/README.md) — XCache fill, slice cache, write-through.
+- [`../../../fs/cache/README.md`](../../../fs/cache/README.md) — XCache fill, cstore adapter, write-through.
 - [`../connection/README.md`](../connection/README.md) — fd table, budget, send/recv.
-- [`../manager/README.md`](../../../net/manager/README.md) / [`../cms/README.md`](../../../net/cms/README.md) — cluster redirect & locate.
-- [`../tpc/README.md`](../../../tpc/README.md) — native third-party-copy key registry.
-- [`../upstream/README.md`](../../../net/upstream/README.md) — upstream-origin fallthrough.
+- [`../../../net/manager/README.md`](../../../net/manager/README.md) / [`../../../net/cms/README.md`](../../../net/cms/README.md) — cluster redirect & locate.
+- [`../../../tpc/README.md`](../../../tpc/README.md) — native third-party-copy key registry.
+- [`../../../net/upstream/README.md`](../../../net/upstream/README.md) — upstream-origin fallthrough.

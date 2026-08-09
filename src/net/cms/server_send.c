@@ -121,3 +121,35 @@ brix_cms_srv_send_state(brix_cms_srv_ctx_t *ctx, uint32_t streamid,
     return brix_cms_srv_send_frame(ctx, streamid, CMS_RR_STATE, mod,
                                      (const u_char *) path, len + 1);
 }
+
+/*
+ * brix_cms_srv_send_try — §2.9/§2.13: redirect a node at login (kYR_try).
+ *
+ * WHAT: Sends a kYR_try frame on streamid 0 naming ONE alternate manager:
+ *       payload = NUL-terminated host + 2-byte big-endian port — the same
+ *       shape cms_frame_redirect parses on the receiving node.
+ * WHY:  Two producers share it: the ManTree-style supervisor offload (a
+ *       manager at max_direct redirecting a new server to a supervisor) and
+ *       a blacklist entry's `redirect <host:port>` action.  streamid 0 marks
+ *       it as unsolicited — the node's redirect handler treats a 0-streamid
+ *       try as "re-dial there", never as a locate answer.
+ * HOW:  Pack host+NUL+port into a stack buffer; synchronous frame send.
+ */
+ngx_int_t
+brix_cms_srv_send_try(brix_cms_srv_ctx_t *ctx, const char *host,
+    uint16_t port)
+{
+    u_char  payload[256 + 3];
+    size_t  host_len = ngx_strlen(host);
+
+    if (host_len == 0 || host_len >= sizeof(payload) - 3) {
+        return NGX_ERROR;
+    }
+    ngx_memcpy(payload, host, host_len);
+    payload[host_len] = '\0';
+    payload[host_len + 1] = (u_char) (port >> 8);
+    payload[host_len + 2] = (u_char) (port & 0xff);
+
+    return brix_cms_srv_send_frame(ctx, 0, CMS_RR_TRY, 0, payload,
+                                     host_len + 3);
+}

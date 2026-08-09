@@ -1,0 +1,92 @@
+---
+// The homepage signature: a routing schematic on an oscilloscope graticule.
+// Four protocol inputs converge on ONE namespace node (the shared VFS holding a
+// single file), which resolves to the storage backend — the whole product in one
+// picture. Protocol-coloured signal pulses travel each trace (paused for anyone
+// who prefers reduced motion). Pure SVG + CSS offset-path, no runtime JS.
+---
+<div
+  class="router"
+  role="img"
+  aria-label="Routing schematic: four protocol inputs — root://, davs://, s3://, and gsiftp:// — converge on one namespace node holding /data/higgs.root, which resolves to the shared VFS storage backend."
+>
+  <span class="router-cap mono">namespace router</span>
+  <svg viewBox="0 0 440 300" preserveAspectRatio="xMidYMid meet">
+    <!-- traces: input port -> core -->
+    <path class="trace" style="stroke:var(--root)" d="M92,64 C150,64 150,150 214,150" />
+    <path class="trace" style="stroke:var(--dav)"  d="M92,116 C150,116 160,150 214,150" />
+    <path class="trace" style="stroke:var(--s3)"   d="M92,184 C150,184 160,150 214,150" />
+    <path class="trace" style="stroke:var(--ftp)"  d="M92,236 C150,236 150,150 214,150" />
+    <path class="trace" style="stroke:var(--root);opacity:.7" d="M330,150 C356,150 356,150 384,150" />
+
+    <!-- input ports -->
+    <g class="node-lab">
+      <rect class="port" x="18" y="52"  width="74" height="24" rx="4" fill="var(--panel)" stroke="var(--root)" />
+      <text x="27" y="67"  style="fill:var(--root)">root://</text>
+      <rect class="port" x="18" y="104" width="74" height="24" rx="4" fill="var(--panel)" stroke="var(--dav)" />
+      <text x="27" y="119" style="fill:var(--dav)">davs://</text>
+      <rect class="port" x="18" y="172" width="74" height="24" rx="4" fill="var(--panel)" stroke="var(--s3)" />
+      <text x="27" y="187" style="fill:var(--s3)">s3://</text>
+      <rect class="port" x="18" y="224" width="74" height="24" rx="4" fill="var(--panel)" stroke="var(--ftp)" />
+      <text x="27" y="239" style="fill:var(--ftp)">gsiftp://</text>
+    </g>
+
+    <!-- core namespace node -->
+    <rect class="node-core" x="214" y="120" width="116" height="60" rx="7" />
+    <text class="node-lab" x="272" y="146" text-anchor="middle">one namespace</text>
+    <text class="node-sub" x="272" y="160" text-anchor="middle">shared VFS · auth · cache</text>
+    <text class="node-sub" x="272" y="171" text-anchor="middle" style="fill:var(--root)">/data/higgs.root</text>
+
+    <!-- disk node -->
+    <rect class="node-box" x="384" y="128" width="44" height="44" rx="5" />
+    <ellipse cx="406" cy="140" rx="15" ry="4.5" fill="none" stroke="var(--ink-3)" stroke-width="1" />
+    <path d="M391,140 v20 a15,4.5 0 0 0 30,0 v-20" fill="none" stroke="var(--ink-3)" stroke-width="1" />
+    <text class="node-sub" x="406" y="190" text-anchor="middle">storage</text>
+
+    <!-- animated signal pulses -->
+    <circle class="pulse"     style="fill:var(--root);offset-path:path('M92,64 C150,64 150,150 214,150')" />
+    <circle class="pulse p2"  style="fill:var(--dav); offset-path:path('M92,116 C150,116 160,150 214,150')" />
+    <circle class="pulse p3"  style="fill:var(--s3);  offset-path:path('M92,184 C150,184 160,150 214,150')" />
+    <circle class="pulse p4"  style="fill:var(--ftp); offset-path:path('M92,236 C150,236 150,150 214,150')" />
+    <circle class="pulse out" style="fill:var(--root);offset-path:path('M330,150 C356,150 356,150 384,150')" />
+  </svg>
+</div>
+
+<style>
+  .router {
+    position: relative;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background:
+      linear-gradient(color-mix(in srgb, var(--ink) 6%, transparent) 1px, transparent 1px) 0 0 / 100% 22px,
+      linear-gradient(90deg, color-mix(in srgb, var(--ink) 6%, transparent) 1px, transparent 1px) 0 0 / 22px 100%,
+      var(--panel);
+    box-shadow: var(--shadow);
+    padding: 0.5rem;
+    overflow: hidden;
+  }
+  .router-cap {
+    position: absolute; top: 0.75rem; left: 0.9rem;
+    font-size: 0.62rem; letter-spacing: 0.16em; text-transform: uppercase;
+    color: var(--ink-3);
+  }
+  .router svg { width: 100%; height: auto; }
+
+  .trace { fill: none; stroke-width: 1.6; opacity: 0.5; }
+  .node-box { fill: var(--panel); stroke: var(--line-2); stroke-width: 1; }
+  .node-core { fill: color-mix(in srgb, var(--root) 12%, var(--panel)); stroke: var(--root); stroke-width: 1.4; }
+  .node-lab { font-family: var(--mono); font-size: 8.5px; fill: var(--ink); font-weight: 600; }
+  .node-sub { font-family: var(--mono); font-size: 6.5px; fill: var(--ink-3); }
+  .port { stroke-width: 1.2; }
+
+  .pulse { r: 3; offset-rotate: 0deg; animation: routeflow 2.4s linear infinite; }
+  .pulse.p2 { animation-delay: .6s; }
+  .pulse.p3 { animation-delay: 1.2s; }
+  .pulse.p4 { animation-delay: 1.8s; }
+  .pulse.out { animation-duration: 1.6s; }
+  @keyframes routeflow { from { offset-distance: 0%; } to { offset-distance: 100%; } }
+
+  @media (prefers-reduced-motion: reduce) {
+    .pulse { animation: none; display: none; }
+  }
+</style>

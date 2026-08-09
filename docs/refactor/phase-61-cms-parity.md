@@ -431,7 +431,7 @@ classification, metaman, HAVE relay-take), `connect.c` (relay flush),
 `cms_internal.h` (constants), `stats_doc`+`send_stats` (PR-A, both legs);
 `src/net/manager/registry.c/.h` + `registry_health.c` (role field);
 `src/core/types/conf_structs.h` + `server_conf_merge_cluster.c` +
-`directives_cms.inc` + `module_enums.c` (config); repo `./config`
+`directives_cms.h` + `module_enums.c` (config); repo `./config`
 (state_relay). Tests: `tests/test_cms_wire_pup_conformance.py` + templates
 `nginx_cms_wire_role_node.conf`/`nginx_cms_wire_super.conf` + 3 ledger ports
 (30412–30414).

@@ -180,7 +180,14 @@ def run_checks(base: Path, names: list[str] | None = None) -> list[tuple[bool, s
     results: list[tuple[bool, str]] = []
     for name in selected:
         if name == "brutal_teardown":
-            results.extend(brutal_teardown(Path(os.environ.get("TEST_ROOT", "/tmp/xrd-test"))))
+            # Operate on the caller-supplied `base`, NOT os.environ["TEST_ROOT"].
+            # The in-suite test (test_cmd_operator_build) calls this with a
+            # throwaway tmp_path; reading the live TEST_ROOT instead made this
+            # check STOP-ALL + SIGTERM + rmtree the SHARED fleet mid-run — the
+            # root cause of the fleet-availability cascade.  The operator CLI
+            # (entry()) passes the real TEST_ROOT as base, so the standalone
+            # `operator_build brutal_teardown` utility still cleans a wedged run.
+            results.extend(brutal_teardown(base))
         elif name == "build_sanitizer":
             results.extend(build_sanitizer(Path(os.environ.get("NGINX_SRC", "/tmp/nginx-1.28.3"))))
         elif name == "build_coverage":
@@ -196,8 +203,16 @@ def entry(argv: list[str]) -> int:
     import tempfile
 
     names = argv or ["brutal_teardown", "build_dynamic_modules", "build_sanitizer"]
-    with tempfile.TemporaryDirectory(prefix="operator_build.") as tmp:
-        results = run_checks(Path(tmp), names=names)
+    # The operator CLI genuinely targets the real TEST_ROOT: `brutal_teardown`
+    # is the documented way to clean a wedged fleet, so pass it as `base`.
+    # (The in-suite test drives run_checks directly with a throwaway tmp_path
+    # and never reaches here, so it can never touch the live fleet.)
+    if "brutal_teardown" in names:
+        results = run_checks(
+            Path(os.environ.get("TEST_ROOT", "/tmp/xrd-test")), names=names)
+    else:
+        with tempfile.TemporaryDirectory(prefix="operator_build.") as tmp:
+            results = run_checks(Path(tmp), names=names)
     for ok, message in results:
         print(f"  {'ok  ' if ok else 'FAIL'} {message}")
     return 0 if all(ok for ok, _ in results) else 1

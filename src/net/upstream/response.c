@@ -55,7 +55,7 @@ brix_upstream_forward_response(brix_upstream_t *up)
 
             ngx_memcpy(&port_be, body, sizeof(port_be));
             ngx_log_error(NGX_LOG_INFO, c->log, 0,
-                          "brix: upstream redirect to %.*s:%u",
+                          "brix: upstream redirect to %.*s:%ud",
                           (int) (dlen - 4), body + 4, ntohl(port_be));
         }
 

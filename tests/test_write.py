@@ -169,7 +169,8 @@ class TestWriteAnon:
         # xrdcp to the GSI port with no proxy — must not exit 0
         cmd = (
             "env -u X509_USER_PROXY -u X509_CERT_DIR "
-            f"xrdcp {local} root://{HOST}:11095//{PREFIX}nocreds.txt 2>/dev/null"
+            f"xrdcp {local} root://{HOST}:{NGINX_GSI_PORT}//{PREFIX}nocreds.txt "
+            "2>/dev/null"
         )
         rc = os.system(cmd)
         os.unlink(local)

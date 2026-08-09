@@ -31,6 +31,7 @@ import subprocess
 
 import pytest
 
+from cmdscripts.live_common import inject_nginx_load_modules, inject_nginx_runtime_paths
 from settings import BIND_HOST, NGINX_BIN
 
 pytestmark = pytest.mark.usefixtures()  # self-contained; no fleet attach
@@ -61,6 +62,8 @@ def _run_nginx_t(tmp_path, body: str):
         "  }\n"
         "}\n"
     )
+    inject_nginx_load_modules(conf)
+    inject_nginx_runtime_paths(conf, prefix)
     res = subprocess.run(
         [NGINX_BIN, "-t", "-p", str(prefix), "-c", "conf/nginx.conf"],
         capture_output=True, text=True, timeout=30,

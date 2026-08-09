@@ -103,7 +103,7 @@ The gold-standard proof is the real `libXrdSsi` C++ client
 (`tests/ssi_client.cc`, driven by `test_ssi_wire.py::TestSsiRealClient`):
 echo / metadata / stream / error all round-trip against the module. Async push,
 streaming, alerts, multiplex, and the CTA protocol are proven with raw-wire +
-golden-vector tests (`test_ssi_async/stream/alerts/multiplex/cta.py`). Limitation:
+golden-vector tests (`tests/test_ssi_{async,stream,alerts,multiplex,cta}.py`). Limitation:
 there is no standalone `xrdssi` CLI, so byte-level golden vectors back the cases the
 stock client cannot drive directly.
 
@@ -139,10 +139,23 @@ The reply prefix `XrdSsiRRInfoAttn` is built in `ssi_reply.c`.
 | `ssi_rrinfo.h` / `ssi_rrinfo.c` | `XrdSsiRRInfo` / `RRInfoAttn` byte codec. |
 | `ssi_reply.h` / `ssi_reply.c` | `kXR_query` reply framing (`[RRInfoAttn][metadata][data]`). |
 
+### Other files
+
+| File | Responsibility |
+|---|---|
+| `provider_unittest.c` | standalone unit test for the SSI provider registry. |
+| `registry_unittest.c` | standalone unit test for the SSI session registry. |
+| `respbuf_unittest.c` | standalone unit test for the grow-on-append buffer. |
+| `session_unittest.c` | standalone unit test for the SSI session RRTable. |
+| `ssi_dispatch.c` | The write side of the byte-exact XrdSsi-over-xroot engine glue. |
+| `ssi_internal.h` | Cross-declares the one function that is called across the ssi.c / ssi_dispatch.c file boundary. |
+| `ssi_reply_unittest.c` | standalone unit test for the SSI kXR_query reply layout. |
+| `ssi_service_unittest.c` | standalone unit test for the SSI service registry + built-in handlers, driven through a recording responder. |
+
 ## See also
 
-- `../connection/fd_table.h` — the virtual-handle slot the SSI session hangs off.
-- `../read/open_request.c` — the `kXR_open` interception that routes SSI paths here.
+- `src/protocols/root/connection/fd_table.h` — the virtual-handle slot the SSI session hangs off.
+- `src/protocols/root/read/open_request.c` — the `kXR_open` interception that routes SSI paths here.
 - `tests/test_ssi.py`, `tests/test_ssi_wire.py` (incl. the real `libXrdSsi` client),
   `tests/test_ssi_multiplex.py`, `tests/test_ssi_async.py`, `tests/test_ssi_stream.py`,
   `tests/test_ssi_alerts.py`, `tests/test_ssi_cta.py`, `tests/test_ssi_config.py`,

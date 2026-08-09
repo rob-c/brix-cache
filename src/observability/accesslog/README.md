@@ -31,3 +31,10 @@ The session-lifecycle logger (`../sesslog/`) writes into this same stream via
 explicit flushes live here and are shared rather than duplicated. Lines never
 cross fds: a line targeting a different log than what is buffered forces a
 flush first. Durations are floored at zero as clock-skew protection.
+
+### Other files
+
+| File | Responsibility |
+|---|---|
+| `access_log_internal.h` | Internal seam shared between access_log.c and access_log_sesslog.c. |
+| `access_log_sesslog.c` | Mirror selected legacy access-log records into the sesslog lifecycle (AUTH events and namespace-verb ATTEMPT/RESULT pairs). |

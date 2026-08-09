@@ -1,0 +1,205 @@
+Source: nginx-mod-brix-cache
+Section: httpd
+Priority: optional
+Maintainer: Rob Currie <rob.currie@ed.ac.uk>
+Build-Depends: debhelper-compat (= 13),
+               pkg-config,
+               libssl-dev,
+               libpcre2-dev,
+               zlib1g-dev,
+               libxml2-dev,
+               libjansson-dev,
+               libcurl4-openssl-dev,
+               libkrb5-dev,
+               comerr-dev,
+               libcrypt-dev,
+               libsqlite3-dev,
+               libfuse3-dev,
+               libzstd-dev,
+               liblz4-dev,
+               liburing-dev,
+               librados-dev,
+               libradospp-dev,
+               libradosstriper-dev,
+               libcephfs-dev
+Standards-Version: 4.6.2
+Homepage: https://github.com/HEP-x/nginx-xrootd
+Rules-Requires-Root: no
+
+Package: nginx-mod-brix-cache
+Architecture: any
+Depends: ${shlibs:Depends},
+         ${misc:Depends},
+         ${brix:nginx-abi},
+         curl,
+         librados2,
+         libradosstriper1,
+         libvomsapi1t64 | libvomsapi1v5 | libvomsapi1
+Provides: nginx-mod-xrootd (= ${binary:Version})
+Description: BriX-Cache - XRootD, WebDAV, S3, CMS and metrics modules for nginx
+ Dynamic nginx modules that serve files over the native XRootD stream
+ protocol, WebDAV over HTTPS, and an S3-compatible HTTP subset, with CMS
+ management-listener and Prometheus metrics support.
+ .
+ The modules must be built against the exact nginx version they are loaded
+ into; this package's nginx dependency is therefore pinned to the version it
+ was built for (see /usr/share/doc/nginx-mod-brix-cache/).
+ .
+ VOMS VO/FQAN ACL enforcement loads libvomsapi.so.1 at runtime via dlopen();
+ curl(1) is fork/exec'd by legacy site scripts.  Both are declared explicitly
+ because dpkg-shlibdeps cannot detect them from the ELF link records.
+
+Package: brix-cache-client
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Recommends: brix-xrootdfs-fuse (= ${binary:Version}),
+            brix-cvmfs-fuse (= ${binary:Version})
+Provides: nginx-xrootd-client (= ${binary:Version})
+Description: BriX-Cache clean-room native XRootD client tools (xrdcp, xrdfs, ...)
+ Native command-line XRootD clients built clean-room on the in-tree protocol
+ core (libbrix + libxrdproto) with NO libXrdCl / libXrdSec dependency:
+ xrdcp, xrdfs, xrd, xrdcksum and checksum personalities, xrdqstats, xrdprep,
+ xrdgsiproxy, xrddiag, xrdmapc, xrdgsitest, xrdstorascan, mpxstats-brix,
+ xrdsssadmin-brix and wait41-brix, plus brix-fault-proxy (a root-free TCP
+ fault-injection proxy for resilience testing) and the libbrixposix_preload.so
+ LD_PRELOAD POSIX shim.  The FUSE mounts live in the brix-xrootdfs-fuse and
+ brix-cvmfs-fuse packages (installed by default via Recommends).
+
+Package: brix-cache-client-compat
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Suggests: brix-cache-client
+Description: BriX-Cache native XRootD client tools under a brix- prefix
+ The brix-cache-client tool set installed under a "brix-" prefix so it
+ co-exists with the official xrootd-client package on one host: brix-xrdcp,
+ brix-xrdfs, brix-xrd, brix-xrdcksum (and the checksum personalities
+ brix-xrdadler32/brix-xrdcrc32c/brix-xrdcrc64), brix-xrdqstats, brix-wait41,
+ brix-mpxstats, brix-xrdprep, brix-xrdgsiproxy, brix-xrddiag, brix-xrdmapc,
+ brix-xrdgsitest, brix-xrdsssadmin and brix-xrdstorascan.  The binaries are
+ byte-identical to brix-cache-client's; each self-identifies from argv[0], so
+ usage/version/man output names the brix- alias, never the stock tool.  The
+ Ceph operator tools ship prefixed in brix-tools-compat; the FUSE mounts are
+ never prefixed and stay in brix-xrootdfs-fuse/brix-cvmfs-fuse.
+ .
+ The brix-env(7) manual page referenced by the tool man page footers ships in
+ brix-cache-client (dpkg does not permit byte-identical shared ownership the
+ way rpm does); install that package too if you want it.
+
+Package: brix-xrootdfs-fuse
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, fuse3
+Description: BriX-Cache xrootdfs FUSE mount - root:// as a local filesystem
+ The xrootdfs FUSE mount: presents a root:// (XRootD-protocol) endpoint as a
+ local POSIX filesystem, built clean-room on the in-tree protocol core with no
+ libXrdCl/libXrdSec dependency.  One binary carries both drivers - the async
+ default and the synchronous --legacy engine.  Split out of brix-cache-client
+ so a mount-only node (batch worker, interactive login host) can deploy and
+ test it without the full CLI suite.
+ .
+ fuse3 is a hard dependency: xrootdfs forks/execs fusermount3 at
+ mount/unmount time, which dpkg-shlibdeps cannot detect.
+
+Package: brix-cvmfs-fuse
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, fuse3
+Recommends: cvmfs-config
+Description: BriX-Cache brixMount FUSE client for cvmfs:// repositories
+ brixMount: the native BriX CVMFS FUSE client.  Mounts cvmfs:// repositories
+ (served by the BriX cvmfs:// site-cache protocol or stock stratum servers)
+ with CAS verification and an optional writable overlay (cvmfs-rw), and also
+ fronts the xrootdfs async driver via `brixMount xrootdfs <endpoint>`.  Split
+ out of brix-cache-client so a cache/mount tier can deploy and test it
+ standalone.
+ .
+ The cvmfs-config Recommends is a virtual package satisfied by
+ brix-cvmfs-config or any stock cvmfs-config-* provider - repositories mount
+ zero-config once a provider ships /etc/cvmfs keys and domain configuration.
+
+Package: brix-cvmfs-automount
+Architecture: all
+Depends: ${misc:Depends}, brix-cvmfs-fuse (= ${source:Version}), fuse3
+Conflicts: cvmfs
+Description: Automount /cvmfs via the brixMount autofs umbrella daemon
+ Lazily mounts CVMFS repositories under /cvmfs on first access using the
+ native `brixMount autofs` umbrella daemon (no autofs/systemd map dependency;
+ children mount in a farm under /var/lib/brixcvmfs/.mnt and appear as
+ symlinks).  Also ships the classic integration points - /usr/sbin/mount.cvmfs
+ so `mount -t cvmfs` works, an /etc/auto.cvmfs program map for sites that
+ prefer stock autofs, and a brixcvmfs@.service template for static per-repo
+ mounts.  Enable with:
+     systemctl enable --now brixcvmfs-automount
+ .
+ Conflicts with the stock cvmfs package: both own /usr/sbin/mount.cvmfs,
+ /etc/auto.cvmfs and the same /cvmfs automount role.
+
+Package: brix-cvmfs-config
+Architecture: all
+Depends: ${misc:Depends}
+Provides: cvmfs-config (= ${source:Version})
+Conflicts: cvmfs-config-default, cvmfs-config-egi, cvmfs-config-osg
+Description: Default CVMFS configuration and master keys for CVMFS-brix
+ Default domain configuration (cern.ch, egi.eu, opensciencegrid.org stratum-1
+ sets) and the upstream-published master public keys, vendored byte-identical
+ from the stock cvmfs-config-default package (provenance and fingerprints in
+ /etc/cvmfs/keys/README.md).  Everything under /etc is a dpkg conffile:
+ operator edits and rotated keys survive upgrades.
+
+Package: brix-cache-tests
+Architecture: all
+Depends: ${misc:Depends},
+         nginx-mod-brix-cache (= ${source:Version}),
+         brix-cache-client (= ${source:Version}),
+         nginx,
+         python3,
+         python3-pytest,
+         python3-pytest-timeout,
+         python3-pytest-xdist,
+         python3-cryptography,
+         python3-requests,
+         python3-urllib3
+Suggests: python3-xrootd
+Description: Integration and conformance test-suite for BriX-Cache
+ The full pytest integration, conformance, and adversarial test-suite for
+ BriX-Cache (root://, WebDAV, S3, CMS, metrics, FRM, TPC, ...), installed
+ under /usr/share/brix.  Run with, e.g.:
+     cd /usr/share/brix && PYTHONPATH=tests python3 -m pytest tests/ -v
+ .
+ python3-xrootd (the official XRootD python bindings) is only needed by the
+ cross-backend / reference-daemon comparison tests and is not packaged in the
+ Ubuntu archive, hence Suggests.
+
+Package: brix-tools
+Architecture: any
+Depends: ${shlibs:Depends},
+         ${misc:Depends},
+         python3,
+         librados2,
+         libradosstriper1,
+         libcephfs2
+Recommends: python3-rados, python3-cephfs
+Provides: brix-cache-ceph-tools (= ${binary:Version})
+Description: XrdCeph/CephFS migration and rescue operator tools for BriX-Cache
+ XrdCeph <-> CephFS migration tools with zero-move redirect mode,
+ rollback/finalize support, and site-profile configuration: compiled C++
+ primaries (xrdceph_striper_migrate, xrdceph_cephfs_to_striper) plus the
+ pure-Python variants (*.py, libexec-backed pymigrate package) with JSONL
+ output and resumable state, and the offline rescue utilities
+ xrdrados_rescue, xrdcephfs_rescue, and xrdceph_migrate.
+ .
+ The .py tool variants import the distro rados/cephfs python bindings at run
+ time (Recommends); the compiled tools need neither.
+
+Package: brix-tools-compat
+Architecture: any
+Depends: ${shlibs:Depends},
+         ${misc:Depends},
+         librados2,
+         libradosstriper1,
+         libcephfs2
+Description: BriX-Cache XrdCeph/CephFS operator tools under a brix- prefix
+ The compiled brix-tools Ceph/CephFS migration + rescue operators installed
+ under a "brix-" prefix so they co-install with any stock-named counterparts:
+ brix-xrdceph_striper_migrate, brix-xrdceph_cephfs_to_striper,
+ brix-xrdrados_rescue, brix-xrdcephfs_rescue and brix-xrdceph_migrate.  Each
+ self-identifies from argv[0].  The pure-Python migration variants are not
+ prefixed and remain in brix-tools.

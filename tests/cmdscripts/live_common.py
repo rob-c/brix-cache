@@ -5,7 +5,9 @@ from __future__ import annotations
 from contextlib import AbstractContextManager
 from pathlib import Path
 import hashlib
+import json
 import os
+import re
 import shutil
 import signal
 import subprocess
@@ -23,7 +25,71 @@ class LiveFailure(RuntimeError):
     """A failed external command with its captured diagnostic output."""
 
 
-_FROZEN_NGINX: Path | None = None
+def inject_nginx_load_modules(config: str | Path) -> None:
+    """Apply runner-selected dynamic modules to any generated nginx config."""
+    modules = [
+        path for path in os.environ.get("TEST_NGINX_LOAD_MODULES", "").split(os.pathsep)
+        if path
+    ]
+    if not modules:
+        return
+    target = Path(config)
+    body = target.read_text(encoding="utf-8")
+    directives = [f"load_module {json.dumps(path)};" for path in modules]
+    existing = set(body.splitlines())
+    missing = [directive for directive in directives if directive not in existing]
+    if missing:
+        target.write_text("\n".join(missing) + "\n\n" + body, encoding="utf-8")
+
+
+def inject_nginx_runtime_paths(
+    config: str | Path,
+    prefix: str | Path,
+    *,
+    pid_path: str | Path | None = None,
+) -> None:
+    """Confine packaged-nginx runtime files to a test-owned prefix."""
+    target = Path(config)
+    prefix = Path(prefix)
+    logs = prefix / "logs"
+    tmp = prefix / "tmp"
+    logs.mkdir(parents=True, exist_ok=True)
+    tmp.mkdir(parents=True, exist_ok=True)
+    body = target.read_text(encoding="utf-8")
+    main: list[str] = []
+    if not re.search(r"\bpid\s+", body):
+        selected_pid = Path(pid_path) if pid_path is not None else logs / "nginx.pid"
+        main.append(f"pid {json.dumps(str(selected_pid))};")
+    if not re.search(r"\berror_log\s+", body):
+        main.append(f"error_log {json.dumps(str(logs / 'error.log'))} notice;")
+    if main:
+        body = "\n".join(main) + "\n\n" + body
+
+    http_directives = {
+        "access_log": logs / "access.log",
+        "client_body_temp_path": tmp / "client-body",
+        "proxy_temp_path": tmp / "proxy",
+        "fastcgi_temp_path": tmp / "fastcgi",
+        "uwsgi_temp_path": tmp / "uwsgi",
+        "scgi_temp_path": tmp / "scgi",
+    }
+    missing = [
+        f"    {name} {json.dumps(str(path))};"
+        for name, path in http_directives.items()
+        if not re.search(rf"\b{name}\s+", body)
+    ]
+    if missing and re.search(r"\bhttp\s*\{", body):
+        addition = "\n" + "\n".join(missing)
+        body = re.sub(
+            r"(\bhttp\s*\{)", rf"\1{addition}", body, count=1,
+        )
+    target.write_text(body, encoding="utf-8")
+
+
+# Per-source cache: {realpath(src) -> frozen copy}. Keyed on the SOURCE binary,
+# not a single slot, so a process that freezes more than one nginx (e.g. the plain
+# fleet binary AND an ASan build) never returns the wrong cached copy.
+_FROZEN_NGINX: dict[str, Path] = {}
 
 # Literal /tmp, NOT tempfile.gettempdir(): the test lane exports
 # TMPDIR=/tmp/xrd-test/tmp, which pytest's basetemp garbage-rotation
@@ -74,26 +140,37 @@ def freeze_nginx(src: str | Path) -> Path:
     longer matches and is re-frozen.  The copy is validated (``nginx -v``) and
     the swap is atomic (``os.replace``), so no process ever execs a half-written
     binary.  Falls back to the live path if no stable copy can be taken.
+
+    The frozen file is keyed on the SOURCE binary (a short hash of its realpath),
+    not just on TEST_ROOT: an ASan/UBSan nginx and the plain fleet binary share a
+    TEST_ROOT but must never share one ``nginx`` file.  If they did, whichever
+    process copied last would win and the other's servers would exec the wrong
+    binary — e.g. the ASan STATIC build (stream+brix compiled in) then fails to
+    dlopen the distro DYNAMIC modules with ``undefined symbol: ngx_stat_active``,
+    failing every server's ``nginx -t``.  Distinct source -> distinct frozen file,
+    so the two never collide or race.
     """
-    global _FROZEN_NGINX
-    if _FROZEN_NGINX is not None and _FROZEN_NGINX.exists():
-        return _FROZEN_NGINX
     src = Path(src)
     if not src.exists():
         return src
-    frozen = _session_freeze_dir() / "nginx"
+    real = os.path.realpath(src)
+    cached = _FROZEN_NGINX.get(real)
+    if cached is not None and cached.exists():
+        return cached
+    srctag = hashlib.sha1(real.encode()).hexdigest()[:8]
+    frozen = _session_freeze_dir() / f"nginx-{srctag}"
     frozen.parent.mkdir(parents=True, exist_ok=True)
     sstat = src.stat()
     # Reuse a copy an earlier process (the controller, another xdist worker)
-    # already froze — the common path once the session is warm.
+    # already froze of THIS source — the common path once the session is warm.
     if frozen.exists():
         fstat = frozen.stat()
         if (fstat.st_size == sstat.st_size
                 and int(fstat.st_mtime) == int(sstat.st_mtime)
                 and _nginx_validates(frozen)):
-            _FROZEN_NGINX = frozen
+            _FROZEN_NGINX[real] = frozen
             return frozen
-    tmp = frozen.with_name(f".nginx.{os.getpid()}.tmp")
+    tmp = frozen.with_name(f".{frozen.name}.{os.getpid()}.tmp")
     for _ in range(6):
         try:
             shutil.copy2(src, tmp)
@@ -103,7 +180,7 @@ def freeze_nginx(src: str | Path) -> Path:
                 # safe — the running process keeps its open inode; new execs get
                 # the fresh file.
                 os.replace(tmp, frozen)
-                _FROZEN_NGINX = frozen
+                _FROZEN_NGINX[real] = frozen
                 return frozen
             tmp.unlink()
         except OSError:
@@ -272,6 +349,8 @@ class LiveRun(AbstractContextManager["LiveRun"]):
 
     def start_nginx(self, prefix: Path, config: Path, port: int, *, timeout: float = 10) -> None:
         prefix.mkdir(parents=True, exist_ok=True)
+        inject_nginx_load_modules(config)
+        inject_nginx_runtime_paths(config, prefix, pid_path=prefix / "nginx.pid")
         # Self-heal against a LEAKED live nginx squatting this port: if a prior
         # test's teardown was skipped (crash, kill, xdist worker death) its master
         # keeps the fixed port bound and every later run of the same test dies with

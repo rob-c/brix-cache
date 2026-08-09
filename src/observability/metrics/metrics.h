@@ -120,13 +120,17 @@
  *                episode is discarded (earlier data reached the origin).
  *   COMPLETED  — CLEAN and fully written back (flush_gen>0), last flush aged out:
  *                a finished write-back staging copy reclaimed with NO data loss.
- *                (A read-through fill has flush_gen==0 and is left for eviction.)
+ *   COLD       — CLEAN read-through fill (flush_gen==0) untouched for longer than
+ *                brix_cache_cold_max_age: an age-based purge that runs regardless
+ *                of occupancy (upstream pfc.purgecoldfiles). No data loss — the
+ *                bytes are re-fetchable from the origin. Off unless configured.
  * Keep COUNT last; it sizes the per-reason counter array below.
  */
 typedef enum {
     BRIX_CACHE_REAP_ABANDONED = 0,
     BRIX_CACHE_REAP_INCOMPLETE,
     BRIX_CACHE_REAP_COMPLETED,
+    BRIX_CACHE_REAP_COLD,
     BRIX_CACHE_REAP_REASON_COUNT
 } brix_cache_reap_reason_t;
 

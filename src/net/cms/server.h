@@ -106,11 +106,29 @@ struct ngx_stream_brix_cms_srv_conf_s {
 
     /* ---- Phase-89 W6′: file-driven blacklist ----
      * [brix_cms_blacklist_file] path to an operator blacklist (one host,
-     * host:port, or IPv4 CIDR per line).  Polled from the ping tick + after
-     * each registration; file entries win over admin undrain and over the
-     * blacklist-clear inside brix_srv_register (re-asserted every poll). */
+     * host:port, or IPv4 CIDR per line; §2.13 also `*` host patterns and a
+     * per-entry `redirect <host:port>` action answered as kYR_try at login).
+     * Polled from the ping tick + after each registration; file entries win
+     * over admin undrain and over the blacklist-clear inside
+     * brix_srv_register (re-asserted every poll). */
     ngx_str_t          blacklist_file;
     brix_cms_blfile_t  blfile;    /* poll state (all-zeroes valid) */
+
+    /* ---- §2.13: whitelist mode ----
+     * [brix_cms_whitelist_file] inverse of the blacklist: ONLY hosts matching
+     * an entry may register/stay registered; everyone else is blacklisted on
+     * every poll.  Same line grammar (minus `redirect`), same re-assert
+     * posture.  Mutually exclusive with brix_cms_blacklist_file. */
+    ngx_str_t          whitelist_file;
+    brix_cms_blfile_t  wlfile;    /* poll state (all-zeroes valid) */
+
+    /* ---- §2.9: ManTree-style supervisor offload ----
+     * [brix_cms_server_max_direct <n>] once n direct data servers ("S") are
+     * registered, a NEW server login is answered kYR_try naming the least-
+     * utilised registered supervisor ("R") and closed — the node re-dials the
+     * supervisor, forming the tree.  0 (default) = off; logins from
+     * supervisors/managers/peers are never offloaded. */
+    ngx_int_t          max_direct;
 };
 
 /* Module descriptor declared in server_module.c. */
@@ -202,6 +220,11 @@ ngx_int_t brix_cms_srv_send_data(brix_cms_srv_ctx_t *ctx, uint32_t streamid,
  * silent).  Synchronous write; NGX_OK / NGX_ERROR. */
 ngx_int_t brix_cms_srv_send_state(brix_cms_srv_ctx_t *ctx, uint32_t streamid,
     const char *path);
+
+/* §2.9/§2.13: unsolicited login redirect — kYR_try (streamid 0) naming one
+ * alternate manager (host NUL + 2B BE port).  Synchronous; NGX_OK/NGX_ERROR. */
+ngx_int_t brix_cms_srv_send_try(brix_cms_srv_ctx_t *ctx, const char *host,
+    uint16_t port);
 
 /* server_auth.c — W1 registration authentication (CIDR + sss + host validation) */
 

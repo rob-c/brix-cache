@@ -17,11 +17,11 @@ semantics (stored + deflate members).
 | WebDAV GET member path | `../webdav/get.c` | **Done** (uses zip_http) |
 | S3 GetObject member path | `../s3/object.c` | **Done** (uses zip_http) |
 | `brix_{webdav,s3}_zip_access` directives | webdav + s3 modules | **Done** (default off) |
-| `brix_file_t` zip fields | `../types/file.h` | **Done** |
+| `brix_file_t` zip fields | `src/core/types/file.h` | **Done** |
 | Open-path opaque trigger | `../read/open_request.c` | **Done** (`open_extract_zip_member`) |
-| read / stat routing | `../read/read.c`, `stat.c` | **Done** (zip_mode branch) |
+| read / stat routing | `../read/read.c`, `src/protocols/root/read/stat.c` | **Done** (zip_mode branch) |
 | handle cleanup | `../connection/fd_table.c` | **Done** (frees inflate, clears zip_*) |
-| directive `brix_zip_access` + `_cd_max_bytes` | `../stream/module.c`, `../types/config.h`, `../config/server_conf.c` | **Done** (default off) |
+| directive `brix_zip_access` + `_cd_max_bytes` | `../stream/module.c`, `src/core/types/config.h`, `src/core/config/server_conf.c` | **Done** (default off) |
 | Build registration | `../../config` | **Done** (zip_dir.c + zip_member.c) |
 | root:// integration test | `../../tests/test_zip_member.py` | **Done** (8 pass, raw-wire) |
 
@@ -75,7 +75,7 @@ with zipfile.ZipFile("/tmp/ziptest.zip","w") as z:
 PY
 gcc -O2 -Wall -Wextra -Werror -D_GNU_SOURCE -DXRDPROTO_NO_NGX -I../compat -I../protocol \
     -o /tmp/zip_dir_unittest \
-    zip_kernel.c zip_dir.c ../fs/backend/sd_posix.c zip_dir_unittest.c -lz
+    zip_kernel.c zip_dir.c ../../../fs/backend/posix/sd_posix.c zip_dir_unittest.c -lz
 /tmp/zip_dir_unittest /tmp/ziptest.zip
 ```
 

@@ -39,8 +39,15 @@ typedef struct {
     char        vnid[64];                /* virtual network id from login envCGI */
     ngx_uint_t  stage;                   /* 1 = staging available (status stage bit) */
 
-    /* Phase 61 W7 — the node's XrdCmsRole::Type from its LOGIN Mode bits. */
-    char        role[2];                 /* "S" server / "M" manager / "R" supervisor */
+    /* Phase 61 W7 — the node's XrdCmsRole::Type from its LOGIN Mode bits.
+     * §2.17: widened for the peer/proxy types — "S" server, "M" manager,
+     * "R" supervisor, "P" peer, "PS" proxy server. */
+    char        role[4];
+
+    /* §2.3 (cms.sched parity) — the five raw heartbeat theLoad bytes
+     * (cpu, net/io, xeq/runq, mem, pag; each 0-100) so the manager can blend
+     * them with per-component weights instead of only the max (load_pct). */
+    uint8_t     load5[5];
 
     /* Phase 89 W4 — machine-load figure from the heartbeat theLoad bytes. */
     uint32_t    load_pct;                /* 0-100; max of cpu/net/xeq/mem/pag */
@@ -72,7 +79,7 @@ typedef struct {
     char        vnid[64];        /* Phase 89 W9: login virtual network id */
     ngx_uint_t  stage;           /* Phase 89 W9: staging available */
     uint32_t    load_pct;        /* Phase 89 W4: heartbeat machine load 0-100 */
-    char        role[2];         /* Phase 61 W7: node role "S"/"M"/"R" */
+    char        role[4];         /* Phase 61 W7 / §2.17: "S"/"M"/"R"/"P"/"PS" */
 } brix_srv_snapshot_entry_t;
 
 extern ngx_shm_zone_t *brix_srv_shm_zone;
@@ -149,6 +156,72 @@ void brix_srv_set_stage(const char *host, uint16_t port, ngx_uint_t stage);
 void brix_srv_set_machine_load(const char *host, uint16_t port,
     uint32_t load_pct);
 void brix_srv_set_load_weight(ngx_uint_t weight);
+
+/*
+ * §2.3 — cms.sched component-weight parity.
+ *
+ * brix_srv_set_load_vector(): record the five raw heartbeat theLoad bytes
+ *   (cpu, net/io, xeq/runq, mem, pag) for a node so weighted blending can see
+ *   each component, not only the max.
+ * brix_srv_sched_t / brix_srv_set_sched(): per-component selection weights
+ *   (each 0-100; all-zero = engine off, legacy scoring byte-identical),
+ *   plus the fuzz band (two read candidates whose blended metric differs by
+ *   <= fuzz percent are considered equal and rotated round-robin) and the
+ *   maxload ceiling (a node whose blended machine load exceeds it drops to a
+ *   last-resort tier below stale-but-live nodes).  Set once at config time,
+ *   before fork, like brix_srv_set_load_weight.
+ */
+typedef struct {
+    ngx_uint_t  cpu;      /* weight of the cpu byte            */
+    ngx_uint_t  io;       /* weight of the net/io byte         */
+    ngx_uint_t  runq;     /* weight of the xeq/run-queue byte  */
+    ngx_uint_t  mem;      /* weight of the mem byte            */
+    ngx_uint_t  pag;      /* weight of the pag byte            */
+    ngx_uint_t  space;    /* weight of the disk-utilisation %  */
+    ngx_uint_t  fuzz;     /* 0-100: equality band, 0 = off     */
+    ngx_uint_t  maxload;  /* 0-100: overload ceiling, 0 = off  */
+} brix_srv_sched_t;
+
+void brix_srv_set_load_vector(const char *host, uint16_t port,
+    const uint8_t load5[5]);
+void brix_srv_set_sched(const brix_srv_sched_t *sched);
+
+/*
+ * §2.2 — cms.delay servers (SUPCount floor).
+ *
+ * brix_srv_set_delay_servers(): config-time floor (0 = off).
+ * brix_srv_count_servers(): occupied data-serving slots (roles S/PS; managers,
+ *   supervisors and peers are not data-service capacity).
+ * brix_srv_below_floor(): 1 while the floor is configured and unmet — the
+ *   manager should answer selects with kXR_wait instead of redirecting into a
+ *   half-formed cluster.
+ */
+void brix_srv_set_delay_servers(ngx_uint_t n);
+ngx_uint_t brix_srv_count_servers(void);
+int brix_srv_below_floor(void);
+
+/*
+ * §2.9 — ManTree-style supervisor offload.  Find the least-utilised live
+ * supervisor ("R" role) so a manager at its direct-server cap can redirect a
+ * new server login there (kYR_try at login).  Returns 1 and fills host/port,
+ * or 0 when no live supervisor is registered.
+ */
+int brix_srv_find_supervisor(char *host_out, size_t host_size,
+    uint16_t *port_out);
+
+/* §2.9 — is host:port currently registered?  (Reconnecting members are
+ * exempt from the max_direct login offload.) */
+int brix_srv_is_registered(const char *host, uint16_t port);
+
+/*
+ * §2.5 — stage-aware selection.  Select among stage-capable (e->stage == 1)
+ * live nodes whose exports cover path, by MOST free space (a recall lands on
+ * the roomiest tape-front) — the second phase of stock cmsd's "prefer holders,
+ * else stage on the best-space node".  Returns 1 and fills host/port, or 0
+ * when no stage-capable node matches.
+ */
+int brix_srv_select_stage(const char *path, char *host_out, size_t host_size,
+    uint16_t *port_out);
 
 /*
  * Phase 89 W5 — path-affinity sticky selection.

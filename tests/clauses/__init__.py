@@ -16,7 +16,7 @@ def _load():
     seen = set()
     out = []
     for mod in pkgutil.iter_modules(__path__):
-        if mod.name.startswith("_"):
+        if mod.name.startswith("_") or "_part" in mod.name:
             continue
         m = importlib.import_module(f"{__name__}.{mod.name}")
         for c in getattr(m, "CLAUSES", []):

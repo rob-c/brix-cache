@@ -66,8 +66,8 @@ pytestmark = [pytest.mark.timeout(360),
 # from the retired self-provisioning era (it shifts into a per-worker band that
 # no server listens on → ConnectionRefused); the fleet-attach model serves every
 # worker from the one fixed pair, exactly like the ctx-based conf modules.
-OUR_PORT = L.FLEET_OUR_PORT
-OFF_PORT = L.FLEET_OFF_PORT
+OUR_PORT = L.worker_port(14064)   # per-worker band (was shared L.FLEET_OUR_PORT → 20003 collisions)
+OFF_PORT = L.worker_port(14065)
 BIND = BIND_HOST
 
 # opcodes

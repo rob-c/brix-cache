@@ -47,7 +47,7 @@ subsystem is the HTTP-specific glue plus the WebDAV/XrdHttp protocol logic.
 | `config.c` | Location config `create_loc_conf`/`merge_loc_conf`; startup validation: canonicalize export root, build cached `X509_STORE`, load JWKS, validate TPC/CA/CRL paths, parse upstream URLs. |
 | `postconfig.c` | Registers handlers into ACCESS/PRECONTENT/CONTENT/LOG phases; sets `X509_V_FLAG_ALLOW_PROXY_CERTS` on SSL contexts when `proxy_certs on`; resolves the async thread pool. |
 | `webdav.h` | Umbrella header: `ngx_http_brix_webdav_loc_conf_t`, per-request `ngx_http_brix_webdav_req_ctx_t`, lock structs, auth enums, every cross-file prototype, and inline helpers (`webdav_send_no_body`, TPC header macros). Includes `xrdhttp.h`. |
-| `pki.c` | `webdav_check_pki_consistency` — fail `nginx -t` if CA/CRL paths are missing/invalid (delegates to `../crypto/pki_check.h`). |
+| `pki.c` | `webdav_check_pki_consistency` — fail `nginx -t` if CA/CRL paths are missing/invalid (delegates to `src/auth/crypto/pki_check.h`). |
 
 ### Dispatch & generic helpers
 
@@ -132,6 +132,69 @@ standalone data structure behind the REST admin API.
 | `xrdhttp_multipart.c` | `multipart/byteranges` GET (RFC 7233) = kXR_readv-over-HTTP vector read; file-backed data bufs + memory boundary bufs, sendfile-eligible. |
 | `xrdhttp_stats.c` | `?xrd.stats` XML endpoint in XRootD 5.x format from the SHM metrics zone — observable by `xrd_mon`/`xrdfs query stats`; aggregate counters only. |
 
+### Other files
+
+| File | Responsibility |
+|---|---|
+| `access_auth.c` | The credential-source tier of the WebDAV access phase: GSI proxy cert, bearer token, and Basic password sources, the RFC 7617 Basic challenge for browser clients, and the policy gate (access_authenticate) that runs them. |
+| `access_internal.h` | private split contract between access.c and its access-phase siblings (access_auth.c). |
+| `auth_basic.c` | Verifies an `Authorization: Basic <base64 user:password>` header against the same PBKDF2 password db (`user:salthex:hashhex[:vo,..]`) the stream-side `brix_auth pwd` uses, and stamps the request identity (dn = username,. |
+| `auth_token_internal.h` | webdav/auth_token_internal.h — seam between auth_token.c (credential transport + identity plumbing) and auth_token_verify.c (issuer/signature verification). |
+| `auth_token_verify.c` | The four validation steps a parsed bearer token runs through once the header (or query) transport has yielded its bytes: path+op-scoped registry validation, single-issuer JWKS validation, the key-rotation grace retry, an. |
+| `config_internal.h` | declares the handful of config-lifecycle helpers that are DEFINED in one of config.c / config_merge.c / config_proxy.c but REFERENCED from another, after the mechanical file-size split of the former single config.c. |
+| `config_merge.c` | the parent→child directive inheritance/default pass (webdav_merge_base_conf) and the whole "WebDAV enabled" startup-validation chain — export-root prepare, authz-rule finalize, storage-backend + credential configuration,. |
+| `copy_collection.c` | The immutable parameter set of one collection (directory) COPY — the confinement root, the source and destination paths, the source directory mode, and the overwrite/depth flags derived from the request. |
+| `copy_internal.h` | The resolved, validated state of one COPY request: the confined source and destination paths, their stat records, and the overwrite/depth flags plus whether the destination already existed. |
+| `dead_props_internal.h` | shared surface between dead_props.c and its dead_props_keys.c sibling. |
+| `dead_props_keys.c` | True if `c` is an ASCII letter or '_' (the XML NameStartChar subset we permit for a dead-property local name). |
+| `delegation_gridsite_put.c` | Phase-3 T4 step 2: the GridSite putProxy half of the two-step delegation handshake (PUT /.well-known/brix-delegation/<id>). |
+| `delegation_gridsite_req.c` | The standard GridSite getProxyReq/putProxy handshake, adapted to plain HTTP: GET /.well-known/brix-delegation/request returns a fresh CSR + a delegation-id; the client signs the CSR with its own EEC key and PUTs the sign. |
+| `delegation_internal.h` | shared internals for the WebDAV proxy-delegation endpoints, split across delegation.c (shared cert-chain / storage helpers + the Phase-2 T8 upload handler), delegation_store.c (the per-worker pending-delegation store), d. |
+| `delegation_store.c` | A fixed-capacity table of {id, fresh EVP_PKEY*, client_dn, expires_at} entries, one per in-flight getProxyReq/putProxy handshake. |
+| `directives_net.h` | WebDAV clustering/traffic directives (legacy reverse-proxy stubs, WRITE-method mirroring, rate limiting) #included into ngx_http_brix_webdav_commands[] in webdav/module.c (compiler concatenates; setters/enum tables stay. |
+| `directives_storage.h` | WebDAV storage/tier directives (backend, credential, composable tier grammar mirrors, cache, pblock) #included into ngx_http_brix_webdav_commands[] in webdav/module.c (compiler concatenates; setters/enum tables stay visi. |
+| `directives_tpc.h` | WebDAV HTTP-TPC directives (SSRF policy, curl pull settings, stall bounds, marker/streams, credential-forward + OAuth2/OIDC delegation). |
+| `directives_zones.h` | WebDAV shared-memory zone + packet-marking directives (kv/token/auth/revoke caches, rate-limit zones, SciTags pmark) #included into ngx_http_brix_webdav_commands[] in webdav/module.c (compiler concatenates; setters/enum. |
+| `lock_check.c` | Reads the lock xattr on `check`; if active and it covers the target and the client does not own it, reports the operation as blocked. |
+| `lock_discovery.c` | WebDAV UNLOCK, startup lock sweep, and PROPFIND lock-discovery/supportedlock XML (RFC 4918 §9.11, §10.1, §15.8/§15.10). |
+| `lock_internal.h` | cross-file helpers shared by the WebDAV lock translation units (lock.c / lock_check.c / lock_discovery.c). |
+| `macaroon_endpoint_internal.h` | shared internals of the WLCG macaroon-issuance endpoint, split across macaroon_endpoint.c (common front-gate/response helpers), macaroon_endpoint_oauth2.c (POST /.oauth2/token) and macaroon_endpoint_request.c (dCache mac. |
+| `macaroon_endpoint_oauth2.c` | descriptor table driving scope_to_activities. |
+| `macaroon_endpoint_request.c` | dCache-style POST macaroon-request handler. |
+| `methods_proppatch.c` | Invariant state threaded through the PROPPATCH property walk — the request, the resolved+confined target path, and the growing response chain. |
+| `postconfig_internal.h` | Declares the postconfiguration helpers that live in a sibling translation unit but are invoked from ngx_http_brix_webdav_postconfiguration() in postconfig.c. |
+| `postconfig_proxy_capath.c` | Post-merge half of the brix_proxy_ssl_capath directive — walks every finalised location of every server block and, where the directive is set, adds the hashed CA directory to that location's upstream (proxy_ssl) trust st. |
+| `put_body.c` | WebDAV PUT body-write phase (split from put.c). |
+| `put_body_digest.c` | WebDAV PUT ingest-digest verification (split from put_body.c). |
+| `put_internal.h` | shared declarations for the WebDAV PUT split. |
+| `put_setup.c` | WebDAV PUT precondition/setup phase (split from put.c). |
+| `redirect.c` / `.h` | The HTTP plane's redirector. |
+| `search_internal.h` | private split contract for search.c and its siblings. |
+| `search_parse.c` | SEARCH request-body query parsing (RFC 5323 DAV:basicsearch). |
+| `tape_rest.c` / `.h` | The endpoint router + response marshalling + resolve/authz/residency helpers for the standard WLCG Tape REST surface under /api/v1/ so FTS and gfal2 drive tape staging over davs:// against the durable stage request regis. |
+| `tape_rest_internal.h` | Cross-declares the shared request-scoped constants, the small marshalling and authorisation helpers that live in tape_rest.c, and the per-endpoint handlers that live in tape_rest_ops.c - i.e. |
+| `tape_rest_ops.c` | Implements the per-endpoint handlers behind the /api/v1/ Tape REST router: POST /stage (bulk submit), GET /stage/{id} (status), GET /stage (list), DELETE /stage/{id} (delete), POST /stage/{id}/cancel, POST /release[/unpi. |
+| `tpc_copy.c` | Owns the request-level parsing and credential decisions the COPY dispatcher makes before any data moves: pull-xor-push header validation, X-Number-Of-Streams / Overwrite parsing, Source-URL validation, the OAuth2/OIDC Cr. |
+| `tpc_cred_exchange.c` | HTTP-TPC RFC 8693 token-exchange credential delegation. |
+| `tpc_cred_oidc.c` | Resolve the oidc-token binary to an absolute path — first honours an explicit override env var, then probes standard install locations. |
+| `tpc_internal_split.h` | Publishes the pull-context struct and the small set of file-local helpers that are called across the tpc.c / tpc_copy.c / tpc_push.c / tpc_pull.c boundaries: the shared request helpers (identity, session-xfer note, autho. |
+| `tpc_marker_internal.h` | shared state and helper declarations for the WebDAV 202-streaming Performance-Marker path. |
+| `tpc_marker_start.c` | the immutable inputs to a 202-streaming TPC start, bundled so the setup helpers take one struct instead of the 11-parameter public argument list. |
+| `tpc_pull.c` | Owns the pull direction of HTTP-TPC once the request has been parsed and authorized: confined-target probing/preparation, the atomic-commit staged temp file, the three execution tiers (202-streaming marker, thread-pool t. |
+| `tpc_push.c` | Implements the push direction of HTTP-TPC (Third-Party Copy): read a local export file and PUT it to a remote HTTPS Destination. |
+| `tpc_user_proxy.c` / `.h` | unlink() the temp (ignoring ENOENT) then scrub the path bytes. |
+| `tpc_verify.c` | webdav_tpc_verify_pulled() runs after the last byte of a COPY pull has landed in the staged temp and before it is committed. |
+| `webdav_auth.h` | webdav/webdav_auth.h. |
+| `webdav_loc_conf.h` | the ngx_http_brix_webdav_loc_conf_t location-config struct, split (phase-79 file-size burndown) out of the oversized webdav.h with ZERO ABI change (the struct type is identical; every consumer sees it via webdav.h, which. |
+| `webdav_lock.h` | webdav/webdav_lock.h. |
+| `webdav_methods.h` | webdav/webdav_methods.h. |
+| `webdav_metrics.h` | webdav/webdav_metrics.h. |
+| `webdav_path.h` | webdav/webdav_path.h. |
+| `webdav_props.h` | webdav/webdav_props.h. |
+| `webdav_tpc.h` | bundles the six invariant inputs every curl worker needs — the log, the location config, the remote HTTPS URL, the local file path, the collected TransferHeader array, and the live-transfer registry id. |
+| `xrdhttp_response.c` | The response half of the XrdHttp compatibility layer, split verbatim from xrdhttp.c: - HTTP→kXR status mapping table + lookup (X-Xrootd-Status). |
+| `xrdhttp_tpc.c` | Split verbatim from xrdhttp.c: - TPC shim: synthesise Source:/Destination: headers from ?tpc.src= / ?tpc.dst=, and inject an Authorization: Bearer from X-Xrootd-Tpc-Token. |
+
 ## Key types & data structures
 
 - **`ngx_http_brix_webdav_loc_conf_t`** (`webdav.h`) — the per-location
@@ -179,7 +242,7 @@ Entry is via nginx HTTP phase handlers registered in `postconfig.c`:
    handler calls `ngx_http_brix_webdav_resolve_path` (`path.c`) to confine the
    URI under `root_canon`, `webdav_check_locks[_tree]` (`lock.c`) where mutation
    is involved, then performs the operation through `../fs/` (VFS open/stat),
-   `../shared/file_serve.h` (ranged sendfile for GET), `../compat/namespace_ops.h`
+   `../shared/file_serve.h` (ranged sendfile for GET), `src/core/compat/namespace_ops.h`
    (DELETE/MKCOL/MOVE/local COPY), and `../aio/` (PUT/large-copy thread offload).
 4. **Log phase**: bandwidth charge (`../ratelimit/`) + mirror-divergence status.
 
@@ -254,7 +317,7 @@ logic (SigV4 ≠ WLCG token).
   paths/DNs/buckets/UUIDs (`metrics.c`, `xrdhttp_stats.c`). `?xrd.stats` exposes
   aggregate counters only; restrict access via nginx location directives.
 - **`ngx_str_t` is not NUL-terminated** and all request-pool allocation uses
-  `ngx_palloc(r->pool, …)` (see `webdav.h` inline helpers and `../../CLAUDE.md`).
+  `ngx_palloc(r->pool, …)` (see `webdav.h` inline helpers and `../../../CLAUDE.md`).
 
 ## Entry points / extending
 
@@ -267,23 +330,23 @@ logic (SigV4 ≠ WLCG token).
 - **Add a config directive:** add the field to
   `ngx_http_brix_webdav_loc_conf_t` (`webdav.h`, sentinel `NGX_CONF_UNSET*`),
   the `ngx_command_t` row in `module.c`, and the `ngx_conf_merge_*` line in
-  `config.c` (or `tpc_config.c` for TPC, `proxy_config.c` for proxy). No
+  `config.c` (or `tpc_config.c` for TPC, `config_proxy.c` for the outbound-proxy knobs). No
   `./configure` unless you add a new `.c` file (register it in the top-level
   `config` script — the module's `ngx_module_srcs` / `NGX_ADDON_SRCS` list).
 - **Add an XrdHttp signal:** extend `xrdhttp_req_ctx_t` (`xrdhttp.h`), parse it
   in `xrdhttp_parse_request` and emit it in `xrdhttp_add_response_headers`
   (`xrdhttp.c`); fixed-size fields only (bound untrusted client input).
-- **Add a metric:** follow `../metrics/README.md` (enum + field + export) then
+- **Add a metric:** follow `../../observability/metrics/README.md` (enum + field + export) then
   `BRIX_WEBDAV_METRIC_INC(slot)` at the call site.
 
 ## See also
 
 - [`../README.md`](../README.md) — master subsystem index
 - [`../s3/README.md`](../s3/README.md) — sibling HTTP face (S3 REST), same root, distinct auth
-- [`../path/README.md`](../../fs/path/README.md) — RESOLVE_BENEATH confinement
-- [`../fs/README.md`](../../fs/README.md) / [`../aio/README.md`](../../core/aio/README.md) — VFS + thread-pool I/O
-- [`../cache/README.md`](../../fs/cache/README.md) — read-through / write-through cache
-- [`../tpc/README.md`](../../tpc/README.md) — TPC transfer registry & native (stream) TPC
-- [`../token/README.md`](../../auth/token/README.md) / [`../gsi/README.md`](../../auth/gsi/README.md) / [`../crypto/README.md`](../../auth/crypto/README.md) — auth building blocks
-- [`../mirror/README.md`](../../net/mirror/README.md) / [`../ratelimit/README.md`](../../net/ratelimit/README.md) / [`../metrics/README.md`](../../observability/metrics/README.md) / [`../dashboard/README.md`](../../observability/dashboard/README.md) — cross-cutting
-- [`../compat/README.md`](../../core/compat/README.md) — shared HTTP/path/XML/namespace helpers
+- [`../../fs/path/README.md`](../../fs/path/README.md) — RESOLVE_BENEATH confinement
+- [`../../fs/vfs/README.md`](../../fs/README.md) / [`../../core/aio/README.md`](../../core/aio/README.md) — VFS + thread-pool I/O
+- [`../../fs/cache/README.md`](../../fs/cache/README.md) — read-through / write-through cache
+- [`../../tpc/README.md`](../../tpc/README.md) — TPC transfer registry & native (stream) TPC
+- [`../../auth/token/README.md`](../../auth/token/README.md) / [`../../auth/gsi/README.md`](../../auth/gsi/README.md) / [`../../auth/crypto/README.md`](../../auth/crypto/README.md) — auth building blocks
+- [`../../net/mirror/README.md`](../../net/mirror/README.md) / [`../../net/ratelimit/README.md`](../../net/ratelimit/README.md) / [`../../observability/metrics/README.md`](../../observability/metrics/README.md) / [`../../observability/dashboard/README.md`](../../observability/dashboard/README.md) — cross-cutting
+- [`../../core/compat/README.md`](../../core/compat/README.md) — shared HTTP/path/XML/namespace helpers

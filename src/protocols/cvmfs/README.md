@@ -44,6 +44,30 @@ client-gone / degraded / absorbed-404).
 | `upstreams.c` | map (host, port) → synthetic VFS backend export |
 | `cvmfs.h` | loc-conf + request-ctx types; handler/gate/geo APIs |
 
+### Other files
+
+| File | Responsibility |
+|---|---|
+| `attest.c` | since this proxy VERIFIES every CAS byte it serves (phase-85 F1), it can attest exactly which content hashes a job consumed. |
+| `bundle.c` | POST /cvmfs/<repo>/.cvmfs-bundle (gated brix_cvmfs_bundle, default off): the body is a newline-separated want-list of repo-relative CAS paths ("data/<2hex>/<hex>[sfx]"); the response streams every CACHE-RESIDENT member b. |
+| `cvmfs_module_build.c` | The two functions that run only when a location has brix_cvmfs on: - brix_cvmfs_reject_unsupported — EMERG at config load for storage grammar cvmfs cannot honour (staging, CAS slicing, explicit writes). |
+| `cvmfs_module_georank.c` | The config-parse-time helpers that turn geographic directives into backend origin ranks and allow-list state: 1. |
+| `cvmfs_module_internal.h` | Declares the handful of former-static entry points that the cvmfs module's directive table, config-merge orchestrator, and export-build step call across the translation units they were split into (module.c ↔ cvmfs_module. |
+| `cvmfs_module_merge.c` | The four per-concern merge-field helpers and the orchestrator that sequences them: - cvmfs_merge_preamble — adopt unified directives, merge enable, pre-seed the CAS verify default, run the shared common.* merge. |
+| `delta.c` | a CAS data GET carrying `X-Brix-Delta-Base: <40-hex>` (the sha1 of a CAS object the client already holds — typically the revision-N catalog while fetching the N+1 catalog) may be answered as a zstd DELTA of the target ag. |
+| `dict.c` | GET/HEAD /cvmfs/<repo>/.cvmfs-dict/(current\|<40-hex id>) (gated brix_cvmfs_dict, default off): lazily train a zstd dictionary per worker from a bounded sample of this repo's CACHE-RESIDENT CAS objects and serve it with i. |
+| `directives_core.h` | cvmfs core directives (scvmfs:// secure layer, manifest/negative TTL, quarantine, upstream allow/max, trace, per-protocol tier) #included into ngx_http_brix_cvmfs_commands[] in cvmfs/module.c (compiler concatenates; sett. |
+| `directives_resilience.h` | cvmfs origin resilience directives (origin selection/geo-coords, upstream stall detection + force-through retry, server-side geo answering) #included into ngx_http_brix_cvmfs_commands[] in cvmfs/module.c (compiler concat. |
+| `handler_finalize.c` | the pool-cleanup observer handler.c registers on every request, plus its edge helpers: session-log close-out, the optional one-line client trace, and the T16 fill/hit metric accounting — all keyed off the FINAL response. |
+| `learn.c` | a passive per-worker Markov model of CAS access sequences ("a GET of X on this connection is followed by Y"), and an advisory prewarm that fills the predicted successors through the cache-fill seam before they are reques. |
+| `scrub.c` | a repeating worker-0 timer walks the cvmfs cache store in bounded windows and re-runs the cvmfs-cas verify (name-hash == byte-hash) on resident CAS objects; a mismatch is evicted so the next access re-fills verified from. |
+| `secure_internal.h` | cvmfs/secure_internal.h — shared seam between secure.c and secure_x509.c. |
+| `secure_x509.c` | The `brix_scvmfs_authz x509` and `authz voms` back-ends — locate the end-entity cert behind any RFC 3820 proxy chain, glob-gate its subject DN (brix_scvmfs_x509_dn), and, in VOMS mode, glob-gate the extracted VO/FQAN set. |
+| `swarm.c` | generalizes the phase-85 F8 sibling mesh from a static brix_cache_peers ring to gossip-maintained membership: every node serves its member view at /cvmfs/.swarm/roster, periodically pulls a random member's roster (the pu. |
+| `swarm_gossip.c` | the bounded plain-socket roster probe (thread pool), the live-ring rebuild + publish, the gossip lifecycle timers, and the per-worker init that arms them. |
+| `swarm_internal.h` | the membership types, per-process registration/context tables, and former-static entry points shared between swarm.c (registration, membership core, roster wire format, roster endpoint) and swarm_gossip.c (probe thread t. |
+| `virtual.c` | brix_cvmfs_virtual_repo <virtual-fqrn> <member-fqrn>.. |
+
 ## Invariants, security & gotchas
 
 1. Objects are content-addressed: cache verification (cvmfs-cas) must pass
@@ -58,6 +82,6 @@ client-gone / degraded / absorbed-404).
 
 ## See also
 
-- [../shared/](../shared/) — `http_cache_fill.c`, the coalescing fill engine
-- [../../fs/cache/](../../fs/cache/) — verify.c (cvmfs-cas) and the cache tier
+- [../shared/](../shared/) — `src/protocols/shared/http_cache_fill.c`, the coalescing fill engine
+- [../../fs/cache/](../../fs/cache/) — src/fs/cache/verify.c (cvmfs-cas) and the cache tier
 - [../../../docs/04-protocols/](../../../docs/04-protocols/) — protocol-level docs

@@ -1,4 +1,5 @@
-from _test_conf_prepfattr_helpers import *  # noqa: F401,F403  (Phase-38 split shared header)
+from split_continuation import reexport as _reexport
+_reexport(globals(), "_test_conf_prepfattr_helpers")
 
 @pytest.mark.parametrize("name,value", XATTR_CASES)
 def test_xattr_set_get_roundtrip_value_parity(srv, name, value):

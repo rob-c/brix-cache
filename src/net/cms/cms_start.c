@@ -13,6 +13,8 @@
  */
 
 #include "cms_internal.h"
+#include "perf_pgm.h"      /* §2.11: external load feed */
+#include "altds.h"         /* §2.12: foreign-DS liveness monitor */
 #include "state_relay.h"   /* Phase-61 W7: flush parked kYR_state relays */
 #include "action_log.h"                          /* cmsd-action NOTICE lines */
 #include "protocols/root/connection/netopt.h"   /* Phase 50: TCP dead-peer opts (WS5) */
@@ -160,6 +162,13 @@ ngx_brix_cms_start(ngx_cycle_t *cycle, ngx_stream_brix_srv_conf_t *conf)
 
     conf->cms.nctxs = nmgrs;
     conf->cms.rr = 0;
+
+    /* §2.11: external machine-load feed (no-op unless brix_cms_perf_pgm). */
+    brix_cms_perf_start(cycle, conf);
+
+    /* §2.12: foreign-data-server liveness monitor (no-op unless
+     * brix_cms_altds ... monitor). */
+    brix_cms_altds_start(cycle, conf);
 
     ngx_log_error(NGX_LOG_NOTICE, cycle->log, 0,
                   "brix: CMS heartbeat starting for manager %V (%ui manager(s))",

@@ -6,9 +6,9 @@ object to an admin. Drives POSIX, pblock, S3 and **Ceph/RADOS** identically,
 because every filesystem touch goes through the VFS seam (`brix_vfs_*`) — no
 backend symbol appears here.
 
-Design: [`../../docs/superpowers/specs/2026-06-29-storage-scan-verify-design.md`](../../../docs/superpowers/specs/2026-06-29-storage-scan-verify-design.md)
+Design: [`../../../docs/superpowers/specs/2026-06-29-storage-scan-verify-design.md`](../../../docs/superpowers/specs/2026-06-29-storage-scan-verify-design.md)
 and the folded sysadmin-tooling menu
-[`../../docs/superpowers/specs/2026-06-29-client-backend-sysadmin-tooling-design.md`](../../../docs/superpowers/specs/2026-06-29-client-backend-sysadmin-tooling-design.md).
+[`../../../docs/superpowers/specs/2026-06-29-client-backend-sysadmin-tooling-design.md`](../../../docs/superpowers/specs/2026-06-29-client-backend-sysadmin-tooling-design.md).
 
 ## Layering
 
@@ -88,3 +88,10 @@ location /xrootd {
 New source files register in the top-level `./config`
 (`$ngx_addon_dir/src/fs/scan/...`), then `rm -rf objs && ./configure && make`.
 The standalone `scan_unittest.c` is **not** built into the module.
+
+### Other files
+
+| File | Responsibility |
+|---|---|
+| `scan_engine_catalog.c` | per-object context for the catalog-verify action — the enumeration cookie plus the one OPEN driver object being verified and the caller's output line buffer. |
+| `scan_engine_internal.h` | symbols shared between the scan_engine.c translation units (the POSIX-walk core and the catalog-enumeration split). |

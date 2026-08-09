@@ -90,6 +90,10 @@ typedef struct {
 #define BRIX_CMS_ROLE_SERVER      1   /* kYR_server (0x8) */
 #define BRIX_CMS_ROLE_MANAGER     2   /* kYR_manager (0x2), manVOps inbound */
 #define BRIX_CMS_ROLE_SUPERVISOR  3   /* kYR_manager|kYR_server (0xA), supVOps */
+#define BRIX_CMS_ROLE_PEER        4   /* §2.17: kYR_peer — overflow cluster
+                                         consulted only on a local miss */
+#define BRIX_CMS_ROLE_PROXY       5   /* §2.17: kYR_proxy|kYR_server — proxy
+                                         data server (selectable normally) */
 
 /* One configured CMS manager endpoint (an entry of brix_cms_conf_t.managers).
  * The raw string is NUL-terminated (brix_copy_conf_string) so log/action sites
@@ -167,6 +171,50 @@ typedef struct {
                                              tier's own nodes and echo the first
                                              kYR_have up (multi-tier recursion);
                                              off = registry-only legacy */
+    ngx_int_t           delay_servers;    /* [brix_cms_delay_servers <n>] §2.2:
+                                             SUPCount floor — hold selects until
+                                             >= n data servers registered; 0=off */
+    ngx_int_t           delay_hold;       /* [brix_cms_delay_hold <secs>] §2.2:
+                                             kXR_wait seconds while below the
+                                             floor; default 5 */
+    ngx_int_t           sched_cpu;        /* [brix_cms_sched cpu N io N runq N
+                                             mem N pag N space N fuzz N
+                                             maxload N] §2.3 component weights;
+                                             all UNSET/0 = legacy scoring */
+    ngx_int_t           sched_io;
+    ngx_int_t           sched_runq;
+    ngx_int_t           sched_mem;
+    ngx_int_t           sched_pag;
+    ngx_int_t           sched_space;
+    ngx_int_t           sched_fuzz;
+    ngx_int_t           sched_maxload;
+    ngx_flag_t          stage_select;     /* [brix_cms_stage_select on] §2.5:
+                                             reads of a file no node holds go to
+                                             the roomiest stage-capable node */
+    ngx_msec_t          fxhold;           /* [brix_cms_fxhold <time>] §2.6: loc
+                                             cache positive TTL (unset = 30s
+                                             legacy; stock default is 8h) */
+    ngx_msec_t          emptylife;        /* [brix_cms_emptylife <time>] §2.6:
+                                             negative location-cache TTL; 0=off */
+    ngx_flag_t          dfs;              /* [brix_cms_dfs on] §2.8: shared-FS
+                                             cluster — skip the per-file state
+                                             fan-out; select purely by load */
+    ngx_str_t           perf_pgm;         /* [brix_cms_perf_pgm <cmd>] §2.11:
+                                             external load-feed program; its
+                                             stdout lines "cpu net xeq mem pag"
+                                             override the /proc meter */
+    ngx_msec_t          perf_int;         /* [brix_cms_perf_interval <time>]
+                                             §2.11: freshness window (a line
+                                             older than 2x this falls back to
+                                             /proc); default 30s */
+    ngx_str_t           altds;            /* [brix_cms_altds <port> [monitor]]
+                                             §2.12: advertise a co-located
+                                             foreign data server's port as this
+                                             node's data port */
+    ngx_int_t           altds_port;       /* parsed from the directive; 0=off */
+    ngx_flag_t          altds_monitor;    /* liveness-probe the altds and drive
+                                             kYR_status suspend/resume */
+    ngx_msec_t          altds_interval;   /* probe cadence; default 10s */
 } brix_cms_conf_t;
 
 /* Active upstream health-check settings (Phase 22, off by default).  Grouped as
@@ -378,6 +426,24 @@ brix_cms_conf_init(brix_cms_conf_t *c)
     c->fanout_window    = NGX_CONF_UNSET_MSEC;
     c->role             = NGX_CONF_UNSET_UINT;
     c->state_relay      = NGX_CONF_UNSET;
+    c->delay_servers    = NGX_CONF_UNSET;
+    c->delay_hold       = NGX_CONF_UNSET;
+    c->sched_cpu        = NGX_CONF_UNSET;
+    c->sched_io         = NGX_CONF_UNSET;
+    c->sched_runq       = NGX_CONF_UNSET;
+    c->sched_mem        = NGX_CONF_UNSET;
+    c->sched_pag        = NGX_CONF_UNSET;
+    c->sched_space      = NGX_CONF_UNSET;
+    c->sched_fuzz       = NGX_CONF_UNSET;
+    c->sched_maxload    = NGX_CONF_UNSET;
+    c->stage_select     = NGX_CONF_UNSET;
+    c->fxhold           = NGX_CONF_UNSET_MSEC;
+    c->emptylife        = NGX_CONF_UNSET_MSEC;
+    c->dfs              = NGX_CONF_UNSET;
+    c->perf_int         = NGX_CONF_UNSET_MSEC;
+    c->altds_port       = NGX_CONF_UNSET;
+    c->altds_monitor    = NGX_CONF_UNSET;
+    c->altds_interval   = NGX_CONF_UNSET_MSEC;
 }
 
 static ngx_inline void

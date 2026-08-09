@@ -118,6 +118,16 @@ def _client_tree(root: Path) -> list[str]:
 def client_build_coverage(root: Path = ROOT) -> tuple[bool, list[str]]:
     makefile = (root / "client/Makefile").read_text()
     allow = set(_CLIENT_ALLOWLIST)
+    included = set()
+    for top in _CLIENT_SCAN:
+        for owner in (root / top).rglob("*.c"):
+            for name in re.findall(r'^\s*#\s*include\s+"([^"]+\.c)"',
+                                   owner.read_text(errors="replace"), re.MULTILINE):
+                target = (owner.parent / name).resolve()
+                try:
+                    included.add(str(target.relative_to(root.resolve())))
+                except ValueError:
+                    continue
     msgs: list[str] = []
 
     for rel in _client_tree(root):
@@ -127,7 +137,7 @@ def client_build_coverage(root: Path = ROOT) -> tuple[bool, list[str]]:
                 stem = stem[len(prefix) :]
                 break
         named = any(f"{stem}{ext}" in makefile for ext in (".c", ".o", ".pic.o"))
-        if rel not in allow and not named:
+        if rel not in allow and rel not in included and not named:
             msgs.append(
                 f"NOT BUILT: {rel} — add it to client/Makefile, or allowlist it "
                 f"here with a reason"

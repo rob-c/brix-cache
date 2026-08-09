@@ -33,9 +33,9 @@ The subsystem covers three surfaces, all sharing one config block
   replayed to an **isolated** shadow as `open(create) → write → close`.
 
 In the lifecycles, the stream surfaces are invoked from
-`../handshake/dispatch.c` *after* the primary read/write opcode has been
+`src/protocols/root/handshake/dispatch.c` *after* the primary read/write opcode has been
 dispatched and its response queued; the HTTP surface runs as PRECONTENT- and
-LOG-phase handlers registered from `../webdav/postconfig.c`.
+LOG-phase handlers registered from `src/protocols/webdav/postconfig.c`.
 
 ## Files
 
@@ -49,6 +49,14 @@ LOG-phase handlers registered from `../webdav/postconfig.c`.
 | `stream_wmirror.h` | Public API for the data-write mirror (W3): `brix_stream_wmirror_on_open()`, `_observe()`, and `_cleanup()`, called from the open/dispatch/disconnect paths. |
 | `stream_wmirror.c` | Stateful data-write mirror. Accumulates a write-open's sequential `kXR_write` payloads into a bounded per-file buffer hanging off `ctx->wmirror`; on `kXR_close` hands the complete file to a detached async replay (`wmir_*` state machine: `OPEN → WRITE → CLOSE`) against an isolated shadow. Aborts (counted, never blocking) on `kXR_pgwrite`, non-sequential offsets, or cap overflow. |
 | `stream_mirror_io.{c,h}` | The shadow-socket framing shared by both stream mirrors: `brix_mirror_io_flush()` (non-blocking write-drain) and `brix_mirror_io_recv_frame()` (resumable `ServerResponseHdr` + bounded-body reader, cap `BRIX_MIRROR_MAX_RESP_BODY` = 64 KiB). `brix_mir_*`/`wmir_*` wrap these so the body-size bound lives in one place. |
+
+### Other files
+
+| File | Responsibility |
+|---|---|
+| `http_mirror_config.c` | Owns the merge-time upstream-conf builder (timeouts, buffers, TLS ctx, hide-headers hash) and the two directive setters `brix_mirror_url` (append a resolved shadow target) and `brix_mirror_methods` (parse the method mask. |
+| `http_mirror_internal.h` | Cross-declares the one method-classification predicate and the five upstream callbacks that straddle the http_mirror.c / http_mirror_request.c boundary, plus the shared MIR_HTTP_INC counter macro. |
+| `http_mirror_request.c` | Owns the nginx upstream callbacks that turn a mirror subrequest into a wire request to a shadow target and parse (then discard) the shadow response: the Destination rewrite + PUT-body clone helpers, the two-pass header b. |
 
 ## Key types & data structures
 
@@ -81,13 +89,13 @@ LOG-phase handlers registered from `../webdav/postconfig.c`.
   client, structurally parallel to `brix_stream_mirror_t` but driven through the
   `wmir_phase_t` (`HANDSHAKE → … → OPEN → WRITE → CLOSE`) machine and owning
   malloc'd `open_frame` / `data` / captured `shadow_fhandle`.
-- **Metrics** — eight low-cardinality counters in `../metrics/metrics.h`
+- **Metrics** — eight low-cardinality counters in `src/observability/metrics/metrics.h`
   (`metrics.h:496-503`): `mirror_{http,stream}_{total,errors_total,dropped_total,divergence_total}`. No per-target labels (metrics invariant 8).
 
 ## Control & data flow
 
 **HTTP/WebDAV.** `brix_http_mirror_precontent_handler`
-(`NGX_HTTP_PRECONTENT_PHASE`, registered in `../webdav/postconfig.c`) runs on
+(`NGX_HTTP_PRECONTENT_PHASE`, registered in `src/protocols/webdav/postconfig.c`) runs on
 every request. On the **main** request it checks enable/method/loop-guard/sample,
 marks `ctx->mirror_fired`, then fires one `NGX_HTTP_SUBREQUEST_BACKGROUND`
 subrequest per target (for PUT it first reads the body so the shadow can forward
@@ -98,9 +106,9 @@ access/content handlers skip `is_mirror` subrequests. `mirror_finalize_request`
 compares status classes and bumps metrics; `brix_http_mirror_log_handler`
 (`NGX_HTTP_LOG_PHASE`) stamps `ctx->primary_status`. Upstream conf (timeouts,
 bufs, hide-headers hash, TLS ctx) is built once at merge time by
-`brix_http_mirror_setup` (called from `../webdav/config.c`).
+`brix_http_mirror_setup` (called from `src/protocols/webdav/config.c`).
 
-**Stream reads / metadata mutations.** `../handshake/dispatch.c` calls
+**Stream reads / metadata mutations.** `src/protocols/root/handshake/dispatch.c` calls
 `brix_stream_mirror_maybe()` immediately after a read- or write-opcode dispatch
 returns. It applies the opcode/exclude/writes gates, the replayability test, the
 payload-size bound, and sampling; then for each target it allocates a context
@@ -110,15 +118,15 @@ sends the pipelined bootstrap, then the saved frame with streamid rewritten to
 `0x0002`, reads one response, and finishes — destroying its own pool.
 
 **Stream data writes (W3).** Three hooks thread through the connection lifecycle:
-`brix_stream_wmirror_on_open()` (from `../read/open_resolved_file.c` on a write
+`brix_stream_wmirror_on_open()` (from `src/protocols/root/read/open_resolved_file.c` on a write
 open) starts accumulation; `brix_stream_wmirror_observe()` (from
-`../handshake/dispatch.c` after each write/pgwrite/close) appends sequential
+`src/protocols/root/handshake/dispatch.c` after each write/pgwrite/close) appends sequential
 bytes and, on close, calls `wmir_launch()` to start a detached replay that
 transfers buffer ownership; `brix_stream_wmirror_cleanup()` (from
-`../connection/disconnect.c`) frees any leftover per-file buffers.
+`src/protocols/root/connection/disconnect.c`) frees any leftover per-file buffers.
 
 **Calls out to.** `../upstream/README.md` (`brix_upstream_build_bootstrap`
-wire framing), `../metrics/README.md` (`brix_metrics_shared`), `../webdav/`
+wire framing), `../../observability/metrics/README.md` (`brix_metrics_shared`), `../webdav/`
 (loc conf, req ctx, postconfig registration), `../handshake/` (dispatch hooks),
 `../read/` (open hook), `../connection/` (disconnect cleanup), `../protocol/`
 (`kXR_*` constants, `ServerResponseHdr`, frame lengths).
@@ -186,11 +194,11 @@ wire framing), `../metrics/README.md` (`brix_metrics_shared`), `../webdav/`
   `brix_mirror_parse_opcode_args`, and add it to `OP_ALL` (and, if a write,
   `OP_WRITE_ALL`).
 - **Add a metric:** declare an `ngx_atomic_t mirror_*` field in
-  `../metrics/metrics.h`, export it in `../metrics/`, and increment via the local
+  `src/observability/metrics/metrics.h`, export it in `../metrics/`, and increment via the local
   `MIR_HTTP_INC` / `BRIX_MIR_METRIC_INC` / `BRIX_WMIR_METRIC_INC` macro.
 - **Add a directive:** declare the field in `brix_mirror_conf_t`, register the
-  `ngx_command_t` (WebDAV in `../webdav/module.c`, stream in
-  `../stream/module.c`), and merge it in the surface's `merge_*_conf`. The setters
+  `ngx_command_t` (WebDAV in `src/protocols/webdav/module.c`, stream in
+  `src/protocols/root/stream/module.c`), and merge it in the surface's `merge_*_conf`. The setters
   here (`brix_http_mirror_set_url`, `brix_stream_mirror_set_url`, etc.) are the
   template.
 
@@ -209,16 +217,16 @@ ASan lane (phase-88 §4 B-2, still infra-blocked).
 
 ## See also
 
-- [`../handshake/README.md`](../../protocols/root/handshake/README.md) — stream dispatch hooks that
+- [`../../protocols/root/handshake/README.md`](../../protocols/root/handshake/README.md) — stream dispatch hooks that
   invoke `brix_stream_mirror_maybe` / `brix_stream_wmirror_observe`.
-- [`../webdav/README.md`](../../protocols/webdav/README.md) — HTTP method router; registers the
+- [`../../protocols/webdav/README.md`](../../protocols/webdav/README.md) — HTTP method router; registers the
   mirror phase handlers and owns the loc conf / req ctx.
 - [`../upstream/README.md`](../upstream/README.md) —
   `brix_upstream_build_bootstrap` and the health-check probe this mirror's wire
   framing is modelled on.
-- [`../metrics/README.md`](../../observability/metrics/README.md) — the shared SHM counter struct.
-- [`../read/README.md`](../../protocols/root/read/README.md) — write-open hook
-  (`open_resolved_file.c`) that starts data-write accumulation.
-- [`../protocol/README.md`](../../protocols/root/protocol/README.md) — `kXR_*` constants and wire
+- [`../../observability/metrics/README.md`](../../observability/metrics/README.md) — the shared SHM counter struct.
+- [`../../protocols/root/read/README.md`](../../protocols/root/read/README.md) — write-open hook
+  (`src/protocols/root/read/open_resolved_file.c`) that starts data-write accumulation.
+- [`../../protocols/root/protocol/README.md`](../../protocols/root/protocol/README.md) — `kXR_*` constants and wire
   structures used by the stream replays.
 - [`../README.md`](../README.md) — subsystem master index.

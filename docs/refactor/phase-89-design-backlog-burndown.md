@@ -228,7 +228,7 @@ evidence file so a later reader can re-verify in one grep.
 |---|---|---|---|
 | `phase-60-ceph-rados-backend.md` | "still open: live routing, striper, dir listing, rename, xattr, staged commit" | **4 of 6 landed.** Routing: `tier_build.c` rados arm; `brix_storage_backend rados://pool` serves live. Xattr: 4 slots + `CAP_XATTR`/`CAP_XATTR_WRITE`. Staged: 4 `staged_*` slots. Striper: wrappers + lazy bind + stock layout. **Open: dir listing, rename** (+ marker decision). | `src/fs/tier/tier_build.c:267`; `src/fs/backend/rados/sd_ceph.c` descriptor (caps + slot table); `sd_ceph_striper.c`; `sd_ceph_io.c:53` (`sd_ceph_striper()` lazy bind); `tests/run_rados_parity.sh`; `tests/cmdscripts/ceph_operator.py` (`ceph_export_smoke`) |
 | `phase-61-cms-parity.md` | plan/spec, not started | **Confirmed untouched** — with ONE exception the doc could not know: the **W6 admin surface already exists** (drain/undrain/delete/register cluster endpoints, see §C.1 W6 re-scope). Everything else open: no `USAGE`/`STATS`/`PREPADD`/`PREPDEL` dispatch; manager `kYR_have` undispatched; no `loc_cache`/`meter`/`blacklist_file`/`forward_agg` files. | `server_recv_frame.c:385-396` (`cms_srv_frame_routes[]` — no USAGE/STATS/HAVE/STATE rows); `recv_frame.c:375-389` (node table — no PREPADD/PREPDEL rows); `src/observability/dashboard/api_admin_cluster.c` (the landed admin surface) |
-| `phase-64-fully-tiered-composable-storage.md` | design, five sub-projects | **Substantially landed:** §3 matrix closed, `src/frm/` dissolved → `stage_engine*`/`stage_request_registry*`/`stage_waiter*` + `sd_frm*`; `tape://`/`frm://` tier schemes; tape REST + root:// open gate drive the engine. **Divergence:** `brix_frm_*` directives survived contra §13c step 4. | `src/fs/xfer/` listing; `src/fs/backend/frm/` listing; `vfs_backend_config_ceph.c:328-351` (`tape://`/`frm://` parse); `tape_rest.c` (4 `brix_stage*` call sites); `open_request.c:512` ("former frm_stage_kick → engine step"); `directives_net.inc:204-267` (`brix_frm*` directives live) |
+| `phase-64-fully-tiered-composable-storage.md` | design, five sub-projects | **Substantially landed:** §3 matrix closed, `src/frm/` dissolved → `stage_engine*`/`stage_request_registry*`/`stage_waiter*` + `sd_frm*`; `tape://`/`frm://` tier schemes; tape REST + root:// open gate drive the engine. **Divergence:** `brix_frm_*` directives survived contra §13c step 4. | `src/fs/xfer/` listing; `src/fs/backend/frm/` listing; `vfs_backend_config_ceph.c:328-351` (`tape://`/`frm://` parse); `tape_rest.c` (4 `brix_stage*` call sites); `open_request.c:512` ("former frm_stage_kick → engine step"); `directives_net.h:204-267` (`brix_frm*` directives live) |
 | `phase-64-generic-slice-fill.md` | BACKLOG (both items) | **Both items landed.** Group-2 strict-xfails now pass; read-fill admission actively tested. | `tests/test_cache_partial_fill.py:121` ("Formerly a strict xfail"), `:153` (`test_admission_prefix_regex_gating`, active); `src/fs/cache/writethrough_decision.c:2` (`cache_admit.h` "shared admission filter (read+write parity)") |
 
 Net remaining work = **B** (phase-60 namespace plane, ~2–2.5 wk) + **C**
@@ -606,7 +606,7 @@ is left. Four items, two classes.
 
 Phase-64 P2/§13c-step-4 specified deleting the `brix_frm_*` directives in
 favour of `tape://` store-URL params. The tree kept them — the full live set
-(`src/protocols/root/stream/directives_net.inc:204–267`):
+(`src/protocols/root/stream/directives_net.h:204–267`):
 
 | Directive | Owner after dissolution |
 |---|---|

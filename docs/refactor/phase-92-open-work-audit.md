@@ -981,7 +981,7 @@ code.
   **RESOLVED (phase-92, 2026-08-02) — wired to the root:// read-open path (option
   M).** The XrdBwm engine now enforces a per-worker read-bandwidth budget:
   - **Directives** (`NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1`, in
-    `directives_auth.inc`): `brix_throttle_bandwidth_zone <name>` +
+    `directives_auth.h`): `brix_throttle_bandwidth_zone <name>` +
     `brix_throttle_bandwidth_budget <size>` (both `""`/`0` = off). Stored on
     `brix_throttle_conf_t` (`conf_structs.h`); unset-init in `server_conf.c`,
     merged in `server_conf_merge_security.c`.

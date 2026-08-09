@@ -24,11 +24,11 @@ import time
 import pytest
 
 from cmdscripts import fake_exec
-from settings import HOST
+from settings import HOST, NGINX_ANON_PORT
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 XRDCP = os.path.join(REPO, "client", "bin", "xrdcp")
-ROOT_HOST, ROOT_PORT = HOST, 11094
+ROOT_HOST, ROOT_PORT = HOST, NGINX_ANON_PORT
 DATA_DIR = os.path.join(os.environ.get("TEST_ROOT", "/tmp/xrd-test"), "data")
 SMALL = f"root://{ROOT_HOST}:{ROOT_PORT}//test.txt"
 

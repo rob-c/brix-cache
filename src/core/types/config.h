@@ -114,13 +114,13 @@ typedef struct {
  */
 typedef struct {
     /* The ~690 field declarations of this struct are split (phase-79 file-size
-     * burndown) into concern-grouped .inc fragments included here, following the
-     * repo's established .inc struct-fragment pattern. The struct assembles
+     * burndown) into concern-grouped .h fragments included here, following the
+     * repo's established .h struct-fragment pattern. The struct assembles
      * byte-identically — ZERO ABI change, and every `conf->field` access is
      * unchanged. The fragments are NOT standalone translation units. */
-#include "srv_conf_fields_auth.inc"
-#include "srv_conf_fields_net.inc"
-#include "srv_conf_fields_cache.inc"
+#include "srv_conf_fields_auth.h"
+#include "srv_conf_fields_net.h"
+#include "srv_conf_fields_cache.h"
 } ngx_stream_brix_srv_conf_t;
 
 /*

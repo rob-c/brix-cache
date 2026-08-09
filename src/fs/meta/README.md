@@ -25,6 +25,14 @@ encode/decode round-trips.
 | `xmeta_carrier.c` / `xmeta_carrier.h` | sidecar key composition + persist/load for store objects |
 | `xmeta_unittest.c` | encode/decode round-trip unit tests |
 
+### Other files
+
+| File | Responsibility |
+|---|---|
+| `xmeta_decode.c` | brix_xmeta_decode() and its helpers: parse a wire buffer into a brix_xmeta_t — the byte-identical stock XrdPfc cinfo v4 prefix (version + Store POD + crc + bitmap + AStat[] + crc) followed by the optional "XCX1" extensio. |
+| `xmeta_encode.c` | brix_xmeta_encode() and its helpers: serialize a brix_xmeta_t into a malloc'd buffer — a byte-identical stock XrdPfc cinfo v4 prefix (version + Store POD + crc + bitmap + AStat[] + crc) followed by the "XCX1" extension h. |
+| `xmeta_internal.h` | Cross-declares the block-geometry helpers (defined in xmeta.c) and the two persisted wire descriptors (the STATE section struct and the ORIGIN fixed-header size) that the encode and decode halves both need. |
+
 ## Invariants, security & gotchas
 
 1. The encoding is an on-disk compatibility contract — never change the

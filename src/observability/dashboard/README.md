@@ -49,7 +49,7 @@ the SHM zones; the **HTTP** group (`module.c`, `auth.c`, `api.c`,
 
 | File | Responsibility |
 |---|---|
-| `dashboard.h` | Stream-visible public API + all SHM struct/enum/constant definitions (`brix_transfer_slot_t`, `_table_t`, event table, history ring); slot-operation and event/history prototypes. Included via the umbrella `ngx_brix_module.h`. Must compile in stream context (no `ngx_http_request_t`). |
+| `dashboard.h` | Stream-visible public API + all SHM struct/enum/constant definitions (`brix_transfer_slot_t`, `_table_t`, event table, history ring); slot-operation and event/history prototypes. Included via the umbrella `src/core/ngx_brix_module.h`. Must compile in stream context (no `ngx_http_request_t`). |
 | `dashboard_http.h` | HTTP-only declarations: the `ngx_module_t`, the per-location config `ngx_http_brix_dashboard_loc_conf_t`, the API-endpoint enum, and the four content-handler + `check_auth` prototypes. Included only by `module.c`/`auth.c`/`api.c`/`page.c`. |
 | `dashboard_tracking.h` | HTTP-side tracking helpers (`brix_dashboard_http_start[_identity]`, `_add`, `_state`, `_error`, `_tpc_remote`, `_finish`) that other HTTP handlers (WebDAV/S3/TPC) call to populate a transfer slot. |
 | `api_admin.h` | Phase 23 admin write API surface: `brix_admin_dispatch()` plus the three directive setters. |
@@ -106,7 +106,7 @@ requirement, identical to the session/metrics registries).
 ## Control & data flow
 
 **Producer side (writes into SHM):**
-`../config/postconfiguration.c` calls `brix_configure_dashboard()`
+`src/core/config/postconfiguration.c` calls `brix_configure_dashboard()`
 (`config.c`) to register the three zones against `ngx_stream_brix_module`.
 At runtime, stream op handlers in `../read/` and `../write/` call the
 `brix_transfer_slot_*` functions in `transfer_table.c`; HTTP handlers in
@@ -127,10 +127,10 @@ login). Login → `auth.c`. JSON → `api.c` (`check_auth` → GET/HEAD →
 
 **Outbound dependencies** beyond siblings already named: `api.c` reads the
 TPC SHM registry (`../tpc/`), the manager/CMS server registry (`../manager/`),
-filesystem usage (`../compat/fs_usage.h`), and rate-limit zones
+filesystem usage (`src/core/compat/fs_usage.h`), and rate-limit zones
 (`../ratelimit/`). `api_admin.c` writes the manager registry (`../manager/`)
-and the dynamic proxy pool (`../webdav/proxy_pool.h`), and parses bearer tokens
-via `../compat/http_headers.h`. Auth uses OpenSSL HMAC/`CRYPTO_memcmp` directly
+and the dynamic proxy pool (`src/protocols/webdav/proxy_pool.h`), and parses bearer tokens
+via `src/core/http/http_headers.h`. Auth uses OpenSSL HMAC/`CRYPTO_memcmp` directly
 (not `../crypto/`).
 
 ## Invariants, security & gotchas
@@ -218,13 +218,13 @@ via `../compat/http_headers.h`. Auth uses OpenSSL HMAC/`CRYPTO_memcmp` directly
 ## See also
 
 - `../metrics/README.md` — the metrics SHM that `api.c`/`history.c` aggregate.
-- `../manager/README.md` — CMS server registry read by `/api/v1/cluster` and
+- `../../net/manager/README.md` — CMS server registry read by `/api/v1/cluster` and
   written by the admin API.
-- `../tpc/README.md` — third-party-copy registry surfaced as `tpc_transfers`.
-- `../webdav/README.md` — dynamic proxy pool managed by the admin API; WebDAV
+- `../../tpc/README.md` — third-party-copy registry surfaced as `tpc_transfers`.
+- `../../protocols/webdav/README.md` — dynamic proxy pool managed by the admin API; WebDAV
   handlers that call the `http_tracking.c` helpers.
-- `../ratelimit/README.md` — zones surfaced by `/api/v1/ratelimit`.
-- `../config/README.md` — postconfiguration that registers the SHM zones.
+- `../../net/ratelimit/README.md` — zones surfaced by `/api/v1/ratelimit`.
+- `../../core/config/README.md` — postconfiguration that registers the SHM zones.
 - `../README.md` — master subsystem index.
 
 ## VFS export browser (`brix_dashboard_vfs_browse on`)

@@ -111,7 +111,10 @@ fake_request(void *tctx, const char *host, int port, int tls,
     if (g_fail) {
         return -1;                 /* transport-layer failure (never a status) */
     }
-    resp->status = g_status;
+    /* DELETE now performs a WebDAV type probe first. This mutation-focused
+     * fake models a file-only origin (PROPFIND unsupported), then leaves the
+     * scripted status for the actual namespace request. */
+    resp->status = strcmp(method, "PROPFIND") == 0 ? 405 : g_status;
     return 0;
 }
 
@@ -175,7 +178,7 @@ fake_request_cred(void *tctx, const char *host, int port, int tls,
     if (g_fail) {
         return -1;
     }
-    resp->status = g_status;
+    resp->status = strcmp(method, "PROPFIND") == 0 ? 405 : g_status;
     return 0;
 }
 
@@ -379,7 +382,7 @@ test_mutate_cred_success(void)
 
 /* Test 5 (cred error): an origin that DENIES the forwarded user credential
  * (403/401) surfaces as an error, never a masked success. mkdir/rename map
- * 401/403 → EACCES; unlink's contract maps any non-{204,200,404} → EIO. */
+ * 401/403 → EACCES for every mutation slot. */
 static void
 test_mutate_cred_denied_by_origin(void)
 {
@@ -400,10 +403,10 @@ test_mutate_cred_denied_by_origin(void)
 
     g_status = 403; g_fail = 0; errno = 0;
     assert(inst->driver->unlink_cred(inst, "/gone", 0, &cred) == NGX_ERROR
-           && errno == EIO);
+           && errno == EACCES);
 
-    printf("  ok   5: origin-denied forwarded-cred mkdir/rename -> EACCES, "
-           "unlink -> EIO (never a masked success)\n");
+    printf("  ok   5: origin-denied forwarded-cred mutations -> EACCES "
+           "(never a masked success)\n");
     brix_sd_http_destroy(inst);
 }
 

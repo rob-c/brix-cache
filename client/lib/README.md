@@ -37,30 +37,30 @@ basenames; their bucket paths are in the phase-69 map linked above.
 
 | File | Responsibility |
 |---|---|
-| `aio.c` | The epoll/io_uring event loop (`loop_*`, `rc_worker_main`) + the public `brix_loop_*`/`brix_aio_*`/`brix_aconn_*` API. *(Phase 38: split.)* |
-| `aio_buffers.c` | Growable byte buffer (`xbuf_*`), the streamid→request open-addressing map (`reqmap_*`), and request lifecycle (`areq_*`). |
-| `aio_io.c` | Non-blocking socket read/write + frame parser + RTT/RTO (`aconn_do_read`/`_write`, `aconn_parse`, `aconn_dispatch_frame`) incl. the deferred-reply flow (`kXR_waitresp` parks the request; the unsolicited `kXR_attn(asynresp)` is unwrapped and dispatched by its inner streamid — see `tests/test_aio_waitresp.py`). |
-| `aio_engine.c` | The pollset abstraction over epoll + io_uring poll (`io_engine_*`, `uring_*`). |
-| `aio_conn.c` | Per-connection lifecycle: reconnect, keepalive/ping, teardown, deadlines, command submission. |
-| `aio_internal.h` | Private split contract shared by `aio*.c` (the `aconn`/`areq`/loop structs + prototypes). |
-| `http.c` | The minimal cleartext `brix_http_get` + connect/parse/dechunk helpers. *(Phase 38: split.)* |
-| `http_req.c` | The generic request/response codec (`brix_http_req`, `httpx_exchange`). |
-| `http_download.c` | The range/streaming download engine (`brix_http_download`, chunked/clen/eof framing). |
-| `http_upload.c` | The resumable upload engine (`brix_http_upload{,_resumable}`, chunk + offset handling). |
-| `http_internal.h` | Private split contract shared by `http*.c`. |
-| `ops_file.c` | File open family (`brix_file_open_{read,write,update,opaque}`) + close + sync. *(Phase 38: split.)* |
-| `ops_file_rw.c` | read/write/readv/writev + the gzip inflate/deflate frame helpers. |
-| `ops_file_pg.c` | `kXR_pgread`/`kXR_pgwrite` with per-page CRC32c + `kXR_status` framing (Invariant 1). |
-| `ops_internal.h` | Private split contract shared by `ops_file*.c`. |
-| `zip.c` | ZIP central-directory reader + member extraction (`brix_zip_open/find/member_extract`). *(Phase 38: split.)* |
-| `zip_write.c` | ZIP writer (`brix_zip_writer_*`, central-dir append). |
-| `zip_internal.h` | Private split contract shared by `zip.c`/`zip_write.c`. |
-| `copy.c` | The `brix_copy` entry + direction inference + single-file r2l/l2r; **keeps the `__attribute__((used))` VFS-backend link anchors** (`s_vfs_*_anchor`) in `copy.o`. *(Phase 38: split.)* |
-| `copy_pump.c` | The chunked transfer pump (`transfer_pump` + `pump_*` + `write_all`). |
-| `copy_local.c` | Download/upload to local + temp-file/atomic-dest helpers. |
-| `copy_remote.c` | Remote→remote + native TPC (`copy_tpc`, key gen) + checksum verify. `copy_tpc` speaks the STOCK XrdOucTPC dialect (`tpc.src=host:port` + `tpc.lfn` + `tpc.stage=copy` + `oss.asize`/`tpc.dlgon`/..., dest-open→sync→src-open→sync), which stock XRootD and nginx-xrootd destinations both accept — see `tests/test_root_tpc.py::TestNativeClientRootTPC`. |
-| `copy_recursive.c` | Recursive tree download/upload + web-auth headers. |
-| `copy_internal.h` | Private split contract shared by `copy*.c` (anchors deliberately excluded). |
+| `core/aio/aio.c` | The epoll/io_uring event loop (`loop_*`, `rc_worker_main`) + the public `brix_loop_*`/`brix_aio_*`/`brix_aconn_*` API. *(Phase 38: split.)* |
+| `core/aio/aio_buffers.c` | Growable byte buffer (`xbuf_*`), the streamid→request open-addressing map (`reqmap_*`), and request lifecycle (`areq_*`). |
+| `core/aio/aio_io.c` | Non-blocking socket read/write + frame parser + RTT/RTO (`aconn_do_read`/`_write`, `aconn_parse`, `aconn_dispatch_frame`) incl. the deferred-reply flow (`kXR_waitresp` parks the request; the unsolicited `kXR_attn(asynresp)` is unwrapped and dispatched by its inner streamid — see `tests/test_aio_waitresp.py`). |
+| `core/aio/aio_engine.c` | The pollset abstraction over epoll + io_uring poll (`io_engine_*`, `uring_*`). |
+| `core/aio/aio_conn.c` | Per-connection lifecycle: reconnect, keepalive/ping, teardown, deadlines, command submission. |
+| `core/aio/aio_internal.h` | Private split contract shared by `aio*.c` (the `aconn`/`areq`/loop structs + prototypes). |
+| `protocols/http/http.c` | The minimal cleartext `brix_http_get` + connect/parse/dechunk helpers. *(Phase 38: split.)* |
+| `protocols/http/http_req.c` | The generic request/response codec (`brix_http_req`, `httpx_exchange`). |
+| `protocols/http/http_download.c` | The range/streaming download engine (`brix_http_download`, chunked/clen/eof framing). |
+| `protocols/http/http_upload.c` | The resumable upload engine (`brix_http_upload{,_resumable}`, chunk + offset handling). |
+| `protocols/http/http_internal.h` | Private split contract shared by `http*.c`. |
+| `protocols/root/ops_file.c` | File open family (`brix_file_open_{read,write,update,opaque}`) + close + sync. *(Phase 38: split.)* |
+| `protocols/root/ops_file_rw.c` | read/write/readv/writev + the gzip inflate/deflate frame helpers. |
+| `protocols/root/ops_file_pg.c` | `kXR_pgread`/`kXR_pgwrite` with per-page CRC32c + `kXR_status` framing (Invariant 1). |
+| `protocols/root/ops_internal.h` | Private split contract shared by `ops_file*.c`. |
+| `protocols/shared/zip.c` | ZIP central-directory reader + member extraction (`brix_zip_open/find/member_extract`). *(Phase 38: split.)* |
+| `protocols/shared/zip_write.c` | ZIP writer (`brix_zip_writer_*`, central-dir append). |
+| `protocols/shared/zip_internal.h` | Private split contract shared by `protocols/shared/zip.c`/`protocols/shared/zip_write.c`. |
+| `xfer/copy.c` | The `brix_copy` entry + direction inference + single-file r2l/l2r; **keeps the `__attribute__((used))` VFS-backend link anchors** (`s_vfs_*_anchor`) in `copy.o`. *(Phase 38: split.)* |
+| `xfer/copy_pump.c` | The chunked transfer pump (`transfer_pump` + `pump_*` + `write_all`). |
+| `xfer/copy_local.c` | Download/upload to local + temp-file/atomic-dest helpers. |
+| `xfer/copy_remote.c` | Remote→remote + native TPC (`copy_tpc`, key gen) + checksum verify. `copy_tpc` speaks the STOCK XrdOucTPC dialect (`tpc.src=host:port` + `tpc.lfn` + `tpc.stage=copy` + `oss.asize`/`tpc.dlgon`/..., dest-open→sync→src-open→sync), which stock XRootD and nginx-xrootd destinations both accept — see `tests/test_root_tpc.py::TestNativeClientRootTPC`. |
+| `xfer/copy_recursive.c` | Recursive tree download/upload + web-auth headers. |
+| `xfer/copy_internal.h` | Private split contract shared by `copy*.c` (anchors deliberately excluded). |
 
 The **CLI apps** in `client/apps/` are grouped into tool families (`copy/ fs/
 cksum/ auth/ diag/ scan/ prep/`). Each binary's translation units — including its
@@ -71,3 +71,10 @@ Phase-38 split siblings — are listed in a `<name>_OBJS` variable in
 `xrddiag` (→ `diag_check`/`diag_bench`/`diag_watch`/`diag_topology`/`diag_compare`).
 The FUSE `xrootdfs` keeps bespoke compile/link rules (libfuse3 flags + its
 async/legacy driver co-link) under `apps/fs/`.
+
+### Other files
+
+| File | Responsibility |
+|---|---|
+| `_brix_net_ext.h` | split part 2 of brix_net.h */ #ifndef _BRIX_NET_EXT_H #define _BRIX_NET_EXT_H #ifndef XRDC_NET_H # include "brix_net.h" #endif /* ---- weblist.c — recursive WebDAV listing (for xrdcp -r over davs/http) ---- */ /* PROPFIN. |
+| `brix_net_frame.h` | client wire framing, connection lifecycle, the connection pool and parallel-stream helpers for the ngx-free client (libbrix). |

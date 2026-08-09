@@ -1,4 +1,5 @@
-from _test_proxy_protocol_edges_helpers import *  # noqa: F401,F403  (Phase-38 split shared header)
+from split_continuation import reexport as _reexport
+_reexport(globals(), "_test_proxy_protocol_edges_helpers")
 
 def test_oksofar_streaming_dirlist_reassembled(oksofar_stack):
     """A dirlist streamed as kXR_oksofar chunks (one entry per frame) is relayed

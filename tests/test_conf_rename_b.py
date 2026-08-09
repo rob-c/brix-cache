@@ -1,4 +1,5 @@
-from _test_conf_rename_helpers import *  # noqa: F401,F403  (Phase-38 split shared header)
+from split_continuation import reexport as _reexport
+_reexport(globals(), "_test_conf_rename_helpers")
 
 def test_confinement_mv_doubled_slash_dotdot(srv):
     """A doubled-slash + dot-dot form must still be confined on the source."""

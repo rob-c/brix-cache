@@ -28,7 +28,7 @@ XRootD `authdb` semantics bit-for-bit.
 |---|---|---|
 | `privs.h` / `privs.c` | `XrdAccPrivs.hh`, `Test()`, `PrivsConvert()` | pure privilege algebra (no nginx deps; unit-testable) |
 | `acc.h` | — | nginx-facing umbrella header |
-| `authfile.c` | `XrdAccAuthFile.cc` | authdb grammar parser |
+| `authfile.c` (+ `authfile_record.c`, `authfile_tokenize.c`, `authfile_internal.h`) | `XrdAccAuthFile.cc` | authdb grammar parser (tokenizer + record assembly split out) |
 | `tables.c` | `XrdAccAccess.hh` | identity hash tables + rule lists |
 | `capability.c` | `XrdAccCapability.cc` | path prefix + `@=` template matching |
 | `entity.c` | `XrdAccEntity.cc` | identity → attribute tuples |
@@ -37,8 +37,7 @@ XRootD `authdb` semantics bit-for-bit.
 | `audit.c` | `XrdAccAudit.cc` | grant/deny audit logging |
 | `resolve.c` | `XrdAccAccess::Resolve` | reverse-DNS peer for `h <host>`/`.domain` rules |
 | `config.c` | `XrdAccConfig.cc` | directives + per-worker build (stream + HTTP hot-reload) |
-| `refresh.c` | authrefresh thread | mtime hot-reload timer |
-| `opmap.c` | — | operation → `brix_acc_op_t` maps (stream/WebDAV/S3) |
+| `privs.c` / `privs.h` | `XrdAccPrivs.hh` | `brix_acc_op_t` enum, per-op required-privilege bits (`brix_acc_op_needs`/`brix_acc_test`), op names |
 
 ## Reference
 

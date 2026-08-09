@@ -120,6 +120,12 @@ cms_srv_frame_load(brix_cms_srv_ctx_t *ctx, uint32_t streamid,
     brix_srv_update_load(ctx->host, ctx->port, free_mb, ctx->util_pct);
     brix_srv_set_machine_load(ctx->host, ctx->port,
         cms_srv_parse_load_machine_pct(payload, payload_len));
+    {
+        /* §2.3: keep the raw component vector too, for cms.sched blending. */
+        uint8_t load5[5];
+        cms_srv_parse_load_bytes(payload, payload_len, load5);
+        brix_srv_set_load_vector(ctx->host, ctx->port, load5);
+    }
     ctx->free_mb = free_mb;
 
     {

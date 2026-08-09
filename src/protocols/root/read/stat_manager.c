@@ -58,6 +58,16 @@ stat_manager_route(brix_ctx_t *ctx, ngx_connection_t *c,
         return 1;
     }
 
+    /* §2.2 (cms.delay servers): below the registered-server floor, hold with
+     * kXR_wait — same gate as locate/open, so a client's stat-before-open
+     * cannot slip past the floor either. */
+    if (brix_srv_below_floor()) {
+        brix_log_access(ctx, c, "STAT", reqpath, "floor-hold", 1, 0, NULL, 0);
+        BRIX_OP_OK(ctx, BRIX_OP_STAT);
+        *rc = brix_send_wait(ctx, c, (unsigned) conf->cms.delay_hold);
+        return 0;
+    }
+
     /* §6 CNS: if the cluster name space inventory has this path, answer
      * stat directly (size/mtime) instead of redirecting — a true global
      * namespace stat at the redirector. */

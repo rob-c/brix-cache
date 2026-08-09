@@ -1,658 +1,218 @@
-from _test_cross_protocol_shared_helpers_helpers import *  # noqa: F401,F403  (Phase-38 split shared header)
+from split_continuation import reexport as _reexport
+_reexport(globals(), "_test_cross_protocol_shared_helpers_helpers")
 
-def test_phase2_policy_consumes_identity():
-    _assert_markers(
-        "src/auth/authz/authdb.c",
-        [
-            "brix_find_authdb_rule_identity(",
-            "brix_check_authdb_identity(",
-            "brix_identity_dn_cstr(",
-            "brix_identity_vo_csv_cstr(",
-        ],
-    )
-    _assert_markers(
-        "src/auth/authz/acl.c",
-        ["brix_check_vo_acl_identity(", "brix_identity_vo_csv_cstr("],
-    )
-    _assert_markers(
-        "src/protocols/root/handshake/policy.c",
-        ["brix_identity_check_token_scope("],
-    )
-    # auth_gate.c is the canonical consumer of all three tiers; handlers that
-    # have been converted call brix_auth_gate() instead of the three functions
-    # directly.  Verify auth_gate.c implements the full triad.
-    _assert_markers(
-        "src/auth/authz/auth_gate.c",
-        ["brix_check_authdb(", "brix_check_vo_acl_identity(",
-         "brix_check_token_scope("],
-    )
-    # Files with unconverted call-sites still call the VO ACL helper directly.
-    # (write/common.c was since converted — its write ops now authorise through
-    # the op-descriptor table / brix_auth_gate(), so it no longer calls the VO
-    # ACL helper directly and is no longer listed here.  open_request.c was
-    # converted in phase-79: its open path now authorises through
-    # brix_auth_gate()/brix_auth_gate_op() instead of calling the helper.)
+def test_checksum_fs_walk_staging_and_cms_frame_helpers_are_shared():
     for relpath in (
-        # prepare.c was split; the VO ACL check now lives in the check sibling.
-        "src/protocols/root/query/prepare_check.c",
+        "src/protocols/root/query/checksum_qcksum.c",
+        "src/protocols/root/query/checksum_qcksum_async.c",
+        "src/protocols/root/query/checksum_ckscan_common.c",
+        "src/protocols/root/query/checksum_ckscan_dispatch.c",
+        "src/protocols/root/query/checksum_ckscan_async.c",
+        "src/protocols/root/dirlist/dcksm.c",
+        "src/protocols/webdav/xrdhttp.c",
     ):
-        _assert_markers(relpath, ["brix_check_vo_acl_identity("])
-        _assert_absent(relpath, ["ctx->vo_list) != NGX_OK"])
-    # open_request.c was split; the auth-gated resolve path moved to the sibling.
-    _assert_markers("src/protocols/root/read/open_request_resolve.c",
-                    ["brix_auth_gate("])
-    _assert_absent("src/protocols/root/read/open_request_resolve.c",
-                   ["ctx->vo_list) != NGX_OK", "brix_check_vo_acl_identity("])
-    # dirlist was fully converted to auth_gate; confirm it no longer duplicates
-    # the triad and instead delegates to the gate.
-    _assert_markers("src/protocols/root/dirlist/handler.c", ["brix_auth_gate("])
-    _assert_absent("src/protocols/root/dirlist/handler.c",
-                   ["ctx->vo_list) != NGX_OK", "brix_check_vo_acl_identity("])
+        _assert_markers(relpath, ["core/compat/checksum.h", "brix_checksum_"])
+
+    for relpath in ("src/protocols/webdav/namespace.c", "src/protocols/s3/multipart_helpers.c"):
+        _assert_markers(
+            relpath,
+            ["core/compat/fs_walk.h", "brix_fs_remove_tree_confined("],
+        )
+
+    # Phase 62: directory enumeration moved behind the VFS seam — propfind walks
+    # via brix_vfs_readdir and ckscan via brix_vfs_walk, both of which skip
+    # "."/".." centrally in src/fs/vfs/vfs_walk.c (the single brix_fs_is_dot_entry
+    # caller) instead of each handler filtering dotted entries itself.
+    _assert_markers("src/protocols/webdav/propfind_walk.c", ["brix_vfs_readdir("])
+    _assert_markers("src/protocols/root/query/checksum_ckscan_common.c", ["brix_vfs_walk("])
+    _assert_markers("src/fs/vfs/vfs_walk.c", ["brix_fs_is_dot_entry("])
+
+    # s3/put was split: the staged_file include is in s3_put_internal.h, the open
+    # call stays in put.c — now routed through the VFS seam
+    # (brix_vfs_staged_open, phase-62 VFS closure) rather than the raw
+    # brix_staged_open; webdav/tpc.c still carries the raw open directly.
+    _assert_markers("src/protocols/s3/s3_put_internal.h", ["core/compat/staged_file.h"])
+    # phase-79 file-size split: put.c's PUT precondition/open phase moved into
+    # put_inner.c, and the staged-write open now routes through the unified writer
+    # seam (brix_vfs_writer_open with BRIX_VFS_O_ATOMIC — which itself performs the
+    # brix_vfs_staged_open temp+publish) rather than opening the staged file directly.
+    _assert_markers("src/protocols/s3/put_inner.c", ["brix_vfs_writer_open("])
+    # phase-79 file-size split: tpc.c's pull-side staged-write open moved into
+    # tpc_pull.c; tpc.c keeps the staged_file include.
+    _assert_markers("src/protocols/webdav/tpc.c", ["core/compat/staged_file.h"])
+    _assert_markers("src/protocols/webdav/tpc_pull.c", ["brix_staged_open("])
+
+    # Phase 55: both the S3 CopyObject and WebDAV COPY handlers delegate the
+    # local-object copy to the shared VFS copy seam (brix_vfs_copy), which is
+    # the single place that reaches brix_ns_local_copy (src/fs/vfs/vfs_copy.c).
+    for relpath in (
+        "src/protocols/s3/copy.c",
+        "src/protocols/webdav/copy.c",
+    ):
+        _assert_markers(relpath, ['#include "s3.h"' if "s3" in relpath else "webdav.h", "brix_vfs_copy("])
+
+    for relpath in ("src/net/cms/send.c", "src/net/cms/server_send.c"):
+        _assert_markers(relpath, ["frame_io.h", "brix_cms_send_frame("])
 
 
-def test_phase2_voms_identity_rejects_injected_vo_tokens():
-    # The per-character injection guard was refactored out of collect.c into a
-    # shared static-inline brix_vo_token_is_safe() in vo_token.h; the property is
-    # unchanged, only its location. collect.c still calls the guard + fqan→vo.
+def test_webdav_config_path_validation_is_shared():
     _assert_markers(
-        "src/auth/voms/vo_token.h",
-        [
-            "ch <= ' '",
-            "ch >= 0x7f",
-            "ch == ','",
-            "ch == '/'",
-        ],
+        "src/protocols/webdav/config.c",
+        ["core/config/config.h", "#define webdav_validate_path          brix_validate_path"],
     )
-    _assert_markers(
-        "src/auth/voms/collect.c",
-        [
-            "brix_vo_token_safe(",
-            "brix_fqan_to_vo(",
-        ],
+    _assert_absent(
+        "src/protocols/webdav/config.c",
+        ["typedef enum", "static char *\nwebdav_validate_path"],
     )
 
 
-def test_phase3_vfs_layer_is_registered():
+def test_unified_path_resolver_is_registered():
     _assert_markers(
         "config",
         [
-            "src/fs/vfs/vfs.h",
-            "src/fs/vfs/vfs_internal.h",
-            "src/fs/vfs/vfs_open.c",
-            "src/fs/vfs/vfs_read.c",
-            "src/fs/vfs/vfs_write.c",
-            "src/fs/vfs/vfs_stat.c",
-            "src/fs/vfs/vfs_dir.c",
-            "src/fs/vfs/vfs_unlink.c",
-            "src/fs/vfs/vfs_rename.c",
-            "src/fs/vfs/vfs_mkdir.c",
-            "src/fs/vfs/vfs_sync.c",
-            "src/fs/vfs/fd_cache.c",
+            "src/fs/path/unified.h",
+            "src/fs/path/unified.c",
         ],
     )
-    # The data-plane read/write entry points are no longer public API on vfs.h —
-    # byte I/O routes through brix_vfs_io_execute() (vfs_io_core.c); vfs.h
-    # exposes open/stat plus the sendfile/readdir surface.
     _assert_markers(
-        "src/fs/vfs/vfs.h",
+        "src/fs/path/unified.h",
         [
-            "BRIX_VFS_O_READ",
-            "BRIX_VFS_O_WRITE",
-            "brix_vfs_ctx_t",
-            "brix_vfs_open(",
-            "brix_vfs_stat(",
+            "brix_path_resolve_cstr(",
+            "allow_missing_tail",
+            "allow_missing_parents",
+            "require_directory",
         ],
     )
 
 
-def test_phase3_vfs_preserves_io_invariants():
-    # The read path's I/O invariants now live in focused units after the split:
-    #  - file-backed sendfile buffer (b->in_file=1) -> compat/http_file_response.c
-    #  - zero-copy fd ownership: the backend LENDS its fd (sd_posix returns obj->fd)
-    #    and the serve consumer dups it before closing the handle, so the response
-    #    owns the sendfile fd's lifetime (no double-close) -> shared/file_serve.c
-    #  - read-side CRC -> fs/vfs_io_core.c
-    #  - the write byte primitive -> fs/vfs_write.c
-    _assert_markers("src/core/http/http_file_response.c", ["b->in_file = 1"])
-    _assert_markers("src/protocols/shared/file_serve.c",
-                    ["send_fd = dup(fd)", "brix_vfs_close(fh"])
-    _assert_markers("src/fs/vfs/vfs_io_core.c", ["brix_crc32c_value("])
-    _assert_markers("src/fs/vfs/vfs_write.c", ["brix_vfs_pwrite_full("])
-    _assert_markers("src/fs/vfs/vfs_unlink.c", ["brix_ns_delete("])
-    _assert_markers("src/fs/vfs/vfs_mkdir.c", ["brix_ns_mkdir("])
-    _assert_markers("src/fs/vfs/vfs_rename.c", ["brix_ns_rename("])
-
-
-def test_phase3_http_read_metadata_uses_vfs():
-    # phase-79 file-size split: object.c's HEAD/HeadBucket cluster (which does the
-    # metadata brix_vfs_stat) moved to object_meta.c; the GET range-serve path
-    # (brix_vfs_open / brix_vfs_file_stat) stayed in object.c.
+def test_stream_path_resolver_uses_unified_adapter():
+    # Phase 8 retired the realpath-based EXISTING/WRITE resolvers; only the
+    # config-time _noexist variant remains, and it resolves through the shared
+    # unified.h adapter (allow_missing_parents).  ("realpath(" survives only in
+    # the explanatory comment, so it is no longer in the absent set.)
     _assert_markers(
-        "src/protocols/s3/object.c",
+        "src/fs/path/resolve_path_variants.c",
         [
-            "fs/vfs.h",
-            "brix_vfs_open(",
-            "brix_vfs_file_stat(",
-        ],
-    )
-    _assert_markers(
-        "src/protocols/s3/object_meta.c",
-        ["brix_vfs_stat("],
-    )
-    _assert_markers(
-        "src/protocols/webdav/resource.c",
-        ["fs/vfs.h", "brix_vfs_stat("],
-    )
-
-
-def test_phase4_cache_layer_is_registered():
-    _assert_markers(
-        "config",
-        [
-            "src/fs/cache/open.h",
-            "src/fs/cache/meta.h",
-            "src/fs/cache/writethrough.h",
-            "src/fs/cache/open.c",
-            "src/fs/cache/meta.c",
-        ],
-    )
-    _assert_markers(
-        "src/fs/cache/open.h",
-        [
-            "brix_cache_open(",
-            "brix_cache_record_access(",
-            "brix_cache_path_for_resolved(",
-        ],
-    )
-    _assert_markers(
-        "src/fs/cache/meta.h",
-        [
-            "brix_cache_meta_t",
-            "BRIX_CACHE_META_ETAG_MAX",
-            "brix_cache_meta_read(",
-            "brix_cache_meta_write(",
-        ],
-    )
-
-
-def test_phase4_vfs_cache_hooks_are_present():
-    _assert_markers(
-        "src/fs/vfs/vfs.h",
-        [
-            "cache_root_canon",
-            "cache_enabled",
-            "cache_writethrough_cfg",
-            "brix_vfs_file_from_cache(",
-        ],
-    )
-    _assert_markers(
-        "src/fs/vfs/vfs_open.c",
-        [
-            "fs/cache/open.h",
-            # phase-79 split: the cache-probe helper takes the caller's fh
-            # pointer directly (was a local &fh at the old inline call site).
-            "brix_cache_open(ctx, flags, fh)",
-            "brix_vfs_adopt_fd(",
-            "from_cache",
-        ],
-    )
-    # Read-side cache-hit recording moved out of vfs_read.c into the shared HTTP
-    # serve pipeline; the write-through decision moved into its own cache unit.
-    _assert_markers(
-        "src/protocols/shared/file_serve.c",
-        ["fs/cache/open.h", "brix_cache_record_access("],
-    )
-    _assert_markers(
-        "src/fs/cache/writethrough_decision.c",
-        ["writethrough.h", "brix_cache_should_writethrough("],
-    )
-
-
-def test_phase4_http_protocols_use_vfs_cache_path():
-    # The per-request VFS-ctx setup (incl. cache_root_canon wiring) was factored
-    # into the shared brix_vfs_ctx_init() helper (fs/vfs_open.c); WebDAV and S3
-    # GET now pass cache_root_canon into that one helper rather than assigning the
-    # field inline. Assert each GET handler routes through the helper + still opens
-    # read-only through the VFS and records cache access.
-    _assert_markers(
-        "src/protocols/webdav/get.c",
-        [
-            "fs/cache/open.h",
-            "fs/vfs.h",
-            # phase-79 split: get.c now works with a vctx pointer (vfs ctx is
-            # heap/ctx-held rather than a stack local, so no & at the call).
-            "brix_vfs_open(vctx, BRIX_VFS_O_READ",
-            "brix_vfs_ctx_init(",
-            "conf->cache_root_canon",
-            "brix_cache_record_access(",
+            '#include "unified.h"',
+            "brix_path_resolve_cstr(",
+            "allow_missing_parents",
         ],
     )
     _assert_absent(
-        "src/protocols/webdav/get.c",
-        ["cache_path = cache_root_canon + (path - root_canon)"],
-    )
-    _assert_markers(
-        "src/protocols/s3/object.c",
+        "src/fs/path/resolve_path_variants.c",
         [
-            "fs/cache/open.h",
-            "brix_vfs_ctx_init(",
-            "cf->cache_root_canon",
-        ],
-    )
-    # The single wiring point: brix_vfs_ctx_init() sets cache_root_canon (and
-    # derives cache_enabled) for every HTTP caller.  phase-79 file-size split:
-    # brix_vfs_ctx_init/adopt moved from vfs_open.c into vfs_open_adopt.c.
-    _assert_markers(
-        "src/fs/vfs/vfs_open_adopt.c",
-        ["vctx->cache_root_canon = cache_root_canon"],
-    )
-    # Phase 12: the cache-hit detection and access-record calls moved out of the
-    # per-protocol GET handlers into the shared file-serve pipeline. Both WebDAV
-    # and S3 GET now record cache access via brix_http_serve_file_ranged().
-    _assert_markers(
-        "src/protocols/shared/file_serve.c",
-        [
-            "fs/cache/open.h",
-            "brix_vfs_file_from_cache(",
-            "brix_cache_record_access(",
-        ],
-    )
-    # phase-79 split: the merge half (which canonicalises cache_root into
-    # cache_root_canon) moved from module.c into module_merge.c.
-    _assert_markers(
-        "src/protocols/s3/module.c",
-        ["brix_s3_cache_root"],
-    )
-    _assert_markers(
-        "src/protocols/s3/module_merge.c",
-        ["cache_root_canon"],
-    )
-
-
-def test_phase4_cache_metadata_and_eviction_guardrails():
-    _assert_markers(
-        "src/fs/cache/fetch.c",
-        [
-            "brix_cache_meta_from_stat(",
-            "brix_cache_meta_write(",
-        ],
-    )
-    _assert_markers(
-        "src/fs/cache/open.c",
-        [
-            "brix_cache_validate_meta(",
-            "O_NOFOLLOW",
-            "brix_vfs_adopt_fd(",
-        ],
-    )
-    _assert_markers(
-        "src/fs/cache/evict_candidates.c",
-        ['strcmp(name + name_len - suffix_len, ".meta")'],
-    )
-    _assert_markers(
-        "src/fs/cache/evict_policy.c",
-        ["brix_cache_meta_path(", "unlink(meta_path)"],
-    )
-
-
-def test_security_level_enforcement_is_linked():
-    _assert_markers(
-        "src/protocols/root/handshake/dispatch.c",
-        ["brix_verify_pending_sigver(", "brix_signing_enforce_level("],
-    )
-    _assert_markers(
-        "src/protocols/root/handshake/sigver.c",
-        [
-            "brix_signing_enforce_level(",
-            "brix_sigver_opcode_requires(",
-            "kXR_InvalidRequest",
+            "lstat(",
+            "brix_path_component_forbidden(",
         ],
     )
 
 
-def test_new_shared_helpers_are_wired_into_module_config():
-    for marker in (
-        "src/core/compat/checksum.c",
-        "src/core/compat/fs_walk.c",
-        "src/core/http/http_body.c",
-        "src/core/http/http_conditionals.c",
-        "src/core/http/http_headers.c",
-        "src/core/compat/hex.c",
-        "src/core/compat/staged_file.c",
-        "src/core/compat/time.c",
-        "src/net/cms/frame_io.c",
-    ):
-        _assert_markers("config", [marker])
+def test_http_path_resolver_uses_unified_adapter():
+    # Phase 8: the HTTP/S3 adapter (compat/path.c) no longer canonicalises with
+    # realpath() + the unified.h string resolver.  It joins the request lexically
+    # under the export root via the shared beneath API (brix_beneath_full_path)
+    # and lets openat2(RESOLVE_BENEATH) enforce confinement at the operation.
+    # Verify it uses that shared resolver rather than reimplementing path munging.
+    _assert_markers(
+        "src/core/compat/path.c",
+        [
+            "fs/path/beneath.h",
+            "brix_beneath_full_path(",
+        ],
+    )
+    _assert_absent(
+        "src/core/compat/path.c",
+        [
+            "has_forbidden_components",
+            "strrchr(",
+        ],
+    )
 
 
-def test_phase6_unified_metrics_observability_is_wired():
-    for relpath in (
-        "src/observability/metrics/unified.h",
-        "src/observability/metrics/unified.c",
-        "src/observability/metrics/access_log.h",
-        "src/observability/metrics/access_log.c",
-    ):
-        _read(relpath)
-
+def test_phase2_identity_type_is_registered():
     _assert_markers(
         "config",
         [
-            "src/observability/metrics/unified.h",
-            "src/observability/metrics/access_log.h",
-            "src/observability/metrics/unified.c",
-            "src/observability/metrics/access_log.c",
+            "src/core/types/identity.h",
+            "src/core/types/identity.c",
         ],
     )
     _assert_markers(
-        "src/observability/metrics/metrics.h",
-        ["ngx_brix_unified_metrics_t", "ngx_brix_unified_metrics_t unified"],
-    )
-    # phase-79 file-size split: stream.c's per-server-slot family emitters (which
-    # carry the DEPRECATED-family markers) moved into stream_family.c; the
-    # exposition driver (brix_export_unified_metrics) stayed in stream.c.
-    _assert_markers(
-        "src/observability/metrics/stream.c",
-        ["brix_export_unified_metrics(mw, shm)"],
-    )
-    _assert_markers(
-        "src/observability/metrics/stream_family.c",
-        ["DEPRECATED"],
-    )
-    # phase-79 file-size split: unified.c (was 1076 lines) was split into
-    # unified_record.c (record-side mutators), unified_export_io.c (io exporters),
-    # and unified_export.c (cred/cache/auth/tpc exporters). The wiring is unchanged;
-    # the markers now live in their respective split files.
-    _assert_markers(
-        "src/observability/metrics/unified_record.c",
+        "src/core/types/identity.h",
         [
-            "brix_metric_op_done(",
-            "brix_metric_cache_result(",
-            "brix_metric_auth(",
-            "brix_metric_tpc(",
+            "typedef struct {",
+            "BRIX_AUTHN_GSI",
+            "BRIX_AUTHN_TOKEN",
+            "BRIX_AUTHN_SSS",
+            "BRIX_AUTHN_S3KEY",
+            "brix_identity_t",
         ],
     )
     _assert_markers(
-        "src/observability/metrics/unified_export_io.c",
-        ["brix_io_ops_total"],
+        "src/core/types/context.h",
+        ["brix_identity_t *identity"],
     )
     _assert_markers(
-        "src/observability/metrics/unified_export.c",
-        ["brix_auth_total", "brix_tpc_transfers_total"],
+        "src/protocols/webdav/webdav.h",
+        ["core/types/identity.h", "brix_identity_t *identity"],
     )
     _assert_markers(
-        "src/fs/vfs/vfs_internal.h",
-        ["brix_metric_op_done(", "brix_access_log_emit("],
-    )
-    # The metadata ops carry the observe hook directly; data-plane read/write are
-    # observed through the I/O core (vfs_io_core.c), not vfs_read.c/vfs_write.c.
-    for relpath in (
-        "src/fs/vfs/vfs_stat.c",
-        "src/fs/vfs/vfs_unlink.c",
-        "src/fs/vfs/vfs_mkdir.c",
-        "src/fs/vfs/vfs_rename.c",
-        "src/fs/vfs/vfs_dir.c",
-    ):
-        _assert_markers(relpath, ["brix_vfs_observe_"])
-    _assert_markers(
-        "src/fs/vfs/vfs_open.c",
-        ["brix_metric_cache_result("],
-    )
-    _assert_markers(
-        "src/protocols/webdav/metrics.c",
-        ["observability/metrics/unified.h", "brix_metric_op_done("],
-    )
-    _assert_markers(
-        "src/protocols/s3/metrics.c",
-        ["observability/metrics/unified.h", "brix_metric_op_done("],
-    )
-    _assert_markers(
-        "src/tpc/common/metrics.c",
-        ["observability/metrics/unified.h", "brix_metric_tpc("],
+        "src/protocols/s3/s3.h",
+        ["core/types/identity.h", "brix_identity_t *identity"],
     )
 
 
-def test_implementation_plan_feature_gaps_are_closed():
+def test_phase2_auth_paths_populate_identity():
     _assert_markers(
-        "src/protocols/root/handshake/dispatch_read.c",
-        [
-            "case kXR_stat:",
-            "brix_handle_stat",
-            "case kXR_statx:",
-            "brix_handle_statx",
-            "case kXR_locate:",
-            "brix_handle_locate",
-            "case kXR_clone:",
-            "brix_handle_clone",
-        ],
-    )
-    # phase-79: dispatch_write.c replaced its switch ladder with the
-    # table-driven brix_wr_routes[] descriptor array; the opcodes appear as
-    # table rows rather than case labels.
-    _assert_markers(
-        "src/protocols/root/handshake/dispatch_write.c",
-        [
-            "{ kXR_pgwrite,",
-            "brix_handle_pgwrite",
-            "{ kXR_chkpoint,",
-            "brix_handle_chkpoint",
-        ],
-    )
-    # pgread.c was split; the page-encode + in-place CRC moved to pgread_encode.c,
-    # while the status-frame builder stayed in pgread.c.
-    _assert_markers(
-        "src/protocols/root/read/pgread_encode.c",
-        [
-            "brix_pgread_encode_pages(",
-            # pgread uses the in-place 3-way CRC (zero-copy) rather than the
-            # copy-while-summing variant the write path uses.
-            "brix_crc32c_value(",
-        ],
+        "src/auth/gsi/auth.c",
+        ["brix_identity_set_dn(", "BRIX_AUTHN_GSI"],
     )
     _assert_markers(
-        "src/protocols/root/read/pgread.c",
-        [
-            "brix_build_pgread_status(",
-        ],
+        "src/auth/gsi/token.c",
+        ["brix_identity_set_token_claims("],
     )
     _assert_markers(
-        "src/protocols/root/write/pgwrite.c",
-        [
-            "brix_pgwrite_decode_payload(",
-            "brix_crc32c_copy(",
-            "brix_send_pgwrite_status(",
-        ],
-    )
-    # phase-79 split: the journal-recovery half of chkpoint.c moved into
-    # chkpoint_recover.c.
-    _assert_markers(
-        "src/protocols/root/write/chkpoint.c",
-        ["brix_handle_chkpoint("],
+        "src/auth/sss/auth_request.c",
+        ["brix_identity_set_dn(", "BRIX_AUTHN_SSS"],
     )
     _assert_markers(
-        "src/protocols/root/write/chkpoint_recover.c",
-        ["brix_chkpoint_recover_root("],
-    )
-
-    _assert_markers(
-        "src/protocols/webdav/access.c",
-        [
-            "webdav_add_cors_headers(r)",
-            # 7de0b6d renamed webdav_check_token_write_scope → _scope
-            # (now enforces READ and WRITE scope, not write-only).
-            "webdav_check_token_scope(r, mname)",
-            "webdav_metrics_return(r,",
-        ],
-    )
-    # access.c was split; the cert/bearer verification calls moved to access_auth.c.
-    _assert_markers(
-        "src/protocols/webdav/access_auth.c",
-        [
-            "webdav_verify_proxy_cert(r, conf)",
-            "webdav_verify_bearer_token(r, conf)",
-        ],
+        "src/protocols/webdav/auth_cert.c",
+        ["brix_identity_alloc(", "brix_identity_set_dn("],
     )
     _assert_markers(
         "src/protocols/webdav/auth_token.c",
-        [
-            "webdav_verify_bearer_token(",
-            # renamed from webdav_check_token_write_scope (7de0b6d: read+write)
-            "webdav_check_token_scope(",
-            "brix_identity_check_token_scope(",
-            "brix_token_check_write(",
-        ],
-    )
-    _assert_markers(
-        "src/protocols/webdav/dispatch.c",
-        [
-            # webdav_proxy_handler retired with the reverse-proxy transport
-            # (A-2 surface retirement); dispatch goes straight to the handlers.
-            "webdav_metrics_return(r, webdav_handle_get(r))",
-            "webdav_metrics_return(r, webdav_handle_delete(r))",
-            "webdav_metrics_return(r, webdav_handle_mkcol(r))",
-            "webdav_metrics_return(r, webdav_handle_copy(r))",
-            "webdav_metrics_return(r, webdav_handle_move(r))",
-            "webdav_metrics_return(r, webdav_handle_propfind(r))",
-        ],
-    )
-
-    # phase-79 split: handler.c kept the auth gate; the bucket-level routing
-    # (ListMultipartUploads) moved into handler_dispatch.c and the per-object
-    # multipart routing into handler_object_route.c (where the body read is
-    # wired through the s3_read_body_metric wrapper).
-    _assert_markers(
-        "src/protocols/s3/handler.c",
-        ["s3_verify_sigv4(r, cf, s3ctx->identity)"],
-    )
-    _assert_markers(
-        "src/protocols/s3/handler_dispatch.c",
-        ["s3_handle_list_multipart_uploads(r, cf)"],
-    )
-    _assert_markers(
-        "src/protocols/s3/handler_object_route.c",
-        [
-            "s3_handle_list_parts(r, fs_path, cf",
-            "s3_handle_upload_part_copy(r, fs_path, cf",
-            "s3_handle_multipart_abort(r, fs_path, cf, upload_id)",
-            "s3_handle_multipart_initiate(r, fs_path, cf",
-            "s3_multipart_complete_body_handler",
-        ],
+        ["brix_identity_set_token_claims("],
     )
     _assert_markers(
         "src/protocols/s3/auth_sigv4_verify.c",
-        [
-            "s3_verify_sigv4(",
-            "s3_record_auth_result(",
-            "BRIX_AUTHN_S3KEY",
-        ],
-    )
-    # The multipart-complete sub-handlers are now separate compilation units
-    # listed in config (no longer #included into one amalgamation .c).
-    _assert_markers(
-        "config",
-        [
-            "src/protocols/s3/multipart_complete_list_parts.c",
-            "src/protocols/s3/multipart_complete_list_uploads.c",
-            "src/protocols/s3/multipart_complete_upload_part_copy.c",
-        ],
-    )
-    _assert_absent(
-        "src/protocols/s3/auth_sigv4_verify.c",
-        ["webdav_verify_bearer_token"],
-    )
-    _assert_absent(
-        "src/protocols/s3/handler.c",
-        ["webdav_verify_bearer_token"],
+        ["brix_identity_t *identity", "BRIX_AUTHN_S3KEY"],
     )
 
 
-def test_stream_missing_auth_plugins_are_wired():
+def test_http_precondition_evaluation_is_shared():
+    # S3 GET/HEAD and conditional-PUT preconditions route through the shared
+    # RFC 9110 evaluator (core/http/http_conditionals.c); the former private
+    # evaluator/matcher (s3_eval_preconditions / s3_etag_header_matches) must
+    # not grow back.
     _assert_markers(
-        "config",
+        "src/protocols/s3/conditional.c",
         [
-            "pkg-config --exists krb5",
-            "-DBRIX_HAVE_KRB5=1",
-            "src/auth/unix/auth.c",
-            "src/auth/krb5/config.c",
-            "src/auth/krb5/auth.c",
+            "core/http/http_conditionals.h",
+            "brix_http_eval_preconditions(",
+            "BRIX_HTTP_COND_READ",
         ],
     )
-    # The auth-method name->enum table moved into module_enums.c; the krb5/unix
-    # config directives stay in module.c (split out of the old monolith).
-    _assert_markers(
-        "src/protocols/root/stream/module_enums.c",
-        [
-            'ngx_string("unix")',
-            "BRIX_AUTH_UNIX",
-            'ngx_string("krb5")',
-            "BRIX_AUTH_KRB5",
-        ],
+    _assert_absent(
+        "src/protocols/s3/conditional.c",
+        ["s3_eval_preconditions", "s3_etag_header_matches", "s3_str_contains"],
     )
+    # WebDAV COPY/PUT keep using the shared ETag-precondition subset.
     _assert_markers(
-        "src/protocols/root/stream/module.c",
-        [
-            "brix_krb5_principal",
-            "brix_krb5_keytab",
-            "brix_krb5_ip_check",
-            "brix_unix_trust_remote",
-        ],
+        "src/protocols/webdav/methods/copy_conditionals.c",
+        ["brix_http_check_etag_preconditions("],
     )
-    # phase-79: protocol.c's sec-entry emission was refactored — the want_*
-    # locals became fields of a want struct and the byte-by-byte entry writes
-    # became the protocol_sec_entry_write() helper.
+    # The shared engine owns both outcome modes.
     _assert_markers(
-        "src/protocols/root/session/protocol.c",
-        [
-            "want->unx",
-            "want->krb5",
-            'protocol_sec_entry_write(pe, "unix")',
-            'protocol_sec_entry_write(pe, "krb5")',
-        ],
-    )
-    _assert_markers(
-        "src/protocols/root/session/login.c",
-        [
-            '"&P=unix"',
-            '"&P=krb5,%s"',
-            "auth parameter block too long",
-        ],
-    )
-    # phase-79: the kXR_auth protocol dispatch in gsi/auth.c became a
-    # descriptor table, so the handlers appear as table entries rather than
-    # direct (ctx, c, conf) calls.
-    _assert_markers(
-        "src/auth/gsi/auth.c",
-        [
-            "brix_handle_unix_auth",
-            "brix_handle_krb5_auth",
-        ],
-    )
-    _assert_markers(
-        "src/auth/unix/auth.c",
-        [
-            "brix_unix_peer_is_loopback(",
-            "unix_trust_remote",
-            "BRIX_AUTHN_UNIX",
-            "brix_session_register(",
-        ],
-    )
-    _assert_markers(
-        "src/auth/krb5/config.c",
-        [
-            "krb5_parse_name(",
-            "krb5_kt_start_seq_get(",
-            "brix_auth krb5 requested",
-        ],
-    )
-    _assert_markers(
-        "src/auth/krb5/auth.c",
-        [
-            "krb5_rd_req(",
-            "krb5_aname_to_localname(",
-            "BRIX_AUTHN_KRB5",
-            "brix_session_register(",
-        ],
-    )
-    _assert_markers(
-        "src/observability/metrics/unified.c",
-        ['"unix"', '"krb5"', "BRIX_METRIC_AUTH_UNIX", "BRIX_METRIC_AUTH_KRB5"],
+        "src/core/http/http_conditionals.c",
+        ["brix_http_eval_preconditions(", "BRIX_HTTP_COND_READ"],
     )

@@ -167,6 +167,24 @@ gsi_client_issuer_hash(const char *path, char *out, size_t outsz)
 }
 
 /* module callbacks */
+/*
+ * WHAT: 1 when this session may hand the peer an X.509 delegated proxy.
+ *
+ * WHY:  Two places must agree on the answer — the certreq that ADVERTISES the
+ *       capability (kOptsSigReq) and the kXGS_pxyreq round that HONOURS it. A
+ *       split rule there is exactly how `--tpc delegate` came to advertise one
+ *       thing and do another (audit §7.5); one predicate makes that impossible.
+ *
+ * HOW:  Session opt first (set by `--tpc delegate`), then the process-wide
+ *       $XRDC_GSI_DELEGATE escape hatch for tools with no copy-options block.
+ */
+static int
+gsi_delegation_enabled(const brix_conn *c)
+{
+    return c->opts.gsi_delegate || getenv("XRDC_GSI_DELEGATE") != NULL;
+}
+
+
 static int
 gsi_first(brix_conn *c, const char *parms, uint8_t **payload, uint32_t *plen,
           brix_status *st)
@@ -225,9 +243,19 @@ gsi_first(brix_conn *c, const char *parms, uint8_t **payload, uint32_t *plen,
         return -1;
     }
 
-    /* clnt_opts 0x80 matches a stock client's default (delegated-proxy off). */
-    buf = brix_gsi_build_certreq(crypto, version, issuer_hash, 0x80u,
-                                   client_rtag, sizeof(client_rtag), &buflen);
+    /* clnt_opts 0x80 (kOptsCreatePxy) matches a stock client's default.  When
+     * this session enables delegation, also advertise kOptsSigReq (0x04) — "I
+     * can sign a proxy request".  A stock destination consults these bits before
+     * issuing kXGS_pxyreq, so without the bit a `--tpc delegate` copy would ask
+     * for delegation on the wire (tpc.dlgon=1) and never be asked for the
+     * proxy: the same silent downgrade, one layer down. */
+    {
+        uint32_t clnt_opts = 0x80u
+                           | (gsi_delegation_enabled(c) ? 0x04u : 0u);
+        buf = brix_gsi_build_certreq(crypto, version, issuer_hash, clnt_opts,
+                                       client_rtag, sizeof(client_rtag),
+                                       &buflen);
+    }
     if (buf == NULL) {
         brix_status_set(st, XRDC_EAUTH, 0, "gsi: cannot build certreq");
         return -1;
@@ -342,10 +370,16 @@ gsi_sigpxy(brix_conn *c, const uint8_t *sbody, uint32_t slen, uint8_t **payload,
     char                 proxy[512], err[160];
     brix_gbuf          inner, outer;
 
-    if (getenv("XRDC_GSI_DELEGATE") == NULL) {
+    /* Delegation is opt-in: signing the peer's request hands it a credential
+     * that speaks as this user, so it never happens implicitly.  `--tpc
+     * delegate` sets opts.gsi_delegate (that IS the mode's meaning: the
+     * destination reads the source as the user); $XRDC_GSI_DELEGATE remains the
+     * session-wide override for tooling that has no copy-options block. */
+    if (!gsi_delegation_enabled(c)) {
         brix_status_set(st, XRDC_EAUTH, 0,
-                        "gsi: server requested X.509 delegation but "
-                        "XRDC_GSI_DELEGATE is not set");
+                        "gsi: server requested X.509 delegation but this "
+                        "session did not enable it (use --tpc delegate, or set "
+                        "XRDC_GSI_DELEGATE)");
         return -1;
     }
     if (!c->gsi_deleg_ready

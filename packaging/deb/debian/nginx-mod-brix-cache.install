@@ -1,0 +1,7 @@
+usr/lib/nginx/modules/ngx_stream_brix_module.so
+usr/lib/nginx/modules/ngx_http_brix_xrdhttp_filter_module.so
+usr/share/nginx/modules-available/60-mod-brix-cache.conf
+etc/nginx/conf.d/brix-cache.conf.example
+etc/logrotate.d/brix
+usr/share/brix/grafana-dashboard.json
+usr/share/brix/prometheus-alerts.yml

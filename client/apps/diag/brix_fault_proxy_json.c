@@ -247,6 +247,53 @@ json_object_get(const char *json, const char *key, char *out, size_t outsz)
 }
 
 /*
+ * Like json_object_get, but also accepts a NON-string value (number/bool/null):
+ * a string value is decoded, a bare token is copied verbatim (so 5242880 stays
+ * an integer and 0.02 stays 0.02 — never reprojected through %g).  Returns 1 and
+ * fills `out` on success, 0 if the key is absent, -1 if the object is malformed.
+ */
+int
+fp_json_get(const char *json, const char *key, char *out, size_t outsz)
+{
+    const char *p = json_skip_ws(json);
+    if (*p != '{') {
+        return -1;
+    }
+    p = json_skip_ws(p + 1);
+    if (*p == '}') {
+        return 0;
+    }
+    for (;;) {
+        char kbuf[64];
+        if (json_member_key(&p, kbuf, sizeof kbuf) != 0) {
+            return -1;
+        }
+        int match = (strcmp(kbuf, key) == 0);
+        if (match && *p == '"') {
+            return json_parse_string(&p, out, outsz) == 0 ? 1 : -1;
+        }
+        if (match) {
+            /* bare token: copy up to ',' or '}' (trimming trailing space). */
+            size_t o = 0;
+            while (*p != '\0' && *p != ',' && *p != '}') {
+                if (o + 1 < outsz) { out[o++] = *p; }
+                p++;
+            }
+            while (o > 0 && (out[o - 1] == ' ' || out[o - 1] == '\t')) { o--; }
+            out[o] = '\0';
+            return o > 0 ? 1 : -1;
+        }
+        if (json_skip_value(&p) != 0) {
+            return -1;
+        }
+        p = json_skip_ws(p);
+        if (*p == ',') { p++; continue; }
+        if (*p == '}') { return 0; }
+        return -1;
+    }
+}
+
+/*
  * Reproject a flat JSON command object onto a verb line for apply_command().
  * Emits "<cmd>" (no args) or "<cmd> <args>".  Returns 0 on success, -1 on a
  * malformed object or a missing "cmd".

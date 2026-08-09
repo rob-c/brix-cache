@@ -24,9 +24,12 @@ import struct
 
 import pytest
 
-from settings import SERVER_HOST
+from server_launcher import LifecycleHarness
+from server_registry import NginxInstanceSpec
+from settings import BIND_HOST, SERVER_HOST
 
-PORT = int(os.environ.get("BRIX_SUBSTREAMS_OFF_PORT", "21096"))
+pytestmark = [pytest.mark.uses_lifecycle_harness,
+              pytest.mark.xdist_group("bind-substreams-off")]
 
 kXR_login    = 3007
 kXR_ping     = 3011
@@ -54,8 +57,8 @@ def _resp(sock):
     return sid, status, body
 
 
-def _session():
-    s = socket.create_connection((SERVER_HOST, PORT), timeout=10)
+def _session(port):
+    s = socket.create_connection((SERVER_HOST, port), timeout=10)
     s.settimeout(10)
     s.sendall(struct.pack("!IIIII", 0, 0, 0, 4, 2012))
     _, st, _ = _resp(s)
@@ -79,12 +82,28 @@ def _ping(sock, streamid=b"\x00\x0f"):
     return _resp(sock)
 
 
+@pytest.fixture(scope="module")
+def substreams_off_port():
+    harness = LifecycleHarness()
+    try:
+        endpoint = harness.start(NginxInstanceSpec(
+            name="lc-bind-substreams-off",
+            template="nginx_bind_substreams_off.conf",
+            protocol="root",
+            template_values={"BIND_HOST": BIND_HOST},
+            reason="kXR_bind refusal when data substreams are disabled",
+        ))
+        yield endpoint.port
+    finally:
+        harness.close()
+
+
 @pytest.mark.requires_local_server
 class TestBindSubstreamsOff:
 
-    def test_bind_refused_when_substreams_off(self):
+    def test_bind_refused_when_substreams_off(self, substreams_off_port):
         """success: kXR_bind is refused with kXR_error/kXR_Unsupported."""
-        s = _session()
+        s = _session(substreams_off_port)
         try:
             _, st, body = _bind(s)
             assert st == kXR_error, f"bind must be refused, got status={st}"
@@ -94,9 +113,9 @@ class TestBindSubstreamsOff:
         finally:
             s.close()
 
-    def test_connection_survives_bind_refusal(self):
+    def test_connection_survives_bind_refusal(self, substreams_off_port):
         """framing: a following request is answered normally after the refusal."""
-        s = _session()
+        s = _session(substreams_off_port)
         try:
             _, st, _ = _bind(s)
             assert st == kXR_error
@@ -105,10 +124,10 @@ class TestBindSubstreamsOff:
         finally:
             s.close()
 
-    def test_pathid_tagged_write_refused_without_desync(self):
+    def test_pathid_tagged_write_refused_without_desync(self, substreams_off_port):
         """negative: a kXR_write with a non-zero pathid (data would be on a
         secondary) is refused with no payload read, so framing stays intact."""
-        s = _session()
+        s = _session(substreams_off_port)
         try:
             # kXR_write body: fhandle[4] offset(i64) pathid(1) reserved[3]; set
             # pathid=7 and dlen=8192, but send NO payload (as a real client does

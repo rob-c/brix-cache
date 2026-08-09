@@ -13,9 +13,10 @@ import subprocess
 
 import pytest
 
-from settings import BIND_HOST, HOST, NGINX_BIN
+from cmdscripts.live_common import inject_nginx_load_modules
+from settings import BIND_HOST, HOST, NGINX_ANON_PORT, NGINX_BIN
 
-REMOTE = f"brix_storage_backend root://{HOST}:11094;"
+REMOTE = f"brix_storage_backend root://{HOST}:{NGINX_ANON_PORT};"
 
 
 def _nginx_t(root, body):
@@ -31,6 +32,7 @@ stream {{ server {{ listen {BIND_HOST}:13297;
     {body}
 }} }}
 """)
+    inject_nginx_load_modules(conf)
     p = subprocess.run([str(NGINX_BIN), "-t", "-p", str(root), "-c", str(conf)],
                        capture_output=True, text=True, timeout=30)
     return p.returncode, p.stderr + p.stdout

@@ -53,14 +53,40 @@ typedef struct {
 ngx_int_t brix_loc_cache_configure(ngx_conf_t *cf);
 
 /* Copy the cached (host, port) for path into the caller's buffers.  Returns
- * 1 on a fresh hit, 0 on miss/expired/zone-absent. */
+ * 1 on a fresh hit, 0 on miss/expired/zone-absent (a §2.6 negative entry also
+ * reads as a miss here — use brix_loc_cache_lookup2 to distinguish). */
 int brix_loc_cache_lookup(const char *path, char *host, size_t host_sz,
     uint16_t *port);
 
-/* Record "host:port holds path" for BRIX_LOC_CACHE_TTL_MS.  Last writer wins
- * (a fresher HAVE simply refreshes/replaces the entry).  When every probed
- * slot is live, the entry at the path's home slot is overwritten — bounded
- * eviction rather than an unbounded probe.  Safe no-op if the zone is absent. */
+/* §2.6 — three-way lookup: positive hit (host/port filled), negative hit
+ * ("the cluster recently proved no node holds path" — recorded on a state
+ * fan-out that timed out with no kYR_have), or miss. */
+#define BRIX_LOC_MISS  0
+#define BRIX_LOC_HIT   1
+#define BRIX_LOC_NEG   2
+int brix_loc_cache_lookup2(const char *path, char *host, size_t host_sz,
+    uint16_t *port);
+
+/* Record "host:port holds path" for the configured TTL (brix_cms_fxhold;
+ * default BRIX_LOC_CACHE_TTL_MS).  Last writer wins (a fresher HAVE simply
+ * refreshes/replaces the entry).  When every probed slot is live, the entry
+ * at the path's home slot is overwritten — bounded eviction rather than an
+ * unbounded probe.  Safe no-op if the zone is absent. */
 void brix_loc_cache_insert(const char *path, const char *host, uint16_t port);
+
+/* §2.6 — record "no node holds path" for the emptylife TTL.  No-op unless
+ * brix_cms_emptylife is configured (>0).  A later kYR_have for the path
+ * simply overwrites the negative entry (positive information wins). */
+void brix_loc_cache_insert_negative(const char *path);
+
+/* §2.7 — kXR_refresh: drop any cached entry (positive or negative) for path
+ * so the refreshed locate re-probes the cluster. */
+void brix_loc_cache_invalidate(const char *path);
+
+/* §2.6 — config-time (before fork) TTL overrides, set once from
+ * brix_cms_fxhold / brix_cms_emptylife.  ttl_ms 0 keeps the compile-time
+ * default; emptylife_ms 0 disables negative caching (the default). */
+void brix_loc_cache_set_ttl(ngx_msec_t ttl_ms);
+void brix_loc_cache_set_emptylife(ngx_msec_t emptylife_ms);
 
 #endif /* BRIX_MANAGER_LOC_CACHE_H */

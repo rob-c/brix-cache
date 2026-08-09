@@ -10,7 +10,7 @@ Despite the historical name "compat", this is not a thin compatibility shim over
 
 These helpers sit *below* the protocol handlers in every request lifecycle. A WebDAV `GET` calls `brix_http_parse_range` (`range.c`) before the serve pipeline in `core/http` takes over; an S3 `ListObjectsV2` calls `brix_fs_walk` + `brix_xml_write_text_element`; a native `kXR_Qcksum` calls `brix_integrity_get_fd` → `brix_checksum_hex_fd`; every mutating op (`rm`, `mkdir`, `mv`, WebDAV `MKCOL`/`DELETE`/`MOVE`, S3 `PutObject`/`DeleteObjects`) routes through `brix_ns_*` in `namespace_ops.c`. Outbound transfers (native TPC, WebDAV HTTP-TPC) gate on `net_target.c`'s SSRF policy.
 
-Two invariants make this directory load-bearing for security: (1) every namespace mutation and staged write here re-resolves the client path under the export root with the kernel's `openat2(RESOLVE_BENEATH)` API (via `../path/beneath.h`) — confinement is enforced at the syscall, not assumed from an upstream check; and (2) all outbound network targets pass a DNS-rebind-safe SSRF classifier before any byte is sent.
+Two invariants make this directory load-bearing for security: (1) every namespace mutation and staged write here re-resolves the client path under the export root with the kernel's `openat2(RESOLVE_BENEATH)` API (via `src/fs/path/beneath.h`) — confinement is enforced at the syscall, not assumed from an upstream check; and (2) all outbound network targets pass a DNS-rebind-safe SSRF classifier before any byte is sent.
 
 ## Files
 
@@ -41,7 +41,7 @@ The request/response-semantics files (`http_*`, `etag`) live in [`../http`](../h
 
 | File | Responsibility |
 |---|---|
-| `namespace_ops.c` / `namespace_ops.h` | **The mandatory mutation gateway.** `brix_ns_delete/_mkdir/_rename/_local_copy` over already-resolved paths, each opening a `RESOLVE_BENEATH` rootfd and routing every stat/open/unlink/mkdir/rename through `../path/beneath.h`. Neutral `brix_ns_status_t` result; recursive-vs-empty, overwrite, staged-commit, xattr-preserve policies. INVARIANT: protocol handlers MUST use these, not raw `*_beneath` calls. |
+| `namespace_ops.c` / `namespace_ops.h` | **The mandatory mutation gateway.** `brix_ns_delete/_mkdir/_rename/_local_copy` over already-resolved paths, each opening a `RESOLVE_BENEATH` rootfd and routing every stat/open/unlink/mkdir/rename through `src/fs/path/beneath.h`. Neutral `brix_ns_status_t` result; recursive-vs-empty, overwrite, staged-commit, xattr-preserve policies. INVARIANT: protocol handlers MUST use these, not raw `*_beneath` calls. |
 | `fs_walk.c` / `fs_walk.h` | Directory traversal: dot-entry check, path join, empty-dir probe, options-driven recursive `brix_fs_walk` (depth/hidden/files-vs-dirs/cross-device), and confined recursive `brix_fs_remove_tree_confined` (unlinks/rmdir via beneath API). Backs dirlist, PROPFIND collections, S3 ListObjects, recursive DELETE/MOVE. |
 | `fs_usage.c` / `fs_usage.h` | `statvfs(2)` → total/free/available/used bytes + occupancy ppm (`brix_fs_usage_t`). For Prometheus, PROPFIND quota, and `kXR_query` space. |
 | `staged_file.c` / `staged_file.h` | Crash-safe atomic write lifecycle: `open` a unique `O_EXCL` temp under the confined root → write → `commit` or `abort` (close+unlink). `brix_commit_staged` is **backend-aware**: a POSIX final takes `rename(2)` (same-FS) or copy-then-rename (cross-device EXDEV); a **non-POSIX final export** (e.g. pblock) is published by streaming the partial INTO the backend via its driver `staged_*` state machine (`commit_staged_to_backend`, resolved by `brix_vfs_backend_resolve_for_path`) — the cross-filesystem atomic commit behind `upload_resume`/POSC on a pblock export. Used by S3 PUT, WebDAV PUT/COPY, and root:// close. |
@@ -59,8 +59,56 @@ The request/response-semantics files (`http_*`, `etag`) live in [`../http`](../h
 | `result_mapper.h` | Back-compat alias header — declares `brix_http_map_ns_status`/`brix_http_map_errno` (defined in `error_mapping.c`). |
 | `err_strings.h` | Lowercase canonical errno→message strings (`brix_kxr_err_string`) that conformance tests assert, avoiding `strerror` case drift (e.g. "permission denied" not "Permission denied"). |
 | `time.c` / `time.h` | `brix_format_iso8601` — UTC `YYYY-MM-DDThh:mm:ss.000Z` via `gmtime_r` for stat/logs/S3 LastModified/HTTP dates. |
-| `log.c` / `log.h` | `brix_log_safe_path` — sanitises a wire path (escapes control/quote/non-ASCII via `brix_sanitize_log_string`, defined in `../path/path.c`) before logging with a one-`%s` format. |
+| `log.c` / `log.h` | `brix_log_safe_path` — sanitises a wire path (escapes control/quote/non-ASCII via `brix_sanitize_log_string`, defined in `src/fs/path/helpers.c`) before logging with a one-`%s` format. |
 | `shm_slots.h` | Inline SHM-slot helpers: `slot_expired` (msec compare) and `remember_free_slot` (first-candidate-wins). For TPC key registry, cache origin slots. |
+
+### Other files
+
+| File | Responsibility |
+|---|---|
+| `shm_slots.c` | Slab-safe SHM table allocation (`brix_shm_table_*`) — see `shm_slots.h` and Invariant 10. |
+| `staged_file_commit.c` | `brix_commit_staged()` — cross-device / cross-backend staged-commit publish when a plain `rename(2)` cannot. |
+| `staged_file_reap.c` | Durable stage-out markers (`<stage_partial>.commit`) + the crash-safe commit reaper that finishes interrupted publishes. |
+| `af_policy.h` | a 3-value policy (auto/inet/inet6) plus a string parser. |
+| `checksum_core.c` / `.h` | brix_cksum_u32_fd() (Adler-32/CRC-32/CRC-32c) and brix_cksum_digest_fd() (MD5/SHA-1/SHA-256) stream a file descriptor and return the result; no nginx, no logging. |
+| `codec_brotli.c` | Streaming brotli (de)compression via libbrotlienc / libbrotlidec. |
+| `codec_bzip2.c` | Streaming bzip2 (de)compression via libbz2's low-level bz_stream API. |
+| `codec_core.c` / `.h` | Implements brix_codec_open/step/close and the by_id/by_name/ by_http_token lookups over a static descriptor table, plus the always-on IDENTITY (passthrough) backend. |
+| `codec_lz4.c` | Streaming LZ4 (de)compression via liblz4's LZ4 Frame API (lz4frame.h), producing/consuming the self-describing .lz4 frame format. |
+| `codec_lzma.c` | Streaming .xz (de)compression via liblzma. |
+| `codec_zlib.c` | Streaming (de)compression for BRIX_CODEC_GZIP and BRIX_CODEC_DEFLATE over a single zlib z_stream. |
+| `codec_zstd.c` | Streaming zstd (de)compression via libzstd's CCtx/DCtx streaming API. |
+| `crc32_ieee.c` / `.h` | CRC-32/IEEE (see crc32_ieee.h). |
+| `crc32c_hw.c` | The x86_64 hardware half of the CRC-32c engine — SSE4.2 feature detection plus the serial and 3-way-parallel _mm_crc32_u64/u32/u8 extend and copy+checksum implementations. |
+| `crc32c_internal.h` | shared internals for the CRC-32c engine split across crc32c.c (public dispatch + software path) and crc32c_hw.c (SSE4.2 hardware and 3-way-parallel paths). |
+| `cred_stage.c` / `.h` | private staging area for short-lived credential material. |
+| `cstr.h` | brix_cbuf_copy() copies len bytes into a caller buffer and NUL-terminates, refusing (returns NULL, buffer untouched) when the result would not fit; brix_str_cbuf() is the ngx_str_t wrapper; brix_pstrdup_z() pool-allocate. |
+| `fattr_codec.c` / `.h` | kXR_fattr nvec entry parser (see fattr_codec.h). |
+| `fs_walk_remove.c` | Recursively deletes a directory tree confined to an export root_canon. |
+| `host_format.c` / `.h` | see host_format.h. |
+| `host_split.c` / `.h` | Parses `port_str` as a decimal port, storing it into `*port` and returning 0 on success; returns -1 when the value is out of the valid 1..65535 range (or non-numeric, which atoi maps to 0). |
+| `integrity_info_internal.h` | Cross-declares the record-DIGEST fallback functions that the xattr-cache orchestrator in integrity_info.c calls across the file boundary into integrity_info_record.c, plus the xattr/record value-buffer size used by both. |
+| `integrity_info_record.c` | Reads and writes a file's checksum as a DIGEST entry inside the file's unified xmeta record, keyed and validated against the live file's mtime+size. |
+| `json_min.c` / `.h` | Returns the code point encoded by high surrogate `hi` (0xD800..0xDBFF) and low surrogate `lo` (0xDC00..0xDFFF). |
+| `kxr_names.c` / `.h` | one code→name row of a kXR vocabulary table. |
+| `lifecycle_timing.c` / `.h` | implementation of the lifecycle phase stopwatch. |
+| `log_diag.h` | turn a terse one-line error into a self-explanatory, three-part diagnostic that an operator who has never seen this module before can act on: * xrootd[pki]: no CRLs found in "/etc/grid-security/certificates" cause: CRL d. |
+| `namespace_ops_copy.c` | Implements the local file-copy orchestration (brix_ns_local_copy) and its pre-open validation, destination-open, and finalize helpers, plus the xattr-mirroring helpers (brix_ns_copy_fattrs / brix_xattr_copy_by_prefix). |
+| `namespace_ops_internal.h` | Cross-declares the two confinement/result helpers that the local-copy path (namespace_ops_copy.c) reuses from the mutation core (namespace_ops.c): ns_rel() (open the RESOLVE_BENEATH rootfd + return the within-root tail). |
+| `net_target_dns.c` | returns target->port when explicit, else the policy/scheme default. |
+| `net_target_internal.h` | declares the address-classification chokepoint that is DEFINED in net_target.c (the SSRF address cluster) but REFERENCED from net_target_dns.c (the resolve-and-pin cluster). |
+| `net_target_parse.c` | names the two cursors ("host_start" = first byte after "://", "host_end" = the first '/' or end-of-URL) plus the caller's err buffer, so a helper takes ONE struct instead of four positional args. |
+| `ns_status.h` | The brix_ns_status_t enum, extracted from namespace_ops.h so it can be shared by the ngx-free protocol core (libxrdproto, error_mapping Sections 1-2) without dragging in any ngx_* dependency. |
+| `openssl_auto.h` | typed `__attribute__((cleanup))` handlers + the XRD_AUTO(type) macro, so an OpenSSL handle declared with XRD_AUTO is freed automatically when it goes out of scope — on EVERY return path, with no manual free. |
+| `pgio.c` / `.h` | kXR page-mode CRC32c framing (see pgio.h). |
+| `safe_size.h` | Header-only helpers that compute `a*b` / `a+b` with overflow detection and allocate `n*sz`-byte arrays that return NULL (rather than a truncated, heap-overflowing buffer) when the size computation would wrap. |
+| `sigv4.c` / `.h` | AWS SigV4 signing-key derivation (see sigv4.h). |
+| `snprintf_check.h` | a thin wrapper over vsnprintf that returns whether the *entire* formatted string fit, instead of silently truncating. |
+| `sss_bf.c` / `.h` | Returns 1 when every pointer is non-NULL and the lengths are in range (key 1..INT_MAX, src <= INT_MAX, dst_max both >= src_len and <= INT_MAX); returns 0 otherwise. |
+| `str_dup.h` | collapse the recurring five-line idiom that copies `len` bytes into a pool buffer, NUL-terminates it, and records the length on an ngx_str_t: * dst->data = ngx_pnalloc(pool, len + 1); if (dst->data == NULL) { return err;. |
+| `subprocess.c` / `.h` | Returns 1 when argv, argv[0], and the output buffer are all usable (non-NULL argv/argv[0]/out and a non-zero outsz); returns 0 otherwise. |
+| `vendor_ext.c` / `.h` | kXR_setattr attribute-prefix codec (see vendor_ext.h). |
+| `wverify.c` / `.h` | self-computed write-integrity accumulator (see wverify.h). |
 
 ## Key types & data structures
 
@@ -84,7 +132,7 @@ Execution always **enters from a caller above** — a protocol handler or a subs
 - **Native stream** (`../read/`, `../write/`, `../query/`, `../fattr/`): checksums → `checksum.c`/`crc32c.c`/`integrity_info.c`; readv coalescing → `range_vector.c`; clone/chkpoint/copy → `copy_range.c`; mutations → `namespace_ops.c`; space → `fs_usage.c`.
 - **TPC / proxy / CMS** (`../tpc/`, `../proxy/`, `../cms/`): outbound target validation → `net_target.c`; background job teardown → `async_job.c`; SHM slot bookkeeping → `shm_slots.h`.
 
-What this directory **calls out to**: the filesystem helpers depend on the kernel-confinement primitives in [`../path/beneath.h`](../../fs/path/README.md) (`brix_*_beneath`, `brix_beneath_open_root`, `brix_beneath_strip_root`) and on [`../fattr`](../../protocols/root/fattr/README.md) xattr key constants; `copy_range.c` and the body/checksum loops are **blocking** and run under the [`../aio`](../aio/README.md) thread pool; status mappings feed the response framing in [`../response`](../../protocols/root/response/README.md) and the counters in [`../metrics`](../../observability/metrics/README.md). It depends on nginx core/HTTP, OpenSSL, zlib, and libxml2.
+What this directory **calls out to**: the filesystem helpers depend on the kernel-confinement primitives in [`src/fs/path/beneath.h`](../../fs/path/README.md) (`brix_*_beneath`, `brix_beneath_open_root`, `brix_beneath_strip_root`) and on [`../fattr`](../../protocols/root/fattr/README.md) xattr key constants; `copy_range.c` and the body/checksum loops are **blocking** and run under the [`../aio`](../aio/README.md) thread pool; status mappings feed the response framing in [`../response`](../../protocols/root/response/README.md) and the counters in [`../metrics`](../../observability/metrics/README.md). It depends on nginx core/HTTP, OpenSSL, zlib, and libxml2.
 
 ## Invariants, security & gotchas
 
@@ -111,10 +159,10 @@ What this directory **calls out to**: the filesystem helpers depend on the kerne
 
 ## See also
 
-- [`../path/README.md`](../../fs/path/README.md) — `beneath.h` RESOLVE_BENEATH confinement, canonicalisation, ACL/authdb (this directory's confinement backend).
+- [`../../fs/path/README.md`](../../fs/path/README.md) — `src/fs/path/beneath.h` RESOLVE_BENEATH confinement, canonicalisation, ACL/authdb (this directory's confinement backend).
 - [`../aio/README.md`](../aio/README.md) — thread-pool offload for the blocking calls here.
-- [`../read/README.md`](../../protocols/root/read/README.md), [`../write/README.md`](../../protocols/root/write/README.md) — native opcode bodies that consume these checksum/copy/mutation helpers.
-- [`../webdav/README.md`](../../protocols/webdav/README.md), [`../s3/README.md`](../../protocols/s3/README.md) — the two HTTP front-ends that drive the `http_*` / `range` / `xml` / `staged_file` helpers.
-- [`../fattr/README.md`](../../protocols/root/fattr/README.md) — xattr key constants used by `integrity_info.c` / `namespace_ops.c`.
-- [`../query/README.md`](../../protocols/root/query/README.md), [`../tpc/README.md`](../../tpc/README.md), [`../metrics/README.md`](../../observability/metrics/README.md) — callers of checksum, `net_target`, and `fs_usage`.
+- [`../../protocols/root/read/README.md`](../../protocols/root/read/README.md), [`../../protocols/root/write/README.md`](../../protocols/root/write/README.md) — native opcode bodies that consume these checksum/copy/mutation helpers.
+- [`../../protocols/webdav/README.md`](../../protocols/webdav/README.md), [`../../protocols/s3/README.md`](../../protocols/s3/README.md) — the two HTTP front-ends that drive the `http_*` / `range` / `xml` / `staged_file` helpers.
+- [`../../protocols/root/fattr/README.md`](../../protocols/root/fattr/README.md) — xattr key constants used by `integrity_info.c` / `namespace_ops.c`.
+- [`../../protocols/root/query/README.md`](../../protocols/root/query/README.md), [`../../tpc/README.md`](../../tpc/README.md), [`../../observability/metrics/README.md`](../../observability/metrics/README.md) — callers of checksum, `net_target`, and `fs_usage`.
 - [`../README.md`](../README.md) — master subsystem index.

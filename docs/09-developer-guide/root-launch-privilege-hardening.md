@@ -62,7 +62,7 @@ This is because `euid == 0` is the wrong test: a service account with
 
 - Directive: `brix_worker_user <acct>` (default `nobody`, with a WARN),
   fail-closed. Setter `brix_conf_set_worker_user`, registered in **both** the
-  stream table (`src/protocols/root/stream/directives_security.inc`) and the http
+  stream table (`src/protocols/root/stream/directives_security.h`) and the http
   table (`src/core/config/http_common.c`); global `char brix_worker_user[64]`.
 - Called from `process.c` early — right after `brix_imp_worker_harden`, **before**
   the `cmcf` early-return, backend init, broker connect, and seccomp install — so

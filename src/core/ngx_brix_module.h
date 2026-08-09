@@ -179,6 +179,15 @@ char *brix_conf_set_manager_map(ngx_conf_t *cf, ngx_command_t *cmd,
  * into concurrently; the same endpoint twice is an error). */
 char *brix_conf_set_cms_manager(ngx_conf_t *cf, ngx_command_t *cmd,
     void *conf);
+/* "brix_cms_sched cpu <n> io <n> runq <n> mem <n> pag <n> space <n>
+ *  fuzz <n> maxload <n>": §2.3 component-weight selection policy (stock
+ * cms.sched grammar; each value 0-100; unknown keys are errors). */
+char *brix_conf_set_cms_sched(ngx_conf_t *cf, ngx_command_t *cmd,
+    void *conf);
+/* "brix_cms_altds <port> [monitor on|off]": §2.12 advertise a co-located
+ * foreign data server's port as this node's data port. */
+char *brix_conf_set_cms_altds(ngx_conf_t *cf, ngx_command_t *cmd,
+    void *conf);
 /* "brix_upstream <host:port>": parse the proxy upstream address
  * (supports [v6]:port and host:port). */
 char *brix_conf_set_upstream(ngx_conf_t *cf, ngx_command_t *cmd,

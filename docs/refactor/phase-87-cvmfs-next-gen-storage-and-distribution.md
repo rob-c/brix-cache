@@ -249,7 +249,7 @@ every ENOENT is a catalog consultation. Turns cold `cmake`/`ld`/`import` from
 network-bound to memory-bound. Tiny to ship, tiny to store.
 
 **Files.** proxy: new `src/protocols/cvmfs/pathset.c` (build+serve, walk-driven),
-directive in `directives_resilience.inc`. client: `shared/cvmfs/filter/xorf.c`
+directive in `directives_resilience.h`. client: `shared/cvmfs/filter/xorf.c`
 (pure-C xor filter, shared), wired in `shared/cvmfs/client/client.c` lookup path;
 opt parsed in `client/apps/fs/brixcvmfs.c`. Shared → also usable proxy-side to
 short-circuit known-404s (feeds the F9/negcache path).

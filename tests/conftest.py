@@ -16,11 +16,147 @@ import shutil
 import random
 import socket
 import subprocess
+import sys
+
+
+# ---------------------------------------------------------------------------
+# Fleet sentinel — forensic half.
+#
+# Wrap os.kill / os.killpg (inherited by every xdist worker) so that whenever a
+# FATAL signal is aimed at a registry nginx master, the caller's traceback and
+# the currently-running test's nodeid are appended to $TEST_ROOT/kill-diag.log.
+# This is pure forensics (it always calls the real kill afterwards, never
+# raises); the arbiter half in conftest_part4.py decides whether the fleet was
+# actually damaged and aborts the run.  Together they turn "a test stopped or
+# crashed a shared fleet server" from a mysterious ConnectionRefused cascade
+# into a named, fail-fast bug.  On by default for a local fleet; BRIX_FLEET_
+# SENTINEL=0 disables both halves.
+# ---------------------------------------------------------------------------
+_CURRENT_NODEID = [""]   # updated per-test by the sentinel setup hook
+
+
+def _install_kill_tracer():
+    import signal as _sig
+    import traceback as _tb
+    import re as _re
+    import time as _time
+    _real_kill = os.kill
+    _real_killpg = getattr(os, "killpg", None)
+    _fatal = {int(_sig.SIGKILL), int(_sig.SIGTERM), int(_sig.SIGQUIT)}
+
+    def _server_name(pid):
+        """Name a registry server process (nginx master OR xrootd/cmsd) by pid."""
+        try:
+            with open(f"/proc/{int(pid)}/cmdline", "rb") as fh:
+                cmd = fh.read().replace(b"\0", b" ").decode("utf-8", "replace")
+        except (OSError, ValueError):
+            return None
+        if "registry/" not in cmd:
+            return None
+        if "nginx: master" in cmd:
+            kind = "nginx"
+        elif "xrootd" in cmd:
+            kind = "xrootd"
+        elif "cmsd" in cmd:
+            kind = "cmsd"
+        else:
+            return None
+        m = _re.search(r"registry/([A-Za-z0-9_.-]+)", cmd)
+        return f"{kind}:{m.group(1) if m else '?'}"
+
+    def _log(target, sig, via):
+        try:
+            root = os.environ.get("TEST_ROOT", "/tmp/xrd-test")
+            stamp = _time.strftime("%Y-%m-%d %H:%M:%S")
+            with open(os.path.join(root, "kill-diag.log"), "a") as f:
+                f.write(f"\n=== {stamp} {via} sig={sig} target={target} "
+                        f"test={_CURRENT_NODEID[0]} pid={os.getpid()} ===\n")
+                f.write("".join(_tb.format_stack()))
+        except OSError:
+            pass
+
+    def _kill(pid, sig):
+        try:
+            if int(sig) in _fatal:
+                n = _server_name(pid)
+                if n:
+                    _log(n, sig, "os.kill")
+        except Exception:
+            pass
+        return _real_kill(pid, sig)
+    os.kill = _kill
+
+    if _real_killpg is not None:
+        def _killpg(pgid, sig):
+            try:
+                if int(sig) in _fatal:
+                    for line in subprocess.run(["pgrep", "-g", str(pgid)],
+                            capture_output=True, text=True).stdout.split():
+                        n = _server_name(line)
+                        if n:
+                            _log(f"{n}(pg{pgid})", sig, "os.killpg")
+                            break
+            except Exception:
+                pass
+            return _real_killpg(pgid, sig)
+        os.killpg = _killpg
+
+    # ---- subprocess-based fleet stops (the blind spot of os.kill wrapping) ----
+    # `manage_test_servers stop-all`, a fleet `restart`, or `nginx -s quit/stop`
+    # run in a CHILD process signal the masters from OUTSIDE this interpreter, so
+    # the os.kill wrappers above never see them.  Wrap Popen (which run/
+    # check_call/check_output all funnel through) to log fleet-scope stops with
+    # the culprit test + traceback + timestamp.  Per-instance lifecycle teardown
+    # (`nginx -s quit` on a registry/lc-* or /tmp/ throwaway prefix) is expected
+    # and filtered out so the fleet-wide stop stands alone in the log.
+    _RealPopen = subprocess.Popen
+
+    def _argv_str(args):
+        if isinstance(args, (list, tuple)):
+            return " ".join(str(a) for a in args)
+        return str(args)
+
+    def _fleet_stop_kind(s):
+        low = s.lower()
+        if "stop-all" in low:
+            return "stop-all"
+        if "manage_test_servers" in low and ("restart" in low or " stop" in low):
+            return "manage_test_servers-stop/restart"
+        if low.split()[:1] == ["pkill"] or " pkill " in low or "killall" in low:
+            return "pkill/killall"
+        if "nginx" in low and "-s" in low and ("quit" in low or "stop" in low):
+            # skip legitimate per-instance lifecycle/throwaway teardown
+            if "/lc-" in s or "/tmp/" in s or "registry/main" in s:
+                return None
+            return "nginx-s-quit/stop"
+        return None
+
+    class _TracingPopen(_RealPopen):
+        def __init__(self, args, *a, **kw):
+            try:
+                kind = _fleet_stop_kind(_argv_str(args))
+                if kind:
+                    _log(f"FLEET-STOP[{kind}] {_argv_str(args)[:400]}",
+                         "-", "subprocess")
+            except Exception:
+                pass
+            super().__init__(args, *a, **kw)
+
+    subprocess.Popen = _TracingPopen
+
+
+_FLEET_SENTINEL_ON = (os.environ.get("BRIX_FLEET_SENTINEL", "1") != "0"
+                      and os.environ.get("TEST_SERVER_HOST") is None)
+if _FLEET_SENTINEL_ON:
+    _install_kill_tracer()
 import tempfile
+import time
+from pathlib import Path
 
 import pytest
 import fleet_declares
 from server_launcher import LifecycleHarness, RegistryLauncher
+from server_registry import fleet_ready_for_test_root, manifest_owns_test_root
 from server_registry import (
     dependency_closure,
     get_server,
@@ -53,6 +189,9 @@ from settings import (
     REF_BRIX_GSI_PORT,
     REF_BRIX_GSI_SHARED_PORT,
     REF_BRIX_PORT,
+    FLEET_READY,
+    REGISTRY_MANIFEST,
+    REGISTRY_ROOT,
     REMOTE_SERVER,
     SERVER_HOST,
     TEST_ROOT,
@@ -205,6 +344,31 @@ def _check_server_reachable(host: str, port: int, timeout: float = 5.0) -> bool:
 # Tri-state memo for "is a fleet already running that we should attach to rather
 # than manage?"  None = not yet decided; resolved once per process on first query.
 _external_fleet = None
+_foreign_fleet_collision = False
+
+
+def _clean_session_owned_state() -> None:
+    """Remove stale suite state while preserving pytest's active temp tree."""
+    for child in (LOG_DIR, REGISTRY_ROOT, os.path.join(TEST_ROOT, "artifacts")):
+        shutil.rmtree(child, ignore_errors=True)
+
+
+def _reap_lost_fleet_before_clean() -> None:
+    """Stop stale catalogue members before their pidfiles/configs are removed."""
+    try:
+        _stop_owned_fleet(None)
+    except Exception as exc:  # teardown is best-effort; exact-root reap still ran
+        sys.stderr.write(f"\n[conftest] stale-fleet preflight warning: {exc}\n")
+
+
+def _reset_session_tree_once() -> None:
+    """Reap old processes before removing the on-disk ownership evidence."""
+    global _test_tree_wiped
+    if _test_tree_wiped:
+        return
+    _reap_lost_fleet_before_clean()
+    _clean_session_owned_state()
+    _test_tree_wiped = True
 
 
 def _external_fleet_attached() -> bool:
@@ -225,13 +389,17 @@ def _external_fleet_attached() -> bool:
     overridden by ``TEST_OWN_FLEET=1`` for the operator who genuinely wants a
     clean wipe+restart on top of a running fleet.  Probed once and memoized so we
     neither re-probe nor re-print the notice on the teardown call."""
-    global _external_fleet
+    global _external_fleet, _foreign_fleet_collision
     if _external_fleet is not None:
         return _external_fleet
     if REMOTE_SERVER or os.environ.get("TEST_OWN_FLEET") == "1":
         _external_fleet = False
         return _external_fleet
-    _external_fleet = _check_server_reachable(HOST, NGINX_ANON_PORT, timeout=1.0)
+    reachable = _check_server_reachable(HOST, NGINX_ANON_PORT, timeout=1.0)
+    owned = manifest_owns_test_root()
+    ready = fleet_ready_for_test_root()
+    master_alive = _fleet_main_master_alive()
+    _external_fleet = reachable and owned and ready and master_alive
     if _external_fleet:
         print(
             f"\n[conftest] A fleet is already listening on {HOST}:{NGINX_ANON_PORT}; "
@@ -240,7 +408,35 @@ def _external_fleet_attached() -> bool:
             "start.  Set TEST_OWN_FLEET=1 to force a clean wipe+restart.",
             flush=True,
         )
+    elif reachable and owned:
+        print(
+            f"\n[conftest] Found stale/incomplete servers owned by "
+            f"TEST_ROOT={TEST_ROOT}; startup will reap them before cleaning "
+            "the old registry and launching the new fleet.",
+            flush=True,
+        )
+    elif reachable:
+        _foreign_fleet_collision = True
+        print(
+            f"\n[conftest] Port {HOST}:{NGINX_ANON_PORT} is occupied, but "
+            f"{REGISTRY_MANIFEST} plus its completion marker do not identify a "
+            f"fully started fleet for TEST_ROOT={TEST_ROOT}. Treating this as a "
+            "port collision or partial prior start; this session will not attach "
+            "to or clean up the listener.",
+            flush=True,
+        )
     return _external_fleet
+
+
+def _fleet_main_master_alive() -> bool:
+    """Require a live main master before treating a listener as attachable."""
+    pidfile = Path(REGISTRY_ROOT) / "main" / "logs" / "nginx.pid"
+    try:
+        pid = int(pidfile.read_text(encoding="utf-8").strip())
+        os.kill(pid, 0)
+    except (OSError, ValueError):
+        return False
+    return True
 
 
 # ---------------------------------------------------------------------------
@@ -302,837 +498,16 @@ def _should_skip_local_lifecycle(config) -> bool:
     still tore it down.  (A run whose collected tests need no server still owns
     the lifecycle, but its post-collection boot set is empty -- zero servers
     start -- so there is nothing to special-case here; see _specs_to_boot.)"""
-    return (
-        os.environ.get("TEST_SKIP_SERVER_SETUP") == "1"
-        or _external_fleet_attached()
-    )
-
-
-def _setup_session():
-    """Shared session setup logic.
-
-    In REMOTE mode: verify the server is reachable; skip all local lifecycle.
-    In LOCAL mode: wipe data dirs, regenerate PKI, seed data, prep session
-    artifacts.  The fleet itself starts AFTER collection
-    (pytest_collection_finish), when the declared-server subset is known —
-    except under xdist, where the controller never collects and boots the full
-    fleet from pytest_sessionstart instead.
-    """
-    import subprocess
-
-    if REMOTE_SERVER:
-        # Verify connectivity before the test suite begins.
-        if not _check_server_reachable(SERVER_HOST, NGINX_ANON_PORT):
-            raise pytest.UsageError(
-                f"Remote server at {SERVER_HOST}:{NGINX_ANON_PORT} is not reachable. "
-                "Check TEST_SERVER_HOST and that the server is running."
-            )
-        # PKI dirs still needed locally for cert-based tests (they read certs,
-        # but do NOT regenerate them — operator must pre-provision).
-        os.makedirs(LOG_DIR, exist_ok=True)
-        os.makedirs(TMP_DIR, exist_ok=True)
-        os.environ.setdefault("X509_CERT_DIR", CA_DIR)
-        os.environ.setdefault("X509_USER_PROXY", PROXY_STD)
-        return
-
-    # A fleet started out of band owns its own lifecycle: never wipe the tree or
-    # start-all on top of it.  pytest_sessionstart already pre-checks and skips
-    # this call in that case; this self-guard makes the destructive setup safe for
-    # any other caller too (defense-in-depth) so the attach guarantee cannot be
-    # silently bypassed.
-    if _external_fleet_attached():
-        return
-
-    # ---- LOCAL mode ----
-
-    # MANDATED CLEAN SLATE: destroy the entire temp tree so every run regenerates
-    # all artifacts (data, PKI, tokens, server configs) from scratch — no stale
-    # files are ever carried between runs.  Then chdir into a scratch dir inside
-    # the (recreated) tree so the whole session — including every server the
-    # harness spawns below — runs with a CWD under /tmp, never the repo.
-    global _test_tree_wiped
-    if not _test_tree_wiped:
-        shutil.rmtree(TEST_ROOT, ignore_errors=True)
-        _test_tree_wiped = True
-    os.makedirs(TEST_ROOT, exist_ok=True)
-    _chdir_scratch()
-
-    # Clear data and pki folders before each test session
-    if os.path.exists(DATA_ROOT):
-        shutil.rmtree(DATA_ROOT)
-    os.makedirs(DATA_ROOT, exist_ok=True)
-
-    if os.path.exists(PKI_DIR):
-        shutil.rmtree(PKI_DIR)
-    os.makedirs(PKI_DIR, exist_ok=True)
-
-    # Create subdirectories for PKI
-    for subdir in ["ca", "server", "user", "voms", "vomsdir"]:
-        os.makedirs(os.path.join(PKI_DIR, subdir), exist_ok=True)
-
-    # Create logs and tmp directories
-    os.makedirs(LOG_DIR, exist_ok=True)
-    os.makedirs(TMP_DIR, exist_ok=True)
-
-    # Create data-gsi-bridge directory for cross-server GSI tests (test_gsi_bridge.py)
-    gsi_bridge_data = os.path.join(TEST_ROOT, "data-gsi-bridge")
-    if os.path.exists(gsi_bridge_data):
-        shutil.rmtree(gsi_bridge_data)
-    os.makedirs(gsi_bridge_data, exist_ok=True)
-
-    # Create required test files in data directory
-    with open(os.path.join(DATA_ROOT, "test.txt"), "wb") as f:
-        f.write(b"hello from nginx-xrootd\n")
-
-    # Generate random.bin (5MB of random data). randbytes() fills the buffer in
-    # one C call — the byte-at-a-time getrandbits() generator it replaces took
-    # ~0.2s here and ~11s for the 200 MiB file below, on every (wiped) session.
-    with open(os.path.join(DATA_ROOT, "random.bin"), "wb") as f:
-        f.write(random.randbytes(5242880))
-
-    # Generate large200.bin (200 MiB) — MD5 exposed via env var for tests that need it.
-    LARGE_FILE_SIZE = 200 * 1024 * 1024
-    LARGE_FILE_PATH = os.path.join(DATA_ROOT, "large200.bin")
-    import hashlib as _hashlib
-    h = _hashlib.md5()
-    seed_val = int(os.environ.get("LARGE_FILE_SEED", "42"))
-    rng = random.Random(seed_val)
-    if (not os.path.exists(LARGE_FILE_PATH)
-            or os.path.getsize(LARGE_FILE_PATH) != LARGE_FILE_SIZE):
-        with open(LARGE_FILE_PATH, "wb") as f:
-            # Write in 16 MiB chunks to limit memory pressure
-            chunk_size = 16 * 1024 * 1024
-            remaining = LARGE_FILE_SIZE
-            while remaining > 0:
-                n = min(chunk_size, remaining)
-                chunk = rng.randbytes(n)   # vectorized; ~15x faster than per-byte
-                f.write(chunk)
-                h.update(chunk)
-                remaining -= n
-        os.environ["LARGE_FILE_MD5"] = h.hexdigest()
-    else:
-        # File exists from prior run — recompute MD5 to stay consistent.
-        with open(LARGE_FILE_PATH, "rb") as f:
-            for chunk in iter(lambda: f.read(65536), b""):
-                h.update(chunk)
-        os.environ["LARGE_FILE_MD5"] = h.hexdigest()
-
-    os.environ["X509_CERT_DIR"] = CA_DIR
-    os.environ["X509_USER_PROXY"] = PROXY_STD
-
-    # Generate every pre-instance session artifact (PKI + proxies, token signing
-    # keys + issued JWTs, JWKS, CRL drops, authdb, stage hook) — the fleet-wide
-    # setup the retired bash bridge performed at the top of start-all.
-    import fleet_prep  # noqa: PLC0415 — pure-Python session artifact generator
-    fleet_prep.prepare()
-
-    # Freeze the ONE session-shared nginx binary now — after the tree wipe and
-    # before any server starts — so every fleet spawn and every xdist worker
-    # execs the same immutable copy (never a per-process private one, never the
-    # relinkable live objs/nginx).  Later callers reuse this copy.
-    from cmdscripts.live_common import freeze_nginx  # noqa: PLC0415
-    from settings import NGINX_BIN  # noqa: PLC0415
-    freeze_nginx(NGINX_BIN)
-
-
-def _reap_leaked_test_servers():
-    """Kill any nginx/xrootd/krb5kdc whose command line references a test path.
-
-    Pidfile-based ``stop-all`` only knows the servers it launched; a fleet
-    process orphaned by a ``kill -9``'d prior run keeps holding its fixed port,
-    which makes the next ``start-all`` bind fail.  This is the cmdline-scoped
-    reap the brutal-teardown utility uses, done in-process so it never touches the
-    freshly-generated data/PKI (a full brutal_teardown would wipe them).  Only a
-    process whose argv references TEST_ROOT / /tmp/xrd / /tmp/hsproto is killed —
-    never a broad ``pkill`` that could match this interpreter.
-    """
-    import signal
-
-    markers = (str(TEST_ROOT), "/tmp/xrd", "/tmp/hsproto")
-    for exe in ("nginx", "xrootd", "krb5kdc", "kadmind", "haproxy"):
-        try:
-            out = subprocess.run(
-                ["pgrep", "-x", exe], capture_output=True, text=True
-            ).stdout
-        except Exception:
-            continue
-        for pid in out.split():
-            try:
-                with open(f"/proc/{pid}/cmdline", "rb") as fh:
-                    cmd = fh.read().replace(b"\0", b" ").decode("utf-8", "replace")
-            except OSError:
-                continue
-            if any(m in cmd for m in markers):
-                try:
-                    os.kill(int(pid), signal.SIGKILL)
-                except (OSError, ValueError):
-                    pass
-
-
-def _register_fleet() -> None:
-    """Populate the server registry with the full pure-Python fleet catalogue.
-
-    Idempotent (``register_full_fleet`` skips already-registered names), so the
-    collection-time and start-time call sites can both invoke it safely.
-    """
-    import fleet_specs  # noqa: PLC0415 — declarative fleet catalogue
-    fleet_specs.register_full_fleet()
-
-
-def _start_all_resilient(specs=None):
-    """Start the fleet, self-healing the one recoverable start-all failure.
-
-    A leaked fixed-port server from an interrupted (``kill -9``'d) prior run
-    makes ``start-all`` fail to bind.  The old call used ``check=True`` +
-    ``capture_output=True``, so that transient condition aborted the WHOLE
-    session with a bare ``CalledProcessError`` (pytest INTERNALERROR, zero tests
-    run) AND swallowed the stderr that names the stuck port — the exact failure
-    the brutal-teardown utility warns about.  Now: on failure the captured output is
-    always surfaced, leaked test servers are reaped, and start-all is retried
-    once.  A genuinely-unstartable fleet still raises, but with the diagnostic
-    visible instead of hidden.
-    """
-    import sys
-    import time
-
-    for attempt in (1, 2):
-        try:
-            _register_fleet()
-            RegistryLauncher(os.path.dirname(__file__)).start_registered(specs)
-            return
-        except Exception as exc:
-            message = str(exc)
-            class _Result:
-                returncode = 1
-                stdout = ""
-                stderr = message
-            r = _Result()
-        sys.stderr.write(
-            f"\n[conftest] start-all failed (attempt {attempt}/2, rc={r.returncode}).\n"
-            f"--- start-all stdout (tail) ---\n{(r.stdout or '')[-4000:]}\n"
-            f"--- start-all stderr (tail) ---\n{(r.stderr or '')[-4000:]}\n"
-        )
-        if attempt == 1:
-            sys.stderr.write(
-                "[conftest] reaping leaked fixed-port test servers and retrying "
-                "start-all once…\n"
-            )
-            RegistryLauncher(os.path.dirname(__file__)).stop_registered(specs)
-            _reap_leaked_test_servers()
-            time.sleep(2)
-    raise pytest.UsageError(
-        "start-all failed twice (see the surfaced stdout/stderr above — typically "
-        "a leaked server from an interrupted run still holding a fixed port). The "
-        "session cannot proceed without the fleet; run 'PYTHONPATH=tests "
-        "python3 -m cmdscripts.operator_build brutal_teardown' and retry."
-    )
-
-
-def _xdist_requested(config) -> bool:
-    """True when this run was invoked with pytest-xdist parallelism (-n).
-
-    Under xdist the controller never collects — the workers do — so the
-    post-collection subset-boot hook (pytest_collection_finish) cannot see the
-    item list there.  The controller boots the full fleet up front instead;
-    parallel runs are the full-suite lane, where the subset is ~everything
-    anyway."""
-    return bool(getattr(config.option, "numprocesses", None))
-
-
-def pytest_sessionstart(session):
-    # xdist workers inherit the environment from the controller which has already
-    # called start-all (and wiped the tree).  Running it again from every worker
-    # in parallel would race — but each worker still chdir()s into the shared
-    # scratch CWD so its own spawns can't pollute the repo either.  That chdir is
-    # gated on whether the session does local server work at all — NOT on
-    # _external_fleet_attached(): in an xdist run the controller has already
-    # started the fleet, so a worker probing the port would always see it
-    # "running" and wrongly skip the chdir.  Lifecycle ownership (the destructive
-    # wipe/start/stop) is a separate, controller-only concern.
-    no_local_work = os.environ.get("TEST_SKIP_SERVER_SETUP") == "1"
-    if hasattr(session.config, "workerinput"):
-        if not REMOTE_SERVER and not no_local_work:
-            _chdir_scratch()
-            _ensure_client_x509_env()
-            if os.path.exists(os.environ.get("TEST_REGISTRY_MANIFEST", "")):
-                read_manifest(os.environ["TEST_REGISTRY_MANIFEST"])
-            else:
-                read_manifest()
-        return
-    if _should_skip_local_lifecycle(session.config):
-        # Attach mode (an external fleet is already up) skips _setup_session(),
-        # which is where X509_CERT_DIR / X509_USER_PROXY normally get set.  Without
-        # them, GSI clients — especially test_concurrent's spawn ProcessPoolExecutor
-        # workers, which inherit this env — find no proxy and fail every GSI open
-        # with "No protocols left to try".  This is the exact race behind the
-        # lane-2 retry-ladder GSI failures: the --lf rerun attaches to the prior
-        # attempt's not-yet-stopped fleet.  Set the client env even when attaching.
-        _ensure_client_x509_env()
-        # Attach mode also skips _setup_session's seeding of the shared export, so
-        # the fleet's main DATA_ROOT lacks the canonical test.txt / random.bin /
-        # large200.bin.  Seed them here (controller only, before workers dispatch)
-        # so read/GSI/large-file tests find their fixtures.  Not for a remote
-        # fleet, whose data lives on the server.
-        if _external_fleet_attached() and not REMOTE_SERVER:
-            _seed_canonical_data()
-        return
-    _setup_session()
-    if _xdist_requested(session.config):
-        _start_all_resilient(None)
-
-
-def pytest_configure(config):
-    """Register custom markers and confine all scratch under TEST_ROOT.
-
-    Many tests (and the servers/clients they spawn) create scratch via
-    ``tempfile.mkdtemp/mkstemp/TemporaryDirectory`` or a ``TMPDIR``-honoring
-    subprocess.  Left at the default they litter bare ``/tmp`` (e.g.
-    ``/tmp/xrd-jwks-test-*``).  Point Python's tempdir AND the inherited
-    ``$TMPDIR`` at ``TEST_ROOT/tmp`` so every such artifact lands under the one
-    test tree that the session wipes and recreates — nothing leaks into /tmp.
-    Runs on the controller and on every xdist worker, before any test executes.
-    """
-    global _pytest_config
-    _pytest_config = config
-    os.makedirs(TMP_DIR, exist_ok=True)
-    os.environ["TMPDIR"] = TMP_DIR
-    tempfile.tempdir = TMP_DIR
-
-    config.addinivalue_line(
-        "markers",
-        "requires_local_server: test writes directly to the server filesystem "
-        "and cannot run against a remote server (skipped when TEST_SERVER_HOST is set)",
-    )
-    config.addinivalue_line(
-        "markers",
-        "leak: multi-user cross-user leak — encodes the correct cache-transparency "
-        "invariant and fails red until the underlying code is fixed (see "
-        "docs/superpowers/specs/2026-07-06-multiuser-permission-conformance-design.md)",
-    )
-    config.addinivalue_line(
-        "markers",
-        "privileged: requires root (real accounts + setfsuid impersonation)",
-    )
-    config.addinivalue_line(
-        "markers",
-        "uses_lifecycle_harness: test exercises registry-controlled server lifecycle",
-    )
-    config.addinivalue_line(
-        "markers",
-        "registry_server(name): test requires the named server registry spec",
-    )
-    config.addinivalue_line(
-        "markers",
-        "registry_servers(*names): test requires the named server registry specs",
-    )
-    config.addinivalue_line(
-        "markers",
-        "matrix(protocols, auths, tls, backends): expand this test over the "
-        "coverage matrix — see tests/matrix_layer.py and pytest_generate_tests",
-    )
-
-
-# Load the multi-user permission conformance fixtures (mu_fleet, cast, apply_policy, ...).
-pytest_plugins = ["conftest_mu"]
-
-
-# Module-name substrings that identify the multi-minute "slow" families: the
-# destructive/resilience suites, multi-node meshes, differential client suites,
-# conformance/interop batches, and throughput/perf runs.  Tests in these modules
-# are auto-marked `slow` so a fast iteration check can deselect them with
-# `-m "not slow"` (see `cmdscripts.operator_runtime suite --fast`).  Over-inclusion
-# is safe: the full suite run covers everything regardless of this marker.
-_SLOW_MODULE_HINTS = (
-    "resilien", "chaos", "evil_actor", "evil_paths", "netfault", "net_resilience",
-    "topolog", "conformance", "official", "clientconf", "hybrid", "throughput",
-    "performance", "stress", "redteam", "gfal", "busybox", "xrootdfs",
-    "fuse", "concurrent", "proxy_large", "large_read", "_mesh", "cms_mesh",
-    "interop", "_load", "_e2e",
-    # build/compile matrices — a single test can rebuild+dlopen a module (~73s),
-    # which has no place in a minutes-long iteration check (full run still runs it).
-    "build_matrix",
-)
-
-
-def _is_slow_module(name):
-    """True if a test module's basename marks it a slow-family test."""
-    stem = name[:-3] if name.endswith(".py") else name
-    return any(h in stem for h in _SLOW_MODULE_HINTS)
-
-
-# --- server-declaration gate -------------------------------------------------
-# Every collected test that *uses* a dedicated fleet server (statically: it
-# references that server's settings.py port constant) must *declare* it with a
-# @pytest.mark.registry_server("name") marker.  The always-on backbone (core
-# specs — the main nginx and the reference xrootd variants) is free: it boots
-# every session and is reached through session fixtures, so no test declares it.
-#
-# Hard-fails collection: the tree is fully declared, so any collected test that
-# references a fleet server's port constant without declaring it (or inheriting
-# it from the always-on backbone) aborts the run.  Because the tree is fully
-# declared, the fleet also boots only the *declared union* — the dependency
-# closure of the collected seed — never the whole registry (see _specs_to_boot).
-_declare_usage_cache: dict = {}
-_conftest_fixture_map_cache = None
-
-
-def _conftest_fixture_spec_map() -> dict:
-    """Fixture-name → specs-it-reaches for this conftest's session fixtures.
-
-    Backbone KEPT (unlike the gate's notion of "free"): a test reaches a core
-    server only through a session fixture it requests, and — with the forced
-    always-on backbone retired (zero-boot default) — this map is how the boot
-    set learns to start it.  Cached: the conftest source is parsed once."""
-    global _conftest_fixture_map_cache
-    if _conftest_fixture_map_cache is None:
-        try:
-            with open(os.path.abspath(__file__), encoding="utf-8", errors="ignore") as fh:
-                conftest_src = fh.read()
-        except OSError:
-            conftest_src = ""
-        _conftest_fixture_map_cache = fleet_declares.conftest_fixture_spec_map(conftest_src)
-    return _conftest_fixture_map_cache
-
-
-def _conftest_fixture_specs_for(items) -> set:
-    """Specs the collected items reach through conftest session fixtures.
-
-    For each item, intersect its resolved fixture closure
-    (``item._fixtureinfo.names_closure`` — every fixture pytest will set up for
-    it, transitively) with the conftest fixture→spec map, and union the results.
-    A test that requests no server-touching conftest fixture contributes
-    nothing — the mechanism behind zero-boot for no-server tests."""
-    fmap = _conftest_fixture_spec_map()
-    if not fmap:
-        return set()
-    specs: set = set()
-    for item in items:
-        info = getattr(item, "_fixtureinfo", None)
-        closure = getattr(info, "names_closure", ()) if info is not None else ()
-        for fixture_name in closure:
-            hit = fmap.get(fixture_name)
-            if hit:
-                specs |= hit
-    return specs
-
-
-def _required_specs_for(items) -> set:
-    """Specs the collected items reach by *naming a port constant* — statically
-    attributed (backbone and dedicated alike) by ``fleet_declares.analyze_source``.
-
-    This covers a test (or a fixture defined in the test's own module) that
-    references a server's ``settings`` port directly, without going through a
-    conftest fixture.  Unioned with declared markers, autouse specs, and the
-    conftest-fixture closure to form the boot seed."""
-    specs: set = set()
-    for item in items:
-        usage = _module_test_usage(item.fspath).get(_item_qualname(item))
-        if usage is not None:
-            specs |= usage.required
-        specs |= _item_declared_specs(item)
-    return specs
-
-
-def _specs_to_boot(items):
-    """The spec set the session fleet should launch.
-
-    Zero-boot: boot exactly the dependency closure of the *seed* — the union,
-    over collected items, of the servers each one reaches by a declared
-    ``registry_server`` marker, a named port constant, an autouse fixture, or a
-    conftest session fixture in its fixture closure.  An empty seed boots
-    *nothing* (a no-server run starts zero servers); a single-file run starts
-    only that file's closure.  (xdist runs boot the whole registry up front from
-    pytest_sessionstart instead, because their controller never collects.)"""
-    seed = (
-        _required_specs_for(items)
-        | _autouse_specs_for(items)
-        | _conftest_fixture_specs_for(items)
-    )
-    if not seed:
-        return []
-    closure = dependency_closure(seed)
-    return [spec for spec in registered_specs() if spec.name in closure]
-
-
-def _autouse_specs_for(items) -> set:
-    """Dedicated specs required by autouse fixtures in the collected modules.
-
-    Autouse fixtures bind every test in their module to a server without any
-    test naming it as a parameter, so per-test declarations can't cover them
-    (see REGISTRY_MIGRATION.md § blind spot); the boot set must union them in
-    per collected module."""
-    specs: set = set()
-    for path in {str(item.fspath) for item in items}:
-        cached = _declare_usage_cache.get(("autouse", path))
-        if cached is None:
-            try:
-                with open(path, encoding="utf-8", errors="ignore") as fh:
-                    source = fh.read()
-            except OSError:
-                source = ""
-            cached = set(fleet_declares.module_autouse_specs(source))
-            _declare_usage_cache[("autouse", path)] = cached
-        specs |= cached
-    return specs
-
-
-def _module_test_usage(fspath):
-    """Cached qualname→TestUsage attribution for one test module (parsed once).
-
-    Keyed by ``Class::method`` (bare name for module-level tests) so same-named
-    methods in different classes — e.g. the three cache-tier classes in
-    test_cache_write_through.py, each hitting a different dedicated spec — never
-    collide."""
-    key = str(fspath)
-    cached = _declare_usage_cache.get(key)
-    if cached is None:
-        try:
-            with open(key, encoding="utf-8", errors="ignore") as fh:
-                source = fh.read()
-        except OSError:
-            source = ""
-        cached = _declare_usage_cache[key] = {
-            usage.qualname: usage for usage in fleet_declares.analyze_source(source)
-        }
-    return cached
-
-
-def _item_qualname(item) -> str:
-    """``Class::method`` for a class-based test item, else the bare function name.
-    Matches ``TestUsage.qualname`` so the gate looks up the right attribution."""
-    func = getattr(item, "originalname", None) or getattr(item, "name", "")
-    func = func.split("[", 1)[0]
-    cls = getattr(item, "cls", None)
-    return f"{cls.__name__}::{func}" if cls is not None else func
-
-
-def _item_declared_specs(item) -> set:
-    declared: set = set()
-    for marker_name in ("registry_server", "registry_servers"):
-        for marker in item.iter_markers(marker_name):
-            declared.update(str(arg) for arg in marker.args)
-    return declared
-
-
-def _declaration_violations(items):
-    """List of (base_nodeid, lineno, sorted_missing_specs) for tests that use a
-    fleet server they neither declare nor inherit from the backbone."""
-    backbone = fleet_declares.backbone_specs()
-    seen: set = set()
-    out = []
-    for item in items:
-        usage = _module_test_usage(item.fspath).get(_item_qualname(item))
-        if usage is None or not usage.required:
-            continue
-        allowed = backbone | dependency_closure(_item_declared_specs(item))
-        missing = usage.required - allowed
-        if not missing:
-            continue
-        base = item.nodeid.split("[", 1)[0]
-        key = (base, tuple(sorted(missing)))
-        if key in seen:
-            continue
-        seen.add(key)
-        out.append((base, usage.lineno, sorted(missing)))
-    return out
-
-
-def _enforce_server_declarations(config, items):
-    violations = _declaration_violations(items)
-    if not violations:
-        return
-    lines = [
-        f"  {base} (line {lineno}) uses undeclared server(s): "
-        f"{', '.join(missing)}"
-        for base, lineno, missing in sorted(violations)
-    ]
-    report = (
-        f"server-declaration gate: {len(lines)} test(s) reference a fleet server "
-        "they do not declare — add @pytest.mark.registry_server(<name>) for each:\n"
-        + "\n".join(lines)
-    )
-    raise pytest.UsageError(report)
-
-
-def pytest_collection_modifyitems(config, items):
-    """Skip requires_local_server tests in remote mode; order CMS tests last;
-    auto-mark the slow families so `-m "not slow"` yields a fast iteration set."""
-    cms_items = []
-    other_items = []
-
-    for item in items:
-        name = os.path.basename(str(item.fspath))
-
-        # Auto-tag slow families (idempotent — a hand-placed @slow still counts).
-        # The <5min PR gate runs `-m "not slow"`; --nightly runs the slow set.
-        if _is_slow_module(name):
-            item.add_marker(pytest.mark.slow)
-
-        # The multi-user impersonation suite (test_mu_*) is privileged AND binds a
-        # fixed-port paired fleet, so it can run neither unprivileged nor in
-        # parallel: its mu_fleet/cast fixtures pytest.skip() without root, and
-        # under xdist every worker would collide on the same MU ports (bind:
-        # address already in use -> the fleet nginx exits 1 -> ~180 setup errors).
-        # It is meant to run only via its dedicated serial harness
-        # (tests/run_multiuser_authz.sh, under sudo, which selects test_mu_*.py by
-        # name and does NOT filter on `serial`). Auto-mark it `serial` so the
-        # parallel fast lane (`-m "not slow and not serial"`) excludes it cleanly;
-        # the dedicated runner is unaffected. Same for any privileged/leak test.
-        if (name.startswith("test_mu_")
-                or item.get_closest_marker("privileged")
-                or item.get_closest_marker("leak")):
-            item.add_marker(pytest.mark.serial)
-
-        if item.get_closest_marker("requires_local_server") and REMOTE_SERVER:
-            item.add_marker(
-                pytest.mark.skip(
-                    reason=f"requires_local_server: test writes to server filesystem "
-                    f"(remote: {SERVER_HOST})"
-                )
-            )
-
-        # Honor the `serial` marker under pytest-xdist: assign every serial test
-        # to one xdist group so they land on a single worker and never run
-        # concurrently with each other.  Effective only with `--dist loadgroup`
-        # (the project's canonical parallel invocation); a harmless no-op under the
-        # default `--dist load` or serial runs.  Stateful suites (e.g. the chaos
-        # meshes) mark themselves `serial` precisely because parallel co-execution
-        # corrupts their shared mesh/port state.
-        if item.get_closest_marker("serial"):
-            item.add_marker(pytest.mark.xdist_group("serial"))
-
-        if name == "test_cms.py":
-            cms_items.append(item)
-        else:
-            other_items.append(item)
-
-    if cms_items:
-        items[:] = other_items + cms_items
-    _register_fleet()
-    _enforce_server_declarations(config, items)
-
-
-def pytest_collection_finish(session):
-    """Start the session fleet once collection has settled.
-
-    Runs after every ``pytest_collection_modifyitems`` (including the mark
-    plugin's ``-m``/``-k`` deselection), so ``session.items`` is the final test
-    set and the declared-union subset is exact.  Controller-only and only when
-    this session owns the local lifecycle; xdist runs never reach the start
-    here — their controller boots the full fleet from ``pytest_sessionstart``
-    because it does not collect.  ``--collect-only`` starts nothing."""
-    config = session.config
-    if hasattr(config, "workerinput") or _xdist_requested(config):
-        return
-    if getattr(config.option, "collectonly", False):
-        return
-    if REMOTE_SERVER or _should_skip_local_lifecycle(config):
-        return
-    if not session.items:
-        return
-    specs = _specs_to_boot(session.items)
-    config._nginx_xrootd_selected_registry_specs = specs
-    _start_all_resilient(specs)
-
-
-def pytest_sessionfinish(session, exitstatus):
-    """Stop local servers when the session ends (no-op in remote mode or xdist workers)."""
-    import subprocess
-
-    # xdist workers must not call stop-all: the controller owns server lifecycle.
-    # A worker finishing early would kill servers other workers still need.
-    if hasattr(session.config, "workerinput"):
-        return
-
-    if REMOTE_SERVER or _should_skip_local_lifecycle(session.config):
-        return
-
-    try:
-        specs = getattr(session.config, "_nginx_xrootd_selected_registry_specs", None)
-        RegistryLauncher(os.path.dirname(__file__)).stop_registered(specs)
-    except Exception:
-        pass  # best-effort cleanup
-
-    # MANDATED CLEANUP: leave nothing behind.  Restore the original CWD first
-    # (we are currently inside CWD_DIR, which is about to be deleted), then
-    # destroy the whole temp tree so the next run starts from a clean slate and
-    # regenerates every file.  Only reached on the controller in local mode
-    # (remote/skip/no-server returned above).
-    try:
-        os.chdir(_ORIG_CWD)
-    except OSError:
-        pass
-    shutil.rmtree(TEST_ROOT, ignore_errors=True)
-
-
-@pytest.fixture(scope="session")
-def registry():
-    return RegistryLauncher(os.path.dirname(__file__))
-
-
-@pytest.fixture
-def registry_server():
-    def _lookup(name):
-        return get_server(name)
-
-    return _lookup
-
-
-@pytest.fixture
-def lifecycle():
-    """Per-test registry lifecycle harness for throwaway nginx instances.
-
-    Tests whose subject is lifecycle behavior (reload/reopen/restart/crash)
-    drive their own short-lived instances through this instead of hand-rolled
-    subprocess calls; teardown stops and unregisters everything it created.
-    """
-    harness = LifecycleHarness()
-    try:
-        yield harness
-    finally:
-        harness.close()
-
-
-@pytest.fixture
-def command_runner(registry):
-    return registry.run_cmd
-
-
-# --------------------------------------------------------------------------- #
-# The (protocol × auth × tls × backend) parametrization layer.                  #
-# --------------------------------------------------------------------------- #
-def pytest_generate_tests(metafunc):
-    """Expand `@pytest.mark.matrix(...)` into one case per coverage cell.
-
-    Before this hook the suite had no generative parametrization at all: every
-    cell of the matrix was a hand-written module with its own template, which is
-    why the matrix was sparse and re-sparsified with each new backend
-    (docs/refactor/testsuite-combinatorial-coverage-audit-2026-08-04.md item 19).
-    Unreachable combinations are parametrized too and skip with the product
-    reason from `matrix_layer.supported()`, so "empty" and "impossible" stay
-    distinguishable in the report.
-    """
-    if "matrix_node" not in metafunc.fixturenames:
-        return
-    mark = metafunc.definition.get_closest_marker("matrix")
-    if mark is None:
+    attached = _external_fleet_attached()
+    if _foreign_fleet_collision:
         raise pytest.UsageError(
-            f"{metafunc.definition.nodeid}: requests the `matrix_node` fixture "
-            "but carries no @pytest.mark.matrix(...) to expand")
-    import matrix_layer
-    cells, ids = matrix_layer.expand(**mark.kwargs)
-    metafunc.parametrize("matrix_node", cells, ids=ids, indirect=True)
+            f"refusing to start TEST_ROOT={TEST_ROOT}: {HOST}:{NGINX_ANON_PORT} "
+            "is owned by another or incomplete test fleet. Choose a "
+            "non-overlapping TEST_PORT_START; each lane reserves the complete "
+            "central port ladder. The foreign listener was not modified."
+        )
+    return os.environ.get("TEST_SKIP_SERVER_SETUP") == "1" or attached
 
-
-@pytest.fixture(scope="module")
-def matrix_node(request, tmp_path_factory):
-    """Stand up the parametrized cell; one instance per cell, not per test."""
-    import matrix_layer
-    from server_launcher import LifecycleHarness
-
-    cell = request.param
-    token = None
-    if cell.auth == "token":
-        from utils.make_token import TokenIssuer
-        ti = TokenIssuer(matrix_layer.TOKEN_DIR)
-        if not os.path.exists(ti.key_path):
-            ti.init_keys()
-        token = ti.generate(scope="storage.read:/ storage.modify:/")
-    harness = LifecycleHarness()
-    try:
-        yield matrix_layer.make_node(
-            cell, tmp=tmp_path_factory.mktemp(f"matrix-{cell.id}"),
-            lifecycle=harness, token=token)
-    finally:
-        harness.close()
-
-
-@pytest.fixture(scope="session")
-def test_env():
-    h = SERVER_HOST
-    ports = {
-        "anon_port": NGINX_ANON_PORT,
-        "gsi_port": NGINX_GSI_PORT,
-        "gsi_tls_port": NGINX_GSI_TLS_PORT,
-        "token_port": NGINX_TOKEN_PORT,
-        "krb5_port": NGINX_KRB5_PORT,
-        "metrics_port": NGINX_METRICS_PORT,
-        "webdav_port": NGINX_WEBDAV_PORT,
-        "webdav_gsi_tls_port": NGINX_WEBDAV_GSI_TLS_PORT,
-        "http_webdav_port": NGINX_HTTP_WEBDAV_PORT,
-        "s3_port": NGINX_S3_PORT,
-        "jwks_refresh_port": NGINX_JWKS_REFRESH_PORT,
-        "readonly_port": READONLY_PORT,
-        "vo_port": VO_PORT,
-        "webdav_auth_cache_manual_port": WEBDAV_AUTH_CACHE_MANUAL_PORT,
-        "webdav_auth_cache_nginx_port": WEBDAV_AUTH_CACHE_NGINX_PORT,
-        "webdav_tpc_source_required_port": WEBDAV_TPC_SOURCE_REQUIRED_PORT,
-        "webdav_tpc_source_open_port": WEBDAV_TPC_SOURCE_OPEN_PORT,
-        "webdav_tpc_dest_cafile_port": WEBDAV_TPC_DEST_CAFILE_PORT,
-        "webdav_tpc_dest_cadir_port": WEBDAV_TPC_DEST_CADIR_PORT,
-        "webdav_tpc_dest_no_service_cert_port": WEBDAV_TPC_DEST_NO_SERVICE_CERT_PORT,
-        "webdav_tpc_dest_disabled_port": WEBDAV_TPC_DEST_DISABLED_PORT,
-        "webdav_tpc_dest_readonly_port": WEBDAV_TPC_DEST_READONLY_PORT,
-        "upstream_redirect_nginx_port": UPSTREAM_REDIRECT_NGINX_PORT,
-        "upstream_wait_nginx_port": UPSTREAM_WAIT_NGINX_PORT,
-        "upstream_waitresp_nginx_port": UPSTREAM_WAITRESP_NGINX_PORT,
-        "upstream_error_nginx_port": UPSTREAM_ERROR_NGINX_PORT,
-        "upstream_auth_nginx_port": UPSTREAM_AUTH_NGINX_PORT,
-        "upstream_auth_nofile_nginx_port": UPSTREAM_AUTH_NOFILE_NGINX_PORT,
-        "upstream_gotorls_notls_nginx_port": UPSTREAM_GOTORLS_NOTLS_NGINX_PORT,
-        "upstream_redirect_backend_port": UPSTREAM_REDIRECT_BACKEND_PORT,
-        "upstream_wait_backend_port": UPSTREAM_WAIT_BACKEND_PORT,
-        "upstream_waitresp_backend_port": UPSTREAM_WAITRESP_BACKEND_PORT,
-        "upstream_error_backend_port": UPSTREAM_ERROR_BACKEND_PORT,
-        "upstream_auth_backend_port": UPSTREAM_AUTH_BACKEND_PORT,
-        "upstream_auth_nofile_backend_port": UPSTREAM_AUTH_NOFILE_BACKEND_PORT,
-        "upstream_gotorls_notls_backend_port": UPSTREAM_GOTORLS_NOTLS_BACKEND_PORT,
-    }
-
-    return {
-        **ports,
-        "server_host": h,
-        "anon_url": f"root://{h}:{ports['anon_port']}",
-        "gsi_url": f"root://{h}:{ports['gsi_port']}",
-        "gsi_tls_url": f"roots://{h}:{ports['gsi_tls_port']}",
-        "token_url": f"root://{h}:{ports['token_port']}",
-        "krb5_url": f"root://{h}:{ports['krb5_port']}",
-        "metrics_url": f"http://{h}:{ports['metrics_port']}/metrics",
-        "webdav_url": f"https://{h}:{ports['webdav_port']}",
-        "webdav_gsi_tls_url": f"https://{h}:{ports['webdav_gsi_tls_port']}",
-        "http_webdav_url": f"http://{h}:{ports['http_webdav_port']}",
-        "s3_url": f"http://{h}:{ports['s3_port']}",
-        "data_dir": DATA_ROOT,
-        "ca_dir": CA_DIR,
-        "ca_pem": CA_CERT,
-        "proxy_pem": PROXY_STD,
-        "token_dir": TOKENS_DIR,
-        "log_dir": LOG_DIR,
-    }
-
-
-@pytest.fixture(scope="session")
-def ref_xrootd(test_env):
-    return {
-        "url": f"root://{HOST}:{REF_BRIX_PORT}",
-        "port": REF_BRIX_PORT,
-        "data_dir": test_env["data_dir"],
-    }
-
-
-@pytest.fixture(scope="session")
-def ref_brix_gsi(test_env):
-    return {
-        "url": f"root://{HOST}:{REF_BRIX_GSI_PORT}",
-        "port": REF_BRIX_GSI_PORT,
-        "data_dir": os.path.join(TEST_ROOT, "data-gsi-bridge"),
-    }
-
-
-@pytest.fixture(scope="session")
-def ref_brix_gsi_shared(test_env):
-    return {
-        "url": f"root://{HOST}:{REF_BRIX_GSI_SHARED_PORT}",
-        "port": REF_BRIX_GSI_SHARED_PORT,
-        "data_dir": test_env["data_dir"],
-    }
+from split_continuation import load as _load_continuations
+_load_continuations(globals(), __file__, "conftest_part2.py", "conftest_part3.py",
+                    "conftest_part4.py")

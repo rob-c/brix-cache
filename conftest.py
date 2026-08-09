@@ -7,6 +7,13 @@ when that plugin is not present in the active environment.
 
 def pytest_addoption(parser):
     """Register timeout ini keys when pytest-timeout is unavailable."""
+    parser.addoption(
+        "--first-percent",
+        type=float,
+        default=None,
+        metavar="PERCENT",
+        help="run only the first PERCENT of the final deterministic collection",
+    )
     try:
         parser.addini(
             "timeout",

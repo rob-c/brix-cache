@@ -139,15 +139,29 @@ def main() -> int:
         except OSError:
             pass
 
-    print("asan: 1/4 building ASan+UBSan nginx + client…")
-    run_or_abort(
-        ["python3", "-m", "cmdscripts.operator_build", "build_sanitizer"],
-        cwd=tests, env={**os.environ, "NGINX_SRC": nginx_src},
-    )
+    # A caller may PROVIDE a prebuilt ASan nginx (operator --asan-nginx-bin /
+    # TEST_ASAN_NGINX_BIN) instead of having the lane build one — same as pointing
+    # the fleet at a specific --nginx-bin.  When given and runnable, skip the build
+    # and boot the fleet against it.
+    provided_asan = os.environ.get("TEST_ASAN_NGINX_BIN") or ""
+    use_provided = bool(provided_asan) and os.access(provided_asan, os.X_OK)
+    if use_provided:
+        print(f"asan: 1/4 using provided ASan nginx {provided_asan} (skipping build)")
+    else:
+        if provided_asan:
+            print(f"asan: TEST_ASAN_NGINX_BIN={provided_asan} not executable — building instead")
+        print("asan: 1/4 building ASan+UBSan nginx + client…")
+        run_or_abort(
+            ["python3", "-m", "cmdscripts.operator_build", "build_sanitizer"],
+            cwd=tests, env={**os.environ, "NGINX_SRC": nginx_src},
+        )
 
     san_env = _sanitizer_env(os.environ, log_dir, supp)
     san_env["TEST_ROOT"] = test_root
     san_env["NGINX_SRC"] = nginx_src
+    if use_provided:
+        san_env["NGINX_BIN"] = provided_asan
+        san_env["TEST_NGINX_BIN"] = provided_asan
 
     print("asan: 2/4 booting the sanitized fleet (SANITIZE=1)…")
     boot = subprocess.run(

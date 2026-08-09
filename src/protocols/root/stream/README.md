@@ -10,11 +10,11 @@ declare the static `ngx_module_t` descriptor, register the full
 `stream { server { … } }` blocks, and define the small enum lookup tables
 (`brix_auth_modes`, `brix_security_levels`, `brix_hc_types`) that map config
 keywords onto internal constants. Everything substantive is delegated to callbacks
-declared in `../ngx_brix_module.h` and implemented under `../config/`.
+declared in `src/core/ngx_brix_module.h` and implemented under `../config/`.
 
 It sits at the very top of the `root://` request lifecycle — *before any connection
 exists*. When nginx parses a `stream` block and sees the `xrootd` flag, the custom
-setter `ngx_stream_brix_enable` (in `../config/server_conf.c`) swaps the stream-core
+setter `ngx_stream_brix_enable` (in `src/core/config/server_conf.c`) swaps the stream-core
 server handler for `ngx_stream_brix_handler`. From that point on, every TCP
 connection on the listen port enters the module via `../connection/handler.c` →
 `../handshake/dispatch.c`. None of that dispatch code lives here; this directory only
@@ -42,6 +42,23 @@ compiled via `NGX_ADDON_SRCS` (`config:236-237`). Treat `module.c` as ground tru
 | `module.c` | **Authoritative — compiled.** Defines the live `ngx_stream_brix_commands[]`: the complete directive table (core + auth + TLS/OCSP + native TPC + manager/CMS + read-through cache + write-through + transparent proxy + Phase 20 KV/rate-limit + Phase 22 health-check + Phase 24 mirror + Phase 25/26/29/31 tuning), terminated by `ngx_null_command`. Also defines the `brix_auth_modes[]`, `brix_security_levels[]`, and `brix_hc_types[]` enum tables. |
 | `module_definition.c` | **Compiled.** Declares the static module wiring: `ngx_stream_brix_module_ctx` (`ngx_stream_module_t` lifecycle hooks — `postconfiguration`, `create_srv_conf`, `merge_srv_conf`; main-conf slots `NULL`) and the `ngx_module_t ngx_stream_brix_module` descriptor (`NGX_STREAM_MODULE`, with `init_process` = `ngx_stream_brix_init_process` and `exit_process` = `brix_exit_process`). Holds an `extern` reference to `ngx_stream_brix_commands[]`. |
 
+### Other files
+
+| File | Responsibility |
+|---|---|
+| `directives_auth.h` | authentication directive entries for the root:// stream module. #included into the ngx_stream_brix_commands[] array in module.c so the auth surface (auth-mode, GSI/x509, CRL, XrdAcc, JWT/token, SSS, Kerberos, unix/host/p. |
+| `directives_cache.h` | read-through cache directives (cache mode, cache_root/store, admission, transfer-heap budget) #included into ngx_stream_brix_commands[] in module.c (compiler concatenates; setters/enum tables from module_enums.h stay vis. |
+| `directives_caps.h` | node capability directives (Phase 2 role flags: metadata-only/supervisor/virtual-redirector; Phase 3 behavioral flags; registry/session slots) #included into ngx_stream_brix_commands[] in module.c (compiler concatenates;. |
+| `directives_cms.h` | CMS clustering directives (manager registration/heartbeat + node->manager resilience deadlines) #included into ngx_stream_brix_commands[] in module.c (compiler concatenates; setters/enum tables from module_enums.h stay v. |
+| `directives_net.h` | clustering/proxy/traffic-shaping directives (redirect-collapse cache, traffic mirroring, rate limiting, dynamic upstream redirector) #included into ngx_stream_brix_commands[] in module.c (compiler concatenates; setters/e. |
+| `directives_pmark.h` | SciTags packet-marking directives (brix_pmark, firefly, activity map — src/observability/pmark) #included into ngx_stream_brix_commands[] in module.c (compiler concatenates; setters/enum tables from module_enums.h stay v. |
+| `directives_security.h` | wire security + codec directives (signing level, in-protocol TLS, kernel-TLS, root:// read/write compression, ZIP member access) #included into ngx_stream_brix_commands[] in module.c (compiler concatenates; setters/enum. |
+| `directives_tier.h` | phase-64 composable tier-grammar (read-cache + write-stage) directives #included into ngx_stream_brix_commands[] in module.c (compiler concatenates; setters/enum tables from module_enums.h stay visible). |
+| `directives_tpc.h` | third-party-copy (TPC) SSRF policy + OAuth2 delegation directives #included into ngx_stream_brix_commands[] in module.c (compiler concatenates; setters/enum tables from module_enums.h stay visible). |
+| `directives_writethrough.h` | write-through cache directives (write-back mode, flush credential, never/always write-through path prefixes) #included into ngx_stream_brix_commands[] in module.c (compiler concatenates; setters/enum tables from module_e. |
+| `directives_zones.h` | shared-memory zone directives (stream main-conf: brix_kv_zone, brix_token_cache, brix_auth_cache, brix_rate_limit_zone) #included into ngx_stream_brix_commands[] in module.c (compiler concatenates; setters/enum tables fr. |
+| `module_enums.c` / `.h` | directive enum value tables for the stream module. |
+
 ## Key types & data structures
 
 This subsystem defines no runtime structs of its own — it only references them. The
@@ -53,7 +70,7 @@ ones a reviewer must know:
   `ngx_conf_set_flag_slot`, `ngx_conf_set_num_slot`, `ngx_conf_set_sec_slot`,
   `ngx_conf_set_msec_slot`, `ngx_conf_set_size_slot`, `ngx_conf_set_off_slot`,
   `ngx_conf_set_enum_slot`) writing straight into the per-server config via
-  `offsetof(...)`. The rest use custom setters declared in `../ngx_brix_module.h`
+  `offsetof(...)`. The rest use custom setters declared in `src/core/ngx_brix_module.h`
   or in the owning subsystem header (e.g. `brix_conf_set_cache_origin`,
   `brix_conf_set_proxy_upstream`, `brix_rl_zone_directive`,
   `brix_stream_mirror_set_url`, `brix_kv_zone_directive`,
@@ -70,8 +87,8 @@ ones a reviewer must know:
   kXR_sigver enforcement level), and `brix_hc_types` (`ping|stat` →
   `BRIX_HC_TYPE_*`). Each is NUL-terminated with `{ ngx_null_string, 0 }`.
 - **`ngx_stream_brix_srv_conf_t`** — the per-server config struct every directive
-  writes into. Defined in `../config/config.h`, allocated by
-  `ngx_stream_brix_create_srv_conf` (`../config/server_conf.c`). This subsystem
+  writes into. Defined in `src/core/config/config.h`, allocated by
+  `ngx_stream_brix_create_srv_conf` (`src/core/config/server_conf.c`). This subsystem
   references its field offsets only; it does not declare it.
 
 ### Directive groups (authoritative `module.c` set)
@@ -100,19 +117,19 @@ ones a reviewer must know:
 `ngx_stream_brix_module` (via `module_definition.c`), reads `stream {}`, and for each
 directive in `ngx_stream_brix_commands[]` invokes its setter, which writes into the
 `ngx_stream_brix_srv_conf_t` produced by `ngx_stream_brix_create_srv_conf`
-(`../config/server_conf.c`). The `xrootd` flag's setter `ngx_stream_brix_enable`
+(`src/core/config/server_conf.c`). The `xrootd` flag's setter `ngx_stream_brix_enable`
 additionally fetches the stream-core srv conf and sets
 `cscf->handler = ngx_stream_brix_handler`. After all blocks parse,
-`ngx_stream_brix_postconfiguration` (`../config/postconfiguration.c`) runs final
+`ngx_stream_brix_postconfiguration` (`src/core/config/postconfiguration.c`) runs final
 validation / resource setup. Parent→child inheritance is resolved by
 `ngx_stream_brix_merge_srv_conf` (`NGX_CONF_UNSET*` sentinels distinguish unset from
 explicit).
 
-**Worker startup.** `ngx_stream_brix_init_process` (`../config/process.c`) runs once
+**Worker startup.** `ngx_stream_brix_init_process` (`src/core/config/process.c`) runs once
 per worker: opens the per-worker `O_PATH` export-root fd used for `RESOLVE_BENEATH`
 confinement (see `../path/README.md`), initialises the proxy pool, and arms the CMS
-heartbeat client (`../cms/README.md`), active health-check probes
-(`../manager/health_check.h`), the CRL-reload timer, and the JWKS hot-refresh timer
+heartbeat client (`../../../net/cms/README.md`), active health-check probes
+(`src/net/manager/health_check.h`), the CRL-reload timer, and the JWKS hot-refresh timer
 where configured.
 
 **Request time — this subsystem is not on the path.** Once installed,
@@ -165,9 +182,9 @@ by the config fields populated here but executed in `../cache/`, `../proxy/`,
 ## Entry points / extending
 
 **Add a new `brix_*` directive:**
-1. Add the destination field to `ngx_stream_brix_srv_conf_t` in `../types/config.h`
+1. Add the destination field to `ngx_stream_brix_srv_conf_t` in `src/core/types/config.h`
    (initialise to `NGX_CONF_UNSET*` / `NULL` in `create_srv_conf`, and merge in
-   `merge_srv_conf` — both in `../config/server_conf.c`).
+   `merge_srv_conf` — both in `src/core/config/server_conf.c`).
 2. Add an `ngx_command_t` entry to **`ngx_stream_brix_commands[]` in `module.c`**
    (the live array): pick the correct scope (`NGX_STREAM_SRV_CONF` vs
    `NGX_STREAM_MAIN_CONF`) and `NGX_CONF_TAKE*` arg count; use a stock
@@ -186,15 +203,15 @@ the body under `../config/` — keep this directory glue-only.
 
 ## See also
 
-- `../config/README.md` — the lifecycle callbacks (`create/merge_srv_conf`,
+- `../../../core/config/README.md` — the lifecycle callbacks (`create/merge_srv_conf`,
   `postconfiguration`, `init_process`, `exit_process`) this descriptor points at.
-  The `ngx_stream_brix_srv_conf_t` struct itself is defined in `../types/config.h`.
+  The `ngx_stream_brix_srv_conf_t` struct itself is defined in `src/core/types/config.h`.
 - `../connection/README.md` — `ngx_stream_brix_handler`, the request entry installed
   by `xrootd on;`.
 - `../handshake/README.md` — opcode dispatch consuming `brix_auth` /
   `brix_security_level`.
-- `../session/README.md`, `../path/README.md`, `../aio/README.md`,
-  `../cache/README.md`, `../proxy/README.md`, `../manager/README.md`,
-  `../cms/README.md`, `../mirror/README.md`, `../ratelimit/README.md` — the subsystems
+- `../session/README.md`, `../path/README.md`, `../../../core/aio/README.md`,
+  `../../../fs/cache/README.md`, `../../../net/proxy/README.md`, `../../../net/manager/README.md`,
+  `../../../net/cms/README.md`, `../../../net/mirror/README.md`, `../../../net/ratelimit/README.md` — the subsystems
   whose behaviour these directives configure.
 - `../README.md` — master subsystem index.

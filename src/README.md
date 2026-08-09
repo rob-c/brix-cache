@@ -15,7 +15,7 @@ the event-loop scalability and TLS/HTTP machinery of nginx, a single
 configuration surface, unified Prometheus metrics, and one kernel-confined view
 of the export root — across every protocol HEP clients actually use.
 
-The umbrella header [`ngx_brix_module.h`](core/ngx_brix_module.h) wires every
+The umbrella header [`core/ngx_brix_module.h`](core/ngx_brix_module.h) wires every
 subsystem together; per-connection state lives in `brix_ctx_t`
 ([types/](core/types/README.md)). Stream entry is
 [connection/](protocols/root/connection/README.md) → [handshake/](protocols/root/handshake/README.md); HTTP
@@ -39,7 +39,7 @@ observability/  metrics, pmark, dashboard, access logging
 tpc/            cross-plane third-party copy
 ```
 
-Cross-directory includes are **src-rooted** (`#include "auth/gsi/parse.h"`);
+Cross-directory includes are **src-rooted** (`#include "auth/gsi/gsi_core.h"`);
 same-directory includes stay bare. The full old→new mapping is
 [docs/refactor/phase-66-map.tsv](../docs/refactor/phase-66-map.tsv).
 
@@ -136,7 +136,7 @@ These live under [webdav/](protocols/webdav/README.md) and back its method handl
 | Subsystem | What it does |
 |---|---|
 | [webdav/fs](protocols/webdav/fs/README.md) | Confined local-filesystem copy primitives (file + recursive directory) backing the WebDAV COPY/MOVE handler, with kernel zero-copy and XRootD/WebDAV xattr preservation. |
-| [webdav/locks](protocols/webdav/locks/README.md) | Request-parsing helpers that decode WebDAV LOCK intent (Timeout, If/Lock-Token, Depth, owner/scope) from the HTTP request for the lock state machine in `../lock.c`. |
+| [webdav/locks](protocols/webdav/locks/README.md) | Request-parsing helpers that decode WebDAV LOCK intent (Timeout, If/Lock-Token, Depth, owner/scope) from the HTTP request for the lock state machine in `protocols/webdav/lock.c`. |
 | [webdav/methods](protocols/webdav/methods/README.md) | A thin per-method helper layer holding the COPY destination conditional check (If-Match/If-None-Match), delegating ETag parsing to the shared compat layer for RFC 9110 optimistic-concurrency safety. |
 | [webdav/util](protocols/webdav/util/README.md) | Thin protocol-aware adapters that wrap the all-protocol compat URI-decode and XML-escape primitives into nginx-HTTP dialect (nginx status codes + request-pool allocation) for WebDAV handlers. |
 
@@ -214,7 +214,7 @@ Read these before changing any wire/client path — they are enforced project-wi
 
 ## How to navigate / where to start reading
 
-- **Big picture first:** read this file, then [ngx_brix_module.h](core/ngx_brix_module.h)
+- **Big picture first:** read this file, then [core/ngx_brix_module.h](core/ngx_brix_module.h)
   (the umbrella header that includes every subsystem) and [types/](core/types/README.md)
   (the `brix_ctx_t` per-connection context that threads through everything).
 - **Follow a `root://` request:** start at [connection/](protocols/root/connection/README.md) →

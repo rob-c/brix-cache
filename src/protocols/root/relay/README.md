@@ -28,6 +28,12 @@ framing.
 | `relay.h` | directive (`brix_transparent_proxy host:port`) + engagement contract |
 | `relay_guard.c` | maps decoded tap frames onto the pure-C guard core (opcode classification, kXR_error errnum); `brix_relay_guard_handshake` also runs the first-bytes wire check so a client not speaking root (TLS/HTTP/SSH/junk) is dropped + logged `signal=notroot` before it reaches the backend |
 
+### Other files
+
+| File | Responsibility |
+|---|---|
+| `relay_guard.h` | per-relay guard state plus the tap sink that classifies each decoded root:// frame (requests pre-verdict, responses post-signal) and asks the relay to drop the connection on a BOUNCE. |
+
 ## Invariants, security & gotchas
 
 1. Byte-exact passthrough — the tap NEVER consumes or reorders; framing is

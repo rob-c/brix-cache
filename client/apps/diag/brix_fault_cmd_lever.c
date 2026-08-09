@@ -16,9 +16,11 @@
 #endif
 
 #include "brix_fault_proxy_state.h"
+#include "brix_fault_buf.h"
 #include "brix_fault_toxic.h"
 #include <ctype.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
@@ -63,6 +65,75 @@ reset_lever(volatile lever_t *L)
     L->lossy_ppm = 0;  L->reorder_ppm = 0; L->reorder_ms = 50;
     L->corrupt_ppm = 0; L->dup_ppm = 0;  L->truncate_at = 0;
     L->drop_ppm = 0;   L->repeat_ppm = 0; L->delayfirst_ms = 0;
+    L->slow_close_ms = 0; L->burst_bytes = 0;
+    L->lat_dist = 0;   L->lat_sigma_ms = 0;
+}
+
+/* d: 0 both / 1 up / 2 down.  Set field `f` to value `v` on the named set(s).
+ * Local mirror of the SET_DIR macro for the fidelity setters below. */
+#define FID_SET_DIR(d, f, v) do {                 \
+    if ((d) != 2) g_up.f = (v);                   \
+    if ((d) != 1) g_down.f = (v);                 \
+} while (0)
+
+/* Phase-B fidelity verbs, each validated so a malformed operand is refused with
+ * an `err` reply and leaves the lever unchanged.  Handles toxicity/slow-close/
+ * connect-delay/refuse/burst/latency-dist plus a validated `rate` (overriding
+ * the unchecked cmd_set_lever rate branch — wired first in cmd_set_dispatch).
+ * Returns 1 when `verb` was one of these, else 0. */
+int
+cmd_set_fidelity(const char *verb, char *args, char *reply, size_t rsz)
+{
+    if (strcmp(verb, "toxicity") == 0) {
+        int d = dir_of(args);
+        double pct = atof(args);
+        if (pct < 0.0) { fp_reply(reply, rsz, "err: toxicity < 0\n"); return 1; }
+        if (pct > 100.0) { pct = 100.0; }
+        int ppm = (int) (pct * 10000.0 + 0.5);
+        if (d != 2) { g_toxicity_up_ppm = ppm; }
+        if (d != 1) { g_toxicity_down_ppm = ppm; }
+    } else if (strcmp(verb, "slow-close") == 0) {
+        int d = dir_of(args), ms = atoi(args);
+        if (ms < 0) { fp_reply(reply, rsz, "err: slow-close < 0\n"); return 1; }
+        FID_SET_DIR(d, slow_close_ms, ms);
+    } else if (strcmp(verb, "connect-delay") == 0 ||
+               strcmp(verb, "accept-delay") == 0) {
+        int ms = atoi(args);
+        if (ms < 0) { fp_reply(reply, rsz, "err: connect-delay < 0\n"); return 1; }
+        g_connect_delay_ms = ms;
+    } else if (strcmp(verb, "refuse") == 0) {
+        double pct = atof(args);
+        if (pct < 0.0) { fp_reply(reply, rsz, "err: refuse < 0\n"); return 1; }
+        if (pct > 100.0) { pct = 100.0; }
+        g_refuse_ppm = (int) (pct * 10000.0 + 0.5);
+    } else if (strcmp(verb, "rate") == 0) {
+        int d = dir_of(args), kbps = atoi(args);
+        if (kbps < 0) { fp_reply(reply, rsz, "err: rate < 0\n"); return 1; }
+        FID_SET_DIR(d, rate_kbps, kbps);
+    } else if (strcmp(verb, "burst") == 0) {
+        int d = dir_of(args), b = atoi(args);
+        if (b < 0) { fp_reply(reply, rsz, "err: burst < 0\n"); return 1; }
+        FID_SET_DIR(d, burst_bytes, b);
+    } else if (strcmp(verb, "latency-dist") == 0) {
+        int d = dir_of(args);
+        char shape[16] = "";
+        int mean = -1, sigma = 0;
+        int nf = sscanf(args, "%15s %d %d", shape, &mean, &sigma);
+        if (nf < 2 || mean < 0) {
+            fp_reply(reply, rsz, "err: latency-dist <uniform|normal> <mean> [sigma]\n");
+            return 1;
+        }
+        int dist;
+        if (strcmp(shape, "uniform") == 0)      { dist = 0; }
+        else if (strcmp(shape, "normal") == 0)  { dist = 1; }
+        else { fp_reply(reply, rsz, "err: unknown distribution\n"); return 1; }
+        FID_SET_DIR(d, jitter_ms, mean);
+        FID_SET_DIR(d, lat_dist, dist);
+        FID_SET_DIR(d, lat_sigma_ms, sigma);
+    } else {
+        return 0;
+    }
+    return 1;
 }
 
 void
@@ -76,6 +147,9 @@ clear_all(void)
     g_fail_nth = 0;
     /* Extended levers. */
     g_stall_up = 0; g_stall_down = 0;
+    /* Phase-B fidelity levers (toxicity resets to 100% = today's default). */
+    g_toxicity_up_ppm = 1000000; g_toxicity_down_ppm = 1000000;
+    g_connect_delay_ms = 0; g_refuse_ppm = 0;
     g_mss = 0; g_rcvbuf = 0; g_sndbuf = 0;
     g_max_life_ms = 0;
     g_proxy_mode = 0;

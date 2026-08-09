@@ -80,6 +80,8 @@ ngx_conf_enum_t brix_cms_roles[] = {
     { ngx_string("server"),     BRIX_CMS_ROLE_SERVER     },
     { ngx_string("manager"),    BRIX_CMS_ROLE_MANAGER    },
     { ngx_string("supervisor"), BRIX_CMS_ROLE_SUPERVISOR },
+    { ngx_string("peer"),       BRIX_CMS_ROLE_PEER       },  /* §2.17 */
+    { ngx_string("proxy"),      BRIX_CMS_ROLE_PROXY      },  /* §2.17 */
     { ngx_null_string,          0                          }
 };
 

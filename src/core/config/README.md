@@ -13,7 +13,7 @@ and then to allocate every runtime resource that the request handlers assume
 already exists.
 
 The four callbacks here are wired into the stream module descriptor in
-`../stream/module_definition.c`: `ngx_stream_brix_create_srv_conf` (allocate
+`src/protocols/root/stream/module_definition.c`: `ngx_stream_brix_create_srv_conf` (allocate
 with `NGX_CONF_UNSET` sentinels), `ngx_stream_brix_merge_srv_conf`
 (parent→child inheritance + defaults), `ngx_stream_brix_postconfiguration`
 (one-time master-process setup: auth/TLS/policy validation, shared-memory zones,
@@ -28,7 +28,7 @@ on-disk export root and share auth/path-confinement, this subsystem also owns
 the **cross-protocol shared config preamble** (`shared_conf.h`,
 `ngx_http_brix_shared_conf_t`) and the helpers that validate and canonicalize
 an export root identically everywhere (`root_prepare.c`) and open the per-export
-`O_PATH` confinement rootfd that `../path/beneath.c` anchors `openat2(...,
+`O_PATH` confinement rootfd that `src/fs/path/beneath.c` anchors `openat2(...,
 RESOLVE_BENEATH)` on (`http_rootfd.c` for HTTP, `process.c` for stream).
 
 Critically, this is the **fail-fast gate**: nearly every validation failure here
@@ -53,6 +53,33 @@ caught at startup rather than under load.
 | `http_rootfd.c` / `http_rootfd.h` | `brix_http_open_rootfd`: opens the persistent `O_PATH` `common->rootfd` for WebDAV/S3 locations at config time (inherited by workers via fork), with a `cf->pool` cleanup so reloads don't leak one fd per export root. Mirrors the stream-side rootfd opened in `process.c`. |
 | `shared_conf.h` | `ngx_http_brix_shared_conf_t` — the common preamble (`enable`, `root`, `root_canon[PATH_MAX]`, `allow_write`, `thread_pool*`, `rootfd`) embedded as the **first member** of every protocol config struct, plus inline `ngx_http_brix_shared_init`/`ngx_http_brix_shared_merge`. |
 | `merge_macros.h` | Three merge macros for patterns nginx's built-in `ngx_conf_merge_*` doesn't cover: `BRIX_MERGE_PTR` (NULL-sentinel pointer), `BRIX_MERGE_HOSTPORT` (paired host+port), `BRIX_MERGE_ENUM` (custom enum with explicit UNSET). |
+
+### Other files
+
+| File | Responsibility |
+|---|---|
+| `credential_block.c` / `.h` | the `brix_credential <name> { … }` block (phase-63 §14). |
+| `export_guard.h` | brix_assert_dir_outside_export(cf, label, export_canon, dir) fails the config (NGX_ERROR + emerg log) when `dir` is at or beneath `export_canon`. |
+| `http_common.c` / `.h` | see http_common.h for the WHAT/WHY/HOW. */ #include "core/config/http_common.h" #include "core/config/tier_directives.h" #include "core/seccomp/seccomp.h" /* brix_conf_set_seccomp */ #include "auth/impersonate/lifecycle. |
+| `http_common_setters.c` | The three brix_conf_set_* handlers that need more than a generic ngx_conf_set_*_slot: the mint-CA pair (config-time PEM parse of both cert and key), the cache-peer list, and the backend token-exchange endpoint (URL shape. |
+| `merge.c` | Merges parent and child nginx arrays into a single combined array by concatenating elements in order (parent first, then child). |
+| `postconfiguration_internal.h` | Declares the one symbol that crosses the postconfiguration.c / postconfiguration_proxy_acl.c file boundary — the E-2 proxy_protocol + host-allow ACL guard invoked once, fail-closed, by ngx_stream_brix_postconfiguration b. |
+| `postconfiguration_proxy_acl.c` | E-2 (CWE-290): host-based auth (brix_host_allow) trusts the connection's peer address. |
+| `process_internal.h` | Declares the handful of symbols that cross the process.c / process_timers.c / process_server_init.c file boundary — the two maintenance-timer callbacks armed from a server's init ladder (brix_crl_reload_handler, brix_cac. |
+| `process_server_init.c` | Owns brix_init_one_server() — every per-server init step for one enabled brix server block, in the frozen worker-init order (credential replay, log-fd capture, staging registry, export rootfd, checkpoint recovery, cache. |
+| `process_timers.c` | Owns every maintenance-timer callback (CRL hot-reload, CMS pending-locate reaper, upload stage-out reaper, cache stale-dirty reaper, async stage-flush scheduler), their static ngx_event_t globals, and the three timer-arm. |
+| `runtime_server_backend.c` | storage-backend root rewriting + phase-64 composable cache/stage tier registration. |
+| `runtime_server_backend_cache.c` | phase-64/85 read-through cache-tier registration: cache_store parse + policy fill, the CVMFS master-key load (F1) and the sibling-mesh ring (F8). |
+| `runtime_server_backend_internal.h` | cross-file entry points for the runtime_server_backend split (mechanical file-size cap). |
+| `runtime_server_backend_stage.c` | zero-config default write-staging for a whole-object remote gateway (WebDAV/S3 backend) plus the systemd PrivateTmp posture warning. |
+| `runtime_server_tls.c` | Sets SSL_VERIFY_PEER (so a bad or untrusted chain fails the handshake) and, when `host` is non-empty, pins the expected certificate hostname on the context's verify parameters (so a valid cert for the WRONG host is also. |
+| `server_conf_internal.h` | Declares the five per-area merge entry points that the top-level ngx_stream_brix_merge_srv_conf() orchestrator (server_conf.c) invokes, each now defined in a focused sibling file. |
+| `server_conf_merge_cluster.c` | Owns brix_merge_srv_tpc() (TPC allowances, key TTL, transfer caps + reaper age, SSI/CNS, outbound credentials) and brix_merge_srv_cluster() (manager/redirector mode, staged uploads, pipeline/registry/session sizing, heal. |
+| `server_conf_merge_proxy_net.c` | Owns brix_merge_srv_proxy_net() (upstream TLS + token, transparent proxy mode, the write-through origin + prefix rules + decision struct, OCSP, the Phase-39 network-fault deadlines, and rate-limit rule inheritance), toge. |
+| `server_conf_merge_security.c` | Owns brix_merge_srv_security() (auth scheme + GSI/pwd, XrdAcc engine, X.509/CRL, tokens + L1/L2 caches, sss/krb5/unix/host, TLS toggles) and brix_merge_srv_storage() (compression, ZIP, the read-through cache origin/sizin. |
+| `shared_conf_types.h` | A shared preamble that holds enable flags, root path, write permission, and thread pool name — fields present in all three protocol configs. |
+| `tape_stage_conf.c` / `.h` | tape/stage directive defaults, merge, and the watermark setter. |
+| `tier_directives.h` | BRIX_TIER_DIRECTIVES(pfx, conf_t, ctx, conf_off) expands to the twelve ngx_command_t initializers every protocol module declares for its tier grammar, all writing into the embedded ngx_http_brix_shared_conf_t `common` pr. |
 
 ## Key types & data structures
 
@@ -85,8 +112,8 @@ Execution enters here only from nginx's config machinery, in strict order:
 1. **Parse** — per server block, the stream core calls
    `ngx_stream_brix_create_srv_conf` (sentinel init). As directives are read,
    their setters run: the `xrootd on;` setter `ngx_stream_brix_enable`
-   installs `ngx_stream_brix_handler` (see `../connection/handler.c` /
-   `../handshake/dispatch.c`); policy/manager-map setters push rule entries.
+   installs `ngx_stream_brix_handler` (see `src/protocols/root/connection/handler.c` /
+   `src/protocols/root/handshake/dispatch.c`); policy/manager-map setters push rule entries.
 2. **Merge** — `ngx_stream_brix_merge_srv_conf` applies parent→child
    inheritance and hard defaults, validates a few ranges (e.g. cache slice size
    must be a positive multiple of 1 MiB), and wires the write-through decision
@@ -101,15 +128,15 @@ Execution enters here only from nginx's config machinery, in strict order:
    resolution (`../aio/`).
 4. **init_process** — `ngx_stream_brix_init_process` (`process.c`) runs once
    per worker after fork: opens the per-worker confinement `rootfd` that
-   `../path/beneath.c` requires, recovers in-flight checkpoints (`../write/`),
+   `src/fs/path/beneath.c` requires, recovers in-flight checkpoints (`../write/`),
    starts the CMS heartbeat client (`../cms/`), active health checks
    (`../manager/`), CRL-reload and JWKS-refresh timers, and warms the GSI DH key
    pool (`../gsi/`).
 
 This subsystem **calls out to** essentially every other subsystem's
 `*_configure`/`*_finalize`/`*_start` entry point; it is **called from** only
-`../stream/module_definition.c`. The HTTP side mirrors this flow through
-`../webdav/config.c` and `../s3/module.c`, which reuse `shared_conf.h`,
+`src/protocols/root/stream/module_definition.c`. The HTTP side mirrors this flow through
+`src/protocols/webdav/config.c` and `src/protocols/s3/module.c`, which reuse `shared_conf.h`,
 `root_prepare.c`, `http_rootfd.c`, and `merge_macros.h`.
 
 ## Invariants, security & gotchas
@@ -164,7 +191,7 @@ This subsystem **calls out to** essentially every other subsystem's
 - **New config directive:** add the field to `ngx_stream_brix_srv_conf_t`
   (`../types/config.h`); set its sentinel in `create_srv_conf`
   (`server_conf.c`); add the `ngx_command_t` entry to the live directives table
-  `ngx_stream_brix_commands[]` in `../stream/module.c`; add the
+  `ngx_stream_brix_commands[]` in `src/protocols/root/stream/module.c`; add the
   `ngx_conf_merge_*` (or one of `merge_macros.h`'s `BRIX_MERGE_*`) call in
   `merge_srv_conf`. Only re-run `./configure` if you add a new `.c` file.
 - **New validated path/cache/log resource:** add the check to
@@ -184,16 +211,16 @@ This subsystem **calls out to** essentially every other subsystem's
   build to `../path/`).
 - **New HTTP protocol surface:** embed `ngx_http_brix_shared_conf_t` first,
   call `ngx_http_brix_shared_init`/`_merge`, then `brix_prepare_export_root`
-  + `brix_http_open_rootfd` from your `merge_loc_conf` (see `../webdav/config.c`,
-  `../s3/module.c`).
+  + `brix_http_open_rootfd` from your `merge_loc_conf` (see `src/protocols/webdav/config.c`,
+  `src/protocols/s3/module.c`).
 
 ## See also
 
 - `../README.md` — master subsystem index
-- `../stream/README.md` — stream module descriptor that registers these callbacks and the directives table
-- `../path/README.md` — `RESOLVE_BENEATH` confinement and the policy/authdb/group rule finalizers this subsystem feeds
-- `../webdav/README.md`, `../s3/README.md` — HTTP surfaces that reuse `shared_conf.h`, `root_prepare.c`, and `http_rootfd.c`
-- `../gsi/README.md`, `../token/README.md` — auth subsystems configured from `postconfiguration.c`
-- `../manager/README.md`, `../cms/README.md` — manager-map / CMS cluster features configured and started here
+- `../../protocols/root/stream/README.md` — stream module descriptor that registers these callbacks and the directives table
+- `../../fs/path/README.md` — `RESOLVE_BENEATH` confinement and the policy/authdb/group rule finalizers this subsystem feeds
+- `../../protocols/webdav/README.md`, `../../protocols/s3/README.md` — HTTP surfaces that reuse `shared_conf.h`, `root_prepare.c`, and `http_rootfd.c`
+- `../../auth/gsi/README.md`, `../../auth/token/README.md` — auth subsystems configured from `postconfiguration.c`
+- `../../net/manager/README.md`, `../../net/cms/README.md` — manager-map / CMS cluster features configured and started here
 - `../aio/README.md` — thread pools resolved by `brix_configure_thread_pools`
-- `../metrics/README.md`, `../dashboard/README.md` — shared-memory zones created in postconfiguration
+- `../../observability/metrics/README.md`, `../../observability/dashboard/README.md` — shared-memory zones created in postconfiguration

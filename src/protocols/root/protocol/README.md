@@ -37,7 +37,7 @@ These definitions are **wire facts, not policy**: they describe what bytes look
 like on the network, never how a request is authorized, confined, or executed.
 
 In the request lifecycle this subsystem sits *underneath* everything on the
-stream path. The umbrella module header `../ngx_brix_module.h` pulls in
+stream path. The umbrella module header `src/core/ngx_brix_module.h` pulls in
 `protocol/protocol.h`, which transitively makes every constant and struct visible
 to the connection/handshake/dispatch layers, the per-opcode handlers
 (`../read/`, `../write/`, `../dirlist/`, `../query/`, `../fattr/`), the auth
@@ -59,6 +59,22 @@ structs.
 | `wire_core_requests.h` | Packed structs for handshake + common framing + core/read ops: `ClientInitHandShake`/`ServerInitHandShake`, the universal `ClientRequestHdr`/`ServerResponseHdr`, the `kXR_status` integrity bodies (`ServerResponseBody_Status`/`_pgRead`/`_pgWrite`, `ServerStatusResponse_pgRead`/`_pgWrite`), `ServerErrorBody`/`ServerRedirectBody`, and the protocol/login/auth/open/prepare/read/stat/close/ping/query/dirlist requests + response bodies. |
 | `wire_write_extended_requests.h` | Packed structs for write/extended ops: `ClientPgWriteRequest`, `ClientWriteRequest`, sync/truncate/mkdir/rm/rmdir/mv/chmod/bind/endsess/locate/sigver/statx/fattr/set/writev/pgread/clone/chkpoint, plus the payload-element structs `clone_item` (32 B), `readahead_list` (16 B), `write_list` (16 B), and `ServerResponseBody_ChkPoint`. |
 | `gsi.h` | GSI (x509) handshake constants: step numbers (`kXGS_*` server→client, `kXGC_*` client→server) and `XrdSutBucket` type codes (`kXRS_*`, `kXRS_none`=0 terminator, `[type:4B][len:4B][data]`). The GSI *logic* lives in `../gsi/`. |
+
+### Other files
+
+| File | Responsibility |
+|---|---|
+| `bootstrap_pack.h` | header-only static inlines that fill the three fixed-layout request structs every outbound XRootD session sends, in order, before any file op: - xrd_pack_handshake: ClientInitHandShake (20B init hello) - xrd_pack_protoco. |
+| `dirlist_fmt.h` | the dstat lead-in sentinel that a kXR_dirlist reply carries when the request set kXR_dstat / kXR_dcksm. |
+| `frame_hdr.h` | unaligned-safe big-endian accessors + the small pure codecs both the module and the native client apply to server response frames: - xrd_resp_hdr_unpack: ServerResponseHeader (streamid/status/dlen) - xrd_wait_secs_parse:. |
+| `open_flags.h` | the create/exclusive/truncate/append/rdwr meaning of the kXR_open `options` field, expressed once and shared by every encoder and the one decoder: - brix_open_options_build: intent -> kXR_open options (the request) - bri. |
+| `qspace.h` | the kXR_Qspace (3015) response body is an "&"-joined key/value report: oss.cgroup=default&oss.space=<total>&oss.free=<free>&oss.maxf=<maxf> &oss.used=<used>&oss.quota=-1 This header co-locates both halves of that grammar. |
+| `readv_seg.h` | each kXR_readv request and response carries an array of fixed 16-byte segment headers, one per requested range: [ fhandle[4] ][ rlen[4 BE] ][ offset[8 BE] ] (BRIX_READV_SEGSIZE) This header owns that layout for everyone. |
+| `sec_protocol.h` | after kXR_login the server advertises the auth methods it accepts as a parameter block of "&P=<name>,<args>" entries (e.g. |
+| `sss.h` | the on-the-wire constants of the XRootD SSS credential format. |
+| `stat_flags.h` | the meaning of the bits in the `flags` field of a kXR_stat reply (kXR_isDir / kXR_other / kXR_readable / kXR_xset / ...), expressed once for both halves of the boundary: - brix_stat_flags_from_mode: struct-stat mode -> k. |
+| `stat_line.h` | the ASCII body of a kXR_stat / kXR_statx reply (and each kXR_dstat directory entry) is a space-separated line: "<id> <size> <flags> <mtime>" with an OPTIONAL extended tail some servers (EOS) append: " <ctime> <atime> <mo. |
+| `wire_vendor_ext.h` | 24-byte ClientRequestHdr-shaped structs for the POSIX-completeness ops the base XRootD protocol lacks. |
 
 ## Key types & data structures
 
@@ -108,7 +124,7 @@ that *uses* it on the `root://` path:
    `../handshake/dispatch.c`.
 2. `brix_dispatch()` reads `requestid` (compared against the `kXR_*` opcodes
    here) and routes to the handshake/session, read, or write dispatch families
-   (`../handshake/dispatch_session.c` / `dispatch_read.c` / `dispatch_write.c`),
+   (`../handshake/dispatch_session.c` / `src/protocols/root/handshake/dispatch_read.c` / `src/protocols/root/handshake/dispatch_write.c`),
    after honouring any `kXR_sigver` envelope (constants from `flags.h`,
    verification in `../session/signing.c`).
 3. Per-opcode handlers cast the 24-byte header to the matching struct here (e.g.
@@ -174,8 +190,8 @@ the include graph.
 - **Three separate numbering domains.** Request IDs, error codes, and query
   infotypes all start near 3000 but never mix; status codes are 4000s.
   `kXR_status` (4007) is a status code, not an error code. Map POSIX errno →
-  `kXR_*` in the response helpers — see `../compat/error_mapping.h` and the
-  errno→kXR table in `../../CLAUDE.md`.
+  `kXR_*` in the response helpers — see `src/core/compat/error_mapping.h` and the
+  errno→kXR table in `../../../../CLAUDE.md`.
 - **Capability bits gate TLS and role.** TLS flows through
   `kXR_ableTLS`/`kXR_wantTLS` (request) ↔ `kXR_haveTLS`/`kXR_gotoTLS`/
   `kXR_tlsLogin` (response). Role/feature bits
@@ -199,7 +215,7 @@ the include graph.
 
 ## Entry points / extending
 
-To add a **new XRootD opcode** (mirrors the `../../CLAUDE.md` recipe; the parts
+To add a **new XRootD opcode** (mirrors the `../../../../CLAUDE.md` recipe; the parts
 that touch *this* subsystem):
 
 1. **`opcodes.h`** — add the request ID `#define kXR_<name> <id>`; add any new
@@ -230,10 +246,10 @@ list), because this subsystem ships **no `.c` files**.
 - `../read/`, `../write/`, `../dirlist/`, `../query/`, `../fattr/` — per-opcode
   handlers that cast the request structs.
 - `../gsi/` — GSI auth logic that uses `gsi.h` step/bucket constants.
-- `../session/` — login/bind/sigver; `signing.c` consumes the `kXR_sigver` flags.
+- `../session/` — login/bind/sigver; `src/protocols/root/session/signing.c` consumes the `kXR_sigver` flags.
 - `../manager/`, `../cms/`, `../proxy/`, `../tpc/` — cluster/redirect/forwarding
   paths that emit `kXR_redirect` and advertise role bits from `flags.h`.
-- `../compat/error_mapping.h` — errno → `kXR_*` mapping for response bodies;
+- `src/core/compat/error_mapping.h` — errno → `kXR_*` mapping for response bodies;
   `../compat/` — CRC32c for the `kXR_status` integrity framing.
 - Upstream sources: `xrootd/xrootd src/XProtocol/XProtocol.hh`,
   `src/XrdSecgsi/XrdSecProtocolgsi.hh`, `src/XrdSut/XrdSutBuffer.hh`;

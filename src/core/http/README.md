@@ -39,11 +39,18 @@ conditional-request or ETag behaviour needs to change, it changes here once.
 ## Boundary — what stays in `../compat`
 
 Multi-plane primitives that HTTP merely *also* uses remain in compat:
-`range.c`/`range_vector.c` (multi-range engine is shared with native
-`kXR_readv` coalescing), `uri.c` (percent-codec feeds S3 SigV4
-canonicalisation), `xml.c` (generic XML escaping/parsing, also WebDAV
-`<lockinfo>`), `protocol_caps.c` (method descriptor tables), and everything
+`src/core/compat/range.c`/`src/core/compat/range_vector.c` (multi-range engine is shared with native
+`kXR_readv` coalescing), `src/core/compat/uri.c` (percent-codec feeds S3 SigV4
+canonicalisation), `src/core/compat/xml.c` (generic XML escaping/parsing, also WebDAV
+`<lockinfo>`), `src/core/compat/protocol_caps.c` (method descriptor tables), and everything
 non-HTTP (checksums, namespace ops, SSRF guard, …).
+
+### Other files
+
+| File | Responsibility |
+|---|---|
+| `ktls.h` | brix_http_ktls_enable_ctx() sets SSL_OP_ENABLE_KTLS on a server's already-built OpenSSL SSL_CTX so that HTTPS responses sendfile(2) over kernel-TLS (the kernel encrypts the records in place) and request bodies decrypt in. |
+| `sesslog_conn.c` / `.h` | Acquire the connection-scoped sesslog session for an HTTP request. |
 
 ## Control & data flow
 
@@ -62,7 +69,7 @@ Callers are the HTTP front-ends and HTTP-facing subsystems only:
 
 The stream (`root://`) plane has no `ngx_http_request_t` and takes nothing
 from here except protocol-neutral constants (`etag.h`'s string builder;
-`write_compress.c` borrows `BRIX_DECODE_MAX_RATIO` from `http_body.h`).
+`src/protocols/root/write/write_compress.c` borrows `BRIX_DECODE_MAX_RATIO` from `http_body.h`).
 
 ## Invariants, security & gotchas
 

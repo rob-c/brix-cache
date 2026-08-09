@@ -10,8 +10,8 @@ semantics engine used by every HTTP-facing protocol.
 | Dir / file | What |
 |---|---|
 | [compat/](compat/) | ngx-free utilities: CRC32c/CRC64, safe_size, staged files, sanitized log strings, SHM slot tables |
-| [types/](types/) | `brix_ctx_t` + sub-structs, conf structs, `proto_list.h` / `fs_list.h` central registries (append-only) |
-| [config/](config/) | directive machinery, conf create/merge, unified storage directives (`http_common.c`), runtime server setup |
+| [types/](types/) | `brix_ctx_t` + sub-structs, conf structs, `types/proto_list.h` / `types/fs_list.h` central registries (append-only) |
+| [config/](config/) | directive machinery, conf create/merge, unified storage directives (`config/http_common.c`), runtime server setup |
 | [http/](http/) | shared HTTP semantics: header lookup, conditionals/ETag, query, XML, file responses — security-load-bearing, one engine for webdav/s3/cvmfs |
 | [shm/](shm/) | shared-memory KV + table primitives |
 | [aio/](aio/) | thread-pool async I/O (+ optional io_uring backend) |
@@ -22,3 +22,9 @@ semantics engine used by every HTTP-facing protocol.
 never POSIX-semaphore mode (INVARIANT 10). Protocols must consume the
 [http/](http/) helpers instead of regrowing private copies — enforced by
 `tools/ci/check_http_helper_reimpl.py`.
+
+### Other files
+
+| File | Responsibility |
+|---|---|
+| `fnv.h` | The two magic values that define each FNV-1a variant — the offset basis (seed) and the prime (per-byte multiplier) — in both the 64-bit and 32-bit widths the tree uses. |

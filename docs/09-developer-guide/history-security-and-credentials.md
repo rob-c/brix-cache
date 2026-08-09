@@ -1343,8 +1343,8 @@ config — that is a deliberate opt-in feature decision (a
   fail-closed shape mirrors `brix_signing_enforce_level`. Pairs with A-1 (upstream TLS peer
   verification) so neither the client nor the upstream leg can be independently downgraded.
   Plumbing: enum `brix_min_sec_levels` (module_enums.c), conf field `min_sec_level`
-  (srv_conf_fields_cache.inc, `NGX_CONF_UNSET_UINT`→merge 0), directive
-  (directives_security.inc), `BRIX_MIN_SEC_*` macros + decl (handshake.h). GOTCHA (test
+  (srv_conf_fields_cache.h, `NGX_CONF_UNSET_UINT`→merge 0), directive
+  (directives_security.h), `BRIX_MIN_SEC_*` macros + decl (handshake.h). GOTCHA (test
   design): the "at/above proceeds" case drives the **genuine in-protocol upgrade** from the
   raw Python client — initial + `kXR_protocol` (which already advertises `kXR_ableTLS` in
   body[4]=0x02) in cleartext, then the `brix_tls` server sets `tls_pending` and switches to a

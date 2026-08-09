@@ -28,7 +28,7 @@ for a collection (`Depth: infinity`). The result is committed back to the destin
 
 Only the WebDAV protocol uses this code. The S3 `CopyObject` path and XRootD
 `kXR_clone`/`kXR_chkpoint` share the lower-level `brix_copy_range()` engine in
-`../../compat/copy_range.c` directly but do not enter this subsystem.
+`src/core/compat/copy_range.c` directly but do not enter this subsystem.
 
 ## Files
 
@@ -61,10 +61,10 @@ canonicalized C-string paths. The relevant types it operates on are:
   directory, when `Depth: infinity`.
 
 **Calls out to (siblings):**
-- `../../compat/copy_range.c` (`brix_copy_range()`) — the actual byte mover:
+- `src/core/compat/copy_range.c` (`brix_copy_range()`) — the actual byte mover:
   `copy_file_range(2)` with a `pread`/`pwrite` fallback on `ENOSYS`/`EOPNOTSUPP`/`EXDEV`.
-  See [../../compat/README.md](../../../core/compat/README.md).
-- `../../compat/namespace_ops.c` — confinement + metadata: `brix_open_confined_canon()` /
+  See [../../../core/compat/README.md](../../../core/compat/README.md).
+- `src/core/compat/namespace_ops.c` — confinement + metadata: `brix_open_confined_canon()` /
   `brix_mkdir_confined_canon()` (`openat2 RESOLVE_BENEATH` against the export root),
   `brix_ns_copy_fattrs()` (copies the `user.xrd.*` xattr prefix), and `brix_log_safe_path()`
   for sanitized error logging.
@@ -76,8 +76,8 @@ canonicalized C-string paths. The relevant types it operates on are:
 subsystem itself runs synchronously; see the blocking-I/O note below.
 
 Related upstream context: WebDAV method routing lives in [../README.md](../README.md);
-path canonicalization/confinement in [../../path/README.md](../../../fs/path/README.md); the
-async data plane for *reads/writes* (not used here) in [../../aio/README.md](../../../core/aio/README.md).
+path canonicalization/confinement in [../../../fs/path/README.md](../../../fs/path/README.md); the
+async data plane for *reads/writes* (not used here) in [../../../core/aio/README.md](../../../core/aio/README.md).
 
 ## Invariants, security & gotchas
 
@@ -85,7 +85,7 @@ async data plane for *reads/writes* (not used here) in [../../aio/README.md](../
    `mkdir` of a client-influenced path goes through `brix_open_confined_canon` /
    `brix_mkdir_confined_canon`, which use `openat2` with `RESOLVE_BENEATH` anchored to the
    per-worker export root. A `..`/symlink escape is refused with `EXDEV` rather than falling
-   through to a raw syscall (`../../compat/namespace_ops.c:67`, `:88`). Do **not** add a raw
+   through to a raw syscall (`src/core/compat/namespace_ops.c:67`, `:88`). Do **not** add a raw
    `open`/`mkdir` on a wire path here.
 
 2. **The bare `stat(src)` / `lstat(src_child)` calls are read-only probes, not the trust
@@ -98,7 +98,7 @@ async data plane for *reads/writes* (not used here) in [../../aio/README.md](../
 
 3. **This is pure file I/O — no TLS/cleartext buffer concerns, but it is BLOCKING.**
    `brix_copy_range()` is explicitly documented as a blocking call that must not run on the
-   nginx event-loop thread (`../../compat/copy_range.h`). The collection copy in `../copy.c`
+   nginx event-loop thread (`src/core/compat/copy_range.h`). The collection copy in `../copy.c`
    is therefore dispatched as a thread-pool task (`webdav_copy_collection_task_t`); any new
    caller of these functions must likewise keep them off the event loop.
 
@@ -133,7 +133,7 @@ async data plane for *reads/writes* (not used here) in [../../aio/README.md](../
   through the `*_confined_canon` helpers. Register the byte mover via `brix_copy_range()`
   rather than reimplementing `copy_file_range`.
 - **To preserve an additional xattr namespace**, do not hand-roll `getxattr`/`setxattr` —
-  add a thin wrapper over `brix_xattr_copy_by_prefix()` (`../../compat/namespace_ops.h`)
+  add a thin wrapper over `brix_xattr_copy_by_prefix()` (`src/core/compat/namespace_ops.h`)
   alongside the existing `brix_ns_copy_fattrs` / `webdav_dead_props_copy` calls.
 - **Build registration:** both files are already listed in the top-level `config`
   (`$ngx_addon_dir/src/protocols/webdav/fs/copy_engine.{c,h}`). A new `.c` in this directory must be
@@ -145,9 +145,9 @@ async data plane for *reads/writes* (not used here) in [../../aio/README.md](../
 ## See also
 
 - [../README.md](../README.md) — WebDAV method router and `COPY`/`MOVE` handlers (`../copy.c`).
-- [../../compat/README.md](../../../core/compat/README.md) — `brix_copy_range`, `namespace_ops`
+- [../../../core/compat/README.md](../../../core/compat/README.md) — `brix_copy_range`, `namespace_ops`
   confined helpers, and xattr-prefix copy.
-- [../../path/README.md](../../../fs/path/README.md) — path canonicalization and `RESOLVE_BENEATH`
+- [../../../fs/path/README.md](../../../fs/path/README.md) — path canonicalization and `RESOLVE_BENEATH`
   confinement model.
 - `../../tpc/` (native SHM-key TPC) and `../tpc.c` (WebDAV curl COPY) — the *remote*
   third-party-copy paths this subsystem deliberately does not implement.

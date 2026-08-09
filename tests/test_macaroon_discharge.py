@@ -48,7 +48,7 @@ from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.backends import default_backend
 
 import pytest
-from settings import SERVER_HOST
+from settings import NGINX_WEBDAV_PORT, SERVER_HOST
 
 
 # ---------------------------------------------------------------------------
@@ -216,7 +216,7 @@ def root_token(vid_blob) -> str:
             "before:2099-12-31T23:59:59Z",
         ],
         third_party_caveats=[(DISCHARGE_IDENTIFIER, vid_blob)],
-        location=f"https://{SERVER_HOST}:8443",
+        location=f"https://{SERVER_HOST}:{NGINX_WEBDAV_PORT}",
     )
     return token
 

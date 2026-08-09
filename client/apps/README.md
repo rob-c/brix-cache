@@ -6,7 +6,7 @@ Binaries are listed in `BINS` in `client/Makefile` and land in `client/bin/`.
 
 Several tools are **split across multiple `.c` files** (a single-responsibility
 refactor, behavior-identical) that link into one binary — e.g. `xrdcp` =
-`xrdcp.c` + `xrdcp_transfer.c` + `xrdcp_recursive.c`. The `*_SPLIT` Make variables
+`copy/xrdcp.c` + `copy/xrdcp_transfer.c` + `copy/xrdcp_recursive.c`. The `*_SPLIT` Make variables
 record the groupings; the table lists each tool by its binary, not its files.
 
 ## Data movement
@@ -57,7 +57,7 @@ record the groupings; the table lists each tool by its binary, not its files.
 
 | Binary | Purpose |
 |---|---|
-| `xrootdfs` | FUSE mount. One binary containing both drivers — the async/resilient default and a simple synchronous `--legacy` fallback (front-end `xrootdfs_main.c`, multi-call like `xrd`). |
+| `xrootdfs` | FUSE mount. One binary containing both drivers — the async/resilient default and a simple synchronous `--legacy` fallback (front-end `fs/xrootdfs_main.c`, multi-call like `xrd`). |
 | `brixMount` | Umbrella FUSE front-end: `brixMount <type> <endpoint> <mountdir>` — `cvmfs` (CVMFS-brix, read-only), `cvmfs-rw` (CVMFS-brix-rw: same mount plus a local writable overlay in `<mountdir>/.brixwrites` — copy-up, whiteout deletes; manage with `brixMount --overlay-list/--overlay-reset <mountdir>`), `eos`/`root`/`roots` (XRootDFS-brix). |
 | `libbrixposix_preload.so` | LD_PRELOAD POSIX→XRootD read-path shim (see [`../preload/`](../preload/)). |
 
@@ -143,5 +143,5 @@ Usage text, man page, and shell completion must stay in sync for every flag —
 ## See also
 
 - [`../lib/README.md`](../lib/README.md) — the `libbrix` library these tools link against.
-- [`../lib/sec/README.md`](../lib/sec/README.md) — the authentication modules.
+- [`../lib/auth/sec/README.md`](../lib/auth/sec/README.md) — the authentication modules.
 - [`../README.md`](../README.md) — client/ directory overview and build instructions.

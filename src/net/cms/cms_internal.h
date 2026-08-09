@@ -183,6 +183,9 @@
                                                to a meta-manager (SanList leg) */
 #define CMS_LOGIN_MODE_MANAGER  0x00000002  /* kYR_manager: also manages servers
                                              * (real LoginMode bit; 0x10 is proxy) */
+#define CMS_LOGIN_MODE_PEER     0x00000004  /* §2.17 kYR_peer: an overflow/peer
+                                               cluster consulted on local miss */
+#define CMS_LOGIN_MODE_PROXY    0x00000010  /* §2.17 kYR_proxy: a proxy front */
 
 /*
  * Per-manager CMS heartbeat context (one instance per CMS manager address).
@@ -217,6 +220,19 @@ struct ngx_brix_cms_ctx_s {
     ngx_uint_t                      connect_attempts; /* TCP connect tries this boot */
     uint64_t                        start_ns;       /* ctx creation (settle timing) */
     unsigned                        is_loopback:1;  /* manager addr is loopback     */
+    /* §2.9: login-time kYR_try retarget (ManTree offload / blacklist
+     * redirect).  orig_addr/orig_name remember the CONFIGURED manager so the
+     * link can fall back after repeated failures against the redirect
+     * target; retarget_fails counts consecutive failed connects while
+     * retargeted (3 -> revert); retarget_depth bounds redirect chains (4 ->
+     * refuse further retargets, revert) so two managers pointing at each
+     * other cannot bounce a node forever. */
+    ngx_addr_t                     *orig_addr;
+    ngx_str_t                       orig_name;
+    ngx_uint_t                      retarget_fails;
+    ngx_uint_t                      retarget_depth;
+    unsigned                        retargeted:1;
+
     uint32_t                        next_streamid; /* monotone counter advanced by
                                                       streamid_stride; used as CMS
                                                       locate correlation key */

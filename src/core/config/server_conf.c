@@ -72,6 +72,7 @@ brix_create_srv_security(ngx_stream_brix_srv_conf_t *conf)
     conf->metrics_slot = -1;
     conf->rootfd       = -1;
     conf->security_level = NGX_CONF_UNSET_UINT;
+    conf->signing_required = NGX_CONF_UNSET;
     conf->min_sec_level = NGX_CONF_UNSET_UINT;
     conf->ztn_cleartext = NGX_CONF_UNSET;
     conf->opaque_strict = NGX_CONF_UNSET;
@@ -137,6 +138,7 @@ brix_create_srv_storage(ngx_stream_brix_srv_conf_t *conf)
     conf->io_uring_restrict        = NGX_CONF_UNSET;
     conf->include_regex.set  = 0;
     conf->cache_dirty_max_age      = NGX_CONF_UNSET;
+    conf->cache_cold_max_age       = NGX_CONF_UNSET;
     brix_cache_reaper_conf_init(&conf->reaper);
     conf->cache_deny_prefixes      = NULL;
     conf->cache_allow_prefixes     = NULL;

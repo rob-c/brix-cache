@@ -38,11 +38,16 @@ def fleet_decision_env(monkeypatch):
     fleet "appears" to be running and whether TEST_OWN_FLEET is set.  Restores the
     memo afterwards so the surrounding real session re-decides cleanly."""
     saved_memo = conftest._external_fleet
+    saved_collision = conftest._foreign_fleet_collision
     monkeypatch.setattr(conftest, "REMOTE_SERVER", False, raising=False)
     monkeypatch.delenv("TEST_OWN_FLEET", raising=False)
+    monkeypatch.setattr(conftest, "manifest_owns_test_root", lambda: True)
+    monkeypatch.setattr(conftest, "fleet_ready_for_test_root", lambda: True)
+    monkeypatch.setattr(conftest, "_fleet_main_master_alive", lambda: True)
 
     def configure(*, fleet_running: bool):
         conftest._external_fleet = None
+        conftest._foreign_fleet_collision = False
         monkeypatch.setattr(
             conftest, "_check_server_reachable",
             lambda *a, **k: fleet_running,
@@ -50,6 +55,7 @@ def fleet_decision_env(monkeypatch):
 
     yield configure
     conftest._external_fleet = saved_memo
+    conftest._foreign_fleet_collision = saved_collision
 
 
 def test_attaches_when_fleet_already_running(fleet_decision_env):
@@ -60,6 +66,113 @@ def test_attaches_when_fleet_already_running(fleet_decision_env):
 def test_owns_when_no_fleet_running(fleet_decision_env):
     fleet_decision_env(fleet_running=False)
     assert conftest._external_fleet_attached() is False
+
+
+def test_foreign_listener_aborts_before_lifecycle_start(
+    fleet_decision_env, monkeypatch
+):
+    """An overlapping live lane is never treated as a reap-and-retry target."""
+    fleet_decision_env(fleet_running=True)
+    monkeypatch.setattr(conftest, "manifest_owns_test_root", lambda: False)
+    monkeypatch.setattr(conftest, "fleet_ready_for_test_root", lambda: False)
+    with pytest.raises(pytest.UsageError, match="foreign listener was not modified"):
+        conftest._should_skip_local_lifecycle(_Config())
+
+
+def test_owned_orphan_listener_is_reaped_instead_of_attached(
+    fleet_decision_env, monkeypatch
+):
+    fleet_decision_env(fleet_running=True)
+    monkeypatch.setattr(conftest, "_fleet_main_master_alive", lambda: False)
+
+    assert conftest._external_fleet_attached() is False
+    assert conftest._foreign_fleet_collision is False
+
+
+def test_leak_reaper_only_kills_exact_test_root(monkeypatch):
+    """Legacy shared /tmp markers must not make one lane kill another lane."""
+    killed = []
+    cmdlines = {
+        "101": b"nginx\0-p\0/tmp/brix-tests/lane-b/registry/main\0",
+        "202": b"nginx\0-p\0/tmp/brix-tests/lane-a/registry/main\0",
+        "303": b"xrootd\0-c\0/tmp/xrd/reference.cfg\0",
+    }
+
+    class _ProcFile:
+        def __init__(self, payload):
+            self.payload = payload
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+        def read(self):
+            return self.payload
+
+    monkeypatch.setattr(conftest, "TEST_ROOT", "/tmp/brix-tests/lane-b")
+    def fake_pgrep(argv, **kwargs):
+        by_exe = {"nginx": "101\n202\n", "xrootd": "303\n"}
+        return types.SimpleNamespace(stdout=by_exe.get(argv[-1], ""))
+
+    monkeypatch.setattr(conftest.subprocess, "run", fake_pgrep)
+    monkeypatch.setattr(
+        "builtins.open",
+        lambda path, mode: _ProcFile(cmdlines[path.split("/")[2]]),
+    )
+    monkeypatch.setattr(os, "kill", lambda pid, sig: killed.append(pid))
+
+    conftest._reap_leaked_test_servers()
+    assert killed == [101]
+
+
+def test_xdist_controller_rebuilds_registry_before_teardown(monkeypatch):
+    """A non-collecting controller must still stop the fleet gw0 started."""
+    events = []
+
+    class _Launcher:
+        def __init__(self, tests_dir):
+            events.append(("launcher", tests_dir))
+
+        def stop_registered(self, specs):
+            events.append(("stop", specs))
+
+    monkeypatch.setattr(conftest, "_register_fleet",
+                        lambda: events.append(("register", None)))
+    monkeypatch.setattr(conftest, "RegistryLauncher", _Launcher)
+    monkeypatch.setattr(conftest, "_reap_leaked_test_servers",
+                        lambda: events.append(("reap", None)))
+
+    # None is the real xdist-controller shape: it never received the worker's
+    # selected-spec list. Re-registering makes stop_registered(None) mean the
+    # complete catalogue rather than an empty in-memory registry.
+    conftest._stop_owned_fleet(None)
+    assert [event[0] for event in events] == ["register", "launcher", "stop", "reap"]
+
+
+def test_interrupted_fleet_start_rolls_back_partial_servers(monkeypatch):
+    events = []
+
+    class _Launcher:
+        def __init__(self, tests_dir):
+            pass
+
+        def start_registered(self, specs):
+            events.append("start")
+            raise KeyboardInterrupt
+
+        def stop_registered(self, specs):
+            events.append("stop")
+
+    monkeypatch.setattr(conftest, "_register_fleet", lambda: None)
+    monkeypatch.setattr(conftest, "RegistryLauncher", _Launcher)
+    monkeypatch.setattr(conftest, "_reap_leaked_test_servers",
+                        lambda: events.append("reap"))
+
+    with pytest.raises(KeyboardInterrupt):
+        conftest._start_all_resilient([])
+    assert events == ["start", "stop", "reap"]
 
 
 def test_own_override_forces_ownership_despite_running_fleet(
@@ -76,6 +189,65 @@ def test_remote_mode_never_attaches(fleet_decision_env, monkeypatch):
     monkeypatch.setattr(conftest, "REMOTE_SERVER", True, raising=False)
     conftest._external_fleet = None
     assert conftest._external_fleet_attached() is False
+
+
+def test_session_cleanup_preserves_pytest_temp_tree(monkeypatch, tmp_path):
+    root = tmp_path / "lane"
+    temp_file = root / "tmp" / "pytest-current" / "popen-gw0" / "sentinel"
+    stale_log = root / "logs" / "old.log"
+    stale_registry = root / "registry" / "old.pid"
+    unrelated = tmp_path / "other-lane" / "sentinel"
+    for path in (temp_file, stale_log, stale_registry, unrelated):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("present", encoding="utf-8")
+    monkeypatch.setattr(conftest, "TEST_ROOT", str(root))
+    monkeypatch.setattr(conftest, "TMP_DIR", str(root / "tmp"))
+    monkeypatch.setattr(conftest, "LOG_DIR", str(root / "logs"))
+    monkeypatch.setattr(conftest, "REGISTRY_ROOT", str(root / "registry"))
+
+    conftest._clean_session_owned_state()
+
+    assert temp_file.exists()
+    assert not stale_log.exists()
+    assert not stale_registry.exists()
+    assert unrelated.exists()
+
+
+def test_setup_reaps_lost_fleet_before_deleting_registry(monkeypatch, tmp_path):
+    events = []
+    monkeypatch.setattr(conftest, "REMOTE_SERVER", False)
+    monkeypatch.setattr(conftest, "_external_fleet_attached", lambda: False)
+    monkeypatch.setattr(conftest, "_test_tree_wiped", False)
+    monkeypatch.setattr(conftest, "_reap_lost_fleet_before_clean",
+                        lambda: events.append("reap"))
+    monkeypatch.setattr(conftest, "_clean_session_owned_state",
+                        lambda: events.append("clean"))
+    conftest._reset_session_tree_once()
+
+    assert events[:2] == ["reap", "clean"]
+
+
+def test_session_tree_reset_runs_only_once(monkeypatch):
+    events = []
+    monkeypatch.setattr(conftest, "_test_tree_wiped", False)
+    monkeypatch.setattr(conftest, "_reap_lost_fleet_before_clean",
+                        lambda: events.append("reap"))
+    monkeypatch.setattr(conftest, "_clean_session_owned_state",
+                        lambda: events.append("clean"))
+
+    conftest._reset_session_tree_once()
+    conftest._reset_session_tree_once()
+
+    assert events == ["reap", "clean"]
+
+
+def test_lost_fleet_preflight_reports_stop_error_after_reap(monkeypatch, capsys):
+    monkeypatch.setattr(conftest, "_stop_owned_fleet",
+                        lambda specs: (_ for _ in ()).throw(RuntimeError("one stale pid")))
+
+    conftest._reap_lost_fleet_before_clean()
+
+    assert "stale-fleet preflight warning: one stale pid" in capsys.readouterr().err
 
 
 class _Options:

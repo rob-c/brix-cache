@@ -67,7 +67,7 @@ lines, `GET http://s1:8000/cvmfs/...`); the `brix_cvmfs_upstream_allow`
 Stratum-1 allowlist is the sole thing separating it from an open HTTP proxy
 (SSRF surface — see `src/protocols/cvmfs/request.c`). Enforcement was already
 airtight; what was missing was the **guard contract**. `src/protocols/cvmfs/
-gate.c` (`cvmfs_guard_proxyabuse()`) now emits the unified audit line
+src/protocols/cvmfs/gate.c` (`cvmfs_guard_proxyabuse()`) now emits the unified audit line
 (`proto=cvmfs signal=proxyabuse op=read path="<attempted authority>"`) whenever
 an absolute-form target is refused for an SSRF-relevant cause — a
 non-allowlisted authority, a non-http(s) scheme, or a malformed target port —
@@ -104,5 +104,5 @@ credential brute-force elsewhere, so it feeds the existing
 ## Testing
 
 ```bash
-tests/guard/run_guard_core.sh    # builds guard_*.c with plain gcc, runs all checks
+PYTHONPATH=tests pytest tests/test_cmd_guard_core.py   # builds guard_*.c with plain gcc, runs all checks
 ```

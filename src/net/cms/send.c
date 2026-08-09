@@ -1,5 +1,6 @@
 #include "cms_internal.h"
 #include "frame_io.h"
+#include "perf_pgm.h"               /* §2.11: external load-feed override */
 #include "net/manager/registry.h"
 
 #include <unistd.h>
@@ -65,6 +66,14 @@ cms_login_mode(ngx_stream_brix_srv_conf_t *conf)
         return CMS_LOGIN_MODE_MANAGER;
     case BRIX_CMS_ROLE_SUPERVISOR:
         return CMS_LOGIN_MODE | CMS_LOGIN_MODE_MANAGER;
+    case BRIX_CMS_ROLE_PEER:
+        /* §2.17: a peer cluster's contact point — no kYR_server bit; the
+         * manager registers it as overflow capacity, never normal service. */
+        return CMS_LOGIN_MODE_PEER;
+    case BRIX_CMS_ROLE_PROXY:
+        /* §2.17: a proxy data server — serves data (kYR_server) through a
+         * proxy front (kYR_proxy). */
+        return CMS_LOGIN_MODE | CMS_LOGIN_MODE_PROXY;
     default:
         return CMS_LOGIN_MODE
                | (conf->manager_mode ? CMS_LOGIN_MODE_MANAGER : 0);
@@ -196,11 +205,18 @@ ngx_brix_cms_send_login(ngx_brix_cms_ctx_t *ctx)
                                               (uint16_t) util_pct);
     /*
      * dPort: the data port clients are redirected to (our listen port).
+     * §2.12 (cms.altds): a configured alternate data server's port wins —
+     * the manager records the CONNECTION's peer address as the data host, so
+     * advertising the foreign port redirects clients to the co-located
+     * foreign data server instead of this node.
      * sPort follows as 0 — we run no separate subscriber/admin port, so the
      * field is present in wire order but advertised as unused.
      */
     payload_cursor = ngx_brix_cms_put_short(
-        payload_cursor, (uint16_t) ctx->conf->listen_port);
+        payload_cursor,
+        (uint16_t) (ctx->conf->cms.altds_port > 0
+                    ? ctx->conf->cms.altds_port
+                    : ctx->conf->listen_port));
     payload_cursor = ngx_brix_cms_put_short(payload_cursor, 0); /* sPort */
 
     /*
@@ -289,8 +305,10 @@ ngx_brix_cms_send_load(ngx_brix_cms_ctx_t *ctx)
      * NO scalar type tag — followed by dskFree as a tagged int.  The first five
      * bytes come from the Phase-89 W4 /proc meter (a meter fault degrades to
      * zeros, never a failed heartbeat); dsk is the export-fs utilisation.
+     * §2.11: a FRESH external cms.perf-pgm feed overrides the /proc figures.
      */
     brix_cms_meter_sample(&ctx->meter, (uint64_t) ngx_current_msec, load5);
+    (void) brix_cms_perf_get(load5);
 
     /*
      * Hand-packed (put16 + manual cursor advance) rather than via put_string:

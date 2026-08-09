@@ -19,6 +19,7 @@ import threading
 import time
 
 import pytest
+from settings import HOST
 
 pytestmark = pytest.mark.timeout(120)
 
@@ -38,7 +39,7 @@ def bfp():
 
 def _free_port():
     s = socket.socket()
-    s.bind(("127.0.0.1", 0))
+    s.bind((HOST, 0))
     p = s.getsockname()[1]
     s.close()
     return p
@@ -48,7 +49,7 @@ def _wait_port(port, deadline=5.0):
     end = time.time() + deadline
     while time.time() < end:
         try:
-            with socket.create_connection(("127.0.0.1", port), timeout=0.25):
+            with socket.create_connection((HOST, port), timeout=0.25):
                 return True
         except OSError:
             time.sleep(0.02)
@@ -66,7 +67,7 @@ class _Server:
         self.first = []
         self._srv = socket.socket()
         self._srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        self._srv.bind(("127.0.0.1", self.port))
+        self._srv.bind((HOST, self.port))
         self._srv.listen(8)
         self._stop = False
         threading.Thread(target=self._run, daemon=True).start()
@@ -113,7 +114,7 @@ class _Server:
 
 def _spawn(bfp, target_port, extra=None):
     listen, ctl = _free_port(), _free_port()
-    argv = [bfp, "--listen", str(listen), "--target", f"127.0.0.1:{target_port}",
+    argv = [bfp, "--listen", str(listen), "--target", f"{HOST}:{target_port}",
             "--control", str(ctl), "--quiet"] + (extra or [])
     proc = subprocess.Popen(argv, stdout=subprocess.DEVNULL,
                             stderr=subprocess.DEVNULL)
@@ -122,7 +123,7 @@ def _spawn(bfp, target_port, extra=None):
 
 
 def _ctl(port, cmd):
-    with socket.create_connection(("127.0.0.1", port), timeout=3) as s:
+    with socket.create_connection((HOST, port), timeout=3) as s:
         s.sendall((cmd + "\n").encode())
         out = b""
         s.settimeout(1.0)
@@ -153,7 +154,7 @@ def _recv_closed(s, deadline=1.0):
 
 
 def _roundtrip(listen, payload, wait=0.4):
-    with socket.create_connection(("127.0.0.1", listen), timeout=3) as s:
+    with socket.create_connection((HOST, listen), timeout=3) as s:
         try:
             s.sendall(payload)
         except (ConnectionResetError, ConnectionError, BrokenPipeError):
@@ -183,7 +184,7 @@ def test_idle_reap_rst_kills_idle_flow(bfp):
     try:
         assert "ok" in _ctl(ctl, "idle-reap 250 rst")
         assert "idle-reap=250/rst" in _ctl(ctl, "status")
-        with socket.create_connection(("127.0.0.1", listen), timeout=3) as s:
+        with socket.create_connection((HOST, listen), timeout=3) as s:
             s.sendall(b"hello")
             time.sleep(0.2)
             assert s.recv(100) == b"hello"          # flows while active
@@ -230,7 +231,7 @@ def test_max_bytes_guillotine(bfp):
     proc, listen, ctl = _spawn(bfp, echo.port)
     try:
         assert "ok" in _ctl(ctl, "max-bytes 8 rst")
-        with socket.create_connection(("127.0.0.1", listen), timeout=3) as s:
+        with socket.create_connection((HOST, listen), timeout=3) as s:
             s.sendall(b"A" * 32)                      # well over 8 bytes
             time.sleep(0.4)
             s.settimeout(1.0)
@@ -257,7 +258,7 @@ def test_drop_fin_hides_eof(bfp):
     proc, listen, ctl = _spawn(bfp, srv.port)
     try:
         assert "ok" in _ctl(ctl, "drop-fin down")
-        with socket.create_connection(("127.0.0.1", listen), timeout=3) as s:
+        with socket.create_connection((HOST, listen), timeout=3) as s:
             s.sendall(b"hi")
             time.sleep(0.3)
             assert s.recv(100) == b"bye"              # got the data
@@ -306,7 +307,7 @@ def test_hello_split_reset_kills_oversized(bfp):
     try:
         assert "ok" in _ctl(ctl, "hello-split-reset 256")
         big = _client_hello(400)
-        with socket.create_connection(("127.0.0.1", listen), timeout=3) as s:
+        with socket.create_connection((HOST, listen), timeout=3) as s:
             s.sendall(big)
             time.sleep(0.3)
             assert _recv_closed(s)                    # reset, never echoed
@@ -360,7 +361,7 @@ def test_body_hold_stalls_large_body(bfp):
     try:
         assert "ok" in _ctl(ctl, "http body-hold 2048 400 up")
         big = b"POST / HTTP/1.1\r\n\r\n" + b"B" * 4000
-        with socket.create_connection(("127.0.0.1", listen), timeout=3) as s:
+        with socket.create_connection((HOST, listen), timeout=3) as s:
             t0 = time.time()
             s.sendall(big)
             s.settimeout(3.0)

@@ -205,6 +205,16 @@ typedef struct {
                                              * cvmfs-cas-verified CAS objects
                                              * across repos in the local posix
                                              * cache store (default off).        */
+    ngx_flag_t          cache_only_if_cached; /* brix_cache_only_if_cached (audit
+                                             * §4.4, upstream pfc.onlyifcached):
+                                             * serve only what is already cached
+                                             * — a read MISS returns ENOENT
+                                             * instead of filling from the
+                                             * origin, so the client fails over
+                                             * to another replica rather than
+                                             * making this node pull the object.
+                                             * Writes always pass through
+                                             * (default off).                    */
     ngx_flag_t          cache_passthrough;  /* phase-92 brix_cache_passthrough:
                                              * store-then-evict an admission-
                                              * declined remote object so the

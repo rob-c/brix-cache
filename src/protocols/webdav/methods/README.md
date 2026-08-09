@@ -20,7 +20,7 @@ conditionals can silently clobber a destination another client just modified.
 
 This is a thin, deliberately-dumb wrapper. The actual ETag generation, list
 parsing, and wildcard (`*`) semantics live in the shared
-`../../compat/http_conditionals.c` / `../../compat/etag.c` helpers so that
+`src/core/http/http_conditionals.c` / `src/core/http/etag.c` helpers so that
 WebDAV and S3 agree on conditional-request behaviour. This file's only added
 value is to invoke that helper with COPY's policy (weak ETags, no weak-equiv
 comparison flag) and to emit COPY-specific debug logging naming the destination
@@ -48,7 +48,7 @@ state:
   `st_size` are what the shared helper turns into the destination ETag.
 
 Relevant shared constants it passes through:
-`BRIX_ETAG_WEAK` (`../../compat/etag.h`) selects an RFC 7232 §2.1 weak ETag
+`BRIX_ETAG_WEAK` (`src/core/http/etag.h`) selects an RFC 7232 §2.1 weak ETag
 (`W/"mtime-size"`); the final `condition_flags` argument is `0` (the
 `BRIX_HTTP_COND_WEAK_EQUIV` weak-equivalence flag is intentionally *not* set
 for COPY).
@@ -68,12 +68,12 @@ destination has been resolved and `stat`ed and after the lock-tree /
 
 **Calls out to:**
 
-- `brix_http_check_etag_preconditions()` (`../../compat/http_conditionals.c`)
+- `brix_http_check_etag_preconditions()` (`src/core/http/http_conditionals.c`)
   — does the real work: builds the destination ETag from `dst_sb`, parses the
   `If-Match` / `If-None-Match` header lists, applies wildcard semantics, and
   returns `NGX_OK`, `NGX_HTTP_NOT_MODIFIED` (304), or
   `NGX_HTTP_PRECONDITION_FAILED` (412).
-- `brix_http_etag_str()` (`../../compat/etag.c`, via the helper above) — the
+- `brix_http_etag_str()` (`src/core/http/etag.c`, via the helper above) — the
   underlying `mtime-size` → ETag string formatter, shared with S3 and PROPFIND.
 - `ngx_log_debug1()` — COPY-specific failure logging only.
 
@@ -85,8 +85,8 @@ written.
 
 Sibling subsystems in the same request:
 [../README.md](../README.md) (WebDAV method router and handlers),
-[../../compat/README.md](../../../core/compat/README.md) (shared ETag / conditional /
-header helpers), [../../path/README.md](../../../fs/path/README.md) (the confinement
+[../../../core/compat/README.md](../../../core/compat/README.md) (shared ETag / conditional /
+header helpers), [../../../fs/path/README.md](../../../fs/path/README.md) (the confinement
 that produced `dst_path` before this runs).
 
 ## Invariants, security & gotchas
@@ -95,10 +95,10 @@ that produced `dst_path` before this runs).
   that `dst_path` / `dst_sb` were already produced by the confined resolve +
   `stat` in `../copy.c`. Do not add a raw `stat`/`open` on a client path here —
   per the module-wide invariant, all client paths must pass through
-  `../../path/beneath.c` (`RESOLVE_BENEATH`) before any syscall.
+  `src/fs/path/beneath.c` (`RESOLVE_BENEATH`) before any syscall.
 - **Conditional logic is centralized, not duplicated.** All ETag parsing,
   weak-vs-strong handling, and `*` wildcard rules live in
-  `../../compat/http_conditionals.c`. This wrapper must not reimplement them —
+  `src/core/http/http_conditionals.c`. This wrapper must not reimplement them —
   doing so would let WebDAV and S3 drift apart on conditional-request behaviour.
   (See `copy_conditionals.c:42`.)
 - **Weak ETags, no weak-equivalence comparison.** COPY passes
@@ -140,8 +140,8 @@ To add another method's precondition/policy helper here, follow the
 
 - [../README.md](../README.md) — WebDAV method router, dispatch, and handlers
   (`copy.c`, `move.c`, `put.c`, `get.c`, `propfind.c`, `lock.c`).
-- [../../compat/README.md](../../../core/compat/README.md) — shared HTTP conditional,
-  ETag, header, and body helpers (`http_conditionals.c`, `etag.c`).
-- [../../path/README.md](../../../fs/path/README.md) — path canonicalization and
+- [../../../core/compat/README.md](../../../core/compat/README.md) — shared HTTP conditional,
+  ETag, header, and body helpers (`src/core/http/http_conditionals.c`, `src/core/http/etag.c`).
+- [../../../fs/path/README.md](../../../fs/path/README.md) — path canonicalization and
   `RESOLVE_BENEATH` confinement that resolves COPY source/destination paths.
 - [../../README.md](../../README.md) — master subsystem index.

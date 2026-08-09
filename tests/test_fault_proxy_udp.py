@@ -17,6 +17,7 @@ import threading
 import time
 
 import pytest
+from settings import HOST
 
 pytestmark = pytest.mark.timeout(120)
 
@@ -36,7 +37,7 @@ def bfp():
 
 def _free_port():
     s = socket.socket()
-    s.bind(("127.0.0.1", 0))
+    s.bind((HOST, 0))
     p = s.getsockname()[1]
     s.close()
     return p
@@ -46,7 +47,7 @@ def _wait_port(port, deadline=5.0):
     end = time.time() + deadline
     while time.time() < end:
         try:
-            with socket.create_connection(("127.0.0.1", port), timeout=0.25):
+            with socket.create_connection((HOST, port), timeout=0.25):
                 return True
         except OSError:
             time.sleep(0.02)
@@ -58,7 +59,7 @@ class _UdpEcho:
 
     def __init__(self):
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        self.sock.bind(("127.0.0.1", 0))
+        self.sock.bind((HOST, 0))
         self.port = self.sock.getsockname()[1]
         self._stop = False
         threading.Thread(target=self._run, daemon=True).start()
@@ -83,9 +84,9 @@ class _UdpEcho:
 def _spawn_udp(bfp, target_port):
     # A TCP listener is still required by the proxy; the UDP relay rides alongside.
     listen, ctl, uport = _free_port(), _free_port(), _free_port()
-    argv = [bfp, "--listen", str(listen), "--target", "127.0.0.1:9",
+    argv = [bfp, "--listen", str(listen), "--target", f"{HOST}:9",
             "--control", str(ctl), "--quiet",
-            "--udp", f"{uport} 127.0.0.1:{target_port}"]
+            "--udp", f"{uport} {HOST}:{target_port}"]
     proc = subprocess.Popen(argv, stdout=subprocess.DEVNULL,
                             stderr=subprocess.DEVNULL)
     assert _wait_port(ctl), "proxy control never came up"
@@ -94,7 +95,7 @@ def _spawn_udp(bfp, target_port):
 
 
 def _ctl(port, cmd):
-    with socket.create_connection(("127.0.0.1", port), timeout=3) as s:
+    with socket.create_connection((HOST, port), timeout=3) as s:
         s.sendall((cmd + "\n").encode())
         out = b""
         s.settimeout(1.0)
@@ -119,7 +120,7 @@ def _udp_rt(uport, payload, timeout=1.0):
     s.settimeout(timeout)
     try:
         t0 = time.time()
-        s.sendto(payload, ("127.0.0.1", uport))
+        s.sendto(payload, (HOST, uport))
         try:
             d, _ = s.recvfrom(65536)
         except socket.timeout:

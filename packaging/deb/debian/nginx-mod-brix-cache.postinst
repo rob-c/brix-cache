@@ -1,0 +1,60 @@
+#!/bin/sh
+# postinst for nginx-mod-brix-cache — deb counterpart of the spec's %pre
+# (brix-broker service account) plus the Debian-nginx loader convention
+# (modules-available snippet symlinked into /etc/nginx/modules-enabled).
+set -e
+
+MODCONF=60-mod-brix-cache.conf
+
+case "$1" in
+    configure)
+        # Dedicated, non-root service account for the per-request
+        # impersonation broker (CAP_SETUID/CAP_SETGID only, retained via the
+        # systemd CapabilityBoundingSet).  Referenced from
+        # brix-cache.conf.example via `brix_impersonation_broker_user
+        # brix-broker;`.  Idempotent; never removed on purge (Debian policy
+        # for system accounts).
+        if ! getent group brix-broker >/dev/null; then
+            addgroup --system --quiet brix-broker
+        fi
+        if ! getent passwd brix-broker >/dev/null; then
+            adduser --system --quiet --ingroup brix-broker \
+                --home /nonexistent --no-create-home \
+                --shell /usr/sbin/nologin \
+                --gecos "BriX-Cache impersonation broker (non-root)" \
+                brix-broker
+        fi
+
+        # Default export root: 0750, owned by the nginx worker user.  The
+        # nginx.org packages run workers as "nginx"; the Ubuntu-archive
+        # packages run them as "www-data".  Prefer "nginx" when the account
+        # exists, else fall back to www-data.  Respect any operator
+        # dpkg-statoverride.
+        owner=www-data
+        if getent passwd nginx >/dev/null; then
+            owner=nginx
+        fi
+        for d in /var/lib/brix-cache /var/lib/brix-cache/data; do
+            if ! dpkg-statoverride --list "$d" >/dev/null 2>&1; then
+                chown "$owner":"$owner" "$d"
+                chmod 0750 "$d"
+            fi
+        done
+
+        # Activate the module the way libnginx-mod-* packages do.  On
+        # nginx.org installs there is no modules-enabled include; print the
+        # load_module lines the operator must add to nginx.conf instead.
+        if [ -d /etc/nginx/modules-enabled ]; then
+            ln -sf "/usr/share/nginx/modules-available/$MODCONF" \
+                "/etc/nginx/modules-enabled/$MODCONF"
+        else
+            echo "nginx-mod-brix-cache: /etc/nginx/modules-enabled not found (nginx.org layout?)."
+            echo "Add these lines at the TOP (main context) of /etc/nginx/nginx.conf:"
+            sed 's/^/    /' "/usr/share/nginx/modules-available/$MODCONF"
+        fi
+        ;;
+esac
+
+#DEBHELPER#
+
+exit 0

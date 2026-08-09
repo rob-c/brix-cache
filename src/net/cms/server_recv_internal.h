@@ -56,6 +56,11 @@ uint32_t cms_srv_parse_load_free_mb(const u_char *payload, size_t payload_len);
 
 /* Phase-89 W4: machine-load % from the LOAD theLoad bytes (max of the 5
  * non-dsk bytes, clamped to 100; short payload = 0). */
+/* §2.3: copy the five machine theLoad bytes (cpu,net,xeq,mem,pag) into out5;
+ * a short payload yields all-zero (idle), matching the parser posture. */
+void cms_srv_parse_load_bytes(const u_char *payload, size_t payload_len,
+    uint8_t out5[5]);
+
 uint32_t cms_srv_parse_load_machine_pct(const u_char *payload,
     size_t payload_len);
 

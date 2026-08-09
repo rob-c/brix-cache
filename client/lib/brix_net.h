@@ -5,12 +5,10 @@
  */
 #ifndef XRDC_NET_H
 #define XRDC_NET_H
-
 /* ---- glob.c — client-side wildcard expansion ---- */
 /* 1 if `s` contains a glob metacharacter (* ? [). */
 int  brix_has_glob(const char *s);
 /* (brix_glob declared below, after brix_opts is defined.) */
-
 /* Transport: a socket, optionally wrapped in a TLS session. All byte I/O funnels
  * through brix_read_full/brix_write_full on this, so TLS is a single branch. We
  * forward-declare struct ssl_st so this header stays OpenSSL-free. */
@@ -43,7 +41,6 @@ typedef struct {
                                        * by every read_full in the operation so the
                                        * budget spans frames, not one frame. */
 } brix_io;
-
 /* Connection options (auth + TLS), supplied by the CLI. NULL ⇒ secure defaults
  * (no TLS unless the scheme/flags demand it; peer + host verification on). */
 typedef struct {
@@ -62,6 +59,16 @@ typedef struct {
     int         redir_trace;  /* §15.4: trace every kXR_redirect hop to stderr */
     int         force_anon;   /* §15.9: log in but present NO credential (auth-suite:
                                * tests the server's own enforcement, not client creds) */
+    int         gsi_delegate; /* 1 ⇒ this session MAY hand the server an X.509
+                               * delegated proxy: the certreq advertises the
+                               * sign-request capability (kOptsSigReq) so a stock
+                               * peer knows to ask, and a kXGS_pxyreq round is
+                               * answered instead of refused. Set by `--tpc
+                               * delegate` (the destination reads the source AS
+                               * the user); $XRDC_GSI_DELEGATE forces it on for
+                               * any session. OFF by default — delegation hands
+                               * a signing-capable credential to the peer, so it
+                               * is never implicit. */
     /* ---- network resilience (xrootdfs parity for the synchronous tools) ---- */
     int         max_stall_ms; /* patience window for reconnect+retry on a transport
                                * sever. 0 with no_retry=0 ⇒ the built-in default
@@ -74,13 +81,10 @@ typedef struct {
                                    * per-handler env/default discovery (today's
                                    * behaviour; C2 will thread this through auth). */
 } brix_opts;
-
 /* Default reconnect+retry patience window when resilience is on but unspecified. */
 #define XRDC_DEFAULT_MAX_STALL_MS 30000
-
 /* Forward decl: the opaque capture sink (capture.c). */
 struct brix_capture;
-
 /* §15 diagnostics state, embedded in brix_conn. Zero-initialised by the conn's
  * memset, so every hook is inert (single load+test) unless armed from opts. */
 #define XRDC_NOP 64   /* per-opcode RTT table size; reqid-kXR_1stRequest indexes it */
@@ -97,10 +101,8 @@ typedef struct {
      * [0]=start [1]=tcp-connected [2]=tls-done [3]=login+auth-done. 0 = not set. */
     uint64_t    phase_ns[4];
 } brix_diag;
-
 #define XRDC_REDIR_MAX 16   /* max kXR_redirect hops before giving up (loop/SSRF guard) */
 #define XRDC_HOSTPORT_MAX 288  /* "host:port" key: host[256] + ':' + port + NUL, padded */
-
 typedef struct {
     brix_io  io;
     uint16_t next_sid;
@@ -108,14 +110,12 @@ typedef struct {
     uint32_t server_flags;   /* ServerProtocolBody.flags, host byte order */
     char     host[256];
     int      port;
-
     /* --- auth / signing (M4) --- */
     void    *ssl_ctx;            /* SSL_CTX* (owned); freed on close */
     int      sec_level;          /* server's signing security level (0 = none) */
     int      sec_odata;          /* server secopt kXR_secOData: sign write payloads */
     int      signing_active;     /* GSI session cipher armed AND sec_level >= 2 */
     uint64_t sig_seqno;          /* monotonic kXR_sigver sequence number */
-
     /* --- GSI session cipher, captured in gsi round-2: reused by a follow-up
      * kXGS_pxyreq delegation round AND by kXR_sigver request signing --- */
     int      gsi_deleg_ready;    /* 1 = session cipher below is valid */
@@ -123,7 +123,6 @@ typedef struct {
     size_t   gsi_deleg_keylen;
     char     gsi_deleg_cipher[24];
     int      gsi_deleg_use_iv;
-
     /* --- TPC coordinator open (third-party copy) --- */
     int      tpc_coord_defer;    /* 1 = a kXR_waitresp on this conn means "rendezvous
                                   * registered, final reply deferred"; brix_recv
@@ -131,7 +130,6 @@ typedef struct {
                                   * the async reply (which only arrives AFTER the
                                   * orchestrator opens the dest + triggers the pull —
                                   * blocking here would deadlock the rendezvous). */
-
     /* --- redirect / reconnect (M5) --- */
     brix_opts opts;             /* copy of the connect opts, replayed on reconnect */
     int       want_tls;         /* derived at connect; re-applied on reconnect */
@@ -149,12 +147,10 @@ typedef struct {
      * brix_url.single_slash_path at connect time so per-op error reporters can
      * fire the double-slash hint via brix_hint_url_double_slash. */
     unsigned  single_slash_path : 1;
-
     /* --- diagnostics (§15) --- */
     brix_diag diag;              /* wire-trace / timing state (off unless armed) */
     char      sec_list[256];     /* the login "&P=…" sec list, for `xrdfs explain` */
 } brix_conn;
-
 typedef struct {
     uint64_t id;
     int64_t  size;
@@ -170,13 +166,11 @@ typedef struct {
     char     owner[64];
     char     group[64];
 } brix_statinfo;
-
 typedef struct {
     char          name[XRDC_NAME_MAX];
     int           have_stat;
     brix_statinfo st;
 } brix_dirent;
-
 /* ---- sock.c ---- */
 int brix_tcp_connect(const char *host, int port, int timeout_ms, brix_status *st);
 /* Apply TCP_NODELAY + SO_KEEPALIVE (+ keep* triad) to a connected socket. Best-
@@ -186,7 +180,6 @@ void brix_sock_tune(int fd);
  * io->timeout_ms via poll(2). */
 int brix_read_full(brix_io *io, void *buf, size_t n, brix_status *st);
 int brix_write_full(brix_io *io, const void *buf, size_t n, brix_status *st);
-
 /* Slow-drip guard: arm/disarm the whole-logical-operation completion deadline
  * around one read op (all its response frames). brix_io_stall_arm() sets the
  * absolute cutoff from io->stall_deadline_ms IF it is > 0 and not already armed
@@ -195,7 +188,6 @@ int brix_write_full(brix_io *io, const void *buf, size_t n, brix_status *st);
  * stale cutoff never bounds the next operation on this connection. */
 void brix_io_stall_arm(brix_io *io);
 void brix_io_stall_disarm(brix_io *io);
-
 /* ---- netpref.c — process-wide IPv6→IPv4 auto-downgrade (dual-stack hosts) ---- */
 /* getaddrinfo family hint: AF_UNSPEC normally, AF_INET once the session has
  * demoted to IPv4-only after observing a broken IPv6 path. */
@@ -219,7 +211,6 @@ void brix_netpref_undo_demote(const char *why);
  * env var — EXPANDED: a client-only extension, not a vanilla XRootD variable).
  * Keeps retrying IPv6 on every connection — for IPv6-only sites or debugging. */
 void brix_netpref_disable(void);
-
 /* ---- nettmo.c — network timeout tunables + retry backoff ---- */
 /* Connect+handshake+login (bring-up) cap, ms. Default 15000; override via the
  * setter (a CLI flag) or the XRDC_CONNECT_TIMEOUT_MS env var (EXPANDED). Keeps a
@@ -250,7 +241,6 @@ unsigned brix_backoff_delay_fast_ms(unsigned attempt, uint64_t *seed);
  * cancel (brix_copy_quit_requested) is observed promptly. */
 void brix_backoff_sleep(unsigned attempt);
 void brix_backoff_sleep_fast(unsigned attempt);
-
 /* ---- tls.c ---- */
 /* Upgrade c->io.fd to TLS (after the kXR_protocol reply, before login). When
  * verify_peer, the server cert must chain to ca_dir (a hash dir, e.g.
@@ -258,7 +248,6 @@ void brix_backoff_sleep_fast(unsigned attempt);
 int  brix_tls_upgrade(brix_conn *c, int verify_peer, int verify_host,
                       const char *ca_dir, brix_status *st);
 void brix_tls_free(brix_conn *c);
-
 /* ---- conn.c ---- */
 /* Resolve the CA trust dir for TLS verification: explicit arg → $X509_CERT_DIR →
  * /etc/grid-security/certificates → NULL (OpenSSL system defaults). Borrowed
@@ -312,7 +301,6 @@ int  brix_tls_client(brix_io *io, const char *host, int verify_peer, int verify_
                      brix_status *st);
 void brix_tls_client_free(brix_io *io, void *ctx);
 void brix_tls_client_info(const brix_io *io, const char **ver, const char **cipher);
-
 /* ---- http.c ---- */
 /* A general HTTP/1.1 response: status line code + the raw header block (for header
  * scans) + the body. The TLS facts are filled for https requests. */
@@ -326,7 +314,6 @@ typedef struct {
     char   tls_ver[24];        /* negotiated TLS version (https) */
     char   tls_cipher[48];     /* negotiated cipher (https) */
 } brix_http_resp;
-
 /* General HTTP/1.1 request over cleartext (tls=0) or TLS (tls=1). method e.g. "GET"/
  * "HEAD"/"OPTIONS"/"PROPFIND"; extra_headers is a "K: V\r\n…" block or NULL; body/blen
  * optional. verify controls TLS peer+host checking. Fills *resp (free with
@@ -341,7 +328,6 @@ void brix_http_resp_free(brix_http_resp *resp);
  * 1 if found, 0 if absent. */
 int  brix_http_header(const brix_http_resp *resp, const char *name,
                       char *out, size_t outsz);
-
 /* Pull-source for an HTTP PUT body: read up to `cap` bytes at absolute offset
  * `off` into buf. Returns bytes read (>0), 0 at EOF, or -1 with *st set. Mirrors
  * the copy-engine pump source signature so the upload body can be backed by a VFS
@@ -350,7 +336,6 @@ int  brix_http_header(const brix_http_resp *resp, const char *name,
  * reads an export file directly. */
 typedef ssize_t (*brix_http_body_src_fn)(void *ctx, uint8_t *buf, int64_t off,
                                          size_t cap, brix_status *st);
-
 /* Streaming transfer (no whole-body buffering — production GET/PUT, any size).
  * brix_http_download streams the GET response body straight to out_fd (handles
  * Content-Length, chunked, and connection-close framing). brix_http_upload streams
@@ -368,7 +353,6 @@ int  brix_http_upload(const char *host, int port, int tls, const char *path,
                       const char *ca_dir, const char *client_cert,
                       int timeout_ms, int *http_status,
                       brix_status *st);
-
 /* Resumable upload: streams the source as Content-Range PUT chunks, each on a
  * fresh connection, reconnecting + resuming from the server's durable offset on
  * a transport sever or 409 within max_stall_ms — so a davs:// upload survives an
@@ -381,7 +365,6 @@ int  brix_http_upload_resumable(const char *host, int port, int tls,
                       const char *client_cert,
                       int timeout_ms, int max_stall_ms, int *http_status,
                       brix_status *st);
-
 /* ---- s3.c — AWS Signature Version 4 (path-style), lifted to the lib so both
  * xrdcp transfers and xrddiag probes share one signer. ---- */
 /* Lowercase sha256-hex of a buffer into out[65]. */
@@ -400,7 +383,6 @@ int  brix_s3_sign_v4_q(const char *method, const char *host, const char *uri,
                        const char *canon_qs, const char *ak, const char *sk,
                        const char *region, const char *payload_hex,
                        char *hdrs, size_t hdrsz);
-
 /* ---- url.c ---- */
 int brix_url_parse(const char *s, brix_url *out, brix_status *st);
 /* Expand a root:// URL whose LAST path component globs into matching full URLs.
@@ -411,196 +393,5 @@ int  brix_glob(const char *url, const brix_opts *co, char ***out, size_t *n_out,
                brix_status *st);
 void brix_glob_free(char **arr, size_t n);
 
-/* ---- weblist.c — recursive WebDAV listing (for xrdcp -r over davs/http) ---- */
-/* PROPFIND Depth:infinity on a WebDAV collection; returns absolute server paths of
- * every FILE beneath it (subdirs excluded). bearer NULL ⇒ anonymous. 0 / -1 (st set).
- * Free *paths with brix_strv_free. */
-int  brix_webdav_list(const brix_weburl *u, const char *bearer, int verify,
-                      const char *ca_dir, const char *client_cert,
-                      char ***paths, size_t *n_out, brix_status *st);
-/* MKCOL a WebDAV collection at `path` on the endpoint `u` (for recursive upload).
- * bearer NULL ⇒ anonymous. Idempotent: an already-existing collection (405/301)
- * is treated as success. 0 / -1 (st set). */
-int  brix_webdav_mkcol(const brix_weburl *u, const char *path, const char *bearer,
-                       int verify, const char *ca_dir, const char *client_cert,
-                       brix_status *st);
-/* DELETE a WebDAV resource (file or empty collection) at `path`. bearer NULL ⇒
- * anonymous; client_cert = X.509 proxy PEM for mutual TLS (or NULL). NOT
- * idempotent on 404 (a missing target is a reported error). 0 / -1 (st set:
- * 404→ENOENT, 401/403→EAUTH, else EPROTO). */
-int  brix_webdav_delete(const brix_weburl *u, const char *path, const char *bearer,
-                        int verify, const char *ca_dir, const char *client_cert,
-                        brix_status *st);
-/* MOVE (rename) the WebDAV resource at `path` to `dest_abs` — an ABSOLUTE URL
- * ("<scheme>://host:port/newpath") per RFC 4918 — with Overwrite: T. bearer/
- * client_cert as for delete. 0 / -1 (st set, mapped like delete). */
-int  brix_webdav_move(const brix_weburl *u, const char *path, const char *dest_abs,
-                      const char *bearer, int verify, const char *ca_dir,
-                      const char *client_cert, brix_status *st);
-/* List object keys under an s3:// URL's prefix via paginated, SigV4-signed
- * ListObjectsV2. The bucket is the first path component; the prefix is the rest.
- * ak/sk NULL ⇒ anonymous. Returns full object keys. 0 / -1. Free with brix_strv_free. */
-int  brix_s3_list(const brix_weburl *u, const char *ak, const char *sk,
-                  const char *region, int verify, const char *ca_dir,
-                  char ***keys, size_t *n_out, brix_status *st);
-void brix_strv_free(char **arr, size_t n);
-
-/* ---- webfile.c — HTTP(S)/WebDAV transport for the FUSE driver (read path) ---- */
-/* Single-resource stat via PROPFIND Depth:0 → size/mtime/is-dir (FUSE getattr).
- * bearer NULL ⇒ anonymous; verify+ca_dir apply to TLS (https/davs). 0 / -1. */
-int  brix_web_stat(const brix_weburl *u, const char *path, const char *bearer,
-                   int verify, const char *ca_dir, const char *client_cert,
-                   brix_statinfo *si, brix_status *st);
-/* Directory listing via PROPFIND Depth:1 → child entries with stat (FUSE readdir).
- * Allocates *ents (free with free()); each entry has name + have_stat + st. 0 / -1. */
-int  brix_web_readdir(const brix_weburl *u, const char *path, const char *bearer,
-                      int verify, const char *ca_dir, const char *client_cert,
-                      brix_dirent **ents,
-                      size_t *n, brix_status *st);
-/* Pooled keep-alive variants (Phase-86): the FUSE driver's getattr/readdir path.
- * `pool` is a brix_cpool of brix_webmeta (one origin+identity per pool); each
- * call reuses a persistent connection instead of connect/close per op. 0 / -1. */
-struct brix_cpool;   /* fwd: full type in net/cpool.h */
-int  brix_web_stat_pooled(struct brix_cpool *pool, const char *path,
-                          brix_statinfo *si, brix_status *st);
-int  brix_web_readdir_pooled(struct brix_cpool *pool, const char *path,
-                             brix_dirent **ents, size_t *n, brix_status *st);
-/* An open-for-read web file whose pread issues a Range GET over a PERSISTENT
- * keep-alive connection (resilient: reconnect + re-issue on a dropped link). */
-typedef struct brix_webfile brix_webfile;
-/* Open (stats first; fails if a directory). *si_out (optional) gets the stat. */
-brix_webfile *brix_webfile_open(const brix_weburl *u, const char *path,
-                                const char *bearer, int verify, const char *ca_dir,
-                                const char *client_cert,
-                                int timeout_ms, brix_statinfo *si_out,
-                                brix_status *st);
-int64_t  brix_webfile_size(const brix_webfile *wf);
-/* Read up to len bytes at off; returns bytes (0 at EOF), or -1 (st set). */
-ssize_t  brix_webfile_pread(brix_webfile *wf, int64_t off, void *buf, size_t len,
-                            brix_status *st);
-void     brix_webfile_close(brix_webfile *wf, brix_status *st);
-
-/* ---- xrdrc.c — ~/.xrdrc endpoint aliases ---- */
-/* Resolve "name:suffix" via $XRDRC (else ~/.xrdrc) into out[outsz]. Always writes
- * the effective string (the input verbatim when it is not a known alias). Returns
- * 1 if an alias was expanded, 0 if not. */
-int brix_alias_resolve(const char *arg, char *out, size_t outsz);
-/* Per-endpoint credentials an alias may carry, so `xrdcp s3lab:/obj .` "just works"
- * with no flags. Empty fields mean "not set"; bearer is the token value (read from
- * the alias's token_file if it gave a path). PII: never log these. */
-typedef struct {
-    int  found;
-    char bearer[8192];          /* WebDAV/HTTP Authorization: Bearer <token> */
-    char s3_access[256];
-    char s3_secret[256];
-    char s3_region[64];
-    char proxy[XRDC_PATH_MAX];  /* X.509 proxy path (root:// gsi) */
-    char token_file[XRDC_PATH_MAX];  /* the alias's token_file, for diagnostics */
-    int  token_file_failed;     /* 1 if token_file was set but unreadable/empty */
-} brix_alias_info;
-/* Look up an alias by NAME (the part before ':' in "name:suffix") and fill its auth
- * hints. *info is zeroed first. Returns 1 if the alias exists, 0 otherwise. Additive
- * companion to brix_alias_resolve (which handles the URL). */
-int brix_alias_lookup(const char *name, brix_alias_info *info);
-/* Turn a CLI endpoint — "host[:port]" or a root[s]:// URL — into a connectable
- * brix_url (default port 1094, scheme XRDC_SCHEME_ROOT/ROOTS). Shared by xrdfs and
- * every tool so the endpoint grammar lives in one place. 0 / -1 (st set). */
-int brix_endpoint_parse(const char *ep, brix_url *out, brix_status *st);
-/*
- * brix_xrdrc_default_ms — read a timeout key from the [defaults] section of ~/.xrdrc.
- *
- * WHAT: Returns 1 and sets *out_ms to the parsed value when the [defaults] section
- *       of the user's .xrdrc file carries `key` with a valid positive integer.
- *       Returns 0 when the key is absent, the value is non-numeric, or the value
- *       is <= 0. Supported keys: "connect_timeout_ms", "io_timeout_ms",
- *       "max_stall_ms", "backoff_base_ms".
- * WHY:  Sits in the resolution order below env vars and CLI setters, above the
- *       compiled default: CLI setter > env var > this > compiled default.
- * HOW:  Loads ~/.xrdrc lazily via the same gate as brix_alias_resolve, then looks
- *       up the matching static slot. Invalid / negative values are never stored.
- */
-int brix_xrdrc_default_ms(const char *key, int *out_ms);
-
-/* ---- status.c ---- */
-void        brix_status_clear(brix_status *st);
-void        brix_status_set(brix_status *st, int kxr, int sys_errno, const char *fmt, ...);
-const char *brix_kxr_name(int kxr);
-int         brix_shellcode(const brix_status *st);
-/* 1 if a failed status is transient (reconnect/re-issue may succeed), 0 if fatal.
- * Drives the async resilience layer's transparent retry/reconnect decisions. */
-int         brix_status_retryable(const brix_status *st);
-/* Map a failed status to a negative errno (for the FUSE/preload POSIX layers):
- * kXR_NotFound→-ENOENT, NotAuthorized→-EACCES, isDirectory/NotFile→-EISDIR, … */
-int         brix_kxr_to_errno(const brix_status *st);
-
-/* Narrate an established session (endpoint/roles/caps/signing/auth/TLS/sessid) to
- * `out`. Shared by `xrdfs explain` and `xrddiag check`. opts may be NULL (uses
- * c->opts). Read-only over fields conn.c/auth.c populated. */
-void brix_explain_conn(brix_conn *c, const brix_opts *opts, FILE *out);
-
-/* ---- netdiag.c (§15.3 networking diagnostics) ---- */
-/* Machine-readable network facts for an established conn (PII-free: families,
- * microseconds, counts only — never an IP/path/credential). Used by the bench
- * report and by `xrddiag remote-doctor`'s cross-endpoint diff engine. */
-typedef struct {
-    double   tcp_ms, tls_ms, auth_ms, total_ms;  /* connect-phase deltas */
-    int      family;        /* AF_INET / AF_INET6 / 0 (unknown) */
-    uint32_t flow_label;    /* IPv6 flow label (0 = v4 / unset) */
-    int      have_tcpinfo;  /* 1 if the rtt/retrans fields below are valid */
-    uint32_t rtt_us, rttvar_us, retrans;
-} brix_netfacts;
-/* Fill *f from the live conn (getpeername/getsockopt(TCP_INFO)/getsockname on
- * c->io.fd + diag.phase_ns). Zeroes *f first; safe on a closed conn (all 0). */
-void brix_netdiag_facts(const brix_conn *c, brix_netfacts *f);
-/* Print the human-readable netdiag block (built on brix_netdiag_facts). */
-void brix_netdiag_report(const brix_conn *c, FILE *out);
-
-/* ---- capture.c (§15.1 session capture / offline replay) ---- */
-/* Open a .xrdcap bundle for writing (magic + records). NULL on error. */
-struct brix_capture *brix_capture_open(const char *path);
-/* Append a metadata key=value record (endpoint, caps, sessid, auth, tls). */
-void brix_capture_meta(struct brix_capture *cap, const char *key, const char *val);
-/* Append a frame record (the exact wire bytes = header then body): dir
- * '>'=request '<'=response. hdr is the 24B request / 8B response header. */
-void brix_capture_frame(struct brix_capture *cap, int dir, uint16_t sid, int code,
-                        int is_request, const void *hdr, uint32_t hdrlen,
-                        const void *body, uint32_t blen);
-void brix_capture_close(struct brix_capture *cap);
-/* Offline: decode a .xrdcap to `out` (no server). verbose≥1 adds a body hexdump. */
-int brix_capture_replay(const char *path, int verbose, FILE *out, brix_status *st);
-/* Live: re-issue every captured REQUEST frame against `url`, reporting each
- * response status to `out`. 0 / -1 (st set). */
-int brix_capture_playback(const char *path, const char *url, const brix_opts *co,
-                          FILE *out, brix_status *st);
-
-/* ---- http.c (xrddiag observability pulls) ---- */
-/* Minimal cleartext HTTP/1.0 GET: connect host:port, GET path, copy the response
- * body binary-safe into out[outsz] (NUL-terminated for text callers), set
- * *http_status and (if outlen != NULL) the copied body length. 0 / -1 (st set). */
-int brix_http_get(const char *host, int port, const char *path, int timeout_ms,
-                  int *http_status, char *out, size_t outsz, size_t *outlen,
-                  brix_status *st);
-
-/* ---- trace.c (§15 diagnostics) ---- */
-const char *brix_reqid_name(int reqid);     /* requestid → "kXR_stat" etc. */
-const char *brix_status_name(int status);   /* response status → "ok"/"redirect"/… */
-uint64_t    brix_mono_ns(void);             /* CLOCK_MONOTONIC nanoseconds */
-/* Phase 40 (a): pseudo-random value in [0, span_ms) for backoff jitter on the
- * synchronous retry/kXR_wait paths (thundering-herd defense). Lazily seeded from
- * brix_mono_ns; a leaf helper with no aio/thread dependency. */
-unsigned    brix_jitter_ms(unsigned span_ms);
-/* Emit one decoded frame line to stderr (dir '>'=request '<'=response). At
- * c->diag.wire_trace>=2 a bounded hexdump of body[0..blen) follows. */
-void        brix_trace_frame(brix_conn *c, int dir, uint16_t sid, int code,
-                             int is_request, uint32_t dlen,
-                             const void *body, uint32_t blen);
-/* Print the accumulated per-opcode RTT summary (if any) to stderr. */
-void        brix_timing_report(const brix_conn *c);
-
-/* Wire framing, connection lifecycle, connection pool and parallel
- * streams — Phase-38 split into brix_net_frame.h to hold this header
- * within the size budget. Included here so every brix_net.h consumer
- * still sees these declarations transparently. */
-#include "brix_net_frame.h"
-
+#include "_brix_net_ext.h"
 #endif /* XRDC_NET_H */

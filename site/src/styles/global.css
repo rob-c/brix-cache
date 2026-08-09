@@ -1,119 +1,164 @@
 /* ============================================================================
-   BriX-Cache marketing site — neo-brutalist design system
+   BriX-Cache marketing site — "The Namespace Router" design system
 
-   One idea drives the whole page: a single POSIX file is reachable over three
-   protocols at once. So color is not decoration — each protocol owns a fixed
-   accent (root=lime, dav=cyan, s3=amber) used everywhere it appears.
+   One idea drives the page: a single POSIX file is reachable over four wire
+   protocols at once, so COLOR ENCODES PROTOCOL (root=teal, dav=azure, s3=brass,
+   gsiftp=violet) everywhere it appears. The look is an instrument / patchbay
+   readout from the HEP-computing world — hairline rules, machined panels, and a
+   monospace voice — not neo-brutalist chunk.
 
-   Type: Archivo (expanded/black) for display headlines, IBM Plex Sans for
-   body, IBM Plex Mono for every command, path, and protocol chip.
+   Type: IBM Plex Sans (tight, heavy) for display, IBM Plex Sans for body, and
+   IBM Plex Mono as the instrument voice for every scheme, port, label, and
+   command.
+
+   The public token + class names are kept stable so every page inherits this
+   system; only their values and treatment changed.
    ========================================================================== */
 
 :root {
   color-scheme: light;
 
-  /* surfaces — these FLIP between themes */
-  --paper: #fafaf9;
-  --ink: #0a0a0a;
-  --ink-2: #57534e;   /* muted ink for secondary text */
-  --panel: #ffffff;
-  --band: #f5f5f4;    /* subtly recessed section band */
+  /* surfaces — cool drafting paper, graphite-blue ink (these FLIP by theme) */
+  --paper: #e8ecf1;
+  --panel: #f6f8fb;       /* machined panel surface */
+  --band: #eef2f6;        /* subtly recessed section band */
+  --ink: #12161c;         /* graphite near-black, blue cast */
+  --ink-2: #566171;       /* muted label ink */
+  --ink-3: #7c8798;       /* faint ink for captions / spec keys */
 
-  /* The inverted block (.band--ink, .btn--ink, nginx pills). In light mode it
-     is the page's hard black punch. In dark mode the page is already black, so
-     it lifts *above* the paper instead of below it — same role, inverted
-     mechanics. Never write `background: var(--ink); color: var(--paper)`: that
-     pair inverts with the theme and turns into a glaring white slab. */
-  --inv-bg: #0a0a0a;
-  --inv-fg: #fafaf9;
-  --inv-panel: #141414;  /* a panel sitting on --inv-bg */
-  --inv-muted: #a8a29e;
-  --inv-rule: #3f3f3f;
+  /* hairlines — the structure you see (replaces the 3px brutalist rules) */
+  --line: #ccd5df;
+  --line-2: #aab6c2;
 
-  /* A terminal is dark in every theme — these never flip. */
-  --term-bg: #0a0a0a;
-  --term-fg: #e7e5e4;
-  --term-dim: #8a827c;   /* 5.2:1 on --term-bg; #78716c only reached 4.13 */
+  /* The inverted graphite block (.band--ink, footer, .btn--ink). On the light
+     page it is a dark instrument slab; in dark mode it LIFTS above the near-black
+     page instead of sinking below. Same role, inverted mechanics — never write a
+     literal `background:var(--ink);color:var(--paper)` on a band, it glares. */
+  --inv-bg: #12161c;
+  --inv-fg: #e8ecf1;
+  --inv-panel: #1b212b;   /* a panel sitting on --inv-bg */
+  --inv-muted: #9aa6b5;
+  --inv-rule: #333d4b;
 
-  /* Text sitting ON a protocol accent. The accents stay bright in both themes
-     (color == protocol is the whole design), so this stays dark in both. */
-  --on-accent: #0a0a0a;
+  /* A terminal readout is dark in every theme — these never flip. */
+  --term-bg: #0a0e14;
+  --term-fg: #cdd6e0;
+  --term-dim: #5d6b7d;
 
-  /* Photography carries its own baked-in white backdrop and cannot be
-     re-tinted, so dark mode just takes the glare off. */
+  /* Text sitting ON a protocol accent fill. The accents darken in light mode and
+     brighten in dark, so this flips with them to hold contrast either way. */
+  --on-accent: #f7f9fb;
+
+  /* Photography carries a baked-in white backdrop; dark mode just takes the
+     glare off. */
   --photo-filter: none;
 
-  /* protocol accents (color == which protocol) — identical in both themes */
-  --root: #a3e635;    /* root://  */
-  --dav: #67e8f9;     /* davs://  */
-  --s3: #facc15;      /* s3://    */
-  --ftp: #c084fc;     /* gsiftp:// (GridFTP) */
-  --danger: #fb7185;
+  /* protocol accents — muted instrument hues (color == which wire) */
+  --root: #0d9488;    /* root://  phosphor teal — the hero wire */
+  --dav:  #2563b8;    /* davs://  signal azure */
+  --s3:   #a86a12;    /* s3://    brass */
+  --ftp:  #6d54c8;    /* gsiftp:// violet */
+  --danger: #c23a2c;
 
   /* the current accent — overridden per-section via [data-accent] */
   --accent: var(--root);
 
-  /* brutalist primitives */
-  --border: 3px solid var(--ink);
-  --border-2: 2px solid var(--ink);
-  --shadow: 6px 6px 0 var(--ink);
-  --shadow-sm: 4px 4px 0 var(--ink);
+  /* primitives — hairline borders + soft machined shadow, gentle radius */
+  --border: 1px solid var(--line);
+  --border-2: 1px solid var(--line-2);
+  --shadow: 0 1px 2px rgba(16,24,32,0.10), 0 10px 26px -16px rgba(16,24,32,0.28);
+  --shadow-sm: 0 1px 2px rgba(16,24,32,0.10);
+  --radius: 6px;
 
   /* type */
-  --display: 'Archivo Variable', 'Archivo', system-ui, sans-serif;
-  --body: 'IBM Plex Sans', system-ui, sans-serif;
-  --mono: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', monospace;
+  --display: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --body: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --mono: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
 
-  --measure: 62ch;
+  --measure: 64ch;
 }
 
-/* --- dark theme ----------------------------------------------------------
-   Follows the OS by default; the header button overrides it by writing
-   data-theme onto <html> (absent = follow the OS). Only the surface tokens
-   move — the protocol accents are deliberately identical, so a lime chip means
-   root:// in either theme. Borders and hard shadows keep using --ink, so the
-   brutalist rules and offsets invert from black-on-paper to bone-on-black.
+/* --- dark theme -----------------------------------------------------------
+   Follows the OS by default; the header button overrides by writing data-theme
+   onto <html> (absent = follow the OS). Only surfaces move — the accents shift
+   to a brighter set so a chip stays legible on the near-black ground while still
+   meaning the same protocol.
 
-   Two selectors, one palette: CSS cannot share a declaration block across an
-   @media boundary, so the token list below is written twice and the two copies
-   MUST stay in sync. The media copy carries :not([data-theme='light']) so an
-   explicit light choice wins on a dark OS; the attribute copy comes second so
-   it wins at equal specificity.
+   Two selectors, one palette: the token list is written twice and MUST stay in
+   sync. The media copy carries :not([data-theme='light']) so an explicit light
+   choice wins on a dark OS; the attribute copy comes second so the toggle wins.
    ------------------------------------------------------------------------- */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) {
     color-scheme: dark;
 
-    --paper: #0c0a09;
-    --ink: #e7e5e4;   /* bone, not pure white — 3px rules of #fff glare */
-    --ink-2: #a8a29e;
-    --panel: #1c1917;
-    --band: #14110f;
+    --paper: #0c0f14;
+    --panel: #141922;
+    --band: #10151c;
+    --ink: #e6ecf3;
+    --ink-2: #8b97a7;
+    --ink-3: #64707f;
 
-    /* elevation inverts: the ink block now sits above the page, not below */
-    --inv-bg: #262220;
-    --inv-fg: #f5f5f4;
-    --inv-panel: #14110f;
-    --inv-rule: #44403c;
+    --line: #232b36;
+    --line-2: #333d4b;
 
-    --photo-filter: brightness(0.84) contrast(1.05);
+    --inv-bg: #161c26;    /* lifts ABOVE the page in dark mode */
+    --inv-fg: #e6ecf3;
+    --inv-panel: #10151c;
+    --inv-muted: #8b97a7;
+    --inv-rule: #333d4b;
+
+    --term-bg: #080b10;
+    --term-fg: #cdd6e0;
+    --term-dim: #5d6b7d;
+
+    --on-accent: #0a0d12;
+    --photo-filter: brightness(0.85) contrast(1.05);
+
+    --root: #2dd4bf;
+    --dav:  #5aa2ee;
+    --s3:   #e0a94a;
+    --ftp:  #a78bfa;
+    --danger: #f0655c;
+
+    --shadow: 0 1px 2px rgba(0,0,0,0.5), 0 12px 30px -16px rgba(0,0,0,0.75);
+    --shadow-sm: 0 1px 2px rgba(0,0,0,0.5);
   }
 }
 :root[data-theme='dark'] {
   color-scheme: dark;
 
-  --paper: #0c0a09;
-  --ink: #e7e5e4;
-  --ink-2: #a8a29e;
-  --panel: #1c1917;
-  --band: #14110f;
+  --paper: #0c0f14;
+  --panel: #141922;
+  --band: #10151c;
+  --ink: #e6ecf3;
+  --ink-2: #8b97a7;
+  --ink-3: #64707f;
 
-  --inv-bg: #262220;
-  --inv-fg: #f5f5f4;
-  --inv-panel: #14110f;
-  --inv-rule: #44403c;
+  --line: #232b36;
+  --line-2: #333d4b;
 
-  --photo-filter: brightness(0.84) contrast(1.05);
+  --inv-bg: #161c26;
+  --inv-fg: #e6ecf3;
+  --inv-panel: #10151c;
+  --inv-muted: #8b97a7;
+  --inv-rule: #333d4b;
+
+  --term-bg: #080b10;
+  --term-fg: #cdd6e0;
+  --term-dim: #5d6b7d;
+
+  --on-accent: #0a0d12;
+  --photo-filter: brightness(0.85) contrast(1.05);
+
+  --root: #2dd4bf;
+  --dav:  #5aa2ee;
+  --s3:   #e0a94a;
+  --ftp:  #a78bfa;
+  --danger: #f0655c;
+
+  --shadow: 0 1px 2px rgba(0,0,0,0.5), 0 12px 30px -16px rgba(0,0,0,0.75);
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.5);
 }
 
 /* accent scopes */
@@ -132,10 +177,11 @@ body {
   font-family: var(--body);
   background: var(--paper);
   color: var(--ink);
-  line-height: 1.55;
+  line-height: 1.6;
   font-size: 17px;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
+  overflow-x: hidden;
 }
 
 img, svg { display: block; max-width: 100%; }
@@ -145,94 +191,112 @@ ul { list-style: none; padding: 0; }
 /* --- type ---------------------------------------------------------------- */
 .display {
   font-family: var(--display);
-  font-weight: 800;
-  font-stretch: 125%;
-  letter-spacing: -0.02em;
-  line-height: 0.98;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1.0;
   text-wrap: balance;
 }
-h1.display { font-size: clamp(2.6rem, 7vw, 5rem); }
-h2.display { font-size: clamp(2rem, 4.5vw, 3.1rem); }
+h1.display { font-size: clamp(2.7rem, 6.4vw, 4.6rem); }
+h2.display { font-size: clamp(1.9rem, 3.8vw, 2.9rem); }
 
+/* the eyebrow is an instrument LABEL: mono, spaced, with an accent tick */
 .eyebrow {
   font-family: var(--mono);
-  font-size: 0.78rem;
-  font-weight: 600;
-  letter-spacing: 0.16em;
+  font-size: 0.72rem;
+  font-weight: 500;
+  letter-spacing: 0.18em;
   text-transform: uppercase;
-  color: var(--ink);
+  color: var(--ink-2);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.65em;
 }
 .eyebrow::before {
   content: '';
   display: inline-block;
-  width: 1.4em;
-  height: 0.72em;
-  margin-right: 0.6em;
+  width: 22px;
+  height: 2px;
   background: var(--accent);
-  border: var(--border-2);
   vertical-align: middle;
 }
 
-.lede { font-size: clamp(1.05rem, 1.7vw, 1.3rem); max-width: var(--measure); color: var(--ink); }
+.lede { font-size: clamp(1.05rem, 1.5vw, 1.24rem); max-width: var(--measure); color: var(--ink-2); }
 .muted { color: var(--ink-2); }
-.mono { font-family: var(--mono); }
+.mono { font-family: var(--mono); font-variant-ligatures: none; }
+
+/* protocol scheme wordmark (root://, davs:// ...) in its accent colour */
+.scheme { font-family: var(--mono); font-weight: 600; letter-spacing: -0.01em; color: var(--accent); }
 
 /* --- layout -------------------------------------------------------------- */
-.wrap { width: min(1120px, 100% - 2.5rem); margin-inline: auto; }
+.wrap { width: min(1160px, 100% - 2.5rem); margin-inline: auto; }
 
-/* every band is separated by a hard rule — structure you can see */
+/* every band is separated by a hairline rule — quiet structure you can see */
 .band { border-top: var(--border); }
-.band-pad { padding-block: clamp(3rem, 6vw, 5rem); }
+.band-pad { padding-block: clamp(3.2rem, 6vw, 5.4rem); }
 .band--sunken { background: var(--band); }
 .band--ink { background: var(--inv-bg); color: var(--inv-fg); }
 .band--ink .muted { color: var(--inv-muted); }
-.band--ink .eyebrow { color: var(--inv-fg); }
+.band--ink .eyebrow { color: var(--inv-muted); }
+/* An ink band is DARK in both themes, so the light-ground protocol accents would
+   go muddy on it. Inside one, switch to the bright (dark-ground) accent set and
+   dark on-accent text — so a chip or scheme wordmark stays legible either way. */
+.band--ink {
+  --root: #2dd4bf;
+  --dav:  #5aa2ee;
+  --s3:   #e0a94a;
+  --ftp:  #a78bfa;
+  --danger: #f0655c;
+  --on-accent: #0a0d12;
+}
 
-.stack > * + * { margin-top: 1.1rem; }
-.grid { display: grid; gap: 1.1rem; }
+.stack > * + * { margin-top: 1.15rem; }
+.grid { display: grid; gap: 1rem; }
 @media (min-width: 720px) {
   .grid-3 { grid-template-columns: repeat(3, 1fr); }
   .grid-4 { grid-template-columns: repeat(4, 1fr); }
   .grid-2 { grid-template-columns: repeat(2, 1fr); }
 }
 
-/* --- brutalist primitives ------------------------------------------------ */
+/* --- machined panel ------------------------------------------------------ */
 .panel {
   background: var(--panel);
   border: var(--border);
+  border-radius: var(--radius);
   box-shadow: var(--shadow-sm);
-  padding: 1.4rem;
+  padding: 1.5rem;
 }
-.band--ink .panel { background: var(--inv-panel); border-color: var(--inv-fg); color: var(--inv-fg); box-shadow: 4px 4px 0 var(--accent); }
+.band--ink .panel { background: var(--inv-panel); border-color: var(--inv-rule); color: var(--inv-fg); box-shadow: none; }
 
-.panel--hover { transition: transform 0.12s ease, box-shadow 0.12s ease; }
+.panel--hover { transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease; }
 .panel--hover:hover,
 .panel--hover:focus-within {
-  transform: translate(-2px, -2px);
+  transform: translateY(-2px);
   box-shadow: var(--shadow);
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--line));
 }
-.band--ink .panel--hover:hover { box-shadow: 8px 8px 0 var(--accent); }
+.band--ink .panel--hover:hover { border-color: color-mix(in srgb, var(--accent) 60%, var(--inv-rule)); }
 
-/* protocol chip — the recurring signature token */
+/* protocol chip — the recurring signature token, now a tinted readout badge */
 .chip {
   display: inline-flex;
   align-items: center;
   font-family: var(--mono);
   font-weight: 600;
-  font-size: 0.9rem;
-  padding: 0.28em 0.7em;
-  border: var(--border-2);
-  background: var(--accent);
-  color: var(--on-accent);
+  font-size: 0.84rem;
+  padding: 0.22em 0.62em;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--accent) 15%, transparent);
+  color: var(--accent);
+  border: 1px solid color-mix(in srgb, var(--accent) 34%, transparent);
   white-space: nowrap;
 }
-.chip--root { background: var(--root); }
-.chip--dav  { background: var(--dav); }
-.chip--s3   { background: var(--s3); }
-.chip--ftp  { background: var(--ftp); }
-.chip--danger { background: var(--danger); }
-/* a ghost chip has no accent behind it, so it takes the surface's own ink */
-.chip--ghost { background: transparent; color: inherit; }
+.chip--root   { --accent: var(--root); }
+.chip--dav    { --accent: var(--dav); }
+.chip--s3     { --accent: var(--s3); }
+.chip--ftp    { --accent: var(--ftp); }
+.chip--danger { --accent: var(--danger); }
+/* a ghost chip takes the surface's own ink, no accent behind it */
+.chip--ghost  { background: transparent; color: var(--ink-2); border-color: var(--line-2); }
 
 /* buttons */
 .btn {
@@ -240,72 +304,78 @@ h2.display { font-size: clamp(2rem, 4.5vw, 3.1rem); }
   align-items: center;
   gap: 0.5ch;
   font-family: var(--body);
-  font-weight: 700;
-  font-size: 1rem;
+  font-weight: 600;
+  font-size: 0.98rem;
   text-decoration: none;
-  padding: 0.7em 1.15em;
-  border: var(--border);
+  padding: 0.72em 1.15em;
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius);
   background: var(--panel);
   color: var(--ink);
   box-shadow: var(--shadow-sm);
-  transition: transform 0.1s ease, box-shadow 0.1s ease;
+  transition: transform 0.12s ease, border-color 0.12s ease, filter 0.12s ease;
   cursor: pointer;
 }
-.btn:hover, .btn:focus-visible { transform: translate(-2px, -2px); box-shadow: var(--shadow); }
-.btn:active { transform: translate(0, 0); box-shadow: 2px 2px 0 var(--ink); }
-.btn--accent { background: var(--accent); color: var(--on-accent); }
-/* A plain fg/bg pair with no muted text inside, so it can safely invert with
-   the theme: black-on-paper in light, bone-on-black in dark. Both read as the
-   page's primary button. Contrast this with .band--ink, which cannot flip. */
-.btn--ink { background: var(--ink); color: var(--paper); box-shadow: 4px 4px 0 var(--accent); }
+.btn:hover, .btn:focus-visible { transform: translateY(-1px); border-color: var(--ink-2); }
+.btn:active { transform: translateY(0); }
+.btn--accent { background: var(--accent); color: var(--on-accent); border-color: transparent; font-weight: 700; }
+.btn--accent:hover { filter: brightness(1.06); border-color: transparent; }
+/* solid ink button — a plain fg/bg pair that can safely invert with the theme */
+.btn--ink { background: var(--ink); color: var(--paper); border-color: transparent; }
+.btn--ink:hover { filter: brightness(1.1); }
 
-/* code / terminal block */
+/* code / terminal readout — dark in both themes */
 .term {
   font-family: var(--mono);
-  font-size: 0.86rem;
-  line-height: 1.7;
+  font-size: 0.84rem;
+  line-height: 1.8;
   background: var(--term-bg);
   color: var(--term-fg);
-  border: var(--border);
+  border: 1px solid #1e2733;
+  border-radius: var(--radius);
   box-shadow: var(--shadow-sm);
   padding: 1rem 1.15rem;
   overflow-x: auto;
 }
-.term .p { color: var(--accent); user-select: none; }
+.term .p { color: var(--root); user-select: none; }
 .term .c { color: var(--term-dim); }        /* comment */
-.term .k { color: var(--dav); }      /* keyword/url accent */
+.term .k { color: var(--dav); }              /* keyword / url accent */
 .term-title {
   font-family: var(--mono);
-  font-size: 0.72rem;
-  letter-spacing: 0.12em;
+  font-size: 0.68rem;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
-  /* sits inside .term, which is dark in both themes — so it takes the
-     terminal's own palette, not the page ink (which would be black-on-black
-     in light mode and invisible). */
   color: var(--term-dim);
-  border-bottom: 2px solid var(--inv-rule);
-  padding-bottom: 0.4rem;
+  display: flex;
+  align-items: center;
+  gap: 0.6ch;
+  border-bottom: 1px solid #1e2733;
+  padding-bottom: 0.5rem;
   margin-bottom: 0.6rem;
 }
+.term-title::before {
+  content: '';
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--root); box-shadow: 0 0 6px var(--root);
+}
 
-/* labelled data row */
-.spec { display: flex; gap: 0.6rem; font-family: var(--mono); font-size: 0.82rem; }
-.spec dt { color: var(--ink-2); }
+/* labelled data row (spec sheet) */
+.spec { display: flex; gap: 0.6rem; font-family: var(--mono); font-size: 0.8rem; }
+.spec dt { color: var(--ink-3); }
 .spec dd { font-weight: 600; }
 
 /* accessible focus */
-:focus-visible { outline: 3px solid var(--ink); outline-offset: 2px; }
-.band--ink :focus-visible { outline-color: var(--accent); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 2px; }
 
 /* skip link */
 .skip {
   position: absolute; left: -9999px; top: 0; z-index: 100;
   background: var(--accent); color: var(--on-accent); padding: 0.6rem 1rem;
-  border: var(--border); font-weight: 700;
+  border-radius: var(--radius); font-weight: 700;
 }
 .skip:focus { left: 0.5rem; top: 0.5rem; }
 
 @media (prefers-reduced-motion: reduce) {
-  * { scroll-behavior: auto !important; transition: none !important; }
+  * { scroll-behavior: auto !important; transition: none !important; animation: none !important; }
   .btn:hover, .panel--hover:hover { transform: none; }
 }

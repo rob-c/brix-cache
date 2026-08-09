@@ -156,8 +156,51 @@ True concurrent striped download: one thread per data stream, each reading a
 disjoint range. Opt\-in \(em the default serial fan\-out keeps the
 single\-link resilient ride\-out, which this mode gives up.
 .TP
-.B \-\-tpc " first\|only\|delegate"
-Server-side third-party copy (remote to remote).
+.BI \-\-sources " N"
+Extreme copy: download blocks from up to \fIN\fR replicas concurrently with
+block stealing \(em when no unclaimed block remains, idle replicas re\-fetch
+blocks still in flight on slower or dead ones, so the transfer finishes at the
+fastest replicas' pace and survives a mirror dying mid\-transfer. Replicas
+come from the metalink mirror list when the source is a
+\fB.meta4\fR/\fB.metalink\fR, else from a \fBkXR_locate\fR on the source, else
+the source URL is used \fIN\fR times. \fIN\fR is 1..16; 1 (the default)
+keeps the single\-source paths. \fBBRIX_XCP_BLOCK\fR overrides the block size
+in bytes (default 8 MiB, clamped to 64 KiB..64 MiB); \fBBRIX_XCP_DEBUG=1\fR
+prints per\-source block accounting.
+.TP
+.B \-\-no\-metalink
+Copy a \fB.meta4\fR/\fB.metalink\fR source as a plain file. By default such a
+source is resolved as a metalink \fIvirtual redirector\fR: the document is
+fetched (any transport) and parsed (RFC 5854 v4 and legacy v3), and the copy
+fails over across its mirrors in rank order. Only remote pull schemes are
+accepted as mirrors (root/roots/xroot/xroots/http/https/dav/davs); a document
+digest of a supported type (md5, crc32c, adler32) acts as \fB\-\-cksum\fR
+\fIalgo\fR:\fIhex\fR unless \fB\-\-cksum\fR was given explicitly.
+.TP
+.BR \-\-tpc " " \fBfirst\fR " | " \fBonly\fR " | " \fBdelegate\fR
+Server-side third-party copy (remote to remote): the destination pulls the
+bytes from the source directly, so no data transits this client.
+.RS
+.TP
+.B first
+Try TPC; on failure fall back to a client-mediated copy.
+.TP
+.B only
+TPC or hard fail.
+.TP
+.B delegate
+Like \fBonly\fR, but the destination reads the source \fIas you\fR rather than
+with its own service identity. This emits \fBtpc.dlgon=1\fR and arms the
+client to answer the destination's X.509 delegation round (\fBkXGS_pxyreq\fR)
+by signing it with your proxy, advertising that capability during the GSI
+handshake so a conformant destination knows to ask.
+.RE
+.IP
+Delegation is never implicit: signing the peer's request hands it a credential
+that speaks as you, so it happens only under \fB\-\-tpc delegate\fR (or with
+\fB$XRDC_GSI_DELEGATE\fR set, for tools with no copy-options block). A
+destination that asks for delegation on a session that did not enable it is
+refused with a message naming both ways to opt in.
 .TP
 .BI \-\-tpc\-token\-mode " MODE"
 Bearer-token forwarding mode for \fB\-\-tpc\fR: passed as \fBtpc.token_mode\fR

@@ -140,6 +140,10 @@ int               g_max_conns = 0;
 
 volatile int      g_stall_up    = 0;
 volatile int      g_stall_down  = 0;
+volatile int      g_toxicity_up_ppm   = 1000000;  /* 100% = every conn afflicted (today's default) */
+volatile int      g_toxicity_down_ppm = 1000000;
+volatile int      g_connect_delay_ms  = 0;
+volatile int      g_refuse_ppm        = 0;
 volatile int      g_mss         = 0;
 volatile int      g_rcvbuf      = 0;
 volatile int      g_sndbuf      = 0;
@@ -208,6 +212,9 @@ struct timespec   g_t0;
 fp_counters C;
 
 __thread unsigned long t_conn_id = 0;
+__thread int t_afflict_up = 1;
+__thread int t_afflict_down = 1;
+__thread int t_fwd_up = 0;   /* direction of the segment currently forwarding */
 
 /* Accept clients for `route` on `lfd`, spawning a detached relay thread per
  * connection (subject to the outage/connection-cap levers).  Returns when the
@@ -240,6 +247,18 @@ fp_accept_loop(fp_route *route, int lfd)
             brix_fp_event(CBUMP(refused, 1), NULL, "refuse", "block", NULL, 0);
             close(client);        /* outage: refuse */
             continue;
+        }
+        /* refuse: probabilistically drop a fraction of NEW connections (a flaky
+         * listener).  Independent of block; does not sever live connections and
+         * does not bump the drop epoch.  Bumps the `refused` counter. */
+        if (g_refuse_ppm > 0) {
+            static unsigned refuse_seed = 0;
+            if (refuse_seed == 0) { refuse_seed = g_seed ? g_seed : 0x27d4eb2fu; }
+            if ((unsigned) (rand_r(&refuse_seed) % 1000000) < (unsigned) g_refuse_ppm) {
+                brix_fp_event(CBUMP(refused, 1), NULL, "refuse", "refuse", NULL, 0);
+                close(client);
+                continue;
+            }
         }
         /* syn-drop: silently drop a fraction of accepted clients (no RST) so the
          * connection looks like it never happened — connect-timeout under load. */
@@ -396,9 +415,10 @@ main(int argc, char **argv)
         return rc;
     }
     if (cfg.event_log != NULL && fp_event_open(cfg.event_log) != 0) {
-        fprintf(stderr, "brix-fault-proxy: cannot open --event-log '%s'\n",
+        fprintf(stderr,
+                "brix-fault-proxy: cannot open event-log '%s' (event log)\n",
                 cfg.event_log);
-        return FP_USAGE;
+        return FP_RUN;   /* unwritable log path is a runtime failure (exit 1) */
     }
     if ((rc = fp_setup_bind(cfg.bind_str, cfg.insecure, &g_bind_ss, &g_bind_len))
         != FP_CONTINUE) {

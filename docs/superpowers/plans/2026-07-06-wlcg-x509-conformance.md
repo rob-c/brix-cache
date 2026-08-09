@@ -39,7 +39,7 @@
 - `src/auth/crypto/pki_build.h` / `pki_build.c` — extend `brix_build_ca_store()` signature with `signing_policy_mode` + `crl_mode`; build+attach policy table; install CRL-downgrade verify callback.
 - `src/auth/crypto/gsi_verify.c` — post-verify signing_policy chain walk + limited-proxy monotonicity, reading modes from store ex_data.
 - `src/core/types/config.h` — add `signing_policy_mode`, `crl_mode` fields to `ngx_stream_brix_srv_conf_t`.
-- `src/protocols/root/stream/directives_auth.inc` — `brix_signing_policy`, `brix_crl_mode` directive rows.
+- `src/protocols/root/stream/directives_auth.h` — `brix_signing_policy`, `brix_crl_mode` directive rows.
 - `src/protocols/root/stream/module.c` (or wherever `merge_srv_conf` lives) — merge defaults.
 - `src/auth/gsi/config.c` — pass modes into `brix_build_ca_store` via `brix_rebuild_gsi_store`; `require`+bundle config error.
 - `src/protocols/webdav/webdav.h` — add mode fields to loc conf.
@@ -430,7 +430,7 @@ git commit -m "feat(auth): enforce signing_policy in shared verifier; crl_mode-g
 
 **Files:**
 - Modify: `src/core/types/config.h` (fields)
-- Modify: `src/protocols/root/stream/directives_auth.inc` (rows)
+- Modify: `src/protocols/root/stream/directives_auth.h` (rows)
 - Modify: stream `merge_srv_conf` (locate via `grep -n "merge_srv_conf\|crl_reload" src/protocols/root/stream/*.c`)
 - Modify: `src/auth/gsi/config.c` (`brix_rebuild_gsi_store` passes modes; `require`+bundle error)
 
@@ -450,7 +450,7 @@ git commit -m "feat(auth): enforce signing_policy in shared verifier; crl_mode-g
                                          BRIX_CRL_MODE_*; default TRY */
 ```
 
-- [ ] **Step 3: Add directive rows** in `directives_auth.inc` (mirror the `brix_crl` row shape) using custom setter functions `brix_conf_set_sp_mode` / `brix_conf_set_crl_mode` (define them in the same `.inc`'s companion `.c`, or inline as static in the module .c). Each maps the keyword to the enum via `ngx_str_t` compare, `NGX_CONF_TAKE1`.
+- [ ] **Step 3: Add directive rows** in `directives_auth.h` (mirror the `brix_crl` row shape) using custom setter functions `brix_conf_set_sp_mode` / `brix_conf_set_crl_mode` (define them in the same `.h`'s companion `.c`, or inline as static in the module .c). Each maps the keyword to the enum via `ngx_str_t` compare, `NGX_CONF_TAKE1`.
 
 - [ ] **Step 4: Merge defaults** in stream `merge_srv_conf`:
 
@@ -470,7 +470,7 @@ Expected: build exit 0; config test OK with defaults.
 - [ ] **Step 7: Commit**
 
 ```bash
-git add src/core/types/config.h src/protocols/root/stream/directives_auth.inc \
+git add src/core/types/config.h src/protocols/root/stream/directives_auth.h \
         src/protocols/root/stream/module.c src/auth/gsi/config.c
 git commit -m "feat(config): brix_signing_policy + brix_crl_mode directives (stream)"
 ```

@@ -393,8 +393,9 @@ brix_srv_snapshot(brix_srv_snapshot_entry_t *out, ngx_uint_t max_entries,
                     sizeof(out[n].vnid));
         out[n].stage            = e->stage;
         out[n].load_pct         = e->load_pct;
-        out[n].role[0]          = e->role[0] ? e->role[0] : 'S';
-        out[n].role[1]          = '\0';
+        ngx_cpystrn((u_char *) out[n].role,
+                    (u_char *) (e->role[0] ? e->role : "S"),
+                    sizeof(out[n].role));
         n++;
     }
 

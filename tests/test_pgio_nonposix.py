@@ -55,12 +55,16 @@ from _test_conf_pgio_helpers import (
     pgwrite,
 )
 from cmdscripts.pblock_live import pblock_lab_spec, pblock_worker_readable
+from _xrdcl_proxy import real_bindings_available
 from server_launcher import LifecycleHarness, NginxInstanceSpec
 from settings import BIND_HOST, HOST
 
 pytestmark = [pytest.mark.timeout(180),
               pytest.mark.uses_lifecycle_harness,
-              pytest.mark.xdist_group("lc-pgio-nonposix")]
+              pytest.mark.xdist_group("lc-pgio-nonposix"),
+              pytest.mark.skipif(
+                  not real_bindings_available(),
+                  reason="real libXrdCl bindings unavailable")]
 
 
 PBLOCK_SPEC = "lc-pgio-pblock"

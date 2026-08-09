@@ -106,6 +106,15 @@ INLINE_CONFIG_BACKLOG = frozenset()
 # unmarked; the shrink-only guard (test_inline_config_backlog_only_shrinks)
 # keeps this empty.
 
+_RUNTIME_PATH_DIRECTIVE = re.compile(
+    r"^\s*(?:pid|error_log|access_log|brix_access_log|client_body_temp_path|"
+    r"proxy_temp_path|fastcgi_temp_path|uwsgi_temp_path|scgi_temp_path|"
+    r"all\.adminpath|all\.pidpath|oss\.localroot)\s+"
+    r"([^;\s]+)",
+    re.M,
+)
+_CONFINED_PATH_KEYS = ("{LOG_DIR}", "{TMP_DIR}", "{BASE_DIR}", "{TEST_ROOT}")
+
 
 def _rel(path):
     return path.relative_to(TESTS).as_posix()
@@ -217,6 +226,27 @@ def test_no_test_code_sources_shell_helpers():
     assert not offenders, (
         "test code invokes the fleet shell helpers directly; drive nginx "
         f"through the registry instead: {sorted(offenders)}"
+    )
+
+
+def test_config_runtime_paths_are_test_root_relative_or_placeholders():
+    """Templates must never pin logs, pidfiles, or temp files outside a lane."""
+    offenders = []
+    config_paths = list((TESTS / "configs").glob("*.conf"))
+    config_paths.extend(TESTS.glob("*.perf.conf"))
+    for path in sorted(config_paths):
+        text = path.read_text(encoding="utf-8", errors="ignore")
+        for match in _RUNTIME_PATH_DIRECTIVE.finditer(text):
+            value = match.group(1).strip('"\'')
+            if value in {"off", "stderr", "syslog:"}:
+                continue
+            if value.startswith("/") and not any(
+                    key in value for key in _CONFINED_PATH_KEYS):
+                line = text.count("\n", 0, match.start()) + 1
+                offenders.append(f"{_rel(path)}:{line}:{value}")
+    assert not offenders, (
+        "config runtime path escapes TEST_ROOT; use LOG_DIR/TMP_DIR/BASE_DIR "
+        f"placeholders or a prefix-relative path: {offenders}"
     )
 
 

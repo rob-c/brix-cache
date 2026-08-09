@@ -36,11 +36,29 @@ def have_cmd(name: str) -> bool:
 
 
 def find_xrd_library(*names: str) -> Path | None:
+    """Find an XRootD library across RPM, Debian multiarch, and ldconfig layouts."""
     for name in names:
-        for root in (Path("/usr/lib64"), Path("/usr/lib")):
+        requested = Path(name)
+        if requested.is_absolute() and requested.is_file():
+            return requested.resolve()
+        for root in (Path("/usr/lib64"), Path("/usr/lib"),
+                     Path("/lib64"), Path("/lib")):
             candidate = root / name
-            if candidate.exists():
-                return candidate
+            if candidate.is_file():
+                return candidate.resolve()
+            for multiarch in root.glob(f"*/{name}"):
+                if multiarch.is_file():
+                    return multiarch.resolve()
+
+    if shutil.which("ldconfig"):
+        proc = run(["ldconfig", "-p"])
+        wanted = set(names)
+        for line in proc.stdout.splitlines():
+            fields = line.strip().split()
+            if fields and fields[0] in wanted and "=>" in fields:
+                candidate = Path(fields[-1])
+                if candidate.is_file():
+                    return candidate.resolve()
     return None
 
 
@@ -63,6 +81,31 @@ def pids_on_port(port: int | str) -> list[int]:
         proc = run(["lsof", "-t", f"-iTCP:{port}", "-sTCP:LISTEN"])
         return sorted({int(p) for p in proc.stdout.split() if p.isdigit()})
     return []
+
+
+def pids_in_port_range(start: int, end: int) -> list[int]:
+    """Return listener PIDs in the half-open port range using one survey."""
+    if have_cmd("ss"):
+        proc = run(["ss", "-ltnp"])
+        pids = set()
+        for line in proc.stdout.splitlines():
+            fields = line.split()
+            if len(fields) < 4:
+                continue
+            endpoint = fields[3].rsplit(":", 1)[-1]
+            if not endpoint.isdigit() or not start <= int(endpoint) < end:
+                continue
+            for part in line.replace(",", " ").split():
+                if part.startswith("pid="):
+                    try:
+                        pids.add(int(part.split("=", 1)[1]))
+                    except ValueError:
+                        pass
+        return sorted(pids)
+    pids = set()
+    for port in range(start, end):
+        pids.update(pids_on_port(port))
+    return sorted(pids)
 
 
 _CLK_TCK = os.sysconf("SC_CLK_TCK")
@@ -134,4 +177,3 @@ def wait_ready_xrdfs(url: str, tries: int = 30, sleep_s: float = 0.5) -> bool:
             return True
         time.sleep(0.1)
     return False
-

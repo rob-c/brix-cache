@@ -279,7 +279,7 @@ detected misconfiguration or performance fault.
 > `[xrootd-guard-tpc_egress]`, filter `xrootd-guard-tpc_egress.conf`, maxretry 3)
 > and bump the label-less `brix_stream_tpc_egress_refused_total` metric
 > (INVARIANT 8). New guard reason `GUARD_R_TPCEGRESS` → `"tpc_egress"`.
-> **Build gotchas hit:** `.inc` command-table files are not tracked build deps
+> **Build gotchas hit:** `.h` command-table files are not tracked build deps
 > (must `touch` the `.c` that `#include`s them); adding fields to
 > `webdav_loc_conf.h` needs *all* webdav `*.o` deleted or the stale objects skew
 > field offsets (surfaced as a spurious `brix_webdav_pwd_file path "storage.read"`

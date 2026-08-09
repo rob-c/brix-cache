@@ -29,6 +29,10 @@ typedef struct {
     char        redir_host[256];/* filled by recv.c when kYR_select arrives   */
     uint16_t    redir_port;     /* filled by recv.c when kYR_select arrives   */
     ngx_uint_t  in_use;         /* 1 when slot is occupied                    */
+    char        probe_path[1024]; /* §2.6: the path a kYR_state fan-out probed
+                                     ("" for CMS-parent locates) — read back at
+                                     window expiry to record a negative
+                                     location-cache entry */
 } brix_pending_locate_t;
 
 typedef struct {
@@ -64,6 +68,14 @@ void brix_pending_unlock(void);
  * Remove the entry matching streamid and worker_pid.  No-op if not found.
  */
 void brix_pending_remove(uint32_t streamid, ngx_pid_t worker_pid);
+
+/* §2.6 — attach / read back the kYR_state-probed path (see pending.c).  Only
+ * the state fan-out sets it; CMS-parent locates leave it empty so a parent
+ * timeout can never poison the negative location cache. */
+void brix_pending_set_path(uint32_t streamid, ngx_pid_t worker_pid,
+    const char *path);
+int  brix_pending_take_path(uint32_t streamid, ngx_pid_t worker_pid,
+    char *buf, size_t bufsz);
 
 /*
  * Phase 51 (A4): sweep the table and free every expired slot, returning the

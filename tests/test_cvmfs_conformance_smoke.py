@@ -20,8 +20,11 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "cvm
 from conformance_common import (BRIXMOUNT, NGINX_BIN, PortBlock, fuse_mount,
                                 request, srv_instance)
 from repo_forge import Dir, File, RepoForge, Symlink
-from ephemeral_port import free_port
 from settings import HOST
+
+# Webroot mock origins draw fixed ports from this file's own block (within
+# TEST_PORT_START+2000, part of the main fleet band) — not an OS-ephemeral port.
+_WEB_BLOCK = PortBlock("srv_smoke")
 
 REPO = "test.cern.ch"
 
@@ -61,7 +64,7 @@ def _forge(tmp_path, tree, **kw):
 
 
 def _serve_webroot(spawn, web):
-    port = free_port()
+    port = _WEB_BLOCK.mock()
     mock = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cvmfs", "mock_stratum1.py")
     spawn([sys.executable, mock, "--port", str(port), "--repo", REPO, "--webroot", str(web)])
     for _ in range(50):

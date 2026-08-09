@@ -29,6 +29,11 @@ typedef struct {
     volatile int repeat_ppm;     /* per-byte duplicate probability, ppm (length inflate) */
     volatile int delayfirst_ms;  /* delay ONLY the first forwarded chunk this direction */
     volatile long truncate_at;   /* sever after this many bytes this direction; 0=off */
+    /* Phase-B fidelity levers (per-direction). */
+    volatile int slow_close_ms;  /* delay the FIN by this many ms after EOF/sever */
+    volatile int burst_bytes;    /* token-bucket depth for rate_kbps; 0 => 1 MTU */
+    volatile int lat_dist;       /* jitter shape: 0 uniform, 1 normal */
+    volatile int lat_sigma_ms;   /* normal-distribution sigma for the jitter sample */
 } lever_t;
 
 #endif /* BRIX_FAULT_LEVER_H */

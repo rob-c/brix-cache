@@ -30,10 +30,16 @@ server side, and a large client stack all exist and are mostly byte-faithful.
 The genuinely missing feature bodies, ranked by size:
 
 1. **Erasure coding (XrdEc)** — 0%, nothing anywhere.
-2. **Metalink** — absent end-to-end (client + server), blocks mirror-failover flows.
-3. **Extreme copy (multi-source XCp) + real multi-stream data fan-out** — client
-   `--streams` is cosmetic (kXR_bind done, pathid never stamped); server side also
-   never routes responses by pathid (the one substantive server data-path gap).
+2. ~~**Metalink**~~ — **LANDED 2026-08-09** (phase-100): client-side virtual
+   redirector — v4/v3 parser (`client/lib/xfer/metalink.c`), any-transport
+   document fetch, ranked mirror failover, document digest as integrity gate,
+   `--no-metalink` opt-out (`tests/test_metalink.py`, `metalink_unit.c`).
+3. ~~**Extreme copy (multi-source XCp) + real multi-stream data fan-out**~~ —
+   multi-stream **LANDED 2026-08-04** (phase-94: bound-connection read+write
+   data path, client fan-out default-on, `--parallel` striped download);
+   extreme copy **LANDED 2026-08-09** (phase-100): `xrdcp --sources N`
+   block-stealing engine over metalink mirrors / locate replicas
+   (`client/lib/xfer/copy_xcp*.c`, `tests/test_extreme_copy.py`).
 4. ~~**Multi-manager redundancy**~~ — **LANDED 2026-08-05**: `brix_cms_manager`
    takes up to 15 endpoints (multi-arg and/or repeated, duplicates rejected),
    the node logs into ALL of them concurrently, locates rotate round-robin
@@ -55,11 +61,40 @@ The genuinely missing feature bodies, ranked by size:
    (`src/fs/vfs/vfs_secgate.c`, `tests/test_tls_require.py`).
 9. **OssArc dataset→zip tape aggregation**; **frm_purged tape-buffer purge policy**
    (explicitly scoped out at FRM dissolution — revisit).
-10. **Client-side ecosystem holes**: tried=/triedrc= never emitted by BriX clients
-    (server parses it!), `--tpc delegate` hardcodes `tpc.dlgon=0`, no byte-offset
-    `--continue`, POSIX preload is a read-only shim (no write path, no readdir, no
-    stdio family), xrootdfs has no multi-server fan-out / per-user sss identity,
-    no fork-safety (no pthread_atfork), no `XRD_*` env compatibility.
+10. **Client-side ecosystem holes**: ~~tried=/triedrc= never emitted~~ and
+    ~~`--tpc delegate` hardcodes `tpc.dlgon=0`~~ both **LANDED 2026-08-09**
+    (see §7.4/§7.5); still open — no byte-offset `--continue`, POSIX preload is
+    a read-only shim (no write path, no readdir, no stdio family), xrootdfs has
+    no multi-server fan-out / per-user sss identity, no fork-safety (no
+    pthread_atfork), no `XRD_*` env compatibility.
+
+**2026-08-09 fix wave** — full writeup in
+[`phase-102-audit-fix-wave-2026-08-09.md`](phase-102-audit-fix-wave-2026-08-09.md)
+(small audit items, one commit-sized batch; tests in
+`tests/test_audit_fixes_2026_08_09.py` + `client/tests/c/kxr_errors_unit.c`):
+§1.5 error constants · §4.2 `brix_cache_cold_max_age` · §4.4
+`brix_cache_only_if_cached` · §5.2 signing no longer silently unenforced
+(+`brix_signing_required`) · §7.4 tried=/triedrc= · §7.5 `--tpc delegate`.
+§6.3 (TPC push egress) needed no work — that row was stale. Two defects found
+while testing are folded in: the cache reaper reported unverified removals as
+successes (§9.2), and the client refused the delegation round it advertised.
+
+**2026-08-09 CMS + HTTP-redirect wave** (the bulk of the §2 residual table +
+§6.1; tests in `tests/test_cms_parity_wave.py` (19 cases) +
+`tests/test_webdav_redirect_ds.py` (7 cases)): §2.2 SUPCount floor
+(`brix_cms_delay_servers`/`_delay_hold`) · §2.3 cms.sched component weights +
+fuzz band + maxload (`brix_cms_sched`, `registry_select_sched.c`) · §2.5
+stage-aware selection (`brix_cms_stage_select`) · §2.6 fxhold TTL + negative
+location cache (`brix_cms_fxhold`/`_emptylife`) · §2.7 kXR_refresh cache
+bypass · §2.8 shared-FS mode (`brix_cms_dfs`) · §2.9 ManTree login offload
+(`brix_cms_server_max_direct` + login-kYR_try retarget) · §2.11 external load
+feed (`brix_cms_perf_pgm`) · §2.12 foreign data server (`brix_cms_altds`
+[monitor]) · §2.13 blacklist `*` patterns / per-entry `redirect` / whitelist
+mode · §2.17 peer/proxy roles (`brix_cms_role peer|proxy`) · §6.1 HTTP
+redirect-to-dataserver + `brix_http_secretkey` signed-CGI handoff
+(`webdav/redirect.c`). Full stock ManTree tree-negotiation and the
+byte-exact XrdHttp redirect-CGI hash are documented divergences (upstream
+tree unavailable to verify either).
 
 Also collected en route: a dead-code/doc-drift punch list (§9.6) including dormant
 HTTP redirect-to-dataserver (implemented, zero call sites), TPC push skipping the
@@ -105,7 +140,7 @@ reference quirks (ENOTEMPTY→ItExists, EAGAIN-lock→FileLocked).
 | 2 | pgread request args: pathid + `kXR_pgRetry` (client re-requests corrupt pages) | MISSING | `read/pgread.c` (no payload parse) |
 | 3 | Login `ability`/`ability2` honored: kXR_fullurl, kXR_redirflags, hasipv64/onlyprv4/6 addr-family redirect variants, lclfile | MISSING (decoded, ignored) | store in ctx at `session/login.c`, branch `response/control.c` |
 | 4 | kXR_protocol: `expect` byte not parsed; `kXR_bifreqs`+'B' ServerResponseBifs+`xrootd.bindif` absent; per-plane TLS bits (tlsData/tlsSess/tlsTPC/tlsGPF) never set; per-request secvec always 0 | PARTIAL/MISSING | `session/protocol.c` |
-| 5 | Missing error constants: kXR_SigVerErr(3022), DecryptErr(3023), BadPayload(3026), noReplicas(3029), ReqTimedOut(3034), TimerExpired(3035) | MISSING | `protocol/opcodes.h`, `core/compat/error_mapping.c` — low effort |
+| 5 | ~~Missing error constants: kXR_SigVerErr(3022), DecryptErr(3023), BadPayload(3026), noReplicas(3029), ReqTimedOut(3034), TimerExpired(3035)~~ | **LANDED 2026-08-09** | Defined in `protocol/opcodes.h`, named in `core/compat/kxr_names.c`, mapped in `core/compat/error_mapping.c` (SigVer/Decrypt→EACCES, BadPayload→EINVAL, noReplicas→EHOSTUNREACH, both timeouts→ETIMEDOUT), and the three TRANSIENT ones (noReplicas/ReqTimedOut/TimerExpired) now classify RETRYABLE in the client (`status.c`) — a stock server's timeout used to abort the whole transfer. BriX's own sigver responses deliberately keep sending kXR_NotAuthorized (wire-compat with the locked `test_sigver_*` suites). Unit: `client/tests/c/kxr_errors_unit.c`. |
 | 6 | stat `wants`/kXR_Want_btime extended mask; open `optiont` (retstatx/directio/dup/samefs) decoded-not-acted | MISSING | `read/stat.c`, open path |
 | 7 | dirlist `kXR_online` filter masked out | MISSING | `dirlist/handler.c:45-47` |
 | 8 | locate options refresh/nowait/4dirlist/compress parsed-then-discarded (`locate.c:87-91`); refresh must bypass loc/redir caches | PARTIAL | `read/locate.c` |
@@ -145,22 +180,22 @@ resume via kYR_status; vnid; Cluster.Stats byte-exact vs 5.9.6.
 | # | Gap | Status | Notes |
 |---|-----|--------|-------|
 | 1 | **Multiple managers**: `brix_cms_manager` rejects a second entry (`net/cms/config.c:20-22`), only `url.addrs[0]` used; stock logs into ALL managers + ClientMan rotation | **LANDED 2026-08-05** | up to 15 endpoints, concurrent logins (one heartbeat ctx per manager, disjoint streamid lanes), round-robin locate rotation + failover (`ngx_brix_cms_pick_ctx`), CNS fan-out to all links, duplicate endpoints rejected at parse; `tests/test_cms_multi_manager.py` |
-| 2 | `cms.delay servers <n>` (SUPCount floor — don't serve until ≥n nodes registered; fresh manager with 1/20 nodes redirects everyone to it) + overload/hold/qdn/rw tunables | MISSING/PARTIAL | locate_timeout≈qdl, initial_delay≈startup exist |
-| 3 | cms.sched component weights (cpu/io/runq/mem/pag/space), fuzz round-robin band, maxload refusal, refreset/SelbyRef, gshr/gsdflt meta share | PARTIAL | single scalar `brix_cms_load_weight` blend only |
+| 2 | `cms.delay servers <n>` (SUPCount floor — don't serve until ≥n nodes registered; fresh manager with 1/20 nodes redirects everyone to it) + overload/hold/qdn/rw tunables | **LANDED 2026-08-09** | `brix_cms_delay_servers <n>` + `brix_cms_delay_hold <s>`: locate/open/stat answer kXR_wait(hold) while registered data servers (roles S/PS) < n (`registry_policy.c` `brix_srv_below_floor`, gated in `locate_manager.c`, `open_manager.c`, `stat_manager.c`); `tests/test_cms_parity_wave.py::test_floor_*` |
+| 3 | cms.sched component weights (cpu/io/runq/mem/pag/space), fuzz round-robin band, maxload refusal, refreset/SelbyRef, gshr/gsdflt meta share | **LANDED 2026-08-09** | `brix_cms_sched cpu N io N runq N mem N pag N space N fuzz N maxload N`: per-component blend of the five raw theLoad bytes + disk util, fuzz-band round-robin, maxload demotes hot nodes to a last-resort tier (`registry_select_sched.c`, LOAD vector stored per entry). gshr/gsdflt meta share still open. `tests/test_cms_parity_wave.py::test_sched_*` |
 | 4 | cms.space: configurable min (hardcoded 100MB), HWM re-eligibility hysteresis, linger, recalc, mwfiles | PARTIAL | `cms_internal.h:56` |
-| 5 | **Stage-aware selection**: stage/nostage recorded (`registry.c:431-446`) but select never consults it; no "prefer holders, else stage on best-space node + kXR_wait" two-phase | MISSING | `registry_select.c` |
-| 6 | cms.fxhold / cache TTLs: loc cache fixed 30s (stock default 8h, directive-driven); no negative location cache (noloc/emptylife) | MISSING | `manager/loc_cache.c`, `redir_cache.c` |
-| 7 | kXR_refresh locate must bypass caches (parsed, ignored) | PARTIAL | ties to §1 gap 8 |
-| 8 | cms.dfs shared-FS mode (central/distrib lookup, qmax, redirect immed/verify, mlevel) — shared-FS sites do redundant per-node probes | MISSING | short-circuit in `locate_try_dynamic` |
-| 9 | Dynamic supervisor machinery: superport, self-instantiation, ManTree auto-balancing (static config works today); ClustID/subcluster dedup; cidtag | MISSING | static tiers only |
+| 5 | **Stage-aware selection**: stage/nostage recorded (`registry.c:431-446`) but select never consults it; no "prefer holders, else stage on best-space node + kXR_wait" two-phase | **LANDED 2026-08-09** | `brix_cms_stage_select on`: a read of a file no node holds (loc-cache miss / negative entry) routes to the roomiest stage-capable node (`brix_srv_select_stage`, `registry_select_sched.c`; wired in `locate_manager.c` + `open_manager.c`); `tests/test_cms_parity_wave.py::test_stage_*` |
+| 6 | cms.fxhold / cache TTLs: loc cache fixed 30s (stock default 8h, directive-driven); no negative location cache (noloc/emptylife) | **LANDED 2026-08-09** | `brix_cms_fxhold <t>` sets the positive loc-cache TTL; `brix_cms_emptylife <t>` adds a negative "no holder" entry written on a fan-out that expires with no kYR_have (`loc_cache.c` three-way `brix_loc_cache_lookup2`, `connection/recv.c` expiry site); `tests/test_cms_parity_wave.py::test_emptylife_*` |
+| 7 | kXR_refresh locate must bypass caches (parsed, ignored) | **LANDED 2026-08-09** | `kXR_refresh` locate now flushes + bypasses both the loc cache and the collapse-redir cache and re-probes (`locate.c` decodes the bit, `locate_manager.c` invalidates via `brix_loc_cache_invalidate`/`brix_redir_cache_invalidate`); `tests/test_cms_parity_wave.py::test_refresh_bypasses_negative_cache` |
+| 8 | cms.dfs shared-FS mode (central/distrib lookup, qmax, redirect immed/verify, mlevel) — shared-FS sites do redundant per-node probes | **LANDED 2026-08-09** | `brix_cms_dfs on`: skips the per-file kYR_state fan-out entirely (every node sees every file) and selects by load; `tests/test_cms_parity_wave.py::test_dfs_skips_state_fanout` |
+| 9 | Dynamic supervisor machinery: superport, self-instantiation, ManTree auto-balancing (static config works today); ClustID/subcluster dedup; cidtag | **LANDED 2026-08-09** (offload) | `brix_cms_server_max_direct <n>`: past n direct data servers a new server login is answered kYR_try naming the least-utilised registered supervisor and closed; the node honors an unsolicited login kYR_try (`recv_frame.c` `cms_frame_login_retarget`, revert-on-failure). Full ManTree tree *negotiation* (superport self-instantiation, ClustID dedup) not byte-verifiable without an upstream tree — documented divergence. `tests/test_cms_parity_wave.py::test_max_direct_*` |
 | 10 | Meta-manager selection semantics: cluster-granular ClustID masks, gshr weighting | PARTIAL | up/down legs + kYR_metaman stamp exist |
-| 11 | cms.perf pgm external load feed (pgm form is NOT plugin) | MISSING | pipe-reader in `cms/meter.c` |
-| 12 | cms.altds (advertise a foreign data server + liveness) | MISSING | needs `brix_cms_advertise` |
-| 13 | Blacklist: whitelist mode, `redirect <targets>` per-entry, `*` hostname patterns | MISSING | `blacklist_file.c` exact/CIDR only |
-| 14 | cms.allow netgroup/hostname-pattern forms | PARTIAL | CIDR only |
+| 11 | cms.perf pgm external load feed (pgm form is NOT plugin) | **LANDED 2026-08-09** | `brix_cms_perf_pgm <cmd> [brix_cms_perf_interval <t>]`: a long-lived pipe-reader child (`perf_pgm.c`, posix_spawn + event-loop line parse, respawn-on-death) whose "cpu net xeq mem pag" lines override the /proc meter while fresh; `tests/test_cms_parity_wave.py::test_perf_pgm_overrides_meter` |
+| 12 | cms.altds (advertise a foreign data server + liveness) | **LANDED 2026-08-09** | `brix_cms_altds <port> [monitor]`: the login advertises the foreign data port as dPort; the optional monitor (`altds.c`, nonblocking loopback probe) drives kYR_status suspend/resume on every link when the foreign DS dies/returns; `tests/test_cms_parity_wave.py::test_altds_*` |
+| 13 | Blacklist: whitelist mode, `redirect <targets>` per-entry, `*` hostname patterns | **LANDED 2026-08-09** | `blacklist_file.c`: `*` host patterns (shared protbind NList matcher), per-entry `redirect <host:port>` answered as a login kYR_try, and `brix_cms_whitelist_file` (only listed hosts admitted; login refused otherwise); `tests/test_cms_parity_wave.py::test_blacklist_*` / `test_whitelist_*` |
+| 14 | cms.allow netgroup/hostname-pattern forms | PARTIAL | CIDR only (blacklist/whitelist now take `*` patterns) |
 | 15 | Request coalescing (XrdCmsRRQ batching N waiters on one lookup) | PARTIAL | per-client pending entries; 30s caches blunt it |
-| 16 | kYR_try as "re-login to other managers" (honored only as pending-locate redirect) | PARTIAL | |
-| 17 | Peer/proxy CMS roles (9 stock roles vs 4) | MISSING | niche |
+| 16 | kYR_try as "re-login to other managers" (honored only as pending-locate redirect) | **LANDED 2026-08-09** (login leg) | an unsolicited login kYR_try now re-dials the named manager (`cms_frame_login_retarget`, depth+failure bounded, reverts to the configured manager); the pending-locate kYR_try leg is unchanged |
+| 17 | Peer/proxy CMS roles (9 stock roles vs 4) | **LANDED 2026-08-09** (peer/proxy) | `brix_cms_role peer\|proxy` login Mode bits + manager-side classification (roles "P"/"PS"); a peer is selected only as a last resort before NotFound, a proxy server is selectable normally (`send.c`, `server_recv_parse.c`, `registry_select.c`); `tests/test_cms_parity_wave.py::test_peer_*`. Remaining stock roles (meta-peer variants) niche |
 | 18 | Locate responses never carry M/m manager entry types | PARTIAL | S entries only |
 | 19 | cms.fsxeq external program per namespace op | MISSING (deliberate — no fork/exec per op) | node_ops planner substitutes |
 
@@ -243,9 +278,9 @@ self-registration after fill.
 | # | Gap | Status | Notes |
 |---|-----|--------|-------|
 | 1 | **Background block prefetch** (`pfc.prefetch` in-flight max, prefetch score/disable-on-random) — no speculative origin reads anywhere; only local fadvise WILLNEED | **LANDED 2026-08-05** | Generic VFS feature through the driver `read_advise` (WILLNEED) slot: `sd_cache_prefetch.c` posts detached thread-pool jobs that fill absent successor blocks (per-handle rolling frontier, runway capped by `brix_cache_prefetch_window`, in-flight capped by `brix_cache_prefetch`, XrdPfc disable-on-random parity in the root engine). Hint engines: root:// sequential-read window + HTTP memory-backed serve loop. Counters `brix_cache_prefetch_{jobs,blocks,failures}_total`; suite `tests/test_vfs_prefetch.py` |
-| 2 | Age-based purge of CLEAN cold files (`purgecoldfiles`) — unconditional-age reaper covers dirty only | MISSING | extend `cache_reap.c` |
+| 2 | ~~Age-based purge of CLEAN cold files (`purgecoldfiles`) — unconditional-age reaper covers dirty only~~ | **LANDED 2026-08-09** | `brix_cache_cold_max_age <secs>` (0 = off, the default: this DISCARDS serviceable cache, so it is only ever an explicit choice). New `BRIX_CACHE_REAP_COLD` reason on `brix_cache_dirty_reaped_total{reason="cold"}`. Age = the LATER of atime/mtime, so a noatime/relatime mount degrades to "age from fill" instead of purging a hot cache. The reaper walk now runs for EITHER horizon (it was gated on the dirty one alone). **Also fixed en route:** `reap_remove` logged every reap as a success without checking — a data file the cstore adapter failed to evict was reported reaped, lost its `.cinfo`, then looked untracked forever: a leak that logged as success. It now verifies, falls back to `unlink`, and logs an error if the file survives. |
 | 3 | Per-page origin verification for partial fills (pgRead net cschk) + `uvkeep` (age-out never-verified entries) | PARTIAL | slice fills trust TLS; best-effort commits unverified forever |
-| 4 | `onlyifcached [minsize/minfrac]` | MISSING | easy policy in `sd_cache_open_common` (bitmap available) |
+| 4 | ~~`onlyifcached [minsize/minfrac]`~~ | **LANDED 2026-08-09** (minsize/minfrac not taken) | `brix_cache_only_if_cached on` (tier grammar, all protocols). In `sd_cache_open_common` a read MISS returns ENOENT → kXR_NotFound so the client fails over to another replica instead of making this node pull the object. Gated AFTER the hit test (a cached object still serves) and BEFORE the admission filter and the nearline/fill paths — otherwise an admission-declined path would still reach the source, the exact bypass the mode exists to prevent. Writes always pass through. The `minsize`/`minfrac` partial-hit thresholds are NOT implemented (a partial hit counts as a miss). |
 | 5 | Serve-while-filling whole-file mode (background prefetcher, read queue-jumping, stop-on-close) — BriX whole-file fill is foreground, first reader waits | PARTIAL | slice mode covers latency case |
 | 6 | chmod + statfs/Stats forwarding on sd_xroot (no .setattr→kXR_chmod slot) | PARTIAL | XrdPss forwards Chmod |
 | 7 | File-usage (cached-bytes-owned) watermarks distinct from FS occupancy (`diskusage files`) | MISSING | matters on shared filesystems; cstore visitor provides input |
@@ -290,7 +325,7 @@ handshake inflight caps.
 | # | Gap | Status | Notes |
 |---|-----|--------|-------|
 | 1 | ~~**`sec.protbind`** per-host templates (none/only) + arbitrary ordered multi-protocol sectoken (one scheme/listener; only ztn+gsi composes via `both`)~~ **LANDED 2026-08-05**: generic engine in `src/auth/protbind/` (XrdOucNList-compatible templates, `none`/`only`/default modes, first-match-wins, per-connection reverse-DNS cache) driving `kXR_protocol` advertisement, the ordered `&P=` sectoken and the `kXR_auth` credtype gate — plus the HTTP/WebDAV frontend through the *same* parser and resolver. Naming a scheme in a rule now pulls its keys/certs into startup validation. | DONE | `auth/protbind/{match,policy,config,peer}.c`, `session/{protocol,login}.c`, `webdav/access_auth.c`; `tests/c/protbind_test.c`, `tests/test_protbind_parse.py` |
-| 2 | **Signing-level table conformance**: BriX compatible=nothing (stock: chmod/fattr/mv/rm/trunc…); standard signs writes (stock: intense); intense signs ~all (stock exempts reads until pedantic). Plus no `relaxed`/`force`/local-remote split; no kXR_signLikely heuristics; **sss sessions never signing-keyed** (signing_active=0 — tamperable) | DIVERGENT/PARTIAL | interop-relevant vs stock clients; `gsi_core.c`, `sigver.c:148` |
+| 2 | **Signing-level table conformance**: BriX compatible=nothing (stock: chmod/fattr/mv/rm/trunc…); standard signs writes (stock: intense); intense signs ~all (stock exempts reads until pedantic). Plus no `relaxed`/`force`/local-remote split; no kXR_signLikely heuristics. **The silent-bypass half is FIXED 2026-08-09**: `brix_signing_enforce_level` used to return "continue" before any check whenever `signing_active==0`, so on an sss/ztn/krb5/anonymous session (only GSI arms a key) `brix_security_level` enforced NOTHING and logged nothing. It now logs one WARN per session naming the level and what happened, and `brix_signing_required on` REFUSES the request (kXR_NotAuthorized) instead of accepting it unsigned. Default off — turning it on rejects every stock non-GSI client, which is a deployment decision. Handshake opcodes stay exempt at every level. | DIVERGENT/PARTIAL (bypass closed) | `gsi_core.c`, `handshake/sigver.c`. STILL OPEN: actually KEYING sss/krb5 sessions (both have key material and stock signs sss) — that is a wire change requiring matching client+server derivation, so it is deliberately not bundled here. |
 | 3 | ~~**Per-capability TLS** (`xrootd.tls login/session/data/tpc` + `-cap` exceptions + kXR_tls* advertisement) — coarse `brix_min_sec_level` floor instead; ztn accepted over cleartext unless opted in (stock refuses)~~ **LANDED 2026-08-05**: generic VFS `brix_tls_require` mask (stream pre-dispatch + native-TPC choke + WebDAV + S3), kXR_tlsLogin/Sess/Data/TPC advertised at `kXR_protocol`, ztn now refused over cleartext by default (`brix_ztn_cleartext` lab opt-in) | DONE | `fs/vfs/vfs_secgate.c`, `handshake/policy.c`, `tests/test_tls_require.py` |
 | 4 | VOMS: FQAN-pattern→user mapfile (XrdVomsMapfile); vomsfun certfmt/grpopt/vos/grps filters; global "AC required" independent of path rules | MISSING/PARTIAL | identity mapping by FQAN absent; authz by VO present |
 | 5 | SciTokens: rule-based name_mapfile (sub/path/group predicates — BriX flat JSON only); upstream-compatible `onmissing passthrough/allow/deny` for tokenless requests | PARTIAL | `subject_map.c`, `issuer_registry.h:43` |
@@ -329,9 +364,9 @@ Dig re-shaped to `/.well-known/dig/` with RESOLVE_BENEATH + principal allow-file
 
 | # | Gap | Status | Notes |
 |---|-----|--------|-------|
-| 1 | **HTTP redirect-to-dataserver missing**: the dormant `xrdhttp_send_redirect`/Location+X-Xrootd-Redir-* scaffolding was **removed 2026-08-05** (phase-95 W1); no `http.secretkey` signed-CGI handoff | MISSING | biggest HTTP-plane hole for redirector deployments; needs a mesh-selection call site, not the old scaffolding (in git history if the header shape is wanted) |
+| 1 | ~~**HTTP redirect-to-dataserver missing**: the dormant `xrdhttp_send_redirect`/Location+X-Xrootd-Redir-* scaffolding was **removed 2026-08-05** (phase-95 W1); no `http.secretkey` signed-CGI handoff~~ | **LANDED 2026-08-09** | `brix_webdav_redirect_dataserver on` 307-redirects GET/HEAD/PUT to the CMS-registry-selected data server (`webdav/redirect.c`, mesh selection via `brix_srv_select`); `brix_http_secretkey` signs the authenticated identity into the redirect CGI (`brixrdr.exp/usr/vo/mac`, HMAC-SHA256 binding method+path+expiry) and the data-server side verifies it constant-time + expiry-bounded, adopting the identity fail-closed. BriX-dialect CGI (not byte-compatible with stock XrdHttp's hash — upstream tree unavailable to verify its exact format); same trust model. `tests/test_webdav_redirect_ds.py` (7 cases: 307, valid GET served, loop-guard, tamper/expiry/foreign-key/path-mismatch 403) |
 | 2 | **HTTP-TPC checksum verification**: no Repr-Digest HEAD cross-check, no RequireChecksumVerification (native TPC has verify; WebDAV COPY trusts transfer) | MISSING | |
-| 3 | **TPC push skips Layer-2 egress allowlist** (pull enforces) | KNOWN BUG (verified audit finding) | |
+| 3 | ~~**TPC push skips Layer-2 egress allowlist** (pull enforces)~~ | **ALREADY FIXED 2026-08-04** (this row was stale) | The push branch of `ngx_http_brix_webdav_tpc_handle_copy` runs `webdav_tpc_source_guard()` on the `Destination` authority before `webdav_tpc_handle_push()` — same verdict core, same 403, same `signal=tpc_egress` line as a pull (`webdav/tpc.c:347-363`). Covered by `tests/test_webdav_tpc_source_egress_guard.py::TestWebdavPushGuardRefuse` (4 cases). See testsuite-combinatorial-coverage-audit-2026-08-04.md §2.2. |
 | 4 | Want-Digest q-value/multi-algorithm negotiation (first token only) | PARTIAL | `xrdhttp_normalize_rfc3230_algo` |
 | 5 | `http.header2cgi` arbitrary header→CGI bridge | MISSING | |
 | 6 | HTML directory listing on GET + listingdeny/listingredir | MISSING | PROPFIND-only enumeration |
@@ -358,11 +393,11 @@ write, readv/writev, ZIP, TPC orchestration, capture/replay, resilient reopen-re
 
 | # | Gap | Status | Notes |
 |---|-----|--------|-------|
-| 1 | **Metalink** end-to-end (also blocks --tls-metalink, --zip-mtln-cksum) | MISSING | zero hits repo-wide |
-| 2 | **Extreme copy** (--sources/--dynamic-src, XCp block-stealing multi-replica) | MISSING | |
+| 1 | ~~**Metalink** end-to-end~~ | **LANDED 2026-08-09** (phase-100) | v4+v3 parser + virtual-redirector failover + digest inheritance, all source transports; --tls-metalink / --zip-mtln-cksum deliberately not taken (phase-100 §3) |
+| 2 | ~~**Extreme copy** (--sources, XCp block-stealing multi-replica)~~ | **LANDED 2026-08-09** (phase-100) | `--sources N` engine: metalink mirrors → locate → duplication; block stealing + dead-replica rescue; --dynamic-src not taken (needs known size) |
 | 3 | **Sub-stream data fan-out**: kXR_bind done, pathid never stamped (`net/streams.c:9-14`) — `--streams` cosmetic; GSI-signed sessions also rejected by aio attach (no pipelining when signed) | PARTIAL | pairs with server §1 gap 1 |
-| 4 | **tried=/triedrc= never emitted** by BriX clients (server parses them!) — federation redirectors get no failure feedback | MISSING client-side | `c->tried[]` memory-only |
-| 5 | **`--tpc delegate` hardcodes `tpc.dlgon=0`** — silently degrades to `first` | BUG/PARTIAL | `copy_remote.c:311-325` |
+| 4 | ~~**tried=/triedrc= never emitted** by BriX clients (server parses them!)~~ | **LANDED 2026-08-09** (dead-target failover; DS-error retry still open) | `frame_roundtrip.c`: when a redirect target is unreachable and the client falls back to the home manager, the replayed request carries `tried=<hostport>&triedrc=<reason>` with the stock reason tokens (enoent/ioerr/fserr/srverr). Emitted only for the opcodes BriX's own manager parses `tried=` for — open/stat/query (`open_manager.c`, `stat_manager.c`, `checksum_qcksum_path.c`) — so emission and consumption cannot drift, and never on a first attempt. NOT taken: retrying at the manager when a data server returns an ERROR (that is a behaviour change, not an emission gap). |
+| 5 | ~~**`--tpc delegate` hardcodes `tpc.dlgon=0`** — silently degrades to `first`~~ | **LANDED 2026-08-09** | `tpc_build_dst_opaque` emits `tpc.dlgon=1` for `XRDC_TPC_DELEGATE`, 0 otherwise. The wire flag alone was not enough: the client also REFUSED the destination's kXGS_pxyreq round unless `$XRDC_GSI_DELEGATE` was set, and advertised no delegation capability, so a stock destination would never ask. `--tpc delegate` now sets `brix_opts.gsi_delegate`, which one predicate (`gsi_delegation_enabled`) drives for both the kOptsSigReq advertisement and the sigpxy round — advertise and honour can no longer disagree. |
 | 6 | **`--continue` byte-offset resume** — partials unlinked on failure; journal (`--journal/--resume`, EXTRA) is whole-file only | MISSING | `copy_local.c` |
 | 7 | **fork-safety** — no pthread_atfork; forked child inherits aio fds → hang/SID collisions | MISSING (unsafe) | HEP frameworks fork |
 | 8 | **Preload**: read-only shim — no write path, no readdir family (documented punt), no stdio (fopen…), no statfs/chdir/xattr/__xstat aliases; single conn + global mutex; BRIX_VMP single mapping vs multi XROOTD_VMP; `fill_stat` under-fills (latent bug, bypasses `posix_map.c` helper) | PARTIAL (deliberately narrow) | |
@@ -422,12 +457,21 @@ Cache-fill paths are un-throttled. `source-verified-xrootd-comparison.md:265`
 
 ### 9.1 Ranked master gap list (feature bodies, biggest first)
 1. Erasure coding (XrdEc) — greenfield.
-2. Metalink (client parse + VirtualRedirector semantics; server N/A).
-3. Multi-stream data path BOTH sides (server pathid response offload §1.1 + client
-   pathid stamping §7.3) — unlocks --streams, and is prerequisite-free.
-4. Extreme copy (XCp) client engine.
-5. ~~CMS multi-manager failover (§2.1)~~ **LANDED 2026-08-05** + SUPCount floor
-   (§2.2) + stage-aware selection (§2.5) still open.
+2. ~~Metalink (client parse + VirtualRedirector semantics; server N/A)~~
+   **LANDED 2026-08-09** (phase-100).
+3. ~~Multi-stream data path BOTH sides~~ **LANDED 2026-08-04** (phase-94, as the
+   bound-connection read/write data path + client fan-out; see that doc).
+4. ~~Extreme copy (XCp) client engine~~ **LANDED 2026-08-09** (phase-100,
+   `--sources N` block-stealing engine).
+5. ~~CMS multi-manager failover (§2.1)~~ **LANDED 2026-08-05**; ~~SUPCount floor
+   (§2.2)~~, ~~stage-aware selection (§2.5)~~, ~~cms.sched weights (§2.3)~~,
+   ~~fxhold/emptylife (§2.6)~~, ~~kXR_refresh bypass (§2.7)~~, ~~cms.dfs
+   (§2.8)~~, ~~ManTree login offload (§2.9)~~, ~~cms.perf pgm (§2.11)~~,
+   ~~cms.altds (§2.12)~~, ~~blacklist patterns/whitelist/redirect (§2.13)~~,
+   ~~peer/proxy roles (§2.17)~~ all **LANDED 2026-08-09**
+   (`tests/test_cms_parity_wave.py`). Remaining §2 open: cms.space hysteresis
+   (§2.4), full ManTree tree negotiation (§2.9), meta-manager ClustID/gshr
+   (§2.10), request coalescing (§2.15), M/m locate entry types (§2.18).
 6. Cache prefetch (§4.1) + cold-file age purge (§4.2) + onlyifcached (§4.4).
 7. Space groups/cgroup/quota generalization (§3.1–3).
 8. ~~sec.protbind + multi-protocol sectoken (§5.1)~~ **LANDED 2026-08-05**
@@ -435,24 +479,29 @@ Cache-fill paths are un-throttled. `source-verified-xrootd-comparison.md:265`
 9. ~~Per-capability TLS gating + kXR_tls* advertisement (§5.3)~~ **LANDED
    2026-08-05** (`brix_tls_require` + `brix_ztn_cleartext`).
 10. OssArc zip aggregation (§3.5); tape-buffer purge engine (§3.4).
-11. HTTP redirect-to-dataserver wiring (§6.1) + HTTP-TPC checksum verify (§6.2).
+11. ~~HTTP redirect-to-dataserver wiring (§6.1)~~ **LANDED 2026-08-09**
+    (`webdav/redirect.c` + `brix_http_secretkey` signed handoff,
+    `tests/test_webdav_redirect_ds.py`); ~~HTTP-TPC checksum verify (§6.2)~~
+    landed earlier (`webdav/tpc_verify.c`).
 12. Preload write/readdir/stdio (§7.8); xrootdfs fan-out + sss identity (§7.9);
     fork-safety (§7.7); XRD_* env compat (§7.10); tried= emission (§7.4).
 13. RAM cache tier (XrdRmc/memfile) (§3.6/§4.12).
 14. SSI client lib + ShMap (§8); BWM queueing/flows; throttle.data/iops pacing.
 15. Long tail: VOMS mapfile, SciTokens rule mapfile, sss v2 entity/ID registry,
-    pwd admin/auto-reg, fxhold TTL knobs, cms.dfs, cms.perf pgm, altds, blacklist
-    patterns/whitelist/redirect, header2cgi, HTML listings, ofs.tpc identity
-    matrix, fsoverload, QStats XML, Qconfig keys, admin socket, error constants.
+    pwd admin/auto-reg, header2cgi, HTML listings, ofs.tpc identity matrix,
+    fsoverload, QStats XML, Qconfig keys, admin socket. (fxhold TTL knobs,
+    cms.dfs, cms.perf pgm, altds, blacklist patterns/whitelist/redirect,
+    error constants all landed 2026-08-09.)
 
 ### 9.2 Verified bugs / dead code found during this audit
-- TPC push skips Layer-2 egress allowlist (pull enforces) — pre-existing verified finding.
-- ~~`xrdhttp_send_redirect` implemented, zero call sites (dormant HTTP redirects).~~ **REMOVED 2026-08-05** (phase-95 W1) — the function and its three redirect-only static helpers are gone from `xrdhttp_response.c`; a future implementation starts from a mesh-selection call site rather than from dormant scaffolding.
-- `--tpc delegate` hardcodes `tpc.dlgon=0` (silent downgrade), `client/lib/xfer/copy_remote.c:311-325`.
+- ~~TPC push skips Layer-2 egress allowlist (pull enforces)~~ **ALREADY FIXED 2026-08-04** — this row was stale when written; the push branch guards the `Destination` authority (`webdav/tpc.c:347-363`) and `test_webdav_tpc_source_egress_guard.py::TestWebdavPushGuardRefuse` covers it. See testsuite-combinatorial-coverage-audit-2026-08-04.md §2.2.
+- ~~`xrdhttp_send_redirect` implemented, zero call sites (dormant HTTP redirects).~~ **REMOVED 2026-08-05** (phase-95 W1), then **RE-IMPLEMENTED FROM A REAL CALL SITE 2026-08-09** (§6.1) — `webdav/redirect.c` selects the data server from the CMS registry (`brix_srv_select`) and signs the identity into the redirect CGI (`brix_http_secretkey`); no dormant scaffolding, wired into `webdav/dispatch.c` + the access-phase auth gate.
+- ~~`--tpc delegate` hardcodes `tpc.dlgon=0` (silent downgrade)~~ **FIXED 2026-08-09** — dlgon now tracks the mode, and the client arms its own delegation (advertise + honour behind one predicate) so the mode works end-to-end rather than only on the wire.
 - xrdfs multi-path stat/rm/cat silently act on last path only.
 - ~~Throttle: `max_active_connections` parsed-never-enforced; IO-load + userconfig engines have zero call sites~~ **REMOVED 2026-08-05** (phase-95 W2, deletion variant) — the `brix_throttle_max_active_connections` directive, the `brix_throttle_userconfig_*` INI matcher, the `brix_throttle_charge_io`/`ioload_over` load metric and the `io_time_us`/`io_window` SHM node fields are all gone. `max_open_files` is the one throttle engine with an admission point and it stays. `brix_resv_status` KEPT deliberately: it has no product caller but it is the observation point for `tests/c/test_reservation.c`, which covers the live `brix_resv_schedule`/`done` engine — deleting it would trade dead code for lost coverage.
 - Preload `fill_stat()` duplicates and under-fills vs `posix_map.c:17` helper (no st_ino/blksize/blocks).
-- sss/ztn/krb5 sessions never signing-keyed (`sigver.c:148` signing_active=0) — request-tamper protection silently absent off-GSI.
+- sss/ztn/krb5 sessions never signing-keyed (`signing_active=0`) — request-tamper protection absent off-GSI. **The SILENT half is fixed 2026-08-09** (`handshake/sigver.c`): the enforcement no longer short-circuits before its own check — it logs one WARN per session and, with `brix_signing_required on`, refuses. Actually keying sss/krb5 (both have key material; stock signs sss) remains open and is a wire change needing matched client+server derivation.
+- **NEW 2026-08-09** — `cache_reap.c::reap_remove` logged every reap as a success without verifying it: a data file the cstore adapter failed to evict was counted+logged as reaped, then lost its `.cinfo` sidecar and looked untracked on every later pass, so it was never revisited. A leak that reported as success. Now verifies, falls back to `unlink`, and logs an error if the file survives.
 - `xrootdfs_usage.c:47-48` claims utimens/chown/symlink unsupported — they are implemented.
 
 ### 9.3 Stale repo docs to fix

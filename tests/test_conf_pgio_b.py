@@ -1,4 +1,5 @@
-from _test_conf_pgio_helpers import *  # noqa: F401,F403  (Phase-38 split shared header)
+from split_continuation import reexport as _reexport
+_reexport(globals(), "_test_conf_pgio_helpers")
 
 # ===========================================================================
 # 12) pgwrite with a WRONG CRC32c: the server MUST detect the corrupt page.

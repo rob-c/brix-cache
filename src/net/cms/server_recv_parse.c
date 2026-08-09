@@ -314,11 +314,17 @@ cms_srv_parse_login(brix_cms_srv_ctx_t *ctx,
     /*
      * Phase-61 W7 Admit parity: classify the node by its Mode role bits the
      * way stock XrdCmsProtocol::Admit does — manager+server is a supervisor
-     * ("R"), manager or sub-manager alone is a manager ("M"), anything else
-     * is a plain data server ("S").
+     * ("R"), manager or sub-manager alone is a manager ("M"), a peer bit is a
+     * peer cluster ("P", §2.17), proxy+server is a proxy data server ("PS"),
+     * anything else is a plain data server ("S").
      */
     if (ctx->login_mode & (CMS_LOGIN_MODE_MANAGER | CMS_LOGIN_MODE_SUBMAN)) {
         ctx->node_role = (ctx->login_mode & CMS_LOGIN_MODE) ? "R" : "M";
+    } else if (ctx->login_mode & CMS_LOGIN_MODE_PEER) {
+        ctx->node_role = "P";
+    } else if ((ctx->login_mode & CMS_LOGIN_MODE_PROXY)
+               && (ctx->login_mode & CMS_LOGIN_MODE)) {
+        ctx->node_role = "PS";
     } else {
         ctx->node_role = "S";
     }
@@ -351,6 +357,33 @@ cms_srv_parse_load_free_mb(const u_char *payload, size_t payload_len)
     }
 
     return tlv_read_next(&p, end);
+}
+
+/*
+ * cms_srv_parse_load_bytes — §2.3: copy the five machine theLoad bytes.
+ *
+ * WHAT: Fills out5 = {cpu, net, xeq, mem, pag} from the LOAD payload's blob
+ *       (each 0-100); a short payload yields all-zero.
+ * WHY:  Component-weighted selection (cms.sched) needs each byte, not only
+ *       the max the legacy load_pct records.
+ * HOW:  Same fixed layout as the machine-pct extractor: [2B blob len][6 load
+ *       bytes], machine bytes at offsets 2-6 (dsk excluded).
+ */
+void
+cms_srv_parse_load_bytes(const u_char *payload, size_t payload_len,
+    uint8_t out5[5])
+{
+    size_t  i;
+
+    for (i = 0; i < 5; i++) {
+        out5[i] = 0;
+    }
+    if (payload_len < 2 + 5) {
+        return;
+    }
+    for (i = 0; i < 5; i++) {
+        out5[i] = payload[2 + i] > 100 ? 100 : payload[2 + i];
+    }
 }
 
 /*

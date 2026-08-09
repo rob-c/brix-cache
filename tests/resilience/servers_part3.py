@@ -1,0 +1,182 @@
+"""
+tests/resilience/servers.py — dedicated, self-contained server lifecycle for
+fault-injection / wire-loss resilience testing.
+
+WHAT: launch and tear down a dedicated nginx (root://+GSI) and a dedicated
+      official `xrootd` daemon (root://+GSI) on a unique high port block, each
+      with its own data root, plus the in-repo TCP fault proxy
+      (client/bin/brix-fault-proxy) spliced in front of either one.
+
+WHY:  the shared manage_test_servers.sh fleet squats 11094-12126, is flaky to
+      bring up, and must not be perturbed by loss sweeps.  Resilience runs need
+      isolated, reproducible endpoints that never collide with the main suite,
+      living in their own subfolder.
+
+HOW:  reuse the repo's PKI helpers (own PKI dir under a dedicated prefix), the
+      module's already-built nginx (objs/nginx, with the xrootd stream module
+      compiled in), and the system official `xrootd`.  Every server and the
+      fault proxy is a context manager that guarantees teardown.
+
+Nothing here touches the main suite's ports, data, or PKI.
+"""
+import getpass
+import os
+import shutil
+import socket
+import subprocess
+import sys
+import time
+
+from server_launcher import LifecycleHarness
+from server_registry import NginxInstanceSpec
+from settings import BIND_HOST, HOST
+
+# --- Layout ------------------------------------------------------------------
+
+REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+CLIENT_BIN = os.path.join(REPO, "client", "bin")
+XRDFS = os.path.join(CLIENT_BIN, "xrdfs")
+XRDCP = os.path.join(CLIENT_BIN, "xrdcp")
+FAULT_PROXY = os.path.join(CLIENT_BIN, "brix-fault-proxy")
+
+# Dedicated prefix + port block, both overridable but defaulting well clear of
+# the main suite (which lives in 11094-12126 under /tmp/xrd-test). The default
+# prefix is per-invoking-user: a root lane hands server trees to the
+# de-escalated worker (nobody) and would otherwise leave debris an
+# unprivileged lane on the same host cannot write over.
+PREFIX = os.environ.get(
+    "RESIL_PREFIX", f"/tmp/xrd-resilience-{getpass.getuser()}")
+NGINX_BIN = os.environ.get("RESIL_NGINX_BIN", "/tmp/nginx-1.28.3/objs/nginx")
+BRIX_BIN = os.environ.get("RESIL_BRIX_BIN") or shutil.which("xrootd")
+
+NGINX_GSI_PORT = int(os.environ.get("RESIL_NGINX_GSI_PORT", "13901"))
+BRIX_GSI_PORT = int(os.environ.get("RESIL_BRIX_GSI_PORT", "13902"))
+
+PKI_DIR = os.path.join(PREFIX, "pki")
+CA_DIR = os.path.join(PKI_DIR, "ca")
+CA_CERT = os.path.join(CA_DIR, "ca.pem")
+SERVER_CERT = os.path.join(PKI_DIR, "server", "hostcert.pem")
+SERVER_KEY = os.path.join(PKI_DIR, "server", "hostkey.pem")
+USER_PROXY = os.path.join(PKI_DIR, "user", "proxy_std.pem")
+
+_SEC_LIB_CANDIDATES = (
+    "/usr/lib64/libXrdSec-5.so",
+    "/usr/lib/libXrdSec-5.so",
+    "/usr/lib64/libXrdSec.so",
+    "/usr/lib/libXrdSec.so",
+)
+
+
+# --- Small helpers ------------------------------------------------------------
+
+class FaultProxy:
+    """The in-repo TCP fault injector (client/bin/brix-fault-proxy) spliced in
+    front of a target server.  Listen + control ports are ephemeral so concurrent
+    or repeated runs never collide.
+
+    Faults are toggled over the control port; see the lever list in
+    client/apps/diag/brix_fault_proxy.c (or `brix-fault-proxy --help`) for the
+    full set.  set_loss(pct) maps to `lossy <pct>` (per-chunk probability
+    of severing the stream — application-visible wire loss); set_jitter(ms) maps
+    to `jitter <ms>` (per-chunk uniform-random 0..ms delay — the faithful app-layer
+    signature of out-of-order packet delivery on a TCP stream)."""
+
+    def __init__(self, target_port, target_host=HOST):
+        self.target_host = target_host
+        self.target_port = target_port
+        self.listen = free_port()
+        self.control = free_port()
+        self.proc = None
+
+    def __enter__(self):
+        if not os.path.isfile(FAULT_PROXY):
+            raise RuntimeError(f"brix-fault-proxy not built: {FAULT_PROXY}")
+        self.proc = subprocess.Popen(
+            [FAULT_PROXY, str(self.listen), self.target_host,
+             str(self.target_port), str(self.control)],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+        )
+        _wait_port(self.control, proc=self.proc)
+        _wait_port(self.listen, proc=self.proc)
+        return self
+
+    def ctl(self, cmd):
+        # `status` returns a multi-lever + counters line (hundreds of bytes); read
+        # generously so counter assertions never see a truncated reply.
+        with socket.create_connection((HOST, self.control), timeout=3) as s:
+            s.sendall((cmd + "\n").encode())
+            return s.recv(4096).decode(errors="replace").strip()
+
+    def set_loss(self, pct):
+        # `pct` may be fractional (sub-percent); the proxy honours parts-per-million.
+        return self.ctl(f"lossy {pct:g}") if pct > 0 else self.ctl("clear")
+
+    def set_corrupt(self, pct, direction="down"):
+        """`corrupt <pct> <dir>`: flip a random bit in pct% of forwarded bytes —
+        a real in-band (MITM / flaky-NIC-past-the-TCP-checksum) byte mutation that
+        an application-layer checksum must catch.  `direction` is up (client->server),
+        down (server->client, the response/download payload — the default), or both.
+        pct may be fractional (ppm resolution); pct=0 clears all faults."""
+        return (self.ctl(f"corrupt {pct:g} {direction}")
+                if pct > 0 else self.ctl("clear"))
+
+    def set_truncate(self, nbytes, direction="down"):
+        """`truncate-at <nbytes> <dir>`: sever each connection once nbytes have
+        flowed in the given direction — a deterministic mid-transfer cut."""
+        return (self.ctl(f"truncate-at {int(nbytes)} {direction}")
+                if nbytes > 0 else self.ctl("clear"))
+
+    def clear(self):
+        return self.ctl("clear")
+
+    def set_jitter(self, ms):
+        return self.ctl(f"jitter {int(ms)}") if ms > 0 else self.ctl("clear")
+
+    def set_reorder(self, pct, delay_ms=50):
+        """`reorder <pct> <ms>`: hold back pct% of chunks by delay_ms (the app-layer
+        analog of `tc netem reorder pct% delay ms` — a fraction of segments arriving
+        out of order). pct may be fractional (sub-percent, ppm resolution); pct=0
+        clears all faults."""
+        return (self.ctl(f"reorder {pct:g} {int(delay_ms)}")
+                if pct > 0 else self.ctl("clear"))
+
+    def set_drip(self, nbytes, ms, direction="down"):
+        """`drip <bytes> <ms> [dir]`: forward `nbytes` bytes, sleep `ms`, repeat —
+        a pathologically slow but *never-idle-long-enough-to-trip-a-poll-timeout*
+        trickle.  This is the signature of a firewall/middlebox that keeps a
+        connection technically alive while starving it: the classic slow-drip
+        (Slowloris-style) resource-exhaustion attack against a client that re-arms
+        its read timeout every poll.  `nbytes<=0` clears all faults."""
+        return (self.ctl(f"drip {int(nbytes)} {int(ms)} {direction}")
+                if nbytes > 0 else self.ctl("clear"))
+
+    def url(self, path="/"):
+        return f"root://{HOST}:{self.listen}/"
+
+    def __exit__(self, *exc):
+        if self.proc and self.proc.poll() is None:
+            self.proc.terminate()
+            try:
+                self.proc.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                self.proc.kill()
+        return False
+
+
+def seed_file(data_root, rel_path, size_bytes, src=None):
+    """Place a file of size_bytes at data_root/rel_path.  If src is given, copy
+    it (so multiple servers can share byte-identical content); otherwise fill
+    from /dev/urandom.  Returns the absolute path."""
+    dst = os.path.join(data_root, rel_path.lstrip("/"))
+    os.makedirs(os.path.dirname(dst), exist_ok=True)
+    if src:
+        shutil.copyfile(src, dst)
+        return dst
+    with open(dst, "wb") as out, open("/dev/urandom", "rb") as rnd:
+        remaining = size_bytes
+        chunk = 8 * 1024 * 1024
+        while remaining > 0:
+            n = min(chunk, remaining)
+            out.write(rnd.read(n))
+            remaining -= n
+    return dst

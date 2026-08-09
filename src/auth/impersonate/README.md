@@ -19,7 +19,7 @@ Operator guide: [`docs/06-authentication/impersonation.md`](../../../docs/06-aut
 ## Architecture
 
 Workers stay **unprivileged**. In `map` mode a small **root broker**
-(double-forked à la `src/frm/stage.c`, SHM-safe) performs each open/metadata
+(double-forked à la `src/fs/xfer/xfer_mover_agent.c`, SHM-safe) performs each open/metadata
 syscall under `setfsuid`/`setfsgid`/`setgroups` and returns the resulting fd to
 the worker via `SCM_RIGHTS`. The data plane (`pread`/`pwrite`/`sendfile`/AIO)
 runs on the already-open fd as the worker — DAC was enforced at open time, so it
@@ -103,3 +103,17 @@ a bind-mounted fake `/etc/passwd`, no `nss_wrapper`), proving ownership, DAC
 enforcement, supplementary groups, confinement, deny policy, squash, and
 no-credential-leak-under-concurrency without real root. Plus `nginx -t` mode
 validation and an idmap unit test ([`tests/c/idmap_test.c`](../../../tests/c/idmap_test.c)).
+
+### Other files
+
+| File | Responsibility |
+|---|---|
+| `client_internal.h` | Cross-declares the two worker-client core primitives that the op wrappers in client_ops.c call — request-frame construction and the single-reconnect request/reply exchange. |
+| `client_ops.c` | The public brix_imp_* op wrappers (open/stat/mkdir/unlink/rmdir/rename/ link/truncate/chmod/chown/setattr/symlink/readlink and the xattr family) that the confined beneath helpers call when `map` mode is active. |
+| `idmap_denylist.c` | Resolves a local username to {uid, gid, supplementary gids}, and enforces the safety floor + deny-lists (forbidden accounts/groups) that decide whether a resolved credential set may be impersonated. |
+| `idmap_gridmap.c` | Parses the classic grid-mapfile (each line: "<quoted DN>" <username>) once at init into a small array of (quoted-DN, username) pairs, and answers exact-DN lookups against it. |
+| `idmap_internal.h` | Cross-declares the symbols that are DEFINED in one of the three idmap translation units but REFERENCED from another: the shared principal-size bound, the two mapping-policy globals set by idmap.c and read by the deny-lis. |
+| `lifecycle.h` | The configuration directives, config-time validation, master-side broker spawn, worker-side client connect, and per-request principal set/clear that bridge the self-contained impersonation engine (idmap/broker/client) in. |
+| `lifecycle_broker.c` | master-side privileged-broker spawn for map-mode impersonation (phase 40). |
+| `lifecycle_internal.h` | shared state for the impersonation nginx-lifecycle glue. |
+| `lifecycle_worker.c` | worker-side impersonation client glue (phase 40). |

@@ -23,20 +23,6 @@ brix_srv_set_stale_after(ngx_msec_t ms)
 }
 
 
-void
-brix_srv_set_load_weight(ngx_uint_t weight)
-{
-    brix_srv_load_weight = weight > 100 ? 100 : weight;
-}
-
-
-void
-brix_srv_set_affinity(ngx_uint_t on)
-{
-    brix_srv_affinity = on ? 1 : 0;
-}
-
-
 brix_srv_table_t *
 srv_table(void)
 {
@@ -219,8 +205,8 @@ brix_srv_register(const char *host, uint16_t port,
         e->free_mb   = free_mb;
         e->util_pct  = util_pct;
         e->last_seen = ngx_current_msec;
-        e->role[0]   = 'S';              /* until the login role is recorded */
-        e->role[1]   = '\0';
+        ngx_cpystrn((u_char *) e->role, (u_char *) "S",
+                    sizeof(e->role));    /* until the login role is recorded */
         e->in_use    = 1;
     } else if (!found) {
         /* Registry is full: log a warning and increment the Prometheus counter. */
@@ -331,7 +317,7 @@ brix_srv_unregister(const char *host, uint16_t port)
  * is absent), so every Phase-89 W9 attribute writer degrades to a no-op for
  * an unknown node instead of creating one.
  */
-static brix_srv_entry_t *
+brix_srv_entry_t *
 srv_find_locked(const char *host, uint16_t port)
 {
     brix_srv_table_t *tbl;
@@ -409,7 +395,8 @@ brix_srv_set_vnid(const char *host, uint16_t port, const char *vnid)
 }
 
 /* brix_srv_set_role — record the node's XrdCmsRole::Type derived from its
- * LOGIN Mode bits (contract in registry.h). */
+ * LOGIN Mode bits (contract in registry.h).  §2.17: role is now a short
+ * string ("S"/"M"/"R"/"P"/"PS") so proxy variants are representable. */
 void
 brix_srv_set_role(const char *host, uint16_t port, const char *role)
 {
@@ -422,8 +409,10 @@ brix_srv_set_role(const char *host, uint16_t port, const char *role)
     ngx_shmtx_lock(&brix_srv_mutex);
     e = srv_find_locked(host, port);
     if (e != NULL) {
-        e->role[0] = (role != NULL && role[0] != '\0') ? role[0] : 'S';
-        e->role[1] = '\0';
+        ngx_cpystrn((u_char *) e->role,
+                    (u_char *) ((role != NULL && role[0] != '\0') ? role
+                                                                  : "S"),
+                    sizeof(e->role));
     }
     ngx_shmtx_unlock(&brix_srv_mutex);
 }

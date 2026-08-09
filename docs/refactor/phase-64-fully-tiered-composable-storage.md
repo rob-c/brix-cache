@@ -13,7 +13,7 @@
 > **One divergence from the plan — RESOLVED (ADR-3 RATIFIED 2026-07-27):**
 > §13c step 4 (delete the `brix_frm_*` directives) was **not** executed as
 > written — the directives survive in
-> `src/protocols/root/stream/directives_net.inc` as the engine/adapter knobs
+> `src/protocols/root/stream/directives_net.h` as the engine/adapter knobs
 > and live code gates on `conf->frm.*`. Per phase-89 §D.1 option (a), this is
 > now **ratified**: §13c step 4 is amended to "directives retained as
 > engine/adapter knobs". P2's "no legacy" was aimed at the *cache* grammar

@@ -1,0 +1,15 @@
+#!/bin/sh
+# postrm for nginx-mod-brix-cache: drop the modules-enabled activation
+# symlink (postinst-created, so dpkg does not track it).  The brix-broker
+# account is intentionally left behind (Debian policy for system users).
+set -e
+
+case "$1" in
+    remove|purge)
+        rm -f /etc/nginx/modules-enabled/60-mod-brix-cache.conf
+        ;;
+esac
+
+#DEBHELPER#
+
+exit 0

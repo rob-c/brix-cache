@@ -113,6 +113,17 @@ typedef struct {
                                                   cap for a passthrough fill (0 = the
                                                   max_file_size cap, or unbounded if
                                                   that too is 0)                  */
+    unsigned                    only_if_cached:1; /* brix_cache_only_if_cached —
+                                                  audit §4.4 (upstream
+                                                  pfc.onlyifcached): serve ONLY
+                                                  what this cache already holds;
+                                                  a miss returns ENOENT instead
+                                                  of filling from the origin, so
+                                                  a client fails over to another
+                                                  replica rather than making this
+                                                  node pull the object. Never
+                                                  affects writes (they always
+                                                  pass through). */
     ngx_uint_t                  prefetch_jobs;   /* brix_cache_prefetch — max in-flight
                                                   background block-prefetch jobs per
                                                   worker (0 = prefetch off)      */

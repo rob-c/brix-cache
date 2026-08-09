@@ -722,7 +722,7 @@ Files requiring lifecycle-harness migration:
 > stream directives (`brix_frm`, `_queue_path`, `_stagecmd`, `_copycmd`,
 > `_async_recall`, `_stage_dir`, `_control_dir`, `_residency_cmd`, …) were
 > deliberately disabled in config on 2026-06-30 (`src/protocols/root/stream/
-> directives_net.inc:188`), superseded by the phase-64 tier/nearline backend
+> directives_net.h:188`), superseded by the phase-64 tier/nearline backend
 > (`sd_frm`). Every current build rejects these with `unknown directive`. The
 > pre-migration FRM tests masked this by swallowing the launch failure into a
 > `pytest.skip`; migrating them to the harness — whose `nginx -t` is asserted —
@@ -737,7 +737,7 @@ Files requiring lifecycle-harness migration:
 > force-rewrite the remaining skips.** Verified against source that the entire
 > `brix_frm*` surface (including `_async_recall`, `_queue_path`, `_stage_dir`,
 > `_control_dir`) is config-unreachable dead code scheduled for removal
-> (`directives_net.inc:187-200`); e.g. the async waitresp→asynresp path at
+> (`directives_net.h:187-200`); e.g. the async waitresp→asynresp path at
 > `open_request.c:456` gates on `conf->frm.async_recall`, which no directive can
 > ever set. So `test_frm_async` (waitresp/asynresp metrics) and `test_frm_queue`
 > (durable host-qualified reqid + QPrep) — the only two skips with behaviour not

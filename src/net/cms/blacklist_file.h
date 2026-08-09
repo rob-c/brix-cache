@@ -33,11 +33,16 @@
 #define BRIX_CMS_BLFILE_POLL_MS      1000    /* min gap between stat() polls  */
 
 typedef struct {
-    char        host[256];   /* exact-match host text ("" when is_cidr)      */
+    char        host[256];   /* host text — exact, or a `*` pattern when
+                                is_pattern ("" when is_cidr)                 */
     uint32_t    net;         /* IPv4 network (host byte order) when is_cidr  */
     uint32_t    mask;        /* IPv4 netmask (host byte order) when is_cidr  */
     uint16_t    port;        /* 0 = every port of the host                   */
     unsigned    is_cidr:1;
+    unsigned    is_pattern:1;    /* §2.13: host holds one `*` wildcard span   */
+    unsigned    has_redirect:1;  /* §2.13: `redirect <h:p>` action present    */
+    char        redirect_host[256]; /* §2.13: kYR_try target at login         */
+    uint16_t    redirect_port;
 } brix_cms_blfile_entry_t;
 
 typedef struct {
@@ -49,7 +54,10 @@ typedef struct {
 
 /*
  * Parse one file line (no trailing newline; len bytes) into *out.
- * Accepts `host`, `host:port` (port 1-65535), or `a.b.c.d/n` (n 0-32).
+ * Accepts `host`, `host:port` (port 1-65535), or `a.b.c.d/n` (n 0-32);
+ * §2.13 adds `*` wildcard host patterns (XrdOucNList rules: at most one `*`)
+ * and an optional trailing ` redirect <host:port>` action (blacklist mode
+ * only) answered as kYR_try at login.
  * `#` comments and blank lines are the CALLER's job to skip.  Pure (no I/O,
  * no nginx state).  Returns 0 on success, -1 on a malformed line.
  */
@@ -73,5 +81,21 @@ int brix_cms_blfile_entry_matches(const brix_cms_blfile_entry_t *e,
  */
 void brix_cms_blfile_poll(brix_cms_blfile_t *bl, const ngx_str_t *path,
     ngx_msec_t blacklist_ms, ngx_uint_t force, ngx_log_t *log);
+
+/*
+ * §2.13 — whitelist mode: same file grammar and poll cadence, INVERTED
+ * enforcement — every registered server matching NO entry is blacklisted for
+ * blacklist_ms.  path empty/NULL = feature off.
+ */
+void brix_cms_wlfile_poll(brix_cms_blfile_t *wl, const ngx_str_t *path,
+    ngx_msec_t blacklist_ms, ngx_uint_t force, ngx_log_t *log);
+
+/*
+ * §2.13 — login-time consult: does host:port match a loaded entry?  Returns
+ * the matching entry (so the caller can act on has_redirect) or NULL.  Pure
+ * over the already-loaded entry set — call after a poll.
+ */
+const brix_cms_blfile_entry_t *brix_cms_blfile_find(
+    const brix_cms_blfile_t *bl, const char *host, uint16_t port);
 
 #endif /* BRIX_CMS_BLACKLIST_FILE_H */

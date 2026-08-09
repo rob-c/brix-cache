@@ -245,8 +245,16 @@ relay_pump_dir(int i, struct pollfd *pfd, int cfd, int ufd,
         return 1;
     }
     int is_up = (i == 0);
+    t_fwd_up = is_up;   /* so a deep truncate event can name its direction */
     volatile lever_t *L = is_up ? &g_up : &g_down;
     unsigned long *conn_ctr = is_up ? up_ctr : down_ctr;
+
+    /* toxicity: an unafflicted direction gets a clean-lever pass-through, so
+     * armed byte levers (corrupt/latency/…) do not fire on this connection. */
+    static const lever_t g_clean_lever;
+    if (!(is_up ? t_afflict_up : t_afflict_down)) {
+        L = (volatile lever_t *) &g_clean_lever;
+    }
 
     if (pump_hello_reset(is_up, buf, nr, cfd, ufd) == 2) {
         return 2;
@@ -492,6 +500,13 @@ relay_pump(int cfd, int ufd, unsigned epoch, unsigned seed,
         if (outcome == 1) {
             break;          /* EOF (both ends, or not suppressed) */
         }
+    }
+    /* slow-close: delay the FIN after EOF by the larger per-direction lever
+     * (contradictory with an abortive RST, which wins — slow-close is ignored). */
+    int sc = g_up.slow_close_ms > g_down.slow_close_ms
+             ? g_up.slow_close_ms : g_down.slow_close_ms;
+    if (sc > 0 && !g_abortive) {
+        usleep((useconds_t) sc * 1000);
     }
     close(cfd);
     close(ufd);

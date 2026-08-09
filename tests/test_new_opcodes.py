@@ -1,4 +1,5 @@
-from _test_new_opcodes_helpers import *  # noqa: F401,F403  (Phase-38 split shared header)
+from split_continuation import reexport as _reexport
+_reexport(globals(), "_test_new_opcodes_helpers")
 
 class TestPgRead:
     """Tests for kXR_pgread — paged read with per-page CRC32c."""

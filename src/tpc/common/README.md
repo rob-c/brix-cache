@@ -23,21 +23,21 @@ and "bump the unified Prometheus TPC counters" (`metrics.c`). The
 protocol-neutral data model that ties them together lives in `transfer.h`.
 
 In the request lifecycle this code sits **inside** the TPC handlers, not at the
-edge. For native pull, `read/open_request.c` calls `brix_tpc_check_authz()`
-when it sees `tpc.src=` on an open, `tpc/tpc_token.c` parses the bearer
-credential via `brix_tpc_credential_parse()`, `tpc/launch.c` registers the
-transfer with `brix_tpc_registry_add()`, `tpc/source.c` advances it with
-`brix_tpc_progress_emit()`, and `tpc/done.c` emits stream-side counters via
-`brix_tpc_metric_transfer()`. For WebDAV `COPY`, `webdav/tpc.c` gates with
-`brix_tpc_check_authz()`, `webdav/tpc_cred.c` parses the `Credential:` header,
-`webdav/tpc.c`/`tpc_thread.c` register the transfer, `webdav/tpc_curl.c` and
-`tpc_marker.c` advance progress, and all three emit
+edge. For native pull, `src/protocols/root/read/open_request.c` calls `brix_tpc_check_authz()`
+when it sees `tpc.src=` on an open, `src/tpc/outbound/tpc_token.c` parses the bearer
+credential via `brix_tpc_credential_parse()`, `src/tpc/engine/launch.c` registers the
+transfer with `brix_tpc_registry_add()`, `src/tpc/outbound/source.c` advances it with
+`brix_tpc_progress_emit()`, and `src/tpc/engine/done.c` emits stream-side counters via
+`brix_tpc_metric_transfer()`. For WebDAV `COPY`, `src/protocols/webdav/tpc.c` gates with
+`brix_tpc_check_authz()`, `src/protocols/webdav/tpc_cred.c` parses the `Credential:` header,
+`src/protocols/webdav/tpc.c`/`src/protocols/webdav/tpc_thread.c` register the transfer, `src/protocols/webdav/tpc_curl.c` and
+`src/protocols/webdav/tpc_marker.c` advance progress, and all three emit
 `brix_tpc_metric_transfer()` at start / per-marker / completion.
 
 The single cross-process registry is published once at post-configuration time
-by **both** transports (`config/postconfiguration.c` and `webdav/postconfig.c`,
+by **both** transports (`src/core/config/postconfiguration.c` and `src/protocols/webdav/postconfig.c`,
 both calling `brix_tpc_registry_configure()`) and consumed read-only by the
-dashboard (`dashboard/api.c::dashboard_build_tpc_registry`, via
+dashboard (`src/observability/dashboard/api.c::dashboard_build_tpc_registry`, via
 `brix_tpc_registry_snapshot()`).
 
 ## Files
@@ -49,7 +49,7 @@ dashboard (`dashboard/api.c::dashboard_build_tpc_registry`, via
 | `credential.h` / `credential.c` | The `brix_tpc_credential_t` model plus `brix_tpc_credential_parse()` (classify a raw credential string as none/proxy/token, optionally guided by a `hint`, after trimming and `Bearer `/`-----BEGIN` sniffing), `brix_tpc_credential_validate()` (non-empty + expiry check), and `brix_tpc_credential_type_name()`. |
 | `registry.h` / `registry.c` | The cross-process transfer registry: a fixed `BRIX_TPC_REGISTRY_SLOTS`-entry table in an nginx shared-memory zone (`brix_tpc_transfers`), guarded by an `ngx_shmtx_t`. Exposes `_configure` (post-config wiring), `_add`, `_update`, `_remove`, `_find`, and `_snapshot` (lock-held copy-out for the dashboard). Owns the slot-internal storage backing the source URL and destination path strings. |
 | `progress.c` | `brix_tpc_progress_emit()` — thin convenience wrapper that forwards a byte/state update to `brix_tpc_registry_update()`. The `bytes_total` argument is currently ignored (`(void) bytes_total;`); total is fixed at add time. Declared in `registry.h`. |
-| `metrics.h` / `metrics.c` | `brix_tpc_metric_transfer()` — the single low-cardinality call site both transports use to record TPC outcomes. Maps the neutral (protocol, direction, event) triple onto the unified counter API `brix_metric_tpc()` in `../../metrics/unified.h`. Defines the `BRIX_TPC_METRIC_STARTED`/`_SUCCESS`/`_ERROR` event codes (1/2/3). |
+| `metrics.h` / `metrics.c` | `brix_tpc_metric_transfer()` — the single low-cardinality call site both transports use to record TPC outcomes. Maps the neutral (protocol, direction, event) triple onto the unified counter API `brix_metric_tpc()` in `src/observability/metrics/unified.h`. Defines the `BRIX_TPC_METRIC_STARTED`/`_SUCCESS`/`_ERROR` event codes (1/2/3). |
 
 ## Key types & data structures
 
@@ -85,36 +85,36 @@ This subsystem is **called into**, never an entry point itself. Execution enters
 from the two TPC transports plus one post-config hook and one read-only consumer:
 
 1. **Post-config wiring (once per cycle).** Both
-   `../../config/postconfiguration.c:198` and `../../webdav/postconfig.c:144`
+   `src/core/config/postconfiguration.c:198` and `src/protocols/webdav/postconfig.c:144`
    call `brix_tpc_registry_configure(cf)`, which reserves the
    `brix_tpc_transfers` shared-memory zone against `ngx_stream_brix_module`.
    Calling it from both paths is idempotent — `ngx_shared_memory_add()` returns
    the same zone and the `shm_init` callback creates the `ngx_shmtx_t` once.
 
 2. **Native XRootD pull** (`../README.md`, files `../*.c`): on a write-mode
-   `kXR_open` carrying `tpc.src=`, `../read/open_request.c:160` gates with
-   `brix_tpc_check_authz()`; `../tpc_token.c:84` parses the bearer credential
-   through `brix_tpc_credential_parse()`; `../launch.c:176` registers via
-   `brix_tpc_registry_add()`; `../source.c:208` advances with
-   `brix_tpc_progress_emit()`; and `../done.c` emits
+   `kXR_open` carrying `tpc.src=`, `src/protocols/root/read/open_request.c:160` gates with
+   `brix_tpc_check_authz()`; `src/tpc/outbound/tpc_token.c:84` parses the bearer credential
+   through `brix_tpc_credential_parse()`; `src/tpc/engine/launch.c:176` registers via
+   `brix_tpc_registry_add()`; `src/tpc/outbound/source.c:208` advances with
+   `brix_tpc_progress_emit()`; and `src/tpc/engine/done.c` emits
    `brix_tpc_metric_transfer(BRIX_TPC_PROTO_STREAM, ...)`.
 
-3. **WebDAV HTTP-TPC** (`../../webdav/tpc.c` and siblings): on `COPY`,
-   `webdav/tpc.c:63` gates with `brix_tpc_check_authz()`; `webdav/tpc_cred.c:57`
-   parses the `Credential:` header; `webdav/tpc.c:99` / `tpc_thread.c:72`
-   register via `brix_tpc_registry_add()`; `webdav/tpc_curl.c:273` and
-   `tpc_marker.c:177` advance progress; and `tpc.c`/`tpc_thread.c`/`tpc_marker.c`
+3. **WebDAV HTTP-TPC** (`src/protocols/webdav/tpc.c` and siblings): on `COPY`,
+   `src/protocols/webdav/tpc.c:63` gates with `brix_tpc_check_authz()`; `src/protocols/webdav/tpc_cred.c:57`
+   parses the `Credential:` header; `src/protocols/webdav/tpc.c:99` / `src/protocols/webdav/tpc_thread.c:72`
+   register via `brix_tpc_registry_add()`; `src/protocols/webdav/tpc_curl.c:273` and
+   `src/protocols/webdav/tpc_marker.c:177` advance progress; and `src/protocols/webdav/tpc.c`/`src/protocols/webdav/tpc_thread.c`/`src/protocols/webdav/tpc_marker.c`
    emit `brix_tpc_metric_transfer(BRIX_TPC_PROTO_WEBDAV, ...)` at start,
    per-marker, and completion.
 
-4. **Read-only consumer:** `../../dashboard/api.c:443` calls
+4. **Read-only consumer:** `src/observability/dashboard/api.c:443` calls
    `brix_tpc_registry_snapshot()` to render the live transfer table as JSON.
 
 Call-outs from this subsystem are deliberately narrow: `auth.c` →
-`../../types/identity.h` (`brix_identity_check_token_scope`,
-`BRIX_AUTHN_S3KEY`); `metrics.c` → `../../metrics/unified.h`
+`src/core/types/identity.h` (`brix_identity_check_token_scope`,
+`BRIX_AUTHN_S3KEY`); `metrics.c` → `src/observability/metrics/unified.h`
 (`brix_metric_tpc`, `BRIX_PROTO_*`, `BRIX_ERR_NONE`/`_OTHER`);
-`registry.c` → `../../ngx_brix_module.h` for the `ngx_stream_brix_module`
+`registry.c` → `src/core/ngx_brix_module.h` for the `ngx_stream_brix_module`
 descriptor used to scope the shared-memory zone.
 
 ## Invariants, security & gotchas
@@ -127,7 +127,7 @@ descriptor used to scope the shared-memory zone.
   (`auth.c:79`, `need_write=1`). A NULL/empty path is
   treated as "no path constraint to check" and passes (`auth.c:34-36`): callers
   must not rely on this gate to confine paths — kernel confinement
-  (`../../path/beneath.c`, `RESOLVE_BENEATH`) is the path authority, not this
+  (`src/fs/path/beneath.c`, `RESOLVE_BENEATH`) is the path authority, not this
   gate.
 
 - **Path-length guard before stack copy.** `brix_tpc_check_scope_path()` copies
@@ -196,17 +196,17 @@ descriptor used to scope the shared-memory zone.
 - **Add a credential type** (e.g. a SciToken-flavored variant): extend
   `brix_tpc_credential_type_t` and the `brix_tpc_credential_t` fields in
   `credential.h`, add a sniff branch + a `_validate()` arm + a name in
-  `credential.c`, then teach the two callers (`webdav/tpc_cred.c`,
-  `tpc/tpc_token.c`) to pass the right `hint`.
+  `credential.c`, then teach the two callers (`src/protocols/webdav/tpc_cred.c`,
+  `src/tpc/outbound/tpc_token.c`) to pass the right `hint`.
 
 - **Add a transfer field** the dashboard should show: add it to
   `brix_tpc_transfer_t` (`transfer.h`) **and** the flattened
   `brix_tpc_transfer_snapshot_t` (`registry.h`), copy it in
   `brix_tpc_registry_snapshot()`, and render it in
-  `dashboard/api.c::dashboard_build_tpc_registry`.
+  `src/observability/dashboard/api.c::dashboard_build_tpc_registry`.
 
 - **Add a TPC metric dimension:** prefer extending the unified counter
-  (`../../metrics/unified.h`, `brix_metric_tpc`) and mapping to it inside
+  (`src/observability/metrics/unified.h`, `brix_metric_tpc`) and mapping to it inside
   `brix_tpc_metric_transfer()`; do not add a high-cardinality label.
 
 - **Wire a new transport into the registry:** call
@@ -219,14 +219,14 @@ descriptor used to scope the shared-memory zone.
 ## See also
 
 - `../README.md` — native XRootD destination-side pull TPC (the stream transport
-  that consumes this core: `connect.c`, `launch.c`, `source.c`, `done.c`,
-  `tpc_token.c`, `key_registry.c`).
-- `../../webdav/` — WebDAV `COPY` HTTP-TPC (the HTTP transport; `tpc.c`,
-  `tpc_cred.c`, `tpc_marker.c`, `tpc_thread.c`, `tpc_curl.c`).
-- `../../types/` — `identity.h` (`brix_identity_t`,
+  that consumes this core: `connect.c`, `src/tpc/engine/launch.c`, `src/tpc/outbound/source.c`, `src/tpc/engine/done.c`,
+  `src/tpc/outbound/tpc_token.c`, `src/tpc/engine/key_registry.c`).
+- `../../webdav/` — WebDAV `COPY` HTTP-TPC (the HTTP transport; `src/protocols/webdav/tpc.c`,
+  `src/protocols/webdav/tpc_cred.c`, `src/protocols/webdav/tpc_marker.c`, `src/protocols/webdav/tpc_thread.c`, `src/protocols/webdav/tpc_curl.c`).
+- `../../types/` — `src/core/types/identity.h` (`brix_identity_t`,
   `brix_identity_check_token_scope`, `BRIX_AUTHN_*`) used by `auth.c`.
 - `../../metrics/` — `unified.h` (`brix_metric_tpc`) backing `metrics.c`.
-- `../../path/` — `beneath.c` / `RESOLVE_BENEATH` confinement, the real path
+- `../../path/` — `src/fs/path/beneath.c` / `RESOLVE_BENEATH` confinement, the real path
   authority (TPC authz here is scope-only).
-- `../../dashboard/` — `api.c`, the read-only consumer of the registry snapshot.
+- `../../dashboard/` — `src/observability/dashboard/api.c`, the read-only consumer of the registry snapshot.
 - `../../../README.md` — master subsystem index.

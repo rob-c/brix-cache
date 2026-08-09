@@ -59,6 +59,7 @@ ngx_http_brix_shared_init(ngx_http_brix_shared_conf_t *conf)
     conf->cache_global_cas   = NGX_CONF_UNSET;
     conf->cache_passthrough  = NGX_CONF_UNSET;
     conf->cache_passthrough_max = NGX_CONF_UNSET;
+    conf->cache_only_if_cached = NGX_CONF_UNSET;
     conf->thread_pool_name.len  = 0;
     conf->thread_pool_name.data = NULL;
     conf->thread_pool        = NULL;
@@ -490,6 +491,10 @@ ngx_http_brix_shared_merge(ngx_conf_t *cf,
     ngx_conf_merge_value(conf->cache_passthrough, prev->cache_passthrough, 0);
     ngx_conf_merge_off_value(conf->cache_passthrough_max,
                              prev->cache_passthrough_max, 0);
+    /* Off by default: a cache that refuses misses is a deliberate topology
+     * choice (this node contributes only what it holds), never a default. */
+    ngx_conf_merge_value(conf->cache_only_if_cached,
+                         prev->cache_only_if_cached, 0);
 
     /* Hard read-only: force allow_write off HERE so no protocol merge can
      * forget the enforcement (it must win before token-scope checks). */

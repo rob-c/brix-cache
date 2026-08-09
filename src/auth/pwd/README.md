@@ -42,5 +42,5 @@ round 2  client → kXRS_main = DH-session-encrypted { kXRS_creds }
 | `pwd.h` | Shared declarations for the two files (the `pwdfile` lookup/verify prototypes). |
 
 The public entry point `brix_handle_pwd_auth` is declared in
-`../ngx_brix_module.h`; `brix_pwd_file` and the `auth` selector live on
+`src/core/ngx_brix_module.h`; `brix_pwd_file` and the `auth` selector live on
 `ngx_stream_brix_srv_conf_t`. Wire details: `docs/refactor/phase-52-pwd-wire-spec.md`.

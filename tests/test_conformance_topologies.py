@@ -40,6 +40,7 @@ from settings import (
     NGINX_ANON_PORT,
     REF_BRIX_PORT,
     SERVER_HOST,
+    TEST_ROOT,
 )
 
 # These tests provision multi-server topologies and run the FULL conformance suite
@@ -244,13 +245,18 @@ def test_full_conformance_through_topology(topo, probe_file, lifecycle):
     env = dict(os.environ)
     env["CONFORMANCE_NGINX_URL"] = front_url
     env["TEST_SKIP_SERVER_SETUP"] = "1"      # reuse the running fleet
+    env["TEST_OWN_FLEET"] = "0"
     env["PYTHONPATH"] = "tests" + (
         os.pathsep + env["PYTHONPATH"] if env.get("PYTHONPATH") else "")
 
     try:
+        basetemp = os.path.join(
+            TEST_ROOT, "artifacts", "conformance-topologies", topo)
         proc = subprocess.run(
             [sys.executable, "-m", "pytest", "tests/test_conformance.py",
              "-p", "no:xdist", "-p", "no:cacheprovider",
+             "-p", "no:randomly", "-p", "no:rerunfailures",
+             "--basetemp", basetemp,
              "--timeout=60", "-o", "addopts="],
             cwd=os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
             env=env, capture_output=True, text=True, timeout=300)

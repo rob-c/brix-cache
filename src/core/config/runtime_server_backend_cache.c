@@ -209,6 +209,8 @@ brix_tier_fill_cache_policy(ngx_http_brix_shared_conf_t *common,
                       ? 0 : (ngx_uint_t) common->cache_prefetch;
     pol.prefetch_window = (common->cache_prefetch_window == NGX_CONF_UNSET_SIZE)
                         ? 8 * 1024 * 1024 : common->cache_prefetch_window;
+    /* Cache-only serving (audit §4.4): a miss must NOT reach the origin. */
+    pol.only_if_cached  = (common->cache_only_if_cached == 1);
     /* phase-68 digest-verification mode — the posix-store constraint it
      * carries is validated by the caller against the parsed store driver. */
     pol.verify = (common->cache_verify_mode == NGX_CONF_UNSET_UINT)

@@ -150,10 +150,71 @@ brix_pending_insert(uint32_t streamid, ngx_pid_t worker_pid,
     slot->expires     = ngx_current_msec + timeout_ms;
     slot->redir_host[0] = '\0';
     slot->redir_port  = 0;
+    slot->probe_path[0] = '\0';
     slot->in_use      = 1;
 
     ngx_shmtx_unlock(&brix_pending_mutex);
     return NGX_OK;
+}
+
+/*
+ * brix_pending_set_path — §2.6: attach the probed path to a pending entry.
+ *
+ * WHAT: Records the path a kYR_state fan-out asked the cluster about, so the
+ *       window-expiry site can write a negative location-cache entry for it.
+ * WHY:  The expiry handler (connection/recv.c) has only the streamid — the
+ *       path must ride the pending entry to reach it.  A separate setter
+ *       keeps brix_pending_insert's signature stable for its other callers
+ *       (CMS-parent locates, which must NOT produce negative entries — a
+ *       parent timeout says nothing about cluster-wide absence).
+ * HOW:  Locked lookup by streamid+pid; bounded copy; silent no-op on a
+ *       missing entry or over-long path.
+ */
+void
+brix_pending_set_path(uint32_t streamid, ngx_pid_t worker_pid,
+    const char *path)
+{
+    brix_pending_locate_t *slot;
+
+    if (path == NULL || ngx_strlen(path) >= sizeof(slot->probe_path)) {
+        return;
+    }
+    slot = brix_pending_lookup(streamid, worker_pid);
+    if (slot == NULL) {
+        return;
+    }
+    ngx_cpystrn((u_char *) slot->probe_path, (u_char *) path,
+                sizeof(slot->probe_path));
+    brix_pending_unlock();
+}
+
+/*
+ * brix_pending_take_path — §2.6: read back the probed path at window expiry.
+ *
+ * WHAT: Copies the entry's probe_path into buf; returns 1 when the entry
+ *       exists and carried a non-empty path, else 0.
+ * WHY:  The WAITING_CMS timeout handler runs before brix_pending_remove and
+ *       needs the path to record "no node answered for it".
+ * HOW:  Locked lookup + bounded copy; the entry itself is left for the
+ *       caller's existing remove.
+ */
+int
+brix_pending_take_path(uint32_t streamid, ngx_pid_t worker_pid,
+    char *buf, size_t bufsz)
+{
+    brix_pending_locate_t *slot;
+    int                      have = 0;
+
+    slot = brix_pending_lookup(streamid, worker_pid);
+    if (slot == NULL) {
+        return 0;
+    }
+    if (slot->probe_path[0] != '\0' && bufsz > 0) {
+        ngx_cpystrn((u_char *) buf, (u_char *) slot->probe_path, bufsz);
+        have = 1;
+    }
+    brix_pending_unlock();
+    return have;
 }
 
 brix_pending_locate_t *

@@ -17,6 +17,7 @@ import subprocess
 
 import pytest
 
+from cmdscripts.live_common import inject_nginx_load_modules
 from settings import BIND_HOST, NGINX_BIN
 
 GATE_NEEDLE = "requires an authenticating brix_auth scheme"
@@ -48,6 +49,7 @@ stream {{ server {{ listen {BIND_HOST}:13299;
     {extra}
 }} }}
 """)
+    inject_nginx_load_modules(conf)
     p = subprocess.run([str(NGINX_BIN), "-t", "-p", str(root), "-c", str(conf)],
                        capture_output=True, text=True, timeout=30)
     return p.returncode, p.stderr + p.stdout

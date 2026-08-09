@@ -1,7 +1,11 @@
 # Test-fleet ports registry
 
-**Source of truth:** [`tests/settings.py`](../../tests/settings.py) — every
-constant below is env-overridable (`TEST_<NAME>`). Secondary allocators:
+**Source of truth:** [`tests/fleet_ports.py`](../../tests/fleet_ports.py), backed
+by the port ladder, packs
+all central allocations into 1,151 contiguous lane-relative slots. Set
+`TEST_PORT_START`; the tables below retain the **original development ports**
+only as provenance. The named constants live in
+[`tests/settings.py`](../../tests/settings.py). Secondary allocators:
 [`tests/cms_mesh_lib.py`](../../tests/cms_mesh_lib.py) (21610–21749),
 [`tests/hybrid_mesh_lib.py`](../../tests/hybrid_mesh_lib.py) (11300–11330),
 and the declarative fleet catalogue [`tests/fleet_specs.py`](../../tests/fleet_specs.py)
@@ -126,6 +130,7 @@ nginx proxy in front.
 | 11164 | CHAOS_TIER2_PORT | chaos mesh tier-2 cache |
 | 11165 | CHAOS_TIER1_PORT | chaos mesh tier-1 proxy |
 | 11166 | CHAOS_DISCOVERY_REDIR_PORT | chaos discovery redirector |
+| 11167 | CHAOS_DISCOVERY_CMS_PORT | chaos discovery CMS manager |
 | 11168 | CHAOS_DISCOVERY_DS_PORT | chaos discovery data server |
 | 11169 / 11170 / 11171 | CLUSTER_MP_REDIR_PORT / CLUSTER_MP_DS_PORT / CLUSTER_MP_CMS_PORT | multi-path cluster |
 | 11172 / 11173 / 11174 / 11175 | CLUSTER_MS_REDIR_PORT / CLUSTER_MS_DS1_PORT / CLUSTER_MS_DS2_PORT / CLUSTER_MS_CMS_PORT | multi-server cluster |
@@ -150,6 +155,7 @@ nginx proxy in front.
 | 11101 | MANAGER_PORT | root | manager-mode nginx |
 | 11102 | READONLY_PORT | root | read-only instance |
 | 11103 | VO_PORT | root | VO ACL enforcement |
+| 8445 | NGINX_DASHBOARD_PORT | http | dashboard/admin API |
 | 11114 | AUTHDB_PORT | root | authdb permission rules |
 | 11183 / 11184 | S3_PRESIGNED_PORT / S3_PRESIGNED_STS_PORT | s3 | presigned URLs (/+STS) |
 | 11191 / 11192 | SECURITY_LEVEL_STANDARD_PORT / SECURITY_LEVEL_PEDANTIC_PORT | root | signing security levels |
@@ -173,6 +179,7 @@ nginx proxy in front.
 | 22014 | WEBDAV_UNLOCK_OWNERSHIP_PORT | davs | LOCK/UNLOCK xattr-backed locks |
 | 22017 | S3_MPU_PORT | s3 | multipart upload-part-copy traversal |
 | 12960 / 12961 | COMPRESS_WEBDAV_PORT / COMPRESS_S3_PORT | davs/s3 | dedicated compression instance (`nginx_compress.conf`; tests attach and seed `data-compress`) |
+| 21196 / 21198 / 21199 | ZIP_ROOT_PORT / ZIP_WEBDAV_PORT / ZIP_S3_PORT | root/davs/s3 | ZIP virtual-file conformance endpoints |
 | 21200 | INTEROP_OUR_PORT | root | "our server" half of the official-interop conformance pair (`nginx_interop.conf`; `official_interop_lib.start_pair` attaches) |
 | 21201 | INTEROP_OFF_PORT | root | stock-xrootd "official" half of the interop pair (exports `data-interop-off`) |
 
@@ -204,7 +211,7 @@ floor (32768) so a client socket can never transiently steal a mock's fixed list
 
 | Constant | Default | What |
 |---|---|---|
-| REGISTRY_PORT_BASE | unset (`None`) | `TEST_REGISTRY_PORT_BASE` env passthrough reserved for the `RegistryLauncher` fleet catalogue (a future re-basing hook); today it is only surfaced by `tests/settings.py` and type-checked by `test_server_registry_smoke.py` |
+| TEST_PORT_START | `10000` | Number immediately below the first port in the 1,151-slot central ladder. A base of 10000 allocates 10001..11151; the next lane must start at 11151 or later. |
 
 ## Fixed bands outside settings.py
 

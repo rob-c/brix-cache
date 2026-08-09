@@ -30,11 +30,11 @@ allocation to the request path.
 This subsystem sits *beside* the request lifecycle rather than inside any one
 protocol handler: it is shared infrastructure (peer of `compat`, `crypto`, and
 `metrics`). Its consumers are the token cache
-([../token/token_cache.c](../../auth/token/token_cache.c)), the auth-result cache
-([../path/auth_cache.c](../../auth/authz/auth_cache.c) / `auth_gate.c`), the GSI/stream
-rate-limit entry point ([../gsi/auth.c](../../auth/gsi/auth.c)), the HTTP rate-limit
-entry point (`../webdav/access.c`), and the metrics writer
-([../metrics/writer.c](../../observability/metrics/writer.c)) which exports each zone's counters.
+([src/auth/token/token_cache.c](../../auth/token/token_cache.c)), the auth-result cache
+([src/auth/authz/auth_cache.c](../../auth/authz/auth_cache.c) / `src/auth/authz/auth_gate.c`), the GSI/stream
+rate-limit entry point ([src/auth/gsi/auth.c](../../auth/gsi/auth.c)), the HTTP rate-limit
+entry point (`src/protocols/webdav/access.c`), and the metrics writer
+([src/observability/metrics/writer.c](../../observability/metrics/writer.c)) which exports each zone's counters.
 
 ## Files
 
@@ -44,6 +44,13 @@ entry point (`../webdav/access.c`), and the metrics writer
 | `kv.c` | The store implementation: shared-segment layout (`brix_kv_header_t` + a flat array of `brix_kv_entry_t`), FNV-1a 64-bit hashing, linear-probing get/set/delete with backward-shift (tombstone-free) deletion, lazy TTL expiry, the module-level `brix_kv_zones[]` registry, zone init/attach on (re)load (`brix_kv_init_zone`), and the `brix_kv_zone` directive parser. |
 | `rate_limit.h` | `brix_rate_limit_conf_t` (per-conf settings: resolved zone handle, rate, burst, key-by-DN-or-IP) and the `brix_rate_limit_check` / `brix_rate_limit_directive` declarations. |
 | `rate_limit.c` | Token-bucket logic: derive the `"rl:"`-prefixed key, read the bucket from the KV zone, refill proportional to elapsed time, decrement-and-store with an idle-eviction TTL; plus the `brix_rate_limit` directive parser. |
+
+### Other files
+
+| File | Responsibility |
+|---|---|
+| `kv_config.c` | Owns everything that runs at configuration/init time rather than on the request hot path — the `brix_kv_zone` directive setter, the brix_kv_configure() geometry computation, the slab-backed zone init callback, and the pr. |
+| `kv_internal.h` | Defines the two private structs that describe the slab-backed table layout — the per-zone header (lock + counters + geometry) and a single hash entry — used by both kv.c (data-plane ops: get/set/delete/stats) and kv_conf. |
 
 ## Key types & data structures
 
@@ -80,7 +87,7 @@ entry point (`../webdav/access.c`), and the metrics writer
 is parsed by `brix_kv_zone_directive`, valid in either the `http{}` or
 `stream{}` main block (it picks `&ngx_http_brix_webdav_module` or
 `&ngx_stream_brix_module` from `cf->cmd_type`). Both directive tables register
-it (`webdav/module.c:685`, `stream/module.c:960`). The setter allocates an
+it (`src/protocols/webdav/module.c:685`, `src/protocols/root/stream/module.c:960`). The setter allocates an
 `brix_kv_t` from `cf->pool` and calls `brix_kv_configure`, which registers the
 segment via `ngx_shared_memory_add`, sets the `init` callback to
 `brix_kv_init_zone`, and appends to the module-wide `brix_kv_zones[]`
@@ -103,22 +110,22 @@ re-creates this process's handle to the already-initialized shared lock — it d
 bounded linear-probe sequence (capped at `capacity/2` probes), and releases it;
 there is no I/O or allocation inside the critical section. `get` lazily evicts an
 entry it finds expired and reports a miss. Token caching
-([../token/token_cache.c](../../auth/token/token_cache.c)) keys by a 32-byte token
+([src/auth/token/token_cache.c](../../auth/token/token_cache.c)) keys by a 32-byte token
 fingerprint and stores the whole `brix_token_claims_t`, with a TTL derived from
 the token's own `exp` and capped at `BRIX_TOKEN_CACHE_MAX_TTL_MS` (5 min);
-auth caching ([../path/auth_cache.c](../../auth/authz/auth_cache.c)) stores
+auth caching ([src/auth/authz/auth_cache.c](../../auth/authz/auth_cache.c)) stores
 `brix_auth_cache_val_t` with a short configured TTL (default 30 s).
 
 `brix_rate_limit_check` is called at admission: it loads the bucket (defaulting
 to a full bucket if absent), refills by elapsed time, and either
 decrements-and-admits (`NGX_OK`) or rejects (`NGX_DECLINED`). Callers turn
 `NGX_DECLINED` into the appropriate protocol response — stream `kXR_wait` from
-[../gsi/auth.c](../../auth/gsi/auth.c) (keyed by authenticated DN), HTTP 429 from
-`../webdav/access.c` (keyed by client IP). (The richer leaky-bucket / bandwidth /
+[src/auth/gsi/auth.c](../../auth/gsi/auth.c) (keyed by authenticated DN), HTTP 429 from
+`src/protocols/webdav/access.c` (keyed by client IP). (The richer leaky-bucket / bandwidth /
 concurrency limiter lives in [../ratelimit/](../../net/ratelimit/); this
 `shm/rate_limit.c` is the simple per-request token-bucket variant.)
 
-**Export.** [../metrics/writer.c](../../observability/metrics/writer.c) (`brix_kv_metrics_emit`)
+**Export.** [src/observability/metrics/writer.c](../../observability/metrics/writer.c) (`brix_kv_metrics_emit`)
 iterates `brix_kv_zone_count()` / `brix_kv_zone_get(i)`, calls
 `brix_kv_stats`, and emits `brix_kv_hits_total{zone="..."}` and its siblings.
 
@@ -160,7 +167,7 @@ iterates `brix_kv_zone_count()` / `brix_kv_zone_get(i)`, calls
   labels — keep it that way (project invariant: no paths/DNs/UUIDs in labels).
 - **Header is intentionally lightweight.** `kv.h` includes only nginx core
   headers (not `ngx_brix_module.h`) so it can be embedded in `types/config.h`
-  and `webdav/webdav.h` without an include cycle (`kv.h:24`). Keep stream/http
+  and `src/protocols/webdav/webdav.h` without an include cycle (`kv.h:24`). Keep stream/http
   symbols out of it; `kv.c` itself pulls the full `ngx_brix_module.h`.
 
 ## Entry points / extending
@@ -177,18 +184,18 @@ iterates `brix_kv_zone_count()` / `brix_kv_zone_get(i)`, calls
   `NGX_ADDON_SRCS` in the top-level `config` file (where `src/core/shm/kv.c` and
   `src/core/shm/rate_limit.c` already appear) and rebuilt with `./configure`.
 - **Add a directive to an existing wrapper:** wire it through the module's
-  `ngx_command_t` table in `webdav/module.c` / `stream/module.c` (which already
+  `ngx_command_t` table in `src/protocols/webdav/module.c` / `src/protocols/root/stream/module.c` (which already
   register `brix_kv_zone` and `brix_rate_limit`), then parse it in the
   corresponding `_directive` setter.
 - **Expose per-zone stats:** they are already exported automatically by
-  `brix_kv_metrics_emit` in [../metrics/writer.c](../../observability/metrics/writer.c) for every
+  `brix_kv_metrics_emit` in [src/observability/metrics/writer.c](../../observability/metrics/writer.c) for every
   registered zone — no per-feature wiring needed.
 
 ## See also
 
-- [../token/README.md](../../auth/token/README.md) — JWT/bearer validation cache built on a KV zone.
-- [../path/README.md](../../fs/path/README.md) — auth-result cache (`auth_cache.c`/`auth_gate.c`) built on a KV zone.
-- [../ratelimit/README.md](../../net/ratelimit/README.md) — the full leaky-bucket / bandwidth / concurrency limiter (this dir is the simple token-bucket variant).
-- [../metrics/README.md](../../observability/metrics/README.md) — Prometheus exporter that emits per-zone KV counters.
+- [../../auth/token/README.md](../../auth/token/README.md) — JWT/bearer validation cache built on a KV zone.
+- [../../fs/path/README.md](../../fs/path/README.md) — auth-result cache (`src/auth/authz/auth_cache.c`/`src/auth/authz/auth_gate.c`) built on a KV zone.
+- [../../net/ratelimit/README.md](../../net/ratelimit/README.md) — the full leaky-bucket / bandwidth / concurrency limiter (this dir is the simple token-bucket variant).
+- [../../observability/metrics/README.md](../../observability/metrics/README.md) — Prometheus exporter that emits per-zone KV counters.
 - [../config/README.md](../config/README.md) — directive parsing and conf-merge conventions.
 - [../README.md](../README.md) — master subsystem index.

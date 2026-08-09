@@ -57,4 +57,8 @@ void fp_event_set_route(const char *name);
  * one command grammar. */
 int fp_json_to_verb(const char *json, char *out, size_t outsz);
 
+/* Fetch one top-level key's value (string decoded, or a bare number/bool token
+ * copied verbatim). Returns 1 (filled `out`), 0 (absent), -1 (malformed). */
+int fp_json_get(const char *json, const char *key, char *out, size_t outsz);
+
 #endif /* BRIX_FAULT_PROXY_MODS_H */

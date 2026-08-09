@@ -11,7 +11,12 @@ from settings import HOST
 
 from config_templates import render_config_to_path
 from cmdscripts import main as cmd_main, run as cmd_run
-from server_launcher import RegistryCommandFailure, RegistryLauncher
+from server_launcher import (
+    RegistryCommandFailure,
+    RegistryLauncher,
+    _inject_nginx_load_modules,
+    _inject_nginx_runtime_paths,
+)
 from server_registry import (
     CommandSpec,
     NginxInstanceSpec,
@@ -19,6 +24,8 @@ from server_registry import (
     endpoint_for,
     get_server,
     manifest_read,
+    manifest_owns_test_root,
+    fleet_ready_for_test_root,
     manifest_write,
     register_command_suite,
     register_nginx,
@@ -56,6 +63,160 @@ def test_registry_manifest_round_trip(tmp_path, monkeypatch):
     assert server("smoke").port == 12345
     assert manifest_read(str(manifest_path))["version"] == 1
     clear_registry()
+
+
+def test_dynamic_module_directives_are_injected_before_config(monkeypatch, tmp_path):
+    core = tmp_path / "stream core.so"
+    brix = tmp_path / "brix.so"
+    config = tmp_path / "nginx.conf"
+    config.write_text("events {}\n", encoding="utf-8")
+    monkeypatch.setenv("TEST_NGINX_LOAD_MODULES", os.pathsep.join((str(core), str(brix))))
+
+    _inject_nginx_load_modules(str(config))
+
+    lines = config.read_text(encoding="utf-8").splitlines()
+    assert lines[:2] == [
+        f'load_module "{core}";',
+        f'load_module "{brix}";',
+    ]
+    assert lines[3] == "events {}"
+
+
+def test_dynamic_module_injection_is_idempotent(monkeypatch, tmp_path):
+    module = tmp_path / "brix.so"
+    config = tmp_path / "nginx.conf"
+    config.write_text("events {}\n", encoding="utf-8")
+    monkeypatch.setenv("TEST_NGINX_LOAD_MODULES", str(module))
+
+    _inject_nginx_load_modules(str(config))
+    _inject_nginx_load_modules(str(config))
+
+    assert config.read_text(encoding="utf-8").count("load_module ") == 1
+
+
+def test_stop_registered_visits_every_spec_after_one_stop_failure(monkeypatch):
+    specs = [
+        NginxInstanceSpec(name="first", template="unused", port=12341),
+        NginxInstanceSpec(name="second", template="unused", port=12342),
+    ]
+    launcher = RegistryLauncher()
+    visited = []
+
+    def stop(name):
+        visited.append(name)
+        if name == "second":
+            raise FileNotFoundError("launch binary disappeared")
+
+    monkeypatch.setattr(launcher, "stop", stop)
+    with pytest.raises(RuntimeError, match="second: launch binary disappeared"):
+        launcher.stop_registered(specs)
+    assert visited == ["second", "first"]
+
+
+def test_orphan_worker_reaper_uses_only_declared_ports(monkeypatch, tmp_path):
+    spec = NginxInstanceSpec(name="orphan", template="unused", port=12343)
+    proc = tmp_path / "proc"
+    (proc / "701").mkdir(parents=True)
+    (proc / "702").mkdir(parents=True)
+    (proc / "701" / "cmdline").write_bytes(b"nginx: worker process\0")
+    (proc / "702" / "cmdline").write_bytes(b"unrelated-server\0")
+    killed = []
+
+    monkeypatch.setattr("lib_py.util.pids_on_port", lambda port: [701, 702])
+    monkeypatch.setattr("lib_py.util.kill_pid_list", lambda pids: killed.extend(pids))
+    real_path = Path
+
+    def fake_path(value):
+        text = str(value)
+        if text.startswith("/proc/"):
+            return proc / text.split("/")[2] / "cmdline"
+        return real_path(value)
+
+    monkeypatch.setattr("server_launcher.Path", fake_path)
+    RegistryLauncher._reap_orphan_nginx_workers(spec)
+    assert killed == [701]
+
+
+def test_packaged_nginx_defaults_are_confined_to_instance_prefix(tmp_path):
+    prefix = tmp_path / "instance"
+    config = tmp_path / "nginx.conf"
+    config.write_text("events {}\nhttp { server {} }\n", encoding="utf-8")
+
+    _inject_nginx_runtime_paths(str(config), str(prefix))
+
+    text = config.read_text(encoding="utf-8")
+    assert f'pid "{prefix}/logs/nginx.pid";' in text
+    assert f'access_log "{prefix}/logs/access.log";' in text
+    assert f'client_body_temp_path "{prefix}/tmp/client-body";' in text
+    assert "/run/nginx.pid" not in text
+    assert "/var/log/nginx" not in text
+
+
+def test_explicit_runtime_paths_are_not_duplicated(tmp_path):
+    prefix = tmp_path / "instance"
+    config = tmp_path / "nginx.conf"
+    config.write_text(
+        "pid /chosen/nginx.pid;\nerror_log stderr;\n"
+        "events {}\nhttp { access_log off; server {} }\n",
+        encoding="utf-8",
+    )
+
+    _inject_nginx_runtime_paths(str(config), str(prefix))
+
+    text = config.read_text(encoding="utf-8")
+    assert text.count("pid ") == 1
+    assert text.count("error_log ") == 1
+    assert text.count("access_log ") == 1
+
+
+def test_stream_only_config_gets_no_http_directives(tmp_path):
+    config = tmp_path / "nginx.conf"
+    config.write_text("events {}\nstream { server {} }\n", encoding="utf-8")
+
+    _inject_nginx_runtime_paths(str(config), str(tmp_path / "instance"))
+
+    text = config.read_text(encoding="utf-8")
+    assert "access_log" not in text
+    assert "client_body_temp_path" not in text
+
+
+def test_manifest_ownership_accepts_matching_normalized_root(tmp_path, monkeypatch):
+    root = tmp_path / "suite-root"
+    manifest = tmp_path / "manifest.json"
+    manifest.write_text(json.dumps({
+        "version": 1, "test_root": str(root / ".." / "suite-root"),
+        "servers": {},
+    }))
+    monkeypatch.setattr("server_registry.TEST_ROOT", str(root))
+    assert manifest_owns_test_root(str(manifest))
+
+
+def test_manifest_ownership_rejects_different_root(tmp_path, monkeypatch):
+    manifest = tmp_path / "manifest.json"
+    manifest.write_text(json.dumps({
+        "version": 1, "test_root": str(tmp_path / "lane-a"), "servers": {},
+    }))
+    monkeypatch.setattr("server_registry.TEST_ROOT", str(tmp_path / "lane-b"))
+    assert not manifest_owns_test_root(str(manifest))
+
+
+def test_fleet_ready_marker_requires_matching_completed_root(tmp_path, monkeypatch):
+    marker = tmp_path / ".fleet-ready"
+    monkeypatch.setattr("server_registry.TEST_ROOT", str(tmp_path / "lane-a"))
+    assert not fleet_ready_for_test_root(str(marker))
+    marker.write_text(str(tmp_path / "lane-b") + "\n")
+    assert not fleet_ready_for_test_root(str(marker))
+    marker.write_text(str(tmp_path / "lane-a") + "\n")
+    assert fleet_ready_for_test_root(str(marker))
+
+
+@pytest.mark.parametrize("payload", ["not-json", '{"version": 1, "servers": {}}'])
+def test_manifest_ownership_rejects_invalid_or_rootless_manifest(
+        tmp_path, monkeypatch, payload):
+    manifest = tmp_path / "manifest.json"
+    manifest.write_text(payload)
+    monkeypatch.setattr("server_registry.TEST_ROOT", str(tmp_path / "lane"))
+    assert not manifest_owns_test_root(str(manifest))
 
 
 def test_registry_rejects_a_portless_spec():
@@ -265,7 +426,7 @@ def test_registry_settings_exports_phase_env_knobs():
     assert settings.REGISTRY_MANIFEST.endswith("manifest.json")
     assert isinstance(settings.REGISTRY_START, bool)
     assert isinstance(settings.REGISTRY_KEEP_LOGS, bool)
-    assert settings.REGISTRY_PORT_BASE is None or isinstance(settings.REGISTRY_PORT_BASE, str)
+    assert isinstance(settings.TEST_PORT_START, int)
 
 
 def test_endpoint_honours_spec_host_and_brackets_ipv6_url():

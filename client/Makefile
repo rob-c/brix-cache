@@ -49,7 +49,10 @@ endif
 # present, arm -DBRIX_HAVE_LIBURING + its cflags/libs; otherwise the disk ring
 # and loop engine compile to inert stubs and the epoll/pread path is the only one
 # in the binary (no -luring dependency). Kept ngx-free (client-only).
-HAVE_LIBURING := $(shell pkg-config --exists liburing 2>/dev/null && echo yes)
+# Floor 2.4: aio_engine.c uses the io_uring_setup_buf_ring/io_uring_free_buf_ring
+# helpers added in liburing 2.4 (Ubuntu 22.04 ships 2.1 -> stubs; the server-side
+# ./config probe stays version-free, its backends compile against 2.0).
+HAVE_LIBURING := $(shell pkg-config --atleast-version=2.4 liburing 2>/dev/null && echo yes)
 ifeq ($(HAVE_LIBURING),yes)
   URING_CFLAGS := -DBRIX_HAVE_LIBURING $(shell pkg-config --cflags liburing 2>/dev/null)
   URING_LIBS   := $(shell pkg-config --libs liburing 2>/dev/null)
@@ -68,9 +71,12 @@ endif
 ifeq ($(shell pkg-config --exists libbrotlienc libbrotlidec 2>/dev/null && echo y),y)
   CODEC_LIBS += $(shell pkg-config --libs libbrotlienc libbrotlidec 2>/dev/null)
 endif
+# \043 = '#': GNU make >= 4.3 passes \# inside a function call through with
+# the backslash kept, so a '\#include' probe always exits 0 (stray-backslash
+# line preprocesses clean) — must match shared/xrdproto/Makefile's probe.
 ifeq ($(shell pkg-config --exists bzip2 2>/dev/null && echo y),y)
   CODEC_LIBS += $(shell pkg-config --libs bzip2 2>/dev/null)
-else ifeq ($(shell printf '\#include <bzlib.h>\n' | $(CC) -E - >/dev/null 2>&1 && echo y),y)
+else ifeq ($(shell printf '\043include <bzlib.h>\n' | $(CC) -E - >/dev/null 2>&1 && echo y),y)
   CODEC_LIBS += -lbz2
 endif
 # lz4 (phase-42 extension): an env hint (BRIX_LZ4_LIBS) supplies the link for a
@@ -121,7 +127,7 @@ LIB_SRCS   := \
   lib/protocols/ftp/ftp_ctl.c lib/protocols/ftp/ftp_data.c lib/protocols/ftp/ftp_gsi.c lib/protocols/ftp/ftp_gsi_cred.c lib/protocols/ftp/ftp_login.c lib/protocols/ftp/ftp_ops.c lib/protocols/ftp/ftp_screen.c \
   $(SRC)/fs/backend/gsiftp/gftp_reply.c $(SRC)/fs/backend/gsiftp/gftp_mlsx.c \
   lib/protocols/shared/checksum.c lib/protocols/shared/cks_verify.c lib/protocols/shared/cksum_manifest.c lib/protocols/shared/zip.c lib/protocols/shared/zip_write.c \
-  lib/xfer/copy.c lib/xfer/copy_block.c lib/xfer/copy_gsiftp.c lib/xfer/copy_cksum_verify.c lib/xfer/copy_filter.c lib/xfer/copy_local.c lib/xfer/copy_local_parallel.c lib/xfer/copy_pump.c lib/xfer/copy_recursive.c lib/xfer/copy_recursive_ul.c lib/xfer/copy_remote.c lib/xfer/copy_upload.c lib/xfer/copy_web_download.c lib/xfer/copy_zip.c \
+  lib/xfer/copy.c lib/xfer/copy_block.c lib/xfer/copy_gsiftp.c lib/xfer/copy_cksum_verify.c lib/xfer/copy_filter.c lib/xfer/copy_local.c lib/xfer/copy_local_parallel.c lib/xfer/copy_metalink.c lib/xfer/copy_pump.c lib/xfer/copy_recursive.c lib/xfer/copy_recursive_ul.c lib/xfer/copy_remote.c lib/xfer/copy_upload.c lib/xfer/copy_web_download.c lib/xfer/copy_xcp.c lib/xfer/copy_xcp_sources.c lib/xfer/copy_zip.c lib/xfer/metalink.c \
   lib/posix/fuse_ops.c lib/posix/posix_map.c \
   lib/cli/cli_cksum.c lib/cli/cli_conn.c lib/cli/cli_cred.c lib/cli/cli_hint.c lib/cli/cli_opts.c lib/cli/jsonout.c lib/cli/suggest.c lib/cli/xferjournal.c \
   lib/observability/capture.c lib/observability/trace.c \
@@ -574,7 +580,8 @@ FAULT_PROXY_SRCS := apps/diag/brix_fault_proxy.c apps/diag/brix_fault_priv.c \
 	apps/diag/brix_fault_toxic.c apps/diag/brix_fault_route.c \
 	apps/diag/brix_fault_relay.c apps/diag/brix_fault_pump.c \
 	apps/diag/brix_fault_cmd_lever.c apps/diag/brix_fault_cmd_attack.c \
-	apps/diag/brix_fault_cmd_dpi.c apps/diag/brix_fault_udp.c \
+	apps/diag/brix_fault_cmd_dpi.c apps/diag/brix_fault_cmd_json.c \
+	apps/diag/brix_fault_udp.c \
 	apps/diag/brix_fault_report.c apps/diag/brix_fault_cli.c
 FAULT_PROXY_HDRS := apps/diag/brix_fault_priv.h apps/diag/brix_fault_priv_internal.h \
 	apps/diag/brix_fault_ext.h \
@@ -811,7 +818,7 @@ install-automount:
 # vfs_s3_smoke is excluded (needs an external S3 endpoint; run it manually).
 # Each test is a standalone main() linking the client lib + libxrdproto, the
 # same recipe as the Build+run comment in each test's header.
-CLIENT_UNIT_TESTS := cli_opts_unit cli_cred_unit cred_unit cred_store_unit cred_refresh_unit vfs_posix_unit vfs_block_unit vfs_s3_creds_unit jsonout_unit copy_filter_unit xferjournal_unit relsafe_unit ckmanifest_unit envalias_unit xrdrc_defaults_unit suggest_unit uring_direct_unit ftp_client_unit web_proxy_pem_unit sigver_kernel_unit
+CLIENT_UNIT_TESTS := cli_opts_unit cli_cred_unit cred_unit cred_store_unit cred_refresh_unit vfs_posix_unit vfs_block_unit vfs_s3_creds_unit jsonout_unit copy_filter_unit xferjournal_unit relsafe_unit ckmanifest_unit envalias_unit xrdrc_defaults_unit suggest_unit uring_direct_unit ftp_client_unit web_proxy_pem_unit sigver_kernel_unit metalink_unit kxr_errors_unit
 # The tests predate the phase-69 bucket reshuffle and include bucket-local
 # headers bare ("cred.h"); add the bucket dirs rather than churning the tests.
 TEST_INC := -Ilib/auth/cred -Ilib/auth/sss -Ilib/fs -Ilib/cli -Ilib/core/types -Ilib/core/config -Ilib/net

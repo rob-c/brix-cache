@@ -118,3 +118,10 @@ recommended additional verification where CTA tooling is available.
 - `cta.xrd.Data` items are a `oneof` of 30+ typed `cta.admin.*` listing messages;
   encoding a specific item is deferred to Phase 5 (where the `query` response type
   is chosen). The `StreamResponse.header` wrapper is provided here.
+
+### Other files
+
+| File | Responsibility |
+|---|---|
+| `cta_exec_unittest.c` | standalone unit test for the CTA executor vtable. |
+| `cta_queue_unittest.c` | standalone unit test for the CTA request queue. |

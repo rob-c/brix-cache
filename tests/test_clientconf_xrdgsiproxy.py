@@ -41,9 +41,12 @@ def _run(which, args, env_extra=None):
 
 @pytest.mark.skipif(not os.path.exists(PROXY_STD), reason="no test proxy present")
 def test_info_reports_subject():
-    env = {"X509_USER_PROXY": PROXY_STD, "X509_CERT_DIR": CA_DIR}
-    s = _run(STOCK, ["info"], env)
-    o = _run(OURS, ["info"], env)
+    # Stock xrdgsiproxy ignores X509_USER_PROXY for `info`; select the same
+    # fixture explicitly for both implementations.
+    env = {"X509_CERT_DIR": CA_DIR}
+    args = ["info", "-file", PROXY_STD]
+    s = _run(STOCK, args, env)
+    o = _run(OURS, args, env)
     # Both must succeed and report an identity ("subject"/"identity"/DN).
     assert s.returncode == 0 and o.returncode == 0, \
         "info rc: stock=%s ours=%s" % (s.returncode, o.returncode)

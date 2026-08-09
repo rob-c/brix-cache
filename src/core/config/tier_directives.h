@@ -4,7 +4,7 @@
  * stage_flush,cache_max_object,cache_evict_at,cache_evict_to,
  * cache_index_cache,cache_meta,cache_slice_size,cache_global_cas,
  * cache_passthrough,cache_passthrough_max,cache_prefetch,
- * cache_prefetch_window}).
+ * cache_prefetch_window,cache_only_if_cached}).
  *
  * WHAT: BRIX_TIER_DIRECTIVES(pfx, conf_t, ctx, conf_off) expands to the twelve
  *       ngx_command_t initializers every protocol module declares for its
@@ -149,6 +149,14 @@ static ngx_conf_enum_t  brix_tier_cache_meta_enum[] = {
       ngx_conf_set_size_slot,                                                 \
       conf_off,                                                               \
       offsetof(conf_t, common.cache_prefetch_window),                         \
+      NULL },                                                                 \
+    { ngx_string(pfx "cache_only_if_cached"), /* on|off: a read MISS returns  \
+                                               * ENOENT instead of filling    \
+                                               * from the origin */           \
+      (ctx) | NGX_CONF_FLAG,                                                  \
+      ngx_conf_set_flag_slot,                                                 \
+      conf_off,                                                               \
+      offsetof(conf_t, common.cache_only_if_cached),                          \
       NULL }
 
 /*

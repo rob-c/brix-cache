@@ -59,10 +59,15 @@ def test_phase20_foundation_files_exist():
 
 def test_phase20_kv_store_is_wired_into_consumers():
     # Token cache short-circuits signature verification in both protocols.
-    for relpath in ("src/auth/gsi/token.c", "src/protocols/webdav/auth_token.c"):
-        text = _read(relpath)
-        assert "brix_token_cache_lookup(" in text, relpath
-        assert "brix_token_cache_store(" in text, relpath
+    stream = _read("src/auth/gsi/token.c")
+    assert "brix_token_cache_lookup(" in stream
+    assert "brix_token_cache_store(" in stream
+    # WebDAV verification was split from request orchestration: lookup belongs
+    # to the verifier and successful claims are stored by auth_token.c.
+    assert "brix_token_cache_lookup(" in _read(
+        "src/protocols/webdav/auth_token_verify.c")
+    assert "brix_token_cache_store(" in _read(
+        "src/protocols/webdav/auth_token.c")
 
     # Auth-result cache lives in the stream auth gate.
     auth_gate = _read("src/auth/authz/auth_gate.c")

@@ -41,7 +41,7 @@ per-attribute results and increments the `BRIX_OP_FATTR` metric slot.
 
 | File | Responsibility |
 |------|----------------|
-| `ngx_brix_fattr.h` | Internal API: the `brix_fattr_entry_t` parsed-attribute struct, key-prefix constants (`BRIX_FATTR_XKEY_PFX`, `BRIX_FATTR_RESP_PFX`), and prototypes for every handler/helper below. |
+| `ngx_brix_fattr.h` | Internal API: the `brix_fattr_entry_t` parsed-attribute struct, key-prefix constants (`BRIX_FATTR_XKEY_PFX`, `BRIX_FATTR_XKEY_PFX_LEN`), and prototypes for every handler/helper below. |
 | `dispatch.c` | `brix_handle_fattr()` — the single entry point. Validates `subcode`/`numattr`/write-permission, resolves file-handle vs path target, builds one function-scope `brix_vfs_ctx_t` (a confined `brix_vfs_stat` verifies a path target; fd targets carry proto/log only), auth-gates path targets, copies and parses the name vector, then routes the ctx + path/fd to `fattr_get`/`fattr_set`/`fattr_del`/`fattr_list`. |
 | `helpers.c` | Shared plumbing: `fattr_errno_to_xrd()` (errno→kXR), `fattr_set_rc()` (write per-attribute status in place, big-endian), `fattr_parse_nvec()` (parse the request name vector into `attrs[]`), `fattr_send_vector_status()` (build/send the Set/Del status frame). |
 | `get.c` | `fattr_get()` — `kXR_fattrGet`. Two-phase read (size query then buffered read) of each named attribute via the VFS xattr seam — `brix_vfs_getxattr` (path mode) / `brix_vfs_fgetxattr` (fd mode); builds the value-vector (`vvec`) response: per-attr 4-byte big-endian length + raw bytes. |
@@ -115,7 +115,7 @@ in `attrs[]`, then:
 shared response framer `brix_send_ok()`/`brix_send_error()`, and the kernel
 `<sys/xattr.h>` syscalls directly. It reads file descriptors from
 `ctx->files[]` (see [../connection/README.md](../connection/README.md) /
-`fd_table.c`). It does **not** use [../aio/README.md](../../../core/aio/README.md) — xattr
+`src/protocols/root/connection/fd_table.c`). It does **not** use [../../../core/aio/README.md](../../../core/aio/README.md) — xattr
 ops run inline.
 
 ## Invariants, security & gotchas
@@ -189,6 +189,6 @@ ops run inline.
 - [../path/README.md](../../../fs/path/README.md) — path extraction, `brix_beneath_full_path`, `brix_open_beneath`, and `brix_auth_gate` confinement/authorization.
 - [../handshake/README.md](../handshake/README.md) — opcode dispatch that routes `kXR_fattr` here.
 - [../connection/README.md](../connection/README.md) — `ctx->files[]` fd table backing handle-form requests.
-- [../metrics/README.md](../../../observability/metrics/README.md) — the `BRIX_OP_FATTR` counter slot.
+- [../../../observability/metrics/README.md](../../../observability/metrics/README.md) — the `BRIX_OP_FATTR` counter slot.
 - [../protocol/README.md](../protocol/README.md) — `ClientFattrRequest`, sub-code and flag constants.
 - [../README.md](../README.md) — master subsystem index.

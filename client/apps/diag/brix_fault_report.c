@@ -266,20 +266,25 @@ cmd_status_report(char *reply, size_t rsz)
     }
     int k = snprintf(reply, rsz,
 "up[lat=%d jit=%d chunk=%d drip=%d/%dms rate=%d lossy=%.4f%% reorder=%.4f%%/%dms "
-"corrupt=%.4f%% dup=%.4f%% trunc=%ld] "
+"corrupt=%.4f%% dup=%.4f%% trunc=%ld sclose=%d burst=%d dist=%d] "
 "down[lat=%d jit=%d chunk=%d drip=%d/%dms rate=%d lossy=%.4f%% reorder=%.4f%%/%dms "
-"corrupt=%.4f%% dup=%.4f%% trunc=%ld] "
-"blocked=%d hang=%d abortive=%d one_shot=%d fail_nth=%d epoch=%u | "
+"corrupt=%.4f%% dup=%.4f%% trunc=%ld sclose=%d burst=%d dist=%d] "
+"blocked=%d hang=%d abortive=%d one_shot=%d fail_nth=%d "
+"cdelay=%d refuse=%.4f%% tox=%.4f/%.4f%% epoch=%u | "
 "conns=%lu active=%lu up=%luB down=%luB severs=%lu corrupt=%lu dups=%lu refused=%lu\n",
         g_up.latency_ms, g_up.jitter_ms, g_up.chunk_bytes, g_up.drip_bytes,
         g_up.drip_ms, g_up.rate_kbps, g_up.lossy_ppm / 10000.0,
         g_up.reorder_ppm / 10000.0, g_up.reorder_ms, g_up.corrupt_ppm / 10000.0,
         g_up.dup_ppm / 10000.0, g_up.truncate_at,
+        g_up.slow_close_ms, g_up.burst_bytes, g_up.lat_dist,
         g_down.latency_ms, g_down.jitter_ms, g_down.chunk_bytes, g_down.drip_bytes,
         g_down.drip_ms, g_down.rate_kbps, g_down.lossy_ppm / 10000.0,
         g_down.reorder_ppm / 10000.0, g_down.reorder_ms, g_down.corrupt_ppm / 10000.0,
         g_down.dup_ppm / 10000.0, g_down.truncate_at,
-        g_blocked, g_hang, g_abortive, g_one_shot, g_fail_nth, g_drop_epoch,
+        g_down.slow_close_ms, g_down.burst_bytes, g_down.lat_dist,
+        g_blocked, g_hang, g_abortive, g_one_shot, g_fail_nth,
+        g_connect_delay_ms, g_refuse_ppm / 10000.0,
+        g_toxicity_up_ppm / 10000.0, g_toxicity_down_ppm / 10000.0, g_drop_epoch,
         C.conns, C.active, C.up_bytes, C.down_bytes,
         C.severs, C.corrupt, C.dups, C.refused);
     if (k < 0 || (size_t) k >= rsz) {
@@ -382,20 +387,6 @@ cmd_status(const char *args, char *reply, size_t rsz)
     }
 }
 
-/* JSON control input ({"cmd":..,"args":..}) is reprojected onto the ONE verb
- * grammar and re-run, so no command is ever defined twice. */
-static void
-apply_json_command(const char *json, char *reply, size_t rsz)
-{
-    char verbline[2000];
-
-    if (fp_json_to_verb(json, verbline, sizeof verbline) != 0) {
-        fp_reply(reply, rsz, "err: bad json command\n");
-        return;
-    }
-    apply_command(verbline, reply, rsz);
-}
-
 /* event-log <path> — point the structured event stream at a file. */
 static void
 cmd_event_log(const char *args, char *reply, size_t rsz)
@@ -414,7 +405,8 @@ cmd_event_log(const char *args, char *reply, size_t rsz)
 static int
 cmd_set_dispatch(const char *verb, char *args, char *reply, size_t rsz)
 {
-    return cmd_set_lever(verb, args) || cmd_set_epoch(verb)
+    return cmd_set_fidelity(verb, args, reply, rsz)
+        || cmd_set_lever(verb, args) || cmd_set_epoch(verb)
         || cmd_set_misc(verb, args) || cmd_set_ext(verb, args, reply, rsz)
         || cmd_set_attack(verb, args, reply, rsz)
         || cmd_set_dpi(verb, args, reply, rsz)
@@ -449,6 +441,8 @@ apply_command(char *line, char *reply, size_t rsz)
         fp_toxic_cmd(args, reply, rsz);
     } else if (strcmp(verb, "route") == 0) {
         fp_route_cmd(args, reply, rsz);
+    } else if (strcmp(verb, "metrics") == 0) {
+        cmd_metrics_report(reply, rsz);
     } else if (cmd_set_dispatch(verb, args, reply, rsz)) {
         return;
     } else if (strcmp(verb, "status") == 0) {
@@ -472,13 +466,58 @@ control_thread(void *arg)
             }
             break;
         }
-        char line[2048];
-        ssize_t n = read(cfd, line, sizeof(line) - 1);
-        if (n > 0) {
-            line[n] = '\0';
-            char reply[2048];
-            apply_command(line, reply, sizeof(reply));
-            (void) write_all(cfd, reply, (ssize_t) strlen(reply));
+        /* A1 persistent session: accumulate bytes and process every complete
+         * newline-delimited command over the ONE connection, replying to each.
+         * `quit`/EOF closes; a line that fills the buffer with no newline is
+         * refused with a diagnostic rather than overrunning the parser. */
+        char   acc[2048];
+        size_t used = 0;
+        int    done = 0;
+        while (!done) {
+            ssize_t n = read(cfd, acc + used, sizeof(acc) - 1 - used);
+            if (n <= 0) {
+                break;
+            }
+            used += (size_t) n;
+            acc[used] = '\0';
+            size_t start = 0;
+            char  *nl;
+            while ((nl = memchr(acc + start, '\n', used - start)) != NULL) {
+                *nl = '\0';
+                char line[2048];
+                snprintf(line, sizeof(line), "%s", acc + start);
+                size_t ll = strlen(line);
+                if (ll > 0 && line[ll - 1] == '\r') {
+                    line[ll - 1] = '\0';
+                }
+                start = (size_t) (nl - acc) + 1;
+                if (strcmp(line, "quit") == 0) {
+                    done = 1;
+                    break;
+                }
+                if (line[0] != '\0') {
+                    char reply[2048] = "";
+                    apply_command(line, reply, sizeof(reply));
+                    (void) write_all(cfd, reply, (ssize_t) strlen(reply));
+                }
+            }
+            if (start > 0) {
+                memmove(acc, acc + start, used - start);
+                used -= start;
+            }
+            if (!done && used >= sizeof(acc) - 1) {
+                static const char msg[] = "err: line too long\n";
+                (void) write_all(cfd, msg, (ssize_t) (sizeof(msg) - 1));
+                /* Half-close our side so the diagnostic is delivered, then drain
+                 * the rest of the oversized line so close() sends a clean FIN
+                 * rather than an RST that would race the client's read. */
+                shutdown(cfd, SHUT_WR);
+                char drain[2048];
+                while (read(cfd, drain, sizeof(drain)) > 0) {
+                    /* discard */
+                }
+                done = 1;
+            }
         }
         close(cfd);
     }

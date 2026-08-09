@@ -19,6 +19,7 @@
 #include "webdav.h"
 #include "xrdhttp.h"
 #include "tape_rest.h"
+#include "redirect.h"    /* §6.1: manager-side redirect-to-dataserver */
 #include "delegation.h"
 #include "core/http/http_body.h"
 #include "auth/impersonate/lifecycle.h"
@@ -568,6 +569,14 @@ webdav_dispatch_inner(ngx_http_request_t *r)
      * the server answers it locally, not the upstream. POST dispatches async
      * body reading (NGX_DONE); GET/DELETE return inline. */
     rc = webdav_dispatch_tape_rest(r, conf);
+    if (rc != NGX_DECLINED) {
+        return rc;
+    }
+
+    /* §6.1: manager-side redirect-to-dataserver — after the endpoint
+     * specials (a manager still serves macaroons/tape-REST itself), before
+     * the data-bearing method handlers.  DECLINED = serve locally. */
+    rc = webdav_redirect_dataserver(r, conf);
     if (rc != NGX_DECLINED) {
         return rc;
     }

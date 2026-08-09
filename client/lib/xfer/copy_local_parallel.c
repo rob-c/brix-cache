@@ -166,12 +166,14 @@ dl_run_stripes(dl_stripe_t *w, pthread_t *th, int nconns, brix_status *st)
 }
 
 
-/* Commit (fsync+rename) a fully-successful stripe set and verify its checksum, or
- * abort the temp so the destination is never partial — mirroring
- * download_to_local_file.  Always closes `vf`.  Returns the final verdict. */
-static int
-dl_commit_or_abort(const download_job_t *job, brix_vfs_file *vf, int rc,
-                   brix_status *st)
+/* Commit (fsync+rename) a fully-successful concurrent download and verify its
+ * checksum, or abort the temp so the destination is never partial — mirroring
+ * download_to_local_file.  Always closes `vf`.  Returns the final verdict.
+ * Shared (copy_internal.h) with the phase-100 extreme-copy engine, whose
+ * commit/abort/cksum-drop semantics are identical. */
+int
+download_commit_or_abort(const download_job_t *job, brix_vfs_file *vf, int rc,
+                         brix_status *st)
 {
     int committed = 0;
 
@@ -248,7 +250,7 @@ copy_download_parallel(const download_job_t *job, int *out_rc, brix_status *st)
         rc = dl_run_stripes(w, th, nconns, st);
     }
 
-    rc = dl_commit_or_abort(job, vf, rc, st);
+    rc = download_commit_or_abort(job, vf, rc, st);
     brix_file_close(job->c, &f, st);
     free(w);
     free(th);

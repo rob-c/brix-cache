@@ -73,6 +73,8 @@ _brix_xrdcp() {
         '--zip[store local source in a STORE ZIP archive member]' \
         '--zip-append[like --zip but append to an existing archive]' \
         '(-S --streams)'{-S+,--streams=}'[open N-1 secondary kXR_bind data streams]:n' \
+        '--sources=[extreme copy: block-stealing download from up to N replicas]:n' \
+        '--no-metalink[copy a .meta4/.metalink source as a plain file]' \
         '--tpc=[server-side third-party copy mode]:mode:(first only delegate)' \
         '--tpc-token-mode=[bearer-token forwarding mode for --tpc]:mode' \
         '(-T --token)'{-T+,--token=}'[WebDAV/HTTP bearer token (or $BEARER_TOKEN)]:jwt' \

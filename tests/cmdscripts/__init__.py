@@ -6,6 +6,7 @@ import os
 import subprocess
 import sys
 from collections.abc import Callable, Sequence
+from pathlib import Path
 
 
 def _maybe_open_tree_for_deescalated_worker(argv: list[str]) -> list[str]:
@@ -42,6 +43,41 @@ def _maybe_open_tree_for_deescalated_worker(argv: list[str]) -> list[str]:
     except (ValueError, IndexError):
         conf = None
     open_tree_for_worker(prefix, conf)
+    return argv
+
+
+def _prepare_nginx_config(argv: list[str]) -> list[str]:
+    """Apply the suite's dynamic-module/runtime policy to raw nginx calls.
+
+    A sizeable set of command scenarios predates ``LiveRun`` and deliberately
+    shares this small command wrapper.  With a packaged nginx those scenarios
+    must receive the same ``load_module`` preamble as registry-owned servers;
+    otherwise every stream/project directive is reported as unknown.
+    """
+    if not argv:
+        return argv
+    first = str(argv[0])
+    if not (first == "nginx" or first.endswith("/nginx")) or "-c" not in argv:
+        return argv
+    try:
+        config_arg = Path(argv[argv.index("-c") + 1])
+    except (ValueError, IndexError):
+        return argv
+    try:
+        prefix = Path(argv[argv.index("-p") + 1])
+    except (ValueError, IndexError):
+        prefix = config_arg.parent
+    config = config_arg if config_arg.is_absolute() else prefix / config_arg
+    if not config.is_file():
+        return argv
+    # Lazy import avoids making cmdscripts.live_common -> cmdscripts an import
+    # cycle during test collection.
+    from cmdscripts.live_common import (  # noqa: PLC0415
+        inject_nginx_load_modules,
+        inject_nginx_runtime_paths,
+    )
+    inject_nginx_load_modules(config)
+    inject_nginx_runtime_paths(config, prefix)
     return argv
 
 
@@ -220,7 +256,8 @@ def run(argv: Sequence[str], **kwargs) -> subprocess.CompletedProcess:
     in stderr, mirroring coreutils `timeout`.
     """
     kwargs.setdefault("timeout", 120)
-    argv = _maybe_open_tree_for_deescalated_worker(list(argv))
+    argv = _prepare_nginx_config(list(argv))
+    argv = _maybe_open_tree_for_deescalated_worker(argv)
     try:
         return subprocess.run(list(argv), capture_output=True, text=True, **kwargs)
     except subprocess.TimeoutExpired as exc:

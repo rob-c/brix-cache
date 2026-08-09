@@ -9,6 +9,7 @@
 
 #include "blacklist_file.h"
 #include "net/manager/registry.h"
+#include "auth/protbind/protbind.h"   /* §2.13: XrdOucNList `*` host matching */
 
 #include <stdio.h>
 #include <string.h>
@@ -116,25 +117,36 @@ blfile_find_port_colon(const char *line, size_t len, const char **colon)
     return 0;
 }
 
-int
-brix_cms_blfile_parse_line(const char *line, size_t len,
+/* blfile_parse_hostspec — the first token of a line: exact host, host:port,
+ * IPv4 CIDR, or (§2.13) a `*` wildcard pattern (at most one star, whole-host
+ * — a pattern takes no :port suffix, matching stock hostpat rules). */
+static int
+blfile_parse_hostspec(const char *line, size_t len,
     brix_cms_blfile_entry_t *out)
 {
     const char *slash;
     const char *colon;
+    const char *star;
     long        v;
-
-    if (line == NULL || out == NULL || len == 0
-        || memchr(line, ' ', len) != NULL || memchr(line, '\t', len) != NULL)
-    {
-        return -1;    /* interior whitespace: not a host, reject not guess */
-    }
-    memset(out, 0, sizeof(*out));
 
     slash = memchr(line, '/', len);
     if (slash != NULL) {
         /* IPv4 CIDR: a.b.c.d/n */
         return blfile_parse_cidr(line, len, slash, out);
+    }
+
+    star = memchr(line, '*', len);
+    if (star != NULL) {
+        /* §2.13: wildcard pattern — exactly one star, no port suffix. */
+        if (memchr(star + 1, '*', len - (size_t) (star - line) - 1) != NULL
+            || len == 0 || len >= sizeof(out->host))
+        {
+            return -1;
+        }
+        memcpy(out->host, line, len);
+        out->host[len] = '\0';
+        out->is_pattern = 1;
+        return 0;
     }
 
     if (blfile_find_port_colon(line, len, &colon) != 0) {
@@ -159,6 +171,86 @@ brix_cms_blfile_parse_line(const char *line, size_t len,
     return 0;
 }
 
+/* blfile_parse_redirect — §2.13: the `redirect <host:port>` action tail.
+ * The target must carry an explicit port (kYR_try names a concrete manager
+ * endpoint — guessing one would bounce nodes into the void). */
+static int
+blfile_parse_redirect(const char *tok, size_t len,
+    brix_cms_blfile_entry_t *out)
+{
+    const char *colon;
+    long        v;
+
+    if (blfile_find_port_colon(tok, len, &colon) != 0 || colon == NULL) {
+        return -1;
+    }
+    v = blfile_parse_uint(colon + 1, len - (size_t) (colon - tok) - 1, 65535);
+    if (v < 1) {
+        return -1;
+    }
+    len = (size_t) (colon - tok);
+    if (len == 0 || len >= sizeof(out->redirect_host)) {
+        return -1;
+    }
+    memcpy(out->redirect_host, tok, len);
+    out->redirect_host[len] = '\0';
+    out->redirect_port = (uint16_t) v;
+    out->has_redirect  = 1;
+    return 0;
+}
+
+int
+brix_cms_blfile_parse_line(const char *line, size_t len,
+    brix_cms_blfile_entry_t *out)
+{
+    const char *ws;
+    size_t      head_len;
+
+    if (line == NULL || out == NULL || len == 0) {
+        return -1;
+    }
+    memset(out, 0, sizeof(*out));
+
+    /* §2.13: split an optional ` redirect <host:port>` action tail off the
+     * hostspec head.  Any other interior whitespace stays malformed. */
+    ws = memchr(line, ' ', len);
+    if (ws == NULL) {
+        ws = memchr(line, '\t', len);
+    }
+    head_len = (ws != NULL) ? (size_t) (ws - line) : len;
+
+    if (ws != NULL) {
+        const char *tail = ws;
+        const char *tail_end = line + len;
+        size_t      kw_len;
+
+        while (tail < tail_end && (*tail == ' ' || *tail == '\t')) {
+            tail++;
+        }
+        kw_len = sizeof("redirect") - 1;
+        if ((size_t) (tail_end - tail) <= kw_len + 1
+            || memcmp(tail, "redirect", kw_len) != 0
+            || (tail[kw_len] != ' ' && tail[kw_len] != '\t'))
+        {
+            return -1;
+        }
+        tail += kw_len;
+        while (tail < tail_end && (*tail == ' ' || *tail == '\t')) {
+            tail++;
+        }
+        if (tail == tail_end
+            || memchr(tail, ' ', (size_t) (tail_end - tail)) != NULL
+            || memchr(tail, '\t', (size_t) (tail_end - tail)) != NULL
+            || blfile_parse_redirect(tail, (size_t) (tail_end - tail),
+                                     out) != 0)
+        {
+            return -1;
+        }
+    }
+
+    return blfile_parse_hostspec(line, head_len, out);
+}
+
 int
 brix_cms_blfile_entry_matches(const brix_cms_blfile_entry_t *e,
     const char *host, uint16_t port)
@@ -176,10 +268,38 @@ brix_cms_blfile_entry_matches(const brix_cms_blfile_entry_t *e,
         return (addr & e->mask) == e->net;
     }
 
+    if (e->is_pattern) {
+        /* §2.13: one-`*` wildcard span, XrdOucNList rules — same matcher the
+         * protbind host templates use, so the two grammars can never drift. */
+        ngx_str_t tpl;
+
+        tpl.data = (u_char *) e->host;
+        tpl.len  = strlen(e->host);
+        return brix_protbind_host_match(&tpl, host) ? 1 : 0;
+    }
+
     if (strcmp(e->host, host) != 0) {
         return 0;
     }
     return e->port == 0 || e->port == port;
+}
+
+/* §2.13 — login-time consult over the loaded entry set (contract in .h). */
+const brix_cms_blfile_entry_t *
+brix_cms_blfile_find(const brix_cms_blfile_t *bl, const char *host,
+    uint16_t port)
+{
+    ngx_uint_t  i;
+
+    if (bl == NULL) {
+        return NULL;
+    }
+    for (i = 0; i < bl->nentries; i++) {
+        if (brix_cms_blfile_entry_matches(&bl->entries[i], host, port)) {
+            return &bl->entries[i];
+        }
+    }
+    return NULL;
 }
 
 /* ---- poll driver -------------------------------------------------------- */
@@ -268,21 +388,29 @@ blfile_reload(brix_cms_blfile_t *bl, const char *path, ngx_log_t *log)
                   path, bl->nentries);
 }
 
-void
-brix_cms_blfile_poll(brix_cms_blfile_t *bl, const ngx_str_t *path,
-    ngx_msec_t blacklist_ms, ngx_uint_t force, ngx_log_t *log)
+/*
+ * blfile_refresh — the shared rate-limited stat/reload half of both polls.
+ *
+ * WHAT: Applies the poll rate limit, re-reads the file on an mtime change,
+ *       and reports (1) whether enforcement should run this call.
+ * WHY:  Blacklist and whitelist modes differ only in the enforcement rule;
+ *       one refresh keeps the stat cadence and reload behaviour identical.
+ * HOW:  Exactly the original poll prologue, factored.
+ */
+static int
+blfile_refresh(brix_cms_blfile_t *bl, const ngx_str_t *path,
+    ngx_uint_t force, ngx_log_t *log)
 {
     char         pathbuf[1024];
     struct stat  st;
-    ngx_uint_t   i, n, s;
 
     if (bl == NULL || path == NULL || path->len == 0
         || path->len >= sizeof(pathbuf))
     {
-        return;
+        return 0;
     }
     if (!force && bl->next_poll != 0 && ngx_current_msec < bl->next_poll) {
-        return;
+        return 0;
     }
     bl->next_poll = ngx_current_msec + BRIX_CMS_BLFILE_POLL_MS;
 
@@ -298,34 +426,57 @@ brix_cms_blfile_poll(brix_cms_blfile_t *bl, const ngx_str_t *path,
         bl->mtime = st.st_mtime;
     }
 
-    if (bl->nentries == 0) {
+    return bl->nentries > 0;
+}
+
+/* blfile_enforce — walk a registry snapshot and blacklist every server whose
+ * membership test (`matching` for blacklist mode, non-matching for whitelist
+ * mode) says it must not serve.  The snapshot is a by-value copy, so no
+ * registry lock is held while we walk (brix_srv_blacklist locks per call).
+ * Heap, not stack — 128 snapshot entries are ~80 KB. */
+static void
+blfile_enforce(const brix_cms_blfile_t *bl, ngx_msec_t blacklist_ms,
+    int want_match, ngx_log_t *log)
+{
+    brix_srv_snapshot_entry_t  *snap;
+    ngx_uint_t                  n, s;
+
+    snap = ngx_alloc(sizeof(*snap) * BRIX_SRV_REGISTRY_SLOTS, log);
+    if (snap == NULL) {
         return;
     }
+    n = brix_srv_snapshot(snap, BRIX_SRV_REGISTRY_SLOTS, ngx_current_msec);
+    for (s = 0; s < n; s++) {
+        int matched =
+            brix_cms_blfile_find(bl, snap[s].host, snap[s].port) != NULL;
 
-    /* Re-assert against every registered server that matches an entry.  The
-     * snapshot is a by-value copy, so no registry lock is held while we walk
-     * and re-blacklist (brix_srv_blacklist takes the lock per call).  Heap,
-     * not stack — 128 snapshot entries are ~80 KB. */
-    {
-        brix_srv_snapshot_entry_t  *snap;
-
-        snap = ngx_alloc(sizeof(*snap) * BRIX_SRV_REGISTRY_SLOTS, log);
-        if (snap == NULL) {
-            return;
+        if (matched == want_match) {
+            brix_srv_blacklist(snap[s].host, snap[s].port, blacklist_ms);
         }
-        n = brix_srv_snapshot(snap, BRIX_SRV_REGISTRY_SLOTS,
-                              ngx_current_msec);
-        for (s = 0; s < n; s++) {
-            for (i = 0; i < bl->nentries; i++) {
-                if (brix_cms_blfile_entry_matches(&bl->entries[i],
-                                                  snap[s].host, snap[s].port))
-                {
-                    brix_srv_blacklist(snap[s].host, snap[s].port,
-                                         blacklist_ms);
-                    break;
-                }
-            }
-        }
-        ngx_free(snap);
     }
+    ngx_free(snap);
+}
+
+void
+brix_cms_blfile_poll(brix_cms_blfile_t *bl, const ngx_str_t *path,
+    ngx_msec_t blacklist_ms, ngx_uint_t force, ngx_log_t *log)
+{
+    if (!blfile_refresh(bl, path, force, log)) {
+        return;
+    }
+    blfile_enforce(bl, blacklist_ms, 1 /* matching entries are banned */, log);
+}
+
+/* §2.13 — whitelist mode: everyone NOT matching an entry is banned.  An empty
+ * or unreadable whitelist enforces nothing (fail-open toward availability —
+ * an operator emptying the file must not drain the whole cluster). */
+void
+brix_cms_wlfile_poll(brix_cms_blfile_t *wl, const ngx_str_t *path,
+    ngx_msec_t blacklist_ms, ngx_uint_t force, ngx_log_t *log)
+{
+    if (!blfile_refresh(wl, path, force, log)) {
+        return;
+    }
+    blfile_enforce(wl, blacklist_ms, 0 /* NON-matching servers are banned */,
+                   log);
 }

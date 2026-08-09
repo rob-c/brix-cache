@@ -194,7 +194,9 @@ brix_init_server_rootfd(ngx_cycle_t *cycle, ngx_stream_brix_srv_conf_t *xcf)
  * maintenance timer independent of occupancy.
  *
  * HOW:
- *   1. Skip unless brix_cache_dirty_max_age > 0 and a state root resolves.
+ *   1. Skip unless a reaper policy is armed (brix_cache_dirty_max_age for
+ *      abandoned write-back, or brix_cache_cold_max_age for the cold read-fill
+ *      purge — the same walk services both) and a state root resolves.
  *   2. pcalloc the timer event from the cycle pool (NGX_ERROR on failure).
  *   3. Point it at brix_cache_reap_handler with the srv conf as ev->data,
  *      mark cancelable, arm at BRIX_CACHE_REAP_FIRST_MS.
@@ -203,7 +205,7 @@ static ngx_int_t
 brix_init_server_cache_reap_timer(ngx_cycle_t *cycle,
     ngx_stream_brix_srv_conf_t *xcf)
 {
-    if (xcf->cache_dirty_max_age <= 0
+    if ((xcf->cache_dirty_max_age <= 0 && xcf->cache_cold_max_age <= 0)
         || brix_cache_state_root(xcf) == NULL)
     {
         return NGX_OK;

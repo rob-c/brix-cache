@@ -87,7 +87,8 @@ NODES = [
 # --------------------------------------------------------------------------- #
 _ROLE_RE = re.compile(
     r"cmsd role: this node is a (?P<role>manager|sub-manager|client) "
-    r"\(listen :(?P<port>\d+), upstream_manager=(?P<up>\S+),"
+    r"\(listen :(?P<port>\d+), upstream_manager=(?P<up>\S+)"
+    r"(?: \(\+\d+ more\))?,"     # multi-manager suffix: "(+N more)"
 )
 _REGISTER_RE = re.compile(
     r"cmsd-action op=register peer=(?P<peer>[\d.]+:\d+) dir=in\b"

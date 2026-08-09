@@ -242,6 +242,9 @@ brix_merge_srv_authtail(ngx_stream_brix_srv_conf_t *conf,
     ngx_conf_merge_value(conf->unix_trust_remote,   prev->unix_trust_remote, 0);
     ngx_conf_merge_ptr_value(conf->host_allow,      prev->host_allow,      NULL);
     ngx_conf_merge_uint_value(conf->security_level, prev->security_level, 0);
+    /* Off by default: fail-closed signing refuses every client whose auth
+     * protocol cannot sign (all stock non-GSI clients), so it is opt-in. */
+    ngx_conf_merge_value(conf->signing_required, prev->signing_required, 0);
     ngx_conf_merge_uint_value(conf->min_sec_level, prev->min_sec_level, 0);
     ngx_conf_merge_value(conf->ztn_cleartext, prev->ztn_cleartext, 0);
     ngx_conf_merge_value(conf->opaque_strict, prev->opaque_strict, 0);
@@ -335,6 +338,11 @@ brix_merge_srv_zip_stage(ngx_stream_brix_srv_conf_t *conf,
                                   : conf->cache_wt_stage_high_watermark / 2);
     ngx_conf_merge_sec_value(conf->cache_dirty_max_age,
                              prev->cache_dirty_max_age, 604800);   /* 7 days */
+    /* Cold read-fill purge defaults OFF: unlike the dirty horizon (which bounds
+     * a leak) this one DISCARDS otherwise-serviceable cache, so it is only ever
+     * an explicit operator choice. */
+    ngx_conf_merge_sec_value(conf->cache_cold_max_age,
+                             prev->cache_cold_max_age, 0);
     if (conf->cache_deny_prefixes == NULL) {
         conf->cache_deny_prefixes = prev->cache_deny_prefixes;
     }

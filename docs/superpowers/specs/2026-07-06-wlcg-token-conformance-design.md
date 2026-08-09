@@ -109,7 +109,7 @@ in `validate.c` to both the `exp` upper bound and the `nbf` lower bound
 (currently `nbf` is checked with **no** skew — this aligns them; a token whose
 `nbf` is a few seconds ahead of a slightly-slow verifier should not be rejected
 when `exp` gets the same grace). Referenced by both stream
-(`directives_auth.inc`) and WebDAV (`webdav/module.c`) directive tables via one
+(`directives_auth.h`) and WebDAV (`webdav/module.c`) directive tables via one
 setter. Bounded (e.g. ≤300s) with a config-time error above the cap so a typo
 can't disable expiry.
 

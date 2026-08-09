@@ -36,8 +36,8 @@ These functions are **shared services** — this directory exports the
 verification primitives; the per-protocol wiring (loading config paths into a
 store, deciding soft-fail policy, mapping results to `kXR_NotAuthorized` vs HTTP
 403) lives in the callers: `../gsi/` (`config.c`, `auth.c`, `pki.c`) and
-`../webdav/` (`auth_store.c`, `auth_cert.c`, `pki.c`), plus `../session/`
-(`tls_config.c`) for staple delivery.
+`../webdav/` (`src/protocols/webdav/auth_store.c`, `auth_cert.c`, `pki.c`), plus `../session/`
+(`src/protocols/root/session/tls_config.c`) for staple delivery.
 
 ## Files
 
@@ -55,6 +55,19 @@ store, deciding soft-fail policy, mapping results to `kXR_NotAuthorized` vs HTTP
 | `scoped.h` | Header-only `goto cleanup` idiom: NULL-safe destroyers (`brix_evp_pkey_free`, `brix_bio_free`, `brix_x509_store_ctx_free`, `brix_bn_clear_free` for secrets, etc.) plus an in-comment jansson borrowed/owned/stealing ownership cheatsheet. Used by the broader EVP/GSI/TPC code to free every handle on every exit path. |
 | `README.md` | This document. |
 
+### Other files
+
+| File | Responsibility |
+|---|---|
+| `ocsp_internal.h` | Declares the two file-local structs threaded through one OCSP fetch (the parsed responder URL and the live OpenSSL connection objects), the shared per-phase network timeout bound, and the seven functions that cross a tra. |
+| `ocsp_request.c` | The OCSP protocol crypto proper. |
+| `ocsp_transport.c` | Owns everything between "OCSP responder URL string" and "a connected, verified BIO ready to POST on". |
+| `signing_policy.c` / `.h` | Globus EACL signing_policy parser + subject matcher. |
+| `store_policy.c` / `.h` | signing_policy table + X509_STORE ex_data binding. |
+| `store_policy_conformance.c` | RFC 3820 proxy classification + delegation monotonicity and the per-certificate WLCG/IGTF conformance policy. |
+| `store_policy_internal.h` | private glue shared across the store_policy.c translation units (store_policy.c / store_policy_conformance.c / store_policy_store.c). |
+| `store_policy_store.c` | check_issued override accepting a name-matching issuer for an RFC 3820 proxy subject even when its authorityKeyIdentifier does not match the issuer's subjectKeyIdentifier. |
+
 ## Key types & data structures
 
 - **`brix_gsi_verify_result_t`** (`gsi_verify.h`) — output of chain
@@ -71,7 +84,7 @@ store, deciding soft-fail policy, mapping results to `kXR_NotAuthorized` vs HTTP
   the SHA-1 hash of issuer fields (`OCSP_cert_to_id`); the basic response is
   signature-verified before its `V_OCSP_CERTSTATUS_*` is mapped to GOOD(0) /
   REVOKED(-1) / UNKNOWN(1).
-- **`ngx_stream_brix_srv_conf_t`** (defined in `../types/config.h`) —
+- **`ngx_stream_brix_srv_conf_t`** (defined in `src/core/types/config.h`) —
   `ocsp.c` reads `gsi_cert` / `gsi_store` and writes the cached staple into
   `ocsp_staple_data` / `ocsp_staple_len` (allocated with `ngx_alloc`, freed on
   reload).
@@ -84,18 +97,18 @@ store, deciding soft-fail policy, mapping results to `kXR_NotAuthorized` vs HTTP
 **Entry is always from a caller subsystem; this directory has no nginx hooks of
 its own.**
 
-- **Config / reload time.** `../gsi/config.c` and `../webdav/auth_store.c` call
+- **Config / reload time.** `../gsi/config.c` and `src/protocols/webdav/auth_store.c` call
   `brix_build_ca_store()` to build their per-server `X509_STORE`. `../gsi/pki.c`
-  and `../webdav/pki.c` call `brix_check_pki_and_crl()` /
+  and `src/protocols/webdav/pki.c` call `brix_check_pki_and_crl()` /
   `brix_pki_check_paths()` to run the startup CA↔CRL audit and warn (not fail)
   on misconfigured `ca_dir`/`crl_dir`.
 - **Per-connection handshake.** `../gsi/auth.c` (stream GSI, `gsi/auth.c:217`)
-  and `../webdav/auth_cert.c` (DAVS, `webdav/auth_cert.c:483`) call
+  and `src/protocols/webdav/auth_cert.c` (DAVS, `src/protocols/webdav/auth_cert.c:483`) call
   `brix_gsi_verify_chain()` against their store. On success GSI then optionally
   calls `brix_ocsp_check_cert()` (`gsi/auth.c:244`) for live revocation.
 - **TLS staple.** `brix_ocsp_staple_fetch()` is driven at reload; the cached
   DER is later attached to the ServerHello by the status-request callback in
-  `../session/tls_config.c` (`#include "../crypto/ocsp.h"`).
+  `src/protocols/root/session/tls_config.c` (`#include "../crypto/ocsp.h"`).
 
 **Calls outward:** purely into OpenSSL (`libssl`/`libcrypto`) and libc
 (`fopen`/`stat`/`opendir`); nginx core only for `ngx_log_*` and `ngx_alloc`.
@@ -185,9 +198,9 @@ won't compile it.
 
 - [`../gsi/README.md`](../gsi/README.md) — stream GSI auth; primary consumer of
   `gsi_verify` + `ocsp` + the CA store.
-- [`../webdav/README.md`](../../protocols/webdav/README.md) — DAVS client-cert auth
-  (`auth_store.c` builds the store, `auth_cert.c` verifies the chain).
-- [`../session/README.md`](../../protocols/root/session/README.md) — TLS config and the OCSP
+- [`../../protocols/webdav/README.md`](../../protocols/webdav/README.md) — DAVS client-cert auth
+  (`src/protocols/webdav/auth_store.c` builds the store, `auth_cert.c` verifies the chain).
+- [`../../protocols/root/session/README.md`](../../protocols/root/session/README.md) — TLS config and the OCSP
   status-request callback that delivers the cached staple.
 - [`../token/README.md`](../token/README.md) / [`../sss/README.md`](../sss/README.md)
   / [`../krb5/README.md`](../krb5/README.md) — sibling auth domains (distinct

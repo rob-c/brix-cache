@@ -1,4 +1,5 @@
-from _test_native_xrdcp_xrdfs_helpers import *  # noqa: F401,F403  (Phase-38 split shared header)
+from split_continuation import reexport as _reexport
+_reexport(globals(), "_test_native_xrdcp_xrdfs_helpers")
 
 # --------------------------------------------------------------------------
 # success

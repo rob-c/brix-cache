@@ -211,8 +211,8 @@ def test_c5_fstatat_fast_path_gated_on_impersonation():
     fast path runs only when no client is being impersonated."""
     body = _fn_body(_read("src/fs/vfs/vfs_dir.c"), "vfs_readdir_stat_child")
     assert "!brix_imp_client_active()" in body
-    assert re.search(r"fstatat\(dirfd\(dh->dir\), name, &st,\s*"
-                     r"AT_SYMLINK_NOFOLLOW\)", body)
+    assert "int dfd = dirfd(dh->dir)" in body
+    assert re.search(r"fstatat\(dfd, name, &st,\s*AT_SYMLINK_NOFOLLOW\)", body)
 
 
 def test_c5_impersonation_keeps_broker_confined_stat():

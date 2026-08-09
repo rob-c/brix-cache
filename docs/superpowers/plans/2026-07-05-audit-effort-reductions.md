@@ -22,7 +22,7 @@
 - `ngx_http_brix_shared_init()` / `ngx_http_brix_shared_merge()` in `src/core/config/shared_conf.h:129-212` have **zero callers** — s3/webdav/cvmfs each hand-roll the same init/merge (s3 `src/protocols/s3/module.c:54-159`, webdav `src/protocols/webdav/config.c:110-440`, cvmfs `src/protocols/cvmfs/module.c:54-380`).
 - Deltas between the manual blocks and the shared helpers: helpers lack `compress`, `storage_staging`, `cache_verify_mode`; webdav's root default is `"/"` (s3/cvmfs `""`); cvmfs does not init/merge `ktls`/`thread_pool` uniformly and never calls `brix_shared_apply_read_only` (adopting it is a deliberate hardening gain); cvmfs does not reference `common.ktls` anywhere (`grep -rn ktls src/protocols/cvmfs/` is empty) so gaining the merge is inert.
 - Conditional-request gate is ALREADY unified (`src/core/http/http_conditionals.c` consumed by webdav get/put/copy/move, s3/conditional.c, cvmfs/handler.c). **No task for it** — record as done.
-- Tier directive tables: s3 `src/protocols/s3/module.c:403-461` and webdav `src/protocols/webdav/directives_storage.inc:33-95` declare the IDENTICAL 10 entries (cache_store, stage, stage_store, stage_flush, cache_max_object, cache_evict_at, cache_evict_to, cache_index_cache, cache_meta, cache_slice_size) differing only in name prefix, conf type, and per-module enum-table names. cvmfs deliberately exposes only a subset (`cache_store` at `directives_core.inc:94`) — leave cvmfs's table alone.
+- Tier directive tables: s3 `src/protocols/s3/module.c:403-461` and webdav `src/protocols/webdav/directives_storage.h:33-95` declare the IDENTICAL 10 entries (cache_store, stage, stage_store, stage_flush, cache_max_object, cache_evict_at, cache_evict_to, cache_index_cache, cache_meta, cache_slice_size) differing only in name prefix, conf type, and per-module enum-table names. cvmfs deliberately exposes only a subset (`cache_store` at `directives_core.h:94`) — leave cvmfs's table alone.
 - ngx_str null-termination: 43 `buf[x.len] = '\0'` sites across 36 files in src/ (`grep -rn "\.len\] = '\\\\0'" src/ --include='*.c'`).
 - Client: `client/Makefile` BINS at line 148; per-binary `<name>_OBJS` at 172-190; `.SECONDEXPANSION` link rule at 236. `client/tests/c/{cli_cred_unit,cred_unit,cred_store_unit,vfs_posix_unit,vfs_block_unit,vfs_s3_smoke}.c` have **no Makefile rules at all**. `vfs_s3_smoke` needs an external S3 server — exclude from `make test`.
 - Binary names are load-bearing: 15+ test files + gfal/official-xrootd interop invoke `xrdcrc32c/xrdcrc64/xrdadler32/xrdckverify/xrdcinfo/xrdqstats/wait41/mpxstats` by name → symlinks are mandatory.
@@ -182,7 +182,7 @@ Two deliberate behavior gains, document in the module.c header comment: (a) cvmf
 
 **Files:**
 - Create: `src/core/config/tier_directives.h`
-- Modify: `src/protocols/s3/module.c` (delete enum tables + 10 entries), `src/protocols/webdav/directives_storage.inc:33-95` + the enum tables at `src/protocols/webdav/module.c:21-33`, repo-root `./config` (add the new header to the module's header dep list, next to `shared_conf.h`)
+- Modify: `src/protocols/s3/module.c` (delete enum tables + 10 entries), `src/protocols/webdav/directives_storage.h:33-95` + the enum tables at `src/protocols/webdav/module.c:21-33`, repo-root `./config` (add the new header to the module's header dep list, next to `shared_conf.h`)
 
 **Interfaces:**
 - Produces: `BRIX_TIER_DIRECTIVES(pfx, conf_t)` — expands to the 10 `ngx_command_t` initializers; `brix_tier_stage_flush_enum[]`, `brix_tier_cache_meta_enum[]` (static, defined in the header).
@@ -288,7 +288,7 @@ static ngx_conf_enum_t brix_tier_cache_meta_enum[] = {
 #endif /* _NGX_BRIX_TIER_DIRECTIVES_H */
 ```
 
-- [ ] **Step 2:** In s3/module.c: `#include "core/config/tier_directives.h"`, delete `brix_s3_stage_flush_enum`/`brix_s3_cache_meta_enum` (verify no other user: `grep -rn brix_s3_cache_meta_enum src/`), replace the 10 entries (lines 403-461) with `BRIX_TIER_DIRECTIVES("brix_s3_", ngx_http_s3_loc_conf_t),`. Same in webdav: include from module.c, delete its two enum tables, replace `directives_storage.inc:33-95` with `BRIX_TIER_DIRECTIVES("brix_webdav_", ngx_http_brix_webdav_loc_conf_t),`.
+- [ ] **Step 2:** In s3/module.c: `#include "core/config/tier_directives.h"`, delete `brix_s3_stage_flush_enum`/`brix_s3_cache_meta_enum` (verify no other user: `grep -rn brix_s3_cache_meta_enum src/`), replace the 10 entries (lines 403-461) with `BRIX_TIER_DIRECTIVES("brix_s3_", ngx_http_s3_loc_conf_t),`. Same in webdav: include from module.c, delete its two enum tables, replace `directives_storage.h:33-95` with `BRIX_TIER_DIRECTIVES("brix_webdav_", ngx_http_brix_webdav_loc_conf_t),`.
 
 - [ ] **Step 3:** Add `$ngx_addon_dir/src/core/config/tier_directives.h` to the header dep list in the repo-root `./config` (find where `shared_conf.h` is listed; add adjacent). Then `cd /tmp/nginx-1.28.3 && ./configure <same flags as CLAUDE.md BUILD section> --add-module=/home/rcurrie/HEP-x/nginx-xrootd && make -j$(nproc)`. If the full rebuild trips -Werror on unrelated uncommitted WIP, fix ONLY trivial format-string issues in files this plan touches; otherwise report and stop.
 

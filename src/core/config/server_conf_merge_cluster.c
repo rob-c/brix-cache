@@ -30,6 +30,7 @@
 #include "protocols/root/session/registry.h"   /* BRIX_SESSION_REGISTRY_SLOTS default */
 #include "net/manager/health_check.h" /* BRIX_HC_TYPE_PING default */
 #include "net/manager/registry.h"     /* Phase 89 (W4): load-weight setter */
+#include "net/manager/loc_cache.h"    /* §2.6: fxhold / emptylife TTL setters */
 
 /* Third-party copy (TPC): local/private allowances, key TTL, transfer caps and
  * the abandoned-slot reaper age, and the outbound OAuth2/bearer credentials. */
@@ -249,6 +250,74 @@ brix_merge_srv_cms(ngx_stream_brix_srv_conf_t *conf,
 
     /* Phase-61 W7: multi-tier kYR_state recursion (off = registry-only). */
     ngx_conf_merge_value(conf->cms.state_relay, prev->cms.state_relay, 0);
+
+    /* §2.2 (cms.delay servers): SUPCount floor + hold seconds.  Process-wide
+     * set-once like the load weight — the registry is one table. */
+    ngx_conf_merge_value(conf->cms.delay_servers, prev->cms.delay_servers, 0);
+    ngx_conf_merge_value(conf->cms.delay_hold,    prev->cms.delay_hold,    5);
+    if (conf->cms.delay_servers > 0) {
+        brix_srv_set_delay_servers((ngx_uint_t) conf->cms.delay_servers);
+    }
+    if (conf->cms.delay_hold < 1) {
+        conf->cms.delay_hold = 1;      /* kXR_wait 0 would busy-loop clients */
+    }
+
+    /* §2.3 (cms.sched): component weights + fuzz + maxload; any weight set
+     * installs the process-wide vector (all-zero = legacy scoring). */
+    ngx_conf_merge_value(conf->cms.sched_cpu,     prev->cms.sched_cpu,     0);
+    ngx_conf_merge_value(conf->cms.sched_io,      prev->cms.sched_io,      0);
+    ngx_conf_merge_value(conf->cms.sched_runq,    prev->cms.sched_runq,    0);
+    ngx_conf_merge_value(conf->cms.sched_mem,     prev->cms.sched_mem,     0);
+    ngx_conf_merge_value(conf->cms.sched_pag,     prev->cms.sched_pag,     0);
+    ngx_conf_merge_value(conf->cms.sched_space,   prev->cms.sched_space,   0);
+    ngx_conf_merge_value(conf->cms.sched_fuzz,    prev->cms.sched_fuzz,    0);
+    ngx_conf_merge_value(conf->cms.sched_maxload, prev->cms.sched_maxload, 0);
+    if (conf->cms.sched_cpu | conf->cms.sched_io | conf->cms.sched_runq
+        | conf->cms.sched_mem | conf->cms.sched_pag | conf->cms.sched_space
+        | conf->cms.sched_fuzz | conf->cms.sched_maxload)
+    {
+        brix_srv_sched_t sched;
+        sched.cpu     = (ngx_uint_t) conf->cms.sched_cpu;
+        sched.io      = (ngx_uint_t) conf->cms.sched_io;
+        sched.runq    = (ngx_uint_t) conf->cms.sched_runq;
+        sched.mem     = (ngx_uint_t) conf->cms.sched_mem;
+        sched.pag     = (ngx_uint_t) conf->cms.sched_pag;
+        sched.space   = (ngx_uint_t) conf->cms.sched_space;
+        sched.fuzz    = (ngx_uint_t) conf->cms.sched_fuzz;
+        sched.maxload = (ngx_uint_t) conf->cms.sched_maxload;
+        brix_srv_set_sched(&sched);
+    }
+
+    /* §2.5: stage-aware selection (off = legacy least-utilised pick). */
+    ngx_conf_merge_value(conf->cms.stage_select, prev->cms.stage_select, 0);
+
+    /* §2.6: loc-cache TTL policy (process-wide set-once).  fxhold keeps the
+     * legacy 30s default unless configured; emptylife 0 = negatives off. */
+    ngx_conf_merge_msec_value(conf->cms.fxhold,    prev->cms.fxhold,    0);
+    ngx_conf_merge_msec_value(conf->cms.emptylife, prev->cms.emptylife, 0);
+    if (conf->cms.fxhold > 0) {
+        brix_loc_cache_set_ttl(conf->cms.fxhold);
+    }
+    if (conf->cms.emptylife > 0) {
+        brix_loc_cache_set_emptylife(conf->cms.emptylife);
+    }
+
+    /* §2.8: shared-filesystem mode (off = per-file discovery). */
+    ngx_conf_merge_value(conf->cms.dfs, prev->cms.dfs, 0);
+
+    /* §2.11 (cms.perf pgm): external load feed + freshness window. */
+    ngx_conf_merge_str_value(conf->cms.perf_pgm, prev->cms.perf_pgm, "");
+    ngx_conf_merge_msec_value(conf->cms.perf_int, prev->cms.perf_int, 30000);
+
+    /* §2.12 (cms.altds): advertised foreign data port + liveness monitor. */
+    ngx_conf_merge_value(conf->cms.altds_port,      prev->cms.altds_port,   0);
+    ngx_conf_merge_value(conf->cms.altds_monitor, prev->cms.altds_monitor, 0);
+    ngx_conf_merge_msec_value(conf->cms.altds_interval,
+                              prev->cms.altds_interval, 10000);
+    if (conf->cms.altds.len == 0 && prev->cms.altds.len > 0) {
+        conf->cms.altds = prev->cms.altds;
+    }
+
     ngx_conf_merge_value(conf->cms.interval,        prev->cms.interval,    30);
     if (conf->cms.interval < 1) {
         /* 0 would arm a 0ms heartbeat timer AND zero the reconnect backoff

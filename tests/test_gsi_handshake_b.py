@@ -1,385 +1,196 @@
-from _test_gsi_handshake_helpers import *  # noqa: F401,F403  (Phase-38 split shared header)
-from settings import HOST
+from split_continuation import reexport as _reexport
+_reexport(globals(), "_test_gsi_handshake_helpers")
 
-class TestRootCrossServer:
-    def test_nginx_to_stock_and_back(self, pki, nginx_root_off, stock_root,
-                                     tmp_path):
-        src = str(tmp_path / "xfer.bin")
-        blob = _big(src, 1024 * 1024)
-        u = pki["env"]
-        # local → our nginx
-        assert _run([STOCK_XRDCP, "-f", src,
-                     f"{nginx_root_off['url']}//xfer.bin"], env=u).returncode == 0
-        # our nginx → stock xrootd (client-mediated copy, GSI on both ends)
-        assert _run([STOCK_XRDCP, "-f", f"{nginx_root_off['url']}//xfer.bin",
-                     f"{stock_root['url']}//gsidata/xfer.bin"],
-                    env=u).returncode == 0
-        # stock → local, verify byte-exact
-        out = str(tmp_path / "xfer.back")
-        assert _run([STOCK_XRDCP, "-f",
-                     f"{stock_root['url']}//gsidata/xfer.bin", out],
-                    env=u).returncode == 0
+class TestHttpsProxyCert:
+    def test_propfind_with_proxy(self, pki, nginx_webdav):
+        r = _curl(pki, nginx_webdav, pki["valid_proxy"], nginx_webdav["url"] + "/",
+                  method="PROPFIND")
+        assert r.stdout.strip() in ("200", "207"), f"PROPFIND → {r.stdout}"
+
+    def test_get_with_proxy(self, pki, nginx_webdav, tmp_path):
+        out = str(tmp_path / "wget.txt")
+        cf, kf = _split_for_curl(pki["valid_proxy"], pki["base"], "wg")
+        assert cf, "could not split the proxy into cert/key for curl"
+        r = _run(["curl", "-sk", "--cert", cf, "--key", kf, "-o", out,
+                  nginx_webdav["url"] + "/hello.txt"])
+        assert r.returncode == 0 and open(out).read() == "hello-webdav-gsi\n", \
+            f"GET body mismatch: {open(out).read()!r}"
+
+    def test_put_then_get_with_proxy(self, pki, nginx_webdav, tmp_path):
+        cf, kf = _split_for_curl(pki["valid_proxy"], pki["base"], "wp")
+        assert cf, "could not split the proxy into cert/key for curl"
+        src = str(tmp_path / "wput.txt")
+        payload = "webdav-proxy-roundtrip\n" * 4
+        open(src, "w").write(payload)
+        put = _run(["curl", "-sk", "--cert", cf, "--key", kf, "-o", "/dev/null",
+                    "-w", "%{http_code}", "-T", src,
+                    nginx_webdav["url"] + "/put.txt"])
+        assert put.stdout.strip() in ("200", "201", "204"), f"PUT → {put.stdout}"
+        out = str(tmp_path / "wback.txt")
+        _run(["curl", "-sk", "--cert", cf, "--key", kf, "-o", out,
+              nginx_webdav["url"] + "/put.txt"])
+        assert open(out).read() == payload
+
+    def test_head_with_proxy(self, pki, nginx_webdav):
+        cf, kf = _split_for_curl(pki["valid_proxy"], pki["base"], "wh")
+        r = _run(["curl", "-sk", "-I", "--cert", cf, "--key", kf, "-o",
+                  "/dev/null", "-w", "%{http_code}",
+                  nginx_webdav["url"] + "/hello.txt"])
+        assert r.stdout.strip() == "200", f"HEAD → {r.stdout}"
+
+    def test_propfind_depth1_with_proxy(self, pki, nginx_webdav):
+        cf, kf = _split_for_curl(pki["valid_proxy"], pki["base"], "wd1")
+        r = _run(["curl", "-sk", "--cert", cf, "--key", kf, "-X", "PROPFIND",
+                  "-H", "Depth: 1", nginx_webdav["url"] + "/"])
+        assert "hello.txt" in r.stdout, \
+            f"Depth:1 PROPFIND should list children:\n{r.stdout[:300]}"
+
+    def test_mkcol_then_propfind(self, pki, nginx_webdav):
+        cf, kf = _split_for_curl(pki["valid_proxy"], pki["base"], "wmk")
+        col = nginx_webdav["url"] + "/coll/"
+        mk = _run(["curl", "-sk", "--cert", cf, "--key", kf, "-o", "/dev/null",
+                   "-w", "%{http_code}", "-X", "MKCOL", col])
+        assert mk.stdout.strip() in ("201", "200"), f"MKCOL → {mk.stdout}"
+        pf = _run(["curl", "-sk", "--cert", cf, "--key", kf, "-o", "/dev/null",
+                   "-w", "%{http_code}", "-X", "PROPFIND", col])
+        assert pf.stdout.strip() in ("200", "207"), f"PROPFIND coll → {pf.stdout}"
+
+    def test_put_delete_then_absent(self, pki, nginx_webdav, tmp_path):
+        cf, kf = _split_for_curl(pki["valid_proxy"], pki["base"], "wdel")
+        src = str(tmp_path / "del.txt")
+        open(src, "w").write("to-be-deleted\n")
+        url = nginx_webdav["url"] + "/todelete.txt"
+        put = _run(["curl", "-sk", "--cert", cf, "--key", kf, "-o", "/dev/null",
+                    "-w", "%{http_code}", "-T", src, url])
+        assert put.stdout.strip() in ("200", "201", "204"), f"PUT → {put.stdout}"
+        dl = _run(["curl", "-sk", "--cert", cf, "--key", kf, "-o", "/dev/null",
+                   "-w", "%{http_code}", "-X", "DELETE", url])
+        assert dl.stdout.strip() in ("200", "204"), f"DELETE → {dl.stdout}"
+        get = _run(["curl", "-sk", "--cert", cf, "--key", kf, "-o", "/dev/null",
+                    "-w", "%{http_code}", url])
+        assert get.stdout.strip() == "404", f"deleted file should 404, got {get.stdout}"
+
+    def test_range_get_with_proxy(self, pki, nginx_webdav):
+        cf, kf = _split_for_curl(pki["valid_proxy"], pki["base"], "wr")
+        # hello.txt = "hello-webdav-gsi\n"; bytes 0-4 → "hello"
+        r = _run(["curl", "-sk", "--cert", cf, "--key", kf, "-r", "0-4",
+                  nginx_webdav["url"] + "/hello.txt"])
+        assert r.stdout == "hello", f"range GET → {r.stdout!r}"
+
+    def test_large_put_get_with_proxy(self, pki, nginx_webdav, tmp_path):
+        cf, kf = _split_for_curl(pki["valid_proxy"], pki["base"], "wl")
+        src = str(tmp_path / "wbig.bin")
+        blob = _big(src, 4 * 1024 * 1024)
+        url = nginx_webdav["url"] + "/wbig.bin"
+        put = _run(["curl", "-sk", "--cert", cf, "--key", kf, "-o", "/dev/null",
+                    "-w", "%{http_code}", "-T", src, url])
+        assert put.stdout.strip() in ("200", "201", "204"), f"big PUT → {put.stdout}"
+        out = str(tmp_path / "wbigback.bin")
+        _run(["curl", "-sk", "--cert", cf, "--key", kf, "-o", out, url])
         assert open(out, "rb").read() == blob
 
+    def test_options_with_proxy(self, pki, nginx_webdav):
+        cf, kf = _split_for_curl(pki["valid_proxy"], pki["base"], "wo")
+        r = _run(["curl", "-sk", "--cert", cf, "--key", kf, "-o", "/dev/null",
+                  "-w", "%{http_code}", "-X", "OPTIONS", nginx_webdav["url"] + "/"])
+        assert r.stdout.strip() in ("200", "204"), f"OPTIONS → {r.stdout}"
 
-# --------------------------------------------------------------------------- #
-# root:// — further authenticated metadata ops over the GSI session
-# --------------------------------------------------------------------------- #
-class TestRootMoreOps:
-    def test_truncate(self, pki, nginx_root_off, tmp_path):
-        src = str(tmp_path / "t.bin")
-        _big(src, 4096)
-        u = pki["env"]
-        assert _run([STOCK_XRDCP, "-f", src,
-                     f"{nginx_root_off['url']}//trunc.bin"], env=u).returncode == 0
-        assert _run([STOCK_XRDFS, nginx_root_off["url"], "truncate",
-                     "/trunc.bin", "1024"], env=u).returncode == 0
-        r = _run([STOCK_XRDFS, nginx_root_off["url"], "stat", "/trunc.bin"], env=u)
-        assert r.returncode == 0 and "1024" in r.stdout, \
-            f"truncate did not resize: {r.stdout!r}"
+    def test_copy_with_proxy(self, pki, nginx_webdav, tmp_path):
+        cf, kf = _split_for_curl(pki["valid_proxy"], pki["base"], "wcp")
+        base = nginx_webdav["url"]
+        src = str(tmp_path / "c.txt")
+        open(src, "w").write("copy-src\n")
+        assert _run(["curl", "-sk", "--cert", cf, "--key", kf, "-o", "/dev/null",
+                     "-w", "%{http_code}", "-T", src, base + "/csrc.txt"]
+                    ).stdout.strip() in ("200", "201", "204")
+        cp = _run(["curl", "-sk", "--cert", cf, "--key", kf, "-o", "/dev/null",
+                   "-w", "%{http_code}", "-X", "COPY",
+                   "-H", f"Destination: {base}/cdst.txt", base + "/csrc.txt"])
+        assert cp.stdout.strip() in ("200", "201", "204"), f"COPY → {cp.stdout}"
+        out = str(tmp_path / "c.out")
+        _run(["curl", "-sk", "--cert", cf, "--key", kf, "-o", out,
+              base + "/cdst.txt"])
+        assert open(out).read() == "copy-src\n"
 
-    def test_cat(self, pki, nginx_root_off):
-        r = _run([STOCK_XRDFS, nginx_root_off["url"], "cat", "/hello.txt"],
-                 env=pki["env"])
-        assert r.returncode == 0 and "hello-gsi-handshake" in r.stdout
+    def test_move_with_proxy(self, pki, nginx_webdav, tmp_path):
+        cf, kf = _split_for_curl(pki["valid_proxy"], pki["base"], "wmv")
+        base = nginx_webdav["url"]
+        src = str(tmp_path / "m.txt")
+        open(src, "w").write("move-src\n")
+        assert _run(["curl", "-sk", "--cert", cf, "--key", kf, "-o", "/dev/null",
+                     "-w", "%{http_code}", "-T", src, base + "/msrc.txt"]
+                    ).stdout.strip() in ("200", "201", "204")
+        mv = _run(["curl", "-sk", "--cert", cf, "--key", kf, "-o", "/dev/null",
+                   "-w", "%{http_code}", "-X", "MOVE",
+                   "-H", f"Destination: {base}/mdst.txt", base + "/msrc.txt"])
+        assert mv.stdout.strip() in ("200", "201", "204"), f"MOVE → {mv.stdout}"
+        gone = _run(["curl", "-sk", "--cert", cf, "--key", kf, "-o", "/dev/null",
+                     "-w", "%{http_code}", base + "/msrc.txt"])
+        assert gone.stdout.strip() == "404", f"moved source should 404: {gone.stdout}"
+        out = str(tmp_path / "m.out")
+        _run(["curl", "-sk", "--cert", cf, "--key", kf, "-o", out,
+              base + "/mdst.txt"])
+        assert open(out).read() == "move-src\n"
 
+    def test_concurrent_proxy_requests(self, pki, nginx_webdav):
+        import concurrent.futures as cf
+        cfp, kfp = _split_for_curl(pki["valid_proxy"], pki["base"], "wcc")
 
-# --------------------------------------------------------------------------- #
-# root:// — query opcodes over the authenticated GSI session
-# --------------------------------------------------------------------------- #
-class TestRootQueryOps:
-    def test_query_config(self, pki, nginx_root_off):
-        r = _run([STOCK_XRDFS, nginx_root_off["url"], "query", "config",
-                  "version"], env=pki["env"])
-        # `xrdfs query config version` prints the bare version value (e.g.
-        # "v5.0.0"), not "version=" — match stock's output shape (digits present).
-        assert r.returncode == 0 and any(ch.isdigit() for ch in r.stdout), \
-            f"query config: rc={r.returncode} {r.stdout!r} {r.stderr!r}"
+        def one(_):
+            return _run(["curl", "-sk", "--cert", cfp, "--key", kfp, "-o",
+                         "/dev/null", "-w", "%{http_code}", "-X", "PROPFIND",
+                         nginx_webdav["url"] + "/"]).stdout.strip()
 
-    def test_locate(self, pki, nginx_root_off):
-        r = _run([STOCK_XRDFS, nginx_root_off["url"], "locate", "/"],
-                 env=pki["env"])
-        assert r.returncode == 0 and ":" in r.stdout, \
-            f"locate: rc={r.returncode} {r.stdout!r} {r.stderr!r}"
+        with cf.ThreadPoolExecutor(max_workers=10) as ex:
+            codes = list(ex.map(one, range(10)))
+        assert all(c in ("200", "207") for c in codes), \
+            f"concurrent proxy-cert PROPFINDs: {codes}"
 
-    def test_stat_q_readable(self, pki, nginx_root_off):
-        r = _run([STOCK_XRDFS, nginx_root_off["url"], "stat", "-q", "IsReadable",
-                  "/hello.txt"], env=pki["env"])
-        assert r.returncode == 0, f"stat -q: {r.stderr}"
+    def test_no_client_cert_rejected(self, pki, nginx_webdav):
+        r = _curl(pki, nginx_webdav, None, nginx_webdav["url"] + "/",
+                  method="PROPFIND")
+        assert _rejected(r.stdout), f"no-cert request must be refused, got {r.stdout}"
 
+    def test_untrusted_proxy_rejected(self, pki, nginx_webdav):
+        assert pki["untrusted_proxy"], "untrusted proxy not provisioned"
+        r = _curl(pki, nginx_webdav, pki["untrusted_proxy"],
+                  nginx_webdav["url"] + "/", method="PROPFIND")
+        assert _rejected(r.stdout), \
+            f"untrusted-CA proxy must be refused, got {r.stdout}"
 
-# --------------------------------------------------------------------------- #
-# root:// — a spread of file sizes (0, 1, odd, block-spanning) over GSI, to
-# exercise the session cipher / data plane at every boundary.
-# --------------------------------------------------------------------------- #
-class TestRootFileSizes:
-    @pytest.mark.parametrize("size", [0, 1, 16, 17, 9973, 65537])
-    def test_roundtrip(self, pki, nginx_root_off, tmp_path, size):
-        src = str(tmp_path / f"sz{size}")
-        blob = _big(src, size)
-        key = f"/sz_{size}.bin"
-        up = _run([STOCK_XRDCP, "-f", src, f"{nginx_root_off['url']}/{key}"],
-                  env=pki["env"])
-        assert up.returncode == 0, f"upload size={size}: {up.stderr}"
-        back = str(tmp_path / f"b{size}")
-        dl = _run([STOCK_XRDCP, "-f", f"{nginx_root_off['url']}/{key}", back],
-                  env=pki["env"])
-        assert dl.returncode == 0, f"download size={size}: {dl.stderr}"
-        assert open(back, "rb").read() == blob
-
-
-# --------------------------------------------------------------------------- #
-# root:// — kXR_sigver request signing (security_level intense)
-# --------------------------------------------------------------------------- #
-class TestSigverEnforcement:
-    """At `intense` the server requires a kXR_sigver signature (stock
-    XrdSecProtect secver 0: SHA-256 of the covered bytes, encrypted with the
-    negotiated GSI session cipher) on the protected opcodes.  The stock client
-    reads the advertised seclvl from the kXR_protocol response and signs what
-    stock's intense table covers (open/read/write/close) — those must VERIFY
-    and succeed.  BriX's level-3 table is deliberately stricter than stock's:
-    dirlist (and the stat stock leaves unsigned on the upload path) still
-    arrive unsigned and must draw kXR_error 3010 "request signing required" —
-    the 3010 (not an auth error) proves GSI auth completed and armed
-    enforcement first."""
-
-    def test_unsigned_dirlist_refused(self, pki, nginx_root_sigver):
-        # Stock's intense table does not sign kXR_dirlist; BriX level 3
-        # requires it, so the unsigned dirlist is refused post-auth.
-        r = _run([STOCK_XRDFS, nginx_root_sigver["url"], "ls", "/"], env=pki["env"])
-        assert r.returncode != 0 and "signing" in r.stderr.lower(), \
-            f"intense must refuse the unsigned dirlist: {r.stderr}"
-
-    def test_signed_read_verifies(self, pki, nginx_root_sigver, tmp_path):
-        # Stock signs open/pgread/close at intense; the server must decrypt
-        # each blob with the GSI session cipher, match the SHA-256, and let
-        # the whole copy through — end-to-end secver-0 interop.
-        out = str(tmp_path / "sv.txt")
-        r = _run([STOCK_XRDCP, "-f", f"{nginx_root_sigver['url']}//hello.txt", out],
-                 env=pki["env"])
-        assert r.returncode == 0, \
-            f"signed stock read must verify at intense: {r.stderr}"
-        assert open(out).read() == "hello-gsi-handshake\n"
-
-    def test_unsigned_write_refused(self, pki, nginx_root_sigver, tmp_path):
-        src = str(tmp_path / "svu.bin")
-        open(src, "w").write("should-be-refused\n")
-        r = _run([STOCK_XRDCP, "-f", src, f"{nginx_root_sigver['url']}//sv.bin"],
-                 env=pki["env"])
-        assert r.returncode != 0 and "signing" in r.stderr.lower(), \
-            f"intense must refuse the unsigned write: {r.stderr}"
-
-
-class TestNativeSigver:
-    """Native client against the intense (sigver) instance.  The native signer
-    follows the shared brix_gsi_sigver_required() table — the same one the
-    server enforces — so unlike stock it signs EVERY protected opcode at level
-    3 (dirlist included) and all operations succeed."""
-
-    def _skip(self):
-        assert os.path.exists(NATIVE_XRDFS) and os.path.exists(NATIVE_XRDCP), \
-            "native client/bin/xrd{fs,cp} must be built (make -C client)"
-
-    def test_native_signed_dirlist(self, pki, nginx_root_sigver):
-        # Stock's unsigned dirlist is refused above; the native client signs
-        # it, so the same op on the same instance must succeed.
-        self._skip()
-        r = _run([NATIVE_XRDFS, "--auth", "gsi", nginx_root_sigver["url"],
-                  "ls", "/"], env=pki["env"])
-        assert r.returncode == 0, f"native signed dirlist: {r.stderr}"
-        assert "hello.txt" in r.stdout
-
-    def test_native_signed_read(self, pki, nginx_root_sigver, tmp_path):
-        self._skip()
-        out = str(tmp_path / "nsv.txt")
-        r = _run([NATIVE_XRDCP, "--auth", "gsi", "-f",
-                  f"{nginx_root_sigver['url']}//hello.txt", out], env=pki["env"])
-        assert r.returncode == 0, f"native signed read: {r.stderr}"
-        assert open(out).read() == "hello-gsi-handshake\n"
-
-    def test_native_signed_write_roundtrip(self, pki, nginx_root_sigver, tmp_path):
-        # kXR_write is signed with the payload EXCLUDED from the hash
-        # (kXR_nodata_sig — the server does not advertise kXR_secOData below
-        # pedantic); the readback proves the whole signed mutate path.
-        self._skip()
-        src = str(tmp_path / "nsw.bin")
-        blob = _big(src, 256 * 1024)
-        up = _run([NATIVE_XRDCP, "--auth", "gsi", "-f", src,
-                   f"{nginx_root_sigver['url']}//nsw.bin"], env=pki["env"])
-        assert up.returncode == 0, f"native signed write: {up.stderr}"
-        back = str(tmp_path / "nswb.bin")
-        dl = _run([NATIVE_XRDCP, "--auth", "gsi", "-f",
-                   f"{nginx_root_sigver['url']}//nsw.bin", back], env=pki["env"])
-        assert dl.returncode == 0, f"native signed readback: {dl.stderr}"
-        assert open(back, "rb").read() == blob
+    def test_expired_proxy_rejected(self, pki, nginx_webdav):
+        assert pki["expired_proxy"], "expired credential not provisioned"
+        r = _curl(pki, nginx_webdav, pki["expired_proxy"],
+                  nginx_webdav["url"] + "/", method="PROPFIND")
+        assert _rejected(r.stdout), \
+            f"expired credential must be refused, got {r.stdout}"
 
 
 # --------------------------------------------------------------------------- #
-# root:// — RSA-4096 host + proxy keys through the signed-DH handshake
+# root:// — GSI auth ENFORCEMENT (the server must refuse unauthenticated I/O)
 # --------------------------------------------------------------------------- #
-class TestRsa4096:
-    def test_stock_auth_and_read(self, nginx_rsa4096, tmp_path):
-        r = _run([STOCK_XRDFS, nginx_rsa4096["url"], "ls", "/"],
-                 env=nginx_rsa4096["env"])
-        assert r.returncode == 0, f"rsa4096 ls: {r.stderr}"
-        assert "/hello.txt" in r.stdout
-        out = str(tmp_path / "r4.txt")
-        rc = _run([STOCK_XRDCP, "-f", f"{nginx_rsa4096['url']}//hello.txt", out],
-                  env=nginx_rsa4096["env"])
-        assert rc.returncode == 0, f"rsa4096 read: {rc.stderr}"
-        assert open(out).read() == "hello-gsi-handshake\n"
+class TestRootAuthEnforcement:
+    def _anon_env(self):
+        env = dict(os.environ)
+        env["X509_USER_PROXY"] = "/nonexistent/proxy.pem"
+        env.pop("BEARER_TOKEN", None)
+        return env
 
-    def test_native_auth(self, nginx_rsa4096):
-        if not os.path.exists(NATIVE_XRDFS):
-            assert False, "native client must be built"
-        r = _run([NATIVE_XRDFS, "--auth", "gsi", nginx_rsa4096["url"], "ls", "/"],
-                 env=nginx_rsa4096["env"])
-        assert r.returncode == 0, f"rsa4096 native ls: {r.stderr}"
-        assert "/hello.txt" in r.stdout
+    def test_anon_read_refused(self, pki, nginx_root_off, tmp_path):
+        out = str(tmp_path / "anon.bin")
+        r = _run([STOCK_XRDCP, "-f", f"{nginx_root_off['url']}//hello.txt", out],
+                 env=self._anon_env())
+        assert r.returncode != 0, "unauthenticated read must be refused"
 
-
-# --------------------------------------------------------------------------- #
-# root:// — VOMS attribute extraction + VO ACL enforcement
-# --------------------------------------------------------------------------- #
-# serial + generous timeout: drives a self-started GSI `nginx_voms` server through
-# full VOMS-AC handshakes (crypto-heavy).  The flake under the parallel pool is a
-# *timeout*, not a port/state collision — the VOMS handshake just runs slow when
-# the box is CPU-saturated — so the fix is headroom over the 30s pytest.ini
-# default, not de-serialisation.  `serial` keeps it off the saturated pool;
-# timeout(180) absorbs the residual crypto cost if it does land under load.
-@pytest.mark.serial
-@pytest.mark.timeout(180)
-class TestVomsExtraction:
-    """The server parses the VOMS attribute certificate, extracts the VO, and
-    enforces `require_vo`: a proxy carrying `testvo` reaches the VO-gated path
-    while the plain (no-VO) proxy is refused — proving the VO was extracted."""
-
-    def test_voms_proxy_allowed_on_vo_path(self, voms, nginx_voms):
-        r = _run([STOCK_XRDFS, nginx_voms["url"], "ls", "/vodata"],
-                 env=voms["env"])
-        assert r.returncode == 0, f"VOMS proxy denied its own VO path: {r.stderr}"
-        assert "secret.txt" in r.stdout
-
-    def test_voms_proxy_can_read_vo_file(self, voms, nginx_voms, tmp_path):
-        out = str(tmp_path / "vo.txt")
-        r = _run([STOCK_XRDCP, "-f", f"{nginx_voms['url']}//vodata/secret.txt",
-                  out], env=voms["env"])
-        assert r.returncode == 0, f"VOMS proxy read denied: {r.stderr}"
-        assert open(out).read() == "vo-only\n"
-
-    def test_plain_proxy_denied_on_vo_path(self, pki, voms, nginx_voms):
-        # Same identity/CA, but NO VO attribute → must be refused on /vodata.
-        r = _run([STOCK_XRDFS, nginx_voms["url"], "ls", "/vodata"],
-                 env=pki["env"])
-        assert r.returncode != 0, \
-            "a proxy without the required VO must be refused on /vodata"
-
-    def test_native_voms_proxy_allowed(self, voms, nginx_voms):
-        if not os.path.exists(NATIVE_XRDFS):
-            assert False, "native client must be built"
-        r = _run([NATIVE_XRDFS, "--auth", "gsi", nginx_voms["url"],
-                  "ls", "/vodata"], env=voms["env"])
-        assert r.returncode == 0, f"native VOMS proxy denied: {r.stderr}"
-        assert "secret.txt" in r.stdout
+    def test_anon_write_refused(self, pki, nginx_root_off, tmp_path):
+        src = str(tmp_path / "anon_up.txt")
+        open(src, "w").write("should-not-land\n")
+        r = _run([STOCK_XRDCP, "-f", src, f"{nginx_root_off['url']}//anon_up.txt"],
+                 env=self._anon_env())
+        assert r.returncode != 0, "unauthenticated write must be refused"
 
 
 # --------------------------------------------------------------------------- #
-# root:// — brix_auth both: the GSI client picks gsi from a ztn+gsi offer
+# root:// — cross-server transfer (our nginx ↔ a real stock xrootd), GSI both
+# ends.  The self-contained equivalent of the bridge suite.
 # --------------------------------------------------------------------------- #
-class TestBothAuthMode:
-    def test_gsi_client_authenticates(self, pki, nginx_root_both):
-        r = _run([STOCK_XRDFS, nginx_root_both["url"], "ls", "/"], env=pki["env"])
-        assert r.returncode == 0, f"both-mode GSI ls: {r.stderr}"
-        assert "/hello.txt" in r.stdout
-
-    def test_advertises_both_protocols(self, pki, nginx_root_both):
-        s, body = _wire_login(HOST,
-                              int(nginx_root_both["url"].rsplit(":", 1)[1]))
-        s.close()
-        assert b"&P=ztn" in body and b"&P=gsi" in body, \
-            f"both mode must advertise ztn and gsi: {body!r}"
-
-    def test_native_client_authenticates(self, pki, nginx_root_both):
-        if not os.path.exists(NATIVE_XRDFS):
-            assert False, "native client must be built"
-        r = _run([NATIVE_XRDFS, "--auth", "gsi", nginx_root_both["url"],
-                  "ls", "/"], env=pki["env"])
-        assert r.returncode == 0, f"both-mode native GSI ls: {r.stderr}"
-        assert "/hello.txt" in r.stdout
-
-
-# --------------------------------------------------------------------------- #
-# Wire-level — drive the handshake by hand and inspect each stage's bytes.
-# --------------------------------------------------------------------------- #
-class TestWireHandshake:
-    EXPECT_VER = {"off": b"v:10000", "auto": b"v:10600", "require": b"v:10600"}
-
-    @staticmethod
-    def _port(url):
-        return int(url.rsplit(":", 1)[1])
-
-    def test_login_advertises_gsi(self, pki, nginx_root):
-        """The kXR_login response carries the `&P=gsi,v:…,c:ssl,ca:…` block, and
-        the advertised version matches the signed-DH policy — read straight off
-        the wire, no client library."""
-        s, body = _wire_login(HOST, self._port(nginx_root["url"]))
-        s.close()
-        assert b"&P=gsi" in body, f"login did not advertise gsi: {body!r}"
-        assert b"c:ssl" in body and b"ca:" in body, \
-            f"gsi advertisement missing crypto/CA hint: {body!r}"
-        assert self.EXPECT_VER[nginx_root["policy"]] in body, \
-            f"{nginx_root['policy']}: wrong advertised version in {body!r}"
-
-    def test_certreq_response_buckets(self, pki, nginx_root):
-        """A real certreq elicits kXGS_cert; assert the response carries the
-        server cert, a cipher list with aes-128-cbc first, and the right
-        DH-public bucket for the policy (kXRS_puk unsigned vs kXRS_cipher signed)."""
-        s, _ = _wire_login(HOST, self._port(nginx_root["url"]))
-        status, bk = _send_certreq(s, 10600)
-        s.close()
-        assert status == kXR_authmore, \
-            f"certreq → status {status}, expected kXR_authmore"
-        assert kXRS_x509 in bk, "kXGS_cert missing the server cert (kXRS_x509)"
-        assert kXRS_cipher_alg in bk, "kXGS_cert missing kXRS_cipher_alg"
-        assert bk[kXRS_cipher_alg].startswith(b"aes-128-cbc"), \
-            f"cipher list must offer aes-128-cbc first: {bk[kXRS_cipher_alg]!r}"
-        if nginx_root["policy"] == "off":
-            assert kXRS_puk in bk and kXRS_cipher not in bk, \
-                "unsigned policy must send a bare kXRS_puk"
-        else:
-            assert kXRS_cipher in bk and kXRS_puk not in bk, \
-                "signed policy must send an RSA-signed kXRS_cipher"
-
-    def test_old_client_version_negotiation(self, pki, nginx_root):
-        """A pre-DHsigned (v10300) certreq: off & auto fall back to unsigned;
-        require always signs — proving the per-client version gate works."""
-        s, _ = _wire_login(HOST, self._port(nginx_root["url"]))
-        _status, bk = _send_certreq(s, 10300)
-        s.close()
-        if nginx_root["policy"] == "require":
-            assert kXRS_cipher in bk and kXRS_puk not in bk, \
-                "require signs even a <10400 client"
-        else:
-            assert kXRS_puk in bk and kXRS_cipher not in bk, \
-                f"{nginx_root['policy']}: a <10400 client must get unsigned DH"
-
-    def test_certreq_advertises_digest(self, pki, nginx_root):
-        """kXGS_cert offers a digest list including sha256."""
-        s, _ = _wire_login(HOST, self._port(nginx_root["url"]))
-        _status, bk = _send_certreq(s, 10600)
-        s.close()
-        assert kXRS_md_alg in bk and b"sha256" in bk[kXRS_md_alg], \
-            f"kXGS_cert should offer a sha256 digest: {bk.get(kXRS_md_alg)!r}"
-
-    def test_login_advertises_8hex_ca_hash(self, pki, nginx_root):
-        """The gsi advertisement carries the server CA subject hash as 8 hex."""
-        s, body = _wire_login(HOST, self._port(nginx_root["url"]))
-        s.close()
-        assert re.search(rb"ca:[0-9a-fA-F]{8}", body), \
-            f"login must advertise an 8-hex CA hash: {body!r}"
-
-
-# --------------------------------------------------------------------------- #
-# GSI session-cipher negotiation (WS-A): client must negotiate a non-default cipher
-# --------------------------------------------------------------------------- #
-class TestCipherNegotiation:
-    def test_native_negotiates_aes256(self, pki, nginx_root_aes256, tmp_path):
-        """Our client authenticates to a server that offers ONLY aes-256-cbc —
-        proving the session-cipher negotiation actually keys the negotiated
-        cipher, not the hard-wired aes-128-cbc default."""
-        out = str(tmp_path / "neg.txt")
-        r = _run([NATIVE_XRDCP, "--auth", "gsi", "-f",
-                  f"{nginx_root_aes256['url']}//hello.txt", out], env=pki["env"])
-        assert r.returncode == 0, f"aes-256 negotiation failed: {r.stderr}"
-        assert open(out).read() == "hello-gsi-handshake\n"
-
-    def test_aes256_server_advertises_only_aes256(self, pki, nginx_root_aes256):
-        """The kXGS_cert cipher_alg list offers aes-256-cbc and NOT aes-128-cbc,
-        so the handshake above cannot fall back to the default."""
-        del pki
-        s, _ = _wire_login(HOST, self._port(nginx_root_aes256["url"]))
-        status, bk = _send_certreq(s, 10600)
-        s.close()
-        assert status == kXR_authmore, f"certreq → {status}, want kXR_authmore"
-        assert kXRS_cipher_alg in bk, "kXGS_cert missing kXRS_cipher_alg"
-        offered = bk[kXRS_cipher_alg]
-        assert offered.startswith(b"aes-256-cbc"), \
-            f"server must advertise aes-256-cbc: {offered!r}"
-        assert b"aes-128-cbc" not in offered, \
-            f"aes-256-only server must NOT offer aes-128-cbc: {offered!r}"
-
-    @staticmethod
-    def _port(url):
-        return int(url.rsplit(":", 1)[1])
-
-
-# --------------------------------------------------------------------------- #
-# S3: GSI is not applicable.  Documented here so the omission is intentional.
-# --------------------------------------------------------------------------- #
-def test_s3_uses_sigv4_not_gsi():
-    """Guard the design invariant: S3 (ours and official XrdS3) authenticates
-    with AWS SigV4, never GSI — so there is deliberately no S3 GSI test."""
-    handler = os.path.join(REPO, "src", "protocols", "s3", "handler.c")
-    assert os.path.exists(handler), "src/protocols/s3/handler.c not present"
-    text = open(handler).read().lower()
-    assert "sigv4" in text, "S3 handler should authenticate via SigV4"

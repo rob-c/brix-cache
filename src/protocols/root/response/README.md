@@ -43,12 +43,12 @@ queueing, letting the read path prepend it to a data chain.
 | `control.c` | Control-flow frames: `brix_send_redirect()` (port+host), `brix_send_redirect_tpc()` (redirect with `?tpc.key=<key>` opaque appended), `brix_send_wait()` (retry-after seconds), `brix_send_waitresp()` (header-only deferral ack). |
 | `status.c` | `kXR_status` (4007) integrity frames for paged I/O: `brix_send_pgwrite_status()` (builds + queues a pgwrite completion) and `brix_build_pgread_status()` (builds a pgread status header into a caller buffer; caller queues it ahead of the page-data chain). |
 | `async.c` | Native `kXR_attn` (4001) generation: `brix_send_attn_asyncms()` (unsolicited text push), `brix_send_attn_asynresp()` (deferred response after `kXR_waitresp`), generic `brix_send_attn()`, the `_frame_len`/`_build_…_frame` size+layout helpers, and stub handlers for the eight deprecated async opcodes — all of which return `kXR_Unsupported`. |
-| `crc32c.c` | Wire-facing CRC32c API: `brix_crc32c()` (one-shot), `brix_crc32c_copy()` (fused checksum+copy), and `brix_crc32c_file()` (pread loop over an open fd, `(uint32_t)-1` on I/O error). All are thin wrappers over `../compat/crc32c.c` (where the SSE4.2 / software-table `brix_crc32c_value()` and `brix_crc32c_extend()` actually live) and `../compat/checksum.c` (`brix_checksum_u32_fd`). Used for per-page integrity on pgread/pgwrite and whole-file checksum verification. |
+| `crc32c.c` | Wire-facing CRC32c API: `brix_crc32c()` (one-shot), `brix_crc32c_copy()` (fused checksum+copy), and `brix_crc32c_file()` (pread loop over an open fd, `(uint32_t)-1` on I/O error). All are thin wrappers over `src/core/compat/crc32c.c` (where the SSE4.2 / software-table `brix_crc32c_value()` and `brix_crc32c_extend()` actually live) and `src/core/compat/checksum.c` (`brix_checksum_u32_fd`). Used for per-page integrity on pgread/pgwrite and whole-file checksum verification. |
 
 > Note: these `.c`/`.h` files are registered for the build in the top-level nginx
 > addon `config` script (lines ~136–137 for headers, ~475–479 for sources), not in
 > `src/core/config/config.h`. `brix_crc32c_extend()` is *declared* in `response.h` but
-> *defined* in `../compat/crc32c.c`; only the other three CRC entry points are
+> *defined* in `src/core/compat/crc32c.c`; only the other three CRC entry points are
 > bodied here.
 
 ## Key types & data structures
@@ -72,7 +72,7 @@ this subsystem is their primary producer.
 - **kXR_attn action codes** — carried in the leading 4-byte `actnum` of an attn
   body. Only `kXR_asyncms` (5002) and `kXR_asynresp` (5008) are active; the rest
   are retired. See the wire layouts documented in `async.h` / `async.c`.
-- **`brix_ctx_t`** (`../types/context.h`) — supplies `ctx->cur_streamid`, the
+- **`brix_ctx_t`** (`src/core/types/context.h`) — supplies `ctx->cur_streamid`, the
   2-byte stream ID echoed into every outgoing header so concurrent ops on one
   connection stay distinguishable.
 
@@ -101,9 +101,9 @@ handles partial-write stalling. `crc32c.c` calls down into `../compat/`
 (`crc32c.c`, `checksum.c`). Frame buffers come from the per-connection pool, so
 they are valid until the request completes and require no manual free.
 
-See `../read/README.md`, `../write/README.md`, `../aio/README.md`,
-`../connection/README.md`, `../manager/README.md`, `../tpc/README.md`,
-`../cms/README.md`, and `../protocol/README.md`.
+See `../read/README.md`, `../write/README.md`, `../../../core/aio/README.md`,
+`../connection/README.md`, `../../../net/manager/README.md`, `../../../tpc/README.md`,
+`../../../net/cms/README.md`, and `../protocol/README.md`.
 
 ## Invariants, security & gotchas
 
@@ -176,7 +176,7 @@ helper from the handler in its own subsystem — nothing changes here.
 - `../connection/README.md` — `brix_queue_response` send path and stall handling
 - `../protocol/README.md` — `ServerResponseHdr`, `kXR_status` structs, opcode constants
 - `../read/README.md`, `../write/README.md` — primary producers of ok/error and pgread/pgwrite status
-- `../aio/README.md` — async completion path that rebuilds responses on the event loop
-- `../manager/README.md`, `../cms/README.md`, `../tpc/README.md` — redirect producers
-- `../compat/README.md` — underlying CRC32c / checksum implementation
+- `../../../core/aio/README.md` — async completion path that rebuilds responses on the event loop
+- `../../../net/manager/README.md`, `../../../net/cms/README.md`, `../../../tpc/README.md` — redirect producers
+- `../../../core/compat/README.md` — underlying CRC32c / checksum implementation
 - `../README.md` — master subsystem index

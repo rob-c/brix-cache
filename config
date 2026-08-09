@@ -196,10 +196,14 @@ fi
 # selector falls back to the thread pool). BRIX_URING_LIBS is appended to the
 # stream module's ngx_module_libs below (NOT only CORE_LIBS) so the DYNAMIC .so
 # resolves io_uring_* at dlopen.
+# Floor 2.2: the backend uses io_uring_sqe_set_data64/io_uring_cqe_get_data64,
+# added in liburing 2.2.  On older liburing (Ubuntu 22.04's 2.1, EL8's 1.x) the
+# compiler only WARNS (implicit declaration) and the .so then fails dlopen with
+# an undefined io_uring_* symbol — so gate hard here instead of compiling.
 BRIX_URING_LIBS=""
 if [ -n "$BRIX_ENABLE_IO_URING" ] \
    && command -v pkg-config >/dev/null 2>&1 \
-   && pkg-config --exists liburing; then
+   && pkg-config --atleast-version=2.2 liburing; then
     CFLAGS="$CFLAGS $(pkg-config --cflags liburing) -DBRIX_HAVE_LIBURING=1"
     BRIX_URING_LIBS="$(pkg-config --libs liburing)"   # normally: -luring
     echo " + xrootd: io_uring disk-I/O backend enabled (liburing $(pkg-config --modversion liburing))"
@@ -637,9 +641,9 @@ ngx_brix_stream_deps="$ngx_addon_dir/src/core/ngx_brix_module.h \
                         $ngx_addon_dir/src/auth/token/worker_cache.h"
 ngx_brix_webdav_deps="$ngx_addon_dir/src/protocols/webdav/webdav.h \
                  $ngx_addon_dir/src/protocols/shared/proto_exclusive.h \
-                 $ngx_addon_dir/src/protocols/webdav/directives_storage.inc \
-                 $ngx_addon_dir/src/protocols/webdav/directives_net.inc \
-                 $ngx_addon_dir/src/protocols/webdav/directives_zones.inc \
+                 $ngx_addon_dir/src/protocols/webdav/directives_storage.h \
+                 $ngx_addon_dir/src/protocols/webdav/directives_net.h \
+                 $ngx_addon_dir/src/protocols/webdav/directives_zones.h \
                       $ngx_addon_dir/src/protocols/webdav/webdav_lock.h \
                       $ngx_addon_dir/src/protocols/webdav/webdav_methods.h \
                       $ngx_addon_dir/src/protocols/webdav/webdav_tpc.h \
@@ -1007,7 +1011,9 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/protocols/root/session/registry.c \
     $ngx_addon_dir/src/protocols/root/session/handles.c \
     $ngx_addon_dir/src/net/manager/registry.c \
+    $ngx_addon_dir/src/net/manager/registry_policy.c \
     $ngx_addon_dir/src/net/manager/registry_select.c \
+    $ngx_addon_dir/src/net/manager/registry_select_sched.c \
     $ngx_addon_dir/src/net/manager/registry_select_blacklist.c \
     $ngx_addon_dir/src/net/manager/registry_health.c \
     $ngx_addon_dir/src/net/manager/health_check.c \
@@ -1191,6 +1197,8 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/net/cms/router.c \
     $ngx_addon_dir/src/net/cms/rrdata.c \
     $ngx_addon_dir/src/net/cms/meter.c \
+    $ngx_addon_dir/src/net/cms/perf_pgm.c \
+    $ngx_addon_dir/src/net/cms/altds.c \
     $ngx_addon_dir/src/net/cms/blacklist_file.c \
     $ngx_addon_dir/src/net/cms/node_ops.c \
     $ngx_addon_dir/src/net/cms/forward.c \
@@ -1390,6 +1398,7 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/protocols/root/read/pgread.c \
     $ngx_addon_dir/src/protocols/root/read/pgread_encode.c \
     $ngx_addon_dir/src/protocols/root/read/locate.c \
+    $ngx_addon_dir/src/protocols/root/read/locate_manager.c \
     $ngx_addon_dir/src/protocols/root/read/close.c \
     $ngx_addon_dir/src/protocols/root/read/stat.c \
     $ngx_addon_dir/src/protocols/root/read/stat_manager.c \
@@ -1456,17 +1465,17 @@ ngx_module_srcs="\
 "
 
 ngx_module_deps="$ngx_brix_stream_deps \
-                 $ngx_addon_dir/src/protocols/root/stream/directives_auth.inc \
-                 $ngx_addon_dir/src/protocols/root/stream/directives_tier.inc \
-                 $ngx_addon_dir/src/protocols/root/stream/directives_tpc.inc \
-                 $ngx_addon_dir/src/protocols/root/stream/directives_security.inc \
-                 $ngx_addon_dir/src/protocols/root/stream/directives_cms.inc \
-                 $ngx_addon_dir/src/protocols/root/stream/directives_net.inc \
-                 $ngx_addon_dir/src/protocols/root/stream/directives_cache.inc \
-                 $ngx_addon_dir/src/protocols/root/stream/directives_caps.inc \
-                 $ngx_addon_dir/src/protocols/root/stream/directives_writethrough.inc \
-                 $ngx_addon_dir/src/protocols/root/stream/directives_zones.inc \
-                 $ngx_addon_dir/src/protocols/root/stream/directives_pmark.inc \
+                 $ngx_addon_dir/src/protocols/root/stream/directives_auth.h \
+                 $ngx_addon_dir/src/protocols/root/stream/directives_tier.h \
+                 $ngx_addon_dir/src/protocols/root/stream/directives_tpc.h \
+                 $ngx_addon_dir/src/protocols/root/stream/directives_security.h \
+                 $ngx_addon_dir/src/protocols/root/stream/directives_cms.h \
+                 $ngx_addon_dir/src/protocols/root/stream/directives_net.h \
+                 $ngx_addon_dir/src/protocols/root/stream/directives_cache.h \
+                 $ngx_addon_dir/src/protocols/root/stream/directives_caps.h \
+                 $ngx_addon_dir/src/protocols/root/stream/directives_writethrough.h \
+                 $ngx_addon_dir/src/protocols/root/stream/directives_zones.h \
+                 $ngx_addon_dir/src/protocols/root/stream/directives_pmark.h \
                  $ngx_addon_dir/src/core/aio/uring.h \
                  $ngx_addon_dir/src/observability/dashboard/dashboard.h"
 # Stream module .so links: OpenSSL + the external libs its own objects call —
@@ -1625,6 +1634,7 @@ ngx_module_srcs="$ngx_addon_dir/src/protocols/webdav/module.c \
                   $ngx_addon_dir/src/protocols/webdav/tpc_curl_setup.c \
                   $ngx_addon_dir/src/protocols/webdav/tpc_curl_pmark.c \
                   $ngx_addon_dir/src/protocols/webdav/tpc_verify.c \
+    $ngx_addon_dir/src/protocols/webdav/redirect.c \
                   $ngx_addon_dir/src/protocols/webdav/tpc_thread.c \
                   $ngx_addon_dir/src/protocols/webdav/tpc_marker.c \
                   $ngx_addon_dir/src/protocols/webdav/tpc_marker_start.c \
@@ -1790,8 +1800,8 @@ $ngx_addon_dir/src/protocols/cvmfs/cvmfs_module_build.c \
                  $ngx_addon_dir/src/protocols/cvmfs/virtual.c \
                  $ngx_addon_dir/src/protocols/cvmfs/attest.c"
 ngx_module_deps="$ngx_addon_dir/src/protocols/cvmfs/cvmfs.h \
-                 $ngx_addon_dir/src/protocols/cvmfs/directives_resilience.inc \
-                 $ngx_addon_dir/src/protocols/cvmfs/directives_core.inc \
+                 $ngx_addon_dir/src/protocols/cvmfs/directives_resilience.h \
+                 $ngx_addon_dir/src/protocols/cvmfs/directives_core.h \
                  $ngx_addon_dir/shared/cvmfs/grammar/classify.h \
                  $ngx_addon_dir/src/core/config/shared_conf.h \
                  $ngx_addon_dir/src/fs/backend/sd.h \

@@ -75,6 +75,7 @@ reap_metrics_slot(const ngx_stream_brix_srv_conf_t *conf)
  */
 typedef struct {
     time_t                    cutoff;     /* aged-out boundary (now - max_age) */
+    time_t                    cold_cutoff;/* clean read-fill boundary; 0 = off */
     dev_t                     dev;        /* root device — never cross it      */
     ngx_log_t                *log;        /* reap-event log sink               */
     ngx_brix_srv_metrics_t   *slot;       /* SHM metrics slot (may be NULL)    */
@@ -95,11 +96,12 @@ typedef struct {
  */
 static int
 reap_entry_candidate(const char *dir, const struct dirent *de,
-    const reap_ctx_t *rc, char *child, int *is_dir)
+    const reap_ctx_t *rc, char *child, int *is_dir, time_t *last_touch)
 {
     struct stat st;
 
     *is_dir = 0;
+    *last_touch = 0;
 
     if (strcmp(de->d_name, ".") == 0 || strcmp(de->d_name, "..") == 0) {
         return 0;
@@ -117,6 +119,13 @@ reap_entry_candidate(const char *dir, const struct dirent *de,
         *is_dir = 1;
         return 0;
     }
+    /* Cold-age signal for the clean read-fill purge: the LATER of atime and
+     * mtime.  atime alone is not trustworthy — relatime coarsens it and noatime
+     * freezes it entirely, which would make every file look ancient and purge a
+     * hot cache. Taking the later of the two degrades safely: on a noatime mount
+     * the age is measured from the fill instead of the last read, so the purge
+     * is conservative (it can only ever be too slow, never too eager). */
+    *last_touch = (st.st_atime > st.st_mtime) ? st.st_atime : st.st_mtime;
     return S_ISREG(st.st_mode) ? 1 : 0;
 }
 
@@ -127,11 +136,13 @@ reap_entry_candidate(const char *dir, const struct dirent *de,
  * HOW:   Reads the cinfo state; keeps untracked files. Dirty data reaps only
  *        once aged past cutoff (incomplete when a flush was started, abandoned
  *        otherwise). Clean-but-flushed staging copies reap once the last flush
- *        ages out (COMPLETED). Clean read-fills are left for occupancy-driven
- *        eviction. Returns 1 with *reason set when reapable, else 0.
+ *        ages out (COMPLETED). A clean read-fill is purged only when the
+ *        cold-age policy is armed and it has gone untouched past cold_cutoff
+ *        (COLD); otherwise it is left for occupancy-driven eviction. Returns 1
+ *        with *reason set when reapable, else 0.
  */
 static int
-reap_classify(const char *child, const reap_ctx_t *rc,
+reap_classify(const char *child, const reap_ctx_t *rc, time_t last_touch,
     brix_cache_cinfo_state_t *cs, brix_cache_reap_reason_t *reason)
 {
     if (brix_cache_cinfo_state(child, cs) != NGX_OK) {
@@ -150,12 +161,21 @@ reap_classify(const char *child, const reap_ctx_t *rc,
     if (cs->flush_gen > 0) {
         /* Clean AND written back at least once: a finished write-back staging
          * copy whose bytes are safely on the origin. Reclaim it once the last
-         * flush has aged out. A read-through fill (flush_gen==0, clean) has no
-         * write-back to reclaim and is left for occupancy-driven eviction. */
+         * flush has aged out. */
         if (cs->last_flush == 0 || (time_t) cs->last_flush > rc->cutoff) {
             return 0;                       /* completed but not yet aged → keep */
         }
         *reason = BRIX_CACHE_REAP_COMPLETED;
+        return 1;
+    }
+    /* Clean read-through fill (audit §4.2, upstream pfc.purgecoldfiles): purge
+     * once it has gone untouched past the cold horizon, INDEPENDENT of
+     * occupancy — a cache that never fills its watermark otherwise keeps cold
+     * objects forever. Losing them is free: they are re-fetchable from the
+     * origin. Disarmed (cold_cutoff == 0) this is the previous behaviour. */
+    if (rc->cold_cutoff != 0 && last_touch != 0
+        && last_touch <= rc->cold_cutoff) {
+        *reason = BRIX_CACHE_REAP_COLD;
         return 1;
     }
     return 0;                               /* clean read-fill → keep (evictable) */
@@ -170,28 +190,51 @@ reap_classify(const char *child, const reap_ctx_t *rc,
  *        layer never unlinks via the store driver itself); cstore_evict also
  *        drops the object's cinfo + L1 entry. The .meta sidecar is the legacy
  *        stats plane the cstore does not own, dropped by reap_unlink_sidecars.
- *        For the default co-located cache the state root IS the data root, so
- *        the key is child minus data_root; a file outside the data root is
- *        state-only (raw unlink). Then bumps slot->cache_dirty_reaped[reason]
- *        (slot may be NULL) and logs completed vs stale-dirty distinctly.
+ *        The adapter is keyed by the path beneath the DATA root, which only
+ *        exists for a legacy `brix_cache_root` cache — a store-configured cache
+ *        (`brix_cache_store`) leaves it empty, and the store's own root is
+ *        already where the walk is rooted, so those reap by direct unlink.
+ *
+ *        The removal is then VERIFIED: the adapter is best-effort by contract
+ *        (it returns OK even on a failed unlink), so an unremoved data file
+ *        used to be reported as reaped and — with its .cinfo sidecar gone —
+ *        looked untracked on every later pass and was never revisited: a leak
+ *        that logged as a success. A survivor is unlinked directly, and a file
+ *        that STILL survives is logged as an error and not counted.
  */
 static void
 reap_remove(const char *child, const reap_ctx_t *rc,
     const brix_cache_cinfo_state_t *cs, brix_cache_reap_reason_t reason)
 {
-    if (rc->cstore != NULL && rc->data_root != NULL
+    struct stat leftover;
+
+    if (rc->cstore != NULL && rc->data_root != NULL && rc->data_root[0] != '\0'
         && ngx_strncmp(child, rc->data_root, ngx_strlen(rc->data_root)) == 0)
     {
         (void) brix_cstore_evict(rc->cstore, child + ngx_strlen(rc->data_root));
     } else {
         (void) unlink(child);
     }
+    /* Verify, then fall back — never report a reap that did not happen. */
+    if (lstat(child, &leftover) == 0) {
+        (void) unlink(child);
+    }
+    if (lstat(child, &leftover) == 0) {
+        ngx_log_error(NGX_LOG_ERR, rc->log, 0,
+            "brix: cache reaper could not remove \"%s\" (left in place)",
+            child);
+        return;
+    }
     reap_unlink_sidecars(child);
 
     if (rc->slot != NULL) {
         (void) ngx_atomic_fetch_add(&rc->slot->cache_dirty_reaped[reason], 1);
     }
-    if (reason == BRIX_CACHE_REAP_COMPLETED) {
+    if (reason == BRIX_CACHE_REAP_COLD) {
+        ngx_log_error(NGX_LOG_NOTICE, rc->log, 0,
+            "brix: cache purged cold file (untouched past "
+            "brix_cache_cold_max_age, re-fetchable): \"%s\"", child);
+    } else if (reason == BRIX_CACHE_REAP_COMPLETED) {
         ngx_log_error(NGX_LOG_NOTICE, rc->log, 0,
             "brix: cache reaped completed write-back file "
             "(flushed, reclaimed): \"%s\"", child);
@@ -234,14 +277,15 @@ reap_dir(const char *dir, const reap_ctx_t *rc)
         brix_cache_cinfo_state_t   cs;
         brix_cache_reap_reason_t   reason = BRIX_CACHE_REAP_ABANDONED;
         int                        is_dir = 0;
+        time_t                     last_touch = 0;
 
-        if (!reap_entry_candidate(dir, de, rc, child, &is_dir)) {
+        if (!reap_entry_candidate(dir, de, rc, child, &is_dir, &last_touch)) {
             if (is_dir) {
                 n += reap_dir(child, rc);
             }
             continue;
         }
-        if (!reap_classify(child, rc, &cs, &reason)) {
+        if (!reap_classify(child, rc, last_touch, &cs, &reason)) {
             continue;
         }
         reap_remove(child, rc, &cs, reason);
@@ -259,7 +303,10 @@ brix_cache_reap_dirty(const ngx_stream_brix_srv_conf_t *conf, ngx_log_t *log)
     struct stat rs;
     reap_ctx_t  rc;
 
-    if (conf == NULL || conf->cache_dirty_max_age == 0) {
+    /* Either policy alone is reason enough to walk: the dirty horizon bounds
+     * abandoned write-back, the cold horizon purges untouched read-fills. */
+    if (conf == NULL
+        || (conf->cache_dirty_max_age == 0 && conf->cache_cold_max_age == 0)) {
         return 0;
     }
     root = brix_cache_state_root(conf);
@@ -273,6 +320,10 @@ brix_cache_reap_dirty(const ngx_stream_brix_srv_conf_t *conf, ngx_log_t *log)
      * records), not the store's data objects, so it is not a store-driver touch. */
     ngx_memzero(&rc, sizeof(rc));
     rc.cutoff    = time(NULL) - conf->cache_dirty_max_age;
+    /* 0 keeps the cold purge disarmed (reap_classify tests for it explicitly),
+     * so an unset horizon can never be read as "everything is cold". */
+    rc.cold_cutoff = (conf->cache_cold_max_age > 0)
+                   ? time(NULL) - conf->cache_cold_max_age : 0;
     rc.dev       = rs.st_dev;
     rc.log       = log;
     rc.slot      = reap_metrics_slot(conf);

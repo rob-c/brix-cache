@@ -233,8 +233,8 @@ def srv(tmp_path_factory):
     ctx["matrix"] = common
     # Raw-wire client ports come from the fleet attach (start_pair); the module
     # OUR_PORT/OFF_PORT are legacy worker-shift values with no live server.
-    ctx.setdefault("our_port", L.FLEET_OUR_PORT)
-    ctx.setdefault("off_port", L.FLEET_OFF_PORT)
+    ctx.setdefault("our_port", L.worker_port(14070))   # per-worker (was shared 20003)
+    ctx.setdefault("off_port", L.worker_port(14071))
     yield ctx
     L.stop_pair(procs)
 

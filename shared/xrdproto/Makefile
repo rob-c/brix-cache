@@ -46,9 +46,12 @@ endif
 ifeq ($(shell pkg-config --exists libbrotlienc libbrotlidec 2>/dev/null && echo y),y)
   CODEC_CFLAGS += -DBRIX_HAVE_BROTLI=1
 endif
+# \043 = '#': GNU make >= 4.3 passes \# inside a function call through with
+# the backslash kept, so a '\#include' probe preprocesses a stray-backslash
+# line and always exits 0 — force-enabling bzip2 on hosts without bzlib.h.
 ifeq ($(shell pkg-config --exists bzip2 2>/dev/null && echo y),y)
   CODEC_CFLAGS += -DBRIX_HAVE_BZIP2=1
-else ifeq ($(shell printf '\#include <bzlib.h>\n' | $(CC) -E - >/dev/null 2>&1 && echo y),y)
+else ifeq ($(shell printf '\043include <bzlib.h>\n' | $(CC) -E - >/dev/null 2>&1 && echo y),y)
   CODEC_CFLAGS += -DBRIX_HAVE_BZIP2=1
 endif
 # lz4 (phase-42 extension): an env hint (BRIX_LZ4_CFLAGS) carries the -I for a
@@ -121,7 +124,8 @@ BACKEND := $(REPO)/src/fs/backend
 # ngx-free and IS needed here for sd_s3_abort et al.)
 BACKEND_OBJS := $(BUILD)/sd_posix.o $(BUILD)/sd_posix_io.o $(BUILD)/sd_block.o \
                 $(BUILD)/sd_s3.o $(BUILD)/sd_s3_sign.o $(BUILD)/sd_s3_write.o \
-                $(BUILD)/sd_s3_meta.o $(BUILD)/meta_advisory.o
+                $(BUILD)/sd_s3_meta.o $(BUILD)/sd_s3_sign_ext.o \
+                $(BUILD)/meta_advisory.o
 # ZIP central-directory parsing kernel (src/protocols/root/zip/zip_kernel.c): the pure-C,
 # callback-driven, bounds-checked EOCD/ZIP64 parser shared with the module's
 # src/protocols/root/zip. No nginx / OpenSSL / fixed I/O source — the client's clean-room ZIP
@@ -201,6 +205,8 @@ $(BUILD)/sd_s3_sign.o: $(BACKEND)/s3/sd_s3_sign.c | $(BUILD)
 $(BUILD)/sd_s3_write.o: $(BACKEND)/s3/sd_s3_write.c | $(BUILD)
 	$(CC) $(ALL_CFLAGS) -c $< -o $@
 $(BUILD)/sd_s3_meta.o: $(BACKEND)/s3/sd_s3_meta.c | $(BUILD)
+	$(CC) $(ALL_CFLAGS) -c $< -o $@
+$(BUILD)/sd_s3_sign_ext.o: $(BACKEND)/s3/sd_s3_sign_ext.c | $(BUILD)
 	$(CC) $(ALL_CFLAGS) -c $< -o $@
 $(BUILD)/meta_advisory.o: $(BACKEND)/meta_advisory.c | $(BUILD)
 	$(CC) $(ALL_CFLAGS) -c $< -o $@

@@ -10,10 +10,10 @@ to a configured upstream XRootD server — collecting metrics, audit records, an
 applying optional path rewriting along the way. The backend is invisible to
 clients: they see one endpoint, while the proxy lazily opens a backend
 connection, bootstraps it, translates file handles end-to-end, and relays
-responses with the client's own streamid. This is the wire-level counterpart to
-the HTTP/WebDAV proxy (`../webdav/proxy.c`); both live in front of a remote
-origin, but this one speaks the binary XRootD protocol through nginx's **stream**
-module.
+responses with the client's own streamid. It speaks the binary XRootD protocol
+through nginx's **stream** module. (The old HTTP-layer WebDAV reverse-proxy
+transport was retired as dead code; the HTTP plane fronts remote origins through
+the storage-driver seam instead.)
 
 Control enters here from a single short-circuit in the stream dispatcher:
 `src/protocols/root/handshake/dispatch.c` calls `brix_proxy_dispatch()` for every opcode once
@@ -60,6 +60,21 @@ overrides on `brix_proxy_upstream`.
 | `pool.c` | Worker-local idle-connection pool (`brix_proxy_pool_get/put/init`) keyed by upstream index + auth type + bearer-token MD5; `pool_get` does a *random-start* health-aware scan, `pool_put` evicts the oldest when full (`BRIX_PROXY_POOL_SIZE`); idle-timeout keepalive timers (re-arm without ping — a sent-but-unread ping would leave a stray `kXR_ok` in the socket); a pool-safe read handler (`brix_proxy_pool_read_handler`) that evicts on a stray event; per-upstream health tracking (`up_status_init`/`up_mark_failed`/`up_mark_ok`). |
 | `directives.c` | nginx config parsers: `brix_proxy_upstream host[:port] [anonymous\|forward\|sss\|sss:<keyname>]`, `brix_proxy_auth`, `brix_proxy_login_user anonymous\|passthrough\|fixed:<name>`, `brix_proxy_path_rewrite /strip /add`, plus the static `proxy_parse_host_port()` (IPv6 `[addr]:port`, IPv4/hostname `host:port`, default port `1094`). First `brix_proxy_upstream` also back-fills the legacy single `proxy_host`/`proxy_port`. |
 
+### Other files
+
+| File | Responsibility |
+|---|---|
+| `connect_upstream_bootstrap.c` | Builds the 68-byte bootstrap payload (client hello + kXR_protocol + kXR_login) that every new upstream connection must send before the backend will accept further opcodes. |
+| `connect_upstream_tls.c` | nginx SSL callback invoked after the upstream TLS handshake completes; restores normal read/write handlers, transitions into the bootstrap state, flushes the bootstrap buffer, and arms events. |
+| `events_bootstrap_auth.c` | Resolve the effective upstream auth policy and (for SSS) the key to use for THIS upstream: a per-upstream `auth`/`sss:<keyname>` override wins, else the global brix_proxy_auth + first configured key. |
+| `events_bootstrap_internal.h` | Internal declarations shared between events_bootstrap.c (the upstream login state machine) and its sibling split events_bootstrap_auth.c (the kXR_auth credential-sourcing/send machinery). |
+| `events_splice_setup.c` | gate the zero-copy splice fast-path for the current response. |
+| `forward_fh_translate.c` | File handle translation helpers for transparent proxy forwarding. |
+| `forward_relay_response_internal.h` | Internal declarations shared between forward_relay_response.c and its sibling split forward_relay_response_lazy.c. |
+| `forward_relay_response_lazy.c` | Bound-secondary lazy-open relay cluster — handle the synthetic kXR_open response, translate the upstream fhandle into the reserved local slot (or free it on failure), chain any further pending lazy opens, and dispatch th. |
+| `gsi_upstream.c` / `.h` | Phase-4b GSI delegation: secure-temp writer (Task 2). |
+| `gsi_upstream_login.c` | Phase-4b GSI delegation: threaded blocking login to the upstream AS THE USER + fd handoff into the async relay (Tasks 3+4). |
+
 ## Key types & data structures
 
 - **`brix_proxy_ctx_t`** (`proxy_internal.h`) — the per-client-session proxy
@@ -82,14 +97,14 @@ overrides on `brix_proxy_upstream`.
   timer. Reused only when index+auth+token-hash all match.
 - **`brix_proxy_up_status_t`** — per-upstream health: consecutive `fails`,
   last `checked` time, `down` flag.
-- **`brix_proxy_upstream_t`** (`../types/config.h`) — a configured endpoint
+- **`brix_proxy_upstream_t`** (`src/core/types/config.h`) — a configured endpoint
   (`host`, `port`, per-upstream `auth` (`-1` = inherit), optional `sss_keyname`),
   pushed onto `conf->proxy_upstreams`. Auth/login policy enums
   (`BRIX_PROXY_AUTH_*`, `BRIX_PROXY_LOGIN_*`) also live there.
 
 ## Control & data flow
 
-**Entry.** `../handshake/dispatch.c` calls `brix_proxy_dispatch(ctx, c, conf)`
+**Entry.** `src/protocols/root/handshake/dispatch.c` calls `brix_proxy_dispatch(ctx, c, conf)`
 for every opcode once `conf->proxy_enable && ctx->logged_in`, *after* session
 opcodes are handled and *before* local read/write dispatch or rate limiting. The
 function never returns `BRIX_DISPATCH_CONTINUE`.
@@ -116,15 +131,14 @@ response (with the client's original streamid) and resumes the client read loop
 
 **Calls out to:**
 - `../handshake/` — the sole caller (`dispatch.c`); proxy short-circuits local dispatch.
-- `../session/registry.h` — `brix_session_handle_lookup()` for bound-secondary lazy-open (`forward_session_helpers.c`).
-- `../connection/handler.h` — `brix_schedule_read_resume()`, `brix_queue_response()`, `ngx_stream_brix_send`, the client `XRD_ST_*` states.
+- `src/protocols/root/session/registry.h` — `brix_session_handle_lookup()` for bound-secondary lazy-open (`forward_session_helpers.c`).
+- `src/protocols/root/connection/handler.h` — `brix_schedule_read_resume()`, `brix_queue_response()`, `ngx_stream_brix_send`, the client `XRD_ST_*` states.
 - `../session/` (login/bind) — `ctx->bearer_token`, `ctx->login_user`, `ctx->is_bound`, `ctx->bound_sessid` drive auth-forwarding and lazy-open.
 - `../sss/` — `brix_sss_build_proxy_credential()` for SSS upstream auth.
-- `../token/file.h` — `brix_token_read_file()` for the file-token bridge.
-- `../gsi/` — `gsi/auth.c` defines the `ztn` wire format this proxy reproduces.
-- `../metrics/metrics_macros.h` — `BRIX_PROXY_METRIC_INC/ADD` (aggregate) and `BRIX_PROXY_UP_INC/ADD` (per-upstream) counters.
+- `src/auth/token/file.h` — `brix_token_read_file()` for the file-token bridge.
+- `../gsi/` — `src/auth/gsi/auth.c` defines the `ztn` wire format this proxy reproduces.
+- `src/observability/metrics/metrics_macros.h` — `BRIX_PROXY_METRIC_INC/ADD` (aggregate) and `BRIX_PROXY_UP_INC/ADD` (per-upstream) counters.
 - `../protocol/` — XRootD wire structs/opcodes (`ClientLoginRequest`, `ServerResponseHdr`, `kXR_*`, `XRD_REQUEST_HDR_LEN`).
-- Sibling at the HTTP layer: `../webdav/proxy.c` (the WebDAV/HTTPS reverse proxy).
 
 ## Invariants, security & gotchas
 
@@ -205,23 +219,22 @@ response (with the client's original streamid) and resumes the client read loop
 - **Add a path-mutation audit op:** add the opcode to the `kXR_rm/...` capture
   switch in `forward_request.c` (set `fwd_path`/`fwd_path2`/`fwd_path_audit`) and
   to the `op_str` switch in `proxy_write_path_audit()` (`forward_relay_audit.c`).
-- **Add a config directive:** declare the field in `../types/config.h`, register
-  the `ngx_command_t` in `../config/directives.c`, and either reuse an existing
+- **Add a config directive:** declare the field in `src/core/types/config.h`, register
+  the `ngx_command_t` in the stream commands table (`src/protocols/root/stream/directives_cms.h`), and either reuse an existing
   `brix_conf_set_proxy_*` handler or add one in `directives.c`. New top-level
   blocks require `./configure`; field-only changes do not.
 - **Add a proxy metric:** add the field to the proxy metric struct in
   `../metrics/`, then call `BRIX_PROXY_METRIC_INC/ADD(ctx, field)` plus the
   per-upstream `BRIX_PROXY_UP_INC/ADD(proxy, field)` at the callsite.
-- **Add an upstream auth method:** extend `BRIX_PROXY_AUTH_*` (`../types/config.h`),
+- **Add an upstream auth method:** extend `BRIX_PROXY_AUTH_*` (`src/core/types/config.h`),
   parse it in `brix_conf_set_proxy_auth` / per-upstream parser (`directives.c`),
   and build the `kXR_auth` frame in the `LOGIN` phase of `events_bootstrap.c`.
 
 ## See also
 
-- `../handshake/README.md` — the dispatcher that short-circuits into this subsystem.
-- `../session/README.md` — login/bind state, bound-secondary handle registry.
-- `../sss/README.md`, `../gsi/README.md`, `../token/README.md` — upstream credential sources.
-- `../webdav/README.md` — the HTTP-layer reverse proxy counterpart (`proxy.c`).
-- `../metrics/README.md` — the `BRIX_PROXY_*` counter macros.
-- `../protocol/README.md` — XRootD wire structs and opcode constants.
+- `../../protocols/root/handshake/README.md` — the dispatcher that short-circuits into this subsystem.
+- `../../protocols/root/session/README.md` — login/bind state, bound-secondary handle registry.
+- `../../auth/sss/README.md`, `../../auth/gsi/README.md`, `../../auth/token/README.md` — upstream credential sources.
+- `../../observability/metrics/README.md` — the `BRIX_PROXY_*` counter macros.
+- `../../protocols/root/protocol/README.md` — XRootD wire structs and opcode constants.
 - `../README.md` — master subsystem index.

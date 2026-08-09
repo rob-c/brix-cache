@@ -44,13 +44,13 @@ def _read(rel):
     assert p.exists(), f"missing {rel}"
     text = p.read_text(encoding="utf-8")
     # The per-module ngx_command_t directive table was split into per-concern
-    # directives_*.inc fragments (#included into the array); inline them so a
+    # directives_*.h fragments (#included into the array); inline them so a
     # directive-presence check against module.c sees the full effective table.
     import re as _re
     def _inc(m):
         frag = p.parent / m.group(1)
         return frag.read_text(encoding="utf-8") if frag.exists() else m.group(0)
-    return _re.sub(r'#include "(directives_[a-z0-9_]+\.inc)"', _inc, text)
+    return _re.sub(r'#include "(directives_[a-z0-9_]+\.h)"', _inc, text)
 
 
 # --------------------------------------------------------------------------- #

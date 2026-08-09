@@ -327,6 +327,30 @@ def validate_manifest(manifest: dict[str, Any]) -> None:
         raise ValueError("server registry manifest lacks a servers object")
 
 
+def manifest_owns_test_root(path: str = REGISTRY_MANIFEST) -> bool:
+    """Return whether a manifest identifies a fleet for this TEST_ROOT."""
+    try:
+        manifest = json.loads(Path(path).read_text(encoding="utf-8"))
+    except (OSError, ValueError, TypeError):
+        return False
+    recorded = manifest.get("test_root")
+    if not isinstance(recorded, str) or not recorded:
+        return False
+    return os.path.realpath(recorded) == os.path.realpath(TEST_ROOT)
+
+
+def fleet_ready_for_test_root(path: str | None = None) -> bool:
+    """True only after this root's manager completed an entire start-all."""
+    from settings import FLEET_READY
+
+    marker = Path(path or FLEET_READY)
+    try:
+        recorded = marker.read_text(encoding="utf-8").strip()
+    except OSError:
+        return False
+    return os.path.realpath(recorded) == os.path.realpath(TEST_ROOT)
+
+
 def get_server(name: str) -> ServerEndpoint:
     spec = _SPECS.get(name)
     if spec is not None:

@@ -70,7 +70,7 @@ envelope used on GSI sessions.
   BRIX_SESSION_HANDLES_PER_SESSION 8 = 4096`, deliberately decoupled from the
   per-connection `BRIX_MAX_FILES=16` to bound idle RAM — see the ~50 MB sizing
   note in `registry.h`).
-- **Session state on `brix_ctx_t`** (`../types/context.h`) — set here and read
+- **Session state on `brix_ctx_t`** (`src/core/types/context.h`) — set here and read
   everywhere downstream: `logged_in`, `auth_done`, `sessid`, `login_user`,
   `login_pid`, `is_bound`, `bound_sessid`, `pathid`, `token_auth`, `tls_pending`,
   plus the sigver pending block (`sigver_pending`, `sigver_hmac[32]`,
@@ -94,9 +94,9 @@ also consumes the pending HMAC stored by `signing.c` *before* the next opcode ru
 - `../gsi/`, `../token/`, `../sss/`, `../krb5/`, `../unix/` — actual credential
   verification (`kXR_auth`); on success they populate DN/VO and call
   `brix_session_register()`.
-- `../crypto/` — HMAC-SHA256 for sigver; `../crypto/ocsp.h` for the stapling
+- `../crypto/` — HMAC-SHA256 for sigver; `src/auth/crypto/ocsp.h` for the stapling
   callback in `tls_config.c`.
-- `../config/postconfiguration.c` — invokes `brix_configure_tls()` and
+- `src/core/config/postconfiguration.c` — invokes `brix_configure_tls()` and
   `brix_configure_session_registry()` once at startup (the latter sized by the
   max `registry_slots` across server blocks).
 - `../metrics/` — `op_ok[BRIX_OP_LOGIN]`, `op_ok[BRIX_OP_PING]`,
@@ -167,7 +167,7 @@ also consumes the pending HMAC stored by `signing.c` *before* the next opcode ru
 ## Entry points / extending
 
 - **New session opcode:** add `brix_handle_<op>()` here, declare it in
-  `session.h` (and `../ngx_brix_module.h` if the dispatcher needs it), then
+  `session.h` (and `src/core/ngx_brix_module.h` if the dispatcher needs it), then
   register the case in `../handshake/dispatch_session.c`. Add the 3 required tests
   (success + error + security-negative).
 - **New advertised capability flag:** OR the bit into the `caps` computation in
@@ -184,13 +184,13 @@ also consumes the pending HMAC stored by `signing.c` *before* the next opcode ru
 ## See also
 
 - `../handshake/README.md` — opcode dispatcher; sigver phase-2 verification.
-- `../connection/README.md` — accept/recv state machine; `fd_table.c` bound-handle
+- `../connection/README.md` — accept/recv state machine; `src/protocols/root/connection/fd_table.c` bound-handle
   reopen/validation.
-- `../gsi/README.md`, `../token/README.md` — `kXR_auth` credential verification
+- `../../../auth/gsi/README.md`, `../../../auth/token/README.md` — `kXR_auth` credential verification
   that feeds `brix_session_register()`.
-- `../proxy/README.md` — endsess forwarding and bound/session lookup in proxy
+- `../../../net/proxy/README.md` — endsess forwarding and bound/session lookup in proxy
   mode.
-- `../read/README.md`, `../tpc/README.md` — primaries that publish handles.
-- `../crypto/README.md` — HMAC + OCSP helpers used by `signing.c`/`tls_config.c`.
-- `../config/README.md`, `../metrics/README.md` — postconfig wiring and counters.
+- `../read/README.md`, `../../../tpc/README.md` — primaries that publish handles.
+- `../../../auth/crypto/README.md` — HMAC + OCSP helpers used by `signing.c`/`tls_config.c`.
+- `../../../core/config/README.md`, `../../../observability/metrics/README.md` — postconfig wiring and counters.
 - `../README.md` — master subsystem index.
