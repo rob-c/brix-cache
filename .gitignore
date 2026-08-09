@@ -179,3 +179,11 @@ k8s-tests/rpms/
 /krb5_deleg_capture
 /test_zz_probe.py
 /August_Status.pptx
+
+# stray test-run logs / captures at the repo root — never commit these
+/*.log
+/start_log.txt
+/testlog*.log
+/testlogs*.log
+/thistest*.log
+/full_suite.log
