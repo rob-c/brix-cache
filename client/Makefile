@@ -281,7 +281,7 @@ xrdprep_OBJS      := apps/prep/xrdprep.o
 ALL_OBJS := $(LIB_OBJS) $(foreach b,$(BINS),$($(b)_OBJS))
 DEPS     := $(ALL_OBJS:.o=.d)
 
-.PHONY: all proto clean lib install install-bin install-man install-completions install-automount compat install-compat example-test test libbrix.pc $(BINS) $(CKSUM_LINKS) $(DIAG_LINKS) xrootdfs brixMount brixcvmfs
+.PHONY: all proto FORCE clean lib install install-bin install-man install-completions install-automount compat install-compat example-test test libbrix.pc $(BINS) $(CKSUM_LINKS) $(DIAG_LINKS) xrootdfs brixMount brixcvmfs
 all: $(BIN_EXES) $(LINK_EXES) $(OPT_BINS) $(OPT_EXES) $(OPT_LINKS) $(STANDALONE_EXES)
 
 # Keep intermediates (apps/*.o, lib/*.o built via the chained pattern rules). Without
@@ -292,8 +292,25 @@ all: $(BIN_EXES) $(LINK_EXES) $(OPT_BINS) $(OPT_EXES) $(OPT_LINKS) $(STANDALONE_
 .SECONDARY:
 
 # Build the shared core first (build-in-place; produces ../shared/xrdproto/libxrdproto.a).
-proto:
+#
+# The recursion hangs off the ARCHIVE, not off `proto`, so the archive is a real
+# make target. Targets that merely need it present use the order-only `| proto`
+# alias; the two shared objects below LINK it and so name $(PROTO_LIB) as a normal
+# prerequisite — without a rule whose target is the archive itself that is a hard
+# "No rule to make target '../shared/xrdproto/libxrdproto.a'" on any tree where the
+# archive does not exist yet (every clean CI checkout: -j reaches the prerequisite
+# before the order-only recursion has produced it). One recursion point also means
+# a parallel make can never run two sub-makes in $(PROTO_DIR) at once.
+#
+# FORCE keeps the sub-make authoritative over freshness — it always runs, exactly
+# as the phony `proto` always ran, and only touches the archive's mtime when
+# something really changed, so dependents relink only when the core changed.
+proto: $(PROTO_LIB)
+
+$(PROTO_LIB): FORCE
 	$(MAKE) -C $(PROTO_DIR)
+
+FORCE:
 
 $(BINDIR):
 	@mkdir -p $(BINDIR)
