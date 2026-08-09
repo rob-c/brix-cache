@@ -11,44 +11,44 @@
   aria-label="Routing schematic: four protocol inputs — root://, davs://, s3://, and gsiftp:// — converge on one namespace node holding /data/higgs.root, which resolves to the shared VFS storage backend."
 >
   <span class="router-cap mono">namespace router</span>
-  <svg viewBox="0 0 440 300" preserveAspectRatio="xMidYMid meet">
+  <svg viewBox="0 0 480 300" preserveAspectRatio="xMidYMid meet">
     <!-- traces: input port -> core -->
-    <path class="trace" style="stroke:var(--root)" d="M92,64 C150,64 150,150 214,150" />
-    <path class="trace" style="stroke:var(--dav)"  d="M92,116 C150,116 160,150 214,150" />
-    <path class="trace" style="stroke:var(--s3)"   d="M92,184 C150,184 160,150 214,150" />
-    <path class="trace" style="stroke:var(--ftp)"  d="M92,236 C150,236 150,150 214,150" />
-    <path class="trace" style="stroke:var(--root);opacity:.7" d="M330,150 C356,150 356,150 384,150" />
+    <path class="trace" style="stroke:var(--root)" d="M136,62  C182,62  182,160 220,160" />
+    <path class="trace" style="stroke:var(--dav)"  d="M136,128 C182,128 196,160 220,160" />
+    <path class="trace" style="stroke:var(--s3)"   d="M136,194 C182,194 196,160 220,160" />
+    <path class="trace" style="stroke:var(--ftp)"  d="M136,260 C182,260 182,160 220,160" />
+    <path class="trace" style="stroke:var(--root);opacity:.7" d="M380,160 C398,160 398,160 416,160" />
 
-    <!-- input ports -->
-    <g class="node-lab">
-      <rect class="port" x="18" y="52"  width="74" height="24" rx="4" fill="var(--panel)" stroke="var(--root)" />
-      <text x="27" y="67"  style="fill:var(--root)">root://</text>
-      <rect class="port" x="18" y="104" width="74" height="24" rx="4" fill="var(--panel)" stroke="var(--dav)" />
-      <text x="27" y="119" style="fill:var(--dav)">davs://</text>
-      <rect class="port" x="18" y="172" width="74" height="24" rx="4" fill="var(--panel)" stroke="var(--s3)" />
-      <text x="27" y="187" style="fill:var(--s3)">s3://</text>
-      <rect class="port" x="18" y="224" width="74" height="24" rx="4" fill="var(--panel)" stroke="var(--ftp)" />
-      <text x="27" y="239" style="fill:var(--ftp)">gsiftp://</text>
+    <!-- input ports — the eye-catching protocol wordmarks -->
+    <g class="port-lab">
+      <rect class="port" x="16" y="44"  width="120" height="36" rx="8" style="stroke:var(--root)" />
+      <text x="76" y="67"  text-anchor="middle" style="fill:var(--root)">root://</text>
+      <rect class="port" x="16" y="110" width="120" height="36" rx="8" style="stroke:var(--dav)" />
+      <text x="76" y="133" text-anchor="middle" style="fill:var(--dav)">davs://</text>
+      <rect class="port" x="16" y="176" width="120" height="36" rx="8" style="stroke:var(--s3)" />
+      <text x="76" y="199" text-anchor="middle" style="fill:var(--s3)">s3://</text>
+      <rect class="port" x="16" y="242" width="120" height="36" rx="8" style="stroke:var(--ftp)" />
+      <text x="76" y="265" text-anchor="middle" style="fill:var(--ftp)">gsiftp://</text>
     </g>
 
     <!-- core namespace node -->
-    <rect class="node-core" x="214" y="120" width="116" height="60" rx="7" />
-    <text class="node-lab" x="272" y="146" text-anchor="middle">one namespace</text>
-    <text class="node-sub" x="272" y="160" text-anchor="middle">shared VFS · auth · cache</text>
-    <text class="node-sub" x="272" y="171" text-anchor="middle" style="fill:var(--root)">/data/higgs.root</text>
+    <rect class="node-core" x="220" y="110" width="160" height="100" rx="10" />
+    <text class="node-title" x="300" y="150" text-anchor="middle">one namespace</text>
+    <text class="node-sub"   x="300" y="170" text-anchor="middle">shared VFS · auth · cache</text>
+    <text class="node-file"  x="300" y="190" text-anchor="middle">/data/higgs.root</text>
 
     <!-- disk node -->
-    <rect class="node-box" x="384" y="128" width="44" height="44" rx="5" />
-    <ellipse cx="406" cy="140" rx="15" ry="4.5" fill="none" stroke="var(--ink-3)" stroke-width="1" />
-    <path d="M391,140 v20 a15,4.5 0 0 0 30,0 v-20" fill="none" stroke="var(--ink-3)" stroke-width="1" />
-    <text class="node-sub" x="406" y="190" text-anchor="middle">storage</text>
+    <rect class="node-box" x="416" y="132" width="52" height="52" rx="6" />
+    <ellipse cx="442" cy="146" rx="18" ry="5.5" fill="none" stroke="var(--ink-3)" stroke-width="1.2" />
+    <path d="M424,146 v24 a18,5.5 0 0 0 36,0 v-24" fill="none" stroke="var(--ink-3)" stroke-width="1.2" />
+    <text class="disk-lab" x="442" y="204" text-anchor="middle">storage</text>
 
     <!-- animated signal pulses -->
-    <circle class="pulse"     style="fill:var(--root);offset-path:path('M92,64 C150,64 150,150 214,150')" />
-    <circle class="pulse p2"  style="fill:var(--dav); offset-path:path('M92,116 C150,116 160,150 214,150')" />
-    <circle class="pulse p3"  style="fill:var(--s3);  offset-path:path('M92,184 C150,184 160,150 214,150')" />
-    <circle class="pulse p4"  style="fill:var(--ftp); offset-path:path('M92,236 C150,236 150,150 214,150')" />
-    <circle class="pulse out" style="fill:var(--root);offset-path:path('M330,150 C356,150 356,150 384,150')" />
+    <circle class="pulse"     style="fill:var(--root);offset-path:path('M136,62  C182,62  182,160 220,160')" />
+    <circle class="pulse p2"  style="fill:var(--dav); offset-path:path('M136,128 C182,128 196,160 220,160')" />
+    <circle class="pulse p3"  style="fill:var(--s3);  offset-path:path('M136,194 C182,194 196,160 220,160')" />
+    <circle class="pulse p4"  style="fill:var(--ftp); offset-path:path('M136,260 C182,260 182,160 220,160')" />
+    <circle class="pulse out" style="fill:var(--root);offset-path:path('M380,160 C398,160 398,160 416,160')" />
   </svg>
 </div>
 
@@ -58,28 +58,31 @@
     border: 1px solid var(--line);
     border-radius: var(--radius);
     background:
-      linear-gradient(color-mix(in srgb, var(--ink) 6%, transparent) 1px, transparent 1px) 0 0 / 100% 22px,
-      linear-gradient(90deg, color-mix(in srgb, var(--ink) 6%, transparent) 1px, transparent 1px) 0 0 / 22px 100%,
+      linear-gradient(color-mix(in srgb, var(--ink) 6%, transparent) 1px, transparent 1px) 0 0 / 100% 24px,
+      linear-gradient(90deg, color-mix(in srgb, var(--ink) 6%, transparent) 1px, transparent 1px) 0 0 / 24px 100%,
       var(--panel);
     box-shadow: var(--shadow);
     padding: 0.5rem;
     overflow: hidden;
   }
   .router-cap {
-    position: absolute; top: 0.75rem; left: 0.9rem;
-    font-size: 0.62rem; letter-spacing: 0.16em; text-transform: uppercase;
+    position: absolute; top: 0.8rem; left: 1rem;
+    font-size: 0.66rem; letter-spacing: 0.16em; text-transform: uppercase;
     color: var(--ink-3);
   }
   .router svg { width: 100%; height: auto; }
 
-  .trace { fill: none; stroke-width: 1.6; opacity: 0.5; }
-  .node-box { fill: var(--panel); stroke: var(--line-2); stroke-width: 1; }
-  .node-core { fill: color-mix(in srgb, var(--root) 12%, var(--panel)); stroke: var(--root); stroke-width: 1.4; }
-  .node-lab { font-family: var(--mono); font-size: 8.5px; fill: var(--ink); font-weight: 600; }
-  .node-sub { font-family: var(--mono); font-size: 6.5px; fill: var(--ink-3); }
-  .port { stroke-width: 1.2; }
+  .trace { fill: none; stroke-width: 2; opacity: 0.55; }
+  .port { fill: var(--panel); stroke-width: 2; }
+  .port-lab text { font-family: var(--mono); font-size: 16px; font-weight: 700; letter-spacing: -0.02em; }
+  .node-box { fill: var(--panel); stroke: var(--line-2); stroke-width: 1.2; }
+  .node-core { fill: color-mix(in srgb, var(--root) 12%, var(--panel)); stroke: var(--root); stroke-width: 1.6; }
+  .node-title { font-family: var(--mono); font-size: 15px; font-weight: 700; fill: var(--ink); letter-spacing: -0.01em; }
+  .node-sub { font-family: var(--mono); font-size: 10px; fill: var(--ink-2); }
+  .node-file { font-family: var(--mono); font-size: 12px; font-weight: 600; fill: var(--root); }
+  .disk-lab { font-family: var(--mono); font-size: 11px; fill: var(--ink-2); }
 
-  .pulse { r: 3; offset-rotate: 0deg; animation: routeflow 2.4s linear infinite; }
+  .pulse { r: 4; offset-rotate: 0deg; animation: routeflow 2.4s linear infinite; }
   .pulse.p2 { animation-delay: .6s; }
   .pulse.p3 { animation-delay: 1.2s; }
   .pulse.p4 { animation-delay: 1.8s; }

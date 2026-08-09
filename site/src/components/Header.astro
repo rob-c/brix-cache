@@ -98,6 +98,8 @@ const isActive = (href: string) => path.endsWith(href);
     display: inline-flex;
     align-items: center;
     gap: 0.45ch;
+    white-space: nowrap;   /* keep "BriX-Cache" on one line — never break at the hyphen */
+    flex-shrink: 0;        /* the nav must not squeeze the wordmark into a wrap */
   }
   .brand-mark { color: var(--accent); font-size: 1.15em; line-height: 1; }
   .nav {
