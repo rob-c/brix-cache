@@ -1,9 +1,11 @@
 ---
+import { Image } from 'astro:assets';
 import Layout from '../layouts/Layout.astro';
 import Band from '../components/Band.astro';
 import RoutingMatrix from '../components/RoutingMatrix.astro';
 import Cta from '../components/Cta.astro';
 import { url, REPO_URL, DOCS_URL, PROTOCOLS, AUDIENCES } from '../lib/site';
+import knife from '../assets/brix-knife.png';
 
 const audienceBlurb: Record<string, string> = {
   Sysadmins: 'Drop it in front of an existing xrootd server to add TLS, auth, and metrics — client and backend config unchanged.',
@@ -188,6 +190,39 @@ const whoAccent = ['root', 'dav', 's3', 'ftp'] as const;
     </div>
   </Band>
 
+  <!-- MODULAR TOOLKIT — the swiss-army knife, one row below everything -->
+  <Band variant="sunken" id="modular" accent="root">
+    <div class="knife">
+      <div class="knife-copy stack">
+        <span class="eyebrow">Everything is modular</span>
+        <h2 class="display band-head">Every blade, one handle.</h2>
+        <p class="lede muted">
+          The four wire protocols are only the start. The same binary and toolset fold in a CVMFS
+          site cache and FUSE client, x509 / GSI proxy handling, and WLCG bearer-token scope
+          enforcement — open only the blades your site needs, each sharing the one core for auth,
+          storage, caching, and metrics.
+        </p>
+        <p class="blades">
+          <span class="chip chip--root">CVMFS</span>
+          <span class="chip chip--root">root://</span>
+          <span class="chip chip--dav">webdav</span>
+          <span class="chip chip--s3">s3</span>
+          <span class="chip chip--ftp">gsiftp</span>
+          <span class="chip chip--s3">x509</span>
+          <span class="chip chip--dav">tokens</span>
+        </p>
+      </div>
+      <figure class="knife-figure panel">
+        <Image
+          src={knife}
+          alt="A red swiss-army knife bearing the BriX logo, its blades labeled CVMFS, root://, webdav, s3, gsiftp, x509, and tokens"
+          widths={[480, 960]}
+          sizes="(min-width: 900px) 520px, 100vw"
+        />
+      </figure>
+    </div>
+  </Band>
+
   <!-- CTA -->
   <Band accent="root">
     <Cta
@@ -279,4 +314,12 @@ const whoAccent = ['root', 'dav', 's3', 'ftp'] as const;
   .who-name { font-family: var(--display); font-weight: 700; font-size: 1.2rem; letter-spacing: -0.02em; }
   .who-blurb { font-size: 0.88rem; margin: 0.55rem 0 1rem; flex: 1; }
   .who-go { color: var(--accent); font-weight: 600; font-size: 0.78rem; }
+
+  /* modular toolkit — swiss-army knife */
+  .knife { display: grid; gap: 2.4rem; align-items: center; }
+  @media (min-width: 900px) { .knife { grid-template-columns: 1fr 0.9fr; gap: 3.2rem; } }
+  .knife-copy .band-head { margin-bottom: 1.1rem; }
+  .blades { display: flex; flex-wrap: wrap; gap: 0.45rem; margin-top: 1.2rem; }
+  .knife-figure { margin: 0; padding: 0; overflow: hidden; }
+  .knife-figure img { display: block; width: 100%; height: auto; filter: var(--photo-filter); }
 </style>
