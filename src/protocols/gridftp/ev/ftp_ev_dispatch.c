@@ -225,6 +225,12 @@ ev_grp_login(ftp_ev_t *fc, const char *verb, const char *arg)
         return brix_ftp_ev_reply(fc, "331 Please specify the password\r\n");
     } else if (strcasecmp(verb, "PASS") == 0) {
         fc->authed = 1;
+        if (!fc->sec_active) {
+            /* A cleartext login carries no principal.  Recorded only when GSI is
+             * NOT active: a wrapped session was already counted at ADAT, and a
+             * PASS after it must not book a second attempt for one login. */
+            brix_metric_auth(BRIX_PROTO_GRIDFTP, BRIX_AUTHN_NONE, 1);
+        }
         return brix_ftp_ev_reply(fc, "230 Login successful\r\n");
     }
     return NGX_DECLINED;

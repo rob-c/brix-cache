@@ -199,17 +199,39 @@ metrics.h
     │     ├── requests_total[METHOD][STATUS_CLASS]
     │     ├── auth_total[AUTH_RESULT]
     │     └── multipart_events[…]
+    ├── cvmfs                             — cvmfs:// counters (repo/upstream slots)
+    ├── unified                           — protocol-labeled, ALL planes
+    │     ├── io_ops_total[PROTO][OP][ERR]
+    │     ├── io_bytes_read / io_bytes_written[PROTO]
+    │     ├── io_latency_bucket/_count/_sum[PROTO][OP]
+    │     ├── cache_hits / cache_misses / cache_bytes_evicted[PROTO]
+    │     ├── cred_select_*[PROTO], cred_deleg_*[PROTO][MODE][OUTCOME]
+    │     ├── auth_total[PROTO][METHOD][STATUS]
+    │     └── tpc_transfers[PROTO][DIR][ERR] / tpc_bytes[PROTO][DIR]
     ├── vo_global                         — VO activity slots (FNV-1a hashed)
     └── user_global                       — unique user identity slots
 ```
+
+The per-protocol sub-structs above are the **legacy** families, one per plane. The
+`unified` sub-struct is the cross-protocol one: every array is dimensioned
+`[BRIX_PROTO_COUNT]`, so all five planes — `stream`, `webdav`, `s3`, `cvmfs`,
+`gridftp` — are in the same zone by construction, and adding a plane is one row in
+`src/core/types/proto_list.h` rather than a new counter family. The zone is
+process-wide, not per-listener: a plane that only ever runs inside `stream {}`
+(native XRootD, the GridFTP gateway) is still exported by the one `brix_metrics on;`
+location in `http {}`.
 
 The stream module writes counters with `BRIX_STREAM_METRIC_INC(op, status)` (increments
 atomic counters by slot index). The HTTP metrics handler (`src/observability/metrics/handler.c`) reads the
 same zone and serialises all counter families to Prometheus text format via `metrics_writer_t`
 from `src/observability/metrics/writer.c`.
 
-`src/observability/metrics/tracking.c` provides `brix_track_vo_activity()` and `brix_track_unique_user()`
-which are called from stream, WebDAV, and S3 paths alike after successful authentication.
+`src/observability/metrics/tracking.c` provides `brix_track_vo_activity()` and `brix_track_unique_user()`.
+Unlike the `unified` counters above these are **not** protocol-labeled and are not
+recorded per plane: they are stamped once at the stream login terminals in
+`src/auth/` (GSI, token, SSS, unix, krb5) as the session binds, so the VO and
+unique-user slots describe `root://` logins specifically, not every plane in the
+zone.
 
 ### TPC key registry (`src/tpc/engine/key_registry.c`)
 

@@ -72,8 +72,11 @@ const architecture: Faq[] = [
     q: 'Is root:// translated into HTTP?',
     a: `No — it is one binary with two native fronts. The <span class="mono">stream&nbsp;{}</span>
         block speaks the binary <span class="mono">kXR</span> protocol; the
-        <span class="mono">http&nbsp;{}</span> block speaks WebDAV, S3, and metrics. Both converge on
-        the same auth layer, the same path confinement, the same VFS, the same cache — written once.
+        <span class="mono">http&nbsp;{}</span> block speaks WebDAV, S3, and the
+        <span class="mono">/metrics</span> endpoint. Both converge on the same auth layer, the same
+        path confinement, the same VFS, the same cache — and the same metrics zone, which is
+        process-wide, so the <span class="mono">stream&nbsp;{}</span> fronts are exported by that one
+        HTTP location too. Written once.
         The same physical file is reachable as <span class="mono">root://</span>,
         <span class="mono">davs://</span>, and <span class="mono">s3://</span> simultaneously because
         the protocols are peers, not layers.`,
@@ -312,7 +315,10 @@ const security: Faq[] = [
         reaches a log line, so terminal-escape and log-injection games die at the boundary. Metric
         labels are fixed and low-cardinality — no per-path, per-user, or per-token label explosion —
         so the Prometheus endpoint stays cheap and standing precisely when you need it most: during
-        the incident.`,
+        the incident. The <span class="mono">proto</span> label is a closed set of five
+        (<span class="mono">stream</span>, <span class="mono">webdav</span>, <span class="mono">s3</span>,
+        <span class="mono">cvmfs</span>, <span class="mono">gridftp</span>) generated from a single
+        declaration in the source, so adding a protocol adds rows — never a new label surface.`,
     cite: 'src/observability/accesslog/access_log.c · brix_sanitize_log_string',
   },
   {
@@ -349,7 +355,7 @@ const scoreboard = [
   },
   {
     t: 'Monitoring without a decoder ring',
-    brix: 'Prometheus-native metrics, a built-in dashboard, and WLCG Storage Resource Reporting over plain HTTPS/JSON.',
+    brix: 'Prometheus-native metrics for every protocol in one process-wide zone, a built-in dashboard, and WLCG Storage Resource Reporting over plain HTTPS/JSON.',
     stock: 'Binary UDP f-stream/g-stream monitoring that needs a separate collector stack to become legible.',
   },
   {

@@ -111,6 +111,47 @@ rate(brix_requests_total{op="write",status="error"}[5m])
 
 ---
 
+## Cross-Protocol Health
+
+The queries above read the native-XRootD families. Because **all five protocol
+planes report into the same process-wide metrics zone** — `stream`, `webdav`,
+`s3`, `cvmfs`, `gridftp` — the unified `brix_io_*` and `brix_auth_total`
+families give the same health picture for every plane in one query, without
+per-protocol arithmetic:
+
+```promql
+# Error ratio per protocol — one line per plane serving traffic
+  sum by (proto) (rate(brix_io_ops_total{status!="ok"}[5m]))
+/ sum by (proto) (rate(brix_io_ops_total[5m]))
+
+# Which planes are refusing work, and why
+sum by (proto, status) (rate(brix_io_ops_total{status=~"forbidden|not_found"}[5m]))
+
+# Authentication failure rate per plane and method
+sum by (proto, method) (rate(brix_auth_total{status="fail"}[5m]))
+
+# p99-ish latency per plane and operation (histogram over the shared buckets)
+histogram_quantile(0.99,
+  sum by (proto, op, le) (rate(brix_io_latency_usec_bucket[5m])))
+```
+
+**What to watch:**
+
+- A protocol that stops appearing in `sum by (proto) (rate(brix_io_ops_total[5m]))`
+  has gone quiet, not missing: the series are always exported, so a plane with no
+  traffic reads `0` rather than disappearing. `absent()` on a `{proto=...}` series
+  fires only when the whole scrape is gone.
+- A `forbidden` rate that tracks the request rate on exactly one plane usually
+  means that plane's export is read-only or its token scope is wrong, not a
+  storage fault — the other planes over the same export stay clean.
+- `brix_io_latency_usec_count{proto="stream",op="read"}` sitting at zero under
+  heavy root:// reads is expected, not a broken histogram: the stream plane's
+  READ rows come from the scrape-time wire-ledger fold, which carries no latency
+  samples. See the single-owner rule in
+  [metrics-overview.md](./metrics-overview.md#accounting-ownership--accuracy-invariants).
+
+---
+
 ## Cache Occupancy and Eviction
 
 ```promql

@@ -32,8 +32,12 @@ For a file-by-file implementation roadmap, see
 
 Extend live transfer slot allocation beyond native XRootD handles so WebDAV,
 S3, and HTTP-TPC operations appear in the same active transfer table. The JSON
-schema already has protocol tags for `root`, `webdav`, and `s3`; the remaining
-work is lifecycle wiring in each HTTP handler:
+schema carries a protocol tag for every plane the module speaks — `root`,
+`webdav`, `s3`, `cvmfs`, `gridftp`, generated from the same
+`src/core/types/proto_list.h` declaration that drives the `{proto}` metric
+labels — so the remaining work is lifecycle wiring per handler (the WebDAV, S3
+and cvmfs handlers allocate slots today; the GridFTP gateway reports into the
+metrics zone but does not yet register live transfer slots):
 
 - allocate a slot when a GET, PUT, COPY/TPC, or S3 object transfer starts
 - update bytes and last-active timestamp during body read/write
@@ -64,7 +68,7 @@ slow clients from server-side trouble.
 
 Add browser-side controls for common triage questions:
 
-- protocol filter: root, WebDAV, S3, TPC
+- protocol filter: root, WebDAV, S3, cvmfs, GridFTP, TPC
 - direction filter: reads, writes, third-party copies
 - status filter: active, idle, stalled, error
 - text search across path, identity, client address, and transfer ID

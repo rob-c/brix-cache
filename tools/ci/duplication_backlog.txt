@@ -355,7 +355,7 @@ src/protocols/root/protocol/codec/wire_codec_file.c:39-50+src/protocols/root/pro
 src/protocols/root/protocol/codec/wire_codec_file.c:83-94+src/protocols/root/protocol/codec/wire_codec_meta.c:84-95+src/protocols/root/protocol/codec/wire_codec_ns.c:81-92+src/protocols/root/protocol/codec/wire_codec_session.c:90-101
 src/protocols/root/protocol/codec/wire_codec_meta.c:15-22+src/protocols/root/protocol/codec/wire_codec_meta.c:42-49+src/protocols/root/protocol/codec/wire_codec_ns.c:16-23
 src/protocols/root/query/checksum_qcksum_path.c:222-237+src/protocols/root/read/stat_manager.c:111-127
-src/protocols/root/query/checksum_qcksum_path.c:227-237+src/protocols/root/read/stat_manager.c:116-127
+src/protocols/root/query/checksum_qcksum_path.c:225-237+src/protocols/root/read/stat_manager.c:114-127
 src/protocols/root/query/config.c:145-151+src/protocols/root/query/config.c:157-162+src/protocols/root/query/config.c:212-217+src/protocols/root/query/config.c:265-271+src/protocols/root/query/config.c:307-312+src/protocols/root/query/config.c:345-350
 src/protocols/root/query/config.c:145-156+src/protocols/root/query/config.c:157-169+src/protocols/root/query/config.c:212-226+src/protocols/root/query/config.c:265-278+src/protocols/root/query/config.c:307-318
 src/protocols/root/query/util.c:120-136+src/protocols/root/query/util.c:206-222
@@ -412,6 +412,7 @@ src/protocols/root/stream/directives_tier.h:27-41+src/protocols/root/stream/dire
 src/protocols/root/stream/module_enums.c:24-32+src/protocols/root/stream/module_enums.c:32-40+src/protocols/webdav/module_commands.c:12-19+src/protocols/webdav/module_commands.c:19-26+src/protocols/webdav/module_commands.c:26-33
 src/protocols/root/stream/module_enums.c:25-32+src/protocols/root/stream/module_enums.c:33-40+src/protocols/root/stream/module_enums.c:47-54+src/protocols/root/stream/module_enums.c:63-70+src/protocols/root/stream/module_enums.c:82-89+src/protocols/webdav/module_commands.c:13-19+src/protocols/webdav/module_commands.c:20-26+src/protocols/webdav/module_commands.c:27-33
 src/protocols/s3/checksum.c:284-298+src/protocols/s3/checksum.c:421-435
+src/protocols/s3/checksum.c:287-298+src/protocols/s3/checksum.c:424-435
 src/protocols/s3/checksum.c:67-84+src/protocols/s3/checksum.c:95-111
 src/protocols/s3/s3.h:229-256+src/protocols/webdav/webdav.h:203-228
 src/protocols/ssi/svc_cta/cta_pb.c:160-168+src/protocols/ssi/svc_cta/cta_pb.c:186-194+src/protocols/ssi/svc_cta/cta_pb.c:74-82+src/protocols/ssi/svc_cta/cta_pb.c:97-105

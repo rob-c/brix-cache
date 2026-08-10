@@ -12,9 +12,9 @@ The existing test suite has 90+ files covering individual opcodes, protocol conf
 
 ### `tests/test_metrics.py`
 Tests Prometheus `/metrics` endpoint for:
-- Anon/GSI/op labels counters (`brix_requests_total`)
-- Error counters (`brix_errors_total`)
-- Byte counters per protocol (`brix_bytes_sent_total`, `brix_bytes_recv_total`)
+- Per-listener request counters (`brix_requests_total{port,auth,op,status}`)
+- Per-listener byte and connection counters (`brix_bytes_tx_total`,
+  `brix_bytes_rx_total`, `brix_connections_active`, `brix_connections_total`)
 - IP version tracking
 - Token auth counters
 
@@ -29,22 +29,29 @@ Tests large file transfer metrics tracking (12 standalone functions).
 
 ---
 
-## What the Monitoring Guide Expects (from docs/08-metrics-monitoring/monitoring-guide.md)
+## What the Exposition Actually Carries
 
-The monitoring guide documents these expected Prometheus metric families:
+The canonical family list is
+[docs/08-metrics-monitoring/metrics-overview.md § Unified Protocol-Labeled Metrics](../08-metrics-monitoring/metrics-overview.md#unified-protocol-labeled-metrics);
+the label vocabulary is [`src/observability/metrics/README.md` § Label schema](../../src/observability/metrics/README.md).
+The families below are the ones an integration test would assert against. All of
+the `{proto}` families are exported from **one process-wide zone covering every
+plane** — `stream`, `webdav`, `s3`, `cvmfs`, `gridftp` — and the exporter walks
+the full cross product, so a series exists (at `0` if idle) for every plane
+without an `absent()` guard.
 
-| Metric Family | Description | PromQL Examples in Guide |
-|---------------|-------------|-------------------------|
-| `brix_requests_total` | Per-op counters by protocol + status | `sum by (op, proto) (rate(brix_requests_total[5m]))` |
-| `brix_bytes_sent_total` / `brix_bytes_recv_total` | Byte counters per protocol | `irate(brix_bytes_sent_total[1m])` for throughput |
-| `brix_auth_total` | Auth events by method + result | `sum by (method, result) (rate(brix_auth_total[5m]))` |
-| `brix_errors_total` | Errors by errno family | `sum by (errno) (rate(brix_errors_total[5m]))` |
-| `brix_fd_cache_hits_total` / `misses_total` | FD cache hit/miss ratio | `fd_cache_hits_total / (fd_cache_hits_total + fd_cache_misses_total)` |
-| `brix_tpc_transfers_total` | TPC transfers by mode | `sum by (mode) (rate(brix_tpc_transfers_total[5m]))` |
-| `brix_cache_hits_total` / `misses_total` | Read-through cache hit/miss | Cache fill rate analysis |
-| `brix_write_through_syncs_total` | Write-through mirroring events | Sync success/failure rates |
-| `brix_cms_heartbeat_total` | CMS heartbeat ping events | Heartbeat interval monitoring |
-| `brix_session_bind_total` / `unbind_total` | Session lifecycle events | Active session count tracking |
+| Metric Family | Labels | PromQL Example |
+|---------------|--------|----------------|
+| `brix_io_ops_total` | `proto`, `op`, `status` | `sum by (proto, op) (rate(brix_io_ops_total[5m]))` |
+| `brix_io_bytes_read` / `brix_io_bytes_written` | `proto` | `sum by (proto) (rate(brix_io_bytes_read[1m]))` |
+| `brix_io_latency_usec_bucket` / `_sum` / `_count` | `proto`, `op`, `le` | `histogram_quantile(0.99, sum by (proto, le) (rate(brix_io_latency_usec_bucket[5m])))` |
+| `brix_auth_total` | `proto`, `method`, `status` | `sum by (proto, method) (rate(brix_auth_total{status="fail"}[5m]))` |
+| `brix_tpc_transfers_total` / `brix_tpc_bytes_total` | `proto`, `direction`(, `status`) | `sum by (direction) (rate(brix_tpc_transfers_total[5m]))` |
+| `brix_cache_hits_total` / `brix_cache_misses_total` | `proto` | hit ratio per plane |
+| `brix_cred_select_user_total` / `_fallback_total` / `_deny_total` | `proto` | per-user backend-credential gate outcomes |
+| `brix_requests_total` | `port`, `auth`, `op`, `status` | per-listener stream counters (**no `proto` label**) |
+| `brix_cvmfs_repo_requests_total` / `brix_cvmfs_bytes_served_total` | `{repo,class}` / `{source="hit"\|"fill"}` | cvmfs plane's own data-plane accounting |
+| `brix_storage_io_bytes_read` / `_written` | `backend` | per-backend byte totals at the VFS seam |
 
 ---
 
@@ -56,21 +63,21 @@ These tests exercise the full stack from client → nginx redirect → xrootd ba
 
 | # | Test Name | What It Tests | Why Missing? |
 |---|-----------|---------------|--------------|
-| 1 | `test_e2e_xrdcp_metrics_validation` | Run xrdcp read/write through nginx redirect port → scrape `/metrics` → verify counters incremented by exact amounts (bytes_sent = file size, requests_total[op="read"] += N) | Only `test_large_file_metrics.py` tests metrics with Python client; no test uses real xrdcp binary + nginx redirect + metric validation together |
-| 2 | `test_e2e_xrdcp_auth_metrics_validation` | Run xrdcp login (anon → GSI → token) through nginx redirect → scrape `/metrics` → verify `brix_auth_total{method="gsi",result="ok"}` increments, then read operation → verify bytes counters match | Auth metrics tested per-protocol but not validated against actual auth events from real xrdcp client |
+| 1 | `test_e2e_xrdcp_metrics_validation` | Run xrdcp read/write through nginx redirect port → scrape `/metrics` → verify counters incremented by exact amounts (`brix_io_bytes_read{proto="stream"}` = file size, `brix_io_ops_total{proto="stream",op="read",status="ok"}` += N) | Only `test_large_file_metrics.py` tests metrics with Python client; no test uses real xrdcp binary + nginx redirect + metric validation together |
+| 2 | `test_e2e_xrdcp_auth_metrics_validation` | Run xrdcp login (anon → GSI → token) through nginx redirect → scrape `/metrics` → verify `brix_auth_total{proto="stream",method="gsi",status="ok"}` increments, then read operation → verify bytes counters match | Auth metrics tested per-protocol but not validated against actual auth events from real xrdcp client |
 | 3 | `test_e2e_xrdcp_parallel_metrics_validation` | Run parallel xrdcp copies (N files) through nginx redirect → scrape `/metrics` → verify `requests_total` = N × operations, bytes counters sum correctly across concurrent sessions | Concurrent tests exist (`test_concurrent.py`) but no test validates metrics under concurrency pressure |
-| 4 | `test_e2e_xrdcp_error_metrics_validation` | Run xrdcp against non-existent path / unauthorized path → scrape `/metrics` → verify `brix_errors_total{errno="ENOENT"}` and `brix_requests_total{status="error"}` increment correctly | Error counters tested individually but not validated end-to-end with real client errors |
+| 4 | `test_e2e_xrdcp_error_metrics_validation` | Run xrdcp against non-existent path / unauthorized path → scrape `/metrics` → verify `brix_io_ops_total{proto="stream",op="read",status="not_found"}` and `{status="forbidden"}` increment on the right branch, and that `status="ok"` does not move | Error counters tested individually but not validated end-to-end with real client errors |
 | 5 | `test_e2e_xrdcp_proxy_mode_metrics_validation` | Run xrdcp through nginx transparent proxy mode → backend xrootd → scrape `/metrics` → verify metrics show nginx as the observed layer, backend identity hidden, counters still increment correctly | Proxy mode tested (`test_proxy_mode.py`) but no test validates metrics in proxy mode specifically |
 
 ### Category 2: Cross-Protocol Metrics Consistency
 
-These tests validate that a single operation performed via multiple protocols produces consistent metric increments across all protocol families.
+These tests validate that a single operation performed via multiple protocols produces consistent metric increments across all protocol families. Every plane is in the same process-wide metrics zone and every unified family is exported for the full `proto` cross product (`stream`, `webdav`, `s3`, `cvmfs`, `gridftp`), so these assertions can address any plane by label alone — see [metrics-overview.md § Unified Protocol-Labeled Metrics](../08-metrics-monitoring/metrics-overview.md#unified-protocol-labeled-metrics).
 
 | # | Test Name | What It Tests | Why Missing? |
 |---|-----------|---------------|--------------|
-| 6 | `test_cross_protocol_metrics_consistency` | Upload same file via root:// and davs:// → scrape `/metrics` → verify `brix_bytes_sent_total{proto="root"}` + `brix_bytes_sent_total{proto="dav"}` = 2 × file_size, request counters match per protocol | Metrics tested per-protocol but never validated that cross-protocol operations produce consistent totals |
-| 7 | `test_cross_protocol_auth_metrics_consistency` | Authenticate via GSI on root:// port and davs:// port with same proxy cert → scrape `/metrics` → verify `brix_auth_total{method="gsi",result="ok"}` counts both sessions, no double-counting | Auth metrics exist but cross-protocol auth consistency not validated |
-| 8 | `test_cross_protocol_error_metrics_consistency` | Same path error (ENOENT) via root:// and davs:// → scrape `/metrics` → verify error counters increment per protocol independently, total errors = sum across protocols | Error metrics tested individually but cross-protocol aggregation not verified |
+| 6 | `test_cross_protocol_metrics_consistency` | Upload the same file via `root://`, `davs://`, S3 and `gsiftp://` → scrape `/metrics` → verify `sum by (proto) (brix_io_bytes_written)` attributes exactly one file_size to each of `proto="stream"`, `"webdav"`, `"s3"`, `"gridftp"`, and that `brix_io_ops_total{op="write",status="ok"}` moves by 1 per plane | Metrics tested per-protocol but never validated that cross-protocol operations produce consistent totals |
+| 7 | `test_cross_protocol_auth_metrics_consistency` | Authenticate via GSI on the `root://`, `davs://` and `gsiftp://` doors with the same proxy cert → scrape `/metrics` → verify `brix_auth_total{proto=…,method="gsi",status="ok"}` counts each session under its own `proto`, no double-counting and no leakage across labels | Auth metrics exist but cross-protocol auth consistency not validated |
+| 8 | `test_cross_protocol_error_metrics_consistency` | Same path error (ENOENT) via `root://`, `davs://` and `gsiftp://` → scrape `/metrics` → verify `brix_io_ops_total{status="not_found"}` increments per `proto` independently and that the sum across protos equals the operations performed | Error metrics tested individually but cross-protocol aggregation not verified |
 
 ### Category 3: Full-Stack TLS + Auth + Data Transfer Lifecycle
 
@@ -78,9 +85,9 @@ These tests validate complete request lifecycles from TLS handshake through auth
 
 | # | Test Name | What It Tests | Why Missing? |
 |---|-----------|---------------|--------------|
-| 9 | `test_full_stack_tls_gsi_lifecycle` | roots:// connection → TLS handshake → GSI login with proxy cert → stat → read file → close → scrape `/metrics` → verify entire lifecycle: auth_total{method="gsi",result="ok"} = 1, requests_total[op="stat"] = 1, requests_total[op="read"] = 1, bytes_sent = file_size | GSI TLS tested (`test_gsi_tls.py`) but no test validates complete lifecycle with metrics at each stage |
-| 10 | `test_full_stack_tls_token_lifecycle` | roots:// connection → TLS handshake → WLCG JWT bearer token login → scope-enforced read/write → scrape `/metrics` → verify auth_total{method="token",result="ok"} = 1, requests scoped correctly, bytes counters match | Token auth tested (`test_token_auth.py`) but no test validates complete lifecycle with metrics |
-| 11 | `test_full_stack_tls_failed_auth_lifecycle` | roots:// connection → TLS handshake → invalid GSI cert / expired token → scrape `/metrics` → verify auth_total{method="gsi",result="failed"} or auth_total{method="token",result="invalid"} increments, no bytes counters increment (no data transferred) | Auth failure tested but not validated end-to-end with metrics showing zero bytes for failed sessions |
+| 9 | `test_full_stack_tls_gsi_lifecycle` | roots:// connection → TLS handshake → GSI login with proxy cert → stat → read file → close → scrape `/metrics` → verify entire lifecycle: `brix_auth_total{proto="stream",method="gsi",status="ok"}` = 1, `brix_io_ops_total{proto="stream",op="stat"}` = 1, `{op="read"}` = 1, `brix_io_bytes_read{proto="stream"}` = file_size | GSI TLS tested (`test_gsi_tls.py`) but no test validates complete lifecycle with metrics at each stage |
+| 10 | `test_full_stack_tls_token_lifecycle` | roots:// connection → TLS handshake → WLCG JWT bearer token login → scope-enforced read/write → scrape `/metrics` → verify `brix_auth_total{proto="stream",method="token",status="ok"}` = 1, requests scoped correctly, bytes counters match | Token auth tested (`test_token_auth.py`) but no test validates complete lifecycle with metrics |
+| 11 | `test_full_stack_tls_failed_auth_lifecycle` | roots:// connection → TLS handshake → invalid GSI cert / expired token → scrape `/metrics` → verify `brix_auth_total{proto="stream",method="gsi",status="fail"}` or `{method="token",status="fail"}` increments, no bytes counters increment (no data transferred) | Auth failure tested but not validated end-to-end with metrics showing zero bytes for failed sessions |
 
 ### Category 4: TPC End-to-End + Cross-Protocol Metrics
 
@@ -99,7 +106,7 @@ These tests validate read-through cache hit/miss ratios and write-through mirror
 | # | Test Name | What It Tests | Why Missing? |
 |---|-----------|---------------|--------------|
 | 15 | `test_e2e_cache_hit_metrics_validation` | Configure nginx read-through cache → xrdcp read same file N times through redirect → scrape `/metrics` → verify first request = cache miss, subsequent requests = cache hits, `brix_cache_hits_total` / `brix_cache_misses_total` ratio matches expected pattern | Cache tested (`test_http_cache_hit.py`) but no test validates cache hit/miss metrics over multiple accesses |
-| 16 | `test_e2e_write_through_metrics_validation` | Configure write-through mirroring → xrdcp write file through nginx redirect to origin → scrape `/metrics` → verify `brix_write_through_syncs_total` increments, bytes_sent on both cache server and origin match, sync success/failure counters accurate | Write-through tested (`test_cache_write_through.py`) but no test validates metrics during write-through operations |
+| 16 | `test_e2e_write_through_metrics_validation` | Configure write-through mirroring → xrdcp write file through nginx redirect to origin → scrape `/metrics` → verify `brix_wt_flushes_total` / `brix_wt_flush_bytes_total` increment, that the flushed bytes match on both cache server and origin, and that `brix_wt_stage_throttled_total` stays at 0 on the unthrottled path | Write-through tested (`test_cache_write_through.py`) but no test validates metrics during write-through operations |
 | 17 | `test_e2e_cache_eviction_metrics` | Fill cache → evict entries (via config reload or TTL expiry) → scrape `/metrics` → verify cache hit ratio drops after eviction, new accesses = misses, total hits/misses reset appropriately | Cache lifecycle tested but no test validates metrics during cache eviction events |
 
 ### Category 6: CMS / Manager Mode + Metrics Validation
@@ -118,9 +125,9 @@ These tests validate session bind/unbind events, handle lifecycle, and FD cache 
 
 | # | Test Name | What It Tests | Why Missing? |
 |---|-----------|---------------|--------------|
-| 21 | `test_e2e_session_bind_metrics` | Multiple concurrent xrdcp sessions → scrape `/metrics` → verify `brix_session_bind_total` = N active sessions, `brix_session_unbind_total` = closed sessions, fd_cache_hits/misses correlate with session count | Session bind tested (`test_session_bind.py`) but no test validates session lifecycle metrics under concurrency |
-| 22 | `test_e2e_fd_cache_metrics_validation` | Open same file via multiple sessions → scrape `/metrics` → verify `brix_fd_cache_hits_total` increments for reused handles, `fd_cache_misses_total` for new opens, cache hit ratio = reused_handles / total_opens | FD cache tested in proxy mode but no standalone test validates fd_cache metrics directly |
-| 23 | `test_e2e_handle_lifecycle_metrics` | Open → read → stat (same handle) → close → open again → scrape `/metrics` → verify requests_total[op="read"] and [op="stat"] counted on same session, close increments unbind or session counter appropriately | Handle lifecycle tested in individual opcode tests but not validated as complete lifecycle with metrics |
+| 21 | `test_e2e_session_bind_metrics` | Multiple concurrent xrdcp sessions → scrape `/metrics` → verify `brix_user_sessions_total` tracks the N sessions and that `brix_session_evict_total` / `brix_session_registry_full_total` stay at 0 below the caps | Session bind tested (`test_session_bind.py`) but no test validates session lifecycle metrics under concurrency |
+| 22 | `test_e2e_fd_cache_metrics_validation` | Open same file via multiple sessions → scrape `/metrics` → verify handle reuse is observable at all. **Blocked on a missing family:** `src/fs/vfs/fd_cache.c` emits no counters today, so this test needs an `fd_cache` hit/miss pair added to the unified zone first | FD cache tested in proxy mode, but it is unmetered — there is nothing to assert against |
+| 23 | `test_e2e_handle_lifecycle_metrics` | Open → read → stat (same handle) → close → open again → scrape `/metrics` → verify `brix_io_ops_total{proto="stream",op="read"}` and `{op="stat"}` are counted on the same session, close increments unbind or session counter appropriately | Handle lifecycle tested in individual opcode tests but not validated as complete lifecycle with metrics |
 
 ### Category 8: Throughput + Latency Metrics End-to-End
 
@@ -128,9 +135,9 @@ These tests validate throughput and latency metric tracking during large file tr
 
 | # | Test Name | What It Tests | Why Missing? |
 |---|-----------|---------------|--------------|
-| 24 | `test_e2e_throughput_metrics_validation` | xrdcp copy large file (100MB+) through nginx redirect → scrape `/metrics` during transfer → verify `irate(brix_bytes_sent_total[1m])` matches actual throughput, requests_total[op="read"] = page_count, pgread counters match | Throughput tested (`test_throughput.py`) with 200MB streaming but no test validates metrics during the transfer in real-time |
+| 24 | `test_e2e_throughput_metrics_validation` | xrdcp copy large file (100MB+) through nginx redirect → scrape `/metrics` during transfer → verify `irate(brix_io_bytes_read{proto="stream"}[1m])` matches actual throughput, `brix_io_ops_total{proto="stream",op="read"}` = page_count, pgread counters match | Throughput tested (`test_throughput.py`) with 200MB streaming but no test validates metrics during the transfer in real-time |
 | 25 | `test_e2e_latency_metrics_validation` | Run stat/dirlist/locate/query/read operations through nginx redirect → scrape `/metrics` → verify latency counters (if defined) or derive from request timing + counter increments, compare against reference xrootd latency | Latency tested in performance conformance (`test_brix_performance_conformance.py`) but no test validates latency reflected in metrics |
-| 26 | `test_e2e_chunked_read_metrics` | xrdcp chunked read (multiple reads with gaps) through nginx redirect → scrape `/metrics` → verify each read increments requests_total[op="read"] independently, bytes_sent = sum of all chunks, no duplicate counting for overlapping ranges | Chunked reads tested in throughput but metrics per-chunk validation not present |
+| 26 | `test_e2e_chunked_read_metrics` | xrdcp chunked read (multiple reads with gaps) through nginx redirect → scrape `/metrics` → verify each read increments `brix_io_ops_total{proto="stream",op="read"}` independently, `brix_io_bytes_read{proto="stream"}` = sum of all chunks, no duplicate counting for overlapping ranges | Chunked reads tested in throughput but metrics per-chunk validation not present |
 
 ### Category 9: Dashboard API + Metrics Cross-Validation
 
@@ -165,7 +172,7 @@ These tests validate S3 multipart upload lifecycle metrics end-to-end.
 
 | # | Test Name | What It Tests | Why Missing? |
 |---|-----------|---------------|--------------|
-| 33 | `test_e2e_s3_multipart_metrics_validation` | S3 multipart upload (N parts) via nginx → scrape `/metrics` → verify request counters per part, total bytes_sent = sum of all parts + completion, multipart-specific counters increment correctly, abort events counted if aborted | S3 multipart tested (`test_s3_multipart.py`) but no test validates metrics during multipart lifecycle |
+| 33 | `test_e2e_s3_multipart_metrics_validation` | S3 multipart upload (N parts) via nginx → scrape `/metrics` → verify request counters per part, `brix_io_bytes_written{proto="s3"}` = sum of all parts + completion, multipart-specific counters increment correctly, abort events counted if aborted | S3 multipart tested (`test_s3_multipart.py`) but no test validates metrics during multipart lifecycle |
 | 34 | `test_e2e_s3_presigned_metrics_validation` | Generate presigned URL → xrdcp/aws s3 cp via presigned URL → scrape `/metrics` → verify auth_total{method="presigned"} increments, bytes counters match, expiration events tracked if expired URL used | S3 presigned tested (`test_s3_presigned.py`) but no test validates metrics for presigned URL operations |
 
 ### Category 13: WebDAV Proxy + End-to-End Metrics
@@ -174,8 +181,8 @@ These tests validate WebDAV perimeter proxy mode with metric validation.
 
 | # | Test Name | What It Tests | Why Missing? |
 |---|-----------|---------------|--------------|
-| 35 | `test_e2e_webdav_proxy_metrics_validation` | HTTPS client → nginx WebDAV proxy → HTTP backend DAV server → scrape `/metrics` on nginx → verify webdav_bytes_sent_total, auth counters increment, proxy-specific counters if defined (upstream requests, backend latency) | WebDAV proxy tested but no test validates metrics in proxy mode specifically |
-| 36 | `test_e2e_webdav_proxy_auth_metrics_validation` | WLCG token auth at nginx perimeter → forward to HTTP backend without auth → scrape `/metrics` → verify auth_total{method="token",result="ok"} counted at nginx, bytes counters match, backend sees no auth events (nginx terminates auth) | WebDAV proxy auth tested but no test validates metrics showing auth termination at nginx layer |
+| 35 | `test_e2e_webdav_proxy_metrics_validation` | HTTPS client → nginx WebDAV proxy → HTTP backend DAV server → scrape `/metrics` on nginx → verify `brix_webdav_bytes_tx_total` and `brix_auth_total{proto="webdav"}` increment, proxy-specific counters if defined (upstream requests, backend latency) | WebDAV proxy tested but no test validates metrics in proxy mode specifically |
+| 36 | `test_e2e_webdav_proxy_auth_metrics_validation` | WLCG token auth at nginx perimeter → forward to HTTP backend without auth → scrape `/metrics` → verify `brix_auth_total{proto="webdav",method="token",status="ok"}` counted at nginx, bytes counters match, backend sees no auth events (nginx terminates auth) | WebDAV proxy auth tested but no test validates metrics showing auth termination at nginx layer |
 
 ### Category 14: ACL + VO Metrics Validation
 
@@ -183,7 +190,7 @@ These tests validate access control and VO-specific metrics.
 
 | # | Test Name | What It Tests | Why Missing? |
 |---|-----------|---------------|--------------|
-| 37 | `test_e2e_vo_acl_metrics_validation` | Atlas proxy cert → stat/read/write on Atlas paths, CMS proxy cert → same paths → scrape `/metrics` → verify auth_total{method="gsi",result="ok"} per VO, access denied counters for cross-VO operations (Atlas reading CMS-only path) | VO ACL tested (`test_vo_acl.py`) but no test validates metrics during VO-specific access control |
+| 37 | `test_e2e_vo_acl_metrics_validation` | Atlas proxy cert → stat/read/write on Atlas paths, CMS proxy cert → same paths → scrape `/metrics` → verify `brix_auth_total{method="gsi",status="ok"}` per VO, access denied counters for cross-VO operations (Atlas reading CMS-only path) | VO ACL tested (`test_vo_acl.py`) but no test validates metrics during VO-specific access control |
 | 38 | `test_e2e_authdb_metrics_validation` | AuthDB public/private paths → xrdcp read both types → scrape `/metrics` → verify auth_total increments for private path auth, anon counters for public path reads, error counters for unauthorized private path access | AuthDB tested (`test_authdb.py`) but no test validates metrics during authDB-gated operations |
 
 ---
@@ -205,9 +212,9 @@ Each missing test should follow the standard pattern of **success + error + secu
 
 | Variant | Description | Example |
 |---------|-------------|---------|
-| **Success** | Normal operation through full stack, metrics validate correctly | xrdcp read file → metrics show bytes_sent = file_size |
+| **Success** | Normal operation through full stack, metrics validate correctly | xrdcp read file → metrics show `brix_io_bytes_read{proto="stream"}` = file_size |
 | **Error** | Operation fails (ENOENT, EACCES) → metrics show error counters increment, no data counters | xrdcp read non-existent path → errors_total{errno="ENOENT"} = 1 |
-| **Security-Neg** | Unauthorized operation (wrong cert, expired token, scope mismatch) → auth shows failed, bytes = 0 | xrdcp with expired token → auth_total{method="token",result="invalid"} = 1 |
+| **Security-Neg** | Unauthorized operation (wrong cert, expired token, scope mismatch) → auth shows failed, bytes = 0 | xrdcp with expired token → `brix_auth_total{proto="stream",method="token",status="fail"}` = 1 |
 
 ---
 

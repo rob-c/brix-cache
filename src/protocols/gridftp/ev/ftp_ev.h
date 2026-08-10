@@ -29,6 +29,7 @@
 #include "protocols/gridftp/ftp_eblock.h" /* MODE E framing + ftp_eb_range_t   */
 
 #include "core/types/identity.h"         /* brix_identity_t                    */
+#include "observability/metrics/unified.h" /* brix_metric_op_t, brix_err_class_t */
 #include "auth/gssapi/gsi_mech.h"        /* brix_gssapi_srv_t (RFC 2228 GSI)   */
 #include "net/cms/cns_inventory.h"       /* BRIX_CNS_* op codes                */
 #include "net/cms/cns_emit.h"            /* phase-97 §5: CNS emit, gridftp side */
@@ -156,6 +157,8 @@ struct ftp_ev_dc_s {
     int                ls_mode;     /* FTP_EV_LS_* for a listing            */
     ngx_pool_t        *dpool;       /* per-transfer pool for the TLS conn    */
     off_t              off;         /* current file offset                   */
+    off_t              start_off;   /* ->off at start (REST resume base)     */
+    ngx_msec_t         start_msec;  /* ngx_current_msec when the verb began  */
     off_t              size;        /* RETR total size                       */
     off_t              allo_size;   /* STOR: ALLO-declared file size, -1 off */
     unsigned           flags;       /* writer open flags (TRUNC)            */
@@ -199,6 +202,10 @@ ngx_int_t brix_ftp_ev_b64_decode(ngx_pool_t *pool, const char *b64, ngx_str_t *o
 /* ---- ftp_ev_path.c : path + VFS helpers ---- */
 char     *brix_ftp_ev_split(char *line, char **verb_out);
 int       brix_ftp_ev_resolve(ftp_ev_t *fc, const char *arg, char *abs, size_t abssz);
+/* As above, plus the metric error class behind the returned FTP code (the 550
+ * reply deliberately hides not-found from VO-denied; /metrics must not). */
+int       brix_ftp_ev_resolve_ex(ftp_ev_t *fc, const char *arg, char *abs,
+              size_t abssz, brix_err_class_t *err);
 void      brix_ftp_ev_vfs_ctx(ftp_ev_t *fc, const char *abs, void *vctx /* brix_vfs_ctx_t* */);
 
 /* ---- ftp_ev_dispatch.c : the command dispatcher ---- */
@@ -237,6 +244,16 @@ void      brix_ftp_ev_data_finish(ftp_ev_dc_t *dc, ngx_int_t rc);
 ngx_connection_t *brix_ftp_ev_wrap_conn(ftp_ev_t *fc, int fd);
 /* Implemented in ftp_ev_xfer.c, called by ftp_ev_data.c once the socket is up. */
 void      brix_ftp_ev_data_ready(ftp_ev_dc_t *dc);
+
+/* ---- ftp_ev_metrics.c : the {proto="gridftp"} unified-metrics seam ---- */
+/* Map a data verb (FTP_EV_OP_*) to its unified op row. */
+brix_metric_op_t brix_ftp_ev_metric_op(int ftp_op);
+/* Record one finished transfer (bytes moved + duration + outcome).  Called from
+ * brix_ftp_ev_data_finish, i.e. once per transfer whatever shape it took. */
+void      brix_ftp_ev_metric_xfer(const ftp_ev_dc_t *dc, ngx_int_t rc);
+/* Record a transfer refused before any data channel existed (no duration to
+ * report, so only the op row is bumped). */
+void      brix_ftp_ev_metric_refused(int ftp_op, brix_err_class_t err);
 
 /* ---- ftp_ev_tls.c : PROT P data-channel TLS (GSI DCAU A) ---- */
 /* Drive the data-channel TLS handshake off the data connection's events, then

@@ -1,19 +1,21 @@
 /*
  * unified.h — cross-protocol metric vocabulary and record-side API.
  *
- * WHAT: Declares the enums that give stream, WebDAV, and S3 a single shared
- *       label vocabulary — brix_proto_t (stream/webdav/s3), brix_metric_op_t
- *       (read/write/stat/delete/mkdir/rename/dirlist/tpc), and brix_err_class_t
+ * WHAT: Declares the enums that give EVERY protocol plane a single shared label
+ *       vocabulary — brix_proto_t (generated from core/types/proto_list.h:
+ *       stream/webdav/s3/cvmfs/gridftp), brix_metric_op_t (read/write/stat/
+ *       delete/mkdir/rename/dirlist/tpc/xattr/copy), and brix_err_class_t
  *       (ok/not_found/forbidden/io_error/other) — plus the AUTH_*, TPC_*, and
  *       latency-bucket slot constants. It also declares the record-side helpers
  *       (brix_metric_op_done / _cache_result / _auth / _tpc) every protocol
  *       handler calls, and the name/classification helpers (proto/op/err/auth
  *       name lookups, errno→err and http-status→err mappers, auth-slot mapper).
  * WHY:  Per-protocol metric modules historically each defined their own labels,
- *       producing inconsistent dashboards. Funnelling all three protocols through
+ *       producing inconsistent dashboards. Funnelling every protocol through
  *       one enum set keeps Prometheus labels low-cardinality (INVARIANT #8) and
  *       lets a single exporter (brix_export_unified_metrics in unified.c) emit
  *       directly comparable brix_io_* / brix_auth_total / brix_tpc_* series.
+ *       Adding a plane is one row in proto_list.h — never a new label surface.
  * HOW:  Enum members are dense 0-based so they index fixed-size SHM counter arrays
  *       directly; the trailing *_COUNT member sizes those arrays. The implementation
  *       lives in unified.c; consumers include this header to record an event with a

@@ -4,8 +4,9 @@
 
 This subsystem is the single observability spine for nginx-xrootd. Every
 protocol surface — native XRootD (`root://`) on the stream side, WebDAV/HTTPS,
-the S3-compatible REST endpoint, the CMS cluster registry, the transparent
-XRootD proxy, the read-through/write-through cache, traffic mirroring, and the
+the S3-compatible REST endpoint, the `cvmfs://` cache plane, the GridFTP
+gateway (`gsiftp://`), the CMS cluster registry, the transparent XRootD proxy,
+the read-through/write-through cache, traffic mirroring, and the
 rate limiter — writes counters into **one** shared-memory object,
 `ngx_brix_metrics_t`, and a separate HTTP module reads that object back out as
 Prometheus text-exposition output on `/metrics`. There is no per-handler scrape
@@ -39,6 +40,61 @@ token subjects, and S3 access keys never become label values. Per-VO and
 per-user views are made safe with bounded LRU tables and FNV-1a hashing
 (`tracking.c`); free-form identity ends up in the JSON access log
 (`access_log.c`), never on a counter label.
+
+## Label schema
+
+The unified families (`brix_io_*`, `brix_auth_total`, `brix_tpc_*`,
+`brix_cache_hits_total`/`_misses_total`/`_bytes_evicted_total`, `brix_cred_*`)
+carry a `proto` label. **Every protocol plane is in the zone** — the value set is
+generated from the single X-macro declaration in `core/types/proto_list.h`, so it
+cannot drift from the enum:
+
+| `proto` | Plane | nginx side |
+|---------|-------|------------|
+| `stream` | native XRootD (`root://`, `roots://`) | `stream {}` |
+| `webdav` | WebDAV / HTTP (`davs://`, `https://`) | `http {}` |
+| `s3` | S3-compatible REST | `http {}` |
+| `cvmfs` | `cvmfs://` site cache | `http {}` |
+| `gridftp` | GridFTP gateway (`gsiftp://`) | `stream {}` |
+
+The label strings are frozen ABI: `BRIX_PROTO_*` values are persisted in SHM as
+small ints, so rows in `proto_list.h` are **append-only**, and the native plane
+keeps its historical `stream` label (the dashboard shows the same plane as
+`root`). Exporters loop `0 .. BRIX_PROTO_COUNT`, so every family emits a row for
+every protocol — an unconfigured plane exports `0`, it does not vanish from the
+scrape.
+
+The remaining label keys, and their closed value sets:
+
+| Label | Values |
+|-------|--------|
+| `op` | `read`, `write`, `stat`, `delete`, `mkdir`, `rename`, `dirlist`, `tpc`, `xattr`, `copy` (`brix_unified_op_names[]`, `unified.c`) |
+| `status` | I/O and TPC: `ok`, `not_found`, `forbidden`, `io_error`, `other`. Auth: `ok`, `fail`. Legacy per-server families: `ok`, `error` |
+| `method` | `none`, `gsi`, `token`, `sss`, `s3key`, `unix`, `krb5`, `host`, `pwd` |
+| `direction` | `pull`, `push` |
+| `le` | the eight fixed microsecond bounds in `brix_latency_bounds[]` plus `+Inf` |
+| `port`, `auth` | server configuration, legacy per-listener families only |
+
+**INVARIANT #8 is a security boundary, not a style rule.** Never add a label
+whose value space is unbounded or derived from client input — paths, DNs, token
+subjects, bucket names, object keys, request IDs. The SHM zone has a fixed slot
+count; a high-cardinality label both explodes the series count downstream and has
+nowhere to live upstream. Compliant:
+
+```
+brix_io_ops_total{proto="gridftp",op="read",status="ok"} 6120
+```
+
+Not compliant, and rejected in review:
+
+```
+brix_io_ops_total{proto="s3",op="read",path="/data/atlas/..."}   # path
+brix_io_ops_total{proto="s3",op="read",bucket="cms-xrd-global"}  # bucket
+```
+
+Free-form identity and paths belong in the JSON access log (`access_log.c`);
+per-VO and per-user aggregates go through the bounded LRU tables in
+`tracking.c`.
 
 ## Files
 

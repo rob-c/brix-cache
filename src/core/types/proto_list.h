@@ -56,9 +56,10 @@
  */
 
 #define BRIX_PROTO_LIST(X)                                                  \
-    X(ROOT,   "stream", "root",   0)  /* native root:// stream plane        */ \
-    X(WEBDAV, "webdav", "webdav", 1)  /* WebDAV/HTTP (davs://, http://)     */ \
-    X(S3,     "s3",     "s3",     1)  /* S3-compatible REST                 */ \
-    X(CVMFS,  "cvmfs",  "cvmfs",  1)  /* cvmfs:// site cache (phase-68)     */
+    X(ROOT,    "stream",  "root",    0)  /* native root:// stream plane   */ \
+    X(WEBDAV,  "webdav",  "webdav",  1)  /* WebDAV/HTTP (davs://, http://)*/ \
+    X(S3,      "s3",      "s3",      1)  /* S3-compatible REST            */ \
+    X(CVMFS,   "cvmfs",   "cvmfs",   1)  /* cvmfs:// site cache (ph-68)   */ \
+    X(GRIDFTP, "gridftp", "gridftp", 0)  /* GridFTP gateway (gsiftp://)   */
 
 #endif /* BRIX_PROTO_LIST_H */

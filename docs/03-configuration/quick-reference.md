@@ -84,7 +84,7 @@ The most-used directives on one page. Start here when you know what you want to 
 
 | Directive | Context | Default | Notes |
 |---|---|---|---|
-| `brix_metrics on\|off` | `location` (HTTP) | `off` | Activates the Prometheus text exporter for the shared metrics zone |
+| `brix_metrics on\|off` | `location` (HTTP) | `off` | Activates the Prometheus text exporter for the shared metrics zone. The zone is process-wide, so this one location exports every protocol — `proto="stream"`, `"webdav"`, `"s3"`, `"cvmfs"`, `"gridftp"` — including planes served from `stream {}` blocks |
 | `brix_srr on\|off` | `location` (HTTP) | `off` | Serves the WLCG Storage Resource Reporting (SRR) `storageservice` JSON document at this location (point CRIC at this URL) |
 | `brix_srr_name <name>` | `location` (HTTP) | — | `storageservice.name` (the SE / site name); also `.id` unless `brix_srr_id` is set |
 | `brix_srr_quality <level>` | `location` (HTTP) | `production` | `qualitylevel` (development/testing/pre-production/production) |

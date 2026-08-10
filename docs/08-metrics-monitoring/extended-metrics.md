@@ -23,7 +23,7 @@ Use `rate(brix_bytes_root_tx_total[1m])` for root:// read throughput and compare
 
 ## Per-IP-version Bandwidth Counters
 
-Tracks IPv4 vs IPv6 traffic separately without adding per-client IP as a Prometheus label (which would create unbounded series). Available for all three protocols:
+Tracks IPv4 vs IPv6 traffic separately without adding per-client IP as a Prometheus label (which would create unbounded series). These are wire-ledger counters, so they exist only for the three planes that keep one — native XRootD, WebDAV, and S3. The cvmfs and GridFTP planes have no per-IP-version family; for byte totals that cover **every** protocol use the unified `brix_io_bytes_read{proto=...}` / `brix_io_bytes_written{proto=...}` family instead (see [metrics-overview.md](./metrics-overview.md#unified-protocol-labeled-metrics)).
 
 ### Native XRootD stream layer:
 ```
@@ -54,8 +54,11 @@ brix_s3_bytes_tx_ipv6_total 0
 # IPv6 traffic fraction (should be low for most sites)
 rate(brix_bytes_tx_ipv6_total[1m]) / rate(brix_bytes_tx_total[1m])
 
-# Protocol separation — sum all tx counters to verify consistency
+# Protocol separation — sum the three wire-ledger tx counters to verify consistency
 rate(brix_bytes_root_tx_total[1m]) + rate(brix_webdav_bytes_tx_ipv4_total[1m]) + rate(brix_webdav_bytes_tx_ipv6_total[1m]) + rate(brix_s3_bytes_tx_ipv4_total[1m]) + rate(brix_s3_bytes_tx_ipv6_total[1m])
+
+# Read throughput across ALL protocols, including cvmfs and gridftp
+sum by (proto) (rate(brix_io_bytes_read[1m]))
 ```
 
 ---

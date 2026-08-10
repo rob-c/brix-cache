@@ -323,13 +323,22 @@ context = [allocate from request/connection pool] → [store protocol-specific f
 
 Metrics use **low-cardinality labels only** (INVARIANT #8: no paths/bucket-names/UUIDs):
 
-| Protocol | Metric Source | Label Schema | Callsite Pattern |
+| Protocol | Metric Source | `proto` label | Callsite Pattern |
 |---|---|---|---|
-| Stream | `src/observability/metrics/stream.c` / `writer.c` | proto="root", op=opcode, status=ok/error | `BRIX_*_METRIC_INC(slot)` at callsite |
-| WebDAV | `webdav/` metric helpers | proto="dav", op=HTTP method, status=ok/error | `webdav_metrics_return(status_bytes, proto)` for bytes; request counters via BRIX_* pattern |
-| S3 | `src/observability/metrics/s3.c` (implied by s3.h metrics enum) | proto="s3", op=HTTP method, status=ok/error | `BRIX_S3_METRIC_INC(events_total[BRIX_S3_EVENT_INTERNAL_ERROR])` on OOM; bytes via webdav_metrics_return equivalent |
+| Stream | `src/observability/metrics/stream.c` / `writer.c` | `stream` | wire-ledger fold at scrape time; `BRIX_*_METRIC_INC(slot)` for the legacy per-listener families |
+| WebDAV | `webdav/` metric helpers | `webdav` | `webdav_metrics_response()` books the unified row; `webdav_metrics_return()` for bytes |
+| S3 | `src/observability/metrics/s3.c` | `s3` | same response hook as WebDAV; `BRIX_S3_METRIC_INC(...)` for the S3-specific event counters |
+| cvmfs | `src/protocols/cvmfs/` | `cvmfs` | dedicated `brix_cvmfs_*` families + `brix_cache_hits/misses_total{proto="cvmfs"}`; namespace ops via the VFS observer |
+| GridFTP | `src/protocols/gridftp/ev/ftp_ev_metrics.c` | `gridftp` | `brix_ftp_ev_metric_xfer()` / `_refused()` for the data plane; namespace ops via the VFS observer |
 
-**Shared metric zone:** Prometheus counters shared across all protocols in low-cardinality metrics zone. Labels: proto (root/dav/s3), op (opcode/HTTP method), status (ok/error). No per-file, per-user, or per-bucket label explosion.
+**Shared metric zone:** Prometheus counters shared across all protocols in one
+process-wide low-cardinality metrics zone. Every plane the module speaks is in
+it — the five `proto` label values above are generated from the single
+declaration in `src/core/types/proto_list.h`, and the exporter walks the full
+cross product, so every plane appears in every unified family even at zero.
+Labels: proto, op (opcode/HTTP method), status
+(ok/not_found/forbidden/io_error/other). No per-file, per-user, or per-bucket
+label explosion.
 
 ### Shared Mental Model
 
@@ -634,6 +643,11 @@ Each state gate is checked in `events_*.c` before processing read/write events.
 
 #### T5: Label Schema Section in `src/observability/metrics/README.md` (1 h)
 
+**Status: delivered** — `src/observability/metrics/README.md` § Label schema now
+carries the live table (all five `proto` values, the closed `op`/`status`/`method`
+value sets, and the compliant/non-compliant examples). The block below is the
+original proposal, kept for provenance.
+
 **Goal:** Add a label schema table documenting the `proto/op/status` label set, the low-cardinality constraint (INVARIANT #8), examples of compliant vs non-compliant labels, and the recipe for adding a new metric slot.
 
 **Blocked by:** Phase 0 read of `metrics/README.md` and `src/observability/metrics/metrics_macros.h` (to confirm actual label names used by `BRIX_*_METRIC_INC`).
@@ -647,7 +661,7 @@ All Prometheus counters exported by this module use a **fixed, low-cardinality**
 
 | Label | Values | Notes |
 |---|---|---|
-| `proto` | `root`, `dav`, `s3` | Protocol layer; never per-user or per-bucket |
+| `proto` | `stream`, `webdav`, `s3`, `cvmfs`, `gridftp` | Every protocol plane, generated from `src/core/types/proto_list.h`; never per-user or per-bucket |
 | `op` | opcode name (`open`, `read`, `put`, etc.) or HTTP method | Set at dispatch time; never includes path |
 | `status` | `ok`, `error` | Binary outcome; never HTTP status codes as labels |
 
@@ -655,13 +669,13 @@ All Prometheus counters exported by this module use a **fixed, low-cardinality**
 
 **Compliant:**
 ```
-brix_requests_total{proto="root", op="read", status="ok"}
+brix_io_ops_total{proto="stream", op="read", status="ok"}
 ```
 
 **Non-compliant (will be rejected in review):**
 ```
-brix_requests_total{proto="root", op="read", path="/data/atlas/..."}  # path is high-cardinality
-brix_requests_total{proto="s3", bucket="cms-xrd-global"}              # bucket is high-cardinality
+brix_io_ops_total{proto="stream", op="read", path="/data/atlas/..."}  # path is high-cardinality
+brix_io_ops_total{proto="s3", bucket="cms-xrd-global"}                # bucket is high-cardinality
 ```
 
 ## Adding a new metric slot
@@ -937,7 +951,7 @@ See `src/core/types/README.md` §Context retrieval patterns.
 
 ### 8. Metric increment
 
-One macro per protocol: `BRIX_SRV_METRIC_INC(slot)` (stream), `BRIX_WEBDAV_METRIC_INC(slot)` (WebDAV), `BRIX_S3_METRIC_INC(slot)` (S3). Labels: proto/op/status — always low-cardinality. See `src/observability/metrics/README.md` §Label schema.
+One macro per protocol for the legacy per-plane families: `BRIX_SRV_METRIC_INC(slot)` (stream), `BRIX_WEBDAV_METRIC_INC(slot)` (WebDAV), `BRIX_S3_METRIC_INC(slot)` (S3). For anything protocol-neutral use `brix_metric_op_done()` / `brix_metric_auth()` instead — they take a `brix_proto_t`, so all five planes (`stream`/`webdav`/`s3`/`cvmfs`/`gridftp`) share one counter family. Labels: proto/op/status — always low-cardinality. See `src/observability/metrics/README.md` §Label schema.
 ```
 
 **File modified:** `docs/11-architecture/cross-protocol-unification.md`

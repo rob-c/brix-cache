@@ -269,9 +269,14 @@ a single-threaded event loop per worker process.
 ngx_int_t  metrics_slot;
 ```
 
-Index into the shared-memory `ngx_brix_srv_metrics_t` array.  Assigned
-during `postconfiguration`.  `-1` means the server has no metrics zone.
-Handlers do not use this field directly; they go through `ctx->metrics`.
+Index into the shared-memory `ngx_brix_srv_metrics_t` array — the *per-listener*
+native-stream counters.  Assigned during `postconfiguration`.  `-1` means this
+server block got no per-listener slot — the block is not `brix_root`-enabled, or the
+`BRIX_METRICS_MAX_SERVERS` ceiling was already reached.  It does **not** mean the
+process has no metrics.  The unified
+`{proto}`-labelled families live in one process-wide zone that every protocol
+plane writes into and are unaffected by this field.  Handlers do not use it
+directly; they go through `ctx->metrics`.
 
 ---
 

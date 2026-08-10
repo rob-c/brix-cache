@@ -34,9 +34,9 @@ const whoAccent = ['root', 'dav', 's3', 'ftp'] as const;
   <div class="strip" aria-hidden="true">
     <div class="wrap strip-row">
       <span><i class="led"></i>one nginx binary</span>
-      <span><i class="led"></i>4 wire protocols</span>
-      <span><i class="led"></i>WLCG x509 · tokens</span>
-      <span><i class="led"></i>Prometheus /metrics</span>
+      <span><i class="led"></i>4 protocols → 1 VFS plane</span>
+      <span><i class="led"></i>x509 · tokens · SigV4 · krb5</span>
+      <span><i class="led"></i>POSIX · Ceph · S3 · block backends</span>
       <span class="strip-wide"><i class="led"></i>conformance-tested vs XRootD 5.2</span>
     </div>
   </div>
@@ -46,14 +46,16 @@ const whoAccent = ['root', 'dav', 's3', 'ftp'] as const;
     <div class="hero">
       <div class="hero-copy stack">
         <span class="eyebrow">Modular WLCG storage interface</span>
-        <h1 class="display">One file.<br />Every protocol.<br /><span class="accent">One binary.</span></h1>
+        <h1 class="display">Every protocol.<br />Every backend.<br /><span class="accent">One VFS plane.</span></h1>
         <p class="lede">
           BriX-Cache teaches one nginx binary to serve a single POSIX namespace over
           <span class="scheme" style="color:var(--root)">root://</span>
           <span class="scheme" style="color:var(--dav)">davs://</span>
           <span class="scheme" style="color:var(--s3)">s3://</span> and
-          <span class="scheme" style="color:var(--ftp)">gsiftp://</span> — one shared path for
-          authentication, caching, and metrics behind every door.
+          <span class="scheme" style="color:var(--ftp)">gsiftp://</span>. Every protocol and
+          every auth scheme — GSI/x509, WLCG tokens, S3&nbsp;SigV4, Kerberos, SSS — meet at
+          <strong>one unified VFS plane</strong> that fans out to any storage backend: POSIX,
+          Ceph, an S3 or block store, or an upstream xrootd — all under the same namespace.
         </p>
         <div class="hero-actions">
           <a class="btn btn--accent" href={DOCS_URL}>Get started →</a>
@@ -161,15 +163,21 @@ const whoAccent = ['root', 'dav', 's3', 'ftp'] as const;
       <div class="feature" data-accent="s3">
         <h2 class="display feature-head">Every request is a metric and a log line.</h2>
         <p class="muted">
-          Prometheus <span class="mono">/metrics</span> with fixed, low-cardinality labels — no per-file or
-          per-user explosion. Structured access logs for every protocol, and a live HTTPS operator dashboard
-          at <span class="mono">/brix/</span>.
+          One Prometheus <span class="mono">/metrics</span> endpoint covers <em>every</em> protocol — the
+          zone is process-wide, so the planes served from <span class="mono">stream {'{}'}</span> land in the
+          same exposition as the HTTP ones, under one <span class="mono">proto</span> label. Fixed,
+          low-cardinality labels — no per-file or per-user explosion. Structured access logs for every
+          protocol, and a live HTTPS operator dashboard at <span class="mono">/brix/</span>.
         </p>
         <div class="term">
           <div class="term-title">GET /metrics</div>
-          <div><span class="k">brix_requests_total</span>{'{op="read",status="ok"}'} <span class="c">14302</span></div>
+          <div><span class="k">brix_io_bytes_read</span>{'{proto="stream"}'} <span class="c">4.1e12</span></div>
           <div><span class="k">brix_io_bytes_read</span>{'{proto="webdav"}'} <span class="c">9.2e11</span></div>
-          <div><span class="k">brix_auth_total</span>{'{method="gsi",status="ok"}'} <span class="c">4201</span></div>
+          <div><span class="k">brix_io_bytes_read</span>{'{proto="s3"}'} <span class="c">3.7e11</span></div>
+          <div><span class="k">brix_io_bytes_read</span>{'{proto="cvmfs"}'} <span class="c">8.8e10</span></div>
+          <div><span class="k">brix_io_bytes_read</span>{'{proto="gridftp"}'} <span class="c">2.4e11</span></div>
+          <div><span class="k">brix_io_ops_total</span>{'{proto="s3",op="read",status="ok"}'} <span class="c">14302</span></div>
+          <div><span class="k">brix_auth_total</span>{'{proto="gridftp",method="gsi",status="ok"}'} <span class="c">4201</span></div>
         </div>
       </div>
     </div>

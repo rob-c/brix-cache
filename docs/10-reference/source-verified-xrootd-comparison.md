@@ -257,7 +257,7 @@ Source anchors:
 | Feature | Upstream XRootD source | BriX-Cache source | Status | Notes |
 |---|---|---|---|---|
 | UDP XrdMon stream monitoring | Upstream `XrdXrootdMon*` / XrdMon ecosystem. | Not implemented. | Not counted | Explicit product decision: do not implement. Use HTTP-native observability instead. |
-| Prometheus metrics | Upstream has some HTTP/monitoring counters but UDP monitoring is historical primary grid surface. | `src/observability/metrics/`, `/metrics`, low-cardinality counters across stream/WebDAV/S3/rate-limit/cache/FRM/mirror. | nginx+ | Primary replacement for UDP monitoring. |
+| Prometheus metrics | Upstream has some HTTP/monitoring counters but UDP monitoring is historical primary grid surface. | `src/observability/metrics/`, `/metrics`, low-cardinality counters. One process-wide zone, `{proto}`-labeled across all five planes (stream/WebDAV/S3/cvmfs/GridFTP), plus rate-limit/cache/FRM/mirror families. | nginx+ | Primary replacement for UDP monitoring. |
 | WLCG Storage Resource Reporting | Not a core upstream replacement surface in reviewed source. | `src/protocols/srr/`. | nginx+ | Useful for site accounting/discovery. |
 | Live transfer dashboard | Upstream has admin tools and monitoring ecosystem. | `src/observability/dashboard/`, `/brix/api/v1/transfers`, events, history, cluster, cache, ratelimit, config. | nginx+ | Operator-friendly visibility built into the server. |
 | Admin API | Upstream admin commands/tools. | `src/observability/dashboard/api_admin.c`, auth/cookie/HMAC paths. | nginx+ / Partial | Different operational model; not drop-in for XRootD admin command tooling. |

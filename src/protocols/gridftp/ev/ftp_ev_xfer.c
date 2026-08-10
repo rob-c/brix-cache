@@ -321,11 +321,17 @@ brix_ftp_ev_data_ready(ftp_ev_dc_t *dc)
 
 /* Pre-transfer guards: write permission, an armed data channel, and the MODE E
  * upload/passive constraint.  Returns NGX_DECLINED to proceed; otherwise the
- * queued-reply result the caller must return. */
+ * queued-reply result the caller must return.
+ *
+ * Only the permission verdict is metered: it is an authorization outcome for the
+ * requested op.  The other two are protocol misuse (no data channel armed, MODE E
+ * without PASV) — the verb never became an operation, so counting them would
+ * inflate the op rows with client sequencing errors. */
 static ngx_int_t
-ev_xfer_guards(ftp_ev_t *fc, int writing)
+ev_xfer_guards(ftp_ev_t *fc, int op, int writing)
 {
     if (writing && !fc->conf->allow_write) {
+        brix_ftp_ev_metric_refused(op, BRIX_ERR_FORBIDDEN);
         return brix_ftp_ev_reply(fc,
             "550 Permission denied (read-only export)\r\n");
     }
@@ -353,9 +359,12 @@ ev_xfer_resolve_start(ftp_ev_t *fc, int op, const char *arg,
                       char *abs, size_t abscap,
                       off_t *start, unsigned *flags, int *verify)
 {
-    int code = brix_ftp_ev_resolve(fc, arg, abs, abscap);
+    brix_err_class_t err;
+    int              code = brix_ftp_ev_resolve_ex(fc, arg, abs, abscap, &err);
+
     if (code != 0) {
         fc->rest_off = 0;
+        brix_ftp_ev_metric_refused(op, err);
         return brix_ftp_ev_reply(fc, "%d Failed to resolve path\r\n", code);
     }
 
@@ -376,6 +385,9 @@ ev_xfer_resolve_start(ftp_ev_t *fc, int op, const char *arg,
         brix_ftp_ev_vfs_ctx(fc, abs, &vctx);
         if (brix_vfs_stat(&vctx, &st) != NGX_OK || st.is_directory) {
             fc->rest_off = 0;
+            /* The stat itself was metered by the VFS as a STAT op; this is the
+             * RETR that never happened. */
+            brix_ftp_ev_metric_refused(op, BRIX_ERR_NOT_FOUND);
             return brix_ftp_ev_reply(fc, "550 No such file\r\n");
         }
         *start = fc->rest_off;
@@ -405,6 +417,8 @@ ev_xfer_alloc_dc(ftp_ev_t *fc, int op, const char *abs,
     dc->op      = op;
     dc->writing = (op == FTP_EV_OP_STOR || op == FTP_EV_OP_APPE);
     dc->off     = start;
+    dc->start_off  = start;              /* metrics: byte total is off - here    */
+    dc->start_msec = ngx_current_msec;   /* metrics: transfer duration base      */
     dc->flags   = flags;
     dc->verify  = verify;
     /* ALLO completeness enforcement is stream-mode STOR only: MODE E validates
@@ -437,7 +451,7 @@ ev_begin_transfer(ftp_ev_t *fc, int op, const char *arg)
 
     fc->allo_size = -1;                           /* consume ALLO unconditionally */
 
-    rc = ev_xfer_guards(fc, writing);
+    rc = ev_xfer_guards(fc, op, writing);
     if (rc != NGX_DECLINED) {
         return rc;
     }
@@ -450,6 +464,7 @@ ev_begin_transfer(ftp_ev_t *fc, int op, const char *arg)
 
     dc = ev_xfer_alloc_dc(fc, op, abs, start, flags, verify, allo);
     if (dc == NULL) {
+        brix_ftp_ev_metric_refused(op, BRIX_ERR_IO);
         return brix_ftp_ev_reply(fc, "425 Cannot open data connection\r\n");
     }
 
@@ -467,9 +482,12 @@ ev_begin_transfer(ftp_ev_t *fc, int op, const char *arg)
     if (brix_ftp_ev_data_open(dc) != NGX_OK) {
         /* Synchronous set-up failure (before any async event): the 150 is already
          * queued — append the 550 and let the control loop flush both.  Don't
-         * call data_finish here; it would re-enter the control loop we're inside. */
+         * call data_finish here; it would re-enter the control loop we're inside
+         * (which is also why the metric is recorded directly rather than through
+         * the per-transfer record data_finish would normally make). */
         fc->dc    = NULL;
         fc->state = FTP_EV_ST_CMD;
+        brix_ftp_ev_metric_refused(op, BRIX_ERR_IO);
         return brix_ftp_ev_reply(fc, "425 Cannot open data connection\r\n");
     }
     return NGX_OK;

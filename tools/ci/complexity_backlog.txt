@@ -38,7 +38,6 @@ src/fs/xfer/backend_async_queue.c::brix_baq_reconcile	16
 src/net/guard/guard_classify.c::guard_classify_handshake	17
 src/net/ratelimit/ratelimit_keys.c::brix_rl_key_stream	16
 src/net/ratelimit/ratelimit_keys.c::rl_key_http_derive	16
-src/protocols/gridftp/ev/ftp_ev_data.c::ev_do_pasv	18
 src/protocols/gridftp/ev/ftp_ev_io.c::brix_ftp_ev_process	17
 src/protocols/gridftp/ev/ftp_ev_mode_e_recv.c::brix_ftp_ev_eb_accept	17
 src/protocols/gridftp/ftp_module_gsi.c::brix_ftp_build_gsi	17

@@ -6,6 +6,33 @@ Concrete PromQL queries for common monitoring scenarios. Replace `[1m]`, `[5m]`,
 
 ## Protocol Separation Queries
 
+Every protocol plane reports into the same process-wide metrics zone under a
+`proto` label — `stream` (native XRootD), `webdav`, `s3`, `cvmfs`, `gridftp` —
+so the unified `brix_io_*` families answer "by protocol" questions in one query
+with no per-plane arithmetic. Prefer them. The legacy per-protocol byte families
+below are the older wire-ledger view and exist for `stream`/`webdav`/`s3` only.
+
+### Throughput and operations by protocol (all protocols):
+```promql
+# Read (client-download) throughput per protocol in MB/s
+sum by (proto) (rate(brix_io_bytes_read[5m])) / 1024 / 1024
+
+# Write (client-upload) throughput per protocol in MB/s
+sum by (proto) (rate(brix_io_bytes_written[5m])) / 1024 / 1024
+
+# Operation rate per protocol and operation
+sum by (proto, op) (rate(brix_io_ops_total[5m]))
+
+# Error ratio per protocol
+  sum by (proto) (rate(brix_io_ops_total{status!="ok"}[5m]))
+/ sum by (proto) (rate(brix_io_ops_total[5m]))
+
+# Auth failure rate per protocol and method
+sum by (proto, method) (rate(brix_auth_total{status="fail"}[5m]))
+```
+
+### Legacy per-protocol wire ledgers (stream / WebDAV / S3 only)
+
 ### Total throughput by protocol in MB/s:
 ```promql
 # Native XRootD root:// throughput
@@ -18,9 +45,10 @@ sum(rate(brix_webdav_bytes_tx_ipv4_total[5m]) + rate(brix_webdav_bytes_tx_ipv6_t
 sum(rate(brix_s3_bytes_tx_ipv4_total[5m]) + rate(brix_s3_bytes_tx_ipv6_total[5m])) / 1024 / 1024
 ```
 
-### Combined protocol throughput (all protocols):
+### Combined throughput across the three wire ledgers:
 ```promql
-# Total throughput across all protocols in MB/s
+# Total throughput across stream + WebDAV + S3 in MB/s
+# (for a genuinely all-protocol total use sum(rate(brix_io_bytes_read[5m])))
 (
   sum(rate(brix_bytes_root_tx_total[5m]))
 + sum(rate(brix_webdav_bytes_tx_ipv4_total[5m]) + rate(brix_webdav_bytes_tx_ipv6_total[5m]))
@@ -30,7 +58,11 @@ sum(rate(brix_s3_bytes_tx_ipv4_total[5m]) + rate(brix_s3_bytes_tx_ipv6_total[5m]
 
 ### Protocol share as percentage:
 ```promql
-# What fraction of traffic is root:// vs WebDAV vs S3?
+# Share of every protocol at once, from the unified family
+  sum by (proto) (rate(brix_io_bytes_read[5m]))
+/ ignoring(proto) group_left sum(rate(brix_io_bytes_read[5m])) * 100
+
+# The wire-ledger equivalent: what fraction is root:// vs WebDAV vs S3?
 (
   sum(rate(brix_bytes_root_tx_total[5m]))
 / (
@@ -120,7 +152,7 @@ sum(rate(brix_bytes_rx_ipv4_total{port="1094",auth="gsi"}[5m])) + sum(rate(brix_
 )
 ```
 
-**Note:** Per-VO metrics are most accurate for native XRootD (stream layer). WebDAV and S3 do not currently populate per-VO counters in the shared memory tables — they contribute to global IPv4/IPv6 byte totals only. To estimate a single VO's total across all protocols, combine the per-VO native metric with proportional estimates from global metrics based on VO request count ratios:
+**Note:** Per-VO metrics are most accurate for native XRootD (stream layer). The other planes — WebDAV, S3, cvmfs, GridFTP — are all inside the metrics zone and carry a `proto` label on every unified family, but none of them populates the per-VO shared-memory tables; they contribute to the global and `{proto}`-labelled byte totals only. To estimate a single VO's total across all protocols, combine the per-VO native metric with proportional estimates from global metrics based on VO request count ratios:
 
 ```promql
 # Estimate: VO share of WebDAV traffic using VO request ratio as proxy

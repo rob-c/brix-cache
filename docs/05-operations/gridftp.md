@@ -176,7 +176,59 @@ handshake, so the effective gate is the security layer, not the login verb.
 
 ---
 
-## 7. Container-tier interop lab
+## 7. Observability
+
+The gateway is **in the shared metrics zone** like every other plane. The zone is
+process-wide, so a single `brix_metrics on;` location in `http {}` exports the
+gsiftp door even though the door itself only ever runs inside `stream {}` — no
+extra directive, no per-listener wiring:
+
+```nginx
+http {
+    server {
+        listen 8080;
+        location /metrics { brix_metrics on; }
+    }
+}
+```
+
+Everything the gateway books carries `proto="gridftp"`, drawn from the same
+frozen label vocabulary as `stream`, `webdav`, `s3` and `cvmfs`
+(see [metrics-overview.md](../08-metrics-monitoring/metrics-overview.md#unified-protocol-labeled-metrics)):
+
+| What you see | Where it comes from |
+|---|---|
+| `brix_io_ops_total{proto="gridftp",op="read"\|"write",status=…}` | RETR / STOR / APPE at transfer completion, plus transfers refused before a data channel ever opened |
+| `brix_io_ops_total{proto="gridftp",op="stat"\|"mkdir"\|"delete"\|"rename"\|"dirlist",…}` | the VFS observer — SIZE/MDTM/MLST, MKD, DELE/RMD, RNFR+RNTO, LIST/NLST/MLSD are metered inside `brix_vfs_*`, never a second time by the protocol |
+| `brix_io_bytes_read{proto="gridftp"}` / `brix_io_bytes_written{proto="gridftp"}` | payload bytes per transfer, MODE E committed blocks included |
+| `brix_io_latency_usec_bucket{proto="gridftp",op=…,le=…}` | measured from the verb, so it includes the PASV accept or active connect, not just the byte pump |
+| `brix_auth_total{proto="gridftp",method="gsi"\|"none",status="ok"\|"fail"}` | the ADAT/GSSAPI handshake terminals, and `none` for a cleartext login |
+
+Useful queries:
+
+```promql
+# gsiftp throughput next to every other plane
+sum by (proto) (rate(brix_io_bytes_read[1m]))
+
+# is the GSI door rejecting proxies?
+rate(brix_auth_total{proto="gridftp",method="gsi",status="fail"}[5m])
+
+# refusals (bounce guard, MODE E overlap, denied LIST) vs. real errors
+sum by (status) (rate(brix_io_ops_total{proto="gridftp"}[5m]))
+```
+
+Two behaviours worth knowing before you alert on this:
+
+- **A refused transfer books an op row with no latency sample.** Nothing ran, so
+  filing a 0 µs duration would drag the lowest bucket down; the counter moves,
+  the histogram does not.
+- **The gateway does not register dashboard live-transfer slots.** The JSON
+  dashboard's per-transfer table shows root/WebDAV/S3/cvmfs transfers; gsiftp
+  transfers are visible in Prometheus but not (yet) as live rows there.
+
+---
+
+## 8. Container-tier interop lab
 
 `k8s-tests/charts/gridftp-interop` brings up a gateway serving one posix export
 on both a GSI (`2811`) and a cleartext (`2810`) listener. The client image
@@ -194,7 +246,7 @@ It runs `{PROT C,P} × {MODE S,E}` over gsiftp, `{active,passive}` over the
 cleartext leg, a second-client `gfal-copy` round-trip, and an FTS-style bulk
 batch — each asserting a byte-identical round-trip.
 
-### 7.1 Running the matrix locally (no k8s cluster)
+### 8.1 Running the matrix locally (no k8s cluster)
 
 The same matrix runs against a locally-booted gateway under **rootless podman**,
 so a cluster is not required to exercise the reference-client interop:

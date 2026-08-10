@@ -33,11 +33,28 @@ Files in this directory:
   deliberate overwrite and must fail the transfer.
 
 The actual protocol engine lives in `ev/` — the non-blocking, event-driven
-state machine split by concern (command dispatch, replies, data-channel I/O,
-MODE E reassembly, TLS/security glue, path handling, transfers). This top
-directory owns the module/config skeleton and the shared security/framing
+state machine split by concern (command dispatch, replies, data-channel
+nomination and data-channel bring-up/teardown, MODE E reassembly, TLS/security
+glue, path handling, transfers, metrics). This
+top directory owns the module/config skeleton and the shared security/framing
 primitives the engine consumes. The control-channel GSSAPI accept engine itself
 is `src/auth/gssapi/gsi_mech.c`.
+
+## Observability
+
+The gateway reports under `{proto="gridftp"}` in the shared metrics zone. The
+split follows the WebDAV precedent: `brix_ftp_ev_vfs_ctx()` stamps
+`BRIX_PROTO_GRIDFTP` on every VFS context, so the namespace verbs (SIZE/MDTM/
+MLST → `stat`, MKD → `mkdir`, DELE/RMD → `delete`, RNFR+RNTO → `rename`,
+LIST/NLST/MLSD → `dirlist`) are metered once *inside* the VFS and must not be
+recorded again here; `ev/ftp_ev_metrics.c` owns only what the VFS leaves to the
+protocol — the data plane (RETR → `read`, STOR/APPE → `write`, with bytes and
+duration) and the transfers refused before a data channel ever opened. Control-
+channel authentication terminals record `brix_auth_total{proto="gridftp"}`:
+`method="gsi"` from the ADAT handshake (`ev/ftp_ev_sec.c`) and `method="none"`
+for a cleartext login (`ev/ftp_ev_dispatch.c`). The zone itself needs no
+bootstrap from this module — the gateway only runs inside `stream {}`, whose
+`ngx_stream_brix_postconfiguration` already ensures it.
 
 ### Other files
 

@@ -13,7 +13,7 @@
  *       mapper (brix_metric_auth_slot) and its name form, and the errno→err /
  *       http-status→err classifiers. The record-side mutators live in
  *       unified_record.c and the Prometheus exporter in unified_export*.c.
- * WHY:  One vocabulary behind one exporter keeps the three protocols' dashboards
+ * WHY:  One vocabulary behind one exporter keeps every protocol plane's dashboard
  *       directly comparable and keeps labels low-cardinality (INVARIANT #8).
  *       Concentrating the tables and the pure classifiers here — separate from
  *       the SHM mutators and the exporter — keeps every file single-concern and

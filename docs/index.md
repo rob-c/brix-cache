@@ -244,7 +244,7 @@ Visual overview of every request path and component relationship. **Start here i
 | [Logical Pathways (Tier 1 & 2)](11-architecture/logical-pathways.md) | Core data/security pathways vs clustering/advanced features |
 | [Tier 1 Stream Data Paths](11-architecture/tier1-stream-data-paths.md) | Per-opcode walkthrough of the core stream wire operations |
 | [Tier 2 Stream Data Paths](11-architecture/tier2-stream-data-paths.md) | Per-opcode walkthrough of the advanced/clustering stream operations |
-| [Cross-Protocol Unification](11-architecture/cross-protocol-unification.md) | How root/WebDAV/S3 share resolution, identity, VFS, and metrics |
+| [Cross-Protocol Unification](11-architecture/cross-protocol-unification.md) | How root/WebDAV/S3/cvmfs/GridFTP share resolution, identity, VFS, and one metrics zone |
 
 > The architecture overview targets operators and newcomers. For source-level deep dives — state machines, call graphs, buffer lifetimes — go to [Developer Guide → Architecture](09-developer-guide/architecture-overview.md).
 

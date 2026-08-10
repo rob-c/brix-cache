@@ -142,8 +142,8 @@ const themes: Theme[] = [
         t: 'Three protocols, one file, simultaneously',
         d: `The same physical file is reachable as <span class="mono">root://</span>,
             <span class="mono">davs://</span>, and <span class="mono">s3://</span> at once — one auth
-            layer, one confinement rule, one cache, one metrics plane underneath all three. Not a
-            gateway translating protocols: peers over one VFS.`,
+            layer, one confinement rule, one cache, and one process-wide metrics zone that labels
+            every plane it carries. Not a gateway translating protocols: peers over one VFS.`,
         stock: 'root:// and HTTP coexist; a unified S3-inclusive tri-protocol namespace does not.',
         cite: 'docs/11-architecture/overview.md',
       },
@@ -246,7 +246,11 @@ const themes: Theme[] = [
       {
         t: 'Prometheus-native, dashboard included',
         d: `Metrics are a first-class HTTP endpoint with fixed, low-cardinality labels, plus a built-in
-            operational dashboard — scrape it with the stack you already run.`,
+            operational dashboard — scrape it with the stack you already run. One endpoint covers every
+            plane: <span class="mono">root://</span>, WebDAV, S3, CVMFS and <span class="mono">gsiftp://</span>
+            all report into the same zone under one <span class="mono">proto</span> label, so a query
+            like <span class="mono">sum by (proto) (rate(brix_io_bytes_read[1m]))</span> compares them
+            directly.`,
         stock: 'Binary UDP f-stream/g-stream that needs a collector pipeline to become legible.',
         cite: 'src/observability/',
       },

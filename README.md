@@ -11,9 +11,9 @@
 
 # BriX-Cache
 
-**The whole HEP data stack in one nginx binary — `root://`, WebDAV, and S3 —
-built from snap-together parts you assemble to fit your site, instead of a
-monolith you bend to fit.**
+**The whole HEP data stack in one nginx binary — `root://`, WebDAV, S3,
+`gsiftp://`, `httpg`, and CVMFS — built from snap-together parts you assemble
+to fit your site, instead of a monolith you bend to fit.**
 
 [![ASan/UBSan](https://github.com/rob-c/brix-cache/actions/workflows/asan.yml/badge.svg)](https://github.com/rob-c/brix-cache/actions/workflows/asan.yml)
 [![Invariant guards](https://github.com/rob-c/brix-cache/actions/workflows/guards.yml/badge.svg)](https://github.com/rob-c/brix-cache/actions/workflows/guards.yml)
@@ -33,28 +33,42 @@ monolith you bend to fit.**
 ---
 
 Physicists at CERN, SLAC, and Fermilab move petabytes of collision data using
-two protocols nginx has never spoken: **XRootD** (`root://`) and **WebDAV**
-(`davs://`). This module teaches nginx both — plus an S3-compatible endpoint —
-so you get the entire HEP data stack inside one binary with all of nginx's
-battle-tested operations tooling behind it.
+protocols nginx has never spoken: **XRootD** (`root://`), **WebDAV**
+(`davs://`), and **GridFTP** (`gsiftp://`). This module teaches nginx all of
+them — plus an S3-compatible endpoint, an **httpg** (proxy-certificate HTTPS)
+forwarding proxy, and a **CVMFS** site cache — so you get the entire HEP data
+stack inside one binary with all of nginx's battle-tested operations tooling
+behind it.
 
 ```mermaid
 flowchart LR
     xrd["xrdcp root://host/…"]
     dav["xrdcp davs://host/…"]
     s3["aws s3 cp s3://host/…"]
+    gftp["globus-url-copy<br/>gsiftp://host/…"]
+    hpg["arcsub · arcget<br/><i>httpg — proxy-cert HTTPS</i>"]
+    cvm["CVMFS client<br/>worker node"]
     brix["BriX-Cache<br/><i>nginx + module</i>"]
     posix["local POSIX tree<br/>/data/atlas/…"]
     backend["root:// backend<br/><i>transparent proxy / cache</i>"]
     davback["http://dav-backend/<br/><i>WebDAV proxy</i>"]
+    gftpback["gsiftp:// origin<br/><i>dCache · StoRM · Globus</i>"]
+    arc["ARC-CE<br/><i>per-user delegated cred</i>"]
+    s1["CVMFS Stratum-1<br/><i>CERN · RAL · FNAL</i>"]
     prom["Prometheus /metrics"]
 
     xrd --> brix
     dav --> brix
     s3 --> brix
+    gftp --> brix
+    hpg --> brix
+    cvm --> brix
     brix --> posix
     brix --> backend
     brix --> davback
+    brix --> gftpback
+    brix --> arc
+    brix --> s1
     brix -.-> prom
 ```
 
@@ -78,32 +92,40 @@ flowchart LR
 
 ### Where the module plugs into nginx
 
-Three protocol families enter through nginx's battle-tested event loop, fan out
+Five protocol families enter through nginx's battle-tested event loop, fan out
 to the right module, and converge on **one shared module core** before touching
 a file:
 
 ```mermaid
 flowchart TD
     rootc["root:// · roots://<br/>xrdcp · xrdfs · pyxrootd"]
-    davc["davs:// · https://<br/>curl · rucio · browser"]
+    gftpc["gsiftp:// · ftp://<br/>globus-url-copy · gfal-copy · FTS"]
+    davc["davs:// · https:// · httpg<br/>curl · rucio · browser · arcsub"]
     s3c["s3:// · http(s)<br/>aws-cli · boto3"]
+    cvmc["cvmfs:// · scvmfs://<br/>CVMFS client · brixcvmfs"]
 
     subgraph loop ["nginx event loop — epoll · non-blocking · 1 master + N worker processes"]
         subgraph streamb ["stream { }"]
             smod["ngx_stream_brix_module · ngx_stream_…_cms_srv<br/>native root:// / roots://"]
+            gmod["ngx_stream_brix_ftp_module<br/>RFC 959 + GSI + MODE E"]
         end
         subgraph httpb ["http { }"]
-            hmod["webdav · s3 · metrics · dashboard · srr · xrdhttp_filter<br/>davs:// · S3 REST · /metrics · /brix"]
+            hmod["webdav · s3 · metrics · dashboard · srr · xrdhttp_filter<br/>davs:// · httpg · S3 REST · /metrics · /brix"]
+            cmod["ngx_http_brix_cvmfs_module<br/>site cache · geo-ranked origins"]
         end
         core["shared module core — src/<br/>auth · path-confine · async-IO · metrics · cache · cms"]
         smod --> core
+        gmod --> core
         hmod --> core
+        cmod --> core
     end
 
     rootc -- "raw TCP / TLS" --> smod
-    davc -- "HTTPS" --> hmod
+    gftpc -- "raw TCP / GSI TLS" --> gmod
+    davc -- "HTTPS + RFC 3820 proxy certs" --> hmod
     s3c -- "HTTP/S" --> hmod
-    core --> store["/data POSIX tree (standalone)<br/>or root:// backend (transparent proxy / read-through cache)"]
+    cvmc -- "HTTP / TLS" --> cmod
+    core --> store["/data POSIX tree (standalone) · root:// backend (transparent proxy /<br/>read-through cache) · gsiftp:// origin · CVMFS Stratum-1 set"]
 ```
 
 ### Inside the module — `src/` in seven buckets
@@ -119,14 +141,16 @@ concept alone:
  │                   thread-pool async-I/O machinery
  ├─ protocols/       one folder per wire protocol — root/ (the whole root://
  │                   plane: connection → handshake → session → read/write →
- │                   response), webdav/, s3/, ssi/, srr/, dig/, shared/
+ │                   response), webdav/, s3/, gridftp/ (gsiftp:// door),
+ │                   cvmfs/ (site cache), ssi/, srr/, dig/, shared/
  ├─ auth/            identity & authorization — gsi/ token/ sss/ krb5/ pwd/
  │                   unix/ host/ voms/, the shared crypto/ PKI core, the
  │                   authz/ ACL engine, and the impersonate/ broker
  ├─ fs/              the storage plane — the VFS is the sole storage truth
  │                   (bytes, namespace, metadata): path/ confinement,
- │                   pluggable backend/ drivers, cache/, tier/, the xfer/
- │                   staging engine, scan/
+ │                   pluggable backend/ drivers (posix, xroot, http, s3,
+ │                   rados, gsiftp origin, pblock, stage/frm), cache/,
+ │                   tier/, the xfer/ staging engine, scan/
  ├─ net/             scale-out & interposition — cms/ + manager/ clustering,
  │                   upstream/ + proxy/ relaying, ratelimit/, tap/, mirror/
  ├─ observability/   metrics/ (Prometheus), accesslog/, dashboard/, pmark/
@@ -200,7 +224,7 @@ sequenceDiagram
 
 ---
 
-## Three ways to deploy
+## Six ways to deploy
 
 ```mermaid
 flowchart TB
@@ -216,6 +240,18 @@ flowchart TB
         direction LR
         c3["HTTP client<br/>xrdcp · browser · rucio"] --> b3["BriX-Cache<br/>terminates HTTPS · WLCG token auth · metrics"] --> d3["http://internal-dav-server/"]
     end
+    subgraph m4 ["Mode 4 — GridFTP gsiftp:// gateway"]
+        direction LR
+        c4["globus-url-copy<br/>gfal-copy · FTS"] --> b4["BriX-Cache<br/>RFC 2228 GSI control channel<br/>MODE E parallel streams · DCAU/PROT"] --> d4["same VFS export<br/>posix · pblock · S3 · Ceph"]
+    end
+    subgraph m5 ["Mode 5 — httpg forwarding proxy"]
+        direction LR
+        c5["arcsub · arcget<br/>RFC 3820 proxy cert"] --> b5["BriX-Cache<br/>verifies proxy chains · per-user<br/>credential delegation on the back leg"] --> d5["ARC-CE / arcrest<br/><i>sees the real user</i>"]
+    end
+    subgraph m6 ["Mode 6 — CVMFS site cache"]
+        direction LR
+        c6["worker nodes<br/>CVMFS client"] --> b6["BriX-Cache<br/>content-addressed verify-on-fill<br/>never-drop · geo-ranked origins"] --> d6["Stratum-1 replicas<br/>CERN · RAL · FNAL"]
+    end
 ```
 
 Pick whichever fits your site — or combine them:
@@ -225,10 +261,13 @@ Pick whichever fits your site — or combine them:
 | Replacing or augmenting an `xrootd` daemon on a storage node | Standalone |
 | Adding TLS, auth, or metrics in front of an existing XRootD service | XRootD proxy |
 | Exposing xrootd WebDAV through an HTTPS perimeter (WLCG token auth) | WebDAV proxy |
+| Accepting `globus-url-copy` / FTS transfers into the same namespace | GridFTP gateway |
+| Fronting an ARC-CE whose clients authenticate with grid proxy certificates | httpg proxy |
+| Replacing Squid as the Tier-2 CVMFS cache for a worker farm | CVMFS site cache |
 
-All three modes share one nginx instance. The `stream {}` block owns native
-`root://` / `roots://` traffic; `http {}` owns WebDAV, S3, and Prometheus. Mix
-and match freely.
+All six modes share one nginx instance. The `stream {}` block owns native
+`root://` / `roots://` and `gsiftp://` traffic; `http {}` owns WebDAV, httpg,
+S3, CVMFS, and Prometheus. Mix and match freely.
 
 Not sure which mode you need? The decision only takes 30 seconds:
 
@@ -240,11 +279,20 @@ graph TD
     D -->|Yes| E["Mode 2: Transparent Proxy"]
     D -->|No| F{"Expose WebDAV through HTTPS perimeter? (WLCG token auth, browser access)"}
     F -->|Yes| G["Mode 3: WebDAV Perimeter Proxy"]
-    F -->|No| H["Use multiple modes in the same nginx instance"]
+    F -->|No| I{"Accept globus-url-copy / gfal / FTS transfers?"}
+    I -->|Yes| J["Mode 4: GridFTP gsiftp:// Gateway"]
+    I -->|No| K{"Front an ARC-CE for proxy-certificate clients?"}
+    K -->|Yes| L["Mode 5: httpg Forwarding Proxy"]
+    K -->|No| M{"Cache CVMFS for a worker farm?"}
+    M -->|Yes| N["Mode 6: CVMFS Site Cache"]
+    M -->|No| H["Use multiple modes in the same nginx instance"]
 
     C -.->|Read more| DM1[/"Deployment Modes"/]
     E -.->|Read more| PMG[/"Proxy Mode Guide"/]
     G -.->|Read more| WDO[/"WebDAV Overview"/]
+    J -.->|Read more| GFT[/"GridFTP Gateway"/]
+    L -.->|Read more| ARC[/"ARC-CE httpg Front Proxy"/]
+    N -.->|Read more| CVM[/"CVMFS Site Cache"/]
 ```
 
 ---
@@ -373,6 +421,117 @@ http {
 }
 ```
 
+### GridFTP (`gsiftp://`) gateway
+
+An RFC 2228 GSI control channel on the nginx **stream** engine, terminating on
+the same VFS export the other protocols use — so a byte written over `gsiftp://`
+reads back identically over `root://`, WebDAV, or S3:
+
+```nginx
+stream {
+    server {
+        listen 2811;
+        brix_gridftp on;
+        brix_gridftp_export      /data;
+        brix_gridftp_allow_write on;
+        brix_gridftp_gsi         on;
+        brix_gridftp_certificate     /etc/grid-security/hostcert.pem;
+        brix_gridftp_certificate_key /etc/grid-security/hostkey.pem;
+        brix_gridftp_trusted_ca      /etc/grid-security/certificates;
+    }
+}
+```
+
+```bash
+voms-proxy-init -voms cms
+globus-url-copy file:///tmp/big.root gsiftp://host:2811/big.root      # PUT
+globus-url-copy -p 4 -dcpriv gsiftp://host:2811/big.root file:///tmp/back.root
+```
+
+`-p N` selects **MODE E** parallel streams (GFD.020 extended block): up to 64
+data connections reassembled by file offset, with committed-range overlap
+rejection. Data-channel protection is client-driven per transfer (`-nodcau` /
+`-dcsafe` / `-dcpriv` → `PROT C` / `S` / `P`), and the peer DN on a protected
+data leg is pinned to the control-channel identity. Drop
+`brix_gridftp_gsi on` and the CA/cert lines for an anonymous cleartext `ftp://`
+door. See [GridFTP Gateway](docs/05-operations/gridftp.md).
+
+### httpg forwarding proxy (ARC-CE)
+
+`httpg` is HTTPS whose *client* authentication is an RFC 3820 proxy certificate.
+Stock nginx cannot terminate it — OpenSSL rejects proxy chains unless
+`X509_V_FLAG_ALLOW_PROXY_CERTS` is set, so every grid client gets
+`400 proxy certificates not allowed`. One directive fixes that, and delegation
+carries each user's own identity to the back leg:
+
+```nginx
+http {
+    server {
+        listen 8443 ssl;
+        ssl_certificate     /etc/grid-security/hostcert.pem;
+        ssl_certificate_key /etc/grid-security/hostkey.pem;
+        ssl_verify_client   on;                      # fail closed
+        brix_ssl_client_capath /etc/grid-security/certificates;
+        brix_webdav_proxy_certs on;                  # accept RFC 3820 proxies
+        brix_storage_credential_dir /var/lib/brix/creds;
+
+        location /.well-known/brix-delegation {      # users deposit a proxy
+            brix_webdav on;
+            brix_webdav_auth required;
+            brix_delegation_endpoint on;
+        }
+        location / {
+            proxy_pass https://arc-ce.site.example:443;
+            proxy_ssl_certificate     $brix_delegated_cred;   # the caller's own
+            proxy_ssl_certificate_key $brix_delegated_cred;
+            brix_proxy_ssl_capath     /etc/grid-security/certificates;
+            proxy_ssl_verify on;
+        }
+    }
+}
+```
+
+No user credential ever appears in the config: `$brix_delegated_cred` re-derives
+the storage key from the verified chain's end-entity DN at request time, so the
+ARC-CE authenticates every forwarded request as the real submitting user and the
+gateway holds no blanket super-credential. See
+[ARC-CE httpg Front Proxy](docs/05-operations/arc-ce-httpg-front-proxy.md).
+
+### CVMFS site cache
+
+A drop-in replacement for Squid/Varnish as a Tier-2 CVMFS cache, with three
+properties a generic HTTP cache cannot give you: corruption can never be
+admitted (content-addressed verify-on-fill), the client never sees a broken
+connection, and every fill is observable:
+
+```nginx
+http {
+    reset_timedout_connection off;        # FIN, never RST
+    server {
+        listen 3128 so_keepalive=60s:10s:6 backlog=2048;
+        location / {
+            brix_cvmfs on;
+            brix_cache_store posix:/srv/cvmfs-cache;
+            brix_cvmfs_quarantine_dir /srv/cvmfs-quarantine;
+            brix_cvmfs_upstream_allow cvmfs-stratum-one.cern.ch
+                                      cvmfs-s1fnal.opensciencegrid.org;
+        }
+    }
+}
+```
+
+```bash
+# on the worker nodes
+CVMFS_HTTP_PROXY="http://cache1.site:3128|http://cache2.site:3128"
+```
+
+Origins can be ranked by measured RTT or by great-circle distance
+(`brix_cvmfs_origin_select geo` + `brix_cvmfs_here`), with a per-worker probe
+timer keeping latencies fresh. The experimental `scvmfs://` variant layers TLS
+plus fail-closed client authz (bearer / x509 / VOMS) on the same handler. See
+[CVMFS Site Cache](docs/04-protocols/cvmfs.md) and the
+[deployment runbook](deploy/cvmfs/README.md).
+
 ---
 
 ## One filesystem, every client
@@ -383,16 +542,20 @@ flowchart TD
     F --- R["root://host//data/atlas/run3/AOD.pool.root"]
     F --- D["davs://host//data/atlas/run3/AOD.pool.root"]
     F --- S["s3://host/atlas/run3/AOD.pool.root"]
+    F --- G["gsiftp://host/data/atlas/run3/AOD.pool.root"]
     R --- RC["xrdcp · xrdfs · Python XRootD client"]
     D --- DC["xrdcp · curl · rucio · browser"]
     S --- SC["aws s3 cp · XrdClS3 · boto3"]
+    G --- GC["globus-url-copy · gfal-copy · FTS"]
 ```
 
 The same POSIX tree — one set of files, one set of permissions — is visible
-simultaneously over all three protocols. Checksums, metadata, and XRootD
+simultaneously over all four protocols. Checksums, metadata, and XRootD
 `fattr` extended attributes are consistent regardless of how a client connects.
-A physicist using `xrdcp`, a pipeline using `rucio`, and a sysadmin using
-`aws s3 ls` all see the same bytes.
+A physicist using `xrdcp`, a pipeline using `rucio`, an FTS transfer arriving
+over `gsiftp://`, and a sysadmin using `aws s3 ls` all see the same bytes —
+`gsiftp://` is fully bidirectional, usable both as ingress and as the egress
+translation of a namespace another protocol wrote.
 
 ---
 
@@ -403,7 +566,12 @@ A physicist using `xrdcp`, a pipeline using `rucio`, and a sysadmin using
 | `root://` (native XRootD) | 1094 | raw TCP | `xrdcp`, `xrdfs`, Python XRootD client |
 | `roots://` (TLS-from-first-byte) | 1095 | TLS | `xrdcp` with strict TLS |
 | `davs://` (WebDAV over HTTPS) | 8443 | HTTPS | `xrdcp --allow-http`, rucio, browsers |
+| `httpg` (HTTPS + RFC 3820 proxy certs) | 8443 / 443 | HTTPS | `arcsub`, `arcget`, ARC-CE REST clients |
 | S3-compatible HTTP | site-defined | HTTP/HTTPS | XrdClS3, `aws s3` CLI |
+| `gsiftp://` (GridFTP, RFC 2228 GSI) | 2811 | raw TCP + GSI TLS | `globus-url-copy`, `gfal-copy`, FTS |
+| `ftp://` (cleartext RFC 959 door) | 21 | raw TCP | any FTP client, test rigs |
+| `cvmfs://` (site cache) | 3128 | HTTP | CVMFS clients, `brixcvmfs`, Frontier |
+| `scvmfs://` (TLS + authz, experimental) | site-defined | HTTPS | CVMFS clients with bearer / x509 / VOMS |
 
 ---
 
@@ -416,6 +584,26 @@ synchronous mode), a POSIX preload shim, and the public C library `libxrdc`.
 These clients are built on the same in-tree protocol vocabulary as the module
 and do not depend on upstream `libXrdCl` or `libXrdSec*`.
 
+`xrdcp` speaks GridFTP as well as XRootD: `gsiftp://` and `ftp://` sources and
+destinations run the RFC 959 dialogue with RFC 2228 `AUTH GSSAPI` security,
+delegating the X.509 proxy from `--proxy` / `$X509_USER_PROXY`. A `gsiftp://`
+endpoint is never downgraded to an anonymous login, and the passive data
+address is screened against the control peer (FTP-bounce defence) unless
+`BRIX_GSIFTP_ALLOW_OFFPEER=1`:
+
+```bash
+xrdcp --proxy /tmp/x509up_u1000 gsiftp://gridftp.example:2811/data/a.root .
+```
+
+For CVMFS, `brixcvmfs` (the CVMFS personality of the `brixMount` umbrella)
+mounts repositories read-only or with a writable overlay, verifies them
+offline, pre-warms a cache, and drives Stratum-0 release-manager workflows:
+
+```bash
+brixcvmfs atlas.cern.ch /cvmfs/atlas.cern.ch      # read-only mount
+brixcvmfs --check atlas.cern.ch                    # verify without mounting
+```
+
 See [Native Client Tools](docs/04-protocols/native-client-tools.md) for the
 source-verified tool matrix, examples, and current limitations.
 
@@ -423,19 +611,30 @@ source-verified tool matrix, examples, and current limitations.
 
 ## Authentication
 
-| Method | Native `root://` | WebDAV `davs://` | S3 |
-|---|:---:|:---:|:---:|
-| Anonymous | ✅ | ✅ | ✅ |
-| GSI / x509 proxy certificates | ✅ | ✅ | — |
-| WLCG / JWT bearer tokens | ✅ | ✅ | — |
-| SSS (shared secret) | ✅ | — | — |
-| Host (reverse-DNS allowlist) | ✅ | — | — |
-| Password (`pwd` / XrdSecpwd) | ✅ | — | — |
-| Kerberos 5 | ✅ | — | — |
+| Method | Native `root://` | WebDAV `davs://` / httpg | S3 | GridFTP `gsiftp://` | CVMFS |
+|---|:---:|:---:|:---:|:---:|:---:|
+| Anonymous | ✅ | ✅ | ✅ | ✅ (cleartext door) | ✅ |
+| GSI / x509 proxy certificates | ✅ | ✅ | — | ✅ | ✅ (scvmfs) |
+| VOMS VO attributes | ✅ | ✅ | — | ✅ | ✅ (scvmfs) |
+| WLCG / JWT bearer tokens | ✅ | ✅ | — | — | ✅ (scvmfs) |
+| S3 SigV4 request signing | — | — | ✅ | — | — |
+| SSS (shared secret) | ✅ | — | — | — | — |
+| Host (reverse-DNS allowlist) | ✅ | — | — | — | — |
+| Password (`pwd` / XrdSecpwd) | ✅ | — | — | — | — |
+| Kerberos 5 | ✅ | — | — | — | — |
 
 Every GSI session enforces `kXR_sigver` HMAC-SHA256 request signing. WLCG token
 scopes (`storage.read`, `storage.write`, `storage.create`) are checked per-path
-and configurable per location. [Auth Overview](docs/06-authentication/auth-overview.md)
+and configurable per location. The `httpg` front end additionally accepts
+**RFC 3820 proxy certificates** (`brix_webdav_proxy_certs on`) that stock nginx
+refuses outright, and forwards each caller's *own* delegated credential
+upstream. GridFTP authenticates the RFC 2228 control channel with the client's
+X.509 proxy and can require a VO (`brix_gridftp_require_vo`); on a protected
+data channel the peer DN is pinned to the control-channel identity, so a third
+party cannot splice into a data connection whose port it guessed. The
+`scvmfs://` authz modes (`bearer`, `x509`, `voms`) are all fail-closed — no
+issuer registry loaded, or no VOMS AC presented, is a refusal and never a
+bypass. [Auth Overview](docs/06-authentication/auth-overview.md)
 explains the layered security model; [PKI Config](docs/06-authentication/pki-config.md)
 walks through the certificate and JWKS setup.
 
@@ -453,19 +652,36 @@ from the reference.
 
 ## What's inside
 
-- **Three deployment modes:** standalone server, transparent XRootD proxy, WebDAV perimeter proxy — all in a single nginx binary
+- **Six deployment modes:** standalone server, transparent XRootD proxy, WebDAV perimeter proxy, GridFTP gateway, httpg forwarding proxy, CVMFS site cache — all in a single nginx binary
 - **32 XRootD 5.2 opcodes** fully implemented; see [Operation Status](docs/05-operations/operation-status.md)
 - **WebDAV:** OPTIONS, GET, HEAD, PUT, DELETE, MKCOL, PROPFIND, COPY, MOVE,
   LOCK, UNLOCK, HTTP-TPC COPY pull
 - **S3-compatible:** GET, HEAD, PUT, DELETE, ListObjectsV2, multipart upload
-- **Native client tools:** clean-room `xrdcp`, `xrdfs`, `xrddiag`, checksum
-  utilities, GSI/SSS helpers, FUSE mounts, POSIX preload, and `libxrdc`
+- **GridFTP (`gsiftp://`) gateway:** RFC 959 verbs + RFC 2228 GSI control
+  channel + RFC 3659 metadata (MLSD/MLST) + GFD.020 **MODE E** parallel streams
+  (up to 64, offset-reassembled with committed-range overlap rejection), DCAU
+  and `PROT C/S/P` data-channel protection, PASV/EPSV port-range control — on
+  the non-blocking stream engine, terminating on the shared VFS
+- **`gsiftp://` origin backend:** the outbound mirror — back a BriX export with
+  a remote dCache, StoRM, Globus, or XRootD-gsiftp server
+- **httpg:** RFC 3820 proxy-certificate HTTPS that stock nginx cannot terminate,
+  plus a delegation endpoint and `$brix_delegated_cred` for true per-user
+  credential forwarding to an ARC-CE back leg
+- **CVMFS site cache:** content-addressed verify-on-fill with quarantine,
+  never-drop client semantics, RTT- or geo-ranked Stratum-1 selection with
+  per-worker probes, negative-404 memo, stale-if-error, dedicated metric family
+  and dashboard panel; experimental `scvmfs://` adds TLS + fail-closed authz
+- **Native client tools:** clean-room `xrdcp` (including `gsiftp://` / `ftp://`
+  copies), `xrdfs`, `xrddiag`, checksum utilities, GSI/SSS helpers, FUSE mounts
+  (`xrootdfs`, `brixcvmfs`/`brixMount`), POSIX preload, and `libxrdc`
 - **Auth:** anonymous, GSI/x509 proxy certs with `kXR_sigver` signing,
-  WLCG/JWT bearer tokens (scope enforcement), SSS shared secret,
+  RFC 3820 proxy-certificate termination (httpg), VOMS VO attributes,
+  WLCG/JWT bearer tokens (scope enforcement), S3 SigV4, SSS shared secret,
   host (reverse-DNS allowlist), password (XrdSecpwd DH-bootstrapped),
   Kerberos 5
 - **TLS:** in-protocol `root://` upgrade (`kXR_wantTLS`/`kXR_ableTLS`),
-  `roots://` TLS-from-byte-one, HTTPS for WebDAV and S3
+  `roots://` TLS-from-byte-one, HTTPS for WebDAV, httpg, S3 and `scvmfs://`,
+  GSI TLS on the GridFTP control and data channels
 - **Transparent XRootD proxy:** lazy upstream connect, file-handle translation,
   opaque opcode relay, full metrics and audit logging, backend invisible to client
 - **WebDAV proxy:** terminate HTTPS + WLCG auth at nginx, forward to HTTP/HTTPS backend
@@ -479,7 +695,10 @@ from the reference.
   `readv`, `write`, `pgwrite`, WebDAV PUT); cleartext reads use nginx
   file-backed sendfile paths
 - **Prometheus metrics:** per-request counters for XRootD ops, WebDAV, S3,
-  auth events, fd cache, TPC — all from a shared low-cardinality metrics zone
+  CVMFS (fills, origin failovers, per-repo hit/miss/bytes), GridFTP transfers
+  and GSI logins, auth events, cache hit/miss/eviction, TPC — every plane
+  (`stream`, `webdav`, `s3`, `cvmfs`, `gridftp`) reporting into one shared
+  low-cardinality metrics zone under a common `{proto}` label
 - **Config validation:** missing certs, JWKS files, CRLs, or required
   directories cause `nginx -t` to fail with explicit `emerg` errors before any
   traffic is accepted
@@ -550,23 +769,38 @@ heavy loss they slow down, they don't corrupt or silently truncate.
 ```text
 GET http://nginx:9100/metrics
 
-brix_requests_total{proto="root",op="read",status="ok"} 14302
-brix_requests_total{proto="dav",op="GET",status="ok"}   8871
-brix_bytes_sent_total{proto="root"}                     9.2e11
-brix_auth_total{method="gsi",result="ok"}               4201
-brix_auth_total{method="token",result="invalid"}        3
-brix_fd_cache_hits_total                                29441
+# One process-wide zone, one label vocabulary — every protocol is in it.
+brix_io_ops_total{proto="stream",op="read",status="ok"}      14302
+brix_io_ops_total{proto="webdav",op="read",status="ok"}       8871
+brix_io_ops_total{proto="s3",op="write",status="ok"}          1204
+brix_io_ops_total{proto="cvmfs",op="stat",status="ok"}       36510
+brix_io_ops_total{proto="gridftp",op="read",status="ok"}      6120
+brix_io_bytes_read{proto="stream"}                     920000000000
+brix_io_bytes_written{proto="gridftp"}                  44002181120
+brix_io_latency_usec_bucket{proto="webdav",op="read",le="10000"} 8402
+brix_auth_total{proto="gridftp",method="gsi",status="ok"}      377
+brix_auth_total{proto="webdav",method="token",status="fail"}     3
+
+# ...alongside each plane's own protocol-specific families.
+brix_requests_total{port="1094",auth="gsi",op="readv",status="ok"} 9915
+brix_cvmfs_repo_cache_hits_total{repo="atlas.cern.ch"}     1200000
+brix_cvmfs_origin_failovers_total                               17
 ...
 ```
 
-Every request — XRootD, WebDAV, or S3 — writes a structured access log line and
-increments protocol-specific counters. Labels are fixed and low-cardinality, so
-your dashboards stay snappy at scale; no per-file or per-user label explosion.
-For live operator visibility, enable the HTTPS dashboard at `/brix/`; it shows
-active root/WebDAV/S3/TPC transfers, protocol cards, cache/write-through and
-cluster health, recent events, and versioned JSON under `/brix/api/v1/`. Full
-PromQL examples, dashboard setup notes, and a ready-made Grafana layout are in
-the [Monitoring Guide](docs/08-metrics-monitoring/monitoring-guide.md).
+Every request — XRootD, WebDAV, httpg, S3, GridFTP, or CVMFS — writes a
+structured access log line and increments the shared `{proto="..."}` counter
+families as well as its own protocol-specific ones. **All five planes report
+into the same metrics zone**, so one `/metrics` location covers the whole
+process, whether a plane is served from a `stream {}` or an `http {}` block —
+and the `proto` label set is generated from a single declaration, so it cannot
+drift. Labels are fixed and low-cardinality, so your dashboards stay snappy at
+scale; no per-file or per-user label explosion. For live operator visibility,
+enable the HTTPS dashboard at `/brix/`; it shows active root/WebDAV/S3/cvmfs/TPC
+transfers, protocol cards, cache/write-through and cluster health, recent
+events, and versioned JSON under `/brix/api/v1/`. Full PromQL examples,
+dashboard setup notes, and a ready-made Grafana layout are in the
+[Monitoring Guide](docs/08-metrics-monitoring/monitoring-guide.md).
 
 ---
 
@@ -591,6 +825,21 @@ Client connect -> nginx authenticates client
     -> first post-login opcode -> lazy upstream connect
     -> handle translation -> relay response verbatim
     -> access log + counter (backend never sees client identity)
+
+GridFTP gsiftp:// upload
+────────────────────────
+TCP connect -> 220 greeting -> AUTH GSSAPI / ADAT (X.509 proxy)
+    -> DCAU + PROT P -> EPSV/PASV data channel (peer DN pinned)
+    -> STOR, MODE E: N parallel connections, blocks addressed by offset
+    -> per-block pwrite, committed-range overlap rejected
+    -> 112/111 progress markers -> 226 complete -> access log
+
+CVMFS cache fill
+────────────────
+GET /cvmfs/<repo>/data/<hash> -> gate (method, allowlist, classify)
+    -> local store hit? serve : coalesced fill from ranked Stratum-1
+    -> content-addressed verify — mismatch quarantines, never serves
+    -> ranged file response -> access log + cvmfs counters
 ```
 
 ---
@@ -601,7 +850,14 @@ The Python test suite is comprehensive by design — `xrdcp` and XRootD Python
 client behavior, WebDAV, HTTP-TPC interop, auth, ACLs, proxy mode, manager
 mode, security hardening, cross-backend conformance against reference xrootd,
 **and XrdHttp/davs:// protocol conformance** between BriX-Cache and the
-official xrootd daemon.
+official xrootd daemon. The newer protocol planes carry their own suites:
+GridFTP verbs, `gsiftp://` GSI transfers, MODE E parallel streams and hostile
+inputs (`tests/test_gridftp_*.py`, plus a container-tier interop matrix against
+the reference Globus client); the httpg forwarding proxy end-to-end against a
+real NorduGrid ARC-CE 7 with two delegating users
+(`tests/test_arc_httpg_proxy.py`); and ~100 CVMFS modules covering the cache
+tier, classifier, geo/RTT origin ranking, FUSE conformance against the official
+client, and Stratum-0 publishing.
 
 ```bash
 # Run the full suite
@@ -671,8 +927,8 @@ the operation-to-file map and step-by-step implementation recipes.
 | **01 — Getting Started** | Installation, setup, verification | [Quick Install](docs/01-getting-started/quick-install.md), [What Is This Project](docs/01-getting-started/what-is-this.md) |
 | **02 — Concepts** | Domain knowledge for newcomers | [XRootD Basics](docs/02-concepts/xrootd-basics.md), [Deployment Modes](docs/02-concepts/deployment-modes.md) |
 | **03 — Configuration** | Build, config reference, TLS | [Config Reference](docs/03-configuration/config-reference.md), [TLS Config](docs/03-configuration/tls-config.md), [Build Guide](docs/03-configuration/build-guide.md) |
-| **04 — Protocols** | Protocol-specific guides | [WebDAV Overview](docs/04-protocols/webdav-overview.md), [XRootD Client Interaction](docs/04-protocols/xrootd-client-interaction.md), [Native Client Tools](docs/04-protocols/native-client-tools.md) |
-| **05 — Operations** | Production operations, proxy mode, clusters | [Operations Guide](docs/05-operations/operations-guide.md), [Proxy Mode Guide](docs/05-operations/proxy-mode-guide.md), [Cluster Management](docs/05-operations/cluster-management.md) |
+| **04 — Protocols** | Protocol-specific guides | [WebDAV Overview](docs/04-protocols/webdav-overview.md), [CVMFS Site Cache](docs/04-protocols/cvmfs.md), [gsiftp Data-Channel Security](docs/04-protocols/gsiftp-data-channel-security.md), [XRootD Client Interaction](docs/04-protocols/xrootd-client-interaction.md), [Native Client Tools](docs/04-protocols/native-client-tools.md) |
+| **05 — Operations** | Production operations, proxy mode, clusters | [Operations Guide](docs/05-operations/operations-guide.md), [Proxy Mode Guide](docs/05-operations/proxy-mode-guide.md), [GridFTP Gateway](docs/05-operations/gridftp.md), [ARC-CE httpg Front Proxy](docs/05-operations/arc-ce-httpg-front-proxy.md), [CVMFS Automount](docs/05-operations/cvmfs-automount.md), [Cluster Management](docs/05-operations/cluster-management.md) |
 | **06 — Authentication** | Auth setup and PKI | [Auth Overview](docs/06-authentication/auth-overview.md), [PKI Config](docs/06-authentication/pki-config.md), [Test PKI Setup](docs/06-authentication/test-pki-setup.md) |
 | **07 — Security** | Hardening and security model | [Security Hardening Guide](docs/07-security/hardening-guide.md) |
 | **08 — Metrics & Monitoring** | Prometheus metrics, HTTPS dashboard, access logging | [Monitoring Guide](docs/08-metrics-monitoring/monitoring-guide.md), [Dashboard Feature Ideas](docs/08-metrics-monitoring/dashboard-feature-ideas.md) |

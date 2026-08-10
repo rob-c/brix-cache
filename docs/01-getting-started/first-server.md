@@ -78,17 +78,22 @@ Expected output includes `verify-uploaded.txt`.
 
 ```bash
 # Query the Prometheus metrics endpoint
-curl -s http://localhost:9100/metrics | grep brix_requests_total
+curl -s http://localhost:9100/metrics | grep brix_io_ops_total
 
 # Expected output should show request counters incrementing as you use the server
 ```
 
 Example output:
 ```
-brix_requests_total{proto="root",op="read",status="ok"} 2
-brix_requests_total{proto="root",op="write",status="ok"} 1
-brix_requests_total{proto="root",op="dirlist",status="ok"} 1
+brix_io_ops_total{proto="stream",op="read",status="ok"} 2
+brix_io_ops_total{proto="stream",op="write",status="ok"} 1
+brix_io_ops_total{proto="stream",op="dirlist",status="ok"} 1
 ```
+
+The `proto` label is how the one metrics zone separates the planes. This server
+only speaks `root://` so far, but the same endpoint already exports
+`proto="webdav"`, `"s3"`, `"cvmfs"` and `"gridftp"` rows — sitting at `0` until
+you configure those protocols.
 
 ---
 

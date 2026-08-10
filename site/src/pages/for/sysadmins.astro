@@ -19,7 +19,7 @@ import Cta from '../../components/Cta.astro';
     >
       <div class="term" aria-label="Transparent proxy config">
         <div class="term-title">in front of an existing server</div>
-        <div><span class="c"># stream {}</span></div>
+        <div><span class="c"># stream {'{}'}</span></div>
         <div>brix_root on;</div>
         <div>brix_tap_proxy on;</div>
         <div>brix_tap_proxy_upstream <span class="k">ceph-xrootd:1094</span>;</div>
@@ -43,7 +43,7 @@ import Cta from '../../components/Cta.astro';
         <p>
           Standalone server over a POSIX tree, transparent <span class="mono">root://</span> proxy,
           or WebDAV perimeter proxy that terminates HTTPS + WLCG tokens and forwards inward. The
-          <span class="mono">stream {}</span> block owns native traffic, <span class="mono">http {}</span>
+          <span class="mono">stream {'{}'}</span> block owns native traffic, <span class="mono">http {'{}'}</span>
           owns WebDAV / S3 / metrics. Mix them freely.
         </p>
       </Benefit>
@@ -57,9 +57,12 @@ import Cta from '../../components/Cta.astro';
       </Benefit>
       <Benefit marker="observe" title="Prometheus + a live dashboard">
         <p>
-          Per-request counters for every protocol with fixed, low-cardinality labels, structured
-          access logs, and an HTTPS operator dashboard at <span class="mono">/brix/</span> showing
-          active transfers, cache and cluster health, and versioned JSON under
+          One <span class="mono">/metrics</span> endpoint, one process-wide zone, every protocol in
+          it — <span class="mono">root://</span>, WebDAV, S3, CVMFS and <span class="mono">gsiftp://</span>
+          share the same counters under a <span class="mono">proto</span> label, including the planes
+          that only ever run inside <span class="mono">stream {'{}'}</span>. Fixed, low-cardinality labels,
+          structured access logs, and an HTTPS operator dashboard at <span class="mono">/brix/</span>
+          showing active transfers, cache and cluster health, and versioned JSON under
           <span class="mono">/brix/api/v1/</span>.
         </p>
       </Benefit>

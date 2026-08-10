@@ -141,9 +141,19 @@ typedef struct {
 
 | Macro | File | Used By |
 |---|---|---|
-| `BRIX_WEBDAV_METRIC_INC()` / `BRIX_S3_METRIC_INC()` / `BRIX_SRV_METRIC_INC()` | `src/observability/metrics/metrics_macros.h` | WebDAV, S3, Stream — all three protocols |
+| `BRIX_WEBDAV_METRIC_INC()` / `BRIX_S3_METRIC_INC()` / `BRIX_SRV_METRIC_INC()` | `src/observability/metrics/metrics_macros.h` | WebDAV, S3, Stream — the legacy per-plane families |
+| `brix_metric_op_done()` / `brix_metric_auth()` / `brix_metric_tpc()` | `src/observability/metrics/unified.h` | **Every** protocol — the `brix_proto_t` argument selects the `{proto}` label |
 
-**Current state:** Shared-memory zone (`ngx_brix_shm_zone`) with per-protocol counter families (requests_total, responses_total, auth_total, bytes_rx_tx). All three protocols write atomic counters to the same shared memory. Prometheus exporter iterates all protocol families in `src/observability/metrics/stream.c`. Dashboard live transfer monitor reads from this same zone for cross-protocol visibility.
+**Current state:** One process-wide shared-memory zone (`ngx_brix_shm_zone`). It
+holds the legacy per-plane counter families (requests_total, responses_total,
+auth_total, bytes_rx_tx) *and* the unified `{proto}`-labelled families every
+protocol writes into. **All five planes are in the zone** — `stream`, `webdav`,
+`s3`, `cvmfs`, `gridftp` — with the label value set generated from the single
+X-macro declaration in `src/core/types/proto_list.h`, so adding a protocol is one
+row rather than a new counter family. The exporter loops
+`0 .. BRIX_PROTO_COUNT` and fans out to the per-plane exporters from
+`src/observability/metrics/stream.c`. Dashboard live transfer monitor reads from
+this same zone for cross-protocol visibility.
 
 ### 1.10 Crypto Helpers
 
@@ -369,8 +379,12 @@ per-protocol summaries in the JSON API.
 **Implemented:**
 - `src/observability/dashboard/http_tracking.c` tracks HTTP protocol transfers for WebDAV,
   S3, and WebDAV TPC.
-- `src/observability/dashboard/api.c` emits protocol summaries for `root`, `webdav`, `s3`,
-  and `tpc`.
+- `src/observability/dashboard/api.c` emits protocol summaries via
+  `dashboard_proto_name()`, generated from `src/core/types/proto_list.h` — `root`,
+  `webdav`, `s3`, `cvmfs`, `gridftp` — plus `tpc` as a transfer *direction*.
+  Slot registration is wired for root, WebDAV, S3, cvmfs and WebDAV TPC; the
+  GridFTP gateway reports into the metrics zone but does not yet allocate live
+  transfer slots.
 - `src/observability/dashboard/page.c` renders protocol summary cards and a protocol filter
   for the live transfer table.
 

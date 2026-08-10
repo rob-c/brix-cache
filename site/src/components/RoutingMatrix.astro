@@ -1,14 +1,14 @@
 ---
 // The homepage signature: a routing schematic on an oscilloscope graticule.
-// Four protocol inputs converge on ONE namespace node (the shared VFS holding a
-// single file), which resolves to the storage backend — the whole product in one
-// picture. Protocol-coloured signal pulses travel each trace (paused for anyone
+// Four protocol inputs (and every auth scheme) converge on ONE unified VFS plane
+// holding a single file, which fans out to any storage backend — the whole product
+// in one picture. Protocol-coloured signal pulses travel each trace (paused for anyone
 // who prefers reduced motion). Pure SVG + CSS offset-path, no runtime JS.
 ---
 <div
   class="router"
   role="img"
-  aria-label="Routing schematic: four protocol inputs — root://, davs://, s3://, and gsiftp:// — converge on one namespace node holding /data/higgs.root, which resolves to the shared VFS storage backend."
+  aria-label="Routing schematic: four protocol inputs — root://, davs://, s3://, and gsiftp:// — plus every auth scheme converge on one unified VFS plane holding /data/higgs.root, which fans out to any storage backend: POSIX, Ceph, an S3 or block store, or an upstream xrootd."
 >
   <span class="router-cap mono">namespace router</span>
   <svg viewBox="0 0 480 300" preserveAspectRatio="xMidYMid meet">
@@ -33,15 +33,15 @@
 
     <!-- core namespace node -->
     <rect class="node-core" x="220" y="110" width="160" height="100" rx="10" />
-    <text class="node-title" x="300" y="150" text-anchor="middle">one namespace</text>
-    <text class="node-sub"   x="300" y="170" text-anchor="middle">shared VFS · auth · cache</text>
+    <text class="node-title" x="300" y="150" text-anchor="middle">unified VFS plane</text>
+    <text class="node-sub"   x="300" y="170" text-anchor="middle">any auth · confine · cache</text>
     <text class="node-file"  x="300" y="190" text-anchor="middle">/data/higgs.root</text>
 
     <!-- disk node -->
     <rect class="node-box" x="416" y="132" width="52" height="52" rx="6" />
     <ellipse cx="442" cy="146" rx="18" ry="5.5" fill="none" stroke="var(--ink-3)" stroke-width="1.2" />
     <path d="M424,146 v24 a18,5.5 0 0 0 36,0 v-24" fill="none" stroke="var(--ink-3)" stroke-width="1.2" />
-    <text class="disk-lab" x="442" y="204" text-anchor="middle">storage</text>
+    <text class="disk-lab" x="442" y="204" text-anchor="middle">any backend</text>
 
     <!-- animated signal pulses -->
     <circle class="pulse"     style="fill:var(--root);offset-path:path('M136,62  C182,62  182,160 220,160')" />

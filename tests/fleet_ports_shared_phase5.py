@@ -469,6 +469,14 @@ LIFECYCLE_SHARED_PORTS_PHASE5: dict[str, dict] = {
     # kXR_bind refusal subject (test_bind_substreams.py), owned by one
     # module-scoped lifecycle and serialised as bind-substreams-off.
     "lc-bind-substreams-off": {"port": 30530},
+    # GridFTP unified-metrics subject (test_gridftp_metrics.py): one nginx whose
+    # process-wide metrics zone is fed by TWO gsiftp gateways — a writable one
+    # (PORT) for the success/error rows and a read-only one (RO_PORT) for the
+    # refusal rows — and scraped over HTTP_PORT.  All three must be on the same
+    # instance: the zone is per-process, so a second nginx would carry its own
+    # counters and prove nothing about the seam.
+    "lc-gridftp-metrics": {"port": 30531,
+                           "extra": {"HTTP_PORT": 30532, "RO_PORT": 30533}},
     # 30506/30507/30508 are the cachemx matrix's S3-over-TLS, remote-origin
     # WebDAV and HTTP-TPC WebDAV planes; they live in the "lc-cachemx" extras
     # block above, out of numeric order because that entry predates them.

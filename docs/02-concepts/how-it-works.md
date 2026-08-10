@@ -147,9 +147,13 @@ After every operation, the server:
 # Example access log entry
 2025/12/01 14:32:15 [info] client=192.168.1.100 proto=root op=read status=ok bytes_read=1048576 duration_ms=12 auth_method=gsi user=/O=Grid/C=US/O=CERN/OU=Ganglia/CN=test
 
-# Example Prometheus metric
-brix_requests_total{proto="root",op="read",status="ok"} 14302
+# Example Prometheus metric — the protocol-labelled view every plane writes into
+brix_io_ops_total{proto="stream",op="read",status="ok"} 14302
 ```
+
+Every protocol described below lands in that same counter under its own `proto`
+label — `stream`, `webdav`, `s3`, `cvmfs`, `gridftp` — because the metrics zone
+is one process-wide shared-memory region, not a per-protocol one.
 
 ---
 

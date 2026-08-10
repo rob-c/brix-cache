@@ -100,9 +100,14 @@ ev_gss_finalize(ftp_ev_t *fc)
         (void) brix_gssapi_srv_peer_cert_pem(fc->gss, &fc->ctrl_leaf_pem);
         ev_gss_carry_voms(fc);           /* lift VOMS FQANs into fc->identity */
         fc->authed = 1;
+        brix_metric_auth(BRIX_PROTO_GRIDFTP, BRIX_AUTHN_GSI, 1);
         ngx_log_error(NGX_LOG_INFO, fc->c->log, 0,
                       "brix: GridFTP(ev) gsiftp authenticated dn=\"%V\" deleg=%uz",
                       &dn, proxy.len);
+    } else {
+        /* The handshake completed but yielded no peer DN, so the channel is
+         * wrapped without a principal behind it: not an authenticated session. */
+        brix_metric_auth(BRIX_PROTO_GRIDFTP, BRIX_AUTHN_GSI, 0);
     }
     fc->wrap_code  = "633";              /* default: private (ENC) replies      */
     fc->sec_active = 1;
@@ -152,6 +157,7 @@ brix_ftp_ev_cmd_adat(ftp_ev_t *fc, const char *arg)
 
     st = brix_gssapi_srv_step(fc->gss, tok.data, tok.len, &out);
     if (st == BRIX_GSS_FAILED) {
+        brix_metric_auth(BRIX_PROTO_GRIDFTP, BRIX_AUTHN_GSI, 0);
         return brix_ftp_ev_reply(fc, "535 GSSAPI authentication failed\r\n");
     }
     if (st == BRIX_GSS_CONTINUE) {

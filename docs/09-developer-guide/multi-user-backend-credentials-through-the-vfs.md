@@ -207,7 +207,9 @@ five terminal outcomes:
 The gate is **proto-indexed** for metrics (mirroring the existing `brix_metric_cache_result`),
 so it bumps `brix_cred_select_{user,fallback,deny}_total` from inside the VFS without any
 per-server plumbing. Labels are `{proto}` only — never a DN, key, or path — honoring the
-low-cardinality rule.
+low-cardinality rule. The value set is the whole protocol list (`stream`, `webdav`, `s3`,
+`cvmfs`, `gridftp`): the gate sits below every plane, so every plane in the metrics zone
+gets these counters for free.
 
 > **Feature-off is byte-identical.** Every new path is gated on `storage_cred_dir != NULL`.
 > With no directive set, `brix_vfs_ctx_init()` (which memzeros the ctx) leaves the fields

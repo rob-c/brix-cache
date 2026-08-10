@@ -1,6 +1,7 @@
 # Metrics Overview
 
-All Prometheus metrics exported by BriX-Cache, organized by protocol layer — native XRootD stream, WebDAV, and S3.
+All Prometheus metrics exported by BriX-Cache, organized by protocol layer — native
+XRootD stream, WebDAV, S3, the cvmfs cache plane, and the GridFTP gateway.
 
 ---
 
@@ -25,10 +26,15 @@ pipeline. This map shows which family increments at each stage:
                          user_sessions        status_class        VO; cache_* on fills
   ──────────────────────────────────────────────────────────────────────────────────
   wire_bytes_rx/tx_total, stream_*_frames, write_stalls  ← low-level, every socket op
+  ──────────────────────────────────────────────────────────────────────────────────
+  io_ops_total, io_bytes_read/written, io_latency_usec, auth_total, tpc_*
+    ← the unified {proto=...} view, written by ALL FIVE planes
+      (stream · webdav · s3 · cvmfs · gridftp) into the one process-wide zone
 
   Label discipline (INVARIANT #8): only low-cardinality labels —
-  {port, auth, op, status, method, status_class}. Never paths, DNs, buckets,
-  keys, or UUIDs. VO is capped at 32 entries; user identity is hashed + LRU-512.
+  {proto, port, auth, op, status, method, status_class}. Never paths, DNs,
+  buckets, keys, or UUIDs. VO is capped at 32 entries; user identity is
+  hashed + LRU-512.
 ```
 
 ---
@@ -454,6 +460,95 @@ See [extended-metrics.md](./extended-metrics.md) for configuration notes and ful
 
 ---
 
+## Unified Protocol-Labeled Metrics
+
+The `brix_io_*`, `brix_auth_total` and `brix_tpc_*` families are the
+protocol-neutral view: one label vocabulary shared by **every** protocol plane
+the module speaks. The metrics zone is process-wide, so one `/metrics` location
+exports all of them no matter which planes are configured on which listeners —
+a `stream {}` gateway and an HTTP `server {}` in the same nginx write into the
+same counters, and a single scrape covers the whole process.
+
+### The `proto` label values
+
+**All protocols are inside the metrics zone.** The label set is generated from
+the single protocol declaration in `src/core/types/proto_list.h`, so it cannot
+drift from the code:
+
+| `proto` | Plane | Wire scheme(s) | nginx side |
+|---------|-------|----------------|------------|
+| `stream` | Native XRootD | `root://`, `roots://` | `stream {}` |
+| `webdav` | WebDAV / HTTP | `davs://`, `https://`, `http://` | `http {}` |
+| `s3` | S3-compatible REST | path-style REST | `http {}` |
+| `cvmfs` | cvmfs site cache | `cvmfs://` | `http {}` |
+| `gridftp` | GridFTP gateway | `gsiftp://` | `stream {}` |
+
+`stream` and `root` are frozen historical names for the same native plane: the
+metric label is `stream`, the dashboard display name is `root`. The list is
+**append-only** — the enum values persist in shared memory as small ints, so
+rows are never reordered or removed.
+
+Series are emitted for the full label cross product, so every `proto` appears in
+every family even when that plane carries no traffic: an unconfigured protocol
+reads `0`, it does not vanish. Alerting rules can reference `{proto="gridftp"}`
+without an `absent()` guard.
+
+### Families
+
+| Family | Type | Labels |
+|--------|------|--------|
+| `brix_io_ops_total` | counter | `proto`, `op`, `status` |
+| `brix_io_bytes_read` | counter | `proto` |
+| `brix_io_bytes_written` | counter | `proto` |
+| `brix_io_latency_usec` | histogram | `proto`, `op` (+ `le` on `_bucket`) |
+| `brix_auth_total` | counter | `proto`, `method`, `status` |
+| `brix_tpc_transfers_total` | counter | `proto`, `direction`, `status` |
+| `brix_tpc_bytes_total` | counter | `proto`, `direction` |
+| `brix_tpc_gsi_delegated_total` | counter | `result` |
+
+The same five `proto` values also label the cache-outcome and credential-gate
+families, which iterate the identical protocol list:
+
+| Family | Type | Labels |
+|--------|------|--------|
+| `brix_cache_hits_total` / `brix_cache_misses_total` | counter | `proto` |
+| `brix_cache_bytes_evicted_total` | counter | `proto` |
+| `brix_cred_select_user_total` / `_fallback_total` / `_deny_total` | counter | `proto` |
+| `brix_cred_deleg_total` | counter | `proto`, `mode`, `outcome` |
+| `brix_cred_deleg_fail_total` | counter | `proto`, `reason` |
+
+Label values (closed sets — INVARIANT #8):
+
+- `op` — `read`, `write`, `stat`, `delete`, `mkdir`, `rename`, `dirlist`,
+  `tpc`, `xattr`, `copy`
+- `status` (I/O and TPC) — `ok`, `not_found`, `forbidden`, `io_error`, `other`
+- `method` — `none`, `gsi`, `token`, `sss`, `s3key`, `unix`, `krb5`, `host`,
+  `pwd`; `status` on `brix_auth_total` is `ok` or `fail`
+- `direction` — `pull`, `push`
+- `result` (delegation) — `ok`, `expired`, `absent`
+- `le` — the eight finite microsecond bounds `1000`, `5000`, `10000`, `50000`,
+  `100000`, `500000`, `1000000`, `5000000`, plus `+Inf`
+
+`brix_io_bytes_read`/`_written` fold the older per-protocol wire ledgers in at
+scrape time for `stream`, `webdav` and `s3` (see
+[Per-Protocol Byte Counters](#per-protocol-byte-counters-extended)); `cvmfs` and
+`gridftp` have no legacy ledger and book their bytes directly. Which layer owns
+each row is fixed — see the single-owner rule below.
+
+```
+brix_io_ops_total{proto="stream",op="read",status="ok"}      14302
+brix_io_ops_total{proto="webdav",op="read",status="ok"}       8871
+brix_io_ops_total{proto="s3",op="write",status="ok"}          1204
+brix_io_ops_total{proto="cvmfs",op="read",status="ok"}       36510
+brix_io_ops_total{proto="gridftp",op="read",status="ok"}      6120
+brix_io_bytes_read{proto="gridftp"}                    92341760512
+brix_io_bytes_written{proto="gridftp"}                 44002181120
+brix_io_latency_usec_count{proto="gridftp",op="write"}         418
+brix_auth_total{proto="gridftp",method="gsi",status="ok"}      377
+```
+
+---
+
 ## Accounting Ownership & Accuracy Invariants
 
 Verified end-to-end by the conformance suite (`tests/test_cachemx_*.py` — 2070
@@ -510,8 +605,23 @@ table and the double-count bugs this rule closed):
 - Stream (root://) READ + WRITE ops: the per-server wire-ledger fold. These carry
   **no latency observations** — `brix_io_latency_usec{proto="stream",op="read"}`
   staying at zero under pure streaming reads is correct, not a bug.
+- GridFTP (gsiftp://) READ + WRITE ops, latency and `brix_io_bytes_*`:
+  `brix_ftp_ev_metric_xfer()` at transfer completion
+  (`src/protocols/gridftp/ev/ftp_ev_metrics.c`). The gateway has no wire ledger to
+  fold, so unlike stream it books its own bytes — derived from the data-channel
+  offsets, not counted a second time in the pump. Transfers refused before a data
+  channel opened (read-only export, denied path, absent file) are counted without
+  a latency sample, so a refusal cannot falsify the lowest bucket.
+- cvmfs (`cvmfs://`) data plane: the dedicated `brix_cvmfs_bytes_served_total`
+  family (bytes by cache disposition) plus `brix_cache_hits_total` /
+  `brix_cache_misses_total` under `proto="cvmfs"`. The plane deliberately books
+  **no** unified `op="read"` row — a transparent public cache serves the same
+  object from cache, origin fill, or bundle, and the cvmfs families are the
+  authoritative split. Its unified rows come from the VFS observer.
 - Namespace ops (stat/delete/mkdir/rename/dirlist, all protocols): the VFS
-  observer, with per-call latency.
+  observer, with per-call latency. This is why the gridftp seam books only the
+  data plane — SIZE/MDTM/MLST/MKD/DELE/LIST over gsiftp are already metered
+  inside `brix_vfs_*` under `proto="gridftp"`.
 - Per-backend `brix_storage_io_bytes_*`: the VFS/staged-commit layer (books the
   committed object size exactly once per publish).
 

@@ -305,9 +305,16 @@ curl http://localhost:9100/metrics | grep xrootd
 ```
 
 You will see counters like:
-- `brix_requests_total{op="stat",status="OK"}` — stat operations completed successfully
-- `brix_bytes_sent_total{proto="stream"}` — bytes transferred over XRootD stream
-- `brix_bytes_received_total{proto="stream"}` — bytes uploaded via XRootD stream
+- `brix_requests_total{port="11097",auth="anon",op="stat",status="ok"}` — native XRootD stat operations completed successfully
+- `brix_io_ops_total{proto="stream",op="read",status="ok"}` — reads completed, in the protocol-labelled view
+- `brix_io_bytes_read{proto="stream"}` — bytes served to clients over XRootD stream
+- `brix_io_bytes_written{proto="stream"}` — bytes uploaded over XRootD stream
+
+The metrics zone is process-wide and shared by **every** protocol, so this one
+endpoint also carries `proto="webdav"`, `proto="s3"`, `proto="cvmfs"` and
+`proto="gridftp"` series — swap the label to see the same counters for the
+WebDAV, S3, cvmfs or GridFTP planes configured on this server. See
+[metrics-overview.md](../08-metrics-monitoring/metrics-overview.md#unified-protocol-labeled-metrics).
 
 For HTTPS dashboard access: configure SSL on port 9100 with the same host cert/key.
 

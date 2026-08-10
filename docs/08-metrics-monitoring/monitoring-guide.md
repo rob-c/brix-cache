@@ -7,7 +7,7 @@ Every request leaves a trace. This section covers every Prometheus metric BriX-C
 | Document | Content |
 |---|---|
 | [setup.md](setup.md) | Prometheus endpoint configuration and scraping setup |
-| [metrics-overview.md](metrics-overview.md) | Complete catalog of available metrics (stream, WebDAV, S3) |
+| [metrics-overview.md](metrics-overview.md) | Complete catalog of available metrics — the per-plane families (stream, WebDAV, S3, cvmfs) and the unified `{proto}` families every plane writes into |
 | [extended-metrics.md](extended-metrics.md) | Protocol separation, IP version tracking, VO and user analytics |
 | [promql-examples.md](promql-examples.md) | PromQL queries for common monitoring scenarios |
 | [access-logging.md](access-logging.md) | Access log format, configuration, and interpretation |
@@ -58,6 +58,15 @@ scrape_configs:
       - targets: ['localhost:9100']
 ```
 
+**One endpoint covers every protocol.** The metrics zone is process-wide shared
+memory, not per-listener: a single `/metrics` location exports the counters for
+all five planes — native XRootD (`proto="stream"`), WebDAV (`proto="webdav"`),
+S3 (`proto="s3"`), the cvmfs cache (`proto="cvmfs"`) and the GridFTP gateway
+(`proto="gridftp"`) — whether they are served from `stream {}` or `http {}`
+blocks in the same nginx. There is nothing to enable per protocol and nothing
+to scrape twice. See
+[metrics-overview.md](metrics-overview.md#unified-protocol-labeled-metrics).
+
 ### HTTPS Monitoring Dashboard
 
 The built-in dashboard is a browser UI for live operator checks. It is separate
@@ -107,7 +116,7 @@ Once enabled, use these URLs:
 
 The dashboard page polls `/brix/api/v1/snapshot` for the rich view and keeps
 `/brix/transfers` available for older tooling. The live table shows native
-XRootD, WebDAV, S3, and HTTP-TPC transfers with client address, authenticated
+XRootD, WebDAV, S3, cvmfs, and HTTP-TPC transfers with client address, authenticated
 identity, path, protocol, direction, operation, state, bytes, idle time, and
 rate. The page also includes protocol summary cards, cache/write-through health,
 manager registry health, recent sanitized events, bounded history sparklines,

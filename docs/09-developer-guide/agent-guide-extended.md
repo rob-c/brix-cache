@@ -259,6 +259,17 @@ TEST_CROSS_BACKEND=nginx pytest tests/<test-file>.py -v # cross-backend (nginx v
 ```
 **Logs:** `/tmp/xrd-test/logs/` — `error.log`, `brix_access*.log`, `http_webdav_access.log`, `s3_access.log`
 
+**`tests/test_ci_guards.py` — always run it with `-m "not slow"`** (that is what the
+PR gate does; `run_suite.sh --pr` deselects the same three). Its slow tier is nightly
+and *mutates the shared build tree*: `test_ci_coverage_runner_green` drives
+`tools/ci/coverage.py` → `operator_build build_coverage`, which re-runs `./configure
+--with-cc-opt='--coverage -O0 -g'` in `/tmp/nginx-1.28.3` and `make clean`s `client/`,
+leaving both trees gcov-instrumented and every other session on an `-O0` binary. It
+does not restore them. Recovery: reconfigure `/tmp/nginx-1.28.3` with the canonical
+line above, `make -j`, `make clean && make -j` in `client/`, and delete the stray
+`*.gcno`/`*.gcda`; verify with `objs/nginx -V` (canonical `configure arguments`, no
+`--coverage`).
+
 ## RECIPES
 **New WebDAV method:** `src/protocols/webdav/<op>.c` → declare `webdav.h` → register `dispatch.c` → update Allow header test → `make` → 3 tests
 **New XRootD opcode:** `src/protocols/root/<sub>/op.c` → register `protocols/root/handshake/dispatch_<type>.c` → constants `protocols/root/protocol/opcodes.h`/`wire.h` → add to `./config` → `./configure`+`make` → 3 tests

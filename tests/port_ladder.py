@@ -22,30 +22,33 @@ SETTINGS_OFFSET, SETTINGS_WIDTH = 0, 178
 # 2026-08-09: 523 -> 531 for the CMS parity wave + HTTP redirect lifecycle
 # subjects (test_cms_parity_wave.py: lc-cms-parity-mgr(+CMS_PORT)/-node;
 # test_webdav_redirect_ds.py: lc-webdav-redirect-mgr(+HTTP+CMS)/-ds(+HTTP)).
-LIFECYCLE_SHARED_OFFSET, LIFECYCLE_SHARED_WIDTH = 178, 531
+# 2026-08-10: 531 -> 534 for the gridftp unified-metrics subject
+# (test_gridftp_metrics.py: lc-gridftp-metrics + HTTP_PORT + RO_PORT).  Every
+# offset below shifts by the same 3.
+LIFECYCLE_SHARED_OFFSET, LIFECYCLE_SHARED_WIDTH = 178, 534
 # 2026-08-09: 137 -> 140 for the three audit-fix lifecycle subjects
 # (test_audit_fixes_2026_08_09.py: only-if-cached, cold-purge, signing).
 # Every offset below shifts by the same 3 — the ladder is packed, so a width
 # change is an intentional compatibility event (see the note above).
-LIFECYCLE_EXCLUSIVE_OFFSET, LIFECYCLE_EXCLUSIVE_WIDTH = 709, 140
-CMDSCRIPTS_OFFSET, CMDSCRIPTS_WIDTH = 849, 205
-CMS_MESH_OFFSET, CMS_MESH_WIDTH = 1054, 83
-HYBRID_MESH_OFFSET, HYBRID_MESH_WIDTH = 1137, 23
-PLACEHOLDERS_OFFSET, PLACEHOLDERS_WIDTH = 1160, 2
+LIFECYCLE_EXCLUSIVE_OFFSET, LIFECYCLE_EXCLUSIVE_WIDTH = 712, 140
+CMDSCRIPTS_OFFSET, CMDSCRIPTS_WIDTH = 852, 205
+CMS_MESH_OFFSET, CMS_MESH_WIDTH = 1057, 83
+HYBRID_MESH_OFFSET, HYBRID_MESH_WIDTH = 1140, 23
+PLACEHOLDERS_OFFSET, PLACEHOLDERS_WIDTH = 1163, 2
 # CVMFS conformance mock-Stratum-1 + nginx port blocks (cvmfs/conformance_common.py
 # PORT_BLOCKS): 26 files x a 20-port block.  Anchored into the ladder so every
 # port stays within TEST_PORT_START+2000 and a second suite on a different
 # TEST_PORT_START draws a disjoint range (replaces the old absolute 13100+ tiling).
 # 27 file blocks x 20 ports = 540, plus a 48-port matrix sub-range for the
 # concurrent fuse-trust mock origins (see conformance_common.matrix_port).
-CVMFS_CONFORMANCE_OFFSET, CVMFS_CONFORMANCE_WIDTH = 1162, 588
+CVMFS_CONFORMANCE_OFFSET, CVMFS_CONFORMANCE_WIDTH = 1165, 588
 # Differential-interop per-file fixed ports (official_interop_lib.worker_port):
 # one slot per distinct conformance base (61 today), anchored here so they stay
 # in the contiguous ladder within TEST_PORT_START+2000 instead of the old
 # absolute 30000-49925 per-worker band.  The owning module is pinned to one xdist
 # worker (conftest auto-xdist_group), so a fixed port per file suffices.
-INTEROP_WORKER_OFFSET, INTEROP_WORKER_WIDTH = 1750, 61
-PORT_COUNT = 1811
+INTEROP_WORKER_OFFSET, INTEROP_WORKER_WIDTH = 1753, 61
+PORT_COUNT = 1814
 PORT_FIRST = PORT_START + 1
 PORT_LAST = PORT_START + PORT_COUNT
 

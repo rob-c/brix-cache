@@ -40,7 +40,16 @@ scrape_configs:
 
 Metrics are shared across all nginx worker processes via **shared memory** and updated atomically. They survive `nginx -s reload` (counters are preserved across config reloads).
 
-Client-controlled strings are not used as Prometheus label values. Exported labels come from server configuration (`port`, `auth`) and fixed operation/result tables (`op`, `status`, `method`, `status_class`, `result`, `mode`, `event`). The current native XRootD `auth` metric label is `gsi` for GSI-only listeners and `anon` for all non-GSI-only listeners, including token and mixed listeners.
+The zone is **process-wide, not per-listener or per-protocol**. Every protocol
+plane writes into it — native XRootD (`proto="stream"`), WebDAV
+(`proto="webdav"`), S3 (`proto="s3"`), the cvmfs cache (`proto="cvmfs"`) and
+the GridFTP gateway (`proto="gridftp"`) — regardless of whether the plane is
+served from a `stream {}` or an `http {}` block. The single `location /metrics`
+above therefore exports all of them; you do not add a metrics location per
+protocol, and the `{proto=...}` series appear (at `0`) even for planes this
+server does not serve.
+
+Client-controlled strings are not used as Prometheus label values. Exported labels come from server configuration (`port`, `auth`) and fixed operation/result tables (`proto`, `op`, `status`, `method`, `status_class`, `result`, `mode`, `event`). The current native XRootD `auth` metric label is `gsi` for GSI-only listeners and `anon` for all non-GSI-only listeners, including token and mixed listeners.
 
 ---
 

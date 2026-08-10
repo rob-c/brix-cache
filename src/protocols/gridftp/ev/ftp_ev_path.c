@@ -50,32 +50,63 @@ brix_ftp_ev_split(char *line, char **verb_out)
 
 /* Combine the session CWD with `arg` into a logical path and confine it under the
  * export root.  On success `abs` holds the canonical filesystem path and the
- * return is 0; otherwise an FTP failure code (550 not-found/denied, 553 malformed). */
+ * return is 0; otherwise an FTP failure code (550 not-found/denied, 553 malformed).
+ *
+ * `err`, when non-NULL, receives the metric error class behind that single 550 —
+ * the FTP code collapses "no such path" and "your VO may not have it" into one
+ * reply (deliberately: the client must not learn which), but /metrics must still
+ * report them apart.  The confinement layer already returns an HTTP status, so
+ * its verdict is classified rather than guessed. */
+/* Join the session CWD with `arg` into `logical`; 0 on success, 553 when the
+ * result would not fit the buffer. */
+static int
+ev_logical_path(ftp_ev_t *fc, const char *arg, char *logical, size_t cap)
+{
+    int n;
+
+    if (arg == NULL || arg[0] == '\0') {
+        ngx_memcpy(logical, fc->cwd, ngx_strlen(fc->cwd) + 1);
+        return 0;
+    }
+    if (arg[0] == '/') {
+        if (ngx_strlen(arg) >= cap) {
+            return 553;
+        }
+        ngx_memcpy(logical, arg, ngx_strlen(arg) + 1);
+        return 0;
+    }
+
+    n = snprintf(logical, cap, "%s%s%s",
+                 fc->cwd,
+                 (fc->cwd[1] == '\0') ? "" : "/",           /* cwd == "/" ? */
+                 arg);
+    return (n <= 0 || (size_t) n >= cap) ? 553 : 0;
+}
+
+
 int
-brix_ftp_ev_resolve(ftp_ev_t *fc, const char *arg, char *abs, size_t abssz)
+brix_ftp_ev_resolve_ex(ftp_ev_t *fc, const char *arg, char *abs, size_t abssz,
+                       brix_err_class_t *err)
 {
     char logical[PATH_MAX];
     int  rc;
 
-    if (arg == NULL || arg[0] == '\0') {
-        ngx_memcpy(logical, fc->cwd, ngx_strlen(fc->cwd) + 1);
-    } else if (arg[0] == '/') {
-        if (ngx_strlen(arg) >= sizeof(logical)) {
-            return 553;
+    if (err != NULL) {
+        *err = BRIX_ERR_NONE;
+    }
+
+    if (ev_logical_path(fc, arg, logical, sizeof(logical)) != 0) {
+        if (err != NULL) {
+            *err = BRIX_ERR_OTHER;
         }
-        ngx_memcpy(logical, arg, ngx_strlen(arg) + 1);
-    } else {
-        int n = snprintf(logical, sizeof(logical), "%s%s%s",
-                         fc->cwd,
-                         (fc->cwd[1] == '\0') ? "" : "/",   /* cwd == "/" ? */
-                         arg);
-        if (n <= 0 || (size_t) n >= sizeof(logical)) {
-            return 553;
-        }
+        return 553;
     }
 
     rc = brix_http_resolve_path(fc->conf->root_canon, logical, abs, abssz);
     if (rc != 0) {
+        if (err != NULL) {
+            *err = brix_metric_err_from_http_status((ngx_uint_t) rc);
+        }
         return 550;                     /* 400/403/404/414/500 → FTP 550       */
     }
 
@@ -87,9 +118,19 @@ brix_ftp_ev_resolve(ftp_ev_t *fc, const char *arg, char *abs, size_t abssz)
     if (brix_check_vo_acl_identity(fc->c->log, abs, fc->conf->vo_rules,
                                    fc->identity) != NGX_OK)
     {
+        if (err != NULL) {
+            *err = BRIX_ERR_FORBIDDEN;
+        }
         return 550;                     /* VO not authorized → FTP 550          */
     }
     return 0;
+}
+
+
+int
+brix_ftp_ev_resolve(ftp_ev_t *fc, const char *arg, char *abs, size_t abssz)
+{
+    return brix_ftp_ev_resolve_ex(fc, arg, abs, abssz, NULL);
 }
 
 
@@ -297,6 +338,11 @@ brix_ftp_ev_forward_pem(ngx_pool_t *pool, ngx_str_t *deleg, ngx_str_t *issuer)
 /* Build the per-operation VFS context: export root, write permission, TLS flag,
  * and the verified GSI principal (NULL for a cleartext session).
  *
+ * BRIX_PROTO_GRIDFTP is what labels every op the VFS meters underneath this
+ * context — the namespace verbs (STAT/MKDIR/DELETE/RENAME/DIRLIST) are observed
+ * once inside the VFS and land under {proto="gridftp"} from here; the data plane
+ * is recorded by ftp_ev_metrics.c at transfer completion.
+ *
  * When the client delegated an X.509 proxy on the control channel, forward it to
  * the storage backend so the upstream authenticates AS the gsiftp user (the
  * legacy gsiftp → xrootd gateway).  A full proxy is a PASSTHROUGH credential —
@@ -313,7 +359,7 @@ brix_ftp_ev_vfs_ctx(ftp_ev_t *fc, const char *abs, void *vctx)
     brix_vfs_ctx_t *ctx = vctx;
 
     brix_vfs_ctx_init(ctx, fc->c->pool, fc->c->log,
-                      BRIX_PROTO_ROOT, fc->conf->root_canon, "",
+                      BRIX_PROTO_GRIDFTP, fc->conf->root_canon, "",
                       fc->conf->allow_write ? 1 : 0,
                       fc->sec_active ? 1 : 0 /* is_tls */,
                       fc->identity, abs);

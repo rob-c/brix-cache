@@ -42,11 +42,14 @@ const buckets = [
     <div class="grid grid-2">
       <Benefit marker="shared-core" title="One event loop, four fronts">
         <p>
-          The <span class="mono">stream {}</span> block owns native <span class="mono">root://</span>
+          The <span class="mono">stream {'{}'}</span> block owns native <span class="mono">root://</span>
           / <span class="mono">roots://</span> and the <span class="mono">gsiftp://</span> GridFTP
-          gateway; <span class="mono">http {}</span> owns WebDAV, S3, and metrics. All converge on one
-          shared module core before touching a file — so auth, path confinement, caching, and metrics
-          are written once.
+          gateway; <span class="mono">http {'{}'}</span> owns WebDAV, S3, CVMFS, and the
+          <span class="mono">/metrics</span> endpoint. All converge on one shared module core before
+          touching a file — so auth, path confinement, caching, and metrics are written once. The
+          metrics zone is process-wide, not per-listener: the <span class="mono">stream {'{}'}</span>
+          fronts report into the same exposition as the HTTP ones, under one
+          <span class="mono">proto</span> label.
         </p>
       </Benefit>
       <Benefit marker="vfs" title="The VFS is the sole storage truth">

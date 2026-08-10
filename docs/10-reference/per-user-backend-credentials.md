@@ -729,7 +729,9 @@ Three per-protocol Prometheus counters, exported on `/metrics`
 | `brix_cred_select_deny_total{proto="…"}` | Refused (`fallback=deny`) — mapped to `EACCES`/403/`kXR_NotAuthorized`. |
 
 Labels are `proto` only (low-cardinality, per repo invariant #8 — no DNs,
-keys, or paths). Incremented from the five terminal outcomes in
+keys, or paths), and the value set is the full protocol list every family in
+the metrics zone shares: `stream`, `webdav`, `s3`, `cvmfs`, `gridftp`.
+Incremented from the five terminal outcomes in
 `src/fs/vfs/vfs_cred.c`'s shared `vfs_backend_cred_decide()` — the same
 decision body serves both the data-plane and namespace gates, so both are
 reflected in one counter family. **Flush-time denial is not counted here**

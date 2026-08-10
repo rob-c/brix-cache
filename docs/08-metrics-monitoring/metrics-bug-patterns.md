@@ -313,12 +313,17 @@ failure, a row that no layer books at all.
 
 ### How to avoid
 
-Every unified `(proto, op)` row has exactly ONE booking owner:
+Every unified `(proto, op)` row has exactly ONE booking owner. All five protocol
+planes — `stream`, `webdav`, `s3`, `cvmfs`, `gridftp` — write into the same
+process-wide zone, so the table below is exhaustive by construction: a plane
+missing from it books nothing, which is Pattern 13, not an omission here.
 
 | Row | Sole owner |
 |-----|-----------|
 | webdav/s3 READ + WRITE ops & latency | protocol `*_metrics_response` (one per request, full-request latency) |
 | stream READ + WRITE ops | wire-ledger fold (no latency observations) |
+| gridftp READ + WRITE ops, latency & `io_bytes_*` | `brix_ftp_ev_metric_xfer()` at transfer completion (`src/protocols/gridftp/ev/ftp_ev_metrics.c`) — the gateway has no wire ledger to fold, so it books its own bytes |
+| cvmfs data plane | the dedicated `brix_cvmfs_bytes_served_total` family + `brix_cache_hits_total`/`_misses_total{proto="cvmfs"}`. By design cvmfs books **no** unified `op="read"` row — the cache-disposition split is the authoritative view of what it served |
 | namespace ops (all protocols) | VFS observer (per-call latency) |
 | `op="tpc"` (webdav + stream) | `brix_tpc_metric_book()` in `src/tpc/common/metrics.c` — count-only, no latency |
 | webdav/s3 `io_bytes_*` | per-protocol rx/tx ledger fold |

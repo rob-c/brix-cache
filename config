@@ -1902,10 +1902,12 @@ ngx_module_srcs="$ngx_addon_dir/src/protocols/gridftp/ftp_module.c \
                  $ngx_addon_dir/src/protocols/gridftp/ev/ftp_ev_cmd.c \
                  $ngx_addon_dir/src/protocols/gridftp/ev/ftp_ev_sec.c \
                  $ngx_addon_dir/src/protocols/gridftp/ev/ftp_ev_data.c \
+                 $ngx_addon_dir/src/protocols/gridftp/ev/ftp_ev_data_setup.c \
                  $ngx_addon_dir/src/protocols/gridftp/ev/ftp_ev_tls.c \
                  $ngx_addon_dir/src/protocols/gridftp/ev/ftp_ev_xfer.c \
                  $ngx_addon_dir/src/protocols/gridftp/ev/ftp_ev_mode_e.c \
                  $ngx_addon_dir/src/protocols/gridftp/ev/ftp_ev_mode_e_recv.c \
+                 $ngx_addon_dir/src/protocols/gridftp/ev/ftp_ev_metrics.c \
                  $ngx_addon_dir/src/auth/gssapi/gsi_mech.c"
 ngx_module_deps="$ngx_addon_dir/src/protocols/gridftp/ftp_gateway.h \
                  $ngx_addon_dir/src/protocols/gridftp/ftp_dc_sec.h \

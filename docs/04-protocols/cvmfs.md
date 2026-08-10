@@ -917,10 +917,17 @@ endpoint that ultimately answered.
 
 Hit ratio and WAN-saved are one PromQL expression away:
 `bytes_served{hit} / (bytes_served{hit}+bytes_served{fill})`. Additionally
-`BRIX_PROTO_CVMFS` joined the unified per-protocol enum, so **every**
-existing `{proto=…}` family (bytes, IO ops/latency, cache hit/miss) grew a
-`cvmfs` label with zero new plumbing, and the live dashboard's transfer
-table tags cvmfs requests.
+`BRIX_PROTO_CVMFS` joined the unified per-protocol enum, so this plane is
+inside the same process-wide metrics zone as `stream`, `webdav`, `s3` and
+`gridftp`: **every** `{proto=…}` family (bytes, IO ops/latency, auth, cache
+hit/miss, credential gate) grew a `cvmfs` label with zero new plumbing, and the
+live dashboard's transfer table tags cvmfs requests. Which of those rows carry
+data is a deliberate split — the namespace ops come from the VFS observer and
+the cache disposition from `brix_cache_hits_total`/`_misses_total{proto="cvmfs"}`,
+while the served-bytes split stays authoritative in `brix_cvmfs_bytes_served_total`
+rather than being duplicated into a unified `op="read"` row (see the single-owner
+rule in
+[metrics-overview.md](../08-metrics-monitoring/metrics-overview.md#accounting-ownership--accuracy-invariants)).
 
 ### Access log variables
 
