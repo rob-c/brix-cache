@@ -88,13 +88,23 @@ brix_io_ops_total{proto="gridftp",op="read",status="ok"} 6120
 Not compliant, and rejected in review:
 
 ```
-brix_io_ops_total{proto="s3",op="read",path="/data/atlas/..."}   # path
-brix_io_ops_total{proto="s3",op="read",bucket="cms-xrd-global"}  # bucket
+brix_io_ops_total{proto="s3",op="read",path="/data/atlas/..."}   # path    metric-names-allow: deliberately invalid
+brix_io_ops_total{proto="s3",op="read",bucket="cms-xrd-global"}  # bucket  metric-names-allow: deliberately invalid
 ```
 
 Free-form identity and paths belong in the JSON access log (`access_log.c`);
 per-VO and per-user aggregates go through the bounded LRU tables in
 `tracking.c`.
+
+**Renaming or relabelling a family is a documentation change too.**
+`tools/ci/check_metric_names.py` parses this directory for the emitted family
+names and their label keys, then holds every `brix_*` reference in `docs/`,
+`site/`, `contrib/` and the src READMEs to that surface. Nothing about a wrong
+name is loud at runtime — Prometheus answers a query for a family that does not
+exist with an empty result, so the alert built on it never fires and its panel
+stays flat. Run `tools/ci/check_metric_names.py --dump` to print the exposition
+as the guard sees it; put `metric-names-allow: <reason>` on a line to exempt a
+deliberately-invalid example or a metric a design doc has only proposed.
 
 ## Files
 

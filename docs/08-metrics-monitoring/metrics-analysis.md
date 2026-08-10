@@ -215,7 +215,6 @@ brix_webdav_put_bodies_total{mode="threaded"}
 - `brix_webdav_auth_total{result="rejected"}` increasing means credentials are being presented but failing verification. For proxy-cert deployments this typically means an expired user proxy or a CA/CRL store issue. For token deployments it often means a JWKS key rotation that the server has not yet picked up.
 - `brix_webdav_auth_total{result="anonymous_fallback"}` higher than expected means clients that should be authenticating are failing silently. Compare with `rejected` — if both are low and `anonymous_fallback` is high, clients may not be sending credentials at all.
 - `brix_webdav_put_bodies_total{mode="spooled"}` means nginx had to buffer the PUT body to a temp file before the handler could read it. This happens when the client sends a `Content-Length` header that nginx's built-in body handling cannot satisfy in memory. For large file uploads this is expected; for small uploads it may indicate a client not sending the `Expect: 100-continue` header.
-- `brix_webdav_fd_cache_total{event="stale"}` increasing means the fd cache is returning stale entries (a file was replaced between opens on the same keepalive connection). A small number is normal after MOVE or overwrite operations. A sustained rate means the same path is being written and read rapidly on the same connection.
 
 ---
 

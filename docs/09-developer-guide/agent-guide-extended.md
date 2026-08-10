@@ -217,7 +217,7 @@ Full mapping: [phase-66-map.tsv](../refactor/phase-66-map.tsv).
 5. DEL/MOVE/COPY on collections: recursively check child locks
 6. S3 SigV4 ≠ WLCG token — never share auth logic
 7. Stat: use handle metadata; no extra path syscalls per read
-8. Metric labels: low-cardinality only (no paths/bucket-names/UUIDs)
+8. Metric labels: low-cardinality only (no paths/bucket-names/UUIDs). Renaming a family or its labels also breaks every doc that cites it — Prometheus answers a query for a family that does not exist with an empty result, so the alert built on it silently never fires. `tools/ci/check_metric_names.py` holds `docs/`, `site/`, `contrib/` and the src READMEs to what `src/observability/metrics/` actually emits (`--dump` prints that surface; `metric-names-allow: <reason>` exempts a line)
 9. CRC64: `crc64`=CRC-64/XZ, `crc64nvme`=CRC-64/NVME — DIFFERENT polys. Engine `src/core/compat/crc64.c`; root://+WebDAV emit 16-hex, S3 emits base64-of-8-BE-bytes (encode at the edge, never in the kernel). See [crc64-checksums.md](../10-reference/crc64-checksums.md)
 
 **Architecture:**

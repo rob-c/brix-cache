@@ -674,8 +674,8 @@ brix_io_ops_total{proto="stream", op="read", status="ok"}
 
 **Non-compliant (will be rejected in review):**
 ```
-brix_io_ops_total{proto="stream", op="read", path="/data/atlas/..."}  # path is high-cardinality
-brix_io_ops_total{proto="s3", bucket="cms-xrd-global"}                # bucket is high-cardinality
+brix_io_ops_total{proto="stream", op="read", path="/data/atlas/..."}  # path is high-cardinality   metric-names-allow: deliberately invalid
+brix_io_ops_total{proto="s3", bucket="cms-xrd-global"}                # bucket is high-cardinality metric-names-allow: deliberately invalid
 ```
 
 ## Adding a new metric slot

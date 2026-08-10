@@ -53,6 +53,7 @@ _FAST = [
     "check_curl_enum_ifdef",
     "check_http_helper_reimpl",
     "check_metric_cardinality",
+    "check_metric_names",
     "check_auth_verdict_sentinel",
     "check_shm_mutex",
     "check_sd_driver_conformance",

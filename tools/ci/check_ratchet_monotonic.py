@@ -55,6 +55,7 @@ RATCHETS = {
     "tools/ci/todo_fixme_backlog.txt": "check_todo_fixme.py (deferred-work markers)",
     "tools/ci/template_refs_backlog.txt": "check_template_refs.py (unreferenced templates)",
     "tools/ci/doc_links_backlog.txt": "check_doc_links.py (broken relative links)",
+    "tools/ci/metric_names_backlog.txt": "check_metric_names.py (metric families/labels the docs invent)",
     "tools/ci/vfs_seam_backlog.txt": "check_vfs_seam.py (INVARIANT 12, src/)",
     "tools/ci/vfs_seam_backlog_client.txt": "check_vfs_seam.py (INVARIANT 12, client/)",
     "tools/ci/vfs_seam_backlog_ns.txt": "check_vfs_seam.py (INVARIANT 12, namespace)",

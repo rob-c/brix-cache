@@ -375,3 +375,116 @@ def test_python_deps_guard_accepts_guarded_optional_imports(tmp_path) -> None:
     )
     ok, findings = _DEPS.run(root)
     assert ok, findings
+
+
+# --- metric-name guard: the exposition is the only source of metric truth -----
+# The 2026-08-09 doc sweep found five families the pages cited that no exporter
+# emits, plus two label sets that were simply wrong. None of it errors in
+# Prometheus — a name that matches nothing produces an empty result, so the
+# alert never fires and the panel stays flat, which reads as "healthy". These
+# prove the guard extracts the real surface and reddens on each drift shape.
+_NAMES = _load("check_metric_names")
+
+#: Mirrors the real exporters: HELP/TYPE in one merged literal, the row
+#: template split across literals, a name-by-argument helper call, and a
+#: config directive that shares the brix_ prefix without being a metric.
+_PROBE_EXPORTER = r'''
+static void
+probe_emit(metrics_writer_t *mw, probe_shm_t *shm)
+{
+    mw_printf(mw,
+        "# HELP brix_probe_ops_total Probe operations, by protocol.\n"
+        "# TYPE brix_probe_ops_total counter\n");
+    mw_printf(mw,
+        "brix_probe_ops_total"
+            "{proto=\"%s\",op=\"%s\"} %llu\n",
+        proto_name, op_name, value);
+    mw_emit_scalar(mw, "brix_probe_bytes_total", "Probe bytes.", &shm->bytes);
+}
+
+static ngx_command_t probe_commands[] = {
+    { ngx_string("brix_probe_stage_seconds"), 0, NULL, 0, 0, NULL },
+    ngx_null_command
+};
+'''
+
+
+def _names_tree(tmp_path: Path, page: str) -> Path:
+    """A minimal repo: one exporter, one operator-facing page."""
+    expo = tmp_path / "src/observability/metrics"
+    expo.mkdir(parents=True)
+    (expo / "probe.c").write_text(_PROBE_EXPORTER)
+    docs = tmp_path / "docs/08-metrics-monitoring"
+    docs.mkdir(parents=True)
+    (docs / "probe.md").write_text(page)
+    return tmp_path
+
+
+def _messages(root: Path) -> list[str]:
+    return [message for _, message, _ in _NAMES.findings(root)]
+
+
+def test_metric_names_extractor_reads_the_real_exposition() -> None:
+    """Row templates are split across literals; the extractor must rejoin them.
+
+    The three assertions after the histogram are the exact facts the doc sweep
+    got wrong, pinned here against the C so a doc can never re-invent them."""
+    families = _NAMES.exposition(_REPO)
+    assert families["brix_io_ops_total"] == {"proto", "op", "status"}
+    assert families["brix_io_latency_usec_bucket"] == {"proto", "op", "le"}
+    assert "proto" not in families["brix_requests_total"]
+    assert families["brix_auth_total"] == {"proto", "method", "status"}
+    assert families["brix_tpc_transfers_total"] == {"proto", "direction", "status"}
+
+
+@pytest.mark.parametrize(
+    "invented",
+    [
+        "brix_bytes_sent_total",
+        "brix_errors_total",
+        "brix_fd_cache_hits_total",
+        "brix_write_through_syncs_total",
+        "brix_session_bind_total",
+    ],
+)
+def test_metric_names_guard_catches_an_invented_family(tmp_path, invented) -> None:
+    """Every family the sweep found cited but never emitted, one per case."""
+    root = _names_tree(tmp_path, f"Alert on `{invented}` when it saturates.\n")
+    assert _messages(root) == [f"unknown metric family {invented}"]
+
+
+def test_metric_names_guard_catches_a_label_the_family_never_carries(tmp_path) -> None:
+    """`brix_requests_total{proto=…}` shape: real family, imaginary label."""
+    root = _names_tree(
+        tmp_path, 'rate(brix_probe_ops_total{proto="s3",path="/data/x"}[5m])\n'
+    )
+    messages = _messages(root)
+    assert len(messages) == 1, messages
+    assert "carries no label 'path'" in messages[0]
+
+
+def test_metric_names_allow_marker_cannot_launder_the_next_line(tmp_path) -> None:
+    """The escape hatch is line-scoped — one reason cannot cover a whole page.
+
+    A file-scoped opt-out is how a guard stops guarding: the first proposed
+    metric would silence every invented one written after it."""
+    root = _names_tree(
+        tmp_path,
+        "`brix_probe_planned_total` <!-- metric-names-allow: proposed, not built -->\n"
+        "`brix_probe_smuggled_total` rides along on the exemption above.\n",
+    )
+    assert _messages(root) == ["unknown metric family brix_probe_smuggled_total"]
+
+
+def test_metric_names_guard_leaves_c_symbols_and_directives_alone(tmp_path) -> None:
+    """Most brix_* tokens in the docs are functions and directives, not metrics.
+
+    `min(exp-now, 5min)` is real prose from src/auth/token/README.md: an
+    adjacency-free PromQL match would flag the function name beside it."""
+    root = _names_tree(
+        tmp_path,
+        "`brix_vfs_read()` goes through the seam; set `brix_probe_stage_seconds`\n"
+        "to bound it. L2 entries live for `min(exp-now, 5min)`, keyed by\n"
+        "`brix_token_cache_lookup()`.\n",
+    )
+    assert _messages(root) == []

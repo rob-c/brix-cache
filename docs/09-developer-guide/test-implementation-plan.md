@@ -87,7 +87,7 @@ Add class `TestTokenCounters` to `test_metrics.py`.
 |----|------|--------|-------|----------|-------|
 | 7a | Token login → op_ok{op="login"} on token port | M — 45 min | 40 | `token_port` (11097), valid JWT fixture | Use existing token fixture; xrdcp with `XrdSecSSSKT=` env var; assert login ok delta ≥ 1. |
 | 7b | Expired JWT → op_err{op="auth"} | H — 1.5 h | 65 | `token_port`, expired JWT | Craft expired token (standard `iat`/`exp` fields); connect; assert auth err delta ≥ 1. JWT can be generated with `python-jwt` library (already in requirements for token tests). |
-| 7c | GSI cert-ok path → stream auth_total | M — 1 h | 45 | `gsi_port`, valid proxy | `xrdcp` with valid proxy to gsi_port; assert `brix_auth_total{result="cert_ok"}` delta ≥ 1. |
+| 7c | GSI cert-ok path → stream auth_total | M — 1 h | 45 | `gsi_port`, valid proxy | `xrdcp` with valid proxy to gsi_port; assert `brix_auth_total{proto="stream",method="gsi",status="ok"}` delta ≥ 1. |
 
 ### Section 8 — TPC and prepare op counters
 

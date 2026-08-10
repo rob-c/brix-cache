@@ -366,9 +366,10 @@ http {
 curl http://localhost:9100/metrics
 
 # Example output:
-# brix_native_ops_total{port="1094",op="open",status="ok"} 42
-# brix_webdav_requests_total{port="8443",method="GET",status="200"} 17
-# brix_s3_requests_total{port="9001",method="GET",status="200"} 5
+# brix_requests_total{port="1094",auth="gsi",op="open",status="ok"} 42
+# brix_webdav_responses_total{method="GET",status_class="2xx"} 17
+# brix_s3_responses_total{method="GET",status_class="2xx"} 5
+# brix_io_bytes_read{proto="stream"} 4123456789
 ```
 
 Add to your `prometheus.yml`:

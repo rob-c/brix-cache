@@ -361,7 +361,7 @@ if (SSL_get_verify_result(uconn->ssl->connection) != X509_V_OK) {
 `upstream_ssl_verify on|off` (default **on**), plus an optional
 `upstream_tls_name <host>` override already present for SNI. See [§7](#7-new-configuration-surface-introduced-by-this-plan).
 
-**New metrics.** `brix_upstream_tls_verify_failures_total{leg="proxy|redirector"}` —
+**New metrics.** `brix_upstream_tls_verify_failures_total{leg="proxy|redirector"}` — <!-- metric-names-allow: proposed by this plan, not yet emitted -->
 increment on the Step-3 abort. See [§8](#8-new-observability-introduced-by-this-plan).
 
 **Edge cases.** (a) Legacy interop with a self-signed origin must set
@@ -1649,13 +1649,17 @@ because shipping unauthenticated TLS as the default is the bug.
 
 ## 8. New observability introduced by this plan
 
+Every family below is **proposed**: none is emitted today, so none of them will
+match in Prometheus until the corresponding item lands. `check_metric_names.py`
+holds the rest of the documentation to what the exporters actually export.
+
 | Metric (low-cardinality labels only, invariant 8) | Item |
 |---|---|
-| `brix_upstream_tls_verify_failures_total{leg}` | A-1 |
-| `brix_s3_authz_denied_total{op}` (ACL/tagging gate denials) | A-3 |
-| `brix_ocsp_response_truncated_total` | A-6 |
-| `brix_seccomp_violations_total{mode}` (audit-mode counter before enforce) | D-3 |
-| `brix_ratelimit_identity_throttled_total` | E-4 |
+| `brix_upstream_tls_verify_failures_total{leg}` | A-1 | <!-- metric-names-allow: proposed, see note above -->
+| `brix_s3_authz_denied_total{op}` (ACL/tagging gate denials) | A-3 | <!-- metric-names-allow: proposed, see note above -->
+| `brix_ocsp_response_truncated_total` | A-6 | <!-- metric-names-allow: proposed, see note above -->
+| `brix_seccomp_violations_total{mode}` (audit-mode counter before enforce) | D-3 | <!-- metric-names-allow: proposed, see note above -->
+| `brix_ratelimit_identity_throttled_total` | E-4 | <!-- metric-names-allow: proposed, see note above -->
 
 ---
 

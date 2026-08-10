@@ -353,7 +353,6 @@ Metrics:
 - `brix_webdav_bytes_tx_total` - bytes sent by WebDAV GET and PROPFIND
 - `brix_webdav_range_requests_total{result}` - full, partial, or unsatisfied GET ranges
 - `brix_webdav_put_bodies_total{mode}` - empty, memory, spooled, or threaded PUT bodies
-- `brix_webdav_fd_cache_total{event}` - per-connection fd-cache hit/miss/insert/update/evict/stale
 - `brix_webdav_propfind_depth_total{depth}` - PROPFIND depth buckets
 - `brix_webdav_propfind_entries_total` - PROPFIND response entries emitted
 - `brix_webdav_tpc_total{event}` - HTTP-TPC pull/curl/commit outcomes

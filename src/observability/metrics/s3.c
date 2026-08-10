@@ -134,6 +134,16 @@ brix_export_s3_metrics(metrics_writer_t *mw, ngx_brix_metrics_t *shm)
         "Bytes sent to IPv4 clients via S3-compatible GET.",
         &shm->s3.bytes_tx_ipv4_total);
 
+    mw_emit_scalar(mw,
+        "brix_s3_bytes_rx_ipv6_total",
+        "Bytes received from IPv6 clients via S3-compatible PUT.",
+        &shm->s3.bytes_rx_ipv6_total);
+
+    mw_emit_scalar(mw,
+        "brix_s3_bytes_tx_ipv6_total",
+        "Bytes sent to IPv6 clients via S3-compatible GET.",
+        &shm->s3.bytes_tx_ipv6_total);
+
     mw_emit_labeled(mw,
         "brix_s3_range_requests_total",
         "S3-compatible GET range handling outcomes.",

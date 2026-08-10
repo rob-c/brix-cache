@@ -52,6 +52,9 @@ jobs:
       - name: metric cardinality — no unbounded Prometheus label values
         if: '!cancelled()'
         run: tools/ci/check_metric_cardinality.py
+      - name: metric names — docs cite families and labels the exporters emit
+        if: '!cancelled()'
+        run: tools/ci/check_metric_names.py
       - name: sd driver conformance
         if: '!cancelled()'
         run: tools/ci/check_sd_driver_conformance.py

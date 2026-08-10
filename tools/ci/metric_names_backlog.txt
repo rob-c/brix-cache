@@ -1,0 +1,7 @@
+# check_metric_names.py backlog — metric references that predate the
+# guard. Shrink-only (check_ratchet_monotonic.py): fix the doc and
+# delete the line. Never add here to silence new drift — use the
+# `metric-names-allow: <reason>` marker, which says why on the spot.
+#
+# <file><TAB><family>            unknown family
+# <file><TAB><family>{<label>}   family exists, label does not

@@ -95,8 +95,8 @@ These tests validate native and WebDAV TPC transfers through the full stack with
 
 | # | Test Name | What It Tests | Why Missing? |
 |---|-----------|---------------|--------------|
-| 12 | `test_e2e_native_tpc_metrics` | Native TPC: xrdcp copyprocess from source → destination via SHM key registry → scrape `/metrics` → verify `brix_tpc_transfers_total{mode="native"}` increments, bytes counters on both source and destination servers match | Native TPC tested (`test_root_tpc.py`) but no test validates metrics on both sides of the transfer |
-| 13 | `test_e2e_webdav_tpc_metrics` | WebDAV HTTP-TPC: curl COPY with Source/Credential headers → scrape `/metrics` → verify `brix_tpc_transfers_total{mode="webdav"}` increments, bytes counters on source/destination match, TPC-specific counters increment | WebDAV TPC tested (`test_webdav_tpc.py`) but no test validates metrics across the HTTP-TPC transfer |
+| 12 | `test_e2e_native_tpc_metrics` | Native TPC: xrdcp copyprocess from source → destination via SHM key registry → scrape `/metrics` → verify `brix_tpc_transfers_total{proto="root",direction="pull",status="ok"}` increments and `brix_tpc_bytes_total{proto="root",direction="pull"}` agrees on both source and destination | Native TPC tested (`test_root_tpc.py`) but no test validates metrics on both sides of the transfer |
+| 13 | `test_e2e_webdav_tpc_metrics` | WebDAV HTTP-TPC: curl COPY with Source/Credential headers → scrape `/metrics` → verify `brix_tpc_transfers_total{proto="webdav",direction="pull"}` increments, `brix_tpc_bytes_total{proto="webdav"}` matches on source/destination, and `brix_webdav_tpc_total{event}` records the pull/curl/commit legs | WebDAV TPC tested (`test_webdav_tpc.py`) but no test validates metrics across the HTTP-TPC transfer |
 | 14 | `test_e2e_cross_protocol_tpc` | TPC from root:// source to davs:// destination (or vice versa) → scrape `/metrics` on both servers → verify cross-protocol metric labels, bytes transferred consistent on both sides | No test exercises TPC across protocol boundaries (root:// ↔ davs://) |
 
 ### Category 5: Cache Metrics + End-to-End Validation
@@ -115,9 +115,9 @@ These tests validate CMS heartbeat, cluster registry, and multi-tier topology me
 
 | # | Test Name | What It Tests | Why Missing? |
 |---|-----------|---------------|--------------|
-| 18 | `test_e2e_cms_heartbeat_metrics` | Start manager mode with multiple servers → scrape `/metrics` → verify `brix_cms_heartbeat_total{server="X"}` increments per heartbeat interval, server registry count matches active servers, locate responses counted correctly | CMS tested (`test_cms.py`) but no test validates CMS-specific metrics over time |
+| 18 | `test_e2e_cms_heartbeat_metrics` | Start manager mode with multiple servers → scrape `/metrics` → verify `brix_cluster_server_last_seen_seconds{server="X"}` tracks the heartbeat interval, `brix_cluster_servers_registered` matches the active server count, and `brix_cms_logins_total` counts each manager login | CMS tested (`test_cms.py`) but no test validates CMS-specific metrics over time |
 | 19 | `test_e2e_manager_cluster_metrics` | Multi-tier manager topology (3 tiers) → scrape `/metrics` → verify per-server counters, cluster-wide totals, redirect events counted correctly, server registration/unregistration tracked in metrics | Manager mode tested (`test_manager_mode.py`) but no test validates cluster-level metrics aggregation |
-| 20 | `test_e2e_cms_reconnect_metrics` | CMS server disconnects and reconnects → scrape `/metrics` → verify unbind_total increments on disconnect, bind_total increments on reconnect, session counters reflect active sessions correctly after reconnection | CMS reconnect tested but no test validates metrics during reconnect events |
+| 20 | `test_e2e_cms_reconnect_metrics` | CMS server disconnects and reconnects → scrape `/metrics` → verify `brix_cluster_server_disconnect_total{server}` increments on disconnect, `brix_cms_logins_total` increments on reconnect, and `brix_cluster_servers_registered` settles back to the active server count | CMS reconnect tested but no test validates metrics during reconnect events |
 
 ### Category 7: Session Lifecycle + Metrics Validation
 
