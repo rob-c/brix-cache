@@ -32,7 +32,7 @@ jobs:
     timeout-minutes: 180
     continue-on-error: true
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Install build + coverage deps
         run: |
           sudo apt-get update
@@ -53,7 +53,7 @@ jobs:
           tools/ci/coverage.py 2>&1 | tee /tmp/coverage-report.txt
       - name: Upload coverage report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: coverage-report
           path: |
