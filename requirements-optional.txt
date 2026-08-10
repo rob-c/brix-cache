@@ -13,7 +13,7 @@
 
 # --- S3 / SigV4 plane (MinIO labs, s3-forward, STS) --------------------------
 boto3>=1.43.66,<2
-botocore>=1.29,<2
+botocore>=1.43.66,<2
 requests-aws4auth>=1.3.2,<2
 
 # --- content codecs: compression negotiation + CVMFS transcode suites --------
