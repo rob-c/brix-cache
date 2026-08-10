@@ -15,4 +15,4 @@
 lizard>=1.17,<2
 
 # --- static analysis lane: tools/ci/run_codechecker.py (needs clang-tidy) ----
-codechecker>=6.22,<7
+codechecker>=6.28.2,<7
