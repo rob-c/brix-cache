@@ -30,35 +30,9 @@
  *       syscalls are permitted; metric updates use atomic adds.
  */
 
-/*
- * brix_cache_evict_ctx_t — the invariant context for a single purge pass.
- *
- * WHAT: Bundles the state that stays fixed while brix_cache_evict_one() walks
- *       the candidate list — the server conf, optional per-connection metrics
- *       ctx, optional manager socket, log, the candidate list, and the running
- *       occupancy/counters that each eviction updates.
- * WHY:  brix_cache_evict_one() otherwise needs nine positional arguments; a
- *       cohesive struct passed by pointer keeps the actor at ≤5 params and lets
- *       the two-pass driver share one initialised block instead of threading a
- *       long argument list through both loops.
- * HOW:  brix_cache_purge_to_target() zero-inits one on the stack, fills it once
- *       after the candidate set is built, then hands it to brix_cache_evict_one()
- *       per victim. `usage` is the live occupancy re-measured after each unlink;
- *       `evicted_files`/`evicted_bytes` accumulate across the whole purge.
- */
-typedef struct {
-    ngx_stream_brix_srv_conf_t *conf;
-    brix_ctx_t                 *ctx;
-    ngx_connection_t           *c;
-    ngx_log_t                  *log;
-    brix_cache_evict_list_t    *list;
-    brix_cache_fs_usage_t      *usage;
-    brix_sd_instance_t         *decorator; /* composed sd_cache (tier grammar)
-                                            * or NULL — phase-85 F7 victims
-                                            * demote into its cold tier      */
-    ngx_uint_t                  evicted_files;
-    uint64_t                    evicted_bytes;
-} brix_cache_evict_ctx_t;
+/* brix_cache_evict_ctx_t + the shared brix_cache_evict_one / _collect_and_sort
+ * declarations live in evict_internal.h (shared with reap_watermark.c's
+ * owned-bytes purge). */
 
 /*
  * brix_cache_evict_remove_object — drop the cached object via the cstore adapter.
@@ -198,7 +172,7 @@ brix_cache_evict_unregister(brix_cache_evict_ctx_t *ec, size_t idx)
  * sidecars are ignored so eviction continues. Returns NGX_ERROR only if the
  * post-unlink usage re-measurement fails.
  */
-static ngx_int_t
+ngx_int_t
 brix_cache_evict_one(brix_cache_evict_ctx_t *ec, size_t idx)
 {
     brix_cache_evict_list_t *list = ec->list;
@@ -229,6 +203,14 @@ brix_cache_evict_one(brix_cache_evict_ctx_t *ec, size_t idx)
 
     brix_cache_evict_unregister(ec, idx);
 
+    /* The ppm passes drive their loop off the live FS occupancy, so they re-stat
+     * after every unlink. The owned-bytes purge instead tracks how far it has to
+     * go from the running evicted_bytes total, so it opts out of that per-victim
+     * statvfs entirely (and cannot be aborted by a transient statvfs failure). */
+    if (ec->skip_usage_remeasure) {
+        return NGX_OK;
+    }
+
     if (brix_cache_usage_measure((brix_cstore_t *) list->cstore,
             (char *) ec->conf->cache_root.data, ec->usage) != NGX_OK)
     {
@@ -257,40 +239,31 @@ brix_cache_evict_one(brix_cache_evict_ctx_t *ec, size_t idx)
  *       non-fatal — the error counter bumps but the partial list is still purged.
  *       Reads conf/ctx/log/list/usage off the pre-initialised ec.
  */
-static ngx_int_t
-brix_cache_purge_setup(brix_cache_evict_ctx_t *ec, const char *protect_path,
-    ngx_uint_t target_ppm, int *proceed)
+/*
+ * brix_cache_collect_and_sort — build the oldest-first eviction candidate set.
+ *
+ * WHAT: stat the physical cache root for its device, initialise ec->list, walk
+ *       the root collecting every regular file as a candidate, and sort them
+ *       oldest-first. Shared by the ppm purge (brix_cache_purge_setup, after its
+ *       occupancy short-circuit) and the owned-bytes purge
+ *       (brix_cache_purge_to_max_bytes).
+ * WHY:  Both purge targets evict the SAME candidate set in the SAME order — only
+ *       the stop condition (FS occupancy vs cache-owned bytes) differs. One
+ *       collector keeps the two from drifting.
+ * HOW:  Candidate-collection failure is non-fatal (bumps the error counter, keeps
+ *       the partial list, as the ppm engine always has); only a failed root stat
+ *       is fatal (NGX_ERROR).
+ */
+ngx_int_t
+brix_cache_collect_and_sort(brix_cache_evict_ctx_t *ec, const char *phys_root,
+    const char *protect_path)
 {
-    ngx_stream_brix_srv_conf_t *conf  = ec->conf;
-    brix_ctx_t                 *ctx   = ec->ctx;
-    ngx_log_t                  *log   = ec->log;
-    brix_cache_fs_usage_t      *usage = ec->usage;
-    brix_cache_evict_list_t    *list  = ec->list;
+    ngx_stream_brix_srv_conf_t *conf = ec->conf;
+    brix_cache_evict_list_t    *list = ec->list;
     struct stat                 root_st;
-    const char                 *phys_root;
 
-    *proceed = 0;
-
-    /* §14a: measure + device-scope the PHYSICAL cache root (tier-aware). A pure
-     * tier cache advertises cache_root "/", whose device differs from the store
-     * dir — using it for root_dev would make the same-device candidate filter
-     * drop every object. */
-    phys_root = brix_cache_state_root(conf);
-    if (phys_root == NULL) {
-        brix_cache_metric_add(ctx, cache_eviction_errors_total, 1);
-        return NGX_ERROR;
-    }
-    if (brix_cache_usage_measure(brix_cache_storage_cstore(conf),
-            phys_root, usage) != NGX_OK)
-    {
-        brix_cache_metric_add(ctx, cache_eviction_errors_total, 1);
-        return NGX_ERROR;
-    }
-    if (usage->occupancy_ppm <= target_ppm) {
-        return NGX_OK;                       /* already at/below target */
-    }
     if (stat(phys_root, &root_st) != 0) {
-        brix_cache_metric_add(ctx, cache_eviction_errors_total, 1);
+        brix_cache_metric_add(ec->ctx, cache_eviction_errors_total, 1);
         return NGX_ERROR;
     }
 
@@ -309,14 +282,49 @@ brix_cache_purge_setup(brix_cache_evict_ctx_t *ec, const char *protect_path,
     list->state_root = phys_root;
 
     if (list->inst == NULL || list->cstore == NULL
-        || brix_cache_collect_dir(list, "/", log) != NGX_OK)
+        || brix_cache_collect_dir(list, "/", ec->log) != NGX_OK)
     {
-        brix_cache_metric_add(ctx, cache_eviction_errors_total, 1);
+        brix_cache_metric_add(ec->ctx, cache_eviction_errors_total, 1);
     }
 
     if (list->nelts > 1) {
         qsort(list->elts, list->nelts, sizeof(list->elts[0]),
               brix_cache_candidate_cmp);
+    }
+    return NGX_OK;
+}
+
+static ngx_int_t
+brix_cache_purge_setup(brix_cache_evict_ctx_t *ec, const char *protect_path,
+    ngx_uint_t target_ppm, int *proceed)
+{
+    ngx_stream_brix_srv_conf_t *conf  = ec->conf;
+    brix_cache_fs_usage_t      *usage = ec->usage;
+    const char                 *phys_root;
+
+    *proceed = 0;
+
+    /* §14a: measure + device-scope the PHYSICAL cache root (tier-aware). A pure
+     * tier cache advertises cache_root "/", whose device differs from the store
+     * dir — using it for root_dev would make the same-device candidate filter
+     * drop every object. */
+    phys_root = brix_cache_state_root(conf);
+    if (phys_root == NULL) {
+        brix_cache_metric_add(ec->ctx, cache_eviction_errors_total, 1);
+        return NGX_ERROR;
+    }
+    if (brix_cache_usage_measure(brix_cache_storage_cstore(conf),
+            phys_root, usage) != NGX_OK)
+    {
+        brix_cache_metric_add(ec->ctx, cache_eviction_errors_total, 1);
+        return NGX_ERROR;
+    }
+    if (usage->occupancy_ppm <= target_ppm) {
+        return NGX_OK;                       /* already at/below target */
+    }
+
+    if (brix_cache_collect_and_sort(ec, phys_root, protect_path) != NGX_OK) {
+        return NGX_ERROR;
     }
 
     *proceed = 1;

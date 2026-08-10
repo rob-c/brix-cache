@@ -39,7 +39,7 @@ brix_dispatch_session_opcode(brix_ctx_t *ctx, ngx_connection_t *c,
     case kXR_set: {
         ngx_int_t rc = brix_dispatch_require_login(ctx, c);
         if (rc != BRIX_DISPATCH_CONTINUE) { return rc; }
-        return brix_handle_set(ctx, c);
+        return brix_handle_set(ctx, c, conf);
     }
 
     case kXR_endsess:

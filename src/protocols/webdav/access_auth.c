@@ -150,7 +150,7 @@ static int
 webdav_bearer_enabled(ngx_http_brix_webdav_loc_conf_t *conf)
 {
     return conf->jwks_key_count > 0
-           || conf->token_macaroon_secret.len > 0
+           || conf->common.token_macaroon_secret.len > 0
            || conf->token_registry != NULL;
 }
 
@@ -255,13 +255,13 @@ access_protbind_set(ngx_http_request_t *r,
     ngx_memcpy(peer_ip, r->connection->addr_text.data, n);
     peer_ip[n] = '\0';
 
-    if (brix_protbind_needs_hostname(conf->protbind)) {
+    if (brix_protbind_needs_hostname(conf->common.protbind)) {
         peer_host = brix_acc_resolve_peer(r->connection->sockaddr,
                                           r->connection->socklen,
                                           host_buf, sizeof(host_buf));
     }
 
-    brix_protbind_resolve(conf->protbind, &base, peer_host, peer_ip, out);
+    brix_protbind_resolve(conf->common.protbind, &base, peer_host, peer_ip, out);
 }
 
 /* ---- Run the bound authentication schemes in order ----
@@ -329,7 +329,7 @@ access_required_challenge(ngx_http_request_t *r,
 {
     const char  *err;
 
-    if (conf->pwd_file.len > 0
+    if (conf->common.pwd_file.len > 0
         && brix_protbind_allows(bound, BRIX_AUTH_PWD))
     {
         return access_basic_challenge(r);

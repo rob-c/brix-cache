@@ -80,7 +80,7 @@ s3_cksum_vfs_unlink(ngx_http_request_t *r, const char *fs_path,
 
     /* root_canon is passed by the caller; it equals cf->common.root_canon. */
     brix_vfs_ctx_init(&vctx, r->pool, r->connection->log, BRIX_PROTO_S3,
-        root_canon, cf->cache_root_canon, cf->common.allow_write, is_tls,
+        root_canon, cf->common.cache_root_canon, cf->common.allow_write, is_tls,
         (s3ctx != NULL) ? s3ctx->identity : NULL, fs_path);
 
     (void) brix_vfs_unlink(&vctx);
@@ -107,7 +107,7 @@ s3_cksum_vfs_open(ngx_http_request_t *r, const char *fs_path,
 #endif
 
     brix_vfs_ctx_init(&vctx, r->pool, r->connection->log, BRIX_PROTO_S3,
-        root_canon, cf->cache_root_canon, cf->common.allow_write, is_tls,
+        root_canon, cf->common.cache_root_canon, cf->common.allow_write, is_tls,
         (s3ctx != NULL) ? s3ctx->identity : NULL, fs_path);
 
     return brix_vfs_open(&vctx, BRIX_VFS_O_READ, NULL);

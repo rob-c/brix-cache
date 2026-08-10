@@ -118,6 +118,9 @@ tpc_ms_setup_stream(webdav_tpc_ms_ctx_t *ctx, ngx_uint_t i)
     if (ctx->easy[i] == NULL) {
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
+    /* after init: the write cb reaches its own handle for the
+     * RemoteConnections endpoint capture */
+    ctx->write_ctx[i].easy = ctx->easy[i];
 
     if (tpc_curl_apply_conf(ctx->easy[i], ctx->conf, ctx->source_url,
                             ctx->transfer_headers, ctx->log,

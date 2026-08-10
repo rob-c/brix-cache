@@ -69,8 +69,6 @@
       0,
       NULL },
 
-#include "observability/pmark/directives.h"
-
-    /* SciTags packet marking (src/pmark/) — see phase-34 doc */
-    BRIX_PMARK_DIRECTIVES(NGX_HTTP_LOC_CONF, NGX_HTTP_LOC_CONF_OFFSET,
-                          ngx_http_brix_webdav_loc_conf_t)
+    /* SciTags packet marking (brix_pmark*) moved to http_common.c (phase-101 W1):
+     * registered once for the whole HTTP plane and adopted into this conf via
+     * brix_shared_adopt_unified(), so the family is no longer hand-copied here. */

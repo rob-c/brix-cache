@@ -92,7 +92,11 @@ brix_cstore_init(brix_cstore_t *cs, brix_sd_instance_t *store,
 void
 brix_cstore_enable_gcas(brix_cstore_t *cs)
 {
-    if (cs != NULL && cs->local_root[0] != '\0') {
+    /* phase-88 W1: dedup is a driver verb — arm on any store whose driver
+     * implements it (posix hardlink farm, pblock refs), not just local posix. */
+    if (cs != NULL && cs->store != NULL
+        && cs->store->driver->dedup_publish != NULL)
+    {
         cs->gcas = 1;
     }
 }

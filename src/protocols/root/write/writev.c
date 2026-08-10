@@ -1,6 +1,7 @@
 #include "core/ngx_brix_module.h"
 #include "fs/cache/writethrough_metrics.h"
 #include "wrts_journal.h"
+#include "write.h"             /* brix_write_within_maxsize (oss.maxsize cap) */
 #include "writev_internal.h"   /* writev_run_t + writev_try_aio (writev_aio.c) */
 
 /* brix_writev_body_extra — trailing segment-data length for kXR_writev
@@ -401,6 +402,28 @@ brix_handle_writev(brix_ctx_t *ctx, ngx_connection_t *c)
 	rc = writev_validate_handles(ctx, c, wl, n_segs);
 	if (rc != NGX_OK) {
 		return rc;
+	}
+
+	/* oss.maxsize (§3.9): refuse the whole vector if ANY segment's end offset
+	 * would push its target past the cap. Computed here, once, before any
+	 * segment is written, so a partial vector can never leak past the limit. */
+	{
+		ngx_stream_brix_srv_conf_t *mconf = ngx_stream_get_module_srv_conf(
+		    (ngx_stream_session_t *) c->data, ngx_stream_brix_module);
+		if (mconf->oss_maxsize > 0) {
+			size_t seg;
+			for (seg = 0; seg < n_segs; seg++) {
+				int      sidx = (int)(unsigned char) wl[seg].fhandle[0];
+				int64_t  soff = (int64_t) be64toh((uint64_t) wl[seg].offset);
+				uint32_t slen = (uint32_t) ntohl((uint32_t) wl[seg].wlen);
+
+				if (brix_write_within_maxsize(ctx, c, mconf, sidx, soff,
+											   slen, BRIX_OP_WRITEV,
+											   "WRITEV", &rc)) {
+					return rc;
+				}
+			}
+		}
 	}
 
 	/* All N descriptors occupy the first n_segs*16 bytes; the per-segment data

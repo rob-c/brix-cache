@@ -90,6 +90,24 @@ SPECS: dict[str, ObjectUnitSpec] = {
         (addon("cache/slice.o"), addon("cache/meta.o")),
         ("-O", "-Wall", "tests/c/test_slice.c", str(addon("cache/slice.o")), str(addon("cache/meta.o"))),
     ),
+    # POSC crash-orphan reaper policy (ofs.persist analog, §1.9). Links the real
+    # tmp_path.o; the test stubs the 3 non-libc symbols it names but never drives.
+    "tmp_reap": ObjectUnitSpec(
+        "tmp_reap",
+        "test_tmp_reap",
+        (addon("compat/tmp_path.o"),),
+        ("-O", "-Wall", "tests/c/test_tmp_reap.c", str(addon("compat/tmp_path.o"))),
+    ),
+    # Per-worker (sessid,pathid)->conn offload map (§1.1 slice 1). Pure C, no deps.
+    "offload_registry": ObjectUnitSpec(
+        "offload_registry",
+        "test_offload_registry",
+        (addon("session/offload_registry.o"),),
+        ("-O", "-Wall",
+         "-I", str(REPO_ROOT / "src/protocols/root/session"),
+         "tests/c/test_offload_registry.c",
+         str(addon("session/offload_registry.o"))),
+    ),
     "cstore_scan_enumerate": ObjectUnitSpec(
         "cstore_scan_enumerate",
         "test_cstore_scan_enumerate",

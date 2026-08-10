@@ -141,7 +141,10 @@ test_lab_gate_closed(void)
         CHECK(D->pread(o, buf, sizeof(buf), 0) == 5, "gate-off pread ignores fault");
         pb_close(o);
     }
-    CHECK(inst.caps == D->caps, "gate-off leaves caps unmasked");
+    /* W5: CAP_FSCS rides the default-on csi, independent of the lab gate —
+     * mask it out; the assertion is about the LAB caps mask staying inert. */
+    CHECK((inst.caps & ~(uint32_t) BRIX_SD_CAP_FSCS) == D->caps,
+          "gate-off leaves caps unmasked");
     D->cleanup(&inst);
 }
 

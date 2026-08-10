@@ -298,5 +298,7 @@ const brix_sd_driver_t brix_sd_posix_driver = {
     .staged_commit = sd_posix_staged_commit,
     .staged_abort = sd_posix_staged_abort,
     .staged_path = sd_posix_staged_path,
+    .dedup_publish = sd_posix_dedup_publish,   /* G13 hardlink farm (phase-88 W1) */
+    .dedup_gc      = sd_posix_dedup_gc,
 #endif
 };

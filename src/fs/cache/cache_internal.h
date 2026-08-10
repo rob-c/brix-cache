@@ -352,6 +352,15 @@ int     brix_cache_origin_rmdir(brix_cache_fill_t *t,
             brix_cache_origin_conn_t *oc, const char *path);
 int     brix_cache_origin_mkdir(brix_cache_fill_t *t,
             brix_cache_origin_conn_t *oc, const char *path, mode_t mode);
+/* kXR_chmod a named origin path (§4.6): forwards a proxy/cache chmod to the
+ * real origin. 0 on success, -1 with errno set. */
+int     brix_cache_origin_chmod(brix_cache_fill_t *t,
+            brix_cache_origin_conn_t *oc, const char *path, mode_t mode);
+/* kXR_query/kXR_Qspace on the origin (§4.6): report the origin's oss.* capacity
+ * (total/free/used bytes). 0 on success, -1 with errno set. */
+int     brix_cache_origin_space(brix_cache_fill_t *t,
+            brix_cache_origin_conn_t *oc, const char *path,
+            uint64_t *total_out, uint64_t *free_out, uint64_t *used_out);
 /* Parsed origin kXR_stat reply (path-based). flags is the raw XRootD ASCII-stat
  * bitmask (kXR_isDir/kXR_readable/…); is_dir is the decoded (flags & kXR_isDir)
  * convenience so the caller need not include the protocol flags header. */

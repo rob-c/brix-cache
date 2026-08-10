@@ -122,9 +122,9 @@ def kv_check(tmp_path):
 def test_kv_directives_parse(kv_check):
     rc, out = kv_check(
         """
-        brix_kv_zone tkn 16m key=32  val=5120;
-        brix_kv_zone ac   4m key=32  val=8;
-        brix_kv_zone rl   2m key=256 val=16;
+        brix_kv_zone zone=tkn:16m key=32  val=5120;
+        brix_kv_zone zone=ac:4m key=32  val=8;
+        brix_kv_zone zone=rl:2m key=256 val=16;
 """,
         """
             brix_session_slots 4096;
@@ -138,7 +138,7 @@ def test_kv_directives_parse(kv_check):
 def test_token_cache_rejects_undersized_zone(kv_check):
     # val too small for brix_token_claims_t -> must be rejected.
     rc, out = kv_check(
-        "        brix_kv_zone tkn 1m key=32 val=16;\n",
+        "        brix_kv_zone zone=tkn:1m key=32 val=16;\n",
         "            brix_token_cache zone=tkn;\n")
     assert rc != 0
     assert "too small" in out
@@ -154,7 +154,7 @@ def test_unknown_zone_is_rejected(kv_check):
 
 def test_rate_limit_requires_rate_and_burst(kv_check):
     rc, out = kv_check(
-        "        brix_kv_zone rl 2m key=256 val=16;\n",
+        "        brix_kv_zone zone=rl:2m key=256 val=16;\n",
         "            brix_rate_limit zone=rl;\n")
     assert rc != 0
     assert "rate_limit" in out

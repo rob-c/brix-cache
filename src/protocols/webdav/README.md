@@ -163,7 +163,7 @@ standalone data structure behind the REST admin API.
 | `macaroon_endpoint_request.c` | dCache-style POST macaroon-request handler. |
 | `methods_proppatch.c` | Invariant state threaded through the PROPPATCH property walk — the request, the resolved+confined target path, and the growing response chain. |
 | `postconfig_internal.h` | Declares the postconfiguration helpers that live in a sibling translation unit but are invoked from ngx_http_brix_webdav_postconfiguration() in postconfig.c. |
-| `postconfig_proxy_capath.c` | Post-merge half of the brix_proxy_ssl_capath directive — walks every finalised location of every server block and, where the directive is set, adds the hashed CA directory to that location's upstream (proxy_ssl) trust st. |
+| `postconfig_proxy_capath.c` | Post-merge half of the brix_backend_ca_dir directive — walks every finalised location of every server block and, where the directive is set, adds the hashed CA directory to that location's upstream (proxy_ssl) trust st. |
 | `put_body.c` | WebDAV PUT body-write phase (split from put.c). |
 | `put_body_digest.c` | WebDAV PUT ingest-digest verification (split from put_body.c). |
 | `put_internal.h` | shared declarations for the WebDAV PUT split. |

@@ -124,7 +124,11 @@ def _wms_transfer_encodings(port, ta, adir, owned_alice, not_worker_root):
     pp = adir("wms_part.txt")
     st, _ = http("PUT", "/alice/wms_part.txt", port, ta, b"BB",
                  hdrs={"Content-Range": "bytes 2-3/10"})
-    ok(all((st in (200, 201, 204, 400, 501, 416), owned_alice(pp),
+    # brix treats a Content-Range PUT as an APPEND-ONLY resumable upload (put_setup.c):
+    # a range whose start != the current partial size is refused 409 Conflict with no
+    # corruption -- a valid "handled, not a random-patch" outcome alongside the other
+    # accept/refuse codes.
+    ok(all((st in (200, 201, 204, 400, 409, 501, 416), owned_alice(pp),
             not_worker_root(pp))),
        f"Content-Range partial PUT handled, owned alice (HTTP {st})")
 

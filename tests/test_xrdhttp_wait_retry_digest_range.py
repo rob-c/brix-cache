@@ -157,6 +157,64 @@ def test_want_digest_md5_echoed(server):
 
 
 # ---------------------------------------------------------------------------
+# 4b. Want-Digest RFC 3230 q-value / multi-algorithm negotiation (audit §6.4).
+#     The server picks the highest-q algorithm it supports — not the first
+#     token; unsupported-first and q=0 entries no longer poison the header.
+# ---------------------------------------------------------------------------
+
+@pytest.mark.registry_server("xrdhttp-digest")
+def test_want_digest_qvalue_prefers_highest_supported(server):
+    """(success) "adler32;q=0.4, md5;q=0.9" → the higher-q md5 wins even
+    though adler32 is listed first (fall back to asserting adler32 if this
+    build omits md5 — then md5 is unsupported and adler32 is the best
+    supported candidate, which is exactly the negotiation contract)."""
+    _sleep_off_throttle()
+    resp = requests.get(_url(), headers={
+        "Want-Digest": "adler32;q=0.4, md5;q=0.9"}, timeout=5)
+    assert resp.status_code == 200, resp.status_code
+    digest = resp.headers.get("Digest")
+    assert digest is not None, "ranked Want-Digest produced no Digest header"
+    if "md5=" in digest.lower():
+        assert MD5_HEX in digest.lower(), digest
+    else:
+        assert "adler32=" in digest.lower(), \
+            f"neither ranked algorithm honoured: {digest}"
+    _sanity_ok()
+
+
+@pytest.mark.registry_server("xrdhttp-digest")
+def test_want_digest_unsupported_first_falls_through(server):
+    """(error-path) "UNIXcksum, adler32;q=0.5" — the unsupported first token
+    used to be taken verbatim and kill the Digest header; negotiation now
+    steps past it to the supported adler32."""
+    _sleep_off_throttle()
+    resp = requests.get(_url(), headers={
+        "Want-Digest": "UNIXcksum, adler32;q=0.5"}, timeout=5)
+    assert resp.status_code == 200, resp.status_code
+    digest = resp.headers.get("Digest")
+    assert digest is not None and "adler32=" in digest.lower(), \
+        f"supported second choice not honoured: {digest!r}"
+    assert ADLER32_HEX in digest.lower(), digest
+    _sanity_ok()
+
+
+@pytest.mark.registry_server("xrdhttp-digest")
+def test_want_digest_q_zero_excluded(server):
+    """(security-neg) "adler32;q=0" — RFC 7231 q=0 means "not acceptable":
+    the server must NOT compute and serve a digest the client explicitly
+    refused. With every entry disqualified the request is treated as carrying
+    no Want-Digest at all (no Digest header); the response itself succeeds."""
+    _sleep_off_throttle()
+    resp = requests.get(_url(), headers={"Want-Digest": "adler32;q=0"},
+                        timeout=5)
+    assert resp.status_code == 200, resp.status_code
+    digest = resp.headers.get("Digest", "")
+    assert "adler32=" not in digest.lower(), \
+        f"digest computed against the client's explicit q=0 refusal: {digest}"
+    _sanity_ok()
+
+
+# ---------------------------------------------------------------------------
 # 5. Overlapping multi-range: merged / multipart / full file — never wrong.
 # ---------------------------------------------------------------------------
 

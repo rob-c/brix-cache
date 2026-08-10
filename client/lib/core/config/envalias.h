@@ -27,4 +27,14 @@
  */
 const char *brix_env_resolve(const char *const *chain, const char **which);
 
+/*
+ * §7.10 drop-in-hazard disclosure: scan the environment ONCE per process for
+ * set stock-XRootD variables ("XRD_*") that brix-client neither honors nor
+ * owns, and emit one TTY-gated note naming them (values never printed).
+ * Honored stock spellings (XRD_CONNECTIONWINDOW / XRD_REQUESTTIMEOUT /
+ * XRD_STREAMTIMEOUT — see nettmo.c) and brix-owned XRD_-prefixed keys are
+ * exempt.  Safe to call from any path; every call after the first is a no-op.
+ */
+void brix_env_warn_stock_unsupported(void);
+
 #endif /* BRIX_ENVALIAS_H */

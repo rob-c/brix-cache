@@ -100,6 +100,55 @@ brix_dirlist_entry_skip(ngx_log_t *log, const char *name)
     return 0;
 }
 
+/* ---- Omit a not-online entry under the kXR_online option ----
+ *
+ * WHAT: Returns 1 when the kXR_online dirlist option is set and the entry's
+ *       file data is not currently online (nearline/offline residency), 0 to
+ *       include the entry in the listing.
+ *
+ * WHY:  kXR_online asks for "entries whose data is currently online" only
+ *       (protocol/flags.h). The residency authority is the same
+ *       brix_vfs_residency() decorator walk the stat/statx handlers advertise
+ *       kXR_offline through, so the filter can never disagree with what a
+ *       stat of the same entry reports.
+ *
+ * HOW:  1. Pass directories through — only file data can be offline.
+ *       2. Build the entry's absolute path; on overflow include the entry
+ *          (the same fail-open choice the checksum token makes with
+ *          "algo:none" — a too-long name must not vanish from the listing).
+ *       3. Probe residency with a transient read-only VFS ctx and omit only
+ *          on a definite NEARLINE/OFFLINE answer (the stat predicate: a
+ *          probe error or an export with no nearline tier reports online).
+ */
+static int
+brix_dirlist_entry_not_online(ngx_connection_t *c,
+    brix_dirlist_walk_t *walk, const char *name,
+    const brix_vfs_stat_t *vst)
+{
+    brix_vfs_ctx_t      residency_ctx;
+    brix_sd_residency_t residency;
+    char                entry_path[PATH_MAX];
+    int                 written;
+
+    if (!walk->want_online || vst->is_directory) {
+        return 0;
+    }
+
+    written = snprintf(entry_path, sizeof(entry_path), "%s/%s",
+                       walk->full_path, name);
+    if (written < 0 || (size_t) written >= sizeof(entry_path)) {
+        return 0;
+    }
+
+    brix_vfs_ctx_init(&residency_ctx, c->pool, c->log, BRIX_PROTO_ROOT,
+        walk->conf->common.root_canon, NULL, 0 /* allow_write */,
+        0 /* is_tls */, NULL, entry_path);
+
+    return brix_vfs_residency(&residency_ctx, &residency, NULL) == NGX_OK
+           && (residency == BRIX_SD_RES_NEARLINE
+               || residency == BRIX_SD_RES_OFFLINE);
+}
+
 /*
  * brix_dirlist_entry_meta — render the optional stat line and checksum
  * token for one entry, accumulating the wire bytes it needs into fmt->need.
@@ -288,13 +337,21 @@ brix_dirlist_stream_entries(brix_ctx_t *ctx, ngx_connection_t *c,
     brix_vfs_stat_t entry_vst;
     ngx_int_t         rc;
 
+    /* kXR_online needs per-entry stat data (to pass directories through), so
+     * it turns on the readdir lstat like dstat does — the response format
+     * still emits stat lines only under want_stat. */
     while (brix_vfs_readdir(walk->dh, &entry_name,
-                              walk->want_stat ? &entry_vst : NULL) == NGX_OK) {
+                              (walk->want_stat || walk->want_online)
+                                  ? &entry_vst : NULL) == NGX_OK) {
         const char                *name = (char *) entry_name.data;
         size_t                     nlen = entry_name.len;
         brix_dirlist_entry_fmt_t fmt;
 
         if (brix_dirlist_entry_skip(c->log, name)) {
+            continue;
+        }
+
+        if (brix_dirlist_entry_not_online(c, walk, name, &entry_vst)) {
             continue;
         }
 

@@ -387,6 +387,32 @@ struct brix_sd_driver_s {
      * Optional slot: NULL means "no path available". */
     const char *(*staged_path) (const brix_sd_staged_t *st);
 
+    /* commit-time content dedup (OPTIONAL — phase-88 W1, the G13 seam).
+     *
+     * WHAT: dedup_publish collapses byte-identical stored copies of the object
+     *       at `path` after the CALLER proved its content identity (e.g. a
+     *       cvmfs-cas verified fill). `canon` is a stable content-derived alias
+     *       (store-relative, leading '/') the driver MAY materialise as a real
+     *       name (posix: the /.gcas hardlink farm) or ignore entirely
+     *       (refcounting/content-addressed backends: their own catalog already
+     *       carries content identity). dedup_gc releases the alias after the
+     *       last name referencing its content was removed (posix reaps a
+     *       last-link canonical; refcounting backends need no GC — slot NULL).
+     *
+     * WHY:  Cross-repo dedup of verified CAS objects was hardlink-only and thus
+     *       posix-store-only; expressing it as a driver verb lets any backend
+     *       with a native dedup primitive (pblock refs) serve brix_cache_global_cas.
+     *
+     * HOW:  Best-effort contract: NGX_OK = published / folded / benignly
+     *       skipped (the per-repo copy is always left correct); NGX_ERROR with
+     *       errno only on a hard failure the caller may log (ENOTSUP = the
+     *       instance is not armed for dedup). Both run on cache-fill worker
+     *       threads: no nginx pool access; inst->log only. NULL = the backend
+     *       cannot dedup (config refuses brix_cache_global_cas on it). */
+    ngx_int_t  (*dedup_publish)(brix_sd_instance_t *inst, const char *path,
+                                const char *canon);
+    ngx_int_t  (*dedup_gc)(brix_sd_instance_t *inst, const char *canon);
+
     /* nearline (tape/MSS) recall — phase-64 §9.3. Initiate or join an async recall
      * of `key` from offline (tape) into the backend's online buffer, returning a
      * stable request id in reqid_out (≤39 chars + NUL) that the cache tier parks a

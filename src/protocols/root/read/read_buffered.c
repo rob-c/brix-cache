@@ -64,7 +64,8 @@ read_serve_windowed(brix_ctx_t *ctx, ngx_connection_t *c,
      * the full request, so many more fit under the budget. */
     if (!brix_budget_admit(ctx, rconf->memory_budget,
                              (size_t) BRIX_READ_WINDOW)) {
-        return brix_send_wait(ctx, c, 1);
+        /* §1.10 fsoverload stall: configurable budget-overload backoff. */
+        return brix_fsoverload_backoff(ctx, c, rconf);
     }
 
     /*
@@ -433,7 +434,8 @@ read_serve_buffered(brix_ctx_t *ctx, ngx_connection_t *c,
     ssize_t nread;
 
     if (!brix_budget_admit(ctx, rconf->memory_budget, io->rlen)) {
-        return brix_send_wait(ctx, c, 1);
+        /* §1.10 fsoverload stall: configurable budget-overload backoff. */
+        return brix_fsoverload_backoff(ctx, c, rconf);
     }
 
     /*

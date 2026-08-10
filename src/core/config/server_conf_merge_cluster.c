@@ -80,8 +80,8 @@ brix_merge_srv_tpc(ngx_stream_brix_srv_conf_t *conf,
      * "no size" and "verify content checksum" postures). */
     ngx_conf_merge_value(conf->tpc_require_source_size,
                          prev->tpc_require_source_size, 0);
-    ngx_conf_merge_value(conf->tpc_verify_checksum,
-                         prev->tpc_verify_checksum, 0);
+    /* tpc_verify_checksum merge -> ngx_http_brix_shared_merge
+     * (common.tpc_verify_checksum, str "" = off) — phase-101 W4. */
     ngx_conf_merge_value(conf->tpc_transfer_max_age,
                          prev->tpc_transfer_max_age, 0);
     /* Phase 39 (WS5): publish the abandoned-slot reaper age to the shared TPC
@@ -323,6 +323,9 @@ brix_merge_srv_cms_feeds(ngx_stream_brix_srv_conf_t *conf,
     ngx_conf_merge_value(conf->cms.altds_monitor, prev->cms.altds_monitor, 0);
     ngx_conf_merge_msec_value(conf->cms.altds_interval,
                               prev->cms.altds_interval, 10000);
+    /* §2.4 mSpace policy floor (MB) advertised in kYR_login; default 100,
+     * byte-identical to the prior NGX_BRIX_CMS_MIN_FREE_MB constant. */
+    ngx_conf_merge_value(conf->cms.min_free_mb, prev->cms.min_free_mb, 100);
     if (conf->cms.altds.len == 0 && prev->cms.altds.len > 0) {
         conf->cms.altds = prev->cms.altds;
     }

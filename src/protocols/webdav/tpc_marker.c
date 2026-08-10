@@ -49,12 +49,24 @@
 
 static void
 tpc_marker_send_one(ngx_http_request_t *r, time_t ts,
-    ngx_uint_t stripe_index, off_t bytes, ngx_uint_t total_stripes)
+    ngx_uint_t stripe_index, off_t bytes, ngx_uint_t total_stripes,
+    const char *remote)
 {
     char        block[512];
+    char        remote_line[96];
     int         n;
     ngx_buf_t  *b;
     ngx_chain_t out;
+
+    /* §6.10: the optional WLCG "RemoteConnections:" line names the stripe's
+     * CONNECTED data source (curl's primary ip/port, never URL text). Omitted
+     * entirely when the stream has not captured it — an optional line must
+     * not carry a fabricated endpoint. */
+    remote_line[0] = '\0';
+    if (remote != NULL && remote[0] != '\0') {
+        (void) snprintf(remote_line, sizeof(remote_line),
+                        "RemoteConnections: %s\r\n", remote);
+    }
 
     n = snprintf(block, sizeof(block),
                  "Perf Marker\r\n"
@@ -62,9 +74,11 @@ tpc_marker_send_one(ngx_http_request_t *r, time_t ts,
                  "Stripe Index: %u\r\n"
                  "Stripe Bytes Transferred: %lld\r\n"
                  "Total Stripe Count: %u\r\n"
+                 "%s"
                  "End\r\n",
                  (long) ts, (unsigned) stripe_index,
-                 (long long) bytes, (unsigned) total_stripes);
+                 (long long) bytes, (unsigned) total_stripes,
+                 remote_line);
 
     if (n <= 0 || n >= (int) sizeof(block)) {
         return;
@@ -91,10 +105,16 @@ tpc_marker_send_all(ngx_http_request_t *r, time_t ts,
     ngx_uint_t         i;
 
     if (n > 1) {
-        /* Emit one block per stripe with atomically-read per-stream counts. */
+        /* Emit one block per stripe with atomically-read per-stream counts.
+         * remote_ready is the write-release flag for remote[i] — read it
+         * FIRST so a not-yet-captured stripe simply omits its optional
+         * RemoteConnections line this round. */
         for (i = 0; i < n; i++) {
-            off_t stream_bytes = (off_t) progress->bytes_per_stream[i];
-            tpc_marker_send_one(r, ts, i, stream_bytes, n);
+            off_t       stream_bytes = (off_t) progress->bytes_per_stream[i];
+            const char *remote = progress->remote_ready[i]
+                                     ? progress->remote[i] : NULL;
+
+            tpc_marker_send_one(r, ts, i, stream_bytes, n, remote);
         }
     } else {
         /* Single-stream: approximate via stat on the in-progress temp file. */
@@ -105,7 +125,9 @@ tpc_marker_send_all(ngx_http_request_t *r, time_t ts,
                 bytes = sb.st_size;
             }
         }
-        tpc_marker_send_one(r, ts, 0, bytes, 1);
+        tpc_marker_send_one(r, ts, 0, bytes, 1,
+                            progress->remote_ready[0]
+                                ? progress->remote[0] : NULL);
     }
 }
 

@@ -412,8 +412,8 @@ brix_readv_scatter(const uint8_t *acc, size_t acc_len,
  * the segments in request order into each seg.buf. Returns total bytes read.
  */
 static ssize_t
-file_readv_frames(brix_conn *c, brix_file *f, brix_readv_seg *segs,
-                  size_t nseg, brix_status *st)
+file_readv_frames(brix_conn *c, brix_file *f, brix_file *const *files,
+                  brix_readv_seg *segs, size_t nseg, brix_status *st)
 {
     ClientRequestHdr req;
     uint8_t         *payload;
@@ -432,8 +432,13 @@ file_readv_frames(brix_conn *c, brix_file *f, brix_readv_seg *segs,
         return -1;
     }
     for (i = 0; i < nseg; i++) {
-        /* Shared segment-header codec — same layout the server packs/parses. */
-        brix_readv_seg_pack(payload + i * BRIX_READV_SEGSIZE, f->fhandle,
+        /* Each segment names its own open handle (§7.15 stock scatter-gather
+         * across multiple files in ONE kXR_readv): files[i] when a per-segment
+         * array is supplied, else the single shared handle `f`. Shared
+         * segment-header codec — same layout the server packs/parses. */
+        const uint8_t *fh = (files != NULL) ? files[i]->fhandle : f->fhandle;
+
+        brix_readv_seg_pack(payload + i * BRIX_READV_SEGSIZE, fh,
                               (uint32_t) segs[i].len, (uint64_t) segs[i].offset);
     }
     memset(&req, 0, sizeof(req));
@@ -465,7 +470,22 @@ brix_file_readv(brix_conn *c, brix_file *f, brix_readv_seg *segs,
 {
     ssize_t rc;
     brix_io_stall_arm(&c->io);
-    rc = file_readv_frames(c, f, segs, nseg, st);
+    rc = file_readv_frames(c, f, NULL, segs, nseg, st);
+    brix_io_stall_disarm(&c->io);
+    return rc;
+}
+
+/* §7.15: scatter-gather read where each segment reads from its OWN open handle
+ * (files[i]) — stock's per-segment fhandle, one kXR_readv across many files.
+ * files must have nseg entries. See brix_file_readv for the seg contract. */
+ssize_t
+brix_file_readv_multi(brix_conn *c, brix_file *const *files,
+                      brix_readv_seg *segs, size_t nseg, brix_status *st)
+{
+    ssize_t rc;
+    brix_io_stall_arm(&c->io);
+    rc = file_readv_frames(c, (nseg > 0) ? files[0] : NULL, files,
+                           segs, nseg, st);
     brix_io_stall_disarm(&c->io);
     return rc;
 }

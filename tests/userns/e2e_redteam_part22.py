@@ -302,6 +302,8 @@ def _rt22_segment_01_2(sdir, bad_owner):
         if not f.startswith(("sb_", "alice")) or os.path.islink(p) \
                 or not os.path.isfile(p):
             continue
+        if _is_server_sidecar(f):   # .cinfo/.meta svc-owned by design
+            continue
         u = os.lstat(p).st_uid
         if u in (UID_SVC, 0):
             bad_owner.append((f, u))

@@ -113,6 +113,16 @@
       offsetof(ngx_stream_brix_srv_conf_t, reaper.reap_interval),
       NULL },
 
+    /* §4.7 files-watermark (upstream pfc.diskusage files): a <size> cap on the
+     * cache's OWN bytes, evicted oldest-first by the reaper; distinct from the
+     * ppm FS watermark above. 0 (default) = off. */
+    { ngx_string("brix_cache_max_bytes"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_off_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_brix_srv_conf_t, reaper.max_bytes),
+      NULL },
+
     { ngx_string("brix_cache_deny_prefix"),
       NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
       brix_conf_set_cache_deny_prefix,

@@ -91,14 +91,9 @@
                                        refuses a pull whose source will not declare a
                                        size at all (stat error / unparseable). Default
                                        off: an unknown size proceeds unverified. */
-    ngx_flag_t  tpc_verify_checksum; /* [brix_tpc_verify_checksum on|off] — opt-in
-                                       post-copy integrity: kXR_query(kXR_Qcksum) the
-                                       source, recompute the same algorithm over the
-                                       written destination, fail closed on mismatch or
-                                       when the source cannot supply a checksum.
-                                       Default off (a bit-flip in transit commits
-                                       silently otherwise — native-TPC analogue of the
-                                       backend put_checksum egress gate). */
+    /* tpc_verify_checksum moved to the shared preamble (common.tpc_verify_checksum)
+     * in phase-101 W4 — unified on|off|<alg> grammar across planes; the native path
+     * reads it as a boolean gate (kXR_Qcksum negotiates its own algorithm). */
     ngx_flag_t  tpc_outbound_tls;   /* [brix_tpc_outbound_tls on|off] — phase-57
                                        §F5: advertise kXR_ableTLS on the TPC pull and
                                        perform an in-protocol TLS upgrade when the

@@ -24,8 +24,10 @@
  * one-line <root>/pblock.opts sidecar the pblock driver parses at instance init
  * (Phase-83 static opts). Best-effort at config finalise: the root dir already
  * exists (mkdir ran first). Kept here (not in the sqlite-gated pblock driver) so
- * it links regardless of BRIX_HAVE_SQLITE. */
-static void
+ * it links regardless of BRIX_HAVE_SQLITE. Non-static since phase-88 W1: the
+ * cache-tier registration persists a cache store's `?tail` through it too
+ * (declared in runtime_server_backend_internal.h). */
+void
 brix_pblock_write_opts_sidecar(const char *root, const char *tail)
 {
     char  path[4096];

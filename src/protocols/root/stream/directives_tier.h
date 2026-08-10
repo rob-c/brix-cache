@@ -19,35 +19,35 @@
      * BRIX_IMP_F_* selector for the multiplexed string/number setters.  Default
      * is `off` — nothing is spawned and no I/O is rerouted.
      */
-    { ngx_string("brix_impersonation"),                 /* off | single | map */
+    { ngx_string("brix_idmap"),                 /* off | single | map */
       NGX_STREAM_MAIN_CONF | NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
       brix_imp_conf_mode,
       NGX_STREAM_SRV_CONF_OFFSET,
       0,
       NULL },
 
-    { ngx_string("brix_impersonation_user"),            /* SINGLE: account */
+    { ngx_string("brix_idmap_user"),            /* SINGLE: account */
       NGX_STREAM_MAIN_CONF | NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
       brix_imp_conf_str,
       NGX_STREAM_SRV_CONF_OFFSET,
       BRIX_IMP_F_SINGLE_USER,
       NULL },
 
-    { ngx_string("brix_impersonation_socket"),          /* MAP: broker socket */
+    { ngx_string("brix_idmap_socket"),          /* MAP: broker socket */
       NGX_STREAM_MAIN_CONF | NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
       brix_imp_conf_str,
       NGX_STREAM_SRV_CONF_OFFSET,
       BRIX_IMP_F_SOCKET,
       NULL },
 
-    { ngx_string("brix_impersonation_export"),          /* MAP: confinement root */
+    { ngx_string("brix_idmap_export"),          /* MAP: confinement root */
       NGX_STREAM_MAIN_CONF | NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
       brix_imp_conf_str,
       NGX_STREAM_SRV_CONF_OFFSET,
       BRIX_IMP_F_EXPORT_ROOT,
       NULL },
 
-    { ngx_string("brix_gridmap"),                       /* MAP: DN->user file */
+    { ngx_string("brix_idmap_gridmap"),                       /* MAP: DN->user file */
       NGX_STREAM_MAIN_CONF | NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
       brix_imp_conf_str,
       NGX_STREAM_SRV_CONF_OFFSET,
@@ -75,7 +75,7 @@
       BRIX_IMP_F_CACHE_TTL,
       NULL },
 
-    { ngx_string("brix_impersonation_broker_user"),     /* MAP: non-root broker acct */
+    { ngx_string("brix_idmap_broker_user"),     /* MAP: non-root broker acct */
       NGX_STREAM_MAIN_CONF | NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
       brix_imp_conf_str,
       NGX_STREAM_SRV_CONF_OFFSET,

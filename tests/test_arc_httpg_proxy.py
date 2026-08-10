@@ -22,8 +22,8 @@ the storage key from the chain's end-entity DN at request time — no map
 block, no per-user config) — so the ARC-CE authenticates every forwarded
 request as the real submitting user.  All trust (front-leg client verify,
 delegation-chain verify, back-leg server verify) comes from ONE hashed CA
-directory via brix_client_certificate_folder / brix_ssl_client_capath /
-brix_webdav_cadir / brix_proxy_ssl_capath — no bundle file anywhere.
+directory via brix_client_certificate_folder / brix_client_ca_store /
+brix_trusted_ca_dir / brix_backend_ca_dir — no bundle file anywhere.
 The front leg FAILS CLOSED (`ssl_verify_client on`): a client presenting no
 certificate, or one that does not chain to the grid CA, is refused by nginx
 itself and never proxied; an authenticated identity that never delegated

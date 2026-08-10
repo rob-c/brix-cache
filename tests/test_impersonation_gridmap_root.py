@@ -1,7 +1,7 @@
 """Host-root grid-mapfile UNIX-impersonation end-to-end tests (phase 40).
 
 These tests can ONLY be exercised when the nginx binary is launched as **real
-root**.  With ``brix_impersonation map`` the master runs as root and spawns a
+root**.  With ``brix_idmap map`` the master runs as root and spawns a
 privileged identity broker that ``setfsuid()``s per request to the local UNIX
 account the authenticated identity maps to through a **grid-mapfile**; the backend
 file is then created owned by — and DAC-checked for — that real account.  There is
@@ -16,7 +16,7 @@ What is genuinely new here (vs. the existing coverage):
   * ``tests/c/idmap_test.c`` resolves a grid-mapfile DN to a uid but never writes
     a file.
   * the multi-user conformance fleet (``mu_authz_lib/``) runs
-    ``brix_impersonation off``.
+    ``brix_idmap off``.
 
 This module launches the real nginx binary as host root, through the registry
 ``LifecycleHarness``, maps an incoming **WLCG token** (WebDAV) and an incoming
@@ -121,7 +121,7 @@ def _render_and_launch(harness, spec) -> object:
     detached fleet seam.
 
     We deliberately avoid ``harness.start()`` here: its launch pipes the child's
-    stdout/stderr and waits for EOF, but ``brix_impersonation map`` double-forks a
+    stdout/stderr and waits for EOF, but ``brix_idmap map`` double-forks a
     long-lived privileged broker during ``init_module`` (before nginx daemonizes),
     so the broker inherits and holds that pipe open forever.  ``launch_fleet_nginx``
     is the registry's own fire-and-forget seam (``start_new_session``, inherited
@@ -151,7 +151,7 @@ def _get(url: str, path: str, token: str) -> requests.Response:
 
 
 def _start_webdav(harness, name, entries, default_user):
-    """Bring up a WebDAV/token nginx instance under `brix_impersonation map` with
+    """Bring up a WebDAV/token nginx instance under `brix_idmap map` with
     the given grid-mapfile `entries` [(principal, localuser)]; `default_user` is a
     logical account name for squash mode, or None for fail-closed deny mode."""
     export, run_dir, auth_dir = H.prepare_export(BASE, name)
@@ -205,7 +205,7 @@ def webdav_deny(harness):
 
 @pytest.fixture(scope="module")
 def single_mode(harness):
-    """`brix_impersonation single`: every identity squashes to one fixed account
+    """`brix_idmap single`: every identity squashes to one fixed account
     (brixgm_squash), which is also the worker `user`. No broker, no grid-mapfile."""
     export, _run, auth_dir = H.prepare_export(BASE, "impgm-single")
     # The worker runs as the single account, so the export must be writable by it.

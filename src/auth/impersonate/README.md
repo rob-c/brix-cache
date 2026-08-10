@@ -6,7 +6,7 @@ and kernel DAC is enforced for, the real user) instead of the single nginx worke
 uid. Plan: [`docs/refactor/phase-40-unix-impersonation.md`](../../../docs/refactor/phase-40-unix-impersonation.md).
 Operator guide: [`docs/06-authentication/impersonation.md`](../../../docs/06-authentication/impersonation.md).
 
-## Operating modes (`brix_impersonation off|single|map`)
+## Operating modes (`brix_idmap off|single|map`)
 
 | Mode | Broker | Root | Mapping |
 |---|---|---|---|
@@ -80,7 +80,7 @@ its own export rootfd, so a worker bug cannot escape the export root.
   (`brix_idmap_forbidden_users`) and privileged groups
   (`brix_idmap_forbidden_groups`: sudo/wheel/docker/… — denied even at gid ≥ floor,
   across primary AND supplementary membership).
-- **Minimise root**: with `brix_impersonation_broker_user`, the broker drops to a
+- **Minimise root**: with `brix_idmap_broker_user`, the broker drops to a
   non-root service account keeping only `CAP_SETUID`/`CAP_SETGID` (nothing runs as
   root after the master-side rootfd open); workers shed
   `CAP_SETUID/SETGID/DAC_*/CHOWN/…` at startup.  Caveat: `CAP_SETUID` is inherently

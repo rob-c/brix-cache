@@ -91,13 +91,23 @@ brix_send_redirect_tpc(brix_ctx_t *ctx, ngx_connection_t *c,
 }
 
 /* Send kXR_wait telling the client to retry after `seconds` (backpressure /
- * staging). */
+ * staging). The single kXR_wait emission choke point, so the brix_max_delay
+ * clamp (ofs.maxdelay analog, cached in ctx at accept) covers EVERY wait a
+ * client can be told — staging, CMS floor holds, memory backpressure — with
+ * no per-site audit debt. */
 ngx_int_t
 brix_send_wait(brix_ctx_t *ctx, ngx_connection_t *c, uint32_t seconds)
 {
     size_t    total;
     uint32_t  sbe;
     u_char   *buf;
+
+    if (ctx->max_wait_s != 0 && seconds > ctx->max_wait_s) {
+        ngx_log_debug2(NGX_LOG_DEBUG_STREAM, c->log, 0,
+            "brix: kXR_wait %u s clamped to brix_max_delay %u s",
+            (unsigned) seconds, (unsigned) ctx->max_wait_s);
+        seconds = ctx->max_wait_s;
+    }
 
     total = XRD_RESPONSE_HDR_LEN + sizeof(uint32_t);
     buf = ngx_palloc(c->pool, total);

@@ -157,6 +157,13 @@ void brix_metric_op_latency(brix_proto_t proto, brix_metric_op_t op,
 void brix_metric_op_count(brix_proto_t proto, brix_metric_op_t op,
     brix_err_class_t err);
 /*
+ * brix_metric_offload — bump io_offload_total[proto] by one: a read-family
+ * (kXR_read/readv/pgread) response was routed over a bound secondary data
+ * channel (§1.1 pathid response offloading) rather than the control stream.
+ * Lock-free; no-ops on an out-of-range proto or detached SHM.
+ */
+void brix_metric_offload(brix_proto_t proto);
+/*
  * brix_metric_backend_bytes — add a completed data op's byte count to the
  * per-backend storage totals (io_bytes_{read,written}_backend). backend_name
  * is the storage driver's census name (fs_list.h); NULL ⇒ "posix" (the

@@ -4,7 +4,7 @@ impersonation.  RUNS AS IN-NS ROOT (launched by userns_exec_launcher inside an
 unprivileged user namespace with a subuid range + bind-mounted fake passwd/group).
 
 This is the pseudo-production permissions test: it boots the REAL nginx binary
-with `brix_impersonation map` (so the real master spawns the real broker, real
+with `brix_idmap map` (so the real master spawns the real broker, real
 svc-uid workers connect, and the real auth->identity->dispatch->broker->setfsuid
 chain runs), then drives it over the network with token-authenticated WebDAV
 requests as many identities and tries to break the permissions model.

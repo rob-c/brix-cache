@@ -157,7 +157,10 @@ gsi_cert_verify(ngx_connection_t *c, ngx_stream_brix_srv_conf_t *conf,
     }
 
     gsi_rc = brix_gsi_verify_chain(c->log, conf->gsi_store,
-                                      leaf, untrusted, 0, verify_res,
+                                      leaf, untrusted,
+                                      (ngx_uint_t) (conf->gsi_verify_depth > 0
+                                                    ? conf->gsi_verify_depth : 0),
+                                      verify_res,
                                       0 /* GSI: accept RFC 3820 proxies */);
 
     if (untrusted) {

@@ -88,6 +88,57 @@ webdav_tpc_pmark_attach(CURL *curl, webdav_tpc_pmark_rec_t *rec,
 }
 
 
+/* ---- Record a stream's connected remote endpoint for perf markers ----
+ *
+ * WHAT: Formats the easy handle's CONNECTED peer (CURLINFO_PRIMARY_IP/PORT)
+ *       as "tcp:<ip>:<port>" (IPv6 bracketed: "tcp:[<ip>]:<port>") into
+ *       progress->remote[idx], exactly once per stream.
+ *
+ * WHY:  §6.10 WLCG perf-marker parity — the optional "RemoteConnections:"
+ *       line names where the stripe's data actually comes from. It must be
+ *       the connected endpoint curl reports, never text from the client's
+ *       Source URL (a hostile URL string must not be reflected into the
+ *       marker stream).
+ *
+ * HOW:  1. No-op unless progress and easy exist and the slot is uncaptured.
+ *       2. getinfo PRIMARY_IP/PORT — available once the transfer is past
+ *          connect, which the first write callback guarantees.
+ *       3. Format (':' in the ip ⇒ IPv6 ⇒ brackets), write-release with a
+ *          memory barrier BEFORE flipping remote_ready so the event-loop
+ *          marker reader never sees a torn string.
+ */
+void
+webdav_tpc_capture_remote(CURL *easy, tpc_ms_progress_t *progress,
+                          ngx_uint_t idx)
+{
+    char *primary_ip = NULL;
+    long  primary_port = 0;
+    int   written;
+
+    if (progress == NULL || easy == NULL
+        || idx >= BRIX_TPC_MAX_STREAMS || progress->remote_ready[idx]) {
+        return;
+    }
+    if (curl_easy_getinfo(easy, CURLINFO_PRIMARY_IP, &primary_ip) != CURLE_OK
+        || curl_easy_getinfo(easy, CURLINFO_PRIMARY_PORT,
+                             &primary_port) != CURLE_OK
+        || primary_ip == NULL || primary_ip[0] == '\0') {
+        return;
+    }
+
+    written = snprintf(progress->remote[idx], sizeof(progress->remote[idx]),
+                       strchr(primary_ip, ':') != NULL
+                           ? "tcp:[%s]:%ld" : "tcp:%s:%ld",
+                       primary_ip, primary_port);
+    if (written <= 0 || (size_t) written >= sizeof(progress->remote[idx])) {
+        progress->remote[idx][0] = '\0';
+        return;
+    }
+
+    ngx_memory_barrier();
+    progress->remote_ready[idx] = 1;
+}
+
 /* Write callback for multi-stream range downloads. */
 size_t
 ms_write_cb(char *ptr, size_t size, size_t nmemb, void *userdata)
@@ -95,6 +146,8 @@ ms_write_cb(char *ptr, size_t size, size_t nmemb, void *userdata)
     ms_stream_ctx_t *ctx   = userdata;
     size_t           total = size * nmemb;
     size_t           done  = 0;
+
+    webdav_tpc_capture_remote(ctx->easy, ctx->progress, ctx->stream_idx);
 
     brix_sd_obj_t obj;
 

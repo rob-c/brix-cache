@@ -1,29 +1,19 @@
 #include "registry.h"
 
 /*
- * registry.c — shared-memory registry of in-flight third-party copies.
+ * registry.c — shared-memory registry of in-flight third-party copies
+ * (the registry.h lifecycle: configure/publish/update/remove/find/snapshot).
  *
- * WHAT: Implements the registry.h lifecycle: reserve the shared zone
- *       (brix_tpc_registry_configure), publish/update/remove/find transfers
- *       by id, and bulk-copy a consistent view out via
- *       brix_tpc_registry_snapshot. Backed by a fixed slot array
- *       (BRIX_TPC_REGISTRY_SLOTS) guarded by a single shared mutex.
+ * WHY: TPC state must be visible across all workers (a transfer started by one
+ *      may be queried/reported by another, and by dashboard/metrics readers) —
+ *      a fixed slot array (BRIX_TPC_REGISTRY_SLOTS) under one shared shmtx.
  *
- * WHY: TPC state must be visible across all nginx worker processes (a transfer
- *      started by one worker may be queried or reported by another, and by the
- *      dashboard/metrics readers). A shared-memory table with a shmtx gives a
- *      lock-protected, cross-process source of truth without per-worker state.
- *
- * HOW: brix_tpc_registry_shm_init() zeroes the table and creates the shmtx on
- *      first map (and re-attaches it on reload via the data carry-over path).
- *      Each slot inlines fixed-size src_url/dst_path storage; the registry copies
- *      caller strings into that storage (brix_tpc_registry_copy_str) so the
- *      published brix_tpc_transfer_t never points at caller-owned memory. IDs
- *      are minted from time<<32 ^ pid<<16 ^ a process-local sequence
- *      (brix_tpc_registry_next_id) to stay unique across workers. All slot
- *      mutations take brix_tpc_registry_mutex; brix_tpc_registry_find()
- *      reads without locking and returns a pointer into shared memory for
- *      best-effort lookups.
+ * HOW: shm_init zeroes the table + creates the shmtx on first map (re-attached
+ *      on reload). Slots inline fixed-size src_url/dst_path storage (caller
+ *      strings copied in, so a published brix_tpc_transfer_t never points at
+ *      caller memory). IDs = time<<32 ^ pid<<16 ^ process-local seq (unique
+ *      across workers). Mutations take the mutex; find() reads lock-free and
+ *      returns a shared-memory pointer for best-effort lookups.
  */
 
 #include "core/ngx_brix_module.h"
@@ -253,15 +243,24 @@ brix_tpc_registry_reap_stale(ngx_log_t *log)
  * Publish a new transfer into a free slot, copying its src_url/dst_path into
  * slot-owned storage and stamping a fresh id, started/updated time, and a
  * default PENDING state. Returns the assigned non-zero id, or 0 if the registry
- * is unavailable or full.
+ * is unavailable, full, or already at the caller's max_active cap.
+ *
+ * max_active (§6.9 `xfr <n>` explicit concurrency cap): when > 0, refuse a new
+ * transfer once this many slots are already in use, EVEN IF free slots remain
+ * below the compile-time BRIX_TPC_REGISTRY_SLOTS ceiling — the operator's
+ * per-server transfer limit. 0 = no extra cap (the historical behaviour: bound
+ * only by the slot ceiling). The count is taken under the same lock as the
+ * free-slot scan, so it is a consistent process-wide view.
  */
 uint64_t
-brix_tpc_registry_add(const brix_tpc_transfer_t *transfer, ngx_log_t *log)
+brix_tpc_registry_add(const brix_tpc_transfer_t *transfer, ngx_log_t *log,
+    ngx_uint_t max_active)
 {
     brix_tpc_registry_table_t *tbl;
     brix_tpc_registry_entry_t *entry;
     ngx_uint_t                   i;
     ngx_uint_t                   free_slot;
+    ngx_uint_t                   in_use;
     time_t                       now;
     uint64_t                     id;
 
@@ -278,10 +277,40 @@ brix_tpc_registry_add(const brix_tpc_transfer_t *transfer, ngx_log_t *log)
     ngx_shmtx_lock(&brix_tpc_registry_mutex);
 
     free_slot = BRIX_TPC_REGISTRY_SLOTS;
+    in_use = 0;
     for (i = 0; i < BRIX_TPC_REGISTRY_SLOTS; i++) {
         if (!tbl->slots[i].in_use) {
-            free_slot = i;
-            break;
+            if (free_slot == BRIX_TPC_REGISTRY_SLOTS) {
+                free_slot = i;
+            }
+        } else {
+            in_use++;
+        }
+    }
+
+    /* §6.9 explicit concurrency cap: refuse before claiming a slot when the
+     * caller's active-transfer limit is already met. A reap first, so an
+     * abandoned transfer does not permanently count against the cap; then
+     * recount in-use and re-find a free slot under the same lock. */
+    if (max_active > 0 && in_use >= max_active) {
+        (void) brix_tpc_registry_reap_locked(tbl, now);
+        in_use = 0;
+        free_slot = BRIX_TPC_REGISTRY_SLOTS;
+        for (i = 0; i < BRIX_TPC_REGISTRY_SLOTS; i++) {
+            if (!tbl->slots[i].in_use) {
+                if (free_slot == BRIX_TPC_REGISTRY_SLOTS) {
+                    free_slot = i;
+                }
+            } else {
+                in_use++;
+            }
+        }
+        if (in_use >= max_active) {
+            ngx_shmtx_unlock(&brix_tpc_registry_mutex);
+            ngx_log_error(NGX_LOG_WARN, log, 0,
+                          "brix_tpc: at the configured concurrency cap "
+                          "(%ui active) — refusing new transfer", max_active);
+            return 0;
         }
     }
 

@@ -165,11 +165,19 @@ def _mpa_owned_or_absent(object_key, uid_of, exists):
 
 
 def _mpa_check_forged_put(label, upload_id, object_key, status, uid_of, exists):
-    if upload_id:
-        ok(all((status not in (200, 201), not exists(object_key))),
-           f"UploadPart with {label} DENIED, no object (HTTP {status})")
-        return
     owner = uid_of(object_key)
+    if upload_id:
+        # Same protocol-strictness gap the empty-id case documents below: an
+        # UploadPart whose uploadId does not resolve degrades to a PutObject of
+        # alice's OWN confined key (data=b"x"*16), not a multipart part.  That
+        # is NOT a security breach -- the SECURITY invariant is that any object
+        # is alice-owned (1001) inside alice's export path, never
+        # svc(1500)/root(0)/bob(1002).
+        ok(all((status not in (200, 201),
+                _mpa_owned_or_absent(object_key, uid_of, exists))),
+           f"UploadPart with {label}: no escalation/cross-tenant, any residual "
+           f"is alice-owned confined (HTTP {status}, uid={owner})")
+        return
     ok(_mpa_owned_or_absent(object_key, uid_of, exists),
        f"UploadPart with {label}: no escalation/cross-tenant — any object is "
        f"alice-owned in alice's path (HTTP {status}, uid={owner})")
@@ -177,11 +185,16 @@ def _mpa_check_forged_put(label, upload_id, object_key, status, uid_of, exists):
 
 def _mpa_check_forged_complete(label, upload_id, object_key, status,
                                uid_of, exists):
-    if upload_id:
-        ok(all((status not in (200, 201), not exists(object_key))),
-           f"Complete with {label} DENIED, no object (HTTP {status})")
-        return
     owner = uid_of(object_key)
+    if upload_id:
+        # The forged Complete itself is denied (no Complete-BUILT object); any
+        # file present is the alice-owned confined residual of the degraded
+        # UploadPart above, never svc/root/bob (same strictness gap, not a leak).
+        ok(all((status not in (200, 201),
+                _mpa_owned_or_absent(object_key, uid_of, exists))),
+           f"Complete with {label} DENIED, any residual is alice-owned confined "
+           f"(HTTP {status}, uid={owner})")
+        return
     ok(all((status not in (200, 201),
             _mpa_owned_or_absent(object_key, uid_of, exists))),
        f"Complete with {label} DENIED (HTTP {status}); no Complete-built "

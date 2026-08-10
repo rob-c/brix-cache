@@ -1,7 +1,7 @@
 """SP-* — signing_policy enforcement on the davs:// wire.
 
 Each scenario is materialised by x509forge and driven through a real nginx
-instance whose brix_webdav_cadir points at the scenario's hashed CA directory.
+instance whose brix_trusted_ca_dir points at the scenario's hashed CA directory.
 The verdict is produced by brix's own certificate verifier (auth_cert.c ->
 brix_gsi_verify_chain), so a PASS here proves the production code path enforces
 the signing_policy namespace rule, not just the standalone parser.

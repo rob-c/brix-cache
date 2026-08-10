@@ -8,6 +8,8 @@
 #include "fs/backend/sd.h"   /* phase-55: route preadv through the SD seam */
 #include "fs/vfs/vfs_io_core.h"  /* brix_vfs_effective_obj — POSIX-wrap or driver obj */
 #include "core/compat/pgio.h"     /* kXR_pgPageSZ / kXR_pgUnitSZ page geometry  */
+#include "protocols/root/session/registry.h" /* §1.2 pathid validation (bound-path bitmap) */
+#include "protocols/root/session/offload_registry.h" /* §1.1 brix_offload_lookup */
 
 /* CRC32c word size per page unit ([CRC32c(4)][data]); == kXR_pgUnitSZ - page. */
 #define BRIX_PG_CKSZ        ((size_t) (kXR_pgUnitSZ - kXR_pgPageSZ))
@@ -30,6 +32,8 @@ typedef struct {
     int       fd;         /* resolved file descriptor                       */
     int64_t   offset;     /* requested file offset                          */
     size_t    rlen;       /* capped request length; sync path: bytes read   */
+    unsigned  pathid;     /* §1.2 request args: response path (0 = primary) */
+    unsigned  reqflags;   /* §1.2 request args: kXR_pgRetry or 0            */
     u_char   *scratch;    /* gapped wire buffer (read_scratch slot)         */
     u_char   *out_buf;    /* encoded output start (NULL until produced)     */
     u_char   *flat_buf;   /* buffer to release after send (NULL until set)  */
@@ -63,6 +67,32 @@ brix_pgread_parse_validate(brix_ctx_t *ctx, ngx_connection_t *c,
     run->idx = (int) (unsigned char) req.fhandle[0];
     run->offset = req.offset;
     run->rlen = (size_t) (uint32_t) req.rlen;
+
+    /* §1.2 optional request args ride the payload: pathid at byte 0 when
+     * dlen >= 1, reqflags at byte 1 when dlen >= 2 (extra bytes tolerated) —
+     * stock 5.6.9 parses exactly this shape at any dlen, verified live. A
+     * nonzero pathid must name one of THIS session's live kXR_bind paths;
+     * stock refuses anything else with kXR_ArgInvalid "invalid path ID".
+     * kXR_pgRetry (and unknown flag bits) change nothing server-side: the
+     * pages are re-read and re-checksummed fresh, which is stock behavior.
+     * The response itself still travels the control stream — response
+     * offloading over the bound path is the audit's §1.1 gap, all opcodes
+     * alike. */
+    if (ctx->recv.cur_dlen >= 1 && ctx->recv.payload != NULL) {
+        run->pathid   = (unsigned) ((u_char *) ctx->recv.payload)[0];
+        run->reqflags = (ctx->recv.cur_dlen >= 2)
+                        ? (unsigned) ((u_char *) ctx->recv.payload)[1] : 0;
+        if (run->pathid != 0
+            && !brix_session_pathid_bound(ctx->is_bound ? ctx->bound_sessid
+                                                          : ctx->login.sessid,
+                                            run->pathid))
+        {
+            BRIX_OP_ERR(ctx, BRIX_OP_PGREAD);
+            *rc = brix_send_error(ctx, c, kXR_ArgInvalid,
+                                    "invalid path ID");
+            return 0;
+        }
+    }
 
     if (!brix_validate_read_handle(ctx, c, run->idx, "PGREAD",
                                      BRIX_OP_PGREAD, rc)) {
@@ -362,6 +392,119 @@ brix_pgread_send_response(brix_ctx_t *ctx, ngx_connection_t *c,
 }
 
 /*
+ * brix_pgread_try_offload - §1.1 response offloading (do_Offload parity) for
+ * kXR_pgread: the pgread analog of brix_read_try_offload (read.c) — see there
+ * for the full safety rationale. pgread already VALIDATES its pathid in
+ * brix_pgread_parse_validate (§1.2); this routes an eligible response over the
+ * bound secondary. The pgread reply is [32B kXR_status frame | CRC-interleaved
+ * page data], so it is the same secondary-owned flat-buffer shape as read/readv,
+ * only with a 32-byte header built by brix_build_pgread_status instead of 8.
+ *
+ * When the pathid names a same-worker, quiescent secondary and the encoded reply
+ * fits one streaming window: acquire the frame buffer from the SECONDARY's pool
+ * (32B header + the gapped [CRC32c][page] encoding), encode the pages straight
+ * into buf+32 via the shared brix_pgread_sync_fill, stamp the kXR_status frame
+ * (carrying the PRIMARY request's streamid) into buf[0..32), and queue it on the
+ * secondary's out-ring — acquire+release both on the secondary's ctx, no cross-
+ * connection lifetime tangle. Returns 1 when routed (*rc set), 0 to fall through
+ * to the normal primary-stream producer paths (warm / AIO / sync).
+ */
+static ngx_flag_t
+brix_pgread_try_offload(brix_ctx_t *ctx, ngx_connection_t *c,
+    ngx_stream_brix_srv_conf_t *rconf, brix_pgread_run_t *run, ngx_int_t *rc)
+{
+    const u_char     *sessid;
+    ngx_connection_t *sec_c;
+    brix_ctx_t       *sec_ctx;
+    size_t            n_pages_max, enc_max;
+    u_char           *buf;
+    int               io_errno;
+
+    if (run->pathid == 0) {
+        return 0;
+    }
+
+    sessid = ctx->is_bound ? ctx->bound_sessid : ctx->login.sessid;
+    sec_c  = brix_offload_lookup(sessid, run->pathid);
+    if (sec_c == NULL || sec_c == c) {
+        return 0;
+    }
+
+    sec_ctx = ngx_stream_get_module_ctx((ngx_stream_session_t *) sec_c->data,
+                                          ngx_stream_brix_module);
+    /* Ring has a free slot once all pending responses are counted — see
+     * brix_read_try_offload for the full reserved-slot accounting rationale. */
+    if (sec_ctx == NULL || sec_ctx->destroyed
+        || sec_c->fd == (ngx_socket_t) -1 || sec_ctx->out.resp_async
+        || sec_ctx->out.count + sec_ctx->out.wr_inflight
+           + sec_ctx->rd.aio_inflight >= sec_ctx->out.pipeline_depth)
+    {
+        return 0;
+    }
+
+    /* Encoded-reply upper bound — the gapped [CRC32c(4)][page] size, identical
+     * to brix_pgread_alloc_scratch's math. A reply larger than one streaming
+     * window belongs on the (thread-pool-capable) primary path. */
+    n_pages_max = ((size_t) (run->offset & (kXR_pgPageSZ - 1)) + run->rlen
+                   + kXR_pgPageSZ - 1) / kXR_pgPageSZ;
+    if (n_pages_max == 0) {
+        n_pages_max = 1;
+    }
+    enc_max = run->rlen + n_pages_max * BRIX_PG_CKSZ;
+    if (enc_max > (size_t) BRIX_READ_WINDOW) {
+        return 0;
+    }
+
+    /* Frame buffer from the SECONDARY's pool: 32B status frame + encoding. */
+    buf = brix_acquire_read_buffer(sec_ctx, sec_c,
+                                     sizeof(ServerStatusResponse_pgRead) + enc_max);
+    if (buf == NULL) {
+        return 0;   /* secondary pool exhausted — fall back rather than fail */
+    }
+
+    /* Encode the pages straight into the frame's data region [32 .. 32+enc). */
+    run->scratch = buf + sizeof(ServerStatusResponse_pgRead);
+    io_errno = brix_pgread_sync_fill(ctx, run);   /* fills out_size + rlen(=nio) */
+    if (io_errno != 0) {
+        /* I/O failure: the secondary wire is untouched, so the error rides the
+         * PRIMARY control stream exactly like the normal path. */
+        brix_release_read_buffer(sec_ctx, sec_c, buf);
+        BRIX_OP_ERR(ctx, BRIX_OP_PGREAD);
+        *rc = brix_send_error(ctx, c, kXR_IOError, strerror(io_errno));
+        return 1;
+    }
+
+    /* Accounting stays on the PRIMARY ctx (the request's owner). */
+    ctx->files[run->idx].bytes_read += run->rlen;
+    ctx->totals.bytes += run->rlen;
+    brix_rl_charge_ctx(ctx, run->rlen);
+    if (rconf->access_log_fd != NGX_INVALID_FILE) {
+        char detail[64];
+        snprintf(detail, sizeof(detail), "%lld+%zu",
+                 (long long) run->offset, run->rlen);
+        brix_log_access(ctx, c, "PGREAD", ctx->files[run->idx].path,
+                          detail, 1, 0, NULL, run->rlen);
+    }
+    BRIX_OP_OK(ctx, BRIX_OP_PGREAD);
+
+    /* Stamp the kXR_status frame (PRIMARY streamid) into the 32-byte header, then
+     * queue the contiguous [status|data] frame on the SECONDARY (it owns buf). */
+    brix_build_pgread_status(ctx, run->offset, (uint32_t) run->out_size,
+                               (ServerStatusResponse_pgRead *) buf);
+    *rc = brix_queue_response_base(sec_ctx, sec_c, buf,
+                                     sizeof(ServerStatusResponse_pgRead)
+                                         + run->out_size, buf);
+    if (*rc == NGX_OK) {
+        brix_metric_offload(BRIX_PROTO_ROOT);   /* §1.1 observability */
+    }
+
+    if (*rc != NGX_OK || sec_ctx->out.count == 0) {
+        brix_release_read_buffer(sec_ctx, sec_c, buf);
+    }
+    return 1;
+}
+
+/*
  * brix_handle_pgread - kXR_pgread orchestrator.
  *
  * WHAT: Decodes and validates the request, sizes the wire buffer, then tries
@@ -395,6 +538,16 @@ brix_handle_pgread(brix_ctx_t *ctx, ngx_connection_t *c)
 
     rconf = ngx_stream_get_module_srv_conf(
         (ngx_stream_session_t *) c->data, ngx_stream_brix_module);
+
+    /*
+     * §1.1 response offloading: route an eligible pgread reply over the bound
+     * secondary channel (the pathid was already validated in parse_validate).
+     * Ineligible requests (pathid 0, cross-worker, busy secondary, large) fall
+     * through to the normal warm/AIO/sync producer paths below, unchanged.
+     */
+    if (brix_pgread_try_offload(ctx, c, rconf, &run, &rc)) {
+        return rc;
+    }
 
     run.scratch = brix_pgread_alloc_scratch(ctx, c, &run);
     if (run.scratch == NULL) {

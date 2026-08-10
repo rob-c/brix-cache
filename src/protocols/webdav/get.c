@@ -14,6 +14,8 @@
 #include "protocols/shared/http_cache_fill.h"     /* phase-64 SP2: off-loop cache fill */
 #include "protocols/shared/http_serve_offload.h"  /* phase-64 SP3: off-loop remote serve */
 #include "protocols/root/zip/zip_http.h"   /* phase-57 W2: shared HTTP ZIP member serving */
+#include "core/compat/xml.h"               /* §6.6: HTML-escape listing entries */
+#include "fs/path/reserved_names.h"        /* brix_is_internal_name — hide sidecars */
 
 /* GET range/bytes metrics — shared by the inline serve and the off-loop serve
  * completion (brix_http_serve_offload), so both report identically. */
@@ -156,7 +158,7 @@ get_zip_member_serve(ngx_http_request_t *r,
     char member[WEBDAV_MAX_PATH];
     int  zr;
 
-    if (!conf->zip_access) {
+    if (!conf->common.zip_access) {
         return NGX_DECLINED;
     }
 
@@ -166,7 +168,7 @@ get_zip_member_serve(ngx_http_request_t *r,
     }
     if (zr > 0) {
         return brix_zip_http_serve(r, conf->common.root_canon,
-                                     conf->zip_cd_max_bytes, path, member);
+                                     conf->common.zip_cd_max_bytes, path, member);
     }
     return NGX_DECLINED;
 }
@@ -195,7 +197,7 @@ get_init_vfs_ctx(ngx_http_request_t *r,
 #endif
     brix_vfs_ctx_init(vctx, r->pool, r->connection->log,
         BRIX_PROTO_WEBDAV, conf->common.root_canon,
-        conf->cache_root_canon, conf->common.allow_write, is_tls,
+        conf->common.cache_root_canon, conf->common.allow_write, is_tls,
         (wctx != NULL) ? wctx->identity : NULL, path);
     brix_vfs_ctx_bind_backend_cred(vctx,
         &conf->common.storage_credential_dir,
@@ -307,11 +309,23 @@ get_open_map_error(ngx_http_request_t *r, int vfs_err, const char *path)
      * object is recalled into the cache tier and served — never block the
      * worker for a minutes-to-hours MSS recall. */
     if (vfs_err == EAGAIN) {
+        ngx_http_brix_webdav_loc_conf_t *wlcf =
+            ngx_http_get_module_loc_conf(r, ngx_http_brix_webdav_module);
+
         ra = ngx_list_push(&r->headers_out.headers);
         if (ra != NULL) {
             ra->hash = 1;
             ngx_str_set(&ra->key, "Retry-After");
-            ngx_str_set(&ra->value, "10");
+            ngx_str_set(&ra->value, "10");     /* default staging poll interval */
+            /* §6.11 http.maxdelay: tighten (never lengthen) the poll wait when a
+             * deployment caps it below the 10 s default. */
+            if (wlcf != NULL && wlcf->maxdelay > 0 && wlcf->maxdelay < 10) {
+                u_char *rv = ngx_pnalloc(r->pool, NGX_TIME_T_LEN);
+                if (rv != NULL) {
+                    ra->value.len  = ngx_sprintf(rv, "%T", wlcf->maxdelay) - rv;
+                    ra->value.data = rv;
+                }
+            }
         }
         r->headers_out.status           = NGX_HTTP_ACCEPTED;
         r->headers_out.content_length_n = 0;
@@ -322,6 +336,197 @@ get_open_map_error(ngx_http_request_t *r, int vfs_err, const char *path)
     ngx_log_error(NGX_LOG_ERR, r->connection->log, vfs_err,
                   ngx_open_file_n " \"%s\" failed", path);
     return (ngx_int_t) brix_http_errno_to_status(vfs_err);
+}
+
+/* ---- §6.6 GET-on-a-directory: listingredir / HTML listing / listingdeny ----
+ *
+ * One escaped listing row: an <a href> plus a size and mtime column. The name
+ * is HTML-escaped through the shared XML escaper (& < > " ' → entities), and a
+ * subdirectory gets a trailing '/'. Appends into the request-pool chain `tail`.
+ */
+static ngx_int_t
+get_listing_emit_row(ngx_http_request_t *r, ngx_chain_t ***tail,
+    const ngx_str_t *name, const brix_vfs_stat_t *vst)
+{
+    u_char       esc[512 * 6 + 8];   /* worst-case XML expansion of a 512B name */
+    size_t       esc_written = 0;
+    ngx_buf_t   *b;
+    ngx_chain_t *cl;
+    u_char      *line;
+    size_t       cap;
+    const char  *slash = vst->is_directory ? "/" : "";
+
+    if (brix_xml_escape(name->data, name->len, 0, esc, sizeof(esc),
+                        &esc_written) != 0) {
+        return NGX_OK;   /* name too long to escape safely: skip this entry */
+    }
+
+    cap = esc_written * 2 + 160;
+    line = ngx_pnalloc(r->pool, cap);
+    b = ngx_pcalloc(r->pool, sizeof(*b));
+    cl = ngx_alloc_chain_link(r->pool);
+    if (line == NULL || b == NULL || cl == NULL) {
+        return NGX_ERROR;
+    }
+
+    b->pos = line;
+    b->last = ngx_slprintf(line, line + cap,
+        "<tr><td><a href=\"%s%s\">%s%s</a></td>"
+        "<td class=\"s\">%O</td><td class=\"m\">%T</td></tr>\n",
+        esc, slash, esc, slash,
+        vst->is_directory ? (off_t) 0 : vst->size, (time_t) vst->mtime);
+    b->memory = 1;
+    cl->buf = b;
+    cl->next = NULL;
+    **tail = cl;
+    *tail = &cl->next;
+    return NGX_OK;
+}
+
+/* Escape the request URI once for the page's <h1> and its parent link. */
+static ngx_int_t
+get_listing_head_tail(ngx_http_request_t *r, ngx_chain_t **head,
+    ngx_chain_t ***tailp)
+{
+    u_char       esc_uri[1024 * 6 + 8];
+    size_t       esc_written = 0;
+    ngx_buf_t   *b;
+    ngx_chain_t *cl;
+    u_char      *buf;
+    size_t       cap;
+
+    if (brix_xml_escape(r->uri.data, r->uri.len, 0, esc_uri, sizeof(esc_uri),
+                        &esc_written) != 0) {
+        esc_uri[0] = '/';
+        esc_uri[1] = '\0';
+    }
+
+    cap = esc_written + 512;
+    buf = ngx_pnalloc(r->pool, cap);
+    b = ngx_pcalloc(r->pool, sizeof(*b));
+    cl = ngx_alloc_chain_link(r->pool);
+    if (buf == NULL || b == NULL || cl == NULL) {
+        return NGX_ERROR;
+    }
+    b->pos = buf;
+    b->last = ngx_slprintf(buf, buf + cap,
+        "<!DOCTYPE html>\n<html><head><meta charset=\"utf-8\">"
+        "<title>Index of %s</title></head><body>\n"
+        "<h1>Index of %s</h1>\n"
+        "<table><tr><th>Name</th><th>Size</th><th>Modified</th></tr>\n"
+        "<tr><td><a href=\"../\">../</a></td><td></td><td></td></tr>\n",
+        esc_uri, esc_uri);
+    b->memory = 1;
+    cl->buf = b;
+    cl->next = NULL;
+    *head = cl;
+    *tailp = &cl->next;
+    return NGX_OK;
+}
+
+/* WHAT: Render an escaped HTML directory index for `path` and send it, or —
+ *       per config — 301-redirect (listingredir) or 403 (listingdeny default).
+ *       Returns the send result or a terminal HTTP status.
+ * WHY:  §6.6 parity: XrdHttp serves a browsable listing on a directory GET
+ *       when enabled; the two guard directives (listing_redirect first, then
+ *       html_listing) mirror listingredir / listingdeny.
+ * HOW:  1. listing_redirect set → 301 Location: <redirect><request-uri>.
+ *       2. html_listing off → 403 (the stock default; unchanged behaviour).
+ *       3. else enumerate via the same impersonation-aware VFS opendir/readdir
+ *          PROPFIND uses, HTML-escaping every name and hiding dotfiles and
+ *          internal sidecars, then send the memory-backed page.
+ */
+static ngx_int_t
+get_serve_directory(ngx_http_request_t *r,
+    ngx_http_brix_webdav_loc_conf_t *conf, const char *path)
+{
+    brix_vfs_ctx_t   vctx;
+    brix_vfs_dir_t  *dh;
+    ngx_str_t        name;
+    brix_vfs_stat_t  vst;
+    ngx_chain_t     *head = NULL, **tail = NULL, *foot_cl;
+    ngx_buf_t       *foot;
+    ngx_int_t        rc;
+    int              is_tls = 0;
+    ngx_uint_t       n_entries = 0;
+
+    if (conf->listing_redirect.len > 0) {
+        ngx_table_elt_t *loc;
+        u_char          *dst;
+        size_t           cap = conf->listing_redirect.len + r->uri.len + 1;
+
+        loc = ngx_list_push(&r->headers_out.headers);
+        dst = ngx_pnalloc(r->pool, cap);
+        if (loc == NULL || dst == NULL) {
+            return NGX_HTTP_INTERNAL_SERVER_ERROR;
+        }
+        loc->hash = 1;
+        ngx_str_set(&loc->key, "Location");
+        loc->value.data = dst;
+        loc->value.len = ngx_slprintf(dst, dst + cap, "%V%V",
+                                      &conf->listing_redirect, &r->uri) - dst;
+        r->headers_out.location = loc;
+        return NGX_HTTP_MOVED_PERMANENTLY;
+    }
+
+    if (!conf->html_listing) {
+        return NGX_HTTP_FORBIDDEN;              /* listingdeny default */
+    }
+
+#if (NGX_HTTP_SSL)
+    is_tls = (r->connection->ssl != NULL) ? 1 : 0;
+#endif
+    brix_vfs_ctx_init(&vctx, r->pool, r->connection->log, BRIX_PROTO_WEBDAV,
+        conf->common.root_canon, NULL, 0 /* allow_write */, is_tls, NULL, path);
+
+    dh = brix_vfs_opendir(&vctx, NULL);
+    if (dh == NULL) {
+        return NGX_HTTP_FORBIDDEN;              /* unreadable as the mapped user */
+    }
+
+    if (get_listing_head_tail(r, &head, &tail) != NGX_OK) {
+        brix_vfs_closedir(dh, r->connection->log);
+        return NGX_HTTP_INTERNAL_SERVER_ERROR;
+    }
+
+    while (brix_vfs_readdir(dh, &name, &vst) == NGX_OK) {
+        if (name.len == 0 || name.data[0] == '.'
+            || brix_is_internal_name((const char *) name.data)) {
+            continue;                          /* dotfiles + internal sidecars */
+        }
+        if (get_listing_emit_row(r, &tail, &name, &vst) != NGX_OK) {
+            brix_vfs_closedir(dh, r->connection->log);
+            return NGX_HTTP_INTERNAL_SERVER_ERROR;
+        }
+        n_entries++;
+    }
+    brix_vfs_closedir(dh, r->connection->log);
+
+    foot = ngx_pcalloc(r->pool, sizeof(*foot));
+    foot_cl = ngx_alloc_chain_link(r->pool);
+    if (foot == NULL || foot_cl == NULL) {
+        return NGX_HTTP_INTERNAL_SERVER_ERROR;
+    }
+    ngx_str_t footer = ngx_string("</table></body></html>\n");
+    foot->pos = footer.data;
+    foot->last = footer.data + footer.len;
+    foot->memory = 1;
+    foot->last_buf = 1;
+    foot_cl->buf = foot;
+    foot_cl->next = NULL;
+    *tail = foot_cl;
+
+    r->headers_out.status = NGX_HTTP_OK;
+    r->headers_out.content_length_n = -1;      /* chunked / connection-close */
+    ngx_str_set(&r->headers_out.content_type, "text/html; charset=utf-8");
+    r->headers_out.content_type_len = r->headers_out.content_type.len;
+
+    rc = ngx_http_send_header(r);
+    if (rc == NGX_ERROR || rc > NGX_OK || r->header_only) {
+        return rc;
+    }
+    (void) n_entries;
+    return ngx_http_output_filter(r, head);
 }
 
 /*
@@ -355,7 +560,11 @@ get_resolve_and_stat(ngx_http_request_t *r, brix_vfs_ctx_t *vctx,
 
     if (st->vst.is_directory) {
         brix_vfs_close(st->fh, r->connection->log);
-        return NGX_HTTP_FORBIDDEN;
+        /* §6.6: signal "directory" to the orchestrator, which owns the
+         * listingredir / HTML-listing / listingdeny decision (get_serve_
+         * directory). Kept side-effect-free here so no response is sent from
+         * inside the open-and-stat helper. */
+        return NGX_DECLINED;
     }
 
     ngx_memzero(&st->sb, sizeof(st->sb));
@@ -557,6 +766,11 @@ webdav_handle_get(ngx_http_request_t *r)
     }
 
     rc = get_resolve_and_stat(r, &vctx, path, &st);
+    if (rc == NGX_DECLINED) {
+        /* §6.6: the target is a directory — listingredir / HTML listing /
+         * listingdeny per config. This owns the response. */
+        return get_serve_directory(r, conf, path);
+    }
     if (rc != NGX_OK) {
         return rc;
     }

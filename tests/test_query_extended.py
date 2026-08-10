@@ -327,6 +327,51 @@ class TestChecksumQueries:
         assert _error_code(body) == kXR_ArgInvalid
 
 
+class TestQconfigStockKeyParity:
+    """kXR_Qconfig residual keys from parity-audit §1.14 — semantics verified
+    live against the fleet's stock XRootD reference server (5.6.9, default
+    config): `window` answers a bare positive integer (the TCP window in use);
+    sysid/wan_port/wan_window/sitename/cid ECHO their key name when the
+    feature is unconfigured — which on BriX (no directive sets them) is the
+    permanent, reference-faithful answer."""
+
+    def test_qconfig_window_returns_positive_int(self):
+        """(success) `window` emits the session's receive window as a bare
+        integer — never the echoed key name."""
+        sock = _session()
+        status, body = _query(sock, kXR_Qconfig, b"window")
+        sock.close()
+        assert status == kXR_ok
+        text = body.rstrip(b"\x00").decode("ascii").strip()
+        assert text != "window", "window key was echoed, not answered"
+        assert int(text) > 0, f"window not a positive integer: {text!r}"
+
+    def test_qconfig_unset_stock_keys_echo(self):
+        """(error-shape parity) keys stock answers only when configured —
+        sysid/wan_port/wan_window/sitename/cid — echo verbatim, matching the
+        stock 5.6.9 default-config behavior byte-for-byte."""
+        sock = _session()
+        status, body = _query(sock, kXR_Qconfig,
+                              b"sysid wan_port wan_window sitename cid")
+        sock.close()
+        assert status == kXR_ok
+        lines = body.rstrip(b"\x00").decode("ascii").split("\n")
+        assert lines[:5] == ["sysid", "wan_port", "wan_window",
+                             "sitename", "cid"], lines
+
+    def test_qconfig_window_flood_stays_bounded(self):
+        """(security-neg) a hostile query repeating `window` far past the
+        512-byte response buffer must neither overflow nor error — the
+        capacity-tracked append truncates and the reply stays well-formed."""
+        sock = _session()
+        status, body = _query(sock, kXR_Qconfig, b" ".join([b"window"] * 80))
+        sock.close()
+        assert status == kXR_ok
+        assert len(body) <= 512
+        first = body.rstrip(b"\x00").decode("ascii").split("\n")[0].strip()
+        assert int(first) > 0
+
+
 # =========================================================================
 # Class 6 — Qckscan
 # =========================================================================

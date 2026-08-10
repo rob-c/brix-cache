@@ -75,6 +75,9 @@ void test_lab_enumerate(void);
 void test_dedup_refs(void);
 void test_dedup_forged_hash(void);
 void test_dedup_gate_closed(void);
+void test_dedup_slot(void);         /* phase-88 W1 driver->dedup_publish */
+void test_pack_arena(void);         /* phase-88 W2 packed small-blob arena */
+void test_standard_defaults(void);  /* phase-88 W5 default-on csi + nsidx  */
 void test_snapshot(void);
 void test_versioning(void);
 

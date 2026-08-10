@@ -44,11 +44,13 @@ ckp_clear_path(brix_file_t *f)
  *      Marks f->ckp_path as non-NULL and stores original size in f->ckp_size.
  * WHY: Enables transactional write semantics — writes under ckpXeq are "tentative"
  *      until committed; rollback restores the pre-write state from the snapshot.
- * HOW: 1) Verify no existing checkpoint (f->ckp_path == NULL). 2) Check file size ≤ kXR_ckpMinMax.
+ * HOW: 1) Verify no existing checkpoint (f->ckp_path == NULL). 2) Check file size ≤
+ *      conf->chkpnt_maxsz (ofs.chkpnt maxsz analog; merge floors it at kXR_ckpMinMax).
  *      3) Allocate .ckp path string. 4) Create .ckp file with O_CREAT|O_TRUNC. 5) Copy full file via brix_copy_range(). */
 
 static ngx_int_t
-ckp_begin(brix_ctx_t *ctx, ngx_connection_t *c, int idx)
+ckp_begin(brix_ctx_t *ctx, ngx_connection_t *c,
+    ngx_stream_brix_srv_conf_t *conf, int idx)
 {
     brix_file_t *f = &ctx->files[idx];
     struct stat    st;
@@ -65,7 +67,7 @@ ckp_begin(brix_ctx_t *ctx, ngx_connection_t *c, int idx)
                           kXR_IOError, strerror(errno));
     }
 
-    if ((int64_t) st.st_size > kXR_ckpMinMax) {
+    if ((int64_t) st.st_size > (int64_t) conf->chkpnt_maxsz) {
         BRIX_RETURN_ERR(ctx, c, BRIX_OP_CHKPOINT, "CHKPOINT", f->path, "begin",
                           kXR_overQuota, "file too large to checkpoint");
     }
@@ -205,7 +207,8 @@ ckp_rollback(brix_ctx_t *ctx, ngx_connection_t *c, int idx)
 
 
 static ngx_int_t
-ckp_query(brix_ctx_t *ctx, ngx_connection_t *c, int idx)
+ckp_query(brix_ctx_t *ctx, ngx_connection_t *c,
+    ngx_stream_brix_srv_conf_t *conf, int idx)
 {
     brix_file_t              *f = &ctx->files[idx];
     uint32_t                    use_sz = 0;
@@ -218,7 +221,10 @@ ckp_query(brix_ctx_t *ctx, ngx_connection_t *c, int idx)
         }
     }
 
-    body.maxCkpSize = htonl((uint32_t) kXR_ckpMinMax);
+    /* maxCkpSize is a u32 on the wire — clamp an over-large configured cap
+     * rather than letting the truncation advertise a tiny bogus limit. */
+    body.maxCkpSize = htonl(conf->chkpnt_maxsz > 0xFFFFFFFFu
+                            ? 0xFFFFFFFFu : (uint32_t) conf->chkpnt_maxsz);
     body.useCkpSize = htonl(use_sz);
 
     brix_log_access(ctx, c, "CHKPOINT", f->path, "query",
@@ -235,8 +241,6 @@ brix_handle_chkpoint(brix_ctx_t *ctx, ngx_connection_t *c,
     xrdw_chkpoint_req_t    req;
     int                    idx;
     ngx_int_t              validate_rc;
-
-    (void) conf;
 
     xrdw_chkpoint_req_unpack(((ClientRequestHdr *) ctx->recv.hdr_buf)->body, &req);
     idx = (int)(unsigned char) req.fhandle[0];
@@ -258,13 +262,13 @@ brix_handle_chkpoint(brix_ctx_t *ctx, ngx_connection_t *c,
     switch ((unsigned char) req.opcode) {
 
     case kXR_ckpBegin:
-        return ckp_begin(ctx, c, idx);
+        return ckp_begin(ctx, c, conf, idx);
 
     case kXR_ckpCommit:
         return ckp_commit(ctx, c, idx);
 
     case kXR_ckpQuery:
-        return ckp_query(ctx, c, idx);
+        return ckp_query(ctx, c, conf, idx);
 
     case kXR_ckpRollback:
         return ckp_rollback(ctx, c, idx);

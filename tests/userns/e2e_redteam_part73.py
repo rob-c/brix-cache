@@ -60,18 +60,33 @@ def _rt73_the_canned_owner_is_a_fixed(s3port, acl_docs, SECRET):
         ("bobsecret/s.txt", "bob 0700-dir child (inaccessible)"),
         ("alice/does_not_exist_zzz.txt", "nonexistent key"),
     ]
+    # brix DELIBERATELY runs GetObjectAcl behind the object gate: it stats the key
+    # as the mapped user and answers 404 NoSuchKey for a missing / inaccessible one
+    # rather than minting a FULL_CONTROL grant for a nonexistent object (see
+    # src/protocols/s3/tagging.c A-3/T3 -- AWS-compatible, and consistent with the
+    # object GET/HEAD gate which already reveals existence the same way).  So the
+    # security property we hold is not "target-oblivious 200 for everything" but:
+    # neither outcome (a canned 200 doc OR a gated 403/404) may leak the target's
+    # bytes / path / secret.
     for relkey, label in acl_targets:
         st, b = s3("GET", relkey, s3port, params={"acl": ""})
         b = b or b""
         acl_docs[relkey] = b
-        ok(all((st == 200, b'<AccessControlPolicy' in b, SECRET not in b, b'bob-only' not in b, b'bobsecret' not in b, b'private.txt' not in b)),
-           f"S3 GET ?acl on {label} -> 200 canned ACL, no target bytes/path/secret "
-           f"leaked (HTTP {st})")
+        no_leak = (SECRET not in b and b'bob-only' not in b
+                   and b'bobsecret' not in b and b'private.txt' not in b)
+        canned = (st == 200 and b'<AccessControlPolicy' in b)
+        gated = st in (403, 404)
+        ok((canned or gated) and no_leak,
+           f"S3 GET ?acl on {label} -> canned ACL or gated NoSuchKey, no target "
+           f"bytes/path/secret leaked (HTTP {st})")
 
+    # The canned doc that IS produced (for the keys that resolve) is a FIXED gateway
+    # document -- byte-identical, so no per-object ACL discloses ownership.
     base_doc = acl_docs.get("alice/acl_own.txt", b"")
-    ok(all((base_doc != b'', all((d == base_doc for d in acl_docs.values())))),
-       "S3 GET ?acl is byte-identical across own/inaccessible/nonexistent keys "
-       "(handler never opens the object -- no existence/identity oracle)")
+    canned_docs = [d for d in acl_docs.values() if b'<AccessControlPolicy' in d]
+    ok(all((base_doc != b'', all((d == base_doc for d in canned_docs)))),
+       "S3 GET ?acl canned doc is byte-identical across the keys that resolve "
+       "(fixed gateway Owner -- no per-object identity oracle)")
 
     # The canned Owner is a FIXED gateway identity, NOT the named target tenant --
     # so the ACL cannot be used to confirm who owns 'bob/private.txt'.

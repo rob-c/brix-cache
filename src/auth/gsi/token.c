@@ -531,6 +531,18 @@ brix_handle_token_auth(brix_ctx_t *ctx, ngx_connection_t *c,
         return out;
     }
 
+    /* §5.9 ztn -maxsz analog: refuse an over-long bearer credential BEFORE
+     * any parse/JWKS/crypto work — an unauthenticated peer must not get to
+     * choose how much validation CPU a single kXR_auth burns. 0 = no cap. */
+    if (conf->ztn_maxsz > 0 && st.token_len > conf->ztn_maxsz) {
+        brix_log_access(ctx, c, "AUTH", "-", "ztn",
+                          0, kXR_NotAuthorized, "token exceeds brix_ztn_maxsz",
+                          0);
+        BRIX_OP_ERR(ctx, BRIX_OP_AUTH);
+        return brix_send_error(ctx, c, kXR_NotAuthorized,
+                                 "bearer token too large");
+    }
+
     rc = tokenauth_validate(c, conf, &st);
     if (rc != 0) {
         brix_log_access(ctx, c, "AUTH", "-", "ztn",

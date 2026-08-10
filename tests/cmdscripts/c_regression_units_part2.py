@@ -348,6 +348,24 @@ def tpc_progress_total(base: Path, ngx_src: Path = DEFAULT_NGX_SRC) -> tuple[boo
     )
 
 
+def tpc_xfr_cap(base: Path, ngx_src: Path = DEFAULT_NGX_SRC) -> tuple[bool, str]:
+    # §6.9: brix_tpc_registry_add's max_active parameter — the explicit
+    # concurrency cap (brix_webdav_tpc_xfr). Same real-registry + shm-double
+    # scaffolding as tpc_progress_total; drives the cap/refuse/release logic.
+    reg = _need_obj(ngx_src, "objs/addon/common/registry.o")
+    if isinstance(reg, str):
+        return result(True, reg)
+    return _compile_and_run(
+        base / "test_tpc_xfr_cap",
+        [
+            "-O", "-Wall",
+            *_nginx_includes(ngx_src, stream=True),
+            str(TEST_C / "test_tpc_xfr_cap.c"),
+            str(reg),
+        ],
+    )
+
+
 def tier_s3_creds(base: Path, ngx_src: Path = DEFAULT_NGX_SRC) -> tuple[bool, str]:
     # F2: brix_tier_s3_apply_creds() copies a tier credential's static S3 keys
     # into the remote-origin conf. Link tier_build.o; the test doubles the whole

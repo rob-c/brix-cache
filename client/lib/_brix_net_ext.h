@@ -149,6 +149,12 @@ struct brix_capture *brix_capture_open(const char *path);
 void brix_capture_meta(struct brix_capture *cap, const char *key, const char *val);
 /* Append a frame record (the exact wire bytes = header then body): dir
  * '>'=request '<'=response. hdr is the 24B request / 8B response header. */
+/* §7.7 fork-safety registry (forksafe.c): brix_connect registers a live conn,
+ * brix_close unregisters; the atfork child handler neuters everything still
+ * registered so no child byte can reach the parent's wire stream. */
+void brix_forksafe_register(brix_conn *c);
+void brix_forksafe_unregister(brix_conn *c);
+
 void brix_capture_frame(struct brix_capture *cap, int dir, uint16_t sid, int code,
                         int is_request, const void *hdr, uint32_t hdrlen,
                         const void *body, uint32_t blen);

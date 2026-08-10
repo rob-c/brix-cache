@@ -57,7 +57,7 @@ brix_query_route_common(brix_ctx_t *ctx, ngx_connection_t *c,
     }
 
     if (infotype == kXR_QStats) {
-        return brix_query_stats(ctx, c);
+        return brix_query_stats(ctx, c, conf);
     }
 
     if (infotype == kXR_Qxattr) {

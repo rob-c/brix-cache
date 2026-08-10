@@ -45,7 +45,17 @@ typedef struct {
     off_t              cur_offset;   /* increments with each write */
     ngx_uint_t         stream_idx;
     tpc_ms_progress_t *progress;     /* NULL if progress tracking disabled */
+    CURL              *easy;         /* owning easy handle — lets the first
+                                        write cb capture the connected remote
+                                        endpoint (CURLINFO_PRIMARY_IP/PORT)
+                                        for the RemoteConnections marker */
 } ms_stream_ctx_t;
+
+/* Capture the stream's connected remote endpoint into
+ * progress->remote[idx] once (no-op when already captured / no progress /
+ * no easy). Implemented beside ms_write_cb in tpc_curl_pmark.c. */
+void webdav_tpc_capture_remote(CURL *easy, tpc_ms_progress_t *progress,
+                               ngx_uint_t idx);
 
 /* webdav_tpc_ms_ctx_t — shared bundle for a parallel Range-based pull (driver +
  * pmark callback). Arrays are owned by the driver; the ctx aliases them. */

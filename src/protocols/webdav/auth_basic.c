@@ -127,7 +127,7 @@ wb_ensure_ctx(ngx_http_request_t *r)
 
 /*
  * WHAT: The Basic-password auth gate: verify the request's Basic credential
- *       against conf->pwd_file and mark the request authenticated (dn =
+ *       against conf->common.pwd_file and mark the request authenticated (dn =
  *       username, BRIX_AUTHN_PWD, VOs from the entry).  NGX_OK on success;
  *       NGX_DECLINED when unconfigured/absent/invalid (policy decides);
  *       NGX_HTTP_INTERNAL_SERVER_ERROR on allocation failure.
@@ -153,15 +153,15 @@ webdav_verify_basic_pwd(ngx_http_request_t *r,
     char        vos[512];
     int         verified = 0;
 
-    if (conf->pwd_file.len == 0 || conf->pwd_file.len >= sizeof(path)) {
+    if (conf->common.pwd_file.len == 0 || conf->common.pwd_file.len >= sizeof(path)) {
         return NGX_DECLINED;
     }
     if (wb_parse_basic_userpass(r, &user, &pass) != NGX_OK) {
         return NGX_DECLINED;
     }
 
-    ngx_memcpy(path, conf->pwd_file.data, conf->pwd_file.len);
-    path[conf->pwd_file.len] = '\0';
+    ngx_memcpy(path, conf->common.pwd_file.data, conf->common.pwd_file.len);
+    path[conf->common.pwd_file.len] = '\0';
 
     vos[0] = '\0';
     if (brix_pwd_file_lookup(path, (const char *) user.data, salt, &saltlen,

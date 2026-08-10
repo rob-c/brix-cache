@@ -57,11 +57,12 @@ CC = os.environ.get("CC", "cc")
 IMP = os.path.join(REPO, "src", "auth", "impersonate")
 # broker.c was split into broker.c (dispatch) + broker_creds.c (become/restore/
 # drop_caps + the svc-user uid/gid globals) + broker_ops.c (imp_do_op) +
-# broker_ops_ns.c (the imp_op_* namespace op handlers); and (phase-79 file-size
-# split) idmap.c into idmap.c + idmap_gridmap.c (grid-mapfile) + idmap_denylist.c
-# (brix_imp_creds_privileged + the forbidden-id/squash policy). The standalone
-# driver must link ALL of them or the privilege-switch / op-handler / creds
-# symbols are undefined.
+# broker_ops_ns.c (the imp_op_* namespace op handlers); idmap.c into idmap.c +
+# idmap_gridmap.c (grid-mapfile) + idmap_denylist.c (brix_imp_creds_privileged +
+# the forbidden-id/squash policy); and client.c into client.c (transport) +
+# client_ops.c (the brix_imp_open/stat/mkdir/unlink/rmdir/rename/truncate client
+# op wrappers).  The standalone driver must link ALL of them or the
+# privilege-switch / op-handler / creds / client-op symbols are undefined.
 SRCS = [
     os.path.join(HERE, "c", "userns_broker_test.c"),
     os.path.join(IMP, "broker.c"),
@@ -69,6 +70,7 @@ SRCS = [
     os.path.join(IMP, "broker_ops.c"),
     os.path.join(IMP, "broker_ops_ns.c"),
     os.path.join(IMP, "client.c"),
+    os.path.join(IMP, "client_ops.c"),
     os.path.join(IMP, "idmap.c"),
     os.path.join(IMP, "idmap_gridmap.c"),
     os.path.join(IMP, "idmap_denylist.c"),

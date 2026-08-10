@@ -4,6 +4,7 @@
 #include "protocols/root/relay/relay.h"   /* transparent pass-through relay engage */
 #include "observability/sesslog/sesslog_ngx.h"
 #include "core/aio/uring.h"   /* orphan in-flight uring ops on pool teardown */
+#include "protocols/root/session/offload_registry.h"  /* §1.16 admin conn map */
 
 #if (BRIX_HAVE_LIBURING)
 /*
@@ -112,6 +113,12 @@ conn_init_slots_and_sessid(ngx_connection_t *c, brix_ctx_t *ctx)
         return NGX_ERROR;
     }
 
+    /* §1.16 admin: publish this connection's sessid→conn mapping in the
+     * per-worker registry (out-of-wire-range pseudo-pathid — invisible to the
+     * data path) so the admin socket can list/disc/msg it. Best-effort: a full
+     * table only makes the session invisible to admin, never refuses it. */
+    (void) brix_offload_register(ctx->login.sessid, BRIX_ADMIN_PATHID, c);
+
     return NGX_OK;
 }
 
@@ -178,6 +185,7 @@ conn_setup_pipeline(ngx_stream_session_t *s, ngx_connection_t *c,
     ctx->deadline.read_ms      = mconf->read_timeout;
     ctx->deadline.handshake_ms = mconf->handshake_timeout;
     ctx->deadline.send_ms      = mconf->send_timeout;
+    ctx->max_wait_s            = (uint32_t) mconf->max_delay;
 
     ctx->out.ring = ngx_pcalloc(c->pool, depth * sizeof(brix_resp_slot_t));
     ctx->rd.pool  = ngx_pcalloc(c->pool, depth * sizeof(brix_read_slot_t));

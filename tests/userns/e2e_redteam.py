@@ -4,7 +4,7 @@ impersonation.  RUNS AS IN-NS ROOT (launched by userns_exec_launcher inside an
 unprivileged user namespace with a subuid range + bind-mounted fake passwd/group).
 
 This is the pseudo-production permissions test: it boots the REAL nginx binary
-with `brix_impersonation map` (so the real master spawns the real broker, real
+with `brix_idmap map` (so the real master spawns the real broker, real
 svc-uid workers connect, and the real auth->identity->dispatch->broker->setfsuid
 chain runs), then drives it over the network with token-authenticated WebDAV
 requests as many identities and tries to break the permissions model.
@@ -172,6 +172,165 @@ def http_keepalive(reqs, port):
     finally:
         conn.close()
     return out
+
+
+def _raw_get_header(method, path, port, hdrs=None):
+    """Issue `method path` and return (status, {resp-header-lower: value}, body).
+    `hdrs` carries REQUEST headers (Authorization + any conditional validators /
+    Want-Digest).  Used by the checksum-oracle and conditional-header matrices that
+    must inspect the response headers, not just the body."""
+    url = f"http://{HOST}:{port}{path}"
+    req = urllib.request.Request(url, method=method)
+    for k, v in (hdrs or {}).items():
+        req.add_header(k, v)
+    try:
+        with urllib.request.urlopen(req, timeout=6) as r:
+            return (r.status,
+                    {k.lower(): v for k, v in r.headers.items()},
+                    r.read())
+    except urllib.error.HTTPError as e:
+        return (e.code,
+                {k.lower(): v for k, v in (e.headers or {}).items()},
+                e.read())
+    except Exception as e:  # noqa: BLE001
+        return -1, {}, str(e).encode()
+
+
+def _raw_get_validators(path, port, tok):
+    """GET `path` as bearer `tok`; return (status, etag, last_modified, body) — the
+    cache/conditional-request validators the If-Match/If-None-Match matrix replays."""
+    st, h, b = _raw_get_header("GET", path, port,
+                               {"Authorization": f"Bearer {tok}"} if tok else None)
+    return st, h.get("etag"), h.get("last-modified"), b
+
+
+def _dead_xattr_count(fs_path):
+    """Count WebDAV dead-property xattrs (user.nginx_xrootd.webdav.*) on the file at
+    absolute path `fs_path` — the PROPPATCH store's on-disk carrier (see
+    src/protocols/webdav/dead_props_internal.h).  0 when the file is missing or
+    carries none, so a PROPPATCH set/remove is observable as a count delta."""
+    try:
+        names = os.listxattr(fs_path, follow_symlinks=False)
+    except OSError:
+        return 0
+    return sum(1 for n in names
+               if n.startswith("user.nginx_xrootd.webdav."))
+
+
+def _dead_xattr_has_value(fs_path, value):
+    """True if ANY WebDAV dead-property xattr on `fs_path` contains the bytes
+    `value` — lets a check assert a PROPPATCH set did (PERSIST) or did not (VANISH)
+    land on disk, independent of the 207 wire status."""
+    try:
+        names = os.listxattr(fs_path, follow_symlinks=False)
+    except OSError:
+        return False
+    for n in names:
+        if not n.startswith("user.nginx_xrootd.webdav."):
+            continue
+        try:
+            v = os.getxattr(fs_path, n, follow_symlinks=False)
+        except OSError:
+            continue
+        if value in v:
+            return True
+    return False
+
+
+_CRC64NVME_TABLE = None
+
+
+def _crc64nvme(data):
+    """The 64-bit CRC-64/NVME of `data` as an int — poly 0xad93d23594c93659
+    (reflected 0x9a6c9329ac4bc9b5), refin/refout true, init and xorout all-ones
+    (check("123456789") == 0xAE8B14860A799888)."""
+    global _CRC64NVME_TABLE
+    if _CRC64NVME_TABLE is None:
+        poly = 0x9a6c9329ac4bc9b5          # 0xad93d23594c93659, bit-reflected
+        tbl = []
+        for n in range(256):
+            crc = n
+            for _ in range(8):
+                crc = (crc >> 1) ^ poly if (crc & 1) else (crc >> 1)
+            tbl.append(crc)
+        _CRC64NVME_TABLE = tbl
+    crc = 0xFFFFFFFFFFFFFFFF
+    for b in data:
+        crc = (crc >> 8) ^ _CRC64NVME_TABLE[(crc ^ b) & 0xFF]
+    return crc ^ 0xFFFFFFFFFFFFFFFF
+
+
+def _crc64nvme_b64(data):
+    """base64 of the 8-byte big-endian CRC-64/NVME of `data` — the exact value AWS
+    S3 (and brix) emit as x-amz-checksum-crc64nvme."""
+    return base64.b64encode(_crc64nvme(data).to_bytes(8, "big")).decode()
+
+
+def _s3_post_form(sub, key, body, tamper_sig=False, when=None, expires_secs=3600,
+                  cred_override=None, expires_min=None, omit_file=False,
+                  omit_policy=False, filename="u.bin"):
+    """Build a browser-style S3 POST-form upload (multipart/form-data) whose base64
+    policy is SigV4-signed as `sub` (the subject the broker maps to a UNIX uid).
+    Returns (content_type, body_bytes) for post_form().  `tamper_sig` corrupts the
+    signature (must be rejected); `when` overrides the signing/policy time (expiry
+    and clock-skew tests); `cred_override` substitutes a forged x-amz-credential
+    (e.g. a "root/..." escalation attempt) into BOTH the policy and the form while
+    the signature stays keyed to the real secret; the file field is emitted LAST
+    per the S3 POST contract."""
+    now = when or dt.datetime.now(dt.timezone.utc)
+    amz_date = now.strftime("%Y%m%dT%H%M%SZ")
+    date = now.strftime("%Y%m%d")
+    scope = f"{date}/{S3_REGION}/s3/aws4_request"
+    cred = cred_override if cred_override is not None else f"{sub}/{scope}"
+    if expires_min is not None:
+        expires_secs = expires_min * 60
+    exp = (now + dt.timedelta(seconds=expires_secs)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    policy = {
+        "expiration": exp,
+        "conditions": [
+            {"bucket": S3_BUCKET},
+            ["starts-with", "$key", ""],
+            {"x-amz-algorithm": "AWS4-HMAC-SHA256"},
+            {"x-amz-credential": cred},
+            {"x-amz-date": amz_date},
+        ],
+    }
+    policy_b64 = base64.b64encode(json.dumps(policy).encode()).decode()
+    k = hmac.new(f"AWS4{S3_SECRET}".encode(), date.encode(), hashlib.sha256).digest()
+    k = hmac.new(k, S3_REGION.encode(), hashlib.sha256).digest()
+    k = hmac.new(k, b"s3", hashlib.sha256).digest()
+    k = hmac.new(k, b"aws4_request", hashlib.sha256).digest()
+    sig = hmac.new(k, policy_b64.encode(), hashlib.sha256).hexdigest()
+    if tamper_sig:
+        sig = ("0" if sig[0] != "0" else "1") + sig[1:]
+
+    boundary = "brixRTpostform" + amz_date
+    crlf = b"\r\n"
+    bb = boundary.encode()
+    out = b""
+    fields = [("key", key),
+              ("x-amz-algorithm", "AWS4-HMAC-SHA256"),
+              ("x-amz-credential", cred),
+              ("x-amz-date", amz_date),
+              ("policy", policy_b64),               # dropped when omit_policy
+              ("x-amz-signature", sig)]
+    if omit_policy:                                 # forge a form with no policy
+        fields = [(n, v) for n, v in fields if n != "policy"]
+    for name, val in fields:
+        out += (b"--" + bb + crlf
+                + f'Content-Disposition: form-data; name="{name}"'.encode()
+                + crlf + crlf + val.encode() + crlf)
+    if not omit_file:                               # omit_file forges a fileless POST
+        # `filename` is emitted raw so a caller can probe the server's ${filename}
+        # template with a traversal value (e.g. "../../../PF_FN_ESCAPE").
+        out += (b"--" + bb + crlf
+                + ('Content-Disposition: form-data; name="file"; filename="%s"'
+                   % filename).encode()
+                + crlf
+                + b"Content-Type: application/octet-stream" + crlf + crlf
+                + body + crlf)
+    out += b"--" + bb + b"--" + crlf
+    return f"multipart/form-data; boundary={boundary}", out
 
 
 def raw_http(raw, port, read_timeout=4.0):

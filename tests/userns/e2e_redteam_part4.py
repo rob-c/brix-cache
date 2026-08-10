@@ -184,9 +184,9 @@ thread_pool default threads=4 max_queue=4096;
 events {{ worker_connections 128; }}
 
 stream {{
-    brix_impersonation        map;
-    brix_impersonation_socket {sock};
-    brix_impersonation_export {data};
+    brix_idmap        map;
+    brix_idmap_socket {sock};
+    brix_idmap_export {data};
     brix_idmap_min_uid        1000;
     brix_idmap_forbidden_groups "docker,sudo,wheel";
     server {{
@@ -195,6 +195,11 @@ stream {{
         brix_storage_backend posix:{data};
         brix_allow_write on;
         brix_auth token;
+        brix_ztn_cleartext on;   # lab opt-in: the native root:// client mints a
+                                 # per-subject bearer over loopback cleartext (no
+                                 # TLS in this bed); default-off would refuse it
+                                 # with kXR_TLSRequired and every root:// check
+                                 # would fail before impersonation is even exercised.
         brix_token_jwks     {jwks_path};
         brix_token_issuer   "{ISSUER}";
         brix_token_audience "{AUDIENCE}";
@@ -215,11 +220,11 @@ http {{
             brix_webdav         on;
             brix_storage_backend    posix:{data};
             brix_webdav_auth    required;
-            brix_webdav_cadir   {cadir};
+            brix_trusted_ca_dir   {cadir};
             brix_allow_write on;
-            brix_webdav_token_jwks     {jwks_path};
-            brix_webdav_token_issuer   "{ISSUER}";
-            brix_webdav_token_audience "{AUDIENCE}";
+            brix_token_jwks     {jwks_path};
+            brix_token_issuer   "{ISSUER}";
+            brix_token_audience "{AUDIENCE}";
         }}
     }}
     server {{

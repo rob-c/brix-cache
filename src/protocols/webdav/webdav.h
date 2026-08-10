@@ -266,16 +266,13 @@ ngx_int_t webdav_introspect_access_handler(ngx_http_request_t *r);
 char     *webdav_conf_revoke_cache(ngx_conf_t *cf, ngx_command_t *cmd,
     void *conf);
 
-/* Directive setters for native WebDAV authorization (read parity with root://).
- * brix_webdav_authdb <file> parses a u/g/p rule file into conf->authdb_rules;
- * brix_webdav_require_vo <path> <vo> appends a VO ACL rule to conf->vo_rules. */
-char     *webdav_conf_authdb(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);
-char     *webdav_conf_require_vo(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);
+/* brix_authdb (native READ ACL) + brix_require_vo both moved to the common
+ * module (phase-101 W5.2 / W4): parsed into the shared preamble
+ * (common.authdb_rules / common.vo_rules) and enforced in the access phase. */
 
-/* brix_webdav_protbind <host-template> [none | [only] <proto>...] — per-host
- * credential-source binding, parsed by the shared engine in src/auth/protbind/
- * so the HTTP and root:// stanzas share one grammar (XRootD sec.protbind). */
-char     *webdav_conf_protbind(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);
+/* brix_protbind moved to the common module (phase-101 W4) — see policy.c
+ * (brix_http_conf_set_protbind); the shared engine in src/auth/protbind/ still
+ * owns the grammar for every plane (XRootD sec.protbind). */
 
 /* brix_client_certificate_folder <dir> — parse-time auto-pick of the stock
  * ssl_client_certificate from an OpenSSL hashed CA dir, matched against the
@@ -283,7 +280,7 @@ char     *webdav_conf_protbind(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);
 char     *webdav_conf_client_cert_folder(ngx_conf_t *cf, ngx_command_t *cmd,
     void *conf);
 
-/* brix_proxy_ssl_capath <dir> — hashed CA dir for the proxy back leg: seeds
+/* brix_backend_ca_dir <dir> — hashed CA dir for the proxy back leg: seeds
  * the stock proxy_ssl_trusted_certificate at parse time (one <hash>.N file)
  * and records the dir for the postconfiguration upstream-SSL_CTX add. */
 char     *webdav_conf_proxy_ssl_capath(ngx_conf_t *cf, ngx_command_t *cmd,

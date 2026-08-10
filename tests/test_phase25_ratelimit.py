@@ -157,7 +157,7 @@ def test_coexists_with_phase20_rate_limit(lifecycle):
     # The new directives and the Phase 20 brix_rate_limit must not collide.
     _parse_ok(lifecycle, "lc-rl-coexist", "nginx_rl_http.conf", _http_values(
         "            brix_rate_limit_rule zone=rl key=ip rate=10r/s burst=10;\n",
-        http_extra="    brix_kv_zone kv 1m key=64 val=64;\n"
+        http_extra="    brix_kv_zone zone=kv:1m key=64 val=64;\n"
                    "    brix_rate_limit_zone zone=rl:1m;\n"))
 
 

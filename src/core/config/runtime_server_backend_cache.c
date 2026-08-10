@@ -17,6 +17,12 @@
 #include "fs/tier/tier.h"              /* phase-64 tier parse + cache/stage register */
 #include "fs/cache/cache_internal.h"   /* brix_cache_state_root (effective sidecar tree) */
 #include "core/config/export_guard.h"  /* brix_assert_dir_outside_export (hard guard) */
+#include "fs/backend/sd.h"             /* brix_sd_driver_find (phase-88 W1 gates) */
+#include "fs/backend/pblock/sd_pblock_catalog.h" /* PBLOCK_DEFAULT_BLOCK_SIZE */
+#include "cvmfs/object/object.h"       /* CVMFS_OBJECT_MAX_BYTES (verify ceiling) */
+#if BRIX_HAVE_SQLITE
+#include "fs/backend/pblock/pblock_ctl.h" /* pblock_opts_load_sidecar (dedup gate) */
+#endif
 #include "runtime_server_backend_internal.h"
 
 #include <stdlib.h>                    /* strtol (F8 peer-ring port parse)   */
@@ -218,6 +224,10 @@ brix_tier_fill_cache_policy(ngx_http_brix_shared_conf_t *common,
                : (brix_cache_verify_mode_e) common->cache_verify_mode;
     pol.cvmfs_manifest_ttl = common->cache_manifest_ttl;
     pol.cvmfs_offline_ttl  = common->cache_offline_ttl;
+    /* §4.3 uvkeep: unset/negative → 0 (off). */
+    pol.uvkeep = (common->cache_uvkeep == NGX_CONF_UNSET
+                  || common->cache_uvkeep < 0)
+               ? 0 : common->cache_uvkeep;
     pol.global_cas         = (common->cache_global_cas == 1);
     pol.passthrough        = (common->cache_passthrough == 1);
     pol.passthrough_max    = common->cache_passthrough_max;
@@ -237,10 +247,11 @@ ngx_int_t
 brix_tier_register_cache_store(ngx_conf_t *cf,
     ngx_http_brix_shared_conf_t *common)
 {
-    char                err[256];
-    brix_tier_cfg_t     cfg;
-    brix_cache_policy_t pol;
-    brix_tier_parse_t   tp = { cf, &cfg, err, sizeof(err) };
+    char                      err[256];
+    brix_tier_cfg_t           cfg;
+    brix_cache_policy_t       pol;
+    const brix_sd_driver_t *sdrv;
+    brix_tier_parse_t         tp = { cf, &cfg, err, sizeof(err) };
 
     if (brix_tier_parse_store(&tp, &common->cache_store,
             common->cache_store_args, BRIX_TIER_CACHE) != NGX_OK)
@@ -248,38 +259,88 @@ brix_tier_register_cache_store(ngx_conf_t *cf,
         return NGX_ERROR;                      /* [emerg] already logged */
     }
     brix_tier_fill_cache_policy(common, &pol);
+    sdrv = brix_sd_driver_find(cfg.driver);
+
+    /* phase-88 W1: persist a pblock cache store's `?tail` static opts (captured
+     * by the tier parse) as its <store>/pblock.opts sidecar, exactly like the
+     * primary-backend pblock:// flow — the driver reads it at instance init. */
+    if (ngx_strcmp(cfg.driver, "pblock") == 0 && cfg.opts[0] != '\0') {
+        brix_pblock_write_opts_sidecar(cfg.path, cfg.opts);
+    }
+
     /* phase-68 / phase-104: the self-addressing digest verifications (cvmfs-cas,
-     * oci-digest, rpm-repodata). The verify runs on the staged temp BEFORE
-     * commit, which needs the store's staged_path — a local posix store; reject
-     * other stores loudly. */
+     * oci-digest, rpm-repodata). The verify runs on the staged part's physical
+     * path BEFORE commit, so the store's driver must expose staged_path —
+     * posix .part files, or pblock single-block staged blobs (phase-88 W1);
+     * reject other stores loudly. */
     if (brix_cache_verify_is_selfaddr(pol.verify)
-        && ngx_strcmp(cfg.driver, "posix") != 0)
+        && (sdrv == NULL || sdrv->staged_path == NULL))
     {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-            "brix_cache_verify %s requires a local posix cache store "
-            "(got \"%s\")",
+            "brix_cache_verify %s requires a cache store whose driver exposes "
+            "staged fill paths (posix or pblock; got \"%s\")",
             brix_cache_verify_mode_str(pol.verify), cfg.driver);
         return NGX_ERROR;
     }
-    /* phase-87 G13: cross-repo dedup collapses byte-identical CAS objects onto
-     * one inode via hardlinks — a local-posix-only concept. The publish leg
+    /* A pblock store only yields a verifiable staged path while a fill fits
+     * one block: warn when the stripe is below the CVMFS publisher's object
+     * ceiling, so an oversized (multi-block) object cannot silently turn into
+     * a fail-closed fill at runtime. Applies to every self-addressing verify
+     * (cvmfs-cas, oci-digest, rpm-repodata) — they share the staged-path read. */
+    if (brix_cache_verify_is_selfaddr(pol.verify)
+        && ngx_strcmp(cfg.driver, "pblock") == 0)
+    {
+        int64_t ebs = cfg.block_size > 0
+                    ? (int64_t) cfg.block_size : PBLOCK_DEFAULT_BLOCK_SIZE;
+
+        if (ebs < (int64_t) CVMFS_OBJECT_MAX_BYTES) {
+            ngx_conf_log_error(NGX_LOG_WARN, cf, 0,
+                "brix_cache_verify %s on a pblock store: block_size "
+                "(%L) is below the CVMFS object ceiling (%uz) — an object "
+                "larger than one block cannot be verified and its fill will "
+                "fail closed; set \"block_size=256M\" on brix_cache_store",
+                brix_cache_verify_mode_str(pol.verify),
+                ebs, (size_t) CVMFS_OBJECT_MAX_BYTES);
+        }
+    }
+    /* phase-87 G13 (phase-88 W1): cross-repo dedup of verified CAS objects is
+     * a driver verb now — posix collapses names onto one inode via hardlinks,
+     * pblock folds byte-identical blobs via F10 refs. The publish leg
      * additionally self-gates on a cvmfs-cas-verified fill at runtime, so the
-     * only hard config constraint is the store medium. */
-    if (pol.global_cas && ngx_strcmp(cfg.driver, "posix") != 0) {
+     * hard config constraint is only that the driver implements the slot. */
+    if (pol.global_cas && (sdrv == NULL || sdrv->dedup_publish == NULL)) {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-            "brix_cache_global_cas requires a local posix cache store "
-            "(got \"%s\")", cfg.driver);
+            "brix_cache_global_cas requires a cache store whose driver "
+            "supports commit-time dedup (posix or pblock; got \"%s\")",
+            cfg.driver);
         return NGX_ERROR;
     }
+#if BRIX_HAVE_SQLITE
+    /* A pblock store serves dedup through its F10 refs gate — require it armed
+     * (URL `?dedup=1` or a pre-existing <store>/pblock.opts) so global_cas can
+     * never silently no-op with ENOTSUP on every verified fill. */
+    if (pol.global_cas && ngx_strcmp(cfg.driver, "pblock") == 0) {
+        pblock_opts_t popts;
+
+        if (pblock_opts_load_sidecar(cfg.path, &popts) != 0 || !popts.dedup) {
+            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+                "brix_cache_global_cas on a pblock cache store requires its "
+                "refs gate: add \"?dedup=1\" to the store URL "
+                "(brix_cache_store pblock:%s?dedup=1)", cfg.path);
+            return NGX_ERROR;
+        }
+    }
+#endif
     /* phase-85 F1: brix_cvmfs_verify_manifest — load the repo master public
      * key(s) once at config time; the fill spine verifies every MANIFEST-class
-     * fill's signature chain against it before publish. Same posix-store
+     * fill's signature chain against it before publish. Same staged-path
      * constraint as cvmfs-cas (the verify reads the staged part path). */
     if (common->cache_cvmfs_master_key.len > 0) {
-        if (ngx_strcmp(cfg.driver, "posix") != 0) {
+        if (sdrv == NULL || sdrv->staged_path == NULL) {
             ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                "brix_cvmfs_verify_manifest requires a local posix "
-                "cache store (got \"%s\")", cfg.driver);
+                "brix_cvmfs_verify_manifest requires a cache store whose "
+                "driver exposes staged fill paths (posix or pblock; got "
+                "\"%s\")", cfg.driver);
             return NGX_ERROR;
         }
         if (brix_tier_load_master_key(cf, &common->cache_cvmfs_master_key,

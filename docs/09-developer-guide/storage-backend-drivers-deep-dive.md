@@ -147,12 +147,18 @@ key question when picking a backend for a site. `✓` = native; `adv` = *advisor
 |---|---|---|---|---|---|---|
 | `posix` | ✓ | ✓ | ✓ atomic | ✓ `user.*` | ✓ | ✓ |
 | `block` | ✓ (1 object) | — | — | — | — | — |
+| `mirage` (synthetic)⁰ | ✓ (fixed size) | — | — | — | — | — |
 | `pblock` | ✓ | ✓ | ✓ atomic | ✓ | ✓ | ✓ |
 | `rados` (XrdCeph)¹ | ✓ | root-only² | opt-in copy | striper¹ | adv¹ | follow-on |
 | **`sd_s3`** (object store)³ | ✓ HEAD | key-prefix | CopyObject | ✓ `get_meta`/`set_meta` | adv | ✓ multipart |
 | `remote` (S3 cache origin)⁴ | ✓ (read) | — | — | — | — | — |
 | **`xroot`** (remote root:// primary)⁵ | ✓ | follow-on | ✓⁵ | ✓⁵ | follow-on | ✓⁵ |
 
+⁰ **`mirage`** (`brix_storage_backend mirage:<size>`, parity audit §3 row 14): the
+sizes-only SYNTHETIC backend — stores nothing, makes no syscalls; every path is a
+read-only regular file of the configured size whose bytes are the deterministic
+offset pattern `(o*131+7)&0xFF`. Protocol/throughput testing with zero storage
+behind the export; write-intent opens are `EROFS`. `tests/test_mirage_backend.py`.
 ¹ Two layers. The **wired** `sd_ceph` driver (phase-60, gated `BRIX_HAVE_CEPH`)
 is basic librados: range read / random write / truncate only — **no** dirs /
 rename / xattr / setattr yet. The **stock-XrdCeph libradosstriper path** (the

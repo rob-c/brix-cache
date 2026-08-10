@@ -5,6 +5,7 @@
 #include "budget.h"
 #include "protocols/root/session/session.h"   /* Phase 51 (E4): brix_gsi_inflight_release */
 #include "protocols/root/session/registry.h"
+#include "protocols/root/session/offload_registry.h" /* §1.1 offload conn map */
 #include "net/upstream/upstream.h"
 #include "net/proxy/proxy.h"
 #include "net/ratelimit/ratelimit.h"
@@ -185,6 +186,11 @@ brix_disconnect_end_pmark(brix_ctx_t *ctx, ngx_connection_t *c)
     if (ctx->pmark.echo_ev.timer_set) {
         ngx_del_timer(&ctx->pmark.echo_ev);
     }
+    /* §1.16: a live timed-pause timer must die with the connection, or its
+     * one-shot resume would fire into a freed ctx. */
+    if (ctx->admin_pause_ev.timer_set) {
+        ngx_del_timer(&ctx->admin_pause_ev);
+    }
     if (ctx->pmark.flow != NULL) {
         brix_pmark_flow_end(ctx->pmark.flow, c->log);
         ctx->pmark.flow = NULL;
@@ -294,11 +300,23 @@ brix_on_disconnect(brix_ctx_t *ctx, ngx_connection_t *c)
 
     /*
      * Bound sessions are represented in the shared registry by their parent
-     * session.  Only unregister the session that owns the registry slot.
+     * session.  Only unregister the session that owns the registry slot; a
+     * departing secondary instead retires its pathid from the parent's
+     * bound-path bitmap so later pathid-tagged requests naming it are refused
+     * (§1.2 — a dead data path is no longer a valid target).
      */
     if (ctx->login.auth_done && !ctx->is_bound) {
         brix_session_unregister(ctx->login.sessid);
+    } else if (ctx->is_bound && ctx->pathid > 0) {
+        brix_session_pathid_unbind(ctx->bound_sessid, (unsigned) ctx->pathid);
     }
+
+    /* §1.1/§1.16: drop EVERY per-worker offload/admin map entry naming this
+     * connection (a secondary's data-channel binding AND a primary's admin
+     * registration alike — keyed by the conn pointer, no-op when absent) so a
+     * later read never routes to, nor an admin command targets, a closed
+     * connection. */
+    brix_offload_unregister(c);
 
     brix_disconnect_format_session_detail(ctx, now, session_detail,
                                             sizeof(session_detail),

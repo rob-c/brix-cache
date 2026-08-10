@@ -285,10 +285,14 @@ static ngx_int_t
 brix_init_server_watermark_timer(ngx_cycle_t *cycle,
     ngx_stream_brix_srv_conf_t *xcf)
 {
+    /* Arm the timer when a cache exists AND at least one reaper arm is live:
+     * a valid ppm FS watermark, OR the §4.7 owned-bytes cap (max_bytes > 0).
+     * Either alone is enough — brix_cache_watermark_purge runs whichever fires. */
     if ((!xcf->cache && xcf->common.cache_store.len == 0)
         || brix_cache_state_root(xcf) == NULL
-        || xcf->reaper.high_watermark <= 0
-        || xcf->reaper.high_watermark >= 1000000)
+        || ((xcf->reaper.high_watermark <= 0
+             || xcf->reaper.high_watermark >= 1000000)
+            && xcf->reaper.max_bytes <= 0))
     {
         return NGX_OK;
     }

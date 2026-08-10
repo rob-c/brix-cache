@@ -49,6 +49,22 @@ static const xrdcp_transport_flag_t  xrdcp_transport_flags[] = {
     /* --no-metalink: copy .meta4/.metalink sources as plain files instead of
      * resolving them as virtual redirectors (phase-100). */
     { "--no-metalink",         offsetof(brix_copy_opts, metalink_off),    1 },
+    /* --continue (§7.6): resume a download at the partial destination's size,
+     * writing the destination directly (no atomic temp).  Stock spelling. */
+    { "--continue",            offsetof(brix_copy_opts, cont),            1 },
+    /* --xattr (§7.13): preserve user-namespace extended attributes across a
+     * root://↔local copy (best-effort, stock semantics). */
+    { "--xattr",               offsetof(brix_copy_opts, xattr_preserve),  1 },
+    /* -F/--coerce (§7.13): stock "ignore file locking semantics" — rides the
+     * kXR_force open bit on remote destination opens (see XRDC_OPEN_COERCE). */
+    { "-F",                    offsetof(brix_copy_opts, coerce),          1 },
+    { "--coerce",              offsetof(brix_copy_opts, coerce),          1 },
+    /* --rm-bad-cksum (§7.13): stock deletes the destination on a --cksum
+     * mismatch only when this is given; BriX's fail-closed default ALREADY
+     * does that unconditionally, so the flag is accepted as a no-op alias of
+     * the stricter default (documented divergence — there is no way to KEEP
+     * a mismatched file). Assigns a field so the row engine has a target. */
+    { "--rm-bad-cksum",        offsetof(brix_copy_opts, rm_bad_cksum),    1 },
     { "--io-uring-direct",     offsetof(brix_copy_opts, io_uring_direct), 1 },
     { "--io-uring-direct=on",  offsetof(brix_copy_opts, io_uring_direct), 1 },
     { "--io-uring-direct=off", offsetof(brix_copy_opts, io_uring_direct), 0 },

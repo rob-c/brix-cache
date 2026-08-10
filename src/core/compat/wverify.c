@@ -5,9 +5,15 @@
  * any extent it is now adjacent to, combining CRCs with zlib crc32_combine. A
  * complete write leaves exactly one extent {0, size, crc}; anything else (gap,
  * overlap, degraded) makes brix_wverify_expected fail closed.
+ *
+ * Phase-88 W3: a SHA-256 rides the IN-ORDER prefix — extents that land exactly
+ * at the current prefix end feed an incremental EVP digest; the first
+ * out-of-order arrival kills the SHA (no combine exists) while the CRC keeps
+ * its arrival-order independence.
  */
 #include "core/compat/wverify.h"
 
+#include <openssl/evp.h>
 #include <stdlib.h>
 #include <string.h>
 #include <zlib.h>
@@ -29,13 +35,29 @@ struct brix_wverify_s {
     size_t       n;
     size_t       cap;
     int          degraded;   /* an update failed; expected() must fail closed */
+    EVP_MD_CTX  *sha;        /* W3: incremental SHA-256 of the in-order prefix
+                              * (NULL once dead — OOM or out-of-order arrival) */
+    off_t        sha_off;    /* prefix end the next in-order extent must hit  */
 };
 
 brix_wverify_t *
 brix_wverify_begin(void)
 {
     brix_wverify_t *w = calloc(1, sizeof(*w));
-    return w;   /* NULL on OOM propagates to the caller */
+
+    if (w == NULL) {
+        return NULL;   /* OOM propagates to the caller */
+    }
+    /* A dead SHA never degrades the CRC contract — it only forfeits the
+     * cryptographic identity (callers fall back to byte-verified dedup). */
+    w->sha = EVP_MD_CTX_new();
+    if (w->sha != NULL
+        && EVP_DigestInit_ex(w->sha, EVP_sha256(), NULL) != 1)
+    {
+        EVP_MD_CTX_free(w->sha);
+        w->sha = NULL;
+    }
+    return w;
 }
 
 void
@@ -44,8 +66,27 @@ brix_wverify_free(brix_wverify_t *w)
     if (w == NULL) {
         return;
     }
+    EVP_MD_CTX_free(w->sha);   /* NULL-safe */
     free(w->ext);
     free(w);
+}
+
+/* wv_sha_feed — advance the in-order SHA prefix, or kill the SHA on the first
+ * out-of-order arrival / digest failure (the CRC path is untouched). */
+static void
+wv_sha_feed(brix_wverify_t *w, const void *buf, off_t off, size_t len)
+{
+    if (w->sha == NULL) {
+        return;
+    }
+    if (off != w->sha_off
+        || EVP_DigestUpdate(w->sha, buf, len) != 1)
+    {
+        EVP_MD_CTX_free(w->sha);
+        w->sha = NULL;
+        return;
+    }
+    w->sha_off = off + (off_t) len;
 }
 
 /* Ensure room for one more extent. 0 / -1 (cap or OOM). */
@@ -167,6 +208,7 @@ brix_wverify_update(brix_wverify_t *w, const void *buf, off_t off, size_t len)
     w->ext[pos].crc = (uint32_t) crc32(crc32(0L, Z_NULL, 0),
                                        (const Bytef *) buf, (uInt) len);
     w->n++;
+    wv_sha_feed(w, buf, off, len);   /* W3: after acceptance, never on reject */
 
     /* Coalesce with an abutting right neighbour, then the left, so the list stays
      * minimal (a contiguous stream collapses to a single extent). */
@@ -192,4 +234,34 @@ brix_wverify_expected(const brix_wverify_t *w, uint32_t *crc, off_t *total)
     *crc   = w->ext[0].crc;
     *total = w->ext[0].hi;
     return 0;
+}
+
+int
+brix_wverify_expected_sha256(const brix_wverify_t *w, unsigned char out32[32])
+{
+    EVP_MD_CTX  *fin;
+    unsigned int mdlen = 0;
+    int          ok;
+
+    if (w == NULL || out32 == NULL || w->sha == NULL) {
+        return -1;
+    }
+    /* Same completeness contract as expected(), plus: the in-order prefix must
+     * BE the whole single run (an appending stream that covered everything). */
+    if (w->degraded || w->n != 1 || w->ext[0].lo != 0
+        || w->sha_off != w->ext[0].hi)
+    {
+        return -1;
+    }
+    /* Finalise a copy so the accumulator survives (close paths may consult the
+     * CRC afterwards). */
+    fin = EVP_MD_CTX_new();
+    if (fin == NULL) {
+        return -1;
+    }
+    ok = EVP_MD_CTX_copy_ex(fin, w->sha) == 1
+         && EVP_DigestFinal_ex(fin, out32, &mdlen) == 1
+         && mdlen == 32;
+    EVP_MD_CTX_free(fin);
+    return ok ? 0 : -1;
 }

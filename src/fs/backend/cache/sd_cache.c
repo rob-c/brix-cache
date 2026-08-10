@@ -69,6 +69,23 @@ cache_open_serve_hit(sd_cache_inst_state *st, const char *path, int *err_out)
     {
         return NULL;
     }
+    /* §4.3 uvkeep (upstream pfc.uvkeep): don't trust a NEVER-verified entry
+     * forever. When armed, a COMPLETE entry whose contents were never checked
+     * against the origin digest (F_VERIFIED clear — e.g. a TLS-trusted fill with
+     * no checksum to compare) and that is older than the keep window is treated
+     * as a MISS, so the next open revalidates it against the origin. A verified
+     * entry, one still inside the window, or one with no recorded fill time
+     * (legacy, filled_at == 0) serves normally. This only ADDS revalidation — it
+     * never serves anything it would not already serve. */
+    if (st->policy.uvkeep > 0
+        && !(ci.flags & BRIX_CINFO_F_VERIFIED)
+        && ci.filled_at != 0
+        && (uint64_t) time(NULL) >= ci.filled_at + (uint64_t) st->policy.uvkeep)
+    {
+        ngx_log_debug1(NGX_LOG_DEBUG_CORE, st->log, 0,
+            "sd_cache: uvkeep revalidate — unverified aged entry \"%s\"", path);
+        return NULL;
+    }
     obj = brix_cstore_serve_open(&st->cstore, path, err_out);
     if (obj == NULL) {
         return NULL;   /* the cached object vanished under us - refill */

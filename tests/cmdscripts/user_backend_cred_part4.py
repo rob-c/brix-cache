@@ -248,7 +248,7 @@ http {{
             brix_webdav on;
             brix_allow_write on;
             brix_export {prefix}/export;
-            brix_webdav_cafile {CA_CERT};
+            brix_trusted_ca {CA_CERT};
             brix_webdav_auth required;
             brix_storage_backend root://{HOST}:{origin_port};
             brix_storage_credential origin;
@@ -283,7 +283,7 @@ http {{
             brix_storage_credential origin;
             brix_storage_credential_dir {creds};
             brix_storage_credential_fallback {fallback};
-            brix_s3_cache_root {cache_dir};
+            brix_cache_root {cache_dir};
         }}
     }}
 }}

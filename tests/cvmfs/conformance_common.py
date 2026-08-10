@@ -253,8 +253,10 @@ def _knob_directives(knobs):
 
 
 def _location_directives(cache, mock_ports, proxy_mode, origins,
-                         upstream_allow, scvmfs, extra_directives, knobs):
-    lines = ["brix_cvmfs on;", f"brix_cache_store posix:{cache};"]
+                         upstream_allow, scvmfs, extra_directives, knobs,
+                         cache_store=None):
+    store = cache_store.format(cache=cache) if cache_store else f"posix:{cache}"
+    lines = ["brix_cvmfs on;", f"brix_cache_store {store};"]
     lines.extend(_backend_directives(mock_ports, proxy_mode, origins))
     lines.extend(_allow_directives(proxy_mode, upstream_allow))
     lines.extend(["brix_scvmfs on;"] if scvmfs else [])
@@ -302,13 +304,16 @@ def srv_instance(port_block: str | PortBlock, *, webroot=None, objects=8, seed=1
                  location=None, proxy_mode=False, upstream_allow=None,
                  scvmfs=False, ssl_cert=None, ssl_key=None, worker_threads=2,
                  ssl_verify_client=None, ssl_client_ca=None,
-                 extra_directives="", nginx=None, **knobs):
+                 extra_directives="", nginx=None, cache_store=None, **knobs):
     """Start `n_mocks` mock origins + a LiveRun nginx with a brix_cvmfs config.
 
     Reverse mode (default): `location /cvmfs/` proxies to the mock(s) via
     brix_storage_backend. Proxy mode (`proxy_mode=True`): `location /` gates
     absolute-form requests with brix_cvmfs_upstream_allow (no storage backend).
     Unrecognised **knobs** map through _KNOBS to brix_cvmfs* directives.
+    `cache_store` overrides the store spec ("{cache}" expands to the run's
+    cache dir), e.g. "pblock:{cache}?dedup=1&pack=1 block_size=256m"
+    (phase-88); default = the classic local posix store.
     """
     block = _port_block(port_block)
     loc = location or ("/" if proxy_mode else "/cvmfs/")
@@ -319,7 +324,8 @@ def srv_instance(port_block: str | PortBlock, *, webroot=None, objects=8, seed=1
             run, block, n_mocks, webroot, objects, seed, repo, keepalive)
         lines = _location_directives(
             cache, mock_ports, proxy_mode, origins, upstream_allow,
-            scvmfs, extra_directives, knobs)
+            scvmfs, extra_directives, knobs, cache_store)
+
         nginx_port = block.nginx()
         config, error_log = _write_server_config(
             run, nginx_port, loc, lines, worker_threads, ssl_cert, ssl_key,

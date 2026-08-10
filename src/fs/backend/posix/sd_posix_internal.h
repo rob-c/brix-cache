@@ -90,6 +90,13 @@ ssize_t sd_posix_staged_write(brix_sd_staged_t *st, const void *buf, size_t len,
 ngx_int_t sd_posix_staged_commit(brix_sd_staged_t *st, int noreplace);
 void sd_posix_staged_abort(brix_sd_staged_t *st);
 const char *sd_posix_staged_path(const brix_sd_staged_t *st);
+
+/* commit-time dedup slots (sd_posix_dedup.c): the G13 hardlink farm below the
+ * seam — publish binds an object and its canonical content alias to one inode,
+ * gc reaps a last-link canonical. */
+ngx_int_t sd_posix_dedup_publish(brix_sd_instance_t *inst, const char *path,
+    const char *canon);
+ngx_int_t sd_posix_dedup_gc(brix_sd_instance_t *inst, const char *canon);
 #endif /* !XRDPROTO_NO_NGX */
 
 #endif /* BRIX_SD_POSIX_INTERNAL_H */

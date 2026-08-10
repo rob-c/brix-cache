@@ -218,6 +218,21 @@ locate_try_dynamic(locate_ctx_t *lc, ngx_int_t *out_rc)
         return 1;
     }
 
+    /* §1.8: kXR_nowait — the client must not be parked.  Fire the existence
+     * fan-out anyway with a streamid nothing waits on: an accepted kYR_have
+     * with no pending entry is cache-only (cms_srv_frame_have), so the
+     * client's retry after the kXR_wait below hits a warm loc cache.  This is
+     * the stock contract verbatim: "return kXR_wait immediately rather than
+     * blocking if the resource is busy". */
+    if (lc->nowait) {
+        (void) locate_fanout_state(lc, brix_cms_srv_next_streamid());
+        brix_log_access(ctx, c, "LOCATE", lc->reqpath, "nowait", 1, 0,
+                          NULL, 0);
+        BRIX_OP_OK(ctx, BRIX_OP_LOCATE);
+        *out_rc = brix_send_wait(ctx, c, 1);
+        return 1;
+    }
+
     /* Park BEFORE probing (mirrors locate_try_cms_parent): the pending entry
      * must exist when the first kYR_have echoes our streamid back. */
     streamid = brix_cms_srv_next_streamid();

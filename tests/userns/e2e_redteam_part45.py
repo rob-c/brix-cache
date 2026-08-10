@@ -74,6 +74,8 @@ def _rt45_segment_08(PUB, pub_path, RESERVED, BADMAP):
                     u = os.lstat(pub_path(nm)).st_uid
                 except OSError:
                     continue
+                if _is_server_sidecar(nm):   # .cinfo/.meta svc-owned by design
+                    continue
                 if RESERVED(u) or BADMAP(u):
                     bad.append((nm, u))
         except OSError:
@@ -673,6 +675,8 @@ def _rt45_segment_01_2(data, sub_dir, TAG, RESERVED, BADMAP, cross_bad):
         for nm in os.listdir(d):
             if not nm.startswith(TAG):
                 continue
+            if _is_server_sidecar(nm):   # .cinfo/.meta svc-owned by design
+                continue
             try:
                 u = os.lstat(os.path.join(d, nm)).st_uid
             except OSError:
@@ -694,6 +698,8 @@ def _rt45_f3_sweep_alice_s_bob_s(PUB, pub_path, denied_uids, denied_owned, data,
             try:
                 u = os.lstat(pub_path(nm)).st_uid
             except OSError:
+                continue
+            if _is_server_sidecar(nm):   # .cinfo/.meta svc-owned by design
                 continue
             if u in denied_uids:
                 denied_owned.append((nm, u))

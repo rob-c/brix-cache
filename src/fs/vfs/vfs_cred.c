@@ -88,7 +88,7 @@ brix_vfs_ctx_bind_backend_cred(brix_vfs_ctx_t *vctx,
  *       Phase-1). */
 void
 brix_vfs_ctx_bind_backend_mint(brix_vfs_ctx_t *vctx,
-    const ngx_str_t *ca_cert, const ngx_str_t *ca_key, ngx_uint_t ttl_secs)
+    const ngx_str_t *ca_cert, const ngx_str_t *ca_key, time_t ttl_secs)
 {
     if (vctx == NULL) {
         return;

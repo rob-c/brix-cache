@@ -40,8 +40,8 @@ object + a final `summary`; `health` emits a single capacity record. Config:
 ```nginx
 location /xrootd {
     brix_dashboard on; brix_dashboard_password "...";
-    brix_scan_root      /export;   # empty (default) ⇒ endpoint 404 (disabled)
-    brix_scan_max_files 100000;    # operator cap per request
+    brix_dashboard_scan_root      /export;   # empty (default) ⇒ endpoint 404 (disabled)
+    brix_dashboard_scan_max_files 100000;    # operator cap per request
 }
 ```
 

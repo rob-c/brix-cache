@@ -60,43 +60,36 @@ webdav_merge_base_conf(ngx_conf_t *cf, ngx_http_brix_webdav_loc_conf_t *prev,
     {
         return NGX_CONF_ERROR;
     }
-    ngx_conf_merge_str_value(conf->cache_root, prev->cache_root, "");
-    ngx_conf_merge_str_value(conf->vomsdir, prev->vomsdir, "");
+    /* cache_root merge -> shared_merge (common.cache_root), phase-101 W8. */
     ngx_conf_merge_str_value(conf->tcp_congestion, prev->tcp_congestion, "");
-    ngx_conf_merge_str_value(conf->voms_cert_dir, prev->voms_cert_dir, "");
+    /* vomsdir/voms_cert_dir merges -> shared_merge (W4). */
     ngx_conf_merge_str_value(conf->cadir, prev->cadir, "");
     ngx_conf_merge_str_value(conf->cafile, prev->cafile, "");
-    ngx_conf_merge_ptr_value(conf->authdb_rules, prev->authdb_rules, NULL);
-    ngx_conf_merge_ptr_value(conf->vo_rules, prev->vo_rules, NULL);
-    ngx_conf_merge_str_value(conf->crl, prev->crl, "");
-    ngx_conf_merge_uint_value(conf->signing_policy_mode,
-                              prev->signing_policy_mode, BRIX_SP_MODE_ON);
-    ngx_conf_merge_uint_value(conf->crl_mode, prev->crl_mode, BRIX_CRL_MODE_TRY);
+    /* authdb_rules merge -> shared_merge (common.authdb_rules), W5.2. */
+    /* vo_rules merge -> shared_merge (common.vo_rules), W4. */
+    /* crl/crl_mode/signing_policy merges -> shared_merge (W4). */
     ngx_conf_merge_uint_value(conf->verify_depth, prev->verify_depth, 10);
     ngx_conf_merge_uint_value(conf->auth, prev->auth,
                               WEBDAV_AUTH_OPTIONAL);
-    /* Inherited whole (never merged element-wise): the rule ORDER decides which
-     * template matches first, so a location that states any rule of its own
-     * owns the whole policy. */
-    if (conf->protbind == NULL) {
-        conf->protbind = prev->protbind;
-    }
-    brix_acc_http_merge_conf(&conf->acc, &prev->acc);
+    /* protbind is inherited whole (never merged element-wise) in
+     * ngx_http_brix_shared_merge (common.protbind) — phase-101 W4. The rule ORDER
+     * decides which template matches first, so a location that states any rule of
+     * its own owns the whole policy. */
+    /* XrdAcc merge moved into ngx_http_brix_shared_merge (common.acc), W2. */
     ngx_conf_merge_value(conf->proxy_certs, prev->proxy_certs, 0);
     ngx_conf_merge_str_value(conf->ssl_client_capath,
                              prev->ssl_client_capath, "");
     ngx_conf_merge_value(conf->tape_rest, prev->tape_rest, 0);
     /* Uploads staged + resumable by DEFAULT.  Set brix_webdav_upload_resume
      * off to opt out. */
-    ngx_conf_merge_value(conf->upload_resume, prev->upload_resume, 1);
-    ngx_conf_merge_str_value(conf->upload_stage_dir, prev->upload_stage_dir, "");
+    /* upload_resume merge moved to shared_merge (common.upload_resume), W4. */
+    /* upload_stage_dir merge -> shared_merge (W4). */
     ngx_http_brix_webdav_tpc_merge_loc_conf(conf, prev);
     BRIX_MERGE_PTR(conf, prev, cors_origins);
     ngx_conf_merge_value(conf->cors_credentials, prev->cors_credentials, 0);
-    ngx_conf_merge_uint_value(conf->cors_max_age, prev->cors_max_age, 86400);
-    ngx_conf_merge_uint_value(conf->lock_timeout, prev->lock_timeout, 600);
+    ngx_conf_merge_sec_value(conf->cors_max_age, prev->cors_max_age, 86400);
+    ngx_conf_merge_sec_value(conf->lock_timeout, prev->lock_timeout, 600);
     ngx_conf_merge_value(conf->lock_startup_sweep, prev->lock_startup_sweep, 0);
-    ngx_conf_merge_value(conf->zip_access, prev->zip_access, 0);
     ngx_conf_merge_value(conf->http_query_token, prev->http_query_token, 1);
     ngx_conf_merge_value(conf->macaroon_max_validity,
                          prev->macaroon_max_validity, 86400);
@@ -111,6 +104,13 @@ webdav_merge_base_conf(ngx_conf_t *cf, ngx_http_brix_webdav_loc_conf_t *prev,
     ngx_conf_merge_value(conf->dig_enable, prev->dig_enable, 0);
     ngx_conf_merge_value(conf->require_digest, prev->require_digest, 0);
 
+    /* §6.6: HTML directory listing on GET (listingdeny/listingredir analog). */
+    ngx_conf_merge_value(conf->html_listing, prev->html_listing, 0);
+    /* §6.11 http.maxdelay: 0 = off (emit the default 10 s staging Retry-After). */
+    ngx_conf_merge_sec_value(conf->maxdelay, prev->maxdelay, 0);
+    ngx_conf_merge_str_value(conf->listing_redirect,
+                             prev->listing_redirect, "");
+
     /* §6.1: HTTP redirect-to-dataserver + signed-CGI handoff. */
     ngx_conf_merge_value(conf->redirect_dataserver,
                          prev->redirect_dataserver, 0);
@@ -123,8 +123,6 @@ webdav_merge_base_conf(ngx_conf_t *cf, ngx_http_brix_webdav_loc_conf_t *prev,
     ngx_conf_merge_str_value(conf->dig_auth_file, prev->dig_auth_file, "");
     ngx_conf_merge_value(conf->delegation_endpoint,
                          prev->delegation_endpoint, 0);
-    ngx_conf_merge_size_value(conf->zip_cd_max_bytes, prev->zip_cd_max_bytes,
-                              16 * 1024 * 1024);
 
     /* Phase 20 caches/limits: inherit parent block when not set locally. */
     if (conf->token_cache_kv == NULL) {
@@ -155,23 +153,16 @@ webdav_merge_base_conf(ngx_conf_t *cf, ngx_http_brix_webdav_loc_conf_t *prev,
     ngx_conf_merge_value(conf->open_file_cache_events,
                          prev->open_file_cache_events, 0);
 
-    ngx_conf_merge_str_value(conf->pwd_file, prev->pwd_file, "");
-    ngx_conf_merge_str_value(conf->token_jwks, prev->token_jwks, "");
-    ngx_conf_merge_str_value(conf->token_issuer, prev->token_issuer, "");
-    ngx_conf_merge_str_value(conf->token_audience, prev->token_audience, "");
-    ngx_conf_merge_value(conf->token_clock_skew, prev->token_clock_skew,
-                         BRIX_TOKEN_CLOCK_SKEW_SECS);
-    if (conf->token_clock_skew < 0 || conf->token_clock_skew > 300) {
+    /* pwd_file merge moved into ngx_http_brix_shared_merge (common.pwd_file), W4. */
+    /* token quartet merges -> shared_merge (W4). */
+    if (conf->common.token_clock_skew < 0 || conf->common.token_clock_skew > 300) {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-            "brix_webdav_token_clock_skew must be >= 0 and <= 300");
+            "brix_token_clock_skew must be >= 0 and <= 300");
         return NGX_CONF_ERROR;
     }
-    ngx_conf_merge_str_value(conf->token_config, prev->token_config, "");
+    /* token_config merge -> shared_merge (common.token_config), W4. */
     ngx_conf_merge_ptr_value(conf->token_registry, prev->token_registry, NULL);
-    ngx_conf_merge_str_value(conf->token_macaroon_secret,
-                             prev->token_macaroon_secret, "");
-    ngx_conf_merge_str_value(conf->token_macaroon_secret_old,
-                             prev->token_macaroon_secret_old, "");
+    /* macaroon_secret merge -> shared_merge (W4). */
 
 
     return NGX_CONF_OK;
@@ -202,24 +193,24 @@ static char *
 webdav_finalize_authz_rules(ngx_conf_t *cf,
     ngx_http_brix_webdav_loc_conf_t *conf)
 {
-    if (conf->vomsdir.len > 0) {
+    if (conf->common.vomsdir.len > 0) {
         (void) brix_voms_init(cf->log);
     }
-    if (conf->authdb_rules != NULL
+    if (conf->common.authdb_rules != NULL
         && brix_finalize_authdb_rules(cf->log, &conf->common.root,
-                                        conf->authdb_rules) != NGX_OK)
+                                        conf->common.authdb_rules) != NGX_OK)
     {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-            "brix_webdav_authdb: failed to finalize rules for root \"%V\"",
+            "brix_authdb: failed to finalize rules for root \"%V\"",
             &conf->common.root);
         return NGX_CONF_ERROR;
     }
-    if (conf->vo_rules != NULL
+    if (conf->common.vo_rules != NULL
         && brix_finalize_vo_rules(cf->log, &conf->common.root,
-                                    conf->vo_rules) != NGX_OK)
+                                    conf->common.vo_rules) != NGX_OK)
     {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-            "brix_webdav_require_vo: failed to finalize rules for root \"%V\"",
+            "brix_require_vo: failed to finalize rules for root \"%V\"",
             &conf->common.root);
         return NGX_CONF_ERROR;
     }
@@ -277,37 +268,37 @@ static char *
 webdav_prepare_stage_and_cache(ngx_conf_t *cf,
     ngx_http_brix_webdav_loc_conf_t *conf)
 {
-    if (conf->upload_stage_dir.len > 0) {
+    if (conf->common.upload_stage_dir.len > 0) {
         brix_export_root_opts_t stage_opts;
-        stage_opts.directive_name = "brix_webdav_stage_dir";
+        stage_opts.directive_name = "brix_stage_dir";
         stage_opts.allow_write    = 1;
         stage_opts.required       = 0;
         stage_opts.canon_size     = sizeof(conf->upload_stage_dir_canon);
-        if (brix_prepare_export_root(cf, &conf->upload_stage_dir,
+        if (brix_prepare_export_root(cf, &conf->common.upload_stage_dir,
                 &stage_opts, conf->upload_stage_dir_canon) != NGX_CONF_OK)
         {
             return NGX_CONF_ERROR;
         }
         brix_stage_dir_register(conf->upload_stage_dir_canon);
     }
-    if (brix_assert_dir_outside_export(cf, "brix_webdav_stage_dir",
+    if (brix_assert_dir_outside_export(cf, "brix_stage_dir",
             conf->common.root_canon, conf->upload_stage_dir_canon) != NGX_OK)
     {
         return NGX_CONF_ERROR;
     }
-    if (conf->cache_root.len > 0) {
+    if (conf->common.cache_root.len > 0) {
         brix_export_root_opts_t cache_opts;
-        cache_opts.directive_name = "brix_webdav_cache_root";
+        cache_opts.directive_name = "brix_cache_root";
         cache_opts.allow_write    = 0;
         cache_opts.required       = 0;
-        cache_opts.canon_size     = sizeof(conf->cache_root_canon);
-        if (brix_prepare_export_root(cf, &conf->cache_root, &cache_opts,
-                                       conf->cache_root_canon) != NGX_CONF_OK)
+        cache_opts.canon_size     = sizeof(conf->common.cache_root_canon);
+        if (brix_prepare_export_root(cf, &conf->common.cache_root, &cache_opts,
+                                       conf->common.cache_root_canon) != NGX_CONF_OK)
         {
             return NGX_CONF_ERROR;
         }
-        if (brix_assert_dir_outside_export(cf, "brix_webdav_cache_root",
-                conf->common.root_canon, conf->cache_root_canon) != NGX_OK)
+        if (brix_assert_dir_outside_export(cf, "brix_cache_root",
+                conf->common.root_canon, conf->common.cache_root_canon) != NGX_OK)
         {
             return NGX_CONF_ERROR;
         }
@@ -347,14 +338,14 @@ webdav_require_verifier(ngx_conf_t *cf,
     if ((conf->auth == WEBDAV_AUTH_OPTIONAL
          || conf->auth == WEBDAV_AUTH_REQUIRED)
         && conf->cadir.len == 0 && conf->cafile.len == 0
-        && conf->token_jwks.len == 0 && conf->token_config.len == 0
-        && conf->token_macaroon_secret.len == 0 && conf->pwd_file.len == 0
+        && conf->common.token_jwks.len == 0 && conf->common.token_config.len == 0
+        && conf->common.token_macaroon_secret.len == 0 && conf->common.pwd_file.len == 0
         && conf->http_secretkey.len == 0)
     {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
             "brix_webdav: auth optional/required needs a credential verifier "
-            "— brix_webdav_cadir/cafile, brix_webdav_token_jwks/config/"
-            "macaroon_secret, or brix_webdav_pwd_file");
+            "— brix_trusted_ca / brix_trusted_ca_dir, brix_token_jwks / "
+            "brix_token_config / brix_macaroon_secret, or brix_pwd_file");
         return NGX_CONF_ERROR;
     }
 
@@ -373,11 +364,11 @@ static char *
 webdav_validate_ca_paths(ngx_conf_t *cf,
     ngx_http_brix_webdav_loc_conf_t *conf)
 {
-    if (webdav_validate_path(cf, "brix_webdav_cadir", &conf->cadir,
+    if (webdav_validate_path(cf, "brix_trusted_ca_dir", &conf->cadir,
                              WEBDAV_PATH_DIRECTORY, R_OK | X_OK) != NGX_OK
-        || webdav_validate_path(cf, "brix_webdav_cafile", &conf->cafile,
+        || webdav_validate_path(cf, "brix_trusted_ca", &conf->cafile,
                                 WEBDAV_PATH_REGULAR_FILE, R_OK) != NGX_OK
-        || webdav_validate_path(cf, "brix_webdav_crl", &conf->crl,
+        || webdav_validate_path(cf, "brix_crl", &conf->common.crl,
                                 WEBDAV_PATH_FILE_OR_DIRECTORY, R_OK) != NGX_OK)
     {
         return NGX_CONF_ERROR;
@@ -456,15 +447,15 @@ static char *
 webdav_validate_token_jwks_path(ngx_conf_t *cf,
     ngx_http_brix_webdav_loc_conf_t *conf)
 {
-    if (conf->token_jwks.len == 0) {
+    if (conf->common.token_jwks.len == 0) {
         return NGX_CONF_OK;
     }
-    if (conf->token_issuer.len == 0 || conf->token_audience.len == 0) {
+    if (conf->common.token_issuer.len == 0 || conf->common.token_audience.len == 0) {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
             "brix_webdav: brix_webdav_token_jwks requires brix_webdav_token_issuer and brix_webdav_token_audience");
         return NGX_CONF_ERROR;
     }
-    if (webdav_validate_path(cf, "brix_webdav_token_jwks", &conf->token_jwks,
+    if (webdav_validate_path(cf, "brix_token_jwks", &conf->common.token_jwks,
                              WEBDAV_PATH_REGULAR_FILE, R_OK) != NGX_OK)
     {
         return NGX_CONF_ERROR;
@@ -478,10 +469,10 @@ static char *
 webdav_validate_pwd_file_path(ngx_conf_t *cf,
     ngx_http_brix_webdav_loc_conf_t *conf)
 {
-    if (conf->pwd_file.len == 0) {
+    if (conf->common.pwd_file.len == 0) {
         return NGX_CONF_OK;
     }
-    if (webdav_validate_path(cf, "brix_webdav_pwd_file", &conf->pwd_file,
+    if (webdav_validate_path(cf, "brix_pwd_file", &conf->common.pwd_file,
                              WEBDAV_PATH_REGULAR_FILE, R_OK) != NGX_OK)
     {
         return NGX_CONF_ERROR;

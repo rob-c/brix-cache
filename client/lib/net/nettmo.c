@@ -25,11 +25,17 @@
  *
  * Env vars (EXPANDED — client-only extensions, not vanilla XRootD variables):
  *   XRDC_CONNECT_TIMEOUT_MS, XRDC_IO_TIMEOUT_MS.
+ * Stock-compat aliases (parity-audit §7.10 — the vanilla XRootD spellings,
+ * in SECONDS, honored when the native millisecond variable is unset):
+ *   XRD_CONNECTIONWINDOW → connect, XRD_REQUESTTIMEOUT → io,
+ *   XRD_STREAMTIMEOUT → stall deadline.
  *
  * Clean-room: C library + <stdatomic.h> only.
  */
 #include "brix.h"
+#include "cli/cli_hint.h"
 
+#include <limits.h>
 #include <stdatomic.h>
 #include <stdlib.h>
 #include <time.h>
@@ -42,18 +48,61 @@ static atomic_int g_connect_ms = 0;
 static atomic_int g_io_ms       = 0;
 
 /*
- * resolve_ms — layered timeout resolver for connect and io timeouts.
+ * stock_env_ms — read a vanilla XRootD seconds variable as milliseconds.
  *
- * WHAT: Resolves `slot` once: setter (already in slot) > env var > xrdrc
- *       [defaults] > compiled default. Caches the result back in `slot`
- *       so the resolution is a single atomic load on every subsequent call.
- * WHY:  Connect and io timeouts should be consistent across all sessions in
- *       a process, and the resolution order must be deterministic.
- * HOW:  Checks the cached slot first (set by an earlier call or by a CLI
- *       setter via brix_tmo_set_*), then falls through env → xrdrc → dflt.
+ * WHAT: Parses `stock_env` (a stock XRD_* variable, SECONDS per upstream
+ *       convention) and returns it converted to ms, clamped to INT_MAX on
+ *       overflow. Returns 0 when unset, empty, non-numeric, or <= 0.
+ *
+ * WHY: §7.10 drop-in compatibility: scripts written for the stock client set
+ *      XRD_CONNECTIONWINDOW=5 and expect a 5-SECOND window; silently reading
+ *      that as milliseconds (or ignoring it) is exactly the hazard the audit
+ *      flags. A hostile/absurd value must clamp, never overflow into a tiny
+ *      or negative timeout.
+ *
+ * HOW: strtol with explicit range guards; seconds > INT_MAX/1000 clamp to
+ *      INT_MAX ("effectively forever", matching the operator's intent).
  */
 static int
-resolve_ms(atomic_int *slot, const char *env, const char *xrdrc_key, int dflt)
+stock_env_ms(const char *stock_env)
+{
+    const char *e = getenv(stock_env);
+    char       *end;
+    long        secs;
+
+    if (e == NULL || e[0] == '\0') {
+        return 0;
+    }
+    secs = strtol(e, &end, 10);
+    if (end == e || secs <= 0) {
+        return 0;
+    }
+    if (secs > (long) (INT_MAX / 1000)) {
+        return INT_MAX;
+    }
+    return (int) (secs * 1000);
+}
+
+/*
+ * resolve_ms — layered timeout resolver for connect and io timeouts.
+ *
+ * WHAT: Resolves `slot` once: setter (already in slot) > native env var (ms)
+ *       > stock XRD_* env var (seconds, §7.10 alias) > xrdrc [defaults] >
+ *       compiled default. Caches the result back in `slot` so the resolution
+ *       is a single atomic load on every subsequent call.
+ * WHY:  Connect and io timeouts should be consistent across all sessions in
+ *       a process, and the resolution order must be deterministic: the
+ *       native millisecond spelling always beats the stock alias so BriX
+ *       configurations cannot be perturbed by leftover stock environment.
+ * HOW:  Checks the cached slot first (set by an earlier call or by a CLI
+ *       setter via brix_tmo_set_*), then env → stock env → xrdrc → dflt.
+ *       When both spellings are set to different effective values, a one-shot
+ *       TTY-gated note names the winner (values are printed — timeouts are
+ *       not secrets — matching the envalias divergence note contract).
+ */
+static int
+resolve_ms(atomic_int *slot, const char *env, const char *stock_env,
+    const char *xrdrc_key, int dflt)
 {
     int v = atomic_load_explicit(slot, memory_order_relaxed);
     if (v > 0) {
@@ -61,9 +110,19 @@ resolve_ms(atomic_int *slot, const char *env, const char *xrdrc_key, int dflt)
     }
     const char *e = getenv(env);
     int parsed = (e != NULL && e[0] != '\0') ? atoi(e) : 0;
+    int stock  = (stock_env != NULL) ? stock_env_ms(stock_env) : 0;
     if (parsed > 0) {
+        if (stock > 0 && stock != parsed) {
+            brix_cli_hint_once(env,
+                "note: both %s and %s are set and differ; using %s=%dms\n",
+                env, stock_env, env, parsed);
+        }
         atomic_store_explicit(slot, parsed, memory_order_relaxed);
         return parsed;
+    }
+    if (stock > 0) {
+        atomic_store_explicit(slot, stock, memory_order_relaxed);
+        return stock;
     }
     int xv;
     if (brix_xrdrc_default_ms(xrdrc_key, &xv)) {
@@ -78,6 +137,7 @@ int
 brix_tmo_connect_ms(void)
 {
     return resolve_ms(&g_connect_ms, "XRDC_CONNECT_TIMEOUT_MS",
+                      "XRD_CONNECTIONWINDOW",
                       "connect_timeout_ms", XRDC_TMO_CONNECT_DEFAULT_MS);
 }
 
@@ -85,6 +145,7 @@ int
 brix_tmo_io_ms(void)
 {
     return resolve_ms(&g_io_ms, "XRDC_IO_TIMEOUT_MS",
+                      "XRD_REQUESTTIMEOUT",
                       "io_timeout_ms", XRDC_TMO_IO_DEFAULT_MS);
 }
 
@@ -97,6 +158,7 @@ int
 brix_tmo_stall_ms(void)
 {
     return resolve_ms(&g_stall_ms, "XRDC_STALL_DEADLINE_MS",
+                      "XRD_STREAMTIMEOUT",
                       "stall_deadline_ms", 0 /* off by default */);
 }
 

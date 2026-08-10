@@ -1,7 +1,14 @@
 # Phase 100 — Ubuntu Drilldown: developing and testing BriX-Cache on Ubuntu 24.04
 
-**Status:** IN PROGRESS (2026-08-05) — environment reproduced end to end, full
-Python suite executed once, failures triaged. · **Owner:** platform
+> Number collision: "phase 100" also names the (unrelated) metalink + extreme
+> copy feature phase, `phase-100-metalink-and-extreme-copy.md`. Both keep the
+> number; this note is the disambiguation.
+
+**Status:** ✅ COMPLETE (2026-08-09) — environment reproduced end to end, the
+findings below triaged, and every open one since resolved: the full Python
+suite reached green on this box (see the port-ladder/orphan-reaper landing and
+the suite burndown), and the krb5 tier now provisions and PASSES (§6.2
+resolution note). · **Owner:** platform
 **Depends on:** nothing; purely additive documentation plus the small
 portability fixes listed in §5.
 **Scope:** `docs/refactor/` (this file), and the already-landed portability
@@ -328,7 +335,13 @@ This was the *only* such site in the suite — a sweep for `uuid4`, `random.`,
 
 ### 6.2 `krb5` fleet spec does not start
 
-Non-critical; the fleet continues without it and reports:
+**Resolved (2026-08-09):** `krb5-kdc`, `krb5-admin-server` and `krb5-user` are
+installed per §2.3, `kdc_helpers` produces the keytab, and the spec starts —
+KDC (11117) and acceptor nginx (11116) both listening, `test_krb5_auth.py`
+5/5 PASSED (no skips). The `/dev/shm/brix-creds` uid-33 wart below persists
+until removed with root; it is warn-only and the tier runs regardless.
+
+Original finding — non-critical; the fleet continues without it and reports:
 
 ```
 [registry] non-critical spec 'krb5' did not start ...

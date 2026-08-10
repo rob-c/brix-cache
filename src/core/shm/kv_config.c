@@ -257,17 +257,21 @@ brix_kv_zone_get(ngx_uint_t i)
 
 /* ---- `brix_kv_zone` directive setter ----
  *
- * WHAT: Parses `brix_kv_zone <name> <size> key=<bytes> val=<bytes>` and
- *       registers the zone. Returns NGX_CONF_OK, or NGX_CONF_ERROR on an
- *       invalid size, unknown/missing key=/val= parameters, or a duplicate name.
+ * WHAT: Parses `brix_kv_zone zone=<name>:<size> key=<bytes> val=<bytes>` and
+ *       registers the zone. Returns NGX_CONF_OK, or NGX_CONF_ERROR on a missing/
+ *       invalid zone=, invalid size, unknown/missing key=/val=, or a duplicate.
  *
  * WHY: The directive is valid in both the http{} and stream{} main blocks; the
  *      owning module tag is selected from cf->cmd_type so the zone is attached
- *      to the correct nginx module for shared-memory lifecycle.
+ *      to the correct nginx module for shared-memory lifecycle.  phase-101 W7:
+ *      the grammar was the positional `<name> <size> ...`; it now uses the
+ *      nginx-conventional `zone=name:size` shape shared with brix_rate_limit_zone
+ *      and brix_token_cache (hard change — the old positional form is rejected
+ *      with an EMERG naming the new shape).
  *
  * HOW:
- *   1. Parse the size argument; reject non-positive sizes.
- *   2. Walk the remaining args collecting key=/val= byte maxima; reject unknown.
+ *   1. Walk the args collecting zone=name:size / key= / val=; reject unknown.
+ *   2. Parse the size out of zone=; reject non-positive sizes.
  *   3. Require both key_max and val_max to be present and valid.
  *   4. Reject a duplicate name; allocate the handle from cf->pool.
  *   5. Select the owning module by cf->cmd_type and call brix_kv_configure().
@@ -276,32 +280,57 @@ char *
 brix_kv_zone_directive(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 {
     ngx_str_t   *value = cf->args->elts;
-    ngx_str_t    name  = value[1];
+    ngx_str_t    name, sizestr, spec;
+    u_char      *colon;
     ssize_t      size;
     size_t       key_max = 0;
     size_t       val_max = 0;
     ngx_uint_t   i;
-    brix_kv_t *kv;
+    brix_kv_t   *kv;
     void        *module;
 
-    size = ngx_parse_size(&value[2]);
-    if (size == NGX_ERROR || size <= 0) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                           "invalid brix_kv_zone size \"%V\"", &value[2]);
-        return NGX_CONF_ERROR;
-    }
+    (void) cmd; (void) conf;
 
-    for (i = 3; i < cf->args->nelts; i++) {
-        if (ngx_strncmp(value[i].data, "key=", 4) == 0) {
+    ngx_str_null(&name);
+    ngx_str_null(&sizestr);
+
+    for (i = 1; i < cf->args->nelts; i++) {
+        if (value[i].len > 5 && ngx_strncmp(value[i].data, "zone=", 5) == 0) {
+            spec.data = value[i].data + 5;
+            spec.len  = value[i].len - 5;
+            colon = ngx_strlchr(spec.data, spec.data + spec.len, ':');
+            if (colon == NULL) {
+                ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+                    "brix_kv_zone: expected zone=name:size");
+                return NGX_CONF_ERROR;
+            }
+            name.data    = spec.data;
+            name.len     = colon - spec.data;
+            sizestr.data = colon + 1;
+            sizestr.len  = spec.data + spec.len - (colon + 1);
+        } else if (value[i].len > 4 && ngx_strncmp(value[i].data, "key=", 4) == 0) {
             key_max = ngx_atoi(value[i].data + 4, value[i].len - 4);
-        } else if (ngx_strncmp(value[i].data, "val=", 4) == 0) {
+        } else if (value[i].len > 4 && ngx_strncmp(value[i].data, "val=", 4) == 0) {
             val_max = ngx_atoi(value[i].data + 4, value[i].len - 4);
         } else {
             ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                               "invalid brix_kv_zone parameter \"%V\"",
-                               &value[i]);
+                "brix_kv_zone: unexpected parameter \"%V\" — expected "
+                "zone=name:size key=<bytes> val=<bytes>", &value[i]);
             return NGX_CONF_ERROR;
         }
+    }
+
+    if (name.len == 0 || sizestr.len == 0) {
+        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            "brix_kv_zone: missing zone=name:size");
+        return NGX_CONF_ERROR;
+    }
+
+    size = ngx_parse_size(&sizestr);
+    if (size == NGX_ERROR || size <= 0) {
+        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+                           "invalid brix_kv_zone size \"%V\"", &sizestr);
+        return NGX_CONF_ERROR;
     }
 
     if (key_max == 0 || key_max == (size_t) NGX_ERROR

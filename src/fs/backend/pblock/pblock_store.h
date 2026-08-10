@@ -58,6 +58,11 @@ typedef struct {
     pblock_xform_t  xform;                /* F12/F13: per-block transform (crypt/
                                            * zstd). kind NONE ⇒ raw block files, hot
                                            * path unchanged (opts xform=crypt:…/zstd)*/
+    int             pack;                 /* phase-88 W2: 1 ⇒ small-blob arena live
+                                           * (pack/ segments + catalog pack table;
+                                           * opts pack=1)                          */
+    int64_t         pack_max;             /* W2: largest blob the staged commit
+                                           * admits to the arena                   */
 } pblock_state_t;
 
 /* ---- block-store engine (pblock_store.c) ---------------------------------- */

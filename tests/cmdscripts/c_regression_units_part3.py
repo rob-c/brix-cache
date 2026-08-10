@@ -290,6 +290,7 @@ RUNNERS = {
     "oci_parse": oci_parse,
     "frm_stage_metrics": frm_stage_metrics,
     "tpc_progress_total": tpc_progress_total,
+    "tpc_xfr_cap": tpc_xfr_cap,
     "tier_s3_creds": tier_s3_creds,
 }
 

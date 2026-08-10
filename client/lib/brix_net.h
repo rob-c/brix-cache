@@ -149,6 +149,10 @@ typedef struct {
     unsigned  single_slash_path : 1;
     /* --- diagnostics (§15) --- */
     brix_diag diag;              /* wire-trace / timing state (off unless armed) */
+    int       forked;            /* §7.7: set by the atfork child handler after the
+                                  * inherited fd was neutered — every op fails with
+                                  * a non-retryable "reconnect in the child" error
+                                  * so no byte can reach the parent's stream */
     char      sec_list[256];     /* the login "&P=…" sec list, for `xrdfs explain` */
 } brix_conn;
 typedef struct {

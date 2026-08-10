@@ -239,6 +239,14 @@ brix_authdb_format  xrdacc;   # or: native (the default)
 brix_authdb         /etc/brix/authdb;
 ```
 
+> **Plane spelling (phase-101 W5).** The `brix_authdb_format` / `brix_authdb` /
+> `brix_authdb_refresh` / `brix_authdb_audit` names shown throughout this section
+> are the **stream** (`root://`) reference-plane spellings. On the **HTTP** planes
+> (WebDAV/S3/cvmfs) the XrdAcc engine is `brix_acc_authdb` + `brix_acc_format` /
+> `brix_acc_audit` / `brix_acc_refresh`, and bare `brix_authdb` selects the native
+> engine. See
+> [migration-unified-grammar.md](../03-configuration/migration-unified-grammar.md#phase-101-authdb-engine-split-2026-08--w5).
+
 ### 4.1 XrdAcc engine (`brix_authdb_format xrdacc`) — recommended
 
 Full grammar, privilege letters, accumulation order, templates and the legacy
@@ -581,10 +589,10 @@ u *         /data  rl                 # everyone else: read
 
 | Directive | Context | Arg | Purpose |
 |---|---|---|---|
-| `brix_authdb_format` | srv / loc | `native`\|`xrdacc` | choose the authz engine |
-| `brix_authdb` | srv / loc | `<path>` | the authdb rule file |
-| `brix_authdb_refresh` | srv / loc | `<secs>` | hot-reload on mtime change (0 = off) |
-| `brix_authdb_audit` | srv / loc | `none`\|`deny`\|`grant`\|`all` | log authz decisions |
+| `brix_authdb_format` (HTTP: `brix_acc_format`) | stream srv / HTTP loc | `native`\|`xrdacc` | choose the authz engine (W5: HTTP spelling is `brix_acc_format`) |
+| `brix_authdb` | stream srv / HTTP loc | `<path>` | the authdb rule file. On HTTP: bare `brix_authdb` = native engine, `brix_acc_authdb` = XrdAcc |
+| `brix_authdb_refresh` (HTTP: `brix_acc_refresh`) | stream srv / HTTP loc | `<secs>` | hot-reload on mtime change (0 = off) |
+| `brix_authdb_audit` (HTTP: `brix_acc_audit`) | stream srv / HTTP loc | `none`\|`deny`\|`grant`\|`all` | log authz decisions |
 | `brix_require_vo` | srv | `<path> <vo>` | tier-2 VO requirement on a prefix |
 | `brix_sss_keytab` | srv | `<path>` | SSS credential → fixed UNIX user/group |
 | `brix_inherit_parent_group` | srv | `<path>` | created files/dirs inherit parent group + setgid |

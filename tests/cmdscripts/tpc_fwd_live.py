@@ -151,7 +151,7 @@ class TpcHarness(ForwardHarness):
         ssl_verify_client optional;
         ssl_verify_depth 10;
         brix_webdav_proxy_certs on;"""
-            authblock = (f"brix_webdav_cafile {CA_CERT};\n"
+            authblock = (f"brix_trusted_ca {CA_CERT};\n"
                          "            brix_webdav_auth required;")
         else:
             # TOKEN source is deliberately TOKEN-ONLY (no ssl_verify_client, no
@@ -160,7 +160,7 @@ class TpcHarness(ForwardHarness):
             sslblock = (f"listen {BIND_HOST}:{port} ssl;\n"
                         f"        ssl_certificate     {SERVER_CERT};\n"
                         f"        ssl_certificate_key {SERVER_KEY};")
-            authblock = (f"brix_webdav_cafile {CA_CERT};\n"
+            authblock = (f"brix_trusted_ca {CA_CERT};\n"
                          "            brix_webdav_auth required;\n"
                          f"            brix_webdav_token_jwks     {self.tok_jwks};\n"
                          f"            brix_webdav_token_issuer   {self.tok_issuer};\n"
@@ -230,7 +230,7 @@ stream {{
             (d / sub).mkdir(exist_ok=True)
         log = d / "logs/e.log"
         if cred == "gsi":
-            auth = (f"brix_webdav_cafile {CA_CERT};\n"
+            auth = (f"brix_trusted_ca {CA_CERT};\n"
                     "            brix_webdav_auth required;\n"
                     "            brix_backend_delegation passthrough;\n"
                     f"            brix_storage_credential_dir {d}/cred;")
@@ -243,7 +243,7 @@ stream {{
                    f"            brix_webdav_tpc_cafile {CA_CERT};\n"
                    "            brix_webdav_tpc_timeout 15;")
         else:
-            auth = (f"brix_webdav_cafile {CA_CERT};\n"
+            auth = (f"brix_trusted_ca {CA_CERT};\n"
                     "            brix_webdav_auth required;\n"
                     f"            brix_webdav_token_jwks     {self.tok_jwks};\n"
                     f"            brix_webdav_token_issuer   {self.tok_issuer};\n"

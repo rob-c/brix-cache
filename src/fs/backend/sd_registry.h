@@ -68,6 +68,18 @@ typedef struct {
     int64_t     extent_size;
 } brix_sd_block_conf_t;
 
+/* The sizes-only SYNTHETIC backend (sd_mirage.c, §3 row 14): stores nothing —
+ * every path opens read-only as a regular file of the configured size, and reads
+ * return the deterministic offset pattern ((o*131+7)&0xFF). Protocol/throughput
+ * testing with zero storage behind the export. */
+extern const brix_sd_driver_t brix_sd_mirage_driver;
+
+/* driver_conf for brix_sd_mirage_driver.init(): the synthetic size in bytes that
+ * every path reports and serves (from `brix_storage_backend mirage:<size>`). */
+typedef struct {
+    int64_t size;
+} brix_sd_mirage_conf_t;
+
 /* The driver used for an export that selects no explicit backend (today: POSIX).
  * Lets the VFS resolve "the default backend" without naming a concrete driver. */
 const brix_sd_driver_t *brix_sd_default_driver(void);

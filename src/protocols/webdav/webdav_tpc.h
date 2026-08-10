@@ -29,6 +29,15 @@ typedef struct {
     ngx_int_t              result;     /* HTTP status; set before completed=1 */
     ngx_uint_t             n_streams;
     off_t                  total_size; /* from HEAD; -1 if unknown */
+
+    /* §6.10 WLCG "RemoteConnections:" perf-marker line — the CONNECTED remote
+     * endpoint per stream ("tcp:<ip>:<port>" / "tcp:[<ipv6>]:<port>", from
+     * CURLINFO_PRIMARY_IP/PORT, never URL text). remote[] is written exactly
+     * once by the curl thread on the stream's first write callback, then
+     * remote_ready[i] flips to 1 (write-release via ngx_memory_barrier) so
+     * the marker timer on the event loop never reads a torn string. */
+    char                   remote[BRIX_TPC_MAX_STREAMS][64];
+    volatile ngx_atomic_t  remote_ready[BRIX_TPC_MAX_STREAMS];
 } tpc_ms_progress_t;
 
 /*
@@ -65,10 +74,9 @@ void ngx_http_brix_webdav_tpc_create_loc_conf(
 void ngx_http_brix_webdav_tpc_merge_loc_conf(
     ngx_http_brix_webdav_loc_conf_t *conf,
     ngx_http_brix_webdav_loc_conf_t *prev);
-/* brix_webdav_tpc_verify_checksum <alg> setter (tpc_config.c): validates the
- * RFC-3230 algorithm name at parse time and stores its canonical form. */
-char *brix_webdav_conf_set_tpc_verify_digest(ngx_conf_t *cf,
-    ngx_command_t *cmd, void *conf);
+/* brix_tpc_verify_checksum moved to the common module (phase-101 W4) — the shared
+ * setter brix_conf_set_tpc_verify_checksum in src/core/config/policy.c validates
+ * on|off|<alg> and stores into common.tpc_verify_checksum. */
 /* TPC header lookup, value comparison, and NUL-copy helpers.
  * Macro aliases to compat equivalents — call sites unchanged, no wrapper functions. */
 #define webdav_tpc_find_header(r, name, name_len) \

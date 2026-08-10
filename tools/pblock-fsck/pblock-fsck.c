@@ -17,6 +17,11 @@
  *         REPLAY-DIFF <path> <why>  — --replay only (F17): the namespace state
  *                                    re-derived from a source catalog's oplog
  *                                    diverges from that catalog's objects table
+ *         PACK-* / PACK <blob> …    — phase-88 W2 packed-arena legs (fragment
+ *                                    _pblock_fsck_pack.c): record shape/crc,
+ *                                    size divergence, orphan rows/records,
+ *                                    dual-layout residue, torn tails; --gc
+ *                                    reclaims rows, striped copies + dead segs
  *       Exit status is the finding-count class so pytest can assert on it:
  *         0 clean · 1 findings present · 2 usage/IO error · 3 refused (schema).
  *
@@ -230,6 +235,10 @@ blobset_collect(sqlite3 *db, struct blobset *bs, const char *table,
     sqlite3_finalize(st);
 }
 
+/* phase-88 W2: the packed-arena legs (pack_row_len / check_pack) + usage().
+ * A #include'd fragment so the tool keeps its single-file `cc` contract. */
+#include "_pblock_fsck_pack.c"
+
 /* Pass 1: each file row → check its blob dir + block extent. */
 static int
 check_rows(sqlite3 *db, const struct opts *o, struct blobset *bs)
@@ -257,6 +266,20 @@ check_rows(sqlite3 *db, const struct opts *o, struct blobset *bs)
         blobset_add(bs, blob);
         dsize = disk_size(o->root, blob, bsz);
         if (dsize < 0) {
+            /* phase-88 W2: a PACKED blob rests with no blob dir at all — its
+             * bytes are an arena record. That is the healthy state, not a
+             * dangling row (check_pack verifies the record itself); only a
+             * size divergence is a finding here. */
+            long long plen = pack_row_len(db, blob);
+
+            if (plen >= 0) {
+                if (plen != csize) {
+                    printf("PACK-SIZE %s cat=%lld rec=%lld\n",
+                           path ? path : "?", csize, plen);
+                    g_findings++;
+                }
+                continue;
+            }
             printf("DANGLING %s\n", path ? path : "?");
             g_findings++;
             if (o->gc) {
@@ -375,25 +398,6 @@ check_orphans(const struct opts *o, const struct blobset *bs)
     }
     closedir(d1);
     return 0;
-}
-
-/* table_present — opt-in tables (csi, usage) only exist on exports that armed
- * the matching feature; absence is not a finding, just "nothing to verify". */
-static int
-table_present(sqlite3 *db, const char *name)
-{
-    sqlite3_stmt *st;
-    int           found = 0;
-
-    if (sqlite3_prepare_v2(db,
-            "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?1;",
-            -1, &st, NULL) != SQLITE_OK) {
-        return 0;
-    }
-    sqlite3_bind_text(st, 1, name, -1, SQLITE_STATIC);
-    found = (sqlite3_step(st) == SQLITE_ROW);
-    sqlite3_finalize(st);
-    return found;
 }
 
 /* verify_csi — F3 oracle: for every file row that has csi rows, re-CRC each
@@ -1356,24 +1360,6 @@ do_replay(sqlite3 *db, const char *srcdb)
     return g_findings > 0 ? 1 : 0;
 }
 
-static void
-usage(void)
-{
-    fprintf(stderr,
-        "usage: pblock-fsck <export-root> [--gc [--trash-ttl <secs>]] [--repair]"
-        " [--verify-csi] [--verify-usage] [--verify-refs]\n"
-        "       pblock-fsck <export-root> --snapshot <name> | --restore <name>\n"
-        "       pblock-fsck <export-root> --list-versions <path> | --list-trash"
-        " | --undelete <path>\n"
-        "       pblock-fsck <fresh-export-root> --replay <source-catalog.db>\n"
-        "  cross-check catalog.db against the block store, take/restore an F6"
-        " snapshot, inspect/recover F11 versions + trash, or re-execute a"
-        " source oplog (F17) against a fresh export and diff the end-state.\n"
-        "  --gc --trash-ttl <secs> also purges trash entries older than <secs>"
-        " (0 = all).\n"
-        "  exit: 0 clean, 1 findings, 2 error, 3 refused (unknown schema/name)\n");
-}
-
 int
 main(int argc, char **argv)
 {
@@ -1493,6 +1479,9 @@ main(int argc, char **argv)
     }
     if (rc == 0 && o.verify_refs) {
         rc = verify_refs(db);
+    }
+    if (rc == 0) {
+        rc = check_pack(db, &o, &bs);   /* phase-88 W2: the packed arena */
     }
     free(bs.ids);
     sqlite3_close(db);

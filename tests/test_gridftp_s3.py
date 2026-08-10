@@ -1,7 +1,7 @@
 """
 GridFTP gateway writing THROUGH an s3:// storage backend (phase-82).
 
-The gateway's export is backed by ``brix_gridftp_storage_backend s3://...`` — an
+The gateway's export is backed by ``brix_storage_backend s3://...`` — an
 object store, not a seekable filesystem. That exercises the *staged* arm of the
 unified ``brix_vfs_writer``: a STOR is buffered into a temp/multipart upload and
 atomically published on commit, then (verify-write on) read back through the
@@ -10,7 +10,7 @@ bytes are the object, so this is the backend where the common verified-write cal
 matters most.
 
 The s3:// SigV4 keys reach sd_remote via a stream-scope ``brix_credential`` block
-named by ``brix_gridftp_storage_credential``; the per-worker ``init_process``
+named by ``brix_storage_credential``; the per-worker ``init_process``
 replay (ftp_module.c) re-applies it after fork. A green STOR round-trip is
 therefore also proof the credential survives worker spawn.
 

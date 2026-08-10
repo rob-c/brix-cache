@@ -138,6 +138,31 @@ Set to any value to request GSI proxy delegation during the handshake
 (presence-gated: the value is not inspected).
 Default: unset (no delegation).
 Consumers: GSI authentication (xrdcp, xrdfs, xrdgsitest).
+.SH STOCK XROOTD COMPATIBILITY (XRD_*)
+The vanilla XRootD client reads roughly forty \fBXRD_*\fR environment
+variables.
+brix-client honors the following as \fIaliases\fR of its native spellings
+(the native \fBXRDC_*\fR millisecond variable always wins when both are set,
+and a one-shot note names the winner):
+.TP
+.B XRD_CONNECTIONWINDOW
+Stock connect window in \fIseconds\fR; alias of
+\fBXRDC_CONNECT_TIMEOUT_MS\fR (\[mu]1000).
+.TP
+.B XRD_REQUESTTIMEOUT
+Stock per-request timeout in \fIseconds\fR; alias of
+\fBXRDC_IO_TIMEOUT_MS\fR (\[mu]1000).
+.TP
+.B XRD_STREAMTIMEOUT
+Stock inactive-stream timeout in \fIseconds\fR; alias of
+\fBXRDC_STALL_DEADLINE_MS\fR (\[mu]1000).
+Setting it \fIenables\fR the stall watchdog (native default: off).
+.PP
+Every other set \fBXRD_*\fR variable is \fInot\fR honored; when standard
+error is a terminal, the first connection prints one note listing the
+ignored names (see HINT SUPPRESSION), so a stock environment never changes
+behavior silently.
+Values are never printed.
 .SH TOOL-SPECIFIC VARIABLES
 .TP
 .B XRDSTORASCAN_PASSWORD

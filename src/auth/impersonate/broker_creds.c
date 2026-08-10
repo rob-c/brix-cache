@@ -20,7 +20,7 @@
  * while KEEPING only CAP_SETUID/CAP_SETGID — so nothing runs as root after the
  * master-side rootfd open; the broker's base/idle identity is unprivileged and
  * it holds exactly the two capabilities impersonation needs.  Set by the
- * lifecycle layer (from brix_impersonation_broker_user) before broker_run; the
+ * lifecycle layer (from brix_idmap_broker_user) before broker_run; the
  * forked broker inherits them.  (uid_t)-1 => stay as the current uid.
  */
 uid_t brix_imp_broker_user_uid = (uid_t) -1;
@@ -74,7 +74,7 @@ imp_resolve_service_ids(ngx_log_t *log, uid_t *svc_uid, gid_t *svc_gid)
             "impersonate broker: service user resolves to root (uid 0)",
             "the broker must run as an unprivileged account so it cannot be "
             "abused to act as root",
-            "set brix_impersonation_broker_user to a dedicated non-root "
+            "set brix_idmap_broker_user to a dedicated non-root "
             "account");
         return -1;
     }
@@ -298,7 +298,7 @@ brix_imp_broker_drop_caps(ngx_log_t *log)
     if (geteuid() == 0 && log) {
         ngx_log_error(NGX_LOG_WARN, log, 0,
             "impersonate broker: running as root (CAP_SETUID/SETGID only) — set "
-            "brix_impersonation_broker_user to a dedicated non-root account for "
+            "brix_idmap_broker_user to a dedicated non-root account for "
             "defense in depth");
     }
 

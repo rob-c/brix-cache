@@ -71,8 +71,8 @@
 typedef struct {
     ngx_http_brix_shared_conf_t common; /* enable, root, root_canon, allow_write,
                                              thread_pool_name, thread_pool */
-    ngx_str_t    cache_root;  /* optional read-through cache root path */
-    char         cache_root_canon[PATH_MAX]; /* canonical cache root; "" = disabled */
+    /* cache_root + cache_root_canon moved to the shared preamble (common.*) —
+     * phase-101 W8; brix_cache_root is registered by the common module. */
     ngx_str_t    bucket;      /* bucket name to strip from request path  */
     ngx_str_t    access_key;  /* AWS access key ID (empty → anonymous)   */
     ngx_str_t    secret_key;  /* AWS secret access key                   */
@@ -97,11 +97,10 @@ typedef struct {
      * query carries "?xrdcl.unzip=<member>" serves that member of the archive
      * object (stored + deflate).  zip_cd_max_bytes caps the central-directory
      * read (bomb guard; default 16 MiB). */
-    ngx_flag_t   zip_access;
-    size_t       zip_cd_max_bytes;
+    /* zip_access/zip_cd_max_bytes moved to common preamble (W4). */
 
-    /* ---- XrdAcc authorization engine (off by default) ---- */
-    brix_acc_http_t  acc;    /* settings + per-worker state */
+    /* XrdAcc authorization engine moved to the shared preamble (common.acc) in
+     * phase-101 W2 — registered once on the common module, read via common.acc. */
 
     /* ---- WLCG bearer-token authentication (off by default) ----
      * When brix_s3_token on, the auth gate in s3_verify_sigv4 intercepts Bearer
@@ -110,12 +109,14 @@ typedef struct {
      * request that carries neither Bearer nor SigV4 credentials is rejected with
      * 403 AccessDenied rather than passing anonymously. */
     ngx_flag_t       token_enable;                /* brix_s3_token on|off           */
-    ngx_str_t        token_jwks;                  /* path to JWKS public-key file    */
-    ngx_str_t        token_issuer;                /* expected "iss" claim            */
-    ngx_str_t        token_audience;              /* expected "aud" claim            */
-    ngx_int_t        token_clock_skew;            /* exp/nbf grace period in seconds */
+    /* token_jwks/issuer/audience/clock_skew moved to common preamble (W4). */
     brix_jwks_key_t  jwks_keys[BRIX_MAX_JWKS_KEYS]; /* loaded at config time        */
     int              jwks_key_count;              /* valid keys in jwks_keys[]       */
+    /* phase-101 W5.2c: this export's OWN finalized copy of common.authdb_rules
+     * (deep-copied + realpath'd against this location's root_canon). Enforced in
+     * the S3 access phase; separate from the shared source so a webdav sibling
+     * finalizing it against a different root cannot mis-resolve this plane. */
+    ngx_array_t     *authdb_final;
 } ngx_http_s3_loc_conf_t;
 
 typedef struct {

@@ -16,18 +16,33 @@ Three rules cover all four protocols (`brix_root`, `brix_webdav`, `brix_s3`, `br
   plane) and by the stream module (stream plane); valid at `http|server|location` (or
   stream `main|server`); merged main→srv→loc so a `server{}` block can configure storage
   once and every brix location inherits it: `brix_export`, `brix_storage_backend`,
-  `brix_cache_store`, `brix_cache_verify`, `brix_cache_max_object`, `brix_cache_evict_at`,
-  `brix_cache_evict_to`, `brix_cache_index_cache`, `brix_cache_meta`,
+  `brix_cache_store`, `brix_cache_root`, `brix_cache_verify`, `brix_cache_max_object`,
+  `brix_cache_evict_at`, `brix_cache_evict_to`, `brix_cache_index_cache`, `brix_cache_meta`,
   `brix_cache_slice_size`, `brix_cache_prefetch`, `brix_cache_prefetch_window`,
-  `brix_cache_only_if_cached`, `brix_stage`, `brix_stage_store`,
-  `brix_stage_flush`, `brix_thread_pool`.
-- **Bare `brix_*` cross-protocol directives** — work identically across all protocols:
-  `brix_allow_write`, `brix_read_only`, `brix_read_only_public` (stream only),
-  `brix_compress`, `brix_ktls`, `brix_metrics`,
-  `brix_health`, `brix_credential`.
+  `brix_cache_only_if_cached`, `brix_cache_uvkeep`, `brix_cache_max_bytes`,
+  `brix_stage`, `brix_stage_store`, `brix_stage_flush`, `brix_thread_pool`.
+- **Bare `brix_*` cross-protocol directives** — one spelling that works identically on
+  every plane (registered once by the common owner and adopted into each protocol conf).
+  Storage/lifecycle: `brix_allow_write`, `brix_read_only`,
+  `brix_read_only_public` (stream only), `brix_compress`, `brix_ktls`,
+  `brix_metrics`, `brix_health`, `brix_credential`, `brix_upload_resume`, `brix_stage_dir`,
+  `brix_zip_access`, `brix_pblock_block_size`. Authorization / trust (phase-101 W4):
+  `brix_require_vo`, `brix_protbind`, `brix_pwd_file`, `brix_macaroon_secret`,
+  `brix_token_jwks`, `brix_token_issuer`, `brix_token_audience`, `brix_token_clock_skew`,
+  `brix_token_config`, `brix_trusted_ca`, `brix_trusted_ca_dir`, `brix_crl`, `brix_crl_mode`,
+  `brix_signing_policy`, `brix_vomsdir`, `brix_voms_cert_dir`. HTTP-TPC SSRF policy:
+  `brix_tpc_allow_local`, `brix_tpc_allow_private`, `brix_tpc_source_guard`,
+  `brix_tpc_source_allow`, `brix_tpc_require_source_size`, `brix_tpc_verify_checksum`.
+  Per-request identity (phase-101 W6): the `brix_idmap*` family.
 
 The only remaining per-protocol directive families are behavior specific to one protocol
-(`brix_cvmfs_*`, `brix_scvmfs_*`, `brix_s3_*` auth, `brix_webdav_*` TPC/auth/CORS, …).
+(`brix_cvmfs_*`, `brix_scvmfs_*`, `brix_s3_*` auth, `brix_webdav_*` TPC-transport/CORS, …).
+
+> **Renamed a prefixed directive?** Every phase-101 old→new spelling (the de-prefixings
+> above plus the W6 role renames — `brix_ocsp`, `brix_dashboard_scan_*`, `brix_idmap*`,
+> the CA/trust quartet) is listed in
+> [migration-unified-grammar.md](migration-unified-grammar.md). Old names are hard-removed:
+> nginx reports a stock `unknown directive`, never a silent alias.
 
 ---
 
@@ -172,6 +187,39 @@ brix_stage_dir /srv/fast/upload-staging;
 
 ---
 
+### `brix_posc_persist <auto|manual|off> [hold <time>]`
+
+**Default:** `auto` (no grace period)
+
+The XRootD `ofs.persist` analog. A hard crash (SIGKILL, power loss) during a
+non-staged write leaves a `<final>.xrd-tmp.<pid>.<rand>` temp orphaned in the
+export tree. At worker startup BriX reaps such orphans whose owner process is
+**dead**, while keeping any whose owner is still **alive** (an in-flight write of
+a draining worker during a reload). This directive governs that recovery:
+
+- **`auto`** — reap dead-owner orphans (the historical, default behaviour).
+- **`manual`** / **`off`** — **keep** orphans in place for an operator to inspect
+  or recover manually. (BriX POSC is temp+fsync+rename with no separate tracked
+  POSC-state database, so `manual` and `off` both mean "do not auto-reap".)
+- **`hold <time>`** — a grace period. Under `auto`, an orphan is reaped only once
+  it has been idle at least `<time>` (measured from its mtime), so a temp whose
+  writer is about to reconnect and resume is not removed out from under it. A
+  temp with a future mtime (clock skew) is treated as fresh and kept.
+
+The reaper runs once at worker-0 startup, so the policy is **node-global**: the
+last `brix_posc_persist` in the configuration wins, and a server block without
+the directive never overrides one that has it. Changing a running node's policy
+requires an explicit directive — a reload that *removes* it keeps the last
+explicit value until the next full restart (the fail-safe direction: orphans are
+kept, never wrongly deleted).
+
+```nginx
+brix_posc_persist manual;              # keep crash orphans for manual recovery
+brix_posc_persist auto hold 1h;        # reap, but spare orphans younger than 1h
+```
+
+---
+
 ### `brix_auth none|gsi|token|both`
 
 **Default:** `none`
@@ -185,6 +233,70 @@ Authentication mode:
 
 ```nginx
 brix_auth gsi;
+```
+
+---
+
+### `brix_authdb <path>` — native u/g/p authorization
+
+**Context:** stream `server{}` (`brix_root`) · HTTP `location` (`brix_webdav`)
+
+Path to a native `u/g/p/a` authorization-rule file (per-DN/VO/host-CIDR ACLs,
+6 privilege bits, longest-prefix match). On the stream (`root://`) plane this is
+the engine entry; the runtime engine is chosen by `brix_authdb_format`
+(`native` default / `xrdacc`). On the **HTTP** plane bare `brix_authdb` is the
+**native** engine, enforced by the WebDAV access phase for READ methods — reach
+the XrdAcc engine on HTTP via `brix_acc_authdb` instead (phase-101 W5). See
+[XrdAcc authorization](../06-authentication/authorization-xrdacc.md) and the
+[migration guide](migration-unified-grammar.md#phase-101-authdb-engine-split-2026-08--w5).
+
+```nginx
+# stream: engine chosen by brix_authdb_format
+brix_authdb        /etc/brix/authdb;
+brix_authdb_format xrdacc;           # stream-only tuner spelling
+
+# HTTP (WebDAV): bare name = native u/g/p engine
+location /dav/ { brix_webdav on; brix_authdb /etc/brix/authdb; }
+```
+
+---
+
+### `brix_acc_authdb <path>` — XrdAcc engine (HTTP)
+
+**Context:** HTTP `location`/`server{}`/`http{}` (all brix HTTP protocols)
+
+The XrdAcc-engine entry point on the HTTP planes (WebDAV/S3/cvmfs), with tuners
+`brix_acc_format` (`native|xrdacc`), `brix_acc_audit`
+(`none|deny|grant|all`), `brix_acc_refresh <secs>`, and the OS/host resolution
+family (`brix_acc_gidlifetime`, `brix_acc_pgo`, `brix_acc_resolve_hosts`, …).
+On the stream reference plane the equivalents keep the `brix_authdb_*` spellings
+(phase-101 W5: prefix names the engine on HTTP).
+
+```nginx
+location /s3/ { brix_s3 on; brix_s3_bucket b;
+    brix_acc_authdb /etc/brix/authdb;
+    brix_acc_format xrdacc;
+    brix_acc_audit  all;
+    brix_acc_refresh 60;
+}
+```
+
+---
+
+### `brix_gsi_verify_depth <n>`
+
+**Default:** `0` (unlimited)
+
+Cap the maximum X.509 chain depth accepted when verifying a client's GSI
+proxy/certificate at `root://` login — the `xrd.tlsca verdepth` analog. `<n>` is
+passed to `X509_STORE_CTX_set_depth`, so a client presenting a chain with more
+than `<n>` intermediate CAs is rejected. `0` (the default) imposes no limit from
+BriX's side (OpenSSL's built-in ceiling still applies), byte-identical to a
+server without the directive. Use it to bound absurdly deep proxy/intermediate
+chains on a GSI listener.
+
+```nginx
+brix_gsi_verify_depth 4;
 ```
 
 ---
@@ -259,6 +371,72 @@ server {
     brix_trusted_ca      /etc/grid-security/certificates/ca.pem;
     brix_tls on;
 }
+```
+
+---
+
+### `brix_tls_ciphers <list>`
+
+**Default:** empty (OpenSSL defaults)
+
+Pin the OpenSSL cipher list on the `root://` in-protocol TLS context — the
+`xrd.tlsciphers` analog, with the same scope and semantics as nginx's own
+`ssl_ciphers` directive (`SSL_CTX_set_cipher_list`, governing TLSv1.2 and below;
+TLSv1.3 cipher suites stay OpenSSL's defaults). Empty (the default) leaves the
+OpenSSL defaults untouched.
+
+A list that matches **no** ciphers this build can offer is a hard configuration
+error (`nginx -t` fails) rather than a silent fallback to the OpenSSL defaults —
+so a typo can never leave the listener quietly more permissive than intended.
+
+```nginx
+brix_tls on;
+brix_tls_ciphers ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384;
+```
+
+Governs only the TLSv1.2-and-below cipher list. To restrict the **TLSv1.3**
+suites — which is where a modern connection actually negotiates — use
+`brix_tls_ciphersuites`.
+
+---
+
+### `brix_tls_ciphersuites <list>`
+
+**Default:** empty (OpenSSL defaults)
+
+Pin the **TLSv1.3** cipher-suite list on the `root://` in-protocol TLS context
+(`SSL_CTX_set_ciphersuites`) — the companion to `brix_tls_ciphers`, which governs
+only TLSv1.2 and below. Because TLSv1.3 is the default protocol on any modern
+client/OpenSSL, this is the knob that actually restricts a present-day
+connection's ciphers. Suite names use the TLSv1.3 spelling
+(`TLS_AES_256_GCM_SHA384`, `TLS_CHACHA20_POLY1305_SHA256`, …). Empty (the
+default) leaves OpenSSL's defaults untouched.
+
+As with `brix_tls_ciphers`, a list matching **no** suites this build can offer is
+a hard configuration error (`nginx -t` fails), never a silent fallback.
+
+```nginx
+brix_tls on;
+brix_tls_ciphersuites TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256;
+```
+
+---
+
+### `brix_tls_reuse on|off`
+
+**Default:** `on`
+
+Controls TLS session resumption on the `root://` in-protocol TLS context — the
+`xrootd.tlsreuse` analog. `on` (the default) leaves the OpenSSL/nginx behaviour
+untouched. `off` disables **both** the server session cache and TLS session
+tickets, so every connection performs a full handshake — use it where
+per-connection forward secrecy matters and no resumption state should be
+retained (or replayable). Governs only the root:// TLS context; the HTTP side is
+controlled by nginx's own `ssl_session_cache` / `ssl_session_tickets`.
+
+```nginx
+brix_tls on;
+brix_tls_reuse off;
 ```
 
 ---
@@ -682,6 +860,277 @@ brix_ckscan_max_files 100000;
 
 ---
 
+### `brix_oss_maxsize <size>`
+
+**Default:** `0` (no cap)
+
+The `oss.maxsize` create-size cap: refuse a root:// data write whose **end**
+offset (offset + length) would push the file past this. Enforced across the
+whole native write plane (`kXR_write` / `kXR_pgwrite` / `kXR_writev`), so a
+client that omits or understates its `oss.asize` hint is still stopped at the
+byte that would cross the limit; a refused write commits nothing. `0` keeps the
+historical behaviour (no cap).
+
+```nginx
+brix_oss_maxsize 10g;
+```
+
+---
+
+### `brix_oss_cgroup <name>`
+
+**Default:** `default`
+
+The space-group name the `kXR_Qspace` report advertises as `oss.cgroup` — the
+label accounting tools key on. A single-partition site can name its group here;
+the value is emitted verbatim into the `&`-joined `oss.*` report, so the name
+may not contain a CGI-structural byte (`&`, `=`, space, or a control char) — a
+name that does is refused at config parse. Multi-partition `oss.space` groups
+and create-time CGI selection are not implemented.
+
+```nginx
+brix_oss_cgroup atlas-datadisk;
+```
+
+---
+
+### `brix_oss_quota <size>`
+
+**Default:** `-1` (unlimited)
+
+The space quota the `kXR_Qspace` report advertises as `oss.quota` — the number
+`xrdfs query space` and accounting tools display. A site migrating from a stock
+`xrootd` server can restore its configured quota here so those tools see the same
+value; unset, the report keeps the stock `-1` (unlimited). Accepts the usual size
+suffixes (`k`/`m`/`g`); a malformed or negative value is refused at config parse.
+
+This is **advertisement only** — BriX does not itself enforce the quota (there is
+no write-time rejection when usage crosses it). Real per-space quota enforcement
+is part of the larger multi-partition `oss.space` groups feature, not yet
+implemented.
+
+```nginx
+brix_oss_quota 500g;
+```
+
+### `brix_oss_quota_enforce on|off`
+
+**Default:** `off`
+
+Makes `brix_oss_quota` load-bearing: a `kXR_write`/`writev`/`pgwrite` whose
+length would push the export's usage past the quota is refused `kXR_overQuota`.
+Usage comes from the same probe the `kXR_Qspace` report advertises — a backend
+with a space slot (e.g. `pblock` with `?quota=`) answers from its catalog;
+plain POSIX falls back to `statvfs` of the export's filesystem, which is
+**conservative on a shared mount** (other tenants' usage counts against the
+quota) and exact on a dedicated volume. The probe is cached for 5 seconds per
+worker, so enforcement lags a fresh write by at most that much; a probe failure
+never blocks writes. Off (the default), the quota stays advertisement-only.
+
+```nginx
+brix_oss_quota 500g;
+brix_oss_quota_enforce on;
+```
+
+---
+
+### `brix_admin_socket <path>`
+
+**Default:** unset (no admin socket)
+
+Opens a runtime admin unix socket (the `XrdXrootdAdmin` analog) for inspecting
+and controlling live sessions without restarting the server. The socket speaks a
+line-based text protocol (a documented divergence — stock's admin wire grammar is
+unpublished):
+
+| command | effect |
+|---|---|
+| `list` | `ok <n>` then one `<sessid-hex> <peer\|-> <dn\|->` line per connection on the worker |
+| `disc <sessid-hex>` | disconnect that session gracefully (FIN — the client sees EOF) |
+| `msg <sessid-hex> <text>` | deliver `<text>` to that client as an unsolicited `kXR_attn`/asyncms |
+| `pause <sessid-hex> [<secs>]` | stop reading that session's requests (they back up via TCP backpressure; in-flight replies still drain); with `<secs>`, auto-resume after that many seconds |
+| `cont <sessid-hex>` | resume a paused session and serve whatever backed up |
+| `abort <sessid-hex>` | disconnect without ceremony (RST — the client sees `ECONNRESET`) |
+
+Replies are `ok[ <detail>]` or `err <reason>`. The socket files are created mode
+`0600` — **filesystem permission on the path is the entire privilege boundary**
+(exactly like stock's `adminpath`), so place them in a root/operator-owned
+directory. **Every worker serves its own socket**: worker 0 at the configured
+`<path>`, worker *n* at `<path>.<n>` — each lists and controls exactly the
+sessions its worker owns (a session lives on one worker), so an admin tool
+sweeps the socket set; a targeted verb on the wrong worker's socket answers
+`err unknown-or-not-local`. With `worker_processes 1` there is just the one
+socket. Sessions are listed from connection setup (including mid-login),
+matching the stock admin view. Note `pause` does not suspend any armed
+read/idle deadlines — a session paused longer than `brix_read_timeout` (when
+configured) is still reaped by it.
+
+```nginx
+brix_admin_socket /run/brix/admin.sock;
+```
+
+---
+
+### `brix_webdav_html_listing on|off`
+
+**Default:** `off`
+
+Render an HTML directory index when a WebDAV `GET` targets a directory (the
+XrdHttp *Listing* analog). Off — the stock *listingdeny* posture — returns
+`403`. On enumerates the directory through the same impersonation-aware VFS
+readdir seam PROPFIND uses (dotfiles and internal sidecars hidden, every name
+HTML-escaped) and serves a `text/html` index of name / size / mtime.
+
+```nginx
+brix_webdav_html_listing on;
+```
+
+---
+
+### `brix_webdav_listing_redirect <url>`
+
+**Default:** unset
+
+The *listingredir* analog: a `GET` on a directory `301`-redirects to
+`<url>` with the request path appended, instead of listing. Checked **before**
+`brix_webdav_html_listing`, so it wins when both are set.
+
+```nginx
+brix_webdav_listing_redirect https://browse.example.org/;
+```
+
+---
+
+### `brix_webdav_maxdelay <time>`
+
+**Default:** `0` (off — the built-in 10 s staging poll interval)
+
+The XrdHttp `http.maxdelay` analog. When a `GET` hits an object that is not yet
+online — a nearline (tape) recall is in flight — BriX answers `202` "staging"
+with a `Retry-After` telling the client how long to wait before polling again.
+That interval is 10 seconds by default; this directive **caps** it, so a
+deployment can tighten the recall poll cadence.
+
+It only ever tightens: a value **≥ 10 s is a no-op** (the server never tells a
+client to wait *longer* than it already intends), and `0` keeps the 10 s default.
+Set it below 10 s when a fast-staging backend or an impatient client fleet wants
+snappier polling.
+
+```nginx
+brix_webdav_maxdelay 3s;   # poll every 3 s during a tape recall, not every 10 s
+```
+
+---
+
+### `brix_ztn_maxsz <size>`
+
+**Default:** `0` (no extra cap)
+
+The ztn `-maxsz` analog: refuse a bearer credential longer than this **before**
+any parse/JWKS/crypto work — an unauthenticated peer must not get to choose how
+much validation CPU a single `kXR_auth` burns. `0` keeps the historical
+behaviour (only the auth frame limit applies).
+
+```nginx
+brix_ztn_maxsz 64k;
+```
+
+---
+
+### `brix_max_delay <time>`
+
+**Default:** `60s` (stock `ofs.maxdelay`)
+
+Clamp on the seconds any `kXR_wait` may tell a client to stall — staging
+recalls, CMS SUPCount floor holds, memory backpressure. Enforced at the single
+emission choke point (`brix_send_wait`), so every wait the server can produce
+is covered. `0` disables the clamp (an explicitly configured long hold is
+answered in full).
+
+```nginx
+brix_max_delay 60s;
+```
+
+---
+
+### `brix_fsoverload_stall <time>`
+
+**Default:** `1s`
+
+The seconds a read or `readv` deferred by `brix_memory_budget` tells the client
+to back off before retrying — the `xrootd.fsoverload` *stall* analog. `1s` is
+the historical hardcoded value, so an unconfigured server is unchanged; raise
+it to shed load harder under memory pressure. Still clamped by
+`brix_max_delay` at the emission choke point.
+
+```nginx
+brix_fsoverload_stall 5s;
+```
+
+---
+
+### `brix_fsoverload_redirect <host> <port>`
+
+**Default:** unset (off — a memory overload *stalls* per `brix_fsoverload_stall`)
+
+The `xrootd.fsoverload` *redirect* action. When a read or `readv` is deferred by
+`brix_memory_budget`, instead of telling the client to back off and retry **here**
+(the stall), redirect it to another server — offloading the read to a sibling that
+has headroom. Set it to the host and port of another cache/data server in the
+mesh; leaving it unset keeps the stall behaviour.
+
+Both overload responses share one choke point, so `brix_max_delay` still bounds
+any stall this server does emit. The grammar is two tokens — `<host> <port>`,
+**not** `host:port` — a deliberate BriX spelling.
+
+```nginx
+brix_memory_budget       512m;
+brix_fsoverload_redirect  cache-b.example.org 1094;   # offload, don't stall
+```
+
+---
+
+### `brix_metrics_slowop <usec>`
+
+**Default:** `0` (disabled)
+
+Arm the OssStats-style **slow-op classifier**: any I/O operation whose measured
+latency meets or exceeds `<usec>` **microseconds** is booked into the
+`brix_io_slowop_total{proto,op}` counter on `/metrics`, and the armed threshold
+is exported as the `brix_io_slowop_threshold_usec` gauge. `0` (the default)
+disables classification entirely — no counter movement, byte-identical to a
+server without the directive.
+
+The threshold is stamped into the metrics shared-memory zone once per config
+load, so it applies process-wide to every protocol's latency-sampled ops (the
+same completions the `brix_io_latency_usec` histogram bins). The unit is
+microseconds — not a time token — so a fine threshold is expressible. Requires
+the metrics zone (an enabled server block). Only ops that file a latency sample
+(the AIO data-plane completions) are eligible, matching the histogram's scope.
+
+```nginx
+brix_metrics_slowop 500000;   # book ops slower than 500 ms
+```
+
+---
+
+### `brix_chkpnt_maxsz <size>`
+
+**Default:** `104857604` (the protocol minimum `kXR_ckpMinMax`)
+
+Largest file `kXR_chkpoint` `ckpBegin` will snapshot — the `ofs.chkpnt maxsz`
+analog. `ckpBegin` refuses larger files with `kXR_overQuota`, and `ckpQuery`
+reports the cap as `maxCkpSize`. A value below the protocol minimum is raised
+to it at merge: `kXR_ckpMinMax` is the "minimum maximum" every server must
+accept, so honoring a lower cap would refuse checkpoints a spec-conforming
+client is entitled to.
+
+```nginx
+brix_chkpnt_maxsz 200m;
+```
+
+---
+
 ### `brix_vomsdir <path>`
 
 Path to the directory containing VOMS server information (`.lsc` files), one per VO. Required when `brix_require_vo` is used. Requires `libvomsapi.so.1` at runtime (install `voms-libs` on EL9 or `libvomsapi1` on Debian/Ubuntu).
@@ -853,6 +1302,34 @@ Writes are never gated; they pass through as usual. A *partial* (slice) hit
 counts as a miss — upstream's `minsize` / `minfrac` partial-hit thresholds are
 not implemented.
 
+### `brix_cache_uvkeep <time>`
+
+**Default:** `0` (off — a never-verified entry is trusted until its normal TTL)
+
+Bound how long a cached entry whose contents were **never verified** against the
+origin may be trusted (XrdPfc `pfc.uvkeep` parity). Some fills carry no origin
+digest to check against — a TLS-trusted whole-file or slice fill, for example —
+and are committed with the cinfo `F_VERIFIED` flag clear. With `uvkeep` set, such
+an entry that is older than `<time>` (measured from when the fill published it) is
+treated as a **miss** on the next open, so the cache revalidates it against the
+source before serving.
+
+The knob only ever **adds** revalidation:
+
+- a **verified** entry (contents checked against the origin digest) is never aged
+  out by `uvkeep`;
+- an unverified entry still **inside** the window serves from cache as usual;
+- an entry with no recorded fill time (legacy) is exempt.
+
+So the fail-safe direction is "revalidate more", never "serve something staler".
+BriX's revalidation is a full refill through the miss path — stronger than a
+conditional `HEAD` — so an origin unreachable at that point fails the open rather
+than serving the unverified copy.
+
+```nginx
+brix_cache_uvkeep 30m;   # re-check a never-verified entry at least every 30 min
+```
+
 ```nginx
 brix_cache_store          posix:/var/cache/brix;
 brix_cache_only_if_cached on;
@@ -890,6 +1367,37 @@ Observability: `brix_cache_dirty_reaped_total{reason="cold"}` on `/metrics`.
 ```nginx
 brix_cache_store        posix:/var/cache/brix;
 brix_cache_cold_max_age 7d;
+```
+
+### `brix_cache_max_bytes <size>`
+
+**Default:** `0` (off)
+
+Cap the cache's **own total bytes** (XrdPfc `pfc.diskusage files` parity). This is
+a second, independent reaper arm alongside the ppm filesystem-occupancy watermark
+(`brix_cache_high_watermark`): when the sum of what this cache holds exceeds the
+cap, the watermark reaper evicts oldest-first until it is back within it.
+
+It exists because occupancy and footprint are not the same thing on a **shared
+filesystem**. `statvfs` reports the whole mount's fullness — everyone's data — so
+the ppm watermark either never fires (a huge mount the cache never fills) or
+thrashes (a noisy neighbour fills the disk and the cache reaps itself to nothing).
+A byte cap bounds the cache by what it actually owns, regardless of the neighbours.
+
+The two arms compose: with both set, each tick reaps down to the FS low-water
+mark *and* down to the byte cap. The byte arm uses the same LRU candidate set and
+the same eviction (cold-tier demote, manager-unregister, sidecar cleanup) as the
+occupancy arm — only the stop condition differs. The reaper timer is armed by
+*either* arm, so a byte cap works even with no FS watermark configured.
+
+Notes: eviction is **down to** the cap (there is no separate low mark; the reaper
+cadence, `brix_cache_reap_interval`, rate-limits re-eviction). The owned-bytes sum
+includes each object's small `.cinfo`/`.meta` sidecars, so it slightly over-counts
+and evicts marginally sooner than a data-only measure.
+
+```nginx
+brix_cache_store     posix:/var/cache/brix;   # shares the mount with other data
+brix_cache_max_bytes 200g;                    # keep our footprint under 200 GiB
 ```
 
 ### `brix_write_through on|off`
@@ -1240,6 +1748,18 @@ manager records the connection's peer address, so only the port is
 advertisable). With `monitor`, a periodic non-blocking loopback probe of the
 port drives `kYR_status` suspend/resume on every manager link when the foreign DS
 dies or returns.
+
+#### `brix_cms_min_free <MB>`
+
+**Default:** `100`
+
+The **mSpace** policy floor (in MB) this data node advertises in its CMS
+`kYR_login` payload (stock `cms.space [min ...]`). It is the free-space level
+below which the manager should stop selecting this node for **writes** — a
+static policy figure, not a live measurement (the live free space rides the
+`fSpace` field / periodic `kYR_load` heartbeat). Was a hardcoded 100 MB; the
+default is unchanged, so existing meshes see no difference. Absolute megabytes
+only — the stock percentage form (`min 2%`) is not accepted.
 
 #### `brix_cms_whitelist_file <path>` *(CMS-server block)*
 
@@ -1607,6 +2127,43 @@ See the unified grammar section at the top of this page for the complete list.
 | `brix_cache_evict_to <pct>` | `80` | Percent-full target the reaper evicts down to (hysteresis partner of `brix_cache_evict_at`; must be lower). Same plane caveat as above. |
 | `brix_storage_backend <url>` | unset | Reverse-proxy origin(s) — pipe-separated `http://` URL list for failover; use instead of `brix_cvmfs_upstream_allow` in reverse mode |
 | `brix_thread_pool <name>` | `default` | nginx thread pool for fill I/O |
+
+### Repo serving, composition and manifest trust
+
+| Directive | Args | Default | Purpose |
+|---|---|---|---|
+| `brix_cvmfs_stratum0_root <path>` | path | unset | Serve a published Stratum-0 repo tree from `<path>` (explicit alias for `brix_export` — the merge refuses cache-fill upstream grammar in the same block, and the gate answers `/.cvmfs_master_replica` so a real Stratum-1 `cvmfs_server add-replica` recognizes it as a replication source) |
+| `brix_cvmfs_virtual_repo <name> <member>…` | 2+ args | unset | Compose a virtual repo `<name>` from one or more member repos |
+| `brix_cvmfs_repo_authz <repo> <scitokens.cfg>` | 2 args | unset | Token-gate one repo — clients need a WLCG/SciTokens read scope per the config (phase-85 F3) |
+| `brix_cvmfs_verify_manifest <pubkey>` | path | unset | Master public-key file used to verify `.cvmfspublished` manifest signatures |
+
+### Integrity scrubbing, QoS and provenance
+
+| Directive | Args | Default | Purpose |
+|---|---|---|---|
+| `brix_cvmfs_scrub on\|off` | flag | `off` | Background CAS integrity scrubber — re-verifies cached objects against their content address (phase-87 G17) |
+| `brix_cvmfs_scrub_interval <sec>` | seconds | `60` | Scrub cycle period |
+| `brix_cvmfs_scrub_rate <n>` | integer | `20` | Scrub throttle — objects checked per cycle tick |
+| `brix_cvmfs_attest <arg>` | takes 1 | unset | Runtime provenance attestation of served content (phase-87 G15) |
+| `brix_cvmfs_qos <vo> <a> <b>` | 3 args | unset | Per-VO / per-job QoS fill throttling (phase-85 F9) |
+
+### Content-transfer optimizations (phase-87, opt-in)
+
+| Directive | Args | Default | Purpose |
+|---|---|---|---|
+| `brix_cvmfs_bundle on\|off` | flag | `off` | Chunk-bundle batch fetch — coalesce many small CAS fetches into one origin request (G2) |
+| `brix_cvmfs_delta on\|off` | flag | `off` | Cross-revision delta transfer (G10) |
+| `brix_cvmfs_dict on\|off` | flag | `off` | Trained shared-dictionary coding (G3) |
+| `brix_cvmfs_learn on\|off` | flag | `off` | Workload-learned predictive prewarm (G11) |
+| `brix_cvmfs_swarm on\|off` | flag | `off` | P2P swarm cold-start — peer caches seed each other (G12) |
+| `brix_cvmfs_swarm_interval <sec>` | seconds | `3` | Swarm peer-refresh interval |
+
+### Additional origin / TTL knobs
+
+| Directive | Args | Default | Purpose |
+|---|---|---|---|
+| `brix_cvmfs_offline_ttl <sec>` | seconds | `0` (off) | Keep serving stale cached content for this long when every origin is unreachable |
+| `brix_cvmfs_origin_http_version <ver>` | enum | auto | Force the HTTP version for origin fills (requires a libcurl that supports it) |
 
 ## Network / TCP tuning directives
 

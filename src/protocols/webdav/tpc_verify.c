@@ -104,11 +104,11 @@ tpc_verify_want_digest(CURL *curl, ngx_http_brix_webdav_loc_conf_t *conf,
     char               want[64];
     struct curl_slist *next;
 
-    if (conf->tpc_verify_digest.len == 0) {
+    if (conf->common.tpc_verify_checksum.len == 0) {
         return NGX_OK;
     }
     ngx_snprintf((u_char *) want, sizeof(want), "Want-Digest: %V%Z",
-                 &conf->tpc_verify_digest);
+                 &conf->common.tpc_verify_checksum);
     next = curl_slist_append(*hdrs, want);
     if (next == NULL) {
         return NGX_ERROR;
@@ -182,7 +182,7 @@ tpc_verify_size(ngx_log_t *log, ngx_http_brix_webdav_loc_conf_t *conf,
     struct stat st;
 
     if (src->size < 0) {
-        if (!conf->tpc_require_source_size) {
+        if (!conf->common.tpc_require_source_size) {
             return NGX_OK;
         }
         ngx_log_error(NGX_LOG_ERR, log, 0,
@@ -251,13 +251,13 @@ tpc_verify_checksum(ngx_log_t *log, ngx_http_brix_webdav_loc_conf_t *conf,
     char local_hex[2 * EVP_MAX_MD_SIZE + 1];
     char normalized[32];
 
-    if (conf->tpc_verify_digest.len == 0) {
+    if (conf->common.tpc_verify_checksum.len == 0) {
         return NGX_OK;
     }
     if (src->digest[0] == '\0') {
         ngx_log_error(NGX_LOG_ERR, log, 0,
                       "brix_webdav: HTTP-TPC pull refused: source supplied no "
-                      "Digest for Want-Digest: %V", &conf->tpc_verify_digest);
+                      "Digest for Want-Digest: %V", &conf->common.tpc_verify_checksum);
         return NGX_HTTP_BAD_GATEWAY;
     }
     if (tpc_verify_split(src->digest, alg, sizeof(alg),
@@ -297,7 +297,7 @@ webdav_tpc_verify_pulled(ngx_log_t *log,
     ngx_int_t        rc;
     int              fd;
 
-    if (!conf->tpc_require_source_size && conf->tpc_verify_digest.len == 0) {
+    if (!conf->common.tpc_require_source_size && conf->common.tpc_verify_checksum.len == 0) {
         return NGX_OK;
     }
 

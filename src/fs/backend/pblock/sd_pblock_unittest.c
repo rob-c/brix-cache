@@ -137,6 +137,9 @@ main(void)
     test_dedup_refs();          /* F10 */
     test_dedup_forged_hash();   /* F10 security-neg */
     test_dedup_gate_closed();   /* F10 gate-off inertness */
+    test_dedup_slot();          /* phase-88 W1 dedup_publish slot (G13) */
+    test_pack_arena();          /* phase-88 W2 packed small-blob arena */
+    test_standard_defaults();   /* phase-88 W5 default-on csi + nsidx  */
     test_snapshot();            /* F6 snapshots take/restore + EBUSY + injection */
     test_versioning();          /* F11 versions trim + trash/undelete + injection */
 

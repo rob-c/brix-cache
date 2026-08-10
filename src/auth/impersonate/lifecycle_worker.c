@@ -368,7 +368,7 @@ brix_imp_init_worker(ngx_cycle_t *cycle)
     /*
      * P80.21: load the grid-mapfile worker-side for the authz gate, BEFORE the
      * map-mode early-return, so DN->local-username mapping works under
-     * brix_impersonation off|single|map alike (the broker owns a separate copy
+     * brix_idmap off|single|map alike (the broker owns a separate copy
      * in its own process).  A load failure is fatal to the worker: silently
      * running with an empty map would collapse a per-unix-group posture to
      * default-deny for everyone.

@@ -36,6 +36,7 @@
 #include "pblock_anomaly.h"      /* Phase-83 F9 consistency anomalies */
 #include "pblock_locks.h"        /* Phase-83 F15 mandatory lease enforcement */
 #include "pblock_refs.h"         /* Phase-83 F10 refcounted blobs + dedup */
+#include "pblock_pack.h"         /* phase-88 W2 packed small-blob arena */
 #include "pblock_snap.h"         /* Phase-83 F6 snapshots / fixture reset */
 #include "pblock_hist.h"         /* Phase-83 F11 versioning + trash/undelete */
 #include "core/compat/wverify.h" /* F10 whole-object CRC accumulator */
@@ -245,6 +246,21 @@ pblock_arm_storage_features(pblock_state_t *st, const pblock_opts_t *opts)
             st->quota_bytes  = opts->quota_bytes;
             st->quota_inodes = opts->quota_inodes;
         }
+    }
+    if (opts->pack) {                                    /* phase-88 W2 */
+        /* The packed small-blob arena arms only when its table + pack/ dir
+         * install; a failure leaves the striped-only production path. Runs
+         * after the xform arm on purpose: records carry raw bytes, so a
+         * transformed export never packs (the admission gate re-checks). */
+        st->pack_max = opts->pack_max > 0 ? opts->pack_max
+                                          : PBLOCK_PACK_MAX_DEFAULT;
+        st->pack = (st->xform.kind == PBLOCK_XFORM_NONE
+                    && pblock_pack_arm(st) == 0);
+    }
+    if (opts->nsidx) {                                   /* phase-88 W4 */
+        /* Promote the namespace lookup cache to the cross-process mmap table;
+         * a failed arm silently keeps the worker-local heap cache. */
+        (void) pblock_catalog_nsidx_arm(st->cat, st->root);
     }
 }
 

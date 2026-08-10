@@ -76,6 +76,9 @@
  * distinct identities always coexist. */
 #define BRIX_SESSION_PER_SOURCE_SOFT_CAP  64
 
+/* Bitmap bytes covering pathids 1-253 (bit N set = pathid N bound). */
+#define BRIX_SESSION_PATHID_MAP_LEN  32
+
 typedef struct {
     u_char     sessid[BRIX_SESSION_ID_LEN]; /* unique session identifier (16 bytes) */
     char       dn[512];                       /* distinguished name from GSI certificate */
@@ -85,6 +88,10 @@ typedef struct {
     ngx_msec_t last_seen;                     /* Phase 27 F4: register/lookup time (ms);
                                                  LRU key for reap-on-full anti-exhaustion */
     char       src_key[BRIX_SESSION_SRC_KEY_LEN]; /* W5: per-source quota key ("" = un-keyed) */
+    u_char     pathid_map[BRIX_SESSION_PATHID_MAP_LEN]; /* §1.2: bound pathids of this
+                                                 session (set at kXR_bind, cleared on the
+                                                 secondary's disconnect) — the validation
+                                                 source for pathid-tagged requests */
 } brix_session_entry_t;
 
 /* Phase 27 F4: a slot that is the global-LRU AND older than this minimum age is
@@ -160,6 +167,21 @@ int brix_session_lookup(const u_char sessid[BRIX_SESSION_ID_LEN],
     char *dn_out, size_t dn_size,
     char *vo_out, size_t vo_size,
     ngx_uint_t *token_auth_out);
+
+/* ---- Function: brix_session_pathid_bind() ----
+ * WHAT: Marks `pathid` (1-253) as a bound data path of session `sessid` in the shared registry, so any worker can later validate pathid-tagged requests against it. No-op for out-of-range ids or an unknown session. */
+void brix_session_pathid_bind(const u_char sessid[BRIX_SESSION_ID_LEN],
+    unsigned pathid);
+
+/* ---- Function: brix_session_pathid_unbind() ----
+ * WHAT: Clears `pathid` from session `sessid`'s bound-path bitmap (secondary disconnect). No-op for out-of-range ids or an unknown session. */
+void brix_session_pathid_unbind(const u_char sessid[BRIX_SESSION_ID_LEN],
+    unsigned pathid);
+
+/* ---- Function: brix_session_pathid_bound() ----
+ * WHAT: Returns 1 when `pathid` is currently bound to session `sessid`, else 0 (unknown session or out-of-range id → 0). The validation predicate for pathid-tagged requests (stock answers kXR_ArgInvalid "invalid path ID" for an unbound id — verified against 5.6.9). */
+int brix_session_pathid_bound(const u_char sessid[BRIX_SESSION_ID_LEN],
+    unsigned pathid);
 
 /* ---- Function: brix_session_unregister() ----
  * WHAT: Clears session entry during kXR_endsess or disconnect cleanup — scans all slots comparing sessid, memzeros matching entry clearing session metadata; additionally unpublishing all associated handles via brix_session_handle_unpublish_all(). Called by kXR_endsess handler and brix_on_disconnect() ensuring complete cross-worker cleanup regardless of which worker originally registered the session. */

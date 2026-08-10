@@ -295,6 +295,83 @@ pump_emit_progress(const brix_copy_opts *o, int64_t cur, int64_t total)
  * "100%" upload tick; pass o == NULL to suppress progress entirely. Cancel
  * (g_brix_copy_quit) aborts with EINTR. Owns its CHUNK buffer. Returns 0 / -1.
  */
+/* ---- §7.13 --xrate / --xrate-threshold: pace or floor the pump ----
+ *
+ * WHAT: brix_pump_pace() sleeps just long enough that `moved` bytes since
+ *       `t0_ns` never exceed o->xrate_bps, and fails (st set, -1) when the
+ *       average rate has fallen below o->xrate_min_bps after a 3 s grace.
+ *       Returns 0 to continue. brix_pump_pace_cap() shrinks a read size so a
+ *       paced transfer moves in ~quarter-second steps instead of 8 MiB lumps.
+ *
+ * WHY: Stock xrdcp -X/--xrate caps a copy's bandwidth (shared-link hygiene);
+ *      --xrate-threshold aborts a transfer that has degraded below a floor
+ *      instead of letting it crawl forever. Both act on the serial pump, the
+ *      one place every byte of a non-engine copy passes.
+ *
+ * HOW: Cap: elapsed vs the time `moved` bytes SHOULD have taken; sleep the
+ *      difference in ≤250 ms slices so a signal still cancels promptly.
+ *      Floor: moved/elapsed compared after the grace so bring-up never trips.
+ */
+int
+brix_pump_pace(const brix_copy_opts *o, uint64_t t0_ns, int64_t moved,
+               brix_status *st)
+{
+    uint64_t elapsed = brix_mono_ns() - t0_ns;
+
+    if (o == NULL || moved <= 0) {
+        return 0;
+    }
+    if (o->xrate_bps > 0) {
+        uint64_t due_ns = (uint64_t) ((double) moved * 1e9
+                                      / (double) o->xrate_bps);
+        while (elapsed < due_ns) {
+            uint64_t        gap = due_ns - elapsed;
+            struct timespec ts;
+
+            if (brix_copy_quit_requested()) {
+                brix_status_set(st, XRDC_ESOCK, EINTR,
+                                "transfer cancelled (signal)");
+                return -1;
+            }
+            if (gap > 250ULL * 1000 * 1000) {
+                gap = 250ULL * 1000 * 1000;
+            }
+            ts.tv_sec  = 0;
+            ts.tv_nsec = (long) gap;
+            nanosleep(&ts, NULL);
+            elapsed = brix_mono_ns() - t0_ns;
+        }
+    }
+    if (o->xrate_min_bps > 0 && elapsed > 3ULL * 1000 * 1000 * 1000) {
+        double rate = (double) moved * 1e9 / (double) elapsed;
+
+        if (rate < (double) o->xrate_min_bps) {
+            brix_status_set(st, XRDC_ESOCK, 0,
+                            "transfer rate %.0f B/s fell below the "
+                            "--xrate-threshold floor (%lld B/s)",
+                            rate, (long long) o->xrate_min_bps);
+            return -1;
+        }
+    }
+    return 0;
+}
+
+size_t
+brix_pump_pace_cap(const brix_copy_opts *o, size_t cap)
+{
+    if (o != NULL && o->xrate_bps > 0) {
+        size_t step = (size_t) (o->xrate_bps / 4);
+
+        if (step < 64 * 1024) {
+            step = 64 * 1024;
+        }
+        if (cap > step) {
+            cap = step;
+        }
+    }
+    return cap;
+}
+
 int
 transfer_pump(pump_src_fn src, void *sctx, pump_sink_fn sink, void *kctx,
               int64_t expected, const brix_copy_opts *o, int64_t progress_total,
@@ -302,6 +379,7 @@ transfer_pump(pump_src_fn src, void *sctx, pump_sink_fn sink, void *kctx,
 {
     uint8_t *buf;
     int64_t  off = 0;
+    uint64_t t0 = brix_mono_ns();
     int      rc = -1;
 
     buf = (uint8_t *) malloc(XRDC_COPY_CHUNK);
@@ -311,7 +389,7 @@ transfer_pump(pump_src_fn src, void *sctx, pump_sink_fn sink, void *kctx,
     }
 
     for (;;) {
-        size_t  cap = XRDC_COPY_CHUNK;
+        size_t  cap = brix_pump_pace_cap(o, XRDC_COPY_CHUNK);
         ssize_t n;
 
         /* Completion is tested BEFORE the cancel flag: a byte-complete known-size
@@ -354,6 +432,9 @@ transfer_pump(pump_src_fn src, void *sctx, pump_sink_fn sink, void *kctx,
         }
         off += n;
         pump_emit_progress(o, off, progress_total);
+        if (brix_pump_pace(o, t0, off, st) != 0) {
+            break;   /* rate floor tripped or cancelled during the pace sleep */
+        }
     }
 
     free(buf);

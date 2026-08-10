@@ -49,4 +49,14 @@ int brix_wverify_update(brix_wverify_t *w, const void *buf, off_t off,
  * an overlap, a degraded accumulator, or nothing written). */
 int brix_wverify_expected(const brix_wverify_t *w, uint32_t *crc, off_t *total);
 
+/* The whole-object SHA-256 (phase-88 W3: the cryptographic dedup identity),
+ * valid ONLY under the brix_wverify_expected completeness contract AND when
+ * every byte arrived as one IN-ORDER stream from offset 0 — SHA-256 has no
+ * crc32_combine equivalent, so an out-of-order writer (GridFTP MODE E) keeps
+ * its CRC but forfeits the SHA (callers fall back to byte-verified dedup).
+ * Fills out32[32] and returns 0; -1 otherwise. Non-destructive: the digest is
+ * finalised on a copy, so the accumulator stays usable. */
+int brix_wverify_expected_sha256(const brix_wverify_t *w,
+                                 unsigned char out32[32]);
+
 #endif /* BRIX_WVERIFY_H */

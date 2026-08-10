@@ -4,6 +4,7 @@
 
 #include "core/ngx_brix_module.h"
 #include "registry.h"
+#include "offload_registry.h"   /* §1.1 per-worker (sessid,pathid)->conn map */
 #include "core/compat/alloc_guard.h"
 
 /*
@@ -108,6 +109,18 @@ brix_handle_bind(brix_ctx_t *ctx, ngx_connection_t *c,
     ctx->pathid    = (int) pathid;
     ctx->login.logged_in = 1;   /* secondary skips kXR_login */
     ctx->login.auth_done = 1;   /* identity inherited from registry lookup above */
+
+    /* §1.2: publish the pathid on the session's registry entry so ANY worker
+     * can validate pathid-tagged requests against the session's live binds
+     * (stock refuses an unbound pathid with kXR_ArgInvalid). Cleared again in
+     * the disconnect path when this secondary goes away. */
+    brix_session_pathid_bind(req.sessid, (unsigned) pathid);
+
+    /* §1.1 response offloading: record this secondary's per-worker connection so
+     * a later read/readv handler can route a pathid-tagged response out its
+     * socket. Best-effort — a full table just means this channel keeps using the
+     * control stream (never an error). Cleared in the disconnect path. */
+    (void) brix_offload_register(ctx->bound_sessid, (unsigned) pathid, c);
 
     ngx_log_debug3(NGX_LOG_DEBUG_STREAM, c->log, 0,
                    "brix: kXR_bind: pathid=%d sessid=%02xd%02xd...",

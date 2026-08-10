@@ -31,6 +31,8 @@ from cmdscripts.c_regression_units import run_checks
         "gftp_parse",
         "cvmfs_url_rewrite",
         "oci_parse",
+        "tpc_progress_total",
+        "tpc_xfr_cap",
     ],
 )
 # Each case compiles a C harness before running it (~10s alone); under a full

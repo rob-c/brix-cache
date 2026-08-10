@@ -2,7 +2,7 @@
 GridFTP gateway — VO-ACL enforcement (phase-92, audit item :605).
 
 Drives a *cleartext* brix GridFTP gateway configured with a single VO-ACL rule
-(``brix_gridftp_require_vo /vodata atlas``) via Python's ``ftplib``.  The gate
+(``brix_require_vo /vodata atlas``) via Python's ``ftplib``.  The gate
 lives in the one path choke point every namespace/transfer verb flows through
 (``brix_ftp_ev_resolve``): after the path is confined + canonicalised it calls
 ``brix_check_vo_acl_identity`` with the session identity, exactly as the HTTP and

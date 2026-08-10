@@ -194,11 +194,13 @@ ngx_brix_cms_send_login(ngx_brix_cms_ctx_t *ctx)
     payload_cursor = ngx_brix_cms_put_int(payload_cursor, total_gb);
     payload_cursor = ngx_brix_cms_put_int(payload_cursor, free_mb);
     /*
-     * mSpace: minimum-free threshold (MB).  Constant, not a live measurement —
-     * it is the policy floor below which the manager should stop selecting us.
+     * mSpace: minimum-free threshold (MB).  Policy floor, not a live
+     * measurement — below this free space the manager should stop selecting
+     * us.  Configurable via brix_cms_min_free (§2.4); default 100 MB, the
+     * historical NGX_BRIX_CMS_MIN_FREE_MB constant.
      */
     payload_cursor = ngx_brix_cms_put_int(payload_cursor,
-                                            NGX_BRIX_CMS_MIN_FREE_MB);
+                                            (uint32_t) ctx->conf->cms.min_free_mb);
     /* fsNum: number of exported filesystems — we present a single namespace. */
     payload_cursor = ngx_brix_cms_put_short(payload_cursor, 1);
     payload_cursor = ngx_brix_cms_put_short(payload_cursor,

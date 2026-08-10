@@ -194,4 +194,18 @@ pblock_csi_drop(pblock_catalog *cat, const char *blob_id)
     }
 }
 
+void
+pblock_csi_truncate(pblock_catalog *cat, const char *blob_id, int64_t keep)
+{
+    sqlite3_stmt *st = cat_prepare(cat,
+        "DELETE FROM csi WHERE blob_id = ?1 AND block_no > ?2;");
+
+    if (st != NULL) {
+        sqlite3_bind_text(st, 1, blob_id, -1, SQLITE_STATIC);
+        sqlite3_bind_int64(st, 2, keep);
+        (void) sqlite3_step(st);
+        sqlite3_finalize(st);
+    }
+}
+
 #endif /* BRIX_HAVE_SQLITE */

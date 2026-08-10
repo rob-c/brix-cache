@@ -47,6 +47,7 @@ kXR_read      = 3013
 kXR_write     = 3017
 kXR_close     = 3003
 kXR_bind      = 3024
+kXR_ArgInvalid = 3000    # §1.1 read pathid validation: unbound path ID
 kXR_open_read = 0x0010  # open flags: read-only
 kXR_new       = 0x0008  # open flags: create new
 kXR_delete    = 0x0002  # open flags: delete/overwrite
@@ -127,6 +128,136 @@ def _open_read(sock, streamid, path):
 def _read_handle(sock, streamid, fhandle, length, offset=0):
     read_body = fhandle + struct.pack(">q", offset) + struct.pack(">i", length)
     return _send_req(sock, streamid, kXR_read, body=read_body)
+
+
+def _read_pathid(sock, streamid, fhandle, length, pathid, offset=0):
+    """A kXR_read carrying a read_args payload (§1.1): pathid at byte 0, then
+    seven reserved bytes — the offload channel selector the server validates
+    against the session's live kXR_bind paths."""
+    read_body = fhandle + struct.pack(">q", offset) + struct.pack(">i", length)
+    payload = bytes([pathid & 0xFF]) + b"\x00" * 7
+    return _send_req(sock, streamid, kXR_read, body=read_body, payload=payload)
+
+
+def _send_read_only(sock, streamid, fhandle, length, pathid=0, offset=0):
+    """Send a kXR_read (optionally carrying a read_args pathid) WITHOUT reading
+    the response — used by the §1.1 offload test, where a pathid-tagged read's
+    response is expected on a DIFFERENT (secondary) socket."""
+    body = fhandle + struct.pack(">q", offset) + struct.pack(">i", length)
+    payload = bytes([pathid & 0xFF]) + b"\x00" * 7 if pathid else b""
+    hdr = bytes(streamid[:2]) + struct.pack(">H", kXR_read)
+    hdr += body.ljust(16, b"\x00")
+    hdr += struct.pack(">I", len(payload))
+    sock.sendall(hdr + payload)
+
+
+def _recv_response(sock):
+    """Read one XRootD response frame from `sock`: returns (streamid, status,
+    data) or (None, None, None) on a closed socket."""
+    rsp_hdr = _recv_exact(sock, 8)
+    if rsp_hdr is None:
+        return None, None, None
+    streamid = rsp_hdr[0:2]
+    status = struct.unpack(">H", rsp_hdr[2:4])[0]
+    dlen = struct.unpack(">I", rsp_hdr[4:8])[0]
+    data = _recv_exact(sock, dlen) if dlen > 0 else b""
+    return streamid, status, data
+
+
+def _bind_on(port, sessid, streamid=b"\x00\x05"):
+    """Open + connect a fresh secondary socket, handshake, and kXR_bind it to
+    `sessid`; returns (sock, pathid) with pathid the assigned channel (1-253)."""
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    sock.connect((ANON_HOST, port))
+    sock.sendall(struct.pack(">IIIII", 0, 0, 0, 4, 2012))
+    _recv_exact(sock, 16)
+    status, pathid_body = _send_req(sock, streamid, kXR_bind, body=sessid)
+    assert status == kXR_ok, f"bind failed: status={status}"
+    return sock, pathid_body[0]
+
+
+kXR_readv = 3025
+READV_SEGSIZE = 16   # readahead_list element: fhandle[4] + rlen[4] + offset[8]
+
+
+def _readv_seg(fhandle, rlen, offset):
+    """One readahead_list element: fhandle[4] + rlen(int32 BE) + offset(int64 BE)."""
+    return struct.pack("!4siq", fhandle, rlen, offset)
+
+
+def _send_readv_only(sock, streamid, segments, pathid=0):
+    """Send a kXR_readv WITHOUT reading the response. The §1.1 offload pathid
+    rides the request HEADER body at byte 15 (the read_list is the payload)."""
+    payload = b"".join(segments)
+    body = b"\x00" * 15 + bytes([pathid & 0xFF])   # 16-byte body; pathid at [15]
+    hdr = bytes(streamid[:2]) + struct.pack(">H", kXR_readv) + body
+    hdr += struct.pack(">I", len(payload))
+    sock.sendall(hdr + payload)
+
+
+def _readv_payload_bytes(body, nsegs):
+    """Strip the readahead_list headers from a readv response body, returning the
+    concatenated payload bytes. Each segment is [fhandle4][rlen4][offset8] then
+    rlen payload bytes."""
+    out = []
+    pos = 0
+    for _ in range(nsegs):
+        if pos + READV_SEGSIZE > len(body):
+            break
+        rlen = struct.unpack("!i", body[pos + 4:pos + 8])[0]
+        pos += READV_SEGSIZE
+        out.append(body[pos:pos + rlen])
+        pos += rlen
+    return b"".join(out)
+
+
+kXR_pgread = 3030
+kXR_status = 4007
+PG_PAGE_SZ = 4096
+
+
+def _send_pgread_only(sock, streamid, fhandle, length, pathid=0, offset=0):
+    """Send a kXR_pgread WITHOUT reading the response (read_args pathid at payload
+    byte 0, reqflags at byte 1) — used by the §1.1 offload test where the reply
+    is expected on the secondary."""
+    body = fhandle + struct.pack(">q", offset) + struct.pack(">i", length)
+    payload = bytes([pathid & 0xFF, 0]) if pathid else b""
+    hdr = bytes(streamid[:2]) + struct.pack(">H", kXR_pgread)
+    hdr += body.ljust(16, b"\x00")
+    hdr += struct.pack(">I", len(payload))
+    sock.sendall(hdr + payload)
+
+
+def _pg_strip_crcs(raw):
+    """Strip the leading 4-byte CRC32c from each page unit ([CRC32c][<=4096 data])
+    of a pgread page-data blob, returning the concatenated data bytes."""
+    out = []
+    pos = 0
+    while pos + 4 <= len(raw):
+        pos += 4   # skip the page's CRC32c
+        take = min(PG_PAGE_SZ, len(raw) - pos)
+        out.append(raw[pos:pos + take])
+        pos += take
+    return b"".join(out)
+
+
+def _recv_pgread_response(sock):
+    """Read a kXR_pgread response: 8B header + status body, then the separately
+    framed CRC-interleaved page data (bdy.dlen at status-body [12:16]). Returns
+    (streamid, status, stripped_data)."""
+    hdr = _recv_exact(sock, 8)
+    if hdr is None:
+        return None, None, None
+    streamid = hdr[0:2]
+    status = struct.unpack(">H", hdr[2:4])[0]
+    dlen = struct.unpack(">I", hdr[4:8])[0]
+    body = _recv_exact(sock, dlen) if dlen > 0 else b""
+    data = b""
+    if status == kXR_status and len(body) >= 16:
+        bdy_dlen = struct.unpack(">i", body[12:16])[0]
+        if bdy_dlen > 0:
+            data = _pg_strip_crcs(_recv_exact(sock, bdy_dlen))
+    return streamid, status, data
 
 
 # ---------------------------------------------------------------------------

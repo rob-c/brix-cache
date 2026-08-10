@@ -46,11 +46,11 @@ class ConformanceFleet:
         for grp in sorted(self._groups_in_manifest()):
             cfg = GROUPS[grp]
             if "cafile" in cfg:
-                ca_line = f"            brix_webdav_cafile   {self.bundle};\n"
+                ca_line = f"            brix_trusted_ca   {self.bundle};\n"
             else:
-                ca_line = f"            brix_webdav_cadir    {self.shared_ca};\n"
+                ca_line = f"            brix_trusted_ca_dir    {self.shared_ca};\n"
             crl = str(self.shared_ca) if cfg.get("crl") == "ca" else ""
-            crl_line = f"            brix_webdav_crl {crl};\n" if crl else ""
+            crl_line = f"            brix_crl {crl};\n" if crl else ""
             endpoint = self._harness.start(NginxInstanceSpec(
                 name=f"lc-wlcgconf-{grp}",
                 template="nginx_wlcg_conformance.conf",

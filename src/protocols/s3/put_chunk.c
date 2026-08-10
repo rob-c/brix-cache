@@ -3,6 +3,7 @@
  * Phase-38 split of put.c; behavior-identical.
  */
 #include "s3_put_internal.h"
+#include "auth/impersonate/lifecycle.h"   /* brix_imp_request_begin/end */
 
 
 /*
@@ -157,14 +158,22 @@ s3_build_chunk_verify(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
 void
 s3_chunk_aio_done(ngx_event_t *ev)
 {
-    ngx_thread_task_t  *task = ev->data;
-    s3_chunk_aio_t     *t = task->ctx;
-    ngx_http_request_t *r = t->r;
+    ngx_thread_task_t     *task = ev->data;
+    s3_chunk_aio_t        *t = task->ctx;
+    ngx_http_request_t    *r = t->r;
+    ngx_http_s3_req_ctx_t *rx =
+        ngx_http_get_module_ctx(r, ngx_http_brix_s3_module);
 
+    /* The finalize/decode-abort below are PATH-based (commit rename, unlink) and
+     * must run as the MAPPED user; this event-loop completion lost the per-request
+     * impersonation bracket, so re-establish it (the threaded write was fd-based).
+     * Mirrors the WebDAV/s3-put async fix. */
+    brix_imp_request_begin(rx != NULL ? rx->identity : NULL);
     if (t->rc != NGX_OK) {
         s3_chunk_decode_failed(r, t->root_canon, t->writer, t->http_status);
-        return;
+    } else {
+        s3_chunk_finalize(r, t->root_canon, t->fs_path, t->writer, &t->trailer,
+                          t->expected, t->body_mode);
     }
-    s3_chunk_finalize(r, t->root_canon, t->fs_path, t->writer, &t->trailer,
-                      t->expected, t->body_mode);
+    brix_imp_request_end();
 }

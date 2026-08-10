@@ -313,7 +313,7 @@ def test_mode_select_does_not_forward(xrd, tmp_path):
 # --------------------------------------------------------------------------- #
 # STOR — the write half of the gridftp x xroot cell.                           #
 #                                                                              #
-# `brix_gridftp_allow_write on` has been in this config since phase 82, but    #
+# `brix_allow_write on` has been in this config since phase 82, but    #
 # only RETR was ever driven, so the whole sd_xroot write path (create-open,    #
 # chunked write, close) was configured-but-never-executed under delegation.    #
 # docs/refactor/testsuite-combinatorial-coverage-audit-2026-08-04.md item 14.  #
@@ -404,7 +404,7 @@ def test_stor_creates_the_parent_chain_on_the_upstream_only(gateway, xrd,
     Measured, not assumed: the create-open mkpaths on the xrootd, so `no/such/
     dir/orphan.bin` materialises under the upstream's export. The half of this
     that is worth pinning is the *other* half — the gateway has a local
-    `brix_gridftp_export` of its own, and a write path that fell back to it
+    `brix_export` of its own, and a write path that fell back to it
     would look identical from the client (rc 0) while putting the bytes on the
     wrong host entirely. So: present upstream, absent locally.
     """

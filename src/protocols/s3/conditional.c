@@ -170,7 +170,7 @@ s3_put_precondition(ngx_http_request_t *r, const char *root_canon,
     is_tls = (r->connection->ssl != NULL) ? 1 : 0;
 #endif
     brix_vfs_ctx_init(&vctx, r->pool, r->connection->log, BRIX_PROTO_S3,
-        root_canon, cf->cache_root_canon, cf->common.allow_write, is_tls,
+        root_canon, cf->common.cache_root_canon, cf->common.allow_write, is_tls,
         (s3ctx != NULL) ? s3ctx->identity : NULL, fs_path);
 
     if (brix_vfs_stat(&vctx, &vst) == NGX_OK && vst.is_regular) {

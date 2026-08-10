@@ -1,6 +1,7 @@
 #include "s3.h"
 #include "multipart_internal.h"
 #include "auth/impersonate/lifecycle.h"
+#include "auth/impersonate/impersonate.h"   /* BRIX_IMP_OFF mode constant */
 #include "fs/vfs/vfs.h"   /* thread-safe confined open/unlink (off-thread assemble) */
 #include "core/compat/copy_range.h"
 
@@ -373,9 +374,19 @@ s3_multipart_complete_body_handler_inner(ngx_http_request_t *r)
      * checksum) is heavy blocking I/O — offload it to the thread pool and build
      * the result XML in the completion on the event loop.  Falls back to a
      * synchronous assembly when no pool is configured.
+     *
+     * Impersonation caveat: s3_mpu_assemble is PATH-based (open parts, create the
+     * temp, rename into the mapped user's 0700 dir), and the broker principal is a
+     * process-global set only on the event loop — it cannot be established on a
+     * pool thread without racing every other request.  So under any impersonation
+     * mode we DON'T offload: run the assemble synchronously inside the
+     * brix_imp_request_begin/end bracket the dispatch wrapper holds, exactly as the
+     * put_aio/put_chunk commits stay on the event loop.  The thread offload keeps
+     * its original gateway-owned (impersonation-off) fast path.
      */
     {
-        ngx_thread_pool_t *pool = s3_thread_pool(cf);
+        ngx_thread_pool_t *pool =
+            brix_imp_mode() == BRIX_IMP_OFF ? s3_thread_pool(cf) : NULL;
 
         if (pool != NULL) {
             ngx_thread_task_t *task =

@@ -57,8 +57,9 @@ typedef struct {
     brix_cinfo_l1_t    *l1;           /* per-worker write-through cinfo cache    */
     char                  local_root[PATH_MAX];  /* LOCAL mode: the posix store dir */
     ngx_log_t            *log;
-    unsigned              gcas:1;       /* phase-87 G13: cross-repo hardlink dedup
-                                         * armed (local posix stores only)       */
+    unsigned              gcas:1;       /* phase-87 G13: cross-repo dedup armed
+                                         * (any store whose driver implements
+                                         * dedup_publish — phase-88 W1)          */
 } brix_cstore_t;
 
 /* Eviction / reaper visitor: called once per cached object with the store's stat
@@ -91,9 +92,11 @@ void brix_cstore_cleanup(brix_cstore_t *cs);
  * from the advertised cache_root. NULL-safe. */
 const char *brix_cstore_local_root(const brix_cstore_t *cs);
 
-/* Arm phase-87 G13 cross-repo hardlink dedup on this adapter (local posix
- * stores only — the config layer enforces the medium). Once armed, verified
- * CAS fills publish a canonical inode (gcas.h) and evictions GC it. */
+/* Arm phase-87 G13 cross-repo dedup on this adapter. No-op unless the store's
+ * driver implements the dedup_publish slot (posix: hardlink farm; pblock: F10
+ * refs — the config layer refuses brix_cache_global_cas on any other store).
+ * Once armed, verified CAS fills publish their canonical content identity
+ * (gcas.h) and evictions GC it. */
 void brix_cstore_enable_gcas(brix_cstore_t *cs);
 
 /* ---- fill spine (a cache miss writes the object into the store) ------------ */

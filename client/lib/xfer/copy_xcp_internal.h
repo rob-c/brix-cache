@@ -20,6 +20,13 @@
 #define XRDC_XCP_BLOCK_MIN  (64u * 1024u)
 #define XRDC_XCP_BLOCK_MAX  (64u * 1024u * 1024u)
 
+/* Join gate: block claiming starts when every source has RESOLVED its open
+ * attempt (succeeded or failed), so a fast-opening source cannot drain the
+ * table before a slower sibling ever gets a claim.  The grace cap bounds the
+ * wait when a mirror black-holes (SYN drop / tarpit): after this many
+ * milliseconds the opened workers proceed without the stragglers. */
+#define XRDC_XCP_JOIN_GRACE_MS  1000
+
 /* Per-block lifecycle: claimed exactly once, stolen at most once more. */
 #define XCP_TODO 0u
 #define XCP_BUSY 1u
@@ -36,6 +43,8 @@ typedef struct {
     atomic_uchar         *stealer;    /* 1 = a stealer already races this one */
     atomic_ullong         done_bytes; /* progress feed (coordinator reports)  */
     atomic_uint           live;       /* workers still running                */
+    atomic_uint           resolved;   /* sources whose open attempt finished  */
+    unsigned              nworkers;   /* spawn width (join-gate target)       */
     atomic_uint           steals;     /* stolen-block fetches (observability) */
     atomic_int            have_err;   /* first dead worker claims this        */
     brix_status           first_err;

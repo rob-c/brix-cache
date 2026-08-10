@@ -1,0 +1,29 @@
+## check_directive_registry.py allowlist — phase-101 W9.1
+## Format: <name-or-file:fn>   # reason.  A line without a reason fails (tamper pin).
+## R1 allowlist EMPTY by design.
+## R2 — twins pending hard-rename (W3 gridftp) or a pending OP decision.
+## W3 gridftp twins ALL RESOLVED (W3-A, 2026-08-10): the 11 brix_gridftp_*
+## storage + x509-trust + require_vo names are de-prefixed onto the bare names
+## owned by ngx_stream_brix_common_module; root and gridftp adopt at merge (GSI
+## trust strings via brix_stream_common_adopt_gsi, VO-ACL rules deep-copied via
+## brix_stream_common_adopt_vo_rules and finalized per-plane).  Full gridftp suite
+## + root:// GSI green.  R2 is now EMPTY.
+## brix_webdav_authdb RESOLVED (W5 2026-08-10): de-prefixed to bare brix_authdb
+## (native u/g/p engine, webdav-scoped); XrdAcc entry renamed to brix_acc_authdb.
+## No twin remains — only the W3 gridftp backlog above is left in R2.
+
+## R4 — legitimate read-only cross-module lookups.
+src/auth/authz/authdb_parse.c:ngx_stream_conf_get_module_srv_conf   # read-only merge-time lookup
+src/core/config/server_conf.c:ngx_stream_conf_get_module_srv_conf   # read-only merge-time lookup
+src/core/config/http_common.c:ngx_http_conf_get_module_loc_conf   # read-only merge-time lookup
+src/observability/metrics/module.c:ngx_http_conf_get_module_loc_conf   # read-only merge-time lookup
+src/observability/metrics/module.c:ngx_http_conf_get_module_loc_conf   # read-only merge-time lookup
+src/observability/dashboard/module.c:ngx_http_conf_get_module_loc_conf   # read-only merge-time lookup
+src/observability/dashboard/module.c:ngx_http_conf_get_module_loc_conf   # read-only merge-time lookup
+src/net/cms/server_module.c:ngx_stream_conf_get_module_srv_conf   # read-only merge-time lookup
+src/net/cms/server_module.c:ngx_stream_conf_get_module_srv_conf   # read-only merge-time lookup
+src/protocols/s3/module.c:ngx_http_conf_get_module_loc_conf   # read-only merge-time lookup
+src/protocols/srr/module.c:ngx_http_conf_get_module_loc_conf   # read-only merge-time lookup
+src/protocols/webdav/module_directives_cert.c:ngx_http_conf_get_module_loc_conf   # read-only merge-time lookup
+src/protocols/cvmfs/module.c:ngx_http_conf_get_module_loc_conf   # read-only merge-time lookup
+src/protocols/gridftp/ftp_module.c:ngx_stream_conf_get_module_srv_conf   # read-only merge-time lookup

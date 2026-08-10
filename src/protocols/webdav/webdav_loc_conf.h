@@ -15,32 +15,23 @@ typedef struct {
     ngx_http_brix_shared_conf_t common; /* enable, root, root_canon, allow_write,
                                              thread_pool_name, thread_pool */
 
-    /* --- Optional read-through cache root --- */
-    ngx_str_t   cache_root;               /* [brix_webdav_cache_root /path] */
-    char        cache_root_canon[PATH_MAX]; /* realpath-resolved form; "" = disabled */
+    /* cache_root + cache_root_canon moved to the shared preamble (common.*) —
+     * phase-101 W8; brix_cache_root is registered by the common module. */
 
     /* --- VOMS VO extraction (optional; requires libvomsapi) --- */
-    ngx_str_t   vomsdir;       /* [brix_webdav_vomsdir /etc/grid-security/vomsdir] */
-    ngx_str_t   voms_cert_dir; /* [brix_webdav_voms_cert_dir /etc/grid-security/certificates] */
+    /* vomsdir/voms_cert_dir moved to common preamble (phase-101 W4). */
 
     /* --- X.509 / GSI authentication --- */
     ngx_str_t      cadir;           /* directory of trusted CA PEM files */
     ngx_str_t      cafile;          /* single trusted CA bundle PEM file */
-    ngx_str_t      crl;             /* directory of CRL PEM files */
-    ngx_uint_t     signing_policy_mode; /* [brix_webdav_signing_policy] BRIX_SP_MODE_* */
-    ngx_uint_t     crl_mode;        /* [brix_webdav_crl_mode] BRIX_CRL_MODE_* */
+    /* crl/crl_mode/signing_policy_mode moved to common preamble (phase-101 W4). */
     ngx_uint_t     verify_depth;    /* max proxy chain depth for VOMS proxies;
                                      * RFC 3820 §4 recommends <= 3 for WLCG */
     ngx_uint_t     auth;            /* webdav_auth_t: NONE/OPTIONAL/REQUIRED */
-    ngx_array_t   *protbind;        /* [brix_webdav_protbind <tpl> none|[only]
-                                     * <proto>...] brix_protbind_rule_t[]; NULL
-                                     * = every credential source is tried, in
-                                     * cert→token→basic order.  A matching rule
-                                     * restricts and reorders that list, or
-                                     * (`none`) waives authentication for the
-                                     * peer.  See src/auth/protbind/. */
+    /* protbind moved to the shared preamble (common.protbind) — phase-101 W4;
+     * brix_protbind now registered by the common module, adopted here. */
     ngx_flag_t     proxy_certs;     /* 1 to accept RFC 3820 proxy certificates */
-    ngx_str_t      ssl_client_capath; /* [brix_ssl_client_capath <dir>] OpenSSL
+    ngx_str_t      ssl_client_capath; /* [brix_client_ca_store <dir>] OpenSSL
                                      * hashed CA directory (IGTF layout, e.g.
                                      * /etc/grid-security/certificates) ADDED to
                                      * the server's TLS client-verify store at
@@ -48,7 +39,7 @@ typedef struct {
                                      * can trust a hash dir that stock nginx's
                                      * file-only ssl_client_certificate cannot
                                      * express.  Server-level; "" = off. */
-    ngx_str_t      proxy_ssl_capath; /* [brix_proxy_ssl_capath <dir>] OpenSSL
+    ngx_str_t      proxy_ssl_capath; /* [brix_backend_ca_dir <dir>] OpenSSL
                                      * hashed CA directory ADDED to this
                                      * location's upstream (proxy_ssl) trust
                                      * store at postconfiguration; the handler
@@ -63,30 +54,13 @@ typedef struct {
     /* --- Write permissions / TPC --- */
     ngx_flag_t     tpc;             /* 1 to allow HTTP-TPC (third-party copy) */
     ngx_flag_t     tape_rest;       /* 1 to serve the WLCG /api/v1 Tape REST API */
-    ngx_flag_t     upload_resume;   /* [brix_webdav_upload_resume on|off] default
-                                     * ON.  When on, a Content-Range PUT writes its
-                                     * chunk to a persistent identity-keyed partial
-                                     * at the given offset and commits only when the
-                                     * upload is complete; a 409 reports X-Upload-
-                                     * Offset.  Lets a davs:// upload resume across
-                                     * an nginx restart.  See src/webdav/put.c. */
-    ngx_str_t      upload_stage_dir;      /* [brix_webdav_stage_dir <path>] optional
-                                     * fast-cache staging device; empty = stage
-                                     * adjacent to the destination. */
+    /* upload_resume moved to common preamble (phase-101 W4). */
+    /* upload_stage_dir moved to common preamble (W4); *_canon stays here. */
     char           upload_stage_dir_canon[PATH_MAX];
 
-    /* --- HTTP-TPC SSRF policy --- */
-    ngx_flag_t     tpc_allow_local;   /* 0: reject loopback+link-local targets */
-    ngx_flag_t     tpc_allow_private; /* 0: reject RFC-1918 / ULA targets */
-    ngx_flag_t     tpc_source_guard;  /* [brix_webdav_tpc_source_guard] 0: off.
-                                       * When on, a COPY may only pull from a
-                                       * source authority on tpc_source_allow —
-                                       * a NAMING allowlist enforced before curl
-                                       * dials out (SSRF egress control), the
-                                       * WebDAV-plane twin of the native
-                                       * brix_tpc_source_guard. */
-    ngx_array_t   *tpc_source_allow;  /* ngx_str_t patterns: exact host or
-                                       * leading-'.' domain suffix. */
+    /* --- HTTP-TPC SSRF policy: allow_local/allow_private/source_guard/
+     * source_allow moved to the shared preamble (common.tpc_*) — phase-101 W4;
+     * bare brix_tpc_* registered by the common module, adopted here. --- */
 
     /* --- HTTP-TPC (curl-based pull) settings --- */
     ngx_str_t      tpc_curl;        /* path to curl binary */
@@ -105,22 +79,28 @@ typedef struct {
     ngx_uint_t     tpc_low_speed_secs;  /* CURLOPT_LOW_SPEED_TIME (s);   0 = off */
     ngx_uint_t     tpc_marker_interval; /* seconds between Perf Markers; 0 = 201 only */
     ngx_uint_t     tpc_max_streams;     /* max parallel streams per pull; 0 = single */
+    ngx_uint_t     tpc_xfr;             /* [brix_webdav_tpc_xfr N] §6.9 explicit
+                                           concurrent-transfer cap; 0 = bound only
+                                           by the registry slot ceiling (default) */
+    time_t         maxdelay;            /* [brix_webdav_maxdelay <time>] §6.11
+                                           http.maxdelay analog: CAP on the
+                                           Retry-After seconds a 202 "staging"
+                                           (tape-recall) response tells the client
+                                           to wait. 0 = off (emit the default 10s). */
 
-    /* --- HTTP-TPC pull completion gate (the HTTP analogue of the native
-     * brix_tpc_require_source_size / brix_tpc_verify_checksum pair).  Both are
-     * evaluated after the last byte lands in the staged temp and before it is
-     * committed, so a refused pull leaves no file behind.
-     *   tpc_require_source_size  [brix_webdav_tpc_require_source_size on|off]
-     *       off (default): a source that declares no Content-Length is pulled
-     *       anyway; on: such a pull is refused as unverifiable.  Whenever the
-     *       source DOES declare a length it is always compared against the bytes
-     *       received — that comparison needs no opt-in, only one of the gates on.
-     *   tpc_verify_digest  [brix_webdav_tpc_verify_checksum <alg>]
-     *       "" (default) = off.  Non-empty names the RFC-3230 algorithm sent as
-     *       Want-Digest on the completion probe; the returned Digest: is
-     *       recomputed over the staged temp and must match, fail-closed. */
-    ngx_flag_t     tpc_require_source_size;
-    ngx_str_t      tpc_verify_digest;
+    /* --- HTTP-TPC pull completion gate.  Both halves are evaluated after the
+     * last byte lands in the staged temp and before it is committed, so a refused
+     * pull leaves no file behind.
+     *   common.tpc_require_source_size  [brix_tpc_require_source_size on|off]
+     *       (phase-101 W4: moved to the shared preamble) off (default): a source
+     *       that declares no Content-Length is pulled anyway; on: such a pull is
+     *       refused as unverifiable.  Whenever the source DOES declare a length it
+     *       is always compared against the bytes received — needs no opt-in.
+     *   common.tpc_verify_checksum  [brix_tpc_verify_checksum on|off|<alg>]
+     *       (phase-101 W4: unified onto the shared preamble) "" = off; otherwise a
+     *       canonical RFC-3230 algorithm name sent as Want-Digest on the completion
+     *       probe, recomputed over the staged temp, fail-closed on mismatch.  "on"
+     *       normalizes to "adler32" (the XRootD/WLCG default). */
 
     /* [brix_webdav_tpc_credential_forward on|off] default ON.  When on, a TPC
      * PULL acts as the END USER against the source by default: it resolves the
@@ -136,26 +116,18 @@ typedef struct {
     /* --- HTTP-TPC OAuth2/OIDC credential delegation --- */
     ngx_http_brix_tpc_conf_t tpc_cred;
 
-    /* --- HTTP Basic password auth (pwd db) --- */
-    ngx_str_t      pwd_file;        /* [brix_webdav_pwd_file <file>] enable HTTP
-                                       Basic verified against the same
-                                       user:salthex:hashhex[:vo,..] db the
-                                       stream `brix_auth pwd` uses ("" = off) */
+    /* --- HTTP Basic password auth (pwd db) ---
+     * pwd_file moved to the common preamble (common.pwd_file) in phase-101 W4;
+     * brix_webdav_pwd_file is now the bare brix_pwd_file. */
 
-    /* --- Bearer token (WLCG/SciToken) settings --- */
-    ngx_str_t      token_jwks;      /* path to JWKS file for RS256 validation */
-    ngx_str_t      token_issuer;    /* required "iss" claim; "" to skip check */
-    ngx_str_t      token_audience;  /* required "aud" claim; "" to skip check */
-    ngx_int_t      token_clock_skew; /* [brix_webdav_token_clock_skew 30] seconds of
-                                        exp grace; NGX_CONF_UNSET = inherit/default
-                                        (BRIX_TOKEN_CLOCK_SKEW_SECS); max 300 */
-    ngx_str_t      token_config;    /* [brix_webdav_token_config <scitokens.cfg>]
-                                       multi-issuer registry (phase-59 W1) */
-    void          *token_registry;  /* brix_token_registry_t* or NULL */
-    ngx_str_t      token_macaroon_secret;     /* [brix_webdav_macaroon_secret <hex>] */
-    ngx_str_t      token_macaroon_secret_old; /* [brix_webdav_macaroon_secret_old <hex>]
-                                                 grace-period key accepted alongside the
-                                                 primary secret during key rotation. */
+    /* --- Bearer token (WLCG/SciToken) settings ---
+     * token_jwks/issuer/audience/clock_skew/config moved to the common preamble
+     * (common.token_*) in phase-101 W4. */
+    void          *token_registry;  /* brix_token_registry_t* or NULL — the built
+                                       registry stays webdav-local; the source path
+                                       is common.token_config (W4). */
+    /* token_macaroon_secret[_old] moved to the common preamble
+     * (common.token_macaroon_secret[_old]) in phase-101 W4. */
     brix_jwks_key_t  jwks_keys[BRIX_MAX_JWKS_KEYS]; /* loaded RSA pub keys */
     int                 jwks_key_count;  /* number of valid entries in jwks_keys */
     ngx_flag_t          http_query_token; /* accept ?authz=<token> (default on) */
@@ -177,7 +149,9 @@ typedef struct {
     /* --- CORS settings --- */
     ngx_array_t        *cors_origins;    /* allowed origins (ngx_str_t array) */
     ngx_flag_t          cors_credentials; /* Access-Control-Allow-Credentials */
-    ngx_uint_t          cors_max_age;     /* Access-Control-Max-Age in seconds */
+    time_t              cors_max_age;     /* [brix_webdav_cors_max_age] Access-Control-
+                                           * Max-Age; sec_slot (phase-101 W7): accepts
+                                           * nginx time units, e.g. 1h == 3600 */
 
     /* --- ZIP member access (phase-57 W2) ---
      * [brix_webdav_zip_access on|off] — opt-in, off by default.  A GET whose
@@ -185,11 +159,12 @@ typedef struct {
      * (stored + deflate).  Unlike root://, an HTTP client cannot self-inflate,
      * so the server must extract.  zip_cd_max_bytes caps the central-directory
      * read (bomb guard; default 16 MiB). */
-    ngx_flag_t          zip_access;
-    size_t              zip_cd_max_bytes;
+    /* zip_access/zip_cd_max_bytes moved to common preamble (W4). */
 
     /* --- WebDAV LOCK --- */
-    ngx_uint_t          lock_timeout;    /* max lock timeout in seconds */
+    time_t              lock_timeout;    /* [brix_webdav_lock_timeout] max lock
+                                          * timeout; sec_slot (phase-101 W7): accepts
+                                          * nginx time units, e.g. 5m == 300 */
     ngx_flag_t          lock_startup_sweep; /* on = remove all persisted lock
                                              * xattrs under the export root at
                                              * startup (restores ephemeral,
@@ -231,14 +206,16 @@ typedef struct {
                                                   [brix_rate_limit_rule /
                                                    _bandwidth_limit]; NULL = off */
 
-    /* ---- XrdAcc authorization engine (off by default) ---- */
-    brix_acc_http_t         acc;               /* settings + per-worker state */
+    /* XrdAcc authorization engine moved to the shared preamble (common.acc) in
+     * phase-101 W2 — registered once on the common module, read via common.acc. */
 
     /* ---- Native authorization (read parity with root://) ----
      * Enforced for READ methods in the access phase (webdav_access), so a
      * cached GET is gated the same as a miss. Empty => not configured (no-op). */
-    ngx_array_t            *authdb_rules;      /* [brix_webdav_authdb <file>] u/g/p rules   */
-    ngx_array_t            *vo_rules;          /* [brix_webdav_require_vo <path> <vo>] VO ACL */
+    /* authdb_rules moved to common.authdb_rules (phase-101 W5.2) — shared across
+     * all HTTP planes, enforced in each protocol's access phase. */
+    /* vo_rules moved to the shared preamble (common.vo_rules) — phase-101 W4;
+     * brix_require_vo now registered by the common module, adopted here. */
 
     /* Per-socket TCP congestion control (e.g. "bbr") applied to the HTTP
      * connection before the GET body is served; empty = kernel default.  The
@@ -269,6 +246,16 @@ typedef struct {
     ngx_uint_t                redirect_scheme;  /* BRIX_WEBDAV_RDR_* */
     ngx_int_t                 redirect_window;  /* seconds; default 120 */
     ngx_str_t                 http_secretkey;
+
+    /* §6.6 HTML directory listing on GET (the XrdHttp "Listing" analog).
+     * html_listing off (default) keeps the stock listingdeny posture: a GET on
+     * a directory is 403.  On renders an escaped HTML index (name/size/mtime)
+     * from the same VFS readdir seam PROPFIND uses.  listing_redirect, when
+     * set, is the listingredir analog: a GET on a directory 301-redirects
+     * there (with the request path appended) instead of listing — checked
+     * before html_listing. */
+    ngx_flag_t                html_listing;
+    ngx_str_t                 listing_redirect;
 } ngx_http_brix_webdav_loc_conf_t;
 
 #define BRIX_WEBDAV_RDR_HTTP   0

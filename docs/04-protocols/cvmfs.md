@@ -992,8 +992,8 @@ many clients: that is `CVMFS_TIMEOUT` set shorter than the fill latency.
 |---|---|---|
 | `brix_cvmfs on\|off` | off | makes the location a dedicated CVMFS endpoint |
 | `brix_storage_backend "http://s1a[\|http://s1b…]"` | — | ordered Stratum-1 origin set (pipe = `CVMFS_SERVER_URL` syntax); first is the write side, reads fail over by health |
-| `brix_cache_store posix:<dir>` | — | the cache tier's physical store |
-| `brix_cache_verify off\|cvmfs-cas` | **cvmfs-cas** | CAS verify-on-fill (§4.1) |
+| `brix_cache_store posix:<dir>` | — | the cache tier's physical store. Phase-88: `pblock:<dir>?dedup=1[&pack=1] block_size=256m` selects the pblock backend instead — refs-based cross-repo dedup (`brix_cache_global_cas`) and the packed small-blob arena (one segment inode per ~64 MiB of small CAS objects instead of a dir+file each). At-rest per-block CRC32c (`csi`) and the cross-worker shared namespace cache (`nsidx`) are standard-on for every pblock store (W5; `csi=0`/`nsidx=0` opt out) |
+| `brix_cache_verify off\|cvmfs-cas` | **cvmfs-cas** | CAS verify-on-fill (§4.1); on a pblock store size `block_size` at or above the 256 MiB CVMFS object ceiling (config warns otherwise) |
 | `brix_cvmfs_quarantine_dir <dir>` | "" (unlink) | where verify-mismatch parts land |
 | `brix_cvmfs_manifest_ttl <sec>` | 61 | MANIFEST-class TTL (§4.2) |
 | `brix_cvmfs_negative_ttl <sec>` | 10 | per-worker 404 memo TTL (§4.3) |

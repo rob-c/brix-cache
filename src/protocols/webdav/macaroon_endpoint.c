@@ -117,7 +117,7 @@ mac_gate_and_read_body(ngx_http_request_t *r,
         ngx_http_get_module_ctx(r, ngx_http_brix_webdav_module);
 
     /* Require configured macaroon secret */
-    if (conf->token_macaroon_secret.len == 0) {
+    if (conf->common.token_macaroon_secret.len == 0) {
         mac_respond(r, NGX_HTTP_NOT_FOUND,
                     J_NOT_CONFIGURED, sizeof(J_NOT_CONFIGURED) - 1);
         return NGX_ERROR;
@@ -242,9 +242,9 @@ mac_build_location(ngx_http_request_t *r,
     const char *scheme;
     u_char     *p;
 
-    if (conf->token_issuer.len > 0 && conf->token_issuer.len < locsz) {
-        ngx_memcpy(location, conf->token_issuer.data, conf->token_issuer.len);
-        location[conf->token_issuer.len] = '\0';
+    if (conf->common.token_issuer.len > 0 && conf->common.token_issuer.len < locsz) {
+        ngx_memcpy(location, conf->common.token_issuer.data, conf->common.token_issuer.len);
+        location[conf->common.token_issuer.len] = '\0';
         return;
     }
     if (allow_conf_location

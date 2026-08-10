@@ -132,7 +132,11 @@ clean error.
 .TP
 .BI \-\-cksum " TYPE[:source|:print|:VALUE]"
 Verify a checksum after transfer.
-\fITYPE\fR is \fBadler32\fR, \fBcrc32c\fR, or \fBmd5\fR.
+\fITYPE\fR is \fBadler32\fR, \fBcrc32c\fR, or \fBmd5\fR; the sha family
+(\fBsha1\fR, \fBsha256\fR, \fBsha512\fR) is computed locally and therefore
+valid only in \fB:print\fR and literal\-\fIVALUE\fR modes \(em the server
+checksum plane has no sha support, so \fBsha*:source\fR is a usage error
+rather than a silent pass.
 .TP
 .BI \-\-compress " CODEC"
 Enable root:// inline compression on download (read) and upload (write).
@@ -176,6 +180,57 @@ fails over across its mirrors in rank order. Only remote pull schemes are
 accepted as mirrors (root/roots/xroot/xroots/http/https/dav/davs); a document
 digest of a supported type (md5, crc32c, adler32) acts as \fB\-\-cksum\fR
 \fIalgo\fR:\fIhex\fR unless \fB\-\-cksum\fR was given explicitly.
+.TP
+.B \-X, \-\-xrate \fIRATE\fR
+Cap the transfer rate at \fIRATE\fR bytes/sec (binary \fBk\fR/\fBm\fR/\fBg\fR
+suffixes).
+Applies to the serial path; mutually exclusive with \fB\-\-parallel\fR and
+\fB\-\-sources\fR (which bypass the paced pump).
+.TP
+.B \-\-xrate\-threshold \fIRATE\fR
+Fail the transfer when the average rate drops below \fIRATE\fR bytes/sec
+(3\ s grace so connection setup never trips it).
+.TP
+.B \-\-xattr
+Preserve \fIuser\fR-namespace extended attributes across a
+\fBroot://\fR-to-local copy (stock: "preserve extended attributes").
+Best-effort: a failed attribute warns and the copy still succeeds.
+For safety only the \fBuser.\fR namespace ever crosses \(em
+\fBsystem.\fR, \fBsecurity.\fR and \fBtrusted.\fR names are skipped in
+both directions, so a remote server cannot plant kernel metadata
+(capabilities, ACLs) on a local file.
+.TP
+.B \-F, \-\-coerce
+Set \fBkXR_force\fR on the remote destination open (stock: "ignore file
+locking semantics").
+BriX\-Cache servers have no mandatory usage\-locking to override and accept
+the bit; the flag matters for drop\-in scripts and stock destinations that
+enforce usage rules.
+.TP
+.BI \-\-retry\-policy " force|continue"
+What a \fB\-\-retry\fR attempt does with the partial destination:
+\fBforce\fR restarts from scratch (the default), \fBcontinue\fR arms the
+\fB\-\-continue\fR byte\-offset engine so every attempt (including the
+first) writes the destination in place and each retry resumes at the
+partial's size.
+.TP
+.B \-\-rm\-bad\-cksum
+Accepted for stock compatibility.
+Stock deletes a checksum\-mismatched destination only when this is given;
+BriX\-Cache does so unconditionally (fail\-closed default), so the flag is a
+no\-op alias of the stricter behavior.
+.TP
+.B \-\-continue
+Resume an interrupted download at the existing partial destination's size
+(stock xrdcp semantics).
+The destination is written \fIin place\fR \(em no atomic temp+rename \(em so a
+failed transfer leaves the partial for the next \fB\-\-continue\fR; a local
+file already larger than the source is refused.
+A \fIcompleted\fR file that then fails \fB\-\-cksum\fR is still removed
+(fail\-closed on integrity verdicts).
+Mutually exclusive with \fB\-f\fR, \fB\-\-pgrw\fR, \fB\-\-compress\fR, the
+\fB\-\-zip\fR modes, and \fB\-\-journal\fR/\fB\-\-resume\fR (a different
+resume system).
 .TP
 .BR \-\-tpc " " \fBfirst\fR " | " \fBonly\fR " | " \fBdelegate\fR
 Server-side third-party copy (remote to remote): the destination pulls the

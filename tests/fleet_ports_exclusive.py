@@ -296,4 +296,12 @@ LIFECYCLE_EXCLUSIVE_PORTS: dict[str, dict] = {
     "lc-audit-onlyifcached": {"port": 31240},
     "lc-audit-coldpurge": {"port": 31241},
     "lc-audit-signing": {"port": 31242},
+    # §4.3 uvkeep — fills an UNVERIFIED entry, swaps the source, and proves the
+    # entry is revalidated only once it ages past the keep window (its own cache/
+    # export state, serialised by xdist_group("lc-cache-uvkeep")).
+    "lc-cache-uvkeep": {"port": 31243},
+    # §4.7 max_bytes — fills the cache past an owned-bytes cap and proves the
+    # reaper evicts back down to it (its own cache/export state, serialised by
+    # xdist_group("lc-cache-maxbytes")).
+    "lc-cache-maxbytes": {"port": 31244},
 }

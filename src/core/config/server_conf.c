@@ -21,6 +21,7 @@
 
 #include "config.h"
 #include "server_conf_internal.h"       /* per-area merge entry points */
+#include "stream_common.h"              /* phase-101 W3: brix_stream_common_adopt */
 #include "auth/crypto/store_policy.h"   /* BRIX_SP_MODE_*, BRIX_CRL_MODE_* defaults */
 #include "core/compat/af_policy.h"      /* BRIX_AF_AUTO default for origin family */
 #include "fs/cache/verify.h"          /* brix_cache_verify_mode_e default */
@@ -65,6 +66,8 @@ brix_create_srv_security(ngx_stream_brix_srv_conf_t *conf)
     conf->signing_policy_mode = NGX_CONF_UNSET_UINT;
     conf->crl_mode     = NGX_CONF_UNSET_UINT;
     conf->gsi_max_inflight = NGX_CONF_UNSET;
+    conf->gsi_verify_depth = NGX_CONF_UNSET;
+    conf->tls_reuse        = NGX_CONF_UNSET;
     conf->vo_rules     = NULL;
     conf->group_rules  = NULL;
     conf->session_log  = NGX_CONF_UNSET;
@@ -75,6 +78,7 @@ brix_create_srv_security(ngx_stream_brix_srv_conf_t *conf)
     conf->signing_required = NGX_CONF_UNSET;
     conf->min_sec_level = NGX_CONF_UNSET_UINT;
     conf->ztn_cleartext = NGX_CONF_UNSET;
+    conf->ztn_maxsz = NGX_CONF_UNSET_SIZE;
     conf->opaque_strict = NGX_CONF_UNSET;
     conf->tls          = NGX_CONF_UNSET;
     conf->tls_ktls     = NGX_CONF_UNSET;
@@ -119,6 +123,11 @@ brix_create_srv_storage(ngx_stream_brix_srv_conf_t *conf)
     conf->zip_cd_max_bytes = NGX_CONF_UNSET_SIZE;
     conf->zip_force_scratch = NGX_CONF_UNSET;
     conf->zip_stage_max_bytes = NGX_CONF_UNSET_SIZE;
+    conf->chkpnt_maxsz = NGX_CONF_UNSET_SIZE;
+    conf->oss_maxsize  = NGX_CONF_UNSET;
+    conf->oss_quota    = NGX_CONF_UNSET;
+    conf->oss_quota_enforce = NGX_CONF_UNSET;
+    /* oss_cgroup left {0,NULL} → merged to "default" below. */
     conf->tls_ctx      = NULL;
     conf->cache        = NGX_CONF_UNSET;
     conf->cache_origin_tls = NGX_CONF_UNSET;
@@ -200,6 +209,7 @@ brix_create_srv_cluster(ngx_stream_brix_srv_conf_t *conf)
     conf->listen_port  = NGX_CONF_UNSET;
     conf->ckscan_max_depth = NGX_CONF_UNSET_UINT;
     conf->ckscan_max_files = NGX_CONF_UNSET_UINT;
+    conf->slowop_usec      = NGX_CONF_UNSET;
     conf->tpc_allow_local   = NGX_CONF_UNSET;
     conf->tpc_allow_private = NGX_CONF_UNSET;
     conf->tpc_source_guard  = NGX_CONF_UNSET;
@@ -214,7 +224,8 @@ brix_create_srv_cluster(ngx_stream_brix_srv_conf_t *conf)
     conf->tpc_key_ttl_ms    = NGX_CONF_UNSET_MSEC;
     conf->tpc_max_transfer_secs = NGX_CONF_UNSET_UINT;
     conf->tpc_require_source_size = NGX_CONF_UNSET;
-    conf->tpc_verify_checksum = NGX_CONF_UNSET;
+    /* tpc_verify_checksum now lives in common.* (phase-101 W4), init'd by the
+     * shared preamble as a str ("" = off). */
     conf->tpc_outbound_tls  = NGX_CONF_UNSET;
     conf->tpc_delegate      = NGX_CONF_UNSET;
     conf->tpc_outbound_passthrough = NGX_CONF_UNSET;
@@ -255,6 +266,9 @@ brix_create_srv_proxy_net(ngx_stream_brix_srv_conf_t *conf)
     conf->upstream_tls_name.data = NULL;
     conf->upstream_token_file.len  = 0;
     conf->upstream_token_file.data = NULL;
+
+    conf->max_delay         = NGX_CONF_UNSET;
+    conf->fsoverload_stall  = NGX_CONF_UNSET;
 
     /* Phase 39: network-fault resilience (off by default). */
     conf->read_timeout      = NGX_CONF_UNSET_MSEC;
@@ -319,6 +333,32 @@ ngx_stream_brix_merge_srv_conf(ngx_conf_t *cf, void *parent, void *child)
 {
     ngx_stream_brix_srv_conf_t *prev = parent;
     ngx_stream_brix_srv_conf_t *conf = child;
+
+    /* phase-101 W3 (variant A): seed the storage bare names (brix_export,
+     * brix_storage_backend, brix_storage_credential, brix_allow_write,
+     * brix_verify_write) from ngx_stream_brix_common_module — their single
+     * stream-plane owner — into this server's embedded preamble BEFORE the
+     * per-area merges, so brix_merge_srv_storage() derives root_canon and the
+     * backend from the adopted values exactly as it did when root registered
+     * them directly.  Only fills still-UNSET common.* slots, so a value set on
+     * THIS server wins and everything else this module owns is untouched. */
+    brix_stream_common_adopt(cf, &conf->common);
+
+    /* phase-101 W3 stage 3: the x509 GSI-trust strings are also owned by the
+     * common module now; adopt them into this server's own fields BEFORE
+     * brix_merge_srv_security inherits and the GSI postconfig builds the SSL_CTX
+     * / trust store from them. */
+    brix_stream_common_adopt_gsi(cf, &conf->certificate, &conf->certificate_key,
+                                 &conf->trusted_ca, &conf->vomsdir,
+                                 &conf->voms_cert_dir);
+
+    /* phase-101 W3 stage 3b: brix_require_vo is owned by the common module too;
+     * deep-copy its VO-ACL rules into this server's own array (brix_config_
+     * finalize_policy later finalizes them against common.root, and only when
+     * brix_root is enabled — a gridftp-only server never finalizes root's copy). */
+    if (brix_stream_common_adopt_vo_rules(cf, &conf->vo_rules) != NGX_OK) {
+        return NGX_CONF_ERROR;
+    }
 
     if (brix_merge_srv_security(cf, conf, prev) != NGX_CONF_OK) {
         return NGX_CONF_ERROR;

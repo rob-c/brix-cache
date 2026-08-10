@@ -42,6 +42,7 @@
 #include "protocols/ssi/ssi.h"
 #include "fs/cache/writethrough_metrics.h"
 #include "wrts_journal.h"
+#include "protocols/root/query/query_internal.h" /* §3.3 brix_query_space_probe */
 
 /*
  * brix_write_desc_t — the decoded kXR_write request parameters, bundled so the
@@ -253,6 +254,98 @@ brix_write_require_pgwrite(brix_ctx_t *ctx, ngx_connection_t *c, int idx,
 	return 1;
 }
 
+/* ---- oss.maxsize create-size cap (shared by write / pgwrite / writev) ----
+ *
+ * WHAT: Returns 1 (refused, *rc set to a kXR_overQuota reply) when
+ *       brix_oss_maxsize is configured and this write's END offset
+ *       (offset + len) would push the file past it; 0 to allow the write.
+ *
+ * WHY:  Parity audit §3.9 — the oss.maxsize create-size cap. Enforcing at the
+ *       write plane (rather than only trusting the client's oss.asize hint at
+ *       open) makes the cap load-bearing: a client that omits or understates
+ *       asize is still stopped at the byte that would cross the limit.
+ *
+ * HOW:  No-op when the cap is unset (0) or the write is empty. The end offset
+ *       is computed in uint64 to avoid signed overflow; a negative offset
+ *       (already rejected upstream, but guarded here) or any end past the cap
+ *       is refused with the stock over-quota code and the standard triplet.
+ */
+/* §3.3 enforced-quota usage check: is the export's usage + this write's length
+ * past brix_oss_quota? Usage comes from the SAME probe the Qspace report
+ * advertises (pblock catalog = exact; plain POSIX = statvfs of the export's
+ * filesystem — conservative on a shared mount, documented). TTL-cached 5s per
+ * worker: statvfs is cheap but the pblock catalog is SQLite — never per-write.
+ * The length is charged in full (an overwrite over-counts near the boundary —
+ * conservative, like stock's XrdOssSpace lag). A probe FAILURE never blocks
+ * writes (fail-open: quota is a policy cap, not an integrity gate). */
+static ngx_flag_t
+write_over_quota(ngx_connection_t *c, ngx_stream_brix_srv_conf_t *conf,
+    size_t len)
+{
+	static ngx_stream_brix_srv_conf_t *cached_conf;
+	static ngx_msec_t                    cached_at;
+	static unsigned long long            cached_used;
+	unsigned long long                   total, freeb, used;
+
+	if (cached_conf == conf
+	    && (ngx_msec_int_t) (ngx_current_msec - cached_at) < 5000)
+	{
+		used = cached_used;
+	} else {
+		if (brix_query_space_probe(c, conf, &total, &freeb, &used) != NGX_OK) {
+			return 0;
+		}
+		cached_conf = conf;
+		cached_at   = ngx_current_msec;
+		cached_used = used;
+	}
+	return used + (unsigned long long) len
+	       > (unsigned long long) conf->oss_quota;
+}
+
+ngx_int_t
+brix_write_within_maxsize(brix_ctx_t *ctx, ngx_connection_t *c,
+    ngx_stream_brix_srv_conf_t *conf, int idx, int64_t offset, size_t len,
+    ngx_uint_t op_id, const char *op, ngx_int_t *rc)
+{
+	uint64_t end;
+
+	if (len == 0) {
+		return 0;
+	}
+
+	if (conf->oss_maxsize > 0) {
+		if (offset < 0) {
+			end = (uint64_t) len;             /* treat as end-of-cap crossing */
+		} else {
+			end = (uint64_t) offset + (uint64_t) len;
+		}
+		if (end > (uint64_t) conf->oss_maxsize) {
+			brix_log_access(ctx, c, op, ctx->files[idx].path, "-", 0,
+							  kXR_overQuota, "write exceeds brix_oss_maxsize", 0);
+			BRIX_OP_ERR(ctx, op_id);
+			*rc = brix_send_error(ctx, c, kXR_overQuota,
+			    "write exceeds the configured maximum file size (brix_oss_maxsize)");
+			return 1;
+		}
+	}
+
+	/* §3.3: the ENFORCED space quota (opt-in; brix_oss_quota alone stays
+	 * advertisement-only). Same refusal code stock uses for over-quota. */
+	if (conf->oss_quota_enforce == 1 && conf->oss_quota >= 0
+	    && write_over_quota(c, conf, len))
+	{
+		brix_log_access(ctx, c, op, ctx->files[idx].path, "-", 0,
+						  kXR_overQuota, "export usage exceeds brix_oss_quota", 0);
+		BRIX_OP_ERR(ctx, op_id);
+		*rc = brix_send_error(ctx, c, kXR_overQuota,
+		    "export usage exceeds the enforced space quota (brix_oss_quota)");
+		return 1;
+	}
+
+	return 0;
+}
+
 /*
  * brix_handle_write — handle kXR_write: write the request payload to an
  * open file at the specified offset.
@@ -302,6 +395,15 @@ brix_handle_write(brix_ctx_t *ctx, ngx_connection_t *c)
 	 * zero-length no-ops carry no data to protect and stay exempt. */
 	if (brix_write_require_pgwrite(ctx, c, idx, wlen, "WRITE", &rc)) {
 		return rc;
+	}
+
+	{
+		ngx_stream_brix_srv_conf_t *mconf = ngx_stream_get_module_srv_conf(
+		    (ngx_stream_session_t *) c->data, ngx_stream_brix_module);
+		if (brix_write_within_maxsize(ctx, c, mconf, idx, offset, wlen,
+									   BRIX_OP_WRITE, "WRITE", &rc)) {
+			return rc;
+		}
 	}
 
 	if (brix_write_route_special(ctx, c, &w, &rc)) {

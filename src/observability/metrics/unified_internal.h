@@ -53,5 +53,7 @@ unsigned long long brix_unified_legacy_auth(ngx_brix_metrics_t *shm,
 void unified_emit_io_bytes(metrics_writer_t *mw, ngx_brix_metrics_t *shm);
 void unified_emit_io_ops(metrics_writer_t *mw, ngx_brix_metrics_t *shm);
 void unified_emit_io_latency(metrics_writer_t *mw, ngx_brix_metrics_t *shm);
+void unified_emit_io_slowop(metrics_writer_t *mw, ngx_brix_metrics_t *shm);
+void unified_emit_io_offload(metrics_writer_t *mw, ngx_brix_metrics_t *shm);
 
 #endif /* NGX_BRIX_METRICS_UNIFIED_INTERNAL_H */

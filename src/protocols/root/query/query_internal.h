@@ -127,6 +127,13 @@ ngx_int_t brix_query_ckscan(brix_ctx_t *ctx, ngx_connection_t *c,
  * on conf root. Sends response (kXR_IOError on statvfs failure); returns NGX_OK. */
 ngx_int_t brix_query_space(brix_ctx_t *ctx, ngx_connection_t *c,
     ngx_stream_brix_srv_conf_t *conf);
+/* Capacity probe both space reports share — driver space view (pblock quota
+ * catalog / sd_xroot origin forward) with the local-statvfs fallback. Exported
+ * so the §3.3 brix_oss_quota_enforce write-admission gate prices usage from the
+ * SAME source the Qspace report advertises. */
+ngx_int_t brix_query_space_probe(ngx_connection_t *c,
+    ngx_stream_brix_srv_conf_t *conf, unsigned long long *total,
+    unsigned long long *freeb, unsigned long long *used);
 /* kXR_QFSinfo (3017): capacity in the compact "wVal freeMB util sVal freeMB util"
  * locate/redirect format (always writable=1, staging=1). Sends response; NGX_OK. */
 ngx_int_t brix_query_fsinfo(brix_ctx_t *ctx, ngx_connection_t *c,
@@ -138,7 +145,8 @@ ngx_int_t brix_query_config(brix_ctx_t *ctx, ngx_connection_t *c,
     ngx_stream_brix_srv_conf_t *conf);
 /* kXR_QStats: XML server statistics (connections, bytes, uptime, port) from the
  * metrics struct. Sends response; returns NGX_OK. */
-ngx_int_t brix_query_stats(brix_ctx_t *ctx, ngx_connection_t *c);
+ngx_int_t brix_query_stats(brix_ctx_t *ctx, ngx_connection_t *c,
+    ngx_stream_brix_srv_conf_t *conf);
 /* kXR_Qxattr: extended attributes of a path after auth (READ); returns oss.*
  * stat fields plus user.U.* xattrs. Sends response (kXR_* on stat/arg error). */
 ngx_int_t brix_query_xattr(brix_ctx_t *ctx, ngx_connection_t *c,

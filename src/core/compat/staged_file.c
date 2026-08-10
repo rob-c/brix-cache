@@ -10,6 +10,7 @@
 #include "tmp_path.h"
 #include "fs/path/path.h"
 #include "fs/path/beneath.h"
+#include "auth/impersonate/impersonate.h"   /* brix_imp_client_active */
 
 #include <errno.h>
 #include <fcntl.h>
@@ -284,12 +285,20 @@ staged_commit_internal(ngx_log_t *log, const char *root_canon,
             errno = e;
             return NGX_ERROR;
         }
-        /* SECURITY: restore the caller's intended mode on the OPEN fd just before
-         * the rename publishes it. The temp was written 0600 (private); rename
-         * preserves the fd's mode, so the committed namespace object carries its
-         * client-intended bits (e.g. 0644) with no world-readable in-flight
-         * window. */
-        (void) fchmod(staged->fd, staged->final_mode);
+        /* SECURITY: restore the caller's intended mode just before the rename
+         * publishes it. The temp was written 0600 (private); the committed object
+         * carries its client-intended bits (e.g. 0644) with no world-readable
+         * in-flight window.  Under impersonation the fd fchmod runs as the
+         * unprivileged worker on the MAPPED USER's file and EPERMs (silently),
+         * leaving the object 0600 and blocking group DAC on a shared/setgid-dir
+         * upload — so re-apply the mode AS THE MAPPED USER via the broker
+         * (path-based), which the fd fchmod cannot reach. */
+        if (staged->final_mode != 0 && brix_imp_client_active()) {
+            (void) brix_chmod_confined_canon(log, root_canon, staged->tmp_path,
+                                               staged->final_mode);
+        } else {
+            (void) fchmod(staged->fd, staged->final_mode);
+        }
         ngx_close_file(staged->fd);
         staged->fd = NGX_INVALID_FILE;
     }

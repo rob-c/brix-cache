@@ -1,5 +1,6 @@
 #include "core/config/config.h"
 #include "auth/crypto/ocsp.h"
+#include "protocols/root/session/tls_session.h"   /* §5.10 tlsreuse policy */
 
 /*
  * WHAT: This file configures the SSL context for in-protocol TLS upgrade. When
@@ -91,6 +92,56 @@ brix_configure_tls(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *xcf)
                             NULL) != NGX_OK)
     {
         return NGX_ERROR;
+    }
+
+    /*
+     * §5.10 (xrd.tlsciphers): pin the cipher list on the root:// in-protocol
+     * TLS context. brix_tls_ciphers governs TLSv1.2-and-below
+     * (SSL_CTX_set_cipher_list, same scope/semantics as nginx ssl_ciphers);
+     * brix_tls_ciphersuites governs the TLSv1.3 suites (SSL_CTX_set_ciphersuites)
+     * — the two are independent OpenSSL knobs and a compliance profile that
+     * restricts TLSv1.3 (today's default protocol) needs the latter. An operator
+     * list that matches NO ciphers is a hard config error here rather than a
+     * silent OpenSSL-default fallback, so a typo can never leave the listener
+     * quietly more permissive than intended.
+     */
+    if (xcf->tls_ciphers.len > 0) {
+        if (SSL_CTX_set_cipher_list(xcf->tls_ctx->ctx,
+                                    (char *) xcf->tls_ciphers.data) == 0)
+        {
+            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+                "brix_tls_ciphers \"%V\" matched no ciphers this build can offer",
+                &xcf->tls_ciphers);
+            return NGX_ERROR;
+        }
+        ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
+            "brix: root:// TLS cipher list pinned to \"%V\"", &xcf->tls_ciphers);
+    }
+
+    if (xcf->tls_ciphersuites.len > 0) {
+        if (SSL_CTX_set_ciphersuites(xcf->tls_ctx->ctx,
+                                     (char *) xcf->tls_ciphersuites.data) == 0)
+        {
+            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+                "brix_tls_ciphersuites \"%V\" matched no TLSv1.3 suites this "
+                "build can offer", &xcf->tls_ciphersuites);
+            return NGX_ERROR;
+        }
+        ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
+            "brix: root:// TLSv1.3 cipher suites pinned to \"%V\"",
+            &xcf->tls_ciphersuites);
+    }
+
+    /*
+     * §5.10 (xrootd.tlsreuse): when reuse is disabled, turn off the session
+     * cache AND session tickets so every root:// TLS connection full-handshakes
+     * (no resumption state to capture/replay). On (default) leaves the defaults.
+     */
+    brix_tls_apply_session_reuse(xcf->tls_ctx->ctx, xcf->tls_reuse);
+    if (!xcf->tls_reuse) {
+        ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
+            "brix: root:// TLS session resumption disabled "
+            "(brix_tls_reuse off) - every connection full-handshakes");
     }
 
     /*

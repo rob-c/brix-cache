@@ -192,6 +192,17 @@
       offsetof(ngx_stream_brix_srv_conf_t, cms.altds_interval),
       NULL },
 
+    /* §2.4 (cms.space min): the mSpace policy floor (MB) advertised in the
+     * kYR_login payload — the free space below which the manager should stop
+     * selecting this node for writes. Was a hardcoded 100; default stays 100.
+     * Absolute MB only (stock's percentage form is not taken). */
+    { ngx_string("brix_cms_min_free"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_num_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_brix_srv_conf_t, cms.min_free_mb),
+      NULL },
+
     { ngx_string("brix_cms_interval"),
       NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
       ngx_conf_set_sec_slot,
@@ -392,6 +403,33 @@
 
     /* (legacy brix_proxy_* directives removed here — see the note above) */
 
+    /* ofs.maxdelay analog: clamp on the seconds any kXR_wait may tell a client
+     * to stall (default 60, matching stock; 0 disables the clamp). */
+    { ngx_string("brix_max_delay"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_sec_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_brix_srv_conf_t, max_delay),
+      NULL },
+
+    /* xrootd.fsoverload stall analog: the seconds a memory-budget-overloaded
+     * read tells the client to back off (default 1). Clamped by max_delay. */
+    { ngx_string("brix_fsoverload_stall"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_sec_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_brix_srv_conf_t, fsoverload_stall),
+      NULL },
+
+    /* xrootd.fsoverload redirect action: on a budget overload, redirect the
+     * read to <host> <port> (offload to a sibling) instead of stalling. */
+    { ngx_string("brix_fsoverload_redirect"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE2,
+      brix_conf_set_fsoverload_redirect,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      0,
+      NULL },
+
     /* Phase 39: network-fault resilience (all off by default; 0 = disabled). */
     { ngx_string("brix_read_timeout"),
       NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
@@ -458,6 +496,18 @@
       ngx_conf_set_num_slot,
       NGX_STREAM_SRV_CONF_OFFSET,
       offsetof(ngx_stream_brix_srv_conf_t, max_connections),
+      NULL },
+
+    /* §3.15 OssStats slowop classifier: an I/O op whose latency meets/exceeds
+     * <usec> microseconds is booked into brix_io_slowop_total{proto,op}. Stamped
+     * into the metrics SHM at init_module; 0 (default) disables it. Requires the
+     * metrics zone. Microseconds (not a time token) so a low threshold is
+     * expressible for fine-grained slow-op accounting. */
+    { ngx_string("brix_metrics_slowop"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_num_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_brix_srv_conf_t, slowop_usec),
       NULL },
 
     /* Phase 39 (WS7): data-server staleness threshold for cluster selection. */

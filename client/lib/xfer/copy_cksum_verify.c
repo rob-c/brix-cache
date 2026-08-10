@@ -105,6 +105,19 @@ cksum_verify_source(brix_conn *c, const char *remote_path, const char *local_hex
         brix_status_set(st, XRDC_EUSAGE, 0, "--cksum:source has no remote");
         return XRDC_CK_UNVERIFIED;
     }
+    /* §7.13: the sha family is LOCAL-only — the kXR_Qcksum plane speaks
+     * adler32/crc32c/md5(/crc64), so a sha :source comparison could only ever
+     * come back UNVERIFIED and silently pass.  Refuse loudly instead: the
+     * literal form (--cksum sha256:<hex>) is the supported spelling. */
+    if (spec->algo == XRDC_CK_SHA1 || spec->algo == XRDC_CK_SHA256
+        || spec->algo == XRDC_CK_SHA512) {
+        brix_status_set(st, XRDC_EUSAGE, 0,
+                        "--cksum %s:source is not available (the server "
+                        "checksum plane has no sha support); give a literal "
+                        "digest: --cksum %s:<hex>",
+                        spec->name, spec->name);
+        return XRDC_CK_MISMATCH;
+    }
     if (brix_query_cksum(c, remote_path, spec->name,
                          server_hex, sizeof(server_hex), st) != 0) {
         return XRDC_CK_UNVERIFIED;   /* server digest UNKNOWN, not WRONG */

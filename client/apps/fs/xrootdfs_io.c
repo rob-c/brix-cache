@@ -128,6 +128,43 @@ xfs_create(const char *path, mode_t mode, struct fuse_file_info *fi)
 }
 
 
+/*
+ * xfs_mknod — create an empty file at `path` (FUSE mknod).
+ *
+ * The kernel routes the mknod(2)/mknodat(2) syscall here (and an open(O_CREAT)
+ * only when .create is absent, which it is not).  A remote xrootd/WebDAV store
+ * holds regular files only, so a FIFO/device/socket type is refused with EPERM
+ * rather than silently created as a plain file.  For a regular file we open a
+ * create-new write handle (force=0 → EEXIST if the path already exists, POSIX
+ * mknod semantics) and immediately flush-and-close it, so an empty file lands on
+ * the server with no lingering handle — mknod returns no open descriptor.
+ * Permission bits are ignored (as xfs_create does); a later chmod sets the mode.
+ */
+int
+xfs_mknod(const char *path, mode_t mode, dev_t rdev)
+{
+    struct fuse_file_info fi;
+    int                   rc;
+
+    (void) rdev;
+
+    if ((mode & S_IFMT) != 0 && (mode & S_IFMT) != S_IFREG) {
+        return -EPERM;
+    }
+    if (g_web) {
+        return -EROFS;                 /* HTTP(S)/WebDAV mounts are read-only */
+    }
+
+    memset(&fi, 0, sizeof(fi));
+    rc = afh_open(path, 1 /* writable */, 0 /* create-new: fail if exists */,
+                  &fi);
+    if (rc != 0) {
+        return rc;
+    }
+    return xfs_release(path, &fi);     /* flush (empty) + close = commit empty */
+}
+
+
 int
 xfs_read(const char *path, char *buf, size_t size, off_t offset,
          struct fuse_file_info *fi)

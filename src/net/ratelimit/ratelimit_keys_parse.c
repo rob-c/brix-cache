@@ -64,37 +64,53 @@ rl_parse_req_rate(ngx_str_t *v)
     return ngx_atoi(v->data, v->len - 3);
 }
 
+/* Shared "<N>[k|m|g]" → bytes parser (phase-101 W7 dedup).  nginx's own
+ * ngx_parse_size handles ONLY k/m — this adds the g (gibibyte) suffix that the
+ * bandwidth-rate grammar already accepted, with an equivalent overflow guard, so
+ * every ratelimit size (rate, burst, zone) accepts k/m/g uniformly through ONE
+ * routine instead of two divergent parsers.  Returns NGX_ERROR on bad input. */
+static ssize_t
+rl_parse_size_bytes(ngx_str_t *v)
+{
+    if (v->len >= 2) {
+        u_char u = v->data[v->len - 1];
+
+        if (u == 'g' || u == 'G') {
+            ngx_str_t num = *v;
+            ngx_int_t n;
+
+            num.len--;                                  /* drop the 'g' */
+            n = ngx_atoi(num.data, num.len);
+            if (n == NGX_ERROR
+                || n > (ngx_int_t) (NGX_MAX_SIZE_T_VALUE >> 30))
+            {
+                return NGX_ERROR;                       /* bad digits / overflow */
+            }
+            return (ssize_t) ((size_t) n << 30);
+        }
+    }
+    return ngx_parse_size(v);   /* k/m + plain digits, with nginx's overflow guard */
+}
+
 /* Parse "<N>[k|m|g]/s" → bytes/s.  Returns NGX_ERROR on bad input.
- * Layout: strip the trailing "/s", then consume an optional binary-unit suffix
- * (k/m/g = 1024^1..3) off the end so ngx_atoi sees only the digits. */
+ * Strip the trailing "/s", then parse the "<N>[k|m|g]" remainder as bytes. */
 ssize_t
 rl_parse_bw_rate(ngx_str_t *v)
 {
     ngx_str_t  num = *v;
-    off_t      mult = 1;
 
     if (v->len < 3 || ngx_strncmp(v->data + v->len - 2, "/s", 2) != 0) {
         return NGX_ERROR;
     }
-    num.len = v->len - 2;                         /* drop "/s" */
-    switch (num.data[num.len - 1]) {              /* optional unit suffix */
-    case 'k': case 'K': mult = 1024;          num.len--; break;
-    case 'm': case 'M': mult = 1024 * 1024;   num.len--; break;
-    case 'g': case 'G': mult = 1024L * 1024 * 1024; num.len--; break;
-    default: break;
-    }
-    {
-        ngx_int_t n = ngx_atoi(num.data, num.len);
-        if (n == NGX_ERROR) { return NGX_ERROR; }
-        return (ssize_t) ((off_t) n * mult);
-    }
+    num.len = v->len - 2;                 /* drop "/s"; remainder is bytes/s */
+    return rl_parse_size_bytes(&num);
 }
 
-/* Parse "<N>[k|m|g]" → bytes (burst). */
+/* Parse "<N>[k|m|g]" → bytes (burst / zone size). */
 ssize_t
 rl_parse_size(ngx_str_t *v)
 {
-    return ngx_parse_size(v);   /* nginx: handles k/m/g suffixes */
+    return rl_parse_size_bytes(v);   /* k/m/g — see rl_parse_size_bytes */
 }
 
 

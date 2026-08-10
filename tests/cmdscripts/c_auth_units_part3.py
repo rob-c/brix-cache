@@ -60,6 +60,8 @@ RUNNERS = {
     "cred_mint": run_cred_mint,
     "deleg_gate": run_deleg_gate,
     "gsi_eec": run_gsi_eec,
+    "gsi_verdepth": run_gsi_verdepth,
+    "tls_reuse": run_tls_reuse,
     "deleg_find_eec": run_deleg_find_eec,
     "ucred": run_ucred,
     "sts_units": run_sts_units,

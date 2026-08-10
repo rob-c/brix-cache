@@ -69,6 +69,10 @@ locate_resolve_reqpath(locate_ctx_t *lc, ngx_int_t *out_rc)
      * flushed — honoured in locate_try_manager. */
     xrdw_locate_req_unpack(((ClientRequestHdr *) ctx->recv.hdr_buf)->body, &req);
     lc->refresh = (req.options & kXR_refresh) != 0;
+    /* §1.8: kXR_nowait (0x2000) — the client refuses to be parked; when the
+     * answer needs a cluster probe it gets kXR_wait immediately instead
+     * (honoured in locate_try_dynamic). */
+    lc->nowait = (req.options & kXR_nowait) != 0;
 
     if (ctx->recv.cur_dlen == 0 || ctx->recv.payload == NULL) {
         BRIX_OP_ERR(ctx, BRIX_OP_LOCATE);

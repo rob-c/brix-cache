@@ -382,10 +382,117 @@ sd_frm_staged_abort(brix_sd_staged_t *st)
     free(st);
 }
 
+/* §3.7 pure-tape enumeration: the dir cursor snapshots the MSS listing at
+ * opendir via the adapter's `list` verb (see sd_frm.h); no verb ⇒ ENOTSUP.
+ * Malloc-owned throughout (no pool); closedir frees snapshot+cursor+dir. */
+
+typedef struct {
+    brix_sd_dirent_t *ents;
+    size_t              n;
+    size_t              cap;
+    size_t              next;
+} frm_dir_state;
+
+static int
+sd_frm_list_cb(void *ud, const char *name, int is_dir)
+{
+    frm_dir_state *ds = ud;
+
+    if (ds->n == ds->cap) {
+        size_t              ncap = ds->cap ? ds->cap * 2 : 64;
+        brix_sd_dirent_t *ne = realloc(ds->ents, ncap * sizeof(*ne));
+
+        if (ne == NULL) {
+            return 1;   /* stop early; serve what we have */
+        }
+        ds->ents = ne;
+        ds->cap  = ncap;
+    }
+    snprintf(ds->ents[ds->n].name, sizeof(ds->ents[ds->n].name), "%s", name);
+    ds->ents[ds->n].d_type = is_dir ? DT_DIR : DT_REG;
+    ds->n++;
+    return 0;
+}
+
+static brix_sd_dir_t *
+sd_frm_opendir(brix_sd_instance_t *inst, const char *path, int *err_out)
+{
+    sd_frm_state  *st = inst->state;
+    frm_dir_state *ds;
+    brix_sd_dir_t *dir;
+
+    if (st->mss->list == NULL) {
+        if (err_out != NULL) { *err_out = ENOTSUP; }
+        return NULL;
+    }
+    ds = calloc(1, sizeof(*ds));
+    dir = calloc(1, sizeof(*dir));
+    if (ds == NULL || dir == NULL) {
+        free(ds);
+        free(dir);
+        if (err_out != NULL) { *err_out = ENOMEM; }
+        return NULL;
+    }
+    if (st->mss->list(st->mss_ctx, path, sd_frm_list_cb, ds) != 0) {
+        int e = errno != 0 ? errno : EIO;
+
+        free(ds->ents);
+        free(ds);
+        free(dir);
+        if (err_out != NULL) { *err_out = e; }
+        return NULL;
+    }
+    dir->inst  = inst;
+    dir->state = ds;
+    return dir;
+}
+
+static ngx_int_t
+sd_frm_readdir(brix_sd_dir_t *d, brix_sd_dirent_t *out)
+{
+    frm_dir_state *ds = d->state;
+
+    if (ds->next >= ds->n) {
+        return NGX_DONE;
+    }
+    *out = ds->ents[ds->next++];
+    return NGX_OK;
+}
+
+static ngx_int_t
+sd_frm_closedir(brix_sd_dir_t *d)
+{
+    if (d != NULL) {
+        frm_dir_state *ds = d->state;
+
+        if (ds != NULL) {
+            free(ds->ents);
+            free(ds);
+        }
+        free(d);
+    }
+    return NGX_OK;
+}
+
+/* §3.7 rcreate analog: MSS-side mkdir via the adapter's mkpath verb (see
+ * sd_frm.h); no verb ⇒ ENOTSUP. */
+static ngx_int_t
+sd_frm_mkdir(brix_sd_instance_t *inst, const char *path, mode_t mode)
+{
+    sd_frm_state *st = inst->state;
+
+    if (st->mss->mkpath == NULL) {
+        errno = ENOTSUP;
+        return NGX_ERROR;
+    }
+    return (st->mss->mkpath(st->mss_ctx, path, mode) == 0) ? NGX_OK : NGX_ERROR;
+}
+
 static const brix_sd_driver_t brix_sd_frm_driver = {
     .name = "frm",
     .caps = BRIX_SD_CAP_NEARLINE | BRIX_SD_CAP_RANGE_READ
-          | BRIX_SD_CAP_RANDOM_WRITE | BRIX_SD_CAP_FD,
+          | BRIX_SD_CAP_RANDOM_WRITE | BRIX_SD_CAP_FD | BRIX_SD_CAP_DIRS
+          | BRIX_SD_CAP_DIRS_WRITE,   /* §3.7 rcreate: mkdir via mss->mkpath */
     .open          = sd_frm_open,
     .close         = sd_frm_close,
     .pread         = sd_frm_pread,
@@ -393,6 +500,10 @@ static const brix_sd_driver_t brix_sd_frm_driver = {
     .stat          = sd_frm_stat,
     .recall        = sd_frm_recall,
     .residency     = sd_frm_residency,
+    .opendir       = sd_frm_opendir,
+    .readdir       = sd_frm_readdir,
+    .closedir      = sd_frm_closedir,
+    .mkdir         = sd_frm_mkdir,
     .staged_open   = sd_frm_staged_open,
     .staged_write  = sd_frm_staged_write,
     .staged_commit = sd_frm_staged_commit,

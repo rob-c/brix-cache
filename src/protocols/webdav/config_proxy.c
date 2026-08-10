@@ -48,16 +48,16 @@ char *
 webdav_merge_auth_token_conf(ngx_conf_t *cf, ngx_http_brix_webdav_loc_conf_t *prev,
     ngx_http_brix_webdav_loc_conf_t *conf)
 {
-    if (conf->token_jwks.len > 0) {
+    if (conf->common.token_jwks.len > 0) {
         int rc;
 
         rc = brix_jwks_load(cf->log,
-                              (const char *) conf->token_jwks.data,
+                              (const char *) conf->common.token_jwks.data,
                               conf->jwks_keys, BRIX_MAX_JWKS_KEYS);
         if (rc < 0) {
             ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
                                "brix_webdav: failed to load JWKS from \"%V\"",
-                               &conf->token_jwks);
+                               &conf->common.token_jwks);
             return NGX_CONF_ERROR;
         }
         conf->jwks_key_count = rc;
@@ -71,13 +71,13 @@ webdav_merge_auth_token_conf(ngx_conf_t *cf, ngx_http_brix_webdav_loc_conf_t *pr
     }
 
     /* Multi-issuer registry (phase-59 W1) — only build it on a leaf location
-     * that actually set brix_webdav_token_config (token_registry stays the
-     * inherited value otherwise). */
-    if (conf->token_config.len > 0 && conf->token_registry == NULL) {
+     * that actually set brix_token_config (token_registry stays the inherited
+     * value otherwise). The source path lives in common.token_config (W4). */
+    if (conf->common.token_config.len > 0 && conf->token_registry == NULL) {
         brix_token_registry_t *reg = NULL;
 
         if (brix_token_registry_build(cf,
-                (const char *) conf->token_config.data,
+                (const char *) conf->common.token_config.data,
                 BRIX_AUTHZ_CAPABILITY, &reg) != NGX_OK)
         {
             return NGX_CONF_ERROR;

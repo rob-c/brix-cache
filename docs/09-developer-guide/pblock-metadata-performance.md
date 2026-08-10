@@ -179,6 +179,47 @@ non-POSIX backend is bound** (`brix_vfs_backend_resolve(root_canon) != NULL`):
 Smallest of the three once #1 is in (the gate probe is now a cache hit anyway),
 but it removes the gate's `vctx` setup + cached lookup per `EXISTING` op.
 
+### #4 — Cross-process mmap namespace cache (`sd_pblock_catalog_nsidx.c`, phase-88 W4, opt `nsidx=1`)
+
+The pathidx-style promotion of #1: the same direct-mapped positive-entry
+`path → pblock_meta` table, moved from worker-private heap into a mmap'd
+`<root>/catalog.bxi` every worker maps `MAP_SHARED`. What it buys over #1:
+
+- **Cross-worker warmth** — one worker's fill serves every worker's next
+  lookup; a restarted worker joins an already-warm table instead of starting
+  cold.
+- **Cross-worker coherence** — #1's invalidations never crossed the process
+  boundary (worker B could serve a stale entry for a path worker A mutated,
+  indefinitely). The shared table makes `put`/`inval`/`clear` visible to all
+  workers — a strict coherence upgrade.
+
+Mechanics: lock-free throughout (no mutex, no nginx SHM zone — INVARIANT 10
+has no surface). Per-entry **seqlock** (CAS even→odd claims the writer role;
+contended writers just skip — the cache is best-effort), atomic header `gen`
+(the #1 fill-after-miss guard, now cross-process) and `epoch` (O(1) clear-all:
+entries stamp the epoch they were written under; `rename`'s subtree clear and
+the cold-start reset are one atomic increment). The **first live opener** —
+`flock(EX|NB)` succeeds; the kernel drops flocks on process death, so this is
+crash-honest — bumps the epoch, killing any residue from an unclean shutdown
+(e.g. a committed write whose cache install never happened); every opener then
+holds a SH flock as its liveness mark. Any arm/validation failure silently
+keeps the #1 heap cache.
+
+**Phase-88 W5: STANDARD — default-on.** `nsidx` (and F3 `csi`) arm on every
+pblock export with no opts at all; an explicit `nsidx=0` / `csi=0` in the
+`?tail` opts out. Rationale: both are fail-safe (an arm failure silently keeps
+the prior behaviour), change no client-visible semantics except for the
+better (nsidx is a strict coherence upgrade over the worker-local cache; csi
+turns silent at-rest rot into EIO), and their costs sit at metadata
+boundaries / hardware-accelerated CRC32c on copied reads. The
+workload/policy features (`dedup`, `pack`, `audit`, `locks`, quotas, history)
+stay opt-in. Tests: `test_nsidx_shared` in `sd_pblock_catalog_unittest.c` —
+shared-serve proof (a behind-the-API SQL mutation is NOT seen), cross-process
+touch visibility, torn-entry (odd seqlock) never served, cold-start epoch
+reset — plus `test_standard_defaults` in `sd_pblock_unittest_defaults.c`
+(bare export arms both: rot → EIO + CAP_FSCS advertised + catalog.bxi
+serving; `csi=0&nsidx=0` restores legacy exactly).
+
 ## 5. The residual gap — and the only levers left
 
 After #1–#3, `pblock` is **~44% SQLite** and the metadata storm is

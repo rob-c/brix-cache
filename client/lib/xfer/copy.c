@@ -422,9 +422,12 @@ brix_copy_route(const char *src, const copy_route_t *r, const brix_copy_opts *o,
     if (r->src_remote && r->dst_remote) {
         return brix_copy_dispatch_r2r(r, o, co, st);
     }
+    if (r->src_local && r->dst_local) {          /* §7.17: file://↔local, stdio */
+        return brix_copy_local_to_local(&r->su, &r->du, o, st);
+    }
 
     brix_status_set(st, XRDC_EUSAGE, 0,
-                    "unsupported copy direction (local→local not supported)");
+                    "unsupported copy direction");
     return -1;
 }
 

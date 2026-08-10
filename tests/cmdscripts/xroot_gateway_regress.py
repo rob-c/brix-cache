@@ -56,6 +56,7 @@ WRITE_OPTS = kXR_new | kXR_delete | kXR_open_updt | kXR_mkpath | kXR_posc
 # the phase-1x remote-metadata gap fixes: a root:// export used to stat the
 # empty LOCAL export (statx/locate) and describe every path by opening it
 # (directories → kXR_isDirectory), which broke isdir, mv, statx and locate.
+kXR_chmod = 3002
 kXR_mv = 3009
 kXR_stat = 3017
 kXR_statx = 3022
@@ -387,6 +388,45 @@ def _check_truncate(origin_root: Path, port: int,
                     "truncate grew the origin file to 100 bytes"))
 
 
+def _check_chmod(origin_root: Path, port: int,
+                 results: list[tuple[bool, str]]) -> None:
+    """§4.6: chmod over the gateway must forward kXR_chmod to the origin and
+    change its on-disk mode. Before the sd_xroot .setattr slot existed,
+    brix_vfs_chmod saw a NULL setattr slot and returned a SILENT no-op success —
+    the client got kXR_ok but the origin file's mode never changed. Verify both
+    the wire ok AND the mode actually landed on the origin."""
+    tf = origin_root / "reg_chmod.bin"
+    tf.write_bytes(deterministic_bytes(64, 61))
+    os.chmod(tf, 0o644)
+
+    s = _session(port)
+    try:
+        # ClientChmodRequest: reserved[14] mode(BE16) dlen path.
+        body = b"\x00" * 14 + struct.pack(">H", 0o600)
+        s.sendall(H.make_request(b"\x00\x59", kXR_chmod, body,
+                                 b"/reg_chmod.bin\x00"))
+        st, _ = H._recv_response(s)
+        results.append((st == kXR_ok, "chmod over root:// returns ok"))
+    finally:
+        s.close()
+    landed = (tf.stat().st_mode & 0o777) == 0o600
+    results.append((landed,
+                    "chmod landed on the origin (mode is now 0600)"))
+
+    # error path: chmod of a MISSING origin path must surface the origin's
+    # error, not the old silent-no-op false success.
+    s = _session(port)
+    try:
+        body = b"\x00" * 14 + struct.pack(">H", 0o600)
+        s.sendall(H.make_request(b"\x00\x5a", kXR_chmod, body,
+                                 b"/reg_chmod_absent.bin\x00"))
+        st, _ = H._recv_response(s)
+        results.append((st != kXR_ok,
+                        "chmod of a missing origin path is refused"))
+    finally:
+        s.close()
+
+
 def run_checks(base: Path, nginx_bin: str = NGINX_BIN) -> list[tuple[bool, str]]:
     origin_port, gw_port = cmdscript_ports("xroot_gateway_regress", 2)
     origin = base / "o"
@@ -424,6 +464,7 @@ def run_checks(base: Path, nginx_bin: str = NGINX_BIN) -> list[tuple[bool, str]]
         _check_locate(gw_port, results)
         _check_mv(origin_root, gw_port, results)
         _check_truncate(origin_root, gw_port, results)
+        _check_chmod(origin_root, gw_port, results)
         return results
     finally:
         for prefix in reversed(started):

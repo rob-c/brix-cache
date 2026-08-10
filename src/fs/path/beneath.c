@@ -49,7 +49,7 @@
 /*
  * IMPERSONATION SEAM (phase 40).
  *
- * When `brix_impersonation map` is active and a per-request principal is set,
+ * When `brix_idmap map` is active and a per-request principal is set,
  * brix_imp_client_active() returns true and the confined helpers below delegate
  * the open/metadata syscall to the privileged broker, which performs it as the
  * mapped UNIX user under its OWN rootfd (the kernel enforces RESOLVE_BENEATH

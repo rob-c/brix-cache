@@ -176,6 +176,7 @@ SPECS: dict[str, CUnitSpec] = {
             "tests/c/test_wverify.c",
             "src/core/compat/wverify.c",
             "-lz",
+            "-lcrypto",   # W3: the in-order SHA-256 identity (EVP)
         ),
     ),
     "cred_stage": CUnitSpec(

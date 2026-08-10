@@ -6,8 +6,8 @@
 #define BRIX_WEBDAV_MODULE_INTERNAL_H
 
 #include "webdav.h"
-#include "module_acc_directives.h" 
-#include "core/compat/integrity_info.h"   
+/* module_acc_directives.h deleted in phase-101 W2 (its setters retired). */
+#include "core/compat/integrity_info.h"
 #include "auth/authz/acc/acc.h"            
 #include "protocols/s3/s3.h"
 #include "core/shm/kv.h"             
@@ -29,7 +29,8 @@ extern ngx_http_module_t ngx_http_brix_webdav_module_ctx;
 
 /* module_directives.c */
 char * webdav_conf_add_cors_origin(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);
-char * webdav_conf_tpc_source_allow(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);
+/* brix_tpc_source_allow moved to the common module (phase-101 W4) — see
+ * src/core/config/http_common.c (brix_http_conf_tpc_source_allow). */
 char * webdav_conf_dig_export(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);
 ngx_int_t webdav_open_file_cache_arg(ngx_str_t *arg, ngx_int_t *max, time_t *inactive, ngx_flag_t *off);
 char * webdav_conf_open_file_cache(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);

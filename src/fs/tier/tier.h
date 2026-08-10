@@ -68,6 +68,11 @@ typedef struct {
     char                        path[1024];   /* dir | /sub | /bucket | /pool[/ns]  */
     const brix_credential_t  *credential;   /* §14; NULL = anonymous              */
     size_t                      block_size;   /* pblock object block size (0 = def) */
+    char                        opts[128];    /* pblock `?tail` static opts captured
+                                                 off a cache-store URL (phase-88 W1;
+                                                 "" = none) — persisted as the
+                                                 <store>/pblock.opts sidecar by the
+                                                 cache-tier registration */
     unsigned                    nearline:1;   /* tape:// — async-recall reads (§9)  */
     unsigned                    configured:1; /* a store URL was parsed for this tier */
 } brix_tier_cfg_t;
@@ -130,6 +135,17 @@ typedef struct {
     size_t                      prefetch_window; /* brix_cache_prefetch_window — max
                                                   bytes one WILLNEED hint may queue
                                                   for background fill            */
+    time_t                      uvkeep;          /* brix_cache_uvkeep — audit §4.3
+                                                  (upstream pfc.uvkeep): a cached
+                                                  entry whose contents were never
+                                                  verified against the origin
+                                                  (cinfo F_VERIFIED clear) is
+                                                  treated as a MISS once older than
+                                                  this (measured from filled_at),
+                                                  forcing a revalidating refill.
+                                                  Only ADDS revalidation; a verified
+                                                  or still-fresh entry is unaffected.
+                                                  0 = off (trust indefinitely). */
 } brix_cache_policy_t;
 
 /* ---- stage policy (§2.4) — the kept write-through decision, re-homed ------- */

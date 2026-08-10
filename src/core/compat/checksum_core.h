@@ -33,7 +33,8 @@
 #define BRIX_CK_ZCRC32    8   /* zlib CRC-32 — XRootD "zcrc32" (same algorithm
                                  * as CRC32/ISO-HDLC; a distinct registered name) */
 #define BRIX_CK_SHA512    9   /* SHA-512 — OCI "sha512:" digests (the registry
-                                 * grammar's second registered algorithm) */
+                                 * grammar's second registered algorithm); also
+                                 * the §7.13 sha-family client digests */
 
 /* Whole-OBJECT (driver pread from offset 0) checksums — the canonical entry for
  * a backend-bound handle (block-striped/object store): every byte is read

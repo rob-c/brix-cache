@@ -261,8 +261,8 @@ webdav_handle_macaroon_request(ngx_http_request_t *r)
     mac_make_identifier(r, identifier, sizeof(identifier));
 
     key_len = brix_macaroon_secret_parse(
-        (const char *) conf->token_macaroon_secret.data,
-        conf->token_macaroon_secret.len, root_key, sizeof(root_key));
+        (const char *) conf->common.token_macaroon_secret.data,
+        conf->common.token_macaroon_secret.len, root_key, sizeof(root_key));
     if (key_len <= 0) {
         mac_respond(r, NGX_HTTP_INTERNAL_SERVER_ERROR,
                     J_SERVER_ERROR, sizeof(J_SERVER_ERROR) - 1);

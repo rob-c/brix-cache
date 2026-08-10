@@ -148,6 +148,8 @@ opts_apply_flag(pblock_opts_t *out, const char *key, size_t klen,
         { "nearline", offsetof(pblock_opts_t, nearline) },   /* F4  */
         { "locks",    offsetof(pblock_opts_t, locks) },      /* F15 */
         { "dedup",    offsetof(pblock_opts_t, dedup) },      /* F10 */
+        { "pack",     offsetof(pblock_opts_t, pack) },       /* W2  */
+        { "nsidx",    offsetof(pblock_opts_t, nsidx) },      /* W4  */
         { "snap",     offsetof(pblock_opts_t, snapshots) },  /* F6  */
         { "trash",    offsetof(pblock_opts_t, trash) },      /* F11 */
     };
@@ -185,6 +187,8 @@ opts_apply_scalar(pblock_opts_t *out, const char *key, size_t klen,
 {
     if (klen == 5 && memcmp(key, "quota", 5) == 0) {
         out->quota_bytes = pblock_parse_size(val, vlen);         /* F5  */
+    } else if (klen == 8 && memcmp(key, "pack_max", 8) == 0) {
+        out->pack_max = pblock_parse_size(val, vlen);            /* W2  */
     } else if (klen == 12 && memcmp(key, "quota_inodes", 12) == 0) {
         out->quota_inodes = pblock_parse_size(val, vlen);        /* F5  */
     } else if (klen == 8 && memcmp(key, "versions", 8) == 0) {
@@ -205,6 +209,13 @@ pblock_opts_parse(const char *query, pblock_opts_t *out)
     const char *p;
 
     memset(out, 0, sizeof(*out));
+    /* phase-88 W5: the always-safe integrity/performance features are STANDARD
+     * — -1 marks "operator said nothing" (armed), an explicit csi=0 / nsidx=0
+     * token overwrites it with 0. Everything else (lab, dedup, pack, audit,
+     * locks, quotas, history) stays opt-in: those are policy or workload
+     * trades, not unconditional wins. */
+    out->csi   = -1;              /* F3 at-rest per-block CRC32c: default ON  */
+    out->nsidx = -1;              /* W4 shared namespace cache:   default ON  */
     if (query == NULL) {
         return 0;
     }
@@ -243,11 +254,13 @@ pblock_opts_load_sidecar(const char *root, pblock_opts_t *out)
     FILE *f;
     char *nl;
 
-    memset(out, 0, sizeof(*out));
+    /* parse(NULL) = zeroed opts + the W5 standard-feature defaults, so an
+     * absent/empty sidecar and a bare query agree on what "default" means. */
+    (void) pblock_opts_parse(NULL, out);
     opts_sidecar_path(root, path, sizeof(path));
     f = fopen(path, "re");
     if (f == NULL) {
-        return (errno == ENOENT) ? 0 : -1;   /* no sidecar ⇒ default (lab off) */
+        return (errno == ENOENT) ? 0 : -1;   /* no sidecar ⇒ defaults (lab off) */
     }
     if (fgets(line, sizeof(line), f) == NULL) {
         fclose(f);

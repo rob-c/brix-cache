@@ -11,7 +11,8 @@ webdav_lock_parse_timeout(ngx_http_request_t *r,
 {
     ngx_table_elt_t *h;
     u_char          *p, *end;
-    ngx_uint_t       timeout = 3600; /* default 1 hour if not bounded */
+    time_t           timeout = 3600; /* default 1 hour if not bounded.  time_t to
+                                      * match conf->lock_timeout (sec_slot, W7). */
 
     h = webdav_tpc_find_header(r, "Timeout", sizeof("Timeout") - 1);
     if (h == NULL) {
@@ -23,7 +24,7 @@ webdav_lock_parse_timeout(ngx_http_request_t *r,
         if (ngx_strncasecmp(p, (u_char *) "Second-", 7) == 0) {
             p += 7;
             timeout = ngx_atoi(p, end - p);
-            if (timeout == (ngx_uint_t) NGX_ERROR) {
+            if (timeout == (time_t) NGX_ERROR) {
                 timeout = 3600;
             }
         } else if (ngx_strncasecmp(p, (u_char *) "Infinite", 8) == 0) {

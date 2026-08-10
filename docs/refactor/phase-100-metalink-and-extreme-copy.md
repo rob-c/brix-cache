@@ -1,5 +1,9 @@
 # Phase 100 — Metalink virtual redirector + Extreme copy (multi-source XCp)
 
+> Number collision: "phase 100" also names the (unrelated) Ubuntu drilldown,
+> `phase-100-ubuntu-drilldown.md`. Both keep the number; this note is the
+> disambiguation.
+
 **Date:** 2026-08-09
 **Source:** `docs/refactor/xrootd-feature-parity-audit-2026-08-04.md` §7.1 (Metalink,
 master-list #2) and §7.2 (Extreme copy, master-list #4) — the two largest client
@@ -121,6 +125,14 @@ phase-94 `copy_download_parallel` check, same 1/0 "handled?" contract:
   out), reads the block (short-read loop), `pwrite`s it into the shared VFS
   temp at its absolute offset (io_uring OFF ⇒ plain thread-safe `pwrite(2)`,
   the phase-94 pattern), and marks DONE.
+- **Join gate (2026-08-09 hardening):** block claiming starts only once every
+  source's open attempt has RESOLVED (succeeded or failed), capped by a 1 s
+  grace (`XRDC_XCP_JOIN_GRACE_MS`). Without it, the first source to finish its
+  open could drain the whole table on a fast link before a sibling's handshake
+  completed — `--sources N` silently degrading to one source (seen as a
+  `per-source=[128,0]` flake in the dedicated suite). A dead mirror lifts the
+  gate as fast as a live one (its failure counts as resolved); a black-holed
+  mirror delays the start by at most the grace, never stalls it.
 - **Stealing:** a worker finding no TODO block picks the first BUSY block whose
   stealer latch is free, re-downloads it on its own (faster) connection and
   races the original — both write identical bytes at identical offsets, so
@@ -136,7 +148,10 @@ phase-94 `copy_download_parallel` check, same 1/0 "handled?" contract:
   progress (single-threaded `o->progress` callback, matching the serial pump's
   threading contract) and joins the workers.
 - `BRIX_XCP_DEBUG=1` prints `xcp sources=<n> blocks=<n> per-source=[…]
-  steals=<k>` on stderr — the observability hook the dedicated tests assert on.
+  steals=<k>` on stderr — the observability hook the dedicated tests assert on
+  — plus one `xcp worker <k> (<url>): <error>` line per failed worker, so a
+  0-block source is attributable (open failure vs late join) without a
+  debugger.
 
 ### 2.4 Surface + plumbing
 
@@ -178,10 +193,15 @@ phase-94 `copy_download_parallel` check, same 1/0 "handled?" contract:
   XML bytes verbatim.
 - **`tests/test_extreme_copy.py`** — same-bytes file staged into both the anon
   and readonly export roots: `--sources 2` via metalink mirrors reassembles
-  byte-exact and BOTH sources carry blocks (debug line); dead-mirror
-  robustness (blocks stolen/rescued, transfer completes); locate-fallback
-  single-server duplication path; corrupt-replica + digest → fail-closed, no
-  destination file (security-neg); `--sources 17` usage error.
+  byte-exact and BOTH sources carry blocks (debug line); slow-open mirror
+  (TCP shim delaying the handshake) still carries blocks — the join-gate
+  regression lock, verified to fail `per-source=[0,64]` with the gate removed;
+  dead-mirror robustness (blocks stolen/rescued, transfer completes);
+  locate-fallback single-server duplication path; corrupt-replica + digest →
+  fail-closed, no destination file (security-neg); tarpit mirror (accepts TCP,
+  never answers) → live source completes the file within the bounded grace and
+  the dead worker is named on the debug channel (security-neg); `--sources 17`
+  usage error.
 
 Run: `PYTHONPATH=tests pytest tests/test_metalink.py tests/test_extreme_copy.py -v`
 and `make -C client test` for the parser unit.

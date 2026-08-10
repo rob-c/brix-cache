@@ -33,6 +33,11 @@ typedef struct {
 int brix_file_open_read(brix_conn *c, const char *path, brix_file *f,
                         brix_status *st);
 /* force → truncate-on-open (overwrite); posc → persist-on-successful-close. */
+/* Modifier bit OR-able into the `force` argument of the write-open calls:
+ * adds kXR_force ("ignore usage rules", stock -F/--coerce) to the request.
+ * The low bits keep the documented 0/1/2 create/truncate/in-place meaning. */
+#define XRDC_OPEN_COERCE 0x10
+
 int brix_file_open_write(brix_conn *c, const char *path, int force, int posc,
                          brix_file *f, brix_status *st);
 /* Open an EXISTING file for read+write IN PLACE (no truncate, no create) — enables
@@ -81,6 +86,12 @@ typedef struct {
  * read past EOF). Returns total bytes read across segments, or -1. */
 ssize_t brix_file_readv(brix_conn *c, brix_file *f, brix_readv_seg *segs,
                         size_t nseg, brix_status *st);
+/* §7.15: per-segment fhandle readv — segment i reads from files[i] (which must
+ * have nseg entries), so ONE kXR_readv can scatter-gather across multiple open
+ * files, matching stock's readahead_list (each carries its own fhandle). */
+ssize_t brix_file_readv_multi(brix_conn *c, brix_file *const *files,
+                              brix_readv_seg *segs, size_t nseg,
+                              brix_status *st);
 /* writev: issue one kXR_writev for all segs (do_sync → fsync after). 0 / -1. */
 int brix_file_writev(brix_conn *c, brix_file *f, const brix_writev_seg *segs,
                      size_t nseg, int do_sync, brix_status *st);
@@ -190,6 +201,20 @@ ssize_t brix_rfile_pread (brix_rfile *rf, int64_t off, void *buf, size_t len, br
 int     brix_rfile_pwrite(brix_rfile *rf, int64_t off, const void *buf, size_t len, brix_status *st);
 int     brix_rfile_close (brix_rfile *rf, brix_status *st);
 
+/* §7.13 --xattr (copy_xattr.c): after a COMPLETED root://↔local copy, mirror
+ * the user-namespace extended attributes in the copy's direction.
+ * Best-effort: failures warn on stderr (suppressed by `silent`) and never
+ * change the copy's verdict. Other scheme pairs are silently out of scope.
+ * system./security./trusted. names never cross in either direction. */
+void brix_copy_preserve_xattrs(const char *src, const char *dst,
+                               const brix_opts *co, int silent);
+
+/* §7.7: 1 while the connection is live and NOT neutered by a fork() (the
+ * atfork child handler closes inherited fds and marks conns unusable so no
+ * child byte can corrupt the parent's stream). Long-lived embedders (the
+ * preload shim, FUSE) key their transparent child re-connect on this. */
+int     brix_conn_usable(const brix_conn *c);
+
 /* ---- cksum_manifest.c ---- */
 /* Parse one line of the sha256sum-style tree-audit manifest: "<hex>  <rel>\n".
  * Two spaces separate the hex digest from the relative path; the trailing newline
@@ -207,7 +232,12 @@ typedef enum {
     XRDC_CK_MD5,
     XRDC_CK_CRC64,      /* CRC-64/XZ   */
     XRDC_CK_CRC64NVME,  /* CRC-64/NVME */
-    XRDC_CK_ZCRC32      /* zlib CRC-32 — XRootD "zcrc32" (8 hex) */
+    XRDC_CK_ZCRC32,     /* zlib CRC-32 — XRootD "zcrc32" (8 hex) */
+    XRDC_CK_SHA1,       /* §7.13 sha family — LOCAL digests (literal/:print
+                         * modes); the server Qcksum plane does not speak
+                         * them, so :source comparison is a usage error */
+    XRDC_CK_SHA256,
+    XRDC_CK_SHA512
 } brix_cksum_algo;
 
 /* Map an algorithm name ("adler32"/"crc32c"/"md5") to the enum. 0 / -1. */
@@ -428,6 +458,15 @@ int brix_statvfs(brix_conn *c, const char *path, char *out, size_t outsz,
                  brix_status *st);
 int brix_locate(brix_conn *c, const char *path, char *out, size_t outsz,
                 brix_status *st);
+/* options = kXR_locate wire option bits (kXR_refresh cache bypass,
+ * kXR_nowait immediate possibly-incomplete answer, kXR_prefname DNS names
+ * over IPs). brix_locate == brix_locate_opts with options 0. */
+int brix_locate_opts(brix_conn *c, const char *path, unsigned options,
+                     char *out, size_t outsz, brix_status *st);
+/* kXR_set with `data` as the payload (modifier 0) — the stock transport for
+ * operator commands like "cache evict <path>". out receives any reply text. */
+int brix_set_cmd(brix_conn *c, const char *data, char *out, size_t outsz,
+                 brix_status *st);
 /* options = kXR_stage/cancel/wmode/fresh… (byte); optionX = extended flags
  * (kXR_evict…, uint16); prty = request priority 0-3. */
 int brix_prepare(brix_conn *c, const char *const *paths, int npaths, int options,
@@ -492,6 +531,36 @@ typedef struct {
                            * as plain files. Also forced on internally for the
                            * metalink document fetch + per-mirror dispatch so
                            * resolution can never recurse. */
+    int         xattr_preserve; /* --xattr (§7.13): after a successful
+                           * root://↔local copy, mirror USER-namespace
+                           * extended attributes (best-effort, warnings only;
+                           * system./security./trusted. names never cross). */
+    int         coerce;   /* -F/--coerce (§7.13): stock "ignore file locking
+                           * semantics" — the kXR_force bit rides every remote
+                           * destination open. BriX's server has no mandatory
+                           * usage-locking to override, so it accepts the bit;
+                           * the flag exists for drop-in scripts and for stock
+                           * destinations that DO enforce usage rules. */
+    int         rm_bad_cksum;  /* --rm-bad-cksum: stock's opt-IN unlink of a
+                           * cksum-mismatched destination. BriX unlinks on
+                           * mismatch unconditionally (fail-closed), so the
+                           * flag is an accepted no-op alias of the default. */
+    int64_t     xrate_bps;     /* --xrate: cap the serial-pump transfer rate
+                           * (bytes/sec; 0 = unlimited). Engines that bypass
+                           * the pump (--parallel/--sources) are parse-time
+                           * exclusive with it. */
+    int64_t     xrate_min_bps; /* --xrate-threshold: fail the transfer when the
+                           * average rate drops below this (bytes/sec, 0 = off;
+                           * 3 s grace so connection setup never trips it). */
+    int         cont;     /* --continue (§7.6 byte-offset resume): a download
+                           * writes the DESTINATION file directly (no atomic
+                           * temp) and, when it already exists, resumes at its
+                           * size. Partial destinations survive failures so a
+                           * later --continue can pick them up; a completed
+                           * copy that then fails --cksum is still dropped
+                           * (fail-closed on COMPLETED integrity verdicts).
+                           * Parse-time exclusive with --force/--resume/
+                           * --journal/--pgrw/--compress/--zip*. */
     /* Internal (resolver-owned, never set by CLI): the ranked root-family
      * mirror list a metalink resolved to, threaded to the extreme-copy engine.
      * Pointers borrow the resolver's storage for the dispatch call. */

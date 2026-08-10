@@ -148,7 +148,7 @@ http {{
 {credential_block}    server {{ listen {BIND_HOST}:{port}; location / {{
         brix_s3 on; brix_export {root}; brix_s3_bucket testbucket;
         brix_storage_backend root://{HOST}:{origin_port};
-{credential_ref}        brix_s3_cache_root {cache};
+{credential_ref}        brix_cache_root {cache};
     }} }}
 }}
 """,

@@ -135,6 +135,71 @@ brix_conf_set_stream_mint_ca(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 }
 
 /*
+ * brix_conf_set_oss_cgroup — setter for "brix_oss_cgroup <name>" (§3.2).
+ *
+ * WHAT: stores the space-group name the kXR_Qspace report advertises as
+ *       oss.cgroup, rejecting a name that carries a CGI-structural or control
+ *       byte (& = space or anything < 0x20) so it can never break the
+ *       "&"-joined oss.* report grammar or inject a second key.
+ * WHY:  the name is emitted verbatim into a CGI-format wire response; a
+ *       hostile or careless value must not be able to smuggle e.g.
+ *       "x&oss.quota=0" past accounting clients.
+ * HOW:  scan the value; on any structural/control byte fail the parse with a
+ *       diagnostic, else store it on the srv conf.
+ */
+static char *
+brix_conf_set_oss_cgroup(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
+{
+    ngx_stream_brix_srv_conf_t *xcf = conf;
+    ngx_str_t                  *value = cf->args->elts;
+    size_t                      i;
+
+    (void) cmd;
+
+    if (value[1].len == 0) {
+        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            "brix_oss_cgroup: the group name must not be empty");
+        return NGX_CONF_ERROR;
+    }
+    for (i = 0; i < value[1].len; i++) {
+        u_char ch = value[1].data[i];
+        if (ch == '&' || ch == '=' || ch == ' ' || ch < 0x20 || ch == 0x7f) {
+            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+                "brix_oss_cgroup: \"%V\" contains a byte that would break the "
+                "oss.* CGI report grammar (no & = space or control chars)",
+                &value[1]);
+            return NGX_CONF_ERROR;
+        }
+    }
+
+    xcf->oss_cgroup = value[1];
+    return NGX_CONF_OK;
+}
+
+/* brix_oss_quota <size> setter (§3.1): stores the non-negative size the kXR_Qspace
+ * report advertises as oss.quota (default -1 = unlimited). Advertisement only —
+ * BriX enforces no hard quota; a malformed/negative value fails the config parse. */
+static char *
+brix_conf_set_oss_quota(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
+{
+    ngx_stream_brix_srv_conf_t *xcf = conf;
+    ngx_str_t                  *value = cf->args->elts;
+    off_t                       q;
+
+    (void) cmd;
+
+    q = ngx_parse_offset(&value[1]);
+    if (q == NGX_ERROR || q < 0) {
+        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            "brix_oss_quota: \"%V\" is not a valid non-negative size", &value[1]);
+        return NGX_CONF_ERROR;
+    }
+
+    xcf->oss_quota = q;
+    return NGX_CONF_OK;
+}
+
+/*
  * brix_ssi_service <name> — enable a non-default SSI provider. The built-in
  * test/reference services always resolve; the flagship CTA tape service is opt-in
  * (it exposes a storage-control surface). Extend the recognised-name list here as
@@ -221,14 +286,10 @@ ngx_command_t ngx_stream_brix_commands[] = {
       offsetof(ngx_stream_brix_srv_conf_t, common.data_substreams),
       NULL },
 
-    /* Filesystem/export settings used by nearly every request handler. */
-    { ngx_string("brix_export"),
-      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
-      /* Single string argument copied into srv_conf->common.root. */
-      ngx_conf_set_str_slot,
-      NGX_STREAM_SRV_CONF_OFFSET,
-      offsetof(ngx_stream_brix_srv_conf_t, common.root),
-      NULL },
+    /* brix_export -> owned by ngx_stream_brix_common_module (phase-101 W3):
+     * the bare storage names moved to stream_common.c so root:// and gridftp
+     * share one owner; this module adopts the value into common.root via
+     * brix_stream_common_adopt() at merge (server_conf.c). */
 
     /* Marks this server as a trusted remote cache-STORE surface: internal
      * sidecar names (<key>.cinfo/.meta) become legitimate open/stat targets so a
@@ -243,23 +304,9 @@ ngx_command_t ngx_stream_brix_commands[] = {
       offsetof(ngx_stream_brix_srv_conf_t, common.cache_store_endpoint),
       NULL },
 
-    /* Selects the storage backend for this export: "posix" (default) or
-     * "pblock" (block-based, rooted at brix_export; needs the sqlite build). */
-    { ngx_string("brix_storage_backend"),
-      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
-      ngx_conf_set_str_slot,
-      NGX_STREAM_SRV_CONF_OFFSET,
-      offsetof(ngx_stream_brix_srv_conf_t, common.storage_backend),
-      NULL },
-
-    /* Names the brix_credential block (§14) the source backend authenticates
-     * with; "" = anonymous. Today threads a bearer token into the sd_http source. */
-    { ngx_string("brix_storage_credential"),
-      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
-      ngx_conf_set_str_slot,
-      NGX_STREAM_SRV_CONF_OFFSET,
-      offsetof(ngx_stream_brix_srv_conf_t, common.storage_credential),
-      NULL },
+    /* brix_storage_backend + brix_storage_credential -> owned by
+     * ngx_stream_brix_common_module (phase-101 W3); adopted into
+     * common.storage_backend / common.storage_credential at merge. */
 
     /* Phase 2 Task 6: per-user backend credentials on the root:// plane.
      * Directory of per-principal x509 proxy PEMs, keyed the same way as the
@@ -345,7 +392,7 @@ ngx_command_t ngx_stream_brix_commands[] = {
 
     { ngx_string("brix_backend_s3_sts_ttl"),
       NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
-      ngx_conf_set_num_slot,
+      ngx_conf_set_sec_slot,
       NGX_STREAM_SRV_CONF_OFFSET,
       offsetof(ngx_stream_brix_srv_conf_t, common.backend_sts_ttl),
       NULL },
@@ -385,7 +432,7 @@ ngx_command_t ngx_stream_brix_commands[] = {
 
     { ngx_string("brix_storage_credential_mint_ttl"),
       NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
-      ngx_conf_set_num_slot,
+      ngx_conf_set_sec_slot,
       NGX_STREAM_SRV_CONF_OFFSET,
       offsetof(ngx_stream_brix_srv_conf_t, common.storage_credential_mint_ttl),
       NULL },
@@ -505,8 +552,10 @@ ngx_command_t ngx_stream_brix_commands[] = {
 
     /* (legacy brix_proxy_path_rewrite removed — see the note above) */
 
-    /* OCSP certificate status checking and stapling. */
-    { ngx_string("brix_ocsp_enable"),
+    /* OCSP certificate status checking and stapling. phase-101 W6: the feature
+     * toggle is the bare feature name (Rule 1, no _enable) — the siblings
+     * brix_ocsp_soft_fail / _require_nonce / _stapling already conform. */
+    { ngx_string("brix_ocsp"),
       NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,
       ngx_conf_set_flag_slot,
       NGX_STREAM_SRV_CONF_OFFSET,

@@ -1,6 +1,12 @@
 #include "query_internal.h"
 #include "core/ident.h"
 
+#include <stdarg.h>
+#include <sys/statvfs.h>
+#include <fcntl.h>       /* O_RDONLY for the xattr-query read gate */
+#include <unistd.h>      /* close() */
+#include "auth/impersonate/impersonate.h"   /* brix_imp_client_active */
+
 /*
  * WHAT: kXR_QStats, kXR_Qxattr, kXR_QFinfo, kXR_QFSinfo, kXR_Qvisa, kXR_Qopaque, kXR_Qopaquf, kXR_Qopaqug — metadata and plugin-style query handlers.
  *       QStats returns XML-formatted server statistics (connections, bytes, uptime); Qxattr lists extended attributes on a file path;
@@ -62,54 +68,218 @@ brix_query_payload_equals(brix_ctx_t *ctx, const char *text)
             && ngx_memcmp(ctx->recv.payload, text, text_len) == 0);
 }
 
-/* brix_query_stats — kXR_QStats: XML server statistics (active/total
- * connections, bytes rx/tx, timestamp, listening port). */
-ngx_int_t
-brix_query_stats(brix_ctx_t *ctx, ngx_connection_t *c)
+/* ---- Bounded append for the stats document (qconfig-style) ---- */
+static void
+stats_append(char *resp, size_t cap, size_t *pos, const char *fmt, ...)
 {
-    char   resp[1024];
-    int    port = 0;
-    long   conns_active = 0, conns_total = 0;
-    long   bytes_in = 0, bytes_out = 0;
-    time_t now = time(NULL);
-    int    n;
+    va_list ap;
+    int     n;
 
+    if (*pos >= cap) {
+        return;
+    }
+    va_start(ap, fmt);
+    n = vsnprintf(resp + *pos, cap - *pos, fmt, ap);
+    va_end(ap);
+    if (n > 0) {
+        *pos += ((size_t) n < cap - *pos) ? (size_t) n : cap - *pos - 1;
+    }
+}
+
+/* ---- Which sections did the QStats arg select? ----
+ *
+ * WHAT: Returns the stock selector bitmask for the request payload: letters
+ *       a=all b=buff d=poll i=info l=link p=protocol s=sched u=proc (verified
+ *       live against 5.6.9); unknown letters contribute nothing; an absent /
+ *       empty payload behaves like 'a' (the pre-existing BriX behavior, which
+ *       the suites pin).
+ *
+ * WHY: §1.13 — stock clients ask for subsets (mpxstats polls 'p' etc.); BriX
+ *      used to ignore the argument entirely and always answer everything.
+ *
+ * HOW: One pass over the payload letters setting bits; 'a' sets all.
+ */
+#define BRIX_QSTATS_INFO   0x01
+#define BRIX_QSTATS_LINK   0x02
+#define BRIX_QSTATS_PROTO  0x04
+#define BRIX_QSTATS_ALL    0x07
+
+static unsigned
+stats_selector(const brix_ctx_t *ctx)
+{
+    unsigned    mask = 0;
+    uint32_t    i;
+    const char *p = (const char *) ctx->recv.payload;
+
+    if (p == NULL || ctx->recv.cur_dlen == 0) {
+        return BRIX_QSTATS_ALL;
+    }
+    for (i = 0; i < ctx->recv.cur_dlen && p[i] != '\0'; i++) {
+        switch (p[i]) {
+        case 'a': mask |= BRIX_QSTATS_ALL;   break;
+        case 'i': mask |= BRIX_QSTATS_INFO;  break;
+        case 'l': mask |= BRIX_QSTATS_LINK;  break;
+        case 'p': mask |= BRIX_QSTATS_PROTO; break;
+        default:  break;   /* stock: unknown letters contribute nothing */
+        }
+    }
+    return mask;
+}
+
+/* brix_query_stats — kXR_QStats: the stock-shaped XML <statistics> document.
+ *
+ * WHAT: Emits the reference wrapper (tod/ver/src/tos/pgm/ins/pid/site
+ *       attributes, byte-shape verified live against stock 5.6.9) and the
+ *       sections BriX can fill honestly — info, link, xrootd(ops from the
+ *       per-op metric slots), oss(v=2, statvfs of the export), sgen — gated
+ *       by the stock selector letters. Sections whose letters BriX has no
+ *       data for (buff/poll/sched/proc) are simply absent, exactly like an
+ *       unknown letter on stock.
+ *
+ * WHY: §1.13 — the old abbreviated document broke XML-parsing consumers:
+ *      wrong root attributes (spurious id=, missing tod/src/pid) and no ops
+ *      section. Counters that do not exist are emitted as 0 rather than
+ *      invented; ver/pgm keep the honest BriX identity.
+ *
+ * HOW: 1. Resolve selector mask + identity fields (hostname from ngx_cycle,
+ *         port from metrics or the local sockaddr, tos latched on first use).
+ *      2. Append the wrapper, then each selected section from the metric
+ *         slots (misc/err aggregate the unmapped op slots so totals stay
+ *         truthful). 3. oss + sgen ride the 'a' selection only, like stock.
+ */
+ngx_int_t
+brix_query_stats(brix_ctx_t *ctx, ngx_connection_t *c,
+    ngx_stream_brix_srv_conf_t *conf)
+{
+    static time_t tos_latch = 0;   /* worker start proxy: first-stats time */
+    char     resp[4096];
+    size_t   pos = 0;
+    unsigned sel = stats_selector(ctx);
+    int      port = 0;
+    time_t   now = time(NULL);
+    long     ok_open = 0, err_sum = 0, misc = 0;
+    int      i;
+
+    if (tos_latch == 0) {
+        tos_latch = now;
+    }
     if (ctx->metrics) {
         port = (int) ctx->metrics->port;
-        conns_active = (long) ctx->metrics->connections_active;
-        conns_total = (long) ctx->metrics->connections_total;
-        bytes_in = (long) ctx->metrics->bytes_rx_total;
-        bytes_out = (long) ctx->metrics->bytes_tx_total;
     }
-
     if (port == 0 && c->local_sockaddr != NULL) {
         if (c->local_sockaddr->sa_family == AF_INET) {
-            struct sockaddr_in *sin =
-                (struct sockaddr_in *) c->local_sockaddr;
-            port = (int) ntohs(sin->sin_port);
+            port = (int) ntohs(((struct sockaddr_in *)
+                                c->local_sockaddr)->sin_port);
         } else if (c->local_sockaddr->sa_family == AF_INET6) {
-            struct sockaddr_in6 *sin6 =
-                (struct sockaddr_in6 *) c->local_sockaddr;
-            port = (int) ntohs(sin6->sin6_port);
+            port = (int) ntohs(((struct sockaddr_in6 *)
+                                c->local_sockaddr)->sin6_port);
         }
     }
 
-    n = snprintf(resp, sizeof(resp) - 1,
-        "<statistics id=\"xrootd\" ver=\"" BRIX_SERVER_VERSION "\""
-        " tos=\"%ld\" pgm=\"" BRIX_SERVER_NAME "\">"
-        "<stats id=\"info\"><host>localhost</host><port>%d</port>"
-        "<name>" BRIX_SERVER_NAME "</name></stats>"
-        "<stats id=\"link\"><num>%ld</num><tot>%ld</tot>"
-        "<in>%ld</in><out>%ld</out><ctime>0</ctime>"
-        "<ltime>0</ltime><sfps>0</sfps></stats>"
-        "</statistics>",
-        (long) now, port,
-        conns_active, conns_total,
-        bytes_in, bytes_out);
+    stats_append(resp, sizeof(resp), &pos,
+        "<statistics tod=\"%ld\" ver=\"" BRIX_SERVER_VERSION "\""
+        " src=\"%.*s:%d\" tos=\"%ld\" pgm=\"" BRIX_SERVER_NAME "\""
+        " ins=\"brix\" pid=\"%d\" site=\"\">",
+        (long) now, (int) ngx_cycle->hostname.len, ngx_cycle->hostname.data,
+        port, (long) tos_latch, (int) ngx_pid);
+
+    if (sel & BRIX_QSTATS_INFO) {
+        stats_append(resp, sizeof(resp), &pos,
+            "<stats id=\"info\"><host>%.*s</host><port>%d</port>"
+            "<name>" BRIX_SERVER_NAME "</name></stats>",
+            (int) ngx_cycle->hostname.len, ngx_cycle->hostname.data, port);
+    }
+
+    if ((sel & BRIX_QSTATS_LINK) && ctx->metrics) {
+        /* Stock tag order: num maxn tot in out ctime tmo stall sfps.  maxn
+         * (max ever concurrent) is not tracked — the live count is the best
+         * lower bound we can attest. */
+        stats_append(resp, sizeof(resp), &pos,
+            "<stats id=\"link\"><num>%ld</num><maxn>%ld</maxn>"
+            "<tot>%ld</tot><in>%ld</in><out>%ld</out>"
+            "<ctime>0</ctime><tmo>0</tmo><stall>0</stall>"
+            "<sfps>0</sfps></stats>",
+            (long) ctx->metrics->connections_active,
+            (long) ctx->metrics->connections_active,
+            (long) ctx->metrics->connections_total,
+            (long) ctx->metrics->bytes_rx_total,
+            (long) ctx->metrics->bytes_tx_total);
+    }
+
+    if ((sel & BRIX_QSTATS_PROTO) && ctx->metrics) {
+        for (i = 0; i < BRIX_NOPS; i++) {
+            err_sum += (long) ctx->metrics->op_err[i];
+            misc    += (long) ctx->metrics->op_ok[i];
+        }
+        ok_open = (long) ctx->metrics->op_ok[BRIX_OP_OPEN_RD]
+                  + (long) ctx->metrics->op_ok[BRIX_OP_OPEN_WR];
+        /* misc = every completed op not named in the ops block, so the block
+         * totals stay truthful. */
+        misc -= ok_open
+                + (long) ctx->metrics->op_ok[BRIX_OP_READ]
+                + (long) ctx->metrics->op_ok[BRIX_OP_PGREAD]
+                + (long) ctx->metrics->op_ok[BRIX_OP_READV]
+                + (long) ctx->metrics->op_ok[BRIX_OP_WRITEV]
+                + (long) ctx->metrics->op_ok[BRIX_OP_WRITE]
+                + (long) ctx->metrics->op_ok[BRIX_OP_SYNC]
+                + (long) ctx->metrics->op_ok[BRIX_OP_LOGIN];
+        if (misc < 0) {
+            misc = 0;
+        }
+        stats_append(resp, sizeof(resp), &pos,
+            "<stats id=\"xrootd\"><num>%ld</num>"
+            "<ops><open>%ld</open><rf>0</rf>"
+            "<rd>%ld</rd><pr>%ld</pr><rv>%ld</rv><rs>0</rs>"
+            "<wv>%ld</wv><ws>0</ws><wr>%ld</wr><sync>%ld</sync>"
+            "<getf>0</getf><putf>0</putf><misc>%ld</misc></ops>"
+            "<sig><ok>0</ok><bad>0</bad><ign>0</ign></sig>"
+            "<aio><num>0</num><max>0</max><rej>0</rej></aio>"
+            "<err>%ld</err><rdr>0</rdr><dly>0</dly>"
+            "<lgn><num>%ld</num><af>0</af><au>0</au><ua>0</ua></lgn>"
+            "</stats>",
+            (long) ctx->metrics->connections_total, ok_open,
+            (long) ctx->metrics->op_ok[BRIX_OP_READ],
+            (long) ctx->metrics->op_ok[BRIX_OP_PGREAD],
+            (long) ctx->metrics->op_ok[BRIX_OP_READV],
+            (long) ctx->metrics->op_ok[BRIX_OP_WRITEV],
+            (long) ctx->metrics->op_ok[BRIX_OP_WRITE],
+            (long) ctx->metrics->op_ok[BRIX_OP_SYNC],
+            misc, err_sum,
+            (long) ctx->metrics->op_ok[BRIX_OP_LOGIN]);
+    }
+
+    /* oss + sgen ride the full document only, mirroring stock's 'a'. */
+    if ((sel & BRIX_QSTATS_ALL) == BRIX_QSTATS_ALL) {
+        struct statvfs vfs;
+
+        stats_append(resp, sizeof(resp), &pos,
+            "<stats id=\"ofs\"><role>%s</role></stats>",
+            conf->manager_mode ? "manager" : "server");
+        if (conf->common.root_canon[0] != '\0'
+            && statvfs(conf->common.root_canon, &vfs) == 0)
+        {
+            stats_append(resp, sizeof(resp), &pos,
+                "<stats id=\"oss\" v=\"2\"><paths>1"
+                "<stats id=\"0\"><lp>\"/\"</lp><rp>\"%s\"</rp>"
+                "<tot>%llu</tot><free>%llu</free>"
+                "<ino>%llu</ino><ifr>%llu</ifr></stats></paths>"
+                "<space>0</space></stats>",
+                conf->common.root_canon,
+                (unsigned long long) (vfs.f_blocks * (vfs.f_frsize / 1024)),
+                (unsigned long long) (vfs.f_bavail * (vfs.f_frsize / 1024)),
+                (unsigned long long) vfs.f_files,
+                (unsigned long long) vfs.f_favail);
+        }
+        stats_append(resp, sizeof(resp), &pos,
+            "<stats id=\"sgen\"><as>1</as><et>0</et><toe>%ld</toe></stats>",
+            (long) now);
+    }
+
+    stats_append(resp, sizeof(resp), &pos, "</statistics>");
 
     brix_log_access(ctx, c, "QUERY", "-", "stats", 1, 0, NULL, 0);
     BRIX_OP_OK(ctx, BRIX_OP_QUERY_STATS);
-    return brix_send_ok(ctx, c, resp, (uint32_t) (n + 1));
+    return brix_send_ok(ctx, c, resp, (uint32_t) (pos + 1));
 }
 
 /* brix_query_xattr — kXR_Qxattr: list a path's extended attributes through the
@@ -163,6 +333,25 @@ brix_query_xattr(brix_ctx_t *ctx, ngx_connection_t *c,
         BRIX_OP_ERR(ctx, BRIX_OP_QUERY_XATTR);
         return brix_send_error(ctx, c, brix_kxr_from_errno(errno),
                                  strerror(errno));
+    }
+
+    /* SECURITY: a stat/probe succeeds for anyone who can merely TRAVERSE to the
+     * file (POSIX), so the probe alone would expose oss.used (size) + the user.U.*
+     * xattrs of a peer's UNREADABLE 0600 file to a cross-tenant caller who can
+     * reach its 0755 parent — a metadata oracle.  UNDER IMPERSONATION only (the
+     * cross-tenant case), require actual READ access as the mapped user via the
+     * broker, the same gate query-checksum enforces.  Gating on
+     * brix_imp_client_active() leaves the single-identity (non-map) path byte-for-
+     * byte unchanged — no new open() for a server that has one filesystem view. */
+    if (vst.is_regular && brix_imp_client_active()) {
+        int rfd = brix_vfs_open_fd(c->log, conf->common.root_canon, full_path,
+                                     O_RDONLY, 0);
+        if (rfd < 0) {
+            BRIX_OP_ERR(ctx, BRIX_OP_QUERY_XATTR);
+            return brix_send_error(ctx, c, brix_kxr_from_errno(errno),
+                                     strerror(errno));
+        }
+        close(rfd);
     }
 
     if (vst.is_regular) {

@@ -317,6 +317,13 @@ cvmfs_tier_get(ngx_http_request_t *r, ngx_http_brix_cvmfs_loc_conf_t *lcf)
         return rc;
     }
 
+    /* phase-101 W5.2c does NOT gate cvmfs on native brix_authdb: in the common
+     * read-through/proxy mode `root` is the upstream Stratum-1 URL, so the built
+     * path is not a local realpath and cannot match rules finalized against the
+     * local export root.  cvmfs objects are content-addressed (hashes), so a
+     * path-prefix ACL is the wrong model here — cvmfs authz belongs on the peer/
+     * URI, a separate design.  (s3/webdav/root:// enforce it; see the phase doc.) */
+
 #if (NGX_HTTP_SSL)
     is_tls = (r->connection->ssl != NULL) ? 1 : 0;
 #endif

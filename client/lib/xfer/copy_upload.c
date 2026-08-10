@@ -181,7 +181,9 @@ upload_stream_body(const upload_body_ctx *j, pump_src_fn src, void *srcctx,
         ctx.opaque = opq;
     }
     /* Resilient INITIAL open (retry+reconnect within the stall window). */
-    if (upload_open_resilient(&ctx, o->force, o->posc, &f, st) != 0) {
+    if (upload_open_resilient(&ctx,
+                              o->force | (o->coerce ? XRDC_OPEN_COERCE : 0),
+                              o->posc, &f, st) != 0) {
         brix_close(&c);
         return -1;
     }

@@ -170,6 +170,37 @@ brix_config_version_publish(ngx_cycle_t *cycle)
     gen = ngx_atomic_fetch_add(&tbl->config_generation, 1) + 1;
     tbl->config_hash = hash;
 
+    /*
+     * §3.15: stamp the slowop latency threshold (µs) into the SHM so the
+     * lock-free latency record path — running in every worker with no config
+     * pointer — can classify slow ops. Re-derived every config load (a reload
+     * that drops the directive resets it to 0 = off). One metrics zone is
+     * process-wide, so take the first enabled server that arms a non-zero
+     * threshold; none set ⇒ 0 ⇒ classifier disabled.
+     */
+    {
+        ngx_stream_core_main_conf_t  *cmcf;
+        ngx_stream_core_srv_conf_t  **cscfp;
+        ngx_stream_brix_srv_conf_t   *xcf;
+        ngx_uint_t                     i;
+        ngx_atomic_uint_t              thr = 0;
+
+        cmcf = ngx_stream_cycle_get_module_main_conf(cycle,
+                                                     ngx_stream_core_module);
+        if (cmcf != NULL) {
+            cscfp = cmcf->servers.elts;
+            for (i = 0; i < cmcf->servers.nelts; i++) {
+                xcf = ngx_stream_conf_get_module_srv_conf(cscfp[i],
+                                                          ngx_stream_brix_module);
+                if (xcf != NULL && xcf->slowop_usec > 0) {
+                    thr = (ngx_atomic_uint_t) xcf->slowop_usec;
+                    break;
+                }
+            }
+        }
+        tbl->unified.slowop_threshold_usec = thr;
+    }
+
     ngx_log_error(NGX_LOG_NOTICE, cycle->log, 0,
                   "brix: config generation %ui live (pid %P, version %016xL)",
                   (ngx_uint_t) gen, ngx_pid, hash);

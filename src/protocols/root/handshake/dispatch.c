@@ -106,7 +106,7 @@ brix_dispatch(brix_ctx_t *ctx, ngx_connection_t *c,
     /*
      * Phase 40: bracket the confined-FS dispatchers with the impersonation
      * principal taken from the authenticated identity.  begin()/end() are no-ops
-     * unless brix_impersonation=map; when active they make the beneath helpers
+     * unless brix_idmap=map; when active they make the beneath helpers
      * (open/stat/mkdir/...) route to the broker as the mapped UNIX user for the
      * duration of this synchronous dispatch, then restore the worker identity.
      * The data plane (kXR_read/write on the already-open fd) and the mirror/RL

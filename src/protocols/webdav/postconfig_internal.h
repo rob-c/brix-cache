@@ -17,7 +17,7 @@
 
 /*
  * webdav_postconf_setup_proxy_capath - walk every location of every server
- * and apply the brix_proxy_ssl_capath second half where the directive is set.
+ * and apply the brix_backend_ca_dir second half where the directive is set.
  * Defined in postconfig_proxy_capath.c.
  */
 ngx_int_t webdav_postconf_setup_proxy_capath(ngx_conf_t *cf,

@@ -28,6 +28,8 @@
 #define _GNU_SOURCE   /* RTLD_NEXT, *64 variants (the build also passes -D_GNU_SOURCE) */
 #endif
 #include "brix.h"
+#include "posix/posix_map.h"    /* brix_statinfo_to_stat — the ONE statinfo→stat map */
+#include "brixposix_internal.h" /* shared shim state/helpers (hidden visibility) */
 
 #include <dlfcn.h>
 #include <errno.h>
@@ -44,7 +46,7 @@
 /* configuration (BRIX_VMP) + the lazily-connected session           */
 
 static pthread_once_t  g_once = PTHREAD_ONCE_INIT;
-static pthread_mutex_t g_lock = PTHREAD_MUTEX_INITIALIZER;
+BRIXPOSIX_HIDDEN pthread_mutex_t g_lock = PTHREAD_MUTEX_INITIALIZER;
 
 static int       g_enabled;            /* BRIX_VMP parsed and usable */
 static char      g_prefix[256];        /* local path prefix, e.g. "/xrd" */
@@ -52,7 +54,7 @@ static size_t    g_prefix_len;
 static brix_url  g_url;                 /* remote endpoint + base path */
 static char      g_base[XRDC_PATH_MAX]; /* remote base ("" when "/") */
 
-static brix_conn g_conn;
+BRIXPOSIX_HIDDEN brix_conn g_conn;
 static int       g_connected;
 
 static void
@@ -97,7 +99,7 @@ parse_vmp(void)
 }
 
 /* Map a local path to the remote logical path; 1 if under the prefix, else 0. */
-static int
+BRIXPOSIX_HIDDEN int
 map_path(const char *path, char *out, size_t outsz)
 {
     const char *rest;
@@ -128,13 +130,20 @@ map_path(const char *path, char *out, size_t outsz)
     return 1;
 }
 
-/* Connect the single session on first use (anonymous; mutex held by caller). */
-static int
+/* Connect the single session on first use (anonymous; mutex held by caller).
+ * §7.7: after a fork() the inherited session is neutered by the library's
+ * atfork handler; detect that via brix_conn_usable and transparently open a
+ * FRESH child session (already-open shadow fds stay dead — POSIX offers no
+ * way to resurrect them safely — but new opens in the child just work). */
+BRIXPOSIX_HIDDEN int
 ensure_conn(void)
 {
     brix_status st;
     if (g_connected) {
-        return 0;
+        if (brix_conn_usable(&g_conn)) {
+            return 0;
+        }
+        g_connected = 0;   /* forked child: abandon, re-dial below */
     }
     brix_status_clear(&st);
     if (brix_connect(&g_conn, &g_url, NULL, &st) != 0) {
@@ -146,15 +155,6 @@ ensure_conn(void)
 
 /* shadow fd table (remote read descriptors)                           */
 
-#define XFS_FD_BASE 0x40000000
-#define XFS_FD_MAX  1024
-
-typedef struct {
-    int        used;
-    brix_rfile f;     /* resilient: reopens + resumes after a sever */
-    int64_t    pos;
-    int64_t    size;
-} xfs_slot;
 
 static xfs_slot g_slots[XFS_FD_MAX];
 
@@ -172,7 +172,7 @@ slot_alloc(void)
     return -1;
 }
 
-static xfs_slot *
+BRIXPOSIX_HIDDEN xfs_slot *
 slot_of(int fd)
 {
     int i;
@@ -186,28 +186,17 @@ slot_of(int fd)
     return &g_slots[i];
 }
 
-static void
+BRIXPOSIX_HIDDEN void
 fill_stat(const brix_statinfo *si, struct stat *stbuf)
 {
-    memset(stbuf, 0, sizeof(*stbuf));
-    if (si->flags & kXR_isDir) {
-        stbuf->st_mode = S_IFDIR | 0755;
-        stbuf->st_nlink = 2;
-    } else {
-        stbuf->st_mode = S_IFREG | 0644;
-        stbuf->st_nlink = 1;
-        stbuf->st_size = (off_t) si->size;
-    }
-    stbuf->st_mtime = stbuf->st_atime = stbuf->st_ctime = (time_t) si->mtime;
+    /* One statinfo→stat mapping repo-wide (posix_map.c, shared with both FUSE
+     * drivers): the hand-rolled copy this replaced under-filled the result —
+     * no st_ino (inode-tracking tools saw everything as one file), no
+     * st_blksize/st_blocks, and a guessed 0644/0755 mode instead of the wire
+     * flags. allow_symlink=0: the shim stat()s, it never presents S_IFLNK. */
+    brix_statinfo_to_stat(si, 0 /* allow_symlink */, stbuf);
 }
 
-/* Resolve (once) the real libc symbol behind the wrapper we're standing in. The
- * variable inherits libc's exact prototype via __typeof__(name). */
-#define REAL(name)                                                      \
-    static __typeof__(name) *real_##name = NULL;                        \
-    if (real_##name == NULL) {                                          \
-        real_##name = (__typeof__(name) *) dlsym(RTLD_NEXT, #name);     \
-    }
 
 /* open / openat                                                       */
 
@@ -248,6 +237,75 @@ remote_open(const char *remote)
     return XFS_FD_BASE + slot;
 }
 
+/* ---- Open a remote file for WRITING (§7.8 preload write path) ----
+ *
+ * WHAT: Allocates a shim slot backed by a resilient write handle and returns
+ *       its shadow fd, or -1/errno. `force` follows the POSIX open flags:
+ *       create-new (O_EXCL), overwrite (O_TRUNC/O_CREAT), or update-in-place.
+ *
+ * WHY:  The shim was read-only; a client `open(O_WRONLY)` under the BRIX_VMP
+ *       prefix now streams to the remote instead of hitting the real (absent)
+ *       local path. Sequential write + close-commit is the common upload
+ *       shape (cp into the mount, a program opening and writing the fd).
+ *
+ * LIMIT: the shadow fd is a fake number, not a real kernel descriptor, so it
+ *        does NOT survive dup2()/fcntl(F_DUPFD) — a shell `> /xrd/out`
+ *        redirection (which dup2's the fd onto stdout) will not divert here.
+ *        This is symmetric with the read path (`< /xrd/in` has the same
+ *        limitation); direct fd use is the supported contract.
+ *
+ * HOW:  brix_rfile_open_write on the shared connection; the slot is marked
+ *       write_mode so read() refuses it and write()/close() route here.
+ */
+static int
+remote_open_write(const char *remote, int force)
+{
+    int       slot;
+    xfs_slot *s;
+
+    pthread_mutex_lock(&g_lock);
+    if (ensure_conn() != 0) {
+        pthread_mutex_unlock(&g_lock);
+        errno = EIO;
+        return -1;
+    }
+    slot = slot_alloc();
+    if (slot < 0) {
+        pthread_mutex_unlock(&g_lock);
+        errno = EMFILE;
+        return -1;
+    }
+    s = &g_slots[slot];
+    s->write_mode = 1;
+    {
+        brix_status st;
+        brix_status_clear(&st);
+        if (brix_rfile_open_write(&g_conn, remote, force, 0 /*posc*/,
+                                  0 /*pgrw*/, -1, &s->f, &st) != 0) {
+            s->used = 0;
+            pthread_mutex_unlock(&g_lock);
+            errno = -brix_kxr_to_errno(&st);
+            return -1;
+        }
+    }
+    pthread_mutex_unlock(&g_lock);
+    return XFS_FD_BASE + slot;
+}
+
+/* Map POSIX open flags to the brix write `force` tristate: create-new,
+ * overwrite/create, or update-in-place. */
+static int
+xfs_write_force(int flags)
+{
+    if ((flags & O_CREAT) && (flags & O_EXCL)) {
+        return 0;   /* create-new, fail if exists */
+    }
+    if ((flags & O_TRUNC) || (flags & O_CREAT)) {
+        return 1;   /* overwrite / create */
+    }
+    return 2;       /* update in place */
+}
+
 int
 open(const char *path, int flags, ...)
 {
@@ -261,9 +319,16 @@ open(const char *path, int flags, ...)
         mode = (mode_t) va_arg(ap, int);
         va_end(ap);
     }
-    /* Only the read path is diverted; writes/creates fall through to libc. */
-    if ((flags & O_ACCMODE) == O_RDONLY && map_path(path, remote, sizeof(remote))) {
-        return remote_open(remote);
+    /* Read → remote read handle; write-only → remote write handle (§7.8).
+     * O_RDWR is not divertible (one rfile is read OR write, not both) and
+     * falls through to libc. */
+    if (map_path(path, remote, sizeof(remote))) {
+        if ((flags & O_ACCMODE) == O_RDONLY) {
+            return remote_open(remote);
+        }
+        if ((flags & O_ACCMODE) == O_WRONLY) {
+            return remote_open_write(remote, xfs_write_force(flags));
+        }
     }
     return real_open(path, flags, mode);
 }
@@ -283,9 +348,13 @@ openat(int dirfd, const char *path, int flags, ...)
         mode = (mode_t) va_arg(ap, int);
         va_end(ap);
     }
-    if ((flags & O_ACCMODE) == O_RDONLY && path[0] == '/' &&
-        map_path(path, remote, sizeof(remote))) {
-        return remote_open(remote);   /* absolute path: dirfd irrelevant */
+    if (path[0] == '/' && map_path(path, remote, sizeof(remote))) {
+        if ((flags & O_ACCMODE) == O_RDONLY) {
+            return remote_open(remote);   /* absolute path: dirfd irrelevant */
+        }
+        if ((flags & O_ACCMODE) == O_WRONLY) {
+            return remote_open_write(remote, xfs_write_force(flags));
+        }
     }
     return real_openat(dirfd, path, flags, mode);
 }
@@ -304,6 +373,10 @@ read(int fd, void *buf, size_t count)
     s = slot_of(fd);
     if (s == NULL) {
         return real_read(fd, buf, count);
+    }
+    if (s->write_mode) {   /* §7.8: a write-only shim fd is not readable */
+        errno = EBADF;
+        return -1;
     }
     {
         brix_status st;
@@ -332,6 +405,10 @@ pread(int fd, void *buf, size_t count, off_t offset)
     if (s == NULL) {
         return real_pread(fd, buf, count, offset);
     }
+    if (s->write_mode) {   /* §7.8: a write-only shim fd is not readable */
+        errno = EBADF;
+        return -1;
+    }
     {
         brix_status st;
         ssize_t     r;
@@ -348,6 +425,73 @@ pread(int fd, void *buf, size_t count, off_t offset)
 
 ssize_t pread64(int fd, void *buf, size_t count, off_t offset)
     __attribute__((alias("pread")));
+
+/* write / pwrite (§7.8): stream into the remote write handle at the slot's
+ * current (or explicit) offset. Non-shim fds and read-only shim slots pass
+ * through / error exactly as the kernel would. */
+ssize_t
+write(int fd, const void *buf, size_t count)
+{
+    xfs_slot *s;
+    REAL(write);
+
+    s = slot_of(fd);
+    if (s == NULL) {
+        return real_write(fd, buf, count);
+    }
+    if (!s->write_mode) {   /* a read-only shim fd is not writable */
+        errno = EBADF;
+        return -1;
+    }
+    {
+        brix_status st;
+        int         rc;
+        pthread_mutex_lock(&g_lock);
+        brix_status_clear(&st);
+        rc = brix_rfile_pwrite(&s->f, s->pos, buf, count, &st);
+        if (rc == 0) {
+            s->pos += (int64_t) count;
+        }
+        pthread_mutex_unlock(&g_lock);
+        if (rc != 0) {
+            errno = -brix_kxr_to_errno(&st);
+            return -1;
+        }
+        return (ssize_t) count;
+    }
+}
+
+ssize_t
+pwrite(int fd, const void *buf, size_t count, off_t offset)
+{
+    xfs_slot *s;
+    REAL(pwrite);
+
+    s = slot_of(fd);
+    if (s == NULL) {
+        return real_pwrite(fd, buf, count, offset);
+    }
+    if (!s->write_mode) {
+        errno = EBADF;
+        return -1;
+    }
+    {
+        brix_status st;
+        int         rc;
+        pthread_mutex_lock(&g_lock);
+        brix_status_clear(&st);
+        rc = brix_rfile_pwrite(&s->f, (int64_t) offset, buf, count, &st);
+        pthread_mutex_unlock(&g_lock);
+        if (rc != 0) {
+            errno = -brix_kxr_to_errno(&st);
+            return -1;
+        }
+        return (ssize_t) count;
+    }
+}
+
+ssize_t pwrite64(int fd, const void *buf, size_t count, off_t offset)
+    __attribute__((alias("pwrite")));
 
 off_t
 lseek(int fd, off_t offset, int whence)
@@ -388,204 +532,6 @@ close(int fd)
         s->used = 0;
         pthread_mutex_unlock(&g_lock);
     }
-    return 0;
-}
-
-/* stat family + access                                                */
-
-static int
-remote_stat(const char *remote, struct stat *stbuf)
-{
-    brix_status   st;
-    brix_statinfo si;
-    int           rc;
-
-    pthread_mutex_lock(&g_lock);
-    if (ensure_conn() != 0) {
-        pthread_mutex_unlock(&g_lock);
-        errno = EIO;
-        return -1;
-    }
-    brix_status_clear(&st);
-    rc = brix_stat(&g_conn, remote, &si, &st);
-    pthread_mutex_unlock(&g_lock);
-    if (rc != 0) {
-        errno = -brix_kxr_to_errno(&st);
-        return -1;
-    }
-    fill_stat(&si, stbuf);
-    return 0;
-}
-
-int
-stat(const char *path, struct stat *stbuf)
-{
-    char remote[XRDC_PATH_MAX];
-    REAL(stat);
-    if (map_path(path, remote, sizeof(remote))) {
-        return remote_stat(remote, stbuf);
-    }
-    return real_stat(path, stbuf);
-}
-
-int
-lstat(const char *path, struct stat *stbuf)
-{
-    char remote[XRDC_PATH_MAX];
-    REAL(lstat);
-    if (map_path(path, remote, sizeof(remote))) {
-        return remote_stat(remote, stbuf);   /* no symlinks in the export */
-    }
-    return real_lstat(path, stbuf);
-}
-
-int
-fstat(int fd, struct stat *stbuf)
-{
-    xfs_slot *s;
-    REAL(fstat);
-    s = slot_of(fd);
-    if (s == NULL) {
-        return real_fstat(fd, stbuf);
-    }
-    memset(stbuf, 0, sizeof(*stbuf));
-    stbuf->st_mode = S_IFREG | 0644;
-    stbuf->st_nlink = 1;
-    stbuf->st_size = (off_t) s->size;
-    return 0;
-}
-
-int
-fstatat(int dirfd, const char *path, struct stat *stbuf, int flags)
-{
-    char remote[XRDC_PATH_MAX];
-    REAL(fstatat);
-    if (path[0] == '/' && map_path(path, remote, sizeof(remote))) {
-        return remote_stat(remote, stbuf);
-    }
-    return real_fstatat(dirfd, path, stbuf, flags);
-}
-
-int
-access(const char *path, int mode)
-{
-    char        remote[XRDC_PATH_MAX];
-    struct stat sb;
-    REAL(access);
-    if (map_path(path, remote, sizeof(remote))) {
-        return remote_stat(remote, &sb);   /* existence/readability check */
-    }
-    return real_access(path, mode);
-}
-
-/*
- * The *64 (LFS) variants. Tools built with _FILE_OFFSET_BITS=64 (coreutils, etc.)
- * call stat64/lstat64/fstat64/fstatat64, not the plain names, so those must be
- * interposed too or a pre-open stat() of a remote path would wrongly ENOENT. On
- * this platform struct stat and struct stat64 are layout-identical, so the remote
- * fill is shared via a cast (guarded by the static assert below).
- */
-_Static_assert(sizeof(struct stat) == sizeof(struct stat64),
-               "struct stat / stat64 layout differ; *64 stat shims need rework");
-
-int
-stat64(const char *path, struct stat64 *stbuf)
-{
-    char remote[XRDC_PATH_MAX];
-    REAL(stat64);
-    if (map_path(path, remote, sizeof(remote))) {
-        return remote_stat(remote, (struct stat *) stbuf);
-    }
-    return real_stat64(path, stbuf);
-}
-
-int
-lstat64(const char *path, struct stat64 *stbuf)
-{
-    char remote[XRDC_PATH_MAX];
-    REAL(lstat64);
-    if (map_path(path, remote, sizeof(remote))) {
-        return remote_stat(remote, (struct stat *) stbuf);
-    }
-    return real_lstat64(path, stbuf);
-}
-
-int
-fstat64(int fd, struct stat64 *stbuf)
-{
-    xfs_slot *s;
-    REAL(fstat64);
-    s = slot_of(fd);
-    if (s == NULL) {
-        return real_fstat64(fd, stbuf);
-    }
-    memset(stbuf, 0, sizeof(*stbuf));
-    stbuf->st_mode = S_IFREG | 0644;
-    stbuf->st_nlink = 1;
-    stbuf->st_size = (off_t) s->size;
-    return 0;
-}
-
-int
-fstatat64(int dirfd, const char *path, struct stat64 *stbuf, int flags)
-{
-    char remote[XRDC_PATH_MAX];
-    REAL(fstatat64);
-    if (path[0] == '/' && map_path(path, remote, sizeof(remote))) {
-        return remote_stat(remote, (struct stat *) stbuf);
-    }
-    return real_fstatat64(dirfd, path, stbuf, flags);
-}
-
-/*
- * statx() is what modern coreutils (ls, stat, find, du) actually call. Without
- * interposing it, those tools would statx the real (absent) local path and
- * ENOENT. We fill the common fields (type/mode/nlink/size/mtime); the caller's
- * requested `mask` is satisfied for what XRootD can report.
- */
-int
-statx(int dirfd, const char *path, int flags, unsigned int mask,
-      struct statx *stxbuf)
-{
-    char          remote[XRDC_PATH_MAX];
-    brix_status   st;
-    brix_statinfo si;
-    int           rc;
-    REAL(statx);
-
-    (void) mask;
-    if (path[0] != '/' || !map_path(path, remote, sizeof(remote))) {
-        return real_statx(dirfd, path, flags, mask, stxbuf);
-    }
-    pthread_mutex_lock(&g_lock);
-    if (ensure_conn() != 0) {
-        pthread_mutex_unlock(&g_lock);
-        errno = EIO;
-        return -1;
-    }
-    brix_status_clear(&st);
-    rc = brix_stat(&g_conn, remote, &si, &st);
-    pthread_mutex_unlock(&g_lock);
-    if (rc != 0) {
-        errno = -brix_kxr_to_errno(&st);
-        return -1;
-    }
-    memset(stxbuf, 0, sizeof(*stxbuf));
-    stxbuf->stx_mask = STATX_TYPE | STATX_MODE | STATX_NLINK | STATX_SIZE
-                       | STATX_MTIME;
-    stxbuf->stx_blksize = 4096;
-    if (si.flags & kXR_isDir) {
-        stxbuf->stx_mode = S_IFDIR | 0755;
-        stxbuf->stx_nlink = 2;
-    } else {
-        stxbuf->stx_mode = S_IFREG | 0644;
-        stxbuf->stx_nlink = 1;
-        stxbuf->stx_size = (uint64_t) si.size;
-        stxbuf->stx_blocks = (uint64_t) ((si.size + 511) / 512);
-    }
-    stxbuf->stx_mtime.tv_sec = si.mtime;
-    stxbuf->stx_atime.tv_sec = si.mtime;
-    stxbuf->stx_ctime.tv_sec = si.mtime;
     return 0;
 }
 

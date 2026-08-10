@@ -3,6 +3,7 @@
  * Phase-38 split of put.c; behavior-identical.
  */
 #include "s3_put_internal.h"
+#include "auth/impersonate/lifecycle.h"   /* brix_imp_request_begin/end */
 
 
 
@@ -66,11 +67,12 @@ s3_put_aio_thread(void *data, ngx_log_t *log)
 }
 
 
-void
-s3_put_aio_done(ngx_event_t *ev)
+/* s3_put_aio_finish — event-loop completion body (verify/commit/stat/tag).  Split
+ * out so s3_put_aio_done can run it inside the impersonation bracket: every op
+ * here is PATH-based and must act as the mapped user. */
+static void
+s3_put_aio_finish(s3_put_aio_t *t)
 {
-    ngx_thread_task_t  *task = ev->data;
-    s3_put_aio_t       *t = task->ctx;
     ngx_http_request_t *r = t->r;
     ngx_log_t          *log = r->connection->log;
 
@@ -151,4 +153,26 @@ s3_put_aio_done(ngx_event_t *ev)
     }
     BRIX_S3_METRIC_INC(put_body_total[t->body_mode]);
     s3_put_finalize_empty_ok(r);
+}
+
+/*
+ * s3_put_aio_done — thread-pool completion handler (event loop).  The staged
+ * commit/verify/stat/tagging in s3_put_aio_finish are PATH-based and must run as
+ * the MAPPED user; this completion lost the per-request impersonation bracket
+ * s3_put_body_handler holds around the synchronous path, so without
+ * re-establishing it the atomic publish renames into the user's directory AS THE
+ * WORKER and fails EPERM.  Mirrors the WebDAV async fix (put_body.c).  The
+ * threaded write itself (s3_put_aio_thread) was fd-based — no impersonation.
+ */
+void
+s3_put_aio_done(ngx_event_t *ev)
+{
+    ngx_thread_task_t     *task = ev->data;
+    s3_put_aio_t          *t = task->ctx;
+    ngx_http_s3_req_ctx_t *rx =
+        ngx_http_get_module_ctx(t->r, ngx_http_brix_s3_module);
+
+    brix_imp_request_begin(rx != NULL ? rx->identity : NULL);
+    s3_put_aio_finish(t);
+    brix_imp_request_end();
 }

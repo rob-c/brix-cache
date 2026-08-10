@@ -16,20 +16,6 @@ ngx_conf_enum_t  webdav_auth_values[] = {
     { ngx_null_string, 0 }
 };
 
-ngx_conf_enum_t  brix_webdav_signing_policy_modes[] = {
-    { ngx_string("off"),     BRIX_SP_MODE_OFF     },
-    { ngx_string("on"),      BRIX_SP_MODE_ON      },
-    { ngx_string("require"), BRIX_SP_MODE_REQUIRE },
-    { ngx_null_string, 0 }
-};
-
-ngx_conf_enum_t  brix_webdav_crl_modes[] = {
-    { ngx_string("off"),     BRIX_CRL_MODE_OFF     },
-    { ngx_string("try"),     BRIX_CRL_MODE_TRY     },
-    { ngx_string("require"), BRIX_CRL_MODE_REQUIRE },
-    { ngx_null_string, 0 }
-};
-
 ngx_conf_enum_t  brix_webdav_cks_xattr_formats[] = {
     { ngx_string("text"),   BRIX_CKS_FMT_TEXT   },
     { ngx_string("xrdcks"), BRIX_CKS_FMT_XRDCKS },
@@ -55,84 +41,21 @@ ngx_command_t ngx_http_brix_webdav_commands[] = {
 
     /* Kernel-TLS (SSL_OP_ENABLE_KTLS) for the HTTPS data path — HTTPS GET
      * sendfiles over kTLS, PUT decrypts in-kernel. Default ON; transparent
-     * no-op when the negotiated cipher/kernel cannot offload. Registered once
-     * but the shared setter writes BOTH the WebDAV and S3 loc-confs' common.ktls
-     * (an S3-only location still needs it); enabled per brix server in
-     * postconfiguration. */
-    { ngx_string("brix_ktls"),
-      NGX_HTTP_MAIN_CONF | NGX_HTTP_SRV_CONF | NGX_HTTP_LOC_CONF | NGX_CONF_FLAG,
-      brix_http_set_ktls,
-      NGX_HTTP_LOC_CONF_OFFSET,
-      0,
-      NULL },
+     * no-op when the negotiated cipher/kernel cannot offload. */
+    /* brix_ktls + brix_cache_store_endpoint moved to http_common.c (phase-101 W2)
+     * — they were dual-conf-poking setters (webdav+s3 only, cvmfs excluded); now
+     * registered once for the whole HTTP plane on the standard flag slot and
+     * adopted into every protocol conf. */
 
-    /* Trusted remote cache-STORE endpoint (default OFF). When ON, this location
-     * permits internal sidecar names (<key>.cinfo/.meta/stage markers) as request
-     * targets so a cache node's origin-facing endpoint can PUT/GET them. Like
-     * brix_ktls above the shared setter writes BOTH the WebDAV and S3 loc-confs,
-     * so an S3-only store location is covered too. */
-    { ngx_string("brix_cache_store_endpoint"),
-      NGX_HTTP_MAIN_CONF | NGX_HTTP_SRV_CONF | NGX_HTTP_LOC_CONF | NGX_CONF_FLAG,
-      brix_http_set_cache_store_endpoint,
-      NGX_HTTP_LOC_CONF_OFFSET,
-      0,
-      NULL },
-
-    /* XrdAcc engine — registered once here; the shared setters populate both
-     * the WebDAV and S3 loc-confs (valid in any http location). */
-    { ngx_string("brix_authdb"),
-      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
-      brix_acc_http_set_authdb, 0, 0, NULL },
-
-    { ngx_string("brix_authdb_format"),
-      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
-      brix_acc_http_set_format, 0, 0, NULL },
-
-    { ngx_string("brix_authdb_audit"),
-      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
-      brix_acc_http_set_audit, 0, 0, NULL },
-
-    { ngx_string("brix_authdb_refresh"),
-      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
-      brix_acc_http_set_refresh, 0, 0, NULL },
-
-    { ngx_string("brix_acc_gidlifetime"),
-      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
-      brix_acc_http_set_gidlifetime, 0, 0, NULL },
-
-    { ngx_string("brix_acc_pgo"),
-      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
-      brix_acc_http_set_pgo, 0, 0, NULL },
-
-    { ngx_string("brix_acc_nisdomain"),
-      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
-      brix_acc_http_set_nisdomain, 0, 0, NULL },
-
-    { ngx_string("brix_acc_resolve_hosts"),
-      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
-      brix_acc_http_set_resolve_hosts, 0, 0, NULL },
-
-    { ngx_string("brix_acc_spacechar"),
-      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
-      brix_acc_http_set_spacechar, 0, 0, NULL },
-
-    { ngx_string("brix_acc_encoding"),
-      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
-      brix_acc_http_set_encoding, 0, 0, NULL },
-
-    { ngx_string("brix_acc_gidretran"),
-      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
-      brix_acc_http_set_gidretran, 0, 0, NULL },
+    /* XrdAcc engine (brix_authdb* / brix_acc_*) moved to http_common.c on the
+     * standard generic slots (phase-101 W2); the acc block now lives in the
+     * shared preamble (common.acc) and is adopted into every HTTP protocol,
+     * cvmfs included.  module_acc_directives.{c,h} is deleted. */
 
     /* ---- storage/tier directives (split into directives_storage.h) ---- */
 #include "directives_storage.h"
 
-    { ngx_string("brix_webdav_vomsdir"),
-      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
-      ngx_conf_set_str_slot,
-      NGX_HTTP_LOC_CONF_OFFSET,
-      offsetof(ngx_http_brix_webdav_loc_conf_t, vomsdir),
-      NULL },
+    /* brix_vomsdir moved to http_common.c (phase-101 W4). */
 
     /* Per-socket TCP congestion control (e.g. "bbr") for the HTTP data path — the
      * sender's CC governs download throughput; BBR ignores reordering's spurious
@@ -144,72 +67,36 @@ ngx_command_t ngx_http_brix_webdav_commands[] = {
       offsetof(ngx_http_brix_webdav_loc_conf_t, tcp_congestion),
       NULL },
 
-    { ngx_string("brix_webdav_voms_cert_dir"),
-      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
-      ngx_conf_set_str_slot,
-      NGX_HTTP_LOC_CONF_OFFSET,
-      offsetof(ngx_http_brix_webdav_loc_conf_t, voms_cert_dir),
-      NULL },
+    /* brix_voms_cert_dir moved to http_common.c (phase-101 W4). */
 
-    { ngx_string("brix_webdav_cadir"),
+    { ngx_string("brix_trusted_ca_dir"),
       NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
       ngx_conf_set_str_slot,
       NGX_HTTP_LOC_CONF_OFFSET,
       offsetof(ngx_http_brix_webdav_loc_conf_t, cadir),
       NULL },
 
-    { ngx_string("brix_webdav_cafile"),
+    { ngx_string("brix_trusted_ca"),
       NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
       ngx_conf_set_str_slot,
       NGX_HTTP_LOC_CONF_OFFSET,
       offsetof(ngx_http_brix_webdav_loc_conf_t, cafile),
       NULL },
 
-    /* Native authorization (read parity with root://): per-DN/VO/host authdb +
-     * VO ACL, enforced for READ methods in the access phase (covers cached GET). */
-    { ngx_string("brix_webdav_authdb"),
-      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
-      webdav_conf_authdb,
-      NGX_HTTP_LOC_CONF_OFFSET,
-      0,
-      NULL },
+    /* brix_authdb (native u/g/p/h READ ACL) -> owned by the common module
+     * (phase-101 W5.2): registered on http_common at BRIX_HTTP_ALL_CONF into the
+     * shared preamble (common.authdb_rules); webdav's AND s3's access phases read
+     * it from there (W5.2c). The XrdAcc engine stays at brix_acc_authdb. cvmfs is
+     * not gated (read-through/CAS path model). */
 
-    { ngx_string("brix_webdav_require_vo"),
-      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE2,
-      webdav_conf_require_vo,
-      NGX_HTTP_LOC_CONF_OFFSET,
-      0,
-      NULL },
+    /* brix_webdav_require_vo -> bare brix_require_vo on the common module
+     * (phase-101 W4); the array now lives in common.vo_rules. */
 
-    /* Per-host credential-source binding (XRootD sec.protbind), shared grammar
-     * with the stream-side brix_protbind. */
-    { ngx_string("brix_webdav_protbind"),
-      NGX_HTTP_LOC_CONF | NGX_CONF_2MORE,
-      webdav_conf_protbind,
-      NGX_HTTP_LOC_CONF_OFFSET,
-      0,
-      NULL },
+    /* brix_webdav_protbind -> bare brix_protbind on the common module
+     * (phase-101 W4); the array now lives in common.protbind. */
 
-    { ngx_string("brix_webdav_crl"),
-      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
-      ngx_conf_set_str_slot,
-      NGX_HTTP_LOC_CONF_OFFSET,
-      offsetof(ngx_http_brix_webdav_loc_conf_t, crl),
-      NULL },
 
-    { ngx_string("brix_webdav_signing_policy"),
-      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
-      ngx_conf_set_enum_slot,
-      NGX_HTTP_LOC_CONF_OFFSET,
-      offsetof(ngx_http_brix_webdav_loc_conf_t, signing_policy_mode),
-      brix_webdav_signing_policy_modes },
 
-    { ngx_string("brix_webdav_crl_mode"),
-      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
-      ngx_conf_set_enum_slot,
-      NGX_HTTP_LOC_CONF_OFFSET,
-      offsetof(ngx_http_brix_webdav_loc_conf_t, crl_mode),
-      brix_webdav_crl_modes },
 
     { ngx_string("brix_webdav_verify_depth"),
       NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
@@ -236,7 +123,7 @@ ngx_command_t ngx_http_brix_webdav_commands[] = {
      * lets ssl_verify_client trust /etc/grid-security/certificates directly
      * (stock ssl_client_certificate is file-only).  Server-level, like
      * brix_webdav_proxy_certs above. */
-    { ngx_string("brix_ssl_client_capath"),
+    { ngx_string("brix_client_ca_store"),
       NGX_HTTP_SRV_CONF | NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
       ngx_conf_set_str_slot,
       NGX_HTTP_LOC_CONF_OFFSET,
@@ -258,7 +145,7 @@ ngx_command_t ngx_http_brix_webdav_commands[] = {
      * stock proxy_ssl_trusted_certificate with one <hash>.N file at parse
      * time and adds the whole dir to the upstream SSL_CTX at postconfig.
      * Location-exact — deliberately not merged/inherited. */
-    { ngx_string("brix_proxy_ssl_capath"),
+    { ngx_string("brix_backend_ca_dir"),
       NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
       webdav_conf_proxy_ssl_capath,
       NGX_HTTP_LOC_CONF_OFFSET,
@@ -267,19 +154,9 @@ ngx_command_t ngx_http_brix_webdav_commands[] = {
 
     /* brix_allow_write / brix_read_only are owned by ngx_http_brix_common_module. */
 
-    { ngx_string("brix_webdav_upload_resume"),
-      NGX_HTTP_LOC_CONF | NGX_CONF_FLAG,
-      ngx_conf_set_flag_slot,
-      NGX_HTTP_LOC_CONF_OFFSET,
-      offsetof(ngx_http_brix_webdav_loc_conf_t, upload_resume),
-      NULL },
+    /* brix_upload_resume moved to http_common.c (phase-101 W4). */
 
-    { ngx_string("brix_webdav_stage_dir"),
-      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
-      ngx_conf_set_str_slot,
-      NGX_HTTP_LOC_CONF_OFFSET,
-      offsetof(ngx_http_brix_webdav_loc_conf_t, upload_stage_dir),
-      NULL },
+    /* brix_stage_dir moved to http_common.c (phase-101 W4). */
 
     /* phase-42 outbound GET compression (brix_compress) is owned by
      * ngx_http_brix_common_module. */
@@ -309,61 +186,19 @@ ngx_command_t ngx_http_brix_webdav_commands[] = {
 
 #include "directives_tpc.h"
 
-    { ngx_string("brix_webdav_pwd_file"),
-      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
-      ngx_conf_set_str_slot,
-      NGX_HTTP_LOC_CONF_OFFSET,
-      offsetof(ngx_http_brix_webdav_loc_conf_t, pwd_file),
-      NULL },
+    /* brix_pwd_file moved to http_common.c (phase-101 W4). */
 
-    { ngx_string("brix_webdav_token_jwks"),
-      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
-      ngx_conf_set_str_slot,
-      NGX_HTTP_LOC_CONF_OFFSET,
-      offsetof(ngx_http_brix_webdav_loc_conf_t, token_jwks),
-      NULL },
+    /* brix_token_jwks moved to http_common.c (W4). */
 
-    { ngx_string("brix_webdav_token_issuer"),
-      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
-      ngx_conf_set_str_slot,
-      NGX_HTTP_LOC_CONF_OFFSET,
-      offsetof(ngx_http_brix_webdav_loc_conf_t, token_issuer),
-      NULL },
+    /* brix_token_issuer + brix_token_config moved to http_common.c (W4). */
 
-    { ngx_string("brix_webdav_token_config"),
-      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
-      ngx_conf_set_str_slot,
-      NGX_HTTP_LOC_CONF_OFFSET,
-      offsetof(ngx_http_brix_webdav_loc_conf_t, token_config),
-      NULL },
+    /* brix_token_audience moved to http_common.c (W4). */
 
-    { ngx_string("brix_webdav_token_audience"),
-      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
-      ngx_conf_set_str_slot,
-      NGX_HTTP_LOC_CONF_OFFSET,
-      offsetof(ngx_http_brix_webdav_loc_conf_t, token_audience),
-      NULL },
+    /* brix_token_clock_skew moved to http_common.c (W4). */
 
-    { ngx_string("brix_webdav_token_clock_skew"),
-      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
-      ngx_conf_set_num_slot,
-      NGX_HTTP_LOC_CONF_OFFSET,
-      offsetof(ngx_http_brix_webdav_loc_conf_t, token_clock_skew),
-      NULL },
+    /* brix_macaroon_secret moved to http_common.c (phase-101 W4). */
 
-    { ngx_string("brix_webdav_macaroon_secret"),
-      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
-      ngx_conf_set_str_slot,
-      NGX_HTTP_LOC_CONF_OFFSET,
-      offsetof(ngx_http_brix_webdav_loc_conf_t, token_macaroon_secret),
-      NULL },
-
-    { ngx_string("brix_webdav_macaroon_secret_old"),
-      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
-      ngx_conf_set_str_slot,
-      NGX_HTTP_LOC_CONF_OFFSET,
-      offsetof(ngx_http_brix_webdav_loc_conf_t, token_macaroon_secret_old),
-      NULL },
+    /* brix_macaroon_secret_old moved to http_common.c (phase-101 W4). */
 
     /* brix_thread_pool is owned by ngx_http_brix_common_module. */
 
@@ -383,13 +218,13 @@ ngx_command_t ngx_http_brix_webdav_commands[] = {
 
     { ngx_string("brix_webdav_cors_max_age"),
       NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
-      ngx_conf_set_num_slot,
+      ngx_conf_set_sec_slot,
       NGX_HTTP_LOC_CONF_OFFSET,
       offsetof(ngx_http_brix_webdav_loc_conf_t, cors_max_age),
       NULL },
     { ngx_string("brix_webdav_lock_timeout"),
       NGX_HTTP_MAIN_CONF | NGX_HTTP_SRV_CONF | NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
-      ngx_conf_set_num_slot,
+      ngx_conf_set_sec_slot,
       NGX_HTTP_LOC_CONF_OFFSET,
       offsetof(ngx_http_brix_webdav_loc_conf_t, lock_timeout),
       NULL },
@@ -401,13 +236,8 @@ ngx_command_t ngx_http_brix_webdav_commands[] = {
       offsetof(ngx_http_brix_webdav_loc_conf_t, lock_startup_sweep),
       NULL },
 
-    /* ZIP member access over HTTP GET (phase-57 W2). Opt-in, off by default. */
-    { ngx_string("brix_webdav_zip_access"),
-      NGX_HTTP_MAIN_CONF | NGX_HTTP_SRV_CONF | NGX_HTTP_LOC_CONF | NGX_CONF_FLAG,
-      ngx_conf_set_flag_slot,
-      NGX_HTTP_LOC_CONF_OFFSET,
-      offsetof(ngx_http_brix_webdav_loc_conf_t, zip_access),
-      NULL },
+    /* brix_zip_access moved to http_common.c (phase-101 W4) — one bare name for
+     * every HTTP protocol; brix_webdav_zip_access is retired. */
 
     { ngx_string("brix_http_query_token"),
       NGX_HTTP_MAIN_CONF | NGX_HTTP_SRV_CONF | NGX_HTTP_LOC_CONF | NGX_CONF_FLAG,
@@ -472,12 +302,7 @@ ngx_command_t ngx_http_brix_webdav_commands[] = {
       offsetof(ngx_http_brix_webdav_loc_conf_t, dig_auth_file),
       NULL },
 
-    { ngx_string("brix_webdav_zip_cd_max_bytes"),
-      NGX_HTTP_MAIN_CONF | NGX_HTTP_SRV_CONF | NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
-      ngx_conf_set_size_slot,
-      NGX_HTTP_LOC_CONF_OFFSET,
-      offsetof(ngx_http_brix_webdav_loc_conf_t, zip_cd_max_bytes),
-      NULL },
+    /* brix_zip_cd_max_bytes moved to http_common.c (phase-101 W4). */
 
     { ngx_string("brix_webdav_open_file_cache"),
       NGX_HTTP_MAIN_CONF | NGX_HTTP_SRV_CONF | NGX_HTTP_LOC_CONF | NGX_CONF_ANY,

@@ -59,7 +59,7 @@ wt_validate_registry(const wt_validate_ctx_t *v)
     ra.reg             = v->conf->token_registry;
     ra.macaroon_secret = v->slen > 0 ? v->secret : NULL;
     ra.secret_len      = (size_t) v->slen;
-    ra.clock_skew      = (int) v->conf->token_clock_skew;
+    ra.clock_skew      = (int) v->conf->common.token_clock_skew;
     ra.claims          = v->claims;
 
     return brix_token_validate_registry(&ra, pathz,
@@ -92,11 +92,11 @@ wt_validate_jwks(const wt_validate_ctx_t *v,
     va.token_len         = v->token_len;
     va.keys              = v->conf->jwks_keys;
     va.key_count         = v->conf->jwks_key_count;
-    va.expected_issuer   = (const char *) v->conf->token_issuer.data;
-    va.expected_audience = (const char *) v->conf->token_audience.data;
+    va.expected_issuer   = (const char *) v->conf->common.token_issuer.data;
+    va.expected_audience = (const char *) v->conf->common.token_audience.data;
     va.macaroon_secret   = slen > 0 ? secret : NULL;
     va.secret_len        = (size_t) slen;
-    va.clock_skew        = (int) v->conf->token_clock_skew;
+    va.clock_skew        = (int) v->conf->common.token_clock_skew;
     va.claims            = v->claims;
 
     return brix_token_validate(&va);
@@ -128,13 +128,13 @@ wt_grace_retry(const wt_validate_ctx_t *v, int via_registry, int prev_rc)
     /* Grace-period fallback: if the primary secret rejected a macaroon token
      * and an old secret is configured, try validating with the old key.
      * This lets in-flight tokens survive nginx -s reload during key rotation. */
-    if (prev_rc == 0 || via_registry || conf->token_macaroon_secret_old.len == 0) {
+    if (prev_rc == 0 || via_registry || conf->common.token_macaroon_secret_old.len == 0) {
         return prev_rc;
     }
 
     old_slen = brix_macaroon_secret_parse(
-        (const char *) conf->token_macaroon_secret_old.data,
-        conf->token_macaroon_secret_old.len,
+        (const char *) conf->common.token_macaroon_secret_old.data,
+        conf->common.token_macaroon_secret_old.len,
         old_secret, sizeof(old_secret));
     if (old_slen <= 0) {
         return prev_rc;

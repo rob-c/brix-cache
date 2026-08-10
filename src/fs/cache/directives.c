@@ -16,6 +16,7 @@
 #include "verify.h"           /* brix_cache_verify_mode_e */
 #include "core/compat/cstr.h" /* brix_str_cbuf / brix_pstrdup_z */
 #include "cache_internal.h"   /* brix_conf_push_prefix (shared with directives_wt.c) */
+#include "core/compat/tmp_path.h" /* brix_tmp_reap_set_policy — brix_posc_persist */
 
 /* §14 (phase-64): brix_conf_set_cache_origin is DELETED with the legacy
  * cache_origin config model (a cache's source is brix_storage_backend). */
@@ -37,6 +38,116 @@ brix_conf_set_cache_origin_family(ngx_conf_t *cf, ngx_command_t *cmd,
         return "must be one of: auto, inet, inet6";
     }
     xcf->cache_origin_family = (ngx_uint_t) pol;
+    return NGX_CONF_OK;
+}
+
+/* brix_conf_set_posc_persist — parse `brix_posc_persist <auto|manual|off>
+ * [hold <time>]`, the ofs.persist analog (parity audit §1.9). It governs the
+ * boot-time reaper (core/compat/tmp_path.c) that removes "<final>.xrd-tmp.*"
+ * temps a crash orphaned mid non-staged write: `auto` reaps dead-owner orphans
+ * (the historical default), `manual`/`off` keep them for an operator to recover,
+ * and `hold <time>` adds a grace period so a temp whose writer is about to
+ * reconnect-and-resume is not reaped mid-recovery. The reaper is process-global
+ * (runs once at worker-0 startup), so the directive is a NODE-global policy set
+ * at config-parse time: the last brix_posc_persist parsed wins, absent = auto,
+ * and a server block WITHOUT the directive never clobbers one that has it. The
+ * one caveat is conservative-by-design: a reload that REMOVES the directive
+ * retains the last explicit value until the next full restart (the failure mode
+ * is "orphans kept", never a wrongful delete) — set it explicitly to change a
+ * running node's policy. */
+
+char *
+brix_conf_set_posc_persist(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
+{
+    ngx_str_t *value = cf->args->elts;
+    int        mode;
+    time_t     hold = 0;
+
+    (void) cmd;
+    (void) conf;   /* node-global policy — no per-server field to store */
+
+    if (ngx_strcmp(value[1].data, "auto") == 0) {
+        mode = BRIX_POSC_PERSIST_AUTO;
+    } else if (ngx_strcmp(value[1].data, "manual") == 0) {
+        mode = BRIX_POSC_PERSIST_MANUAL;
+    } else if (ngx_strcmp(value[1].data, "off") == 0) {
+        mode = BRIX_POSC_PERSIST_OFF;
+    } else {
+        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            "brix_posc_persist: invalid mode \"%V\", must be auto, manual or off",
+            &value[1]);
+        return NGX_CONF_ERROR;
+    }
+
+    /* The optional grace period is the two-token tail `hold <time>`. NGX_CONF_TAKE13
+     * already fixed the count at 1 or 3 args, so nelts == 4 means the tail is
+     * present; anything but the literal `hold` keyword is a usage error. */
+    if (cf->args->nelts == 4) {
+        ngx_int_t secs;
+
+        if (ngx_strcmp(value[2].data, "hold") != 0) {
+            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+                "brix_posc_persist: expected \"hold\" before a grace time, got "
+                "\"%V\"", &value[2]);
+            return NGX_CONF_ERROR;
+        }
+        secs = ngx_parse_time(&value[3], 1 /* seconds */);
+        if (secs == NGX_ERROR) {
+            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+                "brix_posc_persist: invalid hold time \"%V\"", &value[3]);
+            return NGX_CONF_ERROR;
+        }
+        hold = (time_t) secs;
+    }
+
+    brix_tmp_reap_set_policy(mode, hold);
+    ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
+        "brix: posc persist=%V hold=%T", &value[1], hold);
+    return NGX_CONF_OK;
+}
+
+/* brix_conf_set_fsoverload_redirect — parse `brix_fsoverload_redirect <host>
+ * <port>`, the xrootd.fsoverload redirect action (§1.10). On a memory-budget
+ * overload a read/readv is answered with a kXR_redirect to <host>:<port> (offload
+ * to a sibling) instead of the kXR_wait stall. `<host> <port>` (two tokens, not
+ * host:port) keeps the parse trivial — a documented spelling divergence. */
+char *
+brix_conf_set_fsoverload_redirect(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
+{
+    ngx_stream_brix_srv_conf_t *xcf = conf;
+    ngx_str_t                    *value = cf->args->elts;
+    char                          portbuf[16];
+    char                         *endp;
+    long                          pnum;
+
+    (void) cmd;
+
+    if (xcf->fsoverload_redirect_host.len > 0) {
+        return "is duplicate";
+    }
+    if (value[1].len == 0) {
+        return "host must not be empty";
+    }
+    if (value[2].len == 0 || value[2].len >= sizeof(portbuf)) {
+        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            "brix_fsoverload_redirect: invalid port \"%V\"", &value[2]);
+        return NGX_CONF_ERROR;
+    }
+    ngx_memcpy(portbuf, value[2].data, value[2].len);
+    portbuf[value[2].len] = '\0';
+    pnum = strtol(portbuf, &endp, 10);
+    if (*endp != '\0' || pnum <= 0 || pnum > 65535) {
+        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            "brix_fsoverload_redirect: invalid port \"%V\" (1-65535)", &value[2]);
+        return NGX_CONF_ERROR;
+    }
+    if (brix_pstrdupz(cf->pool, &xcf->fsoverload_redirect_host,
+                        value[1].data, value[1].len) != NGX_OK) {
+        return NGX_CONF_ERROR;
+    }
+    xcf->fsoverload_redirect_port = (in_port_t) pnum;
+    ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
+        "brix: fsoverload redirect -> %V:%l", &value[1], pnum);
     return NGX_CONF_OK;
 }
 

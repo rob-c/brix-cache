@@ -130,6 +130,32 @@ sd_xroot_truncate_path_cred(brix_sd_instance_t *inst, const char *path,
     return NGX_OK;
 }
 
+/* setattr under the user's credential (§4.6): the per-user twin of
+ * sd_xroot_setattr — same chmod-forward, but the origin bootstrap authenticates
+ * as the mapped user via cred. Times/owner remain a no-op success. */
+ngx_int_t
+sd_xroot_setattr_cred(brix_sd_instance_t *inst, const char *path,
+    const brix_sd_setattr_t *attr, const brix_sd_cred_t *cred)
+{
+    sd_xroot_inst_state        *is = inst->state;
+    brix_cache_origin_conn_t   oc;
+    brix_cache_fill_t         *t;
+    int                        rc, e = 0;
+
+    if (attr == NULL || !attr->set_mode) {
+        return NGX_OK;   /* times/owner: no origin-namespace op here */
+    }
+    if (sd_xroot_session(is->conf, cred, &oc, &t, &e) != 0) {
+        errno = e; return NGX_ERROR;
+    }
+    rc = brix_cache_origin_chmod(t, &oc, path, (mode_t) attr->mode);
+    e  = (rc == 0) ? 0 : sd_xroot_errno(t);
+    brix_cache_origin_close(&oc);
+    free(t);
+    if (rc != 0) { errno = e; return NGX_ERROR; }
+    return NGX_OK;
+}
+
 /* server_copy_cred: server-side byte copy under the user's credential. */
 ngx_int_t
 sd_xroot_server_copy_cred(brix_sd_instance_t *inst, const char *src,

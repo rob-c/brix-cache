@@ -28,6 +28,11 @@ void brix_tier_warn_private_tmp(ngx_conf_t *cf,
 ngx_int_t brix_tier_register_cache_store(ngx_conf_t *cf,
     ngx_http_brix_shared_conf_t *common);
 
+/* Persist a pblock `?tail` query string as the one-line <root>/pblock.opts
+ * sidecar the pblock driver parses at instance init (runtime_server_backend.c;
+ * links regardless of BRIX_HAVE_SQLITE). Best-effort. */
+void brix_pblock_write_opts_sidecar(const char *root, const char *tail);
+
 /* Build the proxy-leg + redirector-leg outbound client SSL_CTXs with
  * fail-closed peer verification for a prepared server block
  * (runtime_server_tls.c). */

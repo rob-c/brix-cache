@@ -152,6 +152,9 @@ ssize_t sd_pblock_staged_write(brix_sd_staged_t *st, const void *buf,
     size_t len, off_t off);
 ngx_int_t sd_pblock_staged_commit(brix_sd_staged_t *st, int noreplace);
 void sd_pblock_staged_abort(brix_sd_staged_t *st);
+/* phase-88 W1: block-0 path of a single-block, untransformed staged blob (the
+ * cache tier's verify-before-commit contract), or NULL when striped/encoded. */
+const char *sd_pblock_staged_path(const brix_sd_staged_t *st);
 
 /* ---- owner-parameterized create internals --------------------------------- *
  * Each is the real implementation of its plain vtable slot, extended with the

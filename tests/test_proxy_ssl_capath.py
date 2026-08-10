@@ -1,6 +1,6 @@
-"""brix_proxy_ssl_capath — hashed CA directory for the proxy back leg.
+"""brix_backend_ca_dir — hashed CA directory for the proxy back leg.
 
-`brix_proxy_ssl_capath <dir>` makes `proxy_ssl_verify on` consume an OpenSSL
+`brix_backend_ca_dir <dir>` makes `proxy_ssl_verify on` consume an OpenSSL
 hashed CA directory (the /etc/grid-security/certificates IGTF layout):
 at parse time it seeds the stock proxy_ssl_trusted_certificate with one
 <hash>.N file from the dir (satisfying nginx's mandatory-file check), and at

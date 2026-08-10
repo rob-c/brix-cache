@@ -68,4 +68,12 @@ def test_xroot_gateway_regressions(tmp_path):
         assert "truncate (grow) over root:// returns ok" in messages
 
     _assert_test_xroot_gateway_regressions_7()
+
+    def _assert_test_xroot_gateway_regressions_8():
+        # §4.6: chmod forwarding to the origin (was a silent no-op before .setattr).
+        assert "chmod over root:// returns ok" in messages
+        assert "chmod landed on the origin (mode is now 0600)" in messages
+        assert "chmod of a missing origin path is refused" in messages
+
+    _assert_test_xroot_gateway_regressions_8()
     _check_test_xroot_gateway_regressions_2(messages)

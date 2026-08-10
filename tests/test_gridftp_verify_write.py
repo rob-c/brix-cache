@@ -1,5 +1,5 @@
 """
-GridFTP gateway with ``brix_gridftp_verify_write on`` (phase-82 P82.6).
+GridFTP gateway with ``brix_verify_write on`` (phase-82 P82.6).
 
 When verify-write is enabled the gateway CRC-32s every byte it writes for a STOR,
 then re-reads the object back through the storage driver and compares before

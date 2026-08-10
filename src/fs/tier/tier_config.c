@@ -374,6 +374,34 @@ tier_parse_local(brix_tier_parse_t *p, u_char *loc, size_t loclen)
     brix_export_root_opts_t  opts;
     ngx_str_t                loc_str;
     char                     canon[PATH_MAX];
+    u_char                  *qmark;
+
+    /* phase-88 W1: a pblock cache store may carry the driver's static-opt
+     * `?tail` (pblock:/dir?dedup=1 — same grammar as brix_storage_backend
+     * pblock://). Strip it BEFORE canonicalisation (a literal '?' dir must
+     * never be created) and stash it on the cfg; the cache-tier registration
+     * persists it as the <store>/pblock.opts sidecar. Any other driver/role
+     * with a tail is an operator error, never silently ignored. */
+    qmark = memchr(loc, '?', loclen);
+    if (qmark != NULL) {
+        size_t taillen = loclen - (size_t) (qmark - loc) - 1;
+
+        if (ngx_strcmp(out->driver, "pblock") != 0) {
+            return tier_fail(p->cf, 1, p->err, p->errcap,
+                "store opts (\"?...\") are only supported on pblock stores");
+        }
+        if (out->role != BRIX_TIER_CACHE) {
+            return tier_fail(p->cf, 1, p->err, p->errcap,
+                "store opts (\"?...\") are only supported on the cache store");
+        }
+        if (taillen >= sizeof(out->opts)) {
+            return tier_fail(p->cf, 1, p->err, p->errcap,
+                "store opts too long");
+        }
+        ngx_memcpy(out->opts, qmark + 1, taillen);
+        out->opts[taillen] = '\0';
+        loclen = (size_t) (qmark - loc);
+    }
 
     loc_str.len  = loclen;
     loc_str.data = loc;

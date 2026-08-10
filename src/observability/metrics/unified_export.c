@@ -394,6 +394,8 @@ brix_export_unified_metrics(metrics_writer_t *mw,
     unified_emit_io_bytes(mw, shm);
     unified_emit_io_ops(mw, shm);
     unified_emit_io_latency(mw, shm);
+    unified_emit_io_slowop(mw, shm);
+    unified_emit_io_offload(mw, shm);
     unified_emit_cred_select(mw, shm);
     unified_emit_cred_deleg(mw, shm);
     unified_emit_cache(mw, shm);

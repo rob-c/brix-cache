@@ -414,6 +414,15 @@ copy_download(const brix_url *su, const brix_url *du, const brix_copy_opts *o,
         return rc;
     }
 
+    /* §7.6 --continue: byte-offset resume writes the destination directly and
+     * an existing partial is its INPUT — so this gate runs before the
+     * destination-exists refusal below.  Returns 1 when it handled the copy. */
+    if (copy_download_continue(&job, &rc, st)) {
+        brix_streams_close(&ss);
+        brix_close(&c);
+        return rc;
+    }
+
     /* Local file path: existence-check preserving the original error message,
      * then open via VFS (atomic temp+rename and optional io_uring inside the
      * backend).  commit() does fsync+rename; abort() unlinks the temp on any

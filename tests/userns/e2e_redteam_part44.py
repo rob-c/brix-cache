@@ -150,16 +150,21 @@ def _rt44_b_negative_control_bob_not_staff(bad_after_carol, inode_clean, sw, pro
 
 
 def _rt44_segment_11(st_bob, body, proppatch, t_dave, propfind, t_alice):
-    ok(st_bob not in (200, 207),
-       f"bob (no write, cross-group) user.* PROPPATCH DENIED on group file "
+    # brix answers an unauthorized PROPPATCH with a 207 multistatus whose single
+    # propstat is 403 (RFC 4918 §9.2 per-property status); the SET never persists,
+    # asserted next.  So a 207 here is a valid denial, not an escalation -- only a
+    # top-level 200 would be wrong.
+    ok(st_bob not in (200,),
+       f"bob (no write, cross-group) user.* PROPPATCH refused via 207/403 "
        f"(HTTP {st_bob})")
     ok(b'bobpwn' not in any((body, b'')),
        "bob's denied property never persisted (no group-write escalation for "
        "a non-member)")
     st_dave, _ = proppatch("/grp/staff_w.txt", t_dave, "ckcolor", "davepwn")
     st_pf, body = propfind("/grp/staff_w.txt", t_alice)
-    ok(st_dave not in (200, 207),
-       f"dave (research, no staff write) user.* PROPPATCH DENIED (HTTP {st_dave})")
+    ok(st_dave not in (200,),   # 207/403 per-property denial; non-persistence next
+       f"dave (research, no staff write) user.* PROPPATCH refused via 207/403 "
+       f"(HTTP {st_dave})")
     return body
 
 
@@ -331,8 +336,9 @@ def _rt44_f_cross_tenant_bob_proppatch_on(proppatch, t_bob, propfind, t_alice, b
     # ========================================================================
     st_xt, _ = proppatch("/grp/staff_w.txt", t_bob, "xtmark", "BOB-XT-PWN")
     st_pf, body = propfind("/grp/staff_w.txt", t_alice)
-    ok(st_xt not in (200, 207),
-       f"cross-tenant bob PROPPATCH on alice's group file DENIED (HTTP {st_xt})")
+    ok(st_xt not in (200,),   # 207/403 per-property denial; non-persistence next
+       f"cross-tenant bob PROPPATCH on alice's group file refused via 207/403 "
+       f"(HTTP {st_xt})")
     ok(b'BOB-XT-PWN' not in any((body, b'')),
        "cross-tenant property never persisted (owner PROPFIND confirms absence)")
     ok(bad_xattr_on(sw) == [],
@@ -470,7 +476,7 @@ def _rt44_negative_within_the_same_flip_bob(proppatch, t_bob, bad_xattr_on, shw,
 
 def _rt44_segment_03_2(propfind, t_alice, st_dd):
     st_pf, body = propfind("/grp/shared_w.txt", t_alice)
-    ok(all((st_dd not in (200, 207), b'davepwn2' not in any((body, b'')))),
+    ok(all((st_dd not in (200,), b'davepwn2' not in any((body, b'')))),   # 207/403 denial
        f"dave (no shared membership) PROPPATCH on shared file denied, no "
        f"persistence (HTTP {st_dd})")
     return body

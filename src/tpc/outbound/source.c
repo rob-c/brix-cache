@@ -45,7 +45,8 @@ tpc_pull_from_source(brix_tpc_pull_t *t, int fd)
      * we query and compare the source checksum. A mismatch turns success into a
      * fail-closed error so the caller unlinks the poisoned destination.
      */
-    if (rc == 0 && t->conf != NULL && t->conf->tpc_verify_checksum) {
+    if (rc == 0 && t->conf != NULL
+        && t->conf->common.tpc_verify_checksum.len > 0) {
         rc = tpc_verify_source_checksum(t, fd);
         if (rc != 0) {
             t->result = NGX_ERROR;

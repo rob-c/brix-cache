@@ -343,8 +343,8 @@ postconf_uring_killswitch(ngx_conf_t *cf, ngx_stream_core_main_conf_t *cmcf,
 /*
  * Phase 40: validate the impersonation mode and, for `map`, derive the broker
  * confinement root from the first enabled data server's export root when the
- * admin did not set brix_impersonation_export explicitly.  No-op (returns
- * NGX_OK immediately) unless an brix_impersonation* directive was used.
+ * admin did not set brix_idmap_export explicitly.  No-op (returns
+ * NGX_OK immediately) unless an brix_idmap* directive was used.
  */
 static ngx_int_t
 postconf_impersonation(ngx_conf_t *cf, ngx_stream_core_main_conf_t *cmcf,

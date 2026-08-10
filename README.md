@@ -357,7 +357,7 @@ http {
         }
         location / {
             brix_webdav      on;
-            brix_webdav_cadir /etc/grid-security/certificates;
+            brix_trusted_ca_dir /etc/grid-security/certificates;
         }
     }
     server {

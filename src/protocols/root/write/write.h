@@ -15,6 +15,14 @@ ngx_int_t brix_handle_write(brix_ctx_t *ctx, ngx_connection_t *c);
 ngx_int_t brix_write_require_pgwrite(brix_ctx_t *ctx, ngx_connection_t *c,
     int idx, size_t wlen, const char *op, ngx_int_t *rc);
 
+/* oss.maxsize create-size cap (audit §3.9): refuse a data write whose end
+ * offset (offset+len) would push the file past brix_oss_maxsize. Returns 1
+ * (refused — kXR_overQuota reply sent, *rc set) or 0 (proceed). No-op when the
+ * cap is 0 (default) or len==0. Shared by write.c, pgwrite.c and writev.c. */
+ngx_int_t brix_write_within_maxsize(brix_ctx_t *ctx, ngx_connection_t *c,
+    ngx_stream_brix_srv_conf_t *conf, int idx, int64_t offset, size_t len,
+    ngx_uint_t op_id, const char *op, ngx_int_t *rc);
+
 /* Phase-42 W5 — inline write decompression for kXR_write.  Invoked from
  * brix_handle_write() ONLY when ctx->files[idx].write_codec != IDENTITY (an
  * opt-in handle opened for write with "?xrootd.compress=").  Decompresses the

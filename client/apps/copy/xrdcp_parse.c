@@ -78,7 +78,82 @@ xrdcp_validate_flag_matrix(brix_copy_opts *opts, int sync_mode, int verify)
         opts->cksum = "adler32:source";
     }
 
+    /* --continue writes the destination in place and trusts the existing
+     * partial — every mode that truncates, transforms, or re-frames the byte
+     * stream contradicts it.  Reject the pairs before any bytes move. */
+    if (opts->cont) {
+        if (opts->force) {
+            fprintf(stderr, "xrdcp: --continue and --force are contradictory "
+                            "(resume vs truncate)\n");
+            return 50;
+        }
+        if (opts->pgrw || (opts->compress != NULL && opts->compress[0])) {
+            fprintf(stderr, "xrdcp: --continue cannot combine with --pgrw or "
+                            "--compress (byte-offset resume needs a plain "
+                            "byte stream)\n");
+            return 50;
+        }
+        if (opts->zip || opts->zip_append) {
+            fprintf(stderr, "xrdcp: --continue cannot combine with --zip "
+                            "modes\n");
+            return 50;
+        }
+    }
+
+    /* --xrate paces the serial pump; the striped/multi-source engines bypass
+     * it entirely, so the combination would silently run unpaced. */
+    if (opts->xrate_bps > 0 && (opts->parallel || opts->sources >= 2)) {
+        fprintf(stderr, "xrdcp: --xrate applies to the serial path and cannot "
+                        "combine with --parallel/--sources\n");
+        return 50;
+    }
+
     return 0;
+}
+
+
+/* ---- Parse a stock RATE[k|m|g] string into bytes/sec ----
+ *
+ * WHAT: strtoll + one optional case-insensitive binary suffix; returns the
+ *       rate in bytes/sec, or -1 for garbage, non-positive values, trailing
+ *       junk, or multiplication overflow.
+ *
+ * WHY: --xrate/--xrate-threshold accept the stock spellings ("512k", "10m");
+ *      a hostile value must fail the parse, never wrap into a tiny or
+ *      negative rate.
+ *
+ * HOW: errno/end checks, single-suffix switch, INT64_MAX/mult overflow guard.
+ */
+static int64_t
+xrdcp_parse_rate(const char *s)
+{
+    char      *end;
+    long long  v;
+    int64_t    mult = 1;
+
+    if (s == NULL || *s == '\0') {
+        return -1;
+    }
+    errno = 0;
+    v = strtoll(s, &end, 10);
+    if (errno != 0 || end == s || v <= 0) {
+        return -1;
+    }
+    if (*end != '\0') {
+        switch (*end | 0x20) {
+        case 'k': mult = 1024LL; break;
+        case 'm': mult = 1024LL * 1024; break;
+        case 'g': mult = 1024LL * 1024 * 1024; break;
+        default:  return -1;
+        }
+        if (end[1] != '\0') {
+            return -1;
+        }
+    }
+    if (v > (long long) (INT64_MAX / mult)) {
+        return -1;
+    }
+    return (int64_t) v * mult;
 }
 
 
@@ -180,6 +255,14 @@ validate_and_finalize_args(xrdcp_opts_t *o, xrdcp_lists_t *l, const char *prog)
         return rc;
     }
 
+    /* --continue vs the journal family: two different resume systems; running
+     * both would double-account progress.  One or the other. */
+    if (o->copt->cont && (o->resume || o->journal_path != NULL)) {
+        fprintf(stderr, "xrdcp: --continue and --journal/--resume are "
+                        "different resume modes — pick one\n");
+        return 50;
+    }
+
     /* --resume shorthand: derive journal path from the manifest path.  Must come
      * before nsrc==0 so the specific error fires even when there are no sources. */
     rc = xrdcp_finalize_journal(o);
@@ -203,8 +286,14 @@ xrdcp_parse_basic_option(xrdcp_cli_state *s, int argc, char **argv, size_t *i)
     brix_copy_opts *o = s->o->copt;
 
     (void) argc;
-    if (strcmp(a, "-f") == 0) { o->force = 1; return 1; }
-    if (strcmp(a, "-r") == 0 || strcmp(a, "-R") == 0) {
+    /* Stock xrdcp long spellings (--force/--recursive/--nopbar) are accepted
+     * as aliases so drop-in scripts keep working (parity-audit §7.13). */
+    if (strcmp(a, "-f") == 0 || strcmp(a, "--force") == 0) {
+        o->force = 1;
+        return 1;
+    }
+    if (strcmp(a, "-r") == 0 || strcmp(a, "-R") == 0
+        || strcmp(a, "--recursive") == 0) {
         o->recursive = 1;
         return 1;
     }
@@ -212,13 +301,17 @@ xrdcp_parse_basic_option(xrdcp_cli_state *s, int argc, char **argv, size_t *i)
         o->posc = 1;
         return 1;
     }
-    if (strcmp(a, "-s") == 0) { o->silent = 1; return 1; }
+    if (strcmp(a, "-s") == 0 || strcmp(a, "--silent") == 0) {
+        o->silent = 1;
+        return 1;
+    }
     if (strcmp(a, "-v") == 0 || strcmp(a, "-d") == 0
         || strcmp(a, "--verbose") == 0 || strcmp(a, "--debug") == 0) {
         o->verbose = 1;
         return 1;
     }
-    if (strcmp(a, "-N") == 0 || strcmp(a, "--no-progress") == 0) {
+    if (strcmp(a, "-N") == 0 || strcmp(a, "--no-progress") == 0
+        || strcmp(a, "--nopbar") == 0) {
         s->o->no_progress = 1;
         return 1;
     }
@@ -245,6 +338,42 @@ xrdcp_parse_manifest_option(xrdcp_cli_state *s, int argc, char **argv, size_t *i
         return 1;
     }
     if (strcmp(a, "--resume") == 0) { o->resume = 1; return 1; }
+    if ((strcmp(a, "-X") == 0 || strcmp(a, "--xrate") == 0)
+        && *i + 1 < (size_t) argc) {
+        o->copt->xrate_bps = xrdcp_parse_rate(argv[++(*i)]);
+        if (o->copt->xrate_bps <= 0) {
+            fprintf(stderr, "xrdcp: invalid --xrate value '%s' "
+                            "(bytes/sec, optional k/m/g suffix)\n", argv[*i]);
+            return 50;
+        }
+        return 1;
+    }
+    if (strcmp(a, "--retry-policy") == 0 && *i + 1 < (size_t) argc) {
+        const char *policy = argv[++(*i)];
+
+        /* §7.13 stock semantics: how a RETRY treats the partial destination.
+         * "continue" = resume at the partial's size — exactly the --continue
+         * write mode, so it simply arms that engine (each retry then picks up
+         * where the failed attempt stopped); "force" = restart from scratch,
+         * the pre-existing default. */
+        if (strcmp(policy, "continue") == 0) {
+            o->copt->cont = 1;
+        } else if (strcmp(policy, "force") != 0) {
+            fprintf(stderr, "xrdcp: --retry-policy expects 'force' or "
+                            "'continue', got '%s'\n", policy);
+            return 50;
+        }
+        return 1;
+    }
+    if (strcmp(a, "--xrate-threshold") == 0 && *i + 1 < (size_t) argc) {
+        o->copt->xrate_min_bps = xrdcp_parse_rate(argv[++(*i)]);
+        if (o->copt->xrate_min_bps <= 0) {
+            fprintf(stderr, "xrdcp: invalid --xrate-threshold value '%s' "
+                            "(bytes/sec, optional k/m/g suffix)\n", argv[*i]);
+            return 50;
+        }
+        return 1;
+    }
     if (strcmp(a, "--retry") == 0 && *i + 1 < (size_t) argc) {
         o->retries = atoi(argv[++(*i)]);
         if (o->retries <= 0) {

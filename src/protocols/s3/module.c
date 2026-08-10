@@ -69,13 +69,10 @@ ngx_http_s3_create_loc_conf(ngx_conf_t *cf)
     c->list_cache_ttl               = NGX_CONF_UNSET_MSEC;
     c->max_keys    = NGX_CONF_UNSET;
     c->mpu_max_age = NGX_CONF_UNSET;
-    c->zip_access  = NGX_CONF_UNSET;
-    c->zip_cd_max_bytes = NGX_CONF_UNSET_SIZE;
-    brix_acc_http_init_conf(&c->acc);   /* XrdAcc engine (off by default) */
+    /* XrdAcc engine init moved into ngx_http_brix_shared_init (common.acc), W2. */
 
     /* WLCG bearer-token auth — off by default; str fields zeroed by pcalloc. */
     c->token_enable     = NGX_CONF_UNSET;
-    c->token_clock_skew = NGX_CONF_UNSET;
 
     return c;
 }
@@ -233,12 +230,8 @@ static ngx_command_t ngx_http_s3_commands[] = {
       offsetof(ngx_http_s3_loc_conf_t, bucket),
       NULL },
 
-    { ngx_string("brix_s3_cache_root"),
-      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
-      ngx_conf_set_str_slot,
-      NGX_HTTP_LOC_CONF_OFFSET,
-      offsetof(ngx_http_s3_loc_conf_t, cache_root),
-      NULL },
+    /* brix_s3_cache_root -> bare brix_cache_root on the common module
+     * (phase-101 W8); the field now lives in common.cache_root. */
 
     { ngx_string("brix_s3_access_key"),
       NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
@@ -284,20 +277,8 @@ static ngx_command_t ngx_http_s3_commands[] = {
       offsetof(ngx_http_s3_loc_conf_t, list_cache),
       NULL },
 
-    /* ZIP member access over S3 GetObject (phase-57 W2). Opt-in, off default. */
-    { ngx_string("brix_s3_zip_access"),
-      NGX_HTTP_LOC_CONF | NGX_CONF_FLAG,
-      ngx_conf_set_flag_slot,
-      NGX_HTTP_LOC_CONF_OFFSET,
-      offsetof(ngx_http_s3_loc_conf_t, zip_access),
-      NULL },
-
-    { ngx_string("brix_s3_zip_cd_max_bytes"),
-      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
-      ngx_conf_set_size_slot,
-      NGX_HTTP_LOC_CONF_OFFSET,
-      offsetof(ngx_http_s3_loc_conf_t, zip_cd_max_bytes),
-      NULL },
+    /* brix_zip_access + brix_zip_cd_max_bytes moved to http_common.c (phase-101
+     * W4) — one bare pair now covers webdav + s3 + cvmfs. */
 
     { ngx_string("brix_s3_list_cache_ttl"),
       NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
@@ -316,62 +297,19 @@ static ngx_command_t ngx_http_s3_commands[] = {
     /* Phase 39 (WS8): incomplete-multipart reaper idle age in seconds (0=off). */
     { ngx_string("brix_s3_mpu_max_age"),
       NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
-      ngx_conf_set_num_slot,
+      ngx_conf_set_sec_slot,
       NGX_HTTP_LOC_CONF_OFFSET,
       offsetof(ngx_http_s3_loc_conf_t, mpu_max_age),
       NULL },
 
     /* brix_thread_pool is owned by ngx_http_brix_common_module. */
 
-    /* SciTags packet marking (src/pmark/) — see phase-34 doc */    { ngx_string("brix_pmark"),
-      NGX_HTTP_LOC_CONF | NGX_CONF_FLAG, ngx_conf_set_flag_slot,
-      NGX_HTTP_LOC_CONF_OFFSET,
-      offsetof(ngx_http_s3_loc_conf_t, common.pmark.enable), NULL },
-    { ngx_string("brix_pmark_firefly"),
-      NGX_HTTP_LOC_CONF | NGX_CONF_FLAG, ngx_conf_set_flag_slot,
-      NGX_HTTP_LOC_CONF_OFFSET,
-      offsetof(ngx_http_s3_loc_conf_t, common.pmark.firefly), NULL },
-    { ngx_string("brix_pmark_flowlabel"),
-      NGX_HTTP_LOC_CONF | NGX_CONF_FLAG, ngx_conf_set_flag_slot,
-      NGX_HTTP_LOC_CONF_OFFSET,
-      offsetof(ngx_http_s3_loc_conf_t, common.pmark.flowlabel), NULL },
-    { ngx_string("brix_pmark_scitag_cgi"),
-      NGX_HTTP_LOC_CONF | NGX_CONF_FLAG, ngx_conf_set_flag_slot,
-      NGX_HTTP_LOC_CONF_OFFSET,
-      offsetof(ngx_http_s3_loc_conf_t, common.pmark.scitag_cgi), NULL },
-    { ngx_string("brix_pmark_firefly_origin"),
-      NGX_HTTP_LOC_CONF | NGX_CONF_FLAG, ngx_conf_set_flag_slot,
-      NGX_HTTP_LOC_CONF_OFFSET,
-      offsetof(ngx_http_s3_loc_conf_t, common.pmark.firefly_origin), NULL },
-    { ngx_string("brix_pmark_http_plain"),
-      NGX_HTTP_LOC_CONF | NGX_CONF_FLAG, ngx_conf_set_flag_slot,
-      NGX_HTTP_LOC_CONF_OFFSET,
-      offsetof(ngx_http_s3_loc_conf_t, common.pmark.http_plain), NULL },
-    { ngx_string("brix_pmark_echo"),
-      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1, ngx_conf_set_msec_slot,
-      NGX_HTTP_LOC_CONF_OFFSET,
-      offsetof(ngx_http_s3_loc_conf_t, common.pmark.echo), NULL },
-    { ngx_string("brix_pmark_appname"),
-      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1, ngx_conf_set_str_slot,
-      NGX_HTTP_LOC_CONF_OFFSET,
-      offsetof(ngx_http_s3_loc_conf_t, common.pmark.appname), NULL },
-    { ngx_string("brix_pmark_defsfile"),
-      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1, ngx_conf_set_str_slot,
-      NGX_HTTP_LOC_CONF_OFFSET,
-      offsetof(ngx_http_s3_loc_conf_t, common.pmark.defsfile), NULL },
-    { ngx_string("brix_pmark_domain"),
-      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1, brix_pmark_set_domain,
-      NGX_HTTP_LOC_CONF_OFFSET, 0, NULL },
-    { ngx_string("brix_pmark_firefly_dest"),
-      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1, brix_pmark_set_firefly_dest,
-      NGX_HTTP_LOC_CONF_OFFSET, 0, NULL },
-    { ngx_string("brix_pmark_map_experiment"),
-      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE23, brix_pmark_set_map_experiment,
-      NGX_HTTP_LOC_CONF_OFFSET, 0, NULL },
-    { ngx_string("brix_pmark_map_activity"),
-      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE3 | NGX_CONF_TAKE4,
-      brix_pmark_set_map_activity,
-      NGX_HTTP_LOC_CONF_OFFSET, 0, NULL },
+    /* SciTags packet marking (brix_pmark*) moved to http_common.c (phase-101 W1).
+     * These s3-side copies were DEAD — webdav precedes s3 in module order, so
+     * first-module-wins meant every brix_pmark* in any HTTP context hit webdav's
+     * table and never this one, making SciTags on S3 traffic a silent no-op.
+     * Registered once in the common module now and adopted into this conf via
+     * brix_shared_adopt_unified(). */
 
     /* WLCG bearer-token authentication (off by default).
      * brix_s3_token on — enable enforcing JWT mode; requires brix_s3_token_jwks.
@@ -386,33 +324,13 @@ static ngx_command_t ngx_http_s3_commands[] = {
       offsetof(ngx_http_s3_loc_conf_t, token_enable),
       NULL },
 
-    { ngx_string("brix_s3_token_jwks"),
-      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
-      ngx_conf_set_str_slot,
-      NGX_HTTP_LOC_CONF_OFFSET,
-      offsetof(ngx_http_s3_loc_conf_t, token_jwks),
-      NULL },
+    /* brix_token_jwks moved to http_common.c (W4). */
 
-    { ngx_string("brix_s3_token_issuer"),
-      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
-      ngx_conf_set_str_slot,
-      NGX_HTTP_LOC_CONF_OFFSET,
-      offsetof(ngx_http_s3_loc_conf_t, token_issuer),
-      NULL },
+    /* brix_token_issuer moved to http_common.c (W4). */
 
-    { ngx_string("brix_s3_token_audience"),
-      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
-      ngx_conf_set_str_slot,
-      NGX_HTTP_LOC_CONF_OFFSET,
-      offsetof(ngx_http_s3_loc_conf_t, token_audience),
-      NULL },
+    /* brix_token_audience moved to http_common.c (W4). */
 
-    { ngx_string("brix_s3_token_clock_skew"),
-      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
-      ngx_conf_set_num_slot,
-      NGX_HTTP_LOC_CONF_OFFSET,
-      offsetof(ngx_http_s3_loc_conf_t, token_clock_skew),
-      NULL },
+    /* brix_token_clock_skew moved to http_common.c (W4). */
 
     ngx_null_command
 };

@@ -15,7 +15,7 @@
  *   call each, and keeps the engine itself free of ngx_conf/ngx_cycle types.
  *
  * HOW: One process-global settings block (there is at most one broker per nginx
- *   instance) populated by the `brix_impersonation*` directives; init_module
+ *   instance) populated by the `brix_idmap*` directives; init_module
  *   spawns the broker (FRM double-fork) only in `map` mode on a root master;
  *   init_process connects the worker client; the request hooks set the broker's
  *   target principal from the authenticated identity for the duration of one
@@ -28,7 +28,7 @@
 
 /* ----- Directive setters (ngx_command_t .set) --------------------- */
 
-/* brix_impersonation off|single|map */
+/* brix_idmap off|single|map */
 char *brix_imp_conf_mode(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);
 /* String directives; cmd->offset selects the target field (BRIX_IMP_F_*). */
 char *brix_imp_conf_str(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);

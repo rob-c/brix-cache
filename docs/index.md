@@ -224,7 +224,7 @@ graph TD
 | [Remote-host test suite](05-operations/remote-host-test-suite.md) | Install the RPMs on a fresh host + run the pytest fleet — source build vs. shipped `.so`, with the `load_module` injection |
 | [CVMFS Stratum-0 cookbook](05-operations/cvmfs-stratum0.md) | Publish your own files as a CVMFS master copy as an unprivileged user: `brixcvmfs repo mkfs → transaction → publish`, keys, chunking + nested catalogs, the `brix_cvmfs_stratum0_root` serve block, private repos, maintenance cron, integrity model |
 | [/cvmfs Automount](05-operations/cvmfs-automount.md) | `brixMount autofs` umbrella daemon: stock-client-style /cvmfs on-demand mounts with zero autofs/systemd dependency (WSL2 OOTB), symlink-farm design, packaging + conflict matrix |
-| [pblock per-group multi-user](05-operations/pblock-multiuser.md) | Zero-provisioning shared pblock store: `brix_gridmap` DN→user, unix/FQAN `g`-rule groups, catalog-attested ownership, `gidlifetime` de-provisioning window |
+| [pblock per-group multi-user](05-operations/pblock-multiuser.md) | Zero-provisioning shared pblock store: `brix_idmap_gridmap` DN→user, unix/FQAN `g`-rule groups, catalog-attested ownership, `gidlifetime` de-provisioning window |
 | [OCI pull-through mirror](05-operations/oci-mirror.md) | Cache DockerHub/Quay/GitLab locally: the upstream token dance, digest verify-at-edge, tag-TTL vs immutable-blob policy, the `.ocimeta` sidecar, pointing podman at it, and what to alert on |
 | [Your own OCI registry](05-operations/oci-registry.md) | `brix_oci_registry`: on-disk layout, the `brix_allow_write`-before-token gate, the resumable push data plane, deletion without background GC, and the `brixoci` CLI (including `convert --estargz`) |
 | [Container images and folders as CVMFS](05-operations/container-ingest.md) | `brixcvmfs ingest image` / `dir` / `prune`: DUCC-compatible flat layout, memo-driven incrementality, layer flattening and whiteout containment, gated private image trees, and `podman run --rootfs` off the mount |
@@ -253,6 +253,8 @@ Visual overview of every request path and component relationship. **Start here i
 | [Tier 1 Stream Data Paths](11-architecture/tier1-stream-data-paths.md) | Per-opcode walkthrough of the core stream wire operations |
 | [Tier 2 Stream Data Paths](11-architecture/tier2-stream-data-paths.md) | Per-opcode walkthrough of the advanced/clustering stream operations |
 | [Cross-Protocol Unification](11-architecture/cross-protocol-unification.md) | How root/WebDAV/S3/cvmfs/GridFTP share resolution, identity, VFS, and one metrics zone |
+| [VFS Interface Specification](11-architecture/vfs-interface-specification.md) | The idealized, normative VFS contract: layer stack, design axioms, the full operation catalogue, data-flow contracts, the Storage Driver vtable + capability model, authentication schemas through the seam, and conformance checklists |
+| [VFS Evolution & Rationale](11-architecture/vfs-evolution-and-rationale.md) | How the VFS came to be: the problems that forced it, the eras (phases 54–89), the pivotal design decisions with their alternatives, lessons learned, and the known gaps to the idealized interface |
 
 > The architecture overview targets operators and newcomers. For source-level deep dives — state machines, call graphs, buffer lifetimes — go to [Developer Guide → Architecture](09-developer-guide/architecture-overview.md).
 

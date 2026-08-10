@@ -252,6 +252,18 @@ typedef struct brix_ctx_s {
      */
     ngx_uint_t  tls_pending;
 
+    /*
+     * §1.16 admin `pause`: while set, the recv loop yields WITHOUT reading or
+     * re-arming, so further requests back up in the kernel socket buffer (TCP
+     * backpressure) while in-flight responses keep draining — stock pause
+     * semantics.  Cleared by admin `cont` or by admin_pause_ev (the timed
+     * form), both of which post the read event to resume parsing.  The timer
+     * is deleted at disconnect (next to pmark.echo_ev) so it can never fire
+     * into a freed ctx.
+     */
+    ngx_uint_t   admin_paused;
+    ngx_event_t  admin_pause_ev;   /* one-shot timed-pause resume timer */
+
     /* Active upstream redirector query (NULL when not in UPSTREAM state) */
     brix_upstream_t  *upstream;
 
@@ -370,6 +382,12 @@ typedef struct brix_ctx_s {
      * avoid a srv_conf lookup.  0 = the corresponding deadline is disabled.
      */
     brix_ctx_deadline_t  deadline;  /* network-fault deadlines — see brix_ctx_deadline_t. */
+
+    /* [brix_max_delay 60] cached at accept like the deadlines above so the
+     * kXR_wait emission choke point (brix_send_wait) never does a srv_conf
+     * lookup. Clamp on the seconds any kXR_wait may tell a client to stall
+     * (the ofs.maxdelay analog); 0 = no clamp. */
+    uint32_t    max_wait_s;
 
     /*
      * Single-port protocol handoff (src/handoff/handoff.c): when a non-XRootD

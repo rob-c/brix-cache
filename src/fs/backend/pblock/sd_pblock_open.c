@@ -36,6 +36,7 @@
 #include "pblock_anomaly.h"      /* Phase-83 F9 consistency anomalies */
 #include "pblock_locks.h"        /* Phase-83 F15 mandatory lease enforcement */
 #include "pblock_refs.h"         /* Phase-83 F10 refcounted blobs + dedup */
+#include "pblock_pack.h"         /* phase-88 W2 packed small-blob arena */
 #include "pblock_snap.h"         /* Phase-83 F6 snapshots / fixture reset */
 #include "pblock_hist.h"         /* Phase-83 F11 versioning + trash/undelete */
 #include "core/compat/wverify.h" /* F10 whole-object CRC accumulator */
@@ -191,7 +192,7 @@ pblock_open_create(brix_sd_instance_t *inst, const char *path, mode_t mode,
         *err_out = errno;
     }
     if (obj != NULL && st->refs) {                            /* F10 */
-        (void) pblock_refs_track(st, meta.blob_id, 0, meta.block_size, 0, 0);
+        (void) pblock_refs_track(st, meta.blob_id, 0, meta.block_size, NULL);
         ((pblock_obj_t *) obj->state)->wv = brix_wverify_begin();
     }
     return obj;
@@ -228,6 +229,35 @@ pblock_prepare_existing_fd(pblock_state_t *st, const char *path,
     if (pblock_xform_kind_from_name(meta->xform) != st->xform.kind) {
         pblock_open_set_error(err_out, EIO);
         return -1;
+    }
+
+    /* phase-88 W2: a packed small blob has no block files. A write-intent open
+     * materialises it back to the striped layout FIRST (before the CoW
+     * share-break below, which copies block files); a read open serves the
+     * crc-verified record from a sealed memfd — still a real fd, so CAP_FD /
+     * sendfile and every byte op run unchanged (packed blobs are single-block
+     * by admission). A damaged record fails the open (EIO), never serves. */
+    if (st->pack && !meta->is_dir) {
+        if (want_write) {
+            if (pblock_pack_materialize(st, meta) != 0) {
+                if (err_out != NULL) { *err_out = errno; }
+                return NULL;
+            }
+        } else {
+            int mfd = pblock_pack_open_memfd(st, meta);
+
+            if (mfd >= 0) {
+                brix_sd_obj_t *obj = pblock_make_obj(inst, path, mfd, meta);
+
+                if (obj == NULL && err_out != NULL) { *err_out = errno; }
+                return obj;
+            }
+            if (errno != ENOENT) {
+                if (err_out != NULL) { *err_out = errno; }
+                return NULL;
+            }
+            /* ENOENT: not packed — fall through to the striped layout. */
+        }
     }
 
     /* F10: never write through a shared blob — a write-intent open first gives
@@ -509,15 +539,13 @@ pblock_close_observers(pblock_obj_t *os, ngx_int_t rc)
     if (os->st->csi)
         (void) pblock_csi_flush(os->st, os->blob_id, os->meta.size,
                                 os->block_size, os->csi_dlo, os->csi_dhi);
-    if (os->wv != NULL) {
+    if (os->wv != NULL) {                /* F10: publish-time dedup fold */
         if (os->st->refs && rc == NGX_OK) {
-            uint32_t crc = 0;
-            off_t total = 0;
-            int ok = brix_wverify_expected(os->wv, &crc, &total) == 0
-                     && (int64_t) total == os->meta.size;
+            char hash[PBLOCK_REFS_HASH_CAP];         /* W3: sha256-first */
 
+            pblock_refs_wv_hash(os->wv, os->meta.size, hash, sizeof(hash));
             (void) pblock_refs_dedup_publish(os->st, os->path, &os->meta,
-                                             crc, ok);
+                                             hash);
         }
         brix_wverify_free(os->wv);
     }

@@ -78,7 +78,7 @@ passing — covering:
 ## Full-stack red-team (`test_e2e_redteam.py`)
 
 The micro test above forks the broker directly. The **red-team** test boots the
-**real nginx binary** with `brix_impersonation map` inside the namespace — real
+**real nginx binary** with `brix_idmap map` inside the namespace — real
 master/worker/broker processes, real `init_module` broker spawn, real svc-uid
 workers, real **token-authenticated WebDAV** traffic — and tries to break the
 permissions model end-to-end. It is the pseudo-production check for *module

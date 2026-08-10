@@ -303,6 +303,8 @@ class _CrossProtocolOwnership(_CrossProtocolOwnershipBase):
     def _bad_owner_entry(self, sub, name):
         if not name.startswith(self.tag) or "_pub_bob" in name:
             return None
+        if _is_server_sidecar(name):   # .cinfo/.meta svc-owned by design
+            return None
         path = self.rel(sub, name)
         try:
             if not os.path.isfile(path):

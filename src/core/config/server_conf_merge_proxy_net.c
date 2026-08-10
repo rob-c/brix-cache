@@ -150,6 +150,26 @@ brix_merge_srv_net_fault(ngx_stream_brix_srv_conf_t *conf,
 
     /* ocsp.staple_data/len are populated at init_process, not here */
 
+    /* ofs.maxdelay analog: stock default 60 s. Clamps at brix_send_wait, the
+     * single kXR_wait emission choke point; 0 disables the clamp. */
+    ngx_conf_merge_sec_value(conf->max_delay, prev->max_delay, 60);
+    /* fsoverload stall: default 1 s (the historical hardcoded budget-overload
+     * backoff); still clamped by max_delay at the emission choke point. */
+    ngx_conf_merge_sec_value(conf->fsoverload_stall, prev->fsoverload_stall, 1);
+    /* fsoverload redirect host+port inherit together as a unit (like upstream_host):
+     * a child that set neither takes the parent's pair; "" = off (stall). */
+    if (conf->fsoverload_redirect_host.len == 0
+        && prev->fsoverload_redirect_host.len > 0)
+    {
+        conf->fsoverload_redirect_host = prev->fsoverload_redirect_host;
+        conf->fsoverload_redirect_port = prev->fsoverload_redirect_port;
+    }
+
+    /* §3.1: the advertised oss.quota — default -1 (unlimited). NGX_CONF_UNSET is
+     * already (off_t)-1, so an unconfigured server reports the stock -1. */
+    ngx_conf_merge_off_value(conf->oss_quota, prev->oss_quota, -1);
+    ngx_conf_merge_value(conf->oss_quota_enforce, prev->oss_quota_enforce, 0);
+
     /* Phase 39: network-fault resilience — default OFF (0) = no behaviour change.
      * 0 means "disabled"; arm sites all guard on `> 0` (ngx_msec_t is unsigned). */
     ngx_conf_merge_msec_value(conf->read_timeout,      prev->read_timeout,      0);
@@ -161,6 +181,8 @@ brix_merge_srv_net_fault(ngx_stream_brix_srv_conf_t *conf,
     ngx_conf_merge_size_value(conf->socket_sndbuf,     prev->socket_sndbuf,     0);
     ngx_conf_merge_size_value(conf->socket_rcvbuf,     prev->socket_rcvbuf,     0);
     ngx_conf_merge_uint_value(conf->max_connections,   prev->max_connections,   0);
+    /* §3.15 slowop threshold (µs); 0 = classifier disabled (default). */
+    ngx_conf_merge_value(conf->slowop_usec,            prev->slowop_usec,       0);
     ngx_conf_merge_msec_value(conf->manager_stale_after,
                               prev->manager_stale_after, 0);
     /* Phase 39 (WS7): publish the data-server staleness threshold to the shared

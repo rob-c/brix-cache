@@ -211,15 +211,39 @@ def _configure_suite_binaries(nginx: str, xrootd: str) -> bool:
     return True
 
 
+def _nginx_stream_is_dynamic(nginx_bin: str) -> bool:
+    """True when the build is `--with-stream=dynamic` (stream is a loadable module);
+    False for a static build with stream compiled in."""
+    try:
+        probe = run([nginx_bin, "-V"])
+    except OSError:
+        return False
+    return probe.returncode == 0 and "--with-stream=dynamic" in f"{probe.stdout}\n{probe.stderr}"
+
+
 def _nginx_modules_path(nginx_bin: str) -> Path | None:
-    """Read the packaged module directory from the selected nginx build."""
+    """Read the packaged module directory from the selected nginx build.
+
+    STATIC/DYNAMIC SEPARATION: the two brix builds live in separate trees (a
+    static build with stream compiled in, and a `--with-stream=dynamic` build that
+    ships its OWN ABI-matched `ngx_stream_module.so` beside the binary). We prefer
+    the binary's own `objs/` sibling directory over the packaged `--modules-path`
+    so a dynamic build never picks up the DISTRO stock `ngx_stream_module.so`,
+    which is built against a different core and fails dlopen with
+    `undefined symbol: ngx_stat_active` (the stock module needs the stub-status
+    stat atomics the brix binaries don't export). Returns None for a static build.
+    """
+    if not _nginx_stream_is_dynamic(nginx_bin):
+        return None
+    # Prefer the build's own objs/ dir (holds the ABI-matched modules).
+    own_dir = Path(nginx_bin).resolve().parent
+    if (own_dir / "ngx_stream_module.so").is_file():
+        return own_dir
     try:
         probe = run([nginx_bin, "-V"])
     except OSError:
         return None
     output = f"{probe.stdout}\n{probe.stderr}"
-    if probe.returncode != 0 or "--with-stream=dynamic" not in output:
-        return None
     match = re.search(r"--modules-path=(?:'([^']+)'|\"([^\"]+)\"|(\S+))", output)
     if not match:
         return None
@@ -227,7 +251,23 @@ def _nginx_modules_path(nginx_bin: str) -> Path | None:
 
 
 def _configure_nginx_modules(nginx_bin: str, requested: list[str]) -> bool:
-    """Validate modules and discover the distro's dynamic stream dependency."""
+    """Validate modules and discover the dynamic stream dependency.
+
+    Enforces static/dynamic build separation: a STATIC binary (stream compiled in)
+    must not have any module injected — mixing a dynamic `ngx_stream_module.so`
+    into it double-registers stream and/or fails dlopen. Modules are only for the
+    `--with-stream=dynamic` build, resolved from ITS OWN objs/ dir.
+    """
+    if requested and not _nginx_stream_is_dynamic(nginx_bin):
+        print(
+            f"ERROR: {nginx_bin} is a STATIC nginx build (stream compiled in) but "
+            f"{len(requested)} --nginx-load-module were given. A static binary must "
+            f"load NO modules — injecting a dynamic ngx_stream_module.so double-"
+            f"registers stream and can dlopen-fail. Keep the static and dynamic "
+            f"builds in separate trees: use the dynamic (--with-stream=dynamic) build "
+            f"for module testing, or drop --nginx-load-module here.",
+            file=sys.stderr)
+        return False
     candidates = _module_candidates(nginx_bin, requested)
     resolved = _resolve_modules(candidates)
     if resolved is None:

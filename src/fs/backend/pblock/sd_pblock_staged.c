@@ -40,15 +40,18 @@
 #include "sd_pblock_internal.h"
 #include "pblock_locks.h"        /* Phase-83 F15 mandatory lease enforcement */
 #include "pblock_refs.h"         /* Phase-83 F10 refcounted blobs + dedup */
+#include "pblock_pack.h"         /* phase-88 W2 packed small-blob arena */
 #include "pblock_hist.h"         /* Phase-83 F11 versioning + trash/undelete */
 #include "core/compat/wverify.h" /* F10 whole-object CRC accumulator */
 
 #include <errno.h>
+#include <fcntl.h>
 #include <limits.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 #include <sys/stat.h>
 #include <sys/types.h>
@@ -67,6 +70,8 @@ typedef struct {
                                            * blob is always written whole, so
                                            * every staged handle can grow a
                                            * dedup-candidate CRC (refs only)   */
+    char            part_path[PATH_MAX];  /* staged_path answer (block-0 file);
+                                           * computed lazily, "" until asked   */
 } pblock_staged_t;
 
 /*
@@ -253,19 +258,36 @@ pblock_staged_record_commit(pblock_state_t *pst, pblock_staged_t *ps,
         else
             pblock_anomaly_created(pst, ps->final_path);
     }
-    if (pst->csi)
+    if (pst->csi)                                       /* F3: tag the blob */
         (void) pblock_csi_flush(pst, ps->blob_id, ps->size, ps->block_size,
                                 0, INT64_MAX);
-    if (ps->wv != NULL) {
-        if (pst->refs) {
-            uint32_t crc = 0;
-            off_t total = 0;
-            int ok = brix_wverify_expected(ps->wv, &crc, &total) == 0
-                     && (int64_t) total == ps->size;
+    {
+        int folded = 0;                                  /* F10: dedup fold */
 
-            (void) pblock_refs_dedup_publish(pst, ps->final_path, meta, crc, ok);
+        if (ps->wv != NULL) {
+            if (pst->refs) {
+                char hash[PBLOCK_REFS_HASH_CAP];         /* W3: sha256-first */
+
+                pblock_refs_wv_hash(ps->wv, ps->size, hash, sizeof(hash));
+                folded = pblock_refs_dedup_publish(pst, ps->final_path, meta,
+                                                   hash) == 1;
+            }
+            brix_wverify_free(ps->wv);
         }
-        brix_wverify_free(ps->wv);
+
+        /* phase-88 W2: a kept (not folded) small blob comes to rest in the
+         * packed arena — one shared-segment record instead of a per-object
+         * dir + block file. Single-block + untransformed only (the record is
+         * the raw logical bytes); best-effort: a refused admission simply
+         * keeps the striped layout. */
+        if (pst->pack && !folded
+            && ps->size > 0 && ps->size <= pst->pack_max
+            && ps->size <= ps->block_size
+            && pst->xform.kind == PBLOCK_XFORM_NONE)
+        {
+            (void) pblock_pack_admit(pst, meta->blob_id, ps->size,
+                                     ps->block_size);
+        }
     }
     if (pst->audit) {
         char aux[32];
@@ -309,6 +331,56 @@ sd_pblock_staged_commit(brix_sd_staged_t *st, int noreplace)
     free(ps);
     free(st);
     return NGX_OK;
+}
+
+/* sd_pblock_staged_path — driver->staged_path for pblock (phase-88 W1).
+ *
+ * WHAT: The physical path of the staged bytes, for the cache tier's
+ *       verify-before-commit (phase-68 cvmfs-cas / manifest signature).
+ *       Returns the staged blob's block-0 file when that single file IS the
+ *       whole plaintext object — the staged writes fit one block AND no
+ *       per-block transform is armed — else NULL ("no path available", the
+ *       verify fails closed rather than checking partial/encoded bytes).
+ *
+ * WHY:  pblock stripes objects across block files, so a general staged blob
+ *       has no single verifiable path. But a cvmfs cache store's objects are
+ *       bounded (the publisher's chunk ceiling), so with block_size sized
+ *       above that bound every fill is single-block and pblock can serve the
+ *       same verify contract as the posix .part file.
+ *
+ * HOW:  1. Gate on size <= block_size and xform NONE (raw bytes on disk).
+ *       2. Resolve the block-0 path into the handle's lazily-filled buffer.
+ */
+const char *
+sd_pblock_staged_path(const brix_sd_staged_t *st)
+{
+    pblock_staged_t *ps = st->state;
+
+    if (ps == NULL
+        || ps->size > ps->block_size
+        || ps->st->xform.kind != PBLOCK_XFORM_NONE)
+    {
+        return NULL;
+    }
+    if (ps->part_path[0] == '\0'
+        && pblock_block_path(ps->st, ps->blob_id, 0, ps->part_path,
+                             sizeof(ps->part_path)) != 0)
+    {
+        ps->part_path[0] = '\0';
+        return NULL;
+    }
+    if (ps->size == 0) {
+        /* A zero-byte stage has no block file yet (blocks materialise on the
+         * first write); the verify contract expects an openable path — give it
+         * the empty block 0, exactly what the posix .part is at this point. */
+        int fd = open(ps->part_path, O_RDWR | O_CREAT, 0600);
+
+        if (fd < 0) {
+            return NULL;
+        }
+        close(fd);
+    }
+    return ps->part_path;
 }
 
 void

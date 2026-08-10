@@ -27,6 +27,7 @@
 #include "core/aio/uring.h"
 #include "core/seccomp/seccomp.h"          /* D-3 per-worker syscall filter */
 #include "observability/sesslog/sesslog_ngx.h"
+#include "protocols/root/session/admin_socket.h"  /* §1.16 admin unix socket */
 
 #if defined(__SANITIZE_ADDRESS__)   /* Phase 27 W6: explicit LSan check at exit */
 #include <sanitizer/lsan_interface.h>
@@ -216,6 +217,10 @@ ngx_stream_brix_init_process(ngx_cycle_t *cycle)
 
     brix_warn_openat2_unavailable(cycle);
 
+    /* §1.16: the runtime admin unix socket (no-op unless brix_admin_socket is
+     * configured; worker 0 only — see session/admin_socket.h). */
+    brix_admin_socket_init(cycle);
+
     cscfp = cmcf->servers.elts;
 
     brix_proxy_pool_init();
@@ -276,7 +281,7 @@ ngx_stream_brix_init_process(ngx_cycle_t *cycle)
     brix_init_pending_reap_timer(cycle, manager_seen);
 
     /* Phase 40: connect this worker to the identity broker (no-op unless
-     * brix_impersonation=map; lazily reconnects if the broker isn't up yet). */
+     * brix_idmap=map; lazily reconnects if the broker isn't up yet). */
     brix_imp_init_worker(cycle);
 
     brix_init_stage_reap_timer(cycle);

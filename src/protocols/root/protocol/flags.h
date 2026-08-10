@@ -25,6 +25,10 @@
 #define kXR_open_updt   0x0020  /* open for reading and writing (O_RDWR) */
 #define kXR_async       0x0040  /* hint: client prefers async I/O (advisory) */
 #define kXR_refresh     0x0080  /* bypass any local cache for this open */
+#define kXR_prefname    0x0100  /* kXR_locate option: prefer DNS names over IP
+                                   addresses in the response (locate reuses the
+                                   open-flag bit space — same value as
+                                   kXR_mkpath, distinct request context) */
 #define kXR_mkpath      0x0100  /* create parent directories if needed;
                                    equivalent to mkdir -p before the open */
 #define kXR_open_apnd   0x0200  /* open in append mode (O_APPEND) */

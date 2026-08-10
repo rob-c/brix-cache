@@ -1,7 +1,7 @@
 """
 GridFTP gateway over the pblock storage backend (phase-82 P82.6).
 
-Proves that ``brix_gridftp_storage_backend pblock`` routes the gateway's data
+Proves that ``brix_storage_backend pblock`` routes the gateway's data
 plane through the block store rather than the posix export: the gateway itself
 only ever touches storage through ``brix_vfs_*``, and ``ftp_vfs_ctx`` resolves the
 export root to whatever backend the module registered at config time, so pblock

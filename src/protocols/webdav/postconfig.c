@@ -140,7 +140,7 @@ webdav_postconf_install_handlers(ngx_http_core_main_conf_t *cmcf)
  * webdav_postconf_load_client_capath - add a hashed CA dir to one server's
  * TLS client-verify trust store.
  *
- * WHAT: Load the brix_ssl_client_capath directory into the SSL_CTX certificate
+ * WHAT: Load the brix_client_ca_store directory into the SSL_CTX certificate
  * store of one server block as an OpenSSL hashed-directory lookup; returns
  * NGX_OK, or NGX_ERROR (a fatal config error) when the path is not an
  * accessible directory or the store cannot be extended.
@@ -171,14 +171,14 @@ webdav_postconf_load_client_capath(ngx_conf_t *cf,
 
     if (ngx_file_info(capath->data, &fi) != 0) {
         ngx_log_error(NGX_LOG_EMERG, cf->log, ngx_errno,
-                      "brix_ssl_client_capath \"%V\" is not accessible",
+                      "brix_client_ca_store \"%V\" is not accessible",
                       capath);
         return NGX_ERROR;
     }
 
     if (!ngx_is_dir(&fi)) {
         ngx_log_error(NGX_LOG_EMERG, cf->log, 0,
-                      "brix_ssl_client_capath \"%V\" is not a directory "
+                      "brix_client_ca_store \"%V\" is not a directory "
                       "(for a bundle file use ssl_client_certificate)",
                       capath);
         return NGX_ERROR;
@@ -190,7 +190,7 @@ webdav_postconf_load_client_capath(ngx_conf_t *cf,
                                      (const char *) capath->data) != 1)
     {
         ngx_log_error(NGX_LOG_EMERG, cf->log, 0,
-                      "brix_ssl_client_capath \"%V\": cannot add hashed "
+                      "brix_client_ca_store \"%V\": cannot add hashed "
                       "CA-directory lookup to the TLS trust store", capath);
         return NGX_ERROR;
     }
@@ -206,7 +206,7 @@ webdav_postconf_load_client_capath(ngx_conf_t *cf,
  * webdav_postconf_setup_ssl_ctx - apply GSI-proxy and kTLS flags to one server.
  *
  * WHAT: For a single server block, enable X509_V_FLAG_ALLOW_PROXY_CERTS on its
- * SSL verify params when proxy_certs is on, add the brix_ssl_client_capath
+ * SSL verify params when proxy_certs is on, add the brix_client_ca_store
  * hashed CA directory to its verify store when set (returning NGX_ERROR when
  * that directory is unusable — a fatal config error), and opt its TLS context
  * into kernel-TLS when brix_ktls is on; returns NGX_OK for servers without
@@ -339,7 +339,7 @@ webdav_postconf_setup_thread_pool(ngx_conf_t *cf,
  * of side effects and log output.
  *
  * HOW: Fetches the servers array once, loops applying webdav_postconf_setup_ssl_ctx()
- * to each element (propagating NGX_ERROR — an unusable brix_ssl_client_capath
+ * to each element (propagating NGX_ERROR — an unusable brix_client_ca_store
  * is a fatal config error), then loops again applying
  * webdav_postconf_setup_thread_pool(), which cannot fail.
  */
@@ -381,7 +381,7 @@ ngx_http_brix_webdav_postconfiguration(ngx_conf_t *cf)
         return NGX_ERROR;
     }
 
-    /* brix_proxy_ssl_capath second half: the upstream SSL_CTX exists only
+    /* brix_backend_ca_dir second half: the upstream SSL_CTX exists only
      * after the proxy module's merge, so the hashed-dir add runs here. */
     if (webdav_postconf_setup_proxy_capath(cf, cmcf) != NGX_OK) {
         return NGX_ERROR;

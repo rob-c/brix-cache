@@ -27,6 +27,7 @@ int brix_xrdckverify_main(int argc, char **argv);
 int brix_xrdcinfo_main(int argc, char **argv);
 int brix_xrdcktree_main(int argc, char **argv);
 int brix_xrdckcheck_main(int argc, char **argv);
+int brix_xrdcks_main(int argc, char **argv);
 
 typedef struct {
     const char *name;        /* argv[0] basename / subcommand         */
@@ -70,6 +71,9 @@ dispatch(const char *name, int argc, char **argv)
     }
     if (strcmp(name, "xrdckcheck") == 0 || strcmp(name, "check") == 0) {
         return brix_xrdckcheck_main(argc, argv);
+    }
+    if (strcmp(name, "xrdcks") == 0 || strcmp(name, "xattr") == 0) {
+        return brix_xrdcks_main(argc, argv);   /* §7.20: XrdCks xattr tool */
     }
     return -1;
 }

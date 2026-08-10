@@ -11,14 +11,14 @@
 volatile sig_atomic_t tail_stop = 0;
 
 const xrdfs_cmd COMMANDS[] = {
-    { "stat",     do_stat,     "stat [-j] <path>" },
-    { "ls",       do_ls,       "ls [-l] [-R] [-h, --human] [-j] [path]" },
+    { "stat",     do_stat,     "stat [-j] [-q query] <path> [path ...]" },
+    { "ls",       do_ls,       "ls [-l] [-u] [-R] [-D] [-Z] [-C] [-h, --human] [-j] [path]" },
     { "du",       do_du,       "du [-h, --human] [-j] <path>...  (recursive size)" },
     { "df",       do_df,       "df [-h, --human] [path]  (disk space, oss.* Qspace)" },
     { "tree",     do_tree,     "tree [-d, --dirs-only] [-L, --depth N] [path]" },
     { "find",     do_find,     "find <path> [-name GLOB] [-type f|d] [-size +N|-N]" },
     { "mkdir",    do_mkdir,    "mkdir [-p] [-m mode] <path>" },
-    { "rm",       do_rm,       "rm [-r] [-v, --verbose] <path>" },
+    { "rm",       do_rm,       "rm [-r] [-v, --verbose] <path> [path ...]" },
     { "rmdir",    do_rmdir,    "rmdir <path>" },
     { "mv",       do_mv,       "mv <src> <dst>" },
     { "chmod",    do_chmod,    "chmod [-R] <path> <octal-mode>" },
@@ -26,7 +26,7 @@ const xrdfs_cmd COMMANDS[] = {
     { "ln",       do_ln,       "ln [-s] [-f] <target> <linkpath>" },
     { "readlink", do_readlink, "readlink <path>" },
     { "truncate", do_truncate, "truncate <path> <size>" },
-    { "cat",      do_cat,      "cat [-z codec] <path>" },
+    { "cat",      do_cat,      "cat [-z codec] <path> [path ...]" },
     { "head",     do_head,     "head [-c BYTES] [-n LINES] <path>" },
     { "tail",     do_tail,     "tail [-c BYTES] [-n LINES] [-f] <path>" },
     { "wc",       do_wc,       "wc [-c] [-l] [-w] <path>" },
@@ -39,11 +39,15 @@ const xrdfs_cmd COMMANDS[] = {
     { "cksum",    do_cksum,    "cksum [-a algo] <path>" },
     { "xattr",    do_xattr,    "xattr ls|get|set|rm <path> [name] [value]" },
     { "readv",    do_readv,    "readv <path> <off len>...  (scatter-gather read)" },
+    { "readvm",   do_readvm,   "readvm <path off len>...   (multi-file readv)" },
     { "writev",   do_writev,   "writev <path> <off hexdata>...  (scatter-gather write)" },
-    { "locate",   do_locate,   "locate <path>" },
-    { "query",    do_query,    "query <config|space|checksum|stats> [args]" },
+    { "locate",   do_locate,   "locate [-n] [-r] [-d] [-m|-h] [-i] [-p] <path>" },
+    { "cache",    do_cache,    "cache {evict | fevict} <path>" },
+    { "query",    do_query,    "query <config|space|checksum|checksumcancel|"
+                               "stats|xattr|prepare|opaque|opaquefile> [args]" },
     { "statvfs",  do_statvfs,  "statvfs [path]" },
-    { "prepare",  do_prepare,  "prepare [-s|-w|-c|-f|-e] <path>..." },
+    { "spaceinfo", do_spaceinfo, "spaceinfo [path]" },
+    { "prepare",  do_prepare,  "prepare [-s|-w|-c|-a|-f|-e] [-p 0-3] <path>..." },
     { "stage",    do_stage,    "stage [--wait[=SECS]] <path>..." },
     { "evict",    do_evict,    "evict <path>..." },
     { "explain",  do_explain,  "explain (connection/auth/TLS facts)" },
@@ -207,21 +211,33 @@ repl(brix_conn *c, const char *host, int port, const char *prog)
     char   *line = NULL;
     size_t  cap = 0;
     int     last = 0;
+    /* §7.12: the interactive prompt is for a human at a terminal only — when
+     * commands are piped in (a script), printing it would corrupt the
+     * captured stdout. Gate it on an stdin TTY, matching stock xrdfs. */
+    int     interactive = isatty(STDIN_FILENO);
 
     for (;;) {
         char   *tok[XRDFS_MAXTOK];
         int     ntok, quit = 0;
         ssize_t r;
 
-        printf("[%s:%d] %s > ", host, port, cwd);
-        fflush(stdout);
+        if (interactive) {
+            printf("[%s:%d] %s > ", host, port, cwd);
+            fflush(stdout);
+        }
 
         r = getline(&line, &cap, stdin);
         if (r < 0) {
-            printf("\n");
+            if (interactive) { printf("\n"); }
             break;   /* EOF */
         }
         ntok = tokenize(line, tok, XRDFS_MAXTOK);
+        /* §7.12: skip blank lines and '#' comments so a command script pipes
+         * in cleanly (stock xrdfs script convention) instead of the comment
+         * tripping "unknown command '#'". */
+        if (ntok == 0 || tok[0][0] == '#') {
+            continue;
+        }
         last = dispatch(c, cwd, sizeof(cwd), ntok, tok, &quit, prog);
         if (quit) {
             break;

@@ -494,9 +494,10 @@ brix_handle_prepare(brix_ctx_t *ctx, ngx_connection_t *c,
     }
 
     snprintf(detail, sizeof(detail),
-             "paths=%u missing=%u opts=0x%02x optx=0x%04x%s",
+             "paths=%u missing=%u opts=0x%02x optx=0x%04x prty=%u%s",
              (unsigned int) sc.paths, (unsigned int) sc.missing,
              (unsigned int) req.options, (unsigned int) optionx,
+             (unsigned int) req.prty,
              (req.options & kXR_coloc) ? " (coloc)" : "");
 
     brix_log_access(ctx, c, "PREPARE", "-", detail, 1, kXR_ok, NULL, 0);

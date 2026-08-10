@@ -8,16 +8,13 @@
  *       origin/sizing/eviction/verify, memory budget, readv sizing, io_uring),
  *       together with the file-local per-concern helpers each delegates to.
  * WHY:  Split (phase-79 file-size cap) out of the former 1249-line
- *       server_conf.c. Grouping the identity/crypto and storage merges keeps
- *       their sentinel-vs-configured contracts reviewable in isolation. The two
- *       entry points are non-static (declared in server_conf_internal.h) because
- *       the top-level orchestrator in server_conf.c calls them in linear order;
- *       every sub-helper stays file-local.
- * HOW:  Standard nginx parent->child inheritance via ngx_conf_merge_* and the
- *       BRIX_MERGE_* macros, one helper per concern group, invoked in the
- *       original order so cross-group derivations (staging LOW watermark from
- *       HIGH, reaper watermarks from the eviction threshold) still observe their
- *       already-merged inputs. No behaviour change from the split.
+ *       server_conf.c; the two entry points are non-static (declared in
+ *       server_conf_internal.h) for server_conf.c's linear orchestrator, every
+ *       sub-helper file-local.
+ * HOW:  Standard ngx_conf_merge_* / BRIX_MERGE_* inheritance, one helper per
+ *       concern group, invoked in the original order so cross-group derivations
+ *       (staging LOW from HIGH, reaper watermarks from the eviction threshold)
+ *       observe already-merged inputs. No behaviour change from the split.
  */
 
 #include "config.h"
@@ -27,6 +24,7 @@
 #include "core/compat/af_policy.h"      /* BRIX_AF_AUTO default for origin family */
 #include "fs/cache/verify.h"          /* brix_cache_verify_mode_e default */
 #include "net/ratelimit/ratelimit.h"   /* phase-59 W3a: throttle zone lookup */
+#include "protocols/root/protocol/flags.h"  /* kXR_ckpMinMax — chkpnt_maxsz floor */
 
 /*
  * WHAT: merge the GSI/pwd + XrdAcc engine group and validate the native-authdb
@@ -53,6 +51,8 @@ brix_merge_srv_gsi_acc(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *conf,
     ngx_conf_merge_uint_value(conf->gsi_signed_dh, prev->gsi_signed_dh,
                               BRIX_GSI_SDH_OFF);
     ngx_conf_merge_value(conf->gsi_max_inflight, prev->gsi_max_inflight, 256);
+    /* §5.10: GSI client-cert chain depth cap; 0 = unlimited (default). */
+    ngx_conf_merge_value(conf->gsi_verify_depth, prev->gsi_verify_depth, 0);
     ngx_conf_merge_uint_value(conf->gsi_keypool_size, prev->gsi_keypool_size,
                               BRIX_GSI_KEYPOOL_SIZE_DEFAULT);
     ngx_conf_merge_uint_value(conf->gsi_keypool_seed, prev->gsi_keypool_seed,
@@ -115,6 +115,10 @@ brix_merge_srv_x509(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *conf,
         return NGX_CONF_ERROR;
     }
     ngx_conf_merge_str_value(conf->certificate,     prev->certificate,     "");
+    /* §5.10: root:// TLS cipher list; empty = OpenSSL defaults (default). */
+    ngx_conf_merge_str_value(conf->tls_ciphers,     prev->tls_ciphers,     "");
+    /* §5.10: root:// TLSv1.3 cipher-suite list; empty = OpenSSL defaults. */
+    ngx_conf_merge_str_value(conf->tls_ciphersuites, prev->tls_ciphersuites, "");
     ngx_conf_merge_str_value(conf->certificate_key, prev->certificate_key, "");
     ngx_conf_merge_str_value(conf->trusted_ca,      prev->trusted_ca,      "");
     ngx_conf_merge_str_value(conf->vomsdir,         prev->vomsdir,         "");
@@ -247,6 +251,8 @@ brix_merge_srv_authtail(ngx_stream_brix_srv_conf_t *conf,
     ngx_conf_merge_value(conf->signing_required, prev->signing_required, 0);
     ngx_conf_merge_uint_value(conf->min_sec_level, prev->min_sec_level, 0);
     ngx_conf_merge_value(conf->ztn_cleartext, prev->ztn_cleartext, 0);
+    /* ztn -maxsz analog; 0 = no extra cap (compatibility default). */
+    ngx_conf_merge_size_value(conf->ztn_maxsz, prev->ztn_maxsz, 0);
     ngx_conf_merge_value(conf->opaque_strict, prev->opaque_strict, 0);
     ngx_conf_merge_value(conf->tls,             prev->tls,             0);
     /* kTLS default OFF (phase-33 P5): software kTLS regresses vs OpenSSL's
@@ -255,6 +261,8 @@ brix_merge_srv_authtail(ngx_stream_brix_srv_conf_t *conf,
      * SSL_OP_ENABLE_KTLS is a transparent no-op when the cipher/kernel cannot
      * offload, so this default is byte-exact vs userspace TLS. */
     ngx_conf_merge_value(conf->tls_ktls,        prev->tls_ktls,        0);
+    /* §5.10: TLS session resumption on by default (unchanged); off full-handshakes. */
+    ngx_conf_merge_value(conf->tls_reuse,       prev->tls_reuse,       1);
 }
 
 /* Identity & crypto: auth scheme + GSI/pwd, XrdAcc engine (+ native-authdb
@@ -316,6 +324,19 @@ brix_merge_srv_zip_stage(ngx_stream_brix_srv_conf_t *conf,
     ngx_conf_merge_value(conf->zip_force_scratch, prev->zip_force_scratch, 0);
     ngx_conf_merge_size_value(conf->zip_stage_max_bytes,
                               prev->zip_stage_max_bytes, 512 * 1024 * 1024);
+    /* ofs.chkpnt maxsz analog: default = the protocol minimum, and an
+     * explicitly configured smaller value is raised to it — kXR_ckpMinMax is
+     * the "minimum maximum" every server must accept, so honoring a lower cap
+     * would refuse checkpoints a spec-conforming client is entitled to. */
+    ngx_conf_merge_size_value(conf->chkpnt_maxsz,
+                              prev->chkpnt_maxsz, (size_t) kXR_ckpMinMax);
+    if (conf->chkpnt_maxsz < (size_t) kXR_ckpMinMax) {
+        conf->chkpnt_maxsz = (size_t) kXR_ckpMinMax;
+    }
+    /* oss.maxsize create-size cap; 0 = no cap (compatibility default). */
+    ngx_conf_merge_off_value(conf->oss_maxsize, prev->oss_maxsize, 0);
+    /* oss.cgroup space-group name reported by kXR_Qspace; default "default". */
+    ngx_conf_merge_str_value(conf->oss_cgroup, prev->oss_cgroup, "default");
     ngx_conf_merge_value(conf->cache,           prev->cache,           0);
     ngx_conf_merge_str_value(conf->cache_root,  prev->cache_root,      "");
     ngx_conf_merge_str_value(conf->cache_state_root, prev->cache_state_root, "");
@@ -407,6 +428,7 @@ brix_merge_srv_cache_origin(ngx_stream_brix_srv_conf_t *conf,
                                   : conf->reaper.high_watermark / 2);
     ngx_conf_merge_sec_value(conf->reaper.reap_interval,
                              prev->reaper.reap_interval, 60);
+    ngx_conf_merge_off_value(conf->reaper.max_bytes, prev->reaper.max_bytes, 0);
     ngx_conf_merge_off_value(conf->cache_max_file_size,
                              prev->cache_max_file_size, 0);
     ngx_conf_merge_off_value(conf->memory_budget,

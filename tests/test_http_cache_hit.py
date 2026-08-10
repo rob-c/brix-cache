@@ -1,11 +1,11 @@
 """Section 3.1 — HTTP read-through cache hit tests.
 
 Verifies that WebDAV GET serves files from the read-through cache when
-``brix_webdav_cache_root`` is configured.  The dedicated ``http-cache``
+``brix_cache_root`` is configured.  The dedicated ``http-cache``
 server (port 18457) serves anonymous HTTP WebDAV with:
 
     brix_storage_backend posix:/tmp/xrd-test/data-http-cache/origin
-    brix_webdav_cache_root /tmp/xrd-test/data-http-cache/cache
+    brix_cache_root /tmp/xrd-test/data-http-cache/cache
 
 Export root and cache root are siblings under data-http-cache so neither
 is beneath the other, satisfying the security check that rejects cache_root

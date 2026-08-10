@@ -43,14 +43,14 @@ webdav_build_ca_store(ngx_log_t *log,
         cafile = cafile_buf;
     }
 
-    if (conf->crl.len > 0) {
-        if (brix_str_cbuf(crl_buf, sizeof(crl_buf), &conf->crl) == NULL) {
+    if (conf->common.crl.len > 0) {
+        if (brix_str_cbuf(crl_buf, sizeof(crl_buf), &conf->common.crl) == NULL) {
             return NULL;
         }
         crl = crl_buf;
     }
 
     return brix_build_ca_store(log, cadir, cafile, crl, 0, crl_count_out,
-                               (brix_sp_mode_t) conf->signing_policy_mode,
-                               (int) conf->crl_mode);
+                               (brix_sp_mode_t) conf->common.signing_policy_mode,
+                               (int) conf->common.crl_mode);
 }

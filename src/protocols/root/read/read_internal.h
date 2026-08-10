@@ -34,6 +34,8 @@ typedef struct {
     int64_t   offset;   /* requested file offset */
     size_t    rlen;     /* requested length, clamped to BRIX_READ_REQUEST_MAX */
     u_char   *databuf;  /* per-in-flight buffer (memory path only) */
+    unsigned  pathid;   /* §1.1 read_args response-offload channel (0 = primary/
+                           control stream); validated as a live bound path */
 } brix_read_io_t;
 
 /* Defined in read_sendfile.c */

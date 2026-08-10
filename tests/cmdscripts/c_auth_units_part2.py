@@ -121,6 +121,96 @@ def run_gsi_eec(base: Path) -> list[tuple[bool, str]]:
             shutil.rmtree(owned, ignore_errors=True)
 
 
+# Forge the §5.10 chain-depth corpus (wave 17): a DEEP trust chain
+#   CA -> intermediate CA 1 -> intermediate CA 2 -> EEC -> proxy
+# so a verify_depth cap of 1 rejects it (two intermediate CAs) while an
+# uncapped / generous verify accepts it. No path-length basicConstraints so the
+# ONLY thing that can reject at depth 1 is the depth cap under test. The forge
+# epoch is FIXED at 2026-01-01, so not_after_days must clear real time.
+GSI_VERDEPTH_FORGE = """
+import pathlib, sys
+import x509forge
+
+d = pathlib.Path(sys.argv[1])
+ca = x509forge.make_ca("/DC=test/CN=VerDepth Trust CA")
+intca1 = x509forge.make_eec(ca, "/DC=test/CN=VerDepth Int CA 1",
+                            ca_true=True, keycert_sign=True, not_after_days=4000)
+intca2 = x509forge.make_eec(intca1, "/DC=test/CN=VerDepth Int CA 2",
+                            ca_true=True, keycert_sign=True, not_after_days=4000)
+eec = x509forge.make_eec(intca2, "/DC=test/CN=alice", not_after_days=4000)
+proxy = x509forge.make_proxy(eec, not_after_days=4000)
+(d / "ca.pem").write_bytes(ca.pem)
+(d / "intca1.pem").write_bytes(intca1.pem)
+(d / "intca2.pem").write_bytes(intca2.pem)
+(d / "eec.pem").write_bytes(eec.pem)
+(d / "proxy.pem").write_bytes(proxy.pem)
+"""
+
+
+def run_tls_reuse(base: Path) -> list[tuple[bool, str]]:
+    # §5.10 (wave 19): the tlsreuse policy is a header-inline pure-OpenSSL helper,
+    # so this unit links ONLY -lssl/-lcrypto — no module objects, no fixtures.
+    ok, message = compile_and_run(
+        base / "test_tls_reuse",
+        [
+            "-O",
+            "-Wall",
+            "-I",
+            "src",
+            "tests/c/tls_reuse_test.c",
+            "-lssl",
+            "-lcrypto",
+        ],
+    )
+    return [result(ok, f"tls_reuse {message}")]
+
+
+def run_gsi_verdepth(base: Path) -> list[tuple[bool, str]]:
+    if shutil.which("openssl") is None:
+        return [result(True, "SKIP openssl not on PATH")]
+    obj = find_obj("gsi_verify.o")
+    if obj is None:
+        return [result(True, "SKIP build gsi_verify.o first")]
+    fixtures, owned = x509_fixture_dir("gsi_verdepth")
+    try:
+        forged = run(
+            ["python3", "-c", GSI_VERDEPTH_FORGE, str(fixtures)],
+            cwd=REPO_ROOT,
+            env={"PYTHONPATH": "tests", **HERMETIC_ENV},
+        )
+        if forged.returncode != 0:
+            return [result(False, f"forge gsi_verdepth fixtures failed: {(forged.stderr or forged.stdout)[-3000:]}")]
+        ok, message = compile_and_run(
+            base / "test_gsi_verdepth",
+            [
+                "-O",
+                "-Wall",
+                "-I",
+                "src",
+                "-I",
+                "shared",
+                "-I",
+                str(NGX_SRC / "src/core"),
+                "-I",
+                str(NGX_SRC / "src/event"),
+                "-I",
+                str(NGX_SRC / "src/os/unix"),
+                "-I",
+                str(OBJS),
+                "tests/c/gsi_verify_depth_test.c",
+                str(obj),
+                *X509_POLICY_SOURCES,
+                "-lssl",
+                "-lcrypto",
+            ],
+            env={"BRIX_GSI_VERDEPTH_FIXTURES": str(fixtures)},
+        )
+        return [result(ok, f"gsi_verdepth {message}")]
+    finally:
+        if owned:
+            shutil.rmtree(owned, ignore_errors=True)
+
+
 # Forge the delegation EEC-scan corpus (Finding 1, gsi-delegation-xrdhttp): one
 # CA -> EEC -> two proxies with distinct serials. The EEC is the non-proxy the
 # scan must recover; the proxies are what it must skip and never return.

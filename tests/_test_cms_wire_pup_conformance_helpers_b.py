@@ -238,6 +238,33 @@ def server_node_stack(lifecycle):
         peer.close()
 
 
+# §2.4 brix_cms_min_free: the mSpace policy floor advertised in kYR_login.
+# 250250 is deliberately > 65535 so the assertion also proves the value rides
+# the wire as a full 32-bit PT_INT (never truncated to the PT_SHORT width) and
+# is distinct from the default 100 MB and every other numeric login field.
+CMS_MINFREE_TEST_MB = 250250
+
+
+@pytest.fixture
+def minfree_login_frame(lifecycle):
+    """The LOGIN frame from a node carrying ``brix_cms_min_free`` (§2.4).
+
+    Yields (login_frame, peer) so a test can also cross-check the node's SID.
+    """
+    peer = _start_peered_node(
+        lifecycle, "lc-cms-wire-minfree-node", "nginx_cms_wire_minfree_node.conf",
+        {"MIN_FREE": CMS_MINFREE_TEST_MB},
+        "§2.4: brix_cms_min_free reaches the kYR_login mSpace field.",
+        os.path.join(_DIR, "minfree_node_data"))
+    try:
+        fr = peer.wait_for_code(CMS_RR_LOGIN, timeout=20.0)
+        if fr is None:
+            pytest.skip("minfree node did not emit a LOGIN frame")
+        yield fr, peer
+    finally:
+        peer.close()
+
+
 def _super_stack(lifecycle, state_relay):
     name = "lc-cms-wire-super" + ("" if state_relay == "on" else "-norelay")
     return _start_peered_node(

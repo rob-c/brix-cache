@@ -26,30 +26,14 @@
       0,
       NULL },
 
-    /* The next three directives are only consumed when brix_auth=gsi. */
-    /* PEM file containing the server certificate presented during GSI auth. */
-    { ngx_string("brix_certificate"),
-      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
-      ngx_conf_set_str_slot,
-      NGX_STREAM_SRV_CONF_OFFSET,
-      offsetof(ngx_stream_brix_srv_conf_t, certificate),
-      NULL },
-
-    /* Matching private key used to sign the GSI handshake. */
-    { ngx_string("brix_certificate_key"),
-      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
-      ngx_conf_set_str_slot,
-      NGX_STREAM_SRV_CONF_OFFSET,
-      offsetof(ngx_stream_brix_srv_conf_t, certificate_key),
-      NULL },
-
-    /* Trust store used to verify client proxy certificates. */
-    { ngx_string("brix_trusted_ca"),
-      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
-      ngx_conf_set_str_slot,
-      NGX_STREAM_SRV_CONF_OFFSET,
-      offsetof(ngx_stream_brix_srv_conf_t, trusted_ca),
-      NULL },
+    /* brix_certificate / brix_certificate_key / brix_trusted_ca -> owned by
+     * ngx_stream_brix_common_module (phase-101 W3 stage 3): the x509 GSI-trust
+     * names are shared with the gridftp gateway, so a single stream owner
+     * registers them.  This server adopts the values into its own
+     * certificate / certificate_key / trusted_ca fields via
+     * brix_stream_common_adopt_gsi() at merge (server_conf.c), BEFORE the GSI
+     * SSL_CTX + trust-store are built in postconfiguration — every reader
+     * (tls_config.c, the auth/gsi builders) is unchanged. */
 
     /* GSI signed-DH policy: off (default) | auto | require.  Consulted only
      * when brix_auth=gsi; selects the RSA-signed-DH wire variant (phase-48). */
@@ -66,6 +50,15 @@
       ngx_conf_set_num_slot,
       NGX_STREAM_SRV_CONF_OFFSET,
       offsetof(ngx_stream_brix_srv_conf_t, gsi_max_inflight),
+      NULL },
+
+    /* §5.10 (xrd.tlsca verdepth analog): cap the accepted X.509 chain depth for
+     * a client's GSI proxy/cert at root:// login. 0 (default) = unlimited. */
+    { ngx_string("brix_gsi_verify_depth"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_num_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_brix_srv_conf_t, gsi_verify_depth),
       NULL },
 
     /* Per-worker ephemeral-DH keypool warm target (filled off-thread at boot). */
@@ -92,19 +85,11 @@
       offsetof(ngx_stream_brix_srv_conf_t, gsi_ciphers),
       NULL },
 
-    { ngx_string("brix_vomsdir"),
-      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
-      ngx_conf_set_str_slot,
-      NGX_STREAM_SRV_CONF_OFFSET,
-      offsetof(ngx_stream_brix_srv_conf_t, vomsdir),
-      NULL },
-
-    { ngx_string("brix_voms_cert_dir"),
-      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
-      ngx_conf_set_str_slot,
-      NGX_STREAM_SRV_CONF_OFFSET,
-      offsetof(ngx_stream_brix_srv_conf_t, voms_cert_dir),
-      NULL },
+    /* brix_vomsdir / brix_voms_cert_dir -> owned by
+     * ngx_stream_brix_common_module (phase-101 W3 stage 3); adopted into this
+     * server's vomsdir / voms_cert_dir fields at merge via
+     * brix_stream_common_adopt_gsi().  Readers (policy.c, auth/gsi/auth_cert.c)
+     * unchanged. */
 
     /* PEM file or directory containing CRLs for certificate revocation checking. */
     { ngx_string("brix_crl"),
@@ -142,12 +127,10 @@
       offsetof(ngx_stream_brix_srv_conf_t, crl_mode),
       brix_crl_modes },
 
-    { ngx_string("brix_require_vo"),
-      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE2,
-      brix_conf_set_require_vo,
-      NGX_STREAM_SRV_CONF_OFFSET,
-      0,
-      NULL },
+    /* brix_require_vo -> owned by ngx_stream_brix_common_module (phase-101 W3
+     * stage 3b); this server deep-copies the parsed rules into its own vo_rules
+     * via brix_stream_common_adopt_vo_rules() at merge and finalizes them in
+     * brix_config_finalize_policy against its own export root — unchanged. */
 
     { ngx_string("brix_authdb"),
       NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,

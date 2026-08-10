@@ -1,6 +1,6 @@
-"""brix_ssl_client_capath — hashed CA directory for the TLS client-verify store.
+"""brix_client_ca_store — hashed CA directory for the TLS client-verify store.
 
-Regression for the webdav postconfig change: `brix_ssl_client_capath <dir>`
+Regression for the webdav postconfig change: `brix_client_ca_store <dir>`
 adds an OpenSSL hashed-directory lookup (the /etc/grid-security/certificates
 IGTF layout) to a server's client-verify trust store, so a fail-closed
 `ssl_verify_client on` front leg can trust a hash dir that stock nginx's
@@ -117,7 +117,7 @@ def test_capath_missing_dir_is_fatal(lifecycle, decoy_ca, tmp_path):
     code, out = _nginx_t(lifecycle, "lc-capath-missing",
                          tmp_path / "no-such-dir", decoy_ca)
     assert code != 0, "a missing trust dir must be a fatal config error"
-    assert "brix_ssl_client_capath" in out and "not accessible" in out, out
+    assert "brix_client_ca_store" in out and "not accessible" in out, out
 
     code, out = _nginx_t(lifecycle, "lc-capath-file", decoy_ca, decoy_ca)
     assert code != 0, "a plain file must be rejected (hash dir required)"

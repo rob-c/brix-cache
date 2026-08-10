@@ -198,6 +198,8 @@ LIFECYCLE_SHARED_PORTS_WAVES: dict[str, dict] = {
     "lc-frm-recall": {"port": 30125},            # primary only
     "lc-cache-reap-metrics": {"port": 30126, "extra": {"METRICS_PORT": 30127}},
     "lc-ssi-metrics": {"port": 30128, "extra": {"METRICS_PORT": 30129}},
+    # §3.15 OssStats slowop classifier: stream root op + HTTP /metrics scrape.
+    "lc-slowop": {"port": 30424, "extra": {"METRICS_PORT": 30425}},
     "lc-tpc-gsi-deleg-metrics": {"port": 30422, "extra": {"METRICS_PORT": 30423}},
     "lc-tape-rest": {"port": 30130, "extra": {"STREAM_PORT": 30131}},
     "lc-put-content-encoding": {"port": 30132, "extra": {"S3_PORT": 30133}},
@@ -306,6 +308,9 @@ LIFECYCLE_SHARED_PORTS_WAVES: dict[str, dict] = {
     "lc-cms-state-server": {"port": 30210},
     "lc-cms-wire-node": {"port": 30211},
     "lc-cms-wire-server": {"port": 30212},
+    # §2.4 brix_cms_min_free node (same dial-out-to-mock-peer shape) — asserts
+    # the configured mSpace policy floor reaches the kYR_login wire field.
+    "lc-cms-wire-minfree-node": {"port": 30411},
     # Phase-61 W7 role/relay stacks (same dial-out-to-mock-peer shape).
     "lc-cms-wire-mgr-node": {"port": 30412},
     "lc-cms-wire-super": {"port": 30413},
@@ -391,6 +396,8 @@ LIFECYCLE_SHARED_PORTS_WAVES: dict[str, dict] = {
     "lc-xrdhttp-filter": {"port": 30266},
     "lc-introspect": {"port": 30267},
     "lc-pmark": {"port": 30268},
+    "lc-pmark-s3": {"port": 30268},   # phase-101 W1 SciTags-on-S3 (canonical value
+                                      # ignored; rebased by insertion order)
     "lc-pwd-multiproto": {"port": 30269,
                           "extra": {"HTTP_PORT": 30270, "HTTPS_PORT": 30271}},
     "lc-mu-direct-authz": {"port": 30272},

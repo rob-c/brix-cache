@@ -482,6 +482,34 @@ replay with zero refetches; torn segment tail + truncated journal recovered;
 bit-flipped record never served). Migration importer not built (packed and flat
 caches simply coexist per mount).
 
+**UPDATED (phase-88 W2, 2026-08-09) — the packed store reached the SERVER as a
+pblock arena, format-shared.** The G4 record layout was extracted to
+`shared/cache/cas_pack_format.h` (cas_pack.c refactored onto it; corpus
+unchanged) and pblock grew a **packed small-blob arena**
+(`src/fs/backend/pblock/pblock_pack.{c,h}`, opts `pack=1` + `pack_max=`,
+default 1 MiB): a small staged commit that survives dedup comes to rest as one
+"BXS1" record in `<root>/pack/seg-<n>.dat` instead of a per-object dir + block
+file — the inode/locality win of G4, server-side. Divergence from "a pblock
+export as the cvmfs cache backend" resolved the OPPOSITE way the plan sketched:
+the client keeps its single-process cas_pack runtime; pblock reuses the FORMAT
+with its own cross-process machinery (index = the catalog `pack` table, appends
+under a `pack/.lock` flock with fdatasync-before-index, reap-on-last-row-death;
+the cas_pack in-memory-hash/journal runtime cannot serve N nginx workers).
+Read opens serve the crc-verified record from a sealed memfd (CAP_FD/sendfile
+hold, hot path untouched); write-intent opens / CoW share-breaks / physical
+copies materialise back to the striped layout; refs dedup byte-verifies across
+both layouts. Tests = `sd_pblock_unittest_pack.c` (pack/read-back/reap,
+oversize + materialise, bit-flip → EIO, pack+dedup fold interplay; C-unit lane
+`pblock`) + `tests/test_cvmfs_global_cas_pblock.py` (live e2e: dual-repo
+dedup onto one refcounted PACKED blob through a running cvmfs proxy, no false
+folds, unverified never enters the store). `pblock-fsck` grew its pack legs
+(`_pblock_fsck_pack.c`, single-file-cc preserved): a packed blob's dir-less
+resting state is no longer DANGLING (that misfire would have had `--gc`
+deleting every packed object's row), records are shape-checked (data crc
+under `--verify-csi`), and orphan rows / dual-layout residue / record-less
+segments are reported and `--gc`-reclaimed — `tests/test_pblock_fsck_pack.py`
+(6 legs).
+
 ### G5 · Format-tiered content (decompress-once, store-optimal)
 
 **Problem.** The stock cache stores chunks zlib-compressed and decompresses on
@@ -981,6 +1009,56 @@ the store with no orphan inode, template
 `tests/configs/nginx_cvmfs_gcas_evict.conf`, lifecycle port 30411; security-neg
 = repo-B-only bytes requested via repo A → honest 404, no repo-A key
 materialises, canonical untouched).
+
+**UPDATED (phase-88 W1, 2026-08-09) — un-posixed via the SD dedup seam.** The
+hardlink mechanics moved below the storage-driver seam as two optional vtable
+slots (`dedup_publish`/`dedup_gc`, `src/fs/backend/sd.h`): posix stores keep
+the exact hardlink farm (`src/fs/backend/posix/sd_posix_dedup.c`), pblock
+stores serve the same verb through F10 refcounted-blob dedup
+(`pblock_refs_dedup_existing` — on-demand whole-object CRC when the commit-time
+hash was cleared, byte-verified folds, no alias GC needed). `gcas.c` keeps only
+the protocol knowledge (classify gate + canonical-name grammar).
+`brix_cache_global_cas` now accepts any store whose driver implements the slot;
+a pblock store additionally requires its refs gate armed
+(`brix_cache_store pblock:<dir>?dedup=1` — the `?tail` is persisted as the
+store's `pblock.opts` sidecar by config, mirroring `brix_storage_backend
+pblock://`) so dedup can never silently ENOTSUP. The cvmfs-cas verify
+constraint relaxed the same way: any driver exposing `staged_path` qualifies —
+pblock answers with the staged blob's block-0 file while single-block and
+untransformed (config warns when `block_size` sits below the
+`CVMFS_OBJECT_MAX_BYTES` ceiling: an oversize fill fails closed, never
+verifies partial bytes). Tests: `tests/test_gcas_store_gate.py` (9 nginx -t
+gate legs, both planes) + `sd_pblock_unittest_dedup_slot.c` (slot fold /
+ENOENT / ENOTSUP / colliding-hash-no-alias, C-unit lane `pblock`);
+`test_cvmfs_global_cas.py` green unchanged on the posix path.
+
+**Phase-88 W3 (2026-08-09) — cryptographic dedup identity.** The refs
+content-hash upgraded from a bare whole-object CRC-32 to a prefixed string
+tier: `sha256:<hex>` from the write path's new in-order accumulator
+(`brix_wverify_expected_sha256` — SHA rides the appending prefix; an
+out-of-order writer keeps its combinable CRC and forfeits the SHA) or computed
+on demand at the dedup slot; `crc32:<hex>` for legacy/out-of-order rows. A
+sha256 identity FOLDS ON TRUST (no byte-verify pass — forging a row means
+writing catalog.db, i.e. owning the store; `csi=1` remains the at-rest rot
+detector), while crc32 candidates keep the mandatory byte-verify. Schema
+unchanged (`blobs.content_hash` was already TEXT); pre-upgrade rows keep
+working, at worst costing a one-time dedup miss across the boundary. Tests:
+`tests/c/test_wverify.c` sha legs + the reworked collision legs in
+`sd_pblock_unittest_dedup{,_slot}.c`.
+
+**Phase-88 W5 (2026-08-10) — the safe features become STANDARD.** F3 `csi`
+(at-rest per-block CRC32c: rot is EIO on copied reads, never served;
+CAP_FSCS advertised) and W4 `nsidx` (the shared namespace cache) now arm on
+every pblock export by default — both fail-safe, both semantics-preserving-or-
+better; `csi=0` / `nsidx=0` opt out. Workload/policy gates (`dedup`, `pack`,
+`audit`, `locks`, quotas, history, lab) stay opt-in. Surfaced + fixed by the
+flip: truncation left stale csi rows (the boundary block's CRC described
+pre-truncate bytes; rows past the new tail ambushed later regrowth with
+phantom EIOs on hole reads) — `pblock_csi_truncate` + boundary-block
+written-extent folding in `sd_pblock_ftruncate`, both layout branches. Test =
+`test_standard_defaults` (`sd_pblock_unittest_defaults.c`, C-unit lane
+`pblock`): bare export arms both (rot → EIO, catalog.bxi shared-serving),
+explicit opt-out restores legacy byte-for-byte.
 
 ---
 

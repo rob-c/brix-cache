@@ -378,7 +378,7 @@ http {{
             brix_webdav on;
             brix_allow_write on;
             brix_export {d}/export;
-            brix_webdav_cafile {CA_CERT};
+            brix_trusted_ca {CA_CERT};
             brix_webdav_auth required;
             {leg}
         }}

@@ -324,8 +324,8 @@ webdav_handle_macaroon_token(ngx_http_request_t *r)
 
     /* Parse hex secret into binary key material */
     key_len = brix_macaroon_secret_parse(
-        (const char *) conf->token_macaroon_secret.data,
-        conf->token_macaroon_secret.len,
+        (const char *) conf->common.token_macaroon_secret.data,
+        conf->common.token_macaroon_secret.len,
         root_key, sizeof(root_key));
     if (key_len <= 0) {
         ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,

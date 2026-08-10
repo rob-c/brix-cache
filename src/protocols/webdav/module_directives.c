@@ -9,100 +9,28 @@
 
 /*
  * NOTE: the grid-PKI certificate directive setters
- * (brix_client_certificate_folder / brix_proxy_ssl_capath) and their static
+ * (brix_client_certificate_folder / brix_backend_ca_dir) and their static
  * probe/pick/load helpers were split out VERBATIM into
  * module_directives_cert.c (Phase-38). Both public setters remain prototyped
  * in webdav.h; the command table (module_commands.c) is unchanged.
  */
 
 /*
- * brix_webdav_authdb <file> — parse a native u/g/p authorization-rule file into
- * conf->authdb_rules. Enforced for READ methods in the access phase (webdav_access),
- * giving WebDAV per-DN/per-VO/per-host read authorization at parity with root://.
- * Reuses the stream authdb parser; the same file format works for both protocols.
+ * webdav_conf_authdb removed (phase-101 W5.2): brix_authdb is now owned by the
+ * common module (brix_http_conf_set_authdb, policy.c) and parses into the shared
+ * preamble's authdb_rules, enforced in webdav/s3/cvmfs access phases.
  */
-char *
-webdav_conf_authdb(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
-{
-    ngx_http_brix_webdav_loc_conf_t *wlcf = conf;
-    ngx_str_t                         *value;
-
-    (void) cmd;
-    value = cf->args->elts;   /* value[1] = authdb file path */
-
-    if (wlcf->authdb_rules == NGX_CONF_UNSET_PTR || wlcf->authdb_rules == NULL) {
-        wlcf->authdb_rules = ngx_array_create(cf->pool, 4,
-                                              sizeof(brix_authdb_rule_t));
-        if (wlcf->authdb_rules == NULL) {
-            return NGX_CONF_ERROR;
-        }
-    }
-
-    if (brix_parse_authdb(cf, &value[1], wlcf->authdb_rules) != NGX_OK) {
-        return NGX_CONF_ERROR;
-    }
-
-    return NGX_CONF_OK;
-}
 
 
-/*
- * brix_webdav_protbind <host-template> [none | [only] <proto>...] — bind an
- * ordered set of credential sources to a host template (the HTTP face of the
- * stream brix_protbind / XRootD sec.protbind).  The grammar and every error
- * message come from the shared engine in src/auth/protbind/, so a site can
- * write the same stanza on both protocols and get the same decision; only
- * gsi/ztn/pwd have an HTTP transport, and the rest are ignored at request time.
- */
-char *
-webdav_conf_protbind(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
-{
-    ngx_http_brix_webdav_loc_conf_t *wlcf = conf;
-
-    return brix_protbind_conf(cf, cmd, &wlcf->protbind);
-}
+/* brix_webdav_protbind removed (phase-101 W4): the bare brix_protbind is now
+ * registered by the common module (src/core/config/http_common.c) and appends to
+ * the shared preamble's common.protbind via brix_http_conf_set_protbind. The
+ * shared engine (src/auth/protbind/) still owns the grammar for every plane. */
 
 
-/*
- * brix_webdav_require_vo <path> <vo> — append a VO ACL rule (mirrors the stream
- * brix_require_vo). The rule path is normalized here; the realpath is finalized at
- * startup (brix_finalize_vo_rules, from merge_loc_conf).
- */
-char *
-webdav_conf_require_vo(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
-{
-    ngx_http_brix_webdav_loc_conf_t *wlcf = conf;
-    ngx_str_t                         *value;
-    brix_vo_rule_t                   *rule;
-
-    (void) cmd;
-    value = cf->args->elts;   /* value[1] = path, value[2] = vo */
-
-    if (wlcf->vo_rules == NGX_CONF_UNSET_PTR || wlcf->vo_rules == NULL) {
-        wlcf->vo_rules = ngx_array_create(cf->pool, 2, sizeof(brix_vo_rule_t));
-        if (wlcf->vo_rules == NULL) {
-            return NGX_CONF_ERROR;
-        }
-    }
-
-    rule = ngx_array_push(wlcf->vo_rules);
-    if (rule == NULL) {
-        return NGX_CONF_ERROR;
-    }
-    ngx_memzero(rule, sizeof(*rule));
-
-    if (brix_normalize_policy_path(cf->pool, &value[1], &rule->path) != NGX_OK) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-            "brix_webdav_require_vo: invalid path \"%V\"", &value[1]);
-        return NGX_CONF_ERROR;
-    }
-
-    if (brix_copy_conf_string(cf, &value[2], &rule->vo) != NGX_CONF_OK) {
-        return NGX_CONF_ERROR;
-    }
-
-    return NGX_CONF_OK;
-}
+/* brix_webdav_require_vo removed (phase-101 W4): the bare brix_require_vo is now
+ * registered by the common module (src/core/config/http_common.c) and appends to
+ * the shared preamble's common.vo_rules via brix_http_conf_set_require_vo. */
 
 
 char *
@@ -134,42 +62,10 @@ webdav_conf_add_cors_origin(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 }
 
 
-/*
- * brix_webdav_tpc_source_allow <host> [host ...] — append EVERY argument to the
- * WebDAV-plane TPC source-host allowlist. Uses a custom setter (not the stock
- * ngx_conf_set_str_array_slot) because that keeps only the first argument per
- * directive, which for a SECURITY allowlist silently drops every host after the
- * first on a space-separated line — the same footgun that bit
- * brix_cvmfs_upstream_allow in the field. Both forms work: one directive per
- * host, or one directive listing them all.
- */
-char *
-webdav_conf_tpc_source_allow(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
-{
-    ngx_http_brix_webdav_loc_conf_t *wlcf = conf;
-    ngx_str_t                         *value, *slot;
-    ngx_uint_t                         i;
-
-    (void) cmd;
-
-    if (wlcf->tpc_source_allow == NGX_CONF_UNSET_PTR) {
-        wlcf->tpc_source_allow = ngx_array_create(cf->pool, 4,
-                                                  sizeof(ngx_str_t));
-        if (wlcf->tpc_source_allow == NULL) {
-            return NGX_CONF_ERROR;
-        }
-    }
-
-    value = cf->args->elts;
-    for (i = 1; i < cf->args->nelts; i++) {
-        slot = ngx_array_push(wlcf->tpc_source_allow);
-        if (slot == NULL) {
-            return NGX_CONF_ERROR;
-        }
-        *slot = value[i];
-    }
-    return NGX_CONF_OK;
-}
+/* brix_webdav_tpc_source_allow removed (phase-101 W4): the bare
+ * brix_tpc_source_allow is now registered by the common module
+ * (src/core/config/http_common.c → brix_http_conf_tpc_source_allow) and appends
+ * to the shared preamble's common.tpc_source_allow. */
 
 
 /*

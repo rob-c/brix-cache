@@ -48,6 +48,14 @@ ACCEPT = [
     ("brix_cache_high_watermark 90%;", True, None),
     ("brix_cache_low_watermark 0.8;", True, None),
     ("brix_cache_include_regex \\.root$;", True, None),
+    ("brix_cache_uvkeep 0;", True, None),
+    ("brix_cache_uvkeep 1h;", True, None),
+    ("brix_cache_uvkeep 600;", True, None),
+    ("brix_cache_uvkeep 30m;", True, None),
+    ("brix_cache_max_bytes 0;", True, None),
+    ("brix_cache_max_bytes 256m;", True, None),
+    ("brix_cache_max_bytes 2g;", True, None),
+    ("brix_cache_max_bytes 1073741824;", True, None),
 ]
 
 REJECT = [
@@ -61,6 +69,8 @@ REJECT = [
     ("brix_cache_high_watermark 100%;", "greater than 0 and less than 1.0"),
     ("brix_cache_low_watermark 0;", "greater than 0 and less than 1.0"),
     ("brix_cache_include_regex [unclosed;", "invalid pattern"),
+    ("brix_cache_uvkeep notatime;", "invalid value"),
+    ("brix_cache_max_bytes banana;", "invalid value"),
 ]
 
 DUP = [
@@ -68,6 +78,8 @@ DUP = [
     "brix_cache_max_file_size 1m; brix_cache_max_file_size 2m;",
     "brix_cache_high_watermark 0.9; brix_cache_high_watermark 0.8;",
     "brix_cache_include_regex a; brix_cache_include_regex b;",
+    "brix_cache_uvkeep 1h; brix_cache_uvkeep 2h;",
+    "brix_cache_max_bytes 1m; brix_cache_max_bytes 2m;",
 ]
 
 

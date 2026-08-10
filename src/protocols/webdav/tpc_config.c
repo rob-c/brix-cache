@@ -16,53 +16,19 @@ ngx_http_brix_webdav_tpc_create_loc_conf(
     conf->tpc_timeout      = NGX_CONF_UNSET_UINT;
     conf->tpc_low_speed_bytes = NGX_CONF_UNSET_UINT;
     conf->tpc_low_speed_secs  = NGX_CONF_UNSET_UINT;
-    conf->tpc_allow_local   = NGX_CONF_UNSET;
-    conf->tpc_allow_private = NGX_CONF_UNSET;
-    conf->tpc_source_guard  = NGX_CONF_UNSET;
-    conf->tpc_source_allow  = NGX_CONF_UNSET_PTR;
+    /* tpc_allow_local/allow_private/source_guard/source_allow/require_source_size
+     * moved to the shared preamble (common.*) — phase-101 W4; init'd by
+     * ngx_http_brix_shared_init, registered bare by the common module. */
     conf->tpc_marker_interval = NGX_CONF_UNSET_UINT;
     conf->tpc_max_streams     = NGX_CONF_UNSET_UINT;
+    conf->tpc_xfr             = NGX_CONF_UNSET_UINT;
     conf->tpc_credential_forward = NGX_CONF_UNSET;
-    conf->tpc_require_source_size = NGX_CONF_UNSET;
 }
 
-/* brix_webdav_tpc_verify_checksum <alg> — name the RFC-3230 algorithm the pull
- * completion gate asks the source for (Want-Digest) and recomputes over the
- * staged temp.  Same shape as brix_cache_verify_digest: brix_checksum_parse()
- * rejects an unknown name at parse time and the canonical lowercase form is
- * stored, so the runtime never has to re-validate it. */
-char *
-brix_webdav_conf_set_tpc_verify_digest(ngx_conf_t *cf, ngx_command_t *cmd,
-    void *conf)
-{
-    ngx_http_brix_webdav_loc_conf_t *wcf = conf;
-    ngx_str_t                       *value;
-    brix_checksum_alg_t              alg;
-    char                             norm[32];
-
-    value = cf->args->elts;
-    (void) cmd;
-
-    if (wcf->tpc_verify_digest.len > 0) {
-        return "is duplicate";
-    }
-
-    if (brix_checksum_parse((const char *) value[1].data, value[1].len,
-                            &alg, norm, sizeof(norm)) != NGX_OK)
-    {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-            "brix_webdav_tpc_verify_checksum: unknown algorithm \"%V\"",
-            &value[1]);
-        return NGX_CONF_ERROR;
-    }
-
-    if (brix_pstrdupz(cf->pool, &wcf->tpc_verify_digest,
-                      (u_char *) norm, ngx_strlen(norm)) != NGX_OK)
-    {
-        return NGX_CONF_ERROR;
-    }
-    return NGX_CONF_OK;
-}
+/* brix_webdav_tpc_verify_checksum removed (phase-101 W4): unified into the bare
+ * brix_tpc_verify_checksum on|off|<alg> on the common module (shared setter
+ * brix_conf_set_tpc_verify_checksum in src/core/config/policy.c); the algorithm
+ * now lives in common.tpc_verify_checksum. */
 
 void
 ngx_http_brix_webdav_tpc_merge_loc_conf(
@@ -70,16 +36,9 @@ ngx_http_brix_webdav_tpc_merge_loc_conf(
     ngx_http_brix_webdav_loc_conf_t *prev)
 {
     ngx_conf_merge_value(conf->tpc, prev->tpc, 0);
-    /* SSRF policy: deny local, allow private by default (HEP federation nodes
-     * commonly reside on private networks, but loopback must stay blocked). */
-    ngx_conf_merge_value(conf->tpc_allow_local,   prev->tpc_allow_local,   0);
-    ngx_conf_merge_value(conf->tpc_allow_private, prev->tpc_allow_private, 1);
-    /* Source-host NAMING allowlist: opt-in (default off) and fail-closed when
-     * on — an unset/empty list denies every source.  Complements the range
-     * policy above; enforced in tpc_marker_start.c before curl dials out. */
-    ngx_conf_merge_value(conf->tpc_source_guard,  prev->tpc_source_guard,  0);
-    ngx_conf_merge_ptr_value(conf->tpc_source_allow, prev->tpc_source_allow,
-                             NULL);
+    /* SSRF policy (allow_local/allow_private) + source-host allowlist
+     * (source_guard/source_allow) merged in ngx_http_brix_shared_merge
+     * (common.*) — phase-101 W4. */
     ngx_conf_merge_str_value(conf->tpc_curl, prev->tpc_curl,
                              "/usr/bin/curl");
     ngx_conf_merge_str_value(conf->tpc_cert, prev->tpc_cert, "");
@@ -100,14 +59,11 @@ ngx_http_brix_webdav_tpc_merge_loc_conf(
     ngx_conf_merge_uint_value(conf->tpc_marker_interval,
                               prev->tpc_marker_interval, 0);
     ngx_conf_merge_uint_value(conf->tpc_max_streams, prev->tpc_max_streams, 1);
+    /* §6.9 explicit TPC concurrency cap; 0 = slot-ceiling only (compat). */
+    ngx_conf_merge_uint_value(conf->tpc_xfr, prev->tpc_xfr, 0);
 
-    /* Completion gate: both halves default OFF so an existing deployment sees no
-     * new refusal.  A size comparison still runs whenever either half is on and
-     * the source declared a length — that is free and catches truncation. */
-    ngx_conf_merge_value(conf->tpc_require_source_size,
-                         prev->tpc_require_source_size, 0);
-    ngx_conf_merge_str_value(conf->tpc_verify_digest,
-                             prev->tpc_verify_digest, "");
+    /* Completion gate: tpc_require_source_size + tpc_verify_checksum both merged
+     * in ngx_http_brix_shared_merge (common.*) — phase-101 W4. */
 
     /* Per-user TPC credential forwarding defaults ON — a PULL presents the
      * requesting user's delegated proxy / forwards their bearer to the source by

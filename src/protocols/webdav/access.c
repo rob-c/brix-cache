@@ -58,7 +58,7 @@ webdav_method_aop(ngx_http_request_t *r)
 }
 
 /*
- * webdav_acc_check — XrdAcc tier for WebDAV (when `brix_authdb_format xrdacc`).
+ * webdav_acc_check — XrdAcc tier for WebDAV (when `brix_acc_format xrdacc`).
  * Returns NGX_OK (allow / not selected) or NGX_HTTP_FORBIDDEN (deny).
  */
 static ngx_int_t
@@ -72,7 +72,7 @@ webdav_acc_check(ngx_http_request_t *r,
     ngx_int_t                         rc;
     size_t                            n;
 
-    if (conf->acc.format != BRIX_AUTHDB_FORMAT_XRDACC) {
+    if (conf->common.acc.format != BRIX_AUTHDB_FORMAT_XRDACC) {
         return NGX_OK;   /* engine not selected */
     }
 
@@ -90,7 +90,7 @@ webdav_acc_check(ngx_http_request_t *r,
     host[n] = '\0';
 
     /* Opt-in reverse DNS for `h <host>`/`h .domain` rules (per request). */
-    if (conf->acc.resolve_hosts) {
+    if (conf->common.acc.resolve_hosts) {
         char        hbuf[256];
         const char *h = brix_acc_resolve_peer(r->connection->sockaddr,
                                                 r->connection->socklen,
@@ -107,7 +107,7 @@ webdav_acc_check(ngx_http_request_t *r,
     path[n] = '\0';
 
     rc = brix_acc_http_authorize(r->pool, r->connection->log,
-                                   &conf->acc, name, host,
+                                   &conf->common.acc, name, host,
                                    vorg, role, grp,
                                    webdav_method_aop(r), path);
 
@@ -278,7 +278,7 @@ access_capture_deleg_proxy(ngx_http_request_t *r,
  * root:// enforces, so a WebDAV read — which may serve CACHED bytes — is
  * authorized identically to a cache miss.
  *
- * WHY: Runs only when brix_webdav_authdb / brix_webdav_require_vo are
+ * WHY: Runs only when brix_authdb / brix_require_vo are
  * configured (the check helpers return NGX_OK for empty rule sets, so
  * existing deployments are unaffected).  Write methods keep their
  * allow_write + xrdacc + token-scope gates.  Skips OPTIONS (CORS preflight).
@@ -299,7 +299,7 @@ access_apply_authdb(ngx_http_request_t *r,
     ngx_int_t   pr;
 
     if (webdav_is_write_method(r) || r->method == NGX_HTTP_OPTIONS
-        || (conf->authdb_rules == NULL && conf->vo_rules == NULL))
+        || (conf->common.authdb_rules == NULL && conf->common.vo_rules == NULL))
     {
         return NGX_OK;
     }
@@ -317,7 +317,7 @@ access_apply_authdb(ngx_http_request_t *r,
     peer[pn] = '\0';
 
     brix_authdb_query_t query = {
-        .rules         = conf->authdb_rules,
+        .rules         = conf->common.authdb_rules,
         .identity      = aid,
         .peer_ip       = peer,
         .resolved_path = resolved,
@@ -326,7 +326,7 @@ access_apply_authdb(ngx_http_request_t *r,
 
     if (brix_check_authdb_identity(r->connection->log, &query) != NGX_OK
         || brix_check_vo_acl_identity(r->connection->log, resolved,
-            conf->vo_rules, aid) != NGX_OK)
+            conf->common.vo_rules, aid) != NGX_OK)
     {
         return webdav_metrics_return(r, NGX_HTTP_FORBIDDEN);
     }
@@ -464,7 +464,7 @@ ngx_http_brix_webdav_access_handler(ngx_http_request_t *r)
         return webdav_metrics_return(r, NGX_HTTP_FORBIDDEN);
     }
 
-    /* XrdAcc engine (when brix_authdb_format xrdacc) */
+    /* XrdAcc engine (when brix_acc_format xrdacc) */
     if (webdav_acc_check(r, conf) != NGX_OK) {
         return webdav_metrics_return(r, NGX_HTTP_FORBIDDEN);
     }

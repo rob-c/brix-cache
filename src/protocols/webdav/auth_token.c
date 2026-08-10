@@ -357,7 +357,7 @@ wt_check_claims(ngx_http_request_t *r,
 
 /*
  *
- * WHAT: Validates WLCG/SciToken bearer tokens presented in HTTP Authorization headers using either JWKS-based JWT verification or macaroon secret-key validation. Extracts token claims (subject, scopes, expiration) and stores them in the request context for downstream operations. Supports grace-period key rotation — if a macaroon is rejected by the current secret but accepted by an old secret configured via conf->token_macaroon_secret_old, the token is still accepted with an informational log message indicating graceful migration during nginx -s reload.
+ * WHAT: Validates WLCG/SciToken bearer tokens presented in HTTP Authorization headers using either JWKS-based JWT verification or macaroon secret-key validation. Extracts token claims (subject, scopes, expiration) and stores them in the request context for downstream operations. Supports grace-period key rotation — if a macaroon is rejected by the current secret but accepted by an old secret configured via conf->common.token_macaroon_secret_old, the token is still accepted with an informational log message indicating graceful migration during nginx -s reload.
  *
  * WHY: WebDAV clients authenticate using bearer tokens rather than GSI certificates or anonymous access. This function must handle both JWT (via JWKS key set) and macaroon formats since different WLCG sites use different token types. The grace-period fallback prevents immediate access disruption during secret key rotation — in-flight tokens should be accepted until they naturally expire, avoiding a "hard break" scenario where all active clients are suddenly denied after a config reload.
  *
@@ -379,16 +379,16 @@ webdav_verify_bearer_token(ngx_http_request_t *r,
     u_char                            secret[64];
     ssize_t                           slen = 0;
 
-    if (conf->jwks_key_count <= 0 && conf->token_macaroon_secret.len == 0
+    if (conf->jwks_key_count <= 0 && conf->common.token_macaroon_secret.len == 0
         && conf->token_registry == NULL)
     {
         return NGX_DECLINED;
     }
 
-    if (conf->token_macaroon_secret.len) {
+    if (conf->common.token_macaroon_secret.len) {
         slen = brix_macaroon_secret_parse(
-            (const char *) conf->token_macaroon_secret.data,
-            conf->token_macaroon_secret.len, secret, sizeof(secret));
+            (const char *) conf->common.token_macaroon_secret.data,
+            conf->common.token_macaroon_secret.len, secret, sizeof(secret));
     }
 
     crc = wt_ensure_ctx(r, &ctx);

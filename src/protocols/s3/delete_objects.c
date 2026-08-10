@@ -63,7 +63,7 @@ s3_delete_one(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
 #endif
 
     brix_vfs_ctx_init(&vctx, r->pool, r->connection->log, BRIX_PROTO_S3,
-        cf->common.root_canon, cf->cache_root_canon, cf->common.allow_write,
+        cf->common.root_canon, cf->common.cache_root_canon, cf->common.allow_write,
         is_tls, (s3ctx != NULL) ? s3ctx->identity : NULL, fs_path);
 
     if (brix_vfs_unlink(&vctx) == NGX_OK) {

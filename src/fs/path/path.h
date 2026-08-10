@@ -24,6 +24,11 @@ ngx_int_t brix_finalize_vo_rules(ngx_log_t *log, const ngx_str_t *root,
 /* As above for authdb rules (canonicalise each rule path into .resolved). */
 ngx_int_t brix_finalize_authdb_rules(ngx_log_t *log, const ngx_str_t *root,
     ngx_array_t *rules);
+/* phase-101 W5.2c: deep-copy `src` + finalize the copy against <root> into *out
+ * (NULL if src empty), so a plane enforces shared authdb rules against its own
+ * root without mutating the pointer-inherited source. NGX_OK / NGX_ERROR. */
+ngx_int_t brix_authdb_rules_finalize_copy(ngx_conf_t *cf, const ngx_str_t *root,
+    ngx_array_t *src, ngx_array_t **out);
 /* As above for group-policy rules (canonicalise each rule path into .resolved). */
 ngx_int_t brix_finalize_group_rules(ngx_log_t *log,
     const ngx_str_t *root, ngx_array_t *rules);
@@ -193,7 +198,7 @@ int brix_chmod_confined_canon(ngx_log_t *log, const char *root_canon,
 
 /*
  * Confined extended-attribute ops on <resolved> (a path already lexically
- * confined to root_canon).  Under `brix_impersonation map` they route to the
+ * confined to root_canon).  Under `brix_idmap map` they route to the
  * broker, which re-confines (openat2 RESOLVE_BENEATH) and performs the f*xattr as
  * the mapped user (restricted to the `user.` namespace); when impersonation is
  * off they fall back to the raw path-based syscall (identical prior behaviour).
@@ -215,7 +220,7 @@ ssize_t brix_listxattr_confined_canon(ngx_log_t *log, const char *root_canon,
  * brix_dirlist_access_ok — directory-LISTING authorization for impersonation.
  *
  * A directory listing (PROPFIND / dirlist) is performed with a worker-side
- * readdir(); under `brix_impersonation map` that would expose entries the
+ * readdir(); under `brix_idmap map` that would expose entries the
  * MAPPED user has no UNIX permission to read (readdir requires read on the dir).
  * Call this before listing: when impersonation is active it asks the broker to
  * open <resolved> O_RDONLY|O_DIRECTORY AS THE MAPPED USER, so the user's own DAC

@@ -42,6 +42,13 @@ main(void)
     check(brix_fs_id_from_name("posix") >= 0, "posix registered");
     check(brix_fs_id_from_name("cache") >= 0, "cache decorator registered");
     check(brix_fs_id_from_name("xroot") >= 0, "xroot origin registered");
+    check(brix_fs_id_from_name("frm") >= 0, "frm nearline registered");
+    check(brix_fs_id_from_name("mirage") >= 0,
+          "mirage synthetic backend registered (§3 row 14)");
+
+    /* Census append-only rule: rows added later must not renumber the
+     * anchors — posix is row 0 in every build. */
+    check(brix_fs_id_from_name("posix") == 0, "posix stays row 0 (append-only)");
 
     /* Negatives: unknown / NULL / out-of-range id. */
     check(brix_fs_id_from_name("nosuchfs") == -1, "unknown name -> -1");

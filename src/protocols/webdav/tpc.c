@@ -140,7 +140,12 @@ webdav_tpc_register_transfer(ngx_http_request_t *r, ngx_uint_t direction,
     transfer.bytes_total = bytes_total > 0 ? bytes_total : 0;
     transfer.state = BRIX_TPC_STATE_PENDING;
 
-    return brix_tpc_registry_add(&transfer, r->connection->log);
+    {
+        ngx_http_brix_webdav_loc_conf_t *conf =
+            ngx_http_get_module_loc_conf(r, ngx_http_brix_webdav_module);
+        return brix_tpc_registry_add(&transfer, r->connection->log,
+                                     conf->tpc_xfr);   /* §6.9 xfr cap */
+    }
 }
 
 /*
@@ -218,12 +223,12 @@ webdav_tpc_add_bearer_header(ngx_http_request_t *r, ngx_array_t *headers,
  * for pull mode to ensure atomic commit — rename/link on success, unlink on failure.
  */
 /*
- * webdav_tpc_source_guard — enforce the brix_webdav_tpc_source_guard naming
+ * webdav_tpc_source_guard — enforce the brix_tpc_source_guard naming
  * allowlist on the REMOTE PEER authority of a COPY: the Source host on a pull,
  * the Destination host on a push.
  *
  * WHAT: when the guard is on, refuse the transfer unless the peer host is on
- *   conf->tpc_source_allow (exact host or leading-'.' domain suffix); on a
+ *   conf->common.tpc_source_allow (exact host or leading-'.' domain suffix); on a
  *   refusal emit a signal=tpc_egress guard-audit line (banned by the
  *   [xrootd-guard-tpc_egress] jail) and return NGX_HTTP_FORBIDDEN.
  * WHY:  a native TPC pull, a WebDAV COPY pull and a WebDAV COPY push are the
@@ -251,7 +256,7 @@ webdav_tpc_source_guard(ngx_http_request_t *r,
     char              egress_err[512];
     size_t            hl;
 
-    if (!conf->tpc_source_guard) {
+    if (!conf->common.tpc_source_guard) {
         return NGX_OK;
     }
 
@@ -267,8 +272,8 @@ webdav_tpc_source_guard(ngx_http_request_t *r,
         hostz[hl] = '\0';
     }
 
-    if (brix_tpc_source_guard_check(conf->tpc_source_guard,
-            conf->tpc_source_allow, hostz,
+    if (brix_tpc_source_guard_check(conf->common.tpc_source_guard,
+            conf->common.tpc_source_allow, hostz,
             egress_err, sizeof(egress_err)) == 0)
     {
         return NGX_OK;
@@ -368,7 +373,7 @@ ngx_http_brix_webdav_tpc_handle_copy(ngx_http_request_t *r)
     }
 
     /* SSRF egress control: refuse a pull whose SOURCE host is not on the
-     * brix_webdav_tpc_source_allow allowlist, before any outbound leg. */
+     * brix_tpc_source_allow allowlist, before any outbound leg. */
     rc = webdav_tpc_source_guard(r, conf, source_url);
     if (rc != NGX_OK) {
         return rc;

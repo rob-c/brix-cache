@@ -5,7 +5,7 @@
  * Holds the grid-PKI directive setters that resolve OpenSSL hashed CA
  * directories at config-parse time:
  *   brix_client_certificate_folder  -> ssl_client_certificate (front leg)
- *   brix_proxy_ssl_capath           -> proxy_ssl_trusted_certificate (back leg)
+ *   brix_backend_ca_dir           -> proxy_ssl_trusted_certificate (back leg)
  * The three probe/pick/load helpers are single-file static; both public
  * setters are prototyped in webdav.h.
  */
@@ -233,7 +233,7 @@ webdav_conf_client_cert_folder(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 
 
 /* The stock proxy module — its command table is the injection point for
- * brix_proxy_ssl_capath (see below); the module object itself is a global
+ * brix_backend_ca_dir (see below); the module object itself is a global
  * symbol even though its loc-conf struct is private. */
 extern ngx_module_t  ngx_http_proxy_module;
 
@@ -285,7 +285,7 @@ webdav_conf_pick_ca_file(ngx_conf_t *cf, ngx_str_t *folder, ngx_str_t *picked)
 
     if (ngx_open_dir(folder, &dir) != NGX_OK) {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, ngx_errno,
-                           "brix_proxy_ssl_capath: cannot open \"%V\"", folder);
+                           "brix_backend_ca_dir: cannot open \"%V\"", folder);
         return NGX_ERROR;
     }
 
@@ -338,7 +338,7 @@ webdav_conf_pick_ca_file(ngx_conf_t *cf, ngx_str_t *folder, ngx_str_t *picked)
 
 
 /*
- * brix_proxy_ssl_capath <dir> — hashed CA directory for the proxy back leg.
+ * brix_backend_ca_dir <dir> — hashed CA directory for the proxy back leg.
  *
  * WHAT: makes proxy_ssl_verify consume an OpenSSL hashed CA directory
  * (/etc/grid-security/certificates) instead of the file-only
@@ -347,7 +347,7 @@ webdav_conf_pick_ca_file(ngx_conf_t *cf, ngx_str_t *folder, ngx_str_t *picked)
  * WHY: stock nginx demands a non-empty proxy_ssl_trusted_certificate when
  * proxy_ssl_verify is on (checked in the proxy module's merge, before
  * postconfiguration) and cannot load a directory — the same gap
- * brix_ssl_client_capath closes on the front leg.
+ * brix_client_ca_store closes on the front leg.
  *
  * HOW: two halves.  Here, at parse time: validate the folder, remember it in
  * wlcf->proxy_ssl_capath (location-exact, never merged), and satisfy the
@@ -388,7 +388,7 @@ webdav_conf_proxy_ssl_capath(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 
     if (ngx_file_info(folder.data, &fi) != 0 || !ngx_is_dir(&fi)) {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, ngx_errno,
-                           "brix_proxy_ssl_capath \"%V\" is not an "
+                           "brix_backend_ca_dir \"%V\" is not an "
                            "accessible directory", &folder);
         return NGX_CONF_ERROR;
     }
@@ -396,7 +396,7 @@ webdav_conf_proxy_ssl_capath(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     rc = webdav_conf_pick_ca_file(cf, &folder, &picked);
     if (rc == NGX_DECLINED) {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                           "brix_proxy_ssl_capath \"%V\" contains no "
+                           "brix_backend_ca_dir \"%V\" contains no "
                            "<hash>.N CA files", &folder);
         return NGX_CONF_ERROR;
     }
@@ -414,7 +414,7 @@ webdav_conf_proxy_ssl_capath(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     }
     if (pcmd == NULL || pcmd->name.len == 0) {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                           "brix_proxy_ssl_capath requires the http proxy "
+                           "brix_backend_ca_dir requires the http proxy "
                            "module with SSL support");
         return NGX_CONF_ERROR;
     }
@@ -436,7 +436,7 @@ webdav_conf_proxy_ssl_capath(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 
     if (rv != NGX_CONF_OK) {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                           "brix_proxy_ssl_capath conflicts with an explicit "
+                           "brix_backend_ca_dir conflicts with an explicit "
                            "proxy_ssl_trusted_certificate in the same "
                            "location (proxy_ssl_trusted_certificate %s) — "
                            "configure exactly one of the two", rv);
@@ -446,7 +446,7 @@ webdav_conf_proxy_ssl_capath(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     wlcf->proxy_ssl_capath = folder;
 
     ngx_conf_log_error(NGX_LOG_INFO, cf, 0,
-                       "brix_proxy_ssl_capath: trusted-certificate seed "
+                       "brix_backend_ca_dir: trusted-certificate seed "
                        "\"%V\"; hashed dir added at postconfiguration",
                        &picked);
 

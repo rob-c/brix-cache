@@ -45,6 +45,7 @@ brix_dirlist_parse_request(brix_ctx_t *ctx, ngx_connection_t *c,
     walk->options = req.options;
     walk->want_cksum = (walk->options & kXR_dcksm) ? 1 : 0;
     walk->want_stat = (walk->options & (kXR_dstat | kXR_dcksm)) ? 1 : 0;
+    walk->want_online = (walk->options & kXR_online) ? 1 : 0;
 
     if (ctx->recv.payload == NULL || ctx->recv.cur_dlen == 0) {
         BRIX_BAIL_ERR(ctx, c, BRIX_OP_DIRLIST, "DIRLIST", "-", "-",
@@ -254,9 +255,10 @@ brix_dirlist_alloc_chunk(brix_ctx_t *ctx, ngx_connection_t *c,
  * the entries as a multi-frame kXR_oksofar ... kXR_ok response.
  *
  * Wire format (ClientDirlistRequest):
- *   options: bitfield controlling response content:
- *     kXR_dstat  (0x01) — include per-entry stat info
- *     kXR_dcksm  (0x02) — include per-entry checksum (implies kXR_dstat)
+ *   options: bitfield controlling response content (protocol/flags.h):
+ *     kXR_online (0x01) — omit entries whose data is not currently online
+ *     kXR_dstat  (0x02) — include per-entry stat info
+ *     kXR_dcksm  (0x04) — include per-entry checksum (implies kXR_dstat)
  *   payload: NUL-terminated path, optionally followed by CGI "?cks.type=algo"
  *
  * Response format: a flat text block with one entry per line, each terminated
@@ -284,6 +286,7 @@ brix_handle_dirlist(brix_ctx_t *ctx, ngx_connection_t *c,
 
     ngx_memzero(&walk, sizeof(walk));
     walk.chunk_cap = 65536;
+    walk.conf = conf;
 
     if (!brix_dirlist_parse_request(ctx, c, &walk, &rc)) {
         return rc;

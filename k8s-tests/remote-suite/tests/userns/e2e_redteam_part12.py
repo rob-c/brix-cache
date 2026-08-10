@@ -567,7 +567,8 @@ def _rt12_explicit_svc_root_sweep_across_pub(misowned, data, TAG, ta, tb):
         for f in os.listdir(os.path.join(data, "pub")):
             pth = os.path.join(data, "pub", f)
             stx = os.lstat(pth)
-            if (stx.st_mode & 0o170000) == 0o100000 and stx.st_uid in (UID_SVC, 0):
+            if (stx.st_mode & 0o170000) == 0o100000 and stx.st_uid in (UID_SVC, 0) \
+                    and not _is_server_sidecar(f):   # .cinfo/.meta svc-owned by design
                 pub_bad.append((f, stx.st_uid))
     except OSError:
         pass

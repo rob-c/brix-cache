@@ -12,6 +12,7 @@
 
 #include <ngx_core.h>
 #include <stddef.h>
+#include <time.h>
 
 /*
  * brix_make_tmp_path — build a unique temporary path adjacent to base_path.
@@ -43,6 +44,23 @@ ngx_int_t brix_make_tmp_path(const char *base_path, char *out, size_t out_sz);
 ngx_int_t brix_make_resume_path(const char *base_path, const char *principal,
                                   const char *stage_dir, char *out,
                                   size_t out_sz);
+
+/* POSC-orphan reaping policy (ofs.persist analog, parity audit §1.9). Governs
+ * what brix_tmp_reap_all() does with a crash-orphaned "<final>.xrd-tmp.*" temp
+ * whose owner pid is dead. AUTO removes it (the historical default); MANUAL and
+ * OFF both KEEP it for an operator to inspect/recover. Node-global: the reaper
+ * runs once at worker-0 startup, so the policy is a property of the node, set by
+ * the last server block that carries a brix_posc_persist directive. */
+#define BRIX_POSC_PERSIST_AUTO    0   /* reap dead-owner orphans (default)      */
+#define BRIX_POSC_PERSIST_MANUAL  1   /* keep orphans for manual recovery       */
+#define BRIX_POSC_PERSIST_OFF     2   /* keep orphans; no automatic recovery    */
+
+/* Set the node-global reaping policy. mode is a BRIX_POSC_PERSIST_* value;
+ * hold_sec is a grace period (seconds) — under AUTO an orphan is reaped only
+ * once it has been idle at least hold_sec (mtime age), so a temp from a transfer
+ * that is about to reconnect-and-resume is not nuked out from under it. 0 = no
+ * grace (reap immediately). Called at config time; AUTO/0 = historical behaviour. */
+void brix_tmp_reap_set_policy(int mode, time_t hold_sec);
 
 /* Register an export root to scan for orphaned atomic-write temps (phase-64 SP4).
  * Called by each protocol's config finaliser; deduped. */

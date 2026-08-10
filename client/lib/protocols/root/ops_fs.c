@@ -203,17 +203,34 @@ brix_statvfs(brix_conn *c, const char *path, char *out, size_t outsz,
 }
 
 int
-brix_locate(brix_conn *c, const char *path, char *out, size_t outsz,
-            brix_status *st)
+brix_set_cmd(brix_conn *c, const char *data, char *out, size_t outsz,
+             brix_status *st)
+{
+    ClientSetRequest req;
+    memset(&req, 0, sizeof(req));
+    req.requestid = htons(kXR_set);
+    return fs_text(c, &req, data, (uint32_t) strlen(data), out, outsz, st);
+}
+
+int
+brix_locate_opts(brix_conn *c, const char *path, unsigned options,
+                 char *out, size_t outsz, brix_status *st)
 {
     ClientLocateRequest req;
     memset(&req, 0, sizeof(req));
     req.requestid = htons(kXR_locate);
     {
-        xrdw_locate_req_t b = { .options = 0 };
+        xrdw_locate_req_t b = { .options = (uint16_t) options };
         xrdw_locate_req_pack(&b, ((ClientRequestHdr *) &req)->body);
     }
     return fs_text(c, &req, path, (uint32_t) strlen(path), out, outsz, st);
+}
+
+int
+brix_locate(brix_conn *c, const char *path, char *out, size_t outsz,
+            brix_status *st)
+{
+    return brix_locate_opts(c, path, 0, out, outsz, st);
 }
 
 int

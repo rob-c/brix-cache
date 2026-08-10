@@ -20,7 +20,7 @@
  * Grouped as one sub-struct so the per-server config block stays navigable and
  * every OCSP field is reached as conf->ocsp.<field>. */
 typedef struct {
-    ngx_flag_t  enable;      /* [brix_ocsp_enable on|off]
+    ngx_flag_t  enable;      /* [brix_ocsp on|off]
                                 Query OCSP responder for each client certificate
                                 after GSI chain verification.  Default off. */
     ngx_flag_t  soft_fail;   /* [brix_ocsp_soft_fail on|off]
@@ -215,6 +215,13 @@ typedef struct {
     ngx_flag_t          altds_monitor;    /* liveness-probe the altds and drive
                                              kYR_status suspend/resume */
     ngx_msec_t          altds_interval;   /* probe cadence; default 10s */
+    ngx_int_t           min_free_mb;      /* [brix_cms_min_free <MB>] §2.4: the
+                                             mSpace policy floor advertised in the
+                                             kYR_login payload — the free space
+                                             (MB) below which the manager should
+                                             stop selecting this node for writes.
+                                             Default 100 (byte-identical to the
+                                             prior hardcoded constant). */
 } brix_cms_conf_t;
 
 /* Active upstream health-check settings (Phase 22, off by default).  Grouped as
@@ -365,6 +372,10 @@ typedef struct {
     ngx_uint_t   high_watermark;  /* [brix_cache_high_watermark] ppm; start purge above */
     ngx_uint_t   low_watermark;   /* [brix_cache_low_watermark] ppm; purge down to */
     time_t       reap_interval;   /* [brix_cache_reap_interval] secs between ticks */
+    off_t        max_bytes;       /* [brix_cache_max_bytes] cap on cache-OWNED bytes
+                                   * (pfc.diskusage files); distinct from the ppm FS
+                                   * watermark — bounds a cache sharing a mount with
+                                   * other data. 0 = off. */
     ngx_event_t *timer;           /* per-worker watermark reaper; NULL if off */
 } brix_cache_reaper_conf_t;
 
@@ -444,6 +455,7 @@ brix_cms_conf_init(brix_cms_conf_t *c)
     c->altds_port       = NGX_CONF_UNSET;
     c->altds_monitor    = NGX_CONF_UNSET;
     c->altds_interval   = NGX_CONF_UNSET_MSEC;
+    c->min_free_mb      = NGX_CONF_UNSET;
 }
 
 static ngx_inline void
@@ -516,6 +528,7 @@ brix_cache_reaper_conf_init(brix_cache_reaper_conf_t *c)
     c->high_watermark = NGX_CONF_UNSET_UINT;
     c->low_watermark  = NGX_CONF_UNSET_UINT;
     c->reap_interval  = NGX_CONF_UNSET;
+    c->max_bytes      = NGX_CONF_UNSET;
 }
 
 /* ---- merge_srv_conf() helpers (literal-default groups) ------------------

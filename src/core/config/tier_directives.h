@@ -6,20 +6,23 @@
  * cache_passthrough,cache_passthrough_max,cache_prefetch,
  * cache_prefetch_window,cache_only_if_cached}).
  *
- * WHAT: BRIX_TIER_DIRECTIVES(pfx, conf_t, ctx, conf_off) expands to the twelve
- *       ngx_command_t initializers every protocol module declares for its
- *       tier grammar, all writing into the embedded
- *       ngx_http_brix_shared_conf_t `common` preamble.
- * WHY:  root:// (brix_*), WebDAV (brix_webdav_*) and S3 (brix_s3_*) declared
- *       byte-identical tables differing only in prefix, conf struct and
- *       context flags — a cross-protocol parity bug magnet and a triple audit
- *       surface. One macro guarantees the grammars cannot drift.
- * HOW:  The including module writes e.g.
- *           BRIX_TIER_DIRECTIVES("brix_s3_", ngx_http_s3_loc_conf_t,
- *                                NGX_HTTP_LOC_CONF, NGX_HTTP_LOC_CONF_OFFSET),
- *       inside its commands[] array. The shared sync/async and meta-mode enum
- *       tables are static per including TU (replacing the per-module twins).
- *       cvmfs deliberately exposes only cache_store and is NOT converted.
+ * WHAT: BRIX_TIER_DIRECTIVES(pfx, conf_t, ctx, conf_off) expands to the 17
+ *       ngx_command_t initializers for the tier grammar, all writing into the
+ *       embedded ngx_http_brix_shared_conf_t `common` preamble.  The
+ *       authoritative name list is the `ngx_string(pfx "...")` tokens in the
+ *       macro body below — tools/ci/check_directive_registry.py parses THIS
+ *       header for it, so adding an entry here is picked up with no hand-edit.
+ * WHY:  root://, WebDAV and S3 once declared byte-identical tables differing
+ *       only in prefix, conf struct and context flags — a cross-protocol parity
+ *       bug magnet and a triple audit surface. One macro guarantees the grammars
+ *       cannot drift.
+ * HOW:  Post-unification (2026-07 grammar + phase-101) the macro is instantiated
+ *       ONCE per plane with the BARE "brix_" prefix — HTTP via the shared common
+ *       module (http_common.c) and stream via directives_tier.h — so every HTTP
+ *       protocol inherits the one registration through the common preamble rather
+ *       than re-instantiating with its own prefix.  The shared sync/async and
+ *       meta-mode enum tables are static per including TU.  cvmfs deliberately
+ *       exposes only cache_store and is NOT converted.
  */
 
 #ifndef NGX_BRIX_TIER_DIRECTIVES_H
@@ -149,6 +152,14 @@ static ngx_conf_enum_t  brix_tier_cache_meta_enum[] = {
       ngx_conf_set_size_slot,                                                 \
       conf_off,                                                               \
       offsetof(conf_t, common.cache_prefetch_window),                         \
+      NULL },                                                                 \
+    { ngx_string(pfx "cache_uvkeep"),   /* <time>: age out a never-verified   \
+                                         * cache entry past this age so the    \
+                                         * next open revalidates (0 = off) */  \
+      (ctx) | NGX_CONF_TAKE1,                                                  \
+      ngx_conf_set_sec_slot,                                                   \
+      conf_off,                                                                \
+      offsetof(conf_t, common.cache_uvkeep),                                  \
       NULL },                                                                 \
     { ngx_string(pfx "cache_only_if_cached"), /* on|off: a read MISS returns  \
                                                * ENOENT instead of filling    \

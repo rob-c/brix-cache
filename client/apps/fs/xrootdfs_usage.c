@@ -43,8 +43,9 @@ usage_fp(FILE *out)
         "              --xattr          enable extended attributes (kXR_fattr)\n"
         "  fuse-opts:  -f -d -s -o <opt>  (e.g. -o ro -o allow_other)\n"
         "  notes: open files survive a connection drop / server restart transparently\n"
-        "         (reopen + resume at the same offset, byte-exact). utimens/chown are\n"
-        "         no-ops (no XRootD wire op); symlinks are unsupported.\n"
+        "         (reopen + resume at the same offset, byte-exact). utimens/chown and\n"
+        "         symlink/readlink/link use the vendor kXR_setattr/link extensions when\n"
+        "         the server advertises them (BriX does); ENOTSUP otherwise.\n"
         BRIX_USAGE_FOOTER("xrootdfs"));
 }
 

@@ -35,21 +35,31 @@
 /*
  * Format the full oss.* capacity report (server). `maxf` is the max single-file
  * allocation (the reference server reports it equal to free when no quota is
- * enforced); quota is fixed at -1 (unlimited). Returns snprintf's value.
+ * enforced); `quota` is the advertised oss.quota — the server's configured space
+ * quota (brix_oss_quota; §3.1), or -1 for unlimited (the default, byte-identical
+ * to before). Returns snprintf's value.
  */
 static inline int
-brix_qspace_format(char *out, size_t outsz, unsigned long long total,
+brix_qspace_format(char *out, size_t outsz, const char *cgroup,
+                     unsigned long long total,
                      unsigned long long freeb, unsigned long long maxf,
-                     unsigned long long used)
+                     unsigned long long used, long long quota)
 {
+    /* cgroup is the server's configured space-group name (brix_oss_cgroup;
+     * validated at config-parse to hold no CGI-structural bytes). NULL/empty
+     * falls back to the stock "default" so an unconfigured server is
+     * byte-identical to before. */
+    if (cgroup == NULL || cgroup[0] == '\0') {
+        cgroup = "default";
+    }
     return snprintf(out, outsz,
-                    "oss.cgroup=default"
+                    "oss.cgroup=%s"
                     "&" BRIX_QSPACE_TOK_TOTAL "%llu"
                     "&" BRIX_QSPACE_TOK_FREE  "%llu"
                     "&oss.maxf=%llu"
                     "&oss.used=%llu"
-                    "&oss.quota=-1",
-                    total, freeb, maxf, used);
+                    "&oss.quota=%lld",
+                    cgroup, total, freeb, maxf, used, quota);
 }
 
 /*

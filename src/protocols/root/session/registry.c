@@ -290,6 +290,108 @@ brix_session_fill_slot(brix_session_table_t *tbl, ngx_uint_t slot,
     e->token_auth = token_auth;
     e->last_seen  = now;
     e->in_use     = 1;
+    /* A recycled slot must not inherit the previous session's bound paths. */
+    ngx_memzero(e->pathid_map, sizeof(e->pathid_map));
+}
+
+/* ---- Locate a live slot by sessid (registry mutex held) ----
+ *
+ * WHAT: Returns the in-use entry whose sessid matches, or NULL.
+ *
+ * WHY: The three pathid-bitmap operations share this scan; keeping it a
+ *      helper keeps each public function a flat lock→find→bit-op→unlock
+ *      sequence.
+ *
+ * HOW: Linear scan to capacity, ngx_memcmp on the 16-byte id.
+ */
+static brix_session_entry_t *
+brix_session_find_locked(brix_session_table_t *tbl,
+    const u_char sessid[BRIX_SESSION_ID_LEN])
+{
+    ngx_uint_t i;
+
+    for (i = 0; i < tbl->capacity; i++) {
+        if (tbl->slots[i].in_use
+            && ngx_memcmp(tbl->slots[i].sessid, sessid,
+                          BRIX_SESSION_ID_LEN) == 0)
+        {
+            return &tbl->slots[i];
+        }
+    }
+    return NULL;
+}
+
+/* ---- Set / clear / test a session's bound-pathid bit ----
+ *
+ * WHAT: brix_session_pathid_bind marks `pathid` bound for `sessid`;
+ *       _unbind clears it; _bound returns 1 when it is currently set.
+ *       All are no-ops (or 0) for pathid outside 1-253 or an unknown session.
+ *
+ * WHY: kXR_bind assigns pathids on the SECONDARY connection's worker while
+ *      pathid-tagged requests arrive on the primary (any worker), so the
+ *      validation truth must live in the shared session registry. Stock
+ *      refuses an unbound pathid with kXR_ArgInvalid "invalid path ID"
+ *      (verified live against 5.6.9); this bitmap is what makes that answer
+ *      possible (parity-audit §1.2) and the groundwork for response
+ *      offloading (§1.1).
+ *
+ * HOW: Lock the registry mutex, find the slot by sessid, set/clear/test bit
+ *      pathid in the 32-byte map, unlock. Callers never hold the mutex.
+ */
+void
+brix_session_pathid_bind(const u_char sessid[BRIX_SESSION_ID_LEN],
+    unsigned pathid)
+{
+    brix_session_table_t *tbl = session_table();
+    brix_session_entry_t *e;
+
+    if (tbl == NULL || pathid < 1 || pathid > 253) {
+        return;
+    }
+    ngx_shmtx_lock(&brix_session_mutex);
+    e = brix_session_find_locked(tbl, sessid);
+    if (e != NULL) {
+        e->pathid_map[pathid / 8] |= (u_char) (1u << (pathid % 8));
+    }
+    ngx_shmtx_unlock(&brix_session_mutex);
+}
+
+void
+brix_session_pathid_unbind(const u_char sessid[BRIX_SESSION_ID_LEN],
+    unsigned pathid)
+{
+    brix_session_table_t *tbl = session_table();
+    brix_session_entry_t *e;
+
+    if (tbl == NULL || pathid < 1 || pathid > 253) {
+        return;
+    }
+    ngx_shmtx_lock(&brix_session_mutex);
+    e = brix_session_find_locked(tbl, sessid);
+    if (e != NULL) {
+        e->pathid_map[pathid / 8] &= (u_char) ~(1u << (pathid % 8));
+    }
+    ngx_shmtx_unlock(&brix_session_mutex);
+}
+
+int
+brix_session_pathid_bound(const u_char sessid[BRIX_SESSION_ID_LEN],
+    unsigned pathid)
+{
+    brix_session_table_t *tbl = session_table();
+    brix_session_entry_t *e;
+    int                     bound = 0;
+
+    if (tbl == NULL || pathid < 1 || pathid > 253) {
+        return 0;
+    }
+    ngx_shmtx_lock(&brix_session_mutex);
+    e = brix_session_find_locked(tbl, sessid);
+    if (e != NULL) {
+        bound = (e->pathid_map[pathid / 8] >> (pathid % 8)) & 1u;
+    }
+    ngx_shmtx_unlock(&brix_session_mutex);
+    return bound;
 }
 
 /* ---- Self-evict an over-quota identity's own LRU slot (W5 / P90-27.2) -----

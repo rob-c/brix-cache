@@ -84,6 +84,7 @@ const struct fuse_operations xfs_ops = {
     .readdir  = xfs_readdir,
     .open     = xfs_open,
     .create   = xfs_create,
+    .mknod    = xfs_mknod,
     .read     = xfs_read,
     .write    = xfs_write,
     .flush    = xfs_flush,

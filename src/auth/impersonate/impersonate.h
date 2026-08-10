@@ -7,7 +7,7 @@
  * WHAT: Public types + API for mapping an authenticated identity (GSI DN, token
  *   subject, SSS user, krb5 localname) to a concrete local UNIX account
  *   (uid + primary gid + supplementary gids), and the operating-mode constants
- *   for the `brix_impersonation off|single|map` directive.
+ *   for the `brix_idmap off|single|map` directive.
  *
  * WHY: The gateway can optionally execute namespace/open operations with the
  *   credentials of the real local user (so files are owned by, and kernel DAC is
@@ -21,7 +21,7 @@
  *   principal, then (3) a squash-to-default or deny policy, with a per-process
  *   TTL cache (modelled on src/acc/groups.c).  See docs/refactor/phase-40.
  *
- * Off-by-default: with `brix_impersonation off` (the default) NONE of this is
+ * Off-by-default: with `brix_idmap off` (the default) NONE of this is
  *   reached — the module behaves exactly as before (single worker uid).
  */
 
@@ -33,7 +33,7 @@
 #include <signal.h>            /* sig_atomic_t */
 
 /* ------------------------------------------------------------------ */
-/* Operating mode — brix_impersonation off|single|map               */
+/* Operating mode — brix_idmap off|single|map               */
 /* ------------------------------------------------------------------ */
 #define BRIX_IMP_OFF      0   /* default: no broker, no mapping, worker uid    */
 #define BRIX_IMP_SINGLE   1   /* drop-back: all identities squash to one user  */
@@ -68,9 +68,9 @@ typedef struct {
  * default min_uid".
  */
 typedef struct {
-    ngx_str_t   gridmap_path;   /* [brix_gridmap <file>] DN->user; "" = none   */
+    ngx_str_t   gridmap_path;   /* [brix_idmap_gridmap <file>] DN->user; "" = none   */
     ngx_str_t   default_user;   /* [brix_idmap_default_user] squash; "" = deny */
-    ngx_str_t   single_user;    /* [brix_impersonation_user] for SINGLE mode    */
+    ngx_str_t   single_user;    /* [brix_idmap_user] for SINGLE mode    */
     uid_t       min_uid;        /* [brix_idmap_min_uid] refuse uid < this       */
     ngx_int_t   cache_ttl;      /* [brix_idmap_cache_ttl] secs; <=0 -> default  */
     ngx_flag_t  primary_only;   /* resolve only the primary group (skip getgrouplist) */
@@ -121,8 +121,8 @@ ngx_int_t brix_idmap_resolve(const brix_idmap_conf_t *conf,
 /*
  * Load the grid-mapfile at `path` into THIS process for authorization-gate
  * identity mapping, independent of the impersonation broker.  Every worker
- * calls this at init when brix_gridmap is configured, regardless of the
- * brix_impersonation mode (off|single|map) — DN->local-username mapping for
+ * calls this at init when brix_idmap_gridmap is configured, regardless of the
+ * brix_idmap mode (off|single|map) — DN->local-username mapping for
  * authorization must not require the privileged broker.  Idempotent-reloadable
  * (drops any previous table); a NULL/"" path clears it.  Returns NGX_OK (incl.
  * the "no path" case) or NGX_ERROR on an IO/parse error.  Shares the same
@@ -226,7 +226,7 @@ extern uid_t brix_imp_broker_allow_uid;
  * Hyper-hardening: when set to a real uid/gid (not (uid_t)-1), the broker drops
  * its real uid/gid to this dedicated NON-ROOT service account after startup,
  * keeping ONLY CAP_SETUID/CAP_SETGID — so nothing runs as root once serving.  Set
- * by the lifecycle layer (from brix_impersonation_broker_user) before
+ * by the lifecycle layer (from brix_idmap_broker_user) before
  * brix_imp_broker_run; the forked broker inherits them.  (uid_t)-1 => stay root.
  */
 extern uid_t brix_imp_broker_user_uid;

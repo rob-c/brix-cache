@@ -118,29 +118,55 @@ decode_pages(const uint8_t *pg, uint32_t pglen, int64_t file_off,
 }
 
 
-static ssize_t
-file_pgread_frames(brix_conn *c, brix_file *f, int64_t offset, void *buf,
-                   size_t len, brix_status *st)
+/* Corrupt pages tolerated per pgread before failing outright: a flipped bit
+ * on the wire hits one page; a server producing MORE corrupt pages than this
+ * is not "a bit flip" and retrying each would let it stall the client. */
+#define XRDC_PGREAD_BADMAX     16
+/* kXR_pgRetry attempts per corrupt page before the integrity verdict. */
+#define XRDC_PGREAD_RETRIES    2
+
+/* ---- Re-request ONE corrupt page with the kXR_pgRetry request args ----
+ *
+ * WHAT: Issues a fresh kXR_pgread of exactly [pgoff, pgoff+pglen) carrying the
+ *       ClientPgReadReqArgs payload {pathid=0, reqflags=kXR_pgRetry}, decodes
+ *       it STRICTLY (any CRC mismatch fails), and writes the page into dst.
+ *       Returns 0 corrected / -1 (st set).
+ *
+ * WHY: §7.14 — a single flipped bit between server and client used to abort
+ *      the whole transfer even though the server still holds good bytes; the
+ *      write side already re-sends corrupt pages (pgwrite_retry_one), so the
+ *      read side re-REQUESTS them. The args payload is the §1.2 wire surface:
+ *      stock and BriX servers both serve it as a fresh re-read (verified live
+ *      against 5.6.9 — unknown flags tolerated, pathid 0 always valid).
+ *
+ * HOW: 1. pgread request with offset=pgoff, rlen=pglen, 2-byte args payload.
+ *      2. Frame loop mirroring file_pgread_frames, but decode_pages (strict)
+ *         — a retry that comes back corrupt again is a failed retry.
+ *      3. Total must equal pglen: a short answer is a protocol error.
+ */
+static int
+pgread_retry_page(brix_conn *c, brix_file *f, int64_t pgoff, uint32_t pglen,
+                  uint8_t *dst, brix_status *st)
 {
     ClientPgReadRequest req;
+    brix_payload        pl;
+    uint8_t             args[2] = { 0, kXR_pgRetry };
     uint16_t            sid;
     size_t              total = 0;
 
     memset(&req, 0, sizeof(req));
     req.requestid = htons(kXR_pgread);
     {
-        xrdw_pgread_req_t b = { .offset = offset, .rlen = (int32_t) len };
+        xrdw_pgread_req_t b = { .offset = pgoff, .rlen = (int32_t) pglen };
         memcpy(b.fhandle, f->fhandle, XRD_FHANDLE_LEN);
         xrdw_pgread_req_pack(&b, ((ClientRequestHdr *) &req)->body);
     }
-    /* dlen (offset 20) is set to 0 by brix_send (no args payload). */
+    pl.data = args;
+    pl.len  = sizeof(args);
 
-    if (brix_send(c, &req, NULL, &sid, st) != 0) {
+    if (brix_send(c, &req, &pl, &sid, st) != 0) {
         return -1;
     }
-
-    /* Accumulate kXR_status frames until resptype=Final (the module sends one
-     * Final frame per request; Partial is handled defensively). */
     for (;;) {
         uint8_t  resptype = 0;
         uint32_t pgdlen = 0;
@@ -166,8 +192,8 @@ file_pgread_frames(brix_conn *c, brix_file *f, int64_t offset, void *buf,
             free(pg);
             return -1;
         }
-        decoded = decode_pages(pg, pgdlen, foff,
-                               (uint8_t *) buf + total, len - total, st);
+        decoded = decode_pages(pg, pgdlen, foff, dst + total,
+                               (size_t) pglen - total, st);
         free(pg);
         if (decoded < 0) {
             return -1;
@@ -175,6 +201,125 @@ file_pgread_frames(brix_conn *c, brix_file *f, int64_t offset, void *buf,
         total += (size_t) decoded;
         if (resptype == kXR_FinalResult) {
             break;
+        }
+    }
+    if (total != (size_t) pglen) {
+        brix_status_set(st, XRDC_EPROTO, 0,
+                        "pgread retry short answer (%zu of %u bytes)",
+                        total, pglen);
+        return -1;
+    }
+    return 0;
+}
+
+static ssize_t
+file_pgread_frames(brix_conn *c, brix_file *f, int64_t offset, void *buf,
+                   size_t len, brix_status *st)
+{
+    ClientPgReadRequest req;
+    uint16_t            sid;
+    size_t              total = 0;
+    xrdp_pg_bad_t       bad[XRDC_PGREAD_BADMAX];
+    size_t              nbad = 0;
+    size_t              k;
+
+    memset(&req, 0, sizeof(req));
+    req.requestid = htons(kXR_pgread);
+    {
+        xrdw_pgread_req_t b = { .offset = offset, .rlen = (int32_t) len };
+        memcpy(b.fhandle, f->fhandle, XRD_FHANDLE_LEN);
+        xrdw_pgread_req_pack(&b, ((ClientRequestHdr *) &req)->body);
+    }
+    /* dlen (offset 20) is set to 0 by brix_send (no args payload). */
+
+    if (brix_send(c, &req, NULL, &sid, st) != 0) {
+        return -1;
+    }
+
+    /* Accumulate kXR_status frames until resptype=Final (the module sends one
+     * Final frame per request; Partial is handled defensively).  §7.14: pages
+     * are decoded with the COLLECT decoder — corrupt pages land in buf like
+     * everything else and are recorded rather than fatal, then re-requested
+     * below once the response is fully drained (the wire must be clean before
+     * a new request goes out). */
+    for (;;) {
+        uint8_t  resptype = 0;
+        uint32_t pgdlen = 0;
+        int64_t  foff = 0;
+        uint8_t *pg;
+        ssize_t  decoded;
+        size_t   frame_bad = 0;
+
+        if (read_status_frame(c, sid, &resptype, &pgdlen, &foff, st) != 0) {
+            return -1;
+        }
+        if (pgdlen == 0) {
+            if (resptype == kXR_FinalResult) {
+                break;
+            }
+            continue;
+        }
+        pg = (uint8_t *) malloc(pgdlen);
+        if (pg == NULL) {
+            brix_status_set(st, XRDC_EPROTO, 0, "out of memory (%u)", pgdlen);
+            return -1;
+        }
+        if (brix_read_full(&c->io, pg, pgdlen, st) != 0) {
+            free(pg);
+            return -1;
+        }
+        decoded = xrdp_pg_decode_collect(pg, pgdlen, foff,
+                                         (uint8_t *) buf + total,
+                                         len - total,
+                                         bad + nbad, XRDC_PGREAD_BADMAX - nbad,
+                                         &frame_bad);
+        free(pg);
+        if (decoded == -3) {   /* collect cap hit: bad-page flood */
+            brix_status_set(st, XRDC_EINTEGRITY, 0,
+                            "pgread: more than %d corrupt pages in one "
+                            "request — refusing to retry a poisoned stream",
+                            XRDC_PGREAD_BADMAX);
+            return -1;
+        }
+        if (decoded < 0) {
+            brix_status_set(st, XRDC_EPROTO, 0,
+                            "pgread malformed page framing");
+            return -1;
+        }
+        nbad  += frame_bad;
+        total += (size_t) decoded;
+        if (resptype == kXR_FinalResult) {
+            break;
+        }
+    }
+
+    /* §7.14: re-request each corrupt page (bounded), overwriting its bytes in
+     * buf.  A page that stays corrupt after the attempts is the old hard
+     * error, same message shape as before. */
+    for (k = 0; k < nbad; k++) {
+        int attempt, fixed = 0;
+
+        for (attempt = 0; attempt < XRDC_PGREAD_RETRIES && !fixed; attempt++) {
+            brix_status rst;
+            brix_status_clear(&rst);
+            if (pgread_retry_page(c, f, bad[k].off, bad[k].dlen,
+                                  (uint8_t *) buf
+                                  + (size_t) (bad[k].off - offset),
+                                  &rst) == 0)
+            {
+                fixed = 1;
+            } else if (rst.kxr != XRDC_EINTEGRITY) {
+                /* transport/protocol failure — surface it, do not loop */
+                *st = rst;
+                return -1;
+            }
+        }
+        if (!fixed) {
+            brix_status_set(st, XRDC_EINTEGRITY, 0,
+                            "pgread CRC mismatch at offset %lld "
+                            "(unrecovered after %d retries)",
+                            (long long) bad[k].off, XRDC_PGREAD_RETRIES);
+            return -1;
         }
     }
     return (ssize_t) total;

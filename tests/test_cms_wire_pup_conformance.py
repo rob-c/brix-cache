@@ -45,6 +45,51 @@ class TestLoginPupEncoding:
 
 
 # ===========================================================================
+# Class 1b — §2.4 brix_cms_min_free -> kYR_login mSpace field
+# ===========================================================================
+
+class TestLoginMinFree:
+    """§2.4 brix_cms_min_free — the mSpace policy floor the manager reads to stop
+    selecting a near-full node.  Was a hardcoded 100 MB; now configurable.  Each
+    value is decoded straight off the LOGIN wire."""
+
+    def test_default_min_free_is_100_mb(self, login_frame):
+        """(default/compat) a node with NO brix_cms_min_free advertises mSpace ==
+        100 — byte-identical to the historical NGX_BRIX_CMS_MIN_FREE_MB constant,
+        so existing meshes see no change."""
+        _sid, code, _mod, payload = login_frame
+        assert code == CMS_RR_LOGIN
+        d = _decode_login(payload)
+        assert d["mspace"] == 100, \
+            f"default mSpace must stay 100 MB, got {d['mspace']}"
+
+    def test_configured_min_free_reaches_mspace(self, minfree_login_frame):
+        """(success) brix_cms_min_free <MB> sets the login mSpace field.  The
+        chosen value (>65535) also proves it rides the wire as a full 32-bit
+        PT_INT, never truncated to the PT_SHORT width."""
+        (_sid, code, _mod, payload), _peer = minfree_login_frame
+        assert code == CMS_RR_LOGIN
+        d = _decode_login(payload)
+        assert d["mspace"] == CMS_MINFREE_TEST_MB, \
+            f"mSpace must equal the configured {CMS_MINFREE_TEST_MB}, got {d['mspace']}"
+
+    def test_min_free_does_not_disturb_login_layout(self, minfree_login_frame):
+        """(security-neg/layout) an operator-set mSpace must not shift or overflow
+        the fixed CmsLoginData layout: Version stays intact, the ten scalars +
+        four-string tail still consume the whole payload, and the SID still
+        carries the node's dPort AFTER the enlarged field."""
+        (_sid, _code, _mod, payload), peer = minfree_login_frame
+        assert payload[0] == CMS_PT_SHORT and \
+            struct.unpack(">H", payload[1:3])[0] == CMS_LOGIN_VERSION, \
+            "enlarged mSpace corrupted the Version scalar / frame head"
+        d = _decode_login(payload)
+        assert d["_tail_pos"] == len(payload), \
+            "enlarged mSpace desynced the login layout (trailing/short bytes)"
+        assert d["sid"].endswith(str(peer.node_port).encode()), \
+            f"SID lost the dPort after the enlarged mSpace: {d['sid']!r}"
+
+
+# ===========================================================================
 # Class 2 — empty Pup string encoding
 # ===========================================================================
 

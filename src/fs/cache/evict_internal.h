@@ -83,6 +83,34 @@ typedef struct {
     ngx_uint_t  occupancy_ppm;   /* used/total in parts-per-million (0-1000000) */
 } brix_cache_fs_usage_t;
 
+/*
+ * brix_cache_evict_ctx_t — the invariant context for a single purge pass.
+ *
+ * Bundles the state that stays fixed while brix_cache_evict_one() walks the
+ * candidate list — conf, optional per-connection metrics ctx / manager socket,
+ * log, the candidate list, the running FS usage, the cold-tier decorator, and the
+ * evicted counters. Shared by the ppm engine (evict_policy.c) and the owned-bytes
+ * purge (reap_watermark.c), so it lives here rather than in one .c.
+ */
+typedef struct {
+    ngx_stream_brix_srv_conf_t *conf;
+    brix_ctx_t                 *ctx;
+    ngx_connection_t           *c;
+    ngx_log_t                  *log;
+    brix_cache_evict_list_t    *list;
+    brix_cache_fs_usage_t      *usage;
+    brix_sd_instance_t         *decorator; /* composed sd_cache (tier grammar)
+                                            * or NULL — phase-85 F7 victims
+                                            * demote into its cold tier      */
+    ngx_uint_t                  evicted_files;
+    uint64_t                    evicted_bytes;
+    unsigned                    skip_usage_remeasure:1; /* the owned-bytes
+                                            * (max_bytes) purge tracks its target
+                                            * from evicted_bytes, so evict_one
+                                            * skips the per-unlink statvfs the
+                                            * ppm passes need for their loop     */
+} brix_cache_evict_ctx_t;
+
 /* ---- evict_candidates.c helpers called from evict_policy.c -------------- */
 
 /*
@@ -149,6 +177,24 @@ ngx_int_t brix_cache_collect_dir(brix_cache_evict_list_t *list,
     const char *dir, ngx_log_t *log);
 
 /*
+ * brix_cache_collect_and_sort — stat the physical cache root, initialise
+ * ec->list, walk the root collecting every regular file, and sort oldest-first.
+ * Shared by the ppm purge (after its occupancy short-circuit) and the owned-bytes
+ * purge. Collection failure is non-fatal; a failed root stat returns NGX_ERROR.
+ */
+ngx_int_t brix_cache_collect_and_sort(brix_cache_evict_ctx_t *ec,
+    const char *phys_root, const char *protect_path);
+
+/*
+ * brix_cache_evict_one — remove candidate idx (cold-tier demote, object +
+ * sidecars, manager unregister) and accumulate ec->evicted_files/_bytes. Unless
+ * ec->skip_usage_remeasure is set it re-measures ec->usage after the unlink (the
+ * ppm passes' loop condition) and returns NGX_ERROR on a statvfs failure; with it
+ * set the owned-bytes purge skips that and always returns NGX_OK.
+ */
+ngx_int_t brix_cache_evict_one(brix_cache_evict_ctx_t *ec, size_t idx);
+
+/*
  * brix_cache_purge_to_target — the fill-task-free eviction engine shared by the
  * on-fill safety net (brix_cache_evict_if_needed) and the background watermark
  * reaper (brix_cache_watermark_purge). Collects candidates under cache_root,
@@ -161,6 +207,18 @@ ngx_int_t brix_cache_collect_dir(brix_cache_evict_list_t *list,
 ngx_int_t brix_cache_purge_to_target(ngx_stream_brix_srv_conf_t *conf,
     brix_ctx_t *ctx, ngx_connection_t *c, const char *protect_path,
     ngx_uint_t target_ppm, ngx_log_t *log, ngx_uint_t *evicted_files_out,
+    uint64_t *evicted_bytes_out);
+
+/*
+ * brix_cache_purge_to_max_bytes — evict oldest-first until the cache's OWN total
+ * bytes drop to `max_bytes` (audit §4.7 files-watermark, upstream pfc.diskusage
+ * files). Cache-owned footprint, NOT filesystem occupancy — bounds a cache that
+ * shares a mount with other data. max_bytes == 0 = off. The CALLER owns the
+ * cross-worker eviction lock. Writes evicted counts (out-pointers may be NULL);
+ * NGX_OK, or NGX_ERROR if the candidate collection could not start.
+ */
+ngx_int_t brix_cache_purge_to_max_bytes(ngx_stream_brix_srv_conf_t *conf,
+    ngx_log_t *log, uint64_t max_bytes, ngx_uint_t *evicted_files_out,
     uint64_t *evicted_bytes_out);
 
 /*

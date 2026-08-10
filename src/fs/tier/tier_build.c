@@ -134,6 +134,12 @@ brix_tier_pblock_hand_to_worker(const char *root, ngx_log_t *log)
     static const char *tails[] = {
         "", "/data", "/catalog.db", "/catalog.db-wal", "/catalog.db-shm",
         "/catalog.db-journal",
+        /* phase-88: the packed-arena dir + its append lock (W2), the shared
+         * namespace-cache mmap (W4) and the static-opts sidecar — all created
+         * root-owned by the master's validation build when their opts are
+         * armed; an unchowned catalog.bxi/pack would silently disarm the
+         * feature in every de-escalated worker. */
+        "/pack", "/pack/.lock", "/catalog.bxi", "/pblock.opts",
     };
     uid_t      uid;
     gid_t      gid;

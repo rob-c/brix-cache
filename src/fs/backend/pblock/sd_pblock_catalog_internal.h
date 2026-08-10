@@ -62,6 +62,11 @@ struct pblock_catalog {
     pthread_mutex_t     cache_mtx;
     uint64_t            cache_gen;     /* bumped on any invalidation/clear */
     pblock_nscache_ent *cache;         /* BUCKETS entries, or NULL = disabled */
+    void               *nsidx;         /* phase-88 W4: shared mmap table
+                                        * (catalog.bxi), or NULL = worker-local
+                                        * heap cache above */
+    int                 nsidx_fd;      /* held open: its SH flock is the
+                                        * cross-process liveness signal */
 };
 
 /* ---- shared SQL primitives (defined in sd_pblock_catalog.c) -------------- */
@@ -102,5 +107,23 @@ void nscache_inval(pblock_catalog *cat, const char *path);
 
 /* Invalidate everything (used by rename, which reparents whole subtrees). */
 void nscache_clear(pblock_catalog *cat);
+
+/* ---- shared-mmap namespace cache (sd_pblock_catalog_nsidx.c, W4) ---------- *
+ * The pathidx-style promotion of the heap cache: same direct-mapped positive-
+ * entry semantics, but the table lives in a mmap'd <root>/catalog.bxi shared
+ * by every worker process — a hit one worker fills warms all of them, an
+ * invalidation one worker writes is seen by all of them (a strict coherence
+ * upgrade over the worker-local heap table), and the whole thing survives on
+ * lock-free per-entry seqlocks + atomic generation/epoch counters (no mutex,
+ * no nginx SHM zone). The nscache_* entry points above dispatch here whenever
+ * cat->nsidx is armed. */
+int  nsidx_get(pblock_catalog *cat, const char *path, pblock_meta *out);
+uint64_t nsidx_gen(pblock_catalog *cat);
+void nsidx_store(pblock_catalog *cat, const char *path,
+    const pblock_meta *meta, uint64_t gen);
+void nsidx_put(pblock_catalog *cat, const char *path, const pblock_meta *meta);
+void nsidx_inval(pblock_catalog *cat, const char *path);
+void nsidx_clear(pblock_catalog *cat);
+void nsidx_close(pblock_catalog *cat);
 
 #endif /* BRIX_SD_PBLOCK_CATALOG_INTERNAL_H */

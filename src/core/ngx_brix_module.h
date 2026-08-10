@@ -158,12 +158,34 @@ ngx_int_t brix_check_pki_consistency_stream(ngx_log_t *log,
 /* "require_vo <prefix> <vo>": append a path-prefix VO-membership ACL rule. */
 char *brix_conf_set_require_vo(ngx_conf_t *cf, ngx_command_t *cmd,
     void *conf);
+/* Shared VO-ACL rule parser (phase-101 W3): append one parsed brix_vo_rule_t to
+ * *slot (lazily created).  Reused by the stream_common owner so a bare
+ * brix_require_vo parses identically wherever it is registered. */
+char *brix_vo_rules_append(ngx_conf_t *cf, ngx_str_t *value, ngx_array_t **slot);
+/* Same directive on the HTTP planes (phase-101 W4): appends to the shared
+ * preamble's vo_rules; registered by the common module, adopted into every HTTP
+ * protocol conf. See src/core/config/policy.c. */
+char *brix_http_conf_set_require_vo(ngx_conf_t *cf, ngx_command_t *cmd,
+    void *conf);
 /* "authdb <file>": load an identity-based ACL ruleset (u/g/p/a + privs). */
 char *brix_conf_set_authdb(ngx_conf_t *cf, ngx_command_t *cmd,
+    void *conf);
+/* Same directive on the HTTP planes (phase-101 W5.2): parses the native u/g/p
+ * READ ACL into the shared preamble's authdb_rules; registered by the common
+ * module, enforced in the webdav/s3/cvmfs access phases. See policy.c. */
+char *brix_http_conf_set_authdb(ngx_conf_t *cf, ngx_command_t *cmd,
     void *conf);
 /* "brix_protbind <host-template> [none | [only] <proto>...]": append a
  * per-host authentication-protocol binding (XRootD sec.protbind). */
 char *brix_conf_set_protbind(ngx_conf_t *cf, ngx_command_t *cmd,
+    void *conf);
+/* Same directive on the HTTP planes (phase-101 W4): appends to the shared
+ * preamble's protbind; registered by the common module. See policy.c. */
+char *brix_http_conf_set_protbind(ngx_conf_t *cf, ngx_command_t *cmd,
+    void *conf);
+/* "brix_tpc_verify_checksum on|off|<alg>" (phase-101 W4): unified post-copy TPC
+ * integrity grammar, one setter for every plane (common is member 0). policy.c. */
+char *brix_conf_set_tpc_verify_checksum(ngx_conf_t *cf, ngx_command_t *cmd,
     void *conf);
 /* "inherit_parent_group <prefix>": append a rule taking group ownership from
  * the parent directory rather than file metadata under that prefix. */
@@ -226,6 +248,18 @@ char *brix_conf_set_cache_verify_digest(ngx_conf_t *cf,
  * namespace this cache advertises to the Pelican Director. */
 char *brix_conf_set_cache_advertise_ns(ngx_conf_t *cf,
     ngx_command_t *cmd, void *conf);
+/* "brix_posc_persist <auto|manual|off> [hold <time>]": ofs.persist analog —
+ * governs the boot-time reaper of crash-orphaned POSC upload temps (§1.9). */
+char *brix_conf_set_posc_persist(ngx_conf_t *cf, ngx_command_t *cmd,
+    void *conf);
+/* "brix_fsoverload_redirect <host> <port>": xrootd.fsoverload redirect action —
+ * a memory-budget-overloaded read/readv redirects to <host> instead of stalling. */
+char *brix_conf_set_fsoverload_redirect(ngx_conf_t *cf, ngx_command_t *cmd,
+    void *conf);
+/* "brix_admin_socket <path>": §1.16 runtime admin unix socket (XrdXrootdAdmin
+ * analog) — node-global, worker 0; defined in session/admin_socket.c. */
+char *brix_conf_set_admin_socket(ngx_conf_t *cf, ngx_command_t *cmd,
+    void *conf);
 /* "brix_write_through on|off": enable mirroring dirty handles to origin on
  * sync/close. */
 char *brix_conf_set_wt_enable(ngx_conf_t *cf, ngx_command_t *cmd,
@@ -329,7 +363,8 @@ ngx_int_t brix_handle_prepare(brix_ctx_t *ctx, ngx_connection_t *c,
     ngx_stream_brix_srv_conf_t *conf);
 /* kXR_set: accept client advisory hints (appid/CMS-space, clttl); always
  * replies kXR_ok even for unknown modifiers. */
-ngx_int_t brix_handle_set(brix_ctx_t *ctx, ngx_connection_t *c);
+ngx_int_t brix_handle_set(brix_ctx_t *ctx, ngx_connection_t *c,
+    ngx_stream_brix_srv_conf_t *conf);
 /* Fire-and-forget spawn of the configured staging command with the resolved
  * absolute paths as argv (double-fork; no shell, no injection; paths must be
  * pre-confined by the caller). coloc sets BRIX_PREPARE_COLOC=1 in the child.

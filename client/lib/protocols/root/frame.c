@@ -31,6 +31,16 @@ brix_send_ext(brix_conn *c, void *hdr24, const brix_payload_ext *pl,
     uint32_t    send_len = (pl != NULL) ? pl->len : 0;
     uint32_t    dlen     = (pl != NULL) ? pl->dlen : 0;
 
+    /* §7.7: a connection inherited across fork() was neutered by the atfork
+     * child handler — refuse with a NON-retryable verdict (EUSAGE class) so
+     * the resilient layer does not transparently re-login as the child. */
+    if (c->forked) {
+        brix_status_set(st, XRDC_EUSAGE, 0,
+                        "connection is not usable after fork() — open a new "
+                        "connection in the child");
+        return -1;
+    }
+
     uint8_t *h   = (uint8_t *) hdr24;
     uint16_t sid = c->next_sid++;
     uint32_t be  = htonl(dlen);
@@ -370,6 +380,43 @@ resp_deliver(brix_resp_out *out, uint16_t stat, uint8_t *buf, uint32_t dlen)
 }
 
 /*
+ * WHAT: §7.18 — surface an unsolicited kXR_attn(asyncms) and free its body.
+ *       For actnum kXR_asyncms the printable message text is shown to the
+ *       operator; every other (no-longer-supported) actnum is skipped. Never
+ *       fails the caller's operation.
+ * WHY:  A stock server may push an async message (impending shutdown, MOTD)
+ *       at any moment, including while the client awaits a reply. Ignoring the
+ *       FRAME is correct; the old code fell through to "unexpected status" and
+ *       FAILED the in-flight operation. Only asyncms is live+unsolicited in
+ *       the 5.6.9 baseline (asynresp arrives only on the waitresp path).
+ * HOW:  actnum is the leading big-endian int32; the remaining body is filtered
+ *       to printable ASCII — a server-controlled string must never carry
+ *       terminal escape sequences to the user's tty — bounded to 512 chars.
+ */
+static void
+recv_handle_attn(rx_frame_t *f)
+{
+    if (f->dlen >= 4 && f->buf != NULL
+        && xrd_get_u32_be(f->buf) == (uint32_t) kXR_asyncms) {
+        char   msg[513];
+        size_t n = 0, i;
+
+        for (i = 4; i < f->dlen && n < sizeof(msg) - 1; i++) {
+            uint8_t ch = f->buf[i];
+            if (ch >= 0x20 && ch <= 0x7e) {
+                msg[n++] = (char) ch;
+            }
+        }
+        msg[n] = '\0';
+        if (n > 0) {
+            fprintf(stderr, "xrootd server message: %s\n", msg);
+        }
+    }
+    free(f->buf);
+    f->buf = NULL;
+}
+
+/*
  * WHAT: interpret a validated frame's status field — the brix_recv switch.
  * WHY:  isolates the per-status policy (which statuses surface, which defer,
  *       which fail) from the read/validate mechanics.
@@ -430,18 +477,33 @@ brix_recv(brix_conn *c, uint16_t want_sid, brix_resp_out *out, brix_status *st)
     if (out->body != NULL) { *out->body = NULL; }
     if (out->blen != NULL) { *out->blen = 0; }
 
-    if (frame_read_header(c, hdr, &f, st) != 0) {
-        return -1;
+    for (;;) {
+        if (frame_read_header(c, hdr, &f, st) != 0) {
+            return -1;
+        }
+        /* §7.18: an unsolicited kXR_attn(asyncms) can arrive between the
+         * request and its reply — outer streamid {0,0}, so it never matches
+         * want_sid. Surface it and loop for the real reply rather than
+         * tripping the streamid check or the dispatch "unexpected status"
+         * default (which used to fail the whole operation). */
+        if (f.stat == kXR_attn) {
+            if (frame_read_body(c, &f, st) != 0) {
+                return -1;
+            }
+            recv_note_diag(c, hdr, &f);
+            recv_handle_attn(&f);
+            continue;
+        }
+        if (want_sid != 0xffff && f.sid != want_sid) {
+            brix_status_set(st, XRDC_EPROTO, 0,
+                            "stream id mismatch (got %u, want %u)",
+                            f.sid, want_sid);
+            return -1;
+        }
+        if (frame_read_body(c, &f, st) != 0) {
+            return -1;
+        }
+        recv_note_diag(c, hdr, &f);
+        return recv_dispatch(c, want_sid, &f, out, st);
     }
-    if (want_sid != 0xffff && f.sid != want_sid) {
-        brix_status_set(st, XRDC_EPROTO, 0,
-                        "stream id mismatch (got %u, want %u)", f.sid, want_sid);
-        return -1;
-    }
-    if (frame_read_body(c, &f, st) != 0) {
-        return -1;
-    }
-
-    recv_note_diag(c, hdr, &f);
-    return recv_dispatch(c, want_sid, &f, out, st);
 }

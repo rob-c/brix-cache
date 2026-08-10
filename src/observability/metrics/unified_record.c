@@ -92,6 +92,23 @@ brix_metric_op_count(brix_proto_t proto, brix_metric_op_t op,
     BRIX_ATOMIC_INC(&shm->unified.io_ops_total[proto][op][err]);
 }
 
+void
+brix_metric_offload(brix_proto_t proto)
+{
+    ngx_brix_metrics_t *shm;
+
+    if (proto >= BRIX_PROTO_COUNT) {
+        return;
+    }
+
+    shm = brix_metrics_shared();
+    if (shm == NULL) {
+        return;
+    }
+
+    BRIX_ATOMIC_INC(&shm->unified.io_offload_total[proto]);
+}
+
 /*
  * brix_metric_op_latency — histogram-only recording (phase-56 D-2).
  *
@@ -132,6 +149,18 @@ brix_metric_op_latency(brix_proto_t proto, brix_metric_op_t op,
     BRIX_ATOMIC_INC(&shm->unified.io_latency_count[proto][op]);
     BRIX_ATOMIC_ADD(&shm->unified.io_latency_sum_usec[proto][op],
                       latency_usec);
+
+    /* §3.15 slowop classifier: book the op as slow iff a threshold is armed
+     * (non-zero) and this sample met or exceeded it. Read the threshold once
+     * (it is stamped at init_module and never mutated by workers) so a reload
+     * that clears it cannot make this comparison use a torn value. */
+    {
+        ngx_atomic_uint_t thr = shm->unified.slowop_threshold_usec;
+
+        if (thr != 0 && (ngx_atomic_uint_t) latency_usec >= thr) {
+            BRIX_ATOMIC_INC(&shm->unified.io_slowop_total[proto][op]);
+        }
+    }
 }
 
 /*

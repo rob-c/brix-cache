@@ -88,34 +88,34 @@ xrdhttp_args_get(const ngx_str_t *args, const char *key, size_t key_len,
 }
 
 /*
- * Normalize an RFC 3230 algorithm token to the internal name used by
- * brix_checksum_parse().  Extracts the first token from a comma-separated
- * list (ignoring q-value suffixes), lowercases it, and strips hyphens so that
- * "SHA-256" → "sha256", "SHA-1" → "sha1", "CRC32c" → "crc32c".  The bare
- * RFC 3230 name "SHA" (meaning SHA-1) is mapped to "sha1" as a special case.
+ * Normalize ONE RFC 3230 algorithm token (no list handling) to the internal
+ * name used by brix_checksum_parse(): trims surrounding whitespace,
+ * lowercases, and strips hyphens so that "SHA-256" → "sha256", "SHA-1" →
+ * "sha1", "CRC32c" → "crc32c".  The bare RFC 3230 name "SHA" (meaning SHA-1)
+ * is mapped to "sha1" as a special case.
  */
 static void
-xrdhttp_normalize_rfc3230_algo(const u_char *value, size_t vlen,
-                                char *dst, size_t dstsz)
+xrdhttp_normalize_one_rfc3230_token(const u_char *token, size_t token_len,
+                                     char *dst, size_t dstsz)
 {
-    const u_char *p = value;
-    const u_char *end;
+    const u_char *cursor = token;
     size_t        out = 0;
     size_t        i;
 
-    /* First token only (up to ',' or ';'). */
-    for (end = p; (size_t)(end - p) < vlen && *end != ',' && *end != ';'; end++)
-        ;
-    vlen = (size_t)(end - p);
-
     /* Trim leading/trailing whitespace. */
-    while (vlen > 0 && (*p == ' ' || *p == '\t')) { p++; vlen--; }
-    while (vlen > 0 && (p[vlen - 1] == ' ' || p[vlen - 1] == '\t')) { vlen--; }
+    while (token_len > 0 && (*cursor == ' ' || *cursor == '\t')) {
+        cursor++;
+        token_len--;
+    }
+    while (token_len > 0 && (cursor[token_len - 1] == ' '
+                             || cursor[token_len - 1] == '\t')) {
+        token_len--;
+    }
 
     /* Lowercase, strip hyphens: "sha-256" → "sha256". */
-    for (i = 0; i < vlen && out < dstsz - 1; i++) {
-        if (p[i] != '-') {
-            dst[out++] = (char) tolower((unsigned char) p[i]);
+    for (i = 0; i < token_len && out < dstsz - 1; i++) {
+        if (cursor[i] != '-') {
+            dst[out++] = (char) tolower((unsigned char) cursor[i]);
         }
     }
     dst[out] = '\0';
@@ -123,6 +123,164 @@ xrdhttp_normalize_rfc3230_algo(const u_char *value, size_t vlen,
     /* RFC 3230 bare "sha" means SHA-1. */
     if (strcmp(dst, "sha") == 0 && dstsz >= 5) {
         ngx_memcpy(dst, "sha1", 5);
+    }
+}
+
+/*
+ * Normalize an RFC 3230 algorithm list by its FIRST token only (q-values and
+ * later alternatives ignored) — the historical behavior, kept as the fallback
+ * when q-negotiation finds no supported candidate so the downstream
+ * "unsupported algorithm" refusal path is byte-identical to before.
+ */
+static void
+xrdhttp_normalize_rfc3230_algo(const u_char *value, size_t vlen,
+                                char *dst, size_t dstsz)
+{
+    const u_char *end;
+
+    for (end = value;
+         (size_t)(end - value) < vlen && *end != ',' && *end != ';';
+         end++)
+        ;
+    xrdhttp_normalize_one_rfc3230_token(value, (size_t)(end - value),
+                                         dst, dstsz);
+}
+
+/*
+ * Parse the ";q=..." parameter of one Want-Digest entry into thousandths
+ * (RFC 7231 qvalue: 0..1 with up to three decimals → 0..1000).  `params`
+ * points at the first ';' (or == entry_end when the entry has no parameters).
+ * Absent or unparseable q defaults to 1000; an explicit q=0 (in any spelling)
+ * returns 0, which disqualifies the entry.
+ */
+static int
+xrdhttp_rfc3230_q_millis(const u_char *params, const u_char *entry_end)
+{
+    const u_char *cursor = params;
+
+    while (cursor < entry_end) {
+        if (*cursor != ';') {
+            cursor++;
+            continue;
+        }
+        cursor++;
+        while (cursor < entry_end && (*cursor == ' ' || *cursor == '\t')) {
+            cursor++;
+        }
+        if (entry_end - cursor < 2
+            || (cursor[0] != 'q' && cursor[0] != 'Q') || cursor[1] != '=')
+        {
+            continue;
+        }
+        cursor += 2;
+
+        {
+            int q_millis = 0;
+
+            if (cursor >= entry_end || (*cursor != '0' && *cursor != '1')) {
+                return 1000;              /* malformed — keep permissive */
+            }
+            q_millis = (*cursor == '1') ? 1000 : 0;
+            cursor++;
+            if (cursor < entry_end && *cursor == '.') {
+                int digits = 0;
+                int scale = 100;
+
+                cursor++;
+                while (cursor < entry_end && digits < 3
+                       && *cursor >= '0' && *cursor <= '9')
+                {
+                    q_millis += (*cursor - '0') * scale;
+                    scale /= 10;
+                    digits++;
+                    cursor++;
+                }
+            }
+            return q_millis > 1000 ? 1000 : q_millis;
+        }
+    }
+
+    return 1000;                          /* no q parameter — default 1.0 */
+}
+
+/* ---- Pick the best supported algorithm from an RFC 3230 Want-Digest list ----
+ *
+ * WHAT: Walks the full comma-separated Want-Digest value — each entry an
+ *       algorithm token with an optional ";q=" quality — and writes into dst
+ *       the highest-q entry this server can actually compute.  When no entry
+ *       is both supported and acceptable (q>0): an ACCEPTABLE-but-unsupported
+ *       list falls back to the historical first-token normalization so the
+ *       downstream refusal path is unchanged, while a list whose every entry
+ *       carries q=0 yields the empty string — the client explicitly refused
+ *       every algorithm, so no digest may be computed on its behalf.
+ *
+ * WHY:  §6.4 parity: RFC 3230 lets a client rank alternatives
+ *       ("md5;q=0.4, sha-256;q=0.9").  Honoring only the first token made the
+ *       server compute an unwanted digest — or refuse outright — whenever a
+ *       client led with an algorithm this build lacks; and RFC 7231 q=0 means
+ *       "not acceptable", which a first-token reader silently ignored.
+ *
+ * HOW:  1. Split on ','; within an entry the token runs to the first ';'.
+ *       2. q = xrdhttp_rfc3230_q_millis (absent → 1000; q=0 disqualifies).
+ *       3. Normalize each q>0 token and probe brix_checksum_parse — NGX_OK
+ *          means this build computes it.
+ *       4. Keep the supported entry with the strictly highest q (ties keep
+ *          the earlier entry, preserving the client's list order).
+ *       5. Nothing kept: any q>0 entry seen → xrdhttp_normalize_rfc3230_algo
+ *          fallback; all entries q=0 → dst = "".
+ */
+static void
+xrdhttp_select_rfc3230_algo(const u_char *value, size_t vlen,
+                             char *dst, size_t dstsz)
+{
+    const u_char *cursor = value;
+    const u_char *end = value + vlen;
+    int           best_q_millis = -1;
+    int           any_acceptable = 0;
+
+    dst[0] = '\0';
+
+    while (cursor < end) {
+        const u_char *entry_end = cursor;
+        const u_char *token_end;
+        char          candidate[64];
+        int           q_millis;
+
+        while (entry_end < end && *entry_end != ',') {
+            entry_end++;
+        }
+        token_end = cursor;
+        while (token_end < entry_end && *token_end != ';') {
+            token_end++;
+        }
+
+        q_millis = xrdhttp_rfc3230_q_millis(token_end, entry_end);
+        xrdhttp_normalize_one_rfc3230_token(cursor,
+                                             (size_t)(token_end - cursor),
+                                             candidate, sizeof(candidate));
+
+        if (candidate[0] != '\0' && q_millis > 0) {
+            any_acceptable = 1;
+
+            if (q_millis > best_q_millis) {
+                brix_checksum_alg_t alg;
+                char                canonical[32];
+
+                if (brix_checksum_parse(candidate, strlen(candidate), &alg,
+                                          canonical,
+                                          sizeof(canonical)) == NGX_OK)
+                {
+                    best_q_millis = q_millis;
+                    ngx_cpystrn((u_char *) dst, (u_char *) candidate, dstsz);
+                }
+            }
+        }
+
+        cursor = entry_end + 1;           /* step past the ',' */
+    }
+
+    if (best_q_millis < 0 && any_acceptable) {
+        xrdhttp_normalize_rfc3230_algo(value, vlen, dst, dstsz);
     }
 }
 
@@ -292,13 +450,14 @@ xrdhttp_parse_request(ngx_http_request_t *r)
 
     /* Want-Digest (RFC 3230): XrdClHttp sends this on HEAD to request
      * checksums.  Only consulted when ?xrd.want.cksum= was not supplied
-     * (the query param takes priority). */
+     * (the query param takes priority).  Full q-value negotiation (§6.4):
+     * the highest-q algorithm this build supports wins, not the first token. */
     if (!ctx->want_cksum[0]) {
         h = webdav_tpc_find_header(r, "Want-Digest", sizeof("Want-Digest") - 1);
         if (h != NULL && h->value.len > 0) {
-            xrdhttp_normalize_rfc3230_algo(h->value.data, h->value.len,
-                                           ctx->want_cksum,
-                                           sizeof(ctx->want_cksum));
+            xrdhttp_select_rfc3230_algo(h->value.data, h->value.len,
+                                        ctx->want_cksum,
+                                        sizeof(ctx->want_cksum));
         }
     }
 

@@ -309,6 +309,7 @@ def pblock(base: Path) -> tuple[bool, str]:
             str(backend / "pblock/sd_pblock_catalog.c"),
             str(backend / "pblock/sd_pblock_catalog_objects.c"),
             str(backend / "pblock/sd_pblock_catalog_ns.c"),
+            str(backend / "pblock/sd_pblock_catalog_nsidx.c"),
             *libs,
         ],
     )
@@ -328,6 +329,8 @@ def pblock(base: Path) -> tuple[bool, str]:
             str(backend),
             "-I",
             str(REPO_ROOT / "src"),
+            "-I",
+            str(REPO_ROOT / "shared"),   # cache/cas_pack_format.h (W2 arena)
             *cflags,
             str(backend / "pblock/sd_pblock_unittest.c"),
             str(backend / "pblock/sd_pblock_unittest_core.c"),
@@ -335,6 +338,9 @@ def pblock(base: Path) -> tuple[bool, str]:
             str(backend / "pblock/sd_pblock_unittest_ident.c"),
             str(backend / "pblock/sd_pblock_unittest_lab.c"),
             str(backend / "pblock/sd_pblock_unittest_dedup.c"),
+            str(backend / "pblock/sd_pblock_unittest_dedup_slot.c"),
+            str(backend / "pblock/sd_pblock_unittest_pack.c"),
+            str(backend / "pblock/sd_pblock_unittest_defaults.c"),
             str(backend / "pblock/sd_pblock.c"),
             str(backend / "pblock/sd_pblock_lifecycle.c"),
             str(backend / "pblock/sd_pblock_open.c"),
@@ -348,6 +354,7 @@ def pblock(base: Path) -> tuple[bool, str]:
             str(backend / "pblock/pblock_anomaly.c"),
             str(backend / "pblock/pblock_locks.c"),
             str(backend / "pblock/pblock_refs.c"),
+            str(backend / "pblock/pblock_pack.c"),
             str(backend / "pblock/pblock_snap.c"),
             str(backend / "pblock/pblock_hist.c"),
             str(REPO_ROOT / "src/core/compat/crc32c.c"),
@@ -362,9 +369,11 @@ def pblock(base: Path) -> tuple[bool, str]:
             str(backend / "pblock/sd_pblock_catalog.c"),
             str(backend / "pblock/sd_pblock_catalog_objects.c"),
             str(backend / "pblock/sd_pblock_catalog_ns.c"),
+            str(backend / "pblock/sd_pblock_catalog_nsidx.c"),
             *libs,
             "-lpthread",
             "-lz",
+            "-lcrypto",   # W3: wverify's in-order SHA-256 identity (EVP)
         ],
     )
     return _expression_3(drv)

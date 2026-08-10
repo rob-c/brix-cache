@@ -23,6 +23,7 @@ import hashlib
 import os
 import shutil
 import socket
+import stat
 import subprocess
 import time
 
@@ -193,6 +194,76 @@ def test_fuse_write_roundtrip(built):
         # and the bytes really landed on the server's disk
         with open(disk, "rb") as fh:
             assert _md5(fh.read()) == _md5(payload), "on-disk bytes differ"
+    finally:
+        try:
+            os.unlink(disk)
+        except OSError:
+            pass
+
+
+@pytest.mark.skipif(not _FUSE_OK, reason="no /dev/fuse or fusermount3")
+def test_fuse_mknod_creates_empty_file(built):
+    """(success) mknod(2) of a regular file creates an EMPTY file that lands on
+    the server (zero length) and reads back empty through the mount. Before this
+    the op was unimplemented, so `mknod`/`mknodat` returned ENOSYS."""
+    name = f"_xrootdfs_mknod_{os.getpid()}_{int(time.time()*1000)}.bin"
+    disk = os.path.join(DATA_ROOT, name)
+    try:
+        with _mount() as m:
+            p = os.path.join(m.mnt, name)
+            os.mknod(p, 0o644)                 # S_IFREG by default
+            assert os.stat(p).st_size == 0, "mknod file should be empty"
+            with open(p, "rb") as fh:
+                assert fh.read() == b"", "mknod file should read back empty"
+        assert os.path.exists(disk), "mknod file did not land on the server"
+        assert os.path.getsize(disk) == 0, "server file should be zero-length"
+    finally:
+        try:
+            os.unlink(disk)
+        except OSError:
+            pass
+
+
+@pytest.mark.skipif(not _FUSE_OK, reason="no /dev/fuse or fusermount3")
+def test_fuse_mknod_then_write(built):
+    """(success) the real use: mknod pre-creates the node, a later
+    open(O_WRONLY)+write fills it, and the content lands on the server."""
+    payload = os.urandom(4096)
+    name = f"_xrootdfs_mknodw_{os.getpid()}_{int(time.time()*1000)}.bin"
+    disk = os.path.join(DATA_ROOT, name)
+    try:
+        with _mount() as m:
+            p = os.path.join(m.mnt, name)
+            os.mknod(p, 0o644)
+            with open(p, "wb") as fh:
+                fh.write(payload)
+            with open(p, "rb") as fh:
+                assert _md5(fh.read()) == _md5(payload), "mknod+write readback mismatch"
+        with open(disk, "rb") as fh:
+            assert _md5(fh.read()) == _md5(payload), "on-disk bytes differ"
+    finally:
+        try:
+            os.unlink(disk)
+        except OSError:
+            pass
+
+
+@pytest.mark.skipif(not _FUSE_OK, reason="no /dev/fuse or fusermount3")
+def test_fuse_mknod_fifo_refused(built):
+    """(security-neg) a non-regular type (FIFO) is refused with EPERM — a remote
+    xrootd/WebDAV store holds regular files only — and no file is created for it,
+    never silently substituted by a plain file."""
+    name = f"_xrootdfs_fifo_{os.getpid()}_{int(time.time()*1000)}"
+    disk = os.path.join(DATA_ROOT, name)
+    try:
+        with _mount() as m:
+            p = os.path.join(m.mnt, name)
+            with pytest.raises(OSError) as ei:
+                os.mknod(p, stat.S_IFIFO | 0o644)
+            assert ei.value.errno == errno.EPERM, \
+                f"expected EPERM for a FIFO, got errno {ei.value.errno}"
+        assert not os.path.exists(disk), \
+            "a refused FIFO must not leave a file on the server"
     finally:
         try:
             os.unlink(disk)
@@ -385,6 +456,47 @@ def test_preload_stat_and_ls(built, remote_file):
                        capture_output=True, text=True, timeout=30)
     assert p.returncode == 0, p.stderr
     assert name in p.stdout, p.stdout
+
+
+def test_preload_stat_identity_fields(built, remote_file):
+    """(success) statx maps through the shared posix_map helper: stable nonzero
+    inode, 1 MiB blksize hint, 512-byte block count. The hand-rolled fill_stat
+    this replaced under-filled all three (parity-audit §9.2) — every remote
+    file presented as inode 0, so inode-tracking tools (find -samefile, rsync,
+    tar) saw one shared identity."""
+    name, payload = remote_file
+    p = subprocess.run(["stat", "-c", "%i %o %b %s", f"/xrd/{name}"],
+                       env=_preload_env(), capture_output=True, text=True,
+                       timeout=30)
+    assert p.returncode == 0, p.stderr
+    ino, blksize, blocks, size = p.stdout.split()
+    assert int(size) == len(payload), p.stdout
+    assert int(ino) != 0, "remote file presented as inode 0"
+    assert int(blksize) == 1048576, f"blksize hint not 1 MiB: {blksize}"
+    assert int(blocks) == (len(payload) + 511) // 512, p.stdout
+
+
+def test_preload_stat_enoent_after_map(built):
+    """(error) statx of a missing remote path still surfaces ENOENT — the
+    mapping change must not disturb the error path."""
+    p = subprocess.run(["stat", "-c", "%i", "/xrd/does-not-exist-xyz"],
+                       env=_preload_env(), capture_output=True, text=True,
+                       timeout=30)
+    assert p.returncode != 0
+    assert "No such file" in p.stderr, p.stderr
+
+
+def test_preload_stat_passthrough_untouched(built):
+    """(security-neg) a path OUTSIDE the prefix reaches the real libc statx —
+    its inode matches an uninterposed os.stat, proving the remote mapping
+    (and its synthesized inode) never applies outside the configured prefix."""
+    real_ino = os.stat("/etc/hosts").st_ino
+    p = subprocess.run(["stat", "-c", "%i", "/etc/hosts"],
+                       env=_preload_env(), capture_output=True, text=True,
+                       timeout=30)
+    assert p.returncode == 0, p.stderr
+    assert int(p.stdout.strip()) == real_ino, \
+        "passthrough statx inode diverged from the real filesystem"
 
 
 def test_preload_enoent(built):

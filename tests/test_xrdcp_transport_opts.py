@@ -8,7 +8,9 @@ runs, just without the posture the operator asked for.  Nothing else in the suit
 passes these spellings on the command line, so this file pins them.
 
 The probe needs no fleet: the parser runs to completion before the first
-connect, so a dead endpoint separates the two outcomes cleanly.
+connect, so a dead endpoint separates the two outcomes cleanly.  (Single
+exception: the --force field-level proof in TestStockLongSpellings is
+fleet-marked, because the exists-check runs only after a successful connect.)
 
   * success   — every valueless flag spelling parses (exit 51 = connect failed,
                 i.e. argv was accepted), incl. all three --io-uring-direct forms
@@ -187,3 +189,71 @@ def test_allow_http_grants_nothing_and_relaxes_nothing(tmp_path):
     assert (compat.returncode, compat.stderr) == (plain.returncode, plain.stderr)
     for leaked in ("notlsok", "cleartext", "verifyhost", "insecure"):
         assert leaked not in compat.stderr.lower()
+# ---- stock xrdcp long spellings (parity-audit §7.13) ----
+
+class TestStockLongSpellings:
+    """Stock xrdcp long spellings are aliases of the short flags, so drop-in
+    scripts written against the reference client keep working.
+
+      * success  — --force/--recursive/--nopbar/--silent parse (probe reaches
+                   connect), and --force provably lands on the force field: an
+                   existing local destination fails without it, succeeds with it
+      * error    — a stock spelling with a bolted-on value is a usage error
+      * security — truncations of the new spellings stay unknown options
+    """
+
+    @pytest.mark.parametrize("flag", [
+        "--force", "--recursive", "--nopbar", "--silent",
+    ])
+    def test_stock_spelling_accepted(self, flag, tmp_path):
+        res = _run([flag], tmp_path)
+        assert res.returncode == CONNECT_FAILED, (flag, res.returncode,
+                                                  res.stderr)
+        assert "unknown option" not in res.stderr
+
+    @pytest.mark.requires_local_server
+    def test_force_alias_reaches_force_field(self, tmp_path):
+        """Download onto an existing local destination: refused without
+        --force (destination exists), byte-exact overwrite with it — proving
+        the alias sets the same field as -f, not merely parsing.  The one
+        fleet-backed case in this file: the exists-check runs after connect,
+        so a dead endpoint cannot separate the two outcomes."""
+        from settings import DATA_ROOT, NGINX_ANON_PORT, SERVER_HOST
+        name = "xrdcp-force-alias.bin"
+        os.makedirs(DATA_ROOT, exist_ok=True)
+        with open(os.path.join(DATA_ROOT, name), "wb") as f:
+            f.write(b"fresh payload\n")
+        try:
+            url = f"root://{SERVER_HOST}:{NGINX_ANON_PORT}//{name}"
+            dst = os.path.join(str(tmp_path), "dst.bin")
+            with open(dst, "wb") as f:
+                f.write(b"stale\n")
+            res = subprocess.run([XRDCP, url, dst],
+                                 capture_output=True, text=True, timeout=60)
+            assert res.returncode != 0, \
+                "existing destination accepted without force"
+            res = subprocess.run([XRDCP, "--force", url, dst],
+                                 capture_output=True, text=True, timeout=60)
+            assert res.returncode == 0, res.stderr
+            with open(dst, "rb") as f:
+                assert f.read() == b"fresh payload\n"
+        finally:
+            os.unlink(os.path.join(DATA_ROOT, name))
+
+    @pytest.mark.parametrize("bogus", [
+        "--force=1", "--recursive=1", "--nopbar=1",
+    ])
+    def test_stock_spelling_with_value_rejected(self, bogus, tmp_path):
+        res = _run([bogus], tmp_path)
+        assert res.returncode == USAGE_ERROR, (bogus, res.returncode,
+                                               res.stderr)
+        assert "unknown option" in res.stderr
+
+    @pytest.mark.parametrize("bogus", [
+        "--forc", "--recursiv", "--nopba", "--forceX",
+    ])
+    def test_stock_spelling_truncation_rejected(self, bogus, tmp_path):
+        res = _run([bogus], tmp_path)
+        assert res.returncode == USAGE_ERROR, (bogus, res.returncode,
+                                               res.stderr)
+        assert "unknown option" in res.stderr

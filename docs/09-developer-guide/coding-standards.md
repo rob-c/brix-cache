@@ -93,6 +93,16 @@ Each directory has a `README.md` explaining its purpose and key files. New subdi
 - Classes: `Test<Feature>` (e.g., `TestFileCreate`, `TestDirList`).
 - Methods: `test_<scenario>` (e.g., `test_create_new_file`, `test_dirlist_nonexistent_fails`).
 
+### Directive Naming (MANDATORY — phase-101 grammar)
+
+Three rules govern every `brix_*` nginx directive. `tools/ci/check_directive_registry.py` enforces them (R1–R4); adding a directive that violates them fails CI.
+
+1. **`brix_<feature>` is the feature toggle** (a flag or a mode enum) — never `brix_<feature>_enable`. E.g. `brix_ocsp`, `brix_dashboard`, `brix_idmap off|single|map` — not `brix_ocsp_enable`.
+2. **`brix_<feature>_<param>` for feature-scoped parameters — ONE prefix per feature.** Do not spread a feature across two prefixes. E.g. the per-request identity family is `brix_idmap` + `brix_idmap_{user,socket,export,gridmap,broker_user,default_user,min_uid,cache_ttl,forbidden_users,forbidden_groups}` (was four prefixes: `brix_impersonation*`, `brix_gridmap`, `brix_idmap_*`). The dashboard storage scanner is `brix_dashboard_scan_{root,max_files}` (was `brix_scan_*`).
+3. **Cross-protocol families use bare `brix_<family>_*` names, registered only by a plane's common owner, spelled identically on every plane.** A feature that works on both the stream (root://) and HTTP (WebDAV/S3) planes gets ONE bare name — never a `brix_webdav_X` / `brix_s3_X` twin. The HTTP planes register it once on `ngx_http_brix_common_module` (`src/core/config/http_common.c`), storing into the shared preamble (`ngx_http_brix_shared_conf_t`) and adopting into every protocol conf. E.g. `brix_token_jwks`, `brix_require_vo`, `brix_protbind`, `brix_tpc_verify_checksum` — one spelling, both planes.
+
+Renames are **hard renames**: no alias, no "renamed to X" hint — the stock `unknown directive` is the correct failure. Every rename gets a row in `docs/03-configuration/migration-unified-grammar.md`.
+
 ---
 
 ## 3. Documentation

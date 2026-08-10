@@ -451,7 +451,7 @@ curl -s -X PROPFIND -H 'Depth: 1' http://127.0.0.1:8080/webdav/ | head -c 200
 `brix_webdav` refuses to start with `auth optional/required` unless a credential
 verifier is configured — that is the intended fail-closed behaviour, not a build
 problem. Set `brix_webdav_auth none` for an anonymous smoke test, or configure a
-verifier (`brix_webdav_cadir`, `brix_webdav_token_jwks`, `brix_webdav_pwd_file`).
+verifier (`brix_trusted_ca_dir`, `brix_token_jwks`, `brix_pwd_file`).
 
 WebDAV maps the **whole request URI** under the export root, so
 `/webdav/hello.txt` resolves to `/srv/brix/data/webdav/hello.txt`. Either place

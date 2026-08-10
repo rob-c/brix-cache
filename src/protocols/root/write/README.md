@@ -108,7 +108,8 @@ origin flush by [`../cache`](../../../fs/cache/README.md)).
   (snapshot length, the rollback target). Freed by `brix_free_fhandle` on
   close/disconnect.
 - **`ServerResponseBody_ChkPoint`** — the `kXR_ckpQuery` reply body
-  (`maxCkpSize` = `kXR_ckpMinMax`, `useCkpSize` = current `.ckp` size).
+  (`maxCkpSize` = `brix_chkpnt_maxsz`, default/floor `kXR_ckpMinMax`;
+  `useCkpSize` = current `.ckp` size).
 
 ## Control & data flow
 
@@ -200,7 +201,9 @@ Calls outward to sibling subsystems:
   as `kXR_IOError "short write (disk full?)"` rather than silently truncating
   client data (`write.c:141`, `pgwrite.c:290`, `writev.c:216`).
 - **Checkpoint = `.ckp` sibling + crash recovery.** `ckpBegin` rejects files
-  over `kXR_ckpMinMax` (`kXR_overQuota`) and creates the snapshot with
+  over `brix_chkpnt_maxsz` (`kXR_overQuota`; the `ofs.chkpnt maxsz` analog,
+  default = the protocol minimum `kXR_ckpMinMax`, smaller values floored to
+  it at merge) and creates the snapshot with
   `O_CREAT|O_EXCL|O_NOFOLLOW`; `ckpXeq` requires `ckp_path != NULL` and that
   *every* sub-write target the checkpointed handle (cross-handle →
   `kXR_InvalidRequest`). `brix_chkpoint_recover_root()` runs under an

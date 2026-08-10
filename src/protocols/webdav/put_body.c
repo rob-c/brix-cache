@@ -113,17 +113,18 @@ webdav_put_aio_thread(void *data, ngx_log_t *log)
     t->nwritten = (ssize_t) t->len;
 }
 
+/*
+ * webdav_put_aio_finish — the event-loop completion body: verify the staged
+ * bytes, then publish (commit) or abort, and reply.  Split out of the done
+ * handler so it can run inside the impersonation bracket — every filesystem op
+ * here (verify re-read, commit rename, abort unlink, checksum re-open) is
+ * PATH-based and must act as the mapped user, not the worker.
+ */
 static void
-webdav_put_aio_done(ngx_event_t *ev)
+webdav_put_aio_finish(webdav_put_aio_t *t)
 {
-    ngx_thread_task_t  *task = ev->data;
-    webdav_put_aio_t   *t = task->ctx;
     ngx_http_request_t *r = t->r;
     ngx_int_t           status;
-
-    /* Balance the r->main->count++ in webdav_handle_put_body that keeps the
-     * request alive across the async thread dispatch. */
-    r->main->count--;
 
     if (t->nwritten < 0 || (size_t) t->nwritten < t->len) {
 
@@ -191,6 +192,36 @@ webdav_put_aio_done(ngx_event_t *ev)
 
     status = t->created ? NGX_HTTP_CREATED : NGX_HTTP_NO_CONTENT;
     webdav_send_status_only(r, (ngx_uint_t) status);
+}
+
+/*
+ * webdav_put_aio_done — thread-pool completion handler (event loop).
+ *
+ * The staged commit/verify/abort in webdav_put_aio_finish are all PATH-based and
+ * must run as the MAPPED user: this event-loop completion lost the per-request
+ * impersonation bracket the synchronous commit (webdav_put_commit) holds, so
+ * without re-establishing it the atomic publish renames into the user's own
+ * directory AS THE WORKER and fails EPERM — mirroring the s3 async body handler
+ * (s3_put_body_handler), which wraps its whole inner in the same bracket.  The
+ * threaded write itself (webdav_put_aio_thread) was fd-based, so it needed no
+ * impersonation.
+ */
+static void
+webdav_put_aio_done(ngx_event_t *ev)
+{
+    ngx_thread_task_t              *task = ev->data;
+    webdav_put_aio_t               *t = task->ctx;
+    ngx_http_request_t             *r = t->r;
+    ngx_http_brix_webdav_req_ctx_t *rx;
+
+    /* Balance the r->main->count++ in webdav_handle_put_body that keeps the
+     * request alive across the async thread dispatch. */
+    r->main->count--;
+
+    rx = ngx_http_get_module_ctx(r, ngx_http_brix_webdav_module);
+    brix_imp_request_begin(rx != NULL ? rx->identity : NULL);
+    webdav_put_aio_finish(t);
+    brix_imp_request_end();
 }
 
 /*

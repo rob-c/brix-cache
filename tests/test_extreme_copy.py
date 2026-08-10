@@ -14,11 +14,13 @@ Two genuinely independent replicas are staged by writing the SAME bytes into
 the anon fleet server's export (DATA_ROOT) and the dedicated readonly server's
 export (TEST_ROOT/data-readonly) — two servers, two roots, one logical file.
 
-  * success   — 2-source reassembly (both sources carry blocks), locate/
-                duplicate fallback on a plain URL, --sources 1 no-op
+  * success   — 2-source reassembly (both sources carry blocks), slow-open
+                mirror still carries blocks (join gate), locate/duplicate
+                fallback on a plain URL, --sources 1 no-op
   * error     — dead mirror mid-set rescued by the live one; bad flag values
   * security  — corrupt replica vs the metalink digest fails CLOSED (no
-                destination file survives)
+                destination file survives); tarpit mirror cannot stall the
+                start beyond the join gate's bounded grace
 
 Run:
     PYTHONPATH=tests pytest tests/test_extreme_copy.py -v
@@ -27,7 +29,10 @@ Run:
 import hashlib
 import os
 import re
+import socket
 import subprocess
+import threading
+import time
 
 import pytest
 
@@ -80,6 +85,78 @@ def _meta4(mirrors, md5=None, name="data.bin"):
     lines.append("  </file>")
     lines.append("</metalink>")
     return "\n".join(lines) + "\n"
+
+
+def _splice(src, dst):
+    """Pump bytes src→dst until EOF/error, then half-close the write side."""
+    try:
+        while True:
+            data = src.recv(65536)
+            if not data:
+                break
+            dst.sendall(data)
+    except OSError:
+        pass
+    finally:
+        try:
+            dst.shutdown(socket.SHUT_WR)
+        except OSError:
+            pass
+
+
+class _MirrorShim(threading.Thread):
+    """TCP shim playing a misbehaving mirror (a free_port in-process mock).
+
+    Two modes exercise the engine's join gate:
+      * ``delay`` + ``backend`` — accept, sleep, then splice to a live server:
+        a mirror whose XRootD open RESOLVES late (slow network/handshake).
+      * ``hold_close`` — accept and stay silent for that many seconds, then
+        close: a black-holed mirror whose open never completes.
+    """
+
+    def __init__(self, backend=None, delay=0.0, hold_close=None):
+        super().__init__(daemon=True)
+        self._backend = backend
+        self._delay = delay
+        self._hold_close = hold_close
+        self._stop = threading.Event()
+        self._lsock = socket.socket()
+        self._lsock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        self._lsock.bind(("127.0.0.1", 0))
+        self._lsock.listen(8)
+        self._lsock.settimeout(0.2)
+        self.port = self._lsock.getsockname()[1]
+
+    def run(self):
+        while not self._stop.is_set():
+            try:
+                conn, _ = self._lsock.accept()
+            except socket.timeout:
+                continue
+            except OSError:
+                break
+            threading.Thread(target=self._serve, args=(conn,),
+                             daemon=True).start()
+        self._lsock.close()
+
+    def _serve(self, conn):
+        try:
+            if self._hold_close is not None:
+                self._stop.wait(self._hold_close)
+                return
+            time.sleep(self._delay)
+            back = socket.create_connection(self._backend, timeout=10)
+            threading.Thread(target=_splice, args=(back, conn),
+                             daemon=True).start()
+            _splice(conn, back)
+            back.close()
+        except OSError:
+            pass
+        finally:
+            conn.close()
+
+    def stop(self):
+        self._stop.set()
 
 
 def _run_xcp(args, timeout=180, block=65536):
@@ -139,6 +216,35 @@ class TestExtremeCopy:
         finally:
             _unstage(DATA_ROOT, "xcp-two.bin")
             _unstage(_READONLY_DATA, "xcp-two.bin")
+
+    def test_slow_open_mirror_still_carries_blocks(self, anon, tmp_path):
+        """A mirror whose open resolves late (shim delays the handshake) still
+        carries blocks: the join gate holds the fast source's claiming until
+        every source's open RESOLVES, so a quick loopback drain cannot
+        silently degrade --sources 2 to a single source."""
+        host, aport = anon
+        content = _det(4 * 1024 * 1024, seed=41)  # 64 blocks
+        _stage(DATA_ROOT, "xcp-slow.bin", content)
+        shim = _MirrorShim(backend=(host, aport), delay=0.4)
+        shim.start()
+        try:
+            ml = tmp_path / "slow.meta4"
+            ml.write_text(_meta4([
+                (f"root://{host}:{shim.port}//xcp-slow.bin", 1),
+                (f"root://{host}:{aport}//xcp-slow.bin", 2),
+            ], md5=hashlib.md5(content).hexdigest()))
+            dst = tmp_path / "out.bin"
+            res = _run_xcp(["--sources", "2", str(ml), str(dst)])
+            assert res.returncode == 0, res.stderr
+            assert dst.read_bytes() == content
+            sources, blocks, per_source, _ = _xcp_line(res.stderr)
+            assert sources == 2
+            assert blocks == 64
+            assert all(c > 0 for c in per_source), (
+                f"the slow-open mirror carried nothing: {per_source}")
+        finally:
+            shim.stop()
+            _unstage(DATA_ROOT, "xcp-slow.bin")
 
     def test_dead_mirror_is_rescued_by_live_one(self, anon, tmp_path):
         """One dead replica in the set: its blocks return to the pool / get
@@ -226,6 +332,39 @@ class TestExtremeCopyHostile:
         finally:
             _unstage(DATA_ROOT, "xcp-poison.bin")
             _unstage(_READONLY_DATA, "xcp-poison.bin")
+
+    def test_tarpit_mirror_start_is_bounded(self, anon, tmp_path):
+        """SECURITY: a tarpit mirror (accepts TCP, never answers the
+        handshake) cannot stall the transfer: the join gate's grace cap lets
+        the live source proceed, the whole file lands from it, and the dead
+        worker's failure is named on the debug channel."""
+        host, aport = anon
+        content = _det(4 * 1024 * 1024, seed=43)  # 64 blocks
+        _stage(DATA_ROOT, "xcp-tarpit.bin", content)
+        tarpit = _MirrorShim(hold_close=2.0)
+        tarpit.start()
+        try:
+            ml = tmp_path / "tarpit.meta4"
+            ml.write_text(_meta4([
+                (f"root://{host}:{aport}//xcp-tarpit.bin", 1),
+                (f"root://{host}:{tarpit.port}//xcp-tarpit.bin", 2),
+            ], md5=hashlib.md5(content).hexdigest()))
+            dst = tmp_path / "out.bin"
+            t0 = time.monotonic()
+            res = _run_xcp(["--sources", "2", str(ml), str(dst)])
+            elapsed = time.monotonic() - t0
+            assert res.returncode == 0, res.stderr
+            assert dst.read_bytes() == content
+            sources, blocks, per_source, _ = _xcp_line(res.stderr)
+            assert sources == 2
+            assert per_source[0] == blocks == 64   # live source did it all
+            assert per_source[1] == 0
+            assert f"xcp worker 1 (root://{host}:{tarpit.port}" in res.stderr, (
+                f"tarpit worker's failure not reported:\n{res.stderr}")
+            assert elapsed < 15, f"tarpit mirror stalled the copy: {elapsed:.1f}s"
+        finally:
+            tarpit.stop()
+            _unstage(DATA_ROOT, "xcp-tarpit.bin")
 
     def test_sources_flag_bounds(self, tmp_path):
         """--sources outside 1..16 is a usage error (exit 50), before any

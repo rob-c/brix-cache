@@ -77,6 +77,12 @@ pblock_catalog *pblock_catalog_open(const char *db_path, int busy_timeout_ms);
 /* Finalize statements + close the connection. NULL-safe. */
 void pblock_catalog_close(pblock_catalog *cat);
 
+/* phase-88 W4 (opts nsidx=1): promote the namespace lookup cache to the
+ * cross-process mmap table <root>/catalog.bxi — one worker's fills warm and
+ * one worker's invalidations reach ALL workers. 0 armed, -1/errno (the
+ * catalog keeps its worker-local heap cache; correctness unchanged). */
+int pblock_catalog_nsidx_arm(pblock_catalog *cat, const char *root);
+
 /* Look up `path`: 0 and fill *out when present, 1 when absent, -1/errno on error.
  * *out may be NULL to probe existence only. */
 int pblock_catalog_lookup(pblock_catalog *cat, const char *path,

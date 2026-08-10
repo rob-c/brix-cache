@@ -37,6 +37,7 @@
 #include "pblock_fault.h"        /* F7 crash points */
 #include "pblock_ctl.h"          /* F17 audit log */
 #include "pblock_csi.h"          /* F3 per-block CRC32c integrity */
+#include "pblock_pack.h"         /* phase-88 W2: materialise packed copy sources */
 #include "pblock_quota.h"
 #include "pblock_nearline.h"     /* Phase-83 F4 nearline residency rows */
 #include "pblock_anomaly.h"      /* Phase-83 F9 consistency anomalies */
@@ -142,6 +143,12 @@ pblock_copy_physical(pblock_state_t *st, const pblock_meta *smeta,
 {
     pblock_meta dmeta, dexist;
     int         dhad = 0;
+
+    /* phase-88 W2: the block-file copy below needs the striped layout — bring
+     * a packed source back first (its own row/readers are unaffected). */
+    if (st->pack && pblock_pack_materialize(st, smeta) != 0) {
+        return NGX_ERROR;
+    }
 
     memset(&dmeta, 0, sizeof(dmeta));
     if (pblock_gen_blob_id(dmeta.blob_id) != 0

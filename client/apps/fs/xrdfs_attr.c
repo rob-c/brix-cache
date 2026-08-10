@@ -260,164 +260,6 @@ do_cksum(brix_conn *c, const char *cwd, int argc, char **argv)
 }
 
 
-/* xattr ls|get|set|rm — extended attributes via kXR_fattr (client/lib/fattr.c).
- *   xattr ls  <path>                  list attribute names
- *   xattr get <path> <name>           print one value
- *   xattr set <path> <name> <value>   set/replace a value
- *   xattr rm  <path> <name>           delete an attribute
- * `xattr <path>` with no subcommand is treated as `ls`. */
-int
-xattr_ls(brix_conn *c, const char *path)
-{
-    brix_status st;
-    char        names[8192];
-    size_t      total = 0, off;
-
-    brix_status_clear(&st);
-    if (brix_fattr_list(c, path, names, sizeof(names), &total, &st) != 0) {
-        return xrdfs_report_err("xattr ls", path, &st, 0, c);
-    }
-    /* The server returns a NUL-separated list of managed names tagged with a
-     * one-letter namespace prefix ("U.<name>" for the user namespace). Strip the
-     * "<X>." tag so the printed names round-trip directly through xattr get/set. */
-    for (off = 0; off < total && names[off] != '\0'; ) {
-        const char *name = names + off;
-        if (name[0] >= 'A' && name[0] <= 'Z' && name[1] == '.') { name += 2; }
-        printf("%s\n", name);
-        off += strlen(names + off) + 1;
-    }
-    return 0;
-}
-
-
-/* ---- Is argv[1] a recognised xattr subcommand keyword? ----
- *
- * WHAT: Returns 1 when the token is one of ls/get/set/rm, 0 otherwise.
- *
- * WHY:  `xattr <path>` with no subcommand is shorthand for `xattr ls <path>`;
- *       factoring the four-way keyword test out keeps do_xattr's dispatch under
- *       the complexity cap.
- *
- * HOW:  Compare the token against each of the four recognised subcommand names.
- */
-static int
-xattr_is_subcommand(const char *s)
-{
-    return strcmp(s, "ls") == 0 || strcmp(s, "get") == 0
-        || strcmp(s, "set") == 0 || strcmp(s, "rm") == 0;
-}
-
-
-/* ---- xattr get <path> <name> ----
- *
- * WHAT: Fetches one attribute value and writes it to stdout followed by a
- *       newline. Returns 0 on success, 50 on a usage error, or the mapped shell
- *       code on a protocol failure.
- *
- * WHY:  Splits the get branch out of do_xattr's dispatch so each subcommand is
- *       independently readable and the dispatcher stays flat.
- *
- * HOW:  1. Require the <name> argument.
- *       2. Call brix_fattr_get; on error report the message and map the status.
- *       3. Write the raw value bytes (clamped to the buffer) and a newline.
- */
-static int
-xattr_get(brix_conn *c, const char *path, int argc, char **argv)
-{
-    brix_status st;
-    char        val[8192];
-    size_t      vlen = 0;
-
-    if (argc < 4) { fprintf(stderr, "usage: xattr get <path> <name>\n"); return 50; }
-    brix_status_clear(&st);
-    if (brix_fattr_get(c, path, argv[3], val, sizeof(val), &vlen, &st) != 0) {
-        fprintf(stderr, "xrdfs: xattr get %s [%s]: %s\n", path, argv[3], st.msg);
-        return brix_shellcode(&st);
-    }
-    fwrite(val, 1, vlen < sizeof(val) ? vlen : sizeof(val), stdout);
-    printf("\n");
-    return 0;
-}
-
-
-/* ---- xattr set <path> <name> <value> ----
- *
- * WHAT: Sets or replaces one attribute value. Returns 0 on success, 50 on a
- *       usage error, or the mapped shell code on a protocol failure.
- *
- * WHY:  Splits the set branch out of do_xattr's dispatch so each subcommand is
- *       independently readable and the dispatcher stays flat.
- *
- * HOW:  1. Require the <name> and <value> arguments.
- *       2. Call brix_fattr_set with the value's byte length; on error report
- *          the message and map the status.
- */
-static int
-xattr_set(brix_conn *c, const char *path, int argc, char **argv)
-{
-    brix_status st;
-
-    if (argc < 5) { fprintf(stderr, "usage: xattr set <path> <name> <value>\n"); return 50; }
-    brix_status_clear(&st);
-    if (brix_fattr_set(c, path, argv[3], argv[4], strlen(argv[4]), 0, &st) != 0) {
-        fprintf(stderr, "xrdfs: xattr set %s [%s]: %s\n", path, argv[3], st.msg);
-        return brix_shellcode(&st);
-    }
-    return 0;
-}
-
-
-/* ---- xattr rm <path> <name> ----
- *
- * WHAT: Deletes one attribute. Returns 0 on success, 50 on a usage error, or the
- *       mapped shell code on a protocol failure.
- *
- * WHY:  Splits the rm branch out of do_xattr's dispatch so each subcommand is
- *       independently readable and the dispatcher stays flat.
- *
- * HOW:  1. Require the <name> argument.
- *       2. Call brix_fattr_del; on error report the message and map the status.
- */
-static int
-xattr_rm(brix_conn *c, const char *path, int argc, char **argv)
-{
-    brix_status st;
-
-    if (argc < 4) { fprintf(stderr, "usage: xattr rm <path> <name>\n"); return 50; }
-    brix_status_clear(&st);
-    if (brix_fattr_del(c, path, argv[3], &st) != 0) {
-        fprintf(stderr, "xrdfs: xattr rm %s [%s]: %s\n", path, argv[3], st.msg);
-        return brix_shellcode(&st);
-    }
-    return 0;
-}
-
-
-int
-do_xattr(brix_conn *c, const char *cwd, int argc, char **argv)
-{
-    char path[XRDC_PATH_MAX];
-
-    if (argc < 2) {
-        fprintf(stderr, "usage: xattr ls|get|set|rm <path> [name] [value]\n");
-        return 50;
-    }
-    /* `xattr <path>` (no subcommand) → list. */
-    if (!xattr_is_subcommand(argv[1])) {
-        build_path(cwd, argv[1], path, sizeof(path));
-        return xattr_ls(c, path);
-    }
-    if (argc < 3) {
-        fprintf(stderr, "usage: xattr %s <path> ...\n", argv[1]);
-        return 50;
-    }
-    build_path(cwd, argv[2], path, sizeof(path));
-
-    if (strcmp(argv[1], "ls") == 0)  { return xattr_ls(c, path); }
-    if (strcmp(argv[1], "get") == 0) { return xattr_get(c, path, argc, argv); }
-    if (strcmp(argv[1], "set") == 0) { return xattr_set(c, path, argc, argv); }
-    return xattr_rm(c, path, argc, argv);   /* the only remaining subcommand */
-}
 
 
 int
@@ -429,22 +271,44 @@ do_query(brix_conn *c, const char *cwd, int argc, char **argv)
     const char *args;
 
     if (argc < 2) {
-        fprintf(stderr, "usage: query <config|space|checksum|stats> [args]\n");
+        fprintf(stderr, "usage: query <config|space|checksum|checksumcancel|"
+                        "stats|xattr|prepare|opaque|opaquefile> [args]\n");
         return 50;
     }
-    if      (strcmp(argv[1], "config")   == 0) { infotype = kXR_Qconfig; }
-    else if (strcmp(argv[1], "space")    == 0) { infotype = kXR_Qspace; }
-    else if (strcmp(argv[1], "checksum") == 0) { infotype = kXR_Qcksum; }
-    else if (strcmp(argv[1], "stats")    == 0) { infotype = kXR_QStats; }
+    /* §7.12: the full stock code list.  checksumcancel is the Qckscan cancel
+     * form ("cancel <path>", matching the ckscan grammar); prepare queries a
+     * pending staging request by its kXR_prepare request id. */
+    if      (strcmp(argv[1], "config")         == 0) { infotype = kXR_Qconfig; }
+    else if (strcmp(argv[1], "space")          == 0) { infotype = kXR_Qspace; }
+    else if (strcmp(argv[1], "checksum")       == 0) { infotype = kXR_Qcksum; }
+    else if (strcmp(argv[1], "checksumcancel") == 0) { infotype = kXR_Qckscan; }
+    else if (strcmp(argv[1], "stats")          == 0) { infotype = kXR_QStats; }
+    else if (strcmp(argv[1], "xattr")          == 0) { infotype = kXR_Qxattr; }
+    else if (strcmp(argv[1], "prepare")        == 0) { infotype = kXR_QPrep; }
+    else if (strcmp(argv[1], "opaque")         == 0) { infotype = kXR_Qopaque; }
+    else if (strcmp(argv[1], "opaquefile")     == 0) { infotype = kXR_Qopaquf; }
     else {
         fprintf(stderr, "xrdfs: unknown query subtype '%s'\n", argv[1]);
         return 50;
     }
 
-    /* space/checksum take a path (resolved); config/stats take a literal key. */
+    /* Path-taking codes get cwd-resolution; config/stats/prepare/opaque take
+     * literal keys.  checksumcancel's payload is "cancel <path>" (the ckscan
+     * grammar), assembled below. */
     if (argc >= 3
-        && (infotype == kXR_Qspace || infotype == kXR_Qcksum)) {
+        && (infotype == kXR_Qspace || infotype == kXR_Qcksum
+            || infotype == kXR_Qxattr || infotype == kXR_Qopaquf)) {
         build_path(cwd, argv[2], pathbuf, sizeof(pathbuf));
+        args = pathbuf;
+    } else if (argc >= 3 && infotype == kXR_Qckscan) {
+        char resolved[XRDC_PATH_MAX];
+
+        build_path(cwd, argv[2], resolved, sizeof(resolved));
+        if ((size_t) snprintf(pathbuf, sizeof(pathbuf), "cancel %s",
+                              resolved) >= sizeof(pathbuf)) {
+            fprintf(stderr, "xrdfs: query checksumcancel: path too long\n");
+            return 50;
+        }
         args = pathbuf;
     } else {
         args = (argc >= 3) ? argv[2] : "";
@@ -466,24 +330,48 @@ do_prepare(brix_conn *c, const char *cwd, int argc, char **argv)
     char        reply[1024];
     char        resolved[16][XRDC_PATH_MAX];
     const char *paths[16];
-    int         options = 0, optionX = 0, np = 0, i;
+    int         options = 0, optionX = 0, prty = 0, np = 0, i;
 
+    /* Stock xrdfs flag semantics (pinned against the installed 5.6.9 help;
+     * parity audit §7.12): -c is CO-LOCATE and -a is the stage ABORT.  This
+     * client used to map -c to kXR_cancel — a drop-in hazard: a stock script
+     * asking to co-locate would silently CANCEL the request instead. */
     for (i = 1; i < argc && np < 16; i++) {
         if (strcmp(argv[i], "-s") == 0)      { options |= kXR_stage; }
         else if (strcmp(argv[i], "-w") == 0) { options |= kXR_wmode; }
-        else if (strcmp(argv[i], "-c") == 0) { options |= kXR_cancel; }
+        else if (strcmp(argv[i], "-c") == 0) { options |= kXR_coloc; }
+        else if (strcmp(argv[i], "-a") == 0) { options |= kXR_cancel; }
         else if (strcmp(argv[i], "-f") == 0) { options |= kXR_fresh; }
         else if (strcmp(argv[i], "-e") == 0) { optionX |= kXR_evict; }
+        else if (strcmp(argv[i], "-p") == 0 && i + 1 < argc) {
+            char *endp = NULL;
+            long  parsed = strtol(argv[++i], &endp, 10);
+
+            /* Stock range: 0 (lowest) .. 3 (highest); anything else is a
+             * usage error, never silently clamped. */
+            if (endp == argv[i] || *endp != '\0' || parsed < 0 || parsed > 3) {
+                fprintf(stderr,
+                        "xrdfs: prepare: -p takes a priority 0-3, got '%s'\n",
+                        argv[i]);
+                return 50;
+            }
+            prty = (int) parsed;
+        }
         else {
             build_path(cwd, argv[i], resolved[np], sizeof(resolved[np]));
             paths[np] = resolved[np];
             np++;
         }
     }
-    if (np == 0) { fprintf(stderr, "usage: prepare [-s|-w|-c|-f|-e] <path>...\n"); return 50; }
+    if (np == 0) {
+        fprintf(stderr,
+                "usage: prepare [-s|-w|-c|-a|-f|-e] [-p 0-3] <path>...\n");
+        return 50;
+    }
 
     brix_status_clear(&st);
-    if (brix_prepare(c, paths, np, options, optionX, 0, reply, sizeof(reply), &st) != 0) {
+    if (brix_prepare(c, paths, np, options, optionX, prty, reply,
+                     sizeof(reply), &st) != 0) {
         fprintf(stderr, "xrdfs: prepare: %s\n", st.msg);
         return brix_shellcode(&st);
     }

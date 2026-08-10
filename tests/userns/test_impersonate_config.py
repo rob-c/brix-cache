@@ -1,5 +1,5 @@
 """test_impersonate_config.py — config-time validation of the phase-40
-`brix_impersonation` directives via `nginx -t`.
+`brix_idmap` directives via `nginx -t`.
 
 Unlike the end-to-end userns test, this needs NO root, NO user namespace, and NO
 running broker — only the built nginx binary.  It drives `nginx -t` with each
@@ -61,7 +61,7 @@ def imp(tmp_path):
 
 
 def test_off_is_accepted(imp):
-    rc, out = imp("    brix_impersonation off;")
+    rc, out = imp("    brix_idmap off;")
     assert rc == 0, out
     assert "successful" in out
 
@@ -72,15 +72,15 @@ def test_no_directive_is_accepted(imp):
 
 
 def test_single_without_user_is_rejected(imp):
-    rc, out = imp("    brix_impersonation single;")
+    rc, out = imp("    brix_idmap single;")
     assert rc != 0
-    assert "brix_impersonation_user" in out
+    assert "brix_idmap_user" in out
 
 
 def test_single_with_user_is_accepted(imp):
     rc, out = imp(
-        "    brix_impersonation single;\n"
-        "    brix_impersonation_user nobody;")
+        "    brix_idmap single;\n"
+        "    brix_idmap_user nobody;")
     assert rc == 0, out
     assert "successful" in out
 
@@ -89,13 +89,13 @@ def test_map_requires_root(imp, tmp_path):
     if os.geteuid() == 0:
         pytest.skip("running as root: map would be accepted")
     rc, out = imp(
-        "    brix_impersonation map;\n"
-        f"    brix_impersonation_socket {tmp_path}/b.sock;")
+        "    brix_idmap map;\n"
+        f"    brix_idmap_socket {tmp_path}/b.sock;")
     assert rc != 0
     assert "root" in out.lower()
 
 
 def test_invalid_mode_is_rejected(imp):
-    rc, out = imp("    brix_impersonation bogus;")
+    rc, out = imp("    brix_idmap bogus;")
     assert rc != 0
     assert "off|single|map" in out

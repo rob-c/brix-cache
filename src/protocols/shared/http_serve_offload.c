@@ -321,9 +321,24 @@ serve_offload_done(ngx_event_t *ev)
     ngx_http_run_posted_requests(c);
 }
 
-/* Lazily resolve the export's async thread pool (the webdav/copy.c idiom). */
-static ngx_thread_pool_t *
-serve_offload_pool(ngx_http_brix_shared_conf_t *common)
+/* ---- Lazily resolve the export's async thread pool ----
+ *
+ * WHAT: Returns the shared conf's thread pool, resolving it by configured
+ *       name (default "default") and caching it on first use; NULL when no
+ *       pool is configured in the cycle.
+ *
+ * WHY:  The postconfig resolver fills common.thread_pool only for a
+ *       SERVER-scoped `brix_webdav on`; the ubiquitous `location {}`-scoped
+ *       configs leave the location conf's pointer NULL even when a pool
+ *       exists — every offload gate that checked the pointer alone silently
+ *       declined its async tier there (the TPC marker tier was found dark
+ *       this way). One exported resolver ends that class.
+ *
+ * HOW:  Return the cached pointer, else ngx_thread_pool_get by
+ *       thread_pool_name (or "default") and cache on success.
+ */
+ngx_thread_pool_t *
+brix_http_thread_pool(ngx_http_brix_shared_conf_t *common)
 {
     ngx_thread_pool_t *pool = common->thread_pool;
 
@@ -495,7 +510,7 @@ brix_http_serve_offload_remote(ngx_http_request_t *r,
         return NGX_DECLINED;             /* serve inline (local / in-process / HEAD) */
     }
 
-    pool = serve_offload_pool(common);
+    pool = brix_http_thread_pool(common);
     if (pool == NULL) {
         ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
             "serve offload: \"%s\" reads from a remote socket backend but no "

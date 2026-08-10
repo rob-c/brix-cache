@@ -322,7 +322,7 @@ s3_post_object_body_handler_inner(ngx_http_request_t *r)
          * A confined create that fails with EACCES/EPERM/EXDEV is a forbidden
          * write, not a server fault, and must surface as 403 AccessDenied (the
          * same contract the shared errno table gives every other handler).
-         * Under impersonation (`brix_impersonation map`) the create is brokered
+         * Under impersonation (`brix_idmap map`) the create is brokered
          * as the mapped user, so a missing/unmappable principal or a DAC-denied
          * target dir lands here — a clean 403, never a 500.  Genuine I/O faults
          * (EIO/ENOSPC/...) keep their 5xx mapping.  The staged-file pattern

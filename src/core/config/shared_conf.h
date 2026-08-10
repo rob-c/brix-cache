@@ -24,6 +24,8 @@
 #define BRIX_CREDENTIAL_DIR_DEFAULT  "/dev/shm/brix-creds"
 
 #include "shared_conf_types.h"
+#include "auth/crypto/store_policy.h"   /* BRIX_SP_MODE_* / BRIX_CRL_MODE_* (W4 x509 merge defaults) */
+#include "core/types/tunables.h"        /* BRIX_TOKEN_CLOCK_SKEW_SECS (W4 token merge) */
 
 /*
  * ngx_http_brix_shared_create_loc_conf() — Allocates and initializes a shared
@@ -61,6 +63,7 @@ ngx_http_brix_shared_init(ngx_http_brix_shared_conf_t *conf)
     conf->cache_passthrough  = NGX_CONF_UNSET;
     conf->cache_passthrough_max = NGX_CONF_UNSET;
     conf->cache_only_if_cached = NGX_CONF_UNSET;
+    conf->cache_uvkeep       = NGX_CONF_UNSET;
     conf->thread_pool_name.len  = 0;
     conf->thread_pool_name.data = NULL;
     conf->thread_pool        = NULL;
@@ -75,7 +78,7 @@ ngx_http_brix_shared_init(ngx_http_brix_shared_conf_t *conf)
     conf->storage_credential_mint_ca_cert.data  = NULL;
     conf->storage_credential_mint_ca_key.len    = 0;
     conf->storage_credential_mint_ca_key.data   = NULL;
-    conf->storage_credential_mint_ttl  = NGX_CONF_UNSET_UINT;
+    conf->storage_credential_mint_ttl  = NGX_CONF_UNSET;   /* time_t/sec_slot (W7) */
     conf->backend_delegation = NGX_CONF_UNSET_UINT;
     conf->backend_token_aud  = NGX_CONF_UNSET_PTR;
     conf->backend_tx_endpoint.len       = 0;
@@ -130,6 +133,25 @@ ngx_http_brix_shared_init(ngx_http_brix_shared_conf_t *conf)
     conf->rootfd             = -1;   /* opened per worker at init_process */
     /* root_canon zeroed by ngx_pcalloc — no explicit memset needed */
     brix_pmark_conf_init(&conf->pmark);
+    brix_acc_http_init_conf(&conf->acc);   /* phase-101 W2: XrdAcc in the preamble */
+    conf->zip_access       = NGX_CONF_UNSET;        /* phase-101 W4 */
+    conf->zip_cd_max_bytes = NGX_CONF_UNSET_SIZE;
+    conf->upload_resume    = NGX_CONF_UNSET;        /* phase-101 W4 */
+    conf->signing_policy_mode = NGX_CONF_UNSET_UINT; /* phase-101 W4 */
+    conf->crl_mode           = NGX_CONF_UNSET_UINT;  /* phase-101 W4 */
+    conf->token_clock_skew   = NGX_CONF_UNSET;       /* phase-101 W4 */
+    conf->vo_rules           = NULL;  /* phase-101 W4: lazily created by the
+                                       * brix_require_vo setter; NULL-inherit at
+                                       * merge, like cache_store_args/cache_peers. */
+    conf->authdb_rules       = NULL;  /* phase-101 W5.2: lazily created by the
+                                       * brix_authdb setter; NULL-inherit at merge. */
+    conf->protbind           = NULL;  /* phase-101 W4: brix_protbind array; NULL =
+                                       * no rules, inherited whole at merge. */
+    conf->tpc_allow_local        = NGX_CONF_UNSET;  /* phase-101 W4 (HTTP-TPC SSRF) */
+    conf->tpc_allow_private      = NGX_CONF_UNSET;
+    conf->tpc_source_guard       = NGX_CONF_UNSET;
+    conf->tpc_source_allow       = NULL;
+    conf->tpc_require_source_size = NGX_CONF_UNSET;
 }
 
 /*
@@ -293,8 +315,8 @@ ngx_http_brix_shared_merge(ngx_conf_t *cf,
                              prev->storage_credential_mint_ca_cert, "");
     ngx_conf_merge_str_value(conf->storage_credential_mint_ca_key,
                              prev->storage_credential_mint_ca_key, "");
-    ngx_conf_merge_uint_value(conf->storage_credential_mint_ttl,
-                              prev->storage_credential_mint_ttl, 3600);
+    ngx_conf_merge_sec_value(conf->storage_credential_mint_ttl,
+                             prev->storage_credential_mint_ttl, 3600);
     ngx_conf_merge_uint_value(conf->backend_delegation,
                               prev->backend_delegation, 0);  /* SELECT */
     ngx_conf_merge_ptr_value(conf->backend_token_aud,
@@ -329,6 +351,7 @@ ngx_http_brix_shared_merge(ngx_conf_t *cf,
 
     /* phase-64 tier grammar */
     ngx_conf_merge_str_value(conf->cache_store, prev->cache_store, "");
+    ngx_conf_merge_str_value(conf->cache_root, prev->cache_root, "");  /* W8 */
     if (conf->cache_store_args == NULL) {
         conf->cache_store_args = prev->cache_store_args;
     }
@@ -390,10 +413,63 @@ ngx_http_brix_shared_merge(ngx_conf_t *cf,
      * choice (this node contributes only what it holds), never a default. */
     ngx_conf_merge_value(conf->cache_only_if_cached,
                          prev->cache_only_if_cached, 0);
+    /* §4.3 pfc.uvkeep: 0 = off (a never-verified entry is trusted until its
+     * normal TTL); a positive value bounds that trust window. */
+    ngx_conf_merge_sec_value(conf->cache_uvkeep, prev->cache_uvkeep, 0);
 
     /* Hard read-only: force allow_write off HERE so no protocol merge can
      * forget the enforcement (it must win before token-scope checks). */
     brix_shared_apply_read_only(conf, cf->log);
+
+    /* XrdAcc engine settings (phase-101 W2): merge the 11 settings fields +
+     * apply defaults. The per-worker tables/timer tail is untouched. */
+    brix_acc_http_merge_conf(&conf->acc, &prev->acc);
+
+    /* ZIP member serving (phase-101 W4) — same defaults both planes had. */
+    ngx_conf_merge_value(conf->zip_access, prev->zip_access, 0);
+    ngx_conf_merge_size_value(conf->zip_cd_max_bytes, prev->zip_cd_max_bytes,
+                              16 * 1024 * 1024);
+    ngx_conf_merge_str_value(conf->pwd_file, prev->pwd_file, "");  /* W4 */
+    ngx_conf_merge_value(conf->upload_resume, prev->upload_resume, 1);  /* W4: default ON */
+    ngx_conf_merge_str_value(conf->token_macaroon_secret,               /* W4 */
+                             prev->token_macaroon_secret, "");
+    ngx_conf_merge_str_value(conf->token_macaroon_secret_old,
+                             prev->token_macaroon_secret_old, "");
+    ngx_conf_merge_str_value(conf->upload_stage_dir, prev->upload_stage_dir, "");  /* W4 */
+    ngx_conf_merge_str_value(conf->crl, prev->crl, "");  /* W4 */
+    ngx_conf_merge_uint_value(conf->signing_policy_mode, prev->signing_policy_mode,
+                              BRIX_SP_MODE_ON);
+    ngx_conf_merge_uint_value(conf->crl_mode, prev->crl_mode, BRIX_CRL_MODE_TRY);
+    ngx_conf_merge_str_value(conf->vomsdir, prev->vomsdir, "");  /* W4 */
+    ngx_conf_merge_str_value(conf->voms_cert_dir, prev->voms_cert_dir, "");  /* W4 */
+    ngx_conf_merge_str_value(conf->token_jwks, prev->token_jwks, "");  /* W4 */
+    ngx_conf_merge_str_value(conf->token_issuer, prev->token_issuer, "");
+    ngx_conf_merge_str_value(conf->token_audience, prev->token_audience, "");
+    ngx_conf_merge_str_value(conf->token_config, prev->token_config, "");  /* W4 */
+    ngx_conf_merge_value(conf->token_clock_skew, prev->token_clock_skew,
+                         BRIX_TOKEN_CLOCK_SKEW_SECS);  /* unified 30 (stricter) */
+    if (conf->vo_rules == NULL) {  /* W4: NULL-inherit, same as cache_store_args */
+        conf->vo_rules = prev->vo_rules;
+    }
+    if (conf->authdb_rules == NULL) {  /* W5.2: NULL-inherit, like vo_rules */
+        conf->authdb_rules = prev->authdb_rules;
+    }
+    if (conf->protbind == NULL) {  /* W4: protbind inherited whole (all-or-none) */
+        conf->protbind = prev->protbind;
+    }
+    /* HTTP-TPC SSRF policy (phase-101 W4): deny local, allow private by default
+     * (HEP federation nodes commonly sit on private networks; loopback stays
+     * blocked). Source-host allowlist is opt-in and fail-closed when guarded. */
+    ngx_conf_merge_value(conf->tpc_allow_local,   prev->tpc_allow_local,   0);
+    ngx_conf_merge_value(conf->tpc_allow_private, prev->tpc_allow_private, 1);
+    ngx_conf_merge_value(conf->tpc_source_guard,  prev->tpc_source_guard,  0);
+    if (conf->tpc_source_allow == NULL) {  /* W4: NULL-inherit like protbind */
+        conf->tpc_source_allow = prev->tpc_source_allow;
+    }
+    ngx_conf_merge_value(conf->tpc_require_source_size,
+                         prev->tpc_require_source_size, 0);
+    ngx_conf_merge_str_value(conf->tpc_verify_checksum,
+                             prev->tpc_verify_checksum, "");  /* W4: "" = off */
 
     return brix_pmark_conf_merge(cf, &prev->pmark, &conf->pmark);
 }

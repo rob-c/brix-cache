@@ -1,4 +1,22 @@
+# Lazily populated by _crc32c() on first use; the module-level sentinel must exist
+# so the `global _CRC32C_TABLE; if _CRC32C_TABLE is None` guard reads a defined name
+# rather than raising NameError before the table is ever built.
 _CRC32C_TABLE = None
+
+
+def _is_server_sidecar(name):
+    """True for a server-managed metadata sidecar — the checksum/residency carriers
+    the backend creates AS THE WORKER (svc-owned 0600) *even under impersonation*,
+    by explicit design (see src/fs/meta/xmeta_path.c's SECURITY note: keeping the
+    integrity/cache metadata server-owned stops a mapped low-priv uid reading it on
+    a shared fs).  These are NOT user data, so the "uploaded data must be owned by
+    the mapped user, never svc/root" invariant does not apply to them.  The leak
+    sweeps skip them or they false-positive on every upload's `.cinfo`.  Suffix set
+    mirrors the product's own scrub_is_sidecar()/reap_is_sidecar() exactly."""
+    for suf in (".cinfo", ".meta", ".part", ".lock"):
+        if name.endswith(suf):
+            return True
+    return ".__xrds" in name
 
 
 def _crc32c(data):
@@ -41,6 +59,182 @@ def _kxr_auth_bytes(token, streamid=b"\x00\x03"):
     hdr = struct.pack("!2sH12s4sI", streamid, _KXR_AUTH, b"\x00" * 12,
                       b"ztn\x00", len(payload))
     return hdr + payload
+
+
+# kXR_open opcode + open-option flags (XProtocol; src/protocols/root/protocol/
+# opcodes.h + flags.h).  Defined here — before _kxr_open_bytes below uses one as
+# a default arg (evaluated at import time).
+_KXR_OPEN      = 3010         # kXR_open opcode (ClientOpenRequest)
+_KXR_NEW       = 0x0008       # kXR_new: fail with kXR_ItExists if the file exists
+_KXR_OPEN_READ = 0x0010       # kXR_open_read: open for reading (O_RDONLY)
+_KXR_OPEN_UPDT = 0x0020       # kXR_open_updt: open for read + write (O_RDWR)
+
+# ---- kXR opcode / status constants (src/protocols/root/protocol/opcodes.h) ----
+# The wire-builders above and the session scaffolding below reference these; they
+# resolve at call time in the shared split_continuation namespace.
+_KXR_OK       = 0             # kXR_ok
+_KXR_ERROR    = 4003          # kXR_error   (body = errnum[4] + NUL-terminated msg)
+_KXR_AUTHMORE = 4002          # kXR_authmore (login accepted, server wants kXR_auth)
+_KXR_AUTH     = 3000
+_KXR_CLOSE    = 3003
+_KXR_DIRLIST  = 3004
+_KXR_PROTOCOL = 3006
+_KXR_LOGIN    = 3007
+_KXR_BIND     = 3024          # bind a secondary data channel to a session
+_KXR_READ     = 3013
+_KXR_STAT     = 3017
+_KXR_STATX    = 3022
+_KXR_READV    = 3025
+_KXR_PGWRITE  = 3026
+_KXR_TRUNCATE = 3028
+_KXR_PGREAD   = 3030
+_KXR_PROTOCOLVERSION = 0x00000520   # v5.2.0
+_ROOTD_PQ     = 2012          # handshake fifth word (client_hello.c)
+_KXR_EXPLOGIN = 0x03          # kXR_ExpLogin — a kXR_login follows the protocol req
+_KXR_VER005   = 5             # capver: XRootD v5 client
+
+
+def _kxr_stat_bytes(path, streamid=b"\x00\x30", dlen=None):
+    """kXR_stat: ClientStatRequest (options[1] reserved[7] wants[4] fhandle[4]
+    dlen[4]) + path body — shares kXR_statx's layout.  `dlen` is overridable so a
+    caller can forge a length that disagrees with the actual path body (the
+    oversized/negative-dlen framing-attack probes in run_raw_kxr_wire)."""
+    p = path if isinstance(path, bytes) else path.encode()
+    d = len(p) if dlen is None else (dlen & 0xFFFFFFFF)
+    hdr = struct.pack("!2sHB7sI4sI", streamid, _KXR_STAT, 0, b"\x00" * 7,
+                      0, b"\x00" * 4, d)
+    return hdr + p
+
+
+def _kxr_connect(timeout=4.0):
+    """Open a raw TCP connection to the impersonation stream server (the same
+    127.0.0.1:_stream_port the native root:// helpers use) with `timeout` armed on
+    every subsequent send/recv.  Raises on connect failure so the caller degrades."""
+    s = socket.create_connection((HOST, _stream_port), timeout=timeout)
+    s.settimeout(timeout)
+    return s
+
+
+def _kxr_handshake_bytes(fourth=4, fifth=None):
+    """20-byte XRootD client hello {0,0,0,fourth,fifth}; the server validates
+    fourth==4 && fifth==2012 (client_hello.c) before switching to request framing.
+    `fourth`/`fifth` are overridable so a caller can forge an INVALID magic and
+    prove the server rejects it."""
+    return struct.pack("!5I", 0, 0, 0, fourth & 0xFFFFFFFF,
+                       (_ROOTD_PQ if fifth is None else fifth) & 0xFFFFFFFF)
+
+
+def _kxr_protocol_bytes(streamid=b"\x00\x01"):
+    """ClientProtocolRequest (24B): clientpv(4) flags(1) expect(1) reserved(10).
+    flags=0 — this bed is ztn-over-cleartext, so we advertise no TLS capability."""
+    return struct.pack("!2sHiBB10sI", streamid, _KXR_PROTOCOL,
+                       _KXR_PROTOCOLVERSION, 0, _KXR_EXPLOGIN, b"\x00" * 10, 0)
+
+
+def _kxr_login_bytes(username="alice", pid=4242, streamid=b"\x00\x02"):
+    """ClientLoginRequest (24B): pid(4) username(8, NUL-padded) ability2(1)
+    ability(1) capver(1=kXR_ver005) reserved(1); dlen=0 => the credential (if any)
+    follows in a separate kXR_auth."""
+    u = username.encode()[:8].ljust(8, b"\x00")
+    return struct.pack("!2sHi8sBBBBI", streamid, _KXR_LOGIN, pid, u,
+                       0, 0, _KXR_VER005, 0, 0)
+
+
+def _kxr_read_response(s):
+    """Read one ServerResponseHdr (streamid[2] status[2] dlen[4]) + its dlen-byte
+    body from `s`.  Returns (status, body); status is a kXR_* code (kXR_ok=0) or -1
+    when the peer closed / timed out before a full frame arrived (a malformed
+    request the server drops is a NON-ok outcome, which is exactly what the callers
+    assert)."""
+    try:
+        hdr = b""
+        while len(hdr) < 8:
+            chunk = s.recv(8 - len(hdr))
+            if not chunk:
+                return -1, b""
+            hdr += chunk
+        _sid, status, dlen = struct.unpack("!2sHI", hdr)
+        body = b""
+        while len(body) < dlen:
+            chunk = s.recv(dlen - len(body))
+            if not chunk:
+                break
+            body += chunk
+        return status, body
+    except (OSError, socket.timeout):
+        return -1, b""
+
+
+def _kxr_send_recv(s, req):
+    """Send one framed request on `s` and return its single (status, body) reply;
+    (-1, b"") if the peer reset/timed out (a dropped malformed request)."""
+    try:
+        s.sendall(req)
+    except (OSError, socket.timeout):
+        return -1, b""
+    return _kxr_read_response(s)
+
+
+def _kxr_oneshot(req, handshake=None, timeout=4.0):
+    """One-shot raw exchange: connect, send the handshake (the valid 20-byte hello
+    by default, or a caller-supplied blob for malformed-hello tests), read its
+    reply, then -- if `req` is non-empty -- send `req` and read one reply.  Returns
+    (hs_status, resp_status, resp_body, closed): each status is -1 when that stage
+    got no framed reply, and `closed` is True when the peer had dropped the
+    connection by the end.  Never raises -- a reset/timeout is reported, not thrown,
+    because a server that drops a hostile frame is the outcome under test."""
+    hs_status, resp_status, resp_body, closed = -1, -1, b"", False
+    try:
+        s = _kxr_connect(timeout)
+    except (OSError, socket.timeout):
+        return hs_status, resp_status, resp_body, True
+    try:
+        hs_status, _hb = _kxr_send_recv(
+            s, handshake if handshake is not None else _kxr_handshake_bytes())
+        if req:
+            resp_status, resp_body = _kxr_send_recv(s, req)
+        # Probe whether the peer has closed: a 0-length recv (or reset) => closed.
+        try:
+            s.settimeout(0.3)
+            closed = (s.recv(1) == b"")
+        except socket.timeout:
+            closed = False
+        except OSError:
+            closed = True
+    except (OSError, socket.timeout):
+        closed = True
+    finally:
+        try:
+            s.close()
+        except OSError:
+            pass
+    return hs_status, resp_status, resp_body, closed
+
+
+def _kxr_session(do_protocol=True, do_login=True, username="alice", timeout=4.0):
+    """Bring a raw connection up through the handshake and (optionally) the
+    kXR_protocol + anonymous kXR_login exchange.  Returns (sock, hs_status,
+    login_status): login_status is None when do_login is False, else kXR_ok (a
+    no-auth server) or kXR_authmore (a token/GSI server wants a follow-up kXR_auth).
+    Returns (None, -1, None) on any transport failure so callers degrade honestly."""
+    try:
+        s = _kxr_connect(timeout)
+    except (OSError, socket.timeout):
+        return None, -1, None
+    try:
+        hs, _ = _kxr_send_recv(s, _kxr_handshake_bytes())
+        if do_protocol:
+            _kxr_send_recv(s, _kxr_protocol_bytes())
+        lg = None
+        if do_login:
+            lg, _ = _kxr_send_recv(s, _kxr_login_bytes(username))
+        return s, hs, lg
+    except (OSError, socket.timeout):
+        try:
+            s.close()
+        except OSError:
+            pass
+        return None, -1, None
 
 
 def _kxr_open_bytes(path, options=_KXR_OPEN_READ, mode=0, streamid=b"\x00\x20"):

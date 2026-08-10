@@ -14,11 +14,12 @@
  *       streams; this engine fans DISTINCT servers, with dynamic instead of
  *       static range assignment.
  * HOW:  Replica URLs come from copy_xcp_sources.c (metalink mirrors → locate
- *       → duplication). Per-block atomic state bytes coordinate claim/steal;
- *       disjoint pwrites into the shared VFS temp reassemble by offset
- *       (io_uring OFF, the phase-94 thread-safety pattern). Fail-closed:
- *       losing every worker aborts the temp; losing some is survived by
- *       claim-return + stealing.
+ *       → duplication). A bounded join gate holds the claim start until every
+ *       source's open resolves, so each opened source gets its first claim.
+ *       Per-block atomic state bytes coordinate claim/steal; disjoint pwrites
+ *       into the shared VFS temp reassemble by offset (io_uring OFF, the
+ *       phase-94 thread-safety pattern). Fail-closed: losing every worker
+ *       aborts the temp; losing some is survived by claim-return + stealing.
  */
 #include "copy_internal.h"
 #include "copy_xcp_internal.h"
@@ -286,6 +287,37 @@ xcp_worker_blocks(xcp_worker_t *w, brix_conn *c, brix_file *f, uint8_t *buf)
 }
 
 
+/* ---- Wait for every source's open attempt to resolve (bounded) ----
+ *
+ * WHAT: Block until sh->resolved reaches the spawn width, the grace cap
+ *       expires, or the operator cancels.
+ *
+ * WHY: Without a start rendezvous the first source to finish its XRootD open
+ *      can drain the whole block table before a sibling's handshake completes
+ *      — on a fast link --sources N silently degrades to one source. Holding
+ *      the claim start until every open RESOLVES (success or failure — a dead
+ *      mirror lifts the gate as fast as a live one) guarantees each opened
+ *      source at least its first claim. The grace cap keeps a black-holed
+ *      mirror from stalling the transfer start beyond a bounded delay.
+ *
+ * HOW: 1. Poll resolved vs nworkers in 2 ms sleeps. 2. Give up waiting at
+ *         XRDC_XCP_JOIN_GRACE_MS or on quit — the claim loop handles cancel.
+ */
+static void
+xcp_join_gate(const xcp_shared_t *sh)
+{
+    unsigned waited_ms = 0;
+
+    while (atomic_load(&sh->resolved) < sh->nworkers
+           && waited_ms < XRDC_XCP_JOIN_GRACE_MS
+           && !brix_copy_quit_requested()) {
+        struct timespec ts = { 0, 2 * 1000 * 1000 };
+        nanosleep(&ts, NULL);
+        waited_ms += 2;
+    }
+}
+
+
 /* ---- Worker thread: one replica connection driving the block loop ----
  *
  * WHAT: Connect + open this worker's replica URL, then claim/steal/fetch until
@@ -296,10 +328,12 @@ xcp_worker_blocks(xcp_worker_t *w, brix_conn *c, brix_file *f, uint8_t *buf)
  *      the whole point of multi-source — while the atomics above make worker
  *      death safe at any instant.
  *
- * HOW: 1. Parse/connect/open (any failure kills only this worker). 2. Loop:
- *         claim else steal else (blocks remain? 20 ms idle wait : exit).
- *         3. Fetch errors release the block and kill the worker. 4. Teardown
- *         always closes handle + connection and drops the live count.
+ * HOW: 1. Parse/connect/open (any failure kills only this worker), then count
+ *         this source RESOLVED either way and hold at the join gate so every
+ *         opened sibling gets its first claim. 2. Loop: claim else steal else
+ *         (blocks remain? 20 ms idle wait : exit). 3. Fetch errors release the
+ *         block and kill the worker. 4. Teardown always closes handle +
+ *         connection and drops the live count.
  */
 static void *
 xcp_worker_main(void *arg)
@@ -325,7 +359,13 @@ xcp_worker_main(void *arg)
         }
     }
 
+    atomic_fetch_add(&sh->resolved, 1);
+
     if (buf != NULL) {
+        /* Hold until every sibling's open resolves (join gate), then run the
+         * reservation-aware claim/steal loop so no fast source drains the block
+         * table before a slower mirror gets its first claim. */
+        xcp_join_gate(sh);
         w->rc = xcp_worker_blocks(w, &c, &f, buf);
     }
 
@@ -361,9 +401,10 @@ xcp_worker_main(void *arg)
  *      coordinator (not the workers) invokes o->progress, preserving the
  *      serial pump's "progress callback runs on one thread" contract.
  *
- * HOW: 1. Spawn each worker (a spawn failure just burns that slot's live
- *         count — the engine needs only >= 1 running). 2. Poll live/donebytes
- *         at 100 ms, feeding progress. 3. Join, final progress tick, verdict.
+ * HOW: 1. Spawn each worker (a spawn failure burns that slot's live count and
+ *         counts it resolved so the join gate never waits for it — the engine
+ *         needs only >= 1 running). 2. Poll live/donebytes at 100 ms, feeding
+ *         progress. 3. Join, final progress tick, verdict.
  */
 static int
 xcp_run_workers(xcp_shared_t *sh, xcp_worker_t *w, pthread_t *th, size_t n,
@@ -371,6 +412,7 @@ xcp_run_workers(xcp_shared_t *sh, xcp_worker_t *w, pthread_t *th, size_t n,
 {
     size_t k;
 
+    sh->nworkers = (unsigned) n;
     atomic_store(&sh->live, (unsigned) n);
     for (k = 0; k < n; k++) {
         if (k < sh->nblocks) {
@@ -385,6 +427,7 @@ xcp_run_workers(xcp_shared_t *sh, xcp_worker_t *w, pthread_t *th, size_t n,
                 w[k].initial_reserved = 0;
             }
             atomic_fetch_sub(&sh->live, 1);
+            atomic_fetch_add(&sh->resolved, 1);
         }
     }
     while (atomic_load(&sh->live) > 0) {
@@ -435,7 +478,18 @@ xcp_eligible(const download_job_t *job, size_t block)
 }
 
 
-/* ---- Print the observability line the dedicated tests assert on ---- */
+/* ---- Print the observability lines the dedicated tests assert on ----
+ *
+ * WHAT: Under BRIX_XCP_DEBUG, print the per-source block accounting plus one
+ *       line per FAILED worker (its URL and status text).
+ *
+ * WHY: A dead worker is silent by design (the engine survives on the others),
+ *      so without the failure lines a source showing 0 blocks is ambiguous:
+ *      connect/open failure vs merely joining after the table drained.
+ *
+ * HOW: 1. Summary line from the shared counters. 2. One line per worker whose
+ *         rc is nonzero, echoing the brix_status message it died with.
+ */
 static void
 xcp_debug_line(const xcp_shared_t *sh, const xcp_worker_t *w, size_t n)
 {
@@ -450,6 +504,12 @@ xcp_debug_line(const xcp_shared_t *sh, const xcp_worker_t *w, size_t n)
         fprintf(stderr, "%s%u", k ? "," : "", w[k].blocks_done);
     }
     fprintf(stderr, "] steals=%u\n", atomic_load(&sh->steals));
+    for (k = 0; k < n; k++) {
+        if (w[k].rc != 0) {
+            fprintf(stderr, "brix: xcp worker %zu (%s): %s\n",
+                    k, w[k].url, w[k].st.msg);
+        }
+    }
 }
 
 

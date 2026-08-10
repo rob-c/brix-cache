@@ -200,7 +200,7 @@ tape_residency(ngx_http_request_t *r, const char *abs,
 
     *nearline = 0;
     brix_vfs_ctx_init(&vctx, r->pool, r->connection->log,
-        BRIX_PROTO_WEBDAV, conf->common.root_canon, conf->cache_root_canon,
+        BRIX_PROTO_WEBDAV, conf->common.root_canon, conf->common.cache_root_canon,
         conf->common.allow_write, 0 /* is_tls */, NULL, abs);
     return brix_vfs_residency(&vctx, state, nearline);
 }

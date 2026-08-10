@@ -193,7 +193,7 @@ def test_combined_gateway_config_validates(tmp_path):
     _check_test_combined_gateway_config_validates_1(r)
     rendered = (tmp_path / "gateway.conf").read_text()
     def _assert_test_combined_gateway_config_validates_3():
-        assert "brix_gridftp_storage_backend pblock" in rendered
+        assert "brix_storage_backend pblock" in rendered
         assert str(pblock_root) in rendered
 
     _assert_test_combined_gateway_config_validates_3()
@@ -239,7 +239,7 @@ def test_s3_backend_leg_config_validates(tmp_path):
     _check_test_s3_backend_leg_config_validates_3(r)
     rendered = (tmp_path / "gateway-s3.conf").read_text()
     def _assert_test_s3_backend_leg_config_validates_1():
-        assert "brix_gridftp_storage_backend    s3://" in rendered
+        assert "brix_storage_backend    s3://" in rendered
         assert "brix_s3 on;" in rendered
 
     _assert_test_s3_backend_leg_config_validates_1()
@@ -274,7 +274,7 @@ def _tree_copy(tmp_path: Path) -> Path:
 
     The drift tests below damage a config on purpose.  Doing that to the tracked
     file — restoring it in a ``finally`` — is what put a hardcoded 2810 and a
-    deleted ``brix_gridftp_storage_backend pblock`` line into the repo once
+    deleted ``brix_storage_backend pblock`` line into the repo once
     already: an interrupted run never reaches its restore step.  Damaging a copy
     cannot corrupt the tree no matter how the run dies.
     """
@@ -326,7 +326,7 @@ def test_guard_reddens_when_gateway_config_drops_pblock_backend(tmp_path):
     """Dropping the pblock backend registration would silently degrade the
     non-posix backend interop cell to a posix round-trip — the guard must fire."""
     root = _tree_copy(tmp_path)
-    _damage(root, GATEWAY_CONF_REL, "brix_gridftp_storage_backend pblock;", "")
+    _damage(root, GATEWAY_CONF_REL, "brix_storage_backend pblock;", "")
     rc, out = _run_guard(root)
     assert rc != 0 and "pblock" in out, out
 
@@ -337,7 +337,7 @@ def test_guard_reddens_when_s3_config_drops_s3_backend(tmp_path):
     round-trip — the guard fires."""
     root = _tree_copy(tmp_path)
     _damage(root, S3_CONF_REL,
-            "brix_gridftp_storage_backend    s3://{BIND_HOST}:{S3_ORIGIN_PORT}/testbucket;",
+            "brix_storage_backend    s3://{BIND_HOST}:{S3_ORIGIN_PORT}/testbucket;",
             "")
     rc, out = _run_guard(root)
     assert rc != 0 and "s3" in out, out

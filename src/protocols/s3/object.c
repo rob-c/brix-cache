@@ -61,7 +61,7 @@ s3_vfs_ctx(ngx_http_request_t *r, const char *fs_path,
 #endif
 
     brix_vfs_ctx_init(vctx, r->pool, r->connection->log, BRIX_PROTO_S3,
-        cf->common.root_canon, cf->cache_root_canon, cf->common.allow_write,
+        cf->common.root_canon, cf->common.cache_root_canon, cf->common.allow_write,
         is_tls, (s3ctx != NULL) ? s3ctx->identity : NULL, fs_path);
     /* Data-plane GET: bind the export's per-user backend credential policy
      * (+ opt-in mint), mirroring s3_build_vfs_ctx (util.c, the PUT/POST-object
@@ -114,7 +114,7 @@ s3_get_serve_zip_member(ngx_http_request_t *r, const char *fs_path,
     char member[PATH_MAX];
     int  zr;
 
-    if (!cf->zip_access) {
+    if (!cf->common.zip_access) {
         return NGX_DECLINED;
     }
 
@@ -129,7 +129,7 @@ s3_get_serve_zip_member(ngx_http_request_t *r, const char *fs_path,
 
     {
         ngx_int_t zs = brix_zip_http_serve(r, cf->common.root_canon,
-                                             cf->zip_cd_max_bytes,
+                                             cf->common.zip_cd_max_bytes,
                                              fs_path, member);
         if (zs == NGX_HTTP_NOT_FOUND) {
             return s3_fail(r, NGX_HTTP_NOT_FOUND, "NoSuchKey",

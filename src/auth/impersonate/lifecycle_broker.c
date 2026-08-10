@@ -204,7 +204,7 @@ imp_resolve_broker_user(ngx_cycle_t *cycle, uid_t wuid)
     if (pw == NULL) {
         BRIX_DIAG_EMERG(cycle->log, 0,
             "impersonate: broker user \"%s\" does not exist",
-            "brix_impersonation_broker_user names a local account that "
+            "brix_idmap_broker_user names a local account that "
             "is not present in /etc/passwd (or NSS)",
             "create the dedicated service account first, or correct the "
             "name in the directive",
@@ -216,7 +216,7 @@ imp_resolve_broker_user(ngx_cycle_t *cycle, uid_t wuid)
             "impersonate: broker user \"%s\" is not a safe choice",
             "the broker account must NOT be root and must differ from the "
             "nginx worker user, so a compromise cannot escalate",
-            "point brix_impersonation_broker_user at a dedicated, "
+            "point brix_idmap_broker_user at a dedicated, "
             "unprivileged account used for nothing else",
             nm);
         return NGX_ERROR;
@@ -242,7 +242,7 @@ imp_load_idmap(ngx_cycle_t *cycle, uid_t wuid)
         BRIX_DIAG_EMERG(cycle->log, 0,
             "impersonate: identity map failed to load",
             "the grid-mapfile is missing, unreadable, or malformed",
-            "check brix_impersonation_gridmap points at a readable "
+            "check brix_idmap_gridmap points at a readable "
             "grid-mapfile with valid \"<DN>\" <user> lines");
         return NGX_ERROR;
     }
@@ -356,10 +356,10 @@ imp_init_module_gate(ngx_cycle_t *cycle)
     if (geteuid() != 0) {
         BRIX_DIAG_EMERG(cycle->log, 0,
             "impersonate: map mode requires a root master process",
-            "brix_impersonation is set to 'map' but nginx was not started "
+            "brix_idmap is set to 'map' but nginx was not started "
             "as root, so it cannot set up the privileged uid-mapping broker",
             "start nginx as root (workers still drop to the configured user), "
-            "or change brix_impersonation away from 'map'");
+            "or change brix_idmap away from 'map'");
         return NGX_ERROR;
     }
     return NGX_OK;

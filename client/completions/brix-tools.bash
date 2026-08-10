@@ -15,7 +15,7 @@ _xrdcp() {
     --delete --dry-run --exclude --include --remove-source --journal --resume
     --progress --verify --tls --notlsok --noverifyhost --auth --proxy --pgrw
     --io-uring --io-uring-direct --cksum --compress --zip --zip-append --streams --parallel --tpc
-    --sources --no-metalink
+    --sources --no-metalink --continue -X --xrate --xrate-threshold --rm-bad-cksum -F --coerce --retry-policy --xattr
     --tpc-token-mode --token --s3-access --s3-secret --s3-region
     --wire-trace --timing"
   _brix_opts_filter "$opts" && return
@@ -51,7 +51,7 @@ _xrdfs() {
   if [[ $COMP_CWORD -eq 2 ]]; then
     COMPREPLY=($(compgen -W "stat ls du df tree find mkdir rm rmdir mv chmod
       touch ln readlink truncate cat head tail wc grep hexdump dd upload
-      download cmp cksum xattr readv writev locate query statvfs prepare
+      download cmp cksum xattr readv readvm writev locate query statvfs spaceinfo prepare
       stage evict explain" -- "$cur"))
     return
   fi

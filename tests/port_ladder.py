@@ -1,12 +1,31 @@
 """Contiguous, relocatable ladder for central Python test infrastructure.
 
 Set ``TEST_PORT_START`` to the number immediately below the first allocated
-port.  For example, ``TEST_PORT_START=10000`` allocates 10001..11039.
+port.  For example, ``TEST_PORT_START=10000`` allocates 10001..PORT_LAST.
 
 The old values remain beside their owning constants/ledger entries in
 ``settings.py``, ``fleet_lifecycle_ports.py`` and ``fleet_ports.py``.  They are
 the historical ports used while each test was developed; this module only
 translates those named allocations onto a compact per-run lane.
+
+## One packed lane, zero overlaps — BY CONSTRUCTION
+
+The lane is carved into ordered category *segments* declared in ``_LADDER`` as
+``(name, width)``.  Segment OFFSETS ARE DERIVED cumulatively (``_build_ladder``),
+so the lane is always contiguous with zero gaps AND zero overlaps: bump a width
+and every later segment shifts automatically — there is no hand-maintained offset
+to edit into an overlap, and ``PORT_COUNT`` is simply the sum of the widths.  A
+category that adds a test server bumps ONLY its own width.  ``tests/
+test_port_ladder.py`` asserts this so a future edit that breaks it fails loudly.
+
+Width history (each bump = a test subject added; the ladder is packed, so a width
+change is an intentional compatibility event):
+  LIFECYCLE_SHARED  523 -> ... -> 550: CMS parity + HTTP redirect + pmark-s3 +
+    parity-fix waves 3-16 (multipath, dirlist, chkpnt, tpc-markers, prepflags,
+    cache-evict, ztn-maxsz, oss-maxsize, html-listing, oss-cgroup, fsoverload,
+    qspace ×4, cms-wire-minfree, slowop+METRICS_PORT).
+  LIFECYCLE_EXCLUSIVE 137 -> 140 -> 141: audit-fix onlyifcached/coldpurge/signing
+    (2026-08-09); +cache-uvkeep §4.3 (2026-08-10).
 """
 
 from __future__ import annotations
@@ -534,7 +553,7 @@ SETTINGS_OFFSET, SETTINGS_WIDTH = 0, 178
 # cannot share a `listen` because config_merge refuses "brix_webdav and
 # brix_s3 both enabled under listen port N - one brix protocol per port").
 # Every offset below shifts by 5.
-LIFECYCLE_SHARED_OFFSET, LIFECYCLE_SHARED_WIDTH = 178, 903
+LIFECYCLE_SHARED_OFFSET, LIFECYCLE_SHARED_WIDTH = 178, 923
 # 2026-08-09: 137 -> 140 for the three audit-fix lifecycle subjects
 # (test_audit_fixes_2026_08_09.py: only-if-cached, cold-purge, signing).
 # Every offset below shifts by the same 3 — the ladder is packed, so a width
@@ -606,30 +625,30 @@ LIFECYCLE_SHARED_OFFSET, LIFECYCLE_SHARED_WIDTH = 178, 903
 # the five GridFTP write-gate slots above (893 -> 898).
 # 2026-08-19 (16th tranche, 37th file): 1076 -> 1081, the running sum again,
 # for the five cache-store-endpoint slots above (898 -> 903).
-LIFECYCLE_EXCLUSIVE_OFFSET, LIFECYCLE_EXCLUSIVE_WIDTH = 1081, 140
+LIFECYCLE_EXCLUSIVE_OFFSET, LIFECYCLE_EXCLUSIVE_WIDTH = 1101, 142
 # 2026-08-19: 205 -> 211 for the six-port root_readonly_gateway block (origin +
 # read-only gateway + allow_write-override gateway + writable control +
 # data-substreams gateway + read_only_public gateway).  The config-time
 # role-conflict check needs no port: it listens on a unix socket, because
 # `nginx -t` opens the listening sockets and a TCP port would race the lane.
-CMDSCRIPTS_OFFSET, CMDSCRIPTS_WIDTH = 1221, 211
-CMS_MESH_OFFSET, CMS_MESH_WIDTH = 1432, 83
-HYBRID_MESH_OFFSET, HYBRID_MESH_WIDTH = 1515, 23
-PLACEHOLDERS_OFFSET, PLACEHOLDERS_WIDTH = 1538, 2
+CMDSCRIPTS_OFFSET, CMDSCRIPTS_WIDTH = 1243, 211
+CMS_MESH_OFFSET, CMS_MESH_WIDTH = 1454, 83
+HYBRID_MESH_OFFSET, HYBRID_MESH_WIDTH = 1537, 23
+PLACEHOLDERS_OFFSET, PLACEHOLDERS_WIDTH = 1560, 2
 # CVMFS conformance mock-Stratum-1 + nginx port blocks (cvmfs/conformance_common.py
 # PORT_BLOCKS): 26 files x a 20-port block.  Anchored into the ladder so every
 # port stays within TEST_PORT_START+2000 and a second suite on a different
 # TEST_PORT_START draws a disjoint range (replaces the old absolute 13100+ tiling).
 # 27 file blocks x 20 ports = 540, plus a 48-port matrix sub-range for the
 # concurrent fuse-trust mock origins (see conformance_common.matrix_port).
-CVMFS_CONFORMANCE_OFFSET, CVMFS_CONFORMANCE_WIDTH = 1540, 588
+CVMFS_CONFORMANCE_OFFSET, CVMFS_CONFORMANCE_WIDTH = 1562, 588
 # Differential-interop per-file fixed ports (official_interop_lib.worker_port):
 # one slot per distinct conformance base (61 today), anchored here so they stay
 # in the contiguous ladder within TEST_PORT_START+2000 instead of the old
 # absolute 30000-49925 per-worker band.  The owning module is pinned to one xdist
 # worker (conftest auto-xdist_group), so a fixed port per file suffices.
-INTEROP_WORKER_OFFSET, INTEROP_WORKER_WIDTH = 2128, 61
-PORT_COUNT = 2189
+INTEROP_WORKER_OFFSET, INTEROP_WORKER_WIDTH = 2150, 61
+PORT_COUNT = 2211
 PORT_FIRST = PORT_START + 1
 PORT_LAST = PORT_START + PORT_COUNT
 

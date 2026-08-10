@@ -1,4 +1,7 @@
 #include "core/ngx_brix_module.h"
+#include "protocols/root/path/op_path.h"   /* brix_beneath_full_path, auth gate */
+#include "fs/vfs/vfs.h"                    /* VFS ctx + export-relative key */
+#include "fs/backend/cache/sd_cache.h"     /* brix_sd_cache_evict */
 
 #include <stdlib.h>
 
@@ -82,6 +85,110 @@ brix_set_handle_cms_space(ngx_connection_t *c, const char *payload,
                   (total_bytes > free_bytes) ? total_bytes - free_bytes : 0ULL);
 }
 
+/* Stock xrdfs "cache {evict|fevict} <path>" arrives as kXR_set with this
+ * payload prefix (pinned live against xrdfs 5.6.9 with XRD_LOGLEVEL=Dump). */
+#define CACHE_EVICT_PREFIX      "cache evict "
+#define CACHE_EVICT_PREFIX_LEN  (sizeof(CACHE_EVICT_PREFIX) - 1)
+#define CACHE_FEVICT_PREFIX     "cache fevict "
+#define CACHE_FEVICT_PREFIX_LEN (sizeof(CACHE_FEVICT_PREFIX) - 1)
+
+/* ---- Operator cache-evict command (stock xrdfs "cache evict|fevict") ----
+ *
+ * WHAT: Handles a kXR_set payload of "cache evict <path>" / "cache fevict
+ *       <path>": authorizes the caller, then removes the path's cached copy
+ *       (data + cinfo + L1 entry) from the export's cache tier. Replies
+ *       kXR_ok whether or not a copy was cached (the engine is idempotent),
+ *       kXR_Unsupported when the export has no cache tier, kXR_NotAuthorized
+ *       on a failed gate. Returns the response's queue result.
+ *
+ * WHY:  Parity audit §4.11/§7.12 — the programmatic evict existed but no
+ *       operator command reached it; stock ships `xrdfs cache evict`.
+ *       Eviction destroys cached state, so it is gated like a delete
+ *       (allow_write first — invariant 3 — then the BRIX_AUTH_DELETE
+ *       authz/token-scope chain on the CONFINED path — invariant 4).
+ *
+ * HOW:  1. Extract and NUL-terminate the path operand; refuse empty or
+ *          over-long operands and any ".." component outright.
+ *       2. Confine beneath root_canon + run the shared auth gate
+ *          (need_write ⇒ allow_write is checked before token scope).
+ *       3. Build a transient VFS ctx; no cache decorator on the export ⇒
+ *          kXR_Unsupported.
+ *       4. brix_sd_cache_evict on the export-relative key; log the freed
+ *          bytes. evict and fevict act identically here — the engine has no
+ *          in-use refusal — a documented divergence from stock's evict.
+ */
+static ngx_int_t
+brix_set_handle_cache_evict(brix_ctx_t *ctx, ngx_connection_t *c,
+    ngx_stream_brix_srv_conf_t *conf, const char *operand, size_t operand_len,
+    int force)
+{
+    brix_vfs_ctx_t  vctx;
+    char            reqpath[BRIX_MAX_PATH + 1];
+    char            full_path[PATH_MAX];
+    uint64_t        freed_bytes;
+    const char     *verb = force ? "fevict" : "evict";
+
+    while (operand_len > 0
+           && (operand[operand_len - 1] == '\0'
+               || operand[operand_len - 1] == '\n'
+               || operand[operand_len - 1] == ' '))
+    {
+        operand_len--;
+    }
+    if (operand_len == 0 || operand_len > BRIX_MAX_PATH) {
+        BRIX_OP_ERR(ctx, BRIX_OP_SET);
+        return brix_send_error(ctx, c, kXR_ArgInvalid,
+                                 "cache evict: bad path operand");
+    }
+    ngx_memcpy(reqpath, operand, operand_len);
+    reqpath[operand_len] = '\0';
+
+    if (brix_reject_dotdot_path(ctx, c, BRIX_OP_SET, "SET", reqpath)) {
+        return ctx->write_rc;
+    }
+
+    /* Invariant 3: the global write gate comes BEFORE any token-scope or
+     * authdb evaluation. kXR_set is normally advisory and routes through the
+     * session dispatcher (no write gate there), so the destructive cache
+     * command enforces it here itself. */
+    if (!conf->common.allow_write) {
+        brix_log_access(ctx, c, "SET", reqpath, verb, 0,
+                          kXR_NotAuthorized, "read-only export", 0);
+        BRIX_OP_ERR(ctx, BRIX_OP_SET);
+        return brix_send_error(ctx, c, kXR_NotAuthorized,
+                                 "cache evict: server is read-only");
+    }
+
+    brix_beneath_full_path(conf->common.root_canon, reqpath,
+                             full_path, sizeof(full_path));
+
+    if (brix_auth_gate(ctx, c, BRIX_OP_SET, "SET", reqpath, full_path,
+                          conf, BRIX_AUTH_DELETE, 1 /* need_write */)
+        != NGX_OK)
+    {
+        return ctx->write_rc;
+    }
+
+    brix_vfs_ctx_init(&vctx, c->pool, c->log, BRIX_PROTO_ROOT,
+        conf->common.root_canon, NULL, 1 /* allow_write */, 0 /* is_tls */,
+        ctx->identity, full_path);
+
+    if (vctx.sd == NULL || !brix_sd_cache_instance_is(vctx.sd)) {
+        BRIX_OP_ERR(ctx, BRIX_OP_SET);
+        return brix_send_error(ctx, c, kXR_Unsupported,
+                                 "no cache tier on this export");
+    }
+
+    freed_bytes = brix_sd_cache_evict(vctx.sd,
+                                        brix_vfs_export_relative(&vctx,
+                                                                 full_path));
+    ngx_log_error(NGX_LOG_INFO, c->log, 0,
+                  "brix: cache %s \"%s\": %uL bytes evicted",
+                  verb, reqpath, (uint64_t) freed_bytes);
+
+    BRIX_RETURN_OK(ctx, c, BRIX_OP_SET, "SET", reqpath, verb, 0);
+}
+
 /*
  * brix_handle_set — handle kXR_set (3018) opcode.
  *
@@ -105,7 +212,8 @@ brix_set_handle_cms_space(ngx_connection_t *c, const char *payload,
  *   c   — nginx connection for logging
  */
 ngx_int_t
-brix_handle_set(brix_ctx_t *ctx, ngx_connection_t *c)
+brix_handle_set(brix_ctx_t *ctx, ngx_connection_t *c,
+    ngx_stream_brix_srv_conf_t *conf)
 {
     xrdw_set_req_t    req;
     char              detail[128];
@@ -150,6 +258,28 @@ brix_handle_set(brix_ctx_t *ctx, ngx_connection_t *c)
     {
         brix_set_handle_cms_space(c, payload, payload_len);
         BRIX_RETURN_OK(ctx, c, BRIX_OP_SET, "SET", "-", "cms.space", 0);
+    }
+
+    /* Operator cache-evict (stock xrdfs `cache evict|fevict <path>`) —
+     * matched by payload prefix regardless of modifier: stock sends the
+     * command as an ordinary appid-modifier set. */
+    if (payload_len > CACHE_EVICT_PREFIX_LEN
+        && ngx_strncmp(payload, CACHE_EVICT_PREFIX,
+                       CACHE_EVICT_PREFIX_LEN) == 0)
+    {
+        return brix_set_handle_cache_evict(ctx, c, conf,
+                                             payload + CACHE_EVICT_PREFIX_LEN,
+                                             payload_len
+                                             - CACHE_EVICT_PREFIX_LEN, 0);
+    }
+    if (payload_len > CACHE_FEVICT_PREFIX_LEN
+        && ngx_strncmp(payload, CACHE_FEVICT_PREFIX,
+                       CACHE_FEVICT_PREFIX_LEN) == 0)
+    {
+        return brix_set_handle_cache_evict(ctx, c, conf,
+                                             payload + CACHE_FEVICT_PREFIX_LEN,
+                                             payload_len
+                                             - CACHE_FEVICT_PREFIX_LEN, 1);
     }
 
     snprintf(detail, sizeof(detail), "modifier=0x%02x(%s) val=\"%s\"",

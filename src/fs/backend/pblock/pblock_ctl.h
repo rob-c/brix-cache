@@ -43,10 +43,15 @@ typedef struct {
     int      lab;         /* master fail-closed gate for all behaviour features  */
     int      mem;         /* F16: MEMORY-journal catalog (ephemeral lab export)  */
     int      audit;       /* F17: append-only oplog of metadata-boundary ops     */
-    int      csi;         /* F3: per-block CRC32c integrity (csi catalog table)  */
+    int      csi;         /* F3: per-block CRC32c integrity (csi catalog table).
+                             W5: STANDARD — -1 default-on; csi=0 disables       */
     int      nearline;    /* F4: nearline/tape residency simulation              */
     int      locks;       /* F15: mandatory byte-range/whole-file lease enforce  */
     int      dedup;       /* F10: refcounted blobs + content-addressed dedup     */
+    int      pack;        /* phase-88 W2: packed small-blob arena (pack/ segs)   */
+    int64_t  pack_max;    /* W2: largest blob admitted to the arena (0 = default)*/
+    int      nsidx;       /* phase-88 W4: cross-process mmap namespace cache.
+                             W5: STANDARD — -1 default-on; nsidx=0 disables     */
     int      snapshots;   /* F6: named snapshots / instant fixture reset (⇒ refs) */
     int      versions;    /* F11: prior-blob generations to keep on overwrite     */
     int      trash;       /* F11: unlink → trash instead of free (⇒ refs)         */

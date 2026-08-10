@@ -339,6 +339,26 @@ sd_pblock_ftruncate(brix_sd_obj_t *obj, off_t len)
     int64_t       boundary = (int64_t) len - keep * bs;   /* bytes kept in `keep` */
     int           fd, transient = 0;
 
+    /* F3 (phase-88 W5 fix): a truncation invalidates at-rest CRCs — the
+     * boundary block's row describes bytes that no longer exist, and rows past
+     * the new last block would turn a later regrowth's hole reads into phantom
+     * EIOs. Drop the beyond-rows now; fold the boundary block into this
+     * handle's written extent so reads skip the stale snapshot and the
+     * close-time flush recomputes its row. Runs before the physical trim so a
+     * failed trim errs on missing tags (read as unset), never stale ones. */
+    if (os->st->csi) {
+        pblock_csi_truncate(os->st->cat, os->blob_id, keep);
+        if (keep < os->csi_dlo) {
+            os->csi_dlo = keep;
+        }
+        if (keep + 1 > os->csi_dhi) {
+            os->csi_dhi = keep + 1;
+        }
+        if (os->csi_n > (uint64_t) (keep + 1)) {
+            os->csi_n = (uint64_t) (keep + 1);   /* clamp the open snapshot */
+        }
+    }
+
     /* F12/F13: transformed blocks carry a header — trim the boundary block by
      * re-encoding its surviving logical prefix, not a raw ftruncate. */
     if (pblock_xform_active(&os->st->xform)) {

@@ -92,6 +92,32 @@ brix_vbr_build_posix(brix_vfs_backend_entry_t *e, ngx_log_t *log)
  * block device (or a file used as one) at e->origin_path as a flat namespace of
  * equal-size extents. e->block_size is the per-extent size (0 ⇒ whole device is
  * a single extent "/0"). */
+/* mirage: the sizes-only synthetic backend (§3 row 14) — every path is a
+ * read-only regular file of e->block_size (reused as the synthetic size) bytes
+ * of deterministic pattern; zero storage behind the export. */
+static brix_sd_instance_t *
+brix_vbr_build_mirage(brix_vfs_backend_entry_t *e, ngx_log_t *log)
+{
+    brix_sd_mirage_conf_t conf;
+    int                     sderr = 0;
+    brix_sd_instance_t   *inst;
+
+    ngx_memzero(&conf, sizeof(conf));
+    conf.size = e->block_size;
+
+    inst = brix_sd_instance_create(log, "mirage", &conf, &sderr);
+    if (inst == NULL) {
+        ngx_log_error(NGX_LOG_ERR, log, sderr,
+            "brix: mirage backend init failed for export \"%s\"",
+            e->root_canon);
+    } else {
+        ngx_log_error(NGX_LOG_NOTICE, log, 0,
+            "brix: mirage synthetic backend ready at \"%s\" (size=%L)",
+            e->root_canon, (int64_t) e->block_size);
+    }
+    return inst;
+}
+
 static brix_sd_instance_t *
 brix_vbr_build_block(brix_vfs_backend_entry_t *e, ngx_log_t *log)
 {
@@ -377,6 +403,7 @@ typedef struct {
 } brix_vbr_source_desc_t;
 
 static const brix_vbr_source_desc_t  brix_vbr_source_table[] = {
+    { "mirage",   brix_vbr_build_mirage },
     { "block",    brix_vbr_build_block },
     { "xroot",    brix_vbr_build_xroot },
 #if BRIX_HAVE_CEPH

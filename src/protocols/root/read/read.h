@@ -38,6 +38,15 @@ ngx_int_t brix_read_compressed(brix_ctx_t *ctx, ngx_connection_t *c,
                                  ngx_stream_brix_srv_conf_t *rconf,
                                  int idx, off_t offset, size_t rlen);
 
+/* ---- Function: brix_fsoverload_backoff() ----
+ * The shared memory-budget-overload response (§1.10). When brix_fsoverload_redirect
+ * is configured, send the client a kXR_redirect to that host so the read offloads
+ * to a sibling; otherwise send kXR_wait(fsoverload_stall) telling it to back off and
+ * retry here. Called from every budget-admission rejection site (read/readv).
+ */
+ngx_int_t brix_fsoverload_backoff(brix_ctx_t *ctx, ngx_connection_t *c,
+                                    ngx_stream_brix_srv_conf_t *rconf);
+
 /* ---- Function: brix_handle_readv() ----
  * Handles kXR_readv opcode — multi-segment scatter-gather read returning interleaved data chunks.
  * Validates segment list (count <= BRIX_READV_MAX_SEGS), validates each handle, caps per-segment rlen,

@@ -36,11 +36,37 @@ def _missing_module_directives(body: str, modules: list[str]) -> list[str]:
     return [directive for directive in directives if directive not in existing]
 
 
-def inject_nginx_load_modules(config: str | Path) -> None:
-    """Apply runner-selected dynamic modules to any generated nginx config."""
+def inject_nginx_load_modules(config: str | Path,
+                              nginx_bin: str | Path | None = None) -> None:
+    """Apply runner-selected dynamic modules to any generated nginx config.
+
+    STATIC/DYNAMIC SEPARATION GUARD: the fleet keeps a static build (stream
+    compiled in) and a `--with-stream=dynamic` build in SEPARATE trees. When
+    nginx_bin is given and points at a static build, injecting a
+    ngx_stream_module.so is refused — a dynamic stream module dlopen'd into a
+    static binary fails with `undefined symbol: ngx_stat_active` (or double-
+    registers stream). Modules belong only to the dynamic build, resolved from
+    its own objs/ dir. This turns a cryptic startup crash into a clear error.
+    """
     modules = _configured_nginx_modules()
     if not modules:
         return
+    if nginx_bin is not None and any(
+            Path(m).name == "ngx_stream_module.so" for m in modules):
+        try:
+            probe = subprocess.run([str(nginx_bin), "-V"],
+                                   capture_output=True, text=True)
+            vout = f"{probe.stdout}\n{probe.stderr}"
+        except OSError:
+            vout = ""
+        if "--with-stream=dynamic" not in vout:
+            raise LiveFailure(
+                f"static/dynamic build overlap: {nginx_bin} is a STATIC nginx build "
+                f"(stream compiled in) but TEST_NGINX_LOAD_MODULES injects a "
+                f"ngx_stream_module.so ({modules}). Mixing the two builds' trees "
+                f"dlopen-fails on undefined ngx_stat_active. Use the "
+                f"--with-stream=dynamic build (its own tree, its own modules) for "
+                f"module testing, or unset TEST_NGINX_LOAD_MODULES for the static build.")
     target = Path(config)
     body = target.read_text(encoding="utf-8")
     missing = _missing_module_directives(body, modules)

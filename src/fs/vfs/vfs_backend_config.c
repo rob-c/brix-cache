@@ -87,6 +87,48 @@ brix_vfs_backend_config_block(const char *root_canon, const char *device,
     e->inst = NULL;
 }
 
+/* "mirage:<size>" → the sizes-only SYNTHETIC backend (sd_mirage, §3 row 14):
+ * every path opens read-only as a regular file of <size> bytes whose content is
+ * the deterministic offset pattern — protocol/throughput testing with zero
+ * storage. <size> takes the usual k/m/g suffixes. Returns NGX_OK if it claimed
+ * the value (NGX_ERROR on a malformed size), else NGX_DECLINED. */
+static ngx_int_t
+vfs_parse_mirage_origin(ngx_conf_t *cf, const char *root_canon,
+    const ngx_str_t *sb)
+{
+    ngx_str_t                   szs;
+    off_t                       size;
+    brix_vfs_backend_entry_t *e;
+
+    if (sb->len <= sizeof("mirage:") - 1
+        || ngx_strncmp(sb->data, "mirage:", sizeof("mirage:") - 1) != 0)
+    {
+        return NGX_DECLINED;
+    }
+    szs.data = sb->data + sizeof("mirage:") - 1;
+    szs.len  = sb->len - (sizeof("mirage:") - 1);
+
+    size = ngx_parse_offset(&szs);
+    if (size == NGX_ERROR || size < 0) {
+        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            "brix_storage_backend: mirage size \"%V\" is not a valid "
+            "non-negative size", &szs);
+        return NGX_ERROR;
+    }
+    if (root_canon == NULL || root_canon[0] == '\0') {
+        return NGX_OK;   /* no namespace anchor — nothing to register */
+    }
+    e = brix_vfs_backend_entry_get_or_create(root_canon);
+    if (e == NULL) {
+        return NGX_OK;
+    }
+    ngx_memcpy(e->backend, "mirage", sizeof("mirage"));
+    e->origin_path[0] = '\0';            /* no backing path — synthetic */
+    e->block_size = (int64_t) size;      /* reused as the synthetic size */
+    e->inst = NULL;
+    return NGX_OK;
+}
+
 /* "block:<device>" / "block://<device>" → a fixed-extent block backend served by
  * sd_block. Returns NGX_OK if it claimed the value, else NGX_DECLINED. */
 static ngx_int_t
@@ -191,6 +233,8 @@ brix_vfs_backend_config_str(ngx_conf_t *cf, const char *root_canon,
         return NGX_OK;
     }
 
+    rc = vfs_parse_mirage_origin(cf, root_canon, sb);
+    if (rc != NGX_DECLINED) { return rc; }
     rc = vfs_parse_block_origin(root_canon, sb, block_size);
     if (rc != NGX_DECLINED) { return rc; }
     rc = vfs_parse_cephfsro_origin(cf, root_canon, sb);

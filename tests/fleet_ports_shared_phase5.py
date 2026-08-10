@@ -140,6 +140,8 @@ LIFECYCLE_SHARED_PORTS_PHASE5: dict[str, dict] = {
     "lc-access-log-batch-close": {"port": 30330},
     "lc-access-log-batch-interleave": {"port": 30331},
     "lc-access-log-batch-escape": {"port": 30332},
+    # test_prepare_prty.py (§1.12): kXR_prepare prty surfaced in the access log.
+    "lc-prep-prty": {"port": 30333},
     # test_admin_rate_limit.py (group lc-admin-rl) — one admin-API instance per
     # rate-limit config; the bad-directive test is parse-only (placeholder port).
     "lc-admin-rl-defaults": {"port": 30333},
@@ -1478,4 +1480,44 @@ LIFECYCLE_SHARED_PORTS_PHASE5: dict[str, dict] = {
     # 30506/30507/30508 are the cachemx matrix's S3-over-TLS, remote-origin
     # WebDAV and HTTP-TPC WebDAV planes; they live in the "lc-cachemx" extras
     # block above, out of numeric order because that entry predates them.
+    # --- phase-101 per-feature subjects (seeds are historical; rebased at import) ---
+    # xrdfs multi-path operands (test_xrdfs_multipath.py): per-test writable
+    # anon posix root server; serialised under xdist_group("lc-xrdfs-multipath").
+    "lc-xrdfs-multipath": {"port": 30531},
+    # kXR_dirlist kXR_online filter (test_dirlist_online.py): per-test pblock
+    # ?nearline=1 lab; serialised under xdist_group("lc-dirlist-online").
+    "lc-dirlist-online": {"port": 30532},
+    # brix_chkpnt_maxsz cap postures (test_chkpnt_maxsz.py): per-test throwaway
+    # posix root server; serialised under xdist_group("lc-chkpnt-maxsz").
+    "lc-chkpnt-maxsz": {"port": 30533},
+    # HTTP-TPC 202 perf-marker RemoteConnections destination
+    # (test_tpc_marker_remoteconn.py); xdist_group("lc-tpc-markers").
+    "lc-tpc-markers": {"port": 30534},
+    # xrdfs prepare stock-flag wire capture (test_xrdfs_prepare_flags.py);
+    # xdist_group("lc-xrdfs-prepflags").
+    "lc-xrdfs-prepflags": {"port": 30535},
+    # operator cache-evict command postures (test_cache_evict_cmd.py);
+    # xdist_group("lc-cache-evict").
+    "lc-cache-evict": {"port": 30536},
+    # brix_ztn_maxsz size-gate postures (test_ztn_maxsz.py);
+    # xdist_group("lc-ztn-maxsz").
+    "lc-ztn-maxsz": {"port": 30537},
+    # brix_oss_maxsize create-size cap postures (test_oss_maxsize.py);
+    # xdist_group("lc-oss-maxsize").
+    "lc-oss-maxsize": {"port": 30538},
+    # WebDAV GET-on-directory HTML listing postures
+    # (test_webdav_html_listing.py); xdist_group("lc-html-listing").
+    "lc-html-listing": {"port": 30539},
+    # brix_oss_cgroup Qspace reporting (test_oss_cgroup.py);
+    # xdist_group("lc-oss-cgroup").
+    "lc-oss-cgroup": {"port": 30540},
+    # brix_fsoverload_stall budget-overload backoff (test_fsoverload_stall.py);
+    # xdist_group("lc-fsoverload").
+    "lc-fsoverload": {"port": 30541},
+    # kXR_Qspace driver-space seam + sd_xroot forwarding (test_qspace_driver.py);
+    # xdist_group("lc-qspace").
+    "lc-qspace-pblock": {"port": 30542},
+    "lc-qspace-fwd-origin": {"port": 30543},
+    "lc-qspace-fwd-proxy": {"port": 30544},
+    "lc-qspace-posix": {"port": 30545},
 }

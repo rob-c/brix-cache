@@ -303,7 +303,7 @@ webdav_extract_and_set_voms_identity(ngx_http_request_t *r,
     char             vo_list[1024]   = "";
     ngx_int_t        rc = NGX_OK;
 
-    if (conf->vomsdir.len == 0 || conf->voms_cert_dir.len == 0
+    if (conf->common.vomsdir.len == 0 || conf->common.voms_cert_dir.len == 0
         || !brix_voms_available())
     {
         return NGX_OK;
@@ -316,7 +316,7 @@ webdav_extract_and_set_voms_identity(ngx_http_request_t *r,
     chain = SSL_get_peer_cert_chain(ssl);   /* borrowed — do NOT free */
 
     (void) brix_extract_voms_info(r->connection->log, leaf, chain,
-                                    &conf->vomsdir, &conf->voms_cert_dir,
+                                    &conf->common.vomsdir, &conf->common.voms_cert_dir,
                                     primary_vo, sizeof(primary_vo),
                                     vo_list, sizeof(vo_list));
 
@@ -412,7 +412,7 @@ webdav_nginx_verify_compatible(ngx_http_request_t *r,
         return 0;
     }
 
-    if (conf->crl.len != 0 && !webdav_str_equal(&conf->crl, &sslcf->crl)) {
+    if (conf->common.crl.len != 0 && !webdav_str_equal(&conf->common.crl, &sslcf->crl)) {
         return 0;
     }
 

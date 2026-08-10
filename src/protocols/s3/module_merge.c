@@ -23,6 +23,7 @@
 #include "core/config/root_prepare.h"
 #include "core/config/http_rootfd.h"
 #include "core/compat/tmp_path.h"          /* SP4 orphan direct-write temp reaper */
+#include "fs/path/path.h"                   /* W5.2c: brix_authdb_rules_finalize_copy */
 #include "core/config/credential_block.h"   /* §14 brix_credential lookup/bearer */
 #include "core/config/http_common.h"        /* unified brix_* directive adoption */
 #include "core/config/export_guard.h"       /* brix_assert_dir_outside_export (hard guard) */
@@ -93,11 +94,8 @@ s3_merge_scalars(ngx_http_s3_loc_conf_t *prev, ngx_http_s3_loc_conf_t *conf)
                               10000);   /* 10s default staleness bound */
     ngx_conf_merge_value(conf->max_keys,    prev->max_keys,    1000);
     ngx_conf_merge_value(conf->mpu_max_age, prev->mpu_max_age, 0);
-    ngx_conf_merge_value(conf->zip_access,  prev->zip_access,  0);
-    ngx_conf_merge_size_value(conf->zip_cd_max_bytes, prev->zip_cd_max_bytes,
-                              16 * 1024 * 1024);
-    brix_acc_http_merge_conf(&conf->acc, &prev->acc);
-    ngx_conf_merge_str_value(conf->cache_root,       prev->cache_root,       "");
+    /* XrdAcc merge moved into ngx_http_brix_shared_merge (common.acc), W2. */
+    /* cache_root merge -> shared_merge (common.cache_root), phase-101 W8. */
     ngx_conf_merge_str_value(conf->bucket,           prev->bucket,           "");
     ngx_conf_merge_str_value(conf->access_key,       prev->access_key,       "");
     ngx_conf_merge_str_value(conf->secret_key,       prev->secret_key,       "");
@@ -126,28 +124,25 @@ s3_merge_token(ngx_conf_t *cf, ngx_http_s3_loc_conf_t *prev,
 {
     /* WLCG bearer-token auth merge */
     ngx_conf_merge_value(conf->token_enable, prev->token_enable, 0);
-    ngx_conf_merge_str_value(conf->token_jwks,     prev->token_jwks,     "");
-    ngx_conf_merge_str_value(conf->token_issuer,   prev->token_issuer,   "");
-    ngx_conf_merge_str_value(conf->token_audience, prev->token_audience, "");
-    ngx_conf_merge_value(conf->token_clock_skew, prev->token_clock_skew, 60);
+    /* token quartet merges -> shared_merge (W4; unified skew 30). */
 
-    if (conf->token_enable && conf->token_jwks.len == 0) {
+    if (conf->token_enable && conf->common.token_jwks.len == 0) {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
             "brix_s3_token: brix_s3_token_jwks is required when "
             "brix_s3_token is on");
         return NGX_CONF_ERROR;
     }
 
-    if (conf->token_enable && conf->token_jwks.len > 0) {
+    if (conf->token_enable && conf->common.token_jwks.len > 0) {
         int key_rc;
 
         key_rc = brix_jwks_load(cf->log,
-                                  (const char *) conf->token_jwks.data,
+                                  (const char *) conf->common.token_jwks.data,
                                   conf->jwks_keys, BRIX_MAX_JWKS_KEYS);
         if (key_rc <= 0) {
             ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                               "brix_s3_token_jwks: no usable keys in \"%V\"",
-                               &conf->token_jwks);
+                               "brix_token_jwks: no usable keys in \"%V\"",
+                               &conf->common.token_jwks);
             return NGX_CONF_ERROR;
         }
         conf->jwks_key_count = key_rc;
@@ -249,6 +244,19 @@ s3_merge_export(ngx_conf_t *cf, ngx_http_s3_loc_conf_t *conf)
         brix_tmp_reap_register(conf->common.root_canon);
     }
 
+    /* phase-101 W5.2c: finalize this export's OWN copy of the native authdb READ
+     * rules against its root so the S3 access phase can enforce them (a deep copy
+     * — the shared common.authdb_rules is finalized by webdav against a possibly
+     * different root, so an in-place finalize here would corrupt it). */
+    if (brix_authdb_rules_finalize_copy(cf, &conf->common.root,
+            conf->common.authdb_rules, &conf->authdb_final) != NGX_OK)
+    {
+        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            "brix_authdb: failed to finalize rules for root \"%V\"",
+            &conf->common.root);
+        return NGX_CONF_ERROR;
+    }
+
     /* Open the persistent confinement rootfd (kernel openat2
      * RESOLVE_BENEATH anchor); no-op when no brix_s3_root is set. */
     if (brix_http_open_rootfd(cf, &conf->common) != NGX_CONF_OK) {
@@ -279,14 +287,14 @@ s3_merge_export(ngx_conf_t *cf, ngx_http_s3_loc_conf_t *conf)
         return NGX_CONF_ERROR;
     }
 
-    if (conf->cache_root.len > 0) {
+    if (conf->common.cache_root.len > 0) {
         brix_export_root_opts_t cache_opts;
-        cache_opts.directive_name = "brix_s3_cache_root";
+        cache_opts.directive_name = "brix_cache_root";
         cache_opts.allow_write    = 0;
         cache_opts.required       = 0;
-        cache_opts.canon_size     = sizeof(conf->cache_root_canon);
-        if (brix_prepare_export_root(cf, &conf->cache_root, &cache_opts,
-                                       conf->cache_root_canon) != NGX_CONF_OK)
+        cache_opts.canon_size     = sizeof(conf->common.cache_root_canon);
+        if (brix_prepare_export_root(cf, &conf->common.cache_root, &cache_opts,
+                                       conf->common.cache_root_canon) != NGX_CONF_OK)
         {
             return NGX_CONF_ERROR;
         }
@@ -294,8 +302,8 @@ s3_merge_export(ngx_conf_t *cf, ngx_http_s3_loc_conf_t *conf)
 
     /* HARD config guard: the read-through cache root must live OUTSIDE the
      * export, or cache sidecars would be exposed in the client namespace. */
-    if (brix_assert_dir_outside_export(cf, "brix_s3_cache_root",
-            conf->common.root_canon, conf->cache_root_canon) != NGX_OK)
+    if (brix_assert_dir_outside_export(cf, "brix_cache_root",
+            conf->common.root_canon, conf->common.cache_root_canon) != NGX_OK)
     {
         return NGX_CONF_ERROR;
     }

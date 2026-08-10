@@ -33,6 +33,8 @@ typedef struct {
     int                          tolerate_missing; /* '*'-prefixed create-locate */
     int                          refresh;    /* §2.7: kXR_refresh — bypass and
                                                 flush the location caches */
+    int                          nowait;     /* §1.8: kXR_nowait — answer
+                                                kXR_wait instead of parking */
 } locate_ctx_t;
 
 /*

@@ -70,7 +70,7 @@ s3_copy_vfs_ctx(ngx_http_request_t *r, const char *fs_path,
 #endif
 
     brix_vfs_ctx_init(vctx, r->pool, r->connection->log, BRIX_PROTO_S3,
-        cf->common.root_canon, cf->cache_root_canon, cf->common.allow_write,
+        cf->common.root_canon, cf->common.cache_root_canon, cf->common.allow_write,
         is_tls, (s3ctx != NULL) ? s3ctx->identity : NULL, fs_path);
     brix_vfs_ctx_bind_backend_cred(vctx,
         &cf->common.storage_credential_dir,

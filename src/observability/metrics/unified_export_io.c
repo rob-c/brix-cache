@@ -341,3 +341,77 @@ unified_emit_io_latency(metrics_writer_t *mw, ngx_brix_metrics_t *shm)
         }
     }
 }
+
+/*
+ * unified_emit_io_slowop — render the §3.15 OssStats slowop classifier family.
+ *
+ * WHAT: A gauge for the armed latency threshold, then one counter per
+ *       (proto, op) whose slow-op tally is non-zero.
+ * WHY:  Stock OssStats reports slow-op counts as a first-class figure, distinct
+ *       from the latency distribution: a dashboard alerts on the counter without
+ *       re-deriving it from histogram buckets (whose boundaries are fixed, not
+ *       the operator's threshold). The gauge makes the armed threshold visible
+ *       so a scrape is self-describing.
+ * HOW:  Emit the gauge unconditionally (0 = disabled); then skip zero counters
+ *       so the family stays empty until a slow op is actually booked.
+ */
+void
+unified_emit_io_slowop(metrics_writer_t *mw, ngx_brix_metrics_t *shm)
+{
+    ngx_uint_t          proto, op;
+    unsigned long long  v;
+
+    mw_printf(mw,
+        "# HELP brix_io_slowop_threshold_usec Armed slow-op latency threshold "
+        "in microseconds (0 = classifier disabled).\n"
+        "# TYPE brix_io_slowop_threshold_usec gauge\n"
+        "brix_io_slowop_threshold_usec %llu\n",
+        (unsigned long long)
+            brix_metric_value(&shm->unified.slowop_threshold_usec));
+
+    mw_printf(mw,
+        "# HELP brix_io_slowop_total Completed I/O ops whose latency met or "
+        "exceeded brix_io_slowop_threshold_usec.\n"
+        "# TYPE brix_io_slowop_total counter\n");
+    for (proto = 0; proto < BRIX_PROTO_COUNT; proto++) {
+        for (op = 0; op < BRIX_METRIC_OP_COUNT; op++) {
+            v = brix_metric_value(&shm->unified.io_slowop_total[proto][op]);
+            if (v == 0) {
+                continue;
+            }
+            mw_printf(mw,
+                "brix_io_slowop_total{proto=\"%s\",op=\"%s\"} %llu\n",
+                brix_metric_proto_name((brix_proto_t) proto),
+                brix_metric_op_name((brix_metric_op_t) op),
+                v);
+        }
+    }
+}
+
+/*
+ * unified_emit_io_offload — render the §1.1 pathid response-offload counter: one
+ * line per protocol that has routed at least one read-family response over a
+ * bound secondary data channel. Absent (all-zero) when no client requested
+ * offloading, so /metrics stays byte-identical for the common case.
+ */
+void
+unified_emit_io_offload(metrics_writer_t *mw, ngx_brix_metrics_t *shm)
+{
+    ngx_uint_t          proto;
+    unsigned long long  v;
+
+    mw_printf(mw,
+        "# HELP brix_io_offload_total Read-family responses (read/readv/pgread) "
+        "routed over a bound secondary data channel (pathid response "
+        "offloading).\n"
+        "# TYPE brix_io_offload_total counter\n");
+    for (proto = 0; proto < BRIX_PROTO_COUNT; proto++) {
+        v = brix_metric_value(&shm->unified.io_offload_total[proto]);
+        if (v == 0) {
+            continue;
+        }
+        mw_printf(mw,
+            "brix_io_offload_total{proto=\"%s\"} %llu\n",
+            brix_metric_proto_name((brix_proto_t) proto), v);
+    }
+}

@@ -686,6 +686,8 @@ def _rt13_i_s3_special_file_boundary_probes(data, T, recover, s3port, fifo, hl_m
 def _rt13_privileged_owner_drift(adir, tag, name):
     if not name.startswith(tag):
         return None
+    if _is_server_sidecar(name):   # .cinfo/.meta svc-owned by design
+        return None
     path = os.path.join(adir, name)
     try:
         if os.path.islink(path):

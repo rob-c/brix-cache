@@ -125,11 +125,11 @@ s3_verify_bearer(ngx_http_request_t *r,
         va.token_len         = token_len;
         va.keys              = cf->jwks_keys;
         va.key_count         = cf->jwks_key_count;
-        va.expected_issuer   = (const char *) cf->token_issuer.data;
-        va.expected_audience = (const char *) cf->token_audience.data;
+        va.expected_issuer   = (const char *) cf->common.token_issuer.data;
+        va.expected_audience = (const char *) cf->common.token_audience.data;
         va.macaroon_secret   = NULL;
         va.secret_len        = 0;
-        va.clock_skew        = (int) cf->token_clock_skew;
+        va.clock_skew        = (int) cf->common.token_clock_skew;
         va.claims            = &claims;
 
         rc = brix_token_validate(&va);

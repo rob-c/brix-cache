@@ -38,6 +38,9 @@ brix_cksum_algo_parse(const char *name, brix_cksum_algo *out)
     if (strcmp(name, "crc64xz")   == 0) { *out = XRDC_CK_CRC64;     return 0; }
     if (strcmp(name, "crc64nvme") == 0) { *out = XRDC_CK_CRC64NVME; return 0; }
     if (strcmp(name, "zcrc32")    == 0) { *out = XRDC_CK_ZCRC32;    return 0; }
+    if (strcmp(name, "sha1")      == 0) { *out = XRDC_CK_SHA1;      return 0; }
+    if (strcmp(name, "sha256")    == 0) { *out = XRDC_CK_SHA256;    return 0; }
+    if (strcmp(name, "sha512")    == 0) { *out = XRDC_CK_SHA512;    return 0; }
     return -1;
 }
 
@@ -48,11 +51,17 @@ brix_cksum_fd(int fd, brix_cksum_algo algo, char *hex, size_t hexsz,
     /* Delegate the compute to the shared (ngx-free) kernel — the same code the
      * nginx module uses (src/core/compat/checksum_core.c via libxrdproto). The kernel
      * preads from offset 0; callers pass freshly-opened regular-file fds. */
-    if (algo == XRDC_CK_MD5) {
+    if (algo == XRDC_CK_MD5 || algo == XRDC_CK_SHA1
+        || algo == XRDC_CK_SHA256 || algo == XRDC_CK_SHA512) {
+        int kind = (algo == XRDC_CK_MD5)  ? BRIX_CK_MD5
+                 : (algo == XRDC_CK_SHA1) ? BRIX_CK_SHA1
+                 : (algo == XRDC_CK_SHA256) ? BRIX_CK_SHA256
+                                            : BRIX_CK_SHA512;
         unsigned char dg[64];   /* EVP_MAX_MD_SIZE */
         unsigned int  dn = 0;
-        if (brix_cksum_digest_fd(BRIX_CK_MD5, fd, dg, &dn) != 0) {
-            brix_status_set(st, XRDC_ESOCK, errno, "md5: %s", strerror(errno));
+        if (brix_cksum_digest_fd(kind, fd, dg, &dn) != 0) {
+            brix_status_set(st, XRDC_ESOCK, errno, "digest: %s",
+                            strerror(errno));
             return -1;
         }
         if (hexsz < (size_t) dn * 2 + 1) {

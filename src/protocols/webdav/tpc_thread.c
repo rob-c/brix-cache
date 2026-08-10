@@ -79,7 +79,12 @@ webdav_tpc_thread_register(ngx_http_request_t *r, int is_push,
     transfer.dst_path = dst;
     transfer.state = BRIX_TPC_STATE_PENDING;
 
-    return brix_tpc_registry_add(&transfer, r->connection->log);
+    {
+        ngx_http_brix_webdav_loc_conf_t *conf =
+            ngx_http_get_module_loc_conf(r, ngx_http_brix_webdav_module);
+        return brix_tpc_registry_add(&transfer, r->connection->log,
+                                     conf->tpc_xfr);   /* §6.9 xfr cap */
+    }
 }
 
 /*
@@ -150,8 +155,8 @@ tpc_thread_ssrf_preflight(tpc_thread_ctx_t *t)
     ngx_memzero(&net_policy, sizeof(net_policy));
     net_policy.require_https      = 1;
     net_policy.allow_root_scheme  = 0;
-    net_policy.allow_local        = t->conf->tpc_allow_local;
-    net_policy.allow_private      = t->conf->tpc_allow_private;
+    net_policy.allow_local        = t->conf->common.tpc_allow_local;
+    net_policy.allow_private      = t->conf->common.tpc_allow_private;
     net_policy.default_https_port = 443;
 
     if (brix_net_target_parse(NULL, &url_str, &net_target,

@@ -74,7 +74,7 @@ def test_scan_core_suite(scan_core_bin):
 
 # --------------------------------------------------------------------------- #
 # HTTP integration — GET /brix/api/v1/scan (dump/verify/fill) over a         #
-# self-contained nginx with brix_scan_root on a seeded tree (mirrors         #
+# self-contained nginx with brix_dashboard_scan_root on a seeded tree (mirrors         #
 # test_dashboard_files.py's provisioning).                                     #
 # --------------------------------------------------------------------------- #
 from settings import HOST, BIND_HOST, NGINX_BIN  # noqa: E402
@@ -103,7 +103,7 @@ def scan_server(lifecycle, tmp_path):
     if not os.access(NGINX_BIN, os.X_OK):
         pytest.skip("nginx not executable: %s" % NGINX_BIN)
 
-    # brix_scan_root is validated at config-parse time, so the tree must exist
+    # brix_dashboard_scan_root is validated at config-parse time, so the tree must exist
     # before start().  Seed it under tmp_path: scan_root = <root>/data, with a
     # secret one level up (outside scan_root) for the traversal probe.
     root = tmp_path / "scanroot"

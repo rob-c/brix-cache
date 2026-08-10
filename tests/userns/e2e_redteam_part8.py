@@ -132,18 +132,19 @@ def _auth_forged_webdav(key, data, port):
             f"WebDAV {label} token cannot create a file",
         )
 
-    # Empty-scope token: this module's model is authn->identity, DAC for reads,
-    # explicit write-scope for mutations.  So an empty-scope token authenticates
-    # as alice and MAY read her own file (DAC permits) but MUST NOT write and MUST
-    # NOT read another tenant (DAC backstops).  Verify all three.
-
-
 def _auth_empty_scope(key, data, port):
+    # Empty-scope token: brix follows the WLCG/SciTokens CAPABILITY model, where a
+    # read requires an explicit storage.read scope (src/protocols/webdav/access.c
+    # access_check_scope, "read AND write").  A scopeless token therefore carries NO
+    # capability: it authenticates as alice yet is denied even a read of her own
+    # file -- the fail-closed direction.  It (of course) also cannot write, and the
+    # DAC backstop separately blocks a cross-tenant read.  Verify all three.
     nos = mint(key, "alice", scope="")
     st, b = http("GET", "/alice/auth_probe.txt", port, nos)
     ok(
-        st == 200 and b"auth-probe-body" in (b or b""),
-        f"empty-scope token authenticates + reads own file via DAC (HTTP {st})",
+        st in (401, 403) and b"auth-probe-body" not in (b or b""),
+        f"empty-scope token authenticates but is denied read (no storage.read "
+        f"capability -- WLCG fail-closed) (HTTP {st})",
     )
     http("PUT", "/alice/evil_noscope.txt", port, nos, b"X\n")
     ok(

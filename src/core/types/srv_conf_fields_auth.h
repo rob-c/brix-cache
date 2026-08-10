@@ -28,6 +28,25 @@
     /* ---- GSI / x509 settings (used when auth = gsi or both) ---- */
     ngx_str_t   certificate;      /* [brix_certificate /etc/grid.pem] */
     ngx_str_t   certificate_key;  /* [brix_certificate_key /etc/grid.key] */
+    ngx_str_t   tls_ciphers;      /* [brix_tls_ciphers <list>] §5.10 xrd.tlsciphers
+                                     analog: OpenSSL cipher list applied to the
+                                     root:// in-protocol TLS context via
+                                     SSL_CTX_set_cipher_list (TLSv1.2-and-below,
+                                     same scope as nginx ssl_ciphers). Empty =
+                                     OpenSSL defaults (unchanged). An unmatched
+                                     list is rejected at config init. */
+    ngx_str_t   tls_ciphersuites;  /* [brix_tls_ciphersuites <list>] §5.10: the
+                                     TLSv1.3 cipher-suite list applied to the
+                                     root:// TLS context via
+                                     SSL_CTX_set_ciphersuites (companion to
+                                     tls_ciphers, which governs TLSv1.2 and
+                                     below). Empty = OpenSSL defaults. An
+                                     unmatched list is rejected at config init. */
+    ngx_flag_t  tls_reuse;        /* [brix_tls_reuse on|off] §5.10 xrootd.tlsreuse
+                                     analog: allow TLS session resumption (cache +
+                                     tickets) on the root:// TLS context. Default
+                                     on (OpenSSL/nginx behaviour); off disables
+                                     both so every connection full-handshakes. */
     ngx_str_t   trusted_ca;       /* [brix_trusted_ca /etc/grid-security/certificates]
                                      PEM file or directory of trusted CA certs */
     ngx_str_t   vomsdir;          /* [brix_vomsdir /etc/grid-security/vomsdir]
@@ -94,6 +113,13 @@
      * trips it); 0 = unlimited. [brix_gsi_max_inflight_handshakes] */
     ngx_int_t    gsi_max_inflight;
 
+    /* §5.10: maximum X.509 chain depth accepted when verifying a client's
+     * GSI proxy/cert at root:// login (xrd.tlsca verdepth analog). Passed to
+     * brix_gsi_verify_chain → X509_STORE_CTX_set_depth. 0 (default) = OpenSSL's
+     * built-in limit (unlimited from our side), byte-identical to before.
+     * [brix_gsi_verify_depth N] */
+    ngx_int_t    gsi_verify_depth;
+
     /* Per-worker ephemeral-DH keypool sizing (see src/gsi/keypool.c). At worker
      * start only `gsi_keypool_seed` keys are generated synchronously (keeping the
      * event thread free at boot); the pool is then filled off-thread up to
@@ -134,6 +160,11 @@
                                     drops ztn from the cleartext login sec
                                     token; on restores the historical accept-
                                     anywhere behaviour for lab/test setups. */
+    size_t      ztn_maxsz;       /* [brix_ztn_maxsz <size>] — the ztn -maxsz
+                                    analog: refuse a bearer credential longer
+                                    than this BEFORE any parse/crypto work.
+                                    0 (default) = no extra cap beyond the auth
+                                    frame limit (current behaviour). */
     ngx_str_t   token_jwks;      /* [brix_token_jwks /etc/xrd/jwks.json] */
     ngx_str_t   token_issuer;    /* [brix_token_issuer https://cilogon.org] */
     ngx_str_t   token_audience;  /* [brix_token_audience https://storage.example.org] */

@@ -1,7 +1,7 @@
 /*
- * postconfig_proxy_capath.c - brix_proxy_ssl_capath second-half location walk.
+ * postconfig_proxy_capath.c - brix_backend_ca_dir second-half location walk.
  *
- * WHAT: Post-merge half of the brix_proxy_ssl_capath directive — walks every
+ * WHAT: Post-merge half of the brix_backend_ca_dir directive — walks every
  * finalised location of every server block and, where the directive is set,
  * adds the hashed CA directory to that location's upstream (proxy_ssl) trust
  * store. Extracted verbatim from postconfig.c so both translation units stay
@@ -31,12 +31,12 @@ extern ngx_module_t  ngx_http_proxy_module;
  * webdav_postconf_proxy_capath_apply - add one location's hashed CA dir to
  * its upstream (proxy_ssl) trust store.
  *
- * WHAT: For a single location conf array, when brix_proxy_ssl_capath is set,
+ * WHAT: For a single location conf array, when brix_backend_ca_dir is set,
  * add the directory as an OpenSSL hashed lookup to the location's upstream
  * SSL_CTX; NGX_OK when unset. Fatal (NGX_ERROR) when the location has no
  * https proxy_pass — the directive would otherwise silently protect nothing.
  *
- * WHY: second half of brix_proxy_ssl_capath (see module_directives.c): the
+ * WHY: second half of brix_backend_ca_dir (see module_directives.c): the
  * parse-time handler could only seed one <hash>.N file through the stock
  * proxy_ssl_trusted_certificate slot, because the upstream SSL_CTX does not
  * exist until the proxy module's merge. Here — after all merges — the ctx is
@@ -71,7 +71,7 @@ webdav_postconf_proxy_capath_apply(ngx_conf_t *cf, void **loc_conf,
 
     if (ucf == NULL || ucf->ssl == NULL || ucf->ssl->ctx == NULL) {
         ngx_log_error(NGX_LOG_EMERG, cf->log, 0,
-                      "brix_proxy_ssl_capath in location \"%V\" requires "
+                      "brix_backend_ca_dir in location \"%V\" requires "
                       "\"proxy_pass https://...\" in the same location",
                       name);
         return NGX_ERROR;
@@ -83,7 +83,7 @@ webdav_postconf_proxy_capath_apply(ngx_conf_t *cf, void **loc_conf,
                         (const char *) wlcf->proxy_ssl_capath.data) != 1)
     {
         ngx_log_error(NGX_LOG_EMERG, cf->log, 0,
-                      "brix_proxy_ssl_capath \"%V\": cannot add hashed "
+                      "brix_backend_ca_dir \"%V\": cannot add hashed "
                       "CA-directory lookup to the upstream trust store",
                       &wlcf->proxy_ssl_capath);
         return NGX_ERROR;
@@ -181,7 +181,7 @@ webdav_postconf_proxy_capath_location(ngx_conf_t *cf,
 
 /*
  * webdav_postconf_setup_proxy_capath - walk every location of every server
- * and apply the brix_proxy_ssl_capath second half where the directive is set.
+ * and apply the brix_backend_ca_dir second half where the directive is set.
  * The directive is location-only (never merged), so the server-level conf
  * array cannot carry it; only the finalised location structures are walked.
  */

@@ -59,7 +59,7 @@ webdav_tpc_probe(ngx_http_request_t *r,
 #endif
 
     brix_vfs_ctx_init(&vctx, r->pool, r->connection->log, BRIX_PROTO_WEBDAV,
-        conf->common.root_canon, conf->cache_root_canon, conf->common.allow_write,
+        conf->common.root_canon, conf->common.cache_root_canon, conf->common.allow_write,
         is_tls, (rx != NULL) ? rx->identity : NULL, path);
     if (brix_vfs_probe(&vctx, 1 /* no-follow */, &vst) != NGX_OK) {
         return NGX_DECLINED;

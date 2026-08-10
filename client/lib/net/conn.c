@@ -20,6 +20,7 @@
 #include "conn_internal.h"                          /* handshake + login (conn_bootstrap.c) */
 #include "core/compat/host_format.h"   /* IPv6-bracketing host:port (libxrdproto) */
 #include "core/compat/crypto.h"        /* brix_crypto_init (SHA/HMAC arming)     */
+#include "core/config/envalias.h"      /* §7.10 stock-env disclosure (one-shot)  */
 
 #include <pthread.h>
 
@@ -259,6 +260,7 @@ int
 brix_connect(brix_conn *c, const brix_url *u, const brix_opts *o, brix_status *st)
 {
     brix_crypto_once();
+    brix_env_warn_stock_unsupported();     /* §7.10: loud, one-shot, TTY-gated */
     memset(c, 0, sizeof(*c));
     c->io.timeout_ms = brix_tmo_io_ms();   /* steady-state; bring-up uses the short cap */
 
@@ -299,6 +301,9 @@ brix_connect(brix_conn *c, const brix_url *u, const brix_opts *o, brix_status *s
 
     {
         int rc = brix_bringup(c, st);
+        if (rc == 0) {
+            brix_forksafe_register(c);   /* §7.7: neuter this conn in a child */
+        }
         if (rc == 0 && c->diag.cap != NULL) {   /* snapshot negotiated session */
             char buf[64], sx[2 * BRIX_SESSION_ID_LEN + 1];
             int  i;
@@ -344,7 +349,13 @@ brix_connect_no_login(brix_conn *c, const brix_url *u, const brix_opts *o,
      * that sends kXR_gotoTLS still upgrades regardless. */
     c->want_tls     = c->tls_strict;
     c->opts.notlsok = 1;
-    return brix_bringup_ex(c, 0 /*want_login*/, st);
+    {
+        int rc = brix_bringup_ex(c, 0 /*want_login*/, st);
+        if (rc == 0) {
+            brix_forksafe_register(c);   /* §7.7 */
+        }
+        return rc;
+    }
 }
 
 int
@@ -379,6 +390,9 @@ sessid_is_zero(const uint8_t *s)
 void
 brix_close(brix_conn *c)
 {
+    if (c != NULL) {
+        brix_forksafe_unregister(c);   /* §7.7: before any teardown bytes */
+    }
     if (c != NULL && c->diag.timing) {   /* §15: one summary per session at exit */
         brix_timing_report(c);
     }

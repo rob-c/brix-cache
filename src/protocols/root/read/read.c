@@ -15,6 +15,33 @@
 #include <sys/uio.h>   /* Phase 32 WS4: preadv2(RWF_NOWAIT) warm-cache probe */
 
 #include "read_internal.h"
+#include "protocols/root/response/response.h"  /* brix_send_redirect / _wait */
+#include "protocols/root/session/registry.h"   /* §1.1 brix_session_pathid_bound */
+#include "protocols/root/session/offload_registry.h" /* §1.1 brix_offload_lookup */
+#include "protocols/root/connection/write_helpers.h"  /* §1.1 brix_queue_response_base */
+#include "core/aio/aio.h"        /* §1.1 acquire/release read buffer, io_failure_log */
+
+/*
+ * brix_fsoverload_backoff — the shared memory-budget-overload response (§1.10,
+ * xrootd.fsoverload). A read/readv the process-wide memory budget cannot admit
+ * gets one of two backoffs: a kXR_redirect to brix_fsoverload_redirect's host
+ * (offload the read to a sibling server) when that is configured, else a
+ * kXR_wait(brix_fsoverload_stall) telling the client to retry here later. The
+ * redirect host is NUL-terminated at config time (brix_pstrdupz), so it is passed
+ * straight to brix_send_redirect; kXR_wait stays clamped by brix_max_delay at its
+ * own emission choke point.
+ */
+ngx_int_t
+brix_fsoverload_backoff(brix_ctx_t *ctx, ngx_connection_t *c,
+    ngx_stream_brix_srv_conf_t *rconf)
+{
+    if (rconf->fsoverload_redirect_host.len > 0) {
+        return brix_send_redirect(ctx, c,
+            (const char *) rconf->fsoverload_redirect_host.data,
+            (uint16_t) rconf->fsoverload_redirect_port);
+    }
+    return brix_send_wait(ctx, c, (uint32_t) rconf->fsoverload_stall);
+}
 
 /* Codec-vs-protocol drift guard: the wire codec (shared libxrdproto, deliberately
  * XProtocol-free) hard-codes the request body as XRDW_BODY_LEN bytes. This is the
@@ -54,6 +81,29 @@ read_validate_req(brix_ctx_t *ctx, ngx_connection_t *c,
     io->offset = req.offset;
     io->rlen = (size_t) (uint32_t) req.rlen;
     io->databuf = NULL;
+    io->pathid  = 0;
+
+    /*
+     * §1.1: a kXR_read's optional read_args ride the payload — pathid at byte 0
+     * when dlen >= 1 (the response-offload channel selector). Mirror pgread/§1.2:
+     * a NONZERO pathid MUST name one of this session's live kXR_bind paths, else
+     * kXR_ArgInvalid "invalid path ID", exactly as stock refuses an unbound path
+     * ID (read previously ignored the read_args entirely — an inconsistency vs
+     * pgread). Routing the response over that bound path (offloading) is a later
+     * slice; the validated pathid is captured in io for it.
+     */
+    if (ctx->recv.cur_dlen >= 1 && ctx->recv.payload != NULL) {
+        io->pathid = (unsigned) ((u_char *) ctx->recv.payload)[0];
+        if (io->pathid != 0
+            && !brix_session_pathid_bound(ctx->is_bound ? ctx->bound_sessid
+                                                          : ctx->login.sessid,
+                                            io->pathid))
+        {
+            BRIX_OP_ERR(ctx, BRIX_OP_READ);
+            *rc = brix_send_error(ctx, c, kXR_ArgInvalid, "invalid path ID");
+            return 0;
+        }
+    }
 
     if (!brix_validate_read_handle(ctx, c, io->idx, "READ",
                                      BRIX_OP_READ, rc)) {
@@ -80,6 +130,149 @@ read_validate_req(brix_ctx_t *ctx, ngx_connection_t *c,
         return 0;
     }
 
+    return 1;
+}
+
+/*
+ * brix_read_try_offload — §1.1 response offloading (do_Offload/do_OffloadIO
+ * parity): when a validated read carries a NONZERO read_args pathid AND that
+ * bound secondary data channel lives on THIS worker AND is quiescent, serve the
+ * read's response over the SECONDARY's socket instead of the primary control
+ * stream.  Returns 1 when the response was routed to the secondary (*rc = the
+ * value brix_handle_read must return), 0 when the read must fall through to the
+ * normal primary-stream serve strategies (byte-identical to before).
+ *
+ * WHAT (eligible case): borrow a buffer from the SECONDARY's read pool, fill its
+ * data region [8 .. 8+n) with the file bytes via one synchronous VFS read, stamp
+ * an 8-byte kXR_ok header carrying the PRIMARY request's streamid at [0 .. 8),
+ * and queue the contiguous [hdr|data] frame on the secondary's out-ring.
+ * WHY it is safe: buffers are acquired AND released on the secondary's ctx, so
+ * the ordinary per-connection drain/release discipline applies with no cross-
+ * connection lifetime tangle — the frame simply rides the machinery the secondary
+ * already runs for its own bound reads.  The client correlates the response by
+ * streamid regardless of which stream carries it.
+ * HOW it is gated (this first routing slice deliberately handles only the safe,
+ * common case): same-worker secondary that is idle (no queued response, no async
+ * ack, no in-flight AIO, live fd), and a single-frame (<= one window) read.
+ * Anything else — large/windowed, busy secondary, cross-worker pathid, pool
+ * exhaustion — returns 0 and is served the old way.
+ */
+static ngx_flag_t
+brix_read_try_offload(brix_ctx_t *ctx, ngx_connection_t *c,
+    ngx_stream_brix_srv_conf_t *rconf, brix_read_io_t *io, ngx_int_t *rc)
+{
+    const u_char     *sessid;
+    ngx_connection_t *sec_c;
+    brix_ctx_t       *sec_ctx;
+    size_t            total;
+    u_char           *buf;
+    brix_vfs_job_t    job;
+    ssize_t           nread;
+
+    if (io->pathid == 0) {
+        return 0;   /* primary/control stream — the default, no lookup needed */
+    }
+
+    /* The pathid was validated against this same session key in read_validate_req. */
+    sessid = ctx->is_bound ? ctx->bound_sessid : ctx->login.sessid;
+    sec_c  = brix_offload_lookup(sessid, io->pathid);
+    if (sec_c == NULL || sec_c == c) {
+        return 0;   /* bound on another worker (or nonsensical self) — control stream */
+    }
+
+    sec_ctx = ngx_stream_get_module_ctx((ngx_stream_session_t *) sec_c->data,
+                                          ngx_stream_brix_module);
+
+    /*
+     * Route to a live secondary whose out-ring still has a free slot once EVERY
+     * pending response is counted: queued (out.count) + reserved by in-flight
+     * write acks (out.wr_inflight) and read AIO (rd.aio_inflight). Staying
+     * strictly below pipeline_depth guarantees a free slot even after all those
+     * land, so the queued-behind frame can never overrun the ring. This lets an
+     * offloaded reply PIPELINE behind the secondary's existing responses (they
+     * drain head-first, never interleave) up to ring capacity — not only when the
+     * channel is fully idle, which is what a multi-stream client's data channel
+     * actually looks like. resp_async (write-ack pipelining) is skipped: its
+     * async-park path is left on the control stream. A full ring / dead fd falls
+     * back to the primary.
+     */
+    if (sec_ctx == NULL || sec_ctx->destroyed
+        || sec_c->fd == (ngx_socket_t) -1 || sec_ctx->out.resp_async
+        || sec_ctx->out.count + sec_ctx->out.wr_inflight
+           + sec_ctx->rd.aio_inflight >= sec_ctx->out.pipeline_depth)
+    {
+        return 0;
+    }
+
+    /* Single-frame only: clamp to what a read-only handle actually holds; a read
+     * larger than one streaming window belongs on the windowed primary path. */
+    total = read_clamped_total(ctx, io);
+    if (total > (size_t) BRIX_READ_WINDOW) {
+        return 0;
+    }
+
+    /* Borrow the frame buffer from the SECONDARY's pool (acquire+release both on
+     * its ctx) — header (8) + up to `total` data bytes, laid out contiguously. */
+    buf = brix_acquire_read_buffer(sec_ctx, sec_c, XRD_RESPONSE_HDR_LEN + total);
+    if (buf == NULL) {
+        return 0;   /* secondary pool exhausted — fall back rather than fail */
+    }
+
+    /* One synchronous fill straight into the frame's data region [8 .. 8+total). */
+    brix_vfs_job_read_init(&job, io->fd, (off_t) io->offset, total,
+                              buf + XRD_RESPONSE_HDR_LEN, total, 0);
+    job.csi = ctx->files[io->idx].csi;              /* phase-59 W2: verify on read */
+    brix_vfs_job_set_obj(&job, &ctx->files[io->idx].sd_obj);
+    brix_vfs_io_execute(&job);
+    nread = job.nio;
+
+    if (nread < 0) {
+        /* Read/CSI failure: nothing has touched the secondary wire yet, so the
+         * error rides the PRIMARY control stream exactly like the normal path. */
+        brix_release_read_buffer(sec_ctx, sec_c, buf);
+        if (job.io_errno != 0) {
+            errno = job.io_errno;
+        }
+        brix_read_io_failure_log(c->log, "offload", io->fd,
+                                   (off_t) io->offset, total, errno);
+        BRIX_OP_ERR(ctx, BRIX_OP_READ);
+        *rc = brix_send_error(ctx, c, kXR_IOError, strerror(errno));
+        return 1;
+    }
+
+    /* Stamp the kXR_ok header with the PRIMARY request's streamid. */
+    brix_build_resp_hdr(ctx->recv.cur_streamid, kXR_ok, (uint32_t) nread,
+                          (ServerResponseHdr *) buf);
+
+    /* Byte accounting + access log stay on the PRIMARY ctx (the request's owner). */
+    ctx->files[io->idx].bytes_read += (size_t) nread;
+    ctx->totals.bytes += (size_t) nread;
+    if (rconf->access_log_fd != NGX_INVALID_FILE) {
+        char read_detail[64];
+        snprintf(read_detail, sizeof(read_detail), "%lld+%zu",
+                 (long long) io->offset, io->rlen);
+        brix_log_access(ctx, c, "READ", ctx->files[io->idx].path,
+                          read_detail, 1, 0, NULL, (size_t) nread);
+    }
+    BRIX_OP_OK(ctx, BRIX_OP_READ);
+
+    /* Queue the contiguous [hdr|data] frame on the SECONDARY's out-ring; the
+     * secondary owns `buf` and releases it when the slot drains. */
+    *rc = brix_queue_response_base(sec_ctx, sec_c, buf,
+                                     XRD_RESPONSE_HDR_LEN + (size_t) nread, buf);
+    if (*rc == NGX_OK) {
+        brix_metric_offload(BRIX_PROTO_ROOT);   /* §1.1 observability */
+    }
+
+    /*
+     * Release here on error OR on a full inline send (secondary ring stayed
+     * empty) — only a parked-and-draining response keeps the buffer, whose slot
+     * drain then releases it.  Mirrors read_finish_buffered's post-queue release;
+     * brix_release_read_buffer is idempotent so the error/parked overlap is safe.
+     */
+    if (*rc != NGX_OK || sec_ctx->out.count == 0) {
+        brix_release_read_buffer(sec_ctx, sec_c, buf);
+    }
     return 1;
 }
 
@@ -136,6 +329,19 @@ brix_handle_read(brix_ctx_t *ctx, ngx_connection_t *c)
     if (ctx->files[io.idx].read_codec != 0) {
         return brix_read_compressed(ctx, c, rconf, io.idx, (off_t) io.offset,
                                       io.rlen);
+    }
+
+    /*
+     * §1.1 response offloading: a read tagged with a live, same-worker bound
+     * pathid is served over that secondary data channel; every ineligible read
+     * (pathid 0, cross-worker, busy secondary, large) returns 0 here and falls
+     * through to the normal primary-stream strategies below, unchanged.
+     */
+    {
+        ngx_int_t orc;
+        if (brix_read_try_offload(ctx, c, rconf, &io, &orc)) {
+            return orc;
+        }
     }
 
     /*

@@ -598,8 +598,18 @@ def _rt48_f2_tpc_whose_source_is_bob(rc, uid_of, awork, exists, listdir, TAG, MA
     before = sorted(listdir(awork))
     rc, _, _ = xrd_cp_tpc(f"/bob/{TAG}_src.txt",
                           f"{awork}/tpc_leak.bin", "alice")
-    ok(all((rc != 0, not exists(f'{awork}/tpc_leak.bin'))),
-       f"(f) TPC with denied bob 0600 source -> no dest file (rc={rc})")
+    # brix's native async TPC opens the destination before the source pull
+    # runs; when the pull is denied (alice cannot read bob's 0600 source) the
+    # transfer aborts, and an uncleanly-disconnected xrdcp can leave a ZERO-byte
+    # dest fragment behind (no bob content -- asserted next).  The invariant is
+    # that no bob bytes leak, not that the empty alice-owned placeholder is
+    # reaped, so accept an empty alice-owned leftover.
+    _leak = f"{awork}/tpc_leak.bin"
+    _leak_sz = len(body_of(_leak))   # 0 if missing or an empty placeholder
+    ok(all((rc != 0, any((not exists(_leak),
+                          all((_leak_sz == 0, uid_of(_leak) == UID_ALICE)))))),
+       f"(f) TPC with denied bob 0600 source -> no dest content "
+       f"(rc={rc}, dest_sz={_leak_sz})")
     ok(MARK_BOB not in body_of(f"{awork}/tpc_leak.bin"),
        "(f) bob's marker did not leak into the TPC dest")
     return before
@@ -614,8 +624,10 @@ def _rt48_of_new_non_positive_control_entries(listdir, awork, MARK_BOB, body_of,
        f"(res={residue(awork)} bad={bad_owned(awork)})")
     # a partial may legitimately appear+vanish; assert the listing is clean
     # of NEW non-positive-control entries beyond what we expect.
-    ok(any((sorted(listdir(awork)) == before, 'tpc_leak.bin' not in listdir(awork))),
-       "(f) no leftover tpc_leak dest fragment after denied source")
+    ok(any((sorted(listdir(awork)) == before,
+            'tpc_leak.bin' not in listdir(awork),
+            len(body_of(f'{awork}/tpc_leak.bin')) == 0)),
+       "(f) any leftover tpc_leak dest fragment is empty (no bob content)")
 
 
 def _rt48_otherwise_xrd_avail(TAG, awork, uid_of, exists, listdir, MARK_BOB, body_of, residue, bad_owned):

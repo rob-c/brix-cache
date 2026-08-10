@@ -246,12 +246,14 @@ def _rt56_section_4_write_mode_prepare_w(have_xrd, size_of, uid_of, SECRET, TAG,
     if have_xrd:
         # (5a) cancel an unknown/fabricated reqid as alice: idempotent, no crash,
         # the worker survives, nothing on disk changes.
-        rc, out, _e = xrd_fs(["prepare", "-c", f"{TAG}_no_such_reqid_42"], "alice")
+        # (-a = stock abort/cancel spelling; -c became co-locate in the stock
+        # flag-parity fix)
+        rc, out, _e = xrd_fs(["prepare", "-a", f"{TAG}_no_such_reqid_42"], "alice")
         ok(SECRET not in any((out, '')),
            f"cancel of an unknown reqid by alice is a clean no-op, no leak (rc={rc})")
         # (5b) a cancel must NOT be a path-delete: alice 'cancels' using bob's path
         # string as a reqid — bob's private.txt must still exist, owned by bob.
-        rc, _o, _e = xrd_fs(["prepare", "-c", "/bob/private.txt"], "alice")
+        rc, _o, _e = xrd_fs(["prepare", "-a", "/bob/private.txt"], "alice")
         ok(all((exists('bob/private.txt'), uid_of('bob/private.txt') == UID_BOB)),
            f"cancel-with-a-path-as-reqid does not delete/re-own bob's file (rc={rc})")
         # (5c) worker survival after the cancel storm.

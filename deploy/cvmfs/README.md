@@ -391,3 +391,28 @@ to the same location — gating is pure configuration and covers manifest,
 CAS, GeoAPI *and* the replication marker (proven:
 `tests/test_cvmfs_stratum0_scvmfs.py`; open-serve lane incl. a real client
 mount: `tests/test_cvmfs_stratum0_serve.py`).
+
+## Acceptance scripts (phase-101 W9.3)
+
+Two standalone bash acceptance tests validate a CVMFS deployment against a mock
+Stratum-1 (`tests/cvmfs/mock_stratum1.py`) — no fleet harness required:
+
+```
+# a brix nginx with the cvmfs module (conformance default: $REPO/objs/nginx,
+# else /tmp/nginx-1.28.3/objs/nginx); override with NGINX_BIN=...
+tests/run_cvmfs_minimal.sh   # the 3-line read-through config: fill a CAS object
+                             # through the proxy, assert 200 + cache populated.
+tests/run_cvmfs_evict.sh     # hot+cold multi-tier fill; occupancy-driven reclaim
+                             # is band-gated (asserted only on a 10–96%-full cache
+                             # filesystem, else delegated to the cold-tier suite).
+```
+
+The minimal 3-line config both prove:
+
+```nginx
+location /cvmfs/ {
+    brix_cvmfs on;
+    brix_cache_store posix:/var/cache/brix-cvmfs;
+    brix_storage_backend "http://stratum-one.example.org";
+}
+```

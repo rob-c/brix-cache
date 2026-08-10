@@ -13,6 +13,8 @@
 #define _DEFAULT_SOURCE 1        /* openat/pread/renameat under strict -std=c11 */
 #endif
 #include "cache/cas_pack.h"
+#include "cache/cas_pack_format.h"  /* SEG record layout + codec (phase-88 W2:
+                                     * single-sourced with pblock's arena) */
 #include "cvmfs/platform/platform.h"
 
 #include <dirent.h>
@@ -26,25 +28,15 @@
 #include <zlib.h>
 #include <zstd.h>
 
-#define SEG_MAGIC   0x31535842u                /* "BXS1" */
-#define IDX_MAGIC   0x31495842u                /* "BXI1" */
-#define SEG_HDR     28u
+#define IDX_MAGIC   0x31495842u                /* "BXI1" (journal: runtime-local) */
 #define IDX_HDR     40u
 #define OP_PUT      1u
 #define OP_DEL      2u
 #define FSYNC_BATCH (8L * 1024 * 1024)
 #define TIER_MIN    64u                        /* don't bother compressing under this */
 
-/* ---- little fixed-offset codec (avoids struct padding) ------------------ */
-
-static void put32(unsigned char *b, uint32_t v) { memcpy(b, &v, 4); }
-static void put64(unsigned char *b, uint64_t v) { memcpy(b, &v, 8); }
-static uint32_t get32(const unsigned char *b) { uint32_t v; memcpy(&v, b, 4); return v; }
-static uint64_t get64(const unsigned char *b) { uint64_t v; memcpy(&v, b, 8); return v; }
-
-static uint32_t crc_of(const void *buf, size_t len) {
-    return (uint32_t) crc32(crc32(0L, Z_NULL, 0), buf, (uInt) len);
-}
+_Static_assert(PACK_KMAX == BRIX_PACK_KMAX,
+               "shared record format key cap must match the runtime's");
 
 static int write_full(int fd, const void *buf, size_t len) {
     const char *b = buf; size_t off = 0;
@@ -348,16 +340,10 @@ static int append_record(brix_cas_pack_t *p, brix_pack_ent_t *e, const char *key
     if (p->seg_off > 0 && p->seg_off + rec > (uint64_t) p->seg_max
         && roll_active(p) != 0) return -1;
 
-    unsigned char hdr[SEG_HDR + BRIX_PACK_KMAX];
-    put32(hdr, SEG_MAGIC);
-    hdr[4] = (unsigned char) (klen & 0xff);
-    hdr[5] = (unsigned char) (klen >> 8);
-    hdr[6] = fmt;
-    hdr[7] = 0;
-    put32(hdr + 8, crc_of(payload, (size_t) stored));
-    put64(hdr + 12, stored);
-    put64(hdr + 20, raw);
-    memcpy(hdr + SEG_HDR, key, klen);
+    unsigned char   hdr[SEG_HDR + BRIX_PACK_KMAX];
+    brix_pack_rec_t r = { klen, fmt, crc_of(payload, (size_t) stored),
+                          stored, raw };
+    brix_pack_seg_encode(hdr, key, &r);
 
     uint64_t off = p->seg_off;
     if (write_full(p->segfd, hdr, SEG_HDR + klen) != 0

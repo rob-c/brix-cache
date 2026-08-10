@@ -23,6 +23,34 @@
       offsetof(ngx_http_brix_webdav_loc_conf_t, redirect_dataserver),
       NULL },
 
+    /* §6.6: render an HTML directory index on a GET of a directory (the
+     * XrdHttp "Listing" analog; off = the listingdeny default → 403). */
+    { ngx_string("brix_webdav_html_listing"),
+      NGX_HTTP_LOC_CONF | NGX_CONF_FLAG,
+      ngx_conf_set_flag_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_brix_webdav_loc_conf_t, html_listing),
+      NULL },
+
+    /* §6.6 listingredir analog: a GET on a directory 301-redirects here (the
+     * request path is appended) instead of listing; checked before the
+     * html_listing render. */
+    { ngx_string("brix_webdav_listing_redirect"),
+      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_str_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_brix_webdav_loc_conf_t, listing_redirect),
+      NULL },
+
+    /* §6.11 http.maxdelay analog: cap the Retry-After seconds a 202 "staging"
+     * (tape-recall) response tells the client to wait. 0 (default) = off. */
+    { ngx_string("brix_webdav_maxdelay"),
+      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_sec_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_brix_webdav_loc_conf_t, maxdelay),
+      NULL },
+
     /* Target HTTP port on the data servers; 0 (default) = the registry
      * entry's port (stock shared-port model). */
     { ngx_string("brix_webdav_redirect_port"),

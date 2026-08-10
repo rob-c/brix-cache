@@ -250,8 +250,11 @@ test_dedup_refs(void)
     D->cleanup(&inst);
 }
 
-/* SECURITY-NEG: a forged blobs.content_hash must NOT let differing content
- * alias — dedup byte-verifies the candidate and rejects the mismatch. */
+/* SECURITY-NEG (W3 legacy tier): a colliding/forged "crc32:" content_hash
+ * must NOT let differing content alias — a non-sha256 hash only NOMINATES and
+ * dedup byte-verifies the candidate, rejecting the mismatch. ("sha256:" rows
+ * are the engine's own cryptographic identity and fold on trust — forging one
+ * requires writing catalog.db, which is already total store compromise.) */
 void
 test_dedup_forged_hash(void)
 {
@@ -274,57 +277,46 @@ test_dedup_forged_hash(void)
     inst.caps = D->caps;
     CHECK(D->init(&inst, &conf) == NGX_OK, "forge init");
 
-    /* Victim blob with a genuine hash; attacker file of the SAME size but
-     * DIFFERENT bytes. */
+    /* Victim and attacker: SAME size, DIFFERENT bytes, distinct blobs. */
     CHECK(write_file(&inst, "/victim", "AAAAAAAA", 8) == 0, "seed victim");
     CHECK(write_file(&inst, "/attack", "BBBBBBBB", 8) == 0, "seed attack");
     q_blob_id(root, "/victim", bvictim, sizeof(bvictim));
     q_blob_id(root, "/attack", battack, sizeof(battack));
     CHECK(strcmp(bvictim, battack) != 0, "different content keeps blobs apart");
 
-    /* Forge the attacker row's hash to equal the victim's — a same-size,
-     * same-block-size candidate the SELECT will now return. */
-    hash[0] = '\0';
+    /* Force BOTH rows onto one legacy "crc32:" hash — a simulated CRC
+     * collision (or a forged legacy row): same-size, same-block-size
+     * candidates the SELECT will now cross-return. */
+    snprintf(hash, sizeof(hash), "crc32:00c0ffee");
     snprintf(db, sizeof(db), "%s/catalog.db", root);
     CHECK(sqlite3_open(db, &h) == SQLITE_OK, "forge db open");
     if (sqlite3_prepare_v2(h,
-            "SELECT content_hash FROM blobs WHERE blob_id = ?1;", -1, &q, NULL)
-        == SQLITE_OK)
-    {
-        sqlite3_bind_text(q, 1, bvictim, -1, SQLITE_STATIC);
-        if (sqlite3_step(q) == SQLITE_ROW) {
-            const unsigned char *b = sqlite3_column_text(q, 0);
-
-            snprintf(hash, sizeof(hash), "%s", b ? (const char *) b : "");
-        }
-    }
-    sqlite3_finalize(q);
-    q = NULL;
-    if (sqlite3_prepare_v2(h,
-            "UPDATE blobs SET content_hash = ?2 WHERE blob_id = ?1;", -1, &q,
-            NULL) == SQLITE_OK)
+            "UPDATE blobs SET content_hash = ?2 WHERE blob_id IN (?1, ?3);",
+            -1, &q, NULL) == SQLITE_OK)
     {
         sqlite3_bind_text(q, 1, battack, -1, SQLITE_STATIC);
         sqlite3_bind_text(q, 2, hash, -1, SQLITE_STATIC);
+        sqlite3_bind_text(q, 3, bvictim, -1, SQLITE_STATIC);
         CHECK(sqlite3_step(q) == SQLITE_DONE, "forge update");
     }
     sqlite3_finalize(q);
     sqlite3_close(h);
 
-    /* Re-publish a THIRD identical-to-victim file: its only forged-hash
-     * candidate is the attacker blob, whose bytes differ — byte-verify must
-     * reject it, so the new file shares the genuine victim blob, never the
-     * attacker's. Content stays correct regardless. */
-    CHECK(write_file(&inst, "/probe", "AAAAAAAA", 8) == 0, "seed probe");
-    CHECK(read_file(&inst, "/probe", buf, sizeof(buf)) == 8
-          && memcmp(buf, "AAAAAAAA", 8) == 0, "probe content honest");
+    /* Re-nominate the victim through the dedup slot: its stored hash is the
+     * colliding legacy string, so the attacker blob is its only candidate —
+     * the byte-verify must reject the fold and the blobs stay apart. */
+    CHECK(D->dedup_publish != NULL
+          && D->dedup_publish(&inst, "/victim", "/.gcas/00/c0ffee") == NGX_OK,
+          "legacy re-publish completes");
     {
-        char bprobe[PBLOCK_BLOB_ID_CAP];
+        char bnow[PBLOCK_BLOB_ID_CAP];
 
-        q_blob_id(root, "/probe", bprobe, sizeof(bprobe));
-        CHECK(strcmp(bprobe, battack) != 0, "probe did NOT alias attacker blob");
+        q_blob_id(root, "/victim", bnow, sizeof(bnow));
+        CHECK(strcmp(bnow, battack) != 0,
+              "colliding crc32 hash did NOT alias content");
     }
-    /* The attacker blob is unchanged — no reference was ever redirected to it. */
+    CHECK(read_file(&inst, "/victim", buf, sizeof(buf)) == 8
+          && memcmp(buf, "AAAAAAAA", 8) == 0, "victim content honest");
     CHECK(read_file(&inst, "/attack", buf, sizeof(buf)) == 8
           && memcmp(buf, "BBBBBBBB", 8) == 0, "attacker content untouched");
 

@@ -16,6 +16,8 @@ typedef struct {
     u_char             options;                     /* raw kXR_dirlist options */
     ngx_flag_t         want_stat;                   /* kXR_dstat or kXR_dcksm */
     ngx_flag_t         want_cksum;                  /* kXR_dcksm */
+    ngx_flag_t         want_online;                 /* kXR_online — omit offline */
+    ngx_stream_brix_srv_conf_t *conf;             /* residency probe config */
     char               cksum_algo[32];              /* negotiated cksum algo */
     char               reqpath[BRIX_MAX_PATH + 1];  /* client-supplied path */
     char               full_path[PATH_MAX];         /* confined absolute path */

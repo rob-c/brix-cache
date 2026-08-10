@@ -228,7 +228,7 @@ def _http_location(cell, origin_port, data_root):
                  'brix_webdav_token_issuer   "https://test.example.com";',
                  'brix_webdav_token_audience "nginx-xrootd";']
     elif cell.auth == "gsi":
-        body += ["brix_webdav_auth required;", f"brix_webdav_cadir {CA_DIR};"]
+        body += ["brix_webdav_auth required;", f"brix_trusted_ca_dir {CA_DIR};"]
     else:
         body += ["brix_webdav_auth none;"]
     return (_storage(cell, origin_port, data_root, http_plane=True)

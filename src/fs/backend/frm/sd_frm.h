@@ -59,6 +59,18 @@ typedef struct {
     int  (*migrate)(void *mss, const char *key);
     /* Drop the online copy of `key` (free buffer space). */
     int  (*purge)(void *mss, const char *key);
+    /* §3.7 MSS namespace enumeration (the stock `rsscmd dread` analog): call
+     * cb(ud, name, is_dir) for each entry of MSS directory `key` until done
+     * (a nonzero cb return stops early). 0 ok / -1 error (errno set). A NULL
+     * slot means this MSS cannot enumerate — the driver reports ENOTSUP,
+     * exactly the pre-slot behaviour. */
+    int  (*list)(void *mss, const char *key,
+                 int (*cb)(void *ud, const char *name, int is_dir), void *ud);
+    /* §3.7 MSS-side directory creation (the stock `rsscmd rcreate` analog):
+     * create directory `key` (and its parents) on the MSS. 0 ok / -1 error
+     * (errno set). NULL slot ⇒ the MSS namespace cannot be extended — the
+     * driver reports ENOTSUP, the pre-slot behaviour. */
+    int  (*mkpath)(void *mss, const char *key, mode_t mode);
     /* Open the online-buffer file of an ONLINE `key` for reading; fd or -1. */
     int  (*open_online)(void *mss, const char *key);
     /* Create+open the online-buffer file of `key` for a staged write; fd or -1. */

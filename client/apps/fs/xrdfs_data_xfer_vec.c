@@ -85,6 +85,130 @@ do_readv(brix_conn *c, const char *cwd, int argc, char **argv)
 }
 
 
+/* ---- Parse readvm triples + open each segment's file (dedup) ----
+ *
+ * WHAT: Fills segs[] (allocating a receive buffer each) and segfile[] (the
+ *       open handle for each segment, reusing one when a path repeats) from
+ *       the `<path> <off> <len>` argv triples. Sets *nseg / *nopen to what was
+ *       actually allocated/opened so the caller's single cleanup path frees
+ *       exactly those on any outcome. Returns 0 / shell code.
+ *
+ * WHY:  Extracting setup keeps do_readvm a flat setup→run→cleanup sequence
+ *       with ONE cleanup site (no goto; coding-standards §4).
+ *
+ * HOW:  Parse loop allocates per segment; open loop dedups by path string.
+ */
+static int
+readvm_setup(brix_conn *c, const char *cwd, int argc, char **argv,
+             brix_readv_seg *segs, size_t *nseg, brix_file *files,
+             brix_file **segfile, size_t *nopen)
+{
+    char       paths[XRDC_VEC_MAXSEGS][XRDC_PATH_MAX];
+    brix_status st;
+    int         a;
+
+    for (a = 1; a + 2 < argc && *nseg < XRDC_VEC_MAXSEGS; a += 3) {
+        unsigned long long off, len;
+        size_t             s = *nseg;
+
+        if (parse_u64_strict(argv[a + 1], &off) != 0
+            || parse_u64_strict(argv[a + 2], &len) != 0) {
+            fprintf(stderr, "xrdfs: readvm: bad offset/length '%s %s'\n",
+                    argv[a + 1], argv[a + 2]);
+            return 50;
+        }
+        build_path(cwd, argv[a], paths[s], sizeof(paths[s]));
+        segs[s].offset = (int64_t) off;
+        segs[s].len    = (size_t) len;
+        segs[s].got    = 0;
+        segs[s].buf    = malloc(len ? (size_t) len : 1);
+        if (segs[s].buf == NULL) {
+            fprintf(stderr, "xrdfs: readvm: out of memory\n");
+            return 51;
+        }
+        (*nseg)++;
+    }
+
+    for (size_t i = 0; i < *nseg; i++) {
+        size_t j;
+
+        segfile[i] = NULL;
+        for (j = 0; j < i; j++) {
+            if (strcmp(paths[i], paths[j]) == 0) {
+                segfile[i] = segfile[j];
+                break;
+            }
+        }
+        if (segfile[i] != NULL) {
+            continue;
+        }
+        brix_status_clear(&st);
+        if (brix_file_open_read(c, paths[i], &files[*nopen], &st) != 0) {
+            return xrdfs_report_err("readvm open", paths[i], &st, 0, c);
+        }
+        segfile[i] = &files[(*nopen)++];
+    }
+    return 0;
+}
+
+
+/* ---- readvm: per-segment-fhandle scatter-gather across MULTIPLE files ----
+ *
+ * WHAT: `readvm <path> <off> <len> [<path> <off> <len> ...]` reads one segment
+ *       from each named file — all in ONE kXR_readv — and writes the segments,
+ *       concatenated in request order, to stdout. Returns 0 / shell code.
+ *
+ * WHY:  §7.15 — stock's readahead_list carries a per-segment fhandle so a
+ *       single readv can gather from many open files; BriX's single-handle
+ *       readv could not express it. Exercises brix_file_readv_multi.
+ *
+ * HOW:  readvm_setup opens the files + builds the segments; one
+ *       brix_file_readv_multi; emit; ONE cleanup path closes every opened
+ *       handle and frees every segment buffer regardless of where we stopped.
+ */
+int
+do_readvm(brix_conn *c, const char *cwd, int argc, char **argv)
+{
+    brix_readv_seg segs[XRDC_VEC_MAXSEGS];
+    brix_file      files[XRDC_VEC_MAXSEGS];
+    brix_file     *segfile[XRDC_VEC_MAXSEGS];
+    size_t         nseg = 0, nopen = 0, i;
+    int            rc;
+
+    if (argc < 4 || ((argc - 1) % 3) != 0) {
+        fprintf(stderr, "usage: readvm <path> <off> <len> "
+                        "[<path> <off> <len> ...]\n");
+        return 50;
+    }
+
+    rc = readvm_setup(c, cwd, argc, argv, segs, &nseg, files, segfile, &nopen);
+    if (rc == 0) {
+        brix_status st;
+        ssize_t     got;
+
+        brix_status_clear(&st);
+        got = brix_file_readv_multi(c, segfile, segs, nseg, &st);
+        if (got < 0) {
+            rc = xrdfs_report_err("readvm", argv[1], &st, 0, c);
+        } else {
+            for (i = 0; i < nseg; i++) {
+                fwrite(segs[i].buf, 1, segs[i].got, stdout);
+            }
+        }
+    }
+
+    for (i = 0; i < nopen; i++) {
+        brix_status tw;
+        brix_status_clear(&tw);
+        brix_file_close(c, &files[i], &tw);
+    }
+    for (i = 0; i < nseg; i++) {
+        free(segs[i].buf);
+    }
+    return rc;
+}
+
+
 /* Decode one <off hexdata> writev pair into segs[nseg]. Frees the segment's own
  * scratch on failure (the caller frees earlier segments). 0 on success, else the
  * shell exit code (>0). */

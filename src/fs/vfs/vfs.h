@@ -119,7 +119,7 @@ typedef struct {
      * the data-plane sites where minting is meaningful (davs/S3 GET/PUT). */
     const char          *storage_cred_mint_ca_cert;
     const char          *storage_cred_mint_ca_key;
-    ngx_uint_t           storage_cred_mint_ttl;
+    time_t               storage_cred_mint_ttl;
     /* Phase-70 §4 delegation live-cred bag: the front door binds captured
      * forwardable credential BYTES (bearer text / full x509 proxy PEM) + the
      * resolved delegation mode here via brix_vfs_ctx_bind_backend_deleg(). NULL
@@ -157,7 +157,7 @@ void brix_vfs_ctx_bind_backend_cred(brix_vfs_ctx_t *vctx,
  * mint. ca_cert->len==0 disables minting for this ctx (the gate behaves
  * exactly as Phase-1: DECLINED stays DECLINED). */
 void brix_vfs_ctx_bind_backend_mint(brix_vfs_ctx_t *vctx,
-    const ngx_str_t *ca_cert, const ngx_str_t *ca_key, ngx_uint_t ttl_secs);
+    const ngx_str_t *ca_cert, const ngx_str_t *ca_key, time_t ttl_secs);
 
 /* Bind a per-request delegation live-cred bag (phase-70 §4) onto an already-
  * initialised VFS ctx. `live` carries the raw forwardable credential BYTES the

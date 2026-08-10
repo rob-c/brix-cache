@@ -1,4 +1,4 @@
-#compdef xrdcp xrdfs xrddiag xrdcksum xrd xrdprep xrdgsiproxy xrdsssadmin-brix brixMount xrdstorascan xrdcrc32c xrdcrc64 xrdadler32 xrdckverify xrdcinfo xrootdfs
+#compdef xrdcp xrdfs xrddiag xrdcksum xrd xrdprep xrdgsiproxy xrdsssadmin-brix brixMount xrdstorascan xrdcrc32c xrdcrc64 xrdadler32 xrdckverify xrdcinfo xrdcks xrootdfs
 
 # _brix-client — zsh completion for the brix client CLI suite.
 #
@@ -21,6 +21,7 @@ _brix-client() {
     (xrdcrc32c|xrdcrc64|xrdadler32)      _brix_cksum_hash ;;
     (xrdckverify)                        _brix_xrdckverify ;;
     (xrdcinfo)                           _brix_xrdcinfo ;;
+    (xrdcks)                             _files ;;
     (xrd)                                _brix_xrd ;;
     (xrdprep)                            _brix_xrdprep ;;
     (xrdgsiproxy)                        _brix_xrdgsiproxy ;;
@@ -75,6 +76,10 @@ _brix_xrdcp() {
         '(-S --streams)'{-S+,--streams=}'[open N-1 secondary kXR_bind data streams]:n' \
         '--sources=[extreme copy: block-stealing download from up to N replicas]:n' \
         '--no-metalink[copy a .meta4/.metalink source as a plain file]' \
+        '--continue[resume a download at the partial destination'\''s size]' \
+        '(-X --xrate)'{-X,--xrate}'[cap the transfer rate (bytes/sec, k/m/g)]:rate:' \
+        '--xrate-threshold[fail below this average rate (bytes/sec, k/m/g)]:rate:' \
+        '--rm-bad-cksum[stock alias: mismatched destinations are always dropped]' \
         '--tpc=[server-side third-party copy mode]:mode:(first only delegate)' \
         '--tpc-token-mode=[bearer-token forwarding mode for --tpc]:mode' \
         '(-T --token)'{-T+,--token=}'[WebDAV/HTTP bearer token (or $BEARER_TOKEN)]:jwt' \
@@ -122,10 +127,12 @@ _brix_xrdfs() {
         'cksum:compute server-side checksum'
         'xattr:manage extended attributes'
         'readv:scatter-gather read'
+        'readvm:multi-file scatter-gather read'
         'writev:scatter-gather write'
         'locate:resolve replica locations'
         'query:send kXR_query request'
         'statvfs:filesystem statistics'
+        'spaceinfo:stock-format space report'
         'prepare:send kXR_prepare request'
         'stage:stage from tape'
         'evict:evict from cache'
@@ -359,6 +366,7 @@ _brix_xrd() {
         'locate:resolve replica locations'
         'query:send kXR_query'
         'statvfs:filesystem statistics'
+        'spaceinfo:stock-format space report'
         'prepare:send kXR_prepare'
         'explain:print session facts'
         'diag:run diagnostic (-> xrddiag)'

@@ -1,5 +1,8 @@
 #include "ftp_gateway.h"
 #include "ftp_module_internal.h"           /* brix_ftp_build_gsi (ftp_module_gsi.c) */
+#include "core/config/stream_common.h"     /* phase-101 W3: adopt the bare storage names */
+#include <stdlib.h>                        /* realpath */
+#include <limits.h>                        /* PATH_MAX */
 
 #include "fs/vfs/vfs_backend_registry.h"   /* per-export storage-backend register */
 #include "core/config/credential_block.h"  /* s3:// backend SigV4 credential      */
@@ -154,6 +157,83 @@ brix_ftp_merge_conf(ngx_conf_t *cf, void *parent, void *child)
     ngx_stream_brix_ftp_srv_conf_t *prev = parent;
     ngx_stream_brix_ftp_srv_conf_t *conf = child;
     char                           *rv;
+
+    /* phase-101 W3 (variant A): the storage bare names (brix_export,
+     * brix_storage_backend, brix_storage_credential, brix_allow_write,
+     * brix_verify_write) are now owned by ngx_stream_brix_common_module, so a
+     * gridftp server configures them with the SAME bare names root:// uses
+     * instead of the old brix_gridftp_* twins.  Adopt this server's values from
+     * the common module into gridftp's flat fields BEFORE the parent->child
+     * fold below, so a value set on THIS server wins and unset ones fall through
+     * to inheritance/defaults exactly as before.  Only fills fields the child
+     * left unset.  brix_export additionally realpath()s into root_canon here (it
+     * was done in the brix_gridftp_export setter at parse time; the stock
+     * str-slot the common module uses only stores the raw path), preserving the
+     * gateway's "export must exist" config-time check byte-for-byte. */
+    {
+        ngx_stream_brix_common_conf_t *scf =
+            ngx_stream_conf_get_module_srv_conf(cf, ngx_stream_brix_common_module);
+
+        if (scf != NULL) {
+            if (conf->export.len == 0 && scf->common.root.len != 0) {
+                ngx_str_t  dir = scf->common.root;
+                char       raw[PATH_MAX];
+
+                if (ngx_conf_full_name(cf->cycle, &dir, 1) != NGX_OK) {
+                    return NGX_CONF_ERROR;
+                }
+                if (dir.len >= sizeof(raw)) {
+                    ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+                        "brix_export path too long: %V", &dir);
+                    return NGX_CONF_ERROR;
+                }
+                ngx_memcpy(raw, dir.data, dir.len);
+                raw[dir.len] = '\0';
+                if (realpath(raw, conf->root_canon) == NULL) {
+                    ngx_conf_log_error(NGX_LOG_EMERG, cf, ngx_errno,
+                        "brix_export \"%s\" cannot be resolved (does it exist?)",
+                        raw);
+                    return NGX_CONF_ERROR;
+                }
+                conf->export = dir;
+            }
+            if (conf->storage_backend.len == 0 && scf->common.storage_backend.len != 0) {
+                conf->storage_backend = scf->common.storage_backend;
+            }
+            if (conf->storage_credential.len == 0
+                && scf->common.storage_credential.len != 0)
+            {
+                conf->storage_credential = scf->common.storage_credential;
+            }
+            if (conf->allow_write == NGX_CONF_UNSET
+                && scf->common.allow_write != NGX_CONF_UNSET)
+            {
+                conf->allow_write = scf->common.allow_write;
+            }
+            if (conf->verify_write == NGX_CONF_UNSET
+                && scf->common.verify_write != NGX_CONF_UNSET)
+            {
+                conf->verify_write = scf->common.verify_write;
+            }
+        }
+    }
+
+    /* phase-101 W3 stage 3: the x509 GSI-trust strings (brix_certificate,
+     * brix_certificate_key, brix_trusted_ca, brix_vomsdir, brix_voms_cert_dir)
+     * are owned by the common module too; adopt this server's values into
+     * gridftp's flat fields BEFORE the fold + brix_ftp_build_gsi (which reads
+     * conf->certificate / trusted_ca to build the gateway's TLS ctx + client
+     * trust store). Readers unchanged. */
+    brix_stream_common_adopt_gsi(cf, &conf->certificate, &conf->certificate_key,
+                                 &conf->trusted_ca, &conf->vomsdir,
+                                 &conf->voms_cert_dir);
+
+    /* phase-101 W3 stage 3b: brix_require_vo is owned by the common module;
+     * deep-copy its rules into gridftp's own array before brix_ftp_merge_vo_rules
+     * (below) merges + finalizes them against this gateway's root_canon. */
+    if (brix_stream_common_adopt_vo_rules(cf, &conf->vo_rules) != NGX_OK) {
+        return NGX_CONF_ERROR;
+    }
 
     ngx_conf_merge_value(conf->enable,      prev->enable,      0);
     ngx_conf_merge_value(conf->allow_write, prev->allow_write, 0);

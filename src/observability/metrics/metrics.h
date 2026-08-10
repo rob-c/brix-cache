@@ -358,6 +358,23 @@ typedef struct {
     ngx_atomic_t  io_latency_sum_usec[BRIX_PROTO_COUNT]
                                          [BRIX_METRIC_OP_COUNT];
 
+    /* §3.15 OssStats `slowop` classifier — per proto/op count of COMPLETED ops
+     * whose measured latency met or exceeded slowop_threshold_usec. The
+     * threshold is stamped once per config load from brix_metrics_slowop
+     * (init_module, master); 0 disables classification (no counter movement),
+     * byte-identical to the pre-knob behaviour. Read lock-free in the latency
+     * record path, so a slow op is booked the moment its latency is filed —
+     * distinct from the histogram, which only bins the same sample. */
+    ngx_atomic_t  io_slowop_total[BRIX_PROTO_COUNT][BRIX_METRIC_OP_COUNT];
+    ngx_atomic_t  slowop_threshold_usec;
+
+    /* §1.1 pathid response offloading — per-proto count of read-family responses
+     * (kXR_read/readv/pgread) routed over a bound SECONDARY data channel instead
+     * of the primary control stream. Lets an operator confirm multi-stream
+     * offloading is actually happening and measure its rate; 0 everywhere when no
+     * client requests offloading (byte-identical to before the counter). */
+    ngx_atomic_t  io_offload_total[BRIX_PROTO_COUNT];
+
     ngx_atomic_t  cache_hits[BRIX_PROTO_COUNT];
     ngx_atomic_t  cache_misses[BRIX_PROTO_COUNT];
     ngx_atomic_t  cache_bytes_evicted[BRIX_PROTO_COUNT];

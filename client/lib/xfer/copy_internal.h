@@ -114,6 +114,13 @@ ssize_t pump_src_local_vfs(void *ctx, uint8_t *buf, int64_t off, size_t cap, bri
 int pump_sink_local_vfs(void *ctx, const uint8_t *buf, int64_t off, size_t n, brix_status *st);
 int transfer_pump(pump_src_fn src, void *sctx, pump_sink_fn sink, void *kctx, int64_t expected, const brix_copy_opts *o, int64_t progress_total, brix_status *st);
 
+/* §7.13 --xrate pacing (copy_pump.c): sleep so `moved` bytes since t0 respect
+ * o->xrate_bps; fail past the 3 s grace when below o->xrate_min_bps.  cap()
+ * shrinks a read so paced transfers step in ~250 ms slices. */
+int    brix_pump_pace(const brix_copy_opts *o, uint64_t t0_ns, int64_t moved,
+                      brix_status *st);
+size_t brix_pump_pace_cap(const brix_copy_opts *o, size_t cap);
+
 /* copy_local.c */
 
 /*
@@ -189,6 +196,17 @@ int download_commit_or_abort(const download_job_t *job, brix_vfs_file *vf,
  * download, --sources N). Same handled?/fall-through contract as
  * copy_download_parallel; runs BEFORE it in copy_download. */
 int copy_download_xcp(const download_job_t *job, int *out_rc, brix_status *st);
+
+/* copy_l2l.c — §7.17 local→local copy (file://↔local, and the '-' stdio
+ * endpoints). Reuses the transfer pump; file dst is atomic temp+rename. */
+int brix_copy_local_to_local(const brix_url *su, const brix_url *du,
+                             const brix_copy_opts *o, brix_status *st);
+
+/* copy_continue.c — §7.6 --continue byte-offset resume; same handled? contract.
+ * Runs FIRST in copy_download (before even the destination-exists check: an
+ * existing partial is the mode's input, not an error). */
+int copy_download_continue(const download_job_t *job, int *out_rc,
+                           brix_status *st);
 
 /* copy_metalink.c — phase-100 metalink virtual redirector. */
 int copy_is_metalink_src(const char *src, const brix_copy_opts *o);

@@ -51,8 +51,8 @@ tpc_marker_thread_func(void *data, ngx_log_t *log)
         ngx_memzero(&net_policy, sizeof(net_policy));
         net_policy.require_https      = 1;
         net_policy.allow_root_scheme  = 0;
-        net_policy.allow_local        = tt->conf->tpc_allow_local;
-        net_policy.allow_private      = tt->conf->tpc_allow_private;
+        net_policy.allow_local        = tt->conf->common.tpc_allow_local;
+        net_policy.allow_private      = tt->conf->common.tpc_allow_private;
         net_policy.default_https_port = 443;
 
         if (brix_net_target_parse(NULL, &url_str, &net_target,

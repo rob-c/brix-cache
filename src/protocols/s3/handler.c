@@ -68,7 +68,7 @@ s3_method_aop(ngx_http_request_t *r)
 }
 
 /*
- * s3_acc_check — XrdAcc tier for S3 (when `brix_authdb_format xrdacc`).
+ * s3_acc_check — XrdAcc tier for S3 (when `brix_acc_format xrdacc`).
  * Returns NGX_OK (allow / not selected) or NGX_HTTP_FORBIDDEN (deny).
  */
 static ngx_int_t
@@ -80,7 +80,7 @@ s3_acc_check(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
     size_t      n;
     ngx_int_t   rc;
 
-    if (cf->acc.format != BRIX_AUTHDB_FORMAT_XRDACC) {
+    if (cf->common.acc.format != BRIX_AUTHDB_FORMAT_XRDACC) {
         return NGX_OK;
     }
     if (id != NULL) {
@@ -94,7 +94,7 @@ s3_acc_check(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
     host[n] = '\0';
 
     /* Opt-in reverse DNS for `h <host>`/`h .domain` rules (per request). */
-    if (cf->acc.resolve_hosts) {
+    if (cf->common.acc.resolve_hosts) {
         char        hbuf[256];
         const char *h = brix_acc_resolve_peer(r->connection->sockaddr,
                                                 r->connection->socklen,
@@ -111,7 +111,7 @@ s3_acc_check(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
     path[n] = '\0';
 
     rc = brix_acc_http_authorize(r->pool, r->connection->log,
-                                   &cf->acc, name, host, vorg, role, grp,
+                                   &cf->common.acc, name, host, vorg, role, grp,
                                    s3_method_aop(r), path);
     return (rc == NGX_ERROR) ? NGX_HTTP_FORBIDDEN : NGX_OK;
 }
@@ -457,7 +457,7 @@ ngx_http_s3_handler(ngx_http_request_t *r)
         }
     }
 
-    /* XrdAcc engine (when brix_authdb_format xrdacc) */    rc = s3_acc_check(r, cf, s3ctx->identity);
+    /* XrdAcc engine (when brix_acc_format xrdacc) */    rc = s3_acc_check(r, cf, s3ctx->identity);
     if (rc != NGX_OK) {
         return s3_metrics_return_method(r, method_slot, rc);
     }

@@ -306,6 +306,11 @@ Add a small set of `brix_webdav_tpc_*` directives to make behavior tunable:
 - `brix_webdav_tpc_block_size <bytes>` — block size for multi-stream pulls.
 - `brix_webdav_tpc_max_streams <N>` — cap streams per transfer.
 - `brix_webdav_tpc_marker_interval <sec>` — perf marker interval.
+- `brix_webdav_tpc_xfr <N>` — explicit concurrent-transfer cap (the `ofs.tpc
+  xfr` analog): a new `COPY` beyond `N` in-flight transfers is refused with
+  `503`. Counts live in-use registry slots (an abandoned transfer is reaped
+  first, so it never permanently counts). `0` (default) = bound only by the
+  compile-time registry slot ceiling.
 - `brix_webdav_tpc_allow_local on|off` — control loopback/link-local.
 - `brix_webdav_tpc_allow_private on|off` — allow RFC1918 private ranges.
 - `brix_webdav_tpc_source_guard on|off` + `brix_webdav_tpc_source_allow <host> […]`

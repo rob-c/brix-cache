@@ -98,7 +98,7 @@ ones a reviewer must know:
 | Enable / export / write | `xrootd`, `brix_root`, `brix_allow_write`, `brix_listen_port`, `brix_access_log` |
 | Auth mode & GSI/x509 | `brix_auth`, `brix_certificate`, `brix_certificate_key`, `brix_trusted_ca`, `brix_vomsdir`, `brix_voms_cert_dir`, `brix_crl`, `brix_crl_reload`, `brix_require_vo`, `brix_authdb`, `brix_inherit_parent_group`, `brix_security_level` |
 | Bearer / SSS / krb5 / unix | `brix_token_jwks`(+`_refresh_interval`), `brix_token_issuer`, `brix_token_audience`, `brix_macaroon_secret`(`_old`), `brix_sss_keytab`, `brix_krb5_principal`/`_keytab`/`_ip_check`, `brix_unix_trust_remote` |
-| TLS / OCSP | `brix_tls`, `brix_ktls`, `brix_ocsp_enable`, `brix_ocsp_soft_fail`, `brix_ocsp_stapling` |
+| TLS / OCSP | `brix_tls`, `brix_ktls`, `brix_ocsp`, `brix_ocsp_soft_fail`, `brix_ocsp_stapling` |
 | Native TPC | `brix_tpc_allow_local`/`_private`, `brix_tpc_key_ttl`, `brix_tpc_outbound_bearer_file`, `brix_tpc_outbound_token_endpoint`/`_client_id`/`_client_secret`/`_scope` |
 | Manager / redirector | `brix_manager_map`, `brix_manager_mode`, `brix_metadata_only`, `brix_supervisor`, `brix_virtual_redirector`, `brix_collapse_redir`(`_ttl`), `brix_registry_slots`, `brix_session_slots`, `brix_redir_cache_slots`, `brix_recover_writes` |
 | Upstream redirector | `brix_upstream`, `brix_upstream_tls`(`_ca`/`_name`), `brix_upstream_token_file` |

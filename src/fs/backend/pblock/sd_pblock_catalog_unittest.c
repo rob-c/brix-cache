@@ -11,6 +11,7 @@
 #include "sd_pblock_catalog.h"
 
 #include <errno.h>
+#include <sqlite3.h>   /* W4: the behind-the-API mutator (raw_set_size) */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -377,6 +378,105 @@ test_parent_lookup(pblock_catalog *cat)
           && errno == ENOTDIR, "file parent (errno %d)", errno);
 }
 
+/* raw_set_size — mutate a row BEHIND the catalog API (a second bare SQLite
+ * connection), so cache-vs-SQL divergence becomes observable. */
+static void
+raw_set_size(const char *db, const char *path, long long size)
+{
+    sqlite3      *h = NULL;
+    sqlite3_stmt *q = NULL;
+
+    CHECK(sqlite3_open(db, &h) == SQLITE_OK, "raw db open");
+    if (sqlite3_prepare_v2(h,
+            "UPDATE objects SET size = ?2 WHERE path = ?1;", -1, &q, NULL)
+        == SQLITE_OK)
+    {
+        sqlite3_bind_text(q, 1, path, -1, SQLITE_STATIC);
+        sqlite3_bind_int64(q, 2, size);
+        CHECK(sqlite3_step(q) == SQLITE_DONE, "raw update");
+    }
+    sqlite3_finalize(q);
+    sqlite3_close(h);
+}
+
+/* phase-88 W4: the shared mmap namespace cache. Two catalog handles over one
+ * root simulate two worker processes (each maps <root>/catalog.bxi
+ * MAP_SHARED, exactly as separate processes would). Legs:
+ *   SUCCESS      — a fill through handle A serves handle B from the shared
+ *                  table (proven: a raw-SQL mutation behind the API is NOT
+ *                  seen — the answer came from the mmap), and an API-level
+ *                  touch through A IS seen by B (cross-process coherence the
+ *                  worker-local heap cache never had).
+ *   ERROR        — reopening after every holder closed (first-opener flock)
+ *                  bumps the epoch: nothing stale survives a cold start.
+ *   SECURITY-NEG — an entry torn mid-write (odd seqlock) is never served;
+ *                  lookups fall back to SQL truth. */
+static void
+test_nsidx_shared(const char *dir, const char *db)
+{
+    pblock_catalog *a, *b;
+    pblock_meta     m = file_meta("99999999999999999999999999999999", 111);
+    pblock_meta     out;
+    char            bxi[512];
+
+    a = pblock_catalog_open(db, 2000);
+    b = pblock_catalog_open(db, 2000);
+    CHECK(a != NULL && b != NULL, "nsidx handles open");
+    CHECK(pblock_catalog_nsidx_arm(a, dir) == 0, "arm a: %s", strerror(errno));
+    CHECK(pblock_catalog_nsidx_arm(b, dir) == 0, "arm b: %s", strerror(errno));
+
+    /* SUCCESS: A's put warms the shared table; B is served from it. */
+    CHECK(pblock_catalog_put(a, "/nsidx1", &m) == 0, "put nsidx1");
+    CHECK(pblock_catalog_lookup(b, "/nsidx1", &out) == 0 && out.size == 111,
+          "b sees a's row (size %lld)", (long long) out.size);
+    raw_set_size(db, "/nsidx1", 222);       /* behind the API */
+    CHECK(pblock_catalog_lookup(b, "/nsidx1", &out) == 0 && out.size == 111,
+          "b answered from the SHARED cache, not SQL (size %lld)",
+          (long long) out.size);
+
+    /* API-level mutation through A reaches B — the coherence upgrade. */
+    CHECK(pblock_catalog_touch(a, "/nsidx1", 333, 12345) == 0, "touch");
+    CHECK(pblock_catalog_lookup(b, "/nsidx1", &out) == 0 && out.size == 333,
+          "a's touch visible to b (size %lld)", (long long) out.size);
+
+    /* SECURITY-NEG: tear every entry (odd seqlock) directly in the sidecar —
+     * lookups must fall back to SQL truth, never serve a torn entry. */
+    snprintf(bxi, sizeof(bxi), "%s/catalog.bxi", dir);
+    {
+        FILE *f = fopen(bxi, "r+b");
+        unsigned char hdr[64];
+        unsigned int  buckets, entsize, i;
+
+        CHECK(f != NULL, "open sidecar");
+        CHECK(fread(hdr, 1, sizeof(hdr), f) == sizeof(hdr), "read hdr");
+        memcpy(&buckets, hdr + 8, 4);
+        memcpy(&entsize, hdr + 12, 4);
+        CHECK(buckets > 0 && entsize > 0, "hdr sane");
+        for (i = 0; i < buckets; i++) {
+            unsigned char one = 1;
+
+            CHECK(fseek(f, 64 + (long) i * (long) entsize, SEEK_SET) == 0
+                  && fwrite(&one, 1, 1, f) == 1, "tear entry %u", i);
+        }
+        fclose(f);
+    }
+    raw_set_size(db, "/nsidx1", 444);
+    CHECK(pblock_catalog_lookup(b, "/nsidx1", &out) == 0 && out.size == 444,
+          "torn entries never served — SQL truth wins (size %lld)",
+          (long long) out.size);
+
+    /* ERROR/cold start: close every holder; the next opener's flock(EX) wins
+     * and bumps the epoch, so nothing from the previous life survives. */
+    pblock_catalog_close(a);
+    pblock_catalog_close(b);
+    raw_set_size(db, "/nsidx1", 555);
+    a = pblock_catalog_open(db, 2000);
+    CHECK(a != NULL && pblock_catalog_nsidx_arm(a, dir) == 0, "rearm");
+    CHECK(pblock_catalog_lookup(a, "/nsidx1", &out) == 0 && out.size == 555,
+          "cold start serves SQL truth (size %lld)", (long long) out.size);
+    pblock_catalog_close(a);
+}
+
 int
 main(void)
 {
@@ -406,6 +506,8 @@ main(void)
     test_parent_lookup(cat);
 
     pblock_catalog_close(cat);
+    test_nsidx_shared(dir, db);      /* W4: fresh handles, nsidx-armed */
+    cat = NULL;
     unlink(db);
     rmdir(dir);
 

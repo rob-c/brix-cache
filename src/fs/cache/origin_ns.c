@@ -12,6 +12,9 @@
 #include "origin_ns_internal.h"
 #include "protocols/root/protocol/bootstrap_pack.h"   /* shared request packers */
 #include "protocols/root/protocol/flags.h"  /* kXR_isDir (ASCII-stat flag bit) */
+#include "protocols/root/protocol/opcodes.h"          /* kXR_Qspace infotype */
+#include "protocols/root/protocol/codec/wire_codec.h" /* xrdw_query_req_t/pack */
+#include "protocols/root/protocol/qspace.h"           /* brix_qspace_parse */
 #include "core/compat/fattr_codec.h"        /* xrdp_fattr_nvec_parse (kXR_fattr replies) */
 #include "protocols/root/protocol/frame_hdr.h"        /* xrd_error_body_decode (kXR_error errnum) */
 #include <endian.h>
@@ -258,6 +261,97 @@ brix_cache_origin_mkdir(brix_cache_fill_t *t, brix_cache_origin_conn_t *oc,
         return -1;
     }
     free(rbody);
+    return 0;
+}
+
+/* brix_cache_origin_chmod — kXR_chmod <path> on the origin (§4.6): change a
+ * named file/dir's POSIX permission bits with NO open handle, so a chmod over a
+ * proxy/cache export reaches the real origin instead of being a silent no-op.
+ * Body layout (ClientChmodRequest): reserved(14) mode(2, big-endian) — the mode
+ * occupies the last two bytes of the 16-byte body, exactly like kXR_mkdir's.
+ * The reply must be kXR_ok. Returns 0, or -1 with errno set. */
+int
+brix_cache_origin_chmod(brix_cache_fill_t *t, brix_cache_origin_conn_t *oc,
+    const char *path, mode_t mode)
+{
+    uint8_t   body[XRDW_BODY_LEN];
+    size_t    pl = (path != NULL) ? strlen(path) : 0;
+    uint16_t  status;
+    uint32_t  dlen;
+    u_char   *rbody = NULL;
+    int       rc;
+
+    if (pl == 0 || pl > 0x7fff) {
+        errno = EINVAL;
+        return -1;
+    }
+    ngx_memzero(body, sizeof(body));
+    body[XRDW_BODY_LEN - 2] = (uint8_t) (((mode & 0777) >> 8) & 0xff); /* BE hi */
+    body[XRDW_BODY_LEN - 1] = (uint8_t) (mode & 0xff);                 /* BE lo */
+    rc = origin_request(t, oc, kXR_chmod, body, path, pl, &status, &rbody,
+                        &dlen, 256);
+    if (rc != 0) {
+        errno = EIO;
+        return -1;
+    }
+    if (status != kXR_ok) {
+        errno = brix_cache_origin_status_errno(status, rbody, dlen);
+        free(rbody);
+        return -1;
+    }
+    free(rbody);
+    return 0;
+}
+
+/* brix_cache_origin_space — kXR_query/kXR_Qspace <path> on the origin (§4.6):
+ * ask the real origin for its oss.* capacity report so a proxy/cache export's
+ * kXR_Qspace reflects the ORIGIN's space, not the proxy's local cache disk.
+ * The infotype rides in the query body (xrdw_query_req_pack); the path is the
+ * payload. The reply is the "&"-joined oss.* report — parse oss.space/oss.free
+ * with the shared grammar (brix_qspace_parse) and derive used = total - free.
+ * Returns 0 with the three out-params set, or -1 with errno set. */
+int
+brix_cache_origin_space(brix_cache_fill_t *t, brix_cache_origin_conn_t *oc,
+    const char *path, uint64_t *total_out, uint64_t *free_out,
+    uint64_t *used_out)
+{
+    uint8_t             body[XRDW_BODY_LEN];
+    size_t              pl = (path != NULL) ? strlen(path) : 0;
+    uint16_t            status;
+    uint32_t            dlen;
+    u_char             *rbody = NULL;
+    int                 rc;
+    unsigned long long  total = 0, freeb = 0;
+
+    if (pl == 0 || pl > 0x7fff) {
+        errno = EINVAL;
+        return -1;
+    }
+    ngx_memzero(body, sizeof(body));
+    {
+        xrdw_query_req_t q = { .infotype = kXR_Qspace };  /* fhandle 0 ⇒ by path */
+        xrdw_query_req_pack(&q, body);
+    }
+    rc = origin_request(t, oc, kXR_query, body, path, pl, &status, &rbody,
+                        &dlen, 512);
+    if (rc != 0) {
+        errno = EIO;
+        return -1;
+    }
+    if (status != kXR_ok || rbody == NULL) {
+        errno = brix_cache_origin_status_errno(status, rbody, dlen);
+        free(rbody);
+        return -1;
+    }
+    /* The report is NUL-terminated ASCII; parse the total/free tokens. */
+    brix_qspace_parse((const char *) rbody, &total, &freeb);
+    free(rbody);
+
+    if (total_out != NULL) { *total_out = (uint64_t) total; }
+    if (free_out  != NULL) { *free_out  = (uint64_t) freeb; }
+    if (used_out  != NULL) {
+        *used_out = (total > freeb) ? (uint64_t) (total - freeb) : 0;
+    }
     return 0;
 }
 

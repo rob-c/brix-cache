@@ -217,6 +217,36 @@
     ngx_flag_t  zip_force_scratch;    /* [brix_zip_force_scratch on|off]      */
     size_t      zip_stage_max_bytes;  /* [brix_zip_stage_max_bytes <size>]    */
 
+    size_t      chkpnt_maxsz;         /* [brix_chkpnt_maxsz <size>] largest file
+                                         kXR_chkpoint ckpBegin will snapshot (the
+                                         ofs.chkpnt maxsz analog); floored at the
+                                         protocol minimum kXR_ckpMinMax at merge,
+                                         so the default is exactly stock. Also
+                                         reported as maxCkpSize by ckpQuery. */
+    off_t       oss_maxsize;          /* [brix_oss_maxsize <size>] the oss.maxsize
+                                         create-size cap: refuse a root:// data
+                                         write whose END offset (offset+len) would
+                                         push the file past this. 0 (default) =
+                                         no cap — byte-identical to prior
+                                         behaviour. Enforced on the write plane
+                                         (write/pgwrite/writev). */
+    ngx_str_t   oss_cgroup;           /* [brix_oss_cgroup <name>] the space-group
+                                         name the kXR_Qspace report advertises as
+                                         oss.cgroup (§3.2). Default "default"
+                                         (stock parity). Validated at parse to
+                                         carry no CGI-structural bytes. */
+    off_t       oss_quota;            /* [brix_oss_quota <size>] the space quota the
+                                         kXR_Qspace report advertises as oss.quota
+                                         (§3.1). Default -1 = unlimited (stock
+                                         parity). Advertised always; ENFORCED on the
+                                         write plane only when oss_quota_enforce. */
+    ngx_flag_t  oss_quota_enforce;    /* [brix_oss_quota_enforce on] §3.3: refuse a
+                                         write whose growth would push the export's
+                                         usage (the same probe Qspace advertises:
+                                         pblock catalog exact, else statvfs) past
+                                         oss_quota — kXR_overQuota. Default off =
+                                         advertisement-only (byte-identical). */
+
     /* ---- cluster / redirector mode ---- */
     ngx_flag_t  manager_mode;  /* [brix_manager_mode on|off] — query the
                                    server registry in kXR_open and kXR_locate
@@ -295,7 +325,7 @@
                                        src/compat/tmp_path.c brix_make_resume_path. */
 
     /* ---- OCSP certificate revocation checking (Feature 8e) ---- */
-    brix_ocsp_conf_t  ocsp;  /* [brix_ocsp_enable, brix_ocsp_soft_fail,
+    brix_ocsp_conf_t  ocsp;  /* [brix_ocsp, brix_ocsp_soft_fail,
                                 brix_ocsp_stapling] revocation + stapling state;
                                 staple_data/len populated at init_process. */
 
@@ -325,6 +355,25 @@
     ngx_msec_t  send_timeout;       /* [brix_send_timeout 0] response-drain
                                        deadline: sheds a slow/half-open consumer
                                        holding parked out_ring slots. 0 = off. */
+    time_t      max_delay;          /* [brix_max_delay 60] ofs.maxdelay analog:
+                                       clamp on the seconds ANY kXR_wait tells a
+                                       client to stall (staging, CMS floor,
+                                       backpressure). 0 = no clamp. Enforced at
+                                       the single emission choke point
+                                       (response/control.c brix_send_wait). */
+    time_t      fsoverload_stall;   /* [brix_fsoverload_stall 1] the seconds a
+                                       memory-budget-overloaded read/readv tells
+                                       the client to back off (the xrootd.fsoverload
+                                       stall analog). Default 1 = the historical
+                                       hardcoded value; still clamped by
+                                       max_delay at the emission choke point. */
+    ngx_str_t   fsoverload_redirect_host; /* [brix_fsoverload_redirect <host> <port>]
+                                       xrootd.fsoverload redirect action: on a
+                                       memory-budget overload send the client a
+                                       kXR_redirect to this host instead of stalling
+                                       (offload the read to a sibling). "" = off →
+                                       stall. NUL-terminated (brix_pstrdupz). */
+    in_port_t   fsoverload_redirect_port; /* companion port for the redirect host */
     ngx_msec_t  tcp_user_timeout;   /* [brix_tcp_user_timeout 0] setsockopt
                                        TCP_USER_TIMEOUT (ms) at accept — kernel
                                        reaps a silently-dropped peer with unacked
@@ -366,6 +415,14 @@
                                        framed kXR_wait).  0 = unlimited (no change).
                                        Requires the metrics zone (where the gauge
                                        lives). */
+
+    ngx_int_t   slowop_usec;        /* [brix_metrics_slowop <usec>] §3.15 OssStats
+                                       slowop classifier: an I/O op whose measured
+                                       latency meets/exceeds this many MICROSECONDS
+                                       is booked into brix_io_slowop_total{proto,op}.
+                                       Stamped into the metrics SHM at init_module.
+                                       0 = disabled (no classification). Requires
+                                       the metrics zone. */
 
     /* ---- Phase 44: optional io_uring disk-I/O backend ----
      * All off by default.  The data path is byte-for-byte identical to the

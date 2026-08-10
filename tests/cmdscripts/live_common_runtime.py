@@ -93,7 +93,7 @@ class LiveRun(AbstractContextManager["LiveRun"]):
 
     def start_nginx(self, prefix: Path, config: Path, port: int, *, timeout: float = 10) -> None:
         prefix.mkdir(parents=True, exist_ok=True)
-        inject_nginx_load_modules(config)
+        inject_nginx_load_modules(config, self.nginx)
         inject_nginx_runtime_paths(config, prefix, pid_path=prefix / "nginx.pid")
         # Self-heal against a LEAKED live nginx squatting this port: if a prior
         # test's teardown was skipped (crash, kill, xdist worker death) its master

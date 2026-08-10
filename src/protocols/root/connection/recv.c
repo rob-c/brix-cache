@@ -147,6 +147,14 @@ enum {
 static int
 brix_recv_handoff_state(brix_ctx_t *ctx, ngx_event_t *rev)
 {
+    /* §1.16 admin pause: yield without reading OR re-arming — unread requests
+     * back up in the kernel buffer (TCP backpressure) until `cont` / the pause
+     * timer clears the flag and posts this read event to resume. In-flight
+     * responses keep draining via the write path, untouched. */
+    if (ctx->admin_paused) {
+        return BRIX_RECV_RETURN;
+    }
+
     if (ctx->state == XRD_ST_SENDING || ctx->state == XRD_ST_TLS_HANDSHAKE) {
         return BRIX_RECV_RETURN;
     }

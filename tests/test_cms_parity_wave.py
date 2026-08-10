@@ -133,6 +133,50 @@ def test_emptylife_negative_cache(lifecycle):
         node.close()
 
 
+def test_nowait_locate_never_parks(lifecycle):
+    """§1.8 kXR_nowait: the client is answered kXR_wait IMMEDIATELY instead of
+    being parked for the fan-out window — while the existence probe still
+    fires cache-only, so a node's kYR_have warms the loc cache and the retry
+    redirects.  (success + the two guard rails: the wait must come back well
+    inside the 3 s window, and a traversal path with nowait set is still
+    rejected — the option bit cannot bypass path hygiene.)"""
+    root_port, cms_port = _mgr(lifecycle, "lc-cms-parity-mgr",
+              "brix_cms_locate_window 3s;",
+              "§1.8 kXR_nowait locate.")
+    node = FakeNode(cms_port, 42233)
+    try:
+        node.wait_frame(CMS_RR_PING)
+
+        # success: immediate kXR_wait, far inside the 3 s parking window
+        t0 = time.time()
+        status, _body = _locate(root_port, "/nowait-probe.dat",
+                                options=kXR_nowait)
+        elapsed = time.time() - t0
+        assert status == kXR_wait, f"nowait locate answered {status}"
+        assert elapsed < 1.5, (
+            f"nowait locate took {elapsed:.2f}s — it was parked")
+
+        # the fan-out still probed the node (cache-only streamid)
+        deadline = time.time() + 4
+        while time.time() < deadline and node.count(CMS_RR_STATE) == 0:
+            time.sleep(0.1)
+        assert node.count(CMS_RR_STATE) >= 1, "nowait skipped the fan-out"
+
+        # a cache-only kYR_have (streamid nothing waits on) warms the cache:
+        # the retry redirects to the node without ever parking
+        node.send(CMS_RR_HAVE, 0, b"/nowait-probe.dat\x00")
+        got = _wait_selectable(root_port, "/nowait-probe.dat", 42233,
+                               options=kXR_nowait)
+        assert got == 42233
+
+        # security-neg: nowait cannot bypass the ".." reject
+        status, _body = _locate(root_port, "/../etc/passwd",
+                                options=kXR_nowait)
+        assert status == kXR_error
+    finally:
+        node.close()
+
+
 def test_refresh_bypasses_negative_cache(lifecycle):
     """§2.7: a kXR_refresh locate must NOT be answered from the negative
     entry — it re-probes the cluster (parks again: kXR_wait)."""

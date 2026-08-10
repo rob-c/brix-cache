@@ -96,7 +96,7 @@ add_native_zero_total(void)
     t.dst_path   = dst;
     t.bytes_total = 0;
     t.state      = BRIX_TPC_STATE_ACTIVE;
-    return brix_tpc_registry_add(&t, NULL);
+    return brix_tpc_registry_add(&t, NULL, 0 /* no concurrency cap */);
 }
 
 int

@@ -79,48 +79,10 @@ brix_ftp_set_enable(ngx_conf_t *cf, ngx_command_t *cmd, void *conf_ptr)
 }
 
 
-/* brix_ftp_set_export — store the raw export string and realpath(3) it into
- * root_canon at config time so every per-request brix_http_resolve_path() has a
- * canonical confinement root.  A not-yet-existing tree fails the config (unlike
- * a cache dir, an export must exist to serve). */
-static char *
-brix_ftp_set_export(ngx_conf_t *cf, ngx_command_t *cmd, void *conf_ptr)
-{
-    ngx_stream_brix_ftp_srv_conf_t *conf = conf_ptr;
-    ngx_str_t                      *value = cf->args->elts;
-    ngx_str_t                       dir   = value[1];
-    char                            raw[PATH_MAX];
-
-    (void) cmd;
-
-    if (conf->export.len != 0) {
-        return "is duplicate";
-    }
-    if (ngx_conf_full_name(cf->cycle, &dir, 1) != NGX_OK) {
-        return NGX_CONF_ERROR;
-    }
-    if (dir.len >= sizeof(raw)) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-            "brix_gridftp_export path too long: %V", &dir);
-        return NGX_CONF_ERROR;
-    }
-    ngx_memcpy(raw, dir.data, dir.len);
-    raw[dir.len] = '\0';
-
-    if (realpath(raw, conf->root_canon) == NULL) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, ngx_errno,
-            "brix_gridftp_export \"%s\" cannot be resolved (does it exist?)",
-            raw);
-        return NGX_CONF_ERROR;
-    }
-
-    conf->export = dir;
-
-    ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
-        "brix: GridFTP gateway export=%s (canon)", conf->root_canon);
-
-    return NGX_CONF_OK;
-}
+/* brix_ftp_set_export removed (phase-101 W3): brix_gridftp_export -> bare
+ * brix_export, owned by ngx_stream_brix_common_module.  The realpath-into-
+ * root_canon + "export must exist" check this setter performed at parse time is
+ * now done on the adopted export in brix_ftp_merge_conf (ftp_module_merge.c). */
 
 
 /* brix_ftp_set_pasv_range — parse `brix_gridftp_pasv_port_range <lo> <hi>` into
@@ -162,45 +124,10 @@ brix_ftp_set_pasv_range(ngx_conf_t *cf, ngx_command_t *cmd, void *conf_ptr)
 }
 
 
-/* brix_ftp_set_require_vo — `brix_gridftp_require_vo <path> <vo>`: append a
- * longest-prefix VO ACL rule to the gateway conf's vo_rules, mirroring the core
- * `brix_require_vo` handler (policy.c) but targeting the gridftp srv conf. The
- * rule path is normalised now and realpath()-canonicalised into .resolved at
- * merge (brix_finalize_vo_rules against root_canon), so the request-time gate
- * matches against a path in the same space as the confined resolve output. */
-static char *
-brix_ftp_set_require_vo(ngx_conf_t *cf, ngx_command_t *cmd, void *conf_ptr)
-{
-    ngx_stream_brix_ftp_srv_conf_t *conf = conf_ptr;
-    ngx_str_t                      *value = cf->args->elts;
-    brix_vo_rule_t                 *rule;
-
-    (void) cmd;
-
-    if (conf->vo_rules == NULL) {
-        conf->vo_rules = ngx_array_create(cf->pool, 2, sizeof(brix_vo_rule_t));
-        if (conf->vo_rules == NULL) {
-            return NGX_CONF_ERROR;
-        }
-    }
-
-    rule = ngx_array_push(conf->vo_rules);
-    if (rule == NULL) {
-        return NGX_CONF_ERROR;
-    }
-    ngx_memzero(rule, sizeof(*rule));
-
-    if (brix_normalize_policy_path(cf->pool, &value[1], &rule->path) != NGX_OK) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-            "brix_gridftp_require_vo: invalid path \"%V\"", &value[1]);
-        return NGX_CONF_ERROR;
-    }
-    if (brix_copy_conf_string(cf, &value[2], &rule->vo) != NGX_CONF_OK) {
-        return NGX_CONF_ERROR;
-    }
-
-    return NGX_CONF_OK;
-}
+/* brix_ftp_set_require_vo removed (phase-101 W3 stage 3b): brix_gridftp_require_vo
+ * -> bare brix_require_vo, owned by ngx_stream_brix_common_module.  gridftp now
+ * deep-copies the parsed rules into conf->vo_rules in brix_ftp_merge_conf and
+ * finalizes them against root_canon there, as before. */
 
 
 static ngx_command_t  brix_ftp_commands[] = {
@@ -212,55 +139,15 @@ static ngx_command_t  brix_ftp_commands[] = {
       offsetof(ngx_stream_brix_ftp_srv_conf_t, enable),
       NULL },
 
-    { ngx_string("brix_gridftp_export"),
-      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
-      brix_ftp_set_export,
-      NGX_STREAM_SRV_CONF_OFFSET,
-      0,
-      NULL },
-
-    { ngx_string("brix_gridftp_allow_write"),
-      NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,
-      ngx_conf_set_flag_slot,
-      NGX_STREAM_SRV_CONF_OFFSET,
-      offsetof(ngx_stream_brix_ftp_srv_conf_t, allow_write),
-      NULL },
-
-    /* Selects the storage backend for the export: "posix" (default) or
-     * "pblock" (block store rooted at brix_gridftp_export; needs the sqlite
-     * build). The gateway serves it transparently through brix_vfs_*. */
-    { ngx_string("brix_gridftp_storage_backend"),
-      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
-      ngx_conf_set_str_slot,
-      NGX_STREAM_SRV_CONF_OFFSET,
-      offsetof(ngx_stream_brix_ftp_srv_conf_t, storage_backend),
-      NULL },
-
-    /* Names the brix_credential block that carries the upstream identity for an
-     * s3:// storage backend (SigV4 access/secret/region). Ignored for the POSIX
-     * default export and pblock, which need no upstream credential. */
-    { ngx_string("brix_gridftp_storage_credential"),
-      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
-      ngx_conf_set_str_slot,
-      NGX_STREAM_SRV_CONF_OFFSET,
-      offsetof(ngx_stream_brix_ftp_srv_conf_t, storage_credential),
-      NULL },
-
-    /* After each STOR, re-read the object through the storage driver and
-     * CRC-check it against the bytes that were written; a mismatch fails the
-     * transfer and unlinks the object. Off by default (doubles read I/O per
-     * upload). This is a STORAGE-persistence check — it proves the driver
-     * persisted exactly the bytes it received (catching an object backend that
-     * routes a write short/empty), NOT a wire-integrity check: the CRC is seeded
-     * from the received bytes, so a byte the network corrupted in flight is
-     * accumulated, written, read back, and matches. Wire integrity is the
-     * client's CKSM after transfer (compared against its local digest). */
-    { ngx_string("brix_gridftp_verify_write"),
-      NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,
-      ngx_conf_set_flag_slot,
-      NGX_STREAM_SRV_CONF_OFFSET,
-      offsetof(ngx_stream_brix_ftp_srv_conf_t, verify_write),
-      NULL },
+    /* brix_gridftp_export / _allow_write / _storage_backend /
+     * _storage_credential / _verify_write -> the bare storage names
+     * (brix_export, brix_allow_write, brix_storage_backend,
+     * brix_storage_credential, brix_verify_write) owned by
+     * ngx_stream_brix_common_module (phase-101 W3 variant A).  gridftp adopts
+     * this server's values into its flat fields in brix_ftp_merge_conf
+     * (ftp_module_merge.c), which also realpath()s the adopted export into
+     * root_canon — the check the brix_gridftp_export setter used to do at parse.
+     * The flat fields (ftp_gateway.h) and every reader are unchanged. */
 
     /* Pin PASV/EPSV data ports to a firewall-opened inclusive range so the
      * gateway is reachable from behind a NAT/firewall on a locked-down network.
@@ -290,54 +177,18 @@ static ngx_command_t  brix_ftp_commands[] = {
       offsetof(ngx_stream_brix_ftp_srv_conf_t, gsi),
       NULL },
 
-    { ngx_string("brix_gridftp_certificate"),
-      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
-      ngx_conf_set_str_slot,
-      NGX_STREAM_SRV_CONF_OFFSET,
-      offsetof(ngx_stream_brix_ftp_srv_conf_t, certificate),
-      NULL },
+    /* brix_gridftp_certificate / _certificate_key / _trusted_ca / _vomsdir /
+     * _voms_cert_dir -> the bare x509 GSI-trust names (brix_certificate,
+     * brix_certificate_key, brix_trusted_ca, brix_vomsdir, brix_voms_cert_dir)
+     * owned by ngx_stream_brix_common_module (phase-101 W3 stage 3).  gridftp
+     * adopts this server's values into its flat fields in brix_ftp_merge_conf
+     * before brix_ftp_build_gsi; the flat fields (ftp_gateway.h) and every GSI
+     * reader are unchanged. */
 
-    { ngx_string("brix_gridftp_certificate_key"),
-      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
-      ngx_conf_set_str_slot,
-      NGX_STREAM_SRV_CONF_OFFSET,
-      offsetof(ngx_stream_brix_ftp_srv_conf_t, certificate_key),
-      NULL },
-
-    { ngx_string("brix_gridftp_trusted_ca"),
-      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
-      ngx_conf_set_str_slot,
-      NGX_STREAM_SRV_CONF_OFFSET,
-      offsetof(ngx_stream_brix_ftp_srv_conf_t, trusted_ca),
-      NULL },
-
-    /* VOMS attribute carry: LSC (per-VO) + VOMS signing-CA trust dirs used to
-     * verify and lift the FQANs off a GSI proxy into the session identity, so an
-     * authorized VO can satisfy a require_vo rule. Mirror brix_webdav_vomsdir /
-     * brix_webdav_voms_cert_dir. */
-    { ngx_string("brix_gridftp_vomsdir"),
-      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
-      ngx_conf_set_str_slot,
-      NGX_STREAM_SRV_CONF_OFFSET,
-      offsetof(ngx_stream_brix_ftp_srv_conf_t, vomsdir),
-      NULL },
-
-    { ngx_string("brix_gridftp_voms_cert_dir"),
-      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
-      ngx_conf_set_str_slot,
-      NGX_STREAM_SRV_CONF_OFFSET,
-      offsetof(ngx_stream_brix_ftp_srv_conf_t, voms_cert_dir),
-      NULL },
-
-    /* VO authorization: gate every namespace/transfer verb whose resolved path
-     * is covered by a rule on the client's VOMS VO membership. TAKE2 <path> <vo>;
-     * longest-prefix, same matcher as the HTTP/root planes. */
-    { ngx_string("brix_gridftp_require_vo"),
-      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE2,
-      brix_ftp_set_require_vo,
-      NGX_STREAM_SRV_CONF_OFFSET,
-      0,
-      NULL },
+    /* brix_gridftp_require_vo -> bare brix_require_vo owned by
+     * ngx_stream_brix_common_module (phase-101 W3 stage 3b).  gridftp deep-copies
+     * this server's VO-ACL rules into conf->vo_rules in brix_ftp_merge_conf, then
+     * brix_ftp_merge_vo_rules finalizes them against root_canon — unchanged. */
 
     ngx_null_command
 };

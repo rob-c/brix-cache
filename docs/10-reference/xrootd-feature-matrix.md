@@ -64,7 +64,7 @@ paths checked, see
 | HTTP-TPC multistream/range transfer | Yes | Yes | BriX-Cache implements multi-stream/range transfer paths; integration differs from upstream. |
 | OAuth2/OIDC credential delegation | Yes | Yes | BriX-Cache includes delegation/token-exchange helpers; older docs saying this is rejected are stale. |
 | Native root TPC | Yes | Partial | Source/destination rendezvous exists. Site review is still needed for TLS-upgraded origins, multihop delegation, and non-default credential paths. |
-| XrdCl client library | Yes | No | BriX-Cache is a server module and does not attempt to replace the upstream client library. |
+| XrdCl client library | Yes | Yes (clean-room) | `client/` is a full native client stack — libbrix (sync + epoll/io_uring async cores), GSI/sss/pwd/krb5/token auth with client-side GSI delegation, pgread/pgwrite with pgRetry, readv/writev, metalink, extreme copy (`--sources`), TPC orchestration, xrdcp/xrdfs CLIs, FUSE mount, LD_PRELOAD shim. It is a clean-room implementation, not a port of libXrdCl (no XrdCl API/ABI compatibility). See the 2026-08-04 feature-parity audit §7 for the residual gap list. |
 | S3 REST server | No | nginx+ | Implemented under `src/protocols/s3` with SigV4/anonymous auth modes. |
 | WLCG Tape REST gateway | No equivalent | nginx+ | Implemented as a gateway/control-plane surface; it is not a full replacement for upstream XrdFrm/MSS. |
 

@@ -27,17 +27,8 @@
       offsetof(ngx_http_brix_webdav_loc_conf_t, common.storage_staging),
       NULL },
 
-    /* pblock stripe size for newly-written files (e.g. 64m); 0/unset = 64 MiB. */
-    { ngx_string("brix_webdav_pblock_block_size"),
-      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
-      ngx_conf_set_size_slot,
-      NGX_HTTP_LOC_CONF_OFFSET,
-      offsetof(ngx_http_brix_webdav_loc_conf_t, common.pblock_block_size),
-      NULL },
+    /* brix_pblock_block_size moved to http_common.c (phase-101 W4) — the field
+     * was already in the shared preamble; only the registration moves. */
 
-    { ngx_string("brix_webdav_cache_root"),
-      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
-      ngx_conf_set_str_slot,
-      NGX_HTTP_LOC_CONF_OFFSET,
-      offsetof(ngx_http_brix_webdav_loc_conf_t, cache_root),
-      NULL },
+    /* brix_webdav_cache_root -> bare brix_cache_root on the common module
+     * (phase-101 W8); the field now lives in common.cache_root. */

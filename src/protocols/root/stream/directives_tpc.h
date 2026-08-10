@@ -146,12 +146,14 @@
       NULL },
 
     /* Opt-in post-copy integrity: query the source checksum and compare it to the
-     * written destination, failing closed on mismatch. Default off. */
+     * written destination, failing closed on mismatch. Default off. phase-101 W4:
+     * unified on|off|<alg> grammar (shared setter) into common.tpc_verify_checksum;
+     * the native path still treats it as a boolean gate (see source.c). */
     { ngx_string("brix_tpc_verify_checksum"),
-      NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,
-      ngx_conf_set_flag_slot,
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      brix_conf_set_tpc_verify_checksum,
       NGX_STREAM_SRV_CONF_OFFSET,
-      offsetof(ngx_stream_brix_srv_conf_t, tpc_verify_checksum),
+      0,
       NULL },
 
     /* Phase 39 (WS5): abandoned-TPC-slot reaper age in seconds (0 = disabled). */
@@ -214,23 +216,9 @@
       offsetof(ngx_stream_brix_srv_conf_t, tpc_outbound_scope),
       NULL },
 
-    /* Write handlers still perform per-op auth checks; this only enables the feature. */
-    { ngx_string("brix_allow_write"),
-      NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,
-      /* Standard boolean setter writing into srv_conf->common.allow_write. */
-      ngx_conf_set_flag_slot,
-      NGX_STREAM_SRV_CONF_OFFSET,
-      offsetof(ngx_stream_brix_srv_conf_t, common.allow_write),
-      NULL },
-
-    /* Read-back CRC verify for whole-object staged writes (root:// upload to a
-     * non-random-write backend); off by default. Folds through brix_vfs_writer. */
-    { ngx_string("brix_verify_write"),
-      NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,
-      ngx_conf_set_flag_slot,
-      NGX_STREAM_SRV_CONF_OFFSET,
-      offsetof(ngx_stream_brix_srv_conf_t, common.verify_write),
-      NULL },
+    /* brix_allow_write + brix_verify_write -> owned by
+     * ngx_stream_brix_common_module (phase-101 W3); adopted into
+     * common.allow_write / common.verify_write at merge (server_conf.c). */
 
     /* Wire-integrity gate for native uploads: when on, a cleartext kXR_write /
      * kXR_writev carrying data on a writable file handle is refused

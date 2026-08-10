@@ -21,6 +21,46 @@ brix_finalize_authdb_rules(ngx_log_t *log, const ngx_str_t *root,
                                       offsetof(brix_authdb_rule_t, resolved),
                                       sizeof(((brix_authdb_rule_t *) 0)->resolved));
 }
+
+/* phase-101 W5.2c: deep-copy `src` into a fresh array and finalize the copy
+ * against <root>, so an HTTP protocol can enforce the SHARED common.authdb_rules
+ * against its OWN export root without mutating the pointer-inherited source
+ * (another protocol finalizes that source against a different root — two in-place
+ * finalizes would silently mis-resolve the rule paths, an authz bug).  Only each
+ * rule's `resolved` (a per-struct char[PATH_MAX]) is protocol-specific; `path`/
+ * `id` point into cf->pool and are immutable, so a shallow struct copy is safe
+ * and the re-finalize recomputes `resolved` from `path`.  *out = the finalized
+ * copy (NULL when src is empty).  Returns NGX_OK, or NGX_ERROR on failure. */
+ngx_int_t
+brix_authdb_rules_finalize_copy(ngx_conf_t *cf, const ngx_str_t *root,
+                                ngx_array_t *src, ngx_array_t **out)
+{
+    ngx_array_t        *copy;
+    brix_authdb_rule_t *s, *d;
+    ngx_uint_t          i;
+
+    *out = NULL;
+    if (src == NULL || src->nelts == 0) {
+        return NGX_OK;
+    }
+    copy = ngx_array_create(cf->pool, src->nelts, sizeof(brix_authdb_rule_t));
+    if (copy == NULL) {
+        return NGX_ERROR;
+    }
+    s = src->elts;
+    for (i = 0; i < src->nelts; i++) {
+        d = ngx_array_push(copy);
+        if (d == NULL) {
+            return NGX_ERROR;
+        }
+        *d = s[i];
+    }
+    if (brix_finalize_authdb_rules(cf->log, root, copy) != NGX_OK) {
+        return NGX_ERROR;
+    }
+    *out = copy;
+    return NGX_OK;
+}
 /* Parse an XrdAcc privilege string (e.g. "rwld") into an BRIX_PRIV_* bitmask. */
 static uint32_t
 brix_parse_privs(const char *p, size_t len)

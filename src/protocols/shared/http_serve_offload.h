@@ -50,6 +50,13 @@
 #include "file_serve.h"                 /* brix_http_serve_opts_t/_result_t */
 #include "core/config/shared_conf.h"      /* ngx_http_brix_shared_conf_t */
 #include "fs/backend/sd.h"           /* brix_sd_instance_t */
+
+/* Lazily resolve (and cache) the export's async thread pool from the shared
+ * conf — by configured name, default "default". NULL = no pool in the cycle.
+ * The ONE pool lookup every HTTP-plane async tier must use: checking
+ * common.thread_pool directly misses location{}-scoped exports, whose pointer
+ * the server-level postconfig resolver never fills. */
+ngx_thread_pool_t *brix_http_thread_pool(ngx_http_brix_shared_conf_t *common);
 #include "fs/vfs/vfs.h"               /* brix_vfs_ctx_t (per-user backend cred gate) */
 
 /* Protocol metrics callback: run on the event loop after the materialised object is

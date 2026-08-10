@@ -77,19 +77,26 @@ stream_file(brix_conn *c, const char *path, const char *opaque,
 }
 
 
-/* cat [-z codec] <path> — stream a remote file to stdout with optional compression.
+/* cat [-z codec] <path> [path ...] — stream remote files to stdout with
+ * optional compression.
  *
- * WHAT: Stream remote file contents to stdout. Returns 0 on success, nonzero exit code
- * on error (e.g. missing file, invalid codec). With -z, requests server-side inline
- * compression; output is identical whether compression was negotiated or ignored.
+ * WHAT: Stream every named remote file's contents to stdout, concatenated in
+ * operand order (POSIX cat semantics). Returns 0 when all paths stream
+ * cleanly, else the first failure's exit code. With -z, requests server-side
+ * inline compression; output is identical whether compression was negotiated
+ * or ignored.
  *
  * WHY: Transparency contract with the server — the -z flag is an opt-in request that
  * the server may decline. Clients must handle both compressed and plaintext responses
  * interchangeably, ensuring the output is byte-identical after decompression.
+ * Multiple operands used to silently stream the LAST path only (feature-parity
+ * audit §9.2); like cat(1), a failing operand is reported on stderr and the
+ * remaining operands still stream.
  *
- * HOW: (1) Parse arguments for -z <codec> flag and target path. (2) Validate codec
+ * HOW: (1) Parse arguments for the -z <codec> flag. (2) Validate codec
  * (reject empty, >16 chars, or injection chars &?=). (3) Encode codec as opaque
- * "xrootd.compress=<codec>". (4) Forward to stream_file() with the opaque key;
+ * "xrootd.compress=<codec>". (4) Forward every non-flag operand to
+ * stream_file() with the opaque key, remembering the first failing exit code;
  * decompression is transparent in brix_file_read().
  */
 int
@@ -98,21 +105,14 @@ do_cat(brix_conn *c, const char *cwd, int argc, char **argv)
     brix_status st;
     char        path[XRDC_PATH_MAX];
     const char *codec  = NULL;
-    const char *arg    = NULL;
     const char *opaque = NULL;
     char        opq[80];
-    int         i;
+    int         worst = 0, npaths = 0, i;
 
     for (i = 1; i < argc; i++) {
         if (strcmp(argv[i], "-z") == 0 && i + 1 < argc) {
             codec = argv[++i];
-        } else {
-            arg = argv[i];
         }
-    }
-    if (arg == NULL) {
-        fprintf(stderr, "usage: cat [-z codec] <path>\n");
-        return 50;
     }
 
     /* -z <codec>: ask the server for inline read compression (gzip|deflate|
@@ -128,12 +128,25 @@ do_cat(brix_conn *c, const char *cwd, int argc, char **argv)
         opaque = opq;
     }
 
-    build_path(cwd, arg, path, sizeof(path));
-    brix_status_clear(&st);
-    if (stream_file(c, path, opaque, 0, -1, &st) != 0) {
-        return xrdfs_report_err("cat", path, &st, 0, c);
+    for (i = 1; i < argc; i++) {
+        if (strcmp(argv[i], "-z") == 0 && i + 1 < argc) {
+            i++;                      /* skip the codec value operand */
+            continue;
+        }
+        npaths++;
+        build_path(cwd, argv[i], path, sizeof(path));
+        brix_status_clear(&st);
+        if (stream_file(c, path, opaque, 0, -1, &st) != 0) {
+            int path_rc = xrdfs_report_err("cat", path, &st, 0, c);
+
+            if (worst == 0) { worst = path_rc; }
+        }
     }
-    return 0;
+    if (npaths == 0) {
+        fprintf(stderr, "usage: cat [-z codec] <path> [path ...]\n");
+        return 50;
+    }
+    return worst;
 }
 
 

@@ -60,6 +60,15 @@
       offsetof(ngx_stream_brix_srv_conf_t, ztn_cleartext),
       NULL },
 
+    /* ztn -maxsz analog: cap the accepted bearer-credential size, refused
+     * before any parse/crypto work. 0 (default) = no extra cap. */
+    { ngx_string("brix_ztn_maxsz"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_size_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_brix_srv_conf_t, ztn_maxsz),
+      NULL },
+
     /* D-2: opt-in opaque (CGI) schema enforcement — off (default) leaves only
      * the always-on byte-hygiene gate; on additionally type-checks oss.asize as
      * an unsigned integer and rejects any opaque key outside the recognized
@@ -122,6 +131,36 @@
       ngx_conf_set_flag_slot,
       NGX_STREAM_SRV_CONF_OFFSET,
       offsetof(ngx_stream_brix_srv_conf_t, tls),
+      NULL },
+
+    /* §5.10 (xrd.tlsciphers): OpenSSL cipher list for the root:// in-protocol
+     * TLS context (SSL_CTX_set_cipher_list, TLSv1.2-and-below — same scope as
+     * nginx ssl_ciphers). Empty (default) keeps OpenSSL's defaults. */
+    { ngx_string("brix_tls_ciphers"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_str_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_brix_srv_conf_t, tls_ciphers),
+      NULL },
+
+    /* §5.10: the TLSv1.3 cipher-suite list for the root:// TLS context
+     * (SSL_CTX_set_ciphersuites) — companion to brix_tls_ciphers, which governs
+     * TLSv1.2 and below. Empty (default) keeps OpenSSL's defaults. */
+    { ngx_string("brix_tls_ciphersuites"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_str_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_brix_srv_conf_t, tls_ciphersuites),
+      NULL },
+
+    /* §5.10 (xrootd.tlsreuse): allow TLS session resumption on the root:// TLS
+     * context. Default on (OpenSSL/nginx behaviour); off disables the session
+     * cache + tickets so every connection performs a full handshake. */
+    { ngx_string("brix_tls_reuse"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,
+      ngx_conf_set_flag_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_brix_srv_conf_t, tls_reuse),
       NULL },
 
     /* Enable kernel-TLS (SSL_OP_ENABLE_KTLS) so TLS reads can use sendfile.
@@ -198,4 +237,65 @@
       ngx_conf_set_size_slot,
       NGX_STREAM_SRV_CONF_OFFSET,
       offsetof(ngx_stream_brix_srv_conf_t, zip_stage_max_bytes),
+      NULL },
+
+    /* Largest file kXR_chkpoint ckpBegin will snapshot (ofs.chkpnt maxsz
+     * analog). Values below the protocol minimum kXR_ckpMinMax are raised to
+     * it at merge — every server must accept at least that much. */
+    { ngx_string("brix_chkpnt_maxsz"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_size_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_brix_srv_conf_t, chkpnt_maxsz),
+      NULL },
+
+    /* oss.maxsize create-size cap: refuse a data write past this end offset.
+     * 0 (default) = no cap. `ngx_conf_set_off_slot` accepts a k/m/g suffix. */
+    { ngx_string("brix_oss_maxsize"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_off_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_brix_srv_conf_t, oss_maxsize),
+      NULL },
+
+    /* oss.cgroup space-group name reported by kXR_Qspace (§3.2). Default
+     * "default"; the setter (module.c) rejects CGI-structural bytes. */
+    { ngx_string("brix_oss_cgroup"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      brix_conf_set_oss_cgroup,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      0,
+      NULL },
+
+    /* §3.1: brix_oss_quota <size> — the oss.quota value the kXR_Qspace report
+     * advertises (default -1 = unlimited); advertisement only, not enforced. */
+    { ngx_string("brix_oss_quota"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      brix_conf_set_oss_quota,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      0,
+      NULL },
+
+    /* §3.3: brix_oss_quota_enforce on|off — make brix_oss_quota REAL on the
+     * write plane: a kXR_write/writev/pgwrite whose growth would push the
+     * export's usage past the quota is refused kXR_overQuota. Usage comes from
+     * the same probe the Qspace report advertises (pblock catalog = exact;
+     * plain POSIX = statvfs of the export's filesystem — conservative on a
+     * shared mount, documented). Default off = advertisement-only. */
+    { ngx_string("brix_oss_quota_enforce"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,
+      ngx_conf_set_flag_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_brix_srv_conf_t, oss_quota_enforce),
+      NULL },
+
+    /* §1.16: brix_admin_socket <path> — the runtime admin unix socket
+     * (XrdXrootdAdmin analog): list/disc/msg live sessions. Node-global
+     * (parse-time static, last one wins), served by worker 0; the socket file
+     * is chmod 0600 — filesystem permission IS the privilege boundary. */
+    { ngx_string("brix_admin_socket"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      brix_conf_set_admin_socket,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      0,
       NULL },

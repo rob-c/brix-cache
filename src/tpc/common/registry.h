@@ -50,9 +50,11 @@ ngx_int_t brix_tpc_registry_configure(ngx_conf_t *cf);
  * storage (caller keeps ownership of *transfer; nothing in it is referenced
  * after return) and stamps a fresh id, started_at/updated_at, and a default
  * PENDING state when state is 0. Returns the assigned non-zero id, or 0 if the
- * registry is unavailable or full. Takes the registry lock. */
+ * registry is unavailable, full, or already at max_active in-use slots. Takes
+ * the registry lock. max_active > 0 is the §6.9 explicit concurrency cap (the
+ * `xfr <n>` analog); 0 = bound only by the compile-time slot ceiling. */
 uint64_t brix_tpc_registry_add(const brix_tpc_transfer_t *transfer,
-    ngx_log_t *log);
+    ngx_log_t *log, ngx_uint_t max_active);
 
 /* Set bytes_done on the transfer with the given id and refresh updated_at; also
  * sets state when state != 0 (a 0 state leaves the existing state unchanged).

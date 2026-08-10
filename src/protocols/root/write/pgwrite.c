@@ -5,6 +5,7 @@
 #include "core/ngx_brix_module.h"
 #include "fs/cache/writethrough_metrics.h"
 #include "wrts_journal.h"
+#include "write.h"            /* brix_write_within_maxsize (oss.maxsize cap) */
 #include "pgw_fob.h"          /* CSE uncorrected-page registry */
 #include "core/compat/pgio.h"   /* shared kXR page-mode decode (libxrdproto) */
 
@@ -434,6 +435,14 @@ brix_handle_pgwrite(brix_ctx_t *ctx, ngx_connection_t *c)
 	}
 
 	if (pgwrite_decode_collect(ctx, c, &st, &rc)) {
+		return rc;
+	}
+
+	/* oss.maxsize (§3.9): cap on the decoded plaintext's end offset. Applied
+	 * after decode so the length is the real byte count, before either the
+	 * staged-append or random-write path commits anything. */
+	if (brix_write_within_maxsize(ctx, c, st.rconf, st.idx, st.offset,
+								   st.flat_sz, BRIX_OP_WRITE, "WRITE", &rc)) {
 		return rc;
 	}
 

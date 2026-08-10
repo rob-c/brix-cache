@@ -1,3 +1,5 @@
+import time
+
 from split_continuation import reexport as _reexport
 _reexport(globals(), "_test_conf_pgio_helpers")
 
@@ -361,6 +363,131 @@ def test_pgread_negative_len_parity(srv, rlen):
         off_h.close()
     assert st_o == st_f, (
         f"pgread negative-len status diverges: ours={st_o} stock={st_f}")
+
+
+# ===========================================================================
+# 19) pgread request args (parity-audit §1.2): the OPTIONAL payload carries
+#     pathid (byte 0, dlen >= 1) + reqflags (byte 1, dlen >= 2).  Stock
+#     5.6.9, verified live: any payload length is tolerated, unknown flag
+#     bits are ignored, and the ONE hard rule is that a nonzero pathid must
+#     name a live kXR_bind path of this session — anything else is
+#     kXR_ArgInvalid "invalid path ID".
+# ===========================================================================
+kXR_ArgInvalid_code = 3000
+kXR_bind_req = 3024
+
+
+def _pgread_payload(sock, fh, offset, rlen, payload, streamid=b"\x00\x17"):
+    """pgread with an explicit raw args payload; returns (status, code_or_data).
+
+    kXR_error → ("error", numeric code); kXR_status → ("status", data bytes,
+    drained from this one message only — enough for the small reads here)."""
+    req = struct.pack("!2sH4sqiI", streamid, kXR_pgread, fh,
+                      offset, rlen, len(payload))
+    sock.sendall(req + payload)
+    _sid, status, hdrbody = _read_response(sock)
+    if status == kXR_error:
+        (code,) = struct.unpack("!i", hdrbody[:4])
+        return ("error", code)
+    assert status == kXR_status, f"expected kXR_status/kXR_error, got {status}"
+    (data_dlen,) = struct.unpack("!i", hdrbody[12:16])
+    data = _recv_exact(sock, data_dlen) if data_dlen > 0 else b""
+    return ("status", data)
+
+
+@pytest.mark.parametrize("payload", [
+    b"\x00\x00",          # canonical args: pathid 0, no flags
+    b"\x00",              # short payload: pathid only
+    b"\x00\x00\x00",      # long payload: trailing byte tolerated
+    b"\x00\x80",          # unknown flag bit: ignored
+])
+def test_pgread_args_pathid_zero_tolerated(srv, payload):
+    """(success, differential) every stock-tolerated payload shape with
+    pathid 0 serves normally on BOTH servers."""
+    our, off_h = _open_both_read(srv, "data.bin")
+    try:
+        st_o = _pgread_payload(our.sock, our.fh, 0, 4096, payload)
+        st_f = _pgread_payload(off_h.sock, off_h.fh, 0, 4096, payload)
+    finally:
+        our.close()
+        off_h.close()
+    assert st_o[0] == "status" and st_f[0] == "status", (payload, st_o, st_f)
+    assert st_o[1] == st_f[1], f"payload {payload!r}: data diverges from stock"
+
+
+def test_pgread_args_invalid_pathid_refused(srv):
+    """(error, differential) a pathid that names no bound path of this
+    session is kXR_ArgInvalid on BOTH servers — the request must not be
+    served as if untagged (BriX used to ignore the payload entirely)."""
+    our, off_h = _open_both_read(srv, "data.bin")
+    try:
+        st_o = _pgread_payload(our.sock, our.fh, 0, 4096, b"\x63\x00")
+        st_f = _pgread_payload(off_h.sock, off_h.fh, 0, 4096, b"\x63\x00")
+    finally:
+        our.close()
+        off_h.close()
+    assert st_o == ("error", kXR_ArgInvalid_code), st_o
+    assert st_f == ("error", kXR_ArgInvalid_code), st_f
+
+
+def _login_sessid(sock):
+    """kXR_login capturing the 16-byte sessid the server issued."""
+    req = struct.pack("!2sHI8sBBBBI", b"\x00\x01", kXR_login,
+                      os.getpid() & 0x7fffffff, b"pytest\x00\x00",
+                      0, 0, 0, 0, 0)
+    sock.sendall(req)
+    _sid, status, body = _read_response(sock)
+    assert status == kXR_ok, f"login failed: {status}"
+    assert len(body) >= 16, f"login body too short for a sessid: {len(body)}"
+    return body[:16]
+
+
+def test_pgread_args_bound_pathid_lifecycle(srv):
+    """(security-neg) a pathid is valid exactly while its bound secondary
+    lives: accepted after kXR_bind, refused again after the secondary
+    disconnects — a retired data path cannot be replayed.  OURS-only: stock
+    answers a bound-path pgread on the BOUND socket (response offloading,
+    audit §1.1) while BriX still answers on the control stream, so the
+    response-read topology differs; the VALIDATION contract under test is
+    identical on both."""
+    host, port = srv["our_hp"]
+    sock = _handshake(host, port)
+    try:
+        sessid = _login_sessid(sock)
+        _sid, st, body = _open(sock, _wire_path("data.bin"))
+        assert st == kXR_ok, f"open failed: {st}"
+        fh = body[:4]
+
+        sec = _handshake(host, port)
+        try:
+            sec.sendall(struct.pack("!2sH16sI", b"\x00\x24", kXR_bind_req,
+                                    sessid, 0))
+            _sid2, st2, body2 = _read_response(sec)
+            if st2 != kXR_ok:
+                pytest.skip(f"kXR_bind refused (substreams off?): {st2}")
+            pathid = body2[0]
+            assert 1 <= pathid <= 253
+
+            st_tagged = _pgread_payload(sock, fh, 0, 4096,
+                                        bytes([pathid, 0]))
+            assert st_tagged[0] == "status", (
+                f"live bound pathid {pathid} refused: {st_tagged}")
+        finally:
+            sec.close()
+
+        # The secondary is gone: its pathid must be refused once the server
+        # has processed the disconnect (poll briefly for determinism).
+        deadline = time.monotonic() + 5.0
+        verdict = None
+        while time.monotonic() < deadline:
+            verdict = _pgread_payload(sock, fh, 0, 4096, bytes([pathid, 0]))
+            if verdict == ("error", kXR_ArgInvalid_code):
+                break
+            time.sleep(0.1)
+        assert verdict == ("error", kXR_ArgInvalid_code), (
+            f"retired pathid {pathid} still accepted: {verdict}")
+    finally:
+        sock.close()
 
 
 # ===========================================================================

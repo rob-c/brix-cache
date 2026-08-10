@@ -4,6 +4,18 @@
  * setters/enum tables from module_enums.h stay visible). Not a standalone TU.
  */
 #pragma once
+    /* POSC crash-orphan persistence policy (ofs.persist analog, §1.9). Distinct
+     * from write-through: it governs the boot-time reaper of "<final>.xrd-tmp.*"
+     * temps a crash stranded mid non-staged write. `auto` (default) reaps
+     * dead-owner orphans; `manual`/`off` keep them for recovery; `hold <time>`
+     * adds a grace period. Node-global (one reaper at worker-0 startup). */
+    { ngx_string("brix_posc_persist"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1 | NGX_CONF_TAKE3,
+      brix_conf_set_posc_persist,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      0,
+      NULL },
+
     /* write-through mode directives (mirrors XrdPfc configuration from
      * /tmp/xrootd-src/src/XrdPfc/README) ---- */
 

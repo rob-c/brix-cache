@@ -57,4 +57,12 @@ int pblock_csi_flush(const pblock_state_t *st, const char *blob_id,
 /* Drop every CRC row for blob_id (blob removed: unlink / replace). */
 void pblock_csi_drop(pblock_catalog *cat, const char *blob_id);
 
+/* Truncation fix-up (phase-88 W5): drop the rows for every block PAST the new
+ * last block `keep` — a later regrowth reads those indices as holes/rewrites,
+ * and a stale CRC would turn that into a phantom EIO. The boundary block's row
+ * is the caller's to refresh (it joins the handle's written extent, so the
+ * close-time flush recomputes it). Best-effort. */
+void pblock_csi_truncate(pblock_catalog *cat, const char *blob_id,
+    int64_t keep);
+
 #endif /* BRIX_SD_PBLOCK_CSI_H */

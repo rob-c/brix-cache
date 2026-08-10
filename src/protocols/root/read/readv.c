@@ -7,6 +7,10 @@
 #include "prefetch.h"
 #include "core/compat/range_vector.h"
 #include "protocols/root/protocol/readv_seg.h"   /* shared kXR_readv segment-header codec */
+#include "protocols/root/session/registry.h"          /* §1.1 brix_session_pathid_bound */
+#include "protocols/root/session/offload_registry.h"  /* §1.1 brix_offload_lookup */
+#include "protocols/root/response/response.h"          /* §1.1 brix_build_resp_hdr */
+#include "protocols/root/connection/write_helpers.h"   /* §1.1 brix_queue_response_base */
 
 #include <stdlib.h>
 #include <sys/uio.h>
@@ -39,6 +43,7 @@ typedef struct {
     size_t                        max_response_bytes;
     u_char                       *response_buffer;
     brix_readv_seg_desc_t      *segment_descs;
+    unsigned                      pathid;   /* §1.1 response-offload channel (req body[15]) */
 } brix_readv_req_t;
 
 /* ---- Validate handles and compute the response upper bound ----
@@ -325,6 +330,130 @@ brix_readv_execute_sync(brix_ctx_t *ctx, ngx_connection_t *c,
     }
 }
 
+/* brix_readv_try_offload — §1.1 response offloading (do_Offload parity) for
+ * kXR_readv: the readv analog of brix_read_try_offload (read.c) — see there for
+ * the full safety rationale. When a readv carries a nonzero body[15] pathid whose
+ * bound secondary is on THIS worker AND quiescent, and the assembled response
+ * fits one streaming window, the whole response is built into a buffer owned by
+ * the SECONDARY (acquire+release both on its ctx → no cross-connection lifetime
+ * tangle) as one contiguous [8B kXR_ok header | assembled readv body] carrying
+ * the PRIMARY request's streamid, and queued on the secondary's out-ring.
+ * Returns 1 when routed to the secondary (*rc set), 0 to fall through to the
+ * normal primary-stream path (validate/size already ran; this only routes). */
+static ngx_flag_t
+brix_readv_try_offload(brix_ctx_t *ctx, ngx_connection_t *c,
+    brix_readv_req_t *req, ngx_int_t *rc)
+{
+    const u_char     *sessid;
+    ngx_connection_t *sec_c;
+    brix_ctx_t       *sec_ctx;
+    u_char           *buf;
+    brix_vfs_job_t    job;
+    char              error_message[128];
+    size_t            segment_index;
+
+    if (req->pathid == 0) {
+        return 0;
+    }
+
+    sessid = ctx->is_bound ? ctx->bound_sessid : ctx->login.sessid;
+    sec_c  = brix_offload_lookup(sessid, req->pathid);
+    if (sec_c == NULL || sec_c == c) {
+        return 0;
+    }
+
+    sec_ctx = ngx_stream_get_module_ctx((ngx_stream_session_t *) sec_c->data,
+                                          ngx_stream_brix_module);
+    /* Ring has a free slot once all pending responses are counted — see
+     * brix_read_try_offload for the full reserved-slot accounting rationale. */
+    if (sec_ctx == NULL || sec_ctx->destroyed
+        || sec_c->fd == (ngx_socket_t) -1 || sec_ctx->out.resp_async
+        || sec_ctx->out.count + sec_ctx->out.wr_inflight
+           + sec_ctx->rd.aio_inflight >= sec_ctx->out.pipeline_depth)
+    {
+        return 0;
+    }
+
+    /* Single-frame only: a readv whose assembled response exceeds one streaming
+     * window belongs on the (budgeted) primary path. */
+    if (req->max_response_bytes > (size_t) BRIX_READ_WINDOW) {
+        return 0;
+    }
+
+    /* Frame buffer from the SECONDARY's pool: 8B header + the assembled body. */
+    buf = brix_acquire_read_buffer(sec_ctx, sec_c,
+                                     XRD_RESPONSE_HDR_LEN + req->max_response_bytes);
+    if (buf == NULL) {
+        return 0;   /* secondary pool exhausted — fall back rather than fail */
+    }
+
+    req->segment_descs = brix_alloc_array(c->log, req->segment_count,
+                                            sizeof(brix_readv_seg_desc_t));
+    if (req->segment_descs == NULL) {
+        brix_release_read_buffer(sec_ctx, sec_c, buf);
+        return 0;
+    }
+
+    /* Lay the assembled readv body out AFTER the 8-byte response header. */
+    req->response_buffer = buf + XRD_RESPONSE_HDR_LEN;
+    brix_readv_build_descriptors(ctx, req);
+
+    error_message[0] = '\0';
+    ngx_memzero(&job, sizeof(job));
+    job.op = BRIX_VFS_IO_READV;
+    job.segs = req->segment_descs;
+    job.nsegs = req->segment_count;
+    job.err_msg = error_message;
+    job.err_msg_cap = sizeof(error_message);
+    brix_vfs_io_execute(&job);
+
+    if (job.io_errno != 0) {
+        /* I/O failure: nothing has touched the secondary wire yet, so the error
+         * rides the PRIMARY control stream exactly like the normal path. */
+        ngx_free(req->segment_descs);
+        brix_release_read_buffer(sec_ctx, sec_c, buf);
+        BRIX_OP_ERR(ctx, BRIX_OP_READV);
+        *rc = brix_send_error(ctx, c, kXR_IOError,
+                                error_message[0] ? error_message
+                                                  : "readv I/O error");
+        return 1;
+    }
+
+    for (segment_index = 0; segment_index < req->segment_count;
+         segment_index++)
+    {
+        ctx->files[req->segment_descs[segment_index].handle_index].bytes_read +=
+            req->segment_descs[segment_index].read_length;
+    }
+    ngx_free(req->segment_descs);
+    ctx->totals.bytes += (size_t) job.nio;
+
+    if (req->rconf->access_log_fd != NGX_INVALID_FILE) {
+        char detail[64];
+        snprintf(detail, sizeof(detail), "%zu_segs", req->segment_count);
+        brix_log_access(ctx, c, "READV", "-", detail, 1, 0, NULL,
+                          (size_t) job.nio);
+    }
+    BRIX_OP_OK(ctx, BRIX_OP_READV);
+
+    /* Stamp the kXR_ok header with the PRIMARY request's streamid, then queue the
+     * contiguous [hdr|body] frame on the SECONDARY's out-ring (it owns `buf`). */
+    brix_build_resp_hdr(ctx->recv.cur_streamid, kXR_ok, (uint32_t) job.out_size,
+                          (ServerResponseHdr *) buf);
+    *rc = brix_queue_response_base(sec_ctx, sec_c, buf,
+                                     XRD_RESPONSE_HDR_LEN + job.out_size, buf);
+    if (*rc == NGX_OK) {
+        brix_metric_offload(BRIX_PROTO_ROOT);   /* §1.1 observability */
+    }
+
+    /* Release on error OR full inline send (ring stayed empty); a parked-and-
+     * draining response keeps the buffer until its slot drains. Idempotent. */
+    if (*rc != NGX_OK || sec_ctx->out.count == 0) {
+        brix_release_read_buffer(sec_ctx, sec_c, buf);
+    }
+    return 1;
+}
+
 /* Handle kXR_readv — validate the request (payload a multiple of the readv
  * element size, segment lengths within bounds), read all segments, and assemble
  * the chained response. */
@@ -359,6 +488,24 @@ brix_handle_readv(brix_ctx_t *ctx, ngx_connection_t *c)
                                  "readv segment count exceeds server limit");
     }
 
+    /*
+     * §1.1: kXR_readv carries its response-offload pathid in the request HEADER
+     * body (byte 15), NOT the payload (which is entirely the read_list). Validate
+     * it like read/pgread — a nonzero pathid MUST name a live kXR_bind path of
+     * this session, else kXR_ArgInvalid "invalid path ID". readv previously
+     * ignored the pathid outright, an inconsistency vs read/pgread; the routing
+     * itself happens in brix_readv_try_offload once the request is sized.
+     */
+    req.pathid = (unsigned) ((ClientRequestHdr *) ctx->recv.hdr_buf)->body[15];
+    if (req.pathid != 0
+        && !brix_session_pathid_bound(ctx->is_bound ? ctx->bound_sessid
+                                                      : ctx->login.sessid,
+                                        req.pathid))
+    {
+        BRIX_OP_ERR(ctx, BRIX_OP_READV);
+        return brix_send_error(ctx, c, kXR_ArgInvalid, "invalid path ID");
+    }
+
     req.rconf = ngx_stream_get_module_srv_conf(
         (ngx_stream_session_t *) c->data, ngx_stream_brix_module);
 
@@ -380,6 +527,16 @@ brix_handle_readv(brix_ctx_t *ctx, ngx_connection_t *c)
         return rc;
     }
 
+    /*
+     * §1.1 response offloading: route an eligible readv response over the bound
+     * secondary channel (validate_and_size has run, so handles are good and
+     * max_response_bytes is known). Ineligible requests (pathid 0, cross-worker,
+     * busy secondary, large) fall through to the primary-stream path below.
+     */
+    if (brix_readv_try_offload(ctx, c, &req, &rc)) {
+        return rc;
+    }
+
     brix_prefetch_readv_segments(ctx, c, req.wire_segments, req.segment_count,
                                    req.readv_seg_max);
 
@@ -393,7 +550,8 @@ brix_handle_readv(brix_ctx_t *ctx, ngx_connection_t *c)
      */
     if (!brix_budget_admit(ctx, req.rconf->memory_budget,
                              req.max_response_bytes)) {
-        return brix_send_wait(ctx, c, 1);
+        /* §1.10 fsoverload stall: configurable budget-overload backoff. */
+        return brix_fsoverload_backoff(ctx, c, req.rconf);
     }
 
     req.response_buffer = BRIX_GET_SCRATCH(ctx, c, rd.read_scratch,

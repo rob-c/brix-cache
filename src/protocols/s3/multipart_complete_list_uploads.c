@@ -218,7 +218,7 @@ mpu_scan_entry(mpu_scan_t *scan, const char *dir_path, const char *key_prefix,
  *       subdirectories are recursed into as key-prefix components; a staging dir
  *       is recorded as a leaf and never descended.
  * WHY:  The original flat single-level opendir(root) only saw bucket-root-keyed
- *       uploads, and used a bare worker opendir.  Under `brix_impersonation
+ *       uploads, and used a bare worker opendir.  Under `brix_idmap
  *       map` a path-keyed upload lives in the mapped user's 0700 subdir, which
  *       the flat bare scan can neither reach (wrong scope) nor — as the
  *       unprivileged worker — open (EACCES).  Mirrors s3_walk()'s confined
@@ -457,7 +457,7 @@ s3_handle_list_multipart_uploads(ngx_http_request_t *r,
      * Recursively enumerate staging dirs across the whole bucket tree, opened
      * impersonation-confined as the mapped user.  Replaces the original flat
      * single-level bare-opendir(root) scan, which (a) only saw bucket-root-keyed
-     * uploads and (b) under `brix_impersonation map` could not open the mapped
+     * uploads and (b) under `brix_idmap map` could not open the mapped
      * user's own 0700 key subdirs as the unprivileged worker.  A dir the mapped
      * user cannot traverse is skipped, so no cross-tenant upload is enumerated.
      */

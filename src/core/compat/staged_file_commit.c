@@ -26,6 +26,8 @@
 #include "fs/backend/sd.h"   /* Storage Driver seam: VFS↔VFS (backend↔backend) move */
 #include "fs/xfer/xfer.h"    /* brix_xfer_pump_objects — the shared in-process mover */
 #include "fs/vfs/vfs_backend_registry.h"  /* per-export backend for a non-POSIX commit */
+#include "fs/path/path.h"                 /* brix_rename_confined_canon (impersonation-aware) */
+#include "auth/impersonate/impersonate.h" /* brix_imp_client_active */
 
 #include <errno.h>
 #include <fcntl.h>
@@ -382,6 +384,41 @@ brix_commit_staged(ngx_fd_t fd, const char *stage_path, const char *final_path,
     {
         return commit_staged_to_backend(fd, stage_path, final_path, dst,
                                         be_root, log);
+    }
+
+    /*
+     * Phase 40: under impersonation the final path is the mapped user's private
+     * tree (e.g. a 0700 home the unprivileged worker cannot enter), so the publish
+     * rename MUST run as that user via the broker — the raw rename(2) below runs as
+     * the worker and EACCESes.  Because the native xrootd client retries the close,
+     * that EACCES manifests as a hung root:// upload rather than a clean error.
+     * brix_rename_confined_canon routes to the broker when a request principal is
+     * active (and confines under be_root otherwise); the fd fsync above stays
+     * worker-side (fd ops ignore fsuid).  EXDEV (cross-device stage mount) can't go
+     * through the broker, so it falls through to the cross-device mover.
+     */
+    if (brix_imp_client_active() && be_root != NULL) {
+        /* The fd fchmod in commit_flush_and_chmod ran as the unprivileged worker
+         * and was a silent EPERM no-op on the mapped user's file, so the staged
+         * 0600 (created PRIVATE) would survive the publish and block group DAC on a
+         * file uploaded into a shared/setgid dir.  Re-apply the intended final mode
+         * AS THE MAPPED USER via the broker, on the staged temp before the rename
+         * (a 0700 private dir still isolates it; a 0770 shared dir now permits the
+         * group read the mode intends).  Best-effort: a cross-device stage temp is
+         * not under be_root, so the confine fails and the mode stays staged — the
+         * same EXDEV edge the rename below hands to the cross-device mover. */
+        if (final_mode != 0) {
+            (void) brix_chmod_confined_canon(log, be_root, stage_path, final_mode);
+        }
+        if (brix_rename_confined_canon(log, be_root, stage_path,
+                                         final_path) == 0)
+        {
+            return NGX_OK;
+        }
+        if (errno != EXDEV) {
+            return NGX_ERROR;
+        }
+        /* EXDEV: fall through to the cross-device mover below. */
     }
 
     if (rename(stage_path, final_path) == 0) {

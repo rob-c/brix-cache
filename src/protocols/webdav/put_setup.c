@@ -46,7 +46,7 @@ webdav_put_vfs_ctx_init(ngx_http_request_t *r,
 
     brix_vfs_ctx_init(vctx, r->pool, r->connection->log,
         BRIX_PROTO_WEBDAV, conf->common.root_canon,
-        conf->cache_root_canon, conf->common.allow_write, is_tls,
+        conf->common.cache_root_canon, conf->common.allow_write, is_tls,
         (wctx != NULL) ? wctx->identity : NULL, path);
     brix_vfs_ctx_bind_backend_cred(vctx,
         &conf->common.storage_credential_dir,
@@ -247,7 +247,7 @@ webdav_put_precheck(ngx_http_request_t *r,
      * upload completes (brix_webdav_upload_resume on).  Handled before the
      * whole-body staged-write path below.  A malformed Content-Range is 400.
      */
-    if (conf->upload_resume) {
+    if (conf->common.upload_resume) {
         ngx_table_elt_t *crh = brix_http_find_header(
             r, "Content-Range", sizeof("Content-Range") - 1);
         if (crh != NULL && crh->value.len > 0) {
@@ -273,7 +273,7 @@ webdav_put_precheck(ngx_http_request_t *r,
         is_tls = (r->connection->ssl != NULL) ? 1 : 0;
 #endif
         brix_vfs_ctx_init(&pctx, r->pool, r->connection->log,
-            BRIX_PROTO_WEBDAV, conf->common.root_canon, conf->cache_root_canon,
+            BRIX_PROTO_WEBDAV, conf->common.root_canon, conf->common.cache_root_canon,
             conf->common.allow_write, is_tls,
             (rx != NULL) ? rx->identity : NULL, path);
         brix_vfs_ctx_bind_backend_cred(&pctx,

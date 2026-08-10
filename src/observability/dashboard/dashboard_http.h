@@ -87,14 +87,14 @@ typedef struct {
                                               * anchor); empty when disabled.          */
 
     /* ---- storage scan engine (/xrootd/api/v1/scan, src/scan/) ---- */
-    ngx_str_t   scan_root;        /* [brix_scan_root <path>] — confinement root the
+    ngx_str_t   scan_root;        /* [brix_dashboard_scan_root <path>] — confinement root the
                                    * scan walks. Empty = feature disabled (404).      */
     char        scan_root_canon[PATH_MAX];  /* realpath of scan_root; empty=disabled  */
     ngx_flag_t  vfs_browse;       /* [brix_dashboard_vfs_browse on] — VFS export
                                      browser endpoints (/api/v1/vfs*); admin-auth,
                                      read-only, OFF by default (exposes stored
                                      user data through the dashboard) */
-    ngx_uint_t  scan_max_files;   /* [brix_scan_max_files <n>] cap on files visited
+    ngx_uint_t  scan_max_files;   /* [brix_dashboard_scan_max_files <n>] cap on files visited
                                    * per request (default 100000)                     */
 } ngx_http_brix_dashboard_loc_conf_t;
 

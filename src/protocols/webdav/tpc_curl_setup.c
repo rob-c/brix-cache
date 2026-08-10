@@ -47,8 +47,8 @@ tpc_curl_secure(CURL *curl, ngx_http_brix_webdav_loc_conf_t *conf,
 
     ngx_memzero(&pol, sizeof(pol));
     pol.require_https      = 1;
-    pol.allow_local        = conf->tpc_allow_local;
-    pol.allow_private      = conf->tpc_allow_private;
+    pol.allow_local        = conf->common.tpc_allow_local;
+    pol.allow_private      = conf->common.tpc_allow_private;
     pol.default_https_port = 443;
 
     if (brix_net_target_parse(NULL, &url_str, &tgt, err, sizeof(err)) != NGX_OK

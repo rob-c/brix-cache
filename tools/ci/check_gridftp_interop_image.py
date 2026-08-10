@@ -82,9 +82,9 @@ def _gateway_problems(path: Path) -> list[str]:
         path, text, ("{GSIFTP_PORT}", "{FTP_PORT}", "{PBLOCK_GSIFTP_PORT}"),
         "the matrix needs gsiftp, ftp AND a pblock backend export",
     )
-    if "brix_gridftp_storage_backend pblock" not in text:
+    if "brix_storage_backend pblock" not in text:
         problems.append(f"{path.name} no longer wires "
-                        f"brix_gridftp_storage_backend pblock — the "
+                        f"brix_storage_backend pblock — the "
                         f"non-posix backend interop cell would test posix")
     return problems
 
@@ -105,7 +105,7 @@ def _s3_gateway_problems(path: Path) -> list[str]:
         "the object-store backend interop cell needs the gsiftp leg AND its "
         "embedded brix_s3 origin",
     )
-    if "brix_gridftp_storage_backend    s3://" not in text:
+    if "brix_storage_backend    s3://" not in text:
         problems.append(f"{path.name} no longer wires an s3:// gridftp "
                         f"storage backend — the object-store backend interop "
                         f"cell would test posix (or silently skip)")

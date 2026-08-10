@@ -10,8 +10,9 @@ that the initial port left open:
   RA2  prepare staging routes through the engine with AOP_Stage (priv 0x180, only
        granted by `a`), not the native authdb.
   RA3  `brix_acc_resolve_hosts` reverse-DNSes the peer so `h <host>` rules match.
-  RB1  `brix_authdb_refresh` hot-reloads the authdb for HTTP (WebDAV) with no
-       restart.
+  RB1  `brix_acc_refresh` hot-reloads the authdb for HTTP (WebDAV) with no
+       restart.  (W5 2026-08-10: the HTTP XrdAcc tuner is brix_acc_refresh; the
+       stream reference plane keeps brix_authdb_refresh.)
   RB2  `brix_acc_encoding` URI-decodes authdb path tokens (`%20` -> space).
   RC1  the auth-result cache is active under xrdacc and keys on the operation, so a
        cached Update grant is never replayed for a Create on the same path.
@@ -411,7 +412,7 @@ def make_webdav(lifecycle, tmp_path):
 
 class TestHttpHotReload:
     """Editing the authdb while a WebDAV worker is live takes effect within the
-    refresh interval, with no restart (`brix_authdb_refresh`)."""
+    refresh interval, with no restart (`brix_acc_refresh` on HTTP)."""
 
     def test_reload_revokes_access(self, make_webdav):
         srv = make_webdav()

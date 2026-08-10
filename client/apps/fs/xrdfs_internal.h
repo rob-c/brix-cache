@@ -206,7 +206,9 @@ int do_tail(brix_conn *c, const char *cwd, int argc, char **argv);
 
 /* xrdfs_meta.c */
 int do_locate(brix_conn *c, const char *cwd, int argc, char **argv);
+int do_cache(brix_conn *c, const char *cwd, int argc, char **argv);
 int do_statvfs(brix_conn *c, const char *cwd, int argc, char **argv);
+int do_spaceinfo(brix_conn *c, const char *cwd, int argc, char **argv);
 
 /* xrdfs_fmt.c */
 int64_t df_field(const char *reply, const char *key);
@@ -266,6 +268,7 @@ int parse_u64_strict(const char *s, unsigned long long *out);
 
 /* xrdfs_data.c */
 int do_readv(brix_conn *c, const char *cwd, int argc, char **argv);
+int do_readvm(brix_conn *c, const char *cwd, int argc, char **argv);
 int do_writev(brix_conn *c, const char *cwd, int argc, char **argv);
 
 /* xrdfs_fmt.c */

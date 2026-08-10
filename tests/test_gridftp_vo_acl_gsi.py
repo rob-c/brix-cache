@@ -12,8 +12,8 @@ gateway lifts the proxy's VOMS FQANs into the session identity
 shared ``brix_check_vo_acl_identity`` gate.
 
 Gateway (nginx_gridftp_vo_gsi.conf): event-engine GSI gsiftp with
-``brix_gridftp_require_vo /vodata atlas`` + ``brix_gridftp_vomsdir`` /
-``brix_gridftp_voms_cert_dir``.  Three edges (success + error/deny + security-neg):
+``brix_require_vo /vodata atlas`` + ``brix_vomsdir`` /
+``brix_voms_cert_dir``.  Three edges (success + error/deny + security-neg):
 
   * allow        -- an /atlas VOMS proxy RETRs a file under /vodata (VO carried,
                     rule satisfied).
@@ -97,7 +97,7 @@ def _require():
 # ---------------------------------------------------------------------------
 # VOMS infrastructure — signing cert, per-VO LSC vomsdir, VOMS proxies.
 # Mirrors test_vo_acl.py's helpers; shares the main test PKI (the gateway's
-# brix_gridftp_trusted_ca already trusts {CA_DIR}, so no separate trust root).
+# brix_trusted_ca already trusts {CA_DIR}, so no separate trust root).
 # ---------------------------------------------------------------------------
 
 def _voms_dn(pem, field):

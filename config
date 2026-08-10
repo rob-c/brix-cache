@@ -493,6 +493,8 @@ ngx_brix_stream_deps="$ngx_addon_dir/src/core/ngx_brix_module.h \
                  $ngx_addon_dir/src/fs/backend/pblock/pblock_anomaly.h \
                  $ngx_addon_dir/src/fs/backend/pblock/pblock_locks.h \
                  $ngx_addon_dir/src/fs/backend/pblock/pblock_refs.h \
+                 $ngx_addon_dir/src/fs/backend/pblock/pblock_pack.h \
+                 $ngx_addon_dir/shared/cache/cas_pack_format.h \
                  $ngx_addon_dir/src/fs/backend/pblock/pblock_snap.h \
                  $ngx_addon_dir/src/fs/backend/pblock/pblock_hist.h \
                  $ngx_addon_dir/src/fs/backend/pblock/pblock_xform.h \
@@ -673,6 +675,8 @@ ngx_brix_webdav_deps="$ngx_addon_dir/src/protocols/webdav/webdav.h \
                  $ngx_addon_dir/src/fs/backend/pblock/pblock_anomaly.h \
                  $ngx_addon_dir/src/fs/backend/pblock/pblock_locks.h \
                  $ngx_addon_dir/src/fs/backend/pblock/pblock_refs.h \
+                 $ngx_addon_dir/src/fs/backend/pblock/pblock_pack.h \
+                 $ngx_addon_dir/shared/cache/cas_pack_format.h \
                  $ngx_addon_dir/src/fs/backend/pblock/pblock_snap.h \
                  $ngx_addon_dir/src/fs/backend/pblock/pblock_hist.h \
                  $ngx_addon_dir/src/fs/backend/pblock/pblock_xform.h \
@@ -864,7 +868,9 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/fs/backend/posix/sd_posix.c \
     $ngx_addon_dir/src/fs/backend/posix/sd_posix_io.c \
     $ngx_addon_dir/src/fs/backend/posix/sd_posix_ns.c \
+    $ngx_addon_dir/src/fs/backend/posix/sd_posix_dedup.c \
     $ngx_addon_dir/src/fs/backend/block/sd_block.c \
+    $ngx_addon_dir/src/fs/backend/mirage/sd_mirage.c \
     $ngx_addon_dir/src/fs/backend/rados/sd_ceph.c \
     $ngx_addon_dir/src/fs/backend/rados/sd_ceph_io.c \
     $ngx_addon_dir/src/fs/backend/rados/sd_ceph_object.c \
@@ -890,6 +896,7 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/fs/backend/pblock/pblock_anomaly.c \
     $ngx_addon_dir/src/fs/backend/pblock/pblock_locks.c \
     $ngx_addon_dir/src/fs/backend/pblock/pblock_refs.c \
+    $ngx_addon_dir/src/fs/backend/pblock/pblock_pack.c \
     $ngx_addon_dir/src/fs/backend/pblock/pblock_snap.c \
     $ngx_addon_dir/src/fs/backend/pblock/pblock_hist.c \
     $ngx_addon_dir/src/fs/backend/pblock/pblock_xform.c \
@@ -902,6 +909,7 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/fs/backend/pblock/sd_pblock_catalog.c \
     $ngx_addon_dir/src/fs/backend/pblock/sd_pblock_catalog_objects.c \
     $ngx_addon_dir/src/fs/backend/pblock/sd_pblock_catalog_ns.c \
+    $ngx_addon_dir/src/fs/backend/pblock/sd_pblock_catalog_nsidx.c \
     $ngx_addon_dir/src/fs/backend/s3/sd_s3.c \
     $ngx_addon_dir/src/fs/backend/s3/sd_s3_sign.c \
     $ngx_addon_dir/src/fs/backend/s3/sd_s3_write.c \
@@ -1015,6 +1023,8 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/protocols/root/session/lifecycle.c \
     $ngx_addon_dir/src/protocols/root/session/signing.c \
     $ngx_addon_dir/src/protocols/root/session/bind.c \
+    $ngx_addon_dir/src/protocols/root/session/offload_registry.c \
+    $ngx_addon_dir/src/protocols/root/session/admin_socket.c \
     $ngx_addon_dir/src/protocols/root/session/registry.c \
     $ngx_addon_dir/src/protocols/root/session/handles.c \
     $ngx_addon_dir/src/net/manager/registry.c \
@@ -1503,6 +1513,23 @@ ngx_module_libs="-lssl -lcrypto $BRIX_JANSSON_LIBS $BRIX_XML2_LIBS $BRIX_KRB5_LI
 CORE_LIBS="$CORE_LIBS -lssl -lcrypto"
 xrd_emit_module
 
+# Unified brix storage/x509 grammar on the STREAM plane (phase-101 W3): ONE
+# stream module owns the bare directive names (brix_export, brix_storage_backend,
+# ... and the x509 trust family) so root:// and the gridftp gateway share a single
+# directive surface instead of gridftp carrying prefixed brix_gridftp_* twins.
+# Emitted AFTER ngx_stream_brix_module so that module stays first (its .so name
+# and RTLD_GLOBAL symbol-backing are load-bearing); root and gridftp adopt the
+# merged values via brix_stream_common_adopt() at merge time, which reads the
+# server srv conf directly and so is independent of module merge order.
+ngx_module_type=STREAM
+ngx_module_name=ngx_stream_brix_common_module
+ngx_module_incs="$ngx_addon_dir/src $ngx_addon_dir/shared"
+ngx_module_srcs="$ngx_addon_dir/src/core/config/stream_common.c"
+ngx_module_deps="$ngx_addon_dir/src/core/config/stream_common.h \
+                 $ngx_addon_dir/src/core/config/shared_conf.h"
+ngx_module_libs=
+xrd_emit_module
+
 ngx_module_type=HTTP
 ngx_module_name=ngx_http_brix_metrics_module
  ngx_module_srcs="$ngx_addon_dir/src/observability/metrics/module.c \
@@ -1593,7 +1620,6 @@ ngx_module_srcs="$ngx_addon_dir/src/protocols/webdav/module.c \
                  $ngx_addon_dir/src/protocols/webdav/module_directives.c \
                  $ngx_addon_dir/src/protocols/webdav/module_directives_cert.c \
                  $ngx_addon_dir/src/protocols/webdav/module_init.c \
-                 $ngx_addon_dir/src/protocols/webdav/module_acc_directives.c \
                  $ngx_addon_dir/src/protocols/webdav/config.c \
                  $ngx_addon_dir/src/protocols/webdav/config_merge.c \
                  $ngx_addon_dir/src/protocols/webdav/config_proxy.c \
@@ -2025,6 +2051,7 @@ if [ "$ngx_module_link" = DYNAMIC ]; then
     done
     ngx_module_type=HTTP
     ngx_module_name="ngx_stream_brix_module \
+                     ngx_stream_brix_common_module \
                      ngx_http_brix_metrics_module \
                      ngx_http_brix_srr_module \
                      ngx_http_brix_guard_module \

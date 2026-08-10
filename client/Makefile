@@ -115,7 +115,7 @@ LIB_SRCS   := \
   lib/core/aio/aio.c lib/core/aio/aio_buffers.c lib/core/aio/aio_conn.c lib/core/aio/aio_engine.c lib/core/aio/aio_engine_cqe.c lib/core/aio/aio_io.c lib/core/aio/aio_mfile.c lib/core/aio/aio_mgr.c lib/core/aio/aio_timeouts.c lib/core/aio/uring.c lib/core/aio/uring_stub.c \
   lib/core/config/xrdrc.c lib/core/config/envalias.c \
   lib/core/types/status.c lib/core/types/units.c \
-  lib/net/conn.c lib/net/conn_bootstrap.c lib/net/conn_explain.c lib/net/cpool.c lib/net/netdiag.c lib/net/netpref.c lib/net/nettmo.c lib/net/pool.c lib/net/resilient.c lib/net/sock.c lib/net/streams.c lib/net/tls.c lib/net/tls_io.c lib/net/url.c \
+  lib/net/conn.c lib/net/conn_bootstrap.c lib/net/conn_explain.c lib/net/cpool.c lib/net/netdiag.c lib/net/netpref.c lib/net/forksafe.c lib/net/nettmo.c lib/net/pool.c lib/net/resilient.c lib/net/sock.c lib/net/streams.c lib/net/tls.c lib/net/tls_io.c lib/net/url.c \
   ../shared/net/proxy_env.c ../shared/net/proxy_connect.c \
   lib/auth/auth.c lib/auth/sigver.c \
   lib/auth/cred/cred.c lib/auth/cred/cred_bearer.c lib/auth/cred/cred_krb5.c lib/auth/cred/cred_s3.c lib/auth/cred/cred_sss.c lib/auth/cred/cred_x509.c lib/auth/cred/credinfo.c lib/auth/cred/credrefresh.c \
@@ -136,7 +136,7 @@ LIB_SRCS   := \
   ../shared/oci/gc.c ../shared/oci/gc_mark.c ../shared/oci/gc_sweep.c \
   ../shared/rpm/rpmhdr.c ../shared/rpm/repomd_write.c \
   lib/protocols/shared/checksum.c lib/protocols/shared/cks_verify.c lib/protocols/shared/cksum_manifest.c lib/protocols/shared/zip.c lib/protocols/shared/zip_write.c \
-  lib/xfer/copy.c lib/xfer/copy_block.c lib/xfer/copy_gsiftp.c lib/xfer/copy_cksum_verify.c lib/xfer/copy_filter.c lib/xfer/copy_local.c lib/xfer/copy_local_parallel.c lib/xfer/copy_metalink.c lib/xfer/copy_pump.c lib/xfer/copy_recursive.c lib/xfer/copy_recursive_ul.c lib/xfer/copy_remote.c lib/xfer/copy_upload.c lib/xfer/copy_web_download.c lib/xfer/copy_xcp.c lib/xfer/copy_xcp_sources.c lib/xfer/copy_zip.c lib/xfer/metalink.c lib/xfer/metalink_lex.c \
+  lib/xfer/copy.c lib/xfer/copy_block.c lib/xfer/copy_continue.c lib/xfer/copy_gsiftp.c lib/xfer/copy_cksum_verify.c lib/xfer/copy_filter.c lib/xfer/copy_l2l.c lib/xfer/copy_local.c lib/xfer/copy_local_parallel.c lib/xfer/copy_metalink.c lib/xfer/copy_pump.c lib/xfer/copy_recursive.c lib/xfer/copy_recursive_ul.c lib/xfer/copy_remote.c lib/xfer/copy_upload.c lib/xfer/copy_web_download.c lib/xfer/copy_xattr.c lib/xfer/copy_xcp.c lib/xfer/copy_xcp_sources.c lib/xfer/copy_zip.c lib/xfer/metalink.c lib/xfer/metalink_lex.c \
   lib/posix/fuse_ops.c lib/posix/posix_map.c \
   lib/cli/cli_cksum.c lib/cli/cli_conn.c lib/cli/cli_cred.c lib/cli/cli_hint.c lib/cli/cli_opts.c lib/cli/jsonout.c lib/cli/suggest.c lib/cli/xferjournal.c \
   lib/observability/capture.c lib/observability/trace.c \
@@ -181,7 +181,7 @@ BIN_EXES := $(addprefix $(BINDIR)/,$(BINS))
 # likewise absorbed the qstats/wait41/mpxstats micro-tools). wait41 and
 # mpxstats carry a -brix suffix so the brix client RPM co-installs with the
 # stock xrootd server RPMs (which own /usr/bin/wait41 and /usr/bin/mpxstats).
-CKSUM_LINKS := xrdcrc32c xrdcrc64 xrdadler32 xrdckverify xrdcinfo
+CKSUM_LINKS := xrdcrc32c xrdcrc64 xrdadler32 xrdckverify xrdcinfo xrdcks
 DIAG_LINKS  := xrdqstats wait41-brix mpxstats-brix
 LINK_EXES   := $(addprefix $(BINDIR)/,$(CKSUM_LINKS) $(DIAG_LINKS))
 
@@ -275,20 +275,28 @@ COMPAT_COMPLETION_NAMES := $(foreach n,xrd xrdfs xrdcp xrdcksum xrdprep xrdgsipr
 # are listed in a <name>_OBJS variable (the Phase-38 split siblings are just extra
 # entries). The single link rule below expands these via .SECONDEXPANSION.
 xrdcp_OBJS        := apps/copy/xrdcp.o apps/copy/xrdcp_transfer.o apps/copy/xrdcp_recursive.o apps/copy/xrdcp_dispatch.o apps/copy/xrdcp_parse.o apps/copy/xrdcp_parse_transport.o apps/copy/xrdcp_recursive_upload.o
-xrdfs_OBJS        := apps/fs/xrdfs.o apps/fs/xrdfs_data.o apps/fs/xrdfs_data_content.o apps/fs/xrdfs_data_wc.o apps/fs/xrdfs_data_xfer.o apps/fs/xrdfs_data_xfer_vec.o apps/fs/xrdfs_walk.o apps/fs/xrdfs_fmt.o apps/fs/xrdfs_attr.o apps/fs/xrdfs_meta.o apps/fs/xrdfs_web.o
+xrdfs_OBJS        := apps/fs/xrdfs.o apps/fs/xrdfs_data.o apps/fs/xrdfs_data_content.o apps/fs/xrdfs_data_wc.o apps/fs/xrdfs_data_xfer.o apps/fs/xrdfs_data_xfer_vec.o apps/fs/xrdfs_walk.o apps/fs/xrdfs_fmt.o apps/fs/xrdfs_attr.o apps/fs/xrdfs_xattr.o apps/fs/xrdfs_meta.o apps/fs/xrdfs_web.o
 xrd_OBJS          := apps/diag/xrd.o apps/diag/xrd_battery.o apps/diag/xrd_battery_web.o apps/diag/xrd_doctor.o apps/diag/xrd_doctor_json.o apps/diag/xrd_clockskew.o apps/diag/xrd_mount.o apps/diag/xrd_usage.o
 xrddiag_OBJS      := apps/diag/xrddiag.o apps/diag/diag_check.o apps/diag/diag_check_probe.o apps/diag/diag_bench.o apps/diag/diag_metabench.o apps/diag/diag_watch.o apps/diag/diag_topology.o apps/diag/diag_compare.o apps/diag/diag_doctor.o apps/diag/diag_doctor_json.o apps/diag/diag_doctor_probe.o apps/diag/diag_doctor_proto.o apps/diag/diag_doctor_audit.o apps/diag/diag_doctor_graph.o apps/diag/diag_doctor_latency.o apps/diag/diag_doctor_recon.o apps/diag/diag_doctor_eos.o apps/diag/diag_doctor_eos_fileinfo.o apps/diag/diag_tpc_egress.o apps/diag/diag_authsuite.o apps/diag/diag_misc.o \
                      apps/diag/xrdqstats.o apps/diag/wait41.o apps/diag/mpxstats.o
 xrdstorascan_OBJS := apps/scan/xrdstorascan.o apps/scan/storascan_core.o apps/scan/storascan_bench.o apps/scan/storascan_scan.o apps/scan/storascan_verify.o
 xrdstorascan_LDLIBS := -lm
-xrdcksum_OBJS     := apps/cksum/xrdcksum.o apps/cksum/xrdckcheck.o apps/cksum/xrdckverify.o apps/cksum/xrdcinfo.o apps/cksum/xrdcktree.o
+xrdcksum_OBJS     := apps/cksum/xrdcksum.o apps/cksum/xrdcks_xattr.o apps/cksum/xrdckcheck.o apps/cksum/xrdckverify.o apps/cksum/xrdcinfo.o apps/cksum/xrdcktree.o
 xrdgsiproxy_OBJS  := apps/auth/xrdgsiproxy.o
 xrdgsitest_OBJS   := apps/auth/xrdgsitest.o
 xrdsssadmin-brix_OBJS := apps/auth/xrdsssadmin.o
 xrdmapc_OBJS      := apps/diag/xrdmapc.o
 xrdprep_OBJS      := apps/prep/xrdprep.o
 
-ALL_OBJS := $(LIB_OBJS) $(foreach b,$(BINS),$($(b)_OBJS))
+# The PIC set MUST be dep-tracked too: .pic.o files feed libbrix.so and the
+# preload shim, and without their .pic.d files included a struct change in a
+# header rebuilds only the TUs whose .c changed — the .so then links objects
+# compiled against DIFFERENT layout vintages and crashes at runtime on member
+# offsets (2026-08-09: stale libbrixposix_preload.so segfaulted in
+# brix_conn.diag during login; a full PIC rebuild with identical flags fixed it).
+ALL_OBJS := $(LIB_OBJS) $(PIC_OBJS) preload/brixposix_preload.pic.o \
+            preload/brixposix_stat.pic.o \
+            $(foreach b,$(BINS),$($(b)_OBJS))
 DEPS     := $(ALL_OBJS:.o=.d)
 
 .PHONY: all proto FORCE clean lib install install-bin install-man install-completions install-automount compat install-compat example-test test libbrix.pc $(BINS) $(CKSUM_LINKS) $(DIAG_LINKS) xrootdfs brixMount brixcvmfs brixoci brixrpm
@@ -674,8 +682,9 @@ nettmo: ../tests/c/nettmo_test.c $(CLIENT_LIB) | $(BINDIR)
 	@echo " + built $(BINDIR)/nettmo_test"
 
 # §14.4 LD_PRELOAD POSIX shim — fold the PIC client + protocol kernels into a .so.
-$(PRELOAD_SO): preload/brixposix_preload.pic.o $(PIC_OBJS) $(PROTO_LIB)
-	$(CC) -shared $(LDFLAGS) -o $@ preload/brixposix_preload.pic.o $(PIC_OBJS) \
+$(PRELOAD_SO): preload/brixposix_preload.pic.o preload/brixposix_stat.pic.o $(PIC_OBJS) $(PROTO_LIB)
+	$(CC) -shared $(LDFLAGS) -o $@ preload/brixposix_preload.pic.o \
+	    preload/brixposix_stat.pic.o $(PIC_OBJS) \
 	    -Wl,--whole-archive $(PROTO_LIB) -Wl,--no-whole-archive $(LDLIBS) -ldl
 	@echo " + built $@ (no libXrdCl/libXrdSec*)"
 

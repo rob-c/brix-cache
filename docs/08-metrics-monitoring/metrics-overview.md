@@ -617,6 +617,11 @@ table and the double-count bugs this rule closed):
   **no** unified `op="read"` row — a transparent public cache serves the same
   object from cache, origin fill, or bundle, and the cvmfs families are the
   authoritative split. Its unified rows come from the VFS observer.
+- Response offloading (`brix_io_offload_total{proto="stream"}`): the read-family
+  offload dispatch (`brix_{read,readv,pgread}_try_offload`), once per reply routed
+  over a bound secondary data channel (§1.1 pathid response offloading). The
+  series is absent until the first offload, so it never perturbs a scrape from a
+  deployment where no client requests offloading.
 - Namespace ops (stat/delete/mkdir/rename/dirlist, all protocols): the VFS
   observer, with per-call latency. This is why the gridftp seam books only the
   data plane — SIZE/MDTM/MLST/MKD/DELE/LIST over gsiftp are already metered

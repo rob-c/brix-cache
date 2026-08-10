@@ -171,7 +171,9 @@ tpc_register_stream_transfer(ngx_connection_t *c, brix_file_t *file)
     transfer.dst_path = dst_path;
     transfer.state = BRIX_TPC_STATE_PENDING;
 
-    return brix_tpc_registry_add(&transfer, c->log);
+    /* Native root:// TPC keeps the historical slot-ceiling-only bound (no
+     * extra cap); the §6.9 xfr cap is a WebDAV-plane directive. */
+    return brix_tpc_registry_add(&transfer, c->log, 0);
 }
 
 /* WHAT: Copy every field the off-thread worker needs out of the connection and

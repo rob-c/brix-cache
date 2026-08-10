@@ -192,7 +192,7 @@ ngx_http_brix_dashboard_merge_loc_conf(ngx_conf_t *cf,
     {
         dashboard_canon_root_t scan = {
             &conf->scan_root, conf->scan_root_canon, prev->scan_root_canon,
-            "brix_scan_root", "brix_scan_root path too long"
+            "brix_dashboard_scan_root", "brix_dashboard_scan_root path too long"
         };
         if (dashboard_merge_canon_root(cf, &scan, &err) != NGX_OK) {
             return err;
@@ -401,8 +401,10 @@ static ngx_command_t ngx_http_brix_dashboard_commands[] = {
       offsetof(ngx_http_brix_dashboard_loc_conf_t, browse_root),
       NULL },
 
-    /* Storage-scan root — empty (default) disables the /scan endpoint. */
-    { ngx_string("brix_scan_root"),
+    /* Storage-scan root — empty (default) disables the /scan endpoint. phase-101
+     * W6: prefixed brix_dashboard_ (Rule 2) to disambiguate from the DIFFERENT
+     * brix_dashboard_browse_root (interactive browse) confinement root. */
+    { ngx_string("brix_dashboard_scan_root"),
       NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
       ngx_conf_set_str_slot,
       NGX_HTTP_LOC_CONF_OFFSET,
@@ -420,7 +422,7 @@ static ngx_command_t ngx_http_brix_dashboard_commands[] = {
       NULL },
 
     /* Operator cap on files visited per scan request (default 100000). */
-    { ngx_string("brix_scan_max_files"),
+    { ngx_string("brix_dashboard_scan_max_files"),
       NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
       ngx_conf_set_num_slot,
       NGX_HTTP_LOC_CONF_OFFSET,

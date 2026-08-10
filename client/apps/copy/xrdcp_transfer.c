@@ -62,6 +62,9 @@ copy_one_with_retry(const char *src, const char *dst, const brix_copy_opts *o,
     for (;;) {
         brix_status_clear(st);
         if (brix_copy(src, dst, o, co, st) == 0) {
+            if (o->xattr_preserve) {   /* §7.13: after the bytes + cksum */
+                brix_copy_preserve_xattrs(src, dst, co, o->silent);
+            }
             return 0;
         }
         if (attempt >= retries) {

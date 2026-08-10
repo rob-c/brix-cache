@@ -102,7 +102,7 @@ brix_qconfig_append(char *resp, size_t resp_sz, size_t *pos,
  *      the former strcmp if/else ladder, keeping each emitter single-purpose and the dispatcher trivially flat.
  * HOW: Each emitter receives the server conf (for capability flags/limits) plus the shared resp/resp_sz/pos
  *      accounting used by brix_qconfig_append. */
-typedef ngx_flag_t (*brix_qconfig_emit_fn)(ngx_stream_brix_srv_conf_t *conf,
+typedef ngx_flag_t (*brix_qconfig_emit_fn)(ngx_stream_brix_srv_conf_t *conf, ngx_connection_t *c,
     char *resp, size_t resp_sz, size_t *pos);
 
 /* WHAT: Builds a comma-separated list of the inline-compression codecs actually built into this binary
@@ -142,10 +142,11 @@ brix_qconfig_codec_list(char *list, size_t list_sz)
  *      the reference do_Qconf returns the bare cslist, and xrdcp/XrdCl parse the value line directly.
  * HOW: Single append of the fixed algorithm list line. */
 static ngx_flag_t
-brix_qconfig_emit_chksum(ngx_stream_brix_srv_conf_t *conf,
+brix_qconfig_emit_chksum(ngx_stream_brix_srv_conf_t *conf, ngx_connection_t *c,
     char *resp, size_t resp_sz, size_t *pos)
 {
     (void) conf;
+    (void) c;
     return brix_qconfig_append(resp, resp_sz, pos,
         "adler32,crc32,crc32c,crc64,crc64nvme,zcrc32,md5,sha1,sha256\n");
 }
@@ -154,10 +155,11 @@ brix_qconfig_emit_chksum(ngx_stream_brix_srv_conf_t *conf,
  * WHY: Advertises vector-read support so XrdCl uses kXR_readv instead of serial reads.
  * HOW: Single fixed-string append. */
 static ngx_flag_t
-brix_qconfig_emit_readv(ngx_stream_brix_srv_conf_t *conf,
+brix_qconfig_emit_readv(ngx_stream_brix_srv_conf_t *conf, ngx_connection_t *c,
     char *resp, size_t resp_sz, size_t *pos)
 {
     (void) conf;
+    (void) c;
     return brix_qconfig_append(resp, resp_sz, pos, "readv=1\n");
 }
 
@@ -167,9 +169,10 @@ brix_qconfig_emit_readv(ngx_stream_brix_srv_conf_t *conf,
  *      never overshoots the per-element cap.
  * HOW: Appends conf->readv_segment_size as %lu + newline. */
 static ngx_flag_t
-brix_qconfig_emit_readv_ior_max(ngx_stream_brix_srv_conf_t *conf,
+brix_qconfig_emit_readv_ior_max(ngx_stream_brix_srv_conf_t *conf, ngx_connection_t *c,
     char *resp, size_t resp_sz, size_t *pos)
 {
+    (void) c;
     return brix_qconfig_append(resp, resp_sz, pos, "%lu\n",
                                (unsigned long) conf->readv_segment_size);
 }
@@ -178,10 +181,11 @@ brix_qconfig_emit_readv_ior_max(ngx_stream_brix_srv_conf_t *conf,
  * WHY: The official "maxRvecsz" — bare integer, reference format.
  * HOW: Appends the compile-time BRIX_READV_MAXSEGS cap + newline. */
 static ngx_flag_t
-brix_qconfig_emit_readv_iov_max(ngx_stream_brix_srv_conf_t *conf,
+brix_qconfig_emit_readv_iov_max(ngx_stream_brix_srv_conf_t *conf, ngx_connection_t *c,
     char *resp, size_t resp_sz, size_t *pos)
 {
     (void) conf;
+    (void) c;
     return brix_qconfig_append(resp, resp_sz, pos, "%d\n", BRIX_READV_MAXSEGS);
 }
 
@@ -196,12 +200,13 @@ brix_qconfig_emit_readv_iov_max(ngx_stream_brix_srv_conf_t *conf,
  *      cause it to reject TPC support.
  * HOW: Appends the constant capability value 1 as %d + newline. */
 static ngx_flag_t
-brix_qconfig_emit_tpc(ngx_stream_brix_srv_conf_t *conf,
+brix_qconfig_emit_tpc(ngx_stream_brix_srv_conf_t *conf, ngx_connection_t *c,
     char *resp, size_t resp_sz, size_t *pos)
 {
     int tpc_capable = 1;
 
     (void) conf;
+    (void) c;
     return brix_qconfig_append(resp, resp_sz, pos, "%d\n", tpc_capable);
 }
 
@@ -209,10 +214,11 @@ brix_qconfig_emit_tpc(ngx_stream_brix_srv_conf_t *conf,
  * WHY: The literal "tpcdlg" echo signals HTTP-TPC delegation is unavailable, matching reference behavior.
  * HOW: Single fixed-string append. */
 static ngx_flag_t
-brix_qconfig_emit_tpcdlg(ngx_stream_brix_srv_conf_t *conf,
+brix_qconfig_emit_tpcdlg(ngx_stream_brix_srv_conf_t *conf, ngx_connection_t *c,
     char *resp, size_t resp_sz, size_t *pos)
 {
     (void) conf;
+    (void) c;
     return brix_qconfig_append(resp, resp_sz, pos, "tpcdlg\n");
 }
 
@@ -224,10 +230,12 @@ brix_qconfig_emit_tpcdlg(ngx_stream_brix_srv_conf_t *conf,
  * HOW: When read_compress is on, builds the built-in codec CSV via brix_qconfig_codec_list and appends
  *      "cmpread=<list>"; otherwise appends "cmpread=0". */
 static ngx_flag_t
-brix_qconfig_emit_cmpread(ngx_stream_brix_srv_conf_t *conf,
+brix_qconfig_emit_cmpread(ngx_stream_brix_srv_conf_t *conf, ngx_connection_t *c,
     char *resp, size_t resp_sz, size_t *pos)
 {
     char list[160];
+
+    (void) c;
 
     if (!conf->read_compress) {
         return brix_qconfig_append(resp, resp_sz, pos, "cmpread=0\n");
@@ -243,10 +251,12 @@ brix_qconfig_emit_cmpread(ngx_stream_brix_srv_conf_t *conf,
  * HOW: When write_compress is on, builds the built-in codec CSV via brix_qconfig_codec_list and appends
  *      "cmpwrite=<list>"; otherwise appends "cmpwrite=0". */
 static ngx_flag_t
-brix_qconfig_emit_cmpwrite(ngx_stream_brix_srv_conf_t *conf,
+brix_qconfig_emit_cmpwrite(ngx_stream_brix_srv_conf_t *conf, ngx_connection_t *c,
     char *resp, size_t resp_sz, size_t *pos)
 {
     char list[160];
+
+    (void) c;
 
     if (!conf->write_compress) {
         return brix_qconfig_append(resp, resp_sz, pos, "cmpwrite=0\n");
@@ -262,10 +272,11 @@ brix_qconfig_emit_cmpwrite(ngx_stream_brix_srv_conf_t *conf,
  *      rather than falling back to no-op utimens / ENOTSUP.
  * HOW: Single fixed-string append. */
 static ngx_flag_t
-brix_qconfig_emit_xrdfs_ext(ngx_stream_brix_srv_conf_t *conf,
+brix_qconfig_emit_xrdfs_ext(ngx_stream_brix_srv_conf_t *conf, ngx_connection_t *c,
     char *resp, size_t resp_sz, size_t *pos)
 {
     (void) conf;
+    (void) c;
     return brix_qconfig_append(resp, resp_sz, pos,
                                "xrdfs.ext=setattr,symlink,readlink,link\n");
 }
@@ -276,10 +287,11 @@ brix_qconfig_emit_xrdfs_ext(ngx_stream_brix_srv_conf_t *conf,
  *      product version from core/ident.h — the same string every other identity surface advertises.
  * HOW: Appends BRIX_SERVER_VERSION + newline. */
 static ngx_flag_t
-brix_qconfig_emit_version(ngx_stream_brix_srv_conf_t *conf,
+brix_qconfig_emit_version(ngx_stream_brix_srv_conf_t *conf, ngx_connection_t *c,
     char *resp, size_t resp_sz, size_t *pos)
 {
     (void) conf;
+    (void) c;
     return brix_qconfig_append(resp, resp_sz, pos, "%s\n",
                                BRIX_SERVER_VERSION);
 }
@@ -288,10 +300,11 @@ brix_qconfig_emit_version(ngx_stream_brix_srv_conf_t *conf,
  * WHY: Reference format: a bare integer + newline; stock default is maxStreams-1 = 15.
  * HOW: Appends the constant 15 as %d + newline. */
 static ngx_flag_t
-brix_qconfig_emit_bind_max(ngx_stream_brix_srv_conf_t *conf,
+brix_qconfig_emit_bind_max(ngx_stream_brix_srv_conf_t *conf, ngx_connection_t *c,
     char *resp, size_t resp_sz, size_t *pos)
 {
     (void) conf;
+    (void) c;
     return brix_qconfig_append(resp, resp_sz, pos, "%d\n", 15);
 }
 
@@ -304,10 +317,11 @@ brix_qconfig_emit_bind_max(ngx_stream_brix_srv_conf_t *conf,
  *      request a stock peer will not answer (an unknown key merely echoes "brix.substreams").
  * HOW: Single fixed-string append. */
 static ngx_flag_t
-brix_qconfig_emit_substreams(ngx_stream_brix_srv_conf_t *conf,
+brix_qconfig_emit_substreams(ngx_stream_brix_srv_conf_t *conf, ngx_connection_t *c,
     char *resp, size_t resp_sz, size_t *pos)
 {
     (void) conf;
+    (void) c;
     return brix_qconfig_append(resp, resp_sz, pos, "brix.substreams=rw\n");
 }
 
@@ -316,10 +330,11 @@ brix_qconfig_emit_substreams(ngx_stream_brix_srv_conf_t *conf,
  *      atoi(), so a "pio_max=" prefix would break it.
  * HOW: Appends the constant 5 as %d + newline. */
 static ngx_flag_t
-brix_qconfig_emit_pio_max(ngx_stream_brix_srv_conf_t *conf,
+brix_qconfig_emit_pio_max(ngx_stream_brix_srv_conf_t *conf, ngx_connection_t *c,
     char *resp, size_t resp_sz, size_t *pos)
 {
     (void) conf;
+    (void) c;
     return brix_qconfig_append(resp, resp_sz, pos, "%d\n", 5);
 }
 
@@ -328,9 +343,10 @@ brix_qconfig_emit_pio_max(ngx_stream_brix_srv_conf_t *conf,
  *      A standalone data server reports "server"; in manager/redirector mode it reports "manager".
  * HOW: Appends "manager" or "server" per conf->manager_mode + newline. */
 static ngx_flag_t
-brix_qconfig_emit_role(ngx_stream_brix_srv_conf_t *conf,
+brix_qconfig_emit_role(ngx_stream_brix_srv_conf_t *conf, ngx_connection_t *c,
     char *resp, size_t resp_sz, size_t *pos)
 {
+    (void) c;
     return brix_qconfig_append(resp, resp_sz, pos, "%s\n",
                                conf->manager_mode ? "manager" : "server");
 }
@@ -342,11 +358,38 @@ brix_qconfig_emit_role(ngx_stream_brix_srv_conf_t *conf,
  *      (src/fattr/), so advertise the same.
  * HOW: Single fixed-string append. */
 static ngx_flag_t
-brix_qconfig_emit_fattr(ngx_stream_brix_srv_conf_t *conf,
+brix_qconfig_emit_fattr(ngx_stream_brix_srv_conf_t *conf, ngx_connection_t *c,
     char *resp, size_t resp_sz, size_t *pos)
 {
     (void) conf;
+    (void) c;
     return brix_qconfig_append(resp, resp_sz, pos, "248 65536\n");
+}
+
+/* WHAT: Emits the session's TCP receive-window bytes for the "window" query key.
+ * WHY: Reference do_Qconf answers "window" with its configured wsz as a bare
+ *      integer (stock 5.6.9 emits e.g. 131072 with a default config; verified
+ *      live against the fleet's reference server). BriX has no static wsz —
+ *      nginx leaves it to the OS — so the honest equivalent is the actual
+ *      SO_RCVBUF of THIS control connection: same semantics ("how much may you
+ *      keep in flight"), a live value instead of a config echo.
+ * HOW: getsockopt(SO_RCVBUF) on the connection fd; on failure fall back to
+ *      echoing the key name, the reference's shape for an unanswerable key. */
+static ngx_flag_t
+brix_qconfig_emit_window(ngx_stream_brix_srv_conf_t *conf, ngx_connection_t *c,
+    char *resp, size_t resp_sz, size_t *pos)
+{
+    int       window_bytes = 0;
+    socklen_t optlen = sizeof(window_bytes);
+
+    (void) conf;
+    if (getsockopt(c->fd, SOL_SOCKET, SO_RCVBUF,
+                   &window_bytes, &optlen) != 0
+        || window_bytes <= 0)
+    {
+        return brix_qconfig_append(resp, resp_sz, pos, "window\n");
+    }
+    return brix_qconfig_append(resp, resp_sz, pos, "%d\n", window_bytes);
 }
 
 /* WHAT: Static descriptor table mapping each supported kXR_Qconfig key to its emitter.
@@ -392,6 +435,7 @@ static const brix_qconfig_entry_t  brix_qconfig_table[] = {
     { "bind_max",      brix_qconfig_emit_bind_max,      1 },
     { "pio_max",       brix_qconfig_emit_pio_max,       1 },
     { "fattr",         brix_qconfig_emit_fattr,         1 },
+    { "window",        brix_qconfig_emit_window,        1 },
     /* Deployment identity — withheld from a public read-only gateway. */
     { "version",       brix_qconfig_emit_version,       0 },
     { "role",          brix_qconfig_emit_role,          0 },
@@ -406,7 +450,7 @@ static const brix_qconfig_entry_t  brix_qconfig_table[] = {
  * HOW: Linear scan to the NULL sentinel (table is small, request-parse path); strcmp match → emit;
  *      fall-through → append "%s\n" with the key. */
 static ngx_flag_t
-brix_qconfig_emit_key(const char *key, ngx_stream_brix_srv_conf_t *conf,
+brix_qconfig_emit_key(const char *key, ngx_stream_brix_srv_conf_t *conf, ngx_connection_t *c,
     char *resp, size_t resp_sz, size_t *pos)
 {
     const brix_qconfig_entry_t *e;
@@ -422,7 +466,7 @@ brix_qconfig_emit_key(const char *key, ngx_stream_brix_srv_conf_t *conf,
         if (conf->common.read_only_public && !e->public_safe) {
             break;
         }
-        return e->emit(conf, resp, resp_sz, pos);
+        return e->emit(conf, c, resp, resp_sz, pos);
     }
 
     return brix_qconfig_append(resp, resp_sz, pos, "%s\n", key);
@@ -445,7 +489,7 @@ brix_query_config(brix_ctx_t *ctx, ngx_connection_t *c,
     while (brix_qconfig_next_token(&p, key, sizeof(key))) {
         ntokens++;
 
-        if (!brix_qconfig_emit_key(key, conf, resp, sizeof(resp), &pos)) {
+        if (!brix_qconfig_emit_key(key, conf, c, resp, sizeof(resp), &pos)) {
             break;
         }
     }

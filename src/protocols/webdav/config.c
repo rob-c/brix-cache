@@ -121,35 +121,35 @@ ngx_http_brix_webdav_create_loc_conf(ngx_conf_t *cf)
 
     ngx_http_brix_shared_init(&conf->common);
     conf->verify_depth = NGX_CONF_UNSET_UINT;
-    conf->signing_policy_mode = NGX_CONF_UNSET_UINT;
-    conf->crl_mode     = NGX_CONF_UNSET_UINT;
+    conf->common.signing_policy_mode = NGX_CONF_UNSET_UINT;
+    conf->common.crl_mode     = NGX_CONF_UNSET_UINT;
     conf->auth         = NGX_CONF_UNSET_UINT;
-    brix_acc_http_init_conf(&conf->acc);   /* XrdAcc engine (off by default) */
+    /* XrdAcc engine init moved into ngx_http_brix_shared_init (common.acc), W2. */
     conf->proxy_certs  = NGX_CONF_UNSET;
     conf->tape_rest    = NGX_CONF_UNSET;
-    conf->upload_resume = NGX_CONF_UNSET;
     conf->ca_store     = NULL;
     conf->cors_origins = NULL;
     conf->cors_credentials = NGX_CONF_UNSET;
-    conf->cors_max_age = NGX_CONF_UNSET_UINT;
-    conf->lock_timeout = NGX_CONF_UNSET_UINT;
+    conf->cors_max_age = NGX_CONF_UNSET;   /* time_t (sec_slot), W7 */
+    conf->lock_timeout = NGX_CONF_UNSET;   /* time_t (sec_slot), W7 */
     conf->lock_startup_sweep = NGX_CONF_UNSET;
-    conf->zip_access = NGX_CONF_UNSET;
     conf->http_query_token = NGX_CONF_UNSET;
-    conf->token_clock_skew = NGX_CONF_UNSET;
+    conf->common.token_clock_skew = NGX_CONF_UNSET;
     conf->macaroon_max_validity = NGX_CONF_UNSET;
     conf->dig_enable = NGX_CONF_UNSET;
     conf->require_digest = NGX_CONF_UNSET;
     conf->delegation_endpoint = NGX_CONF_UNSET;
+    conf->html_listing        = NGX_CONF_UNSET;      /* §6.6 */
+    conf->maxdelay            = NGX_CONF_UNSET;       /* §6.11 */
     conf->redirect_dataserver = NGX_CONF_UNSET;      /* §6.1 */
     conf->redirect_port       = NGX_CONF_UNSET;
     conf->redirect_scheme     = NGX_CONF_UNSET_UINT;
     conf->redirect_window     = NGX_CONF_UNSET;
     conf->dig_exports = NGX_CONF_UNSET_PTR;
-    conf->authdb_rules = NGX_CONF_UNSET_PTR;   /* created on first brix_webdav_authdb */
-    conf->vo_rules = NGX_CONF_UNSET_PTR;       /* created on first brix_webdav_require_vo */
+    /* authdb_rules + vo_rules now live in the shared preamble
+     * (common.authdb_rules W5.2 / common.vo_rules W4), init'd by
+     * ngx_http_brix_shared_init and adopted from the common module. */
     conf->checksum_xattr_format = NGX_CONF_UNSET_UINT;
-    conf->zip_cd_max_bytes = NGX_CONF_UNSET_SIZE;
     conf->open_file_cache = NGX_CONF_UNSET_PTR;
     conf->open_file_cache_valid = NGX_CONF_UNSET_UINT;
     conf->open_file_cache_min_uses = NGX_CONF_UNSET_UINT;
@@ -247,7 +247,7 @@ webdav_log_endpoint_summary(ngx_conf_t *cf,
     ngx_uint_t  has_x509  = (conf->cadir.len > 0 || conf->cafile.len > 0
                              || conf->proxy_certs);
     ngx_uint_t  has_token = (conf->jwks_key_count > 0);
-    ngx_uint_t  has_pwd   = (conf->pwd_file.len > 0);
+    ngx_uint_t  has_pwd   = (conf->common.pwd_file.len > 0);
 
     ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
         "brix: WebDAV (davs://) endpoint ready — export \"%V\" (%s), auth: %s",
@@ -262,9 +262,9 @@ webdav_log_endpoint_summary(ngx_conf_t *cf,
             has_token ? " bearer-token" : "",
             has_pwd ? " basic-password" : "");
     }
-    if (conf->crl.len > 0) {
+    if (conf->common.crl.len > 0) {
         ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
-            "brix:   revocation: CRL \"%V\"", &conf->crl);
+            "brix:   revocation: CRL \"%V\"", &conf->common.crl);
     }
     if (conf->tpc) {
         ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
@@ -289,7 +289,7 @@ webdav_log_endpoint_warnings(ngx_conf_t *cf,
             "(prefer x509/GSI or bearer tokens, and serve Basic only over "
             "TLS: passwords cross the wire base64-encoded, not encrypted)");
     }
-    if (has_x509 && conf->crl.len == 0) {
+    if (has_x509 && conf->common.crl.len == 0) {
         ngx_conf_log_error(NGX_LOG_WARN, cf, 0,
             "brix:   NOTE: x509/GSI is accepted but no CRL is configured — "
             "REVOKED certificates will be ACCEPTED (set brix_webdav_crl)");
@@ -304,8 +304,8 @@ webdav_log_endpoint_warnings(ngx_conf_t *cf,
         ngx_conf_log_error(NGX_LOG_WARN, cf, 0,
             "brix:   NOTE: auth is required but no x509 CA, token JWKS or "
             "password db is configured — every client will be rejected (set "
-            "brix_webdav_cadir, brix_webdav_token_jwks and/or "
-            "brix_webdav_pwd_file)");
+            "brix_trusted_ca_dir, brix_token_jwks and/or "
+            "brix_pwd_file)");
     }
 }
 

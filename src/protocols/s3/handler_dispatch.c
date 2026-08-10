@@ -34,6 +34,8 @@
 #include "core/http/http_query.h"
 #include "protocols/shared/deleg_capture.h"
 #include "fs/backend/sd.h"
+#include "fs/path/path.h"          /* phase-101 W5.2c: native authdb READ gate */
+#include "core/types/config.h"     /* BRIX_AUTH_READ */
 
 #include <limits.h>
 #include <stdlib.h>
@@ -318,6 +320,51 @@ s3_resolve_object_key(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
 }
 
 /*
+ * s3_apply_native_authdb — native u/g/p/h READ ACL gate (phase-101 W5.2c).
+ *
+ * Enforces the bare brix_authdb rules on S3 exactly as webdav/access.c does
+ * (and root:// on stream), closing the W5 gap where a bare brix_authdb off
+ * webdav was accepted-but-inert.  Reads THIS export's finalized copy
+ * (cf->authdb_final, realpath'd against its own root — never the shared source),
+ * matching the confined fs_path in the same realpath space.  READ methods only
+ * (writes gate on allow_write + their own per-op checks, mirroring webdav).
+ * Returns NGX_DECLINED to continue, or the already-sent 403 rc on deny.
+ */
+static ngx_int_t
+s3_apply_native_authdb(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
+    ngx_http_s3_req_ctx_t *s3ctx, ngx_uint_t method_slot, const char *fs_path)
+{
+    char        peer[NGX_SOCKADDR_STRLEN];
+    size_t      pn;
+
+    if (cf->authdb_final == NULL
+        || (r->method != NGX_HTTP_GET && r->method != NGX_HTTP_HEAD))
+    {
+        return NGX_DECLINED;
+    }
+
+    pn = ngx_min(r->connection->addr_text.len, sizeof(peer) - 1);
+    ngx_memcpy(peer, r->connection->addr_text.data, pn);
+    peer[pn] = '\0';
+
+    brix_authdb_query_t query = {
+        .rules         = cf->authdb_final,
+        .identity      = s3ctx->identity,
+        .peer_ip       = peer,
+        .resolved_path = fs_path,
+        .needed_privs  = BRIX_AUTH_READ,
+    };
+
+    if (brix_check_authdb_identity(r->connection->log, &query) != NGX_OK) {
+        BRIX_S3_METRIC_INC(events_total[BRIX_S3_EVENT_ACCESS_DENIED]);
+        return s3_metrics_return_method(r, method_slot,
+            s3_send_xml_error(r, NGX_HTTP_FORBIDDEN, "AccessDenied",
+                              "authdb: access denied"));
+    }
+    return NGX_DECLINED;
+}
+
+/*
  * Post-auth S3 op dispatch (parse URI -> route by method).  Runs inside the
  * caller's impersonation bracket; see ngx_http_s3_handler.
  */
@@ -362,6 +409,11 @@ s3_dispatch_after_auth(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
 
     rc = s3_resolve_object_key(r, cf, s3ctx, method_slot, key, fs_path,
                                sizeof(fs_path));
+    if (rc != NGX_DECLINED) {
+        return rc;
+    }
+    /* phase-101 W5.2c: native brix_authdb READ ACL on the confined fs_path. */
+    rc = s3_apply_native_authdb(r, cf, s3ctx, method_slot, fs_path);
     if (rc != NGX_DECLINED) {
         return rc;
     }

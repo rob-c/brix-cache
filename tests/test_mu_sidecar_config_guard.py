@@ -54,10 +54,10 @@ def _svc_directives(shape, kind, where, g):
                 "state": f"brix_cache_state_root {path};"}[kind]
     if shape == "webdav":
         if kind == "cache_root":
-            return f"brix_webdav_cache_root {path};"
+            return f"brix_cache_root {path};"
         # cache_root OUTSIDE (valid) + stage nested (the tree under test)
-        return f"brix_webdav_cache_root {g.outside};\nbrix_webdav_stage_dir {g.nested};"
-    return f"brix_s3_cache_root {path};"   # s3
+        return f"brix_cache_root {g.outside};\nbrix_webdav_stage_dir {g.nested};"
+    return f"brix_cache_root {path};"   # s3
 
 
 def _spec(label, shape, svc, g):

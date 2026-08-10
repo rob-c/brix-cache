@@ -8,6 +8,7 @@
 
 #include "sd_frm_mss.h"
 
+#include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <limits.h>
@@ -282,11 +283,80 @@ stub_destroy(void *mss)
     free(mss);
 }
 
+/* stub_list — §3.7 pure-tape namespace enumeration: readdir the TAPE directory
+ * of `key` (the offline namespace — what an operator needs to browse without
+ * recalling anything). The .online/.recalling bookkeeping dirs never appear:
+ * they live under <base> as dot-prefixed roots and only root-level entries
+ * could collide, so dot-entries are skipped wholesale (tape keys are plain). */
+static int
+stub_list(void *mss, const char *key,
+    int (*cb)(void *ud, const char *name, int is_dir), void *ud)
+{
+    stub_ctx_t     *c = mss;
+    char            dirpath[PATH_MAX];
+    DIR            *d;
+    struct dirent  *de;
+
+    if (stub_path(c, key, 0, dirpath, sizeof(dirpath)) != 0) {
+        errno = ENAMETOOLONG;
+        return -1;
+    }
+    d = opendir(dirpath);
+    if (d == NULL) {
+        return -1;   /* ENOENT/ENOTDIR surface as-is */
+    }
+    while ((de = readdir(d)) != NULL) {
+        int is_dir;
+
+        if (de->d_name[0] == '.') {
+            continue;   /* ".", "..", and the .online/.recalling roots */
+        }
+        if (de->d_type == DT_DIR) {
+            is_dir = 1;
+        } else if (de->d_type == DT_UNKNOWN) {
+            char        sub[PATH_MAX];
+            struct stat sb;
+
+            is_dir = (snprintf(sub, sizeof(sub), "%s/%s", dirpath,
+                               de->d_name) < (int) sizeof(sub)
+                      && stat(sub, &sb) == 0 && S_ISDIR(sb.st_mode));
+        } else {
+            is_dir = 0;
+        }
+        if (cb(ud, de->d_name, is_dir)) {
+            break;
+        }
+    }
+    closedir(d);
+    return 0;
+}
+
+/* stub_mkpath — §3.7 rcreate analog: create tape directory `key` (parents
+ * included) under the local tape root. EEXIST on the leaf is success. */
+static int
+stub_mkpath(void *mss, const char *key, mode_t mode)
+{
+    stub_ctx_t *c = mss;
+    char        dirpath[PATH_MAX];
+
+    if (stub_path(c, key, 0, dirpath, sizeof(dirpath)) != 0) {
+        errno = ENAMETOOLONG;
+        return -1;
+    }
+    frm_mkparents(dirpath);
+    if (mkdir(dirpath, mode ? mode : 0755) != 0 && errno != EEXIST) {
+        return -1;
+    }
+    return 0;
+}
+
 const brix_mss_adapter_t brix_mss_stub_adapter = {
     .name          = "stub",
     .residency     = stub_residency,
     .recall_begin  = stub_recall_begin,
     .recall_poll   = stub_recall_poll,
+    .list          = stub_list,
+    .mkpath        = stub_mkpath,
     .migrate       = stub_migrate,
     .purge         = stub_purge,
     .open_online   = stub_open_online,

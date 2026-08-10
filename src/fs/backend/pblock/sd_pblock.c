@@ -198,6 +198,40 @@ sd_pblock_recall(brix_sd_instance_t *inst, const char *key,
     return pblock_nearline_recall(st, key) == 0 ? NGX_OK : NGX_ERROR;
 }
 
+/* ---- commit-time dedup (phase-88 W1) -------------------------------------- */
+
+/* sd_pblock_dedup_publish — driver->dedup_publish for pblock.
+ *
+ * WHAT: Collapse the (content-verified) object at `path` onto a byte-identical
+ *       existing blob via the F10 refs machinery. The canonical alias `canon`
+ *       is ignored: pblock's blobs table already carries content identity, so
+ *       no extra namespace entry is needed and eviction is refcount-driven
+ *       (driver->dedup_gc is NULL). NGX_OK on fold/keep, NGX_ERROR with
+ *       ENOTSUP when the export has no refs gate (opts dedup=1), else the
+ *       fold's errno.
+ *
+ * WHY:  Serving brix_cache_global_cas from a pblock cache store — the posix
+ *       hardlink farm has no meaning here, but refcounted-blob dedup gives the
+ *       same one-copy-per-content guarantee with byte-verified folds.
+ *
+ * HOW:  1. Gate on st->refs.  2. pblock_refs_dedup_existing re-nominates the
+ *       committed blob by its recorded content hash and folds when a candidate
+ *       byte-verifies.
+ */
+static ngx_int_t
+sd_pblock_dedup_publish(brix_sd_instance_t *inst, const char *path,
+    const char *canon)
+{
+    pblock_state_t *st = inst->state;
+
+    (void) canon;
+    if (st == NULL || !st->refs) {
+        errno = ENOTSUP;
+        return NGX_ERROR;
+    }
+    return pblock_refs_dedup_existing(st, path) < 0 ? NGX_ERROR : NGX_OK;
+}
+
 /* ---- the driver descriptor ------------------------------------------------ */
 
 /* Full POSIX-parity capabilities: block 0 is a real kernel file, so the backend
@@ -258,6 +292,11 @@ const brix_sd_driver_t brix_sd_pblock_driver = {
     .staged_write  = sd_pblock_staged_write,
     .staged_commit = sd_pblock_staged_commit,
     .staged_abort  = sd_pblock_staged_abort,
+    .staged_path   = sd_pblock_staged_path,   /* phase-88 W1: single-block
+                                               * fills verify like a .part */
+    .dedup_publish = sd_pblock_dedup_publish, /* phase-88 W1: refs-based G13;
+                                               * dedup_gc stays NULL — eviction
+                                               * is refcount-driven */
 
     /* identity-enforcing slots (sd_pblock_cred.c): POSIX mode-bit checks
      * against catalog ownership when the request carries an identity;

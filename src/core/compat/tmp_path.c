@@ -143,6 +143,28 @@ static char       s_tmp_reap_roots[BRIX_TMP_REAP_MAX][PATH_MAX];
 static ngx_uint_t s_tmp_reap_count;
 static ngx_uint_t s_tmp_reaped;   /* nftw has no ctx; worker-0 startup is single-threaded */
 
+/* ofs.persist policy (§1.9). AUTO/0 = historical behaviour. The nftw callback
+ * has no context arg, and worker-0 startup is single-threaded, so the mode, the
+ * hold seconds, and the walk's captured "now" ride file-static state — set once
+ * by brix_tmp_reap_set_policy() at config time and by brix_tmp_reap_all() at the
+ * top of the walk. */
+static int    s_tmp_reap_mode = BRIX_POSC_PERSIST_AUTO;
+static time_t s_tmp_reap_hold;    /* grace seconds; 0 = reap immediately */
+static time_t s_tmp_reap_now;     /* walk start time, for the hold-age gate */
+
+void
+brix_tmp_reap_set_policy(int mode, time_t hold_sec)
+{
+    if (mode != BRIX_POSC_PERSIST_AUTO
+        && mode != BRIX_POSC_PERSIST_MANUAL
+        && mode != BRIX_POSC_PERSIST_OFF)
+    {
+        return;                                 /* ignore an out-of-range mode */
+    }
+    s_tmp_reap_mode = mode;
+    s_tmp_reap_hold = hold_sec > 0 ? hold_sec : 0;
+}
+
 void
 brix_tmp_reap_register(const char *export_root)
 {
@@ -184,7 +206,6 @@ brix_tmp_reap_cb(const char *fpath, const struct stat *sb, int typeflag,
     long        pid;
     char       *end;
 
-    (void) sb;
     (void) ftwbuf;
     if (typeflag != FTW_F) {
         return 0;
@@ -203,6 +224,16 @@ brix_tmp_reap_cb(const char *fpath, const struct stat *sb, int typeflag,
             return 0;
         }
     }
+    /* ofs.persist hold (§1.9): under a grace period a dead-owner orphan is kept
+     * until it has been idle at least s_tmp_reap_hold seconds, so a temp whose
+     * writer is about to reconnect-and-resume is not reaped mid-recovery. A temp
+     * with a future mtime (clock skew) is treated as fresh — kept, never reaped. */
+    if (s_tmp_reap_hold > 0
+        && (s_tmp_reap_now < sb->st_mtime
+            || s_tmp_reap_now - sb->st_mtime < s_tmp_reap_hold))
+    {
+        return 0;
+    }
     if (unlink(fpath) == 0) {
         s_tmp_reaped++;
     }
@@ -214,7 +245,21 @@ brix_tmp_reap_all(ngx_log_t *log)
 {
     ngx_uint_t i;
 
+    /* ofs.persist manual/off (§1.9): leave every crash orphan in place for an
+     * operator to inspect or recover — the reap is the ONLY thing this policy
+     * disables (live-owner in-flight writes were always kept anyway). */
+    if (s_tmp_reap_mode != BRIX_POSC_PERSIST_AUTO) {
+        if (log != NULL) {
+            ngx_log_error(NGX_LOG_NOTICE, log, 0,
+                "brix: posc persist=%s — orphaned upload-temp reaping disabled; "
+                "crash orphans are kept for manual recovery",
+                s_tmp_reap_mode == BRIX_POSC_PERSIST_MANUAL ? "manual" : "off");
+        }
+        return 0;
+    }
+
     s_tmp_reaped = 0;
+    s_tmp_reap_now = time(NULL);            /* one clock read per walk (hold gate) */
     for (i = 0; i < s_tmp_reap_count; i++) {
         (void) nftw(s_tmp_reap_roots[i], brix_tmp_reap_cb, 16, FTW_PHYS);
     }

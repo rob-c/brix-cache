@@ -63,7 +63,8 @@
     X(CACHE,     cache,     "cache",    DECORATOR) /* read-through cache   */ \
     X(STAGE,     stage,     "stage",    DECORATOR) /* write-back stage     */ \
     X(REMOTE,    remote,    "remote",   DECORATOR) /* broker/impersonate   */ \
-    X(FRM,       frm,       "frm",      NEARLINE)  /* HSM/MSS recall plane */
+    X(FRM,       frm,       "frm",      NEARLINE)  /* HSM/MSS recall plane */ \
+    X(MIRAGE,    mirage,    "mirage",   BACKEND)   /* synthetic sizes-only */
 
 /* ---- drivers present only when ./configure found their library ---------- */
 #if BRIX_HAVE_CEPH

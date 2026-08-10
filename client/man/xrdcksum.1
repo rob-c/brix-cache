@@ -19,6 +19,9 @@ xrdcksum \- compute, verify and manage file checksums for XRootD and local stora
 .br
 .B xrdcinfo
 [\-\-xattr] \fIPATH\fR
+.br
+.B xrdcks
+\fIPATH\fR \fICKSNAME\fR [\fICKSVAL\fR|delete]
 .SH DESCRIPTION
 .B xrdcksum
 computes, verifies and manages checksums for files stored locally or on
@@ -82,6 +85,18 @@ Use \fB\-\-algo\fR for crc32c, zcrc32, or crc64nvme manifests.
 Prints \fBOK\fR or \fBFAILED\fR for each entry.
 Exit: 0 all OK, 1 any mismatch, 2 errors (parse/I/O);
 2 (errors) takes precedence over 1 (mismatch) when both occur.
+.TP
+.B xrdcks \fIPATH\fR \fICKSNAME\fR [\fICKSVAL\fR|delete]
+Manage the checksum stored in the file's \fBuser.XrdCks.\fICKSNAME\fR
+extended attribute (the XRootD \fBXrdCksData\fR 96\-byte record).
+With no \fICKSVAL\fR, print the stored checksum \(em computing and storing it
+on a miss.
+With an ASCII\-hex \fICKSVAL\fR, store that value.
+With \fBdelete\fR, remove the attribute.
+Local files only; the record layout is byte\-compatible with stock XRootD so a
+value written here is readable by an XRootD server that consumes
+\fBuser.XrdCks.*\fR.
+Exit: 0 OK, 4 usage/I/O error.
 .SH URLS
 .TP
 .BR root [ s ]:// host [: port ]// path

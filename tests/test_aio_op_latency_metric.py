@@ -233,7 +233,13 @@ def test_latency_recorder_touches_histogram_fields_only():
                     "brix_metric_op_latency")
     writes = re.findall(r"BRIX_ATOMIC_(?:INC|ADD)\(&shm->unified\.(\w+)", body)
     assert writes, "recorder performs no SHM writes"
-    assert all(w.startswith("io_latency_") for w in writes), writes
+    # The recorder writes the latency histogram and, since §3.15, the slowop
+    # classifier counter — both low-cardinality [proto][op] SHM arrays, NOT the
+    # op/byte counters brix_metric_op_done owns (double-count guard preserved).
+    allowed = tuple(w for w in writes
+                    if w.startswith("io_latency_") or w == "io_slowop_total")
+    assert set(allowed) == set(writes), \
+        f"recorder writes an unexpected SHM field: {set(writes) - set(allowed)}"
     # enum bounds are checked before any SHM access (attacker-influenced or
     # corrupted enum values must not index out of the label tables)
     assert "proto >= BRIX_PROTO_COUNT" in body

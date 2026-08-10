@@ -144,8 +144,17 @@ brix_file_open_opaque(brix_conn *c, const char *path, const char *opaque,
     /* kXR_open option bits come from the shared builder (protocol/open_flags.h)
      * so this request and the server's POSIX-flag decode share one definition of
      * the create/truncate/in-place (`force`) semantics. Writes always make parent
-     * dirs (mkpath). */
-    options = brix_open_options_build(write, force, posc, /*mkpath=*/1);
+     * dirs (mkpath). §7.13: the XRDC_OPEN_COERCE modifier adds kXR_force
+     * ("ignore usage rules", stock -F) on top of the tristate. */
+    {
+        int coerce = force & XRDC_OPEN_COERCE;
+
+        options = brix_open_options_build(write, force & ~XRDC_OPEN_COERCE,
+                                          posc, /*mkpath=*/1);
+        if (coerce) {
+            options |= (uint16_t) kXR_force;
+        }
+    }
 
     /* The server splits "<path>?<opaque>" — open_extract_opaque (src/protocols/root/read).
      * Heap-size to the actual lengths; no opaque ⇒ bare path (open_read/write). */

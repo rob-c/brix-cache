@@ -2,7 +2,7 @@
 (test_impersonation_gridmap_root.py).
 
 These back tests that can ONLY be exercised when the nginx binary is launched as
-real root: `brix_impersonation map` makes the master spawn a privileged broker
+real root: `brix_idmap map` makes the master spawn a privileged broker
 that setfsuid()s to the local account an authenticated identity maps to via a
 grid-mapfile, so backend files land owned by that real UNIX user.  Proving that
 requires real system accounts and a real setfsuid — impossible without root.
@@ -10,7 +10,7 @@ requires real system accounts and a real setfsuid — impossible without root.
 Everything here is deliberately self-contained (own account prefix, own PKI-free
 token authority, own export tree) so the suite integrates with the registry
 LifecycleHarness without disturbing the multi-user conformance fleet
-(mu_authz_lib/, which uses `brix_impersonation off`).
+(mu_authz_lib/, which uses `brix_idmap off`).
 """
 from __future__ import annotations
 

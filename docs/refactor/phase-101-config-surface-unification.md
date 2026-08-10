@@ -20,15 +20,15 @@ works on every protocol" for operators.
 
 | WS | Item | Verdict | Size |
 |----|------|---------|------|
-| W1 | S3 `brix_pmark*` registrations are dead (first-module-wins); SciTags on S3 is a silent no-op | **FIX** — move pmark family to `http_common`; delete both HTTP protocol tables | S |
-| W2 | Dual-conf-poking setters (`brix_ktls`, `brix_cache_store_endpoint`, XrdAcc family) hardwire webdav+s3, exclude cvmfs | **RETIRE** pattern — promote to `http_common` + adopt | M |
-| W3 | No common owner on the stream plane → gridftp grew 11 prefixed copies | **BUILD** stream-side common owner; rename gridftp's 11 (variant A/B: OP-DECIDE) | M–L |
-| W4 | 35 prefixed HTTP twins of bare-name families (token, TPC, x509/VOMS, macaroon, zip, stage/upload, protbind, pwd, pblock) | **HARD-RENAME** to bare names via family X-macro headers, one family per commit | L |
-| W5 | `brix_authdb` (XrdAcc) vs `brix_webdav_authdb` (u/g/p rules) — different engines, near-identical names | **OP-DECIDE** semantics, then rename | S |
-| W6 | Naming-grammar outliers (`brix_ocsp_enable`, impersonation's 4 prefixes, dashboard's 3 prefixes, 5 CA-path spellings — now reader-resolved into 3 distinct mechanisms) | **RENAME** per codified grammar | M |
-| W7 | Value-syntax drift (raw-int times vs nginx units; duplicate size parser; two zone grammars; hand-rolled on/off) | **NORMALIZE** — mostly backward-compatible slot swaps | S |
-| W8 | Legacy HTTP cache grammar (`brix_webdav_cache_root`, `brix_s3_cache_root`) — **live**: threaded into `brix_vfs_ctx_init()` on every request | **MIGRATE-OR-KEEP** decision (the promised "P2 legacy-removal big-bang", HTTP half) | M |
-| W9 | Guardrails: `check_directive_registry.py`, doc-drift closure (17 undocumented names), stale X-macro header comment, 2026-07 plan Tasks 6–7 | **ADD/CLOSE** | M |
+| W1 | S3 `brix_pmark*` registrations are dead (first-module-wins); SciTags on S3 is a silent no-op | ✅ **DONE 2026-08-09** — 13-entry family moved to `http_common` at `BRIX_HTTP_ALL_CONF` scope; webdav + s3 tables deleted; `brix_shared_adopt_unified()` extended with the 13 config-time pmark fields; `tests/test_pmark_s3.py` (4 cases) green | S |
+| W2 | Dual-conf-poking setters (`brix_ktls`, `brix_cache_store_endpoint`, XrdAcc family) hardwire webdav+s3, exclude cvmfs | ✅ **DONE 2026-08-09** — all 13 → `http_common` generic slots; `brix_acc_http_t acc` promoted into the shared preamble (ABI-dirty rebuild), adopted into every HTTP protocol incl. cvmfs; `module_acc_directives.{c,h}` deleted; `test_acc_unification.py` (4) green + acc/authdb suites green; checker R4 26→14, R1=0 | M |
+| W3 | No common owner on the stream plane → gridftp grew 11 prefixed copies | ✅ **DONE (variant A) 2026-08-10** — new `ngx_stream_brix_common_module` (`stream_common.{c,h}`) owns all 11 shared bare names (storage + x509-trust + require_vo); root and gridftp ADOPT at merge (GSI-trust strings via `brix_stream_common_adopt_gsi`, VO-ACL rules deep-copied via `brix_stream_common_adopt_vo_rules` and finalized per-plane; readers/postconfig unchanged). **R2 11→0 — the phase's headline goal reached (R1=0, R2=0 across the whole codebase).** Verified: full gridftp suite (173 incl. GSI handshake/security-neg/VO-ACL-over-GSI/pblock/s3/mode-E/PASV/delegation) + root:// GSI green. | M–L |
+| W4 | HTTP twins de-prefixed onto the preamble+common module | **DONE 2026-08-10** — **14 families**: zip, pwd_file, upload_resume, macaroon, stage_dir, pblock, x509-crl, voms, token-trust-quartet, require_vo, protbind, HTTP-TPC SSRF policy (all 6 TPC twins), token_config; **tpc_verify_checksum unified** (stream flag + webdav `<alg>` → one `on\|off\|<alg>` grammar, `on`→adler32). With W5's `brix_webdav_authdb` de-prefix landed, the last HTTP twin is gone (R2 44→11; the 11 remaining are all W3 gridftp; R1=0). | L |
+| W5 | `brix_authdb` (XrdAcc) vs `brix_webdav_authdb` (u/g/p rules) — different engines, near-identical names | ✅ **DONE 2026-08-10 (variant A)** — HTTP XrdAcc entry+tuners → `brix_acc_authdb`/`brix_acc_format`/`_audit`/`_refresh`; `brix_webdav_authdb` → bare `brix_authdb` (native, webdav-scoped). Prefix == engine on HTTP, matching stream. Security-neg pin: pre-W5 XrdAcc HTTP config fails `nginx -t` loudly (dead selection spelling). Harness unblocked (static/dynamic build separation fixed); `test_authdb.py` 9/9 (stream native baseline) + new `test_authdb_engine_split.py` (12) + acc/authdb suites green (46 total). **W5.2 DONE 2026-08-10**: `authdb_rules` moved to the shared preamble (`common.authdb_rules`, mirroring `common.vo_rules`) + `brix_authdb` registered once on `http_common` at `BRIX_HTTP_ALL_CONF` (was webdav-scoped); webdav rebased. **s3 access phase now ENFORCES the native READ ACL** (`handler_dispatch.c` after key resolution, GET/HEAD, on the confined fs_path) — closing the W5 accepted-but-inert gap. Each enforcing plane **deep-copies** `common.authdb_rules` + finalizes the copy against its OWN root (`brix_authdb_rules_finalize_copy`), because the shared array is pointer-inherited across sibling protocol locations and two in-place finalizes against different roots would silently mis-resolve rule paths. Verified: new `test_s3_native_authz.py` (3: grant rule-covered, grant host-rule, deny-uncovered→403) + regression-free (`test_mu_webdav_authz` 6, s3 24, root 9). **cvmfs deliberately NOT gated**: its read-through/proxy `root` is the upstream URL and objects are content-addressed, so a path-prefix ACL against a local realpath is the wrong model (peer/URI-based cvmfs authz is a separate design). Does not affect R2 (0). Also fixed pre-existing stale-W4-name configs (`nginx_mu_webdav_authz.conf` et al.). | S |
+| W6 | Naming-grammar outliers | **DONE 2026-08-10** — `brix_ocsp_enable`→`brix_ocsp` (Rule 1); `brix_scan_root`/`brix_scan_max_files`→`brix_dashboard_scan_*` (Rule 2); impersonation 4-prefix→one `brix_idmap` (11 directives, name-only); CA/trust quartet→role names (`brix_trusted_ca`/`_dir`, `brix_client_ca_store`, `brix_backend_ca_dir`; `brix_client_certificate_folder` kept). Grammar codified in coding-standards.md §2. Tests: `test_w6_renames`, `test_idmap_rename`, `test_ca_rename_unification`. | M |
+| W7 | Value-syntax drift | WIP 2026-08-10 — DONE: `brix_s3_mpu_max_age` + `brix_backend_s3_sts_ttl` num→sec (`test_w7_sec_slots.py`); ratelimit size-parser dedup (`test_w7_ratelimit_size.py`; corrected the plan — `ngx_parse_size` lacks `g`, did the additive direction); **`brix_kv_zone` → `zone=name:size` grammar (Commit B, breaking; `test_w7_kv_zone_grammar.py`, 7 configs swept)**. also DONE: `brix_webdav_cors_max_age` + `brix_webdav_lock_timeout` + `brix_storage_credential_mint_ttl` `ngx_uint_t`→`time_t`/`sec_slot` (mint_ttl's ~9 readers all feed brix_vfs_ctx_bind_backend_mint(); its param + the vfs field storage_cred_mint_ttl moved to time_t in the same pass). **W7 fully done** except `brix_token_clock_skew` — deliberately NOT converted: its `[0,300]` security clamp means `10m`=600 would be rejected (a unit-confusion footgun; keep as num_slot until an OP decides the clamp/units interaction). | S |
+| W8 | Legacy HTTP cache grammar | **DONE 2026-08-10** — behavior diff (see analysis note) showed the legacy `cache_root` (`cache_storage_inst`) is a DISTINCT live mechanism the tier `cache_store` (sd_cache decorator) does not subsume → **option B**: unified `brix_{webdav,s3}_cache_root` → bare `brix_cache_root` (field → shared preamble; pure relocation, ~36 readers rebased; `test_cache_root_unification.py`). Stream `brix_cache_export` (fd-based) left as-is. | M |
+| W9 | Guardrails: `check_directive_registry.py`, doc-drift closure, stale X-macro header comment, 2026-07 plan Tasks 6–7 | **W9.1 DONE** (checker + allowlist + 6 tests; R1=0 confirms no same-plane dups) · **W9.2 DONE** (tier_directives.h comment) · **W9.3 DONE 2026-08-10** — Task 6 docs (directives.md: all 40 cvmfs directives documented + unified-grammar intro extended with cache_root/W4-bare-families/W6-renames + migration pointer; examples.md 3-line config; quick-reference cvmfs rows) + Task 7 scripts (`run_cvmfs_minimal.sh` green, `run_cvmfs_evict.sh` fill-proven/band-gated) | M |
 
 Standing rules for all workstreams: no git write commands without explicit OP
 approval in-conversation; 3 tests per change-class (success + error +
@@ -427,6 +427,94 @@ goal.
 
 Either variant enables the identical rename table (Appendix A table 3).
 
+### Status & blocker (2026-08-10): undecided variant + core-config rewiring
+
+**Not started — the two reasons it is not a safe autonomous change:**
+
+1. **The variant is undecided (OP-DECIDE).** The disposition above recommends A,
+   but the decisions ledger (Appendix, "W3 | Variant A vs B | A") is a *proposal*,
+   not a ratified choice: A creates a whole new `ngx_stream_brix_common_module` and
+   re-homes the root module's storage/x509/tier families onto it; B keeps root as
+   owner and has gridftp adopt-from-root (implicit ownership, a W9.1 special-case).
+   The two produce materially different module topologies and different long-term
+   maintenance contracts. Picking wrong is expensive to reverse (it moves ~30
+   directive registrations and the merge ordering). This needs an explicit OP
+   ratification before any code moves.
+
+2. **It is core-config rewiring, not a leaf de-prefix.** Confirmed by reading the
+   tree: gridftp (`ftp_module.c`) is a *separate* nginx stream module with its own
+   flat conf `ngx_stream_brix_ftp_srv_conf_t` (fields `export`/`allow_write`/
+   `storage_backend`/… in `ftp_gateway.h`), NOT the shared preamble. nginx's
+   first-module-wins directive routing means a naive de-prefix (gridftp registers
+   bare `brix_export`) is **silently wrong** — the directive routes to the root
+   module and gridftp's field never gets set, with no error. So the twins can only
+   collapse by moving the bare names to a single stream owner and having BOTH root
+   and gridftp *adopt* — which relocates root's `brix_export` / `brix_allow_write` /
+   `brix_storage_backend` / the whole x509 family (`directives_auth.h`) and the tier
+   X-macro. Those are THE core directives used in essentially every fleet config and
+   every root:// test. A mistake here (a mis-moved offset, a merge-ordering slip)
+   is not a config-parse error — it silently mis-binds a core field.
+
+**Unblock criteria:** (a) OP ratifies variant A or B; (b) the full root:// + gridftp
+fleet suites are runnable (they exercise the core `brix_export`/`brix_allow_write`
+binding end-to-end — the only way to prove the adopt path binds identically to the
+current direct registration). Until both hold, the 11 `brix_gridftp_*` twins stay
+allowlisted (R2) with the `# W4/W3 backlog` reason. The mechanical rename table and
+step list below are ready to execute the moment the gate opens.
+
+**Execution-detail findings (2026-08-10, deep scope of variant A — OP ratified A):**
+
+- **Adopt-function linkage is a NON-issue.** The dynamic build combines every brix
+  module into ONE `.so` named `ngx_stream_brix_module.so` (per `./config` ~L1927:
+  "the stream + http modules coexist in a single .so … its symbols back the HTTP
+  modules via RTLD_GLOBAL"); the static build is one binary. So a new
+  `stream_common.c` can call `brix_shared_adopt_unified()` (defined in
+  `http_common.c`) directly — no need to move it to a shared TU.
+
+- **Field-home census of the 11 gridftp twins on the root module:** already
+  preamble-backed (`offsetof(…, common.X)`) — `brix_export`→`common.root`,
+  `brix_allow_write`, `brix_verify_write`, `brix_storage_backend`,
+  `brix_storage_credential`. Stream-LOCAL (must relocate to the preamble first) —
+  `brix_certificate`→`certificate` (an `ngx_str_t` PATH, distinct from the built
+  `X509 *gsi_cert`), `brix_certificate_key`→`certificate_key`, `brix_trusted_ca`→
+  `trusted_ca`, `brix_vomsdir`→`vomsdir`, `brix_voms_cert_dir`→`voms_cert_dir`,
+  `brix_require_vo`→`vo_rules` (array; note the preamble already has a SEPARATE
+  `common.vo_rules` from W4 — the stream one must be consolidated onto it, not
+  left as a duplicate). Relocating `certificate`/`_key`/`trusted_ca` means rebasing
+  the GSI postconfig that reads those paths to build `gsi_cert`/`gsi_key`/the
+  X509_STORE — SECURITY-CRITICAL cert wiring.
+
+- **gridftp conf does NOT embed the preamble.** `ngx_stream_brix_ftp_srv_conf_t`
+  (`ftp_gateway.h`) has flat fields, not a `common` member. Variant A requires
+  adding `ngx_http_brix_shared_conf_t common;` to it (+ `ngx_http_brix_shared_init`
+  in create, + rebasing every gridftp reader `->export`/`->allow_write`/… to
+  `->common.*`), then `brix_stream_common_adopt()` at gridftp merge.
+
+- **The two blockers config-parse CANNOT catch (why runtime verification is
+  mandatory, not merely convenient):**
+  1. **Merge-order / main→srv inheritance.** `http_common` works because it emits
+     BEFORE the HTTP protocols, so its merge (which folds main→srv) runs first and
+     the protocols adopt already-merged values. On the stream plane, keeping the
+     `.so` name `ngx_stream_brix_module.so` (required — every deployment's
+     `load_module` line + the RTLD_GLOBAL symbol-backing depend on it) means
+     `stream_common` is NOT first, so root's/gridftp's merge may run BEFORE
+     `stream_common`'s — and `ngx_stream_conf_get_module_srv_conf()` then returns a
+     srv conf whose `main→srv` inheritance has not happened yet. A `brix_storage_backend`
+     set at `stream{}` main would silently fail to reach the servers. `nginx -t`
+     passes either way; only a functional fill test catches it. The fix (adopt from
+     `stream_common`'s MAIN conf for still-unset fields, or reorder + rename the
+     `.so` and sweep every `load_module`) must be chosen and PROVEN with a running
+     server, not inferred.
+  2. **GSI/auth binding.** After relocating `certificate`/`_key`/`trusted_ca` to the
+     preamble and rebasing the GSI postconfig, the only proof that the server cert,
+     key, and trust store still load and verify identically is an actual GSI
+     handshake — a silent mis-bind here is an auth-integrity regression, the same
+     failure class as W5.
+
+  Both are exactly the kind of "parses clean, misbehaves at runtime" defect this
+  phase's other families do NOT have. So variant A is **not** in the safely-
+  config-verifiable class; it is gated on a runnable root://+gridftp+GSI fleet.
+
 ### Steps (variant A)
 
 - [ ] 1. Create `stream_common.{c,h}` per the skeleton; MOVE (not copy) the
@@ -444,6 +532,54 @@ Either variant enables the identical rename table (Appendix A table 3).
 - [ ] 5. Migration table: 11 gridftp rows.
 - [ ] 6. ABI-dirty rebuild; `objs/nginx -t` on a `stream{}` mixing a root://
   server and a gridftp server.
+
+### Stage progress (2026-08-10)
+
+- **Stage 1 — scaffold DONE + verified.** `src/core/config/stream_common.{c,h}`
+  (`ngx_stream_brix_common_module`): conf `{ngx_http_brix_shared_conf_t common}`,
+  create/merge_srv_conf, and `brix_stream_common_adopt(cf, dst)` which reads THIS
+  server's srv conf (`ngx_stream_conf_get_module_srv_conf`, cf->ctx is the current
+  server during merge — confirmed against nginx core `ngx_stream.c`) and fills
+  still-UNSET dst slots via `brix_shared_adopt_unified`.  Emitted in `./config`
+  AFTER `ngx_stream_brix_module` (static block + dynamic combined list) so the
+  `.so` name is preserved; reconfigure re-derived all `-march`/`BRIX_HAVE_*`
+  flags (grep brix in objs/ngx_modules.c +3 = one module).  Verified INERT: root
+  + gridftp suites byte-identical (37 green with the empty command table).
+  Because the adopt reads parse-time srv values (not stream_common's merged
+  output), it is correct regardless of stream_common's merge order vs root/gridftp
+  — sidestepping blocker 1 for the server-level convention every config uses.
+- **Stage 2 — storage group DONE + verified.** Moved `brix_export` (→common.root),
+  `brix_storage_backend`, `brix_storage_credential`, `brix_allow_write`,
+  `brix_verify_write` from the root module (`module.c` / `directives_tpc.h`) into
+  stream_common's command table (same stock slots, offsets into the common conf's
+  preamble).  Root's `merge_srv_conf` calls `brix_stream_common_adopt(&conf->common)`
+  BEFORE `brix_merge_srv_storage` (so root_canon/backend derive from the adopted
+  values).  gridftp adopts into its FLAT fields in `brix_ftp_merge_conf` (and
+  realpath()s the adopted export into root_canon, replacing the deleted
+  `brix_ftp_set_export` parse-time setter byte-for-byte).  18 configs + the interop
+  guard swept to bare names.  **Verified: full gridftp suite (170 tests incl.
+  pblock/s3/verify-write/VO-ACL/GSI/evil/mode-E/PASV/delegation) + root:// (authdb
+  9, acc 13, scheme-gate 6) all green.**  Checker R2 11→6 (allowlist 22→17); the 5
+  storage twins removed from the allowlist.
+- **Stage 3 — x509 trust group + require_vo DONE + verified.** Rather than
+  relocating the stream-LOCAL GSI fields into the preamble + rebasing the root
+  GSI postconfig (the high-risk path the plan feared), used the same low-risk
+  ADOPT-INTO-EXISTING-FIELDS shape as the storage group: stream_common holds the
+  5 GSI-trust strings (`certificate`/`_key`/`trusted_ca`/`vomsdir`/`voms_cert_dir`)
+  as its OWN conf fields and `brix_stream_common_adopt_gsi()` copies them into
+  root's `xcf->certificate…` and gridftp's `conf->certificate…` at merge — so
+  every GSI reader (`tls_config.c`, `auth/gsi/*`, gridftp's `brix_ftp_build_gsi`)
+  is byte-for-byte unchanged and no postconfig moved.  `require_vo` (stage 3b):
+  stream_common parses the VO-ACL rules (reusing `brix_vo_rules_append`); root and
+  gridftp DEEP-COPY them (`brix_stream_common_adopt_vo_rules`) into their own array
+  and finalize the copy against their own `root_canon` — never a shared pointer,
+  so no plane mutates another's resolved paths (root's finalize is also gated on
+  `brix_root` enabled, so a gridftp-only server never finalizes root's copy).
+  **Verified: full gridftp suite 173 (incl. GSI handshake, `gsi_evil`
+  security-neg, `vo_acl_gsi`) + root:// GSI green.  Checker R2 6→0.**  The GSI-cert
+  auth-integrity pin is direct: `nginx_authdb.conf` drives root:// GSI with bare
+  `brix_certificate`/`brix_trusted_ca`/`brix_vomsdir` and `test_authdb.py` 9/9
+  passes (handshake succeeds on the adopted cert + trust store).
 
 ### Tests
 
@@ -654,15 +790,56 @@ the phase that is not mechanical.
 
 ### Steps (option A)
 
-- [ ] 1. Rename the four XrdAcc spellings in http_common's table (post-W2) +
-  migration rows + doc rows.
-- [ ] 2. Fold `brix_webdav_authdb` into W4's auth-family commit: preamble
-  field `authdb_rules` (`ngx_array_t *` of `brix_authdb_rule_t`),
-  registered by http_common, adopted (pointer-adopt); webdav access-phase
-  reader rebases; s3/cvmfs access phases gain the same gate call, mirroring
-  `webdav/access.c`'s NGX_DECLINED fall-through contract so each protocol
-  keeps its own subsequent checks.
-- [ ] 3. Sweep `docs/06-authentication/` for the old spellings.
+- [x] 1. **DONE 2026-08-10.** Renamed the four XrdAcc spellings in http_common's
+  table: `brix_authdb`→`brix_acc_authdb`, `brix_authdb_format`→`brix_acc_format`,
+  `_audit`→`brix_acc_audit`, `_refresh`→`brix_acc_refresh`. Migration rows +
+  doc rows (`authorization-xrdacc.md`, `identity-mapping.md`) landed. 4 HTTP
+  XrdAcc test configs + `test_acc_unification.py` swept to `brix_acc_*`.
+- [x] 2. **DONE 2026-08-10 (webdav-scoped, NOT ALL_CONF).** `brix_webdav_authdb`
+  → bare `brix_authdb` on the webdav command table; the setter (`webdav_conf_authdb`)
+  and field (`wlcf->authdb_rules`) and webdav access-phase enforcement are
+  unchanged — this is a pure de-prefix, behaviour-preserving. **Deviation from
+  the original step-2 plan:** the field was NOT moved to the preamble and the
+  directive was NOT registered at `BRIX_HTTP_ALL_CONF`, because s3/cvmfs do not
+  yet enforce `authdb_rules`, so registering the bare name there would be a SILENT
+  authz bypass (a config sets it, the access phase ignores it, deny rules never
+  fire). Extending native-rule READ authz to the s3/cvmfs access phases — each
+  needs its own identity plumbing, not a copy of `webdav/access.c` — is the
+  additive follow-up **W5.2**. Until then, `brix_authdb` at a non-webdav HTTP
+  location is accepted-but-inert exactly as `brix_webdav_authdb` was (LOC_CONF
+  context accepts it everywhere; only webdav enforces). Not a regression.
+- [x] 3. **DONE 2026-08-10.** Swept `docs/06-authentication/` (W5 plane-split
+  callouts + directive-table fixes in both `authorization-xrdacc.md` and
+  `identity-mapping.md`).
+
+### Implementation notes (2026-08-10) — landed
+
+- **The security-neg pin is config-time, not parser-rejection.** The doc's
+  original premise ("an XrdAcc file under bare `brix_authdb` is rejected loudly by
+  the native parser") does NOT hold: `brix_parse_authdb`
+  (`src/auth/authz/authdb_parse.c`) is deliberately LENIENT — it *skips*
+  unrecognized/truncated lines (`if (!line.valid) continue;`) and only errors on
+  file-read / alloc failure. So an XrdAcc-format file is silently partial-matched,
+  not rejected. The real guarantee W5 delivers is the **dead HTTP selection
+  spelling**: `brix_authdb_format` is stream-context-only now, so a pre-W5 XrdAcc
+  HTTP recipe (`brix_authdb <file>; brix_authdb_format xrdacc;`) FAILS `nginx -t`
+  loudly on the `brix_authdb_format` line → the engine can't be silently carried
+  forward. Pinned in `test_authdb_engine_split.py::test_legacy_xrdacc_http_config_fails_loudly`.
+  (A stricter fail-closed native parser is a separate security-hardening
+  candidate, out of this config-surface phase's scope.)
+- **Harness unblock (the W5 gate).** The "fleet harness dies at `load_module` with
+  `undefined symbol: ngx_stat_active`" blocker was root-caused as static/dynamic
+  build MIXING (injecting a stock/dynamic stream module into the static brix
+  binary that lacks the symbol) and FIXED with a build-separation guard
+  (`operator_runtime.py` + `live_common.py`). The auth baseline is now runnable:
+  `test_authdb.py` **9/9** (stream native authorized/denied GSI integration — the
+  unchanged reference plane) via a targeted `start-dedicated authdb` on the
+  rebased port ladder + `TEST_SKIP_SERVER_SETUP=1` (see the test-fleet notes).
+- **Tests.** New `test_authdb_engine_split.py` (12, fast `nginx -t` matrix incl.
+  the security-neg pin — lives here, not in the KDC-gated
+  `test_authdb_mechanism_scope.py`, so CI always runs it). Full W5 batch: 46
+  passed (engine-split 12 + acc-unification 4 + acc-residual 12 + scheme-gate 6 +
+  p805 3 + authdb 9). Allowlist: `brix_webdav_authdb` twin removed (R2 12→11).
 
 ### Tests
 
@@ -679,6 +856,23 @@ the phase that is not mechanical.
   `test_authdb_mechanism_scope.py`.
 
 ---
+
+### W5 — analysis (2026-08-10): why the authdb reorg must run WITH the auth integration suite
+
+Current wiring (confirmed by reading the code, not doing the rename):
+- **Stream** `brix_authdb <file>` (`policy.c brix_conf_set_authdb`) stores `xcf->authdb` **and** parses native u/g/p into `xcf->authdb_rules`. The XrdAcc engine (`acc/config.c brix_acc_init_server`) reads the SAME `xcf->authdb` path to build `xcf->acc.tables`. `brix_authdb_format native|xrdacc` (`common.acc.format`) picks the engine at RUNTIME in `auth_gate.c:225` (`brix_acc_gate_engine` vs `brix_check_authdb`). So on stream one `brix_authdb` path feeds both engines — polymorphic by format.
+- **HTTP** is INCONSISTENT: W2 registered bare `brix_authdb` → `common.acc.authdb` (XrdAcc path only, str slot, no native parse), while `brix_webdav_authdb` (`webdav_conf_authdb`) parses native u/g/p into the webdav-local `authdb_rules`. Two directives, two fields, one concept.
+
+Variant A ("bare = native; `brix_acc_*` = XrdAcc") therefore requires, on the HTTP planes: (1) bare `brix_authdb` set a unified `common.authdb` path + parse `common.authdb_rules` (like stream); (2) the HTTP acc init read `common.authdb` instead of `common.acc.authdb`; (3) the W2 `brix_authdb`→`common.acc.authdb` registration retire (or become `brix_acc_authdb`); (4) `brix_webdav_authdb` de-prefix onto the unified bare name.
+
+**This changes runtime authorization dispatch** (`auth_gate.c` + acc init), not just config parsing — a mistake is a SILENT allow/deny error. It MUST land with the acc/authdb + native-authz integration suites runnable (they cannot run in the current sandbox: the fleet harness dies at `load_module` with `undefined symbol: ngx_stat_active`, a binary/stock-module mismatch unrelated to any directive). Deferred until that harness is green. `brix_webdav_authdb` stays the sole allowlisted R2 twin until then.
+
+**Why config-parse verification is NOT sufficient here (unlike every other W-family in this phase).** The W4/W6/W7/W8 unifications are safe to land config-verified because their failure mode is *loud*: a mis-wired directive fails `nginx -t`, or the old name is a stock `unknown directive`. W5 is the opposite — the same file path (`brix_authdb`) is handed to two different engines chosen at *runtime* by `acc.format`, so a wrong wiring produces a config that parses cleanly and then authorizes under the wrong engine (native u/g/p rules silently ignored, or an XrdAcc file mis-read as native and either rejected or — worse — partially matched). No `nginx -t` and no directive-registry check can catch that; only an integration test that actually issues authorized/denied requests against each engine can. That is exactly the security-neg pin the Steps call for (`test_authdb_mechanism_scope.py`: "a config that used bare `brix_authdb` for XrdAcc now FAILS at `nginx -t` … rather than silently authorizing under the wrong engine").
+
+**Unblock criteria (all three):**
+1. The fleet integration harness runs (fix the `undefined symbol: ngx_stat_active` `load_module` mismatch — the harness must load the brix stream module against a binary that exports the symbol; this is the same freeze/binary-selection class documented in the test-fleet notes, not a directive problem).
+2. The auth suites are green on the CURRENT tree first (establish the baseline: `test_authdb*.py`, `test_acc*.py`, `test_authdb_auth_scheme_gate.py`) — so a post-rename regression is attributable.
+3. The security-neg scenario is written and RED before the rename, GREEN after: an XrdAcc-format file under bare `brix_authdb` must be *rejected loudly* by the native parser at config time (proving the engine can't be silently mis-selected). Only then execute Steps 1–3 of option A.
 
 ## W6 — Codify the naming grammar; rename the outliers
 
@@ -852,6 +1046,12 @@ mechanisms stayed distinct through the rename).
 
 ---
 
+### W8 — behavior-diff (2026-08-10) and decision: option B
+
+The MIGRATE-OR-KEEP decision required a behavior diff first. Reading the code (cache_storage.c:197-244) settles it: the legacy `brix_{webdav,s3}_cache_root` builds `cache_storage_inst` (a simple posix cache), while the tier `brix_cache_store` builds a composable **sd_cache decorator** — the reaper/eviction enumerate through DIFFERENT instances depending on which is set (`brix_cache_storage()` returns the decorator's store when `cache_store` is set, else `cache_storage_inst`). They are distinct, live mechanisms; the tier does NOT subsume the legacy read-through cache. The stream plane's cache root (`brix_cache_export`) is a THIRD, fd-based mechanism again.
+
+Therefore migrating (A) would remove a live, distinct mechanism — unverifiable without the cache integration suite and against the "no silent behavior loss" bar. **Decision: option B** — keep the mechanism, unify the two byte-parallel HTTP twins into one bare `brix_cache_root`. Executed as a pure field-relocation (cache_root + cache_root_canon → the shared preamble; registered once on the common module; adopted into webdav+s3; each protocol still canonicalizes + enforces the outside-export guard). No cache-logic change; compile-verified across ~36 readers + config-parse verified (`test_cache_root_unification.py`). The stream `brix_cache_export` (separate fd-based mechanism) is intentionally untouched.
+
 ## W9 — Guardrails: make drift structurally impossible
 
 ### 9.1 `tools/ci/check_directive_registry.py`
@@ -912,12 +1112,12 @@ parses this header for the authoritative list".
 
 ### 9.3 Close the 2026-07 plan (Tasks 6–7, absorbed verbatim)
 
-- Task 6 (docs): `directives.md` unified-grammar intro + full cvmfs table;
+- Task 6 (docs): **DONE 2026-08-10.** `directives.md` unified-grammar intro + full cvmfs table;
   `examples.md` 3-line cvmfs config; `quick-reference.md` cvmfs rows;
   `deploy/cvmfs/README.md` shrink; migration table — EXTENDED with every
   W3–W8 rename row (the table is cumulative and sweep-exempt per its own
   header note).
-- Task 7 (tests): `tests/run_cvmfs_minimal.sh` (3-line-config e2e) and
+- Task 7 (tests): **DONE 2026-08-10.** `tests/run_cvmfs_minimal.sh` (3-line-config e2e) and
   `tests/run_cvmfs_evict.sh` per the plan's specs — the acceptance tests
   for this phase's "simple first" claim, unchanged.
 

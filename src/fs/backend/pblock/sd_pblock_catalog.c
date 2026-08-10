@@ -73,7 +73,13 @@ nscache_get(pblock_catalog *cat, const char *path, pblock_meta *out)
     pblock_nscache_ent *e;
     int                 hit = 0;
 
-    if (cat->cache == NULL || !nscache_ok(path)) {
+    if (!nscache_ok(path)) {
+        return 0;
+    }
+    if (cat->nsidx != NULL) {                 /* W4: the shared mmap table */
+        return nsidx_get(cat, path, out);
+    }
+    if (cat->cache == NULL) {
         return 0;
     }
     pthread_mutex_lock(&cat->cache_mtx);
@@ -94,6 +100,9 @@ nscache_gen(pblock_catalog *cat)
 {
     uint64_t g;
 
+    if (cat->nsidx != NULL) {                 /* W4 */
+        return nsidx_gen(cat);
+    }
     if (cat->cache == NULL) {
         return 0;
     }
@@ -111,7 +120,14 @@ nscache_store(pblock_catalog *cat, const char *path, const pblock_meta *meta,
 {
     pblock_nscache_ent *e;
 
-    if (cat->cache == NULL || !nscache_ok(path)) {
+    if (!nscache_ok(path)) {
+        return;
+    }
+    if (cat->nsidx != NULL) {                 /* W4 */
+        nsidx_store(cat, path, meta, gen);
+        return;
+    }
+    if (cat->cache == NULL) {
         return;
     }
     pthread_mutex_lock(&cat->cache_mtx);
@@ -134,6 +150,12 @@ nscache_put(pblock_catalog *cat, const char *path, const pblock_meta *meta)
 {
     pblock_nscache_ent *e;
 
+    if (cat->nsidx != NULL) {                 /* W4 */
+        if (nscache_ok(path)) {
+            nsidx_put(cat, path, meta);
+        }
+        return;
+    }
     if (cat->cache == NULL) {
         return;
     }
@@ -155,7 +177,14 @@ nscache_inval(pblock_catalog *cat, const char *path)
 {
     pblock_nscache_ent *e;
 
-    if (cat->cache == NULL || !nscache_ok(path)) {
+    if (!nscache_ok(path)) {
+        return;
+    }
+    if (cat->nsidx != NULL) {                 /* W4 */
+        nsidx_inval(cat, path);
+        return;
+    }
+    if (cat->cache == NULL) {
         return;
     }
     pthread_mutex_lock(&cat->cache_mtx);
@@ -171,6 +200,10 @@ nscache_inval(pblock_catalog *cat, const char *path)
 void
 nscache_clear(pblock_catalog *cat)
 {
+    if (cat->nsidx != NULL) {                 /* W4: O(1) epoch bump */
+        nsidx_clear(cat);
+        return;
+    }
     if (cat->cache == NULL) {
         return;
     }
@@ -403,6 +436,7 @@ pblock_catalog_close(pblock_catalog *cat)
     if (cat == NULL) {
         return;
     }
+    nsidx_close(cat);                    /* W4: unmap + release the liveness flock */
     if (cat->cache != NULL) {
         free(cat->cache);
     }

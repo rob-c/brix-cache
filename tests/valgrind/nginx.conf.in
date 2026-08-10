@@ -62,7 +62,7 @@ http {
 
             brix_webdav         on;
             brix_storage_backend    posix:{WORK}/data;
-            brix_webdav_cadir   {CA_DIR};
+            brix_trusted_ca_dir   {CA_DIR};
             brix_webdav_auth    required;
             brix_allow_write on;
 
@@ -100,7 +100,7 @@ http {
             brix_webdav         on;
             brix_storage_backend    posix:{WORK}/data;
             brix_webdav_auth    optional;
-            brix_webdav_cafile  {CA_CERT};
+            brix_trusted_ca  {CA_CERT};
             brix_allow_write on;
 
             brix_webdav_cors_origin      https://debug.example.test;

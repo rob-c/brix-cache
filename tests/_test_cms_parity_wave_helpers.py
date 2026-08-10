@@ -59,6 +59,7 @@ NODE_IP = "127.0.0.1"  # net-literal-allow: CMS registry stores the conn's IP te
 
 # ── CMS wire constants (src/net/cms/cms_internal.h) ───────────────────────
 CMS_RR_LOGIN, CMS_RR_LOCATE, CMS_RR_SELECT = 0, 2, 10
+CMS_RR_HAVE = 15
 CMS_RR_LOAD, CMS_RR_PING, CMS_RR_PONG = 16, 17, 18
 CMS_RR_STATE, CMS_RR_STATUS, CMS_RR_TRY = 20, 22, 24
 CMS_ST_STAGE, CMS_ST_NOSTAGE, CMS_ST_RESUME, CMS_ST_SUSPEND = 1, 2, 4, 8
@@ -71,6 +72,7 @@ kXR_ok, kXR_error, kXR_redirect, kXR_wait = 0, 4003, 4004, 4005
 kXR_login, kXR_locate = 3007, 3027
 kXR_NotFound = 3011
 kXR_refresh = 0x0080
+kXR_nowait = 0x2000
 
 
 # ── low-level helpers ─────────────────────────────────────────────────────

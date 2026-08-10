@@ -17,6 +17,7 @@
 #include <unistd.h>
 
 #include "observability/pmark/pmark.h"
+#include "auth/authz/acc/acc.h"   /* brix_acc_http_t (phase-101 W2: in the preamble) */
 
 /*
  * ngx_http_brix_shared_conf_t — Common fields embedded at the top of every
@@ -82,7 +83,8 @@ typedef struct {
                                              * paired with mint_ca_cert above;
                                              * set together by the same
                                              * directive.                       */
-    ngx_uint_t          storage_credential_mint_ttl; /* [brix_storage_credential_
+    time_t              storage_credential_mint_ttl; /* sec_slot (W7): accepts nginx
+                                                       * time units. [brix_storage_credential_
                                              * mint_ttl <secs>] — lifetime of a
                                              * freshly minted proxy; default
                                              * 3600. Ignored when minting is
@@ -172,6 +174,15 @@ typedef struct {
      * sensible defaults until the P2 legacy-removal big-bang). */
     ngx_str_t           cache_store;        /* brix_cache_store URL ("" = none)   */
     ngx_array_t        *cache_store_args;   /* its credential=/block_size= tokens    */
+    ngx_str_t           cache_root;         /* [brix_cache_root <path>] (phase-101 W8):
+                                             * legacy read-through cache root; was the
+                                             * webdav+s3 twins brix_{webdav,s3}_cache_
+                                             * root. "" = disabled. The stream plane's
+                                             * fd-based cache (brix_cache_export) is a
+                                             * separate mechanism, left as-is. */
+    char                cache_root_canon[PATH_MAX]; /* realpath of cache_root; "" =
+                                             * disabled. Derived per-protocol at merge
+                                             * (after adopt), not adopted. */
     ngx_str_t           cache_cold_store;   /* brix_cache_cold_store URL ("" = none)
                                              * — phase-85 F7 cold tier: eviction
                                              * victims demote here; a miss promotes
@@ -238,6 +249,11 @@ typedef struct {
                                              * the last verified manifest this
                                              * long past its fill; extends the
                                              * 10x-TTL stale window (0 = off).   */
+    time_t              cache_uvkeep;       /* brix_cache_uvkeep (audit §4.3,
+                                             * pfc.uvkeep): age out a never-
+                                             * verified cache entry past this
+                                             * many secs from its fill so the
+                                             * next open revalidates (0 = off). */
     time_t              cache_client_hold;  /* phase-68 T20: keep retrying a
                                              * failing fill this long while a
                                              * client waits, then 504+Retry-After
@@ -368,6 +384,112 @@ typedef struct {
     brix_pmark_conf_t pmark;              /* SciTags packet-marking config — see
                                              * src/pmark/pmark.h. Shared by every
                                              * protocol; init/merge below.          */
+    brix_acc_http_t   acc;                /* XrdAcc engine settings + per-worker
+                                             * state (phase-101 W2): promoted from the
+                                             * webdav/s3 loc-confs so brix_authdb* /
+                                             * brix_acc_* register ONCE on the common
+                                             * module and every HTTP protocol (incl.
+                                             * cvmfs) inherits via adopt. The tables/
+                                             * timer tail is per-worker, NEVER merged. */
+    ngx_flag_t        zip_access;         /* [brix_zip_access on|off] (phase-101 W4):
+                                             * serve a member of a stored ZIP via a
+                                             * ?zip=member query. Was brix_webdav_zip_
+                                             * access / brix_s3_zip_access. */
+    size_t            zip_cd_max_bytes;   /* [brix_zip_cd_max_bytes] central-directory
+                                             * scan cap; was the webdav/s3 twins. */
+    ngx_str_t         pwd_file;           /* [brix_pwd_file <file>] (phase-101 W4):
+                                             * HTTP basic-auth password db; was
+                                             * brix_webdav_pwd_file. Bare on the stream
+                                             * plane already. "" = off. */
+    ngx_flag_t        upload_resume;      /* [brix_upload_resume on|off] (phase-101
+                                             * W4): resumable Content-Range PUT;
+                                             * was brix_webdav_upload_resume. Default
+                                             * ON (applied in the shared merge). */
+    ngx_str_t         token_macaroon_secret;     /* [brix_macaroon_secret <hex>]
+                                             * (phase-101 W4): was
+                                             * brix_webdav_macaroon_secret. */
+    ngx_str_t         token_macaroon_secret_old; /* [brix_macaroon_secret_old <hex>]
+                                             * grace-period rotation key. */
+    ngx_str_t         upload_stage_dir;    /* [brix_stage_dir <path>] (phase-101 W4):
+                                             * optional fast-cache staging device;
+                                             * was brix_webdav_stage_dir. The derived
+                                             * *_canon buffer stays protocol-local. */
+    ngx_str_t         crl;                 /* [brix_crl <dir>] (phase-101 W4): CRL PEM
+                                             * directory; was brix_webdav_crl. */
+    ngx_uint_t        signing_policy_mode; /* [brix_signing_policy] BRIX_SP_MODE_*;
+                                             * was brix_webdav_signing_policy. */
+    ngx_uint_t        crl_mode;            /* [brix_crl_mode] BRIX_CRL_MODE_*;
+                                             * was brix_webdav_crl_mode. */
+    ngx_str_t         vomsdir;             /* [brix_vomsdir <dir>] (phase-101 W4):
+                                             * VOMS *.lsc trust dir; was
+                                             * brix_webdav_vomsdir. */
+    ngx_str_t         voms_cert_dir;       /* [brix_voms_cert_dir <dir>]: VOMS CA dir;
+                                             * was brix_webdav_voms_cert_dir. */
+    ngx_array_t      *vo_rules;            /* brix_vo_rule_t[] from [brix_require_vo
+                                             * <path> <vo>] (phase-101 W4): per-path VO
+                                             * ACL; was the webdav-local brix_webdav_
+                                             * require_vo. Honored on webdav/root/gridftp
+                                             * (VOMS); parsed-but-inert on s3 (SigV4). */
+    ngx_array_t      *authdb_rules;        /* brix_authdb_rule_t[] from [brix_authdb
+                                             * <file>] (phase-101 W5.2): native u/g/p/h
+                                             * READ ACL; moved here from the webdav-local
+                                             * field so brix_authdb registers once on
+                                             * http_common (all HTTP planes) into the shared
+                                             * preamble.  ENFORCED in the webdav AND s3 access
+                                             * phases (+ root:// on stream) — each deep-copies
+                                             * this and finalizes the copy against its own
+                                             * root (brix_authdb_rules_finalize_copy) so a
+                                             * sibling plane's finalize can't mis-resolve it.
+                                             * cvmfs is NOT gated: its read-through/CAS path
+                                             * model has no local realpath to match. */
+    ngx_array_t      *protbind;            /* brix_protbind_rule_t[] from [brix_protbind
+                                             * <tpl> none|[only] <proto>...] (phase-101
+                                             * W4): per-host credential-source binding
+                                             * (XRootD sec.protbind); was brix_webdav_
+                                             * protbind. NULL = no rules; shared engine
+                                             * in src/auth/protbind/. */
+    /* HTTP-TPC SSRF + source-allowlist policy (phase-101 W4): were brix_webdav_
+     * tpc_{allow_local,allow_private,source_guard,source_allow,require_source_size};
+     * bare brix_tpc_* on the stream plane already. Honored by the webdav curl-COPY
+     * engine; the native (root) TPC reads its own stream-conf copies. */
+    ngx_flag_t        tpc_allow_local;     /* 0: reject loopback+link-local targets */
+    ngx_flag_t        tpc_allow_private;   /* default 1: allow RFC-1918/ULA targets */
+    ngx_flag_t        tpc_source_guard;    /* 0: off; on = pull only from an
+                                             * authority on tpc_source_allow */
+    ngx_array_t      *tpc_source_allow;    /* ngx_str_t[]: exact host or leading-'.'
+                                             * domain suffix (NULL = none) */
+    ngx_flag_t        tpc_require_source_size; /* 0: pull a length-less source anyway;
+                                                 * on = refuse it as unverifiable */
+    ngx_str_t         tpc_verify_checksum; /* [brix_tpc_verify_checksum on|off|<alg>]
+                                             * (phase-101 W4): unified post-copy TPC
+                                             * integrity. Normalized at parse: "" =
+                                             * off; a canonical checksum alg name
+                                             * otherwise ("on" => "adler32", the
+                                             * XRootD/WLCG default). The native
+                                             * (root) TPC reads it as a boolean gate
+                                             * (kXR_Qcksum negotiates its own alg);
+                                             * the webdav curl-COPY uses the alg for
+                                             * Want-Digest + recompute. Was the flag
+                                             * brix_tpc_verify_checksum (stream) and
+                                             * the <alg> brix_webdav_tpc_verify_
+                                             * checksum (webdav) — now one grammar. */
+    ngx_str_t         token_jwks;          /* [brix_token_jwks <file>] (phase-101 W4):
+                                             * JWKS pubkey file; collapsed webdav+s3
+                                             * twins. Per-worker jwks_keys[] stays
+                                             * protocol-local. */
+    ngx_str_t         token_issuer;        /* [brix_token_issuer] required "iss". */
+    ngx_str_t         token_audience;      /* [brix_token_audience] required "aud". */
+    ngx_int_t         token_clock_skew;    /* [brix_token_clock_skew] exp/nbf grace
+                                             * seconds; unified default 30 (was 30 on
+                                             * webdav, 60 on s3 — stricter wins). */
+    ngx_str_t         token_config;        /* [brix_token_config <scitokens.cfg>]
+                                             * (phase-101 W4): multi-issuer registry
+                                             * file; overrides the single-issuer
+                                             * jwks/issuer/audience when set. Was the
+                                             * webdav-local brix_webdav_token_config;
+                                             * bare on the stream plane already. The
+                                             * built token_registry stays protocol-
+                                             * local. */
     ngx_uint_t        seccomp;            /* brix_seccomp mode (off/audit/enforce)
                                              * for HTTP (WebDAV/S3/cvmfs) servers;
                                              * a record only — the effective mode is
