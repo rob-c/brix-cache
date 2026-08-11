@@ -1,0 +1,727 @@
+---
+import Layout from '../layouts/Layout.astro';
+import Band from '../components/Band.astro';
+import Cta from '../components/Cta.astro';
+import VfsSeam from '../components/VfsSeam.astro';
+import { url } from '../lib/site';
+
+// The VFS page: the storage seam every protocol and every backend meets at.
+// Admission rule for numbers on this page — they come out of the tree, not out
+// of prose docs. The capability rows below mirror the `.caps = ...` initialiser
+// in each driver's C source and are listed BY NAME so they stay diffable
+// against it; the guard tiers and backlog counts are what
+// tools/ci/check_vfs_seam.py reports today.
+
+/** Capability bits in wire order — the bit index IS the column header. */
+const BITS = [
+  'FD', 'SENDFILE', 'RANDOM_WRITE', 'RANGE_READ', 'TRUNCATE', 'SERVER_COPY',
+  'XATTR', 'HARD_RENAME', 'DIRS', 'APPEND', 'IOURING', 'FSCS', 'NEARLINE',
+  'CATALOG', 'DIRS_WRITE', 'XATTR_WRITE', 'MEMFILE',
+] as const;
+
+const BIT_MEANING: Record<string, string> = {
+  FD: 'exposes a real kernel file descriptor',
+  SENDFILE: 'zero-copy sendfile-able',
+  RANDOM_WRITE: 'pwrite at an arbitrary offset',
+  RANGE_READ: 'pread at an arbitrary offset',
+  TRUNCATE: 'ftruncate',
+  SERVER_COPY: 'native server-side copy',
+  XATTR: 'read user.* xattrs / object metadata',
+  HARD_RENAME: 'atomic rename, not copy-and-delete',
+  DIRS: 'real directories, not a key prefix',
+  APPEND: 'O_APPEND semantics',
+  IOURING: 'the fd is io_uring-submittable',
+  FSCS: 'filesystem page checksums',
+  NEARLINE: 'reads may trigger a tape recall',
+  CATALOG: 'native object enumeration',
+  DIRS_WRITE: 'mkdir / rmdir / rename the catalog',
+  XATTR_WRITE: 'set and remove xattrs',
+  MEMFILE: 'serves bytes memory-backed, with no fd',
+};
+
+interface Driver {
+  name: string;
+  role: string;
+  caps: string[];
+  /** Advertised per export instance, not by the driver descriptor. */
+  perInstance?: string[];
+}
+
+const DRIVERS: Driver[] = [
+  {
+    name: 'posix', role: 'primary',
+    caps: ['FD', 'SENDFILE', 'RANDOM_WRITE', 'RANGE_READ', 'TRUNCATE', 'SERVER_COPY',
+           'XATTR', 'HARD_RENAME', 'DIRS', 'APPEND', 'IOURING', 'DIRS_WRITE', 'XATTR_WRITE'],
+  },
+  {
+    name: 'pblock', role: 'primary',
+    caps: ['FD', 'SENDFILE', 'RANDOM_WRITE', 'RANGE_READ', 'TRUNCATE', 'SERVER_COPY',
+           'XATTR', 'HARD_RENAME', 'DIRS', 'APPEND', 'IOURING', 'CATALOG', 'DIRS_WRITE', 'XATTR_WRITE'],
+    perInstance: ['FSCS'],
+  },
+  { name: 'block', role: 'primary', caps: ['FD', 'RANDOM_WRITE', 'RANGE_READ', 'DIRS'] },
+  {
+    name: 'ceph', role: 'primary',
+    caps: ['RANDOM_WRITE', 'RANGE_READ', 'TRUNCATE', 'XATTR', 'DIRS', 'CATALOG', 'XATTR_WRITE', 'MEMFILE'],
+  },
+  { name: 'cephfsro', role: 'primary', caps: ['RANGE_READ', 'XATTR', 'DIRS', 'MEMFILE'] },
+  {
+    name: 'xroot', role: 'origin',
+    caps: ['RANDOM_WRITE', 'RANGE_READ', 'TRUNCATE', 'SERVER_COPY', 'XATTR', 'HARD_RENAME',
+           'DIRS', 'DIRS_WRITE', 'XATTR_WRITE', 'MEMFILE'],
+  },
+  { name: 'http', role: 'origin', caps: ['RANGE_READ', 'HARD_RENAME', 'DIRS', 'DIRS_WRITE', 'MEMFILE'] },
+  {
+    name: 'remote', role: 'decorator',
+    caps: ['RANGE_READ', 'XATTR', 'DIRS', 'DIRS_WRITE', 'XATTR_WRITE', 'MEMFILE'],
+  },
+  {
+    name: 'cache', role: 'decorator',
+    caps: ['RANDOM_WRITE', 'RANGE_READ', 'TRUNCATE', 'SERVER_COPY', 'XATTR', 'HARD_RENAME',
+           'DIRS', 'DIRS_WRITE', 'XATTR_WRITE'],
+  },
+  {
+    name: 'stage', role: 'decorator',
+    caps: ['RANDOM_WRITE', 'RANGE_READ', 'TRUNCATE', 'SERVER_COPY', 'XATTR', 'HARD_RENAME',
+           'DIRS', 'DIRS_WRITE', 'XATTR_WRITE'],
+  },
+  { name: 'frm', role: 'nearline', caps: ['FD', 'RANDOM_WRITE', 'RANGE_READ', 'NEARLINE'] },
+];
+
+/** 0 absent · 1 advertised · 2 advertised per instance. */
+const cellState = (d: Driver, bit: string): 0 | 1 | 2 =>
+  d.caps.includes(bit) ? 1 : d.perInstance?.includes(bit) ? 2 : 0;
+
+const STATE_LABEL = ['absent', 'advertised', 'per-instance'];
+
+interface Invariant { t: string; d: string }
+
+const INVARIANTS: Invariant[] = [
+  {
+    t: 'Re-check, never trust',
+    d: `Path resolution happens above the seam. The VFS does not take its word for it: every entry
+        point re-verifies that the resolved path is non-empty and carries its confinement flag before
+        any syscall runs. Two independent gates, and both must hold.`,
+  },
+  {
+    t: 'The kernel enforces the boundary',
+    d: `The confined open is <span class="mono">openat2(RESOLVE_BENEATH)</span> against a persistent
+        per-worker root descriptor — not a string comparison on <span class="mono">..</span> that a
+        symlink can defeat. An <span class="mono">EXDEV</span> coming back is not a filesystem quirk,
+        it is a traversal attempt, and it surfaces as <span class="mono">kXR_NotAuthorized</span> or
+        HTTP&nbsp;403.`,
+  },
+  {
+    t: 'Writes fail closed',
+    d: `Write permission is checked <em>after</em> confinement and before any mutation; a write open
+        is refused up front with <span class="mono">EACCES</span>. This is the data-plane backstop
+        sitting behind the protocol-layer write gate, not a replacement for it.`,
+  },
+  {
+    t: 'TLS and cleartext buffers never mix',
+    d: `A TLS connection, or a request that wants page checksums, gets a memory-backed buffer;
+        cleartext gets a file-backed buffer so the kernel can <span class="mono">sendfile</span> it.
+        One chokepoint decides, which is why a file-backed buffer cannot reach a TLS connection.`,
+  },
+];
+
+interface Tier { n: string; catches: string; rule: string; ruleTone: 'hard' | 'soft'; backlog: string }
+
+const TIERS: Tier[] = [
+  {
+    n: 'tier-1',
+    catches: `A raw positional byte op — <span class="mono">pread</span>,
+              <span class="mono">pwrite</span>, <span class="mono">copy_file_range</span>,
+              <span class="mono">sendfile</span> — anywhere outside
+              <span class="mono">src/fs/backend/</span>.`,
+    rule: 'hard fail, no backlog',
+    ruleTone: 'hard',
+    backlog: '—',
+  },
+  {
+    n: 'tier-2',
+    catches: `A handler reaching past <span class="mono">brix_vfs_*</span> into the confined-helper
+              layer or the driver vtable directly.`,
+    rule: 'grandfathered',
+    ruleTone: 'soft',
+    backlog: '0 files',
+  },
+  {
+    n: 'tier-3',
+    catches: `A handler making a raw namespace or metadata syscall on storage —
+              <span class="mono">open</span>, <span class="mono">stat</span>,
+              <span class="mono">opendir</span>, <span class="mono">unlink</span>,
+              <span class="mono">rename</span>, <span class="mono">mkdir</span>,
+              <span class="mono">chmod</span>, xattr.`,
+    rule: 'per-line marker required',
+    ruleTone: 'soft',
+    backlog: '0 files',
+  },
+  {
+    n: 'client',
+    catches: `A raw byte op in the native client tree, which links the lower half of the seam but
+              has no confined server root above it.`,
+    rule: 'grandfathered',
+    ruleTone: 'soft',
+    backlog: '1 file',
+  },
+];
+
+interface Cred { kind: string; how: string; who: string }
+
+const CREDS: Cred[] = [
+  { kind: 'BEARER', how: 'Replay or exchange a WLCG / JWT bearer token', who: 'xroot · remote · http' },
+  { kind: 'PROXY_PEM', how: 'Present a full X.509 proxy — pre-provisioned, delegated, or minted from a local CA', who: 'xroot · remote · http' },
+  { kind: 'IDENTITY', how: 'Principal and VO list only — no forwardable secret is needed or minted', who: 'pblock' },
+  { kind: 'SSS', how: 'Re-issue an XrdSecsss credential asserting the caller, signed with a gateway keytab', who: 'xroot' },
+  { kind: 'S3', how: 'Trade the node credential for an STS session keypair scoped to the caller', who: 'remote' },
+  { kind: 'GSS_KRB5', how: 'Forward the delegated TGT through a multi-leg GSSAPI negotiation', who: 'xroot' },
+];
+
+interface TreeRow { dir: string; role: string; lines: string }
+
+const TREE: TreeRow[] = [
+  { dir: 'fs/backend/', role: 'Eleven drivers, the vtable, the registry, the page-checksum tagstore, per-user credential selection', lines: '41,194' },
+  { dir: 'fs/cache/', role: 'Read-through open, write-through mirroring, origin fill, eviction', lines: '14,416' },
+  { dir: 'fs/vfs/', role: 'The facade — entry points, handle lifecycle, confinement and write gates, observers, backend registry', lines: '12,504' },
+  { dir: 'fs/xfer/', role: 'The durable-transfer engine and ledger behind staging, tape stage-out and third-party copy', lines: '5,454' },
+  { dir: 'fs/path/', role: 'Path resolution and the RESOLVE_BENEATH open primitives', lines: '3,907' },
+  { dir: 'fs/meta/ · scan/ · tier/', role: 'Metadata services, tree scans, tier composition', lines: '6,165' },
+  { dir: 'fs/core/', role: 'The nginx-free verb kernel — EINTR and short-I/O loop policy, single-sourced with the clients', lines: '420' },
+];
+---
+
+<Layout
+  title="The VFS seam"
+  description="One protocol-agnostic storage API carries every byte in BriX-Cache: five protocol front ends, eleven storage drivers, kernel-enforced confinement, per-user credentials to the backend — and a CI guard that fails the build if anything goes around it."
+  accent="root"
+>
+  <!-- HERO -->
+  <Band first={true}>
+    <div class="vfs-hero">
+      <div class="stack">
+        <span class="eyebrow">Architecture · the storage seam</span>
+        <h1 class="display">Every byte crosses one line.</h1>
+        <p class="lede">
+          Five protocol front ends. Eleven storage drivers. One API between them — and a CI guard
+          that fails the build if anything tries to go around it. This is the layer that lets
+          <span class="mono">root://</span>, WebDAV, S3, CVMFS and GridFTP share a namespace with
+          POSIX, Ceph, object stores, remote origins and tape without any of them knowing about
+          each other.
+        </p>
+      </div>
+      <div class="term" aria-label="The seam guard, run against the current tree">
+        <div class="term-title">is the layering real?</div>
+        <div><span class="p">$</span> python3 tools/ci/check_vfs_seam.py</div>
+        <div class="mt"><span class="k">check_vfs_seam: OK</span></div>
+        <div><span class="c"># no raw data POSIX outside the backend (tier-1)</span></div>
+        <div><span class="c"># no new tier-2 bypass — 0 files on the backlog</span></div>
+        <div><span class="c"># no new tier-3 raw namespace syscall — 0 files</span></div>
+        <div><span class="c"># no new raw client data POSIX — 1 file grandfathered</span></div>
+      </div>
+    </div>
+  </Band>
+
+  <!-- CONVERGENCE -->
+  <Band id="seam">
+    <span class="eyebrow">Why it exists</span>
+    <h2 class="display band-head">Five protocols times eleven backends is not fifty-five problems.</h2>
+    <div class="vfs-split">
+      <div class="stack">
+        <p class="muted">
+          A server that speaks five wire protocols over a dozen storage systems has an obvious failure
+          mode: each protocol grows its own <span class="mono">open()</span>, its own path confinement,
+          its own metrics, its own cache awareness — and they drift. The escape check hardened on the
+          HTTP <span class="mono">PUT</span> path never reaches the <span class="mono">kXR_mv</span>
+          handler. The byte counter that landed on <span class="mono">root://</span> reads never lands
+          on S3 <span class="mono">GET</span>.
+        </p>
+        <p class="muted">
+          The VFS collapses that grid. A handler's entire relationship with storage is: fill in a
+          request descriptor — export root, resolved path, caller identity, write permission, TLS flag,
+          cache config — and call one function. It gets back an opaque handle or a buffer chain to frame
+          onto the wire. It never sees a raw file descriptor except through an accessor, and it never
+          learns which backend answered.
+        </p>
+        <p class="vfs-pull">
+          Adding a protocol costs one context struct. Adding a backend costs one vtable. Neither one
+          touches the other, and neither can quietly skip a security check.
+        </p>
+        <p class="muted">
+          That is the leverage. A new storage backend arrives with metrics, access logs, confinement
+          re-checks, page checksums and cache eligibility already working across all five protocols,
+          because none of that lives in the backend or in the protocol. It lives in the seam.
+        </p>
+      </div>
+      <VfsSeam />
+    </div>
+  </Band>
+
+  <!-- TWO SURFACES -->
+  <Band variant="sunken">
+    <span class="eyebrow">Concurrency</span>
+    <h2 class="display band-head">One seam, two thread-safety contracts.</h2>
+    <p class="lede muted vfs-intro">
+      Metrics allocate. Access logs allocate. nginx request pools are not thread-safe. So the metered
+      API can only run on the event loop — but hot reads and writes have to run off it, or the worker
+      stalls behind the disk.
+    </p>
+    <div class="grid grid-2">
+      <article class="panel vfs-card">
+        <span class="vfs-tag">event loop only</span>
+        <h3 class="vfs-t">The metered surface</h3>
+        <p class="muted">
+          <span class="mono">brix_vfs_open</span>, <span class="mono">read</span>,
+          <span class="mono">write</span>, <span class="mono">stat</span>,
+          <span class="mono">rename</span> and the rest. These allocate from the request pool, bump a
+          Prometheus counter and emit an access-log line — which is exactly why protocol handlers do
+          not emit their own per-operation data-plane metrics. They get them by calling the seam.
+        </p>
+      </article>
+      <article class="panel vfs-card">
+        <span class="vfs-tag">any thread</span>
+        <h3 class="vfs-t">The execute core</h3>
+        <p class="muted">
+          <span class="mono">brix_vfs_io_execute()</span> takes a plain-old-data job descriptor and
+          mutates only its output fields and caller-owned buffers. No pool, no metrics, no log, no
+          cache state. It is the same body whether it runs inline on the loop, on an AIO thread-pool
+          worker, or on the <span class="mono">io_uring</span> fallback.
+        </p>
+      </article>
+    </div>
+    <p class="muted vfs-after">
+      The resolution is not two implementations — it is two entry surfaces over one shared body. Before
+      this split the thread-pool workers carried their own copies of the read, write, readv and pgread
+      syscalls, so confinement, CRC handling, short-I/O policy and error mapping could drift between the
+      worker and the VFS. They cannot now. There is one body, and the only rule a caller has to remember
+      is which surface it is allowed to touch.
+    </p>
+  </Band>
+
+  <!-- CAPABILITIES -->
+  <Band id="capabilities">
+    <span class="eyebrow">Capabilities</span>
+    <h2 class="display band-head">Backends declare what they are. They never lie by omission.</h2>
+    <p class="lede muted vfs-intro">
+      An object store has no file descriptor, so it cannot <span class="mono">sendfile</span>. A
+      read-only origin has no write path. A tape backend can stall for minutes. Rather than let the VFS
+      sniff for backend identity, every driver publishes a capability bitmap and the VFS branches only
+      on bits — a rule a CI guard enforces by rejecting identity comparisons outright.
+    </p>
+
+    <div class="capbox">
+      <p class="capreadout mono" id="capreadout">
+        17 capability bits across 11 drivers, read from the driver sources in
+        <span class="mono">src/fs/backend/</span>.
+      </p>
+      <div class="capscroll">
+        <table class="capgrid" id="capgrid">
+          <caption class="visually-hidden">Capability bits advertised by each storage driver</caption>
+          <thead>
+            <tr>
+              <th scope="col"><span class="visually-hidden">Driver</span></th>
+              {BITS.map((b, i) => (
+                <th scope="col"><abbr title={`${b} — ${BIT_MEANING[b]}`}>{i}</abbr></th>
+              ))}
+              <th scope="col"><span class="visually-hidden">Role</span></th>
+            </tr>
+          </thead>
+          <tbody>
+            {DRIVERS.map((d) => (
+              <tr>
+                <th scope="row">{d.name}</th>
+                {BITS.map((b, c) => {
+                  const s = cellState(d, b);
+                  return (
+                    <td class:list={['cap', { on: s === 1, cond: s === 2 }]} data-c={c}>
+                      <i />
+                      <span class="visually-hidden">{STATE_LABEL[s]}</span>
+                    </td>
+                  );
+                })}
+                <td class="caprole">{d.role}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <div class="capkey mono">
+        <span><i class="k-on" /> advertised</span>
+        <span><i class="k-cond" /> per export instance, when the store supports it</span>
+        <span><i class="k-off" /> absent — the VFS degrades or rejects</span>
+      </div>
+    </div>
+
+    <div class="caplegend mono">
+      {BITS.map((b, i) => <span><b>{i}</b>{b}</span>)}
+    </div>
+
+    <div class="grid grid-2 vfs-gap">
+      <article class="panel vfs-card">
+        <h3 class="vfs-t">Absence is the safety mechanism</h3>
+        <p class="muted">
+          The <span class="mono">cephfsro</span> driver serves a real CephFS filesystem by decoding its
+          on-RADOS structures directly, and it is meant to be read-only. It fills thirteen of the
+          vtable's fifty-one slots — init and cleanup, open and close, the two reads, the two stats,
+          directory iteration, two xattr readers — and leaves every mutating slot
+          <span class="mono">NULL</span>. It therefore <em>cannot</em> be selected as
+          a writable export primary. Nothing checks a flag at request time; the function pointer is
+          simply not there.
+        </p>
+      </article>
+      <article class="panel vfs-card">
+        <h3 class="vfs-t">Caches and staging areas are drivers too</h3>
+        <p class="muted">
+          A read-through cache in front of a remote origin is not special-case code inside the read
+          path. It is a driver that wraps another driver and presents the same vtable upward: the VFS
+          holds one instance and never learns it is talking to a decorator. The same mechanism backs
+          write-back staging in front of tape and proxy write-through to a remote
+          <span class="mono">root://</span> primary. A site changes its storage topology by changing a
+          directive, not by recompiling a data path.
+        </p>
+      </article>
+    </div>
+  </Band>
+
+  <!-- CONFINEMENT -->
+  <Band variant="ink" id="confinement">
+    <span class="eyebrow">Confinement</span>
+    <h2 class="display band-head">The seam is where the escape check actually happens.</h2>
+    <p class="lede muted vfs-intro">
+      Four invariants hold at every entry point, for every protocol, on every backend — because there is
+      only one place left to put them.
+    </p>
+    <div class="grid grid-2">
+      {INVARIANTS.map((iv) => (
+        <article class="panel vfs-card">
+          <h3 class="vfs-t">{iv.t}</h3>
+          <p class="muted" set:html={iv.d} />
+        </article>
+      ))}
+    </div>
+    <p class="muted vfs-after">
+      The seam also knows where to stop. It confines to <em>one</em> export root and, under
+      impersonation, resolves as the mapped user — which is exactly wrong for a cache root, an upload
+      staging directory, a tape control journal or an S3 multipart spool. Those are service-owned
+      domains under a different root, and routing them through the VFS would open the wrong root as the
+      wrong identity. So they stay raw, deliberately, each behind a same-line
+      <span class="mono">/* vfs-seam-allow: reason */</span> marker. There are 87 of them, every one is a
+      documented decision, and the guard refuses to let an unmarked one appear.
+    </p>
+  </Band>
+
+  <!-- ENFORCEMENT -->
+  <Band variant="sunken" id="enforcement">
+    <span class="eyebrow">Enforcement</span>
+    <h2 class="display band-head">An architecture nobody can quietly walk around.</h2>
+    <p class="lede muted vfs-intro">
+      Every layering claim on this page is worth exactly as much as its enforcement. A convention that
+      lives in a README decays on the first deadline, so the seam is checked by
+      <span class="mono">tools/ci/check_vfs_seam.py</span> on four fronts — three through the server, one
+      across the client tree. Each carries a migration backlog: the grandfathered files allowed while
+      the codebase converged, which the guard permits and never lets grow. Both server backlogs are
+      empty. One client file is left.
+    </p>
+    <div class="cmp-wrap">
+      <table class="cmp">
+        <thead>
+          <tr>
+            <th scope="col">Tier</th>
+            <th scope="col">What it catches</th>
+            <th scope="col">Rule</th>
+            <th scope="col">Backlog</th>
+          </tr>
+        </thead>
+        <tbody>
+          {TIERS.map((t) => (
+            <tr>
+              <th scope="row">{t.n}</th>
+              <td set:html={t.catches} />
+              <td class:list={['mono', 'vfs-rule', t.ruleTone]}>{t.rule}</td>
+              <td class="mono vfs-backlog">{t.backlog}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+    <p class="muted vfs-after">
+      The guard strips comments and string literals before matching, so an operation name mentioned in
+      prose is never a false positive — and it reads the allow-marker off the raw line first, so a real
+      exception is never a false negative. A separate guard forbids the VFS from branching on backend
+      <em>identity</em> rather than capability, so the polymorphism cannot rot into a chain of name
+      comparisons.
+    </p>
+    <p class="vfs-pull">The layering is not documentation. It is a build failure.</p>
+  </Band>
+
+  <!-- IDENTITY -->
+  <Band id="identity">
+    <span class="eyebrow">Identity</span>
+    <h2 class="display band-head">The caller's identity survives the hop to the backend.</h2>
+    <p class="lede muted vfs-intro">
+      A frontend that authenticates a user with an X.509 proxy and then writes to its origin as
+      <span class="mono">nobody</span> has thrown away the point of authenticating. The seam carries a
+      per-open credential down to the driver, and each driver declares which kinds it can actually
+      present to its origin.
+    </p>
+    <div class="cmp-wrap">
+      <table class="cmp">
+        <thead>
+          <tr>
+            <th scope="col">Credential kind</th>
+            <th scope="col">How the backend leg authenticates</th>
+            <th scope="col">Drivers that accept it</th>
+          </tr>
+        </thead>
+        <tbody>
+          {CREDS.map((c) => (
+            <tr>
+              <th scope="row">{c.kind}</th>
+              <td>{c.how}</td>
+              <td class="mono">{c.who}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+    <p class="muted vfs-after">
+      The accepted-kind mask is a gate, not a hint. If the live credential kind is not in the driver's
+      set, the VFS denies with <span class="mono">EACCES</span> <em>before</em> the origin is contacted —
+      no silent downgrade to the service account, and no accidental privilege gain from a backend that
+      would have accepted anything it was handed. See
+      <a href={url('/only-here#identity')}>per-user credential forwarding</a> for what that buys at the
+      protocol edge.
+    </p>
+  </Band>
+
+  <!-- THE TREE -->
+  <Band variant="sunken" id="tree">
+    <span class="eyebrow">The tree</span>
+    <h2 class="display band-head">What the seam costs, in files.</h2>
+    <div class="cmp-wrap">
+      <table class="cmp">
+        <thead>
+          <tr>
+            <th scope="col">Directory</th>
+            <th scope="col">Role</th>
+            <th scope="col">Lines</th>
+          </tr>
+        </thead>
+        <tbody>
+          {TREE.map((row) => (
+            <tr>
+              <th scope="row" class="vfs-dir">{row.dir}</th>
+              <td>{row.role}</td>
+              <td class="mono vfs-lines">{row.lines}</td>
+            </tr>
+          ))}
+          <tr>
+            <th scope="row" class="vfs-dir">total</th>
+            <td>345 files under <span class="mono">src/fs/</span></td>
+            <td class="mono vfs-lines">84,060</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="grid grid-2 vfs-gap">
+      <article class="panel vfs-card">
+        <h3 class="vfs-t">The bottom of the seam ships in the client tools</h3>
+        <p class="muted">
+          The verb kernel, the driver vtable and the S3 signing and transfer kernel are compiled free of
+          any nginx dependency and linked into the native clients as well as the server, so
+          <span class="mono">xrdcp</span> and its siblings move bytes through the same code the server
+          does. The divergence is deliberate and narrow — the server's confined open and staged commit
+          must never appear on the client's unconfined paths.
+        </p>
+      </article>
+      <article class="panel vfs-card">
+        <h3 class="vfs-t">Adding a backend is a checklist, not an excavation</h3>
+        <p class="muted">
+          Write the driver, append one row to the central census header, register its sources, declare
+          its capabilities honestly, and ship a byte-exact round-trip test plus one security negative.
+          The registry table, the extern declarations, the store-URL scheme table and the per-backend
+          metric labels all generate from that single row — there is no fourth place to forget.
+        </p>
+      </article>
+    </div>
+  </Band>
+
+  <Band>
+    <Cta
+      title="Read the seam in the tree."
+      note="src/fs/README.md and src/fs/backend/README.md carry the per-file map; the deep dives are docs/09-developer-guide/vfs-shared-architecture.md and storage-backend-drivers-deep-dive.md."
+    />
+  </Band>
+</Layout>
+
+<script is:inline>
+  /* Row + column crosshair on the capability grid. The grid is fully readable
+     without this — every cell carries a visually-hidden state word and the
+     header abbr carries the bit name — so a no-JS visitor loses nothing but the
+     readout line. */
+  (function () {
+    var grid = document.getElementById('capgrid');
+    var out = document.getElementById('capreadout');
+    if (!grid || !out) return;
+
+    var bits = [
+      'FD', 'SENDFILE', 'RANDOM_WRITE', 'RANGE_READ', 'TRUNCATE', 'SERVER_COPY',
+      'XATTR', 'HARD_RENAME', 'DIRS', 'APPEND', 'IOURING', 'FSCS', 'NEARLINE',
+      'CATALOG', 'DIRS_WRITE', 'XATTR_WRITE', 'MEMFILE',
+    ];
+    var body = grid.tBodies[0];
+    var heads = grid.tHead.rows[0].cells;
+    var rest = out.innerHTML;
+
+    function clear() {
+      var marked = grid.querySelectorAll('.hl');
+      for (var i = 0; i < marked.length; i++) marked[i].classList.remove('hl');
+    }
+
+    body.addEventListener('mouseover', function (e) {
+      var td = e.target.closest ? e.target.closest('td.cap') : null;
+      if (!td) return;
+      clear();
+      var c = +td.dataset.c;
+      var row = td.parentNode;
+      row.classList.add('hl');
+      var col = body.querySelectorAll('td.cap[data-c="' + c + '"]');
+      for (var i = 0; i < col.length; i++) col[i].classList.add('hl');
+      if (heads[c + 1]) heads[c + 1].classList.add('hl');
+      var state = td.classList.contains('on') ? 'advertised'
+        : td.classList.contains('cond') ? 'advertised per instance' : 'absent';
+      out.innerHTML = row.cells[0].textContent + ' &nbsp;·&nbsp; bit ' + c + ' ' + bits[c] +
+        ' &nbsp;·&nbsp; <b>' + state + '</b>';
+    });
+
+    body.addEventListener('mouseleave', function () {
+      clear();
+      out.innerHTML = rest;
+    });
+  })();
+</script>
+
+<style>
+  .vfs-hero { display: grid; gap: 2.5rem; align-items: center; }
+  @media (min-width: 900px) { .vfs-hero { grid-template-columns: 1.05fr 0.95fr; gap: 3rem; } }
+  .band-head { margin: 0.5rem 0 1.4rem; max-width: 26ch; }
+  .vfs-intro { margin: 0.4rem 0 1.8rem; }
+  .vfs-after { margin-top: 1.6rem; max-width: var(--measure); }
+  .vfs-gap { margin-top: 1.6rem; }
+
+  .vfs-split { display: grid; gap: 2.2rem; align-items: start; }
+  @media (min-width: 960px) { .vfs-split { grid-template-columns: 1fr 1fr; gap: 3rem; } }
+
+  .vfs-pull {
+    border-left: 3px solid var(--accent);
+    padding-left: 1.1rem;
+    font-size: 1.12rem;
+    line-height: 1.45;
+    font-weight: 600;
+    max-width: 52ch;
+  }
+  /* Outside a .stack the pull quote has no gap of its own to inherit. */
+  .vfs-after + .vfs-pull { margin-top: 1.4rem; }
+
+  .vfs-card { display: flex; flex-direction: column; gap: 0.6rem; }
+  .vfs-t {
+    font-family: var(--display); font-stretch: 112%; font-weight: 700;
+    font-size: 1.2rem; line-height: 1.1;
+  }
+  .vfs-tag {
+    align-self: flex-start;
+    font-family: var(--mono);
+    font-size: 0.62rem;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    border: var(--border-2);
+    padding: 0.12em 0.45em;
+    color: var(--ink-2);
+  }
+
+  /* --- capability grid --------------------------------------------------- */
+  .capbox { border: var(--border); border-radius: var(--radius); background: var(--panel); box-shadow: var(--shadow); }
+  .capreadout {
+    font-size: 0.76rem;
+    letter-spacing: 0.04em;
+    color: var(--ink-2);
+    padding: 0.8rem 1.1rem;
+    border-bottom: var(--border);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .capreadout :global(b) { color: var(--accent); }
+  .capscroll { overflow-x: auto; padding: 1rem 1.1rem 0.4rem; }
+  /* min-width keeps the cells square on a narrow screen: without it the table
+     compresses to fit and .capscroll never gets anything to scroll. */
+  .capgrid { border-collapse: collapse; font-family: var(--mono); min-width: max-content; }
+  .capgrid th, .capgrid td { padding: 0; }
+  .capgrid thead th {
+    width: 26px; height: 26px;
+    font-size: 0.66rem; font-weight: 500;
+    color: var(--ink-3);
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+  }
+  .capgrid thead th abbr { text-decoration: none; border: 0; cursor: help; }
+  .capgrid thead th.hl { color: var(--accent); }
+  .capgrid th[scope='row'] {
+    text-align: left; white-space: nowrap;
+    font-size: 0.78rem; font-weight: 500;
+    padding-right: 1rem; height: 26px;
+    color: var(--ink);
+  }
+  .capgrid td.cap { width: 26px; height: 26px; text-align: center; }
+  .capgrid td.cap i {
+    display: block; width: 13px; height: 13px; margin: 0 auto;
+    box-shadow: inset 0 0 0 1px var(--line-2);
+  }
+  .capgrid td.cap.on i { background: var(--accent); box-shadow: none; }
+  .capgrid td.cap.cond i { box-shadow: inset 0 0 0 2px var(--accent); }
+  .capgrid tbody tr.hl th[scope='row'] { color: var(--accent); }
+  .capgrid td.cap.hl i { box-shadow: inset 0 0 0 1px var(--ink-2); }
+  .capgrid td.cap.on.hl i { box-shadow: inset 0 0 0 2px var(--paper); }
+  .caprole {
+    padding-left: 1.2rem; white-space: nowrap;
+    font-size: 0.62rem; letter-spacing: 0.12em; text-transform: uppercase;
+    color: var(--ink-3);
+  }
+  .capkey {
+    display: flex; flex-wrap: wrap; gap: 0.5rem 1.5rem; align-items: center;
+    font-size: 0.72rem; color: var(--ink-2);
+    padding: 0.9rem 1.1rem 1.1rem;
+  }
+  .capkey span { display: inline-flex; align-items: center; gap: 0.6ch; }
+  .capkey i { width: 12px; height: 12px; }
+  .capkey .k-on { background: var(--accent); }
+  .capkey .k-cond { box-shadow: inset 0 0 0 2px var(--accent); }
+  .capkey .k-off { box-shadow: inset 0 0 0 1px var(--line-2); }
+
+  .caplegend {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 0.15rem 1.2rem;
+    font-size: 0.7rem; color: var(--ink-2);
+    margin-top: 1.1rem;
+  }
+  .caplegend :global(b) {
+    color: var(--ink); font-variant-numeric: tabular-nums;
+    display: inline-block; min-width: 2ch; margin-right: 0.5ch;
+  }
+
+  /* --- tables ------------------------------------------------------------ */
+  .cmp-wrap { overflow-x: auto; }
+  .cmp { width: 100%; border-collapse: collapse; border: 3px solid var(--ink); background: var(--paper); }
+  .cmp th, .cmp td { border: 2px solid var(--ink); padding: 0.7rem 0.9rem; text-align: left; vertical-align: top; font-size: 0.95rem; }
+  .cmp thead th { font-size: 0.72rem; letter-spacing: 0.1em; text-transform: uppercase; background: var(--band); }
+  .cmp tbody th { font-family: var(--mono); font-size: 0.78rem; letter-spacing: 0.06em; text-transform: uppercase; white-space: nowrap; }
+  .vfs-rule { font-size: 0.8rem; white-space: nowrap; }
+  .vfs-rule.hard { color: var(--danger); font-weight: 700; }
+  .vfs-backlog { font-weight: 700; white-space: nowrap; }
+  .vfs-dir { text-transform: none !important; }
+  .vfs-lines { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+  .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  .term .mt { margin-top: 0.6rem; }
+</style>

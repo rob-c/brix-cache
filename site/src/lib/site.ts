@@ -80,6 +80,7 @@ export const AUDIENCES: NavItem[] = [
 /** Product pages shown in the primary nav after the audience links. */
 export const PRODUCT_PAGES: NavItem[] = [
   { label: 'About', href: '/about' },
+  { label: 'VFS', href: '/vfs' },
   { label: 'brixMount', href: '/brixmount' },
   { label: 'Interoperability', href: '/interoperability' },
   { label: 'Network testing', href: '/network-testing' },

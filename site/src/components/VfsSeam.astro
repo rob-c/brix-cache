@@ -1,0 +1,133 @@
+---
+// The VFS seam schematic: five protocol front ends drop onto ONE horizontal
+// API band, which resolves into the storage-driver vtable and fans out to the
+// driver census by role — the same four roles the census header assigns. The
+// point of the picture is the band: nothing reaches a backend except by
+// crossing it. Protocol colours are the site-wide identity colours; the band
+// takes the page accent, matching the core node in RoutingMatrix. Pure SVG +
+// CSS, no runtime JS.
+---
+<div
+  class="seam"
+  role="img"
+  aria-label="Schematic: five protocol front ends — root://, davs://, s3://, cvmfs:// and gsiftp:// — all call down into one brix_vfs_* API band that performs confinement, impersonation, metering, access logging, page checksums and cache integration. Below it the brix_sd_driver_t vtable fans out to the four driver roles: primary stores (posix, pblock, block, ceph, cephfsro), remote origins (xroot, http), decorators (cache, stage, remote) and the nearline plane (frm)."
+>
+  <span class="seam-cap mono">the storage seam</span>
+  <svg viewBox="0 0 560 390" preserveAspectRatio="xMidYMid meet">
+    <!-- protocol front ends -->
+    <g class="port-lab">
+      <rect class="port" x="12"  y="44" width="96" height="30" rx="6" style="stroke:var(--root)" />
+      <text x="60"  y="64" text-anchor="middle" style="fill:var(--root)">root://</text>
+      <rect class="port" x="122" y="44" width="96" height="30" rx="6" style="stroke:var(--dav)" />
+      <text x="170" y="64" text-anchor="middle" style="fill:var(--dav)">davs://</text>
+      <rect class="port" x="232" y="44" width="96" height="30" rx="6" style="stroke:var(--s3)" />
+      <text x="280" y="64" text-anchor="middle" style="fill:var(--s3)">s3://</text>
+      <rect class="port" x="342" y="44" width="96" height="30" rx="6" style="stroke:var(--ink-3)" />
+      <text x="390" y="64" text-anchor="middle" style="fill:var(--ink-2)">cvmfs://</text>
+      <rect class="port" x="452" y="44" width="96" height="30" rx="6" style="stroke:var(--ftp)" />
+      <text x="500" y="64" text-anchor="middle" style="fill:var(--ftp)">gsiftp://</text>
+    </g>
+
+    <!-- every front end drops onto the band -->
+    <g class="trace">
+      <path style="stroke:var(--root)"  d="M60,74  V128" />
+      <path style="stroke:var(--dav)"   d="M170,74 V128" />
+      <path style="stroke:var(--s3)"    d="M280,74 V128" />
+      <path style="stroke:var(--ink-3)" d="M390,74 V128" />
+      <path style="stroke:var(--ftp)"   d="M500,74 V128" />
+    </g>
+
+    <!-- the band itself -->
+    <rect class="seam-band" x="12" y="132" width="536" height="80" rx="6" />
+    <line class="seam-rule" x1="12" y1="132" x2="548" y2="132" />
+    <text class="seam-title" x="280" y="160" text-anchor="middle">brix_vfs_*</text>
+    <text class="seam-sub"   x="280" y="178" text-anchor="middle">confine · impersonate · authorise · meter · access-log · page-CRC · cache</text>
+    <line class="seam-div" x1="34" y1="188" x2="526" y2="188" />
+    <text class="seam-sub" x="280" y="203" text-anchor="middle">brix_sd_driver_t — 51 slots · 17 capability bits · errno facts, never wire codes</text>
+
+    <!-- and out to the driver census, by role -->
+    <g class="trace">
+      <path style="stroke:var(--line-2)" d="M76,212  V246" />
+      <path style="stroke:var(--line-2)" d="M212,212 V246" />
+      <path style="stroke:var(--line-2)" d="M348,212 V246" />
+      <path style="stroke:var(--line-2)" d="M484,212 V246" />
+    </g>
+
+    <g class="out">
+      <rect class="node-box" x="12" y="250" width="128" height="130" rx="6" />
+      <text class="out-t" x="76" y="270" text-anchor="middle">PRIMARY STORES</text>
+      <text class="out-n" x="76" y="294" text-anchor="middle">posix</text>
+      <text class="out-n" x="76" y="313" text-anchor="middle">pblock</text>
+      <text class="out-n" x="76" y="332" text-anchor="middle">block</text>
+      <text class="out-n" x="76" y="351" text-anchor="middle">ceph</text>
+      <text class="out-n" x="76" y="370" text-anchor="middle">cephfsro</text>
+
+      <rect class="node-box" x="148" y="250" width="128" height="130" rx="6" />
+      <text class="out-t" x="212" y="270" text-anchor="middle">REMOTE ORIGINS</text>
+      <text class="out-n" x="212" y="294" text-anchor="middle">xroot</text>
+      <text class="out-n" x="212" y="313" text-anchor="middle">http</text>
+      <text class="out-d" x="212" y="370" text-anchor="middle">just another backend</text>
+
+      <rect class="node-box" x="284" y="250" width="128" height="130" rx="6" />
+      <text class="out-t" x="348" y="270" text-anchor="middle">DECORATORS</text>
+      <text class="out-n" x="348" y="294" text-anchor="middle">cache</text>
+      <text class="out-n" x="348" y="313" text-anchor="middle">stage</text>
+      <text class="out-n" x="348" y="332" text-anchor="middle">remote</text>
+      <text class="out-d" x="348" y="370" text-anchor="middle">wrap another driver</text>
+
+      <rect class="node-box" x="420" y="250" width="128" height="130" rx="6" />
+      <text class="out-t" x="484" y="270" text-anchor="middle">NEARLINE</text>
+      <text class="out-n" x="484" y="294" text-anchor="middle">frm</text>
+      <text class="out-d" x="484" y="370" text-anchor="middle">reads may recall</text>
+    </g>
+  </svg>
+</div>
+
+<style>
+  .seam {
+    position: relative;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background:
+      linear-gradient(color-mix(in srgb, var(--ink) 6%, transparent) 1px, transparent 1px) 0 0 / 100% 24px,
+      linear-gradient(90deg, color-mix(in srgb, var(--ink) 6%, transparent) 1px, transparent 1px) 0 0 / 24px 100%,
+      var(--panel);
+    box-shadow: var(--shadow);
+    padding: 0.5rem;
+    overflow: hidden;
+  }
+  .seam-cap {
+    position: absolute; top: 0.8rem; left: 1rem;
+    font-size: 0.66rem; letter-spacing: 0.16em; text-transform: uppercase;
+    color: var(--ink-3);
+  }
+  .seam svg { width: 100%; height: auto; }
+
+  .trace path { fill: none; stroke-width: 2; opacity: 0.55; }
+  .port { fill: var(--panel); stroke-width: 2; }
+  .port-lab text { font-family: var(--mono); font-size: 13px; font-weight: 700; letter-spacing: -0.02em; }
+
+  .seam-band { fill: color-mix(in srgb, var(--accent) 12%, var(--panel)); stroke: var(--accent); stroke-width: 1.6; }
+  .seam-rule { stroke: var(--accent); stroke-width: 4; }
+  .seam-div { stroke: var(--accent); stroke-width: 1; opacity: 0.4; }
+  .seam-title { font-family: var(--mono); font-size: 19px; font-weight: 700; fill: var(--ink); letter-spacing: -0.02em; }
+  .seam-sub { font-family: var(--mono); font-size: 9.5px; fill: var(--ink-2); }
+
+  .node-box { fill: var(--panel); stroke: var(--line-2); stroke-width: 1.2; }
+  .out-t { font-family: var(--mono); font-size: 8.5px; font-weight: 600; letter-spacing: 0.12em; fill: var(--ink-3); }
+  .out-n { font-family: var(--mono); font-size: 12px; font-weight: 600; fill: var(--ink); }
+  .out-d { font-family: var(--mono); font-size: 8.5px; fill: var(--ink-3); }
+
+  /* Band.astro owns .band--ink, so a scoped descendant selector never matches
+     it — these must be :global() or the schematic keeps page ink on the
+     inverted panel. */
+  :global(.band--ink) .seam { background: var(--inv-panel); border-color: var(--inv-rule); box-shadow: none; }
+  :global(.band--ink) .port,
+  :global(.band--ink) .node-box,
+  :global(.band--ink) .seam-band { fill: var(--inv-panel); }
+  :global(.band--ink) .seam-title,
+  :global(.band--ink) .out-n { fill: var(--inv-fg); }
+  :global(.band--ink) .seam-sub { fill: var(--inv-muted); }
+  :global(.band--ink) .out-t,
+  :global(.band--ink) .out-d { fill: var(--inv-muted); }
+</style>
