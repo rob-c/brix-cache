@@ -257,6 +257,10 @@ def _rt76_precondition_and_bob_s_secret_ownership(s3_live, zlib, TAG, s3port, ex
 
     live = s3_live()
 
+    _phase_features_combos_p1(live, port, tb, ta, mode_of, gzip_bytes, tc, td, TAG, mkfile, mkdir_own, realp, exists, s3port, uid_of, body_of, want, svc_root_residue, raw, gid_of, tok, zlib, x, relp, base)
+
+
+def _phase_features_combos_p1(live, port, tb, ta, mode_of, gzip_bytes, tc, td, TAG, mkfile, mkdir_own, realp, exists, s3port, uid_of, body_of, want, svc_root_residue, raw, gid_of, tok, zlib, x, relp, base):
     # =====================================================================
     # (1) CHECKSUM-VERIFIED PUT x CONCURRENT IDENTITY-SWITCH.  alice, bob and carol
     #     each PUT a DISTINCT-content object into their OWN home with a CORRECT
@@ -271,7 +275,10 @@ def _rt76_precondition_and_bob_s_secret_ownership(s3_live, zlib, TAG, s3port, ex
     else:
         for _ in range(7):
             ok(True, f"{TAG}(1): checksum x concurrent identity-switch skipped (no S3)")
+    _phase_features_combos_p2(live, port, tb, ta, mode_of, gzip_bytes, tc, td, TAG, mkfile, mkdir_own, realp, exists, s3port, uid_of, body_of, want, svc_root_residue, gid_of, tok, zlib, x, relp, acct, base)
 
+
+def _phase_features_combos_p2(live, port, tb, ta, mode_of, gzip_bytes, tc, td, TAG, mkfile, mkdir_own, realp, exists, s3port, uid_of, body_of, want, svc_root_residue, gid_of, tok, zlib, x, relp, acct, base):
     # =====================================================================
     # (2) CONDITIONAL PUT (If-None-Match:*) x CROSS-TENANT x LOCK-STATE.  bob LOCKs
     #     his own WebDAV file; alice then conditional-PUTs (create-if-absent) over
@@ -326,7 +333,10 @@ def _rt76_dave_doing_the_same_is_dac(soc, uid_of, alice_cond, TAG, mkdir_own, re
     ok(all((soc in (200, 201, 204), uid_of(alice_cond) == UID_ALICE)),
        f"{TAG}(2): POSITIVE alice If-None-Match:* create in OWN dir works, alice-owned "
        f"(HTTP {soc})")
+    _phase_features_combos_p3(live, mode_of, gzip_bytes, port, tc, td, ta, TAG, mkdir_own, realp, exists, s3port, uid_of, body_of, mkfile, want, svc_root_residue, gid_of, tok, zlib, x, relp, tb, acct, base)
 
+
+def _phase_features_combos_p3(live, mode_of, gzip_bytes, port, tc, td, ta, TAG, mkdir_own, realp, exists, s3port, uid_of, body_of, mkfile, want, svc_root_residue, gid_of, tok, zlib, x, relp, tb, acct, base):
     # =====================================================================
     # (3) INBOUND-COMPRESSED PUT into a 02770 setgid GROUP dir by a member.  carol
     #     (member of staff) PUTs a gzip-Content-Encoded body into an alice:staff
@@ -385,6 +395,7 @@ def _rt76_compression_decode_may_be_disabled_in(exists, cmem, s3c, uid_of, TAG, 
     ok(not svc_root_residue(SGD),
        f"{TAG}(3): setgid dir holds NO svc/root-owned residue after the compressed "
        f"PUT storm")
+    _phase_features_combos_p4(live, port, ta, s3port, uid_of, body_of, TAG, mkfile, want, exists, svc_root_residue, SGD, tok, zlib, x, relp, tb, realp, acct, base)
 
 
 def _rt76_control_then_carol_putobjecttagging_on_bob(live, TAG, s3port, uid_of, body_of):
@@ -467,7 +478,10 @@ def _rt76_control_then_carol_putobjecttagging_on_bob(live, TAG, s3port, uid_of, 
     else:
         for _ in range(6):
             ok(True, f"{TAG}(4): object-tagging cross-tenant DAC skipped (no S3)")
+    _phase_features_combos_p5(live, port, ta, TAG, mkfile, want, exists, s3port, svc_root_residue, SGD, tok, uid_of, zlib, x, relp, tb, realp, body_of, acct, base)
 
+
+def _phase_features_combos_p5(live, port, ta, TAG, mkfile, want, exists, s3port, svc_root_residue, SGD, tok, uid_of, zlib, x, relp, tb, realp, body_of, acct, base):
     # =====================================================================
     # (5) OUTBOUND-COMPRESSED GET x CONCURRENT alice+bob of their OWN 0600 files.
     #     alice and bob CONCURRENTLY GET their own private 0600 files with
@@ -617,7 +631,10 @@ def _rt76_positive_control_the_same_body_with(g5, B5, no_alice_in_bob, TAG, e5, 
        f"(neither secret appears in the other tenant's response)")
     ok(not e5,
        f"{TAG}(5): concurrent compressed GET raised no client errors (errs={e5[:1]})")
+    _phase_features_combos_p6(live, port, ta, exists, s3port, a5_rel, TAG, A5, svc_root_residue, SGD, uid_of, zlib, x, realp, body_of, base)
 
+
+def _phase_features_combos_p6(live, port, ta, exists, s3port, a5_rel, TAG, A5, svc_root_residue, SGD, uid_of, zlib, x, realp, body_of, base):
     # =====================================================================
     # (6) CHECKSUM-MISMATCH PUT -> no partial/svc-owned object.  alice PUTs a body
     #     with a DELIBERATELY WRONG x-amz-checksum-crc32; s3_put_checksum_apply must
@@ -630,6 +647,8 @@ def _rt76_positive_control_the_same_body_with(g5, B5, no_alice_in_bob, TAG, e5, 
     else:
         _rt76_otherwise_live(TAG)
 
+
+def _phase_features_combos_p7(live, port, ta, s3port, a5_rel, TAG, A5, svc_root_residue, SGD, x, exists, uid_of, body_of, base):
     # =====================================================================
     # (7) CANNED-ACL OWNER-INVARIANT x TAGGING x CROSS-TENANT RENAME.  GetObjectAcl
     #     (s3_handle_get_acl) returns a CANNED owner = the configured access key
@@ -681,6 +700,7 @@ def _rt76_positive_control_the_same_body_with(g5, B5, no_alice_in_bob, TAG, e5, 
     else:
         for _ in range(5):
             ok(True, f"{TAG}(7): canned-ACL/tagging/rename combo skipped (no S3)")
+    _phase_features_combos_p8(port, ta, a5_rel, A5, TAG, svc_root_residue, SGD, uid_of, body_of)
 
 
 def _rt76_survival_after_the_whole_phase_42(a5_rel, port, ta, A5, TAG, body_of, uid_of, svc_root_residue, SGD):

@@ -13,7 +13,7 @@ WHAT: Verifies all supported token-transport paths on the enforcing WebDAV
       PROTO-07  header valid + ?authz=garbage (both)    → characterise precedence
       PROTO-08  root:// ztn transport (only transport)  → accept  (N/A for query)
 
-WHY:  brix_http_query_token (default ON) extracts JWT from the query string;
+WHY:  brix_webdav_query_token (default ON) extracts JWT from the query string;
       the same validation pipeline runs regardless of transport.  PROTO-05/06
       confirm that query delivery does not bypass signature or scope checks.
       PROTO-07 characterises server behaviour when both transports are present.
@@ -124,7 +124,7 @@ def test_proto_02_query_authz_bearer_accept():
     WHAT: Verifies query-parameter transport with a "Bearer " prefix, matching
           the common client encoding used by tools that embed the full
           Authorization value in the query string.
-    WHY:  brix_http_query_token must strip the "Bearer " prefix before handing
+    WHY:  brix_webdav_query_token must strip the "Bearer " prefix before handing
           the raw JWT to the validation pipeline.
     HOW:  webdav_query_token with prefix="Bearer " (the default).
     """

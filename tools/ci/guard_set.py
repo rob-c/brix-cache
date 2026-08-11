@@ -47,6 +47,11 @@ PREPUSH_SKIP: dict[str, str] = {
         "installed); CI runs it — a push gate that doubles the hook's runtime "
         "gets bypassed with --no-verify, which enforces nothing"
     ),
+    "check_py_complexity.py": (
+        "the Python twin of check_complexity: also lizard-backed (needs the "
+        "package installed and walks tests/utils/tools), so CI runs it and the "
+        "hook stays a seconds-long static pass"
+    ),
 }
 
 

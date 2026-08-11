@@ -129,6 +129,36 @@ s3_acc_check(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
  * HOW: Checks that r->method is GET and reads the exact list-type query
  * parameter with the shared query parser. Returns 1 only when list-type=2.
  */
+/*
+ * s3_rate_limit — phase-105 W1: the [brix_rate_limit] token-bucket gate,
+ * byte-parallel to webdav's access_rate_limit. Runs BEFORE the auth burden
+ * (SigV4/bearer evaluation) and keys by client IP — the HTTP-plane keying
+ * (rate_limit.h: "key=ip … used before identity is known"); key=dn keying is
+ * stream-plane semantics. kv == NULL (directive unset) = no limit.
+ * Before this gate existed, brix_rate_limit in an S3 location parsed cleanly
+ * and enforced NOTHING (the 101-W1 silent-no-op class, on a DoS knob).
+ */
+static ngx_int_t
+s3_rate_limit(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf)
+{
+    ngx_str_t *ip;
+
+    if (cf->common.rate_limit.kv == NULL || r->connection == NULL) {
+        return NGX_OK;
+    }
+
+    ip = &r->connection->addr_text;
+
+    if (brix_rate_limit_check(&cf->common.rate_limit,
+                                (const char *) ip->data, ip->len)
+        != NGX_OK)
+    {
+        return NGX_HTTP_TOO_MANY_REQUESTS;
+    }
+
+    return NGX_OK;
+}
+
 static int
 s3_is_list_request(ngx_http_request_t *r)
 {
@@ -444,6 +474,12 @@ ngx_http_s3_handler(ngx_http_request_t *r)
                                   : s3_metrics_method_slot(r);
     s3_metrics_request_method(method_slot);
 
+    /* phase-105 W1: per-client-IP rate limit, before the auth burden
+     * (mirrors webdav's access-phase ordering — reject cheap first). */
+    rc = s3_rate_limit(r, cf);
+    if (rc != NGX_OK) {
+        return s3_metrics_return_method(r, method_slot, rc);
+    }
 
     if (r->method == NGX_HTTP_OPTIONS) {
         return s3_metrics_return_method(r, method_slot,

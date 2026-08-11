@@ -311,10 +311,10 @@ header, the server obtains a delegated access token for the source server via
 RFC 8693 token exchange. Configure the token endpoint:
 
 ```nginx
-brix_webdav_tpc_token_endpoint      https://iam.example.org/token;
-brix_webdav_tpc_token_client_id     my-service;
-brix_webdav_tpc_token_client_secret /etc/brix/client-secret;
-brix_webdav_tpc_token_scope         storage.read;
+brix_tpc_outbound_token_endpoint      https://iam.example.org/token;
+brix_tpc_outbound_client_id     my-service;
+brix_tpc_outbound_client_secret /etc/brix/client-secret;
+brix_tpc_outbound_scope         storage.read;
 ```
 
 > **Security:** TPC pull uses an external `curl` process spawned per transfer.
@@ -713,10 +713,10 @@ Context: `location`
 
 ---
 
-#### `brix_webdav_tpc_token_endpoint`
+#### `brix_tpc_outbound_token_endpoint`
 
 ```nginx
-brix_webdav_tpc_token_endpoint https://iam.example.org/token;
+brix_tpc_outbound_token_endpoint https://iam.example.org/token;
 ```
 
 OAuth2 token endpoint for RFC 8693 token exchange used when the client sends
@@ -726,10 +726,10 @@ Context: `location`
 
 ---
 
-#### `brix_webdav_tpc_token_client_id`
+#### `brix_tpc_outbound_client_id`
 
 ```nginx
-brix_webdav_tpc_token_client_id my-service;
+brix_tpc_outbound_client_id my-service;
 ```
 
 OAuth2 client ID for confidential client token exchange.
@@ -738,10 +738,10 @@ Context: `location`
 
 ---
 
-#### `brix_webdav_tpc_token_client_secret`
+#### `brix_tpc_outbound_client_secret`
 
 ```nginx
-brix_webdav_tpc_token_client_secret s3cr3t;
+brix_tpc_outbound_client_secret s3cr3t;
 ```
 
 OAuth2 client secret for confidential client token exchange.
@@ -750,10 +750,10 @@ Context: `location`
 
 ---
 
-#### `brix_webdav_tpc_token_scope`
+#### `brix_tpc_outbound_scope`
 
 ```nginx
-brix_webdav_tpc_token_scope storage.read;
+brix_tpc_outbound_scope storage.read;
 ```
 
 Scope string to request during token exchange.

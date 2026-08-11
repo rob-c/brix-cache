@@ -235,11 +235,32 @@
                                          oss.cgroup (§3.2). Default "default"
                                          (stock parity). Validated at parse to
                                          carry no CGI-structural bytes. */
+    ngx_str_t   checksum_default;     /* [brix_checksum_default <algo>] the
+                                         checksum algorithm a kXR_Qcksum with no
+                                         explicit algo (prefix or ?cks.type=)
+                                         uses, and the one advertised FIRST in the
+                                         Qconfig "chksum" list (client-preferred).
+                                         The xrootd.chksum-default analog. Empty
+                                         (default) ⇒ adler32, xrdcp's default. An
+                                         unrecognized value falls back to adler32
+                                         at use, so a typo degrades, never breaks. */
     off_t       oss_quota;            /* [brix_oss_quota <size>] the space quota the
                                          kXR_Qspace report advertises as oss.quota
                                          (§3.1). Default -1 = unlimited (stock
                                          parity). Advertised always; ENFORCED on the
                                          write plane only when oss_quota_enforce. */
+    ngx_flag_t  dirstats;           /* [brix_dirstats on] §4.8: a kXR_stat of a
+                                       DIRECTORY reports its recursive subtree
+                                       byte-size (on-demand du) instead of the
+                                       dir inode size. Off (default) = inode
+                                       size, byte-identical. */
+    ngx_flag_t  pss_dca;             /* [brix_pss_dca on] §4.9 direct cache
+                                       access: hand a cache-resident file to a
+                                       kXR_lclfile-capable client as a redirect
+                                       to its local path, so a co-located client
+                                       reads it straight off the shared FS. Off
+                                       (default) + only lclfile clients ever see
+                                       it ⇒ zero effect on everyone else. */
     ngx_flag_t  oss_quota_enforce;    /* [brix_oss_quota_enforce on] §3.3: refuse a
                                          write whose growth would push the export's
                                          usage (the same probe Qspace advertises:
@@ -330,7 +351,7 @@
                                 staple_data/len populated at init_process. */
 
     /* ---- Phase 24: traffic mirroring (off by default) ---- */
-    brix_mirror_conf_t  mirror;  /* [brix_stream_mirror_url, brix_mirror_*]
+    brix_mirror_conf_t  mirror;  /* [brix_mirror_url, brix_mirror_*]
                                       fire-and-forget read-request replay to a
                                       shadow XRootD server; enabled == 0 = no-op */
 

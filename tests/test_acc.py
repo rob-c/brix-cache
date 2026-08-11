@@ -1,4 +1,4 @@
-"""test_acc.py — XrdAcc-compatible authorization engine (brix_authdb_format xrdacc).
+"""test_acc.py — XrdAcc-compatible authorization engine (brix_authdb_engine xrdacc).
 
 Stands up a self-contained dedicated nginx running the `xrdacc` engine over an
 anonymous root:// stream tier and drives real `xrdfs`/`xrdcp` requests to verify
@@ -100,7 +100,7 @@ class TestXrdAccEngine:
         assert r.returncode != 0, "write must be denied with only rl privileges"
 
     def test_audit_log_records_grant_and_deny(self, acc_server):
-        """`brix_authdb_audit all` emits structured grant + deny lines."""
+        """`brix_acc_audit all` emits structured grant + deny lines."""
         _stat(acc_server, "/sub/test.txt")   # grant
         _stat(acc_server, "/other.txt")      # deny
         with open(_acc_log_dir["path"] / "error.log") as f:
@@ -112,7 +112,7 @@ class TestXrdAccEngine:
 # kXR_statx under xrdacc — the batched-stat predicate routes its authdb tier
 # through brix_authz_check, so the engine's verdict applies per path exactly
 # as it does to a single STAT (phase-18 closure: previously the predicate
-# called the bare native check, so `brix_authdb_format xrdacc` never gated
+# called the bare native check, so `brix_authdb_engine xrdacc` never gated
 # statx and a rule-less path leaked its metadata via the batch).
 # ---------------------------------------------------------------------------
 

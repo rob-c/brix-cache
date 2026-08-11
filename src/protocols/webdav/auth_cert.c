@@ -132,7 +132,7 @@ webdav_free_verify_resources(X509_STORE_CTX *vctx, X509 *leaf)
  *
  * WHAT: Validates that a cached TLS auth result is still valid for the current request by checking five conditions: cache exists, config reference matches, CA store pointer matches, verify depth setting matches, and DN was successfully verified (non-empty). Returns NGX_TRUE only when ALL conditions are satisfied.
  *
- * WHY: The auth cache must be invalidated whenever configuration changes — if conf->ca_store or conf->verify_depth changed between requests, the cached verification result may no longer apply to the current certificate chain. This check prevents serving stale cache results after configuration reloads. */
+ * WHY: The auth cache must be invalidated whenever configuration changes — if conf->ca_store or conf->common.verify_depth changed between requests, the cached verification result may no longer apply to the current certificate chain. This check prevents serving stale cache results after configuration reloads. */
 static ngx_int_t
 webdav_cache_matches(ngx_http_brix_webdav_tls_auth_cache_t *cache,
                      ngx_http_brix_webdav_loc_conf_t *conf)
@@ -140,7 +140,7 @@ webdav_cache_matches(ngx_http_brix_webdav_tls_auth_cache_t *cache,
     return cache != NULL
            && cache->conf == conf
            && cache->store == conf->ca_store
-           && cache->verify_depth == conf->verify_depth
+           && cache->verify_depth == conf->common.verify_depth
            && cache->dn[0] != '\0';
 }
 
@@ -227,7 +227,7 @@ webdav_store_tls_auth_cache(ngx_http_request_t *r, SSL *ssl,
 
         cache->conf = conf;
         cache->store = conf->ca_store;
-        cache->verify_depth = conf->verify_depth;
+        cache->verify_depth = conf->common.verify_depth;
         ngx_cpystrn((u_char *) cache->dn, (u_char *) dn, sizeof(cache->dn));
 
         if (SSL_set_ex_data(ssl, webdav_ssl_auth_cache_index, cache) == 0) {
@@ -254,7 +254,7 @@ webdav_store_tls_auth_cache(ngx_http_request_t *r, SSL *ssl,
 
             scache->conf = conf;
             scache->store = conf->ca_store;
-            scache->verify_depth = conf->verify_depth;
+            scache->verify_depth = conf->common.verify_depth;
             ngx_cpystrn((u_char *) scache->dn, (u_char *) dn,
                         sizeof(scache->dn));
 
@@ -270,7 +270,7 @@ webdav_store_tls_auth_cache(ngx_http_request_t *r, SSL *ssl,
         if (!webdav_cache_matches(scache, conf)) {
             scache->conf = conf;
             scache->store = conf->ca_store;
-            scache->verify_depth = conf->verify_depth;
+            scache->verify_depth = conf->common.verify_depth;
             ngx_cpystrn((u_char *) scache->dn, (u_char *) dn,
                         sizeof(scache->dn));
         }
@@ -397,7 +397,7 @@ webdav_nginx_verify_compatible(ngx_http_request_t *r,
 {
     ngx_http_ssl_srv_conf_t *sslcf;
 
-    if (conf->cadir.len != 0 || conf->cafile.len == 0) {
+    if (conf->common.trusted_ca_dir.len != 0 || conf->common.trusted_ca.len == 0) {
         return 0;
     }
 
@@ -406,8 +406,8 @@ webdav_nginx_verify_compatible(ngx_http_request_t *r,
         return 0;
     }
 
-    if (!webdav_str_equal(&conf->cafile, &sslcf->client_certificate)
-        && !webdav_str_equal(&conf->cafile, &sslcf->trusted_certificate))
+    if (!webdav_str_equal(&conf->common.trusted_ca, &sslcf->client_certificate)
+        && !webdav_str_equal(&conf->common.trusted_ca, &sslcf->trusted_certificate))
     {
         return 0;
     }
@@ -521,7 +521,7 @@ webdav_verify_proxy_cert(ngx_http_request_t *r,
     }
 
     if (brix_gsi_verify_chain(r->connection->log, conf->ca_store,
-                                 leaf, chain, conf->verify_depth,
+                                 leaf, chain, conf->common.verify_depth,
                                  &verify_res,
                                  1 /* client-purpose leaf check; RFC 3820
                                       proxy chains still accepted */)

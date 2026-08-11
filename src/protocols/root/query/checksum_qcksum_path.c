@@ -512,7 +512,8 @@ brix_query_cksum_path(brix_ctx_t *ctx, ngx_connection_t *c,
     rq.ctx  = ctx;
     rq.c    = c;
     rq.conf = conf;
-    ngx_cpystrn((u_char *) rq.algo, (u_char *) BRIX_QCKSUM_DEFAULT_ALGO,
+    ngx_cpystrn((u_char *) rq.algo,
+                (u_char *) brix_checksum_effective_default(conf),
                 sizeof(rq.algo));
 
     if (brix_qcksum_resolve(&rq, &rc) != NGX_OK) {

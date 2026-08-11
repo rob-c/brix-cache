@@ -218,7 +218,7 @@ def test_bear_05_query_access_token_200(forge):
     """BEAR-05: GET /test.txt?access_token=<valid> → 200.
 
     WHAT: RFC 6750 §2.3 (NOT RECOMMENDED) query transport; the server's
-          brix_http_query_token directive enables ?access_token= in addition to
+          brix_webdav_query_token directive enables ?access_token= in addition to
           ?authz= on the token port.
     WHY:  Even though the spec recommends against it, the server supports both
           param names; this case confirms the standard ?access_token= param works.

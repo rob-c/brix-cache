@@ -68,6 +68,10 @@ def _rt51_the_same_read_class_probe_must(port, ta, SECRET, snap, bpriv, REJECT, 
     ok(all((SECRET not in any((b, b'')), b'bob-only' not in any((b, b'')))),
        f"undispatched SEARCH of bob's 0700 dir enumerates/leaks nothing (HTTP {st})")
 
+    _webdav_undispatched_methods_p1(data, snap, port, ta, adir, bpriv, not_svc_root, SECRET, REJECT, base)
+
+
+def _webdav_undispatched_methods_p1(data, snap, port, ta, adir, bpriv, not_svc_root, SECRET, REJECT, base):
     # ============================================================ MUTATE-CLASS VERBS
     # Methods that, IF routed as a write/patch, would alter or destroy bob's file.
     # After each, bob's secret must be byte-identical, mode 0600, still bob-owned.
@@ -121,7 +125,10 @@ def _rt51_method_override_smuggling(data, st, REJECT, not_svc_root, snap, bpriv,
     pubp = os.path.join(data, "pub", "und_act")
     ok(all((st in REJECT + (200, 201, 204), not_svc_root(pubp))),
        f"undispatched MKACTIVITY in world-writable pub creates no svc/root file (HTTP {st})")
+    _webdav_undispatched_methods_p2(adir, port, ta, data, snap, bpriv, not_svc_root, SECRET, REJECT, base)
 
+
+def _webdav_undispatched_methods_p2(adir, port, ta, data, snap, bpriv, not_svc_root, SECRET, REJECT, base):
     # ============================================================ METHOD-OVERRIDE SMUGGLING
     # POST/PUT carrying X-HTTP-Method-Override: DELETE on bob/private.txt -- the
     # server must NOT honour the header to delete/mutate bob's file.  Snapshot the
@@ -193,7 +200,10 @@ def _rt51_lowercase_put_into_bob_s_dir(data, port, ta, REJECT, adir):
     http("put", "/bob/und_lower_bob.txt", port, ta, b"x\n")
     ok(not os.path.exists(lbob),
        "lowercase 'put' into bob's dir created no file (case-fold cannot bypass DAC)")
+    _webdav_undispatched_methods_p3(port, ta, adir, snap, bpriv, REJECT)
 
+
+def _webdav_undispatched_methods_p3(port, ta, adir, snap, bpriv, REJECT):
     # ============================================================ BOGUS VERB
     # A wholly-unknown verb must be cleanly rejected and mutate nothing.
     st, b = http("FOOBAR", "/alice/und_foobar.txt", port, ta, b"x\n")
@@ -238,6 +248,7 @@ def _rt51_connect_authority_form_must_not_open(resp, port):
     first = cresp.split(b"\r\n", 1)[0] if cresp else b""
     ok(all((b'200' not in first, b'Connection established' not in cresp)),
        f"CONNECT tunnel refused (no SSRF forward-proxy): {first[:40]!r}")
+    _webdav_undispatched_methods_p4(port, ta, adir, snap, bpriv)
 
 
 def _rt51_worker_survival(port, ta, adir):

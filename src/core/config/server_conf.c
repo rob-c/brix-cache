@@ -46,6 +46,7 @@ static void
 brix_create_srv_security(ngx_stream_brix_srv_conf_t *conf)
 {
     conf->auth         = NGX_CONF_UNSET_UINT;
+    conf->auth_maxfail = NGX_CONF_UNSET;
 
     /* XrdAcc engine (acc_tables / acc_timer / acc_nisdomain stay NULL/zero). */
     brix_acc_conf_init(&conf->acc);
@@ -127,6 +128,8 @@ brix_create_srv_storage(ngx_stream_brix_srv_conf_t *conf)
     conf->oss_maxsize  = NGX_CONF_UNSET;
     conf->oss_quota    = NGX_CONF_UNSET;
     conf->oss_quota_enforce = NGX_CONF_UNSET;
+    conf->pss_dca      = NGX_CONF_UNSET;
+    conf->dirstats     = NGX_CONF_UNSET;
     /* oss_cgroup left {0,NULL} → merged to "default" below. */
     conf->tls_ctx      = NULL;
     conf->cache        = NGX_CONF_UNSET;

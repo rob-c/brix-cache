@@ -138,7 +138,10 @@ def _rt27_control_proving_the_denies_above_are(port, key, owner_of, FL):
                 rc, _o, _e = xrd_fs(["stat", f"/pub/{FL}"], sub)
                 ok(rc != 0,
                    f"{sub} ({label}) root:// stat refused (mapping denied) (rc={rc})")
+    _boundary_mapping_p2(s3port, port, owner_of, scan_pub_reserved, key, data, PUB)
 
+
+def _boundary_mapping_p2(s3port, port, owner_of, scan_pub_reserved, key, data, PUB):
     # ===================== BOUNDARY-ADJACENT POSITIVE CONTROLS ===============
     # alice (uid 1001, well above floor, no forbidden group) is the always-allowed
     # control proving the DENIES above are identity-specific, not a blanket /pub
@@ -167,7 +170,10 @@ def _rt27_repeated_attempt_no_drift_invariant(owner_of, BR, st):
     exists, u, _g = owner_of(BR)
     ok(all((st in (200, 201, 204), exists, u == UID_BOB)),
        f"control: bob (above floor) PUT into /pub allowed, owned 1002 (HTTP {st}, uid={u})")
+    _boundary_mapping_p3(s3port, scan_pub_reserved, port, data, PUB, key, owner_of, AR)
 
+
+def _boundary_mapping_p3(s3port, scan_pub_reserved, port, data, PUB, key, owner_of, AR):
     # =================== REPEATED-ATTEMPT / NO-DRIFT INVARIANT ===============
     # hammer the floor boundary: many interleaved attempts (allowed floor1000 +
     # denied lowu) must never, under any race, drift a denied identity into a
@@ -206,6 +212,7 @@ def _rt27_segment_10(_floor_worker, leaks):
        f"race: no denied lowu PUT ever created a file (drift={leaks['deny_created']})")
     ok(leaks["allow_missing"] == 0,
        f"race: every allowed floor1000 PUT landed owned 1000 (misses={leaks['allow_missing']})")
+    _boundary_mapping_p4(s3port, scan_pub_reserved, port, data, PUB, key, AR)
 
 
 def _rt27_s3_boundary_control_alice_leg(s3port, data, scan_pub_reserved):

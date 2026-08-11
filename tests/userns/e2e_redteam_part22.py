@@ -44,6 +44,10 @@ def _rt22_0b_the_pre_seeded_alice_owned(dm, sdir, AOWN, SD, port, key):
 def _rt22_webdav_delete(SD, port, key, bob_fp):
     BOBMARK = b"bob-made-here"
 
+    _sticky_bit_dac_p1(s3port, port, data, sdir, key, bob_fp, AOWN, AMARK, SD, BOBMARK)
+
+
+def _sticky_bit_dac_p1(s3port, port, data, sdir, key, bob_fp, AOWN, AMARK, SD, BOBMARK):
     # ============================================================ WebDAV DELETE
     # (1) carol (a DIFFERENT non-owner) tries to DELETE bob's file -> sticky DENY;
     #     the file must SURVIVE unchanged and still owned by bob (no leak/clobber).
@@ -72,7 +76,10 @@ def _rt22_1_pos_positive_control_bob_the(SD, port, key, bob_fp):
 def _rt22_webdav_move(st, bob_fp, data, SD, port, key, AOWN):
     ok(all((st in (200, 204), not os.path.exists(bob_fp))),
        f"sticky POSITIVE: bob deletes his OWN file in the sticky dir (HTTP {st})")
+    _sticky_bit_dac_p2(s3port, data, port, sdir, key, AOWN, AMARK, SD)
 
+
+def _sticky_bit_dac_p2(s3port, data, port, sdir, key, AOWN, AMARK, SD):
     # ============================================================== WebDAV MOVE
     # (2) carol tries to MOVE (rename) alice's pre-seeded file out of the sticky
     #     dir -> sticky DENY (rename of a non-owned file is blocked); the source
@@ -126,6 +133,7 @@ def _rt22_2_pos_positive_control_alice_the(leaked, sdir, SD, port, key, AOWN):
         os.chmod(AOWN, 0o644)
     except OSError:
         pass
+    _sticky_bit_dac_p3(s3port, sdir, port, key, SD, AOWN, AMARK, data)
 
 
 def _rt22_cross_user_clobber(sdir, SD, port, key, st):
@@ -268,7 +276,10 @@ def _rt22_4_pos_positive_control_erin_owner(carol_fp, st, SD, sdir, data, AOWN, 
                      and b"carol-victim" in open(carol_fp, "rb").read())
     ok(all((st not in (200, 201, 204), not_clobbered)),
        f"sticky: bob DENIED rename-clobber onto carol's file (HTTP {st})")
+    _sticky_bit_dac_p4(s3port, port, sdir, key, AOWN, SD, AMARK, data)
 
+
+def _sticky_bit_dac_p4(s3port, port, sdir, key, AOWN, SD, AMARK, data):
     # ============================================================== root:// leg
     # The SAME sticky semantics through the native stream client (different
     # protocol, same kernel VFS state) — proves it is not WebDAV bookkeeping.
@@ -277,7 +288,10 @@ def _rt22_4_pos_positive_control_erin_owner(carol_fp, st, SD, sdir, data, AOWN, 
         fh = _rt22_when_xrd_avail(SD, sdir, data, AOWN, AMARK)
     else:
         ok(True, "root:// sticky leg SKIPPED (native xrdfs/xrdcp not built)")
+    _sticky_bit_dac_p5(s3port, port, sdir, key)
 
+
+def _sticky_bit_dac_p5(s3port, port, sdir, key):
     # ===================================================== S3 (alice leg only)
     # Only alice's S3 key is configured.  alice may DELETE her OWN object in the
     # sticky dir (owner), but a cross-user clobber via S3 is impossible to express
@@ -288,7 +302,10 @@ def _rt22_4_pos_positive_control_erin_owner(carol_fp, st, SD, sdir, data, AOWN, 
         _rt22_when_s3port(sdir, s3port)
     else:
         ok(True, "S3 sticky leg SKIPPED (no s3 port)")
+    _sticky_bit_dac_p6(port, sdir, key)
 
+
+def _sticky_bit_dac_p6(port, sdir, key):
     # ===================================================== final no-clobber sweep
     # After all the denied cross-user ops, NO file this batch created may have
     # flipped to the worker (svc/1500) or root (0): a wrong-uid file is a leak.

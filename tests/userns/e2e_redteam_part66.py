@@ -302,6 +302,11 @@ def _rt66_cleanup(rm_quiet, bob_secret, alice_own):
     rm_quiet(alice_own)
 
 
+def _qso_ors(x):
+    """Coalesce possibly-None xrdfs stdout to empty str."""
+    return x or ""
+
+
 def run_query_subcode_oracle(key, data, port, s3port):
     """Systematic kXR_query SUB-CODE matrix as a per-tenant INFO-LEAK ORACLE under
     UNIX impersonation.  For every reachable native-xrdfs query sub-code

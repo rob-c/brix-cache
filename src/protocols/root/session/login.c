@@ -94,6 +94,11 @@ brix_login_precheck_and_parse(brix_ctx_t *ctx, ngx_connection_t *c,
 
     ngx_memcpy(ctx->login.user, user, sizeof(ctx->login.user));
     ctx->login.pid = (uint32_t) req.pid;
+    /* §1.3: keep the advertised ability bitmasks — kXR_fullurl (bit 0)
+     * upgrades redirect targets to full root:// URLs (response/control.c);
+     * unknown bits are stored untouched and change nothing. */
+    ctx->login.ability  = req.ability;
+    ctx->login.ability2 = req.ability2;
     brix_sanitize_log_string(user, user_log, 64);
 
     ngx_log_debug3(NGX_LOG_DEBUG_STREAM, c->log, 0,

@@ -11,8 +11,12 @@
 
 extern ngx_conf_enum_t brix_cns_modes[];
 extern ngx_conf_enum_t brix_auth_modes[];
-extern ngx_conf_enum_t brix_authdb_format_modes[];
-extern ngx_conf_enum_t brix_authdb_audit_modes[];
+/* Engine/audit tables are the shared XrdAcc ones (defined in acc/config.c,
+ * also declared in acc/acc.h): brix_authdb_engine's value set is exactly
+ * brix_acc_format_modes (native|xrdacc). Externs here so this fragment does
+ * not need acc.h (phase-105 W3 dedup). */
+extern ngx_conf_enum_t brix_acc_format_modes[];
+extern ngx_conf_enum_t brix_acc_audit_modes[];
 extern ngx_conf_enum_t brix_hc_types[];
 extern ngx_conf_enum_t brix_cms_roles[];
 extern ngx_conf_enum_t brix_security_levels[];

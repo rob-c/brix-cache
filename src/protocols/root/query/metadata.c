@@ -147,25 +147,14 @@ stats_selector(const brix_ctx_t *ctx)
  *         slots (misc/err aggregate the unmapped op slots so totals stay
  *         truthful). 3. oss + sgen ride the 'a' selection only, like stock.
  */
-ngx_int_t
-brix_query_stats(brix_ctx_t *ctx, ngx_connection_t *c,
-    ngx_stream_brix_srv_conf_t *conf)
-{
-    static time_t tos_latch = 0;   /* worker start proxy: first-stats time */
-    char     resp[4096];
-    size_t   pos = 0;
-    unsigned sel = stats_selector(ctx);
-    int      port = 0;
-    time_t   now = time(NULL);
-    long     ok_open = 0, err_sum = 0, misc = 0;
-    int      i;
 
-    if (tos_latch == 0) {
-        tos_latch = now;
-    }
-    if (ctx->metrics) {
-        port = (int) ctx->metrics->port;
-    }
+/* Resolve the local listen port for the stats src= field: the metrics slot
+ * first, else the connection's local sockaddr (v4/v6). 0 when unknown. */
+static int
+stats_resolve_port(brix_ctx_t *ctx, ngx_connection_t *c)
+{
+    int port = ctx->metrics ? (int) ctx->metrics->port : 0;
+
     if (port == 0 && c->local_sockaddr != NULL) {
         if (c->local_sockaddr->sa_family == AF_INET) {
             port = (int) ntohs(((struct sockaddr_in *)
@@ -175,13 +164,37 @@ brix_query_stats(brix_ctx_t *ctx, ngx_connection_t *c,
                                 c->local_sockaddr)->sin6_port);
         }
     }
+    return port;
+}
 
+ngx_int_t
+brix_query_stats(brix_ctx_t *ctx, ngx_connection_t *c,
+    ngx_stream_brix_srv_conf_t *conf)
+{
+    static time_t tos_latch = 0;   /* worker start proxy: first-stats time */
+    char     resp[4096];
+    size_t   pos = 0;
+    unsigned sel = stats_selector(ctx);
+    int      port = stats_resolve_port(ctx, c);
+    time_t   now = time(NULL);
+    long     ok_open = 0, err_sum = 0, misc = 0;
+    int      i;
+
+    if (tos_latch == 0) {
+        tos_latch = now;
+    }
+
+    /* site="" is the summary-monitoring site label federation dashboards read;
+     * populate it from brix_sitename (the advertise.sitename slot), matching
+     * stock's all.sitename. Emitted raw like the adjacent hostname — an operator
+     * sitename is a plain identifier, not attacker input. Empty when unset. */
     stats_append(resp, sizeof(resp), &pos,
         "<statistics tod=\"%ld\" ver=\"" BRIX_SERVER_VERSION "\""
         " src=\"%.*s:%d\" tos=\"%ld\" pgm=\"" BRIX_SERVER_NAME "\""
-        " ins=\"brix\" pid=\"%d\" site=\"\">",
+        " ins=\"brix\" pid=\"%d\" site=\"%.*s\">",
         (long) now, (int) ngx_cycle->hostname.len, ngx_cycle->hostname.data,
-        port, (long) tos_latch, (int) ngx_pid);
+        port, (long) tos_latch, (int) ngx_pid,
+        (int) conf->advertise.sitename.len, conf->advertise.sitename.data);
 
     if (sel & BRIX_QSTATS_INFO) {
         stats_append(resp, sizeof(resp), &pos,
@@ -282,6 +295,46 @@ brix_query_stats(brix_ctx_t *ctx, ngx_connection_t *c,
     return brix_send_ok(ctx, c, resp, (uint32_t) (pos + 1));
 }
 
+/* Prologue for kXR_Qxattr: extract the request path, resolve it beneath the
+ * export root, run the read auth gate, and VFS-probe the target (following
+ * symlinks). Fills pathbuf, full_path and the vctx/vst it probes into. Returns NGX_OK to proceed, or
+ * the send rc / ctx->write_rc that the caller must return on any failure. */
+static ngx_int_t
+xattr_resolve_and_probe(brix_ctx_t *ctx, ngx_connection_t *c,
+    ngx_stream_brix_srv_conf_t *conf, char *pathbuf, char *full_path,
+    brix_vfs_ctx_t *vctx, brix_vfs_stat_t *vst)
+{
+    if (ctx->recv.cur_dlen == 0 || ctx->recv.payload == NULL) {
+        BRIX_OP_ERR(ctx, BRIX_OP_QUERY_XATTR);
+        return brix_send_error(ctx, c, kXR_ArgMissing, "xattr: path required");
+    }
+    if (!brix_extract_path(c->log, ctx->recv.payload, ctx->recv.cur_dlen,
+                             pathbuf, BRIX_MAX_PATH + 1, 1)) {
+        BRIX_OP_ERR(ctx, BRIX_OP_QUERY_XATTR);
+        return brix_send_error(ctx, c, kXR_ArgInvalid, "invalid path");
+    }
+    /* phase74-fp: pathbuf is the request path, full_path the output buf. */
+    brix_beneath_full_path(conf->common.root_canon, pathbuf,  /* NOLINT(readability-suspicious-call-argument) */
+                              full_path, PATH_MAX);
+    if (brix_auth_gate(ctx, c, BRIX_OP_QUERY_XATTR, "QUERY",
+                         pathbuf, full_path, conf,
+                         BRIX_AUTH_READ, 0) != NGX_OK) {
+        return ctx->write_rc;
+    }
+    /* Stat + xattr list/get all flow through the VFS (one ctx, confined to the
+     * export root). probe (follow) replaces the raw stat; OP_STAT is suppressed
+     * (probe) so only the enclosing QUERY op is accounted. */
+    brix_vfs_ctx_init(vctx, c->pool, c->log, BRIX_PROTO_ROOT,
+        conf->common.root_canon, NULL, conf->common.allow_write,
+        0 /* is_tls */, NULL, full_path);
+    if (brix_vfs_probe(vctx, 0 /* follow */, vst) != NGX_OK) {
+        BRIX_OP_ERR(ctx, BRIX_OP_QUERY_XATTR);
+        return brix_send_error(ctx, c, brix_kxr_from_errno(errno),
+                                 strerror(errno));
+    }
+    return NGX_OK;
+}
+
 /* brix_query_xattr — kXR_Qxattr: list a path's extended attributes through the
  * full security chain (extract → resolve → authdb → VO ACL → stat), returning the
  * oss.* key-values plus any user.U.*-prefixed xattrs. */
@@ -300,39 +353,12 @@ brix_query_xattr(brix_ctx_t *ctx, ngx_connection_t *c,
     char              ftype;
     char              facc;
 
-    if (ctx->recv.cur_dlen == 0 || ctx->recv.payload == NULL) {
-        BRIX_OP_ERR(ctx, BRIX_OP_QUERY_XATTR);
-        return brix_send_error(ctx, c, kXR_ArgMissing,
-                                 "xattr: path required");
-    }
-
-    if (!brix_extract_path(c->log, ctx->recv.payload, ctx->recv.cur_dlen,
-                             pathbuf, sizeof(pathbuf), 1)) {
-        BRIX_OP_ERR(ctx, BRIX_OP_QUERY_XATTR);
-        return brix_send_error(ctx, c, kXR_ArgInvalid, "invalid path");
-    }
-
-    /* phase74-fp: pathbuf is the request path, full_path the output buf. */
-    brix_beneath_full_path(conf->common.root_canon, pathbuf,  /* NOLINT(readability-suspicious-call-argument) */
-                              full_path, sizeof(full_path));
-
-    if (brix_auth_gate(ctx, c, BRIX_OP_QUERY_XATTR, "QUERY",
-                         pathbuf, full_path, conf,
-                         BRIX_AUTH_READ, 0) != NGX_OK) {
-        return ctx->write_rc;
-    }
-
-    /* Stat + xattr list/get all flow through the VFS (one ctx, confined to the
-     * export root). probe (follow) replaces the raw stat; the OP_STAT metric is
-     * suppressed (probe) so only the enclosing QUERY op is accounted. */
-    brix_vfs_ctx_init(&vctx, c->pool, c->log, BRIX_PROTO_ROOT,
-        conf->common.root_canon, NULL, conf->common.allow_write,
-        0 /* is_tls */, NULL, full_path);
-
-    if (brix_vfs_probe(&vctx, 0 /* follow */, &vst) != NGX_OK) {
-        BRIX_OP_ERR(ctx, BRIX_OP_QUERY_XATTR);
-        return brix_send_error(ctx, c, brix_kxr_from_errno(errno),
-                                 strerror(errno));
+    {
+        ngx_int_t prc = xattr_resolve_and_probe(ctx, c, conf, pathbuf,
+                                                full_path, &vctx, &vst);
+        if (prc != NGX_OK) {
+            return prc;
+        }
     }
 
     /* SECURITY: a stat/probe succeeds for anyone who can merely TRAVERSE to the

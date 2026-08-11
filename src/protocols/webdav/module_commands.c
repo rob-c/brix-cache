@@ -60,28 +60,13 @@ ngx_command_t ngx_http_brix_webdav_commands[] = {
     /* Per-socket TCP congestion control (e.g. "bbr") for the HTTP data path — the
      * sender's CC governs download throughput; BBR ignores reordering's spurious
      * loss signals.  Same directive name as the stream module, different context. */
-    { ngx_string("brix_tcp_congestion"),
-      NGX_HTTP_MAIN_CONF | NGX_HTTP_SRV_CONF | NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
-      ngx_conf_set_str_slot,
-      NGX_HTTP_LOC_CONF_OFFSET,
-      offsetof(ngx_http_brix_webdav_loc_conf_t, tcp_congestion),
-      NULL },
+    /* phase-105 W2: -> http_common (shared file-serve engine) */
 
     /* brix_voms_cert_dir moved to http_common.c (phase-101 W4). */
 
-    { ngx_string("brix_trusted_ca_dir"),
-      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
-      ngx_conf_set_str_slot,
-      NGX_HTTP_LOC_CONF_OFFSET,
-      offsetof(ngx_http_brix_webdav_loc_conf_t, cadir),
-      NULL },
+    /* phase-105 W2: -> http_common (auth-layer verify source) */
 
-    { ngx_string("brix_trusted_ca"),
-      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
-      ngx_conf_set_str_slot,
-      NGX_HTTP_LOC_CONF_OFFSET,
-      offsetof(ngx_http_brix_webdav_loc_conf_t, cafile),
-      NULL },
+    /* phase-105 W2: -> http_common */
 
     /* brix_authdb (native u/g/p/h READ ACL) -> owned by the common module
      * (phase-101 W5.2): registered on http_common at BRIX_HTTP_ALL_CONF into the
@@ -98,12 +83,7 @@ ngx_command_t ngx_http_brix_webdav_commands[] = {
 
 
 
-    { ngx_string("brix_webdav_verify_depth"),
-      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
-      ngx_conf_set_num_slot,
-      NGX_HTTP_LOC_CONF_OFFSET,
-      offsetof(ngx_http_brix_webdav_loc_conf_t, verify_depth),
-      NULL },
+    /* phase-105 W3.5: -> bare brix_verify_depth on http_common */
 
     { ngx_string("brix_webdav_auth"),
       NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
@@ -119,16 +99,9 @@ ngx_command_t ngx_http_brix_webdav_commands[] = {
       offsetof(ngx_http_brix_webdav_loc_conf_t, proxy_certs),
       NULL },
 
-    /* Hashed CA directory added to the server's TLS client-verify store —
-     * lets ssl_verify_client trust /etc/grid-security/certificates directly
-     * (stock ssl_client_certificate is file-only).  Server-level, like
-     * brix_webdav_proxy_certs above. */
-    { ngx_string("brix_client_ca_store"),
-      NGX_HTTP_SRV_CONF | NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
-      ngx_conf_set_str_slot,
-      NGX_HTTP_LOC_CONF_OFFSET,
-      offsetof(ngx_http_brix_webdav_loc_conf_t, ssl_client_capath),
-      NULL },
+    /* brix_client_ca_store -> http_common (phase-105 W2); the postconfig
+     * hook below still loads it into the server SSL_CTX, reading the
+     * adopted common.client_ca_store. */
 
     /* Parse-time auto-pick of ssl_client_certificate from a hashed CA dir:
      * resolves the <hash>.N file matching the issuer of the server's own
@@ -175,14 +148,8 @@ ngx_command_t ngx_http_brix_webdav_commands[] = {
       offsetof(ngx_http_brix_webdav_loc_conf_t, tape_rest),
       NULL },
 
-    /* Phase-2 Task 8: opt-in proxy-upload delegation endpoint (default off).
-     * See delegation.c / webdav.h delegation_endpoint. */
-    { ngx_string("brix_delegation_endpoint"),
-      NGX_HTTP_LOC_CONF | NGX_CONF_FLAG,
-      ngx_conf_set_flag_slot,
-      NGX_HTTP_LOC_CONF_OFFSET,
-      offsetof(ngx_http_brix_webdav_loc_conf_t, delegation_endpoint),
-      NULL },
+    /* brix_delegation_endpoint -> http_common (phase-105 W2); readers gate
+     * on common.delegation_endpoint (dispatch.c / delegation.c). */
 
 #include "directives_tpc.h"
 
@@ -239,7 +206,7 @@ ngx_command_t ngx_http_brix_webdav_commands[] = {
     /* brix_zip_access moved to http_common.c (phase-101 W4) — one bare name for
      * every HTTP protocol; brix_webdav_zip_access is retired. */
 
-    { ngx_string("brix_http_query_token"),
+    { ngx_string("brix_webdav_query_token"),
       NGX_HTTP_MAIN_CONF | NGX_HTTP_SRV_CONF | NGX_HTTP_LOC_CONF | NGX_CONF_FLAG,
       ngx_conf_set_flag_slot,
       NGX_HTTP_LOC_CONF_OFFSET,

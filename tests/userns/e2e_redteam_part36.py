@@ -63,6 +63,10 @@ def _rt36_a_multi_prop_proppatch(port, ta, adir, owned_alice):
     NS_PROPNAME = (b'<?xml version="1.0"?><D:propfind xmlns:D="DAV:">'
                    b'<D:propname/></D:propfind>')
 
+    _protocol_features_webdav_p1(port, ta, adir, propfind, NS_ALLPROP, tb, NS_PROPNAME, fetch_etag, data, owned_alice, XML, not_worker_root, base)
+
+
+def _protocol_features_webdav_p1(port, ta, adir, propfind, NS_ALLPROP, tb, NS_PROPNAME, fetch_etag, data, owned_alice, XML, not_worker_root, base):
     # ===================================================== (a) MULTI-PROP PROPPATCH
     http("PUT", "/alice/pfw_multi.txt", port, ta, b"multi-prop target\n")
     pm = adir("pfw_multi.txt")
@@ -122,7 +126,10 @@ def _rt36_b_proppatch_remove(propfind, ta, NS_ALLPROP, st_b, owned_alice, pm, po
        "bob's dead-property did NOT persist on alice's file (broker xattr DAC)")
     ok(owned_alice(pm),
        "alice's file unchanged-owner after bob's PROPPATCH attempt")
+    _protocol_features_webdav_p2(port, ta, adir, propfind, NS_ALLPROP, NS_PROPNAME, fetch_etag, data, XML, owned_alice, pm, not_worker_root, base)
 
+
+def _protocol_features_webdav_p2(port, ta, adir, propfind, NS_ALLPROP, NS_PROPNAME, fetch_etag, data, XML, owned_alice, pm, not_worker_root, base):
     # ===================================================== (b) PROPPATCH REMOVE
     http("PUT", "/alice/pfw_rm.txt", port, ta, b"remove-prop target\n")
 
@@ -158,6 +165,7 @@ def _rt36_segment_12(port, ta, XML, propfind, NS_ALLPROP, set_ok, st_s1, owned_a
            f"(set {st_s1}, remove {st_rm})")
     ok(owned_alice(prm),
        "PROPPATCH set+remove cycle left the file owned by alice")
+    _protocol_features_webdav_p3(port, ta, adir, propfind, NS_ALLPROP, NS_PROPNAME, fetch_etag, data, XML, owned_alice, pm, not_worker_root, base)
 
 
 def _rt36_c_namespaced_round_trip(port, ta, adir, XML, propfind, NS_ALLPROP):
@@ -189,7 +197,10 @@ def _rt36_d_three_propfind_bodies(st_ns, body_ns, st_nf, owned_alice, pns, propf
                  f"(PROPPATCH {st_ns})")
     ok(owned_alice(pns),
        "namespaced-prop file owned by alice (broker xattr as owner)")
+    _protocol_features_webdav_p4(propfind, ta, NS_ALLPROP, NS_PROPNAME, port, adir, fetch_etag, data, owned_alice, pm, not_worker_root, base)
 
+
+def _protocol_features_webdav_p4(propfind, ta, NS_ALLPROP, NS_PROPNAME, port, adir, fetch_etag, data, owned_alice, pm, not_worker_root, base):
     # ===================================================== (d) THREE PROPFIND BODIES
     # On the OWNER's file: named-prop, allprop, propname must each respond cleanly.
     named_body = (b'<?xml version="1.0"?>'
@@ -229,7 +240,10 @@ def _rt36_positive_control_propfind_allprop_on_bob(named_body, NS_ALLPROP, NS_PR
     st_ctrl, body_ctrl = propfind("/bob/readable.txt", ta, NS_ALLPROP)
     ok(st_ctrl in (200, 207, 403, 404),
        f"PROPFIND allprop on bob's 0644 control handled (HTTP {st_ctrl})")
+    _protocol_features_webdav_p5(port, ta, adir, fetch_etag, data, owned_alice, pm, not_worker_root, base)
 
+
+def _protocol_features_webdav_p5(port, ta, adir, fetch_etag, data, owned_alice, pm, not_worker_root, base):
     # ===================================================== (e) CONDITIONAL COPY/MOVE
     http("PUT", "/alice/pfw_csrc.txt", port, ta, b"conditional-copy source\n")
     psrc = adir("pfw_csrc.txt")
@@ -297,6 +311,7 @@ def _rt36_segment_19(port, ta, base, powd):
        f"Overwrite:F COPY over existing target refused / not clobbered (HTTP {st_of})")
     ok(b"conditional-copy source" not in dst_body,
        "Overwrite:F left the pre-existing destination content intact (no clobber)")
+    _protocol_features_webdav_p6(port, ta, adir, data, fetch_etag, owned_alice, pm, not_worker_root, base)
 
 
 def _rt36_move_with_depth_infinity_of_an(port, ta, base, adir):
@@ -340,6 +355,7 @@ def _rt36_positive_control_the_same_source_moves(port, ta, base, bsecret, owned_
                     hdrs={"Destination": f"{base}/alice/pfw_xmove2.txt"})
     ok(all((st_pc in (201, 204, 200), owned_alice(adir('pfw_xmove2.txt')))),
        f"control: same MOVE within alice's space succeeds, owned alice (HTTP {st_pc})")
+    _protocol_features_webdav_p7(port, ta, adir, fetch_etag, owned_alice, pm)
 
 
 def _rt36_f_options_coll_vs_file(port, ta, adir):
@@ -361,7 +377,10 @@ def _rt36_options_on_bob_s_0700_dir(port, ta, adir, fetch_etag):
     st_ob, body_ob = http("OPTIONS", "/bobsecret/", port, ta)
     ok(all((b'svc-only-secret' not in any((body_ob, b'')), b'BOB-PRIVATE-SECRET' not in any((body_ob, b'')))),
        f"OPTIONS on bob's private dir leaks no contents (HTTP {st_ob})")
+    _protocol_features_webdav_p8(port, ta, adir, fetch_etag, owned_alice, pm)
 
+
+def _protocol_features_webdav_p8(port, ta, adir, fetch_etag, owned_alice, pm):
     # ===================================================== (g) If-Range GET own file
     http("PUT", "/alice/pfw_ir.txt", port, ta, b"0123456789ABCDEF")
     pir = adir("pfw_ir.txt")
@@ -395,7 +414,10 @@ def _rt36_if_range_as_a_confidentiality_oracle(port, ta, owned_alice, pm):
                             hdrs={"If-Range": '"x"', "Range": "bytes=0-4"})
     ok(b'BOB-PRIVATE-SECRET' not in any((body_irb, b'')),
        f"If-Range GET on bob's 0600 leaks no secret (HTTP {st_irb})")
+    _protocol_features_webdav_p9(port, ta, owned_alice, pm)
 
+
+def _protocol_features_webdav_p9(port, ta, owned_alice, pm):
     # ===================================================== worker-survival follow-up
     # After all the property/conditional churn the worker must still serve a plain
     # legit op for the mapped user (proves no broker desync / principal wedge).

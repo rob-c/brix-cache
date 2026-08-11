@@ -199,7 +199,10 @@ def _rt25_section_d_webdav_proppatch_cannot_set(rel, TAG, uid_of, OTHER, st, por
         ok(st not in (200, 201, 204),
            "carol COPY into staff dir refused cleanly (no svc/root-owned inode) "
            "(HTTP %s)" % st)
+    _chown_chgrp_dac_p2(have_s3, have_root, port, ta, rel, tc, gid_of, tb, TAG, uid_of, s3port, OTHER, owned_by, body_of)
 
+
+def _chown_chgrp_dac_p2(have_s3, have_root, port, ta, rel, tc, gid_of, tb, TAG, uid_of, s3port, OTHER, owned_by, body_of):
     # ===================================================================
     # SECTION D — WebDAV PROPPATCH cannot set owner / group / unix-mode dead
     # properties to escalate.  We PROPPATCH a uniquely-named set of properties that
@@ -263,7 +266,10 @@ def _rt25_section_e_pub_0777_svc_svc(TAG, port, tc, pp_grp, gid_of, pp2, g_befor
     ok(all((gid_of(pp2) == g_before, gid_of(pp2) != GID_RESEARCH)),
        "PROPPATCH cannot move a file into the research group carol isn't in "
        "(gid=%s, was=%s)" % (gid_of(pp2), g_before))
+    _chown_chgrp_dac_p3(have_s3, have_root, port, ta, rel, tb, TAG, s3port, owned_by, gid_of, uid_of, body_of)
 
+
+def _chown_chgrp_dac_p3(have_s3, have_root, port, ta, rel, tb, TAG, s3port, owned_by, gid_of, uid_of, body_of):
     # ===================================================================
     # SECTION E — pub/ (0777 svc:svc) creation: the writer owns the file, never
     # svc, and the file does NOT inherit svc's group (no setgid on pub).  This is
@@ -313,6 +319,7 @@ def _rt25_section_f_s3_alice_leg_only(pubf, gid_of, TAG, port, tb, rel, owned_by
         ok(True, "S3 ownership-invariant leg skipped (S3 endpoint down)")
         ok(True, "S3 CopyObject ownership leg skipped (S3 endpoint down)")
         ok(True, "S3 overwrite ownership leg skipped (S3 endpoint down)")
+    _chown_chgrp_dac_p4(have_root, port, ta, rel, TAG, uid_of, owned_by, gid_of)
 
 
 def _rt25_carol_creates_in_the_setgid_staff_2(lf, TAG, rel, owned_by, uid_of):
@@ -419,7 +426,10 @@ def _rt25_section_g_root_native_stream_ownership(have_root, TAG, rel, owned_by, 
         ok(True, "root:// setgid carol leg skipped (native client absent)")
         ok(True, "root:// setgid bob-deny leg skipped (native client absent)")
         ok(True, "root:// mv ownership leg skipped (native client absent)")
+    _chown_chgrp_dac_p5(port, ta, rel, uid_of, TAG)
 
+
+def _chown_chgrp_dac_p5(port, ta, rel, uid_of, TAG):
     # ===================================================================
     # SECTION H — GLOBAL SWEEP: after every op above, NO file under any of the
     # exercised dirs may be owned by uid 0 or svc(1500).  This is the broad

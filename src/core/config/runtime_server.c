@@ -256,12 +256,12 @@ brix_server_validate_cache_stage_backend(ngx_conf_t *cf,
     }
     if (xcf->cache_wt_stage_root.len == 0) {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-            "brix_cache_wt_stage_backend requires brix_cache_wt_stage_root");
+            "brix_wt_stage_backend requires brix_wt_stage_root");
         return NGX_ERROR;
     }
     if (xcf->cache_state_root.len == 0) {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-            "brix_cache_wt_stage_backend requires a POSIX "
+            "brix_wt_stage_backend requires a POSIX "
             "brix_cache_state_root for its sidecars");
         return NGX_ERROR;
     }

@@ -100,7 +100,7 @@ breakers, in-flight caps).
   against a JWKS), and `src/auth/token/macaroon.c` validates macaroons itself.
 - **Authorization:** a **dual engine** — `src/auth/authz/authdb.c` (native `u/g/p/a`
   format, `root://` only) and `src/auth/authz/acc/` (a faithful XrdAcc port, all three
-  protocols), selected by `brix_authdb_format`. Plus VO ACLs (`src/auth/authz/acl.c`,
+  protocols), selected by `brix_authdb_engine`. Plus VO ACLs (`src/auth/authz/acl.c`,
   `find_rule.c`), token-scope path gates (`src/auth/token/scopes.c`), and a global
   write gate.
 - **The decision pipeline** for `root://` runs through
@@ -410,7 +410,7 @@ scopes.
   (`XrdAccGroups.cc` handles unix/netgroups via `getgrent`/`innetgr`).
 - *audit:* `XrdAccAudit.cc` emits per-decision lines.
 
-**Module — dual engine.** `brix_authdb_format` selects:
+**Module — dual engine.** `brix_authdb_engine` selects:
 
 - **`native`** (`src/auth/authz/authdb.c`, default, `root://` only): records
   `[u|g|p|a] <id> <path> <privs>` (`u`ser/`g`roup/`p`=host-CIDR/`a`ll — **no
@@ -600,9 +600,9 @@ stream {
     # authorization
     brix_allow_write       on;            # global write pre-gate
     brix_authdb            /etc/brix/authdb;
-    brix_authdb_format     xrdacc;        # native|xrdacc
-    brix_authdb_audit      deny;
-    brix_authdb_refresh    60;
+    brix_authdb_engine     xrdacc;        # native|xrdacc
+    brix_acc_audit      deny;
+    brix_acc_refresh    60;
     brix_require_vo        / cms;
   }
 }
@@ -621,7 +621,7 @@ http {
       brix_webdav_token_jwks   /etc/brix/jwks.json;
       brix_webdav_token_issuer https://issuer.example/;
       brix_authdb              /etc/brix/authdb;   # shared engine
-      brix_authdb_format       xrdacc;
+      brix_authdb_engine       xrdacc;
     }
   }
 }

@@ -3,7 +3,7 @@
  * directive setters (see stream_mirror.h).
  *
  * WHAT: Owns the three brix_stream_mirror_* directive setters and their private
- *       parse helpers: brix_stream_mirror_url (resolve + append a shadow target),
+ *       parse helpers: brix_mirror_url (resolve + append a shadow target),
  *       and the opcode allowlist / exclude setters plus the opcode-name -> bit
  *       table they share.
  * WHY:  split out (phase-79 file-size cap) from the request-path code in
@@ -22,7 +22,7 @@
 
 /* directive setters */
 /*
- * brix_stream_mirror_url host:port — append one shadow target, resolved at
+ * brix_mirror_url host:port — append one shadow target, resolved at
  * configuration time so request handlers never call getaddrinfo on the event
  * loop.  Up to BRIX_MIRROR_MAX_TARGETS may be configured.
  */
@@ -47,7 +47,7 @@ brix_stream_mirror_set_url(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     }
     if (xcf->mirror.targets->nelts >= BRIX_MIRROR_MAX_TARGETS) {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-            "brix_stream_mirror_url: at most %d targets supported",
+            "brix_mirror_url: at most %d targets supported",
             BRIX_MIRROR_MAX_TARGETS);
         return NGX_CONF_ERROR;
     }
@@ -57,7 +57,7 @@ brix_stream_mirror_set_url(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
            == NULL)
     {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-            "brix_stream_mirror_url: expected host:port, got \"%V\"",
+            "brix_mirror_url: expected host:port, got \"%V\"",
             &hostport);
         return NGX_CONF_ERROR;
     }
@@ -67,7 +67,7 @@ brix_stream_mirror_set_url(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     u.default_port = 1094;
     if (ngx_parse_url(cf->pool, &u) != NGX_OK || u.naddrs == 0) {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-            "brix_stream_mirror_url: cannot resolve \"%V\"%s%s", &hostport,
+            "brix_mirror_url: cannot resolve \"%V\"%s%s", &hostport,
             u.err ? ": " : "", u.err ? u.err : "");
         return NGX_CONF_ERROR;
     }

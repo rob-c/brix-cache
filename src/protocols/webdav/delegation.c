@@ -232,7 +232,7 @@ delegation_chain_trusted(ngx_http_request_t *r,
     }
 
     if (brix_gsi_verify_chain(r->connection->log, conf->ca_store, leaf, chain,
-            conf->verify_depth, &verify_res, 0 /* GSI: accept RFC-3820 proxy */)
+            conf->common.verify_depth, &verify_res, 0 /* GSI: accept RFC-3820 proxy */)
         != NGX_OK)
     {
         /* brix_gsi_verify_chain already logged the specific error. */

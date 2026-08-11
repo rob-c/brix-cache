@@ -27,6 +27,10 @@ def _rt35_a(data, s3port, owned_alice):
     abs = lambda rel: os.path.join(data, *rel.split("/"))
 
     # ------------------------------------------------------------------ (a) ---
+    _protocol_features_s3_p1(s3port, not_worker_root, owned_alice)
+
+
+def _protocol_features_s3_p1(s3port, not_worker_root, owned_alice):
     # CONDITIONAL CREATE  If-None-Match: *  — create-only / no-clobber.
     fp = abs("alice/pfs_cond_create.txt")
     try:
@@ -65,6 +69,10 @@ def _rt35_second_create_only_put_to_the(s3port, fp, owned_alice, not_worker_root
        "S3 conditional-create object never worker/root-owned")
 
     # ------------------------------------------------------------------ (b) ---
+    _protocol_features_s3_p2(s3port, not_worker_root, owned_alice)
+
+
+def _protocol_features_s3_p2(s3port, not_worker_root, owned_alice):
     # OBJECT METADATA round-trip: Content-Type + x-amz-meta-* on PUT, then
     # HEAD/GET echoes them back.  Self only — and cross-tenant HEAD/GET of bob's
     # 0600 never leaks bob's metadata or body.
@@ -126,6 +134,10 @@ def _rt35_control_bob_s_0644_world_readable(s3port, ov):
        f"control: S3 GET bob's 0644 with overrides ALLOWED (HTTP {stc})")
 
     # ------------------------------------------------------------------ (d) ---
+    _protocol_features_s3_p3(s3port, not_worker_root, mp, owned_alice)
+
+
+def _protocol_features_s3_p3(s3port, not_worker_root, mp, owned_alice):
     # If-Modified-Since / If-Unmodified-Since conditional GET.  On own object the
     # server returns 200/304 (either is correct).  On bob's 0600 there must be NO
     # oracle: the conditional outcome must not differ-leak existence/mtime and the
@@ -185,6 +197,10 @@ def _rt35_a_wildly_out_of_range_partnumber(s3port):
        f"S3 GET ?partNumber=99999 handled, no crash (HTTP {spx})")
 
     # ------------------------------------------------------------------ (f) ---
+    _protocol_features_s3_p4(s3port, not_worker_root, owned_alice)
+
+
+def _protocol_features_s3_p4(s3port, not_worker_root, owned_alice):
     # HEAD a NON-EXISTENT key -> 404, never 403 (a 403 on a missing key would be an
     # existence-confusion oracle leaking that the deny is path-vs-existence based).
     # Also: HEAD a missing key UNDER bob's traversable 0755 dir -> 404 (not a leak).

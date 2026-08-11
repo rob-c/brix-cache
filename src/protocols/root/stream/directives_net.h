@@ -55,7 +55,7 @@
       offsetof(ngx_stream_brix_srv_conf_t, hc.type),
       brix_hc_types },
 
-    /* Phase 24: traffic mirroring (off by default) */    { ngx_string("brix_stream_mirror_url"),
+    /* Phase 24: traffic mirroring (off by default) */    { ngx_string("brix_mirror_url"),
       NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
       brix_stream_mirror_set_url,
       NGX_STREAM_SRV_CONF_OFFSET,

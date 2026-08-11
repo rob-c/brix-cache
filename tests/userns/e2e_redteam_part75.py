@@ -288,6 +288,11 @@ def _rt75_final_native_round_trip_worker_broker():
        f"raw-authed: after all authed raw-query frames native xrdfs ls /alice ok (rc={rc})")
 
 
+def _rka_orb(x):
+    """Coalesce a possibly-None wire body to empty bytes."""
+    return x or b""
+
+
 def run_raw_kxr_authed(key, data, port, s3port):
     """RAW kXR_query SUB-CODE matrix under an ACTUALLY-AUTHENTICATED ztn session —
     the wire-level metadata/oracle plane that neither run_raw_kxr_deep (which drives

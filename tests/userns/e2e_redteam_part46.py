@@ -207,6 +207,10 @@ def _rt46_section_1_prepare_stage_combined_with(mk_fixture, TAG, uid_of, body_of
     if not have_xrd:
         ok(True, "combo_rare_opcodes: native xrdfs unavailable — root:// combos skipped (handled)")
 
+    _combo_rare_opcodes_p1(have_xrd, key, port, uid_of, mk_fixture, body_of, rm_quiet, exists, mtime_of, SECRET, STAFFMARK, SVCMARK, STAFFNONE, gid_of, TAG, size_of)
+
+
+def _combo_rare_opcodes_p1(have_xrd, key, port, uid_of, mk_fixture, body_of, rm_quiet, exists, mtime_of, SECRET, STAFFMARK, SVCMARK, STAFFNONE, gid_of, TAG, size_of):
     # ===================================================================
     # SECTION 1 — PREPARE/STAGE combined with CROSS-TENANT + then-READ.
     # prepare (kXR_prepare) is barely touched.  Combine it with: (a) own file
@@ -217,6 +221,8 @@ def _rt46_section_1_prepare_stage_combined_with(mk_fixture, TAG, uid_of, body_of
     # ===================================================================
     rc, out = _rt46_check_when_have_xrd(have_xrd, mk_fixture, uid_of, body_of, SECRET, TAG, exists)
 
+
+def _combo_rare_opcodes_p2(have_xrd, key, port, uid_of, mk_fixture, rm_quiet, exists, mtime_of, SECRET, STAFFMARK, SVCMARK, STAFFNONE, gid_of, TAG, size_of, body_of):
     # ===================================================================
     # SECTION 2 — LOCATE existence-oracle combined with the FULL visibility ladder:
     # own / cross-tenant 0600 / group 0640 (member vs non-member) / svc-only 0750.
@@ -227,6 +233,8 @@ def _rt46_section_1_prepare_stage_combined_with(mk_fixture, TAG, uid_of, body_of
     if have_xrd:
         rc, out = _rt46_when_have_xrd_4(SECRET, SVCMARK, STAFFMARK)
 
+
+def _combo_rare_opcodes_p3(have_xrd, key, port, uid_of, mk_fixture, rm_quiet, exists, mtime_of, SECRET, SVCMARK, STAFFNONE, gid_of, TAG, size_of, body_of):
     # ===================================================================
     # SECTION 3 — STATVFS / DF combined with cross-tenant + group paths: must be a
     # filesystem-stat op only, never a per-file confidentiality oracle that embeds
@@ -485,6 +493,8 @@ def _rt46_section_4_query_checksum_xattr_space(have_xrd, mk_fixture, TAG, uid_of
     # ===================================================================
     rc = _rt46_check_when_have_xrd_2(have_xrd, mk_fixture, key, SECRET, TAG, uid_of, SVCMARK)
 
+
+def _combo_rare_opcodes_p5(have_xrd, key, port, uid_of, rm_quiet, mk_fixture, exists, mtime_of, gid_of, SECRET, TAG, size_of, body_of):
     # ===================================================================
     # SECTION 5 — READV / WRITEV vectored I/O combined with cross-tenant + group +
     # setgid/sticky directories.  The combination the single batches never ran:
@@ -500,6 +510,8 @@ def _rt46_section_4_query_checksum_xattr_space(have_xrd, mk_fixture, TAG, uid_of
         # bit — a group-inheritance invariant through the vectored-write opcode.
         rc, landed = _rt46_when_have_xrd_2(rm_quiet, TAG, exists, uid_of, gid_of, size_of, SECRET, mk_fixture)
 
+
+def _combo_rare_opcodes_p6(have_xrd, key, port, uid_of, mk_fixture, mtime_of, rm_quiet, exists, gid_of, SECRET, TAG, body_of):
     # ===================================================================
     # SECTION 6 — TOUCH/UTIME with FUTURE/PAST times combined with cross-tenant and
     # group DAC.  touch sets timestamps; the combination: (a) alice utime her own
@@ -541,7 +553,10 @@ def _rt46_section_4_query_checksum_xattr_space(have_xrd, mk_fixture, TAG, uid_of
         ok(any((rc == 0, uid_of('bob/private.txt') == UID_BOB)),
            f"control: owner bob touches his own private.txt (rc={rc})")
         rm_quiet(f"alice/{TAG}_ut.txt")
+    _combo_rare_opcodes_p7(have_xrd, key, port, uid_of, mk_fixture, rm_quiet, exists, SECRET, TAG, body_of)
 
+
+def _combo_rare_opcodes_p7(have_xrd, key, port, uid_of, mk_fixture, rm_quiet, exists, SECRET, TAG, body_of):
     # ===================================================================
     # SECTION 7 — LN CHAINS combined with query/prepare: build a hard-link, then run
     # a RARE op (query checksum / prepare) THROUGH the link, and attempt a
@@ -551,6 +566,8 @@ def _rt46_section_4_query_checksum_xattr_space(have_xrd, mk_fixture, TAG, uid_of
     if have_xrd:
         _rt46_when_have_xrd_3(mk_fixture, TAG, rm_quiet, exists, SECRET, uid_of, body_of)
 
+
+def _combo_rare_opcodes_p8(have_xrd, key, port, uid_of, rm_quiet, TAG, SECRET):
     # ===================================================================
     # SECTION 8 — WebDAV GET with WEIRD-BUT-VALID headers combined with cross-tenant
     # identity.  These header riders (TE, Expect: 100-continue, Accept-Ranges probe,
@@ -613,7 +630,10 @@ def _rt46_d_positive_control_a_range_get(TAG, port, tok_alice, tok_bob):
                     hdrs={"TE": "chunked", "Accept-Encoding": "identity"})
     ok(all((st in (403, 404, 401), b'svc-only-secret' not in any((body, b'')))),
        f"GET of svc-only 0750 by alice + TE rider denied, no svc secret (HTTP {st})")
+    _combo_rare_opcodes_p9(have_xrd, port, tok_bob, tok_alice, uid_of, key, rm_quiet, TAG, SECRET)
 
+
+def _combo_rare_opcodes_p9(have_xrd, port, tok_bob, tok_alice, uid_of, key, rm_quiet, TAG, SECRET):
     # ===================================================================
     # SECTION 9 — KEEPALIVE PIPELINE mixing a RARE-result GET (PROPFIND/Range) with a
     # cross-tenant attempt on ONE connection: the per-request principal must not bleed

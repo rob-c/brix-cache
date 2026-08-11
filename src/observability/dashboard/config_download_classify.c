@@ -37,7 +37,7 @@ static const char *const dashboard_secret_directives[] = {
     "brix_s3_secret_key",
     "brix_tpc_outbound_client_secret",
     "brix_tpc_outbound_bearer_file",
-    "brix_webdav_tpc_token_client_secret",
+    "brix_tpc_outbound_client_secret",
     "brix_webdav_proxy_auth",
     /* brix_mirror_token is an inline bearer credential whose name carries no
      * secret keyword the substring net catches ("token" is excluded there so
@@ -88,9 +88,9 @@ static const char *const dashboard_secret_exceptions[] = {
     "brix_token_cache",
     "brix_webdav_token_issuer",
     "brix_webdav_token_audience",
-    "brix_webdav_token_introspect_ttl",
-    "brix_webdav_token_introspect_loc",
-    "brix_webdav_token_introspect_fail_open",
+    "brix_token_introspect_ttl",
+    "brix_token_introspect_loc",
+    "brix_token_introspect_fail_open",
     NULL
 };
 

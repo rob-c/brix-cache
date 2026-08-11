@@ -450,7 +450,7 @@ def _driver(proto):
 # ===========================================================================
 # Mirror fixture — the fleet has no mirror server, so provision one:
 #   origin-sink (storage)  <- mirrored shadow traffic
-#   mirror-front (storage + brix_stream_mirror_url -> sink)  <- client I/O
+#   mirror-front (storage + brix_mirror_url -> sink)  <- client I/O
 # The client reads/writes the front; integrity must be unaffected by mirroring.
 # ===========================================================================
 

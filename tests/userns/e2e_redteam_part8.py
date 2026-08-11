@@ -310,11 +310,73 @@ def _root_checksum_denied():
     ok(rc != 0, f"root:// query checksum of bob's 0600 DENIED (rc={rc})")
 
 
+def run_root_deep(key, data, port):
+    """Per-subcommand root:// (stream) matrix under impersonation: every metadata
+    + data op as the mapped user, each in a self-success and a cross-tenant-deny
+    variant.  The native client drives the real wire protocol, so this exercises
+    the stream dispatch path the HTTP planes never touch."""
+    if not xrd_avail():
+        ok(True, "root:// deep matrix skipped (native client absent)")
+        return
+
+    bobpriv = os.path.join(data, "bob", "private.txt")           # 0600 bob
+    bobread = os.path.join(data, "bob", "readable.txt")          # 0644 bob
+
+    # seed an alice-owned file via the data plane (write path).
+    lf = os.path.join(WORK, "rd_seed.bin")
+    with open(lf, "wb") as fh:
+        fh.write(b"ALICE-ROOT-DEEP\n")
+    rc, _o, _e = xrd_cp_up(lf, "/alice/rd_self.bin", "alice")
+    ok(rc == 0 and os.path.exists(os.path.join(data, "alice", "rd_self.bin")),
+       f"root:// xrdcp write own file (rc={rc})")
+    sf = os.path.join(data, "alice", "rd_self.bin")
+    ok(os.path.exists(sf) and os.stat(sf).st_uid == UID_ALICE,
+       "root:// written file owned by alice")
+
+    # cat self vs bob's 0600.
+    dl = os.path.join(WORK, "rd_self_dl.bin")
+    rc, _o, _e = xrd_cp_down("/alice/rd_self.bin", dl, "alice")
+    ok(rc == 0 and os.path.exists(dl) and open(dl, "rb").read() == b"ALICE-ROOT-DEEP\n",
+       f"root:// xrdcp read own file byte-exact (rc={rc})")
+    rc, out, _e = xrd_fs(["cat", "/bob/private.txt"], "alice")
+    ok(rc != 0 and "BOB-PRIVATE-SECRET" not in (out or ""),
+       f"root:// cat bob's 0600 DENIED (rc={rc})")
+    dlx = os.path.join(WORK, "rd_steal.bin")
+    rc, _o, _e = xrd_cp_down("/bob/private.txt", dlx, "alice")
+    ok(rc != 0 and not (os.path.exists(dlx)
+                        and b"BOB-PRIVATE-SECRET" in open(dlx, "rb").read()),
+       f"root:// xrdcp read bob's 0600 DENIED (rc={rc})")
+
+    # stat self ok (a 0644 sibling is fine); bob's 0600 stat may succeed (metadata
+    # is not secret) but reading was already proven denied above.
+    rc, _o, _e = xrd_fs(["stat", "/alice/rd_self.bin"], "alice")
+    ok(rc == 0, f"root:// stat own file (rc={rc})")
+
+    # namespace mutations (mkdir/write/rm/mv/truncate/chmod/query) — self vs cross.
+    _rootdeep_ns_ops(data, lf, sf, bobread, bobpriv)
+
+
 def _delete_xml(keys):
     body = b'<?xml version="1.0"?><Delete>'
     for k in keys:
         body += b"<Object><Key>" + k.encode() + b"</Key></Object>"
     return body + b"</Delete>"
+
+
+def _s3deep_uploadpartcopy(s3port):
+    """UploadPartCopy with a cross-tenant source: initiate own MPU, then try to copy
+    a part from bob's 0600 object -> denied (no part written from bob's data)."""
+    st_i, bdy = s3("POST", "alice/upc.bin", s3port, params={"uploads": ""})
+    m = re.search(rb"<UploadId>([^<]+)</UploadId>", bdy or b"")
+    if not (st_i == 200 and m):
+        ok(True, "S3 UploadPartCopy setup skipped (initiate unsupported)")
+        return
+    up = m.group(1).decode()
+    st, _ = s3("PUT", "alice/upc.bin", s3port,
+               params={"uploadId": up, "partNumber": "1"},
+               extra_hdrs={"x-amz-copy-source": f"/{S3_BUCKET}/bob/private.txt"})
+    ok(st not in (200, 201), f"S3 UploadPartCopy cross-tenant source DENIED (HTTP {st})")
+    s3("DELETE", "alice/upc.bin", s3port, params={"uploadId": up})
 
 
 def run_s3_deep(key, data, s3port):

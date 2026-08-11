@@ -67,6 +67,10 @@ def _rt9_seed_local_payloads_of_distinct_sizes(local, A):
     lf_big = local("big.bin", BIG)
     lf_small = local("small.bin", SMALL)
 
+    _root_protocol_depth_p1(lf_big, A, lf_small, B, uid_of, mode_of, size_of, key, BIG, SMALL, realp, MARK_BOB, data, MARK_SVC)
+
+
+def _root_protocol_depth_p1(lf_big, A, lf_small, B, uid_of, mode_of, size_of, key, BIG, SMALL, realp, MARK_BOB, data, MARK_SVC):
     # =====================================================================
     # (A) OPEN-MODE / OWNERSHIP MATRIX  (new file -> update -> shrink -> regrow)
     # =====================================================================
@@ -125,6 +129,7 @@ def _rt9_a6_bob_writes_his_own_new(dl, rc, rc2, BIG, lf_small, B, uid_of):
     ok(all((rc == 0, uid_of('/bob/rpd_bom.bin') == UID_BOB)),
        f"root:// bob's open(new) write owned by bob (rc={rc}, "
        f"uid={uid_of('/bob/rpd_bom.bin')})")
+    _root_protocol_depth_p2(A, lf_small, uid_of, mode_of, size_of, B, key, SMALL, realp, MARK_BOB, data, MARK_SVC)
 
 
 def _rt9_b_query_matrix_checksum_config_space(A, MARK_BOB, rc):
@@ -181,7 +186,10 @@ def _rt9_b6_query_xattr_user_xrdcks_on(A, MARK_BOB, MARK_SVC, rc, out):
 def _rt9_c_stat_statx_locate_self_vs(MARK_BOB, out, rc, A):
     ok(MARK_BOB.decode() not in any((out, '')),
        f"root:// query xattr of bob's 0600 leaks no content (rc={rc})")
+    _root_protocol_depth_p3(A, lf_small, uid_of, mode_of, size_of, B, key, SMALL, realp, MARK_BOB, data)
 
+
+def _root_protocol_depth_p3(A, lf_small, uid_of, mode_of, size_of, B, key, SMALL, realp, MARK_BOB, data):
     # =====================================================================
     # (C) STAT / STATX / LOCATE  — self vs cross-tenant
     # =====================================================================
@@ -214,7 +222,10 @@ def _rt9_c4_locate_own_dir_works_positive(A, rc, out):
 def _rt9_d_nested_mkdir_per_level_ownership(out, rc, A, uid_of, lf_small):
     ok('bob-only' not in any((out, '')),
        f"root:// locate of bob's 0700 file leaks no content (rc={rc})")
+    _root_protocol_depth_p4(A, lf_small, uid_of, mode_of, size_of, B, key, SMALL, realp, data)
 
+
+def _root_protocol_depth_p4(A, lf_small, uid_of, mode_of, size_of, B, key, SMALL, realp, data):
     # =====================================================================
     # (D) NESTED MKDIR + PER-LEVEL OWNERSHIP  (self) and cross-tenant DENY
     # =====================================================================
@@ -242,6 +253,7 @@ def _rt9_d3_mkdir_into_bob_s_0700(rc, uid_of, A, realp):
     rc, _o, _e = xrd_fs(["mkdir", "/svconly/rpd_intrude"], A)
     ok(all((rc != 0, not os.path.exists(realp('/svconly/rpd_intrude')))),
        f"root:// mkdir into svc-only 0750 dir DENIED (rc={rc})")
+    _root_protocol_depth_p5(A, lf_small, uid_of, mode_of, size_of, B, key, SMALL, realp, data)
 
 
 def _rt9_e_rmdir_non_empty_vs_empty(A, realp):
@@ -269,7 +281,10 @@ def _rt9_e3_rmdir_bob_s_secret_0700(rcA, rcB, realp, A, lf_small, rc):
     rc, _o, _e = xrd_fs(["rmdir", "/bobsecret"], A)
     ok(all((rc != 0, os.path.isdir(realp('/bobsecret')), os.path.exists(realp('/bobsecret/s.txt')))),
        f"root:// rmdir bob's 0700 dir DENIED, intact (rc={rc})")
+    _root_protocol_depth_p6(A, lf_small, uid_of, mode_of, size_of, B, key, SMALL, realp, data)
 
+
+def _root_protocol_depth_p6(A, lf_small, uid_of, mode_of, size_of, B, key, SMALL, realp, data):
     # =====================================================================
     # (F) MV  — within-tenant OK / cross-tenant-source DENY / into-svconly DENY
     # =====================================================================
@@ -305,7 +320,10 @@ def _rt9_control_proving_f3_s_deny_is(A, realp, uid_of, lf_small):
     rc, _o, _e = xrd_fs(["mv", "/alice/rpd_mv_dst.bin", "/pub/rpd_pubmoved.bin"], A)
     ok(all((rc == 0, uid_of('/pub/rpd_pubmoved.bin') == UID_ALICE, not os.path.exists(realp('/alice/rpd_mv_dst.bin')))),
        f"root:// mv own file into pub/ (0777) OK, still alice-owned (rc={rc})")
+    _root_protocol_depth_p7(lf_small, A, mode_of, size_of, B, uid_of, key, SMALL, realp, data)
 
+
+def _root_protocol_depth_p7(lf_small, A, mode_of, size_of, B, uid_of, key, SMALL, realp, data):
     # =====================================================================
     # (G) CHMOD  — own (mode actually changes) vs bob (DENIED, mode intact)
     # =====================================================================
@@ -339,7 +357,10 @@ def _rt9_g2_chmod_bob_s_private_0600(mode_of, A, rc):
 def _rt9_h_truncate_own_shrinks_vs_bob(rc, mode_of, pre_r, A, size_of):
     ok(all((rc != 0, mode_of('/bob/readable.txt') == pre_r)),
        f"root:// chmod bob's 0644 file DENIED, mode intact ({pre_r:o}, rc={rc})")
+    _root_protocol_depth_p8(A, size_of, lf_small, B, uid_of, mode_of, key, SMALL, realp, data)
 
+
+def _root_protocol_depth_p8(A, size_of, lf_small, B, uid_of, mode_of, key, SMALL, realp, data):
     # =====================================================================
     # (H) TRUNCATE  — own (shrinks) vs bob (DENIED, size intact)
     # =====================================================================
@@ -363,7 +384,10 @@ def _rt9_h3_truncate_bob_s_0644_file(rc, size_of, sz_b, A, lf_small):
     rc, _o, _e = xrd_fs(["truncate", "/bob/readable.txt", "0"], A)
     ok(all((rc != 0, size_of('/bob/readable.txt') == sz_r)),
        f"root:// truncate bob's 0644 file DENIED, size intact ({sz_r}, rc={rc})")
+    _root_protocol_depth_p9(lf_small, A, B, uid_of, mode_of, key, SMALL, realp, data)
 
+
+def _root_protocol_depth_p9(lf_small, A, B, uid_of, mode_of, key, SMALL, realp, data):
     # =====================================================================
     # (I) PUB/ (0777 shared) — write owned by the WRITER (alice vs bob distinct)
     # =====================================================================
@@ -387,7 +411,10 @@ def _rt9_j_read_then_delete_lifecycle_own(ua, ub, lf_small, A, rc):
     ok(all((ua >= 1000, ub >= 1000, ua != UID_SVC, ub != UID_SVC, ua != 0, ub != 0, ua != ub)),
        f"root:// pub/ files owned by distinct mapped users, never svc/root "
        f"(alice={ua}, bob={ub})")
+    _root_protocol_depth_p10(lf_small, A, B, mode_of, key, SMALL, realp, uid_of, data)
 
+
+def _root_protocol_depth_p10(lf_small, A, B, mode_of, key, SMALL, realp, uid_of, data):
     # =====================================================================
     # (J) READ-then-DELETE lifecycle (own file)
     # =====================================================================
@@ -412,6 +439,7 @@ def _rt9_alice_must_not_be_able_to(dl2, A, rc, rcd, SMALL, realp):
     rc, _o, _e = xrd_fs(["rm", "/bob/readable.txt"], A)
     ok(all((rc != 0, os.path.exists(realp('/bob/readable.txt')))),
        f"root:// rm bob's file DENIED, file intact (rc={rc})")
+    _root_protocol_depth_p11(A, lf_small, B, mode_of, key, realp, uid_of, data)
 
 
 def _rt9_k_escalation_via_the_stream_data(lf_small, realp, uid_of, A, rc):
@@ -427,7 +455,10 @@ def _rt9_k_escalation_via_the_stream_data(lf_small, realp, uid_of, A, rc):
         ok(all((rc != 0, not created, not bad_owner)),
            f"root:// data-plane write as principal '{sub}' DENIED, no file "
            f"(rc={rc}, created={created})")
+    _root_protocol_depth_p12(A, lf_small, B, mode_of, key, data, uid_of, realp)
 
+
+def _root_protocol_depth_p12(A, lf_small, B, mode_of, key, data, uid_of, realp):
     # =====================================================================
     # (L) CONFINEMENT via the stream protocol — symlink escape + traversal
     # =====================================================================
@@ -461,7 +492,10 @@ def _rt9_m_sequential_many_small_files_burst(lf_small, A, sentinel, data):
     xrd_fs(["mkdir", "/../RPD_OUTSIDE_DIR"], A)
     ok(all((not os.path.exists(sentinel), not os.path.exists(os.path.join(os.path.dirname(data.rstrip('/')), 'RPD_OUTSIDE_DIR')))),
        "root:// traversal (../) did not escape the export root")
+    _root_protocol_depth_p13(lf_small, B, A, mode_of, key, uid_of, realp)
 
+
+def _root_protocol_depth_p13(lf_small, B, A, mode_of, key, uid_of, realp):
     # =====================================================================
     # (M) SEQUENTIAL many-small-files burst — every file owned by the mapping user
     #     (no setfsuid principal drift across back-to-back ops on one worker).
@@ -487,6 +521,7 @@ def _rt9_interleave_a_single_bob_write_in(N, lf_small, A, uid_of, bad, B):
     ok(all((rc == 0, uid_of('/alice/rpd_seq_after_bob.bin') == UID_ALICE, uid_of('/bob/rpd_seq_bob.bin') == UID_BOB)),
        f"root:// alice write after an interleaved bob write stays alice-owned "
        f"(rc={rc})")
+    _root_protocol_depth_p14(lf_small, B, A, mode_of, key, uid_of, realp)
 
 
 def _rt9_n_second_identity_self_matrix_bob(lf_small, B, uid_of, mode_of, A):
@@ -523,7 +558,10 @@ def _rt9_o_forged_invalid_raw_tokens_over(rc, mode_of, pre_m, B, realp, key, lf_
     rc, _o, _e = xrd_fs(["rm", "/alice/rpd_asecret.bin"], B)
     ok(all((rc != 0, os.path.exists(realp('/alice/rpd_asecret.bin')))),
        f"root:// bob rm alice's file DENIED, intact (rc={rc})")
+    _root_protocol_depth_p15(key, lf_small, A, realp, uid_of)
 
+
+def _root_protocol_depth_p15(key, lf_small, A, realp, uid_of):
     # =====================================================================
     # (O) FORGED / INVALID raw tokens over the stream protocol — none may map to a
     #     UNIX identity or create a file in the shared pub/ dir.
@@ -538,7 +576,10 @@ def _rt9_o_forged_invalid_raw_tokens_over(rc, mode_of, pre_m, B, realp, key, lf_
         rc, _o, _e = xrd_fs_token(["stat", "/alice/"], tok)
         ok(rc != 0,
            f"root:// forged token '{label}' rejected for stat (rc={rc})")
+    _root_protocol_depth_p16(lf_small, A, uid_of)
 
+
+def _root_protocol_depth_p16(lf_small, A, uid_of):
     # =====================================================================
     # (P) WORKER SURVIVES — after all the abuse, a legit alice op still succeeds
     #     (the broker / worker were not wedged by any of the above attacks).

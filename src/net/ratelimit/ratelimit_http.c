@@ -10,6 +10,7 @@
  */
 #include "ratelimit.h"
 #include "protocols/webdav/webdav.h"
+#include "core/config/http_common.h"   /* rules live on the common conf (phase-105 W1) */
 #include "core/http/http_headers.h"
 #include "observability/metrics/metrics_macros.h"
 
@@ -194,6 +195,7 @@ rl_apply_rule(ngx_http_request_t *r, brix_rl_rule_t *rule,
 ngx_int_t
 brix_rl_http_access_handler(ngx_http_request_t *r)
 {
+    ngx_http_brix_common_conf_t     *ccf;
     ngx_http_brix_webdav_loc_conf_t *lcf;
     ngx_http_brix_webdav_req_ctx_t  *wctx;
     brix_rl_rule_t                  *rules;
@@ -209,13 +211,24 @@ brix_rl_http_access_handler(ngx_http_request_t *r)
         return NGX_DECLINED;       /* subrequests inherit the parent's verdict */
     }
 
-    lcf = ngx_http_get_module_loc_conf(r, ngx_http_brix_webdav_module);
-    if (lcf == NULL || lcf->rl_rules == NULL || lcf->rl_rules->nelts == 0) {
+    /* phase-105 W1: the rules moved to the shared preamble and register on
+     * the common module, so read THAT conf — the engine no longer depends on
+     * which brix protocol serves the location.  The webdav conf is still
+     * fetched below, for two residual jobs only: the VOLUME-rule path root
+     * (root_canon is derived per-protocol; webdav's was always the one used
+     * here) and the identity ctx (populated by webdav auth; NULL on other
+     * protocols, so DN-keyed rules skip there until the per-protocol
+     * identity plumbing lands — W1 steps 3-4). */
+    ccf = ngx_http_get_module_loc_conf(r, ngx_http_brix_common_module);
+    if (ccf == NULL || ccf->common.rl_rules == NULL
+        || ccf->common.rl_rules->nelts == 0)
+    {
         return NGX_DECLINED;
     }
+    lcf = ngx_http_get_module_loc_conf(r, ngx_http_brix_webdav_module);
     wctx = ngx_http_get_module_ctx(r, ngx_http_brix_webdav_module);
 
-    rules = lcf->rl_rules->elts;
+    rules = ccf->common.rl_rules->elts;
     path[0] = '\0';
 
     /*
@@ -230,7 +243,7 @@ brix_rl_http_access_handler(ngx_http_request_t *r)
     rl_req.ip   = &r->connection->addr_text;
     rl_req.path = path;
 
-    for (i = 0; i < lcf->rl_rules->nelts; i++) {
+    for (i = 0; i < ccf->common.rl_rules->nelts; i++) {
 
         rl_resolve_volume_path(r, lcf, &rules[i], path, &have_path);
 
@@ -253,17 +266,14 @@ brix_rl_http_access_handler(ngx_http_request_t *r)
 ngx_int_t
 brix_rl_http_log_handler(ngx_http_request_t *r)
 {
-    ngx_http_brix_webdav_loc_conf_t *lcf;
     ngx_http_brix_webdav_req_ctx_t  *wctx;
     off_t                              nbytes;
 
     if (r != r->main) {
         return NGX_OK;
     }
-    lcf = ngx_http_get_module_loc_conf(r, ngx_http_brix_webdav_module);
-    if (lcf == NULL) {
-        return NGX_OK;
-    }
+    /* Only the per-request stash matters here; the conf is not consulted
+     * (phase-105 W1: the dead webdav-conf guard was dropped). */
     wctx = ngx_http_get_module_ctx(r, ngx_http_brix_webdav_module);
     if (wctx == NULL) {
         return NGX_OK;

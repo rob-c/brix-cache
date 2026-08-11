@@ -27,3 +27,21 @@ src/protocols/srr/module.c:ngx_http_conf_get_module_loc_conf   # read-only merge
 src/protocols/webdav/module_directives_cert.c:ngx_http_conf_get_module_loc_conf   # read-only merge-time lookup
 src/protocols/cvmfs/module.c:ngx_http_conf_get_module_loc_conf   # read-only merge-time lookup
 src/protocols/gridftp/ftp_module.c:ngx_stream_conf_get_module_srv_conf   # read-only merge-time lookup
+## phase-105 W5.1: the phase-101 W3 adopt-at-merge helpers. Sanctioned pattern —
+## reads own-plane parse-time values at merge, never writes a foreign conf
+## (NOT the retired W2 dual-poke pattern).
+src/core/config/stream_common.c:ngx_stream_conf_get_module_srv_conf   # adopt-at-merge read (brix_stream_common_adopt, 101-W3)
+src/core/config/stream_common.c:ngx_stream_conf_get_module_srv_conf   # adopt-at-merge read (brix_stream_common_adopt_gsi, 101-W3)
+src/core/config/stream_common.c:ngx_stream_conf_get_module_srv_conf   # adopt-at-merge read (brix_stream_common_adopt_vo_rules, 101-W3)
+src/protocols/gridftp/ftp_module_merge.c:ngx_stream_conf_get_module_srv_conf   # adopt-at-merge read (gridftp adopts stream_common values, 101-W3)
+
+## R5 — deliberate bare-name keeps outside the common owner (phase-105 W2/W5.2).
+brix_backend_ca_dir   # webdav proxy back-leg bridge: the setter programs the stock proxy_ssl_trusted_certificate machinery for THAT location; ownership by the proxying module is honest (phase-105 W2-(ii) deviation, logged)
+brix_client_certificate_folder   # acceptable-client-cert folder — 101 Appendix B keep; distinct fifth CA mechanism
+brix_tpc_outbound_token_endpoint   # curl-TPC engine credential knob; spelling deliberately shared with the stream TPC engine (W3.2), ownership stays with the engine that consumes it
+brix_tpc_outbound_client_id   # same
+brix_tpc_outbound_client_secret   # same
+brix_tpc_outbound_scope   # same
+
+## R6 — colliding stems that are DIFFERENT mechanisms (not drift).
+brix_webdav_secretkey   # redirect-CGI HMAC key (webdav redirect family); brix_s3_secret_key is the AWS SigV4 bucket credential — same stem, unrelated concepts

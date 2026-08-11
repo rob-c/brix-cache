@@ -438,7 +438,7 @@ brix_init_one_server(ngx_cycle_t *cycle, ngx_stream_brix_srv_conf_t *xcf)
     }
 
     /* Build the per-worker XrdAcc tables + hot-reload timer (no-op unless
-     * this server uses `brix_authdb_format xrdacc`). */
+     * this server uses `brix_authdb_engine xrdacc`). */
     if (brix_acc_init_server(xcf, cycle) != NGX_OK) {
         return NGX_ERROR;
     }

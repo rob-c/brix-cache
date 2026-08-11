@@ -36,15 +36,15 @@ residual classes structurally impossible.
 
 | WS | Item | Verdict | Size |
 |----|------|---------|------|
-| W1 | Rate-limit/zones family: webdav-owned bare names, enforcement absent on s3/cvmfs (live W1-class silent no-op on a DoS-protection knob) | OPEN | M |
-| W2 | Remaining 18 webdav-owned bare HTTP names (mirror ×8, CA/TLS surface ×6, credential block, delegation endpoint, query-token auth ×2) — per-name disposition: move+enforce / move-only / prefix-or-ledger | OPEN (one OP-DECIDE) | M–L |
-| W3 | Cross-plane spelling drift: `maxdelay`, TPC outbound-token quartet, XrdAcc tuner prefixes, `brix_stream_mirror_url`, verify-depth pair (semantics now RESOLVED — see W3.5) | OPEN (one OP-DECIDE: `authdb_format`) | S–M |
-| W4 | Close Table 1: token-introspect quad, macaroon pair, `brix_token_jwks_refresh_interval` HTTP parity, TPC-tuner ledger reconciliation | OPEN (one OP-DECIDE) | S–M |
-| W5 | Checker hardening: R4 allowlist hygiene, new R5 (bare ⇒ common owner), new R6 (near-miss spellings), WARN→FAIL flip | OPEN | S |
+| W1 | Rate-limit/zones family: webdav-owned bare names, enforcement absent on s3/cvmfs (live W1-class silent no-op on a DoS-protection knob) | ✅ **DONE 2026-08-10** — all 7 registrations → http_common; fields → preamble; s3 gate + s3 bearer token-cache + cvmfs gate landed; shaping engine rules-source decoupled; `tests/test_rate_limit_s3.py` (4) + phase-20/25 suites green. See the implementation log. | M |
+| W2 | Remaining 18 webdav-owned bare HTTP names — per-name disposition | ✅ **DONE 2026-08-10 (session 2)** — class (ii): credential block, delegation_endpoint, client_ca_store relocated; class (i): the 8 mirror settings → preamble + http_common (offset-based setters, merges → shared_merge); class (iii): trusted_ca pair + tcp_congestion (reader-trace verdict: shared file-serve engine → MOVE) + verify_depth → preamble; `brix_http_query_token`/`brix_http_secretkey` → `brix_webdav_*`; `brix_backend_ca_dir` LEDGERED (deviation, logged); `client_certificate_folder` ledgered. R5 allowlist carries the keeps. | M–L |
+| W3 | Cross-plane spelling drift: `maxdelay`, TPC outbound-token quartet, XrdAcc tuner prefixes, `brix_stream_mirror_url`, verify-depth pair (semantics RESOLVED — see W3.5) | ✅ **DONE 2026-08-10 (clusters 1–4)** — maxdelay de-prefixed + preamble-homed; TPC quartet renamed (name-only); stream tuners → `brix_acc_*`, selector → `brix_authdb_engine` (W3.3-c) with the duplicate enum tables deduped to one definition; `brix_mirror_url` unified. Cluster 5 (verify-depth) rides the W2 x509 commit as planned. | S–M |
+| W4 | Close Table 1 | **MOSTLY DONE 2026-08-10 (session 2)** — introspect quad → bare `brix_token_introspect_*` on http_common (+sec_slot ttl; the GLOBAL introspection handler now reads honestly-shared settings); macaroon pair decided (b): ledgered + Table-1 correction row; TPC-tuner near-miss VERIFIED (curl `--max-time` vs registry lifetimes — distinct, ledger stands). REMAINING: W4.3 jwks-refresh HTTP parity (rides the JWKS fixture work; refresh.c is stream-conf-typed). | S–M |
+| W5 | Checker hardening | ✅ **DONE 2026-08-10 (session 2)** — R5 (bare⇒common-owner, HTTP plane, feature-family/toggle aware) + R6 (normalized-stem near-miss; found `brix_s3_secret_key`≈`brix_webdav_secretkey` on its own — allowlisted as distinct mechanisms) + fixtures (10/10) + CI lane flipped to `--fail` (R1/R2/R4/R5/R6 gate; R3 WARN until W6). Real tree passes `--fail`. | S |
 | W6 | R3 closure via docs-from-source (phase-101 W9.4, no longer optional at 322 findings) | OPEN (OP-DECIDE carried over) | M |
 | W7 | Field-home convergence: stream token/x509/TPC/acc flat fields → preamble; gridftp embeds preamble; delete the W3 adopt shims | OPEN (gate — runnable GSI fleet — now OPEN per 101-W3 stage 3) | L |
-| W8 | Small leftovers: `brix_token_clock_skew` sec_slot + clamp EMERG, wt-stage prefix split, `brix_shared_conf_t` typedef alias, 3 flag-shaped custom setters | OPEN | S |
-| W9 | Cache-grammar convergence study (HTTP legacy `cache_root` vs tier `cache_store` vs stream `brix_cache_*`/`cache_export`) — decision input for a future phase | OPEN (study only) | M |
+| W8 | Small leftovers | ✅ **DONE 2026-08-10** — skew sec_slot + shared clamp; wt-stage renamed; typedef landed; flag-setter audit CLOSED (session 2): `brix_conf_set_wt_enable` → stock flag_slot (was a pure hand-parse); cms/ftp enable wrappers KEEP (they delegate to the stock slot, then arm handlers — HELPERS-conformant). | S |
+| W9 | Cache-grammar convergence study | ✅ **DONE 2026-08-10 (session 2)** — matrix + findings + OP recommendation written into this file (bottom): roles are real architecture (keep), the legacy/tier dual path is the debt, target = `brix_cache_store` single-entry with `cache_root` as posix sugar, gated on the cache suite. | M |
 
 Standing rules — identical to phase 101, restated because they bind every
 workstream here: no git write commands without explicit OP approval
@@ -1073,3 +1073,225 @@ HTTP names = 8 toggles + 25 webdav-owned. Cross-plane: 92 names spelled
 identically on both planes. Custom setters: 138 entries via 106 functions
 (101 baseline: 149/114). All numbers reproduce from C.1 plus the checker
 run; re-run both before landing W5's FAIL flip and record the deltas here.
+
+---
+
+## Implementation log — 2026-08-10 (W5.1, W1, W3 clusters 1–4, W8)
+
+All work verified on the static build (`/tmp/nginx-1.28.3`), ABI-dirty
+rebuilds throughout (full `objs/addon` object wipe before the W1 preamble
+growth). Final battery: **145 passed / 0 failed** (`test_rate_limit_s3` 4,
+`test_phase20_kv_shm` + `test_phase25_ratelimit{,_b}` 33+1,
+`test_phase24_mirror` 25, `test_authdb_engine_split` (updated) ,
+`test_acc` / `test_acc_residual` / `test_acc_unification`,
+`test_webdav_maxdelay`, `test_w7_sec_slots`, `test_token_unification`,
+`test_tls_require`). Checker after: **643 registrations, 524 unique names**
+(531 before this wave), R1=0, R2=0, R4=0-unallowlisted; R3 remains
+WARN-scoped pending W6. `check_config_coverage` OK; doc guards OK.
+
+### Findings written back (the doc's own verify-at-commit items)
+
+1. **The shaping trio + mirror premise CORRECTION (W1.3/W2).**
+   `brix_rl_http_access_handler` / `brix_rl_http_log_handler` / the mirror
+   precontent handler are pushed onto nginx's GLOBAL phase arrays from
+   webdav's postconfiguration (`postconfig.c:93-115`) — phase handlers run
+   for EVERY http request, so the shaping trio and mirror already fired on
+   s3/cvmfs locations, reading the webdav conf that first-module-wins had
+   filled. The truly-inert directives were exactly `brix_rate_limit` and
+   `brix_token_cache`: webdav's access handler DECLINES on
+   `!conf->common.enable` (`access.c:416-418`) before `access_rate_limit`,
+   and the token cache is consulted only from webdav's auth path. Both are
+   now enforced per protocol (below). W2's mirror row should read
+   "ownership + conf-source hygiene", not "inert-on-siblings".
+2. **W1 enforcement landed.** s3: `s3_rate_limit()` (`s3/handler.c`,
+   byte-parallel to webdav's `access_rate_limit`) gates before the auth
+   burden, counted via `s3_metrics_return_method`; the bearer path consults
+   and populates the shared token cache (`auth_bearer.c` —
+   lookup re-checks `exp`, engine caps TTL at 5min, negative verdicts never
+   stored). cvmfs: same IP gate at the handler head. HTTP keying is
+   IP-only by construction (webdav's gate always keyed by
+   `addr_text`; `key=dn` is stream semantics) — the doc's step-3/4
+   dn-plumbing is therefore NOT NEEDED on HTTP; `directives.md` should say
+   so (rides W6).
+3. **Shaping-engine decouple (W1 step 2).** `ratelimit_http.c` reads rules
+   from the COMMON module conf (`ccf->common.rl_rules`); the webdav conf
+   fetch remains ONLY for the VOLUME-rule path root (`common.root_canon` is
+   protocol-derived) and the identity ctx — both documented in-file as the
+   residual to retire with the per-protocol identity work. The dead
+   webdav-conf guard in the log handler was dropped.
+4. **W3.3 enum-table dedup.** Unifying the tuner spellings collided the
+   byte-identical `*_audit_modes` tables at link time (`-fno-common`).
+   Resolution: ONE definition of `brix_acc_format_modes` /
+   `brix_acc_audit_modes` in `auth/authz/acc/config.c`; stream's
+   `module_enums.{c,h}` keep extern decls; `brix_authdb_engine` uses
+   `brix_acc_format_modes` (same value set). HELPERS-rule win the rename
+   forced into the open.
+5. **W8 skew clamp gap confirmed and closed.** The `[0,300]` clamp lived in
+   webdav's merge only — an s3-only config could set any skew. It now
+   lives in `ngx_http_brix_shared_merge` (all HTTP protocols) and in the
+   stream merge, rejecting loudly: `brix_token_clock_skew 10m` →
+   "capped at 300s (security clamp against unit confusion); got 600".
+   Verified by `nginx -t` on an s3-only config.
+6. **Pre-existing test-helper breakage fixed in passing.** The stream
+   mirror write tests failed at HEAD with `NameError: _kXR_open` /
+   `_kXR_write` / `_OPEN_CREATE_WR` — wire constants lost in a helper
+   split (the reexport chain never carried them; same staleness class the
+   CMS-parity notes flagged). Constants restored per XProtocol.hh; all 25
+   mirror tests green, now also exercising the renamed `brix_mirror_url`.
+7. **Test-collateral updates.** `test_phase25_ratelimit.py`'s source-layout
+   pin now asserts the common-module home AND that webdav does not
+   re-register (first-module-wins shadow guard);
+   `test_authdb_engine_split.py` pins the post-rename reality (retired
+   spellings stock-unknown on both planes; `brix_authdb_engine`
+   stream-only; unified `brix_acc_audit`/`_refresh` parse on HTTP); port
+   ladder LIFECYCLE_SHARED 554→558 for the two new rate-limit subjects.
+
+### Deferred out of this pass (unchanged plan)
+
+- W1 live s3 bearer-cache test (needs a JWKS+JWT HTTP fixture; the cache
+  path is the same engine webdav's live tests pin) — ride the W4.3 jwks
+  work which builds that fixture anyway.
+- W3.5 verify-depth unification — rides the W2 x509 field-move commit as
+  the plan already stated.
+- W8 flag-setter audit (`brix_cms_srv_set_enable`, `brix_conf_set_wt_enable`,
+  `brix_ftp_set_enable`).
+- W2 / W4 / W5.2-4 / W6 / W7 / W9 — not started; OP gates per the summary
+  table.
+
+---
+
+## W9 — cache-grammar convergence study (2026-08-10)
+
+Evidence base: `fs/cache/README.md` (architecture section, current),
+`cache_storage.c:198-209` (the dual-path resolver), the 101-W8 behavior diff,
+and the `stream/directives_cache.h` + `directives_writethrough.h` inventories.
+This is the decision-input matrix the phase called for — no directive changed.
+
+### The mechanisms, as they actually compose today
+
+| Mechanism | Config surface | What it actually is |
+|---|---|---|
+| **Read-cache data tree** | `brix_cache_root` (HTTP, preamble since 101-W8) / stream `brix_cache` + `brix_cache_export` (advertised logical root) | The XCache data tree. Per-worker SD instance (`cache_storage_inst`); POSIX by default; a DRIVER-backed tree needs a separate state root. HTTP roots the stream init loop never visited lazily self-register (`brix_cache_storage_by_root`) |
+| **Composable tier store** | `brix_cache_store` (tier X-macro, both planes) | The phase-64 sd_cache DECORATOR — its own store+cstore; `brix_cache_storage()` returns it when set, else `cache_storage_inst` (`cache_storage.c:198-209`). A pure-tier cache never builds the legacy instance |
+| **Sidecar/state tree** | `brix_cache_state_root` (always POSIX; REQUIRED for a driver-backed cache) | `.meta`/`.cinfo` records — deliberately split from the data tree |
+| **Write-back staging** | `brix_wt_stage_{root,backend,block_size}` (post-W8 one prefix) + `brix_wt_*` + watermarks | The write-through engine's staging area — a third independent role |
+| **Admission/eviction knobs** | stream `brix_cache_{allow,deny}_prefix`, `_include_regex`, `_max_file_size`, `_eviction_threshold`, watermarks, `_cold/dirty_max_age`, `_state_root` … (~20 names) | Engine policy for the read cache — stream-registered, consumed by the shared `fs/cache/` engine |
+
+### Findings
+
+1. **The three ROLES (read data, state, write staging) are real architecture,
+   not grammar debt** — independently pluggable backends per role, with a
+   config-time validation that a driver cache MUST split state from data.
+   A single "one cache directive" grammar would erase a load-bearing
+   distinction. Convergence should target SPELLING consistency, not role
+   merging.
+2. **The genuine debt is the legacy-vs-tier dual path** (101-W8's finding,
+   unchanged): `brix_cache_root` builds `cache_storage_inst` while
+   `brix_cache_store` builds the decorator, and readers pick whichever
+   exists. The migration question is precisely: can the tier decorator grow
+   the read-through root's semantics (lazy by-root self-registration for
+   HTTP, `brix_cache_ready()` three-state readiness, sidecar mapping) so
+   `brix_cache_root` becomes sugar for a posix `brix_cache_store` + role
+   defaults? Nothing in this study contradicts that direction; what it needs
+   is the cache integration suite as the harness (101-W8's bar stands).
+3. **The stream admission/eviction family is engine policy consumed by
+   shared code** (`fs/cache/`) but registered stream-side only. If/when the
+   HTTP plane's tier cache wants admission filters, the family should ride
+   the tier X-macro (the mechanism exists; the 101-W3 disposition already
+   lists the stream cache fragments as "candidates for later waves").
+4. **Operator-facing count** (the "3-line config" benchmark): a POSIX
+   read-cache node today = 2 lines (`brix_cache_root` + nothing else, or
+   `brix_cache_store file:<dir>`); a driver-backed cache = 4
+   (`+ state_root`, `+ store args`); a write-through cache = +3
+   (`wt_stage_root`, watermarks optional). That is already close to
+   minimal; the confusion cost is the legacy/tier CHOICE, not the line
+   count.
+
+### Recommendation to OP
+
+Target end-state: **`brix_cache_store` as the single entry** with
+`brix_cache_root` becoming its posix shorthand (option-A revisited), gated
+on the cache integration suite proving byte-exact read-through parity plus
+the lazy-HTTP-root and readiness semantics on the tier path. The state-root
+and wt-staging surfaces stay as-is (distinct roles). Sizing: M–L, one
+focused phase, prerequisite = runnable cache suite
+(`test_cmd_cache_pblock_posix.py` family). Do NOT fold the stream
+admission family in the same phase — separate wave via the tier macro.
+
+---
+
+## Implementation log — 2026-08-10 session 2 (W2, W3.5, W4.1/4.2/4.4, W5.2–4, W8-audit, W9)
+
+Build: static tree, ABI-dirty rebuilds throughout. Checker after this
+session: R1/R2/R4/R5/R6 = 0 with the reasoned allowlist, `--fail` exits 0,
+CI lane flipped. NOTE: mid-session a repo linter split `http_common.c`'s
+command table into three fragment headers (`http_directives_core/auth/ops.h`)
+and `shared_conf.h`'s merge into `shared_conf_merge.h` — the R5 owner list
+and two suite layout-pins were updated to match; future edits target the
+fragments.
+
+Key deviations/verdicts written back:
+
+1. **`brix_backend_ca_dir` NOT moved (deviates from the W2 table's tentative
+   "move").** Reading the setter settled it: it invokes the stock
+   `proxy_ssl_trusted_certificate` setter against the nginx proxy module's
+   loc conf mid-parse and seeds that location's upstream SSL_CTX — an
+   in-location bridge to the proxy engine only webdav runs. Ownership by the
+   proxying module is honest; R5-ledgered with this reason.
+2. **`brix_tcp_congestion` reader-trace verdict: MOVE (class ii).** The
+   single reader is the SHARED file-serve path (`file_serve.c`,
+   `serve_apply_tcp_congestion`) covering webdav GET, S3 GetObject and
+   cvmfs — it was already cross-protocol via the webdav-conf fetch;
+   the fetch now reads the common conf.
+3. **Mirror move shape**: settings (`brix_mirror_conf_t`) → preamble;
+   merges → `ngx_http_brix_shared_merge` (one audit point, uniform
+   defaults); the two custom setters made offset-based (pmark pattern);
+   engine plumbing (upstream conf, TLS ctx, webdav-keyed request ctx)
+   deliberately stays webdav-side — same documented-residual shape as
+   ratelimit_http.c.
+4. **W3.5 landed inside W2(iii)**: `brix_verify_depth` bare on both planes
+   (webdav field → preamble, default 10 preserved in shared_merge; stream
+   name-only rename, its 0=unlimited default untouched).
+5. **W4.1 free s3 coverage confirmed**: the introspection access handler is
+   globally registered and gates on `introspect_loc` + Bearer — with the
+   quad in the preamble the conf source is honest; no s3-specific consult
+   code was needed (option (a) satisfied by architecture). `revoke_kv`
+   stays webdav-scoped.
+6. **R6 earned its keep on day one**: it flagged
+   `brix_s3_secret_key` ≈ `brix_webdav_secretkey` unprompted — verified as
+   distinct mechanisms (SigV4 bucket credential vs redirect-CGI HMAC) and
+   allowlisted with that reason.
+7. **Fleet note**: the shared fleet predated this phase's renames; a full
+   `manage_test_servers restart` was kicked off to rebase it onto the
+   current binary+configs (the three bearer-conformance failures observed
+   mid-session were stale-fleet artifacts, to be re-verified after the
+   restart).
+
+Remaining open in the phase: **W4.3** (jwks-refresh HTTP parity — rides the
+JWKS fixture; `auth/token/refresh.c` is stream-conf-typed today), **W6**
+(docs-from-source; R3=~320 stays WARN until then), **W7** (field-home
+convergence; gate open, GSI suites per commit), and the W9 follow-on
+execution phase per the study's recommendation.
+
+### Addendum — fleet-forensics find (2026-08-11, during final verification)
+
+The final live-suite verification kept intermittently failing with
+FileNotFoundError on `/tmp/xrd-test/tokens/signing_key.pem`, cert-load
+EMERGs, and 401s on valid tokens. Root cause CAUGHT IN THE ACT and recorded
+in the `elusive-fleet-killer` memory as its third (and likely primary)
+mechanism: pytest's conftest attach-guard takes lifecycle ownership whenever
+its four-way probe (`reachable+owned+ready+master_alive`) fails — which it
+does exactly when the fleet is degraded or mid-churn — and then runs the
+destructive LOCAL-mode "clean slate" (rmtree DATA/PKI/registry), wiping the
+token/PKI fixtures out from under ~all live masters. Self-amplifying, and
+NOT fully guarded by `TEST_SKIP_SERVER_SETUP=1`. Recovery recipe (proven,
+in the memory): reap ancient masters by worker-ppid, one `start-all`
+(re-provisions), `start-dedicated` bind-race losers, restart JWKS-holding
+members. After recovery the FULL phase-105 battery is
+**190 passed / 1 skipped / 0 failed**, including the live mirror-to-shadow
+writes, rate-limit-on-S3, and the WLCG bearer conformance suite on the
+current binary. Hardening the attach probe to refuse-the-wipe when any
+catalogue master is alive is left as an ops follow-up (out of this phase's
+scope). In passing, three files still carrying phase-101-retired token
+spellings were swept (`cmdscripts/tpc_fwd_live.py`,
+`cmdscripts/fwd_matrix_live_part3.py`, `tests/nginx.perf.conf`).

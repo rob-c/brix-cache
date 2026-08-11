@@ -19,11 +19,15 @@
     /* write-through mode directives (mirrors XrdPfc configuration from
      * /tmp/xrootd-src/src/XrdPfc/README) ---- */
 
+    /* phase-105 W8 flag-setter audit: was the hand-rolled
+     * brix_conf_set_wt_enable (a pure on/off parse + a NOTICE log) — the
+     * stock flag slot is the HELPERS-rule spelling; wt.enable is an
+     * NGX_CONF_UNSET-initialized ngx_flag_t, stock-compatible. */
     { ngx_string("brix_write_through"),
       NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,
-      brix_conf_set_wt_enable,
+      ngx_conf_set_flag_slot,
       NGX_STREAM_SRV_CONF_OFFSET,
-      0,
+      offsetof(ngx_stream_brix_srv_conf_t, wt.enable),
       NULL },
 
     { ngx_string("brix_wt_mode"),

@@ -137,8 +137,8 @@ cache role. There are three roles, each independently pluggable:
   records. A driver-backed cache keeps its bytes in the driver namespace (no POSIX file
   at `cache_root + key`), so its sidecars **cannot** live under `cache_root`; a distinct
   POSIX `brix_cache_state_root` is required and validated at config time.
-- **Write-back staging cache** (`brix_cache_wt_stage_root`, optional
-  `brix_cache_wt_stage_backend`) — see Write-through below.
+- **Write-back staging cache** (`brix_wt_stage_root`, optional
+  `brix_wt_stage_backend`) — see Write-through below.
 
 | File | Responsibility |
 |---|---|
@@ -159,7 +159,7 @@ E2E: `tests/test_cmd_cache_pblock_posix.py` (pblock primary + POSIX read & write
 | `cache_internal.h` | Internal types (`brix_cache_origin_conn_t`, `brix_cache_fill_t`, `brix_wt_flush_t`), fill constants, and all cross-file prototypes. Pulls in `src/core/ngx_brix_module.h`. |
 | `cache_http.h` | Minimal public header for HTTP handlers — exposes only `brix_cache_file_ready()` without dragging in stream types. |
 | `open.h` | VFS-facing prototypes: `brix_cache_open`, `brix_cache_record_access`, `brix_cache_path_for_resolved`. |
-| `directives.c` | nginx config parsers: `brix_cache_origin_family`, `_eviction_threshold` (ppm), `_max_file_size` (k/m/g), `_include_regex`, `brix_write_through`, `brix_wt_mode`, `brix_wt_origin`, `brix_wt_{allow,deny}_prefix`, and (parity) `brix_cache_{allow,deny}_prefix` + `brix_cache_state_root` + `brix_cache_dirty_max_age`. The write-back staging directives (`brix_cache_wt_stage_root`, `brix_cache_wt_stage_backend`, `brix_cache_wt_stage_block_size`) are parsed in `src/protocols/root/stream/directives_cache.h` and prepared in `src/core/config/runtime_server.c`; the legacy `brix_cache_storage_backend`/`_block_size` pair is retired (§14) in favour of the tier grammar's `brix_cache_store`. The prefix push is shared by the write-through and read-cache lists. **Deliberate asymmetry:** there is no read "mode" knob — read fills are inherently async (thread-pool) and whole-vs-slice is already the tier grammar’s `brix_cache_slice_size`, so an `brix_cache_mode` directive would be a no-op; the write side keeps `brix_wt_mode sync|async`. |
+| `directives.c` | nginx config parsers: `brix_cache_origin_family`, `_eviction_threshold` (ppm), `_max_file_size` (k/m/g), `_include_regex`, `brix_write_through`, `brix_wt_mode`, `brix_wt_origin`, `brix_wt_{allow,deny}_prefix`, and (parity) `brix_cache_{allow,deny}_prefix` + `brix_cache_state_root` + `brix_cache_dirty_max_age`. The write-back staging directives (`brix_wt_stage_root`, `brix_wt_stage_backend`, `brix_wt_stage_block_size`) are parsed in `src/protocols/root/stream/directives_cache.h` and prepared in `src/core/config/runtime_server.c`; the legacy `brix_cache_storage_backend`/`_block_size` pair is retired (§14) in favour of the tier grammar's `brix_cache_store`. The prefix push is shared by the write-through and read-cache lists. **Deliberate asymmetry:** there is no read "mode" knob — read fills are inherently async (thread-pool) and whole-vs-slice is already the tier grammar’s `brix_cache_slice_size`, so an `brix_cache_mode` directive would be a no-op; the write side keeps `brix_wt_mode sync|async`. |
 | `noop.c` | Stub bodies for every public symbol — compiled only when the full cache is excluded from the build; returns `kXR_Unsupported` / `DECISION_DENY` / `NGX_DECLINED`. |
 
 ### Other files

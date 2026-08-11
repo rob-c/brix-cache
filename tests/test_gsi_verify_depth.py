@@ -1,5 +1,5 @@
 """
-test_gsi_verify_depth.py — §5.10 (parity-fix wave 17): brix_gsi_verify_depth
+test_gsi_verify_depth.py — §5.10 (parity-fix wave 17): brix_verify_depth
 directive plumbing.
 
 The chain-depth ENFORCEMENT (X509_STORE_CTX_set_depth honoured by
@@ -14,7 +14,7 @@ registered and numeric-validated.
 
   * wiring        — the GSI login site forwards conf->gsi_verify_depth to
                     brix_gsi_verify_chain.
-  * success       — nginx -t accepts `brix_gsi_verify_depth <n>`.
+  * success       — nginx -t accepts `brix_verify_depth <n>`.
   * error         — a non-numeric argument is rejected at parse time.
 
 Run:
@@ -64,13 +64,13 @@ def test_gsi_login_forwards_conf_verify_depth():
 
 
 def test_directive_accepts_a_number(tmp_path):
-    """(success) brix_gsi_verify_depth <n> parses — the directive is registered
+    """(success) brix_verify_depth <n> parses — the directive is registered
     and the value flows into the config."""
     if not os.access(NGINX_BIN, os.X_OK):
         pytest.skip(f"nginx not executable: {NGINX_BIN}")
-    r = _nginx_t(tmp_path, "brix_gsi_verify_depth 3;")
+    r = _nginx_t(tmp_path, "brix_verify_depth 3;")
     assert "syntax is ok" in (r.stdout + r.stderr), \
-        f"valid brix_gsi_verify_depth rejected at parse:\n{r.stdout}\n{r.stderr}"
+        f"valid brix_verify_depth rejected at parse:\n{r.stdout}\n{r.stderr}"
 
 
 def test_directive_rejects_non_number(tmp_path):
@@ -78,9 +78,9 @@ def test_directive_rejects_non_number(tmp_path):
     config never reaches 'syntax is ok'."""
     if not os.access(NGINX_BIN, os.X_OK):
         pytest.skip(f"nginx not executable: {NGINX_BIN}")
-    r = _nginx_t(tmp_path, "brix_gsi_verify_depth notanumber;")
+    r = _nginx_t(tmp_path, "brix_verify_depth notanumber;")
     out = r.stdout + r.stderr
     assert "syntax is ok" not in out, \
-        "a non-numeric brix_gsi_verify_depth was accepted"
+        "a non-numeric brix_verify_depth was accepted"
     assert "invalid number" in out, \
         f"expected an 'invalid number' parse error, got:\n{out}"

@@ -14,12 +14,12 @@
 #include "protocols/shared/http_cache_fill.h"     /* phase-64 SP2: off-loop cache fill */
 #include "protocols/shared/http_serve_offload.h"  /* phase-64 SP3: off-loop remote serve */
 #include "protocols/root/zip/zip_http.h"   /* phase-57 W2: shared HTTP ZIP member serving */
-#include "core/compat/xml.h"               /* §6.6: HTML-escape listing entries */
-#include "fs/path/reserved_names.h"        /* brix_is_internal_name — hide sidecars */
+#include "get_internal.h"
 
-/* GET range/bytes metrics — shared by the inline serve and the off-loop serve
- * completion (brix_http_serve_offload), so both report identically. */
-static void
+/* GET range/bytes metrics — shared by the serve phases (get_serve.c) and the
+ * off-loop serve completion (brix_http_serve_offload), so all report
+ * identically.  Prototype in get_internal.h. */
+void
 webdav_serve_metrics(ngx_http_request_t *r,
     const brix_http_serve_result_t *result)
 {
@@ -75,68 +75,6 @@ webdav_get_fill_failed(ngx_http_request_t *r, void *data, ngx_int_t rc)
     webdav_metrics_response(r, rc);
     return rc;
 }
-
-#include <fcntl.h>
-#include <stdio.h>
-#include <string.h>
-#include <unistd.h>
-
-static ngx_int_t
-webdav_register_send_fd_cleanup(ngx_http_request_t *r, ngx_fd_t fd,
-    const char *path)
-{
-    ngx_pool_cleanup_t      *cln;
-    ngx_pool_cleanup_file_t *clnf;
-    size_t                   path_len;
-    u_char                  *name;
-
-    cln = ngx_pool_cleanup_add(r->pool, sizeof(ngx_pool_cleanup_file_t));
-    if (cln == NULL) {
-        return NGX_ERROR;
-    }
-
-    path_len = ngx_strlen(path);
-    name = ngx_pnalloc(r->pool, path_len + 1);
-    if (name == NULL) {
-        return NGX_ERROR;
-    }
-    ngx_cpystrn(name, (u_char *) path, path_len + 1);
-
-    cln->handler = ngx_pool_cleanup_file;
-    clnf = cln->data;
-    clnf->fd = fd;
-    clnf->name = name;
-    clnf->log = r->pool->log;
-
-    return NGX_OK;
-}
-
-static void
-webdav_get_add_xrdhttp_headers(ngx_http_request_t *r, ngx_fd_t fd,
-    off_t file_size, void *ud)
-{
-    struct stat *sb = ud;
-    webdav_fadvise_willneed(r->connection->log, fd, 0, (size_t) file_size);
-    xrdhttp_add_checksum_header(r, fd, sb);
-    xrdhttp_add_response_headers(r, r->headers_out.status);
-}
-
-/*
- * get_serve_state_t — the serve-ready handle + derived metadata produced by
- * the resolve/open phase and consumed by the serving phases.  It bundles the
- * open VFS handle with the POSIX-shaped stat (`sb`, used by the multipart and
- * pre-header paths), the VFS stat (`vst`, used by the ranged serve), and the
- * fd-cache bookkeeping (`from_cache`/`cache_path`) so the phase helpers take a
- * single explicit state object instead of a long parameter list.  It is filled
- * only when the resolve phase returns NGX_OK.
- */
-typedef struct {
-    brix_vfs_file_t *fh;           /* open handle (owned by the caller flow) */
-    struct stat      sb;           /* POSIX stat for multipart/pre-header use */
-    brix_vfs_stat_t  vst;          /* VFS stat for the ranged serve           */
-    ngx_uint_t       from_cache;   /* fd came from the read-through cache tier */
-    const char      *cache_path;   /* cache path for access accounting         */
-} get_serve_state_t;
 
 /*
  * get_zip_member_serve — Phase-57 W2 ZIP member access over HTTP GET.
@@ -270,435 +208,6 @@ get_offload_or_fill(ngx_http_request_t *r,
 }
 
 /*
- * get_open_map_error — map a failed VFS open to its terminal HTTP status.
- *
- * WHAT: translate `vfs_err` from a NULL `brix_vfs_open` into the exact response
- *   the historical inline code produced.
- * WHY: the open error mapping carries security-load-bearing decisions
- *   (confinement rejections are 403, never 500) and a special-cased 202 tape
- *   recall — keeping it in one helper preserves those byte-for-byte.
- * HOW: early-return per errno class: ENOENT/ENOTDIR/ENAMETOOLONG → 404 (with
- *   xrdhttp headers), confinement/permission (EACCES/EPERM/EXDEV/ELOOP) → 403,
- *   EAGAIN → 202 + Retry-After, otherwise log and route through the shared
- *   errno→status table.
- */
-static ngx_int_t
-get_open_map_error(ngx_http_request_t *r, int vfs_err, const char *path)
-{
-    ngx_table_elt_t *ra;
-
-    if (vfs_err == ENOENT || vfs_err == ENOTDIR
-        || vfs_err == ENAMETOOLONG)
-    {
-        xrdhttp_add_response_headers(r, NGX_HTTP_NOT_FOUND);
-        return NGX_HTTP_NOT_FOUND;
-    }
-
-    /* EXDEV (".." escape) / ELOOP (escaping or magic symlink) are the
-     * kernel RESOLVE_BENEATH confinement rejections — forbidden, never a
-     * 500.  EACCES/EPERM map the same way.  Route the whole errno set
-     * through the shared table so the codes stay consistent with S3. */
-    if (vfs_err == EACCES || vfs_err == EPERM
-        || vfs_err == EXDEV || vfs_err == ELOOP)
-    {
-        return NGX_HTTP_FORBIDDEN;
-    }
-
-    /* EAGAIN ⇒ a nearline (tape) recall is in flight (sd_frm/sd_cache, §9.2).
-     * Answer 202 "staging" with a Retry-After so the client polls until the
-     * object is recalled into the cache tier and served — never block the
-     * worker for a minutes-to-hours MSS recall. */
-    if (vfs_err == EAGAIN) {
-        ngx_http_brix_webdav_loc_conf_t *wlcf =
-            ngx_http_get_module_loc_conf(r, ngx_http_brix_webdav_module);
-
-        ra = ngx_list_push(&r->headers_out.headers);
-        if (ra != NULL) {
-            ra->hash = 1;
-            ngx_str_set(&ra->key, "Retry-After");
-            ngx_str_set(&ra->value, "10");     /* default staging poll interval */
-            /* §6.11 http.maxdelay: tighten (never lengthen) the poll wait when a
-             * deployment caps it below the 10 s default. */
-            if (wlcf != NULL && wlcf->maxdelay > 0 && wlcf->maxdelay < 10) {
-                u_char *rv = ngx_pnalloc(r->pool, NGX_TIME_T_LEN);
-                if (rv != NULL) {
-                    ra->value.len  = ngx_sprintf(rv, "%T", wlcf->maxdelay) - rv;
-                    ra->value.data = rv;
-                }
-            }
-        }
-        r->headers_out.status           = NGX_HTTP_ACCEPTED;
-        r->headers_out.content_length_n = 0;
-        ngx_http_send_header(r);
-        return ngx_http_send_special(r, NGX_HTTP_LAST);
-    }
-
-    ngx_log_error(NGX_LOG_ERR, r->connection->log, vfs_err,
-                  ngx_open_file_n " \"%s\" failed", path);
-    return (ngx_int_t) brix_http_errno_to_status(vfs_err);
-}
-
-/* ---- §6.6 GET-on-a-directory: listingredir / HTML listing / listingdeny ----
- *
- * One escaped listing row: an <a href> plus a size and mtime column. The name
- * is HTML-escaped through the shared XML escaper (& < > " ' → entities), and a
- * subdirectory gets a trailing '/'. Appends into the request-pool chain `tail`.
- */
-static ngx_int_t
-get_listing_emit_row(ngx_http_request_t *r, ngx_chain_t ***tail,
-    const ngx_str_t *name, const brix_vfs_stat_t *vst)
-{
-    u_char       esc[512 * 6 + 8];   /* worst-case XML expansion of a 512B name */
-    size_t       esc_written = 0;
-    ngx_buf_t   *b;
-    ngx_chain_t *cl;
-    u_char      *line;
-    size_t       cap;
-    const char  *slash = vst->is_directory ? "/" : "";
-
-    if (brix_xml_escape(name->data, name->len, 0, esc, sizeof(esc),
-                        &esc_written) != 0) {
-        return NGX_OK;   /* name too long to escape safely: skip this entry */
-    }
-
-    cap = esc_written * 2 + 160;
-    line = ngx_pnalloc(r->pool, cap);
-    b = ngx_pcalloc(r->pool, sizeof(*b));
-    cl = ngx_alloc_chain_link(r->pool);
-    if (line == NULL || b == NULL || cl == NULL) {
-        return NGX_ERROR;
-    }
-
-    b->pos = line;
-    b->last = ngx_slprintf(line, line + cap,
-        "<tr><td><a href=\"%s%s\">%s%s</a></td>"
-        "<td class=\"s\">%O</td><td class=\"m\">%T</td></tr>\n",
-        esc, slash, esc, slash,
-        vst->is_directory ? (off_t) 0 : vst->size, (time_t) vst->mtime);
-    b->memory = 1;
-    cl->buf = b;
-    cl->next = NULL;
-    **tail = cl;
-    *tail = &cl->next;
-    return NGX_OK;
-}
-
-/* Escape the request URI once for the page's <h1> and its parent link. */
-static ngx_int_t
-get_listing_head_tail(ngx_http_request_t *r, ngx_chain_t **head,
-    ngx_chain_t ***tailp)
-{
-    u_char       esc_uri[1024 * 6 + 8];
-    size_t       esc_written = 0;
-    ngx_buf_t   *b;
-    ngx_chain_t *cl;
-    u_char      *buf;
-    size_t       cap;
-
-    if (brix_xml_escape(r->uri.data, r->uri.len, 0, esc_uri, sizeof(esc_uri),
-                        &esc_written) != 0) {
-        esc_uri[0] = '/';
-        esc_uri[1] = '\0';
-    }
-
-    cap = esc_written + 512;
-    buf = ngx_pnalloc(r->pool, cap);
-    b = ngx_pcalloc(r->pool, sizeof(*b));
-    cl = ngx_alloc_chain_link(r->pool);
-    if (buf == NULL || b == NULL || cl == NULL) {
-        return NGX_ERROR;
-    }
-    b->pos = buf;
-    b->last = ngx_slprintf(buf, buf + cap,
-        "<!DOCTYPE html>\n<html><head><meta charset=\"utf-8\">"
-        "<title>Index of %s</title></head><body>\n"
-        "<h1>Index of %s</h1>\n"
-        "<table><tr><th>Name</th><th>Size</th><th>Modified</th></tr>\n"
-        "<tr><td><a href=\"../\">../</a></td><td></td><td></td></tr>\n",
-        esc_uri, esc_uri);
-    b->memory = 1;
-    cl->buf = b;
-    cl->next = NULL;
-    *head = cl;
-    *tailp = &cl->next;
-    return NGX_OK;
-}
-
-/* WHAT: Render an escaped HTML directory index for `path` and send it, or —
- *       per config — 301-redirect (listingredir) or 403 (listingdeny default).
- *       Returns the send result or a terminal HTTP status.
- * WHY:  §6.6 parity: XrdHttp serves a browsable listing on a directory GET
- *       when enabled; the two guard directives (listing_redirect first, then
- *       html_listing) mirror listingredir / listingdeny.
- * HOW:  1. listing_redirect set → 301 Location: <redirect><request-uri>.
- *       2. html_listing off → 403 (the stock default; unchanged behaviour).
- *       3. else enumerate via the same impersonation-aware VFS opendir/readdir
- *          PROPFIND uses, HTML-escaping every name and hiding dotfiles and
- *          internal sidecars, then send the memory-backed page.
- */
-static ngx_int_t
-get_serve_directory(ngx_http_request_t *r,
-    ngx_http_brix_webdav_loc_conf_t *conf, const char *path)
-{
-    brix_vfs_ctx_t   vctx;
-    brix_vfs_dir_t  *dh;
-    ngx_str_t        name;
-    brix_vfs_stat_t  vst;
-    ngx_chain_t     *head = NULL, **tail = NULL, *foot_cl;
-    ngx_buf_t       *foot;
-    ngx_int_t        rc;
-    int              is_tls = 0;
-    ngx_uint_t       n_entries = 0;
-
-    if (conf->listing_redirect.len > 0) {
-        ngx_table_elt_t *loc;
-        u_char          *dst;
-        size_t           cap = conf->listing_redirect.len + r->uri.len + 1;
-
-        loc = ngx_list_push(&r->headers_out.headers);
-        dst = ngx_pnalloc(r->pool, cap);
-        if (loc == NULL || dst == NULL) {
-            return NGX_HTTP_INTERNAL_SERVER_ERROR;
-        }
-        loc->hash = 1;
-        ngx_str_set(&loc->key, "Location");
-        loc->value.data = dst;
-        loc->value.len = ngx_slprintf(dst, dst + cap, "%V%V",
-                                      &conf->listing_redirect, &r->uri) - dst;
-        r->headers_out.location = loc;
-        return NGX_HTTP_MOVED_PERMANENTLY;
-    }
-
-    if (!conf->html_listing) {
-        return NGX_HTTP_FORBIDDEN;              /* listingdeny default */
-    }
-
-#if (NGX_HTTP_SSL)
-    is_tls = (r->connection->ssl != NULL) ? 1 : 0;
-#endif
-    brix_vfs_ctx_init(&vctx, r->pool, r->connection->log, BRIX_PROTO_WEBDAV,
-        conf->common.root_canon, NULL, 0 /* allow_write */, is_tls, NULL, path);
-
-    dh = brix_vfs_opendir(&vctx, NULL);
-    if (dh == NULL) {
-        return NGX_HTTP_FORBIDDEN;              /* unreadable as the mapped user */
-    }
-
-    if (get_listing_head_tail(r, &head, &tail) != NGX_OK) {
-        brix_vfs_closedir(dh, r->connection->log);
-        return NGX_HTTP_INTERNAL_SERVER_ERROR;
-    }
-
-    while (brix_vfs_readdir(dh, &name, &vst) == NGX_OK) {
-        if (name.len == 0 || name.data[0] == '.'
-            || brix_is_internal_name((const char *) name.data)) {
-            continue;                          /* dotfiles + internal sidecars */
-        }
-        if (get_listing_emit_row(r, &tail, &name, &vst) != NGX_OK) {
-            brix_vfs_closedir(dh, r->connection->log);
-            return NGX_HTTP_INTERNAL_SERVER_ERROR;
-        }
-        n_entries++;
-    }
-    brix_vfs_closedir(dh, r->connection->log);
-
-    foot = ngx_pcalloc(r->pool, sizeof(*foot));
-    foot_cl = ngx_alloc_chain_link(r->pool);
-    if (foot == NULL || foot_cl == NULL) {
-        return NGX_HTTP_INTERNAL_SERVER_ERROR;
-    }
-    ngx_str_t footer = ngx_string("</table></body></html>\n");
-    foot->pos = footer.data;
-    foot->last = footer.data + footer.len;
-    foot->memory = 1;
-    foot->last_buf = 1;
-    foot_cl->buf = foot;
-    foot_cl->next = NULL;
-    *tail = foot_cl;
-
-    r->headers_out.status = NGX_HTTP_OK;
-    r->headers_out.content_length_n = -1;      /* chunked / connection-close */
-    ngx_str_set(&r->headers_out.content_type, "text/html; charset=utf-8");
-    r->headers_out.content_type_len = r->headers_out.content_type.len;
-
-    rc = ngx_http_send_header(r);
-    if (rc == NGX_ERROR || rc > NGX_OK || r->header_only) {
-        return rc;
-    }
-    (void) n_entries;
-    return ngx_http_output_filter(r, head);
-}
-
-/*
- * get_resolve_and_stat — open the target and produce serve-ready state.
- *
- * WHAT: open `path` through the VFS, stat it, reject directories, and populate
- *   `st` (open handle + POSIX stat + VFS stat + fd-cache bookkeeping).
- * WHY: the serving phases need an open, statted, non-directory regular-file
- *   handle plus the derived metadata; concentrating open+stat+validation here
- *   keeps the orchestrator flat and each error path owning its own close.
- * HOW: open (mapping any failure via get_open_map_error), stat (500 on
- *   failure), directory guard (403), then fill `st.sb` from the VFS stat and
- *   capture the sendfile fd cache bookkeeping.  Returns NGX_OK with `st`
- *   populated and the handle open, or a terminal status with nothing to close.
- */
-static ngx_int_t
-get_resolve_and_stat(ngx_http_request_t *r, brix_vfs_ctx_t *vctx,
-    const char *path, get_serve_state_t *st)
-{
-    int vfs_err = 0;
-
-    st->fh = brix_vfs_open(vctx, BRIX_VFS_O_READ, &vfs_err);
-    if (st->fh == NULL) {
-        return get_open_map_error(r, vfs_err, path);
-    }
-
-    if (brix_vfs_file_stat(st->fh, &st->vst) != NGX_OK) {
-        brix_vfs_close(st->fh, r->connection->log);
-        return NGX_HTTP_INTERNAL_SERVER_ERROR;
-    }
-
-    if (st->vst.is_directory) {
-        brix_vfs_close(st->fh, r->connection->log);
-        /* §6.6: signal "directory" to the orchestrator, which owns the
-         * listingredir / HTML-listing / listingdeny decision (get_serve_
-         * directory). Kept side-effect-free here so no response is sent from
-         * inside the open-and-stat helper. */
-        return NGX_DECLINED;
-    }
-
-    ngx_memzero(&st->sb, sizeof(st->sb));
-    st->sb.st_size  = st->vst.size;
-    st->sb.st_mtime = st->vst.mtime;
-    st->sb.st_ctime = st->vst.ctime;
-    st->sb.st_mode  = (mode_t) st->vst.mode;
-    st->sb.st_ino   = st->vst.ino;
-
-    /* Zero-copy (sendfile) serve fd, gated on the backend's CAP_SENDFILE; a
-     * non-sendfile backend returns NGX_INVALID_FILE and the dup in the
-     * multirange path fails closed instead of serving a bogus descriptor. */
-    st->from_cache = brix_vfs_file_from_cache(st->fh);
-    st->cache_path = brix_vfs_file_path(st->fh);
-    return NGX_OK;
-}
-
-/*
- * get_serve_range — serve a multi-range (multipart/byteranges) GET.
- *
- * WHAT: handle the XrdHttp multi-range vector read by duplicating the sendfile
- *   fd, registering its cleanup, and delegating to the multipart handler.
- * WHY: multi-range is the kXR_readv-over-HTTP path; the TLS-memory vs
- *   cleartext-sendfile split lives inside xrdhttp_handle_multipart_get and is
- *   FROZEN — this helper only owns the dup + cleanup + cache accounting around
- *   it.  The dup lets the multipart handler own an independent fd while the VFS
- *   handle is closed here.
- * HOW: dup the sendfile fd (500 on failure), register a pool cleanup that owns
- *   the dup, close the VFS handle, run the multipart serve, and record cache
- *   access on a successful full body.
- */
-static ngx_int_t
-get_serve_range(ngx_http_request_t *r, get_serve_state_t *st, const char *path)
-{
-    ngx_fd_t  fd;
-    ngx_fd_t  send_fd;
-    ngx_int_t rc;
-
-    fd = brix_vfs_file_sendfile_fd(st->fh);
-
-    send_fd = dup(fd);
-    if (send_fd == NGX_INVALID_FILE) {
-        brix_vfs_close(st->fh, r->connection->log);
-        return NGX_HTTP_INTERNAL_SERVER_ERROR;
-    }
-    if (webdav_register_send_fd_cleanup(r, send_fd, path) != NGX_OK) {
-        ngx_close_file(send_fd);
-        brix_vfs_close(st->fh, r->connection->log);
-        return NGX_HTTP_INTERNAL_SERVER_ERROR;
-    }
-    brix_vfs_close(st->fh, r->connection->log);
-
-    rc = xrdhttp_handle_multipart_get(r, send_fd, &st->sb, 1);
-    if (st->from_cache && rc == NGX_OK && !r->header_only) {
-        (void) brix_cache_record_access(st->cache_path,
-                    (size_t) st->sb.st_size, r->connection->log);
-    }
-    return rc;
-}
-
-/*
- * get_eval_conditionals — apply the If-Modified-Since precondition.
- *
- * WHAT: evaluate the conditional GET via the shared eval and, on a 304, emit
- *   the not-modified response.
- * WHY: a matching precondition must short-circuit the serve with an empty 304
- *   body; the check owns closing the VFS handle on every terminal outcome.
- * HOW: NGX_HTTP_NOT_MODIFIED → close, send 304 headers + special last; any
- *   other non-OK → close and propagate; NGX_OK → return NGX_OK (handle stays
- *   open for the serve phase).
- */
-static ngx_int_t
-get_eval_conditionals(ngx_http_request_t *r, get_serve_state_t *st)
-{
-    ngx_int_t rc = brix_http_check_if_modified_since(r, st->sb.st_mtime);
-
-    if (rc == NGX_HTTP_NOT_MODIFIED) {
-        brix_vfs_close(st->fh, r->connection->log);
-        r->headers_out.status           = NGX_HTTP_NOT_MODIFIED;
-        r->headers_out.content_length_n = 0;
-        ngx_http_send_header(r);
-        return ngx_http_send_special(r, NGX_HTTP_LAST);
-    }
-    if (rc != NGX_OK) {
-        brix_vfs_close(st->fh, r->connection->log);
-        return rc;
-    }
-    return NGX_OK;
-}
-
-/*
- * get_serve_full — serve the file with single-range (206) / full (200) body.
- *
- * WHAT: run the shared ranged file serve and report the range/bytes metrics.
- * WHY: this is the common whole-file / single-range path; the TLS-memory vs
- *   cleartext-sendfile split is FROZEN inside brix_http_serve_file_ranged.
- * HOW: disable the core range filter (the shared serve does its own range
- *   parse and emits 206/416 itself; leaving allow_ranges on lets nginx
- *   re-parse the same header and 416 a body already served — and ledgered —
- *   as a full 200 when the Range is malformed, which RFC 9110 §14.2 says to
- *   ignore), advertise Accept-Ranges explicitly, build the serve opts (weak
- *   ETag, compress flag, xrdhttp pre-header hook carrying `sb`), serve, then
- *   feed the result to the shared metrics reporter.
- */
-static ngx_int_t
-get_serve_full(ngx_http_request_t *r,
-    ngx_http_brix_webdav_loc_conf_t *conf,
-    ngx_http_brix_webdav_req_ctx_t *wctx, get_serve_state_t *st,
-    const char *path)
-{
-    const char              *identity =
-        (wctx != NULL && wctx->dn[0] != '\0') ? wctx->dn : "anonymous";
-    brix_http_serve_opts_t   opts;
-    brix_http_serve_result_t result;
-    ngx_int_t                rc;
-
-    r->allow_ranges = 0;
-    (void) brix_http_set_header(r, "Accept-Ranges", "bytes", NULL);
-
-    ngx_memzero(&opts, sizeof(opts));
-    opts.xfer_proto      = BRIX_XFER_PROTO_WEBDAV;
-    opts.op_name         = "GET";
-    opts.identity        = identity;
-    opts.etag_flags      = BRIX_ETAG_WEAK;
-    opts.compress        = conf->common.compress;
-    opts.pre_header_send = webdav_get_add_xrdhttp_headers;
-    opts.pre_header_ud   = &st->sb;
-
-    rc = brix_http_serve_file_ranged(r, st->fh, &st->vst, path, &opts, &result);
-    webdav_serve_metrics(r, &result);
-    return rc;
-}
-
-/*
  * webdav_handle_get — serve a file via HTTP GET with Range support.
  *
  * Fast path: if the fd-cache already holds an open fd for the requested URI
@@ -726,8 +235,8 @@ get_serve_full(ngx_http_request_t *r,
  *   - If fd was opened here (fd_from_table=0), the cleanup handler closes it.
  *
  * Flow: resolve path → (zip member?) → build VFS ctx → off-loop serve/fill →
- * open+stat (get_resolve_and_stat) → multi-range (get_serve_range) or
- * conditional (get_eval_conditionals) + full/single-range (get_serve_full).
+ * open+stat (webdav_get_resolve_and_stat) → multi-range (webdav_get_serve_range) or
+ * conditional (webdav_get_eval_conditionals) + full/single-range (webdav_get_serve_full).
  */
 ngx_int_t
 webdav_handle_get(ngx_http_request_t *r)
@@ -765,11 +274,11 @@ webdav_handle_get(ngx_http_request_t *r)
         return rc;
     }
 
-    rc = get_resolve_and_stat(r, &vctx, path, &st);
+    rc = webdav_get_resolve_and_stat(r, &vctx, path, &st);
     if (rc == NGX_DECLINED) {
         /* §6.6: the target is a directory — listingredir / HTML listing /
          * listingdeny per config. This owns the response. */
-        return get_serve_directory(r, conf, path);
+        return webdav_get_serve_directory(r, conf, path);
     }
     if (rc != NGX_OK) {
         return rc;
@@ -779,13 +288,13 @@ webdav_handle_get(ngx_http_request_t *r)
      * A comma in the Range: value indicates multiple byte ranges — delegate
      * to the multipart/byteranges handler rather than the single-range path. */
     if (xrdhttp_request_is_multirange(r)) {
-        return get_serve_range(r, &st, path);
+        return webdav_get_serve_range(r, &st, path);
     }
 
-    rc = get_eval_conditionals(r, &st);
+    rc = webdav_get_eval_conditionals(r, &st);
     if (rc != NGX_OK) {
         return rc;
     }
 
-    return get_serve_full(r, conf, wctx, &st, path);
+    return webdav_get_serve_full(r, conf, wctx, &st, path);
 }

@@ -1,7 +1,7 @@
-# XrdAcc-compatible authorization (`brix_authdb_format xrdacc`)
+# XrdAcc-compatible authorization (`brix_authdb_engine xrdacc`)
 
 The module ships **two** authorization-database engines, selected per server by
-`brix_authdb_format`:
+`brix_authdb_engine`:
 
 | Format | Engine | Use when |
 |---|---|---|
@@ -12,14 +12,14 @@ The module ships **two** authorization-database engines, selected per server by
 
 > **Plane spelling (phase-101 W5, 2026-08).** On the **stream** (`root://`)
 > reference plane the engine entry and its tuners keep the names below —
-> `brix_authdb`, `brix_authdb_format`, `brix_authdb_audit`, `brix_authdb_refresh`
-> — and `brix_authdb_format` selects the engine at runtime. On the **HTTP** planes
+> `brix_authdb`, `brix_authdb_engine`, `brix_acc_audit`, `brix_acc_refresh`
+> — and `brix_authdb_engine` selects the engine at runtime. On the **HTTP** planes
 > (WebDAV / S3 / cvmfs) the prefix now names the engine: the XrdAcc entry is
 > **`brix_acc_authdb`** and the three tuners are **`brix_acc_format`**,
 > **`brix_acc_audit`**, **`brix_acc_refresh`**; bare **`brix_authdb`** on HTTP is
 > the *native* u/g/p engine (WebDAV), matching stream. The `brix_acc_gidlifetime`
 > / `brix_acc_pgo` / `brix_acc_resolve_hosts` … tunables keep one bare spelling on
-> both planes. A pre-W5 HTTP config using `brix_authdb_format xrdacc` fails
+> both planes. A pre-W5 HTTP config using `brix_authdb_engine xrdacc` fails
 > `nginx -t` — rename it to `brix_acc_*`. See
 > [migration-unified-grammar.md](../03-configuration/migration-unified-grammar.md#phase-101-authdb-engine-split-2026-08--w5).
 
@@ -36,10 +36,10 @@ server {
     brix_root on;
     brix_export /export;
     brix_auth token;                 # or gsi / none (anon `u *` rules)
-    brix_authdb_format xrdacc;        # <-- select the XrdAcc engine
+    brix_authdb_engine xrdacc;        # <-- select the XrdAcc engine
     brix_authdb /etc/brix/authdb;   # a stock XRootD authdb file
-    brix_authdb_audit all;            # none | deny | grant | all
-    brix_authdb_refresh 60;           # hot-reload on mtime change (s); 0 = off
+    brix_acc_audit all;            # none | deny | grant | all
+    brix_acc_refresh 60;           # hot-reload on mtime change (s); 0 = off
 }
 ```
 
@@ -140,7 +140,7 @@ x dev /devarea rwid
   `AOP_Stage` (privilege `0x180`, granted only by `a`), routed through the same
   engine — not the native authdb.
 - **Fail-closed.** No matching rule, or a failed authdb load, denies.
-- **Hot reload.** `brix_authdb_refresh` (stream) / `brix_acc_refresh` (HTTP)
+- **Hot reload.** `brix_acc_refresh` (stream) / `brix_acc_refresh` (HTTP)
   re-reads the file on mtime change and atomically swaps the per-worker tables —
   no restart, no `reload`. Supported on **both** the stream (root://) and HTTP
   (WebDAV/S3) tiers; the HTTP timer is armed lazily on the first request in each
@@ -150,7 +150,7 @@ x dev /devarea rwid
   token scope), so a cached *update* grant is never replayed for a *create*, and
   a `h`-rule verdict is never shared across peers. Group membership — the one
   remaining input — is bounded by the `gidlifetime` TTL.
-- **Audit.** `brix_authdb_audit` (stream) / `brix_acc_audit` (HTTP) logs
+- **Audit.** `brix_acc_audit` (stream) / `brix_acc_audit` (HTTP) logs
   `grant`/`deny`/both as
   `xrootd authz: <id>@<host> grant|deny <op> "<path>"` (fields sanitised).
 
@@ -166,7 +166,7 @@ engine:
 | **S3** | GET→read, HEAD→stat, PUT/POST→create, DELETE→delete | SigV4 access key |
 
 To arm the XrdAcc engine, in the `stream` server block (root://) set
-`brix_authdb_format xrdacc;` + `brix_authdb <path>;`; in an `http` location
+`brix_authdb_engine xrdacc;` + `brix_authdb <path>;`; in an `http` location
 (WebDAV/S3/cvmfs) set `brix_acc_format xrdacc;` + `brix_acc_authdb <path>;` (the
 W5 spellings — bare `brix_authdb` on HTTP is the native engine instead). For HTTP
 the tables are built lazily per worker on first request, and the refresh timer is

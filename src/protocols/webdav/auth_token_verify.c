@@ -201,8 +201,8 @@ wt_check_issuer_keys(const wt_validate_ctx_t *v,
     {
         rc = 0;
         *cache_hit = 1;
-    } else if (!*via_registry && conf->token_cache_kv != NULL
-               && brix_token_cache_lookup(conf->token_cache_kv,
+    } else if (!*via_registry && conf->common.token_cache_kv != NULL
+               && brix_token_cache_lookup(conf->common.token_cache_kv,
                                             token, token_len, claims))
     {
         rc = 0;

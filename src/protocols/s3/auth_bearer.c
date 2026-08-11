@@ -23,6 +23,7 @@
 #include "s3.h"
 #include "auth_bearer.h"
 #include "auth/token/token.h"
+#include "auth/token/token_cache.h"   /* shared cross-worker cache (phase-105 W1) */
 #include "core/types/identity.h"
 #include "observability/metrics/unified.h"
 
@@ -117,7 +118,18 @@ s3_verify_bearer(ngx_http_request_t *r,
 
     ngx_memzero(&claims, sizeof(claims));
 
+    /* phase-105 W1: consult the shared cross-worker token cache first — the
+     * same [brix_token_cache zone=] webdav amortizes through. Only positively
+     * verified claims are ever stored, the lookup re-checks exp, and the
+     * engine caps the entry TTL (token_cache.c), so a hit is as strong as
+     * re-validation. Before this, an S3 endpoint re-validated the identical
+     * JWT on every request while the directive parsed-but-did-nothing. */
+    if (cf->common.token_cache_kv != NULL
+        && brix_token_cache_lookup(cf->common.token_cache_kv, token,
+                                     token_len, &claims))
     {
+        rc = 0;
+    } else {
         brix_token_validate_args_t  va;
 
         va.log               = r->connection->log;
@@ -133,6 +145,10 @@ s3_verify_bearer(ngx_http_request_t *r,
         va.claims            = &claims;
 
         rc = brix_token_validate(&va);
+        if (rc == 0 && cf->common.token_cache_kv != NULL) {
+            brix_token_cache_store(cf->common.token_cache_kv, token,
+                                     token_len, &claims);
+        }
     }
     if (rc != 0) {
         ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,

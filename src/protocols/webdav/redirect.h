@@ -15,7 +15,7 @@
  *
  *   webdav_redirect_signed_auth() — DATA-SERVER side, called FIRST in the
  *   access-phase authentication gate.  A request carrying brixrdr.mac is
- *   verified against brix_http_secretkey (HMAC-SHA256 over method, path,
+ *   verified against brix_webdav_secretkey (HMAC-SHA256 over method, path,
  *   expiry, user, vo; constant-time compare; expiry window) and, on success,
  *   the embedded identity is adopted (NGX_OK — skip other credential
  *   sources).  A bad/expired MAC is 403, fail-closed (NGX_HTTP_FORBIDDEN);

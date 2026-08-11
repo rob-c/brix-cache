@@ -83,11 +83,11 @@ ngx_http_brix_webdav_tpc_merge_loc_conf(
     ngx_conf_merge_str_value(conf->tpc_cred.token_scope,
                              prev->tpc_cred.token_scope, "storage.read");
 
-    if (conf->tpc_cadir.len == 0 && conf->cadir.len > 0) {
-        conf->tpc_cadir = conf->cadir;
+    if (conf->tpc_cadir.len == 0 && conf->common.trusted_ca_dir.len > 0) {
+        conf->tpc_cadir = conf->common.trusted_ca_dir;
     }
-    if (conf->tpc_cafile.len == 0 && conf->cafile.len > 0) {
-        conf->tpc_cafile = conf->cafile;
+    if (conf->tpc_cafile.len == 0 && conf->common.trusted_ca.len > 0) {
+        conf->tpc_cafile = conf->common.trusted_ca;
     }
     if (conf->tpc_key.len == 0 && conf->tpc_cert.len > 0) {
         conf->tpc_key = conf->tpc_cert;

@@ -105,6 +105,10 @@ def _rt64_segment_10():
 
 def _rt64_section_a_webdav_want_digest_of(ALGOS, NORM, a_rel, port, want_hdrs, ta, parse_digest, A):
 
+    _checksum_digest_oracle_p1(ALGOS, BPRIV_BYTES, BREAD_BYTES, s3port, port, parse_digest, TAG, ta, NORM, a_rel, want_hdrs, A_CONTENT, rel, uid_of, A, BPRIV, disk_bytes, BREAD)
+
+
+def _checksum_digest_oracle_p1(ALGOS, BPRIV_BYTES, BREAD_BYTES, s3port, port, parse_digest, TAG, ta, NORM, a_rel, want_hdrs, A_CONTENT, rel, uid_of, A, BPRIV, disk_bytes, BREAD):
     # =====================================================================
     # SECTION A — WebDAV Want-Digest of OWN file: digest emitted + MATCHES oracle.
     # =====================================================================
@@ -137,6 +141,7 @@ def _rt64_section_a_webdav_want_digest_of(ALGOS, NORM, a_rel, port, want_hdrs, t
         ok(hst in (200, 204),
            "WebDAV HEAD Want-Digest:sha-256 of OWN file 200/204 (Digest not emitted "
            "on HEAD; skipped)")
+    _checksum_digest_oracle_p2(BPRIV_BYTES, BREAD_BYTES, s3port, ALGOS, port, TAG, ta, want_hdrs, parse_digest, A_CONTENT, rel, uid_of, NORM, a_rel, A, BPRIV, disk_bytes, BREAD)
 
 
 def _rt64_self_test_the_helper_against_the(A_CONTENT, TAG, s3port, rel):
@@ -335,7 +340,10 @@ def _rt64_section_b_cross_tenant_denial_alice(BPRIV_BYTES, ALGOS, NORM, port, wa
     ok(all((st in (401, 403, 404), 'digest' not in hh)),
        "WebDAV denied cross-tenant request emits NO Digest header (digest gated "
        "behind the open, computed only after DAC) (HTTP %s)" % st)
+    _checksum_digest_oracle_p3(BREAD_BYTES, s3port, BPRIV_BYTES, TAG, port, ta, parse_digest, A_CONTENT, rel, uid_of, want_hdrs, a_rel, A, disk_bytes, BPRIV, BREAD)
 
+
+def _checksum_digest_oracle_p3(BREAD_BYTES, s3port, BPRIV_BYTES, TAG, port, ta, parse_digest, A_CONTENT, rel, uid_of, want_hdrs, a_rel, A, disk_bytes, BPRIV, BREAD):
     # =====================================================================
     # SECTION C — CONTROL: bob's 0644 readable.txt digest IS obtainable by alice and
     # MATCHES its oracle (DAC permits the read, so the digest is a FAIR disclosure).
@@ -345,7 +353,10 @@ def _rt64_section_b_cross_tenant_denial_alice(BPRIV_BYTES, ALGOS, NORM, port, wa
     else:
         ok(True, "WebDAV 0644-control digest skipped (readable.txt unreadable)")
         ok(True, "WebDAV 0644-control body skipped")
+    _checksum_digest_oracle_p4(s3port, BPRIV_BYTES, TAG, port, ta, A_CONTENT, rel, uid_of, want_hdrs, a_rel, A, disk_bytes, BPRIV)
 
+
+def _checksum_digest_oracle_p4(s3port, BPRIV_BYTES, TAG, port, ta, A_CONTENT, rel, uid_of, want_hdrs, a_rel, A, disk_bytes, BPRIV):
     # =====================================================================
     # SECTION D — S3 x-amz-checksum-crc64nvme as the same oracle, base64-of-bytes form.
     # =====================================================================
@@ -354,6 +365,7 @@ def _rt64_section_b_cross_tenant_denial_alice(BPRIV_BYTES, ALGOS, NORM, port, wa
     else:
         for _i in range(8):
             ok(True, "S3 checksum-oracle leg skipped (S3 endpoint down)")
+    _checksum_digest_oracle_p5(s3port, TAG, port, ta, want_hdrs, a_rel, A, uid_of, BPRIV, rel)
 
 
 def _rt64_segment_01_2(a_rel, A):
@@ -408,7 +420,10 @@ def _rt64_section_e_root_query_checksum_cross(a_rel, A, BPRIV, TAG, port, want_h
         ok(True, "root:// query-checksum consistency skipped (native client absent)")
         ok(True, "root:// query-checksum oracle-match skipped (native client absent)")
         ok(True, "root:// query-checksum cross-tenant deny skipped (client absent)")
+    _checksum_digest_oracle_p6(s3port, TAG, port, ta, want_hdrs, uid_of, rel)
 
+
+def _checksum_digest_oracle_p6(s3port, TAG, port, ta, want_hdrs, uid_of, rel):
     # =====================================================================
     # SECTION F — nonexistent file digest -> clean error, never a fabricated value.
     # =====================================================================
@@ -436,7 +451,10 @@ def _rt64_section_g_liveness_the_digest_storm(TAG, port, ta, uid_of, rel):
         ok(rc != 0, "root:// query checksum of NONEXISTENT file -> error (rc=%s)" % rc)
     else:
         ok(True, "root:// nonexistent-checksum skipped (native client absent)")
+    _checksum_digest_oracle_p7(port, ta, TAG, uid_of, rel)
 
+
+def _checksum_digest_oracle_p7(port, ta, TAG, uid_of, rel):
     # =====================================================================
     # SECTION G — LIVENESS: the digest storm did not wedge / strand a principal.
     # =====================================================================

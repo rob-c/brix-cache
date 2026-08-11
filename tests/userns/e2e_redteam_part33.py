@@ -667,6 +667,14 @@ def _rt33_segment_30(bl_rel, port, tb, rel, uid_of):
        "alice principal (HTTP %s, uid=%s)" % (st, uid_of(blp)))
 
 
+def _dpi_orb(x):
+    return x or b""
+
+
+def _dpi_ors(x):
+    return x or ""
+
+
 def run_dataplane_integrity(key, data, port, s3port):
     """Per-identity DATA-PLANE integrity & non-cross-contamination.  The data plane
     (pread / pwrite / sendfile) operates on an ALREADY-OPEN fd whose DAC was decided

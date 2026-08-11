@@ -262,6 +262,61 @@ do_cksum(brix_conn *c, const char *cwd, int argc, char **argv)
 
 
 
+/* §7.12: the full stock code list.  checksumcancel is the Qckscan cancel
+ * form ("cancel <path>", matching the ckscan grammar); prepare queries a
+ * pending staging request by its kXR_prepare request id.  Returns the kXR_Q*
+ * code, or -1 for an unknown subtype name. */
+static int
+query_subtype_code(const char *name)
+{
+    static const struct { const char *name; int code; } subtypes[] = {
+        { "config",         kXR_Qconfig }, { "space",  kXR_Qspace  },
+        { "checksum",       kXR_Qcksum  }, { "checksumcancel", kXR_Qckscan },
+        { "stats",          kXR_QStats  }, { "xattr",  kXR_Qxattr  },
+        { "prepare",        kXR_QPrep   }, { "opaque", kXR_Qopaque },
+        { "opaquefile",     kXR_Qopaquf },
+    };
+    size_t k;
+
+    for (k = 0; k < sizeof(subtypes) / sizeof(subtypes[0]); k++) {
+        if (strcmp(name, subtypes[k].name) == 0) {
+            return subtypes[k].code;
+        }
+    }
+    return -1;
+}
+
+/* Path-taking codes get cwd-resolution; config/stats/prepare/opaque take
+ * literal keys.  checksumcancel's payload is "cancel <path>" (the ckscan
+ * grammar).  Returns 0 with *args set (into pathbuf when resolved), 50 on an
+ * over-long checksumcancel path. */
+static int
+query_build_args(const char *cwd, int infotype, int argc, char **argv,
+                 char *pathbuf, size_t buflen, const char **args)
+{
+    if (argc >= 3
+        && (infotype == kXR_Qspace || infotype == kXR_Qcksum
+            || infotype == kXR_Qxattr || infotype == kXR_Qopaquf)) {
+        build_path(cwd, argv[2], pathbuf, buflen);
+        *args = pathbuf;
+        return 0;
+    }
+    if (argc >= 3 && infotype == kXR_Qckscan) {
+        char resolved[XRDC_PATH_MAX];
+
+        build_path(cwd, argv[2], resolved, sizeof(resolved));
+        if ((size_t) snprintf(pathbuf, buflen, "cancel %s", resolved)
+                >= buflen) {
+            fprintf(stderr, "xrdfs: query checksumcancel: path too long\n");
+            return 50;
+        }
+        *args = pathbuf;
+        return 0;
+    }
+    *args = (argc >= 3) ? argv[2] : "";
+    return 0;
+}
+
 int
 do_query(brix_conn *c, const char *cwd, int argc, char **argv)
 {
@@ -275,43 +330,14 @@ do_query(brix_conn *c, const char *cwd, int argc, char **argv)
                         "stats|xattr|prepare|opaque|opaquefile> [args]\n");
         return 50;
     }
-    /* §7.12: the full stock code list.  checksumcancel is the Qckscan cancel
-     * form ("cancel <path>", matching the ckscan grammar); prepare queries a
-     * pending staging request by its kXR_prepare request id. */
-    if      (strcmp(argv[1], "config")         == 0) { infotype = kXR_Qconfig; }
-    else if (strcmp(argv[1], "space")          == 0) { infotype = kXR_Qspace; }
-    else if (strcmp(argv[1], "checksum")       == 0) { infotype = kXR_Qcksum; }
-    else if (strcmp(argv[1], "checksumcancel") == 0) { infotype = kXR_Qckscan; }
-    else if (strcmp(argv[1], "stats")          == 0) { infotype = kXR_QStats; }
-    else if (strcmp(argv[1], "xattr")          == 0) { infotype = kXR_Qxattr; }
-    else if (strcmp(argv[1], "prepare")        == 0) { infotype = kXR_QPrep; }
-    else if (strcmp(argv[1], "opaque")         == 0) { infotype = kXR_Qopaque; }
-    else if (strcmp(argv[1], "opaquefile")     == 0) { infotype = kXR_Qopaquf; }
-    else {
+    infotype = query_subtype_code(argv[1]);
+    if (infotype < 0) {
         fprintf(stderr, "xrdfs: unknown query subtype '%s'\n", argv[1]);
         return 50;
     }
-
-    /* Path-taking codes get cwd-resolution; config/stats/prepare/opaque take
-     * literal keys.  checksumcancel's payload is "cancel <path>" (the ckscan
-     * grammar), assembled below. */
-    if (argc >= 3
-        && (infotype == kXR_Qspace || infotype == kXR_Qcksum
-            || infotype == kXR_Qxattr || infotype == kXR_Qopaquf)) {
-        build_path(cwd, argv[2], pathbuf, sizeof(pathbuf));
-        args = pathbuf;
-    } else if (argc >= 3 && infotype == kXR_Qckscan) {
-        char resolved[XRDC_PATH_MAX];
-
-        build_path(cwd, argv[2], resolved, sizeof(resolved));
-        if ((size_t) snprintf(pathbuf, sizeof(pathbuf), "cancel %s",
-                              resolved) >= sizeof(pathbuf)) {
-            fprintf(stderr, "xrdfs: query checksumcancel: path too long\n");
-            return 50;
-        }
-        args = pathbuf;
-    } else {
-        args = (argc >= 3) ? argv[2] : "";
+    if (query_build_args(cwd, infotype, argc, argv, pathbuf, sizeof(pathbuf),
+                         &args) != 0) {
+        return 50;
     }
 
     brix_status_clear(&st);
@@ -323,45 +349,66 @@ do_query(brix_conn *c, const char *cwd, int argc, char **argv)
 }
 
 
+/* -p VALUE — stock range: 0 (lowest) .. 3 (highest); anything else is a
+ * usage error, never silently clamped. */
+static int
+prepare_parse_priority(const char *s, int *prty)
+{
+    char *endp = NULL;
+    long  parsed = strtol(s, &endp, 10);
+
+    if (endp == s || *endp != '\0' || parsed < 0 || parsed > 3) {
+        fprintf(stderr,
+                "xrdfs: prepare: -p takes a priority 0-3, got '%s'\n", s);
+        return 50;
+    }
+    *prty = (int) parsed;
+    return 0;
+}
+
 int
 do_prepare(brix_conn *c, const char *cwd, int argc, char **argv)
 {
+    /* Stock xrdfs flag semantics (pinned against the installed 5.6.9 help;
+     * parity audit §7.12): -c is CO-LOCATE and -a is the stage ABORT.  This
+     * client used to map -c to kXR_cancel — a drop-in hazard: a stock script
+     * asking to co-locate would silently CANCEL the request instead.  is_x
+     * routes the bit to optionX (the second option word). */
+    static const struct { const char *flag; int is_x; int bit; } flags[] = {
+        { "-s", 0, kXR_stage }, { "-w", 0, kXR_wmode },
+        { "-c", 0, kXR_coloc }, { "-a", 0, kXR_cancel },
+        { "-f", 0, kXR_fresh }, { "-e", 1, kXR_evict },
+    };
     brix_status st;
     char        reply[1024];
     char        resolved[16][XRDC_PATH_MAX];
     const char *paths[16];
     int         options = 0, optionX = 0, prty = 0, np = 0, i;
 
-    /* Stock xrdfs flag semantics (pinned against the installed 5.6.9 help;
-     * parity audit §7.12): -c is CO-LOCATE and -a is the stage ABORT.  This
-     * client used to map -c to kXR_cancel — a drop-in hazard: a stock script
-     * asking to co-locate would silently CANCEL the request instead. */
     for (i = 1; i < argc && np < 16; i++) {
-        if (strcmp(argv[i], "-s") == 0)      { options |= kXR_stage; }
-        else if (strcmp(argv[i], "-w") == 0) { options |= kXR_wmode; }
-        else if (strcmp(argv[i], "-c") == 0) { options |= kXR_coloc; }
-        else if (strcmp(argv[i], "-a") == 0) { options |= kXR_cancel; }
-        else if (strcmp(argv[i], "-f") == 0) { options |= kXR_fresh; }
-        else if (strcmp(argv[i], "-e") == 0) { optionX |= kXR_evict; }
-        else if (strcmp(argv[i], "-p") == 0 && i + 1 < argc) {
-            char *endp = NULL;
-            long  parsed = strtol(argv[++i], &endp, 10);
+        size_t k;
+        int    matched = 0;
 
-            /* Stock range: 0 (lowest) .. 3 (highest); anything else is a
-             * usage error, never silently clamped. */
-            if (endp == argv[i] || *endp != '\0' || parsed < 0 || parsed > 3) {
-                fprintf(stderr,
-                        "xrdfs: prepare: -p takes a priority 0-3, got '%s'\n",
-                        argv[i]);
+        for (k = 0; k < sizeof(flags) / sizeof(flags[0]); k++) {
+            if (strcmp(argv[i], flags[k].flag) == 0) {
+                if (flags[k].is_x) { optionX |= flags[k].bit; }
+                else               { options |= flags[k].bit; }
+                matched = 1;
+                break;
+            }
+        }
+        if (matched) {
+            continue;
+        }
+        if (strcmp(argv[i], "-p") == 0 && i + 1 < argc) {
+            if (prepare_parse_priority(argv[++i], &prty) != 0) {
                 return 50;
             }
-            prty = (int) parsed;
+            continue;
         }
-        else {
-            build_path(cwd, argv[i], resolved[np], sizeof(resolved[np]));
-            paths[np] = resolved[np];
-            np++;
-        }
+        build_path(cwd, argv[i], resolved[np], sizeof(resolved[np]));
+        paths[np] = resolved[np];
+        np++;
     }
     if (np == 0) {
         fprintf(stderr,

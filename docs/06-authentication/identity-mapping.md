@@ -130,8 +130,8 @@ first failure (kXR_NotAuthorized / HTTP 403):
 ```
    ┌─────────────────────────────────────────────────────────────────┐
    │ 1. AUTHDB / XrdAcc engine                                         │
-   │    native  (brix_authdb_format native)  → src/auth/authz/authdb.c     │
-   │    xrdacc  (brix_authdb_format xrdacc)   → src/auth/authz/acc/  (engine)    │
+   │    native  (brix_authdb_engine native)  → src/auth/authz/authdb.c     │
+   │    xrdacc  (brix_authdb_engine xrdacc)   → src/auth/authz/acc/  (engine)    │
    │    → matches the identity (DN/VO/role/group/host/OS-group) to a   │
    │      path + privilege rule.   THIS is where local UNIX groups     │
    │      enter the decision (xrdacc only).                            │
@@ -160,7 +160,7 @@ and the **created-file group** side effect.
 ## 3. From identity to local UNIX **user** and **group**
 
 This is the section the title of the doc is about. It only applies to the
-**XrdAcc engine** (`brix_authdb_format xrdacc`) for OS-group resolution; the
+**XrdAcc engine** (`brix_authdb_engine xrdacc`) for OS-group resolution; the
 native engine consults credential VO/groups only (§4.2).
 
 ### 3.1 The principal *name* and the OS *user*
@@ -235,19 +235,19 @@ principal's `/etc/group`/NIS membership *or* their VO group contains `<name>`.
 Select the engine per server/location:
 
 ```nginx
-brix_authdb_format  xrdacc;   # or: native (the default)
+brix_authdb_engine  xrdacc;   # or: native (the default)
 brix_authdb         /etc/brix/authdb;
 ```
 
-> **Plane spelling (phase-101 W5).** The `brix_authdb_format` / `brix_authdb` /
-> `brix_authdb_refresh` / `brix_authdb_audit` names shown throughout this section
+> **Plane spelling (phase-101 W5).** The `brix_authdb_engine` / `brix_authdb` /
+> `brix_acc_refresh` / `brix_acc_audit` names shown throughout this section
 > are the **stream** (`root://`) reference-plane spellings. On the **HTTP** planes
 > (WebDAV/S3/cvmfs) the XrdAcc engine is `brix_acc_authdb` + `brix_acc_format` /
 > `brix_acc_audit` / `brix_acc_refresh`, and bare `brix_authdb` selects the native
 > engine. See
 > [migration-unified-grammar.md](../03-configuration/migration-unified-grammar.md#phase-101-authdb-engine-split-2026-08--w5).
 
-### 4.1 XrdAcc engine (`brix_authdb_format xrdacc`) — recommended
+### 4.1 XrdAcc engine (`brix_authdb_engine xrdacc`) — recommended
 
 Full grammar, privilege letters, accumulation order, templates and the legacy
 encoding tunables are documented in
@@ -262,7 +262,7 @@ record types are summarized in §3.3 above. Key points for mapping:
   (explicit deny); effective = `positive & ~negative`. **`r` does *not* imply
   `l`.**
 
-### 4.2 Native engine (`brix_authdb_format native`, the default)
+### 4.2 Native engine (`brix_authdb_engine native`, the default)
 
 `src/auth/authz/authdb.c`. One rule per line, longest-path-prefix wins, **single**
 privilege check (no accumulation, no compound identities, no templates):
@@ -292,13 +292,13 @@ entry's group) or `pwd` (the optional 4th field of the pwd-file line); `krb5`
 and `host` carry no VO, so only `u`/`p`/`a` rules bind behind them. Only an
 **anonymous** server (`brix_auth none`, the default) is refused at
 `nginx -t` — there is no identity for the rules to match. Use
-`brix_authdb_format xrdacc` if you need anonymous `u *` rules.
+`brix_authdb_engine xrdacc` if you need anonymous `u *` rules.
 *(Before 2026-08-04 the gate whitelisted only `gsi`/`token`/`both`, which
 locked the other four mechanisms out of authorization entirely.)*
 
 > **Critical native-vs-xrdacc difference:** native `g` matches only the
 > **VO/credential group list**. It has **no** `/etc/group` or NIS resolution. If
-> you need to authorize on local UNIX groups, use `brix_authdb_format xrdacc`.
+> you need to authorize on local UNIX groups, use `brix_authdb_engine xrdacc`.
 
 ### 4.3 VO ACL (tier 2): `brix_require_vo`
 
@@ -477,8 +477,8 @@ brix_acc_resolve_hosts on;            # reverse-DNS the peer so the names match
 ### 6.11 Hot-reload an authdb edit (no restart)
 
 ```nginx
-brix_authdb_refresh 60;     # re-read the authdb on mtime change every 60s
-brix_authdb_audit   all;    # log every grant/deny while you tune the rules
+brix_acc_refresh 60;     # re-read the authdb on mtime change every 60s
+brix_acc_audit   all;    # log every grant/deny while you tune the rules
 ```
 
 Works on both stream (`root://`) and HTTP (WebDAV/S3) tiers.
@@ -495,7 +495,7 @@ Token: `sub = "alice"`, `wlcg.groups = ["/cms"]`, `scope =
 
 ```nginx
 brix_auth            token;
-brix_authdb_format   xrdacc;
+brix_authdb_engine   xrdacc;
 brix_authdb          /etc/brix/authdb;
 ```
 ```
@@ -545,7 +545,7 @@ u *         /data  rl                 # everyone else: read
   (§3.1). Authorize on VOMS `o`/`r`/`g` (FQAN), or give them a username-shaped
   identity. Only token/SSS/krb5/unix principals get `/etc/group` resolution.
 - **"Native `g cms` doesn't see my `/etc/group`."** Native `g` matches the
-  **VO/credential** group only (§4.2). Switch to `brix_authdb_format xrdacc`.
+  **VO/credential** group only (§4.2). Switch to `brix_authdb_engine xrdacc`.
 - **"`r` doesn't let me `stat`."** In XrdAcc, `r` ≠ `l`; grant `rl`. (Native `r`
   *does* imply `l`.)
 - **"Created files are owned by `nginx`, not the user."** By design — no
@@ -589,10 +589,10 @@ u *         /data  rl                 # everyone else: read
 
 | Directive | Context | Arg | Purpose |
 |---|---|---|---|
-| `brix_authdb_format` (HTTP: `brix_acc_format`) | stream srv / HTTP loc | `native`\|`xrdacc` | choose the authz engine (W5: HTTP spelling is `brix_acc_format`) |
+| `brix_authdb_engine` (HTTP: `brix_acc_format`) | stream srv / HTTP loc | `native`\|`xrdacc` | choose the authz engine (W5: HTTP spelling is `brix_acc_format`) |
 | `brix_authdb` | stream srv / HTTP loc | `<path>` | the authdb rule file. On HTTP: bare `brix_authdb` = native engine, `brix_acc_authdb` = XrdAcc |
-| `brix_authdb_refresh` (HTTP: `brix_acc_refresh`) | stream srv / HTTP loc | `<secs>` | hot-reload on mtime change (0 = off) |
-| `brix_authdb_audit` (HTTP: `brix_acc_audit`) | stream srv / HTTP loc | `none`\|`deny`\|`grant`\|`all` | log authz decisions |
+| `brix_acc_refresh` (HTTP: `brix_acc_refresh`) | stream srv / HTTP loc | `<secs>` | hot-reload on mtime change (0 = off) |
+| `brix_acc_audit` (HTTP: `brix_acc_audit`) | stream srv / HTTP loc | `none`\|`deny`\|`grant`\|`all` | log authz decisions |
 | `brix_require_vo` | srv | `<path> <vo>` | tier-2 VO requirement on a prefix |
 | `brix_sss_keytab` | srv | `<path>` | SSS credential → fixed UNIX user/group |
 | `brix_inherit_parent_group` | srv | `<path>` | created files/dirs inherit parent group + setgid |

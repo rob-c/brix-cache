@@ -60,6 +60,10 @@ def _rt62_segment_06():
 
 def _rt62_seq_1_alice_create_alice_tighten(TAG, port, ta):
 
+    _multistep_lifecycle_invariants_p1(port, ta, tb, st_of, s3port, realp, tc, body_of, TAG, exists, has, base)
+
+
+def _multistep_lifecycle_invariants_p1(port, ta, tb, st_of, s3port, realp, tc, body_of, TAG, exists, has, base):
     # =====================================================================
     # SEQ 1 — alice CREATE -> alice tighten to 0600 -> bob GET.
     # END-STATE INVARIANT: after the successful create+chmod chain the file is
@@ -98,7 +102,10 @@ def _rt62_the_terminal_invariant_alice_owned_0600(s1, sb1, has, bb1, S1_MARK, TA
        f"{TAG}/s1 INVARIANT: after create+proppatch+tighten the file is "
        f"alice:0600 and bob's read is denied+empty "
        f"(uid={getattr(s1,'st_uid',None)} HTTP_bob={sb1})")
+    _multistep_lifecycle_invariants_p2(port, ta, s3port, realp, st_of, tc, tb, body_of, TAG, exists, has, base)
 
+
+def _multistep_lifecycle_invariants_p2(port, ta, s3port, realp, st_of, tc, tb, body_of, TAG, exists, has, base):
     # =====================================================================
     # SEQ 2 — alice MKCOL coll -> PUT 3 distinct files into it -> MOVE the WHOLE
     # collection to a new path.
@@ -150,7 +157,10 @@ def _rt62_seq_3_alice_mkcol_put_a(all_ok, TAG, exists, C_OLD, port, ta):
     ok(not exists(C_OLD),
        f"{TAG}/s2 INVARIANT: old collection path fully gone after MOVE (rename, "
        f"no stray copy left behind)")
+    _multistep_lifecycle_invariants_p3(port, ta, s3port, realp, st_of, tc, tb, body_of, TAG, exists, has, base)
 
+
+def _multistep_lifecycle_invariants_p3(port, ta, s3port, realp, st_of, tc, tb, body_of, TAG, exists, has, base):
     # =====================================================================
     # SEQ 3 — alice MKCOL -> PUT a file -> recursive DELETE the collection.
     # END-STATE INVARIANT: the whole subtree is gone AND the parent dir contains
@@ -302,7 +312,10 @@ def _rt62_seq_4_s3_multipart_alice_initiate(exists, D_COLL, leftover, TAG, s3por
     ok(all((not exists(D_COLL), not leftover)),
        f"{TAG}/s3 INVARIANT: recursive DELETE removed the whole subtree and "
        f"left no svc/root residue (leftover={leftover})")
+    _multistep_lifecycle_invariants_p4(s3port, realp, st_of, port, ta, tc, tb, body_of, TAG, has, exists, base)
 
+
+def _multistep_lifecycle_invariants_p4(s3port, realp, st_of, port, ta, tc, tb, body_of, TAG, has, exists, base):
     # =====================================================================
     # SEQ 4 — S3 multipart: alice initiate -> upload part 1 -> part 2 -> complete.
     # END-STATE INVARIANT: the final object is alice-owned, its bytes are the
@@ -317,6 +330,8 @@ def _rt62_seq_4_s3_multipart_alice_initiate(exists, D_COLL, leftover, TAG, s3por
         # confirm S3 plane is answering before driving the lifecycle.
         _rt62_otherwise_s3port(s3port, TAG, st_of, body_of, has)
 
+
+def _multistep_lifecycle_invariants_p5(realp, st_of, port, ta, tc, tb, body_of, TAG, has, exists, base):
     # =====================================================================
     # SEQ 5 — alice CREATE a fresh file (PUT) directly INSIDE a 02770 alice:staff
     # setgid dir, then tighten to 0640.
@@ -371,7 +386,10 @@ def _rt62_seq_6_alice_mkdir_chain_top(S5_REL, port, tb, rc5, has, rb5, S5_MARK, 
        f"{TAG}/s5 INVARIANT: created-file's inherited staff group grants carol "
        f"(member) but denies bob (non-member) — group is real, not cosmetic "
        f"(carol={rc5} bob={bc5})")
+    _multistep_lifecycle_invariants_p6(port, ta, st_of, body_of, TAG, exists, realp, has, base)
 
+
+def _multistep_lifecycle_invariants_p6(port, ta, st_of, body_of, TAG, exists, realp, has, base):
     # =====================================================================
     # SEQ 6 — alice mkdir chain top/mid/leaf -> PUT a file in leaf -> attempt to
     # rmdir the NON-EMPTY mid directory.
@@ -419,6 +437,7 @@ def _rt62_terminal_invariant_rmdir_refused_and_every(pl6, exists, A, TAG, MID, s
     ok(all((rrc != 0, tree_intact)),
        f"{TAG}/s6 INVARIANT: rmdir of non-empty dir REFUSED (rc={rrc}) and the "
        f"full subtree (top/mid/leaf/f.bin) survives intact + alice-owned")
+    _multistep_lifecycle_invariants_p7(port, ta, st_of, body_of, TAG, realp, has, exists, base)
 
 
 def _rt62_xrd_tmp_part_residue_beside_it(TAG, port, ta):
@@ -464,7 +483,10 @@ def _rt62_residue_scan_in_alice_for_this(body_of, S7_REL, realp, TAG, s7, v3):
     ok(all((s7 is not None, disk7 == v3, len(disk7) == len(v3), s7.st_uid == UID_ALICE, s7.st_uid not in (UID_SVC, 0), not res7)),
        f"{TAG}/s7 INVARIANT: overwrite REPLACED content (==v3, size {len(disk7)}) "
        f"as a single alice-owned inode with no temp residue (res={res7})")
+    _multistep_lifecycle_invariants_p8(port, ta, st_of, TAG, has, body_of, exists, base)
 
+
+def _multistep_lifecycle_invariants_p8(port, ta, st_of, TAG, has, body_of, exists, base):
     # =====================================================================
     # SEQ 8 — alice PUT -> MOVE to path2 -> MOVE to path3 (rename chain within
     # alice's own tree).
@@ -504,7 +526,10 @@ def _rt62_seq_9_final_liveness_prove_the(s8, body_of, P3R, S8_BODY, exists, P1R,
        f"{TAG}/s8 INVARIANT: after a 2-hop rename chain exactly ONE alice-owned "
        f"inode with intact content exists at the final path and neither "
        f"intermediate path retains a copy")
+    _multistep_lifecycle_invariants_p9(port, ta, st_of, TAG, has)
 
+
+def _multistep_lifecycle_invariants_p9(port, ta, st_of, TAG, has):
     # =====================================================================
     # SEQ 9 — final liveness: prove the worker/broker never wedged through all of
     # the above by serving a fresh legit alice create+read.  (END-STATE health
@@ -604,3 +629,53 @@ def run_multistep_lifecycle_invariants(key, data, port, s3port):
 
 
 # ===== Round-8 novel-surface batches (workflow-authored) =====
+
+
+def _mli_s4_leg(s3port, TAG, st_of, body_of, has):
+    """SEQ4 S3-multipart lifecycle leg, from run_multistep_lifecycle_invariants p4."""
+    # confirm S3 plane is answering before driving the lifecycle.
+    s4live, _ = s3("GET", "", s3port, params={"list-type": "2"})
+    if s4live == -1:
+        ok(True, f"{TAG}/s4: S3 not answering — assembly invariant skipped")
+    else:
+        S4_KEY = f"alice/{TAG}_s4_mpu.bin"
+        P1 = b"MSLI-S4-PART-ONE-".ljust(64, b"1") * 80    # ~5 KiB, distinct
+        P2 = b"MSLI-S4-PART-TWO-".ljust(64, b"2") * 80    # ~5 KiB, distinct
+        s3("DELETE", S4_KEY, s3port)
+        ini, ib = s3("POST", S4_KEY, s3port, params={"uploads": ""})
+        m = re.search(rb"<UploadId>([^<]+)</UploadId>", ib or b"")
+        if ini in (200, 201) and m:
+            up = m.group(1).decode()
+            pe = []
+            pok = True
+            for n, pb in ((1, P1), (2, P2)):
+                ps, pbody = s3("PUT", S4_KEY, s3port,
+                               params={"uploadId": up, "partNumber": str(n)},
+                               data=pb)
+                et = re.search(rb'ETag>\\?"?([^"<\\]+)', pbody or b"")
+                pe.append((n, et.group(1).decode() if et else "etag"))
+                pok = pok and ps in (200, 201)
+            ok(pok, f"{TAG}/s4: alice uploaded 2 distinct multipart parts")
+            cx = b"<CompleteMultipartUpload>"
+            for n, et in pe:
+                cx += (f"<Part><PartNumber>{n}</PartNumber>"
+                       f"<ETag>{et}</ETag></Part>").encode()
+            cx += b"</CompleteMultipartUpload>"
+            cs, _ = s3("POST", S4_KEY, s3port, params={"uploadId": up}, data=cx)
+            fst = st_of(S4_KEY)
+            disk = body_of(S4_KEY)
+            # ordered-assembly invariant: exact P1||P2, alice-owned.
+            ok(cs in (200, 201) and fst is not None
+               and fst.st_uid == UID_ALICE and fst.st_uid not in (UID_SVC, 0)
+               and disk == (P1 + P2),
+               f"{TAG}/s4 INVARIANT: completed object is alice-owned and bytes "
+               f"== ordered part1||part2 ({len(disk)}=={len(P1)+len(P2)}? "
+               f"complete={cs})")
+            # cross-tenant denial of the assembled object (bob as accessor).
+            bs, bb = s3("GET", S4_KEY, s3port, access_key="bob")
+            ok(bs in (401, 403, 404) and not has(bb, b"MSLI-S4-PART"),
+               f"{TAG}/s4 INVARIANT: bob cross-tenant GET of alice's assembled "
+               f"object is denied with no part-marker leak (HTTP {bs})")
+            s3("DELETE", S4_KEY, s3port)
+        else:
+            ok(False, f"{TAG}/s4: multipart initiate failed (HTTP {ini})")

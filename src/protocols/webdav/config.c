@@ -120,7 +120,7 @@ ngx_http_brix_webdav_create_loc_conf(ngx_conf_t *cf)
     BRIX_PCALLOC_OR_RETURN(conf, cf->pool, sizeof(*conf), NULL);
 
     ngx_http_brix_shared_init(&conf->common);
-    conf->verify_depth = NGX_CONF_UNSET_UINT;
+    conf->common.verify_depth = NGX_CONF_UNSET_UINT;
     conf->common.signing_policy_mode = NGX_CONF_UNSET_UINT;
     conf->common.crl_mode     = NGX_CONF_UNSET_UINT;
     conf->auth         = NGX_CONF_UNSET_UINT;
@@ -138,9 +138,9 @@ ngx_http_brix_webdav_create_loc_conf(ngx_conf_t *cf)
     conf->macaroon_max_validity = NGX_CONF_UNSET;
     conf->dig_enable = NGX_CONF_UNSET;
     conf->require_digest = NGX_CONF_UNSET;
-    conf->delegation_endpoint = NGX_CONF_UNSET;
+    /* delegation_endpoint init -> shared preamble (phase-105 W2). */
     conf->html_listing        = NGX_CONF_UNSET;      /* §6.6 */
-    conf->maxdelay            = NGX_CONF_UNSET;       /* §6.11 */
+    /* §6.11 maxdelay init -> shared preamble (common.max_delay), phase-105 W3. */
     conf->redirect_dataserver = NGX_CONF_UNSET;      /* §6.1 */
     conf->redirect_port       = NGX_CONF_UNSET;
     conf->redirect_scheme     = NGX_CONF_UNSET_UINT;
@@ -157,28 +157,14 @@ ngx_http_brix_webdav_create_loc_conf(ngx_conf_t *cf)
     conf->open_file_cache_events = NGX_CONF_UNSET;
     ngx_http_brix_webdav_tpc_create_loc_conf(conf);
 
-    /* Phase 20 caches/limits: kv == NULL means disabled (pcalloc zeroed). */
-    conf->token_cache_kv   = NULL;
-    conf->rate_limit.kv    = NULL;
-    conf->rate_limit.rate  = 0;
-    conf->rate_limit.burst = 0;
-    conf->rate_limit.key_ip = 0;
+    /* Phase 20 caches/limits init -> shared preamble (phase-105 W1). */
 
     /* Phase 21 Step C: introspection (loc.len == 0 means disabled). */
-    conf->introspect_ttl       = NGX_CONF_UNSET_UINT;
-    conf->introspect_fail_open = NGX_CONF_UNSET;
+    /* introspection init -> shared preamble (phase-105 W4.1). */
     conf->revoke_kv            = NULL;
 
-    /* Phase 24: traffic mirror (targets NULL until a directive adds one). */
-    conf->mirror.enabled     = NGX_CONF_UNSET;
-    conf->mirror.targets     = NULL;
-    conf->mirror.sample_pct  = NGX_CONF_UNSET_UINT;
-    conf->mirror.method_mask = NGX_CONF_UNSET_UINT;
-    conf->mirror.opcode_mask = NGX_CONF_UNSET_UINT;
-    conf->mirror.strip_auth  = NGX_CONF_UNSET;
-    conf->mirror.log_diverge = NGX_CONF_UNSET;
-    conf->mirror.timeout_ms  = NGX_CONF_UNSET_MSEC;
-    conf->mirror.mirror_writes = NGX_CONF_UNSET;
+    /* Phase 24 mirror SETTINGS init -> shared preamble (common.mirror),
+     * phase-105 W2; only the engine plumbing stays on this conf. */
     conf->mirror_upstream_conf.hide_headers = NGX_CONF_UNSET_PTR;
     conf->mirror_upstream_conf.pass_headers = NGX_CONF_UNSET_PTR;
 
@@ -244,7 +230,7 @@ void
 webdav_log_endpoint_summary(ngx_conf_t *cf,
                             ngx_http_brix_webdav_loc_conf_t *conf)
 {
-    ngx_uint_t  has_x509  = (conf->cadir.len > 0 || conf->cafile.len > 0
+    ngx_uint_t  has_x509  = (conf->common.trusted_ca_dir.len > 0 || conf->common.trusted_ca.len > 0
                              || conf->proxy_certs);
     ngx_uint_t  has_token = (conf->jwks_key_count > 0);
     ngx_uint_t  has_pwd   = (conf->common.pwd_file.len > 0);

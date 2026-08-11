@@ -59,6 +59,7 @@ _FAST = [
     "check_shm_mutex",
     "check_sd_driver_conformance",
     "check_file_size",
+    "check_py_file_size",
     "check_todo_fixme",
     "check_doc_paths",
     "check_doc_links",

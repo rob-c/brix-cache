@@ -52,9 +52,10 @@
       offsetof(ngx_stream_brix_srv_conf_t, gsi_max_inflight),
       NULL },
 
-    /* §5.10 (xrd.tlsca verdepth analog): cap the accepted X.509 chain depth for
+    /* §5.10 (xrd.tlsca verdepth analog; phase-105 W3.5: bare brix_verify_depth,
+     * one spelling with HTTP): cap the accepted X.509 chain depth for
      * a client's GSI proxy/cert at root:// login. 0 (default) = unlimited. */
-    { ngx_string("brix_gsi_verify_depth"),
+    { ngx_string("brix_verify_depth"),
       NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
       ngx_conf_set_num_slot,
       NGX_STREAM_SRV_CONF_OFFSET,
@@ -140,21 +141,21 @@
       NULL },
 
     /* XrdAcc engine selector + tunables (default: native engine). */
-    { ngx_string("brix_authdb_format"),
+    { ngx_string("brix_authdb_engine"),
       NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
       ngx_conf_set_enum_slot,
       NGX_STREAM_SRV_CONF_OFFSET,
       offsetof(ngx_stream_brix_srv_conf_t, acc.format),
-      brix_authdb_format_modes },
+      brix_acc_format_modes },
 
-    { ngx_string("brix_authdb_audit"),
+    { ngx_string("brix_acc_audit"),
       NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
       ngx_conf_set_enum_slot,
       NGX_STREAM_SRV_CONF_OFFSET,
       offsetof(ngx_stream_brix_srv_conf_t, acc.audit),
-      brix_authdb_audit_modes },
+      brix_acc_audit_modes },
 
-    { ngx_string("brix_authdb_refresh"),
+    { ngx_string("brix_acc_refresh"),
       NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
       ngx_conf_set_num_slot,
       NGX_STREAM_SRV_CONF_OFFSET,
@@ -235,7 +236,7 @@
 
     { ngx_string("brix_token_clock_skew"),
       NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
-      ngx_conf_set_num_slot,
+      ngx_conf_set_sec_slot,   /* phase-105 W8: suffixes legal; 300s clamp holds */
       NGX_STREAM_SRV_CONF_OFFSET,
       offsetof(ngx_stream_brix_srv_conf_t, token_clock_skew),
       NULL },

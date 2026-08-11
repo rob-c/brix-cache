@@ -27,15 +27,15 @@ webdav_build_ca_store(ngx_log_t *log,
     const char *cafile = NULL;
     const char *crl    = NULL;
 
-    if (conf->cadir.len > 0) {
-        if (brix_str_cbuf(cadir_buf, sizeof(cadir_buf), &conf->cadir) == NULL) {
+    if (conf->common.trusted_ca_dir.len > 0) {
+        if (brix_str_cbuf(cadir_buf, sizeof(cadir_buf), &conf->common.trusted_ca_dir) == NULL) {
             return NULL;
         }
         cadir = cadir_buf;
     }
 
-    if (conf->cafile.len > 0) {
-        if (brix_str_cbuf(cafile_buf, sizeof(cafile_buf), &conf->cafile)
+    if (conf->common.trusted_ca.len > 0) {
+        if (brix_str_cbuf(cafile_buf, sizeof(cafile_buf), &conf->common.trusted_ca)
             == NULL)
         {
             return NULL;

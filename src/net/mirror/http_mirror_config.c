@@ -10,7 +10,7 @@
  * request-time path — lives in one focused file.
  * HOW: brix_http_mirror_setup() is called from the WebDAV loc-conf merge; the two
  * setters are registered in the WebDAV directive table (src/webdav/module.c) and
- * populate conf->mirror.  All three are declared in http_mirror.h.
+ * populate the preamble mirror block (common.mirror).  All three are declared in http_mirror.h.
  */
 #include "http_mirror.h"
 
@@ -26,17 +26,17 @@ brix_http_mirror_setup(ngx_conf_t *cf,
 
     if (conf->mirror_upstream_conf.connect_timeout == 0) {
         conf->mirror_upstream_conf.connect_timeout =
-            conf->mirror.timeout_ms ? conf->mirror.timeout_ms
+            conf->common.mirror.timeout_ms ? conf->common.mirror.timeout_ms
                                     : BRIX_MIRROR_DEFAULT_TIMEOUT_MS;
     }
     if (conf->mirror_upstream_conf.send_timeout == 0) {
         conf->mirror_upstream_conf.send_timeout =
-            conf->mirror.timeout_ms ? conf->mirror.timeout_ms
+            conf->common.mirror.timeout_ms ? conf->common.mirror.timeout_ms
                                     : BRIX_MIRROR_DEFAULT_TIMEOUT_MS;
     }
     if (conf->mirror_upstream_conf.read_timeout == 0) {
         conf->mirror_upstream_conf.read_timeout =
-            conf->mirror.timeout_ms ? conf->mirror.timeout_ms
+            conf->common.mirror.timeout_ms ? conf->common.mirror.timeout_ms
                                     : BRIX_MIRROR_DEFAULT_TIMEOUT_MS;
     }
     if (conf->mirror_upstream_conf.buffer_size == 0) {
@@ -84,7 +84,12 @@ brix_http_mirror_setup(ngx_conf_t *cf,
 char *
 brix_http_mirror_set_url(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 {
-    ngx_http_brix_webdav_loc_conf_t *wlcf = conf;
+    /* phase-105 W2: resolve the mirror settings block by raw offset (the
+     * pmark pattern) — the entry's offset points at the embedded
+     * brix_mirror_conf_t, so this setter serves any conf that embeds the
+     * shared preamble (registered on http_common). */
+    brix_mirror_conf_t *m =
+        (brix_mirror_conf_t *) ((char *) conf + cmd->offset);
     ngx_str_t                         *value = cf->args->elts;
     ngx_str_t                          url = value[1];
     brix_mirror_target_t            *t;
@@ -93,8 +98,6 @@ brix_http_mirror_set_url(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     ngx_uint_t                         ssl;
     in_port_t                          default_port;
     u_char                            *p;
-
-    (void) cmd;
 
     if (ngx_strncasecmp(url.data, (u_char *) "https://", 8) == 0) {
         ssl = 1; scheme_len = 8; default_port = 443;
@@ -107,12 +110,12 @@ brix_http_mirror_set_url(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
         return NGX_CONF_ERROR;
     }
 
-    if (wlcf->mirror.targets == NULL) {
-        wlcf->mirror.targets = ngx_array_create(cf->pool,
+    if (m->targets == NULL) {
+        m->targets = ngx_array_create(cf->pool,
             BRIX_MIRROR_MAX_TARGETS, sizeof(brix_mirror_target_t));
-        if (wlcf->mirror.targets == NULL) { return NGX_CONF_ERROR; }
+        if (m->targets == NULL) { return NGX_CONF_ERROR; }
     }
-    if (wlcf->mirror.targets->nelts >= BRIX_MIRROR_MAX_TARGETS) {
+    if (m->targets->nelts >= BRIX_MIRROR_MAX_TARGETS) {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
             "brix_mirror_url: at most %d targets supported",
             BRIX_MIRROR_MAX_TARGETS);
@@ -131,7 +134,7 @@ brix_http_mirror_set_url(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
         return NGX_CONF_ERROR;
     }
 
-    t = ngx_array_push(wlcf->mirror.targets);
+    t = ngx_array_push(m->targets);
     if (t == NULL) { return NGX_CONF_ERROR; }
     ngx_memzero(t, sizeof(*t));
     t->url  = url;
@@ -171,11 +174,10 @@ brix_http_mirror_set_url(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 char *
 brix_http_mirror_set_methods(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 {
-    ngx_http_brix_webdav_loc_conf_t *wlcf = conf;
+    brix_mirror_conf_t *m =
+        (brix_mirror_conf_t *) ((char *) conf + cmd->offset);   /* phase-105 W2 */
     ngx_str_t                         *value = cf->args->elts;
     ngx_uint_t                         i, mask = 0;
-
-    (void) cmd;
 
     for (i = 1; i < cf->args->nelts; i++) {
         ngx_str_t *v = &value[i];
@@ -197,6 +199,6 @@ brix_http_mirror_set_methods(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
             return NGX_CONF_ERROR;
         }
     }
-    wlcf->mirror.method_mask = mask;
+    m->method_mask = mask;
     return NGX_CONF_OK;
 }

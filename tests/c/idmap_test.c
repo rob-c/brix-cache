@@ -67,6 +67,28 @@ int main(void)
         unlink("/tmp/idmap_test_gridmap");
     }
 
+    /* 5b. §5.8/§5.4: wildcard mapfile key (fnmatch) — a whole subtree maps, an
+     *     exact key still wins, a non-matching subtree stays DENY. The VOMS FQAN
+     *     path (§5.4) resolves the SAME idmap_gridmap_lookup, so an FQAN key like
+     *     "/atlas/Role=production" matches identically. */
+    {
+        FILE *f = fopen("/tmp/idmap_test_gridmap2","w");
+        fprintf(f, "\"/DC=org/OU=People/CN=Exact\" root\n"      /* exact, non-self */
+                   "\"/DC=org/OU=People/*\" %s\n"               /* wildcard -> self */
+                   "\"/atlas/Role=production\" %s\n", myname, myname);
+        fclose(f);
+        memset(&conf,0,sizeof(conf)); conf.min_uid = 1000;
+        conf.gridmap_path = S("/tmp/idmap_test_gridmap2");
+        brix_idmap_init(&conf, NULL);
+        rc = brix_idmap_resolve(&conf, "/DC=org/OU=People/CN=Anybody", &cr, NULL);
+        CHECK(rc==BRIX_IDMAP_OK && cr.uid==myuid, "wildcard DN subtree -> self uid");
+        rc = brix_idmap_resolve(&conf, "/atlas/Role=production", &cr, NULL);
+        CHECK(rc==BRIX_IDMAP_OK && cr.uid==myuid, "exact FQAN key -> self uid (VOMS §5.4)");
+        rc = brix_idmap_resolve(&conf, "/DC=org/OU=Robots/CN=Bot", &cr, NULL);
+        CHECK(rc==BRIX_IDMAP_DENY, "non-matching subtree -> DENY (wildcard is anchored)");
+        unlink("/tmp/idmap_test_gridmap2");
+    }
+
     /* 6. squash: default_user=self, unknown principal -> SQUASH to self */
     memset(&conf,0,sizeof(conf)); conf.min_uid = 1000;
     conf.default_user = S(myname);

@@ -85,14 +85,22 @@ def test_http_handler_and_filter_wired():
 
 def test_directives_distinct_from_phase20():
     # Phase 25 directives must be distinct from the Phase 20 brix_rate_limit.
-    # phase-79 split: the clustering/traffic directive tables moved into
-    # directives_net.h on both surfaces.
-    wd = _read("src/protocols/webdav/directives_net.h")
+    # phase-105 W1: the HTTP-plane registrations moved from webdav's
+    # directives_net.h to the common module (one owner per plane); the stream
+    # plane keeps its own bare registrations in directives_net.h.
+    hc = _read("src/core/config/http_common.c") \
+        + _read("src/core/config/http_directives_ops.h")
     st = _read("src/protocols/root/stream/directives_net.h")
     for name in ("brix_rate_limit_zone", "brix_rate_limit_rule",
                  "brix_bandwidth_limit"):
-        assert name in wd, name
+        assert name in hc, name
         assert name in st, name
+    # The webdav fragment must NOT re-register them (first-module-wins would
+    # silently shadow the common owner).
+    wd = _read("src/protocols/webdav/directives_net.h")
+    for name in ("brix_rate_limit_zone", "brix_rate_limit_rule",
+                 "brix_bandwidth_limit"):
+        assert ('ngx_string("%s")' % name) not in wd, name
 
 
 def test_metrics_and_dashboard_wired():

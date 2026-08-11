@@ -162,9 +162,9 @@ class TpcHarness(ForwardHarness):
                         f"        ssl_certificate_key {SERVER_KEY};")
             authblock = (f"brix_trusted_ca {CA_CERT};\n"
                          "            brix_webdav_auth required;\n"
-                         f"            brix_webdav_token_jwks     {self.tok_jwks};\n"
-                         f"            brix_webdav_token_issuer   {self.tok_issuer};\n"
-                         f"            brix_webdav_token_audience {TOK_AUD};")
+                         f"            brix_token_jwks     {self.tok_jwks};\n"
+                         f"            brix_token_issuer   {self.tok_issuer};\n"
+                         f"            brix_token_audience {TOK_AUD};")
         conf = self.run.write(d / "nginx.conf", f"""daemon on;
 error_log {log} info;
 pid {d}/nginx.pid;
@@ -245,9 +245,9 @@ stream {{
         else:
             auth = (f"brix_trusted_ca {CA_CERT};\n"
                     "            brix_webdav_auth required;\n"
-                    f"            brix_webdav_token_jwks     {self.tok_jwks};\n"
-                    f"            brix_webdav_token_issuer   {self.tok_issuer};\n"
-                    f"            brix_webdav_token_audience {TOK_AUD};")
+                    f"            brix_token_jwks     {self.tok_jwks};\n"
+                    f"            brix_token_issuer   {self.tok_issuer};\n"
+                    f"            brix_token_audience {TOK_AUD};")
             tpc = ("brix_webdav_tpc on;\n            brix_webdav_tpc_allow_local on;\n"
                    f"            brix_webdav_tpc_cafile {CA_CERT};\n"
                    "            brix_webdav_tpc_timeout 15;")

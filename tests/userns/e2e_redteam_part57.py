@@ -37,6 +37,10 @@ def _rt57_1_identity_cache_ttl_correctness_rotate(T, port, LEGIT_TOK, pub_path, 
     #     caches the mapped identity and a stale entry survives the switch, a later
     #     request will create a file owned by the WRONG (previously-cached) uid.
     #     Every created file MUST be owned by exactly the requesting subject's uid.
+    _broker_internals_stress_p1(LEGIT, port, pub_path, rm, LEGIT_TOK, T, key, WANT, want)
+
+
+def _broker_internals_stress_p1(LEGIT, port, pub_path, rm, LEGIT_TOK, T, key, WANT, want):
     # =====================================================================
     ROT = ["alice", "bob", "carol", "alice", "carol", "bob",
            "alice", "dave", "frank", "carol", "alice", "erin"]
@@ -88,6 +92,10 @@ def _rt57_2_principal_string_edge_cases_via(T, port, LEGIT_TOK, pub_path, rm, rb
     #     must EITHER deny (no file) OR map deterministically to a legit (>=1000,
     #     non-svc) uid -- never to root/svc/system -- AND the SAME edge string must
     #     yield the SAME outcome on a repeat (no steerable nondeterminism).
+    _broker_internals_stress_p2(LEGIT, port, pub_path, rm, LEGIT_TOK, T, key, WANT, want)
+
+
+def _broker_internals_stress_p2(LEGIT, port, pub_path, rm, LEGIT_TOK, T, key, WANT, want):
     # =====================================================================
     NUL = "alice" + chr(0) + "x"
     HOMO = "al" + chr(0x456) + "ce"          # cyrillic-i homoglyph of "alice"
@@ -170,6 +178,10 @@ def _rt57_core_safety_nothing_privileged_system_ever(edges, edge_attempt, HOMO, 
     # resolve to the REAL alice uid (1001) -- impersonation by visual/whitespace/case
     # collision would be an escalation.  Either denied, or mapped to some OTHER id,
     # but not aliased onto 1001 as if it were her.
+    _broker_internals_stress_p3(LEGIT, port, pub_path, rm, HOMO, WIDE, LEGIT_TOK, T, key, WANT, want)
+
+
+def _broker_internals_stress_p3(LEGIT, port, pub_path, rm, HOMO, WIDE, LEGIT_TOK, T, key, WANT, want):
     for tag, sub in (("homoglyph-cyrillic", HOMO), ("fullwidth-unicode", WIDE),
                      ("leading-space", " alice"), ("trailing-space", "alice "),
                      ("uppercase-ALICE", "ALICE")):
@@ -189,6 +201,10 @@ def _rt57_core_safety_nothing_privileged_system_ever(edges, edge_attempt, HOMO, 
     #     connection; each PUT must be owned by the actor's uid -- proving the
     #     per-request principal is reset on the worker between pipelined requests
     #     and never leaks from the previous request.
+    _broker_internals_stress_p4(LEGIT, port, pub_path, rm, LEGIT_TOK, T, WANT, want)
+
+
+def _broker_internals_stress_p4(LEGIT, port, pub_path, rm, LEGIT_TOK, T, WANT, want):
     # =====================================================================
     SWITCH = ["alice", "bob", "alice", "carol", "dave", "alice", "bob", "carol"]
     seq = []
@@ -266,6 +282,10 @@ def _rt57_4_8_concurrent_distinct_identities_each(bp, res2, BOB_SECRET, rm, T):
     # (4) <=8 CONCURRENT DISTINCT IDENTITIES each create a file in /pub.  Under
     #     true concurrency the broker must keep per-request identities separate --
     #     zero files may end up owned by the wrong subject's uid (6 threads < cap).
+    _broker_internals_stress_p5(LEGIT, port, pub_path, rm, LEGIT_TOK, T, want)
+
+
+def _broker_internals_stress_p5(LEGIT, port, pub_path, rm, LEGIT_TOK, T, want):
     # =====================================================================
     conc_bad = []
     return conc_bad

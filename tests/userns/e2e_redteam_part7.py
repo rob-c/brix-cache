@@ -274,6 +274,30 @@ def _sigv4_bad_read(good, bucket, s3port):
     )
 
 
+def _s3ext_multipart_lifecycle(data, s3port):
+    """Full self multipart lifecycle: initiate -> upload part -> list parts -> abort
+    (the staging dir + parts must be alice-owned; abort cleans up)."""
+    st_i, bdy = s3("POST", "alice/mpu_life.bin", s3port, params={"uploads": ""})
+    m = re.search(rb"<UploadId>([^<]+)</UploadId>", bdy or b"")
+    if not (st_i == 200 and m):
+        ok(False, f"S3 multipart initiate self failed (HTTP {st_i})")
+        return
+    up = m.group(1).decode()
+    st_p, _ = s3("PUT", "alice/mpu_life.bin", s3port,
+                 params={"uploadId": up, "partNumber": "1"}, data=b"Z" * 2048)
+    ok(st_p in (200, 201), f"S3 multipart UploadPart self (HTTP {st_p})")
+    # the staging dir is created under alice/ as alice
+    stg = os.path.join(data, "alice")
+    mpu_dirs = [d for d in os.listdir(stg) if "mpu" in d and d.startswith(".")]
+    owned = all(os.stat(os.path.join(stg, d)).st_uid == UID_ALICE for d in mpu_dirs) \
+        if mpu_dirs else True
+    ok(owned, "S3 multipart staging dir owned by alice")
+    st_l, _ = s3("GET", "alice/mpu_life.bin", s3port, params={"uploadId": up})
+    ok(st_l in (200, 404), f"S3 ListParts self (HTTP {st_l})")
+    st_a, _ = s3("DELETE", "alice/mpu_life.bin", s3port, params={"uploadId": up})
+    ok(st_a in (200, 204), f"S3 AbortMultipartUpload self (HTTP {st_a})")
+
+
 def run_s3_extended(key, data, s3port):
     """The S3 operations not yet exercised: HeadObject (self+cross), full multipart
     lifecycle cross-initiator (initiate/upload/list/abort/complete), and keys that

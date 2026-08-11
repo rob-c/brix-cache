@@ -77,6 +77,10 @@ def _rt29_runs_as_carol_who_has_the(fr, GR, port, key, li, lock_hdrs, lock_token
     except OSError as e:
         ok(False, f"staff_r.txt stat failed: {e}")
 
+    _group_xattr_lock_p1(port, lock_token, proppatch, prop_present, s3port, key, li, lock_hdrs, TAG, fw, GR)
+
+
+def _group_xattr_lock_p1(port, lock_token, proppatch, prop_present, s3port, key, li, lock_hdrs, TAG, fw, GR):
     # ============================================================== LOCK on 0660
     # (1) carol (staff member) LOCKs the group-WRITABLE file: the broker setxattr
     #     runs AS carol who has the group-write bit -> ALLOWED.  Positive control.
@@ -152,7 +156,10 @@ def _rt29_positive_control_the_rightful_holder_carol(lock_token, cbody2, st, GR,
     else:
         ok(False, "theft test skipped: carol re-LOCK produced no token")
         ok(False, "theft positive-control skipped: no token")
+    _group_xattr_lock_p2(port, lock_token, proppatch, prop_present, s3port, key, li, lock_hdrs, TAG, fw, GR)
 
+
+def _group_xattr_lock_p2(port, lock_token, proppatch, prop_present, s3port, key, li, lock_hdrs, TAG, fw, GR):
     # ========================================= LOCK denied on 0640 (no g-write)
     # (7) staff_r.txt is 0640 alice:staff — group-READABLE but NOT group-writable.
     #     carol IS a staff member but the broker setxattr as carol gets EACCES
@@ -227,7 +234,10 @@ def _rt29_12_and_carol_s_earlier_property(prop_present, GR, cmark, TAG, proppatc
     ok(present,
        f"carol's legitimate dead-prop survived bob's denied PROPPATCH "
        f"(PROPFIND {st_pf})")
+    _group_xattr_lock_p3(proppatch, prop_present, port, s3port, TAG, key, li, lock_hdrs, fw, GR, lock_token)
 
+
+def _group_xattr_lock_p3(proppatch, prop_present, port, s3port, TAG, key, li, lock_hdrs, fw, GR, lock_token):
     # ===================================== PROPPATCH denied on 0640 (no g-write)
     # (13) carol PROPPATCHes the 0640 group-READ-ONLY file -> no group WRITE bit
     #      -> broker setxattr as carol EACCES -> DENIED; value must not persist.
@@ -274,7 +284,10 @@ def _rt29_root_group_leg(present, st_pp, st_pf, GR, s3port, fw):
     ok(not present,
        f"dave (wrong group) PROPPATCH did NOT persist on staff file "
        f"(PROPPATCH {st_pp}, PROPFIND {st_pf})")
+    _group_xattr_lock_p4(s3port, port, fw, key, GR)
 
+
+def _group_xattr_lock_p4(s3port, port, fw, key, GR):
     # ===================================================== root:// group leg
     # (17) the same group-gated xattr DAC over root:// (different protocol, same
     #      broker + same kernel DAC) via `query xattr`: carol on the group-write
@@ -301,7 +314,10 @@ def _rt29_root_group_leg(present, st_pp, st_pf, GR, s3port, fw):
     ok(all((b'BOB-PRIVATE-SECRET' not in any((b, b'')), b'RESEARCH-GROUP-READABLE' not in any((b, b'')))),
        f"S3 GET (alice) of the group file leaks no other-tenant secret "
        f"(HTTP {st})")
+    _group_xattr_lock_p5(port, fw, key, GR)
 
+
+def _group_xattr_lock_p5(port, fw, key, GR):
     # ===================================================== invariants / survival
     # (19) ownership/group of the LOCK/PROPPATCH target is UNCHANGED by all the
     #      xattr churn — broker xattr ops must not chown the file.

@@ -51,6 +51,11 @@ pytestmark = [
 
 ROOT = Path(__file__).resolve().parents[1]
 
+# Wire constants lost in the same helper split as _kXR_open (see the note in
+# _test_phase24_mirror_helpers.py); values per XProtocol.hh / sibling helpers.
+_kXR_write = 3019
+_kXR_close = 3003
+
 
 def _xrd_write(s, fh, off, data):
     s.sendall(struct.pack(">2sH4sqB3sI", b"\x00\x06", _kXR_write, fh, off,

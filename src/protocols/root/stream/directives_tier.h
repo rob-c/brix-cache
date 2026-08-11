@@ -96,3 +96,16 @@
       BRIX_IMP_F_FORBIDDEN_GROUPS,
       NULL },
 
+    /* The default checksum algorithm — used for a kXR_Qcksum that names no algo
+     * (neither a "<algo>:" prefix nor a "?cks.type=" CGI) and advertised first in
+     * the Qconfig "chksum" list clients negotiate against. The xrootd.chksum
+     * default analog (WLCG sites prefer crc32c; cloud wants sha256). One of
+     * adler32/crc32/crc32c/crc64/crc64nvme/md5/sha1/sha256; an unrecognized value
+     * degrades to adler32 at use. Unset ⇒ adler32 (xrdcp's default). */
+    { ngx_string("brix_checksum_default"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_str_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_brix_srv_conf_t, checksum_default),
+      NULL },
+

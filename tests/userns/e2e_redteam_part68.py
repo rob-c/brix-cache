@@ -113,6 +113,10 @@ def _rt68_0_positive_controls_a_legit_alice(rm_quiet, TAG, plant, webdav_move, t
 
     DENY_HTTP = (401, 403, 404, 409, 412, 500, -1)
 
+    _special_file_rename_matrix_p1(s3port, rm_quiet, plant, webdav_move, ta, exists, read_bytes, mklink, port, disk, DENY_HTTP, tb, TAG, uid_of, SECRET, path)
+
+
+def _special_file_rename_matrix_p1(s3port, rm_quiet, plant, webdav_move, ta, exists, read_bytes, mklink, port, disk, DENY_HTTP, tb, TAG, uid_of, SECRET, path):
     # =====================================================================
     # 0) Positive controls: a legit alice MOVE within her OWN tree succeeds and
     #    PRESERVES ownership (the brokered rename ran AS alice, st_uid stays 1001).
@@ -152,7 +156,10 @@ def _rt68_native_xrdfs_mv_self_move_control(rm_quiet, TAG, plant, exists, uid_of
            f"root:// xrdfs mv within alice's tree owned by alice (rc={rc})")
         rm_quiet(f"alice/{TAG}_mv_src.txt")
         rm_quiet(f"alice/{TAG}_mv_dst.txt")
+    _special_file_rename_matrix_p2(s3port, rm_quiet, plant, webdav_move, ta, exists, read_bytes, mklink, port, disk, DENY_HTTP, tb, TAG, uid_of, SECRET, path)
 
+
+def _special_file_rename_matrix_p2(s3port, rm_quiet, plant, webdav_move, ta, exists, read_bytes, mklink, port, disk, DENY_HTTP, tb, TAG, uid_of, SECRET, path):
     # =====================================================================
     # 1) CROSS-TENANT rename INTO bob's 0755 dir.  alice has r-x on bob/ but NOT
     #    write, so the impersonated rename's link-into-bob step must EPERM; nothing
@@ -188,7 +195,10 @@ def _rt68_alice_s_source_must_survive_a(exists, TAG, st, DENY_HTTP, uid_of, rm_q
 
 def _rt68_2_cross_tenant_rename_out_of(rm_quiet, TAG, plant, webdav_move, ta, DENY_HTTP, exists):
     rm_quiet(f"alice/{TAG}_into_src.txt")
+    _special_file_rename_matrix_p3(s3port, plant, rm_quiet, webdav_move, ta, read_bytes, mklink, port, disk, DENY_HTTP, tb, TAG, exists, uid_of, SECRET, path)
 
+
+def _special_file_rename_matrix_p3(s3port, plant, rm_quiet, webdav_move, ta, read_bytes, mklink, port, disk, DENY_HTTP, tb, TAG, exists, uid_of, SECRET, path):
     # =====================================================================
     # 2) CROSS-TENANT rename OUT of bob's dir by alice.  Removing an entry from
     #    bob's dir needs write on bob/, which alice lacks -> DENIED.  bob's file
@@ -217,7 +227,10 @@ def _rt68_control_bob_can_move_his_own(exists, TAG, uid_of, read_bytes, rm_quiet
         if exists(f"bob/{TAG}_victim2.txt") and not exists(f"bob/{TAG}_victim.txt"):
             xrd_fs(["mv", f"/bob/{TAG}_victim2.txt", f"/bob/{TAG}_victim.txt"], "bob")
         rm_quiet(f"bob/{TAG}_victim2.txt")
+    _special_file_rename_matrix_p4(s3port, read_bytes, plant, webdav_move, ta, rm_quiet, mklink, port, disk, DENY_HTTP, tb, TAG, uid_of, exists, SECRET, path)
 
+
+def _special_file_rename_matrix_p4(s3port, read_bytes, plant, webdav_move, ta, rm_quiet, mklink, port, disk, DENY_HTTP, tb, TAG, uid_of, exists, SECRET, path):
     # =====================================================================
     # 3) CROSS-TENANT rename-OVER (clobber) of bob's EXISTING file by alice.  A
     #    rename whose dest is bob's file would, if it ran, DESTROY bob's data.  It
@@ -247,7 +260,10 @@ def _rt68_4_rename_atomicity_in_a_shared(uid_of, TAG, rm_quiet):
        "bob's clobbered-target file still owned by bob (inode not re-aliased)")
     rm_quiet(f"alice/{TAG}_clobber_src.txt")
     rm_quiet(f"bob/{TAG}_victim.txt")
+    _special_file_rename_matrix_p5(s3port, rm_quiet, plant, webdav_move, ta, read_bytes, mklink, port, disk, tb, TAG, exists, SECRET, uid_of, path)
 
+
+def _special_file_rename_matrix_p5(s3port, rm_quiet, plant, webdav_move, ta, read_bytes, mklink, port, disk, tb, TAG, exists, SECRET, uid_of, path):
     # =====================================================================
     # 4) Rename ATOMICITY in a SHARED writable dir (pub/ 0777).  alice MOVEs over
     #    an existing file she is allowed to clobber: the destination must always be
@@ -283,7 +299,10 @@ def _rt68_5_same_resource_move_src_dst(dst_body, st, exists, TAG, rm_quiet, plan
            "rejected MOVE-over left the original dest fully intact")
     rm_quiet(f"pub/{TAG}_atom_dst.txt")
     rm_quiet(f"pub/{TAG}_atom_src.txt")
+    _special_file_rename_matrix_p6(s3port, plant, webdav_move, ta, rm_quiet, mklink, port, disk, tb, TAG, exists, read_bytes, SECRET, uid_of, path)
 
+
+def _special_file_rename_matrix_p6(s3port, plant, webdav_move, ta, rm_quiet, mklink, port, disk, tb, TAG, exists, read_bytes, SECRET, uid_of, path):
     # =====================================================================
     # 5) Same-resource MOVE (src == dst) must not destroy the file (self-move is a
     #    no-op or 403, never a delete).
@@ -297,7 +316,10 @@ def _rt68_6_multi_hop_symlink_chain_a(webdav_move, TAG, ta, exists, read_bytes, 
     ok(all((exists(f'alice/{TAG}_selfmv.txt'), read_bytes(f'alice/{TAG}_selfmv.txt') == b'SELF-MOVE-INTACT\n')),
        f"MOVE of a file onto ITSELF did not delete/truncate it (HTTP {st})")
     rm_quiet(f"alice/{TAG}_selfmv.txt")
+    _special_file_rename_matrix_p7(s3port, plant, mklink, rm_quiet, port, ta, disk, tb, TAG, SECRET, uid_of, path)
 
+
+def _special_file_rename_matrix_p7(s3port, plant, mklink, rm_quiet, port, ta, disk, tb, TAG, SECRET, uid_of, path):
     # =====================================================================
     # 6) Multi-hop symlink CHAIN a->b->c->realfile (all in-export, relative).
     #    Following it must EITHER refuse (secure no-follow default) OR resolve to
@@ -338,7 +360,10 @@ def _rt68_segment_23(mklink, TAG, c3, port, ta, rm_quiet):
 def _rt68_7_symlink_loop_of_length_3(rm_quiet, TAG, mklink):
     rm_quiet(f"alice/{TAG}_chain_c")
     rm_quiet(f"alice/{TAG}_chain_real.txt")
+    _special_file_rename_matrix_p8(s3port, mklink, rm_quiet, port, ta, disk, tb, TAG, SECRET, uid_of, path)
 
+
+def _special_file_rename_matrix_p8(s3port, mklink, rm_quiet, port, ta, disk, tb, TAG, SECRET, uid_of, path):
     # =====================================================================
     # 7) Symlink LOOP of length 3 (a->b->c->a).  GET / PROPFIND / stat must fail
     #    closed on ELOOP and, crucially, must NOT spin the single-threaded worker.
@@ -373,7 +398,10 @@ def _rt68_8_symlink_chain_whose_tail_is(l1, l2, l3, TAG, port, ta, rm_quiet):
     rm_quiet(f"alice/{TAG}_loop_a")
     rm_quiet(f"alice/{TAG}_loop_b")
     rm_quiet(f"alice/{TAG}_loop_c")
+    _special_file_rename_matrix_p9(s3port, rm_quiet, mklink, port, ta, disk, tb, TAG, SECRET, uid_of, path)
 
+
+def _special_file_rename_matrix_p9(s3port, rm_quiet, mklink, port, ta, disk, tb, TAG, SECRET, uid_of, path):
     # =====================================================================
     # 8) Symlink CHAIN whose TAIL is bob's 0600 private.txt (a->b->bob/private).
     #    A chained link is NOT a read capability: following it as alice must be
@@ -409,7 +437,10 @@ def _rt68_control_bob_reading_his_own_private(rm_quiet, TAG, mklink, port, ta, S
 
 def _rt68_9_no_non_regular_file_creation(rm_quiet, TAG):
     rm_quiet(f"alice/{TAG}_bchain_b")
+    _special_file_rename_matrix_p10(s3port, rm_quiet, port, ta, disk, TAG, uid_of, path)
 
+
+def _special_file_rename_matrix_p10(s3port, rm_quiet, port, ta, disk, TAG, uid_of, path):
     # =====================================================================
     # 9) NO non-regular-file CREATION verb.  There is no MKNOD/MKFIFO op in the
     #    XRootD namespace or WebDAV/S3 surface.  Prove that NO create path produces
@@ -503,7 +534,10 @@ def _rt68_s3_surface_a_put_with_a(rm_quiet, TAG, disk, is_regular, is_dir_node, 
         else:
             ok(True, f"S3 PUT regular-object create handled (HTTP {st})")
         rm_quiet(f"alice/{TAG}_s3reg.txt")
+    _special_file_rename_matrix_p11(rm_quiet, port, ta, TAG, uid_of)
 
+
+def _special_file_rename_matrix_p11(rm_quiet, port, ta, TAG, uid_of):
     # =====================================================================
     # 10) FINAL RECOVERY: a legit alice PUT+GET roundtrip proves the worker AND the
     #     broker survived the entire special-file / rename battery (no wedge, no

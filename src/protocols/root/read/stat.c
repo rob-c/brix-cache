@@ -1,4 +1,5 @@
 #include "core/ngx_brix_module.h"
+#include "core/compat/fs_walk.h"   /* §4.8 dirstats subtree du */
 #include "stat.h"
 #include "stat_internal.h"
 #include "net/cms/cns.h"            /* §6 CNS inventory stat answer */
@@ -457,6 +458,30 @@ stat_query_handle(brix_ctx_t *ctx, ngx_connection_t *c,
  * Both query helpers fill one stat_target_t; the shared tail encodes it and
  * sends the reply.
  */
+/* §4.8 dirstats — sum the sizes of every regular file in a subtree. The walk
+ * runs through the seam-clean brix_fs_walk (core/compat), so stat.c stays out of
+ * raw-syscall territory. */
+static ngx_int_t
+stat_dirsize_cb(const brix_fs_walk_entry_t *e, void *data)
+{
+    if (e->st != NULL && S_ISREG(e->st->st_mode)) {
+        *(off_t *) data += e->st->st_size;
+    }
+    return NGX_OK;
+}
+
+static off_t
+brix_stat_subtree_size(ngx_log_t *log, const char *path)
+{
+    brix_fs_walk_options_t opts;
+    off_t                  total = 0;
+
+    ngx_memzero(&opts, sizeof(opts));
+    opts.include_files = 1;
+    (void) brix_fs_walk(log, path, &opts, stat_dirsize_cb, &total);
+    return total;
+}
+
 ngx_int_t brix_handle_stat(brix_ctx_t *ctx, ngx_connection_t *c, ngx_stream_brix_srv_conf_t *conf)
 {
     xrdw_stat_req_t    req;
@@ -487,6 +512,12 @@ ngx_int_t brix_handle_stat(brix_ctx_t *ctx, ngx_connection_t *c, ngx_stream_brix
         if (!stat_query_handle(ctx, c, &tgt, &rc)) {
             return rc;
         }
+    }
+
+    /* §4.8 dirstats: report a directory's recursive subtree byte-size instead
+     * of its inode size, on demand, when brix_dirstats is on. */
+    if (!is_vfs && conf->dirstats == 1 && S_ISDIR(st.st_mode)) {
+        st.st_size = brix_stat_subtree_size(c->log, full_path);
     }
 
     /* Convert into the exact ASCII body the client expects. statvfs has its own

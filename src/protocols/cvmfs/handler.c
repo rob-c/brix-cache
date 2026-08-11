@@ -421,6 +421,20 @@ ngx_http_brix_cvmfs_handler(ngx_http_request_t *r)
         ngx_http_get_module_loc_conf(r, ngx_http_brix_cvmfs_module);
     ngx_int_t                         rc;
 
+    /* phase-105 W1: per-client-IP [brix_rate_limit] gate, before any work
+     * (mirrors webdav/access.c + s3/handler.c — reject cheap first). The
+     * directive parsed here pre-105 but was silently inert (webdav-owned). */
+    if (lcf->common.rate_limit.kv != NULL && r->connection != NULL) {
+        ngx_str_t *ip = &r->connection->addr_text;
+
+        if (brix_rate_limit_check(&lcf->common.rate_limit,
+                                    (const char *) ip->data, ip->len)
+            != NGX_OK)
+        {
+            return NGX_HTTP_TOO_MANY_REQUESTS;
+        }
+    }
+
     if (cvmfs_handler_ctx(r, lcf) == NULL) {
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }

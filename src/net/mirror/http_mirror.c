@@ -71,12 +71,12 @@ brix_http_mirror_proxy(ngx_http_request_t *r,
     struct sockaddr                   *sa;
 
     conf = ngx_http_get_module_loc_conf(r, ngx_http_brix_webdav_module);
-    if (conf->mirror.targets == NULL
-        || ctx->mirror_target_idx >= conf->mirror.targets->nelts)
+    if (conf->common.mirror.targets == NULL
+        || ctx->mirror_target_idx >= conf->common.mirror.targets->nelts)
     {
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
-    t = (brix_mirror_target_t *) conf->mirror.targets->elts
+    t = (brix_mirror_target_t *) conf->common.mirror.targets->elts
       + ctx->mirror_target_idx;
 
     if (ngx_http_upstream_create(r) != NGX_OK) {
@@ -127,7 +127,7 @@ mirror_fire_subrequests(ngx_http_request_t *r,
 {
     ngx_uint_t  i;
 
-    for (i = 0; i < conf->mirror.targets->nelts; i++) {
+    for (i = 0; i < conf->common.mirror.targets->nelts; i++) {
         ngx_http_brix_webdav_req_ctx_t *sctx;
         ngx_http_request_t               *sr;
 
@@ -224,7 +224,7 @@ mirror_precontent_eligible(ngx_http_request_t *r,
 {
     ngx_uint_t  mbit;
 
-    if (!conf->mirror.enabled || conf->mirror.targets == NULL) {
+    if (!conf->common.mirror.enabled || conf->common.mirror.targets == NULL) {
         return 0;
     }
     if (ctx != NULL && ctx->mirror_fired) {
@@ -232,13 +232,13 @@ mirror_precontent_eligible(ngx_http_request_t *r,
     }
 
     mbit = brix_http_mirror_method_bit(r);
-    if ((mbit & conf->mirror.method_mask) == 0) {
+    if ((mbit & conf->common.mirror.method_mask) == 0) {
         return 0;
     }
     /* Write methods only mirror when brix_mirror_writes is on — a second,
      * independent guard beyond the method mask.  The shadow must be an isolated
      * namespace (replaying writes onto the primary's store would corrupt it). */
-    if ((mbit & BRIX_MIRROR_M_WRITE_ALL) && !conf->mirror.mirror_writes) {
+    if ((mbit & BRIX_MIRROR_M_WRITE_ALL) && !conf->common.mirror.mirror_writes) {
         return 0;
     }
     /* Loop guard: never mirror a request that is itself a mirror replay (set by
@@ -246,7 +246,7 @@ mirror_precontent_eligible(ngx_http_request_t *r,
     if (mirror_request_is_replay(r)) {
         return 0;
     }
-    if (!brix_mirror_should_sample(conf->mirror.sample_pct)) {
+    if (!brix_mirror_should_sample(conf->common.mirror.sample_pct)) {
         MIR_HTTP_INC(mirror_http_dropped_total);
         return 0;
     }

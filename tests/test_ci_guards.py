@@ -236,10 +236,29 @@ def test_template_ref_guard_reddens_on_a_stale_backlog_entry() -> None:
 # on. (guards.yml invokes the guard directly, without this pytest timeout.)
 @pytest.mark.skipif(not _have("lizard"), reason="lizard not installed (pip install --user lizard)")
 @pytest.mark.timeout(300)
-@pytest.mark.parametrize("guard", ["check_complexity", "check_duplication"])
+@pytest.mark.parametrize("guard", ["check_complexity", "check_duplication", "check_py_complexity"])
 def test_ci_lizard_guard_green(guard: str) -> None:
     rc, out = _run(guard)
     assert rc == 0, f"tools/ci/{guard}.py failed (exit {rc}):\n{out}"
+
+
+# --- phase-103 exit criterion: the C/C++/header ratchets are at ZERO ----------
+# "guard green" only proves nothing GREW past the frozen backlog; it stays green
+# with a non-empty backlog. Phase-103 drove the whole shipped C tree (src/ +
+# client/ + shared/) to ≤ CCN 15 and ≤ 600 LoC with EMPTY backlogs, so a future
+# change that re-freezes an offender (bumping the backlog) instead of decomposing
+# it must redden here — otherwise the property silently rots. Comments / blank
+# lines don't count as entries.
+@pytest.mark.parametrize("backlog", ["complexity_backlog.txt", "file_size_backlog.txt"])
+def test_c_ratchet_backlogs_are_empty(backlog: str) -> None:
+    path = CI / backlog
+    entries = [
+        ln for ln in path.read_text().splitlines()
+        if ln.strip() and not ln.lstrip().startswith("#")
+    ]
+    assert entries == [], (
+        f"tools/ci/{backlog} must stay empty (phase-103): decompose the offender "
+        f"instead of freezing it. Frozen entries:\n" + "\n".join(entries))
 
 
 # --- static-analysis / coverage runners (nightly) -----------------------------
@@ -507,3 +526,35 @@ def test_metric_names_guard_leaves_c_symbols_and_directives_alone(tmp_path) -> N
         "`brix_token_cache_lookup()`.\n",
     )
     assert _messages(root) == []
+
+
+# --- lint_loc logical-LoC metric: phase-103 W0 metric fixes -------------------
+# The green tier-report proves the live tree conforms; these pin the two metric
+# corrections W0 landed so neither can silently regress: G9 (a Python `#`
+# comment is NOT logical LoC — a file must never be splittable just by deleting
+# its comments) and G8 (the tracked k8s-tests/remote-suite/ shadow mirror of
+# tests/ is excluded, so its synced copies are never double-counted).
+from cmdscripts import lint_loc as _lint_loc
+
+
+def test_lint_loc_metric_strips_python_hash_comments(tmp_path) -> None:
+    """G9: `#` comment lines and blanks are not counted; code lines are."""
+    f = tmp_path / "sample.py"
+    f.write_text(
+        "# a leading comment\n"
+        "    # an indented comment\n"
+        "\n"
+        "x = 1  # trailing comments still count (the line has code)\n"
+        "def g():\n"
+        "    return x\n"
+    )
+    # 3 code lines (x=1, def g, return x); the two pure-# lines and the blank drop.
+    assert _lint_loc.logical_loc(f) == 3
+
+
+def test_lint_loc_excludes_the_remote_suite_shadow_mirror() -> None:
+    """G8: no in-scope path lives under the tracked shadow mirror of tests/."""
+    scoped = _lint_loc.in_scope()
+    assert scoped, "in_scope() returned nothing — scan is broken"
+    offenders = [p for p in scoped if _lint_loc._SHADOW_PREFIX in p.as_posix()]
+    assert not offenders, f"shadow-mirror copies leaked into scope: {offenders[:3]}"

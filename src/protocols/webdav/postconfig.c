@@ -221,7 +221,7 @@ webdav_postconf_load_client_capath(ngx_conf_t *cf,
  * HOW: Reads the WebDAV loc-conf and SSL srv-conf from the server's context and
  * early-returns if either is absent. When proxy_certs is set it fetches the
  * verify params via SSL_CTX_get0_param() and sets the proxy-cert flag (logging
- * INFO); when ssl_client_capath is set it delegates to
+ * INFO); when common.client_ca_store is set it delegates to
  * webdav_postconf_load_client_capath() and propagates its failure; when
  * common.ktls is set it calls brix_http_ktls_enable_ctx(). Registration
  * effects are identical whether or not this is split out.
@@ -255,9 +255,9 @@ webdav_postconf_setup_ssl_ctx(ngx_conf_t *cf, ngx_http_core_srv_conf_t *cscf)
         }
     }
 
-    if (wdcf->ssl_client_capath.len > 0
+    if (wdcf->common.client_ca_store.len > 0
         && webdav_postconf_load_client_capath(cf, cscf, sslcf,
-                                              &wdcf->ssl_client_capath)
+                                              &wdcf->common.client_ca_store)
            != NGX_OK)
     {
         return NGX_ERROR;

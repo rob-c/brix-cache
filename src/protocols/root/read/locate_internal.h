@@ -35,6 +35,8 @@ typedef struct {
                                                 flush the location caches */
     int                          nowait;     /* §1.8: kXR_nowait — answer
                                                 kXR_wait instead of parking */
+    int                          prefname;   /* §2.18: kXR_prefname — emit the
+                                                server's DNS hostname, not its IP */
 } locate_ctx_t;
 
 /*

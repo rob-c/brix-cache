@@ -276,16 +276,51 @@ brix_kv_zone_get(ngx_uint_t i)
  *   4. Reject a duplicate name; allocate the handle from cf->pool.
  *   5. Select the owning module by cf->cmd_type and call brix_kv_configure().
  */
+/* Parse the "zone=name:size key=<bytes> val=<bytes>" argument list into the
+ * out params. NGX_CONF_OK, or NGX_CONF_ERROR ([emerg] logged) on a malformed
+ * zone= or an unexpected parameter. */
+static char *
+kv_zone_parse_args(ngx_conf_t *cf, ngx_str_t *value, ngx_str_t *name,
+    ngx_str_t *sizestr, size_t *key_max, size_t *val_max)
+{
+    ngx_uint_t i;
+
+    for (i = 1; i < cf->args->nelts; i++) {
+        if (value[i].len > 5 && ngx_strncmp(value[i].data, "zone=", 5) == 0) {
+            ngx_str_t spec = { value[i].len - 5, value[i].data + 5 };
+            u_char   *colon = ngx_strlchr(spec.data, spec.data + spec.len, ':');
+
+            if (colon == NULL) {
+                ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+                    "brix_kv_zone: expected zone=name:size");
+                return NGX_CONF_ERROR;
+            }
+            name->data    = spec.data;
+            name->len     = colon - spec.data;
+            sizestr->data = colon + 1;
+            sizestr->len  = spec.data + spec.len - (colon + 1);
+        } else if (value[i].len > 4 && ngx_strncmp(value[i].data, "key=", 4) == 0) {
+            *key_max = ngx_atoi(value[i].data + 4, value[i].len - 4);
+        } else if (value[i].len > 4 && ngx_strncmp(value[i].data, "val=", 4) == 0) {
+            *val_max = ngx_atoi(value[i].data + 4, value[i].len - 4);
+        } else {
+            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+                "brix_kv_zone: unexpected parameter \"%V\" — expected "
+                "zone=name:size key=<bytes> val=<bytes>", &value[i]);
+            return NGX_CONF_ERROR;
+        }
+    }
+    return NGX_CONF_OK;
+}
+
 char *
 brix_kv_zone_directive(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 {
     ngx_str_t   *value = cf->args->elts;
-    ngx_str_t    name, sizestr, spec;
-    u_char      *colon;
+    ngx_str_t    name, sizestr;
     ssize_t      size;
     size_t       key_max = 0;
     size_t       val_max = 0;
-    ngx_uint_t   i;
     brix_kv_t   *kv;
     void        *module;
 
@@ -294,30 +329,10 @@ brix_kv_zone_directive(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     ngx_str_null(&name);
     ngx_str_null(&sizestr);
 
-    for (i = 1; i < cf->args->nelts; i++) {
-        if (value[i].len > 5 && ngx_strncmp(value[i].data, "zone=", 5) == 0) {
-            spec.data = value[i].data + 5;
-            spec.len  = value[i].len - 5;
-            colon = ngx_strlchr(spec.data, spec.data + spec.len, ':');
-            if (colon == NULL) {
-                ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                    "brix_kv_zone: expected zone=name:size");
-                return NGX_CONF_ERROR;
-            }
-            name.data    = spec.data;
-            name.len     = colon - spec.data;
-            sizestr.data = colon + 1;
-            sizestr.len  = spec.data + spec.len - (colon + 1);
-        } else if (value[i].len > 4 && ngx_strncmp(value[i].data, "key=", 4) == 0) {
-            key_max = ngx_atoi(value[i].data + 4, value[i].len - 4);
-        } else if (value[i].len > 4 && ngx_strncmp(value[i].data, "val=", 4) == 0) {
-            val_max = ngx_atoi(value[i].data + 4, value[i].len - 4);
-        } else {
-            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                "brix_kv_zone: unexpected parameter \"%V\" — expected "
-                "zone=name:size key=<bytes> val=<bytes>", &value[i]);
-            return NGX_CONF_ERROR;
-        }
+    if (kv_zone_parse_args(cf, value, &name, &sizestr, &key_max, &val_max)
+        != NGX_CONF_OK)
+    {
+        return NGX_CONF_ERROR;
     }
 
     if (name.len == 0 || sizestr.len == 0) {

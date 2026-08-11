@@ -83,6 +83,9 @@ jobs:
         run: |
           pip install --quiet 'lizard>=1.17,<2' 'complexipy>=6,<8' 'radon>=6,<7'
           tools/ci/check_python_quality.py
+      - name: "directive registry — config-surface drift (phase-105 W5.4: R1/R2/R4/R5/R6 gate; R3 WARN until W6)"
+        if: '!cancelled()'
+        run: tools/ci/check_directive_registry.py --fail
       - name: todo/fixme ratchet (no new deferred-work markers)
         if: '!cancelled()'
         run: tools/ci/check_todo_fixme.py

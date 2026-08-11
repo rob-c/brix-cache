@@ -286,10 +286,10 @@ pull and push is fully implemented as of 2026-05-10.
   and push modes, and delegated tokens are injected into the curl subprocess
   as `Authorization: Bearer` headers.
 - Added nginx directives:
-  - `brix_webdav_tpc_token_endpoint` — OAuth2 token endpoint URL
-  - `brix_webdav_tpc_token_client_id` — OAuth2 client ID (optional)
-  - `brix_webdav_tpc_token_client_secret` — OAuth2 client secret (optional)
-  - `brix_webdav_tpc_token_scope` — scope string (default: `storage.read`)
+  - `brix_tpc_outbound_token_endpoint` — OAuth2 token endpoint URL
+  - `brix_tpc_outbound_client_id` — OAuth2 client ID (optional)
+  - `brix_tpc_outbound_client_secret` — OAuth2 client secret (optional)
+  - `brix_tpc_outbound_scope` — scope string (default: `storage.read`)
 - Added Prometheus counter `brix_webdav_tpc_cred_total` with events:
   `started`, `success`, `error`, `unknown_mode`, `parse_error`.
 - Two delegation modes are supported:
@@ -314,10 +314,10 @@ location / {
     brix_webdav_tpc          on;
 
     # OAuth2/OIDC token delegation for TPC
-    brix_webdav_tpc_token_endpoint https://idp.example.com/oauth2/token;
-    brix_webdav_tpc_token_client_id  nginx-xrootd;
-    brix_webdav_tpc_token_client_secret abc123secret;
-    brix_webdav_tpc_token_scope      storage.read;
+    brix_tpc_outbound_token_endpoint https://idp.example.com/oauth2/token;
+    brix_tpc_outbound_client_id  nginx-xrootd;
+    brix_tpc_outbound_client_secret abc123secret;
+    brix_tpc_outbound_scope      storage.read;
 }
 ```
 
@@ -392,7 +392,7 @@ rules. Operational caveats are documented below.
 
 **What is implemented** (`src/auth/authz/authdb.c`, `src/core/config/policy.c`):
 
-- `brix_authdb <path>` directive — registered as `NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1`, requires any identity-establishing `brix_auth` scheme (`gsi`, `token`, `both`, `sss`, `krb5`, `pwd`, `host`, `unix`); only `brix_auth none` is refused, and `brix_authdb_format xrdacc` is exempt even there
+- `brix_authdb <path>` directive — registered as `NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1`, requires any identity-establishing `brix_auth` scheme (`gsi`, `token`, `both`, `sss`, `krb5`, `pwd`, `host`, `unix`); only `brix_auth none` is refused, and `brix_authdb_engine xrdacc` is exempt even there
 - Full authdb file parser: `[u|g|p|a] <id> <path> <privs>` line format, comments (`#`), blank lines
 - Identity types enforced: `u` (user DN matched against `ctx->dn`), `g` (VO group matched against `ctx->vo_list`), `a` (all/anonymous); wildcard `*` id accepted for `u` and `g`
 - Privilege flags: `r` (read + lookup), `l` (lookup only), `w`/`a` (update/append), `d` (delete), `m` (mkdir), `k` (admin)

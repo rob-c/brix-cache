@@ -22,23 +22,17 @@ typedef struct {
     /* vomsdir/voms_cert_dir moved to common preamble (phase-101 W4). */
 
     /* --- X.509 / GSI authentication --- */
-    ngx_str_t      cadir;           /* directory of trusted CA PEM files */
-    ngx_str_t      cafile;          /* single trusted CA bundle PEM file */
+    /* cafile/cadir/verify_depth -> shared preamble (common.trusted_ca,
+     * common.trusted_ca_dir, common.verify_depth) — phase-105 W2/W3.5. */
     /* crl/crl_mode/signing_policy_mode moved to common preamble (phase-101 W4). */
-    ngx_uint_t     verify_depth;    /* max proxy chain depth for VOMS proxies;
-                                     * RFC 3820 §4 recommends <= 3 for WLCG */
+
     ngx_uint_t     auth;            /* webdav_auth_t: NONE/OPTIONAL/REQUIRED */
     /* protbind moved to the shared preamble (common.protbind) — phase-101 W4;
      * brix_protbind now registered by the common module, adopted here. */
     ngx_flag_t     proxy_certs;     /* 1 to accept RFC 3820 proxy certificates */
-    ngx_str_t      ssl_client_capath; /* [brix_client_ca_store <dir>] OpenSSL
-                                     * hashed CA directory (IGTF layout, e.g.
-                                     * /etc/grid-security/certificates) ADDED to
-                                     * the server's TLS client-verify store at
-                                     * postconfiguration, so ssl_verify_client
-                                     * can trust a hash dir that stock nginx's
-                                     * file-only ssl_client_certificate cannot
-                                     * express.  Server-level; "" = off. */
+    /* brix_client_ca_store field moved to the shared preamble
+     * (common.client_ca_store) — phase-105 W2; the postconfig hook reads the
+     * adopted value. */
     ngx_str_t      proxy_ssl_capath; /* [brix_backend_ca_dir <dir>] OpenSSL
                                      * hashed CA directory ADDED to this
                                      * location's upstream (proxy_ssl) trust
@@ -82,11 +76,8 @@ typedef struct {
     ngx_uint_t     tpc_xfr;             /* [brix_webdav_tpc_xfr N] §6.9 explicit
                                            concurrent-transfer cap; 0 = bound only
                                            by the registry slot ceiling (default) */
-    time_t         maxdelay;            /* [brix_webdav_maxdelay <time>] §6.11
-                                           http.maxdelay analog: CAP on the
-                                           Retry-After seconds a 202 "staging"
-                                           (tape-recall) response tells the client
-                                           to wait. 0 = off (emit the default 10s). */
+    /* §6.11 maxdelay moved to the shared preamble (common.max_delay) as bare
+     * brix_max_delay — phase-105 W3 (one spelling with the stream plane). */
 
     /* --- HTTP-TPC pull completion gate.  Both halves are evaluated after the
      * last byte lands in the staged temp and before it is committed, so a refused
@@ -140,11 +131,11 @@ typedef struct {
     ngx_str_t           dig_auth_file;     /* §3 principal→export allow-file (fail-closed) */
 
     /* Phase-2 Task 8: opt-in authenticated proxy-upload delegation endpoint.
-     * When on, a GSI-cert-authenticated PUT/POST to
-     * /.well-known/brix-delegation with body = the client's own RFC-3820
-     * proxy PEM validates and stores it under storage_credential_dir so
-     * Phase-1 per-user credential selection picks it up. Default off. */
-    ngx_flag_t          delegation_endpoint;
+     * delegation_endpoint flag moved to the shared preamble
+     * (common.delegation_endpoint) — phase-105 W2. The mechanism note lives
+     * on the preamble field: GSI-cert-authenticated PUT/POST to
+     * /.well-known/brix-delegation stores the client proxy PEM under
+     * storage_credential_dir. */
 
     /* --- CORS settings --- */
     ngx_array_t        *cors_origins;    /* allowed origins (ngx_str_t array) */
@@ -178,20 +169,15 @@ typedef struct {
     ngx_flag_t              open_file_cache_errors;
     ngx_flag_t              open_file_cache_events;
 
-    /* ---- Phase 20: shared-memory caches & rate limiting ---- */
-    brix_kv_t                  *token_cache_kv; /* [brix_token_cache zone=]
-                                                     JWT validation cache (L2/SHM); NULL = off */
+    /* Phase 20 token_cache_kv + rate_limit moved to the shared preamble
+     * (common.token_cache_kv / common.rate_limit) in phase-105 W1 —
+     * registered once on the common module, enforced per protocol. */
     /* Phase 50: always-on per-worker L1 token-validation cache (lockless),
      * lazily created on first token auth — see token/worker_cache.h. */
     struct brix_token_l1_s     *token_l1;
-    brix_rate_limit_conf_t      rate_limit;     /* [brix_rate_limit zone= rate= burst= key=]
-                                                     per-IP request throttle; kv NULL = off */
 
-    /* ---- Phase 21 Step C: OIDC token introspection (revocation) ---- */
-    ngx_str_t      introspect_url;       /* [..._token_introspect_url <url>] (display/doc) */
-    ngx_str_t      introspect_loc;       /* [..._token_introspect_loc /internal] internal URI */
-    ngx_uint_t     introspect_ttl;       /* [..._token_introspect_ttl N] revoke-cache TTL (s) */
-    ngx_flag_t     introspect_fail_open; /* [..._token_introspect_fail_open on|off] */
+    /* Phase 21 introspection quad -> shared preamble
+     * (common.introspect_*) — phase-105 W4.1; revoke_kv stays here. */
     brix_kv_t   *revoke_kv;            /* [..._revoke_cache zone=] revoked-token cache */
 
     /* ---- Phase 24: traffic mirroring (off by default) ---- */
@@ -201,10 +187,8 @@ typedef struct {
     ngx_ssl_t                *mirror_ssl_ctx;    /* TLS ctx for https shadow targets */
 #endif
 
-    /* ---- Phase 25: advanced rate limiting (off by default) ---- */
-    ngx_array_t              *rl_rules;          /* brix_rl_rule_t[] from
-                                                  [brix_rate_limit_rule /
-                                                   _bandwidth_limit]; NULL = off */
+    /* Phase 25 rl_rules moved to the shared preamble (common.rl_rules) in
+     * phase-105 W1. */
 
     /* XrdAcc authorization engine moved to the shared preamble (common.acc) in
      * phase-101 W2 — registered once on the common module, read via common.acc. */
@@ -221,7 +205,7 @@ typedef struct {
      * connection before the GET body is served; empty = kernel default.  The
      * sender's CC governs download throughput, and BBR ignores the spurious loss
      * signals packet reordering induces. [brix_tcp_congestion] */
-    ngx_str_t                 tcp_congestion;
+    /* tcp_congestion -> shared preamble (common.tcp_congestion), W2-105. */
 
     /* Client->server PUT ingest integrity: when on, a PUT that carries no usable
      * ingest digest (RFC-3230 Digest / legacy Content-MD5) is refused, for
@@ -256,6 +240,11 @@ typedef struct {
      * before html_listing. */
     ngx_flag_t                html_listing;
     ngx_str_t                 listing_redirect;
+    /* [brix_webdav_header2cgi <HTTP-header> <cgikey>] (repeatable): §6.5 —
+     * map an incoming request header into the xrd opaque the authz gate and
+     * backend see, as "&<cgikey>=<value>". ngx_keyval_t[] (key=header). */
+    ngx_array_t   *header2cgi;
+
 } ngx_http_brix_webdav_loc_conf_t;
 
 #define BRIX_WEBDAV_RDR_HTTP   0

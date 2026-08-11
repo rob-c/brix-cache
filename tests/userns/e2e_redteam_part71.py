@@ -240,6 +240,11 @@ def _rt71_liveness(stput, after, before, SECRET, s3port, OWN_BODY):
        f"liveness: clean S3 GET of alice's object after the sweep -> 200 byte-exact (HTTP {stl})")
 
 
+def _sci_orb(x):
+    """None->b'' body coalesce."""
+    return x or b""
+
+
 def run_s3_conditional_impersonation(key, data, port, s3port):
     """S3 conditional requests (phase-43 src/protocols/s3/conditional.c) under per-request
     impersonation.  conditional.c front-runs nginx's core not-modified filter with

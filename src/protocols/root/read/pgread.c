@@ -3,6 +3,7 @@
  */
 
 #include "read.h"
+#include "read_internal.h"
 
 #include "core/ngx_brix_module.h"
 #include "fs/backend/sd.h"   /* phase-55: route preadv through the SD seam */
@@ -413,32 +414,14 @@ static ngx_flag_t
 brix_pgread_try_offload(brix_ctx_t *ctx, ngx_connection_t *c,
     ngx_stream_brix_srv_conf_t *rconf, brix_pgread_run_t *run, ngx_int_t *rc)
 {
-    const u_char     *sessid;
     ngx_connection_t *sec_c;
     brix_ctx_t       *sec_ctx;
     size_t            n_pages_max, enc_max;
     u_char           *buf;
     int               io_errno;
 
-    if (run->pathid == 0) {
-        return 0;
-    }
-
-    sessid = ctx->is_bound ? ctx->bound_sessid : ctx->login.sessid;
-    sec_c  = brix_offload_lookup(sessid, run->pathid);
-    if (sec_c == NULL || sec_c == c) {
-        return 0;
-    }
-
-    sec_ctx = ngx_stream_get_module_ctx((ngx_stream_session_t *) sec_c->data,
-                                          ngx_stream_brix_module);
-    /* Ring has a free slot once all pending responses are counted — see
-     * brix_read_try_offload for the full reserved-slot accounting rationale. */
-    if (sec_ctx == NULL || sec_ctx->destroyed
-        || sec_c->fd == (ngx_socket_t) -1 || sec_ctx->out.resp_async
-        || sec_ctx->out.count + sec_ctx->out.wr_inflight
-           + sec_ctx->rd.aio_inflight >= sec_ctx->out.pipeline_depth)
-    {
+    sec_ctx = brix_read_offload_secondary(ctx, c, run->pathid, &sec_c);
+    if (sec_ctx == NULL) {
         return 0;
     }
 

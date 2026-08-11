@@ -220,6 +220,39 @@ vfs_parse_s3_origin(ngx_conf_t *cf, const char *root_canon, const ngx_str_t *sb)
 
 }
 
+/* Configure a bare local-driver backend (the non-root:// fallback). Misconfig
+ * guard: a URL-ish value no scheme claimed used to be SILENTLY ignored (a
+ * `pblock:<dir>` typo ran the default POSIX backend). The legacy single-colon
+ * posix:/pblock: spellings stay accepted (warned); any other colon form is an
+ * [emerg]. Returns NGX_OK, or NGX_ERROR on an unrecognized scheme. */
+static ngx_int_t
+vfs_config_local_backend(ngx_conf_t *cf, const char *root_canon,
+    const ngx_str_t *sb, size_t block_size)
+{
+    if (memchr(sb->data, ':', sb->len) != NULL) {
+        if ((sb->len > sizeof("posix:") - 1
+             && ngx_strncmp(sb->data, "posix:", sizeof("posix:") - 1) == 0)
+            || (sb->len > sizeof("pblock:") - 1
+                && ngx_strncmp(sb->data, "pblock:", sizeof("pblock:") - 1) == 0))
+        {
+            ngx_conf_log_error(NGX_LOG_WARN, cf, 0,
+                "brix_storage_backend \"%V\": the single-colon form is "
+                "legacy — use \"%s\" bare (default root) or "
+                "\"pblock://<dir>[?opts]\"", sb,
+                sb->data[1] == 'o' ? "posix" : "pblock");
+        } else {
+            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+                "brix_storage_backend \"%V\": unrecognized backend scheme "
+                "(known: posix, pblock, pblock://, mirage:, block:, "
+                "root://, roots://, tape://, frm://, http(s)://, s3://, "
+                "ceph:, rados:, cephfsro:)", sb);
+            return NGX_ERROR;
+        }
+    }
+    brix_vfs_backend_config(root_canon, sb, block_size);
+    return NGX_OK;
+}
+
 /* "root://host:port" / "roots://host:port" → a remote root:// primary backend;
  * any other value is a local driver name (pblock/posix) handled by
  * brix_vfs_backend_config. Returns NGX_OK, or NGX_ERROR after an [emerg] for a
@@ -247,8 +280,7 @@ vfs_parse_xroot_or_driver_origin(ngx_conf_t *cf, const char *root_canon,
     }
 
     if (addr == NULL) {
-        brix_vfs_backend_config(root_canon, sb, block_size);
-        return NGX_OK;
+        return vfs_config_local_backend(cf, root_canon, sb, block_size);
     }
 
     {

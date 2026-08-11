@@ -421,6 +421,14 @@ def _xrd_resp(s):
     return status, (_recv_exact(s, dlen) if dlen else b"")
 
 
+# Wire constants for the raw create-write open below. These were lost in a
+# helper split (the reexport chain never carried them — pre-existing NameError
+# at HEAD, surfaced by the phase-105 W3 run); values match the sibling raw
+# helpers (_test_chkpoint_stock_framing_helpers et al.) / XProtocol.hh.
+_kXR_open       = 3010
+_OPEN_CREATE_WR = 0x0020 | 0x0008   # kXR_open_updt | kXR_new
+
+
 def _xrd_open_wr(s, path):
     p = path.encode() + b"\x00"
     s.sendall(struct.pack(">2sHHH12sI", b"\x00\x05", _kXR_open, 0o644,

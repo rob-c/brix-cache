@@ -256,6 +256,11 @@ def _rt65_final_native_round_trip_worker_broker():
        f"raw-deep: after all authed adversarial frames native xrdfs ls /alice ok (rc={rc})")
 
 
+def _rkd_orb(x):
+    """Coalesce a possibly-None wire body to empty bytes for marker scans."""
+    return x or b""
+
+
 def run_raw_kxr_deep(key, data, port, s3port):
     """RAW kXR WIRE under an ACTUALLY-AUTHENTICATED ztn session, exercising the
     impersonation data/metadata plane the way run_raw_kxr_wire could not (it

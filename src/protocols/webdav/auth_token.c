@@ -433,9 +433,9 @@ webdav_verify_bearer_token(ngx_http_request_t *r,
      * cached: the decision is path-dependent and the cache is token-keyed. */
     if (!cache_hit && !via_registry) {
         brix_token_l1_store(conf->token_l1, token, token_len, &claims);
-        if (conf->token_cache_kv != NULL) {
-            brix_token_cache_store(conf->token_cache_kv, token, token_len,
-                                     &claims);
+        if (conf->common.token_cache_kv != NULL) {
+            brix_token_cache_store(conf->common.token_cache_kv, token,
+                                     token_len, &claims);
         }
     }
 

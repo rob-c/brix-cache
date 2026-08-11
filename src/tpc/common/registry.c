@@ -252,6 +252,27 @@ brix_tpc_registry_reap_stale(ngx_log_t *log)
  * only by the slot ceiling). The count is taken under the same lock as the
  * free-slot scan, so it is a consistent process-wide view.
  */
+
+/* One pass over the slot table (caller holds the lock): returns the in-use
+ * count and sets *free_slot to the first free index (or SLOTS if none). */
+static ngx_uint_t
+tpc_scan_slots(const brix_tpc_registry_table_t *tbl, ngx_uint_t *free_slot)
+{
+    ngx_uint_t in_use = 0, i;
+
+    *free_slot = BRIX_TPC_REGISTRY_SLOTS;
+    for (i = 0; i < BRIX_TPC_REGISTRY_SLOTS; i++) {
+        if (!tbl->slots[i].in_use) {
+            if (*free_slot == BRIX_TPC_REGISTRY_SLOTS) {
+                *free_slot = i;
+            }
+        } else {
+            in_use++;
+        }
+    }
+    return in_use;
+}
+
 uint64_t
 brix_tpc_registry_add(const brix_tpc_transfer_t *transfer, ngx_log_t *log,
     ngx_uint_t max_active)
@@ -276,17 +297,7 @@ brix_tpc_registry_add(const brix_tpc_transfer_t *transfer, ngx_log_t *log,
 
     ngx_shmtx_lock(&brix_tpc_registry_mutex);
 
-    free_slot = BRIX_TPC_REGISTRY_SLOTS;
-    in_use = 0;
-    for (i = 0; i < BRIX_TPC_REGISTRY_SLOTS; i++) {
-        if (!tbl->slots[i].in_use) {
-            if (free_slot == BRIX_TPC_REGISTRY_SLOTS) {
-                free_slot = i;
-            }
-        } else {
-            in_use++;
-        }
-    }
+    in_use = tpc_scan_slots(tbl, &free_slot);
 
     /* §6.9 explicit concurrency cap: refuse before claiming a slot when the
      * caller's active-transfer limit is already met. A reap first, so an
@@ -294,17 +305,7 @@ brix_tpc_registry_add(const brix_tpc_transfer_t *transfer, ngx_log_t *log,
      * recount in-use and re-find a free slot under the same lock. */
     if (max_active > 0 && in_use >= max_active) {
         (void) brix_tpc_registry_reap_locked(tbl, now);
-        in_use = 0;
-        free_slot = BRIX_TPC_REGISTRY_SLOTS;
-        for (i = 0; i < BRIX_TPC_REGISTRY_SLOTS; i++) {
-            if (!tbl->slots[i].in_use) {
-                if (free_slot == BRIX_TPC_REGISTRY_SLOTS) {
-                    free_slot = i;
-                }
-            } else {
-                in_use++;
-            }
-        }
+        in_use = tpc_scan_slots(tbl, &free_slot);
         if (in_use >= max_active) {
             ngx_shmtx_unlock(&brix_tpc_registry_mutex);
             ngx_log_error(NGX_LOG_WARN, log, 0,

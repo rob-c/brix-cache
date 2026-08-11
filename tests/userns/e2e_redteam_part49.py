@@ -231,6 +231,11 @@ def _rt49_f(delp, st, absp, s3port, XML_BODY, SECRET):
        f"S3 worker survived unhandled-sub-resource sweep (follow-up GET OK, HTTP {st})")
 
 
+def _srf_orb(x):
+    """Coalesce a possibly-None S3 body to empty bytes."""
+    return x or b""
+
+
 def run_s3_subresource_fallthrough(key, data, port, s3port):
     """S3 UNHANDLED sub-resource fall-through under per-request impersonation.
 

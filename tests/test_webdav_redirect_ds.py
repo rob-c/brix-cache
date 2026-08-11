@@ -1,6 +1,6 @@
 """
 tests/test_webdav_redirect_ds.py — §6.1 HTTP redirect-to-dataserver +
-brix_http_secretkey signed-CGI identity handoff.
+brix_webdav_secretkey signed-CGI identity handoff.
 
 Two nginx instances share one HMAC secret:
 

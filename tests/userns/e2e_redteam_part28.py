@@ -5,6 +5,10 @@ def _rt28_a_alice_carol_both_staff_concurrently(data):
     lock = threading.Lock()
 
     # ---------------------------------------------------------------------------
+    _group_concurrency_p1(s3port, data, staffdir_fs, port, lock, gr_path, key, SR)
+
+
+def _group_concurrency_p1(s3port, data, staffdir_fs, port, lock, gr_path, key, SR):
     # (A) alice + carol (both staff) concurrently CREATE distinct files in the
     #     0770 staffdir.  Each file must end up owned by its REAL creator (never
     #     svc/root, never the other member) — proves the per-request principal is
@@ -92,7 +96,10 @@ def _rt28_per_member_aggregate_every_created_file(N_each, members, creator, crea
         t.start()
     for t in threads:
         t.join()
+    _group_concurrency_p2(members, s3port, data, staffdir_fs, N_each, gr_path, port, lock, key, create_results, SR)
 
+
+def _group_concurrency_p2(members, s3port, data, staffdir_fs, N_each, gr_path, port, lock, key, create_results, SR):
     # Per-member aggregate: every created file owned by the right member, no leak.
     for sub, uid in members:
         _rt28_for_each_sub_uid_members_2(N_each, create_results, sub, uid)
@@ -127,6 +134,10 @@ def _rt28_b_interleaved_reads_of_grp_staff(members, N_each, create_results, svc_
        f"no concurrent staffdir create landed as svc/root (worker-uid leaks={svc_or_root})")
 
     # ---------------------------------------------------------------------------
+    _group_concurrency_p3(members, s3port, data, staffdir_fs, gr_path, port, lock, key, SR)
+
+
+def _group_concurrency_p3(members, s3port, data, staffdir_fs, gr_path, port, lock, key, SR):
     # (B) Interleaved READS of grp/staff_r.txt (0640 alice:staff): carol (member,
     #     allowed) racing bob (non-member, denied).  EVERY carol read must return
     #     the marker; EVERY bob read must be denied AND marker-free.  A setgroups
@@ -197,6 +208,10 @@ def _rt28_segment_10(carol_reads, R, carol_ok, bob_reads, SR):
 def _rt28_c_mixed_storm_members_and_non():
 
     # ---------------------------------------------------------------------------
+    _group_concurrency_p4(members, s3port, data, staffdir_fs, port, lock, key, gr_path, SR)
+
+
+def _group_concurrency_p4(members, s3port, data, staffdir_fs, port, lock, key, gr_path, SR):
     # (C) MIXED storm: members and non-members hammer staff group resources at
     #     once (member create + member read + non-member create-attempt + non-member
     #     read-attempt).  Record breaches inline, then scan the tree afterwards.
@@ -364,6 +379,10 @@ def _rt28_d_full_tree_sweep_for_any(storm_made, storm_uid, storm_seen, storm_wro
        f"{storm_wrong} wrong-owner artifacts")
 
     # ---------------------------------------------------------------------------
+    _group_concurrency_p5(members, s3port, data, staffdir_fs, port, lock, key, gr_path, SR)
+
+
+def _group_concurrency_p5(members, s3port, data, staffdir_fs, port, lock, key, gr_path, SR):
     # (D) Full-tree sweep for ANY gc_-prefixed artifact owned by svc(1500) or
     #     root(0) anywhere under the staffdir — the unambiguous signature of an
     #     impersonation that silently fell back to the worker identity.
@@ -413,6 +432,10 @@ def _rt28_and_no_gc_artifact_owned_by(staffdir_fs, data):
        f"(illegal={illegal[:5]})")
 
     # ---------------------------------------------------------------------------
+    _group_concurrency_p6(members, s3port, data, staffdir_fs, port, lock, key, gr_path, SR)
+
+
+def _group_concurrency_p6(members, s3port, data, staffdir_fs, port, lock, key, gr_path, SR):
     # (E) Concurrent creates in the SETGID staffdir? No — use the dedicated 2770
     #     sgiddir: concurrent alice+carol creates must each inherit the staff GROUP
     #     (setgid semantics) while keeping the real creator as OWNER, even under
@@ -588,6 +611,10 @@ def _rt28_check_try_body(data, SR):
 def _rt28_still_succeeds_positive_control_that_the(gr_path, lock, SR, s3port, data, staffdir_fs, sgid_fs):
 
     # ---------------------------------------------------------------------------
+    _group_concurrency_p7(s3port, staffdir_fs, sgid_fs, lock, data, gr_path, SR)
+
+
+def _group_concurrency_p7(s3port, staffdir_fs, sgid_fs, lock, data, gr_path, SR):
     # (F) Cross-protocol parity for the read-leak under load: drive the same
     #     member-allowed / non-member-denied race over root:// (different protocol,
     #     same kernel DAC).  Guarded by xrd_avail().
@@ -596,6 +623,10 @@ def _rt28_still_succeeds_positive_control_that_the(gr_path, lock, SR, s3port, da
         _rt28_when_xrd_avail(lock, gr_path, SR)
 
     # ---------------------------------------------------------------------------
+    _group_concurrency_p8(s3port, staffdir_fs, sgid_fs, data, SR)
+
+
+def _group_concurrency_p8(s3port, staffdir_fs, sgid_fs, data, SR):
     # (G) S3 covers the alice (owner) leg: under concurrent member/non-member load
     #     on the same group file, alice's authenticated S3 GET of her own 0640 file
     #     still succeeds (positive control that the contention did not corrupt the
@@ -610,6 +641,10 @@ def _rt28_still_succeeds_positive_control_that_the(gr_path, lock, SR, s3port, da
            f"concurrency storm (HTTP {st})")
 
     # ---------------------------------------------------------------------------
+    _group_concurrency_p9(staffdir_fs, sgid_fs, data, SR)
+
+
+def _group_concurrency_p9(staffdir_fs, sgid_fs, data, SR):
     # (H) Final invariant: the staff group FILE itself was never mutated by the
     #     read/non-member storm — owner alice, group staff, mode unchanged, marker
     #     intact on disk (no concurrent op corrupted the shared group resource).

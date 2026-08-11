@@ -1,7 +1,7 @@
 /*
  * stream_mirror.h — Phase 24 XRootD stream traffic mirror.
  *
- * Off by default.  When `brix_stream_mirror_url host:port` is configured on a
+ * Off by default.  When `brix_mirror_url host:port` is configured on a
  * server block, a qualifying READ request (kXR_stat/locate/open/dirlist/statx,
  * per brix_mirror_opcodes) is replayed fire-and-forget to one or more shadow
  * XRootD servers AFTER the primary handler has already answered the client.

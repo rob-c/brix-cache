@@ -117,7 +117,7 @@ brix_dispatch(brix_ctx_t *ctx, ngx_connection_t *c,
     brix_imp_request_end();
     if (rc != BRIX_DISPATCH_CONTINUE) {
         /* Phase 24: fire-and-forget replay of this read to the shadow server(s).
-         * No-op unless brix_stream_mirror_url is configured; the primary
+         * No-op unless brix_mirror_url is configured; the primary
          * response has already been queued to the client above. */
         brix_stream_mirror_maybe(ctx, c, conf, rc);
         /* Phase 24 W3: kXR_close finalises a data-write mirror (open/write/close

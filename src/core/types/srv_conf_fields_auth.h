@@ -73,8 +73,8 @@
     ngx_str_t     authdb;       /* [brix_authdb /etc/xrootd/authdb] */
     ngx_array_t  *authdb_rules; /* brix_authdb_rule_t[] parsed from authdb (native) */
 
-    /* ---- XrdAcc engine (selected by `brix_authdb_format xrdacc`) ---- */
-    brix_acc_conf_t  acc;  /* [brix_authdb_format, brix_authdb_audit, ...]
+    /* ---- XrdAcc engine (selected by `brix_authdb_engine xrdacc`) ---- */
+    brix_acc_conf_t  acc;  /* [brix_authdb_engine, brix_acc_audit, ...]
                               — see brix_acc_conf_t. */
     ngx_array_t  *group_rules;  /* brix_group_rule_t[] from brix_inherit_parent_group */
     ngx_array_t  *manager_map;  /* brix_manager_map_t[] from brix_manager_map */
@@ -117,7 +117,7 @@
      * GSI proxy/cert at root:// login (xrd.tlsca verdepth analog). Passed to
      * brix_gsi_verify_chain → X509_STORE_CTX_set_depth. 0 (default) = OpenSSL's
      * built-in limit (unlimited from our side), byte-identical to before.
-     * [brix_gsi_verify_depth N] */
+     * [brix_verify_depth N] */
     ngx_int_t    gsi_verify_depth;
 
     /* Per-worker ephemeral-DH keypool sizing (see src/gsi/keypool.c). At worker
@@ -168,7 +168,9 @@
     ngx_str_t   token_jwks;      /* [brix_token_jwks /etc/xrd/jwks.json] */
     ngx_str_t   token_issuer;    /* [brix_token_issuer https://cilogon.org] */
     ngx_str_t   token_audience;  /* [brix_token_audience https://storage.example.org] */
-    ngx_int_t   token_clock_skew; /* [brix_token_clock_skew 30] seconds of exp grace;
+    time_t      token_clock_skew; /* [brix_token_clock_skew 30|30s] exp grace;
+                                     sec_slot (phase-105 W8 — suffixes legal, the
+                                     300s security clamp still rejects loudly);
                                      NGX_CONF_UNSET = inherit/default
                                      (BRIX_TOKEN_CLOCK_SKEW_SECS); max 300 */
     ngx_str_t   token_config;    /* [brix_token_config /etc/xrd/scitokens.cfg]
@@ -242,6 +244,9 @@
                                        must match one.  NULL/empty = deny all. */
 
     /* ---- Pwd auth settings (used when auth = pwd) — Phase 52 WS-B ---- */
+    ngx_int_t    auth_maxfail;      /* [brix_auth_maxfail <n>] §5.7: failed auth
+                                       attempts per connection before disconnect;
+                                       <=0/unset ⇒ BRIX_MAX_AUTH_ATTEMPTS (10). */
     ngx_str_t    pwd_file;          /* [brix_pwd_file <path>] password database:
                                        one "user:salthex:hashhex" line per user,
                                        hash = PBKDF2-HMAC-SHA1(pw,salt,10000,24B).

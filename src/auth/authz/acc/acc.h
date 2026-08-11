@@ -3,7 +3,7 @@
  *
  * WHAT: the public surface of src/acc/ — a faithful re-implementation of
  *   XRootD's XrdAcc authorization framework, selectable at runtime via
- *   `brix_authdb_format xrdacc;`.  This header re-exports the pure privilege
+ *   `brix_authdb_engine xrdacc;`.  This header re-exports the pure privilege
  *   algebra (privs.h) and will declare the entity, tables, and Access() engine
  *   as the milestones land.
  *
@@ -196,10 +196,10 @@ const char *brix_acc_resolve_peer(struct sockaddr *sa, socklen_t salen,
  * locking, exactly like the stream srv conf.
  */
 typedef struct {
-    ngx_uint_t   format;        /* [brix_authdb_format] native|xrdacc */
-    ngx_uint_t   audit;         /* [brix_authdb_audit] */
+    ngx_uint_t   format;        /* [brix_authdb_engine (stream) | brix_acc_format (HTTP)] native|xrdacc */
+    ngx_uint_t   audit;         /* [brix_acc_audit] */
     ngx_str_t    authdb;        /* [brix_authdb <path>] */
-    ngx_int_t    refresh;       /* [brix_authdb_refresh] secs; 0=off */
+    ngx_int_t    refresh;       /* [brix_acc_refresh] secs; 0=off */
     ngx_int_t    gidlifetime;   /* [brix_acc_gidlifetime] */
     ngx_flag_t   pgo;           /* [brix_acc_pgo] primary group only */
     ngx_str_t    nisdomain;     /* [brix_acc_nisdomain] */
@@ -229,7 +229,7 @@ ngx_int_t brix_acc_http_authorize(ngx_pool_t *pool, ngx_log_t *log,
 void brix_acc_http_init_conf(brix_acc_http_t *acc);
 void brix_acc_http_merge_conf(brix_acc_http_t *conf, brix_acc_http_t *prev);
 
-/* Shared directive enum tables for `brix_authdb_format` / `_audit`. */
+/* Shared directive enum tables for `brix_authdb_engine` / `_audit`. */
 extern ngx_conf_enum_t  brix_acc_format_modes[];
 extern ngx_conf_enum_t  brix_acc_audit_modes[];
 

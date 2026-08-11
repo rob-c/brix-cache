@@ -369,6 +369,29 @@ brix_handle_auth_inner(brix_ctx_t *ctx, ngx_connection_t *c)
  * guard), but skip the limit on the GSI certreq round (the server's cert response
  * is not a credential failure). Delegates to brix_handle_auth_inner, then resets
  * the counter on success or increments it on failure. */
+
+/* GSI round 1 (kXGC_certreq) and pwd round 1 are protocol continuations — the
+ * server answers kXR_authmore, not a credential verdict — so they must not
+ * count toward the attempt limit. Returns 1 for such a round-1 message. */
+static int
+auth_is_round1_continuation(brix_ctx_t *ctx)
+{
+    if (ctx->recv.cur_dlen >= 8 && ctx->recv.payload != NULL) {
+        const u_char *ctype = ctx->recv.cur_body + 12;
+        if (ctype[0] == 'g' && ctype[1] == 's' && ctype[2] == 'i') {
+            uint32_t step;
+            ngx_memcpy(&step, ctx->recv.payload + 4, 4);
+            return ntohl(step) == (uint32_t) kXGC_certreq;
+        }
+        if (ctype[0] == 'p' && ctype[1] == 'w' && ctype[2] == 'd'
+            && ctype[3] == 0) {
+            /* pwd round 1 is the puk-exchange (ctx->pwd.round still 0). */
+            return ctx->pwd.round == 0;
+        }
+    }
+    return 0;
+}
+
 ngx_int_t
 brix_handle_auth(brix_ctx_t *ctx, ngx_connection_t *c)
 {
@@ -386,13 +409,20 @@ brix_handle_auth(brix_ctx_t *ctx, ngx_connection_t *c)
     ERR_clear_error();
 
     /* Reject after repeated failures — guards against brute-force attempts
-     * and CPU-amplification via costly GSI/OpenSSL/VOMS operations. */
-    if (ctx->login.auth_fail_count >= BRIX_MAX_AUTH_ATTEMPTS) {
+     * and CPU-amplification via costly GSI/OpenSSL/VOMS operations. §5.7: the
+     * cap is brix_auth_maxfail when configured (>0), else the built-in default. */
+    {
+    ngx_stream_brix_srv_conf_t *mfconf =
+        ngx_stream_get_module_srv_conf(ctx->session, ngx_stream_brix_module);
+    ngx_uint_t maxfail = (mfconf != NULL && mfconf->auth_maxfail > 0)
+        ? (ngx_uint_t) mfconf->auth_maxfail : BRIX_MAX_AUTH_ATTEMPTS;
+    if (ctx->login.auth_fail_count >= maxfail) {
         ngx_log_error(NGX_LOG_WARN, c->log, 0,
                       "brix: %s: auth attempt limit reached, disconnecting",
                       ctx->login.user);
         return brix_send_error(ctx, c, kXR_NotAuthorized,
                                  "Too many authentication failures");
+    }
     }
 
     /*
@@ -400,19 +430,7 @@ brix_handle_auth(brix_ctx_t *ctx, ngx_connection_t *c)
      * kXR_authmore (its certificate / its DH public) — a protocol continuation,
      * not a credential failure, so it must not count toward the attempt limit.
      */
-    is_certreq = 0;
-    if (ctx->recv.cur_dlen >= 8 && ctx->recv.payload != NULL) {
-        const u_char *ctype = ctx->recv.cur_body + 12;
-        if (ctype[0] == 'g' && ctype[1] == 's' && ctype[2] == 'i') {
-            uint32_t step;
-            ngx_memcpy(&step, ctx->recv.payload + 4, 4);
-            is_certreq = (ntohl(step) == (uint32_t) kXGC_certreq);
-        } else if (ctype[0] == 'p' && ctype[1] == 'w' && ctype[2] == 'd'
-                   && ctype[3] == 0) {
-            /* pwd round 1 is the puk-exchange (ctx->pwd.round still 0). */
-            is_certreq = (ctx->pwd.round == 0);
-        }
-    }
+    is_certreq = auth_is_round1_continuation(ctx);
 
     was_auth_done = ctx->login.auth_done;
     rc = brix_handle_auth_inner(ctx, c);

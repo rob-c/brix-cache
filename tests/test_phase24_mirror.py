@@ -60,12 +60,20 @@ def test_directives_registered():
     # phase-79 split: the clustering/traffic directive tables moved into
     # directives_net.h on both surfaces (webdav via module_commands.c,
     # stream via module.c — each #includes its directives_net.h).
-    wd = _read("src/protocols/webdav/directives_net.h")
+    # phase-105 W2: the HTTP mirror settings register on the common module
+    # (one owner per plane); the stream plane keeps its own bare entries.
+    hc = _read("src/core/config/http_common.c") \
+        + _read("src/core/config/http_directives_ops.h")
     for name in ("brix_mirror_url", "brix_mirror_methods",
                  "brix_mirror_sample", "brix_mirror_strip_auth"):
-        assert name in wd, name
+        assert name in hc, name
+    # The webdav fragment must NOT re-register them (first-module-wins would
+    # silently shadow the common owner).
+    wd = _read("src/protocols/webdav/directives_net.h")
+    for name in ("brix_mirror_url", "brix_mirror_methods"):
+        assert ('ngx_string("%s")' % name) not in wd, name
     st = _read("src/protocols/root/stream/directives_net.h")
-    for name in ("brix_stream_mirror_url", "brix_mirror_opcodes"):
+    for name in ("brix_mirror_url", "brix_mirror_opcodes"):
         assert name in st, name
 
 
@@ -169,12 +177,14 @@ def test_mirror_writes_off_by_default_and_gated_in_source():
     # into stream_mirror_launch.c.
     sm = _read("src/net/mirror/stream_mirror_launch.c")
     assert "OP_WRITE_ALL" in sm and "mirror_writes" in sm
-    # Default merge is 0 (off) on both surfaces.  phase-79 split: the cluster/
-    # mirror merge moved from server_conf.c into server_conf_merge_cluster.c,
-    # and the webdav proxy/mirror merge from config.c into config_proxy.c.
+    # Default merge is 0 (off) on both surfaces.  phase-79 split: the stream
+    # cluster/mirror merge lives in server_conf_merge_cluster.c; phase-105 W2:
+    # the HTTP settings merge moved into the shared preamble merge
+    # (shared_conf.h), one audit point for every HTTP protocol.
     assert "conf->mirror.mirror_writes,\n                         prev->mirror.mirror_writes, 0" \
         in _read("src/core/config/server_conf_merge_cluster.c")
-    assert "prev->mirror.mirror_writes, 0" in _read("src/protocols/webdav/config_proxy.c")
+    assert "prev->mirror.mirror_writes, 0" \
+        in _read("src/core/config/shared_conf_merge.h")
 
 
 # --------------------------------------------------------------------------- #

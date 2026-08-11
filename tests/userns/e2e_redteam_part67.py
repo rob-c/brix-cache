@@ -246,7 +246,10 @@ def _rt67_invariant_bob_s_dir_ownership_mode(svc_after, svc_before, owner, bob_b
     ok(all((owner('bob') == bob_before, bob_before[0] in (UID_BOB, None))),
        f"bob/ ownership+mode unchanged by scope-granted alice writes "
        f"(now {owner('bob')})")
+    _scoped_token_dac_matrix_p2(key, rm, port, owner, pub_listing, pub_before, is_2xx, READ_ONLY, UID_ROOT, exists)
 
+
+def _scoped_token_dac_matrix_p2(key, rm, port, owner, pub_listing, pub_before, is_2xx, READ_ONLY, UID_ROOT, exists):
     # ===================================================================
     # (e) aud-ARRAY + multi-scope + wlcg.groups -> identity = SUB's uid only
     # ===================================================================

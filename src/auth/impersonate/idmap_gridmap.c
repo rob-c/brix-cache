@@ -23,6 +23,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <time.h>
+#include <fnmatch.h>
 
 
 typedef struct {
@@ -195,7 +196,15 @@ idmap_gridmap_load(const char *path, ngx_log_t *log)
     return NGX_OK;
 }
 
-/* Look up a DN in the grid-mapfile; returns the local username or NULL. */
+/* Look up a DN in the grid-mapfile; returns the local username or NULL.
+ *
+ * §5.8 (-gmapfun DN pattern mapping): an EXACT DN wins first (specific beats
+ * general, and it is the common fast path). Failing that, a mapfile key that
+ * carries a glob metacharacter (star/question/bracket) is matched against the
+ * DN with fnmatch(3) — the pattern form that closes the "exact-DN file only"
+ * gap so a site can map a whole CA/OU subtree (a key ending in a star, e.g.
+ * "/DC=org/DC=ex/OU=People/"+star) to one account. First matching pattern in
+ * file order wins (author-ordered priority), like the classic gridmap wildcard. */
 const char *
 idmap_gridmap_lookup(const char *dn)
 {
@@ -203,6 +212,15 @@ idmap_gridmap_lookup(const char *dn)
 
     for (i = 0; i < idmap_gridmap_n; i++) {
         if (strcmp(idmap_gridmap[i].dn, dn) == 0) {
+            return idmap_gridmap[i].user;
+        }
+    }
+    for (i = 0; i < idmap_gridmap_n; i++) {
+        const char *key = idmap_gridmap[i].dn;
+
+        if (key[strcspn(key, "*?[")] != '\0'
+            && fnmatch(key, dn, FNM_NOESCAPE) == 0)
+        {
             return idmap_gridmap[i].user;
         }
     }

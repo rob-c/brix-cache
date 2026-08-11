@@ -1,11 +1,54 @@
 # Phase 103 — Project-wide maintainability conformance (file-size + complexity, every tree)
 
 **Date:** 2026-08-09
-**Status:** 📋 **PLAN ONLY — no fixes in this document.** Nothing here has been
-implemented. This is the complete work order; execution is separate PRs, each
-gated exactly as §11 describes. Every number is measured on `99eff8bd`
-(2026-08-09) with the repo's own tools and is reproducible with the commands in
-§11.4 — no figure below is estimated unless the word "≈" precedes it.
+**Status:** 🚧 **IN PROGRESS.** Workstream A (the guard-coverage gaps) is landed
+and wired into CI; the `tools/`+`utils/` Python complexity backlog is burned to
+zero. The C burndowns (B/C/D) and the `tests/` Python burndown (E) remain, gated
+behind the two §3 ratification decisions. See the **Implementation progress**
+ledger below. This document remains the work order; the census numbers below are
+measured on `99eff8bd` (2026-08-09) and reproducible with the §11.4 commands — no
+figure is estimated unless "≈" precedes it. Execution lands in separate PRs, each
+gated exactly as §11 describes.
+
+### Implementation progress (updated 2026-08-11)
+
+- **Workstream E — Python complexity + file-size → BOTH ZERO (DONE).**
+  `py_complexity_backlog.txt` **= 0 entries** and `py_file_size_backlog.txt` **= 0
+  entries**; `check_py_complexity.py` and `check_py_file_size.py` both exit 0, and
+  `check_ratchet_monotonic.py` is green. Every Python function under
+  `tests/`+`utils/`+`tools/` is now ≤ CCN 15 and every `.py` ≤ 600 logical LoC.
+  The `tests/` burndown covered all 61 `userns/e2e_redteam_part*` impersonation
+  batteries (CCN 27–129) plus 15 non-userns functions, decomposed behavior-
+  preservingly (each helper's params verified free of leaked locals; userns
+  assembly-load and `pytest --collect-only` re-checked). Decomposition-driven
+  growth of nine `e2e_redteam` shards past 600 lines was absorbed into two new
+  lean continuation shards `userns/e2e_redteam_part78/79.py` (load range bumped to
+  `range(2, 80)`); the two standalone oversized files were split via
+  `xrd_sec_probe_part2.register_extra(...)` (helpers passed as params — no
+  `__main__` circular import) and `_test_session_bind_helpers_b.py` (reexport-exec
+  so pytest still collects the moved classes).
+
+### Implementation progress (updated 2026-08-10)
+
+- **Workstream A — guard coverage — DONE.** `check_file_size`/`check_complexity`
+  extended to `src`+`client`+`shared` and (via `readability.run_lizard(lang=None)`)
+  to `.cpp/.cc`; NEW `check_py_complexity.py` + `check_py_file_size.py` gate the
+  Python trees (`tests`/`utils`/`tools`) at CCN 15 / 600 logical LoC. All four are
+  registered in `check_ratchet_monotonic.py`, the pytest guard harness
+  (`test_ci_guards.py`), and **`.github/workflows/guards.yml`** (the Python
+  complexity twin sits in `guard_set.PREPUSH_SKIP`, like its C counterpart);
+  `check_directive_registry.py` is likewise wired + made executable.
+- **Workstream E (partial) — `tools/`+`utils/` Python complexity → ZERO.** All 16
+  offenders in those two trees decomposed below CCN 15; `py_complexity_backlog.txt`
+  shrank 154 → 138 (the remainder is the `tests/` set). Regression coverage for the
+  decompositions lives in `tests/test_maintainability_tools.py` (16 tests: verdict
+  helpers, both splitters, the reference-server protocol round-trip, token kinds).
+- **Remaining:** Workstream B (52 `src`+`client` C), C (25 `shared` C), D (1 `.cpp`
+  size split), and the `tests/` half of E (138 Python functions). **Blocked on the
+  two §3 decisions** (test-`main()`/pytest-body exemption; `shared/xrdproto`
+  carve-out) — those determine which of the `tests/` + `shared/` offenders are
+  burned down vs. moved to a documented allowlist, so they must be ratified before
+  that tranche starts.
 **Predecessors:** [`phase-38-file-size-unix-modularity.md`](phase-38-file-size-unix-modularity.md)
 (the file-size ratchet + the userns-inert finding in its §7.7); commit `1e86223a`
 plus `tools/ci/complexity_backlog.txt` (the CCN-15 gate on `src/`+`client/` C).

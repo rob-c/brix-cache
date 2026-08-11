@@ -1,6 +1,6 @@
 """test_acc_residual.py — residual XrdAcc parity gaps closed after the M0–M8 port.
 
-Each class is a self-provisioned nginx running `brix_authdb_format xrdacc` over an
+Each class is a self-provisioned nginx running `brix_authdb_engine xrdacc` over an
 anonymous root:// (or http) tier, driving raw-wire / curl requests to prove a gap
 that the initial port left open:
 
@@ -12,7 +12,7 @@ that the initial port left open:
   RA3  `brix_acc_resolve_hosts` reverse-DNSes the peer so `h <host>` rules match.
   RB1  `brix_acc_refresh` hot-reloads the authdb for HTTP (WebDAV) with no
        restart.  (W5 2026-08-10: the HTTP XrdAcc tuner is brix_acc_refresh; the
-       stream reference plane keeps brix_authdb_refresh.)
+       stream reference plane keeps brix_acc_refresh.)
   RB2  `brix_acc_encoding` URI-decodes authdb path tokens (`%20` -> space).
   RC1  the auth-result cache is active under xrdacc and keys on the operation, so a
        cached Update grant is never replayed for a Create on the same path.

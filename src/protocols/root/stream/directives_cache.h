@@ -6,6 +6,23 @@
 #pragma once
     /* cache/proxy directives (merged into ngx_stream_brix_commands[]) */
     /* Read-through cache mode: serve from a local cache_root and fill misses. */
+    /* §4.9 pss.dca: redirect a cache-resident file to a kXR_lclfile-capable
+     * client's local path for direct off-FS reads. Default off. */
+    /* §4.8: a directory stat returns its recursive subtree size (du). Off default. */
+    { ngx_string("brix_dirstats"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,
+      ngx_conf_set_flag_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_brix_srv_conf_t, dirstats),
+      NULL },
+
+    { ngx_string("brix_pss_dca"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,
+      ngx_conf_set_flag_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_brix_srv_conf_t, pss_dca),
+      NULL },
+
     { ngx_string("brix_cache"),
       NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,
       ngx_conf_set_flag_slot,
@@ -141,21 +158,21 @@
      * a driver-backed cache is the tier grammar's brix_cache_store
      * ("pblock:<dir> block_size=<n>", any driver), cinfo carried in-store. */
 
-    { ngx_string("brix_cache_wt_stage_root"),
+    { ngx_string("brix_wt_stage_root"),
       NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
       ngx_conf_set_str_slot,
       NGX_STREAM_SRV_CONF_OFFSET,
       offsetof(ngx_stream_brix_srv_conf_t, cache_wt_stage_root),
       NULL },
 
-    { ngx_string("brix_cache_wt_stage_backend"),
+    { ngx_string("brix_wt_stage_backend"),
       NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
       ngx_conf_set_str_slot,
       NGX_STREAM_SRV_CONF_OFFSET,
       offsetof(ngx_stream_brix_srv_conf_t, cache_wt_stage_backend),
       NULL },
 
-    { ngx_string("brix_cache_wt_stage_block_size"),
+    { ngx_string("brix_wt_stage_block_size"),
       NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
       ngx_conf_set_size_slot,
       NGX_STREAM_SRV_CONF_OFFSET,

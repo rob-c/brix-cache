@@ -231,6 +231,93 @@ These seconds-valued directives now accept nginx time units (`s`/`m`/`h`/`d`) in
 | `brix_webdav_cache_root` | `brix_cache_root` | legacy read-through cache root; field moved to the shared preamble. Bare name covers both HTTP protocols. Canon + outside-export guard unchanged. |
 | `brix_s3_cache_root` | `brix_cache_root` | same, s3 plane. |
 
-> Not converted: `brix_token_clock_skew` carries a `[0,300]` security clamp on both planes, so `10m`=600 would be rejected — a unit-confusion footgun that needs its own deliberate handling before a sec_slot swap. Of the `ngx_uint_t` seconds fields, `brix_webdav_cors_max_age` and `brix_webdav_lock_timeout` are now `time_t`/`sec_slot` (done); `brix_storage_credential_mint_ttl` remains deferred — it has 10+ readers threading into the `ngx_uint_t` vfs field, so a clean conversion needs the vfs struct + signatures changed in the same pass.
+> ~~Not converted: `brix_token_clock_skew`~~ **Converted in phase-105 W8** (see below): now `sec_slot` on both planes; the `[0,300]` security clamp is retained and rejects loudly — `10m` fails `nginx -t` with "capped at 300s", never silently truncates. Of the `ngx_uint_t` seconds fields, `brix_webdav_cors_max_age` and `brix_webdav_lock_timeout` are now `time_t`/`sec_slot` (done); `brix_storage_credential_mint_ttl` remains deferred — it has 10+ readers threading into the `ngx_uint_t` vfs field, so a clean conversion needs the vfs struct + signatures changed in the same pass.
 
 **Ratelimit size parsers unified (additive):** the rate-limit code had two size parsers; the burst/zone path used nginx's `ngx_parse_size`, which handles only `k`/`m` — **not `g`** — while the bandwidth-rate path hand-rolled `k`/`m`/`g`. Both now share one `k`/`m`/`g` helper, so a `g` suffix on a burst (`burst=1g`) or a zone size (`zone=z:1g`) is now accepted, matching the rate grammar that already allowed `1g/s`. Strict superset — nothing that parsed before is rejected. (This corrects the phase-101 plan's premise that deleting the hand-rolled parser in favor of `ngx_parse_size` would be a superset — it would have REGRESSED, dropping `g`.)
+
+## Phase-105 — config-surface wave 2
+
+### W1 — rate-limit/zones family: owner + reach change (names unchanged)
+
+No spelling changes. `brix_kv_zone`, `brix_token_cache`, `brix_rate_limit`,
+`brix_rate_limit_zone`, `brix_rate_limit_rule`, `brix_bandwidth_limit` and
+`brix_concurrency_limit` were registered by the WEBDAV module on the HTTP
+plane; in an S3/cvmfs location they parsed cleanly and did nothing
+(`brix_rate_limit` / `brix_token_cache`), or worked only via an
+implementation accident (the shaping trio). They now register once on the
+common module:
+
+- **New capability:** the per-location names are accepted at `http{}` /
+  `server{}` scope — one `brix_rate_limit` line covers every brix protocol
+  below it.
+- **New enforcement:** `brix_rate_limit` (IP-keyed) now sheds S3 and cvmfs
+  traffic with 429; `brix_token_cache` now amortizes S3 bearer-token
+  validation. Audit configs that set these at server scope "for webdav
+  only" — they now apply to sibling brix protocols under the same scope
+  (move them into the webdav location to keep the old reach).
+- `brix_rate_limit_rule` / `brix_bandwidth_limit` /
+  `brix_concurrency_limit` now inherit into nested locations like every
+  other rule array (previously location-exact).
+
+### W8 — leftovers
+
+| Directive | Before | After |
+|---|---|---|
+| `brix_token_clock_skew` | `num_slot` (bare seconds), clamp `[0,300]`, HTTP clamp enforced only under webdav merges | `sec_slot` on BOTH planes (`30` == `30s`); the 300s security clamp moved into the shared HTTP merge so s3/cvmfs enforce it too, and rejects loudly ("capped at 300s (security clamp against unit confusion)") — `10m` is an `nginx -t` error, never a silent truncation |
+| `brix_cache_wt_stage_root` | *(stream)* | `brix_wt_stage_root` — hard rename; one `brix_wt_stage_*` prefix for the whole write-back-staging feature (was split across `brix_cache_wt_stage_*` + `brix_wt_stage_*_watermark`) |
+| `brix_cache_wt_stage_backend` | *(stream)* | `brix_wt_stage_backend` |
+| `brix_cache_wt_stage_block_size` | *(stream)* | `brix_wt_stage_block_size` |
+
+### Phase-105 W3 — cross-plane spelling drift (hard renames)
+
+One concept, one spelling on both planes. Old names are stock
+`unknown directive` errors.
+
+| Old name | New name | Plane that changes | Notes |
+|---|---|---|---|
+| `brix_webdav_tpc_token_endpoint` | `brix_tpc_outbound_token_endpoint` | HTTP | outbound-leg OAuth acquisition for TPC pull — now spelled like the stream plane |
+| `brix_webdav_tpc_token_client_id` | `brix_tpc_outbound_client_id` | HTTP | |
+| `brix_webdav_tpc_token_client_secret` | `brix_tpc_outbound_client_secret` | HTTP | |
+| `brix_webdav_tpc_token_scope` | `brix_tpc_outbound_scope` | HTTP | |
+| `brix_authdb_format` | `brix_authdb_engine` | stream | it SELECTS the authorization engine (`native\|xrdacc`) — the new name says so; HTTP's `brix_acc_format` (an XrdAcc value tuner) is a different mechanism and keeps its name |
+| `brix_authdb_audit` | `brix_acc_audit` | stream | XrdAcc tuner — joins the `brix_acc_*` prefix the other seven tuners already use (same spelling as HTTP) |
+| `brix_authdb_refresh` | `brix_acc_refresh` | stream | same |
+| `brix_stream_mirror_url` | `brix_mirror_url` | stream | the only `stream_`-prefixed name in its own otherwise-bare mirror family; now matches the HTTP spelling |
+| `brix_webdav_maxdelay` | `brix_max_delay` | HTTP | the xrootd maxdelay analog (cap on the advertised client wait), same spelling as the stream plane; field moved to the shared preamble, registered at `http{}`/`server{}`/location scope. Per-plane defaults KEEP: HTTP 0 = off (emit the protocol default), stream 60 |
+
+### Phase-105 W2/W3.5/W4.1 — ownership completion + remaining de-prefixes
+
+Hard renames (old names are stock `unknown directive`):
+
+| Old name | New name | Notes |
+|---|---|---|
+| `brix_http_query_token` | `brix_webdav_query_token` | query-string token ACCEPTANCE toggle (default on) — a webdav auth-surface knob; the bare `brix_http_*` spelling invited the "applies to S3 too" misread |
+| `brix_http_secretkey` | `brix_webdav_secretkey` | redirect-CGI HMAC key — pairs with the `brix_webdav_redirect_*` family |
+| `brix_webdav_verify_depth` / `brix_gsi_verify_depth` | `brix_verify_depth` | ONE spelling on both planes for the accepted client proxy-chain depth cap (semantics verified: webdav VOMS-proxy/delegation verify + stream GSI login are the same role). Per-plane defaults KEEP: HTTP 10, stream 0=unlimited |
+| `brix_webdav_token_introspect_url` | `brix_token_introspect_url` | the 101 Table-1 introspection quad, landed |
+| `brix_webdav_token_introspect_loc` | `brix_token_introspect_loc` | |
+| `brix_webdav_token_introspect_ttl` | `brix_token_introspect_ttl` | now `sec_slot` (`45` == `45s`) |
+| `brix_webdav_token_introspect_fail_open` | `brix_token_introspect_fail_open` | |
+
+Owner moves WITHOUT rename (spelling stable; new reach/scopes):
+`brix_credential` (block, now beside `brix_storage_credential` on the common
+module), `brix_delegation_endpoint`, `brix_client_ca_store`,
+`brix_trusted_ca`, `brix_trusted_ca_dir`, `brix_tcp_congestion` (now applied
+by the shared file-serve path for EVERY HTTP download — webdav, S3, cvmfs),
+and the eight `brix_mirror_*` settings (now accepted at `http{}`/`server{}`
+scope and honestly cross-protocol; the mirror phase handlers were always
+global). The introspection quad + mirror + `brix_tcp_congestion` now also
+configure S3/cvmfs locations for real — audit configs that assumed
+webdav-only reach. `brix_backend_ca_dir` deliberately stays webdav-owned
+(its setter programs the stock `proxy_ssl_trusted_certificate` machinery for
+that location's proxy back leg — an nginx-proxy-module bridge, not a
+cross-protocol knob).
+
+> **101 Table-1 correction (phase-105 W4.2, decided):**
+> `brix_webdav_macaroon_max_validity` and `brix_webdav_macaroon_location`
+> KEEP their prefixes — they parameterize the macaroon MINTING endpoint,
+> which exists only as a DAV POST; the shared trust material
+> (`brix_macaroon_secret*`) is already bare. This mirrors the
+> `brix_webdav_auth` selector precedent (how a protocol exposes a feature is
+> per-protocol; what the shared config IS, is not). The 101 Table-1 rows
+> planning bare names for these two are superseded.

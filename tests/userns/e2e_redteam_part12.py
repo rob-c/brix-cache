@@ -80,6 +80,10 @@ def _rt12_segment_06(data, TAG):
 
 def _rt12_a_keep_alive_interleave_a_b(TAG, ta, tb, port):
 
+    _concurrency_state_race_p1(s3port, port, apath, st_uid, data, rm_quiet, ta, tb, scan_misowned, TAG, bpath)
+
+
+def _concurrency_state_race_p1(s3port, port, apath, st_uid, data, rm_quiet, ta, tb, scan_misowned, TAG, bpath):
     # ============================================================================
     # A) KEEP-ALIVE INTERLEAVE — a,b,a,b... on ONE TCP connection.  If the principal
     #    is reused stale, alice's PUT could create bob-owned files or land in bob/.
@@ -120,7 +124,10 @@ def _rt12_no_alice_file_leaked_into_bob(bpath, TAG, apath):
         if os.path.exists(apath(f"{TAG}ka_b_{i}.txt")):
             cross += 1
     ok(cross == 0, f"keep-alive: no request landed in the other tenant's dir (cross={cross})")
+    _concurrency_state_race_p2(s3port, port, apath, st_uid, data, rm_quiet, ta, tb, scan_misowned, TAG, bpath)
 
+
+def _concurrency_state_race_p2(s3port, port, apath, st_uid, data, rm_quiet, ta, tb, scan_misowned, TAG, bpath):
     # ============================================================================
     # B) BURST ORDERING — aaaa...bbbb...aaaa on one connection (run of same identity
     #    then a flip).  A flip without re-establishing the principal would write the
@@ -177,7 +184,10 @@ def _rt12_segment_10(order, burst, TAG, ta, tb, port, data, st_uid):
 def _rt12_c_pipelined_puts_same_path_alternating(flip_bad, TAG, ta, tb, port):
     ok(flip_bad == 0, f"burst-order: every post-flip request used the CORRECT principal "
        f"(no stale carry-over; bad={flip_bad})")
+    _concurrency_state_race_p3(s3port, port, apath, st_uid, data, rm_quiet, ta, tb, scan_misowned, TAG, bpath)
 
+
+def _concurrency_state_race_p3(s3port, port, apath, st_uid, data, rm_quiet, ta, tb, scan_misowned, TAG, bpath):
     # ============================================================================
     # C) PIPELINED PUTs same path, alternating identities — last writer wins but the
     #    file must end up owned by WHOEVER actually wrote it, never svc/root, and the
@@ -206,6 +216,7 @@ def _rt12_alice_s_dir_is_0755_alice(apath, shared, st_uid):
         fb = b""
     ok(b"bob-attempt" not in fb,
        "pipelined same-path: bob's interleaved write did NOT overwrite alice's file body")
+    _concurrency_state_race_p4(s3port, data, rm_quiet, st_uid, port, ta, apath, tb, scan_misowned, TAG, bpath)
 
 
 def _rt12_d_simultaneous_same_path_create_by(TAG, data, rm_quiet):
@@ -249,6 +260,7 @@ def _rt12_segment_15(rm_quiet, pp, create_pub, st_uid):
     ok(all((winner != UID_SVC, winner != 0)),
        f"same-path race: created file NEVER owned by worker(1500)/root(0) (uid={winner})")
     rm_quiet(pp)
+    _concurrency_state_race_p5(s3port, port, ta, apath, tb, scan_misowned, TAG, data, bpath, st_uid, rm_quiet)
 
 
 def _rt12_e_open_as_a_then_immediately(TAG, port, ta, apath):
@@ -287,7 +299,10 @@ def _rt12_f_many_concurrent_collection_copys_true(a_st, SECRET, a_body, b_st, b_
     ok(all((b_st in (401, 403, 404), SECRET not in any((b_body, b'')))),
        f"open-race: bob CANNOT read alice's 0600 file via principal carry-over "
        f"(HTTP {b_st})")
+    _concurrency_state_race_p6(s3port, port, ta, apath, tb, scan_misowned, data, TAG, bpath, st_uid, rm_quiet)
 
+
+def _concurrency_state_race_p6(s3port, port, ta, apath, tb, scan_misowned, data, TAG, bpath, st_uid, rm_quiet):
     # ============================================================================
     # F) MANY CONCURRENT COLLECTION COPYs (true threads).  COPY of a collection runs
     #    inline (recursive walk + per-child create) — a long op that holds the
@@ -333,6 +348,10 @@ def _rt12_every_copied_tree_must_be_owned(coll_copy, copy_bad):
     ok(all((len(copy_bad) <= 12, all((b[2] not in (-1,) for b in copy_bad)))),
        f"concurrent collection COPY: no broker hang/connection-death "
        f"(failures={copy_bad[:3]})")
+    _concurrency_state_race_p7(s3port, port, ta, apath, tb, scan_misowned, data, TAG, bpath, st_uid, rm_quiet)
+
+
+def _concurrency_state_race_p7(s3port, port, ta, apath, tb, scan_misowned, data, TAG, bpath, st_uid, rm_quiet):
     # every copied tree must be owned by the DRIVING user only (no desync cross-owner)
     coll_mis = 0
     return coll_mis
@@ -377,7 +396,10 @@ def _rt12_g_lock_token_theft_race_alice(apath, TAG, st, st_uid, port, ta):
     pcp = apath(f"{TAG}post_copy.txt")
     ok(all((st in (200, 201, 204), os.path.exists(pcp), st_uid(pcp) == UID_ALICE)),
        f"broker SURVIVES the COPY storm: follow-up alice PUT owned alice (HTTP {st})")
+    _concurrency_state_race_p8(s3port, port, ta, tb, scan_misowned, TAG, apath, bpath, st_uid, data, rm_quiet)
 
+
+def _concurrency_state_race_p8(s3port, port, ta, tb, scan_misowned, TAG, apath, bpath, st_uid, data, rm_quiet):
     # ============================================================================
     # G) LOCK-TOKEN THEFT RACE — alice LOCKs her file; bob (concurrently, same worker)
     #    tries to mutate it presenting alice's lock token in If:.  The lock token is
@@ -430,7 +452,10 @@ def _rt12_control_alice_with_her_own_lock(st_uid, apath, lk, port, ta, token_uri
                   hdrs={"If": f"(<{token_uri}>)"})
     ok(ast in (200, 201, 204),
        f"control: alice with her own lock token writes her own file (HTTP {ast})")
+    _concurrency_state_race_p9(s3port, scan_misowned, port, ta, tb, apath, bpath, TAG, data, st_uid, rm_quiet)
 
+
+def _concurrency_state_race_p9(s3port, scan_misowned, port, ta, tb, apath, bpath, TAG, data, st_uid, rm_quiet):
     # ============================================================================
     # H) MULTIPART CROSS-IDENTITY DRIVE (S3) — alice initiates an uploadId, bob drives
     #    the part/complete with a BOB-signed request.  Parts + final object must map by
@@ -474,7 +499,10 @@ def _rt12_control_alice_with_her_own_lock(st_uid, apath, lk, port, ta, token_uri
             rm_quiet(mfp)
     else:
         ok(True, "S3 multipart cross-identity skipped (S3 port not up)")
+    _concurrency_state_race_p10(scan_misowned, port, ta, tb, apath, bpath, data, TAG, st_uid)
 
+
+def _concurrency_state_race_p10(scan_misowned, port, ta, tb, apath, bpath, data, TAG, st_uid):
     # ============================================================================
     # I) CONCURRENT MIXED PROTOCOL/OP STORM (true threads) with embedded cross-tenant
     #    attacks — alice PUT, bob PUT, alice MKCOL, bob DELETE-own, alice->bob PUT
@@ -549,7 +577,10 @@ def _rt12_j_post_storm_global_ownership_scan(NSTORM, storm, storm_bad, scan_miso
     ok(not storm_bad,
        f"mixed protocol/op storm: no cross-tenant op slipped through a race window "
        f"(breaches={storm_bad[:4]})")
+    _concurrency_state_race_p11(scan_misowned, port, ta, tb, apath, bpath, data, TAG, st_uid)
 
+
+def _concurrency_state_race_p11(scan_misowned, port, ta, tb, apath, bpath, data, TAG, st_uid):
     # ============================================================================
     # J) POST-STORM GLOBAL OWNERSHIP SCAN — after EVERY storm above, scan both user
     #    dirs and assert zero wrong-owner regular files (the decisive principal-leak
@@ -576,7 +607,10 @@ def _rt12_explicit_svc_root_sweep_across_pub(misowned, data, TAG, ta, tb):
         pass
     ok(not pub_bad,
        f"post-storm scan: no svc/root-owned file in the shared /pub dir (leaks={pub_bad[:4]})")
+    _concurrency_state_race_p12(port, ta, tb, apath, bpath, TAG, st_uid)
 
+
+def _concurrency_state_race_p12(port, ta, tb, apath, bpath, TAG, st_uid):
     # ============================================================================
     # K) FINAL LIVENESS — after all the storms, both identities still work correctly
     #    and independently on a fresh keep-alive connection (broker not wedged, no

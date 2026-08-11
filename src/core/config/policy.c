@@ -22,7 +22,7 @@ brix_conf_set_authdb(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 
     /*
      * The auth-mode requirement (authdb needs gsi/token for the native engine)
-     * is validated at merge time, where `brix_authdb_format` is final — the
+     * is validated at merge time, where `brix_authdb_engine` is final — the
      * xrdacc engine also authorizes anonymous `u *` rules, so it is exempt.
      * (Directive order means xcf->auth / acc_format are not yet settled here.)
      */

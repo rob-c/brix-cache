@@ -9,7 +9,7 @@
  *   inclusive (`s`) rule capabilities.
  *
  * WHY: faithful port of XrdAccConfig::ConfigDBrec()/idDef() plus the
- *   XrdAccAuthFile tokenizer, so a site can point `brix_authdb_format xrdacc`
+ *   XrdAccAuthFile tokenizer, so a site can point `brix_authdb_engine xrdacc`
  *   at an existing XRootD authdb and get identical structure.
  *
  * HOW: this unit is the orchestrator — it loads the file (<= 1 MiB), drives the

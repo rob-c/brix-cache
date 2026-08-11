@@ -177,6 +177,10 @@ def _rt48_a1_positive_control_alice_put_into(TAG, realp, exists, uid_of, MARK_SV
     ok(all((exists(awork), uid_of(awork) == UID_ALICE)),
        "fixture: alice 0755 scratch dir for positive controls")
 
+    _combo_error_rollback_p1(s3port, port, ta, body_of, listdir, ndw, MARK_SVC, realp, awork, MARK_BOB, size_of, exists, residue, bad_owned, TAG, uid_of, base)
+
+
+def _combo_error_rollback_p1(s3port, port, ta, body_of, listdir, ndw, MARK_SVC, realp, awork, MARK_BOB, size_of, exists, residue, bad_owned, TAG, uid_of, base):
     # =========================================================================
     # (a) WebDAV PUT whose staged temp opens but the FINAL RENAME is DENIED.
     #     Two flavours: PUT into a dir alice can enter but not write; and PUT
@@ -246,7 +250,10 @@ def _rt48_a4_empty_body_put_zero_length(residue, ndw, port, ta, exists, awork):
     st, _ = http("PUT", f"/{ndw}/empty.bin", port, ta, b"")
     ok(all((st not in (200, 201, 204), not exists(f'{ndw}/empty.bin'), residue(ndw) == [])),
        f"(a) empty-body PUT into denied dir leaves nothing (HTTP {st})")
+    _combo_error_rollback_p2(s3port, port, ta, awork, listdir, ndw, MARK_BOB, size_of, exists, TAG, body_of, residue, big, bad_owned, uid_of, base)
 
+
+def _combo_error_rollback_p2(s3port, port, ta, awork, listdir, ndw, MARK_BOB, size_of, exists, TAG, body_of, residue, big, bad_owned, uid_of, base):
     # =========================================================================
     # (b) WebDAV COPY whose DEST is cross-tenant-denied.  alice COPYs her OWN
     #     readable file to a path inside bob's no-write dir: the source read
@@ -303,6 +310,7 @@ def _rt48_b3_copy_whose_source_is_bob(TAG, port, ta, base, awork, exists, MARK_B
     ok(residue(awork) == [],
        f"(b) no staged-temp residue in alice's dir after denied-source COPY "
        f"(saw {residue(awork)})")
+    _combo_error_rollback_p3(s3port, port, ta, listdir, ndw, size_of, exists, TAG, awork, body_of, MARK_BOB, big, bad_owned, uid_of, residue)
 
 
 def _rt48_segment_01_2(TAG, s3port):
@@ -491,6 +499,7 @@ def _rt48_every_staged_part_inside_is_alice(s3port, TAG, listdir, uid_of, bad_ow
     else:
         st = _rt48_otherwise_s3_up(TAG, s3port, listdir, uid_of, exists, bad_owned)
 
+def _combo_error_rollback_p4(port, ta, listdir, ndw, size_of, exists, awork, body_of, MARK_BOB, big, bad_owned, uid_of, TAG, residue):
     # =========================================================================
     # (d) MKCOL whose PARENT is denied / missing.  Combine: MKCOL under a parent
     #     that does not exist (409), MKCOL inside bob's no-write dir (403), and
@@ -527,7 +536,10 @@ def _rt48_truncates_bob_s_0600_file_denied(listdir, ndw, before, bad_owned, awor
     st, _ = http("MKCOL", f"/{awork}/cer_isfile.txt", port, ta)
     ok(all((st not in (200, 201), body_of(f'{awork}/cer_isfile.txt') == b'i-am-a-file\n', uid_of(f'{awork}/cer_isfile.txt') == UID_ALICE)),
        f"(d) MKCOL over existing file DENIED, file intact (HTTP {st})")
+    _combo_error_rollback_p5(port, ta, size_of, exists, listdir, awork, body_of, MARK_BOB, big, bad_owned, TAG, uid_of, residue, ndw)
 
+
+def _combo_error_rollback_p5(port, ta, size_of, exists, listdir, awork, body_of, MARK_BOB, big, bad_owned, TAG, uid_of, residue, ndw):
     # =========================================================================
     # (e) TRUNCATE that fails (root://) -> file size unchanged.  Combine: alice
     #     truncates bob's 0600 file (denied) vs her own (control); then truncate
@@ -566,6 +578,7 @@ def _rt48_truncates_bob_s_0600_file_denied(listdir, ndw, before, bad_owned, awor
             rc, _, _ = xrd_fs(["truncate", f"/bob/{TAG}_0700.txt", "0"], "alice")
             ok(all((rc != 0, size_of(f'bob/{TAG}_0700.txt') == psz, psz > 0)),
                f"(e) truncate of bob 0700 file DENIED, size unchanged (rc={rc})")
+    _combo_error_rollback_p6(port, ta, listdir, awork, body_of, MARK_BOB, big, bad_owned, TAG, uid_of, exists, residue, ndw)
 
 
 def _rt48_f1_positive_control_alice_tpc_of(TAG, awork, uid_of):
@@ -653,6 +666,8 @@ def _rt48_control_source_alice_s_own_readable(TAG, awork, uid_of, exists, listdi
         # control source: alice's own readable file.
         _rt48_otherwise_xrd_avail(TAG, awork, uid_of, exists, listdir, MARK_BOB, body_of, residue, bad_owned)
 
+
+def _combo_error_rollback_p7(port, ta, big, awork, bad_owned, uid_of, exists, residue, ndw):
     # =========================================================================
     # CROSS-CUT: a denied PUT followed IMMEDIATELY by a legit op on the SAME
     #     keep-alive connection — proves the failed-op rollback did not wedge the
@@ -756,3 +771,116 @@ def run_combo_error_rollback(key, data, port, s3port):
 
 
 # ===== Round-7 genuinely-new batches (workflow-authored) =====
+
+
+def _cer_s3_mpu(s3port, TAG, listdir, exists, bad_owned, uid_of):
+    """S3 multipart-rollback leg, from run_combo_error_rollback p3."""
+    mkey = f"alice/{TAG}_mpu.bin"
+    st_i, bdy = s3("POST", mkey, s3port, params={"uploads": ""})
+    m = re.search(rb"<UploadId>([^<]+)</UploadId>", bdy or b"")
+    up = m.group(1).decode() if m else None
+    ok(st_i == 200 and up,
+       f"(c) multipart initiate for abandon test (HTTP {st_i})")
+
+    def mpu_dir_name():
+        # staging dir layout: .<objname>.mpu-<uploadid> beside the final key
+        for n in listdir("alice"):
+            if n.startswith(f".{TAG}_mpu.bin.mpu-") or ".mpu-" in n:
+                if n.startswith(f".{TAG}_mpu.bin"):
+                    return n
+        return None
+
+    if up:
+        _cer_mpu_up(s3port, TAG, mkey, mpu_dir_name, up, listdir, exists, bad_owned, uid_of)
+    __cer_s3_mpu_p1(s3port, TAG, bad_owned, exists)
+
+
+def __cer_s3_mpu_p1(s3port, TAG, bad_owned, exists):
+    # (c2) ABORT of a FORGED uploadId must create no staging dir / no object,
+    #      and leave no svc/root residue (combining abort + forgery + residue).
+    st_a, _ = s3("DELETE", f"alice/{TAG}_forged.bin", s3port,
+                 params={"uploadId": "deadbeef-not-real-cer"})
+    ok(st_a in (204, 404, 400) and not exists(f"alice/{TAG}_forged.bin"),
+       f"(c) abort of forged uploadId no-ops cleanly (HTTP {st_a})")
+    ok(bad_owned("alice") == [],
+       f"(c) forged-abort left no svc/root residue (saw {bad_owned('alice')})")
+
+
+def _cer_mpu_up(s3port, TAG, mkey, mpu_dir_name, up, listdir, exists, bad_owned, uid_of):
+    """MPU complete/verify/abort leg (up branch), from _cer_s3_mpu."""
+    # upload only SOME parts, then abandon (never Complete).
+    st, _ = s3("PUT", mkey, s3port,
+               params={"uploadId": up, "partNumber": "1"},
+               data=b"P" * 5242880)
+    ok(st in (200, 201), f"(c) UploadPart 1 of abandoned MPU (HTTP {st})")
+    st, _ = s3("PUT", mkey, s3port,
+               params={"uploadId": up, "partNumber": "2"},
+               data=b"Q" * 4096)
+    ok(st in (200, 201), f"(c) UploadPart 2 of abandoned MPU (HTTP {st})")
+
+    mdir = mpu_dir_name()
+    if mdir is not None:
+        duid = uid_of(f"alice/{mdir}")
+        ok(duid == UID_ALICE and duid not in (UID_SVC, 0),
+           f"(c) INVARIANT: MPU staging dir owned by mapped user alice "
+           f"(uid={duid})")
+        # every staged part inside is alice-owned, never svc/root.
+        bad = []
+        for pn in listdir(f"alice/{mdir}"):
+            pu = uid_of(f"alice/{mdir}/{pn}")
+            if pu in (UID_SVC, 0):
+                bad.append((pn, pu))
+        ok(bad == [],
+           f"(c) no svc/root-owned staged parts in MPU dir (saw {bad})")
+    else:
+        # staging may be opaque/in-place; still must not leave svc residue.
+        ok(bad_owned("alice") == [],
+           f"(c) no svc/root-owned MPU residue in alice dir "
+           f"(saw {bad_owned('alice')})")
+
+    __cer_mpu_up_p1(mkey, s3port, TAG, up, exists, listdir, bad_owned, uid_of)
+
+
+def __cer_mpu_up_p1(mkey, s3port, TAG, up, exists, listdir, bad_owned, uid_of):
+    # ABORT must remove the staging dir and assemble NO final object.
+    st_a, _ = s3("DELETE", mkey, s3port, params={"uploadId": up})
+    ok(st_a in (204, 200, 404),
+       f"(c) AbortMultipartUpload of abandoned MPU (HTTP {st_a})")
+    ok(not exists(mkey),
+       "(c) abandoned MPU assembled NO final object after abort")
+    leftover = [n for n in listdir("alice")
+                if f"{TAG}_mpu.bin.mpu-" in n or
+                n.startswith(f".{TAG}_mpu.bin.mpu-")]
+    ok(leftover == [],
+       f"(c) abort cleaned the MPU staging dir, no orphan parts "
+       f"(saw {leftover})")
+    ok(bad_owned("alice") == [],
+       f"(c) no svc/root-owned residue after MPU abort "
+       f"(saw {bad_owned('alice')})")
+
+    # POSITIVE CONTROL: a clean small MPU completes + is alice-owned, so
+    # the abort path above is a real per-lifecycle clean-up, not a blanket
+    # MPU failure.
+    okkey = f"alice/{TAG}_mpu_ok.bin"
+    st_i2, b2 = s3("POST", okkey, s3port, params={"uploads": ""})
+    m2 = re.search(rb"<UploadId>([^<]+)</UploadId>", b2 or b"")
+    up2 = m2.group(1).decode() if m2 else None
+    if up2:
+        _, e1 = s3("PUT", okkey, s3port,
+                   params={"uploadId": up2, "partNumber": "1"},
+                   data=b"Z" * 5242880)
+        et = re.search(rb'ETag>\\?"?([^"<\\]+)', e1 or b"")
+        etag = et.group(1).decode() if et else "x"
+        cx = (b"<CompleteMultipartUpload><Part><PartNumber>1</PartNumber>"
+              + f"<ETag>{etag}</ETag></Part></CompleteMultipartUpload>"
+              .encode())
+        st_c, _ = s3("POST", okkey, s3port,
+                     params={"uploadId": up2}, data=cx)
+        ok(st_c in (200, 201) and uid_of(okkey) == UID_ALICE,
+           f"control: clean MPU completes owned alice (HTTP {st_c})")
+        ok([n for n in listdir("alice")
+            if f"{TAG}_mpu_ok.bin.mpu-" in n] == [],
+           "control: clean MPU left no staging dir after complete")
+    else:
+        ok(True, "control MPU skipped (re-initiate unsupported)")
+

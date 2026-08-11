@@ -107,7 +107,7 @@ ones a reviewer must know:
 | Write-through | `brix_write_through`, `brix_wt_mode`/`_origin`/`_deny_prefix`/`_allow_prefix` |
 | Transparent proxy | `brix_proxy`, `brix_proxy_upstream`(`_tls`/`_tls_ca`/`_tls_name`), `brix_proxy_auth`, `brix_proxy_login_user`, `brix_proxy_audit_log`, `brix_proxy_reconnect_attempts`, `brix_proxy_connect_timeout`/`_read_timeout`/`_keepalive_interval`, `brix_proxy_path_rewrite` |
 | Health checks (Phase 22) | `brix_health_check`(`_interval`/`_timeout`/`_threshold`/`_blacklist`/`_type`) |
-| Traffic mirror (Phase 24) | `brix_stream_mirror_url`, `brix_mirror_opcodes`/`_exclude_opcodes`/`_sample`/`_strip_auth`/`_writes`/`_log_diverge`/`_timeout` |
+| Traffic mirror (Phase 24) | `brix_mirror_url`, `brix_mirror_opcodes`/`_exclude_opcodes`/`_sample`/`_strip_auth`/`_writes`/`_log_diverge`/`_timeout` |
 | KV / cache / rate-limit (Phase 20/25) | `brix_kv_zone`, `brix_token_cache`, `brix_auth_cache`, `brix_rate_limit`(+`_zone`/`_rule`), `brix_bandwidth_limit`, `brix_concurrency_limit` |
 | Tuning / misc | `brix_thread_pool`, `brix_memory_budget`, `brix_readv_segment_size` (per-`kXR_readv`-element cap = official `maxReadv_ior`; default 2 MiB−16, advertised via Qconfig `readv_ior_max`), `brix_ckscan_depth`/`_max_files`, `brix_prepare_command` |
 

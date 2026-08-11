@@ -160,7 +160,7 @@ tpc_cred_run_token_exchange(const tpc_cred_request_t *req,
             "tpc_cred: token-exchange is selected but no token endpoint "
             "is configured",
             "third-party-copy credential mode is token-exchange, but "
-            "brix_webdav_tpc_token_endpoint is unset",
+            "brix_tpc_outbound_token_endpoint is unset",
             "set the OAuth token endpoint for your IdP, or switch the TPC "
             "credential mode away from token-exchange");
         webdav_tpc_cred_metric_increment(r, BRIX_TPC_CRED_NERROR);

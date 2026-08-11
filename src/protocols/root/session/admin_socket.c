@@ -141,16 +141,214 @@ admin_pause_timeout(ngx_event_t *ev)
     ngx_post_event(tc->read, &ngx_posted_events);
 }
 
+/* Length of `line` with any trailing CR/LF run stripped. */
+static size_t
+admin_strip_eol(const u_char *line, size_t len)
+{
+    while (len > 0 && (line[len - 1] == '\n' || line[len - 1] == '\r')) {
+        len--;
+    }
+    return len;
+}
+
+/* Set st->reply_len from a formatted one-shot reply into `out`. */
+static void
+admin_reply(brix_admin_conn_t *st, u_char *out, const char *msg)
+{
+    st->reply_len = (size_t) (ngx_snprintf(out, BRIX_ADMIN_REPLY_MAX,
+        "%s", msg) - out);
+}
+
+/* Resolve a session id to its local ctx (NULL when unknown/not-local/destroyed);
+ * *target_out receives the connection when found. */
+static brix_ctx_t *
+admin_resolve_ctx(const u_char *sessid, ngx_connection_t **target_out)
+{
+    ngx_connection_t *target = brix_offload_lookup(sessid, BRIX_ADMIN_PATHID);
+    brix_ctx_t       *tctx;
+
+    *target_out = target;
+    if (target == NULL) {
+        return NULL;
+    }
+    tctx = ngx_stream_get_module_ctx((ngx_stream_session_t *) target->data,
+                                     ngx_stream_brix_module);
+    return (tctx == NULL || tctx->destroyed) ? NULL : tctx;
+}
+
+/* "list" — enumerate the local offloaded sessions. */
+static void
+admin_cmd_list(brix_admin_conn_t *st, u_char *out)
+{
+    admin_list_state_t ls;
+    u_char head[32];
+    u_char *he;
+    size_t  hlen;
+
+    ls.buf = out + 32;                  /* body after the "ok <n>\n" header */
+    ls.len = 0;
+    ls.cap = BRIX_ADMIN_REPLY_MAX - 64;
+    ls.n = 0;
+    (void) brix_offload_foreach(admin_list_cb, &ls);
+
+    he = ngx_snprintf(head, sizeof(head), "ok %uz\n", ls.n);
+    hlen = (size_t) (he - head);
+    /* The body was built past the largest possible header; slide the header in
+     * front of it so the reply is one contiguous run. */
+    ngx_memcpy(out + 32 - hlen, head, hlen);
+    st->reply = out + 32 - hlen;
+    st->reply_len = hlen + ls.len;
+}
+
+/* "disc <sid>" — graceful shutdown(2); the loop's EOF path does the teardown. */
+static void
+admin_cmd_disc(brix_admin_conn_t *st, u_char *out, u_char *line, size_t len)
+{
+    u_char            sessid[BRIX_SESSION_ID_LEN];
+    ngx_connection_t *target;
+
+    if (!admin_parse_sessid(line + 5, len - 5, sessid)) {
+        admin_reply(st, out, "err unknown-command\n");
+        return;
+    }
+    target = brix_offload_lookup(sessid, BRIX_ADMIN_PATHID);
+    if (target == NULL) {
+        admin_reply(st, out, "err unknown-or-not-local\n");
+        return;
+    }
+    (void) shutdown(target->fd, SHUT_RDWR);
+    admin_reply(st, out, "ok\n");
+}
+
+/* "msg <sid> <text>" — deliver an async attn message to the target session. */
+static void
+admin_cmd_msg(brix_admin_conn_t *st, u_char *out, u_char *line, size_t len)
+{
+    u_char           *sp = ngx_strlchr(line + 4, line + len, ' ');
+    u_char            sessid[BRIX_SESSION_ID_LEN];
+    ngx_connection_t *target;
+    brix_ctx_t       *tctx;
+    const char       *text;
+    size_t            tlen;
+
+    if (sp == NULL
+        || !admin_parse_sessid(line + 4, (size_t) (sp - (line + 4)), sessid)) {
+        admin_reply(st, out, "err unknown-command\n");
+        return;
+    }
+    text = (const char *) sp + 1;
+    tlen = (size_t) (line + len - (sp + 1));
+    tctx = admin_resolve_ctx(sessid, &target);
+    if (target == NULL) {
+        admin_reply(st, out, "err unknown-or-not-local\n");
+    } else if (tctx == NULL || tlen == 0) {
+        admin_reply(st, out, "err target-unusable\n");
+    } else if (brix_send_attn_asyncms(tctx, target, text, tlen) != NGX_OK) {
+        admin_reply(st, out, "err send-failed\n");
+    } else {
+        admin_reply(st, out, "ok\n");
+    }
+}
+
+/* "pause <sid> [secs]" — stop parsing the target; optional auto-resume timer. */
+static void
+admin_cmd_pause(brix_admin_conn_t *st, u_char *out, u_char *line, size_t len)
+{
+    u_char           *sp = ngx_strlchr(line + 6, line + len, ' ');
+    size_t            hexlen = sp ? (size_t) (sp - (line + 6)) : len - 6;
+    u_char            sessid[BRIX_SESSION_ID_LEN];
+    ngx_connection_t *target;
+    brix_ctx_t       *tctx;
+    ngx_int_t         secs = 0;
+
+    if (sp != NULL) {
+        secs = ngx_atoi(sp + 1, (size_t) (line + len - (sp + 1)));
+        if (secs == NGX_ERROR || secs < 0) {
+            admin_reply(st, out, "err bad-seconds\n");
+            return;
+        }
+    }
+    if (!admin_parse_sessid(line + 6, hexlen, sessid)) {
+        admin_reply(st, out, "err unknown-command\n");
+        return;
+    }
+    tctx = admin_resolve_ctx(sessid, &target);
+    if (tctx == NULL) {
+        admin_reply(st, out, "err unknown-or-not-local\n");
+        return;
+    }
+    tctx->admin_paused = 1;
+    if (secs > 0) {
+        tctx->admin_pause_ev.handler = admin_pause_timeout;
+        tctx->admin_pause_ev.data = target;
+        tctx->admin_pause_ev.log = target->log;
+        ngx_add_timer(&tctx->admin_pause_ev, (ngx_msec_t) secs * 1000);
+    }
+    admin_reply(st, out, "ok\n");
+}
+
+/* "cont <sid>" — clear a pause and repost the read event. */
+static void
+admin_cmd_cont(brix_admin_conn_t *st, u_char *out, u_char *line, size_t len)
+{
+    u_char            sessid[BRIX_SESSION_ID_LEN];
+    ngx_connection_t *target;
+    brix_ctx_t       *tctx;
+
+    if (!admin_parse_sessid(line + 5, len - 5, sessid)) {
+        admin_reply(st, out, "err unknown-command\n");
+        return;
+    }
+    tctx = admin_resolve_ctx(sessid, &target);
+    if (tctx == NULL) {
+        admin_reply(st, out, "err unknown-or-not-local\n");
+        return;
+    }
+    if (tctx->admin_pause_ev.timer_set) {
+        ngx_del_timer(&tctx->admin_pause_ev);
+    }
+    tctx->admin_paused = 0;
+    /* Resume parsing whatever backed up while paused: the recv loop yielded
+     * without re-arming, so the read event must be posted. */
+    ngx_post_event(target->read, &ngx_posted_events);
+    admin_reply(st, out, "ok\n");
+}
+
+/* "abort <sid>" — RST-on-close (SO_LINGER{1,0}) then shutdown(2). */
+static void
+admin_cmd_abort(brix_admin_conn_t *st, u_char *out, u_char *line, size_t len)
+{
+    u_char            sessid[BRIX_SESSION_ID_LEN];
+    ngx_connection_t *target;
+    struct linger     lg;
+
+    if (!admin_parse_sessid(line + 6, len - 6, sessid)) {
+        admin_reply(st, out, "err unknown-command\n");
+        return;
+    }
+    target = brix_offload_lookup(sessid, BRIX_ADMIN_PATHID);
+    if (target == NULL) {
+        admin_reply(st, out, "err unknown-or-not-local\n");
+        return;
+    }
+    /* Abort = disconnect WITHOUT ceremony: SO_LINGER{1,0} makes the teardown's
+     * eventual close(2) send an RST instead of a FIN, so the client sees
+     * ECONNRESET — stock abort semantics. The teardown still runs through the
+     * normal event-loop EOF path (no re-entrancy), exactly like disc. */
+    lg.l_onoff = 1;
+    lg.l_linger = 0;
+    (void) setsockopt(target->fd, SOL_SOCKET, SO_LINGER, &lg, sizeof(lg));
+    (void) shutdown(target->fd, SHUT_RDWR);
+    admin_reply(st, out, "ok\n");
+}
+
 /* Dispatch one complete command line into a pool-allocated reply. */
 static void
 admin_dispatch(ngx_connection_t *c, brix_admin_conn_t *st)
 {
-    u_char            *line = st->cmd;
-    size_t             len = st->cmd_len;
-    u_char             sessid[BRIX_SESSION_ID_LEN];
-    ngx_connection_t  *target;
-    brix_ctx_t        *tctx;
-    u_char            *out;
+    u_char *line = st->cmd;
+    size_t  len = st->cmd_len;
+    u_char *out;
 
     out = ngx_pnalloc(c->pool, BRIX_ADMIN_REPLY_MAX);
     if (out == NULL) {
@@ -158,174 +356,25 @@ admin_dispatch(ngx_connection_t *c, brix_admin_conn_t *st)
     }
     st->reply = out;
     st->reply_sent = 0;
+    len = admin_strip_eol(line, len);
 
-    /* Strip the trailing newline (and optional CR). */
-    while (len > 0 && (line[len - 1] == '\n' || line[len - 1] == '\r')) {
-        len--;
-    }
-
+    /* Prefix-match the verb; each handler parses its own operands and owns its
+     * reply (falling back to unknown-command on a malformed session id). */
     if (len == 4 && ngx_strncmp(line, "list", 4) == 0) {
-        admin_list_state_t ls;
-
-        ls.buf = out + 32;              /* body after the "ok <n>\n" header */
-        ls.len = 0;
-        ls.cap = BRIX_ADMIN_REPLY_MAX - 64;
-        ls.n = 0;
-        (void) brix_offload_foreach(admin_list_cb, &ls);
-        {
-            u_char head[32];
-            u_char *he = ngx_snprintf(head, sizeof(head), "ok %uz\n", ls.n);
-            size_t  hlen = (size_t) (he - head);
-
-            /* The body was built past the largest possible header; slide the
-             * header in front of it so the reply is one contiguous run. */
-            ngx_memcpy(out + 32 - hlen, head, hlen);
-            st->reply = out + 32 - hlen;
-            st->reply_len = hlen + ls.len;
-        }
-        return;
+        admin_cmd_list(st, out);
+    } else if (len > 5 && ngx_strncmp(line, "disc ", 5) == 0) {
+        admin_cmd_disc(st, out, line, len);
+    } else if (len > 4 && ngx_strncmp(line, "msg ", 4) == 0) {
+        admin_cmd_msg(st, out, line, len);
+    } else if (len > 6 && ngx_strncmp(line, "pause ", 6) == 0) {
+        admin_cmd_pause(st, out, line, len);
+    } else if (len > 5 && ngx_strncmp(line, "cont ", 5) == 0) {
+        admin_cmd_cont(st, out, line, len);
+    } else if (len > 6 && ngx_strncmp(line, "abort ", 6) == 0) {
+        admin_cmd_abort(st, out, line, len);
+    } else {
+        admin_reply(st, out, "err unknown-command\n");
     }
-
-    if (len > 5 && ngx_strncmp(line, "disc ", 5) == 0
-        && admin_parse_sessid(line + 5, len - 5, sessid))
-    {
-        target = brix_offload_lookup(sessid, BRIX_ADMIN_PATHID);
-        if (target == NULL) {
-            st->reply_len = (size_t) (ngx_snprintf(out, BRIX_ADMIN_REPLY_MAX,
-                "err unknown-or-not-local\n") - out);
-            return;
-        }
-        /* shutdown(2), not an inline teardown: the event loop's normal EOF
-         * path then runs the full disconnect (registry/offload/handle cleanup)
-         * with no re-entrancy from the admin handler. */
-        (void) shutdown(target->fd, SHUT_RDWR);
-        st->reply_len = (size_t) (ngx_snprintf(out, BRIX_ADMIN_REPLY_MAX,
-            "ok\n") - out);
-        return;
-    }
-
-    if (len > 4 && ngx_strncmp(line, "msg ", 4) == 0) {
-        u_char *sp = ngx_strlchr(line + 4, line + len, ' ');
-
-        if (sp != NULL
-            && admin_parse_sessid(line + 4, (size_t) (sp - (line + 4)), sessid))
-        {
-            const char *text = (const char *) sp + 1;
-            size_t      tlen = (size_t) (line + len - (sp + 1));
-
-            target = brix_offload_lookup(sessid, BRIX_ADMIN_PATHID);
-            if (target == NULL) {
-                st->reply_len = (size_t) (ngx_snprintf(out,
-                    BRIX_ADMIN_REPLY_MAX, "err unknown-or-not-local\n") - out);
-                return;
-            }
-            tctx = ngx_stream_get_module_ctx(
-                       (ngx_stream_session_t *) target->data,
-                       ngx_stream_brix_module);
-            if (tctx == NULL || tctx->destroyed || tlen == 0) {
-                st->reply_len = (size_t) (ngx_snprintf(out,
-                    BRIX_ADMIN_REPLY_MAX, "err target-unusable\n") - out);
-                return;
-            }
-            if (brix_send_attn_asyncms(tctx, target, text, tlen) != NGX_OK) {
-                st->reply_len = (size_t) (ngx_snprintf(out,
-                    BRIX_ADMIN_REPLY_MAX, "err send-failed\n") - out);
-                return;
-            }
-            st->reply_len = (size_t) (ngx_snprintf(out, BRIX_ADMIN_REPLY_MAX,
-                "ok\n") - out);
-            return;
-        }
-    }
-
-    if (len > 6 && ngx_strncmp(line, "pause ", 6) == 0) {
-        u_char *sp = ngx_strlchr(line + 6, line + len, ' ');
-        size_t  hexlen = sp ? (size_t) (sp - (line + 6)) : len - 6;
-        ngx_int_t secs = 0;
-
-        if (sp != NULL) {
-            secs = ngx_atoi(sp + 1, (size_t) (line + len - (sp + 1)));
-            if (secs == NGX_ERROR || secs < 0) {
-                st->reply_len = (size_t) (ngx_snprintf(out,
-                    BRIX_ADMIN_REPLY_MAX, "err bad-seconds\n") - out);
-                return;
-            }
-        }
-        if (admin_parse_sessid(line + 6, hexlen, sessid)) {
-            target = brix_offload_lookup(sessid, BRIX_ADMIN_PATHID);
-            tctx = target ? ngx_stream_get_module_ctx(
-                       (ngx_stream_session_t *) target->data,
-                       ngx_stream_brix_module) : NULL;
-            if (tctx == NULL || tctx->destroyed) {
-                st->reply_len = (size_t) (ngx_snprintf(out,
-                    BRIX_ADMIN_REPLY_MAX, "err unknown-or-not-local\n") - out);
-                return;
-            }
-            tctx->admin_paused = 1;
-            if (secs > 0) {
-                tctx->admin_pause_ev.handler = admin_pause_timeout;
-                tctx->admin_pause_ev.data = target;
-                tctx->admin_pause_ev.log = target->log;
-                ngx_add_timer(&tctx->admin_pause_ev,
-                                (ngx_msec_t) secs * 1000);
-            }
-            st->reply_len = (size_t) (ngx_snprintf(out, BRIX_ADMIN_REPLY_MAX,
-                "ok\n") - out);
-            return;
-        }
-    }
-
-    if (len > 5 && ngx_strncmp(line, "cont ", 5) == 0
-        && admin_parse_sessid(line + 5, len - 5, sessid))
-    {
-        target = brix_offload_lookup(sessid, BRIX_ADMIN_PATHID);
-        tctx = target ? ngx_stream_get_module_ctx(
-                   (ngx_stream_session_t *) target->data,
-                   ngx_stream_brix_module) : NULL;
-        if (tctx == NULL || tctx->destroyed) {
-            st->reply_len = (size_t) (ngx_snprintf(out, BRIX_ADMIN_REPLY_MAX,
-                "err unknown-or-not-local\n") - out);
-            return;
-        }
-        if (tctx->admin_pause_ev.timer_set) {
-            ngx_del_timer(&tctx->admin_pause_ev);
-        }
-        tctx->admin_paused = 0;
-        /* Resume parsing whatever backed up while paused: the recv loop
-         * yielded without re-arming, so the read event must be posted. */
-        ngx_post_event(target->read, &ngx_posted_events);
-        st->reply_len = (size_t) (ngx_snprintf(out, BRIX_ADMIN_REPLY_MAX,
-            "ok\n") - out);
-        return;
-    }
-
-    if (len > 6 && ngx_strncmp(line, "abort ", 6) == 0
-        && admin_parse_sessid(line + 6, len - 6, sessid))
-    {
-        struct linger lg;
-
-        target = brix_offload_lookup(sessid, BRIX_ADMIN_PATHID);
-        if (target == NULL) {
-            st->reply_len = (size_t) (ngx_snprintf(out, BRIX_ADMIN_REPLY_MAX,
-                "err unknown-or-not-local\n") - out);
-            return;
-        }
-        /* Abort = disconnect WITHOUT ceremony: SO_LINGER{1,0} makes the
-         * teardown's eventual close(2) send an RST instead of a FIN, so the
-         * client sees ECONNRESET — stock abort semantics. The teardown itself
-         * still runs through the normal event-loop EOF path (no re-entrancy),
-         * exactly like disc. */
-        lg.l_onoff = 1;
-        lg.l_linger = 0;
-        (void) setsockopt(target->fd, SOL_SOCKET, SO_LINGER, &lg, sizeof(lg));
-        (void) shutdown(target->fd, SHUT_RDWR);
-        st->reply_len = (size_t) (ngx_snprintf(out, BRIX_ADMIN_REPLY_MAX,
-            "ok\n") - out);
-        return;
-    }
-
-    st->reply_len = (size_t) (ngx_snprintf(out, BRIX_ADMIN_REPLY_MAX,
-        "err unknown-command\n") - out);
 }
 
 /* ---- event handlers ----------------------------------------------------- */
@@ -491,7 +540,7 @@ brix_admin_socket_init(ngx_cycle_t *cycle)
         return;
     }
 
-    (void) unlink(path);   /* drop a stale socket from a prior run */
+    (void) unlink(path);   /* drop a stale socket from a prior run */ /* vfs-seam-allow: admin unix socket, not export namespace */
 
     fd = socket(AF_UNIX, SOCK_STREAM, 0);
     if (fd == (ngx_socket_t) -1) {
@@ -505,7 +554,7 @@ brix_admin_socket_init(ngx_cycle_t *cycle)
     ngx_memcpy(sa.sun_path, path, (size_t) n + 1);
 
     if (bind(fd, (struct sockaddr *) &sa, sizeof(sa)) == -1
-        || chmod(path, 0600) == -1
+        || chmod(path, 0600) == -1 /* vfs-seam-allow: admin socket 0600 privilege boundary */
         || listen(fd, 8) == -1
         || ngx_nonblocking(fd) == -1)
     {

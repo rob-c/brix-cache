@@ -118,10 +118,10 @@ The WebDAV module (`ngx_http_brix_webdav_module`) handles `davs://` clients in n
 | `brix_webdav_tpc_cadir <path>` | `location` | `brix_webdav_cadir` | CA directory for outbound source TLS verification |
 | `brix_webdav_tpc_cafile <path>` | `location` | `brix_webdav_cafile` | CA bundle for outbound source TLS verification |
 | `brix_webdav_tpc_timeout <seconds>` | `location` | `0` | Optional curl max-time for TPC pulls |
-| `brix_webdav_tpc_token_endpoint <url>` | `location` | — | OAuth2/OIDC token endpoint URL for RFC 8693 token-exchange delegation |
-| `brix_webdav_tpc_token_client_id <string>` | `location` | — | OAuth2 client ID (optional, for confidential clients) |
-| `brix_webdav_tpc_token_client_secret <string>` | `location` | — | OAuth2 client secret (optional, for confidential clients) |
-| `brix_webdav_tpc_token_scope <string>` | `location` | `storage.read` | Scope string requested during token exchange |
+| `brix_tpc_outbound_token_endpoint <url>` | `location` | — | OAuth2/OIDC token endpoint URL for RFC 8693 token-exchange delegation |
+| `brix_tpc_outbound_client_id <string>` | `location` | — | OAuth2 client ID (optional, for confidential clients) |
+| `brix_tpc_outbound_client_secret <string>` | `location` | — | OAuth2 client secret (optional, for confidential clients) |
+| `brix_tpc_outbound_scope <string>` | `location` | `storage.read` | Scope string requested during token exchange |
 | `brix_webdav_proxy_certs on\|off` | `server` or `location` (HTTP) | `off` | Accept RFC 3820 proxy certs |
 | `brix_webdav_verify_depth <n>` | `location` | `10` | Proxy chain depth limit |
 | `brix_webdav_token_jwks <path>` | `location` | — | JWKS for Bearer tokens |

@@ -1,7 +1,7 @@
 /*
  * gsi_verify_depth_test.c — §5.10 (parity-fix wave 17): brix_gsi_verify_chain
  * honours the caller's chain-depth cap (the xrd.tlsca `verdepth` analog wired to
- * `brix_gsi_verify_depth`).
+ * `brix_verify_depth`).
  *
  * WHAT: Drives the REAL brix_gsi_verify_chain() against a DEEP forged chain
  *       (trust CA -> intermediate CA #1 -> intermediate CA #2 -> EEC -> proxy)
@@ -14,7 +14,7 @@
  *                         proving depth 1's rejection was specifically the cap
  *                         and a correctly-sized cap never breaks a valid chain.
  *
- * WHY: brix_gsi_verify_depth caps the accepted client proxy/cert chain depth at
+ * WHY: brix_verify_depth caps the accepted client proxy/cert chain depth at
  *      root:// GSI login; before wave 17 the caller passed 0 (unlimited). This
  *      unit pins the enforcement at the C seam, independent of a GSI handshake.
  *

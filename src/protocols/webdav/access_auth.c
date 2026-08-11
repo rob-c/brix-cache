@@ -374,7 +374,7 @@ access_authenticate(ngx_http_request_t *r,
     ngx_int_t            token_rc = NGX_DECLINED;
 
     /* §6.1: a signed redirect handoff (brixrdr.* CGI, verified against
-     * brix_http_secretkey) IS this request's authentication — the manager
+     * brix_webdav_secretkey) IS this request's authentication — the manager
      * already authenticated the client.  Tried FIRST and fail-closed: a bad
      * MAC is a 403, never a fall-through to weaker sources. */
     auth_rc = webdav_redirect_signed_auth(r, conf);

@@ -102,6 +102,10 @@ def _rt47_carol_s_dir_must_exist_be(data, body_of, exists, TAG):
     ok(any((b'BOB-PRIVATE-SECRET' in body_of(bob_secret), not exists(bob_secret))),
        "precondition: bob 0600 secret marker present (or fixture absent, tolerated)")
 
+    _combo_connection_state_identity_p1(rm_quiet, port, ta, tb, exists, statuses, tc, TAG, apath, data, st_uid, key, cpath, bpath, H)
+
+
+def _combo_connection_state_identity_p1(rm_quiet, port, ta, tb, exists, statuses, tc, TAG, apath, data, st_uid, key, cpath, bpath, H):
     # ========================================================================
     # (a) CREATE-then-CROSS-READ on ONE conn: alice creates her file, then bob (same
     #     TCP conn) tries to READ alice's freshly-created file AND her existing 0600
@@ -173,7 +177,10 @@ def _rt47_positive_control_alice_can_read_her(ra, a_secret, port, ta):
 def _rt47_b_three_way_identity_rotation_a(pc_a, ta, tb, tc, TAG, port):
     ok(all((pc_a[0] == 200, b'ALICE-FRESH-SECRET-BODY' in pc_a[1])),
        f"(a) positive control: alice reads her own fresh file (HTTP {pc_a[0]})")
+    _combo_connection_state_identity_p2(port, rm_quiet, tb, exists, ta, statuses, tc, data, st_uid, TAG, apath, key, cpath, bpath, H, a_secret)
 
+
+def _combo_connection_state_identity_p2(port, rm_quiet, tb, exists, ta, statuses, tc, data, st_uid, TAG, apath, key, cpath, bpath, H, a_secret):
     # ========================================================================
     # (b) THREE-WAY identity rotation a/b/c/a/b/c... each a CREATE in its OWN home on
     #     ONE conn; verify EACH file owned by the right uid AND no file leaked into a
@@ -241,7 +248,10 @@ def _rt47_c_rst_mid_body_then_new(plan, st_uid, data, svc_root, TAG, rm_quiet, a
             svc_root += 1
     ok(svc_root == 0,
        f"(b) no rotated file owned by svc(1500)/root(0) (residue={svc_root})")
+    _combo_connection_state_identity_p3(rm_quiet, port, tb, exists, ta, statuses, tc, TAG, apath, key, cpath, data, st_uid, bpath, H, a_secret)
 
+
+def _combo_connection_state_identity_p3(rm_quiet, port, tb, exists, ta, statuses, tc, TAG, apath, key, cpath, data, st_uid, bpath, H, a_secret):
     # ========================================================================
     # (c) RST-MID-BODY then NEW-CONN cross-identity: alice begins a PUT, declares a
     #     large Content-Length, sends only a fragment, then hard-RSTs.  A FRESH conn's
@@ -290,7 +300,10 @@ def _rt47_the_abandoned_conn_did_not_wedge(TAG, port, ta, st_uid, apath, tb):
 def _rt47_d_no_auth_wedged_between_authed(st_uid, bpath, TAG, port, ta, apath):
     ok(st_uid(bpath(f"{TAG}rst_bob_after.txt")) == UID_BOB,
        "(c) bob's post-RST file owned by bob not alice/svc/root")
+    _combo_connection_state_identity_p4(port, ta, rm_quiet, exists, tb, statuses, tc, TAG, apath, key, cpath, data, st_uid, H, bpath, a_secret)
 
+
+def _combo_connection_state_identity_p4(port, ta, rm_quiet, exists, tb, statuses, tc, TAG, apath, key, cpath, data, st_uid, H, bpath, a_secret):
     # ========================================================================
     # (d) NO-AUTH WEDGED BETWEEN AUTHED reqs on one conn: alice GET (authed), then a
     #     GET with NO Authorization, then alice GET again.  The middle request must
@@ -349,7 +362,10 @@ def _rt47_e_two_authorization_headers_alice_bob(rdw, exists, apath, noauth_w, st
        f"(d) authed writes around the no-auth gap both succeed ({rdw[0][0]}/{rdw[2][0]})")
     ok(st_uid(apath(f"{TAG}d_post.txt")) == UID_ALICE,
        "(d) post-gap authed write owned by alice (principal correctly re-established)")
+    _combo_connection_state_identity_p5(port, rm_quiet, exists, ta, tb, statuses, tc, TAG, apath, key, cpath, data, H, st_uid, bpath, a_secret)
 
+
+def _combo_connection_state_identity_p5(port, rm_quiet, exists, ta, tb, statuses, tc, TAG, apath, key, cpath, data, H, st_uid, bpath, a_secret):
     # ========================================================================
     # (e) TWO Authorization headers (alice + bob) on a request that targets bob's
     #     0600 secret -> the result must be DETERMINISTIC and must never grant bob's
@@ -401,7 +417,10 @@ def _rt47_positive_control_a_single_valid_alice(dual_name, H, tb, ta, port, exis
 def _rt47_f_auth_failure_then_recovery_on(pc_e, st_uid, apath, TAG, key, rm_quiet, ta, port, exists):
     ok(all((pc_e[0] in (200, 201, 204), st_uid(apath(f'{TAG}e_single.txt')) == UID_ALICE)),
        f"(e) positive control: single alice credential creates alice file (HTTP {pc_e[0]})")
+    _combo_connection_state_identity_p6(port, rm_quiet, exists, ta, tb, statuses, tc, key, TAG, apath, cpath, data, st_uid, H, a_secret, bpath)
 
+
+def _combo_connection_state_identity_p6(port, rm_quiet, exists, ta, tb, statuses, tc, key, TAG, apath, cpath, data, st_uid, H, a_secret, bpath):
     # ========================================================================
     # (f) AUTH-FAILURE then RECOVERY on the SAME conn: a forged/expired token request
     #     (rejected), immediately followed by a VALID alice request on the same TCP
@@ -452,7 +471,10 @@ def _rt47_a_webdav_get_on_a_collection(exp, ta, port, TAG):
     # the canonical clean status for a directory GET.
     ok(rfx[1][0] in (200, 207, 301, 403, 404),
        f"(f) valid alice dirlist after forged-bob-attempt handled cleanly (HTTP {rfx[1][0]})")
+    _combo_connection_state_identity_p7(rm_quiet, port, exists, ta, tb, statuses, tc, TAG, apath, cpath, data, st_uid, H, a_secret, bpath)
 
+
+def _combo_connection_state_identity_p7(rm_quiet, port, exists, ta, tb, statuses, tc, TAG, apath, cpath, data, st_uid, H, a_secret, bpath):
     # ========================================================================
     # (g) METHOD-SWITCHING identity chain on ONE conn: alice CREATEs a 0600 file ->
     #     bob tries to READ it -> carol tries to DELETE it -> alice MOVEs it.  Each
@@ -532,7 +554,10 @@ def _rt47_carol_s_delete_on_alice_s(rg, exists, apath, chain, chain_dst, st_uid,
     else:
         ok(exists(apath(chain)),
            "(g) MOVE not applied -> original alice file intact (no destructive cross-step)")
+    _combo_connection_state_identity_p8(rm_quiet, port, exists, ta, tb, statuses, tc, TAG, cpath, data, st_uid, H, a_secret, apath, bpath)
 
+
+def _combo_connection_state_identity_p8(rm_quiet, port, exists, ta, tb, statuses, tc, TAG, cpath, data, st_uid, H, a_secret, apath, bpath):
     # ========================================================================
     # (h) CONN with VALID alice cred but PUT targeting carol's home (cross-tenant
     #     write), then a legit alice PUT in alice's home — both on one conn.  The
@@ -569,7 +594,10 @@ def _rt47_the_deny_is_what_matters_alice(rm_quiet, cpath, cross_w, ta, TAG, port
 def _rt47_i_raw_pipelined_two_request_stream(rh, st_uid, apath, TAG, port, ta, tb):
     ok(all((rh[1][0] in (200, 201, 204), st_uid(apath(f'{TAG}h_legit.txt')) == UID_ALICE)),
        f"(h) alice's legit write after the denied cross-write works + owned alice (HTTP {rh[1][0]})")
+    _combo_connection_state_identity_p9(port, ta, tb, statuses, tc, TAG, data, H, a_secret, st_uid, apath, bpath, cpath)
 
+
+def _combo_connection_state_identity_p9(port, ta, tb, statuses, tc, TAG, data, H, a_secret, st_uid, apath, bpath, cpath):
     # ========================================================================
     # (i) RAW pipelined two-request stream alice-then-bob in ONE send (no waiting for
     #     the first response) targeting EACH OTHER's homes — proves the parser binds
@@ -616,7 +644,10 @@ def _rt47_cross_check_a_pipelined_alice_req(H, ta, a_secret, tb, port, statuses)
        f"(i) pipelined alice-for-bob-secret leaked nothing (codes={statuses(rpix)})")
     ok(b"ALICE-FRESH-SECRET-BODY" not in rpix,
        f"(i) pipelined bob-for-alice-secret leaked nothing (codes={statuses(rpix)})")
+    _combo_connection_state_identity_p10(port, ta, tb, tc, data, TAG, H, st_uid, apath, bpath, cpath)
 
+
+def _combo_connection_state_identity_p10(port, ta, tb, tc, data, TAG, H, st_uid, apath, bpath, cpath):
     # ========================================================================
     # (j) SLOW-DRIP authed request interrupted by identity ambiguity: send alice's
     #     request line + Host, PAUSE, then a bob Authorization header, then finish.

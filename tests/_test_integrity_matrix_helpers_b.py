@@ -92,7 +92,7 @@ def mirror_endpoint():
     registry instances (LifecycleHarness): the harness renders the committed
     nginx_integrity_mirror_{sink,front}.conf templates, runs `nginx -t`, waits
     for each to be TCP-ready, and reaps both on close().  The front's
-    brix_stream_mirror_url is wired to the sink's assigned port via
+    brix_mirror_url is wired to the sink's assigned port via
     template_values."""
     if not os.path.exists(NGINX_BIN):
         pytest.skip(f"nginx binary not found at {NGINX_BIN}")

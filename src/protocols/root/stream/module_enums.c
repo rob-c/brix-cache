@@ -50,21 +50,11 @@ ngx_conf_enum_t brix_auth_modes[] = {
     { ngx_null_string,     0                 }
 };
 
-/* `brix_authdb_format` — pick the authorization engine for the authdb file. */
-ngx_conf_enum_t brix_authdb_format_modes[] = {
-    { ngx_string("native"), BRIX_AUTHDB_FORMAT_NATIVE },
-    { ngx_string("xrdacc"), BRIX_AUTHDB_FORMAT_XRDACC },
-    { ngx_null_string,      0                            }
-};
-
-/* `brix_authdb_audit` — which authorization decisions to log. */
-ngx_conf_enum_t brix_authdb_audit_modes[] = {
-    { ngx_string("none"),  BRIX_AUTHDB_AUDIT_NONE  },
-    { ngx_string("deny"),  BRIX_AUTHDB_AUDIT_DENY  },
-    { ngx_string("grant"), BRIX_AUTHDB_AUDIT_GRANT },
-    { ngx_string("all"),   BRIX_AUTHDB_AUDIT_ALL   },
-    { ngx_null_string,     0                         }
-};
+/* `brix_authdb_engine` (stream selector) and `brix_acc_audit` use the shared
+ * XrdAcc enum tables brix_acc_format_modes / brix_acc_audit_modes — single
+ * definition in auth/authz/acc/config.c (phase-105 W3 dedup: the stream-local
+ * copies were byte-identical and collided at link time once the spellings
+ * unified). Extern decls: acc/acc.h and module_enums.h. */
 
 /* Phase 22 — health-check probe type. */
 ngx_conf_enum_t brix_hc_types[] = {

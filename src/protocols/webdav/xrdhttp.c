@@ -146,6 +146,34 @@ xrdhttp_normalize_rfc3230_algo(const u_char *value, size_t vlen,
                                          dst, dstsz);
 }
 
+/* Parse a bare qvalue (leading '0' or '1', optional up to three decimals) that
+ * runs from `cursor` to `entry_end`, into thousandths (0..1000).  Malformed →
+ * permissive 1000. */
+static int
+q_value_millis(const u_char *cursor, const u_char *entry_end)
+{
+    int q_millis;
+
+    if (cursor >= entry_end || (*cursor != '0' && *cursor != '1')) {
+        return 1000;                      /* malformed — keep permissive */
+    }
+    q_millis = (*cursor == '1') ? 1000 : 0;
+    cursor++;
+    if (cursor < entry_end && *cursor == '.') {
+        int scale = 100;
+
+        cursor++;
+        for (int digits = 0;
+             cursor < entry_end && digits < 3 && *cursor >= '0' && *cursor <= '9';
+             digits++, cursor++)
+        {
+            q_millis += (*cursor - '0') * scale;
+            scale /= 10;
+        }
+    }
+    return q_millis > 1000 ? 1000 : q_millis;
+}
+
 /*
  * Parse the ";q=..." parameter of one Want-Digest entry into thousandths
  * (RFC 7231 qvalue: 0..1 with up to three decimals → 0..1000).  `params`
@@ -173,31 +201,7 @@ xrdhttp_rfc3230_q_millis(const u_char *params, const u_char *entry_end)
             continue;
         }
         cursor += 2;
-
-        {
-            int q_millis = 0;
-
-            if (cursor >= entry_end || (*cursor != '0' && *cursor != '1')) {
-                return 1000;              /* malformed — keep permissive */
-            }
-            q_millis = (*cursor == '1') ? 1000 : 0;
-            cursor++;
-            if (cursor < entry_end && *cursor == '.') {
-                int digits = 0;
-                int scale = 100;
-
-                cursor++;
-                while (cursor < entry_end && digits < 3
-                       && *cursor >= '0' && *cursor <= '9')
-                {
-                    q_millis += (*cursor - '0') * scale;
-                    scale /= 10;
-                    digits++;
-                    cursor++;
-                }
-            }
-            return q_millis > 1000 ? 1000 : q_millis;
-        }
+        return q_value_millis(cursor, entry_end);
     }
 
     return 1000;                          /* no q parameter — default 1.0 */
@@ -423,6 +427,46 @@ xrdhttp_log_client_identity(ngx_http_request_t *r, xrdhttp_req_ctx_t *ctx)
     }
 }
 
+/*
+ * §6.5 http.header2cgi: for each configured (header, cgikey) pair, append the
+ * incoming header's value to the xrd opaque blob as "&<cgikey>=<value>" (or
+ * "<cgikey>=<value>" when the opaque was empty). Downstream authz (token/scope,
+ * xrd.* opaque) and the backend both read ctx->opaque, so a site can bridge an
+ * arbitrary request header into the request's CGI exactly as XrdHttp does.
+ * Bounded to XRDHTTP_OPAQUE_MAX; a value that would overflow stops the loop.
+ */
+static void
+xrdhttp_apply_header2cgi(ngx_http_request_t *r, xrdhttp_req_ctx_t *ctx)
+{
+    ngx_http_brix_webdav_loc_conf_t *wlcf;
+    ngx_keyval_t                    *kv;
+    ngx_uint_t                       i;
+    size_t                           len;
+
+    wlcf = ngx_http_get_module_loc_conf(r, ngx_http_brix_webdav_module);
+    if (wlcf == NULL || wlcf->header2cgi == NULL) {
+        return;
+    }
+    kv  = wlcf->header2cgi->elts;
+    len = ngx_strlen(ctx->opaque);
+
+    for (i = 0; i < wlcf->header2cgi->nelts; i++) {
+        char     val[256];
+        u_char  *end;
+
+        val[0] = '\0';
+        xrdhttp_capture_header(r, (const char *) kv[i].key.data, kv[i].key.len,
+                               val, sizeof(val));
+        if (val[0] == '\0' || len + 2 >= XRDHTTP_OPAQUE_MAX) {
+            continue;
+        }
+        end = ngx_snprintf((u_char *) ctx->opaque + len,
+                           XRDHTTP_OPAQUE_MAX - len, "%s%V=%s",
+                           len ? "&" : "", &kv[i].value, val);
+        len = (size_t) (end - (u_char *) ctx->opaque);
+    }
+}
+
 void
 xrdhttp_parse_request(ngx_http_request_t *r)
 {
@@ -447,6 +491,7 @@ xrdhttp_parse_request(ngx_http_request_t *r)
                            ctx->tpc_token, XRDHTTP_TPC_KEY_MAX);
 
     xrdhttp_parse_query_params(r, ctx);
+    xrdhttp_apply_header2cgi(r, ctx);
 
     /* Want-Digest (RFC 3230): XrdClHttp sends this on HEAD to request
      * checksums.  Only consulted when ?xrd.want.cksum= was not supplied

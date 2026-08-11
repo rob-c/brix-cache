@@ -50,11 +50,15 @@ def _write(tmp_path, filename, body):
 def test_clean_cross_plane_ok(tmp_path):
     # Same name on BOTH planes is the intended "one spelling, both planes" case —
     # must NOT trip R1.
-    body = (_cmd("brix_storage_backend", "NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1",
-                 "ngx_conf_set_str_slot")
-            + _cmd("brix_storage_backend", "NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1",
+    # phase-105 R5: the HTTP-side bare registration must sit on the common
+    # owner path (any other home is exactly the drift R5 exists to flag).
+    _write_at(tmp_path, "core/config/http_common.c",
+              _cmd("brix_storage_backend", "NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1",
                    "ngx_conf_set_str_slot"))
-    src = _write(tmp_path, "clean.c", body)
+    src = _write(tmp_path, "clean.c",
+                 _cmd("brix_storage_backend",
+                      "NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1",
+                      "ngx_conf_set_str_slot"))
     r = _run(src, fail=True)
     assert r.returncode == 0, r.stdout + r.stderr
     assert "[R1]" not in r.stdout, r.stdout
@@ -71,22 +75,26 @@ def test_same_plane_duplicate_fails_r1(tmp_path):
 
 
 def test_prefixed_twin_fails_r2(tmp_path):
-    body = (_cmd("brix_token_issuer", "NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1",
-                 "ngx_conf_set_str_slot")
-            + _cmd("brix_webdav_token_issuer", "NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1",
+    _write_at(tmp_path, "core/config/http_common.c",
+              _cmd("brix_token_issuer", "NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1",
                    "ngx_conf_set_str_slot"))
-    src = _write(tmp_path, "twin.c", body)
+    src = _write(tmp_path, "twin.c",
+                 _cmd("brix_webdav_token_issuer",
+                      "NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1",
+                      "ngx_conf_set_str_slot"))
     r = _run(src, fail=True)
     assert r.returncode == 1, f"expected R2 failure:\n{r.stdout}"
     assert "[R2]" in r.stdout and "brix_webdav_token_issuer" in r.stdout, r.stdout
 
 
 def test_r2_silenced_only_with_allowlist_reason(tmp_path):
-    body = (_cmd("brix_token_issuer", "NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1",
-                 "ngx_conf_set_str_slot")
-            + _cmd("brix_webdav_token_issuer", "NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1",
+    _write_at(tmp_path, "core/config/http_common.c",
+              _cmd("brix_token_issuer", "NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1",
                    "ngx_conf_set_str_slot"))
-    src = _write(tmp_path, "twin.c", body)
+    src = _write(tmp_path, "twin.c",
+                 _cmd("brix_webdav_token_issuer",
+                      "NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1",
+                      "ngx_conf_set_str_slot"))
 
     # allowlist WITH a reason → silenced, passes.
     good = tmp_path / "allow_ok.txt"
@@ -129,3 +137,58 @@ def test_real_tree_no_r1(tmp_path):
     assert r.returncode == 0, r.stdout + r.stderr
     assert "\n[R1]" not in r.stdout, \
         f"real tree grew a same-plane duplicate:\n{r.stdout}"
+
+
+# ---- phase-105 W5.2/W5.3: R5 (bare => common owner) + R6 (near-miss stems) --
+
+
+def _write_at(tmp_path, relpath, body):
+    p = tmp_path / "src" / relpath
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text(
+        "static ngx_command_t t[] = {\n" + body + "  ngx_null_command\n};\n")
+    return tmp_path / "src"
+
+
+def test_r5_bare_name_outside_common_owner_fails(tmp_path):
+    # The pre-105-W1 shape: a bare cross-protocol name registered by a
+    # protocol module — R5 must trip (this exact shape made brix_rate_limit
+    # silently inert on S3).
+    src = _write_at(tmp_path, "protocols/webdav/module_commands.c",
+                    _cmd("brix_shiny_knob", "NGX_HTTP_LOC_CONF | NGX_CONF_FLAG"))
+    r = _run(src, fail=True)
+    assert r.returncode == 1, r.stdout
+    assert "[R5]" in r.stdout and "brix_shiny_knob" in r.stdout, r.stdout
+
+
+def test_r5_common_owner_and_feature_family_ok(tmp_path):
+    # The same bare name on the common module passes; a feature-prefixed
+    # family owned by its feature module passes too.
+    _write_at(tmp_path, "core/config/http_common.c",
+              _cmd("brix_shiny_knob", "NGX_HTTP_LOC_CONF | NGX_CONF_FLAG"))
+    src = _write_at(tmp_path, "observability/dashboard/module.c",
+                    _cmd("brix_dashboard_widget",
+                         "NGX_HTTP_LOC_CONF | NGX_CONF_FLAG"))
+    r = _run(src, fail=True)
+    assert "[R5]" not in r.stdout, r.stdout
+    assert r.returncode == 0, r.stdout
+
+
+def test_r6_near_miss_stems_fail(tmp_path):
+    # brix_webdav_maxdelay vs brix_max_delay — the W3 drift class: different
+    # spellings, one normalized stem. R6 must trip.
+    src = _write_at(tmp_path, "core/config/http_common.c",
+                    _cmd("brix_max_delay", "NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1")
+                    + _cmd("brix_webdav_maxdelay",
+                           "NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1"))
+    r = _run(src, fail=True)
+    assert r.returncode == 1, r.stdout
+    assert "[R6]" in r.stdout and "maxdelay" in r.stdout, r.stdout
+
+
+def test_real_tree_gates_clean_under_fail():
+    """phase-105 W5.4: the real tree passes --fail (R1/R2/R4/R5/R6 all clean
+    with the checked-in allowlist; R3 is WARN-scoped until W6)."""
+    r = subprocess.run([sys.executable, CHECKER, "--fail"],
+                       capture_output=True, text=True, timeout=120)
+    assert r.returncode == 0, r.stdout + r.stderr

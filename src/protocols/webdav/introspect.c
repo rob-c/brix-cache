@@ -20,7 +20,7 @@
  *             proxy_pass        https://iam.example.org/introspect;
  *         }
  *
- *     and names it with `brix_webdav_token_introspect_loc /internal/introspect;`.
+ *     and names it with `brix_token_introspect_loc /internal/introspect;`.
  *     We fire a subrequest at that URI carrying `?token=<jwt>` (JWTs are
  *     base64url, so they are URL-safe as a query value).
  *
@@ -107,16 +107,16 @@ webdav_introspect_done(ngx_http_request_t *r, void *data, ngx_int_t rc)
         if (!active && conf->revoke_kv != NULL && d->have_key) {
             (void) brix_kv_set(conf->revoke_kv, d->key, 32,
                                  (const u_char *) "1", 1,
-                                 (ngx_msec_t) conf->introspect_ttl * 1000);
+                                 (ngx_msec_t) conf->common.introspect_ttl * 1000);
         }
     } else {
         /* IdP unreachable / error → honour the configured failure policy. */
-        active = conf->introspect_fail_open ? 1 : 0;
+        active = conf->common.introspect_fail_open ? 1 : 0;
         ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
                       "brix_webdav: token introspection failed "
                       "(rc=%i status=%ui) — %s",
                       rc, status,
-                      conf->introspect_fail_open ? "allowing (fail-open)"
+                      conf->common.introspect_fail_open ? "allowing (fail-open)"
                                                  : "denying (fail-closed)");
     }
 
@@ -160,7 +160,7 @@ webdav_introspect_fire(ngx_http_request_t *r,
     p = ngx_cpymem(args.data, "token=", sizeof("token=") - 1);
     ngx_memcpy(p, token->data, token->len);
 
-    if (ngx_http_subrequest(r, &conf->introspect_loc, &args, &sr, ps,
+    if (ngx_http_subrequest(r, &conf->common.introspect_loc, &args, &sr, ps,
                             NGX_HTTP_SUBREQUEST_WAITED
                             | NGX_HTTP_SUBREQUEST_IN_MEMORY) != NGX_OK)
     {
@@ -180,7 +180,7 @@ webdav_introspect_access_handler(ngx_http_request_t *r)
     int                                have_key = 0;
 
     conf = ngx_http_get_module_loc_conf(r, ngx_http_brix_webdav_module);
-    if (conf == NULL || conf->introspect_loc.len == 0) {
+    if (conf == NULL || conf->common.introspect_loc.len == 0) {
         return NGX_DECLINED;            /* introspection not configured */
     }
 
@@ -239,7 +239,7 @@ webdav_introspect_access_handler(ngx_http_request_t *r)
     if (webdav_introspect_fire(r, ctx, conf, &bearer, key, have_key)
         != NGX_OK)
     {
-        return conf->introspect_fail_open ? NGX_DECLINED : NGX_HTTP_FORBIDDEN;
+        return conf->common.introspect_fail_open ? NGX_DECLINED : NGX_HTTP_FORBIDDEN;
     }
 
     return NGX_AGAIN;                   /* suspend until subrequest completes */

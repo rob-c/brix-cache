@@ -63,11 +63,14 @@ locate_resolve_reqpath(locate_ctx_t *lc, ngx_int_t *out_rc)
     ngx_connection_t  *c = lc->c;
     xrdw_locate_req_t  req;
 
-    /* options: kXR_prefname (0x0100) = prefer DNS names over IPs in response.
-     * We always store the server's registered hostname so this is the default.
+    /* §2.18: kXR_prefname (0x0100) = the client wants the server's DNS hostname
+     * in the location token rather than its IP literal (e.g. so a GSI host-cert
+     * CN matches, or the name re-resolves through a different route). Honoured in
+     * locate_format_local; clear ⇒ the IP literal, byte-identical to before.
      * §2.7: kXR_refresh (0x0080) = the client wants the caches bypassed AND
      * flushed — honoured in locate_try_manager. */
     xrdw_locate_req_unpack(((ClientRequestHdr *) ctx->recv.hdr_buf)->body, &req);
+    lc->prefname = (req.options & kXR_prefname) != 0;
     lc->refresh = (req.options & kXR_refresh) != 0;
     /* §1.8: kXR_nowait (0x2000) — the client refuses to be parked; when the
      * answer needs a cluster probe it gets kXR_wait immediately instead
@@ -253,16 +256,19 @@ locate_check_data_server(locate_ctx_t *lc, ngx_int_t *out_rc)
  *
  * WHAT: Writes the data-server location string into loc_buf: "Sc<ipv4>:<port>",
  *       "Sc[<ipv6>]:<port>", or the "Sclocalhost" fallback, where c is the access
- *       char ('w' if allow_write else 'r').
+ *       char ('w' if allow_write else 'r'). When prefname is set (§2.18
+ *       kXR_prefname) the host is the server's DNS name (gethostname(2), cached
+ *       for the life of the process — the same identity cms/send.c registers
+ *       under) rather than the IP literal.
  * WHY:  This is the kXR_ok body a data server returns for its own file — the
  *       leading 'S' marks a server; the access char advertises read/write.
- * HOW:  Pure formatting over conf and c->local_sockaddr (no I/O). Returns the
- *       snprintf length; the caller frames it as len+1 for brix_send_ok, exactly
- *       as the original inline code.
+ * HOW:  Pure formatting over conf and c->local_sockaddr (one cached gethostname
+ *       for the prefname path). Returns the snprintf length; the caller frames it
+ *       as len+1 for brix_send_ok, exactly as the original inline code.
  */
 static int
 locate_format_local(ngx_stream_brix_srv_conf_t *conf, ngx_connection_t *c,
-                    char *loc_buf, size_t loc_sz)
+                    int prefname, char *loc_buf, size_t loc_sz)
 {
     char                 access_char;
     struct sockaddr_in  *sin;
@@ -270,6 +276,41 @@ locate_format_local(ngx_stream_brix_srv_conf_t *conf, ngx_connection_t *c,
     uint16_t             port;
 
     access_char = conf->common.allow_write ? 'w' : 'r';
+
+    /* §2.18 kXR_prefname: emit the server's DNS hostname instead of the IP.
+     * gethostname(2) is cached process-wide — it is the same node identity
+     * cms/send.c registers upward. The port still comes from the bound socket
+     * (falling back to the configured listen port when unknown). */
+    if (prefname) {
+        static char        hostname[256];
+        static ngx_atomic_t resolved;   /* 0 → unset, 1 → hostname[] valid */
+
+        if (!resolved) {
+            if (gethostname(hostname, sizeof(hostname)) != 0) {
+                hostname[0] = '\0';
+            }
+            hostname[sizeof(hostname) - 1] = '\0';
+            resolved = 1;
+        }
+        if (hostname[0] != '\0') {
+            port = 0;
+            if (c->local_sockaddr != NULL
+                && c->local_sockaddr->sa_family == AF_INET)
+            {
+                port = ntohs(((struct sockaddr_in *) c->local_sockaddr)->sin_port);
+            } else if (c->local_sockaddr != NULL
+                && c->local_sockaddr->sa_family == AF_INET6)
+            {
+                port = ntohs(((struct sockaddr_in6 *) c->local_sockaddr)->sin6_port);
+            }
+            if (port == 0) {
+                port = (uint16_t) conf->listen_port;
+            }
+            return snprintf(loc_buf, loc_sz, "S%c%s:%d",
+                            access_char, hostname, (int) port);
+        }
+        /* gethostname failed — fall through to the IP-literal form. */
+    }
 
     if (c->local_sockaddr != NULL
         && c->local_sockaddr->sa_family == AF_INET)
@@ -329,7 +370,7 @@ brix_handle_locate(brix_ctx_t *ctx, ngx_connection_t *c,
         return out_rc;
     }
 
-    loc_len = locate_format_local(conf, c, loc_buf, sizeof(loc_buf));
+    loc_len = locate_format_local(conf, c, lc.prefname, loc_buf, sizeof(loc_buf));
 
     brix_log_access(ctx, c, "LOCATE", reqpath_buf, loc_buf, 1, 0, NULL, 0);
     BRIX_OP_OK(ctx, BRIX_OP_LOCATE);

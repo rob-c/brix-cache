@@ -16,6 +16,15 @@
 
     /* Manager side: 307-redirect GET/HEAD/PUT to the CMS-registry-selected
      * data server instead of serving locally. */
+    /* §6.5: map an incoming HTTP header into the xrd opaque as
+     * "&<cgikey>=<value>" (repeatable), so authz + the backend see it. */
+    { ngx_string("brix_webdav_header2cgi"),
+      NGX_HTTP_MAIN_CONF | NGX_HTTP_SRV_CONF | NGX_HTTP_LOC_CONF | NGX_CONF_TAKE2,
+      ngx_conf_set_keyval_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_http_brix_webdav_loc_conf_t, header2cgi),
+      NULL },
+
     { ngx_string("brix_webdav_redirect_dataserver"),
       NGX_HTTP_LOC_CONF | NGX_CONF_FLAG,
       ngx_conf_set_flag_slot,
@@ -42,14 +51,8 @@
       offsetof(ngx_http_brix_webdav_loc_conf_t, listing_redirect),
       NULL },
 
-    /* §6.11 http.maxdelay analog: cap the Retry-After seconds a 202 "staging"
-     * (tape-recall) response tells the client to wait. 0 (default) = off. */
-    { ngx_string("brix_webdav_maxdelay"),
-      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
-      ngx_conf_set_sec_slot,
-      NGX_HTTP_LOC_CONF_OFFSET,
-      offsetof(ngx_http_brix_webdav_loc_conf_t, maxdelay),
-      NULL },
+    /* §6.11 maxdelay -> bare brix_max_delay on http_common (phase-105 W3):
+     * one spelling with the stream plane's ofs.maxdelay analog. */
 
     /* Target HTTP port on the data servers; 0 (default) = the registry
      * entry's port (stock shared-port model). */
@@ -78,99 +81,20 @@
     /* Both sides: shared HMAC key (stock http.secretkey analog).  On the
      * manager it signs the authenticated identity into the redirect CGI; on
      * a data server it verifies and adopts that identity, fail-closed. */
-    { ngx_string("brix_http_secretkey"),
+    { ngx_string("brix_webdav_secretkey"),
       NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
       ngx_conf_set_str_slot,
       NGX_HTTP_LOC_CONF_OFFSET,
       offsetof(ngx_http_brix_webdav_loc_conf_t, http_secretkey),
       NULL },
 
-    /* Phase 24: traffic mirroring (off by default) */    { ngx_string("brix_mirror_url"),
-      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
-      brix_http_mirror_set_url,
-      NGX_HTTP_LOC_CONF_OFFSET,
-      0,
-      NULL },
+    /* Phase 24 mirror family -> http_common (phase-105 W2): the eight
+     * settings names register once for the whole HTTP plane; the engine
+     * (net/mirror/) reads the adopted common.mirror off this conf. */
 
-    { ngx_string("brix_mirror_methods"),
-      NGX_HTTP_LOC_CONF | NGX_CONF_1MORE,
-      brix_http_mirror_set_methods,
-      NGX_HTTP_LOC_CONF_OFFSET,
-      0,
-      NULL },
-
-    { ngx_string("brix_mirror_sample"),
-      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
-      ngx_conf_set_num_slot,
-      NGX_HTTP_LOC_CONF_OFFSET,
-      offsetof(ngx_http_brix_webdav_loc_conf_t, mirror.sample_pct),
-      NULL },
-
-    { ngx_string("brix_mirror_strip_auth"),
-      NGX_HTTP_LOC_CONF | NGX_CONF_FLAG,
-      ngx_conf_set_flag_slot,
-      NGX_HTTP_LOC_CONF_OFFSET,
-      offsetof(ngx_http_brix_webdav_loc_conf_t, mirror.strip_auth),
-      NULL },
-
-    /* Opt-in gate for mirroring WRITE methods (PUT/DELETE/MKCOL/MOVE/COPY) to the
-     * shadow.  Off by default; the shadow MUST be an isolated namespace, never the
-     * primary's backing store. */
-    { ngx_string("brix_mirror_writes"),
-      NGX_HTTP_LOC_CONF | NGX_CONF_FLAG,
-      ngx_conf_set_flag_slot,
-      NGX_HTTP_LOC_CONF_OFFSET,
-      offsetof(ngx_http_brix_webdav_loc_conf_t, mirror.mirror_writes),
-      NULL },
-
-    { ngx_string("brix_mirror_log_diverge"),
-      NGX_HTTP_LOC_CONF | NGX_CONF_FLAG,
-      ngx_conf_set_flag_slot,
-      NGX_HTTP_LOC_CONF_OFFSET,
-      offsetof(ngx_http_brix_webdav_loc_conf_t, mirror.log_diverge),
-      NULL },
-
-    { ngx_string("brix_mirror_timeout"),
-      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
-      ngx_conf_set_msec_slot,
-      NGX_HTTP_LOC_CONF_OFFSET,
-      offsetof(ngx_http_brix_webdav_loc_conf_t, mirror.timeout_ms),
-      NULL },
-
-    { ngx_string("brix_mirror_token"),
-      NGX_HTTP_LOC_CONF | NGX_CONF_TAKE1,
-      ngx_conf_set_str_slot,
-      NGX_HTTP_LOC_CONF_OFFSET,
-      offsetof(ngx_http_brix_webdav_loc_conf_t, mirror.token),
-      NULL },
-
-    /* Phase 25: advanced rate limiting / traffic shaping */    { ngx_string("brix_rate_limit_zone"),     /* http main: zone=NAME:SIZE */
-      NGX_HTTP_MAIN_CONF | NGX_CONF_1MORE,
-      brix_rl_zone_directive,
-      0,
-      0,
-      NULL },
-
-    { ngx_string("brix_rate_limit_rule"),     /* loc: request-rate rule */
-      NGX_HTTP_LOC_CONF | NGX_CONF_2MORE,
-      brix_rl_rule_directive,
-      NGX_HTTP_LOC_CONF_OFFSET,
-      offsetof(ngx_http_brix_webdav_loc_conf_t, rl_rules),
-      NULL },
-
-    { ngx_string("brix_bandwidth_limit"),     /* loc: bandwidth rule */
-      NGX_HTTP_LOC_CONF | NGX_CONF_2MORE,
-      brix_rl_bw_directive,
-      NGX_HTTP_LOC_CONF_OFFSET,
-      offsetof(ngx_http_brix_webdav_loc_conf_t, rl_rules),
-      NULL },
-
-    { ngx_string("brix_concurrency_limit"),   /* loc: per-principal in-flight cap (W7) */
-      NGX_HTTP_LOC_CONF | NGX_CONF_2MORE,
-      brix_rl_conc_directive,
-      NGX_HTTP_LOC_CONF_OFFSET,
-      offsetof(ngx_http_brix_webdav_loc_conf_t, rl_rules),
-      NULL },
+    /* Phase 25 rate-limit-zone/shaping family -> http_common (phase-105 W1):
+     * the bare names now configure every HTTP protocol via the shared
+     * preamble's rl_rules instead of silently writing this conf. */
 
     /* (legacy brix_webdav_proxy_*_timeout directives removed — see note above) */
 

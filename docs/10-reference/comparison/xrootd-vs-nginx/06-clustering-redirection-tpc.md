@@ -561,7 +561,7 @@ pool/log, which may free first — that would be a use-after-free). Benign
 differences — a shadow returning `kXR_Unsupported`, or demanding
 `kXR_gotoTLS`/`kXR_authmore` — are treated as alive-but-different and not counted
 as divergence. Configured by `brix_mirror_url` (HTTP) /
-`brix_stream_mirror_url` (stream), `brix_mirror_sample`,
+`brix_mirror_url` (stream), `brix_mirror_sample`,
 `brix_mirror_writes`, `brix_mirror_opcodes` / `_exclude_opcodes` /
 `_methods`, `brix_mirror_strip_auth`, `brix_mirror_token`,
 `brix_mirror_log_diverge`, `brix_mirror_timeout`.
@@ -658,7 +658,7 @@ server {
     listen 1094;
     brix_root on;
     brix_export /data/export;
-    brix_stream_mirror_url newbackend.example.org:1094;
+    brix_mirror_url newbackend.example.org:1094;
     brix_mirror_sample 10;            # 10% of traffic
     # brix_mirror_writes on;          # ONLY with an isolated shadow store
 }

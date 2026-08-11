@@ -129,6 +129,48 @@ def test_enforce_on_admits_under_quota(tmp_path):
         _stop(tmp_path, conf)
 
 
+def test_pblock_exact_catalog_quota(tmp_path):
+    """(exact) the deferred wave-41 leg, unblocked: the correct grammar is
+    `pblock://<dir>?tail` (the single-colon `pblock:<dir>` form matches NO parse
+    branch and silently runs default posix — that was the wave-41 mystery).
+    pblock's own ?quota=1g arms its space slot (catalog usage, exact, huge and
+    non-binding); brix_oss_quota 64K + enforce then refuses the second 48K
+    upload. DISCRIMINATOR that this is catalog usage, not statvfs: after rm the
+    same upload is admitted again — statvfs-used of the big host FS would still
+    exceed 64K, only the catalog dropped to ~0."""
+    ns = tmp_path / "ns"          # export root == pblock root (the test-config pattern)
+    ns.mkdir(exist_ok=True)
+    port, conf = _launch(
+        tmp_path,
+        f"brix_storage_backend pblock://{ns}?quota=1g;",
+        "brix_oss_quota 65536;\n    brix_oss_quota_enforce on;")
+    primary = None
+    try:
+        r = _xrdcp(tmp_path, port, "a.bin", 49152)
+        assert r.returncode == 0, f"first 48K upload refused: {r.stderr}"
+
+        time.sleep(5.2)   # cross the 5s usage-probe TTL
+
+        r = _xrdcp(tmp_path, port, "b.bin", 49152)
+        assert r.returncode != 0, "48K catalog + 48K > 64K quota not refused"
+        assert "quota" in (r.stderr + r.stdout).lower(), r.stderr
+
+        xrdfs = os.path.join(_REPO, "client", "bin", "xrdfs")
+        rmproc = subprocess.run(
+            ["env", "-u", "LD_LIBRARY_PATH", xrdfs,
+             f"root://{BIND_HOST}:{port}", "rm", "/a.bin"],
+            capture_output=True, text=True, timeout=30)
+        assert rmproc.returncode == 0, f"rm failed: {rmproc.stderr}"
+        time.sleep(5.2)
+        r = _xrdcp(tmp_path, port, "c.bin", 49152)
+        assert r.returncode == 0, \
+            f"post-rm upload refused (usage is NOT the exact catalog): {r.stderr}"
+    finally:
+        if primary is not None:
+            primary.close()
+        _stop(tmp_path, conf)
+
+
 def test_posix_conservative_quota_gates(tmp_path):
     """(conservative) posix statvfs fallback: quota 1 byte refuses any write."""
     port, conf = _launch(tmp_path, "",
@@ -150,3 +192,34 @@ def test_default_stays_advertisement_only(tmp_path):
             f"advertisement-only quota gated an upload: {r.stderr}"
     finally:
         _stop(tmp_path, conf)
+
+
+def test_unknown_backend_scheme_refused(tmp_path):
+    """(misconfig guard) an unrecognized brix_storage_backend scheme fails
+    nginx -t instead of silently running default posix; the legacy single-colon
+    posix:<dir> spelling stays accepted (warned)."""
+    ns = tmp_path / "ns"
+    ns.mkdir(exist_ok=True)
+    logs = tmp_path / "logs"
+    logs.mkdir(exist_ok=True)
+    conf = tmp_path / "bad.conf"
+
+    def render(backend):
+        conf.write_text(
+            "daemon on;\nworker_processes 1;\n"
+            f"pid {logs}/nginx.pid;\nerror_log {logs}/error.log info;\n"
+            "events { worker_connections 16; }\n"
+            "stream { server {\n"
+            f"  listen {BIND_HOST}:{_free_port()};\n  brix_root on;\n"
+            f"  brix_export {ns};\n  brix_auth none;\n"
+            f"  brix_storage_backend {backend};\n"
+            "} }\n")
+        return subprocess.run([NGINX_BIN, "-p", str(tmp_path), "-c", str(conf),
+                               "-t"], capture_output=True, text=True, timeout=30)
+
+    r = render("blok:/dev/sda")            # typo'd scheme
+    assert r.returncode != 0, "typo'd backend scheme accepted silently"
+    assert "unrecognized backend scheme" in r.stderr, r.stderr
+
+    r = render(f"posix:{ns}")              # legacy single-colon: still accepted
+    assert r.returncode == 0, f"legacy posix:<dir> now refused: {r.stderr}"

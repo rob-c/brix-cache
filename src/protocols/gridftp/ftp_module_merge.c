@@ -149,6 +149,65 @@ brix_ftp_merge_tls(ngx_conf_t *cf, ngx_stream_brix_ftp_srv_conf_t *prev,
 }
 
 
+/* Adopt this server's storage bare names (brix_export, brix_storage_backend,
+ * brix_storage_credential, brix_allow_write, brix_verify_write) from the common
+ * module into gridftp's flat fields BEFORE the parent->child fold, filling only
+ * fields the child left unset.  brix_export additionally realpath()s into
+ * root_canon here (the common module's str-slot only stores the raw path),
+ * preserving the gateway's config-time "export must exist" check.  Split out of
+ * brix_ftp_merge_conf() for complexity.  Returns NGX_CONF_OK / NGX_CONF_ERROR. */
+static char *
+ftp_merge_adopt_common(ngx_conf_t *cf, ngx_stream_brix_ftp_srv_conf_t *conf)
+{
+    ngx_stream_brix_common_conf_t *scf =
+        ngx_stream_conf_get_module_srv_conf(cf, ngx_stream_brix_common_module);
+
+    if (scf == NULL) {
+        return NGX_CONF_OK;
+    }
+    if (conf->export.len == 0 && scf->common.root.len != 0) {
+        ngx_str_t  dir = scf->common.root;
+        char       raw[PATH_MAX];
+
+        if (ngx_conf_full_name(cf->cycle, &dir, 1) != NGX_OK) {
+            return NGX_CONF_ERROR;
+        }
+        if (dir.len >= sizeof(raw)) {
+            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+                "brix_export path too long: %V", &dir);
+            return NGX_CONF_ERROR;
+        }
+        ngx_memcpy(raw, dir.data, dir.len);
+        raw[dir.len] = '\0';
+        if (realpath(raw, conf->root_canon) == NULL) {
+            ngx_conf_log_error(NGX_LOG_EMERG, cf, ngx_errno,
+                "brix_export \"%s\" cannot be resolved (does it exist?)",
+                raw);
+            return NGX_CONF_ERROR;
+        }
+        conf->export = dir;
+    }
+    if (conf->storage_backend.len == 0 && scf->common.storage_backend.len != 0) {
+        conf->storage_backend = scf->common.storage_backend;
+    }
+    if (conf->storage_credential.len == 0
+        && scf->common.storage_credential.len != 0)
+    {
+        conf->storage_credential = scf->common.storage_credential;
+    }
+    if (conf->allow_write == NGX_CONF_UNSET
+        && scf->common.allow_write != NGX_CONF_UNSET)
+    {
+        conf->allow_write = scf->common.allow_write;
+    }
+    if (conf->verify_write == NGX_CONF_UNSET
+        && scf->common.verify_write != NGX_CONF_UNSET)
+    {
+        conf->verify_write = scf->common.verify_write;
+    }
+    return NGX_CONF_OK;
+}
+
 /* brix_ftp_merge_conf — parent→child merge: disabled and read-only by default;
  * inherit the export root when the child omitted its own. */
 char *
@@ -170,52 +229,8 @@ brix_ftp_merge_conf(ngx_conf_t *cf, void *parent, void *child)
      * was done in the brix_gridftp_export setter at parse time; the stock
      * str-slot the common module uses only stores the raw path), preserving the
      * gateway's "export must exist" config-time check byte-for-byte. */
-    {
-        ngx_stream_brix_common_conf_t *scf =
-            ngx_stream_conf_get_module_srv_conf(cf, ngx_stream_brix_common_module);
-
-        if (scf != NULL) {
-            if (conf->export.len == 0 && scf->common.root.len != 0) {
-                ngx_str_t  dir = scf->common.root;
-                char       raw[PATH_MAX];
-
-                if (ngx_conf_full_name(cf->cycle, &dir, 1) != NGX_OK) {
-                    return NGX_CONF_ERROR;
-                }
-                if (dir.len >= sizeof(raw)) {
-                    ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                        "brix_export path too long: %V", &dir);
-                    return NGX_CONF_ERROR;
-                }
-                ngx_memcpy(raw, dir.data, dir.len);
-                raw[dir.len] = '\0';
-                if (realpath(raw, conf->root_canon) == NULL) {
-                    ngx_conf_log_error(NGX_LOG_EMERG, cf, ngx_errno,
-                        "brix_export \"%s\" cannot be resolved (does it exist?)",
-                        raw);
-                    return NGX_CONF_ERROR;
-                }
-                conf->export = dir;
-            }
-            if (conf->storage_backend.len == 0 && scf->common.storage_backend.len != 0) {
-                conf->storage_backend = scf->common.storage_backend;
-            }
-            if (conf->storage_credential.len == 0
-                && scf->common.storage_credential.len != 0)
-            {
-                conf->storage_credential = scf->common.storage_credential;
-            }
-            if (conf->allow_write == NGX_CONF_UNSET
-                && scf->common.allow_write != NGX_CONF_UNSET)
-            {
-                conf->allow_write = scf->common.allow_write;
-            }
-            if (conf->verify_write == NGX_CONF_UNSET
-                && scf->common.verify_write != NGX_CONF_UNSET)
-            {
-                conf->verify_write = scf->common.verify_write;
-            }
-        }
+    if (ftp_merge_adopt_common(cf, conf) != NGX_CONF_OK) {
+        return NGX_CONF_ERROR;
     }
 
     /* phase-101 W3 stage 3: the x509 GSI-trust strings (brix_certificate,

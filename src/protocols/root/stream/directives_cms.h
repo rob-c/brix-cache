@@ -517,3 +517,25 @@
       NGX_STREAM_SRV_CONF_OFFSET,
       offsetof(ngx_stream_brix_srv_conf_t, manager_stale_after),
       NULL },
+
+    /* §2.18: the server's site name — the human-readable node/site identity a
+     * client reads via `kXR_Qconfig sitename` (monitoring, federation labelling;
+     * the stock all.sitename analog) and, once the Pelican advertiser is wired,
+     * the registry name it publishes. Stored in the advertise.sitename slot it
+     * shares with that federation feature. Unset ⇒ Qconfig echoes the key,
+     * exactly as before. */
+    { ngx_string("brix_sitename"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_str_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_brix_srv_conf_t, advertise.sitename),
+      NULL },
+
+    /* §5.7: cap failed authentication attempts per connection (pwd/gsi/etc.)
+     * before the server disconnects; 0/unset keeps the built-in default (10). */
+    { ngx_string("brix_auth_maxfail"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_TAKE1,
+      ngx_conf_set_num_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_brix_srv_conf_t, auth_maxfail),
+      NULL },

@@ -1,7 +1,7 @@
 # src/auth/authz/acc — XrdAcc-compatible authorization engine
 
 A faithful in-C re-implementation of XRootD's **XrdAcc** authorization framework,
-selectable at runtime with `brix_authdb_format xrdacc;`. It runs **alongside**
+selectable at runtime with `brix_authdb_engine xrdacc;`. It runs **alongside**
 the original 6-bit, root://-only `native` engine (`src/auth/authz/authdb.c`), which
 stays the default so existing deployments are unaffected.
 

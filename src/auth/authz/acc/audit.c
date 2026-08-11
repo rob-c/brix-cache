@@ -7,7 +7,7 @@
  *   are sanitised so a crafted path cannot inject log lines.
  *
  * WHY: operators need an auth trail; the `native` engine only logs denials ad
- *   hoc.  This is the XrdAcc-parity audit sink, gated by brix_authdb_audit.
+ *   hoc.  This is the XrdAcc-parity audit sink, gated by brix_acc_audit.
  *
  * HOW: a level bitmask (1=deny, 2=grant) decides whether to log; the line is
  *   "<id>@<host> grant|deny <op> <path>" with control/quote bytes escaped.

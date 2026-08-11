@@ -123,6 +123,11 @@ ngx_int_t brix_query_cksum(brix_ctx_t *ctx, ngx_connection_t *c,
  * Sends the wire response itself. */
 ngx_int_t brix_query_ckscan(brix_ctx_t *ctx, ngx_connection_t *c,
     ngx_stream_brix_srv_conf_t *conf);
+/* The effective default checksum algorithm name (brix_checksum_default when set
+ * and valid, else "adler32") — a borrowed pointer into conf or a static literal.
+ * Used wherever a Qcksum/Qckscan request selects no algorithm, and to order the
+ * Qconfig "chksum" preference list. Defined in checksum_qcksum.c. */
+const char *brix_checksum_effective_default(ngx_stream_brix_srv_conf_t *conf);
 /* kXR_Qspace (3015): filesystem capacity as "oss.*" key-value text from statvfs
  * on conf root. Sends response (kXR_IOError on statvfs failure); returns NGX_OK. */
 ngx_int_t brix_query_space(brix_ctx_t *ctx, ngx_connection_t *c,

@@ -23,3 +23,10 @@
  * another group, 50 on a bad value (message + usage already printed). */
 int xrdcp_parse_transport_option(brix_copy_opts *o, int argc, char **argv,
                                  size_t *i);
+
+/* Post-argv validation + finalization (xrdcp_parse_validate.c): flag-matrix
+ * checks, destination/source-list assembly, journal + resilience posture.
+ * Returns 0 on success, 50 on usage error, 51 on OOM — exactly the codes
+ * parse_and_validate_args propagates. */
+int xrdcp_validate_and_finalize_args(xrdcp_opts_t *o, xrdcp_lists_t *l,
+                                     const char *prog);

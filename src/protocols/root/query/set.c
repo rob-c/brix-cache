@@ -211,6 +211,27 @@ brix_set_handle_cache_evict(brix_ctx_t *ctx, ngx_connection_t *c,
  *   ctx — xrootd connection context containing parsed request header and payload
  *   c   — nginx connection for logging
  */
+
+/* Copy up to cap-1 bytes of the SET payload into `snippet` for display, stripped
+ * of trailing newline/NUL. Empty snippet when the payload is empty. */
+static void
+set_build_snippet(const char *payload, size_t payload_len, char *snippet,
+    size_t cap)
+{
+    size_t snap;
+
+    snippet[0] = '\0';
+    if (payload_len == 0) {
+        return;
+    }
+    snap = payload_len < cap - 1 ? payload_len : cap - 1;
+    ngx_memcpy(snippet, payload, snap);
+    snippet[snap] = '\0';
+    while (snap > 0 && (snippet[snap - 1] == '\n' || snippet[snap - 1] == '\0')) {
+        snippet[--snap] = '\0';
+    }
+}
+
 ngx_int_t
 brix_handle_set(brix_ctx_t *ctx, ngx_connection_t *c,
     ngx_stream_brix_srv_conf_t *conf)
@@ -236,20 +257,8 @@ brix_handle_set(brix_ctx_t *ctx, ngx_connection_t *c,
     payload     = (ctx->recv.cur_dlen > 0 && ctx->recv.payload != NULL)
                   ? (const char *) ctx->recv.payload : "";
 
-    payload_snippet[0] = '\0';
-    if (payload_len > 0) {
-        size_t snap = payload_len < sizeof(payload_snippet) - 1
-                      ? payload_len : sizeof(payload_snippet) - 1;
-        ngx_memcpy(payload_snippet, payload, snap);
-        payload_snippet[snap] = '\0';
-        /* strip trailing newline/NUL for display */
-        while (snap > 0
-               && (payload_snippet[snap - 1] == '\n'
-                   || payload_snippet[snap - 1] == '\0'))
-        {
-            payload_snippet[--snap] = '\0';
-        }
-    }
+    set_build_snippet(payload, payload_len, payload_snippet,
+                      sizeof(payload_snippet));
 
     /* CMS space report: modifier=appid, payload starts with "cms.space" */
     if (modifier == kXR_set_appid

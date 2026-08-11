@@ -54,7 +54,7 @@
 #include "observability/metrics/unified.h"    /* brix_metric_backend_bytes */
 #include "fs/cache/open.h"
 #include "fs/backend/sd.h"                    /* BRIX_SD_ADV_WILLNEED (read-ahead) */
-#include "protocols/webdav/webdav.h"          /* brix_tcp_congestion (webdav-owned directive) */
+#include "core/config/http_common.h"          /* common.tcp_congestion (phase-105 W2) */
 #include "protocols/root/connection/netopt.h"      /* brix_apply_tcp_congestion */
 
 #include <unistd.h>
@@ -210,13 +210,13 @@ brix_serve_memory_backed(ngx_http_request_t *r, brix_vfs_file_t *fh,
  * serve_apply_tcp_congestion — select the configured TCP congestion control on
  * this connection before the body is streamed.
  *
- * WHAT: Reads the webdav-owned brix_tcp_congestion directive from the location
- *       conf and, when set, applies it to the connection socket.
+ * WHAT: Reads the brix_tcp_congestion directive (common module, phase-105 W2)
+ *       from the location conf and, when set, applies it to the socket.
  * WHY:  This single site covers BOTH WebDAV GET and S3 GetObject (both delegate
  *       the body send here), so one apply governs every HTTP download regardless
- *       of which protocol handler opened the file. The directive is owned by the
- *       always-present webdav http module; reading its per-location conf applies
- *       the same sender-side policy (e.g. "bbr") uniformly.
+ *       of which protocol handler opened the file. The directive registers on
+ *       the common module and lives in the shared preamble — the conf source
+ *       finally matches the engine's cross-protocol reach.
  * HOW:  Empty value => kernel default (no syscall). r->connection is known
  *       non-NULL here (the orchestrator's contract guard ran first) but the fd
  *       may still be invalid, so both are re-checked before the setsockopt.
@@ -224,14 +224,17 @@ brix_serve_memory_backed(ngx_http_request_t *r, brix_vfs_file_t *fh,
 static void
 serve_apply_tcp_congestion(ngx_http_request_t *r)
 {
-    ngx_http_brix_webdav_loc_conf_t *wconf =
-        ngx_http_get_module_loc_conf(r, ngx_http_brix_webdav_module);
+    /* phase-105 W2: the directive moved to the common module — read THAT
+     * conf, so this shared serve path (webdav GET, S3 GetObject, cvmfs) no
+     * longer depends on the webdav module's conf for a cross-protocol knob. */
+    ngx_http_brix_common_conf_t *ccf =
+        ngx_http_get_module_loc_conf(r, ngx_http_brix_common_module);
 
-    if (wconf != NULL && wconf->tcp_congestion.len > 0
+    if (ccf != NULL && ccf->common.tcp_congestion.len > 0
         && r->connection != NULL
         && r->connection->fd != (ngx_socket_t) -1)
     {
-        brix_apply_tcp_congestion(r->connection->fd, wconf->tcp_congestion);
+        brix_apply_tcp_congestion(r->connection->fd, ccf->common.tcp_congestion);
     }
 }
 

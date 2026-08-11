@@ -183,7 +183,7 @@ webdav_dispatch_delegation_upload(ngx_http_request_t *r,
     static const char delegation_path[] = "/.well-known/brix-delegation";
     ngx_int_t         rc;
 
-    if (!conf->delegation_endpoint
+    if (!conf->common.delegation_endpoint
         || r->uri.len < sizeof(delegation_path) - 1
         || ngx_memcmp(r->uri.data + r->uri.len - (sizeof(delegation_path) - 1),
                       delegation_path, sizeof(delegation_path) - 1) != 0)
@@ -206,7 +206,7 @@ webdav_dispatch_delegation_gridsite(ngx_http_request_t *r,
     size_t            prefix_len = sizeof(deleg_prefix) - 1;
     ngx_int_t         rc;
 
-    if (!conf->delegation_endpoint) {
+    if (!conf->common.delegation_endpoint) {
         return NGX_DECLINED;
     }
     if (r->uri.len == sizeof(deleg_request) - 1

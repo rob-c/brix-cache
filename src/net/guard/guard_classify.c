@@ -188,6 +188,24 @@ classify_root_prefix(const unsigned char *buf, size_t len, int *need_more)
  *      3. A non-root opening is identified for the audit line: TLS record
  *         (0x16 0x03), HTTP method line, "SSH-" banner, empty, else junk.
  */
+
+/* Name a non-kXR opening for the audit line: TLS handshake record (0x16 0x03),
+ * an HTTP method line, an "SSH-" banner, else junk. */
+static guard_wire_t
+guard_name_nonroot(const unsigned char *buf, size_t len)
+{
+    if (buf[0] == 0x16 && len >= 2 && buf[1] == 0x03) {
+        return GUARD_WIRE_TLS;          /* TLS handshake record, version 3.x */
+    }
+    if (is_http_line(buf, len)) {
+        return GUARD_WIRE_HTTP;
+    }
+    if (len >= 4 && memcmp(buf, "SSH-", 4) == 0) {
+        return GUARD_WIRE_SSH;
+    }
+    return GUARD_WIRE_JUNK;
+}
+
 guard_wire_t
 guard_classify_handshake(const unsigned char *buf, size_t len, int *need_more)
 {
@@ -204,16 +222,7 @@ guard_classify_handshake(const unsigned char *buf, size_t len, int *need_more)
         return (guard_wire_t) root_wire;
 
     /* Step 3: name the non-root client for the operator. */
-    if (buf[0] == 0x16 && len >= 2 && buf[1] == 0x03) {
-        return GUARD_WIRE_TLS;          /* TLS handshake record, version 3.x */
-    }
-    if (is_http_line(buf, len)) {
-        return GUARD_WIRE_HTTP;
-    }
-    if (len >= 4 && memcmp(buf, "SSH-", 4) == 0) {
-        return GUARD_WIRE_SSH;
-    }
-    return GUARD_WIRE_JUNK;
+    return guard_name_nonroot(buf, len);
 }
 
 /* ---- Pre-backend verdict: bounce or allow ----

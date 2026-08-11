@@ -85,7 +85,7 @@ def _send(sock, streamid, reqid, body=b"", payload=b""):
     sock.sendall(hdr + payload)
 
 
-def _login(port):
+def _login(port, ability=0x04):
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     sock.settimeout(15)
     sock.connect((HOST, port))
@@ -95,7 +95,12 @@ def _login(port):
     sock.sendall(struct.pack("!IIIII", 0, 0, 0, 4, 2012))
     status, _ = _resp(sock)
     assert status == kXR_ok, "handshake failed"
-    _send(sock, b"\x00\x01", kXR_login, payload=b"anonymous\x00")
+    # Login body: pid[4] username[8] ability2[1] ability[1] capver[1] resv[1].
+    # ability defaults to kXR_readrdok (0x04) so an overloaded read may be
+    # answered with the §1.10 redirect; pass 0 to model a client that cannot
+    # follow a mid-read redirect (§1.3 → it must get kXR_wait instead).
+    body = b"\x00" * 13 + bytes([ability & 0xFF]) + b"\x00\x00"
+    _send(sock, b"\x00\x01", kXR_login, body=body, payload=b"anonymous\x00")
     status, _ = _resp(sock)
     assert status == kXR_ok, "anon login failed"
     return sock
@@ -158,11 +163,12 @@ def _overload_wait_seconds(port):
         b.close()
 
 
-def _overload_response(port):
+def _overload_response(port, reader_b_ability=0x04):
     """Like _overload_wait_seconds but returns the full (status, body) of reader
-    B's first DEFERRED response — kXR_wait (stall) or kXR_redirect."""
+    B's first DEFERRED response — kXR_wait (stall) or kXR_redirect. Reader B's
+    login ability governs whether the §1.10 redirect is offered (kXR_readrdok)."""
     a = _login(port)
-    b = _login(port)
+    b = _login(port, ability=reader_b_ability)
     try:
         fa = _open_read(a, "/big.bin")
         fb = _open_read(b, "/big.bin")
@@ -190,12 +196,13 @@ def _overload_response(port):
 
 
 def test_overload_redirect(lifecycle, tmp_path):
-    """(§1.10 redirect) with brix_fsoverload_redirect set, an overloaded read is
-    answered with a kXR_redirect to the sibling host+port instead of a kXR_wait —
-    offloading the read rather than parking the client here."""
+    """(§1.10 redirect) with brix_fsoverload_redirect set, an overloaded read
+    from a readrdok-capable client is answered with a kXR_redirect to the
+    sibling host+port instead of a kXR_wait — offloading the read rather than
+    parking the client here."""
     port = _start(lifecycle, tmp_path,
                   "brix_fsoverload_redirect sibling.example 2094;")
-    status, body = _overload_response(port)
+    status, body = _overload_response(port)          # reader B advertises readrdok
     assert status == kXR_redirect, (
         f"expected kXR_redirect on overload, got status {status}")
     assert len(body) >= 4
@@ -203,6 +210,20 @@ def test_overload_redirect(lifecycle, tmp_path):
     host = body[4:].decode(errors="replace")
     assert rport == 2094, f"redirect port {rport} != 2094"
     assert host == "sibling.example", f"redirect host {host!r} != sibling.example"
+
+
+def test_overload_redirect_needs_readrdok(lifecycle, tmp_path):
+    """(§1.3 parity) a client that did NOT advertise kXR_readrdok cannot follow a
+    mid-read redirect, so even with brix_fsoverload_redirect configured its
+    overloaded read degrades to the safe kXR_wait backoff rather than a redirect
+    it would mishandle."""
+    port = _start(lifecycle, tmp_path,
+                  "brix_fsoverload_redirect sibling.example 2094;")
+    status, body = _overload_response(port, reader_b_ability=0x00)
+    assert status == kXR_wait, (
+        f"non-readrdok client got status {status}, expected kXR_wait "
+        "(redirect must not be handed to a client that can't follow it)")
+    assert len(body) >= 4
 
 
 def test_configured_stall_seconds(lifecycle, tmp_path):

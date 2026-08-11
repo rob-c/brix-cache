@@ -125,7 +125,7 @@ def run_checks(base: Path, nginx_bin: str = NGINX_BIN) -> list[tuple[bool, str]]
             nginx_bin,
             write_stage_config(
                 stage,
-                f"brix_cache_wt_stage_root {stage / 'stage'}; "
+                f"brix_wt_stage_root {stage / 'stage'}; "
                 "brix_wt_stage_high_watermark 90%; brix_wt_stage_low_watermark 80%;",
             ),
             "staging valid pair accepted",
@@ -139,7 +139,7 @@ def run_checks(base: Path, nginx_bin: str = NGINX_BIN) -> list[tuple[bool, str]]
             nginx_bin,
             write_stage_config(
                 stage_inverted,
-                f"brix_cache_wt_stage_root {stage_inverted / 'stage'}; "
+                f"brix_wt_stage_root {stage_inverted / 'stage'}; "
                 "brix_wt_stage_high_watermark 70%; brix_wt_stage_low_watermark 80%;",
             ),
             "wt_stage_low_watermark must be greater than 0",

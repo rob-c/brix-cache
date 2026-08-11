@@ -214,6 +214,33 @@ pblock_arm_xform(brix_sd_instance_t *inst, pblock_state_t *st,
     return 0;
 }
 
+/* Ensure the F10 refcount table is live (idempotent); returns st->refs. */
+static int
+pblock_ensure_refs(pblock_state_t *st)
+{
+    if (!st->refs) {
+        st->refs = (pblock_refs_init(st) == 0);
+    }
+    return st->refs;
+}
+
+/* F6 snapshots + F11 versions/trash — both ride the refcount table. */
+static void
+pblock_arm_refs_features(pblock_state_t *st, const pblock_opts_t *opts)
+{
+    if (opts->snapshots) {                               /* F6 */
+        if (pblock_ensure_refs(st) && pblock_snap_init(st) == 0) {
+            st->snap = 1;
+        }
+    }
+    if (opts->versions > 0 || opts->trash) {             /* F11 */
+        if (pblock_ensure_refs(st) && pblock_hist_init(st) == 0) {
+            st->versions = opts->versions;
+            st->trash    = opts->trash;
+        }
+    }
+}
+
 /* Arm the retention/accounting features. Snapshots (F6) and versioning/trash
  * (F11) both HOLD prior blobs, so they build ON refcounted blobs (F10): arm
  * refs first (idempotent), then the history tables — armed only when both
@@ -221,23 +248,8 @@ pblock_arm_xform(brix_sd_instance_t *inst, pblock_state_t *st,
 static void
 pblock_arm_storage_features(pblock_state_t *st, const pblock_opts_t *opts)
 {
-    if (opts->snapshots) {                               /* F6 */
-        if (!st->refs) {
-            st->refs = (pblock_refs_init(st) == 0);
-        }
-        if (st->refs && pblock_snap_init(st) == 0) {
-            st->snap = 1;
-        }
-    }
-    if (opts->versions > 0 || opts->trash) {             /* F11 */
-        if (!st->refs) {
-            st->refs = (pblock_refs_init(st) == 0);
-        }
-        if (st->refs && pblock_hist_init(st) == 0) {
-            st->versions = opts->versions;
-            st->trash    = opts->trash;
-        }
-    }
+    pblock_arm_refs_features(st, opts);
+
     if (opts->quota_bytes > 0 || opts->quota_inodes > 0) {  /* F5 */
         /* Its own opt: quota only arms when the rollup table + triggers actually
          * installed, so an init failure leaves the production catalog path. */

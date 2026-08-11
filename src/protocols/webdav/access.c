@@ -190,13 +190,13 @@ access_rate_limit(ngx_http_request_t *r,
 {
     ngx_str_t *ip;
 
-    if (conf->rate_limit.kv == NULL || r->connection == NULL) {
+    if (conf->common.rate_limit.kv == NULL || r->connection == NULL) {
         return NGX_OK;
     }
 
     ip = &r->connection->addr_text;
 
-    if (brix_rate_limit_check(&conf->rate_limit,
+    if (brix_rate_limit_check(&conf->common.rate_limit,
                                 (const char *) ip->data, ip->len)
         != NGX_OK)
     {
@@ -531,5 +531,5 @@ webdav_vfs_bind_deleg(ngx_http_request_t *r,
     /* P90-70.4: stamp the export's trust store so the VFS deleg gate re-runs
      * the RFC-3820 chain-trust check before materialising the proxy (no-op
      * when nothing was bound or no CA store is configured). */
-    brix_vfs_deleg_set_ca_store(vctx, conf->ca_store, conf->verify_depth);
+    brix_vfs_deleg_set_ca_store(vctx, conf->ca_store, conf->common.verify_depth);
 }

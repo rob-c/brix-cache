@@ -11,7 +11,7 @@ on the stream reference plane:
     * ``brix_acc_*``        == the XrdAcc engine (``brix_acc_authdb`` + the three
                               ``brix_acc_format`` / ``_audit`` / ``_refresh`` tuners).
 
-so ``brix_webdav_authdb`` and the HTTP spellings ``brix_authdb_format`` /
+so ``brix_webdav_authdb`` and the HTTP spellings ``brix_authdb_engine`` /
 ``_audit`` / ``_refresh`` are gone from the HTTP planes (stock ``unknown directive``
 / ``not allowed here``), and the XrdAcc engine is reachable on HTTP only through
 ``brix_acc_*``.
@@ -22,7 +22,7 @@ calls for lives here, where CI always exercises it, rather than in the GSI/KDC
 lifecycle suite (``test_authdb_mechanism_scope.py``) that skips without the client.
 
 The security guarantee W5 delivers is that the bare name can no longer *silently*
-select XrdAcc on HTTP: the XrdAcc-selection spelling ``brix_authdb_format`` is a
+select XrdAcc on HTTP: the XrdAcc-selection spelling ``brix_authdb_engine`` is a
 loud ``nginx -t`` failure on HTTP, so an XrdAcc HTTP config cannot be carried
 forward unchanged and quietly reinterpreted.  (The native parser itself is
 deliberately lenient — ``brix_parse_authdb`` skips unrecognized lines rather than
@@ -159,24 +159,41 @@ def test_brix_webdav_authdb_is_unknown_directive():
 
 
 @pytest.mark.parametrize("directive", [
+    "brix_authdb_engine xrdacc",
     "brix_authdb_format xrdacc",
     "brix_authdb_audit all",
     "brix_authdb_refresh 60",
-], ids=["format", "audit", "refresh"])
-def test_old_http_xrdacc_tuners_are_rejected(directive):
-    """The XrdAcc tuners keep their brix_authdb_* names ONLY on the stream
-    reference plane; on HTTP they are stock-rejected (they are stream-context
-    directives, so nginx reports 'not allowed here')."""
+], ids=["engine-on-http", "format-retired", "audit-retired", "refresh-retired"])
+def test_stream_only_and_retired_spellings_rejected_on_http(directive):
+    """phase-105 W3: the engine SELECTOR (brix_authdb_engine, ex
+    brix_authdb_format) is stream-only, so it is rejected in an http context;
+    the retired brix_authdb_{format,audit,refresh} spellings are gone from
+    BOTH planes (hard rename — stock unknown directive)."""
     def body(d):
         return (f"    location /dav/ {{ brix_webdav on; brix_webdav_auth none;\n"
                 + f"      {directive}; }}\n")
     rc, out = _nginx_t_http(body)
-    assert rc != 0, f"{directive} must be rejected on HTTP (W5):\n{out}"
+    assert rc != 0, f"{directive} must be rejected on HTTP:\n{out}"
+
+
+@pytest.mark.parametrize("directive", [
+    "brix_acc_audit all",
+    "brix_acc_refresh 60",
+], ids=["audit", "refresh"])
+def test_unified_acc_tuners_accepted_on_http(directive):
+    """phase-105 W3: brix_acc_audit / brix_acc_refresh are ONE spelling on
+    both planes now (the stream plane joined HTTP's brix_acc_* prefix), so
+    they parse on HTTP exactly as before the stream rename."""
+    def body(d):
+        return (f"    location /dav/ {{ brix_webdav on; brix_webdav_auth none;\n"
+                + f"      {directive}; }}\n")
+    rc, out = _nginx_t_http(body)
+    assert rc == 0, f"{directive} must parse on HTTP:\n{out}"
 
 
 # --------------------------------------------------------------------------- #
 # SECURITY-NEG PIN: the bare name can no longer silently select XrdAcc on      #
-# HTTP.  The old XrdAcc HTTP recipe (bare brix_authdb + brix_authdb_format     #
+# HTTP.  The old XrdAcc HTTP recipe (bare brix_authdb + brix_authdb_engine     #
 # xrdacc) now fails nginx -t loudly, so it cannot be carried forward and       #
 # quietly reinterpreted under a different engine.                              #
 # --------------------------------------------------------------------------- #
@@ -186,10 +203,10 @@ def test_legacy_xrdacc_http_config_fails_loudly():
         adb = _authdb_file(d, _XRDACC)
         return (f"    location /dav/ {{ brix_webdav on; brix_webdav_auth none;\n"
                 + f"      brix_authdb {adb};\n"
-                + "      brix_authdb_format xrdacc; }\n")   # dead selection spelling
+                + "      brix_authdb_engine xrdacc; }\n")   # dead selection spelling
     rc, out = _nginx_t_http(body)
     assert rc != 0, (
-        "a pre-W5 XrdAcc HTTP config (bare brix_authdb + brix_authdb_format "
+        "a pre-W5 XrdAcc HTTP config (bare brix_authdb + brix_authdb_engine "
         f"xrdacc) MUST fail nginx -t — the engine cannot be silently mis-selected:\n{out}")
 
 
@@ -208,20 +225,20 @@ def test_migrated_xrdacc_http_config_parses():
 
 # --------------------------------------------------------------------------- #
 # The stream reference plane is UNCHANGED — bare brix_authdb + brix_authdb_*   #
-# tuners still parse there (polymorphic engine via brix_authdb_format).        #
+# tuners still parse there (polymorphic engine via brix_authdb_engine).        #
 # --------------------------------------------------------------------------- #
 
 def test_stream_authdb_family_unchanged():
-    # brix_authdb_format xrdacc keeps the reference-plane config anonymous-valid
+    # brix_authdb_engine xrdacc keeps the reference-plane config anonymous-valid
     # (native format additionally requires an authenticating brix_auth scheme —
     # a pre-existing stream invariant, unrelated to the W5 rename); the point here
     # is that all four brix_authdb* spellings still register on stream.
     def body(d):
         adb = _authdb_file(d, _NATIVE)
         return (f"    brix_authdb {adb};\n"
-                + "    brix_authdb_format xrdacc;\n"
-                + "    brix_authdb_audit all;\n"
-                + "    brix_authdb_refresh 60;\n")
+                + "    brix_authdb_engine xrdacc;\n"
+                + "    brix_acc_audit all;\n"
+                + "    brix_acc_refresh 60;\n")
     rc, out = _nginx_t_stream(body)
     assert rc == 0, f"stream reference plane must keep brix_authdb* unchanged:\n{out}"
     assert "successful" in out, out

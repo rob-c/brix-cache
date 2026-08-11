@@ -104,10 +104,10 @@ http {
             brix_webdav_tpc_key   /etc/grid-security/xrd/xrdkey.pem;
 
             # Optional OAuth2/OIDC token delegation for TPC pull/push
-            brix_webdav_tpc_token_endpoint https://idp.example.com/oauth2/token;
-            brix_webdav_tpc_token_client_id  nginx-xrootd;
-            brix_webdav_tpc_token_client_secret abc123secret;
-            brix_webdav_tpc_token_scope      storage.read;
+            brix_tpc_outbound_token_endpoint https://idp.example.com/oauth2/token;
+            brix_tpc_outbound_client_id  nginx-xrootd;
+            brix_tpc_outbound_client_secret abc123secret;
+            brix_tpc_outbound_scope      storage.read;
 
             # Optional bearer-token auth
             brix_webdav_token_jwks     /etc/tokens/jwks.json;

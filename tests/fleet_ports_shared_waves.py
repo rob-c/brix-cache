@@ -412,4 +412,6 @@ LIFECYCLE_SHARED_PORTS_WAVES: dict[str, dict] = {
     "lc-xrdfs-web-write-ro": {"port": 30531},
     "lc-xrdhttp-guard": {"port": 30280},
     "lc-xrootd-conformance": {"port": 30281},
+    "lc-p105-rl-s3": {"port": 30282, "extra": {"S3_PORT": 30283}},
+    "lc-p105-rl-sibling": {"port": 30284, "extra": {"S3_PORT": 30285}},
 }

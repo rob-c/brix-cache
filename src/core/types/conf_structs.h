@@ -327,7 +327,7 @@ typedef struct {
                                  * sweeps of the export root; 0 = off (default) */
 } brix_csi_conf_t;
 
-/* XrdAcc authorization engine (selected by `brix_authdb_format xrdacc`).  Grouped
+/* XrdAcc authorization engine (selected by `brix_authdb_engine xrdacc`).  Grouped
  * as one sub-struct so the per-server config block stays navigable; every field
  * is reached as conf->acc.<field>. */
 typedef struct {

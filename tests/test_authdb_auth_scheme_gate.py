@@ -74,16 +74,16 @@ def test_anonymous_server_refuses_native_authdb(tmp_path):
 def test_anonymous_server_accepts_xrdacc_authdb(tmp_path):
     """The documented escape hatch is unchanged: the xrdacc engine authorizes
     anonymous `u *` rules, so it stays exempt from the gate."""
-    rc, out = _nginx_t(tmp_path, "none", extra="brix_authdb_format xrdacc;")
+    rc, out = _nginx_t(tmp_path, "none", extra="brix_authdb_engine xrdacc;")
     assert rc == 0, f"anonymous + xrdacc authdb rejected:\n{out}"
 
 
 # ---- security-negative: the gate must not become a rubber stamp ------------- #
 
 def test_gate_still_fires_when_format_is_native_by_default(tmp_path):
-    """`brix_authdb_format native` is the default, so an anonymous server that
+    """`brix_authdb_engine native` is the default, so an anonymous server that
     never names a format must still be refused — the rejection cannot depend on
     the directive being written out."""
-    rc, out = _nginx_t(tmp_path, "none", extra="brix_authdb_format native;")
+    rc, out = _nginx_t(tmp_path, "none", extra="brix_authdb_engine native;")
     assert rc != 0, "explicit native format + anonymous must be refused"
     assert GATE_NEEDLE in out, out

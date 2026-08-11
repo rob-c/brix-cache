@@ -202,7 +202,10 @@ def _rt61_4_push_side_mode_second_the(carol_steal_fs, RES_BODY, _content, out, e
        "(rc=%d)" % (TAG, rc))
     ok(not all((os.path.exists(carol_steal_fs), RES_BODY in _content(carol_steal_fs))),
        "%s(3): no carol file holds the research-group body bytes" % TAG)
+    _tpc_pull_push_matrix_p2(TAG, data, _rm, c_src_rel, d_src_rel, BOB_PRIV, _gone, MARK_C, _owner, _content, MARK_D)
 
+
+def _tpc_pull_push_matrix_p2(TAG, data, _rm, c_src_rel, d_src_rel, BOB_PRIV, _gone, MARK_C, _owner, _content, MARK_D):
     # =====================================================================
     # (4) PUSH-SIDE mode 'second' (the orchestration mode NOT exercised by
     #     run_native_tpc, which used first/delegate).  The mode only changes
@@ -271,6 +274,10 @@ def _rt61_6_pub_0777_artifacts_created_by(_gone, miss_dst_fs, TAG, data):
     #     DISTINCT from the alice/bob pair run_native_tpc(g) already proved):
     #     each lands owned by the COPIER, never svc/root, and dave's copy after
     #     carol's shows no principal bleed on the shared worker.
+    _tpc_pull_push_matrix_p3(TAG, data, _rm, c_src_rel, d_src_rel, MARK_C, BOB_PRIV, _gone, _content, MARK_D, _owner)
+
+
+def _tpc_pull_push_matrix_p3(TAG, data, _rm, c_src_rel, d_src_rel, MARK_C, BOB_PRIV, _gone, _content, MARK_D, _owner):
     # =====================================================================
     pub_c_rel = "/pub/%s_pub_carol.bin" % TAG
     pub_c_fs = os.path.join(data, "pub", "%s_pub_carol.bin" % TAG)
@@ -306,7 +313,10 @@ def _rt61_survival_secret_integrity_after_the_whole(rc, pub_d_fs, _owner, TAG, _
         ok(any((_gone(pub_d_fs), _owner(pub_d_fs) == UID_DAVE)),
            "%s(6): dave pub/ TPC unsupported/handled (rc=%d), no foreign artifact"
            % (TAG, rc))
+    _tpc_pull_push_matrix_p4(_rm, c_src_rel, TAG, MARK_C, BOB_PRIV, _content, _owner, data)
 
+
+def _tpc_pull_push_matrix_p4(_rm, c_src_rel, TAG, MARK_C, BOB_PRIV, _content, _owner, data):
     # =====================================================================
     # SURVIVAL + secret-integrity: after the whole matrix the broker/worker is
     # not wedged, and none of bob's protected fixtures were disturbed by any

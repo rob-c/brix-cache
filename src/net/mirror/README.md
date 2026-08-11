@@ -12,7 +12,7 @@ proving — against real traffic — that it answers the same way before any cut
 
 Mirroring is **off by default** on every surface. It activates only when an
 operator configures a target: `brix_mirror_url http[s]://host:port` on a
-WebDAV location, or `brix_stream_mirror_url host:port` on a stream server
+WebDAV location, or `brix_mirror_url host:port` on a stream server
 block. Up to `BRIX_MIRROR_MAX_TARGETS` (4) shadows may be configured per
 context, all resolved to a `sockaddr` at config time so request handlers never
 call `getaddrinfo` on the event loop. A per-request PRNG draw
@@ -44,7 +44,7 @@ LOG-phase handlers registered from `src/protocols/webdav/postconfig.c`.
 | `mirror.h` | Protocol-agnostic shared config (`brix_mirror_conf_t`, `brix_mirror_target_t`), the HTTP method bitmask (`BRIX_MIRROR_M_*`) and XRootD opcode bitmask (`BRIX_MIRROR_OP_*`), and the inline `brix_mirror_should_sample()` / `brix_mirror_status_class()` helpers. Pulls in no HTTP- or stream-specific types so it is includable from either surface. |
 | `http_mirror.h` | Public API for the HTTP/WebDAV mirror: the two phase handlers, the merge-time `brix_http_mirror_setup()`, and the `brix_mirror_url` / `brix_mirror_methods` directive setters. |
 | `http_mirror.c` | HTTP/WebDAV mirror. PRECONTENT handler fires one background subrequest per target on the main request and, on each mirror subrequest, takes it over and proxies it to the shadow (upstream callbacks `mirror_create_request` / `mirror_process_status_line` / `mirror_finalize_request`). Handles credential stripping/injection, Destination/Depth/Overwrite rewrite for MOVE/COPY, request-body cloning for PUT, the `X-Xrootd-Mirror` loop guard, and the LOG handler that stamps the primary status for divergence. |
-| `stream_mirror.h` | Public API for the stateless stream mirror: `brix_stream_mirror_maybe()` (the launch hook) plus the `brix_stream_mirror_url` / `brix_mirror_opcodes` / `brix_mirror_exclude_opcodes` directive setters. |
+| `stream_mirror.h` | Public API for the stateless stream mirror: `brix_stream_mirror_maybe()` (the launch hook) plus the `brix_mirror_url` / `brix_mirror_opcodes` / `brix_mirror_exclude_opcodes` directive setters. |
 | `stream_mirror.c` | Stateless XRootD stream mirror. Decides replayability (`brix_mirror_request_replayable`), snapshots the request frame, and drives a per-target async client through `HANDSHAKE → PROTOCOL → LOGIN → REQUEST` (`brix_mir_*` state machine) reusing `brix_upstream_build_bootstrap()`. Compares shadow vs. primary status and counts divergence, treating `kXR_Unsupported` and TLS/auth demands as benign. Owns the opcode-name parser shared by the allow/exclude setters. |
 | `stream_wmirror.h` | Public API for the data-write mirror (W3): `brix_stream_wmirror_on_open()`, `_observe()`, and `_cleanup()`, called from the open/dispatch/disconnect paths. |
 | `stream_wmirror.c` | Stateful data-write mirror. Accumulates a write-open's sequential `kXR_write` payloads into a bounded per-file buffer hanging off `ctx->wmirror`; on `kXR_close` hands the complete file to a detached async replay (`wmir_*` state machine: `OPEN → WRITE → CLOSE`) against an isolated shadow. Aborts (counted, never blocking) on `kXR_pgwrite`, non-sequential offsets, or cap overflow. |

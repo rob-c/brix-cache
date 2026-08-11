@@ -43,6 +43,10 @@ def _rt13_baseline_recovery_prove_the_harness_path(recover, adir, T):
     BOBHL_MARK = b"BRL-BOB-HARDLINK-SECRET"
     SVCHL_MARK = b"svc-only-secret"   # already in /svconly/secret-name.txt
 
+    _broker_resource_limits_p1(s3port, adir, recover, bdir, data, T, port, ta, name, tb, target, BOBHL_MARK, SHADOW_MARK, SVCHL_MARK, prop_name)
+
+
+def _broker_resource_limits_p1(s3port, adir, recover, bdir, data, T, port, ta, name, tb, target, BOBHL_MARK, SHADOW_MARK, SVCHL_MARK, prop_name):
     # =====================================================================
     # A) FIFO — broker must open O_NONBLOCK / fail closed, NEVER block the
     #    single-threaded worker waiting for a writer that never comes.
@@ -104,6 +108,8 @@ def _rt13_put_onto_a_fifo_would_block(T, port, ta, recover, adir, fifo):
     if fifo:
         _rt13_when_fifo(port, ta, T, recover)
 
+
+def _broker_resource_limits_p2(s3port, adir, recover, bdir, data, T, port, ta, fifo, name, tb, target, BOBHL_MARK, SHADOW_MARK, SVCHL_MARK, prop_name):
     # =====================================================================
     # B) UNIX-domain socket node in the export — not a regular file; open
     #    must fail closed (ENXIO/EACCES), never hang or be served.
@@ -154,6 +160,8 @@ def _rt13_c_device_node_creation_must_eperm(sockp, T, port, ta, s3port, recover,
     if sockp:
         t0, st, b = _rt13_when_sockp(port, ta, T, s3port, recover, srv)
 
+
+def _broker_resource_limits_p3(s3port, adir, recover, bdir, data, T, port, ta, fifo, name, tb, target, BOBHL_MARK, SHADOW_MARK, SVCHL_MARK, prop_name):
     # =====================================================================
     # C) Device-node creation must EPERM for the in-ns root attacker (no
     #    CAP in a true sense for mknod char/block); if it somehow succeeds,
@@ -175,6 +183,7 @@ def _rt13_c_device_node_creation_must_eperm(sockp, T, port, ta, s3port, recover,
         ok(all((time.time() - t0 < 5.0, not _has(b, SHADOW_MARK))),
            f"WebDAV GET on char-device node handled, no hang/leak (HTTP {st})")
         recover("char-device ops")
+    _broker_resource_limits_p4(s3port, recover, adir, bdir, data, T, port, ta, fifo, name, tb, target, BOBHL_MARK, SHADOW_MARK, SVCHL_MARK, prop_name)
 
 
 def _rt13_d_symlink_class_dangling_self_loop(adir):
@@ -270,6 +279,10 @@ def _rt13_when_shadow(port, ta, T, _has, SHADOW_MARK, s3port):
 def _rt13_segment_09(_mklink, T, port, ta, _has, SHADOW_MARK, s3port, recover):
 
     shadow = _mklink(f"{T}toshadow", "/etc/shadow")
+    _broker_resource_limits_p5(shadow, s3port, _mklink, recover, adir, bdir, data, T, port, ta, fifo, tb, BOBHL_MARK, SHADOW_MARK, SVCHL_MARK, prop_name)
+
+
+def _broker_resource_limits_p5(shadow, s3port, _mklink, recover, adir, bdir, data, T, port, ta, fifo, tb, BOBHL_MARK, SHADOW_MARK, SVCHL_MARK, prop_name):
     if shadow:
         st, b = _rt13_when_shadow(port, ta, T, _has, SHADOW_MARK, s3port)
 
@@ -279,6 +292,7 @@ def _rt13_segment_09(_mklink, T, port, ta, _has, SHADOW_MARK, s3port, recover):
         ok(all((not _has(b, b'root:x:0:0'), not _has(b, b'root:!'))),
            f"symlink ->/etc/passwd GET no passwd leak (HTTP {st})")
     recover("symlink class")
+    _broker_resource_limits_p6(s3port, _mklink, adir, bdir, data, T, port, ta, recover, fifo, tb, BOBHL_MARK, SVCHL_MARK, prop_name)
 
 
 def _rt13_control_an_in_export_symlink_to(_mklink, T, bdir, port, ta, _has, adir):
@@ -306,7 +320,10 @@ def _rt13_control_an_in_export_symlink_to(_mklink, T, bdir, port, ta, _has, adir
                f"control: in-export symlink to bob's 0644 file resolves to "
                f"world-readable body or is denied, never leaks bob's private "
                f"secret (HTTP {st})")
+    _broker_resource_limits_p7(s3port, adir, bdir, data, T, port, ta, recover, fifo, tb, BOBHL_MARK, SVCHL_MARK, prop_name)
 
+
+def _broker_resource_limits_p7(s3port, adir, bdir, data, T, port, ta, recover, fifo, tb, BOBHL_MARK, SVCHL_MARK, prop_name):
     # =====================================================================
     # E) HARDLINK across tenant dirs — a hardlink in alice's tree to bob's
     #    0600 file.  The inode mode/owner is bob's (0600 bob); the broker
@@ -373,7 +390,10 @@ def _rt13_match_the_canary_s_restrictive_mode(svc_hl, svc_secret, T, port, ta, _
         ok(all((st != 200, not _has(b, SVCHL_MARK))),
            f"hardlink to svc(1500)-owned secret DENIED to alice, no leak (HTTP {st})")
         recover("svc-secret hardlink")
+    _broker_resource_limits_p8(s3port, T, port, ta, adir, recover, fifo, hl_made, bdir, tb, data, prop_name, BOBHL_MARK)
 
+
+def _broker_resource_limits_p8(s3port, T, port, ta, adir, recover, fifo, hl_made, bdir, tb, data, prop_name, BOBHL_MARK):
     # =====================================================================
     # F) PATH BOUNDARY: very long single component (near PATH_MAX), deeply
     #    nested namespace, and paths with embedded ./ and // — the broker
@@ -455,6 +475,7 @@ def _rt13_f4_embedded_and_and_trailing_dot(recover, T, port, ta, adir):
             ok(os.stat(fp).st_uid == UID_ALICE,
                f"canonicalized embedded-path file {nm} owned by alice")
     recover("embedded ./ // segments")
+    _broker_resource_limits_p9(s3port, port, ta, adir, recover, fifo, hl_made, bdir, tb, data, T, prop_name, BOBHL_MARK)
 
 
 def _rt13_g_xattr_namespace_probes_via_proppatch(T, port, ta, adir):
@@ -530,6 +551,7 @@ def _rt13_direct_raw_xattr_confinement_check_plant(_proppatch_ns, _bad_xattr_pre
            f"root:// query xattr on bob's 0600 leaks no content (rc={rc})")
         rc, out, _e = xrd_fs(["query", "xattr", f"/alice/{T}xattr.txt"], "alice")
         ok(True, f"root:// query xattr on own file returned (rc={rc})")
+    _broker_resource_limits_p10(s3port, port, recover, fifo, hl_made, bdir, ta, adir, tb, data, T, BOBHL_MARK)
 
 
 def _rt13_segment_01_9(T, i, port, ta):
@@ -596,7 +618,10 @@ def _rt13_h_rapid_sequential_broker_stress_hammer(T, port, ta, adir):
 def _rt13_h2_rapid_keep_alive_pipelined_burst(stall, T, ta, port):
     ok(stall == 0, f"broker socket never wedged under burst: every interleaved "
                    f"known-good probe passed fast (stalls={stall})")
+    _broker_resource_limits_p11(s3port, port, recover, fifo, hl_made, bdir, ta, adir, tb, data, T, BOBHL_MARK)
 
+
+def _broker_resource_limits_p11(s3port, port, recover, fifo, hl_made, bdir, ta, adir, tb, data, T, BOBHL_MARK):
     # H2) rapid keep-alive pipelined burst on ONE TCP connection — stresses the
     #     per-request principal re-establishment without a fresh connect each time;
     #     none may bleed identity (every created file alice-owned).
@@ -627,7 +652,10 @@ def _rt13_h3_interleave_cross_tenant_bob_writes(adir, T, ka_bad_owner, ka_ok, ta
     ok(all((ka_ok >= 1, ka_bad_owner == 0)),
        f"keep-alive pipelined burst: {ka_ok}/10 ok, no wrong-owner file "
        f"(bad_owner={ka_bad_owner})")
+    _broker_resource_limits_p12(s3port, port, recover, fifo, hl_made, bdir, ta, tb, data, adir, T, BOBHL_MARK)
 
+
+def _broker_resource_limits_p12(s3port, port, recover, fifo, hl_made, bdir, ta, tb, data, adir, T, BOBHL_MARK):
     # H3) interleave cross-tenant bob writes into the burst window — a leaked
     #     principal would let one land in the wrong tenant or as the wrong owner.
     inter = []
@@ -660,7 +688,10 @@ def _rt13_i_s3_special_file_boundary_probes(data, T, recover, s3port, fifo, hl_m
     ok(drift == 0, f"interleaved alice/bob pipelined PUTs: zero principal drift "
                    f"(wrong-owner={drift})")
     recover("rapid broker stress")
+    _broker_resource_limits_p13(s3port, fifo, hl_made, recover, bdir, adir, T, BOBHL_MARK)
 
+
+def _broker_resource_limits_p13(s3port, fifo, hl_made, recover, bdir, adir, T, BOBHL_MARK):
     # =====================================================================
     # I) S3 special-file + boundary probes (the S3 async-body handler must fail
     #    closed on the same pathological nodes, no hang/leak).
@@ -681,6 +712,7 @@ def _rt13_i_s3_special_file_boundary_probes(data, T, recover, s3port, fifo, hl_m
             ok(all((st != 200, not _has(b, BOBHL_MARK))),
                f"S3 GET cross-tenant hardlink DENIED, no leak (HTTP {st})")
         recover("S3 special-file probes")
+    _broker_resource_limits_p14(recover, bdir, adir, T)
 
 
 def _rt13_privileged_owner_drift(adir, tag, name):

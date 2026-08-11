@@ -3,7 +3,7 @@
  *
  * WHAT: brix_acc_build() parses an authdb file into a fresh table generation
  *   and installs the OS/NIS group tunables + resolvers.  brix_acc_init_server()
- *   builds the per-worker tables for a server running `brix_authdb_format
+ *   builds the per-worker tables for a server running `brix_authdb_engine
  *   xrdacc` and, when a refresh interval is set, arms a timer that re-reads the
  *   file on mtime change and atomically swaps the live tables.
  *
@@ -21,7 +21,10 @@
 
 #include <sys/stat.h>
 
-/* Shared directive enum tables (used by the stream, WebDAV and S3 modules). */
+/* Shared directive enum tables (used by the stream, WebDAV and S3 modules).
+ * This is their single definition — the former stream-local duplicates in
+ * protocols/root/stream/module_enums.c were deleted (phase-105 W3); every
+ * consumer resolves these via the extern decls in acc.h. */
 ngx_conf_enum_t  brix_acc_format_modes[] = {
     { ngx_string("native"), BRIX_AUTHDB_FORMAT_NATIVE },
     { ngx_string("xrdacc"), BRIX_AUTHDB_FORMAT_XRDACC },

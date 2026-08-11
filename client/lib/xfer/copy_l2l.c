@@ -119,6 +119,64 @@ l2l_open_src(const brix_url *su, brix_vfs_file **vf_out, l2l_fd_io *fdio,
  *      4. File dst: commit on success, then --cksum against the committed
  *         file (drop on a genuine mismatch); abort the temp on any failure.
  */
+/* Open the destination side: stdout, or a VFS temp (--force honoured).
+ * On success the sink fn/ctx are armed; -1 with st set on open failure. */
+static int
+l2l_open_dst(const brix_url *du, const brix_copy_opts *o, int64_t expected,
+             brix_vfs_file **dst_vf, l2l_fd_io *dst_fd, pump_sink_fn *sink_fn,
+             void **kctx, pump_local_t *dst_lc, brix_status *st)
+{
+    brix_vfs_open_opts vopts = {0};
+
+    if (du->scheme == XRDC_SCHEME_STDIO) {
+        dst_fd->fd = STDOUT_FILENO;
+        *sink_fn = l2l_sink_fd;
+        *kctx = dst_fd;
+        return 0;
+    }
+    vopts.expected_size = expected;
+    if (brix_vfs_open(du->path,
+                      XRDC_VFS_WRITE | (o->force ? XRDC_VFS_FORCE : 0),
+                      &vopts, dst_vf, st) != 0) {
+        return -1;
+    }
+    dst_lc->vf = *dst_vf;
+    *sink_fn = pump_sink_local_vfs;
+    *kctx = dst_lc;
+    return 0;
+}
+
+/* File-destination tail: commit on success, then --cksum against the
+ * committed file (drop on a genuine mismatch); abort the temp on any failure.
+ * Owns closing dst_vf; a stdout destination (dst_vf == NULL) passes through. */
+static int
+l2l_finish_dst(int rc, brix_vfs_file *dst_vf, const brix_url *du,
+               const brix_copy_opts *o, brix_status *st)
+{
+    int committed = 0;
+
+    if (dst_vf == NULL) {
+        return rc;
+    }
+    if (rc == 0) {
+        rc = brix_vfs_commit(dst_vf, st);
+        if (rc == 0) {
+            committed = 1;
+            if (o->cksum != NULL
+                && cksum_verify(NULL, NULL, du->path, o->cksum, o->silent, st)
+                   == XRDC_CK_MISMATCH) {
+                unlink(du->path);   /* committed-but-bad: drop it */
+                rc = -1;
+            }
+        }
+    }
+    if (rc != 0 && !committed) {
+        brix_vfs_abort(dst_vf);
+    }
+    brix_vfs_close(dst_vf);
+    return rc;
+}
+
 int
 brix_copy_local_to_local(const brix_url *su, const brix_url *du,
                          const brix_copy_opts *o, brix_status *st)
@@ -131,7 +189,7 @@ brix_copy_local_to_local(const brix_url *su, const brix_url *du,
     void          *sctx = NULL, *kctx = NULL;
     int64_t        expected = -1;
     int            dst_stdout = (du->scheme == XRDC_SCHEME_STDIO);
-    int            rc, committed = 0;
+    int            rc;
 
     /* Friendly destination-exists refusal (matches the download path's
      * message) BEFORE opening the source, so the user sees "-f", not the
@@ -153,48 +211,18 @@ brix_copy_local_to_local(const brix_url *su, const brix_url *du,
         sctx = &src_lc;
     }
 
-    if (dst_stdout) {
-        dst_fd.fd = STDOUT_FILENO;
-        sink_fn = l2l_sink_fd;
-        kctx = &dst_fd;
-    } else {
-        brix_vfs_open_opts vopts = {0};
-
-        vopts.expected_size = expected;
-        if (brix_vfs_open(du->path,
-                          XRDC_VFS_WRITE | (o->force ? XRDC_VFS_FORCE : 0),
-                          &vopts, &dst_vf, st) != 0) {
-            if (src_vf != NULL) {
-                brix_vfs_close(src_vf);
-            }
-            return -1;
+    if (l2l_open_dst(du, o, expected, &dst_vf, &dst_fd, &sink_fn, &kctx,
+                     &dst_lc, st) != 0) {
+        if (src_vf != NULL) {
+            brix_vfs_close(src_vf);
         }
-        dst_lc.vf = dst_vf;
-        sink_fn = pump_sink_local_vfs;
-        kctx = &dst_lc;
+        return -1;
     }
 
     rc = transfer_pump(src_fn, sctx, sink_fn, kctx, expected, o,
                        expected, st);
 
-    if (rc == 0 && dst_vf != NULL) {
-        rc = brix_vfs_commit(dst_vf, st);
-        if (rc == 0) {
-            committed = 1;
-            if (o->cksum != NULL
-                && cksum_verify(NULL, NULL, du->path, o->cksum, o->silent, st)
-                   == XRDC_CK_MISMATCH) {
-                unlink(du->path);   /* committed-but-bad: drop it */
-                rc = -1;
-            }
-        }
-    }
-    if (rc != 0 && dst_vf != NULL && !committed) {
-        brix_vfs_abort(dst_vf);
-    }
-    if (dst_vf != NULL) {
-        brix_vfs_close(dst_vf);
-    }
+    rc = l2l_finish_dst(rc, dst_vf, du, o, st);
     if (src_vf != NULL) {
         brix_vfs_close(src_vf);
     }

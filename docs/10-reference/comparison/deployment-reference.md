@@ -624,10 +624,10 @@ stream {
 &#32;
         # Authorization is separate from impersonation. The authdb sees
         # the GSI DN, not the local account from the grid-mapfile.
-        brix_authdb_format xrdacc;
+        brix_authdb_engine xrdacc;
         brix_authdb /etc/brix/authdb;
-        brix_authdb_refresh 60;
-        brix_authdb_audit deny;
+        brix_acc_refresh 60;
+        brix_acc_audit deny;
 &#32;
         brix_thread_pool default;
     }
@@ -948,10 +948,10 @@ http {
 &#32;
             # WebDAV authorization still matches the authenticated DN.
             # The grid-mapfile above controls the local user for I/O.
-            brix_authdb_format xrdacc;
+            brix_authdb_engine xrdacc;
             brix_authdb /etc/brix/webdav-authdb;
-            brix_authdb_refresh 60;
-            brix_authdb_audit deny;
+            brix_acc_refresh 60;
+            brix_acc_audit deny;
         }
     }
 }
@@ -1270,10 +1270,10 @@ stream {
 &#32;
         # Multi-user authorization at the cache edge. The authdb sees the
         # authenticated DN; grant only the EOS prefixes each user may read.
-        brix_authdb_format xrdacc;
+        brix_authdb_engine xrdacc;
         brix_authdb /etc/brix/cache-authdb;
-        brix_authdb_refresh 60;
-        brix_authdb_audit deny;
+        brix_acc_refresh 60;
+        brix_acc_audit deny;
 &#32;
         # XCache is client read-only. Cache fills write internally.
         brix_allow_write off;
@@ -1999,7 +1999,7 @@ stream {
 &#32;
         # Shadow read-path operations to a separate validation server.
         # Do not point the shadow at the same writable storage root.
-        brix_stream_mirror_url shadow-xrd.example.org:21094;
+        brix_mirror_url shadow-xrd.example.org:21094;
         brix_mirror_opcodes protocol login stat locate open dirlist;
         brix_mirror_sample 10;
         brix_mirror_strip_auth on;

@@ -222,7 +222,7 @@ def test_fil_qt_01_query_authz_bearer_prefix_accept():
     WHAT: Valid token delivered via the ?authz= query parameter with a "Bearer "
           prefix (URL-encoded as %20).
     WHY:  RFC 6750 §2.3 — query-string transport is supported by the server via
-          brix_http_query_token; the server must accept a valid token regardless
+          brix_webdav_query_token; the server must accept a valid token regardless
           of whether it arrives in the Authorization header or a query param.
     """
     tok = _forge().generate(scope="storage.read:/")

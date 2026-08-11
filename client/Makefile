@@ -115,7 +115,8 @@ LIB_SRCS   := \
   lib/core/aio/aio.c lib/core/aio/aio_buffers.c lib/core/aio/aio_conn.c lib/core/aio/aio_engine.c lib/core/aio/aio_engine_cqe.c lib/core/aio/aio_io.c lib/core/aio/aio_mfile.c lib/core/aio/aio_mgr.c lib/core/aio/aio_timeouts.c lib/core/aio/uring.c lib/core/aio/uring_stub.c \
   lib/core/config/xrdrc.c lib/core/config/envalias.c \
   lib/core/types/status.c lib/core/types/units.c \
-  lib/net/conn.c lib/net/conn_bootstrap.c lib/net/conn_explain.c lib/net/cpool.c lib/net/netdiag.c lib/net/netpref.c lib/net/forksafe.c lib/net/nettmo.c lib/net/pool.c lib/net/resilient.c lib/net/sock.c lib/net/streams.c lib/net/tls.c lib/net/tls_io.c lib/net/url.c \
+  lib/net/conn.c lib/net/conn_bootstrap.c lib/net/conn_explain.c lib/net/cpool.c lib/net/netdiag.c lib/net/netpref.c lib/net/forksafe.c lib/net/nettmo.c lib/net/pool.c lib/net/resilient.c lib/net/sock.c lib/net/streams.c lib/net/tls.c lib/net/tls_io.c lib/net/tls_certinfo.c lib/net/url.c lib/net/redir_registry.c \
+  lib/ops/opdsl.c \
   ../shared/net/proxy_env.c ../shared/net/proxy_connect.c \
   lib/auth/auth.c lib/auth/sigver.c \
   lib/auth/cred/cred.c lib/auth/cred/cred_bearer.c lib/auth/cred/cred_krb5.c lib/auth/cred/cred_s3.c lib/auth/cred/cred_sss.c lib/auth/cred/cred_x509.c lib/auth/cred/credinfo.c lib/auth/cred/credrefresh.c \
@@ -274,8 +275,8 @@ COMPAT_COMPLETION_NAMES := $(foreach n,xrd xrdfs xrdcp xrdcksum xrdprep xrdgsipr
 # phase-69: apps regrouped into tool-family subdirs — each CLI's translation units
 # are listed in a <name>_OBJS variable (the Phase-38 split siblings are just extra
 # entries). The single link rule below expands these via .SECONDEXPANSION.
-xrdcp_OBJS        := apps/copy/xrdcp.o apps/copy/xrdcp_transfer.o apps/copy/xrdcp_recursive.o apps/copy/xrdcp_dispatch.o apps/copy/xrdcp_parse.o apps/copy/xrdcp_parse_transport.o apps/copy/xrdcp_recursive_upload.o
-xrdfs_OBJS        := apps/fs/xrdfs.o apps/fs/xrdfs_data.o apps/fs/xrdfs_data_content.o apps/fs/xrdfs_data_wc.o apps/fs/xrdfs_data_xfer.o apps/fs/xrdfs_data_xfer_vec.o apps/fs/xrdfs_walk.o apps/fs/xrdfs_fmt.o apps/fs/xrdfs_attr.o apps/fs/xrdfs_xattr.o apps/fs/xrdfs_meta.o apps/fs/xrdfs_web.o
+xrdcp_OBJS        := apps/copy/xrdcp.o apps/copy/xrdcp_transfer.o apps/copy/xrdcp_recursive.o apps/copy/xrdcp_dispatch.o apps/copy/xrdcp_parse.o apps/copy/xrdcp_parse_validate.o apps/copy/xrdcp_parse_transport.o apps/copy/xrdcp_recursive_upload.o
+xrdfs_OBJS        := apps/fs/xrdfs.o apps/fs/xrdfs_data.o apps/fs/xrdfs_data_content.o apps/fs/xrdfs_data_wc.o apps/fs/xrdfs_data_xfer.o apps/fs/xrdfs_data_xfer_vec.o apps/fs/xrdfs_walk.o apps/fs/xrdfs_fmt.o apps/fs/xrdfs_attr.o apps/fs/xrdfs_xattr.o apps/fs/xrdfs_meta.o apps/fs/xrdfs_meta_ls.o apps/fs/xrdfs_meta_ns.o apps/fs/xrdfs_web.o
 xrd_OBJS          := apps/diag/xrd.o apps/diag/xrd_battery.o apps/diag/xrd_battery_web.o apps/diag/xrd_doctor.o apps/diag/xrd_doctor_json.o apps/diag/xrd_clockskew.o apps/diag/xrd_mount.o apps/diag/xrd_usage.o
 xrddiag_OBJS      := apps/diag/xrddiag.o apps/diag/diag_check.o apps/diag/diag_check_probe.o apps/diag/diag_bench.o apps/diag/diag_metabench.o apps/diag/diag_watch.o apps/diag/diag_topology.o apps/diag/diag_compare.o apps/diag/diag_doctor.o apps/diag/diag_doctor_json.o apps/diag/diag_doctor_probe.o apps/diag/diag_doctor_proto.o apps/diag/diag_doctor_audit.o apps/diag/diag_doctor_graph.o apps/diag/diag_doctor_latency.o apps/diag/diag_doctor_recon.o apps/diag/diag_doctor_eos.o apps/diag/diag_doctor_eos_fileinfo.o apps/diag/diag_tpc_egress.o apps/diag/diag_authsuite.o apps/diag/diag_misc.o \
                      apps/diag/xrdqstats.o apps/diag/wait41.o apps/diag/mpxstats.o
@@ -564,9 +565,15 @@ apps/ceph/cephfs_layout.o: $(CEPH_RADOS_DIR)/cephfs_layout.c
 	$(CC) -std=c11 -Wall -Wextra -D_FILE_OFFSET_BITS=64 $(OPT) -I$(CEPH_RADOS_DIR) $(CFLAGS) -c $< -o $@
 
 $(BINDIR)/xrdceph_striper_migrate: apps/ceph/xrdceph_striper_migrate.cpp \
+		apps/ceph/xrdceph_striper_engine.cpp \
+		apps/ceph/xrdceph_striper_estimate.cpp \
+		apps/ceph/xrdceph_striper_internal.hpp \
 		apps/ceph/xrdceph_migrate_config.h | $(BINDIR)
 	$(CXX) $(CEPH_CXX_FLAGS) $(LDFLAGS) $(LDFLAGS_PIE) \
-	    apps/ceph/xrdceph_striper_migrate.cpp -lrados -lcephfs -pthread -o $@
+	    apps/ceph/xrdceph_striper_migrate.cpp \
+	    apps/ceph/xrdceph_striper_engine.cpp \
+	    apps/ceph/xrdceph_striper_estimate.cpp \
+	    -lrados -lcephfs -pthread -o $@
 	@echo " + built $@ (librados/libcephfs; C++17)"
 
 $(BINDIR)/xrdceph_cephfs_to_striper: apps/ceph/xrdceph_cephfs_to_striper.cpp \

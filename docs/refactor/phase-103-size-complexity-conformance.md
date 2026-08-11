@@ -5,9 +5,13 @@
 (CCN>15) backlog across the *whole* project: the Python test suite and every
 C/C++ source and header under `src/`, `client/`, and `shared/` — and leave the
 gates positioned so it stays burned.
-**Status:** 📋 **PLAN ONLY — NOTHING IN THIS DOCUMENT IS IMPLEMENTED.** Every
-number below is measured from the live tree (commands in Appendix A); every
-work item is future work.
+**Status:** 🔨 **IN PROGRESS.** Wave W0 (metric tooling) and the whole
+file-size dimension are landed; **the entire C/C++/header complexity dimension
+is now at zero** (`src/`, `client/`, `shared/` — `complexity_backlog.txt` empty),
+and the Python/gate-flip waves remain. Live status + exactly what landed vs.
+what remains is in the **[Execution status](#execution-status-2026-08-11)**
+section appended at the end of this document. The plan text below is preserved
+as originally written (numbers measured at `99eff8bd`).
 **Prerequisite reading:** `docs/refactor/phase-38-file-size-unix-modularity.md`
 (the framework this phase completes), `docs/09-developer-guide/coding-standards.md`
 §1/§8/§9, `CLAUDE.md` HARD BLOCKS.
@@ -640,3 +644,141 @@ The authoritative list *is* `tools/ci/complexity_backlog.txt` (52 rows,
 | 109 | 576 | `part10.py::run_webdav_method_state` |
 | 108 | 592 | `part42.py::run_combo_encoding_group_targets` |
 | 108 
+---
+
+## Execution status (2026-08-11)
+
+First implementation wave against this plan. Everything below is landed in the
+working tree and verified (full nginx rebuild, client build + unit tests,
+targeted behaviour suites, and every size/complexity/coverage guard green).
+No behaviour change — every source edit is a pure refactor per §1.
+
+### Landed
+
+**File size — the whole C/C++ dimension is at zero.**
+`tools/ci/file_size_backlog.txt` is now **empty** (was 7 entries incl. the
+`.cpp` blind spot). Each split holds every new TU ≤ 600 raw LoC and preserves
+the public surface:
+
+| File | Before → after | New siblings | Notes |
+|---|---|---|---|
+| `src/core/config/http_common.c` | 1140 → 381 | `http_directives_core.h` / `_auth.h` / `_ops.h` | directive table sliced into 3 `#include`d fragments (same idiom as `stream/directives_*.h`) |
+| `src/core/config/shared_conf.h` | 747 → 457 | `shared_conf_merge.h` | `ngx_http_brix_shared_merge` (CCN 23→driver ~6) decomposed into 5 verbatim per-family helpers |
+| `src/protocols/webdav/get.c` | 793 → 300 | `get_serve.c`, `get_directory.c`, `get_internal.h` | serve phases + §6.6 listing extracted; `get_serve_directory` CCN 19 → ≤12 (redirect/enumerate/footer helpers) |
+| `client/apps/ceph/xrdceph_striper_migrate.cpp` | 1092 → 531 | `xrdceph_striper_engine.cpp`, `_estimate.cpp`, `_internal.hpp` | anon namespace → `stripermig`; engine + estimator lifted verbatim |
+| `client/apps/fs/xrdfs_meta.c` | 961 → 460 | `xrdfs_meta_ls.c`, `xrdfs_meta_ns.c` | `do_stat` 19, `do_ls` 20, `do_locate` 17 decomposed in place |
+| `client/apps/copy/xrdcp_parse.c` | 653 → 451 | `xrdcp_parse_validate.c` | flag-matrix (19) split into delete/continue checks; `basic` (19) → flag table; `manifest` (24) → manifest/rate/retry |
+| `client/lib/brix_ops.h` | 647 → 414 | `brix_cksum_ops.h`, `brix_copy_ops.h` | umbrella header sliced at existing section seams |
+| `src/core/config/server_conf_merge_security.c` | 603 → 304 | `server_conf_merge_storage.c` | a concurrent dev-tree edit crossed the cap mid-wave; split at the security↔storage seam |
+
+New `.c` TUs registered in repo-root `./config` (`get_serve.c`,
+`get_directory.c`) and `client/Makefile` (`xrdfs_meta_ls/_ns`,
+`xrdcp_parse_validate`, the two striper TUs) — `check_config_coverage.py` /
+`check_client_build_coverage.py` green.
+
+**Complexity — W6 `src/` burndown well underway.** `admin_socket.c::admin_dispatch`
+(CCN **42**, the worst offender in the whole tree) → a per-command handler set
+behind a flat prefix dispatcher; the **entire `fs/backend/pblock` cluster**
+(`pblock_open_existing` 32, `sd_pblock_staged_commit` 25, `sd_pblock_close` 20,
+`sd_pblock_ftruncate` 20, `sd_pblock_rename` 20, `pblock_refs_break_share` 18,
+`pblock_ident_resolve` 18, `pblock_catalog_open`/`_nsidx_arm`/`sd_pblock_setattr_cred`/
+`pblock_arm_storage_features` 17, `sd_pblock_pwrite`/`pblock_write_blocks`/
+`pblock_snap_valid_name`/`sd_pblock_staged_open_as` 16); the config cluster
+(`brix_tier_register_cache_store` 27, `brix_tier_register_stores` 20,
+`brix_server_setup_tls` 21 → shared per-leg helper); `error_mapping.c::brix_kxr_from_errno`
+19 → a lookup table (R4); and the `net/ratelimit` key pair (16/16 → shared VOLUME
+helper). `complexity_backlog.txt` C entries 67 → 45 (`src/`). Every batch built
+clean (`objs/nginx -t` green) and regen'd.
+
+**Complexity — the C/C++/header dimension is now at ZERO (final wave, 2026-08-11).**
+The remaining `src/` tail was burned to nothing: the root read/query/write
+cluster (`brix_read_try_offload` 18 / `brix_readv_try_offload` 20 /
+`brix_pgread_try_offload` 18 → one shared `read_offload_secondary` inline;
+`brix_handle_clone` 20, `brix_open_resolved_file` 21, `brix_open_map_open_error`
+16, `brix_query_stats` 18, `brix_query_xattr` 18, `brix_handle_set` 17,
+`mv_execute` 16); the gridftp cluster (`brix_ftp_ev_process` 17,
+`brix_ftp_ev_eb_accept` 17, `brix_ftp_build_gsi` 17 → `ftp_gsi_build_host_ctx`,
+`brix_ftp_merge_conf` 22 → `ftp_merge_adopt_common`); webdav
+(`guard_classify_handshake` 17, `webdav_digest_value_hex` 16,
+`webdav_conf_pick_ca_file` 21, `xrdhttp_rfc3230_q_millis` 21 → `q_value_millis`);
+and TPC (`brix_tpc_registry_add` 18 → shared `tpc_scan_slots`,
+`tpc_verify_source_checksum` 19 → `tpc_split_cksum_reply`). The two functions
+previously **frozen behind the 600-LoC cap were unblocked by file splits** rather
+than left as backlog debt: `src/fs/backend/pblock/pblock_pack.c` (591) split its
+five low-level segment helpers into new `pblock_pack_seg.c` (+ `pblock_pack_internal.h`
+seam), dropping it to 538 LoC with room to decompose `pblock_pack_admit` 23
+(→ `pack_open_admit_seg` + `pack_write_record`) and `pack_read_record` 16
+(→ `pack_hdr_check`); `client/lib/net/tls.c` (591) moved `brix_tls_peer_cert_info`
++ `peer_collect_sans` into new `tls_certinfo.c`, dropping it to 534 LoC with room
+to decompose `brix_tls_read` 17 (→ `tls_read_want_io`). New TUs registered in
+`./config` (`pblock_pack_seg.c`, reconfigured) and `client/Makefile`
+(`tls_certinfo.c`). `complexity_backlog.txt` and `file_size_backlog.txt` both
+regen to **0 entries**; full nginx rebuild + `make -C client` clean.
+
+**Complexity — the entire `shared/` tree is burned (Workstream C complete).**
+All 26 `shared/` functions taken to CCN ≤ 15: the 16 shipped-code offenders
+(`whitelist.c::cvmfs_whitelist_parse` 29 → line-classifier helpers;
+`_client_part2.c::cvmfs_client_getxattr` 25 → per-attribute resolvers;
+`cas_pack.c::replay` 25 / `adopt_tail` 17 → per-record handlers;
+`cvmfs_pathidx_write` 24 / `_open` 21, `cvmfs_classify_url` 23,
+`client.c::load_trust_and_catalog` 21, `cas_store.c::brix_cas_put` 20 /
+`brix_cas_reap` 18, `fsck.c::fk_check` 20, `brix_proxy_connect_tunnel` 20,
+`cvmfs_publish_run` 17, `brix_cas_pack_put` 17, `cvmfs_client_read` 16,
+`read_verified_fd` 16) plus the 10 `*_unittest.c` `main`/battery drivers
+(R2 — split into `test_*` sections behind a fixture; each recompiled and
+**re-run**, probe-count preserved: walk 28 checks, bundle OK, xorf 17,
+catalog_write 39, client 25, cas_store 16, pathidx ALL PASS, dict OK,
+catalog 11). `complexity_backlog.txt` 93 → **67**; `shared/` rows now **0**
+(the gate already scanned `shared/`, so no flip was needed — this is the
+Workstream-C burndown that empties it). `client/` build clean; the cvmfs
+shared units verified by direct compile+run.
+
+**Complexity — the entire `client/` cluster is burned.** 17 `client/`
+functions taken to CCN ≤ 12 (the `xrdfs_meta`/`xrdcp_parse` decompositions
+above, plus `xrdfs_attr.c::do_query`/`do_prepare`, `copy_l2l.c::brix_copy_local_to_local`,
+`checksum.c::brix_cksum_fd`, `ops_file_pg.c::file_pgread_frames`,
+`brixautofs.c::brixautofs_valid_fqrn`, `wait41.c::brix_wait41_main`,
+`mpxstats.c::brix_mpxstats_main`) and `shared_conf.h::ngx_http_brix_shared_merge`
+(23). `complexity_backlog.txt` working-tree count 109 → 93; `client/` rows now
+**0**. (`tls.c::brix_tls_read` CCN 17 is now burned too — the final wave split
+`tls_certinfo.c` out to make room and extracted `tls_read_want_io`; see the
+final-wave note above.)
+
+**W0 — metric tooling.** `cmdscripts/lint_loc.py`: G9 (Python `#` comments no
+longer count as logical LoC — `COMMENT_RE` gained `^\s*#`) and G8 (the tracked
+`k8s-tests/remote-suite/` shadow mirror is excluded from `in_scope()`, so its
+155 synced `.sh` copies stop double-counting). Guard tests for both landed in
+`tests/test_ci_guards.py` (`test_lint_loc_metric_strips_python_hash_comments`,
+`test_lint_loc_excludes_the_remote_suite_shadow_mirror`). The post-fix tier
+report reads `total=3604 ideal=3597 watch=7 should=0 must=0`.
+
+### Remaining (unchanged from the plan)
+
+- ~~**W6 — C/C++/header complexity**~~ — **DONE.** All `src/` + `client/` +
+  `shared/` functions are ≤ CCN 15; `complexity_backlog.txt` is empty. The
+  `tls.c` and `pblock_pack.c` splits closed the last frozen entries. The gate
+  now holds the whole shipped C tree at zero.
+- ~~**W4 — `shared/` C**~~ — **DONE** (all 26 burned; see Execution status).
+  The `shared/` size scan was already widened; the file-size backlog is empty
+  there too, so no size flip remains.
+- **W5 — C test harnesses** under `tests/` + the `check_complexity.py` flip.
+- **W2/W3 — Python complexity (138):** the 73 userns `run_*` batteries (coupled
+  to the 7 userns file splits — decompose the battery, the shard splits along
+  probe groups) plus the cmdscripts/helpers/infra clusters. The userns suite
+  now imports and runs cleanly, so the W1 prerequisite is already satisfied.
+- **W7 — ratchet endgame:** `lint_loc` HARD 800→600 + tier reboundary; the
+  Python complexity gate flips blocking with an empty backlog; `tools/xrd_fuzzer/`
+  size decision.
+
+### Verification run
+
+`make -j$(nproc)` (nginx, clean link) · `make -C client` + `make -C client test`
+(all unit tests + man/completions guards PASS) · `pytest test_webdav_html_listing
+test_webdav test_webdav_b test_webdav_maxdelay` (green) · `pytest test_conf_xrdfs
+test_conf_xrdfs_b test_clientconf_xrdfs test_client_xrdfs_tools` (green) ·
+`check_file_size` / `check_complexity` / `check_py_complexity` /
+`check_py_file_size` / `check_config_coverage` / `check_client_build_coverage`
+all green. Both C ratchets regen to **0 entries** and a new guard test —
+`tests/test_ci_guards.py::test_c_ratchet_backlogs_are_empty` (parametrized over
+`complexity_backlog.txt` + `file_size_backlog.txt`) — locks that at zero, so a
+future re-freeze reddens instead of silently rotting the property.

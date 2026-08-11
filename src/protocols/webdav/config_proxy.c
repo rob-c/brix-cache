@@ -93,24 +93,11 @@ char *
 webdav_merge_mirror_and_summary(ngx_conf_t *cf, ngx_http_brix_webdav_loc_conf_t *prev,
     ngx_http_brix_webdav_loc_conf_t *conf)
 {
-    /* Phase 24: traffic mirror — inherit parent targets, derive enabled, and
-     * build the shadow upstream conf (timeouts/TLS/hide-headers) when active. */
-    if (conf->mirror.targets == NULL) {
-        conf->mirror.targets = prev->mirror.targets;
-    }
-    ngx_conf_merge_str_value(conf->mirror.token, prev->mirror.token, "");
-    ngx_conf_merge_uint_value(conf->mirror.sample_pct,  prev->mirror.sample_pct, 100);
-    ngx_conf_merge_uint_value(conf->mirror.method_mask, prev->mirror.method_mask,
-                              BRIX_MIRROR_M_DEFAULT);
-    ngx_conf_merge_value(conf->mirror.strip_auth,  prev->mirror.strip_auth,  1);
-    ngx_conf_merge_value(conf->mirror.log_diverge, prev->mirror.log_diverge, 1);
-    ngx_conf_merge_msec_value(conf->mirror.timeout_ms, prev->mirror.timeout_ms, 5000);
-    ngx_conf_merge_value(conf->mirror.mirror_writes,
-                         prev->mirror.mirror_writes, 0);
-    conf->mirror.enabled = (conf->mirror.targets != NULL
-                            && conf->mirror.targets->nelts > 0) ? 1 : 0;
-
-    if (conf->mirror.enabled
+    /* Phase 24 mirror SETTINGS merges -> ngx_http_brix_shared_merge
+     * (common.mirror), phase-105 W2. Only the engine plumbing — shadow
+     * upstream conf (timeouts/TLS/hide-headers) — is built here, gated on
+     * the merged settings. */
+    if (conf->common.mirror.enabled
         && conf->mirror_upstream_conf.connect_timeout == 0)
     {
         if (brix_http_mirror_setup(cf, conf, prev) != NGX_OK) {

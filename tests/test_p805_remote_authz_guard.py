@@ -63,7 +63,7 @@ def test_guard_fires_authdb_no_export(guard, authdb):
     r = guard(f"""\
         brix_manager_mode on;
         brix_storage_backend s3://127.0.0.1:29000/brixfwd;  # net-literal-allow: S3 origin in nginx -t authz-guard config, never dialed
-        brix_authdb_format xrdacc;
+        brix_authdb_engine xrdacc;
         brix_authdb {authdb};
 """)
     assert r.returncode != 0, f"-t unexpectedly passed:\n{r.stderr}"
@@ -103,7 +103,7 @@ def test_no_rules_and_exported_server_pass(guard, tmp_path, authdb):
     r = guard(f"""\
         brix_export {export};
         brix_storage_backend s3://127.0.0.1:29000/brixfwd;  # net-literal-allow: S3 origin in nginx -t authz-guard config, never dialed
-        brix_authdb_format xrdacc;
+        brix_authdb_engine xrdacc;
         brix_authdb {authdb};
 """)
     assert r.returncode == 0, f"exported server with rules rejected:\n{r.stderr}"

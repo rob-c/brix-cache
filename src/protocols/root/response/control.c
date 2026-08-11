@@ -20,6 +20,23 @@ brix_send_redirect(brix_ctx_t *ctx, ngx_connection_t *c,
      * not mis-read the colons; the port is a separate 4-byte field, so the host
      * string is host-only. IPv4/hostname/already-bracketed pass through. */
     hostlen = brix_format_host(host, hostbuf, sizeof(hostbuf));
+
+    /* §1.3 kXR_fullurl: a client that advertised the fullurl login ability
+     * accepts (and prefers) a SELF-CONTAINED root:// URL in the host field —
+     * the unambiguous form when a redirect crosses ports. The numeric port
+     * field keeps its value (harmless duplication; the URL is authoritative
+     * for such clients). Clients that did not advertise it get the classic
+     * host-only form, byte-identical to before. */
+    if ((ctx->login.ability & 0x01 /* kXR_fullurl */) && hostlen > 0) {
+        char fullbuf[288];
+        int  n = snprintf(fullbuf, sizeof(fullbuf), "root://%s:%u",
+                          hostbuf, (unsigned) port);
+
+        if (n > 0 && (size_t) n < sizeof(fullbuf)) {
+            ngx_memcpy(hostbuf, fullbuf, (size_t) n + 1);
+            hostlen = (size_t) n;
+        }
+    }
     bodylen = (uint32_t) (sizeof(uint32_t) + hostlen);
     total = XRD_RESPONSE_HDR_LEN + bodylen;
 

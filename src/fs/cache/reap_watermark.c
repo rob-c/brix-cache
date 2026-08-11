@@ -90,6 +90,22 @@ brix_cache_purge_to_max_bytes(ngx_stream_brix_srv_conf_t *conf, ngx_log_t *log,
     return NGX_OK;
 }
 
+/* Cheap FS-occupancy pre-check off the 1s TTL-cached sampler: publish the usage
+ * ratio metric and return 1 when over the high watermark. A statvfs failure is
+ * a monitoring fault (log + treat as not-over), never a cache fault. */
+static int
+watermark_fs_over(ngx_stream_brix_srv_conf_t *conf, const char *phys_root,
+    brix_cache_fs_usage_t *usage, ngx_log_t *log)
+{
+    if (brix_cache_fs_usage_sampled((char *) phys_root, 1000, usage) != NGX_OK) {
+        ngx_log_error(NGX_LOG_WARN, log, errno,
+            "brix: watermark reaper could not stat cache root \"%s\"", phys_root);
+        return 0;
+    }
+    brix_metric_cache_usage_ratio(usage->occupancy_ppm);
+    return usage->occupancy_ppm > conf->reaper.high_watermark;
+}
+
 ngx_uint_t
 brix_cache_watermark_purge(ngx_stream_brix_srv_conf_t *conf, ngx_log_t *log)
 {
@@ -130,16 +146,7 @@ brix_cache_watermark_purge(ngx_stream_brix_srv_conf_t *conf, ngx_log_t *log)
      * the owned-bytes arm below (which needs no statvfs).
      */
     if (fs_wm_on) {
-        if (brix_cache_fs_usage_sampled((char *) phys_root, 1000, &usage)
-            == NGX_OK)
-        {
-            brix_metric_cache_usage_ratio(usage.occupancy_ppm);
-            fs_over = (usage.occupancy_ppm > conf->reaper.high_watermark);
-        } else {
-            ngx_log_error(NGX_LOG_WARN, log, errno,
-                "brix: watermark reaper could not stat cache root \"%s\"",
-                phys_root);
-        }
+        fs_over = watermark_fs_over(conf, phys_root, &usage, log);
     }
 
     /* Nothing to do: FS below its mark (or unarmed) and no owned-bytes cap. The

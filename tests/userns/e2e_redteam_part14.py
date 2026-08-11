@@ -78,6 +78,10 @@ def _rt14_a_dot_segment_that_normalizes_back(port, ta, no_passwd, BOB, MARK):
     ok(all((st in (200, 404), no_passwd(body), not _has(body, BOB))),
        f"control: in-tenant normalizing dot-segments handled (HTTP {st})")
 
+    _confine_encoding_exhaustive_p1(s3port, out_marker, port, ta, data, outside_clean, tb, parent1, parent2, export_abs, no_passwd, BOB, SVC, MARK, PW)
+
+
+def _confine_encoding_exhaustive_p1(s3port, out_marker, port, ta, data, outside_clean, tb, parent1, parent2, export_abs, no_passwd, BOB, SVC, MARK, PW):
     # =============================================================================
     # WEBDAV GET — exhaustive traversal/encoding enumeration; NONE may read passwd
     # or escape to the outside marker.
@@ -106,7 +110,10 @@ def _rt14_a_dot_segment_that_normalizes_back(port, ta, no_passwd, BOB, MARK):
         st, b = http("GET", p, port, ta)
         ok(all((no_passwd(b), not _has(b, MARK), not _has(b, BOB))),
            f"WebDAV GET traversal {p[:30]!r} no passwd/marker/tenant leak (HTTP {st})")
+    _confine_encoding_exhaustive_p2(s3port, out_marker, port, ta, data, outside_clean, tb, parent1, parent2, export_abs, no_passwd, BOB, SVC, MARK, PW)
 
+
+def _confine_encoding_exhaustive_p2(s3port, out_marker, port, ta, data, outside_clean, tb, parent1, parent2, export_abs, no_passwd, BOB, SVC, MARK, PW):
     # =============================================================================
     # WEBDAV PUT / MKCOL — traversal write escapes must create NOTHING outside.
     # =============================================================================
@@ -143,7 +150,10 @@ def _rt14_webdav_move_copy_destination_header_traversal(port, ta, outside_clean,
                      os.path.join(parent1, "CONF_WD_DIR2"),
                      os.path.join(parent2, "CONF_WD_DIR2")),
        f"WebDAV traversal MKCOL created no dir outside the export (HTTP {st})")
+    _confine_encoding_exhaustive_p3(s3port, out_marker, port, ta, data, outside_clean, tb, parent1, parent2, no_passwd, export_abs, BOB, SVC, MARK, PW)
 
+
+def _confine_encoding_exhaustive_p3(s3port, out_marker, port, ta, data, outside_clean, tb, parent1, parent2, no_passwd, export_abs, BOB, SVC, MARK, PW):
     # =============================================================================
     # WEBDAV MOVE / COPY Destination header — traversal + CRLF + absolute targets.
     # The Destination must be confined; nothing may land outside the export.
@@ -215,7 +225,10 @@ def _rt14_crlf_nul_in_the_request_path(port, ta, no_passwd, MARK, SVC, data):
         st, b = http("GET", p, port, ta)
         ok(all((no_passwd(b), not _has(b, MARK))),
            f"WebDAV GET CRLF/NUL-in-path {p[:28]!r} no leak/escape (HTTP {st})")
+    _confine_encoding_exhaustive_p4(s3port, out_marker, port, ta, data, tb, outside_clean, no_passwd, parent1, BOB, SVC, parent2, MARK, PW)
 
+
+def _confine_encoding_exhaustive_p4(s3port, out_marker, port, ta, data, tb, outside_clean, no_passwd, parent1, BOB, SVC, parent2, MARK, PW):
     # =============================================================================
     # WEBDAV PROPFIND on a traversal target must not enumerate outside the export.
     # =============================================================================
@@ -228,6 +241,10 @@ def _rt14_crlf_nul_in_the_request_path(port, ta, no_passwd, MARK, SVC, data):
            f"WebDAV PROPFIND traversal {p!r} no outside/svc enumeration (HTTP {st})")
 
     # =============================================================================
+    _confine_encoding_exhaustive_p5(s3port, out_marker, port, ta, data, tb, outside_clean, no_passwd, pf, parent1, BOB, SVC, parent2, MARK, PW)
+
+
+def _confine_encoding_exhaustive_p5(s3port, out_marker, port, ta, data, tb, outside_clean, no_passwd, pf, parent1, BOB, SVC, parent2, MARK, PW):
     # SYMLINK-OUT: alice plants a symlink INSIDE HER OWN DIR pointing OUT; a
     # DIFFERENT identity (bob) — and alice herself — must NOT be able to follow it
     # out of the export via any protocol.  RESOLVE_BENEATH must refuse the symlink.
@@ -483,6 +500,10 @@ def _rt14_otherwise_xrd_avail(outside_clean, parent1, parent2, data):
 def _rt14_s3_positive_control_alice_s_own(s3port, no_passwd, MARK, BOB, parent1, parent2, outside_clean, data, PW):
 
     # =============================================================================
+    _confine_encoding_exhaustive_p6(s3port, out_marker, links, port, ta, data, outside_clean, parent1, parent2, MARK, no_passwd, BOB, PW)
+
+
+def _confine_encoding_exhaustive_p6(s3port, out_marker, links, port, ta, data, outside_clean, parent1, parent2, MARK, no_passwd, BOB, PW):
     # S3 — object key + copy-source traversal/encoding enumeration (signed as alice).
     # =============================================================================
     s3_get_keys = [
@@ -503,12 +524,20 @@ def _rt14_s3_positive_control_alice_s_own(s3port, no_passwd, MARK, BOB, parent1,
     # =============================================================================
     # root:// (stream) — stat/cat/mkdir/cp traversal + symlink-follow under map.
     # =============================================================================
+    _confine_encoding_exhaustive_p7(out_marker, links, port, ta, data, outside_clean, parent1, parent2, MARK)
+
+
+def _confine_encoding_exhaustive_p7(out_marker, links, port, ta, data, outside_clean, parent1, parent2, MARK):
     if not xrd_avail():
         ok(True, "root:// confinement matrix skipped (native client absent)")
     else:
         _rt14_otherwise_xrd_avail(outside_clean, parent1, parent2, data)
 
     # =============================================================================
+    _confine_encoding_exhaustive_p8(out_marker, links, port, ta, data, outside_clean, parent1, MARK)
+
+
+def _confine_encoding_exhaustive_p8(out_marker, links, port, ta, data, outside_clean, parent1, MARK):
     # FINAL INVARIANTS — nothing escaped anywhere + the worker SURVIVES the battery.
     # =============================================================================
     grand_outside = [

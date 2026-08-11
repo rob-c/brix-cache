@@ -82,11 +82,11 @@ defaults to `/run/user/1000/oidc/oidc_agent.sock`; override it with the
 `OIDC_SOCK` environment variable. |
 | `token-exchange` | The server performs an RFC 8693 token-exchange request to
 the OAuth2 token endpoint configured via
-`brix_webdav_tpc_token_endpoint`. The client's session JWT (from the
+`brix_tpc_outbound_token_endpoint`. The client's session JWT (from the
 `Authorization:` header of the original COPY request) is used as the
-subject token. Requires `brix_webdav_tpc_token_endpoint` to be set;
-optional `brix_webdav_tpc_token_client_id` and
-`brix_webdav_tpc_token_client_secret` for confidential clients. |
+subject token. Requires `brix_tpc_outbound_token_endpoint` to be set;
+optional `brix_tpc_outbound_client_id` and
+`brix_tpc_outbound_client_secret` for confidential clients. |
 
 Unknown or empty `Credential:` values are rejected with HTTP 400.
 
@@ -122,14 +122,14 @@ location / {
     brix_webdav_tpc          on;
 
     # OAuth2/OIDC token delegation for TPC
-    brix_webdav_tpc_token_endpoint https://idp.example.com/oauth2/token;
-    brix_webdav_tpc_token_client_id  nginx-xrootd;
-    brix_webdav_tpc_token_client_secret abc123secret;
-    brix_webdav_tpc_token_scope      storage.read;
+    brix_tpc_outbound_token_endpoint https://idp.example.com/oauth2/token;
+    brix_tpc_outbound_client_id  nginx-xrootd;
+    brix_tpc_outbound_client_secret abc123secret;
+    brix_tpc_outbound_scope      storage.read;
 }
 ```
 
-The `brix_webdav_tpc_token_scope` directive sets the scope string requested
+The `brix_tpc_outbound_scope` directive sets the scope string requested
 during token exchange (default: `storage.read`).
 
 Native `root://` third-party copy is not the same protocol. The stream module

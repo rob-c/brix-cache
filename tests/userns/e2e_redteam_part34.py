@@ -225,7 +225,10 @@ def _rt34_immediately_after_the_abandon_a_bob(TAG, port, tb, bpath, st_uid, no_m
     ok(all((st in (200, 201, 204), os.path.exists(fp), st_uid(fp) == UID_BOB)),
        f"case3b: bob request after alice-abandon lands as BOB not stale-alice (uid={st_uid(fp)})")
     no_misowned("case3b abandon-after-Authorization")
+    _connection_errors_p2(port, ta, tb, bpath, apath, no_misowned, get_req, survives, rm_quiet, scan_misowned, TAG, st_uid, H)
 
+
+def _connection_errors_p2(port, ta, tb, bpath, apath, no_misowned, get_req, survives, rm_quiet, scan_misowned, TAG, st_uid, H):
     # ========================================================================
     # CASE 4 — CONNECTION CHURN: many short-lived connections, each authenticating
     #   as alice then abandoned/RST, interleaved with bob connections.  After the
@@ -301,7 +304,10 @@ def _rt34_case_6_pipeline_a_valid_alice(steps2, port, survives, no_misowned, get
        f"case5 slow-drip: drip GET of bob 0600 leaks no secret (HTTP {_resp_status(resp2)})")
     survives("case5 slow-drip")
     no_misowned("case5 slow-drip")
+    _connection_errors_p3(port, survives, no_misowned, rm_quiet, apath, get_req, ta, scan_misowned, tb, bpath, TAG, H, st_uid)
 
+
+def _connection_errors_p3(port, survives, no_misowned, rm_quiet, apath, get_req, ta, scan_misowned, tb, bpath, TAG, H, st_uid):
     # ========================================================================
     # CASE 6 — PIPELINE a VALID alice GET + a TRUNCATED second request, then RST.
     #   The first request must NOT have leaked bob data (the truncated second can't
@@ -337,6 +343,10 @@ def _rt34_case_6b_pipeline_two_valid_requests(get_req, TAG, ta, port, survives, 
     # CASE 7 — Authorization is alice but Content-Length claims a HUGE body; only a
     #   few bytes are sent, then RST mid-body.  No giant/phantom object may commit;
     #   any landed file is alice-owned; worker survives.
+    _connection_errors_p4(rm_quiet, port, apath, survives, no_misowned, get_req, ta, scan_misowned, tb, bpath, TAG, H, st_uid)
+
+
+def _connection_errors_p4(rm_quiet, port, apath, survives, no_misowned, get_req, ta, scan_misowned, tb, bpath, TAG, H, st_uid):
     # ========================================================================
     rm_quiet(apath(f"{TAG}huge.txt"))
 
@@ -382,6 +392,10 @@ def _rt34_case_8_keep_alive_interleave_that(no_misowned, rm_quiet, apath, TAG, b
     #   ONE connection, then the conn is RST instead of closed.  Each request must
     #   land under the DRIVING identity (no stale-principal carry-over), and the RST
     #   must not roll a wrong-owner file into the other tenant's space.
+    _connection_errors_p5(rm_quiet, port, survives, no_misowned, get_req, ta, scan_misowned, tb, bpath, apath, TAG, H, st_uid)
+
+
+def _connection_errors_p5(rm_quiet, port, survives, no_misowned, get_req, ta, scan_misowned, tb, bpath, apath, TAG, H, st_uid):
     # ========================================================================
     rm_quiet(apath(f"{TAG}ka_a.txt"))
     rm_quiet(bpath(f"{TAG}ka_b.txt"))
@@ -465,7 +479,10 @@ def _rt34_positive_control_alice_can_stat_her(fb, st_uid, bpath, TAG, apath, sur
        "case8 ka+RST: no request crossed into the other tenant's directory")
     survives("case8 ka-interleave+RST")
     no_misowned("case8 ka-interleave+RST")
+    _connection_errors_p6(get_req, ta, port, survives, no_misowned, scan_misowned, tb, bpath, TAG, st_uid, H)
 
+
+def _connection_errors_p6(get_req, ta, port, survives, no_misowned, scan_misowned, tb, bpath, TAG, st_uid, H):
     # ========================================================================
     # CASE 9 — root:// (stream) connection-state probe: the impersonation principal
     #   is shared by the SAME worker that serves HTTP, so a churn of native xrdfs
@@ -479,6 +496,7 @@ def _rt34_positive_control_alice_can_stat_her(fb, st_uid, bpath, TAG, apath, sur
         ok(True, "case9 root:// churn: native xrdfs unavailable (skipped/handled)")
         ok(True, "case9 root:// churn: stream secret-deny skipped (no client)")
         ok(True, "case9 root:// churn: stream positive control skipped (no client)")
+    _connection_errors_p7(get_req, ta, port, survives, no_misowned, scan_misowned, tb, bpath, TAG, st_uid, H)
 
 
 def _rt34_case_10_raw_half_open_desync(get_req, TAG, ta, H, port, survives):
@@ -505,7 +523,10 @@ def _rt34_case_10_raw_half_open_desync(get_req, TAG, ta, H, port, survives):
 
 def _rt34_final_a_global_ownership_sweep_of(no_misowned, scan_misowned, TAG, port, ta, tb):
     no_misowned("case10 half-open desync")
+    _connection_errors_p8(scan_misowned, port, ta, tb, bpath, TAG, st_uid)
 
+
+def _connection_errors_p8(scan_misowned, port, ta, tb, bpath, TAG, st_uid):
     # ========================================================================
     # FINAL — a global ownership sweep of both tenant dirs: across EVERY abnormal
     #   connection above, not a single regular file may be owned by the worker

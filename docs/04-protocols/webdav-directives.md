@@ -146,23 +146,23 @@ Maximum wall-clock time passed to `curl --max-time` for a single HTTP-TPC pull.
 
 ---
 
-### `brix_webdav_tpc_token_endpoint <url>`
+### `brix_tpc_outbound_token_endpoint <url>`
 
 **Context:** `location`
 
-HTTPS endpoint URL for OAuth2/OIDC token exchange. When configured with `brix_webdav_tpc_token_client_id` and `brix_webdav_tpc_token_client_secret`, the module obtains access tokens for remote TPC operations (pull/push) by POST-ing to this endpoint. Tokens are obtained at TPC request time and must be managed securely.
+HTTPS endpoint URL for OAuth2/OIDC token exchange. When configured with `brix_tpc_outbound_client_id` and `brix_tpc_outbound_client_secret`, the module obtains access tokens for remote TPC operations (pull/push) by POST-ing to this endpoint. Tokens are obtained at TPC request time and must be managed securely.
 
 ---
 
-### `brix_webdav_tpc_token_client_id <string>`
+### `brix_tpc_outbound_client_id <string>`
 
 **Context:** `location`
 
-OAuth2 client ID used when requesting access tokens from `brix_webdav_tpc_token_endpoint`.
+OAuth2 client ID used when requesting access tokens from `brix_tpc_outbound_token_endpoint`.
 
 ---
 
-### `brix_webdav_tpc_token_client_secret <string>`
+### `brix_tpc_outbound_client_secret <string>`
 
 **Context:** `location`
 
@@ -170,7 +170,7 @@ OAuth2 client secret used for authenticating the token request. Must be kept sec
 
 ---
 
-### `brix_webdav_tpc_token_scope <string>`
+### `brix_tpc_outbound_scope <string>`
 
 **Context:** `location`
 
@@ -335,7 +335,7 @@ locations with no brix handler enabled.
 
 ---
 
-### `brix_webdav_verify_depth <n>`
+### `brix_verify_depth <n>`
 
 **Context:** `location` · **Default:** `10`
 
@@ -576,7 +576,7 @@ when the data servers run HTTP on a different port than their `root://` listen;
 set the scheme to `https` when they serve WebDAV over TLS (the manager cannot
 probe their TLS posture, so the operator states it).
 
-### `brix_http_secretkey <key>` *(both manager and data server)*
+### `brix_webdav_secretkey <key>` *(both manager and data server)*
 
 **Context:** `location` · **Default:** unset
 
@@ -589,7 +589,7 @@ past its expiry. On the **data server** the same key verifies that CGI
 redirected client's request is authenticated by the redirector's vouching rather
 than re-presenting credentials. A request carrying the CGI with a bad, expired,
 or foreign-key MAC is refused `403`, fail-closed; a request without the CGI falls
-through to normal authentication. `brix_http_secretkey` counts as a credential
+through to normal authentication. `brix_webdav_secretkey` counts as a credential
 verifier for `brix_webdav_auth required`, so a data server can require auth while
 accepting only signed redirects.
 
@@ -615,7 +615,7 @@ http {
             brix_webdav_redirect_dataserver on;
             brix_webdav_redirect_port 8444;
             brix_webdav_redirect_scheme https;
-            brix_http_secretkey "shared-cluster-hmac-key";
+            brix_webdav_secretkey "shared-cluster-hmac-key";
         }
     }
 }
@@ -628,7 +628,7 @@ http {
             brix_webdav on;
             brix_export /data;
             brix_webdav_auth required;
-            brix_http_secretkey "shared-cluster-hmac-key";
+            brix_webdav_secretkey "shared-cluster-hmac-key";
         }
     }
 }

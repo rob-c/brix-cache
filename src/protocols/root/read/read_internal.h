@@ -14,6 +14,8 @@
  */
 
 #include "read.h"
+#include "core/ngx_brix_module.h"                      /* ngx_stream_brix_module */
+#include "protocols/root/session/offload_registry.h"   /* brix_offload_lookup */
 
 /*
  * brix_read_io_t — decoded per-request read parameters, threaded through the
@@ -51,5 +53,42 @@ ngx_int_t read_serve_windowed(brix_ctx_t *ctx, ngx_connection_t *c,
     size_t total);
 ngx_int_t read_serve_buffered(brix_ctx_t *ctx, ngx_connection_t *c,
     ngx_stream_brix_srv_conf_t *rconf, brix_read_io_t *io);
+
+/* Resolve a data-path `pathid` to a live secondary connection with a free ring
+ * slot, for offloading a single-frame read/readv/pgread reply. Returns the
+ * secondary ctx (with *sec_c_out set) when the reply may pipeline behind its
+ * existing responses, or NULL to fall back to the primary. A free slot needs
+ * every pending response counted — queued (out.count) + write-ack (wr_inflight)
+ * + read AIO (rd.aio_inflight) strictly below pipeline_depth — so the queued
+ * frame can never overrun the ring. resp_async streams stay on the control path. */
+static inline brix_ctx_t *
+brix_read_offload_secondary(brix_ctx_t *ctx, ngx_connection_t *c,
+    uint32_t pathid, ngx_connection_t **sec_c_out)
+{
+    const u_char     *sessid;
+    ngx_connection_t *sec_c;
+    brix_ctx_t       *sec_ctx;
+
+    if (pathid == 0) {
+        return NULL;   /* primary/control stream — no lookup needed */
+    }
+    /* The pathid was validated against this session key at request decode. */
+    sessid = ctx->is_bound ? ctx->bound_sessid : ctx->login.sessid;
+    sec_c  = brix_offload_lookup(sessid, pathid);
+    if (sec_c == NULL || sec_c == c) {
+        return NULL;   /* bound elsewhere (or self) — use the control stream */
+    }
+    sec_ctx = ngx_stream_get_module_ctx((ngx_stream_session_t *) sec_c->data,
+                                        ngx_stream_brix_module);
+    if (sec_ctx == NULL || sec_ctx->destroyed
+        || sec_c->fd == (ngx_socket_t) -1 || sec_ctx->out.resp_async
+        || sec_ctx->out.count + sec_ctx->out.wr_inflight
+           + sec_ctx->rd.aio_inflight >= sec_ctx->out.pipeline_depth)
+    {
+        return NULL;
+    }
+    *sec_c_out = sec_c;
+    return sec_ctx;
+}
 
 #endif // BRIX_READ_INTERNAL_H

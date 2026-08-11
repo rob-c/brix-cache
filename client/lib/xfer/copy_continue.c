@@ -85,7 +85,7 @@ continue_pull_tail(const download_job_t *job, int fd, int64_t start,
             rc = -1;
             break;
         }
-        if (pwrite(fd, buf, (size_t) n, (off_t) off) != n) {
+        if (pwrite(fd, buf, (size_t) n, (off_t) off) != n) { /* vfs-seam-allow: local copy destination, not export data */
             brix_status_set(st, XRDC_ESOCK, errno, "local write failed: %s",
                             strerror(errno));
             rc = -1;

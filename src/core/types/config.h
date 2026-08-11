@@ -126,7 +126,7 @@ typedef struct {
 /*
  * Per-worker init of the xrdacc authorization engine for one server: parses the
  * authdb into xcf->acc.tables and arms the hot-reload timer.  No-op unless the
- * server uses `brix_authdb_format xrdacc`.  Implemented in src/acc/config.c.
+ * server uses `brix_authdb_engine xrdacc`.  Implemented in src/acc/config.c.
  */
 ngx_int_t brix_acc_init_server(ngx_stream_brix_srv_conf_t *xcf,
     ngx_cycle_t *cycle);

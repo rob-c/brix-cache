@@ -266,6 +266,14 @@ def _rt60_final_bob_s_protected_file_survived(BOB, resp, status, bob_untouched, 
     ok(bob_untouched(),
        "after dual-auth WebDAV probe: bob's 0600 unchanged on disk")
 
+    _him_s3_copysource(s3port, data, tb, BOB, C)
+
+
+def _him_s3_copysource(s3port, data, tb, BOB, C):
+    """S3 x-amz-copy-source injection tail (CRLF split, ../etc traversal,
+    foreign-bucket authority, dual SigV4+bearer) — factored out of
+    run_header_injection_matrix."""
+    bob_untouched, _no_split, _status, worker_alive = C
     # ==================================================================== S3 copy-source
     if s3port:
         # x-amz-copy-source with CRLF injected: CopyObject source-read runs as the

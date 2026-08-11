@@ -75,7 +75,7 @@ stream {{
         brix_write_through on;
         brix_wt_mode sync;
         brix_wt_origin {HOST}:{origin_port};
-        brix_cache_wt_stage_root {stage};
+        brix_wt_stage_root {stage};
     }}
     server {{
         listen {BIND_HOST}:{read_port};

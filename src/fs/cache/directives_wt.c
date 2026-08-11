@@ -20,36 +20,13 @@
 
 /* Write-through configuration directives */
 
-/* brix_conf_set_wt_enable — parse brix_write_through on|off. When on, dirty
+/* brix_write_through on|off. When on, dirty
  * write handles are mirrored to origin on kXR_sync/kXR_close, making client
  * uploads eligible for write-through. */
 
-char *
-brix_conf_set_wt_enable(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
-{
-    ngx_stream_brix_srv_conf_t *xcf = conf;
-    ngx_str_t                    *value;
-    int                           flag;
-
-    value = cf->args->elts;
-    (void) cmd;
-
-    if (ngx_strcmp(value[1].data, "on") == 0) {
-        flag = 1;
-    } else if (ngx_strcmp(value[1].data, "off") == 0) {
-        flag = 0;
-    } else {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-            "brix_write_through: invalid value \"%V\", must be on or off",
-            &value[1]);
-        return NGX_CONF_ERROR;
-    }
-
-    xcf->wt.enable = flag;
-    ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
-        "brix: write-through %s", (flag ? "on" : "off"));
-    return NGX_CONF_OK;
-}
+/* brix_write_through now uses the stock ngx_conf_set_flag_slot
+ * (phase-105 W8 flag-setter audit) — the hand-rolled on/off parser
+ * that lived here was a HELPERS-rule violation. */
 
 /* brix_conf_set_wt_mode — parse brix_wt_mode sync|async. sync flushes dirty
  * close data before kXR_close returns; async posts close flushes to the thread

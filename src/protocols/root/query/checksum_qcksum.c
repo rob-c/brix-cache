@@ -37,6 +37,27 @@ extern void brix_cksum_aio_done(ngx_event_t *ev);
  * brix_query_parse_algorithm/_build_checksum prototypes live in
  * checksum_qcksum_internal.h (shared with checksum_qcksum_path.c). */
 
+/* The checksum algorithm to use when a request selects none — brix_checksum_default
+ * when it is set AND names a known algorithm, else BRIX_QCKSUM_DEFAULT_ALGO
+ * (adler32). Returned as a borrowed pointer into conf (or a static literal), so a
+ * bad configured value degrades to adler32 at use rather than breaking every
+ * default checksum. Shared by the Qcksum handle/path handlers, the Qckscan
+ * default, and the Qconfig "chksum" preference list (declared in query_internal.h). */
+const char *
+brix_checksum_effective_default(ngx_stream_brix_srv_conf_t *conf)
+{
+    brix_checksum_alg_t alg;
+
+    if (conf != NULL && conf->checksum_default.len > 0
+        && brix_checksum_parse((const char *) conf->checksum_default.data,
+                                 conf->checksum_default.len, &alg, NULL, 0)
+           == NGX_OK)
+    {
+        return (const char *) conf->checksum_default.data;
+    }
+    return BRIX_QCKSUM_DEFAULT_ALGO;
+}
+
 ngx_flag_t
 brix_query_parse_algorithm(const u_char *src, size_t len, char *algo,
     size_t algo_sz)
@@ -213,7 +234,8 @@ brix_query_cksum_handle(brix_ctx_t *ctx, ngx_connection_t *c,
     rq.ctx  = ctx;
     rq.c    = c;
     rq.conf = conf;
-    ngx_cpystrn((u_char *) rq.algo, (u_char *) BRIX_QCKSUM_DEFAULT_ALGO,
+    ngx_cpystrn((u_char *) rq.algo,
+                (u_char *) brix_checksum_effective_default(conf),
                 sizeof(rq.algo));
     brix_qcksum_handle_extract_algo(ctx, rq.algo, sizeof(rq.algo));
 

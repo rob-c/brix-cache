@@ -271,6 +271,27 @@ nsidx_init_hdr(void *map)
     return 0;
 }
 
+/* First opener resets the header; a joiner verifies the existing one is a
+ * compatible layout (magic/version/geometry). Returns 0, -1 on a bad layout. */
+static int
+nsidx_init_or_verify(void *map, int first)
+{
+    const nsidx_hdr_t *hdr;
+
+    if (first) {
+        return nsidx_init_hdr(map) == 0 ? 0 : -1;
+    }
+    hdr = map;
+    if (__atomic_load_n(&hdr->magic, __ATOMIC_ACQUIRE) != NSIDX_MAGIC
+        || hdr->version != NSIDX_VERSION
+        || hdr->buckets != PBLOCK_NSCACHE_BUCKETS
+        || hdr->entsize != sizeof(nsidx_ent_t))
+    {
+        return -1;
+    }
+    return 0;
+}
+
 int
 pblock_catalog_nsidx_arm(pblock_catalog *cat, const char *root)
 {
@@ -312,26 +333,11 @@ pblock_catalog_nsidx_arm(pblock_catalog *cat, const char *root)
         return -1;
     }
 
-    if (first) {
-        if (nsidx_init_hdr(map) != 0) {
-            munmap(map, NSIDX_FILE_SIZE);
-            close(fd);
-            errno = EINVAL;
-            return -1;
-        }
-    } else {
-        const nsidx_hdr_t *hdr = map;
-
-        if (__atomic_load_n(&hdr->magic, __ATOMIC_ACQUIRE) != NSIDX_MAGIC
-            || hdr->version != NSIDX_VERSION
-            || hdr->buckets != PBLOCK_NSCACHE_BUCKETS
-            || hdr->entsize != sizeof(nsidx_ent_t))
-        {
-            munmap(map, NSIDX_FILE_SIZE);
-            close(fd);
-            errno = EINVAL;
-            return -1;
-        }
+    if (nsidx_init_or_verify(map, first) != 0) {
+        munmap(map, NSIDX_FILE_SIZE);
+        close(fd);
+        errno = EINVAL;
+        return -1;
     }
 
     if (flock(fd, LOCK_SH) != 0) {      /* EX holders downgrade; joiners take SH */

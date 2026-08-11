@@ -44,6 +44,76 @@ brix_cksum_algo_parse(const char *name, brix_cksum_algo *out)
     return -1;
 }
 
+/* MD5/SHA family: shared EVP digest kernel → lowercase hex. */
+static int
+cksum_digest_family_fd(int fd, brix_cksum_algo algo, char *hex, size_t hexsz,
+                       brix_status *st)
+{
+    int kind = (algo == XRDC_CK_MD5)  ? BRIX_CK_MD5
+             : (algo == XRDC_CK_SHA1) ? BRIX_CK_SHA1
+             : (algo == XRDC_CK_SHA256) ? BRIX_CK_SHA256
+                                        : BRIX_CK_SHA512;
+    unsigned char dg[64];   /* EVP_MAX_MD_SIZE */
+    unsigned int  dn = 0;
+
+    if (brix_cksum_digest_fd(kind, fd, dg, &dn) != 0) {
+        brix_status_set(st, XRDC_ESOCK, errno, "digest: %s",
+                        strerror(errno));
+        return -1;
+    }
+    if (hexsz < (size_t) dn * 2 + 1) {
+        brix_status_set(st, XRDC_EUSAGE, 0, "hex buffer too small");
+        return -1;
+    }
+    brix_hex_encode(dg, dn, hex);
+    return 0;
+}
+
+/* crc64/crc64nvme: 64-bit kernel → 16 zero-padded hex digits. */
+static int
+cksum_u64_family_fd(int fd, brix_cksum_algo algo, char *hex, size_t hexsz,
+                    brix_status *st)
+{
+    int      kind = (algo == XRDC_CK_CRC64) ? BRIX_CK_CRC64
+                                            : BRIX_CK_CRC64NVME;
+    uint64_t value;
+
+    if (brix_cksum_u64_fd(kind, fd, &value) != 0) {
+        brix_status_set(st, XRDC_ESOCK, errno, "checksum read: %s",
+                        strerror(errno));
+        return -1;
+    }
+    if (hexsz < 17) {                          /* 16 hex digits + NUL */
+        brix_status_set(st, XRDC_EUSAGE, 0, "hex buffer too small");
+        return -1;
+    }
+    snprintf(hex, hexsz, "%016llx", (unsigned long long) value);
+    return 0;
+}
+
+/* adler32/zcrc32/crc32c: 32-bit kernel → 8 zero-padded hex digits. */
+static int
+cksum_u32_family_fd(int fd, brix_cksum_algo algo, char *hex, size_t hexsz,
+                    brix_status *st)
+{
+    int      kind = (algo == XRDC_CK_ADLER32) ? BRIX_CK_ADLER32
+                  : (algo == XRDC_CK_ZCRC32)  ? BRIX_CK_ZCRC32
+                                              : BRIX_CK_CRC32C;
+    uint32_t value;
+
+    if (brix_cksum_u32_fd(kind, fd, &value) != 0) {
+        brix_status_set(st, XRDC_ESOCK, errno, "checksum read: %s",
+                        strerror(errno));
+        return -1;
+    }
+    if (hexsz < 9) {
+        brix_status_set(st, XRDC_EUSAGE, 0, "hex buffer too small");
+        return -1;
+    }
+    snprintf(hex, hexsz, "%08x", value);   /* 8 zero-padded hex digits */
+    return 0;
+}
+
 int
 brix_cksum_fd(int fd, brix_cksum_algo algo, char *hex, size_t hexsz,
               brix_status *st)
@@ -53,59 +123,12 @@ brix_cksum_fd(int fd, brix_cksum_algo algo, char *hex, size_t hexsz,
      * preads from offset 0; callers pass freshly-opened regular-file fds. */
     if (algo == XRDC_CK_MD5 || algo == XRDC_CK_SHA1
         || algo == XRDC_CK_SHA256 || algo == XRDC_CK_SHA512) {
-        int kind = (algo == XRDC_CK_MD5)  ? BRIX_CK_MD5
-                 : (algo == XRDC_CK_SHA1) ? BRIX_CK_SHA1
-                 : (algo == XRDC_CK_SHA256) ? BRIX_CK_SHA256
-                                            : BRIX_CK_SHA512;
-        unsigned char dg[64];   /* EVP_MAX_MD_SIZE */
-        unsigned int  dn = 0;
-        if (brix_cksum_digest_fd(kind, fd, dg, &dn) != 0) {
-            brix_status_set(st, XRDC_ESOCK, errno, "digest: %s",
-                            strerror(errno));
-            return -1;
-        }
-        if (hexsz < (size_t) dn * 2 + 1) {
-            brix_status_set(st, XRDC_EUSAGE, 0, "hex buffer too small");
-            return -1;
-        }
-        brix_hex_encode(dg, dn, hex);
-        return 0;
+        return cksum_digest_family_fd(fd, algo, hex, hexsz, st);
     }
-
     if (algo == XRDC_CK_CRC64 || algo == XRDC_CK_CRC64NVME) {
-        int      kind = (algo == XRDC_CK_CRC64) ? BRIX_CK_CRC64
-                                                : BRIX_CK_CRC64NVME;
-        uint64_t value;
-        if (brix_cksum_u64_fd(kind, fd, &value) != 0) {
-            brix_status_set(st, XRDC_ESOCK, errno, "checksum read: %s",
-                            strerror(errno));
-            return -1;
-        }
-        if (hexsz < 17) {                          /* 16 hex digits + NUL */
-            brix_status_set(st, XRDC_EUSAGE, 0, "hex buffer too small");
-            return -1;
-        }
-        snprintf(hex, hexsz, "%016llx", (unsigned long long) value);
-        return 0;
+        return cksum_u64_family_fd(fd, algo, hex, hexsz, st);
     }
-
-    {
-        int      kind = (algo == XRDC_CK_ADLER32) ? BRIX_CK_ADLER32
-                      : (algo == XRDC_CK_ZCRC32)  ? BRIX_CK_ZCRC32
-                                                  : BRIX_CK_CRC32C;
-        uint32_t value;
-        if (brix_cksum_u32_fd(kind, fd, &value) != 0) {
-            brix_status_set(st, XRDC_ESOCK, errno, "checksum read: %s",
-                            strerror(errno));
-            return -1;
-        }
-        if (hexsz < 9) {
-            brix_status_set(st, XRDC_EUSAGE, 0, "hex buffer too small");
-            return -1;
-        }
-        snprintf(hex, hexsz, "%08x", value);   /* 8 zero-padded hex digits */
-        return 0;
-    }
+    return cksum_u32_family_fd(fd, algo, hex, hexsz, st);
 }
 
 int

@@ -1,12 +1,12 @@
 /*
- * webdav/redirect.c — §6.1: HTTP redirect-to-dataserver + brix_http_secretkey
+ * webdav/redirect.c — §6.1: HTTP redirect-to-dataserver + brix_webdav_secretkey
  * signed-CGI identity handoff.
  *
  * WHAT: The HTTP plane's redirector.  Manager half: for GET/HEAD/PUT on a
  * node with brix_webdav_redirect_dataserver on, select a data server from
  * the CMS registry (the same brix_srv_select the root:// plane uses) and
  * answer 307 with a Location carrying the client's own CGI plus, when
- * brix_http_secretkey is set, the authenticated identity signed as
+ * brix_webdav_secretkey is set, the authenticated identity signed as
  * brixrdr.exp/usr/vo/mac.  Data-server half: verify that CGI (HMAC-SHA256,
  * constant-time, bounded expiry) and adopt the identity, so the client's
  * redirected request needs no second authentication round.

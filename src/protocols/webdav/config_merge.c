@@ -61,14 +61,10 @@ webdav_merge_base_conf(ngx_conf_t *cf, ngx_http_brix_webdav_loc_conf_t *prev,
         return NGX_CONF_ERROR;
     }
     /* cache_root merge -> shared_merge (common.cache_root), phase-101 W8. */
-    ngx_conf_merge_str_value(conf->tcp_congestion, prev->tcp_congestion, "");
-    /* vomsdir/voms_cert_dir merges -> shared_merge (W4). */
-    ngx_conf_merge_str_value(conf->cadir, prev->cadir, "");
-    ngx_conf_merge_str_value(conf->cafile, prev->cafile, "");
-    /* authdb_rules merge -> shared_merge (common.authdb_rules), W5.2. */
-    /* vo_rules merge -> shared_merge (common.vo_rules), W4. */
-    /* crl/crl_mode/signing_policy merges -> shared_merge (W4). */
-    ngx_conf_merge_uint_value(conf->verify_depth, prev->verify_depth, 10);
+    /* tcp_congestion / trusted_ca(_dir) / verify_depth merges ->
+     * shared_merge (phase-105 W2/W3.5); vomsdir/voms_cert_dir (W4),
+     * authdb_rules (W5.2), vo_rules + crl/crl_mode/signing_policy (W4)
+     * likewise live there. */
     ngx_conf_merge_uint_value(conf->auth, prev->auth,
                               WEBDAV_AUTH_OPTIONAL);
     /* protbind is inherited whole (never merged element-wise) in
@@ -77,8 +73,7 @@ webdav_merge_base_conf(ngx_conf_t *cf, ngx_http_brix_webdav_loc_conf_t *prev,
      * its own owns the whole policy. */
     /* XrdAcc merge moved into ngx_http_brix_shared_merge (common.acc), W2. */
     ngx_conf_merge_value(conf->proxy_certs, prev->proxy_certs, 0);
-    ngx_conf_merge_str_value(conf->ssl_client_capath,
-                             prev->ssl_client_capath, "");
+    /* client_ca_store merge -> shared_merge (common.client_ca_store), W2-105. */
     ngx_conf_merge_value(conf->tape_rest, prev->tape_rest, 0);
     /* Uploads staged + resumable by DEFAULT.  Set brix_webdav_upload_resume
      * off to opt out. */
@@ -86,6 +81,7 @@ webdav_merge_base_conf(ngx_conf_t *cf, ngx_http_brix_webdav_loc_conf_t *prev,
     /* upload_stage_dir merge -> shared_merge (W4). */
     ngx_http_brix_webdav_tpc_merge_loc_conf(conf, prev);
     BRIX_MERGE_PTR(conf, prev, cors_origins);
+    BRIX_MERGE_PTR(conf, prev, header2cgi);   /* §6.5 header->cgi map */
     ngx_conf_merge_value(conf->cors_credentials, prev->cors_credentials, 0);
     ngx_conf_merge_sec_value(conf->cors_max_age, prev->cors_max_age, 86400);
     ngx_conf_merge_sec_value(conf->lock_timeout, prev->lock_timeout, 600);
@@ -106,8 +102,7 @@ webdav_merge_base_conf(ngx_conf_t *cf, ngx_http_brix_webdav_loc_conf_t *prev,
 
     /* §6.6: HTML directory listing on GET (listingdeny/listingredir analog). */
     ngx_conf_merge_value(conf->html_listing, prev->html_listing, 0);
-    /* §6.11 http.maxdelay: 0 = off (emit the default 10 s staging Retry-After). */
-    ngx_conf_merge_sec_value(conf->maxdelay, prev->maxdelay, 0);
+    /* §6.11 maxdelay merge -> shared_merge (common.max_delay), phase-105 W3. */
     ngx_conf_merge_str_value(conf->listing_redirect,
                              prev->listing_redirect, "");
 
@@ -121,23 +116,14 @@ webdav_merge_base_conf(ngx_conf_t *cf, ngx_http_brix_webdav_loc_conf_t *prev,
     ngx_conf_merge_str_value(conf->http_secretkey, prev->http_secretkey, "");
     ngx_conf_merge_ptr_value(conf->dig_exports, prev->dig_exports, NULL);
     ngx_conf_merge_str_value(conf->dig_auth_file, prev->dig_auth_file, "");
-    ngx_conf_merge_value(conf->delegation_endpoint,
-                         prev->delegation_endpoint, 0);
+    /* delegation_endpoint merge -> shared_merge (common.delegation_endpoint),
+     * phase-105 W2. */
 
-    /* Phase 20 caches/limits: inherit parent block when not set locally. */
-    if (conf->token_cache_kv == NULL) {
-        conf->token_cache_kv = prev->token_cache_kv;
-    }
-    if (conf->rate_limit.kv == NULL) {
-        conf->rate_limit = prev->rate_limit;
-    }
+    /* Phase 20 caches/limits merge -> shared_merge (common.token_cache_kv /
+     * common.rate_limit / common.rl_rules), phase-105 W1. */
 
-    /* Phase 21 Step C: introspection inheritance. */
-    ngx_conf_merge_str_value(conf->introspect_url, prev->introspect_url, "");
-    ngx_conf_merge_str_value(conf->introspect_loc, prev->introspect_loc, "");
-    ngx_conf_merge_uint_value(conf->introspect_ttl, prev->introspect_ttl, 30);
-    ngx_conf_merge_value(conf->introspect_fail_open,
-                         prev->introspect_fail_open, 1);
+    /* Phase 21 introspection merges -> shared_merge (common.introspect_*),
+     * phase-105 W4.1. */
     if (conf->revoke_kv == NULL) {
         conf->revoke_kv = prev->revoke_kv;
     }
@@ -154,12 +140,8 @@ webdav_merge_base_conf(ngx_conf_t *cf, ngx_http_brix_webdav_loc_conf_t *prev,
                          prev->open_file_cache_events, 0);
 
     /* pwd_file merge moved into ngx_http_brix_shared_merge (common.pwd_file), W4. */
-    /* token quartet merges -> shared_merge (W4). */
-    if (conf->common.token_clock_skew < 0 || conf->common.token_clock_skew > 300) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-            "brix_token_clock_skew must be >= 0 and <= 300");
-        return NGX_CONF_ERROR;
-    }
+    /* token quartet merges -> shared_merge (W4); the clock-skew [0,300]
+     * clamp moved into shared_merge too (phase-105 W8) so s3/cvmfs enforce it. */
     /* token_config merge -> shared_merge (common.token_config), W4. */
     ngx_conf_merge_ptr_value(conf->token_registry, prev->token_registry, NULL);
     /* macaroon_secret merge -> shared_merge (W4). */
@@ -328,7 +310,7 @@ webdav_run_lock_startup_sweep(ngx_conf_t *cf,
  *       fail `nginx -t`, not surface as 403s in production.
  * HOW:  accept any of an x509 CA (cadir/cafile), a token verifier (JWKS /
  *       issuer registry / macaroon secret), a Basic password db, or (§6.1) the
- *       shared redirect secret (brix_http_secretkey) that authenticates a
+ *       shared redirect secret (brix_webdav_secretkey) that authenticates a
  *       signed redirect handoff.
  */
 static char *
@@ -337,7 +319,7 @@ webdav_require_verifier(ngx_conf_t *cf,
 {
     if ((conf->auth == WEBDAV_AUTH_OPTIONAL
          || conf->auth == WEBDAV_AUTH_REQUIRED)
-        && conf->cadir.len == 0 && conf->cafile.len == 0
+        && conf->common.trusted_ca_dir.len == 0 && conf->common.trusted_ca.len == 0
         && conf->common.token_jwks.len == 0 && conf->common.token_config.len == 0
         && conf->common.token_macaroon_secret.len == 0 && conf->common.pwd_file.len == 0
         && conf->http_secretkey.len == 0)
@@ -364,9 +346,9 @@ static char *
 webdav_validate_ca_paths(ngx_conf_t *cf,
     ngx_http_brix_webdav_loc_conf_t *conf)
 {
-    if (webdav_validate_path(cf, "brix_trusted_ca_dir", &conf->cadir,
+    if (webdav_validate_path(cf, "brix_trusted_ca_dir", &conf->common.trusted_ca_dir,
                              WEBDAV_PATH_DIRECTORY, R_OK | X_OK) != NGX_OK
-        || webdav_validate_path(cf, "brix_trusted_ca", &conf->cafile,
+        || webdav_validate_path(cf, "brix_trusted_ca", &conf->common.trusted_ca,
                                 WEBDAV_PATH_REGULAR_FILE, R_OK) != NGX_OK
         || webdav_validate_path(cf, "brix_crl", &conf->common.crl,
                                 WEBDAV_PATH_FILE_OR_DIRECTORY, R_OK) != NGX_OK)
@@ -419,7 +401,7 @@ webdav_build_ca_store_once(ngx_conf_t *cf,
     }
     /* Token-only / Basic-only exports carry no x509 trust anchors: there is
      * no store to build, and the cert tier declines at request time. */
-    if (conf->cadir.len == 0 && conf->cafile.len == 0) {
+    if (conf->common.trusted_ca_dir.len == 0 && conf->common.trusted_ca.len == 0) {
         return NGX_CONF_OK;
     }
     store = webdav_build_ca_store(cf->log, conf, &crl_count);

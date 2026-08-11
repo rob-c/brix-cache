@@ -204,6 +204,16 @@ brix_stream_common_adopt(ngx_conf_t *cf, ngx_http_brix_shared_conf_t *dst)
     }
 }
 
+/* Inherit-only string adopt: fill an unset (*dst empty) target from a set
+ * source. NULL dst/empty source are no-ops. */
+static void
+adopt_str(ngx_str_t *dst, const ngx_str_t *src)
+{
+    if (dst != NULL && dst->len == 0 && src->len) {
+        *dst = *src;
+    }
+}
+
 void
 brix_stream_common_adopt_gsi(ngx_conf_t *cf,
                              ngx_str_t *certificate,
@@ -219,25 +229,11 @@ brix_stream_common_adopt_gsi(ngx_conf_t *cf,
         return;
     }
 
-    if (certificate != NULL && certificate->len == 0 && scf->certificate.len) {
-        *certificate = scf->certificate;
-    }
-    if (certificate_key != NULL && certificate_key->len == 0
-        && scf->certificate_key.len)
-    {
-        *certificate_key = scf->certificate_key;
-    }
-    if (trusted_ca != NULL && trusted_ca->len == 0 && scf->trusted_ca.len) {
-        *trusted_ca = scf->trusted_ca;
-    }
-    if (vomsdir != NULL && vomsdir->len == 0 && scf->vomsdir.len) {
-        *vomsdir = scf->vomsdir;
-    }
-    if (voms_cert_dir != NULL && voms_cert_dir->len == 0
-        && scf->voms_cert_dir.len)
-    {
-        *voms_cert_dir = scf->voms_cert_dir;
-    }
+    adopt_str(certificate,     &scf->certificate);
+    adopt_str(certificate_key, &scf->certificate_key);
+    adopt_str(trusted_ca,      &scf->trusted_ca);
+    adopt_str(vomsdir,         &scf->vomsdir);
+    adopt_str(voms_cert_dir,   &scf->voms_cert_dir);
 }
 
 ngx_int_t

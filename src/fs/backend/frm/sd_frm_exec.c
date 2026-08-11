@@ -188,6 +188,29 @@ exec_destroy(void *mss)
  * spawn failure) is -1 — the driver then reports the key as not enumerable.
  * A stagecmd that does not know the dread verb simply exits nonzero, so
  * existing recall-only stage commands keep today's ENOTSUP behaviour. */
+
+/* Normalize one dread line in place (strip CR/LF, a trailing '/' marks a dir)
+ * and hand a non-empty entry to `cb`. Returns cb's stop flag (0 to continue). */
+static int
+exec_emit_line(char *line, int (*cb)(void *ud, const char *name, int is_dir),
+    void *ud)
+{
+    size_t n = strlen(line);
+    int    is_dir = 0;
+
+    while (n > 0 && (line[n - 1] == '\n' || line[n - 1] == '\r')) {
+        line[--n] = '\0';
+    }
+    if (n > 0 && line[n - 1] == '/') {
+        line[--n] = '\0';
+        is_dir = 1;
+    }
+    if (n == 0) {
+        return 0;
+    }
+    return cb(ud, line, is_dir);
+}
+
 static int
 exec_list(void *mss, const char *key,
     int (*cb)(void *ud, const char *name, int is_dir), void *ud)
@@ -231,20 +254,7 @@ exec_list(void *mss, const char *key,
         return -1;
     }
     while (fgets(line, sizeof(line), out) != NULL) {
-        size_t n = strlen(line);
-        int    is_dir = 0;
-
-        while (n > 0 && (line[n - 1] == '\n' || line[n - 1] == '\r')) {
-            line[--n] = '\0';
-        }
-        if (n > 0 && line[n - 1] == '/') {
-            line[--n] = '\0';
-            is_dir = 1;
-        }
-        if (n == 0) {
-            continue;
-        }
-        if (cb(ud, line, is_dir)) {
+        if (exec_emit_line(line, cb, ud)) {
             break;
         }
     }

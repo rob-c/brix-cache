@@ -7,6 +7,7 @@
  * first failure, storing the nginx return code in ctx->write_rc.
  */
 #include "core/ngx_brix_module.h"
+#include "core/compat/cstr.h"   /* brix_str_cbuf (VOMS FQAN mapping) */
 #include "auth_gate.h"
 #include "auth_cache.h"
 #include "auth_gate_l1.h"
@@ -84,20 +85,46 @@ brix_acc_gate_select_op(brix_acc_op_t op_in, int auth_level)
 static const char *
 brix_acc_gate_map_name(brix_identity_t *id, const char *dn)
 {
-    if (id == NULL || dn == NULL || dn[0] == '\0'
-        || !brix_idmap_gate_enabled())
-    {
+    if (id == NULL || !brix_idmap_gate_enabled()) {
         return (dn != NULL) ? dn : "";
     }
     if (!id->mapped_resolved) {
         id->mapped_resolved = 1;
-        if (!brix_idmap_gate_username(dn, id->mapped_user,
-                                      sizeof(id->mapped_user)))
+        id->mapped_user[0] = '\0';
+
+        /* §5.4 VOMS FQAN mapping (XrdVomsMapfile): a VOMS FQAN maps to a local
+         * account with PRECEDENCE over the raw DN, so a whole VO/role collapses
+         * to one identity regardless of which member cert presented it. The same
+         * wildcard-capable grid-mapfile serves both — an FQAN key
+         * ("/atlas/Role=production") or a DN key — since both are quoted
+         * "/"-delimited strings; the first FQAN (in credential order) that maps
+         * wins. */
+        if (id->vo_list != NULL) {
+            ngx_str_t  *fqans = id->vo_list->elts;
+            ngx_uint_t  k;
+            char        fqan[512];
+
+            for (k = 0; k < id->vo_list->nelts; k++) {
+                if (brix_str_cbuf(fqan, sizeof(fqan), &fqans[k]) != NULL
+                    && brix_idmap_gate_username(fqan, id->mapped_user,
+                                                sizeof(id->mapped_user)))
+                {
+                    break;
+                }
+                id->mapped_user[0] = '\0';
+            }
+        }
+
+        /* §5.8 DN mapping when no FQAN matched — unchanged behaviour. */
+        if (id->mapped_user[0] == '\0' && dn != NULL && dn[0] != '\0'
+            && !brix_idmap_gate_username(dn, id->mapped_user,
+                                         sizeof(id->mapped_user)))
         {
             id->mapped_user[0] = '\0';        /* unmapped: keep the DN */
         }
     }
-    return (id->mapped_user[0] != '\0') ? id->mapped_user : dn;
+    return (id->mapped_user[0] != '\0') ? id->mapped_user
+                                        : ((dn != NULL) ? dn : "");
 }
 
 /*
@@ -158,7 +185,7 @@ brix_acc_gate_host(brix_ctx_t *ctx, ngx_connection_t *c,
 
 /*
  * brix_acc_gate_engine — tier-1 authorization via the faithful XrdAcc engine
- * (when `brix_authdb_format xrdacc`).  Maps the handler's native privilege
+ * (when `brix_authdb_engine xrdacc`).  Maps the handler's native privilege
  * level to an XrdAcc operation, builds the request entity from the resolved
  * identity (DN/subject as the user name, the FQAN-derived VO/role/group views,
  * and the peer address as the host), evaluates the per-worker tables, and
@@ -208,7 +235,7 @@ brix_acc_gate_engine(const auth_gate_ctx_t *g, const char *path)
 /*
  * brix_authz_check — decision-only, format-aware authorization for callers
  * that format their own error response (TPC dest-open, prepare).  Routes to the
- * XrdAcc engine when `brix_authdb_format xrdacc`, else the native authdb —
+ * XrdAcc engine when `brix_authdb_engine xrdacc`, else the native authdb —
  * exactly matching the native call it replaces.  No wire response, no metric.
  *
  * Like brix_auth_gate_op, the two engines key off different paths: XrdAcc

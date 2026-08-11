@@ -18,6 +18,8 @@
 
 #include "observability/pmark/pmark.h"
 #include "auth/authz/acc/acc.h"   /* brix_acc_http_t (phase-101 W2: in the preamble) */
+#include "core/shm/rate_limit.h"  /* brix_rate_limit_conf_t + brix_kv_t (phase-105 W1) */
+#include "net/mirror/mirror.h"    /* brix_mirror_conf_t (phase-105 W2) */
 
 /*
  * ngx_http_brix_shared_conf_t — Common fields embedded at the top of every
@@ -479,9 +481,12 @@ typedef struct {
                                              * protocol-local. */
     ngx_str_t         token_issuer;        /* [brix_token_issuer] required "iss". */
     ngx_str_t         token_audience;      /* [brix_token_audience] required "aud". */
-    ngx_int_t         token_clock_skew;    /* [brix_token_clock_skew] exp/nbf grace
-                                             * seconds; unified default 30 (was 30 on
-                                             * webdav, 60 on s3 — stricter wins). */
+    time_t            token_clock_skew;    /* [brix_token_clock_skew] exp/nbf grace;
+                                             * sec_slot since phase-105 W8 (suffixes
+                                             * legal; the 300s security clamp in the
+                                             * shared merge still rejects loudly).
+                                             * Unified default 30 (was 30 on webdav,
+                                             * 60 on s3 — stricter wins). */
     ngx_str_t         token_config;        /* [brix_token_config <scitokens.cfg>]
                                              * (phase-101 W4): multi-issuer registry
                                              * file; overrides the single-issuer
@@ -490,6 +495,95 @@ typedef struct {
                                              * bare on the stream plane already. The
                                              * built token_registry stays protocol-
                                              * local. */
+    /* OIDC token introspection / revocation (phase-105 W4.1 — were the
+     * brix_webdav_token_introspect_* quad; 101 Table 1 planned the bare
+     * names). Consulted by the GLOBAL introspection access handler
+     * (webdav/introspect.c) for any brix request carrying a Bearer token —
+     * the verdict cache (brix_webdav_revoke_cache) stays webdav-scoped. */
+    ngx_str_t         introspect_url;      /* [brix_token_introspect_url] display/doc */
+    ngx_str_t         introspect_loc;      /* [brix_token_introspect_loc] internal URI
+                                             * that proxy_passes to the IdP; enables
+                                             * the check ("" = off) */
+    time_t            introspect_ttl;      /* [brix_token_introspect_ttl] verdict TTL;
+                                             * sec_slot since the move (was num) */
+    ngx_flag_t        introspect_fail_open; /* [brix_token_introspect_fail_open] */
+    ngx_str_t         trusted_ca;         /* [brix_trusted_ca <file>] (phase-105 W2):
+                                             * auth-layer verify-source CA bundle for
+                                             * the GSI/VOMS chain (101-W6 role name).
+                                             * Consumed by webdav cert-auth today;
+                                             * scope documented in directives.md. */
+    ngx_str_t         trusted_ca_dir;     /* [brix_trusted_ca_dir <dir>] verify-source
+                                             * CA directory — file/dir forms of ONE
+                                             * source; distinct from client_ca_store
+                                             * (front-leg SSL_CTX) and backend_ca_dir
+                                             * (proxy back leg) — the 101-W6 four-
+                                             * mechanism distinction holds. */
+    ngx_uint_t        verify_depth;       /* [brix_verify_depth <n>] (phase-105 W3.5):
+                                             * cap on the accepted client proxy-chain
+                                             * depth in the auth path (VOMS proxies +
+                                             * delegation re-verify). One spelling with
+                                             * the stream plane; per-plane defaults
+                                             * KEEP (HTTP 10; stream 0=unlimited). */
+    ngx_str_t         tcp_congestion;     /* [brix_tcp_congestion <alg>] (phase-105
+                                             * W2): sender-side congestion alg applied
+                                             * by the SHARED file-serve path — one
+                                             * site covers webdav GET, S3 GetObject
+                                             * and cvmfs; was webdav-owned while the
+                                             * engine was already cross-protocol. */
+    brix_mirror_conf_t mirror;            /* [brix_mirror_url/_methods/_sample/
+                                             * _strip_auth/_writes/_log_diverge/
+                                             * _timeout/_token] (phase-105 W2):
+                                             * traffic-mirror SETTINGS — were
+                                             * webdav-owned; the engine plumbing
+                                             * (upstream conf, TLS ctx, request ctx)
+                                             * stays on the webdav conf, which the
+                                             * globally-registered phase handlers
+                                             * fetch (documented residual, same
+                                             * shape as ratelimit_http.c). The
+                                             * stream plane keeps its own flat
+                                             * copy. */
+    ngx_flag_t        delegation_endpoint; /* [brix_delegation_endpoint on|off]
+                                             * (phase-105 W2): opt-in GSI proxy-upload
+                                             * delegation well-known endpoint. Consumed
+                                             * by the webdav dispatch today (HTTP-TPC
+                                             * delegation is a webdav COPY mechanism);
+                                             * documented webdav-scoped in
+                                             * directives.md. Was webdav-owned. */
+    ngx_str_t         client_ca_store;    /* [brix_client_ca_store <dir>] (phase-105
+                                             * W2): hashed CA dir loaded into the
+                                             * SERVER SSL_CTX client-verify store at
+                                             * postconfiguration — the listener ctx is
+                                             * shared by every protocol on the server,
+                                             * so behavior was already server-wide;
+                                             * only ownership moved. Hook stays in
+                                             * webdav postconfig (documented residual). */
+    time_t            max_delay;          /* [brix_max_delay <time>] (phase-105 W3):
+                                             * the xrootd maxdelay analog — CAP on the
+                                             * client wait/Retry-After seconds a
+                                             * response may advertise. Was
+                                             * brix_webdav_maxdelay; the stream plane
+                                             * spells it brix_max_delay already (its
+                                             * flat field + default 60 stay per-plane;
+                                             * HTTP default 0 = off). */
+    brix_kv_t        *token_cache_kv;     /* [brix_token_cache zone=] (phase-105 W1):
+                                             * verified-token KV cache; was the
+                                             * webdav-local field, so the bare name
+                                             * parsed-but-was-inert on s3/cvmfs
+                                             * (first-module-wins routed it to
+                                             * webdav's conf). NULL = off. */
+    brix_rate_limit_conf_t rate_limit;    /* [brix_rate_limit zone= rate= burst=
+                                             * key=dn|ip] (phase-105 W1): token-
+                                             * bucket admission; engine in
+                                             * core/shm/rate_limit.c. kv==NULL = off
+                                             * (the UNSET sentinel — zeroed init). */
+    ngx_array_t      *rl_rules;           /* brix_rl_rule_t[] from [brix_rate_limit_
+                                             * rule / brix_bandwidth_limit /
+                                             * brix_concurrency_limit] (phase-105
+                                             * W1): traffic-shaping rules, engine in
+                                             * net/ratelimit/. NULL = none; inherited
+                                             * WHOLE at merge (like vo_rules) — was
+                                             * location-exact on webdav, so server-
+                                             * scope rules are new capability. */
     ngx_uint_t        seccomp;            /* brix_seccomp mode (off/audit/enforce)
                                              * for HTTP (WebDAV/S3/cvmfs) servers;
                                              * a record only — the effective mode is
@@ -497,5 +591,11 @@ typedef struct {
                                              * (strictest across ALL brix servers,
                                              * incl. stream), 0=OFF via pcalloc.     */
 } ngx_http_brix_shared_conf_t;
+
+/* phase-105 W8: the preamble is plane-neutral (embedded by the stream srv
+ * conf, stream_common, and gridftp as well as every HTTP protocol conf) —
+ * new code should use this alias; existing uses are NOT swept (a rename
+ * sweep is deliberately out of scope, same call phase-101 made). */
+typedef ngx_http_brix_shared_conf_t  brix_shared_conf_t;
 
 #endif /* NGX_HTTP_BRIX_SHARED_CONF_TYPES_H */

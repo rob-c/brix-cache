@@ -494,6 +494,7 @@ ngx_brix_stream_deps="$ngx_addon_dir/src/core/ngx_brix_module.h \
                  $ngx_addon_dir/src/fs/backend/pblock/pblock_locks.h \
                  $ngx_addon_dir/src/fs/backend/pblock/pblock_refs.h \
                  $ngx_addon_dir/src/fs/backend/pblock/pblock_pack.h \
+                 $ngx_addon_dir/src/fs/backend/pblock/pblock_pack_internal.h \
                  $ngx_addon_dir/shared/cache/cas_pack_format.h \
                  $ngx_addon_dir/src/fs/backend/pblock/pblock_snap.h \
                  $ngx_addon_dir/src/fs/backend/pblock/pblock_hist.h \
@@ -676,11 +677,13 @@ ngx_brix_webdav_deps="$ngx_addon_dir/src/protocols/webdav/webdav.h \
                  $ngx_addon_dir/src/fs/backend/pblock/pblock_locks.h \
                  $ngx_addon_dir/src/fs/backend/pblock/pblock_refs.h \
                  $ngx_addon_dir/src/fs/backend/pblock/pblock_pack.h \
+                 $ngx_addon_dir/src/fs/backend/pblock/pblock_pack_internal.h \
                  $ngx_addon_dir/shared/cache/cas_pack_format.h \
                  $ngx_addon_dir/src/fs/backend/pblock/pblock_snap.h \
                  $ngx_addon_dir/src/fs/backend/pblock/pblock_hist.h \
                  $ngx_addon_dir/src/fs/backend/pblock/pblock_xform.h \
                         $ngx_addon_dir/src/fs/cache/open.h \
+                        $ngx_addon_dir/src/protocols/webdav/get_internal.h \
                         $ngx_addon_dir/src/protocols/webdav/xrdhttp.h \
                         $ngx_addon_dir/src/core/compat/time.h \
                         $ngx_addon_dir/src/protocols/webdav/proxy_pool.h \
@@ -897,6 +900,7 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/fs/backend/pblock/pblock_locks.c \
     $ngx_addon_dir/src/fs/backend/pblock/pblock_refs.c \
     $ngx_addon_dir/src/fs/backend/pblock/pblock_pack.c \
+    $ngx_addon_dir/src/fs/backend/pblock/pblock_pack_seg.c \
     $ngx_addon_dir/src/fs/backend/pblock/pblock_snap.c \
     $ngx_addon_dir/src/fs/backend/pblock/pblock_hist.c \
     $ngx_addon_dir/src/fs/backend/pblock/pblock_xform.c \
@@ -970,6 +974,7 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/core/config/credential_block.c \
     $ngx_addon_dir/src/core/config/server_conf.c \
     $ngx_addon_dir/src/core/config/server_conf_merge_security.c \
+    $ngx_addon_dir/src/core/config/server_conf_merge_storage.c \
     $ngx_addon_dir/src/core/config/server_conf_merge_cluster.c \
     $ngx_addon_dir/src/core/config/server_conf_merge_proxy_net.c \
     $ngx_addon_dir/src/core/config/policy.c \
@@ -1657,6 +1662,8 @@ ngx_module_srcs="$ngx_addon_dir/src/protocols/webdav/module.c \
                  $ngx_addon_dir/src/protocols/webdav/methods_basic.c \
                  $ngx_addon_dir/src/protocols/webdav/methods_proppatch.c \
                  $ngx_addon_dir/src/protocols/webdav/get.c \
+                 $ngx_addon_dir/src/protocols/webdav/get_serve.c \
+                 $ngx_addon_dir/src/protocols/webdav/get_directory.c \
                  $ngx_addon_dir/src/protocols/webdav/put.c \
                  $ngx_addon_dir/src/protocols/webdav/put_setup.c \
                  $ngx_addon_dir/src/protocols/webdav/put_body.c \

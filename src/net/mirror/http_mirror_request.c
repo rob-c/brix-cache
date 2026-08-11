@@ -140,12 +140,12 @@ mirror_build_subrequest(ngx_http_request_t *r,
     ngx_uint_t  method;
     off_t       body_len = 0;
 
-    if (ctx == NULL || conf->mirror.targets == NULL
-        || ctx->mirror_target_idx >= conf->mirror.targets->nelts)
+    if (ctx == NULL || conf->common.mirror.targets == NULL
+        || ctx->mirror_target_idx >= conf->common.mirror.targets->nelts)
     {
         return NGX_ERROR;
     }
-    plan->t    = (brix_mirror_target_t *) conf->mirror.targets->elts
+    plan->t    = (brix_mirror_target_t *) conf->common.mirror.targets->elts
                + ctx->mirror_target_idx;
     plan->host = plan->t->host;
     method     = r->method;
@@ -155,7 +155,7 @@ mirror_build_subrequest(ngx_http_request_t *r,
      *   token configured  => inject "Authorization: Bearer <token>"
      *   strip_auth on      => send no Authorization at all (default)
      *   strip_auth off     => forward the client's Authorization header. */
-    plan->inject_token = (conf->mirror.token.len > 0);
+    plan->inject_token = (conf->common.mirror.token.len > 0);
 
     /* MOVE/COPY: rewrite the client's Destination to point at the shadow, and
      * forward Depth/Overwrite verbatim so the shadow performs the same op. */
@@ -207,8 +207,8 @@ mirror_headers_len(ngx_http_request_t *r, ngx_http_brix_webdav_loc_conf_t *conf,
 
     if (plan->inject_token) {
         len += sizeof("Authorization: Bearer ") - 1
-             + conf->mirror.token.len + sizeof(CRLF) - 1;
-    } else if (!conf->mirror.strip_auth
+             + conf->common.mirror.token.len + sizeof(CRLF) - 1;
+    } else if (!conf->common.mirror.strip_auth
                && r->headers_in.authorization != NULL) {
         len += sizeof("Authorization: ") - 1
              + r->headers_in.authorization->value.len + sizeof(CRLF) - 1;
@@ -270,9 +270,9 @@ mirror_copy_headers(ngx_http_request_t *r,
     if (plan->inject_token) {
         p = ngx_copy(p, "Authorization: Bearer ",
                      sizeof("Authorization: Bearer ") - 1);
-        p = ngx_copy(p, conf->mirror.token.data, conf->mirror.token.len);
+        p = ngx_copy(p, conf->common.mirror.token.data, conf->common.mirror.token.len);
         p = ngx_copy(p, CRLF, sizeof(CRLF) - 1);
-    } else if (!conf->mirror.strip_auth
+    } else if (!conf->common.mirror.strip_auth
                && r->headers_in.authorization != NULL) {
         p = ngx_copy(p, "Authorization: ", sizeof("Authorization: ") - 1);
         p = ngx_copy(p, r->headers_in.authorization->value.data,
@@ -456,7 +456,7 @@ mirror_finalize_request(ngx_http_request_t *r, ngx_int_t rc)
                != brix_mirror_status_class(pctx->primary_status))
         {
             MIR_HTTP_INC(mirror_http_divergence_total);
-            if (conf->mirror.log_diverge) {
+            if (conf->common.mirror.log_diverge) {
                 ngx_log_error(NGX_LOG_NOTICE, r->connection->log, 0,
                     "xrootd mirror divergence: primary=%ui shadow=%ui uri=%V",
                     pctx->primary_status, shadow_status, &parent->uri);

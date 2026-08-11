@@ -191,6 +191,10 @@ typedef struct {
     ngx_flag_t auth_done;       /* set when authentication is complete */
     char       user[9];         /* fixed-width kXR_login username, NUL-terminated */
     uint32_t   pid;             /* client pid from kXR_login, host byte order */
+    uint8_t    ability;         /* §1.3 XLoginAbility bitmask the client
+                                 * advertised (kXR_fullurl=1 honored in
+                                 * brix_send_redirect; other bits stored) */
+    uint8_t    ability2;        /* §1.3 XLoginAbility2 bitmask (stored) */
     uint8_t    auth_fail_count; /* failed kXR_auth attempts; capped */
     size_t     pool_bytes_used; /* cumulative ngx_palloc bytes; capped */
     char       dn[512];         /* GSI subject DN (literal proxy-leaf DN) */

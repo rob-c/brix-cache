@@ -81,6 +81,10 @@ def _rt55_segment_07(data, port, ta, SRC, SZ):
 def _rt55_single_range_bytes_0_9_206(ON_DISK, SRC, raw_get, rel, ta, crange, SZ):
     ok(ON_DISK == SRC, "setup: range_src.txt landed byte-exact on disk (no corruption)")
 
+    _content_negotiation_ranges_p1(raw_get, ta, port, raw_req, data, rel, crange, SZ, ON_DISK, SRC, disk)
+
+
+def _content_negotiation_ranges_p1(raw_get, ta, port, raw_req, data, rel, crange, SZ, ON_DISK, SRC, disk):
     # ---- single range bytes=0-9 -> 206 + first 10 bytes exact + correct C-Range ----
     sst, sh, sb = raw_get("/" + rel, ta, {"Range": "bytes=0-9"})
     ok(all((sst == 206, sb == ON_DISK[0:10])),
@@ -133,7 +137,10 @@ def _rt55_multi_range_bytes_0_9_20(raw_get, rel, ta, ON_DISK):
         ok(all((mst in (200, 206), ON_DISK[0:10] in mb)),
            "multi-range fell back to non-corrupt full/partial response (HTTP %s)" % mst)
         ok(True, "multi-range non-206 fallback accepted (HTTP %s)" % mst)
+    _content_negotiation_ranges_p2(raw_get, ta, port, raw_req, data, rel, ON_DISK, SZ, SRC, disk)
 
+
+def _content_negotiation_ranges_p2(raw_get, ta, port, raw_req, data, rel, ON_DISK, SZ, SRC, disk):
     # ---- overlapping ranges bytes=0-19,10-29 -> handled, both windows exact ----
     ost, oh, obo = raw_get("/" + rel, ta, {"Range": "bytes=0-19,10-29"})
     ok(all((ost in (200, 206), ON_DISK[0:20] in obo, ON_DISK[10:30] in obo)),
@@ -185,7 +192,10 @@ def _rt55_is_internally_consistent_enough_that_the(raw_req, rel, ta, raw_get, ON
     ok(all((hst in (200, 206), hbo == b'')),
        "HEAD with Range returns NO body (headers only) (HTTP %s, bodylen=%d)"
        % (hst, len(hbo)))
+    _content_negotiation_ranges_p3(port, ta, data, raw_get, rel, ON_DISK, SZ, SRC, disk)
 
+
+def _content_negotiation_ranges_p3(port, ta, data, raw_get, rel, ON_DISK, SZ, SRC, disk):
     # =================================================================
     # CONTENT-NEGOTIATION: Accept-Encoding must never corrupt / mislabel the bytes.
     # We do not decode br/gzip here (stdlib codec not in the allowed import set);
@@ -224,6 +234,10 @@ def _rt55_is_internally_consistent_enough_that_the(raw_req, rel, ta, raw_get, ON
     # decode-and-reject — but the adversarial invariants always hold: no
     # svc/root-owned file is ever created, and a rejected encoded PUT never
     # silently leaves a (partial/undecoded) object behind.
+    _content_negotiation_ranges_p4(port, ta, data, raw_get, rel, ON_DISK, SZ, SRC, disk)
+
+
+def _content_negotiation_ranges_p4(port, ta, data, raw_get, rel, ON_DISK, SZ, SRC, disk):
     # =================================================================
     payload = b"\x1f\x8b\x08\x00" + bytes(range(256)) * 8 + b"ALICE-CE-TAIL"
     ce_rel = "alice/range_ce.bin"
@@ -272,6 +286,10 @@ def _rt55_verbatim_byte_store_contract_exact_bytes(ce_rel, port, ta, payload, da
 
     # =================================================================
     # DAC dimension: Range against bob's files AS ALICE.
+    _content_negotiation_ranges_p5(data, raw_get, ta, port, rel, ON_DISK, SZ, SRC, disk)
+
+
+def _content_negotiation_ranges_p5(data, raw_get, ta, port, rel, ON_DISK, SZ, SRC, disk):
     # =================================================================
     # bob/readable.txt is 0644 -> alice MAY read it; a Range must be byte-exact.
     bread_disk = os.path.join(data, "bob", "readable.txt")
@@ -315,6 +333,10 @@ def _rt55_suffix_range_must_not_become_a(raw_get, ta, SECRET, rel):
 
     # =================================================================
     # If-Range: matching validator -> 206 slice; stale validator -> 200 full.
+    _content_negotiation_ranges_p6(raw_get, ta, port, rel, ON_DISK, SZ, SRC, disk)
+
+
+def _content_negotiation_ranges_p6(raw_get, ta, port, rel, ON_DISK, SZ, SRC, disk):
     # =================================================================
     est0, eh0, _ = raw_get("/" + rel, ta, {})
     etag = eh0.get("etag", "")
@@ -355,6 +377,10 @@ def _rt55_if_range_is_not_implemented_by(etag, raw_get, rel, ta, ON_DISK, last_m
     # =================================================================
     # LIVENESS + invariant: a fresh alice GET still byte-exact, and the range source
     # is unchanged on disk after the whole battery.
+    _content_negotiation_ranges_p7(port, ta, rel, ON_DISK, SZ, SRC, disk)
+
+
+def _content_negotiation_ranges_p7(port, ta, rel, ON_DISK, SZ, SRC, disk):
     # =================================================================
     fst, fbo = http("GET", "/" + rel, port, ta)
     ok(all((fst == 200, fbo == ON_DISK)),

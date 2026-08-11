@@ -10,7 +10,7 @@ The facility itself is unit-tested in tests/c/test_cred_stage.c.  This test pins
 the same guarantee end-to-end through the live WebDAV token-exchange path:
 
   * config surface — booting nginx_lc_tpc_token_exchange.conf proves the A-5
-    directives (brix_webdav_tpc_token_endpoint / _token_scope) parse and pass
+    directives (brix_tpc_outbound_token_endpoint / _token_scope) parse and pass
     nginx -t (the lifecycle harness validates before serving);
   * staging reached — a COPY with `Credential: token-exchange` and a subject
     bearer drives tpc_cred_rfc8693_exchange (mode accepted → not 400); with the

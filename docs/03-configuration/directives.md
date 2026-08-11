@@ -243,7 +243,7 @@ brix_auth gsi;
 
 Path to a native `u/g/p/a` authorization-rule file (per-DN/VO/host-CIDR ACLs,
 6 privilege bits, longest-prefix match). On the stream (`root://`) plane this is
-the engine entry; the runtime engine is chosen by `brix_authdb_format`
+the engine entry; the runtime engine is chosen by `brix_authdb_engine`
 (`native` default / `xrdacc`). On the **HTTP** plane bare `brix_authdb` is the
 **native** engine, enforced by the WebDAV access phase for READ methods — reach
 the XrdAcc engine on HTTP via `brix_acc_authdb` instead (phase-101 W5). See
@@ -251,9 +251,9 @@ the XrdAcc engine on HTTP via `brix_acc_authdb` instead (phase-101 W5). See
 [migration guide](migration-unified-grammar.md#phase-101-authdb-engine-split-2026-08--w5).
 
 ```nginx
-# stream: engine chosen by brix_authdb_format
+# stream: engine chosen by brix_authdb_engine
 brix_authdb        /etc/brix/authdb;
-brix_authdb_format xrdacc;           # stream-only tuner spelling
+brix_authdb_engine xrdacc;           # stream-only tuner spelling
 
 # HTTP (WebDAV): bare name = native u/g/p engine
 location /dav/ { brix_webdav on; brix_authdb /etc/brix/authdb; }
@@ -934,6 +934,43 @@ brix_oss_quota_enforce on;
 
 ---
 
+### `brix_sitename <name>`
+
+**Default:** unset
+
+The human-readable site/node identity for this server — the `all.sitename`
+analog. A client reads it via `xrdfs query config sitename` (kXR_Qconfig), and it also
+fills the `site="…"` attribute of the kXR_QStats `<statistics>` summary-
+monitoring document that federation dashboards read. When unset, the Qconfig
+`sitename` query echoes the key (stock's default-config behaviour) and the QStats
+`site` attribute is empty, so leaving it out changes nothing.
+
+```nginx
+brix_sitename WLCG-Cache-AMS-01;
+```
+
+---
+
+### `brix_checksum_default <algo>`
+
+**Default:** `adler32`
+
+The checksum algorithm used when a `kXR_Qcksum` request selects none of its own
+(no `<algo>:` prefix and no `?cks.type=<algo>` opaque), and the algorithm
+advertised **first** in the `xrdfs query config chksum` list — the entry clients
+take as this server's preference when intersecting checksum preference lists.
+The `xrootd.chksum` default analog: WLCG sites typically prefer `crc32c`, cloud
+deployments `sha256`. Must be one of
+`adler32`/`crc32`/`crc32c`/`crc64`/`crc64nvme`/`md5`/`sha1`/`sha256`; an
+unrecognized value degrades to `adler32` at use rather than failing checksums. An
+explicit per-request algorithm always overrides it.
+
+```nginx
+brix_checksum_default crc32c;
+```
+
+---
+
 ### `brix_admin_socket <path>`
 
 **Default:** unset (no admin socket)
@@ -1001,7 +1038,7 @@ brix_webdav_listing_redirect https://browse.example.org/;
 
 ---
 
-### `brix_webdav_maxdelay <time>`
+### `brix_max_delay <time>`
 
 **Default:** `0` (off — the built-in 10 s staging poll interval)
 
@@ -1017,7 +1054,7 @@ Set it below 10 s when a fast-staging backend or an impatient client fleet wants
 snappier polling.
 
 ```nginx
-brix_webdav_maxdelay 3s;   # poll every 3 s during a tape recall, not every 10 s
+brix_max_delay 3s;   # poll every 3 s during a tape recall, not every 10 s
 ```
 
 ---
@@ -1082,6 +1119,13 @@ mesh; leaving it unset keeps the stall behaviour.
 Both overload responses share one choke point, so `brix_max_delay` still bounds
 any stall this server does emit. The grammar is two tokens — `<host> <port>`,
 **not** `host:port` — a deliberate BriX spelling.
+
+The redirect is only handed to a client that advertised the `kXR_readrdok` login
+ability (it can follow a redirect that arrives *during* a read). A client that
+did not — an older client, or BriX's own client, whose async engine does not
+chase read redirects — instead gets the `brix_fsoverload_stall` back-off even
+when this directive is set, so it is never handed a redirect it would mishandle.
+The read is simply deferred here until the budget frees.
 
 ```nginx
 brix_memory_budget       512m;
@@ -2247,3 +2291,34 @@ The sibling S3 delegation directives (SigV4 `AssumeRole` against an STS endpoint
 `aws` or `minio` dialect) are documented in
 `docs/refactor/phase-70-full-credential-delegation.md` §5.5. `…_endpoint` is
 load-validated at `nginx -t` (must be a well-formed `http(s)://` URL).
+
+## Phase-105 — unified cross-protocol directives (wave 2)
+
+All registered once on the common module; set at `http{}`/`server{}`/location
+scope and inherited by every brix HTTP protocol (WebDAV, S3, cvmfs) unless a
+narrower scope is stated. Hard-renamed old spellings are listed in
+`migration-unified-grammar.md`.
+
+| Directive | Args | What it does |
+|---|---|---|
+| `brix_kv_zone` | `zone=name:size key=N val=N` (http main) | declare a shared-memory KV zone (token cache, rate-limit state) |
+| `brix_token_cache` | `zone=<name>` | cross-worker verified-JWT cache; amortizes bearer validation on webdav AND s3. Only positive verdicts are stored; entries re-check `exp` and are TTL-capped at 5 min |
+| `brix_rate_limit` | `zone= rate=<N>r/s burst=<N> [key=dn\|ip]` | per-client-IP token-bucket admission, enforced BEFORE the auth burden on webdav, s3 and cvmfs (`key=dn` is stream-plane semantics; HTTP keys by IP) |
+| `brix_rate_limit_zone` / `brix_rate_limit_rule` / `brix_bandwidth_limit` / `brix_concurrency_limit` | see phase-25 docs | traffic-shaping rules; rules now inherit into nested locations like every other preamble rule array |
+| `brix_max_delay` | `<time>` | cap on the client wait/Retry-After a response may advertise (xrootd maxdelay analog). HTTP default 0=off; stream default 60 |
+| `brix_verify_depth` | `<n>` | accepted client proxy-chain depth cap in the auth path (VOMS proxies + delegation re-verify on HTTP; GSI login on stream). HTTP default 10; stream 0=unlimited |
+| `brix_trusted_ca` / `brix_trusted_ca_dir` | `<file>` / `<dir>` | auth-layer verify-source CA material for GSI/VOMS cert auth. **Consumed by webdav today** — inert on protocols without cert auth (s3 SigV4/bearer) |
+| `brix_client_ca_store` | `<dir>` (srv/loc) | hashed CA dir loaded into the SERVER SSL_CTX client-verify store at postconfiguration (server-wide by construction) |
+| `brix_delegation_endpoint` | `on\|off` | opt-in GSI proxy-upload delegation well-known endpoint. **Served by the webdav dispatch** — enabling it elsewhere has no endpoint to serve |
+| `brix_tcp_congestion` | `<alg>` | sender-side TCP congestion algorithm (e.g. `bbr`) applied by the shared file-serve path to EVERY HTTP download (webdav GET, S3 GetObject, cvmfs) |
+| `brix_mirror_url` + `_methods`/`_sample`/`_strip_auth`/`_writes`/`_log_diverge`/`_timeout`/`_token` | see phase-24 docs | traffic-mirror settings; the mirror handlers are global, so one `http{}`-level target mirrors every brix HTTP protocol |
+| `brix_token_introspect_url` / `_loc` / `_ttl` / `_fail_open` | str / str / `<time>` / flag | OIDC introspection (revocation): `_loc` names the internal location that proxy_passes to the IdP; consulted for any brix request carrying a Bearer token. `_ttl` accepts time units (default 30s); `_fail_open` default on |
+| `brix_webdav_query_token` | `on\|off` (webdav) | accept `?authz=`/`?access_token=` query-string tokens (default on) — webdav auth surface, renamed from `brix_http_query_token` |
+| `brix_webdav_secretkey` | `<key>` (webdav) | redirect-CGI HMAC key (pairs with `brix_webdav_redirect_*`) — renamed from `brix_http_secretkey` |
+
+Stream-plane spellings unified in the same wave: `brix_authdb_engine`
+(`native|xrdacc`, was `brix_authdb_format`), `brix_acc_audit` /
+`brix_acc_refresh` (were `brix_authdb_audit`/`_refresh`),
+`brix_wt_stage_root`/`_backend`/`_block_size` (were `brix_cache_wt_stage_*`),
+and the HTTP TPC outbound-token quartet now spelled
+`brix_tpc_outbound_{token_endpoint,client_id,client_secret,scope}`.

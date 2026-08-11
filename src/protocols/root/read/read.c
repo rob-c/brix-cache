@@ -30,12 +30,21 @@
  * redirect host is NUL-terminated at config time (brix_pstrdupz), so it is passed
  * straight to brix_send_redirect; kXR_wait stays clamped by brix_max_delay at its
  * own emission choke point.
+ *
+ * §1.3 kXR_readrdok: a redirect issued in response to a kXR_read/readv (NOT at
+ * open time) can only be followed by a client that advertised the readrdok login
+ * ability. A client that did not — an older client, or one that cleared the bit —
+ * would mishandle a mid-read redirect. For such a client we degrade to the
+ * kXR_wait backoff (retry-here) even when a redirect host is configured, which is
+ * always safe: the read is simply deferred until this node's budget frees.
  */
 ngx_int_t
 brix_fsoverload_backoff(brix_ctx_t *ctx, ngx_connection_t *c,
     ngx_stream_brix_srv_conf_t *rconf)
 {
-    if (rconf->fsoverload_redirect_host.len > 0) {
+    if (rconf->fsoverload_redirect_host.len > 0
+        && (ctx->login.ability & 0x04 /* kXR_readrdok */))
+    {
         return brix_send_redirect(ctx, c,
             (const char *) rconf->fsoverload_redirect_host.data,
             (uint16_t) rconf->fsoverload_redirect_port);
@@ -161,7 +170,6 @@ static ngx_flag_t
 brix_read_try_offload(brix_ctx_t *ctx, ngx_connection_t *c,
     ngx_stream_brix_srv_conf_t *rconf, brix_read_io_t *io, ngx_int_t *rc)
 {
-    const u_char     *sessid;
     ngx_connection_t *sec_c;
     brix_ctx_t       *sec_ctx;
     size_t            total;
@@ -169,38 +177,8 @@ brix_read_try_offload(brix_ctx_t *ctx, ngx_connection_t *c,
     brix_vfs_job_t    job;
     ssize_t           nread;
 
-    if (io->pathid == 0) {
-        return 0;   /* primary/control stream — the default, no lookup needed */
-    }
-
-    /* The pathid was validated against this same session key in read_validate_req. */
-    sessid = ctx->is_bound ? ctx->bound_sessid : ctx->login.sessid;
-    sec_c  = brix_offload_lookup(sessid, io->pathid);
-    if (sec_c == NULL || sec_c == c) {
-        return 0;   /* bound on another worker (or nonsensical self) — control stream */
-    }
-
-    sec_ctx = ngx_stream_get_module_ctx((ngx_stream_session_t *) sec_c->data,
-                                          ngx_stream_brix_module);
-
-    /*
-     * Route to a live secondary whose out-ring still has a free slot once EVERY
-     * pending response is counted: queued (out.count) + reserved by in-flight
-     * write acks (out.wr_inflight) and read AIO (rd.aio_inflight). Staying
-     * strictly below pipeline_depth guarantees a free slot even after all those
-     * land, so the queued-behind frame can never overrun the ring. This lets an
-     * offloaded reply PIPELINE behind the secondary's existing responses (they
-     * drain head-first, never interleave) up to ring capacity — not only when the
-     * channel is fully idle, which is what a multi-stream client's data channel
-     * actually looks like. resp_async (write-ack pipelining) is skipped: its
-     * async-park path is left on the control stream. A full ring / dead fd falls
-     * back to the primary.
-     */
-    if (sec_ctx == NULL || sec_ctx->destroyed
-        || sec_c->fd == (ngx_socket_t) -1 || sec_ctx->out.resp_async
-        || sec_ctx->out.count + sec_ctx->out.wr_inflight
-           + sec_ctx->rd.aio_inflight >= sec_ctx->out.pipeline_depth)
-    {
+    sec_ctx = brix_read_offload_secondary(ctx, c, io->pathid, &sec_c);
+    if (sec_ctx == NULL) {
         return 0;
     }
 

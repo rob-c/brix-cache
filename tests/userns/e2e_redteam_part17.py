@@ -146,6 +146,10 @@ def _rt17_segment_13():
 
 def _rt17_section_1_cross_protocol_header_confusion(port, is_2xx, no_marker, BOB_SECRET):
 
+    _auth_scheme_confusion_p1(port, key, s3port, data, safe_exists, now, manual_token, file_owner, no_marker, BOB_SECRET, SVC_SECRET, is_2xx, UID_ROOT)
+
+
+def _auth_scheme_confusion_p1(port, key, s3port, data, safe_exists, now, manual_token, file_owner, no_marker, BOB_SECRET, SVC_SECRET, is_2xx, UID_ROOT):
     # ===================================================================
     # SECTION 1: cross-protocol header confusion (S3 sig on WebDAV port)
     # ===================================================================
@@ -229,7 +233,10 @@ def _rt17_section_3_token_smuggled_via_query(safe_exists, data, alice_tok, port,
             os.remove(os.path.join(data, "alice", "dual_hdr.txt"))
     except OSError:
         pass
+    _auth_scheme_confusion_p2(port, data, safe_exists, key, now, manual_token, s3port, file_owner, no_marker, BOB_SECRET, SVC_SECRET, is_2xx, alice_tok, bob_forged, UID_ROOT)
 
+
+def _auth_scheme_confusion_p2(port, data, safe_exists, key, now, manual_token, s3port, file_owner, no_marker, BOB_SECRET, SVC_SECRET, is_2xx, alice_tok, bob_forged, UID_ROOT):
     # ===================================================================
     # SECTION 3: token smuggled via query params (?authz= / ?access_token=)
     # ===================================================================
@@ -351,6 +358,8 @@ def _rt17_section_5_kid_that_does_not(no_marker, body, SVC_SECRET, st, key, port
     for numsub in ["1500", "0", "1001", "1002", "-1", "00", "1001 "]:
         _rt17_for_each_numsub_1500_0_1001_1002_1(key, numsub, port, is_2xx, no_marker, SVC_SECRET, BOB_SECRET, data, safe_exists, file_owner, UID_SVC, UID_ROOT)
 
+
+def _auth_scheme_confusion_p3(now, port, data, safe_exists, manual_token, key, s3port, file_owner, no_marker, BOB_SECRET, SVC_SECRET, is_2xx, UID_ROOT):
     # ===================================================================
     # SECTION 5: kid that does not exist in the JWKS
     # ===================================================================
@@ -487,7 +496,10 @@ def _rt17_section_7_aud_as_json_array(is_2xx, st, no_marker, body, BOB_SECRET, p
     st, body = http("PUT", "/pub/foreign.txt", port, data=b"x", token=tok_foreign)
     ok(not safe_exists(os.path.join(data, "pub", "foreign.txt")),
        f"foreign-key token created no file (HTTP {st})")
+    _auth_scheme_confusion_p4(key, port, s3port, data, safe_exists, file_owner, no_marker, BOB_SECRET, now, SVC_SECRET, is_2xx, tok_foreign, tok_none, UID_ROOT)
 
+
+def _auth_scheme_confusion_p4(key, port, s3port, data, safe_exists, file_owner, no_marker, BOB_SECRET, now, SVC_SECRET, is_2xx, tok_foreign, tok_none, UID_ROOT):
     # ===================================================================
     # SECTION 7: aud as JSON array (containing vs not-containing)
     # ===================================================================
@@ -555,7 +567,10 @@ def _rt17_8d_positive_control_a_token_valid(key, now, port, is_2xx, s3port, st, 
     st, body = http("GET", "/alice/hello.txt", port, token=tok_valid)
     ok(all((is_2xx(st), b'alice-hello' in any((body, b'')))),
        f"POSITIVE: currently-valid alice token reads own file (HTTP {st})")
+    _auth_scheme_confusion_p5(key, s3port, port, data, safe_exists, file_owner, no_marker, BOB_SECRET, SVC_SECRET, is_2xx, tok_foreign, tok_none, tok_valid, UID_ROOT)
 
+
+def _auth_scheme_confusion_p5(key, s3port, port, data, safe_exists, file_owner, no_marker, BOB_SECRET, SVC_SECRET, is_2xx, tok_foreign, tok_none, tok_valid, UID_ROOT):
     # ===================================================================
     # SECTION 9: cross-protocol REPLAY
     # ===================================================================
@@ -589,6 +604,7 @@ def _rt17_positive_controls_for_the_two_native(no_marker, body, BOB_SECRET, st, 
     st, body = s3("GET", "alice/hello.txt", s3port, access_key="alice")
     ok(all((is_2xx(st), b'alice-hello' in any((body, b'')))),
        f"POSITIVE: alice SigV4 reads alice file via S3 (HTTP {st})")
+    _auth_scheme_confusion_p6(key, data, port, safe_exists, file_owner, no_marker, BOB_SECRET, SVC_SECRET, is_2xx, tok_foreign, tok_none, tok_valid, UID_ROOT)
 
 
 def _rt17_section_10_scope_path_mismatch_vs(key, data, port, is_2xx, st):
@@ -659,6 +675,7 @@ def _rt17_broad_scope_alice_can_read_bob(port, tok_scoped, is_2xx, safe_exists, 
     st, body = http("GET", "/bob/readable.txt", port, token=tok_broad)
     ok(no_marker(body, BOB_SECRET),
        f"reading bob world-readable leaks no PRIVATE secret bytes (HTTP {st})")
+    _auth_scheme_confusion_p7(file_owner, data, tok_foreign, tok_none, tok_valid, BOB_SECRET)
 
 
 def _rt17_segment_01_2(tok_foreign, BOB_SECRET):
@@ -741,7 +758,10 @@ def _rt17_section_11_root_native_path_guarded(tok_foreign, BOB_SECRET, tok_none,
         ok(True, "root:// unavailable: native-path confusion checks skipped (handled)")
         ok(True, "root:// unavailable: native-path none-alg check skipped (handled)")
         ok(True, "root:// unavailable: native-path positive control skipped (handled)")
+    _auth_scheme_confusion_p8(file_owner, data)
 
+
+def _auth_scheme_confusion_p8(file_owner, data):
     # ===================================================================
     # SECTION 12: final invariants — no escalation residue anywhere
     # ===================================================================

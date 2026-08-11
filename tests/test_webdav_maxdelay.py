@@ -1,8 +1,8 @@
-"""brix_webdav_maxdelay — the http.maxdelay analog (parity audit §6.11).
+"""brix_max_delay — the http.maxdelay analog (parity audit §6.11).
 
 The WebDAV GET path answers a nearline (tape) recall with a 202 "staging"
 response plus a `Retry-After` telling the client how long to wait before polling
-again — a hardcoded 10 s. `brix_webdav_maxdelay <time>` caps that poll wait, so a
+again — a hardcoded 10 s. `brix_max_delay <time>` caps that poll wait, so a
 deployment can TIGHTEN (never lengthen) the recall poll cadence; 0 (default)
 keeps the 10 s.
 
@@ -55,16 +55,16 @@ http {{
 
 
 ACCEPT = [
-    "brix_webdav_maxdelay 0;",
-    "brix_webdav_maxdelay 5s;",
-    "brix_webdav_maxdelay 30;",
-    "brix_webdav_maxdelay 1m;",
+    "brix_max_delay 0;",
+    "brix_max_delay 5s;",
+    "brix_max_delay 30;",
+    "brix_max_delay 1m;",
 ]
 
 REJECT = [
-    ("brix_webdav_maxdelay notatime;", "invalid value"),
-    ("brix_webdav_maxdelay 5s 9s;", "invalid number of arguments"),
-    ("brix_webdav_maxdelay 1m; brix_webdav_maxdelay 2m;", "duplicate"),
+    ("brix_max_delay notatime;", "invalid value"),
+    ("brix_max_delay 5s 9s;", "invalid number of arguments"),
+    ("brix_max_delay 1m; brix_max_delay 2m;", "duplicate"),
 ]
 
 

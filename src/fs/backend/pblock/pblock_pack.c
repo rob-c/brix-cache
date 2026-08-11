@@ -27,6 +27,7 @@
 #include "sd_pblock_catalog.h"
 #include "pblock_store.h"
 #include "pblock_pack.h"
+#include "pblock_pack_internal.h"          /* pack_seg_path / pack_lock / … */
 #include "sd_pblock_catalog_internal.h"   /* cat_exec / cat_prepare / cat_fail */
 #include "cache/cas_pack_format.h"        /* the shared "BXS1" record layout */
 
@@ -47,114 +48,9 @@
 
 /* ---- small file helpers --------------------------------------------------- */
 
-/* pack_pread_full — read exactly len bytes at off (EINTR-safe); 0 or -1. */
-static int
-pack_pread_full(int fd, void *buf, size_t len, off_t off)
-{
-    char   *cursor = buf;
-    size_t  got = 0;
-
-    while (got < len) {
-        ssize_t n = pread(fd, cursor + got, len - got, off + (off_t) got);
-
-        if (n < 0) {
-            if (errno == EINTR) { continue; }
-            return -1;
-        }
-        if (n == 0) {
-            errno = EIO;           /* a record must never end early */
-            return -1;
-        }
-        got += (size_t) n;
-    }
-    return 0;
-}
-
-/* pack_pwrite_full — write exactly len bytes at off (EINTR-safe); 0 or -1. */
-static int
-pack_pwrite_full(int fd, const void *buf, size_t len, off_t off)
-{
-    const char *cursor = buf;
-    size_t      done = 0;
-
-    while (done < len) {
-        ssize_t n = pwrite(fd, cursor + done, len - done, off + (off_t) done);
-
-        if (n < 0) {
-            if (errno == EINTR) { continue; }
-            return -1;
-        }
-        done += (size_t) n;
-    }
-    return 0;
-}
-
-/* pack_seg_path — "<root>/pack/seg-<n>.dat" into out[cap]; 0 or -1. */
-static int
-pack_seg_path(const pblock_state_t *st, int64_t seg, char *out, size_t cap)
-{
-    int n = snprintf(out, cap, "%s/pack/seg-%lld.dat", st->root,
-                     (long long) seg);
-
-    return (n > 0 && (size_t) n < cap) ? 0 : -1;
-}
-
-/* pack_lock — take the arena append/reap lock (pack/.lock, flock LOCK_EX).
- * Returns the held fd, or -1/errno. */
-static int
-pack_lock(const pblock_state_t *st)
-{
-    char lockp[PATH_MAX];
-    int  fd;
-    int  n = snprintf(lockp, sizeof(lockp), "%s/pack/.lock", st->root);
-
-    if (n <= 0 || (size_t) n >= sizeof(lockp)) {
-        errno = ENAMETOOLONG;
-        return -1;
-    }
-    fd = open(lockp, O_RDWR | O_CREAT | O_CLOEXEC, 0600);
-    if (fd < 0) {
-        return -1;
-    }
-    if (flock(fd, LOCK_EX) != 0) {
-        int err = errno;
-
-        close(fd);
-        errno = err;
-        return -1;
-    }
-    return fd;
-}
-
-/* pack_active_seg — highest existing segment number (0 when none). Scan the
- * pack/ dir; called only under the arena lock, where the answer is stable. */
-static int64_t
-pack_active_seg(const pblock_state_t *st)
-{
-    char           dirp[PATH_MAX];
-    DIR           *dir;
-    struct dirent *ent;
-    int64_t        hi = 0;
-
-    if (snprintf(dirp, sizeof(dirp), "%s/pack", st->root) >= (int) sizeof(dirp)) {
-        return 0;
-    }
-    dir = opendir(dirp);
-    if (dir == NULL) {
-        return 0;
-    }
-    while ((ent = readdir(dir)) != NULL) {
-        long long seg;
-
-        if (sscanf(ent->d_name, "seg-%lld.dat", &seg) == 1
-            && (int64_t) seg > hi)
-        {
-            hi = (int64_t) seg;
-        }
-    }
-    closedir(dir);
-    return hi;
-}
+/* pack_pread_full / pack_pwrite_full / pack_seg_path / pack_lock /
+ * pack_active_seg live in pblock_pack_seg.c (file-size split); declared in
+ * pblock_pack_internal.h. */
 
 /* ---- catalog rows --------------------------------------------------------- */
 
@@ -283,6 +179,25 @@ pack_seg_reap(const pblock_state_t *st, int64_t seg)
 
 /* ---- record decode (shared by memfd-open and materialise) ----------------- */
 
+/* pack_hdr_check — decode a just-read record header and shape-check it against
+ * the expected blob (fmt 0, matching klen, raw==stored==expect_len, key match);
+ * fills *rec. 0 when sound, -1 on any mismatch (caller maps to EIO). */
+static int
+pack_hdr_check(const unsigned char *hdr, const char *blob_id, size_t klen,
+    int64_t expect_len, brix_pack_rec_t *rec)
+{
+    if (brix_pack_seg_decode(hdr, rec) != 0
+        || rec->klen != klen
+        || rec->fmt != 0
+        || rec->stored != rec->raw
+        || (int64_t) rec->raw != expect_len
+        || memcmp(hdr + SEG_HDR, blob_id, klen) != 0)
+    {
+        return -1;
+    }
+    return 0;
+}
+
 /* pack_read_record — open the record's segment, decode + shape-check its
  * header against the expected blob, then read + crc-verify the data into a
  * malloc'd buffer. Returns the buffer (caller frees) or NULL/errno (EIO for
@@ -310,12 +225,7 @@ pack_read_record(const pblock_state_t *st, const char *blob_id,
         return NULL;
     }
     if (pack_pread_full(segfd, hdr, SEG_HDR + klen, (off_t) loc->off) != 0
-        || brix_pack_seg_decode(hdr, &rec) != 0
-        || rec.klen != klen
-        || rec.fmt != 0
-        || rec.stored != rec.raw
-        || (int64_t) rec.raw != expect_len
-        || memcmp(hdr + SEG_HDR, blob_id, klen) != 0)
+        || pack_hdr_check(hdr, blob_id, klen, expect_len, &rec) != 0)
     {
         close(segfd);
         errno = EIO;
@@ -343,18 +253,95 @@ pack_read_record(const pblock_state_t *st, const char *blob_id,
 
 /* ---- the public verbs ----------------------------------------------------- */
 
+/* pack_open_admit_seg — open the segment that will receive a `size`-byte record
+ * for a `klen`-byte key, first rolling to the next segment when appending here
+ * would push it past PBLOCK_PACK_SEG_BYTES. On success returns the open (O_RDWR)
+ * segfd, writing the chosen segment number to *seg and its tail offset to *off;
+ * -1/errno on failure. Caller holds the arena lock (active seg is stable). */
+static int
+pack_open_admit_seg(const pblock_state_t *st, size_t klen, int64_t size,
+    int64_t *seg, off_t *off)
+{
+    char        segp[PATH_MAX];
+    struct stat segst;
+    int64_t     s = pack_active_seg(st);
+    int         segfd;
+
+    if (s == 0) {
+        s = 1;
+    }
+    if (pack_seg_path(st, s, segp, sizeof(segp)) != 0) {
+        errno = ENAMETOOLONG;
+        return -1;
+    }
+    segfd = open(segp, O_RDWR | O_CREAT | O_CLOEXEC, 0600);
+    if (segfd >= 0 && fstat(segfd, &segst) == 0
+        && segst.st_size > 0
+        && segst.st_size + (off_t) (SEG_HDR + klen) + (off_t) size
+           > (off_t) PBLOCK_PACK_SEG_BYTES)
+    {
+        /* Roll to the next segment before this record would overgrow it. */
+        close(segfd);
+        segfd = -1;
+        s++;
+        if (pack_seg_path(st, s, segp, sizeof(segp)) == 0) {
+            segfd = open(segp, O_RDWR | O_CREAT | O_CLOEXEC, 0600);
+        }
+    }
+    if (segfd < 0 || fstat(segfd, &segst) != 0) {
+        int err = errno;
+
+        if (segfd >= 0) { close(segfd); }
+        errno = err;
+        return -1;
+    }
+    *seg = s;
+    *off = segst.st_size;
+    return segfd;
+}
+
+/* pack_write_record — encode and durably append one record (header+key+data) at
+ * `off` in segfd, retracting a torn tail on failure. 0 on success, -1/errno.
+ * Caller holds the arena lock. */
+static int
+pack_write_record(int segfd, const char *blob_id, const unsigned char *data,
+    int64_t size, size_t klen, off_t off)
+{
+    unsigned char   hdr[SEG_HDR + PACK_KMAX];
+    brix_pack_rec_t rec;
+
+    rec.klen   = klen;
+    rec.fmt    = 0;
+    rec.crc    = crc_of(data, (size_t) size);
+    rec.stored = (uint64_t) size;
+    rec.raw    = (uint64_t) size;
+    brix_pack_seg_encode(hdr, blob_id, &rec);
+
+    if (pack_pwrite_full(segfd, hdr, SEG_HDR + klen, off) != 0
+        || pack_pwrite_full(segfd, data, (size_t) size,
+                            off + (off_t) (SEG_HDR + klen)) != 0
+        || fdatasync(segfd) != 0)
+    {
+        int err = errno;
+
+        if (ftruncate(segfd, off) != 0) {
+            /* best-effort retract of the torn tail — the original pwrite/sync
+             * error verdict (err) stands either way */
+        }
+        errno = err;
+        return -1;
+    }
+    return 0;
+}
+
 int
 pblock_pack_admit(pblock_state_t *st, const char *blob_id, int64_t size,
     int64_t bs)
 {
     unsigned char   *data;
-    unsigned char    hdr[SEG_HDR + PACK_KMAX];
-    brix_pack_rec_t  rec;
-    char             segp[PATH_MAX];
     size_t           klen = strlen(blob_id);
     int64_t          seg;
     off_t            off;
-    struct stat      segst;
     ssize_t          got;
     int              lockfd, segfd;
 
@@ -382,59 +369,19 @@ pblock_pack_admit(pblock_state_t *st, const char *blob_id, int64_t size,
         return -1;
     }
 
-    seg = pack_active_seg(st);
-    if (seg == 0) {
-        seg = 1;
-    }
-    if (pack_seg_path(st, seg, segp, sizeof(segp)) != 0) {
-        close(lockfd);
-        free(data);
-        errno = ENAMETOOLONG;
-        return -1;
-    }
-    segfd = open(segp, O_RDWR | O_CREAT | O_CLOEXEC, 0600);
-    if (segfd >= 0 && fstat(segfd, &segst) == 0
-        && segst.st_size > 0
-        && segst.st_size + (off_t) (SEG_HDR + klen) + (off_t) size
-           > (off_t) PBLOCK_PACK_SEG_BYTES)
-    {
-        /* Roll to the next segment before this record would overgrow it. */
-        close(segfd);
-        segfd = -1;
-        seg++;
-        if (pack_seg_path(st, seg, segp, sizeof(segp)) == 0) {
-            segfd = open(segp, O_RDWR | O_CREAT | O_CLOEXEC, 0600);
-        }
-    }
-    if (segfd < 0 || fstat(segfd, &segst) != 0) {
+    segfd = pack_open_admit_seg(st, klen, size, &seg, &off);
+    if (segfd < 0) {
         int err = errno;
 
-        if (segfd >= 0) { close(segfd); }
         close(lockfd);
         free(data);
         errno = err;
         return -1;
     }
-    off = segst.st_size;
 
-    rec.klen   = klen;
-    rec.fmt    = 0;
-    rec.crc    = crc_of(data, (size_t) size);
-    rec.stored = (uint64_t) size;
-    rec.raw    = (uint64_t) size;
-    brix_pack_seg_encode(hdr, blob_id, &rec);
-
-    if (pack_pwrite_full(segfd, hdr, SEG_HDR + klen, off) != 0
-        || pack_pwrite_full(segfd, data, (size_t) size,
-                            off + (off_t) (SEG_HDR + klen)) != 0
-        || fdatasync(segfd) != 0)
-    {
+    if (pack_write_record(segfd, blob_id, data, size, klen, off) != 0) {
         int err = errno;
 
-        if (ftruncate(segfd, off) != 0) {
-            /* best-effort retract of the torn tail — the original pwrite/sync
-             * error verdict (err) stands either way */
-        }
         close(segfd);
         close(lockfd);
         free(data);

@@ -212,6 +212,44 @@ pgread_retry_page(brix_conn *c, brix_file *f, int64_t pgoff, uint32_t pglen,
     return 0;
 }
 
+/* §7.14: re-request each corrupt page (bounded), overwriting its bytes in
+ * buf.  A page that stays corrupt after the attempts is the old hard error,
+ * same message shape as before.  0 = all recovered, -1 = error (st set). */
+static int
+pgread_refetch_bad(brix_conn *c, brix_file *f, int64_t offset, void *buf,
+                   const xrdp_pg_bad_t *bad, size_t nbad, brix_status *st)
+{
+    size_t k;
+
+    for (k = 0; k < nbad; k++) {
+        int attempt, fixed = 0;
+
+        for (attempt = 0; attempt < XRDC_PGREAD_RETRIES && !fixed; attempt++) {
+            brix_status rst;
+            brix_status_clear(&rst);
+            if (pgread_retry_page(c, f, bad[k].off, bad[k].dlen,
+                                  (uint8_t *) buf
+                                  + (size_t) (bad[k].off - offset),
+                                  &rst) == 0)
+            {
+                fixed = 1;
+            } else if (rst.kxr != XRDC_EINTEGRITY) {
+                /* transport/protocol failure — surface it, do not loop */
+                *st = rst;
+                return -1;
+            }
+        }
+        if (!fixed) {
+            brix_status_set(st, XRDC_EINTEGRITY, 0,
+                            "pgread CRC mismatch at offset %lld "
+                            "(unrecovered after %d retries)",
+                            (long long) bad[k].off, XRDC_PGREAD_RETRIES);
+            return -1;
+        }
+    }
+    return 0;
+}
+
 static ssize_t
 file_pgread_frames(brix_conn *c, brix_file *f, int64_t offset, void *buf,
                    size_t len, brix_status *st)
@@ -221,7 +259,6 @@ file_pgread_frames(brix_conn *c, brix_file *f, int64_t offset, void *buf,
     size_t              total = 0;
     xrdp_pg_bad_t       bad[XRDC_PGREAD_BADMAX];
     size_t              nbad = 0;
-    size_t              k;
 
     memset(&req, 0, sizeof(req));
     req.requestid = htons(kXR_pgread);
@@ -293,34 +330,8 @@ file_pgread_frames(brix_conn *c, brix_file *f, int64_t offset, void *buf,
         }
     }
 
-    /* §7.14: re-request each corrupt page (bounded), overwriting its bytes in
-     * buf.  A page that stays corrupt after the attempts is the old hard
-     * error, same message shape as before. */
-    for (k = 0; k < nbad; k++) {
-        int attempt, fixed = 0;
-
-        for (attempt = 0; attempt < XRDC_PGREAD_RETRIES && !fixed; attempt++) {
-            brix_status rst;
-            brix_status_clear(&rst);
-            if (pgread_retry_page(c, f, bad[k].off, bad[k].dlen,
-                                  (uint8_t *) buf
-                                  + (size_t) (bad[k].off - offset),
-                                  &rst) == 0)
-            {
-                fixed = 1;
-            } else if (rst.kxr != XRDC_EINTEGRITY) {
-                /* transport/protocol failure — surface it, do not loop */
-                *st = rst;
-                return -1;
-            }
-        }
-        if (!fixed) {
-            brix_status_set(st, XRDC_EINTEGRITY, 0,
-                            "pgread CRC mismatch at offset %lld "
-                            "(unrecovered after %d retries)",
-                            (long long) bad[k].off, XRDC_PGREAD_RETRIES);
-            return -1;
-        }
+    if (pgread_refetch_bad(c, f, offset, buf, bad, nbad, st) != 0) {
+        return -1;
     }
     return (ssize_t) total;
 }

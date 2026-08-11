@@ -12,6 +12,10 @@ def _rt24_a_3_way_shareddir_collaboration_alice(DOC, port, key, A_MARK, docfp):
     # ---- (A) 3-way shareddir collaboration: alice creates, bob rewrites, carol
     #      reads, dave (NON-member) is shut out at every stage ----------------
 
+    _multiuser_party_p1(s3port, DOC, port, data, key, A_MARK, B_MARK, docfp, SD, idx)
+
+
+def _multiuser_party_p1(s3port, DOC, port, data, key, A_MARK, B_MARK, docfp, SD, idx):
     # alice (shared member + dir group) CREATES the collaborative doc.
     st, _ = http("PUT", DOC, port, mint(key, "alice"), A_MARK + b"\n")
     ok(all((st in (200, 201, 204), os.path.exists(docfp), os.stat(docfp).st_uid == UID_ALICE)),
@@ -83,7 +87,10 @@ def _rt24_control_proving_the_dave_deny_is(DOC, port, key, docfp, SD, data):
     st, _ = http("DELETE", DOC, port, mint(key, "carol"))
     ok(not os.path.exists(docfp),
        f"carol (shared member) deletes the shared doc via group dir write (HTTP {st})")
+    _multiuser_party_p2(s3port, port, data, key, SD, idx)
 
+
+def _multiuser_party_p2(s3port, port, data, key, SD, idx):
     # dave (non-member) cannot create ANY new file in the shared dir either.
     st, _ = http("PUT", f"{SD}/mp_dave_intrude.txt", port, mint(key, "dave"), b"x\n")
     ok(not os.path.exists(os.path.join(data, "shareddir", "mp_dave_intrude.txt")),
@@ -139,6 +146,7 @@ def _rt24_frank_not_in_proj_denied_no(b, PR_MARK, st, PROJP, port, key):
     st, b = http("GET", PROJP, port, mint(key, "frank"))
     ok(not _has(b, PR_MARK),
        f"frank (NOT in proj) denied 0640 proj file, no leak (HTTP {st})")
+    _multiuser_party_p3(s3port, data, port, key, PROJP, SD, idx, PR_MARK)
 
 
 def _rt24_segment_01_3(PDIR, sub, port, key, pdir_fp, uid):
@@ -211,6 +219,10 @@ def _rt24_a_proj_member_reads_a_file(PDIR, port, key, pdir_fp):
     st, _ = http("PUT", f"{PDIR}/mp_alice_intrude.txt", port, mint(key, "alice"), b"x\n")
     ok(not os.path.exists(os.path.join(pdir_fp, "mp_alice_intrude.txt")),
        f"alice (NON-proj) cannot create in 2770 proj dir (HTTP {st})")
+    _multiuser_party_p4(s3port, port, data, key, pdir_fp, PDIR, SD, idx, PR_MARK)
+
+
+def _multiuser_party_p4(s3port, port, data, key, pdir_fp, PDIR, SD, idx, PR_MARK):
     # WebDAV PUT creates files 0644 (NGX_FILE_DEFAULT_ACCESS) = world-readable,
     # so to actually exercise GROUP-restricted denial we tighten dave's file to
     # 0640 (group-only) first — matching the "group-readable default" intent of
@@ -261,6 +273,10 @@ def _rt24_bob_shared_member_can_enter_the(SD, port, key, CMARK, cpriv):
     ok(not _has(b, CMARK),
        f"bob (dir member but not owner) denied carol's 0600 file, no leak (HTTP {st})")
     # alice (shared member + dir owner) is STILL denied the 0600 file's bytes
+    _multiuser_party_p5(s3port, port, data, key, cpriv, SD, CMARK, idx, PR_MARK)
+
+
+def _multiuser_party_p5(s3port, port, data, key, cpriv, SD, CMARK, idx, PR_MARK):
     # (dir ownership != file ownership) + no leak.
     st, b = http("GET", f"{SD}/mp_carol_private.txt", port, mint(key, "alice"))
     ok(not _has(b, CMARK),
@@ -303,6 +319,10 @@ def _rt24_all_four_files_coexist_with_four(data, RR, port, key):
 
     quartet = (("alice", UID_ALICE), ("carol", UID_CAROL),
                ("erin", UID_ERIN), ("frank", UID_FRANK))
+    _multiuser_party_p6(quartet, s3port, port, rr_fp, key, data, idx, RR, PR_MARK, CMARK)
+
+
+def _multiuser_party_p6(quartet, s3port, port, rr_fp, key, data, idx, RR, PR_MARK, CMARK):
     for sub, uid in quartet:
         st, _ = http("PUT", f"{RR}/mp_{sub}_rr.txt", port, mint(key, sub),
                      f"{sub}-roundrobin\n".encode())
@@ -451,6 +471,10 @@ def _rt24_alice_creates_her_own_object_owner(s3port, data, PR_MARK, CMARK):
     # ---- (H) S3 leg (only alice's key is configured): alice is in shared+staff
     #      but NOT proj — she can read a world/shared-readable shared object but
     #      is denied the proj file over S3, mirroring her group membership -----
+    _multiuser_party_p8(s3port, data, PR_MARK, CMARK)
+
+
+def _multiuser_party_p8(s3port, data, PR_MARK, CMARK):
     if s3port:
         # alice creates her own object (owner-correct) as the S3 positive control.
         st, _ = s3("PUT", "alice/mp_s3_own.txt", s3port, data=b"alice-s3\n")

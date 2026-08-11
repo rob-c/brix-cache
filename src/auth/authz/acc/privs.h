@@ -23,11 +23,11 @@
 #include <stddef.h>
 #include <stdint.h>
 
-/* Authorization-database engine selected by `brix_authdb_format`. */
+/* Authorization-database engine selected by `brix_authdb_engine` (stream) / `brix_acc_format` (HTTP). */
 #define BRIX_AUTHDB_FORMAT_NATIVE  0   /* original src/path/authdb.c (default) */
 #define BRIX_AUTHDB_FORMAT_XRDACC  1   /* faithful XrdAcc engine (src/acc/) */
 
-/* `brix_authdb_audit` levels (bitmask: 1=deny, 2=grant). */
+/* `brix_acc_audit` levels (bitmask: 1=deny, 2=grant). */
 #define BRIX_AUTHDB_AUDIT_NONE   0
 #define BRIX_AUTHDB_AUDIT_DENY   1
 #define BRIX_AUTHDB_AUDIT_GRANT  2

@@ -121,7 +121,7 @@ storage. Squid-in-accelerator-mode, Varnish, and XCache are all this shape.
 | Read-through cache (all protocols) | `brix_storage_backend <origin-url>` + `brix_cache_store <dir>` (unified — valid at all brix HTTP locations; set once at server or http level and inherited) | **Caching reverse proxy** | **Yes** (normal protocol auth) | Operator config (origin URL; root://, http(s)://, pelican://, S3) | `src/fs/cache/`, `src/fs/cache/origin/`, `src/fs/backend/xroot/` |
 | CVMFS site cache — reverse mode | `brix_cvmfs on` + `brix_storage_backend http://stratum1/cvmfs/<repo>` + `brix_cache_store` | **Caching reverse proxy** | N/A (CVMFS data is content-addressed + signed; anonymous GET) | Operator config (Stratum-1 set, failover) | `src/protocols/cvmfs/` |
 | CVMFS site cache — proxy mode (T14) | absolute-URI listener + `brix_cvmfs_upstream_allow`, `brix_cvmfs_upstream_max` | **FORWARD proxy** (allowlisted) — the only one in the tree | N/A (same CVMFS trust model) | **Client** (`CVMFS_HTTP_PROXY` absolute-URI), constrained by the allowlist | `src/protocols/cvmfs/` (phase-68 T14; ctx plumbing landed, request/upstream registry in progress) |
-| Traffic mirroring / shadow replay | `brix_mirror_url`, `brix_stream_mirror_url`, `brix_mirror_*` | **Reverse-shaped fan-out**, out-of-band (fire-and-forget; client never sees the shadow) | Primary request's auth applies; credentials stripped/replaced toward the shadow | Operator config (≤4 shadow targets) | `src/net/mirror/` |
+| Traffic mirroring / shadow replay | `brix_mirror_url`, `brix_mirror_url`, `brix_mirror_*` | **Reverse-shaped fan-out**, out-of-band (fire-and-forget; client never sees the shadow) | Primary request's auth applies; credentials stripped/replaced toward the shadow | Operator config (≤4 shadow targets) | `src/net/mirror/` |
 | Third-party copy (TPC) | root:// native TPC, WebDAV `COPY` + `Source:`/`TransferHeader*` | **Forward-flavoured fetch** (server acts as a client toward a *client-named* source) | Yes (the TPC request itself) | **Client** (names the remote source/destination URL in the request) | `src/tpc/`, `src/protocols/webdav/tpc*.c` |
 | CMS redirection | `brix_cms_*` (manager/redirector role) | **Neither** — a redirect, not a proxy: data bypasses the manager entirely | Yes (login), but no data flows through | Manager picks a data server, tells the client to go there | `src/net/cms/`, `src/net/manager/` |
 | Protocol tap | (library — fed by the two root:// proxy modes) | Not a proxy — a passive observation layer | — | — | `src/net/tap/` |
@@ -422,7 +422,7 @@ connections (never-drop semantics).
 
 ### 3.8 Traffic mirroring / shadow replay — out-of-band reverse fan-out
 
-`src/net/mirror/` (`brix_mirror_url` for WebDAV, `brix_stream_mirror_url`
+`src/net/mirror/` (`brix_mirror_url` for WebDAV, `brix_mirror_url`
 for root://, plus sampling/method/opcode masks). Not on the request path at
 all: **after** the primary response has been sent, a sampled copy of the
 request is replayed to up to 4 operator-configured shadow backends and the

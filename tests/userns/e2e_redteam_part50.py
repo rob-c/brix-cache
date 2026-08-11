@@ -371,6 +371,11 @@ def _rt50_d_worker_survival(st, us, s3port):
        f"S3 worker survived POST-form + bucket-op barrage (HTTP {st})")
 
 
+def _spf_orb(x):
+    """None->b'' body coalesce."""
+    return x or b""
+
+
 def run_s3_post_form_and_bucketops(key, data, port, s3port):
     """S3 browser POST-form upload + bucket-level ops under impersonation.
 

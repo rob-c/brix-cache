@@ -66,6 +66,7 @@ brix_ckscan_send_error(brix_ctx_t *ctx, ngx_connection_t *c,
 
 static ngx_int_t
 brix_ckscan_select_payload(brix_ctx_t *ctx, ngx_connection_t *c,
+    ngx_stream_brix_srv_conf_t *conf,
     const u_char **path_payload, size_t *path_payload_len,
     char *algo, size_t algo_sz)
 {
@@ -74,7 +75,8 @@ brix_ckscan_select_payload(brix_ctx_t *ctx, ngx_connection_t *c,
     size_t        wire_len;
     size_t        i;
 
-    ngx_cpystrn((u_char *) algo, (u_char *) "adler32", algo_sz);
+    ngx_cpystrn((u_char *) algo,
+                (u_char *) brix_checksum_effective_default(conf), algo_sz);
     *path_payload = payload;
     *path_payload_len = payload_len;
 
@@ -170,8 +172,8 @@ brix_query_ckscan(brix_ctx_t *ctx, ngx_connection_t *c,
                           "-", "ckscan", kXR_ArgMissing, "no path given");
     }
 
-    rc = brix_ckscan_select_payload(ctx, c, &path_payload, &path_payload_len,
-                                      algo, sizeof(algo));
+    rc = brix_ckscan_select_payload(ctx, c, conf, &path_payload,
+                                      &path_payload_len, algo, sizeof(algo));
     if (rc == NGX_DONE) {
         BRIX_OP_ERR(ctx, BRIX_OP_QUERY_CKSCAN);
         return NGX_OK;

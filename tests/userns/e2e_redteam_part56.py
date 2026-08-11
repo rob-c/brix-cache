@@ -149,6 +149,10 @@ def _rt56_section_1_prepare_read_dac_gradient(uid_of, SECRET, SECRET_PFX, SVCMAR
     if not have_xrd:
         ok(True, "frm_prepare_stage: native xrdfs unavailable — root:// probes skipped (handled)")
 
+    _frm_prepare_stage_p1(have_xrd, key, mk_fixture, port, size_of, uid_of, rm_quiet, body_of, SVCMARK, SECRET, TAG, SECRET_PFX, exists)
+
+
+def _frm_prepare_stage_p1(have_xrd, key, mk_fixture, port, size_of, uid_of, rm_quiet, body_of, SVCMARK, SECRET, TAG, SECRET_PFX, exists):
     # ===================================================================
     # SECTION 1 — PREPARE READ-DAC GRADIENT.  prepare authorises BRIX_AUTH_READ
     # on the target, so it is a *read*-permission oracle distinct from the
@@ -179,7 +183,10 @@ def _rt56_section_1_prepare_read_dac_gradient(uid_of, SECRET, SECRET_PFX, SVCMAR
         rc, out, _e = xrd_fs(["prepare", "-s", "/bob/no_such_bob_file.bin"], "alice")
         ok(SECRET not in any((out, '')),
            f"prepare of a missing bob path leaks nothing (rc={rc})")
+    _frm_prepare_stage_p2(have_xrd, key, mk_fixture, port, size_of, body_of, SVCMARK, SECRET, rm_quiet, TAG, SECRET_PFX, exists, uid_of)
 
+
+def _frm_prepare_stage_p2(have_xrd, key, mk_fixture, port, size_of, body_of, SVCMARK, SECRET, rm_quiet, TAG, SECRET_PFX, exists, uid_of):
     # ===================================================================
     # SECTION 3 — ATOMIC MULTI-PATH prepare.  The handler resolves+authorises each
     # newline-separated path; a single forbidden path must fail the WHOLE request
@@ -235,6 +242,8 @@ def _rt56_section_4_write_mode_prepare_w(have_xrd, size_of, uid_of, SECRET, TAG,
     # ===================================================================
     rc, out = _rt56_check_when_have_xrd_2(have_xrd, size_of, uid_of, SECRET, TAG)
 
+
+def _frm_prepare_stage_p3(have_xrd, key, mk_fixture, port, size_of, SVCMARK, SECRET, rm_quiet, TAG, SECRET_PFX, exists, uid_of):
     # ===================================================================
     # SECTION 5 — PREPARE CANCEL (-c) + the FRM-1 cross-tenant owner boundary.
     # NOVEL: no prior batch exercises kXR_cancel at all.  A cancel of an UNKNOWN
@@ -281,7 +290,10 @@ def _rt56_section_4_write_mode_prepare_w(have_xrd, size_of, uid_of, SECRET, TAG,
         rc, out, _e = xrd_fs(["stage", "/bob/readable.txt"], "bob")
         ok(SECRET not in any((out, '')),
            f"control: bob stages his own file — handled per-identity (rc={rc})")
+    _frm_prepare_stage_p4(have_xrd, key, mk_fixture, port, size_of, SVCMARK, SECRET, rm_quiet, TAG, SECRET_PFX, exists, uid_of)
 
+
+def _frm_prepare_stage_p4(have_xrd, key, mk_fixture, port, size_of, SVCMARK, SECRET, rm_quiet, TAG, SECRET_PFX, exists, uid_of):
     # ===================================================================
     # SECTION 7 — `query stats` (kXR_QStats) — never exercised by any batch.  It
     # returns server-wide statistics, NOT per-file data: it must not embed any
@@ -367,7 +379,10 @@ def _rt56_8c_the_svc_only_secret_a(port, ta, LOC_BODY, SVCMARK, tb, st, btxt):
 def _rt56_section_9_wlcg_tape_rest_api(st, btxt, port):
     ok(all((st in (200, 207, 403, 404, 400, 501, 405), 'ALICE-LOCALITY-BODY' not in btxt)),
        f"bob's own-file ownership PROPFIND reports no other-tenant data (HTTP {st})")
+    _frm_prepare_stage_p5(have_xrd, port, ta, size_of, SECRET, rm_quiet, SECRET_PFX, SVCMARK, exists, TAG, uid_of)
 
+
+def _frm_prepare_stage_p5(have_xrd, port, ta, size_of, SECRET, rm_quiet, SECRET_PFX, SVCMARK, exists, TAG, uid_of):
     # ===================================================================
     # SECTION 9 — WLCG Tape REST /api/v1 face.  FRM may be UN-configured here, so a
     # 503/404/501 is accepted as 'handled'.  What MUST hold regardless: the
@@ -442,7 +457,10 @@ def _rt56_section_10_worker_broker_survival_across(st, have_xrd, uid_of, size_of
     ok(st in (204, 403, 404, 501, 503, 401, 400),
        f"Tape-REST DELETE of an unowned/fabricated reqid by alice is rejected or "
        f"no-op (HTTP {st})")
+    _frm_prepare_stage_p6(have_xrd, port, ta, rm_quiet, uid_of, TAG, size_of)
 
+
+def _frm_prepare_stage_p6(have_xrd, port, ta, rm_quiet, uid_of, TAG, size_of):
     # ===================================================================
     # SECTION 10 — WORKER / BROKER SURVIVAL across planes after the whole battery.
     # ===================================================================

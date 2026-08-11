@@ -489,6 +489,16 @@ class _MalformedHostileInputs:
         self.final_checks()
 
 
+def _mhi_orb(x):
+    """None->b'' body coalesce."""
+    return x or b""
+
+
+def _mhi_ors(x):
+    """None->'' stdout coalesce."""
+    return x or ""
+
+
 def run_malformed_hostile_inputs(key, data, port, s3port):
     """Drive malformed inputs across WebDAV, S3, and root:// isolation seams."""
     _MalformedHostileInputs(key, data, port, s3port).run()

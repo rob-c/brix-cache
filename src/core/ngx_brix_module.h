@@ -262,8 +262,6 @@ char *brix_conf_set_admin_socket(ngx_conf_t *cf, ngx_command_t *cmd,
     void *conf);
 /* "brix_write_through on|off": enable mirroring dirty handles to origin on
  * sync/close. */
-char *brix_conf_set_wt_enable(ngx_conf_t *cf, ngx_command_t *cmd,
-    void *conf);
 /* "brix_write_through_mode sync|async": flush close-time data inline vs via
  * the thread pool (explicit kXR_sync always flushes inline). */
 char *brix_conf_set_wt_mode(ngx_conf_t *cf, ngx_command_t *cmd,

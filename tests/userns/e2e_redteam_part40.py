@@ -227,6 +227,10 @@ def _rt40_section_1_webdav_per_credential_uniformity(base, key, now, P_EXISTING,
         ("garbage", "not.a.jwt"),
     ]
 
+    _combo_authfail_resource_state_p1(bad, s3port, P_PC, port, P_EXISTING, P_ABSENT, P_700CHILD, P_GRP, EX_SECRET, P_LOCKED, LK_SECRET, GRP_SECRET, P700_SECRET, P_700ABSENT, P_SGIDCHILD, SGID_SECRET, P_STKCHILD, STK_SECRET, P_UNLOCKED, bob_dir, key, safe_write, no_marker, TAG, file_owner, ex_file, is_2xx, grp_file, alice_dir, p700_dir, base, safe_exists, sgid_dir)
+
+
+def _combo_authfail_resource_state_p1(bad, s3port, P_PC, port, P_EXISTING, P_ABSENT, P_700CHILD, P_GRP, EX_SECRET, P_LOCKED, LK_SECRET, GRP_SECRET, P700_SECRET, P_700ABSENT, P_SGIDCHILD, SGID_SECRET, P_STKCHILD, STK_SECRET, P_UNLOCKED, bob_dir, key, safe_write, no_marker, TAG, file_owner, ex_file, is_2xx, grp_file, alice_dir, p700_dir, base, safe_exists, sgid_dir):
     # =====================================================================
     # SECTION 1: WebDAV — per-credential UNIFORMITY across resource states.
     #   For each bad credential, GET the same forbidden-existing, the
@@ -312,7 +316,10 @@ def _rt40_section_2_webdav_positive_controls_auth(bad, P_EXISTING, port, P_ABSEN
         http("PUT", f"{base}/bob/af_{label}.txt", port, tok, data=b"x\n")
         ok(not safe_exists(new_path),
            f"{TAG}: WebDAV {label} PUT into bob's dir created nothing")
+    _combo_authfail_resource_state_p2(s3port, P_PC, port, P_EXISTING, P_ABSENT, P_700CHILD, P_GRP, key, safe_write, bob_dir, TAG, EX_SECRET, no_marker, GRP_SECRET, LK_SECRET, P700_SECRET, file_owner, ex_file, is_2xx, grp_file, SGID_SECRET, alice_dir, p700_dir, sgid_dir)
 
+
+def _combo_authfail_resource_state_p2(s3port, P_PC, port, P_EXISTING, P_ABSENT, P_700CHILD, P_GRP, key, safe_write, bob_dir, TAG, EX_SECRET, no_marker, GRP_SECRET, LK_SECRET, P700_SECRET, file_owner, ex_file, is_2xx, grp_file, SGID_SECRET, alice_dir, p700_dir, sgid_dir):
     # =====================================================================
     # SECTION 2: WebDAV positive controls — auth fires, but a VALID token at
     #   the correct identity gets the RIGHT answer for each resource state.
@@ -360,6 +367,7 @@ def _rt40_alice_in_staff_reads_the_group(st_c, P700_SECRET, b_c, TAG, P_GRP, por
        f"{TAG}: forbidden-existing file still bob-owned after forged-cred storm")
     ok(file_owner(grp_file) == (UID_ALICE, GID_STAFF),
        f"{TAG}: group-only file still alice:staff after forged-cred storm")
+    _combo_authfail_resource_state_p3(s3port, P_PC, port, ta, safe_write, key, bob_dir, EX_SECRET, GRP_SECRET, P700_SECRET, SGID_SECRET, LK_SECRET, alice_dir, TAG, file_owner, p700_dir, no_marker, sgid_dir, is_2xx)
 
 
 def _rt40_i_tampered_presigned_url_signature_forged(TAG, EX_SECRET, GRP_SECRET, P700_SECRET, SGID_SECRET, LK_SECRET, s3port, is_2xx, no_marker):
@@ -536,6 +544,8 @@ def _rt40_section_3_s3_forged_tampered_sigv4(s3port, TAG, EX_SECRET, GRP_SECRET,
     if s3port:
         st, b = _rt40_when_s3port(EX_SECRET, GRP_SECRET, P700_SECRET, SGID_SECRET, LK_SECRET, TAG, s3port, is_2xx, no_marker, key, safe_write, alice_dir)
 
+
+def _combo_authfail_resource_state_p4(P_PC, port, ta, key, bob_dir, EX_SECRET, GRP_SECRET, P700_SECRET, SGID_SECRET, LK_SECRET, TAG, file_owner, p700_dir, sgid_dir):
     # =====================================================================
     # SECTION 4: root:// — forged-token resource-state oracle.  Drive native
     #   xrdfs with forged tokens at stat/cat across existing/absent/locked/
@@ -546,6 +556,8 @@ def _rt40_section_3_s3_forged_tampered_sigv4(s3port, TAG, EX_SECRET, GRP_SECRET,
     if xrd_avail():
         _rt40_when_xrd_avail(EX_SECRET, GRP_SECRET, P700_SECRET, SGID_SECRET, LK_SECRET, TAG, key)
 
+
+def _combo_authfail_resource_state_p5(P_PC, port, ta, bob_dir, TAG, file_owner, p700_dir, sgid_dir):
     # =====================================================================
     # SECTION 5: worker survival + no-residue after the forged-credential
     #   storm — a follow-up LEGIT op must still work, and nothing the bad
