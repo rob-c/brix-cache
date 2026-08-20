@@ -36,8 +36,10 @@ void sd_cache_note_upstream(const sd_cache_inst_state *st, int ok, off_t bytes,
 /* Elapsed milliseconds since `t0` (CLOCK_MONOTONIC). */
 long sd_cache_ms_since(const struct timespec *t0);
 
-/* 1 if `key` names a CVMFS manifest/root object (TTL-stamped, not a data blob). */
-int  sd_cache_is_manifest_key(const char *key);
+/* 1 if `key` names MUTABLE metadata for an instance whose personality is
+ * `verify` — a CVMFS manifest/root object, an OCI manifest fetched by tag, or
+ * a non-self-addressing RPM repository file (TTL-stamped, not a data blob). */
+int  sd_cache_is_manifest_key(ngx_uint_t verify, const char *key);
 
 /* 1 if a cached-but-stale object for `key` may be served (stale-if-error). */
 int  sd_cache_stale_serve_ok(sd_cache_inst_state *st, const char *key);

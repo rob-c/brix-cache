@@ -85,16 +85,19 @@ brix_upstream_forward_response(brix_upstream_t *up)
         up->timer.log = c->log;
         ngx_add_timer(&up->timer, (ngx_msec_t) secs * 1000);
 
-        /* Re-arm the read event and post a synthetic event so any follow-up
-         * response (e.g. kXR_redirect arriving in the same TCP segment as
-         * kXR_wait) is drained this event cycle.  In epoll ET mode,
-         * ngx_handle_read_event is a no-op when the fd is already active,
-         * so buffered data would otherwise be missed until the retry timer. */
+        /* Re-arm the read event, then drain once synchronously.  A backend may
+         * put a terminal response immediately after kXR_wait in the same TCP
+         * receive window.  Relying only on a posted event is racy here: the
+         * read event may still be marked active by the dispatch that consumed
+         * kXR_wait, so epoll ET mode need not deliver a second edge.  The
+         * handler is non-blocking and returns on NGX_AGAIN; if bytes are
+         * already buffered it consumes the follow-up frame now.  A terminal
+         * response may clean up `up`, so return without touching it afterward. */
         if (ngx_handle_read_event(up->conn->read, 0) != NGX_OK) {
             brix_upstream_abort(up, "upstream read arm failed after kXR_wait");
             return;
         }
-        ngx_post_event(up->conn->read, &ngx_posted_events);
+        brix_upstream_read_handler(up->conn->read);
         return;
     }
 
@@ -185,4 +188,3 @@ brix_upstream_forward_response(brix_upstream_t *up)
         return;
     }
 }
-

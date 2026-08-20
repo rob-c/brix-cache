@@ -34,6 +34,22 @@ sd_http_set_ranks(brix_sd_instance_t *inst, const int *ranks, int n)
     }
 }
 
+/* Attach the phase-104 D1 dynamic bearer supplier. Set once at configuration
+ * time, before any worker forks, so the fill threads only ever read it. */
+void
+sd_http_set_bearer_provider(brix_sd_instance_t *inst,
+    brix_sd_http_bearer_pt provider, void *ctx)
+{
+    sd_http_inst_state *is;
+
+    if (!sd_http_instance_is(inst)) {
+        return;
+    }
+    is = inst->state;
+    is->bearer_provider = provider;
+    is->bearer_ctx      = ctx;
+}
+
 /* Bench the last-answering endpoint after a verify (cvmfs-cas / manifest)
  * failure. A digest mismatch is not a transport error, so the failover scorer
  * never touched this endpoint's health — bump the SAME decaying fail_score a

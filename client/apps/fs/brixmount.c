@@ -135,6 +135,8 @@ int brixmount_dispatch(int argc, char **argv, const brix_driver_t *drv, size_t n
 int brixcvmfs_main(int argc, char **argv);
 int brixcvmfs_rw_main(int argc, char **argv);
 int brixautofs_main(int argc, char **argv);
+int brixoci_main(int argc, char **argv);    /* apps/oci/brixoci.c */
+int brixrpm_main(int argc, char **argv);    /* apps/rpm/brixrpm.c */
 extern int xrootdfs_aio_main(int argc, char **argv) __attribute__((weak));
 
 /* overlay subcommand cores (client/lib/fs/overlay.h — decls kept local so the
@@ -196,6 +198,12 @@ int main(int argc, char **argv) {
 
     if (strcmp(brix_prog_base(argv[0]), "brixcvmfs") == 0) {
         return brixcvmfs_personality(argc, argv);
+    }
+    if (strcmp(brix_prog_base(argv[0]), "brixoci") == 0) {
+        return brixoci_main(argc, argv);   /* registry/layout tool, D5.4 */
+    }
+    if (strcmp(brix_prog_base(argv[0]), "brixrpm") == 0) {
+        return brixrpm_main(argc, argv);   /* createrepo/inspect, D12.1 */
     }
     if (brixmount_early_flags(argc, argv, &rc)) {
         return rc;

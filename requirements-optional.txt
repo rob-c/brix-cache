@@ -25,3 +25,6 @@ xattr>=0.9,<2
 
 # --- checksums: crc32c cross-check against the server's own implementation ---
 crc32c>=2.2,<3
+
+# --- TLS wire probes: OCSP stapling callback inspection -----------------------
+pyOpenSSL>=23,<26

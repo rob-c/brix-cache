@@ -303,6 +303,17 @@ typedef struct {
                                              * before the VFS - and before token
                                              * scope, so a write token cannot bypass
                                              * it. Overrides allow_write on.        */
+    ngx_flag_t          read_only_public;   /* [brix_read_only_public on|off] — the
+                                             * public-gateway posture: implies
+                                             * read_only (the finaliser turns it on),
+                                             * and additionally refuses the kXR_query
+                                             * infotypes that describe the SERVER
+                                             * rather than a path the client may
+                                             * already read (QStats, Qspace, Qconfig,
+                                             * QFSinfo, Qvisa). Listing, stat, read,
+                                             * checksum and per-path xattr are
+                                             * untouched, so an anonymous client can
+                                             * still browse and stream data.        */
     ngx_flag_t          compress;           /* phase-42: outbound GET compression
                                              * (Accept-Encoding negotiated). Off by
                                              * default; bypasses sendfile when used. */

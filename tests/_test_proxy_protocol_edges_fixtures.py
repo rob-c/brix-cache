@@ -49,7 +49,7 @@ def _require_nginx():
         pytest.skip(f"nginx binary not found at {NGINX_BIN}")
 
 
-def _stack(name, front_port, scenarios, upstream_port, extra=""):
+def _stack(name, front_port, scenarios, upstream_port, extra="", _retry=True):
     """Spin a stub (one or more ports) + a registry-owned nginx proxy front,
     wait for ready, and return (stub, harness, front_port).  Caller tears down
     via the fixture that wraps this: ``harness.close()`` then ``stub.stop()``.
@@ -92,9 +92,16 @@ def _stack(name, front_port, scenarios, upstream_port, extra=""):
                 "EXTRA": extra_line,
             },
         ))
-    except RegistryCommandFailure:
+    except RegistryCommandFailure as exc:
         harness.close()
         stub.stop()
+        if _retry and "Address already in use" in exc.stderr_tail:
+            # free_ports() is intentionally advisory; a concurrent fleet or a
+            # stale throwaway instance can claim the selected port before nginx
+            # binds it.  Retry once with a fresh front port, while preserving
+            # real configuration failures as test errors.
+            return _stack(name, free_ports(1)[0], scenarios, upstream_port,
+                          extra, _retry=False)
         raise
     except Exception as exc:
         harness.close()

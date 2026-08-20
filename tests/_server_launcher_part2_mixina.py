@@ -32,44 +32,16 @@ from server_registry import (
     unregister,
     write_manifest,
 )
-from settings import BRIX_BIN, NGINX_BIN, PKI_DIR, REGISTRY_STRICT_TEMPLATES
+from settings import BRIX_BIN, PKI_DIR, REGISTRY_STRICT_TEMPLATES
+from server_launcher_errors import RegistryCommandFailure
 
 
-def _nginx_bin() -> str:
-    """Frozen copy of the nginx binary path, immune to concurrent relinks."""
-    from cmdscripts.live_common import freeze_nginx  # noqa: PLC0415
-    return str(freeze_nginx(NGINX_BIN))
-
-
-def _inject_nginx_load_modules(config_path: str) -> None:
-    """Prepend the runner-selected dynamic modules to a rendered nginx config."""
-    from cmdscripts.live_common import inject_nginx_load_modules  # noqa: PLC0415
-    inject_nginx_load_modules(config_path)
-
-
-def _inject_nginx_runtime_paths(config_path: str, prefix: str) -> None:
-    """Keep packaged-nginx runtime files inside its registry-owned prefix."""
-    from cmdscripts.live_common import inject_nginx_runtime_paths  # noqa: PLC0415
-    inject_nginx_runtime_paths(config_path, prefix)
-
-
-@dataclass
-class RegistryCommandFailure(RuntimeError):
-    config_path: str
-    logs_dir: str
-    command: tuple[str, ...]
-    returncode: int
-    stdout_tail: str
-    stderr_tail: str
-
-    def __str__(self) -> str:
-        return (
-            f"{' '.join(self.command)} failed rc={self.returncode}\n"
-            f"config: {self.config_path}\n"
-            f"logs: {self.logs_dir}\n"
-            f"stdout:\n{self.stdout_tail}\n"
-            f"stderr:\n{self.stderr_tail}"
-        )
+from brix_suite.nginx_tools import (  # noqa: F401 — re-exported for importers
+    _inject_nginx_load_modules,
+    _inject_nginx_runtime_paths,
+    _nginx_bin,
+)
+from brix_suite.kinds import LAUNCHER_KINDS
 
 
 class _RegistryLauncherMixinA:
@@ -107,54 +79,19 @@ class _RegistryLauncherMixinA:
         return manifest
 
     def _start_guarded(self, spec: NginxInstanceSpec) -> None:
-        # Non-critical fleet members mirror bash `start_x || true`: an
-        # optional-daemon skip (missing libs/tooling) or a transient start
-        # failure must not abort the whole start-all. Critical ones abort on a
-        # real failure but not on "not installed here" — see _absorb_or_reraise.
+        """Start one declared server or fail the collection-time fleet barrier."""
         try:
             self.start(spec)
         except (Exception, pytest.skip.Exception) as exc:  # noqa: BLE001
-            self._absorb_or_reraise(spec, exc)
-
-    @staticmethod
-    def _absorb_or_reraise(spec: NginxInstanceSpec, exc: BaseException) -> None:
-        """Decide whether an instance that did not start aborts the whole fleet.
-
-        WHAT: re-raise for a genuine start FAILURE on a `critical` spec; log and
-        return for every other combination.
-
-        WHY: `critical` means "no suite without this" — main nginx binding its
-        ports, the reference xrootd answering root://. But an instance can also
-        decline to start because a prerequisite is simply not installed on this
-        host, and every `pytest.skip` raised in this launcher is exactly that
-        signal (stock `xrootd`, the XrdHttp libs, `haproxy`, an external
-        subsystem, root privileges). Treating the two alike meant a runner
-        without stock XRootD aborted `start-all` outright: the `asan` CI lane
-        booted no fleet at all and then passed by skipping, i.e. shipped a green
-        check that had exercised nothing. An absent binary must skip the tests
-        that need it, not delete the fleet.
-
-        HOW: `pytest.skip.Exception` is the "unavailable here" marker; anything
-        else from a critical spec propagates unchanged. `main` cannot reach the
-        skip branch — its start path raises RegistryCommandFailure — so a broken
-        or unbindable main nginx is still fatal, and the differential suites that
-        need `ref-anon` skip on their own when its port never answers.
-        """
-        if "critical" in spec.tags and not isinstance(exc, pytest.skip.Exception):
-            raise exc
-        scope = "critical" if "critical" in spec.tags else "non-critical"
-        sys.stderr.write(
-            f"\n[registry] {scope} spec '{spec.name}' did not start "
-            f"({type(exc).__name__}: {exc}); continuing.\n"
-        )
+            raise RuntimeError(
+                f"registered server '{spec.name}' failed to launch: {exc}"
+            ) from exc
 
     def _start_level(self, level: Sequence[NginxInstanceSpec], workers: int) -> None:
         # Each worker only ever `list.append`s to self._owned / assigns a distinct
         # key into self._xrootd_procs/_external_stops — both GIL-atomic in CPython,
-        # so no extra lock is needed. Critical failures still propagate: a raised
-        # future re-raises here, aborting the whole start (critical specs live at
-        # level 0, so nothing dependent has launched yet). The parallel and the
-        # sequential path share one verdict — _absorb_or_reraise.
+        # so no extra lock is needed. Every failed future is fatal: collection
+        # cannot release a test until every registered listener is available.
         with ThreadPoolExecutor(max_workers=min(workers, len(level))) as pool:
             futures = {pool.submit(self.start, spec): spec for spec in level}
             for future in as_completed(futures):
@@ -162,7 +99,9 @@ class _RegistryLauncherMixinA:
                 try:
                     future.result()
                 except (Exception, pytest.skip.Exception) as exc:  # noqa: BLE001
-                    self._absorb_or_reraise(spec, exc)
+                    raise RuntimeError(
+                        f"registered server '{spec.name}' failed to launch: {exc}"
+                    ) from exc
 
     @staticmethod
     def _start_workers() -> int:
@@ -214,8 +153,13 @@ class _RegistryLauncherMixinA:
         # and iterating it would reap nothing. stop() is stateless — it reaps each
         # instance from its on-disk pidfile / stop CLI whether or not this launcher
         # started it. _owned still short-circuits same-process teardown inside stop().
+        from lib_py.util import listening_port_pids  # noqa: PLC0415
+
         failures: list[str] = []
+        listeners = listening_port_pids()
         for spec in reversed(selected):
+            if self._quiescent(spec, listeners):
+                continue
             try:
                 self.stop(spec.name)
             except Exception as exc:  # noqa: BLE001 — teardown must visit every spec
@@ -224,21 +168,55 @@ class _RegistryLauncherMixinA:
         if failures:
             raise RuntimeError("fleet teardown failures: " + "; ".join(failures))
 
+    def _quiescent(
+        self,
+        spec: NginxInstanceSpec,
+        listeners: dict[int, set[int]] | None,
+    ) -> bool:
+        """Proof from ONE fleet-wide listener snapshot that stop() would be a
+        pure no-op for this spec: no in-memory handle, no on-disk pidfile, and
+        nobody listening on any declared port.
+
+        stop() on an already-down spec still walks its full teardown chain —
+        per-port `ss` scans (~50-100ms of subprocess spawn each) in
+        _reap_orphan_nginx_workers/_stop_from_disk — so an idle-fleet stop-all
+        (every pytest session runs one at start AND finish) burned ~15s doing
+        nothing. Ports listed in the snapshot, live handles, `external` specs
+        (their stop CLI owns state we cannot see), and hosts without `ss`
+        (snapshot is None) all keep today's exact stop() path. Workers orphaned
+        by a dead master still hold their LISTEN socket, so they show in the
+        snapshot and are never skipped.
+        """
+        if listeners is None:
+            return False
+        if spec.name in self._external_stops or spec.name in self._xrootd_procs:
+            return False
+        row = LAUNCHER_KINDS.get(spec.kind)
+        quiescence = row.quiescence if row is not None else "pidfile"
+        if quiescence == "never":
+            return False
+        if any(port in listeners for port in declared_ports(spec)):
+            return False
+        try:
+            endpoint = endpoint_for(spec)
+        except ValueError:
+            return False
+        if quiescence == "ports-only":
+            return True  # port-tracked only; _stop_from_disk would just re-scan the port
+        relpath = row.pidfile if row is not None else None
+        pidfile = (os.path.join(endpoint.prefix, relpath) if relpath
+                   else endpoint.pidfile)
+        return not os.path.exists(pidfile)
+
     def start(self, spec: NginxInstanceSpec) -> None:
-        if spec.kind == "xrootd":
-            self._start_xrootd(spec)
-            return
-        if spec.kind == "xrdhttp":
-            self._start_xrdhttp(spec)
-            return
-        if spec.kind == "haproxy":
-            self._start_haproxy(spec)
-            return
-        if spec.kind == "proc":
-            self._start_proc(spec)
-            return
-        if spec.kind == "external":
-            self._start_external(spec)
+        # Which method spawns this kind is a row in ``brix_suite.kinds``, not a
+        # ladder here: the same row names the pidfile that ``_quiescent`` looks
+        # for and the strategy ``_stop_from_disk`` uses, so a kind cannot be
+        # taught to start without also being taught to stop.  An unlisted kind
+        # falls through to the nginx path exactly as it did before the flip.
+        row = LAUNCHER_KINDS.get(spec.kind)
+        if row is not None and row.start_method is not None:
+            getattr(self, row.start_method)(spec)
             return
         endpoint = self.render_nginx(spec)
         # Root-harness export shim (bash _open_export_for_worker): the configs
@@ -256,7 +234,27 @@ class _RegistryLauncherMixinA:
             if os.path.isdir(logs_dir):
                 self._chmod_add(logs_dir, 0o777)
         self.nginx_test(spec)
-        self._nginx(["-p", endpoint.prefix, "-c", "conf/nginx.conf"], spec=spec, env=spec.env)
+        try:
+            self._nginx(["-p", endpoint.prefix, "-c", "conf/nginx.conf"],
+                        spec=spec, env=spec.env)
+        except RegistryCommandFailure:
+            # xdist's controller/worker hand-off can overlap a second registry
+            # launch with the first one.  If the pidfile still names a live
+            # master whose argv proves this exact prefix, EADDRINUSE is the
+            # duplicate launch losing the race—not a missing fleet server.
+            master = self._read_pid(endpoint.pidfile)
+            owned = False
+            if master is not None:
+                try:
+                    os.kill(master, 0)
+                    with open(f"/proc/{master}/cmdline", "rb") as proc_cmd:
+                        cmdline = proc_cmd.read().replace(b"\0", b" ")
+                    owned = endpoint.prefix.encode() in cmdline
+                except (OSError, ValueError):
+                    owned = False
+            if not owned:
+                raise
+            self._wait_ready(endpoint.host, endpoint.port, spec.readiness)
         self._wait_ready(endpoint.host, endpoint.port, spec.readiness)
         self._owned.append(spec)
 

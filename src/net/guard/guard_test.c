@@ -136,6 +136,14 @@ int main(void)
         CHECK(strcmp(guard_reason_str(GUARD_R_PROXYABUSE), "proxyabuse") == 0);
         CHECK(strcmp(guard_reason_str(GUARD_R_TAMPER), "cvmfs_tamper") == 0);
         CHECK(strcmp(guard_reason_str(GUARD_R_TPCEGRESS), "tpc_egress") == 0);
+        /* the two OCI signals get their own tokens: an operator jails the
+         * upstream-tamper one log-only, the push-probe one with a ban */
+        CHECK(strcmp(guard_reason_str(GUARD_R_OCITAMPER), "oci_tamper") == 0);
+        CHECK(strcmp(guard_reason_str(GUARD_R_OCIPUSH), "ocipush") == 0);
+        /* and the RPM mirror's pair, on the same split: upstream tamper vs a
+         * client writing at a read-only surface */
+        CHECK(strcmp(guard_reason_str(GUARD_R_RPMTAMPER), "rpm_tamper") == 0);
+        CHECK(strcmp(guard_reason_str(GUARD_R_RPMWRITE), "rpmwrite") == 0);
     }
 
     /* --- audit format --- */
@@ -177,6 +185,50 @@ int main(void)
         "2026-07-01T12:00:00Z ip=s1.bad.example.org proto=cvmfs "
         "signal=cvmfs_tamper op=read path=\"/cvmfs/repo.io/data/ab/cdef\" "
         "status=502") == 0);
+    /* oci_tamper line: same shape as cvmfs_tamper — the REGISTRY authority in
+     * the ip field, the /v2/ key that failed its digest in the path — but a
+     * distinct signal so the two jails never read each other's lines */
+    guard_request_t otreq = { "cdn.registry.example","oci",GUARD_OP_READ,
+                              "/v2/library/alpine/blobs/sha256:dead",36,0,
+                              OUTCOME_PENDING,502 };
+    CHECK(guard_audit_format(&otreq, GUARD_R_OCITAMPER,
+                             "2026-07-01T12:00:00Z", line, sizeof(line)) > 0);
+    CHECK(strcmp(line,
+        "2026-07-01T12:00:00Z ip=cdn.registry.example proto=oci "
+        "signal=oci_tamper op=read "
+        "path=\"/v2/library/alpine/blobs/sha256:dead\" status=502") == 0);
+    /* ocipush line: here the CLIENT is the actor — a push (or a scanner
+     * probing for an open registry) at a read-only mirror, status=405 */
+    guard_request_t opreq = { "198.51.100.7","oci",GUARD_OP_WRITE,
+                              "/v2/evil/blobs/uploads/",23,0,
+                              OUTCOME_PENDING,405 };
+    CHECK(guard_audit_format(&opreq, GUARD_R_OCIPUSH,
+                             "2026-07-01T12:00:00Z", line, sizeof(line)) > 0);
+    CHECK(strcmp(line,
+        "2026-07-01T12:00:00Z ip=198.51.100.7 proto=oci signal=ocipush "
+        "op=write path=\"/v2/evil/blobs/uploads/\" status=405") == 0);
+    /* rpm_tamper line: the MIRROR authority in the ip field, the repodata key
+     * whose own name named the digest it failed in the path */
+    guard_request_t rtreq = { "mirror.example.org","rpm",GUARD_OP_READ,
+                              "/centos/9/os/x86_64/repodata/abc-primary.xml.gz",
+                              47,0,OUTCOME_PENDING,502 };
+    CHECK(guard_audit_format(&rtreq, GUARD_R_RPMTAMPER,
+                             "2026-07-01T12:00:00Z", line, sizeof(line)) > 0);
+    CHECK(strcmp(line,
+        "2026-07-01T12:00:00Z ip=mirror.example.org proto=rpm "
+        "signal=rpm_tamper op=read "
+        "path=\"/centos/9/os/x86_64/repodata/abc-primary.xml.gz\" "
+        "status=502") == 0);
+    /* rpmwrite line: the CLIENT is the actor — a PUT at a read-only mirror */
+    guard_request_t rwreq = { "198.51.100.9","rpm",GUARD_OP_WRITE,
+                              "/centos/9/os/x86_64/Packages/evil.rpm",37,0,
+                              OUTCOME_PENDING,405 };
+    CHECK(guard_audit_format(&rwreq, GUARD_R_RPMWRITE,
+                             "2026-07-01T12:00:00Z", line, sizeof(line)) > 0);
+    CHECK(strcmp(line,
+        "2026-07-01T12:00:00Z ip=198.51.100.9 proto=rpm signal=rpmwrite "
+        "op=write path=\"/centos/9/os/x86_64/Packages/evil.rpm\" "
+        "status=405") == 0);
     /* token maps */
     CHECK(strcmp(guard_reason_str(GUARD_R_AUTHFAIL), "authfail") == 0);
     CHECK(strcmp(guard_reason_str(GUARD_R_NOTFOUND), "notfound") == 0);

@@ -1,0 +1,402 @@
+#!/usr/bin/env python3
+"""
+load_test.py — Concurrent transfer load test for nginx-xrootd vs xrootd.
+
+Measures peak throughput and latency distribution under 200+ simultaneous
+connections across three auth modes:
+  • XRootD root:// + GSI
+  • WebDAV davs:// + GSI
+  • WebDAV davs:// + Bearer token
+
+Runs against nginx-xrootd and optionally an official xrootd server,
+then prints a side-by-side comparison table.
+
+Usage
+-----
+    # Start servers first (see docs/load-testing.md or run_load_test.sh)
+
+    # Test nginx-xrootd only
+    python3 tests/load_test.py --target nginx
+
+    # Test official xrootd only
+    python3 tests/load_test.py --target xrootd
+
+    # Full comparison (requires both servers running)
+    python3 tests/load_test.py --target both
+
+    # Custom concurrency and file size
+    python3 tests/load_test.py --target nginx --concurrency 50,100,200 --file load_1g.bin
+
+    # Save JSON results
+    python3 tests/load_test.py --target both --json results.json
+
+    # Direct nginx-xrootd vs xrootd-native root:// comparison
+    python3 tests/load_test.py --target both --suite root-gsi --concurrency 128
+
+    # High-concurrency read test without 500+ GiB of client temp files
+    python3 tests/load_test.py --target both --suite root-gsi --concurrency 500 --read-sink devnull
+
+    # Read-only tests (no writes)
+    python3 tests/load_test.py --target nginx --mode read
+
+    # Write tests only
+    python3 tests/load_test.py --target nginx --mode write
+
+File sizes
+----------
+    load_100m.bin  100 MiB — fast sweep, tests connection handling
+    load_1g.bin    1 GiB   — stress test, tests sustained throughput (default)
+    large200.bin   200 MiB — existing file from test suite
+
+Servers
+-------
+    nginx-xrootd:
+        XRootD+GSI    root://localhost:12795
+        WebDAV+GSI    davs://localhost:12794
+        WebDAV+token  davs://localhost:12792  (Bearer token in env)
+
+    xrootd native:
+        XRootD+GSI    root://localhost:12094
+        (HTTP plugin is optional; token auth requires xrootd-http)
+"""
+
+import argparse
+import hashlib
+import json
+import math
+import multiprocessing
+import os
+import subprocess
+import sys
+import tempfile
+import time
+from dataclasses import dataclass, field, asdict
+from typing import Optional
+
+from settings import HOST, url_host
+
+# ---------------------------------------------------------------------------
+# Configuration
+# ---------------------------------------------------------------------------
+
+_LOAD_ROOT = os.path.join(
+    os.environ.get("TEST_ROOT", "/tmp/xrd-test"), "artifacts", "load", "fixtures"
+)
+DATA_DIR   = os.path.join(_LOAD_ROOT, "data")
+CA_DIR     = os.path.join(_LOAD_ROOT, "pki", "ca")
+PROXY_PEM  = os.path.join(_LOAD_ROOT, "pki", "user", "proxy_std.pem")
+TOKEN_DIR  = os.path.join(_LOAD_ROOT, "tokens")
+SERVER_CERT = os.path.join(_LOAD_ROOT, "pki", "server", "hostcert.pem")
+
+_H = url_host(HOST)   # client connect host (bracketed if IPv6)
+
+NGINX_XRD_GSI_URL       = f"root://{_H}:12795"
+NGINX_XRD_TLS_URL       = f"roots://{_H}:12796"  # stream-level TLS, auth none
+NGINX_XRD_GSI_TLS_URL   = f"roots://{_H}:12797"  # stream-level TLS, auth gsi
+NGINX_XRD_ANON_URL      = f"root://{_H}:12793"   # perf config anon port
+NGINX_DAV_GSI_URL       = f"davs://{_H}:12792"
+NGINX_DAV_GSI_HTTP_URL  = f"https://{_H}:12792"   # for curl (perf WebDAV port)
+NGINX_DAV_TOKEN_URL     = f"davs://{_H}:12792"
+NGINX_DAV_TOKEN_HTTP_URL = f"https://{_H}:12792"  # for curl
+
+# S3 REST — anonymous, cleartext HTTP (no native-xrootd S3 counterpart).
+NGINX_S3_HTTP_URL = f"http://{_H}:12798"
+S3_BUCKET         = "perfbucket"
+
+BRIX_GSI_URL      = f"root://{_H}:12094"   # official xrootd GSI instance
+BRIX_ANON_URL     = f"root://{_H}:12093"   # official xrootd anon instance
+BRIX_DAV_HTTP_URL = f"https://{_H}:12443"  # not available in this config
+
+DEFAULT_FILE    = "load_1g.bin"
+DEFAULT_WORKERS = [1, 8, 32, 64, 128, 200]
+
+
+class Suite:
+    """One named collection of runs at various concurrency levels."""
+
+    def __init__(self, label: str, worker_fn, arg_fn, concurrency: list[int],
+                 cleanup_fn=None):
+        self.label      = label
+        self.worker_fn  = worker_fn
+        self.arg_fn     = arg_fn        # callable(n) → list[dict]
+        self.concurrency = concurrency
+        self.cleanup_fn = cleanup_fn    # called after each level (write suites)
+        self.runs: list[RunStats] = []
+
+    def run_one(self, n: int) -> RunStats:
+        """Run a single concurrency level and append the result to self.runs."""
+        args = self.arg_fn(n)
+        stats = run_concurrent(self.worker_fn, args, n,
+                               label=f"{self.label} n={n}")
+        self.runs.append(stats)
+        print(stats.summary_line())
+        if stats.errors:
+            sample = stats.errors[:3]
+            print(f"    errors (sample): {sample}")
+        # Write suites leave large upload targets on the server FS — reclaim
+        # them after every level so peak disk use stays at one level's worth
+        # (concurrency × file size) rather than the whole sweep's.
+        if self.cleanup_fn is not None:
+            self.cleanup_fn()
+        return stats
+
+    def run(self) -> list[RunStats]:
+        print(f"\n{'='*60}")
+        print(f"  {self.label}")
+        print(f"{'='*60}")
+        for n in self.concurrency:
+            print(f"  launching {n} workers ...", flush=True)
+            self.run_one(n)
+        return self.runs
+
+
+# ---------------------------------------------------------------------------
+# Report
+# ---------------------------------------------------------------------------
+
+def print_comparison(nginx_suites: list[Suite], xrd_suites: list[Suite]):
+    print("\n" + "="*80)
+    print("  COMPARISON REPORT: nginx-xrootd  vs  xrootd native")
+    print("="*80)
+
+    headers = ["Protocol/Auth", "n", "nginx agg MiB/s", "xrootd agg MiB/s",
+               "nginx p95 s", "xrootd p95 s", "nginx ok%", "xrootd ok%"]
+    row_fmt = "  {:<28} {:>4}  {:>14}  {:>16}  {:>10}  {:>11}  {:>8}  {:>9}"
+
+    print(row_fmt.format(*headers))
+    print("  " + "-"*78)
+
+    # Pair up suites by index
+    for ns, xs in zip(nginx_suites, xrd_suites):
+        assert len(ns.runs) == len(xs.runs)
+        for nr, xr in zip(ns.runs, xs.runs):
+            label = ns.label[:28]
+            print(row_fmt.format(
+                label, nr.n_workers,
+                f"{nr.agg_mib_s:.0f}",
+                f"{xr.agg_mib_s:.0f}",
+                f"{nr.p95:.1f}",
+                f"{xr.p95:.1f}",
+                f"{nr.ok_rate*100:.0f}%",
+                f"{xr.ok_rate*100:.0f}%",
+            ))
+
+
+def save_json(suites: list[Suite], path: str, target: str):
+    data = {"target": target, "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "suites": []}
+    for s in suites:
+        suite_data = {"label": s.label, "runs": []}
+        for r in s.runs:
+            d = asdict(r)
+            d["agg_mib_s"]  = r.agg_mib_s
+            d["agg_gib_s"]  = r.agg_gib_s
+            d["mean_mib_s"] = r.mean_mib_s
+            d["p50"]        = r.p50
+            d["p95"]        = r.p95
+            d["p99"]        = r.p99
+            d["ok_rate"]    = r.ok_rate
+            d.pop("elapsed_list", None)   # can be very long
+            suite_data["runs"].append(d)
+        data["suites"].append(suite_data)
+    with open(path, "w") as f:
+        json.dump(data, f, indent=2)
+    print(f"\n  Results saved to {path}")
+
+
+# ---------------------------------------------------------------------------
+# Main
+# ---------------------------------------------------------------------------
+
+def _cleanup_write_files() -> None:
+    """Delete load_write_* upload targets from the server data dir.
+
+    Both nginx (brix_export) and native xrootd (oss.localroot) write into
+    DATA_DIR, so the uploaded large files accumulate there.  Called after each
+    write concurrency level to bound peak disk use to one level's worth
+    (concurrency × file size) instead of the whole sweep's."""
+    import glob
+    for p in glob.glob(os.path.join(DATA_DIR, "load_write_*")):
+        try:
+            os.remove(p)
+        except OSError:
+            pass
+
+
+def build_suites(target: str, filename: str, concurrency: list[int],
+                 mode: str, suite_filter: str, read_sink: str) -> list[Suite]:
+    src_file = os.path.join(DATA_DIR, filename)
+    if not os.path.exists(src_file):
+        sys.exit(f"Source file not found: {src_file}")
+    src_size = os.path.getsize(src_file)
+
+    token = _make_bearer_token()
+    if token is None:
+        print("  WARNING: could not generate bearer token — WebDAV+token tests skipped")
+
+    if target == "nginx":
+        xrd_gsi_url      = NGINX_XRD_GSI_URL
+        xrd_tls_url      = NGINX_XRD_TLS_URL
+        xrd_gsi_tls_url  = NGINX_XRD_GSI_TLS_URL
+        xrd_anon_url     = NGINX_XRD_ANON_URL
+        dav_gsi_url      = NGINX_DAV_GSI_HTTP_URL
+        dav_token_url    = NGINX_DAV_TOKEN_HTTP_URL
+    else:
+        xrd_gsi_url      = BRIX_GSI_URL
+        xrd_tls_url      = None   # xrootd native has no stream-TLS endpoint
+        xrd_gsi_tls_url  = None
+        xrd_anon_url     = BRIX_ANON_URL
+        dav_gsi_url      = BRIX_DAV_HTTP_URL
+        dav_token_url    = BRIX_DAV_HTTP_URL
+
+    suites = []
+
+    # suite_filter may be "all" or a comma-separated list (e.g.
+    # "root-gsi,webdav-gsi,s3").  "s3" is nginx-only (no native-xrootd S3), so it
+    # is never included under "all" — it must be named explicitly.
+    _wanted = set(suite_filter.split(","))
+
+    def want(name: str) -> bool:
+        if "all" in _wanted:
+            return name != "s3"
+        return name in _wanted
+
+    if mode in ("read", "both"):
+        # -- S3 REST anonymous read (nginx only; cleartext HTTP GET). Reuses the
+        #    generic curl read worker with no cert/token.
+        if want("s3") and target == "nginx":
+            suites.append(Suite(
+                label="S3 GET (read, nginx only)",
+                worker_fn=_webdav_read_worker,
+                arg_fn=lambda n: [
+                    {"id": i,
+                     "url": f"{NGINX_S3_HTTP_URL}/{S3_BUCKET}/{filename}"}
+                    for i in range(n)
+                ],
+                concurrency=concurrency,
+            ))
+        # -- XRootD anonymous
+        if want("root-anon"):
+            suites.append(Suite(
+                label="XRootD root:// anon (read)",
+                worker_fn=_brix_read_worker,
+                arg_fn=lambda n: _read_args_xrd(xrd_anon_url, filename, n,
+                                                sink=read_sink,
+                                                expected_bytes=src_size),
+                concurrency=concurrency,
+            ))
+        # -- XRootD + GSI
+        if want("root-gsi"):
+            suites.append(Suite(
+                label="XRootD root:// + GSI (read)",
+                worker_fn=_brix_read_worker,
+                arg_fn=lambda n: _read_args_xrd(xrd_gsi_url, filename, n,
+                                                 proxy=PROXY_PEM,
+                                                 sink=read_sink,
+                                                 expected_bytes=src_size),
+                concurrency=concurrency,
+            ))
+        # -- XRootD + TLS (stream-level, nginx only; roots:// scheme)
+        if want("root-tls") and xrd_tls_url is not None:
+            suites.append(Suite(
+                label="XRootD roots:// + TLS (read)",
+                worker_fn=_brix_read_worker,
+                arg_fn=lambda n: _read_args_xrd(xrd_tls_url, filename, n,
+                                                sink=read_sink,
+                                                expected_bytes=src_size,
+                                                tls_nosecureverify=True),
+                concurrency=concurrency,
+            ))
+        # -- XRootD + GSI + stream TLS (nginx only; roots:// + GSI auth)
+        if want("root-gsi-tls") and xrd_gsi_tls_url is not None:
+            suites.append(Suite(
+                label="XRootD roots:// + GSI + TLS (read)",
+                worker_fn=_brix_read_worker,
+                arg_fn=lambda n: _read_args_xrd(xrd_gsi_tls_url, filename, n,
+                                                proxy=PROXY_PEM,
+                                                sink=read_sink,
+                                                expected_bytes=src_size,
+                                                tls_nosecureverify=True),
+                concurrency=concurrency,
+            ))
+        # -- WebDAV + GSI
+        if want("webdav-gsi"):
+            suites.append(Suite(
+                label="WebDAV davs:// + GSI (read)",
+                worker_fn=_webdav_read_worker,
+                arg_fn=lambda n: _read_args_dav(dav_gsi_url, filename, n,
+                                                 proxy=PROXY_PEM),
+                concurrency=concurrency,
+            ))
+        # -- WebDAV + Bearer token
+        if token and want("webdav-token"):
+            suites.append(Suite(
+                label="WebDAV davs:// + token (read)",
+                worker_fn=_webdav_read_worker,
+                arg_fn=lambda n, t=token: _read_args_dav(dav_token_url, filename, n,
+                                                          token=t),
+                concurrency=concurrency,
+            ))
+
+    if mode in ("write", "both"):
+        # -- S3 REST anonymous write (nginx only; cleartext HTTP PUT). Keys use
+        #    the load_write_ prefix so _cleanup_write_files reclaims them.
+        if want("s3") and target == "nginx":
+            suites.append(Suite(
+                label="S3 PUT (write, nginx only)",
+                worker_fn=_webdav_write_worker,
+                arg_fn=lambda n: [
+                    {"id": i, "src": src_file,
+                     "url": f"{NGINX_S3_HTTP_URL}/{S3_BUCKET}/"
+                            f"load_write_{i}_{os.path.basename(src_file)}"}
+                    for i in range(n)
+                ],
+                concurrency=concurrency,
+                cleanup_fn=_cleanup_write_files,
+            ))
+        # -- XRootD anonymous write (cleartext; parity with the anon read suite)
+        if want("root-anon"):
+            suites.append(Suite(
+                label="XRootD root:// anon (write)",
+                worker_fn=_brix_write_worker,
+                arg_fn=lambda n: _write_args_xrd(xrd_anon_url, src_file, n),
+                concurrency=concurrency,
+                cleanup_fn=_cleanup_write_files,
+            ))
+        # -- XRootD + GSI write
+        if want("root-gsi"):
+            suites.append(Suite(
+                label="XRootD root:// + GSI (write)",
+                worker_fn=_brix_write_worker,
+                arg_fn=lambda n: _write_args_xrd(xrd_gsi_url, src_file, n,
+                                                  proxy=PROXY_PEM),
+                concurrency=concurrency,
+                cleanup_fn=_cleanup_write_files,
+            ))
+        # -- WebDAV + GSI write
+        if want("webdav-gsi"):
+            suites.append(Suite(
+                label="WebDAV davs:// + GSI (write)",
+                worker_fn=_webdav_write_worker,
+                arg_fn=lambda n: _write_args_dav(dav_gsi_url, src_file, n,
+                                                  proxy=PROXY_PEM),
+                concurrency=concurrency,
+                cleanup_fn=_cleanup_write_files,
+            ))
+        # -- WebDAV + token write
+        if token and want("webdav-token"):
+            suites.append(Suite(
+                label="WebDAV davs:// + token (write)",
+                worker_fn=_webdav_write_worker,
+                arg_fn=lambda n, t=token: _write_args_dav(
+                    dav_token_url, src_file, n, token=t),
+                concurrency=concurrency,
+                cleanup_fn=_cleanup_write_files,
+            ))
+
+    if not suites:
+        sys.exit(f"No suites selected for mode={mode!r}, suite={suite_filter!r}")
+
+    return suites
+
+

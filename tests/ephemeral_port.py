@@ -1,67 +1,97 @@
-"""OS-assigned ephemeral-port allocation for the DOCUMENTED fixed-port EXEMPTIONS.
+"""Session-owned, range-assigned ports for non-registry test listeners.
 
-Phase 5 of the harness refactor retired dynamic port allocation for every server
-that goes through the registry: nginx/xrootd/haproxy fleet servers draw fixed
-ports from ``fleet_ports``; lifecycle-subject instances draw fixed ports from
-``fleet_lifecycle_ports``.  ``settings.free_port`` / ``free_ports`` /
-``reserve_ports`` were deleted.
-
-A small, explicitly-enumerated set of binds legitimately still needs an
-OS-assigned ephemeral port and is NOT a registry server — those live here so the
-distinction stays auditable (``grep free_port`` lands only on this module and its
-documented importers, never on a registry spec):
-
-  * **native-xrootd sources** — a dedicated stock ``/usr/bin/xrootd`` a test
-    stands up as the *upstream* of the brix instance under test (differential
-    comparison, mirror-upstream, native-GSI/TPC source legs).  Not a brix server;
-    the brix front DIALS it, so any free port serves.
-  * **in-process Python mocks** — a CMS ManagerPeer / firefly UDP sink / stub the
-    brix instance DIALS.  Client-side listeners, not registry servers.
-  * **docker-published lab ports** — a container (ARC-CE, …) publishes a host
-    port via ``-p 127.0.0.1:<port>:443``; the host side must be OS-assigned.
-  * **raw-lab proxies / self-contained suites** — brix-fault-proxy and kindred
-    hostile-network labs, and self-contained proxy-edge suites that bind their
-    own fronts+backends and never touch the managed fleet (env-overridable).
-  * **client-flood exhaustion tests** — evil-actor/evil-paths deliberately burn
-    ephemeral *client* sockets (Phase 6); those keep their own local helpers.
-  * **``cmdscripts/fwd_matrix_live.py``** — the forward-matrix live harness
-    rebinds ports inside a per-combination loop (deferred; see the Phase-5 note
-    in ``fleet_ports``).
-
-If you are adding a NEW nginx/xrootd/haproxy server a test starts, it does NOT
-belong here — give it a fixed port in ``fleet_ports`` (fleet singleton) or
-``fleet_lifecycle_ports`` (lifecycle-subject) and let the registry own it.
+``free_port`` remains only as a compatibility name.  It no longer binds port
+zero or asks the kernel for a random ephemeral port: every value is leased from
+the ``TEST_PORT_START`` mock range declared in :mod:`port_ladder`.  The lease
+registry is shared by xdist workers, so mocks, stock-xrootd upstreams and lab
+proxies receive distinct infrastructure-assigned ports just like fleet servers.
 """
 
-import socket
+from __future__ import annotations
+
+import fcntl
+import inspect
+import json
+import os
+from pathlib import Path
+
+from port_ladder import MOCK_PORT_FIRST, MOCK_PORT_LAST
+
+
+_CALLS: dict[str, int] = {}
+
+
+def _managed_lane(port):
+    """Return whether *port* belongs to this run's fixed test-port ladder."""
+    from port_ladder import PORT_FIRST
+
+    return PORT_FIRST <= port <= MOCK_PORT_LAST
+
+
+def _caller_key() -> str:
+    """Return the current test/call-site identity for one port lease."""
+    frame = inspect.currentframe()
+    assert frame is not None
+    caller = frame.f_back
+    while caller and Path(caller.f_code.co_filename).name == Path(__file__).name:
+        caller = caller.f_back
+    if caller is None:
+        site = "unknown"
+    else:
+        site = f"{caller.f_code.co_filename}:{caller.f_lineno}"
+    test = os.environ.get("PYTEST_CURRENT_TEST")
+    if not test:
+        test = f"pid-{os.getpid()}"
+    key = f"{test}|{site}"
+    ordinal = _CALLS.get(key, 0)
+    _CALLS[key] = ordinal + 1
+    return f"{key}|{ordinal}"
+
+
+def _lease_path() -> Path:
+    """Return the TEST_ROOT-scoped lease registry path."""
+    root = Path(os.environ.get("TEST_ROOT", "/tmp/xrd-test"))
+    root.mkdir(parents=True, exist_ok=True)
+    return root / "mock-port-leases.json"
+
+
+def _assigned_port() -> int:
+    """Lease one unused fixed mock slot from the shared test infrastructure."""
+    path = _lease_path()
+    key = _caller_key()
+    with path.open("a+", encoding="utf-8") as registry:
+        fcntl.flock(registry.fileno(), fcntl.LOCK_EX)
+        registry.seek(0)
+        try:
+            leases = json.load(registry)
+        except json.JSONDecodeError:
+            leases = {}
+        if key not in leases:
+            port = MOCK_PORT_FIRST + len(leases)
+            if port > MOCK_PORT_LAST:
+                raise RuntimeError(
+                    "test mock-port range exhausted; increase MOCK_PORT_WIDTH "
+                    "in tests/port_ladder.py"
+                )
+            leases[key] = port
+            registry.seek(0)
+            registry.truncate()
+            json.dump(leases, registry, sort_keys=True)
+            registry.flush()
+        return int(leases[key])
 
 
 def free_port(host="127.0.0.1"):
-    """Return one OS-assigned free TCP port (bind :0, read it, release).
+    """Return one infrastructure-assigned port from the mock range.
 
-    EXEMPTIONS ONLY — see the module docstring.  A registry server must take a
-    fixed port from ``fleet_ports`` / ``fleet_lifecycle_ports`` instead.
+    ``host`` remains for call-site compatibility; allocation is host-agnostic
+    because the range is globally unique within a test session.
     """
-    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    try:
-        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        s.bind((host, 0))
-        return s.getsockname()[1]
-    finally:
-        s.close()
+    del host
+    return _assigned_port()
 
 
 def free_ports(n, host="127.0.0.1"):
-    """Return n DISTINCT free TCP ports (sockets held open during allocation so
-    the OS hands out different numbers).  EXEMPTIONS ONLY — see the docstring."""
-    socks = []
-    try:
-        for _ in range(n):
-            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            s.bind((host, 0))
-            socks.append(s)
-        return [s.getsockname()[1] for s in socks]
-    finally:
-        for s in socks:
-            s.close()
+    """Return ``n`` distinct infrastructure-assigned mock ports."""
+    del host
+    return [_assigned_port() for _ in range(n)]

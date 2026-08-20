@@ -243,7 +243,7 @@ reader.
 
 ### S3 · Repo lifecycle CLI
 
-**Design.** `brixcvmfs repo mkfs <fqrn> --repo-dir D --keys-dir K`: generate
+**Design.** `brixcvmfs repo mkfs <fqrn> --repo-dir D --keys-dir K`: generate  <!-- client-flags-allow: design sketch; the shipped grammar took repo_dir/keys_dir positionally -->
 master keypair + repo cert/key (reuse `cred_mint_cert.c` patterns), emit
 `<fqrn>.pub` (rotated-key-dir compatible — `brixcvmfs_mount.c` already
 consumes `*.pub` directories), mint the 30-day `.cvmfswhitelist`, write an

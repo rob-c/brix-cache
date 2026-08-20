@@ -12,6 +12,8 @@
 
 #include "core/compat/checksum.h"
 #include "protocols/cvmfs/classify.h"
+#include "protocols/oci/oci_classify.h"
+#include "protocols/rpm/rpm_classify.h"
 
 #include <fcntl.h>
 #include <stdio.h>
@@ -19,6 +21,21 @@
 #include <strings.h>
 #include <time.h>
 #include <unistd.h>
+
+
+const char *
+brix_cache_verify_mode_str(ngx_uint_t mode)
+{
+    switch (mode) {
+    case BRIX_CACHE_VERIFY_OFF:           return "off";
+    case BRIX_CACHE_VERIFY_BESTEFFORT:    return "best-effort";
+    case BRIX_CACHE_VERIFY_REQUIRE:       return "require";
+    case BRIX_CACHE_VERIFY_CVMFS_CAS:     return "cvmfs-cas";
+    case BRIX_CACHE_VERIFY_OCI_DIGEST:    return "oci-digest";
+    case BRIX_CACHE_VERIFY_RPM_REPODATA:  return "rpm-repodata";
+    default:                              return "unknown";
+    }
+}
 
 
 /* brix_cache_hex_ieq — case-insensitive equality of two hex digests * Origins vary in hex case (XRootD lowercases; some HTTP Digest headers upper).
@@ -277,6 +294,134 @@ brix_cache_verify_cvmfs_cas(const char *part_path, const char *key,
     }
     if (out_hex != NULL) {
         ngx_memcpy(out_hex, hex, 41);
+    }
+    return BRIX_CACHE_VERIFY_VERIFIED;
+}
+
+/* Phase-104 D2.3 OCI digest self-verification — see verify.h. The expected
+ * digest is the hex the KEY names, so a blob or a digest-pinned manifest
+ * certifies itself with no origin digest, exactly like cvmfs-cas. The key
+ * also names the ALGORITHM, and that is the one we hash under: verifying a
+ * sha512 blob with sha256 would compare two different functions' output. */
+brix_cache_verify_result_e
+brix_cache_verify_oci_digest(const char *part_path, const char *key,
+    ngx_log_t *log, char *out_alg, char *out_hex)
+{
+    brix_oci_req_t  req;
+    const char     *alg;
+    char            hex[BRIX_OCI_HEXLEN_MAX + 1];
+    char            norm[32];
+    ngx_int_t       rc;
+    int             fd;
+
+    if (brix_oci_classify(key, strlen(key), &req) != 0) {
+        return BRIX_CACHE_VERIFY_UNVERIFIED;
+    }
+    /* Only the two digest-addressed routes bind the key to the bytes. A tag
+     * manifest is mutable by definition and the tags list is generated, so
+     * neither is verifiable here — the TTL policy governs those instead. */
+    if (!(req.cls == BRIX_OCI_REQ_BLOB
+          || (req.cls == BRIX_OCI_REQ_MANIFEST && req.ref_is_digest)))
+    {
+        return BRIX_CACHE_VERIFY_UNVERIFIED;
+    }
+
+    fd = open(part_path, O_RDONLY | O_NOFOLLOW | O_CLOEXEC | O_NOCTTY); /* vfs-seam-allow: cache-store staging file, svc-owned domain */
+    if (fd < 0) {
+        return BRIX_CACHE_VERIFY_ERROR;
+    }
+    alg = brix_oci_alg_name(req.digest.alg);
+    rc = brix_checksum_hex_name_fd(alg, fd, part_path, log,
+                                     hex, sizeof(hex), norm, sizeof(norm));
+    close(fd); /* vfs-seam-allow: cache-store staging file, svc-owned domain */
+    if (rc != NGX_OK) {
+        return BRIX_CACHE_VERIFY_ERROR;
+    }
+
+    if (!brix_cache_hex_ieq(hex, req.digest.hex)) {
+        if (log != NULL) {
+            ngx_log_error(NGX_LOG_ERR, log, 0,
+                "brix: oci-digest verify FAILED for \"%s\" "
+                "(named=%.64s computed=%.64s)\n"
+                "  cause: the registry (or its CDN) served bytes that are not "
+                "the object the digest names — corruption or substitution\n"
+                "  fix:   check the upstream registry and any intercepting "
+                "middlebox; the object was quarantined, the client will retry",
+                key, req.digest.hex, hex);
+        }
+        return BRIX_CACHE_VERIFY_MISMATCH;
+    }
+
+    if (out_alg != NULL) {
+        ngx_memcpy(out_alg, alg, ngx_strlen(alg) + 1);
+    }
+    if (out_hex != NULL) {
+        ngx_memcpy(out_hex, hex,
+                   brix_oci_alg_hexlen(req.digest.alg) + 1);
+    }
+    return BRIX_CACHE_VERIFY_VERIFIED;
+}
+
+/* Phase-104 D15.9 RPM repodata self-verification — see verify.h. The expected
+ * digest is the hex createrepo put in front of the file name, and its LENGTH
+ * is what names the algorithm: a repository built with sha512 metadata must
+ * not be checked with sha256, which would compare two different functions'
+ * output and reject every object. */
+brix_cache_verify_result_e
+brix_cache_verify_rpm_repodata(const char *part_path, const char *key,
+    ngx_log_t *log, char *out_alg, char *out_hex)
+{
+    brix_rpm_req_t  req;
+    const char     *alg;
+    char            want[BRIX_OCI_HEXLEN_MAX + 1];
+    char            hex[BRIX_OCI_HEXLEN_MAX + 1];
+    char            norm[32];
+    ngx_int_t       rc;
+    int             fd;
+
+    if (brix_rpm_classify(key, strlen(key), &req) != 0
+        || req.cls != BRIX_RPM_REQ_METADATA)
+    {
+        return BRIX_CACHE_VERIFY_UNVERIFIED;   /* not digest-named */
+    }
+    alg = brix_rpm_alg_for_hexlen(req.hex_len);
+    if (alg == NULL || req.hex_len >= sizeof(want)) {
+        return BRIX_CACHE_VERIFY_UNVERIFIED;   /* the classifier's own bound */
+    }
+    ngx_memcpy(want, req.hex, req.hex_len);
+    want[req.hex_len] = '\0';
+
+    fd = open(part_path, O_RDONLY | O_NOFOLLOW | O_CLOEXEC | O_NOCTTY); /* vfs-seam-allow: cache-store staging file, svc-owned domain */
+    if (fd < 0) {
+        return BRIX_CACHE_VERIFY_ERROR;
+    }
+    rc = brix_checksum_hex_name_fd(alg, fd, part_path, log,
+                                     hex, sizeof(hex), norm, sizeof(norm));
+    close(fd); /* vfs-seam-allow: cache-store staging file, svc-owned domain */
+    if (rc != NGX_OK) {
+        return BRIX_CACHE_VERIFY_ERROR;
+    }
+
+    if (!brix_cache_hex_ieq(hex, want)) {
+        if (log != NULL) {
+            ngx_log_error(NGX_LOG_ERR, log, 0,
+                "brix: rpm-repodata verify FAILED for \"%s\" "
+                "(named=%.128s computed=%.128s)\n"
+                "  cause: the upstream repository served metadata that is not "
+                "the file its own name names — a stale mirror mid-sync, "
+                "corruption, or substitution\n"
+                "  fix:   check the upstream mirror and any intercepting "
+                "middlebox; the object was quarantined, dnf will retry",
+                key, want, hex);
+        }
+        return BRIX_CACHE_VERIFY_MISMATCH;
+    }
+
+    if (out_alg != NULL) {
+        ngx_memcpy(out_alg, alg, ngx_strlen(alg) + 1);
+    }
+    if (out_hex != NULL) {
+        ngx_memcpy(out_hex, hex, req.hex_len + 1);
     }
     return BRIX_CACHE_VERIFY_VERIFIED;
 }

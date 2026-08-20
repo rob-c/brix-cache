@@ -59,7 +59,7 @@ test_root_frame(void)
     uint32_t      dlen = 0;
 
     /* cap table is single-source with recv_process.c */
-    CHECK(brix_max_payload_for_request(kXR_write) == BRIX_MAX_WRITE_PAYLOAD,
+    CHECK(brix_max_payload_for_request(kXR_write) == BRIX_MAX_WRITE_STREAM,
           "write cap");
     CHECK(brix_max_payload_for_request(kXR_ping) == BRIX_MAX_PATH + 64,
           "default cap");
@@ -70,11 +70,11 @@ test_root_frame(void)
     CHECK(reqid == kXR_ping && dlen == 0, "ping decode");
 
     /* boundary success: dlen exactly at the write cap */
-    make_hdr(hdr, kXR_write, BRIX_MAX_WRITE_PAYLOAD);
+    make_hdr(hdr, kXR_write, BRIX_MAX_WRITE_STREAM);
     CHECK(brix_root_frame_dlen_ok(hdr, 24, NULL, NULL) == 1, "write at-cap accept");
 
     /* security-neg: one byte over the write cap must be rejected BEFORE alloc */
-    make_hdr(hdr, kXR_write, BRIX_MAX_WRITE_PAYLOAD + 1);
+    make_hdr(hdr, kXR_write, BRIX_MAX_WRITE_STREAM + 1);
     CHECK(brix_root_frame_dlen_ok(hdr, 24, NULL, NULL) == 0, "write over-cap reject");
 
     /* error: a short (<24-byte) frame is rejected without reading the tail */

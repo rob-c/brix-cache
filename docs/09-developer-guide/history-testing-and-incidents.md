@@ -39,12 +39,13 @@ won't come up. Each item cost real time at least once.
 | Mass "regression" — dozens of files fail at collection with `TypeError` on `dict \| None` or `datetime.UTC` | `pytest` entry point on PATH resolves to Python 3.9 while `python3` is 3.13; 3.10+/3.11+ syntax fails at import, not at runtime | Check the pytest banner's Python version first; run via `python3 -m pytest` or repair the entry point before hunting a "regression" |
 | `--dist loadgroup`/`loadscope` run aborts the *entire* session with `INTERNALERROR KeyError` after one worker crash | loadscope's `_assign_work_unit` can't replace a dead worker | Only `--dist load` (default) tolerates worker death; reserve loadgroup/scope for nothing broad — only the 11 `serial`-marked destructive suites need isolation, run those in a separate serial lane |
 | Relative `tests/` path or a saved nodeid list yields "12 workers [0 items]" | `conftest._chdir_scratch()` chdirs every xdist worker into a scratch dir before collection; a relative arg resolves to nothing | Always pass absolute test paths / nodeids under xdist |
-| `pkill -f pytest` / `pkill -f run_suite` / `pkill -f nginx` kills your own shell (exit 144) | These patterns self-match the invoking shell/wrapper | Use exact-comm `pkill -9 -x nginx`/`-x xrootd`, or `pgrep ... \| grep -v $$`; use `brutal_teardown.sh` as the canonical reaper (scans `/proc/*/cmdline` for test-path markers, skips `$$`/`$PPID`) |
+| `pkill -f pytest` / `pkill -f run_suite` / `pkill -f nginx` kills your own shell (exit 144) | These patterns self-match the invoking shell/wrapper | Use exact-comm `pkill -9 -x nginx`/`-x xrootd`, or `pgrep ... \| grep -v $$`; use `python3 -m cmdscripts.operator_build brutal_teardown` as the canonical reaper (scans `/proc/*/cmdline`, and since 2026-08-17 owns only paths under **your** `TEST_ROOT` — see §10) |
 | A resilience/fault-proxy or destructive test flakes when run inside the shared fleet | The shared fleet (11094-12126) is itself flaky to bring up and shares state with everything else | Resilience/fault-proxy/destructive suites must self-provision dedicated nginx+xrootd on a private high port block, own PKI/data dir — never call `start-all` for them |
 | Every token **accept**-case fails while every **reject**-case passes (e.g. `test_wr_01/02/04_*_accept` red on webdav *and* s3, `test_wr_03_read_scope_denies_write` and all `*_reject` green) | Fleet **signing-key desync**, never a scope/authz code bug: `TokenForge` is minting with keys the servers no longer trust, so *all* tokens die at authN — reject-expecting tests then pass trivially. An interrupted `restart` (it boots ~76 servers and regenerates PKI, easily >2 min) leaves the dedicated instances (`/tmp/xrd-test/dedicated/webdav-token`, `s3-bearer`, …) holding stale keys, and can abort mid-PKI-regen so the main nginx `[emerg]`s on a missing `ca.key`/`hostcert.pem` | Do not chase it into `scopes.c`/`validate.c`. Re-run `restart` to completion in the background with a long timeout — it may need two passes (first wipes and regenerates PKI, second converges) — and confirm `/tmp/xrd-test/pki/{ca/ca.key,server/hostcert.pem,user/proxy.pem}` all exist before re-testing |
 | A CI lane that boots the fleet reports **success** in seconds, having tested nothing (`asan: SKIP — sanitized fleet failed to boot on this runner`) | `start-all` aborted because a spec tagged `critical` **skipped** — `ref-anon` calls `pytest.skip("selected xrootd binary is unavailable: xrootd")` and no GitHub runner image ships stock XRootD. The launcher treated "not installed here" the same as "broken", and the lane script treats a boot failure as a missing prerequisite, so the two combined into a green check | Fixed 2026-08-09 (`_absorb_or_reraise`): `critical` is fatal on a real FAILURE only; a `pytest.skip` from any spec is absorbed and logged. When a lane's log says SKIP, read it as RED — no lane that skips its fleet is evidence of anything. Follow-on the same day: with `asan` now a *required* check, every one of its `return 0` skip paths routes through `asan.skip_or_fail()`, and `.github/workflows/asan.yml` sets `BRIX_CI_STRICT: "1"` so a missing prerequisite is RED on the lane while a laptop without a compiler still skips |
 | A lane aborts before it starts with `ERROR: test path(s) do not exist; refusing to start managed servers: <a file that plainly exists>` | `conftest._validate_requested_paths()` resolved relative arguments against **rootdir**, not the invocation dir. The repo-root habit (`pytest tests/foo.py`) makes those look interchangeable; a caller with `cwd=tests` (`tools/ci/asan.py` drives `pytest test_sanitizer_smoke.py`) passes a name that only exists under the cwd, so the pre-flight check rejected a file pytest would have collected fine — UsageError, exit 4, no fleet, no sanitizer | Fixed 2026-08-09: resolve against `config.invocation_params.dir` (what pytest itself uses), rootdir only as the fallback for builds without it. Guard: `tests/test_conftest_path_validation.py` — including the negative that the fix did not widen the check into "try either base" |
 | A conformance/harness test "fails" and it looks like a server bug | Historically, ~90% of the time the *test* carried a stale assumption, not the server | Always verify differentially against a real stock `xrootd`/`XrdCl` reference before touching `src/`; see the conformance section below |
+| A test in YOUR lane fails on a dead connection (`RemoteDisconnected`, `Connection aborted`) while the instance was healthy seconds earlier; its `error.log` ends `signal 15 (SIGTERM) received from <pid>` where `<pid>` belongs to no process of your session | Another lane on the box reaped you. Three reapers decided ownership by a raw **substring** of the cmdline, so `/tmp/xrd` and `/tmp/xrd-test` owned every `/tmp/xrd-test-<suffix>` root anyone else was using — a "clean my lane" was a SIGTERM of all lanes | Fixed 2026-08-17: ownership is a **whole path** (`fleet_orphans.owns`), used by `find_orphans`/`kill_orphans`, `operator_build.brutal_teardown` and `run_suite_unprivileged`. Diagnosing it needs the log at the moment of failure — teardown wipes the prefix, so a transport error must carry `error.log` into its own assertion message |
 | Test failures/timeouts/high load and you're about to write "environmental, not code" | **BANNED.** This exact excuse buried a real crash-loop bug (uninitialized reaper timer, fixed `66efecd0`) for weeks — see the postmortem below | Check `coredumpctl list --since=-1h`, worker PID churn, and error.log for repeated startup banners BEFORE attributing anything to load |
 
 ---
@@ -1094,3 +1095,586 @@ deliberately waits out a backoff window; the module carries
 `pytest.mark.timeout(180)` (precedent: `test_chaos_mesh.py`).
 
 Full design record: `docs/refactor/phase-98-cms-aaa-federation-join-under-noise.md`.
+
+---
+
+## 10. Lane ownership is a path, not a substring — the cross-lane SIGTERM (2026-08-17)
+
+**Symptom.** A tranche-15 file (`test_audit15y_cvmfs_origin_policy.py`) failed in
+roughly half of otherwise identical nine-file runs, always in the same class, and
+always as a *transport* failure rather than a wrong answer:
+`ConnectionError(RemoteDisconnected('Remote end closed connection without
+response'))`. Re-running the file alone reproduced it. Nothing in the test's own
+logic varied between the passing and failing runs.
+
+**Why it took a while.** The evidence was being destroyed by the thing that
+should have preserved it. A transport failure lands *before* any assertion about
+content, so the test died without ever printing the instance's `error.log`, and
+the function-scoped `lifecycle` fixture then stopped the instance and the next
+test's `register()` wiped the prefix. The fix that cracked it was one line of
+diagnostics: make `_fetch` catch `requests.RequestException` and re-raise an
+`AssertionError` carrying `error.log`. (Ditto for the mock origin: its stdout now
+goes to a file, and the "never listened" assertion names the port's actual
+holders. A fixed ledger port that is silently occupied by someone else is
+unreadable otherwise.)
+
+With the log inlined the answer was immediate and unambiguous:
+
+```
+… [warn] xrootd-fill: event=retry key="…" attempt=8 … next_backoff_ms=8000
+… [notice] 3966304#3966304: signal 15 (SIGTERM) received from 3966974, exiting
+```
+
+Not a crash — an **external SIGTERM**, from a pid belonging to no process of that
+pytest session, 25 s into a healthy instance's life while the client was still
+inside its 90 s timeout. (`ulimit -c` is 0 on this box, so "no coredumps" was
+never evidence of "no crash"; the sender pid in nginx's own notice is.)
+
+**Root cause.** Three separate reapers decided which processes a `TEST_ROOT`
+owns by testing whether the root was a **substring** of the process cmdline:
+
+| Site | Test |
+|---|---|
+| `fleet_orphans.find_orphans` (backs `kill_orphans`, the conftest reaper and the post-teardown orphan alarm) | `marker in cmd or marker in parent_cmd or marker in environ` |
+| `cmdscripts/operator_build.brutal_teardown` | `"/tmp/xrd" in cmdline or "/tmp/hsproto" in cmdline or str(test_root) in cmdline` |
+| `run_suite_unprivileged._reap_test_servers` | `any(m in cmdline for m in ("/tmp/xrd", "/tmp/hsproto", "/tmp/xrd-test"))` |
+
+Every side lane on this box is the default root plus a suffix
+(`/tmp/xrd-test-a15aa`, `/tmp/xrd-test-fast-final-zero-2026…`), so `/tmp/xrd`
+and `/tmp/xrd-test` are literal substrings of all of them. A "clean my wedged
+lane" — which `conftest_part2` itself tells the operator to run by name — was a
+SIGTERM of *every* live fleet on the machine. The two CLI sites were the worse
+pair: their shared markers ignored the `test_root` argument entirely, so the
+throwaway `tmp_path` that `test_cmd_operator_build` passes specifically to keep
+the live fleet safe did not, in fact, keep it safe.
+
+This is the third time the same trap has been sprung here. `conftest_part2`'s
+reaper docstring already renounced these markers in as many words — "they can
+occur in a healthy parallel lane's argv and caused collision recovery in one lane
+to SIGKILL another lane's live fleet" — and the substring test quietly
+reintroduced the identical failure for any root that is a *prefix* of another.
+
+**Fix.** One ownership rule, in one place: `fleet_orphans._owns()` counts a hit
+only where the match is a whole path — the byte before it starts the path
+(string start, or a shell/environ delimiter) and the byte after it ends the path
+(delimiter or string end) or continues that same path with `/` (which is how
+`-p <root>/registry/<name>` is owned by `<root>`). `owns()` exports it for the
+two CLIs, which no longer name a shared marker at all. The lead-side check
+matters as much as the tail: without it `/tmp/xrd-test` would own
+`/var/tmp/xrd-test`.
+
+**Tests** (`tests/test_fleet_teardown_orphans.py`, all four fail against the old
+substring rule where they should):
+
+* the positive half, so the boundary rule cannot be tightened until it breaks —
+  an argv naming a path *under* the root, and an environment naming the root
+  exactly, are both still owned (the second is the only route a python fleet
+  helper such as a mock Stratum-1 origin has, since it puts no path in argv);
+* the detector: a root that is a text prefix of a sibling lane's root owns
+  nothing of that lane's, by argv or by inherited environment;
+* the reap: a real `kill_orphans` with a genuinely owned process present (so the
+  SIGTERM and SIGKILL passes actually execute) leaves the sibling lane alive and
+  still reapable by its own root. Under the old rule this test reports the
+  sibling dead with `exit=-15` — the same signal 15 the incident's `error.log`
+  recorded, which is what closes the loop between the reproduction and the
+  finding;
+* a source guard pinning both CLIs to the shared rule, so no shared marker comes
+  back as a kill criterion.
+
+**Rules this leaves behind.**
+
+1. Never decide "is this process mine?" with `in` on a path. Use
+   `fleet_orphans.owns`.
+2. Never name a shared prefix (`/tmp/xrd`, `/tmp/hsproto`, `/tmp`) as a reaping
+   marker. Your `TEST_ROOT` is the only boundary.
+3. A test whose failure mode is a dead connection must attach the server's
+   `error.log` to the assertion itself. Teardown will have erased it by the time
+   anyone reads the report, and "who sent the signal" is in that log and nowhere
+   else.
+
+## 11. Collection/init hyper-optimization — four costs that scale with the suite, not the run (2026-08-17)
+
+**Goal.** Repeated invocations (a single file, a `--collect-only`, a short
+selection) paid tens of seconds of initialization that had nothing to do with
+the tests being run. Profiling (`cProfile` on collection, `-X importtime`,
+standalone timing probes) found four independent costs; all four are fixed.
+
+**Before/after.** Single-file `--collect-only`: 23.7 s → 2.6 s wall.
+Full-suite collect (38,429 tests): 47 s wall / 40.7 s user (and it *errored*
+on 19 `ImportPathMismatchError`s) → 19.1 s wall / 16.0 s user, zero errors.
+Session stop-sweep overhead in real runs: ~15–25 s → ~0.15 s. Session crypto
+artifact setup: 11.3 s → ~0.02 s on a warm snapshot.
+
+**The four costs and their fixes.**
+
+1. **Session hooks ran the full fleet lifecycle for `--collect-only`.**
+   `pytest_sessionstart`/`pytest_sessionfinish` booted watchdogs, ran the
+   conservation check, and — the expensive part — swept every registered spec
+   through `stop()`, each probing its ports with a separate `ss -ltnp` spawn
+   (~250 subprocesses/session). Both hooks now return immediately under
+   `config.option.collectonly` (`conftest_part2.py` / `conftest_part5.py`).
+   For real runs, `stop_registered` now takes **one** `ss -ltnp` survey
+   (`lib_py.util.listening_port_pids`) and skips every spec that is provably
+   quiescent — no declared port listening and no pidfile on disk
+   (`_server_launcher_part2_mixina._quiescent`). One sweep is ~135 ms; the
+   per-port probes were ~50–100 ms *each*. When `ss` is unavailable the
+   survey returns `None` and every spec is visited exactly as before.
+
+2. **`inspect.stack()` in `server_registry._caller_site()`.** `stack()`
+   eagerly builds source context for *every* frame in the (deep) pytest stack
+   — ~84 ms per call, × 126 fleet registrations ≈ 10 s per session. Replaced
+   with a raw `currentframe()`/`f_back` walk (microseconds). Rule: never call
+   `inspect.stack()` on a hot path; walk frames yourself.
+
+3. **The server-declaration gate re-parsed 1,040 module ASTs every run** (and
+   again in every xdist worker). `conftest_part3` now persists the per-module
+   analysis (`fleet_declares.analyze_source` usage rows + autouse specs) in
+   `config.cache` under `fleet_declares/analysis`, keyed by
+   `[st_mtime_ns, st_size]`; only gw0 writes under xdist; corruption degrades
+   to a full parse. Unit tests: `test_conftest_fleet_lifecycle.py`.
+
+4. **A bare `pytest` from the repo root crawled `k8s-tests/remote-suite/tests`**,
+   whose basenames shadow `tests/` modules → 19 `ImportPathMismatchError`s
+   *after* ~25 s of wasted collection. `pytest.ini` now sets `testpaths =
+   tests`; explicit path arguments are unaffected.
+
+**Bonus: cross-session crypto-artifact snapshot (`fleet_prep`).** Every
+session regenerated identical PKI + proxies + signing keys + JWKS + issued
+JWTs (~11 s) because sessionfinish rmtree's TEST_ROOT — even though step 3's
+own comment said "reuse across sessions". `fleet_prep.prepare()` now
+snapshots the pristine post-generation `pki/` + `tokens/` trees *outside*
+TEST_ROOT (`~/.cache/nginx-xrootd/fleet-prep/<lane-key>`, honoring
+`XDG_CACHE_HOME`) and restores them on the next session (~0.02 s). It lives
+under `~/.cache` and NOT under `tempfile.gettempdir()` deliberately, and the
+first cut got this wrong twice over: the suite pins `TMPDIR=TEST_ROOT/tmp`
+(`conftest_part3`), so under pytest a `gettempdir()`-based cache lands
+*inside* the tree sessionfinish destroys — permanently cold in the exact
+context it was built for — and even real `/tmp` gets scrubbed by concurrent
+lanes' `/tmp/brix*` tidying on a shared dev box. Anything meant to persist
+across sessions must live outside both TEST_ROOT and `gettempdir()`.
+Safety envelope: keyed per resolved
+TEST_ROOT (scitokens.cfg embeds absolute paths); invalidated by generator
+source stamps, by a 4 h TTL (proxies live 12 h, JWTs 24 h — every restored
+credential stays well inside its window), and by sentinel files so a
+tolerated generator failure is never snapshotted; `BRIX_FLEET_PREP_CACHE=0`
+opts out. Each session still starts from a wiped tree — the snapshot is the
+pristine state, so clean-slate semantics are unchanged. Tests:
+`tests/test_fleet_prep_cache.py` (round-trip, TTL/corruption fallback,
+generator-change refusal, incomplete-generation refusal, disable knob).
+
+**Known pre-existing wart (not a regression).** `rmtree(ignore_errors=True)`
+at sessionfinish leaves `registry/xrdhttp/ca-public/` behind: that directory
+is deliberately created 0555 with 0444 files, so the unlink fails silently.
+Present in lanes predating any of this work. `fleet_prep._force_rmtree`
+shows the chmod-then-retry pattern if anyone wants to close it.
+
+## 12. The clean that wasn't — stale `BRIX_CVMFS_OBJS` survive `make -C client clean` (2026-08-17)
+
+**Symptom.** After inserting `int no_fsync` mid-struct in
+`shared/cache/cas_store.h` (phase-104 batched-publish durability), every
+`brixMount cvmfs` FUSE mount deadlocked forever: single thread blocked in
+`pthread_mutex_lock` inside `brix_cas_pack_has` ← `cvmfs_fetch_object` ←
+`load_trust_and_catalog`, right after fetching `.cvmfspublished` and
+`.cvmfswhitelist`. The mutex word contained ASCII path bytes. A
+`make -C client clean && make` — the standard struct-ABI remedy — did NOT
+cure it, which is what made this one worth a postmortem.
+
+**Why clean didn't clean.** The cvmfs client core links
+`BRIX_CVMFS_OBJS` — ~30 objects compiled *into the `../shared` tree*
+(`shared/cvmfs/**/*.o`, `shared/cache/*.o`) by a client-Makefile static
+pattern rule. The `clean` target only removed client-tree objects, so those
+survived every "clean" rebuild with the OLD struct layout. Stale
+`client.o`/`fetch.o` (old `cvmfs_client_t` offsets — everything after the
+embedded `brix_cas_store_t` shifted 8 bytes) mixed with fresh TUs: the
+fresh reader's `fetch.cache`/`pack` loads landed on the stale writer's
+`catalog_tmp` path bytes. All writes in-bounds of the one big
+`cvmfs_client_t` allocation → **valgrind reports zero errors** while the
+"mutex" holds text. Two extra traps compounded it: (1) the objects are
+`.SECONDARY`, so after hand-deleting the stale `.o`, `make` still declared
+`bin/brixMount` up-to-date (newer than all sources) and relinked nothing —
+the binary must be removed (or a source touched) to force the relink;
+(2) `-MMD` dep files listed the header, but the `.d`s live next to the
+`.o`s in `shared/` and were equally stale/ignored by the incremental flow
+people actually run.
+
+**Diagnosis path that worked** (after strace/gdb-attach dead ends —
+yama blocks attach; run UNDER gdb and `kill -INT` the gdb): breakpoint on
+`pthread_mutex_lock` printing `$rdi` + lock word each hit → last hit showed
+`lock=0x45524744` (ASCII); valgrind clean ruled out wild writes; a
+`sizeof/offsetof` probe compiled under both flag sets ruled out flag-driven
+layout divergence; `find shared -name '*.o' ! -newer shared/cache/cas_store.h`
+found 85 stale objects and named the real culprit in one line.
+
+**Fix.** `client/Makefile` `clean` now also removes
+`$(BRIX_CVMFS_OBJS)` and their `.d` files. Full remedy for any
+shared-struct change remains: `make -C client clean && make -C client -j`
+— and that is now sufficient. Verified: quickstart 14/14, ingest-image
+11/11, ingest-oracle 4/4 on the canonical rebuild.
+
+**Rule sharpened.** "Struct field change ⇒ clean rebuild" is necessary but
+was not sufficient before the clean-target fix; the failure mode of a
+half-stale link is NOT a crash but in-bounds garbage — deadlocks on
+text-filled mutexes, pointers into path buffers — invisible to valgrind
+and immune to "but I rebuilt clean". If a brix client binary misbehaves
+impossibly after a shared-header layout change, audit for object files
+OLDER than the header across every tree the link list reaches:
+`find client shared -name '*.o' ! -newer <changed-header>`.
+
+## 13. Two harness traps found while closing the TPC off-arm audit (2026-08-18)
+
+Both surfaced while landing `tests/test_audit16v_tpc_off_arms.py` (audit
+tranche 16, file 22). Neither is about that file; both are about state that
+outlives a session.
+
+**A poisoned per-lane prep snapshot is permanent.** `brix_suite/prep_steps.py`
+snapshots a lane's freshly generated `pki/` + `tokens/` under
+`~/.cache/nginx-xrootd/fleet-prep/<sha256(test_root,pki_dir)>` and restores it
+on the next session for the same `TEST_ROOT`. Both the store and the restore
+are gated on `_missing_sentinels()` — "one per tolerated generator" — but the
+`fleet-artifacts` step (`tokenforge.py fleet-artifacts`, the multi-key JWKS and
+the two-issuer `scitokens.cfg`) had no sentinel. An interrupted run leaves
+`jwks_multi.json` written and `scitokens.cfg` not; that half-tree passed the
+sentinel check, got snapshotted, and was restored on every later session, where
+the fleet died at conf time with
+
+    nginx: [emerg] brix_token_config: open <root>/tokens/scitokens.cfg:
+    No such file or directory in <root>/registry/token-registry/conf/nginx.conf:20
+
+on both start-all attempts, so 0 tests ran. Regenerating by hand cures the
+tree and not the cache: the next session restores the same half-tree. Two
+lanes (`/tmp/xrd-16v`, `/tmp/xrd-16w`) were wedged this way and every retry
+reproduced it identically — the classic signature of cached state, not of load.
+**Fixed** by adding `tokens/scitokens.cfg` to `_missing_sentinels`, which makes
+the half-tree both unsnapshottable and unrestorable, with two new cases in
+`tests/test_fleet_prep_cache.py` (a killed forge is never stored; a snapshot
+that lost the file is refused on restore). Manual escape hatch if a lane is
+already wedged: delete its cache directory, or run with
+`BRIX_FLEET_PREP_CACHE=0` once.
+
+**A raw-socket TPC pull cannot complete without the client's half of the
+rendezvous.** Native TPC is two opens of the SOURCE: the initiating client's,
+carrying `tpc.key`+`tpc.dst`, which registers the key
+(`brix_tpc_key_register`, `src/protocols/root/read/open_tpc.c:165`), and the
+destination's pull leg, carrying `tpc.key`+`tpc.org`, which consumes it. Any
+suite that drives the destination directly over the wire — without xrdcp — must
+do the first open itself or every pull is refused `TPC authorization missing or
+expired` before any gate under test is reached. Keys are single-use (consume
+zeroes the slot), so one key is worth one transfer. The registry is one
+shared-memory table per worker (`src/tpc/engine/key_registry.c`), so the
+registering open may go to any listener in the instance, not necessarily the one
+the destination will pull from.
+
+**Carried out of the same session, unfixed:** on this working tree
+`test_tpc_pull_integrity.py::test_clean_pull_is_byte_exact` fails with
+`[3019] TPC checksum verify: cannot compute adler32 on destination`, and the
+server log names the cause — `brix: adler32 read("<dst>") failed (9: Bad file
+descriptor)`. `tpc_verify_source_checksum` (`src/tpc/outbound/source_stream.c`)
+still preads `t->dst_fd`, but the uncommitted VFS-writer rework of the TPC
+destination (`launch_prepare.c` staged/random writer, `done.c`,
+`tpc_internal.h`) can leave that fd invalid — `brix_vfs_writer_fd` returns
+`NGX_INVALID_FILE` for a driver-backed staged object. The verify has to read
+back through the writer/object (`brix_checksum_hex_obj`) or after commit. It
+reproduces on the pristine HEAD copy of the test file, so it is the tree's, not
+the suite's: `brix_tpc_verify_checksum on` currently fails closed on a clean
+copy.
+
+---
+
+## 14. Whose lane is it? — reaping a live session's fleet (2026-08-19)
+
+§10 is the same word from the other side. There, the reaper's ownership rule was
+too *loose* — a substring match let `/tmp/xrd-test` SIGTERM a lane called
+`/tmp/xrd-test-a15aa` — and the fix made the rule exact: whole path components,
+plus the parent-argv rule that catches the nginx worker whose own command line
+names no path. That rule is now proven against a live fleet by
+`tests/test_ci_ts3_settings_live_lane.py`, and it held. This entry is about the
+question one level up, which nothing in that machinery ever asked.
+
+**What happened.** A gate run of mine was SIGTERMed at its timeout. Looking for
+leftovers I found ~211 fleet processes, read the lane root `/tmp/xrd-16aa` off a
+`ps` listing, and called `kill_orphans('/tmp/xrd-16aa')` — twice. Sixty to two
+hundred and fifteen processes died. `/proc/1749562/environ` afterwards showed
+`TEST_ROOT=/tmp/xrd-16aa` belonging to a **live** concurrent session running
+`pytest test_audit16aa_webdav_redirect_arms.py -n 2 --dist loadgroup`, started
+seven minutes earlier and still going. Its suite was cut off mid-run.
+
+**Why the listing looked like mine.** Lane roots are derived from the test file
+name — `test_audit16aa…` → `/tmp/xrd-16aa` — so a root carries no session
+identity whatsoever. A fleet mid-run and a fleet someone abandoned present
+identically in `ps`: same daemons, same paths, same ages. `find_orphans(root)`
+answers "which processes belong to this root" and answers it exactly; it has
+never answered "is this root mine", and neither had anything else. Every part of
+the machinery worked. The boundary I handed it was wrong, and precision on the
+wrong boundary is a precision weapon. This host habitually runs several sessions
+at once, which is the *normal* condition here, not an unlucky one.
+
+**The fix: read the declaration, not the listing.** A harness puts `TEST_ROOT`
+into its own environment. `/proc/<pid>/environ` reports that for every live
+process, and unlike a path in an argv it is a *claim* rather than a reference —
+daemons reference the tree, only the harness declares it. `brix_suite.orphans`
+grew, in `tests/brix_suite/orphans.py`:
+
+* `lane_claimants(root)` — every live process declaring that root;
+* `lane_harnesses(root)` — the subset that is a harness;
+* `live_lanes()` — the whole host as `{root: [(pid, cmdline)]}`, which is the
+  check to run *before* a reap, since it answers the question a per-root query
+  cannot: not "who is in this lane" but "which lanes are anyone's";
+* `kill_orphans(root, force=False)` — the default — raising `ForeignLaneError`
+  naming the pids instead of killing them.
+
+A harness reaping its own lane is exempt automatically: the claimant is the
+caller or one of its ancestors (`_ancestry()` walks up only, so a child harness
+a test spawns still blocks its parent). That exemption is why the single
+production caller — conftest teardown — needed no change at all, and why
+`test_fleet_teardown_orphans.py` stayed 8/8 **unmodified** with the gate on.
+
+**Two narrowings, and the second failed its own test first.** `TEST_ROOT` is
+inherited by every process a harness shell launches, so the default lane on this
+host showed 22 live "claimants" that were a `CodeChecker analyze -j 20` fleet
+working under `<root>/tmp/` — live in the lane, unharmed by its teardown, and
+enough to block every routine reap. Hence only *harnesses* gate a reap. Then
+harness-ness itself: the first cut asked `"pytest" in cmdline`, and every path
+under pytest's own `tmp_path` begins `/tmp/pytest-of-<user>/`, so a substring
+test reads the directory a process works in as the program it runs. It passed
+the harness case and failed the passer-by case in the same test. Matching is now
+per argv token's **basename**, which keeps both real spellings (`python -m
+pytest` puts the marker in a token of its own; `-m cmdscripts.manage_test_servers`
+has no separator for `basename` to strip) and stops reading working directories
+as identities. The general rule both narrowings serve: **a gate that fires on
+the routine case gets `force=True` pasted over it, and then it protects
+nothing.**
+
+**A side effect worth recording.** `test_ci_ts4_prep_and_declares.py` pinned
+`orphans.py` as a *verbatim* move from its `_legacy` archive by set-equality of
+definitions, so the fix could not land without failing it. The archive pins the
+**move** — that nothing was lost or quietly rewritten on the way across — not the
+module's future, and a module nobody may fix is not an asset. It now carries
+`_ADDED_SINCE_MOVE` and `_CHANGED_SINCE_MOVE`: named entries with reasons rather
+than a superset rule, so a lost archived definition still fails, an undeclared
+addition fails, an unrecorded edit fails, and an entry that outlived the edit it
+was written for fails as stale. One comparison helper serves both the real pin
+and its own negative test, so no second caller can reimplement a looser one.
+
+**Gate:** `tests/test_ci_lane_ownership_gate.py` (11 tests — declaration
+visibility, harness-vs-passer-by, self-reap, host view; the refusal, the
+deliberate `force=True` override, the dead owner who must not hold a lane
+forever; and the negatives: prefix siblings, `TEST_ROOT=` empty, a lookalike
+argv that declares nothing, and a directory named like a harness). Narrative in
+the plan: `docs/refactor/testsuite-modernization-plan.md` §7, ask viii.
+
+**Open, seen while verifying the above.** One run of
+`test_ci_ts3_settings_live_lane.py` printed `collected 13 items` and then
+`no tests ran in 241.08s`, with **exit status 0**, no `[conftest] complete
+fleet stayed healthy` line, no skip, no error and no traceback. The immediate
+re-run of the same command was 13/13 in 198.0s. The host was carrying a
+concurrent `CodeChecker analyze -j 20` fleet at load average 13–21 at the time,
+so the likeliest reading is that the session-start fleet boot in
+`conftest_part5.pytest_collection_finish` did not complete and the run was
+abandoned quietly — but that is a hypothesis, not a diagnosis: the output was
+captured through `tail`, so whatever was printed between collection and the
+summary is gone. It is recorded here because the *shape* is the *fails green*
+class this tree keeps paying for — a suite that does nothing and reports
+success — and because a green CI run with thirteen collected and zero executed
+is indistinguishable from a real pass in any dashboard. Reproducing it wants a
+full untruncated log and a loaded host; the fix, if it is one, is in a
+pre-TS-4 conftest that TS-7 is the first phase allowed to touch.
+
+**Coda (2026-08-20) — a guard-only selection is still a fleet run.** Verifying
+the CI guards locally reads as the cheapest thing in the suite: every row in
+`tests/test_ci_guards.py` is a `subprocess.run` of a text scanner that never
+opens a socket. It is not cheap, because the fleet fixture is session-scoped
+and autouse — selecting only the guard modules still boots (or attaches to) the
+whole fleet, and it is the *teardown* of that session, not the guard rows, that
+owns `TEST_ROOT`. A guard sweep started while another session's lanes were
+live therefore carried the §14 hazard in full while looking like a static
+check. Two consequences worth keeping:
+
+- Check the host for a second live session before starting *any* pytest
+  invocation, including ones whose test bodies plainly need no servers.
+- To verify the guards alone, skip pytest: read the `_FAST` list out of
+  `tests/_test_ci_guards_helpers.py` and run each `tools/ci/<name>.py`
+  directly. Same artifacts, same verdicts, no fleet, no `TEST_ROOT`, seconds
+  instead of minutes. Use the pytest rows when what you are testing is the
+  *harness* — the injected-tree negatives and the backlog-growth refusals,
+  which have no command-line equivalent.
+
+The same sweep is also how a red guard gets misattributed. Four of the guards
+were red on the working tree that morning and none of the findings belonged to
+the wave being verified: `check_complexity` and `check_duplication` named
+`fd_table.c`, `s3/copy.c` and `module_acc_directives.c`, all three carrying a
+concurrent session's uncommitted `brix_read_only` work, and one of
+`check_doc_links`' entries pointed at that session's untracked
+`read-only-root-gateway.md`. On a shared working tree a guard verdict is a
+statement about the *tree*, not about your change; attribute each finding with
+`git status`/`git diff` before touching a line of it, because "fixing" the
+other session's half-written feature is the §14 incident in a different
+costume.
+
+## 15. Two ways a test reports green having asserted nothing (2026-08-19)
+
+Both found in the same afternoon, in the TS-5 gate tier, and they are the same
+failure wearing different clothes: a check that never ran, reported as a check
+that passed. Neither is exotic and neither leaves a mark in the output — the
+only tell is a number you have to already know is wrong.
+
+### 15.1 A skip escapes `pytest.raises(Exception)` and becomes the test's result
+
+`test_ci_ts5_cachemx_move.py` asserts that `_cachemx._require_binaries()` skips
+with a message naming the path it could not find — the message that would have
+been the entire visible symptom of an unfixed `__file__` hop. Written the
+obvious way:
+
+```python
+with pytest.raises(Exception) as excinfo:
+    cx._require_binaries()
+assert bogus in str(excinfo.value)
+```
+
+the file reported `26 passed, 1 skipped`. `Skipped` derives from
+**`BaseException`**, not `Exception`, precisely so that a `pytest.skip()` inside
+a helper cannot be swallowed by a broad `except Exception` somewhere up the
+stack. That is the right design, and it means `pytest.raises(Exception)` does
+not catch it either: the skip propagated out of the `with` block, out of the
+test, and became the *test's own outcome*. The assertion below it never
+executed. A green `1 skipped` for a test whose entire purpose is to prove a skip
+is indistinguishable, at a glance, from the environment-conditional skips the
+same file legitimately has.
+
+The fix is `pytest.raises(pytest.skip.Exception)`. The durable part is the
+second line of defence added with it — a `ran = True` set immediately after the
+`with` block and asserted afterwards, so if the body ever stops reaching its
+assertions again it fails loudly instead of skipping quietly:
+
+```python
+    ran = False
+    try:
+        with pytest.raises(pytest.skip.Exception) as excinfo:
+            cx._require_binaries()
+        ran = True
+    finally:
+        cx.XRDCP = saved
+    assert ran, "the skip was not caught here"
+```
+
+**Rule.** Any test that asserts a *skip* or a *fail* — `pytest.skip`,
+`pytest.fail`, `pytest.xfail` — must name the outcome class, never `Exception`,
+and should carry a reached-the-end flag. The same applies to `KeyboardInterrupt`
+and `SystemExit` for the same reason: they are `BaseException` too.
+
+### 15.2 A gate file is classified slow by its filename and deselected
+
+Recorded in full under the TS-5 (mesh) row of the modernization plan's Appendix
+E; summarised here because it belongs with §15.1. `conftest_part3`
+`_SLOW_MODULE_HINTS` auto-marks a module `slow` when its *name* contains any of
+thirty-odd substrings; `pytest.ini`'s PR gate runs `-m "not slow"`. A gate file
+named `test_ci_ts5_mesh_move.py` matched `_mesh`, all forty of its tests were
+deselected, and the gate set reported `310 passed` — correct arithmetic over the
+tests that ran, and no line at all for the file that did not.
+
+The classifier reads a filename as a workload. Its own comment argues that
+over-inclusion is safe because the full suite covers everything, which is true
+of a slow suite and false of a gate, whose entire job is to be the fast tier.
+The immediate fix was the filename; the standing one is
+`test_no_ci_gate_file_is_auto_marked_slow`, which reads the hint tuple out of
+the conftest by AST rather than copying it, and self-catches on the name that
+caused the incident so a hint tuple that quietly loses `_mesh` cannot leave the
+check passing over a tree it no longer protects. Marking by something a file
+*declares* rather than by what it is called is carried to TS-7.
+
+**Rule.** Before adding a file to the gate tier, check its name against
+`_SLOW_MODULE_HINTS`. `interop`, `conformance`, `_load`, `_e2e`, `hybrid`,
+`fuse`, `topolog` and `_mesh` are all in there, and several are words a gate for
+that cluster would naturally use.
+
+## 16. A path-keyed allowlist and a file that moved (2026-08-19)
+
+`tests/test_server_registry_lint.py` enforces a policy worth having: no test may
+start nginx itself instead of going through the lifecycle registry. Three files
+are permitted to, and they are named in `LAUNCH_BACKLOG`, a shrink-only
+`frozenset` of **paths relative to `tests/`**. The lint fails two ways — a
+launcher not in the set, and a set entry that no longer launches — which between
+them make the allowlist ratchet in one direction only.
+
+The TS-4 launcher move broke it, and nobody noticed for two weeks.
+
+```
+E   AssertionError: new direct nginx launch(es) — route through the registry:
+E   ['brix_suite/_legacy/_server_launcher_part2_mixinc_flat.py',
+E    'brix_suite/launcher/internals.py']
+```
+
+`INFRA_ALLOW` exempts `server_launcher.py` and `_server_launcher_part2_mixinc.py`
+**by filename**. TS-4 moved that stack into `brix_suite.launcher`, where the body
+that launches now lives in a file called `internals.py`, and froze its pre-move
+copy at `brix_suite/_legacy/_server_launcher_part2_mixinc_flat.py`. Neither name
+is in the exemption; neither path is in the backlog. Two offenders, from a move
+whose whole point was that nothing about the code changed.
+
+### 16.1 The archive convention collides with every content-scanning guard
+
+The second offender is the more general problem. A `_legacy/*_flat.py` archive is
+a **byte-identical copy** of a module, kept so a later reader can prove the move
+was verbatim. It therefore inherits every textual property the original had — and
+any guard that decides by scanning file content will see it as a second instance
+of whatever it looks for, at a path no allowlist has ever heard of.
+
+That is not specific to this guard. Any check of the form *"no file may contain
+X, except these paths"* acquires a new false positive each time a module
+containing X is archived. The archive is not a test, is imported by nothing, and
+runs never — so the finding is always wrong, and always requires an edit to the
+guard rather than to the archive.
+
+**Rule.** A guard that scans file *content* and allowlists by *path* must exclude
+`tests/brix_suite/_legacy/` outright. Archives are frozen copies; they cannot be
+fixed, only exempted, and exempting them one at a time is a ratchet running
+backwards.
+
+### 16.2 What it cost the perf cluster
+
+TS-5's perf cluster is four modules and should have been five.
+`tests/_perf_netem_helpers.py` — the unprivileged high-BDP A/B harness that
+builds a `veth` pair inside a user+network namespace — is the third
+`LAUNCH_BACKLOG` entry. Moving it produces three failures at once:
+
+| what the move creates | how the lint reads it |
+|---|---|
+| `brix_suite/perf/_perf_netem_helpers.py` | new direct launcher, not allowlisted |
+| `brix_suite/_legacy/_perf_netem_helpers_flat.py` | new direct launcher, not allowlisted |
+| `_perf_netem_helpers.py` (now a shim) | **stale** backlog entry — no longer launches |
+
+All three are fixable only inside `test_server_registry_lint.py`, which NG1 holds
+unmodified until TS-7. So the module stayed flat, and the cluster carries a test
+(`test_moving_the_netem_harness_would_break_the_registry_lint`) that computes the
+two relpaths a move would produce and asserts neither is allowlisted — so the
+deferral is a decision with a proof attached rather than a module someone forgot.
+
+Leaving it behind turned out to be safe for a reason worth writing down. That
+module re-executes *itself* inside the namespace, and its `--measure` child does
+
+```python
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from _perf_ab_helpers import measure_read_throughput
+```
+
+Its `dirname` is still `tests/`, so the child finds the §10.2 shim and resolves
+through to `brix_suite.perf._perf_ab_helpers`. Had **both** moved, that same line
+would have found `_perf_ab_helpers` as a sibling in the new directory — the
+import would have succeeded — and failed one import later on `settings`, inside a
+child whose non-zero exit `run_ab_over_bdp` converts to `{"available": False}`
+and `test_perf_netem_bdp` converts to a **skip**, in a file that legitimately
+skips on any host without podman. `netns_bdp_available()` returns True here, so
+that was a live path and the skip would have been a lie about the host.
+
+### 16.3 The second guard nothing in the loop was running
+
+This is the same shape as the `_FAST` gap found the day before, where four TS
+guards joined the pre-push set by glob while the hand-maintained fast list did
+not follow. Here the guard was neither in the gate set nor in `_FAST`, so a move
+programme that reruns its own gates on every cluster ran this one exactly never
+— until a cluster happened to need to read `LAUNCH_BACKLOG` and ran the file to
+see what was in it.
+
+**Rule.** When a phase moves modules across the tree, the suites to re-run are
+not only the ones that *import* what moved. Anything that decides by **path** —
+allowlists, backlogs, inventories, coverage maps — is a consumer too, and its
+input changed even though no import did.

@@ -358,25 +358,44 @@ brix_qconfig_emit_fattr(ngx_stream_brix_srv_conf_t *conf,
 typedef struct {
     const char           *key;
     brix_qconfig_emit_fn  emit;
+    ngx_flag_t            public_safe;
 } brix_qconfig_entry_t;
 
+/* WHAT: `public_safe` — may this key still be answered under
+ *       `brix_read_only_public`?
+ * WHY:  The public posture withholds SERVER configuration, not PROTOCOL
+ *       capability.  Every key below whose value is a constant of the wire
+ *       implementation (what this build can do, and the limits a client must
+ *       respect to talk to it correctly) is safe: withholding it does not hide
+ *       anything an anonymous client cannot infer by trying, and DOES break
+ *       transfer tuning — a client that cannot read readv_ior_max/readv_iov_max
+ *       falls back to conservative defaults and issues far more, far smaller
+ *       vector reads.  Keys that describe the DEPLOYMENT — which build is
+ *       running (`version`), what role this node plays in a cluster (`role`) —
+ *       are the fingerprinting surface the posture exists to close, so they are
+ *       withheld and answered exactly like an unknown key.
+ * HOW:  0 (the implicit initialiser) means WITHHELD.  A new row added without
+ *       thinking about disclosure therefore fails closed: it is invisible to a
+ *       public client until someone deliberately marks it 1. */
 static const brix_qconfig_entry_t  brix_qconfig_table[] = {
-    { "chksum",        brix_qconfig_emit_chksum        },
-    { "readv",         brix_qconfig_emit_readv         },
-    { "readv_ior_max", brix_qconfig_emit_readv_ior_max },
-    { "readv_iov_max", brix_qconfig_emit_readv_iov_max },
-    { "tpc",           brix_qconfig_emit_tpc           },
-    { "tpcdlg",        brix_qconfig_emit_tpcdlg        },
-    { "cmpread",       brix_qconfig_emit_cmpread       },
-    { "cmpwrite",      brix_qconfig_emit_cmpwrite      },
-    { "xrdfs.ext",     brix_qconfig_emit_xrdfs_ext     },
-    { "brix.substreams", brix_qconfig_emit_substreams  },
-    { "version",       brix_qconfig_emit_version       },
-    { "bind_max",      brix_qconfig_emit_bind_max      },
-    { "pio_max",       brix_qconfig_emit_pio_max       },
-    { "role",          brix_qconfig_emit_role          },
-    { "fattr",         brix_qconfig_emit_fattr         },
-    { NULL,            NULL                            },
+    /*   key                emitter                          public_safe */
+    { "chksum",        brix_qconfig_emit_chksum,        1 },
+    { "readv",         brix_qconfig_emit_readv,         1 },
+    { "readv_ior_max", brix_qconfig_emit_readv_ior_max, 1 },
+    { "readv_iov_max", brix_qconfig_emit_readv_iov_max, 1 },
+    { "tpc",           brix_qconfig_emit_tpc,           1 },
+    { "tpcdlg",        brix_qconfig_emit_tpcdlg,        1 },
+    { "cmpread",       brix_qconfig_emit_cmpread,       1 },
+    { "cmpwrite",      brix_qconfig_emit_cmpwrite,      1 },
+    { "xrdfs.ext",     brix_qconfig_emit_xrdfs_ext,     1 },
+    { "brix.substreams", brix_qconfig_emit_substreams,  1 },
+    { "bind_max",      brix_qconfig_emit_bind_max,      1 },
+    { "pio_max",       brix_qconfig_emit_pio_max,       1 },
+    { "fattr",         brix_qconfig_emit_fattr,         1 },
+    /* Deployment identity — withheld from a public read-only gateway. */
+    { "version",       brix_qconfig_emit_version,       0 },
+    { "role",          brix_qconfig_emit_role,          0 },
+    { NULL,            NULL,                            0 },
 };
 
 /* WHAT: Dispatches one query key: scans brix_qconfig_table for a matching emitter and invokes it, or —
@@ -393,15 +412,23 @@ brix_qconfig_emit_key(const char *key, ngx_stream_brix_srv_conf_t *conf,
     const brix_qconfig_entry_t *e;
 
     for (e = brix_qconfig_table; e->key != NULL; e++) {
-        if (strcmp(key, e->key) == 0) {
-            return e->emit(conf, resp, resp_sz, pos);
+        if (strcmp(key, e->key) != 0) {
+            continue;
         }
+        /* Withheld under brix_read_only_public: fall through to the echo below
+         * rather than inventing a new answer, so a restricted key is
+         * indistinguishable on the wire from one this build never supported —
+         * no disclosure, and the client takes a code path it already has. */
+        if (conf->common.read_only_public && !e->public_safe) {
+            break;
+        }
+        return e->emit(conf, resp, resp_sz, pos);
     }
 
     return brix_qconfig_append(resp, resp_sz, pos, "%s\n", key);
 }
 
-/* public API: brix_query_config() — kXR_Qconfig capability query handler * WHAT: Main handler for Qconfig requests. Initializes 512-byte response buffer, parses whitespace-separated query keys via qconfig_next_token loop, and dispatches each key through the static descriptor table (brix_qconfig_emit_key). Unknown keys echo the key name. Empty query returns kXR_ArgMissing; populated response sends resp at pos bytes. */
+/* public API: brix_query_config() — kXR_Qconfig capability query handler * WHAT: Main handler for Qconfig requests. Initializes 512-byte response buffer, parses whitespace-separated query keys via qconfig_next_token loop, and dispatches each key through the static descriptor table (brix_qconfig_emit_key). Unknown keys echo the key name. Empty query returns kXR_ArgMissing; populated response sends resp at pos bytes. Under brix_read_only_public the table's public_safe column withholds the deployment-identity keys (they echo like unknown keys) while capability/limit keys still answer — see the table comment: refusing the whole query instead would leave clients with no readv limits and no checksum list, i.e. it would break transfer tuning to hide nothing worth hiding. */
 
 ngx_int_t
 brix_query_config(brix_ctx_t *ctx, ngx_connection_t *c,

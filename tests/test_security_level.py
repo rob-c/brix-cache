@@ -104,10 +104,8 @@ def _close(sock, fhandle):
 
 
 def _security_requirements(body):
-    assert len(body) >= 18
-    sec_count = body[10]
-    offset = 8 + 4 + sec_count * 8
-    reqs = body[offset:offset + 6]
+    assert len(body) >= 14
+    reqs = body[8:14]
     assert len(reqs) == 6
     assert reqs[0:1] == b"S"
     return {

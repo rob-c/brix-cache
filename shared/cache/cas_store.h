@@ -25,6 +25,9 @@ typedef struct {
     int   dirfd;         /* >=0 = openat-relative to this fd; -1 = absolute */
     long  quota_bytes;   /* high watermark; 0 = unbounded */
     long  cur_bytes;     /* running total (O(1) fill-guard) */
+    int   no_fsync;      /* batch mode: skip the per-put fsync; the caller owns
+                          * ONE durability barrier (brix_plat_sync_tree) before
+                          * publishing any reference to the stored objects */
     struct brix_cas_pack *pack;   /* non-NULL = packed backend (phase-87 G4);
                                    * every op below dispatches to it */
 } brix_cas_store_t;
@@ -60,7 +63,8 @@ int brix_cas_has(const brix_cas_store_t *s, const char *key);
 /* Open read-only; returns an fd (caller closes) or -1 (errno set). */
 int brix_cas_open(const brix_cas_store_t *s, const char *key);
 
-/* Atomically store `len` bytes for `key` (temp + fsync + rename). Idempotent.
+/* Atomically store `len` bytes for `key` (temp + fsync + rename; the fsync is
+ * skipped in no_fsync batch mode — see the struct field). Idempotent.
  * Updates the byte counter and auto-reaps to the low watermark if the store now
  * exceeds its quota. Returns 0/-1 (errno set). */
 int brix_cas_put(brix_cas_store_t *s, const char *key, const void *data, size_t len);

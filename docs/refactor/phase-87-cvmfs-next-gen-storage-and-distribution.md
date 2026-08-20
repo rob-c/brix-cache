@@ -120,7 +120,7 @@ features target **Linux (libfuse3), macOS (macFUSE/FSKit), and Windows
 | G4 | **Packed log-structured content store** — retire one-file-per-chunk; pblock-backed pack heap + mmap index | FUSE | B | `-o cache_format=packed` |
 | G5 | **Format-tiered content** — hot=raw-mmap / warm=zstd / cold=evict, temperature-driven | FUSE | B | `-o cache_tiering` (rides G4) |
 | G6 | **Perfect-hash mmap catalog index** — retire per-catalog SQLite on the hot lookup path | FUSE | B | `-o index=mmap` |
-| G7 | **Kernel-native reads** — composefs/EROFS image + overlay mount; reads bypass FUSE | FUSE | C | `brixMount cvmfs --kernel` |
+| G7 | **Kernel-native reads** — composefs/EROFS image + overlay mount; reads bypass FUSE | FUSE | C | `brixMount cvmfs --kernel` |  <!-- client-flags-allow: G7 proposal; brixMount has no --kernel -->
 | G8 | **fs-verity end-to-end integrity** — F1 verification enforced by the kernel on every page fault | FUSE | C | `--fsverity` (rides G7) |
 | G9 | **reflink CoW fast-path** — materialize cache objects as real CoW files for mmap/exec (lighter alt to G7) | FUSE | C | `-o reflink` |
 | G10 | **Cross-revision delta transfer** — ship binary deltas between revisions, not whole objects | Proxy | D | `brix_cvmfs_delta` |
@@ -621,7 +621,7 @@ dominates.
   kernel maps them directly. Reads, `mmap`, and exec are **kernel-native**,
   page-cache-shared across all processes, zero FUSE hops.
 - brixMount orchestrates: fetch/verify manifest → ensure content present (G2
-  bundle warms it) → emit image → mount. `brixMount cvmfs --kernel <fqrn>`.
+  bundle warms it) → emit image → mount. `brixMount cvmfs --kernel <fqrn>`.  <!-- client-flags-allow: G7 proposal; brixMount has no --kernel -->
 - Fallback: if the kernel lacks EROFS/overlay support or caps are unavailable,
   transparently fall back to the FUSE mount (fail-safe, never fails the mount).
 
@@ -1019,7 +1019,7 @@ proxy feature preserves (G2 bundle serves residents only; G16's member walk
 is bounded by the configured member count). (3) The one leg that IS pure
 userspace and verifiable without mounts — rendering a revision as an OCI tar
 layer — is therefore a client-tool concern: `brixcvmfs` already owns
-fetch+walk, and a future `brixcvmfs export --format=oci-tar` would deliver
+fetch+walk, and a future `brixcvmfs export --format=oci-tar` would deliver  <!-- client-flags-allow: explicitly future tooling; brixcvmfs has no export subcommand -->
 "CVMFS content without a CVMFS client" as a userspace-verifiable artifact.
 That leg is registered as future client-tooling work, not landed now: a tar
 is a copy, not a CAS share, so it carries none of G14's distinguishing value,
@@ -1351,7 +1351,7 @@ reuses the G7 emitter (Wave C infra-blocked), the catalog→tree walk plane is
 client-only (`shared/cvmfs/{walk,catalog}` link solely into
 `client/apps/fs/brixcvmfs.c` — not in the proxy source list), and a proxy-side
 image endpoint would be amplification-shaped. The feasible userspace leg is
-registered as future client tooling (`brixcvmfs export --format=oci-tar`).
+registered as future client tooling (`brixcvmfs export --format=oci-tar`).  <!-- client-flags-allow: explicitly future tooling; brixcvmfs has no export subcommand -->
 Full grounds in the G14 "RULED" block. Phase-87 is now closed except the
 infra-blocked Wave C items.
 

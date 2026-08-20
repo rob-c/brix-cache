@@ -60,6 +60,8 @@
     X(WEBDAV,  "webdav",  "webdav",  1)  /* WebDAV/HTTP (davs://, http://)*/ \
     X(S3,      "s3",      "s3",      1)  /* S3-compatible REST            */ \
     X(CVMFS,   "cvmfs",   "cvmfs",   1)  /* cvmfs:// site cache (ph-68)   */ \
-    X(GRIDFTP, "gridftp", "gridftp", 0)  /* GridFTP gateway (gsiftp://)   */
+    X(GRIDFTP, "gridftp", "gridftp", 0)  /* GridFTP gateway (gsiftp://)   */ \
+    X(OCI,     "oci",     "oci",     1)  /* OCI registry mirror (ph-104)  */ \
+    X(RPM,     "rpm",     "rpm",     1)  /* RPM/dnf mirror (ph-104 D15.9) */
 
 #endif /* BRIX_PROTO_LIST_H */

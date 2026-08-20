@@ -6,3 +6,7 @@
 2026-07-01T12:00:05+00:00 ip=198.51.100.23 proto=cvmfs signal=proxyabuse op=read path="evil.example.com:8000" status=403
 2026-07-01T12:00:06+00:00 ip=203.0.113.77 proto=cvmfs signal=cvmfs_tamper op=read path="/cvmfs/repo.example.io/data/ab/cdef0123456789abcdef0123456789abcdef01" status=502
 2026-07-01T12:00:07+00:00 ip=198.51.100.44 proto=root signal=tpc_egress op=write path="internal.db.local" status=3010
+2026-07-01T12:00:08+00:00 ip=203.0.113.150 proto=oci signal=oci_tamper op=read path="/v2/lab/app/blobs/sha256:dfe93432ef161f06908a6799c198673faaa6f9ca3c84333a85e006d408add9db" status=502
+2026-07-01T12:00:09+00:00 ip=198.51.100.61 proto=oci signal=ocipush op=write path="/v2/lab/app/blobs/uploads/" status=405
+2026-07-01T12:00:10+00:00 ip=203.0.113.151 proto=rpm signal=rpm_tamper op=read path="/centos/9/os/x86_64/repodata/9a1f5c3e0d7b2846e5f0c1b9d84a72f3c6e5b0a1928374655647382910abcdef-primary.xml.gz" status=502
+2026-07-01T12:00:11+00:00 ip=198.51.100.62 proto=rpm signal=rpmwrite op=write path="/centos/9/os/x86_64/Packages/evil.rpm" status=405

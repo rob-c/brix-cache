@@ -365,7 +365,13 @@ brix_configure_gsi(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *xcf)
     if (xcf->auth != BRIX_AUTH_GSI && xcf->auth != BRIX_AUTH_BOTH
         && !brix_protbind_any_names(xcf->protbind, BRIX_AUTH_GSI))
     {
-        return NGX_OK;
+        /* An anonymous TPC destination may still use brix_trusted_ca for
+         * outbound TLS/GSI peer verification.  Build that store without
+         * requiring an inbound GSI certificate/key pair. */
+        if (xcf->trusted_ca.len == 0) {
+            return NGX_OK;
+        }
+        return brix_rebuild_gsi_store(xcf, cf->log, cf->cycle);
     }
 
     if (brix_gsi_require_trust_inputs(cf, xcf) != NGX_OK) {

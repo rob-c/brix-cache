@@ -1,0 +1,5 @@
+{
+  "host": "{host}",
+  "port": {port},
+  "message": "hello from the BriXTest example server"
+}

@@ -33,6 +33,8 @@ Contract citations
 * Client ingest (same frames): ``shared/cvmfs/fetch/fetch_bundle.c``.
 """
 
+from __future__ import annotations
+
 import hashlib
 import os
 import random

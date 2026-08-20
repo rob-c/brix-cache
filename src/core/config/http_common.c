@@ -46,15 +46,19 @@ static ngx_conf_enum_t  brix_sts_flavor_enum[] = {
 };
 
 /*
- * brix_cache_verify values on the HTTP plane.  Only the self-verifying
- * cvmfs-cas scheme is meaningful here today (best-effort/require need an
- * origin-digest hook the HTTP-plane fill does not carry); this mirrors the
- * cvmfs module's enum exactly so owning the bare name here is a pure move, not
- * a grammar change.  Protocol merges validate which values they support.
+ * brix_cache_verify values on the HTTP plane.  Only the SELF-verifying schemes
+ * are meaningful here (best-effort/require need an origin-digest hook the
+ * HTTP-plane fill does not carry): cvmfs-cas, whose key names a sha1, and
+ * phase-104's oci-digest, whose key names a sha256, and rpm-repodata, whose
+ * key is a createrepo `<checksum>-<name>` metadata file.  This mirrors the cvmfs
+ * module's enum exactly so owning the bare name here is a pure move, not a
+ * grammar change.  Protocol merges validate which values they support.
  */
 static ngx_conf_enum_t  brix_http_cache_verify_enum[] = {
-    { ngx_string("off"),       BRIX_CACHE_VERIFY_OFF },
-    { ngx_string("cvmfs-cas"), BRIX_CACHE_VERIFY_CVMFS_CAS },
+    { ngx_string("off"),        BRIX_CACHE_VERIFY_OFF },
+    { ngx_string("cvmfs-cas"),  BRIX_CACHE_VERIFY_CVMFS_CAS },
+    { ngx_string("oci-digest"), BRIX_CACHE_VERIFY_OCI_DIGEST },
+    { ngx_string("rpm-repodata"), BRIX_CACHE_VERIFY_RPM_REPODATA },
     { ngx_null_string, 0 }
 };
 

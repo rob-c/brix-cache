@@ -21,6 +21,7 @@
 #include "core/ngx_brix_module.h"
 #include "op_path.h"
 #include "fs/path/beneath.h"
+#include "fs/path/reserved_names.h"   /* brix_is_internal_name — hide sidecars */
 #include "fs/path/path_internal.h"
 #include "fs/vfs/vfs.h"   /* existence/type pre-gate via the VFS seam */
 #include "protocols/shared/deleg_wire.h"   /* §5.2 aud gate + §5.4 exchange */
@@ -285,10 +286,20 @@ op_path_gate(ngx_stream_brix_srv_conf_t *conf, ngx_log_t *log,
  * lexical join.  Shared by brix_resolve_op_path() and direct multi-path
  * callers (kXR_mv).  reqpath must already be extracted from the wire.
  *
+ * A path naming an internal artifact (a cache sidecar, a stage-out marker, an
+ * in-flight upload temp) is refused as ABSENT here, exactly as kXR_open/stat/
+ * statx refuse it and exactly as the HTTP planes 404 it — unless the location is
+ * a declared cache-STORE endpoint, the one surface for which those names are
+ * legitimate request targets. Without this, the mutating opcodes that resolve
+ * through here (rm, rmdir, chmod, mkdir, truncate, readlink, fattr, and mv on
+ * both of its paths) would be the only ops in the tree able to act on a name no
+ * op will show, stat, or open — unlink included.
+ *
  * Returns:
  *   NGX_OK       — valid and the existence requirement is met; resolved filled.
- *   NGX_DECLINED — path is well-formed but the existence gate failed
- *                  (EXISTING: target missing; WRITE: parent dir missing) → 404.
+ *   NGX_DECLINED — path is well-formed but reserved, or the existence gate
+ *                  failed (EXISTING: target missing; WRITE: parent dir missing)
+ *                  → 404. The two are deliberately indistinguishable.
  *   NGX_ERROR    — malformed path (depth, "."/"..", WRITE trailing slash, or
  *                  the join overflowed resolved_sz) → 4xx ArgInvalid.
  */
@@ -305,6 +316,13 @@ brix_path_resolve_beneath(ngx_stream_brix_srv_conf_t *conf, ngx_log_t *log,
         || brix_op_path_forbidden_component(reqpath))
     {
         return NGX_ERROR;
+    }
+
+    /* Reserved before existent: NGX_DECLINED is the gate's own "missing" answer,
+     * so a reserved name and an absent one leave here by the same door and the
+     * caller's error text cannot tell a client which it was. */
+    if (!conf->common.cache_store_endpoint && brix_is_internal_name(reqpath)) {
+        return NGX_DECLINED;
     }
 
     op_path_mode_flags(mode, &want_dir, &strip_trailing_slash);

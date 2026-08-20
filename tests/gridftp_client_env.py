@@ -1,33 +1,23 @@
-"""Shared GSI client-environment helper for the globus-url-copy gridftp tests.
+"""GSI client environment — §10.2 self-replacement shim (TS-5).
 
-Centralises one subtle, easy-to-reintroduce gotcha: how globus-url-copy selects
-its client credential when the test fleet runs as root on a real grid node.
+The body moved to :mod:`brix_suite.clients.gridftp` (pre-move body archived at
+``brix_suite/_legacy/gridftp_client_env_flat.py``).  Five gsiftp suites import
+this name.
 """
-import os
 
+import os as _os
+import sys as _sys
 
-def gsi_client_env(cert_dir, proxy, base=None):
-    """Build a subprocess env that presents *proxy* as the GSI client credential.
+_SRC = _os.path.join(
+    _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))),
+    "brixtest", "src",
+)
+if _SRC not in _sys.path:
+    _sys.path.insert(0, _SRC)
+_TESTS = _os.path.dirname(_os.path.abspath(__file__))
+if _TESTS not in _sys.path:
+    _sys.path.insert(0, _TESTS)
 
-    globus-url-copy honours ``X509_USER_PROXY`` only for a non-root caller.
-    Running as uid 0 — which the test fleet does on a real grid worker node — it
-    silently IGNORES the proxy and falls back to the host credential at
-    ``/etc/grid-security/hostcert.pem``.  On a production grid host that cert is
-    issued by a real IGTF CA that is (correctly) absent from the ephemeral test
-    trust store, so the gateway rejects it with "unable to get local issuer
-    certificate" and every LIST/RETR/STOR fails with ``535 GSSAPI
-    authentication failed`` — even though the intended proxy is perfectly valid.
+import brix_suite.clients.gridftp as _canonical
 
-    Pinning ``X509_USER_CERT``/``X509_USER_KEY`` to the same proxy file (which
-    carries cert + chain + key) forces globus to present it regardless of uid.
-    For a non-root caller the proxy already wins, so the extra vars are inert.
-    Security-negative callers pass their forged proxy here too, so CERT/KEY
-    always track whatever credential the test deliberately selected.
-    """
-    env = dict(os.environ if base is None else base)
-    env["X509_CERT_DIR"] = str(cert_dir)
-    env["X509_USER_PROXY"] = str(proxy)
-    if os.geteuid() == 0:
-        env["X509_USER_CERT"] = env["X509_USER_PROXY"]
-        env["X509_USER_KEY"] = env["X509_USER_PROXY"]
-    return env
+_sys.modules[__name__] = _canonical

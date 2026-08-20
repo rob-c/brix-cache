@@ -361,7 +361,9 @@ cache_fill_commit(sd_cache_inst_state *st, const char *key,
                     sizeof(ci.cks_hex));
         ci.cks_len = (uint8_t) ngx_strlen(ci.cks_hex);
     }
-    if (st->policy.cvmfs_manifest_ttl > 0 && sd_cache_is_manifest_key(key)) {
+    if (st->policy.cvmfs_manifest_ttl > 0
+        && sd_cache_is_manifest_key(st->policy.verify, key))
+    {
         brix_cache_cinfo_set_expires(&ci,
             (time_t) ci.filled_at + st->policy.cvmfs_manifest_ttl);
     }

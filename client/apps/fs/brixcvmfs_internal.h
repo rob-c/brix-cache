@@ -59,5 +59,6 @@ int brixcvmfs_rw_main(int argc, char **argv) __attribute__((weak));
 /* ---- owned by brixcvmfs_repo.c (Stratum-0 publishing plane, phase-96;
  * defined only when the repo driver is linked) ------------------------------ */
 int brixcvmfs_repo_main(int argc, char **argv) __attribute__((weak));
+int brixcvmfs_ingest_main(int argc, char **argv) __attribute__((weak));
 
 #endif /* BRIXCVMFS_INTERNAL_H */

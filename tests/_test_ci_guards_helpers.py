@@ -54,6 +54,7 @@ _FAST = [
     "check_http_helper_reimpl",
     "check_metric_cardinality",
     "check_metric_names",
+    "check_client_flags_doc",
     "check_auth_verdict_sentinel",
     "check_shm_mutex",
     "check_sd_driver_conformance",
@@ -71,6 +72,14 @@ _FAST = [
     "check_python_deps",
     "check_version_sync",
     "check_ratchet_monotonic",
+    # TS-2/TS-4/TS-5 suite-modernization guards.  `guard_set.prepush_guards()`
+    # GLOBS `tools/ci/check_*.py`, so each of these joined the pre-push set the
+    # moment its file existed, while this list — maintained by hand — did not
+    # follow.  `test_fast_lane_covers_the_prepush_guard_set` is what noticed.
+    "check_shim_completeness",
+    "check_shim_entrypoints",
+    "check_shard_entrypoints",
+    "check_import_direction",
 ]
 
 def _load_check_file_size():
@@ -135,6 +144,16 @@ def _deps_tree(tmp_path: Path, required: str, optional: str, source: str) -> Pat
     (tmp_path / "k8s-tests/pytests").mkdir(parents=True)
     (tmp_path / "k8s-tests/pytests/requirements.txt").write_text("pytest>=7.0,<10\n")
     (tmp_path / "tests/test_thing.py").write_text(source)
+    # `check_python_deps.PYPROJECT_FILES` (TS-1) treats a declared manifest that
+    # is not on disk as a finding, so a synthetic root without one fails R0 for
+    # a reason that has nothing to do with the case under test.  Minimal and
+    # empty on purpose: these fixtures assert about the *requirements* lanes,
+    # and a manifest with dependencies in it would quietly join every one of
+    # them.
+    (tmp_path / "brixtest").mkdir(parents=True)
+    (tmp_path / "brixtest/pyproject.toml").write_text(
+        '[project]\nname = "brixtest"\nversion = "0"\ndependencies = []\n'
+    )
     return tmp_path
 
 

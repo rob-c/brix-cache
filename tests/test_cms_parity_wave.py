@@ -374,9 +374,10 @@ def test_altds_monitor_suspends_and_resumes(lifecycle):
     """§2.12 monitor: with nothing on the altds port the node suspends
     itself; a listener appearing resumes it."""
     stub = StubManager()
+    altds_port = free_port(BIND_HOST)
     try:
         _node(lifecycle, "lc-cms-parity-node", stub,
-              "brix_cms_altds 42902 monitor; brix_cms_altds_interval 300ms;",
+              f"brix_cms_altds {altds_port} monitor; brix_cms_altds_interval 300ms;",
               "§2.12 cms.altds liveness monitor.")
         frame = stub.wait(CMS_RR_STATUS,
                           pred=lambda m, p: m & CMS_ST_SUSPEND, timeout=12.0)
@@ -385,7 +386,7 @@ def test_altds_monitor_suspends_and_resumes(lifecycle):
         n_before = len(stub.frames)
         lsock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         lsock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        lsock.bind((BIND_HOST, 42902))
+        lsock.bind((BIND_HOST, altds_port))
         lsock.listen(4)
         try:
             deadline = time.time() + 12

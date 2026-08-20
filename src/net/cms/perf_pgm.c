@@ -248,6 +248,23 @@ perf_spawn(brix_cms_perf_t *pf)
     posix_spawn_file_actions_init(&fa);
     posix_spawn_file_actions_adddup2(&fa, fds[1], 1);
 
+    /* The nginx worker's listening sockets are intentionally inherited by
+     * workers, but an external perf monitor must not retain them.  Keeping a
+     * listener alive after its worker exits makes the next lifecycle instance
+     * fail to bind the same CMS-node ports.  closefrom runs after dup2, so the
+     * child keeps stdin/stdout/stderr while every inherited descriptor >= 3
+     * is closed before /bin/sh starts. */
+    rc = posix_spawn_file_actions_addclosefrom_np(&fa, 3);
+    if (rc != 0) {
+        posix_spawn_file_actions_destroy(&fa);
+        close(fds[0]);
+        close(fds[1]);
+        ngx_log_error(NGX_LOG_ERR, pf->cycle->log, rc,
+                      "brix: cms perf pgm: close inherited fds failed");
+        perf_teardown(pf);
+        return;
+    }
+
     argv[0] = "/bin/sh";
     argv[1] = "-c";
     argv[2] = (char *) pf->pgm.data;

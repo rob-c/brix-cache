@@ -55,6 +55,9 @@ jobs:
       - name: metric names — docs cite families and labels the exporters emit
         if: '!cancelled()'
         run: tools/ci/check_metric_names.py
+      - name: client flags — docs cite flags the client tools actually parse
+        if: '!cancelled()'
+        run: tools/ci/check_client_flags_doc.py
       - name: sd driver conformance
         if: '!cancelled()'
         run: tools/ci/check_sd_driver_conformance.py
@@ -102,6 +105,18 @@ jobs:
       - name: version sync — ident.h, RPM spec and CHANGELOG agree
         if: '!cancelled()'
         run: tools/ci/check_version_sync.py
+      - name: import direction — brixtest core never imports the brix_suite adapter
+        if: '!cancelled()'
+        run: tools/ci/check_import_direction.py
+      - name: shim completeness — a moved module still exports every name
+        if: '!cancelled()'
+        run: tools/ci/check_shim_completeness.py
+      - name: shard entry points — a CLI in an exec-composed shard still runs
+        if: '!cancelled()'
+        run: tools/ci/check_shard_entrypoints.py
+      - name: shim entry points — a CLI survives its body moving to a package
+        if: '!cancelled()'
+        run: tools/ci/check_shim_entrypoints.py
       # Guards the guards: every ratchet above compares the tree against a frozen
       # backlog, so appending to the backlog is the one way to turn any of them
       # green while making the code worse. Backlogs may shrink, never grow.

@@ -139,10 +139,8 @@ def test_davs_tls_connect_error_clean_fail(fixture):
     [FAIL] davs-tls, non-zero (the TLS plane surfaces a connect error, not a
     silent pass). --no-verify-tls isolates this from cert verification."""
     import socket
-    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    s.bind((HOST, 0))
-    closed_port = s.getsockname()[1]
-    s.close()                               # port now free → connect refused
+    from ephemeral_port import free_port
+    closed_port = free_port(HOST)            # no listener → connect refused
     # XRDC_MAX_STALL_MS=0 disables the resume/retry window so a hard connect
     # refusal fails on the first attempt instead of riding the patience window.
     p = _cmp_tls(fixture, "match.bin", closed_port, extra=("--no-verify-tls",),

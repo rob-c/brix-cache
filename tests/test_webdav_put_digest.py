@@ -31,7 +31,11 @@ except ImportError:
 from settings import NGINX_BIN, HOST, BIND_HOST
 from server_registry import NginxInstanceSpec
 
-pytestmark = pytest.mark.uses_lifecycle_harness
+# Every test in this file uses the same named fixed-port lifecycle endpoints;
+# serialize the module across xdist workers so class/function fixture scope
+# cannot launch duplicate lc-put-* listeners concurrently.
+pytestmark = [pytest.mark.uses_lifecycle_harness,
+              pytest.mark.xdist_group("lc-put-digest")]
 
 BODY = b"ingest-digest-verification-body-0123456789"
 OK = (200, 201, 204)

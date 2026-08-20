@@ -1351,7 +1351,7 @@ listed: `metadata.c` QFinfo/Qvisa/Qopaque FSctl-unsupported (no XrdOfs plugin
 layer), retired v5.2.0 opcodes returning `kXR_Unsupported`, WebDAV `ACL`
 *mutation* refuse-stub (`acl.c:13`, discovery via PROPFIND works), S3 per-object
 ACL/versioning subresources (`handler_object_route.c:161`, phase-43 non-goal),
-stock `xrdcp --xrate` (throttle primitive wired only into xrdfs `dd`, deliberate
+stock `xrdcp --xrate` (throttle primitive wired only into xrdfs `dd`, deliberate  <!-- client-flags-allow: the row records --xrate as a deliberate non-implementation -->
 non-goal), and the ~25 documented `DIVERGENCE` xfails (profile/interop choices).
 Compile-time build variants (`src/tpc/engine/noop.c`, the io_uring/seccomp stub
 fallbacks) are intentional, not stubs. CVMFS conformance/automount/next-gen legs

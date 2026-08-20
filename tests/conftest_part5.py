@@ -78,58 +78,94 @@ from settings import (
 
 
 # ---------------------------------------------------------------------------
-# Session hooks and the session-scoped fixtures.
-#
-# Physical continuation of conftest_part4.py (loaded from conftest.py, executed
-# into ITS namespace), split off purely to keep both files inside the file-size
-# tiers.  Everything above -- the fleet-health baseline, the sentinel watchdog
-# and the module state the hooks below drive -- is already bound here; the
-# imports above are repeated for readability, not because the shard could stand
-# alone.  pytest finds the hooks and fixtures by name in the conftest namespace,
-# so which shard physically defines one is invisible to collection.
+# Session lifecycle hooks (loaded from conftest.py, executed into ITS
+# namespace).  The sentinel state and helpers these hooks drive
+# (_stop_sentinel_watchdog, _verify_fleet_conservation, _capture_fleet_baseline,
+# ...) live in brix_suite.harness.sentinel since TS-2 and are bound into the
+# conftest namespace by its re-export imports; the boot/gate machinery
+# (_specs_to_boot, _start_all_resilient, ...) is bound by the part2/part3
+# shards.  pytest finds hooks by name in the conftest namespace, so which shard
+# or module physically defines one is invisible to collection.
 # ---------------------------------------------------------------------------
 
+# The controller receives each worker's collection report before xdist adds that
+# report to its scheduler.  Keeping this state here lets the last report start
+# the whole fleet in the small, deliberate gap before any item can be assigned.
+_xdist_collected_nodes: set[str] = set()
+_xdist_fleet_started = False
+
+
+def _xdist_worker_count(config) -> int:
+    """Return the explicitly requested xdist worker count, if available."""
+    workers = getattr(config.option, "numprocesses", None)
+    try:
+        return int(workers)
+    except (TypeError, ValueError):
+        return 0
+
+
+def _xdist_fleet_wait_seconds() -> int:
+    """Bound how long workers wait while the controller boots every server."""
+    try:
+        return max(1, int(os.environ.get("TEST_FLEET_START_TIMEOUT", "900")))
+    except ValueError:
+        return 900
+
+
 @pytest.hookimpl(tryfirst=True)
-def pytest_runtest_setup(item):
-    if not _FLEET_SENTINEL_ON:
-        return
-    _CURRENT_NODEID[0] = item.nodeid        # so the kill tracer can attribute
-    if _sentinel_watchdog["session"] is None:
-        _sentinel_watchdog["session"] = item.session
-    # A peer worker (or the watchdog) already found the fleet damaged — stop.
-    if not _sentinel["fired"] and _SENTINEL_ABORT_MARKER.exists():
-        _sentinel["fired"] = True
-        try:
-            item.session.shouldstop = "fleet sentinel: peer worker aborted (fleet damaged)"
-        except Exception:
-            pass
+def pytest_xdist_node_collection_finished(node, ids):
+    """Boot the shared fleet after every xdist worker has collected.
 
-
-@pytest.hookimpl(trylast=True)
-def pytest_runtest_teardown(item, nextitem):
-    # The watchdog (controller/serial) owns the active fleet probing; a worker
-    # only needs to notice its cross-process abort marker and stop promptly, so
-    # no downstream test runs against an already-damaged fleet.  No per-test
-    # network scan here — 20 workers each probing the fleet would be a storm.
-    if not _FLEET_SENTINEL_ON or _sentinel["fired"]:
+    ``WorkerInteractor`` sends its collection event before it runs ordinary
+    ``pytest_collection_finish`` hooks.  Starting from such a worker races the
+    scheduler: the controller can assign tests while the chosen worker is still
+    launching servers.  This controller hook runs before xdist adds the final
+    collection to its scheduler, which gives us a real collection barrier.
+    """
+    del ids
+    global _xdist_fleet_started
+    config = node.config
+    if (_xdist_fleet_started
+            or getattr(config.option, "collectonly", False)
+            or REMOTE_SERVER
+            or os.environ.get("TEST_SKIP_SERVER_SETUP") == "1"):
         return
-    if _SENTINEL_ABORT_MARKER.exists():
-        _sentinel["fired"] = True
-        try:
-            item.session.shouldstop = "fleet sentinel: fleet damaged (watchdog/peer)"
-        except Exception:
-            pass
+    _xdist_collected_nodes.add(node.gateway.id)
+    worker_count = _xdist_worker_count(config)
+    if worker_count and len(_xdist_collected_nodes) < worker_count:
+        return
+    if not worker_count:
+        raise pytest.UsageError(
+            "xdist fleet startup needs an explicit -n worker count so it can "
+            "wait for collection from every worker"
+        )
+
+    error_path = Path(REGISTRY_ROOT) / ".xdist-fleet-error"
+    stable_path = Path(REGISTRY_ROOT) / ".xdist-fleet-stable"
+    error_path.unlink(missing_ok=True)
+    stable_path.unlink(missing_ok=True)
+    try:
+        specs = _specs_to_boot(())
+        _start_all_resilient(specs)
+        _require_fleet_startup_stability()
+        _capture_fleet_baseline()
+    except Exception as exc:
+        error_path.parent.mkdir(parents=True, exist_ok=True)
+        error_path.write_text(str(exc), encoding="utf-8")
+        raise
+    node.config._nginx_xrootd_selected_registry_specs = specs
+    stable_path.parent.mkdir(parents=True, exist_ok=True)
+    stable_path.write_text("stable\n", encoding="utf-8")
+    _xdist_fleet_started = True
 
 
 def pytest_collection_finish(session):
-    """Start the session fleet once collection has settled.
+    """Start the complete session fleet once collection has settled.
 
     Runs after every ``pytest_collection_modifyitems`` (including the mark
-    plugin's ``-m``/``-k`` deselection), so ``session.items`` is the final test
-    set and the declared-union subset is exact.  Controller-only and only when
-    this session owns the local lifecycle; xdist runs never reach the start
-    here — their controller boots the full fleet from ``pytest_sessionstart``
-    because it does not collect.  ``--collect-only`` starts nothing."""
+    plugin's ``-m``/``-k`` deselection), so no test can begin before the full
+    fixed-port catalogue is running.  Controller-only and only when this
+    session owns the local lifecycle.  ``--collect-only`` starts nothing."""
     config = session.config
     if hasattr(config, "workerinput"):
         if (getattr(config.option, "collectonly", False)
@@ -138,32 +174,21 @@ def pytest_collection_finish(session):
                 or not session.items):
             return
         _chdir_scratch()
-        specs = _specs_to_boot(session.items)
-        worker_id = config.workerinput.get("workerid")
         error_path = Path(REGISTRY_ROOT) / ".xdist-fleet-error"
-        if worker_id == "gw0":
-            error_path.unlink(missing_ok=True)
-            try:
-                _start_all_resilient(specs)
-            except Exception as exc:
-                error_path.parent.mkdir(parents=True, exist_ok=True)
-                error_path.write_text(str(exc), encoding="utf-8")
-                raise
-            _capture_fleet_baseline()   # snapshot the freshly-launched fleet
-        else:
-            deadline = time.time() + 180
-            while time.time() < deadline:
-                if fleet_ready_for_test_root():
-                    break
-                if error_path.exists():
-                    raise pytest.UsageError(
-                        "xdist fleet coordinator failed: "
-                        + error_path.read_text(encoding="utf-8"))
-                time.sleep(0.1)
-            else:
+        stable_path = Path(REGISTRY_ROOT) / ".xdist-fleet-stable"
+        deadline = time.time() + _xdist_fleet_wait_seconds()
+        while time.time() < deadline:
+            if stable_path.exists():
+                break
+            if error_path.exists():
                 raise pytest.UsageError(
-                    "timed out waiting for xdist worker gw0 to start the "
-                    "collected subset fleet")
+                    "xdist fleet coordinator failed: "
+                    + error_path.read_text(encoding="utf-8"))
+            time.sleep(0.1)
+        else:
+            raise pytest.UsageError(
+                "timed out waiting for the xdist controller to start the "
+                "complete test fleet")
         read_manifest()
         return
     if _xdist_requested(config):
@@ -177,6 +202,7 @@ def pytest_collection_finish(session):
     specs = _specs_to_boot(session.items)
     config._nginx_xrootd_selected_registry_specs = specs
     _start_all_resilient(specs)
+    _require_fleet_startup_stability()
     _capture_fleet_baseline()           # snapshot the freshly-launched fleet
 
 
@@ -188,6 +214,16 @@ def pytest_sessionfinish(session, exitstatus):
     # A worker finishing early would kill servers other workers still need.
     if hasattr(session.config, "workerinput"):
         return
+
+    # Collection-only sessions started nothing (pytest_sessionstart and
+    # pytest_collection_finish carry the same gate): no fleet to conserve, no
+    # stop sweep to run, no scratch tree to destroy.
+    if getattr(session.config.option, "collectonly", False):
+        return
+
+    # The watchdog protects the fleet while tests execute.  Session teardown is
+    # the one deliberate full-fleet stop, after which its probes must be silent.
+    _stop_sentinel_watchdog()
 
     # Fleet health conservation guard — runs BEFORE any teardown, whether this
     # session owns the fleet or merely attached to a harness-managed one.  A
@@ -266,176 +302,3 @@ def pytest_terminal_summary(terminalreporter, exitstatus, config):
     message = getattr(config, "_fleet_health_failure", None)
     if message:
         terminalreporter.write_line(message, red=True, bold=True)
-
-
-@pytest.fixture(scope="session")
-def registry():
-    return RegistryLauncher(os.path.dirname(__file__))
-
-
-@pytest.fixture
-def registry_server():
-    def _lookup(name):
-        return get_server(name)
-
-    return _lookup
-
-
-@pytest.fixture
-def lifecycle():
-    """Per-test registry lifecycle harness for throwaway nginx instances.
-
-    Tests whose subject is lifecycle behavior (reload/reopen/restart/crash)
-    drive their own short-lived instances through this instead of hand-rolled
-    subprocess calls; teardown stops and unregisters everything it created.
-    """
-    harness = LifecycleHarness()
-    try:
-        yield harness
-    finally:
-        harness.close()
-
-
-@pytest.fixture
-def command_runner(registry):
-    return registry.run_cmd
-
-
-# --------------------------------------------------------------------------- #
-# The (protocol × auth × tls × backend) parametrization layer.                  #
-# --------------------------------------------------------------------------- #
-def pytest_generate_tests(metafunc):
-    """Expand `@pytest.mark.matrix(...)` into one case per coverage cell.
-
-    Before this hook the suite had no generative parametrization at all: every
-    cell of the matrix was a hand-written module with its own template, which is
-    why the matrix was sparse and re-sparsified with each new backend
-    (docs/refactor/testsuite-combinatorial-coverage-audit-2026-08-04.md item 19).
-    Unreachable combinations are parametrized too and skip with the product
-    reason from `matrix_layer.supported()`, so "empty" and "impossible" stay
-    distinguishable in the report.
-    """
-    if "matrix_node" not in metafunc.fixturenames:
-        return
-    mark = metafunc.definition.get_closest_marker("matrix")
-    if mark is None:
-        raise pytest.UsageError(
-            f"{metafunc.definition.nodeid}: requests the `matrix_node` fixture "
-            "but carries no @pytest.mark.matrix(...) to expand")
-    import matrix_layer
-    cells, ids = matrix_layer.expand(**mark.kwargs)
-    metafunc.parametrize("matrix_node", cells, ids=ids, indirect=True)
-
-
-@pytest.fixture(scope="module")
-def matrix_node(request, tmp_path_factory):
-    """Stand up the parametrized cell; one instance per cell, not per test."""
-    import matrix_layer
-    from server_launcher import LifecycleHarness
-
-    cell = request.param
-    token = None
-    if cell.auth == "token":
-        from utils.make_token import TokenIssuer
-        ti = TokenIssuer(matrix_layer.TOKEN_DIR)
-        if not os.path.exists(ti.key_path):
-            ti.init_keys()
-        token = ti.generate(scope="storage.read:/ storage.modify:/")
-    harness = LifecycleHarness()
-    try:
-        yield matrix_layer.make_node(
-            cell, tmp=tmp_path_factory.mktemp(f"matrix-{cell.id}"),
-            lifecycle=harness, token=token)
-    finally:
-        harness.close()
-
-
-@pytest.fixture(scope="session")
-def test_env():
-    h = SERVER_HOST
-    ports = {
-        "anon_port": NGINX_ANON_PORT,
-        "gsi_port": NGINX_GSI_PORT,
-        "gsi_tls_port": NGINX_GSI_TLS_PORT,
-        "token_port": NGINX_TOKEN_PORT,
-        "krb5_port": NGINX_KRB5_PORT,
-        "metrics_port": NGINX_METRICS_PORT,
-        "webdav_port": NGINX_WEBDAV_PORT,
-        "webdav_gsi_tls_port": NGINX_WEBDAV_GSI_TLS_PORT,
-        "http_webdav_port": NGINX_HTTP_WEBDAV_PORT,
-        "s3_port": NGINX_S3_PORT,
-        "jwks_refresh_port": NGINX_JWKS_REFRESH_PORT,
-        "readonly_port": READONLY_PORT,
-        "vo_port": VO_PORT,
-        "webdav_auth_cache_manual_port": WEBDAV_AUTH_CACHE_MANUAL_PORT,
-        "webdav_auth_cache_nginx_port": WEBDAV_AUTH_CACHE_NGINX_PORT,
-        "webdav_tpc_source_required_port": WEBDAV_TPC_SOURCE_REQUIRED_PORT,
-        "webdav_tpc_source_open_port": WEBDAV_TPC_SOURCE_OPEN_PORT,
-        "webdav_tpc_dest_cafile_port": WEBDAV_TPC_DEST_CAFILE_PORT,
-        "webdav_tpc_dest_cadir_port": WEBDAV_TPC_DEST_CADIR_PORT,
-        "webdav_tpc_dest_no_service_cert_port": WEBDAV_TPC_DEST_NO_SERVICE_CERT_PORT,
-        "webdav_tpc_dest_disabled_port": WEBDAV_TPC_DEST_DISABLED_PORT,
-        "webdav_tpc_dest_readonly_port": WEBDAV_TPC_DEST_READONLY_PORT,
-        "upstream_redirect_nginx_port": UPSTREAM_REDIRECT_NGINX_PORT,
-        "upstream_wait_nginx_port": UPSTREAM_WAIT_NGINX_PORT,
-        "upstream_waitresp_nginx_port": UPSTREAM_WAITRESP_NGINX_PORT,
-        "upstream_error_nginx_port": UPSTREAM_ERROR_NGINX_PORT,
-        "upstream_auth_nginx_port": UPSTREAM_AUTH_NGINX_PORT,
-        "upstream_auth_nofile_nginx_port": UPSTREAM_AUTH_NOFILE_NGINX_PORT,
-        "upstream_gotorls_notls_nginx_port": UPSTREAM_GOTORLS_NOTLS_NGINX_PORT,
-        "upstream_redirect_backend_port": UPSTREAM_REDIRECT_BACKEND_PORT,
-        "upstream_wait_backend_port": UPSTREAM_WAIT_BACKEND_PORT,
-        "upstream_waitresp_backend_port": UPSTREAM_WAITRESP_BACKEND_PORT,
-        "upstream_error_backend_port": UPSTREAM_ERROR_BACKEND_PORT,
-        "upstream_auth_backend_port": UPSTREAM_AUTH_BACKEND_PORT,
-        "upstream_auth_nofile_backend_port": UPSTREAM_AUTH_NOFILE_BACKEND_PORT,
-        "upstream_gotorls_notls_backend_port": UPSTREAM_GOTORLS_NOTLS_BACKEND_PORT,
-    }
-
-    return {
-        **ports,
-        "server_host": h,
-        "anon_url": f"root://{h}:{ports['anon_port']}",
-        "gsi_url": f"root://{h}:{ports['gsi_port']}",
-        "gsi_tls_url": f"roots://{h}:{ports['gsi_tls_port']}",
-        "token_url": f"root://{h}:{ports['token_port']}",
-        "krb5_url": f"root://{h}:{ports['krb5_port']}",
-        "metrics_url": f"http://{h}:{ports['metrics_port']}/metrics",
-        "webdav_url": f"https://{h}:{ports['webdav_port']}",
-        "webdav_gsi_tls_url": f"https://{h}:{ports['webdav_gsi_tls_port']}",
-        "http_webdav_url": f"http://{h}:{ports['http_webdav_port']}",
-        "s3_url": f"http://{h}:{ports['s3_port']}",
-        "data_dir": DATA_ROOT,
-        "ca_dir": CA_DIR,
-        "ca_pem": CA_CERT,
-        "proxy_pem": PROXY_STD,
-        "token_dir": TOKENS_DIR,
-        "log_dir": LOG_DIR,
-    }
-
-
-@pytest.fixture(scope="session")
-def ref_xrootd(test_env):
-    return {
-        "url": f"root://{HOST}:{REF_BRIX_PORT}",
-        "port": REF_BRIX_PORT,
-        "data_dir": test_env["data_dir"],
-    }
-
-
-@pytest.fixture(scope="session")
-def ref_brix_gsi(test_env):
-    return {
-        "url": f"root://{HOST}:{REF_BRIX_GSI_PORT}",
-        "port": REF_BRIX_GSI_PORT,
-        "data_dir": os.path.join(TEST_ROOT, "data-gsi-bridge"),
-    }
-
-
-@pytest.fixture(scope="session")
-def ref_brix_gsi_shared(test_env):
-    return {
-        "url": f"root://{HOST}:{REF_BRIX_GSI_SHARED_PORT}",
-        "port": REF_BRIX_GSI_SHARED_PORT,
-        "data_dir": test_env["data_dir"],
-    }

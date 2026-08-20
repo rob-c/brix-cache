@@ -43,20 +43,50 @@
 #include <unistd.h>
 
 
-/* Emit the unified guard-core audit line (signal=cvmfs_tamper) for a fill
- * whose bytes failed CVMFS integrity verification — CAS hash or manifest/
- * whitelist signature mismatch.  The tamper actor is UPSTREAM — the origin, or
- * the mesh sibling a phase-85 F8 peer attempt filled from — never a client
- * (fills run detached in the thread pool, often coalesced across clients), so
- * `actor`'s last-answering authority rides the ip field (NULL = st->source)
- * and the failed object key rides the path.  Runs on a fill THREAD: the
- * timestamp is built with gmtime_r (never the event-loop's cached iso8601),
- * and ngx_log_error is the same call the surrounding fill code already makes
- * from this thread. */
+/* Emit the unified guard-core audit line (signal=cvmfs_tamper, or
+ * signal=oci_tamper on an OCI-personality cache) for a fill whose bytes failed
+ * integrity verification — a CAS/digest hash or manifest/whitelist signature
+ * mismatch.  The tamper actor is UPSTREAM — the origin, or the mesh sibling a
+ * phase-85 F8 peer attempt filled from — never a client (fills run detached in
+ * the thread pool, often coalesced across clients), so `actor`'s
+ * last-answering authority rides the ip field (NULL = st->source) and the
+ * failed object key rides the path.  Runs on a fill THREAD: the timestamp is
+ * built with gmtime_r (never the event-loop's cached iso8601), and
+ * ngx_log_error is the same call the surrounding fill code already makes from
+ * this thread. */
+/* The tamper signal each self-addressing plane raises, and the proto token it
+ * rides under. One table rather than a chain of ternaries: a fourth plane adds
+ * a row, and the audit line and the fail2ban filter cannot disagree because
+ * both are read off this pair. */
+static guard_reason_t
+sd_cache_tamper_reason(ngx_uint_t verify)
+{
+    switch (verify) {
+    case BRIX_CACHE_VERIFY_OCI_DIGEST:   return GUARD_R_OCITAMPER;
+    case BRIX_CACHE_VERIFY_RPM_REPODATA: return GUARD_R_RPMTAMPER;
+    default:                             return GUARD_R_TAMPER;
+    }
+}
+
+static const char *
+sd_cache_tamper_proto(ngx_uint_t verify)
+{
+    switch (verify) {
+    case BRIX_CACHE_VERIFY_OCI_DIGEST:   return "oci";
+    case BRIX_CACHE_VERIFY_RPM_REPODATA: return "rpm";
+    default:                             return "cvmfs";
+    }
+}
+
 void
 sd_cache_guard_tamper(sd_cache_inst_state *st, brix_sd_instance_t *actor,
     const char *key)
 {
+    /* Which signal this instance raises is a property of the CACHE, not of the
+     * call site: the verify mode is what decided the grammar that just failed,
+     * so the three jails (brix-cvmfs / brix-oci / brix-rpm) never see each
+     * other's lines. */
+    guard_reason_t   reason = sd_cache_tamper_reason(st->policy.verify);
     guard_request_t  req;
     char             origin[300];
     char             san_key[512];
@@ -77,7 +107,7 @@ sd_cache_guard_tamper(sd_cache_inst_state *st, brix_sd_instance_t *actor,
     }
 
     req.ip           = origin;
-    req.proto        = "cvmfs";
+    req.proto        = sd_cache_tamper_proto(st->policy.verify);
     req.op           = GUARD_OP_READ;
     req.path         = san_key;
     req.path_len     = brix_sanitize_log_string(key, san_key, sizeof(san_key));
@@ -93,25 +123,35 @@ sd_cache_guard_tamper(sd_cache_inst_state *st, brix_sd_instance_t *actor,
                     sizeof(ts));
     }
 
-    if (guard_audit_format(&req, GUARD_R_TAMPER, ts, line, sizeof(line)) > 0) {
+    if (guard_audit_format(&req, reason, ts, line, sizeof(line)) > 0) {
         ngx_log_error(NGX_LOG_WARN, st->log, 0, "%s", line);
     }
 }
 
 /* Reject a staged fill whose bytes failed integrity verification: account the
- * wasted WAN cost + failure metrics, emit signal=cvmfs_tamper, quarantine the
- * part for evidence and abort the fill. Shared by the CAS digest mismatch and
- * the manifest signature-chain reject. Always returns NGX_ERROR with errno
- * EBADMSG (T20 budgets retries on it). */
+ * wasted WAN cost + failure metrics, emit the cache's tamper signal, quarantine
+ * the part for evidence and abort the fill. Shared by the CAS digest mismatch,
+ * the OCI digest mismatch and the manifest signature-chain reject. Always
+ * returns NGX_ERROR with errno EBADMSG (T20 budgets retries on it). */
 static ngx_int_t
 cache_fill_verify_reject(sd_cache_inst_state *st, const char *key,
     sd_cache_fill_state_t *fs, const char *pp)
 {
-    ngx_brix_cvmfs_repo_metrics_t *rm = sd_cache_repo_metrics(st, key);
+    ngx_brix_cvmfs_repo_metrics_t *rm;
 
-    BRIX_CVMFS_METRIC_INC(verify_failures_total);
-    if (rm != NULL) {
-        BRIX_ATOMIC_INC(&rm->verify_failures_total);
+    /* The failure belongs to whichever plane owns this cache — an OCI mirror's
+     * digest mismatch is not a cvmfs verify failure, and dashboards alert on
+     * the two separately. */
+    if (st->policy.verify == BRIX_CACHE_VERIFY_OCI_DIGEST) {
+        BRIX_OCI_METRIC_INC(verify_fail_total);
+    } else if (st->policy.verify == BRIX_CACHE_VERIFY_RPM_REPODATA) {
+        BRIX_RPM_METRIC_INC(verify_fail_total);
+    } else {
+        rm = sd_cache_repo_metrics(st, key);
+        BRIX_CVMFS_METRIC_INC(verify_failures_total);
+        if (rm != NULL) {
+            BRIX_ATOMIC_INC(&rm->verify_failures_total);
+        }
     }
     if (fs->from_cold) {
         /* The corrupt bytes came from the LOCAL cold store tier, not the
@@ -151,6 +191,58 @@ cache_fill_verify_reject(sd_cache_inst_state *st, const char *key,
     brix_cstore_fill_abort(fs->staged);       /* part already renamed away */
     errno = EBADMSG;            /* digest mismatch — T20 budgets retries */
     return NGX_ERROR;
+}
+
+/* Which grammar reads the expected digest out of the key. That is the ONLY
+ * axis on which the self-addressing schemes differ, so the mismatch and
+ * fail-closed handling below them is written exactly once. */
+static brix_cache_verify_result_e
+sd_cache_selfaddr_run(ngx_uint_t verify, const char *pp, const char *key,
+    ngx_log_t *log, char *alg, char *hex)
+{
+    switch (verify) {
+    case BRIX_CACHE_VERIFY_OCI_DIGEST:
+        return brix_cache_verify_oci_digest(pp, key, log, alg, hex);
+    case BRIX_CACHE_VERIFY_RPM_REPODATA:
+        return brix_cache_verify_rpm_repodata(pp, key, log, alg, hex);
+    default:
+        return brix_cache_verify_cvmfs_cas(pp, key, log, alg, hex);
+    }
+}
+
+/* Run the self-addressing verify — the mode where the KEY names the expected
+ * digest, so no origin digest is needed: cvmfs-cas (sha1 CAS path),
+ * oci-digest (sha256 blob/pinned-manifest key) and rpm-repodata (the
+ * `<checksum>-<name>` file createrepo writes). Returns NGX_OK with
+ * fs->verified set, or NGX_ERROR with the staged fill already aborted. */
+static ngx_int_t
+cache_fill_verify_selfaddr(sd_cache_inst_state *st, const char *key,
+    sd_cache_fill_state_t *fs, const char *pp)
+{
+    const char                 *mode;
+    brix_cache_verify_result_e  vr;
+
+    mode = brix_cache_verify_mode_str(st->policy.verify);
+    if (pp == NULL) {
+        vr = BRIX_CACHE_VERIFY_ERROR;
+    } else {
+        vr = sd_cache_selfaddr_run(st->policy.verify, pp, key, st->log,
+                                   fs->cks_alg, fs->cks_hex);
+    }
+
+    if (vr == BRIX_CACHE_VERIFY_MISMATCH) {
+        return cache_fill_verify_reject(st, key, fs, pp);
+    }
+    if (vr == BRIX_CACHE_VERIFY_ERROR) {
+        ngx_log_error(NGX_LOG_ERR, st->log, errno,
+            "sd_cache: %s verify could not run for \"%s\" - "
+            "failing the fill closed", mode, key);
+        brix_cstore_fill_abort(fs->staged);
+        errno = EIO;
+        return NGX_ERROR;
+    }
+    fs->verified = (vr == BRIX_CACHE_VERIFY_VERIFIED);
+    return NGX_OK;
 }
 
 /* Case-insensitive equality of two hex digests. Origins vary in hex case
@@ -265,27 +357,30 @@ cache_fill_verify_origin(sd_cache_inst_state *st, const char *key,
 /* Digest- and signature-verify the staged bytes before the commit publishes
  * them.
  *
- * WHAT: phase-68 cvmfs-cas verification — the key names its own sha1, so the
- *       staged part can be checked with no origin digest — plus the phase-85
- *       F1 manifest/whitelist signature chain when brix_cvmfs_verify_manifest
+ * WHAT: the self-addressing verifications — phase-68 cvmfs-cas (the key names
+ *       its own sha1), phase-104 oci-digest (its own sha256) and phase-104
+ *       rpm-repodata (createrepo's `<checksum>-<name>` metadata file), all
+ *       checkable with no origin digest — plus the phase-85 F1
+ *       manifest/whitelist signature chain when brix_cvmfs_verify_manifest
  *       configured a master key.
  *
  * WHY:  A MISMATCH/signature reject is quarantined for evidence, flagged to
- *       the guard (signal=cvmfs_tamper) and the fill fails (the client sees a
- *       gateway error and retries); an ERROR fails closed with no tamper
- *       signal. CAS-unverifiable keys (manifests) get the signature gate
- *       instead; keys under neither gate commit as before.
+ *       the guard (signal=cvmfs_tamper / oci_tamper) and the fill fails (the
+ *       client sees a gateway error and retries); an ERROR fails closed with
+ *       no tamper signal. Keys the self-addressing grammar cannot check (cvmfs
+ *       manifests) get the signature gate instead; keys under neither gate
+ *       commit as before.
  *
- * HOW:  No-op (NGX_OK) unless policy.verify is CVMFS_CAS or a master key is
- *       loaded. Sets fs->verified on a VERIFIED CAS result. On failure aborts
- *       the staged fill and returns NGX_ERROR with errno EBADMSG (mismatch —
- *       T20 budgets retries) or EIO (verify could not run). */
+ * HOW:  No-op (NGX_OK) unless policy.verify is a self-addressing mode or a
+ *       master key is loaded. Sets fs->verified on a VERIFIED result. On
+ *       failure aborts the staged fill and returns NGX_ERROR with errno
+ *       EBADMSG (mismatch — T20 budgets retries) or EIO (verify could not
+ *       run). */
 ngx_int_t
 cache_fill_verify(sd_cache_inst_state *st, const char *key,
     sd_cache_fill_state_t *fs)
 {
-    const char                  *pp;
-    brix_cache_verify_result_e   vr;
+    const char  *pp;
 
     fs->verified = 0;
     if (st->policy.verify == BRIX_CACHE_VERIFY_OFF
@@ -296,23 +391,10 @@ cache_fill_verify(sd_cache_inst_state *st, const char *key,
     pp = (fs->staged->inst->driver->staged_path != NULL)
        ? fs->staged->inst->driver->staged_path(fs->staged) : NULL;
 
-    if (st->policy.verify == BRIX_CACHE_VERIFY_CVMFS_CAS) {
-        vr = (pp != NULL)
-           ? brix_cache_verify_cvmfs_cas(pp, key, st->log,
-                                           fs->cks_alg, fs->cks_hex)
-           : BRIX_CACHE_VERIFY_ERROR;
-        if (vr == BRIX_CACHE_VERIFY_MISMATCH) {
-            return cache_fill_verify_reject(st, key, fs, pp);
-        }
-        if (vr == BRIX_CACHE_VERIFY_ERROR) {
-            ngx_log_error(NGX_LOG_ERR, st->log, errno,
-                "sd_cache: cvmfs-cas verify could not run for \"%s\" - "
-                "failing the fill closed", key);
-            brix_cstore_fill_abort(fs->staged);
-            errno = EIO;
+    if (brix_cache_verify_is_selfaddr(st->policy.verify)) {
+        if (cache_fill_verify_selfaddr(st, key, fs, pp) != NGX_OK) {
             return NGX_ERROR;
         }
-        fs->verified = (vr == BRIX_CACHE_VERIFY_VERIFIED);
     }
 
     if (st->policy.cvmfs_master_pub != NULL) {

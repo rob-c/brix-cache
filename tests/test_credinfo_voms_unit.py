@@ -16,9 +16,11 @@ against the built ``client/libbrix.a`` for the remaining symbols; if the client
 hasn't been built it skips rather than failing.
 """
 import os
+from pathlib import Path
 import shutil
 import subprocess
 
+from cmdscripts.c_regression_units import _gcov_flags
 import pytest
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -55,6 +57,7 @@ def voms_bin(tmp_path_factory):
         "-DBRIX_HAVE_KRB5", "-DBRIX_HAVE_LIBURING",
         os.path.join("lib", "auth", "cred", "credinfo_voms_unittest.c"),
         "libbrix.a", os.path.join("..", "shared", "xrdproto", "libxrdproto.a"),
+        *_gcov_flags([Path(LIBBRIX), Path(LIBXRDPROTO)]),
         *LDLIBS, "-o", out,
     ]
     r = subprocess.run(cmd, cwd=CLIENT, capture_output=True, text=True)

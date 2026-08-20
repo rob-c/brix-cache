@@ -24,6 +24,7 @@
 #define XCP_TODO 0u
 #define XCP_BUSY 1u
 #define XCP_DONE 2u
+#define XCP_RESERVED 3u
 
 /* Shared engine state — read-mostly after setup; the atomics coordinate. */
 typedef struct {
@@ -46,6 +47,8 @@ typedef struct {
     char          url[XRDC_XCP_URL_MAX];
     unsigned      blocks_done;        /* per-source block count (debug line)  */
     unsigned      claim_hint;         /* rotating scan start (spreads workers) */
+    size_t        initial_idx;        /* startup block reserved for this worker */
+    int           initial_reserved;   /* reservation still belongs to worker */
     int           rc;
     brix_status   st;
 } xcp_worker_t;

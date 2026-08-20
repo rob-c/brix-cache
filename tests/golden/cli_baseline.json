@@ -80,7 +80,7 @@
   "noarg:xrdcp": {
     "exit": 50,
     "stdout_sha": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-    "stderr_sha": "19bfaf6dd48a8c1ba92ddf02bf12f181085d8a1c80663cf260203fc85cfc67a1"
+    "stderr_sha": "34b89c5684d1b10b0bb5473790e751972aa5e23d4c885955d9651bef7488508b"
   },
   "noarg:xrdcrc32c": {
     "exit": 50,
@@ -95,7 +95,7 @@
   "noarg:xrddiag": {
     "exit": 50,
     "stdout_sha": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-    "stderr_sha": "050f32bc14e2165afe2c270aa73d0f3a3e96d2f47bcdedfc026ade59874c775d"
+    "stderr_sha": "9687a576005c0fbba125a4e785c71bd4dbc84ecc2448fa223cb8779328ed5c2a"
   },
   "noarg:xrdfs": {
     "exit": 50,

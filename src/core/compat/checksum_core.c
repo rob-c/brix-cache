@@ -2,7 +2,7 @@
  * checksum_core.c — pure (ngx-free) whole-file checksum compute kernels.
  *
  * WHAT: brix_cksum_u32_fd() (Adler-32/CRC-32/CRC-32c) and
- *       brix_cksum_digest_fd() (MD5/SHA-1/SHA-256) stream a file descriptor and
+ *       brix_cksum_digest_fd() (MD5/SHA-1/SHA-256/SHA-512) stream a file descriptor and
  *       return the result; no nginx, no logging.
  * WHY:  Single source for fd→checksum compute, shared by the nginx module
  *       (src/compat/checksum.c delegates here, keeping its ngx logging) and the
@@ -251,6 +251,7 @@ md_for(int kind)
     case BRIX_CK_MD5:    return EVP_md5();
     case BRIX_CK_SHA1:   return EVP_sha1();
     case BRIX_CK_SHA256: return EVP_sha256();
+    case BRIX_CK_SHA512: return EVP_sha512();
     default:               return NULL;
     }
 }

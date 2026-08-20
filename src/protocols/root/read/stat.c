@@ -11,6 +11,7 @@
 #include "net/manager/pending.h"
 #include "net/cms/cms_internal.h"
 #include <string.h>
+#include <errno.h>    /* strerror(ENOENT) — the reserved-name refusal text */
 #include <stdio.h>
 #include <stdlib.h>
 #include <spawn.h>
@@ -312,12 +313,17 @@ stat_query_path(brix_ctx_t *ctx, ngx_connection_t *c,
     /* Internal artifacts (sidecars, upload temps) are invisible → report as
      * absent, never leaking their size/mtime/existence.  A trusted cache-store
      * surface (brix_cache_store_endpoint on) is the sole exception: the cache
-     * node stats its own "<key>.cinfo" sidecar before reading it back. */
+     * node stats its own "<key>.cinfo" sidecar before reading it back.
+     *
+     * The error TEXT is strerror(ENOENT), not a literal of its own: the genuine
+     * miss below answers strerror(errno), so any distinct wording here would
+     * make the refusal readable as "this name is reserved" — the same oracle
+     * the 404-not-403 choice in core/compat/path.c exists to close. */
     if (!conf->common.cache_store_endpoint
         && brix_is_internal_name(tgt->reqpath))
     {
         BRIX_BAIL_ERR(ctx, c, BRIX_OP_STAT, "STAT", tgt->reqpath, "-",
-                        kXR_NotFound, "file not found", rc);
+                        kXR_NotFound, strerror(ENOENT), rc);
     }
 
     if (!stat_manager_route(ctx, c, conf, tgt->reqpath, rc)) {

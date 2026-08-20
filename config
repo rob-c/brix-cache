@@ -574,6 +574,8 @@ ngx_brix_stream_deps="$ngx_addon_dir/src/core/ngx_brix_module.h \
                         $ngx_addon_dir/src/protocols/shared/file_serve.h \
                         $ngx_addon_dir/src/protocols/shared/http_cache_fill.h \
                         $ngx_addon_dir/src/protocols/shared/http_serve_offload.h \
+                        $ngx_addon_dir/src/protocols/shared/merge_export.h \
+                        $ngx_addon_dir/src/protocols/shared/mirror_common.h \
                         $ngx_addon_dir/src/protocols/shared/backend_async_http.h \
                         $ngx_addon_dir/src/protocols/shared/deleg_capture.h \
                         $ngx_addon_dir/src/protocols/shared/deleg_wire.h \
@@ -750,9 +752,12 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/core/http/http_conditionals.c \
     $ngx_addon_dir/src/protocols/shared/protocol.c \
     $ngx_addon_dir/src/protocols/shared/file_serve.c \
+    $ngx_addon_dir/src/protocols/shared/guard_audit_http.c \
     $ngx_addon_dir/src/protocols/shared/http_cache_fill.c \
     $ngx_addon_dir/src/protocols/shared/http_cache_fill_registry.c \
     $ngx_addon_dir/src/protocols/shared/http_cache_fill_worker.c \
+    $ngx_addon_dir/src/protocols/shared/merge_export.c \
+    $ngx_addon_dir/src/protocols/shared/mirror_common.c \
     $ngx_addon_dir/src/protocols/shared/http_serve_offload.c \
     $ngx_addon_dir/src/protocols/shared/backend_async_http.c \
     $ngx_addon_dir/src/protocols/shared/deleg_capture.c \
@@ -763,6 +768,7 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/core/http/http_headers_set.c \
     $ngx_addon_dir/src/core/http/sesslog_conn.c \
     $ngx_addon_dir/src/core/compat/json_min.c \
+    $ngx_addon_dir/src/core/compat/json_iter.c \
     $ngx_addon_dir/src/core/compat/protocol_caps.c \
     $ngx_addon_dir/src/core/compat/net_target.c \
     $ngx_addon_dir/src/core/compat/net_target_parse.c \
@@ -919,6 +925,7 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/fs/backend/xroot/sd_xroot_ns_dir.c \
     $ngx_addon_dir/src/fs/backend/http/sd_http.c \
     $ngx_addon_dir/src/fs/backend/http/sd_http_select.c \
+    $ngx_addon_dir/src/fs/backend/http/sd_http_redirect.c \
     $ngx_addon_dir/src/fs/backend/http/sd_http_read.c \
     $ngx_addon_dir/src/fs/backend/http/sd_http_write.c \
     $ngx_addon_dir/src/fs/backend/http/sd_http_mutate.c \
@@ -1148,6 +1155,13 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/fs/cache/gcas.c \
     $ngx_addon_dir/src/fs/cache/verify.c \
     $ngx_addon_dir/src/fs/cache/fill_retry.c \
+    $ngx_addon_dir/src/protocols/oci/oci_classify.c \
+    $ngx_addon_dir/src/protocols/rpm/rpm_classify.c \
+    $ngx_addon_dir/shared/oci/name.c \
+    $ngx_addon_dir/shared/oci/digest.c \
+    $ngx_addon_dir/shared/oci/challenge.c \
+    $ngx_addon_dir/shared/oci/url.c \
+    $ngx_addon_dir/shared/oci/authority.c \
     $ngx_addon_dir/shared/cvmfs/grammar/classify.c \
     $ngx_addon_dir/shared/cvmfs/grammar/hash.c \
     $ngx_addon_dir/shared/cvmfs/filter/xorf.c \
@@ -1499,6 +1513,8 @@ ngx_module_name=ngx_http_brix_metrics_module
                   $ngx_addon_dir/src/observability/metrics/webdav.c \
                   $ngx_addon_dir/src/observability/metrics/s3.c \
                  $ngx_addon_dir/src/observability/metrics/cvmfs.c \
+                  $ngx_addon_dir/src/observability/metrics/oci.c \
+                  $ngx_addon_dir/src/observability/metrics/rpm.c \
                   $ngx_addon_dir/src/observability/metrics/tracking.c \
                   $ngx_addon_dir/src/observability/metrics/cluster.c \
                   $ngx_addon_dir/src/observability/metrics/ratelimit.c \
@@ -1512,6 +1528,8 @@ ngx_module_deps="$ngx_addon_dir/src/observability/metrics/metrics.h \
                  $ngx_addon_dir/src/observability/metrics/metrics_http_labels.h \
                  $ngx_addon_dir/src/observability/metrics/metrics_webdav.h \
                  $ngx_addon_dir/src/observability/metrics/metrics_s3.h \
+                 $ngx_addon_dir/src/observability/metrics/metrics_oci.h \
+                 $ngx_addon_dir/src/observability/metrics/metrics_rpm.h \
                  $ngx_addon_dir/src/core/ident.h \
                  $ngx_addon_dir/src/observability/metrics/metrics_macros.h \
                  $ngx_addon_dir/src/observability/metrics/unified.h \
@@ -1811,6 +1829,75 @@ ngx_module_deps="$ngx_addon_dir/src/protocols/cvmfs/cvmfs.h \
 ngx_module_libs=-lm
 xrd_emit_module
 
+# phase-104: the OCI Distribution plane (pull-through registry mirror + the
+# local registry surface).  Both surfaces are default-off directives, so a
+# deployment that never writes brix_oci_* is byte-identical to one built
+# without this module.
+ngx_module_type=HTTP
+ngx_module_name=ngx_http_brix_oci_module
+ngx_module_srcs="$ngx_addon_dir/src/protocols/oci/oci_module.c \
+                 $ngx_addon_dir/src/protocols/oci/oci_merge.c \
+                 $ngx_addon_dir/src/protocols/oci/oci_errors.c \
+                 $ngx_addon_dir/src/protocols/oci/oci_gate.c \
+                 $ngx_addon_dir/src/protocols/oci/oci_key.c \
+                 $ngx_addon_dir/src/protocols/oci/oci_meta.c \
+                 $ngx_addon_dir/src/protocols/oci/oci_present.c \
+                 $ngx_addon_dir/src/protocols/oci/oci_tags.c \
+                 $ngx_addon_dir/src/protocols/oci/oci_upstream_auth.c \
+                 $ngx_addon_dir/src/protocols/oci/oci_store.c \
+                 $ngx_addon_dir/src/protocols/oci/oci_authz.c \
+                 $ngx_addon_dir/src/protocols/oci/oci_upload.c \
+                 $ngx_addon_dir/src/protocols/oci/oci_upload_seal.c \
+                 $ngx_addon_dir/src/protocols/oci/oci_manifest_put.c \
+                 $ngx_addon_dir/src/protocols/oci/oci_referrers.c \
+                 $ngx_addon_dir/src/protocols/oci/oci_registry.c \
+                 $ngx_addon_dir/src/protocols/oci/oci_gc.c \
+                 $ngx_addon_dir/shared/oci/gc.c \
+                 $ngx_addon_dir/shared/oci/gc_mark.c \
+                 $ngx_addon_dir/shared/oci/gc_sweep.c \
+                 $ngx_addon_dir/src/protocols/oci/oci_mirror.c"
+ngx_module_deps="$ngx_addon_dir/src/protocols/oci/oci.h \
+                 $ngx_addon_dir/src/protocols/oci/oci_module_internal.h \
+                 $ngx_addon_dir/src/protocols/oci/oci_classify.h \
+                 $ngx_addon_dir/src/protocols/oci/oci_registry.h \
+                 $ngx_addon_dir/src/protocols/oci/oci_referrers.h \
+                 $ngx_addon_dir/src/protocols/oci/oci_upload_internal.h \
+                 $ngx_addon_dir/src/protocols/oci/directives_mirror.h \
+                 $ngx_addon_dir/src/protocols/oci/directives_registry.h \
+                 $ngx_addon_dir/shared/oci/url.h \
+                 $ngx_addon_dir/shared/oci/url_internal.h \
+                 $ngx_addon_dir/shared/oci/gc.h \
+                 $ngx_addon_dir/shared/oci/gc_internal.h \
+                 $ngx_addon_dir/src/observability/metrics/metrics_oci.h \
+                 $ngx_addon_dir/src/core/config/shared_conf.h \
+                 $ngx_addon_dir/src/fs/backend/sd.h \
+                 $ngx_addon_dir/src/fs/vfs/vfs_backend_registry.h"
+# OpenSSL: sha256 over manifest bodies + the token-cache key derivation.
+ngx_module_libs="-lssl -lcrypto"
+xrd_emit_module
+
+# phase-104 D15.9: the RPM/dnf pull-through mirror plane.  One default-off
+# directive (brix_rpm_mirror), so a deployment that never writes brix_rpm_* is
+# byte-identical to one built without this module.  The grammar kernel
+# (rpm_classify.c) is in the shared source list instead: the cache tier reads a
+# key with the same grammar the gate classified it under.
+ngx_module_type=HTTP
+ngx_module_name=ngx_http_brix_rpm_module
+ngx_module_srcs="$ngx_addon_dir/src/protocols/rpm/rpm_module.c \
+                 $ngx_addon_dir/src/protocols/rpm/rpm_merge.c \
+                 $ngx_addon_dir/src/protocols/rpm/rpm_gate.c \
+                 $ngx_addon_dir/src/protocols/rpm/rpm_mirror.c \
+                 $ngx_addon_dir/src/protocols/rpm/rpm_repomd.c \
+                 $ngx_addon_dir/src/protocols/rpm/rpm_prefetch.c"
+ngx_module_deps="$ngx_addon_dir/src/protocols/rpm/rpm.h \
+                 $ngx_addon_dir/src/protocols/rpm/rpm_classify.h \
+                 $ngx_addon_dir/src/protocols/rpm/rpm_repomd.h \
+                 $ngx_addon_dir/src/observability/metrics/metrics_rpm.h \
+                 $ngx_addon_dir/src/core/config/shared_conf.h \
+                 $ngx_addon_dir/src/fs/vfs/vfs_backend_registry.h"
+ngx_module_libs=
+xrd_emit_module
+
 ngx_module_type=HTTP
 ngx_module_name=ngx_http_brix_dashboard_module
 ngx_module_srcs="$ngx_addon_dir/src/observability/dashboard/module.c \
@@ -1943,6 +2030,8 @@ if [ "$ngx_module_link" = DYNAMIC ]; then
                      ngx_http_brix_webdav_module \
                      ngx_http_brix_s3_module \
                      ngx_http_brix_cvmfs_module \
+                     ngx_http_brix_oci_module \
+                     ngx_http_brix_rpm_module \
                      ngx_http_brix_dashboard_module \
                      ngx_stream_brix_cms_srv_module \
                      ngx_stream_brix_ftp_module"

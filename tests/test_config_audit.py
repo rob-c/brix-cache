@@ -173,7 +173,8 @@ def test_config_audit_capacity_threshold_warns(anon):
     assert "full" in dx["capacity-low"]["cause"].lower(), dx
     # a sane default threshold does NOT flag a near-empty test filesystem
     p2 = _run("remote-doctor", f"root://{HOST}:{port}//probe.bin",
-              "--config-audit", "--json", "--metrics-port", "0",
+              "--config-audit", "--cap-threshold", "1", "--json",
+              "--metrics-port", "0",
               "--probe-timeout", "8000")
     assert "capacity-low" not in _diagnosis(p2.stdout), p2.stdout
 

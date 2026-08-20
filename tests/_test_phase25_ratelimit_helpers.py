@@ -103,7 +103,7 @@ def _parse_fail(tmp_path, template, values):
 
 
 def _start_http(lifecycle, tmp_path, name, rl_knobs, http_extra="",
-                extra_locations="", seed_files=()):
+                extra_locations="", seed_files=(), port=None):
     data = tmp_path / "data"; data.mkdir(exist_ok=True)
     for n, payload in seed_files:
         if isinstance(payload, bytes):
@@ -116,16 +116,18 @@ def _start_http(lifecycle, tmp_path, name, rl_knobs, http_extra="",
         protocol="http",
         data_root=str(data),
         template_values=_http_values(rl_knobs, http_extra, extra_locations),
+        port=port,
         reason="phase-25 HTTP rate-limit functional coverage"))
     return endpoint.port
 
 
-def _start_stream(lifecycle, data, name, rl_knobs, stream_extra):
+def _start_stream(lifecycle, data, name, rl_knobs, stream_extra, port=None):
     endpoint = lifecycle.start(NginxInstanceSpec(
         name=name,
         template="nginx_rl_stream.conf",
         data_root=str(data),
         template_values=_stream_values(rl_knobs, stream_extra),
+        port=port,
         reason="phase-25 stream rate-limit functional coverage"))
     return endpoint.port
 

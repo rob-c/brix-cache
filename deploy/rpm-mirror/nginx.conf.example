@@ -1,0 +1,124 @@
+# deploy/rpm-mirror/nginx.conf.example — RPM/dnf pull-through mirror.
+# Templated by tests/test_rpm_mirror_dnf.py: @PORT@ @CACHEDIR@ @ORIGIN@
+# (host:port of the upstream repo).
+#
+# An RPM repository is static HTTP with exactly two classes of object, and the
+# whole mirror is that split:
+#
+#   repodata/repomd.xml   mutable, the freshness root      → short TTL
+#   everything else       digest-named or immutable        → cache ~forever
+#
+# The checksum-named metadata files (<sha256>-primary.xml.gz and friends) are
+# immutable *by construction*: change the content and you change the name. The
+# packages are immutable in practice and verified client-side against repomd's
+# chain. So only repomd.xml — and the detached signature/key beside it — needs
+# to expire. This is the same mutable-name/immutable-digest rule as OCI tags vs
+# blobs, and the same one deploy/cvmfs/nginx-proxy-cache.conf applies to
+# .cvmfspublished vs data/.
+#
+# Per-class TTLs are per-class locations because proxy_cache_valid does not
+# take variables.
+worker_processes 2;
+error_log @CACHEDIR@/error.log info;
+pid @CACHEDIR@/nginx.pid;
+events { worker_connections 1024; }
+
+http {
+    access_log @CACHEDIR@/access.log;
+    proxy_cache_path @CACHEDIR@/store levels=1:2 keys_zone=rpm:32m
+                     max_size=50g inactive=90d use_temp_path=off;
+
+    # Keep every writable path inside @CACHEDIR@ so the mirror runs as an
+    # unprivileged user with one directory to provision. use_temp_path=off
+    # above already writes cache entries straight into the store, which also
+    # avoids a cross-filesystem copy on every miss.
+    client_body_temp_path @CACHEDIR@/tmp/client;
+    proxy_temp_path       @CACHEDIR@/tmp/proxy;
+    fastcgi_temp_path     @CACHEDIR@/tmp/fastcgi;
+    uwsgi_temp_path       @CACHEDIR@/tmp/uwsgi;
+    scgi_temp_path        @CACHEDIR@/tmp/scgi;
+
+    upstream rpm_origin {
+        server @ORIGIN@ max_fails=3 fail_timeout=15s;
+        # additional upstream mirrors appended here in production
+    }
+
+    server {
+        listen @PORT@;
+
+        proxy_cache rpm;
+        proxy_cache_key $uri;
+        proxy_cache_lock on;              # one fetch per object under a herd
+        proxy_cache_lock_timeout 60s;
+        proxy_http_version 1.1;
+        proxy_set_header Connection "";
+
+        # Upstream mirrors habitually send Cache-Control/Expires tuned for
+        # browsers; the policy below is ours, so do not let theirs override it.
+        proxy_ignore_headers Cache-Control Expires Set-Cookie X-Accel-Expires;
+
+        # Bounded waits. This is what turns "upstream is down" into a prompt
+        # 502 that dnf reports, rather than a hang the operator has to guess at.
+        proxy_connect_timeout 5s;
+        proxy_read_timeout 20s;
+        proxy_next_upstream error timeout http_502 http_504;
+
+        # A mirror is read-only. Anything else is a bug or an attack.
+        if ($request_method !~ ^(GET|HEAD)$) { return 405; }
+
+        # ---- the freshness root: short TTL, never served stale -------------
+        # dnf sends `Cache-Control: no-cache` on this request specifically.
+        # nginx does not honour client no-cache for cache lookups unless
+        # proxy_cache_bypass says so (it does not here), so the short TTL is
+        # what bounds staleness — deliberately, so a herd of clients cannot
+        # stampede the upstream on every dnf invocation.
+        #
+        # use_stale is OFF here on purpose: repomd.xml is the document that
+        # says what the repository currently contains. Serving an expired one
+        # because the upstream is unreachable is how a mirror starts quietly
+        # lying about a security update. Fail loudly instead.
+        location ~ ^/.*/repodata/repomd\.xml(\.asc|\.key)?$ {
+            proxy_pass http://rpm_origin;
+            proxy_cache_valid 200 60s;
+            proxy_cache_valid 404 10s;
+            proxy_cache_use_stale off;
+            proxy_cache_revalidate on;    # If-None-Match/If-Modified-Since
+            add_header X-Brix-Cache $upstream_cache_status always;
+        }
+
+        # ---- digest-named metadata: immutable by name ----------------------
+        location ~ ^/.*/repodata/ {
+            proxy_pass http://rpm_origin;
+            proxy_cache_valid 200 720h;
+            proxy_cache_use_stale error timeout updating http_502 http_504;
+            add_header X-Brix-Cache $upstream_cache_status always;
+        }
+
+        # ---- packages: immutable in practice, verified client-side ---------
+        location ~ \.(rpm|drpm)$ {
+            proxy_pass http://rpm_origin;
+            proxy_cache_valid 200 720h;
+            proxy_cache_use_stale error timeout updating http_502 http_504;
+            # Large objects: let the client stream rather than buffering to
+            # disk twice, but still fill the cache.
+            proxy_max_temp_file_size 0;
+            add_header X-Brix-Cache $upstream_cache_status always;
+        }
+
+        # ---- GPG keys: small, mutable, treat like the freshness root -------
+        location ~ ^/.*/(RPM-GPG-KEY[^/]*|.*\.key)$ {
+            proxy_pass http://rpm_origin;
+            proxy_cache_valid 200 60s;
+            proxy_cache_use_stale off;
+            add_header X-Brix-Cache $upstream_cache_status always;
+        }
+
+        # ---- anything else: pass through, never cache ----------------------
+        # Unknown shapes are not given a TTL by guess. If a repo layout needs
+        # one, add a location for it rather than widening this.
+        location / {
+            proxy_pass http://rpm_origin;
+            proxy_cache off;
+        }
+    }
+}

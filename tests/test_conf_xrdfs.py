@@ -1,6 +1,15 @@
 from split_continuation import reexport as _reexport
 _reexport(globals(), "_test_conf_xrdfs_helpers")
 
+@pytest.mark.parametrize("path,expect", [
+    pytest.param(L.LISTING_ROOT_SENTINEL, L.LISTING_ROOT_ENTRIES,
+                 id="listing_root"),
+    ("/sub", {"nested.txt"}),
+    ("/many", {f"f{i:02d}.txt" for i in range(12)}),
+    ("/deep", {"a"}),
+    ("/deep/a/b/c", {"leaf.txt"}),
+    ("/empty_dir", set()),
+])
 def test_ls_plain_set_matches(srv, path, expect):
     if path == L.LISTING_ROOT_SENTINEL:
         path = L.ensure_listing_root(srv)

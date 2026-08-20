@@ -32,6 +32,25 @@ typedef struct {
     int             have_extra;
 } rl_rule_parse_t;
 
+/* Parse the zone= and key= fields shared by every rule grammar.  Return 1
+ * when the token was handled successfully, -1 for a malformed key, and 0
+ * when the token belongs to the grammar-specific parser. */
+static ngx_int_t
+rl_rule_parse_zone_or_key(ngx_conf_t *cf, ngx_str_t *a, rl_rule_parse_t *st)
+{
+    if (a->len > 5 && ngx_strncmp(a->data, "zone=", 5) == 0) {
+        st->zone_name.data = a->data + 5;
+        st->zone_name.len  = a->len - 5;
+        return 1;
+    }
+    if (a->len > 4 && ngx_strncmp(a->data, "key=", 4) == 0) {
+        if (rl_parse_key(cf, a, st->rule) != NGX_OK) { return -1; }
+        st->have_key = 1;
+        return 1;
+    }
+    return 0;
+}
+
 /* ---- Lazily create the per-conf rules array and push one zeroed rule ----
  *
  * WHAT: Resolves the `ngx_array_t*` living at cmd->offset inside `conf`,
@@ -186,15 +205,10 @@ static char *
 rl_rule_parse_token(ngx_conf_t *cf, ngx_str_t *a, int is_bw,
     rl_rule_parse_t *st)
 {
-    if (a->len > 5 && ngx_strncmp(a->data, "zone=", 5) == 0) {
-        st->zone_name.data = a->data + 5;
-        st->zone_name.len  = a->len - 5;
-        return NGX_CONF_OK;
-    }
-    if (a->len > 4 && ngx_strncmp(a->data, "key=", 4) == 0) {
-        if (rl_parse_key(cf, a, st->rule) != NGX_OK) { return NGX_CONF_ERROR; }
-        st->have_key = 1;
-        return NGX_CONF_OK;
+    ngx_int_t common = rl_rule_parse_zone_or_key(cf, a, st);
+
+    if (common != 0) {
+        return common > 0 ? NGX_CONF_OK : NGX_CONF_ERROR;
     }
     if (a->len > 5 && ngx_strncmp(a->data, "rate=", 5) == 0) {
         ngx_str_t r = { a->len - 5, a->data + 5 };
@@ -298,15 +312,10 @@ brix_rl_bw_directive(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 static char *
 rl_conc_parse_token(ngx_conf_t *cf, ngx_str_t *a, rl_rule_parse_t *st)
 {
-    if (a->len > 5 && ngx_strncmp(a->data, "zone=", 5) == 0) {
-        st->zone_name.data = a->data + 5;
-        st->zone_name.len  = a->len - 5;
-        return NGX_CONF_OK;
-    }
-    if (a->len > 4 && ngx_strncmp(a->data, "key=", 4) == 0) {
-        if (rl_parse_key(cf, a, st->rule) != NGX_OK) { return NGX_CONF_ERROR; }
-        st->have_key = 1;
-        return NGX_CONF_OK;
+    ngx_int_t common = rl_rule_parse_zone_or_key(cf, a, st);
+
+    if (common != 0) {
+        return common > 0 ? NGX_CONF_OK : NGX_CONF_ERROR;
     }
     if (a->len > 6 && ngx_strncmp(a->data, "limit=", 6) == 0) {
         ngx_int_t n = ngx_atoi(a->data + 6, a->len - 6);

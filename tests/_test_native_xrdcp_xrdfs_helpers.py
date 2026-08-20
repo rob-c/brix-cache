@@ -61,7 +61,7 @@ ENDPOINTS = [
 ]
 
 _CLEAN_ENV = {k: v for k, v in os.environ.items()}
-_CLEAN_ENV.pop("X509_USER_PROXY", None)
+_CLEAN_ENV["X509_USER_PROXY"] = "/nonexistent/brix-test-proxy.pem"
 _CLEAN_ENV.pop("X509_CERT_DIR", None)
 
 
@@ -236,7 +236,8 @@ class _StubServer:
         self._handler = handler
         self._srv = _socket.socket(_socket.AF_INET, _socket.SOCK_STREAM)
         self._srv.setsockopt(_socket.SOL_SOCKET, _socket.SO_REUSEADDR, 1)
-        self._srv.bind((BIND_HOST, 0))
+        from ephemeral_port import free_port
+        self._srv.bind((BIND_HOST, free_port(BIND_HOST)))
         self.port = self._srv.getsockname()[1]
         self._srv.listen(8)
         self._thread = _threading.Thread(target=self._loop, daemon=True)

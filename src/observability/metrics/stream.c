@@ -240,6 +240,8 @@ brix_export_prometheus_metrics(metrics_writer_t *mw,
     brix_export_webdav_metrics(mw, shm);
     brix_export_s3_metrics(mw, shm);
     brix_export_cvmfs_metrics(mw, shm);
+    brix_export_oci_metrics(mw, shm);
+    brix_export_rpm_metrics(mw, shm);
     brix_export_cluster_metrics(mw);
     brix_export_ratelimit_metrics(mw, shm);
     brix_export_pmark_metrics(mw, shm);

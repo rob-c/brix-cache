@@ -1009,7 +1009,7 @@ from the wire spec + our own tests, never from XrdCl).
   for the heavy modes — all thin front-ends over `libxrdc` + `libxrdproto`.
 - **Check library reuse:** rather than re-encode hundreds of assertions, the C
   checks can be a thin layer while the *authoritative* battery stays the pytest
-  suites; `xrddiag --suite=conformance|integrity|security` can even shell the
+  suites; `xrddiag --suite=conformance|integrity|security` can even shell the  <!-- client-flags-allow: sketch of a suite selector xrddiag never grew -->
   existing harness against an arbitrary endpoint (`CONFORMANCE_NGINX_URL`,
   `TEST_*_BIN`), so the diagnostic tool and the CI gate never drift.
 

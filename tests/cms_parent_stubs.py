@@ -17,11 +17,13 @@ settings.py so they can be overridden for parallel test runners.
 """
 
 import os
+import errno
 import signal
 import socket
 import struct
 import sys
 import threading
+import time
 
 from settings import HOST, BIND_HOST
 
@@ -142,17 +144,34 @@ def _stub_loop(port, locate_response_fn, label):
     while True:
         try:
             conn, _ = srv.accept()
-        except OSError:
-            return
-        try:
-            _handle_connection(conn, locate_response_fn)
-        except Exception:
-            pass
-        finally:
+        except OSError as exc:
+            # A transient accept failure (for example EMFILE while the full
+            # fleet is under connection pressure) must not permanently remove
+            # this shared CMS endpoint.  The old return left the process alive
+            # but silently killed one listener thread, which the session health
+            # guard correctly reported as cms-parent-stubs missing at teardown.
+            if exc.errno in {errno.EBADF, errno.EINVAL, errno.ENOTSOCK}:
+                return
+            time.sleep(0.05)
+            continue
+
+        def _serve_connection(client=conn, response_fn=locate_response_fn):
             try:
-                conn.close()
+                _handle_connection(client, response_fn)
             except Exception:
                 pass
+            finally:
+                try:
+                    client.close()
+                except Exception:
+                    pass
+
+        # CMS clients keep their parent connection open between LOCATE
+        # requests.  Handling one connection inline made this listener stop
+        # accepting new connections behind a full backlog, so the fleet health
+        # probe could falsely report the shared stub as down.  Keep accepting
+        # while each persistent client is serviced independently.
+        threading.Thread(target=_serve_connection, daemon=True).start()
 
 
 # ------------------------------------------------------------------ #

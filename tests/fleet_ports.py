@@ -321,6 +321,7 @@ CMDSCRIPTS_PORTS = {
     "user_backend_cred": (29208, 9),
     "xroot_gateway_regress": (29219, 2),
     "cvmfs_repo_cli": (29221, 4),
+    "root_readonly_gateway": (29225, 6),
 }
 
 # Tuple bases above are the original ports used by each developed command test.

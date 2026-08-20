@@ -4,6 +4,7 @@
 #include "tls.h"
 #include "budget.h"
 #include "deadline.h"
+#include "shutdown_hold.h"  /* retain active work across graceful reload */
 #include "net/manager/pending.h"
 #include "net/manager/loc_cache.h"   /* §2.6: negative entry on fan-out expiry */
 #include "fs/xfer/stage_waiter.h"
@@ -192,6 +193,11 @@ ngx_stream_brix_recv(ngx_event_t *rev)
     ctx = ngx_stream_get_module_ctx(s, ngx_stream_brix_module);
     conf = ngx_stream_get_module_srv_conf(s, ngx_stream_brix_module);
 
+    /* A non-header state represents an active protocol obligation (handshake,
+     * response drain, AIO, or an upstream/cache handoff).  Keep a retiring
+     * worker alive for it even when no file handle has been installed yet. */
+    brix_shutdown_hold_sync(c, ctx, ctx->state != XRD_ST_REQ_HEADER);
+
     /*
      * Fast teardown: we are about to service this connection, so clear the idle
      * marker for the duration of this handler run.  It is re-set at the request
@@ -256,6 +262,7 @@ ngx_stream_brix_recv(ngx_event_t *rev)
         if (step == BRIX_RECV_STEP_RETURN) {
             return;
         }
+        brix_shutdown_hold_sync(c, ctx, ctx->state != XRD_ST_REQ_HEADER);
         if (step == BRIX_RECV_STEP_BREAK) {
             break;
         }

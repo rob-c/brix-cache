@@ -280,27 +280,41 @@ s3_dispatch_empty_key(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
 
 /*
  * Resolve key -> confined fs_path.  Returns NGX_DECLINED when dispatch may
- * continue.  On a confinement deny the 403 response has already been sent and
- * the value the content handler must return is passed back (same sentinel
- * convention as s3_dispatch_parse_uri).
+ * continue.  On a refusal the response has already been sent and the value the
+ * content handler must return is passed back (same sentinel convention as
+ * s3_dispatch_parse_uri).
+ *
+ * The refusal is the resolver's own — an escape is AccessDenied, a RESERVED
+ * internal name is NoSuchKey/404 and books no_such_key, which is what a key that
+ * simply is not there answers.  Anything else here would let an unauthenticated
+ * probe read the reserved-name policy off the status line.
  */
 static ngx_int_t
 s3_resolve_object_key(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
     ngx_http_s3_req_ctx_t *s3ctx, ngx_uint_t method_slot, const u_char *key,
     char *fs_path, size_t fs_path_cap)
 {
-    if (s3_resolve_key(cf->common.root_canon, (const char *) key, fs_path,
-                       fs_path_cap, cf->common.cache_store_endpoint))
-    {
+    s3_key_error_t err;
+    int            rc;
+
+    rc = s3_resolve_key_ex(cf->common.root_canon, (const char *) key, fs_path,
+                           fs_path_cap, cf->common.cache_store_endpoint);
+    if (rc == 0) {
         ngx_cpystrn((u_char *) s3ctx->fs_path, (u_char *) fs_path,
                     sizeof(s3ctx->fs_path));
         return NGX_DECLINED;
     }
-    BRIX_S3_METRIC_INC(events_total[BRIX_S3_EVENT_ACCESS_DENIED]);
+
+    s3_resolve_key_error(rc, &err);
+    if (rc == 404) {
+        /* Reserved name: hand the whole answer to the absent-key router so the
+         * per-method shape matches too, not only the status. */
+        return s3_dispatch_object_absent(r, cf, method_slot, &err);
+    }
+    BRIX_S3_METRIC_INC(events_total[err.event]);
     return s3_metrics_return_method(
         r, method_slot,
-        s3_send_xml_error(r, NGX_HTTP_FORBIDDEN, "AccessDenied",
-                          "Access Denied."));
+        s3_send_xml_error(r, err.status, err.code, err.message));
 }
 
 /*

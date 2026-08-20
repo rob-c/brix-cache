@@ -8,7 +8,6 @@
 #include "fs/xfer/stage_request_registry.h"
 #include "fs/xfer/stage_waiter.h"
 #include "fs/vfs/vfs.h"                   /* brix_vfs_residency (sd_frm seam) */
-#include "fs/path/reserved_names.h"       /* brix_is_internal_name — hide sidecars */
 #include "protocols/root/session/registry.h"
 #include "net/cms/cms_internal.h"
 #include "core/compat/codec_core.h"

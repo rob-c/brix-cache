@@ -180,6 +180,7 @@ tpc_cred_run_token_exchange(const tpc_cred_request_t *req,
             (const char *) wconf->tpc_cred.token_client_id.data : NULL,
         wconf->tpc_cred.token_client_secret.len > 0 ?
             (const char *) wconf->tpc_cred.token_client_secret.data : NULL,
+        wconf->tpc_curl.len > 0 ? (const char *) wconf->tpc_curl.data : NULL,
         req->token_out);
 
     return tpc_cred_finish(r, req->token_out, rc);

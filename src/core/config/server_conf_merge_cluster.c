@@ -491,15 +491,57 @@ brix_merge_srv_rules(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *conf,
     return NGX_CONF_OK;
 }
 
+/*
+ * WHAT: refuse `brix_manager_mode on` together with `brix_read_only on` at
+ *       config time — nginx -t fails and the server does not start.
+ * WHY:  the two directives make CONTRADICTORY promises about the same request.
+ *       manager_redirect_mutation() (dispatch_write.c) answers a path mutation
+ *       with a REDIRECT to a data node, and it runs BEFORE the local write gate
+ *       that brix_read_only arms — by design, because a manager holds no data
+ *       and therefore cannot answer for it. So on a manager, `brix_read_only on`
+ *       does NOT make the namespace read-only: it hands the client the address
+ *       of a node that will happily accept the write. An operator who wrote both
+ *       directives believes they have a read-only endpoint and does not. That is
+ *       a security misconfiguration, not a preference, so it is fatal rather
+ *       than a warning: the two are different ROLES and belong in different
+ *       server {} blocks.
+ * HOW:  both flags have settled by now (common.read_only in the security merge,
+ *       manager_mode in the sizing merge above), so a plain conjunction suffices.
+ *       Tested by nginx -t; see docs/03-configuration/read-only-root-gateway.md.
+ */
+static char *
+brix_merge_srv_readonly_role_check(ngx_conf_t *cf,
+    ngx_stream_brix_srv_conf_t *conf)
+{
+    if (conf->common.read_only != 1 || conf->manager_mode != 1) {
+        return NGX_CONF_OK;
+    }
+
+    ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        "brix_manager_mode and brix_read_only are mutually exclusive: a manager "
+        "redirects mkdir/rm/rmdir/mv/chmod/truncate to a data node BEFORE the "
+        "local read-only gate runs, so the endpoint would not be read-only. "
+        "Put the manager and the read-only gateway in separate server {} blocks%s",
+        conf->common.read_only_public == 1
+            ? " (brix_read_only_public implies brix_read_only)" : "");
+
+    return NGX_CONF_ERROR;
+}
+
 /* Cluster & sessions: manager/redirector mode, write recovery + staged uploads,
  * pipeline/registry/session sizing, active health checks, the traffic mirror,
  * the CMS client (+ resilience-timeout derivation), listen port, checksum-scan
- * limits, and the VO/group/manager-map rule arrays + redirector inheritance. */
+ * limits, and the VO/group/manager-map rule arrays + redirector inheritance.
+ * Also the point where the read-only role check runs: brix_read_only has settled
+ * in the security merge and manager_mode settles in the sizing merge above. */
 char *
 brix_merge_srv_cluster(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *conf,
     ngx_stream_brix_srv_conf_t *prev)
 {
     brix_merge_srv_cluster_sizing(conf, prev);
+    if (brix_merge_srv_readonly_role_check(cf, conf) != NGX_CONF_OK) {
+        return NGX_CONF_ERROR;
+    }
     brix_merge_srv_healthcheck(conf, prev);
     brix_merge_srv_mirror(conf, prev);
     brix_merge_srv_cms(conf, prev);

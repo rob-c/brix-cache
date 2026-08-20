@@ -216,3 +216,106 @@ def test_fast_lane_covers_the_prepush_guard_set() -> None:
         f"_FAST has drifted from the pre-push set: "
         f"missing={sorted(expected - set(_FAST))} extra={sorted(set(_FAST) - expected)}"
     )
+
+
+# --- client-flag guard: the docs cannot invent a CLI flag ---------------------
+# The 2026-08-19 phase-104 sweep found three: `--require-digest` offered as the
+# mitigation for a registry MITM, `--paranoid` as the answer to a stale memo,
+# and `--skip-bad` named for behaviour that ships as `--strict`. The first two
+# sat in RISK tables, which is the expensive place for this defect — a reader
+# auditing the pull path sees a control in the mitigation column and stops
+# looking, while the operator who goes to type it finds nothing. These prove
+# the guard reads all three argv dialects the client tree really uses, and that
+# it stays quiet on everything that is not one of our command lines.
+_FLAGS = _load("check_client_flags_doc")
+
+#: One C front-end covering the three parse styles that coexist in client/:
+#: an exact strcmp ladder, a getopt_long table (whose literal has NO dashes),
+#: and a strncmp prefix form (whose literal carries the trailing '=').
+_PROBE_CLI = r'''
+static const struct option probe_long[] = {
+    {"listen",  required_argument, NULL, 'l'},
+    {NULL, 0, NULL, 0}
+};
+
+static int
+probe_parse(const char *a)
+{
+    if (strcmp(a, "--emit") == 0) { return 1; }
+    if (strncmp(a, "--wire=", 7) == 0) { return 1; }
+    return 0;
+}
+'''
+
+
+def _flags_tree(root, page: str):
+    """A minimal repo: one Makefile naming the tools, one C front-end, one
+    Python tool (some shipped tools ARE argparse), and one operator page."""
+    (root / "client/apps").mkdir(parents=True)
+    (root / "client/Makefile").write_text(
+        "BINS := xrdprobe\nOPT_LINKS += $(BINDIR)/brixprobe\n")
+    (root / "client/apps/probe.c").write_text(_PROBE_CLI)
+    (root / "client/apps/probe.py").write_text('ap.add_argument("--threads")\n')
+    docs = root / "docs/05-operations"
+    docs.mkdir(parents=True)
+    (docs / "probe.md").write_text(page)
+    return root
+
+
+def _flag_findings(root) -> list[str]:
+    return [f"{message} @{line}" for _, message, line in _FLAGS.findings(root)]
+
+
+def test_client_flags_guard_reads_every_argv_dialect(tmp_path) -> None:
+    """strcmp literal, getopt_long name column, strncmp prefix, argparse.
+
+    A getopt_long table is the one that bites: its literal is `"listen"`, with
+    no dashes at all, so a scanner looking only for `"--…"` declares every
+    documented brix-fault-proxy flag a fabrication.
+    """
+    root = _flags_tree(tmp_path, "```\nxrdprobe --emit --listen 9 --wire=2 --threads 4\n```\n")
+    assert _flag_findings(root) == []
+    assert _FLAGS.tools(root) == frozenset({"xrdprobe", "brixprobe"})
+
+
+def test_client_flags_guard_catches_a_flag_no_tool_parses(tmp_path) -> None:
+    """The defect shape: a plausible flag, in a table, that argv never matches."""
+    root = _flags_tree(
+        tmp_path,
+        "| threat | mitigation |\n"
+        "|---|---|\n"
+        "| tampered upstream | pin it: `xrdprobe --require-digest` |\n",
+    )
+    assert _flag_findings(root) == ["no client tool parses --require-digest @3"]
+
+
+def test_client_flags_guard_leaves_other_peoples_grammar_alone(tmp_path) -> None:
+    """Docs are full of foreign command lines; none of them is ours to check.
+
+    A guard that reddens on `podman pull --tls-verify=false` gets switched off
+    within a week, and takes the real finding with it. The pipeline case is the
+    subtle one — the flag sits on OUR line, but after a `|` it belongs to grep.
+    """
+    root = _flags_tree(
+        tmp_path,
+        "```\npodman pull --tls-verify=false quay.io/x/y\n"
+        "dnf --installroot /srv makecache\n"
+        "xrdprobe --emit | grep --color=never ok\n```\n"
+        "Prose: xrdprobe fails, then fsck `--repair` converges.\n",
+    )
+    assert _flag_findings(root) == []
+
+
+def test_client_flags_allow_marker_cannot_launder_the_next_line(tmp_path) -> None:
+    """The escape hatch is line-scoped — one reason cannot cover a whole plan.
+
+    Plans legitimately propose flags they have not built; that is what the
+    marker is for. A file-scoped opt-out would silence every invented flag
+    written after the first honest proposal.
+    """
+    root = _flags_tree(
+        tmp_path,
+        "`xrdprobe --planned` <!-- client-flags-allow: proposed, not built -->\n"
+        "`xrdprobe --smuggled` rides along on the exemption above.\n",
+    )
+    assert _flag_findings(root) == ["no client tool parses --smuggled @2"]

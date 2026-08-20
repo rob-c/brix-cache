@@ -46,8 +46,11 @@ from settings import BIND_HOST, HOST
 REPO = "test.cern.ch"
 ROSTER = "/cvmfs/.swarm/roster"
 
-pytestmark = pytest.mark.skipif(not os.path.exists(NGINX_BIN),
-                                reason=f"nginx binary not found: {NGINX_BIN}")
+pytestmark = [
+    pytest.mark.skipif(not os.path.exists(NGINX_BIN),
+                       reason=f"nginx binary not found: {NGINX_BIN}"),
+    pytest.mark.timeout(180),
+]
 
 
 # ---- rendezvous mirror (MUST match sd_cache_hrw_fnv1a64) -------------------

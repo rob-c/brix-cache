@@ -197,6 +197,8 @@ tpc_populate_pull_task(brix_tpc_pull_t *t, brix_ctx_t *ctx,
     t->streamid[0] = ctx->recv.cur_streamid[0];
     t->streamid[1] = ctx->recv.cur_streamid[1];
     t->dst_fd = file->fd;
+    t->dst_obj = file->sd_obj;
+    t->dst_writer = file->writer;
     t->reply_kind = BRIX_TPC_REPLY_SYNC;
     t->src_port = file->tpc_src_port;
     t->transfer_id = file->tpc_transfer_id;
@@ -375,7 +377,8 @@ brix_tpc_start_pull(brix_ctx_t *ctx, ngx_connection_t *c,
 
     /* The handle must be a live TPC destination opened by prepare_pull. */
     file = &ctx->files[fhandle_idx];
-    if (!file->tpc_destination || file->fd < 0) {
+    if (!file->tpc_destination || (file->fd < 0 && file->writer == NULL
+                                   && file->sd_obj.driver == NULL)) {
         return brix_send_error(ctx, c, kXR_FileNotOpen,
                                  "invalid TPC destination handle");
     }

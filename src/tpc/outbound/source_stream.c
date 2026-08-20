@@ -123,19 +123,35 @@ tpc_stream_write_frame(brix_tpc_pull_t *t, uint64_t offset,
     }
 
     dst_offset = (off_t) (offset + (uint64_t) *got_this_req);
-    brix_vfs_job_write_init(&job, t->dst_fd, dst_offset, body, (size_t) dlen);
-    brix_vfs_io_execute(&job);
-    if (job.io_errno != 0 || job.nio < 0 || (uint32_t) job.nio != dlen) {
-        int err = job.io_errno != 0 ? job.io_errno : EIO;
+    if (t->dst_writer != NULL) {
+        if (brix_vfs_writer_write(t->dst_writer, body, (size_t) dlen,
+                                  dst_offset) != NGX_OK)
+        {
+            int err = errno != 0 ? errno : EIO;
 
-        snprintf(t->err_msg, sizeof(t->err_msg),
-                 "TPC dst write failed: %s", strerror(err));
-        t->xrd_error = kXR_IOError;
-        return -1;
+            snprintf(t->err_msg, sizeof(t->err_msg),
+                     "TPC dst writer failed: %s", strerror(err));
+            t->xrd_error = kXR_IOError;
+            return -1;
+        }
+        *got_this_req    += (size_t) dlen;
+        t->bytes_written += (size_t) dlen;
+    } else {
+        brix_vfs_job_write_init(&job, t->dst_fd, dst_offset, body,
+                                (size_t) dlen);
+        brix_vfs_job_set_obj(&job, &t->dst_obj);
+        brix_vfs_io_execute(&job);
+        if (job.io_errno != 0 || job.nio < 0 || (uint32_t) job.nio != dlen) {
+            int err = job.io_errno != 0 ? job.io_errno : EIO;
+
+            snprintf(t->err_msg, sizeof(t->err_msg),
+                     "TPC dst write failed: %s", strerror(err));
+            t->xrd_error = kXR_IOError;
+            return -1;
+        }
+        *got_this_req    += (size_t) job.nio;
+        t->bytes_written += (size_t) job.nio;
     }
-
-    *got_this_req    += (size_t) job.nio;
-    t->bytes_written += (size_t) job.nio;
     (void) brix_tpc_progress_emit(
         t->transfer_id, (off_t) t->bytes_written, 0,
         BRIX_TPC_STATE_ACTIVE,
@@ -205,7 +221,14 @@ tpc_stream_sync_dst(brix_tpc_pull_t *t)
 {
     brix_vfs_job_t job;
 
+    if (t->dst_writer != NULL) {
+        /* The writer's commit is performed on the event loop after the worker
+         * has finished receiving bytes.  A staged backend has no fd to sync. */
+        return 0;
+    }
+
     brix_vfs_job_sync_init(&job, t->dst_fd);
+    brix_vfs_job_set_obj(&job, &t->dst_obj);
     brix_vfs_io_execute(&job);
     if (job.io_errno != 0) {
         snprintf(t->err_msg, sizeof(t->err_msg),

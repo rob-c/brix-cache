@@ -43,6 +43,7 @@ NGINX_BIN = os.environ.get("NGINX_BIN", "/tmp/nginx-1.28.3/objs/nginx")
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CLIENT_DIR = os.path.join(REPO, "client")
 XRDDIAG = os.path.join(CLIENT_DIR, "bin", "xrddiag")
+_SSSADMIN = os.path.join(CLIENT_DIR, "bin", "xrdsssadmin-brix")
 
 # Clean env: no X509 / no token so anon stays anon and no credential is in scope.
 _CLEAN_ENV = {k: v for k, v in os.environ.items()}
@@ -63,7 +64,8 @@ def _port_up(host, port, family=socket.AF_INET):
 def _have_ipv6_loopback():
     try:
         s = socket.socket(socket.AF_INET6, socket.SOCK_STREAM)
-        s.bind((BIND_HOST6, 0))
+        from ephemeral_port import free_port
+        s.bind((BIND_HOST6, free_port(BIND_HOST6)))
         s.close()
         return True
     except OSError:

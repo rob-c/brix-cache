@@ -1,6 +1,8 @@
 from split_continuation import reexport as _reexport
 _reexport(globals(), "_test_webdav_helpers")
 
+pytestmark = pytest.mark.registry_server("main")
+
 class TestPropfind:
 
     def _propfind(self, path: str, depth: str) -> ET.Element:

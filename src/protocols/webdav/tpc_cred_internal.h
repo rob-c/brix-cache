@@ -24,6 +24,6 @@ ngx_int_t tpc_cred_oidc_agent_fetch(ngx_http_request_t *r,
 ngx_int_t tpc_cred_rfc8693_exchange(ngx_http_request_t *r,
     const char *subject_token, const char *source_url, const char *scope,
     const char *token_endpoint, const char *client_id,
-    const char *client_secret, ngx_str_t *token_out);
+    const char *client_secret, const char *curl_path, ngx_str_t *token_out);
 
 #endif /* BRIX_WEBDAV_TPC_CRED_INTERNAL_H */

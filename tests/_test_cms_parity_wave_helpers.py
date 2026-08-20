@@ -48,6 +48,7 @@ import pytest
 
 from server_registry import NginxInstanceSpec
 from settings import BIND_HOST, SERVER_HOST
+from ephemeral_port import free_port
 
 pytestmark = [pytest.mark.uses_lifecycle_harness,
               pytest.mark.timeout(90),   # nginx bring-up + poll windows > 30s
@@ -281,7 +282,8 @@ class StubManager:
         self.frames = []
         self._sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self._sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        self._sock.bind((BIND_HOST, 0))
+        from ephemeral_port import free_port
+        self._sock.bind((BIND_HOST, free_port(BIND_HOST)))
         self.port = self._sock.getsockname()[1]
         self._sock.listen(8)
         self._sock.settimeout(0.2)

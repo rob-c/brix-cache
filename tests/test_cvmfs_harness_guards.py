@@ -48,7 +48,13 @@ def test_fuse_suites_consume_single_truth_compile_list():
     from BRIXCVMFS_CORE_DEPS, never a private literal copy (the stale-copy
     failure mode: 59 link ERRORs in whitelist, 64 silent skips in trust)."""
     for name in _FUSE_SUITES:
-        text = (TESTS / name).read_text()
+        facade = TESTS / name
+        # Split suites are intentionally tiny re-export facades. Inspect the
+        # continuation helper as well; checking only the facade makes a valid
+        # split look like a stale private compile list.
+        helper_stem = "_" + facade.stem + "_helpers"
+        sources = [facade, *sorted(TESTS.glob(helper_stem + "*.py"))]
+        text = "\n".join(path.read_text() for path in sources)
         assert "BRIXCVMFS_CORE_DEPS" in text, \
             f"{name} no longer imports the single-truth compile list"
         literal_lists = [n.lineno for n in ast.walk(ast.parse(text))

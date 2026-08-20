@@ -383,7 +383,7 @@ sd_http_propfind_issue(sd_http_inst_state *is, const sd_http_pf_t *pf,
 {
     char          hdrs[SD_HTTP_AUTH_MAX + 32];
     sd_http_req_t rq = { is, "PROPFIND", pf->key, hdrs, pf->cert_pem, resp,
-                         pf->force_primary };
+                         pf->force_primary, NULL };
     int           rc;
 
     snprintf(hdrs, sizeof(hdrs), "Depth: %d\r\n%s", pf->depth,

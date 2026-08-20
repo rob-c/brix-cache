@@ -47,6 +47,15 @@ ngx_int_t s3_dispatch_object_method(ngx_http_request_t *r,
     ngx_http_s3_loc_conf_t *cf, ngx_http_s3_req_ctx_t *s3ctx,
     ngx_uint_t method_slot, const u_char *key, char *fs_path);
 
+/* Defined in handler_object_route.c. Answers an object request whose key the
+ * resolver refused with 404 (a reserved internal name) exactly as the same
+ * request against an absent key is answered — 204 for a plain idempotent DELETE,
+ * the mapped XML error otherwise. Called by s3_resolve_object_key
+ * (handler_dispatch.c). */
+ngx_int_t s3_dispatch_object_absent(ngx_http_request_t *r,
+    ngx_http_s3_loc_conf_t *cf, ngx_uint_t method_slot,
+    const s3_key_error_t *err);
+
 /* Defined in handler_dispatch.c. Emits the "Write access is disabled." 403 and
  * returns the content-handler rc. Shared by the write-op routers in
  * handler_object_route.c. */

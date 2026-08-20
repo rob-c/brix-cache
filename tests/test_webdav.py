@@ -1,6 +1,10 @@
 from split_continuation import reexport as _reexport
 _reexport(globals(), "_test_webdav_helpers")
 
+# The split helper owns the autouse fixture, so the static declaration scanner
+# cannot infer that these tests need the shared WebDAV-bearing fleet server.
+pytestmark = pytest.mark.registry_server("main")
+
 class TestOptions:
 
     def test_returns_200(self):

@@ -22,6 +22,12 @@ int brix_plat_anon_fd(const char *label, const char *spill_dir);
  * back). Returns 0/-1 (errno set). */
 int brix_plat_fsync_data(int fd);
 
+/* Durability barrier for a whole tree: flush the filesystem holding `dirfd`
+ * (syncfs on Linux; sync() elsewhere — coarser, same guarantee). Pairs with
+ * a no_fsync CAS store: call once before publishing any reference to the
+ * batched objects. Returns 0/-1 (errno set). */
+int brix_plat_sync_tree(int dirfd);
+
 /* Map `len` bytes of `fd` read-only, shared (paged on demand — the G6 mmap
  * path index reads through this). Returns the mapping or NULL (errno set). */
 void *brix_plat_map_ro(int fd, unsigned long len);

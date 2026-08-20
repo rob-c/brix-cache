@@ -36,11 +36,8 @@ def bfp():
 
 
 def _free_port():
-    s = socket.socket()
-    s.bind((HOST, 0))
-    p = s.getsockname()[1]
-    s.close()
-    return p
+    from ephemeral_port import free_port
+    return free_port(HOST)
 
 
 def _wait_port(port, deadline=5.0):
@@ -59,7 +56,8 @@ class _UdpEcho:
 
     def __init__(self):
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        self.sock.bind((HOST, 0))
+        from ephemeral_port import free_port
+        self.sock.bind((HOST, free_port(HOST)))
         self.port = self.sock.getsockname()[1]
         self._stop = False
         threading.Thread(target=self._run, daemon=True).start()

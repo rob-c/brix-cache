@@ -8,6 +8,9 @@
 
 #include "tpc_internal.h"
 #include "fs/vfs/vfs.h"   /* confined unlink of the export destination */
+#include "fs/vfs/vfs_internal.h"
+#include "protocols/root/path/op_path.h"
+#include "protocols/root/write/write.h"
 #include "observability/sesslog/sesslog_ngx.h"
 
 #include <string.h>
@@ -69,14 +72,102 @@ static void
 tpc_done_teardown_dst(brix_tpc_pull_t *t, brix_ctx_t *ctx, int idx,
                       ngx_log_t *log)
 {
-    close(t->dst_fd);
-    (void) brix_vfs_unlink_path(log, t->conf->common.root_canon,
-                                  t->dst_path);
+    int remove_final = 1;
+
+    if (t->dst_writer != NULL) {
+        remove_final = 0;
+        brix_vfs_writer_abort(t->dst_writer);
+    }
+    if (ctx != NULL && idx >= 0 && idx < BRIX_MAX_FILES
+        && ctx->files[idx].writer != NULL)
+    {
+        remove_final = 0;
+    }
+    if (t->dst_writer == NULL && t->dst_fd >= 0) {
+        close(t->dst_fd);
+    }
+    if (remove_final) {
+        (void) brix_vfs_unlink_path(log, t->conf->common.root_canon,
+                                    t->dst_path);
+    }
     if (ctx != NULL && idx >= 0 && idx < BRIX_MAX_FILES) {
         ctx->files[idx].fd = -1;
         ctx->files[idx].tpc_transfer_id = 0;
         brix_free_fhandle(ctx, idx);
     }
+}
+
+static ngx_int_t
+tpc_done_commit_dst(brix_tpc_pull_t *t, brix_ctx_t *ctx, int idx)
+{
+    int cerr = 0;
+
+    if (ctx == NULL || idx < 0 || idx >= BRIX_MAX_FILES
+        || ctx->files[idx].writer == NULL
+        || ctx->files[idx].staged_committed)
+    {
+        return NGX_OK;
+    }
+    if (brix_staged_commit_handle(ctx, idx, &cerr) != NGX_OK) {
+        t->xrd_error = kXR_IOError;
+        snprintf(t->err_msg, sizeof(t->err_msg),
+                 "TPC destination commit failed: %s",
+                 strerror(cerr != 0 ? cerr : EIO));
+        return NGX_ERROR;
+    }
+    return NGX_OK;
+}
+
+static ngx_int_t
+tpc_done_refresh_stat(brix_tpc_pull_t *t, brix_ctx_t *ctx,
+    ngx_connection_t *c, int idx)
+{
+    brix_vfs_ctx_t  vctx;
+    brix_vfs_stat_t vst;
+    brix_file_t    *file;
+    const char      *logical;
+
+    if (t == NULL || ctx == NULL || c == NULL
+        || idx < 0 || idx >= BRIX_MAX_FILES)
+    {
+        return NGX_ERROR;
+    }
+
+    file = &ctx->files[idx];
+
+    logical = brix_vfs_export_relative_root(file->path,
+                                             t->conf->common.root_canon);
+
+    brix_vfs_ctx_init(&vctx, c->pool, c->log, BRIX_PROTO_ROOT,
+        t->conf->common.root_canon, NULL, t->conf->common.allow_write,
+        0, ctx->identity, logical);
+    vctx.rootfd = t->conf->rootfd;
+    brix_vfs_ctx_bind_backend_cred(&vctx,
+        &t->conf->common.storage_credential_dir,
+        t->conf->common.storage_credential_fallback);
+    brix_vfs_ctx_bind_backend_mint(&vctx,
+        &t->conf->common.storage_credential_mint_ca_cert,
+        &t->conf->common.storage_credential_mint_ca_key,
+        t->conf->common.storage_credential_mint_ttl);
+    brix_root_vfs_bind_deleg(ctx, t->conf, &vctx);
+
+    if (brix_vfs_probe(&vctx, 1, &vst) != NGX_OK) {
+        t->dst_stat_valid = 0;
+        return NGX_ERROR;
+    }
+    ngx_memzero(&t->dst_stat, sizeof(t->dst_stat));
+    t->dst_stat.st_mode = (mode_t) vst.mode;
+    t->dst_stat.st_size = vst.size;
+    t->dst_stat.st_mtime = vst.mtime;
+    t->dst_stat.st_ctime = vst.ctime;
+    t->dst_stat.st_ino = vst.ino;
+    t->dst_stat.st_dev = vst.dev;
+    t->dst_stat_valid = 1;
+    file->cached_size = vst.size;
+    file->device = vst.dev;
+    file->inode = vst.ino;
+    file->is_regular = vst.is_regular ? 1 : 0;
+    return NGX_OK;
 }
 
 /* WHAT: SYNC-mode failure reply — discard the half-written destination, account the
@@ -105,13 +196,24 @@ tpc_done_sync_fail(brix_tpc_pull_t *t, brix_ctx_t *ctx, ngx_connection_t *c,
      * the raw fd directly. Either way unlink the partial file so a
      * failed transfer never leaves a truncated object behind. */
     if (file != NULL) {
+        int had_writer = file->writer != NULL;
+
         file->fd = -1;
         file->tpc_transfer_id = 0;
         brix_free_fhandle(ctx, idx);
+        if (!had_writer) {
+            (void) brix_vfs_unlink_path(c->log, t->conf->common.root_canon,
+                                        t->dst_path);
+        }
     } else {
-        close(t->dst_fd);
+        if (t->dst_writer == NULL && t->dst_fd >= 0) {
+            close(t->dst_fd);
+        }
+        if (t->dst_writer == NULL) {
+            (void) brix_vfs_unlink_path(c->log, t->conf->common.root_canon,
+                                        t->dst_path);
+        }
     }
-    (void) brix_vfs_unlink_path(c->log, t->conf->common.root_canon, t->dst_path);
 
     tpc_done_account(t, 0, c->log);
 
@@ -148,24 +250,23 @@ tpc_done_reply_sync(brix_tpc_pull_t *t, brix_ctx_t *ctx, ngx_connection_t *c,
     /* idx may be out of range if the handle was reaped; guard before use. */
     file = (idx >= 0 && idx < BRIX_MAX_FILES) ? &ctx->files[idx] : NULL;
 
+    if (tpc_done_commit_dst(t, ctx, idx) != NGX_OK) {
+        t->result = NGX_ERROR;
+        tpc_done_sync_fail(t, ctx, c, idx);
+        return;
+    }
+
     /* Success: mark the handle done and refresh its cached metadata from
      * the now-complete file so a subsequent stat/read on the same handle
      * sees the real size/inode without another path syscall (INVARIANT 7). */
     tpc_sess_finish_pull(t, 1, BRIX_SESS_END_SERVER);
     if (file != NULL) {
-        struct stat st;
-
         file->tpc_done = 1;
         file->tpc_started = 0;
         file->tpc_transfer_id = 0;
         file->bytes_written += t->bytes_written;
 
-        if (fstat(file->fd, &st) == 0) {
-            file->cached_size = (off_t) st.st_size;
-            file->device = st.st_dev;
-            file->inode = st.st_ino;
-            file->is_regular = S_ISREG(st.st_mode) ? 1 : 0;
-        }
+        (void) tpc_done_refresh_stat(t, ctx, c, idx);
     }
 
     brix_log_access(ctx, c, "TPC-PULL", t->dst_path, "ok",
@@ -196,9 +297,10 @@ tpc_done_stat_trailer(brix_tpc_pull_t *t, char *statbuf, size_t buflen)
 
     statbuf[0] = '\0';
 
-    if (fstat(t->dst_fd, &st) != 0) {
+    if (!t->dst_stat_valid) {
         return;
     }
+    st = t->dst_stat;
 
     /* xrootd stat flags are derived from POSIX mode bits. */
     if (st.st_mode & (S_IRUSR | S_IRGRP | S_IROTH)) { sf |= kXR_readable; }
@@ -306,6 +408,13 @@ tpc_done_reply_open(brix_tpc_pull_t *t, brix_ctx_t *ctx, ngx_connection_t *c,
         brix_aio_resume(c);
         return;
     }
+
+    if (tpc_done_commit_dst(t, ctx, idx) != NGX_OK) {
+        t->result = NGX_ERROR;
+        tpc_done_sync_fail(t, ctx, c, idx);
+        return;
+    }
+    (void) tpc_done_refresh_stat(t, ctx, c, idx);
 
     tpc_sess_finish_pull(t, 1, BRIX_SESS_END_SERVER);
     brix_log_access(ctx, c, "TPC-PULL", t->dst_path, "ok", 1, 0, NULL, 0);

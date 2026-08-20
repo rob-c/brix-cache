@@ -125,18 +125,20 @@ def _scrape(port):
 
 
 def _sanitizer_flags(objects):
-    """`-fsanitize=...` matching however the linked nginx objects were built.
+    """Runtime flags matching however the linked nginx objects were built.
 
     An object compiled with -fsanitize=address/undefined embeds __asan_*/
     __ubsan_* references, so a harness that links it without the matching
     runtime dies at LD time with `undefined reference to __asan_*`. The nginx
-    tree these objects come from may be a sanitized build, so probe with one nm
-    pass rather than assuming. Same helper idea as
+    tree these objects come from may be a sanitized or gcov build, so probe with
+    one nm pass rather than assuming. Same helper idea as
     cmdscripts/c_regression_units.py::_sanitizer_flags.
     """
     proc = subprocess.run(["nm", *objects], capture_output=True, text=True)
     syms = proc.stdout if proc.returncode == 0 else ""
     flags = []
+    if "__gcov_init" in syms or "__gcov_merge_add" in syms:
+        flags.append("--coverage")
     if "__asan_" in syms:
         flags.append("-fsanitize=address")
     if "__ubsan" in syms:

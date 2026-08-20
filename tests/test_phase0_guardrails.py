@@ -59,8 +59,11 @@ def test_webdav_method_parity_guardrails_present():
             "test_head_existing_file",
             "test_delete_existing_file",
             "test_mkcol_creates_directory",
-            "test_propfind_depth1_lists_children",
         ],
+    )
+    _assert_markers(
+        "tests/test_http_webdav_status_codes_b.py",
+        ["test_propfind_depth1_lists_children"],
     )
     _assert_markers(
         "tests/test_xrdhttp_webdav.py",
@@ -91,9 +94,11 @@ def test_token_auth_negative_guardrails_present():
             "test_alg_none_rejected",
             "test_scope_data_does_not_match_database",
             "test_read_scope_blocks_write",
-            "test_wrong_issuer_rejected",
-            "test_wrong_audience_rejected",
         ],
+    )
+    _assert_markers(
+        "tests/test_token_security_b.py",
+        ["test_wrong_issuer_rejected", "test_wrong_audience_rejected"],
     )
     _assert_markers(
         "tests/test_token_jwks_refresh.py",
@@ -141,11 +146,11 @@ def test_xrdhttp_checksum_and_metadata_guardrails_present():
     )
     _assert_markers(
         "tests/test_query_extended.py",
-        [
-            "test_qcksum_crc32c_known_file",
-            "test_qckscan_directory_tree",
-            "test_qckscan_nonexistent_path_errors",
-        ],
+        ["test_qcksum_crc32c_known_file"],
+    )
+    _assert_markers(
+        "tests/test_query_extended_b.py",
+        ["test_qckscan_directory_tree", "test_qckscan_nonexistent_path_errors"],
     )
 
 

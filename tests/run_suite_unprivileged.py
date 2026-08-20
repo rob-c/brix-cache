@@ -135,7 +135,17 @@ def _clear_foreign_fleet() -> None:
 
 
 def _reap_test_servers(sig: str) -> None:
-    markers = ("/tmp/xrd", "/tmp/hsproto", "/tmp/xrd-test")
+    """Signal the leaked daemons of THIS lane — the root we are about to run in.
+
+    The old marker list (``/tmp/xrd``, ``/tmp/hsproto``, ``/tmp/xrd-test``) was a
+    substring test, so starting this runner TERM+KILLed every other lane's live
+    fleet on the box: ``/tmp/xrd`` is a substring of every ``/tmp/xrd-test-*``
+    root anyone else is using.  ``fleet_orphans.owns`` matches whole paths, so a
+    sibling root that merely starts with ours is not ours to kill.
+    """
+    from fleet_orphans import owns  # noqa: PLC0415 — tests/ is on sys.path here
+
+    root = os.environ.get("TEST_ROOT", "/tmp/xrd-test")
     for name in ("nginx", "xrootd", "krb5kdc", "kadmind"):
         try:
             out = subprocess.run(
@@ -150,7 +160,7 @@ def _reap_test_servers(sig: str) -> None:
                 )
             except OSError:
                 continue
-            if any(m in cmdline for m in markers):
+            if owns(root, cmdline):
                 subprocess.run(["kill", sig, pid], check=False,
                                stderr=subprocess.DEVNULL)
 

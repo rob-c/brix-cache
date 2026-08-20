@@ -78,7 +78,8 @@ class MockSource(threading.Thread):
         self.mode = mode
         self.srv = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        self.srv.bind((BIND_HOST, 0))
+        from ephemeral_port import free_port
+        self.srv.bind((BIND_HOST, free_port(BIND_HOST)))
         self.srv.listen(8)
         self.port = self.srv.getsockname()[1]
         self._stop = False

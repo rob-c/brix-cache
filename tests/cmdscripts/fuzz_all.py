@@ -123,6 +123,70 @@ BUILD_ARGS = {
         "-o",
         "fuzz_sigv4_canonical",
     ],
+    # phase-104 D0.2: the OCI `/v2/` classifier is the whole traversal defense
+    # for that surface, and it links standalone (pure C over the shared
+    # grammars) — so it fuzzes here rather than only through a live registry.
+    "fuzz_oci_classify": [
+        "clang",
+        *SAN,
+        "-I",
+        "../../src/protocols/oci",
+        "-I",
+        "../../shared",
+        "fuzz_oci_classify.c",
+        "../../src/protocols/oci/oci_classify.c",
+        "../../shared/oci/name.c",
+        "../../shared/oci/digest.c",
+        "-lcrypto",
+        "-o",
+        "fuzz_oci_classify",
+    ],
+    # phase-104 §H: the other three parsers that eat bytes nobody on this side
+    # wrote — an upstream's 401 header, a layer blob, a package header.
+    "fuzz_oci_challenge": [
+        "clang",
+        *SAN,
+        "-I",
+        "../../shared",
+        "fuzz_oci_challenge.c",
+        "../../shared/oci/challenge.c",
+        "-o",
+        "fuzz_oci_challenge",
+    ],
+    "fuzz_tar_header": [
+        "clang",
+        *SAN,
+        "-I",
+        "../../shared",
+        "fuzz_tar_header.c",
+        "../../shared/oci/tar.c",
+        "../../shared/oci/tar_pax.c",
+        # diff-id capture rides the reader's byte source (phase-104 D8.e)
+        "../../shared/oci/tar_digest.c",
+        "../../shared/oci/digest.c",
+        # the reader hands layer xattrs on in the changeset wire format, so
+        # the catalog packer comes with it
+        "../../shared/cvmfs/catalog/catalog_write.c",
+        "../../shared/cvmfs/catalog/catalog.c",
+        "../../shared/cvmfs/grammar/hash.c",
+        "-lz",
+        "-lsqlite3",
+        "-lcrypto",
+        "-o",
+        "fuzz_tar_header",
+    ],
+    "fuzz_rpm_header": [
+        "clang",
+        *SAN,
+        "-I",
+        "../../shared",
+        "fuzz_rpm_header.c",
+        "../../shared/rpm/rpmhdr.c",
+        "../../shared/oci/digest.c",     # pkgid streaming sha256
+        "-lcrypto",
+        "-o",
+        "fuzz_rpm_header",
+    ],
 }
 
 

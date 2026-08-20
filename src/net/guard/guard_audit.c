@@ -34,6 +34,10 @@ guard_reason_str(guard_reason_t r)
     case GUARD_R_PROXYABUSE: return "proxyabuse";
     case GUARD_R_TAMPER:    return "cvmfs_tamper";
     case GUARD_R_TPCEGRESS: return "tpc_egress";
+    case GUARD_R_OCITAMPER: return "oci_tamper";
+    case GUARD_R_OCIPUSH:   return "ocipush";
+    case GUARD_R_RPMTAMPER: return "rpm_tamper";
+    case GUARD_R_RPMWRITE:  return "rpmwrite";
     case GUARD_R_NONE:      default: return "none";
     }
 }

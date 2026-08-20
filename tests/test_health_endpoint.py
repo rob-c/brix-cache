@@ -6,17 +6,24 @@ The metrics server block carries `brix_health on;` at `location = /healthz`
 Kubernetes probe relies on:
 
   * GET  /healthz          -> 200 application/json, {"status":"ok",...}   (liveness)
-  * GET  /healthz?verbose  -> 200 + a "checks" object (readiness signals)
+                              with a per-request "time"/"time_epoch" pair that
+                              proves the answer is freshly built (not cached)
+  * GET  /healthz?verbose  -> 200 + a "checks" object (readiness signals), an
+                              "endpoints" array (every bound listen socket:
+                              addr/port/layer/open, root:// rows joined with
+                              auth + connection counters) and an "exports"
+                              array (path + backend per registered export)
   * HEAD /healthz          -> 200, no body
   * POST /healthz          -> 405 (read-only, method-gated like /metrics)
 
 Three cases per the project norm: success, the verbose variant, and the
-security/negative (rejected method).
+security/negatives (rejected method; no secrets in the endpoint map).
 """
 
 import json
 import pathlib
 import re
+import time
 
 import requests
 
@@ -71,3 +78,70 @@ def test_healthz_rejects_post(test_env):
     url = _health_url(test_env)
     r = requests.post(url, data=b"x", timeout=5)
     assert r.status_code == 405
+
+
+_ISO8601_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$")
+
+
+def test_healthz_reports_fresh_timestamp(test_env):
+    # SUCCESS: the default (probe) document carries a per-request timestamp —
+    # the "service has not locked up" signal — but stays minimal: the heavier
+    # endpoint/export map is verbose-only.
+    url = _health_url(test_env)
+    body = json.loads(requests.get(url, timeout=5).text)
+    assert _ISO8601_RE.match(body["time"]), body["time"]
+    assert isinstance(body["time_epoch"], int)
+    # Wide tolerance: the WSL2 host clock can step; a day still catches a
+    # frozen/garbage timestamp without flaking on clock drift.
+    assert abs(body["time_epoch"] - int(time.time())) < 86400
+    assert "endpoints" not in body
+    assert "exports" not in body
+
+
+def test_healthz_verbose_endpoint_map(test_env):
+    # SUCCESS (verbose): every bound listen socket is reported with its plane
+    # and open state; root:// listeners carry their SHM identity + counters;
+    # exports list the namespace surface.
+    url = _health_url(test_env)
+    body = json.loads(requests.get(url, params={"verbose": ""}, timeout=5).text)
+
+    endpoints = body["endpoints"]
+    assert isinstance(endpoints, list) and endpoints
+    for row in endpoints:
+        assert row["layer"] in ("http", "stream", "other")
+        assert isinstance(row["port"], int)
+        assert isinstance(row["open"], bool)
+        assert row["addr"]
+
+    # The metrics/health port itself must be an open http listener.
+    metrics_rows = [e for e in endpoints if e["port"] == test_env["metrics_port"]]
+    assert metrics_rows and all(
+        e["layer"] == "http" and e["open"] for e in metrics_rows
+    )
+
+    # The anon root:// port (first stream server block => always owns an SHM
+    # slot) must be a stream listener joined with auth + counters.
+    anon_rows = [e for e in endpoints if e["port"] == test_env["anon_port"]]
+    assert anon_rows, "anon stream listener missing from endpoint map"
+    anon = anon_rows[0]
+    assert anon["layer"] == "stream" and anon["open"]
+    assert anon["proto"] == "root"
+    assert anon["auth"] == "anon"
+    assert isinstance(anon["connections_active"], int)
+    assert isinstance(anon["connections_total"], int)
+
+    exports = body["exports"]
+    assert isinstance(exports, list)
+    for row in exports:
+        assert row["path"].startswith("/")
+        assert row["backend"]
+
+
+def test_healthz_verbose_leaks_no_secrets(test_env):
+    # SECURITY-NEGATIVE: the endpoint/export map is identity only — no
+    # credential material may ride along on an unauthenticated probe endpoint.
+    url = _health_url(test_env)
+    text = requests.get(url, params={"verbose": ""}, timeout=5).text
+    lowered = text.lower()
+    for needle in ("private key", "secret", "keytab", "password", "bearer "):
+        assert needle not in lowered, f"credential material {needle!r} in /healthz"

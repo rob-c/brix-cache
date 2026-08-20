@@ -159,6 +159,19 @@ brix_dirlist_open_dir(brix_ctx_t *ctx, ngx_connection_t *c,
     brix_vfs_ctx_t  vctx;
     int             err = 0;
 
+    /* A reserved TARGET is refused as absent, exactly as kXR_stat/kXR_open
+     * refuse it and exactly as WebDAV PROPFIND answers the same collection over
+     * the same export.  This is about the collection being NAMED, not about its
+     * members: the per-entry filter further down hides reserved names on every
+     * arm unconditionally, which is deliberate and separate.  The text is the
+     * genuine-miss text below, so the refusal says nothing the absence does not. */
+    if (!conf->common.cache_store_endpoint
+        && brix_is_internal_name(walk->reqpath))
+    {
+        BRIX_BAIL_ERR(ctx, c, BRIX_OP_DIRLIST, "DIRLIST", walk->reqpath,
+                        "-", kXR_NotFound, "directory not found", rc);
+    }
+
     brix_beneath_full_path(conf->common.root_canon, walk->reqpath,
                              walk->full_path, sizeof(walk->full_path));
 

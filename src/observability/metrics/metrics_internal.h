@@ -131,6 +131,21 @@ void  brix_export_unified_metrics(metrics_writer_t *mw,
 void  brix_export_cvmfs_metrics(metrics_writer_t *mw,
     ngx_brix_metrics_t *shm);
 
+/* oci.c */
+/* Emit the phase-104 OCI distribution families from shm->oci (requests by
+ * surface x class x outcome, WAN-in fill bytes, upstream token dance, digest
+ * verify failures, upstream error buckets). Every label is an enum index into
+ * a fixed name table — image names, tags and digests are never labels. */
+void  brix_export_oci_metrics(metrics_writer_t *mw,
+    ngx_brix_metrics_t *shm);
+
+/* rpm.c */
+/* Emit the phase-104 RPM mirror families from shm->rpm (requests by object
+ * class x outcome, and repodata verify failures). Both labels are enum
+ * indices into fixed name tables — repository paths are never labels. */
+void  brix_export_rpm_metrics(metrics_writer_t *mw,
+    ngx_brix_metrics_t *shm);
+
 /* webdav.c */
 /* Emit all WebDAV counter families from shm->webdav (per-method requests and
  * method x status responses, auth outcomes, bytes, range/PUT modes, PROPFIND

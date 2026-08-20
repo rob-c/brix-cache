@@ -21,11 +21,31 @@ open:
 from __future__ import annotations
 
 import os
+import re
 import socket
+from pathlib import Path
 
 import pytest
 
 import settings
+
+
+def test_test_sources_never_request_kernel_assigned_ports():
+    """Every test listener must consume a TEST_PORT_START-assigned port.
+
+    ``bind((host, 0))`` lets the kernel choose an ephemeral port.  Besides
+    making the listener invisible to the test-port ledger, it can steal a
+    managed service's port when the test lane overlaps the host ephemeral range.
+    Mock listeners use ``ephemeral_port.free_port`` for a lease from the
+    session-owned mock range; registry listeners use their named ledgers.
+    """
+    tests_root = Path(__file__).parent
+    bind_zero = re.compile(r"\.bind\(\([^\n,]+,\s*0\)")
+    offenders = []
+    for source in tests_root.rglob("*.py"):
+        if bind_zero.search(source.read_text(encoding="utf-8")):
+            offenders.append(str(source.relative_to(tests_root)))
+    assert not offenders, "kernel-assigned test ports are forbidden: " + ", ".join(offenders)
 
 
 # --------------------------------------------------------------------------- #
@@ -135,8 +155,9 @@ def test_duplicate_listen_port_reports_address_already_in_use(tmp_path, monkeypa
     # guaranteed to collide rather than load-balance.
     squatter = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     try:
-        squatter.bind(("", 0))
-        squatted_port = squatter.getsockname()[1]
+        from ephemeral_port import free_port
+        squatted_port = free_port("")
+        squatter.bind(("", squatted_port))
         squatter.listen(1)
 
         clear_registry()

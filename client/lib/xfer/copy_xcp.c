@@ -193,6 +193,99 @@ xcp_release_block(xcp_shared_t *sh, size_t idx, int stole)
 }
 
 
+/* ---- Release an unstarted worker's reserved block ----
+ *
+ * WHAT: Return a startup reservation to the normal claim pool.
+ *
+ * WHY: A replica can fail before it reaches the block loop; its reserved
+ *      block must not remain invisible to the surviving workers.
+ *
+ * HOW: Atomically change only XCP_RESERVED to XCP_TODO. A worker that has
+ *      already claimed the reservation owns the ordinary release path.
+ */
+static void
+xcp_release_reserved_block(xcp_shared_t *sh, size_t idx)
+{
+    unsigned char expected = XCP_RESERVED;
+    atomic_compare_exchange_strong(&sh->state[idx], &expected, XCP_TODO);
+}
+
+
+/* ---- Drive one worker's claim/fetch loop ----
+ *
+ * WHAT: Fetch the startup reservation and then claim or steal blocks until the
+ *       destination is complete, cancellation is requested, or a fetch fails.
+ *       Returns 0 for a worker that can leave normally and -1 for its failure.
+ *
+ * WHY: The thread entry point owns connection/buffer lifetime; keeping the
+ *      scheduler in this helper makes those resource edges independent of the
+ *      block-stealing state machine and keeps both paths below the complexity
+ *      gate.
+ *
+ * HOW: 1. Convert the startup reservation into a normal busy claim and fetch it.
+ *      2. Repeatedly claim/steal, fetch, and release the stealer latch.
+ *      3. Wait briefly when a straggler owns the remaining work; stop on DONE or
+ *         cancellation and return the worker verdict.
+ */
+static int
+xcp_worker_blocks(xcp_worker_t *w, brix_conn *c, brix_file *f, uint8_t *buf)
+{
+    xcp_shared_t *sh = w->sh;
+    int rc = 0;
+
+    if (w->initial_reserved) {
+        unsigned char expected = XCP_RESERVED;
+
+        if (atomic_compare_exchange_strong(&sh->state[w->initial_idx],
+                                           &expected, XCP_BUSY)) {
+            w->initial_reserved = 0;
+            if (xcp_fetch_block(w, c, f, w->initial_idx, buf) != 0) {
+                xcp_release_block(sh, w->initial_idx, 0);
+                rc = -1;
+            }
+        } else {
+            w->initial_reserved = 0;
+        }
+    }
+
+    while (rc == 0) {
+        int stole = 0;
+        ssize_t idx = xcp_claim(sh, w->claim_hint, &stole);
+
+        if (idx < 0) {
+            if (xcp_all_done(sh)) {
+                break;
+            }
+            if (brix_copy_quit_requested()) {
+                brix_status_set(&w->st, XRDC_ESOCK, EINTR,
+                                "cancelled (signal)");
+                rc = -1;
+                break;
+            }
+            /* Blocks remain but none claimable: idle-wait for a straggler
+             * to finish, die, or free its steal slot. Bounded tail spin. */
+            {
+                struct timespec ts = { 0, 20 * 1000 * 1000 };
+                nanosleep(&ts, NULL);
+            }
+            continue;
+        }
+
+        w->claim_hint = (unsigned) idx + 1;
+        if (xcp_fetch_block(w, c, f, (size_t) idx, buf) != 0) {
+            xcp_release_block(sh, (size_t) idx, stole);
+            rc = -1;
+            break;
+        }
+        if (stole) {
+            atomic_store(&sh->stealer[(size_t) idx], 0);
+        }
+    }
+
+    return rc;
+}
+
+
 /* ---- Worker thread: one replica connection driving the block loop ----
  *
  * WHAT: Connect + open this worker's replica URL, then claim/steal/fetch until
@@ -233,39 +326,12 @@ xcp_worker_main(void *arg)
     }
 
     if (buf != NULL) {
-        w->rc = 0;
-        for (;;) {
-            int stole = 0;
-            ssize_t idx = xcp_claim(sh, w->claim_hint, &stole);
+        w->rc = xcp_worker_blocks(w, &c, &f, buf);
+    }
 
-            if (idx < 0) {
-                if (xcp_all_done(sh)) {
-                    break;
-                }
-                if (brix_copy_quit_requested()) {
-                    brix_status_set(&w->st, XRDC_ESOCK, EINTR,
-                                    "cancelled (signal)");
-                    w->rc = -1;
-                    break;
-                }
-                /* Blocks remain but none claimable: idle-wait for a straggler
-                 * to finish, die, or free its steal slot. Bounded tail spin. */
-                {
-                    struct timespec ts = { 0, 20 * 1000 * 1000 };
-                    nanosleep(&ts, NULL);
-                }
-                continue;
-            }
-            w->claim_hint = (unsigned) idx + 1;
-            if (xcp_fetch_block(w, &c, &f, (size_t) idx, buf) != 0) {
-                xcp_release_block(sh, (size_t) idx, stole);
-                w->rc = -1;
-                break;
-            }
-            if (stole) {
-                atomic_store(&sh->stealer[(size_t) idx], 0);
-            }
-        }
+    if (w->initial_reserved) {
+        xcp_release_reserved_block(sh, w->initial_idx);
+        w->initial_reserved = 0;
     }
 
     if (w->rc != 0) {
@@ -307,8 +373,17 @@ xcp_run_workers(xcp_shared_t *sh, xcp_worker_t *w, pthread_t *th, size_t n,
 
     atomic_store(&sh->live, (unsigned) n);
     for (k = 0; k < n; k++) {
+        if (k < sh->nblocks) {
+            w[k].initial_idx = k;
+            w[k].initial_reserved = 1;
+            atomic_store(&sh->state[k], XCP_RESERVED);
+        }
         if (pthread_create(&th[k], NULL, xcp_worker_main, &w[k]) != 0) {
             th[k] = 0;
+            if (w[k].initial_reserved) {
+                xcp_release_reserved_block(sh, w[k].initial_idx);
+                w[k].initial_reserved = 0;
+            }
             atomic_fetch_sub(&sh->live, 1);
         }
     }

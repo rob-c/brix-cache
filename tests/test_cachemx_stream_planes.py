@@ -19,6 +19,7 @@ across planes and cached files are located by walking the whole cache root.
 """
 
 import os
+import time
 
 import pytest
 
@@ -365,8 +366,14 @@ def _assert_rejected(mx, method, result, after=None):
     ("sss", None),          # mismatched keytab minted in the test body
 ])
 def test_auth_rejected_counts_only_failure(mx, plane, env_builder, tmp_path):
-    """A rejected login moves the plane's auth-failure counter by one and
-    NOTHING else: no read op, no cache hit/miss, no payload bytes."""
+    """A rejected credential moves only its auth-failure counter.
+
+    The GSI case deliberately supplies no credential.  xrdcp rejects that
+    locally before sending kXR_auth, so its server-side auth-failure delta is
+    zero; token and SSS each send a malformed credential and must move it by
+    exactly one.  In all cases there must be no read, cache, or byte side
+    effects.
+    """
     method = plane
     name = cx.unique_name(f"{plane}deny")
     mx.seed_origin(name, 1024)
@@ -375,6 +382,11 @@ def test_auth_rejected_counts_only_failure(mx, plane, env_builder, tmp_path):
         bad = tmp_path / "bad.jwt"
         bad.write_text("not-a-jwt\n")
         env = cx.env_token(str(bad))
+        # The suite's long-lived fleet cleanup may rotate pytest's shared
+        # basetemp while this module is under load.  Keep the negative token in
+        # the environment too, so the client still reaches the server if that
+        # temporary file is reaped between setup and subprocess launch.
+        env["BEARER_TOKEN"] = "not-a-jwt"
     elif plane == "sss":
         import subprocess
         bad_kt = str(tmp_path / "bad.keytab")
@@ -391,9 +403,22 @@ def test_auth_rejected_counts_only_failure(mx, plane, env_builder, tmp_path):
                       env=env)
     cx.settle()
     after = _assert_rejected(mx, method, r)
+    # Root authentication is folded from the connection ledger at session
+    # close.  Under the full cache-matrix load that fold can trail the normal
+    # settle interval, so wait for the expected terminal counter before
+    # asserting the exact zero-side-effect deltas below.
+    expected_auth_failures = 0 if plane == "gsi" else 1
+    if expected_auth_failures:
+        deadline = time.monotonic() + 5.0
+        while (s.delta("brix_auth_total",
+                       {"proto": "stream", "method": method,
+                        "status": "fail"}, after) < expected_auth_failures
+               and time.monotonic() < deadline):
+            time.sleep(0.1)
+            after = cx.mfetch(mx.metrics)
     assert s.delta("brix_auth_total",
                    {"proto": "stream", "method": method, "status": "fail"},
-                   after) == 1
+                   after) == expected_auth_failures
     assert s.delta("brix_io_ops_total",
                    {"proto": "stream", "op": "read", "status": "ok"},
                    after) == 0

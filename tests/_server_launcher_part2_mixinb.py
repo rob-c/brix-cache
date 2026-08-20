@@ -20,6 +20,7 @@ import pytest
 from config_templates import render_config_to_path
 from fleet_lifecycle_ports import lifecycle_ports_for
 from fleet_values import session_template_values
+from brix_suite.kinds import LAUNCHER_KINDS
 from server_registry import (
     NginxInstanceSpec,
     build_manifest,
@@ -32,44 +33,15 @@ from server_registry import (
     unregister,
     write_manifest,
 )
-from settings import BRIX_BIN, NGINX_BIN, PKI_DIR, REGISTRY_STRICT_TEMPLATES
+from settings import BRIX_BIN, PKI_DIR, REGISTRY_STRICT_TEMPLATES
+from server_launcher_errors import RegistryCommandFailure
 
 
-def _nginx_bin() -> str:
-    """Frozen copy of the nginx binary path, immune to concurrent relinks."""
-    from cmdscripts.live_common import freeze_nginx  # noqa: PLC0415
-    return str(freeze_nginx(NGINX_BIN))
-
-
-def _inject_nginx_load_modules(config_path: str) -> None:
-    """Prepend the runner-selected dynamic modules to a rendered nginx config."""
-    from cmdscripts.live_common import inject_nginx_load_modules  # noqa: PLC0415
-    inject_nginx_load_modules(config_path)
-
-
-def _inject_nginx_runtime_paths(config_path: str, prefix: str) -> None:
-    """Keep packaged-nginx runtime files inside its registry-owned prefix."""
-    from cmdscripts.live_common import inject_nginx_runtime_paths  # noqa: PLC0415
-    inject_nginx_runtime_paths(config_path, prefix)
-
-
-@dataclass
-class RegistryCommandFailure(RuntimeError):
-    config_path: str
-    logs_dir: str
-    command: tuple[str, ...]
-    returncode: int
-    stdout_tail: str
-    stderr_tail: str
-
-    def __str__(self) -> str:
-        return (
-            f"{' '.join(self.command)} failed rc={self.returncode}\n"
-            f"config: {self.config_path}\n"
-            f"logs: {self.logs_dir}\n"
-            f"stdout:\n{self.stdout_tail}\n"
-            f"stderr:\n{self.stderr_tail}"
-        )
+from brix_suite.nginx_tools import (  # noqa: F401 — re-exported for importers
+    _inject_nginx_load_modules,
+    _inject_nginx_runtime_paths,
+    _nginx_bin,
+)
 
 
 class _RegistryLauncherMixinB:
@@ -79,28 +51,23 @@ class _RegistryLauncherMixinB:
         Meshes (``cms_mesh_servers.py``, ``hybrid_mesh_servers.py``) and the KDC
         (``kdc_helpers.py``) spawn their own daemon topology on ``start`` and
         return once converged, so completion IS readiness — there is no single
-        port to probe.  Teardown runs the paired ``stop_argv``.  A return code in
-        ``skip_returncodes`` (e.g. the KDC's rc 3 = tooling absent) is a clean
-        skip; any other non-zero, like bash's ``|| true``, is logged and swallowed
-        so an optional subsystem never aborts start-all.
+        port to probe.  Teardown runs the paired ``stop_argv``.  Every non-zero
+        result is fatal to collection-time startup: tests may run only after the
+        complete registered fleet has launched.
         """
         argv = list(spec.template_values.get("start_argv", ()))
         if not argv:
             raise ValueError(f"{spec.name}: external spec needs template_values['start_argv']")
         stop_argv = list(spec.template_values.get("stop_argv", ()))
-        skip_rcs = set(spec.template_values.get("skip_returncodes", ()))
         merged_env = {**os.environ, **spec.env}
         proc = subprocess.run(
             argv, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, env=merged_env
         )
-        if proc.returncode in skip_rcs:
-            pytest.skip(f"{spec.name}: subsystem unavailable (rc={proc.returncode})")
         if proc.returncode != 0:
             err = (proc.stderr or b"").decode("utf-8", "replace").strip()[:200]
-            sys.stderr.write(
-                f"\n[registry] external '{spec.name}' start rc={proc.returncode}: {err}\n"
+            raise RuntimeError(
+                f"external '{spec.name}' start rc={proc.returncode}: {err}"
             )
-            return
         if stop_argv:
             self._external_stops[spec.name] = (stop_argv, merged_env)
         self._owned.append(spec)
@@ -272,7 +239,8 @@ class _RegistryLauncherMixinB:
         # Cross-process teardown (a fresh `stop-all` did not start these, so the
         # in-memory handles above are empty): daemon kinds other than nginx have
         # no nginx pidfile — reap them from their own on-disk state / stop CLI.
-        if spec.kind in ("xrootd", "xrdhttp", "haproxy", "proc", "external"):
+        row = LAUNCHER_KINDS.get(spec.kind)
+        if row is not None and row.stop_from_disk:
             self._stop_from_disk(spec, endpoint)
             self._owned = [item for item in self._owned if item.name != name]
             return
@@ -334,7 +302,10 @@ class _RegistryLauncherMixinB:
         workers = []
         for pid in candidates:
             try:
-                title = Path(f"/proc/{pid}/cmdline").read_bytes().replace(b"\0", b" ")
+                import server_launcher as _launcher
+                path_cls = getattr(_launcher, "Path", Path)
+                title = path_cls(f"/proc/{pid}/cmdline").read_bytes().replace(
+                    b"\0", b" ")
             except OSError:
                 continue
             if title.strip().startswith(b"nginx: worker process"):

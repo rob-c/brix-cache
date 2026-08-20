@@ -387,8 +387,6 @@ access_authenticate(ngx_http_request_t *r,
         brix_metric_auth(BRIX_PROTO_WEBDAV, BRIX_AUTHN_NONE, 0);
         return webdav_metrics_return(r, auth_rc);
     }
-    auth_rc = NGX_DECLINED;
-
     access_protbind_set(r, conf, &bound);
 
     if (!bound.require_auth) {

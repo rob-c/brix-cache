@@ -33,7 +33,8 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "cvmfs"))
 
-from conformance_common import BRIXMOUNT, _unmount, _wait_mounted  # noqa: E402
+from conformance_common import (BRIXMOUNT, PORT_BLOCKS, _unmount,
+                                _wait_mounted)  # noqa: E402
 from repo_forge import Dir, File, RepoForge  # noqa: E402
 from test_cvmfs_conformance_fuse_refresh_failover import publish_revision  # noqa: E402
 from settings import BIND_HOST, HOST
@@ -44,10 +45,11 @@ _FUSE_READY = (os.path.exists("/dev/fuse") and shutil.which("fusermount3") is no
                and os.path.exists(BRIXMOUNT))
 pytestmark = pytest.mark.skipif(not _FUSE_READY, reason="fuse mount prerequisites missing")
 
-# ---- port block 13460-13479 (tests/cvmfs/conformance_common.py) ------------
-P_PIN_SERVE = 13460
-P_PIN_TAMPER = 13461
-P_PIN_BADHEX = 13462
+# The pin suite owns the fuse_pin block in the relocatable CVMFS ladder.  Keep
+# the three origins distinct while allowing TEST_PORT_START to isolate runs.
+P_PIN_SERVE = PORT_BLOCKS["fuse_pin"]
+P_PIN_TAMPER = P_PIN_SERVE + 1
+P_PIN_BADHEX = P_PIN_SERVE + 2
 
 
 # ---- static origin (no fault injection needed: tamper edits the webroot) ----

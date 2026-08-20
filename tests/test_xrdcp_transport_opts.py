@@ -31,7 +31,7 @@ REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 XRDCP = os.path.join(REPO, "client", "bin", "xrdcp")
 
 # Port 1 is privileged and never bound by the suite: connect fails immediately.
-DEAD_SRC = "root://127.0.0.1:1//x"
+DEAD_SRC = "root://127.0.0.1:1//x"  # net-literal-allow: deliberately unreachable probe
 
 USAGE_ERROR = 50      # argv rejected before any I/O
 CONNECT_FAILED = 51   # argv accepted; the transfer failed at connect
@@ -55,7 +55,7 @@ def _run_upload(args, tmp_path):
     src = os.path.join(str(tmp_path), "in.bin")
     with open(src, "wb") as f:
         f.write(b"payload\n")
-    return subprocess.run([XRDCP, *args, src, "root://127.0.0.1:1//x"],
+    return subprocess.run([XRDCP, *args, src, "root://127.0.0.1:1//x"],  # net-literal-allow: deliberately unreachable probe
                           capture_output=True, text=True, timeout=60)
 
 
@@ -148,3 +148,42 @@ def test_flag_lookalike_rejected(bogus, tmp_path):
     assert res.returncode == USAGE_ERROR, (bogus, res.returncode, res.stderr)
     assert "unknown option" in res.stderr
     assert bogus in res.stderr
+
+
+# ---- stock-xrdcp compatibility: -A / --allow-http ----
+
+@pytest.mark.parametrize("flag", ["-A", "--allow-http"])
+def test_allow_http_is_accepted(flag, tmp_path):
+    """Stock xrdcp gates http/davs behind -A; this client has no such gate.
+
+    Every WebDAV recipe in the field carries the flag — the docs here do, and
+    so does tests/test_a_webdav_clients.py — so a client shipping under the
+    stock name has to accept it. Reaching connect proves argv was taken AND
+    that the valueless flag did not swallow the source positional.
+    """
+    res = _run([flag], tmp_path)
+    assert res.returncode == CONNECT_FAILED, (flag, res.returncode, res.stderr)
+    assert "unknown option" not in res.stderr
+
+
+@pytest.mark.parametrize("bogus", ["--allow-https", "--allow-http=1", "-Ax", "--allow"])
+def test_allow_http_lookalike_rejected(bogus, tmp_path):
+    """The compat row is an exact match, not a prefix — a near miss is unknown."""
+    res = _run([bogus], tmp_path)
+    assert res.returncode == USAGE_ERROR, (bogus, res.returncode, res.stderr)
+    assert "unknown option" in res.stderr
+
+
+def test_allow_http_grants_nothing_and_relaxes_nothing(tmp_path):
+    """The flag GRANTS a capability we already have; it must not relax one.
+
+    Read as a TLS knob it would be a downgrade — silently implying --notlsok
+    or clearing the default-on host verification. Proving inertness directly:
+    the run with the flag must be indistinguishable from the run without it,
+    same exit and same diagnostics, with no posture message in between.
+    """
+    plain = _run([], tmp_path)
+    compat = _run(["--allow-http"], tmp_path)
+    assert (compat.returncode, compat.stderr) == (plain.returncode, plain.stderr)
+    for leaked in ("notlsok", "cleartext", "verifyhost", "insecure"):
+        assert leaked not in compat.stderr.lower()

@@ -25,9 +25,10 @@ def staged_contract_origin(base: Path, ngx_src: Path = DEFAULT_NGX_SRC) -> tuple
     sd_xroot (Mode-A write-through) and the sd_cache forwarding slots. These three
     obey it today — the unit pins it per driver, over a scripted fake transport and
     stubbed origin wire calls, under ASan. See test_staged_contract_origin.c."""
+    # sd_http_redirect.o + url.o come along for select.o's D1.4 redirect kernel.
     names = ["sd_http.o", "sd_http_select.o", "sd_http_read.o", "sd_http_write.o",
-             "sd_http_dir.o", "sd_http_mutate.o", "sd_xroot_staged.o",
-             "sd_cache_forward.o"]
+             "sd_http_dir.o", "sd_http_mutate.o", "sd_http_redirect.o",
+             "url.o", "sd_xroot_staged.o", "sd_cache_forward.o"]
     objs: list[Path] = []
     for name in names:
         obj = _find_obj(ngx_src, name)

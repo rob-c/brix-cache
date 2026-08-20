@@ -377,6 +377,19 @@ def test_python_deps_guard_accepts_guarded_optional_imports(tmp_path) -> None:
     assert ok, findings
 
 
+def test_python_deps_guard_checks_match_case_module_scope_imports(tmp_path) -> None:
+    """An optional import in a match case still runs during collection."""
+    root = _deps_tree(
+        tmp_path,
+        "",
+        "zstandard>=0.18,<1\n",
+        "match 1:\n    case 1:\n        import zstandard\n",
+    )
+    ok, findings = _DEPS.run(root)
+    assert not ok
+    assert any("zstandard" in f and "module scope" in f for f in findings), findings
+
+
 # --- metric-name guard: the exposition is the only source of metric truth -----
 # The 2026-08-09 doc sweep found five families the pages cited that no exporter
 # emits, plus two label sets that were simply wrong. None of it errors in

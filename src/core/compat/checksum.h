@@ -17,9 +17,11 @@ typedef enum {
     BRIX_CHECKSUM_SHA256,
     BRIX_CHECKSUM_CRC64,      /* CRC-64/XZ   — canonical "crc64" (alias "crc64xz") */
     BRIX_CHECKSUM_CRC64NVME,  /* CRC-64/NVME — "crc64nvme" (AWS S3 x-amz-checksum) */
-    BRIX_CHECKSUM_ZCRC32      /* zlib CRC-32 — XRootD "zcrc32" (== crc32 algorithm,
+    BRIX_CHECKSUM_ZCRC32,     /* zlib CRC-32 — XRootD "zcrc32" (== crc32 algorithm,
                                  * distinct registered name; ordinal matches the
                                  * kernel's BRIX_CK_ZCRC32) */
+    BRIX_CHECKSUM_SHA512      /* SHA-512 — the OCI digest grammar's second
+                                 * registered algorithm (128 hex chars) */
 } brix_checksum_alg_t;
 
 /*

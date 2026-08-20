@@ -15,6 +15,8 @@ Run:
 """
 import struct
 
+import pytest
+
 from settings import HOST
 from test_ssi_wire import (
     ssi_server,
@@ -22,6 +24,12 @@ from test_ssi_wire import (
     _rrinfo, kXR_write, kXR_ok, SSI_CMD_RXQ,
 )
 from test_ssi_async import _submit, _parse_asynresp, kXR_attn, kXR_waitresp
+
+# This module reuses the fixture from test_ssi_wire.py but is collected as a
+# separate module.  Keep both modules on one xdist lane: the fixture's named
+# lifecycle endpoint is a fixed-port server, so module-level fixture scope
+# does not prevent cross-module bind races.
+pytestmark = pytest.mark.xdist_group("lc-ssi-wire")
 
 # ---- minimal protobuf encoder ----
 def _vbytes(n):

@@ -113,13 +113,17 @@ def test_leak_reaper_only_kills_exact_test_root(monkeypatch):
 
     monkeypatch.setattr(conftest, "TEST_ROOT", "/tmp/brix-tests/lane-b")
     def fake_pgrep(argv, **kwargs):
-        by_exe = {"nginx": "101\n202\n", "xrootd": "303\n"}
-        return types.SimpleNamespace(stdout=by_exe.get(argv[-1], ""))
+        by_exe = {"nginx": ["101", "202"], "xrootd": ["303"]}
+        live = [pid for pid in by_exe.get(argv[-1], []) if int(pid) not in killed]
+        return types.SimpleNamespace(stdout="\n".join(live) + ("\n" if live else ""))
 
     monkeypatch.setattr(conftest.subprocess, "run", fake_pgrep)
     monkeypatch.setattr(
         "builtins.open",
-        lambda path, mode: _ProcFile(cmdlines[path.split("/")[2]]),
+        lambda path, mode: (
+            _ProcFile(b"(nginx) 1 1") if path.endswith("/stat")
+            else _ProcFile(cmdlines.get(path.split("/")[2], b""))
+        ),
     )
     monkeypatch.setattr(os, "kill", lambda pid, sig: killed.append(pid))
 
@@ -169,6 +173,11 @@ def test_interrupted_fleet_start_rolls_back_partial_servers(monkeypatch):
     monkeypatch.setattr(conftest, "RegistryLauncher", _Launcher)
     monkeypatch.setattr(conftest, "_reap_leaked_test_servers",
                         lambda: events.append("reap"))
+    # The full suite has a live fleet while this unit test runs. Force the
+    # start path under test instead of attaching to that session state.
+    monkeypatch.setattr(conftest, "fleet_ready_for_test_root", lambda: False)
+    monkeypatch.setattr(conftest, "_check_server_reachable",
+                        lambda *args, **kwargs: False)
 
     with pytest.raises(KeyboardInterrupt):
         conftest._start_all_resilient([])
@@ -250,6 +259,27 @@ def test_lost_fleet_preflight_reports_stop_error_after_reap(monkeypatch, capsys)
     assert "stale-fleet preflight warning: one stale pid" in capsys.readouterr().err
 
 
+def test_sessionstart_clears_stale_state_before_starting_watchdog(monkeypatch):
+    """The watchdog must not read a prior-run baseline during session setup."""
+    events = []
+    config = _Config()
+    session = _Session(config, items=[])
+    monkeypatch.setattr(conftest, "REMOTE_SERVER", False)
+    monkeypatch.setattr(conftest, "_validate_requested_paths",
+                        lambda cfg: events.append("validate"))
+    monkeypatch.setattr(conftest, "_should_skip_local_lifecycle", lambda cfg: False)
+    monkeypatch.setattr(conftest, "_setup_session",
+                        lambda **kwargs: events.append(("setup", kwargs)))
+    monkeypatch.setattr(conftest, "_start_sentinel_watchdog",
+                        lambda active: events.append(("watchdog", active)))
+
+    conftest.pytest_sessionstart(session)
+
+    assert events == [
+        "validate", ("setup", {"chdir": True}), ("watchdog", session),
+    ]
+
+
 class _Options:
     def __init__(self, numprocesses=None, collectonly=False):
         self.numprocesses = numprocesses
@@ -275,7 +305,7 @@ class _Session:
 @pytest.fixture
 def collection_finish_env(fleet_decision_env, monkeypatch):
     """Hermetic pytest_collection_finish harness: no fleet running (this session
-    owns the lifecycle), env knobs cleared, subset computation and fleet start
+    owns the lifecycle), env knobs cleared, full-fleet computation and fleet start
     stubbed out.  Yields the recorder list of _start_all_resilient() calls."""
     fleet_decision_env(fleet_running=False)
     monkeypatch.delenv("TEST_SKIP_SERVER_SETUP", raising=False)
@@ -283,17 +313,30 @@ def collection_finish_env(fleet_decision_env, monkeypatch):
     monkeypatch.setattr(conftest, "REMOTE_SERVER", False, raising=False)
     started = []
     monkeypatch.setattr(conftest, "_start_all_resilient", started.append)
-    monkeypatch.setattr(conftest, "_specs_to_boot", lambda items: ["subset-spec"])
+    monkeypatch.setattr(conftest, "_specs_to_boot", lambda items: ["full-spec"])
+    monkeypatch.setattr(conftest, "_require_fleet_startup_stability", lambda: None)
     return started
 
 
-def test_collection_finish_boots_the_declared_subset(collection_finish_env):
-    """Owning controller, serial run: the post-collection hook computes the
-    declared union, records it on config for teardown, and starts exactly it."""
+def test_collection_finish_boots_the_complete_fleet(collection_finish_env):
+    """The post-collection hook starts and records the complete fleet."""
     session = _Session(_Config(), items=[object()])
     conftest.pytest_collection_finish(session)
-    assert collection_finish_env == [["subset-spec"]]
-    assert session.config._nginx_xrootd_selected_registry_specs == ["subset-spec"]
+    assert collection_finish_env == [["full-spec"]]
+    assert session.config._nginx_xrootd_selected_registry_specs == ["full-spec"]
+
+
+def test_collection_finish_waits_for_full_fleet_stability(
+    collection_finish_env, monkeypatch
+):
+    """No serial test may dispatch until the post-launch health window passes."""
+    stable = []
+    monkeypatch.setattr(
+        conftest, "_require_fleet_startup_stability", lambda: stable.append(True)
+    )
+    conftest.pytest_collection_finish(_Session(_Config(), items=[object()]))
+    assert collection_finish_env == [["full-spec"]]
+    assert stable == [True]
 
 
 def test_collection_finish_never_starts_when_attached(
@@ -315,6 +358,42 @@ def test_collection_finish_defers_to_sessionstart_under_xdist(collection_finish_
     assert collection_finish_env == []
 
 
+def test_xdist_controller_boots_after_every_worker_collected(
+    collection_finish_env, monkeypatch, tmp_path
+):
+    """The final collection report starts the fleet before xdist schedules it."""
+    import types
+
+    monkeypatch.setattr(conftest, "_xdist_collected_nodes", set())
+    monkeypatch.setattr(conftest, "_xdist_fleet_started", False)
+    monkeypatch.setattr(conftest, "REGISTRY_ROOT", str(tmp_path / "registry"))
+    captured = []
+    monkeypatch.setattr(conftest, "_capture_fleet_baseline",
+                        lambda: captured.append(True))
+    config = _Config(numprocesses=2)
+    first = types.SimpleNamespace(
+        config=config, gateway=types.SimpleNamespace(id="gw0"))
+    second = types.SimpleNamespace(
+        config=config, gateway=types.SimpleNamespace(id="gw1"))
+
+    conftest.pytest_xdist_node_collection_finished(first, [])
+    assert collection_finish_env == []
+    conftest.pytest_xdist_node_collection_finished(second, [])
+
+    assert collection_finish_env == [["full-spec"]]
+    assert captured == [True]
+    assert config._nginx_xrootd_selected_registry_specs == ["full-spec"]
+
+
+def test_xdist_fleet_wait_timeout_defaults_to_fifteen_minutes(monkeypatch):
+    monkeypatch.delenv("TEST_FLEET_START_TIMEOUT", raising=False)
+    assert conftest._xdist_fleet_wait_seconds() == 900
+    monkeypatch.setenv("TEST_FLEET_START_TIMEOUT", "17")
+    assert conftest._xdist_fleet_wait_seconds() == 17
+    monkeypatch.setenv("TEST_FLEET_START_TIMEOUT", "invalid")
+    assert conftest._xdist_fleet_wait_seconds() == 900
+
+
 def test_collection_finish_skips_collect_only_and_empty_sessions(
     collection_finish_env,
 ):
@@ -333,41 +412,27 @@ def _named_spec(name):
     return spec
 
 
-def test_subset_boot_is_the_default(monkeypatch):
-    """The default path boots the dependency closure of the collected *seed* —
-    required/declared specs ∪ autouse specs ∪ conftest-fixture specs — filtered
-    against the registered fleet, not the whole fleet."""
+def test_complete_fleet_boot_is_the_default(monkeypatch):
+    """The collection hook selects every registered server, not a dependency subset."""
     monkeypatch.delenv("REGISTRY_SUBSET_BOOT", raising=False)
-    monkeypatch.setattr(conftest, "_required_specs_for", lambda items: {"a"})
-    monkeypatch.setattr(conftest, "_autouse_specs_for", lambda items: {"b"})
-    monkeypatch.setattr(conftest, "_conftest_fixture_specs_for", lambda items: set())
-    monkeypatch.setattr(conftest, "dependency_closure",
-                        lambda seed: set(seed) | {"a-dep"})
+    monkeypatch.setattr(conftest, "_register_fleet", lambda: None)
     monkeypatch.setattr(
         conftest, "registered_specs",
         lambda: [_named_spec(n) for n in ("a", "b", "a-dep", "unrelated")])
     boot = conftest._specs_to_boot([])
-    assert sorted(s.name for s in boot) == ["a", "a-dep", "b"]
+    assert sorted(s.name for s in boot) == ["a", "a-dep", "b", "unrelated"]
 
 
-def test_empty_seed_boots_nothing(monkeypatch):
-    """Goal 5 (zero servers for tests that need none): a collected set that
-    reaches no server yields an empty seed, so the fleet launches nothing and
-    the registered fleet is never even scanned."""
+def test_empty_selection_still_boots_the_complete_fleet(monkeypatch):
+    """A local test session reserves every server even if no item names one."""
     monkeypatch.delenv("REGISTRY_SUBSET_BOOT", raising=False)
-    monkeypatch.setattr(conftest, "_required_specs_for", lambda items: set())
-    monkeypatch.setattr(conftest, "_autouse_specs_for", lambda items: set())
-    monkeypatch.setattr(conftest, "_conftest_fixture_specs_for", lambda items: set())
-    monkeypatch.setattr(
-        conftest, "registered_specs",
-        lambda: pytest.fail("must not scan the fleet for an empty seed"))
-    assert conftest._specs_to_boot([]) == []
+    monkeypatch.setattr(conftest, "_register_fleet", lambda: None)
+    monkeypatch.setattr(conftest, "registered_specs", lambda: [_named_spec("always-on")])
+    assert [spec.name for spec in conftest._specs_to_boot([])] == ["always-on"]
 
 
-def test_subset_boot_unions_module_autouse_specs(monkeypatch, tmp_path):
-    """A module autouse fixture's server can't be declared by any test (nothing
-    takes it as a parameter), so _specs_to_boot must union it in per collected
-    module (REGISTRY_MIGRATION.md § blind spot)."""
+def test_complete_boot_does_not_depend_on_autouse_discovery(monkeypatch, tmp_path):
+    """Autouse declarations cannot narrow the complete post-collection fleet."""
     import fleet_declares
     import fleet_ports
 
@@ -391,14 +456,10 @@ def test_subset_boot_unions_module_autouse_specs(monkeypatch, tmp_path):
         fspath = str(mod)
 
     monkeypatch.delenv("REGISTRY_SUBSET_BOOT", raising=False)
-    # Isolate the autouse source: the other seed contributors return nothing, so
-    # only the autouse fixture's spec can reach the boot set.
-    monkeypatch.setattr(conftest, "_required_specs_for", lambda items: set())
-    monkeypatch.setattr(conftest, "_conftest_fixture_specs_for", lambda items: set())
-    monkeypatch.setattr(conftest, "dependency_closure", lambda seed: set(seed))
+    monkeypatch.setattr(conftest, "_register_fleet", lambda: None)
     monkeypatch.setattr(conftest, "registered_specs", lambda: [_named_spec(ded_spec)])
     boot = conftest._specs_to_boot([_Item()])
-    assert ded_spec in {s.name for s in boot}
+    assert {s.name for s in boot} == {ded_spec}
 
 
 def test_decision_is_memoized(fleet_decision_env):
@@ -416,3 +477,109 @@ def test_decision_is_memoized(fleet_decision_env):
     conftest._check_server_reachable = counting_probe
     assert conftest._external_fleet_attached() is True  # cached True, not re-probed
     assert calls["n"] == 0
+
+
+# --- persistent declaration-analysis cache -----------------------------------
+
+
+@pytest.fixture
+def declare_cache_env(monkeypatch):
+    """Isolate the declaration cache: fresh in-process state, a dict-backed
+    stand-in for pytest's config.cache, and a counter on analyze_source."""
+    store = {}
+    fake_cache = types.SimpleNamespace(
+        get=lambda key, default=None: store.get(key, default),
+        set=lambda key, value: store.__setitem__(key, value),
+    )
+    fake_config = types.SimpleNamespace(cache=fake_cache)
+    monkeypatch.setattr(conftest, "_pytest_config", fake_config)
+    monkeypatch.setattr(conftest, "_declare_usage_cache", {})
+    monkeypatch.setattr(conftest, "_declare_disk_cache", None)
+    monkeypatch.setattr(conftest, "_declare_disk_dirty", False)
+
+    calls = {"n": 0}
+    real = conftest.fleet_declares.analyze_source
+
+    def counting(source):
+        calls["n"] += 1
+        return real(source)
+
+    monkeypatch.setattr(conftest.fleet_declares, "analyze_source", counting)
+
+    def new_process():
+        """Simulate a fresh pytest run: in-memory caches gone, store kept."""
+        monkeypatch.setattr(conftest, "_declare_usage_cache", {})
+        monkeypatch.setattr(conftest, "_declare_disk_cache", None)
+        monkeypatch.setattr(conftest, "_declare_disk_dirty", False)
+
+    return types.SimpleNamespace(
+        store=store, config=fake_config, calls=calls, new_process=new_process)
+
+
+def test_declaration_cache_serves_unchanged_module_without_reparse(
+    declare_cache_env, tmp_path
+):
+    mod = tmp_path / "test_cache_probe.py"
+    mod.write_text("def test_alpha():\n    assert True\n", encoding="utf-8")
+
+    first = conftest._module_test_usage(str(mod))
+    assert "test_alpha" in first
+    assert declare_cache_env.calls["n"] == 1
+    conftest._flush_declare_cache()
+    assert declare_cache_env.store, "flush must persist the analysis"
+
+    declare_cache_env.new_process()
+    second = conftest._module_test_usage(str(mod))
+    assert declare_cache_env.calls["n"] == 1, "unchanged file must not re-parse"
+    assert second["test_alpha"].name == "test_alpha"
+    assert second["test_alpha"].qualname == "test_alpha"
+
+
+def test_declaration_cache_invalidates_on_file_change(declare_cache_env, tmp_path):
+    mod = tmp_path / "test_cache_probe.py"
+    mod.write_text("def test_alpha():\n    assert True\n", encoding="utf-8")
+    conftest._module_test_usage(str(mod))
+    conftest._flush_declare_cache()
+
+    # Different content AND size, plus an explicit mtime bump so the stamp
+    # cannot collide within one clock tick.
+    mod.write_text(
+        "def test_alpha():\n    assert True\n\ndef test_beta():\n    assert True\n",
+        encoding="utf-8",
+    )
+    stat = os.stat(mod)
+    os.utime(mod, ns=(stat.st_atime_ns, stat.st_mtime_ns + 1_000_000))
+
+    declare_cache_env.new_process()
+    usage = conftest._module_test_usage(str(mod))
+    assert declare_cache_env.calls["n"] == 2, "changed file must re-parse"
+    assert "test_beta" in usage
+
+
+def test_declaration_cache_corruption_degrades_to_full_parse(
+    declare_cache_env, tmp_path
+):
+    mod = tmp_path / "test_cache_probe.py"
+    mod.write_text("def test_alpha():\n    assert True\n", encoding="utf-8")
+    declare_cache_env.store[conftest._DECLARE_CACHE_KEY] = "not-a-dict"
+
+    usage = conftest._module_test_usage(str(mod))
+    assert "test_alpha" in usage
+    assert declare_cache_env.calls["n"] == 1
+    conftest._flush_declare_cache()
+    persisted = declare_cache_env.store[conftest._DECLARE_CACHE_KEY]
+    assert isinstance(persisted, dict) and persisted["v"] == conftest._DECLARE_CACHE_VERSION
+
+
+def test_declaration_cache_only_gw0_writes_under_xdist(declare_cache_env, tmp_path):
+    mod = tmp_path / "test_cache_probe.py"
+    mod.write_text("def test_alpha():\n    assert True\n", encoding="utf-8")
+    declare_cache_env.config.workerinput = {"workerid": "gw3"}
+
+    conftest._module_test_usage(str(mod))
+    conftest._flush_declare_cache()
+    assert not declare_cache_env.store, "non-gw0 workers must not write"
+
+    declare_cache_env.config.workerinput = {"workerid": "gw0"}
+    conftest._flush_declare_cache()
+    assert declare_cache_env.store, "gw0 owns the write"

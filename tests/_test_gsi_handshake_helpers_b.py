@@ -45,6 +45,7 @@ import pytest
 
 from server_launcher import LifecycleHarness  # noqa: E402
 from server_registry import NginxInstanceSpec  # noqa: E402
+from port_ladder import PORT_LAST  # noqa: E402
 
 # Every nginx GSI server in this module is a throwaway registry instance driven
 # through the phase-81 LifecycleHarness (never a direct nginx launch), so the
@@ -76,8 +77,8 @@ STOCK_XRDCP = "/usr/bin/xrdcp"
 _WK = os.environ.get("PYTEST_XDIST_WORKER", "")   # "gw0".."gwN" under xdist, "" serial
 _WOFF = (int(_WK[2:]) + 1) * 20 if _WK.startswith("gw") else 0
 
-P_STOCK_ROOT = 21130 + _WOFF
-P_STOCK_ROOT_FCA = 21131 + _WOFF   # foreign-CA stock server; +1 within the stride
+P_STOCK_ROOT = PORT_LAST + 20 + _WOFF
+P_STOCK_ROOT_FCA = PORT_LAST + 21 + _WOFF  # foreign-CA stock server
 
 
 # --------------------------------------------------------------------------- #

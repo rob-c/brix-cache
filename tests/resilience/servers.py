@@ -84,12 +84,9 @@ def _chmod(argv):
 
 
 def free_port():
-    """An ephemeral TCP port currently free on loopback."""
-    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    s.bind((BIND_HOST, 0))
-    port = s.getsockname()[1]
-    s.close()
-    return port
+    """Return an infrastructure-assigned port for this isolated harness."""
+    from ephemeral_port import free_port as assigned_port
+    return assigned_port(BIND_HOST)
 
 
 def port_up(port, host=HOST):

@@ -61,6 +61,8 @@ usage_fp(FILE *out, const char *prog)
         "  --tls          require in-protocol TLS (implied by roots://)\n"
         "  --notlsok      permit cleartext if the server offers no TLS (root:// only)\n"
         "  --noverifyhost skip TLS hostname check (chain verification stays on)\n"
+        "  -A, --allow-http  accepted for stock-xrdcp compatibility; http/davs URLs\n"
+        "                 need no opt-in here, so the flag has nothing to enable\n"
         "  --auth <p>     force auth protocol: gsi | ztn | krb5 | sss | unix\n"
         "  --proxy <path> use <path> as the X.509 proxy certificate (overrides $X509_USER_PROXY)\n"
         "  --pgrw         use paged I/O (kXR_pgread/pgwrite) with per-page CRC32c\n"

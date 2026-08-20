@@ -13,6 +13,7 @@
 #include <string.h>
 #include <sys/stat.h>
 #include <sys/xattr.h>
+#include <time.h>
 #include <unistd.h>
 
 #define CH_WH_PREFIX  ".brix.wh."
@@ -304,6 +305,78 @@ int cvmfs_changeset_scan(const char *upper_dir, cvmfs_changeset_t *cs,
         cvmfs_changeset_free(cs);
         return ch_fail(&sc, "out of memory grouping hardlinks%s", "");
     }
+    return 0;
+}
+
+/* ---- prefix remap (phase-104 D8/D9) --------------------------------------- */
+
+/* One prefix component: non-empty, not "."/"..", not the reserved marker
+ * grammar (every marker spells ".brix.*"). */
+static int ch_prefix_component_ok(const char *s, size_t n) {
+    if (n == 0) return 0;
+    if (n <= 2 && strncmp(s, "..", n) == 0) return 0;
+    if (n >= 6 && strncmp(s, ".brix.", 6) == 0) return 0;
+    return 1;
+}
+
+static int ch_prefix_validate(ch_scan_t *sc, const char *prefix, size_t plen) {
+    for (const char *s = prefix + 1; s < prefix + plen; ) {
+        const char *e = memchr(s, '/', (size_t) (prefix + plen - s));
+        if (e == NULL) e = prefix + plen;
+        if (!ch_prefix_component_ok(s, (size_t) (e - s)))
+            return ch_fail(sc, "invalid prefix component in %s", prefix);
+        s = e + 1;
+    }
+    return 0;
+}
+
+int cvmfs_changeset_reprefix(cvmfs_changeset_t *cs, const char *prefix,
+                             char *err, size_t errlen) {
+    ch_scan_t sc = { cs, NULL, err, errlen };
+    if (prefix == NULL || prefix[0] != '/')
+        return ch_fail(&sc, "prefix must be absolute: %s",
+                       prefix != NULL ? prefix : "(null)");
+    size_t plen = strlen(prefix);
+    while (plen > 1 && prefix[plen - 1] == '/') plen--;
+    if (plen >= CH_PATH_MAX)
+        return ch_fail(&sc, "prefix too long: %s", prefix);
+    if (plen == 1) return 0;                 /* "/" — already rooted */
+    if (ch_prefix_validate(&sc, prefix, plen) != 0)
+        return -1;
+
+    for (size_t i = 0; i < cs->n; i++) {
+        cvmfs_change_t *c = &cs->v[i];
+        size_t l = strlen(c->path);
+        if (plen + l >= CH_PATH_MAX)
+            return ch_fail(&sc, "reprefixed path too long: %s", c->path);
+        char *np = malloc(plen + l + 1);
+        if (np == NULL)
+            return ch_fail(&sc, "out of memory near %s", c->path);
+        memcpy(np, prefix, plen);
+        memcpy(np + plen, c->path, l + 1);
+        free(c->path);
+        c->path = np;
+    }
+
+    /* the ancestor chain, "/a", "/a/b", …, prefix itself — upserts that a
+     * published non-dir fails (no_clobber), so a foreign file is never
+     * silently retyped into a directory */
+    int64_t now = (int64_t) time(NULL);
+    for (size_t p = 1; p <= plen; p++) {
+        if (p != plen && prefix[p] != '/') continue;
+        cvmfs_change_t *c = ch_new(cs);
+        char *ancestor = c != NULL ? strndup(prefix, p) : NULL;
+        if (ancestor == NULL)
+            return ch_fail(&sc, "out of memory near %s", prefix);
+        c->op = CVMFS_CH_ADD_DIR;
+        c->path = ancestor;
+        c->mode = S_IFDIR | 0755;
+        c->uid = (uint32_t) getuid();
+        c->gid = (uint32_t) getgid();
+        c->mtime = now;
+        c->no_clobber = 1;
+    }
+    qsort(cs->v, cs->n, sizeof(*cs->v), ch_cmp);
     return 0;
 }
 

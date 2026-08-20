@@ -1,5 +1,9 @@
 from split_continuation import reexport as _reexport
+from official_interop_lib import worker_prefix
+
 _reexport(globals(), "_test_gsi_tls_helpers")
+
+WRITE_PREFIX = worker_prefix("_test_gsi_tls_")
 
 class TestGSITLSWrite:
     """Verify writes over GSI+TLS (xrdcp and File API)."""

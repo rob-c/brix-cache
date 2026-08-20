@@ -56,7 +56,8 @@ class StubOrigin(threading.Thread):
         super().__init__(daemon=True)
         self.srv = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        self.srv.bind((HOST, 0))
+        from ephemeral_port import free_port
+        self.srv.bind((HOST, free_port(HOST)))
         self.srv.listen(8)
         self.port = self.srv.getsockname()[1]
         self.creds = []                  # ztn payloads received, one per round

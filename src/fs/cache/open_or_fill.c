@@ -4,6 +4,7 @@
 #include "fs/vfs/vfs_internal.h"           /* export-relative key for the composed fill */
 #include "fs/backend/cache/sd_cache.h" /* composed-cache fill seam (SP2) */
 #include "core/compat/error_mapping.h"      /* errno → kXR for the fill result */
+#include "protocols/root/connection/shutdown_hold.h" /* active fill lifetime */
 
 #include <errno.h>
 #include <string.h>
@@ -96,6 +97,7 @@ brix_cache_open_or_fill(brix_ctx_t *ctx, ngx_connection_t *c,
                           "cache", kXR_ServerError, "cache thread post failed");
     }
 
+    brix_shutdown_hold_sync(c, ctx, 1);
     ctx->state = XRD_ST_AIO;
     return NGX_OK;
 }
@@ -322,7 +324,7 @@ brix_cache_open_fill_offload(brix_ctx_t *ctx, ngx_connection_t *c,
                           "cache", kXR_ServerError, "cache thread post failed");
     }
 
+    brix_shutdown_hold_sync(c, ctx, 1);
     ctx->state = XRD_ST_AIO;
     return NGX_OK;
 }
-

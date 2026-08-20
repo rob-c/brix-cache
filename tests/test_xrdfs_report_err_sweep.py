@@ -104,10 +104,11 @@ def test_two_path_formats_still_emit_hints():
     """mv/ln keep their own fprintf (two-path / no-path formats) but must
     still follow it with xrdfs_op_hints so hint coverage has no holes."""
     meta = _read(FS_DIR / "xrdfs_meta.c")
-    for op_line in (r'"xrdfs: mv: %s\\n"',
-                    r'"xrdfs: ln -s %s %s: %s\\n"',
-                    r'"xrdfs: ln %s %s: %s\\n"'):
-        m = re.search(op_line + r".*?\n(.*?)\n", meta, re.DOTALL)
+    attr = _read(FS_DIR / "xrdfs_attr.c")
+    for text, op_line in ((meta, r'"xrdfs: mv: %s\\n"'),
+                          (attr, r'"xrdfs: ln -s %s %s: %s\\n"'),
+                          (attr, r'"xrdfs: ln %s %s: %s\\n"')):
+        m = re.search(op_line + r".*?\n(.*?)\n", text, re.DOTALL)
         assert m, f"expected hand-rolled two-path site {op_line} to exist"
         assert "xrdfs_op_hints" in m.group(1), (
             f"two-path site {op_line} lost its xrdfs_op_hints follow-up")

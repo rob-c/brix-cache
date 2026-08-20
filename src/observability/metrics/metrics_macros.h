@@ -109,6 +109,38 @@ brix_metrics_shared(void)
         }                                                                    \
     } while (0)
 
+/* OCI distribution counters (phase-104). `field` may carry the enum subscripts
+ * (requests_total[surface][class][outcome]); every index is a compile-time
+ * bounded enum, never wire data. Safe from the event loop and from fill worker
+ * threads; no-op when the metrics SHM is not yet mapped. */
+#define BRIX_OCI_METRIC_INC(field)                                         \
+    do {                                                                     \
+        ngx_brix_metrics_t *_brix_metrics = brix_metrics_shared();     \
+        if (_brix_metrics != NULL) {                                       \
+            BRIX_ATOMIC_INC(&_brix_metrics->oci.field);                  \
+        }                                                                    \
+    } while (0)
+
+#define BRIX_OCI_METRIC_ADD(field, amount)                                 \
+    do {                                                                     \
+        ngx_brix_metrics_t *_brix_metrics = brix_metrics_shared();     \
+        if (_brix_metrics != NULL) {                                       \
+            BRIX_ATOMIC_ADD(&_brix_metrics->oci.field, (amount));        \
+        }                                                                    \
+    } while (0)
+
+/* RPM mirror counters (phase-104 D15.9). `field` may carry the enum subscripts
+ * (requests_total[class][outcome]); every index is a compile-time bounded
+ * enum, never wire data. Safe from the event loop and from fill worker
+ * threads; no-op when the metrics SHM is not yet mapped. */
+#define BRIX_RPM_METRIC_INC(field)                                         \
+    do {                                                                     \
+        ngx_brix_metrics_t *_brix_metrics = brix_metrics_shared();     \
+        if (_brix_metrics != NULL) {                                       \
+            BRIX_ATOMIC_INC(&_brix_metrics->rpm.field);                  \
+        }                                                                    \
+    } while (0)
+
 /* SciTags packet-marking counters (phase-34) — global, low-cardinality.  Safe
  * from any context (firefly/flowlabel emit; open/dispatch call sites); no-op when
  * the metrics SHM is not yet mapped. */

@@ -109,6 +109,11 @@ OUTSIDE = TEST_ROOT          # one level above the export root
 # to read.  /etc/passwd is world-readable and its content is unmistakable.
 HOST_SECRET = b"root:x:0:0:"
 
+# Sentinel content for the write-confinement checks.  This lives in the
+# continuation module because the write fixture is defined here, while the
+# public test module re-exports the helpers.
+ORIGINAL = b"ORIGINAL-DO-NOT-TOUCH"
+
 
 # ---------------------------------------------------------------------------
 # Shared payload batteries

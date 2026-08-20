@@ -64,7 +64,7 @@ Origin login tally across the whole run: **45 `login as alice`, 0 `login as bob`
 | **curl** | WebDAV | MKCOL·PUT·GET·HEAD·PROPFIND(0/1)·range·**checksum(Want-Digest)**·MOVE·DELETE — 14/14 | ✅ every op |
 | **PyXRootD** (`xrd.http.dav.HTTPFileSystem`) | davs | mkdir·write·read·exists·stat·getsize·listdir·statx·rm·rmdir — 11/11 | ✅ (needs Python ≥3.10 for `slots=`) |
 | **go-hep** (`xrootd/xrdhttp`) | https | MkdirAll·Create·ReadAll·Stat·ReadAt·Statx·Rename·RemoveFile·RemoveDir — 9/9 | ✅ (`WithClientCertificate`+`WithRootCAs`) |
-| **XrdRust** (`xrd --cert/--key/--ca-file`) | davs | put·cat·ls·size·check·rm — 6/6 | ✅ — **rebuild with `cargo build --features full`** (default build has no TLS transport) |
+| **XrdRust** (`xrd --cert/--key/--ca-file`) | davs | put·cat·ls·size·check·rm — 6/6 | ✅ — **rebuild with `cargo build --features full`** (default build has no TLS transport) |  <!-- client-flags-allow: `xrd` here is XrdRust, a third-party client that happens to share a name with ours -->
 | **XRootD.jl** (`Storage/web.jl`) | davs | mkcol·write·read·stat·range·listdir·move·rm·rmdir — 9/9 | ✅ **now delegates through the front** — Finding 1 fixed (see re-run below) |
 | **BriX bundled client** (`client/bin/xrdcp`,`xrdfs` davs) | davs | `xrdcp` put/get + `xrdfs` stat/ls — its whole davs surface | ✅ presents X.509 proxy — **fixed**, Finding 2. Mutating verbs (mkdir/mv/rm) are **root://-only by design** (`xrdfs` prints *"not supported over WebDAV … use a root:// endpoint"*, identically direct-to-origin), not a delegation gap. |
 

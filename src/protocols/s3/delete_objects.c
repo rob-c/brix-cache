@@ -318,15 +318,26 @@ s3_delete_dispose_key(s3_del_ctx_t *dc, const xmlChar *key_text, size_t key_len)
     char         fs_path[PATH_MAX];
     s3_del_err_t err;
     char         key_str[S3_MAX_KEY];
+    int          rrc;
 
     ngx_memcpy(key_str, key_text, key_len);
     key_str[key_len] = '\0';
 
-    if (!s3_resolve_key(dc->cf->common.root_canon, key_str, fs_path,
-                        sizeof(fs_path), dc->cf->common.cache_store_endpoint))
-    {
-        err.code    = "AccessDenied";
-        err.message = "Access Denied.";
+    rrc = s3_resolve_key_ex(dc->cf->common.root_canon, key_str, fs_path,
+                            sizeof(fs_path), dc->cf->common.cache_store_endpoint);
+    if (rrc == 404) {
+        /* A RESERVED key must read exactly as an absent one, and DeleteObjects
+         * is idempotent — s3_delete_one() below reports ENOENT as <Deleted>.
+         * So report <Deleted> and touch nothing: an <Error> of any code would
+         * single the name out of a batch of keys that are merely not there. */
+        return s3_delete_xml_append_deleted(dc->xml_buf, dc->xml_len,
+                                            key_text, key_len);
+    }
+    if (rrc != 0) {
+        s3_key_error_t kerr;
+        s3_resolve_key_error(rrc, &kerr);
+        err.code    = kerr.code;
+        err.message = kerr.message;
         return s3_delete_xml_append_error(dc->xml_buf, dc->xml_len,
                                           key_text, key_len, &err);
     }

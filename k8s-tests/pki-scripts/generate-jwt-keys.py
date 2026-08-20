@@ -154,6 +154,12 @@ def write_secret_yaml(private_key, jwks_dict: dict, output_dir: str | None = Non
     namespace = os.environ.get("NAMESPACE", "k8s-tests-dev")
     key_id = os.environ.get("KEY_ID", "test-key-1")
 
+    # Python 3.11 rejects backslashes inside f-string expressions.  Prepare
+    # the PEM/JSON indentation before interpolating the YAML template.
+    private_yaml = priv_pem.replace('\\\\n', '\\n')
+    public_yaml = pub_pem.replace('\\\\n', '\\n')
+    jwks_yaml = jwks_str.replace('\\n', '\\n    ')
+
     yaml_content = f"""apiVersion: v1
 kind: Secret
 metadata:
@@ -162,11 +168,11 @@ metadata:
 type: Opaque
 stringData:
   private.pem: |
-{priv_pem.replace('\\\\n', '\\n')}
+{private_yaml}
   public.pem: |
-{pub_pem.replace('\\\\n', '\\n')}
+{public_yaml}
   jwks.json: |
-{jwks_str.replace('\\n', '\\n    ')}
+{jwks_yaml}
 """
 
     if output_dir:

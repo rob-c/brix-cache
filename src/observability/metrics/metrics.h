@@ -102,6 +102,17 @@
  * ngx_brix_srv_metrics_t `cvmfs` member. */
 #include "metrics_cvmfs.h"
 
+/* OCI distribution metrics (phase-104) — the mirror/registry surface, traffic
+ * class, outcome, token-dance and upstream-error vocabularies plus the counter
+ * struct. Split into its own header so the observability domains stay
+ * individually reviewable; embedded below via the `oci` member. */
+#include "metrics_oci.h"
+
+/* RPM/dnf mirror metrics (phase-104 D15.9) — the repository route class and
+ * outcome vocabularies plus the counter struct. Split into its own header for
+ * the same reason as the OCI block; embedded below via the `rpm` member. */
+#include "metrics_rpm.h"
+
 /* root:// reverse-proxy metrics — aggregate block + bounded per-upstream slice
  * table + the BRIX_PROXY_MAX_UPSTREAMS/label-len constants. Split into its own
  * header so the observability domains stay individually reviewable; embedded
@@ -426,6 +437,8 @@ typedef struct {
     ngx_brix_webdav_metrics_t  webdav;
     ngx_brix_s3_metrics_t      s3;
     ngx_brix_cvmfs_metrics_t   cvmfs;   /* phase-68 cvmfs:// protocol plane */
+    ngx_brix_oci_metrics_t     oci;     /* phase-104 OCI distribution plane */
+    ngx_brix_rpm_metrics_t     rpm;     /* phase-104 RPM/dnf mirror plane   */
     ngx_brix_unified_metrics_t unified;
     ngx_brix_frm_metrics_t     frm;
 

@@ -40,6 +40,25 @@ A_SUB, B_SUB = "fwd-user-a", "fwd-user-b"
 TOK_AUD = "nginx-xrootd"
 
 
+class FrontResult(NamedTuple):
+    """Outcome of one forwarding-matrix PUT/GET cell."""
+    put_ok: bool
+    get_ok: bool
+    deny_obs: str
+
+
+def _call(*args, **kwargs):
+    """Resolve the parent module's command runner lazily to avoid import cycles."""
+    from cmdscripts.fwd_matrix_live import _call as parent_call
+    return parent_call(*args, **kwargs)
+
+
+def _curl_code(*args, **kwargs):
+    """Resolve the parent module's curl helper lazily after continuation load."""
+    from cmdscripts.fwd_matrix_live import _curl_code as parent_curl_code
+    return parent_curl_code(*args, **kwargs)
+
+
 class _ForwardHarnessMixinB:
     """Python port of tests/lib/fwd_matrix.sh: topology + assertion library."""
 
@@ -163,8 +182,13 @@ pss.setopt DebugLevel 0
                 "XrdSecGSICADIR": CA_DIR, "XrdSecGSICRLCHECK": "0"}
 
     def token_env(self, jwt: Path) -> dict[str, str]:
+        # XrdCl's ztn handler requires TLS.  Select it explicitly for this
+        # roots:// leg; the client otherwise prefers an ambient GSI proxy.
+        # Keep the literal as well as the file convention because these live
+        # tokens are generated with ordinary temporary-file permissions.
         return {"BEARER_TOKEN": jwt.read_text().strip(),
-                "X509_USER_PROXY": "/dev/null", "XrdSecPROTOCOL": "ztn"}
+                "BEARER_TOKEN_FILE": str(jwt), "X509_CERT_DIR": CA_DIR,
+                "XrdSecPROTOCOL": "ztn", "X509_USER_PROXY": str(self.proxy_a)}
 
     def front_put_get(self, hop1: str, cred: str, port: int, obj: str, who: str) -> FrontResult:
         payload = self.prefix / f"payload_{who}.bin"
@@ -173,16 +197,23 @@ pss.setopt DebugLevel 0
         back.unlink(missing_ok=True)
         put_ok, deny_obs = False, ""
         if hop1 == "root":
-            url = f"root://{HOST}:{port}/{obj}"
+            # ztn is only permitted over TLS by XrdCl.  The token matrix uses
+            # a roots:// front even though its GSI counterpart is root://.
+            scheme = "roots" if cred == "token" else "root"
+            url = f"{scheme}://{HOST}:{port}/{obj}"
+            auth_args = ["--auth", "ztn"] if cred == "token" else []
             if cred == "gsi":
                 env = self.gsi_env(self.proxy_a if who == "A" else self.proxy_b)
             else:
                 env = self.token_env(self.token_a if who == "A" else self.token_b)
-            put = _call([BRIX_XRDCP, "-f", payload, url], env_add=env, timeout=60)
+            put = _call([BRIX_XRDCP, *auth_args, "-f", payload, url], env_add=env,
+                        env_drop=("X509_USER_CERT", "X509_USER_KEY"), timeout=60)
             put_ok = put.returncode == 0
             if not put_ok:
-                deny_obs = "1"
-            _call([BRIX_XRDCP, "-f", url, back], env_add=env, timeout=60)
+                client_error = (put.stderr or put.stdout).strip().replace("\n", " ")
+                deny_obs = client_error[-400:] or f"rc={put.returncode}"
+            _call([BRIX_XRDCP, *auth_args, "-f", url, back], env_add=env,
+                  env_drop=("X509_USER_CERT", "X509_USER_KEY"), timeout=60)
         else:
             url = f"https://{HOST}:{port}/{obj}"
             if cred == "gsi":

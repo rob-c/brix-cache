@@ -1,0 +1,80 @@
+# deploy/oci-mirror/nginx.conf.example — OCI pull-through registry mirror.
+# Templated by tests/test_oci_compose_secure.py: @PORT@ @CACHEDIR@ @UPSTREAM@
+# (the upstream registry ROOT — scheme://host, not its /v2/ endpoint).
+#
+# Unlike deploy/rpm-mirror/nginx.conf.example this is NOT stock proxy_cache
+# grammar, and the difference is the point. An RPM repo is static HTTP; a
+# registry is an API with a token dance in front of it and a content-addressed
+# object space behind it, and proxy_cache understands neither:
+#
+#   * the upstream answers 401 with a WWW-Authenticate challenge and expects
+#     the client to go mint a bearer at the named realm. brix_oci_mirror does
+#     that dance itself and caches the bearer per (upstream, scope), so one
+#     token serves a whole pull instead of one token per request;
+#   * blobs are named by their own sha256, so the mirror VERIFIES what it
+#     stores (brix_cache_verify oci-digest) rather than trusting the origin.
+#     A corrupted or substituted blob is refused at the edge, never cached,
+#     and audited — a proxy_cache mirror would happily store it;
+#   * tags are mutable and blobs are not, so the two get different freshness
+#     policies from ONE directive (brix_oci_manifest_ttl) instead of a pair of
+#     hand-written regex locations that have to keep agreeing with each other.
+#
+# The mirror is READ-ONLY by construction: every write-class method is refused
+# with a 405 and a guard line (signal=ocipush), which
+# deploy/fail2ban/jail.d/xrootd-guard.conf turns into an instant ban. If you
+# want a registry you can push to, that is brix_oci_registry — see
+# full-stack.conf.example, which runs both on one box.
+worker_processes 2;
+error_log @CACHEDIR@/error.log info;
+pid @CACHEDIR@/nginx.pid;
+events { worker_connections 1024; }
+
+http {
+    access_log @CACHEDIR@/access.log;
+
+    # Bearer cache. The default is `oci_tokens 1m` (~125 live tokens, i.e.
+    # ~125 concurrently-pulled repos per TTL window); name it explicitly only
+    # to raise that. Exhaustion costs a re-dance, never correctness.
+    brix_oci_token_zone oci_tokens 1m;
+
+    server {
+        listen @PORT@;
+
+        # A registry client sends the whole manifest in one request and pulls
+        # blobs one by one; nothing here is a large upload, because nothing
+        # here is an upload at all.
+        client_max_body_size 1m;
+
+        location /v2/ {
+            brix_oci_mirror   @UPSTREAM@;
+            brix_cache_store  posix:@CACHEDIR@/store;
+
+            # Verify every blob against the digest in its own name before it
+            # is published to the cache. This is the whole reason to run this
+            # rather than a generic HTTP cache.
+            brix_cache_verify oci-digest;
+
+            # Tag -> manifest is the only mutable mapping in the API. 60s is
+            # short enough that `:latest` moves within a minute of upstream
+            # and long enough that a CI herd does not re-dance per job.
+            # Digest-pinned manifests and blobs ignore this: they are
+            # immutable by name and cached until evicted.
+            brix_oci_manifest_ttl 60s;
+
+            # Upstreams that need a credential of their own (a private repo,
+            # a rate-limited account) take a user and a file holding the
+            # password. The password never appears in this config, and the
+            # credential is presented to the TOKEN REALM only — never to a
+            # redirect target, and never to the CDN the realm hands back:
+            # brix_oci_mirror_auth robot@example.org /etc/brix/oci-upstream.pw;
+
+            # Mirroring a registry that serves a single namespace under a
+            # shorter local path — pull `mirror.example.org/v2/app:1` and get
+            # `upstream/v2/library/app:1`:
+            # brix_oci_upstream_namespace library;
+        }
+
+        # Anything that is not the registry API is not this server's business.
+        location / { return 404; }
+    }
+}

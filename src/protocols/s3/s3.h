@@ -409,9 +409,34 @@ ngx_int_t s3_set_header(ngx_http_request_t *r, const char *key,
  * Resolve a key to an absolute filesystem path.
  * Returns 1 on success, 0 if the key escapes the root or is invalid.
  * out must be at least PATH_MAX bytes.
+ *
+ * This form throws the reason away. Use it ONLY where every refusal is answered
+ * identically; anything that builds a response wants the _ex form below.
  */
 int s3_resolve_key(const char *root, const char *key, char *out, size_t outsz,
     unsigned allow_internal);
+
+/*
+ * Same, keeping the resolver's status: 0 on success, else 403 (escape or
+ * malformed component), 404 (reserved internal name), or 414 (overflow).
+ */
+int s3_resolve_key_ex(const char *root, const char *key, char *out,
+    size_t outsz, unsigned allow_internal);
+
+/* The S3 error triple a resolver status maps to, plus its BRIX_S3_EVENT_*. */
+typedef struct {
+    ngx_uint_t   status;
+    const char  *code;
+    const char  *message;
+    int          event;
+} s3_key_error_t;
+
+/*
+ * Map an s3_resolve_key_ex() status onto that triple. Defined once so no call
+ * site can re-decide that a reserved name is an authorization failure — a 404
+ * that turns into a 403 tells an unauthenticated prober the name is reserved.
+ */
+void s3_resolve_key_error(int rc, s3_key_error_t *err);
 
 /* Multipart, copy, delete-objects, and checksum operation declarations were
  * split out (phase-79 file-size burndown) into s3_ops.h, included here so every

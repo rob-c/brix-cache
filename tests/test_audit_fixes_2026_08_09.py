@@ -128,7 +128,8 @@ class _StubServer:
         self.captured = []
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        self.sock.bind(("127.0.0.1", 0))
+        from ephemeral_port import free_port
+        self.sock.bind(("127.0.0.1", free_port("127.0.0.1")))  # net-literal-allow: local test stub
         self.port = self.sock.getsockname()[1]
         self.sock.listen(8)
         self._stop = False
@@ -141,7 +142,7 @@ class _StubServer:
     def __exit__(self, *exc):
         self._stop = True
         try:
-            socket.create_connection(("127.0.0.1", self.port), timeout=1).close()
+            socket.create_connection(("127.0.0.1", self.port), timeout=1).close()  # net-literal-allow: local test stub
         except OSError:
             pass
         self.sock.close()
@@ -201,7 +202,7 @@ class TestTriedEmission:
             sid, _reqid, payload = _read_request(conn)
             if not state["redirected"]:
                 state["redirected"] = True
-                body = struct.pack(">I", dead_port) + b"127.0.0.1"
+                body = struct.pack(">I", dead_port) + b"127.0.0.1"  # net-literal-allow: redirect wire payload
                 conn.sendall(_hdr(sid, kXR_redirect, len(body)))
                 conn.sendall(body)
                 return
@@ -215,7 +216,7 @@ class TestTriedEmission:
         dead = free_port()
         with _StubServer(self._redirect_then_capture(dead)) as stub:
             res = subprocess.run(
-                [_XRDFS, f"root://127.0.0.1:{stub.port}/", "stat", "/probe.bin"],
+                [_XRDFS, f"root://127.0.0.1:{stub.port}/", "stat", "/probe.bin"],  # net-literal-allow: local stub URL
                 capture_output=True, text=True, timeout=60)
             # The stub always ends with NotFound, so the command fails; what is
             # under test is the payload it captured on the way there.
@@ -228,7 +229,7 @@ class TestTriedEmission:
             assert "tried=" in replay, f"no tried= in replay: {replay!r}"
             assert "triedrc=" in replay, f"no triedrc= in replay: {replay!r}"
             # It must name the endpoint that actually died, not a placeholder.
-            assert f"127.0.0.1:{dead}" in replay, (
+            assert f"127.0.0.1:{dead}" in replay, (  # net-literal-allow: redirect wire payload
                 f"tried= does not name the dead target: {replay!r}")
 
     def test_triedrc_uses_a_stock_reason_token(self):
@@ -241,7 +242,7 @@ class TestTriedEmission:
         dead = free_port()
         with _StubServer(self._redirect_then_capture(dead)) as stub:
             subprocess.run(
-                [_XRDFS, f"root://127.0.0.1:{stub.port}/", "stat", "/probe.bin"],
+                [_XRDFS, f"root://127.0.0.1:{stub.port}/", "stat", "/probe.bin"],  # net-literal-allow: local stub URL
                 capture_output=True, text=True, timeout=60)
             assert stub.captured
             replay = stub.captured[-1].decode("latin-1")
@@ -264,7 +265,7 @@ class TestTriedEmission:
 
         with _StubServer(handler) as stub:
             subprocess.run(
-                [_XRDFS, f"root://127.0.0.1:{stub.port}/", "stat", "/probe.bin"],
+                [_XRDFS, f"root://127.0.0.1:{stub.port}/", "stat", "/probe.bin"],  # net-literal-allow: local stub URL
                 capture_output=True, text=True, timeout=60)
             assert stub.captured
             first = stub.captured[0].decode("latin-1")
@@ -307,8 +308,8 @@ class TestTpcDelegate:
         return handler
 
     def _run_tpc(self, mode, stub_port):
-        src = f"root://127.0.0.1:{stub_port}//src.bin"
-        dst = f"root://127.0.0.1:{stub_port}//dst.bin"
+        src = f"root://127.0.0.1:{stub_port}//src.bin"  # net-literal-allow: local stub URL
+        dst = f"root://127.0.0.1:{stub_port}//dst.bin"  # net-literal-allow: local stub URL
         return subprocess.run(
             [_XRDCP, "-s", "--tpc", mode, src, dst],
             capture_output=True, text=True, timeout=90)

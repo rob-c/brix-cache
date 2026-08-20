@@ -84,7 +84,8 @@ def _blackhole_bringup_seconds(connect_timeout_ms):
     swallow the protocol bytes)."""
     lst = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     lst.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    lst.bind((BIND_HOST, 0))
+    from ephemeral_port import free_port
+    lst.bind((BIND_HOST, free_port(BIND_HOST)))
     port = lst.getsockname()[1]
     lst.listen(8)
     try:

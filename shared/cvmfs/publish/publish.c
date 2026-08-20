@@ -6,6 +6,7 @@
 #endif
 #include "cvmfs/publish/publish_internal.h"
 #include "cvmfs/object/object.h"
+#include "cvmfs/platform/platform.h"
 #include "cvmfs/reflog/reflog.h"
 #include "cvmfs/signature/sign.h"
 #include "cvmfs/signature/verify.h"
@@ -259,6 +260,8 @@ static int pub_add_dir(pub_ctx_t *px, pub_cat_t *cat, const cvmfs_change_t *c,
                        const pub_dirtab_t *dt) {
     cvmfs_dirent_t de;
     int found = cvmfs_catwriter_lookup(cat->w, c->path, &de);
+    if (c->no_clobber && found == 1 && !(de.flags & CVMFS_FLAG_DIR))
+        return pub_fail(px, "path exists and is not a directory: %s", c->path);
     if (c->opaque && found == 1
         && cvmfs_catwriter_delete_subtree(cat->w, c->path) < 0)
         return pub_fail(px, "cannot clear opaque dir %s", c->path);
@@ -333,6 +336,11 @@ static int pub_add_file(pub_ctx_t *px, pub_cat_t *cat, const cvmfs_change_t *c) 
 }
 
 static int pub_add_link(pub_ctx_t *px, pub_cat_t *cat, const cvmfs_change_t *c) {
+    cvmfs_dirent_t de;
+    if (c->no_clobber && cvmfs_catwriter_lookup(cat->w, c->path, &de) == 1
+        && (de.flags & CVMFS_FLAG_DIR))
+        return pub_fail(px, "refusing to replace directory with symlink: %s",
+                        c->path);
     if (cvmfs_catwriter_delete_subtree(cat->w, c->path) < 0)
         return pub_fail(px, "cannot replace %s", c->path);
     cvmfs_catrow_t r;
@@ -515,6 +523,17 @@ int pub_swap_manifest(pub_ctx_t *px, const cvmfs_hash_t *root_hash,
     return 0;
 }
 
+/* The store runs in no_fsync batch mode (one barrier beats one fsync per
+ * object); nothing the new manifest names may still be volatile when the
+ * swap makes it live. */
+static int pub_sync_store(pub_ctx_t *px) {
+    int fd = open(px->o->repo_dir, O_RDONLY | O_DIRECTORY | O_CLOEXEC);
+    int rc = fd >= 0 && brix_plat_sync_tree(fd) == 0 ? 0 : -1;
+    if (fd >= 0) close(fd);
+    return rc == 0 ? 0
+         : pub_fail(px, "cannot flush object store under %s", px->o->repo_dir);
+}
+
 /* ---- teardown + entry ---------------------------------------------------- */
 
 static void pub_teardown(pub_ctx_t *px) {
@@ -543,15 +562,18 @@ int cvmfs_publish_run(const cvmfs_publish_opts_t *o, const cvmfs_changeset_t *cs
     px.chunk_size = o->chunk_size != 0 ? o->chunk_size : CVMFS_PUBLISH_CHUNK_DEFAULT;
     if (px.chunk_size < CVMFS_PUBLISH_CHUNK_FLOOR)
         return pub_fail(&px, "chunk size below the 4096-byte floor%s", "");
-    if (px.chunk_size > CVMFS_PUBLISH_CHUNK_CEIL)
-        return pub_fail(&px, "chunk size above the %ld-byte ceiling "
-                             "(a larger object cannot be read back)",
-                        CVMFS_PUBLISH_CHUNK_CEIL);
+    if (px.chunk_size > CVMFS_PUBLISH_CHUNK_CEIL) {
+        char ceiling[32];
+        snprintf(ceiling, sizeof(ceiling), "%ld", CVMFS_PUBLISH_CHUNK_CEIL);
+        return pub_fail(&px, "chunk size above the %s-byte ceiling "
+                             "(a larger object cannot be read back)", ceiling);
+    }
     snprintf(px.workdir, sizeof(px.workdir), "%s/.brix.publish.tmp", o->repo_dir);
     if (mkdir(px.workdir, 0755) != 0 && errno != EEXIST)
         return pub_fail(&px, "cannot create %s", px.workdir);
     if (cvmfs_objstore_open(&px.store, o->repo_dir) != 0)
         return pub_fail(&px, "cannot open object store under %s", o->repo_dir);
+    px.store.cas.no_fsync = 1;          /* pub_sync_store barriers pre-swap */
 
     pub_dirtab_t dt;
     memset(&dt, 0, sizeof(dt));
@@ -570,6 +592,7 @@ int cvmfs_publish_run(const cvmfs_publish_opts_t *o, const cvmfs_changeset_t *cs
     if (rc == 0) rc = pub_dirtab_apply(&px, &dt);
     if (rc == 0) rc = pub_apply(&px, cs, &dt);
     if (rc == 0) rc = pub_finalize(&px, new_rev, old_root_hex, &root_hash, &root_size);
+    if (rc == 0) rc = pub_sync_store(&px);
     if (rc == 0) rc = pub_swap_manifest(&px, &root_hash, root_size, new_rev);
     if (rc == 0 && new_revision != NULL) *new_revision = new_rev;
     pub_dirtab_free(&dt);

@@ -886,7 +886,7 @@ faults userspace cannot model. **Every R item is gated identically:**
 - **Fail closed** if the required capability is missing (clear message; install
   nothing; never silently downgrade to the userspace approximation).
 - **Revert all kernel/system state on exit** — atexit + SIGINT/SIGTERM handler —
-  and a `brix-fault-proxy --cleanup <tag>` escape hatch for crash recovery. Every
+  and a `brix-fault-proxy --cleanup <tag>` escape hatch for crash recovery. Every  <!-- client-flags-allow: proposed escape hatch; brix-fault-proxy has no --cleanup -->
   rule/qdisc/link is **tagged** (`brixfp-<pid>` or a user `--tag`) so cleanup is
   scoped and never touches unrelated config.
 - **Named resources only:** operate solely on interfaces/namespaces explicitly

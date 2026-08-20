@@ -411,6 +411,38 @@ xrdcp_parse_remote_auth_option(xrdcp_cli_state *s, int argc, char **argv, size_t
 }
 
 
+/*
+ * xrdcp_parse_compat_option — stock-xrdcp spellings that name a condition we
+ * already satisfy unconditionally.
+ *
+ * WHAT: Accepts -A/--allow-http and does nothing with it.
+ * WHY:  In stock xrdcp that flag is the gate on the XrdClHttp plugin — the
+ *       client refuses http/davs URLs until it is given. This client has no
+ *       plugin layer and no such gate: every scheme its transport understands
+ *       is available on every invocation, so the permission is already
+ *       granted. Rejecting the flag would be the wrong answer to a right
+ *       command line — every WebDAV recipe in the field carries it, including
+ *       the ones in this repo's own docs and the interop suite — and silently
+ *       accepting it is not a fudge but the exact translation of what it asks
+ *       for. It grants a capability; it does not relax one, so it must NOT be
+ *       read as touching TLS posture or host verification.
+ * HOW:  Matched here rather than in xrdcp_parse_basic_option() so that ladder
+ *       stays under the complexity cap, and so the compat spellings have one
+ *       visible home if more are ever adopted.
+ */
+static int
+xrdcp_parse_compat_option(int argc, char **argv, size_t *i)
+{
+    const char *a = argv[*i];
+
+    (void) argc;
+    if (strcmp(a, "-A") == 0 || strcmp(a, "--allow-http") == 0) {
+        return 1;
+    }
+    return 0;
+}
+
+
 static int
 xrdcp_parse_option(xrdcp_cli_state *s, int argc, char **argv, size_t *i)
 {
@@ -421,6 +453,8 @@ xrdcp_parse_option(xrdcp_cli_state *s, int argc, char **argv, size_t *i)
     if (pr == 2) { usage_fp(stdout, argv[0]); return 2; }
     if (pr) { *i = (size_t) oi; return 1; }
     rc = xrdcp_parse_basic_option(s, argc, argv, i);
+    if (rc) { return rc; }
+    rc = xrdcp_parse_compat_option(argc, argv, i);
     if (rc) { return rc; }
     rc = xrdcp_parse_manifest_option(s, argc, argv, i);
     if (rc) { return rc; }

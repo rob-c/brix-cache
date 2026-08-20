@@ -44,7 +44,8 @@ def _ipv6_loopback_ok():
     """True if ::1 loopback can be bound — the shim's v6 candidate needs it."""
     try:
         s = socket.socket(socket.AF_INET6, socket.SOCK_STREAM)
-        s.bind((BIND_HOST6, 0))
+        from ephemeral_port import free_port
+        s.bind((BIND_HOST6, free_port(BIND_HOST6)))
         s.close()
         return True
     except OSError:
@@ -178,7 +179,8 @@ def test_real_tool_binary_downgrades():
 
     lst = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     lst.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    lst.bind((BIND_HOST, 0))
+    from ephemeral_port import free_port
+    lst.bind((BIND_HOST, free_port(BIND_HOST)))
     port = lst.getsockname()[1]
     lst.listen(8)
     try:

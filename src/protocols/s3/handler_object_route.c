@@ -36,6 +36,7 @@
 #include "fs/backend/sd.h"
 
 #include <limits.h>
+#include <errno.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -228,6 +229,50 @@ s3_dispatch_object_delete(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
 
     return s3_metrics_return_method(r, method_slot,
                                     s3_handle_delete(r, fs_path, cf));
+}
+
+/*
+ * WHAT: Answer an object request whose key the resolver refused with 404 —
+ *   a RESERVED internal name (cache sidecar, stage marker, upload temp) on a
+ *   location that is not a declared cache-store endpoint — exactly as the same
+ *   request against a key that simply is not there would be answered.
+ *
+ * WHY:  compat/path.c chose 404 over 403 for the reserved name specifically "so
+ *   the response does not distinguish an internal name from a genuinely absent
+ *   one". A status alone is not the whole answer: S3 DELETE is idempotent, so an
+ *   absent key is 204 + delete_missing, and answering a reserved key 404 there
+ *   would hand the same inference back on the one verb the status code does not
+ *   already cover. This lives beside s3_dispatch_object_delete() because that is
+ *   where the knowledge of what a DELETE means already is; putting the decision
+ *   in the resolver would duplicate this routing in a second file.
+ *
+ * HOW:  A plain object DELETE (no ?tagging, no ?uploadId) reruns the write gate
+ *   the real path runs first and then emits s3_delete_respond(ENOENT) — the same
+ *   call the idempotent-missing unlink makes. A tagging or multipart-abort
+ *   DELETE, and every other method, gets the mapped XML error; those already
+ *   answer 404 for an absent key, differing at most in the <Code> element.
+ */
+ngx_int_t
+s3_dispatch_object_absent(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
+    ngx_uint_t method_slot, const s3_key_error_t *err)
+{
+    char upload_id[128];
+
+    if (r->method == NGX_HTTP_DELETE
+        && !s3_has_query_flag(r, "tagging")
+        && !s3_get_query_param(r, "uploadId", upload_id, sizeof(upload_id)))
+    {
+        if (!cf->common.allow_write) {
+            return s3_reject_write_disabled(r, method_slot);
+        }
+        return s3_metrics_return_method(r, method_slot,
+                                        s3_delete_respond(r, ENOENT));
+    }
+
+    BRIX_S3_METRIC_INC(events_total[err->event]);
+    return s3_metrics_return_method(
+        r, method_slot,
+        s3_send_xml_error(r, err->status, err->code, err->message));
 }
 
 static ngx_int_t

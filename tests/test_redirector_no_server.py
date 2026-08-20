@@ -29,7 +29,8 @@ import time
 
 import pytest
 
-from settings import CLUSTER_REDIR_PORT, HOST, VIRTUAL_REDIR_PORT
+from server_registry import NginxInstanceSpec
+from settings import HOST, VIRTUAL_REDIR_PORT
 from _test_a_robustness_helpers import (
     _errcode,
     _full_anon_login,
@@ -38,6 +39,8 @@ from _test_a_robustness_helpers import (
 )
 
 pytestmark = [pytest.mark.uses_lifecycle_harness, pytest.mark.timeout(60)]
+
+EMPTY_REDIRECTOR = "lc-redirector-no-server"
 
 # --- wire constants -------------------------------------------------------- #
 kXR_ok         = 0
@@ -90,12 +93,21 @@ def _open_probe(port: int, path: str, options: int) -> tuple[int, int]:
 
 
 class TestLoneRedirectorNoServer:
-    """cluster-redir booted ALONE: zero data servers registered."""
+    """A private redirector with zero data servers registered."""
 
-    @pytest.mark.registry_servers("cluster-redir")
-    def test_read_open_returns_noserver_not_ebadf(self):
-        _wait_reachable(CLUSTER_REDIR_PORT, "cluster-redir")
-        status, code = _open_probe(CLUSTER_REDIR_PORT,
+    @pytest.fixture
+    def empty_redirector(self, lifecycle):
+        return lifecycle.start(NginxInstanceSpec(
+            name=EMPTY_REDIRECTOR,
+            template="nginx_cluster_redir_nocms.conf",
+            protocol="root",
+            readiness="tcp",
+            reason="redirector no-server regression (private empty registry)",
+        ))
+
+    def test_read_open_returns_noserver_not_ebadf(self, empty_redirector):
+        _wait_reachable(empty_redirector.port, EMPTY_REDIRECTOR)
+        status, code = _open_probe(empty_redirector.port,
                                    "/regress/no-server-read", kXR_open_read)
         assert status == kXR_error, f"expected kXR_error, got status {status}"
         assert code != kXR_IOError, \
@@ -103,22 +115,20 @@ class TestLoneRedirectorNoServer:
         assert code == kXR_noserver, \
             f"expected kXR_noserver (3014), got {code}"
 
-    @pytest.mark.registry_servers("cluster-redir")
-    def test_write_open_returns_noserver_not_ebadf(self):
-        _wait_reachable(CLUSTER_REDIR_PORT, "cluster-redir")
-        status, code = _open_probe(CLUSTER_REDIR_PORT,
+    def test_write_open_returns_noserver_not_ebadf(self, empty_redirector):
+        _wait_reachable(empty_redirector.port, EMPTY_REDIRECTOR)
+        status, code = _open_probe(empty_redirector.port,
                                    "/regress/no-server-write", kXR_open_write)
         assert status == kXR_error, f"expected kXR_error, got status {status}"
         assert code == kXR_noserver, \
             f"write to serverless redirector must be kXR_noserver (3014), got {code}"
 
-    @pytest.mark.registry_servers("cluster-redir")
-    def test_traversal_open_never_local_ebadf(self):
+    def test_traversal_open_never_local_ebadf(self, empty_redirector):
         """Security-neg: a redirector with no local export must never resolve a
         path locally.  A traversal path is rejected at validation and NEVER
         surfaces the local-open EBADF -> kXR_IOError."""
-        _wait_reachable(CLUSTER_REDIR_PORT, "cluster-redir")
-        status, code = _open_probe(CLUSTER_REDIR_PORT,
+        _wait_reachable(empty_redirector.port, EMPTY_REDIRECTOR)
+        status, code = _open_probe(empty_redirector.port,
                                    "/../../../../etc/passwd", kXR_open_read)
         assert status == kXR_error, f"expected kXR_error, got status {status}"
         assert code != kXR_IOError, \

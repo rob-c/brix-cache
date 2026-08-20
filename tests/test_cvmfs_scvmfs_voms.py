@@ -43,7 +43,7 @@ import pytest
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "cvmfs"))
 
 from conformance_common import NGINX_BIN, PortBlock, srv_instance
-from settings import CA_DIR, HOST, PROXY_STD, USER_CERT, USER_KEY
+from settings import CA_DIR, HOST, USER_CERT, USER_KEY
 
 requires_openssl = pytest.mark.skipif(shutil.which("openssl") is None,
                                       reason="openssl not installed")
@@ -134,6 +134,26 @@ def _split(proxy: Path, d: Path, stem: str):
     return cfile, kfile
 
 
+def _plain_proxy(d: Path):
+    """Mint a private plain proxy instead of sharing the session proxy file.
+
+    Live credential helpers may refresh ``TEST_ROOT/pki/user/proxy_std.pem``
+    during a long suite.  Reading that mutable file here made this negative
+    VOMS case occasionally split a partially rewritten PEM and fail in
+    ``SSLContext.load_cert_chain``.  The user EEC/key are stable for the
+    session, so mint the equivalent no-VOMS proxy in this fixture's private
+    directory and split that immutable artifact.
+    """
+    pki = d / "plain-pki"
+    user = pki / "user"
+    user.mkdir(parents=True)
+    shutil.copy2(USER_CERT, user / "usercert.pem")
+    shutil.copy2(USER_KEY, user / "userkey.pem")
+    _run(sys.executable, os.path.join(os.path.dirname(_VOMS_PROXY_FAKE),
+                                      "make_proxy.py"), str(pki))
+    return _split(user / "proxy_std.pem", d, "plain")
+
+
 @pytest.fixture(scope="module")
 def voms(tmp_path_factory):
     d = tmp_path_factory.mktemp("scvmfs_voms")
@@ -147,8 +167,7 @@ def voms(tmp_path_factory):
     proxies = {
         "atlas": _split(_voms_proxy(d, "atlas", voms_crt, voms_key), d, "atlas"),
         "cms": _split(_voms_proxy(d, "cms", voms_crt, voms_key), d, "cms"),
-        "plain": _split(Path(PROXY_STD), d, "plain")
-                 if os.path.exists(PROXY_STD) else None,
+        "plain": _plain_proxy(d),
     }
     return {"dir": d, "server": (d / "server.crt", d / "server.key"),
             "vomsdir": vd, "proxies": proxies}
@@ -213,8 +232,6 @@ def test_plain_proxy_no_voms_403(voms):
     """A plain GSI proxy carries no VOMS AC, so the carry sets no VO and voms
     mode refuses it (403) — the VO requirement is fail-closed, never bypassed by
     a merely-authenticated peer."""
-    if voms["proxies"]["plain"] is None:
-        pytest.skip("no plain proxy fixture (settings.PROXY_STD)")
     with _srv(voms, vo_glob="atlas") as srv:
         st, _ = _fetch(srv.nginx_port, srv.objects()[0],
                        client=voms["proxies"]["plain"])

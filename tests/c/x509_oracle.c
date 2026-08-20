@@ -44,6 +44,15 @@ static const group_cfg_t GROUPS[] = {
     { "bundle",             BRIX_SP_MODE_OFF,     BRIX_CRL_MODE_OFF,     1 },
 };
 
+typedef struct {
+    X509_STORE *store;
+    int         configured;
+} oracle_store_t;
+
+static oracle_store_t STORES[sizeof(GROUPS) / sizeof(GROUPS[0])][2];
+
+static int load_crls(X509_STORE *store, const char *cadir);
+
 static const group_cfg_t *
 group_of(const char *name)
 {
@@ -53,6 +62,58 @@ group_of(const char *name)
         }
     }
     return NULL;
+}
+
+/* The CA directory is shared by every clause.  Building a store scans all
+ * hashed certificates and CRLs, so doing it once per clause makes the oracle
+ * quadratic in the size of the corpus.  Keep one configured store per group;
+ * each verdict still gets a fresh X509_STORE_CTX and credential stack. */
+static X509_STORE *
+store_for_group(const group_cfg_t *g, int allow_proxy)
+{
+    char            cadir[4096], bundle[4096];
+    unsigned long   flags = allow_proxy ? X509_V_FLAG_ALLOW_PROXY_CERTS : 0UL;
+    size_t          index = (size_t) (g - GROUPS);
+    oracle_store_t *cached = &STORES[index][allow_proxy ? 1 : 0];
+    int             crl_count = 0;
+
+    if (cached->configured) {
+        return cached->store;
+    }
+    cached->configured = 1;
+
+    snprintf(cadir, sizeof(cadir), "%s/shared/ca", FIX);
+    snprintf(bundle, sizeof(bundle), "%s/shared/bundle.pem", FIX);
+    cached->store = X509_STORE_new();
+    if (cached->store == NULL) {
+        return NULL;
+    }
+    if (g->use_bundle) {
+        X509_STORE_load_file(cached->store, bundle);
+    } else {
+        X509_STORE_load_path(cached->store, cadir);
+        if (g->crl_mode != BRIX_CRL_MODE_OFF) {
+            crl_count = load_crls(cached->store, cadir);
+        }
+    }
+    if (brix_store_configure(cached->store, g->use_bundle ? NULL : cadir,
+            flags, crl_count, g->sp_mode, g->crl_mode, NULL, NULL) != 0) {
+        X509_STORE_free(cached->store);
+        cached->store = NULL;
+    }
+    return cached->store;
+}
+
+static void
+free_cached_stores(void)
+{
+    size_t i;
+    for (i = 0; i < sizeof(STORES) / sizeof(STORES[0]); i++) {
+        X509_STORE_free(STORES[i][0].store);
+        X509_STORE_free(STORES[i][1].store);
+        STORES[i][0].store = NULL;
+        STORES[i][1].store = NULL;
+    }
 }
 
 /* -- helpers -------------------------------------------------------------- */
@@ -157,37 +218,19 @@ chain_policy_ok(STACK_OF(X509) *chain)
 static int
 verdict_accept(const group_cfg_t *g, const char *cred_path, const char *surface)
 {
-    char cadir[4096], bundle[4096];
-    snprintf(cadir, sizeof(cadir), "%s/shared/ca", FIX);
-    snprintf(bundle, sizeof(bundle), "%s/shared/bundle.pem", FIX);
-
-    X509_STORE     *store = X509_STORE_new();
-    unsigned long   flags = (strcmp(surface, "davs") == 0)
-                            ? 0UL : X509_V_FLAG_ALLOW_PROXY_CERTS;
-    int             crl_count = 0;
+    int             allow_proxy = strcmp(surface, "davs") != 0;
+    X509_STORE     *store = store_for_group(g, allow_proxy);
     STACK_OF(X509) *chain;
     X509_STORE_CTX *ctx;
     int             ok, accept;
 
-    if (g->use_bundle) {
-        X509_STORE_load_file(store, bundle);
-    } else {
-        X509_STORE_load_path(store, cadir);
-        if (g->crl_mode != BRIX_CRL_MODE_OFF) {
-            crl_count = load_crls(store, cadir);
-        }
-    }
-
-    if (brix_store_configure(store, g->use_bundle ? NULL : cadir, flags,
-            crl_count, g->sp_mode, g->crl_mode, NULL, NULL) != 0) {
-        X509_STORE_free(store);
+    if (store == NULL) {
         return -1;   /* config error (e.g. require+bundle) → treated as reject */
     }
 
     chain = load_chain(cred_path);
     if (sk_X509_num(chain) == 0) {
         sk_X509_pop_free(chain, X509_free);
-        X509_STORE_free(store);
         return 0;
     }
 
@@ -220,7 +263,6 @@ verdict_accept(const group_cfg_t *g, const char *cred_path, const char *surface)
 
     X509_STORE_CTX_free(ctx);
     sk_X509_pop_free(chain, X509_free);
-    X509_STORE_free(store);
     return accept ? 1 : 0;
 }
 
@@ -282,5 +324,6 @@ main(int argc, char **argv)
     fclose(fp);
 
     printf("\n%d oracle checks, %d failures\n", checks, failures);
+    free_cached_stores();
     return failures ? 1 : 0;
 }

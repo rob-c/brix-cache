@@ -53,11 +53,8 @@ for _k in ("X509_USER_PROXY", "X509_CERT_DIR", "BEARER_TOKEN", "BEARER_TOKEN_FIL
 
 def _closed_loopback_port():
     """A loopback port with nothing listening: bind, read the number, close."""
-    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    s.bind((HOST, 0))
-    port = s.getsockname()[1]
-    s.close()
-    return port
+    from ephemeral_port import free_port
+    return free_port(HOST)
 
 
 @pytest.fixture(scope="module")

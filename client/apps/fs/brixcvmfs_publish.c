@@ -21,10 +21,12 @@
 #define _POSIX_C_SOURCE 200809L         /* kill/lstat & friends under -std=c11 */
 #endif
 #include "cvmfs/publish/publish.h"
+#include "brixcvmfs_ingest_internal.h"   /* exports the tx lock/rm primitives */
 
 #include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -51,7 +53,7 @@ static void tx_boot_id(char *out, size_t outlen) {
     }
 }
 
-static int tx_lock_pid(const char *lockpath) {
+int brixcvmfs_tx_lock_pid(const char *lockpath) {
     FILE *f = fopen(lockpath, "r");
     int pid = 0;
     if (f != NULL) {
@@ -61,7 +63,26 @@ static int tx_lock_pid(const char *lockpath) {
     return pid;
 }
 
-static int tx_lock_take(const char *lockpath) {
+/* 1 = the lock's opener is provably gone: the recorded boot differs from
+ * the running boot, or the pid no longer exists on this boot. Callers must
+ * only judge locks with no durable upper tree behind them (a crashed
+ * ingest); a `repo transaction` lock guards real staged state and is never
+ * broken automatically. */
+int brixcvmfs_tx_lock_stale(const char *lockpath) {
+    char boot[64], cur[64];
+    int pid = 0;
+    FILE *f = fopen(lockpath, "r");
+    if (f == NULL) return 0;
+    boot[0] = '\0';
+    int fields = fscanf(f, "pid:%d\nboot:%63s", &pid, boot);
+    fclose(f);
+    if (fields != 2) return 0;
+    tx_boot_id(cur, sizeof(cur));
+    if (strcmp(boot, cur) != 0) return 1;
+    return pid > 0 && kill(pid, 0) != 0 && errno == ESRCH;
+}
+
+int brixcvmfs_tx_lock_take(const char *lockpath) {
     char boot[64], body[128];
     tx_boot_id(boot, sizeof(boot));
     int fd = open(lockpath, O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC, 0644);
@@ -74,7 +95,7 @@ static int tx_lock_take(const char *lockpath) {
 
 /* ---- recursive transaction removal --------------------------------------- */
 
-static int tx_rm_tree(const char *path) {
+int brixcvmfs_tx_rm_tree(const char *path) {
     struct stat st;
     if (lstat(path, &st) != 0)
         return errno == ENOENT ? 0 : -1;
@@ -92,7 +113,7 @@ static int tx_rm_tree(const char *path) {
             >= (int) sizeof(sub))
             rc = -1;
         else
-            rc = tx_rm_tree(sub);
+            rc = brixcvmfs_tx_rm_tree(sub);
     }
     closedir(d);
     return rc == 0 ? rmdir(path) : rc;
@@ -107,11 +128,11 @@ static int tx_transaction(const char *repo_dir) {
     snprintf(upper, sizeof(upper), "%s/upper", txn);
     if (mkdir(txn, 0755) != 0 && errno != EEXIST)
         return tx_err("cannot create transaction dir", txn);
-    if (tx_lock_take(lock) != 0) {
+    if (brixcvmfs_tx_lock_take(lock) != 0) {
         if (errno != EEXIST)
             return tx_err("cannot take transaction lock", lock);
         char who[64];
-        snprintf(who, sizeof(who), "%d", tx_lock_pid(lock));
+        snprintf(who, sizeof(who), "%d", brixcvmfs_tx_lock_pid(lock));
         return tx_err("repository is in a transaction (pid)", who);
     }
     if (mkdir(upper, 0755) != 0 && errno != EEXIST)
@@ -126,7 +147,7 @@ static int tx_abort(const char *repo_dir) {
     snprintf(txn, sizeof(txn), "%s/.brixtxn", repo_dir);
     if (lstat(txn, &st) != 0 || !S_ISDIR(st.st_mode))
         return tx_err("no open transaction under", repo_dir);
-    if (tx_rm_tree(txn) != 0)
+    if (brixcvmfs_tx_rm_tree(txn) != 0)
         return tx_err("cannot remove transaction dir", txn);
     printf("transaction aborted\n");
     return 0;
@@ -162,7 +183,7 @@ static int tx_publish(const char *repo_dir, int argc, char **argv) {
     cvmfs_changeset_free(&cs);
     if (rc != 0)
         return tx_err("publish failed", err);
-    if (tx_rm_tree(txn) != 0)
+    if (brixcvmfs_tx_rm_tree(txn) != 0)
         return tx_err("published, but cannot retire transaction dir", txn);
     printf("published revision %ld\n", new_rev);
     return 0;

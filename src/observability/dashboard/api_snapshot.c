@@ -64,6 +64,33 @@ dashboard_collect_totals(brix_dashboard_totals_t *totals)
     totals->proto_errors[BRIX_XFER_PROTO_CVMFS - 1] =
         (uint64_t) met->cvmfs.fill_failures_total
         + (uint64_t) met->cvmfs.verify_failures_total;
+    /* The OCI mirror is the same shape as cvmfs — a read-only pull-through
+     * cache — so "in" is the registry-side fill and "out" is what the serve
+     * pipeline sent (charged per protocol in the transfer table, hence read
+     * back from the per-listener byte counters, not from a family of its own).
+     * Errors are the upstream failure buckets plus quarantined digest
+     * mismatches: both are conditions an operator acts on. */
+    totals->proto_rx[BRIX_XFER_PROTO_OCI - 1] =
+        (uint64_t) met->oci.fill_bytes_total[BRIX_OCI_SURFACE_MIRROR]
+        + (uint64_t) met->oci.fill_bytes_total[BRIX_OCI_SURFACE_REGISTRY];
+    totals->proto_errors[BRIX_XFER_PROTO_OCI - 1] =
+        (uint64_t) met->oci.verify_fail_total;
+    for (i = 0; i < BRIX_OCI_UPERR_COUNT; i++) {
+        totals->proto_errors[BRIX_XFER_PROTO_OCI - 1] +=
+            (uint64_t) met->oci.upstream_errors_total[i];
+    }
+
+    /* The RPM mirror charges no byte family of its own — the transfer table
+     * already accounts what its serve pipeline sent — so only the errors an
+     * operator acts on are sourced here: a metadata file that did not hash to
+     * the digest its own name carried, plus every request the plane answered
+     * with an error of its own. */
+    totals->proto_errors[BRIX_XFER_PROTO_RPM - 1] =
+        (uint64_t) met->rpm.verify_fail_total;
+    for (i = 0; i < BRIX_RPM_REQ_COUNT; i++) {
+        totals->proto_errors[BRIX_XFER_PROTO_RPM - 1] +=
+            (uint64_t) met->rpm.requests_total[i][BRIX_RPM_OUT_ERROR];
+    }
 
     /* HTTP error totals = count of all 4xx and 5xx responses, summed over every
      * method. responses_total is indexed [method][status-class]. */

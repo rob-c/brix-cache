@@ -27,6 +27,7 @@ import time
 from pathlib import Path
 
 from cmdscripts.live_common import LiveFailure, LiveRun, REPO_ROOT
+from cmdscripts.c_regression_units import _gcov_flags
 from fleet_ports import cmdscript_ports
 from settings import BIND_HOST, HOST, SERVER_HOST
 
@@ -121,7 +122,10 @@ def _fuse3_flags() -> tuple[list[str], list[str]]:
 
 
 def _gcc(run: LiveRun, output: Path, args: list) -> Path:
-    run.call(["gcc", *args, "-o", output], cwd=REPO_ROOT)
+    link_inputs = [Path(arg) for arg in args
+                   if isinstance(arg, str) and arg.endswith((".a", ".o"))]
+    run.call(["gcc", *args, *_gcov_flags(link_inputs), "-o", output],
+             cwd=REPO_ROOT)
     return output
 
 
@@ -142,6 +146,31 @@ def _build_mkrepo(run: LiveRun) -> Path:
 _UMBRELLA_ARCHIVES = ["client/libbrix.a", "shared/xrdproto/libxrdproto.a"]
 
 
+def _client_link_libs() -> list[str]:
+    """Return the optional libraries used by the prebuilt client archives.
+
+    The live brixMount build links ``libbrix.a`` directly, so it must supply
+    the same optional dependencies as ``client/Makefile``'s ``LDLIBS``.  Keep
+    this probe-driven: an archive from a feature-minimal checkout should remain
+    linkable rather than acquiring a hard dependency on every optional library.
+    """
+    packages = ("krb5", "libzstd", "liblzma", "libbrotlienc", "libbrotlidec",
+                "bzip2", "liburing")
+    libs: list[str] = []
+    for package in packages:
+        result = subprocess.run(["pkg-config", "--libs", package],
+                                capture_output=True, text=True)
+        if result.returncode == 0:
+            for lib in result.stdout.split():
+                if lib not in libs:
+                    libs.append(lib)
+    # client/Makefile uses this exact soname when liblz4 is detected.
+    lz4 = subprocess.run(["pkg-config", "--exists", "liblz4"], capture_output=True)
+    if lz4.returncode == 0:
+        libs.append("-l:liblz4.so.1")
+    return libs
+
+
 def _umbrella_link_deps() -> tuple[list[str], list[str], list[str], list[str]]:
     """(includes, defines, sources, archives) needed to link the brixMount
     umbrella. Skips cleanly if the prebuilt client archives are absent (e.g. a
@@ -155,7 +184,9 @@ def _umbrella_link_deps() -> tuple[list[str], list[str], list[str], list[str]]:
         ["client/apps/fs/brixcvmfs_rw.c",             # brixcvmfs_rw core
          "client/apps/fs/brixcvmfs_rw_ext.c",         # brixcvmfs_rw_main ref
          "client/apps/fs/brixautofs.c",               # brixautofs core
-         "client/apps/fs/brixautofs_ext.c"],          # brixautofs_main ref
+         "client/apps/fs/brixautofs_ext.c",           # brixautofs_main ref
+         "client/apps/oci/brixoci.c",                 # brixoci_main personality
+         "client/apps/oci/brixoci_copy.c"],           # brixoci transfer core
         list(_UMBRELLA_ARCHIVES),
     )
 
@@ -181,7 +212,7 @@ def _build_brixcvmfs(run: LiveRun, *, no_main_frontends: list[str] | None = None
         for src in u_sources:
             if src not in sources:
                 sources.append(src)
-        syslibs = ["-lssl", "-pthread"]
+        syslibs = ["-lssl", "-pthread", *_client_link_libs()]
     else:
         # Standalone brixcvmfs: no client archive, so compile the brix_cpool
         # stack directly and add the ngx-free proto shim + its include roots.

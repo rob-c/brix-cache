@@ -153,6 +153,10 @@ def freeze_nginx(src: str | Path) -> Path:
     src = Path(src)
     if not src.exists():
         return src
+    global _FROZEN_NGINX
+    cache_was_reset = _FROZEN_NGINX is None
+    if cache_was_reset:
+        _FROZEN_NGINX = {}
     real = os.path.realpath(src)
     cached = _FROZEN_NGINX.get(real)
     if cached is not None and cached.exists():
@@ -190,6 +194,8 @@ def freeze_nginx(src: str | Path) -> Path:
         tmp.unlink()
     except OSError:
         pass
+    if cache_was_reset:
+        _FROZEN_NGINX = None
     return src
 
 

@@ -303,9 +303,14 @@ webdav_tpc_marker_start(ngx_http_request_t *r,
     tpc_marker_start_args_t  args;
     tpc_marker_ctx_t        *ctx;
     ngx_thread_task_t       *task;
+    ngx_thread_pool_t        *pool;
     ngx_int_t                rc;
 
-    if (conf->common.thread_pool == NULL) {
+    /* Location-level WebDAV enables do not get a postconfig-resolved pool.
+     * Resolve the shared pool lazily, consistently with the other offload
+     * paths, before deciding whether marker streaming is available. */
+    pool = brix_shared_thread_pool(&conf->common);
+    if (pool == NULL) {
         return NGX_DECLINED;
     }
 
@@ -348,7 +353,7 @@ webdav_tpc_marker_start(ngx_http_request_t *r,
     }
 
     /* Post the thread task. */
-    if (ngx_thread_task_post(conf->common.thread_pool, task) != NGX_OK) {
+    if (ngx_thread_task_post(pool, task) != NGX_OK) {
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
 

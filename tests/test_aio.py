@@ -1,6 +1,12 @@
 from split_continuation import reexport as _reexport
 _reexport(globals(), "_test_aio_helpers")
 
+# The helpers drive the shared anonymous root:// listener directly.  Declare
+# the dependency at module scope so zero-boot collection starts the main fleet
+# when this module is selected on its own (otherwise XRootD client calls wait
+# on the unbound anonymous port until their worker timeout).
+pytestmark = pytest.mark.registry_server("main")
+
 class TestAioRead:
     """Verify that large reads complete correctly via the AIO thread-pool."""
 

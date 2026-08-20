@@ -84,10 +84,36 @@ typedef struct {
                                     injects its logger. NULL = silent. */
 } brix_sd_http_cfg_t;
 
+/* Dynamic bearer supplier (phase-104 D1) — consulted when an origin answers 401
+ * with a WWW-Authenticate challenge instead of serving the object.
+ *
+ * WHAT: given the endpoint the 401 came from, the URL path that was requested
+ *       and the verbatim challenge value, write a bearer token into
+ *       tok[toklen]. Return 0 to have the SAME request retried once carrying
+ *       `Authorization: Bearer <tok>`; non-zero leaves the 401 to propagate.
+ * WHY:  container registries gate every pull behind a per-scope token minted by
+ *       a separate endpoint (§0.7.5). The token is neither static (it expires)
+ *       nor per-user (it is OUR credential to the upstream), so neither the
+ *       instance's `bearer_token` nor the per-open cred can carry it. The
+ *       supplier is injected for the same reason the transport is: the driver
+ *       stays free of registry-protocol knowledge.
+ * HOW:  called on the fill thread, inside the request primitive, at most once
+ *       per request. The supplier owns its own caching — the driver asks every
+ *       time it sees a 401 and never memoizes a token itself. */
+typedef int (*brix_sd_http_bearer_pt)(void *ctx, const char *host, int port,
+    int tls, const char *path, const char *challenge,
+    char *tok, size_t toklen);
+
 /* Build a read-only HTTP source instance. Returns a malloc-owned instance, or NULL
  * (errno set). Destroy with brix_sd_http_destroy. */
 brix_sd_instance_t *brix_sd_http_create(const brix_sd_http_cfg_t *cfg,
     ngx_log_t *log);
+
+/* Attach (or clear, with a NULL supplier) the dynamic bearer supplier on an
+ * already-built instance. No-op on a non-http instance — the OCI mirror walks
+ * a cache decorator down to its http source and attaches there. */
+void sd_http_set_bearer_provider(brix_sd_instance_t *inst,
+    brix_sd_http_bearer_pt provider, void *ctx);
 
 /* Free an instance built by brix_sd_http_create. NULL-safe. */
 void brix_sd_http_destroy(brix_sd_instance_t *inst);

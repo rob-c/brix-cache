@@ -41,6 +41,8 @@ _READONLY_DATA = os.path.join(_TEST_ROOT, "data-readonly")
 
 pytestmark = [
     pytest.mark.requires_local_server,
+    pytest.mark.registry_server("main"),
+    pytest.mark.registry_server("readonly"),
     pytest.mark.skipif(not os.path.exists(_XRDCP),
                        reason="brix-xrdcp not built (client/bin/xrdcp)"),
 ]
@@ -133,7 +135,7 @@ class TestExtremeCopy:
             assert blocks == 128
             assert sum(per_source) >= blocks   # steals may double-count
             assert all(c > 0 for c in per_source), (
-                f"one source carried nothing: {per_source}")
+                f"one source carried nothing: {per_source}; stderr={res.stderr}")
         finally:
             _unstage(DATA_ROOT, "xcp-two.bin")
             _unstage(_READONLY_DATA, "xcp-two.bin")

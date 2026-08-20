@@ -109,15 +109,14 @@ xrootd-session-hijack-poc/
 # superpowers brainstorm scratch
 .superpowers/
 
-# compiled fuzz harnesses + the copied server binary in the remote suite
-tests/fuzz/fuzz_b64url
-tests/fuzz/fuzz_safe_size
-tests/fuzz/fuzz_zip_dir
-tests/fuzz/fuzz_jwt_json
-tests/fuzz/fuzz_urlcodec
-k8s-tests/remote-suite/tests/fuzz/fuzz_b64url
-k8s-tests/remote-suite/tests/fuzz/fuzz_safe_size
-k8s-tests/remote-suite/tests/fuzz/fuzz_zip_dir
+# compiled fuzz harnesses + the copied server binary in the remote suite.
+# Matched by shape, not by name: the harness binaries are extensionless and
+# their sources are not, so one pair of rules covers every target the roster
+# grows (the by-name list had already fallen five behind).
+tests/fuzz/fuzz_*
+!tests/fuzz/fuzz_*.*
+k8s-tests/remote-suite/tests/fuzz/fuzz_*
+!k8s-tests/remote-suite/tests/fuzz/fuzz_*.*
 k8s-tests/remote-suite/tests/nginx-bin
 
 # versioned shared-lib artifacts (the *.so pattern misses these)

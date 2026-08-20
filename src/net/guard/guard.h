@@ -38,10 +38,26 @@ typedef enum {
     GUARD_R_TAMPER,         /* content failed CVMFS integrity verification —
                             * CAS hash or manifest/whitelist signature mismatch
                             * on a fill (tampered / MITM'd / corrupted origin) */
-    GUARD_R_TPCEGRESS       /* TPC pull refused because the requested source host
+    GUARD_R_TPCEGRESS,      /* TPC pull refused because the requested source host
                             * is not on the brix_tpc_source_allow allowlist —
                             * a client steering the gateway's outbound socket at
                             * a non-permitted host (server-side request forgery) */
+    GUARD_R_OCITAMPER,      /* an OCI fill's bytes did not hash to the digest the
+                            * request named: the registry or its CDN handed us
+                            * something other than the object we asked for.
+                            * Log-only by default — the offender is upstream,
+                            * so banning the pulling client would be wrong */
+    GUARD_R_OCIPUSH,        /* a write-class method aimed at an OCI pull-through
+                            * mirror (a read-only surface): a push attempt, or a
+                            * scanner probing for an open registry */
+    GUARD_R_RPMTAMPER,      /* an RPM mirror fill's bytes did not hash to the
+                            * digest the repository index put in the file's own
+                            * name: the upstream repo or its mirror served
+                            * metadata that is not what it claims to be. Like
+                            * oci_tamper the offender is upstream, so this is a
+                            * log-only signal by default */
+    GUARD_R_RPMWRITE        /* a write-class method aimed at an RPM pull-through
+                            * mirror: an upload probe at a read-only surface */
 } guard_reason_t;
 
 /* First-bytes wire-protocol guess for a connection opened on a root:// port.

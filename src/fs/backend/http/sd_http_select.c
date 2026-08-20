@@ -247,24 +247,25 @@ sd_http_fo_select(const sd_http_req_t *rq)
     return pref;
 }
 
-/* sd_http_fo_perform — issue ONE request to `ep`, score the outcome.
+/* sd_http_fo_send — issue ONE request to `ep`, WITHOUT touching its health.
  *
  * WHAT: Composes the URL, dispatches through the cred or plain transport slot,
- *       records the transport outcome against the endpoint's health score, and
- *       returns the transport rc (0 = ok). *errbuf carries the curl detail.
+ *       and returns the transport rc (0 = ok). *errbuf carries the curl detail.
  * WHY:  GSI-over-https routes a per-open proxy PEM through request_cred as the
  *       mutual-TLS client cert; the common anonymous/bearer path uses the plain
  *       slot. A cert with no request_cred slot means allow-mode (open already
- *       refused deny-mode) — degrade to the plain request.
+ *       refused deny-mode) — degrade to the plain request. The scoring is split
+ *       out because a redirect hop (D1.4) is a request to somebody ELSE's host:
+ *       its outcome must not move a configured endpoint's health score, and its
+ *       hostname must never reach the health hook's labels (invariant #8).
  * HOW:  snprintf the endpoint base_path + key, then request_cred vs request by
- *       cert presence and slot availability, then sd_http_score_noted. */
+ *       cert presence and slot availability. */
 static int
-sd_http_fo_perform(const sd_http_req_t *rq, sd_http_endpoint *ep,
+sd_http_fo_send(const sd_http_req_t *rq, const sd_http_endpoint *ep,
     char *errbuf, size_t errcap)
 {
     sd_http_inst_state *is = rq->is;
     char                full[SD_HTTP_PATH_MAX];
-    int                 rc;
 
     snprintf(full, sizeof(full), "%s%s", ep->base_path,
              (rq->key != NULL && rq->key[0]) ? rq->key : "/");
@@ -272,17 +273,160 @@ sd_http_fo_perform(const sd_http_req_t *rq, sd_http_endpoint *ep,
     if (rq->cert_pem != NULL && rq->cert_pem[0] != '\0'
         && is->transport->request_cred != NULL)
     {
-        rc = is->transport->request_cred(is->tctx, ep->host, ep->port,
+        return is->transport->request_cred(is->tctx, ep->host, ep->port,
                                 ep->tls, rq->method, full, rq->extra_hdrs,
                                 NULL, 0, is->timeout_ms, rq->cert_pem,
                                 rq->resp, errbuf, errcap);
-    } else {
-        rc = is->transport->request(is->tctx, ep->host, ep->port, ep->tls,
-                                rq->method, full, rq->extra_hdrs, NULL, 0,
-                                is->timeout_ms, rq->resp, errbuf, errcap);
     }
-    sd_http_score_noted(is, ep, rc == 0);
+    return is->transport->request(is->tctx, ep->host, ep->port, ep->tls,
+                            rq->method, full, rq->extra_hdrs, NULL, 0,
+                            is->timeout_ms, rq->resp, errbuf, errcap);
+}
+
+/* sd_http_fo_perform — one request to a CONFIGURED endpoint, outcome scored. */
+static int
+sd_http_fo_perform(const sd_http_req_t *rq, sd_http_endpoint *ep,
+    char *errbuf, size_t errcap)
+{
+    int rc = sd_http_fo_send(rq, ep, errbuf, errcap);
+
+    sd_http_score_noted(rq->is, ep, rc == 0);
     return rc;
+}
+
+/* sd_http_fo_challenge_retry — answer an origin 401 by minting a bearer and
+ * replaying the SAME request once.
+ *
+ * WHAT: on a 401 carrying WWW-Authenticate, asks the injected supplier for a
+ *       token for this endpoint/path, then re-performs the request with the
+ *       bearer appended to the caller's header block. Returns 1 when a retry
+ *       ran (*rc / rq->resp now describe the RETRY), 0 when the 401 stands.
+ * WHY:  container registries answer every anonymous pull with a challenge
+ *       (§0.7.5); without the replay the fill layer would report EACCES for a
+ *       perfectly public image. The supplier is asked on every 401 rather than
+ *       consulted speculatively, so an unauthenticated origin costs nothing.
+ * HOW:  the previous response is freed before the replay (one live response per
+ *       request is the transport contract), and the retry is one-shot — a
+ *       second 401 propagates, so a supplier handing back a stale token cannot
+ *       spin. The bearer is appended to, never substituted for, rq->extra_hdrs:
+ *       a Range line composed by the read path must survive the replay. */
+/* Record that a challenge arrived we could not answer. The 401 still stands —
+ * this only tells the read path WHOSE failure it was, so a broken token
+ * endpoint reads as 502 rather than as the origin denying the client. */
+static void
+sd_http_fo_note_auth_failure(const sd_http_req_t *rq)
+{
+    if (rq->auth_failed != NULL) {
+        *rq->auth_failed = 1;
+    }
+}
+
+static int
+sd_http_fo_challenge_retry(const sd_http_req_t *rq, sd_http_endpoint *ep,
+    char *errbuf, size_t errcap, int *rc)
+{
+    sd_http_inst_state *is = rq->is;
+    sd_http_req_t       retry = *rq;
+    char                challenge[1024];
+    char                token[SD_HTTP_AUTH_MAX];
+    char                hdrs[SD_HTTP_AUTH_MAX + 512];
+
+    if (is->bearer_provider == NULL || rq->resp->status != 401) {
+        return 0;
+    }
+    if (is->transport->resp_header(rq->resp, "WWW-Authenticate", challenge,
+                                   sizeof(challenge)) != 0)
+    {
+        return 0;
+    }
+    {
+        char full[SD_HTTP_PATH_MAX];
+
+        snprintf(full, sizeof(full), "%s%s", ep->base_path,
+                 (rq->key != NULL && rq->key[0]) ? rq->key : "/");
+        if (is->bearer_provider(is->bearer_ctx, ep->host, ep->port, ep->tls,
+                                full, challenge, token, sizeof(token)) != 0)
+        {
+            sd_http_fo_note_auth_failure(rq);
+            return 0;
+        }
+    }
+    if (snprintf(hdrs, sizeof(hdrs), "%sAuthorization: Bearer %s\r\n",
+                 (rq->extra_hdrs != NULL) ? rq->extra_hdrs : "", token)
+        >= (int) sizeof(hdrs))
+    {
+        sd_http_fo_note_auth_failure(rq);
+        return 0;                       /* token + headers would not fit */
+    }
+
+    is->transport->resp_free(rq->resp);
+    retry.extra_hdrs = hdrs;
+    *rc = sd_http_fo_perform(&retry, ep, errbuf, errcap);
+    return 1;
+}
+
+/* sd_http_fo_follow — chase a redirect chain to its answer (phase-104 D1.4).
+ *
+ * WHAT: while the response is a 3xx we follow, re-performs the request against
+ *       the hop sd_http_redirect_next decided, at most SD_HTTP_REDIRECT_MAX
+ *       times. Returns 1 when at least one hop ran (*rc / rq->resp now describe
+ *       the LAST hop), 0 when the response stood as it was.
+ * WHY:  a registry blob GET is normally a 302 to a CDN, so a fill that stops at
+ *       the 3xx cannot mirror one. The cap is what keeps a redirect loop from
+ *       turning one fill into an unbounded walk on a cache-fill worker.
+ * HOW:  each hop is performed against a SCRATCH endpoint, never against the
+ *       instance's own: a CDN's health has nothing to say about the origin's
+ *       score, and writing into eps[] would let a redirect target reorder
+ *       endpoint selection for every later request. The credential policy is
+ *       the redirect kernel's (hop.hdrs is already stripped when the peer
+ *       changes); the client certificate is dropped here on the same verdict. */
+static int
+sd_http_fo_follow(const sd_http_req_t *rq, sd_http_endpoint *ep,
+    char *errbuf, size_t errcap, int *rc)
+{
+    sd_http_inst_state *is = rq->is;
+    sd_http_endpoint    hop_ep = *ep;
+    sd_http_req_t       hop_rq = *rq;
+    sd_http_redirect_t  hop;
+    char                location[SD_HTTP_PATH_MAX];
+    int                 hops;
+
+    for (hops = 0; hops < SD_HTTP_REDIRECT_MAX; hops++) {
+        if (*rc != 0 || !sd_http_redirect_is(rq->resp->status)) {
+            return (hops > 0);
+        }
+        if (is->transport->resp_header(rq->resp, "Location", location,
+                                       sizeof(location)) != 0)
+        {
+            return (hops > 0);           /* a 3xx with no Location stands */
+        }
+        if (sd_http_redirect_next(location, &hop_ep, hop_rq.extra_hdrs, &hop)
+            != 0)
+        {
+            ngx_log_t *lg = sd_http_live_log(is);
+            if (lg != NULL) {
+                ngx_log_error(NGX_LOG_WARN, lg, 0,
+                    "brix: http origin %s:%d redirect refused "
+                    "signal=origin_redirect_refused status=%d",
+                    hop_ep.host, hop_ep.port, rq->resp->status);
+            }
+            return (hops > 0);
+        }
+
+        snprintf(hop_ep.host, sizeof(hop_ep.host), "%s", hop.host);
+        hop_ep.port = hop.port;
+        hop_ep.tls  = hop.tls;
+        hop_ep.base_path[0] = '\0';       /* the Location IS the whole path */
+
+        hop_rq.key         = hop.path;
+        hop_rq.extra_hdrs  = hop.hdrs;
+        hop_rq.cert_pem    = hop.carries_credential ? rq->cert_pem : NULL;
+
+        is->transport->resp_free(rq->resp);
+        *rc = sd_http_fo_send(&hop_rq, &hop_ep, errbuf, errcap);
+    }
+
+    return 1;
 }
 
 /* sd_http_fo_note_success — record the answering endpoint on a served request.
@@ -393,6 +537,19 @@ sd_http_request_fo(const sd_http_req_t *rq, sd_http_endpoint **used)
     for (attempt = 0; attempt < 2; attempt++) {
         score_before = ep->fail_score;
         rc = sd_http_fo_perform(rq, ep, errbuf, sizeof(errbuf));
+        if (rc == 0) {
+            /* A 401 + challenge is the registry token dance, not a served
+             * answer: mint and replay once before calling the request done. */
+            (void) sd_http_fo_challenge_retry(rq, ep, errbuf, sizeof(errbuf),
+                                              &rc);
+        }
+        if (rc == 0) {
+            /* …and a 3xx is a pointer, not an answer: chase it (bounded, and
+             * without the credential once it leaves this peer). Runs AFTER the
+             * dance because the redirect to a CDN is what an AUTHORIZED blob
+             * GET is answered with. */
+            (void) sd_http_fo_follow(rq, ep, errbuf, sizeof(errbuf), &rc);
+        }
         if (rc == 0) {
             sd_http_fo_note_success(rq, ep, used);
             return 0;

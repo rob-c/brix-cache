@@ -32,56 +32,15 @@ from server_registry import (
     unregister,
     write_manifest,
 )
-from settings import BRIX_BIN, NGINX_BIN, PKI_DIR, REGISTRY_STRICT_TEMPLATES
+from settings import BRIX_BIN, PKI_DIR, REGISTRY_STRICT_TEMPLATES
+from server_launcher_errors import RegistryCommandFailure
 
 
-def _nginx_bin() -> str:
-    """The nginx binary to exec: a per-process frozen copy of ``NGINX_BIN``.
-
-    The shared build tree's ``objs/nginx`` can be relinked by a concurrent
-    incremental build at any moment; ``exec`` during the relink window fails
-    with EACCES (and ``ldd``-style probes misread the half-written file), which
-    surfaced as whole-lane storms of ``PermissionError: /tmp/.../objs/nginx``
-    the instant an external ``make`` ran. ``freeze_nginx`` copies + validates
-    the binary once per process, so every launcher spawn is immune to relinks;
-    it falls back to the live path only if no stable copy can be taken.
-    """
-    from cmdscripts.live_common import freeze_nginx  # noqa: PLC0415 — lazy, avoids cycle
-    return str(freeze_nginx(NGINX_BIN))
-
-
-def _inject_nginx_load_modules(config_path: str) -> None:
-    """Prepend the runner-selected dynamic modules to a rendered nginx config."""
-    from cmdscripts.live_common import inject_nginx_load_modules  # noqa: PLC0415
-    inject_nginx_load_modules(config_path)
-
-
-def _inject_nginx_runtime_paths(config_path: str, prefix: str) -> None:
-    """Keep packaged-nginx runtime files inside its registry-owned prefix."""
-    from cmdscripts.live_common import inject_nginx_runtime_paths  # noqa: PLC0415
-    inject_nginx_runtime_paths(config_path, prefix)
-
-
-# NOT frozen: Python assigns __traceback__/__context__ on (re-)raise — e.g.
-# contextlib's __exit__ does `exc.__traceback__ = traceback` — and a frozen
-# dataclass blocks that, masking the real failure with FrozenInstanceError.
-@dataclass
-class RegistryCommandFailure(RuntimeError):
-    config_path: str
-    logs_dir: str
-    command: tuple[str, ...]
-    returncode: int
-    stdout_tail: str
-    stderr_tail: str
-
-    def __str__(self) -> str:
-        return (
-            f"{' '.join(self.command)} failed rc={self.returncode}\n"
-            f"config: {self.config_path}\n"
-            f"logs: {self.logs_dir}\n"
-            f"stdout:\n{self.stdout_tail}\n"
-            f"stderr:\n{self.stderr_tail}"
-        )
+from brix_suite.nginx_tools import (  # noqa: F401 — re-exported for importers
+    _inject_nginx_load_modules,
+    _inject_nginx_runtime_paths,
+    _nginx_bin,
+)
 
 
 def launch_fleet_nginx(

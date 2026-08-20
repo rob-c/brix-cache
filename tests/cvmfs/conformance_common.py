@@ -56,6 +56,7 @@ _CANONICAL_ORDER = (
     "fuse_refresh_failover", "fuse_trust", "fuse_whitelist", "fuse_pin",
     "srv_bundle", "srv_dict", "srv_scvmfs_x509", "srv_scvmfs_voms", "srv_stratum0",
     "srv_s0_scvmfs", "srv_s0_quickstart", "srv_smoke",
+    "srv_ingest", "srv_ingest_oracle",
 )
 # +1 matches port_ladder._port(offset, 0) = PORT_START + offset + 1, so this
 # category begins exactly where the fixed-fleet ladder ends (no gap, no overlap).

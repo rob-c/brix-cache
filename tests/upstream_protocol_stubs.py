@@ -92,16 +92,24 @@ def _hdr(streamid, status, dlen):
 def _bootstrap_login_ok(conn):
     """Handshake + kXR_protocol + kXR_login → kXR_ok."""
     _recv_exact(conn, 20)
-    conn.sendall(struct.pack(">2sHI", b"\x00\x00", kXR_ok, 8))
+    # The XRootD bootstrap has a distinct response for the initial 20-byte
+    # handshake before the kXR_protocol response.  Both responses can arrive
+    # on the same TCP connection, but they are separate frames; omitting the
+    # first one makes a client consume the protocol reply as the handshake
+    # reply and then wait forever for the missing protocol response.
+    conn.sendall(_hdr(b"\x00\x00", kXR_ok, 8))
+    conn.sendall(struct.pack(">II", 0x00000520, 1))
+
+    protocol = _recv_exact(conn, 24)
+    protocol_sid = protocol[:2]
+    protocol_dlen = struct.unpack(">I", protocol[20:24])[0]
+    if protocol_dlen:
+        _recv_exact(conn, protocol_dlen)
+    conn.sendall(_hdr(protocol_sid, kXR_ok, 8))
     conn.sendall(struct.pack(">II", 0x00000520, 1))
 
     hdr = _recv_exact(conn, 24)
     sid = hdr[:2]
-    conn.sendall(_hdr(sid, kXR_ok, 8))
-    conn.sendall(struct.pack(">II", 0x00000520, 1))
-
-    hdr  = _recv_exact(conn, 24)
-    sid  = hdr[:2]
     dlen = struct.unpack(">I", hdr[20:24])[0]
     if dlen:
         _recv_exact(conn, dlen)

@@ -62,11 +62,8 @@ def _nsrun(ns, *argv, **kw):
 
 
 def _free_port():
-    s = socket.socket()
-    s.bind((HOST, 0))
-    p = s.getsockname()[1]
-    s.close()
-    return p
+    from ephemeral_port import free_port
+    return free_port(HOST)
 
 
 def _ctl(ns, port, cmd):

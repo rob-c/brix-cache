@@ -33,24 +33,38 @@
 /*
  * ocsp_build_request — allocate an OCSP request for cert id `id` with a nonce.
  *
- * WHAT: Returns a new OCSP_REQUEST carrying `id` and a fresh nonce, or NULL on
- * allocation failure.
+ * WHAT: Returns a new OCSP_REQUEST carrying a COPY of `id` and a fresh nonce,
+ * or NULL on allocation failure.  Ownership of `id` stays with the caller.
  * WHY: Splits request construction out of the network path so do_ocsp_request()
  * reads as build → connect → send.
- * HOW: OCSP_request_add0_id() takes ownership of `id` on success (unchanged
- * from the original — the caller must not free `id` after a successful add).
- * The nonce (OCSP_request_add1_nonce) guards against replay.  On the add0_id
- * failure path the half-built request is freed here.
+ * HOW: OCSP_request_add0_id() takes ownership of what it is given, but `id`
+ * belongs to brix_ocsp_check_cert() / brix_ocsp_staple_fetch() for the whole
+ * AIA loop: they build it once, query every responder URL with it, and free it
+ * afterwards.  Handing the request the caller's `id` therefore made
+ * OCSP_REQUEST_free() free it out from under them — a use-after-free on a
+ * second AIA URL and a double free on the caller's OCSP_CERTID_free(), which
+ * segfaulted the worker on EVERY completed OCSP round trip.  So add0 gets a
+ * dup and the caller's pointer is never transferred.  The nonce
+ * (OCSP_request_add1_nonce) guards against replay.  add0 does not take
+ * ownership when it fails, so the copy is freed on that path along with the
+ * half-built request.
  */
 static OCSP_REQUEST *
 ocsp_build_request(OCSP_CERTID *id)
 {
     OCSP_REQUEST *req = OCSP_REQUEST_new();
+    OCSP_CERTID  *copy;
 
     if (req == NULL) {
         return NULL;
     }
-    if (OCSP_request_add0_id(req, id) == NULL) {
+    copy = OCSP_CERTID_dup(id);
+    if (copy == NULL) {
+        OCSP_REQUEST_free(req);
+        return NULL;
+    }
+    if (OCSP_request_add0_id(req, copy) == NULL) {
+        OCSP_CERTID_free(copy);
         OCSP_REQUEST_free(req);
         return NULL;
     }

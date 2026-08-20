@@ -30,6 +30,7 @@
 #include "fs/xfer/backend_async_queue.h"     /* brix_baq_tick */
 #include "fs/backend/csi_scrub.h"            /* brix_csi_scrub_walk */
 #include "observability/metrics/metrics.h"   /* ngx_brix_srv_metrics_t, shm zone */
+#include "tpc/common/registry.h"              /* brix_tpc_registry_reap_stale */
 
 /*
  * nginx's timer-expiry debug log (ngx_event_expire_timers, compiled in on a
@@ -135,6 +136,23 @@ brix_pending_reap_handler(ngx_event_t *ev)
 #define BRIX_STAGE_REAP_FIRST_MS     1000
 #define BRIX_STAGE_REAP_INTERVAL_MS  60000
 static ngx_event_t  brix_stage_reap_timer;
+
+/* TPC registry stale-slot reaper.  The table is shared by every worker, so
+ * worker 0 alone performs the periodic scan.  The callback is a cheap no-op
+ * when no max-age directive or registry is configured. */
+#define BRIX_TPC_REGISTRY_REAP_FIRST_MS     1000
+#define BRIX_TPC_REGISTRY_REAP_INTERVAL_MS  1000
+static ngx_event_t  brix_tpc_registry_reap_timer;
+
+static void
+brix_tpc_registry_reap_handler(ngx_event_t *ev)
+{
+    (void) brix_tpc_registry_reap_stale(ev->log);
+
+    if (!ngx_exiting) {
+        ngx_add_timer(ev, BRIX_TPC_REGISTRY_REAP_INTERVAL_MS);
+    }
+}
 
 /* Timer callback: complete/reap stale FRM stage-out commits
  * (brix_stage_reap_all), then re-arm the timer. */
@@ -368,4 +386,20 @@ brix_init_stage_reap_timer(ngx_cycle_t *cycle)
     brix_stage_reap_timer.log     = cycle->log;
     brix_stage_reap_timer.cancelable = 1;  /* don't delay graceful shutdown */
     ngx_add_timer(&brix_stage_reap_timer, BRIX_STAGE_REAP_FIRST_MS);
+}
+
+/* Arm the worker-0 TPC registry stale-slot reaper. */
+void
+brix_init_tpc_registry_reap_timer(ngx_cycle_t *cycle)
+{
+    if (ngx_worker != 0) {
+        return;
+    }
+
+    brix_tpc_registry_reap_timer.handler = brix_tpc_registry_reap_handler;
+    brix_tpc_registry_reap_timer.data = &brix_maint_timer_conn;
+    brix_tpc_registry_reap_timer.log = cycle->log;
+    brix_tpc_registry_reap_timer.cancelable = 1;
+    ngx_add_timer(&brix_tpc_registry_reap_timer,
+                  BRIX_TPC_REGISTRY_REAP_FIRST_MS);
 }

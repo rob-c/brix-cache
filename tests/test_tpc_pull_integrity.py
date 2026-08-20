@@ -78,11 +78,8 @@ READ_TAG = 3
 
 
 def _free_port():
-    s = socket.socket()
-    s.bind((BIND_HOST, 0))
-    p = s.getsockname()[1]
-    s.close()
-    return p
+    from ephemeral_port import free_port
+    return free_port(BIND_HOST)
 
 
 def _port_up(host, port):
@@ -119,6 +116,11 @@ class _KxrPullFaultProxy:
                      the stat'd size with a valid frame sequence.
     """
 
+    # The read-leg faults this proxy offers.  A subclass that faults a DIFFERENT
+    # leg tag (test_audit16v_tpc_off_arms.py drives the stat and protocol
+    # replies) widens this rather than reimplementing arm().
+    MODES = ("flip", "truncate")
+
     def __init__(self, target_host, target_port):
         self.target_host = target_host
         self.target_port = target_port
@@ -130,7 +132,7 @@ class _KxrPullFaultProxy:
         self._stop = threading.Event()
 
     def arm(self, mode):
-        assert mode in ("flip", "truncate")
+        assert mode in self.MODES
         with self._lock:
             self._mode = mode
             self._read_replies = 0
@@ -161,6 +163,18 @@ class _KxrPullFaultProxy:
                 keep = max(1, len(body) // 2)
                 return status, body[:keep]
             return kXR_ok, b""
+
+    def _fault_frame(self, streamid, status, body):
+        """Per-frame tag dispatch: which leg tag this proxy is willing to touch.
+
+        Separated from the framing loop so a suite whose subject is a DIFFERENT
+        leg (the kXR_stat size the completion gate reads, the kXR_protocol flags
+        the outbound-TLS gate reads) overrides one method instead of copying the
+        loop.  The base proxy faults read replies and nothing else.
+        """
+        if streamid[1] == READ_TAG:
+            return self._fault_read_frame(status, body)
+        return status, body
 
     def _pump_up(self, src, dst):
         """destination->source: requests, forwarded raw."""
@@ -198,9 +212,8 @@ class _KxrPullFaultProxy:
                     dst.sendall(hdr + body)
                     break
 
-                if streamid[1] == READ_TAG:
-                    status, body = self._fault_read_frame(status, body)
-                    hdr = streamid + struct.pack("!HI", status, len(body))
+                status, body = self._fault_frame(streamid, status, body)
+                hdr = streamid + struct.pack("!HI", status, len(body))
 
                 dst.sendall(hdr + body)
         except OSError:

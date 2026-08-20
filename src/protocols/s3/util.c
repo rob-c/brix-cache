@@ -116,9 +116,9 @@ s3_set_header(ngx_http_request_t *r, const char *key, const char *val)
  * Filesystem path resolution
  * */
 
-int
 /*
- * s3_resolve_key — resolve an S3 object key to a filesystem path.
+ * s3_resolve_key_ex — resolve an S3 object key to a filesystem path, keeping
+ * the resolver's own status.
  *
  * Steps:
  *   1. Strip leading slashes from the key (S3 URLs have /bucket/key).
@@ -128,12 +128,17 @@ int
  *
  * allow_internal: pass cf->common.cache_store_endpoint. Non-zero on a trusted
  * cache-store endpoint permits internal sidecar keys (<key>.cinfo etc.); 0
- * everywhere else keeps them invisible (default-deny — resolves as escape/miss).
+ * everywhere else keeps them invisible (default-deny).
  *
- * Returns: 1 on success (path is confined), 0 if escape detected or
- * buffer overflow.
+ * Returns 0 when the path is confined, else the resolver's HTTP status: 403 for
+ * an escape/malformed component, 404 for a reserved internal name, 414 for an
+ * overflow. Those three MUST stay apart: compat/path.c chose 404 for the
+ * reserved name precisely "so the response does not distinguish an internal name
+ * from a genuinely absent one", and collapsing it into a 403 hands back exactly
+ * the inference the 404 was chosen to prevent.
  */
-s3_resolve_key(const char *root, const char *key, char *out, size_t outsz,
+int
+s3_resolve_key_ex(const char *root, const char *key, char *out, size_t outsz,
     unsigned allow_internal)
 {
     char key_path[PATH_MAX];
@@ -145,10 +150,54 @@ s3_resolve_key(const char *root, const char *key, char *out, size_t outsz,
 
     n = snprintf(key_path, sizeof(key_path), "/%s", key);
     if (n < 0 || (size_t) n >= sizeof(key_path))
-        return 0;
+        return 414;
 
     return brix_http_resolve_path_ex(root, key_path, out, outsz,
-                                     allow_internal ? 1u : 0u) == 0 ? 1 : 0;
+                                     allow_internal ? 1u : 0u);
+}
+
+/*
+ * s3_resolve_key — the boolean form, for call sites that answer every refusal
+ * the same way. A site that RESPONDS to the failure wants s3_resolve_key_ex()
+ * plus s3_resolve_key_error() instead.
+ */
+int
+s3_resolve_key(const char *root, const char *key, char *out, size_t outsz,
+    unsigned allow_internal)
+{
+    return s3_resolve_key_ex(root, key, out, outsz, allow_internal) == 0;
+}
+
+/*
+ * s3_resolve_key_error — the single mapping from a resolver status to the S3
+ * error triple plus the event it is booked against.
+ *
+ * The 404 arm carries "NoSuchKey" and BRIX_S3_EVENT_NO_SUCH_KEY because that is
+ * what a genuinely absent key answers: an operator watching brix_s3_events_total
+ * must not be able to separate the two either (invariant 8 forbids a label that
+ * would let them, and the whole point is that nothing should).
+ */
+void
+s3_resolve_key_error(int rc, s3_key_error_t *err)
+{
+    if (rc == 404) {
+        err->status  = NGX_HTTP_NOT_FOUND;
+        err->code    = "NoSuchKey";
+        err->message = "The specified key does not exist.";
+        err->event   = BRIX_S3_EVENT_NO_SUCH_KEY;
+        return;
+    }
+    if (rc == 414) {
+        err->status  = NGX_HTTP_BAD_REQUEST;
+        err->code    = "KeyTooLongError";
+        err->message = "Your key is too long.";
+        err->event   = BRIX_S3_EVENT_INVALID_URI;
+        return;
+    }
+    err->status  = NGX_HTTP_FORBIDDEN;
+    err->code    = "AccessDenied";
+    err->message = "Access Denied.";
+    err->event   = BRIX_S3_EVENT_ACCESS_DENIED;
 }
 
 /*

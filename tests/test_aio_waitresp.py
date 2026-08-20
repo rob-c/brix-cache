@@ -182,11 +182,8 @@ def _serve_once(port, scenario, ready):
 
 
 def _free_port():
-    s = socket.socket()
-    s.bind((BIND_HOST, 0))
-    p = s.getsockname()[1]
-    s.close()
-    return p
+    from ephemeral_port import free_port
+    return free_port(BIND_HOST)
 
 
 def _run_mock(scenario, deadline_ms=30000):

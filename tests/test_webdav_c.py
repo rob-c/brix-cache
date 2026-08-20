@@ -1,6 +1,8 @@
 from split_continuation import reexport as _reexport
 _reexport(globals(), "_test_webdav_helpers")
 
+pytestmark = pytest.mark.registry_server("main")
+
 class TestAuth:
 
     def test_anonymous_get_matches_endpoint_auth_policy(self, scratch_file):

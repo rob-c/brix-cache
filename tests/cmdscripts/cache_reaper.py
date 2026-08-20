@@ -8,6 +8,7 @@ import signal
 import time
 
 from cmdscripts import run
+from cmdscripts.c_regression_units import _gcov_flags
 from fleet_ports import cmdscript_ports
 from settings import BIND_HOST, NGINX_BIN
 
@@ -65,7 +66,8 @@ int main(int argc, char **argv) {
     missing = [str(path) for path in objects if not path.is_file()]
     if missing:
         return False, "missing link object(s): " + ", ".join(missing), binary
-    result = run(["cc", "-O", "-o", str(binary), str(source), *map(str, objects)])
+    result = run(["cc", "-O", str(source), *map(str, objects),
+                  *_gcov_flags(objects), "-o", str(binary)])
     if result.returncode != 0:
         return False, (result.stderr or result.stdout)[-4000:], binary
     return True, "", binary

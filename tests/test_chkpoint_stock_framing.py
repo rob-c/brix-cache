@@ -1,5 +1,14 @@
+import pytest
+
 from split_continuation import reexport as _reexport
 _reexport(globals(), "_test_chkpoint_stock_framing_helpers")
+
+
+# The wire helpers (re-exported above) own the direct socket connection, so the
+# source-declaration scanner cannot see the core endpoint through this module.
+# Declare the dependency explicitly so a single-file run boots the anonymous
+# main fleet member instead of collecting ten connection-refused failures.
+pytestmark = pytest.mark.registry_server("main")
 
 class TestStockFramingAccepted:
 

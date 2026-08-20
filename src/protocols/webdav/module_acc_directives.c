@@ -66,13 +66,25 @@ brix_http_set_cache_store_endpoint(ngx_conf_t *cf, ngx_command_t *cmd,
     ngx_str_t *value = cf->args->elts;
     ngx_flag_t  flag;
 
+    /* The same directive name is also registered on the stream plane against
+     * ngx_conf_set_flag_slot, which refuses a second occurrence in one block.
+     * A custom setter that silently let the later line win would make the two
+     * planes disagree about the same config text — and the permissive spelling
+     * would be the one that took effect. Refuse it here in nginx's own words. */
+    if (wc->common.cache_store_endpoint != NGX_CONF_UNSET
+        || sc->common.cache_store_endpoint != NGX_CONF_UNSET)
+    {
+        return "is duplicate";
+    }
+
     if (ngx_strcasecmp(value[1].data, (u_char *) "on") == 0) {
         flag = 1;
     } else if (ngx_strcasecmp(value[1].data, (u_char *) "off") == 0) {
         flag = 0;
     } else {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-            "invalid value \"%V\" in \"%V\" directive, must be \"on\" or \"off\"",
+            "invalid value \"%V\" in \"%V\" directive, "
+            "it must be \"on\" or \"off\"",
             &value[1], &cmd->name);
         return NGX_CONF_ERROR;
     }

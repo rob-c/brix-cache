@@ -170,6 +170,44 @@ s3o_negotiated_proto(CURL *curl)
     }
 }
 
+/* Copy one header line into a curl_slist. The stack buffer carries the common
+ * case; anything longer goes through the heap rather than being clipped to fit.
+ *
+ * The clip is not a smaller header, it is a WRONG one: a container registry
+ * bearer is a JWT — DockerHub's runs ~2.7 KB, and GitLab's and Harbor's are the
+ * same order — so a 1 KB cut sends a truncated credential the upstream answers
+ * with exactly the 401 that started the token dance. The mirror then reads that
+ * as "the origin denied us", and no amount of re-minting can fix it. Returns 0,
+ * or -1 when the line could not be copied (the caller drops the whole list:
+ * sending a request minus its Authorization line is the one outcome worse than
+ * failing it). */
+static int
+s3o_slist_add(struct curl_slist **list, const char *p, size_t linelen)
+{
+    char               stack[1024];
+    char              *line = stack;
+    struct curl_slist *next;
+
+    if (linelen >= sizeof(stack)) {
+        line = malloc(linelen + 1);
+        if (line == NULL) {
+            return -1;
+        }
+    }
+    memcpy(line, p, linelen);
+    line[linelen] = '\0';
+
+    next = curl_slist_append(*list, line);
+    if (line != stack) {
+        free(line);                      /* curl_slist_append copied it */
+    }
+    if (next == NULL) {
+        return -1;
+    }
+    *list = next;
+    return 0;
+}
+
 /* Split the CRLF-separated header block sd_s3 built into a curl_slist, dropping
  * blank lines and any trailing CR. Returns the list (caller frees) or NULL. */
 static struct curl_slist *
@@ -182,15 +220,9 @@ s3o_build_slist(const char *headers)
         const char *eol = strpbrk(p, "\r\n");
         size_t      linelen = (eol != NULL) ? (size_t) (eol - p) : strlen(p);
 
-        if (linelen > 0) {
-            char line[1024];
-
-            if (linelen >= sizeof(line)) {
-                linelen = sizeof(line) - 1;
-            }
-            memcpy(line, p, linelen);
-            line[linelen] = '\0';
-            list = curl_slist_append(list, line);
+        if (linelen > 0 && s3o_slist_add(&list, p, linelen) != 0) {
+            curl_slist_free_all(list);
+            return NULL;
         }
         if (eol == NULL) {
             break;

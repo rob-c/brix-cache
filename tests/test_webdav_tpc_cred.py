@@ -25,11 +25,14 @@ from pathlib import Path
 import pytest
 from settings import (
     HOST,
+    NGINX_METRICS_PORT,
     PKI_DIR as PKI_DIR_STR,
     TEST_ROOT,
     WEBDAV_TPC_SOURCE_OPEN_PORT,
     url_host,
 )
+
+pytestmark = pytest.mark.registry_server("webdav-tpc")
 
 PKI_DIR = Path(PKI_DIR_STR)
 CA_PEM = PKI_DIR / "ca" / "ca.pem"
@@ -301,10 +304,10 @@ class TestCredMetrics:
 
     def test_tpc_cred_metrics_in_export(self):
         """brix_webdav_tpc_cred_total counter is exported."""
-        # Use the metrics port (9100) to scrape.
+        # Use the rebased metrics port selected by the test harness.
         cmd = [
             "curl", "-s",
-            f"http://{url_host(HOST)}:9100/metrics",
+            f"http://{url_host(HOST)}:{NGINX_METRICS_PORT}/metrics",
         ]
         result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=10)
         assert result.returncode == 0, "Metrics endpoint unreachable"

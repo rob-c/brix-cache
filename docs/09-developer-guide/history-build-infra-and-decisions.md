@@ -204,6 +204,26 @@ and any live fleet. See
 [ci-guards-burndown-2026-07-21.md](ci-guards-burndown-2026-07-21.md)
 §"Run this module with `-m \"not slow\"`".
 
+**How to notice it has happened to you (2026-08-20).** The instrumented binary is
+visibly larger — `objs/nginx` went 34,007,496 → 37,827,944 bytes, ~+11% — and
+`objs/nginx -V` reports `--with-cc-opt='--coverage …'`, so
+`objs/nginx -V 2>&1 | grep -c coverage` is the one-line test; `objs/Makefile`'s
+mtime dates the reconfigure and tells you whether it was yours. Recovery is the
+canonical `./configure --with-stream --with-stream_ssl_module
+--with-http_ssl_module --with-http_dav_module --with-threads --add-module=$REPO`
+(literal path) plus `make -j$(nproc)`, then delete the stray `.gcno`/`.gcda` the
+instrumented build scattered through `objs/` (3,281 of them in this incident).
+Two consequences are easy to miss. The reconfigure `make clean`s `client/` too,
+so `client/bin/*` disappears and any test shelling out to `xrdcinfo` and friends
+fails with `FileNotFoundError` — `make clean && make -j$(nproc)` in `client/`
+restores them. And a fleet that was already running keeps serving the *snapshot*
+it started from (`/tmp/brix-nginx-session-<hash>/nginx-<hash>`), so it neither
+picks up your rebuild nor reports the contamination; a fresh lane is the only way
+to test the binary you just built. Check ownership before reaping that fleet —
+`brix_suite.orphans.lane_harnesses("/tmp/xrd-test")` returning `[]` while
+processes listen means an orphaned fleet whose harness has exited (the
+`manage_test_servers status` "stopped" reading), not another live session.
+
 ## Dead engines are deleted, not left "ready to wire" (phase-95, 2026-08-05)
 
 The 2026-08-04 parity audit found several subsystems that were fully written,

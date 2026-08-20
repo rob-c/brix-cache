@@ -280,6 +280,7 @@ ngx_stream_brix_init_process(ngx_cycle_t *cycle)
     brix_imp_init_worker(cycle);
 
     brix_init_stage_reap_timer(cycle);
+    brix_init_tpc_registry_reap_timer(cycle);
 
     ngx_snprintf(ctx, sizeof(ctx) - 1, "xrootd init_process[w%ui]%Z", ngx_worker);
     brix_phase_timer_log(&pt, cycle->log, (const char *) ctx);

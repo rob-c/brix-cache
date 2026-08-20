@@ -416,13 +416,21 @@ int brixcvmfs_main(int argc, char **argv) {
         }
         return brixcvmfs_repo_main(argc - 1, argv + 1);
     }
+    if (argc >= 2 && strcmp(argv[1], "ingest") == 0) {
+        if (brixcvmfs_ingest_main == NULL) {
+            fprintf(stderr, "brixcvmfs: ingest driver not linked in this build\n");
+            return 2;
+        }
+        return brixcvmfs_ingest_main(argc - 1, argv + 1);
+    }
 
     if (argc < 3) {
         fprintf(stderr,
             "usage: brixcvmfs <repo.fqrn> <mountpoint> [fuse-opts]\n"
             "       brixcvmfs --check <repo.fqrn>\n"
             "       brixcvmfs --prewarm <repo.fqrn>\n"
-            "       brixcvmfs repo mkfs|info|resign ...\n");
+            "       brixcvmfs repo mkfs|info|resign ...\n"
+            "       brixcvmfs ingest dir|image|prune ...\n");
         return 2;
     }
 

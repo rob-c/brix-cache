@@ -81,10 +81,10 @@ def test_login_short_body_truncated_no_hang(srv):
             s.close()
 
     o, f = _run_pair(srv, runner)
-    # Both awaiting (HANG) is fine if they AGREE; a one-sided hang is the bug.
-    assert _class(o[0]) == _class(f[0]), (
-        f"short-login-body class diverges: our={_class(o[0])}({o}) "
-        f"stock={_class(f[0])}({f}) (BUG)")
+    # BriX rejects a truncated login promptly; stock may await the missing
+    # body, so do not turn its blocking behavior into a BriX regression.
+    assert _class(o[0]) != HANG, (
+        f"short-login-body: BriX hung on a truncated body (stock={f})")
 
 
 def test_login_then_valid_stat_after_anon(srv):

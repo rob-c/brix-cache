@@ -20,6 +20,7 @@ import sys
 import time
 
 from cmdscripts.gsi_trust_live import ensure_shared_pki
+from cmdscripts.c_regression_units import _gcov_flags
 from cmdscripts.live_common import LiveFailure, LiveRun, REPO_ROOT
 from fleet_ports import cmdscript_ports
 from lib_py.util import wait_tcp
@@ -133,6 +134,8 @@ def proxy_env_live(nginx: Path | None = None) -> int:  # noqa: ARG001 — no ngi
                          *CVMFS_CORE,
                          "client/libbrix.a", "shared/xrdproto/libxrdproto.a",
                          *fuse_libs.stdout.split(), "-lcurl", "-lsqlite3", "-lcrypto", "-lz",
+                         *_gcov_flags([REPO_ROOT / "client/libbrix.a",
+                                       REPO_ROOT / "shared/xrdproto/libxrdproto.a"]),
                          *BRIX_CONN_LDLIBS]),
         ]
         for target, argv in builds:
@@ -166,7 +169,9 @@ def proxy_env_live(nginx: Path | None = None) -> int:  # noqa: ARG001 — no ngi
                 link = run.call(
                     ["gcc", "-Wall", "-Iclient/lib", "-Isrc", "-Ishared", "-DXRDPROTO_NO_NGX",
                      "-o", str(brix_conn), "tests/cvmfs/brix_connect_harness.c",
-                     str(libbrix), "shared/xrdproto/libxrdproto.a", *BRIX_CONN_LDLIBS],
+                     str(libbrix), "shared/xrdproto/libxrdproto.a",
+                     *_gcov_flags([libbrix, REPO_ROOT / "shared/xrdproto/libxrdproto.a"]),
+                     *BRIX_CONN_LDLIBS],
                     cwd=REPO_ROOT,
                     check=False,
                 )

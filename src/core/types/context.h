@@ -224,6 +224,15 @@ typedef struct brix_ctx_s {
     ngx_uint_t  disconnect_done;
 
     /*
+     * Keep a draining worker alive while this session still owns an open
+     * handle.  nginx exits a retiring worker when only cancelable timers remain;
+     * a parked XRootD session has no read deadline by design, so this marker
+     * supplies the non-cancelable timer that lets the open transfer finish
+     * before worker_shutdown_timeout.
+     */
+    ngx_event_t shutdown_hold_ev;
+
+    /*
      * One-shot marker: the current kXR_open was parked while an offloaded
      * composed-cache fill ran (fs/cache/open_or_fill.c).  The resumed open
      * then finds a COMPLETE cinfo and sd_cache reports a HIT, but the

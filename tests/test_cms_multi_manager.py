@@ -47,11 +47,8 @@ kXR_login, kXR_locate = 3007, 3027
 
 
 def _free_port():
-    s = socket.socket()
-    s.bind((BIND_HOST, 0))
-    p = s.getsockname()[1]
-    s.close()
-    return p
+    from ephemeral_port import free_port
+    return free_port(BIND_HOST)
 
 
 def _recv_exact(sock, n):

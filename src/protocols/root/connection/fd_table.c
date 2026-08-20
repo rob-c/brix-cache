@@ -366,29 +366,18 @@ brix_ensure_read_handle(brix_ctx_t *ctx, ngx_connection_t *c,
     return brix_reopen_bound_read_handle(ctx, c, handle_index, &shared);
 }
 
-/* brix_ensure_write_handle — Phase 94 write-side mirror of brix_ensure_read_handle.
- * For an unbound (primary) session the write handle is already open locally, so
- * NGX_OK iff a kernel fd / driver object / staged writer exists. For a bound
- * secondary, re-validate against the primary's shared WRITABLE entry every write:
- * a published-read-only or absent entry → revoke (NGX_DECLINED); a stale-but-still-
- * published entry → reopen a fresh matching O_WRONLY fd. Invariant: a bound
- * secondary never writes a handle the primary did not publish as writable. */
-ngx_int_t
-brix_ensure_write_handle(brix_ctx_t *ctx, ngx_connection_t *c,
+/* brix_revalidate_bound_write_handle — the bound-secondary half of
+ * brix_ensure_write_handle. Re-checks the primary's published entry on every
+ * write: an absent entry or a published read-only one revokes the local handle
+ * (free + NGX_DECLINED); a stale-but-still-published one is reopened as a fresh
+ * matching O_WRONLY fd. Callers have already established that ctx is bound and
+ * that the server permits writes. */
+
+static ngx_int_t
+brix_revalidate_bound_write_handle(brix_ctx_t *ctx, ngx_connection_t *c,
     int handle_index)
 {
     brix_shared_handle_entry_t shared;
-
-    if (handle_index < 0 || handle_index >= BRIX_MAX_FILES) {
-        return NGX_DECLINED;
-    }
-
-    if (!ctx->is_bound) {
-        return (ctx->files[handle_index].fd >= 0
-                || ctx->files[handle_index].sd_obj.driver != NULL
-                || ctx->files[handle_index].writer != NULL)
-               ? NGX_OK : NGX_DECLINED;
-    }
 
     if (!brix_session_handle_lookup_hint(ctx->bound_sessid, handle_index,
                                            &ctx->files[handle_index]
@@ -424,6 +413,51 @@ brix_ensure_write_handle(brix_ctx_t *ctx, ngx_connection_t *c,
     }
 
     return brix_reopen_bound_write_handle(ctx, c, handle_index, &shared);
+}
+
+/* brix_ensure_write_handle — Phase 94 write-side mirror of brix_ensure_read_handle.
+ * For an unbound (primary) session the write handle is already open locally, so
+ * NGX_OK iff a kernel fd / driver object / staged writer exists. For a bound
+ * secondary, re-validate against the primary's shared WRITABLE entry every write:
+ * a published-read-only or absent entry → revoke (NGX_DECLINED); a stale-but-still-
+ * published entry → reopen a fresh matching O_WRONLY fd. Invariant: a bound
+ * secondary never writes a handle the primary did not publish as writable. */
+ngx_int_t
+brix_ensure_write_handle(brix_ctx_t *ctx, ngx_connection_t *c,
+    int handle_index)
+{
+    ngx_stream_brix_srv_conf_t *conf;
+
+    if (handle_index < 0 || handle_index >= BRIX_MAX_FILES) {
+        return NGX_DECLINED;
+    }
+
+    /*
+     * brix_read_only takes priority over EVERY write-side path, including this
+     * one, and it does so directly rather than by implication.
+     *
+     * On a read-only server no writable handle can be published in the first
+     * place (brix_open_mode_guard refuses a write open before a handle exists),
+     * so the shared-entry lookup below would already decline — but that is a
+     * DERIVED guarantee, and this function is reached from the recv-header hook
+     * (brix_recv_write_hdr_hook) which runs BEFORE brix_dispatch_require_write
+     * arms the allow_write gate. Checking allow_write here makes the ordering
+     * irrelevant: no read-only server ever reaches an O_WRONLY reopen, whatever
+     * a bound secondary sends and in whatever order.
+     */
+    conf = ngx_stream_get_module_srv_conf(ctx->session, ngx_stream_brix_module);
+    if (conf == NULL || !conf->common.allow_write) {
+        return NGX_DECLINED;
+    }
+
+    if (!ctx->is_bound) {
+        return (ctx->files[handle_index].fd >= 0
+                || ctx->files[handle_index].sd_obj.driver != NULL
+                || ctx->files[handle_index].writer != NULL)
+               ? NGX_OK : NGX_DECLINED;
+    }
+
+    return brix_revalidate_bound_write_handle(ctx, c, handle_index);
 }
 
 /* The handle-slot teardown machinery (brix_free_fhandle / brix_close_all_files

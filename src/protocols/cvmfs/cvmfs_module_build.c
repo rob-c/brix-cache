@@ -28,13 +28,11 @@
 #include "cvmfs.h"
 #include "cvmfs_module_internal.h"
 #include "core/config/config.h"           /* brix_metrics_ensure_zone */
-#include "core/config/root_prepare.h"
-#include "core/config/http_rootfd.h"
 #include "core/config/http_common.h"       /* unified brix_* directive adoption */
 #include "core/compat/alloc_guard.h"
 #include "fs/cache/verify.h"               /* brix_cache_verify_mode_e */
-#include "fs/vfs/vfs_backend_registry.h"
 #include "origin_geo.h"
+#include "protocols/shared/merge_export.h"
 #include "fs/backend/http/sd_http.h"       /* SD_HTTP_EP_MAX */
 #include "auth/token/issuer_registry.h"    /* scvmfs bearer registry (T22) */
 #include "fs/backend/cache/sd_cache.h"     /* unwrap for $cvmfs_origin (T16) */
@@ -186,8 +184,6 @@ cvmfs_stratum0_apply(ngx_conf_t *cf, ngx_http_brix_cvmfs_loc_conf_t *conf)
 char *
 cvmfs_merge_cache(ngx_conf_t *cf, ngx_http_brix_cvmfs_loc_conf_t *conf)
 {
-    brix_export_root_opts_t root_opts;
-
     /* Reject storage grammar cvmfs cannot honour before doing anything
      * else: staging, slicing, and explicit writes make no sense for a
      * read-only content-addressed site cache. */
@@ -208,35 +204,11 @@ cvmfs_merge_cache(ngx_conf_t *cf, ngx_http_brix_cvmfs_loc_conf_t *conf)
      * brix_root replacement) — same rewrite every protocol applies. */
     brix_storage_backend_posix_root(&conf->common);
 
-    /* Pure cache node (the normal CVMFS shape): no local export tree —
-     * anchor the namespace at "/" exactly like the stream plane's pure
-     * cache node; the location serves the "/" namespace, filling from
-     * the http backend into the cache store. */
-    if (conf->common.root.len == 0) {
-        ngx_str_set(&conf->common.root, "/");
-    }
-
-    root_opts.directive_name = "brix_cvmfs";
-    root_opts.allow_write    = 0;
-    root_opts.required       = 1;
-    root_opts.canon_size     = sizeof(conf->common.root_canon);
-    if (brix_prepare_export_root(cf, &conf->common.root, &root_opts,
-                                   conf->common.root_canon) != NGX_CONF_OK)
-    {
-        return NGX_CONF_ERROR;
-    }
-
-    /* Persistent confinement rootfd (openat2 RESOLVE_BENEATH anchor). */
-    if (brix_http_open_rootfd(cf, &conf->common) != NGX_CONF_OK) {
-        return NGX_CONF_ERROR;
-    }
-
-    /* Register the composable storage backend (phase-63): the http(s)
-     * Stratum-1 origin URL routes every VFS op to sd_http. */
-    if (brix_vfs_backend_config_str(cf, conf->common.root_canon,
-            &conf->common.storage_backend, conf->common.pblock_block_size,
-            BRIX_AF_AUTO)
-        != NGX_OK)
+    /* Pure cache node (the normal CVMFS shape): no local export tree, so
+     * the anchor falls back to "/" and the http(s) Stratum-1 origin URL
+     * routes every VFS op to sd_http. */
+    if (brix_http_merge_export_anchor(cf, &conf->common, "brix_cvmfs", 0)
+        != NGX_CONF_OK)
     {
         return NGX_CONF_ERROR;
     }

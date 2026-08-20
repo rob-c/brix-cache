@@ -28,6 +28,7 @@
 
 #include <openssl/ssl.h>
 #include <openssl/err.h>
+#include <openssl/x509.h>
 
 /* WHAT: blocking client TLS handshake over the pull fd; stores SSL on t->tls.
  * Returns 0 on success, -1 with t->err_msg / t->xrd_error set on failure. */
@@ -92,10 +93,23 @@ tpc_start_tls(brix_tpc_pull_t *t, int fd)
 
     if (SSL_connect(ssl) != 1) {
         char ebuf[160];
+        long vres;
 
         ERR_error_string_n(ERR_get_error(), ebuf, sizeof(ebuf));
-        snprintf(t->err_msg, sizeof(t->err_msg),
-                 "TPC TLS handshake to source failed: %s", ebuf);
+
+        /* "certificate verify failed" on its own is unactionable — the reason
+         * (unknown issuer vs expired vs hostname mismatch) is what tells the
+         * operator whether brix_trusted_ca or the source's certificate is
+         * wrong, and it lives on the SSL, not in the error queue. */
+        vres = SSL_get_verify_result(ssl);
+        if (verify_host && vres != X509_V_OK) {
+            snprintf(t->err_msg, sizeof(t->err_msg),
+                     "TPC TLS handshake to source failed: %s (%s)",
+                     ebuf, X509_verify_cert_error_string(vres));
+        } else {
+            snprintf(t->err_msg, sizeof(t->err_msg),
+                     "TPC TLS handshake to source failed: %s", ebuf);
+        }
         t->xrd_error = kXR_NotAuthorized;
         SSL_free(ssl);
         SSL_CTX_free(ctx);

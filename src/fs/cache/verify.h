@@ -38,10 +38,32 @@ typedef enum {
     BRIX_CACHE_VERIFY_OFF = 0,    /* never verify (legacy behaviour)          */
     BRIX_CACHE_VERIFY_BESTEFFORT, /* verify if a digest is available (default)*/
     BRIX_CACHE_VERIFY_REQUIRE,    /* a usable digest is mandatory; else fail  */
-    BRIX_CACHE_VERIFY_CVMFS_CAS   /* phase-68: the object NAME is the digest
+    BRIX_CACHE_VERIFY_CVMFS_CAS,  /* phase-68: the object NAME is the digest
                                        (CVMFS content-addressed storage) — no
                                        origin digest needed                     */
+    BRIX_CACHE_VERIFY_OCI_DIGEST, /* phase-104 D2.3: the OCI cache key names a
+                                       sha256 content digest — same
+                                       self-verifying shape, different grammar  */
+    BRIX_CACHE_VERIFY_RPM_REPODATA /* phase-104 D15.9: createrepo names every
+                                       metadata file `<checksum>-<name>`, so an
+                                       RPM repodata key names its own digest —
+                                       the third self-addressing grammar        */
 } brix_cache_verify_mode_e;
+
+/* 1 iff `mode` is a SELF-ADDRESSING scheme: the cache key itself names the
+ * expected digest, so the fill needs no origin-advertised checksum at all.
+ * The three such modes share one dispatcher, one fail-closed policy and one
+ * local-posix-store requirement; asking here is what keeps the three call
+ * sites that care from each enumerating the list and drifting apart. */
+#define brix_cache_verify_is_selfaddr(mode)                                  \
+    ((mode) == BRIX_CACHE_VERIFY_CVMFS_CAS                                   \
+     || (mode) == BRIX_CACHE_VERIFY_OCI_DIGEST                               \
+     || (mode) == BRIX_CACHE_VERIFY_RPM_REPODATA)
+
+/* The config spelling of `mode` — the token an operator wrote after
+ * brix_cache_verify. Every diagnostic that names a mode reads it from here so
+ * a log line and the directive that produced it cannot disagree. */
+const char *brix_cache_verify_mode_str(ngx_uint_t mode);
 
 /* Outcome of a verification attempt. */
 typedef enum {
@@ -85,6 +107,37 @@ brix_cache_verify_result_e brix_cache_verify_part(brix_cache_fill_t *t,
  * addressed). `log` may be NULL.
  */
 brix_cache_verify_result_e brix_cache_verify_cvmfs_cas(
+    const char *part_path, const char *key, ngx_log_t *log,
+    char *out_alg, char *out_hex);
+
+/*
+ * Phase-104 D2.3 OCI digest self-verification: a digest-addressed OCI cache key
+ * ("/v2/<name>/blobs/sha256:<hex>", or a manifest fetched by digest) names both
+ * the algorithm and the digest of the bytes it stores, so — exactly like
+ * cvmfs-cas — the staged part is checkable with no origin digest at all. Returns VERIFIED (out_alg/out_hex
+ * filled when non-NULL), MISMATCH (caller must quarantine: the registry or its
+ * CDN served something other than what we asked for), ERROR (could not
+ * compute), or UNVERIFIED for keys that are not digest-addressed (tag
+ * manifests, the tags list). `log` may be NULL.
+ */
+brix_cache_verify_result_e brix_cache_verify_oci_digest(
+    const char *part_path, const char *key, ngx_log_t *log,
+    char *out_alg, char *out_hex);
+
+/*
+ * Phase-104 D15.9 RPM repodata self-verification: createrepo writes every file
+ * beside repomd.xml as `<checksum>-<name>`, so a digest-named metadata key
+ * carries the digest of the bytes it stores — the same self-addressing shape
+ * as cvmfs-cas and oci-digest, over a third grammar. The hex LENGTH names the
+ * algorithm (sha1/sha256/sha384/sha512), and that is the one the part is
+ * hashed under. Returns VERIFIED (out_alg/out_hex filled when non-NULL),
+ * MISMATCH (caller must quarantine: the mirror upstream served metadata that
+ * is not what the repository index names), ERROR (could not compute), or
+ * UNVERIFIED for every other route — repomd.xml is mutable by definition and
+ * packages carry their proof inside the RPM header, not in the path.
+ * `log` may be NULL.
+ */
+brix_cache_verify_result_e brix_cache_verify_rpm_repodata(
     const char *part_path, const char *key, ngx_log_t *log,
     char *out_alg, char *out_hex);
 

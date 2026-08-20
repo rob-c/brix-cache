@@ -107,13 +107,29 @@ def _sync_tpc_pull(sock, streamid, fhandle0):
     return _read_response(sock)
 
 
-def _open_tpc_pull(sock, dst_path, src_url, streamid=b"\x00\x02"):
-    """Send kXR_open for a TPC-destination pull from src_url."""
+def _open_tpc_pull(sock, dst_path, src_url, streamid=b"\x00\x02",
+                   extra_opaque="", key="testkey"):
+    """Send kXR_open for a TPC-destination pull from src_url.
+
+    ``extra_opaque`` is appended verbatim (without a leading '&') for callers
+    that drive a tpc.* field this helper does not model — currently only
+    tpc.token_mode, whose strict/opportunistic split is the subject of
+    test_audit16v_tpc_off_arms.py.
+
+    ``key`` is the rendezvous token the destination presents back to the source
+    as tpc.org+tpc.key.  The policy tests here are refused long before the
+    destination dials anything, so the default literal is all they need; a caller
+    that wants the pull to COMPLETE must pre-register a unique key on the source
+    (a read open carrying tpc.key+tpc.dst) and name it here, because the source
+    consumes each key exactly once.
+    """
     # Body: NUL-terminated path followed by opaque query string
     # For TPC, a key is required: tpc.key=<some_token>
-    opaque = "tpc.src=%s&tpc.key=testkey&tpc.dst=root://localhost//%s" % (  # net-literal-allow: loopback SSRF destination under test
-        src_url, dst_path.lstrip("/"),
+    opaque = "tpc.src=%s&tpc.key=%s&tpc.dst=root://localhost//%s" % (  # net-literal-allow: loopback SSRF destination under test
+        src_url, key, dst_path.lstrip("/"),
     )
+    if extra_opaque:
+        opaque = "%s&%s" % (opaque, extra_opaque)
     path_with_opaque = ("%s?%s" % (dst_path, opaque)).encode() + b"\x00"
     dlen = len(path_with_opaque)
 
@@ -175,12 +191,14 @@ def nginx_deny_private():
 # Helper: connect + login + open TPC pull, return (status, body, err_text)
 # ---------------------------------------------------------------------------
 
-def _tpc_attempt(port, src_url, dst_filename="/tpc_dst_test.dat"):
+def _tpc_attempt(port, src_url, dst_filename="/tpc_dst_test.dat",
+                 extra_opaque="", key="testkey"):
     sock, hs_status = _raw_session(HOST, port)
     assert hs_status == kXR_OK, "handshake failed: %d" % hs_status
     login_status = _login(sock)
     assert login_status == kXR_OK, "login failed: %d" % login_status
-    status, body = _open_tpc_pull(sock, dst_filename, src_url)
+    status, body = _open_tpc_pull(sock, dst_filename, src_url,
+                                  extra_opaque=extra_opaque, key=key)
     err_text = ""
     if status == kXR_OK and len(body) >= 1:
         fh0 = body[0]

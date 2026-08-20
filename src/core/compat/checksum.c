@@ -60,6 +60,8 @@ brix_checksum_name(brix_checksum_alg_t alg)
         return "crc64nvme";
     case BRIX_CHECKSUM_ZCRC32:
         return "zcrc32";
+    case BRIX_CHECKSUM_SHA512:
+        return "sha512";
     default:
         return NULL;
     }
@@ -160,6 +162,7 @@ brix_checksum_lookup_alg(const char *lname, brix_checksum_alg_t *out)
         { "crc64xz",   BRIX_CHECKSUM_CRC64 },      /* alias of crc64 (CRC-64/XZ) */
         { "crc64nvme", BRIX_CHECKSUM_CRC64NVME },
         { "zcrc32",    BRIX_CHECKSUM_ZCRC32 },     /* XRootD zlib-CRC32 name */
+        { "sha512",    BRIX_CHECKSUM_SHA512 },
     };
     size_t i;
 
@@ -293,7 +296,7 @@ ngx_int_t
 brix_checksum_digest_fd(brix_checksum_alg_t alg, int fd, const char *path,
     ngx_log_t *log, unsigned char *out, unsigned int *outlen)
 {
-    /* digest algs = the non-u32, non-u64 ones (md5/sha1/sha256). Compute via the
+    /* digest algs = the non-u32, non-u64 ones (md5/sha1/sha256/sha512). Compute via the
      * shared (ngx-free) kernel; errno carries any read error for the module's log. */
     if (brix_checksum_is_u32(alg) || brix_checksum_is_u64(alg)
         || out == NULL || outlen == NULL)

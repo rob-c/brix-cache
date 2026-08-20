@@ -15,6 +15,7 @@
 #include "tpc/common/credential.h"
 #include "tpc/common/registry.h"
 #include "tpc/common/metrics.h"
+#include "fs/vfs/vfs.h"
 
 /* ------------------------------------------------------------------ */
 /* Wire-level constants shared by all TPC source files                  */
@@ -129,6 +130,8 @@ typedef struct {
     uint8_t   gsi_rtag[8];  /* GSI round-1 random tag (sent in certreq) */
     char      dst_path[PATH_MAX]; /* local path being written */
     int       dst_fd;       /* open O_RDWR fd on dst_path; caller must close */
+    brix_sd_obj_t dst_obj;  /* copied backend object for worker I/O */
+    brix_vfs_writer_t *dst_writer; /* backend-neutral whole-object destination */
     int       fhandle_idx;  /* ctx->files[] slot pre-allocated by launcher */
     int       reply_kind;   /* BRIX_TPC_REPLY_* controls done callback */
     int       result;       /* NGX_OK on success, NGX_ERROR on failure */
@@ -137,6 +140,8 @@ typedef struct {
     brix_sess_t *sess;      /* outbound lifecycle audit session */
     brix_sess_xfer_t sess_xfer; /* source-side transfer audit record */
     size_t    bytes_written;/* source bytes copied into dst_fd */
+    struct stat dst_stat;   /* final destination metadata for completion reply */
+    unsigned   dst_stat_valid:1;
     uint64_t  src_size;     /* authoritative source size from kXR_stat, when known;
                              * the pull's completion signal (bytes_written must
                              * match it) instead of the forgeable zero-byte-read EOF */

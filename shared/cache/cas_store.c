@@ -130,7 +130,7 @@ int brix_cas_put(brix_cas_store_t *s, const char *key, const void *data, size_t 
         if (w < 0) { if (errno == EINTR) continue; rc = -1; break; }
         off += (size_t) w;
     }
-    if (rc == 0 && fsync(fd) != 0) rc = -1;
+    if (rc == 0 && !s->no_fsync && fsync(fd) != 0) rc = -1;
     if (close(fd) != 0) rc = -1;
     if (rc != 0) { unlinkat(base, tmp, 0); return -1; }
 

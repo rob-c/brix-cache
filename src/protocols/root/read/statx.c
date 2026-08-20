@@ -12,6 +12,8 @@
 #include "core/compat/alloc_guard.h"
 
 #include <stdlib.h>   /* realpath */
+#include <string.h>   /* strerror */
+#include <errno.h>    /* ENOENT — the reserved-name refusal text */
 
 #define BRIX_STATX_MAX_PATHS  256
 /* kXR_statx returns exactly ONE flag byte per requested path — a packed byte
@@ -228,12 +230,15 @@ brix_statx_process_path(brix_ctx_t *ctx, ngx_stream_brix_srv_conf_t *conf,
 
     /* Internal artifacts (sidecars, upload temps) are invisible → report as
      * absent, same as a stat miss (brix_cache_store_endpoint on lifts it for a
-     * trusted cache-store surface — see the kXR_open guard in open_request.c). */
+     * trusted cache-store surface — see the kXR_open guard in open_request.c).
+     * "Same as a stat miss" is meant literally: the text is strerror(ENOENT),
+     * matching the genuine miss below, so the refusal carries no signal that
+     * the name was reserved rather than absent. */
     if (!conf->common.cache_store_endpoint
         && brix_is_internal_name(reqpath_buf))
     {
         BRIX_RETURN_ERR(ctx, c, BRIX_OP_STATX, "STATX", reqpath_buf, "-",
-                          kXR_NotFound, "file not found");
+                          kXR_NotFound, strerror(ENOENT));
     }
 
     /* Resolve and stat the path. */

@@ -41,11 +41,8 @@ S3_SK = "c3RyZWFtaW5nLXNlY3JldC1rZXktZm9yLXRlc3Rpbmc="
 
 
 def _free_port():
-    s = socket.socket()
-    s.bind((BIND_HOST, 0))
-    p = s.getsockname()[1]
-    s.close()
-    return p
+    from ephemeral_port import free_port
+    return free_port(BIND_HOST)
 
 
 def _port_up(host, port):

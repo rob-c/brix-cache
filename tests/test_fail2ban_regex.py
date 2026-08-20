@@ -35,6 +35,10 @@ CASES = [
     ("proxyabuse", "198.51.100.23"),
     ("cvmfs_tamper", "203.0.113.77"),
     ("tpc_egress", "198.51.100.44"),
+    ("oci_tamper", "203.0.113.150"),
+    ("ocipush", "198.51.100.61"),
+    ("rpm_tamper", "203.0.113.151"),
+    ("rpmwrite", "198.51.100.62"),
 ]
 
 # fail2ban's <HOST> expands to an IPv4/IPv6/hostname group.

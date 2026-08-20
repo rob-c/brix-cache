@@ -133,7 +133,7 @@ src/core/           platform primitives: compat/ types/ config/ shm/ aio/ + ngx_
                     xml/file-response — security-load-bearing)
 src/protocols/      one subdir per wire protocol: root/ (connection/ session/ protocol/
                     handshake/ read/ write/ zip/ stream/ handoff/ relay/ response/ path/)
-                    webdav/ s3/ cvmfs/ ssi/ srr/ dig/ shared/
+                    webdav/ s3/ cvmfs/ oci/ ssi/ srr/ dig/ shared/
 src/fs/             storage plane (VFS = sole storage truth): vfs/ core/ backend/ tier/
                     xfer/ path/ cache/ scan/
 src/auth/           identity + authz: gsi/ token/ sss/ krb5/ pwd/ unix/ host/ voms/
@@ -156,6 +156,8 @@ Full mapping: [phase-66-map.tsv](../refactor/phase-66-map.tsv).
 | `davs://` / `http://` (no GSI) | http | `src/protocols/webdav/dispatch.c`→method handler | 8443 |
 | `cvmfs://` (HTTP) / `scvmfs://` (TLS, experimental) | http | `src/protocols/cvmfs/handler.c` | site-config (e.g. 3128 / 8443); tests 12831–12902 |
 | S3 REST | http | `src/protocols/s3/handler.c`→method handler | 9001 |
+| OCI Distribution `/v2/` (mirror + registry) | http | `src/protocols/oci/oci_module.c`→`oci_gate.c`→`oci_mirror.c` / `oci_registry.c` | tests 14100–14212 |
+| RPM repository mirror (`brix_rpm_mirror`) | http | `src/protocols/rpm/rpm_module.c`→`rpm_gate.c`→`rpm_mirror.c` (warm prefetch: `rpm_repomd.c`→`rpm_prefetch.c`) | tests 14170–14176 |
 | `/metrics` | http | `src/observability/metrics/stream.c`/`writer.c` | 9100 |
 
 ## OP→FILE (search keywords → get files)
@@ -189,6 +191,11 @@ Full mapping: [phase-66-map.tsv](../refactor/phase-66-map.tsv).
 | s3 ops | `src/protocols/s3/object.c` (GET/PUT), `list_objects_v1.c`/`list_objects_v2.c`, `multipart_initiate.c`+`multipart_complete_*.c`, `operation_table.c` |
 | guard / bad-actor / fail2ban | `src/net/httpguard/*`, `src/net/guard/*` (pure-C core), `src/protocols/root/relay/relay_guard.c`, `deploy/fail2ban/` |
 | cvmfs:// site cache (+ scvmfs://) | `src/protocols/cvmfs/module.c`, `handler.c`, `gate.c`, `classify.c`, `geo.c`, `request.c`, `upstreams.c`, `origin_geo.c`, `origin_probe.c`, `secure.c`, `src/fs/cache/verify.c` (cvmfs-cas), `fill_retry.c`, `src/protocols/shared/http_cache_fill.c` (coalescing+hold) |
+| OCI `/v2/` mirror + registry | `src/protocols/oci/` — `oci_classify.c` (route+grammar kernel), `oci_gate.c` (method policing, local `GET /v2/`), `oci_key.c` (the cache key IS the route), `oci_mirror.c` (fill+upstream error map), `oci_upstream_auth.c` (bearer dance), `oci_meta.c` (`.ocimeta` sidecar), `oci_present.c`, `oci_registry.c`/`oci_store.c`/`oci_upload*.c`/`oci_manifest_put.c`/`oci_tags.c` (push side), `oci_authz.c` (INVARIANT #3 order), `oci_errors.c` (single envelope emitter); grammars in `shared/oci/{name,digest}.c`, media types in `shared/oci/mediatypes.h` |
+| container/folder → Stratum-0 ingest | `client/apps/fs/brixcvmfs_ingest.c` (`dir`), `brixcvmfs_ingest_image.c` (`image`), `brixcvmfs_ingest_prune.c`; layer flattening + whiteout translation in `shared/oci/flatten.c`, tar in `shared/oci/tar*.c`; publish engine is phase-96 `shared/cvmfs/publish/` |
+| eStargz layer building (`brixoci convert --estargz`) | writer in `shared/oci/stargz.c` + `stargz_toc.c` (reframe only — the tar bytes are copied through), image rewrite in `client/apps/oci/brixoci_convert.c`, endpoint/refusal seams shared with `brixoci_copy.c` |
+| RPM plane | publishing: `client/apps/rpm/` (`brixrpm createrepo`/`inspect`) over `shared/rpm/rpmhdr.c` (clean-room header parser) + `repomd_write.c` (primary/filelists/other + `repomd.xml`, written last). Mirroring: `src/protocols/rpm/` — `rpm_classify.c` (four routes; the name says mutable-vs-immutable), `rpm_gate.c` (GET/HEAD only, `signal=rpmwrite`), `rpm_merge.c`, `rpm_mirror.c` (fill + upstream error map), `rpm_repomd.c` (untrusted-input reader for the `<location href>` set) + `rpm_prefetch.c` (`brix_rpm_prefetch`, off by default: one detached thread-pool job warming primary+filelists after a repomd FILL), plus `brix_cache_verify_rpm_repodata()` in `src/fs/cache/verify.c`; the stock-nginx recipe stays shipped at `deploy/rpm-mirror/nginx.conf.example`, the native one at `brix.conf.example` |
+| pure-cache-node plumbing (any mirror plane) | `src/protocols/shared/merge_export.c` (anchor→rootfd→backend, in that order), `src/protocols/shared/mirror_common.c` (key→path, HTTP-only node's zones/dashboard/fill pool) |
 
 ## HELPERS (MUST USE — NEVER REIMPLEMENT)
 | Function | Purpose |

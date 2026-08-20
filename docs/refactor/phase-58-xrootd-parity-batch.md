@@ -1942,7 +1942,7 @@ order-tolerant → treats foreign as a miss → recompute, never mis-serve).
 Per ADR-2 (SSI) and to validate §5/§6 against real components, `interop-58` provisions
 from `/tmp/xrootd-src`:
 
-1. **GSI (§5):** a real client with `X509_USER_PROXY` and `xrdcp --delegate`-style
+1. **GSI (§5):** a real client with `X509_USER_PROXY` and `xrdcp --delegate`-style  <!-- client-flags-allow: stock xrdcp spelling, cited as the shape of the test; BriX delegates via --tpc-token-mode -->
    delegation against the nginx server (`xrootd_gsi_delegation require`); assert the
    server stores and (Phase 2) reuses the proxy.
 2. **SSI (§7):** a stock `xrootd` + an `XrdSsi` example service as the **client/peer**
@@ -3458,7 +3458,7 @@ read [4M,4.25M): bit clear → fetch → verify → mark → store
 
 ### B2.4 GSI delegation + TPC (§5, Phase 2 after outbound fix)
 ```
-xrdcp --delegate root://src//f root://dst//f
+xrdcp --delegate root://src//f root://dst//f   # client-flags-allow: stock xrdcp spelling quoted for comparison; not a BriX flag
   dst auth: certreq→cert(ok)→ (deleg=request) →pxyreq(CSR)→sigpxy(proxy)→store(DN)
   dst TPC pull: select credential = delegated proxy for DN → GSI-auth to src → stream
 ```

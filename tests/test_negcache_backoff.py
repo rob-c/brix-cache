@@ -50,7 +50,8 @@ def _login(port, src_ip=None):
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     s.settimeout(5)
     if src_ip is not None:
-        s.bind((src_ip, 0))
+        from ephemeral_port import free_port
+        s.bind((src_ip, free_port(src_ip)))
     s.connect((HOST, port))
     s.sendall(struct.pack(">IIIII", 0, 0, 0, 4, 2012))
     s.sendall(struct.pack(">BB H I BB 10x I", 0, 1, 3006, 0x00000520, 0x02, 0x03, 0))

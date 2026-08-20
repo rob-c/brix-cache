@@ -53,11 +53,8 @@ def md5_file(path):
 
 
 def free_port():
-    s = socket.socket()
-    s.bind((BIND_HOST, 0))
-    p = s.getsockname()[1]
-    s.close()
-    return p
+    from ephemeral_port import free_port as assigned_port
+    return assigned_port(BIND_HOST)
 
 
 def wait_port(port, proc, tries=80):

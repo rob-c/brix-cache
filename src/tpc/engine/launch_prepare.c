@@ -30,6 +30,8 @@
  * → send open response with fhandle idx + stat if kXR_retstat.
  * */
 #include "protocols/root/session/registry.h"
+#include "protocols/root/path/op_path.h"
+#include "fs/vfs/vfs_internal.h"
 
 #include <string.h>
 #include <errno.h>
@@ -49,10 +51,9 @@
 /* WHAT: Build kXR_ok open response body (fhandle + optional statbuf from fstat) → brix_build_resp_hdr → brix_queue_response. Returns NGX_OK or NGX_ERROR on alloc failure. Caller: brix_tpc_prepare_pull (end of pull prep pipeline). */
 static ngx_int_t
 tpc_send_open_response(brix_ctx_t *ctx, ngx_connection_t *c, int idx,
-    int fd, uint16_t options)
+    const struct stat *st, uint16_t options)
 {
     ServerOpenBody  body;
-    struct stat     st;
     char            statbuf[256];
     size_t          bodylen;
     size_t          total;
@@ -63,21 +64,21 @@ tpc_send_open_response(brix_ctx_t *ctx, ngx_connection_t *c, int idx,
     statbuf[0] = '\0';
     bodylen = sizeof(ServerOpenBody);
 
-    if (want_stat && fstat(fd, &st) == 0) {
+    if (want_stat && st != NULL) {
         int stat_flags = 0;
 
-        if (st.st_mode & (S_IRUSR | S_IRGRP | S_IROTH)) {
+        if (st->st_mode & (S_IRUSR | S_IRGRP | S_IROTH)) {
             stat_flags |= kXR_readable;
         }
-        if (st.st_mode & (S_IWUSR | S_IWGRP | S_IWOTH)) {
+        if (st->st_mode & (S_IWUSR | S_IWGRP | S_IWOTH)) {
             stat_flags |= kXR_writable;
         }
 
         snprintf(statbuf, sizeof(statbuf), "%llu %lld %d %ld",
-                 (unsigned long long) st.st_ino,
-                 (long long) st.st_size,
+                 (unsigned long long) st->st_ino,
+                 (long long) st->st_size,
                  stat_flags,
-                 (long) st.st_mtime);
+                 (long) st->st_mtime);
         bodylen += strlen(statbuf) + 1;
     }
 
@@ -188,37 +189,6 @@ tpc_build_origin_id(brix_ctx_t *ctx, ngx_connection_t *c, char *dst,
         ngx_cpystrn((u_char *) dst + prefix_len, (u_char *) host,
                     dst_size - (size_t) prefix_len);
     }
-}
-
-/* WHAT: Translate the kXR_open options bitmask into POSIX open(2) flags for the
- * TPC destination file.
- * WHY: The wire-level create semantics differ from POSIX, so the mapping is
- * explicit: kXR_new alone => create, fail if it already exists (O_EXCL);
- * kXR_new + kXR_delete or kXR_delete alone => create-or-truncate; neither flag
- * (the common "just receive the copy") => create-or-truncate as well. The
- * O_EXCL is deliberately dropped whenever kXR_delete is present, since delete
- * means "overwrite is intended". Always O_RDWR (we read back for stat) and
- * O_NOCTTY (never acquire a controlling terminal). */
-static int
-tpc_destination_open_flags(uint16_t options)
-{
-    int oflags;
-
-    oflags = O_RDWR | O_NOCTTY;
-    if (options & kXR_new) {
-        oflags |= O_CREAT;
-        if (!(options & kXR_delete)) {
-            oflags |= O_EXCL;     /* create-new only: refuse existing target */
-        }
-    }
-    if (options & kXR_delete) {
-        oflags |= O_CREAT | O_TRUNC;   /* overwrite intended */
-    }
-    if (!(options & (kXR_new | kXR_delete))) {
-        oflags |= O_CREAT | O_TRUNC;   /* default: create or replace */
-    }
-
-    return oflags;
 }
 
 /* WHAT: Validate the pull preconditions before any state is allocated — a
@@ -341,33 +311,61 @@ tpc_prepare_check_preconditions(brix_ctx_t *ctx, ngx_connection_t *c,
     return NGX_OK;
 }
 
-/* WHAT: Open the TPC destination file relative to the export root, returning the
- * new fd (or -1 with errno set). Strips the root_canon prefix off the absolute
- * dst_path first so brix_vfs_open_fd_at() receives the LOGICAL export path.
- * WHY: brix_vfs_open_fd_at() resolves relative to conf->rootfd (it strips the
- * leading '/' via brix_beneath_rel), so it must be handed the logical path —
- * passing the absolute root_canon-prefixed path doubles the root prefix and
- * openat2() fails with ENOENT. dst_path itself must stay absolute for
- * authz/logging/fhandle metadata, so the strip is confined here.
- * HOW: if root_canon (len>1) is a prefix of dst_path at a '/' or end boundary,
- * advance past it; open with tpc_destination_open_flags(options) + create_mode. */
-static int
-tpc_open_dst_logical(ngx_stream_brix_srv_conf_t *conf, const char *dst_path,
-    uint16_t options, mode_t create_mode)
+static ngx_uint_t
+tpc_destination_vfs_flags(uint16_t options)
 {
-    const char *dst_logical = dst_path;
-    size_t      root_len = ngx_strlen(conf->common.root_canon);
+    ngx_uint_t flags = BRIX_VFS_O_WRITE | BRIX_VFS_O_CREATE;
 
-    if (root_len > 1
-        && ngx_strncmp(dst_path, conf->common.root_canon, root_len) == 0
-        && (dst_path[root_len] == '/' || dst_path[root_len] == '\0'))
-    {
-        dst_logical = dst_path + root_len;
+    if (options & kXR_new) {
+        flags |= BRIX_VFS_O_EXCL;
     }
+    if ((options & kXR_delete)
+        || !(options & (kXR_new | kXR_delete)))
+    {
+        flags |= BRIX_VFS_O_TRUNC;
+    }
+    if (options & kXR_mkpath) {
+        flags |= BRIX_VFS_O_MKDIRPATH;
+    }
+    return flags;
+}
 
-    return brix_vfs_open_fd_at(conf->rootfd, dst_logical,
-                               tpc_destination_open_flags(options),
-                               create_mode);
+/* Build the same identity/credential/delegation-bound VFS context as a normal
+ * root:// write open.  TPC used to bypass this context and open a raw fd, which
+ * made cache and non-POSIX destinations silently report success without storing
+ * the object in their configured namespace. */
+static void
+tpc_destination_vfs_ctx(brix_ctx_t *ctx, ngx_connection_t *c,
+    ngx_stream_brix_srv_conf_t *conf, const char *dst_path,
+    brix_vfs_ctx_t *vctx)
+{
+    const char *logical = brix_vfs_export_relative_root(
+        dst_path, conf->common.root_canon);
+
+    brix_vfs_ctx_init(vctx, c->pool, c->log, BRIX_PROTO_ROOT,
+        conf->common.root_canon, NULL, conf->common.allow_write,
+        0 /* is_tls */, ctx->identity, logical);
+    vctx->rootfd = conf->rootfd;
+    brix_vfs_ctx_bind_backend_cred(vctx,
+        &conf->common.storage_credential_dir,
+        conf->common.storage_credential_fallback);
+    brix_vfs_ctx_bind_backend_mint(vctx,
+        &conf->common.storage_credential_mint_ca_cert,
+        &conf->common.storage_credential_mint_ca_key,
+        conf->common.storage_credential_mint_ttl);
+    brix_root_vfs_bind_deleg(ctx, conf, vctx);
+}
+
+static void
+tpc_stat_from_vfs(const brix_vfs_stat_t *vst, struct stat *st)
+{
+    ngx_memzero(st, sizeof(*st));
+    st->st_mode  = (mode_t) vst->mode;
+    st->st_size  = vst->size;
+    st->st_mtime = vst->mtime;
+    st->st_ctime = vst->ctime;
+    st->st_ino   = vst->ino;
+    st->st_dev   = vst->dev;
 }
 
 /* WHAT: Populate a freshly-allocated ctx->files[] slot as a TPC destination:
@@ -447,6 +445,114 @@ tpc_init_dst_file(brix_ctx_t *ctx, ngx_connection_t *c,
     }
 }
 
+static ngx_int_t
+tpc_try_random_destination(brix_ctx_t *ctx, ngx_connection_t *c,
+    brix_vfs_ctx_t *vctx, ngx_uint_t vflags, int idx, brix_file_t *file,
+    struct stat *st)
+{
+    brix_sd_instance_t *leaf = brix_vfs_ns_leaf(vctx->sd);
+    brix_vfs_file_t *vfh;
+    brix_vfs_stat_t vst;
+    int fd;
+
+    if (!(vctx->sd == NULL || leaf == NULL
+          || (brix_sd_caps(leaf) & BRIX_SD_CAP_RANDOM_WRITE)
+          || (leaf->driver != NULL && leaf->driver->pwrite != NULL)))
+    {
+        return NGX_DECLINED;
+    }
+
+    vfh = brix_vfs_open(vctx, vflags, &fd);
+    if (vfh == NULL) {
+        return NGX_DECLINED;
+    }
+    if (brix_vfs_file_stat(vfh, &vst) != NGX_OK) {
+        int err = errno;
+
+        (void) brix_vfs_close(vfh, c->log);
+        brix_free_fhandle(ctx, idx);
+        BRIX_OP_ERR(ctx, BRIX_OP_OPEN_WR);
+        return brix_send_error(ctx, c, kXR_IOError, strerror(err));
+    }
+    brix_vfs_file_sd_obj(vfh, &file->sd_obj);
+    file->fd = brix_vfs_file_fd(vfh);
+    tpc_stat_from_vfs(&vst, st);
+    return NGX_OK;
+}
+
+static ngx_int_t
+tpc_open_staged_destination(brix_ctx_t *ctx, ngx_connection_t *c,
+    ngx_stream_brix_srv_conf_t *conf, brix_vfs_ctx_t *vctx, ngx_uint_t vflags,
+    int idx, brix_file_t *file, struct stat *st, mode_t create_mode,
+    const char *dst_path)
+{
+    brix_sd_instance_t *leaf = brix_vfs_ns_leaf(vctx->sd);
+    brix_vfs_writer_t *writer;
+    int fd = 0;
+
+    if (leaf == NULL || ((brix_sd_caps(leaf) & BRIX_SD_CAP_RANDOM_WRITE)
+                         && leaf->driver != NULL
+                         && leaf->driver->pwrite != NULL))
+    {
+        int err = errno != 0 ? errno : EIO;
+
+        brix_free_fhandle(ctx, idx);
+        BRIX_RETURN_ERR(ctx, c, BRIX_OP_OPEN_WR, "OPEN", dst_path,
+                          "tpc-pull", kXR_IOError, strerror(err));
+    }
+
+    writer = brix_vfs_writer_open(vctx, vflags & BRIX_VFS_O_TRUNC,
+                                  conf->common.verify_write ? 1 : 0, &fd);
+    if (writer == NULL) {
+        int err = fd != 0 ? fd : (errno != 0 ? errno : EIO);
+
+        brix_free_fhandle(ctx, idx);
+        BRIX_RETURN_ERR(ctx, c, BRIX_OP_OPEN_WR, "OPEN", dst_path,
+                          "tpc-pull", kXR_IOError, strerror(err));
+    }
+    file->writer = writer;
+    file->fd = brix_vfs_writer_fd(writer);
+    ngx_memzero(st, sizeof(*st));
+    st->st_mode = S_IFREG | create_mode;
+    return NGX_OK;
+}
+
+/* Open and classify a TPC destination through the VFS. */
+/*
+ *       whole-object writer, populate the file's backend handle, and return
+ *       its initial stat. Returns NGX_OK on success; on failure it frees the
+ *       allocated fhandle and sends the mapped kXR error.
+ *
+ * WHY: POSIX/cache backends and HTTP/S3-like backends have different write
+ *      handles, but both must pass through the same identity-bound VFS context.
+ *      Keeping that branch out of the request orchestrator makes the security
+ *      and resource transitions explicit.
+ *
+ * HOW: Build the bound VFS context and flags; use a random-write handle when
+ *      the selected leaf supports pwrite; otherwise open the staged writer;
+ *      store the resulting fd/writer and stat in the caller's file slot.
+ */
+static ngx_int_t
+tpc_open_destination(brix_ctx_t *ctx, ngx_connection_t *c,
+    ngx_stream_brix_srv_conf_t *conf, const char *dst_path,
+    uint16_t options, uint16_t mode_bits, int idx,
+    brix_file_t *file, struct stat *st)
+{
+    brix_vfs_ctx_t     vctx;
+    ngx_uint_t          vflags;
+    mode_t              create_mode;
+
+    tpc_destination_vfs_ctx(ctx, c, conf, dst_path, &vctx);
+    vflags = tpc_destination_vfs_flags(options);
+    create_mode = (mode_bits & 0777) ? (mode_t) (mode_bits & 0777) : 0644;
+    if (tpc_try_random_destination(ctx, c, &vctx, vflags, idx, file, st)
+        == NGX_OK) {
+        return NGX_OK;
+    }
+    return tpc_open_staged_destination(ctx, c, conf, &vctx, vflags, idx,
+                                       file, st, create_mode, dst_path);
+}
+
 /* WHAT: Derive O_CREAT/O_EXCL/O_TRUNC flags from options bitmask — kXR_new → O_CREAT+O_EXCL, kXR_delete → O_CREAT+O_TRUNC, neither → O_CREAT+O_TRUNC (default create-new). Always includes O_RDWR|O_NOCTTY. Caller: brix_tpc_prepare_pull (open flags step). */
 ngx_int_t
 brix_tpc_prepare_pull(brix_ctx_t *ctx, ngx_connection_t *c,
@@ -455,10 +561,8 @@ brix_tpc_prepare_pull(brix_ctx_t *ctx, ngx_connection_t *c,
 {
     brix_file_t *file;
     struct stat    st;
-    mode_t         create_mode;
     ngx_int_t      pre;
     int            idx;
-    int            fd;
 
     pre = tpc_prepare_check_preconditions(ctx, c, conf, tpc, dst_path);
     if (pre != NGX_OK) {
@@ -471,26 +575,12 @@ brix_tpc_prepare_pull(brix_ctx_t *ctx, ngx_connection_t *c,
                           "tpc-pull", kXR_ServerError, "too many open files");
     }
 
-    create_mode = (mode_bits & 0777) ? (mode_t) (mode_bits & 0777) : 0644;
-
-    fd = tpc_open_dst_logical(conf, dst_path, options, create_mode);
-    if (fd < 0) {
-        int err = errno;
-
-        BRIX_RETURN_ERR(ctx, c, BRIX_OP_OPEN_WR, "OPEN", dst_path,
-                          "tpc-pull", kXR_IOError, strerror(err));
-    }
-
-    if (fstat(fd, &st) != 0) {
-        int err = errno;
-
-        close(fd);
-        BRIX_OP_ERR(ctx, BRIX_OP_OPEN_WR);
-        return brix_send_error(ctx, c, kXR_IOError, strerror(err));
-    }
-
     file = &ctx->files[idx];
-    file->fd = fd;
+    if (tpc_open_destination(ctx, c, conf, dst_path, options, mode_bits,
+                             idx, file, &st) != NGX_OK) {
+        return NGX_ERROR;
+    }
+
     tpc_init_dst_file(ctx, c, conf, file, tpc, &st);
 
     if (brix_set_fhandle_path(ctx, c, idx, dst_path) != NGX_OK) {
@@ -505,5 +595,5 @@ brix_tpc_prepare_pull(brix_ctx_t *ctx, ngx_connection_t *c,
     brix_log_access(ctx, c, "OPEN", dst_path, "tpc-pull", 1, 0, NULL, 0);
     BRIX_OP_OK(ctx, BRIX_OP_OPEN_WR);
 
-    return tpc_send_open_response(ctx, c, idx, fd, options);
+    return tpc_send_open_response(ctx, c, idx, &st, options);
 }

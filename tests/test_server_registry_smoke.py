@@ -108,9 +108,84 @@ def test_stop_registered_visits_every_spec_after_one_stop_failure(monkeypatch):
             raise FileNotFoundError("launch binary disappeared")
 
     monkeypatch.setattr(launcher, "stop", stop)
+    # A host without `ss` (snapshot None) keeps the exact per-spec path: every
+    # spec is visited even though nothing is listening.
+    monkeypatch.setattr("lib_py.util.listening_port_pids", lambda: None)
     with pytest.raises(RuntimeError, match="second: launch binary disappeared"):
         launcher.stop_registered(specs)
     assert visited == ["second", "first"]
+
+
+def test_stop_registered_skips_quiescent_specs(monkeypatch):
+    # No in-memory handle, no pidfile, no listener on the declared port: the
+    # snapshot proves stop() would be a pure no-op, so the sweep skips it.
+    specs = [
+        NginxInstanceSpec(name="idle-a", template="unused", port=12346),
+        NginxInstanceSpec(name="idle-b", template="unused", port=12347),
+    ]
+    launcher = RegistryLauncher()
+    visited = []
+    monkeypatch.setattr(launcher, "stop", lambda name: visited.append(name))
+    monkeypatch.setattr("lib_py.util.listening_port_pids", lambda: {})
+    launcher.stop_registered(specs)
+    assert visited == []
+
+
+def test_stop_registered_stops_spec_with_live_listener(monkeypatch):
+    # A listener on any declared port — even one whose PIDs are unreadable
+    # (empty set) — keeps the full stop path; only its idle peer is skipped.
+    specs = [
+        NginxInstanceSpec(name="live", template="unused", port=12348),
+        NginxInstanceSpec(name="idle", template="unused", port=12349),
+    ]
+    launcher = RegistryLauncher()
+    visited = []
+    monkeypatch.setattr(launcher, "stop", lambda name: visited.append(name))
+    monkeypatch.setattr("lib_py.util.listening_port_pids", lambda: {12348: set()})
+    launcher.stop_registered(specs)
+    assert visited == ["live"]
+
+
+def test_stop_registered_stops_spec_with_pidfile_but_no_listener(monkeypatch):
+    # A crashed master can leave its pidfile with no LISTEN socket; the pidfile
+    # alone must defeat the quiescence proof so stop() still reaps it.
+    spec = NginxInstanceSpec(name="halfdead-pidfile", template="unused", port=12350)
+    endpoint = endpoint_for(spec)
+    pidfile = Path(endpoint.pidfile)
+    pidfile.parent.mkdir(parents=True, exist_ok=True)
+    pidfile.write_text("999999\n", encoding="utf-8")
+    try:
+        launcher = RegistryLauncher()
+        visited = []
+        monkeypatch.setattr(launcher, "stop", lambda name: visited.append(name))
+        monkeypatch.setattr("lib_py.util.listening_port_pids", lambda: {})
+        launcher.stop_registered([spec])
+        assert visited == ["halfdead-pidfile"]
+    finally:
+        pidfile.unlink(missing_ok=True)
+
+
+def test_disk_teardown_treats_a_zombie_as_exited() -> None:
+    """A SIGTERM'd reference server can be a zombie before its Popen reaps it.
+
+    ``os.kill(pid, 0)`` still succeeds then, but a zombie owns no listener.  The
+    stateless complete-fleet stopper must advance instead of waiting its full
+    five-second grace interval for each already-dead xrootd process.
+    """
+    proc = subprocess.Popen(["/bin/sh", "-c", "exit 0"])
+    deadline = time.monotonic() + 3.0
+    try:
+        while time.monotonic() < deadline:
+            try:
+                stat = Path(f"/proc/{proc.pid}/stat").read_text(encoding="utf-8")
+            except OSError:
+                break
+            if stat.rsplit(")", 1)[1].lstrip().startswith("Z"):
+                break
+            time.sleep(0.01)
+        assert RegistryLauncher._process_exited(proc.pid)
+    finally:
+        proc.wait(timeout=3)
 
 
 def test_orphan_worker_reaper_uses_only_declared_ports(monkeypatch, tmp_path):

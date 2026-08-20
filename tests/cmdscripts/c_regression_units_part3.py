@@ -101,8 +101,11 @@ def sd_http_dir(base: Path, ngx_src: Path = DEFAULT_NGX_SRC) -> tuple[bool, str]
     # slots the table references in sd_http_write.o (its Content-MD5 path pulls
     # EVP_* -> libcrypto). The ngx logging seam is stubbed in the test (instances
     # built log=NULL, so sd_http_live_log short-circuits and nothing logs).
+    # select.o also reaches the phase-104 D1.4 redirect kernel (sd_http_redirect.o),
+    # which parses the Location with shared/oci/url.c -> url.o.
     names = ["sd_http.o", "sd_http_select.o", "sd_http_read.o", "sd_http_write.o",
-             "sd_http_dir.o", "sd_http_mutate.o"]
+             "sd_http_dir.o", "sd_http_mutate.o", "sd_http_redirect.o",
+             "url.o"]
     objs: list[Path] = []
     for name in names:
         obj = _find_obj(ngx_src, name)
@@ -121,8 +124,11 @@ def sd_http_mutate(base: Path, ngx_src: Path = DEFAULT_NGX_SRC) -> tuple[bool, s
     # http:// export advertises CAP_DIRS_WRITE + CAP_HARD_RENAME. Same link set as
     # sd_http_dir (write.o pulls EVP_* -> libcrypto); the ngx logging seam is
     # stubbed in the test (instances built log=NULL, sd_http_live_log short-circuits).
+    # select.o also reaches the phase-104 D1.4 redirect kernel (sd_http_redirect.o),
+    # which parses the Location with shared/oci/url.c -> url.o.
     names = ["sd_http.o", "sd_http_select.o", "sd_http_read.o", "sd_http_write.o",
-             "sd_http_dir.o", "sd_http_mutate.o"]
+             "sd_http_dir.o", "sd_http_mutate.o", "sd_http_redirect.o",
+             "url.o"]
     objs: list[Path] = []
     for name in names:
         obj = _find_obj(ngx_src, name)

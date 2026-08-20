@@ -1,32 +1,33 @@
-"""WLCG token conformance fixture forge.
+"""Composition half of the WLCG token forge.
 
-Extends utils.make_token.TokenIssuer into a full hostile-token mint. Every
-minted artifact is described by a manifest row so the C and pytest layers
-share one verdict source. See docs/superpowers/specs/2026-07-06-wlcg-token-
-conformance-design.md.
+TS-5's security cluster moved the seven flat ``tokenforge*`` modules into the
+:mod:`brix_suite.security.tokens` package, replacing the ``exec`` composition
+(``tokenforge.py`` compiled parts 2 and 3 into its own globals; part 2 imported
+four line-count mixins) with ordinary imports.  This file is a §10.2
+self-replacement shim: it puts ``brixtest/src`` on ``sys.path`` and rebinds its
+own entry in :data:`sys.modules` to the package facade, so ``tokenforge_part2`` and
+:mod:`brix_suite.security.tokens` are ONE module object rather than two copies.
+
+Nothing but the old ``tokenforge_part2`` ever imported this name, but the
+shim points at the facade rather than at its topic module so the historical
+``_TokenForgeMixin*`` spellings still resolve: the facade keeps them as
+aliases onto the renamed classes.
+
+The names this shim must keep exposing are frozen in
+``docs/refactor/testsuite-shim-baseline.json`` and checked every CI run by
+``tools/ci/check_shim_completeness.py`` (guard #3).
 """
-import base64
-import datetime
-import hashlib
-import hmac
-import json
-import os
-import time
 
-from cryptography import x509
-from cryptography.hazmat.primitives.asymmetric import ec, padding, rsa
-from cryptography.hazmat.primitives.asymmetric.utils import decode_dss_signature
-from cryptography.hazmat.primitives import hashes, serialization
-from cryptography.x509.oid import NameOID
+import os as _os
+import sys as _sys
 
-import sys
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
-from utils.make_token import TokenIssuer
+_SRC = _os.path.join(
+    _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))),
+    "brixtest", "src",
+)
+if _SRC not in _sys.path:
+    _sys.path.insert(0, _SRC)
 
-from _tokenforge_part2_mixina import _TokenForgeMixinA
-from _tokenforge_part2_mixinb import _TokenForgeMixinB
-from _tokenforge_part2_mixinc import _TokenForgeMixinC
-from _tokenforge_part2_mixind import _TokenForgeMixinD
+import brix_suite.security.tokens as _canonical
 
-class TokenForge(_TokenForgeMixinA, _TokenForgeMixinB, _TokenForgeMixinC, _TokenForgeMixinD, TokenIssuer):
-    """A TokenIssuer that can also emit deliberately-malformed tokens."""
+_sys.modules[__name__] = _canonical

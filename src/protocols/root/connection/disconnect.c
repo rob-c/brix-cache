@@ -1,6 +1,7 @@
 #include "disconnect.h"
 #include "disconnect_internal.h"   /* reporting helpers moved to disconnect_report.c */
 #include "fd_table.h"   /* brix_close_all_files (deferred teardown) */
+#include "shutdown_hold.h"
 #include "budget.h"
 #include "protocols/root/session/session.h"   /* Phase 51 (E4): brix_gsi_inflight_release */
 #include "protocols/root/session/registry.h"
@@ -213,6 +214,7 @@ brix_on_disconnect(brix_ctx_t *ctx, ngx_connection_t *c)
     ctx->disconnect_done = 1;
 
     now = ngx_current_msec;
+    brix_shutdown_hold_sync(c, ctx, 0);
     ctx->destroyed = 1;
 
 #if (BRIX_HAVE_LIBURING)

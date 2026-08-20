@@ -55,10 +55,12 @@ void brix_csi_scrub_handler(ngx_event_t *ev);
  * called by the ngx_stream_brix_init_process orchestrator in process.c:
  *   - stage-flush scheduler (armed in every worker, incl. HTTP-only)
  *   - worker-0 CMS pending-locate reaper (managers only)
- *   - worker-0 upload stage-out reaper. */
+ *   - worker-0 upload stage-out reaper
+ *   - worker-0 TPC registry stale-slot reaper. */
 void brix_init_stage_sched_timer(ngx_cycle_t *cycle);
 void brix_init_pending_reap_timer(ngx_cycle_t *cycle, ngx_uint_t manager_seen);
 void brix_init_stage_reap_timer(ngx_cycle_t *cycle);
+void brix_init_tpc_registry_reap_timer(ngx_cycle_t *cycle);
 
 /* Per-server worker-init ladder defined in process_server_init.c and called
  * once per enabled server block by the init_process orchestrator. Returns

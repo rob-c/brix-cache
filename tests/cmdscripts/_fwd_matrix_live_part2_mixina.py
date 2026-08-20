@@ -40,6 +40,20 @@ A_SUB, B_SUB = "fwd-user-a", "fwd-user-b"
 TOK_AUD = "nginx-xrootd"
 
 
+def _call(*args, **kwargs):
+    """Resolve the parent module's process helper after continuation loading."""
+    from cmdscripts.fwd_matrix_live import _call as parent_call
+
+    return parent_call(*args, **kwargs)
+
+
+def _curl_code(*args, **kwargs):
+    """Resolve the parent module's curl helper after continuation loading."""
+    from cmdscripts.fwd_matrix_live import _curl_code as parent_curl_code
+
+    return parent_curl_code(*args, **kwargs)
+
+
 class _ForwardHarnessMixinA:
     """Python port of tests/lib/fwd_matrix.sh: topology + assertion library."""
 

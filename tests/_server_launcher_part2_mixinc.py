@@ -20,6 +20,7 @@ import pytest
 from config_templates import render_config_to_path
 from fleet_lifecycle_ports import lifecycle_ports_for
 from fleet_values import session_template_values
+from brix_suite.kinds import LAUNCHER_KINDS, external_stop
 from server_registry import (
     NginxInstanceSpec,
     build_manifest,
@@ -32,44 +33,15 @@ from server_registry import (
     unregister,
     write_manifest,
 )
-from settings import BRIX_BIN, NGINX_BIN, PKI_DIR, REGISTRY_STRICT_TEMPLATES
+from settings import BRIX_BIN, PKI_DIR, REGISTRY_STRICT_TEMPLATES
+from server_launcher_errors import RegistryCommandFailure
 
 
-def _nginx_bin() -> str:
-    """Frozen copy of the nginx binary path, immune to concurrent relinks."""
-    from cmdscripts.live_common import freeze_nginx  # noqa: PLC0415
-    return str(freeze_nginx(NGINX_BIN))
-
-
-def _inject_nginx_load_modules(config_path: str) -> None:
-    """Prepend the runner-selected dynamic modules to a rendered nginx config."""
-    from cmdscripts.live_common import inject_nginx_load_modules  # noqa: PLC0415
-    inject_nginx_load_modules(config_path)
-
-
-def _inject_nginx_runtime_paths(config_path: str, prefix: str) -> None:
-    """Keep packaged-nginx runtime files inside its registry-owned prefix."""
-    from cmdscripts.live_common import inject_nginx_runtime_paths  # noqa: PLC0415
-    inject_nginx_runtime_paths(config_path, prefix)
-
-
-@dataclass
-class RegistryCommandFailure(RuntimeError):
-    config_path: str
-    logs_dir: str
-    command: tuple[str, ...]
-    returncode: int
-    stdout_tail: str
-    stderr_tail: str
-
-    def __str__(self) -> str:
-        return (
-            f"{' '.join(self.command)} failed rc={self.returncode}\n"
-            f"config: {self.config_path}\n"
-            f"logs: {self.logs_dir}\n"
-            f"stdout:\n{self.stdout_tail}\n"
-            f"stderr:\n{self.stderr_tail}"
-        )
+from brix_suite.nginx_tools import (  # noqa: F401 — re-exported for importers
+    _inject_nginx_load_modules,
+    _inject_nginx_runtime_paths,
+    _nginx_bin,
+)
 
 
 class _RegistryLauncherMixinC:
@@ -272,7 +244,12 @@ class _RegistryLauncherMixinC:
                               stubs self-daemonize without a pidfile)
         """
         prefix = Path(endpoint.prefix)
-        if spec.kind == "external":
+        row = LAUNCHER_KINDS.get(spec.kind)
+        strategy = row.profile.stop if row is not None else None
+        # Identity against the row's own stop function rather than the kind
+        # name: a second self-daemonizing kind that points at `external_stop`
+        # gets this branch without editing anything here.
+        if strategy is external_stop:
             stop_argv = list(spec.template_values.get("stop_argv", ()))
             if stop_argv:
                 subprocess.run(
@@ -282,7 +259,7 @@ class _RegistryLauncherMixinC:
                     env={**os.environ, **spec.env},
                 )
             return
-        if spec.kind == "proc":
+        if strategy == "port-kill":
             from lib_py.util import pids_on_port  # noqa: PLC0415
 
             for pid in pids_on_port(int(endpoint.port)):
@@ -291,24 +268,43 @@ class _RegistryLauncherMixinC:
                 except OSError:
                     pass
             return
-        if spec.kind == "haproxy":
-            self._kill_pidfile(str(prefix / "logs" / "haproxy.pid"), signal.SIGTERM,
-                               process_group=True)
-            return
-        # xrootd / xrdhttp
-        pidfile = prefix / "run" / "xrootd.pid"
+        # Everything left keeps a pidfile and the row names where: haproxy
+        # under logs/, xrootd and xrdhttp under run/.  A kind that chases a
+        # master past SIGTERM says so with a non-zero `kill_grace`; haproxy's
+        # is zero, which is the SIGTERM-and-return it has always had.
+        pidfile = prefix / row.pidfile
         master = self._read_pid(str(pidfile))
         self._kill_pidfile(str(pidfile), signal.SIGTERM, process_group=True)
-        if master is None:
+        if master is None or not row.kill_grace:
             return
-        deadline = time.time() + 5
+        deadline = time.time() + row.kill_grace
         while time.time() < deadline:
-            try:
-                os.kill(master, 0)
-            except OSError:
+            if self._process_exited(master):
                 return
             time.sleep(0.05)
         self._kill_pidfile(str(pidfile), signal.SIGKILL, process_group=True)
+
+    @staticmethod
+    def _process_exited(pid: int) -> bool:
+        """Whether ``pid`` no longer owns resources that a successor needs.
+
+        ``kill(pid, 0)`` reports success for a zombie until its parent reaps it.
+        A controller-side teardown deliberately uses a fresh launcher, so its
+        xrootd ``Popen`` handles are unavailable and a just-SIGTERM'd child can
+        remain a zombie for the entire shutdown.  Treating that as live burned
+        the five-second xrootd grace period once per reference server.  A zombie
+        owns no sockets or process group members, so it is already stopped for
+        fixed-port reuse purposes.
+        """
+        try:
+            with open(f"/proc/{pid}/stat", "rb") as fh:
+                suffix = fh.read().rsplit(b")", 1)[1].split()
+        except (OSError, IndexError):
+            return True
+        # Field 3 is the first token after the rightmost ')' of comm.  Do not
+        # split the complete line: a process name may itself contain spaces or
+        # parentheses.
+        return bool(suffix and suffix[0] == b"Z")
 
     def _kill_xrootd(self, name: str) -> None:
         proc = self._xrootd_procs.pop(name, None)

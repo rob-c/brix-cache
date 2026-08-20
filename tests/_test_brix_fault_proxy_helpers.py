@@ -47,11 +47,8 @@ def bfp():
 
 
 def _free_port():
-    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    s.bind((BIND_HOST, 0))
-    p = s.getsockname()[1]
-    s.close()
-    return p
+    from ephemeral_port import free_port
+    return free_port(BIND_HOST)
 
 
 def _wait_port(port, deadline=5.0):
@@ -166,6 +163,15 @@ def _spawn(bfp, echo_port, extra=None):
     proc = subprocess.Popen(argv, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     assert _wait_port(ctl), "control port never came up"
     assert _wait_port(listen), "listen port never came up"
+    # _wait_port(listen) proves that the socket is bound, but its probe can
+    # still be queued for accept when the caller starts exercising admission
+    # controls.  Drain that probe before returning so max-conns and fail-nth
+    # tests never race the proxy's accept loop.
+    deadline = time.time() + 2.0
+    while time.time() < deadline:
+        if _stat_int(ctl, "conns") >= 1 and _stat_int(ctl, "active") == 0:
+            break
+        time.sleep(0.02)
     return proc, listen, ctl
 
 

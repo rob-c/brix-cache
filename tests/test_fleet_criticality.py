@@ -1,24 +1,14 @@
 # tests/test_fleet_criticality.py
-"""Pins what a `critical` fleet spec is allowed to do to `start-all`.
+"""Pins the all-or-nothing fleet-start barrier.
 
 `critical` means "no suite without this": main nginx and the reference xrootd.
 It must stay fatal when such an instance genuinely FAILS — a config error, a
 port already bound, a dead binary — because a fleet missing main nginx tests
 nothing.
 
-It must NOT be fatal when the instance is merely UNAVAILABLE on this host.
-Every `pytest.skip` the launcher raises is that second signal (stock `xrootd`,
-the XrdHttp libs, `haproxy`, an external subsystem, root privileges). GitHub's
-`ubuntu-latest` has no stock XRootD, so the critical `ref-anon` spec skipped,
-`start-all` aborted, and the `asan` lane reported success having booted no
-fleet and exercised nothing:
-
-    [registry] non-critical spec 'interop-off' did not start (Skipped: selected
-        xrootd binary is unavailable: xrootd); continuing.
-    Skipped: selected xrootd binary is unavailable: xrootd
-    asan: SKIP — sanitized fleet failed to boot on this runner
-
-These cases are fleet-free: `start` is stubbed, so nothing is spawned.
+Every declared server is now equally required by the collection barrier:
+ordinary launch failures and unavailable optional tooling both abort before the
+first test can run. These cases are fleet-free: `start` is stubbed.
 
     PYTHONPATH=tests pytest tests/test_fleet_criticality.py -v
 """
@@ -65,68 +55,45 @@ def _spec(name: str, *, critical: bool, kind: str = "nginx") -> NginxInstanceSpe
     return NginxInstanceSpec(name=name, template=f"{name}.conf", tags=tags, kind=kind)
 
 
-def _must_not_abort(call, *args) -> None:
-    """Run a start path, turning an aborted fleet into a FAILURE, not a skip.
-
-    WHAT: calls `call(*args)` and converts a propagating `Skipped` into
-    `pytest.fail`.
-    WHY: a critical spec that aborts start-all does so by letting `Skipped`
-    escape — which pytest would charge to this very test, marking the guard
-    skipped and therefore quietly green in CI at the exact moment the bug
-    returned. Confirmed: against the pre-fix launcher these cases skip; with
-    this conversion they fail.
-    HOW: only `Skipped` is intercepted; a real error still surfaces as an error.
-    """
-    try:
-        call(*args)
-    except pytest.skip.Exception as exc:
-        pytest.fail(f"an unavailable critical spec aborted start-all: {exc}")
-
-
-def test_unavailable_critical_spec_does_not_abort_the_fleet(capsys) -> None:
-    """The CI shape: stock xrootd absent -> ref-anon skips, main still boots."""
+def test_unavailable_critical_spec_aborts_the_fleet() -> None:
+    """A missing required binary fails collection before tests are dispatched."""
     launcher = _StubLauncher({"ref-anon": pytest.skip.Exception(UNAVAILABLE)})
-    for spec in (_spec("main", critical=True), _spec("ref-anon", critical=True, kind="xrootd")):
-        _must_not_abort(launcher._start_guarded, spec)
-    assert launcher.started == ["main"]
-    assert "critical spec 'ref-anon' did not start" in capsys.readouterr().err
+    with pytest.raises(RuntimeError, match="ref-anon.*failed to launch"):
+        launcher._start_guarded(_spec("ref-anon", critical=True, kind="xrootd"))
 
 
 def test_failing_critical_spec_still_aborts_the_fleet() -> None:
     """A real failure stays fatal — an unbindable main nginx must not be absorbed."""
-    boom = RuntimeError("bind() to 0.0.0.0:10001 failed (98: Address already in use)")
+    boom = RuntimeError("bind() to 0.0.0.0:10001 failed (98: Address already in use)")  # net-literal-allow: synthetic error text
     launcher = _StubLauncher({"main": boom})
     with pytest.raises(RuntimeError, match="Address already in use"):
         launcher._start_guarded(_spec("main", critical=True))
 
 
-def test_the_parallel_path_reaches_the_same_verdict(capsys) -> None:
-    """`_start_level` must not diverge from `_start_guarded` on either answer."""
+def test_the_parallel_path_fails_for_an_unavailable_server() -> None:
+    """Parallel launch applies the same all-or-nothing barrier."""
     level = [_spec("main", critical=True), _spec("ref-anon", critical=True, kind="xrootd")]
     launcher = _StubLauncher({"ref-anon": pytest.skip.Exception(UNAVAILABLE)})
-    _must_not_abort(launcher._start_level, level, 2)
-    assert launcher.started == ["main"]
-    assert "critical spec 'ref-anon' did not start" in capsys.readouterr().err
+    with pytest.raises(RuntimeError, match="ref-anon.*failed to launch"):
+        launcher._start_level(level, 2)
 
     launcher = _StubLauncher({"main": RuntimeError("nginx: [emerg] still could not bind()")})
     with pytest.raises(RuntimeError, match="could not bind"):
         launcher._start_level(level, workers=2)
 
 
-def test_non_critical_specs_are_absorbed_either_way(capsys) -> None:
-    """Unchanged behaviour: optional daemons never abort start-all, skip or fail."""
+def test_non_critical_specs_also_abort_collection() -> None:
+    """No optional failure can be hidden behind a green test run."""
     launcher = _StubLauncher(
         {
             "krb5-kdc": pytest.skip.Exception("krb5-kdc: subsystem unavailable (rc=3)"),
             "compress": RuntimeError("failed rc=1"),
         }
     )
-    for name in ("krb5-kdc", "compress", "plain"):
-        launcher._start_guarded(_spec(name, critical=False))
-    assert launcher.started == ["plain"]
-    err = capsys.readouterr().err
-    assert "non-critical spec 'krb5-kdc' did not start" in err
-    assert "non-critical spec 'compress' did not start" in err
+    with pytest.raises(RuntimeError, match="krb5-kdc.*failed to launch"):
+        launcher._start_guarded(_spec("krb5-kdc", critical=False))
+    with pytest.raises(RuntimeError, match="compress.*failed to launch"):
+        launcher._start_guarded(_spec("compress", critical=False))
 
 
 def test_missing_xrootd_binary_skips_rather_than_fails(monkeypatch) -> None:

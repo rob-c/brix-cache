@@ -1,6 +1,8 @@
 from split_continuation import reexport as _reexport
 _reexport(globals(), "_test_webdav_http_security_helpers")
 
+pytestmark = pytest.mark.registry_server("main")
+
 class TestPutContentRange:
     """Partial PUT (resumable upload) via Content-Range header."""
 

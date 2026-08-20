@@ -132,7 +132,7 @@ tpc_rfc8693_stage_body(brix_tpc_pull_t *t, const char *subject_token,
  * token endpoint URL, and a NULL terminator. */
 static void
 tpc_rfc8693_build_argv(brix_tpc_pull_t *t, char **curl_argv,
-                       const char *body_file)
+                       const char *body_arg, char *basic_auth)
 {
     int argc = 0;
 
@@ -149,20 +149,15 @@ tpc_rfc8693_build_argv(brix_tpc_pull_t *t, char **curl_argv,
     curl_argv[argc++] = "-H";
     curl_argv[argc++] = "Content-Type: application/x-www-form-urlencoded";
 
-    /* Optional OAuth2 client basic auth: curl -u "id:secret" — only added when
-     * both halves are configured. NOTE: -u takes a single "id:secret" arg, so
-     * these two array slots become two separate argv entries that curl joins
-     * via the -u/value convention. */
-    if (t->conf->tpc_outbound_client_id.len > 0
-        && t->conf->tpc_outbound_client_secret.len > 0) {
+    /* Optional OAuth2 client basic auth: curl -u "id:secret". */
+    if (basic_auth != NULL) {
         curl_argv[argc++] = "-u";
-        curl_argv[argc++] = (char *) t->conf->tpc_outbound_client_id.data;
-        curl_argv[argc++] = (char *) t->conf->tpc_outbound_client_secret.data;
+        curl_argv[argc++] = basic_auth;
     }
 
-    /* -d data: the form body, sourced from the staged temp file path. */
+    /* -d data: read the staged form body instead of posting the path itself. */
     curl_argv[argc++] = "-d";
-    curl_argv[argc++] = (char *) body_file;
+    curl_argv[argc++] = (char *) body_arg;
     /* W3 — end-of-options terminator so the endpoint URL can never be parsed
      * as a curl option even if a misconfigured endpoint begins with '-'. */
     curl_argv[argc++] = "--";
@@ -225,6 +220,12 @@ tpc_token_rfc8693(brix_tpc_pull_t *t, char *token_out, size_t token_out_sz)
     char buf[TPC_TOKEN_MAX_LEN + 256];
     char *curl_argv[20];
     char body_file[NGX_MAX_PATH];
+    char body_arg[NGX_MAX_PATH + 1];
+    char *basic_auth = NULL;
+    size_t body_len;
+    size_t client_id_len;
+    size_t client_secret_len;
+    size_t auth_len = 0;
     char subject_token[TPC_TOKEN_MAX_LEN];
 
     if (tpc_rfc8693_read_subject(t, subject_token, sizeof(subject_token)) != 0) {
@@ -237,10 +238,60 @@ tpc_token_rfc8693(brix_tpc_pull_t *t, char *token_out, size_t token_out_sz)
         return -1;
     }
 
-    tpc_rfc8693_build_argv(t, curl_argv, body_file);
+    body_len = ngx_strlen(body_file);
+    if (body_len + 2 > sizeof(body_arg)) {
+        unlink(body_file);  /* vfs-seam-allow: staged credential temp, not export storage */
+        snprintf(t->err_msg, sizeof(t->err_msg),
+                 "TPC token: staged body path is too long");
+        t->xrd_error = kXR_IOError;
+        return -1;
+    }
+    body_arg[0] = '@';
+    ngx_memcpy(body_arg + 1, body_file, body_len + 1);
+
+    if (t->conf->tpc_outbound_client_id.len > 0
+        && t->conf->tpc_outbound_client_secret.len > 0) {
+        client_id_len = t->conf->tpc_outbound_client_id.len;
+        client_secret_len = t->conf->tpc_outbound_client_secret.len;
+        if (client_secret_len > NGX_MAX_PATH - 2
+            || client_id_len > NGX_MAX_PATH - client_secret_len - 2) {
+            unlink(body_file);  /* vfs-seam-allow: staged credential temp, not export storage */
+            snprintf(t->err_msg, sizeof(t->err_msg),
+                     "TPC token: client credentials are too long");
+            t->xrd_error = kXR_ArgInvalid;
+            return -1;
+        }
+        auth_len = client_id_len + 1 + client_secret_len;
+        basic_auth = malloc(auth_len + 1);
+        if (basic_auth == NULL) {
+            unlink(body_file);  /* vfs-seam-allow: staged credential temp, not export storage */
+            snprintf(t->err_msg, sizeof(t->err_msg),
+                     "TPC token: cannot allocate client credentials");
+            t->xrd_error = kXR_IOError;
+            return -1;
+        }
+        ngx_memcpy(basic_auth, t->conf->tpc_outbound_client_id.data,
+                   client_id_len);
+        basic_auth[client_id_len] = ':';
+        ngx_memcpy(basic_auth + client_id_len + 1,
+                   t->conf->tpc_outbound_client_secret.data,
+                   client_secret_len);
+        basic_auth[auth_len] = '\0';
+    }
+
+    tpc_rfc8693_build_argv(t, curl_argv, body_arg, basic_auth);
 
     if (tpc_rfc8693_run_curl(t, curl_argv, body_file, buf, sizeof(buf)) != 0) {
+        if (basic_auth != NULL) {
+            OPENSSL_cleanse(basic_auth, auth_len + 1);
+            free(basic_auth);
+        }
         return -1;
+    }
+
+    if (basic_auth != NULL) {
+        OPENSSL_cleanse(basic_auth, auth_len + 1);
+        free(basic_auth);
     }
 
     if (tpc_token_parse_access_token(buf, token_out, token_out_sz) != 0) {

@@ -31,6 +31,16 @@ brix_fill_classify(ngx_int_t fill_rc, int err, brix_fill_retry_t *rs)
     if (err == ENOENT || err == ENOTDIR || err == EACCES || err == EPERM) {
         return BRIX_FILL_DEFINITIVE;     /* 404/403: the origin's answer  */
     }
+    if (err == EBUSY || err == ENOKEY) {
+        /* EBUSY = 429: the origin is rate-limiting US. The backoff ladder is
+         * exactly the wrong answer — it spends the remaining quota on retries
+         * and is how a mirror gets its pull allowance revoked. ENOKEY = a
+         * challenge we could not answer (token endpoint down, or a realm
+         * policy refused it): neither is fixed by trying the same credential
+         * path again inside this fill's window. Both are the client's to
+         * retry, and both read as an origin-side problem (429 / 502). */
+        return BRIX_FILL_DEFINITIVE;
+    }
     if (err == EBADMSG) {
         /* digest MISMATCH: corruption is often path-local — try each
          * remaining endpoint once, then give up definitively (502 — the

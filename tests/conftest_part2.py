@@ -403,11 +403,13 @@ def _validate_requested_paths(config) -> None:
 
 
 def pytest_sessionstart(session):
-    # The controller / serial process (never an xdist worker) owns the fleet
-    # sentinel watchdog: a thread that fires even if every test worker is hung on
-    # a dead-server socket and no teardown hook is running.  No-op on workers,
-    # remote fleets, or when BRIX_FLEET_SENTINEL=0.
-    _start_sentinel_watchdog(session)
+    # A collection-only session runs no test and needs no fleet.  Skip the
+    # sentinel watchdog, the stale-fleet reap sweep, the destructive tree wipe
+    # and the PKI/data regeneration outright — pytest_collection_finish and
+    # pytest_sessionfinish carry the same gate — so `pytest --collect-only`
+    # neither pays the ~30s lifecycle cost nor touches a live fleet's tree.
+    if getattr(session.config.option, "collectonly", False):
+        return
     # xdist workers inherit the environment from the controller which has already
     # called start-all (and wiped the tree).  Running it again from every worker
     # in parallel would race — but each worker still chdir()s into the shared
@@ -447,7 +449,13 @@ def pytest_sessionstart(session):
             # baseline so the pre-teardown conservation check can prove no
             # shared server was lost during the session.
             _capture_fleet_baseline()
+            # Start monitoring only after the attach decision and any inherited
+            # baseline have settled.  Starting it before that window lets a stale
+            # prior-run baseline look like a test-induced fleet collapse.
+            _start_sentinel_watchdog(session)
         return
     _setup_session(chdir=not _xdist_requested(session.config))
-
-
+    # The session setup has now cleared stale registry state.  The watchdog can
+    # safely wait for the fresh post-collection baseline without mistaking the
+    # intentional pre-launch gap for a crashed fleet.
+    _start_sentinel_watchdog(session)

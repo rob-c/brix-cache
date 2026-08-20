@@ -82,6 +82,37 @@ s3_copy_vfs_ctx(ngx_http_request_t *r, const char *fs_path,
     s3_vfs_bind_deleg(r, cf, vctx);
 }
 
+/*
+ * Resolve the COPY source beneath root_canon.
+ *
+ * NGX_DECLINED means fs_path is filled and the caller carries on; anything else
+ * is a finished response. A RESERVED source name leaves by the same door an
+ * absent one does further down this file (404 NoSuchKey, event no_such_key,
+ * byte-identical message), so a client cannot learn from a COPY that a source
+ * name is reserved rather than missing; only a genuine escape is AccessDenied.
+ */
+static ngx_int_t
+s3_copy_resolve_source(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
+    const char *src_key, char *fs_path, size_t fs_path_cap)
+{
+    s3_key_error_t err;
+    int            rc;
+
+    rc = s3_resolve_key_ex(cf->common.root_canon, src_key, fs_path,
+                           fs_path_cap, cf->common.cache_store_endpoint);
+    if (rc == 0) {
+        return NGX_DECLINED;
+    }
+
+    s3_resolve_key_error(rc, &err);
+    if (rc == 404) {
+        err.message = "The copy source does not exist.";
+    } else if (rc == 403) {
+        err.message = "Copy source path is not accessible.";
+    }
+    return s3_fail(r, err.status, err.code, err.message, err.event);
+}
+
 ngx_int_t
 s3_handle_copy_object(ngx_http_request_t *r,
                       const char *dst_fs_path,
@@ -98,6 +129,7 @@ s3_handle_copy_object(ngx_http_request_t *r,
     char                  xml_buf[512];
     size_t                xml_len;
     ngx_buf_t            *b;
+    ngx_int_t             rc;
 
     copy_src_hdr = s3_copy_find_header(r, "x-amz-copy-source",
                                        sizeof("x-amz-copy-source") - 1);
@@ -125,12 +157,10 @@ s3_handle_copy_object(ngx_http_request_t *r,
     }
 
     /* Resolve source path — must stay within root_canon */
-    if (!s3_resolve_key(cf->common.root_canon, src_key, src_fs_path,
-                        sizeof(src_fs_path), cf->common.cache_store_endpoint))
-    {
-        return s3_fail(r, NGX_HTTP_FORBIDDEN, "AccessDenied",
-                       "Copy source path is not accessible.",
-                       BRIX_S3_EVENT_ACCESS_DENIED);
+    rc = s3_copy_resolve_source(r, cf, src_key, src_fs_path,
+                                sizeof(src_fs_path));
+    if (rc != NGX_DECLINED) {
+        return rc;
     }
 
     /*

@@ -45,6 +45,11 @@ GSI_URL     = f"root://{SERVER_HOST}:{NGINX_GSI_PORT}"
 ANON_URL    = f"root://{SERVER_HOST}:{NGINX_ANON_PORT}"
 PROXY_PEM   = PROXY_STD
 
+# The write tests are re-exported from split sibling modules.  Keep the
+# cleanup namespace here, alongside the fixture that consumes it, so the
+# sibling does not depend on a constant left in the original module.
+WRITE_PREFIX = worker_prefix("_test_gsi_tls_")
+
 TEST_FILES = {
     "test.txt":   {"size": 24,      "content": b"hello from nginx-xrootd\n"},
     "random.bin": {"size": 5242880, "content": None},

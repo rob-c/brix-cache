@@ -1,0 +1,14 @@
+{
+  "clients": {
+    "python": {
+      "command": [
+        "{python}"
+      ],
+      "cwd": "{project_root}",
+      "env": {
+        "PYTHONPATH": "{src_root}"
+      },
+      "timeout": 10.0
+    }
+  }
+}

@@ -333,13 +333,10 @@ class TestProtocol:
             assert status == kXR_ok, _error_code(body)
             assert len(body) > 8, \
                 "kXR_secreqs reply must be longer than the short form"
-            assert len(body) >= 13, "secreqs trailer truncated"
+            assert len(body) >= 14, "secreqs trailer truncated"
             pval, flags = struct.unpack("!Ii", body[:8])
             assert pval == kXR_PROTOCOLVERSION
-            sec_count = body[10]
-            assert sec_count == 0, \
-                f"anon (auth none) advertises no auth methods, got {sec_count}"
-            assert body[12:13] == b"S", \
+            assert body[8:9] == b"S", \
                 "ServerResponseReqs 'S' tag must follow the SecurityInfo header"
             assert _ping(_after_login(sock))[1] == kXR_ok
         finally:

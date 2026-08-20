@@ -39,11 +39,13 @@ def _wc_l(path: Path) -> int:
 
 
 def list_oversized(root: Path = ROOT) -> list[tuple[str, int]]:
-    """(repo-relative path, loc) for every src/ and client/ *.c/*.h file above the
-    cap, sorted by codepoint (LC_ALL=C) so both the ratchet compare and --regen
-    output are deterministic. client/tests/ is excluded — its unit harness and
-    fixtures are not shipped code and carry the same test exemption src's own
-    tests live under elsewhere."""
+    """(repo-relative path, loc) for every src/ and client/ *.c/*.h file — and
+    every brixtest/src/ *.py file — above the cap, sorted by codepoint
+    (LC_ALL=C) so both the ratchet compare and --regen output are deterministic.
+    client/tests/ is excluded — its unit harness and fixtures are not shipped
+    code and carry the same test exemption src's own tests live under elsewhere.
+    brixtest/src/ (the packaged framework tree, testsuite-modernization-plan
+    §7.4) is under the cap from day one: it carries no grandfathered backlog."""
     rows: list[tuple[str, int]] = []
     # src/: the nginx module tree — every .c/.h counts.
     for f in (root / "src").rglob("*"):
@@ -58,6 +60,10 @@ def list_oversized(root: Path = ROOT) -> list[tuple[str, int]]:
             and f.is_file()
             and client_tests not in f.parents
         ):
+            rows.append((f.relative_to(root).as_posix(), _wc_l(f)))
+    # brixtest/src/: the packaged Python test framework.
+    for f in (root / "brixtest" / "src").rglob("*.py"):
+        if f.is_file():
             rows.append((f.relative_to(root).as_posix(), _wc_l(f)))
     rows = [(path, loc) for path, loc in rows if loc > CAP]
     return sorted(rows, key=lambda r: f"{r[0]}\t{r[1]}")

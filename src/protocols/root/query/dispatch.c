@@ -4,7 +4,7 @@
 
 /* WHY: The XRootD query protocol consolidates diverse server-side operations into a single opcode (kXR_query) rather than requiring separate opcodes for each operation type. This reduces wire protocol complexity while enabling flexible sub-protocol extension — new query types can be added by registering handlers without changing the core dispatcher or client code. The typedef struct brix_ckscan_aio_t and extern declarations cross-reference checksum scan AIO infrastructure defined in separate files (checksum_ckscan_common.c, checksum_ckscan_async.c) to maintain modular architecture while keeping dispatcher self-contained. */
 
-/* HOW: Sequential infotype comparison chain using ntohs() to convert big-endian 16-bit value from wire format into host byte order. Each if-block calls a dedicated handler function (brix_query_prep_status through brix_query_opaqug) — handlers return NGX_OK/NGX_ERROR or send error responses directly. The last kXR_Qvisa case includes an additional precondition check: ctx->recv.cur_dlen must be zero (no pending data length) before proceeding to visa query. After all comparisons, debug log the unsupported infotype value and call brix_send_error() with kXR_Unsupported status. */
+/* HOW: When brix_read_only_public is on, the server-scoped infotypes (QStats/Qspace/QFSinfo/Qvisa) are refused with kXR_NotAuthorized before any routing happens — see brix_query_is_server_introspection; kXR_Qconfig routes normally and is filtered per key in query/config.c so capability negotiation and readv tuning keep working. Otherwise: sequential infotype comparison chain using ntohs() to convert big-endian 16-bit value from wire format into host byte order. Each if-block calls a dedicated handler function (brix_query_prep_status through brix_query_opaqug) — handlers return NGX_OK/NGX_ERROR or send error responses directly. The last kXR_Qvisa case includes an additional precondition check: ctx->recv.cur_dlen must be zero (no pending data length) before proceeding to visa query. After all comparisons, debug log the unsupported infotype value and call brix_send_error() with kXR_Unsupported status. */
 
 #include "query_internal.h"
 #include "protocols/ssi/ssi.h"   /* §7 XrdSsi response-wait via kXR_query(Qopaqug) */
@@ -133,6 +133,54 @@ brix_query_route_extended(brix_ctx_t *ctx, ngx_connection_t *c,
     return NGX_DECLINED;
 }
 
+/* ---- Public-gateway introspection gate (brix_read_only_public) ----
+ *
+ * WHAT: Return 1 when `brix_read_only_public on` must refuse this kXR_query
+ * infotype, i.e. when the infotype describes the SERVER rather than a path the
+ * client is already allowed to read.
+ *
+ * WHY: read-only is a guarantee about MUTATION; it says nothing about what an
+ * anonymous client can learn, and kXR_query is the disclosure surface. QStats
+ * hands out the build identity, hostname, listening port and live link
+ * counters; Qspace hands out the capacity, free and used bytes of the
+ * filesystem behind the export; QFSinfo hands out filesystem-level counters;
+ * Qvisa hands out server identity. On a public listener each of those is
+ * reconnaissance that helps an attacker and helps no legitimate reader.
+ *
+ * The line is drawn at SERVER-scoped vs PATH-scoped deliberately, because the
+ * directive must not break the thing it protects: Qcksum (xrdcp verifies
+ * transfers with it), Qxattr, QFinfo, QPrep and Qckscan all answer about one
+ * path the client could equally have opened and read, so they stay available
+ * and listing/stat/read/stream are untouched. The opaque family (Qopaque,
+ * Qopaquf, Qopaqug) is left exactly as it is — it already refuses.
+ *
+ * kXR_Qconfig is deliberately NOT in this set, and that is the one line here
+ * worth arguing with. It does hand out configuration by name — but the names
+ * clients actually ask for are the protocol's own limits (readv_ior_max,
+ * readv_iov_max, pio_max, bind_max, fattr) and its capability list (chksum,
+ * readv, tpc, cmpread/cmpwrite). Refusing the whole infotype withholds nothing
+ * an anonymous client could not establish by trying, and costs it the vector-
+ * read geometry: XrdCl falls back to conservative defaults and issues many more,
+ * much smaller readv elements against the very endpoint that exists to stream
+ * bulk data. So Qconfig is filtered PER KEY instead, in brix_query_config()'s
+ * descriptor table (query/config.c), where `version` and `role` — the two keys
+ * that describe the deployment rather than the protocol — are withheld and
+ * answered exactly like an unknown key, and the table fails closed for any key
+ * added later.
+ *
+ * HOW: membership test against the server-scoped set. The caller refuses with
+ * kXR_NotAuthorized before any handler runs, so no handler can leak a partial
+ * answer (or a distinguishing error) on the way to being refused.
+ */
+static ngx_flag_t
+brix_query_is_server_introspection(uint16_t infotype)
+{
+    return infotype == kXR_QStats
+        || infotype == kXR_Qspace
+        || infotype == kXR_QFSinfo
+        || infotype == kXR_Qvisa;
+}
+
 /* ---- Top-level kXR_query dispatcher ----
  *
  * WHAT: Unpack the kXR_query request header, select the query sub-protocol by
@@ -160,6 +208,20 @@ brix_handle_query(brix_ctx_t *ctx, ngx_connection_t *c,
 
     xrdw_query_req_unpack(((ClientRequestHdr *) ctx->recv.hdr_buf)->body, &req);
     infotype = req.infotype;
+
+    /* Public gateway: refuse server introspection BEFORE routing, so no handler
+     * gets the chance to answer partially. Path-scoped queries fall through. */
+    if (conf->common.read_only_public
+        && brix_query_is_server_introspection(infotype))
+    {
+        ngx_log_error(NGX_LOG_INFO, c->log, 0,
+                      "brix: read_only_public refused kXR_query infotype=%d "
+                      "(server introspection) from %V",
+                      (int) infotype, &c->addr_text);
+        return brix_send_error(ctx, c, kXR_NotAuthorized,
+                                 "server introspection is disabled on this "
+                                 "public read-only endpoint");
+    }
 
     rc = brix_query_route_common(ctx, c, conf, &req, infotype);
     if (rc != NGX_DECLINED) {

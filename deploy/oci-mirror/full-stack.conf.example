@@ -1,0 +1,163 @@
+# deploy/oci-mirror/full-stack.conf.example — the single-box software
+# distribution plane: pull-through registry mirror, the site's own registry,
+# and the Stratum-0 the ingested images are published into, in ONE server.
+# Templated by tests/test_oci_compose_secure.py:
+#   @PORT@         cleartext listener (mirror + local registry + public repos)
+#   @TLSPORT@      TLS listener (the gated private image tree)
+#   @DAVPORT@      cleartext listener for the WebDAV view of /sw
+#   @CACHEDIR@     mirror cache store, logs, pid
+#   @UPSTREAM@     upstream registry ROOT (scheme://host)
+#   @REGISTRYROOT@ storage root for the site's own registry
+#   @WEBROOT@      Stratum-0 web root — holds cvmfs/<fqrn>/ per repo
+#   @SWROOT@       materialized software area re-exported over WebDAV
+#   @CERT@ @KEY@   server certificate for the TLS listener
+#   @CLIENTCA@     CA that issues the client certificates allowed at the gate
+#   @ISSUERS@      SciTokens issuer table authorising pushes at /local/v2/
+#
+# WHY ONE BOX. These are three surfaces over the same object plane, and an
+# operator who wants "our software lives here" wants all three:
+#
+#   /v2/        pull dockerhub/quay/gitlab through us, cached and verified
+#   /local/v2/  push OUR images somewhere that is not someone else's SaaS
+#   /cvmfs/     serve the SAME images as a filesystem — `brixcvmfs ingest
+#               image` flattens a pushed or mirrored image into the Stratum-0
+#               under this root, and a worker node mounts it instead of
+#               pulling a copy of every layer onto every node
+#
+# The composition is pure configuration: nothing below is a mode, a build
+# option, or a plugin. Each location is independently gated, and deleting any
+# one of them leaves the others byte-identical in behaviour.
+worker_processes 4;
+error_log @CACHEDIR@/error.log info;
+pid @CACHEDIR@/nginx.pid;
+events { worker_connections 1024; }
+
+http {
+    access_log @CACHEDIR@/access.log;
+    brix_oci_token_zone oci_tokens 1m;
+
+    # ---- the public box: mirror + registry + public repos -----------------
+    server {
+        listen @PORT@;
+
+        # Manifest PUTs are small; a layer arrives through the upload session
+        # in chunks, so this is not the layer size limit
+        # (brix_oci_max_blob_size is, below).
+        client_max_body_size 16m;
+
+        # Pull-through mirror of an upstream registry. Read-only: a write-class
+        # method here is a scanner looking for somewhere to plant an image, so
+        # it earns a 405 and a signal=ocipush guard line.
+        location /v2/ {
+            brix_oci_mirror       @UPSTREAM@;
+            brix_cache_store      posix:@CACHEDIR@/store;
+            brix_cache_verify     oci-digest;
+            brix_oci_manifest_ttl 60s;
+        }
+
+        # The site's OWN registry. Same API, different half of the module: this
+        # surface is the source of truth, so a miss is a 404 and never a fill.
+        # brix_allow_write is the write gate and is checked BEFORE any token
+        # scope — a registry with it off is a read-only view of local storage
+        # no credential can talk into accepting a push.
+        location /local/v2/ {
+            brix_oci_registry       on;
+            brix_oci_registry_root  @REGISTRYROOT@;
+            brix_allow_write        on;
+            brix_oci_max_blob_size  8192m;   # ngx sizes take k/m, not g
+            brix_oci_upload_grace   1h;
+
+            # Pushes are authenticated. `brix_oci_registry_allow_anonymous on`
+            # is the other typed option and means exactly what it says — use it
+            # only on a lab box or behind something else that authenticates.
+            brix_oci_token_issuers  @ISSUERS@;
+        }
+
+        # The public software area, served as a Stratum-0. Ordinary published
+        # content: `brixcvmfs ingest image` and `brixcvmfs ingest dir` both
+        # land here, and a CVMFS client mounts it with no idea which verb
+        # produced which subtree.
+        location /cvmfs/ {
+            brix_cvmfs             on;
+            brix_cvmfs_stratum0_root @WEBROOT@;
+        }
+
+        location / { return 404; }
+    }
+
+    # ---- the plain-HTTP view: same trees, no CVMFS client ------------------
+    # A read-only WebDAV view of the materialized software area, for consumers
+    # with no CVMFS client — a browser, a curl, a Windows box. brix_allow_write
+    # off makes it a VIEW: the publish plane is the only writer of this tree,
+    # and this location cannot become a second one.
+    #
+    # It gets its own listener because ONE BRIX PROTOCOL PER PORT: a listener
+    # already carrying brix_cvmfs cannot also carry brix_webdav, and the server
+    # refuses the configuration at startup rather than guessing which protocol
+    # an ambiguous request belongs to. The OCI locations above are the
+    # exception that proves it — /v2/ is a path-addressed HTTP API, not a
+    # protocol front, so it composes with anything.
+    server {
+        listen @DAVPORT@;
+
+        location /sw/ {
+            brix_webdav          on;
+            brix_storage_backend posix:@SWROOT@;
+            brix_webdav_auth     none;
+            brix_allow_write     off;
+        }
+
+        location / { return 404; }
+    }
+
+    # ---- the gated box: private image trees --------------------------------
+    # A separate listener because the gate is TLS-only by construction: an
+    # scvmfs location refuses a cleartext request before it looks at any
+    # credential, so there is no way to "also serve this on port 80".
+    #
+    # The private repo is a REPO of its own, not a subtree of the public one.
+    # That is deliberate: authorization here maps to a path prefix, and a repo
+    # name is the only prefix a CVMFS client and this server agree on. Inside
+    # it, `brixcvmfs ingest image` puts every image under .images/sha256/<hex>
+    # with the human-readable tag as a symlink, so one gate covers the whole
+    # private image space no matter how the tags move.
+    server {
+        listen @TLSPORT@ ssl;
+        ssl_certificate        @CERT@;
+        ssl_certificate_key    @KEY@;
+        ssl_client_certificate @CLIENTCA@;
+        ssl_verify_client      optional;
+
+        location /cvmfs/ {
+            brix_cvmfs               on;
+            brix_cvmfs_stratum0_root @WEBROOT@;
+            brix_scvmfs              on;
+            brix_scvmfs_authz        x509;
+            brix_scvmfs_x509_dn      "*CN=release-bot*";
+
+            # The bearer alternative — a WLCG/SciTokens issuer instead of a DN
+            # glob. Same gate, same fail-closed answers, no client PKI:
+            # brix_scvmfs_authz        bearer;
+            # brix_scvmfs_token_issuers /etc/brix/scitokens.cfg;
+        }
+    }
+}
+
+# ---- the consuming site ----------------------------------------------------
+# For completeness, the OTHER half of the story — what a site that CONSUMES
+# this box runs. Its cache front unions the images repo behind the main
+# software repo under one client-visible name, so `/cvmfs/sw.example.org/...`
+# reaches both and a worker node mounts exactly one repo:
+#
+#   location /cvmfs/ {
+#       brix_cvmfs             on;
+#       brix_storage_backend   https://s0.example.org;
+#       brix_cache_store       posix:/var/cache/brix/cvmfs;
+#       brix_cvmfs_virtual_repo sw.example.org main.example.org img.example.org;
+#       brix_cvmfs_repo_authz   img.example.org /etc/brix/scitokens.cfg;
+#   }
+#
+# Declaration order is precedence: a 404 from `main` advances to `img`, and
+# ONLY a 404 does. A 401/403/5xx from a member is terminal — composition never
+# elevates access, and an unauthorized read of a gated member can never fall
+# through to whatever an ungated sibling happens to hold at the same path.

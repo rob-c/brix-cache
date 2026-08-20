@@ -4,6 +4,7 @@
 #include "tls.h"
 #include "budget.h"
 #include "deadline.h"
+#include "shutdown_hold.h"
 #include "net/manager/pending.h"
 #include "fs/xfer/stage_waiter.h"
 #include "protocols/root/handoff/handoff.h"
@@ -137,7 +138,11 @@ brix_recv_header_prep(ngx_stream_session_t *s, ngx_connection_t *c,
          * in-flight fill and surfaces as a spurious kXR_NotFound.  Let the active
          * transfer finish on the old worker (bounded by worker_shutdown_timeout).
          */
-        if (ngx_exiting && !brix_ctx_has_open_file(ctx)) {
+        ngx_flag_t has_open_file = brix_ctx_has_open_file(ctx);
+
+        brix_shutdown_hold_sync(c, ctx, has_open_file);
+
+        if (ngx_exiting && !has_open_file) {
             brix_on_disconnect(ctx, c);
             brix_close_all_files(ctx);
             ngx_stream_finalize_session(s, NGX_STREAM_OK);
@@ -149,7 +154,7 @@ brix_recv_header_prep(ngx_stream_session_t *s, ngx_connection_t *c,
          * parked keepalive immediately.  An open handle means an active transfer,
          * not a keepalive idle — leave it un-idle so the reload lets it complete.
          */
-        c->idle = brix_ctx_has_open_file(ctx) ? 0 : 1;
+        c->idle = has_open_file ? 0 : 1;
     }
 
     return BRIX_RECV_STEP_NEXT;

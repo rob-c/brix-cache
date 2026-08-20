@@ -111,6 +111,12 @@ brix_http_fill_resolve_waiter(brix_http_cache_fill_ctx_t *t,
         rc = NGX_HTTP_NOT_FOUND;
     } else if (t->err == EACCES || t->err == EPERM) {
         rc = NGX_HTTP_FORBIDDEN;
+    } else if (t->err == EBUSY) {
+        /* The origin rate-limited the fill. That is the client's answer too:
+         * a 502 here would have it retry immediately against an origin that
+         * already said no, and a 504 would claim a timeout that never
+         * happened. */
+        rc = NGX_HTTP_TOO_MANY_REQUESTS;
     } else if (t->err == ETIMEDOUT) {
         /* T20: deadline exhausted while this waiter was still attached —
          * same keep-alive 504 the hold timer sends. */

@@ -74,6 +74,7 @@ s3_tag_load(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
     const char *fs_path, char *out, size_t outsz)
 {
     brix_vfs_ctx_t vctx;
+    brix_vfs_stat_t vst;
     ssize_t          n;
 
     /*
@@ -85,6 +86,13 @@ s3_tag_load(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
      * is a plain path-based getxattr.
      */
     s3_tag_vfs_ctx(r, fs_path, cf, &vctx);
+    /* A missing object is resolved by the S3 operation, not by an xattr
+     * lookup.  Probe first through the non-metered VFS gate so a 404 does not
+     * manufacture a successful xattr metric for an object that never existed.
+     */
+    if (brix_vfs_probe(&vctx, 0, &vst) != NGX_OK || vst.is_directory) {
+        return -1;
+    }
     n = brix_vfs_getxattr(&vctx, S3_TAG_XATTR, out, outsz - 1);
     if (n < 0) {
         /* phase74-fp: ENOTSUP == EOPNOTSUPP on Linux but they are distinct

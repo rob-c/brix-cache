@@ -10,6 +10,8 @@
 #include "sd_cache_policy.h"
 #include "sd_cache.h"                           /* brix_sd_cache_source_instance */
 #include "protocols/cvmfs/classify.h"          /* manifest-TTL classification */
+#include "protocols/oci/oci_classify.h"        /* OCI tag-manifest TTL class  */
+#include "protocols/rpm/rpm_classify.h"        /* RPM repodata mutability class*/
 #include "observability/metrics/metrics_macros.h"
 #include "fs/backend/http/sd_http.h"           /* per-upstream fill attribution */
 
@@ -80,10 +82,19 @@ sd_cache_passthrough_cap(const brix_cache_policy_t *pol)
 }
 
 /* 1 iff this cache instance carries the cvmfs personality (other exports'
- * fills must not feed the cvmfs metric family). */
+ * fills must not feed the cvmfs metric family). An OCI mirror and an RPM
+ * mirror also stamp a manifest TTL — for tag manifests and for repomd.xml —
+ * so either would otherwise answer yes to the TTL half of the test and pour
+ * its fills into the per-fqrn cvmfs counters; the verify mode settles which
+ * personality owns the instance. */
 static int
 sd_cache_is_cvmfs(const sd_cache_inst_state *st)
 {
+    if (st->policy.verify == BRIX_CACHE_VERIFY_OCI_DIGEST
+        || st->policy.verify == BRIX_CACHE_VERIFY_RPM_REPODATA)
+    {
+        return 0;
+    }
     return st->policy.verify == BRIX_CACHE_VERIFY_CVMFS_CAS
         || st->policy.cvmfs_manifest_ttl > 0;
 }
@@ -166,15 +177,43 @@ sd_cache_ms_since(const struct timespec *t0)
     return ms < 0 ? 0 : ms;
 }
 
-/* phase-68: 1 iff `key` is CVMFS MANIFEST-class (mutable signed metadata). */
+/* 1 iff `key` names MUTABLE metadata that must expire on a TTL rather than
+ * live forever: a CVMFS MANIFEST-class object (phase-68), an OCI manifest
+ * fetched BY TAG (phase-104 D2.2 — a tag is a moving pointer, while a manifest
+ * fetched by digest is as immutable as a blob), or an RPM repository file that
+ * is not self-addressing (phase-104 D15.9 — repomd.xml and anything createrepo
+ * did not name after its own checksum).
+ *
+ * `verify` is the instance's personality, not a hint: the CVMFS and OCI
+ * grammars are mutually exclusive by shape (an OCI key is rooted at "/v2/",
+ * which no CVMFS URL contains), but the RPM grammar accepts nearly any path,
+ * so asking it about a CVMFS key would answer "mutable" for every immutable
+ * CAS object. It is only consulted for a cache that declared itself an RPM
+ * mirror, which the RPM merge enforces by refusing every other verify mode. */
 int
-sd_cache_is_manifest_key(const char *key)
+sd_cache_is_manifest_key(ngx_uint_t verify, const char *key)
 {
-    cvmfs_url_info_t info;
+    cvmfs_url_info_t  info;
+    brix_oci_req_t    oci;
+    brix_rpm_req_t    rpm;
+    size_t            n;
 
-    return (key != NULL
-            && cvmfs_classify_url(key, strlen(key), &info) == 0
-            && info.cls == CVMFS_URL_MANIFEST);
+    if (key == NULL) {
+        return 0;
+    }
+    n = strlen(key);
+    if (verify == BRIX_CACHE_VERIFY_RPM_REPODATA) {
+        return brix_rpm_classify(key, n, &rpm) == 0
+            && brix_rpm_class_is_mutable(rpm.cls);
+    }
+    if (cvmfs_classify_url(key, n, &info) == 0
+        && info.cls == CVMFS_URL_MANIFEST)
+    {
+        return 1;
+    }
+    return brix_oci_classify(key, n, &oci) == 0
+        && oci.cls == BRIX_OCI_REQ_MANIFEST
+        && !oci.ref_is_digest;
 }
 
 /* phase-68 bounded stale-if-error: 1 iff an expired-but-COMPLETE cached copy

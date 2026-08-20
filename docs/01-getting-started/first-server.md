@@ -9,7 +9,7 @@
 | Protocol | URL format | Client tool | Status |
 |---|---|---|---|
 | XRootD (TCP) | `root://localhost:1094//path` | `xrdcp`, `xrdfs` | ✅ Basic connectivity |
-| XRootD (TLS) | `roots://localhost:1095//path` | `xrdcp --allow-tls` | ⏭️ Optional — requires TLS config |
+| XRootD (TLS) | `roots://localhost:1095//path` | `xrdcp --tls` | ⏭️ Optional — requires TLS config |
 | WebDAV (HTTP) | `http://localhost:8443/path` | `curl`, `xrdcp --allow-http` | ⏭️ Optional — requires HTTP module |
 
 ---

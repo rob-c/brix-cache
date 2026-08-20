@@ -353,7 +353,8 @@ def _run_cell_a(h: ForwardHarness, wire: str, cred: str) -> None:
     if fhop1 == "root":
         if cred == "token":
             svc_block = f"brix_credential origin_ca {{ ca_dir {CA_DIR}; }}"
-            auth_block = (f"brix_auth token;\n        brix_certificate     {SERVER_CERT};\n"
+            auth_block = (f"brix_auth token;\n        brix_tls on;\n"
+                          f"        brix_certificate     {SERVER_CERT};\n"
                           f"        brix_certificate_key {SERVER_KEY};\n"
                           f"        brix_token_jwks     {h.tok_jwks};\n"
                           f"        brix_token_issuer   {h.tok_issuer};\n"
@@ -384,6 +385,8 @@ def _run_cell_a(h: ForwardHarness, wire: str, cred: str) -> None:
         pos = h.front_put_get(fhop1, cred, fport, f"posA2_{wire}.bin", "A")
     if not pos.get_ok:
         detail = f"userA two-hop PUT/GET not byte-exact (put_ok={int(pos.put_ok)})"
+        if cred == "token" and pos.deny_obs:
+            detail += f" client={pos.deny_obs}"
         ftext = flog.read_text(errors="replace") if flog.is_file() else ""
         if cred == "token":
             evidence = [line for line in ftext.splitlines()
@@ -407,5 +410,3 @@ def _run_cell_a(h: ForwardHarness, wire: str, cred: str) -> None:
         h.record(key, "FAIL", "userB bytes reached the backend store")
         return
     h.record(key, "PASS", "userA DN at backend, userB denied, no leak")
-
-

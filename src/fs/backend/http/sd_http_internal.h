@@ -17,6 +17,7 @@
 #define SD_HTTP_BASE_MAX   512                  /* URL base path prefix */
 #define SD_HTTP_PATH_MAX   2048                 /* full URL path = base + key */
 #define SD_HTTP_AUTH_MAX   4160                 /* "Authorization: Bearer <tok>\r\n" */
+#define SD_HTTP_REDIRECT_MAX 3                  /* origin 3xx hops per request */
 
 /* One ranked origin endpoint (phase-68 T11). fail_score is an integer EWMA of
  * transport failures (0 = healthy, decays 7/8 per outcome); rank is the
@@ -65,6 +66,12 @@ typedef struct {
                                     commit PUT so the origin validates the body
                                     and rejects a wire-corrupted upload (the
                                     outbound analogue of ingest s3_content_md5) */
+    brix_sd_http_bearer_pt     bearer_provider; /* phase-104 D1: dynamic
+                                    bearer supplier consulted on a 401 +
+                                    WWW-Authenticate; NULL = no dance, the 401
+                                    propagates. Set post-build through
+                                    sd_http_set_bearer_provider. */
+    void                        *bearer_ctx;   /* opaque provider context */
     int                          cur_ep;      /* index of the endpoint that
                                     answered the last successful request, -1 =
                                     none yet. Written by fill threads without
@@ -87,7 +94,26 @@ typedef struct {
     const char         *cert_pem;
     brix_s3_resp_t     *resp;
     int                 force_primary;
+    int                *auth_failed;   /* out (may be NULL): set to 1 when the
+                                          origin sent a 401 challenge and no
+                                          bearer could be minted for it. Lets
+                                          the read path tell "we failed to
+                                          authenticate" (our problem) from
+                                          "the origin refuses" (the client's). */
 } sd_http_req_t;
+
+/* One decided redirect hop (phase-104 D1.4). `carries_credential` records the
+ * policy verdict — 1 only when the hop lands on the very same peer (host, port
+ * and scheme) that answered — so the caller can drop the mutual-TLS client
+ * certificate on the same terms the header block already dropped the bearer. */
+typedef struct {
+    char host[256];
+    int  port;
+    int  tls;
+    char path[SD_HTTP_PATH_MAX];
+    char hdrs[SD_HTTP_AUTH_MAX + 512];
+    int  carries_credential;
+} sd_http_redirect_t;
 
 /* 1 iff `inst` is an sd_http instance (defined in sd_http.c, beside the driver
  * struct it checks); guards the introspection accessors in sd_http_introspect.c. */
@@ -113,6 +139,17 @@ extern int g_sd_http_force_primary;
 void sd_http_write_path(const sd_http_inst_state *is, const char *key,
     char *dst, size_t cap);
 int  sd_http_request_fo(const sd_http_req_t *rq, sd_http_endpoint **used);
+
+/* Redirect hop policy (sd_http_redirect.c). sd_http_redirect_is answers "is
+ * this status a redirect we follow"; sd_http_redirect_next turns one
+ * `Location:` into the next hop — 0 with *hop filled, or -1 when the Location
+ * is one this driver refuses to chase (non-http(s), scheme-relative, relative,
+ * a TLS→cleartext downgrade, or over-long). `extra_hdrs` is the header block
+ * the current request used; hop->hdrs is the block for the NEXT one, with
+ * every `Authorization:` line removed whenever the hop changes peer. */
+int sd_http_redirect_is(int status);
+int sd_http_redirect_next(const char *location, const sd_http_endpoint *from,
+    const char *extra_hdrs, sd_http_redirect_t *hop);
 
 /* PROPFIND XML seam (sd_http_dir.c): next start-tag in [p,end) whose LOCAL name
  * is `local`, namespace-prefix- and case-insensitive, skipping close/comment/PI

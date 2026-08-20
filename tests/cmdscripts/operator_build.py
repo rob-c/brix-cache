@@ -9,13 +9,45 @@ import signal
 import sys
 
 from cmdscripts.compile_run import REPO_ROOT, result, run
+from fleet_orphans import owns
+# Separate line, deliberately: `test_fleet_teardown_orphans` pins the
+# literal `from fleet_orphans import owns` in this file, so that this
+# reaper cannot quietly stop routing ownership through the shared rule.
+from fleet_orphans import lane_harnesses
 
 
 def nproc() -> str:
     return str(os.cpu_count() or 4)
 
 
-def brutal_teardown(test_root: Path) -> list[tuple[bool, str]]:
+def brutal_teardown(test_root: Path, force: bool = False) -> list[tuple[bool, str]]:
+    """Stop-all, SIGTERM whatever survived, then wipe ``test_root``'s state.
+
+    Scoped to ``test_root`` and nothing else.  This used to also signal any
+    daemon whose cmdline merely CONTAINED ``/tmp/xrd`` or ``/tmp/hsproto``,
+    which made a clean of one lane a SIGTERM of every concurrent lane on the box
+    (``/tmp/xrd`` is a substring of ``/tmp/xrd-test-<anything>``) — and, because
+    the shared markers ignored the argument entirely, the throwaway ``tmp_path``
+    the in-suite test passes did not protect the live fleet either.
+    ``fleet_orphans.owns`` is the ownership rule the reaper itself uses.
+
+    Refuses a lane a live harness other than this one declares, unless
+    ``force``.  ``kill_orphans`` gained that gate after a lane root read off a
+    `ps` listing turned out to be a concurrent run's and was reaped; this door
+    is the wider one, because it does not stop at signalling — it deletes
+    the lane's ``data``, ``pki``, ``tokens``, ``logs`` and ``tmp``, so the same
+    mistake here destroys another session's artefacts rather than just its
+    processes.  A refusal is returned as a failing check rather than raised:
+    this is a checks runner, and a red line naming the claimant is what an
+    operator can act on.
+    """
+    claimants = [] if force else lane_harnesses(test_root)
+    if claimants:
+        return [result(False, "refusing brutal teardown of %s: claimed by %d "
+                              "live harness(es): %s" % (
+                                  test_root, len(claimants),
+                                  ", ".join("%d %s" % (pid, cmd[:60])
+                                            for pid, cmd in claimants[:3])))]
     run(
         [sys.executable, "-m", "cmdscripts.manage_test_servers", "stop-all"],
         cwd=REPO_ROOT / "tests",
@@ -30,7 +62,7 @@ def brutal_teardown(test_root: Path) -> list[tuple[bool, str]]:
                 cmdline = Path(f"/proc/{pid}/cmdline").read_bytes().replace(b"\0", b" ").decode("utf-8", "ignore")
             except OSError:
                 continue
-            if "/tmp/xrd" in cmdline or "/tmp/hsproto" in cmdline or str(test_root) in cmdline:
+            if owns(test_root, cmdline):
                 try:
                     os.kill(pid, signal.SIGTERM)
                     killed += 1

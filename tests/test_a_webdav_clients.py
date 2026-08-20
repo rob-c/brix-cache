@@ -37,6 +37,11 @@ from settings import (
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from utils.make_token import TokenIssuer
 
+# Both HTTPS listeners exercised below are secondary listens of the shared
+# ``main`` fleet instance.  Declare that ownership explicitly so a zero-boot
+# selection of this module starts the listeners before curl/requests connect.
+pytestmark = pytest.mark.registry_server("main")
+
 PROXY_PEM         = PROXY_STD
 WEBDAV_GSI_PORT   = NGINX_WEBDAV_GSI_TLS_PORT
 WEBDAV_GSI_URL    = f"https://{SERVER_HOST}:{NGINX_WEBDAV_GSI_TLS_PORT}"

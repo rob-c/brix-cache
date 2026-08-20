@@ -83,24 +83,46 @@ def pids_on_port(port: int | str) -> list[int]:
     return []
 
 
+def listening_port_pids() -> dict[int, set[int]] | None:
+    """One `ss -ltnp` survey of every TCP listener: port -> owning PIDs.
+
+    A single fleet-wide survey costs about the same as one per-port query, so
+    callers that would otherwise probe many ports (the ~127-port fleet teardown
+    sweep) take this snapshot once instead of spawning one subprocess per port.
+    A port whose PIDs are unreadable (another user's process) still appears as
+    a key with an empty set — presence means "someone is listening", so callers
+    must key quiescence off membership, not off the PID set being non-empty.
+    Returns None when `ss` is unavailable; callers fall back to per-port scans.
+    """
+    if not have_cmd("ss"):
+        return None
+    proc = run(["ss", "-ltnp"])
+    listeners: dict[int, set[int]] = {}
+    for line in proc.stdout.splitlines():
+        fields = line.split()
+        if len(fields) < 4:
+            continue
+        endpoint = fields[3].rsplit(":", 1)[-1]
+        if not endpoint.isdigit():
+            continue
+        pids = listeners.setdefault(int(endpoint), set())
+        for part in line.replace(",", " ").split():
+            if part.startswith("pid="):
+                try:
+                    pids.add(int(part.split("=", 1)[1]))
+                except ValueError:
+                    pass
+    return listeners
+
+
 def pids_in_port_range(start: int, end: int) -> list[int]:
     """Return listener PIDs in the half-open port range using one survey."""
-    if have_cmd("ss"):
-        proc = run(["ss", "-ltnp"])
-        pids = set()
-        for line in proc.stdout.splitlines():
-            fields = line.split()
-            if len(fields) < 4:
-                continue
-            endpoint = fields[3].rsplit(":", 1)[-1]
-            if not endpoint.isdigit() or not start <= int(endpoint) < end:
-                continue
-            for part in line.replace(",", " ").split():
-                if part.startswith("pid="):
-                    try:
-                        pids.add(int(part.split("=", 1)[1]))
-                    except ValueError:
-                        pass
+    listeners = listening_port_pids()
+    if listeners is not None:
+        pids: set[int] = set()
+        for port, port_pids in listeners.items():
+            if start <= port < end:
+                pids.update(port_pids)
         return sorted(pids)
     pids = set()
     for port in range(start, end):

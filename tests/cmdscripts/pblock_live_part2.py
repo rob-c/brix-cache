@@ -20,6 +20,7 @@ import threading
 import time
 
 from cmdscripts.live_common import LiveFailure, LiveRun, REPO_ROOT, random_file, sha256
+from cmdscripts.c_regression_units import _gcov_flags
 from lib_py.pki import regenerate_pki
 from server_registry import NginxInstanceSpec
 from settings import BIND_HOST, HOST, TEST_ROOT
@@ -142,7 +143,7 @@ def _build_meta_bench(run: LiveRun) -> Path:
             "-DXRDPROTO_NO_NGX", META_BENCH_SRC, LIBXRDC, PROTOLIB,
             "-lssl", "-lcrypto", "-lz", "-lkrb5", "-lk5crypto", "-lcom_err", "-lzstd",
             "-llzma", "-lbrotlienc", "-lbrotlidec", "-lbz2", "-l:liblz4.so.1",
-            "-luring", "-lpthread", "-o", bench,
+            "-luring", "-lpthread", *_gcov_flags([LIBXRDC, PROTOLIB]), "-o", bench,
         ],
         check=False,
     )

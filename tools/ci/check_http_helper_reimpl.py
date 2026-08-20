@@ -62,6 +62,12 @@ ALLOWLIST = {
     # Shadow mirror: enumerates ALL request headers to replay them verbatim
     # (its former private find_header was folded into the shared helper).
     "src/net/mirror/http_mirror.c",
+    # OCI mirror: adapter that routes If-None-Match at the DIGEST validator
+    # this surface publishes (the object's own digest) before delegating every
+    # other form — If-Match, the date forms — to brix_http_eval_preconditions.
+    # The comparison itself is brix_http_etag_list_contains; no verdict is
+    # decided here.
+    "src/protocols/oci/oci_mirror.c",
 }
 
 # (check name, extended regex) — matches the shell scan() invocations verbatim.

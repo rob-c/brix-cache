@@ -1,0 +1,1 @@
+BriXTest Minikube server is ready.

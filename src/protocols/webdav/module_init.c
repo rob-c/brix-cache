@@ -6,6 +6,8 @@
 #include "delegation_internal.h"      /* delegation_find_eec (shared EEC scan) */
 #include "core/seccomp/seccomp.h"    /* brix_seccomp_install_once */
 #include "protocols/cvmfs/cvmfs.h"   /* $brix_protocol: cvmfs claim */
+#include "protocols/oci/oci.h"       /* $brix_protocol: oci claim   */
+#include "protocols/rpm/rpm.h"       /* $brix_protocol: rpm claim   */
 #include "auth/crypto/store_policy.h" /* brix_px_classify, brix_x509_oneline */
 #include "fs/backend/ucred.h"         /* brix_sd_ucred_key / _resolve */
 
@@ -23,11 +25,12 @@
 /* Preconfiguration: register the $brix_protocol variable. */
 /*
  * Resolve $brix_protocol for the current request: "webdav", "s3", "cvmfs",
- * or "http". Precedence is webdav > s3 > cvmfs > plain http, decided by
- * which sibling module is enabled in this request's location conf (WebDAV
- * wins if several somehow apply). The labels are the central proto_list.h
- * dash_names; "http" is the nothing-claimed fallback. Used in log_format /
- * proxy decisions to label the served protocol.
+ * "oci", "rpm", or "http". Precedence is webdav > s3 > cvmfs > oci > rpm >
+ * plain http,
+ * decided by which sibling module is enabled in this request's location conf
+ * (WebDAV wins if several somehow apply). The labels are the central
+ * proto_list.h dash_names; "http" is the nothing-claimed fallback. Used in
+ * log_format / proxy decisions to label the served protocol.
  */
 ngx_int_t
 brix_http_protocol_variable(ngx_http_request_t *r,
@@ -36,6 +39,8 @@ brix_http_protocol_variable(ngx_http_request_t *r,
     ngx_http_brix_webdav_loc_conf_t *wdcf;
     ngx_http_s3_loc_conf_t            *scf;
     ngx_http_brix_cvmfs_loc_conf_t  *ccf;
+    ngx_http_brix_oci_loc_conf_t    *ocf;
+    ngx_http_brix_rpm_loc_conf_t    *rcf;
     const char                        *label;
     size_t                             len;
 
@@ -47,6 +52,8 @@ brix_http_protocol_variable(ngx_http_request_t *r,
     wdcf = ngx_http_get_module_loc_conf(r, ngx_http_brix_webdav_module);
     scf = ngx_http_get_module_loc_conf(r, ngx_http_brix_s3_module);
     ccf = ngx_http_get_module_loc_conf(r, ngx_http_brix_cvmfs_module);
+    ocf = ngx_http_get_module_loc_conf(r, ngx_http_brix_oci_module);
+    rcf = ngx_http_get_module_loc_conf(r, ngx_http_brix_rpm_module);
     if (wdcf != NULL && wdcf->common.enable) {
         label = "webdav";
         len = sizeof("webdav") - 1;
@@ -56,6 +63,14 @@ brix_http_protocol_variable(ngx_http_request_t *r,
     } else if (ccf != NULL && ccf->cvmfs.enable) {
         label = "cvmfs";
         len = sizeof("cvmfs") - 1;
+    } else if (ocf != NULL && (ocf->mirror || ocf->registry)) {
+        /* Both OCI surfaces answer /v2/ and are refused in the same block by
+         * the merge, so one label covers the plane. */
+        label = "oci";
+        len = sizeof("oci") - 1;
+    } else if (rcf != NULL && rcf->mirror) {
+        label = "rpm";
+        len = sizeof("rpm") - 1;
     }
 
     v->len = len;

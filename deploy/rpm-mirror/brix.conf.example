@@ -1,0 +1,71 @@
+# deploy/rpm-mirror/brix.conf.example — the RPM/dnf pull-through mirror as
+# this server's own surface (brix_rpm_mirror), rather than as a proxy_cache
+# recipe. Templated by tests/test_rpm_mirror_native.py:
+#   @PORT@      port the mirror listens on
+#   @CACHEDIR@  writable directory for the cache store, logs and pid
+#   @ORIGIN@    upstream repository ROOT (scheme://host[:port][/path])
+#
+# WHY THIS AND NOT nginx.conf.example. Both cache the same objects with the
+# same split — repomd.xml expires, everything beside it does not — and the
+# recipe stays supported for a site fronting stock nginx. What only the module
+# can do is CHECK and REFUSE:
+#
+#   * createrepo names every metadata file <checksum>-<name>, so the name IS
+#     the digest. `brix_cache_verify rpm-repodata` recomputes it on the staged
+#     file before the fill is published, and a mismatch is quarantined rather
+#     than served. A proxy_cache recipe has no way to look at that name.
+#   * dnf never writes. A write-class method is answered 405 at the gate,
+#     before the store is touched, and lands a signal=rpmwrite guard line for
+#     fail2ban (deploy/fail2ban/jail.d/xrootd-guard.conf).
+#   * The route is named in the log ($rpm_class/$rpm_cache) and in
+#     brix_rpm_requests_total{class,outcome}, so "which half of the repository
+#     is my miss rate coming from" is a query, not a guess.
+#
+# One location covers the whole repository tree because the classifier reads
+# the route from the path — there is nothing to keep in sync between blocks.
+worker_processes 2;
+error_log @CACHEDIR@/error.log info;
+pid @CACHEDIR@/nginx.pid;
+events { worker_connections 1024; }
+
+http {
+    access_log @CACHEDIR@/access.log;
+
+    # Fills run off the event loop on this pool; without it the mirror still
+    # serves, it just fills inline (the module logs a NOTICE at startup).
+    # thread_pool default threads=8;   # declared in the main nginx.conf
+
+    server {
+        listen @PORT@;
+
+        location / {
+            brix_rpm_mirror   @ORIGIN@;
+
+            # The cache store IS the mirror: there is no local export tree, so
+            # the request URI is the cache key and the on-disk layout mirrors
+            # the repository layout.
+            brix_cache_store  posix:@CACHEDIR@/store;
+
+            # Verify digest-named repodata against the digest in its own name.
+            # Fail-closed: a mismatch is never published, never served.
+            brix_cache_verify rpm-repodata;
+
+            # How long a cached repomd.xml (and its .asc/.key) may answer
+            # before it is revalidated. Everything else in the repository is
+            # immutable and ignores this. dnf's own metadata_expire is a
+            # SECOND window on top of this one, so keep this short.
+            brix_rpm_metadata_ttl 60s;
+
+            # When a new repomd.xml lands, fetch the two files dnf asks for
+            # next (primary + filelists) before it asks. They are named in the
+            # index this mirror just pulled, so it is prediction rather than
+            # guesswork — and it is off by default because it spends upstream
+            # bandwidth on behalf of clients that may never come.
+            brix_rpm_prefetch on;
+
+            # An upstream reached over http:// must be opted into explicitly —
+            # a mirror is a trust position, and cleartext is a choice.
+            # brix_rpm_mirror_insecure on;
+        }
+    }
+}

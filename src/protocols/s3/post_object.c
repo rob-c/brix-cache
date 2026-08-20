@@ -284,16 +284,29 @@ s3_post_object_body_handler_inner(ngx_http_request_t *r)
         return;
     }
 
-    if (s3_post_expand_filename(r, &form) != NGX_OK
-        || !s3_resolve_key(cf->common.root_canon, form.key,
-                           fs_path, sizeof(fs_path),
-                           cf->common.cache_store_endpoint))
-    {
+    if (s3_post_expand_filename(r, &form) != NGX_OK) {
         s3_metrics_finalize_request_method(
             r, BRIX_S3_METHOD_POST,
             s3_post_error(r, NGX_HTTP_FORBIDDEN, "AccessDenied",
                           "Access Denied."));
         return;
+    }
+
+    /* Split from the expansion above so the resolver's own refusal survives: a
+     * RESERVED key is 404 NoSuchKey here, exactly as it is on every other S3
+     * verb and exactly as WebDAV answers the same name over the same export. */
+    {
+        s3_key_error_t err;
+        int            rrc = s3_resolve_key_ex(cf->common.root_canon, form.key,
+                                    fs_path, sizeof(fs_path),
+                                    cf->common.cache_store_endpoint);
+        if (rrc != 0) {
+            s3_resolve_key_error(rrc, &err);
+            s3_metrics_finalize_request_method(
+                r, BRIX_S3_METHOD_POST,
+                s3_post_error(r, err.status, err.code, err.message));
+            return;
+        }
     }
 
     rc = s3_post_verify_policy(r, cf, &form);

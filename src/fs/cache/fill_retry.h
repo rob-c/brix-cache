@@ -39,9 +39,11 @@ void brix_fill_retry_init(brix_fill_retry_t *rs, time_t client_hold,
     time_t max_life, _Atomic int *waiters, unsigned n_endpoints);
 
 /* Classify one attempt: fill_rc is the fill's NGX_* result, err its errno.
- * ENOENT/ENOTDIR/EACCES/EPERM are the origin's definitive answers; EBADMSG
- * is a digest MISMATCH (retried while verify_budget lasts — corruption is
- * often path-local); everything else transient. */
+ * ENOENT/ENOTDIR/EACCES/EPERM are the origin's definitive answers, EBUSY is
+ * its rate limit (retrying spends the quota that is already exhausted) and
+ * ENOKEY an unanswerable auth challenge; EBADMSG is a digest MISMATCH (retried
+ * while verify_budget lasts — corruption is often path-local); everything else
+ * transient. */
 brix_fill_class_e brix_fill_classify(ngx_int_t fill_rc, int err,
     brix_fill_retry_t *rs);
 

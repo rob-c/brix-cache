@@ -55,6 +55,10 @@ versions before doubting the finding**.
 | `fuzz_macaroon_frame.c` | macaroon length-prefixed packet walk `brix_macaroon_scan_frames` (pre-auth; C-1 target 4) | ✅ runnable |
 | `fuzz_sigv4_canonical.c` | S3 SigV4 canonical query-string builder `build_canonical_qs` (pre-auth; C-1 target 5) | ✅ runnable |
 | `fuzz_root_frame.c` | `root://` `ClientRequestHdr` `dlen` vs per-opcode cap `brix_root_frame_dlen_ok` — the "reject before allocation" invariant (C-2) | ✅ runnable |
+| `fuzz_oci_classify.c` | OCI Distribution `/v2/` route classifier `brix_oci_classify` over the shared name/digest grammars — the traversal defense for the registry surface, since every cache key, store path and upstream URL downstream is built from the spans it returns (phase-104 D0.2) | ✅ runnable |
+| `fuzz_oci_challenge.c` | upstream `WWW-Authenticate: Bearer …` challenge parser `brix_oci_challenge_parse` — bytes a foreign registry authored, spent immediately on the URL and query of our next outbound request (phase-104 D1) | ✅ runnable |
+| `fuzz_tar_header.c` | OCI layer tar reader `brix_tar_open_fd`/`brix_tar_next` (ustar/pax/GNU-long, octal + base-256, gzip) — the largest attacker-controlled structure in the ingest path; every path it yields becomes a path component (phase-104 D6) | ✅ runnable |
+| `fuzz_rpm_header.c` | clean-room RPM container reader `brix_rpm_open` + every accessor `createrepo` uses — an index entry is four attacker-chosen integers addressing into a data region, with no librpm to inherit bounds from (phase-104 D12.2) | ✅ runnable |
 
 All targets are built and smoke-run in CI by `.github/workflows/fuzz.yml` (blocking
 PR/push, `FUZZ_TIME=60`; nightly cron `600s`) via the `cmdscripts.fuzz_all` runner —

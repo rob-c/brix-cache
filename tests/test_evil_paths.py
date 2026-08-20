@@ -248,8 +248,9 @@ class TestCmsStateEvil:
         # mock manager listening socket
         srv = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        srv.bind((BIND_HOST, 0))
-        mgr_port = srv.getsockname()[1]
+        from ephemeral_port import free_port
+        mgr_port = free_port(BIND_HOST)
+        srv.bind((BIND_HOST, mgr_port))
         srv.listen(4)
         srv.settimeout(20)
 

@@ -147,6 +147,7 @@ All three modes run inside a single nginx instance. Details: [Deployment Modes](
 | [Configuration Reference](03-configuration/config-reference.md) | All directives with defaults (complete reference) |
 | [TLS Configuration](03-configuration/tls-config.md) | `root://` upgrade, `roots://`, HTTPS setup |
 | [Production Deployment](03-configuration/production-deployment.md) | Production deployment patterns and best practices |
+| [Read-Only Public `root://` Gateway](03-configuration/read-only-root-gateway.md) | Anonymous read-only `root://` front end for an XRootD origin, with the verified opcode-by-opcode refusal matrix |
 | [Deployment Configuration Reference](10-reference/comparison/deployment-reference.md) | Side-by-side BriX-Cache and vanilla XRootD snippets for root, HTTP, token, GSI, packet marking, user mapping, cache, TPC, monitoring, mirroring, staging, and traffic-control deployments |
 
 ### Protocols & Clients
@@ -160,6 +161,8 @@ All three modes run inside a single nginx instance. Details: [Deployment Modes](
 | [HTTP TPC Reference](04-protocols/http-tpc-reference.md) | Third-party copy comparison between HTTP-TPC and native XRootD TPC |
 | [CMS Cluster Protocol (`cms://`)](04-protocols/cms-protocol.md) | The cmsd↔cmsd management wire protocol — framing, manager↔server↔client negotiation, and cmsd-compliance gotchas |
 | [gsiftp:// GSI Data Channel](04-protocols/gsiftp-data-channel-security.md) | GridFTP DCAU/`PROT P` data-channel security deep dive (delegated-credential presentation, chain-completion + unexpected-EOF gotchas) with ASCII diagrams and a `root://` comparison |
+| [OCI Distribution (`/v2/`)](04-protocols/oci.md) | The container-registry wire surface: mirror vs registry, the endpoint x method matrix, name/digest grammars, the cache key that *is* the route, the spec error envelope, metrics and guard signals |
+| [RPM repository mirror](04-protocols/rpm.md) | The dnf-side wire surface: the four routes a repository path can be, the method matrix, the TTL that applies to exactly one of them, `rpm-repodata` verification against the digest in a filename, and the metrics and guard signals that name the route |
 
 ### Authentication & Security
 *Access control from anonymous read to full WLCG grid identity. Pick your auth model, then configure it.*
@@ -222,6 +225,11 @@ graph TD
 | [CVMFS Stratum-0 cookbook](05-operations/cvmfs-stratum0.md) | Publish your own files as a CVMFS master copy as an unprivileged user: `brixcvmfs repo mkfs → transaction → publish`, keys, chunking + nested catalogs, the `brix_cvmfs_stratum0_root` serve block, private repos, maintenance cron, integrity model |
 | [/cvmfs Automount](05-operations/cvmfs-automount.md) | `brixMount autofs` umbrella daemon: stock-client-style /cvmfs on-demand mounts with zero autofs/systemd dependency (WSL2 OOTB), symlink-farm design, packaging + conflict matrix |
 | [pblock per-group multi-user](05-operations/pblock-multiuser.md) | Zero-provisioning shared pblock store: `brix_gridmap` DN→user, unix/FQAN `g`-rule groups, catalog-attested ownership, `gidlifetime` de-provisioning window |
+| [OCI pull-through mirror](05-operations/oci-mirror.md) | Cache DockerHub/Quay/GitLab locally: the upstream token dance, digest verify-at-edge, tag-TTL vs immutable-blob policy, the `.ocimeta` sidecar, pointing podman at it, and what to alert on |
+| [Your own OCI registry](05-operations/oci-registry.md) | `brix_oci_registry`: on-disk layout, the `brix_allow_write`-before-token gate, the resumable push data plane, deletion without background GC, and the `brixoci` CLI (including `convert --estargz`) |
+| [Container images and folders as CVMFS](05-operations/container-ingest.md) | `brixcvmfs ingest image` / `dir` / `prune`: DUCC-compatible flat layout, memo-driven incrementality, layer flattening and whiteout containment, gated private image trees, and `podman run --rootfs` off the mount |
+| [RPM/dnf pull-through mirror](05-operations/rpm-mirror.md) | Cache an upstream RPM repository: the two object classes, the one TTL that matters, the dnf-side client config, and the native `brix_rpm_mirror` surface that verifies repodata against its own filename |
+| [Publishing an RPM repo on CVMFS](05-operations/rpm-on-cvmfs.md) | `brixrpm createrepo` + `brixcvmfs ingest dir` + a `file:///cvmfs` baseurl: ordering, atomicity, and why the metadata must be published after the packages |
 
 ### Observability & Monitoring
 *Every request lands in a counter. Here's how to read them.*

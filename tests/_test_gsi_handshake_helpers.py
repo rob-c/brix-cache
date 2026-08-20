@@ -45,6 +45,7 @@ import pytest
 
 from server_launcher import LifecycleHarness  # noqa: E402
 from server_registry import NginxInstanceSpec  # noqa: E402
+from port_ladder import PORT_LAST  # noqa: E402
 
 # Every nginx GSI server in this module is a throwaway registry instance driven
 # through the phase-81 LifecycleHarness (never a direct nginx launch), so the
@@ -76,8 +77,11 @@ STOCK_XRDCP = "/usr/bin/xrdcp"
 _WK = os.environ.get("PYTEST_XDIST_WORKER", "")   # "gw0".."gwN" under xdist, "" serial
 _WOFF = (int(_WK[2:]) + 1) * 20 if _WK.startswith("gw") else 0
 
-P_STOCK_ROOT = 21130 + _WOFF
-P_STOCK_ROOT_FCA = 21131 + _WOFF   # foreign-CA stock server; +1 within the stride
+# Keep direct stock-xrootd listeners outside the rebased registry lane.  The
+# historical 21130 ports overlap the lane when TEST_PORT_START is 20000 and
+# therefore race central fleet listeners under xdist.
+P_STOCK_ROOT = PORT_LAST + 20 + _WOFF
+P_STOCK_ROOT_FCA = PORT_LAST + 21 + _WOFF  # foreign-CA stock server
 
 
 # --------------------------------------------------------------------------- #
@@ -90,6 +94,26 @@ def _have(*tools):
 def _run(cmd, timeout=120, **kw):
     return subprocess.run(cmd, capture_output=True, text=True, timeout=timeout,
                           **kw)
+
+
+def _rejected(http_code):
+    """Return whether an HTTP probe produced a non-success response."""
+    code = (http_code or "").strip()
+    return bool(code) and not code.startswith("2")
+
+
+def _curl(pki, webdav, proxy, *args, method=None, upload=None):
+    """Run the curl probe shared by both handshake split modules."""
+    cf, kf = _split_for_curl(proxy, pki["base"], "wc") if proxy else (None, None)
+    cmd = ["curl", "-sk", "-o", "/dev/null", "-w", "%{http_code}"]
+    if cf and kf:
+        cmd += ["--cert", cf, "--key", kf]
+    if method:
+        cmd += ["-X", method]
+    if upload:
+        cmd += ["-T", upload]
+    cmd += list(args)
+    return _run(cmd)
 
 
 # RSA keygen is an unbounded prime search: a 4096-bit `openssl req -newkey` that
@@ -245,12 +269,27 @@ def _make_ca(path, subj, bits=2048):
     return key, pem
 
 
-def _signed(ca_key, ca_pem, cn, key, cert, base, bits=2048):
+def _signed(ca_key, ca_pem, cn, key, cert, base, bits=2048, san=None):
+    """CA-signed End-Entity cert.  ``san`` is an openssl subjectAltName value
+    ("IP:127.0.0.1", "DNS:host,DNS:alias"); omit it for the CN-only certificate
+    the GSI handshake tests want.
+
+    A host certificate for an endpoint that peers dial by IP LITERAL needs an
+    iPAddress SAN even though the CN carries the address: OpenSSL's
+    SSL_set1_host() routes an IP-shaped name to X509_VERIFY_PARAM_set1_ip_asc(),
+    and the IP match has no CN fallback (X509_V_ERR_IP_ADDRESS_MISMATCH).
+    """
     csr = os.path.join(base, os.path.basename(key) + ".csr")
     _osl("req", "-nodes", "-newkey", f"rsa:{bits}", "-subj", f"/O=XrdTest/CN={cn}",
          "-keyout", key, "-out", csr, timeout=_KEYGEN_TIMEOUT)
+    ext = []
+    if san is not None:
+        extfile = os.path.join(base, os.path.basename(cert) + ".ext")
+        with open(extfile, "w") as f:
+            f.write(f"subjectAltName={san}\n")
+        ext = ["-extfile", extfile]
     _osl("x509", "-req", "-in", csr, "-CA", ca_pem, "-CAkey", ca_key,
-         "-CAcreateserial", "-days", "2", "-out", cert)
+         "-CAcreateserial", "-days", "2", "-out", cert, *ext)
 
 
 def _mint_proxy(eec_cert, eec_key, out, certs, env):

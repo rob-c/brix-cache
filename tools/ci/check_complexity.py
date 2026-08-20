@@ -66,7 +66,7 @@ def gate_rows() -> list[tuple[str, str, int]]:
     so both the ratchet compare and --regen output are deterministic — the same
     rows, in the same order, as `readability.py --gate-csv`."""
     lizard = readability.find_lizard()
-    funcs = readability.run_lizard(lizard, ["src", "client"])
+    funcs = readability.run_lizard(lizard, ["src", "client", "brixtest/src"])
     rows = [
         (f["file"], f["func"], f["ccn"])
         for f in funcs

@@ -4,7 +4,6 @@
 #include "net/cms/cns.h"            /* §6 CNS inventory stat answer */
 #include "fs/vfs/vfs.h"            /* path stat via the VFS seam */
 #include "fs/vfs/vfs_backend_registry.h"   /* F5: driver space slot for statvfs */
-#include "fs/path/reserved_names.h"   /* brix_is_internal_name — hide sidecars */
 #include "protocols/root/path/op_path.h"
 #include "core/negcache/negcache.h"    /* E-4: stat-harvest backoff */
 #include "net/manager/registry.h"

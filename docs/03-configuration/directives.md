@@ -22,7 +22,8 @@ Three rules cover all four protocols (`brix_root`, `brix_webdav`, `brix_s3`, `br
   `brix_cache_only_if_cached`, `brix_stage`, `brix_stage_store`,
   `brix_stage_flush`, `brix_thread_pool`.
 - **Bare `brix_*` cross-protocol directives** — work identically across all protocols:
-  `brix_allow_write`, `brix_read_only`, `brix_compress`, `brix_ktls`, `brix_metrics`,
+  `brix_allow_write`, `brix_read_only`, `brix_read_only_public` (stream only),
+  `brix_compress`, `brix_ktls`, `brix_metrics`,
   `brix_health`, `brix_credential`.
 
 The only remaining per-protocol directive families are behavior specific to one protocol
@@ -72,6 +73,64 @@ Write operations that require this flag: `kXR_pgwrite`, `kXR_write`, `kXR_sync`,
 
 ```nginx
 brix_allow_write on;   # allow uploads and deletes
+```
+
+---
+
+### `brix_read_only on|off`
+
+**Default:** `off`
+
+Forces the server read-only. Unlike leaving `brix_allow_write` off, this is
+applied at **config-merge time** by `brix_shared_apply_read_only()`: it sets
+`allow_write` off *before* any token scope is consulted, so a write scope in a
+WLCG token, a `brix_allow_write on` later in the same block, or a directive
+inherited from an enclosing scope cannot re-open the surface. The override is
+announced in the error log at startup rather than applied silently.
+
+Mutually exclusive with [`brix_manager_mode`](#brix_manager_mode-onoff): a
+manager redirects path mutations to a data node *before* the local write gate
+runs, so the pair would not produce a read-only endpoint. `nginx -t` refuses it
+at `[emerg]`.
+
+```nginx
+brix_read_only on;     # nothing on this listener can be mutated
+```
+
+See [Read-Only Public `root://` Gateway](read-only-root-gateway.md) for the
+opcode-by-opcode evidence.
+
+---
+
+### `brix_read_only_public on|off`
+
+**Default:** `off` · **stream (`root://`) plane only**
+
+The public-gateway posture. **Implies `brix_read_only`** — the finaliser turns
+it on, so every write gate keyed on `allow_write` covers a public gateway
+without knowing this directive exists — and *additionally* refuses the
+`kXR_query` infotypes that describe the **server** rather than a path the client
+may already read:
+
+| Refused (`kXR_NotAuthorized`) | Still answered |
+|---|---|
+| `kXR_QStats` (1), `kXR_Qspace` (5), `kXR_Qvisa` (8), `kXR_QFSinfo` (10) | `kXR_QPrep` (2), `kXR_Qcksum` (3), `kXR_Qxattr` (4), `kXR_Qckscan` (6), `kXR_QFinfo` (9) |
+
+Listing, stat, open, read and streaming are untouched, so an anonymous client
+can still browse and stream data.
+
+`kXR_Qconfig` (7) is **filtered per key** rather than refused: the protocol's own
+capability list and limits (`chksum`, `readv`, `readv_ior_max`, `readv_iov_max`,
+`pio_max`, `bind_max`, `fattr`, `tpc`, `tpcdlg`, `cmpread`, `cmpwrite`,
+`xrdfs.ext`, `brix.substreams`) still answer, so `xrdcp` capability negotiation
+and vector-read tuning work exactly as on a plain `brix_read_only` gateway. The
+keys that describe the **deployment** — `version` and `role` — are withheld and
+echoed like an unknown key. The `public_safe` column in the descriptor table
+defaults to withheld, so a key added later fails closed. See
+[§6.3 of the gateway page](read-only-root-gateway.md#63-kxr_qconfig-deployment-identity-withheld-protocol-capability-kept).
+
+```nginx
+brix_read_only_public on;   # read-only AND non-disclosing
 ```
 
 ---
@@ -1208,6 +1267,11 @@ registers it as an overflow cluster consulted only as a last resort before
 ### `brix_manager_mode on|off`
 
 **Default:** `off`
+
+Cannot be combined with [`brix_read_only`](#brix_read_only-onoff) or
+`brix_read_only_public`: a manager redirects `mkdir`/`rm`/`rmdir`/`mv`/`chmod`/
+`truncate` to a data node before the local read-only gate runs, so the endpoint
+would not be read-only. `nginx -t` refuses the pair at `[emerg]`.
 
 Enables dynamic server registry queries on this XRootD listener. When on, `kXR_locate` and `kXR_open` requests are answered with `kXR_redirect` to whichever registered data server best matches the requested path (lowest utilisation for reads, most free space for writes). The server also advertises the `kXR_isManager` capability bit in `kXR_protocol` responses.
 

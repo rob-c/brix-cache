@@ -1,0 +1,40 @@
+{
+  "lane": {
+    "root": "/tmp/brixtest-project-{uid}",
+    "port_base": 39300,
+    "port_span": 200,
+    "dynamic_port_offset": 150
+  },
+  "harness": {
+    "session_name": "brixtest-tests",
+    "spec_validation": "refuse",
+    "strict_templates": true,
+    "file_linear": true
+  },
+  "declarations": {
+    "port_name_specs": {
+      "ALPHA_PORT": "alpha"
+    }
+  },
+  "servers": {
+    "alpha": {
+      "port_offsets": {
+        "primary": 1
+      },
+      "command": [
+        "{python}",
+        "-m",
+        "brixtest.stubs.origin"
+      ],
+      "env": {
+        "BRIXTEST_PORT": "{port}",
+        "BRIXTEST_STUB_NAME": "{name}",
+        "PYTHONPATH": "{src_root}"
+      },
+      "tags": [
+        "example",
+        "http"
+      ]
+    }
+  }
+}

@@ -1,0 +1,134 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://brixtest.invalid/schema/evidence-v2.json",
+  "title": "BriXTest evidence session v2",
+  "type": "object",
+  "required": ["schema", "schema_name", "session_id", "tests"],
+  "properties": {
+    "schema": {"const": 2},
+    "schema_name": {"const": "brixtest.evidence"},
+    "session_id": {"type": "string", "minLength": 1},
+    "generated_at": {"type": "string"},
+    "exitstatus": {"type": ["integer", "null"]},
+    "counts": {"type": "object", "additionalProperties": {"type": "integer"}},
+    "aggregates": {"type": "array", "items": {"$ref": "#/$defs/metric"}},
+    "tests": {"type": "array", "items": {"$ref": "#/$defs/case"}},
+    "topology": {"$ref": "#/$defs/topology"}
+  },
+  "additionalProperties": true,
+  "$defs": {
+    "case": {
+      "type": "object",
+      "required": ["case_id", "nodeid", "outcome", "attempts"],
+      "properties": {
+        "case_id": {"type": "string", "minLength": 1},
+        "nodeid": {"type": "string", "minLength": 1},
+        "outcome": {"type": "string"},
+        "backend": {"type": "string"},
+        "isolation": {"type": "string"},
+        "attempts": {"type": "array", "items": {"$ref": "#/$defs/attempt"}}
+      },
+      "additionalProperties": true
+    },
+    "attempt": {
+      "type": "object",
+      "required": [
+        "attempt_id", "index", "trial", "warmup", "outcome", "metrics",
+        "resources", "spans", "artifacts", "logs", "findings", "provenance"
+      ],
+      "properties": {
+        "attempt_id": {"type": "string", "minLength": 1},
+        "index": {"type": "integer", "minimum": 0},
+        "trial": {"type": "integer", "minimum": 0},
+        "warmup": {"type": "boolean"},
+        "outcome": {"type": "string"},
+        "wall_seconds": {"type": "number", "minimum": 0},
+        "metrics": {"type": "array", "items": {"$ref": "#/$defs/metric"}},
+        "resources": {"type": "array", "items": {"$ref": "#/$defs/metric"}},
+        "spans": {"type": "array", "items": {"$ref": "#/$defs/span"}},
+        "artifacts": {"type": "array", "items": {"$ref": "#/$defs/artifact"}},
+        "logs": {"type": "array", "items": {"type": "object"}},
+        "servers": {"type": "array", "items": {"$ref": "#/$defs/server"}},
+        "findings": {"type": "array", "items": {"$ref": "#/$defs/finding"}},
+        "provenance": {"type": "object"}
+      },
+      "additionalProperties": true
+    },
+    "metric": {
+      "type": "object",
+      "required": ["name"],
+      "properties": {
+        "name": {"type": "string", "pattern": "^[a-z][a-z0-9_.-]{0,95}$"},
+        "value": {"type": "number"},
+        "unit": {"type": "string"},
+        "kind": {"type": "string"},
+        "labels": {"type": "object", "maxProperties": 8},
+        "at_seconds": {"type": "number", "minimum": 0}
+      },
+      "additionalProperties": true
+    },
+    "span": {
+      "type": "object",
+      "required": ["span_id", "name", "start_seconds", "duration_seconds"],
+      "properties": {
+        "span_id": {"type": "string"},
+        "parent_id": {"type": "string"},
+        "name": {"type": "string"},
+        "start_seconds": {"type": "number", "minimum": 0},
+        "duration_seconds": {"type": "number", "minimum": 0},
+        "status": {"type": "string"}
+      },
+      "additionalProperties": true
+    },
+    "artifact": {
+      "type": "object",
+      "required": ["name"],
+      "properties": {
+        "name": {"type": "string"},
+        "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "size": {"type": "integer", "minimum": 0},
+        "media_type": {"type": "string"},
+        "role": {"type": "string"}
+      },
+      "additionalProperties": true
+    },
+    "finding": {
+      "type": "object",
+      "required": ["kind", "severity"],
+      "properties": {
+        "kind": {"type": "string"},
+        "severity": {"enum": ["info", "warning", "error"]},
+        "detail": {"type": "string"}
+      },
+      "additionalProperties": true
+    },
+    "server": {
+      "type": "object",
+      "required": ["instance_id", "name", "scope", "ports"],
+      "properties": {
+        "instance_id": {"type": "string", "minLength": 1},
+        "pool_id": {"type": "string"},
+        "name": {"type": "string", "minLength": 1},
+        "scope": {"enum": ["case", "session"]},
+        "ports": {"type": "object", "additionalProperties": {"type": "integer"}},
+        "config_filename": {"type": "string"},
+        "config_source_sha256": {"type": "string"},
+        "config_declared_sha256": {"type": "string"},
+        "config_sha256": {"type": "string"},
+        "config_artifact": {"type": "object"},
+        "started_at": {"type": "string"},
+        "stopped_at": {"type": "string"},
+        "log_artifact": {"type": "object"}
+      },
+      "additionalProperties": true
+    },
+    "topology": {
+      "type": "object",
+      "properties": {
+        "generated_at": {"type": "string"},
+        "pools": {"type": "array", "items": {"type": "object"}}
+      },
+      "additionalProperties": true
+    }
+  }
+}

@@ -66,9 +66,26 @@ TESTS = Path(__file__).resolve().parent
 # ---------------------------------------------------------------------------
 REGISTRY_ALLOW = {
     "settings.py",             # HOST / HOST6 / BIND_HOST / SERVER_HOST — the source of truth
+    # The same definition layer after TS-3 split it: ``settings.py`` is now a
+    # §10.2 self-replacement shim and the values it re-exports are computed in
+    # the package.  Spelled as paths, not basenames, so the exemption cannot be
+    # picked up by a same-named consumer elsewhere in the tree.
+    "brix_suite/settings_values.py",   # the verbatim grown body — HOST / HOST6 / SERVER_HOST
+    "brix_suite/settings_model.py",    # SuiteSettings field defaults + from_env()
+    "brix_suite/_legacy/settings_flat.py",  # frozen pre-split archive of the body
     "server_registry.py",      # NginxInstanceSpec.host / ServerEndpoint / endpoint_for()
     "fleet_specs.py",          # declarative spec catalogue (per-role host overrides)
     "fleet_values.py",         # PKI / bind-host template value maps
+    # The same definition layer after TS-4 item 7 merged the catalogue: the two
+    # flat names above are §10.2 shims now and the literals they used to hold
+    # live in the package.  Path-form, like the settings entries, so the
+    # exemption cannot be inherited by a same-named consumer.
+    "brix_suite/catalogue/core.py",     # the proxy origin's ORIGIN template value
+    "brix_suite/catalogue/support.py",  # the krb5 service principal
+    "brix_suite/catalogue/values.py",   # PKI / bind-host template value maps
+    "brix_suite/_legacy/fleet_specs_flat.py",       # frozen pre-merge archives
+    "brix_suite/_legacy/fleet_specs_part2_flat.py",
+    "brix_suite/_legacy/fleet_values_flat.py",
     "fleet_ports.py",          # port ledger (no host literals; family member)
     "fleet_lifecycle_ports.py",
     "ephemeral_port.py",       # OS-assigned free-port helper (binds 127.0.0.1 to probe)

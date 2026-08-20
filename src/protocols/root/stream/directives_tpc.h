@@ -253,3 +253,16 @@
       offsetof(ngx_stream_brix_srv_conf_t, common.read_only),
       NULL },
 
+    /* Public read-only gateway posture: implies brix_read_only, and refuses the
+     * kXR_query infotypes that describe the SERVER rather than a path the client
+     * may already read (QStats, Qspace, Qconfig, QFSinfo, Qvisa) — so an
+     * anonymous public listener still lists/stats/reads/streams and still answers
+     * per-path checksum and xattr, but discloses no capacity, no build identity
+     * and no configuration values. */
+    { ngx_string("brix_read_only_public"),
+      NGX_STREAM_SRV_CONF | NGX_CONF_FLAG,
+      ngx_conf_set_flag_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_brix_srv_conf_t, common.read_only_public),
+      NULL },
+

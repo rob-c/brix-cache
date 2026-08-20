@@ -79,10 +79,10 @@ def test_m6_pgread_clean_stub_ok(native_xrdcp, tmp_path):
     out = str(tmp_path / "clean.bin")
     with _StubServer(lambda conn, port: _serve_one_pgread(conn, payload, False)) as srv:
         rc = subprocess.run(
-            [native_xrdcp, "--pgrw", "-f", f"root://{url_host(HOST)}:{srv.port}//f", out],
+            [native_xrdcp, "--streams", "1", "--pgrw", "-f", f"root://{url_host(HOST)}:{srv.port}//f", out],
             capture_output=True, text=True, env=_CLEAN_ENV, timeout=15,
-        ).returncode
-    assert rc == 0, "clean pgread stub failed (Python CRC32c mismatch?)"
+        )
+    assert rc.returncode == 0, "clean pgread stub failed (Python CRC32c mismatch?)"
     assert open(out, "rb").read() == payload, "clean pgread bytes differ"
 
 
@@ -92,7 +92,7 @@ def test_m6_pgread_corrupt_page_detected(native_xrdcp, tmp_path):
     out = str(tmp_path / "corrupt.bin")
     with _StubServer(lambda conn, port: _serve_one_pgread(conn, payload, True)) as srv:
         proc = subprocess.run(
-            [native_xrdcp, "--pgrw", "-f", f"root://{url_host(HOST)}:{srv.port}//f", out],
+            [native_xrdcp, "--streams", "1", "--pgrw", "-f", f"root://{url_host(HOST)}:{srv.port}//f", out],
             capture_output=True, text=True, env=_CLEAN_ENV, timeout=15,
         )
     assert proc.returncode != 0, "corrupted page was NOT detected"

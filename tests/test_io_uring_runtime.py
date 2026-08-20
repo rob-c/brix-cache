@@ -46,6 +46,7 @@ import time
 
 import pytest
 
+from server_launcher import RegistryCommandFailure
 from server_registry import NginxInstanceSpec
 from settings import BIND_HOST, HOST, url_host
 
@@ -141,15 +142,22 @@ def _start(lifecycle, tmp_path):
         from cmdscripts import open_tree_for_worker
         open_tree_for_worker(tmp_path)
 
-    endpoint = lifecycle.start(NginxInstanceSpec(
-        name="lc-uring",
-        template="nginx_lc_uring.conf",
-        protocol="root",
-        readiness="tcp",
-        template_values={"BIND_HOST": BIND_HOST,
-                         "DATA_DIR": str(data),
-                         "SECRET_FILE": str(secret_file)},
-        reason="phase-44 io_uring runtime subject"))
+    try:
+        endpoint = lifecycle.start(NginxInstanceSpec(
+            name="lc-uring",
+            template="nginx_lc_uring.conf",
+            protocol="root",
+            readiness="tcp",
+            template_values={"BIND_HOST": BIND_HOST,
+                             "DATA_DIR": str(data),
+                             "SECRET_FILE": str(secret_file)},
+            reason="phase-44 io_uring runtime subject"))
+    except RegistryCommandFailure as failure:
+        diagnostic = f"{failure.stdout_tail}\n{failure.stderr_tail}"
+        if ("compiled WITHOUT it" in diagnostic
+                or "io_uring is unavailable" in diagnostic):
+            pytest.skip("io_uring live backend is unavailable in this nginx build")
+        raise
     inst = _UringInstance(lifecycle, endpoint, SECRET)
     # The stream-port readiness gate fires when the listen socket is up, which
     # can precede the worker writing the ring's boot NOTICE; wait for it so a

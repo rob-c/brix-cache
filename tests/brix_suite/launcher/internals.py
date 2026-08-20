@@ -1,0 +1,374 @@
+"""Launcher internals: privilege drop, readiness waits, teardown.
+
+Moved verbatim out of ``tests/_server_launcher_part2_mixinc.py`` by TS-4 item 4.  Bodies are
+unchanged; the import block is the one part that is not a copy — each of
+the four launcher modules carried the *same* 45-line header regardless of
+what it used, so the block here is exactly this module's measured free
+names (AST, not eyeball).
+"""
+
+from __future__ import annotations
+
+from pathlib import Path
+from typing import Sequence
+import os
+import re
+import shutil
+import signal
+import socket
+import subprocess
+import time
+
+from brix_suite.catalogue import session_template_values
+from brix_suite.launcher.errors import RegistryCommandFailure
+from brix_suite.nginx_tools import _nginx_bin
+from brix_suite.kinds import LAUNCHER_KINDS, external_stop
+from brix_suite.registry import (
+    NginxInstanceSpec,
+    declared_ports,
+    endpoint_for,
+    registered_specs,
+)
+from brix_suite.settings import PKI_DIR
+
+class _LauncherInternals:
+    def _xrootd_runas_user(self, cfg_text: str, log_path: str) -> str | None:
+        """Port of bash ``_ref_launch``'s root branch: open the drop-user's paths.
+
+        xrootd terminates with "Security reasons prohibit running as superuser",
+        so under a root harness we run it via ``-R <user>`` and pre-open the
+        paths that user must then touch — its adminpath/pidpath dirs (chown), the
+        exported localroot (a+rwX, shared with the root-owned nginx fleet), the
+        log dir + file, and the GSI PKI it reads. Returns the drop user, or
+        ``None`` when unprivileged (caller omits ``-R`` and launches as-is).
+        """
+        if os.geteuid() != 0:
+            return None
+        user = os.environ.get("REF_RUNAS_USER", "nobody")
+
+        def _directive(name: str) -> str | None:
+            m = re.search(rf"^{re.escape(name)}\s+(\S+)", cfg_text, re.M)
+            return m.group(1) if m else None
+
+        for key in ("all.adminpath", "all.pidpath"):
+            path = _directive(key)
+            if path:
+                Path(path).mkdir(parents=True, exist_ok=True)
+                self._chown_r(path, user)
+        localroot = _directive("oss.localroot")
+        if localroot:
+            self._chmod_r(localroot, 0o777, add_only=True)
+        log_dir = os.path.dirname(log_path)
+        Path(log_dir).mkdir(parents=True, exist_ok=True)
+        os.chmod(log_dir, 0o777)
+        Path(log_path).write_text("", encoding="utf-8")
+        shutil.chown(log_path, user)
+        # Fall back to settings.PKI_DIR (the canonical TEST_ROOT/pki root) when the
+        # env var is unset, exactly as _start_xrdhttp does for http.cadir — the
+        # fleet's start-all does not export PKI_DIR, so gating on the env var alone
+        # skipped the whole block and left hostkey.pem 0400-root, unreadable by the
+        # -R nobody GSI/HTTPS xrootd (HTTPS init: "invalid private key").
+        pki_dir = os.environ.get("PKI_DIR") or str(PKI_DIR)
+        if pki_dir and os.path.isdir(pki_dir):
+            for sub in (pki_dir, os.path.join(pki_dir, "ca"), os.path.join(pki_dir, "server")):
+                if os.path.isdir(sub):
+                    self._chmod_add(sub, 0o555)
+            hostcert = os.path.join(pki_dir, "server", "hostcert.pem")
+            if os.path.exists(hostcert):
+                self._chmod_add(hostcert, 0o444)
+            import glob
+            for pem in glob.glob(os.path.join(pki_dir, "ca", "*.pem")):
+                self._chmod_add(pem, 0o444)
+            # Private hostkey: XrdHttp refuses a group/world-readable key, so give
+            # the -R user exclusive read (own + 0400); root nginx ignores mode.
+            hostkey = os.path.join(pki_dir, "server", "hostkey.pem")
+            if os.path.exists(hostkey):
+                shutil.chown(hostkey, user)
+                os.chmod(hostkey, 0o400)
+        return user
+
+    @staticmethod
+    def _chown_r(path: str, user: str) -> None:
+        for root, dirs, files in os.walk(path):
+            for name in [root] + [os.path.join(root, f) for f in dirs + files]:
+                try:
+                    shutil.chown(name, user)
+                except OSError:
+                    pass
+
+    @staticmethod
+    def _chmod_add(path: str, bits: int) -> None:
+        try:
+            os.chmod(path, os.stat(path).st_mode | bits)
+        except OSError:
+            pass
+
+    def _chmod_r(self, path: str, bits: int, add_only: bool = False) -> None:
+        for root, dirs, files in os.walk(path):
+            for name in [root] + [os.path.join(root, f) for f in dirs + files]:
+                if add_only:
+                    self._chmod_add(name, bits)
+                else:
+                    try:
+                        os.chmod(name, bits)
+                    except OSError:
+                        pass
+
+    def _session_values(self, spec: NginxInstanceSpec) -> dict[str, str]:
+        """The PKI/token/directory placeholder dict, per-spec env applied.
+
+        Faithfully reproduces the old bash ``substitute_config``: it read the
+        per-instance subshell env, so a role that exported e.g. ``CMS_PORT`` saw
+        that override.  We therefore compute the value dict against
+        ``os.environ`` overlaid with ``spec.env``.  It sits at the LOWEST render
+        precedence — per-instance ``PORT``/``DATA_ROOT``/``LOG_DIR``/``TMP_DIR``,
+        endpoint cross-refs, and ``spec.template_values`` all win over it.
+        """
+        env = os.environ if not spec.env else {**os.environ, **spec.env}
+        return session_template_values(env=env)
+
+    def _endpoint_template_values(self) -> dict[str, str | int | None]:
+        values: dict[str, str | int | None] = {}
+        for spec in registered_specs():
+            endpoint = endpoint_for(spec)
+            key = spec.name.upper().replace("-", "_")
+            values[f"{key}_HOST"] = endpoint.host
+            values[f"{key}_PORT"] = endpoint.port
+            values[f"{key}_URL"] = endpoint.url
+        return values
+
+    def _nginx(
+        self,
+        args: Sequence[str],
+        spec: NginxInstanceSpec | None = None,
+        env: dict[str, str] | None = None,
+        check: bool = True,
+    ):
+        merged_env = os.environ.copy()
+        if env:
+            merged_env.update(env)
+        nginx_bin = _nginx_bin()
+        result = subprocess.run(
+            [nginx_bin, *args],
+            capture_output=True,
+            text=True,
+            env=merged_env,
+        )
+        if check and result.returncode != 0:
+            endpoint = endpoint_for(spec) if spec is not None else None
+            config_path = endpoint.config if endpoint is not None else ""
+            logs_dir = str(Path(endpoint.prefix, "logs")) if endpoint is not None else ""
+            raise RegistryCommandFailure(
+                config_path=config_path,
+                logs_dir=logs_dir,
+                command=(nginx_bin, *args),
+                returncode=result.returncode,
+                stdout_tail=result.stdout[-4000:],
+                stderr_tail=result.stderr[-4000:],
+            )
+        return result
+
+    def _wait_ready(self, host: str, port: int | None, readiness: str) -> None:
+        if port is None or readiness == "none":
+            return
+        if readiness in {"root", "webdav", "s3", "metrics", "cms", "tcp"}:
+            readiness = "tcp"
+        if readiness != "tcp":
+            raise ValueError(f"unknown registry readiness probe: {readiness}")
+        deadline = time.time() + 10
+        while time.time() < deadline:
+            try:
+                with socket.create_connection((host, port), timeout=0.5):
+                    return
+            except OSError:
+                time.sleep(0.1)
+        raise RuntimeError(f"server did not become ready on {host}:{port}")
+
+    def _wait_ports_released(self, spec: NginxInstanceSpec, timeout: float = 8.0) -> None:
+        """Block until every fixed port ``spec`` declared is bindable again.
+
+        The stop/start reuse race on a fixed-port ledger: ``stop()`` returns once
+        the master process is gone, but the kernel can still hold the listen
+        socket for a beat (a worker draining, close() lagging the exit). The next
+        test reusing this exact port then loses ``bind()`` to the stale socket
+        with ``Address already in use``. We probe each declared port exactly the
+        way nginx binds it — wildcard address, ``SO_REUSEADDR`` set — so a socket
+        merely in ``TIME_WAIT`` does NOT read as busy (nginx would rebind over it
+        fine), only a still-live overlapping listener does. That is precisely the
+        condition worth waiting out.
+
+        Best-effort: on timeout we return quietly rather than raise. A genuinely
+        stuck port surfaces as the successor's own EADDRINUSE with full nginx
+        diagnostics — a clearer failure than one raised from teardown.
+        """
+        ports = declared_ports(spec)
+        if not ports:
+            return
+        deadline = time.time() + timeout
+        for port in ports:
+            while True:
+                probe = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                probe.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+                try:
+                    probe.bind(("0.0.0.0", port))  # net-literal-allow: wildcard bind (all interfaces) for port-availability probe
+                    return_now = True
+                except OSError:
+                    return_now = False
+                finally:
+                    probe.close()
+                if return_now or time.time() >= deadline:
+                    break
+                time.sleep(0.05)
+
+    def _stop_from_disk(self, spec: NginxInstanceSpec, endpoint) -> None:
+        """Reap a non-nginx daemon kind with no in-memory handle (cross-process
+        stop-all). Each kind is torn down from state it left on disk:
+
+          * xrootd/xrdhttp  → RUN_DIR/xrootd.pid  (SIGTERM the group, then KILL)
+          * haproxy         → logs/haproxy.pid
+          * external        → its paired ``stop_argv`` (self-daemonizing meshes/KDC)
+          * proc            → whatever is listening on the tracked port (Python
+                              stubs self-daemonize without a pidfile)
+        """
+        prefix = Path(endpoint.prefix)
+        row = LAUNCHER_KINDS.get(spec.kind)
+        strategy = row.profile.stop if row is not None else None
+        # Identity against the row's own stop function rather than the kind
+        # name: a second self-daemonizing kind that points at `external_stop`
+        # gets this branch without editing anything here.
+        if strategy is external_stop:
+            stop_argv = list(spec.template_values.get("stop_argv", ()))
+            if stop_argv:
+                subprocess.run(
+                    stop_argv,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    env={**os.environ, **spec.env},
+                )
+            return
+        if strategy == "port-kill":
+            from lib_py.util import pids_on_port  # noqa: PLC0415
+
+            for pid in pids_on_port(int(endpoint.port)):
+                try:
+                    os.kill(pid, signal.SIGKILL)
+                except OSError:
+                    pass
+            return
+        # Everything left keeps a pidfile and the row names where: haproxy
+        # under logs/, xrootd and xrdhttp under run/.  A kind that chases a
+        # master past SIGTERM says so with a non-zero `kill_grace`; haproxy's
+        # is zero, which is the SIGTERM-and-return it has always had.
+        pidfile = prefix / row.pidfile
+        master = self._read_pid(str(pidfile))
+        self._kill_pidfile(str(pidfile), signal.SIGTERM, process_group=True)
+        if master is None or not row.kill_grace:
+            return
+        deadline = time.time() + row.kill_grace
+        while time.time() < deadline:
+            if self._process_exited(master):
+                return
+            time.sleep(0.05)
+        self._kill_pidfile(str(pidfile), signal.SIGKILL, process_group=True)
+
+    @staticmethod
+    def _process_exited(pid: int) -> bool:
+        """Whether ``pid`` no longer owns resources that a successor needs.
+
+        ``kill(pid, 0)`` reports success for a zombie until its parent reaps it.
+        A controller-side teardown deliberately uses a fresh launcher, so its
+        xrootd ``Popen`` handles are unavailable and a just-SIGTERM'd child can
+        remain a zombie for the entire shutdown.  Treating that as live burned
+        the five-second xrootd grace period once per reference server.  A zombie
+        owns no sockets or process group members, so it is already stopped for
+        fixed-port reuse purposes.
+        """
+        try:
+            with open(f"/proc/{pid}/stat", "rb") as fh:
+                suffix = fh.read().rsplit(b")", 1)[1].split()
+        except (OSError, IndexError):
+            return True
+        # Field 3 is the first token after the rightmost ')' of comm.  Do not
+        # split the complete line: a process name may itself contain spaces or
+        # parentheses.
+        return bool(suffix and suffix[0] == b"Z")
+
+    def _kill_xrootd(self, name: str) -> None:
+        proc = self._xrootd_procs.pop(name, None)
+        if proc is None:
+            return
+        try:
+            pgid = os.getpgid(proc.pid)
+        except (ProcessLookupError, OSError):
+            pgid = None
+        for sig in (signal.SIGTERM, signal.SIGKILL):
+            try:
+                if pgid is not None:
+                    os.killpg(pgid, sig)
+                else:
+                    proc.send_signal(sig)
+            except (ProcessLookupError, OSError):
+                break
+            try:
+                proc.wait(timeout=5)
+                return
+            except subprocess.TimeoutExpired:
+                continue
+
+    @staticmethod
+    def _read_pid(pidfile: str) -> int | None:
+        try:
+            return int(Path(pidfile).read_text(encoding="utf-8").strip())
+        except (OSError, ValueError):
+            return None
+
+    def _kill_pidfile(
+        self,
+        pidfile: str,
+        sig: signal.Signals,
+        process_group: bool = False,
+    ) -> None:
+        try:
+            pid = int(Path(pidfile).read_text(encoding="utf-8").strip())
+        except (OSError, ValueError):
+            return
+        # Verify the pid STILL belongs to this instance before signalling it.
+        # A pidfile can outlive its process (crash / unclean exit); the OS then
+        # recycles that pid to some unrelated process — most dangerously a shared
+        # test-fleet server.  Signalling it (worse, its whole group via killpg)
+        # would take the fleet down.  The instance's own prefix is the pidfile's
+        # grandparent dir (<prefix>/logs/nginx.pid) and appears in the live
+        # master's argv (nginx -p <prefix>); require that match.
+        try:
+            # <prefix>/logs/nginx.pid -> <prefix>, matched as-passed to `nginx -p`.
+            prefix = os.path.dirname(os.path.dirname(str(pidfile)))
+            with open(f"/proc/{pid}/cmdline", "rb") as _fh:
+                cmdline = _fh.read().replace(b"\0", b" ").decode("utf-8", "replace")
+            if prefix and prefix not in cmdline:
+                return
+        except OSError:
+            return
+        try:
+            if process_group:
+                try:
+                    pgid = os.getpgid(pid)
+                    # Only signal the whole PROCESS GROUP when this pid is its
+                    # OWN group leader (pgid == pid), i.e. it was started in a
+                    # fresh session/group and the group contains only it and its
+                    # workers.  If pid is NOT the group leader, it shares a group
+                    # with unrelated servers — most dangerously the shared test
+                    # fleet, all launched together under one group by
+                    # manage_test_servers start-all.  A killpg there SIGTERMs the
+                    # ENTIRE fleet (dozens of masters at once) — the fleet
+                    # mass-death that made every downstream test ConnectionRefuse.
+                    # Also guards a stale/recycled pidfile pid that now belongs to
+                    # some other process's group.  Fall back to signalling just
+                    # the pid in that case.
+                    if pgid == pid:
+                        os.killpg(pgid, sig)
+                        return
+                except OSError:
+                    pass
+            os.kill(pid, sig)
+        except OSError:
+            return

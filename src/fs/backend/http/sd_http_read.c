@@ -53,6 +53,31 @@ typedef struct {
                                       which is only borrowed for the open call. */
 } sd_http_obj_state;
 
+/* One origin status → errno map for both request legs (HEAD probe and ranged
+ * GET), because the fill tier classifies on the ERRNO alone: whether an answer
+ * is definitive or worth retrying cannot depend on which leg observed it.
+ *
+ * Two rows carry policy rather than translation. 429 → EBUSY: an origin saying
+ * "you are over your rate limit" is not a transient network fault, and hammering
+ * it with the backoff ladder is how a mirror gets its pull quota revoked
+ * outright. 401 splits on `auth_failed` (set by the challenge-retry when no
+ * bearer could be minted) — a dance we could not complete is OUR failure to
+ * authenticate, which the client must read as 502, not as the origin denying
+ * the client 403 for a public image. */
+static int
+sd_http_status_errno(int status, int auth_failed)
+{
+    if (status == 401) {
+        return auth_failed ? ENOKEY : EACCES;
+    }
+    switch (status) {
+    case 404: return ENOENT;
+    case 403: return EACCES;
+    case 429: return EBUSY;
+    default:  return EIO;
+    }
+}
+
 /* HEAD `key` → *size_out (−1 if no Content-Length). 0, or −1 with errno.
  * `auth_hdr`/`cert_pem` carry the per-open credential (bearer header and/or
  * GSI proxy client-cert path) so the size probe authenticates as the same
@@ -63,21 +88,19 @@ sd_http_head_size(sd_http_inst_state *is, const char *key,
 {
     brix_s3_resp_t resp;
     char             cl[32];
+    int              auth_failed = 0;
     sd_http_req_t    rq = { is, "HEAD", key, auth_hdr, cert_pem, &resp,
-                            g_sd_http_force_primary };
+                            g_sd_http_force_primary, &auth_failed };
 
     if (sd_http_request_fo(&rq, NULL) != 0)
     {
         return -1;                              /* errno = EIO */
     }
-    if (resp.status == 404) {
-        is->transport->resp_free(&resp);
-        errno = ENOENT;
-        return -1;
-    }
     if (resp.status != 200) {
+        int st = resp.status;
+
         is->transport->resp_free(&resp);
-        errno = (resp.status == 403 || resp.status == 401) ? EACCES : EIO;
+        errno = sd_http_status_errno(st, auth_failed);
         return -1;
     }
     if (is->transport->resp_header(&resp, "Content-Length", cl, sizeof(cl)) == 0) {
@@ -339,9 +362,10 @@ sd_http_pread(brix_sd_obj_t *obj, void *buf, size_t len, off_t off)
     snprintf(hdrs, sizeof(hdrs), "Range: bytes=%lld-%lld\r\n%s",
              (long long) off, (long long) end, auth_hdr);
 
+    int auth_failed = 0;
     sd_http_req_t rq = { is, "GET", st->key, hdrs,
                          st->cert_pem[0] ? st->cert_pem : NULL, &resp,
-                         g_sd_http_force_primary };
+                         g_sd_http_force_primary, &auth_failed };
     if (sd_http_request_fo(&rq, NULL) != 0) {
         return -1;                              /* errno = EIO */
     }
@@ -350,8 +374,10 @@ sd_http_pread(brix_sd_obj_t *obj, void *buf, size_t len, off_t off)
         return 0;                              /* range past EOF → EOF (0) */
     }
     if (resp.status != 206 && resp.status != 200) {
+        int rstatus = resp.status;
+
         is->transport->resp_free(&resp);
-        errno = (resp.status == 404) ? ENOENT : EIO;
+        errno = sd_http_status_errno(rstatus, auth_failed);
         return -1;
     }
     body = is->transport->resp_body(&resp, &blen);

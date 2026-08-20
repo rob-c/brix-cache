@@ -62,8 +62,11 @@ endif
 # shared/xrdproto/Makefile); here we add the matching link libs so the client
 # binaries resolve them. zlib (-lz) is already linked below. Each is optional.
 CODEC_LIBS :=
+ZSTD_CFLAGS :=
 ifeq ($(shell pkg-config --exists libzstd 2>/dev/null && echo y),y)
   CODEC_LIBS += $(shell pkg-config --libs libzstd 2>/dev/null)
+  # oci/tar.c gates its zstd-layer path on this (phase-104 D6)
+  ZSTD_CFLAGS := -DBRIX_HAVE_ZSTD=1 $(shell pkg-config --cflags libzstd 2>/dev/null)
 endif
 ifeq ($(shell pkg-config --exists liblzma 2>/dev/null && echo y),y)
   CODEC_LIBS += $(shell pkg-config --libs liblzma 2>/dev/null)
@@ -92,7 +95,7 @@ endif
 # -DXRDPROTO_NO_NGX: the native client is an nginx-free consumer of the shared
 # protocol core (libxrdproto), so dual-build headers (e.g. compat/error_mapping.h)
 # resolve to their ngx-free variants exactly as the libxrdproto build does.
-ALL_CFLAGS := -std=c11 -Wall -Wextra $(HARDEN) $(OPT) -pthread -Ilib -I$(SRC) -I../shared -DXRDPROTO_NO_NGX -MMD -MP $(KRB5_CFLAGS) $(URING_CFLAGS) $(CFLAGS)
+ALL_CFLAGS := -std=c11 -Wall -Wextra $(HARDEN) $(OPT) -pthread -Ilib -I$(SRC) -I../shared -DXRDPROTO_NO_NGX -MMD -MP $(KRB5_CFLAGS) $(URING_CFLAGS) $(ZSTD_CFLAGS) $(CFLAGS)
 # Inject the build-time version tag when set (overrides the "dev" fallback in
 # client/lib/core/version.h).  Quote escaping: the outer \" are consumed by
 # make, leaving the inner \' pair intact for the C preprocessor.
@@ -126,6 +129,12 @@ LIB_SRCS   := \
   lib/protocols/s3/s3.c \
   lib/protocols/ftp/ftp_ctl.c lib/protocols/ftp/ftp_data.c lib/protocols/ftp/ftp_gsi.c lib/protocols/ftp/ftp_gsi_cred.c lib/protocols/ftp/ftp_login.c lib/protocols/ftp/ftp_ops.c lib/protocols/ftp/ftp_screen.c \
   $(SRC)/fs/backend/gsiftp/gftp_reply.c $(SRC)/fs/backend/gsiftp/gftp_mlsx.c \
+  lib/oci/ref.c lib/oci/reg_client.c lib/oci/reg_verbs.c lib/oci/reg_blob.c lib/oci/layout.c lib/oci/layout_index.c \
+  ../shared/oci/digest.c ../shared/oci/name.c ../shared/oci/challenge.c ../shared/oci/authority.c \
+  ../shared/oci/tar.c ../shared/oci/tar_pax.c ../shared/oci/tar_digest.c ../shared/oci/flatten.c \
+  ../shared/oci/stargz.c ../shared/oci/stargz_toc.c \
+  ../shared/oci/gc.c ../shared/oci/gc_mark.c ../shared/oci/gc_sweep.c \
+  ../shared/rpm/rpmhdr.c ../shared/rpm/repomd_write.c \
   lib/protocols/shared/checksum.c lib/protocols/shared/cks_verify.c lib/protocols/shared/cksum_manifest.c lib/protocols/shared/zip.c lib/protocols/shared/zip_write.c \
   lib/xfer/copy.c lib/xfer/copy_block.c lib/xfer/copy_gsiftp.c lib/xfer/copy_cksum_verify.c lib/xfer/copy_filter.c lib/xfer/copy_local.c lib/xfer/copy_local_parallel.c lib/xfer/copy_metalink.c lib/xfer/copy_pump.c lib/xfer/copy_recursive.c lib/xfer/copy_recursive_ul.c lib/xfer/copy_remote.c lib/xfer/copy_upload.c lib/xfer/copy_web_download.c lib/xfer/copy_xcp.c lib/xfer/copy_xcp_sources.c lib/xfer/copy_zip.c lib/xfer/metalink.c lib/xfer/metalink_lex.c \
   lib/posix/fuse_ops.c lib/posix/posix_map.c \
@@ -197,9 +206,10 @@ OPT_LINKS    :=
 ifeq ($(HAVE_FUSE3),yes)
   OPT_EXES += $(BINDIR)/xrootdfs
   OPT_EXES += $(BINDIR)/brixMount
-  # brixcvmfs = argv[0] personality of brixMount (symlink, built alongside;
-  # installed as a link too — see install-bin, NOT copied as a second binary).
-  OPT_LINKS += $(BINDIR)/brixcvmfs
+  # brixcvmfs / brixoci / brixrpm = argv[0] personalities of brixMount
+  # (symlinks, built alongside; installed as links too — see install-bin,
+  # NOT copied as second binaries).
+  OPT_LINKS += $(BINDIR)/brixcvmfs $(BINDIR)/brixoci $(BINDIR)/brixrpm
 endif
 
 # Ceph operator tools (apps/ceph/) — migration + rescue utilities linking
@@ -281,7 +291,7 @@ xrdprep_OBJS      := apps/prep/xrdprep.o
 ALL_OBJS := $(LIB_OBJS) $(foreach b,$(BINS),$($(b)_OBJS))
 DEPS     := $(ALL_OBJS:.o=.d)
 
-.PHONY: all proto FORCE clean lib install install-bin install-man install-completions install-automount compat install-compat example-test test libbrix.pc $(BINS) $(CKSUM_LINKS) $(DIAG_LINKS) xrootdfs brixMount brixcvmfs
+.PHONY: all proto FORCE clean lib install install-bin install-man install-completions install-automount compat install-compat example-test test libbrix.pc $(BINS) $(CKSUM_LINKS) $(DIAG_LINKS) xrootdfs brixMount brixcvmfs brixoci brixrpm
 all: $(BIN_EXES) $(LINK_EXES) $(OPT_BINS) $(OPT_EXES) $(OPT_LINKS) $(STANDALONE_EXES)
 
 # Keep intermediates (apps/*.o, lib/*.o built via the chained pattern rules). Without
@@ -322,6 +332,8 @@ $(CKSUM_LINKS) $(DIAG_LINKS): %: $(BINDIR)/%
 xrootdfs: $(BINDIR)/xrootdfs
 brixMount: $(BINDIR)/brixMount
 brixcvmfs: $(BINDIR)/brixcvmfs
+brixoci: $(BINDIR)/brixoci
+brixrpm: $(BINDIR)/brixrpm
 
 # Multi-call symlinks (stock tool names → their dispatcher binary).
 $(addprefix $(BINDIR)/,$(CKSUM_LINKS)): $(BINDIR)/xrdcksum
@@ -329,6 +341,10 @@ $(addprefix $(BINDIR)/,$(CKSUM_LINKS)): $(BINDIR)/xrdcksum
 $(addprefix $(BINDIR)/,$(DIAG_LINKS)): $(BINDIR)/xrddiag
 	ln -sf xrddiag $@
 $(BINDIR)/brixcvmfs: $(BINDIR)/brixMount
+	ln -sf brixMount $@
+$(BINDIR)/brixoci: $(BINDIR)/brixMount
+	ln -sf brixMount $@
+$(BINDIR)/brixrpm: $(BINDIR)/brixMount
 	ln -sf brixMount $@
 
 $(BIN_EXES): | proto $(BINDIR)
@@ -341,6 +357,12 @@ $(CLIENT_LIB): $(LIB_OBJS)
 
 # Link hardening defaults. Packagers can override by exporting LDFLAGS.
 LDFLAGS ?= -Wl,-z,relro -Wl,-z,now -Wl,-z,noexecstack
+# Coverage is a compile-and-link setting.  Keep implicit `make <tool>` builds
+# linkable when callers provide coverage through CFLAGS (the test helpers do
+# exactly that), rather than leaving gcov symbols unresolved at link time.
+ifneq ($(filter --coverage -fprofile-arcs -ftest-coverage,$(CFLAGS)),)
+LDFLAGS += --coverage
+endif
 # Executables are PIE; the shared lib is already -shared (implicitly PIC).
 LDFLAGS_PIE := -pie
 
@@ -431,7 +453,13 @@ BRIXCVMFS_SPLIT := apps/fs/brixcvmfs_mount.o apps/fs/brixcvmfs_ops.o \
 # Phase-96 Stratum-0 repo CLI (`brixcvmfs repo`): pure tool surface, no FUSE.
 apps/fs/brixcvmfs_repo.o: apps/fs/brixcvmfs_repo.c | proto
 	$(CC) $(ALL_CFLAGS) -I$(SHARED_DIR) -c $< -o $@
-apps/fs/brixcvmfs_publish.o: apps/fs/brixcvmfs_publish.c | proto
+apps/fs/brixcvmfs_publish.o: apps/fs/brixcvmfs_publish.c apps/fs/brixcvmfs_ingest_internal.h | proto
+	$(CC) $(ALL_CFLAGS) -I$(SHARED_DIR) -c $< -o $@
+# Phase-104 `brixcvmfs ingest` (D8/D9): dir/image/prune → Stratum-0 publish.
+BRIXINGEST_OBJS := apps/fs/brixcvmfs_ingest.o apps/fs/brixcvmfs_ingest_image.o \
+                   apps/fs/brixcvmfs_ingest_diffid.o apps/fs/brixcvmfs_ingest_prune.o \
+                   apps/fs/brixcvmfs_ingest_layout.o
+$(BRIXINGEST_OBJS): apps/fs/%.o: apps/fs/%.c apps/fs/brixcvmfs_ingest_internal.h | proto
 	$(CC) $(ALL_CFLAGS) -I$(SHARED_DIR) -c $< -o $@
 apps/fs/brixcvmfs_admin.o: apps/fs/brixcvmfs_admin.c | proto
 	$(CC) $(ALL_CFLAGS) -I$(SHARED_DIR) -c $< -o $@
@@ -444,12 +472,26 @@ BRIXAUTOFS_OBJS := apps/fs/brixautofs.o apps/fs/brixautofs_ext.o
 $(BRIXAUTOFS_OBJS): apps/fs/%.o: apps/fs/%.c apps/fs/brixautofs.h | proto
 	$(CC) $(ALL_CFLAGS) $(FUSE3_CFLAGS) -I$(SHARED_DIR) -c $< -o $@
 
+# Phase-104 brixoci (apps/oci/): the registry/image-layout tool surface —
+# no FUSE, rides the brixMount umbrella as an argv[0] personality (D5.4).
+BRIXOCI_OBJS := apps/oci/brixoci.o apps/oci/brixoci_copy.o \
+                apps/oci/brixoci_convert.o apps/oci/brixoci_gc.o
+$(BRIXOCI_OBJS): apps/oci/%.o: apps/oci/%.c apps/oci/brixoci_internal.h | proto
+	$(CC) $(ALL_CFLAGS) -c $< -o $@
+
+# Phase-104 brixrpm (apps/rpm/): createrepo + inspect over shared/rpm —
+# no FUSE, rides the brixMount umbrella as an argv[0] personality (D12.1).
+BRIXRPM_OBJS := apps/rpm/brixrpm.o apps/rpm/brixrpm_createrepo.o
+$(BRIXRPM_OBJS): apps/rpm/%.o: apps/rpm/%.c apps/rpm/brixrpm_internal.h | proto
+	$(CC) $(ALL_CFLAGS) -c $< -o $@
+
 BRIXMOUNT_OBJS := apps/fs/brixmount.o apps/fs/brixcvmfs.o apps/fs/brixcvmfs_rw.o \
                   $(BRIXCVMFS_SPLIT) apps/fs/brixcvmfs_repo.o \
                   apps/fs/brixcvmfs_publish.o apps/fs/brixcvmfs_admin.o \
                   apps/fs/brixautofs.o apps/fs/brixautofs_ext.o \
                   $(BRIX_CVMFS_OBJS) apps/fs/xrootdfs.o $(XROOTDFS_SPLIT) \
-                  apps/fs/xrootdfs_usage.o
+                  apps/fs/xrootdfs_usage.o $(BRIXOCI_OBJS) $(BRIXRPM_OBJS) \
+                  $(BRIXINGEST_OBJS)
 $(BINDIR)/brixMount: $(BRIXMOUNT_OBJS) $(CLIENT_LIB) | $(BINDIR)
 	$(CC) $(ALL_CFLAGS) $(LDFLAGS) $(LDFLAGS_PIE) $(BRIXMOUNT_OBJS) $(CLIENT_LIB) $(PROTO_LIB) $(LDLIBS) $(FUSE3_LIBS) -lcurl -lsqlite3 -lcrypto -lz -o $@
 	@echo " + built $@ (CVMFS-brix + XRootDFS-brix; libfuse3/libcurl/libsqlite3)"
@@ -691,6 +733,8 @@ install-bin: $(BIN_EXES) $(OPT_BINS) $(OPT_EXES) $(STANDALONE_EXES) install-comp
 	for l in $(DIAG_LINKS); do ln -sf xrddiag $(DESTDIR)$(PREFIX)/bin/$$l; done
 	for e in $(OPT_EXES); do [ -f $$e ] && install -m755 $$e $(DESTDIR)$(PREFIX)/bin/ || true; done
 	[ -f $(BINDIR)/brixMount ] && ln -sf brixMount $(DESTDIR)$(PREFIX)/bin/brixcvmfs || true
+	[ -f $(BINDIR)/brixMount ] && ln -sf brixMount $(DESTDIR)$(PREFIX)/bin/brixoci || true
+	[ -f $(BINDIR)/brixMount ] && ln -sf brixMount $(DESTDIR)$(PREFIX)/bin/brixrpm || true
 	for so in $(OPT_BINS); do [ -f $$so ] && install -m755 $$so $(DESTDIR)$(LIBDIR)/ || true; done
 	for m in man/*.1; do install -m644 $$m $(DESTDIR)$(PREFIX)/share/man/man1/; done
 	for m in man/*.7; do install -m644 $$m $(DESTDIR)$(PREFIX)/share/man/man7/; done
@@ -885,6 +929,7 @@ example-test:
 clean:
 	rm -f $(LIB_OBJS) $(PIC_OBJS) $(LIB_OBJS:.o=.d) $(PIC_OBJS:.o=.d) apps/*/*.o apps/*/*.d \
 	    preload/*.o preload/*.d \
+	    $(BRIX_CVMFS_OBJS) $(BRIX_CVMFS_OBJS:.o=.d) \
 	    $(CLIENT_LIB) $(LIBBRIX_SO) $(LIBBRIX_SONAME) $(LIBBRIX_REAL) libbrix.pc \
 	    $(PRELOAD_SO)
 	rm -rf $(BINDIR)

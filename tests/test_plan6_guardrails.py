@@ -70,31 +70,28 @@ def test_namespace_mutation_guardrails_present():
     # S3: DELETE, PUT (mkdir sentinel), CopyObject, DeleteObjects
     _assert_markers(
         "tests/test_s3.py",
-        [
-            "test_delete_object",
-            "test_delete_idempotent",
-            "test_copy_object",
-            "test_delete_objects_success",
-            "test_delete_objects_nonexistent_is_ok",
-        ],
+        ["test_delete_object", "test_delete_idempotent"],
+    )
+    _assert_markers(
+        "tests/test_s3_b.py",
+        ["test_copy_object", "test_delete_objects_success",
+         "test_delete_objects_nonexistent_is_ok"],
     )
 
 
 def test_namespace_security_negative_guardrails_present():
     """Traversal/escape attacks on namespace mutations are covered."""
     _assert_markers(
-        "tests/test_s3.py",
-        [
-            "test_copy_object_path_traversal",
-            "test_delete_objects_path_traversal",
-        ],
+        "tests/test_s3_b.py",
+        ["test_copy_object_path_traversal", "test_delete_objects_path_traversal"],
     )
     _assert_markers(
         "tests/test_webdav.py",
-        [
-            "test_delete_dot_dot_escape",
-            "test_mkcol_rejects_double_encoded_traversal_segments",
-        ],
+        ["test_mkcol_rejects_double_encoded_traversal_segments"],
+    )
+    _assert_markers(
+        "tests/test_webdav_c.py",
+        ["test_delete_dot_dot_escape"],
     )
     _assert_markers(
         "tests/test_security_hardening.py",
@@ -151,10 +148,11 @@ def test_checksum_cache_guardrails_present():
     """Checksum query, XrdHttp Digest, and cache-invalidation tests exist."""
     _assert_markers(
         "tests/test_query_extended.py",
-        [
-            "test_qcksum_crc32c_known_file",
-            "test_checksum_changes_after_overwrite",
-        ],
+        ["test_qcksum_crc32c_known_file"],
+    )
+    _assert_markers(
+        "tests/test_query_extended_b.py",
+        ["test_checksum_changes_after_overwrite"],
     )
     _assert_markers(
         "tests/test_xrdhttp.py",

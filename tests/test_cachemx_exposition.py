@@ -68,7 +68,7 @@ FAMILY_SCHEMA = {
                                  "staging"],
 }
 
-IO_PROTOS = {"stream", "webdav", "s3", "cvmfs"}
+IO_PROTOS = {"stream", "webdav", "s3", "cvmfs", "gridftp"}
 IO_OPS = {"read", "write", "stat", "delete", "mkdir", "rename", "dirlist",
           "tpc", "xattr", "copy"}
 IO_STATUSES = {"ok", "not_found", "forbidden", "io_error", "other"}

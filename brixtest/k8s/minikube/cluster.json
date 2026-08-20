@@ -1,0 +1,9 @@
+{
+  "profile": "brixtest",
+  "driver": "docker",
+  "container_runtime": "docker",
+  "cpus": 2,
+  "memory_mb": 4096,
+  "server_image": "alpine/socat@sha256:d85531a29ef5ba99dfb4717485c239307e2902d522a1bc010992a2728c92cfad",
+  "server_image_load": "alpine/socat@sha256:d85531a29ef5ba99dfb4717485c239307e2902d522a1bc010992a2728c92cfad"
+}

@@ -248,15 +248,17 @@ brix_tier_register_cache_store(ngx_conf_t *cf,
         return NGX_ERROR;                      /* [emerg] already logged */
     }
     brix_tier_fill_cache_policy(common, &pol);
-    /* phase-68: digest verification on fill (cvmfs-cas today). The verify
-     * runs on the staged temp BEFORE commit, which needs the store's
-     * staged_path — a local posix store; reject other stores loudly. */
-    if (pol.verify == BRIX_CACHE_VERIFY_CVMFS_CAS
+    /* phase-68 / phase-104: the self-addressing digest verifications (cvmfs-cas,
+     * oci-digest, rpm-repodata). The verify runs on the staged temp BEFORE
+     * commit, which needs the store's staged_path — a local posix store; reject
+     * other stores loudly. */
+    if (brix_cache_verify_is_selfaddr(pol.verify)
         && ngx_strcmp(cfg.driver, "posix") != 0)
     {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-            "brix_cache_verify cvmfs-cas requires a local posix "
-            "cache store (got \"%s\")", cfg.driver);
+            "brix_cache_verify %s requires a local posix cache store "
+            "(got \"%s\")",
+            brix_cache_verify_mode_str(pol.verify), cfg.driver);
         return NGX_ERROR;
     }
     /* phase-87 G13: cross-repo dedup collapses byte-identical CAS objects onto

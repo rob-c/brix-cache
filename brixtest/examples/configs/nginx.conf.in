@@ -1,0 +1,27 @@
+daemon off;
+master_process off;
+pid {workspace}/nginx.pid;
+error_log stderr notice;
+
+events {
+    worker_connections 64;
+}
+
+http {
+    access_log /dev/stdout;
+    client_body_temp_path {workspace}/client_temp;
+    proxy_temp_path {workspace}/proxy_temp;
+    fastcgi_temp_path {workspace}/fastcgi_temp;
+    uwsgi_temp_path {workspace}/uwsgi_temp;
+    scgi_temp_path {workspace}/scgi_temp;
+
+    server {
+        listen {host}:{port};
+        server_name localhost;
+        root {artifact_nginx_page_dir};
+
+        location / {
+            index index.html;
+        }
+    }
+}

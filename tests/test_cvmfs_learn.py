@@ -12,6 +12,8 @@
 # scrub evict it, then show a single GET of the predecessor restores it.
 #
 # Port block: srv_dict (shared sequentially with the dict/delta suites).
+from __future__ import annotations
+
 import hashlib
 import http.client
 import os

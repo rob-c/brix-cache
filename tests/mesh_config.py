@@ -1,24 +1,21 @@
-"""On-disk config-template rendering for the mesh generators.
+"""Mesh config-template rendering — §10.2 self-replacement shim (TS-5).
 
-Templates live in tests/configs/mesh/.  render() reads one and substitutes
-{KEY} placeholders — the Python counterpart to the shell harness's render_cfg()
-/ substitute_config().  This keeps every mesh server config an explicit,
-reviewable, committed file instead of an inline f-string in the builders.
-
-Placeholders left unsubstituted by render() (e.g. {PID} / {ERR}, filled later by
-Mesh.nginx()) are preserved verbatim, so a template may carry both build-time and
-launch-time placeholders.
+The body moved to :mod:`brix_suite.mesh.mesh_config` (pre-move body archived
+at ``brix_suite/_legacy/mesh_config_flat.py``).  ``CONFIGS_DIR`` is now named
+from the settings module's searched suite root instead of this file's parent,
+because the templates stayed in ``tests/configs/mesh/`` and the module did not.
 """
 
-import os
+import os as _os
+import sys as _sys
 
-CONFIGS_DIR = os.path.join(os.path.dirname(__file__), "configs", "mesh")
+_TESTS = _os.path.dirname(_os.path.abspath(__file__))
+_SRC = _os.path.join(_os.path.dirname(_TESTS), "brixtest", "src")
+if _SRC not in _sys.path:
+    _sys.path.insert(0, _SRC)
+if _TESTS not in _sys.path:
+    _sys.path.insert(0, _TESTS)
 
+import brix_suite.mesh.mesh_config as _canonical
 
-def render(template, **values):
-    """Return the template's text with each {KEY} replaced by str(value)."""
-    with open(os.path.join(CONFIGS_DIR, template), encoding="utf-8") as fh:
-        text = fh.read()
-    for key, value in values.items():
-        text = text.replace("{" + key + "}", str(value))
-    return text
+_sys.modules[__name__] = _canonical

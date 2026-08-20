@@ -49,6 +49,16 @@ int brix_plat_fsync_data(int fd) {
 #endif
 }
 
+int brix_plat_sync_tree(int dirfd) {
+#if defined(__linux__)
+    return syncfs(dirfd);
+#else
+    (void) dirfd;
+    sync();
+    return 0;
+#endif
+}
+
 void *brix_plat_map_ro(int fd, unsigned long len) {
     if (len == 0) { errno = EINVAL; return NULL; }
     void *p = mmap(NULL, (size_t) len, PROT_READ, MAP_SHARED, fd, 0);

@@ -31,6 +31,7 @@ import pytest
 
 from settings import HOST, BIND_HOST, NGINX_BIN, url_host
 from server_registry import NginxInstanceSpec
+from ephemeral_port import free_port
 
 pytestmark = [pytest.mark.uses_lifecycle_harness,
               pytest.mark.xdist_group("lc-acc-residual")]
@@ -375,7 +376,11 @@ class _Webdav:
 
     def start(self):
         ep = self._lifecycle.start(NginxInstanceSpec(
-            name="lc-acc-residual-webdav",
+            # This is a throwaway reload target, not the shared fleet member
+            # with the same historical name in fleet_ports_shared_waves.py.
+            # Keep a distinct registry name so the central fleet does not
+            # already occupy the port before this test starts its instance.
+            name="lc-acc-residual-webdav-reload",
             template="nginx_lc_acc_residual_webdav.conf",
             protocol="http",
             template_values={
@@ -383,6 +388,10 @@ class _Webdav:
                 "DATA_DIR": str(self.data),
                 "AUTHDB_PATH": self.authdb_path,
             },
+            # This private reload target is not a fleet member. Allocate an
+            # actually free port outside the managed ladder so it cannot race
+            # with another lifecycle subject or in-process mock.
+            port=free_port(BIND_HOST),
             reason="throwaway xrdacc WebDAV server for authdb hot-reload parity",
         ))
         self.port = ep.port
