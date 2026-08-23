@@ -44,13 +44,13 @@ LIFECYCLE_MARKER = "uses_lifecycle_harness"
 class TestUsage:
     """Per-test attribution result."""
 
-    name: str                       # test function name (bare method name)
-    lineno: int                     # def line (1-based)
-    col: int                        # def column (for decorator indentation)
-    required: set[str] = field(default_factory=set)   # spec names it uses
-    declared: set[str] = field(default_factory=set)   # spec names it declares
+    name: str  # test function name (bare method name)
+    lineno: int  # def line (1-based)
+    col: int  # def column (for decorator indentation)
+    required: set[str] = field(default_factory=set)  # spec names it uses
+    declared: set[str] = field(default_factory=set)  # spec names it declares
     is_lifecycle: bool = False
-    qualname: str = ""              # "Class::method" for methods, else == name
+    qualname: str = ""  # "Class::method" for methods, else == name
 
     def __post_init__(self) -> None:
         if not self.qualname:
@@ -86,7 +86,61 @@ def _is_fixture(node) -> bool:
     return False
 
 
-def _fixture_reachable_specs(source: str, is_root, drop_backbone: bool = True) -> frozenset[str]:
+def _parse_source(source: str):
+    try:
+        return ast.parse(source)
+    except SyntaxError:
+        return None
+
+
+def _function_definitions(tree) -> dict[str, object]:
+    definitions: dict[str, object] = {}
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            definitions.setdefault(node.name, node)
+    return definitions
+
+
+def _scan_body(node, direct: set[str], aliases: set[str]):
+    scanner = _RefScanner(direct, aliases)
+    for child in node.body:
+        scanner.visit(child)
+    return scanner
+
+
+def _resolve_definition(
+    name: str,
+    seen: set[str],
+    definitions: dict[str, object],
+    direct: set[str],
+    aliases: set[str],
+) -> set[str]:
+    if name in seen or name not in definitions:
+        return set()
+    seen.add(name)
+    node = definitions[name]
+    scanner = _scan_body(node, direct, aliases)
+    constants = set(scanner.consts)
+    for dependency in scanner.calls | _function_params(node):
+        constants |= _resolve_definition(dependency, seen, definitions, direct, aliases)
+    return constants
+
+
+def _root_fixture_specs(tree, is_root, definitions, direct, aliases) -> set[str]:
+    specs: set[str] = set()
+    for node in ast.walk(tree):
+        is_function = isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+        if is_function and is_root(node):
+            constants = _resolve_definition(
+                node.name, set(), definitions, direct, aliases
+            )
+            specs |= _const_specs(constants)
+    return specs
+
+
+def _fixture_reachable_specs(
+    source: str, is_root, drop_backbone: bool = True
+) -> frozenset[str]:
     """Dedicated specs reachable from every fixture ``is_root`` accepts.
 
     Resolves each root fixture's settings-constant references transitively
@@ -100,33 +154,12 @@ def _fixture_reachable_specs(source: str, is_root, drop_backbone: bool = True) -
     merely builds a URL lookup table pulls in every port it lists — which is the
     safe direction for a boot set (spurious extra server ≫ a missing one).
     """
-    try:
-        tree = ast.parse(source)
-    except SyntaxError:
+    tree = _parse_source(source)
+    if tree is None:
         return frozenset()
     direct, aliases = _settings_bindings(tree)
-    defs: dict[str, object] = {}
-    for node in ast.walk(tree):
-        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-            defs.setdefault(node.name, node)
-
-    def resolve(name: str, seen: set[str]) -> set[str]:
-        if name in seen or name not in defs:
-            return set()
-        seen.add(name)
-        node = defs[name]
-        scanner = _RefScanner(direct, aliases)
-        for child in node.body:
-            scanner.visit(child)
-        consts = set(scanner.consts)
-        for nxt in scanner.calls | _function_params(node):
-            consts |= resolve(nxt, seen)
-        return consts
-
-    specs: set[str] = set()
-    for node in ast.walk(tree):
-        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and is_root(node):
-            specs |= _const_specs(resolve(node.name, set()))
+    definitions = _function_definitions(tree)
+    specs = _root_fixture_specs(tree, is_root, definitions, direct, aliases)
     result = frozenset(specs)
     return result - backbone_specs() if drop_backbone else result
 
@@ -158,51 +191,48 @@ def conftest_fixture_spec_map(source: str) -> dict[str, frozenset[str]]:
     signal).  Attribution flows transitively through the helpers and fixtures a
     root fixture calls/requests, exactly as :func:`_fixture_reachable_specs`.
     """
-    try:
-        tree = ast.parse(source)
-    except SyntaxError:
+    tree = _parse_source(source)
+    if tree is None:
         return {}
     direct, aliases = _settings_bindings(tree)
-    defs: dict[str, object] = {}
-    for node in ast.walk(tree):
-        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-            defs.setdefault(node.name, node)
-
-    def resolve(name: str, seen: set[str]) -> set[str]:
-        if name in seen or name not in defs:
-            return set()
-        seen.add(name)
-        node = defs[name]
-        scanner = _RefScanner(direct, aliases)
-        for child in node.body:
-            scanner.visit(child)
-        consts = set(scanner.consts)
-        for nxt in scanner.calls | _function_params(node):
-            consts |= resolve(nxt, seen)
-        return consts
-
+    definitions = _function_definitions(tree)
     out: dict[str, frozenset[str]] = {}
     for node in ast.walk(tree):
-        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and _is_fixture(node):
-            specs = _const_specs(resolve(node.name, set()))
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and _is_fixture(
+            node
+        ):
+            constants = _resolve_definition(
+                node.name, set(), definitions, direct, aliases
+            )
+            specs = _const_specs(constants)
             if specs:
                 out[node.name] = frozenset(specs)
     return out
 
 
+def _is_fixture_target(target) -> bool:
+    attribute = isinstance(target, ast.Attribute) and target.attr == "fixture"
+    name = isinstance(target, ast.Name) and target.id == "fixture"
+    return attribute or name
+
+
+def _is_true_keyword(keyword, name: str) -> bool:
+    return (
+        keyword.arg == name
+        and isinstance(keyword.value, ast.Constant)
+        and keyword.value.value is True
+    )
+
+
 def _is_autouse_fixture(node) -> bool:
     """True when a def carries ``@pytest.fixture(..., autouse=True)``."""
-    for dec in node.decorator_list:
-        if not isinstance(dec, ast.Call):
+    for decorator in node.decorator_list:
+        if not isinstance(decorator, ast.Call):
             continue
-        target = dec.func
-        if not ((isinstance(target, ast.Attribute) and target.attr == "fixture")
-                or (isinstance(target, ast.Name) and target.id == "fixture")):
-            continue
-        for kw in dec.keywords:
-            if (kw.arg == "autouse" and isinstance(kw.value, ast.Constant)
-                    and kw.value.value is True):
-                return True
+        if _is_fixture_target(decorator.func):
+            return any(
+                _is_true_keyword(keyword, "autouse") for keyword in decorator.keywords
+            )
     return False
 
 
@@ -225,6 +255,19 @@ def module_autouse_specs(source: str) -> frozenset[str]:
     return _fixture_reachable_specs(source, _is_autouse_fixture, drop_backbone=False)
 
 
+def _add_direct_settings(node: ast.ImportFrom, direct: set[str]) -> None:
+    module = (node.module or "").split(".")[-1]
+    if module == "settings":
+        direct.update(alias.asname or alias.name for alias in node.names)
+
+
+def _add_settings_aliases(node: ast.Import, aliases: set[str]) -> None:
+    for alias in node.names:
+        is_settings = alias.name == "settings" or alias.name.endswith(".settings")
+        if is_settings:
+            aliases.add(alias.asname or alias.name.split(".")[0])
+
+
 def _settings_bindings(tree: ast.AST) -> tuple[set[str], set[str]]:
     """Return (direct_names, module_aliases).
 
@@ -237,14 +280,9 @@ def _settings_bindings(tree: ast.AST) -> tuple[set[str], set[str]]:
     aliases: set[str] = set()
     for node in ast.walk(tree):
         if isinstance(node, ast.ImportFrom):
-            mod = (node.module or "").split(".")[-1]
-            if mod == "settings":
-                for a in node.names:
-                    direct.add(a.asname or a.name)
+            _add_direct_settings(node, direct)
         elif isinstance(node, ast.Import):
-            for a in node.names:
-                if a.name == "settings" or a.name.endswith(".settings"):
-                    aliases.add(a.asname or a.name.split(".")[0])
+            _add_settings_aliases(node, aliases)
     return direct, aliases
 
 
@@ -287,8 +325,283 @@ class _RefScanner(ast.NodeVisitor):
 
 def _function_params(node) -> set[str]:
     a = node.args
-    return {p.arg for p in (*a.posonlyargs, *a.args, *a.kwonlyargs)
-            if p.arg not in ("self", "cls")}
+    return {
+        p.arg
+        for p in (*a.posonlyargs, *a.args, *a.kwonlyargs)
+        if p.arg not in ("self", "cls")
+    }
+
+
+def _cached_scan(
+    name: str,
+    definitions: dict[str, object],
+    direct: set[str],
+    aliases: set[str],
+    cache: dict[str, _RefScanner],
+) -> _RefScanner:
+    scanner = cache.get(name)
+    if scanner is None:
+        scanner = _scan_body(definitions[name], direct, aliases)
+        cache[name] = scanner
+    return scanner
+
+
+def _resolve_callable(
+    name: str,
+    seen: set[str],
+    definitions: dict[str, object],
+    direct: set[str],
+    aliases: set[str],
+    cache: dict[str, _RefScanner],
+) -> set[str]:
+    if name in seen or name not in definitions:
+        return set()
+    seen.add(name)
+    node = definitions[name]
+    scanner = _cached_scan(name, definitions, direct, aliases, cache)
+    constants = set(scanner.consts)
+    for dependency in scanner.calls | _function_params(node):
+        constants |= _resolve_callable(
+            dependency, seen, definitions, direct, aliases, cache
+        )
+    return constants
+
+
+def _resolve_calls(
+    calls: set[str],
+    definitions: dict[str, object],
+    direct: set[str],
+    aliases: set[str],
+    cache: dict[str, _RefScanner],
+) -> set[str]:
+    constants: set[str] = set()
+    for called in calls:
+        constants |= _resolve_callable(
+            called, set(), definitions, direct, aliases, cache
+        )
+    return constants
+
+
+def _module_constants(
+    tree,
+    direct: set[str],
+    aliases: set[str],
+    definitions: dict[str, object],
+    cache: dict[str, _RefScanner],
+) -> set[str]:
+    scanner = _RefScanner(direct, aliases)
+    definitions_types = (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)
+    for node in tree.body:
+        if not isinstance(node, definitions_types):
+            scanner.visit(node)
+    constants = set(scanner.consts)
+    constants |= _resolve_calls(set(scanner.calls), definitions, direct, aliases, cache)
+    return constants
+
+
+def _decorator_call_and_target(decorator):
+    if isinstance(decorator, ast.Call):
+        return decorator, decorator.func
+    return None, decorator
+
+
+def _attribute_name(target):
+    if isinstance(target, ast.Attribute):
+        return target.attr
+    return None
+
+
+def _marker_call(decorator):
+    call, target = _decorator_call_and_target(decorator)
+    attribute = _attribute_name(target)
+    if attribute in DECLARE_MARKERS:
+        return call
+    return None
+
+
+def _marker_values(call) -> set[str]:
+    if call is None:
+        return set()
+    return {
+        argument.value
+        for argument in call.args
+        if isinstance(argument, ast.Constant) and isinstance(argument.value, str)
+    }
+
+
+def _marker_specs(decorators, inherited: set[str]) -> set[str]:
+    specs = set(inherited)
+    for decorator in decorators:
+        specs |= _marker_values(_marker_call(decorator))
+    return specs
+
+
+def _has_lifecycle(decorators) -> bool:
+    for decorator in decorators:
+        target = decorator.func if isinstance(decorator, ast.Call) else decorator
+        if isinstance(target, ast.Attribute) and target.attr == LIFECYCLE_MARKER:
+            return True
+    return False
+
+
+def _is_pytestmark_assignment(node) -> bool:
+    if not isinstance(node, ast.Assign):
+        return False
+    return any(
+        isinstance(target, ast.Name) and target.id == "pytestmark"
+        for target in node.targets
+    )
+
+
+def _assignment_marks(node):
+    if isinstance(node.value, (ast.List, ast.Tuple)):
+        return node.value.elts
+    return [node.value]
+
+
+def _module_declarations(tree) -> tuple[set[str], bool]:
+    declared: set[str] = set()
+    lifecycle = False
+    for node in tree.body:
+        if not _is_pytestmark_assignment(node):
+            continue
+        marks = _assignment_marks(node)
+        declared |= _marker_specs(marks, set())
+        lifecycle = lifecycle or _has_lifecycle(marks)
+    return declared, lifecycle
+
+
+def _function_constants(
+    node,
+    inherited: set[str],
+    direct: set[str],
+    aliases: set[str],
+    definitions: dict[str, object],
+    cache: dict[str, _RefScanner],
+) -> set[str]:
+    scanner = _scan_body(node, direct, aliases)
+    constants = set(scanner.consts) | inherited
+    calls = scanner.calls | _function_params(node)
+    constants |= _resolve_calls(calls, definitions, direct, aliases, cache)
+    return constants
+
+
+def _test_usage(
+    node,
+    class_name: str | None,
+    inherited_constants: set[str],
+    class_declared: set[str],
+    class_lifecycle: bool,
+    direct: set[str],
+    aliases: set[str],
+    definitions: dict[str, object],
+    cache: dict[str, _RefScanner],
+    module_declared: set[str],
+    module_lifecycle: bool,
+):
+    if not node.name.startswith("test"):
+        return None
+    constants = _function_constants(
+        node, inherited_constants, direct, aliases, definitions, cache
+    )
+    declared = _marker_specs(node.decorator_list, module_declared | class_declared)
+    lifecycle = (
+        module_lifecycle or class_lifecycle or _has_lifecycle(node.decorator_list)
+    )
+    qualname = f"{class_name}::{node.name}" if class_name else node.name
+    return TestUsage(
+        name=node.name,
+        lineno=node.lineno,
+        col=node.col_offset,
+        required=_const_specs(constants),
+        declared=declared,
+        is_lifecycle=lifecycle,
+        qualname=qualname,
+    )
+
+
+def _class_constants(
+    node,
+    direct: set[str],
+    aliases: set[str],
+    definitions: dict[str, object],
+    cache: dict[str, _RefScanner],
+) -> set[str]:
+    scanner = _RefScanner(direct, aliases)
+    for statement in node.body:
+        if not isinstance(statement, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            scanner.visit(statement)
+    constants = set(scanner.consts)
+    constants |= _resolve_calls(set(scanner.calls), definitions, direct, aliases, cache)
+    return constants
+
+
+def _append_usage(results: list[TestUsage], usage) -> None:
+    if usage is not None:
+        results.append(usage)
+
+
+def _append_module_function_usage(
+    node,
+    results,
+    module_constants,
+    direct,
+    aliases,
+    definitions,
+    cache,
+    module_declared,
+    module_lifecycle,
+) -> None:
+    usage = _test_usage(
+        node,
+        None,
+        module_constants,
+        set(),
+        False,
+        direct,
+        aliases,
+        definitions,
+        cache,
+        module_declared,
+        module_lifecycle,
+    )
+    _append_usage(results, usage)
+
+
+def _append_class_usages(
+    node,
+    results,
+    module_constants,
+    direct,
+    aliases,
+    definitions,
+    cache,
+    module_declared,
+    module_lifecycle,
+) -> None:
+    constants = module_constants | _class_constants(
+        node, direct, aliases, definitions, cache
+    )
+    declared = _marker_specs(node.decorator_list, set())
+    lifecycle = _has_lifecycle(node.decorator_list)
+    function_types = (ast.FunctionDef, ast.AsyncFunctionDef)
+    for statement in node.body:
+        if not isinstance(statement, function_types):
+            continue
+        usage = _test_usage(
+            statement,
+            node.name,
+            constants,
+            declared,
+            lifecycle,
+            direct,
+            aliases,
+            definitions,
+            cache,
+            module_declared,
+            module_lifecycle,
+        )
+        _append_usage(results, usage)
 
 
 def analyze_source(source: str) -> list[TestUsage]:
@@ -298,123 +611,39 @@ def analyze_source(source: str) -> list[TestUsage]:
     ``Test*`` class).  Robust to syntax it does not recognise: an unparseable
     module yields an empty list (the caller decides how to treat that).
     """
-    try:
-        tree = ast.parse(source)
-    except SyntaxError:
+    tree = _parse_source(source)
+    if tree is None:
         return []
-
     direct, aliases = _settings_bindings(tree)
-
-    # --- module-level callables (helpers + fixtures) and their local refs ----
-    # A callable's *own* referenced constants and the callables it in turn calls
-    # / requests as fixtures, so requirements can be resolved transitively.
-    callable_defs: dict[str, object] = {}
-    for node in ast.walk(tree):
-        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-            callable_defs.setdefault(node.name, node)
-
+    callable_defs = _function_definitions(tree)
     scan_cache: dict[str, _RefScanner] = {}
-
-    def scan(node) -> _RefScanner:
-        s = _RefScanner(direct, aliases)
-        for child in node.body:
-            s.visit(child)
-        return s
-
-    def resolve_callable(name: str, seen: set[str]) -> set[str]:
-        """Transitive constants a module-level callable pulls in (via its body,
-        the helpers it calls, and the fixtures it requests)."""
-        if name in seen or name not in callable_defs:
-            return set()
-        seen.add(name)
-        node = callable_defs[name]
-        sc = scan_cache.get(name)
-        if sc is None:
-            sc = scan_cache[name] = scan(node)
-        consts = set(sc.consts)
-        for nxt in sc.calls | _function_params(node):
-            consts |= resolve_callable(nxt, seen)
-        return consts
-
-    # --- module-scope references (outside any def/class) apply to every test --
-    module_scanner = _RefScanner(direct, aliases)
-    for node in tree.body:
-        if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
-            module_scanner.visit(node)
-    module_consts = set(module_scanner.consts)
-    for called in set(module_scanner.calls):
-        module_consts |= resolve_callable(called, set())
-
+    module_consts = _module_constants(tree, direct, aliases, callable_defs, scan_cache)
+    module_declared, module_lifecycle = _module_declarations(tree)
     results: list[TestUsage] = []
-
-    def marker_specs(decorators, module_declared: set[str]) -> set[str]:
-        specs = set(module_declared)
-        for dec in decorators:
-            call = dec if isinstance(dec, ast.Call) else None
-            target = call.func if call else dec
-            attr = target.attr if isinstance(target, ast.Attribute) else None
-            if attr in DECLARE_MARKERS and call:
-                for arg in call.args:
-                    if isinstance(arg, ast.Constant) and isinstance(arg.value, str):
-                        specs.add(arg.value)
-        return specs
-
-    def has_lifecycle(decorators) -> bool:
-        for dec in decorators:
-            target = dec.func if isinstance(dec, ast.Call) else dec
-            if isinstance(target, ast.Attribute) and target.attr == LIFECYCLE_MARKER:
-                return True
-        return False
-
-    # module-level pytestmark = [...] declarations / lifecycle
-    module_declared: set[str] = set()
-    module_lifecycle = False
-    for node in tree.body:
-        if isinstance(node, ast.Assign) and any(
-            isinstance(t, ast.Name) and t.id == "pytestmark" for t in node.targets
-        ):
-            marks = node.value.elts if isinstance(node.value, (ast.List, ast.Tuple)) else [node.value]
-            module_declared |= marker_specs(marks, set())
-            module_lifecycle = module_lifecycle or has_lifecycle(marks)
-
-    def handle_function(node, class_consts: set[str], class_declared: set[str],
-                        class_lifecycle: bool, class_name: str | None) -> None:
-        if not node.name.startswith("test"):
-            return
-        sc = scan(node)
-        consts = set(sc.consts) | module_consts | class_consts
-        for called in sc.calls | _function_params(node):
-            consts |= resolve_callable(called, set())
-        declared = marker_specs(node.decorator_list, module_declared | class_declared)
-        results.append(TestUsage(
-            name=node.name,
-            lineno=node.lineno,
-            col=node.col_offset,
-            required=_const_specs(consts),
-            declared=declared,
-            is_lifecycle=module_lifecycle or class_lifecycle or has_lifecycle(node.decorator_list),
-            qualname=f"{class_name}::{node.name}" if class_name else node.name,
-        ))
-
     for node in tree.body:
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-            handle_function(node, set(), set(), False, None)
-        elif isinstance(node, ast.ClassDef):
-            # class-body constant refs + class-level markers apply to its methods
-            cls_scanner = _RefScanner(direct, aliases)
-            cls_declared: set[str] = set()
-            cls_lifecycle = False
-            for stmt in node.body:
-                if isinstance(stmt, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                    continue
-                cls_scanner.visit(stmt)
-            cls_consts = set(cls_scanner.consts)
-            for called in set(cls_scanner.calls):
-                cls_consts |= resolve_callable(called, set())
-            cls_declared = marker_specs(node.decorator_list, set())
-            cls_lifecycle = has_lifecycle(node.decorator_list)
-            for stmt in node.body:
-                if isinstance(stmt, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                    handle_function(stmt, cls_consts, cls_declared, cls_lifecycle, node.name)
-
+            _append_module_function_usage(
+                node,
+                results,
+                module_consts,
+                direct,
+                aliases,
+                callable_defs,
+                scan_cache,
+                module_declared,
+                module_lifecycle,
+            )
+            continue
+        if isinstance(node, ast.ClassDef):
+            _append_class_usages(
+                node,
+                results,
+                module_consts,
+                direct,
+                aliases,
+                callable_defs,
+                scan_cache,
+                module_declared,
+                module_lifecycle,
+            )
     return results

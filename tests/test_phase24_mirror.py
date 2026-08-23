@@ -1,4 +1,29 @@
 from split_continuation import reexport as _reexport
+def _check_test_stream_data_write_abort_not_replayed_1(primary):
+    assert _xrd_write_gapped(HOST, primary, "/wmir-abort.bin") == 0, \
+        "primary sparse write should still succeed"
+
+def _check_test_stream_data_write_abort_not_replayed_2(base_err, metrics):
+    assert (_scrape_metric(metrics, "brix_mirror_errors_total", "stream") or 0) \
+        == base_err, "an aborted write launches no replay (no error either)"
+
+def _check_test_stream_data_write_over_cap_not_replayed_3(primary, body):
+    assert _xrd_write_seq(HOST, primary, "/wmir-big.bin", body,
+                          chunk=512 * 1024) == 0, "primary large write failed"
+
+def _check_test_stream_data_write_over_cap_not_replayed_4(drop, base_drop):
+    assert drop is not None and drop >= base_drop + 1, \
+        "over-cap data-write should count a dropped mirror"
+
+def _check_test_stream_data_write_over_cap_not_replayed_5(sdata):
+    assert not (sdata / "wmir-big.bin").exists(), \
+        "over-cap write must not reach the shadow"
+
+def _check_test_stream_data_write_over_cap_not_replayed_6(metrics):
+    assert (_scrape_metric(metrics, "brix_mirror_requests_total", "stream") or 0) == 0, \
+        "an over-cap (aborted) write launches no replay"
+
+
 _reexport(globals(), "_test_phase24_mirror_helpers")
 
 def test_mirror_modules_present():
@@ -314,15 +339,16 @@ def test_stream_data_write_abort_not_replayed(lifecycle, tmp_path):
         lifecycle, tmp_path, "lc-mir-stream-wrabort", "on")
     base_ok = _scrape_metric(metrics, "brix_mirror_requests_total", "stream") or 0
     base_err = _scrape_metric(metrics, "brix_mirror_errors_total", "stream") or 0
-    assert _xrd_write_gapped(HOST, primary, "/wmir-abort.bin") == 0, \
-        "primary sparse write should still succeed"
+    _check_test_stream_data_write_abort_not_replayed_1(primary)
     time.sleep(1.5)   # a (wrongly) launched replay would have fired by now
-    assert not (sdata / "wmir-abort.bin").exists(), \
-        "aborted (non-sequential) write must not reach the shadow"
-    assert (_scrape_metric(metrics, "brix_mirror_requests_total", "stream") or 0) \
-        == base_ok, "aborted write must not count a mirror success"
-    assert (_scrape_metric(metrics, "brix_mirror_errors_total", "stream") or 0) \
-        == base_err, "an aborted write launches no replay (no error either)"
+    def _assert_test_stream_data_write_abort_not_replayed_1():
+        assert not (sdata / "wmir-abort.bin").exists(), \
+            "aborted (non-sequential) write must not reach the shadow"
+        assert (_scrape_metric(metrics, "brix_mirror_requests_total", "stream") or 0) \
+            == base_ok, "aborted write must not count a mirror success"
+
+    _assert_test_stream_data_write_abort_not_replayed_1()
+    _check_test_stream_data_write_abort_not_replayed_2(base_err, metrics)
 
 
 def test_stream_data_write_over_cap_not_replayed(lifecycle, tmp_path):
@@ -333,17 +359,13 @@ def test_stream_data_write_over_cap_not_replayed(lifecycle, tmp_path):
         lifecycle, tmp_path, "lc-mir-stream-wrcap", "on")
     base_drop = _scrape_metric(metrics, "brix_mirror_dropped_total", "stream") or 0
     body = b"\x5a" * (5 * 1024 * 1024)   # 5 MiB > 4 MiB per-file cap
-    assert _xrd_write_seq(HOST, primary, "/wmir-big.bin", body,
-                          chunk=512 * 1024) == 0, "primary large write failed"
+    _check_test_stream_data_write_over_cap_not_replayed_3(primary, body)
     drop = _wait_metric(metrics, "brix_mirror_dropped_total", "stream",
                         base_drop + 1)
-    assert drop is not None and drop >= base_drop + 1, \
-        "over-cap data-write should count a dropped mirror"
+    _check_test_stream_data_write_over_cap_not_replayed_4(drop, base_drop)
     time.sleep(1.0)
-    assert not (sdata / "wmir-big.bin").exists(), \
-        "over-cap write must not reach the shadow"
-    assert (_scrape_metric(metrics, "brix_mirror_requests_total", "stream") or 0) == 0, \
-        "an over-cap (aborted) write launches no replay"
+    _check_test_stream_data_write_over_cap_not_replayed_5(sdata)
+    _check_test_stream_data_write_over_cap_not_replayed_6(metrics)
 
 
 def test_stream_data_write_off_not_mirrored(lifecycle, tmp_path):

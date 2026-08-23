@@ -28,6 +28,47 @@ import pytest
 
 from settings import NGINX_BIN, free_port, HOST, BIND_HOST
 
+def _expression_1_next(procs):
+    return (
+        sum(1 for p in procs if p.returncode == 0)
+    )
+
+def _expression_2(staging):
+    return (
+        sum(1 for line in open(staging.audit) if line.startswith("stage"))
+    )
+
+
+def _expression_1(tmp_path):
+    return (
+        [subprocess.Popen(
+                        [XRDCP, "-f", "-s", f"root://{HOST}:{PORT}//dedup.dat",
+                         str(tmp_path / f"d{i}.out")],
+                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                     for i in range(8)]
+    )
+
+
+def _guard_staging_1():
+    if not os.path.exists(NGINX_BIN):
+        pytest.skip("nginx binary not found")
+
+def _guard_staging_2():
+    if XRDCP is None:
+        pytest.skip("xrdcp not available")
+
+def _guard_staging_3(d):
+    if not _xattr_ok(str(d)):
+        pytest.skip("filesystem does not support user xattrs")
+
+def _check_test_concurrent_opens_dedup_to_one_recall_1(ok):
+    assert ok >= 1, "no concurrent xrdcp succeeded"
+
+def _check_test_concurrent_opens_dedup_to_one_recall_2(n_recalls):
+    assert n_recalls == 1, \
+        f"expected exactly one recall for 8 concurrent opens, got {n_recalls}"
+
+
 PORT = int(os.environ.get("TEST_FRM_STAGING_PORT") or free_port())
 
 kXR_login   = 3007
@@ -88,14 +129,11 @@ def _stat_flags(path):
 
 @pytest.fixture(scope="module")
 def staging(tmp_path_factory):
-    if not os.path.exists(NGINX_BIN):
-        pytest.skip("nginx binary not found")
-    if XRDCP is None:
-        pytest.skip("xrdcp not available")
+    _guard_staging_1()
+    _guard_staging_2()
 
     d = tmp_path_factory.mktemp("frmstage")
-    if not _xattr_ok(str(d)):
-        pytest.skip("filesystem does not support user xattrs")
+    _guard_staging_3(d)
 
     (d / "logs").mkdir()
     data = d / "data"; data.mkdir()
@@ -230,18 +268,13 @@ def test_concurrent_opens_dedup_to_one_recall(staging, tmp_path):
     open(staging.audit, "w").close()        # reset audit
     # NB: DEVNULL, not PIPE — an unread PIPE fills with xrdcp's progress output
     # and blocks the child.
-    procs = [subprocess.Popen(
-                [XRDCP, "-f", "-s", f"root://{HOST}:{PORT}//dedup.dat",
-                 str(tmp_path / f"d{i}.out")],
-                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-             for i in range(8)]
+    procs = _expression_1(tmp_path)
     for p in procs:
         p.wait(timeout=30)
-    ok = sum(1 for p in procs if p.returncode == 0)
-    assert ok >= 1, "no concurrent xrdcp succeeded"
-    n_recalls = sum(1 for line in open(staging.audit) if line.startswith("stage"))
-    assert n_recalls == 1, \
-        f"expected exactly one recall for 8 concurrent opens, got {n_recalls}"
+    ok = _expression_1_next(procs)
+    _check_test_concurrent_opens_dedup_to_one_recall_1(ok)
+    n_recalls = _expression_2(staging)
+    _check_test_concurrent_opens_dedup_to_one_recall_2(n_recalls)
 
 
 def test_failed_recall_returns_error_not_hang(staging, tmp_path):

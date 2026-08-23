@@ -167,16 +167,22 @@ def test_driver_backed_write_diverts_upload_resume(hyd, tmp_path):
     r = subprocess.run(
         [XRDCP, "-f", str(src), f"root://{HOST}:{hyd.port}//{name}"],
         capture_output=True, timeout=30)
-    assert r.returncode == 0, \
-        f"driver-backed create failed: {r.stderr.decode(errors='replace')}"
+    def _assert_test_driver_backed_write_diverts_upload_resume_1():
+        assert r.returncode == 0, \
+            f"driver-backed create failed: {r.stderr.decode(errors='replace')}"
+    
+        assert (hyd.origin / name).read_bytes() == b"D" * 4096, \
+            "bytes never reached the backend — the write took the local skeleton"
 
-    assert (hyd.origin / name).read_bytes() == b"D" * 4096, \
-        "bytes never reached the backend — the write took the local skeleton"
+    _assert_test_driver_backed_write_diverts_upload_resume_1()
     leftovers = [p.name for p in hyd.gw.iterdir() if ".xrdresume." in p.name]
-    assert leftovers == [], \
-        f"resume skeleton written under a driver-backed export: {leftovers}"
-    assert not (hyd.gw / name).exists(), \
-        "the object was published into the gateway export instead of the backend"
+    def _assert_test_driver_backed_write_diverts_upload_resume_2():
+        assert leftovers == [], \
+            f"resume skeleton written under a driver-backed export: {leftovers}"
+        assert not (hyd.gw / name).exists(), \
+            "the object was published into the gateway export instead of the backend"
+
+    _assert_test_driver_backed_write_diverts_upload_resume_2()
 
 
 def _nested_write(port, name, payload, flags=OpenFlags.NEW | OpenFlags.MAKEPATH):

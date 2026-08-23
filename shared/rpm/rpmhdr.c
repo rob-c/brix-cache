@@ -174,16 +174,18 @@ static int region_u32(const rpm_region_t *r, uint32_t tag, uint32_t idx,
     return -1;
 }
 
-/* Parse the whole file through an initialized hash ctx. 0 ok / -1 + err. */
-static int pkg_parse(brix_rpm_pkg_t *p, int fd, brix_oci_sha256_ctx_t *h,
-                     const char *path, char *err, size_t errlen) {
-    brix_oci_digest_t d;
+/*
+ * WHAT: Parse the RPM lead, signature header, padding, and main header.
+ * WHY:  Payload streaming starts only after both bounded metadata regions validate.
+ * HOW:  Verify lead fields, load regions, consume alignment, and record offsets.
+ */
+static int pkg_headers(brix_rpm_pkg_t *p, int fd, brix_oci_sha256_ctx_t *hash,
+                       const char *path, char *err, size_t errlen) {
     unsigned char     lead[RPM_LEAD_LEN];
-    unsigned char     tail[65536];
     int64_t           consumed;
-    uint32_t          pad, i;
+    uint32_t          padding;
 
-    if (read_hashed(fd, h, lead, sizeof(lead)) != 0)
+    if (read_hashed(fd, hash, lead, sizeof(lead)) != 0)
         return rpm_fail(err, errlen, "%s: truncated lead", path);
     if (memcmp(lead, RPM_LEAD_MAGIC, 4) != 0)
         return rpm_fail(err, errlen, "%s: not an RPM (lead magic)", path);
@@ -191,22 +193,33 @@ static int pkg_parse(brix_rpm_pkg_t *p, int fd, brix_oci_sha256_ctx_t *h,
         return rpm_fail(err, errlen, "%s: unsupported signature type %u",
                         path, be16(lead + 78));
 
-    if (region_load(fd, h, &p->sig, "signature", path, err, errlen) != 0)
+    if (region_load(fd, hash, &p->sig, "signature", path, err, errlen) != 0)
         return -1;
-
-    /* The signature header pads to the next 8-byte boundary. */
     consumed = RPM_LEAD_LEN + 16 + (int64_t) p->sig.il * 16 + p->sig.dl;
-    pad = (uint32_t) ((8 - consumed % 8) % 8);
-    if (pad > 0 && read_hashed(fd, h, tail, pad) != 0)
-        return rpm_fail(err, errlen, "%s: truncated signature padding", path);
-    p->hdr_start = consumed + pad;
+    padding = (uint32_t) ((8 - consumed % 8) % 8);
+    if (padding > 0) {
+        unsigned char bytes[8];
 
-    if (region_load(fd, h, &p->hdr, "main", path, err, errlen) != 0)
+        if (read_hashed(fd, hash, bytes, padding) != 0)
+            return rpm_fail(err, errlen, "%s: truncated signature padding", path);
+    }
+    p->hdr_start = consumed + padding;
+    if (region_load(fd, hash, &p->hdr, "main", path, err, errlen) != 0)
         return -1;
     p->hdr_end = p->hdr_start + 16 + (int64_t) p->hdr.il * 16 + p->hdr.dl;
+    return 0;
+}
 
-    /* Stream the payload — hashed for the pkgid, never decoded. */
-    consumed = p->hdr_end;
+/*
+ * WHAT: Stream and hash the RPM payload after its parsed header regions.
+ * WHY:  Package identity covers the full file without retaining payload bytes.
+ * HOW:  Read fixed chunks through SHA-256 and update the final file size.
+ */
+static int pkg_payload(brix_rpm_pkg_t *p, int fd, brix_oci_sha256_ctx_t *hash,
+                       const char *path, char *err, size_t errlen) {
+    unsigned char tail[65536];
+    int64_t       consumed = p->hdr_end;
+
     for (;;) {
         ssize_t r = read(fd, tail, sizeof(tail));
         if (r < 0) {
@@ -217,23 +230,34 @@ static int pkg_parse(brix_rpm_pkg_t *p, int fd, brix_oci_sha256_ctx_t *h,
         }
         if (r == 0)
             break;
-        if (brix_oci_sha256_update(h, tail, (size_t) r) != 0)
+        if (brix_oci_sha256_update(hash, tail, (size_t) r) != 0)
             return rpm_fail(err, errlen, "sha256 failure");
         consumed += r;
     }
     p->file_size = consumed;
+    return 0;
+}
 
-    if (brix_oci_sha256_final(h, &d) != 0)
+/* Parse the whole file through an initialized hash ctx. 0 ok / -1 + err. */
+static int pkg_parse(brix_rpm_pkg_t *p, int fd, brix_oci_sha256_ctx_t *h,
+                     const char *path, char *err, size_t errlen) {
+    static const uint32_t required[] = {
+        BRIX_RPMTAG_NAME, BRIX_RPMTAG_VERSION,
+        BRIX_RPMTAG_RELEASE, BRIX_RPMTAG_ARCH
+    };
+    brix_oci_digest_t digest;
+
+    if (pkg_headers(p, fd, h, path, err, errlen) != 0 ||
+        pkg_payload(p, fd, h, path, err, errlen) != 0)
+        return -1;
+    if (brix_oci_sha256_final(h, &digest) != 0)
         return rpm_fail(err, errlen, "sha256 failure");
-    memcpy(p->pkgid, d.hex, sizeof(p->pkgid));
+    memcpy(p->pkgid, digest.hex, sizeof(p->pkgid));
 
-    /* A package the emitter cannot name is a refusal here, not there. */
-    for (i = 0; i < 4; i++) {
-        static const uint32_t req[4] = { BRIX_RPMTAG_NAME, BRIX_RPMTAG_VERSION,
-                                         BRIX_RPMTAG_RELEASE, BRIX_RPMTAG_ARCH };
-        if (brix_rpm_str(p, req[i]) == NULL)
+    for (size_t i = 0; i < sizeof(required) / sizeof(required[0]); i++) {
+        if (brix_rpm_str(p, required[i]) == NULL)
             return rpm_fail(err, errlen, "%s: required tag %u missing",
-                            path, req[i]);
+                            path, required[i]);
     }
     return 0;
 }

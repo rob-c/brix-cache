@@ -88,29 +88,41 @@ def materialise(repo: Path, src: Path, catalog_hash: str, dest: Path,
     problems: list[str] = []
     try:
         for spath in sorted(src.rglob("*")):
-            rel = spath.relative_to(src)
-            cpath = f"{PREFIX}/{rel.as_posix()}"
-            row = lookup(cat, cpath)
-            if row is None:
-                problems.append(f"missing from catalog: {cpath}")
-                continue
-            out = dest / rel
-            if spath.is_dir():
-                if not row[0] & FLAG_DIR:
-                    problems.append(f"not a directory in catalog: {cpath}")
-                out.mkdir(parents=True, exist_ok=True)
-                continue
-            if not row[0] & FLAG_FILE:
-                problems.append(f"not a file in catalog: {cpath}")
-                continue
-            out.parent.mkdir(parents=True, exist_ok=True)
-            data = zlib.decompress(cas_path(repo, row[3].hex()).read_bytes())
-            out.write_bytes(data)
-            if data != spath.read_bytes():
-                problems.append(f"bytes differ: {cpath}")
+            _materialise_path(repo, src, dest, cat, spath, problems)
     finally:
         cat.close()
     return problems
+
+
+def _materialise_path(repo, src, dest, catalog, source, problems):
+    relative = source.relative_to(src)
+    catalog_path = f"{PREFIX}/{relative.as_posix()}"
+    row = lookup(catalog, catalog_path)
+    if row is None:
+        problems.append(f"missing from catalog: {catalog_path}")
+        return
+    output = dest / relative
+    if source.is_dir():
+        _materialise_directory(output, row, catalog_path, problems)
+        return
+    _materialise_file(repo, output, source, row, catalog_path, problems)
+
+
+def _materialise_directory(output, row, catalog_path, problems):
+    if not row[0] & FLAG_DIR:
+        problems.append(f"not a directory in catalog: {catalog_path}")
+    output.mkdir(parents=True, exist_ok=True)
+
+
+def _materialise_file(repo, output, source, row, catalog_path, problems):
+    if not row[0] & FLAG_FILE:
+        problems.append(f"not a file in catalog: {catalog_path}")
+        return
+    output.parent.mkdir(parents=True, exist_ok=True)
+    data = zlib.decompress(cas_path(repo, row[3].hex()).read_bytes())
+    output.write_bytes(data)
+    if data != source.read_bytes():
+        problems.append(f"bytes differ: {catalog_path}")
 
 
 def dnf_install(repo_dir: Path, base: Path, *pkgs: str, tag: str = "t"):
@@ -166,43 +178,57 @@ def check_c2(ingest: Path, repotool: Path, base: Path, results: list) -> None:
     run_tool(repotool, "mkfs", FQRN, str(repo))
     _brixrpm("createrepo", str(src))
     ck("seed-ingest", _ingest(ingest, src, repo).returncode == 0)
-
-    old_catalog = parse_manifest(repo)["C"]
-    old_rev = parse_manifest(repo)["S"]
+    old_catalog, old_revision = _c2_revision(repo)
     tag = run_tool(repotool, "tag", "add", str(repo), "snap-before")
     ck("tag-add", tag.returncode == 0, tag.stderr)
     listed = run_tool(repotool, "tag", "list", str(repo))
     ck("tag-list", "snap-before" in listed.stdout, listed.stdout + listed.stderr)
+    new_catalog = _c2_republish(
+        ingest, repo, src, old_catalog, old_revision, ck)
+    _c2_check_new_view(repo, src, new_catalog, base, ck)
+    _check_snapshot(repo, src, old_catalog, base, ck)
 
-    # republish with one package added, in the runbook's order
+
+def _c2_revision(repo):
+    manifest = parse_manifest(repo)
+    return manifest["C"], manifest["S"]
+
+
+def _c2_republish(ingest, repo, src, old_catalog, old_revision, check):
     _seed_repo(src, ["brixtest-app"])
-    ck("recreaterepo", _brixrpm("createrepo", "--update",
-                                str(src)).returncode == 0)
-    ck("republish", _ingest(ingest, src, repo).returncode == 0)
-    new_catalog = parse_manifest(repo)["C"]
-    ck("revision-advanced", parse_manifest(repo)["S"] != old_rev)
-    ck("catalog-changed", new_catalog != old_catalog)
+    result = _brixrpm("createrepo", "--update", str(src))
+    check("recreaterepo", result.returncode == 0)
+    check("republish", _ingest(ingest, src, repo).returncode == 0)
+    new_catalog, new_revision = _c2_revision(repo)
+    check("revision-advanced", new_revision != old_revision)
+    check("catalog-changed", new_catalog != old_catalog)
+    return new_catalog
 
-    # the new revision has the new package …
-    new_view = base / "c2new"
-    ck("new-round-trip",
-       not materialise(repo, src, new_catalog, new_view, base))
-    inst = dnf_install(new_view, base, "brixtest-app", tag="c2new")
-    ck("new-installs-app", inst.returncode == 0,
-       (inst.stdout + inst.stderr)[-600:])
 
-    # … and the pinned revision still resolves to the old package set
-    old_cat = open_catalog(repo, old_catalog, base)
+def _c2_check_new_view(repo, src, catalog, base, check):
+    view = base / "c2new"
+    check("new-round-trip", not materialise(repo, src, catalog, view, base))
+    result = dnf_install(view, base, "brixtest-app", tag="c2new")
+    check("new-installs-app", result.returncode == 0,
+          (result.stdout + result.stderr)[-600:])
+
+
+def _package_named(src, fragment):
+    return next(path for path in (src / "Packages").iterdir()
+                if fragment in path.name)
+
+
+def _check_snapshot(repo, src, catalog_hash, base, check):
+    catalog = open_catalog(repo, catalog_hash, base)
     try:
-        app = [p for p in (src / "Packages").iterdir() if "app" in p.name][0]
-        ck("snapshot-excludes-new-package",
-           lookup(old_cat, f"{PREFIX}/Packages/{app.name}") is None)
-        ck("snapshot-keeps-old-package",
-           lookup(old_cat, f"{PREFIX}/Packages/"
-                  f"{[p.name for p in (src / 'Packages').iterdir() if 'lib' in p.name][0]}")
-           is not None)
+        app = _package_named(src, "app")
+        library = _package_named(src, "lib")
+        check("snapshot-excludes-new-package",
+              lookup(catalog, f"{PREFIX}/Packages/{app.name}") is None)
+        check("snapshot-keeps-old-package",
+              lookup(catalog, f"{PREFIX}/Packages/{library.name}") is not None)
     finally:
-        old_cat.close()
+        catalog.close()
 
 
 # ---- C3: fail-closed --------------------------------------------------------
@@ -221,17 +247,13 @@ def check_c3(ingest: Path, repotool: Path, base: Path, results: list) -> None:
     materialise(repo, src, parse_manifest(repo)["C"], view, base)
 
     # a byte flipped in a published package: the checksum chain must catch it
-    victim = [p for p in (view / "Packages").iterdir() if "lib" in p.name][0]
-    blob = bytearray(victim.read_bytes())
-    blob[len(blob) // 2] ^= 0xFF          # inside the payload, not the header
-    victim.write_bytes(bytes(blob))
+    _corrupt_package(_package_named(view, "lib"))
 
     bad = dnf_install(view, base, "brixtest-app", tag="c3")
     ck("tampered-rpm-refused", bad.returncode != 0,
        "dnf installed a corrupted package")
     combined = (bad.stdout + bad.stderr).lower()
-    ck("refusal-is-about-integrity",
-       any(w in combined for w in ("checksum", "digest", "corrupt", "does not match")),
+    ck("refusal-is-about-integrity", _names_integrity_failure(combined),
        combined[-400:])
 
     # the runbook's ordering rule, demonstrated: ingest before createrepo
@@ -244,18 +266,33 @@ def check_c3(ingest: Path, repotool: Path, base: Path, results: list) -> None:
     _seed_repo(src2, ["brixtest-lib"])          # new package, stale repodata
     ck("wrong-order-ingest", _ingest(ingest, src2, repo2).returncode == 0)
 
-    cat = open_catalog(repo2, parse_manifest(repo2)["C"], base)
-    try:
-        lib = [p for p in (src2 / "Packages").iterdir() if "lib" in p.name][0]
-        ck("package-published", lookup(cat, f"{PREFIX}/Packages/{lib.name}")
-           is not None)
-    finally:
-        cat.close()
+    _check_package_published(repo2, src2, base, ck)
     stale = base / "c3stale"
     materialise(repo2, src2, parse_manifest(repo2)["C"], stale, base)
     miss = dnf_install(stale, base, "brixtest-lib", tag="c3stale")
     ck("stale-repodata-cannot-see-it", miss.returncode != 0,
        "dnf resolved a package the published repodata never listed")
+
+
+def _corrupt_package(path):
+    blob = bytearray(path.read_bytes())
+    blob[len(blob) // 2] ^= 0xFF
+    path.write_bytes(bytes(blob))
+
+
+def _names_integrity_failure(output):
+    words = ("checksum", "digest", "corrupt", "does not match")
+    return any(word in output for word in words)
+
+
+def _check_package_published(repo, src, base, check):
+    catalog = open_catalog(repo, parse_manifest(repo)["C"], base)
+    try:
+        library = _package_named(src, "lib")
+        check("package-published",
+              lookup(catalog, f"{PREFIX}/Packages/{library.name}") is not None)
+    finally:
+        catalog.close()
 
 
 def run_checks(base: Path) -> list[tuple[bool, str]]:

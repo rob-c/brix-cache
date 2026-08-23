@@ -56,6 +56,15 @@ from test_a_robustness import (
 )
 
 # Opcodes not exported by test_a_robustness (values from XProtocol.hh).
+def _guard_planted_symlinks_2(made):
+    if not made:
+        pytest.skip("could not plant symlinks under the export root")
+
+def _guard_planted_symlinks_1(link):
+    if os.path.islink(link) or os.path.exists(link):
+        os.remove(link)
+
+
 kXR_mv = 3009
 kXR_rmdir = 3015
 kXR_truncate = 3028
@@ -339,14 +348,12 @@ class TestSymlinkEscape:
         for name, target in links.items():
             link = os.path.join(DATA_ROOT, name)
             try:
-                if os.path.islink(link) or os.path.exists(link):
-                    os.remove(link)
+                _guard_planted_symlinks_1(link)
                 os.symlink(target, link)
                 made.append(link)
             except OSError:
                 pass
-        if not made:
-            pytest.skip("could not plant symlinks under the export root")
+        _guard_planted_symlinks_2(made)
         yield links
         for link in made:
             try:

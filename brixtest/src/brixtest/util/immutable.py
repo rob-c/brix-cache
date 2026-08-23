@@ -46,17 +46,29 @@ class FrozenDict(dict):
 
 def _hashable(value: Any) -> Any:
     if isinstance(value, Mapping):
-        rows = ((_hashable(key), _hashable(item)) for key, item in value.items())
-        return tuple(sorted(rows, key=repr))
+        return _hashable_mapping(value)
     if isinstance(value, (list, tuple)):
-        return tuple(_hashable(item) for item in value)
+        return _hashable_sequence(value)
     if isinstance(value, (set, frozenset)):
-        return frozenset(_hashable(item) for item in value)
+        return _hashable_set(value)
     try:
         hash(value)
         return value
     except TypeError:
         return repr(value)
+
+
+def _hashable_mapping(value: Mapping) -> tuple:
+    rows = ((_hashable(key), _hashable(item)) for key, item in value.items())
+    return tuple(sorted(rows, key=repr))
+
+
+def _hashable_sequence(value) -> tuple:
+    return tuple(_hashable(item) for item in value)
+
+
+def _hashable_set(value) -> frozenset:
+    return frozenset(_hashable(item) for item in value)
 
 
 def freeze(value: Any) -> Any:

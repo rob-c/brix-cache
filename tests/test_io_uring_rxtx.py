@@ -50,6 +50,37 @@ from settings import BIND_HOST, HOST, SERVER_CERT, SERVER_KEY, CA_CERT, CA_DIR
 
 # One C driver on one fixed exclusive port; serialise the whole file onto it so
 # the fixed listen never has two concurrent drivers (mirrors test_io_uring_runtime).
+def _expression_1(trace):
+    return (
+        trace is not None and shutil.which("strace") is not None
+    )
+
+def _expression_2(trace):
+    return (
+        trace is not None and os.path.exists(trace)
+    )
+
+def _expression_3():
+    return (
+        {s: 0 for s in _TRACE_SYSCALLS.split(",")}
+    )
+
+
+def _guard_run_smoke_1(tls, env):
+    if tls:
+        env["X509_CERT_DIR"] = CA_DIR
+
+def _guard_run_smoke_2(passed, proc):
+    if not passed:
+        # Surface the harness output so a failure is diagnosable.
+        print("aio_smoke STDOUT:\n" + proc.stdout[-2000:])
+        print("aio_smoke STDERR:\n" + proc.stderr[-2000:])
+
+def _guard_run_smoke_3(line, s, counts):
+    if s + "(" in line:
+        counts[s] += 1
+
+
 pytestmark = [pytest.mark.uses_lifecycle_harness,
               pytest.mark.xdist_group("lc-uring-rxtx"),
               pytest.mark.timeout(180)]
@@ -115,30 +146,25 @@ def _run_smoke(url, loop_value, tls=False, trace=None):
     `trace` (a path) wraps the run in strace over the io_uring/epoll syscalls.
     Returns (passed, syscall_counts | None) where passed == ("M1 PASS" in out)."""
     env = dict(os.environ, XRDC_IO_URING_LOOP=loop_value)
-    if tls:
-        env["X509_CERT_DIR"] = CA_DIR
+    _guard_run_smoke_1(tls, env)
 
     argv = [SMOKE, url]
     counts = None
-    if trace is not None and shutil.which("strace") is not None:
+    if _expression_1(trace):
         argv = ["strace", "-f", "-e", f"trace={_TRACE_SYSCALLS}",
                 "-o", trace] + argv
 
     proc = subprocess.run(argv, capture_output=True, text=True,
                           env=env, timeout=120)
     passed = "M1 PASS" in proc.stdout
-    if not passed:
-        # Surface the harness output so a failure is diagnosable.
-        print("aio_smoke STDOUT:\n" + proc.stdout[-2000:])
-        print("aio_smoke STDERR:\n" + proc.stderr[-2000:])
+    _guard_run_smoke_2(passed, proc)
 
-    if trace is not None and os.path.exists(trace):
-        counts = {s: 0 for s in _TRACE_SYSCALLS.split(",")}
+    if _expression_2(trace):
+        counts = _expression_3()
         with open(trace) as f:
             for line in f:
                 for s in counts:
-                    if s + "(" in line:
-                        counts[s] += 1
+                    _guard_run_smoke_3(line, s, counts)
     return passed, counts
 
 

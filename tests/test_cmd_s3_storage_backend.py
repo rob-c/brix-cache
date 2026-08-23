@@ -5,12 +5,31 @@ import pytest
 from cmdscripts.s3_storage_backend import MAKE_TOKEN, run_checks
 from settings import NGINX_BIN
 
+def _phase_test_s3_storage_backend_flow_1(messages):
+    if MAKE_TOKEN.exists():
+        _check_test_s3_storage_backend_flow_2(messages)
+
+
+def _guard_test_s3_storage_backend_flow_1():
+    if not os.access(NGINX_BIN, os.X_OK):
+        pytest.skip(f"nginx binary not executable: {NGINX_BIN}")
+
+def _check_test_s3_storage_backend_flow_1(messages):
+    assert any(message.startswith("GET byte-exact from the composable backend") for message in messages)
+
+def _check_test_s3_storage_backend_flow_2(messages):
+    assert any(
+        message.startswith("GET byte-exact (ztn-authenticated S3 source")
+        or message.startswith("SKIP token-auth S3 variant")
+        for message in messages
+    )
+
+
 pytestmark = pytest.mark.xdist_group("cmd-s3_storage_backend")
 
 
 def test_s3_storage_backend_flow(tmp_path):
-    if not os.access(NGINX_BIN, os.X_OK):
-        pytest.skip(f"nginx binary not executable: {NGINX_BIN}")
+    _guard_test_s3_storage_backend_flow_1()
 
     results = run_checks(tmp_path, nginx_bin=NGINX_BIN)
     if not all(ok for ok, _ in results):
@@ -21,10 +40,5 @@ def test_s3_storage_backend_flow(tmp_path):
         )
 
     messages = [message for _, message in results]
-    assert any(message.startswith("GET byte-exact from the composable backend") for message in messages)
-    if MAKE_TOKEN.exists():
-        assert any(
-            message.startswith("GET byte-exact (ztn-authenticated S3 source")
-            or message.startswith("SKIP token-auth S3 variant")
-            for message in messages
-        )
+    _check_test_s3_storage_backend_flow_1(messages)
+    _phase_test_s3_storage_backend_flow_1(messages)

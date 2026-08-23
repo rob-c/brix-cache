@@ -14,13 +14,17 @@ import pytest
 
 from settings import NGINX_BIN, free_port, HOST, BIND_HOST
 
+def _guard_sweep_server_1():
+    if not os.path.exists(NGINX_BIN):
+        pytest.skip("nginx binary not found")
+
+
 PORT = int(os.environ.get("TEST_XFER_SWEEP_PORT") or free_port())
 
 
 @pytest.fixture(scope="module")
 def sweep_server(tmp_path_factory):
-    if not os.path.exists(NGINX_BIN):
-        pytest.skip("nginx binary not found")
+    _guard_sweep_server_1()
 
     d = tmp_path_factory.mktemp("resumesweep")
     (d / "logs").mkdir()

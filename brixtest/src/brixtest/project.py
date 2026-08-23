@@ -104,6 +104,70 @@ def _integer(value: object, field: str) -> int:
     return value
 
 
+def _server_ports(raw, name: str, lane: Lane) -> None:
+    offsets = raw.pop("port_offsets", None)
+    ports = raw.get("ports")
+    if offsets is not None and ports is not None:
+        raise SpecError("servers.%s ports" % name, raw, "use either ports or port_offsets, not both")
+    if offsets is not None:
+        values = _mapping(offsets, "servers.%s.port_offsets" % name)
+        raw["ports"] = {
+            role: lane.port_base + _integer(value, "servers.%s.port_offsets.%s" % (name, role))
+            for role, value in values.items()
+        }
+    elif ports is not None:
+        values = _mapping(ports, "servers.%s.ports" % name)
+        raw["ports"] = {
+            role: _integer(value, "servers.%s.ports.%s" % (name, role))
+            for role, value in values.items()
+        }
+    raw.setdefault("ports", {})
+
+
+def _server_execution(raw, name: str) -> None:
+    raw.setdefault("kind", "process")
+    command = raw.get("command")
+    _validate_server_command(raw["kind"], name, command)
+    environment = _mapping(raw.get("env", {}), "servers.%s.env" % name)
+    _validate_server_environment(name, environment)
+    raw["env"] = environment
+
+
+def _validate_server_command(kind: str, name: str, command: object) -> None:
+    if kind == "process" and not command:
+        raise SpecError("servers.%s.command" % name, command, "is required for the generic process kind")
+    if command is not None and (
+        not isinstance(command, list) or not command
+        or not all(isinstance(part, str) for part in command)
+    ):
+        raise SpecError(
+            "servers.%s.command" % name, command,
+            "must be a non-empty JSON array of string arguments",
+        )
+
+
+def _validate_server_environment(name: str, environment: Mapping[str, object]) -> None:
+    if not all(isinstance(value, str) for value in environment.values()):
+        raise SpecError("servers.%s.env" % name, environment, "must map names to string values")
+
+
+def _server_configuration(raw, name: str, root: Path, tokens) -> None:
+    template = raw.get("config_template")
+    if template is not None:
+        raw["config_template"] = str(_project_path(
+            root, template, "servers.%s.config_template" % name,
+        ))
+    values = _mapping(raw.get("config_values", {}), "servers.%s.config_values" % name)
+    collisions = sorted(_TOKEN_FIELDS & set(values))
+    if collisions:
+        raise SpecError(
+            "servers.%s.config_values" % name, ", ".join(collisions),
+            "cannot override reserved project template values",
+        )
+    values.update(tokens)
+    raw["config_values"] = values
+
+
 @dataclasses.dataclass(frozen=True)
 class Project:
     """A loaded project: lane, server catalogue, clients, and harness policy."""
@@ -204,69 +268,9 @@ class Project:
         for name, value in declared.items():
             raw = _mapping(value, "servers.%s" % name)
             _unknown_fields(raw, _SERVER_FIELDS, "servers.%s" % name)
-            port_offsets = raw.pop("port_offsets", None)
-            ports = raw.get("ports")
-            if port_offsets is not None and ports is not None:
-                raise SpecError(
-                    "servers.%s ports" % name, raw,
-                    "use either ports or port_offsets, not both",
-                )
-            if port_offsets is not None:
-                offsets = _mapping(port_offsets, "servers.%s.port_offsets" % name)
-                raw["ports"] = {
-                    role: lane.port_base + _integer(
-                        offset, "servers.%s.port_offsets.%s" % (name, role)
-                    )
-                    for role, offset in offsets.items()
-                }
-            elif ports is not None:
-                declared_ports = _mapping(ports, "servers.%s.ports" % name)
-                raw["ports"] = {
-                    role: _integer(port, "servers.%s.ports.%s" % (name, role))
-                    for role, port in declared_ports.items()
-                }
-            raw.setdefault("ports", {})
-            raw.setdefault("kind", "process")
-            if raw["kind"] == "process" and not raw.get("command"):
-                raise SpecError(
-                    "servers.%s.command" % name, raw.get("command"),
-                    "is required for the generic process kind",
-                )
-            command = raw.get("command")
-            if command is not None and (
-                not isinstance(command, list)
-                or not command
-                or not all(isinstance(part, str) for part in command)
-            ):
-                raise SpecError(
-                    "servers.%s.command" % name, command,
-                    "must be a non-empty JSON array of string arguments",
-                )
-            environment = _mapping(
-                raw.get("env", {}), "servers.%s.env" % name
-            )
-            if not all(isinstance(value, str) for value in environment.values()):
-                raise SpecError(
-                    "servers.%s.env" % name, environment,
-                    "must map names to string values",
-                )
-            raw["env"] = environment
-            template = raw.get("config_template")
-            if template is not None:
-                raw["config_template"] = str(_project_path(
-                    root, template, "servers.%s.config_template" % name
-                ))
-            config_values = _mapping(
-                raw.get("config_values", {}), "servers.%s.config_values" % name
-            )
-            collisions = sorted(_TOKEN_FIELDS & set(config_values))
-            if collisions:
-                raise SpecError(
-                    "servers.%s.config_values" % name, ", ".join(collisions),
-                    "cannot override reserved project template values",
-                )
-            config_values.update(tokens)
-            raw["config_values"] = config_values
+            _server_ports(raw, name, lane)
+            _server_execution(raw, name)
+            _server_configuration(raw, name, root, tokens)
             specs.append(InstanceSpec.from_dict({"name": name, **raw}))
         return specs
 

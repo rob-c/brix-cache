@@ -234,180 +234,156 @@ def _cleanup_write_files() -> None:
             pass
 
 
-def build_suites(target: str, filename: str, concurrency: list[int],
-                 mode: str, suite_filter: str, read_sink: str) -> list[Suite]:
-    src_file = os.path.join(DATA_DIR, filename)
-    if not os.path.exists(src_file):
-        sys.exit(f"Source file not found: {src_file}")
-    src_size = os.path.getsize(src_file)
+def _target_urls(target):
+    if target == "nginx":
+        return {
+            "xrd_gsi": NGINX_XRD_GSI_URL,
+            "xrd_tls": NGINX_XRD_TLS_URL,
+            "xrd_gsi_tls": NGINX_XRD_GSI_TLS_URL,
+            "xrd_anon": NGINX_XRD_ANON_URL,
+            "dav_gsi": NGINX_DAV_GSI_HTTP_URL,
+            "dav_token": NGINX_DAV_TOKEN_HTTP_URL,
+        }
+    return {
+        "xrd_gsi": BRIX_GSI_URL,
+        "xrd_tls": None,
+        "xrd_gsi_tls": None,
+        "xrd_anon": BRIX_ANON_URL,
+        "dav_gsi": BRIX_DAV_HTTP_URL,
+        "dav_token": BRIX_DAV_HTTP_URL,
+    }
 
+
+def _suite_wanted(context, name):
+    wanted = context["wanted"]
+    if "all" in wanted:
+        return name != "s3"
+    return name in wanted
+
+
+def _s3_enabled(context):
+    return all((_suite_wanted(context, "s3"), context["target"] == "nginx"))
+
+
+def _url_enabled(context, name, url_key):
+    return all((_suite_wanted(context, name), context["urls"][url_key] is not None))
+
+
+def _token_enabled(context):
+    return all((_suite_wanted(context, "webdav-token"), bool(context["token"])))
+
+
+def _add_suite(suites, enabled, label, worker, arguments, concurrency, cleanup=None):
+    if enabled:
+        suites.append(Suite(label=label, worker_fn=worker, arg_fn=arguments,
+                            concurrency=concurrency, cleanup_fn=cleanup))
+
+
+def _read_args_s3(base_url, bucket, filename, n):
+    return [{"id": index, "url": f"{base_url}/{bucket}/{filename}"}
+            for index in range(n)]
+
+
+def _write_args_s3(base_url, bucket, source, n):
+    basename = os.path.basename(source)
+    return [{"id": index, "src": source,
+             "url": f"{base_url}/{bucket}/load_write_{index}_{basename}"}
+            for index in range(n)]
+
+
+def _read_suites(context):
+    from functools import partial
+
+    suites, urls = [], context["urls"]
+    common = (context["filename"], context["concurrency"])
+    filename, concurrency = common
+    _add_suite(suites, _s3_enabled(context), "S3 GET (read, nginx only)",
+               _webdav_read_worker,
+               partial(_read_args_s3, NGINX_S3_HTTP_URL, S3_BUCKET, filename),
+               concurrency)
+    _add_suite(suites, _suite_wanted(context, "root-anon"),
+               "XRootD root:// anon (read)", _brix_read_worker,
+               partial(_read_args_xrd, urls["xrd_anon"], filename,
+                       sink=context["read_sink"], expected_bytes=context["src_size"]),
+               concurrency)
+    _add_suite(suites, _suite_wanted(context, "root-gsi"),
+               "XRootD root:// + GSI (read)", _brix_read_worker,
+               partial(_read_args_xrd, urls["xrd_gsi"], filename, proxy=PROXY_PEM,
+                       sink=context["read_sink"], expected_bytes=context["src_size"]),
+               concurrency)
+    _add_suite(suites, _url_enabled(context, "root-tls", "xrd_tls"),
+               "XRootD roots:// + TLS (read)", _brix_read_worker,
+               partial(_read_args_xrd, urls["xrd_tls"], filename,
+                       sink=context["read_sink"], expected_bytes=context["src_size"],
+                       tls_nosecureverify=True), concurrency)
+    _add_suite(suites, _url_enabled(context, "root-gsi-tls", "xrd_gsi_tls"),
+               "XRootD roots:// + GSI + TLS (read)", _brix_read_worker,
+               partial(_read_args_xrd, urls["xrd_gsi_tls"], filename, proxy=PROXY_PEM,
+                       sink=context["read_sink"], expected_bytes=context["src_size"],
+                       tls_nosecureverify=True), concurrency)
+    _add_suite(suites, _suite_wanted(context, "webdav-gsi"),
+               "WebDAV davs:// + GSI (read)", _webdav_read_worker,
+               partial(_read_args_dav, urls["dav_gsi"], filename, proxy=PROXY_PEM),
+               concurrency)
+    _add_suite(suites, _token_enabled(context),
+               "WebDAV davs:// + token (read)", _webdav_read_worker,
+               partial(_read_args_dav, urls["dav_token"], filename,
+                       token=context["token"]), concurrency)
+    return suites
+
+
+def _write_suites(context):
+    from functools import partial
+
+    suites, urls = [], context["urls"]
+    source, concurrency = context["src_file"], context["concurrency"]
+    cleanup = _cleanup_write_files
+    _add_suite(suites, _s3_enabled(context), "S3 PUT (write, nginx only)",
+               _webdav_write_worker,
+               partial(_write_args_s3, NGINX_S3_HTTP_URL, S3_BUCKET, source),
+               concurrency, cleanup)
+    _add_suite(suites, _suite_wanted(context, "root-anon"),
+               "XRootD root:// anon (write)", _brix_write_worker,
+               partial(_write_args_xrd, urls["xrd_anon"], source),
+               concurrency, cleanup)
+    _add_suite(suites, _suite_wanted(context, "root-gsi"),
+               "XRootD root:// + GSI (write)", _brix_write_worker,
+               partial(_write_args_xrd, urls["xrd_gsi"], source, proxy=PROXY_PEM),
+               concurrency, cleanup)
+    _add_suite(suites, _suite_wanted(context, "webdav-gsi"),
+               "WebDAV davs:// + GSI (write)", _webdav_write_worker,
+               partial(_write_args_dav, urls["dav_gsi"], source, proxy=PROXY_PEM),
+               concurrency, cleanup)
+    _add_suite(suites, _token_enabled(context),
+               "WebDAV davs:// + token (write)", _webdav_write_worker,
+               partial(_write_args_dav, urls["dav_token"], source,
+                       token=context["token"]), concurrency, cleanup)
+    return suites
+
+
+def _suite_context(target, filename, concurrency, suite_filter, read_sink):
+    source = os.path.join(DATA_DIR, filename)
+    if not os.path.exists(source):
+        sys.exit(f"Source file not found: {source}")
     token = _make_bearer_token()
     if token is None:
         print("  WARNING: could not generate bearer token — WebDAV+token tests skipped")
+    return {"target": target, "filename": filename, "concurrency": concurrency,
+            "wanted": set(suite_filter.split(",")), "read_sink": read_sink,
+            "src_file": source, "src_size": os.path.getsize(source),
+            "token": token, "urls": _target_urls(target)}
 
-    if target == "nginx":
-        xrd_gsi_url      = NGINX_XRD_GSI_URL
-        xrd_tls_url      = NGINX_XRD_TLS_URL
-        xrd_gsi_tls_url  = NGINX_XRD_GSI_TLS_URL
-        xrd_anon_url     = NGINX_XRD_ANON_URL
-        dav_gsi_url      = NGINX_DAV_GSI_HTTP_URL
-        dav_token_url    = NGINX_DAV_TOKEN_HTTP_URL
-    else:
-        xrd_gsi_url      = BRIX_GSI_URL
-        xrd_tls_url      = None   # xrootd native has no stream-TLS endpoint
-        xrd_gsi_tls_url  = None
-        xrd_anon_url     = BRIX_ANON_URL
-        dav_gsi_url      = BRIX_DAV_HTTP_URL
-        dav_token_url    = BRIX_DAV_HTTP_URL
 
+def build_suites(target: str, filename: str, concurrency: list[int],
+                 mode: str, suite_filter: str, read_sink: str) -> list[Suite]:
+    context = _suite_context(target, filename, concurrency, suite_filter, read_sink)
     suites = []
-
-    # suite_filter may be "all" or a comma-separated list (e.g.
-    # "root-gsi,webdav-gsi,s3").  "s3" is nginx-only (no native-xrootd S3), so it
-    # is never included under "all" — it must be named explicitly.
-    _wanted = set(suite_filter.split(","))
-
-    def want(name: str) -> bool:
-        if "all" in _wanted:
-            return name != "s3"
-        return name in _wanted
-
     if mode in ("read", "both"):
-        # -- S3 REST anonymous read (nginx only; cleartext HTTP GET). Reuses the
-        #    generic curl read worker with no cert/token.
-        if want("s3") and target == "nginx":
-            suites.append(Suite(
-                label="S3 GET (read, nginx only)",
-                worker_fn=_webdav_read_worker,
-                arg_fn=lambda n: [
-                    {"id": i,
-                     "url": f"{NGINX_S3_HTTP_URL}/{S3_BUCKET}/{filename}"}
-                    for i in range(n)
-                ],
-                concurrency=concurrency,
-            ))
-        # -- XRootD anonymous
-        if want("root-anon"):
-            suites.append(Suite(
-                label="XRootD root:// anon (read)",
-                worker_fn=_brix_read_worker,
-                arg_fn=lambda n: _read_args_xrd(xrd_anon_url, filename, n,
-                                                sink=read_sink,
-                                                expected_bytes=src_size),
-                concurrency=concurrency,
-            ))
-        # -- XRootD + GSI
-        if want("root-gsi"):
-            suites.append(Suite(
-                label="XRootD root:// + GSI (read)",
-                worker_fn=_brix_read_worker,
-                arg_fn=lambda n: _read_args_xrd(xrd_gsi_url, filename, n,
-                                                 proxy=PROXY_PEM,
-                                                 sink=read_sink,
-                                                 expected_bytes=src_size),
-                concurrency=concurrency,
-            ))
-        # -- XRootD + TLS (stream-level, nginx only; roots:// scheme)
-        if want("root-tls") and xrd_tls_url is not None:
-            suites.append(Suite(
-                label="XRootD roots:// + TLS (read)",
-                worker_fn=_brix_read_worker,
-                arg_fn=lambda n: _read_args_xrd(xrd_tls_url, filename, n,
-                                                sink=read_sink,
-                                                expected_bytes=src_size,
-                                                tls_nosecureverify=True),
-                concurrency=concurrency,
-            ))
-        # -- XRootD + GSI + stream TLS (nginx only; roots:// + GSI auth)
-        if want("root-gsi-tls") and xrd_gsi_tls_url is not None:
-            suites.append(Suite(
-                label="XRootD roots:// + GSI + TLS (read)",
-                worker_fn=_brix_read_worker,
-                arg_fn=lambda n: _read_args_xrd(xrd_gsi_tls_url, filename, n,
-                                                proxy=PROXY_PEM,
-                                                sink=read_sink,
-                                                expected_bytes=src_size,
-                                                tls_nosecureverify=True),
-                concurrency=concurrency,
-            ))
-        # -- WebDAV + GSI
-        if want("webdav-gsi"):
-            suites.append(Suite(
-                label="WebDAV davs:// + GSI (read)",
-                worker_fn=_webdav_read_worker,
-                arg_fn=lambda n: _read_args_dav(dav_gsi_url, filename, n,
-                                                 proxy=PROXY_PEM),
-                concurrency=concurrency,
-            ))
-        # -- WebDAV + Bearer token
-        if token and want("webdav-token"):
-            suites.append(Suite(
-                label="WebDAV davs:// + token (read)",
-                worker_fn=_webdav_read_worker,
-                arg_fn=lambda n, t=token: _read_args_dav(dav_token_url, filename, n,
-                                                          token=t),
-                concurrency=concurrency,
-            ))
-
+        suites.extend(_read_suites(context))
     if mode in ("write", "both"):
-        # -- S3 REST anonymous write (nginx only; cleartext HTTP PUT). Keys use
-        #    the load_write_ prefix so _cleanup_write_files reclaims them.
-        if want("s3") and target == "nginx":
-            suites.append(Suite(
-                label="S3 PUT (write, nginx only)",
-                worker_fn=_webdav_write_worker,
-                arg_fn=lambda n: [
-                    {"id": i, "src": src_file,
-                     "url": f"{NGINX_S3_HTTP_URL}/{S3_BUCKET}/"
-                            f"load_write_{i}_{os.path.basename(src_file)}"}
-                    for i in range(n)
-                ],
-                concurrency=concurrency,
-                cleanup_fn=_cleanup_write_files,
-            ))
-        # -- XRootD anonymous write (cleartext; parity with the anon read suite)
-        if want("root-anon"):
-            suites.append(Suite(
-                label="XRootD root:// anon (write)",
-                worker_fn=_brix_write_worker,
-                arg_fn=lambda n: _write_args_xrd(xrd_anon_url, src_file, n),
-                concurrency=concurrency,
-                cleanup_fn=_cleanup_write_files,
-            ))
-        # -- XRootD + GSI write
-        if want("root-gsi"):
-            suites.append(Suite(
-                label="XRootD root:// + GSI (write)",
-                worker_fn=_brix_write_worker,
-                arg_fn=lambda n: _write_args_xrd(xrd_gsi_url, src_file, n,
-                                                  proxy=PROXY_PEM),
-                concurrency=concurrency,
-                cleanup_fn=_cleanup_write_files,
-            ))
-        # -- WebDAV + GSI write
-        if want("webdav-gsi"):
-            suites.append(Suite(
-                label="WebDAV davs:// + GSI (write)",
-                worker_fn=_webdav_write_worker,
-                arg_fn=lambda n: _write_args_dav(dav_gsi_url, src_file, n,
-                                                  proxy=PROXY_PEM),
-                concurrency=concurrency,
-                cleanup_fn=_cleanup_write_files,
-            ))
-        # -- WebDAV + token write
-        if token and want("webdav-token"):
-            suites.append(Suite(
-                label="WebDAV davs:// + token (write)",
-                worker_fn=_webdav_write_worker,
-                arg_fn=lambda n, t=token: _write_args_dav(
-                    dav_token_url, src_file, n, token=t),
-                concurrency=concurrency,
-                cleanup_fn=_cleanup_write_files,
-            ))
-
+        suites.extend(_write_suites(context))
     if not suites:
         sys.exit(f"No suites selected for mode={mode!r}, suite={suite_filter!r}")
 
     return suites
-
 

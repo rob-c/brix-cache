@@ -1,18 +1,14 @@
-"""Deterministic test payloads (feature F20).
+"""Deterministic, checksummed payloads for transfer tests.
 
 Transfer tests need files whose content can be *proven* intact on the
-far side.  The grown suite mixed ``os.urandom`` (unreproducible —
-a corrupt byte can't be diffed against what should have been there),
-``dd`` subprocesses, and hand-rolled checksum loops.  Here a payload
-is a pure function of ``(seed, size)``:
+far side. A payload is a pure function of ``(seed, size)``::
 
     payload = make_payload(workspace, size=8 * 1024 * 1024, seed=42)
     upload(payload.path); download(dest)
     verify_payload(dest, payload)     # raises with offset of first difference
 
-Same seed, same bytes, on any host, any run — a failure five runs
-later reproduces the exact bytes that failed.  Content is a SHAKE-256
-counter stream (cheap, incompressible, no crypto claims), written and
+The same seed produces the same bytes on every host and run. Content is
+a SHAKE-256 counter stream, written and
 verified in chunks so multi-GB payloads never sit in memory.
 """
 
@@ -86,15 +82,17 @@ def verify_payload(path: Path, expected: Payload) -> None:
         for want in _stream(expected.seed, expected.size):
             got = handle.read(len(want))
             if got != want:
-                for i, (g, w) in enumerate(zip(got, want)):
-                    if g != w:
-                        offset += i
-                        break
-                else:
-                    offset += min(len(got), len(want))
+                offset += _difference_offset(got, want)
                 raise SpecError(
                     "payload copy", str(path),
                     "content differs from seed=%d stream at offset %d"
                     % (expected.seed, offset),
                 )
             offset += len(want)
+
+
+def _difference_offset(actual: bytes, expected: bytes) -> int:
+    for index, (actual_byte, expected_byte) in enumerate(zip(actual, expected)):
+        if actual_byte != expected_byte:
+            return index
+    return min(len(actual), len(expected))

@@ -89,11 +89,19 @@ def reset(*bases):
 def hits(base, method=None, path_prefix=None):
     """Upstream request log, optionally filtered by method / path prefix."""
     rows = ctl(base, "log")
-    if method is not None:
-        rows = [r for r in rows if r["method"] == method]
-    if path_prefix is not None:
-        rows = [r for r in rows if r["path"].startswith(path_prefix)]
-    return rows
+    return _path_hits(_method_hits(rows, method), path_prefix)
+
+
+def _method_hits(rows, method):
+    if method is None:
+        return rows
+    return [row for row in rows if row["method"] == method]
+
+
+def _path_hits(rows, prefix):
+    if prefix is None:
+        return rows
+    return [row for row in rows if row["path"].startswith(prefix)]
 
 
 class Mirror(NamedTuple):

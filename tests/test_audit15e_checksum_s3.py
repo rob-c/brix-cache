@@ -61,6 +61,15 @@ import requests
 from server_registry import NginxInstanceSpec
 from settings import HOST
 
+def _check_test_defect8_put_refusals_are_500_and_fail_closed_2(codes):
+    assert any(c in (201, 204) for c in codes), (codes, DEFECT8)
+
+def _check_test_defect8_put_refusals_are_500_and_fail_closed_1(codes, ep):
+    assert EIO_NEEDLE in _errlog(ep), \
+        ("the front 500ed a PUT over the s3:// backend for a reason "
+         "other than the lock-probe EIO — re-diagnose defect #8", codes)
+
+
 pytestmark = [pytest.mark.uses_lifecycle_harness,
               pytest.mark.xdist_group("lc-audit15e-cks3")]
 
@@ -142,16 +151,17 @@ def test_defect8_put_refusals_are_500_and_fail_closed(cks3):
         codes.append(r.status_code)
         if r.status_code not in (201, 204):
             # Fail-closed: a refused PUT must leave nothing behind.
-            assert r.status_code == 500, (r.status_code, r.text[:200])
-            assert not (s3dir / "ck" / f"probe{i}.bin").exists(), \
-                "a refused PUT left a partial object in the store"
+            def _assert_test_defect8_put_refusals_are_500_and_fail_closed_1():
+                assert r.status_code == 500, (r.status_code, r.text[:200])
+                assert not (s3dir / "ck" / f"probe{i}.bin").exists(), \
+                    "a refused PUT left a partial object in the store"
+
+            _assert_test_defect8_put_refusals_are_500_and_fail_closed_1()
     if any(c == 500 for c in codes):
-        assert EIO_NEEDLE in _errlog(ep), \
-            ("the front 500ed a PUT over the s3:// backend for a reason "
-             "other than the lock-probe EIO — re-diagnose defect #8", codes)
+        _check_test_defect8_put_refusals_are_500_and_fail_closed_1(codes, ep)
     # Whatever the mix, at least one write must get through: a backend that
     # refuses every write is a harder failure than the one pinned here.
-    assert any(c in (201, 204) for c in codes), (codes, DEFECT8)
+    _check_test_defect8_put_refusals_are_500_and_fail_closed_2(codes)
 
 
 def test_defect7_ingest_checksum_lost_over_s3_backend(cks3):

@@ -233,6 +233,43 @@ brix_open_resolved_via_driver(brix_open_args_t *a, brix_vfs_ctx_t *vctx,
     return NGX_OK;
 }
 
+/*
+ * WHAT: Translate an open errno into its protocol code and stable message.
+ * WHY:  Error taxonomy should be independent from logging and response emission.
+ * HOW:  Map named POSIX cases and fall back to the shared errno translator.
+ */
+static void
+brix_open_error_details(int err, int *kxr, const char **message)
+{
+    switch (err) {
+    case ENOENT:
+    case ENOTDIR:
+        *kxr = kXR_NotFound;
+        *message = "file not found";
+        break;
+    case EEXIST:
+        *kxr = kXR_ItExists;
+        *message = "file already exists";
+        break;
+    case EACCES:
+        *kxr = kXR_NotAuthorized;
+        *message = "permission denied";
+        break;
+    case EISDIR:
+        *kxr = kXR_isDirectory;
+        *message = "is a directory";
+        break;
+    case EBUSY:
+        *kxr = kXR_FileLocked;
+        *message = "file locked";
+        break;
+    default:
+        *kxr = kXR_IOError;
+        *message = strerror(err);
+        break;
+    }
+}
+
 /* Map a failed open(2)'s errno to the kXR error response the reference raises,
  * sending it and returning that send's rc; EAGAIN on a read is a nearline recall
  * (kXR_wait retry) rather than an error. Reached only when open_failed is set, so
@@ -242,44 +279,9 @@ brix_open_map_open_error(brix_ctx_t *ctx, ngx_connection_t *c,
     const char *resolved, int err, ngx_flag_t is_write)
 {
 	const char *mode_str = is_write ? "wr" : "rd";
+	const char *message;
+	int         kxr;
 
-	if (err == ENOENT || err == ENOTDIR) {
-		BRIX_RETURN_ERR(ctx, c,
-						  is_write ? BRIX_OP_OPEN_WR : BRIX_OP_OPEN_RD,
-						  "OPEN", resolved, mode_str,
-						  kXR_NotFound, "file not found");
-	}
-	if (err == EEXIST) {
-		/* O_EXCL (kXR_new without kXR_delete) on an existing file → EEXIST,
-		 * which the reference maps to kXR_ItExists (the code raised by the
-		 * kXR_new flag), NOT kXR_FileLocked. */
-		BRIX_RETURN_ERR(ctx, c,
-						  is_write ? BRIX_OP_OPEN_WR : BRIX_OP_OPEN_RD,
-						  "OPEN", resolved, mode_str,
-						  kXR_ItExists, "file already exists");
-	}
-	if (err == EACCES) {
-		BRIX_RETURN_ERR(ctx, c,
-						  is_write ? BRIX_OP_OPEN_WR : BRIX_OP_OPEN_RD,
-						  "OPEN", resolved, mode_str,
-						  kXR_NotAuthorized, "permission denied");
-	}
-	if (err == EISDIR) {
-		BRIX_RETURN_ERR(ctx, c,
-						  is_write ? BRIX_OP_OPEN_WR : BRIX_OP_OPEN_RD,
-						  "OPEN", resolved, mode_str,
-						  kXR_isDirectory, "is a directory");
-	}
-	if (err == EBUSY) {
-		/* A mandatory lease holds the file (pblock F15 locks=1): a hard
-		 * kXR_FileLocked, not kXR_wait — the lease clears on the HOLDER's
-		 * schedule (release or expiry), so parking the client in a retry
-		 * loop would hang it for the whole lease lifetime. */
-		BRIX_RETURN_ERR(ctx, c,
-						  is_write ? BRIX_OP_OPEN_WR : BRIX_OP_OPEN_RD,
-						  "OPEN", resolved, mode_str,
-						  kXR_FileLocked, "file locked");
-	}
 	if (err == EAGAIN && !is_write) {
 		/* A nearline (tape) recall is in flight (sd_cache/sd_frm, §9.2). Tell
 		 * the client to retry with kXR_wait - the stream equivalent of the
@@ -291,10 +293,11 @@ brix_open_map_open_error(brix_ctx_t *ctx, ngx_connection_t *c,
 		                  0, 0, "nearline recall in progress; retry", 0);
 		return brix_send_wait(ctx, c, BRIX_RECALL_WAIT_SECS);
 	}
+	brix_open_error_details(err, &kxr, &message);
 	BRIX_RETURN_ERR(ctx, c,
 					  is_write ? BRIX_OP_OPEN_WR : BRIX_OP_OPEN_RD,
 					  "OPEN", resolved, mode_str,
-					  kXR_IOError, strerror(err));
+					  kxr, message);
 }
 
 /* The POSIX-fd open dispatch: open the staging temp / cache / export final path

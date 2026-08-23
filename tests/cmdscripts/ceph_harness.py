@@ -30,6 +30,18 @@ import time
 from cmdscripts.compile_run import REPO_ROOT, run
 
 
+def _expression_1(mon_ip):
+    return (
+        os.environ.get("CEPH_PUBLIC_NETWORK") or cidr_net(f"{mon_ip}/24")
+    )
+
+def _expression_2(started):
+    return (
+        print(f"ceph_harness: docker run failed: {started.stderr or started.stdout}",
+                          file=sys.stderr)
+    )
+
+
 def _env(name: str, default: str) -> str:
     return os.environ.get(name) or default
 
@@ -140,49 +152,55 @@ def _ensure_pool() -> None:
     _docker(["exec", container, "ceph", "osd", "pool", "set", pool, "min_size", "1"])
 
 
+def _start_ceph_container(container):
+    if _container_running(container):
+        print(f"ceph_harness: {container} already running")
+        return True
+    _docker(["rm", "-f", container])
+    mon_ip = os.environ.get("MON_IP")
+    if mon_ip:
+        mon, net = mon_ip, _expression_1(mon_ip)
+    else:
+        cidr = detect_container_cidr()
+        if not cidr:
+            print("ceph_harness: cannot detect container IP", file=sys.stderr)
+            return False
+        mon, net = cidr_ip(cidr), cidr_net(cidr)
+    print(f"ceph_harness: starting {ceph_image()}  MON_IP={mon}  NET={net}")
+    started = _docker([
+        "run", "-d", "--name", container, "--network", "host",
+        "-e", f"MON_IP={mon}", "-e", f"CEPH_PUBLIC_NETWORK={net}",
+        "-e", "CEPH_DAEMON=demo", "-e", "DEMO_DAEMONS=mon,mgr,osd",
+        "-e", "RGW_NAME=localhost", ceph_image(),
+    ])
+    if started.returncode != 0:
+        _expression_2(started)
+        return False
+    return wait_health()
+
+
+def _copy_ceph_config(container):
+    ceph_dir().mkdir(parents=True, exist_ok=True)
+    pairs = (("/etc/ceph/ceph.conf", ceph_conf()),
+             ("/etc/ceph/ceph.client.admin.keyring", ceph_keyring()))
+    for src, dst in pairs:
+        copied = _docker(["cp", f"{container}:{src}", str(dst)])
+        if copied.returncode != 0:
+            print(f"ceph_harness: docker cp {src} failed: {copied.stderr}", file=sys.stderr)
+            return False
+    return True
+
+
 def cmd_start() -> int:
     if not have_docker():
         print("ceph_harness: docker not found", file=sys.stderr)
         return 2
     container = ceph_container()
-    if _container_running(container):
-        print(f"ceph_harness: {container} already running")
-    else:
-        _docker(["rm", "-f", container])
-        # The demo image needs an explicit MON_IP + CEPH_PUBLIC_NETWORK; derive
-        # both from the container-visible interface. An explicit MON_IP wins.
-        mon_ip = os.environ.get("MON_IP")
-        if mon_ip:
-            mon = mon_ip
-            net = os.environ.get("CEPH_PUBLIC_NETWORK") or cidr_net(f"{mon_ip}/24")
-        else:
-            cidr = detect_container_cidr()
-            if not cidr:
-                print("ceph_harness: cannot detect container IP", file=sys.stderr)
-                return 1
-            mon, net = cidr_ip(cidr), cidr_net(cidr)
-        print(f"ceph_harness: starting {ceph_image()}  MON_IP={mon}  NET={net}")
-        started = _docker([
-            "run", "-d", "--name", container, "--network", "host",
-            "-e", f"MON_IP={mon}", "-e", f"CEPH_PUBLIC_NETWORK={net}",
-            "-e", "CEPH_DAEMON=demo", "-e", "DEMO_DAEMONS=mon,mgr,osd",
-            "-e", "RGW_NAME=localhost",  # net-literal-allow: RadosGW instance hostname identity, container-internal
-            ceph_image(),
-        ])
-        if started.returncode != 0:
-            print(f"ceph_harness: docker run failed: {started.stderr or started.stdout}",
-                  file=sys.stderr)
-            return 1
-        if not wait_health():
-            return 1
+    if not _start_ceph_container(container):
+        return 1
 
-    ceph_dir().mkdir(parents=True, exist_ok=True)
-    for src, dst in (("/etc/ceph/ceph.conf", ceph_conf()),
-                     ("/etc/ceph/ceph.client.admin.keyring", ceph_keyring())):
-        copied = _docker(["cp", f"{container}:{src}", str(dst)])
-        if copied.returncode != 0:
-            print(f"ceph_harness: docker cp {src} failed: {copied.stderr}", file=sys.stderr)
-            return 1
+    if not _copy_ceph_config(container):
+        return 1
 
     _ensure_pool()
     print(f"ceph_harness: pool '{ceph_pool()}' ready; conf={ceph_conf()} keyring={ceph_keyring()}")

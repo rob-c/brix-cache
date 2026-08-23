@@ -7,10 +7,27 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from cmdscripts.compile_run import REPO_ROOT, compile_binary, result, run
+from cmdscripts.command_results import print_results
 
 # Honour NGX_SRC (mirroring c_regression_units.py) so the unit runners link
 # against whichever configured build tree the caller points at — the shared
 # /tmp/nginx-1.28.3 by default, or a private tree during concurrent-session work.
+def _expression_1(spec):
+    return (
+        [str(path) for path in spec.required if not path.is_file()]
+    )
+
+def _expression_2(name, built):
+    return (
+        [result(False, f"compile {name} failed: {(built.stderr or built.stdout)[-3000:]}")]
+    )
+
+def _expression_3(ran, name):
+    return (
+        [result(ran.returncode == 0, f"{name} exited {ran.returncode}: {(ran.stderr or ran.stdout)[-3000:]}")]
+    )
+
+
 NGX_SRC = Path(os.environ.get("NGX_SRC", "/tmp/nginx-1.28.3"))
 OBJS = NGX_SRC / "objs"
 
@@ -201,19 +218,19 @@ def coverage_flags(required: tuple[Path, ...]) -> list[str]:
 
 def run_one(name: str, base: Path) -> list[tuple[bool, str]]:
     spec = SPECS[name]
-    missing = [str(path) for path in spec.required if not path.is_file()]
+    missing = _expression_1(spec)
     if missing:
         return [result(True, f"SKIP {name}: build required object(s) first: {', '.join(missing)}")]
     binary = base / spec.binary
     built = compile_binary(binary, list(spec.args) + coverage_flags(spec.required),
                            cwd=REPO_ROOT)
     if built.returncode != 0:
-        return [result(False, f"compile {name} failed: {(built.stderr or built.stdout)[-3000:]}")]
+        return _expression_2(name, built)
     # detect_leaks=0: an object-linked unit that inherits -fsanitize=address from
     # a contaminated tree must not fail on LeakSanitizer's exit report; real heap
     # errors still abort.
     ran = run([str(binary)], cwd=REPO_ROOT, env={"ASAN_OPTIONS": "detect_leaks=0"})
-    return [result(ran.returncode == 0, f"{name} exited {ran.returncode}: {(ran.stderr or ran.stdout)[-3000:]}")]
+    return _expression_3(ran, name)
 
 
 def run_checks(base: Path, names: list[str] | None = None) -> list[tuple[bool, str]]:
@@ -232,9 +249,7 @@ def entry(argv: list[str]) -> int:
     names = argv or sorted(SPECS)
     with tempfile.TemporaryDirectory(prefix="c_object_units.") as tmp:
         results = run_checks(Path(tmp), names=names)
-    for ok, message in results:
-        print(f"  {'ok  ' if ok else 'FAIL'} {message}")
-    return 0 if all(ok for ok, _ in results) else 1
+    return print_results(results, "c_object_units")
 
 
 if __name__ == "__main__":

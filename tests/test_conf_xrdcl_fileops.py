@@ -1,4 +1,37 @@
 from split_continuation import reexport as _reexport
+def _expression_1(po):
+    return (
+        [(o, l) for (o, l, _) in po["chunks"]]
+    )
+
+def _expression_2(pO):
+    return (
+        [(o, l) for (o, l, _) in pO["chunks"]]
+    )
+
+def _expression_3(po):
+    return (
+        [b for (_, _, b) in po["chunks"]]
+    )
+
+def _expression_4(pO):
+    return (
+        [b for (_, _, b) in pO["chunks"]]
+    )
+
+
+def _check_test_vector_read_parity_1(po, pO, rel):
+    assert po["size"] == pO["size"], \
+        f"{rel}: total size ours={po['size']} stock={pO['size']}"
+
+def _check_test_vector_read_parity_2(off_len_o, off_len_O, rel):
+    assert off_len_o == off_len_O, \
+        f"{rel}: chunk offset/length diverge ours={off_len_o} stock={off_len_O}"
+
+def _check_test_vector_read_parity_3(bytes_o, bytes_O, rel):
+    assert bytes_o == bytes_O, f"{rel}: chunk bytes diverge"
+
+
 _reexport(globals(), "_test_conf_xrdcl_fileops_helpers")
 
 @pytest.mark.parametrize("rel", list(SZ.keys()))
@@ -88,19 +121,20 @@ def test_vector_read_parity(srv, rel, chunks):
     offset/length/bytes on both servers."""
     so, po = _vread(srv["our"], rel, chunks)
     sO, pO = _vread(srv["off"], rel, chunks)
-    assert so == sO, f"{rel}: vread status ours={so} stock={sO}"
-    assert po is not None and pO is not None, (rel, po, pO)
-    assert po["size"] == pO["size"], \
-        f"{rel}: total size ours={po['size']} stock={pO['size']}"
+    def _assert_test_vector_read_parity_1():
+        assert so == sO, f"{rel}: vread status ours={so} stock={sO}"
+        assert po is not None and pO is not None, (rel, po, pO)
+
+    _assert_test_vector_read_parity_1()
+    _check_test_vector_read_parity_1(po, pO, rel)
     # offsets + lengths must agree, in order
-    off_len_o = [(o, l) for (o, l, _) in po["chunks"]]
-    off_len_O = [(o, l) for (o, l, _) in pO["chunks"]]
-    assert off_len_o == off_len_O, \
-        f"{rel}: chunk offset/length diverge ours={off_len_o} stock={off_len_O}"
+    off_len_o = _expression_1(po)
+    off_len_O = _expression_2(pO)
+    _check_test_vector_read_parity_2(off_len_o, off_len_O, rel)
     # and the data bytes of each chunk
-    bytes_o = [b for (_, _, b) in po["chunks"]]
-    bytes_O = [b for (_, _, b) in pO["chunks"]]
-    assert bytes_o == bytes_O, f"{rel}: chunk bytes diverge"
+    bytes_o = _expression_3(po)
+    bytes_O = _expression_4(pO)
+    _check_test_vector_read_parity_3(bytes_o, bytes_O, rel)
 
 
 @pytest.mark.parametrize("rel", ["sz_4096.bin", "sz_8192.bin",

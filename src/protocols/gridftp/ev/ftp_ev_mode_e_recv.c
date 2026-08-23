@@ -461,6 +461,66 @@ ev_eb_receiver_open(ftp_ev_dc_t *dc)
     return (dc->writer != NULL) ? NGX_OK : NGX_ERROR;
 }
 
+/*
+ * WHAT: Accept and initialize one pending MODE E data stream.
+ * WHY: Keep listener scheduling separate from per-child resource setup.
+ * HOW: Classify accept errors, enforce the stream cap, wrap the descriptor,
+ *      then start TLS or arm the cleartext block reader.
+ */
+static ngx_int_t
+ev_eb_accept_one(ngx_connection_t *lc, ftp_ev_dc_t *dc)
+{
+    ftp_ev_t         *fc = dc->fc;
+    ftp_ev_eb_conn_t *ch;
+    ngx_connection_t *c;
+    int               dfd;
+
+    dfd = accept(lc->fd, NULL, NULL);
+    if (dfd < 0) {
+        if (ngx_socket_errno == NGX_EAGAIN) {
+            return NGX_DECLINED;
+        }
+        if (ngx_socket_errno == NGX_ECONNABORTED) {
+            return NGX_OK;
+        }
+        ngx_log_error(NGX_LOG_ERR, fc->c->log, ngx_socket_errno,
+                      "brix: GridFTP(ev) MODE E accept failed");
+        return NGX_ERROR;
+    }
+    ch = ev_eb_slot(dc);
+    if (dc->eb_nconns >= BRIX_FTP_EV_EB_MAX_CONNS || ch == NULL) {
+        (void) close(dfd);
+        return NGX_OK;
+    }
+    if (ngx_nonblocking(dfd) == -1) {
+        (void) close(dfd);
+        return NGX_ERROR;
+    }
+    c = brix_ftp_ev_wrap_conn(fc, dfd);
+    if (c == NULL) {
+        (void) close(dfd);
+        return NGX_ERROR;
+    }
+
+    ngx_memzero(ch, sizeof(*ch));
+    ch->dc = dc;
+    ch->in_use = 1;
+    ch->c = c;
+    c->data = ch;
+    dc->eb_nconns++;
+
+    if (fc->prot == 'P') {
+        return brix_ftp_ev_tls_begin(fc, c, &ch->pool, 0,
+                    ev_eb_child_tls_done) == NGX_ERROR ? NGX_ERROR : NGX_OK;
+    }
+    c->read->handler = ev_eb_child_read;
+    if (ev_eb_arm_read(c) != NGX_OK) {
+        return NGX_ERROR;
+    }
+    ngx_post_event(c->read, &ngx_posted_events);
+    return NGX_OK;
+}
+
 
 /* Passive listener read handler for a MODE E STOR: accept every pending stream,
  * bring each up (PROT P handshake or straight), and arm its block reader.  The
@@ -489,65 +549,14 @@ brix_ftp_ev_eb_accept(ngx_event_t *rev)
     }
 
     for ( ;; ) {
-        ftp_ev_eb_conn_t *ch;
-        ngx_connection_t *c;
-        int               dfd = accept(lc->fd, NULL, NULL);
+        ngx_int_t rc = ev_eb_accept_one(lc, dc);
 
-        if (dfd < 0) {
-            if (ngx_socket_errno == NGX_EAGAIN) {
-                break;                            /* drained pending accepts    */
-            }
-            if (ngx_socket_errno == NGX_ECONNABORTED) {
-                continue;
-            }
-            ngx_log_error(NGX_LOG_ERR, fc->c->log, ngx_socket_errno,
-                          "brix: GridFTP(ev) MODE E accept failed");
+        if (rc == NGX_DECLINED) {
+            break;
+        }
+        if (rc != NGX_OK) {
             brix_ftp_ev_data_finish(dc, NGX_ERROR);
             return;
-        }
-
-        if (dc->eb_nconns >= BRIX_FTP_EV_EB_MAX_CONNS
-            || (ch = ev_eb_slot(dc)) == NULL)
-        {
-            (void) close(dfd);                    /* stream cap — refuse extra  */
-            continue;
-        }
-        if (ngx_nonblocking(dfd) == -1) {
-            (void) close(dfd);
-            brix_ftp_ev_data_finish(dc, NGX_ERROR);
-            return;
-        }
-        c = brix_ftp_ev_wrap_conn(fc, dfd);
-        if (c == NULL) {
-            (void) close(dfd);
-            brix_ftp_ev_data_finish(dc, NGX_ERROR);
-            return;
-        }
-
-        ngx_memzero(ch, sizeof(*ch));
-        ch->dc     = dc;
-        ch->in_use = 1;
-        ch->c      = c;
-        c->data    = ch;
-        dc->eb_nconns++;
-
-        if (fc->prot == 'P') {
-            /* Passive accept → TLS server role; completion arms the reader. */
-            if (brix_ftp_ev_tls_begin(fc, c, &ch->pool, 0 /* server */,
-                                      ev_eb_child_tls_done) == NGX_ERROR)
-            {
-                brix_ftp_ev_data_finish(dc, NGX_ERROR);
-                return;
-            }
-        } else {
-            c->read->handler = ev_eb_child_read;
-            if (ev_eb_arm_read(c) != NGX_OK) {
-                brix_ftp_ev_data_finish(dc, NGX_ERROR);
-                return;
-            }
-            /* Kick the reader off a posted event: a completion reached here must
-             * not tear the listener down from inside the accept loop. */
-            ngx_post_event(c->read, &ngx_posted_events);
         }
     }
 

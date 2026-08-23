@@ -24,59 +24,86 @@ def norm(msg: str) -> str:
     return m
 
 
+def _case_file(case) -> str:
+    filename = case.get("file")
+    if filename:
+        return filename
+    parts = _class_parts(case)
+    for part in parts:
+        if part.startswith("test_"):
+            return part
+    return parts[-1] if parts else "?"
+
+
+def _class_parts(case):
+    classname = case.get("classname")
+    return classname.split(".") if classname else []
+
+
+def _record_case(case, buckets, skip_reasons) -> bool:
+    failure = case.find("failure")
+    error = case.find("error")
+    skipped = case.find("skipped")
+    node = failure if failure is not None else error
+    if node is not None:
+        kind = "FAIL" if failure is not None else "ERROR"
+        key = kind, _case_file(case), norm(node.get("message", ""))
+        buckets[key].append(case.get("name", ""))
+        return False
+    if skipped is not None:
+        skip_reasons[norm(skipped.get("message", ""))] += 1
+        return False
+    return True
+
+
+def _result_counts(buckets, skip_reasons):
+    failed = sum(len(names) for key, names in buckets.items() if key[0] == "FAIL")
+    errors = sum(len(names) for key, names in buckets.items() if key[0] == "ERROR")
+    return failed, errors, sum(skip_reasons.values())
+
+
+def _print_failure_group(kind, filename, message, names):
+    print(f"\n[{kind} x{len(names)}] {filename}")
+    print(f"    {message}")
+    for name in names[:4]:
+        print(f"      · {name}")
+    if len(names) > 4:
+        print(f"      · … +{len(names)-4} more")
+
+
+def _print_failures(buckets):
+    print("=" * 100)
+    print("FAILURE / ERROR SIGNATURES (by count)")
+    print("=" * 100)
+    ranked = sorted(buckets.items(), key=lambda item: -len(item[1]))
+    for (kind, filename, message), names in ranked:
+        _print_failure_group(kind, filename, message, names)
+
+
+def _print_skips(skip_reasons):
+    print("\n" + "=" * 100)
+    print("TOP SKIP REASONS")
+    print("=" * 100)
+    for message, count in skip_reasons.most_common(30):
+        print(f"  {count:6d}  {message}")
+
+
 def main(path: str) -> int:
-    root = ET.parse(path).getroot()
-    cases = root.iter("testcase")
+    cases = ET.parse(path).getroot().iter("testcase")
 
     total = passed = 0
     buckets: dict[tuple[str, str, str], list[str]] = collections.defaultdict(list)
     skip_reasons: collections.Counter = collections.Counter()
 
-    for c in cases:
+    for case in cases:
         total += 1
-        f = c.find("failure")
-        e = c.find("error")
-        s = c.find("skipped")
-        node = f if f is not None else e
-        if node is not None:
-            kind = "FAIL" if f is not None else "ERROR"
-            # Prefer junit's `file` attr; fall back to the classname, whose
-            # dots are path separators ("tests.test_x" / "tests.test_x.TestC")
-            # so the module is the first component that looks like a test file.
-            fil = c.get("file") or ""
-            if not fil:
-                parts = (c.get("classname") or "").split(".")
-                fil = next((p for p in parts if p.startswith("test_")),
-                           parts[-1] if parts else "?")
-            buckets[(kind, fil, norm(node.get("message", "")))].append(c.get("name", ""))
-        elif s is not None:
-            skip_reasons[norm(s.get("message", ""))] += 1
-        else:
-            passed += 1
+        passed += int(_record_case(case, buckets, skip_reasons))
 
-    nfail = sum(len(v) for k, v in buckets.items() if k[0] == "FAIL")
-    nerr = sum(len(v) for k, v in buckets.items() if k[0] == "ERROR")
-    nskip = sum(skip_reasons.values())
-
+    nfail, nerr, nskip = _result_counts(buckets, skip_reasons)
     print(f"TOTAL {total}   passed {passed}   failed {nfail}   errored {nerr}   skipped {nskip}")
     print(f"distinct failure signatures: {len(buckets)}\n")
-
-    print("=" * 100)
-    print("FAILURE / ERROR SIGNATURES (by count)")
-    print("=" * 100)
-    for (kind, fil, msg), names in sorted(buckets.items(), key=lambda kv: -len(kv[1])):
-        print(f"\n[{kind} x{len(names)}] {fil}")
-        print(f"    {msg}")
-        for n in names[:4]:
-            print(f"      · {n}")
-        if len(names) > 4:
-            print(f"      · … +{len(names)-4} more")
-
-    print("\n" + "=" * 100)
-    print("TOP SKIP REASONS")
-    print("=" * 100)
-    for msg, n in skip_reasons.most_common(30):
-        print(f"  {n:6d}  {msg}")
+    _print_failures(buckets)
+    _print_skips(skip_reasons)
     return 0
 
 

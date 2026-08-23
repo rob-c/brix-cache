@@ -39,6 +39,11 @@ from settings import (
     SERVER_HOST,
     TEST_ROOT,
 )
+
+
+def _require(condition, message):
+    if not condition:
+        raise AssertionError(message)
 from test_manager_mode import _wait_for_redirect, _wait_port
 from test_proxy_mode import (
     _close,

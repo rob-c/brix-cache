@@ -84,6 +84,10 @@ import requests
 from server_registry import NginxInstanceSpec
 from settings import BIND_HOST, HOST, NGINX_BIN
 
+def _check_test_every_cors_decision_lands_in_its_own_counter_1(base, now):
+    assert now["preflight"] == base["preflight"] + 1, (base, now)
+
+
 pytestmark = [pytest.mark.timeout(240),
               pytest.mark.uses_lifecycle_harness,
               pytest.mark.xdist_group("lc-audit15n-cors")]
@@ -512,9 +516,12 @@ def test_every_cors_decision_lands_in_its_own_counter(cors):
     now = {ev: _cors_count(after, ev) or 0
            for ev in ("allowed", "denied", "preflight")}
 
-    assert now["allowed"] >= base["allowed"] + 2, (base, now)
-    assert now["denied"] >= base["denied"] + 1, (base, now)
-    assert now["preflight"] == base["preflight"] + 1, (base, now)
+    def _assert_test_every_cors_decision_lands_in_its_own_counter_1():
+        assert now["allowed"] >= base["allowed"] + 2, (base, now)
+        assert now["denied"] >= base["denied"] + 1, (base, now)
+
+    _assert_test_every_cors_decision_lands_in_its_own_counter_1()
+    _check_test_every_cors_decision_lands_in_its_own_counter_1(base, now)
 
 
 # --------------------------------------------------------------------------- #

@@ -76,24 +76,27 @@ def expo(mx):
     return text, parse_rows(text)
 
 
+def _family_checks(family, pinned):
+    if family in HISTOGRAMS:
+        return [(family + "_count", pinned), (family + "_sum", pinned),
+                (family + "_bucket", tuple(sorted(pinned + ("le",))))]
+    return [(family, pinned)]
+
+
+def _assert_label_keys(rows, family, sample, want):
+    got = {keys for keys, _ in rows.get(sample, [])}
+    if family in CONDITIONAL:
+        assert got <= {want}, f"{sample}: {got} != subset of {{{want}}}"
+        return
+    assert got == {want}, f"{sample}: {got} != {{{want}}}"
+
+
 @pytest.mark.parametrize("family", sorted(LABEL_KEYS))
 def test_label_keys_pinned(expo, family):
-    """Every sample row of the family carries exactly the pinned key set
-    (histograms: _count/_sum carry it, _bucket adds `le`).  CONDITIONAL
-    families may have zero rows; any rows they do have must still match."""
+    """Every row carries the pinned keys; histogram buckets also carry le."""
     _, rows = expo
-    pinned = LABEL_KEYS[family]
-    if family in HISTOGRAMS:
-        checks = [(family + "_count", pinned), (family + "_sum", pinned),
-                  (family + "_bucket", tuple(sorted(pinned + ("le",))))]
-    else:
-        checks = [(family, pinned)]
-    for sample, want in checks:
-        got = {keys for keys, _ in rows.get(sample, [])}
-        if family in CONDITIONAL:
-            assert got <= {want}, f"{sample}: {got} != subset of {{{want}}}"
-        else:
-            assert got == {want}, f"{sample}: {got} != {{{want}}}"
+    for sample, want in _family_checks(family, LABEL_KEYS[family]):
+        _assert_label_keys(rows, family, sample, want)
 
 
 def test_no_unpinned_sample_names(expo):
@@ -133,6 +136,20 @@ def test_exposition_has_no_unparsed_label_residue(expo):
         assert residue == "", f"unparsed label residue {residue!r} in: {line}"
 
 
+def _unsafe_label(key, value):
+    if key == "le" or key in PATH_VALUED_KEYS:
+        return False
+    return "/" in value or value.startswith("CN=") or "://" in value
+
+
+def _row_label_offenders(sample, rowlist):
+    offenders = []
+    for _, pairs in rowlist:
+        offenders.extend((sample, key, value) for key, value in pairs
+                         if _unsafe_label(key, value))
+    return offenders
+
+
 def test_label_values_are_low_cardinality_shapes(expo):
     """Invariant 8: no label VALUE anywhere looks like a path, a DN, a URL,
     or a hostname — the cardinality classes that blow up SHM slots.  Sole
@@ -141,12 +158,7 @@ def test_label_values_are_low_cardinality_shapes(expo):
     _, rows = expo
     offenders = []
     for sample, rowlist in rows.items():
-        for _, pairs in rowlist:
-            for k, v in pairs:
-                if k == "le" or k in PATH_VALUED_KEYS:
-                    continue
-                if "/" in v or v.startswith("CN=") or "://" in v:
-                    offenders.append((sample, k, v))
+        offenders.extend(_row_label_offenders(sample, rowlist))
     assert offenders == []
 
 

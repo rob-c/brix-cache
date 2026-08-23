@@ -119,9 +119,22 @@ def test_headers_installed(installed):
 
 
 def _build_demo(installed, tmp_path, static):
-    flags = _pkgconfig(installed, "--cflags", "--libs", *(["--static"] if static else []))
-    out = str(tmp_path / ("demo_static" if static else "demo"))
-    cmd = [CC, "-std=c11", DEMO_SRC] + flags
+    out = str(tmp_path / _demo_name(static))
+    cmd = _demo_command(installed, static)
+    cmd += ["-o", out]
+    proc = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+    assert proc.returncode == 0, f"demo build failed:\n{' '.join(cmd)}\n{proc.stderr}"
+    return out
+
+
+def _demo_name(static):
+    return "demo_static" if static else "demo"
+
+
+def _demo_command(installed, static):
+    if not static:
+        flags = _pkgconfig(installed, "--cflags", "--libs")
+        return [CC, "-std=c11", DEMO_SRC] + flags
     if static:
         # Force the archive form + its deps.  libxrdproto.a is built with the
         # compression codecs (zstd/lz4/lzma/brotli/bz2), so its codec objects
@@ -129,17 +142,13 @@ def _build_demo(installed, tmp_path, static):
         # those libraries too or the link fails with undefined references.  Only
         # append codecs whose runtime lib is actually present (matches however
         # libxrdproto was built; harmless to over-link, fatal to under-link).
-        cmd = ([CC, "-std=c11", DEMO_SRC,
-                "-I" + os.path.join(installed, "include", "brix"),
-                "-I" + os.path.join(installed, "include", "brix", "xrdproto"),
-                os.path.join(installed, "lib", "libbrix.a"),
-                os.path.join(installed, "lib", "libxrdproto.a"),
-                "-lssl", "-lcrypto", "-lz"]
-               + _codec_link_libs() + _krb5_link_libs() + _uring_link_libs())
-    cmd += ["-o", out]
-    proc = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
-    assert proc.returncode == 0, f"demo build failed:\n{' '.join(cmd)}\n{proc.stderr}"
-    return out
+        return ([CC, "-std=c11", DEMO_SRC,
+                 "-I" + os.path.join(installed, "include", "brix"),
+                 "-I" + os.path.join(installed, "include", "brix", "xrdproto"),
+                 os.path.join(installed, "lib", "libbrix.a"),
+                 os.path.join(installed, "lib", "libxrdproto.a"),
+                 "-lssl", "-lcrypto", "-lz"]
+                + _codec_link_libs() + _krb5_link_libs() + _uring_link_libs())
 
 
 def test_shared_consumer_runs(installed, tmp_path):

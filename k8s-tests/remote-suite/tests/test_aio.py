@@ -34,6 +34,30 @@ from settings import (
     SERVER_HOST,
 )
 
+def _check_test_readv_max_segments_1(status):
+    assert status.ok, f"readv max segments failed: {status.message}"
+
+def _check_test_readv_max_segments_2(content, i, off, chunk, sz):
+    assert bytes(chunk.buffer) == content[off:off + sz], \
+        f"segment {i} at offset {off}: data mismatch"
+
+def _check_test_pgread_integrity_3(st):
+    assert st == kXR_ok
+
+def _check_test_pgread_integrity_4(st):
+    assert st == kXR_ok
+
+def _check_test_pgread_integrity_5(st):
+    assert st == kXR_ok
+
+def _check_test_pgread_integrity_6(st):
+    assert st == kXR_status, f"pgread expected kXR_status (4007), got {st}"
+
+def _check_test_pgread_integrity_7(actual_data, content):
+    assert actual_data == content, \
+        f"pgread data mismatch: got {len(actual_data)} bytes, expected {len(content)}"
+
+
 ANON_HOST = SERVER_HOST
 ANON_PORT = NGINX_ANON_PORT
 ANON_URL  = f"root://{SERVER_HOST}:{NGINX_ANON_PORT}"
@@ -168,8 +192,11 @@ class TestAioWrite:
 
         result = _read_file(ANON_URL, "aio-write-offset.bin")
         expected = head + tail_data
-        assert len(result) == total_size
-        assert result == expected
+        def _assert_test_large_write_at_offset_1():
+            assert len(result) == total_size
+            assert result == expected
+
+        _assert_test_large_write_at_offset_1()
 
     def test_large_write_multiple_chunks(self):
         """Writing 20 MiB in 5 chunks must produce identical file."""
@@ -235,11 +262,10 @@ class TestAioReadV:
                 segments.append((start, 256 * 1024))
 
         status, chunks = f.vector_read(segments)
-        assert status.ok, f"readv max segments failed: {status.message}"
+        _check_test_readv_max_segments_1(status)
 
         for i, ((off, sz), chunk) in enumerate(zip(segments, chunks)):
-            assert bytes(chunk.buffer) == content[off:off + sz], \
-                f"segment {i} at offset {off}: data mismatch"
+            _check_test_readv_max_segments_2(content, i, off, chunk, sz)
         f.close()
 
 
@@ -277,7 +303,7 @@ class TestAioPgRead:
         proto_hdr = struct.pack(">BBHIBB10xI", 0, 1, 3006, 0x00000520, 0x02, 0x03, 0)
         sock.sendall(proto_hdr)
         st, _ = _read_response(sock)
-        assert st == kXR_ok
+        _check_test_pgread_integrity_3(st)
 
         login_payload = b"anon\x00\x00\x00\x00"
         login_hdr = (struct.pack(">2sH", b"\x00\x01", 3007)
@@ -288,7 +314,7 @@ class TestAioPgRead:
                      + struct.pack(">I", 0))
         sock.sendall(login_hdr)
         st, _ = _read_response(sock)
-        assert st == kXR_ok
+        _check_test_pgread_integrity_4(st)
 
         open_body = struct.pack(">HH", 0x01B4, 0x0010) + b"\x00" * 12
         path_bytes = b"/aio-pgread.bin\x00"
@@ -297,7 +323,7 @@ class TestAioPgRead:
                + struct.pack(">I", len(path_bytes)))
         sock.sendall(hdr + path_bytes)
         st, fhandle_body = _read_response(sock)
-        assert st == kXR_ok
+        _check_test_pgread_integrity_5(st)
         fh = fhandle_body[:4]
 
         # kXR_pgread (3030): body = fhandle(4) + offset(8) + rlen(4), dlen=0
@@ -312,7 +338,7 @@ class TestAioPgRead:
         #   bdy.dlen  = total page data size (client reads this many more bytes next)
         # So _read_response reads the 24-byte status header; page data follows separately.
         st, body = _read_response(sock)
-        assert st == kXR_status, f"pgread expected kXR_status (4007), got {st}"
+        _check_test_pgread_integrity_6(st)
 
         # bdy.dlen is at offset 12 within body:
         #   crc32c(4) + streamID(2) + requestid(1) + resptype(1) + reserved(4) + dlen(4)
@@ -329,8 +355,7 @@ class TestAioPgRead:
             actual_data += encoded[pos:pos + page_data_len]
             pos += page_data_len
 
-        assert actual_data == content, \
-            f"pgread data mismatch: got {len(actual_data)} bytes, expected {len(content)}"
+        _check_test_pgread_integrity_7(actual_data, content)
 
         sock.close()
 

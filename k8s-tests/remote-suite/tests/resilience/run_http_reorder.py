@@ -161,6 +161,25 @@ def _rm(p):
 
 
 def main():
+    args = _parse_args()
+    _validate_prerequisites()
+    levels = [float(value) for value in args.levels.split(",") if value.strip()]
+    size_bytes = args.size_mib * 1024 * 1024
+    setup = _prepare_data(args, levels)
+    ng_port, ng_proc = start_nginx_http(setup["ng_dir"], setup["ng_data"])
+    xr_port, xr_proc = start_brix_http(setup["xr_dir"], setup["xr_data"])
+    ports = {"nginx": ng_port, "xrootd": xr_port}
+    print(f"[up] nginx http :{ng_port}   xrootd XrdHttp :{xr_port}")
+    pairs = [("repo", "nginx"), ("repo", "xrootd"),
+             ("curl", "nginx"), ("curl", "xrootd")]
+    try:
+        rows = _run_matrix(args, levels, size_bytes, setup["checksum"], ports, pairs)
+    finally:
+        _stop_processes(ng_proc, xr_proc)
+    print_summary(rows, pairs, levels, size_bytes, args.reps)
+
+
+def _parse_args():
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--fault", choices=["reorder", "loss"], default="reorder",
@@ -171,8 +190,10 @@ def main():
     ap.add_argument("--size-mib", type=int, default=64)
     ap.add_argument("--reps", type=int, default=8)
     ap.add_argument("--timeout", type=int, default=120)
-    args = ap.parse_args()
+    return ap.parse_args()
 
+
+def _validate_prerequisites():
     if not os.path.isfile(REPO_XRDCP):
         sys.exit(f"repo xrdcp not built: {REPO_XRDCP}")
     if not servers.BRIX_BIN:
@@ -180,9 +201,8 @@ def main():
     if not os.path.isfile(XRDHTTP_LIB):
         sys.exit(f"XrdHttp server lib missing: {XRDHTTP_LIB}")
 
-    levels = [float(x) for x in args.levels.split(",") if x.strip() != ""]
-    size_bytes = args.size_mib * 1024 * 1024
 
+def _prepare_data(args, levels):
     base = os.path.join(servers.PREFIX, "http_reorder")
     shutil.rmtree(base, ignore_errors=True)
     ng_dir = os.path.join(base, "nginx")
@@ -202,77 +222,97 @@ def main():
           f"reps={args.reps}  reorder-ms={args.reorder_ms}")
     print("[note] official xrdcp cannot copy http:// (CLI limit) — clients: "
           "repo xrdcp + curl")
+    return {"ng_dir": ng_dir, "xr_dir": xr_dir, "ng_data": ng_data,
+            "xr_data": xr_data, "checksum": want}
 
-    ng_port, ng_proc = start_nginx_http(ng_dir, ng_data)
-    xr_port, xr_proc = start_brix_http(xr_dir, xr_data)
-    smap = {"nginx": ng_port, "xrootd": xr_port}
-    print(f"[up] nginx http :{ng_port}   xrootd XrdHttp :{xr_port}")
 
-    pairs = [("repo", "nginx"), ("repo", "xrootd"),
-             ("curl", "nginx"), ("curl", "xrootd")]
+def _run_matrix(args, levels, size_bytes, checksum, ports, pairs):
     rows = []
-    try:
-        for client, sname in pairs:
-            for level in levels:
-                for rep in range(1, args.reps + 1):
-                    with servers.FaultProxy(smap[sname]) as fp:
-                        if level > 0:
-                            if args.fault == "loss":
-                                fp.set_loss(level)
-                            else:
-                                fp.set_reorder(level, args.reorder_ms)
-                        ok, secs, why = http_get(client, fp.listen, want,
-                                                 args.timeout)
-                    mbps = (size_bytes / secs / 1e6) if ok and secs > 0 else 0
-                    print(f"  {client:5s}→{sname:6s} {args.fault}={level:>7g}% rep{rep}: "
-                          f"{'OK ' if ok else 'FAIL'} {secs:6.2f}s {mbps:7.1f}MB/s ({why})")
-                    rows.append(dict(client=client, server=sname, level=level,
-                                     ok=ok, secs=round(secs, 3)))
-    finally:
-        for p in (ng_proc, xr_proc):
-            p.terminate()
-            try:
-                p.wait(timeout=8)
-            except subprocess.TimeoutExpired:
-                p.kill()
+    cases = ((client, server, level, repetition)
+             for client, server in pairs
+             for level in levels
+             for repetition in range(1, args.reps + 1))
+    for case in cases:
+        rows.append(_run_case(args, size_bytes, checksum, ports, case))
+    return rows
 
-    print_summary(rows, pairs, levels, size_bytes, args.reps)
+
+def _run_case(args, size_bytes, checksum, ports, case):
+    client, server, level, repetition = case
+    with servers.FaultProxy(ports[server]) as proxy:
+        _configure_fault(proxy, args, level)
+        succeeded, seconds, reason = http_get(
+            client, proxy.listen, checksum, args.timeout
+        )
+    rate = size_bytes / seconds / 1e6 if succeeded and seconds > 0 else 0
+    outcome = "OK " if succeeded else "FAIL"
+    print(f"  {client:5s}→{server:6s} {args.fault}={level:>7g}% rep{repetition}: "
+          f"{outcome} {seconds:6.2f}s {rate:7.1f}MB/s ({reason})")
+    return dict(client=client, server=server, level=level,
+                ok=succeeded, secs=round(seconds, 3))
+
+
+def _configure_fault(proxy, args, level):
+    if level <= 0:
+        return
+    if args.fault == "loss":
+        proxy.set_loss(level)
+        return
+    proxy.set_reorder(level, args.reorder_ms)
+
+
+def _stop_processes(*processes):
+    for process in processes:
+        process.terminate()
+        try:
+            process.wait(timeout=8)
+        except subprocess.TimeoutExpired:
+            process.kill()
 
 
 def print_summary(rows, pairs, levels, size_bytes, reps):
-    def med_mbps(client, server, level):
-        good = sorted(r["secs"] for r in rows if r["client"] == client
-                      and r["server"] == server and r["level"] == level and r["ok"])
-        return size_bytes / good[len(good) // 2] / 1e6 if good else None
-
     cols = [("repo", "nginx"), ("repo", "xrootd"), ("curl", "nginx"), ("curl", "xrootd")]
-
-    def okn(client, server, level):
-        cell = [r for r in rows if r["client"] == client and r["server"] == server
-                and r["level"] == level]
-        return sum(1 for r in cell if r["ok"]), len(cell)
-
-    # Per-level success rate — the key metric under loss (severs => failed GETs).
-    print("\n=== HTTP byte-exact ok/N per level ===")
     hdr = f"    {'level%':>9s}" + "".join(f"{c+'→'+s:>16s}" for c, s in cols)
+    _print_table("HTTP byte-exact ok/N per level", hdr, levels, cols,
+                 lambda client, server, level: _success_cell(
+                     rows, client, server, level))
+    _print_table("HTTP median MB/s of SUCCESSFUL GETs", hdr, levels, cols,
+                 lambda client, server, level: _rate_cell(
+                     rows, client, server, level, size_bytes))
+    del pairs, reps
+
+
+def _print_table(title, hdr, levels, columns, cell_value):
+    print(f"\n=== {title} ===")
     print(hdr)
     print("    " + "-" * (len(hdr) - 4))
     for level in levels:
         line = f"    {level:>9g}"
-        for c, s in cols:
-            o, n = okn(c, s, level)
-            line += f"{f'{o}/{n}':>16s}"
+        for client, server in columns:
+            line += f"{cell_value(client, server, level):>16s}"
         print(line)
 
-    print("\n=== HTTP median MB/s of SUCCESSFUL GETs ===")
-    print(hdr)
-    print("    " + "-" * (len(hdr) - 4))
-    for level in levels:
-        line = f"    {level:>9g}"
-        for c, s in cols:
-            v = med_mbps(c, s, level)
-            line += f"{(f'{v:.1f}' if v is not None else '-'):>16s}"
-        print(line)
+
+def _matching_rows(rows, client, server, level):
+    return [row for row in rows
+            if row["client"] == client
+            and row["server"] == server
+            and row["level"] == level]
+
+
+def _success_cell(rows, client, server, level):
+    cell = _matching_rows(rows, client, server, level)
+    succeeded = sum(1 for row in cell if row["ok"])
+    return f"{succeeded}/{len(cell)}"
+
+
+def _rate_cell(rows, client, server, level, size_bytes):
+    seconds = sorted(row["secs"] for row in _matching_rows(
+        rows, client, server, level) if row["ok"])
+    if not seconds:
+        return "-"
+    rate = size_bytes / seconds[len(seconds) // 2] / 1e6
+    return f"{rate:.1f}"
 
 
 if __name__ == "__main__":

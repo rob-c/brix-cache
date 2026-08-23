@@ -200,6 +200,166 @@ static int saw(const collect_t *c, cvmfs_walk_kind_e kind, const cvmfs_hash_t *h
     return 0;
 }
 
+/* WHAT: Verify the complete walk, depth bound, and callback stop contract.
+ * WHY: Keep core traversal assertions separate from fixture construction.
+ * HOW: Walk at full/depth-zero scopes and compare the exact emitted CAS set. */
+static void test_catalog_walks(cvmfs_fetch_ctx_t *fx, const char *tmp_dir,
+    const cvmfs_hash_t *hR, const cvmfs_hash_t *hA, const cvmfs_hash_t *hB,
+    const cvmfs_hash_t *hello, const cvmfs_hash_t *inner,
+    const cvmfs_hash_t *leaf, const cvmfs_hash_t *p1,
+    const cvmfs_hash_t *p2) {
+    collect_t c;
+    int       rc;
+
+    memset(&c, 0, sizeof(c));
+    rc = cvmfs_walk_catalog(fx, hR, tmp_dir, 8, collect_cb, &c, 1000);
+    CHECK(rc == 0, "full walk completes");
+    CHECK(c.n == 8, "full walk emits exactly 8 CAS references");
+    CHECK(saw(&c, CVMFS_WALK_CATALOG, hR, 'C', ""), "root catalog emitted");
+    CHECK(saw(&c, CVMFS_WALK_CATALOG, hA, 'C', "/nested"), "nested catalog A emitted");
+    CHECK(saw(&c, CVMFS_WALK_CATALOG, hB, 'C', "/nested/deep"), "nested catalog B emitted");
+    CHECK(saw(&c, CVMFS_WALK_FILE, hello, 0, "/hello"), "whole file /hello emitted");
+    CHECK(saw(&c, CVMFS_WALK_FILE, inner, 0, "/dir/inner"), "file in plain subdir emitted");
+    CHECK(saw(&c, CVMFS_WALK_FILE, leaf, 0, "/nested/deep/leaf"),
+          "file two catalogs deep emitted");
+    CHECK(saw(&c, CVMFS_WALK_CHUNK, p1, 'P', "/nested/big")
+          && saw(&c, CVMFS_WALK_CHUNK, p2, 'P', "/nested/big"),
+          "both chunks of /nested/big emitted");
+
+    memset(&c, 0, sizeof(c));
+    rc = cvmfs_walk_catalog(fx, hR, tmp_dir, 0, collect_cb, &c, 1000);
+    CHECK(rc == 0 && c.n == 4, "depth-0 walk stays in the root catalog");
+    CHECK(saw(&c, CVMFS_WALK_CATALOG, hA, 'C', "/nested")
+          && !saw(&c, CVMFS_WALK_CATALOG, hB, 'C', "/nested/deep"),
+          "depth-0 records the mountpoint without descending");
+    memset(&c, 0, sizeof(c));
+    c.stop_after = 1;
+    rc = cvmfs_walk_catalog(fx, hR, tmp_dir, 8, collect_cb, &c, 1000);
+    CHECK(rc == 1 && c.n == 1, "callback stop halts the walk with rc=1");
+}
+
+/* WHAT: Verify subtree traversal across ordinary and nested roots.
+ * WHY: Subtree path selection has different catalog-descent boundaries.
+ * HOW: Walk four roots and compare their exact reference counts/content. */
+static void test_subtree_walks(cvmfs_fetch_ctx_t *fx, const char *tmp_dir,
+    const cvmfs_hash_t *hR, const cvmfs_hash_t *hB,
+    const cvmfs_hash_t *inner, const cvmfs_hash_t *leaf,
+    const cvmfs_hash_t *p1, const cvmfs_hash_t *p2) {
+    collect_t c;
+    int       rc;
+
+    memset(&c, 0, sizeof(c));
+    rc = cvmfs_walk_subtree(fx, hR, tmp_dir, "/dir", 8, collect_cb, &c, 1000);
+    CHECK(rc == 0 && c.n == 1 && saw(&c, CVMFS_WALK_FILE, inner, 0, "/dir/inner"),
+          "subtree /dir emits only its own file");
+    memset(&c, 0, sizeof(c));
+    rc = cvmfs_walk_subtree(fx, hR, tmp_dir, "/nested", 8, collect_cb, &c, 1000);
+    CHECK(rc == 0 && c.n == 4
+          && saw(&c, CVMFS_WALK_CHUNK, p1, 'P', "/nested/big")
+          && saw(&c, CVMFS_WALK_CHUNK, p2, 'P', "/nested/big")
+          && saw(&c, CVMFS_WALK_CATALOG, hB, 'C', "/nested/deep")
+          && saw(&c, CVMFS_WALK_FILE, leaf, 0, "/nested/deep/leaf"),
+          "subtree rooted at a mountpoint walks its own catalog");
+    memset(&c, 0, sizeof(c));
+    rc = cvmfs_walk_subtree(fx, hR, tmp_dir, "/nested/deep", 8,
+                            collect_cb, &c, 1000);
+    CHECK(rc == 0 && c.n == 1
+          && saw(&c, CVMFS_WALK_FILE, leaf, 0, "/nested/deep/leaf"),
+          "subtree two mountpoints deep emits only the leaf");
+    memset(&c, 0, sizeof(c));
+    rc = cvmfs_walk_subtree(fx, hR, tmp_dir, "/absent", 8,
+                            collect_cb, &c, 1000);
+    CHECK(rc == 0 && c.n == 0, "subtree of an absent path is an empty walk");
+}
+
+/* WHAT: Verify path-only traversal at full and bounded depth.
+ * WHY: Negative-filter input must contain names but no CAS references.
+ * HOW: Walk both depths and assert named coverage, descent, and item kinds. */
+static void test_path_walks(cvmfs_fetch_ctx_t *fx, const char *tmp_dir,
+    const cvmfs_hash_t *hR, const cvmfs_hash_t *hA,
+    const cvmfs_hash_t *hello) {
+    collect_t c;
+    int       rc;
+
+    memset(&c, 0, sizeof(c));
+    rc = cvmfs_walk_paths(fx, hR, tmp_dir, 8, collect_cb, &c, 1000);
+    CHECK(rc == 0 && c.n == 8, "paths walk emits exactly the 8 named entries");
+    CHECK(saw_path(&c, "/hello") && saw_path(&c, "/dir")
+          && saw_path(&c, "/dir/inner") && saw_path(&c, "/link")
+          && saw_path(&c, "/nested"),
+          "paths walk covers files, plain dirs, and symlinks");
+    CHECK(saw_path(&c, "/nested/big") && saw_path(&c, "/nested/deep")
+          && saw_path(&c, "/nested/deep/leaf"),
+          "paths walk descends nested catalogs");
+    CHECK(!saw(&c, CVMFS_WALK_CATALOG, hA, 'C', "/nested")
+          && !saw(&c, CVMFS_WALK_FILE, hello, 0, "/hello"),
+          "paths walk emits no CAS references");
+    memset(&c, 0, sizeof(c));
+    rc = cvmfs_walk_paths(fx, hR, tmp_dir, 0, collect_cb, &c, 1000);
+    CHECK(rc == 0 && c.n == 5 && saw_path(&c, "/nested")
+          && !saw_path(&c, "/nested/big"),
+          "depth-0 paths walk records the mountpoint without descending");
+}
+
+/* WHAT: Verify nested-catalog tampering aborts both traversal modes.
+ * WHY: A corrupted catalog must never yield a partial trusted result.
+ * HOW: Use a fresh cache, flip compressed catalog bytes, walk twice, restore. */
+static void test_tampered_catalog(cvmfs_fetch_ctx_t *fx, const char *tmp_dir,
+    const char *cache_dir, const cvmfs_hash_t *hR,
+    unsigned char *nested, size_t nested_len) {
+    brix_cas_store_t cache;
+    collect_t        c;
+
+    brix_cas_init(&cache, cache_dir, 0);
+    fx->cache = &cache;
+    nested[nested_len / 2] ^= 0x40;
+    memset(&c, 0, sizeof(c));
+    CHECK(cvmfs_walk_catalog(fx, hR, tmp_dir, 8, collect_cb, &c, 1000) == -1,
+          "tampered nested catalog aborts the walk");
+    memset(&c, 0, sizeof(c));
+    CHECK(cvmfs_walk_paths(fx, hR, tmp_dir, 8, collect_cb, &c, 1000) == -1,
+          "tampered nested catalog aborts the paths walk too");
+    nested[nested_len / 2] ^= 0x40;
+}
+
+/* WHAT: Verify compressed, tampered, plain, and undersized blob handling.
+ * WHY: Standalone blob verification is the trust boundary used by the walker.
+ * HOW: Check the catalog blob, construct one content blob, flip it, then probe
+ *      plain storage and insufficient output space.
+ */
+static void test_verify_blobs(const cvmfs_hash_t *hR,
+    const unsigned char *zR, size_t zRn, unsigned char *scratch,
+    size_t scratch_cap) {
+    unsigned char       out[256];
+    const unsigned char body[] = "verify me";
+    unsigned char      *compressed;
+    cvmfs_hash_t        hash, plain_hash;
+    size_t              outn = 0, compressed_len;
+    int                 rc;
+
+    CHECK(cvmfs_verify_blob(hR, zR, zRn, scratch, scratch_cap, &outn) == 0,
+          "verify_blob accepts an authentic compressed catalog");
+    compressed = zlib_of(body, sizeof(body) - 1, &compressed_len);
+    cvmfs_object_hash(CVMFS_HASH_SHA1, compressed, compressed_len, &hash);
+    rc = cvmfs_verify_blob(&hash, compressed, compressed_len,
+                           out, sizeof(out), &outn);
+    CHECK(rc == 0 && outn == sizeof(body) - 1 && memcmp(out, body, outn) == 0,
+          "verify_blob decodes an authentic blob to its plaintext");
+    compressed[compressed_len / 2] ^= 0x01;
+    CHECK(cvmfs_verify_blob(&hash, compressed, compressed_len,
+                            out, sizeof(out), &outn) == -1,
+          "verify_blob rejects a bit-flipped blob");
+    cvmfs_object_hash(CVMFS_HASH_SHA1, body, sizeof(body) - 1, &plain_hash);
+    rc = cvmfs_verify_blob(&plain_hash, body, sizeof(body) - 1,
+                           out, sizeof(out), &outn);
+    CHECK(rc == 0 && outn == sizeof(body) - 1 && memcmp(out, body, outn) == 0,
+          "verify_blob passes a plain-stored blob through");
+    CHECK(cvmfs_verify_blob(&plain_hash, body, sizeof(body) - 1,
+                            out, 4, &outn) == -3,
+          "verify_blob reports a too-small output buffer");
+    free(compressed);
+}
+
 int main(void) {
     char tmp_dir[]   = "/tmp/brix_walk_tmp.XXXXXX";
     char cache_dir[] = "/tmp/brix_walk_cache.XXXXXX";
@@ -279,120 +439,14 @@ int main(void) {
     fx.store_form = CVMFS_STORE_COMPRESSED;
     fx.scratch = scratch; fx.scratch_cap = sizeof(scratch);
 
-    /* ---- full walk: exact CAS reference set ----------------------------- */
-    collect_t c; memset(&c, 0, sizeof(c));
-    int rc = cvmfs_walk_catalog(&fx, &hR, tmp_dir, 8, collect_cb, &c, 1000);
-    CHECK(rc == 0, "full walk completes");
-    CHECK(c.n == 8, "full walk emits exactly 8 CAS references");
-    CHECK(saw(&c, CVMFS_WALK_CATALOG, &hR, 'C', ""), "root catalog emitted");
-    CHECK(saw(&c, CVMFS_WALK_CATALOG, &hA, 'C', "/nested"), "nested catalog A emitted");
-    CHECK(saw(&c, CVMFS_WALK_CATALOG, &hB, 'C', "/nested/deep"), "nested catalog B emitted");
-    CHECK(saw(&c, CVMFS_WALK_FILE, &h_hello, 0, "/hello"), "whole file /hello emitted");
-    CHECK(saw(&c, CVMFS_WALK_FILE, &h_inner, 0, "/dir/inner"), "file in plain subdir emitted");
-    CHECK(saw(&c, CVMFS_WALK_FILE, &h_leaf, 0, "/nested/deep/leaf"),
-          "file two catalogs deep emitted");
-    CHECK(saw(&c, CVMFS_WALK_CHUNK, &h_p1, 'P', "/nested/big")
-          && saw(&c, CVMFS_WALK_CHUNK, &h_p2, 'P', "/nested/big"),
-          "both chunks of /nested/big emitted");
+    test_catalog_walks(&fx, tmp_dir, &hR, &hA, &hB, &h_hello, &h_inner,
+                       &h_leaf, &h_p1, &h_p2);
+    test_subtree_walks(&fx, tmp_dir, &hR, &hB, &h_inner, &h_leaf, &h_p1, &h_p2);
+    test_path_walks(&fx, tmp_dir, &hR, &hA, &h_hello);
+    test_tampered_catalog(&fx, tmp_dir, cache2, &hR, zA, zAn);
+    test_verify_blobs(&hR, zR, zRn, scratch, sizeof(scratch));
 
-    /* ---- depth 0: root catalog only, nested emitted but not descended --- */
-    memset(&c, 0, sizeof(c));
-    rc = cvmfs_walk_catalog(&fx, &hR, tmp_dir, 0, collect_cb, &c, 1000);
-    CHECK(rc == 0 && c.n == 4, "depth-0 walk stays in the root catalog");
-    CHECK(saw(&c, CVMFS_WALK_CATALOG, &hA, 'C', "/nested")
-          && !saw(&c, CVMFS_WALK_CATALOG, &hB, 'C', "/nested/deep"),
-          "depth-0 records the mountpoint without descending");
-
-    /* ---- early stop ------------------------------------------------------ */
-    memset(&c, 0, sizeof(c));
-    c.stop_after = 1;
-    rc = cvmfs_walk_catalog(&fx, &hR, tmp_dir, 8, collect_cb, &c, 1000);
-    CHECK(rc == 1 && c.n == 1, "callback stop halts the walk with rc=1");
-
-    /* ---- subtree walks --------------------------------------------------- */
-    memset(&c, 0, sizeof(c));
-    rc = cvmfs_walk_subtree(&fx, &hR, tmp_dir, "/dir", 8, collect_cb, &c, 1000);
-    CHECK(rc == 0 && c.n == 1 && saw(&c, CVMFS_WALK_FILE, &h_inner, 0, "/dir/inner"),
-          "subtree /dir emits only its own file");
-
-    memset(&c, 0, sizeof(c));
-    rc = cvmfs_walk_subtree(&fx, &hR, tmp_dir, "/nested", 8, collect_cb, &c, 1000);
-    CHECK(rc == 0 && c.n == 4
-          && saw(&c, CVMFS_WALK_CHUNK, &h_p1, 'P', "/nested/big")
-          && saw(&c, CVMFS_WALK_CHUNK, &h_p2, 'P', "/nested/big")
-          && saw(&c, CVMFS_WALK_CATALOG, &hB, 'C', "/nested/deep")
-          && saw(&c, CVMFS_WALK_FILE, &h_leaf, 0, "/nested/deep/leaf"),
-          "subtree rooted at a mountpoint walks its own catalog");
-
-    memset(&c, 0, sizeof(c));
-    rc = cvmfs_walk_subtree(&fx, &hR, tmp_dir, "/nested/deep", 8, collect_cb, &c, 1000);
-    CHECK(rc == 0 && c.n == 1 && saw(&c, CVMFS_WALK_FILE, &h_leaf, 0, "/nested/deep/leaf"),
-          "subtree two mountpoints deep emits only the leaf");
-
-    memset(&c, 0, sizeof(c));
-    rc = cvmfs_walk_subtree(&fx, &hR, tmp_dir, "/absent", 8, collect_cb, &c, 1000);
-    CHECK(rc == 0 && c.n == 0, "subtree of an absent path is an empty walk");
-
-    /* ---- paths mode (phase-87 G1): every named entry, no CAS refs -------- */
-    memset(&c, 0, sizeof(c));
-    rc = cvmfs_walk_paths(&fx, &hR, tmp_dir, 8, collect_cb, &c, 1000);
-    CHECK(rc == 0 && c.n == 8, "paths walk emits exactly the 8 named entries");
-    CHECK(saw_path(&c, "/hello") && saw_path(&c, "/dir") && saw_path(&c, "/dir/inner")
-          && saw_path(&c, "/link") && saw_path(&c, "/nested"),
-          "paths walk covers files, plain dirs, and symlinks");
-    CHECK(saw_path(&c, "/nested/big") && saw_path(&c, "/nested/deep")
-          && saw_path(&c, "/nested/deep/leaf"),
-          "paths walk descends nested catalogs");
-    CHECK(!saw(&c, CVMFS_WALK_CATALOG, &hA, 'C', "/nested")
-          && !saw(&c, CVMFS_WALK_FILE, &h_hello, 0, "/hello"),
-          "paths walk emits no CAS references");
-
-    memset(&c, 0, sizeof(c));
-    rc = cvmfs_walk_paths(&fx, &hR, tmp_dir, 0, collect_cb, &c, 1000);
-    CHECK(rc == 0 && c.n == 5 && saw_path(&c, "/nested")
-          && !saw_path(&c, "/nested/big"),
-          "depth-0 paths walk records the mountpoint without descending");
-
-    /* ---- security-neg: tampered nested catalog aborts the walk ----------- */
-    /* fresh cache so catalog A is refetched, not served from verified CAS */
-    brix_cas_store_t cacheB;
-    brix_cas_init(&cacheB, cache2, 0);
-    fx.cache = &cacheB;
-    zA[zAn / 2] ^= 0x40;
-    memset(&c, 0, sizeof(c));
-    rc = cvmfs_walk_catalog(&fx, &hR, tmp_dir, 8, collect_cb, &c, 1000);
-    CHECK(rc == -1, "tampered nested catalog aborts the walk");   /* security-neg */
-    memset(&c, 0, sizeof(c));
-    rc = cvmfs_walk_paths(&fx, &hR, tmp_dir, 8, collect_cb, &c, 1000);
-    CHECK(rc == -1, "tampered nested catalog aborts the paths walk too");
-    zA[zAn / 2] ^= 0x40;
-
-    /* ---- cvmfs_verify_blob ---------------------------------------------- */
-    unsigned char out[256]; size_t outn = 0;
-    CHECK(cvmfs_verify_blob(&hR, zR, zRn, scratch, sizeof(scratch), &outn) == 0,
-          "verify_blob accepts an authentic compressed catalog");
-
-    const unsigned char body[] = "verify me";
-    size_t zbn; unsigned char *zb = zlib_of(body, sizeof(body) - 1, &zbn);
-    cvmfs_hash_t hb; cvmfs_object_hash(CVMFS_HASH_SHA1, zb, zbn, &hb);
-    rc = cvmfs_verify_blob(&hb, zb, zbn, out, sizeof(out), &outn);
-    CHECK(rc == 0 && outn == sizeof(body) - 1 && memcmp(out, body, outn) == 0,
-          "verify_blob decodes an authentic blob to its plaintext");
-
-    zb[zbn / 2] ^= 0x01;
-    CHECK(cvmfs_verify_blob(&hb, zb, zbn, out, sizeof(out), &outn) == -1,
-          "verify_blob rejects a bit-flipped blob");               /* security-neg */
-    zb[zbn / 2] ^= 0x01;
-
-    /* plain-stored (not a zlib stream): identity = hash of the raw bytes */
-    cvmfs_hash_t hp; cvmfs_object_hash(CVMFS_HASH_SHA1, body, sizeof(body) - 1, &hp);
-    rc = cvmfs_verify_blob(&hp, body, sizeof(body) - 1, out, sizeof(out), &outn);
-    CHECK(rc == 0 && outn == sizeof(body) - 1 && memcmp(out, body, outn) == 0,
-          "verify_blob passes a plain-stored blob through");
-    CHECK(cvmfs_verify_blob(&hp, body, sizeof(body) - 1, out, 4, &outn) == -3,
-          "verify_blob reports a too-small output buffer");
-
-    free(zR); free(zA); free(zB); free(zb);
+    free(zR); free(zA); free(zB);
     rm_rf(tmp_dir); rm_rf(cache_dir); rm_rf(cache2);
 
     printf("walk unittest: %d checks, %d failed\n", g_checks, g_failed);

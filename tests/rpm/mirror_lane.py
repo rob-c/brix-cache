@@ -138,11 +138,19 @@ def hits(base, method=None, path_suffix=None):
     """The origin's request journal, optionally filtered."""
     with urllib.request.urlopen(base + "/ctl/log", timeout=10) as resp:
         rows = json.load(resp)
-    if method is not None:
-        rows = [r for r in rows if r["method"] == method]
-    if path_suffix is not None:
-        rows = [r for r in rows if r["path"].endswith(path_suffix)]
-    return rows
+    return _path_hits(_method_hits(rows, method), path_suffix)
+
+
+def _method_hits(rows, method):
+    if method is None:
+        return rows
+    return [row for row in rows if row["method"] == method]
+
+
+def _path_hits(rows, suffix):
+    if suffix is None:
+        return rows
+    return [row for row in rows if row["path"].endswith(suffix)]
 
 
 class Mirror(NamedTuple):

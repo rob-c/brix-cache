@@ -215,15 +215,21 @@ def test_upstream_multiround_authmore(redirector):
 
     origin = redirector["origin"]
     if status != kXR_redirect:
-        tail = ""
-        errlog = Path(redirector["base"]) / "err.log"
-        if errlog.exists():
-            tail = "\n".join(errlog.read_text(errors="replace").splitlines()[-15:])
-        pytest.fail(f"expected kXR_redirect after {AUTH_ROUNDS}-round auth, got "
-                    f"{status}; origin saw {len(origin.creds)} cred(s)\n{tail}")
+        _fail_redirect(status, origin, Path(redirector["base"]) / "err.log")
     assert struct.unpack(">I", body[:4])[0] == 1094
     assert body[4:].decode() == "storage.example.org"
-    # Both rounds must have forwarded the ztn token (proves the loop, not a 1-shot).
+    _assert_forwarded_credentials(origin)
+
+
+def _fail_redirect(status, origin, errlog):
+    tail = ""
+    if errlog.exists():
+        tail = "\n".join(errlog.read_text(errors="replace").splitlines()[-15:])
+    pytest.fail(f"expected kXR_redirect after {AUTH_ROUNDS}-round auth, got "
+                f"{status}; origin saw {len(origin.creds)} cred(s)\n{tail}")
+
+
+def _assert_forwarded_credentials(origin):
     assert len(origin.creds) == AUTH_ROUNDS, \
         f"origin received {len(origin.creds)} creds, expected {AUTH_ROUNDS}"
     for cred in origin.creds:

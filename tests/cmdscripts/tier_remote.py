@@ -22,6 +22,68 @@ from cmdscripts.live_common import LiveFailure, LiveRun, random_file, sha256
 from settings import BIND_HOST, HOST
 
 
+def _expression_1(response):
+    return (
+        int(response.stdout.strip() or 0)
+    )
+
+def _expression_2(size, cache):
+    return (
+        cache.stat().st_blocks * 512 if cache.exists() else size
+    )
+
+def _expression_3(status, expected, allocated, full_status, got, cache, size, first, block, full, source):
+    return (
+        _result([
+                    (status in (200, 206), f"middle range accepted ({status})"),
+                    (got.read_bytes() == expected, "middle range byte-exact"),
+                    (cache.exists() and allocated < size // 4, "first range created a sparse cache object"),
+                    (first.read_bytes() == source.read_bytes()[:block], "second range byte-exact"),
+                    (full_status == 200 and sha256(full) == sha256(source), "full GET completes byte-exact object"),
+                ])
+    )
+
+def _expression_4(sidecar):
+    return (
+        (11742, 11743, 8527) if sidecar else (11682, 11683, 8497)
+    )
+
+def _expression_5(sidecar):
+    return (
+        "tier_sidecar" if sidecar else "tier_rstore"
+    )
+
+def _expression_6(sidecar):
+    return (
+        "brix_cache_meta sidecar;" if sidecar else ""
+    )
+
+def _expression_7(source, sidecar):
+    return (
+        random_file(source, 400000 if sidecar else 500000)
+    )
+
+def _expression_8(cold, digest, cached, first):
+    return (
+        [(cold == 200 and sha256(first) == digest, "cold GET byte-exact"), (cached.exists(), "object bytes stored remotely")]
+    )
+
+def _expression_9(cached):
+    return (
+        subprocess.run(["getfattr", "-d", "-m", ".", str(cached)], capture_output=True, text=True) if shutil.which("getfattr") else None
+    )
+
+def _expression_10(checks, warm_status, digest, warm):
+    return (
+        checks.append((warm_status == 200 and sha256(warm) == digest, "warm hit survives cache-node restart with origin down"))
+    )
+
+
+def _guard_remote_store_1(xattr, checks):
+    if xattr is not None:
+        checks.append(("cinfo" in xattr.stdout.lower(), "cinfo xattr stored remotely"))
+
+
 class TierTopology:
     def __init__(self, run: LiveRun, origin_port: int, store_port: int, client_port: int) -> None:
         self.run = run
@@ -120,14 +182,14 @@ def remote_stage(nginx: Path | None = None) -> int:
 
 
 def remote_store(nginx: Path | None = None, *, sidecar: bool = False) -> int:
-    ports = (11742, 11743, 8527) if sidecar else (11682, 11683, 8497)
-    label = "tier_sidecar" if sidecar else "tier_rstore"
+    ports = _expression_4(sidecar)
+    label = _expression_5(sidecar)
     with LiveRun(label, nginx) as run:
         topology = TierTopology(run, *ports)
-        metadata = "brix_cache_meta sidecar;" if sidecar else ""
+        metadata = _expression_6(sidecar)
         directives = f"brix_cache_store root://{HOST}:{topology.store_port}; {metadata}"
         source = topology.origin / "root/s.bin"
-        digest = random_file(source, 400000 if sidecar else 500000)
+        digest = _expression_7(source, sidecar)
         source.chmod(stat.S_IRUSR | stat.S_IRGRP | stat.S_IROTH)
         topology.start(directives)
         first = run.root / "cold.bin"
@@ -137,18 +199,17 @@ def remote_store(nginx: Path | None = None, *, sidecar: bool = False) -> int:
         # src/fs/meta/xmeta_carrier.h — the stock-compatible prefix is what
         # makes the sidecar readable as an XrdPfc cinfo file, the suffix is not.
         sidecar_file = topology.store / "root/s.bin.cinfo"
-        checks = [(cold == 200 and sha256(first) == digest, "cold GET byte-exact"), (cached.exists(), "object bytes stored remotely")]
+        checks = _expression_8(cold, digest, cached, first)
         if sidecar:
             checks.append((sidecar_file.exists(), "sidecar cinfo object stored remotely"))
         else:
-            xattr = subprocess.run(["getfattr", "-d", "-m", ".", str(cached)], capture_output=True, text=True) if shutil.which("getfattr") else None
-            if xattr is not None:
-                checks.append(("cinfo" in xattr.stdout.lower(), "cinfo xattr stored remotely"))
+            xattr = _expression_9(cached)
+            _guard_remote_store_1(xattr, checks)
         topology.run.stop_nginx(topology.origin)
         topology.restart_client(directives)
         warm = run.root / "warm.bin"
         warm_status = topology.download("s.bin", warm)
-        checks.append((warm_status == 200 and sha256(warm) == digest, "warm hit survives cache-node restart with origin down"))
+        _expression_10(checks, warm_status, digest, warm)
         return _result(checks)
 
 
@@ -200,21 +261,15 @@ def slice_fill(nginx: Path | None = None) -> int:
         middle = size // 2
         got = run.root / "middle.bin"
         response = run.call(["curl", "-sS", "-o", got, "-w", "%{http_code}", "-r", f"{middle}-{middle + block - 1}", f"{topology.url}/big.bin"], check=False)
-        status = int(response.stdout.strip() or 0)
+        status = _expression_1(response)
         expected = source.read_bytes()[middle:middle + block]
         cache = topology.client / "cache/big.bin"
-        allocated = cache.stat().st_blocks * 512 if cache.exists() else size
+        allocated = _expression_2(size, cache)
         first = run.root / "first.bin"
         response = run.call(["curl", "-sS", "-o", first, "-w", "%{http_code}", "-r", f"0-{block - 1}", f"{topology.url}/big.bin"], check=False)
         full = run.root / "full.bin"
         full_status = topology.download("big.bin", full)
-        return _result([
-            (status in (200, 206), f"middle range accepted ({status})"),
-            (got.read_bytes() == expected, "middle range byte-exact"),
-            (cache.exists() and allocated < size // 4, "first range created a sparse cache object"),
-            (first.read_bytes() == source.read_bytes()[:block], "second range byte-exact"),
-            (full_status == 200 and sha256(full) == sha256(source), "full GET completes byte-exact object"),
-        ])
+        return _expression_3(status, expected, allocated, full_status, got, cache, size, first, block, full, source)
 
 
 SCENARIOS = {"remote-stage": remote_stage, "remote-evict": remote_evict, "remote-store": remote_store, "sidecar-meta": lambda nginx: remote_store(nginx, sidecar=True), "slice-fill": slice_fill}

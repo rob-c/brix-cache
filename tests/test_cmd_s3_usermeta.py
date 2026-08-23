@@ -18,13 +18,28 @@ def test_s3_usermeta_flow(tmp_path):
         f"{'ok' if ok else 'FAIL'} {message}" for ok, message in results
     )
     messages = [message for _, message in results]
-    assert "PUT 200" in messages
-    assert "HEAD echoes x-amz-meta-foo=bar" in messages
-    assert "HEAD echoes x-amz-meta-color=Blue (key lowercased)" in messages
-    assert "GET echoes the metadata and body" in messages
-    assert "COPY 200" in messages
-    assert "copied object carries x-amz-meta-foo=bar" in messages
-    assert "REPLACE copy-self 200" in messages
-    assert "metadata replaced: foo=baz" in messages
-    assert "old key dropped on REPLACE: color absent" in messages
-    assert "bytes intact after metadata-only REPLACE" in messages
+    def _assert_test_s3_usermeta_flow_1():
+        assert "PUT 200" in messages
+        assert "HEAD echoes x-amz-meta-foo=bar" in messages
+
+    _assert_test_s3_usermeta_flow_1()
+    def _assert_test_s3_usermeta_flow_2():
+        assert "HEAD echoes x-amz-meta-color=Blue (key lowercased)" in messages
+        assert "GET echoes the metadata and body" in messages
+
+    _assert_test_s3_usermeta_flow_2()
+    def _assert_test_s3_usermeta_flow_3():
+        assert "COPY 200" in messages
+        assert "copied object carries x-amz-meta-foo=bar" in messages
+
+    _assert_test_s3_usermeta_flow_3()
+    def _assert_test_s3_usermeta_flow_4():
+        assert "REPLACE copy-self 200" in messages
+        assert "metadata replaced: foo=baz" in messages
+
+    _assert_test_s3_usermeta_flow_4()
+    def _assert_test_s3_usermeta_flow_5():
+        assert "old key dropped on REPLACE: color absent" in messages
+        assert "bytes intact after metadata-only REPLACE" in messages
+
+    _assert_test_s3_usermeta_flow_5()

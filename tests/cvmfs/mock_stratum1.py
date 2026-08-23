@@ -112,106 +112,154 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         repo = STATE["repo"]
+        if self._serve_control():
+            return
+        with STATE["lock"]:
+            STATE["log"].append({"path": self.path, "ts": time.time()})
+        if self._serve_geo(repo):
+            return
+        body = resolve_body(self.path)
+        if body is None:
+            self._send(404, b"not found")
+            return
+        mode = self._take_fault(self.path)
+        if self._apply_terminal_fault(mode, body):
+            return
+        body = self._corrupt_body(mode, body)
+        if self._serve_range(body):
+            return
+        self._send(200, body)
+
+    def _serve_control(self):
         if self.path == "/ctl/log":
             with STATE["lock"]:
                 body = json.dumps(STATE["log"]).encode()
-            return self._send(200, body, "application/json")
+            self._send(200, body, "application/json")
+            return True
         if self.path == "/ctl/heads":
             with STATE["lock"]:
                 body = json.dumps(STATE["heads"]).encode()
-            return self._send(200, body, "application/json")
+            self._send(200, body, "application/json")
+            return True
         if self.path == "/ctl/objects":
-            return self._send(200, json.dumps(sorted(STATE["objects"])).encode(),
-                              "application/json")
+            body = json.dumps(sorted(STATE["objects"])).encode()
+            self._send(200, body, "application/json")
+            return True
         if self.path == "/ctl/connections":     # distinct TCP connections seen
             with STATE["lock"]:
-                n = STATE["connections"]
-            return self._send(200, json.dumps({"connections": n}).encode(),
-                              "application/json")
+                count = STATE["connections"]
+            body = json.dumps({"connections": count}).encode()
+            self._send(200, body, "application/json")
+            return True
         if self.path == "/ctl/manifest/bump":
             with STATE["lock"]:
                 STATE["revision"] += 1
-            return self._send(200, b"ok")
+            self._send(200, b"ok")
+            return True
+        return False
 
-        with STATE["lock"]:
-            STATE["log"].append({"path": self.path, "ts": time.time()})
-
+    def _serve_geo(self, repo):
         if self.path.startswith(f"/cvmfs/{repo}/api/v1.0/geo/"):
             servers = self.path.rsplit("/", 1)[-1].split(",")
             order = ",".join(str(i + 1) for i in range(len(servers)))
-            return self._send(200, order.encode() + b"\n", "text/plain")
+            self._send(200, order.encode() + b"\n", "text/plain")
+            return True
+        return False
 
-        body = resolve_body(self.path)
-        if body is None:
-            return self._send(404, b"not found")
+    def _apply_terminal_fault(self, mode, body):
+        handler = {
+            "reset": self._fault_reset,
+            "http500": self._fault_http500,
+            "stall": self._fault_stall,
+            "truncate": self._fault_truncate,
+            "wrong_length": self._fault_wrong_length,
+            "slowdrip": self._fault_slowdrip,
+        }.get(mode)
+        if handler is None:
+            return False
+        handler(body)
+        return True
 
-        mode = self._take_fault(self.path)
-        if mode == "reset":
-            self.connection.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER,
-                                       b"\x01\x00\x00\x00\x00\x00\x00\x00")
-            self.connection.close()
-            return
-        if mode == "http500":
-            return self._send(500, b"origin error")
-        if mode == "stall":
-            self.send_response(200)
-            self.send_header("Content-Length", str(len(body)))
-            self.end_headers()
-            self.wfile.write(body[:64]); self.wfile.flush()
-            time.sleep(30)                      # longer than any fill stall timeout
-            return
-        if mode == "truncate":
-            self.send_response(200)
-            self.send_header("Content-Length", str(len(body)))
-            self.end_headers()
-            self.wfile.write(body[:len(body) // 2]); self.wfile.flush()
-            self.connection.close()
-            return
-        if mode == "wrong_length":
-            self.send_response(200)
-            self.send_header("Content-Length", str(len(body) + 7))
-            self.end_headers()
-            self.wfile.write(body); self.wfile.flush()
-            self.connection.close()
-            return
-        if mode == "slowdrip":
-            self.send_response(200)
-            self.send_header("Content-Length", str(len(body)))
-            self.end_headers()
-            for byte in body:
-                self.wfile.write(bytes([byte])); self.wfile.flush()
-                time.sleep(0.2)
-            return
-        if mode == "corrupt":
-            body = bytes(b ^ 0xFF if i == len(body) // 2 else b
-                         for i, b in enumerate(body))
+    def _fault_reset(self, _body):
+        linger = b"\x01\x00\x00\x00\x00\x00\x00\x00"
+        self.connection.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER, linger)
+        self.connection.close()
 
-        # single-range support (bytes=a-b / bytes=a-), like a real Stratum-1
+    def _fault_http500(self, _body):
+        self._send(500, b"origin error")
+
+    def _fault_stall(self, body):
+        self._begin_fault_body(len(body))
+        self.wfile.write(body[:64])
+        self.wfile.flush()
+        time.sleep(30)
+
+    def _fault_truncate(self, body):
+        self._begin_fault_body(len(body))
+        self.wfile.write(body[:len(body) // 2])
+        self.wfile.flush()
+        self.connection.close()
+
+    def _fault_wrong_length(self, body):
+        self._begin_fault_body(len(body) + 7)
+        self.wfile.write(body)
+        self.wfile.flush()
+        self.connection.close()
+
+    def _fault_slowdrip(self, body):
+        self._begin_fault_body(len(body))
+        for byte in body:
+            self.wfile.write(bytes([byte]))
+            self.wfile.flush()
+            time.sleep(0.2)
+
+    def _begin_fault_body(self, length):
+        self.send_response(200)
+        self.send_header("Content-Length", str(length))
+        self.end_headers()
+
+    def _corrupt_body(self, mode, body):
+        if mode != "corrupt":
+            return body
+        middle = len(body) // 2
+        return bytes(value ^ 0xFF if index == middle else value
+                     for index, value in enumerate(body))
+
+    def _serve_range(self, body):
         rng = self.headers.get("Range")
-        if rng and rng.startswith("bytes="):
-            try:
-                a, _, b = rng[len("bytes="):].partition("-")
-                start = int(a)
-                end = int(b) if b else len(body) - 1
-            except ValueError:
-                start, end = 0, len(body) - 1
-            if start >= len(body):
-                self.send_response(416)
-                self.send_header("Content-Range", f"bytes */{len(body)}")
-                self.send_header("Content-Length", "0")
-                self.end_headers()
-                return
-            end = min(end, len(body) - 1)
-            part = body[start:end + 1]
-            self.send_response(206)
-            self.send_header("Content-Type", "application/octet-stream")
-            self.send_header("Content-Range",
-                             f"bytes {start}-{end}/{len(body)}")
-            self.send_header("Content-Length", str(len(part)))
-            self.end_headers()
-            self.wfile.write(part)
-            return
-        self._send(200, body)
+        if not rng or not rng.startswith("bytes="):
+            return False
+        start, end = self._range_bounds(rng, len(body))
+        if start >= len(body):
+            self._send_unsatisfied_range(len(body))
+            return True
+        self._send_range(body, start, min(end, len(body) - 1))
+        return True
+
+    @staticmethod
+    def _range_bounds(header, body_length):
+        try:
+            first, _, last = header[len("bytes="):].partition("-")
+            start = int(first)
+            end = int(last) if last else body_length - 1
+            return start, end
+        except ValueError:
+            return 0, body_length - 1
+
+    def _send_unsatisfied_range(self, body_length):
+        self.send_response(416)
+        self.send_header("Content-Range", f"bytes */{body_length}")
+        self.send_header("Content-Length", "0")
+        self.end_headers()
+
+    def _send_range(self, body, start, end):
+        part = body[start:end + 1]
+        self.send_response(206)
+        self.send_header("Content-Type", "application/octet-stream")
+        self.send_header("Content-Range", f"bytes {start}-{end}/{len(body)}")
+        self.send_header("Content-Length", str(len(part)))
+        self.end_headers()
+        self.wfile.write(part)
 
 def main():
     ap = argparse.ArgumentParser()

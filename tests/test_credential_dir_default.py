@@ -38,6 +38,51 @@ from cmdscripts.delegation_twostep import (
 from settings import CA_CERT, HOST, NGINX_BIN, SERVER_CERT, SERVER_KEY
 from server_registry import NginxInstanceSpec
 
+def _guard_test_default_store_created_and_receives_delegation_1():
+    if not os.access(NGINX_BIN, os.X_OK):
+        pytest.skip(f"nginx binary not executable: {NGINX_BIN}")
+
+def _guard_test_default_store_created_and_receives_delegation_2():
+    if os.path.exists(DEFAULT_STORE) and not os.access(DEFAULT_STORE, os.W_OK):
+        pytest.skip(f"{DEFAULT_STORE} exists and is not ours (shared host)")
+
+def _guard_test_default_store_created_and_receives_delegation_3(pwd):
+    if os.geteuid() == 0 and os.path.isdir(DEFAULT_STORE):
+        import pwd
+        if os.stat(DEFAULT_STORE).st_uid != pwd.getpwnam("nobody").pw_uid:
+            shutil.rmtree(DEFAULT_STORE, ignore_errors=True)
+
+def _check_test_default_store_created_and_receives_delegation_1():
+    assert os.path.isdir(DEFAULT_STORE), \
+        "default credential store was not created at config time"
+
+def _check_test_default_store_created_and_receives_delegation_2(mode):
+    assert mode == 0o700, f"default store mode is {oct(mode)}, wanted 0700"
+
+def _check_test_default_store_created_and_receives_delegation_3(expect_uid):
+    assert os.stat(DEFAULT_STORE).st_uid == expect_uid
+
+def _check_test_default_store_created_and_receives_delegation_4(code):
+    assert code == "200", f"getProxyReq rejected (code={code})"
+
+def _check_test_default_store_created_and_receives_delegation_5(did):
+    assert did, "no X-Brix-Delegation-Id header"
+
+def _check_test_default_store_created_and_receives_delegation_6(csr, signed, pki):
+    assert sign_csr(csr, pki["a_cert"], pki["a_key"], signed)
+
+def _check_test_default_store_created_and_receives_delegation_7(code):
+    assert code in ("200", "201"), f"putProxy rejected (code={code})"
+
+def _guard_test_default_store_created_and_receives_delegation_4(stored):
+    if stored and os.path.exists(stored):
+        os.unlink(stored)
+
+def _guard_test_default_store_created_and_receives_delegation_5(preexisting):
+    if not preexisting and os.path.isdir(DEFAULT_STORE):
+        shutil.rmtree(DEFAULT_STORE, ignore_errors=True)
+
+
 DEFAULT_STORE = "/dev/shm/brix-creds"
 
 pytestmark = [pytest.mark.uses_lifecycle_harness,
@@ -86,19 +131,14 @@ def _nginx_t(lifecycle, name, cred_dir_directive):
 
 def test_default_store_created_and_receives_delegation(lifecycle, pki):
     """Success: no directive -> /dev/shm/brix-creds exists 0700, T4 lands in it."""
-    if not os.access(NGINX_BIN, os.X_OK):
-        pytest.skip(f"nginx binary not executable: {NGINX_BIN}")
-    if os.path.exists(DEFAULT_STORE) and not os.access(DEFAULT_STORE, os.W_OK):
-        pytest.skip(f"{DEFAULT_STORE} exists and is not ours (shared host)")
+    _guard_test_default_store_created_and_receives_delegation_1()
+    _guard_test_default_store_created_and_receives_delegation_2()
     # Root harness: a store left by the unprivileged lane is owned by that
     # lane's user, not this lane's worker identity (`nobody`) — os.access(W_OK)
     # is always true for root so the shared-host skip above never fires.  It
     # holds only throwaway test delegations; clear it so this test exercises
     # the fresh-create path it documents.
-    if os.geteuid() == 0 and os.path.isdir(DEFAULT_STORE):
-        import pwd
-        if os.stat(DEFAULT_STORE).st_uid != pwd.getpwnam("nobody").pw_uid:
-            shutil.rmtree(DEFAULT_STORE, ignore_errors=True)
+    _guard_test_default_store_created_and_receives_delegation_3(pwd)
     preexisting = os.path.isdir(DEFAULT_STORE)
 
     # no brix_storage_credential_dir line -> exercises the /dev/shm default
@@ -106,10 +146,9 @@ def test_default_store_created_and_receives_delegation(lifecycle, pki):
     port, work = ep.port, pathlib.Path(ep.data_root)
     stored = None
     try:
-        assert os.path.isdir(DEFAULT_STORE), \
-            "default credential store was not created at config time"
+        _check_test_default_store_created_and_receives_delegation_1()
         mode = stat.S_IMODE(os.stat(DEFAULT_STORE).st_mode)
-        assert mode == 0o700, f"default store mode is {oct(mode)}, wanted 0700"
+        _check_test_default_store_created_and_receives_delegation_2(mode)
         # The store is handed to the RUNTIME worker identity: under a root
         # harness the always-on de-escalation drops workers to `nobody`
         # (brix_worker_user default), so the chown must target that account —
@@ -119,7 +158,7 @@ def test_default_store_created_and_receives_delegation(lifecycle, pki):
             expect_uid = pwd.getpwnam("nobody").pw_uid
         else:
             expect_uid = os.geteuid()
-        assert os.stat(DEFAULT_STORE).st_uid == expect_uid
+        _check_test_default_store_created_and_receives_delegation_3(expect_uid)
 
         # full two-step delegation with NO configured dir: the credential
         # must land in the default store — the "deployed for free" contract.
@@ -127,26 +166,27 @@ def test_default_store_created_and_receives_delegation(lifecycle, pki):
         hdrs, csr = work / "hdrs.txt", work / "csr.pem"
         code, _ = curl(url + "/request", pki["a_cert"], pki["a_key"],
                        output=csr, headers=hdrs)
-        assert code == "200", f"getProxyReq rejected (code={code})"
+        _check_test_default_store_created_and_receives_delegation_4(code)
         did = delegation_id(hdrs)
-        assert did, "no X-Brix-Delegation-Id header"
+        _check_test_default_store_created_and_receives_delegation_5(did)
         signed = work / "signed.pem"
-        assert sign_csr(csr, pki["a_cert"], pki["a_key"], signed)
+        _check_test_default_store_created_and_receives_delegation_6(csr, signed, pki)
         body = work / "body.pem"
         body.write_bytes(signed.read_bytes() + pki["a_cert"].read_bytes())
         code, _ = curl(f"{url}/{did}", pki["a_cert"], pki["a_key"],
                        output=work / "resp.txt", upload=body)
-        assert code in ("200", "201"), f"putProxy rejected (code={code})"
+        _check_test_default_store_created_and_receives_delegation_7(code)
 
         stored = os.path.join(DEFAULT_STORE, key_for_dn(pki["a_dn"]) + ".pem")
-        assert os.path.isfile(stored), \
-            f"delegated credential not in the default store: {stored}"
-        assert stat.S_IMODE(os.stat(stored).st_mode) == 0o600
+        def _assert_test_default_store_created_and_receives_delegation_1():
+            assert os.path.isfile(stored), \
+                f"delegated credential not in the default store: {stored}"
+            assert stat.S_IMODE(os.stat(stored).st_mode) == 0o600
+
+        _assert_test_default_store_created_and_receives_delegation_1()
     finally:
-        if stored and os.path.exists(stored):
-            os.unlink(stored)
-        if not preexisting and os.path.isdir(DEFAULT_STORE):
-            shutil.rmtree(DEFAULT_STORE, ignore_errors=True)
+        _guard_test_default_store_created_and_receives_delegation_4(stored)
+        _guard_test_default_store_created_and_receives_delegation_5(preexisting)
 
 
 def test_uncreatable_dir_warns_but_is_not_fatal(lifecycle):

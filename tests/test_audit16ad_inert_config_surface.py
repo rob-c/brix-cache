@@ -785,8 +785,11 @@ class TestTheGatesAreReachedOnEveryRequest:
         writable = allows["cache-none"]
         for arm in CACHE_ARMS:
             assert allows[arm] == writable, f"{arm} advertises a different Allow"
-        assert allows[RO] < writable, allows[RO]
-        assert "PUT" not in allows[RO] and "GET" in allows[RO]
+        def _assert_test_options_reports_the_write_gate_and_not_the_cache_1():
+            assert allows[RO] < writable, allows[RO]
+            assert "PUT" not in allows[RO] and "GET" in allows[RO]
+
+        _assert_test_options_reports_the_write_gate_and_not_the_cache_1()
 
     @pytest.mark.parametrize("arm", CACHE_ARMS + (RO,))
     def test_a_revoked_permission_is_seen_on_the_very_next_request(

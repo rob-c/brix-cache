@@ -44,6 +44,50 @@ import pytest
 
 from settings import NGINX_ANON_PORT, NGINX_WEBDAV_PORT
 
+def _phase_webdav_1():
+    try:
+        import urllib3
+        urllib3.disable_warnings()
+    except Exception:
+        pass
+
+def _phase_webdav_2(sess):
+    try:
+        sess.get(WEBDAV_BASE, timeout=5)
+    except Exception as exc:
+        pytest.skip(f"WebDAV server not reachable at {WEBDAV_BASE}: "
+                    f"{type(exc).__name__}")
+
+def _phase_webdav_3(sess, url):
+    try:
+        sess.delete(url, timeout=30)
+    except Exception:
+        pass
+
+
+def _guard_advertised_algos_1(r):
+    if r.returncode != 0:
+        pytest.skip("xrdfs query config chksum unavailable: "
+                    f"{(r.stderr or r.stdout).strip()[:200]}")
+
+def _guard_advertised_algos_2(out):
+    if not out:
+        pytest.skip("empty Qconfig chksum reply")
+
+def _guard_advertised_algos_3(algos, out):
+    if not algos:
+        pytest.skip(f"could not parse algos from Qconfig reply: {out!r}")
+
+def _guard_cksum_token_4(r, algo):
+    if r.returncode != 0:
+        pytest.skip(f"xrdfs cksum -a {algo} unavailable: "
+                    f"{(r.stderr or r.stdout).strip()[:200]}")
+
+def _guard_webdav_5(r):
+    if r.status_code not in (200, 201, 204):
+        pytest.skip(f"WebDAV PUT not permitted here (status {r.status_code})")
+
+
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 XRDCP = os.path.join(REPO, "client", "bin", "xrdcp")
 XRDFS = os.path.join(REPO, "client", "bin", "xrdfs")
@@ -137,17 +181,13 @@ def _advertised_algos():
         [XRDFS, BASE, "query", "config", "chksum"],
         capture_output=True, text=True, timeout=60, env=_ENV,
     )
-    if r.returncode != 0:
-        pytest.skip("xrdfs query config chksum unavailable: "
-                    f"{(r.stderr or r.stdout).strip()[:200]}")
+    _guard_advertised_algos_1(r)
     out = r.stdout.strip()
-    if not out:
-        pytest.skip("empty Qconfig chksum reply")
+    _guard_advertised_algos_2(out)
     # Reply may be "chksum=adler32,crc32,..." or just the CSV — handle both.
     csv = out.split("=", 1)[1] if "=" in out else out
     algos = [a.strip().lower() for a in csv.split(",") if a.strip()]
-    if not algos:
-        pytest.skip(f"could not parse algos from Qconfig reply: {out!r}")
+    _guard_advertised_algos_3(algos, out)
     return algos, out
 
 
@@ -162,9 +202,7 @@ def _cksum_token(remote, algo):
         [XRDFS, BASE, "cksum", "-a", algo, remote],
         capture_output=True, text=True, timeout=60, env=_ENV,
     )
-    if r.returncode != 0:
-        pytest.skip(f"xrdfs cksum -a {algo} unavailable: "
-                    f"{(r.stderr or r.stdout).strip()[:200]}")
+    _guard_cksum_token_4(r, algo)
     parts = r.stdout.split()
     if len(parts) >= 2 and parts[0] == algo:
         return parts[1].strip().lower()
@@ -287,19 +325,11 @@ def webdav():
     PUT route is not writable here.  Yields (session, url, data).
     """
     requests = pytest.importorskip("requests")
-    try:
-        import urllib3
-        urllib3.disable_warnings()
-    except Exception:
-        pass
+    _phase_webdav_1()
 
     sess = requests.Session()
     sess.verify = False
-    try:
-        sess.get(WEBDAV_BASE, timeout=5)
-    except Exception as exc:
-        pytest.skip(f"WebDAV server not reachable at {WEBDAV_BASE}: "
-                    f"{type(exc).__name__}")
+    _phase_webdav_2(sess)
 
     data = PAYLOAD
     path = f"/zcrc32ext_dav_{uuid.uuid4().hex}.bin"
@@ -308,15 +338,11 @@ def webdav():
         r = sess.put(url, data=data, timeout=30)
     except Exception as exc:
         pytest.skip(f"WebDAV PUT failed: {type(exc).__name__}: {str(exc)[:120]}")
-    if r.status_code not in (200, 201, 204):
-        pytest.skip(f"WebDAV PUT not permitted here (status {r.status_code})")
+    _guard_webdav_5(r)
 
     yield sess, url, data
 
-    try:
-        sess.delete(url, timeout=30)
-    except Exception:
-        pass
+    _phase_webdav_3(sess, url)
 
 
 @pytest.mark.parametrize("method", ["HEAD", "GET"])

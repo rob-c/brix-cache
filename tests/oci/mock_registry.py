@@ -38,6 +38,7 @@ STATE = {"log": [], "fault": {"kind": "none", "count": 0, "path_re": None},
          "realm": None, "basic": None, "token_ttl": 300, "token_key": "token",
          "blob_redirect": None, "blob_redirect_sign": False,
          "require_signature": False, "token_len": 0, "cdn": False,
+         "token_redirect_loop": False,
          "page_tags": 0,
          "shared": {},
          "lock": threading.Lock()}
@@ -85,31 +86,44 @@ def _zstd_chain(raw):
         + b"\x50\x2a\x4d\x18" + len(toc).to_bytes(4, "little") + toc
 
 
-def build_layer(rng, entries, codec="gzip"):
-    # entries: [(name, size)]; a ".wh."-prefixed name exercises the D7
-    # whiteout translation later. Deterministic bytes + zeroed timestamps.
-    # codec: "gzip" one member (the ordinary case), "estargz" a member chain
-    # carrying the format's own entries, "zstd" a frame chain with a TOC.
+def _layer_names(entries, codec):
+    names = list(entries)
+    if codec == "estargz":
+        names.extend((name, 16) for name in STARGZ_META)
+    return names
+
+
+def _tar_layer(rng, entries):
     raw = io.BytesIO()
     with tarfile.open(fileobj=raw, mode="w", format=tarfile.PAX_FORMAT) as t:
-        names = [(n, s) for n, s in entries]
-        if codec == "estargz":
-            names += [(n, 16) for n in STARGZ_META]
-        for name, size in names:
+        for name, size in entries:
             body = bytes(rng.getrandbits(8) for _ in range(size))
             ti = tarfile.TarInfo(name)
             ti.size, ti.mtime, ti.mode = len(body), 0, 0o644
             t.addfile(ti, io.BytesIO(body))
-    raw = raw.getvalue()
+    return raw.getvalue()
+
+
+def _gzip_layer(raw):
+    output = io.BytesIO()
+    with gzip.GzipFile(fileobj=output, mode="wb", mtime=0) as stream:
+        stream.write(raw)
+    return output.getvalue(), sha(raw), MT_LAYER
+
+
+def _encode_layer(raw, codec):
     if codec == "estargz":
         return _gz_chain(raw), sha(raw), MT_LAYER
     if codec == "zstd":
         body = _zstd_chain(raw)
         return (body, sha(raw), MT_LAYER_ZSTD) if body is not None else None
-    gz = io.BytesIO()
-    with gzip.GzipFile(fileobj=gz, mode="wb", mtime=0) as g:
-        g.write(raw)
-    return gz.getvalue(), sha(raw), MT_LAYER
+    return _gzip_layer(raw)
+
+
+def build_layer(rng, entries, codec="gzip"):
+    """Build a deterministic gzip, eStargz, or zstd OCI layer."""
+    raw = _tar_layer(rng, _layer_names(entries, codec))
+    return _encode_layer(raw, codec)
 
 
 def shared_layer(rng, key, entries):
@@ -136,42 +150,63 @@ def put_manifest(name, tag, body, mt, alg="sha256"):
     return d
 
 
+def _dialect_media_types(dialect):
+    if dialect == "oci":
+        return MT_MANIFEST, MT_CONFIG, MT_LAYER
+    return MT_D_MANIFEST, MT_D_CONFIG, MT_D_LAYER
+
+
+def _build_layer_spec(rng, spec):
+    if isinstance(spec, tuple) and len(spec) == 3:
+        return build_layer(rng, spec[1], codec=spec[0])
+    if isinstance(spec, tuple):
+        return shared_layer(rng, spec[0], spec[1])
+    return build_layer(rng, spec)
+
+
+def _layer_descriptor(body, media_type, default_media_type, alg):
+    selected_type = default_media_type if media_type == MT_LAYER else media_type
+    return {"mediaType": selected_type, "digest": put_blob(body, alg),
+            "size": len(body)}
+
+
+def _image_config(arch, diff_ids):
+    doc = {"architecture": arch, "os": "linux",
+           "config": {"Env": ["PATH=/usr/bin:/bin"]},
+           "rootfs": {"type": "layers", "diff_ids": diff_ids}}
+    return json.dumps(doc, separators=(",", ":")).encode()
+
+
+def _image_manifest(media_types, config_digest, config_size, layers):
+    manifest_type, config_type, _layer_type = media_types
+    doc = {"schemaVersion": 2, "mediaType": manifest_type,
+           "config": {"mediaType": config_type, "digest": config_digest,
+                      "size": config_size},
+           "layers": layers}
+    return json.dumps(doc, separators=(",", ":")).encode()
+
+
+def _rewrite_diff_ids(diff_ids, rewrite):
+    if rewrite is None:
+        return diff_ids
+    return rewrite(diff_ids)
+
+
 def make_image(rng, name, tag, layer_specs, arch, dialect="oci", diffids=None,
                alg="sha256"):
     """diffids: optional rewrite of the config's rootfs.diff_ids (D8.e lanes
     need a config that lies about the uncompressed layer bytes while every
     compressed blob digest still checks out)."""
-    mt_man, mt_cfg, mt_layer = ((MT_MANIFEST, MT_CONFIG, MT_LAYER)
-                                if dialect == "oci"
-                                else (MT_D_MANIFEST, MT_D_CONFIG, MT_D_LAYER))
+    media_types = _dialect_media_types(dialect)
+    manifest_type, _config_type, layer_type = media_types
     layers, diff_ids = [], []
     for spec in layer_specs:
-        # a tuple spec is ("<shared key>", entries): the same bytes for every
-        # image that names it; a bare list is unique to this image.
-        # a 3-tuple spec is ("codec", entries, None): the same content in a
-        # non-plain layer encoding, which carries its own media type.
-        if isinstance(spec, tuple) and len(spec) == 3:
-            gzbody, diff, mt = build_layer(rng, spec[1], codec=spec[0])
-        elif isinstance(spec, tuple):
-            gzbody, diff, mt = shared_layer(rng, spec[0], spec[1])
-        else:
-            gzbody, diff, mt = build_layer(rng, spec)
-        layers.append({"mediaType": mt if mt != MT_LAYER else mt_layer,
-                       "digest": put_blob(gzbody, alg),
-                       "size": len(gzbody)})
+        gzbody, diff, media_type = _build_layer_spec(rng, spec)
+        layers.append(_layer_descriptor(gzbody, media_type, layer_type, alg))
         diff_ids.append(diff)
-    if diffids is not None:
-        diff_ids = diffids(diff_ids)
-    cfg = json.dumps({"architecture": arch, "os": "linux",
-                      "config": {"Env": ["PATH=/usr/bin:/bin"]},
-                      "rootfs": {"type": "layers", "diff_ids": diff_ids}},
-                     separators=(",", ":")).encode()
-    man = json.dumps({"schemaVersion": 2, "mediaType": mt_man,
-                      "config": {"mediaType": mt_cfg,
-                                 "digest": put_blob(cfg, alg),
-                                 "size": len(cfg)},
-                      "layers": layers}, separators=(",", ":")).encode()
-    return put_manifest(name, tag, man, mt_man, alg), len(man)
+    config = _image_config(arch, _rewrite_diff_ids(diff_ids, diffids))
+    manifest = _image_manifest(media_types, put_blob(config, alg), len(config), layers)
+    return put_manifest(name, tag, manifest, manifest_type, alg), len(manifest)
 
 
 def make_index(rng, name, tag, dialect="oci"):
@@ -296,6 +331,11 @@ class Handler(BaseHTTPRequestHandler):
         # mirror was supposed to refuse can only be proven untouched if its
         # listener records what it did (not) receive.
         self._log()
+        if STATE["token_redirect_loop"]:
+            # A token endpoint that redirects to itself, forever. Same host, so
+            # the realm allowlist has nothing to object to — the only thing that
+            # can end this chain is the client's own hop budget.
+            return self._send(302, b"", extra=[("Location", self.path)])
         if STATE["basic"] is not None:
             want = "Basic " + base64.b64encode(
                 STATE["basic"].encode()).decode()
@@ -346,45 +386,58 @@ class Handler(BaseHTTPRequestHandler):
         return False
 
     # ---- data plane ------------------------------------------------------
-    def _serve_manifest(self, name, ref):
+    def _manifest_digest(self, name, ref):
         repo = STATE["repos"].get(name, {"tags": {}})
-        # A tag cannot contain ':' (OCI tag grammar), so the colon is the
-        # whole test for "this is a digest" — and it stays true for every
-        # registered algorithm rather than just the one we happened to seed.
-        d = ref if ":" in ref else repo["tags"].get(ref)
-        if d is None or d not in STATE["manifests"]:
+        if ":" in ref:
+            return ref, repo
+        return repo["tags"].get(ref), repo
+
+    def _retagged_digest(self, digest, repo, fault):
+        if fault != "retag":
+            return digest
+        alternatives = [value for value in repo["tags"].values()
+                        if value != digest]
+        return alternatives[0] if alternatives else digest
+
+    def _manifest_header_digest(self, digest, fault):
+        if fault == "wrong_digest_header":
+            return "sha256:" + "0" * 64
+        return digest
+
+    def _corrupt_body(self, body, fault):
+        if fault != "corrupt":
+            return body
+        middle = len(body) // 2
+        return body[:middle] + bytes([body[middle] ^ 0xFF]) + body[middle + 1:]
+
+    def _serve_manifest(self, name, ref):
+        digest, repo = self._manifest_digest(name, ref)
+        if digest is None or digest not in STATE["manifests"]:
             return self._send(404, b'{"errors":[{"code":"MANIFEST_UNKNOWN",'
                               b'"message":"manifest unknown"}]}',
                               "application/json")
         fault = self._take_fault()
-        if fault == "retag":
-            others = [x for x in repo["tags"].values() if x != d]
-            d = others[0] if others else d
-        body, mt = STATE["manifests"][d]
-        hdr_digest = d
-        if fault == "wrong_digest_header":
-            hdr_digest = "sha256:" + "0" * 64
+        digest = self._retagged_digest(digest, repo, fault)
+        body, media_type = STATE["manifests"][digest]
         if self._fault_body(fault, body):
             return
-        if fault == "corrupt":
-            mid = len(body) // 2
-            body = body[:mid] + bytes([body[mid] ^ 0xFF]) + body[mid + 1:]
-        self._send(200, body, mt, [("Docker-Content-Digest", hdr_digest)])
+        body = self._corrupt_body(body, fault)
+        header_digest = self._manifest_header_digest(digest, fault)
+        self._send(200, body, media_type,
+                   [("Docker-Content-Digest", header_digest)])
 
-    def _serve_blob(self, digest, query=""):
-        if STATE["blob_redirect"] is not None and self.command == "GET":
-            loc = STATE["blob_redirect"] + self.path
-            if STATE["blob_redirect_sign"]:
-                # The CloudFront shape DockerHub actually emits: the blob URL
-                # carries its own authorization in the query, so a client that
-                # follows the redirect but drops the query arrives unsigned.
-                loc += "?Expires=%d&Signature=%s&Key-Pair-Id=BRIXTEST" % (
-                    int(time.time()) + 300, digest[7:39])
-            return self._send(302, b"", extra=[("Location", loc)])
-        if STATE["require_signature"] and "Signature=" not in query:
-            return self._send(403, b'{"errors":[{"code":"DENIED",'
-                              b'"message":"unsigned request"}]}',
-                              "application/json")
+    def _redirect_location(self, digest):
+        location = STATE["blob_redirect"] + self.path
+        if STATE["blob_redirect_sign"]:
+            location += "?Expires=%d&Signature=%s&Key-Pair-Id=BRIXTEST" % (
+                int(time.time()) + 300, digest[7:39])
+        return location
+
+    def _serve_blob_redirect(self, digest):
+        location = self._redirect_location(digest)
+        self._send(302, b"", extra=[("Location", location)])
+
+    def _serve_blob_content(self, digest):
         body = STATE["blobs"].get(digest)
         if body is None:
             return self._send(404, b'{"errors":[{"code":"BLOB_UNKNOWN"}]}',
@@ -392,45 +445,100 @@ class Handler(BaseHTTPRequestHandler):
         fault = self._take_fault()
         if self._fault_body(fault, body):
             return
-        if fault == "corrupt":
-            mid = len(body) // 2
-            body = body[:mid] + bytes([body[mid] ^ 0xFF]) + body[mid + 1:]
+        body = self._corrupt_body(body, fault)
         self._send(200, body, extra=[("Docker-Content-Digest", digest)])
 
+    def _serve_blob(self, digest, query=""):
+        redirect = STATE["blob_redirect"] is not None and self.command == "GET"
+        if redirect:
+            return self._serve_blob_redirect(digest)
+        if STATE["require_signature"] and "Signature=" not in query:
+            return self._send(403, b'{"errors":[{"code":"DENIED",'
+                              b'"message":"unsigned request"}]}',
+                              "application/json")
+        self._serve_blob_content(digest)
+
+    def _fault_http500(self, body):
+        self._send(500, b"origin error")
+
+    def _fault_toomanyrequests(self, body):
+        self._send(429, b'{"errors":[{"code":"TOOMANYREQUESTS",'
+                   b'"message":"pull rate limit exceeded"}]}',
+                   "application/json", [("Retry-After", "7")])
+
+    def _fault_reset(self, body):
+        self.connection.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER,
+                                   b"\x01\x00\x00\x00\x00\x00\x00\x00")
+        self.connection.close()
+
+    def _start_fault_response(self, length):
+        self.send_response(200)
+        self.send_header("Content-Length", str(length))
+        self.end_headers()
+
+    def _fault_stall(self, body):
+        self._start_fault_response(len(body))
+        self.wfile.write(body[:64])
+        self.wfile.flush()
+        time.sleep(30)
+
+    def _fault_truncate(self, body):
+        self._start_fault_response(len(body))
+        self.wfile.write(body[:len(body) // 2])
+        self.wfile.flush()
+        self.connection.close()
+
+    def _fault_wrong_length(self, body):
+        self._start_fault_response(len(body) + 7)
+        self.wfile.write(body)
+        self.wfile.flush()
+        self.connection.close()
+
+    def _fault_slowdrip(self, body):
+        self._start_fault_response(len(body))
+        for index in range(0, len(body), 64):
+            self.wfile.write(body[index:index + 64])
+            self.wfile.flush()
+            time.sleep(0.2)
+
     def _fault_body(self, fault, body):
-        # Transport-shaped faults that replace the normal send. True = done.
-        if fault == "http500":
-            self._send(500, b"origin error")
-            return True
-        if fault == "toomanyrequests":
-            self._send(429, b'{"errors":[{"code":"TOOMANYREQUESTS",'
-                       b'"message":"pull rate limit exceeded"}]}',
-                       "application/json", [("Retry-After", "7")])
-            return True
-        if fault == "reset":
-            self.connection.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER,
-                                       b"\x01\x00\x00\x00\x00\x00\x00\x00")
-            self.connection.close()
-            return True
-        if fault in ("stall", "truncate", "wrong_length", "slowdrip"):
-            n = len(body) + 7 if fault == "wrong_length" else len(body)
-            self.send_response(200)
-            self.send_header("Content-Length", str(n))
-            self.end_headers()
-            if fault == "stall":
-                self.wfile.write(body[:64]); self.wfile.flush()
-                time.sleep(30)
-            elif fault == "truncate" or fault == "wrong_length":
-                self.wfile.write(body[:len(body) // 2 if fault == "truncate"
-                                      else len(body)])
-                self.wfile.flush()
-                self.connection.close()
-            else:
-                for i in range(0, len(body), 64):
-                    self.wfile.write(body[i:i + 64]); self.wfile.flush()
-                    time.sleep(0.2)
-            return True
-        return False
+        handlers = {
+            "http500": self._fault_http500,
+            "toomanyrequests": self._fault_toomanyrequests,
+            "reset": self._fault_reset,
+            "stall": self._fault_stall,
+            "truncate": self._fault_truncate,
+            "wrong_length": self._fault_wrong_length,
+            "slowdrip": self._fault_slowdrip,
+        }
+        handler = handlers.get(fault)
+        if handler is None:
+            return False
+        handler(body)
+        return True
+
+    def _query_params(self, query):
+        pairs = (part.split("=", 1) for part in query.split("&") if "=" in part)
+        return {key: unquote(value) for key, value in pairs}
+
+    def _tags_after(self, tags, last):
+        if last:
+            return [tag for tag in tags if tag > last]
+        return tags
+
+    def _limit_tags(self, name, tags, limit):
+        if not limit or len(tags) <= limit:
+            return tags, []
+        tags = tags[:limit]
+        link = '</v2/%s/tags/list?n=%d&last=%s>; rel="next"' % (
+            name, limit, tags[-1])
+        return tags, [("Link", link)]
+
+    def _paged_tags(self, name, tags, query):
+        params = self._query_params(query)
+        limit = int(params.get("n", 0)) or STATE["page_tags"]
+        tags = self._tags_after(tags, params.get("last", ""))
+        return self._limit_tags(name, tags, limit)
 
     def _serve_tags(self, name, query):
         repo = STATE["repos"].get(name)
@@ -438,20 +546,24 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(404, b'{"errors":[{"code":"NAME_UNKNOWN"}]}',
                               "application/json")
         tags = sorted(repo["tags"])
-        q = {k: unquote(v) for k, v in
-             (p.split("=", 1) for p in query.split("&") if "=" in p)}
-        # --page-tags forces paging even for clients that never send ?n=
-        n = int(q.get("n", 0)) or STATE["page_tags"]
-        last = q.get("last", "")
-        if last:
-            tags = [t for t in tags if t > last]
-        extra = []
-        if n and len(tags) > n:
-            tags = tags[:n]
-            extra = [("Link", '</v2/%s/tags/list?n=%d&last=%s>; rel="next"'
-                      % (name, n, tags[-1]))]
+        tags, extra = self._paged_tags(name, tags, query)
         body = json.dumps({"name": name, "tags": tags}).encode()
         self._send(200, body, "application/json", extra)
+
+    def _referrer_descriptors(self, subject, query):
+        return [{"mediaType": MT_MANIFEST, "digest": subject, "size": 7,
+                 "artifactType": artifact_type,
+                 "annotations": {"mock.query": query}}
+                for artifact_type in ("application/vnd.example.sbom",
+                                      "application/vnd.example.signature")]
+
+    def _filter_referrers(self, descriptors, query):
+        params = self._query_params(query)
+        if "artifactType" not in params:
+            return descriptors, []
+        selected = [item for item in descriptors
+                    if item["artifactType"] == params["artifactType"]]
+        return selected, [("OCI-Filters-Applied", "artifactType")]
 
     def _serve_referrers(self, name, subject, query):
         """A deterministic referrers index for `subject` (D15.1).
@@ -463,39 +575,44 @@ class Handler(BaseHTTPRequestHandler):
         if STATE["repos"].get(name) is None:
             return self._send(404, b'{"errors":[{"code":"NAME_UNKNOWN"}]}',
                               "application/json")
-        q = {k: unquote(v) for k, v in
-             (p.split("=", 1) for p in query.split("&") if "=" in p)}
-        descs = [{"mediaType": MT_MANIFEST, "digest": subject, "size": 7,
-                  "artifactType": t,
-                  "annotations": {"mock.query": query}}
-                 for t in ("application/vnd.example.sbom",
-                           "application/vnd.example.signature")]
-        extra = []
-        if "artifactType" in q:
-            descs = [d for d in descs if d["artifactType"] == q["artifactType"]]
-            extra = [("OCI-Filters-Applied", "artifactType")]
+        descs = self._referrer_descriptors(subject, query)
+        descs, extra = self._filter_referrers(descs, query)
         body = json.dumps({"schemaVersion": 2, "mediaType": MT_INDEX,
                            "manifests": descs}).encode()
         self._send(200, body, MT_INDEX, extra)
 
     # ---- push plane ------------------------------------------------------
-    def _upload_start(self, name, query):
-        q = {k: unquote(v) for k, v in
-             (p.split("=", 1) for p in query.split("&") if "=" in p)}
+    def _record_upload_start(self, name, query):
         with STATE["lock"]:
             STATE["transcript"].append({"op": "start", "name": name,
                                         "query": query})
-        if "mount" in q and q["mount"] in STATE["blobs"]:
-            return self._send(201, b"", extra=[
-                ("Location", "/v2/%s/blobs/%s" % (name, q["mount"]))])
-        body = self._read_body()
-        if "digest" in q:                       # monolithic shortcut
-            return self._upload_seal(name, q["digest"], body)
-        sid = uuid.uuid4().hex
+
+    def _try_blob_mount(self, name, params):
+        digest = params.get("mount")
+        if digest not in STATE["blobs"]:
+            return False
+        self._send(201, b"", extra=[
+            ("Location", "/v2/%s/blobs/%s" % (name, digest))])
+        return True
+
+    def _open_upload(self, name, body):
+        session_id = uuid.uuid4().hex
         with STATE["lock"]:
-            STATE["uploads"][sid] = {"name": name, "data": bytearray(body)}
+            STATE["uploads"][session_id] = {
+                "name": name, "data": bytearray(body)}
         self._send(202, b"", extra=[
-            ("Location", "/v2/%s/blobs/uploads/%s" % (name, sid))])
+            ("Location", "/v2/%s/blobs/uploads/%s" % (name, session_id))])
+
+    def _upload_start(self, name, query):
+        params = self._query_params(query)
+        self._record_upload_start(name, query)
+        if self._try_blob_mount(name, params):
+            return
+        body = self._read_body()
+        if "digest" in params:
+            self._upload_seal(name, params["digest"], body)
+            return
+        self._open_upload(name, body)
 
     def _upload_seal(self, name, digest, body):
         if sha(body) != digest:
@@ -549,6 +666,42 @@ class Handler(BaseHTTPRequestHandler):
                                   "application/json")
         self._send(404, b"")
 
+    def _get_manifest(self, match, query):
+        if self._authorized(match.group(1), "pull"):
+            self._serve_manifest(match.group(1), match.group(2))
+
+    def _get_blob(self, match, query):
+        if self._authorized(match.group(1), "pull"):
+            self._serve_blob(match.group(2), query)
+
+    def _get_tags(self, match, query):
+        if self._authorized(match.group(1), "pull"):
+            self._serve_tags(match.group(1), query)
+
+    def _get_referrers(self, match, query):
+        if self._authorized(match.group(1), "pull"):
+            self._serve_referrers(match.group(1), match.group(2), query)
+
+    def _route_get(self, path, query):
+        routes = (
+            (r"/v2/(.+)/manifests/([^/]+)", self._get_manifest),
+            (r"/v2/(.+)/blobs/(sha256:[0-9a-f]{64}|sha512:[0-9a-f]{128})",
+             self._get_blob),
+            (r"/v2/(.+)/tags/list", self._get_tags),
+            (r"/v2/(.+)/referrers/(sha256:[0-9a-f]{64})",
+             self._get_referrers),
+        )
+        for pattern, handler in routes:
+            match = re.fullmatch(pattern, path)
+            if match:
+                handler(match, query)
+                return True
+        return False
+
+    def _get_api_version(self):
+        if self._authorized("", "pull"):
+            self._send(200, b"{}", "application/json")
+
     def do_GET(self):
         if self.path.startswith("/ctl/"):
             return self._ctl()
@@ -556,32 +709,10 @@ class Handler(BaseHTTPRequestHandler):
             return self._token()
         self._log()
         path, _, query = self.path.partition("?")
-        m = re.fullmatch(r"/v2/(.+)/manifests/([^/]+)", path)
-        if m:
-            if self._authorized(m.group(1), "pull"):
-                self._serve_manifest(m.group(1), m.group(2))
+        if self._route_get(path, query):
             return
-        m = re.fullmatch(
-            r"/v2/(.+)/blobs/(sha256:[0-9a-f]{64}|sha512:[0-9a-f]{128})",
-            path)
-        if m:
-            if self._authorized(m.group(1), "pull"):
-                self._serve_blob(m.group(2), query)
-            return
-        m = re.fullmatch(r"/v2/(.+)/tags/list", path)
-        if m:
-            if self._authorized(m.group(1), "pull"):
-                self._serve_tags(m.group(1), query)
-            return
-        m = re.fullmatch(r"/v2/(.+)/referrers/(sha256:[0-9a-f]{64})", path)
-        if m:
-            if self._authorized(m.group(1), "pull"):
-                self._serve_referrers(m.group(1), m.group(2), query)
-            return
-        if path == "/v2/" or path == "/v2":
-            if self._authorized("", "pull"):
-                self._send(200, b"{}", "application/json")
-            return
+        if path in ("/v2/", "/v2"):
+            return self._get_api_version()
         self._send(404, b"not found")
 
     do_HEAD = do_GET
@@ -659,22 +790,31 @@ class Handler(BaseHTTPRequestHandler):
             ("Location", "/v2/%s/blobs/uploads/%s" % (m.group(1), m.group(2))),
             ("Range", "0-%d" % (size - 1))])
 
+    def _remove_manifest(self, name, digest):
+        with STATE["lock"]:
+            removed = STATE["manifests"].pop(digest, None)
+            repo = STATE["repos"].get(name, {"tags": {}})
+            tags = [tag for tag, value in repo["tags"].items()
+                    if value == digest]
+            for tag in tags:
+                del repo["tags"][tag]
+        return removed
+
+    def _delete_manifest(self, match):
+        if not self._authorized(match.group(1), "push,pull"):
+            return
+        removed = self._remove_manifest(match.group(1), match.group(2))
+        code = 202 if removed else 404
+        self._send(code, b"")
+
     def do_DELETE(self):
         self._log()
-        m = re.fullmatch(
+        match = re.fullmatch(
             r"/v2/(.+)/manifests/"
             r"(sha256:[0-9a-f]{64}|sha512:[0-9a-f]{128})", self.path)
-        if m and STATE["push"]:
-            if not self._authorized(m.group(1), "push,pull"):
-                return
-            with STATE["lock"]:
-                gone = STATE["manifests"].pop(m.group(2), None)
-                repo = STATE["repos"].get(m.group(1), {"tags": {}})
-                for t in [t for t, d in repo["tags"].items()
-                          if d == m.group(2)]:
-                    del repo["tags"][t]
-            code = 202 if gone else 404
-            return self._send(code, b"")
+        if match and STATE["push"]:
+            self._delete_manifest(match)
+            return
         self._send(404, b"not found")
 
 
@@ -726,6 +866,9 @@ def main():
                     help="sign that redirect in the query, CloudFront-style")
     ap.add_argument("--require-signature", action="store_true",
                     help="CDN twin: 403 a blob request with no Signature=")
+    ap.add_argument("--token-redirect-loop", action="store_true",
+                    help="/token answers 302 to itself forever — the client's "
+                         "redirect budget is the only thing that ends it")
     ap.add_argument("--token-len", type=int, default=0, metavar="N",
                     help="pad issued bearers to N chars (JWT-sized tokens)")
     ap.add_argument("--cdn", action="store_true",
@@ -740,7 +883,8 @@ def main():
                  blob_redirect=args.blob_redirect,
                  blob_redirect_sign=args.blob_redirect_sign,
                  require_signature=args.require_signature,
-                 token_len=args.token_len, page_tags=args.page_tags)
+                 token_len=args.token_len, page_tags=args.page_tags,
+                 token_redirect_loop=args.token_redirect_loop)
     build_images(args.seed)
     if args.token_port is not None:
         threading.Thread(target=server_for(args.token_bind or args.bind,

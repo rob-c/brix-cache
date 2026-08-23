@@ -17,6 +17,22 @@ import pytest
 import _cachemx as cx
 from _cachemx import mx  # noqa: F401
 
+def _check_test_latency_count_matches_read_semantics_1(mx, name):
+    assert mx.dav_request("dav", f"/{name}")[0] == 200       # prime
+
+def _check_test_latency_count_matches_read_semantics_2(name, mx):
+    assert mx.s3_request("s3", name)[0] == 200               # prime
+
+def _check_test_latency_count_matches_read_semantics_3(mx, name):
+    assert mx.dav_request("dav", f"/{name}")[0] == 200
+
+def _check_test_latency_count_matches_read_semantics_4(name, mx):
+    assert mx.s3_request("s3", name)[0] == 200
+
+def _check_test_latency_count_matches_read_semantics_5(r):
+    assert r.returncode == 0, r.stderr
+
+
 pytestmark = [pytest.mark.uses_lifecycle_harness,
               pytest.mark.xdist_group("lc-cachemx")]
 
@@ -132,29 +148,32 @@ def test_latency_count_matches_read_semantics(mx, flow, tmp_path):
         mx.seed_origin(name, 600)
     elif flow == "dav":
         mx.seed_local(name, 600)
-        assert mx.dav_request("dav", f"/{name}")[0] == 200       # prime
+        _check_test_latency_count_matches_read_semantics_1(mx, name)
         cx.settle()
     else:
         mx.seed_local(name, 600)
-        assert mx.s3_request("s3", name)[0] == 200               # prime
+        _check_test_latency_count_matches_read_semantics_2(name, mx)
         cx.settle()
     proto = {"dav": "webdav", "s3": "s3", "stream": "stream"}[flow]
     s = snap(mx)
     if flow == "dav":
-        assert mx.dav_request("dav", f"/{name}")[0] == 200
+        _check_test_latency_count_matches_read_semantics_3(mx, name)
     elif flow == "s3":
-        assert mx.s3_request("s3", name)[0] == 200
+        _check_test_latency_count_matches_read_semantics_4(name, mx)
     else:
         r = mx.xrdcp_get("none", f"/{name}", str(tmp_path / name))
-        assert r.returncode == 0, r.stderr
+        _check_test_latency_count_matches_read_semantics_5(r)
     cx.settle()
     after = cx.mfetch(mx.metrics)
     ops = s.delta("brix_io_ops_total",
                   {"proto": proto, "op": "read", "status": "ok"}, after)
     lat = s.delta("brix_io_latency_usec_count",
                   {"proto": proto, "op": "read"}, after)
-    assert ops == 1
-    assert lat == (0 if flow == "stream" else 1)
+    def _assert_test_latency_count_matches_read_semantics_1():
+        assert ops == 1
+        assert lat == (0 if flow == "stream" else 1)
+
+    _assert_test_latency_count_matches_read_semantics_1()
 
 
 # --------------------------------------------------------------------------

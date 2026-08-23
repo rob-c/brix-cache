@@ -8,9 +8,43 @@ import signal
 import time
 
 from cmdscripts import run
+from cmdscripts.command_results import print_results
 from cmdscripts.c_regression_units import _gcov_flags
 from fleet_ports import cmdscript_ports
 from settings import BIND_HOST, NGINX_BIN
+
+
+def _expression_1(objs_dir, nginx_bin):
+    return (
+        objs_dir or objs_dir_from_nginx(nginx_bin)
+    )
+
+def _expression_2(marker):
+    return (
+        [(False, f"mk_dirty failed: {(marker.stderr or marker.stdout)[-4000:]}")]
+    )
+
+def _expression_3(sidecar, dirty):
+    return (
+        [
+                (sidecar.exists() or dirty.exists(), "planted dirty cache metadata"),
+            ]
+    )
+
+def _expression_4(start):
+    return (
+        [(False, f"nginx failed to start: {(start.stderr or start.stdout)[-4000:]}")]
+    )
+
+def _expression_5(log):
+    return (
+        log.read_text(encoding="utf-8", errors="replace") if log.exists() else ""
+    )
+
+
+def _phase_run_checks_1(deadline, dirty, sidecar):
+    while time.time() < deadline and (dirty.exists() or sidecar.exists()):
+        time.sleep(1)
 
 
 def objs_dir_from_nginx(nginx_bin: str = NGINX_BIN) -> Path:
@@ -102,7 +136,7 @@ stream {{
 
 
 def run_checks(base: Path, nginx_bin: str = NGINX_BIN, objs_dir: Path | None = None) -> list[tuple[bool, str]]:
-    objs = objs_dir or objs_dir_from_nginx(nginx_bin)
+    objs = _expression_1(objs_dir, nginx_bin)
     cinfo_o = objs / "addon" / "cache" / "cinfo.o"
     if not cinfo_o.is_file():
         return [(True, f"SKIP cinfo.o not found at {cinfo_o}")]
@@ -120,23 +154,20 @@ def run_checks(base: Path, nginx_bin: str = NGINX_BIN, objs_dir: Path | None = N
 
     marker = run([str(dirty_marker), str(dirty)])
     if marker.returncode != 0:
-        return [(False, f"mk_dirty failed: {(marker.stderr or marker.stdout)[-4000:]}")]
+        return _expression_2(marker)
     sidecar = dirty.with_name(dirty.name + ".cinfo")
-    results: list[tuple[bool, str]] = [
-        (sidecar.exists() or dirty.exists(), "planted dirty cache metadata"),
-    ]
+    results: list[tuple[bool, str]] = _expression_3(sidecar, dirty)
 
     start = run([nginx_bin, "-p", str(base), "-c", str(conf)])
     if start.returncode != 0:
-        return [(False, f"nginx failed to start: {(start.stderr or start.stdout)[-4000:]}")]
+        return _expression_4(start)
 
     try:
         deadline = time.time() + 20
-        while time.time() < deadline and (dirty.exists() or sidecar.exists()):
-            time.sleep(1)
+        _phase_run_checks_1(deadline, dirty, sidecar)
 
         log = base / "logs" / "error.log"
-        log_text = log.read_text(encoding="utf-8", errors="replace") if log.exists() else ""
+        log_text = _expression_5(log)
         results.extend(
             [
                 (not dirty.exists(), "aged-dirty data file reaped"),
@@ -157,13 +188,7 @@ def entry(argv: list[str]) -> int:
 
     with tempfile.TemporaryDirectory(prefix="cache_reaper.") as tmp:
         results = run_checks(Path(tmp), nginx_bin=nginx_bin, objs_dir=objs_dir)
-    for ok, message in results:
-        print(f"  {'ok  ' if ok else 'FAIL'} {message}")
-    if all(ok for ok, _ in results):
-        print("run_cache_reaper: ALL PASS")
-        return 0
-    print("run_cache_reaper: FAILURES")
-    return 1
+    return print_results(results, "run_cache_reaper")
 
 
 if __name__ == "__main__":

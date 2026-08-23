@@ -35,15 +35,18 @@ def allocation_multiply_findings() -> list[str]:
     for path in c_files([SRC]):
         file_lines = lines(path)
         for index, text in enumerate(file_lines, start=1):
-            if not ALLOC_MUL_RE.search(text):
-                continue
-            if re.search(r"brix_(p?alloc|alloc)_array|brix_size_mul|safe_size", text):
-                continue
-            context = "\n".join(file_lines[max(0, index - 4) : index])
-            if re.search(r"brix_size_mul|brix_.*_array", context):
-                continue
-            findings.append(f"  {rel(path)}:{index}  {text.strip()}")
+            if _unchecked_multiply(file_lines, index, text):
+                findings.append(f"  {rel(path)}:{index}  {text.strip()}")
     return findings
+
+
+def _unchecked_multiply(file_lines: list[str], index: int, text: str) -> bool:
+    if not ALLOC_MUL_RE.search(text):
+        return False
+    if re.search(r"brix_(p?alloc|alloc)_array|brix_size_mul|safe_size", text):
+        return False
+    context = "\n".join(file_lines[max(0, index - 4) : index])
+    return re.search(r"brix_size_mul|brix_.*_array", context) is None
 
 
 def raw_http_findings() -> list[str]:

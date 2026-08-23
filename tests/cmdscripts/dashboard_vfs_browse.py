@@ -127,88 +127,117 @@ def run_checks(base: Path, nginx_bin: str = NGINX_BIN) -> list[tuple[bool, str]]
     if start.returncode != 0:
         results.append((False, "nginx start failed: " + (start.stderr or start.stdout)[-4000:]))
         return results
-
     try:
         time.sleep(0.6)
-        cookie = dashboard_cookie()
-        api = f"http://{HOST}:{dash_port}/brix/api/v1"
-        pb_src = base / "pb_src.bin"
-        pb_src.write_text("pblock payload bytes", encoding="utf-8")
-        put = curl(["-s", "-o", "/dev/null", "-w", "%{http_code}", "-T", str(pb_src), f"http://{HOST}:{pblock_port}/stored.bin"]).stdout.strip()
-        results.append((put in {"201", "204"}, f"pblock seeded via WebDAV PUT ({put})"))
-
-        census_text = curl_body(f"{api}/vfs", cookie)
-        try:
-            census = json.loads(census_text)
-        except json.JSONDecodeError:
-            census = {"exports": []}
-        exports = census.get("exports", [])
-        results.append(
-            (
-                any(item.get("backend") == "posix" for item in exports)
-                and any(item.get("backend") == "pblock" for item in exports),
-                "census lists posix + pblock exports",
-            )
-        )
-        posix_idx = next((item.get("index") for item in exports if item.get("backend") == "posix"), None)
-        pblock_idx = next((item.get("index") for item in exports if item.get("backend") == "pblock"), None)
-
-        posix_listing = json.loads(curl_body(f"{api}/vfs/files?export={posix_idx}&path=/", cookie)) if posix_idx is not None else {}
-        entries = posix_listing.get("entries", [])
-        hello = next((item for item in entries if item.get("name") == "hello.txt"), {})
-        results.append(
-            (
-                hello.get("size") == 13
-                and hello.get("type") == "file"
-                and any(item.get("type") == "dir" for item in entries),
-                "posix export lists via VFS (size+kind)",
-            )
-        )
-
-        pblock_listing_text = curl_body(f"{api}/vfs/files?export={pblock_idx}&path=/", cookie) if pblock_idx is not None else ""
-        try:
-            pblock_listing = json.loads(pblock_listing_text)
-        except json.JSONDecodeError:
-            pblock_listing = {}
-        pblock_entries = pblock_listing.get("entries", [])
-        results.append(
-            (
-                any(item.get("name") == "stored.bin" for item in pblock_entries)
-                and "catalog.db" not in pblock_listing_text,
-                "pblock export shows the LOGICAL namespace",
-            )
-        )
-
-        pb_out = base / "pb_out.bin"
-        download = subprocess.run(
-            [
-                "curl",
-                "-s",
-                "-H",
-                f"Cookie: {cookie}",
-                f"{api}/vfs/download?export={pblock_idx}&path=/stored.bin",
-                "-o",
-                str(pb_out),
-            ],
-            capture_output=True,
-            text=True,
-        )
-        results.append(
-            (
-                download.returncode == 0
-                and pb_out.exists()
-                and pb_out.read_bytes() == pb_src.read_bytes(),
-                "pblock download byte-exact through VFS",
-            )
-        )
-
-        results.append((curl_code(f"{api}/vfs/files?export={posix_idx}&path=/") == "401", "unauthenticated -> 401"))
-        results.append((curl_code(f"{api}/vfs/files?export={posix_idx}&path=/../../../etc", cookie) == "400", "traversal path rejected (400)"))
-        results.append((curl_code(f"http://{HOST}:{off_port}/brix/api/v1/vfs", cookie) == "404", "feature off -> 404"))
+        _exercise_dashboard(base, dash_port, off_port, pblock_port, results)
     finally:
         stop_nginx(base)
-
     return results
+
+
+def _exercise_dashboard(base, dash_port, off_port, pblock_port, results):
+    cookie = dashboard_cookie()
+    api = f"http://{HOST}:{dash_port}/brix/api/v1"
+    source = _seed_pblock(base, pblock_port, results)
+    exports = _check_census(api, cookie, results)
+    posix_index = _export_index(exports, "posix")
+    pblock_index = _export_index(exports, "pblock")
+    _check_posix_listing(api, cookie, posix_index, results)
+    _check_pblock_listing(api, cookie, pblock_index, results)
+    _check_pblock_download(base, api, cookie, pblock_index, source, results)
+    _check_access_guards(api, cookie, posix_index, off_port, results)
+
+
+def _seed_pblock(base, port, results):
+    source = base / "pb_src.bin"
+    source.write_text("pblock payload bytes", encoding="utf-8")
+    status = curl([
+        "-s", "-o", "/dev/null", "-w", "%{http_code}", "-T", str(source),
+        f"http://{HOST}:{port}/stored.bin",
+    ]).stdout.strip()
+    results.append((status in {"201", "204"}, f"pblock seeded ({status})"))
+    return source
+
+
+def _json_body(url, cookie, fallback):
+    try:
+        return json.loads(curl_body(url, cookie))
+    except json.JSONDecodeError:
+        return fallback
+
+
+def _check_census(api, cookie, results):
+    exports = _json_body(f"{api}/vfs", cookie, {"exports": []}).get("exports", [])
+    backends = {item.get("backend") for item in exports}
+    results.append(({"posix", "pblock"} <= backends,
+                    "census lists posix + pblock exports"))
+    return exports
+
+
+def _export_index(exports, backend):
+    return next((item.get("index") for item in exports
+                 if item.get("backend") == backend), None)
+
+
+def _check_posix_listing(api, cookie, export_index, results):
+    if export_index is None:
+        results.append((False, "posix export absent from census"))
+        return
+    listing = _json_body(
+        f"{api}/vfs/files?export={export_index}&path=/", cookie, {}
+    )
+    entries = listing.get("entries", [])
+    results.append((_valid_posix_entries(entries),
+                    "posix export lists via VFS (size+kind)"))
+
+
+def _valid_posix_entries(entries):
+    hello = next((item for item in entries if item.get("name") == "hello.txt"), {})
+    valid_file = hello.get("size") == 13 and hello.get("type") == "file"
+    return valid_file and _has_directory(entries)
+
+
+def _has_directory(entries):
+    return any(item.get("type") == "dir" for item in entries)
+
+
+def _check_pblock_listing(api, cookie, export_index, results):
+    if export_index is None:
+        results.append((False, "pblock export absent from census"))
+        return
+    text = curl_body(f"{api}/vfs/files?export={export_index}&path=/", cookie)
+    entries = _decode_json(text).get("entries", [])
+    logical = any(item.get("name") == "stored.bin" for item in entries)
+    results.append((logical and "catalog.db" not in text,
+                    "pblock export shows logical namespace"))
+
+
+def _decode_json(text):
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        return {}
+
+
+def _check_pblock_download(base, api, cookie, export_index, source, results):
+    output = base / "pb_out.bin"
+    download = subprocess.run(
+        ["curl", "-s", "-H", f"Cookie: {cookie}",
+         f"{api}/vfs/download?export={export_index}&path=/stored.bin",
+         "-o", str(output)], capture_output=True, text=True,
+    )
+    valid = download.returncode == 0 and output.exists()
+    valid = valid and output.read_bytes() == source.read_bytes()
+    results.append((valid, "pblock download byte-exact through VFS"))
+
+
+def _check_access_guards(api, cookie, export_index, off_port, results):
+    files = f"{api}/vfs/files?export={export_index}&path=/"
+    results.append((curl_code(files) == "401", "unauthenticated -> 401"))
+    traversal = f"{api}/vfs/files?export={export_index}&path=/../../../etc"
+    results.append((curl_code(traversal, cookie) == "400", "traversal rejected"))
+    disabled = f"http://{HOST}:{off_port}/brix/api/v1/vfs"
+    results.append((curl_code(disabled, cookie) == "404", "feature off -> 404"))
 
 
 def entry(argv: list[str]) -> int:
@@ -217,9 +246,14 @@ def entry(argv: list[str]) -> int:
 
     with tempfile.TemporaryDirectory(prefix="dash_vfs.") as tmp:
         results = run_checks(Path(tmp), nginx_bin=nginx_bin)
-    for ok, message in results:
-        print(f"  {'ok  ' if ok else 'FAIL'} {message}")
+    _print_results(results)
     return 0 if all(ok for ok, _ in results) else 1
+
+
+def _print_results(results):
+    for passed, message in results:
+        label = "ok  " if passed else "FAIL"
+        print(f"  {label} {message}")
 
 
 if __name__ == "__main__":

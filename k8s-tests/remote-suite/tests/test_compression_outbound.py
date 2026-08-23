@@ -75,10 +75,40 @@ http {{
     return path
 
 
-@pytest.fixture(scope="module")
-def base():
+def _require_nginx_binary():
     if not os.path.isfile(NGINX_BIN) or not os.access(NGINX_BIN, os.X_OK):
         pytest.skip(f"nginx binary not available: {NGINX_BIN}")
+
+
+def _validate_config(conf):
+    check = subprocess.run([NGINX_BIN, "-p", WORK, "-c", conf, "-t"],
+                           capture_output=True, text=True)
+    if check.returncode != 0:
+        pytest.skip(f"standalone nginx config rejected:\n{check.stderr}")
+
+
+def _wait_for_http(proc, url):
+    for _ in range(50):
+        try:
+            requests.get(url, timeout=1)
+            return
+        except Exception:
+            time.sleep(0.1)
+    proc.terminate()
+    pytest.fail("standalone nginx did not come up")
+
+
+def _stop_server(proc):
+    proc.terminate()
+    try:
+        proc.wait(timeout=5)
+    except Exception:
+        proc.kill()
+
+
+@pytest.fixture(scope="module")
+def base():
+    _require_nginx_binary()
     shutil.rmtree(WORK, ignore_errors=True)
     data = os.path.join(WORK, "data")
     os.makedirs(data, exist_ok=True)
@@ -86,28 +116,13 @@ def base():
     port = _free_port()
     conf = _write_conf(WORK, port, data)
 
-    chk = subprocess.run([NGINX_BIN, "-p", WORK, "-c", conf, "-t"],
-                         capture_output=True, text=True)
-    if chk.returncode != 0:
-        pytest.skip(f"standalone nginx config rejected:\n{chk.stderr}")
+    _validate_config(conf)
     proc = subprocess.Popen([NGINX_BIN, "-p", WORK, "-c", conf, "-g", "daemon off;"],
                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     url = f"http://127.0.0.1:{port}"
-    for _ in range(50):
-        try:
-            requests.get(url, timeout=1)
-            break
-        except Exception:
-            time.sleep(0.1)
-    else:
-        proc.terminate()
-        pytest.fail("standalone nginx did not come up")
+    _wait_for_http(proc, url)
     yield url
-    proc.terminate()
-    try:
-        proc.wait(timeout=5)
-    except Exception:
-        proc.kill()
+    _stop_server(proc)
     shutil.rmtree(WORK, ignore_errors=True)
 
 
@@ -174,6 +189,16 @@ def _raw_get(base, path, headers):
                          decode_content=False, preload_content=True, retries=False)
 
 
+def _assert_compressed_response(response, token, data, decompress):
+    assert response.status == 200, f"{token} GET status {response.status}"
+    encoding = response.headers.get("Content-Encoding", "")
+    assert encoding.lower() == token, f"{token}: Content-Encoding={encoding!r}"
+    raw = response.data
+    assert len(raw) < len(data), f"{token}: not smaller ({len(raw)})"
+    assert decompress(raw) == data, f"{token}: body mismatch"
+    assert "accept-encoding" in response.headers.get("Vary", "").lower()
+
+
 @pytest.mark.parametrize("token", list(CODECS))
 def test_get_compressed_roundtrip(base, token):
     decompress = CODECS[token]
@@ -181,14 +206,8 @@ def test_get_compressed_roundtrip(base, token):
     path = f"/out_{token.replace('/', '')}_{uuid.uuid4().hex}.bin"
     try:
         assert _put(base, path, data).status_code in (200, 201, 204)
-        r = _raw_get(base, path, {"Accept-Encoding": token})
-        assert r.status == 200, f"{token} GET status {r.status}"
-        enc = r.headers.get("Content-Encoding", "")
-        assert enc.lower() == token, f"{token}: Content-Encoding={enc!r}"
-        raw = r.data
-        assert len(raw) < len(data), f"{token}: not smaller ({len(raw)})"
-        assert decompress(raw) == data, f"{token}: body mismatch"
-        assert "accept-encoding" in r.headers.get("Vary", "").lower()
+        response = _raw_get(base, path, {"Accept-Encoding": token})
+        _assert_compressed_response(response, token, data, decompress)
     finally:
         _delete(base, path)
 

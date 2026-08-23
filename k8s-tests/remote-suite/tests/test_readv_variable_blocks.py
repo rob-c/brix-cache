@@ -28,6 +28,43 @@ import pytest
 # Reuse the proven static-link probes from the libbrix test.
 from test_libbrix import _codec_link_libs, _krb5_link_libs, _uring_link_libs
 
+def _phase_server1m_1(proc):
+    try:
+        proc.wait(timeout=5)
+    except Exception:
+        proc.kill()
+
+
+def _guard_server1m_1():
+    if not os.path.isfile(NGINX_BIN):
+        pytest.skip(f"nginx binary not found: {NGINX_BIN}")
+
+def _guard_server1m_2(up, prefix, proc, port):
+    if not up:
+        proc.terminate()
+        shutil.rmtree(prefix, ignore_errors=True)
+        pytest.fail(f"nginx never came up on :{port}")
+
+def _check_test_variable_and_capped_blocks_1(r):
+    assert r.returncode == 0, f"demo failed: {r.stderr}\n{r.stdout}"
+
+def _check_test_variable_and_capped_blocks_6(cursor, blob):
+    assert cursor == len(blob), "trailing/short data in demo output"
+
+def _check_test_variable_and_capped_blocks_2(i, got):
+    assert i in got, f"segment {i} missing from demo output"
+
+def _check_test_variable_and_capped_blocks_3(g_off, g_req, off, req):
+    assert (g_off, g_req) == (off, req)
+
+def _check_test_variable_and_capped_blocks_4(g_got, expected_got, i, req):
+    assert g_got == expected_got, (
+        f"seg {i}: got {g_got} != expected {expected_got} (req {req}, cap {CAP})")
+
+def _check_test_variable_and_capped_blocks_5(block, payload, i, off, g_got):
+    assert block == payload[off:off + g_got], f"seg {i}: bytes not byte-exact"
+
+
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CLIENT = os.path.join(REPO, "client")
 SRC = os.path.join(REPO, "src")
@@ -89,8 +126,7 @@ def demo_bin(tmp_path_factory):
 
 @pytest.fixture(scope="module")
 def server1m():
-    if not os.path.isfile(NGINX_BIN):
-        pytest.skip(f"nginx binary not found: {NGINX_BIN}")
+    _guard_server1m_1()
     prefix = tempfile.mkdtemp(prefix="readv_var_")
     data, logs, confd = (os.path.join(prefix, d) for d in ("data", "logs", "conf"))
     for d in (data, logs, confd):
@@ -112,18 +148,12 @@ def server1m():
             break
         except OSError:
             time.sleep(0.1)
-    if not up:
-        proc.terminate()
-        shutil.rmtree(prefix, ignore_errors=True)
-        pytest.fail(f"nginx never came up on :{port}")
+    _guard_server1m_2(up, prefix, proc, port)
     try:
         yield {"url": f"root://127.0.0.1:{port}", "payload": payload}
     finally:
         proc.terminate()
-        try:
-            proc.wait(timeout=5)
-        except Exception:
-            proc.kill()
+        _phase_server1m_1(proc)
         shutil.rmtree(prefix, ignore_errors=True)
 
 
@@ -151,7 +181,7 @@ def test_variable_and_capped_blocks(demo_bin, server1m, tmp_path):
     ]
     outfile = str(tmp_path / "out.bin")
     r = _run_demo(demo_bin, server1m["url"], segs, outfile)
-    assert r.returncode == 0, f"demo failed: {r.stderr}\n{r.stdout}"
+    _check_test_variable_and_capped_blocks_1(r)
 
     # Parse "seg <i> <off> <req> <got>" lines.
     got = {}
@@ -165,16 +195,15 @@ def test_variable_and_capped_blocks(demo_bin, server1m, tmp_path):
 
     cursor = 0
     for i, (off, req) in enumerate(segs):
-        assert i in got, f"segment {i} missing from demo output"
+        _check_test_variable_and_capped_blocks_2(i, got)
         g_off, g_req, g_got = got[i]
-        assert (g_off, g_req) == (off, req)
+        _check_test_variable_and_capped_blocks_3(g_off, g_req, off, req)
         expected_got = min(req, CAP)              # capped, never short of EOF here
-        assert g_got == expected_got, (
-            f"seg {i}: got {g_got} != expected {expected_got} (req {req}, cap {CAP})")
+        _check_test_variable_and_capped_blocks_4(g_got, expected_got, i, req)
         block = blob[cursor:cursor + g_got]
         cursor += g_got
-        assert block == payload[off:off + g_got], f"seg {i}: bytes not byte-exact"
-    assert cursor == len(blob), "trailing/short data in demo output"
+        _check_test_variable_and_capped_blocks_5(block, payload, i, off, g_got)
+    _check_test_variable_and_capped_blocks_6(cursor, blob)
 
 
 def test_short_eof_readv_is_a_clean_error(demo_bin, server1m, tmp_path):

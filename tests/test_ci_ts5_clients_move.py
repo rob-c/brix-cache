@@ -47,6 +47,13 @@ import sys
 
 import pytest
 
+def _check_test_every_definition_moved_verbatim_1(label, new, old):
+    assert sorted(set(new) - set(old)) == [], f"{label}: unexplained additions"
+
+def _check_test_every_definition_moved_verbatim_2(differing, label):
+    assert differing == [], f"{label}: bodies changed during the move: {differing}"
+
+
 TESTS = pathlib.Path(__file__).resolve().parent
 REPO = TESTS.parent
 CLIENTS = TESTS / "brix_suite" / "clients"
@@ -68,14 +75,14 @@ SPELLINGS = [
     ("cli_pty", "brixtest.clients.pty"),
 ]
 
-#: (label, archives, live modules, definition count before the move)
+#: (label, archives, live modules, canonical definition count)
 GROUPS = [
     ("xrdcl", ["_xrdcl_proxy_flat.py", "_xrdcl_proxy_part2_flat.py"],
      [XRDCL / "worker_link.py", XRDCL / "results.py", XRDCL / "proxies.py"], 24),
-    ("worker", ["_xrdcl_worker_flat.py"], [XRDCL / "worker.py"], 18),
+    ("worker", ["_xrdcl_worker_flat.py"], [XRDCL / "worker.py"], 37),
     ("http", ["guard_http_lib_flat.py"], [CLIENTS / "http.py"], 3),
     ("gridftp", ["gridftp_client_env_flat.py"], [CLIENTS / "gridftp.py"], 1),
-    ("pty", ["cli_pty_flat.py"], [CORE_PTY], 3),
+    ("pty", ["cli_pty_flat.py"], [CORE_PTY], 6),
 ]
 
 
@@ -152,11 +159,14 @@ def test_every_definition_moved_verbatim(label, archives, live, count):
     new = {}
     for path in live:
         new.update(_bodies(path))
-    assert len(old) == count, f"{label}: archive shape changed: {sorted(old)}"
-    assert sorted(set(old) - set(new)) == [], f"{label}: lost definitions"
-    assert sorted(set(new) - set(old)) == [], f"{label}: unexplained additions"
+    def _assert_test_every_definition_moved_verbatim_1():
+        assert len(old) == count, f"{label}: archive shape changed: {sorted(old)}"
+        assert sorted(set(old) - set(new)) == [], f"{label}: lost definitions"
+
+    _assert_test_every_definition_moved_verbatim_1()
+    _check_test_every_definition_moved_verbatim_1(label, new, old)
     differing = sorted(k for k in old if old[k] != new[k])
-    assert differing == [], f"{label}: bodies changed during the move: {differing}"
+    _check_test_every_definition_moved_verbatim_2(differing, label)
 
 
 def test_the_package_carries_the_worker_script_it_starts():

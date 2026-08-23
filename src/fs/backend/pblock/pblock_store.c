@@ -226,58 +226,80 @@ pblock_xform_write(const pblock_state_t *st, const char *blob_id, int64_t bs,
     return done ? (ssize_t) done : -1;
 }
 
+/*
+ * WHAT: Open the block file needed for one logical pblock write segment.
+ * WHY:  Block zero can reuse its persistent handle while later blocks are owned.
+ * HOW:  Return block zero directly or resolve and open a transient block path.
+ */
+static int
+pblock_write_fd(const pblock_state_t *st, const char *blob_id, int64_t index,
+    int block_zero_fd, int *transient)
+{
+    char path[PATH_MAX];
+
+    *transient = 0;
+    if (index == 0 && block_zero_fd >= 0)
+        return block_zero_fd;
+    if (pblock_block_path(st, blob_id, index, path, sizeof(path)) != 0)
+        return -1;
+    *transient = 1;
+    return open(path, O_RDWR | O_CREAT, 0600);
+}
+
+/*
+ * WHAT: Write one buffer slice completely at a block-relative offset.
+ * WHY:  EINTR and short writes must not escape the logical block writer.
+ * HOW:  Loop pwrite until complete, returning partial progress on hard failure.
+ */
+static ssize_t
+pblock_write_chunk(int fd, const char *data, size_t length, off_t offset)
+{
+    size_t written = 0;
+
+    while (written < length) {
+        ssize_t result = pwrite(fd, data + written, length - written,
+                                offset + (off_t) written);
+
+        if (result < 0) {
+            if (errno == EINTR)
+                continue;
+            return written ? (ssize_t) written : -1;
+        }
+        if (result == 0)
+            return written ? (ssize_t) written : -1;
+        written += (size_t) result;
+    }
+    return (ssize_t) written;
+}
+
 ssize_t
 pblock_write_blocks(const pblock_state_t *st, const char *blob_id, int64_t bs,
     int blk0_fd, const void *buf, size_t len, off_t off)
 {
-    const char *p = buf;
+    const char *bytes = buf;
     size_t      done = 0;
 
-    if (pblock_xform_active(&st->xform)) {
+    if (pblock_xform_active(&st->xform))
         return pblock_xform_write(st, blob_id, bs, buf, len, off);
-    }
-
     while (done < len) {
-        int64_t idx  = (off + (off_t) done) / bs;
-        int64_t boff = (off + (off_t) done) % bs;
-        size_t  room = (size_t) (bs - boff);
+        int64_t index = (off + (off_t) done) / bs;
+        int64_t block_offset = (off + (off_t) done) % bs;
+        size_t  room = (size_t) (bs - block_offset);
         size_t  chunk = len - done < room ? len - done : room;
-        int     fd, transient = 0;
-        size_t  w = 0;
+        int     transient;
+        int     fd = pblock_write_fd(st, blob_id, index, blk0_fd, &transient);
+        ssize_t written;
 
-        if (idx == 0 && blk0_fd >= 0) {
-            fd = blk0_fd;
-        } else {
-            char bp[PATH_MAX];
-
-            if (pblock_block_path(st, blob_id, idx, bp, sizeof(bp)) != 0) {
-                return done ? (ssize_t) done : -1;
-            }
-            fd = open(bp, O_RDWR | O_CREAT, 0600);
-            if (fd < 0) {
-                return done ? (ssize_t) done : -1;
-            }
-            transient = 1;
-        }
-
-        while (w < chunk) {
-            ssize_t k = pwrite(fd, p + done + w, chunk - w, boff + (off_t) w);
-
-            if (k < 0) {
-                if (errno == EINTR) {
-                    continue;
-                }
-                if (transient) {
-                    close(fd);
-                }
-                return (done + w) ? (ssize_t) (done + w) : -1;
-            }
-            w += (size_t) k;
-        }
-        if (transient) {
+        if (fd < 0)
+            return done ? (ssize_t) done : -1;
+        written = pblock_write_chunk(fd, bytes + done, chunk, block_offset);
+        if (transient)
             close(fd);
-        }
-        done += chunk;
+        if (written < 0)
+            return done ? (ssize_t) done : -1;
+        done += (size_t) written;
+        if ((size_t) written != chunk)
+            return (ssize_t) done;
     }
     return (ssize_t) done;
 }

@@ -33,18 +33,30 @@ def _port_sets(ports):
     return out
 
 
+def _selection(argv, default):
+    if argv:
+        return argv[0]
+    return default
+
+
+def _special_scenario(scenario):
+    return {
+        "s3fwd": (_s3fwd, "tests/test_minio_s3_forward.py"),
+        "s3gsi": (_s3gsi, "tests/test_s3gsi_multiuser.py"),
+        "s3voms": (_s3voms, "tests/test_s3voms_multiuser.py"),
+        "pbgsi": (_pbgsi, "tests/test_pbgsi_multiuser.py"),
+        "gridftp": (_gridftp, "tests/test_gridftp_interop.py"),
+    }.get(scenario)
+
+
 def run(scenario, argv):
-    if scenario == "s3fwd":
-        return _s3fwd(argv[0] if argv else "tests/test_minio_s3_forward.py")
-    if scenario == "s3gsi":
-        return _s3gsi(argv[0] if argv else "tests/test_s3gsi_multiuser.py")
-    if scenario == "s3voms":
-        return _s3voms(argv[0] if argv else "tests/test_s3voms_multiuser.py")
-    if scenario == "pbgsi":
-        return _pbgsi(argv[0] if argv else "tests/test_pbgsi_multiuser.py")
-    if scenario == "gridftp":
-        return _gridftp(argv[0] if argv else "tests/test_gridftp_interop.py")
-    sel = argv[0] if argv else ("tests/test_file_api.py" if scenario == "suite" else "tests/test_query.py")
+    special = _special_scenario(scenario)
+    if special is not None:
+        handler, default = special
+        return handler(_selection(argv, default))
+    default = "tests/test_file_api.py" if scenario == "suite" \
+        else "tests/test_query.py"
+    sel = _selection(argv, default)
     if scenario == "suite":
         return _suite(sel, argv[1] if len(argv) > 1 else "")
     return _remote_suite(sel)

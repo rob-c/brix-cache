@@ -30,6 +30,47 @@ from lib_py.util import wait_tcp
 from settings import BIND_HOST, CA_CERT, CA_DIR, CA_KEY, HOST, SERVER_CERT, SERVER_KEY
 from ephemeral_port import free_ports
 
+def _expression_1(env_drop):
+    return (
+        {k: v for k, v in os.environ.items() if k not in env_drop}
+    )
+
+def _expression_2(env, env_add):
+    return (
+        env.update(env_add or {})
+    )
+
+def _expression_3(stdout_to):
+    return (
+        stdout_to.open("wb") if stdout_to else subprocess.PIPE
+    )
+
+def _expression_4(env, out, argv, stdout_to, input):
+    return (
+        subprocess.Popen(
+                    [str(a) for a in argv], env=env,
+                    stdin=subprocess.PIPE if input is not None else None,
+                    stdout=out, stderr=subprocess.PIPE,
+                    text=stdout_to is None,
+                )
+    )
+
+def _expression_5(stderr):
+    return (
+        (stderr or b"").decode(errors="replace")
+    )
+
+def _expression_6(stdout, stderr, proc, argv):
+    return (
+        subprocess.CompletedProcess([str(a) for a in argv], proc.returncode, stdout, stderr)
+    )
+
+
+def _guard_call_1(stdout_to, out):
+    if stdout_to:
+        out.close()
+
+
 BRIX_XRDCP = REPO_ROOT / "client/bin/xrdcp"
 BRIX_XRDFS = REPO_ROOT / "client/bin/xrdfs"
 XROOTD_BIN = Path(os.environ.get("XROOTD_BIN", os.environ.get("BRIX_BIN", "/usr/bin/xrootd")))
@@ -50,29 +91,23 @@ def _call(argv: list[str | Path], *, env_add: dict[str, str] | None = None,
     ``XRDC_GSI_DELEGATE`` must be truly UNSET (not empty) for the userB
     no-delegation negative control.
     """
-    env = {k: v for k, v in os.environ.items() if k not in env_drop}
-    env.update(env_add or {})
-    out = stdout_to.open("wb") if stdout_to else subprocess.PIPE
+    env = _expression_1(env_drop)
+    _expression_2(env, env_add)
+    out = _expression_3(stdout_to)
     try:
-        proc = subprocess.Popen(
-            [str(a) for a in argv], env=env,
-            stdin=subprocess.PIPE if input is not None else None,
-            stdout=out, stderr=subprocess.PIPE,
-            text=stdout_to is None,
-        )
+        proc = _expression_4(env, out, argv, stdout_to, input)
         try:
             stdout, stderr = proc.communicate(input, timeout=timeout)
         except subprocess.TimeoutExpired:
             proc.kill()
             stdout, stderr = proc.communicate()
     finally:
-        if stdout_to:
-            out.close()
+        _guard_call_1(stdout_to, out)
     if not isinstance(stderr, str):
-        stderr = (stderr or b"").decode(errors="replace")
+        stderr = _expression_5(stderr)
     if not isinstance(stdout, str):
         stdout = ""
-    return subprocess.CompletedProcess([str(a) for a in argv], proc.returncode, stdout, stderr)
+    return _expression_6(stdout, stderr, proc, argv)
 
 
 def _curl_code(*args: str | Path) -> str:

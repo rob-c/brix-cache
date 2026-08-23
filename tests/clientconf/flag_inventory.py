@@ -73,16 +73,23 @@ def stock_xrdcp_options():
 
 def stock_xrdfs_commands():
     """List of stock xrdfs sub-command names (excluding shell-only cd/help)."""
+    cmds = _read_xrdfs_commands()
+    return [command for command in cmds if command not in ("cd", "help")]
+
+
+def _read_xrdfs_commands():
     if not os.path.exists(_FS):
-        cmds = list(_FALLBACK_XRDFS)
-    else:
-        rx = re.compile(r'AddCommand\(\s*"([a-zA-Z][a-zA-Z0-9-]*)"')
-        cmds = []
-        with open(_FS, "r", errors="replace") as fh:
-            for line in fh:
-                m = rx.search(line)
-                if m:
-                    cmds.append(m.group(1))
-        cmds = cmds or list(_FALLBACK_XRDFS)
-    # cd/help are interactive-shell affordances, not wire operations.
-    return [c for c in cmds if c not in ("cd", "help")]
+        return list(_FALLBACK_XRDFS)
+    parsed = _parse_xrdfs_commands()
+    return parsed or list(_FALLBACK_XRDFS)
+
+
+def _parse_xrdfs_commands():
+    pattern = re.compile(r'AddCommand\(\s*"([a-zA-Z][a-zA-Z0-9-]*)"')
+    commands = []
+    with open(_FS, "r", errors="replace") as source:
+        for line in source:
+            match = pattern.search(line)
+            if match:
+                commands.append(match.group(1))
+    return commands

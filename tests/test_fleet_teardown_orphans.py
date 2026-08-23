@@ -91,6 +91,23 @@ def _reap(*procs):
             pass
 
 
+def _at_least_two_orphans(marker):
+    found = FO.find_orphans(marker)
+    return found if len(found) >= 2 else None
+
+
+def _assert_master_worker(found, marker):
+    assert found and len(found) >= 2, (
+        f"parent-argv rule failed: expected master+worker, got {found}")
+    own = [command for _pid, command in found if marker in command]
+    assert len(own) == 1, f"expected 1 marker-bearing master, got {own}"
+
+
+def _assert_reaped(marker):
+    survivors = FO.kill_orphans(marker)
+    assert survivors == [], f"reap left survivors: {survivors}"
+
+
 @pytest.fixture
 def marker_dir(tmp_path):
     """A unique marker path + reaper cleanup so a failing case leaves nothing."""
@@ -134,17 +151,9 @@ def test_detects_worker_via_parent_argv(marker_dir):
     py = _py_copy(str(os.path.dirname(marker_dir)), name="nginx")
     proc = _spawn_master_worker(py, marker_dir)
     try:
-        found = _wait_until(lambda: FO.find_orphans(marker_dir)
-                            if len(FO.find_orphans(marker_dir)) >= 2 else None,
-                            timeout=6.0)
-        assert found and len(found) >= 2, (
-            f"parent-argv rule failed: expected master+worker, got {found}")
-        # exactly one of them carries the marker in its OWN argv (the master);
-        # the other (worker) is caught only via the parent.
-        own = [cmd for _pid, cmd in found if marker_dir in cmd]
-        assert len(own) == 1, f"expected 1 marker-bearing master, got {own}"
-        survivors = FO.kill_orphans(marker_dir)
-        assert survivors == [], f"reap left survivors: {survivors}"
+        found = _wait_until(lambda: _at_least_two_orphans(marker_dir), timeout=6.0)
+        _assert_master_worker(found, marker_dir)
+        _assert_reaped(marker_dir)
     finally:
         try:
             proc.kill()
@@ -182,17 +191,28 @@ def test_no_reaper_decides_ownership_by_a_shared_marker():
     """
     here = os.path.dirname(os.path.abspath(__file__))
     for relative in ("cmdscripts/operator_build.py", "run_suite_unprivileged.py"):
-        with open(os.path.join(here, relative), encoding="utf-8") as handle:
-            source = handle.read()
-        killers = [line for line in source.splitlines()
-                   if ("/tmp/xrd" in line or "/tmp/hsproto" in line)
-                   and " in cmdline" in line]
-        assert not killers, (
-            f"{relative} decides who to signal by a shared marker again: {killers}")
-        assert "from fleet_orphans import owns" in source, (
-            f"{relative} reaps without the shared ownership rule")
-    assert not FO.owns("/tmp/xrd", "nginx: master -p /tmp/xrd-test-a15aa/registry/x"), (
-        "the shared marker /tmp/xrd still owns a /tmp/xrd-test-* lane")
+        _assert_reaper_source(here, relative)
+    _assert_shared_marker_unowned()
+
+
+def _assert_reaper_source(root, relative):
+    with open(os.path.join(root, relative), encoding="utf-8") as handle:
+        source = handle.read()
+    killers = [line for line in source.splitlines() if _shared_marker_kill(line)]
+    assert not killers, (
+        f"{relative} decides who to signal by a shared marker again: {killers}")
+    assert "from fleet_orphans import owns" in source, (
+        f"{relative} reaps without the shared ownership rule")
+
+
+def _shared_marker_kill(line):
+    marker = "/tmp/xrd" in line or "/tmp/hsproto" in line
+    return marker and " in cmdline" in line
+
+
+def _assert_shared_marker_unowned():
+    owned = FO.owns("/tmp/xrd", "nginx: master -p /tmp/xrd-test-a15aa/registry/x")
+    assert not owned, "the shared marker /tmp/xrd still owns a /tmp/xrd-test-* lane"
 
 
 def test_owns_a_child_path_in_argv_and_an_exact_root_in_env(marker_dir):
@@ -204,9 +224,7 @@ def test_owns_a_child_path_in_argv_and_an_exact_root_in_env(marker_dir):
     child = _spawn_marked(py, os.path.join(marker_dir, "registry", "inst"))
     inherited = _spawn_env(py, marker_dir)
     try:
-        found = _wait_until(
-            lambda: FO.find_orphans(marker_dir)
-            if len(FO.find_orphans(marker_dir)) >= 2 else None, timeout=6.0)
+        found = _wait_until(lambda: _at_least_two_orphans(marker_dir), timeout=6.0)
         pids = {pid for pid, _cmd in (found or [])}
         assert child.pid in pids, (
             f"a process under <root>/registry/... is not owned by <root>: {found}")

@@ -170,6 +170,12 @@ class TestReadEdgeCases:
 # Class 2 — pgread Edge Cases
 # =========================================================================
 
+def _assert_page_crc(body, crc_offset, data_size):
+    expected = struct.unpack("!I", body[crc_offset:crc_offset + 4])[0]
+    page = body[crc_offset + 4:crc_offset + 4 + data_size]
+    assert expected == _crc32c(page)
+
+
 class TestPgreadEdgeCases:
     """Verify CRC32c per-page response encoding in pgread."""
 
@@ -285,13 +291,9 @@ class TestPgreadEdgeCases:
         hdr = 24
         if status == kXR_status and len(body) >= hdr + 4 + 4096 + 4 + 512:
             # Page 1: CRC[hdr:hdr+4], data[hdr+4:hdr+4100]
-            p1_crc = struct.unpack("!I", body[hdr:hdr + 4])[0]
-            p1_data = body[hdr + 4:hdr + 4100]
-            assert p1_crc == _crc32c(p1_data)
+            _assert_page_crc(body, hdr, 4096)
             # Page 2: CRC[hdr+4100:hdr+4104], data[hdr+4104:hdr+4104+512]
-            p2_crc = struct.unpack("!I", body[hdr + 4100:hdr + 4104])[0]
-            p2_data = body[hdr + 4104:hdr + 4104 + 512]
-            assert p2_crc == _crc32c(p2_data)
+            _assert_page_crc(body, hdr + 4100, 512)
 
 
 # =========================================================================

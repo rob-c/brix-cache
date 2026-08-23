@@ -24,6 +24,23 @@ import pytest
 
 from settings import HOST, BIND_HOST
 
+def _guard_fixture_1():
+    if shutil.which("cc") is None and shutil.which("gcc") is None:
+        pytest.skip("no C compiler")
+
+def _guard_fixture_2(proc):
+    if proc.returncode != 0 or not os.path.exists(XRDDIAG):
+        pytest.skip(f"xrddiag build failed:\n{proc.stdout}\n{proc.stderr}")
+
+def _guard_fixture_3():
+    if not os.access(NGINX_BIN, os.X_OK):
+        pytest.skip(f"nginx binary not executable: {NGINX_BIN}")
+
+def _guard_fixture_4(t):
+    if t.returncode != 0:
+        pytest.skip("nginx -t failed:\n" + t.stderr)
+
+
 NGINX_BIN = os.environ.get("NGINX_BIN", "/tmp/nginx-1.28.3/objs/nginx")
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CLIENT_DIR = os.path.join(REPO, "client")
@@ -40,14 +57,11 @@ def _free_port():
 
 @pytest.fixture(scope="module")
 def fixture(tmp_path_factory):
-    if shutil.which("cc") is None and shutil.which("gcc") is None:
-        pytest.skip("no C compiler")
+    _guard_fixture_1()
     proc = subprocess.run(["make", "-C", CLIENT_DIR, "xrddiag"],
                           capture_output=True, text=True, timeout=180)
-    if proc.returncode != 0 or not os.path.exists(XRDDIAG):
-        pytest.skip(f"xrddiag build failed:\n{proc.stdout}\n{proc.stderr}")
-    if not os.access(NGINX_BIN, os.X_OK):
-        pytest.skip(f"nginx binary not executable: {NGINX_BIN}")
+    _guard_fixture_2(proc)
+    _guard_fixture_3()
 
     root = tmp_path_factory.mktemp("davs")
     dataR = root / "dataR"
@@ -95,8 +109,7 @@ http {{
 }}
 """)
     t = subprocess.run([NGINX_BIN, "-t", "-c", str(conf)], capture_output=True, text=True)
-    if t.returncode != 0:
-        pytest.skip("nginx -t failed:\n" + t.stderr)
+    _guard_fixture_4(t)
     subprocess.run([NGINX_BIN, "-c", str(conf)], capture_output=True)
     for _ in range(50):
         try:

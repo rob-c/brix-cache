@@ -51,6 +51,15 @@ import tempfile
 
 import pytest
 
+def _check_test_plain_data_channel_roundtrip_1(payload, got):
+    assert _digest(b"".join(got)) == _digest(payload), \
+        "[brix-gateway] cleartext data-channel round-trip corrupted"
+
+def _check_test_voms_attributed_proxy_roundtrip_2(up):
+    assert up.returncode == 0, \
+        f"[brix-gateway] gateway rejected a VOMS-AC proxy chain: {up.stderr}"
+
+
 pytestmark = pytest.mark.serial
 
 HOST = os.environ.get("TEST_GRIDFTP_HOST")
@@ -167,8 +176,7 @@ def test_plain_data_channel_roundtrip(tmp_path, passive):
             ftp.storbinary(f"STOR dc-{'pasv' if passive else 'active'}.bin", fh)
         got = []
         ftp.retrbinary(f"RETR dc-{'pasv' if passive else 'active'}.bin", got.append)
-        assert _digest(b"".join(got)) == _digest(payload), \
-            "[brix-gateway] cleartext data-channel round-trip corrupted"
+        _check_test_plain_data_channel_roundtrip_1(payload, got)
     finally:
         ftp.quit()
 
@@ -222,14 +230,16 @@ def test_voms_attributed_proxy_roundtrip(tmp_path):
     env.setdefault("X509_CERT_DIR", "/etc/grid-security/certificates")
     up = subprocess.run([GUC, "-cd", "-dcpriv", f"file://{src}", _gsiftp("voms/ac.bin")],
                         capture_output=True, text=True, timeout=120, env=env)
-    assert up.returncode == 0, \
-        f"[brix-gateway] gateway rejected a VOMS-AC proxy chain: {up.stderr}"
+    _check_test_voms_attributed_proxy_roundtrip_2(up)
     dst = tmp_path / "voms-dn.bin"
     dn = subprocess.run([GUC, "-dcpriv", _gsiftp("voms/ac.bin"), f"file://{dst}"],
                         capture_output=True, text=True, timeout=120, env=env)
-    assert dn.returncode == 0, f"[brix-gateway] VOMS-AC GET failed: {dn.stderr}"
-    assert _digest(dst.read_bytes()) == _digest(payload), \
-        "[brix-gateway] VOMS-AC proxy round-trip corrupted the bytes"
+    def _assert_test_voms_attributed_proxy_roundtrip_1():
+        assert dn.returncode == 0, f"[brix-gateway] VOMS-AC GET failed: {dn.stderr}"
+        assert _digest(dst.read_bytes()) == _digest(payload), \
+            "[brix-gateway] VOMS-AC proxy round-trip corrupted the bytes"
+
+    _assert_test_voms_attributed_proxy_roundtrip_1()
 
 
 # ---- FTS bulk lane: transfer-list batch + third-party copy ------------------
@@ -257,9 +267,12 @@ def test_fts_transfer_list_batch(tmp_path):
     for name, data in payloads.items():
         dst = tmp_path / ("dn-" + os.path.basename(name))
         dn = _guc(["-nodcau", _gsiftp(name), f"file://{dst}"])
-        assert dn.returncode == 0, f"[brix-gateway] bulk GET {name}: {dn.stderr}"
-        assert _digest(dst.read_bytes()) == _digest(data), \
-            f"[brix-gateway] FTS batch {name} corrupted"
+        def _assert_test_fts_transfer_list_batch_2():
+            assert dn.returncode == 0, f"[brix-gateway] bulk GET {name}: {dn.stderr}"
+            assert _digest(dst.read_bytes()) == _digest(data), \
+                f"[brix-gateway] FTS batch {name} corrupted"
+
+        _assert_test_fts_transfer_list_batch_2()
 
 
 def test_fts_third_party_copy(tmp_path):

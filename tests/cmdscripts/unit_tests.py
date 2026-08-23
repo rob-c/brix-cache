@@ -6,6 +6,17 @@ from pathlib import Path
 
 from cmdscripts.compile_run import REPO_ROOT, result, run
 
+def _guard_run_checks_1(cflags, ldflags):
+    if run(["pkg-config", "--exists", "libxml-2.0"], cwd=REPO_ROOT).returncode == 0:
+        cflags.extend(pkg_config(["--cflags", "libxml-2.0"]))
+        cflags.append("-DBRIX_HAVE_LIBXML2=1")
+        ldflags.extend(pkg_config(["--libs", "libxml-2.0"]))
+
+def _guard_run_checks_2(impl, args):
+    if impl:
+        args.append(impl)
+
+
 UNIT_DIR = REPO_ROOT / "tests" / "unit"
 
 
@@ -29,10 +40,7 @@ def pkg_config(args: list[str]) -> list[str]:
 def run_checks(base: Path) -> list[tuple[bool, str]]:
     cflags = ["-Wall", "-Wextra", "-I../../src", "-I../../src/token", "-I../../src/crypto", "-I../../src/compat", "-g"]
     ldflags = ["-lssl", "-lcrypto"]
-    if run(["pkg-config", "--exists", "libxml-2.0"], cwd=REPO_ROOT).returncode == 0:
-        cflags.extend(pkg_config(["--cflags", "libxml-2.0"]))
-        cflags.append("-DBRIX_HAVE_LIBXML2=1")
-        ldflags.extend(pkg_config(["--libs", "libxml-2.0"]))
+    _guard_run_checks_1(cflags, ldflags)
     if run(["pkg-config", "--exists", "jansson"], cwd=REPO_ROOT).returncode != 0:
         return [result(False, "jansson library is required but was not found")]
     cflags.extend(pkg_config(["--cflags", "jansson"]))
@@ -43,8 +51,7 @@ def run_checks(base: Path) -> list[tuple[bool, str]]:
         binary = base / source.stem
         args = ["gcc", *cflags, source.name]
         impl = IMPLS.get(source.name)
-        if impl:
-            args.append(impl)
+        _guard_run_checks_2(impl, args)
         args.extend(["-o", str(binary), *ldflags])
         built = run(args, cwd=UNIT_DIR)
         if built.returncode != 0:

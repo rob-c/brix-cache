@@ -449,6 +449,13 @@ def test_stat_dir_trailing_slash_flags_agree(fs_our, fs_off, path):
 
 @bindings_required
 @pytest.mark.parametrize("path", DIR_TRAILING)
+def _assert_same_successful_stat(trailing, canonical):
+    if not (trailing[0].ok and canonical[0].ok):
+        return
+    assert (trailing[1].flags, trailing[1].size) == \
+        (canonical[1].flags, canonical[1].size)
+
+
 def test_stat_dir_trailing_matches_canonical(fs_our, fs_off, path):
     # Stat of "/x/" must equal stat of "/x" within the SAME server (size+flags).
     canon = path.rstrip("/") or "/"
@@ -456,8 +463,7 @@ def test_stat_dir_trailing_matches_canonical(fs_our, fs_off, path):
     so_c, sio_c = _stat(fs_our, canon)
     sf_t, sif_t = _stat(fs_off, path)
     sf_c, sif_c = _stat(fs_off, canon)
-    if so_t.ok and so_c.ok:
-        assert sio_t.flags == sio_c.flags and sio_t.size == sio_c.size
+    _assert_same_successful_stat((so_t, sio_t), (so_c, sio_c))
     # Cross-server: trailing-slash acceptance must agree with stock.
     assert so_t.ok == sf_t.ok
 

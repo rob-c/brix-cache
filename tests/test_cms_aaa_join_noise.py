@@ -236,13 +236,16 @@ class TestDataPlaneNoise:
                     socks.append(s)
                 except OSError:
                     break
-            assert len(socks) >= 50, \
-                f"only {len(socks)} of 200 storm connections were accepted"
+            def _assert_test_connection_storm_keeps_the_site_registered_2():
+                assert len(socks) >= 50, \
+                    f"only {len(socks)} of 200 storm connections were accepted"
+    
+                assert site.peer.wait_frames(CMS_RR_LOAD, loads_before + 3,
+                                             timeout=JOIN_TIMEOUT), \
+                    "heartbeats stalled under a client connection storm — the site " \
+                    "would be timed out of the federation"
 
-            assert site.peer.wait_frames(CMS_RR_LOAD, loads_before + 3,
-                                         timeout=JOIN_TIMEOUT), \
-                "heartbeats stalled under a client connection storm — the site " \
-                "would be timed out of the federation"
+            _assert_test_connection_storm_keeps_the_site_registered_2()
             assert site.counter("brix_cms_registered_links") == 1, \
                 "site dropped out of the mesh under data-plane load"
         finally:
@@ -252,10 +255,13 @@ class TestDataPlaneNoise:
                 except OSError:
                     pass
 
-        assert site.data_plane_alive(), \
-            "node stopped accepting clients after the storm drained"
-        assert not site.worker_crashes(), \
-            f"worker died under a connection storm: {site.worker_crashes()}"
+        def _assert_test_connection_storm_keeps_the_site_registered_1():
+            assert site.data_plane_alive(), \
+                "node stopped accepting clients after the storm drained"
+            assert not site.worker_crashes(), \
+                f"worker died under a connection storm: {site.worker_crashes()}"
+
+        _assert_test_connection_storm_keeps_the_site_registered_1()
 
     def test_storm_churn_does_not_leak_the_registration(self, site):
         """Repeated connect/abort churn (jobs dying on the batch farm) must

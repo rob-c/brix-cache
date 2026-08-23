@@ -1,6 +1,44 @@
 from split_continuation import reexport as _reexport
 _reexport(globals(), "_test_fattr_query_helpers")
 
+
+def _attribute_map(attributes):
+    values = attributes or []
+    if values and hasattr(values[0], "name"):
+        return {attribute.name: attribute.value for attribute in values}
+    return {item[0]: item[1] for item in values}
+
+
+def _listed_attribute_names(attributes):
+    names = set()
+    for attribute in attributes or []:
+        if hasattr(attribute, "name"):
+            names.add(attribute.name)
+        elif isinstance(attribute, tuple) and attribute:
+            names.add(attribute[0])
+    return names
+
+
+def _assert_expected_attributes(attributes, expected):
+    actual = _attribute_map(attributes)
+    for name, value in expected.items():
+        assert actual.get(name) == value, (
+            f"Attribute {name!r}: expected {value!r}, got {actual.get(name)!r}")
+
+
+def _assert_fsinfo_identity(values):
+    writable, free_mb, utilization, staging, free_mb_2, utilization_2 = values
+    assert writable == 1
+    assert staging == 1
+    assert free_mb == free_mb_2
+
+
+def _assert_fsinfo_ranges(values):
+    _writable, free_mb, utilization, _staging, _free_mb_2, utilization_2 = values
+    assert free_mb >= 0
+    assert 0 <= utilization <= 100
+    assert utilization == utilization_2
+
 class TestFattr:
     """kXR_fattr: set / get / del / list extended attributes on files."""
 
@@ -68,12 +106,7 @@ class TestFattr:
 
         assert status.ok, f"list_xattr (with values) failed: {status.message}"
         # Support multiple client return shapes: objects with .name, or tuples
-        listed_names = set()
-        for a in (listed or []):
-            if hasattr(a, 'name'):
-                listed_names.add(a.name)
-            elif isinstance(a, tuple) and len(a) >= 1:
-                listed_names.add(a[0])
+        listed_names = _listed_attribute_names(listed)
         assert any("color" in n for n in listed_names), \
             f"'color' not in listed attrs: {listed_names}"
 
@@ -83,10 +116,7 @@ class TestFattr:
         # The operation may succeed at the protocol level with a per-attr error,
         # or may fail at the call level — either is acceptable.
         if status.ok and attrs:
-            if hasattr(attrs[0], 'name'):
-                attr_map = {a.name: a.value for a in attrs}
-            else:
-                attr_map = {t[0]: t[1] for t in attrs}
+            attr_map = _attribute_map(attrs)
             # Attribute should be absent or None
             val = attr_map.get("nonexistent_xyz")
             assert val is None or val == "", \
@@ -100,13 +130,7 @@ class TestFattr:
 
         status, attrs = self.fs.get_xattr(self.xrd_path, list(batch.keys()))
         assert status.ok
-        if attrs and hasattr(attrs[0], 'name'):
-            attr_map = {a.name: a.value for a in (attrs or [])}
-        else:
-            attr_map = {t[0]: t[1] for t in (attrs or [])}
-        for k, v in batch.items():
-            assert attr_map.get(k) == v, \
-                f"Attribute {k!r}: expected {v!r}, got {attr_map.get(k)!r}"
+        _assert_expected_attributes(attrs, batch)
 
     def test_fattr_linux_xattr_visible(self) -> None:
         """Attributes set via kXR_fattr should be visible as Linux user.U.* xattrs."""
@@ -139,10 +163,7 @@ class TestFattr:
 
         status, attrs = fs_gsi.get_xattr(self.xrd_path, ["gsi_tag"])
         assert status.ok
-        if attrs and hasattr(attrs[0], 'name'):
-            attr_map = {a.name: a.value for a in (attrs or [])}
-        else:
-            attr_map = {t[0]: t[1] for t in (attrs or [])}
+        attr_map = _attribute_map(attrs)
         assert attr_map.get("gsi_tag") == "ok"
 
 
@@ -339,13 +360,8 @@ class TestQueryFSinfo:
             body = _send_query(sock, _kXR_QFSinfo, b"/\x00")
             text = body.rstrip(b"\x00").decode("utf-8", errors="replace")
             parts = [int(p) for p in text.split()]
-            wVal, freeMB, util, sVal, freeMB2, util2 = parts
-            assert wVal == 1
-            assert sVal == 1
-            assert freeMB >= 0
-            assert util >= 0 and util <= 100
-            assert freeMB == freeMB2
-            assert util == util2
+            _assert_fsinfo_identity(parts)
+            _assert_fsinfo_ranges(parts)
         finally:
             sock.close()
 

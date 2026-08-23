@@ -98,20 +98,32 @@ def test_unauth_endpoints_are_401(server):
         assert code == 401, p
 
 
+def _assert_file_identity(file_entry):
+    assert file_entry["type"] == "file"
+    assert file_entry["size"] == 1234
+
+
+def _assert_file_metadata(file_entry):
+    assert file_entry["owner"]
+    assert isinstance(file_entry["uid"], int)
+    assert file_entry["mtime"] > 0
+    assert file_entry["btime"] >= 0
+
+
+def _assert_root_entries(entries):
+    by_name = {entry["name"]: entry for entry in entries}
+    assert set(by_name) == {"alpha.bin", "sub"}
+    assert by_name["sub"]["type"] == "dir"
+    _assert_file_identity(by_name["alpha.bin"])
+    _assert_file_metadata(by_name["alpha.bin"])
+
+
 def test_list_root(server):
     cookie = _login(server["base"])
     assert cookie
     code, body, _ = _get(server["base"], "/brix/api/v1/files", cookie)
     assert code == 200
-    d = json.loads(body)
-    by = {e["name"]: e for e in d["entries"]}
-    assert set(by) == {"alpha.bin", "sub"}
-    assert by["sub"]["type"] == "dir"
-    f = by["alpha.bin"]
-    assert f["type"] == "file" and f["size"] == 1234
-    # owner is the local account running nginx; metadata present
-    assert f["owner"] and isinstance(f["uid"], int)
-    assert f["mtime"] > 0 and f["btime"] >= 0
+    _assert_root_entries(json.loads(body)["entries"])
 
 
 def test_list_subdir(server):

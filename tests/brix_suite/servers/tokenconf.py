@@ -33,6 +33,27 @@ from brix_suite.settings import (
 )
 
 # Suppress TLS warnings from the self-signed test PKI.
+def _expression_1(port):
+    return (
+        port if port is not None else NGINX_S3_PORT
+    )
+
+def _expression_2(code):
+    return (
+        "accept" if 200 <= code < 300 else "reject"
+    )
+
+def _expression_3(port):
+    return (
+        port if port is not None else NGINX_WEBDAV_PORT
+    )
+
+def _expression_4(code):
+    return (
+        "accept" if 200 <= code < 300 else "reject"
+    )
+
+
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # Protocols the conformance suite covers.
@@ -314,7 +335,7 @@ def webdav_bearer(token, path="/test.txt", write=False, port=None):
         "accept", "reject", or "notfound".
     """
     ensure_conformance_data()
-    target = port if port is not None else NGINX_WEBDAV_PORT
+    target = _expression_3(port)
     url = f"https://{SERVER_HOST}:{target}{path}"
     headers = {"Authorization": f"Bearer {token}"}
     try:
@@ -332,7 +353,7 @@ def webdav_bearer(token, path="/test.txt", write=False, port=None):
         if code == 404:
             return "notfound"
         # Treat any other 2xx as accept, any other 4xx/5xx as reject.
-        return "accept" if 200 <= code < 300 else "reject"
+        return _expression_4(code)
     except requests.RequestException:
         return "reject"
 
@@ -407,7 +428,7 @@ def s3_bearer(token, key="test.txt", write=False, port=None):
         "accept", "reject", or "notfound".
     """
     ensure_conformance_data()
-    target = port if port is not None else NGINX_S3_PORT
+    target = _expression_1(port)
     url = f"http://{SERVER_HOST}:{target}/{key}"
     headers = {"Authorization": f"Bearer {token}"}
     try:
@@ -424,7 +445,7 @@ def s3_bearer(token, key="test.txt", write=False, port=None):
             return "reject"
         if code == 404:
             return "notfound"
-        return "accept" if 200 <= code < 300 else "reject"
+        return _expression_2(code)
     except requests.RequestException:
         return "reject"
 

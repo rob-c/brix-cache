@@ -51,6 +51,12 @@ from server_launcher import LifecycleHarness
 from server_registry import NginxInstanceSpec
 from settings import BIND_HOST, HOST
 
+def _expression_1(match):
+    return (
+        int(match.group(1)) if match else 0
+    )
+
+
 NAME = "lc-audit16z-mirror"
 _EXTRA = LIFECYCLE_SHARED_PORTS[NAME]["extra"]
 
@@ -110,6 +116,25 @@ def _seed(mirror, uri, body=b"primary body\n"):
     return uri
 
 
+def _response_headers(sock):
+    raw = b""
+    while b"\r\n\r\n" not in raw:
+        chunk = sock.recv(4096)
+        if not chunk:
+            break
+        raw += chunk
+    return raw.partition(b"\r\n\r\n")
+
+
+def _response_body(sock, body, length):
+    while len(body) < length:
+        chunk = sock.recv(4096)
+        if not chunk:
+            break
+        body += chunk
+    return body[:length]
+
+
 def _get(mirror, uri, auth=None):
     """GET `uri` from the primary and return (status, body).
 
@@ -123,22 +148,12 @@ def _get(mirror, uri, auth=None):
     with socket.create_connection((HOST, mirror["port"]), timeout=8) as sock:
         sock.settimeout(8)
         sock.sendall(request.encode())
-        raw = b""
-        while b"\r\n\r\n" not in raw:
-            chunk = sock.recv(4096)
-            if not chunk:
-                break
-            raw += chunk
-        head, _, rest = raw.partition(b"\r\n\r\n")
+        head, _, rest = _response_headers(sock)
         status = int(head.split(b"\r\n", 1)[0].split()[1])
         match = re.search(rb"[Cc]ontent-[Ll]ength: (\d+)", head)
-        want = int(match.group(1)) if match else 0
-        while len(rest) < want:
-            chunk = sock.recv(4096)
-            if not chunk:
-                break
-            rest += chunk
-    return status, rest[:want]
+        want = _expression_1(match)
+        body = _response_body(sock, rest, want)
+    return status, body
 
 
 def _drive(mirror, arm, name, shadow="ok", auth=None):

@@ -474,6 +474,11 @@ def test_an_object_over_the_spool_cap_is_declined_by_passthrough_too(httpcores):
         f"{_errlog(endpoint)}")
 
 
+def _assert_tier_keys(keys, prefix, label):
+    assert keys and all(key.startswith(prefix) for key in keys), \
+        f"the {label} tier's store holds foreign keys: {keys}"
+
+
 def test_two_cache_tiers_in_one_server_never_hold_each_others_keys(httpcores):
     """Per-location brix_export is what separates them: the VFS backend
     registry is keyed by the canonical export root, so a shared root would
@@ -487,10 +492,8 @@ def test_two_cache_tiers_in_one_server_never_hold_each_others_keys(httpcores):
 
     cache_keys = _store_keys(cache_root, "cache")
     pt_keys = _store_keys(cache_root, "pt")
-    assert cache_keys and all(k.startswith("/cache/") for k in cache_keys), (
-        f"the cache tier's store holds foreign keys: {cache_keys}")
-    assert pt_keys and all(k.startswith("/pt/") for k in pt_keys), (
-        f"the passthrough tier's store holds foreign keys: {pt_keys}")
+    _assert_tier_keys(cache_keys, "/cache/", "cache")
+    _assert_tier_keys(pt_keys, "/pt/", "passthrough")
 
 
 # --------------------------------------------------------------------------- #

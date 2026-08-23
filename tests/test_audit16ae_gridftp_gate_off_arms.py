@@ -109,6 +109,13 @@ from server_launcher import LifecycleHarness
 from server_registry import NginxInstanceSpec
 from settings import BIND_HOST, NGINX_BIN, PKI_DIR, SERVER_HOST
 
+def _phase_dialogue_1(commands, fh, out):
+    for cmd in commands:
+        fh.write((cmd + "\r\n").encode())
+        fh.flush()
+        out.append(read())
+
+
 NAME = "lc-audit16ae-ftpgates"
 _L = LIFECYCLE_SHARED_PORTS[NAME]
 
@@ -299,6 +306,24 @@ def _size(port, name):
         ftp.close()
 
 
+def _read_reply(stream):
+    lines = []
+    while True:
+        line = stream.readline().decode(errors="replace").rstrip("\r\n")
+        if not line:
+            return lines
+        lines.append(line)
+        if len(line) >= 4 and line[3] == " " and line[:3].isdigit():
+            return lines
+
+
+def _login_dialogue(stream):
+    for command in ("USER anonymous", "PASS x@example.org"):
+        stream.write((command + "\r\n").encode())
+        stream.flush()
+        _read_reply(stream)
+
+
 def _dialogue(port, commands, login=False):
     """Send `commands` on a raw control connection and collect each reply.
 
@@ -309,29 +334,12 @@ def _dialogue(port, commands, login=False):
     sock = socket.create_connection((SERVER_HOST, port), timeout=TIMEOUT)
     fh = sock.makefile("rwb")
 
-    def read():
-        lines = []
-        while True:
-            line = fh.readline().decode(errors="replace").rstrip("\r\n")
-            if not line:
-                break
-            lines.append(line)
-            if len(line) >= 4 and line[3] == " " and line[:3].isdigit():
-                break
-        return lines
-
     try:
-        read()                                   # the 220 banner
+        _read_reply(fh)
         if login:
-            for cmd in ("USER anonymous", "PASS x@example.org"):
-                fh.write((cmd + "\r\n").encode())
-                fh.flush()
-                read()
+            _login_dialogue(fh)
         out = []
-        for cmd in commands:
-            fh.write((cmd + "\r\n").encode())
-            fh.flush()
-            out.append(read())
+        _phase_dialogue_1(commands, fh, out)
         return out
     finally:
         fh.close()

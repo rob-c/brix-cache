@@ -23,6 +23,24 @@ import subprocess
 from cmdscripts.c_regression_units import _gcov_flags
 import pytest
 
+def _guard_voms_bin_1(cc):
+    if cc is None:
+        pytest.skip("no C compiler")
+
+def _guard_voms_bin_3():
+    if not os.path.exists(LIBBRIX):
+        pytest.skip("client/libbrix.a not built (run `make` in client/)")
+
+def _guard_voms_bin_4(r):
+    if r.returncode != 0:
+        pytest.fail("credinfo VOMS suite failed to COMPILE/LINK "
+                    f"(warnings are errors):\n{r.stderr}")
+
+def _guard_voms_bin_2(f):
+    if not os.path.exists(f):
+        pytest.skip(f"credinfo VOMS sources missing: {f}")
+
+
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CLIENT = os.path.join(REPO, "client")
 CRED = os.path.join(CLIENT, "lib", "auth", "cred")
@@ -43,13 +61,10 @@ LDLIBS = [
 @pytest.fixture(scope="module")
 def voms_bin(tmp_path_factory):
     cc = shutil.which("gcc") or shutil.which("cc")
-    if cc is None:
-        pytest.skip("no C compiler")
+    _guard_voms_bin_1(cc)
     for f in (SRC, TEST, FIXTURE):
-        if not os.path.exists(f):
-            pytest.skip(f"credinfo VOMS sources missing: {f}")
-    if not os.path.exists(LIBBRIX):
-        pytest.skip("client/libbrix.a not built (run `make` in client/)")
+        _guard_voms_bin_2(f)
+    _guard_voms_bin_3()
     out = str(tmp_path_factory.mktemp("vomsut") / "ut")
     cmd = [
         cc, "-std=c11", "-Wall", "-Wextra", "-Werror",
@@ -61,9 +76,7 @@ def voms_bin(tmp_path_factory):
         *LDLIBS, "-o", out,
     ]
     r = subprocess.run(cmd, cwd=CLIENT, capture_output=True, text=True)
-    if r.returncode != 0:
-        pytest.fail("credinfo VOMS suite failed to COMPILE/LINK "
-                    f"(warnings are errors):\n{r.stderr}")
+    _guard_voms_bin_4(r)
     return out
 
 

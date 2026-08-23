@@ -1,4 +1,53 @@
 from split_continuation import reexport as _reexport
+def _expression_1(doc):
+    return (
+        [p for z in doc.get("zones", []) for p in z["principals"]]
+    )
+
+def _expression_2(principals):
+    return (
+        [p for p in principals if p["throttle_count"] > 0]
+    )
+
+def _expression_3(principals):
+    return (
+        [p["throttle_count"] for p in principals]
+    )
+
+
+def _phase_test_dashboard_shows_throttle_count_1(port):
+    for _ in range(8):
+        _get(port, "/f.txt")
+
+def _phase_test_stream_concurrency_cap_and_release_2(s):
+    try:
+        s.close()
+    except OSError:
+        pass
+
+
+def _check_test_dashboard_shows_throttle_count_1(cookie):
+    assert cookie, "dashboard login did not set a cookie"
+
+def _check_test_dashboard_shows_throttle_count_2(principals, doc):
+    assert principals, doc
+
+def _check_test_dashboard_shows_throttle_count_3(throttled, principals):
+    assert throttled, principals
+
+def _check_test_dashboard_shows_throttle_count_4(counts):
+    assert counts == sorted(counts, reverse=True), counts
+
+def _check_test_stream_concurrency_cap_and_release_6(st3):
+    assert st3 == KXR_WAIT, ("over-cap connection must wait", st3)
+
+def _check_test_stream_concurrency_cap_and_release_7(acquired):
+    assert acquired, "freed concurrency slot was not reusable after disconnect"
+
+def _check_test_stream_concurrency_cap_and_release_5(st):
+    assert st != KXR_WAIT, ("holder should acquire a slot", st)
+
+
 _reexport(globals(), "_test_phase25_ratelimit_helpers")
 
 def test_ratelimit_module_present():
@@ -175,18 +224,17 @@ def test_dashboard_shows_throttle_count(lifecycle, tmp_path):
             "        }\n"),
         seed_files=[("f.txt", "hello\n")])
     # Drive throttling on the ip:127.0.0.1 principal.
-    for _ in range(8):
-        _get(port, "/f.txt")
+    _phase_test_dashboard_shows_throttle_count_1(port)
     cookie = _curl_cookie(lifecycle, port)
-    assert cookie, "dashboard login did not set a cookie"
+    _check_test_dashboard_shows_throttle_count_1(cookie)
     doc = _curl_ratelimit(lifecycle, port, cookie)
-    principals = [p for z in doc.get("zones", []) for p in z["principals"]]
-    assert principals, doc
-    throttled = [p for p in principals if p["throttle_count"] > 0]
-    assert throttled, principals
+    principals = _expression_1(doc)
+    _check_test_dashboard_shows_throttle_count_2(principals, doc)
+    throttled = _expression_2(principals)
+    _check_test_dashboard_shows_throttle_count_3(throttled, principals)
     # Sorted most-throttled first.
-    counts = [p["throttle_count"] for p in principals]
-    assert counts == sorted(counts, reverse=True), counts
+    counts = _expression_3(principals)
+    _check_test_dashboard_shows_throttle_count_4(counts)
 
 
 # --------------------------------------------------------------------------- #
@@ -286,13 +334,13 @@ def test_stream_concurrency_cap_and_release(lifecycle, tmp_path):
         for _ in range(2):
             s = _xrd_login(HOST, port)
             st, _b = _xrd_open(s, "/f.txt")
-            assert st != KXR_WAIT, ("holder should acquire a slot", st)
+            _check_test_stream_concurrency_cap_and_release_5(st)
             holders.append(s)
 
         # Third concurrent connection exceeds the cap → kXR_wait, no slot held.
         s3 = _xrd_login(HOST, port)
         st3, _b = _xrd_open(s3, "/f.txt")
-        assert st3 == KXR_WAIT, ("over-cap connection must wait", st3)
+        _check_test_stream_concurrency_cap_and_release_6(st3)
         s3.close()
 
         # Release a holder; its slot must come back (freed in on_disconnect).
@@ -311,13 +359,10 @@ def test_stream_concurrency_cap_and_release(lifecycle, tmp_path):
                 break
             s4.close()
             time.sleep(0.2)
-        assert acquired, "freed concurrency slot was not reusable after disconnect"
+        _check_test_stream_concurrency_cap_and_release_7(acquired)
     finally:
         for s in holders:
-            try:
-                s.close()
-            except OSError:
-                pass
+            _phase_test_stream_concurrency_cap_and_release_2(s)
 
 
 def test_stream_concurrency_high_limit_no_throttle(lifecycle, tmp_path):

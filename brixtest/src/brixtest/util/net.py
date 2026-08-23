@@ -1,20 +1,17 @@
 """Socket and listener helpers.
 
-These are ``LocalBackend`` internals in spirit (charter §8.4 rule 1):
-nothing above the deploy layer should need them directly.  The
-listener survey reads ``/proc/net/tcp{,6}`` so a whole-fleet sweep is
-one file read, not one probe per instance.
+These are ``LocalBackend`` internals. The listener survey reads
+``/proc/net/tcp{,6}`` once for the complete fleet.
 """
 
 from __future__ import annotations
 
-import os
 import socket
 import time
 from pathlib import Path
 from typing import Dict, Iterable, Optional, Set
 
-__all__ = ["tcp_answering", "wait_tcp", "listening_ports", "pids_on_port"]
+__all__ = ["listening_ports", "pids_on_port", "tcp_answering", "wait_tcp"]
 
 
 def tcp_answering(host: str, port: int, timeout: float = 0.25) -> bool:
@@ -67,9 +64,12 @@ def _socket_inodes_on_port(port: int) -> Set[str]:
             continue
         for line in lines:
             fields = line.split()
-            if len(fields) > 9 and fields[3] == "0A":
-                if int(fields[1].rsplit(":", 1)[1], 16) == port:
-                    inodes.add(fields[9])
+            if (
+                len(fields) > 9
+                and fields[3] == "0A"
+                and int(fields[1].rsplit(":", 1)[1], 16) == port
+            ):
+                inodes.add(fields[9])
     return inodes
 
 
@@ -79,21 +79,25 @@ def pids_on_port(port: int) -> Set[int]:
     if not inodes:
         return set()
     wanted = {"socket:[%s]" % inode for inode in inodes}
-    pids: Set[int] = set()
-    for proc in Path("/proc").iterdir():
-        if not proc.name.isdigit():
-            continue
-        try:
-            for fd in (proc / "fd").iterdir():
-                try:
-                    if os.readlink(str(fd)) in wanted:
-                        pids.add(int(proc.name))
-                        break
-                except OSError:
-                    continue
-        except OSError:
-            continue
-    return pids
+    return {
+        int(proc.name)
+        for proc in Path("/proc").iterdir()
+        if proc.name.isdigit() and _pid_holds_socket(proc, wanted)
+    }
+
+
+def _pid_holds_socket(proc: Path, wanted: Set[str]) -> bool:
+    try:
+        return any(_fd_matches(fd, wanted) for fd in (proc / "fd").iterdir())
+    except OSError:
+        return False
+
+
+def _fd_matches(fd: Path, wanted: Set[str]) -> bool:
+    try:
+        return str(fd.readlink()) in wanted
+    except OSError:
+        return False
 
 
 def port_holders(ports: Iterable[int]) -> Dict[int, Set[int]]:

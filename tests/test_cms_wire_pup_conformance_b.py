@@ -251,9 +251,12 @@ class TestForwardedNamespaceOps:
         deadline = time.time() + 6.0
         while time.time() < deadline and not os.path.isdir(made):
             time.sleep(0.1)
-        assert os.path.isdir(made), "node did not create the forwarded directory"
-        # And it must NOT have sent an error for a valid op.
-        assert node_stack.collect_reply(CMS_RSP_ERROR, timeout=1.0) is None
+        def _assert_test_forwarded_mkdir_creates_dir_1():
+            assert os.path.isdir(made), "node did not create the forwarded directory"
+            # And it must NOT have sent an error for a valid op.
+            assert node_stack.collect_reply(CMS_RSP_ERROR, timeout=1.0) is None
+
+        _assert_test_forwarded_mkdir_creates_dir_1()
 
     def test_forwarded_mkdir_traversal_is_refused(self, node_stack):
         """A '..' path that escapes the export root must be blocked by the

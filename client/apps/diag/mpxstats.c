@@ -123,96 +123,127 @@ usage_fp(FILE *out, const char *prog, int rc)
     return rc;
 }
 
+/* WHAT: Parse mpxstats command-line options.
+ * WHY: Keep option policy separate from data-source execution.
+ * HOW: Update host/port, print immediate help/version, and signal early exit. */
+static int
+mpx_parse_options(int argc, char **argv, const char **host, int *port,
+    int *exit_now)
+{
+    int i;
+
+    *exit_now = 0;
+    for (i = 1; i < argc; i++) {
+        const char *arg = argv[i];
+
+        if (strcmp(arg, "--version") == 0) {
+            printf("%s (BriX-Cache client) %s\n", brix_prog_base(argv[0]),
+                   brix_client_version());
+            *exit_now = 1;
+            return 0;
+        }
+        if (strcmp(arg, "--help") == 0 || strcmp(arg, "-h") == 0) {
+            *exit_now = 1;
+            return usage_fp(strcmp(arg, "-h") == 0 ? stderr : stdout,
+                            argv[0], 0);
+        }
+        if (strcmp(arg, "--metrics-port") == 0 && i + 1 < argc) {
+            *port = atoi(argv[++i]);
+        } else if (*host == NULL) {
+            *host = arg;
+        }
+    }
+    return 0;
+}
+
+
+/* WHAT: Ingest a metrics document from standard input.
+ * WHY: Support pipelines and saved metric snapshots without a server.
+ * HOW: Read a bounded buffer, parse it, report it, and release storage. */
+static int
+mpx_read_stdin(void)
+{
+    size_t cap = 1u << 20;
+    size_t len = 0;
+    size_t n;
+    char  *buf = malloc(cap);
+
+    if (buf == NULL) {
+        fprintf(stderr, "mpxstats-brix: out of memory\n");
+        return 51;
+    }
+    while ((n = fread(buf + len, 1, cap - 1 - len, stdin)) > 0) {
+        len += n;
+        if (len >= cap - 1) {
+            break;
+        }
+    }
+    buf[len] = '\0';
+    ingest_buffer(buf);
+    free(buf);
+    report("(stdin)");
+    return 0;
+}
+
+
+/* WHAT: Fetch, ingest, and report a remote Prometheus document.
+ * WHY: Isolate endpoint normalization and network failure cleanup.
+ * HOW: Split an optional host port, issue the shared HTTP GET, then summarize. */
+static int
+mpx_read_remote(const char *host, int metrics_port)
+{
+    char        server[256];
+    char        source[300];
+    char       *colon;
+    char       *body;
+    brix_status status;
+    int         http = 0;
+
+    snprintf(server, sizeof(server), "%s", host);
+    colon = strrchr(server, ':');
+    if (colon != NULL && strchr(server, ':') == colon) {
+        *colon = '\0';
+        metrics_port = atoi(colon + 1);
+    }
+    body = malloc(1u << 20);
+    if (body == NULL) {
+        fprintf(stderr, "mpxstats-brix: out of memory\n");
+        return 51;
+    }
+    brix_status_clear(&status);
+    if (brix_http_get(server, metrics_port, "/metrics", 5000, &http, body,
+                      1u << 20, NULL, &status) != 0)
+    {
+        fprintf(stderr, "mpxstats-brix: GET %s:%d/metrics: %s\n", server,
+                metrics_port, status.msg);
+        free(body);
+        return 51;
+    }
+    ingest_buffer(body);
+    free(body);
+    snprintf(source, sizeof(source), "%s:%d (HTTP %d)", server, metrics_port,
+             http);
+    report(source);
+    return g_n > 0 ? 0 : 51;
+}
+
+
 /* Real main; dispatched from xrddiag (multi-call, see xrddiag.c). */
 int
 brix_mpxstats_main(int argc, char **argv)
 {
     const char *host = NULL;
     int         metrics_port = 9100;
-    int         i;
+    int         exit_now;
+    int         rc;
 
-    /* --help / --version before main loop. */
-    if (argc >= 2) {
-        if (strcmp(argv[1], "--version") == 0) {
-            printf("%s (BriX-Cache client) %s\n", brix_prog_base(argv[0]),
-                   brix_client_version());
-            return 0;
-        }
-        if (strcmp(argv[1], "--help") == 0) {
-            return usage_fp(stdout, argv[0], 0);
-        }
-    }
-
-    for (i = 1; i < argc; i++) {
-        const char *a = argv[i];
-        if (strcmp(a, "--metrics-port") == 0 && i + 1 < argc) {
-            metrics_port = atoi(argv[++i]);
-        } else if (strcmp(a, "-h") == 0) {
-            /* -h keeps the legacy stderr path (C1); footer now included. */
-            return usage_fp(stderr, argv[0], 0);
-        } else if (strcmp(a, "--help") == 0) {
-            /* Recognise --help at any position (not just argv[1]). */
-            return usage_fp(stdout, argv[0], 0);
-        } else if (host == NULL) {
-            host = a;
-        }
+    rc = mpx_parse_options(argc, argv, &host, &metrics_port, &exit_now);
+    if (exit_now) {
+        return rc;
     }
 
     if (host == NULL || strcmp(host, "-") == 0) {
-        /* stdin */
-        char  *buf;
-        size_t cap = 1u << 20, len = 0, r;
-        buf = (char *) malloc(cap);
-        if (buf == NULL) {
-            fprintf(stderr, "mpxstats-brix: out of memory\n");
-            return 51;
-        }
-        while ((r = fread(buf + len, 1, cap - 1 - len, stdin)) > 0) {
-            len += r;
-            if (len >= cap - 1) {
-                break;
-            }
-        }
-        buf[len] = '\0';
-        ingest_buffer(buf);
-        free(buf);
-        report("(stdin)");
-        return 0;
+        return mpx_read_stdin();
     }
-
-    {
-        /* strip a host:port → host + port override */
-        char        h[256];
-        char       *colon;
-        char       *body;
-        brix_status st;
-        int         http = 0;
-        snprintf(h, sizeof(h), "%s", host);
-        colon = strrchr(h, ':');
-        if (colon != NULL && strchr(h, ':') == colon) {   /* host:port (not v6) */
-            *colon = '\0';
-            metrics_port = atoi(colon + 1);
-        }
-        body = (char *) malloc(1u << 20);
-        if (body == NULL) {
-            fprintf(stderr, "mpxstats-brix: out of memory\n");
-            return 51;
-        }
-        brix_status_clear(&st);
-        if (brix_http_get(h, metrics_port, "/metrics", 5000, &http, body,
-                          1u << 20, NULL, &st) != 0) {
-            fprintf(stderr, "mpxstats-brix: GET %s:%d/metrics: %s\n", h, metrics_port,
-                    st.msg);
-            free(body);
-            return 51;
-        }
-        ingest_buffer(body);
-        free(body);
-        {
-            char src[300];
-            snprintf(src, sizeof(src), "%s:%d (HTTP %d)", h, metrics_port, http);
-            report(src);
-        }
-        return g_n > 0 ? 0 : 51;
-    }
+    return mpx_read_remote(host, metrics_port);
 }

@@ -45,6 +45,21 @@ class XrdClWorkerError(RuntimeError):
     """Raised when the isolated worker errors, dies, or times out."""
 
 
+def real_bindings_available():
+    """Return whether the configured worker can import the real bindings."""
+    environment = dict(os.environ)
+    environment["XRDCL_IMPORT_PROBE"] = "1"
+    executable = os.environ.get("XRDCL_WORKER_PYTHON", sys.executable)
+    try:
+        result = subprocess.run(
+            [executable, "-u", _WORKER], input="", text=True,
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            timeout=10, env=environment)
+    except (OSError, subprocess.SubprocessError):
+        return False
+    return result.returncode == 0
+
+
 # ==========================================================================
 # Worker connection (singleton per process).
 # ==========================================================================
@@ -101,66 +116,81 @@ class _Worker:
                     slot[0].set()
 
     # -- request/response --------------------------------------------------
-    def call(self, req, timeout=_CALL_TIMEOUT):
-        if not self._alive:
-            raise XrdClWorkerError("XrdCl worker is not running")
-        ev = threading.Event()
-        slot = [ev, None]
-        with self._lock:
-            # Flush finalizer-queued handle releases (fire-and-forget; the
-            # worker tags the reply id=None which the reader simply drops).
-            while self._pending_releases:
-                h = self._pending_releases.popleft()
-                try:
-                    self._proc.stdin.write(
-                        json.dumps({"op": "release", "h": h}) + "\n")
-                except Exception:
-                    break
-            rid = self._next_id
-            self._next_id += 1
-            req["id"] = rid
-            # Keep the child's os.environ in lock-step with the parent's so that
-            # credential vars (X509_USER_PROXY, BEARER_TOKEN, XrdSec*, XRD_*, …)
-            # a test sets right before connecting reach the real bindings.  Only
-            # resend when something changed; the worker applies it in request
-            # order, before dispatching the op.
-            sig = hash(tuple(sorted(os.environ.items())))
-            if sig != self._env_sig:
-                req["env"] = dict(os.environ)
-                self._env_sig = sig
-            with self._slots_lock:
-                self._slots[rid] = slot
+    def _flush_pending_releases(self):
+        while self._pending_releases:
+            handle = self._pending_releases.popleft()
             try:
-                self._proc.stdin.write(json.dumps(req) + "\n")
-                self._proc.stdin.flush()
-            except Exception as exc:
-                raise XrdClWorkerError("worker stdin write failed: %s" % exc)
+                message = json.dumps({"op": "release", "h": handle}) + "\n"
+                self._proc.stdin.write(message)
+            except Exception:
+                return
 
-        got = ev.wait(timeout)
+    def _prepare_request(self, request, slot):
+        request_id = self._next_id
+        self._next_id += 1
+        request["id"] = request_id
+        signature = hash(tuple(sorted(os.environ.items())))
+        if signature != self._env_sig:
+            request["env"] = dict(os.environ)
+            self._env_sig = signature
         with self._slots_lock:
-            self._slots.pop(rid, None)
-        if not got:
-            # Hung op — destroy the worker so the deadlock cannot persist.
+            self._slots[request_id] = slot
+        return request_id
+
+    def _write_request(self, request):
+        try:
+            self._proc.stdin.write(json.dumps(request) + "\n")
+            self._proc.stdin.flush()
+        except Exception as error:
+            raise XrdClWorkerError("worker stdin write failed: %s" % error)
+
+    def _wait_for_response(self, event, slot, request_id, request, timeout):
+        received = event.wait(timeout)
+        with self._slots_lock:
+            self._slots.pop(request_id, None)
+        if not received:
             self.kill()
             raise XrdClWorkerError(
                 "XrdCl op timed out after %ss (op=%s) — worker killed"
-                % (timeout, req.get("op")))
-        msg = slot[1]
-        if msg is None or not self._alive and msg is None:
+                % (timeout, request.get("op")))
+        message = slot[1]
+        if message is None:
             raise XrdClWorkerError("XrdCl worker died during op %s"
-                                   % req.get("op"))
-        if not msg.get("ok"):
-            # Re-raise the binding's native exception type when it was a plain
-            # builtin (ValueError, TypeError, …) so test ``except`` clauses that
-            # target the real pyxrootd behaviour still match.  Anything else
-            # surfaces as XrdClWorkerError.
-            etype = msg.get("etype")
-            cls = getattr(builtins, etype, None) if etype else None
-            if isinstance(cls, type) and issubclass(cls, Exception) \
-                    and cls not in (Exception, BaseException):
-                raise cls(msg.get("emsg", ""))
-            raise XrdClWorkerError(msg.get("error", "unknown worker error"))
-        return msg
+                                   % request.get("op"))
+        return message
+
+    @staticmethod
+    def _native_exception(message):
+        exception_name = message.get("etype")
+        exception = getattr(builtins, exception_name, None) if exception_name else None
+        if not isinstance(exception, type):
+            return None
+        if not issubclass(exception, Exception):
+            return None
+        if exception in (Exception, BaseException):
+            return None
+        return exception
+
+    def _validate_response(self, message):
+        if message.get("ok"):
+            return message
+        exception = self._native_exception(message)
+        if exception is not None:
+            raise exception(message.get("emsg", ""))
+        raise XrdClWorkerError(message.get("error", "unknown worker error"))
+
+    def call(self, req, timeout=_CALL_TIMEOUT):
+        if not self._alive:
+            raise XrdClWorkerError("XrdCl worker is not running")
+        event = threading.Event()
+        slot = [event, None]
+        with self._lock:
+            self._flush_pending_releases()
+            request_id = self._prepare_request(req, slot)
+            self._write_request(req)
+        message = self._wait_for_response(
+            event, slot, request_id, req, timeout)
+        return self._validate_response(message)
 
     def kill(self):
         self._alive = False
@@ -334,6 +364,42 @@ _RESP_TYPES = {
 }
 
 
+def _decode_list(value):
+    return [_decode_response(item) for item in value]
+
+
+def _decode_tuple(value):
+    return tuple(_decode_response(item) for item in value)
+
+
+def _decode_dict(value):
+    return {key: _decode_response(item) for key, item in value.items()}
+
+
+def _decode_typed_or_plain(payload):
+    response_type = payload.get("__type__")
+    if response_type is None:
+        return _decode_dict(payload)
+    response_class = _RESP_TYPES.get(response_type)
+    if response_class is None:
+        return _Generic(payload)
+    return response_class(payload)
+
+
+def _decode_mapping(payload):
+    handlers = (
+        ("__bytes__", base64.b64decode),
+        ("__status__", Status),
+        ("__list__", _decode_list),
+        ("__tuple__", _decode_tuple),
+        ("__dict__", _decode_dict),
+    )
+    for marker, handler in handlers:
+        if marker in payload:
+            return handler(payload[marker])
+    return _decode_typed_or_plain(payload)
+
+
 def _decode_response(payload):
     """Inverse of the worker's _encode_response.
 
@@ -344,27 +410,9 @@ def _decode_response(payload):
     if payload is None:
         return None
     if isinstance(payload, list):
-        return [_decode_response(x) for x in payload]
+        return _decode_list(payload)
     if isinstance(payload, dict):
-        if "__bytes__" in payload:
-            return base64.b64decode(payload["__bytes__"])
-        if "__status__" in payload:
-            return Status(payload["__status__"])
-        if "__list__" in payload:
-            return [_decode_response(x) for x in payload["__list__"]]
-        if "__tuple__" in payload:
-            return tuple(_decode_response(x) for x in payload["__tuple__"])
-        if "__dict__" in payload:
-            return {k: _decode_response(v)
-                    for k, v in payload["__dict__"].items()}
-        t = payload.get("__type__")
-        if t is not None:
-            cls = _RESP_TYPES.get(t)
-            if cls is not None:
-                return cls(payload)
-            return _Generic(payload)
-        # Plain dict with no marker — decode values.
-        return {k: _decode_response(v) for k, v in payload.items()}
+        return _decode_mapping(payload)
     return payload
 
 
@@ -381,101 +429,7 @@ def _encode_args(args, kwargs):
             {k: _encode_arg(v) for k, v in kwargs.items()})
 
 
-# ==========================================================================
-# Proxy objects — the public API mirrored by the shadow package.
-# ==========================================================================
-class _RemoteObject:
-    _NEW_OP = None      # subclass: worker op that constructs the remote object
-    _CALL_OP = None     # subclass: worker op that invokes a method
 
-    def __init__(self, *ctor_args, **ctor_kwargs):
-        req = {"op": self._NEW_OP}
-        self._init_request(req, ctor_args, ctor_kwargs)
-        self._w = _worker()
-        self._h = self._w.call(req)["h"]
+from split_continuation import load as _load_continuation
 
-    def _init_request(self, req, args, kwargs):
-        pass
-
-    def _invoke(self, method, args, kwargs):
-        enc_args, enc_kwargs = _encode_args(list(args), dict(kwargs))
-        # pyxrootd accepts a per-op timeout kwarg; honour it for our wait too.
-        op_timeout = kwargs.get("timeout", 0) or 0
-        wait = max(_CALL_TIMEOUT, float(op_timeout) + 15) if op_timeout else _CALL_TIMEOUT
-        msg = _worker().call(
-            {"op": self._CALL_OP, "h": self._h,
-             "method": method, "args": enc_args, "kwargs": enc_kwargs},
-            timeout=wait)
-        # A plain-value method (e.g. File.is_open() -> bool) returns the value
-        # directly; status-returning methods return the (status, response) pair.
-        if "value" in msg:
-            return _decode_response(msg["value"])
-        status = Status(msg.get("status"))
-        resp = _decode_response(msg.get("response"))
-        return status, resp
-
-    def __getattr__(self, name):
-        # Any unknown attribute is treated as a remote method.
-        if name.startswith("_"):
-            raise AttributeError(name)
-
-        def _method(*args, **kwargs):
-            return self._invoke(name, args, kwargs)
-        return _method
-
-    def __del__(self):
-        # Finalizer: queue the handle for release WITHOUT any blocking call or
-        # lock acquisition (see _Worker._pending_releases).  deque.append is
-        # atomic; the release is flushed on the next call().
-        try:
-            w = self._w
-            if w is not None and w._alive:
-                w._pending_releases.append(self._h)
-        except Exception:
-            pass
-
-
-class FileSystem(_RemoteObject):
-    _NEW_OP = "fs_new"
-    _CALL_OP = "fs_call"
-
-    def _init_request(self, req, args, kwargs):
-        url = args[0] if args else kwargs.get("url")
-        req["url"] = url
-
-
-class File(_RemoteObject):
-    _NEW_OP = "file_new"
-    _CALL_OP = "file_call"
-
-    # Context-manager support (tests use ``with client.File() as f:``).
-    def __enter__(self):
-        return self
-
-    def __exit__(self, *exc):
-        try:
-            self._invoke("close", (), {})
-        except Exception:
-            pass
-        return False
-
-
-class CopyProcess(_RemoteObject):
-    _NEW_OP = "cp_new"
-    _CALL_OP = "cp_call"
-
-
-class URL:
-    """Local-looking URL parser backed by the worker's real XrdCl URL."""
-    def __init__(self, url):
-        fields = _worker().call({"op": "url_parse", "url": url})["fields"]
-        self._f = fields
-
-    def is_valid(self):
-        return bool(self._f.get("is_valid"))
-
-    def __getattr__(self, name):
-        f = object.__getattribute__(self, "_f")
-        if name in f:
-            return f[name]
-        raise AttributeError(name)
+_load_continuation(globals(), __file__, "_xrdcl_proxy_part2.py")

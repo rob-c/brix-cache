@@ -41,10 +41,10 @@ SRCS = [
 
 @pytest.fixture(scope="module")
 def scan_core_bin(tmp_path_factory):
-    cc = shutil.which("gcc") or shutil.which("cc")
+    cc = _c_compiler()
     if cc is None:
         pytest.skip("no C compiler")
-    if not all(os.path.exists(s) for s in SRCS):
+    if not _scan_sources_present():
         pytest.skip("src/fs/scan sources missing")
     out = str(tmp_path_factory.mktemp("scan") / "ut")
     r = subprocess.run(
@@ -54,6 +54,14 @@ def scan_core_bin(tmp_path_factory):
         pytest.fail("scan cores failed to COMPILE (warnings are errors):\n%s"
                     % r.stderr)
     return out
+
+
+def _c_compiler():
+    return shutil.which("gcc") or shutil.which("cc")
+
+
+def _scan_sources_present():
+    return all(os.path.exists(source) for source in SRCS)
 
 
 def test_scan_core_suite(scan_core_bin):
@@ -170,6 +178,51 @@ def _summary(recs):
     return s[0]
 
 
+def _records_of_type(records, kind):
+    return [record for record in records if record.get("t") == kind]
+
+
+def _single_record(records, kind):
+    matches = _records_of_type(records, kind)
+    assert len(matches) == 1, records
+    return matches[0]
+
+
+def _client_records(result):
+    assert result.returncode == 0, result.stderr
+    return _ndjson(result.stdout)
+
+
+def _assert_inspect_record(record):
+    actual = {key: record[key] for key in ("path", "backend", "namespace_consistent")}
+    expected = {"path": "/a.bin", "backend": "posix", "namespace_consistent": True}
+    assert actual == expected
+    assert record["stored_src"] in ("none", "xattr")
+
+
+def _assert_health_record(record):
+    assert record["backend"] == "posix"
+    assert record["total_bytes"] > 0
+    used = record["used_bytes"] + record["free_bytes"]
+    assert used <= record["total_bytes"]
+
+
+def _scan_fill(base, cookie):
+    code, body, _ = _get(base, "/brix/api/v1/scan?mode=fill&alg=adler32", cookie)
+    assert code == 200, body
+    assert _files(_ndjson(body))["a.bin"]["status"] in ("filled", "already")
+    summary = _summary(_ndjson(body))
+    assert summary["filled"] >= 1 or summary["already"] >= 1
+
+
+def _scan_verify(base, cookie, expected):
+    code, body, _ = _get(base, "/brix/api/v1/scan?mode=verify&alg=adler32", cookie)
+    assert code == 200, body
+    record = _files(_ndjson(body))["a.bin"]
+    assert record["status"] == expected, record
+    return record, _summary(_ndjson(body))
+
+
 def test_scan_unauth_is_401(scan_server):
     code, _, _ = _get(scan_server["base"], "/brix/api/v1/scan?mode=dump")
     assert code == 401
@@ -230,22 +283,9 @@ def test_scan_fill_then_verify_and_corruption(scan_server):
     if not scan_server["xattr_ok"]:
         pytest.skip("filesystem does not support user xattrs (no checksum-at-rest)")
     base, cookie = scan_server["base"], _login(scan_server["base"])
-
-    # fill: persist checksums where none exist
-    code, body, _ = _get(base, "/brix/api/v1/scan?mode=fill&alg=adler32", cookie)
-    assert code == 200, body
-    files = _files(_ndjson(body))
-    assert files["a.bin"]["status"] in ("filled", "already")
-    assert _summary(_ndjson(body))["filled"] >= 1 or \
-        _summary(_ndjson(body))["already"] >= 1
-
-    # verify: now everything matches
-    cookie = _login(base)
-    code, body, _ = _get(base, "/brix/api/v1/scan?mode=verify&alg=adler32", cookie)
-    assert code == 200, body
-    files = _files(_ndjson(body))
-    assert files["a.bin"]["status"] == "ok"
-    assert files["a.bin"]["stored"] == files["a.bin"]["computed"]
+    _scan_fill(base, cookie)
+    record, _ = _scan_verify(base, _login(base), "ok")
+    assert record["stored"] == record["computed"]
 
     # Simulate silent bit-rot: corrupt the bytes but PRESERVE mtime/size, so the
     # stored checksum is not treated as stale — verify must catch the mismatch.
@@ -255,12 +295,8 @@ def test_scan_fill_then_verify_and_corruption(scan_server):
     # restore mtime at NANOSECOND precision (the checksum-at-rest record pins
     # tv_sec AND tv_nsec; float os.utime would lose nsec and read as stale)
     os.utime(a, ns=(pre.st_atime_ns, pre.st_mtime_ns))
-    cookie = _login(base)
-    code, body, _ = _get(base, "/brix/api/v1/scan?mode=verify&alg=adler32", cookie)
-    assert code == 200, body
-    files = _files(_ndjson(body))
-    assert files["a.bin"]["status"] == "mismatch", files["a.bin"]
-    assert _summary(_ndjson(body))["mismatch"] == 1
+    _, summary = _scan_verify(base, _login(base), "mismatch")
+    assert summary["mismatch"] == 1
     # restore for idempotent re-runs
     (scan_server["data"] / "a.bin").write_bytes(A_BYTES)
 
@@ -290,10 +326,8 @@ def client(scan_server):
 
 def test_client_dump(client):
     r = _storascan("dump", client, "--json")
-    assert r.returncode == 0, r.stderr
-    recs = [json.loads(ln) for ln in r.stdout.splitlines() if ln.strip()]
-    paths = {x["path"] for x in recs if x.get("t") == "file"}
-    assert "/a.bin" in paths and "/sub/b.bin" in paths, r.stdout
+    paths = {record["path"] for record in _records_of_type(_client_records(r), "file")}
+    assert {"/a.bin", "/sub/b.bin"} <= paths, r.stdout
 
 
 def test_client_bad_password_fails(client):
@@ -331,14 +365,7 @@ def test_scan_inspect(scan_server):
     code, body, _ = _get(scan_server["base"],
                          "/brix/api/v1/scan?mode=inspect&path=/a.bin", cookie)
     assert code == 200, body
-    recs = _ndjson(body)
-    insp = [r for r in recs if r.get("t") == "inspect"]
-    assert len(insp) == 1, recs
-    r = insp[0]
-    assert r["path"] == "/a.bin"
-    assert r["backend"] == "posix"
-    assert r["namespace_consistent"] is True
-    assert r["stored_src"] in ("none", "xattr")
+    _assert_inspect_record(_single_record(_ndjson(body), "inspect"))
 
 
 def test_scan_health(scan_server):
@@ -346,25 +373,16 @@ def test_scan_health(scan_server):
     code, body, _ = _get(scan_server["base"],
                          "/brix/api/v1/scan?mode=health", cookie)
     assert code == 200, body
-    recs = _ndjson(body)
-    h = [r for r in recs if r.get("t") == "health"]
-    assert len(h) == 1, recs
-    assert h[0]["backend"] == "posix"
-    assert h[0]["total_bytes"] > 0
-    assert h[0]["used_bytes"] + h[0]["free_bytes"] <= h[0]["total_bytes"]
+    _assert_health_record(_single_record(_ndjson(body), "health"))
 
 
 def test_client_inspect(client):
     r = _storascan("inspect", client, "--path", "/a.bin", "--json")
-    assert r.returncode == 0, r.stderr
-    recs = [json.loads(ln) for ln in r.stdout.splitlines() if ln.strip()]
-    insp = [x for x in recs if x.get("t") == "inspect"]
-    assert insp and insp[0]["backend"] == "posix", r.stdout
+    record = _single_record(_client_records(r), "inspect")
+    assert record["backend"] == "posix", r.stdout
 
 
 def test_client_health(client):
     r = _storascan("health", client, "--json")
-    assert r.returncode == 0, r.stderr
-    recs = [json.loads(ln) for ln in r.stdout.splitlines() if ln.strip()]
-    h = [x for x in recs if x.get("t") == "health"]
-    assert h and h[0]["total_bytes"] > 0, r.stdout
+    record = _single_record(_client_records(r), "health")
+    assert record["total_bytes"] > 0, r.stdout

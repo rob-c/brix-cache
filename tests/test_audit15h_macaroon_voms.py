@@ -97,6 +97,10 @@ from _test_gsi_handshake_helpers import (_ca_hash_link, _make_ca,
                                          _make_voms_signing_cert, _mint_proxy,
                                          _signed, _split_for_curl)
 
+def _check_probe_1(done):
+    assert done.returncode == 0, f"curl failed: {done.stderr.strip()}"
+
+
 pytestmark = [pytest.mark.timeout(300),
               pytest.mark.uses_lifecycle_harness,
               pytest.mark.xdist_group("lc-audit15h-macvoms")]
@@ -303,6 +307,35 @@ def _client_pair(pki, proxy):
     return cert, key
 
 
+def _option(value, flag, rendered=None):
+    """Return one curl option when its value was supplied."""
+    if value is None:
+        return []
+    return [flag, value if rendered is None else rendered]
+
+
+def _proxy_options(pki, proxy):
+    if proxy is None:
+        return []
+    cert, key = _client_pair(pki, proxy)
+    return ["--cert", cert, "--key", key]
+
+
+def _probe_options(pki, proxy, token, ctype, body, upload, method):
+    options = _proxy_options(pki, proxy)
+    options += _option(token, "-H", f"Authorization: Bearer {token}")
+    options += _option(ctype, "-H", f"Content-Type: {ctype}")
+    options += _option(body, "--data-binary")
+    options += _option(upload, "-T")
+    options += _option(method, "-X")
+    return options
+
+
+def _probe_url(port, path, query):
+    base = f"https://{HOST}:{port}{path}"
+    return f"{base}?{query}" if query else base
+
+
 def _probe(pki, port, path, *, proxy=None, token=None, method=None,
            body=None, ctype=None, upload=None, query=None):
     """One request; returns (http_code, body_text).
@@ -310,26 +343,11 @@ def _probe(pki, port, path, *, proxy=None, token=None, method=None,
     `-k` because the host certificate carries no SAN and this file is not about
     server verification: every identity assertion here is about the CLIENT's
     credential, which curl sends regardless."""
-    url = f"https://{HOST}:{port}{path}"
-    if query:
-        url += "?" + query
     cmd = ["curl", "-sS", "-k", "--max-time", "30", "-w", "\n%{http_code}"]
-    if proxy is not None:
-        cert, key = _client_pair(pki, proxy)
-        cmd += ["--cert", cert, "--key", key]
-    if token is not None:
-        cmd += ["-H", f"Authorization: Bearer {token}"]
-    if ctype is not None:
-        cmd += ["-H", f"Content-Type: {ctype}"]
-    if body is not None:
-        cmd += ["--data-binary", body]
-    if upload is not None:
-        cmd += ["-T", upload]
-    if method is not None:
-        cmd += ["-X", method]
-    cmd.append(url)
+    cmd += _probe_options(pki, proxy, token, ctype, body, upload, method)
+    cmd.append(_probe_url(port, path, query))
     done = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
-    assert done.returncode == 0, f"curl failed: {done.stderr.strip()}"
+    _check_probe_1(done)
     text, _, code = done.stdout.rpartition("\n")
     return code.strip(), text
 

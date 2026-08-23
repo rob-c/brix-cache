@@ -72,6 +72,22 @@ pytestmark = [pytest.mark.serial, pytest.mark.uses_lifecycle_harness,
 BIGFILE_MB = 32
 SHIM_DELAY_US = int(os.environ.get("XRD_RACE_DELAY_US", "15000"))
 SHIM_SAN = os.environ.get("TEST_EVIL_SHIM_SAN", "")          # ""|address|thread
+
+
+def _constrained_environment():
+    names = ("CI", "TEST_HOST_CONSTRAINED", "WSL_INTEROP", "WSL_DISTRO_NAME")
+    return any(os.environ.get(name) for name in names)
+
+
+def _proc_version_is_wsl():
+    try:
+        with open("/proc/version") as source:
+            version = source.read().lower()
+    except OSError:
+        return False
+    return "microsoft" in version or "wsl" in version
+
+
 def _host_is_constrained():
     """True on hosts that are slow at the socket connect/RST churn these
     adversarial loops generate (WSL2, CI runners).
@@ -85,19 +101,11 @@ def _host_is_constrained():
     of rounds, so fewer rounds keeps the coverage that matters while staying
     inside the timeout.  An explicit TEST_EVIL_V3_ROUNDS always overrides this.
     """
-    if (os.environ.get("CI") or os.environ.get("TEST_HOST_CONSTRAINED")
-            or os.environ.get("WSL_INTEROP") or os.environ.get("WSL_DISTRO_NAME")):
+    if _constrained_environment():
         return True
     if os.path.isdir("/run/WSL"):                  # WSL interop socket dir
         return True
-    try:
-        with open("/proc/version") as f:
-            v = f.read().lower()
-            if "microsoft" in v or "wsl" in v:     # WSL1 / WSL2 (incl. custom kernels)
-                return True
-    except OSError:
-        pass
-    return False
+    return _proc_version_is_wsl()
 
 
 _CONSTRAINED = _host_is_constrained()

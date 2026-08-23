@@ -1,14 +1,15 @@
-"""Lanes: the unit of isolation (feature F8).
+"""Filesystem and port isolation for concurrent test sessions.
 
 A lane is ``(root, port_base)``.  Two distinct lanes on one host never
 interact: not through ports, not through paths, not through reapers.
 Every destructive operation checks lane identity first; the on-disk
-ownership record makes refusal messages precise — *which* session owns
+ownership record makes refusal messages precise: which session owns
 the lane, since when, and whether it is still alive.
 """
 
 from __future__ import annotations
 
+import contextlib
 import dataclasses
 import json
 import os
@@ -26,10 +27,7 @@ _RECORD_NAME = "lane-owner.json"
 
 
 def refuse_foreign_lane(test_root: str, host: str, port: int) -> str:
-    """The foreign-lane refusal message, byte-identical to the grown
-    conftest's (§9.2.1) — user-facing text quoted in the ops docs, so it
-    lives here as the single source and the harness raises it verbatim.
-    """
+    """Return the shared diagnostic for a foreign lane owner."""
     return (
         f"refusing to start TEST_ROOT={test_root}: {host}:{port} "
         "is owned by another or incomplete test fleet. Choose a "
@@ -93,8 +91,6 @@ class Lane:
         except ValueError:
             return False
 
-    # -- ownership record ------------------------------------------------
-
     @property
     def _record_path(self) -> Path:
         return self.root / _RECORD_NAME
@@ -130,17 +126,11 @@ class Lane:
         existing = self.owner()
         if existing is not None and existing.pid != os.getpid():
             return
-        try:
+        with contextlib.suppress(OSError):
             self._record_path.unlink()
-        except OSError:
-            pass
 
     def owns_root(self, path: Path) -> bool:
-        """Exact-root lane identity: never a prefix match.
-
-        One lane's reaper once SIGTERMed every lane whose root merely
-        *started with* its own — this rule is that incident as contract.
-        """
+        """Require exact root identity rather than a string prefix match."""
         return Path(path).resolve() == self.root.resolve()
 
     def owns_port(self, port: int) -> bool:

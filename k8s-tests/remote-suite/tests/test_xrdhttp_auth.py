@@ -163,20 +163,21 @@ class TestMissingCredentials:
         n_result = _curl(f"--cacert", CA_CERT, f"{NGINX_GSI_URL.rstrip('/')}/")
         r_result = _curl(f"--cacert", CA_CERT, f"{REF_URL.rstrip('/')}/")
 
-        # Extract HTTP status from response.
-        try:
-            n_status = int(n_result.stdout.split(b"\r\n")[0].split()[1]) if b"\r\n" in n_result.stdout else 0
-        except (IndexError, ValueError):
-            n_status = n_result.returncode
-
-        try:
-            r_status = int(r_result.stdout.split(b"\r\n")[0].split()[1]) if b"\r\n" in r_result.stdout else 0
-        except (IndexError, ValueError):
-            r_status = r_result.returncode
+        n_status = _http_status(n_result)
+        r_status = _http_status(r_result)
 
         assert n_status == r_status, (
             f"no-auth status differs: nginx={n_status}, ref={r_status}"
         )
+
+
+def _http_status(result):
+    if b"\r\n" not in result.stdout:
+        return 0
+    try:
+        return int(result.stdout.split(b"\r\n")[0].split()[1])
+    except (IndexError, ValueError):
+        return result.returncode
 
 
 # ---------------------------------------------------------------------------

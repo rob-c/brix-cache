@@ -268,6 +268,55 @@ sd_pblock_rename_cred(brix_sd_instance_t *inst, const char *src,
 /* setattr_cred — chmod/chown are owner-only; changing the uid at all is
  * service-only (no giving files away); the owner may chgrp only to a VO they
  * belong to (or their private group); times need ownership or W. */
+/*
+ * WHAT: Determine whether a requested gid belongs to the resolved identity.
+ * WHY:  chgrp is restricted to the caller's private or asserted VO groups.
+ * HOW:  Check the private gid, then scan the bounded resolved group vector.
+ */
+static int
+pblock_ident_has_gid(const pblock_ids_t *ids, gid_t gid)
+{
+    int i;
+
+    if (gid == ids->uid)
+        return 1;
+    for (i = 0; i < ids->ngids; i++) {
+        if (gid == ids->gids[i])
+            return 1;
+    }
+    return 0;
+}
+
+/*
+ * WHAT: Authorize a non-service setattr request against current metadata.
+ * WHY:  Ownership, chown, chgrp, and timestamp rules form one policy gate.
+ * HOW:  Apply owner-only mutations and permit times to writable non-owners.
+ */
+static ngx_int_t
+pblock_setattr_authorize(const pblock_meta *meta, const pblock_ids_t *ids,
+    const brix_sd_setattr_t *attr)
+{
+    if ((attr->set_mode || attr->set_owner) && meta->uid != ids->uid) {
+        errno = EPERM;
+        return NGX_ERROR;
+    }
+    if (attr->set_owner
+        && ((attr->uid != (uid_t) -1 && attr->uid != meta->uid)
+            || (attr->gid != (gid_t) -1
+                && !pblock_ident_has_gid(ids, attr->gid))))
+    {
+        errno = EPERM;
+        return NGX_ERROR;
+    }
+    if (attr->set_times && meta->uid != ids->uid
+        && pblock_ident_access(meta, ids, W_OK) != NGX_OK)
+    {
+        errno = EPERM;
+        return NGX_ERROR;
+    }
+    return NGX_OK;
+}
+
 ngx_int_t
 sd_pblock_setattr_cred(brix_sd_instance_t *inst, const char *path,
     const brix_sd_setattr_t *attr, const brix_sd_cred_t *cred)
@@ -283,33 +332,8 @@ sd_pblock_setattr_cred(brix_sd_instance_t *inst, const char *path,
         if (pblock_ident_check(st, path, &ids, 0, &meta) != NGX_OK) {
             return NGX_ERROR;                   /* ENOENT */
         }
-        if ((attr->set_mode || attr->set_owner) && meta.uid != ids.uid) {
-            errno = EPERM;
+        if (pblock_setattr_authorize(&meta, &ids, attr) != NGX_OK)
             return NGX_ERROR;
-        }
-        if (attr->set_owner) {
-            if (attr->uid != (uid_t) -1 && attr->uid != meta.uid) {
-                errno = EPERM;                  /* chown is service-only */
-                return NGX_ERROR;
-            }
-            if (attr->gid != (gid_t) -1) {
-                int i, member = attr->gid == ids.uid;   /* private group */
-
-                for (i = 0; i < ids.ngids && !member; i++) {
-                    member = attr->gid == ids.gids[i];
-                }
-                if (!member) {
-                    errno = EPERM;              /* chgrp only into own VOs */
-                    return NGX_ERROR;
-                }
-            }
-        }
-        if (attr->set_times && meta.uid != ids.uid
-            && pblock_ident_access(&meta, &ids, W_OK) != NGX_OK)
-        {
-            errno = EPERM;
-            return NGX_ERROR;
-        }
     }
     return sd_pblock_setattr(inst, path, attr);
 }

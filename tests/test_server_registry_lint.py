@@ -21,6 +21,11 @@ from pathlib import Path
 import re
 
 
+def _guard_inline_config_modules_1(text, offenders, path):
+    if _INLINE_EVENTS.search(text) and _INLINE_HTTP_STREAM.search(text):
+        offenders.add(_rel(path))
+
+
 TESTS = Path(__file__).resolve().parent
 PY_FILES = [p for p in TESTS.rglob("*.py") if ".pytest_cache" not in p.parts]
 SH_FILES = [p for p in TESTS.rglob("*.sh") if ".pytest_cache" not in p.parts]
@@ -161,8 +166,7 @@ def _inline_config_modules():
         text = path.read_text(encoding="utf-8", errors="ignore")
         if _MARKER in text or _validation_only(text):
             continue
-        if _INLINE_EVENTS.search(text) and _INLINE_HTTP_STREAM.search(text):
-            offenders.add(_rel(path))
+        _guard_inline_config_modules_1(text, offenders, path)
     return offenders
 
 

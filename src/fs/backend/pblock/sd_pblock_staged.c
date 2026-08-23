@@ -69,6 +69,27 @@ typedef struct {
                                            * dedup-candidate CRC (refs only)   */
 } pblock_staged_t;
 
+/*
+ * WHAT: Allocate a staged handle and its private pblock state together.
+ * WHY:  A single failure path keeps staged-open admission easy to audit.
+ * HOW:  Allocate both objects and report ENOMEM after releasing partial state.
+ */
+static brix_sd_staged_t *
+pblock_staged_alloc(pblock_staged_t **state, int *err_out)
+{
+    brix_sd_staged_t *handle = calloc(1, sizeof(*handle));
+
+    *state = calloc(1, sizeof(**state));
+    if (handle != NULL && *state != NULL)
+        return handle;
+    free(handle);
+    free(*state);
+    *state = NULL;
+    if (err_out != NULL)
+        *err_out = ENOMEM;
+    return NULL;
+}
+
 /* ---- staged atomic publish ------------------------------------------------ */
 
 /* sd_pblock_staged_open_as — staged open whose eventual committed row is owned
@@ -102,12 +123,8 @@ sd_pblock_staged_open_as(brix_sd_instance_t *inst, const char *final_path,
         return NULL;
     }
 
-    handle = calloc(1, sizeof(*handle));
-    ps     = calloc(1, sizeof(*ps));
-    if (handle == NULL || ps == NULL) {
-        free(handle);
-        free(ps);
-        if (err_out != NULL) { *err_out = ENOMEM; }
+    handle = pblock_staged_alloc(&ps, err_out);
+    if (handle == NULL) {
         return NULL;
     }
 
@@ -168,6 +185,97 @@ sd_pblock_staged_write(brix_sd_staged_t *st, const void *buf, size_t len,
     return n;
 }
 
+/*
+ * WHAT: Validate and, when necessary, remove a staged commit destination.
+ * WHY:  Lease, quota, no-replace, and history rules form one namespace gate.
+ * HOW:  Lookup once, admit the delta, preserve history, then drop an overwrite.
+ */
+static int
+pblock_staged_prepare_destination(pblock_state_t *pst, pblock_staged_t *ps,
+    int noreplace, pblock_meta *previous, int *existed)
+{
+    int rc = pblock_catalog_lookup(pst->cat, ps->final_path, previous);
+
+    if (rc < 0)
+        return -1;
+    if (pst->locks
+        && pblock_locks_ns_check(pst, ps->final_path, ps->uid) != 0)
+        return -1;
+    if (pblock_quota_admit(pst, ps->uid,
+            ps->size - (rc == 0 ? previous->size : 0), rc == 0 ? 0 : 1) != 0)
+        return -1;
+    *existed = rc == 0;
+    if (!*existed)
+        return 0;
+    if (noreplace) {
+        errno = EEXIST;
+        return -1;
+    }
+    if (pst->versions > 0)
+        (void) pblock_hist_version_push(pst, ps->final_path, previous);
+    return sd_pblock_drop_dst(pst, ps->final_path, previous) == NGX_OK ? 0 : -1;
+}
+
+/*
+ * WHAT: Fill the catalog metadata for a newly committed staged blob.
+ * WHY:  Metadata construction is deterministic and independent of publication.
+ * HOW:  Copy staged ownership and size, stamp time, mode, and transform kind.
+ */
+static void
+pblock_staged_build_meta(const pblock_staged_t *ps, pblock_meta *meta)
+{
+    memset(meta, 0, sizeof(*meta));
+    meta->is_dir = 0;
+    snprintf(meta->blob_id, sizeof(meta->blob_id), "%s", ps->blob_id);
+    meta->size = ps->size;
+    meta->block_size = ps->block_size;
+    meta->mtime = meta->ctime = pblock_now();
+    meta->mode = S_IFREG | (ps->mode & 0777);
+    meta->uid = ps->uid;
+    meta->gid = ps->gid;
+    snprintf(meta->xform, sizeof(meta->xform), "%s",
+             pblock_xform_name(ps->st->xform.kind));
+}
+
+/*
+ * WHAT: Record integrity, anomaly, and audit state after catalog publication.
+ * WHY:  These observers must run only after the new row becomes authoritative.
+ * HOW:  Update enabled facilities and consume the staged checksum accumulator.
+ */
+static void
+pblock_staged_record_commit(pblock_state_t *pst, pblock_staged_t *ps,
+    pblock_meta *meta, const pblock_meta *previous, int existed)
+{
+    if (pst->lab != NULL) {
+        if (existed)
+            pblock_anomaly_updated(pst, ps->final_path, previous->size,
+                                   previous->mtime);
+        else
+            pblock_anomaly_created(pst, ps->final_path);
+    }
+    if (pst->csi)
+        (void) pblock_csi_flush(pst, ps->blob_id, ps->size, ps->block_size,
+                                0, INT64_MAX);
+    if (ps->wv != NULL) {
+        if (pst->refs) {
+            uint32_t crc = 0;
+            off_t total = 0;
+            int ok = brix_wverify_expected(ps->wv, &crc, &total) == 0
+                     && (int64_t) total == ps->size;
+
+            (void) pblock_refs_dedup_publish(pst, ps->final_path, meta, crc, ok);
+        }
+        brix_wverify_free(ps->wv);
+    }
+    if (pst->audit) {
+        char aux[32];
+
+        snprintf(aux, sizeof(aux), "w=%lld", (long long) ps->size);
+        pblock_audit_log(pst->cat, "commit", ps->final_path, aux,
+                         ps->uid, ps->gid, 0, 0);
+    }
+}
+
 /* sd_pblock_staged_commit — publish the staged blocks atomically by inserting
  * the final catalog row pointing at the staged blob id (the blocks simply become
  * the final object — no copy or rename). On success the handle is consumed; on
@@ -178,60 +286,12 @@ sd_pblock_staged_commit(brix_sd_staged_t *st, int noreplace)
     pblock_staged_t *ps = st->state;
     pblock_state_t  *pst = ps->st;
     pblock_meta      meta, dmeta;
-    int              rc;
+    int              existed;
 
-    rc = pblock_catalog_lookup(pst->cat, ps->final_path, &dmeta);
-    if (rc < 0) {
+    if (pblock_staged_prepare_destination(pst, ps, noreplace, &dmeta,
+                                          &existed) != 0)
         return NGX_ERROR;
-    }
-
-    /* F15: publishing over a leased name is a write to it — refuse while a
-     * live foreign lease exists (EBUSY; the handle stays valid for retry or
-     * staged_abort, same contract as a refused quota). */
-    if (pst->locks
-        && pblock_locks_ns_check(pst, ps->final_path, ps->uid) != 0)
-    {
-        return NGX_ERROR;
-    }
-
-    /* F5: byte admission BEFORE the destructive drop_dst — a refused commit
-     * must leave the existing object (and the usage rollup) untouched so the
-     * caller's staged_abort releases only the staged blocks. */
-    if (pblock_quota_admit(pst, ps->uid,
-            ps->size - (rc == 0 ? dmeta.size : 0), rc == 0 ? 0 : 1) != 0)
-    {
-        return NGX_ERROR;
-    }
-
-    if (rc == 0) {
-        if (noreplace) {
-            errno = EEXIST;
-            return NGX_ERROR;
-        }
-        /* F11: capture the prior object as a new version BEFORE the destructive
-         * drop. version_push holds its blob, so drop_dst's release only
-         * decrements (a copy-on-write transfer of the reference to the version
-         * row). A failed push is fail-open — the overwrite just keeps no
-         * history. */
-        if (pst->versions > 0) {
-            (void) pblock_hist_version_push(pst, ps->final_path, &dmeta);
-        }
-        if (sd_pblock_drop_dst(pst, ps->final_path, &dmeta) != NGX_OK) {
-            return NGX_ERROR;
-        }
-    }
-
-    memset(&meta, 0, sizeof(meta));
-    meta.is_dir = 0;
-    snprintf(meta.blob_id, sizeof(meta.blob_id), "%s", ps->blob_id);
-    meta.size       = ps->size;
-    meta.block_size = ps->block_size;
-    meta.mtime      = meta.ctime = pblock_now();
-    meta.mode       = S_IFREG | (ps->mode & 0777);
-    meta.uid        = ps->uid;
-    meta.gid        = ps->gid;
-    snprintf(meta.xform, sizeof(meta.xform), "%s",   /* F12/F13: record kind */
-             pblock_xform_name(pst->xform.kind));
+    pblock_staged_build_meta(ps, &meta);
 
     /* F7: a crash here leaves the staged blocks on disk with no catalog row —
      * the canonical orphan-blob residue pblock-fsck must detect and --gc. */
@@ -241,41 +301,7 @@ sd_pblock_staged_commit(brix_sd_staged_t *st, int noreplace)
         return NGX_ERROR;
     }
 
-    if (pst->lab != NULL) {                              /* F9 */
-        if (rc == 0) {
-            pblock_anomaly_updated(pst, ps->final_path, dmeta.size,
-                                   dmeta.mtime);
-        } else {
-            pblock_anomaly_created(pst, ps->final_path);
-        }
-    }
-
-    if (pst->csi) {                                      /* F3: tag the blob */
-        (void) pblock_csi_flush(pst, ps->blob_id, ps->size, ps->block_size,
-                                0, INT64_MAX);
-    }
-
-    if (ps->wv != NULL) {                                /* F10: dedup fold */
-        if (pst->refs) {
-            uint32_t crc   = 0;
-            off_t    total = 0;
-            int      ok;
-
-            ok = brix_wverify_expected(ps->wv, &crc, &total) == 0
-                     && (int64_t) total == ps->size;
-            (void) pblock_refs_dedup_publish(pst, ps->final_path, &meta,
-                                             crc, ok);
-        }
-        brix_wverify_free(ps->wv);
-    }
-
-    if (pst->audit) {                                    /* F17 */
-        char aux[32];
-
-        snprintf(aux, sizeof(aux), "w=%lld", (long long) ps->size);
-        pblock_audit_log(pst->cat, "commit", ps->final_path, aux,
-                         ps->uid, ps->gid, 0, 0);
-    }
+    pblock_staged_record_commit(pst, ps, &meta, &dmeta, existed);
 
     if (pst->snap) {                     /* F6: released — no longer blocks restore */
         __atomic_sub_fetch(&pst->open_files, 1, __ATOMIC_RELEASE);

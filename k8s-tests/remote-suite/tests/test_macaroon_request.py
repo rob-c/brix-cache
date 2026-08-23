@@ -23,6 +23,15 @@ import time
 
 import pytest
 
+def _guard_mac_server_1():
+    if not os.path.exists(NGINX_BIN):
+        pytest.skip(f"nginx binary not found at {NGINX_BIN}")
+
+def _guard_mac_server_2():
+    if not _HAVE_REQUESTS:
+        pytest.skip("requests not available")
+
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "."))
 from test_token_macaroon import make_macaroon  # noqa: E402
 
@@ -53,10 +62,8 @@ def _wait_port(port, timeout=10):
 
 @pytest.fixture(scope="module")
 def mac_server(tmp_path_factory):
-    if not os.path.exists(NGINX_BIN):
-        pytest.skip(f"nginx binary not found at {NGINX_BIN}")
-    if not _HAVE_REQUESTS:
-        pytest.skip("requests not available")
+    _guard_mac_server_1()
+    _guard_mac_server_2()
 
     d = tmp_path_factory.mktemp("macreq")
     (d / "logs").mkdir()

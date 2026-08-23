@@ -291,10 +291,13 @@ def test_open_new_without_mkpath_missing_parent_parity(srv, idx):
             f"succeeds on ours but stock rejects it ({_category(st_f, b_f)}). The "
             f"reference only creates the path when kXR_mkpath|kXR_async is set "
             f"(Xeq:1544); ours auto-creates unconditionally:{raw}")
-    assert (st_o == kXR_ok) == (st_f == kXR_ok), \
-        f"open(new) missing-parent success differs:{raw}"
-    assert os.path.exists(our_disk(srv, our_w)) == os.path.exists(off_disk(srv, off_w)), \
-        "open(new) missing-parent on-disk effect differs from stock"
+    def _assert_test_open_new_without_mkpath_missing_parent_parity_1():
+        assert (st_o == kXR_ok) == (st_f == kXR_ok), \
+            f"open(new) missing-parent success differs:{raw}"
+        assert os.path.exists(our_disk(srv, our_w)) == os.path.exists(off_disk(srv, off_w)), \
+            "open(new) missing-parent on-disk effect differs from stock"
+
+    _assert_test_open_new_without_mkpath_missing_parent_parity_1()
 
 
 # =========================================================================== #

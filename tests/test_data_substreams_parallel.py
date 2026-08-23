@@ -1,4 +1,64 @@
 from split_continuation import reexport as _reexport
+def _phase_test_concurrent_substream_reads_threaded_1(threads):
+    for t in threads:
+        t.join(timeout=30)
+
+def _phase_test_concurrent_substream_reads_threaded_2(secs):
+    for s in secs:
+        s.close()
+
+def _phase_test_concurrent_bound_writes_threaded_3(threads):
+    for t in threads:
+        t.join(timeout=30)
+
+def _phase_test_concurrent_bound_writes_threaded_4(n_streams, errors):
+    for i in range(n_streams):
+        _check_test_concurrent_bound_writes_threaded_6(errors, i)
+
+def _phase_test_concurrent_bound_writes_threaded_5(secs):
+    for s in secs:
+        s.close()
+
+
+def _expression_1(n_streams):
+    return (
+        [threading.Thread(target=worker, args=(i,))
+                               for i in range(n_streams)]
+    )
+
+def _expression_2(n_streams):
+    return (
+        [threading.Thread(target=worker, args=(i,))
+                               for i in range(n_streams)]
+    )
+
+
+def _check_test_concurrent_substream_reads_threaded_1(errors, i):
+    assert errors[i] is None, f"stream {i} raised: {errors[i]}"
+
+def _check_test_concurrent_substream_reads_threaded_2(results, i, content, off, slice_len):
+    assert results[i] == content[off:off + slice_len], (
+        f"stream {i} returned wrong bytes")
+
+def _check_test_striped_parallel_write_reassembles_5(content, name):
+    assert _read_export_file(name) == content, "striped writes != source"
+
+def _check_test_striped_parallel_write_reassembles_4(primary, fh):
+    assert _close_handle(primary, b"\x00\x01", fh) == kXR_ok
+
+def _check_test_striped_parallel_write_reassembles_3(st, i):
+    assert st == kXR_ok, f"stream {i} write status {st}"
+
+def _check_test_concurrent_bound_writes_threaded_8(content, name):
+    assert _read_export_file(name) == content, "concurrent writes != source"
+
+def _check_test_concurrent_bound_writes_threaded_7(primary, fh):
+    assert _close_handle(primary, b"\x00\x01", fh) == kXR_ok
+
+def _check_test_concurrent_bound_writes_threaded_6(errors, i):
+    assert errors[i] is None, f"stream {i} failed: {errors[i]}"
+
+
 _reexport(globals(), "_test_data_substreams_parallel_helpers")
 
 @pytest.mark.requires_local_server
@@ -80,21 +140,17 @@ class TestDataSubstreamsParallel:
                 except Exception as exc:               # noqa: BLE001
                     errors[idx] = exc
 
-            threads = [threading.Thread(target=worker, args=(i,))
-                       for i in range(n_streams)]
+            threads = _expression_2(n_streams)
             for t in threads:
                 t.start()
-            for t in threads:
-                t.join(timeout=30)
+            _phase_test_concurrent_substream_reads_threaded_1(threads)
 
             for i in range(n_streams):
-                assert errors[i] is None, f"stream {i} raised: {errors[i]}"
+                _check_test_concurrent_substream_reads_threaded_1(errors, i)
                 off = i * slice_len
-                assert results[i] == content[off:off + slice_len], (
-                    f"stream {i} returned wrong bytes")
+                _check_test_concurrent_substream_reads_threaded_2(results, i, content, off, slice_len)
         finally:
-            for s in secs:
-                s.close()
+            _phase_test_concurrent_substream_reads_threaded_2(secs)
             primary.close()
 
     def test_primary_and_secondaries_read_same_handle(self, endpoint):
@@ -211,15 +267,15 @@ class TestDataSubstreamWrites:
                 off = i * slice_len
                 st = _write_range(secs[i], bytes([0, 0x31 + i]), fh, off,
                                   content[off:off + slice_len])
-                assert st == kXR_ok, f"stream {i} write status {st}"
+                _check_test_striped_parallel_write_reassembles_3(st, i)
 
-            assert _close_handle(primary, b"\x00\x01", fh) == kXR_ok
+            _check_test_striped_parallel_write_reassembles_4(primary, fh)
         finally:
             for s in secs:
                 s.close()
             primary.close()
 
-        assert _read_export_file(name) == content, "striped writes != source"
+        _check_test_striped_parallel_write_reassembles_5(content, name)
 
     def test_concurrent_bound_writes_threaded(self, endpoint):
         """Genuinely concurrent in-flight writes: each secondary writes its slice in
@@ -252,22 +308,18 @@ class TestDataSubstreamWrites:
                 except Exception as exc:               # noqa: BLE001
                     errors[idx] = exc
 
-            threads = [threading.Thread(target=worker, args=(i,))
-                       for i in range(n_streams)]
+            threads = _expression_1(n_streams)
             for t in threads:
                 t.start()
-            for t in threads:
-                t.join(timeout=30)
+            _phase_test_concurrent_bound_writes_threaded_3(threads)
 
-            for i in range(n_streams):
-                assert errors[i] is None, f"stream {i} failed: {errors[i]}"
-            assert _close_handle(primary, b"\x00\x01", fh) == kXR_ok
+            _phase_test_concurrent_bound_writes_threaded_4(n_streams, errors)
+            _check_test_concurrent_bound_writes_threaded_7(primary, fh)
         finally:
-            for s in secs:
-                s.close()
+            _phase_test_concurrent_bound_writes_threaded_5(secs)
             primary.close()
 
-        assert _read_export_file(name) == content, "concurrent writes != source"
+        _check_test_concurrent_bound_writes_threaded_8(content, name)
 
     def test_bound_conn_cannot_open(self, endpoint):
         """Security-negative: a bound secondary may NOT open/create a file itself —

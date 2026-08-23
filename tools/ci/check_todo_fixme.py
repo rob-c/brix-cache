@@ -46,18 +46,27 @@ def list_marked(root: Path = ROOT) -> list[tuple[str, int]]:
     """(path, count) — repo-relative path + matching-line count — for every source
     file under src/, client/, shared/ with >0 markers, sorted by codepoint so the
     output is deterministic (LC_ALL=C equivalent of the shell's `sort`)."""
-    rows: list[tuple[str, int]] = []
-    for d in ("src", "client", "shared"):
-        base = root / d
-        if not base.is_dir():
-            continue
-        for path in base.rglob("*"):
-            if path.suffix not in (".c", ".h") or not path.is_file():
-                continue
-            n = sum(1 for line in _read(path).splitlines() if PATTERN.search(line))
-            if n > 0:
-                rows.append((str(path.relative_to(root)), n))
+    rows = [
+        row
+        for directory in ("src", "client", "shared")
+        for path in _source_files(root / directory)
+        for row in _marked_row(root, path)
+    ]
     return sorted(rows, key=lambda r: r[0])
+
+
+def _source_files(base):
+    if not base.is_dir():
+        return []
+    return [
+        path for path in base.rglob("*")
+        if path.suffix in (".c", ".h") and path.is_file()
+    ]
+
+
+def _marked_row(root, path):
+    count = sum(1 for line in _read(path).splitlines() if PATTERN.search(line))
+    return [(str(path.relative_to(root)), count)] if count > 0 else []
 
 
 def read_backlog() -> dict[str, int]:

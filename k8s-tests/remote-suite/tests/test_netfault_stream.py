@@ -33,6 +33,18 @@ from test_a_robustness import (
     kXR_ok,
 )
 
+def _check_test_send_drain_slow_consumer_dropped_1(hs, pr, lg):
+    assert (hs, pr, lg) == (kXR_ok, kXR_ok, kXR_ok)
+
+def _check_test_send_drain_slow_consumer_dropped_2(st):
+    assert st == kXR_ok, f"open failed st={st}"
+
+def _check_test_send_drain_slow_consumer_dropped_3(closed):
+    assert closed, (
+        "stuck consumer was NOT reaped by send_timeout (connection still "
+        "open after the deadline window)")
+
+
 pytestmark = [pytest.mark.netfault, pytest.mark.serial]
 
 HOST = "127.0.0.1"
@@ -240,10 +252,10 @@ def test_send_drain_slow_consumer_dropped(nf_server):
     s.connect((host, port))
     try:
         hs, pr, lg = _full_anon_login(s)
-        assert (hs, pr, lg) == (kXR_ok, kXR_ok, kXR_ok)
+        _check_test_send_drain_slow_consumer_dropped_1(hs, pr, lg)
         s.sendall(make_open_req(b"/big.bin"))
         st, body = _recv_response(s)
-        assert st == kXR_ok, f"open failed st={st}"
+        _check_test_send_drain_slow_consumer_dropped_2(st)
         handle = body[:4]
         # Request the whole 4 MiB and then never read it.
         s.sendall(make_read_req(handle, 0, 4 * 1024 * 1024))
@@ -268,8 +280,6 @@ def test_send_drain_slow_consumer_dropped(nf_server):
             closed = True                   # RST
         except socket.timeout:
             closed = False                  # still open & blocked → not reaped
-        assert closed, (
-            "stuck consumer was NOT reaped by send_timeout (connection still "
-            "open after the deadline window)")
+        _check_test_send_drain_slow_consumer_dropped_3(closed)
     finally:
         s.close()

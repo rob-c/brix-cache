@@ -18,6 +18,31 @@ static int tag_body_char(char c) {
            (c >= '0' && c <= '9') || c == '.' || c == '_' || c == '-';
 }
 
+/*
+ * WHAT: Consume one legal separator between OCI name alphanumeric runs.
+ * WHY:  Separator grammar is the only branching part of component validation.
+ * HOW:  Accept dot, one/two underscores, or a non-empty run of hyphens.
+ */
+static int separator_end(const char *text, size_t length, size_t start,
+                         size_t *end) {
+    size_t position = start;
+
+    if (text[position] == '.') {
+        position++;
+    } else if (text[position] == '_') {
+        position++;
+        if (position < length && text[position] == '_')
+            position++;
+    } else if (text[position] == '-') {
+        while (position < length && text[position] == '-')
+            position++;
+    } else {
+        return -1;
+    }
+    *end = position;
+    return 0;
+}
+
 /* One name component: [a-z0-9]+ (sep [a-z0-9]+)* where sep is ".", "_",
  * "__" or "-"+. Returns 0 valid / -1. */
 static int component_valid(const char *s, size_t n) {
@@ -33,19 +58,8 @@ static int component_valid(const char *s, size_t n) {
             i++;
         if (i == n)
             return 0;
-        /* separator run: '.', '_', "__" or one-or-more '-' */
-        if (s[i] == '.') {
-            i++;
-        } else if (s[i] == '_') {
-            i++;
-            if (i < n && s[i] == '_')
-                i++;
-        } else if (s[i] == '-') {
-            while (i < n && s[i] == '-')
-                i++;
-        } else {
+        if (separator_end(s, n, i, &i) != 0)
             return -1;
-        }
         if (i == n)
             return -1;              /* trailing separator */
     }

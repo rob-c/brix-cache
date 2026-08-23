@@ -40,35 +40,46 @@ static int usage(void) {
     return 2;
 }
 
+/* WHAT: Parse flattener limits and identity options.
+ * WHY: Keep CLI validation separate from layer application.
+ * HOW: Consume leading long options, populate opts, and return the first
+ *      positional index or -1 for malformed/unknown arguments.
+ */
+static int parse_options(int argc, char **argv, brix_flatten_opts_t *opts) {
+    int i;
+
+    for (i = 2; i < argc && strncmp(argv[i], "--", 2) == 0; i++) {
+        if (strcmp(argv[i], "--strict") == 0) {
+            opts->strict = 1;
+        } else if (strcmp(argv[i], "--max-bytes") == 0 && i + 1 < argc) {
+            opts->max_total_bytes = strtoll(argv[++i], NULL, 10);
+        } else if (strcmp(argv[i], "--max-entries") == 0 && i + 1 < argc) {
+            opts->max_entries = strtoll(argv[++i], NULL, 10);
+        } else if (strcmp(argv[i], "--squash") == 0 && i + 1 < argc) {
+            unsigned long uid, gid;
+
+            if (sscanf(argv[++i], "%lu:%lu", &uid, &gid) != 2) return -1;
+            opts->squash_uid = (uid_t) uid;
+            opts->squash_gid = (gid_t) gid;
+            opts->squash = 1;
+        } else {
+            return -1;
+        }
+    }
+    return i;
+}
+
 int main(int argc, char **argv) {
     brix_flatten_opts_t  o = { 0 };
     brix_flatten_stats_t st = { 0 };
     char                 err[512];
-    int                  i = 2;
+    int                  i;
 
     if (argc < 2 || strcmp(argv[1], "apply") != 0)
         return usage();
 
-    for (; i < argc && strncmp(argv[i], "--", 2) == 0; i++) {
-        if (strcmp(argv[i], "--strict") == 0) {
-            o.strict = 1;
-        } else if (strcmp(argv[i], "--max-bytes") == 0 && i + 1 < argc) {
-            o.max_total_bytes = strtoll(argv[++i], NULL, 10);
-        } else if (strcmp(argv[i], "--max-entries") == 0 && i + 1 < argc) {
-            o.max_entries = strtoll(argv[++i], NULL, 10);
-        } else if (strcmp(argv[i], "--squash") == 0 && i + 1 < argc) {
-            unsigned long u, g;
-
-            if (sscanf(argv[++i], "%lu:%lu", &u, &g) != 2)
-                return usage();
-            o.squash_uid = (uid_t) u;
-            o.squash_gid = (gid_t) g;
-            o.squash     = 1;
-        } else {
-            return usage();
-        }
-    }
-    if (argc - i < 2)
+    i = parse_options(argc, argv, &o);
+    if (i < 0 || argc - i < 2)
         return usage();
     o.upper_dir = argv[i++];
 

@@ -66,43 +66,62 @@ def md_files(repo: str):
     for root in ('docs', 'src'):
         for base, _dirs, files in os.walk(os.path.join(repo, root)):
             rel = os.path.relpath(base, repo)
-            if any(rel == e or rel.startswith(e + os.sep) for e in EXCLUDED):
+            if _excluded(rel):
                 continue
-            for f in files:
-                if f.endswith('.md') and (root == 'docs' or f == 'README.md'):
-                    yield os.path.join(base, f)
+            yield from _markdown_files(base, files, include_all=root == 'docs')
+
+
+def _excluded(relative):
+    return any(relative == item or relative.startswith(item + os.sep) for item in EXCLUDED)
+
+
+def _markdown_files(base, files, *, include_all):
+    return (
+        os.path.join(base, name)
+        for name in files
+        if name.endswith('.md') and (include_all or name == 'README.md')
+    )
 
 
 def dead_links(repo: str) -> set:
     tracked, tracked_dirs = git_tracked(repo)
+    return {
+        dead
+        for path in md_files(repo) if os.path.isfile(path)
+        for dead in _file_dead_links(repo, path, tracked, tracked_dirs)
+    }
 
-    def is_tracked(relpath, isdir):
-        if tracked is None:
-            return True
-        return (relpath in tracked_dirs) if isdir else (relpath in tracked)
 
-    dead = set()
-    for path in md_files(repo):
-        if not os.path.isfile(path):
-            continue
-        rel = os.path.relpath(path, repo)
-        with open(path, encoding='utf-8', errors='replace') as fh:
-            text = fh.read()
-        for m in LINK_RE.finditer(text):
-            target = m.group(1).split('#', 1)[0]
-            if not target or target.startswith(SKIP_PREFIX) or '://' in target:
-                continue
-            if target.strip('.') == '':          # literal "](...)" used as prose
-                continue
-            resolved = os.path.normpath(os.path.join(os.path.dirname(path), target))
-            if not os.path.exists(resolved):
-                dead.add(f"{rel}\t{target}")
-                continue
-            rel_target = os.path.relpath(resolved, repo)
-            if not rel_target.startswith('..') and \
-               not is_tracked(rel_target, os.path.isdir(resolved)):
-                dead.add(f"{rel}\t{target}")
-    return dead
+def _file_dead_links(repo, path, tracked, tracked_dirs):
+    relative = os.path.relpath(path, repo)
+    with open(path, encoding='utf-8', errors='replace') as handle:
+        text = handle.read()
+    return [
+        f"{relative}\t{target}"
+        for match in LINK_RE.finditer(text)
+        for target in [match.group(1).split('#', 1)[0]]
+        if _dead_target(repo, path, target, tracked, tracked_dirs)
+    ]
+
+
+def _dead_target(repo, path, target, tracked, tracked_dirs):
+    if not target or target.startswith(SKIP_PREFIX) or '://' in target:
+        return False
+    if target.strip('.') == '':
+        return False
+    resolved = os.path.normpath(os.path.join(os.path.dirname(path), target))
+    if not os.path.exists(resolved):
+        return True
+    relative = os.path.relpath(resolved, repo)
+    return not relative.startswith('..') and not _is_tracked(
+        relative, os.path.isdir(resolved), tracked, tracked_dirs,
+    )
+
+
+def _is_tracked(relative, is_directory, tracked, tracked_dirs):
+    if tracked is None:
+        return True
+    return relative in tracked_dirs if is_directory else relative in tracked
 
 
 def read_backlog() -> set:

@@ -58,14 +58,7 @@ def _compile_probe(tmp_dir: pathlib.Path) -> pathlib.Path:
     client_lib  = CLIENT_DIR / "libbrix.a"
     proto_lib   = CLIENT_DIR / ".." / "shared" / "xrdproto" / "libxrdproto.a"
     probe_out   = tmp_dir / "envalias_probe"
-
-    if not client_lib.exists():
-        pytest.skip("client/libbrix.a not built; run `make -C client lib` first")
-    if not proto_lib.exists():
-        pytest.skip("shared/xrdproto/libxrdproto.a not built")
-    if not PROBE_SRC.exists():
-        pytest.skip(f"probe source not found: {PROBE_SRC}")
-
+    _require_probe_inputs(client_lib, proto_lib)
     result = subprocess.run(
         [
             "cc", "-std=c11", "-Wall",
@@ -78,16 +71,19 @@ def _compile_probe(tmp_dir: pathlib.Path) -> pathlib.Path:
             str(proto_lib),
             "-lssl", "-lcrypto", "-lz",
             "-o", str(probe_out),
-        ],
-        capture_output=True,
-        text=True,
-        timeout=30,
-    )
+        ], capture_output=True, text=True, timeout=30)
     if result.returncode != 0:
-        pytest.skip(
-            f"could not compile envalias_probe: {result.stderr[:500]}"
-        )
+        pytest.skip(f"could not compile envalias_probe: {result.stderr[:500]}")
     return probe_out
+
+
+def _require_probe_inputs(client_lib, proto_lib):
+    if not client_lib.exists():
+        pytest.skip("client/libbrix.a not built; run `make -C client lib` first")
+    if not proto_lib.exists():
+        pytest.skip("shared/xrdproto/libxrdproto.a not built")
+    if not PROBE_SRC.exists():
+        pytest.skip(f"probe source not found: {PROBE_SRC}")
 
 
 @pytest.fixture(scope="session")
@@ -132,18 +128,8 @@ def _compile_suggest_probe(tmp_dir: pathlib.Path) -> pathlib.Path:
     client_lib = CLIENT_DIR / "libbrix.a"
     proto_lib  = CLIENT_DIR / ".." / "shared" / "xrdproto" / "libxrdproto.a"
     probe_out  = tmp_dir / "suggest_probe"
-
-    if not client_lib.exists():
-        pytest.skip("client/libbrix.a not built; run `make -C client` first")
-    if not proto_lib.exists():
-        pytest.skip("shared/xrdproto/libxrdproto.a not built")
-    if not SUGGEST_PROBE_SRC.exists():
-        pytest.skip(f"probe source not found: {SUGGEST_PROBE_SRC}")
-
-    # Detect optional libraries from the Makefile LDLIBS (best-effort).
-    extra_libs = ["-lssl", "-lcrypto", "-lz"]
-    for lib in ["krb5", "k5crypto", "com_err", "zstd", "lzma", "uring"]:
-        extra_libs.append(f"-l{lib}")
+    _require_suggest_inputs(client_lib, proto_lib)
+    extra_libs = _suggest_link_libraries()
 
     cmd = [
         "cc", "-std=c11", "-Wall",
@@ -162,6 +148,22 @@ def _compile_suggest_probe(tmp_dir: pathlib.Path) -> pathlib.Path:
             f"could not compile suggest_probe: {result.stderr[:500]}"
         )
     return probe_out
+
+
+def _require_suggest_inputs(client_lib, proto_lib):
+    if not client_lib.exists():
+        pytest.skip("client/libbrix.a not built; run `make -C client` first")
+    if not proto_lib.exists():
+        pytest.skip("shared/xrdproto/libxrdproto.a not built")
+    if not SUGGEST_PROBE_SRC.exists():
+        pytest.skip(f"probe source not found: {SUGGEST_PROBE_SRC}")
+
+
+def _suggest_link_libraries():
+    libraries = ["-lssl", "-lcrypto", "-lz"]
+    for name in ["krb5", "k5crypto", "com_err", "zstd", "lzma", "uring"]:
+        libraries.append(f"-l{name}")
+    return libraries
 
 
 @pytest.fixture(scope="session")

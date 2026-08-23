@@ -1,4 +1,14 @@
 from split_continuation import reexport as _reexport
+def _expression_1(uid):
+    return (
+        [f"del_multi_{uid}_{i}.txt" for i in range(3)]
+    )
+
+
+def _check_test_delete_objects_success_1(r2, k):
+    assert r2.status_code == 404, f"key {k} should be deleted"
+
+
 _reexport(globals(), "_test_s3_helpers")
 
 def test_copy_object(s3_url):
@@ -59,7 +69,7 @@ def test_copy_object_path_traversal(s3_url):
 
 def test_delete_objects_success(s3_url):
     uid = uuid.uuid4().hex
-    keys = [f"del_multi_{uid}_{i}.txt" for i in range(3)]
+    keys = _expression_1(uid)
     for k in keys:
         requests.put(_obj_url(s3_url, k), data=b"x", timeout=10)
 
@@ -69,15 +79,21 @@ def test_delete_objects_success(s3_url):
         headers={"Content-Type": "application/xml"},
         timeout=10,
     )
-    assert r.status_code == 200, f"DeleteObjects failed: {r.status_code} {r.text}"
-    assert "DeleteResult" in r.text
+    def _assert_test_delete_objects_success_1():
+        assert r.status_code == 200, f"DeleteObjects failed: {r.status_code} {r.text}"
+        assert "DeleteResult" in r.text
+
+    _assert_test_delete_objects_success_1()
     for k in keys:
-        assert k in r.text, f"key {k} not in DeleteResult"
-        assert "Deleted" in r.text
+        def _assert_test_delete_objects_success_2():
+            assert k in r.text, f"key {k} not in DeleteResult"
+            assert "Deleted" in r.text
+
+        _assert_test_delete_objects_success_2()
 
     for k in keys:
         r2 = requests.get(_obj_url(s3_url, k), timeout=10)
-        assert r2.status_code == 404, f"key {k} should be deleted"
+        _check_test_delete_objects_success_1(r2, k)
 
 
 def test_delete_objects_xml_entity_key(s3_url):

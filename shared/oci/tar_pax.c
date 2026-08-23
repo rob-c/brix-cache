@@ -22,6 +22,14 @@
 #define PAX_XATTR_PREFIX     "SCHILY.xattr."
 #define PAX_XATTR_PREFIX_LEN 13
 
+typedef struct {
+    const unsigned char *key;
+    const unsigned char *val;
+    size_t               keylen;
+    size_t               vallen;
+    size_t               reclen;
+} pax_record_t;
+
 /* Parse a decimal int64 from a bounded, possibly-unterminated span (numeric
  * pax values: size/mtime/uid/gid; mtime's fractional part truncated). */
 static int pax_num(const unsigned char *v, size_t n, int64_t *out) {
@@ -69,51 +77,75 @@ static int pax_xattr(brix_tar_t *t, const unsigned char *key, size_t keylen,
     return 0;
 }
 
+/*
+ * WHAT: Compare a bounded pax key with a NUL-terminated expected name.
+ * WHY:  Record keys are spans, so plain strcmp could read into the value.
+ * HOW:  Require equal lengths before comparing the exact key bytes.
+ */
+static int pax_key_is(const unsigned char *key, size_t keylen,
+                      const char *expected) {
+    size_t expected_len = strlen(expected);
+
+    return keylen == expected_len && memcmp(key, expected, keylen) == 0;
+}
+
+/*
+ * WHAT: Install or unset a bounded pax string override.
+ * WHY:  Empty values remove overrides while non-empty values need termination.
+ * HOW:  Enforce destination capacity, copy bytes, append NUL, and set presence.
+ */
+static int pax_text_value(brix_tar_t *t, char *dst, size_t dstlen, int *have,
+                          const char *name, const unsigned char *val,
+                          size_t vallen) {
+    if (vallen >= dstlen)
+        return brix_tar_fail(t, "pax %s exceeds 4095 bytes", name);
+    memcpy(dst, val, vallen);
+    dst[vallen] = '\0';
+    *have = vallen > 0;
+    return 0;
+}
+
+/*
+ * WHAT: Install or unset a signed numeric pax override.
+ * WHY:  All numeric keys use the same empty-value and malformed-value rules.
+ * HOW:  Parse non-empty spans and update the presence bit only on success.
+ */
+static int pax_number_value(brix_tar_t *t, int64_t *dst, int *have,
+                            const char *name, const unsigned char *val,
+                            size_t vallen) {
+    if (vallen == 0) {
+        *have = 0;
+        return 0;
+    }
+    if (pax_num(val, vallen, dst) != 0)
+        return brix_tar_fail(t, "malformed pax %s value", name);
+    *have = 1;
+    return 0;
+}
+
 /* Apply one key=value onto the target override. An EMPTY value unsets the
  * override (the POSIX pax rule). Unknown keys are skipped. */
 static int pax_kv(brix_tar_t *t, tar_override_t *o, int global,
                   const unsigned char *key, size_t keylen,
                   const unsigned char *val, size_t vallen) {
-    if (keylen == 4 && memcmp(key, "path", 4) == 0) {
-        if (vallen >= sizeof(o->path))
-            return brix_tar_fail(t, "pax path exceeds 4095 bytes");
-        memcpy(o->path, val, vallen);
-        o->path[vallen] = '\0';
-        o->have_path = vallen > 0;
-        return 0;
-    }
-    if (keylen == 8 && memcmp(key, "linkpath", 8) == 0) {
-        if (vallen >= sizeof(o->linkname))
-            return brix_tar_fail(t, "pax linkpath exceeds 4095 bytes");
-        memcpy(o->linkname, val, vallen);
-        o->linkname[vallen] = '\0';
-        o->have_link = vallen > 0;
-        return 0;
-    }
-    if (keylen == 4 && memcmp(key, "size", 4) == 0) {
-        o->have_size = vallen > 0 && pax_num(val, vallen, &o->size) == 0;
-        if (vallen > 0 && !o->have_size)
-            return brix_tar_fail(t, "malformed pax size value");
-        return 0;
-    }
-    if (keylen == 5 && memcmp(key, "mtime", 5) == 0) {
-        o->have_mtime = vallen > 0 && pax_num(val, vallen, &o->mtime) == 0;
-        if (vallen > 0 && !o->have_mtime)
-            return brix_tar_fail(t, "malformed pax mtime value");
-        return 0;
-    }
-    if (keylen == 3 && memcmp(key, "uid", 3) == 0) {
-        o->have_uid = vallen > 0 && pax_num(val, vallen, &o->uid) == 0;
-        if (vallen > 0 && !o->have_uid)
-            return brix_tar_fail(t, "malformed pax uid value");
-        return 0;
-    }
-    if (keylen == 3 && memcmp(key, "gid", 3) == 0) {
-        o->have_gid = vallen > 0 && pax_num(val, vallen, &o->gid) == 0;
-        if (vallen > 0 && !o->have_gid)
-            return brix_tar_fail(t, "malformed pax gid value");
-        return 0;
-    }
+    if (pax_key_is(key, keylen, "path"))
+        return pax_text_value(t, o->path, sizeof(o->path), &o->have_path,
+                              "path", val, vallen);
+    if (pax_key_is(key, keylen, "linkpath"))
+        return pax_text_value(t, o->linkname, sizeof(o->linkname),
+                              &o->have_link, "linkpath", val, vallen);
+    if (pax_key_is(key, keylen, "size"))
+        return pax_number_value(t, &o->size, &o->have_size, "size", val,
+                                vallen);
+    if (pax_key_is(key, keylen, "mtime"))
+        return pax_number_value(t, &o->mtime, &o->have_mtime, "mtime", val,
+                                vallen);
+    if (pax_key_is(key, keylen, "uid"))
+        return pax_number_value(t, &o->uid, &o->have_uid, "uid", val,
+                                vallen);
+    if (pax_key_is(key, keylen, "gid"))
+        return pax_number_value(t, &o->gid, &o->have_gid, "gid", val,
+                                vallen);
     if (keylen > PAX_XATTR_PREFIX_LEN &&
         memcmp(key, PAX_XATTR_PREFIX, PAX_XATTR_PREFIX_LEN) == 0) {
         /* Global xattrs ("apply to every following file") are a grammar
@@ -126,6 +158,44 @@ static int pax_kv(brix_tar_t *t, tar_override_t *o, int global,
     return 0;    /* unknown key: skipped by contract */
 }
 
+/*
+ * WHAT: Parse and validate one length-prefixed pax record view.
+ * WHY:  Attacker-controlled lengths must be proven safe before field access.
+ * HOW:  Decode the decimal prefix, validate bounds/newline, and split at '='.
+ */
+static int pax_record_parse(brix_tar_t *t, const unsigned char *rec,
+                            size_t remain, size_t body_len,
+                            pax_record_t *view) {
+    const unsigned char *eq;
+    size_t               digits = 0;
+    size_t               reclen = 0;
+
+    while (digits < remain && rec[digits] >= '0' && rec[digits] <= '9') {
+        if (reclen > body_len / 10 + 1)
+            return brix_tar_fail(t, "pax record length overflows");
+        reclen = reclen * 10 + (size_t) (rec[digits] - '0');
+        digits++;
+    }
+    if (digits == 0 || digits >= remain || rec[digits] != ' ')
+        return brix_tar_fail(t, "malformed pax record length");
+    if (reclen < digits + 2 || reclen > remain)
+        return brix_tar_fail(t, "pax record length %zu out of bounds", reclen);
+    if (rec[reclen - 1] != '\n')
+        return brix_tar_fail(t, "pax record not newline-terminated");
+
+    view->key = rec + digits + 1;
+    eq = memchr(view->key, '=', reclen - digits - 2);
+    if (eq == NULL)
+        return brix_tar_fail(t, "pax record without '='");
+    view->keylen = (size_t) (eq - view->key);
+    if (view->keylen == 0)
+        return brix_tar_fail(t, "pax record with empty key");
+    view->val    = eq + 1;
+    view->vallen = (size_t) (rec + reclen - 1 - view->val);
+    view->reclen = reclen;
+    return 0;
+}
+
 int brix_tar_pax_apply(brix_tar_t *t, size_t len, int global) {
     tar_override_t *o = global ? &t->glob : &t->next;
     size_t          off = 0;
@@ -134,43 +204,17 @@ int brix_tar_pax_apply(brix_tar_t *t, size_t len, int global) {
     while (off < len) {
         const unsigned char *rec = t->pax + off;
         size_t               remain = len - off;
-        size_t               reclen = 0, digits = 0;
-        const unsigned char *key, *val, *eq;
-        size_t               keylen, vallen;
+        pax_record_t         view = {0};
 
         if (++nrec > TAR_PAX_REC_MAX)
             return brix_tar_fail(t, "more than %d pax records in one entry",
                                  TAR_PAX_REC_MAX);
-
-        /* "<len> " — decimal, counts the WHOLE record including itself. */
-        while (digits < remain && rec[digits] >= '0' && rec[digits] <= '9') {
-            if (reclen > len / 10 + 1)
-                return brix_tar_fail(t, "pax record length overflows");
-            reclen = reclen * 10 + (size_t) (rec[digits] - '0');
-            digits++;
-        }
-        if (digits == 0 || digits >= remain || rec[digits] != ' ')
-            return brix_tar_fail(t, "malformed pax record length");
-        if (reclen < digits + 2 || reclen > remain)
-            return brix_tar_fail(t, "pax record length %zu out of bounds",
-                                 reclen);
-        if (rec[reclen - 1] != '\n')
-            return brix_tar_fail(t, "pax record not newline-terminated");
-
-        /* "<key>=<value>" between the space and the newline. */
-        key = rec + digits + 1;
-        eq  = memchr(key, '=', reclen - digits - 2);
-        if (eq == NULL)
-            return brix_tar_fail(t, "pax record without '='");
-        keylen = (size_t) (eq - key);
-        val    = eq + 1;
-        vallen = (size_t) (rec + reclen - 1 - val);
-        if (keylen == 0)
-            return brix_tar_fail(t, "pax record with empty key");
-
-        if (pax_kv(t, o, global, key, keylen, val, vallen) != 0)
+        if (pax_record_parse(t, rec, remain, len, &view) != 0)
             return -1;
-        off += reclen;
+        if (pax_kv(t, o, global, view.key, view.keylen, view.val,
+                   view.vallen) != 0)
+            return -1;
+        off += view.reclen;
     }
     return 0;
 }

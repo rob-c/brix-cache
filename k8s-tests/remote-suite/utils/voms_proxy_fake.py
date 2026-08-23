@@ -43,6 +43,17 @@ from cryptography.x509.oid import NameOID
 # DER encoding helpers
 # ---------------------------------------------------------------------------
 
+def _phase_der_oid_content_1(chunks):
+    for i in range(len(chunks) - 1):
+        chunks[i] |= 0x80
+
+
+def _expression_1(oid_str):
+    return (
+        [int(x) for x in oid_str.split('.')]
+    )
+
+
 def _der_length(length: int) -> bytes:
     if length < 0x80:
         return bytes([length])
@@ -81,7 +92,7 @@ def _der_int(n: int) -> bytes:
 
 
 def _der_oid_content(oid_str: str) -> bytes:
-    parts = [int(x) for x in oid_str.split('.')]
+    parts = _expression_1(oid_str)
     encoded = [40 * parts[0] + parts[1]]
     for part in parts[2:]:
         if part == 0:
@@ -92,8 +103,7 @@ def _der_oid_content(oid_str: str) -> bytes:
                 chunks.append(part & 0x7F)
                 part >>= 7
             chunks.reverse()
-            for i in range(len(chunks) - 1):
-                chunks[i] |= 0x80
+            _phase_der_oid_content_1(chunks)
             encoded.extend(chunks)
     return bytes(encoded)
 

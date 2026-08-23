@@ -8,6 +8,7 @@
 # re-running the parent's module body would re-run its free_ports() allocation
 # and hand out a second, different set of ports.
 
+import functools
 import socket
 import struct
 import threading
@@ -157,6 +158,27 @@ def _stat_ok(conn, sid):
     conn.sendall(info)
 
 
+def _hop_chain_handler(conn, seen, lock):
+    _stub_bootstrap(conn)
+    while True:
+        try:
+            sid, _reqid, payload = _read_request(conn)
+        except (ConnectionError, OSError):
+            return
+        path = payload.split(b"\x00", 1)[0]
+        with lock:
+            seen[path] = seen.get(path, 0) + 1
+            first_sighting = seen[path] == 1
+        hop = path == b"/loop" or (path.startswith(b"/__ppe_hop_hop")
+                                   and first_sighting)
+        if hop:
+            body = _redirect_body(HOST, HOP_BACKEND_PORT)
+            conn.sendall(_hdr(sid, kXR_redirect, len(body)))
+            conn.sendall(body)
+        else:
+            _stat_ok(conn, sid)
+
+
 def _make_hop_chain():
     """Self-referential redirect chain used to exercise the proxy's 3-hop follow
     cap.  The connection-driving client (via _connect_login) first walks the
@@ -172,28 +194,7 @@ def _make_hop_chain():
     redirects; the proxy relays it once the counter is at the cap."""
     seen = {}
     lock = threading.Lock()
-
-    def handler(conn):
-        _stub_bootstrap(conn)
-        while True:
-            try:
-                sid, _reqid, payload = _read_request(conn)
-            except (ConnectionError, OSError):
-                return
-            path = payload.split(b"\x00", 1)[0]
-            with lock:
-                seen[path] = seen.get(path, 0) + 1
-                first_sighting = seen[path] == 1
-            hop = path == b"/loop" or (path.startswith(b"/__ppe_hop_hop")
-                                       and first_sighting)
-            if hop:
-                body = _redirect_body(HOST, HOP_BACKEND_PORT)
-                conn.sendall(_hdr(sid, kXR_redirect, len(body)))
-                conn.sendall(body)
-            else:
-                _stat_ok(conn, sid)
-
-    return handler
+    return functools.partial(_hop_chain_handler, seen=seen, lock=lock)
 
 
 def _h_redirect_then_open(conn):

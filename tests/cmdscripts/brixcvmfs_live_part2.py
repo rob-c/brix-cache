@@ -46,47 +46,68 @@ def negfilter_live(nginx: Path | None = None) -> int:
         env = _repo_env(run, port, pub, cache=cache)
         sidecar = cache / "negfilter.bxf"
         mount_opts = "negfilter,noclever,auto_unmount"
-
-        def _mount_and_probe() -> tuple[bool, str | None, bool]:
-            try:
-                run.spawn([brixcvmfs, REPO, mnt, "-o", mount_opts, "-f"], env=env)
-                mounted = _wait_mounted(mnt)
-                got = _read(mnt / "hello")
-                absent = not (mnt / "nope").exists()
-                return mounted, got, absent
-            finally:
-                _unmount(mnt)
-
         print("== mount 1: -o negfilter builds + persists the sidecar ==")
-        mounted1, got1, absent1 = _mount_and_probe()
+        first = _negfilter_mount_probe(run, brixcvmfs, mnt, mount_opts, env)
         side_ok = sidecar.is_file() and sidecar.stat().st_size > 44
-        print(f"   ls hello:[{got1}] absent-ok:{absent1} sidecar:{side_ok}")
-
+        print(f"   ls hello:[{first[1]}] absent-ok:{first[2]} sidecar:{side_ok}")
         print("== tamper the sidecar, remount: fail-closed rebuild ==")
-        original = sidecar.read_bytes() if side_ok else b""
-        if side_ok:
-            tampered = bytearray(original)
-            tampered[len(tampered) // 2] ^= 0xFF   # flip a fingerprint bit
-            sidecar.write_bytes(bytes(tampered))
-        mounted2, got2, absent2 = _mount_and_probe()
-        # the tampered image must have been refused and REPLACED by a fresh build
-        rewritten = side_ok and sidecar.is_file() and sidecar.read_bytes() != bytes(tampered)
-        print(f"   hello:[{got2}] absent-ok:{absent2} sidecar-rewritten:{rewritten}")
+        tampered = _tamper_sidecar(sidecar, side_ok)
+        second = _negfilter_mount_probe(run, brixcvmfs, mnt, mount_opts, env)
+        rewritten = _sidecar_rewritten(sidecar, side_ok, tampered)
+        print(f"   hello:[{second[1]}] absent-ok:{second[2]} sidecar-rewritten:{rewritten}")
+        return _negfilter_results(first, second, expect, side_ok, rewritten)
 
-        return _checks([
-            (mounted1 and got1 == expect and absent1,
-             "negfilter mount serves member + absent paths correctly"),
-            (side_ok, "sidecar negfilter.bxf persisted in the cache"),
-            (mounted2 and got2 == expect and absent2,
-             "tampered sidecar refused: mount still serves correctly (security-neg)"),
-            (rewritten, "tampered sidecar replaced by a fresh verified build"),
-        ])
+
+def _negfilter_mount_probe(run, binary, mount, options, env):
+    try:
+        run.spawn([binary, REPO, mount, "-o", options, "-f"], env=env)
+        return _wait_mounted(mount), _read(mount / "hello"), not (mount / "nope").exists()
+    finally:
+        _unmount(mount)
+
+
+def _tamper_sidecar(sidecar, side_ok):
+    if not side_ok:
+        return bytearray()
+    tampered = bytearray(sidecar.read_bytes())
+    tampered[len(tampered) // 2] ^= 0xFF
+    sidecar.write_bytes(bytes(tampered))
+    return tampered
+
+
+def _sidecar_rewritten(sidecar, side_ok, tampered):
+    return side_ok and sidecar.is_file() and sidecar.read_bytes() != bytes(tampered)
+
+
+def _negfilter_results(first, second, expected, side_ok, rewritten):
+    return _checks([
+        (first[0] and first[1] == expected and first[2],
+         "negfilter mount serves member + absent paths correctly"),
+        (side_ok, "sidecar negfilter.bxf persisted in the cache"),
+        (second[0] and second[1] == expected and second[2],
+         "tampered sidecar refused and rebuilt"),
+        (rewritten, "tampered sidecar replaced by a verified build"),
+    ])
 
 
 def atlas_live(nginx: Path | None = None) -> int:
     """Mount live atlas.cern.ch from a Stratum-1, descend a nested catalog, read."""
     stratum1 = os.environ.get("ATLAS_S1", "http://s1cern-cvmfs.openhtc.io/cvmfs/atlas.cern.ch")
     keys = Path(os.environ.get("CVMFS_KEYS", "/etc/cvmfs/keys/cern.ch"))
+    _require_atlas(stratum1, keys)
+    _fuse3_flags()
+    with LiveRun("atlas_live", nginx) as run:
+        brixcvmfs = _build_brixcvmfs(run)
+        mnt, cache, tmp = run.mkdir("mnt"), run.mkdir("cache"), run.mkdir("tmp")
+        env = {"BRIXCVMFS_SERVER": stratum1, "BRIXCVMFS_PUBKEY": str(keys),
+               "BRIXCVMFS_CACHE": str(cache), "BRIXCVMFS_TMP": str(tmp)}
+        mounted, has_repo, read_ok = _mount_atlas(run, brixcvmfs, mnt, env)
+        return _checks([(mounted, "atlas.cern.ch mounted from the Stratum-1"),
+                        (has_repo, "root catalog lists /repo"),
+                        (read_ok, "nested catalog descent read a real file")])
+
+
+def _require_atlas(stratum1, keys):
     reachable = subprocess.run(
         ["curl", "-fsS", "-o", os.devnull, "--max-time", "8", f"{stratum1}/.cvmfspublished"],
         stdout=subprocess.DEVNULL,
@@ -96,46 +117,38 @@ def atlas_live(nginx: Path | None = None) -> int:
         raise LiveSkip(f"atlas Stratum-1 unreachable ({stratum1})")
     if not keys.exists():
         raise LiveSkip(f"cern.ch key not present ({keys})")
-    _fuse3_flags()
-    with LiveRun("atlas_live", nginx) as run:
-        brixcvmfs = _build_brixcvmfs(run)
-        mnt, cache, tmp = run.mkdir("mnt"), run.mkdir("cache"), run.mkdir("tmp")
-        env = {
-            "BRIXCVMFS_SERVER": stratum1,
-            "BRIXCVMFS_PUBKEY": str(keys),
-            "BRIXCVMFS_CACHE": str(cache),
-            "BRIXCVMFS_TMP": str(tmp),
-        }
-        try:
-            run.spawn([brixcvmfs, "atlas.cern.ch", mnt, "-o", "noclever", "-f"], env=env)
-            mounted = _wait_mounted(mnt, timeout=20)
-            top = _listing(mnt)
-            print(f"== top-level (root catalog) ==\n{top}")
-            has_repo = any("repo" in entry for entry in top)
-            print("== nested catalog descent + real file read ==")
-            small = _find_small_file(mnt / "repo", max_depth=4, max_size=20 * 1024, budget=40.0)
-            read_ok = False
-            if small is not None:
-                try:
-                    head = subprocess.run(["head", "-c", "1", str(small)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=20)
-                    read_ok = head.returncode == 0
-                except subprocess.TimeoutExpired:
-                    read_ok = False
-                if read_ok:
-                    try:
-                        size = small.stat().st_size
-                    except OSError:
-                        size = -1
-                    print(f"   read {str(small)[len(str(mnt)):]} ({size} bytes) OK")
-            if not read_ok:
-                print("FAIL: could not read a real atlas file")
-        finally:
-            _unmount(mnt)
-        return _checks([
-            (mounted, "atlas.cern.ch mounted from the Stratum-1"),
-            (has_repo, "root catalog lists /repo"),
-            (read_ok, "nested catalog descent read a real file"),
-        ])
+
+
+def _mount_atlas(run, binary, mount, env):
+    try:
+        run.spawn([binary, "atlas.cern.ch", mount, "-o", "noclever", "-f"], env=env)
+        mounted = _wait_mounted(mount, timeout=20)
+        listing = _listing(mount)
+        print(f"== top-level (root catalog) ==\n{listing}")
+        small = _find_small_file(
+            mount / "repo", max_depth=4, max_size=20 * 1024, budget=40.0
+        )
+        read_ok = _read_atlas_file(small, mount)
+        return mounted, any("repo" in entry for entry in listing), read_ok
+    finally:
+        _unmount(mount)
+
+
+def _read_atlas_file(path, mount):
+    if path is None:
+        print("FAIL: could not find a small atlas file")
+        return False
+    try:
+        result = subprocess.run(
+            ["head", "-c", "1", str(path)], stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL, timeout=20,
+        )
+    except subprocess.TimeoutExpired:
+        return False
+    if result.returncode == 0:
+        print(f"   read {str(path)[len(str(mount)):]} OK")
+        return True
+    return False
 
 
 def _find_small_file(root: Path, *, max_depth: int, max_size: int, budget: float) -> Path | None:
@@ -147,16 +160,31 @@ def _find_small_file(root: Path, *, max_depth: int, max_size: int, budget: float
             entries = list(os.scandir(directory))
         except OSError:
             continue
-        for entry in entries:
-            if time.monotonic() >= deadline:
-                return None
-            try:
-                if entry.is_file(follow_symlinks=False) and entry.stat(follow_symlinks=False).st_size < max_size:
-                    return Path(entry.path)
-                if entry.is_dir(follow_symlinks=False) and depth + 1 < max_depth:
-                    stack.append((Path(entry.path), depth + 1))
-            except OSError:
-                continue
+        found = _inspect_atlas_entries(entries, depth, max_depth, max_size, deadline, stack)
+        if found is not None:
+            return found
+    return None
+
+
+def _inspect_atlas_entries(entries, depth, max_depth, max_size, deadline, stack):
+    for entry in entries:
+        if time.monotonic() >= deadline:
+            return None
+        found = _inspect_atlas_entry(entry, depth, max_depth, max_size, stack)
+        if found is not None:
+            return found
+    return None
+
+
+def _inspect_atlas_entry(entry, depth, max_depth, max_size, stack):
+    try:
+        if entry.is_file(follow_symlinks=False):
+            if entry.stat(follow_symlinks=False).st_size < max_size:
+                return Path(entry.path)
+        elif entry.is_dir(follow_symlinks=False) and depth + 1 < max_depth:
+            stack.append((Path(entry.path), depth + 1))
+    except OSError:
+        pass
     return None
 
 
@@ -203,140 +231,7 @@ def clever_live(nginx: Path | None = None) -> int:
         ])
 
 
-def overlay(nginx: Path | None = None) -> int:
-    """cvmfs-rw writable overlay: create/modify/delete land in .brixwrites/upper,
-    win over the lower repo, persist across remounts; ro mount stays EROFS."""
-    _fuse3_flags()
-    with LiveRun("brixcvmfs_ov", nginx) as run:
-        mkrepo = _build_mkrepo(run)
-        # brixcvmfs_rw_ext.c carries the rw fuse-ops table + setup/main (the
-        # weak-symbol strong overrides); omitting it links cleanly but leaves
-        # brixcvmfs_rw_main NULL → "rw overlay driver not linked" at runtime.
-        rw_sources = ["client/apps/fs/brixcvmfs_rw.c", "client/apps/fs/brixcvmfs_rw_ext.c",
-                      "client/lib/fs/overlay.c", "client/lib/fs/overlay_copyup.c"]
-        brixcvmfs_rw = _build_brixcvmfs(
-            run,
-            extra_sources=rw_sources,
-            extra_includes=["client/lib"],
-            name="brixcvmfs_rw",
-        )
-        brixmount_ov = _build_brixcvmfs(
-            run,
-            no_main_frontends=["client/apps/fs/brixmount.c"],
-            extra_sources=rw_sources,
-            extra_includes=["client/lib"],
-            name="brixmount_ov",
-        )
-        web, mnt, tmp = run.mkdir("web"), run.mkdir("mnt"), run.mkdir("tmp")
-        pub = run.root / "repo.pub"
-        expect = _make_repo(run, mkrepo, web, pub)
-        port = _serve(run, web)
-        env = _repo_env(run, port, pub, tmp=tmp)
-        checks: list[tuple[bool, str]] = []
-
-        def mount(argv: list) -> None:
-            run.spawn([*argv, "-o", "auto_unmount", "-f"], env=env)
-            _wait_mounted(mnt, timeout=15)
-            time.sleep(1)
-
-        def umnt() -> None:
-            _unmount(mnt)
-            time.sleep(1)
-
-        def write(path: Path, text: str) -> bool:
-            try:
-                path.write_text(text + "\n")
-                return True
-            except OSError:
-                return False
-
-        try:
-            print("== rw mount: lower reads work ==")
-            mount([brixcvmfs_rw, "--rw", REPO, mnt])
-            checks.append((_read(mnt / "hello") == expect, "lower read through rw mount"))
-
-            print("== create a new file ==")
-            checks.append((write(mnt / "newfile", "local"), "create accepted"))
-            checks.append((_read(mnt / "newfile") == "local", "new-file readback"))
-            listing = _listing(mnt)
-            checks.append(("newfile" in listing, "newfile listed"))
-            checks.append((".brixwrites" in listing, ".brixwrites visible"))
-            checks.append((".brixcache" not in listing, ".brixcache not leaked"))
-            checks.append((_overlay_xattr(mnt / "newfile") == "new", "user.overlay(newfile) == new"))
-
-            print("== modify a lower file (copy-up) ==")
-            checks.append((write(mnt / "hello", "changed"), "modify accepted"))
-            checks.append((_read(mnt / "hello") == "changed", "modified readback"))
-            checks.append((_overlay_xattr(mnt / "hello") == "modified", "user.overlay(hello) == modified"))
-
-            print("== nested mkdir + write ==")
-            try:
-                (mnt / "newdir/sub").mkdir(parents=True)
-                mkdir_ok = True
-            except OSError:
-                mkdir_ok = False
-            checks.append((mkdir_ok, "mkdir -p newdir/sub"))
-            write(mnt / "newdir/sub/f", "nested")
-            checks.append((_read(mnt / "newdir/sub/f") == "nested", "nested readback"))
-
-            print("== rename a (copied-up) lower file: whiteout stays behind ==")
-            try:
-                os.rename(mnt / "hello", mnt / "hello.moved")
-                mv_ok = True
-            except OSError:
-                mv_ok = False
-            checks.append((mv_ok, "rename hello -> hello.moved"))
-            checks.append((_read(mnt / "hello.moved") == "changed", "moved content intact"))
-            checks.append((_read(mnt / "hello") is None, "hello unreadable after mv"))
-            checks.append(("hello" not in _listing(mnt), "hello not listed after mv"))
-
-            print("== reserved names refused ==")
-            checks.append((not write(mnt / ".brix.wh.x", ""), "reserved whiteout name refused"))
-
-            print("== unmount: overlay tree on disk ==")
-            umnt()
-            upper = mnt / ".brixwrites/upper"
-            checks.append(((upper / "newfile").is_file(), "upper/newfile on disk"))
-            checks.append(((upper / ".brix.wh.hello").is_file(), "whiteout marker on disk"))
-            checks.append(((upper / "hello.moved").is_file(), "upper/hello.moved on disk"))
-
-            print("== unmounted --overlay-list works on the raw tree ==")
-            raw = run.call([brixmount_ov, "--overlay-list", mnt], env=env, check=False)
-            raw_lines = raw.stdout.splitlines()
-            checks.append(("upper newfile" in raw_lines, "raw list: upper newfile"))
-            checks.append(("deleted hello" in raw_lines, "raw list: deleted hello"))
-            checks.append(("dir newdir" in raw_lines, "raw list: dir newdir"))
-            non_overlay = run.call([brixmount_ov, "--overlay-list", tmp], env=env, check=False)
-            checks.append((non_overlay.returncode != 0, "--overlay-list rejects a non-overlay dir"))
-
-            print("== remount via brixMount cvmfs-rw: local changes persist ==")
-            mount([brixmount_ov, "cvmfs-rw", REPO, mnt])
-            checks.append((_read(mnt / "newfile") == "local", "newfile persisted"))
-            checks.append((_read(mnt / "hello.moved") == "changed", "hello.moved persisted"))
-            checks.append((_read(mnt / "newdir/sub/f") == "nested", "nested persisted"))
-            checks.append((_read(mnt / "hello") is None, "deleted hello stayed deleted"))
-
-            print("== mounted --overlay-list classifies through the passthrough ==")
-            mounted_list = run.call([brixmount_ov, "--overlay-list", mnt], env=env, check=False)
-            mounted_lines = mounted_list.stdout.splitlines()
-            checks.append(("new newfile" in mounted_lines, "mounted list: new newfile"))
-            checks.append(("deleted hello" in mounted_lines, "mounted list: deleted hello"))
-            checks.append(("new hello.moved" in mounted_lines, "mounted list: new hello.moved"))
-
-            print("== mounted --overlay-reset restores pristine lower ==")
-            reset = run.call([brixmount_ov, "--overlay-reset", mnt], env=env, check=False)
-            checks.append((reset.returncode == 0, "--overlay-reset rc 0"))
-            checks.append((_read(mnt / "hello") == expect, "hello restored to lower content"))
-            checks.append((_read(mnt / "newfile") is None, "newfile gone after reset"))
-            umnt()
-
-            print("== regression: plain ro mount stays EROFS, pristine lower ==")
-            mount([brixcvmfs_rw, REPO, mnt])
-            checks.append((_read(mnt / "hello") == expect, "ro lower content pristine"))
-            checks.append((not write(mnt / "rofail", ""), "ro mount refuses writes"))
-            checks.append((".brixwrites" not in _listing(mnt), "ro mount hides .brixwrites"))
-        finally:
-            _unmount(mnt)
-        return _checks(checks)
+from split_continuation import load as _load_continuation
 
 
+_load_continuation(globals(), __file__, "brixcvmfs_live_overlay.py")

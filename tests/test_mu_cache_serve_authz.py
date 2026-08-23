@@ -26,6 +26,32 @@ from mu_authz_lib import cache_state, creds, ports, principals
 from mu_authz_lib.adapters import measure_root
 from server_registry import NginxInstanceSpec
 
+def _check_test_cache_hit_denied_to_out_of_group_principal_1(v_alice):
+    assert v_alice.decision == "ALLOW", f"authorized alice (VO cms) must read: {v_alice}"
+
+def _check_test_cache_hit_denied_to_out_of_group_principal_2(v_bob, resident):
+    assert v_bob.decision == "DENY", (
+        f"LEAK: out-of-group bob (VO atlas) was served /prot/secret.dat from the cache: "
+        f"{v_bob} (cache resident={resident})")
+
+def _check_test_cache_hit_denied_to_out_of_group_principal_3(v_alice2):
+    assert v_alice2.decision == "ALLOW", f"authorized alice regressed: {v_alice2}"
+
+def _guard_test_cache_hit_denied_to_out_of_group_principal_1(resident):
+    if not resident:
+        pytest.skip("cache did not populate for a local-posix origin; the gate still enforced "
+                    "on the miss path — HIT-path proof needs a remote origin (privileged fleet)")
+
+def _check_test_cache_hit_denied_to_out_of_group_principal_4(fmode):
+    assert fmode & 0o077 == 0, f"cache file is group/other-readable: {oct(fmode)} (leak)"
+
+def _check_test_cache_hit_denied_to_out_of_group_principal_5(subdir_mode):
+    assert subdir_mode & 0o077 == 0, f"cache subdir is group/other-accessible: {oct(subdir_mode)}"
+
+def _check_test_cache_hit_denied_to_out_of_group_principal_6(cm):
+    assert cm & 0o077 == 0, f".cinfo sidecar is group/other-readable: {oct(cm)}"
+
+
 pytestmark = [pytest.mark.uses_lifecycle_harness,
               pytest.mark.xdist_group("lc-mu-cache")]
 
@@ -113,7 +139,7 @@ def test_cache_hit_denied_to_out_of_group_principal(noimp_env):
 
     # 1. alice reads -> ALLOW, populates the cache.
     v_alice = measure_root(url, _PATH, "read", principal=alice)
-    assert v_alice.decision == "ALLOW", f"authorized alice (VO cms) must read: {v_alice}"
+    _check_test_cache_hit_denied_to_out_of_group_principal_1(v_alice)
 
     # 2. Prove the object is now resident in the cache store (a real HIT is armed). The
     #    whole-file cache writes the data file (a .cinfo sidecar is not always present), so
@@ -123,13 +149,11 @@ def test_cache_hit_denied_to_out_of_group_principal(noimp_env):
     # 3. bob (VO atlas) must be REFUSED — even on a cache hit. This is the fix: the old
     #    VO-ACL-only cache path skipped authdb and would have served bob the cached bytes.
     v_bob = measure_root(url, _PATH, "read", principal=bob)
-    assert v_bob.decision == "DENY", (
-        f"LEAK: out-of-group bob (VO atlas) was served /prot/secret.dat from the cache: "
-        f"{v_bob} (cache resident={resident})")
+    _check_test_cache_hit_denied_to_out_of_group_principal_2(v_bob, resident)
 
     # 4. alice still authorized (no regression).
     v_alice2 = measure_root(url, _PATH, "read", principal=alice)
-    assert v_alice2.decision == "ALLOW", f"authorized alice regressed: {v_alice2}"
+    _check_test_cache_hit_denied_to_out_of_group_principal_3(v_alice2)
 
     # 5. Physical exposure: the on-disk cache artifacts are svc-owned and must not be
     #    world/group-readable — a mapped low-priv uid must not read another user's cached
@@ -138,15 +162,13 @@ def test_cache_hit_denied_to_out_of_group_principal(noimp_env):
         import stat as _stat
         cache_file = os.path.join(ports.MU.CACHE_ROOT, _REL)
         fmode = _stat.S_IMODE(os.stat(cache_file).st_mode)
-        assert fmode & 0o077 == 0, f"cache file is group/other-readable: {oct(fmode)} (leak)"
+        _check_test_cache_hit_denied_to_out_of_group_principal_4(fmode)
         subdir_mode = _stat.S_IMODE(os.stat(os.path.dirname(cache_file)).st_mode)
-        assert subdir_mode & 0o077 == 0, f"cache subdir is group/other-accessible: {oct(subdir_mode)}"
+        _check_test_cache_hit_denied_to_out_of_group_principal_5(subdir_mode)
         for _root, _dirs, _files in os.walk(ports.MU.CACHE_ROOT):
             for _f in _files:
                 if _f.endswith(".cinfo"):
                     cm = _stat.S_IMODE(os.stat(os.path.join(_root, _f)).st_mode)
-                    assert cm & 0o077 == 0, f".cinfo sidecar is group/other-readable: {oct(cm)}"
+                    _check_test_cache_hit_denied_to_out_of_group_principal_6(cm)
 
-    if not resident:
-        pytest.skip("cache did not populate for a local-posix origin; the gate still enforced "
-                    "on the miss path — HIT-path proof needs a remote origin (privileged fleet)")
+    _guard_test_cache_hit_denied_to_out_of_group_principal_1(resident)

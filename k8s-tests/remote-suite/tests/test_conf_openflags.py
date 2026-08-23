@@ -43,6 +43,37 @@ import pytest
 
 import official_interop_lib as L
 
+def _guard_test_open_posc_disconnect_removes_file_3(ok_o, ok_f):
+    if not (ok_o and ok_f):
+        pytest.skip("POSC open not accepted on one server; covered by persist test")
+
+def _guard_test_open_posc_disconnect_removes_file_4(our_gone, off_gone):
+    if our_gone != off_gone:
+        # Differential pin to stock. Empirically the stock data server does NOT
+        # reap a POSC partial on a bare TCP disconnect within the grace window
+        # (it keeps the placeholder), whereas our server removes it immediately.
+        # The reference INTENT is persist-on-successful-close (so removal is the
+        # spec-correct outcome and arguably ours is stricter), but a strict
+        # differential pins observed stock behavior.
+        pytest.xfail(
+            f"POSC disconnect-without-close on-disk effect differs from stock: "
+            f"OUR file {'removed' if our_gone else 'PERSISTED'}, "
+            f"STOCK file {'removed' if off_gone else 'PERSISTED'}. Stock keeps the "
+            f"partial on a bare TCP drop; ours reaps it immediately (persist-on-"
+            f"successful-close, Xeq:1565).")
+
+def _check_test_open_posc_disconnect_removes_file_1(our_gone, off_gone):
+    assert our_gone == off_gone, "POSC disconnect on-disk effect differs from stock"
+
+def _guard_test_open_posc_disconnect_removes_file_1(ok_o, so, b_o):
+    if ok_o:
+        _write(so, b_o[0:4], 0, b"partial-no-close")
+
+def _guard_test_open_posc_disconnect_removes_file_2(ok_f, sf, b_f):
+    if ok_f:
+        _write(sf, b_f[0:4], 0, b"partial-no-close")
+
+
 pytestmark = [pytest.mark.timeout(240),
               pytest.mark.skipif(not L.have_official(),
                                  reason="stock xrootd/xrdfs/xrdcp not installed")]
@@ -546,10 +577,13 @@ def test_open_new_without_mkpath_missing_parent_parity(srv, idx):
             f"succeeds on ours but stock rejects it ({_category(st_f, b_f)}). The "
             f"reference only creates the path when kXR_mkpath|kXR_async is set "
             f"(Xeq:1544); ours auto-creates unconditionally:{raw}")
-    assert (st_o == kXR_ok) == (st_f == kXR_ok), \
-        f"open(new) missing-parent success differs:{raw}"
-    assert os.path.exists(our_disk(srv, our_w)) == os.path.exists(off_disk(srv, off_w)), \
-        "open(new) missing-parent on-disk effect differs from stock"
+    def _assert_test_open_new_without_mkpath_missing_parent_parity_1():
+        assert (st_o == kXR_ok) == (st_f == kXR_ok), \
+            f"open(new) missing-parent success differs:{raw}"
+        assert os.path.exists(our_disk(srv, our_w)) == os.path.exists(off_disk(srv, off_w)), \
+            "open(new) missing-parent on-disk effect differs from stock"
+
+    _assert_test_open_new_without_mkpath_missing_parent_parity_1()
 
 
 # =========================================================================== #
@@ -596,16 +630,13 @@ def test_open_posc_disconnect_removes_file(srv, idx):
         st_f, b_f = _open(sf, off_w, opts)
         ok_o = st_o == kXR_ok
         ok_f = st_f == kXR_ok
-        if ok_o:
-            _write(so, b_o[0:4], 0, b"partial-no-close")
-        if ok_f:
-            _write(sf, b_f[0:4], 0, b"partial-no-close")
+        _guard_test_open_posc_disconnect_removes_file_1(ok_o, so, b_o)
+        _guard_test_open_posc_disconnect_removes_file_2(ok_f, sf, b_f)
     finally:
         # hard disconnect WITHOUT close
         so.close()
         sf.close()
-    if not (ok_o and ok_f):
-        pytest.skip("POSC open not accepted on one server; covered by persist test")
+    _guard_test_open_posc_disconnect_removes_file_3(ok_o, ok_f)
     # give the servers a moment to run their disconnect cleanup
     deadline = time.time() + 5.0
     while time.time() < deadline:
@@ -615,20 +646,8 @@ def test_open_posc_disconnect_removes_file(srv, idx):
         time.sleep(0.1)
     our_gone = not os.path.exists(our_disk(srv, our_w))
     off_gone = not os.path.exists(off_disk(srv, off_w))
-    if our_gone != off_gone:
-        # Differential pin to stock. Empirically the stock data server does NOT
-        # reap a POSC partial on a bare TCP disconnect within the grace window
-        # (it keeps the placeholder), whereas our server removes it immediately.
-        # The reference INTENT is persist-on-successful-close (so removal is the
-        # spec-correct outcome and arguably ours is stricter), but a strict
-        # differential pins observed stock behavior.
-        pytest.xfail(
-            f"POSC disconnect-without-close on-disk effect differs from stock: "
-            f"OUR file {'removed' if our_gone else 'PERSISTED'}, "
-            f"STOCK file {'removed' if off_gone else 'PERSISTED'}. Stock keeps the "
-            f"partial on a bare TCP drop; ours reaps it immediately (persist-on-"
-            f"successful-close, Xeq:1565).")
-    assert our_gone == off_gone, "POSC disconnect on-disk effect differs from stock"
+    _guard_test_open_posc_disconnect_removes_file_4(our_gone, off_gone)
+    _check_test_open_posc_disconnect_removes_file_1(our_gone, off_gone)
 
 
 # =========================================================================== #

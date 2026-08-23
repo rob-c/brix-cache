@@ -66,6 +66,28 @@ from test_pgwrite_cse import (
     kXR_status,
 )
 
+def _phase_pump_up_1(pos, data, self):
+    if 0 <= pos < len(data):
+        _guard_pump_up_2(self, data, pos)
+    elif pos == len(data):
+        flip_next = True
+
+def _phase_pump_up_2(dst):
+    try:
+        dst.shutdown(socket.SHUT_WR)
+    except OSError:
+        pass
+
+
+def _guard_pump_up_1(self, data):
+    if self._consume_flip():
+        data[0] ^= 0x01
+
+def _guard_pump_up_2(self, data, pos):
+    if self._consume_flip():
+        data[pos] ^= 0x01
+
+
 pytestmark = [pytest.mark.serial, pytest.mark.timeout(180),
               pytest.mark.uses_lifecycle_harness,
               pytest.mark.xdist_group("lc-putck")]
@@ -143,28 +165,20 @@ class _BodyCorruptProxy:
                     break
                 data = bytearray(data)
                 if flip_next:
-                    if self._consume_flip():
-                        data[0] ^= 0x01
+                    _guard_pump_up_1(self, data)
                     flip_next = False
                 elif self._has_budget():
                     hay = tail + bytes(data)
                     i = hay.find(MARKER)
                     if i != -1:
                         pos = i + M - len(tail)   # post-marker byte, indexed in data
-                        if 0 <= pos < len(data):
-                            if self._consume_flip():
-                                data[pos] ^= 0x01
-                        elif pos == len(data):
-                            flip_next = True
+                        _phase_pump_up_1(pos, data, self)
                 dst.sendall(bytes(data))
                 tail = (tail + bytes(data))[-(M - 1):]
         except OSError:
             pass
         finally:
-            try:
-                dst.shutdown(socket.SHUT_WR)
-            except OSError:
-                pass
+            _phase_pump_up_2(dst)
 
     def _pump_down(self, src, dst):
         try:

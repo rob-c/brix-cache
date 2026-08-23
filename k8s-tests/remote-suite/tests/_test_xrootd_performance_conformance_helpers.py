@@ -691,8 +691,11 @@ def _time_mixed_loop(
         assert status.ok, f"mixed stat small failed for {base_url}: {status.message}"
 
         status, listing = fs.dirlist(meta_dir, DirListFlags.STAT)
-        assert status.ok, f"mixed dirlist failed for {base_url}: {status.message}"
-        assert expected_names <= {entry.name for entry in listing}
+        def _assert_time_mixed_loop_2():
+            assert status.ok, f"mixed dirlist failed for {base_url}: {status.message}"
+            assert expected_names <= {entry.name for entry in listing}
+
+        _assert_time_mixed_loop_2()
 
         status, _ = fs.stat(missing)
         assert not status.ok, f"mixed missing stat unexpectedly succeeded: {base_url}"
@@ -702,8 +705,11 @@ def _time_mixed_loop(
             status, _ = f.open(_url(base_url, small_remote), OpenFlags.READ, timeout=30)
             assert status.ok, f"mixed open small failed for {base_url}: {status.message}"
             status, data = f.read(offset=0, size=len(small_content))
-            assert status.ok, f"mixed read small failed for {base_url}: {status.message}"
-            assert data == small_content
+            def _assert_time_mixed_loop_3():
+                assert status.ok, f"mixed read small failed for {base_url}: {status.message}"
+                assert data == small_content
+
+            _assert_time_mixed_loop_3()
         finally:
             f.close()
 
@@ -720,8 +726,11 @@ def _time_mixed_loop(
             pf.close()
 
     elapsed = time.perf_counter() - start
-    assert _remote_md5(base_url, payload_remote, PAYLOAD_SIZE) == payload_md5
-    assert digest.digest()
+    def _assert_time_mixed_loop_1():
+        assert _remote_md5(base_url, payload_remote, PAYLOAD_SIZE) == payload_md5
+        assert digest.digest()
+
+    _assert_time_mixed_loop_1()
     return elapsed
 
 

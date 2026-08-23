@@ -2,7 +2,10 @@
 
 from brixtest.clients import pty
 from brixtest.clients.configured import (
-    ClientRegistry, ClientSpec, ConfiguredClient, ConfiguredTool,
+    ClientRegistry,
+    ClientSpec,
+    ConfiguredClient,
+    ConfiguredTool,
 )
 from brixtest.clients.procworker import WorkerRunner, serve
 from brixtest.clients.pty import run_pipe, run_pty

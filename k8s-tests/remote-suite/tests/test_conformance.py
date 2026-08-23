@@ -51,6 +51,42 @@ from settings import (
 # pointed at any front that serves the same DATA_ROOT (a proxy, a multi-hop
 # mesh, or a CMS cluster redirector) via CONFORMANCE_NGINX_URL so the entire
 # suite runs unchanged through that topology — see test_conformance_topologies.py.
+def _expression_1(status):
+    return (
+        (status.message or "").lower()
+    )
+
+def _expression_2(msg):
+    return (
+        "no such" in msg or "not found" in msg or "doesn't exist" in msg
+    )
+
+def _expression_3(msg):
+    return (
+        "permission" in msg or "not authoriz" in msg
+    )
+
+def _expression_4(msg):
+    return (
+        "is a directory" in msg or "isdirectory" in msg or "is directory" in msg
+    )
+
+def _expression_5(msg):
+    return (
+        "path" in msg and "invalid" in msg
+    )
+
+
+def _check_test_dirlist_file_sizes_match_1(n_st, r_st):
+    assert n_st.ok and r_st.ok
+
+def _check_test_dirlist_file_sizes_match_2(content, n_entry, r_entry):
+    assert n_entry.statinfo.size == r_entry.statinfo.size == len(content), (
+        f"dirlist size mismatch: nginx={n_entry.statinfo.size}, "
+        f"ref={r_entry.statinfo.size}, actual={len(content)}"
+    )
+
+
 NGINX_URL = os.environ.get(
     "CONFORMANCE_NGINX_URL", f"root://{SERVER_HOST}:{NGINX_ANON_PORT}")
 REF_URL   = f"root://{url_host(HOST)}:{REF_BRIX_PORT}"
@@ -106,15 +142,15 @@ def _md5(data: bytes) -> str:
 
 def _error_family(status) -> str:
     """Map an XRootD error status to a coarse family string for comparison."""
-    msg = (status.message or "").lower()
+    msg = _expression_1(status)
     if not status.ok:
-        if "no such" in msg or "not found" in msg or "doesn't exist" in msg:
+        if _expression_2(msg):
             return "not_found"
-        if "permission" in msg or "not authoriz" in msg:
+        if _expression_3(msg):
             return "permission"
-        if "is a directory" in msg or "isdirectory" in msg or "is directory" in msg:
+        if _expression_4(msg):
             return "is_directory"
-        if "path" in msg and "invalid" in msg:
+        if _expression_5(msg):
             return "invalid_path"
         return "error"          # generic — both failed, details differ
     return "ok"
@@ -378,17 +414,17 @@ class TestDirlistConformance:
         # list the parent dir (root) and find our file
         n_st, n_listing = _dirlist_retry(NGINX_URL, "//")
         r_st, r_listing = _dirlist_retry(REF_URL, "//")
-        assert n_st.ok and r_st.ok
+        _check_test_dirlist_file_sizes_match_1(n_st, r_st)
 
         fname = os.path.basename(path)
         n_entry = next((e for e in n_listing if e.name == fname), None)
         r_entry = next((e for e in r_listing if e.name == fname), None)
-        assert n_entry is not None, f"nginx dirlist missing {fname}"
-        assert r_entry is not None, f"ref   dirlist missing {fname}"
-        assert n_entry.statinfo.size == r_entry.statinfo.size == len(content), (
-            f"dirlist size mismatch: nginx={n_entry.statinfo.size}, "
-            f"ref={r_entry.statinfo.size}, actual={len(content)}"
-        )
+        def _assert_test_dirlist_file_sizes_match_1():
+            assert n_entry is not None, f"nginx dirlist missing {fname}"
+            assert r_entry is not None, f"ref   dirlist missing {fname}"
+
+        _assert_test_dirlist_file_sizes_match_1()
+        _check_test_dirlist_file_sizes_match_2(content, n_entry, r_entry)
 
     def test_dirlist_nonexistent_both_fail(self):
         path = "//_no_such_dir_xyzzy/"

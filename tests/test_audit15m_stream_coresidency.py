@@ -112,6 +112,15 @@ from _test_proxy_mode_helpers import (_read_resp, _stat, _open, _fh, _read,
                                       kXR_ok, kXR_error, kXR_open_read,
                                       kXR_delete, kXR_mkpath)
 
+def _guard_manager_targets_1(status, seen, body):
+    if status == kXR_redirect:
+        seen.append(("redirect", *_redirect_target(body)))
+    elif status == kXR_wait:
+        seen.append(("wait", "", struct.unpack(">i", body[:4])[0]))
+    else:
+        seen.append(("status", repr(body[:40]), status))
+
+
 pytestmark = [pytest.mark.timeout(300),
               pytest.mark.uses_lifecycle_harness,
               pytest.mark.xdist_group("lc-audit15m-streamcores")]
@@ -792,12 +801,7 @@ def _manager_targets(endpoint, want_port, prefix=DOORSPACE, tries=24, pause=0.5)
             for status, body in (_dirlist(sock, prefix),
                                  _open(sock, f"{prefix}/door.txt",
                                        kXR_open_read)):
-                if status == kXR_redirect:
-                    seen.append(("redirect", *_redirect_target(body)))
-                elif status == kXR_wait:
-                    seen.append(("wait", "", struct.unpack(">i", body[:4])[0]))
-                else:
-                    seen.append(("status", repr(body[:40]), status))
+                _guard_manager_targets_1(status, seen, body)
         finally:
             sock.close()
         if any(kind == "redirect" and port == want_port for kind, _h, port in seen):
@@ -869,10 +873,13 @@ def test_the_manager_sends_the_other_namespace_to_the_other_member(cores):
                 break
         time.sleep(0.5)
 
-    assert any(port == httpbe for _h, port in seen), (
-        f"the manager never placed /httpspace/remote.txt on the http-backed member: {seen[:8]}")
-    assert all(port != door for _h, port in seen), (
-        f"a path outside /doorspace was sent to the gridftp door: {seen[:8]}")
+    def _assert_test_the_manager_sends_the_other_namespace_to_the_other_member_1():
+        assert any(port == httpbe for _h, port in seen), (
+            f"the manager never placed /httpspace/remote.txt on the http-backed member: {seen[:8]}")
+        assert all(port != door for _h, port in seen), (
+            f"a path outside /doorspace was sent to the gridftp door: {seen[:8]}")
+
+    _assert_test_the_manager_sends_the_other_namespace_to_the_other_member_1()
 
 
 # --------------------------------------------------------------------------- #

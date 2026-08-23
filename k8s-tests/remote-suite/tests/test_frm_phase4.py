@@ -25,14 +25,22 @@ import pytest
 
 from settings import NGINX_BIN, HOST, BIND_HOST
 
+def _guard_srv_1():
+    if not os.path.exists(NGINX_BIN):
+        pytest.skip("nginx binary not found")
+
+def _guard_srv_2(chk):
+    if chk.returncode != 0:
+        pytest.skip("nginx rejected config: %s" % chk.stderr.strip()[-300:])
+
+
 PORT = int(os.environ.get("TEST_FRM_P4_STREAM", "11247"))
 METRICS_PORT = int(os.environ.get("TEST_FRM_P4_METRICS", "11248"))
 
 
 @pytest.fixture(scope="module")
 def srv(tmp_path_factory):
-    if not os.path.exists(NGINX_BIN):
-        pytest.skip("nginx binary not found")
+    _guard_srv_1()
     d = tmp_path_factory.mktemp("frmp4")
     (d / "logs").mkdir()
     data = d / "data"; data.mkdir()
@@ -73,8 +81,7 @@ master_process off;
     cp.write_text(conf)
     chk = subprocess.run([NGINX_BIN, "-t", "-p", str(d), "-c", str(cp)],
                          capture_output=True, text=True)
-    if chk.returncode != 0:
-        pytest.skip("nginx rejected config: %s" % chk.stderr.strip()[-300:])
+    _guard_srv_2(chk)
     proc = subprocess.Popen([NGINX_BIN, "-p", str(d), "-c", str(cp)],
                             stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     deadline = time.time() + 10

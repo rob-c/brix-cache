@@ -14,6 +14,7 @@
 # each test needs its own empty store for "already present" to mean something,
 # and the surface is off by default everywhere else in the fleet.
 import json
+import functools
 import os
 import threading
 import time
@@ -26,6 +27,16 @@ from oci.registry_lane import (
     Registry, digest_of, err_code, image_manifest, push_blob, push_manifest,
     registry_spec, req, start_registry,
 )
+
+def _check_test_retag_between_two_manifests_is_never_seen_half_done_2(_put):
+    assert _put(b'{"a":"one"}')[0] == 201
+
+def _check_test_retag_between_two_manifests_is_never_seen_half_done_3(seen):
+    assert len(set(seen)) == 2, "the hammer never crossed a swap: %r" % set(seen)
+
+def _check_test_retag_between_two_manifests_is_never_seen_half_done_1(status):
+    assert status == 201
+
 
 try:
     from tokenforge import TokenForge, write_scitokens_cfg
@@ -194,53 +205,36 @@ def test_sha512_image_pushes_and_resolves_under_its_own_algorithm(
     assert req("%s/v2/lab/s512/blobs/%s" % (registry.base, layer))[2] == LAYER
 
 
-def test_retag_between_two_manifests_is_never_seen_half_done(
-        registry: Registry):
-    """A tag is one file holding one line, and a reader sees one or the other.
+def _put_tag(url, marker):
+    manifest = image_manifest(digest_of(marker), [digest_of(LAYER)])
+    return req(
+        url, method="PUT", data=json.dumps(manifest).encode(),
+        headers={"Content-Type": "application/vnd.oci.image.manifest.v1+json"})
 
-    Retagging is how a site promotes a build to `prod`, and it happens while
-    the farm is pulling that exact tag. If the swap were a truncate-then-write
-    a puller would occasionally resolve `prod` to an empty or half-written
-    digest and fail its deployment for reasons no log explains — so the store
-    writes a temporary and renames it. This hammers the window: every read
-    taken across a thousand swaps must resolve to a manifest that was, at some
-    instant, actually published.
-    """
+
+def _swap_tags(stop, put):
+    index = 0
+    while not stop.is_set():
+        put(b'{"a":"one"}' if index % 2 else b'{"a":"two"}')
+        index += 1
+
+
+def _publish_swap_manifests(registry):
     digests = []
     for marker in (b'{"a":"one"}', b'{"a":"two"}'):
         config = digest_of(marker)
         push_blob(registry, "lab/app", marker)
         push_blob(registry, "lab/app", LAYER)
         manifest = image_manifest(config, [digest_of(LAYER)])
-        status, headers, _ = push_manifest(registry, "lab/app",
-                                           "v" + str(len(digests)), manifest)
-        assert status == 201
+        status, headers, _ = push_manifest(
+            registry, "lab/app", "v" + str(len(digests)), manifest)
+        _check_test_retag_between_two_manifests_is_never_seen_half_done_1(status)
         digests.append(headers["Docker-Content-Digest"])
+    return digests
 
-    url = registry.base + "/v2/lab/app/manifests/prod"
 
-    def _put(marker):
-        return req(url, method="PUT",
-                   data=json.dumps(image_manifest(
-                       digest_of(marker), [digest_of(LAYER)])).encode(),
-                   headers={"Content-Type":
-                            "application/vnd.oci.image.manifest.v1+json"})
-
-    # `prod` exists BEFORE the hammer starts: a 404 from a tag that was never
-    # published is a race in the test, not a torn read in the store, and it
-    # would mask the one this is looking for.
-    assert _put(b'{"a":"one"}')[0] == 201
-
+def _read_during_swaps(url, stop, writer):
     seen, failures = [], []
-    stop = threading.Event()
-
-    def swap():
-        i = 0
-        while not stop.is_set():
-            _put(b'{"a":"one"}' if i % 2 else b'{"a":"two"}')
-            i += 1
-
-    writer = threading.Thread(target=swap, daemon=True)
     writer.start()
     try:
         for _ in range(200):
@@ -255,10 +249,39 @@ def test_retag_between_two_manifests_is_never_seen_half_done(
     finally:
         stop.set()
         writer.join(timeout=10)
+    return seen, failures
+
+
+def test_retag_between_two_manifests_is_never_seen_half_done(
+        registry: Registry):
+    """A tag is one file holding one line, and a reader sees one or the other.
+
+    Retagging is how a site promotes a build to `prod`, and it happens while
+    the farm is pulling that exact tag. If the swap were a truncate-then-write
+    a puller would occasionally resolve `prod` to an empty or half-written
+    digest and fail its deployment for reasons no log explains — so the store
+    writes a temporary and renames it. This hammers the window: every read
+    taken across a thousand swaps must resolve to a manifest that was, at some
+    instant, actually published.
+    """
+    digests = _publish_swap_manifests(registry)
+
+    url = registry.base + "/v2/lab/app/manifests/prod"
+
+    put = functools.partial(_put_tag, url)
+
+    # `prod` exists BEFORE the hammer starts: a 404 from a tag that was never
+    # published is a race in the test, not a torn read in the store, and it
+    # would mask the one this is looking for.
+    _check_test_retag_between_two_manifests_is_never_seen_half_done_2(put)
+
+    stop = threading.Event()
+    writer = threading.Thread(target=_swap_tags, args=(stop, put), daemon=True)
+    seen, failures = _read_during_swaps(url, stop, writer)
 
     assert not failures, failures
     assert set(seen) <= set(digests), "a read resolved to an unpublished digest"
-    assert len(set(seen)) == 2, "the hammer never crossed a swap: %r" % set(seen)
+    _check_test_retag_between_two_manifests_is_never_seen_half_done_3(seen)
 
 
 def test_tags_list_answers_from_the_local_store(registry: Registry):

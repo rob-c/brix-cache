@@ -38,6 +38,38 @@ from pathlib import Path
 
 import pytest
 
+def _expression_1(forge):
+    return (
+        [k for k in forge.cas
+                           if k.endswith("C") and not k.startswith(forge.root_catalog_hash)]
+    )
+
+def _expression_2(cache, nhex):
+    return (
+        [p for p in cache.rglob("*") if p.is_file() and nhex[2:] in p.name]
+    )
+
+
+def _check_delete_nested_catalog_1(nested_keys):
+    assert len(nested_keys) == 1, f"expected exactly one nested catalog: {nested_keys}"
+
+def _check_delete_nested_catalog_2(victims):
+    assert victims, "nested catalog must have been cached by the verified walk"
+
+def _check_test_index_build_failure_leaves_transport_alive_6(cache):
+    assert not (cache / SIDECAR).exists(), \
+        "a failed build must never persist a partial index"
+
+def _check_test_index_build_failure_leaves_transport_alive_3(text):
+    assert "pathidx unavailable — catalog lookups stay live" in text, text
+
+def _check_test_index_build_failure_leaves_transport_alive_5(proc):
+    assert proc.poll() is None
+
+def _check_test_index_build_failure_leaves_transport_alive_4(body, name, mnt):
+    assert (mnt / "pkg" / name).read_bytes() == body
+
+
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "cvmfs"))
 
 from conformance_common import BRIXMOUNT, _unmount, _wait_mounted  # noqa: E402, F401
@@ -110,13 +142,12 @@ def _delete_nested_catalog(forge, cache: Path):
     """Remove the nested catalog object from the origin webroot AND the mount's
     flat cache (data object + any .chk sidecar) — after this only the mmap
     index can answer for the nested subtree."""
-    nested_keys = [k for k in forge.cas
-                   if k.endswith("C") and not k.startswith(forge.root_catalog_hash)]
-    assert len(nested_keys) == 1, f"expected exactly one nested catalog: {nested_keys}"
+    nested_keys = _expression_1(forge)
+    _check_delete_nested_catalog_1(nested_keys)
     nhex = nested_keys[0][:-1]
     os.unlink(forge.cas[nested_keys[0]])
-    victims = [p for p in cache.rglob("*") if p.is_file() and nhex[2:] in p.name]
-    assert victims, "nested catalog must have been cached by the verified walk"
+    victims = _expression_2(cache, nhex)
+    _check_delete_nested_catalog_2(victims)
     for p in victims:
         p.unlink()
 
@@ -193,16 +224,15 @@ def test_index_build_failure_leaves_transport_alive(workdir):
         with pk_mount(workdir / "repo.pub", httpd.server_address[1], cache,
                       opts_extra=IDX_OPTS) as (mnt, proc, log):
             text = log.read_text(errors="replace")
-            assert "pathidx unavailable — catalog lookups stay live" in text, text
+            _check_test_index_build_failure_leaves_transport_alive_3(text)
             # Intact subtrees serve via live catalogs — the failed build must
             # not have blacklisted the origin.
             for name, body in BODIES.items():
-                assert (mnt / "pkg" / name).read_bytes() == body
+                _check_test_index_build_failure_leaves_transport_alive_4(body, name, mnt)
             with pytest.raises(OSError):     # the broken subtree really is broken
                 (mnt / "nested" / "n0.bin").read_bytes()
-            assert proc.poll() is None
-        assert not (cache / SIDECAR).exists(), \
-            "a failed build must never persist a partial index"
+            _check_test_index_build_failure_leaves_transport_alive_5(proc)
+        _check_test_index_build_failure_leaves_transport_alive_6(cache)
     finally:
         _stop_origin(httpd)
         forge.close()

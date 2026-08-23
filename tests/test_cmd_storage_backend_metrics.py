@@ -18,8 +18,14 @@ def test_storage_backend_metrics_flow(tmp_path):
         f"{'ok' if ok else 'FAIL'} {message}" for ok, message in results
     )
     messages = [message for _, message in results]
-    assert "info gauge present" in messages
-    assert 'backend="xroot"' in messages
-    assert 'auth="token"' in messages
-    assert 'staging="1"' in messages
+    def _assert_test_storage_backend_metrics_flow_1():
+        assert "info gauge present" in messages
+        assert 'backend="xroot"' in messages
+
+    _assert_test_storage_backend_metrics_flow_1()
+    def _assert_test_storage_backend_metrics_flow_2():
+        assert 'auth="token"' in messages
+        assert 'staging="1"' in messages
+
+    _assert_test_storage_backend_metrics_flow_2()
     assert "origin host:port" in messages

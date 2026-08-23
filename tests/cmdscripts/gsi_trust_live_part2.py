@@ -21,6 +21,17 @@ from cmdscripts.live_common import LiveFailure, LiveRun, REPO_ROOT
 from settings import BIND_HOST, CA_CERT, CA_DIR, HOST, SERVER_CERT, SERVER_HOST, SERVER_KEY, TEST_ROOT
 from fleet_ports import cmdscript_ports
 
+def _phase_delegation_upload_1(front):
+    for name in ("logs", "export", "stage", "journal"):
+        (front / name).mkdir(exist_ok=True)
+
+
+def _http_code(result):
+    return (
+        int(result.stdout.strip()) if result.stdout.strip().isdigit() else 0
+    )
+
+
 XRDCP = REPO_ROOT / "client" / "bin" / "xrdcp"
 
 _PORTS = cmdscript_ports("gsi_trust_live")
@@ -70,38 +81,68 @@ http {{
     )
 
 
-def delegation_upload(nginx: Path | None = None) -> int:
-    with LiveRun("deleg_e2e", nginx) as run:
-        pki_ok, pki_message = ensure_pki(run.root)
-        if not pki_ok:
-            return _skip(pki_message)
-        mint_ok, mint_message, dns = mint_certs(run.root)
-        if not mint_ok:
-            return _skip(mint_message)
-        a_stem, b_stem = key_for_dn(dns["A_DN"]), key_for_dn(dns["B_DN"])
-        print(f"  user-A DN: {dns['A_DN']}")
-        print(f"  user-A credential stem: {a_stem}")
-        print(f"  user-B credential stem: {b_stem}")
+def _start_delegation_front(run, front, oport, fport, creds, certs, delegation):
+    conf = _write_delegation_front(
+        run, front, oport, fport, creds, certs, delegation)
+    try:
+        run.start_nginx(front, conf, fport)
+    except LiveFailure as exc:
+        print(f"SKIP: frontend start failed ({delegation}): {exc}")
+        return False
+    time.sleep(0.5)
+    return True
 
-        oport, fport = _PORTS[9:11]  # was free_ports(2)
-        certs = run.root / "certs"
-        creds = run.mkdir("creds")
-        creds.chmod(0o777)
-        origin = run.mkdir("o")
-        front = run.mkdir("f")
-        for name in ("logs", "root"):
-            (origin / name).mkdir(exist_ok=True)
-        for name in ("logs", "export", "stage", "journal"):
-            (front / name).mkdir(exist_ok=True)
 
-        origin_conf = run.write(
-            origin / "nginx.conf",
-            f"""daemon on;
+def _stop_delegation_front(run, front):
+    run.stop_nginx(front)
+    time.sleep(0.3)
+
+
+def _curl_as(run, cert, key, target, *, upload=None, output):
+    argv = ["curl", "-sk", "--cert", str(cert), "--key", str(key)]
+    if upload is not None:
+        argv += ["-T", str(upload)]
+    argv += ["-o", str(output), "-w", "%{http_code}", target]
+    result = run.call(argv, check=False)
+    return int(result.stdout.strip()) if result.stdout.strip().isdigit() else 0
+
+
+def _delegation_identity(run):
+    pki_ok, pki_message = ensure_pki(run.root)
+    if not pki_ok:
+        return None, pki_message
+    mint_ok, mint_message, dns = mint_certs(run.root)
+    if not mint_ok:
+        return None, mint_message
+    return dns, None
+
+
+def _delegation_paths(run):
+    certs = run.root / "certs"
+    creds = run.mkdir("creds")
+    creds.chmod(0o777)
+    origin, front = run.mkdir("o"), run.mkdir("f")
+    for name in ("logs", "root"):
+        (origin / name).mkdir(exist_ok=True)
+    _phase_delegation_upload_1(front)
+    return certs, creds, origin, front
+
+
+def _delegation_stems(dns):
+    a_stem, b_stem = key_for_dn(dns["A_DN"]), key_for_dn(dns["B_DN"])
+    print(f"  user-A DN: {dns['A_DN']}")
+    print(f"  user-A credential stem: {a_stem}")
+    print(f"  user-B credential stem: {b_stem}")
+    return a_stem, b_stem
+
+
+def _start_delegation_origin(run, origin, port):
+    config = run.write(origin / "nginx.conf", f"""daemon on;
 error_log {origin}/logs/e.log info;
 pid {origin}/nginx.pid;
 events {{ worker_connections 64; }}
 stream {{ server {{
-    listen {BIND_HOST}:{oport};
+    listen {BIND_HOST}:{port};
     brix_root on;
     brix_export {origin}/root;
     brix_allow_write on;
@@ -110,105 +151,121 @@ stream {{ server {{
     brix_certificate_key {SERVER_KEY};
     brix_trusted_ca      {CA_CERT};
 }} }}
-""",
-        )
-        try:
-            run.start_nginx(origin, origin_conf, oport)
-        except LiveFailure as exc:
-            return _skip(f"origin start failed: {exc}")
+""")
+    try:
+        run.start_nginx(origin, config, port)
+    except LiveFailure as exc:
+        return f"origin start failed: {exc}"
+    return None
+
+
+def _check_valid_delegation(run, front, oport, fport, creds, certs,
+                            a_cert, a_key, deleg_url, a_cred, a_stem,
+                            origin_log, url, checks):
+    print("--- assertion (a): A uploads its own proxy -> stored ---")
+    if not _start_delegation_front(
+            run, front, oport, fport, creds, certs, "on"):
+        return False
+    code = _curl_as(
+        run, a_cert, a_key, deleg_url, upload=certs / "a_proxy_valid.pem",
+        output=run.root / "resp_a.txt")
+    checks.append((code in (200, 201),
+                   f"a1: A's own-proxy upload accepted (code={code})"))
+    checks.append((a_cred.is_file(),
+                   f"a2: {a_stem}.pem now exists in credential dir"))
+
+    print("--- assertion (b): delegation-populated cred used for a real PUT ---")
+    origin_log.write_text("")
+    payload = run.root / "deleg_payload.bin"
+    payload.write_bytes(os.urandom(4096))
+    code = _curl_as(run, a_cert, a_key, f"{url}/b_probe.bin",
+                    upload=payload, output=run.root / "resp_b.txt")
+    checks.append((code in (201, 204),
+                   f"b1: A's PUT via delegated cred accepted (code={code})"))
+    time.sleep(0.5)
+    checks.append((_grep(origin_log, "GSI auth OK dn="),
+                   "b2: origin authenticated a user (GSI auth OK in origin log)"))
+    _stop_delegation_front(run, front)
+    return True
+
+
+def delegation_upload(nginx: Path | None = None) -> int:
+    with LiveRun("deleg_e2e", nginx) as run:
+        dns, identity_error = _delegation_identity(run)
+        if identity_error is not None:
+            return _skip(identity_error)
+        a_stem, b_stem = _delegation_stems(dns)
+
+        oport, fport = _PORTS[9:11]  # was free_ports(2)
+        certs, creds, origin, front = _delegation_paths(run)
+        origin_error = _start_delegation_origin(run, origin, oport)
+        if origin_error is not None:
+            return _skip(origin_error)
         origin_log = origin / "logs" / "e.log"
-
-        def front_start(delegation: str) -> bool:
-            conf = _write_delegation_front(run, front, oport, fport, creds, certs, delegation)
-            try:
-                run.start_nginx(front, conf, fport)
-            except LiveFailure as exc:
-                print(f"SKIP: frontend start failed ({delegation}): {exc}")
-                return False
-            time.sleep(0.5)
-            return True
-
-        def front_stop() -> None:
-            run.stop_nginx(front)
-            time.sleep(0.3)
 
         url = f"https://{HOST}:{fport}"
         deleg_url = url + "/.well-known/brix-delegation"
         a_cert, a_key = certs / "a_eec_cert.pem", certs / "a_eec_key.pem"
         a_cred, b_cred = creds / f"{a_stem}.pem", creds / f"{b_stem}.pem"
 
-        def curl_a(target: str, *, upload: Path | None = None, output: Path) -> int:
-            argv = ["curl", "-sk", "--cert", str(a_cert), "--key", str(a_key)]
-            if upload is not None:
-                argv += ["-T", str(upload)]
-            argv += ["-o", str(output), "-w", "%{http_code}", target]
-            result = run.call(argv, check=False)
-            return int(result.stdout.strip()) if result.stdout.strip().isdigit() else 0
-
         checks: list[tuple[bool, str]] = []
 
-        # (a) A uploads its own valid proxy -> 200/201, key.pem exists
-        print("--- assertion (a): A uploads its own proxy -> stored ---")
-        if not front_start("on"):
+        if not _check_valid_delegation(
+                run, front, oport, fport, creds, certs, a_cert, a_key,
+                deleg_url, a_cred, a_stem, origin_log, url, checks):
             return 0
-        code = curl_a(deleg_url, upload=certs / "a_proxy_valid.pem", output=run.root / "resp_a.txt")
-        checks.append((code in (200, 201), f"a1: A's own-proxy upload accepted (code={code})"))
-        checks.append((a_cred.is_file(), f"a2: {a_stem}.pem now exists in credential dir"))
-
-        # (b) subsequent davs PUT by A authenticates to the origin as A
-        print("--- assertion (b): delegation-populated cred used for a real PUT ---")
-        origin_log.write_text("")
-        payload = run.root / "deleg_payload.bin"
-        payload.write_bytes(os.urandom(4096))
-        code = curl_a(f"{url}/b_probe.bin", upload=payload, output=run.root / "resp_b.txt")
-        checks.append((code in (201, 204), f"b1: A's PUT via delegated cred accepted (code={code})"))
-        time.sleep(0.5)
-        checks.append((_grep(origin_log, "GSI auth OK dn="), "b2: origin authenticated a user (GSI auth OK in origin log)"))
-        front_stop()
 
         # (c) A uploads a proxy for B's identity -> 403, no B key written
         print("--- assertion (c): A uploads B's proxy -> 403, nothing written for B ---")
-        if not front_start("on"):
+        if not _start_delegation_front(run, front, oport, fport, creds, certs, "on"):
             return 0
-        code = curl_a(deleg_url, upload=certs / "b_proxy_valid.pem", output=run.root / "resp_c.txt")
+        code = _curl_as(run, a_cert, a_key, deleg_url,
+                        upload=certs / "b_proxy_valid.pem",
+                        output=run.root / "resp_c.txt")
         checks.append((code == 403, f"c1: cross-identity upload rejected (code={code}, want 403)"))
         checks.append((not b_cred.exists(), "c2: no credential file written for B"))
-        front_stop()
+        _stop_delegation_front(run, front)
 
         # (d) expired proxy for A -> 400
         print("--- assertion (d): expired proxy -> 400 ---")
-        if not front_start("on"):
+        if not _start_delegation_front(run, front, oport, fport, creds, certs, "on"):
             return 0
-        code = curl_a(deleg_url, upload=certs / "a_proxy_expired.pem", output=run.root / "resp_d.txt")
+        code = _curl_as(run, a_cert, a_key, deleg_url,
+                        upload=certs / "a_proxy_expired.pem",
+                        output=run.root / "resp_d.txt")
         checks.append((code == 400, f"d: expired proxy rejected (code={code}, want 400)"))
-        front_stop()
+        _stop_delegation_front(run, front)
 
         # (f) untrusted/wrong-CA proxy with A's DN spoofed -> 403, no store
         print("--- assertion (f): untrusted/wrong-CA proxy (DN spoofed to A) -> 403 ---")
         a_cred.unlink(missing_ok=True)
-        if not front_start("on"):
+        if not _start_delegation_front(run, front, oport, fport, creds, certs, "on"):
             return 0
-        code = curl_a(deleg_url, upload=certs / "a_proxy_wrongca.pem", output=run.root / "resp_f.txt")
+        code = _curl_as(run, a_cert, a_key, deleg_url,
+                        upload=certs / "a_proxy_wrongca.pem",
+                        output=run.root / "resp_f.txt")
         checks.append((code == 403, f"f1: untrusted-CA proxy rejected (code={code}, want 403)"))
         checks.append((not a_cred.exists(), "f2: no credential file written for the untrusted proxy"))
-        front_stop()
+        _stop_delegation_front(run, front)
 
         # (e) endpoint off -> path is not special, no store
         print("--- assertion (e): endpoint off -> not special, no store ---")
         a_cred.unlink(missing_ok=True)
-        if not front_start("off"):
+        if not _start_delegation_front(run, front, oport, fport, creds, certs, "off"):
             return 0
         result = run.call(
             ["curl", "-sk", "-o", os.devnull, "-w", "%{http_code}", "--max-time", "2",
              f"{url}/never_written_{os.getpid()}_probe.bin"],
             check=False,
         )
-        code = int(result.stdout.strip()) if result.stdout.strip().isdigit() else 0
+        code = _http_code(result)
         checks.append((code in (404, 403), f"e1: GET of an unwritten path -> {code} (endpoint off, not special)"))
-        code = curl_a(deleg_url, upload=certs / "a_proxy_valid.pem", output=run.root / "resp_e.txt")
+        code = _curl_as(run, a_cert, a_key, deleg_url,
+                        upload=certs / "a_proxy_valid.pem",
+                        output=run.root / "resp_e.txt")
         checks.append((code not in (200, 201), f"e2: PUT to the well-known path is not accepted as a delegation (code={code})"))
         checks.append((not a_cred.exists(), "e3: no credential file written while endpoint is off"))
-        front_stop()
+        _stop_delegation_front(run, front)
         return _result(checks)
 
 

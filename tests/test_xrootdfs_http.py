@@ -37,6 +37,11 @@ import pytest
 
 from settings import DATA_ROOT, NGINX_ANON_PORT, NGINX_HTTP_WEBDAV_PORT, SERVER_HOST
 
+def _guard_mount_1(extra, argv):
+    if extra:
+        argv[1:1] = extra
+
+
 pytestmark = pytest.mark.timeout(180)
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -88,8 +93,7 @@ def _mount(url, extra=None):
     mnt = subprocess.check_output(
         ["mktemp", "-d", os.path.join(os.environ["TMPDIR"], "xrdfshttp.XXXXXX")]).decode().strip()
     argv = [XROOTDFS, url, mnt, "-f"]
-    if extra:
-        argv[1:1] = extra
+    _guard_mount_1(extra, argv)
     proc = subprocess.Popen(argv, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
     try:
         for _ in range(80):

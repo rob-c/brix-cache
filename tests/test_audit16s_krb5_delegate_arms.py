@@ -147,6 +147,30 @@ from settings import (
     url_host,
 )
 
+def _expression_1(plane, mark, self):
+    return (
+        [line for line in self.accesslog(plane)[mark:].splitlines()
+                               if line.strip()]
+    )
+
+
+def _guard_gates_1():
+    if SYS_XRDFS is None:
+        pytest.skip("stock xrdfs not on PATH")
+
+def _guard_gates_2():
+    if not os.access(NGINX_BIN, os.X_OK):
+        pytest.skip(f"nginx binary not executable: {NGINX_BIN}")
+
+def _guard_gates_3():
+    if not kdc_helpers.krb5_tools_available():
+        pytest.skip("MIT KDC tooling not installed (install krb5-server)")
+
+def _guard_gates_4():
+    if not kdc_helpers.up():
+        pytest.skip("krb5 realm could not be provisioned")
+
+
 pytestmark = [pytest.mark.timeout(900),
               pytest.mark.uses_lifecycle_harness,
               pytest.mark.xdist_group("lc-audit16s-krb5deleg")]
@@ -398,8 +422,7 @@ class _Planes:
         """
         deadline = time.monotonic() + timeout
         while True:
-            records = [line for line in self.accesslog(plane)[mark:].splitlines()
-                       if line.strip()]
+            records = _expression_1(plane, mark, self)
             if any(needle in line for line in records):
                 return records
             if time.monotonic() >= deadline:
@@ -446,14 +469,10 @@ def _read(path):
 
 
 def _gates():
-    if SYS_XRDFS is None:
-        pytest.skip("stock xrdfs not on PATH")
-    if not os.access(NGINX_BIN, os.X_OK):
-        pytest.skip(f"nginx binary not executable: {NGINX_BIN}")
-    if not kdc_helpers.krb5_tools_available():
-        pytest.skip("MIT KDC tooling not installed (install krb5-server)")
-    if not kdc_helpers.up():
-        pytest.skip("krb5 realm could not be provisioned")
+    _guard_gates_1()
+    _guard_gates_2()
+    _guard_gates_3()
+    _guard_gates_4()
 
 
 def _spec(data, main_env):
@@ -625,8 +644,11 @@ class TestTheValueAtConfigTime:
         operator cannot tell from the log which server is armed."""
         notices = [line for line in planes.errlog().splitlines()
                    if NOTICE in line]
-        assert notices, f"no krb5 configuration notice at all\n{planes.errlog()}"
-        assert all("ip_check=" in line for line in notices), notices
+        def _assert_test_the_start_up_notice_never_names_the_directive_2():
+            assert notices, f"no krb5 configuration notice at all\n{planes.errlog()}"
+            assert all("ip_check=" in line for line in notices), notices
+
+        _assert_test_the_start_up_notice_never_names_the_directive_2()
         assert not any("delegate" in line for line in notices), (
             "the notice has learned to mention delegation — #95's config-time "
             "half is fixed and this case should become its regression pin\n"
@@ -1342,10 +1364,13 @@ class TestTheMechanismIsWhereTheFileSaysItIs:
                             if _writes(_read(path), "on"))
         off_writers = sorted(path.name for path in CONFIGS.glob("*.conf")
                              if _writes(_read(path), "off"))
-        assert on_writers == ["nginx_audit16s_krb5_delegate.conf",
-                              "nginx_lc_krb5_cache_origin.conf",
-                              "nginx_lc_native_krb5_delegate.conf"], on_writers
-        assert off_writers == ["nginx_audit16s_krb5_delegate.conf"], off_writers
+        def _assert_test_the_corpus_wrote_the_on_arm_twice_and_the_off_arm_here_1():
+            assert on_writers == ["nginx_audit16s_krb5_delegate.conf",
+                                  "nginx_lc_krb5_cache_origin.conf",
+                                  "nginx_lc_native_krb5_delegate.conf"], on_writers
+            assert off_writers == ["nginx_audit16s_krb5_delegate.conf"], off_writers
+
+        _assert_test_the_corpus_wrote_the_on_arm_twice_and_the_off_arm_here_1()
 
     def test_the_two_existing_delegation_tests_write_only_the_on_arm(self):
         """Why this file is not a duplicate of either: neither writes `off`,

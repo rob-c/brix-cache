@@ -1,11 +1,10 @@
-"""Config templating (feature F13).
+"""Literal placeholder replacement for server configuration files.
 
 ``render_cfg`` is deliberately literal ``{key}`` string replacement —
 not ``str.format`` — so brace constructs that belong to the target
 config language (nginx blocks, shell expansions) pass through
 untouched.  The optional strict scan reports unresolved placeholders
-at the *cause* instead of two steps downstream, filtered through a
-whitelist of deliberate literal braces.
+at the call site and permits explicitly allowed literal braces.
 """
 
 from __future__ import annotations

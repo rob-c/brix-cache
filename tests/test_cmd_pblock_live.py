@@ -5,6 +5,10 @@ import pytest
 
 from cmdscripts import pblock_live
 
+def _check_test_pblock_live_scenario_1(nginx, scenario):
+    assert pblock_live.SCENARIOS[scenario](nginx) == 0
+
+
 pytestmark = pytest.mark.xdist_group("cmd-pblock_live")
 
 
@@ -30,4 +34,4 @@ def test_pblock_live_scenario(scenario: str):
     for client in pblock_live.CLIENT_REQUIREMENTS[scenario]:
         if not client.exists():
             pytest.skip(f"client binary not built: {client}")
-    assert pblock_live.SCENARIOS[scenario](nginx) == 0
+    _check_test_pblock_live_scenario_1(nginx, scenario)

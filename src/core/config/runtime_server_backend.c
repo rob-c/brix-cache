@@ -202,6 +202,73 @@ brix_storage_backend_is_whole_object(const ngx_http_brix_shared_conf_t *common)
     return 0;
 }
 
+/*
+ * WHAT: Validate cross-tier dependencies before backend registration.
+ * WHY:  Nearline, cold, and peer tiers are unusable without their hot cache.
+ * HOW:  Recognize nearline schemes and reject every missing-cache dependency.
+ */
+static ngx_int_t
+brix_tier_validate_dependencies(ngx_conf_t *cf,
+    const ngx_http_brix_shared_conf_t *common)
+{
+    const ngx_str_t *sb = &common->storage_backend;
+    int nearline = (sb->len > sizeof("tape://") - 1
+                    && ngx_strncmp(sb->data, "tape://",
+                                   sizeof("tape://") - 1) == 0)
+                   || (sb->len > sizeof("frm://") - 1
+                       && ngx_strncmp(sb->data, "frm://",
+                                      sizeof("frm://") - 1) == 0);
+
+    if (nearline && common->cache_store.len == 0) {
+        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            "brix: tape/frm storage requires brix_cache_store");
+        return NGX_ERROR;
+    }
+    if (common->cache_cold_store.len > 0 && common->cache_store.len == 0) {
+        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            "brix_cache_cold_store requires brix_cache_store");
+        return NGX_ERROR;
+    }
+    if (common->cache_peers != NULL && common->cache_store.len == 0) {
+        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            "brix_cache_peers requires brix_cache_store");
+        return NGX_ERROR;
+    }
+    return NGX_OK;
+}
+
+/*
+ * WHAT: Parse and register an explicitly enabled staging tier.
+ * WHY:  Stage validation and policy construction form one optional phase.
+ * HOW:  Require a store, parse it, derive flush mode, and register by root.
+ */
+static ngx_int_t
+brix_tier_register_stage_store(ngx_conf_t *cf,
+    ngx_http_brix_shared_conf_t *common)
+{
+    brix_tier_cfg_t cfg;
+    brix_stage_policy_t policy;
+    char error[256];
+    brix_tier_parse_t parse = { cf, &cfg, error, sizeof(error) };
+
+    if (common->stage_enable != 1)
+        return NGX_OK;
+    if (common->stage_store.len == 0) {
+        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            "brix_stage on requires brix_stage_store");
+        return NGX_ERROR;
+    }
+    if (brix_tier_parse_store(&parse, &common->stage_store,
+            common->stage_store_args, BRIX_TIER_STAGE) != NGX_OK)
+        return NGX_ERROR;
+    ngx_memzero(&policy, sizeof(policy));
+    policy.enabled = 1;
+    policy.flush_mode = common->stage_flush_async ? BRIX_WT_MODE_ASYNC
+                                                   : BRIX_WT_MODE_SYNC;
+    brix_vfs_backend_config_stage_store(common->root_canon, &cfg, &policy);
+    return NGX_OK;
+}
+
 /* Register the export's phase-64 composable cache/stage tiers (additive over the
  * storage backend). Parses the cache_store / stage_store URLs (operator errors are
  * [emerg], failing nginx -t) and records the tier cfg + policy on the backend
@@ -210,42 +277,10 @@ brix_storage_backend_is_whole_object(const ngx_http_brix_shared_conf_t *common)
 ngx_int_t
 brix_tier_register_stores(ngx_conf_t *cf, ngx_http_brix_shared_conf_t *common)
 {
-    char                           err[256];
-
     /* G8 (P4/§9.4): a nearline (tape) backend is unservable without a cache tier
      * as the recall target - reject at config time. "frm://" is the tape:// alias. */
-    {
-        const ngx_str_t *sb = &common->storage_backend;
-        int is_nearline =
-            (sb->len > sizeof("tape://") - 1
-             && ngx_strncmp(sb->data, "tape://", sizeof("tape://") - 1) == 0)
-            || (sb->len > sizeof("frm://") - 1
-                && ngx_strncmp(sb->data, "frm://", sizeof("frm://") - 1) == 0);
-
-        if (is_nearline && common->cache_store.len == 0) {
-            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                "brix: a \"tape://\"/\"frm://\" backend is nearline and requires "
-                "brix_cache_store (the recall target); add a cache tier");
-            return NGX_ERROR;
-        }
-    }
-
-    /* Phase-85 F7: a cold tier is meaningless without the hot cache it sits
-     * under — reject at config time rather than silently ignoring it. */
-    if (common->cache_cold_store.len > 0 && common->cache_store.len == 0) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-            "brix_cache_cold_store requires brix_cache_store (the hot tier)");
+    if (brix_tier_validate_dependencies(cf, common) != NGX_OK)
         return NGX_ERROR;
-    }
-
-    /* Phase-85 F8: the sibling mesh fills INTO the cache tier — meaningless
-     * without one. */
-    if (common->cache_peers != NULL && common->cache_store.len == 0) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-            "brix_cache_peers requires brix_cache_store (the mesh fills "
-            "the cache tier)");
-        return NGX_ERROR;
-    }
 
     if (common->cache_store.len > 0
         && brix_tier_register_cache_store(cf, common) != NGX_OK)
@@ -270,27 +305,5 @@ brix_tier_register_stores(ngx_conf_t *cf, ngx_http_brix_shared_conf_t *common)
      * /tmp (including the default just provisioned) is wiped on restart. */
     brix_tier_warn_private_tmp(cf, common);
 
-    if (common->stage_enable == 1) {
-        brix_tier_cfg_t     cfg;
-        brix_stage_policy_t spol;
-        brix_tier_parse_t   tp = { cf, &cfg, err, sizeof(err) };
-
-        if (common->stage_store.len == 0) {
-            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                "brix_stage on requires brix_stage_store");
-            return NGX_ERROR;
-        }
-        if (brix_tier_parse_store(&tp, &common->stage_store,
-                common->stage_store_args, BRIX_TIER_STAGE) != NGX_OK)
-        {
-            return NGX_ERROR;
-        }
-        ngx_memzero(&spol, sizeof(spol));
-        spol.enabled    = 1;
-        spol.flush_mode = common->stage_flush_async ? BRIX_WT_MODE_ASYNC
-                                                     : BRIX_WT_MODE_SYNC;
-        brix_vfs_backend_config_stage_store(common->root_canon, &cfg, &spol);
-    }
-
-    return NGX_OK;
+    return brix_tier_register_stage_store(cf, common);
 }

@@ -7,6 +7,22 @@ from pathlib import Path
 from cmdscripts.compile_run import REPO_ROOT, compile_binary, result, run
 
 
+def _expression_1(built):
+    return (
+        [result(False, f"compile cpool unit failed: {(built.stderr or built.stdout)[-2000:]}")]
+    )
+
+def _expression_2(ran):
+    return (
+        ran.returncode == 0 and "ALL PASS" in (ran.stdout or "")
+    )
+
+def _expression_3(ok, ran):
+    return (
+        [result(ok, f"cpool unit exited {ran.returncode}: {(ran.stdout or '') + (ran.stderr or '')[-2000:]}")]
+    )
+
+
 def run_checks(base: Path) -> list[tuple[bool, str]]:
     binary = base / "cpool_ut"
     built = compile_binary(
@@ -30,10 +46,10 @@ def run_checks(base: Path) -> list[tuple[bool, str]]:
         cwd=REPO_ROOT,
     )
     if built.returncode != 0:
-        return [result(False, f"compile cpool unit failed: {(built.stderr or built.stdout)[-2000:]}")]
+        return _expression_1(built)
     ran = run([str(binary)], cwd=REPO_ROOT)
-    ok = ran.returncode == 0 and "ALL PASS" in (ran.stdout or "")
-    return [result(ok, f"cpool unit exited {ran.returncode}: {(ran.stdout or '') + (ran.stderr or '')[-2000:]}")]
+    ok = _expression_2(ran)
+    return _expression_3(ok, ran)
 
 
 def entry(argv: list[str]) -> int:

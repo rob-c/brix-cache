@@ -120,6 +120,53 @@ from test_audit16a_ocsp_flags import (
 # The corpus measurement itself, from the file that wrote it yesterday.
 from test_audit16t_compress_flag_arms import _corpus_writers, _source, _writes
 
+def _expression_1():
+    return (
+        {tag: [] for tag in RESPONDERS}
+    )
+
+def _expression_2(responder):
+    return (
+        [] if responder is None
+                       else [(_aia(RESPONDERS[responder]["port"]), False)]
+    )
+
+def _expression_3(ca, tag, ext):
+    return (
+        make_eec(ca, f"/O=XrdTest/CN=audit16u-{tag}", not_after_days=4000,
+                               extra_ext=ext or None)
+    )
+
+def _expression_4(eec, spec, ext):
+    return (
+        make_proxy(eec, kind="rfc3820", not_after_days=4000,
+                                   serial=spec["serial"], extra_ext=ext or None)
+    )
+
+
+def _phase_responders_1(proc):
+    try:
+        proc.wait(timeout=10)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+
+
+def _check_responders_1(spec, tag, proc, log):
+    assert _listening(spec["port"]), (
+        f"the {tag} responder never listened on {spec['port']} "
+        f"(exit={proc.poll()}, holders={_holders(spec['port'])})\n"
+        f"{log.read_text(errors='replace')[-2000:]}")
+
+def _check_test_the_lane_is_declared_where_the_ledger_says_2(nonce):
+    assert nonce.port == LIFECYCLE_SHARED_PORTS[NAME]["port"]
+
+def _check_test_the_lane_is_declared_where_the_ledger_says_4(slots):
+    assert len(set(slots)) == len(slots), slots
+
+def _check_test_the_lane_is_declared_where_the_ledger_says_3(plane, nonce):
+    assert nonce.extra_ports[plane] == _EXTRA[plane]
+
+
 pytestmark = [pytest.mark.timeout(600),
               pytest.mark.uses_lifecycle_harness,
               pytest.mark.xdist_group("lc-audit16u-ocspnonce")]
@@ -227,15 +274,12 @@ def pki(tmp_path_factory):
     host_key.chmod(0o600)
 
     creds = {}
-    entries = {tag: [] for tag in RESPONDERS}
+    entries = _expression_1()
     for tag, spec in CREDENTIALS.items():
         responder = spec["responder"]
-        ext = ([] if responder is None
-               else [(_aia(RESPONDERS[responder]["port"]), False)])
-        eec = make_eec(ca, f"/O=XrdTest/CN=audit16u-{tag}", not_after_days=4000,
-                       extra_ext=ext or None)
-        proxy = make_proxy(eec, kind="rfc3820", not_after_days=4000,
-                           serial=spec["serial"], extra_ext=ext or None)
+        ext = (_expression_2(responder))
+        eec = _expression_3(ca, tag, ext)
+        proxy = _expression_4(eec, spec, ext)
         # proxy, then the EEC it delegates from, then the proxy key — the
         # standard GSI proxy file, and the order the client puts on the wire,
         # which is why chain[0] is the proxy the OCSP query is about.
@@ -287,20 +331,14 @@ def responders(pki):
             finally:
                 handle.close()
             procs.append(proc)
-            assert _listening(spec["port"]), (
-                f"the {tag} responder never listened on {spec['port']} "
-                f"(exit={proc.poll()}, holders={_holders(spec['port'])})\n"
-                f"{log.read_text(errors='replace')[-2000:]}")
+            _check_responders_1(spec, tag, proc, log)
             mocks[tag] = _Mock(proc, spec["port"])
         yield mocks
     finally:
         for proc in procs:
             proc.terminate()
         for proc in procs:
-            try:
-                proc.wait(timeout=10)
-            except subprocess.TimeoutExpired:
-                proc.kill()
+            _phase_responders_1(proc)
 
 
 def _reset(responders):
@@ -917,12 +955,12 @@ def test_the_lane_is_declared_where_the_ledger_says(nonce):
     """The four listeners are the four ledger slots, in one process.  Cheap, and
     it is the assertion that fails first if the ladder repack that made room for
     them drifted."""
-    assert nonce.port == LIFECYCLE_SHARED_PORTS[NAME]["port"]
+    _check_test_the_lane_is_declared_where_the_ledger_says_2(nonce)
     for plane in (DISARMED, ABSENT, SOFT):
-        assert nonce.extra_ports[plane] == _EXTRA[plane]
+        _check_test_the_lane_is_declared_where_the_ledger_says_3(plane, nonce)
     # Seven distinct slots: four the worker listens on, three the test's own
     # responders bind.  A collision would make one plane answer for another.
     slots = [nonce.port] + [nonce.extra_ports[p] for p in (DISARMED, ABSENT,
                                                            SOFT)]
     slots += [spec["port"] for spec in RESPONDERS.values()]
-    assert len(set(slots)) == len(slots), slots
+    _check_test_the_lane_is_declared_where_the_ledger_says_4(slots)

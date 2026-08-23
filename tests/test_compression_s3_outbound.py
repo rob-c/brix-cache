@@ -150,8 +150,11 @@ def test_s3_get_compressed_roundtrip(base, token):
                 f"(returned identity for a compressible payload)")
         assert enc.lower() == token, f"{token}: Content-Encoding={enc!r}"
         raw = r.data
-        assert len(raw) < len(data), f"{token}: not smaller ({len(raw)})"
-        assert decompress(raw) == data, f"{token}: body mismatch"
+        def _assert_test_s3_get_compressed_roundtrip_1():
+            assert len(raw) < len(data), f"{token}: not smaller ({len(raw)})"
+            assert decompress(raw) == data, f"{token}: body mismatch"
+
+        _assert_test_s3_get_compressed_roundtrip_1()
         assert "accept-encoding" in r.headers.get("Vary", "").lower()
     finally:
         _delete(base, path)

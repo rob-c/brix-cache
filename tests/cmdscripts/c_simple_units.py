@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from cmdscripts.compile_run import REPO_ROOT, compile_binary, result, run
+from cmdscripts.command_results import print_results
 
 
 @dataclass(frozen=True)
@@ -232,12 +233,14 @@ def entry(argv: list[str]) -> int:
     names = argv or sorted(SPECS)
     with tempfile.TemporaryDirectory(prefix="c_simple_units.") as tmp:
         base = Path(tmp)
-        for name in names:
-            (base / name).mkdir()
+        _prepare_unit_dirs(base, names)
         results = run_checks(base, names=names)
-    for ok, message in results:
-        print(f"  {'ok  ' if ok else 'FAIL'} {message}")
-    return 0 if all(ok for ok, _ in results) else 1
+    return print_results(results, "c_simple_units")
+
+
+def _prepare_unit_dirs(base, names):
+    for name in names:
+        (base / name).mkdir()
 
 
 if __name__ == "__main__":

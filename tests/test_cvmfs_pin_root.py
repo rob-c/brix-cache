@@ -31,6 +31,26 @@ from pathlib import Path
 
 import pytest
 
+def _expression_1():
+    return (
+        {k: v for k, v in os.environ.items() if not k.startswith("BRIXCVMFS_")}
+    )
+
+def _expression_2(expect_mounted, mnt, log):
+    return (
+        expect_mounted and not os.path.ismount(mnt) and log.exists()
+    )
+
+
+def _guard_pin_mount_1(proc):
+    if proc.poll() is None:
+        proc.terminate()
+        try:
+            proc.wait(3)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+
+
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "cvmfs"))
 
 from conformance_common import (BRIXMOUNT, PORT_BLOCKS, _unmount,
@@ -81,7 +101,7 @@ def pin_mount(pubkey, port, *, pin, expect_mounted=True, timeout=15):
     mnt = workdir / "mnt"
     for d in ("mnt", "tmp", "cache"):
         (workdir / d).mkdir()
-    env = {k: v for k, v in os.environ.items() if not k.startswith("BRIXCVMFS_")}
+    env = _expression_1()
     for k in ("http_proxy", "https_proxy", "all_proxy",
               "HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY"):
         env.pop(k, None)
@@ -99,17 +119,12 @@ def pin_mount(pubkey, port, *, pin, expect_mounted=True, timeout=15):
         _wait_mounted(mnt, timeout)
         yield mnt, proc, log
     finally:
-        if expect_mounted and not os.path.ismount(mnt) and log.exists():
+        if _expression_2(expect_mounted, mnt, log):
             keep = Path(tempfile.gettempdir()) / "brixcvmfs_mount_failures"
             keep.mkdir(exist_ok=True)
             shutil.copy(log, keep / f"{workdir.name}.log")
         _unmount(mnt)
-        if proc.poll() is None:
-            proc.terminate()
-            try:
-                proc.wait(3)
-            except subprocess.TimeoutExpired:
-                proc.kill()
+        _guard_pin_mount_1(proc)
         _unmount(mnt)
         shutil.rmtree(workdir, ignore_errors=True)
 

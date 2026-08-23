@@ -54,6 +54,16 @@ import sys
 
 import pytest
 
+def _check_test_s3_etag_does_not_detect_corruption_1(etag, plane):
+    assert plane.md5 not in etag, (
+        "the ETag is now digest-backed — update the integrity story, this test "
+        "pins the weak-ETag exposure")
+
+def _check_test_s3_etag_does_not_detect_corruption_2(etag, r):
+    assert r.headers.get("ETag") == etag, (
+        "unexpected: the ETag moved with the corrupted body")
+
+
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import servers  # noqa: E402
 from settings import HOST  # noqa: E402
@@ -234,9 +244,7 @@ def test_s3_etag_does_not_detect_corruption(plane):
     if plane.kind != "s3":
         pytest.skip("the ETag contract under test is the S3 one")
     etag = requests.head(plane.direct, timeout=60).headers["ETag"]
-    assert plane.md5 not in etag, (
-        "the ETag is now digest-backed — update the integrity story, this test "
-        "pins the weak-ETag exposure")
+    _check_test_s3_etag_does_not_detect_corruption_1(etag, plane)
     plane.fp.set_corrupt(CORRUPT_PCT, "down")
     for _ in range(8):
         try:
@@ -245,7 +253,6 @@ def test_s3_etag_does_not_detect_corruption(plane):
             continue
         if r.status_code != 200 or r.content == plane.body:
             continue
-        assert r.headers.get("ETag") == etag, (
-            "unexpected: the ETag moved with the corrupted body")
+        _check_test_s3_etag_does_not_detect_corruption_2(etag, r)
         return
     pytest.fail("never observed a corrupted-body round to judge")

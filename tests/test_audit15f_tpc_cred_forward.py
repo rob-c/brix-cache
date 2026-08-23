@@ -35,6 +35,15 @@ from fleet_lifecycle_ports import LIFECYCLE_SHARED_PORTS
 from server_registry import NginxInstanceSpec
 from settings import NGINX_BIN, HOST, BIND_HOST
 
+def _guard_credfwd_1():
+    if not os.path.exists(NGINX_BIN):
+        pytest.skip(f"nginx binary not found at {NGINX_BIN}")
+
+def _guard_credfwd_2():
+    if shutil.which("openssl") is None:
+        pytest.skip("openssl not found — cannot mint the mock source's cert")
+
+
 try:
     from tokenforge import TokenForge, write_scitokens_cfg
     _HAVE_TOKENFORGE = True
@@ -59,10 +68,8 @@ SCOPE = "storage.read:/ storage.create:/ storage.modify:/"
 
 @pytest.fixture()
 def credfwd(lifecycle, tmp_path):
-    if not os.path.exists(NGINX_BIN):
-        pytest.skip(f"nginx binary not found at {NGINX_BIN}")
-    if shutil.which("openssl") is None:
-        pytest.skip("openssl not found — cannot mint the mock source's cert")
+    _guard_credfwd_1()
+    _guard_credfwd_2()
 
     mint = tmp_path / "mint"
     forge = TokenForge(str(mint))

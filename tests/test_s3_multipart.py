@@ -293,22 +293,14 @@ class TestListParts:
         """Parts uploaded out of order come back sorted by number, sizes exact."""
         key = f"mpu_lp_{uuid.uuid4().hex}.bin"
         upload_id = _initiate(s3_url, key)
-        for n, size in ((3, 300), (1, 100), (2, 200)):
-            r = _upload_part(s3_url, key, n, b"x" * size, upload_id)
-            assert r.status_code == 200, f"Part {n} upload failed: {r.status_code}"
+        _upload_sized_parts(s3_url, key, upload_id)
 
         r = _list_parts(s3_url, key, upload_id)
         assert r.status_code == 200, f"ListParts failed: {r.status_code} {r.text}"
         root, parts = _parse_parts(r.text)
         assert root.tag == f"{{{S3_NS}}}ListPartsResult"
         assert parts == [(1, 100), (2, 200), (3, 300)]
-        assert root.findtext(f"{{{S3_NS}}}Bucket") == BUCKET
-        assert root.findtext(f"{{{S3_NS}}}Key") == key
-        assert root.findtext(f"{{{S3_NS}}}UploadId") == upload_id
-        assert root.findtext(f"{{{S3_NS}}}IsTruncated") == "false"
-        for part in root.findall(f"{{{S3_NS}}}Part"):
-            assert part.findtext(f"{{{S3_NS}}}ETag")
-            assert part.findtext(f"{{{S3_NS}}}LastModified")
+        _assert_parts_metadata(root, key, upload_id)
 
         _abort(s3_url, key, upload_id)
 
@@ -316,22 +308,15 @@ class TestListParts:
         """max-parts truncates with NextPartNumberMarker; the marker resumes."""
         key = f"mpu_lp_{uuid.uuid4().hex}.bin"
         upload_id = _initiate(s3_url, key)
-        for n in (1, 2, 3, 4):
-            r = _upload_part(s3_url, key, n, b"p", upload_id)
-            assert r.status_code == 200
+        _upload_numbered_parts(s3_url, key, upload_id)
 
         r = _list_parts(s3_url, key, upload_id, "max-parts=2")
         assert r.status_code == 200
-        root, parts = _parse_parts(r.text)
-        assert [n for n, _ in parts] == [1, 2]
-        assert root.findtext(f"{{{S3_NS}}}IsTruncated") == "true"
-        assert root.findtext(f"{{{S3_NS}}}NextPartNumberMarker") == "2"
+        _assert_first_parts_page(r.text)
 
         r = _list_parts(s3_url, key, upload_id, "part-number-marker=2")
         assert r.status_code == 200
-        root, parts = _parse_parts(r.text)
-        assert [n for n, _ in parts] == [3, 4]
-        assert root.findtext(f"{{{S3_NS}}}IsTruncated") == "false"
+        _assert_second_parts_page(r.text)
 
         _abort(s3_url, key, upload_id)
 
@@ -348,6 +333,46 @@ class TestListParts:
         r = _list_parts(s3_url, key, "../../etc")
         assert r.status_code == 400
         assert "InvalidArgument" in r.text
+
+
+def _upload_sized_parts(s3_url, key, upload_id):
+    for number, size in ((3, 300), (1, 100), (2, 200)):
+        response = _upload_part(s3_url, key, number, b"x" * size, upload_id)
+        assert response.status_code == 200, (
+            f"Part {number} upload failed: {response.status_code}")
+
+
+def _assert_parts_metadata(root, key, upload_id):
+    assert root.findtext(f"{{{S3_NS}}}Bucket") == BUCKET
+    assert root.findtext(f"{{{S3_NS}}}Key") == key
+    assert root.findtext(f"{{{S3_NS}}}UploadId") == upload_id
+    assert root.findtext(f"{{{S3_NS}}}IsTruncated") == "false"
+    for part in root.findall(f"{{{S3_NS}}}Part"):
+        _assert_part_metadata(part)
+
+
+def _assert_part_metadata(part):
+    assert part.findtext(f"{{{S3_NS}}}ETag")
+    assert part.findtext(f"{{{S3_NS}}}LastModified")
+
+
+def _upload_numbered_parts(s3_url, key, upload_id):
+    for number in (1, 2, 3, 4):
+        response = _upload_part(s3_url, key, number, b"p", upload_id)
+        assert response.status_code == 200
+
+
+def _assert_first_parts_page(text):
+    root, parts = _parse_parts(text)
+    assert [number for number, _size in parts] == [1, 2]
+    assert root.findtext(f"{{{S3_NS}}}IsTruncated") == "true"
+    assert root.findtext(f"{{{S3_NS}}}NextPartNumberMarker") == "2"
+
+
+def _assert_second_parts_page(text):
+    root, parts = _parse_parts(text)
+    assert [number for number, _size in parts] == [3, 4]
+    assert root.findtext(f"{{{S3_NS}}}IsTruncated") == "false"
 
 
 class TestListMultipartUploads:
@@ -372,7 +397,7 @@ class TestListMultipartUploads:
         """Both in-flight uploads appear with their key and uploadId, key-sorted."""
         prefix = f"mpu_lu_{uuid.uuid4().hex}"
         keys = [f"{prefix}_a.bin", f"{prefix}_b.bin"]
-        ids = {k: _initiate(s3_url, k) for k in keys}
+        ids = _initiate_uploads(s3_url, keys)
 
         r = self._list_uploads(s3_url)
         assert r.status_code == 200, (
@@ -380,15 +405,13 @@ class TestListMultipartUploads:
         )
         root, pairs = self._upload_pairs(r.text)
         assert root.tag == f"{{{S3_NS}}}ListMultipartUploadsResult"
-        for k in keys:
-            assert (k, ids[k]) in pairs, f"{k} missing from listing"
+        _assert_upload_pairs(keys, ids, pairs)
         # The shared bucket may hold other tests' uploads, so assert only the
         # relative order of our two keys within the key-sorted listing.
-        ours = [p for p in pairs if p[0] in keys]
+        ours = _matching_uploads(pairs, keys)
         assert ours == sorted(ours)
 
-        for k in keys:
-            _abort(s3_url, k, ids[k])
+        _abort_uploads(s3_url, keys, ids)
 
     def test_aborted_upload_disappears(self, s3_url):
         """An upload is listed while in flight and gone after abort."""
@@ -418,5 +441,22 @@ class TestListMultipartUploads:
         assert keys[0] not in listed
         assert keys[1] in listed
 
-        for k in keys:
-            _abort(s3_url, k, ids[k])
+        _abort_uploads(s3_url, keys, ids)
+
+
+def _assert_upload_pairs(keys, upload_ids, pairs):
+    for key in keys:
+        assert (key, upload_ids[key]) in pairs, f"{key} missing from listing"
+
+
+def _initiate_uploads(s3_url, keys):
+    return {key: _initiate(s3_url, key) for key in keys}
+
+
+def _matching_uploads(pairs, keys):
+    return [pair for pair in pairs if pair[0] in keys]
+
+
+def _abort_uploads(s3_url, keys, upload_ids):
+    for key in keys:
+        _abort(s3_url, key, upload_ids[key])

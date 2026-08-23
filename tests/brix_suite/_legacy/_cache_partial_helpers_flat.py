@@ -70,166 +70,137 @@ def _optline(directive, value, indent="        "):
     return f"{indent}{directive} {value};\n" if value else ""
 
 
-def make_cache_node(backend, *, tmp, lifecycle, slice_size=None, max_file_size=None,
-                    max_object=None, deny_prefix=None, include_regex=None,
-                    origin_backend="posix", allow_write=False,
-                    prefetch=None, prefetch_window=None):
-    """Start a cache node in front of `backend` through the registry lifecycle
-    harness, returning a CacheNode.
+def _cache_values(store, backend, options, *, allow_write="", export=""):
+    return {
+        "BIND_HOST": BIND_HOST,
+        "CACHE_ALLOW_WRITE": allow_write,
+        "CACHE_EXPORT": export,
+        "CACHE_BACKEND": backend,
+        "CACHE_STORE": store,
+        "CACHE_SLICE_SIZE": _optline("brix_cache_slice_size", options["slice_size"]),
+        "CACHE_MAX_OBJECT": _optline("brix_cache_max_object", options["max_size"]),
+        "CACHE_DENY_PREFIX": _optline("brix_cache_deny_prefix", options["deny_prefix"]),
+        "CACHE_INCLUDE_REGEX": _optline("brix_cache_include_regex", options["include_regex"]),
+        "CACHE_PREFETCH": options["prefetch_lines"],
+    }
 
-    Two proven config styles (mirror tests/run_root_slice_fill.sh and
-    tests/run_cache_backend_source.sh):
-      * backend == 'xroot' -> tier grammar over a root:// origin
-        (brix_storage_backend root:// + brix_cache_store posix:<dir> +
-        brix_cache_slice_size): sparse partial fill via the composed sd_cache
-        (§14: the legacy cache_origin/cache_slice model is retired). The origin
-        serves posix or pblock (origin_backend); the cached object + .cinfo land
-        under the cache dir; seed_origin writes into the ORIGIN's root.
-      * other backends -> the same tier grammar over a LOCAL backend
-        (posix/pblock): slice_size>0 partial-fills, else whole-file;
-        seed_origin writes into the backend's own dir.
-    """
-    base = str(tmp)
-    # Background block prefetch (audit §4.1): both directives collapse to ""
-    # when unset so the default-off suite configs stay byte-identical.
-    prefetch_lines = (_optline("brix_cache_prefetch", prefetch)
-                      + _optline("brix_cache_prefetch_window", prefetch_window))
 
-    if backend == "xroot":
-        origin_root = os.path.join(base, "origin")
-        cache_dir = os.path.join(base, "cache")
-        export = os.path.join(base, "export")
-        for d in (origin_root, cache_dir, export):
-            os.makedirs(d, exist_ok=True)
-        # posix origin uses brix_export (the proven run_root_slice_fill.sh config);
-        # pblock origin uses the pblock backend + write capability (its seed goes
-        # in via xrdcp).
-        if origin_backend == "pblock":
-            origin_storage = f"brix_storage_backend pblock://{origin_root}/;"
-            origin_allow_write = ("        brix_allow_write on;"
-                                  " brix_upload_resume off;\n")
-        else:
-            origin_storage = f"brix_export {origin_root};"
-            origin_allow_write = (
-                "        brix_allow_write on;\n" if allow_write else "")
-        origin_ep = lifecycle.start(NginxInstanceSpec(
-            name=ORIGIN_NAME,
-            template="nginx_lc_cache_partial_origin.conf",
-            protocol="root",
-            data_root=origin_root,
-            template_values={
-                "BIND_HOST": BIND_HOST,
-                "ORIGIN_STORAGE": origin_storage,
-                "ORIGIN_ALLOW_WRITE": origin_allow_write,
-            },
-            reason="cache partial-fill root:// origin"))
-        backend_port = origin_ep.port
-
-        cache_ep = lifecycle.start(NginxInstanceSpec(
-            name=CACHE_NAME,
-            template="nginx_lc_cache_partial_cache.conf",
-            protocol="root",
-            data_root=cache_dir,
-            template_values={
-                "BIND_HOST": BIND_HOST,
-                "CACHE_ALLOW_WRITE": (
-                    "        brix_allow_write on; brix_upload_resume off;\n"
-                    if allow_write else ""),
-                "CACHE_EXPORT": f"        brix_export {export};\n",
-                "CACHE_BACKEND": f"root://{HOST}:{backend_port}",
-                "CACHE_STORE": cache_dir,
-                "CACHE_SLICE_SIZE": _optline("brix_cache_slice_size", slice_size),
-                "CACHE_MAX_OBJECT": _optline("brix_cache_max_object", max_file_size),
-                "CACHE_DENY_PREFIX": _optline("brix_cache_deny_prefix", deny_prefix),
-                "CACHE_INCLUDE_REGEX": _optline("brix_cache_include_regex", include_regex),
-                "CACHE_PREFETCH": prefetch_lines,
-            },
-            reason="cache partial-fill xroot cache node"))
-        node = CacheNode(lifecycle, cache_ep.port, cache_dir, backend, backend_port,
-                         names=[CACHE_NAME, ORIGIN_NAME], origin_name=ORIGIN_NAME)
-        node.backend_data = origin_root
-        node.seed_mode = origin_backend          # posix -> raw; pblock -> xrdcp
-        node.seed_port = backend_port            # seed writes go to the origin
-        return node
-
-    if backend == "http":
-        # A local nginx HTTP static origin (plain file server) behind an http://
-        # storage backend: whole-file fill through the composable sd_cache. The
-        # test seeds files into the origin's doc root and reads them back through
-        # the cache node.
-        doc_root = os.path.join(base, "http-origin")
-        cache_dir = os.path.join(base, "cache")
-        for d in (doc_root, cache_dir):
-            os.makedirs(d, exist_ok=True)
-        origin_ep = lifecycle.start(NginxInstanceSpec(
-            name=ORIGIN_NAME,
-            template="nginx_lc_cache_partial_http_origin.conf",
-            protocol="http",
-            data_root=doc_root,
-            template_values={"BIND_HOST": BIND_HOST},
-            reason="cache partial-fill http:// origin"))
-        backend_port = origin_ep.port
-
-        cache_ep = lifecycle.start(NginxInstanceSpec(
-            name=CACHE_NAME,
-            template="nginx_lc_cache_partial_cache.conf",
-            protocol="root",
-            data_root=cache_dir,
-            template_values={
-                "BIND_HOST": BIND_HOST,
-                "CACHE_ALLOW_WRITE": "",
-                "CACHE_EXPORT": "",
-                "CACHE_BACKEND": f"http://{HOST}:{backend_port}",
-                "CACHE_STORE": cache_dir,
-                "CACHE_SLICE_SIZE": _optline("brix_cache_slice_size", slice_size),
-                "CACHE_MAX_OBJECT": _optline("brix_cache_max_object", max_file_size),
-                "CACHE_DENY_PREFIX": _optline("brix_cache_deny_prefix", deny_prefix),
-                "CACHE_INCLUDE_REGEX": _optline("brix_cache_include_regex", include_regex),
-                "CACHE_PREFETCH": prefetch_lines,
-            },
-            reason="cache partial-fill http cache node"))
-        node = CacheNode(lifecycle, cache_ep.port, cache_dir, backend, backend_port,
-                         names=[CACHE_NAME, ORIGIN_NAME], origin_name=ORIGIN_NAME)
-        node.backend_data = doc_root
-        node.seed_mode = "posix"          # raw file write into the http doc root
-        node.seed_port = None
-        return node
-
-    # ---- composable whole-file path (posix/pblock/root backend) -----------
-    # backend == 'root' fills from a root:// origin through fetch.c (the origin
-    # fetch spine; posix/pblock fill through the local cstore path (max_object
-    # gate).
-    bdir = os.path.join(base, "backend")
-    store = os.path.join(base, "store")
-    for d in (bdir, store):
-        os.makedirs(d, exist_ok=True)
-    drv = {"posix": f"posix:{bdir}", "pblock": f"pblock://{bdir}/"}.get(backend)
-    if drv is None:
-        raise RuntimeError(f"gated backend {backend} must be caller-skipped")
-    cache_ep = lifecycle.start(NginxInstanceSpec(
+def _start_cache(lifecycle, store, backend, values, reason):
+    return lifecycle.start(NginxInstanceSpec(
         name=CACHE_NAME,
         template="nginx_lc_cache_partial_cache.conf",
         protocol="root",
         data_root=store,
-        template_values={
-            "BIND_HOST": BIND_HOST,
-            "CACHE_ALLOW_WRITE": "        brix_allow_write on; brix_upload_resume off;\n",
-            "CACHE_EXPORT": "",
-            "CACHE_BACKEND": drv,
-            "CACHE_STORE": store,
-            "CACHE_SLICE_SIZE": _optline("brix_cache_slice_size", slice_size),
-            "CACHE_MAX_OBJECT": _optline("brix_cache_max_object", max_object),
-            "CACHE_DENY_PREFIX": _optline("brix_cache_deny_prefix", deny_prefix),
-            "CACHE_INCLUDE_REGEX": _optline("brix_cache_include_regex", include_regex),
-            "CACHE_PREFETCH": prefetch_lines,
-        },
-        reason="cache partial-fill local backend cache node"))
+        template_values=values,
+        reason=reason))
+
+
+def _origin_settings(origin_root, origin_backend, allow_write):
+    if origin_backend == "pblock":
+        return (f"brix_storage_backend pblock://{origin_root}/;",
+                "        brix_allow_write on; brix_upload_resume off;\n")
+    write_line = "        brix_allow_write on;\n" if allow_write else ""
+    return f"brix_export {origin_root};", write_line
+
+
+def _make_xroot_node(base, lifecycle, backend, options):
+    origin_root = os.path.join(base, "origin")
+    cache_dir = os.path.join(base, "cache")
+    export = os.path.join(base, "export")
+    for path in (origin_root, cache_dir, export):
+        os.makedirs(path, exist_ok=True)
+    storage, write_line = _origin_settings(
+        origin_root, options["origin_backend"], options["allow_write"])
+    origin_ep = lifecycle.start(NginxInstanceSpec(
+        name=ORIGIN_NAME,
+        template="nginx_lc_cache_partial_origin.conf",
+        protocol="root",
+        data_root=origin_root,
+        template_values={"BIND_HOST": BIND_HOST,
+                         "ORIGIN_STORAGE": storage,
+                         "ORIGIN_ALLOW_WRITE": write_line},
+        reason="cache partial-fill root:// origin"))
+    allow = ("        brix_allow_write on; brix_upload_resume off;\n"
+             if options["allow_write"] else "")
+    values = _cache_values(
+        cache_dir, f"root://{HOST}:{origin_ep.port}", options,
+        allow_write=allow, export=f"        brix_export {export};\n")
+    cache_ep = _start_cache(
+        lifecycle, cache_dir, backend, values,
+        "cache partial-fill xroot cache node")
+    node = CacheNode(lifecycle, cache_ep.port, cache_dir, backend, origin_ep.port,
+                     names=[CACHE_NAME, ORIGIN_NAME], origin_name=ORIGIN_NAME)
+    node.backend_data = origin_root
+    node.seed_mode = options["origin_backend"]
+    node.seed_port = origin_ep.port
+    return node
+
+
+def _make_http_node(base, lifecycle, backend, options):
+    doc_root = os.path.join(base, "http-origin")
+    cache_dir = os.path.join(base, "cache")
+    for path in (doc_root, cache_dir):
+        os.makedirs(path, exist_ok=True)
+    origin_ep = lifecycle.start(NginxInstanceSpec(
+        name=ORIGIN_NAME,
+        template="nginx_lc_cache_partial_http_origin.conf",
+        protocol="http",
+        data_root=doc_root,
+        template_values={"BIND_HOST": BIND_HOST},
+        reason="cache partial-fill http:// origin"))
+    values = _cache_values(
+        cache_dir, f"http://{HOST}:{origin_ep.port}", options)
+    cache_ep = _start_cache(
+        lifecycle, cache_dir, backend, values,
+        "cache partial-fill http cache node")
+    node = CacheNode(lifecycle, cache_ep.port, cache_dir, backend, origin_ep.port,
+                     names=[CACHE_NAME, ORIGIN_NAME], origin_name=ORIGIN_NAME)
+    node.backend_data = doc_root
+    return node
+
+
+def _make_local_node(base, lifecycle, backend, options):
+    backend_dir = os.path.join(base, "backend")
+    store = os.path.join(base, "store")
+    for path in (backend_dir, store):
+        os.makedirs(path, exist_ok=True)
+    driver = {"posix": f"posix:{backend_dir}",
+              "pblock": f"pblock://{backend_dir}/"}.get(backend)
+    if driver is None:
+        raise RuntimeError(f"gated backend {backend} must be caller-skipped")
+    values = _cache_values(
+        store, driver, options,
+        allow_write="        brix_allow_write on; brix_upload_resume off;\n")
+    cache_ep = _start_cache(
+        lifecycle, store, backend, values,
+        "cache partial-fill local backend cache node")
     node = CacheNode(lifecycle, cache_ep.port, store, backend, None,
                      names=[CACHE_NAME], origin_name=None)
-    node.backend_data = bdir
-    node.seed_mode = backend                  # posix -> raw; pblock -> xrdcp
-    node.seed_port = cache_ep.port            # seed writes go through the backend
+    node.backend_data = backend_dir
+    node.seed_mode = backend
+    node.seed_port = cache_ep.port
     return node
+
+
+def make_cache_node(backend, *, tmp, lifecycle, slice_size=None, max_file_size=None,
+                    max_object=None, deny_prefix=None, include_regex=None,
+                    origin_backend="posix", allow_write=False,
+                    prefetch=None, prefetch_window=None):
+    """Start a registry-managed cache node backed by xroot, HTTP, or local IO."""
+    options = {
+        "slice_size": slice_size,
+        "max_size": (max_file_size if backend in {"xroot", "http"}
+                     else max_object),
+        "deny_prefix": deny_prefix,
+        "include_regex": include_regex,
+        "origin_backend": origin_backend,
+        "allow_write": allow_write,
+        "prefetch_lines": (_optline("brix_cache_prefetch", prefetch)
+                           + _optline("brix_cache_prefetch_window", prefetch_window)),
+    }
+    builders = {"xroot": _make_xroot_node, "http": _make_http_node}
+    builder = builders.get(backend, _make_local_node)
+    return builder(str(tmp), lifecycle, backend, options)
 
 
 def stop_node(node):
@@ -373,6 +344,13 @@ def raw_open_frame(port, path):
         s.close()
 
 
+def _parsed_cinfo(output):
+    text = (output or "").strip()
+    if text:
+        return json.loads(text)
+    return {"absent": True}
+
+
 def residency(store_dir, key):
     """Return the parsed xrdcinfo record for the cached object <store_dir>/<key>.
 
@@ -383,18 +361,15 @@ def residency(store_dir, key):
     {'absent': True} only when neither carrier holds a record."""
     cinfo = os.path.join(store_dir, key + ".cinfo")
     p = subprocess.run([XRDCINFO, cinfo], capture_output=True, text=True)
-    out = (p.stdout or "").strip()
-    parsed = json.loads(out) if out else {"absent": True}
+    parsed = _parsed_cinfo(p.stdout)
     if not parsed.get("absent"):
         return parsed
 
     data = os.path.join(store_dir, key)
     px = subprocess.run([XRDCINFO, "--xattr", data], capture_output=True, text=True)
-    xout = (px.stdout or "").strip()
-    if xout:
-        xparsed = json.loads(xout)
-        if not xparsed.get("absent"):
-            return xparsed
+    xparsed = _parsed_cinfo(px.stdout)
+    if not xparsed.get("absent"):
+        return xparsed
     return {"absent": True}
 
 

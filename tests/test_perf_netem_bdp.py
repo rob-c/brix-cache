@@ -36,6 +36,12 @@ from settings import NGINX_BIN
 
 import _perf_netem_helpers as netem
 
+def _check_test_socketbuf_ab_over_synthesized_bdp_1(res):
+    assert res["ratio"] >= 2.0, (
+        f"tuned/baseline={res['ratio']:.2f}x — expected the socket-buffer knob "
+        f"to fill the BDP the autotuned baseline cannot; magnitude regression")
+
+
 pytestmark = [
     pytest.mark.netfault,
     pytest.mark.serial,
@@ -110,15 +116,19 @@ def test_socketbuf_ab_over_synthesized_bdp(tmp_path):
 
     # (1) the link is a genuine BDP pipe — netem is on the wire, not bypassed.
     expected_rtt = 2 * kw["delay_ms"]
-    assert res["rtt_ms"] >= expected_rtt * 0.6, (
-        f"RTT {res['rtt_ms']:.1f}ms << {expected_rtt}ms — netem not applied "
-        f"(local-delivery shortcut?), the BDP is not real")
-    # (2) both legs serve the whole file byte-exact.
-    assert res["baseline"]["bytes"] == res["size"]
-    assert res["tuned"]["bytes"] == res["size"]
-    # (3) the P3-B3 magnitude: the pinned buffer fills the BDP the window-capped
-    # baseline cannot.  Floor is generous vs the ~12x observed.
-    assert base > 0 and tuned > 0
-    assert res["ratio"] >= 2.0, (
-        f"tuned/baseline={res['ratio']:.2f}x — expected the socket-buffer knob "
-        f"to fill the BDP the autotuned baseline cannot; magnitude regression")
+    def _assert_test_socketbuf_ab_over_synthesized_bdp_1():
+        assert res["rtt_ms"] >= expected_rtt * 0.6, (
+            f"RTT {res['rtt_ms']:.1f}ms << {expected_rtt}ms — netem not applied "
+            f"(local-delivery shortcut?), the BDP is not real")
+        # (2) both legs serve the whole file byte-exact.
+        assert res["baseline"]["bytes"] == res["size"]
+
+    _assert_test_socketbuf_ab_over_synthesized_bdp_1()
+    def _assert_test_socketbuf_ab_over_synthesized_bdp_2():
+        assert res["tuned"]["bytes"] == res["size"]
+        # (3) the P3-B3 magnitude: the pinned buffer fills the BDP the window-capped
+        # baseline cannot.  Floor is generous vs the ~12x observed.
+        assert base > 0 and tuned > 0
+
+    _assert_test_socketbuf_ab_over_synthesized_bdp_2()
+    _check_test_socketbuf_ab_over_synthesized_bdp_1(res)

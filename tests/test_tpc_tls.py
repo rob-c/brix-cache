@@ -40,16 +40,9 @@ def _run(cmd, **kw):
 
 @pytest.fixture
 def tls_nginx(lifecycle, tmp_path_factory):
-    if not _have("openssl"):
-        pytest.skip("openssl not installed")
-    if not os.path.exists(XRDCP):
-        pytest.skip("xrdcp not built")
-
+    _require_tls_tools()
     base = tmp_path_factory.mktemp("tpctls")
-    ca, certs, srv, sdata, ddata = (
-        base / d for d in ("ca", "certs", "srv", "srcdata", "dstdata"))
-    for d in (ca, certs, srv, sdata, ddata):
-        d.mkdir(parents=True, exist_ok=True)
+    ca, certs, srv, sdata, ddata = _tls_directories(base)
     fqdn = socket.getfqdn()
 
     def osl(*a):
@@ -100,6 +93,21 @@ def tls_nginx(lifecycle, tmp_path_factory):
             "src_logs": os.path.join(src.prefix, "logs"),
             "dst_logs": os.path.join(dst.prefix, "logs"),
             "env": dict(os.environ, X509_CERT_DIR=str(certs))}
+
+
+def _require_tls_tools():
+    if not _have("openssl"):
+        pytest.skip("openssl not installed")
+    if not os.path.exists(XRDCP):
+        pytest.skip("xrdcp not built")
+
+
+def _tls_directories(base):
+    ca, certs, srv, sdata, ddata = (
+        base / d for d in ("ca", "certs", "srv", "srcdata", "dstdata"))
+    for d in (ca, certs, srv, sdata, ddata):
+        d.mkdir(parents=True, exist_ok=True)
+    return ca, certs, srv, sdata, ddata
 
 
 def test_tpc_pull_over_tls(tls_nginx):

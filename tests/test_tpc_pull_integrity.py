@@ -66,6 +66,24 @@ from settings import HOST, BIND_HOST, NGINX_BIN, XRDCP_BIN, url_host
 from server_launcher import LifecycleHarness
 from server_registry import NginxInstanceSpec
 
+def _guard_pump_down_1(hdr, dst):
+    if hdr:
+        dst.sendall(hdr)
+
+def _guard_node_2():
+    if not os.access(NGINX_BIN, os.X_OK):
+        pytest.skip(f"nginx not executable: {NGINX_BIN}")
+
+def _guard_node_3():
+    if shutil.which(XRDCP_BIN) is None and not os.path.isabs(XRDCP_BIN):
+        pytest.skip("xrdcp not found")
+
+def _guard_node_4(ok, proxy_on, proxy_off, harness):
+    if not ok:
+        proxy_on.stop(); proxy_off.stop(); harness.close()
+        pytest.fail("tpc-harden planes / fault proxies did not come up")
+
+
 pytestmark = [pytest.mark.serial, pytest.mark.timeout(180),
               pytest.mark.uses_lifecycle_harness,
               pytest.mark.xdist_group("lc-tpc-harden")]
@@ -201,8 +219,7 @@ class _KxrPullFaultProxy:
             while not self._stop.is_set():
                 hdr = _recv_exact(src, 8)
                 if len(hdr) < 8:
-                    if hdr:
-                        dst.sendall(hdr)
+                    _guard_pump_down_1(hdr, dst)
                     break
                 streamid = hdr[:2]
                 status = struct.unpack("!H", hdr[2:4])[0]
@@ -285,10 +302,8 @@ def _name(prefix):
 
 @pytest.fixture(scope="module")
 def node(tmp_path_factory):
-    if not os.access(NGINX_BIN, os.X_OK):
-        pytest.skip(f"nginx not executable: {NGINX_BIN}")
-    if shutil.which(XRDCP_BIN) is None and not os.path.isabs(XRDCP_BIN):
-        pytest.skip("xrdcp not found")
+    _guard_node_2()
+    _guard_node_3()
 
     on_root = tmp_path_factory.mktemp("on_root")
     off_root = tmp_path_factory.mktemp("off_root")
@@ -320,9 +335,7 @@ def node(tmp_path_factory):
             ok = True
             break
         time.sleep(0.1)
-    if not ok:
-        proxy_on.stop(); proxy_off.stop(); harness.close()
-        pytest.fail("tpc-harden planes / fault proxies did not come up")
+    _guard_node_4(ok, proxy_on, proxy_off, harness)
 
     yield {"host": url_host(HOST),
            "port_on": port_on, "port_off": port_off,
@@ -408,6 +421,13 @@ def test_knob_on_corruption_refused_no_poison(node):
 
     assert r.returncode != 0, \
         "a body-corrupted pull must fail the checksum gate, not commit as complete"
+    # Pin the REASON, not just the refusal.  A destination handle the server can
+    # write but not read makes the recompute fail EBADF, and "cannot compute" is
+    # also a non-zero exit -- so a returncode-only assertion stayed green for a
+    # whole release while the gate under test never actually compared anything.
+    err = r.stderr.decode(errors="replace")
+    assert "checksum mismatch" in err, \
+        f"the refusal must be the digest comparison, not a broken recompute: {err}"
     dst_path = node["on_root"] / dst_name
     if dst_path.exists():
         assert dst_path.read_bytes() != content, \

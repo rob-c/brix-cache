@@ -29,6 +29,17 @@ import pytest
 from XRootD import client
 from XRootD.client.flags import QueryCode
 
+def _guard_server16m_1():
+    if not os.path.isfile(NGINX_BIN):
+        pytest.skip(f"nginx binary not found: {NGINX_BIN}")
+
+def _guard_server16m_2(up, prefix, proc, port):
+    if not up:
+        proc.terminate()
+        shutil.rmtree(prefix, ignore_errors=True)
+        pytest.fail(f"nginx never came up on :{port}")
+
+
 NGINX_BIN = os.environ.get("RESIL_NGINX_BIN", "/tmp/nginx-1.28.3/objs/nginx")
 
 _CONF = """\
@@ -64,8 +75,7 @@ def _free_port():
 @pytest.fixture(scope="module")
 def server16m():
     """A dedicated anon nginx with brix_readv_segment_size 16m + a 20 MiB file."""
-    if not os.path.isfile(NGINX_BIN):
-        pytest.skip(f"nginx binary not found: {NGINX_BIN}")
+    _guard_server16m_1()
     prefix = tempfile.mkdtemp(prefix="readv_seg_")
     data = os.path.join(prefix, "data")
     logs = os.path.join(prefix, "logs")
@@ -89,10 +99,7 @@ def server16m():
             break
         except OSError:
             time.sleep(0.1)
-    if not up:
-        proc.terminate()
-        shutil.rmtree(prefix, ignore_errors=True)
-        pytest.fail(f"nginx never came up on :{port}")
+    _guard_server16m_2(up, prefix, proc, port)
     try:
         yield {"url": f"root://127.0.0.1:{port}", "payload": payload}
     finally:

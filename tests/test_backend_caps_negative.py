@@ -275,7 +275,10 @@ def test_xattr_target_above_the_export_is_refused(caps, arm):
     else:
         assert not st.ok, "fattr set on a path above the export root succeeded"
 
-    assert not (parent / "caps_escape.bin").exists()
-    assert sorted(p.name for p in parent.iterdir()) == before
+    def _assert_test_xattr_target_above_the_export_is_refused_1():
+        assert not (parent / "caps_escape.bin").exists()
+        assert sorted(p.name for p in parent.iterdir()) == before
+
+    _assert_test_xattr_target_above_the_export_is_refused_1()
     assert not (caps.origin / "caps_escape.bin").exists(), \
         "the escape was forwarded to the backend"

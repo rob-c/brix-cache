@@ -552,49 +552,81 @@ static void pub_teardown(pub_ctx_t *px) {
     free(px->manbuf);
 }
 
+/*
+ * WHAT: Validate publish sizing and open its private workspace and object store.
+ * WHY:  The mutation pipeline should begin only from a fully initialized context.
+ * HOW:  Apply chunk bounds, create the work directory, and enable batched fsync.
+ */
+static int pub_prepare(pub_ctx_t *px, const cvmfs_publish_opts_t *opts,
+                       char *err, size_t errlen) {
+    px->o = opts;
+    px->err = err;
+    px->errlen = errlen;
+    px->chunk_size = opts->chunk_size != 0 ? opts->chunk_size :
+                                             CVMFS_PUBLISH_CHUNK_DEFAULT;
+    if (px->chunk_size < CVMFS_PUBLISH_CHUNK_FLOOR)
+        return pub_fail(px, "chunk size below the 4096-byte floor%s", "");
+    if (px->chunk_size > CVMFS_PUBLISH_CHUNK_CEIL) {
+        char ceiling[32];
+
+        snprintf(ceiling, sizeof(ceiling), "%ld", CVMFS_PUBLISH_CHUNK_CEIL);
+        return pub_fail(px, "chunk size above the %s-byte ceiling "
+                            "(a larger object cannot be read back)", ceiling);
+    }
+    snprintf(px->workdir, sizeof(px->workdir), "%s/.brix.publish.tmp",
+             opts->repo_dir);
+    if (mkdir(px->workdir, 0755) != 0 && errno != EEXIST)
+        return pub_fail(px, "cannot create %s", px->workdir);
+    if (cvmfs_objstore_open(&px->store, opts->repo_dir) != 0)
+        return pub_fail(px, "cannot open object store under %s", opts->repo_dir);
+    px->store.cas.no_fsync = 1;
+    return 0;
+}
+
+/*
+ * WHAT: Execute the ordered catalog mutation and publication pipeline.
+ * WHY:  Each phase depends on the authenticated output of every preceding phase.
+ * HOW:  Stop on first failure, sync named objects, then atomically swap manifest.
+ */
+static int pub_run_pipeline(pub_ctx_t *px, const cvmfs_changeset_t *changeset,
+                            pub_dirtab_t *dirtab, long *revision) {
+    char         old_root_hex[64];
+    cvmfs_hash_t root_hash;
+    size_t       root_size = 0;
+    int          rc = pub_load_and_verify(px);
+
+    if (rc != 0)
+        return rc;
+    *revision = px->man.revision + 1;
+    cvmfs_hash_to_hex(&px->man.root_catalog, 0, old_root_hex,
+                      sizeof(old_root_hex));
+    if (pub_cat_materialize(px, "", &px->man.root_catalog) == NULL)
+        return -1;
+    if (pub_dirtab_load(px, px->o->dirtab, dirtab) != 0 ||
+        pub_dirtab_markers(px, dirtab, changeset) != 0 ||
+        pub_dirtab_apply(px, dirtab) != 0 ||
+        pub_apply(px, changeset, dirtab) != 0 ||
+        pub_finalize(px, *revision, old_root_hex, &root_hash, &root_size) != 0 ||
+        pub_sync_store(px) != 0)
+        return -1;
+    return pub_swap_manifest(px, &root_hash, root_size, *revision);
+}
+
 int cvmfs_publish_run(const cvmfs_publish_opts_t *o, const cvmfs_changeset_t *cs,
                       long *new_revision, char *err, size_t errlen) {
     pub_ctx_t px;
-    memset(&px, 0, sizeof(px));
-    px.o = o;
-    px.err = err;
-    px.errlen = errlen;
-    px.chunk_size = o->chunk_size != 0 ? o->chunk_size : CVMFS_PUBLISH_CHUNK_DEFAULT;
-    if (px.chunk_size < CVMFS_PUBLISH_CHUNK_FLOOR)
-        return pub_fail(&px, "chunk size below the 4096-byte floor%s", "");
-    if (px.chunk_size > CVMFS_PUBLISH_CHUNK_CEIL) {
-        char ceiling[32];
-        snprintf(ceiling, sizeof(ceiling), "%ld", CVMFS_PUBLISH_CHUNK_CEIL);
-        return pub_fail(&px, "chunk size above the %s-byte ceiling "
-                             "(a larger object cannot be read back)", ceiling);
-    }
-    snprintf(px.workdir, sizeof(px.workdir), "%s/.brix.publish.tmp", o->repo_dir);
-    if (mkdir(px.workdir, 0755) != 0 && errno != EEXIST)
-        return pub_fail(&px, "cannot create %s", px.workdir);
-    if (cvmfs_objstore_open(&px.store, o->repo_dir) != 0)
-        return pub_fail(&px, "cannot open object store under %s", o->repo_dir);
-    px.store.cas.no_fsync = 1;          /* pub_sync_store barriers pre-swap */
-
     pub_dirtab_t dt;
-    memset(&dt, 0, sizeof(dt));
     long new_rev = 0;
-    char old_root_hex[64];
-    cvmfs_hash_t root_hash;
-    size_t root_size = 0;
-    int rc = pub_load_and_verify(&px);
-    if (rc == 0) {
-        new_rev = px.man.revision + 1;
-        cvmfs_hash_to_hex(&px.man.root_catalog, 0, old_root_hex, sizeof(old_root_hex));
-        rc = pub_cat_materialize(&px, "", &px.man.root_catalog) != NULL ? 0 : -1;
-    }
-    if (rc == 0) rc = pub_dirtab_load(&px, o->dirtab, &dt);
-    if (rc == 0) rc = pub_dirtab_markers(&px, &dt, cs);
-    if (rc == 0) rc = pub_dirtab_apply(&px, &dt);
-    if (rc == 0) rc = pub_apply(&px, cs, &dt);
-    if (rc == 0) rc = pub_finalize(&px, new_rev, old_root_hex, &root_hash, &root_size);
-    if (rc == 0) rc = pub_sync_store(&px);
-    if (rc == 0) rc = pub_swap_manifest(&px, &root_hash, root_size, new_rev);
-    if (rc == 0 && new_revision != NULL) *new_revision = new_rev;
+    int rc;
+
+    memset(&px, 0, sizeof(px));
+    memset(&dt, 0, sizeof(dt));
+    rc = pub_prepare(&px, o, err, errlen);
+    if (rc != 0)
+        return rc;
+    rc = pub_run_pipeline(&px, cs, &dt, &new_rev);
+    if (rc == 0 && new_revision != NULL)
+        *new_revision = new_rev;
     pub_dirtab_free(&dt);
     pub_teardown(&px);
     return rc;

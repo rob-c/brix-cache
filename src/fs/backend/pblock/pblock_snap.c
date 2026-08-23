@@ -61,6 +61,20 @@ pblock_snap_init(pblock_state_t *st)
         "  PRIMARY KEY(snap, path, name));");
 }
 
+/*
+ * WHAT: Classify a byte permitted in a persistent pblock snapshot name.
+ * WHY:  Name length/reserved-value policy should be separate from its alphabet.
+ * HOW:  Accept ASCII alphanumeric bytes plus underscore, dot, and hyphen.
+ */
+static int
+pblock_snap_name_char(char value)
+{
+    return (value >= 'A' && value <= 'Z') ||
+           (value >= 'a' && value <= 'z') ||
+           (value >= '0' && value <= '9') ||
+           value == '_' || value == '.' || value == '-';
+}
+
 int
 pblock_snap_valid_name(const char *name)
 {
@@ -75,8 +89,7 @@ pblock_snap_valid_name(const char *name)
         if (n >= 64) {
             return 0;
         }
-        if (!((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z')
-              || (c >= '0' && c <= '9') || c == '_' || c == '.' || c == '-')) {
+        if (!pblock_snap_name_char(c)) {
             return 0;
         }
     }

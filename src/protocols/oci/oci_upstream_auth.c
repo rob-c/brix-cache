@@ -77,7 +77,10 @@ oci_token_cache_key(const brix_oci_upstream_t *up, const char *scope,
         return -1;
     }
     for (i = 0; i < 32; i++) {
-        unsigned hi = d.hex[i * 2], lo = d.hex[i * 2 + 1];
+        /* d.hex is plain `char`, which is signed on x86: promote through
+         * unsigned char so the arithmetic below cannot see a negative. */
+        unsigned hi = (unsigned char) d.hex[i * 2];
+        unsigned lo = (unsigned char) d.hex[i * 2 + 1];
 
         hi = (hi <= '9') ? hi - '0' : hi - 'a' + 10;
         lo = (lo <= '9') ? lo - '0' : lo - 'a' + 10;
@@ -357,9 +360,10 @@ oci_token_leg_init(brix_oci_upstream_t *up, const brix_oci_challenge_t *ch,
 
 
 /* Walk the token endpoint's redirects to the first non-3xx answer. The HTTP
- * status, or -1 when a leg failed or a redirect tried to leave the upstream's
+ * status, or -1 when a leg failed, a redirect tried to leave the upstream's
  * trust boundary — a token minted off-boundary is a credential handed to a
- * host the operator never named. */
+ * host the operator never named — or the chain never terminated within
+ * OCI_TOKEN_MAX_HOPS. */
 static int
 oci_token_run(brix_oci_upstream_t *up, oci_token_leg_t *leg,
     char *body, size_t bodysz, size_t *body_len)
@@ -382,7 +386,14 @@ oci_token_run(brix_oci_upstream_t *up, oci_token_leg_t *leg,
         }
     }
 
-    return status;
+    /* Ran out of hops with a 3xx still on the wire. Returning the last status
+     * would hand the caller a redirect as though it were the token endpoint's
+     * answer; an unterminated chain is a failure, and the only status the
+     * contract above admits for one is -1. */
+    ngx_log_error(NGX_LOG_ERR, up->log, 0,
+        "oci: token redirect chain exceeded %d hops for upstream=%s "
+        "signal=oci_token_redirect_loop", OCI_TOKEN_MAX_HOPS, up->host);
+    return -1;
 }
 
 

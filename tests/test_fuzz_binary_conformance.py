@@ -45,6 +45,25 @@ from settings import (
 )
 
 # Cleartext XRootD stream listeners (all begin with the same 20-byte handshake).
+def _step_require_and_verify_1(sock):
+    try:
+        sock.sendall(HANDSHAKE)
+        reply = _drain(sock, limit=16)
+    finally:
+        sock.close()
+    return reply
+
+
+def _expression_1():
+    return (
+        [p for _, p in XRD_ENDPOINTS + TLS_ENDPOINTS]
+    )
+
+
+def _check_require_and_verify_1(reply, name, port):
+    assert len(reply) >= 8, f"{name}:{port} did not survive the fuzz corpus"
+
+
 XRD_ENDPOINTS = [
     ("anon", NGINX_ANON_PORT),
     ("token", NGINX_TOKEN_PORT),
@@ -160,29 +179,32 @@ def _tls_exchange(port: int, raw: bytes):
 # ---------------------------------------------------------------------------
 
 
-@pytest.fixture(scope="module", autouse=True)
-def _require_and_verify():
-    ports = [p for _, p in XRD_ENDPOINTS + TLS_ENDPOINTS]
-    if not any(_endpoint_up(p) for p in ports):
-        pytest.skip("no binary/TLS fleet listener reachable")
-    yield
-    # Teardown: a stream port must still complete a handshake after the corpus.
+def _verify_xrd_endpoints():
     for name, port in XRD_ENDPOINTS:
         if not _endpoint_up(port):
             continue
         sock = socket.create_connection((SERVER_HOST, port), timeout=_CONNECT_TIMEOUT)
         sock.settimeout(_READ_TIMEOUT)
-        try:
-            sock.sendall(HANDSHAKE)
-            reply = _drain(sock, limit=16)
-        finally:
-            sock.close()
-        assert len(reply) >= 8, f"{name}:{port} did not survive the fuzz corpus"
-    for name, port in TLS_ENDPOINTS:
-        if not _endpoint_up(port):
-            continue
-        socket.create_connection((SERVER_HOST, port),
-                                 timeout=_CONNECT_TIMEOUT).close()
+        reply = _step_require_and_verify_1(sock)
+        _check_require_and_verify_1(reply, name, port)
+
+
+def _verify_tls_endpoints():
+    for _name, port in TLS_ENDPOINTS:
+        if _endpoint_up(port):
+            socket.create_connection(
+                (SERVER_HOST, port), timeout=_CONNECT_TIMEOUT).close()
+
+
+@pytest.fixture(scope="module", autouse=True)
+def _require_and_verify():
+    ports = _expression_1()
+    if not any(_endpoint_up(p) for p in ports):
+        pytest.skip("no binary/TLS fleet listener reachable")
+    yield
+    # Teardown: a stream port must still complete a handshake after the corpus.
+    _verify_xrd_endpoints()
+    _verify_tls_endpoints()
 
 
 # ---------------------------------------------------------------------------

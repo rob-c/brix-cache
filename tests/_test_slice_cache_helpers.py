@@ -28,6 +28,18 @@ from cmdscripts import c_object_units
 from server_registry import NginxInstanceSpec
 from settings import HOST, NGINX_BIN
 
+def _expression_1(body):
+    return (
+        struct.unpack("!I", body[:4])[0] if len(body) >= 4 else 1
+    )
+
+
+def _guard_cached_1(on_disk, obj, bs, wholes, fields, slices):
+    if not (fields["flags"] & _CINFO_F_COMPLETE) \
+       and on_disk > sum(slices.values()) + bs:
+        wholes.append(obj)
+
+
 pytestmark = [pytest.mark.uses_lifecycle_harness,
               pytest.mark.xdist_group("lc-slice-cache")]
 
@@ -92,7 +104,7 @@ def _read(sock, fhandle, offset, length, deadline=30.0):
                                  offset, length, 0))
         status, body = _resp(sock)
         if status == _kXR_wait:
-            secs = struct.unpack("!I", body[:4])[0] if len(body) >= 4 else 1
+            secs = _expression_1(body)
             time.sleep(min(max(secs, 0.2), 1.0))
             continue
         if status in (_kXR_ok, _kXR_oksofar):
@@ -179,9 +191,7 @@ def _cached(xc, name):
             slices[idx] = min(bs, fields["size"] - idx * bs)
         # Sparse invariant: a PARTIAL object must hold ~ only its present slices on
         # disk, never the whole apparent file. Allow one slice of slack.
-        if not (fields["flags"] & _CINFO_F_COMPLETE) \
-           and on_disk > sum(slices.values()) + bs:
-            wholes.append(obj)
+        _guard_cached_1(on_disk, obj, bs, wholes, fields, slices)
     return slices, wholes, metas
 
 

@@ -28,6 +28,16 @@ from cmdscripts import fake_exec
 
 
 # A minted keytab entry: `<off> u:<user> g:<group> N:<id> k:<64 hex> n:<name>`.
+def _check_test_gen_sss_keytab_emits_the_nginx_sss_format_1(lines):
+    assert lines, "keytab is empty"
+
+def _check_test_gen_sss_keytab_emits_the_nginx_sss_format_3(lines):
+    assert "u:cmsnode" in lines[0] and "g:cms" in lines[0]
+
+def _check_test_gen_sss_keytab_emits_the_nginx_sss_format_2(ln):
+    assert _KEYTAB_LINE.match(ln), f"unexpected keytab line: {ln!r}"
+
+
 _KEYTAB_LINE = re.compile(
     r"^\d+\s+u:\S+\s+g:\S+\s+N:\d+\s+k:[0-9a-f]{64}\s+n:\S+\s*$"
 )
@@ -56,15 +66,18 @@ def test_gen_sss_keytab_emits_the_nginx_sss_format(tmp_path):
         pytest.skip("xrdsssadmin-brix unavailable/unbuildable on this box")
 
     kt = lib.gen_sss_keytab(str(tmp_path / "cfg" / "cms.keytab"))
-    assert kt is not None and os.path.exists(kt), "keytab was not minted"
-    assert (os.stat(kt).st_mode & 0o777) == 0o600, "keytab must be private (0600)"
+    def _assert_test_gen_sss_keytab_emits_the_nginx_sss_format_1():
+        assert kt is not None and os.path.exists(kt), "keytab was not minted"
+        assert (os.stat(kt).st_mode & 0o777) == 0o600, "keytab must be private (0600)"
+
+    _assert_test_gen_sss_keytab_emits_the_nginx_sss_format_1()
 
     lines = [ln for ln in open(kt).read().splitlines() if ln.strip()]
-    assert lines, "keytab is empty"
+    _check_test_gen_sss_keytab_emits_the_nginx_sss_format_1(lines)
     for ln in lines:
-        assert _KEYTAB_LINE.match(ln), f"unexpected keytab line: {ln!r}"
+        _check_test_gen_sss_keytab_emits_the_nginx_sss_format_2(ln)
     # The mesh mints the cms node identity — assert the fields we asked for.
-    assert "u:cmsnode" in lines[0] and "g:cms" in lines[0]
+    _check_test_gen_sss_keytab_emits_the_nginx_sss_format_3(lines)
 
 
 def test_gen_sss_keytab_returns_existing_without_reminting(tmp_path):

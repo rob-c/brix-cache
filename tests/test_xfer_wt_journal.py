@@ -53,27 +53,50 @@ def _cstr(b):
     return b.split(b"\x00", 1)[0].decode("utf-8", "replace")
 
 
-def _scan_flush_record(journal_dir, name):
-    """Return the unpacked brix_sreq_t tuple for the first kind=FLUSH .req record
-    whose src/dst key contains `name`, or None."""
+def _request_paths(journal_dir):
     try:
         entries = os.listdir(journal_dir)
     except OSError:
+        return []
+    return [os.path.join(journal_dir, name) for name in entries
+            if name.endswith(".req")]
+
+
+def _read_request(path):
+    try:
+        data = open(path, "rb").read()
+    except OSError:
         return None
-    for fn in entries:
-        if not fn.endswith(".req"):
-            continue
-        try:
-            data = open(os.path.join(journal_dir, fn), "rb").read()
-        except OSError:
-            continue
-        if len(data) < struct.calcsize(SREQ_FMT):
-            continue
-        rec = struct.unpack_from(SREQ_FMT, data, 0)
-        if rec[F_KIND] != BRIX_STAGE_FLUSH:
-            continue
-        if name in _cstr(rec[F_DST_KEY]) or name in _cstr(rec[F_SRC_KEY]):
-            return rec
+    if len(data) < struct.calcsize(SREQ_FMT):
+        return None
+    return struct.unpack_from(SREQ_FMT, data, 0)
+
+
+def _is_named_flush(record, name):
+    if record[F_KIND] != BRIX_STAGE_FLUSH:
+        return False
+    if name in _cstr(record[F_DST_KEY]):
+        return True
+    return name in _cstr(record[F_SRC_KEY])
+
+
+def _scan_flush_record(journal_dir, name):
+    """Return the unpacked brix_sreq_t tuple for the first kind=FLUSH .req record
+    whose src/dst key contains `name`, or None."""
+    for path in _request_paths(journal_dir):
+        record = _read_request(path)
+        if record is not None and _is_named_flush(record, name):
+            return record
+    return None
+
+
+def _wait_for_failed_record(journal_dir, name):
+    deadline = time.time() + 15
+    while time.time() < deadline:
+        record = _scan_flush_record(journal_dir, name)
+        if record is not None and record[F_STATE] == BRIX_SREQ_FAILED:
+            return record
+        time.sleep(0.3)
     return None
 
 
@@ -126,13 +149,7 @@ def test_failed_async_flush_leaves_journal_record(wtj_server, tmp_path):
 
     # The background flush to the dead origin fails; the engine marks the durable
     # record FAILED (state, not just left QUEUED). Poll for it.
-    rec = None
-    deadline = time.time() + 15
-    while time.time() < deadline:
-        rec = _scan_flush_record(wtj_server.journal, name)
-        if rec is not None and rec[F_STATE] == BRIX_SREQ_FAILED:
-            break
-        time.sleep(0.3)
+    rec = _wait_for_failed_record(wtj_server.journal, name)
 
     assert rec is not None, "no kind=FLUSH journal record for the async flush"
     assert rec[F_STATE] == BRIX_SREQ_FAILED, \

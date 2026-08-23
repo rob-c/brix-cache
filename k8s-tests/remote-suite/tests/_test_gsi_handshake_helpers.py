@@ -397,8 +397,11 @@ def pki(tmp_path_factory):
     expired_proxy = _make_expired_eec(ca_key, ca_pem, "Test User", base)
 
     # Required for the negative tests — these must exist, not be skipped over.
-    assert untrusted_proxy, "could not mint the untrusted-CA proxy"
-    assert expired_proxy, "could not build the expired credential (openssl ca)"
+    def _assert_pki_1():
+        assert untrusted_proxy, "could not mint the untrusted-CA proxy"
+        assert expired_proxy, "could not build the expired credential (openssl ca)"
+
+    _assert_pki_1()
 
     with open(os.path.join(data, "hello.txt"), "w") as f:
         f.write("hello-gsi-handshake\n")

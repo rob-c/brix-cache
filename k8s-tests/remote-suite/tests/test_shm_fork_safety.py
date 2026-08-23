@@ -47,6 +47,7 @@ import time
 
 import pytest
 
+from _shm_fork_safety_config import comprehensive_conf, minimal_conf
 from settings import NGINX_BIN, REMOTE_SERVER, HOST, BIND_HOST
 
 # How hard to hammer the reaper: each round drives traffic, then SIGKILLs one
@@ -124,138 +125,6 @@ def _alive(pid):
 
 
 # ---------------------------------------------------------------------------
-# config generation
-# ---------------------------------------------------------------------------
-
-def _common_head(prefix):
-    """Top-level directives shared by both config tiers."""
-    return (
-        "worker_processes %d;\n"
-        "daemon on;\n"
-        "master_process on;\n"
-        "pid %s/logs/nginx.pid;\n"
-        "error_log %s/logs/error.log info;\n"
-        "events { worker_connections 256; }\n"
-    ) % (WORKERS, prefix, prefix)
-
-
-def _comprehensive_conf(prefix, datadir, frmdir, root_port, mgr_port, http_port):
-    """A config that registers EVERY custom SHM zone in one master.
-
-    stream postconfig unconditionally registers sessions, handles, srv-registry,
-    pending, tpc-keys, tpc-transfers, metrics and the 3 dashboard zones; the
-    extra directives add the gated zones: redir_cache (collapse_redir),
-    frm_index (frm), ratelimit, kv, and proxy_pool (dynamic webdav proxy).
-    """
-    return _common_head(prefix) + """
-stream {
-    access_log off;
-
-    # gated zones declared at stream-main scope
-    brix_kv_zone tcache 1m key=64 val=512;
-    brix_rate_limit_zone zone=rlz:10m;
-
-    # plain local origin: registers the unconditional stream zones + frm_index
-    server {
-        listen __H__:__ROOT__;
-        brix_root on;
-        brix_storage_backend posix:__DATA__;
-        brix_auth none;
-        brix_allow_write on;
-        brix_session_slots 64;
-        brix_registry_slots 64;
-        brix_tpc_allow_local on;
-        brix_tpc_key_ttl 60s;
-        brix_prepare_command /bin/true;
-        brix_frm on;
-        brix_frm_queue_path __FRM__/queue;
-        brix_frm_max_inflight 8;
-        brix_frm_stagecmd /bin/true;
-        brix_rate_limit_rule zone=rlz key=ip rate=10000r/s burst=20000;
-    }
-
-    # manager/redirector role: registers the redir-collapse cache zone
-    server {
-        listen __H__:__MGR__;
-        brix_root on;
-        brix_auth none;
-        brix_manager_mode on;
-        brix_collapse_redir on;
-        brix_collapse_redir_ttl 5s;
-        brix_redir_cache_slots 64;
-    }
-}
-
-http {
-    access_log off;
-    client_body_temp_path __PREFIX__/logs/cbt;
-    proxy_temp_path __PREFIX__/logs/pt;
-    fastcgi_temp_path __PREFIX__/logs/ft;
-    uwsgi_temp_path __PREFIX__/logs/ut;
-    scgi_temp_path __PREFIX__/logs/st;
-
-    server {
-        listen __H__:__HTTP__;
-
-        location = /metrics { brix_metrics on; }
-
-        location /dav/ {
-            brix_webdav on;
-            brix_storage_backend posix:__DATA__;
-            brix_webdav_auth none;
-            brix_allow_write on;
-        }
-
-        location /s3/ {
-            brix_s3 on;
-            brix_storage_backend posix:__DATA__;
-            brix_s3_region us-east-1;
-            brix_s3_access_key testkey;
-            brix_s3_secret_key testsecret;
-        }
-
-        location /proxy/ {
-            brix_webdav_proxy on;
-            brix_webdav_proxy_dynamic on;
-            brix_admin_allow 127.0.0.1/32 ::1/128;
-        }
-    }
-}
-""".replace("__H__", BIND_HOST).replace("__ROOT__", str(root_port)) \
-   .replace("__MGR__", str(mgr_port)).replace("__HTTP__", str(http_port)) \
-   .replace("__DATA__", datadir).replace("__FRM__", frmdir) \
-   .replace("__PREFIX__", prefix)
-
-
-def _minimal_conf(prefix, datadir, root_port, http_port):
-    """Fallback: one stream origin + http /metrics. Still registers the ~10
-    unconditional stream zones — including every zone that carried the original
-    clobber bug (sessions, handles, srv-registry, pending, tpc-keys,
-    tpc-transfers, metrics, dashboard x3)."""
-    return _common_head(prefix) + """
-stream {
-    access_log off;
-    server {
-        listen __H__:__ROOT__;
-        brix_root on;
-        brix_storage_backend posix:__DATA__;
-        brix_auth none;
-        brix_allow_write on;
-    }
-}
-
-http {
-    access_log off;
-    server {
-        listen __H__:__HTTP__;
-        location = /metrics { brix_metrics on; }
-    }
-}
-""".replace("__H__", BIND_HOST).replace("__ROOT__", str(root_port)) \
-   .replace("__HTTP__", str(http_port)).replace("__DATA__", datadir)
-
-
-# ---------------------------------------------------------------------------
 # nginx lifecycle
 # ---------------------------------------------------------------------------
 
@@ -299,8 +168,7 @@ class _Server:
             return ""
 
 
-@pytest.fixture(scope="module")
-def server():
+def _check_prerequisites():
     if REMOTE_SERVER:
         pytest.skip("self-contained test; not applicable in REMOTE mode")
     if not os.path.exists(NGINX_BIN):
@@ -308,82 +176,107 @@ def server():
     if shutil.which("pgrep") is None:
         pytest.skip("pgrep required to enumerate worker pids")
 
+
+def _prepare_prefix():
     prefix = tempfile.mkdtemp(prefix="shmfork-")
     datadir = os.path.join(prefix, "data")
     frmdir = os.path.join(prefix, "frm")
     for d in (os.path.join(prefix, "logs"), datadir, frmdir):
         os.makedirs(d, exist_ok=True)
-    # seed a readable probe file so GET/cat succeed
     with open(os.path.join(datadir, "probe.bin"), "wb") as f:
         f.write(b"shm-fork-safety probe payload\n" * 64)
+    return prefix, datadir, frmdir
 
-    root_port, mgr_port, http_port = _free_ports(3)
-    # refuse to clobber a foreign listener
-    for p in (root_port, mgr_port, http_port):
-        if _tcp_reachable(p):
+
+def _require_unused_ports(prefix, ports):
+    for port in ports:
+        if _tcp_reachable(port):
             shutil.rmtree(prefix, ignore_errors=True)
-            pytest.skip("port %d already in use by a foreign process" % p)
+            pytest.skip("port %d already in use by a foreign process" % port)
 
-    conf_path = os.path.join(prefix, "nginx.conf")
-    pidfile = os.path.join(prefix, "logs", "nginx.pid")
 
-    # Prefer the comprehensive (all-zone) config; fall back to minimal if the
-    # build rejects an optional directive — the core invariant still holds.
-    tier = None
-    comp = _comprehensive_conf(prefix, datadir, frmdir, root_port, mgr_port, http_port)
-    with open(conf_path, "w") as f:
-        f.write(comp)
-    chk = _validate(conf_path, prefix)
-    if chk.returncode == 0:
-        tier = "comprehensive"
-    else:
-        mini = _minimal_conf(prefix, datadir, root_port, http_port)
+def _select_config(prefix, datadir, frmdir, ports, conf_path):
+    root_port, mgr_port, http_port = ports
+    candidates = (
+        ("comprehensive", comprehensive_conf(
+            prefix, datadir, frmdir, root_port, mgr_port, http_port)),
+        ("minimal", minimal_conf(prefix, datadir, root_port, http_port)),
+    )
+    last_check = None
+    for tier, contents in candidates:
         with open(conf_path, "w") as f:
-            f.write(mini)
-        chk = _validate(conf_path, prefix)
-        if chk.returncode == 0:
-            tier = "minimal"
-        else:
-            tail = (chk.stderr or chk.stdout).strip()[-400:]
-            shutil.rmtree(prefix, ignore_errors=True)
-            pytest.skip("nginx rejected both config tiers: %s" % tail)
+            f.write(contents)
+        last_check = _validate(conf_path, prefix)
+        if last_check.returncode == 0:
+            return tier
+    tail = (last_check.stderr or last_check.stdout).strip()[-400:]
+    shutil.rmtree(prefix, ignore_errors=True)
+    pytest.skip("nginx rejected both config tiers: %s" % tail)
 
+
+def _launch_checked(prefix, conf_path, tier):
     run = _launch(conf_path, prefix)
     if run.returncode != 0:
         tail = (run.stderr or run.stdout).strip()[-400:]
         shutil.rmtree(prefix, ignore_errors=True)
         pytest.skip("nginx failed to start (%s tier): %s" % (tier, tail))
 
-    if not _wait_port(http_port) or not _wait_port(root_port):
-        srv = _Server(prefix, conf_path, pidfile,
-                      (root_port, mgr_port, http_port), tier, datadir)
-        log = srv.error_log()[-400:]
-        _stop(conf_path, prefix)
-        shutil.rmtree(prefix, ignore_errors=True)
-        pytest.skip("server did not become ready (%s tier): %s" % (tier, log))
 
-    srv = _Server(prefix, conf_path, pidfile,
-                  (root_port, mgr_port, http_port), tier, datadir)
-    srv.master = _master_pid(pidfile)
+def _require_ready(srv):
+    ready = _wait_port(srv.http_port) and _wait_port(srv.root_port)
+    if not ready:
+        log = srv.error_log()[-400:]
+        _stop(srv.conf, srv.prefix)
+        shutil.rmtree(srv.prefix, ignore_errors=True)
+        pytest.skip("server did not become ready (%s tier): %s"
+                    % (srv.tier, log))
+    srv.master = _master_pid(srv.pidfile)
     if srv.master is None or not _alive(srv.master):
-        _stop(conf_path, prefix)
-        shutil.rmtree(prefix, ignore_errors=True)
+        _stop(srv.conf, srv.prefix)
+        shutil.rmtree(srv.prefix, ignore_errors=True)
         pytest.skip("master pid never appeared")
 
+
+def _create_server():
+    _check_prerequisites()
+    prefix, datadir, frmdir = _prepare_prefix()
+    ports = tuple(_free_ports(3))
+    _require_unused_ports(prefix, ports)
+    conf_path = os.path.join(prefix, "nginx.conf")
+    pidfile = os.path.join(prefix, "logs", "nginx.pid")
+    tier = _select_config(prefix, datadir, frmdir, ports, conf_path)
+    _launch_checked(prefix, conf_path, tier)
+    srv = _Server(prefix, conf_path, pidfile, ports, tier, datadir)
+    _require_ready(srv)
+    root_port, mgr_port, http_port = ports
     print("\n[shm-fork-safety] tier=%s master=%d root=%d mgr=%d http=%d"
           % (tier, srv.master, root_port, mgr_port, http_port))
+    return srv
 
+
+def _kill_remaining_master(srv):
+    if not srv.master or not _alive(srv.master):
+        return
+    try:
+        os.kill(srv.master, signal.SIGKILL)
+    except OSError:
+        pass
+
+
+def _cleanup_server(srv):
+    _stop(srv.conf, srv.prefix)
+    time.sleep(0.3)
+    _kill_remaining_master(srv)
+    shutil.rmtree(srv.prefix, ignore_errors=True)
+
+
+@pytest.fixture(scope="module")
+def server():
+    srv = _create_server()
     try:
         yield srv
     finally:
-        _stop(conf_path, prefix)
-        time.sleep(0.3)
-        if srv.master and _alive(srv.master):
-            try:
-                os.kill(srv.master, signal.SIGKILL)
-            except OSError:
-                pass
-        shutil.rmtree(prefix, ignore_errors=True)
+        _cleanup_server(srv)
 
 
 # ---------------------------------------------------------------------------
@@ -464,6 +357,66 @@ def test_protocols_serve_after_zone_init(server):
         assert pat not in log, "crash signature %r in error log after traffic" % pat
 
 
+def _wait_for_reap(master, victim):
+    deadline = time.time() + 5.0
+    while time.time() < deadline:
+        if not _alive(master):
+            return False
+        if victim not in _worker_pids(master):
+            return True
+        time.sleep(0.05)
+    return False
+
+
+def _require_master_survived(server, master, rnd, reaped):
+    assert _alive(master), (
+        "round %d: master SIGSEGV'd reaping a worker — an SHM zone clobbered "
+        "its slab header (regression of the fork/SHM bug). Log tail:\n%s"
+        % (rnd, server.error_log()[-800:]))
+    assert reaped, "round %d: master did not reap the killed worker" % rnd
+
+
+def _require_serving(server, rnd):
+    st, _ = _http("GET", "http://%s:%d/metrics" % (HOST, server.http_port))
+    assert st == 200, "round %d: server stopped serving after a worker kill" % rnd
+
+
+def _wait_for_worker(master):
+    deadline = time.time() + 5.0
+    while time.time() < deadline:
+        if _worker_pids(master):
+            return True
+        time.sleep(0.05)
+    return False
+
+
+def _run_kill_round(server, master, rnd):
+    _drive_protocols(server)
+    workers = _worker_pids(master)
+    assert workers, "round %d: master has no workers to kill" % rnd
+    victim = workers[0]
+    os.kill(victim, signal.SIGKILL)
+    _require_master_survived(server, master, rnd,
+                             _wait_for_reap(master, victim))
+    _require_serving(server, rnd)
+    assert _wait_for_worker(master), (
+        "round %d: master did not respawn a worker" % rnd)
+
+
+def _require_final_health(server, master):
+    assert _alive(master), "master not alive after all kill rounds"
+    st, _ = _http("GET", "http://%s:%d/metrics" % (HOST, server.http_port))
+    assert st == 200, "server not serving after %d kill rounds" % KILL_ROUNDS
+
+
+def _require_no_crash_signatures(server):
+    log = server.error_log()
+    for pat in CRASH_PATTERNS:
+        assert pat not in log, (
+            "crash signature %r in error log — a worker or master crashed on a "
+            "clobbered slab header. Log tail:\n%s" % (pat, log[-800:]))
+
+
 def test_master_survives_worker_sigkill(server):
     """THE regression: SIGKILL workers across several rounds (with live traffic
     through every protocol in between) so the master runs ngx_unlock_mutexes
@@ -474,50 +427,6 @@ def test_master_survives_worker_sigkill(server):
     assert _alive(master), "master not alive at test start"
 
     for rnd in range(KILL_ROUNDS):
-        _drive_protocols(server)  # vary which zones hold live entries
-
-        workers = _worker_pids(master)
-        assert workers, "round %d: master has no workers to kill" % rnd
-        victim = workers[0]
-
-        os.kill(victim, signal.SIGKILL)  # hard kill -> master reaps -> walk
-
-        # master must remain alive through the reap (the crash point)
-        deadline = time.time() + 5.0
-        survived = False
-        while time.time() < deadline:
-            if _alive(master) and victim not in _worker_pids(master):
-                survived = True
-                break
-            if not _alive(master):
-                break
-            time.sleep(0.05)
-        assert _alive(master), (
-            "round %d: master SIGSEGV'd reaping a worker — an SHM zone clobbered "
-            "its slab header (regression of the fork/SHM bug). Log tail:\n%s"
-            % (rnd, server.error_log()[-800:]))
-        assert survived, "round %d: master did not reap the killed worker" % rnd
-
-        # surviving worker(s) keep serving immediately, before respawn settles
-        st, _ = _http("GET", "http://%s:%d/metrics" % (HOST, server.http_port))
-        assert st == 200, "round %d: server stopped serving after a worker kill" % rnd
-
-        # master restores its worker count
-        deadline = time.time() + 5.0
-        while time.time() < deadline:
-            if len(_worker_pids(master)) >= 1:
-                break
-            time.sleep(0.05)
-        assert len(_worker_pids(master)) >= 1, (
-            "round %d: master did not respawn a worker" % rnd)
-
-    # final: still the same master, still serving, no crash signatures logged
-    assert _alive(master), "master not alive after all kill rounds"
-    st, _ = _http("GET", "http://%s:%d/metrics" % (HOST, server.http_port))
-    assert st == 200, "server not serving after %d kill rounds" % KILL_ROUNDS
-
-    log = server.error_log()
-    for pat in CRASH_PATTERNS:
-        assert pat not in log, (
-            "crash signature %r in error log — a worker or master crashed on a "
-            "clobbered slab header. Log tail:\n%s" % (pat, log[-800:]))
+        _run_kill_round(server, master, rnd)
+    _require_final_health(server, master)
+    _require_no_crash_signatures(server)

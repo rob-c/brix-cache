@@ -31,18 +31,21 @@ def encode_oid(oid_str):
     parts = [int(x) for x in oid_str.split(".")]
     encoded = [40 * parts[0] + parts[1]]
     for part in parts[2:]:
-        if part == 0:
-            encoded.append(0)
-            continue
-        chunks = []
-        while part > 0:
-            chunks.append(part & 0x7F)
-            part >>= 7
-        chunks.reverse()
-        for i in range(len(chunks) - 1):
-            chunks[i] |= 0x80
-        encoded.extend(chunks)
+        encoded.extend(_encode_oid_part(part))
     return bytes(encoded)
+
+
+def _encode_oid_part(part):
+    if part == 0:
+        return [0]
+    chunks = []
+    while part > 0:
+        chunks.append(part & 0x7F)
+        part >>= 7
+    chunks.reverse()
+    for index in range(len(chunks) - 1):
+        chunks[index] |= 0x80
+    return chunks
 
 
 def der_length(length):

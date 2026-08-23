@@ -27,6 +27,69 @@ import pytest
 from cmdscripts.live_common import LiveRun, REPO_ROOT, random_file, sha256
 from cmdscripts.pblock_live import XRDCP, XRDFS, pblock_lab_spec
 
+def _check_test_quota_rollup_tracks_workload_and_statvfs_1(run, a, hub):
+    assert run.call([XRDCP, "-f", a, f"{hub}a.bin"],
+                    check=False).returncode == 0
+
+def _check_test_quota_rollup_tracks_workload_and_statvfs_2(run, b, hub):
+    assert run.call([XRDCP, "-f", b, f"{hub}b.bin"],
+                    check=False).returncode == 0
+
+def _check_test_quota_rollup_tracks_workload_and_statvfs_3(run, host):
+    assert run.call([XRDFS, host, "mkdir", "/d"],
+                    check=False).returncode == 0
+
+def _check_test_quota_rollup_tracks_workload_and_statvfs_4(bytes_):
+    assert bytes_ == 3_500_000, f"rollup bytes {bytes_} != 3_500_000"
+
+def _check_test_quota_rollup_tracks_workload_and_statvfs_5(inodes):
+    assert inodes == 4, f"rollup inodes {inodes} != 4"
+
+def _check_test_quota_rollup_tracks_workload_and_statvfs_6(run, host):
+    assert _free_mb(run, host) == (100 * 1024 * 1024 - 3_500_000) // 1048576
+
+def _check_test_quota_rollup_tracks_workload_and_statvfs_7(run, host):
+    assert run.call([XRDFS, host, "rm", "/b.bin"],
+                    check=False).returncode == 0
+
+def _check_test_quota_rollup_tracks_workload_and_statvfs_8(bytes_, inodes):
+    assert (bytes_, inodes) == (2_500_000, 3), \
+        f"rollup did not roll back after rm: {bytes_}/{inodes}"
+
+def _check_test_quota_rollup_tracks_workload_and_statvfs_9(report):
+    assert report.returncode == 0 and "USAGE" not in report.stdout, \
+        f"oracle flagged a clean rollup: rc={report.returncode} {report.stdout}"
+
+def _check_test_quota_exceeded_put_fails_and_rolls_back_10(run, src, hub):
+    assert run.call([XRDCP, "-f", src, f"{hub}first.bin"],
+                    check=False).returncode == 0
+
+def _check_test_quota_exceeded_put_fails_and_rolls_back_11(before):
+    assert before[0] == 2_500_000
+
+def _check_test_quota_exceeded_put_fails_and_rolls_back_12(over):
+    assert over.returncode != 0, "quota-busting PUT succeeded"
+
+def _check_test_quota_exceeded_put_fails_and_rolls_back_13(catalog):
+    assert _usage(catalog, "total")[0] <= 3 * 1024 * 1024, \
+        "usage rollup exceeds the byte quota after the refused PUT"
+
+def _check_test_quota_exceeded_put_fails_and_rolls_back_14(run, got, hub):
+    assert run.call([XRDCP, "-f", f"{hub}first.bin", got],
+                    check=False).returncode == 0
+
+def _check_test_quota_exceeded_put_fails_and_rolls_back_15(got, src):
+    assert sha256(got) == sha256(src), "existing file damaged by refused PUT"
+
+def _check_test_quota_exceeded_put_fails_and_rolls_back_16(report):
+    assert report.returncode == 0 and "USAGE" not in report.stdout, \
+        f"rollup diverged after the refused PUT: {report.stdout}"
+
+def _check_test_quota_exceeded_put_fails_and_rolls_back_17(run, small, hub):
+    assert run.call([XRDCP, "-f", small, f"{hub}small.bin"],
+                    check=False).returncode == 0
+
+
 pytestmark = [pytest.mark.uses_lifecycle_harness,
               pytest.mark.xdist_group("lc-pblock-quota")]
 
@@ -130,33 +193,27 @@ def test_quota_rollup_tracks_workload_and_statvfs(lifecycle, fsck: Path) -> None
         random_file(a, 2_500_000)
         random_file(b, 1_000_000)
 
-        assert run.call([XRDCP, "-f", a, f"{hub}a.bin"],
-                        check=False).returncode == 0
-        assert run.call([XRDCP, "-f", b, f"{hub}b.bin"],
-                        check=False).returncode == 0
-        assert run.call([XRDFS, host, "mkdir", "/d"],
-                        check=False).returncode == 0
+        _check_test_quota_rollup_tracks_workload_and_statvfs_1(run, a, hub)
+        _check_test_quota_rollup_tracks_workload_and_statvfs_2(run, b, hub)
+        _check_test_quota_rollup_tracks_workload_and_statvfs_3(run, host)
 
         # rollup == the workload: 2 files' bytes; inodes = "/" + 2 files + 1 dir.
         bytes_, inodes = _usage(catalog, "total")
-        assert bytes_ == 3_500_000, f"rollup bytes {bytes_} != 3_500_000"
-        assert inodes == 4, f"rollup inodes {inodes} != 4"
+        _check_test_quota_rollup_tracks_workload_and_statvfs_4(bytes_)
+        _check_test_quota_rollup_tracks_workload_and_statvfs_5(inodes)
 
         # statvfs reports against the 100m quota, not the backing filesystem:
         # free = (100m - 3.5MB used) / 1MiB = 96 whole MB.
-        assert _free_mb(run, host) == (100 * 1024 * 1024 - 3_500_000) // 1048576
+        _check_test_quota_rollup_tracks_workload_and_statvfs_6(run, host)
 
         # Delete rolls the usage back down (the AFTER DELETE trigger).
-        assert run.call([XRDFS, host, "rm", "/b.bin"],
-                        check=False).returncode == 0
+        _check_test_quota_rollup_tracks_workload_and_statvfs_7(run, host)
         bytes_, inodes = _usage(catalog, "total")
-        assert (bytes_, inodes) == (2_500_000, 3), \
-            f"rollup did not roll back after rm: {bytes_}/{inodes}"
+        _check_test_quota_rollup_tracks_workload_and_statvfs_8(bytes_, inodes)
 
         # The offline oracle agrees the rollup matches a recompute.
         report = _fsck(fsck, Path(ep.data_root), "--verify-usage")
-        assert report.returncode == 0 and "USAGE" not in report.stdout, \
-            f"oracle flagged a clean rollup: rc={report.returncode} {report.stdout}"
+        _check_test_quota_rollup_tracks_workload_and_statvfs_9(report)
 
 
 @pytest.mark.optin
@@ -176,28 +233,24 @@ def test_quota_exceeded_put_fails_and_rolls_back(lifecycle, fsck: Path) -> None:
         src = run.root / "src.bin"
         random_file(src, 2_500_000)
 
-        assert run.call([XRDCP, "-f", src, f"{hub}first.bin"],
-                        check=False).returncode == 0
+        _check_test_quota_exceeded_put_fails_and_rolls_back_10(run, src, hub)
         before = _usage(catalog, "total")
-        assert before[0] == 2_500_000
+        _check_test_quota_exceeded_put_fails_and_rolls_back_11(before)
 
         # 2.5MB more against a 3m quota → refused on the wire (EDQUOT →
         # kXR_NoSpace at the pwrite that would cross the cap).
         over = run.call([XRDCP, "-f", src, f"{hub}second.bin"], check=False)
-        assert over.returncode != 0, "quota-busting PUT succeeded"
+        _check_test_quota_exceeded_put_fails_and_rolls_back_12(over)
 
         # Real-ENOSPC semantics: a partial dest may remain, but accounted usage
         # can never exceed the quota, and the first file is untouched.
-        assert _usage(catalog, "total")[0] <= 3 * 1024 * 1024, \
-            "usage rollup exceeds the byte quota after the refused PUT"
+        _check_test_quota_exceeded_put_fails_and_rolls_back_13(catalog)
         got = run.root / "got.bin"
-        assert run.call([XRDCP, "-f", f"{hub}first.bin", got],
-                        check=False).returncode == 0
-        assert sha256(got) == sha256(src), "existing file damaged by refused PUT"
+        _check_test_quota_exceeded_put_fails_and_rolls_back_14(run, got, hub)
+        _check_test_quota_exceeded_put_fails_and_rolls_back_15(got, src)
 
         report = _fsck(fsck, Path(ep.data_root), "--verify-usage")
-        assert report.returncode == 0 and "USAGE" not in report.stdout, \
-            f"rollup diverged after the refused PUT: {report.stdout}"
+        _check_test_quota_exceeded_put_fails_and_rolls_back_16(report)
 
         # After clearing the failed dest, an in-quota PUT still works — the
         # export is full-able, not wedged.
@@ -205,8 +258,7 @@ def test_quota_exceeded_put_fails_and_rolls_back(lifecycle, fsck: Path) -> None:
                  check=False)
         small = run.root / "small.bin"
         random_file(small, 200_000)
-        assert run.call([XRDCP, "-f", small, f"{hub}small.bin"],
-                        check=False).returncode == 0
+        _check_test_quota_exceeded_put_fails_and_rolls_back_17(run, small, hub)
 
 
 @pytest.mark.optin

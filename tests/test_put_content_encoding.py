@@ -26,6 +26,19 @@ import zlib
 
 import pytest
 
+def _guard_ce_server_1():
+    if not os.access(NGINX_BIN, os.X_OK):
+        pytest.skip(f"nginx not executable: {NGINX_BIN}")
+
+def _guard_ce_server_2():
+    if not _HAVE_REQUESTS:
+        pytest.skip("requests not available")
+
+def _guard_ce_server_3(S3_PORT):
+    if not _wait_port(S3_PORT):
+        pytest.skip("content-encoding S3 listener did not come up")
+
+
 try:
     import requests
     import urllib3
@@ -62,10 +75,8 @@ def _wait_port(port, timeout=10):
 
 @pytest.fixture()
 def ce_server(lifecycle, tmp_path):
-    if not os.access(NGINX_BIN, os.X_OK):
-        pytest.skip(f"nginx not executable: {NGINX_BIN}")
-    if not _HAVE_REQUESTS:
-        pytest.skip("requests not available")
+    _guard_ce_server_1()
+    _guard_ce_server_2()
 
     global WEBDAV_PORT, S3_PORT
 
@@ -93,8 +104,7 @@ def ce_server(lifecycle, tmp_path):
     S3_PORT = ep.extra_ports["S3_PORT"]
 
     # Harness waits on the WebDAV {PORT} only; poll the S3 port too.
-    if not _wait_port(S3_PORT):
-        pytest.skip("content-encoding S3 listener did not come up")
+    _guard_ce_server_3(S3_PORT)
     yield
 
 

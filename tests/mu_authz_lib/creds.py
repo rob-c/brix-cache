@@ -22,6 +22,17 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 
 from . import ports
 
+def _phase_encode_oid_1(chunks):
+    for i in range(len(chunks) - 1):
+        chunks[i] |= 0x80
+
+
+def _expression_1(oid_str):
+    return (
+        [int(x) for x in oid_str.split(".")]
+    )
+
+
 _REPO = Path(__file__).resolve().parents[2]
 _UTILS = _REPO / "utils"
 if str(_REPO) not in sys.path:
@@ -120,7 +131,7 @@ def _der_tlv(tag: int, value: bytes) -> bytes:
 
 
 def _encode_oid(oid_str: str) -> bytes:
-    parts = [int(x) for x in oid_str.split(".")]
+    parts = _expression_1(oid_str)
     out = [40 * parts[0] + parts[1]]
     for part in parts[2:]:
         if part == 0:
@@ -131,8 +142,7 @@ def _encode_oid(oid_str: str) -> bytes:
             chunks.append(part & 0x7F)
             part >>= 7
         chunks.reverse()
-        for i in range(len(chunks) - 1):
-            chunks[i] |= 0x80
+        _phase_encode_oid_1(chunks)
         out.extend(chunks)
     return bytes(out)
 

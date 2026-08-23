@@ -57,50 +57,78 @@ static int parse_cas(const char *p, size_t n, cvmfs_url_info_t *out) {
     return 0;
 }
 
+/*
+ * WHAT: Compare a bounded relative path with one complete literal.
+ * WHY:  Metadata classification needs exact names rather than prefix matches.
+ * HOW:  Require the same byte length before comparing the literal contents.
+ */
+static int rel_equals(const char *rel, size_t len, const char *literal) {
+    size_t literal_len = strlen(literal);
+
+    return len == literal_len && memcmp(rel, literal, len) == 0;
+}
+
+/*
+ * WHAT: Classify a validated repository-relative CVMFS path.
+ * WHY:  Repository grammar and traffic-class grammar are independent concerns.
+ * HOW:  Match the known CAS, metadata, API, bundle, and dictionary shapes.
+ */
+static void classify_relative(cvmfs_url_info_t *out) {
+    const char *rel = out->rel;
+    size_t      len = out->rel_len;
+
+    if (len >= 6 && memcmp(rel, "data/", 5) == 0) {
+        (void) parse_cas(rel + 5, len - 5, out);
+    } else if (rel_equals(rel, len, ".cvmfspublished") ||
+               rel_equals(rel, len, ".cvmfswhitelist") ||
+               rel_equals(rel, len, ".cvmfsreflog")) {
+        out->cls = CVMFS_URL_MANIFEST;
+    } else if (len > 13 && memcmp(rel, "api/v1.0/geo/", 13) == 0) {
+        out->cls = CVMFS_URL_GEO;
+    } else if (rel_equals(rel, len, ".cvmfs-bundle")) {
+        out->cls = CVMFS_URL_BUNDLE;
+    } else if (len > 12 && memcmp(rel, ".cvmfs-dict/", 12) == 0) {
+        out->cls = CVMFS_URL_DICT;
+    }
+}
+
+/*
+ * WHAT: Split a CVMFS path suffix into repository and relative-path spans.
+ * WHY:  Every traffic class requires the same strict repository token grammar.
+ * HOW:  Consume repository bytes, require its separator, and expose both spans.
+ */
+static int split_repository(const char *begin, const char *end,
+                            cvmfs_url_info_t *out) {
+    const char *cursor = begin;
+    size_t      repo_len;
+
+    while (cursor < end && repo_char(*cursor))
+        cursor++;
+    repo_len = (size_t) (cursor - begin);
+    if (repo_len == 0 || begin[0] == '.' || cursor >= end || *cursor != '/')
+        return -1;
+    out->repo = begin;
+    out->repo_len = repo_len;
+    cursor++;
+    out->rel = cursor;
+    out->rel_len = (size_t) (end - cursor);
+    return 0;
+}
+
 int cvmfs_classify_url(const char *path, size_t len, cvmfs_url_info_t *out) {
     static const char pfx[] = "/cvmfs/";
-    const char *p, *end, *repo;
-    size_t      rn;
+    const char       *begin;
+    const char       *end;
 
     memset(out, 0, sizeof(*out));
     out->cls = CVMFS_URL_REJECT;
 
     if (len <= sizeof(pfx) - 1 || memcmp(path, pfx, sizeof(pfx) - 1) != 0)
         return 0;
-    p = path + sizeof(pfx) - 1;
+    begin = path + sizeof(pfx) - 1;
     end = path + len;
-
-    repo = p;
-    while (p < end && repo_char(*p)) p++;
-    rn = (size_t) (p - repo);
-    if (rn == 0 || repo[0] == '.' || p >= end || *p != '/')
+    if (split_repository(begin, end, out) != 0)
         return 0;
-    out->repo = repo; out->repo_len = rn;
-    p++;                                     /* skip '/' */
-    out->rel = p; out->rel_len = (size_t) (end - p);
-
-    if (out->rel_len >= 6 && memcmp(p, "data/", 5) == 0) {
-        parse_cas(p + 5, out->rel_len - 5, out);   /* sets cls on success */
-        return 0;
-    }
-    if ((out->rel_len == 15 && memcmp(p, ".cvmfspublished", 15) == 0)
-        || (out->rel_len == 15 && memcmp(p, ".cvmfswhitelist", 15) == 0)
-        || (out->rel_len == 12 && memcmp(p, ".cvmfsreflog", 12) == 0))
-    {
-        out->cls = CVMFS_URL_MANIFEST;
-        return 0;
-    }
-    if (out->rel_len > 13 && memcmp(p, "api/v1.0/geo/", 13) == 0) {
-        out->cls = CVMFS_URL_GEO;
-        return 0;
-    }
-    if (out->rel_len == 13 && memcmp(p, ".cvmfs-bundle", 13) == 0) {
-        out->cls = CVMFS_URL_BUNDLE;         /* phase-87 G2 batch fetch */
-        return 0;
-    }
-    if (out->rel_len > 12 && memcmp(p, ".cvmfs-dict/", 12) == 0) {
-        out->cls = CVMFS_URL_DICT;           /* phase-87 G3 shared dictionary */
-        return 0;
-    }
+    classify_relative(out);
     return 0;
 }

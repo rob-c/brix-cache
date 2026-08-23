@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import contextlib
 import dataclasses
 import json
+import math
 import os
 import re
 import subprocess
@@ -14,6 +16,7 @@ from pathlib import Path
 from typing import Callable, Mapping, Sequence
 
 from brixtest.errors import SpecError
+from brixtest.util.http import http_url
 from brixtest.util.immutable import freeze_mapping
 
 _NAME = re.compile(r"^[a-z][a-z0-9_.-]{0,95}$")
@@ -28,18 +31,29 @@ class CollectorSpec:
     options: Mapping[str, object] = dataclasses.field(default_factory=dict)
 
     def __post_init__(self) -> None:
-        if not isinstance(self.name, str) or _NAME.fullmatch(self.name) is None:
-            raise SpecError("collector name", self.name, "must be a lowercase metric-safe name")
-        if not isinstance(self.kind, str) or self.kind not in (
-            "process", "prometheus", "structured-logs", "kubernetes", "plugin",
-        ):
-            raise SpecError("collector kind", self.kind, "is not supported")
-        if isinstance(self.interval, bool) or not isinstance(self.interval, (int, float)) \
-                or self.interval <= 0:
-            raise SpecError("collector interval", self.interval, "must be > 0")
+        _validate_collector_name(self.name)
+        _validate_collector_kind(self.kind)
+        _validate_interval(self.interval)
         if not isinstance(self.options, Mapping):
             raise SpecError("collector options", self.options, "must be a mapping")
         object.__setattr__(self, "options", freeze_mapping(self.options))
+
+
+def _validate_collector_name(value: object) -> None:
+    if not isinstance(value, str) or _NAME.fullmatch(value) is None:
+        raise SpecError("collector name", value, "must be a lowercase metric-safe name")
+
+
+def _validate_collector_kind(value: object) -> None:
+    if not isinstance(value, str) or value not in (
+        "process", "prometheus", "structured-logs", "kubernetes", "plugin",
+    ):
+        raise SpecError("collector kind", value, "is not supported")
+
+
+def _validate_interval(value: object) -> None:
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or value <= 0:
+        raise SpecError("collector interval", value, "must be > 0")
 
 
 def process_tree(*, interval: float = 0.5, name: str = "process") -> CollectorSpec:
@@ -52,31 +66,46 @@ def prometheus(
     allow: Sequence[str] = (), timeout: float = 2.0,
 ) -> CollectorSpec:
     """Sample a Prometheus text endpoint with an optional metric allowlist."""
-    if not isinstance(url, str) or not url:
-        raise SpecError("prometheus.url", url, "must be non-empty text")
+    url = http_url(url, "prometheus.url", allow_server_reference=True)
+    _validate_metric_allowlist(allow)
+    _validate_prometheus_timeout(timeout)
+    return CollectorSpec("prometheus", name, interval, {
+        "url": str(url), "allow": tuple(allow), "timeout": float(timeout),
+    })
+
+
+def _validate_metric_allowlist(allow: Sequence[str]) -> None:
     if isinstance(allow, (str, bytes)) or not all(
         isinstance(value, str) and value for value in allow
     ):
         raise SpecError("prometheus.allow", allow, "must contain metric-name strings")
+
+
+def _validate_prometheus_timeout(timeout: object) -> None:
     if isinstance(timeout, bool) or not isinstance(timeout, (int, float)) or timeout <= 0:
         raise SpecError("prometheus.timeout", timeout, "must be > 0")
-    return CollectorSpec("prometheus", name, interval, {
-        "url": str(url), "allow": tuple(allow), "timeout": float(timeout),
-    })
 
 
 def structured_logs(
     *paths: str, name: str = "structured-logs", max_line_bytes: int = 1 << 20,
 ) -> CollectorSpec:
     """Collect bounded JSON-lines logs from run-relative path patterns."""
-    if not paths or not all(isinstance(path, str) and path for path in paths):
-        raise SpecError("structured log paths", paths, "must contain at least one path")
-    if isinstance(max_line_bytes, bool) or not isinstance(max_line_bytes, int) \
-            or max_line_bytes < 1:
-        raise SpecError("structured log max_line_bytes", max_line_bytes, "must be >= 1")
+    _validate_log_paths(paths)
+    _validate_line_limit(max_line_bytes)
     return CollectorSpec("structured-logs", name, 1.0, {
         "paths": tuple(paths), "max_line_bytes": int(max_line_bytes),
     })
+
+
+def _validate_log_paths(paths: Sequence[str]) -> None:
+    if not paths or not all(isinstance(path, str) and path for path in paths):
+        raise SpecError("structured log paths", paths, "must contain at least one path")
+
+
+def _validate_line_limit(max_line_bytes: object) -> None:
+    if isinstance(max_line_bytes, bool) or not isinstance(max_line_bytes, int) \
+            or max_line_bytes < 1:
+        raise SpecError("structured log max_line_bytes", max_line_bytes, "must be >= 1")
 
 
 def kubernetes_events(*, interval: float = 2.0, name: str = "kubernetes") -> CollectorSpec:
@@ -93,26 +122,37 @@ def plugin(name: str, **options: object) -> CollectorSpec:
 
 
 def _descendants(roots: Mapping[str, int]) -> dict[int, str]:
-    parents = {}
-    proc = Path("/proc")
-    if not proc.is_dir():
-        return {pid: name for name, pid in roots.items()}
-    for entry in proc.iterdir():
-        if entry.name.isdigit():
-            try:
-                fields = (entry / "stat").read_text().rpartition(")")[2].split()
-                parents[int(entry.name)] = int(fields[1])
-            except (OSError, ValueError, IndexError):
-                pass
+    parents = _process_parents()
     owned = {pid: name for name, pid in roots.items()}
     changed = True
     while changed:
-        changed = False
-        for pid, parent in parents.items():
-            if pid not in owned and parent in owned:
-                owned[pid] = owned[parent]
-                changed = True
+        changed = _add_owned_children(parents, owned)
     return owned
+
+
+def _process_parents() -> dict[int, int]:
+    parents: dict[int, int] = {}
+    proc = Path("/proc")
+    if not proc.is_dir():
+        return parents
+    for entry in proc.iterdir():
+        if not entry.name.isdigit():
+            continue
+        try:
+            fields = (entry / "stat").read_text().rpartition(")")[2].split()
+            parents[int(entry.name)] = int(fields[1])
+        except (OSError, ValueError, IndexError):
+            continue
+    return parents
+
+
+def _add_owned_children(parents: Mapping[int, int], owned: dict[int, str]) -> bool:
+    changed = False
+    for pid, parent in parents.items():
+        if pid not in owned and parent in owned:
+            owned[pid] = owned[parent]
+            changed = True
+    return changed
 
 
 def _proc_values(pid: int) -> dict[str, float]:
@@ -137,10 +177,8 @@ def _proc_values(pid: int) -> dict[str, float]:
         values["write_bytes"] = io_values.get("write_bytes", 0.0)
     except (OSError, ValueError):
         pass
-    try:
+    with contextlib.suppress(OSError):
         values["file_descriptors"] = float(len(list(Path("/proc/%d/fd" % pid).iterdir())))
-    except OSError:
-        pass
     try:
         for line in Path("/proc/%d/status" % pid).read_text().splitlines():
             key, _, raw = line.partition(":")
@@ -152,49 +190,100 @@ def _proc_values(pid: int) -> dict[str, float]:
 
 
 def _cgroup_values(pid: int) -> dict[str, float]:
+    root = _cgroup_root(pid)
+    if root is None:
+        return {}
+    values = _cgroup_basic_values(root)
+    values.update(_cgroup_cpu_values(root))
+    return values
+
+
+def _cgroup_root(pid: int):
     try:
         row = next(line for line in Path("/proc/%d/cgroup" % pid).read_text().splitlines()
                    if line.startswith("0::"))
         relative = row.partition("::")[2].lstrip("/")
-        root = Path("/sys/fs/cgroup") / relative
+        return Path("/sys/fs/cgroup") / relative
     except (OSError, StopIteration):
-        return {}
+        return None
+
+
+def _cgroup_basic_values(root: Path) -> dict[str, float]:
     values = {}
     for name, metric in (("memory.current", "cgroup_memory_bytes"),
                          ("memory.peak", "cgroup_memory_peak_bytes"),
                          ("pids.current", "cgroup_pids")):
-        try:
+        with contextlib.suppress(OSError, ValueError):
             values[metric] = float((root / name).read_text().strip())
-        except (OSError, ValueError):
-            pass
+    return values
+
+
+def _cgroup_cpu_values(root: Path) -> dict[str, float]:
     try:
         cpu = dict(line.split() for line in (root / "cpu.stat").read_text().splitlines())
-        values["cgroup_cpu_seconds"] = float(cpu.get("usage_usec", 0)) / 1_000_000.0
-        values["cgroup_throttled_seconds"] = float(cpu.get("throttled_usec", 0)) / 1_000_000.0
+        return {
+            "cgroup_cpu_seconds": float(cpu.get("usage_usec", 0)) / 1_000_000.0,
+            "cgroup_throttled_seconds": float(cpu.get("throttled_usec", 0)) / 1_000_000.0,
+        }
     except (OSError, ValueError):
-        pass
-    return values
+        return {}
 
 
 def _prometheus_rows(text: str, allow: Sequence[str]) -> list[tuple[str, float, dict]]:
     permitted = set(allow)
     rows = []
     for line in text.splitlines():
-        if not line or line.startswith("#"):
-            continue
-        metric, separator, raw = line.rpartition(" ")
-        if not separator:
-            continue
-        name = metric.partition("{")[0]
-        if permitted and name not in permitted:
-            continue
-        try:
-            value = float(raw)
-        except ValueError:
-            continue
-        if value == value and abs(value) != float("inf"):
-            rows.append((name.replace("_", ".")[:96], value, {"source": "prometheus"}))
+        row = _prometheus_row(line, permitted)
+        if row is not None:
+            rows.append(row)
     return rows
+
+
+def _prometheus_row(line: str, permitted: set[str]):
+    parts = _prometheus_parts(line)
+    if parts is None:
+        return None
+    metric, raw = parts
+    name = metric.partition("{")[0]
+    if not _metric_permitted(name, permitted):
+        return None
+    value = _finite_float(raw)
+    if value is None:
+        return None
+    return name.replace("_", ".")[:96], value, {"source": "prometheus"}
+
+
+def _prometheus_parts(line: str):
+    if not line or line.startswith("#"):
+        return None
+    metric, separator, raw = line.rpartition(" ")
+    return (metric, raw) if separator else None
+
+
+def _metric_permitted(name: str, permitted: set[str]) -> bool:
+    return not permitted or name in permitted
+
+
+def _finite_float(raw: str):
+    try:
+        value = float(raw)
+    except ValueError:
+        return None
+    if not math.isfinite(value):
+        return None
+    return value
+
+
+def _add_process_values(totals: dict, owner: str, values: Mapping[str, float]) -> None:
+    for field, value in values.items():
+        totals[(owner, field)] = totals.get((owner, field), 0.0) + value
+
+
+def _process_cgroup(pid: int) -> str:
+    try:
+        return Path("/proc/%d/cgroup" % pid).read_text()
+    except OSError:
+        return ""
 
 
 class CollectorManager:
@@ -254,75 +343,93 @@ class CollectorManager:
 
     def _sample(self, spec: CollectorSpec) -> None:
         if spec.kind == "process":
-            roots = dict(self.pid_provider())
-            for owner, pid in self._known_pids.items():
-                if roots.get(owner) == pid and not Path("/proc/%d" % pid).exists():
-                    finding = {
-                        "kind": "process-crash", "severity": "error",
-                        "process": owner, "pid": pid,
-                        "detail": "managed process disappeared before teardown",
-                    }
-                    if finding not in self.findings:
-                        self.findings.append(finding)
-                        self.event("finding", finding)
-            self._known_pids.update(roots)
-            totals: dict[tuple[str, str], float] = {}
-            units = {
-                "cpu_seconds": "s", "minor_faults": "count", "major_faults": "count",
-                "threads": "count", "rss_bytes": "bytes", "read_bytes": "bytes",
-                "write_bytes": "bytes", "file_descriptors": "count",
-                "voluntary_ctxt_switches": "count",
-                "nonvoluntary_ctxt_switches": "count",
-                "cgroup_memory_bytes": "bytes", "cgroup_memory_peak_bytes": "bytes",
-                "cgroup_pids": "count", "cgroup_cpu_seconds": "s",
-                "cgroup_throttled_seconds": "s",
-            }
-            seen_cgroups = set()
-            for pid, owner in _descendants(roots).items():
-                for field, value in _proc_values(pid).items():
-                    totals[(owner, field)] = totals.get((owner, field), 0.0) + value
-                try:
-                    cgroup = Path("/proc/%d/cgroup" % pid).read_text()
-                except OSError:
-                    cgroup = ""
-                if cgroup not in seen_cgroups:
-                    seen_cgroups.add(cgroup)
-                    for field, value in _cgroup_values(pid).items():
-                        if field in ("cgroup_cpu_seconds", "cgroup_throttled_seconds"):
-                            baseline_key = (cgroup, field)
-                            baseline = self._cgroup_baselines.setdefault(
-                                baseline_key, value,
-                            )
-                            value = max(0.0, value - baseline)
-                        totals[(owner, field)] = totals.get((owner, field), 0.0) + value
-            for (owner, field), value in sorted(totals.items()):
-                self._emit_resource("process.%s" % field, value, units[field], {"process": owner})
+            self._sample_processes()
             return
         if spec.kind == "prometheus":
-            url = str(spec.options.get("url", ""))
-            with urllib.request.urlopen(url, timeout=float(spec.options.get("timeout", 2.0))) as response:
-                text = response.read(8 << 20).decode("utf-8", errors="replace")
-            for name, value, labels in _prometheus_rows(text, spec.options.get("allow", ())):
-                self._emit_resource(name, value, "", labels)
+            self._sample_prometheus(spec)
             return
         if spec.kind == "kubernetes":
-            namespace = self.namespace_provider()
-            if not namespace:
-                return
-            kubectl = os.environ.get("BRIXTEST_KUBECTL", "kubectl")
-            result = subprocess.run(
-                [kubectl, "get", "events", "-n", namespace, "-o", "json"],
-                capture_output=True, text=True, timeout=max(2.0, spec.interval), check=False,
-            )
-            if result.returncode == 0:
-                payload = json.loads(result.stdout)
-                items = payload.get("items", []) if isinstance(payload, Mapping) else []
-                self._emit_resource("kubernetes.events", len(items), "count", {})
-                self.event("kubernetes-events", {"items": items})
+            self._sample_kubernetes(spec)
             return
         if spec.kind == "plugin":
             from brixtest.extensions import get_extension
             get_extension("collector", spec.name)(self, spec)
+
+    def _process_crashes(self, roots) -> None:
+        for owner, pid in self._known_pids.items():
+            if roots.get(owner) != pid or Path("/proc/%d" % pid).exists():
+                continue
+            finding = {
+                "kind": "process-crash", "name": "process.crash",
+                "severity": "error", "process": owner,
+                "pid": pid, "detail": "managed process disappeared before teardown",
+            }
+            if finding not in self.findings:
+                self.findings.append(finding)
+                self.event("finding", finding)
+
+    def _process_totals(self, roots) -> dict[tuple[str, str], float]:
+        totals: dict[tuple[str, str], float] = {}
+        seen_cgroups = set()
+        for pid, owner in _descendants(roots).items():
+            _add_process_values(totals, owner, _proc_values(pid))
+            cgroup = _process_cgroup(pid)
+            if cgroup in seen_cgroups:
+                continue
+            seen_cgroups.add(cgroup)
+            self._add_cgroup_values(totals, owner, pid, cgroup)
+        return totals
+
+    def _add_cgroup_values(self, totals, owner: str, pid: int, cgroup: str) -> None:
+        for field, value in _cgroup_values(pid).items():
+            measured = self._relative_cgroup_value(cgroup, field, value)
+            totals[(owner, field)] = totals.get((owner, field), 0.0) + measured
+
+    def _relative_cgroup_value(self, cgroup: str, field: str, value: float) -> float:
+        if field not in ("cgroup_cpu_seconds", "cgroup_throttled_seconds"):
+            return value
+        baseline = self._cgroup_baselines.setdefault((cgroup, field), value)
+        return max(0.0, value - baseline)
+
+    def _sample_processes(self) -> None:
+        roots = dict(self.pid_provider())
+        self._process_crashes(roots)
+        self._known_pids.update(roots)
+        units = {
+            "cpu_seconds": "s", "minor_faults": "count", "major_faults": "count",
+            "threads": "count", "rss_bytes": "bytes", "read_bytes": "bytes",
+            "write_bytes": "bytes", "file_descriptors": "count",
+            "voluntary_ctxt_switches": "count", "nonvoluntary_ctxt_switches": "count",
+            "cgroup_memory_bytes": "bytes", "cgroup_memory_peak_bytes": "bytes",
+            "cgroup_pids": "count", "cgroup_cpu_seconds": "s",
+            "cgroup_throttled_seconds": "s",
+        }
+        for (owner, field), value in sorted(self._process_totals(roots).items()):
+            self._emit_resource("process.%s" % field, value, units[field], {"process": owner})
+
+    def _sample_prometheus(self, spec) -> None:
+        url = http_url(spec.options.get("url", ""), "prometheus.url")
+        with urllib.request.urlopen(  # noqa: S310 - URL scheme validated above
+            url, timeout=float(spec.options.get("timeout", 2.0)),
+        ) as response:
+            text = response.read(8 << 20).decode("utf-8", errors="replace")
+        for name, value, labels in _prometheus_rows(text, spec.options.get("allow", ())):
+            self._emit_resource(name, value, "", labels)
+
+    def _sample_kubernetes(self, spec) -> None:
+        namespace = self.namespace_provider()
+        if not namespace:
+            return
+        result = subprocess.run(
+            [os.environ.get("BRIXTEST_KUBECTL", "kubectl"), "get", "events",
+             "-n", namespace, "-o", "json"],
+            capture_output=True, text=True, timeout=max(2.0, spec.interval), check=False,
+        )
+        if result.returncode == 0:
+            payload = json.loads(result.stdout)
+            items = payload.get("items", []) if isinstance(payload, Mapping) else []
+            self._emit_resource("kubernetes.events", len(items), "count", {})
+            self.event("kubernetes-events", {"items": items})
 
     def _collect_logs(self) -> None:
         for spec in self.specs:
@@ -331,29 +438,34 @@ class CollectorManager:
             limit = int(spec.options.get("max_line_bytes", 1 << 20))
             for raw in spec.options.get("paths", ()):
                 for path in self.root.glob(str(raw)):
-                    if not path.is_file() or path.is_symlink():
-                        continue
-                    try:
-                        with path.open("rb") as handle:
-                            for number, line in enumerate(handle, 1):
-                                if len(line) > limit:
-                                    self.findings.append({
-                                        "kind": "oversized-log-record", "severity": "warning",
-                                        "path": str(path), "line": number,
-                                    })
-                                    continue
-                                try:
-                                    value = json.loads(line)
-                                except (UnicodeDecodeError, ValueError):
-                                    continue
-                                if isinstance(value, Mapping):
-                                    self.logs.append({"path": str(path), "line": number,
-                                                      "record": dict(value)})
-                    except OSError as exc:
-                        self.findings.append({
-                            "kind": "log-read-error", "severity": "warning",
-                            "path": str(path), "detail": str(exc),
-                        })
+                    self._collect_log_path(path, limit)
+
+    def _collect_log_path(self, path: Path, limit: int) -> None:
+        if not path.is_file() or path.is_symlink():
+            return
+        try:
+            with path.open("rb") as handle:
+                for number, line in enumerate(handle, 1):
+                    self._collect_log_line(path, number, line, limit)
+        except OSError as exc:
+            self.findings.append({
+                "kind": "log-read-error", "severity": "warning",
+                "path": str(path), "detail": str(exc),
+            })
+
+    def _collect_log_line(self, path: Path, number: int, line: bytes, limit: int) -> None:
+        if len(line) > limit:
+            self.findings.append({
+                "kind": "oversized-log-record", "severity": "warning",
+                "path": str(path), "line": number,
+            })
+            return
+        try:
+            value = json.loads(line)
+        except (UnicodeDecodeError, ValueError):
+            return
+        if isinstance(value, Mapping):
+            self.logs.append({"path": str(path), "line": number, "record": dict(value)})
 
     def close(self) -> None:
         self._stop.set()

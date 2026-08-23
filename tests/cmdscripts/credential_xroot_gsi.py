@@ -9,6 +9,8 @@ import subprocess
 import time
 
 from cmdscripts import run
+from cmdscripts.cache_source_helpers import start_servers, stop_servers
+from cmdscripts.command_results import print_results, selected_binary
 from cmdscripts.credential_xroot_gsi_writeback import (
     ensure_pki,
     split_proxy,
@@ -143,12 +145,50 @@ def same_bytes(path: Path, expected: bytes) -> bool:
     return path.exists() and path.read_bytes() == expected
 
 
-def run_checks(base: Path, nginx_bin: str = NGINX_BIN, xrdfs: Path = XRDFS) -> list[tuple[bool, str]]:
-    if not os.access(xrdfs, os.X_OK):
-        return [(True, "SKIP native xrdfs not built")]
+def _prepare_proxy_parts(base, cert_part, key_part):
     pki_ok, pki_message = ensure_pki(base)
     if not pki_ok:
         return [(True, pki_message)]
+    split_ok, split_message = split_proxy(PROXY_STD, cert_part, key_part)
+    if not split_ok:
+        return [(False, split_message)]
+    return None
+
+
+def _read_matches(port, source, destination, expected, xrdfs):
+    result = xrdfs_cat(port, source, destination, xrdfs)
+    if result.returncode != 0:
+        return False
+    return same_bytes(destination, expected)
+
+
+def _data_plane_results(base, ports, small, big, xrdfs):
+    proxy_port, anon_port, wrong_ca_port, cert_key_port = ports
+    results = [
+        (_read_matches(proxy_port, "/small.bin", base / "cred_gsi_s.got",
+                       small, xrdfs),
+         "byte-exact serve (GSI-authenticated fill)"),
+        (_read_matches(proxy_port, "/big.bin", base / "cred_gsi_b.got",
+                       big, xrdfs),
+         "multi-chunk GSI-authenticated fill byte-exact"),
+        (_read_matches(cert_key_port, "/small.bin", base / "cred_gsi_c.got",
+                       small, xrdfs),
+         "cert+key credential authenticated the GSI fill"),
+    ]
+    anon_got = base / "cred_gsi_n.got"
+    xrdfs_cat(anon_port, "/small.bin", anon_got, xrdfs)
+    results.append((not same_bytes(anon_got, small),
+                    "unauthenticated fill correctly failed (origin required GSI)"))
+    wrong_ca_got = base / "cred_gsi_v.got"
+    xrdfs_cat(wrong_ca_port, "/small.bin", wrong_ca_got, xrdfs)
+    results.append((not same_bytes(wrong_ca_got, small),
+                    "fill correctly refused (origin cert not verifiable against the wrong CA)"))
+    return results
+
+
+def run_checks(base: Path, nginx_bin: str = NGINX_BIN, xrdfs: Path = XRDFS) -> list[tuple[bool, str]]:
+    if not os.access(xrdfs, os.X_OK):
+        return [(True, "SKIP native xrdfs not built")]
 
     origin_port, proxy_port, anon_port, wrong_ca_port, cert_key_port = cmdscript_ports("credential_xroot_gsi")
     origin = base / "o"
@@ -162,9 +202,9 @@ def run_checks(base: Path, nginx_bin: str = NGINX_BIN, xrdfs: Path = XRDFS) -> l
     cert_key_node.mkdir(parents=True, exist_ok=True)
     cert_part = cert_key_node / "cert.pem"
     key_part = cert_key_node / "key.pem"
-    split_ok, split_message = split_proxy(PROXY_STD, cert_part, key_part)
-    if not split_ok:
-        return [(False, split_message)]
+    preparation_failure = _prepare_proxy_parts(base, cert_part, key_part)
+    if preparation_failure:
+        return preparation_failure
 
     small = deterministic_bytes(500_000, 37)
     big = deterministic_bytes(2_600_000, 73)
@@ -179,71 +219,25 @@ def run_checks(base: Path, nginx_bin: str = NGINX_BIN, xrdfs: Path = XRDFS) -> l
         ("cert-key", cert_key_node, write_cert_key_node_config(cert_key_node, cert_key_port, origin_port, cert_part, key_part)),
     ]
 
-    started: list[Path] = []
-    for name, prefix, conf in configs:
-        proc = run([nginx_bin, "-p", str(prefix), "-c", str(conf)])
-        if proc.returncode != 0:
-            for item in reversed(started):
-                stop_nginx(item)
-            return [(False, f"{name} start failed: {(proc.stderr or proc.stdout)[-4000:]}")]
-        started.append(prefix)
+    started, failure = start_servers(nginx_bin, configs, run, stop_nginx)
+    if failure:
+        return [failure]
 
     try:
         time.sleep(1)
-        results: list[tuple[bool, str]] = []
-        small_got = base / "cred_gsi_s.got"
-        small_result = xrdfs_cat(proxy_port, "/small.bin", small_got, xrdfs)
-        results.append(
-            (
-                small_result.returncode == 0 and same_bytes(small_got, small),
-                "byte-exact serve (GSI-authenticated fill)",
-            )
-        )
-
-        big_got = base / "cred_gsi_b.got"
-        big_result = xrdfs_cat(proxy_port, "/big.bin", big_got, xrdfs)
-        results.append(
-            (
-                big_result.returncode == 0 and same_bytes(big_got, big),
-                "multi-chunk GSI-authenticated fill byte-exact",
-            )
-        )
-
-        cert_key_got = base / "cred_gsi_c.got"
-        cert_key_result = xrdfs_cat(cert_key_port, "/small.bin", cert_key_got, xrdfs)
-        results.append(
-            (
-                cert_key_result.returncode == 0 and same_bytes(cert_key_got, small),
-                "cert+key credential authenticated the GSI fill",
-            )
-        )
-
-        anon_got = base / "cred_gsi_n.got"
-        xrdfs_cat(anon_port, "/small.bin", anon_got, xrdfs)
-        results.append((not same_bytes(anon_got, small), "unauthenticated fill correctly failed (origin required GSI)"))
-
-        wrong_ca_got = base / "cred_gsi_v.got"
-        xrdfs_cat(wrong_ca_port, "/small.bin", wrong_ca_got, xrdfs)
-        results.append((not same_bytes(wrong_ca_got, small), "fill correctly refused (origin cert not verifiable against the wrong CA)"))
-        return results
+        ports = proxy_port, anon_port, wrong_ca_port, cert_key_port
+        return _data_plane_results(base, ports, small, big, xrdfs)
     finally:
-        for prefix in reversed(started):
-            stop_nginx(prefix)
+        stop_servers(started, stop_nginx)
 
 
 def entry(argv: list[str]) -> int:
-    nginx_bin = argv[0] if argv else NGINX_BIN
+    nginx_bin = selected_binary(argv, NGINX_BIN)
     import tempfile
 
     with tempfile.TemporaryDirectory(prefix="cred_gsi.") as tmp:
         results = run_checks(Path(tmp), nginx_bin=nginx_bin)
-    for ok, message in results:
-        print(f"  {'ok  ' if ok else 'FAIL'} {message}")
-    if all(ok for ok, _ in results):
-        print("run_credential_xroot_gsi: ALL PASS")
-        return 0
-    print("run_credential_xroot_gsi: FAILURES")
-    return 1
+    return print_results(results, "run_credential_xroot_gsi")
 
 
 if __name__ == "__main__":

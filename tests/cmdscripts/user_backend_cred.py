@@ -209,21 +209,26 @@ def _stop_prefixed(prefix: Path, wait: float = 0.7) -> None:
     time.sleep(wait)
 
 
+def _process_holds_path(entry, prefix):
+    try:
+        if "nginx" not in os.readlink(entry / "exe"):
+            return False
+        for fd in (entry / "fd").iterdir():
+            if os.readlink(fd).startswith(prefix):
+                return True
+    except OSError:
+        return False
+    return False
+
+
 def _kill_orphans(subtree: Path) -> None:
     """Kill orphaned nginx workers holding files open under subtree (post kill -9)."""
     prefix = str(subtree)
     for entry in Path("/proc").iterdir():
         if not entry.name.isdigit():
             continue
-        try:
-            if "nginx" not in os.readlink(entry / "exe"):
-                continue
-            for fd in (entry / "fd").iterdir():
-                if os.readlink(fd).startswith(prefix):
-                    os.kill(int(entry.name), signal.SIGTERM)
-                    break
-        except OSError:
-            continue
+        if _process_holds_path(entry, prefix):
+            os.kill(int(entry.name), signal.SIGTERM)
 
 
 def _origin_conf(prefix: Path, port: int) -> Path:

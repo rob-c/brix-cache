@@ -1,6 +1,100 @@
 from split_continuation import reexport as _reexport
 _reexport(globals(), "_test_conf_pgio_helpers")
 
+
+def _corruption_detected(status, cse):
+    if status == kXR_error:
+        return True
+    return status == kXR_ok and bool(cse)
+
+
+def _assert_corruption_detected(our_result, stock_result, size, bad):
+    st_o, cse_o = our_result
+    st_f, cse_f = stock_result
+    assert _corruption_detected(st_f, cse_f), (
+        "stock did not flag a corrupt page (tooling/assumption?)")
+    assert _corruption_detected(st_o, cse_o), (
+        f"OUR server ACCEPTED a corrupt pgwrite page (size={size} bad={bad}) "
+        "without flagging it -- silent data corruption")
+
+
+def _assert_rejection_shape(our_status, stock_status):
+    assert (our_status == kXR_error) == (stock_status == kXR_error), (
+        f"corrupt-page rejection diverges from stock: ours st={our_status} "
+        f"stock st={stock_status}")
+
+
+def _assert_cse_page_if_reported(our_result, stock_result, size, bad):
+    st_o, cse_o = our_result
+    st_f, cse_f = stock_result
+    if st_o != kXR_ok or st_f != kXR_ok:
+        return
+    assert len(cse_o) >= 8 and len(cse_f) >= 8, "CSE list too short"
+    bad_off = sum(page_lengths(0, size)[:bad])
+    offs_o = _cse_offsets(cse_o)
+    assert bad_off in offs_o, (
+        f"OUR CSE list {offs_o} missing corrupt page offset {bad_off}")
+
+
+def _assert_sparse_status(our_result, stock_result, offset, size):
+    st_o, ofo, cse_o = our_result
+    st_f, off2, cse_f = stock_result
+    assert st_o == st_f == kXR_ok, (
+        f"sparse pgwrite @{offset}+{size}: ours={st_o} stock={st_f}")
+    assert cse_o == b"" == cse_f, "clean sparse pgwrite reported CRC errors"
+    assert ofo == off2, (
+        f"sparse pgwrite info offset diverges from stock: ours={ofo} stock={off2}")
+
+
+def _assert_sparse_our_file(path, offset, size, data):
+    assert os.path.getsize(path) == offset + size, "OUR sparse size wrong"
+    with open(path, "rb") as stream:
+        got = stream.read()
+    assert got[:offset] == b"\x00" * offset, "OUR sparse hole not zero-filled"
+    assert got[offset:] == data, "OUR sparse written page wrong"
+
+
+def _assert_file_bytes(path, expected, message):
+    with open(path, "rb") as stream:
+        assert stream.read() == expected, message
+
+
+def _assert_roundtrip_pages(pages, expected_pages):
+    assert len(pages) == len(expected_pages), "roundtrip page count wrong"
+    for index, (offset, expected) in enumerate(expected_pages):
+        page_offset, page, crc = pages[index]
+        assert (page_offset, page) == (offset, expected), (
+            f"roundtrip page {index} bytes/offset wrong")
+        assert crc == crc32c(expected), f"roundtrip page {index} CRC32c wrong"
+
+
+def _write_initial_file(writer, srv, rel, content):
+    handle = writer(srv, rel, WR_NEW)
+    try:
+        status, _offset, cse = pgwrite(handle.sock, handle.fh, 0, content)
+    finally:
+        handle.close()
+    assert status == kXR_ok and cse == b""
+
+
+def _overwrite_pair(srv, rel, content):
+    our = _our_writer(srv, rel, kXR_open_updt)
+    stock = _off_writer(srv, rel, kXR_open_updt)
+    try:
+        our_result = pgwrite(our.sock, our.fh, 0, content)
+        stock_result = pgwrite(stock.sock, stock.fh, 0, content)
+    finally:
+        our.close()
+        stock.close()
+    return our_result, stock_result
+
+
+def _assert_overwrite_status(our_result, stock_result, size):
+    st_o, _offset_o, cse_o = our_result
+    st_f, _offset_f, cse_f = stock_result
+    assert st_o == st_f == kXR_ok, f"overwrite {size}: ours={st_o} stock={st_f}"
+    assert cse_o == b"" == cse_f
+
 # ===========================================================================
 # 12) pgwrite with a WRONG CRC32c: the server MUST detect the corrupt page.
 #     Stock returns a kXR_status carrying a ServerResponseBody_pgWrCSE list
@@ -24,27 +118,11 @@ def test_pgwrite_corrupt_page_rejected(srv, size, bad):
     finally:
         our.close()
         off_h.close()
-    # The corrupt page MUST be detected: either an error status OR a non-empty
-    # CSE retransmit list in the kXR_status response. Silent acceptance (kXR_ok
-    # with empty CSE) is a server bug.
-    detected_o = (st_o == kXR_error) or (st_o == kXR_ok and len(cse_o) > 0)
-    detected_f = (st_f == kXR_error) or (st_f == kXR_ok and len(cse_f) > 0)
-    assert detected_f, "stock did not flag a corrupt page (tooling/assumption?)"
-    assert detected_o, (
-        f"OUR server ACCEPTED a corrupt pgwrite page (size={size} bad={bad}) "
-        f"without flagging it -- silent data corruption")
-    # The detection SHAPE must match stock (both error, or both CSE-list).
-    assert (st_o == kXR_error) == (st_f == kXR_error), (
-        f"corrupt-page rejection diverges from stock: ours st={st_o} "
-        f"stock st={st_f}")
-    if st_o == kXR_ok and st_f == kXR_ok:
-        # Both report via CSE list: the bad-page offset must be present. The
-        # CSE body is cseCRC[4] dlFirst[2] dlLast[2] then int64 offsets.
-        assert len(cse_o) >= 8 and len(cse_f) >= 8, "CSE list too short"
-        bad_off = sum(page_lengths(0, size)[:bad])
-        offs_o = _cse_offsets(cse_o)
-        assert bad_off in offs_o, (
-            f"OUR CSE list {offs_o} missing corrupt page offset {bad_off}")
+    our_result = (st_o, cse_o)
+    stock_result = (st_f, cse_f)
+    _assert_corruption_detected(our_result, stock_result, size, bad)
+    _assert_rejection_shape(st_o, st_f)
+    _assert_cse_page_if_reported(our_result, stock_result, size, bad)
 
 
 # ===========================================================================
@@ -133,21 +211,13 @@ def test_pgwrite_sparse_offset(srv, offset, size):
     finally:
         our.close()
         off_h.close()
-    assert st_o == st_f == kXR_ok, (
-        f"sparse pgwrite @{offset}+{size}: ours={st_o} stock={st_f}")
-    assert cse_o == b"" == cse_f, "clean sparse pgwrite reported CRC errors"
-    assert ofo == off2, (
-        f"sparse pgwrite info offset diverges from stock: ours={ofo} stock={off2}")
+    _assert_sparse_status(
+        (st_o, ofo, cse_o), (st_f, off2, cse_f), offset, size)
     expect = b"\x00" * offset + data
     our_path = os.path.join(srv["our_data"], rel)
     off_path = os.path.join(srv["off_data"], rel)
-    assert os.path.getsize(our_path) == offset + size, "OUR sparse size wrong"
-    with open(our_path, "rb") as f:
-        got = f.read()
-    assert got[:offset] == b"\x00" * offset, "OUR sparse hole not zero-filled"
-    assert got[offset:] == data, "OUR sparse written page wrong"
-    with open(off_path, "rb") as f:
-        assert f.read() == expect, "stock sparse pgwrite content diverges"
+    _assert_sparse_our_file(our_path, offset, size, data)
+    _assert_file_bytes(off_path, expect, "stock sparse pgwrite content diverges")
 
 
 # ===========================================================================
@@ -172,11 +242,7 @@ def test_pgwrite_then_pgread_roundtrip(srv, size):
         r.close()
     assert st_r == kXR_ok, "pgread of written file failed"
     want_pages = page_slices(data, 0, size)
-    assert len(pages) == len(want_pages), "roundtrip page count wrong"
-    for i, (wo, wbytes) in enumerate(want_pages):
-        po, page, crc = pages[i]
-        assert (po, page) == (wo, wbytes), f"roundtrip page {i} bytes/offset wrong"
-        assert crc == crc32c(wbytes), f"roundtrip page {i} CRC32c wrong"
+    _assert_roundtrip_pages(pages, want_pages)
     assert pgread_bytes(pages) == data, "roundtrip reassembly != source"
 
 
@@ -189,29 +255,15 @@ def test_pgwrite_overwrite_region(srv, size):
     init = bytes((i * 3) & 0xFF for i in range(size))
     new = bytes((255 - (i & 0xFF)) for i in range(size))
     rel = f"pgw_ovr_{size}.bin"
-    # Create both files with identical initial content.
     for writer in (_our_writer, _off_writer):
-        h = writer(srv, rel, WR_NEW)
-        try:
-            st, _o, c = pgwrite(h.sock, h.fh, 0, init)
-            assert st == kXR_ok and c == b""
-        finally:
-            h.close()
-    # Reopen for update and overwrite.
-    our = _our_writer(srv, rel, kXR_open_updt)
-    off_h = _off_writer(srv, rel, kXR_open_updt)
-    try:
-        st_o, _o, cse_o = pgwrite(our.sock, our.fh, 0, new)
-        st_f, _f, cse_f = pgwrite(off_h.sock, off_h.fh, 0, new)
-    finally:
-        our.close()
-        off_h.close()
-    assert st_o == st_f == kXR_ok, f"overwrite {size}: ours={st_o} stock={st_f}"
-    assert cse_o == b"" == cse_f
-    with open(os.path.join(srv["our_data"], rel), "rb") as f:
-        assert f.read() == new, "OUR overwrite content wrong"
-    with open(os.path.join(srv["off_data"], rel), "rb") as f:
-        assert f.read() == new, "stock overwrite content diverges"
+        _write_initial_file(writer, srv, rel, init)
+    our_result, stock_result = _overwrite_pair(srv, rel, new)
+    _assert_overwrite_status(our_result, stock_result, size)
+    _assert_file_bytes(
+        os.path.join(srv["our_data"], rel), new, "OUR overwrite content wrong")
+    _assert_file_bytes(
+        os.path.join(srv["off_data"], rel), new,
+        "stock overwrite content diverges")
 
 
 # ===========================================================================

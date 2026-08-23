@@ -1,4 +1,47 @@
 from split_continuation import reexport as _reexport
+def _expression_1(pool):
+    return (
+        [pool.submit(_transfer_worker, i,   GSI_URL)     for i in range(4)]
+                      + [pool.submit(_transfer_worker, i+4, GSI_TLS_URL) for i in range(4)]
+    )
+
+def _expression_2(futures):
+    return (
+        [f.result() for f in as_completed(futures)]
+    )
+
+def _expression_3(results):
+    return (
+        [r for r in results if GSI_URL     in r["url"] and GSI_TLS_URL not in r["url"]]
+    )
+
+def _expression_4(results):
+    return (
+        [r for r in results if GSI_TLS_URL in r["url"]]
+    )
+
+def _expression_5(pool):
+    return (
+        [pool.submit(_transfer_worker, i,   ANON_URL) for i in range(4)]
+                      + [pool.submit(_transfer_worker, i+4, GSI_URL)  for i in range(4)]
+    )
+
+def _expression_6(futures):
+    return (
+        [f.result() for f in as_completed(futures)]
+    )
+
+def _expression_7(results):
+    return (
+        [r for r in results if ANON_URL in r["url"]]
+    )
+
+def _expression_8(results):
+    return (
+        [r for r in results if GSI_URL  in r["url"]]
+    )
+
+
 _reexport(globals(), "_test_concurrent_helpers")
 
 class TestConcurrent:
@@ -60,14 +103,13 @@ class TestConcurrent:
         with _worker_pool(8) as pool:
             t0 = time.perf_counter()
             futures = (
-                [pool.submit(_transfer_worker, i,   ANON_URL) for i in range(4)]
-              + [pool.submit(_transfer_worker, i+4, GSI_URL)  for i in range(4)]
+                _expression_5(pool)
             )
-            results = [f.result() for f in as_completed(futures)]
+            results = _expression_6(futures)
         wall = time.perf_counter() - t0
 
-        anon_results = [r for r in results if ANON_URL in r["url"]]
-        gsi_results  = [r for r in results if GSI_URL  in r["url"]]
+        anon_results = _expression_7(results)
+        gsi_results  = _expression_8(results)
 
         _assert_and_report(anon_results, 4, wall, "mixed → anon side")
         _assert_and_report(gsi_results,  4, wall, "mixed → gsi  side")
@@ -140,14 +182,13 @@ class TestConcurrentTLS:
         with _worker_pool(8) as pool:
             t0 = time.perf_counter()
             futures = (
-                [pool.submit(_transfer_worker, i,   GSI_URL)     for i in range(4)]
-              + [pool.submit(_transfer_worker, i+4, GSI_TLS_URL) for i in range(4)]
+                _expression_1(pool)
             )
-            results = [f.result() for f in as_completed(futures)]
+            results = _expression_2(futures)
         wall = time.perf_counter() - t0
 
-        gsi_results     = [r for r in results if GSI_URL     in r["url"] and GSI_TLS_URL not in r["url"]]
-        gsi_tls_results = [r for r in results if GSI_TLS_URL in r["url"]]
+        gsi_results     = _expression_3(results)
+        gsi_tls_results = _expression_4(results)
 
         _assert_and_report(gsi_results,     4, wall, "mixed → gsi      side")
         _assert_and_report(gsi_tls_results, 4, wall, "mixed → gsi+tls  side")
@@ -250,8 +291,11 @@ class TestPipelinedTLSReads:
             ]
             results = [fu.result() for fu in as_completed(futs)]
         bad = [(i, d) for i, ok, d in results if not ok]
-        assert not bad, f"concurrent TLS reads failed/mis-demuxed: {bad}"
-        assert len(results) == self.NREADS
+        def _assert_test_pipelined_reads_demux_byte_exact_1():
+            assert not bad, f"concurrent TLS reads failed/mis-demuxed: {bad}"
+            assert len(results) == self.NREADS
+
+        _assert_test_pipelined_reads_demux_byte_exact_1()
 
     def test_pipelined_reads_churn_survives(self):
         """Teardown safety: many rounds of heavily-concurrent TLS reads, each

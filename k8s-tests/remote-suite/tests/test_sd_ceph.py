@@ -18,6 +18,20 @@ import subprocess
 
 import pytest
 
+def _guard_ceph_map_bin_1(cc):
+    if cc is None:
+        pytest.skip("no C compiler")
+
+def _guard_ceph_map_bin_2():
+    if not (os.path.exists(SRC) and os.path.exists(COMPAT) and os.path.exists(TEST)):
+        pytest.skip("sd_ceph sources missing")
+
+def _guard_ceph_map_bin_3(r):
+    if r.returncode != 0:
+        pytest.fail(f"sd_ceph map suite failed to COMPILE (warnings are errors):"
+                    f"\n{r.stderr}")
+
+
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 BACKEND = os.path.join(REPO, "src", "fs", "backend")
 RADOS = os.path.join(BACKEND, "rados")   # per-driver subdir (Ceph/RADOS backend)
@@ -32,18 +46,14 @@ TEST = os.path.join(RADOS, "sd_ceph_unittest.c")
 @pytest.fixture(scope="module")
 def ceph_map_bin(tmp_path_factory):
     cc = shutil.which("gcc") or shutil.which("cc")
-    if cc is None:
-        pytest.skip("no C compiler")
-    if not (os.path.exists(SRC) and os.path.exists(COMPAT) and os.path.exists(TEST)):
-        pytest.skip("sd_ceph sources missing")
+    _guard_ceph_map_bin_1(cc)
+    _guard_ceph_map_bin_2()
     out = str(tmp_path_factory.mktemp("sdceph") / "ut")
     r = subprocess.run(
         [cc, "-Wall", "-Wextra", "-Werror", "-I", RADOS, "-I", BACKEND,
          SRC, COMPAT, TEST, "-o", out],
         capture_output=True, text=True)
-    if r.returncode != 0:
-        pytest.fail(f"sd_ceph map suite failed to COMPILE (warnings are errors):"
-                    f"\n{r.stderr}")
+    _guard_ceph_map_bin_3(r)
     return out
 
 

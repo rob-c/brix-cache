@@ -44,12 +44,21 @@ from frm_helpers import xattr_ok as _xattr_ok
 
 
 def _http(method, path, body=None, headers=None, timeout=5, port=None):
-    url = "http://%s:%d%s" % (HOST, port or HTTP_PORT, path)
+    selected_port = HTTP_PORT if port is None else port
+    url = "http://%s:%d%s" % (HOST, selected_port, path)
     req = urllib.request.Request(url, data=body, method=method)
+    _add_headers(req, headers)
+    return _open_http(req, timeout)
+
+
+def _add_headers(request, headers):
     for k, v in (headers or {}).items():
-        req.add_header(k, v)
+        request.add_header(k, v)
+
+
+def _open_http(request, timeout):
     try:
-        with urllib.request.urlopen(req, timeout=timeout) as r:
+        with urllib.request.urlopen(request, timeout=timeout) as r:
             return r.status, dict(r.headers), r.read()
     except urllib.error.HTTPError as e:
         return e.code, dict(e.headers), e.read()

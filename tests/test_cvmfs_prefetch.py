@@ -37,6 +37,36 @@ from pathlib import Path
 
 import pytest
 
+def _phase_pf_mount_1(workdir):
+    for d in ("mnt", "tmp", "cache"):
+        (workdir / d).mkdir()
+
+def _phase_pf_mount_2(env):
+    for k in ("http_proxy", "https_proxy", "all_proxy",
+              "HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY"):
+        env.pop(k, None)
+
+
+def _expression_1():
+    return (
+        {k: v for k, v in os.environ.items() if not k.startswith("BRIXCVMFS_")}
+    )
+
+def _expression_2(mnt, log):
+    return (
+        not os.path.ismount(mnt) and log.exists()
+    )
+
+
+def _guard_pf_mount_1(proc):
+    if proc.poll() is None:
+        proc.terminate()
+        try:
+            proc.wait(3)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+
+
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "cvmfs"))
 
 from conformance_common import BRIXMOUNT, _unmount, _wait_mounted  # noqa: E402
@@ -77,12 +107,9 @@ def pf_mount(pubkey, port, *, prefetch, budget=None, timeout=15):
     cache dir is exposed so tests can watch prefetched objects arrive."""
     workdir = Path(tempfile.mkdtemp(prefix="cvmfs_pf."))
     mnt = workdir / "mnt"
-    for d in ("mnt", "tmp", "cache"):
-        (workdir / d).mkdir()
-    env = {k: v for k, v in os.environ.items() if not k.startswith("BRIXCVMFS_")}
-    for k in ("http_proxy", "https_proxy", "all_proxy",
-              "HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY"):
-        env.pop(k, None)
+    _phase_pf_mount_1(workdir)
+    env = _expression_1()
+    _phase_pf_mount_2(env)
     env["BRIXCVMFS_PUBKEY"] = str(pubkey)
     env["BRIXCVMFS_TMP"] = str(workdir / "tmp")
     env["BRIXCVMFS_CACHE"] = str(workdir / "cache")
@@ -99,17 +126,12 @@ def pf_mount(pubkey, port, *, prefetch, budget=None, timeout=15):
         _wait_mounted(mnt, timeout)
         yield mnt, proc, log, workdir / "cache"
     finally:
-        if not os.path.ismount(mnt) and log.exists():
+        if _expression_2(mnt, log):
             keep = Path(tempfile.gettempdir()) / "brixcvmfs_mount_failures"
             keep.mkdir(exist_ok=True)
             shutil.copy(log, keep / f"{workdir.name}.log")
         _unmount(mnt)
-        if proc.poll() is None:
-            proc.terminate()
-            try:
-                proc.wait(3)
-            except subprocess.TimeoutExpired:
-                proc.kill()
+        _guard_pf_mount_1(proc)
         _unmount(mnt)
         shutil.rmtree(workdir, ignore_errors=True)
 
@@ -223,11 +245,17 @@ def test_prefetch_budget_cap_audits_once_and_spares_foreground(workdir):
             time.sleep(1.5)
             cap_lines = [ln for ln in log.read_text(errors="replace").splitlines()
                          if "signal=prefetchcap" in ln]
-            assert len(cap_lines) == 1, log.read_text(errors="replace")
-            assert f"repo={REPO}" in cap_lines[0]
+            def _assert_test_prefetch_budget_cap_audits_once_and_spares_foreground_1():
+                assert len(cap_lines) == 1, log.read_text(errors="replace")
+                assert f"repo={REPO}" in cap_lines[0]
+
+            _assert_test_prefetch_budget_cap_audits_once_and_spares_foreground_1()
             # foreground unaffected: reads still work, mount still alive
-            assert (mnt / "pkg" / "a.bin").read_bytes() == A_BODY
-            assert (mnt / "other.txt").read_bytes() == OTHER_BODY
+            def _assert_test_prefetch_budget_cap_audits_once_and_spares_foreground_2():
+                assert (mnt / "pkg" / "a.bin").read_bytes() == A_BODY
+                assert (mnt / "other.txt").read_bytes() == OTHER_BODY
+
+            _assert_test_prefetch_budget_cap_audits_once_and_spares_foreground_2()
             assert proc.poll() is None
     finally:
         _stop_origin(httpd)

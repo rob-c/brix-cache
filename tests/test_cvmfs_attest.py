@@ -32,6 +32,40 @@ from pathlib import Path
 import pytest
 
 # conftest chdir()s into a scratch dir — anchor imports on this file's dir.
+def _guard_fetch_1(attest, req):
+    if attest is not None:
+        req.add_header("X-Brix-Attest", attest)
+
+def _guard_fetch_2(token, req):
+    if token is not None:
+        req.add_header("Authorization", f"Bearer {token}")
+
+def _guard_fetch_3(rng, req):
+    if rng is not None:
+        req.add_header("Range", rng)
+
+def _check_test_session_record_lists_exact_hashes_and_verifies_2(st):
+    assert st == 200                                   # untagged
+
+def _check_test_session_record_lists_exact_hashes_and_verifies_3(st):
+    assert st == 200          # manifest: no content hash — not recorded
+
+def _check_test_session_record_lists_exact_hashes_and_verifies_4(st):
+    assert st == 200
+
+def _check_test_session_record_lists_exact_hashes_and_verifies_5(st):
+    assert st == 200
+
+def _check_test_session_record_lists_exact_hashes_and_verifies_6(stmt):
+    assert stmt["predicate"]["truncated"] is False
+
+def _check_test_session_record_lists_exact_hashes_and_verifies_7(digests, objs):
+    assert digests == sorted(h for _rel, h in objs[:2])
+
+def _check_test_session_record_lists_exact_hashes_and_verifies_1(st):
+    assert st == 200
+
+
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "cvmfs"))
 
 from conformance_common import NGINX_BIN, PortBlock, srv_instance
@@ -102,12 +136,9 @@ def _fetch(port, path, *, attest=None, token=None, rng=None, https=False):
     from settings import HOST
     scheme = "https" if https else "http"
     req = urllib.request.Request(f"{scheme}://{HOST}:{port}{path}")
-    if attest is not None:
-        req.add_header("X-Brix-Attest", attest)
-    if token is not None:
-        req.add_header("Authorization", f"Bearer {token}")
-    if rng is not None:
-        req.add_header("Range", rng)
+    _guard_fetch_1(attest, req)
+    _guard_fetch_2(token, req)
+    _guard_fetch_3(rng, req)
     kw = {"context": ssl._create_unverified_context()} if https else {}
     try:
         with urllib.request.urlopen(req, timeout=15, **kw) as r:
@@ -145,26 +176,29 @@ def test_session_record_lists_exact_hashes_and_verifies(tmp_path):
         for rel, _h in objs[:2]:
             st, _ = _fetch(srv.nginx_port, f"/cvmfs/{REPO}/{rel}",
                            attest="job-1")
-            assert st == 200
+            _check_test_session_record_lists_exact_hashes_and_verifies_1(st)
         st, _ = _fetch(srv.nginx_port, f"/cvmfs/{REPO}/{objs[2][0]}")
-        assert st == 200                                   # untagged
+        _check_test_session_record_lists_exact_hashes_and_verifies_2(st)
         st, _ = _fetch(srv.nginx_port, f"/cvmfs/{REPO}/.cvmfspublished",
                        attest="job-1")
-        assert st == 200          # manifest: no content hash — not recorded
+        _check_test_session_record_lists_exact_hashes_and_verifies_3(st)
         # a re-read is not a new consumption (the record is a set)
         st, _ = _fetch(srv.nginx_port, f"/cvmfs/{REPO}/{objs[0][0]}",
                        attest="job-1")
-        assert st == 200
+        _check_test_session_record_lists_exact_hashes_and_verifies_4(st)
 
         st, body = _fetch(srv.nginx_port,
                           f"/cvmfs/{REPO}/.cvmfs-attest?session=job-1")
-        assert st == 200
+        _check_test_session_record_lists_exact_hashes_and_verifies_5(st)
         stmt = _verify(body, pub)
-        assert stmt["_type"] == "https://in-toto.io/Statement/v1"
-        assert stmt["predicate"]["session"] == "job-1"
-        assert stmt["predicate"]["truncated"] is False
+        def _assert_test_session_record_lists_exact_hashes_and_verifies_1():
+            assert stmt["_type"] == "https://in-toto.io/Statement/v1"
+            assert stmt["predicate"]["session"] == "job-1"
+
+        _assert_test_session_record_lists_exact_hashes_and_verifies_1()
+        _check_test_session_record_lists_exact_hashes_and_verifies_6(stmt)
         digests = sorted(s["digest"]["sha1"] for s in stmt["subject"])
-        assert digests == sorted(h for _rel, h in objs[:2])
+        _check_test_session_record_lists_exact_hashes_and_verifies_7(digests, objs)
 
 
 # ---- error: attest off ⇒ no record, no endpoint ----------------------------

@@ -6,14 +6,17 @@ import json
 from pathlib import Path
 
 from brixtest.archive import write_bulk_archive, write_sqlite_archive
+from brixtest.errors import SpecError
 from brixtest.evidence.analysis import compare, session_insights, trend
 from brixtest.evidence.export import package_session, write_otlp_json, write_parquet
-from brixtest.evidence.store import integrity, query, query_duckdb
 from brixtest.evidence.retention import verify_objects
-from brixtest.errors import SpecError
+from brixtest.evidence.store import integrity, query, query_duckdb
 from brixtest.extensions import get_extension
 from brixtest.metrics import (
-    list_metric_sessions, load_metric_session, render_metrics_html, write_metrics_csv,
+    list_metric_sessions,
+    load_metric_session,
+    render_metrics_html,
+    write_metrics_csv,
 )
 from brixtest.summary import default_runs_root
 
@@ -115,19 +118,29 @@ def _comparison(args, runs: Path, *, gate: bool) -> int:
     lines = ["%-42s %-28s %10s %10s %9s" % (
         "TEST", "METRIC", "BASE", "CAND", "CHANGE"
     )]
-    for row in result["series"]:
-        lines.append("%-42s %-28s %10.4g %10.4g %+8.2f%%" % (
+    lines.extend(
+        "%-42s %-28s %10.4g %10.4g %+8.2f%%" % (
             row["nodeid"][-42:], row["metric"][:28],
             row["baseline"].get("mean", 0), row["candidate"].get("mean", 0),
             row["relative_change"] * 100,
-        ))
-    for finding in result["findings"]:
-        lines.append("REGRESSION %s %s: %s" % (
+        )
+        for row in result["series"]
+    )
+    lines.extend(
+        "REGRESSION %s %s: %s" % (
             finding["nodeid"], finding["metric"], finding["detail"]
-        ))
+        )
+        for finding in result["findings"]
+    )
     _emit(result, args.json, lines)
-    return 1 if gate and any(row.get("severity") == "error"
-                             for row in result["findings"]) else 0
+    return _comparison_status(gate, result["findings"])
+
+
+def _comparison_status(gate: bool, findings) -> int:
+    if not gate:
+        return 0
+    has_error = any(row.get("severity") == "error" for row in findings)
+    return int(has_error)
 
 
 def _trend(args, runs: Path) -> int:
@@ -261,35 +274,41 @@ def _validated_plugin_result(kind: str, result: object) -> None:
 
 def run_command(args) -> int:
     runs = Path(args.runs).resolve() if args.runs else default_runs_root()
-    if args.metrics_cmd == "list":
-        return _list(args, runs)
-    if args.metrics_cmd in ("compare", "regress"):
+    direct = {"list": _list, "trend": _trend}
+    if args.metrics_cmd in direct:
+        return direct[args.metrics_cmd](args, runs)
+    if args.metrics_cmd in {"compare", "regress"}:
         return _comparison(args, runs, gate=args.metrics_cmd == "regress")
-    if args.metrics_cmd == "trend":
-        return _trend(args, runs)
     payload = load_metric_session(args.session, runs)
     session_path = Path(str(payload.get("path", runs / "metrics" / args.session)))
-    if args.metrics_cmd == "show":
-        return _show(args, payload)
-    if args.metrics_cmd == "analyze":
-        return _analyze(args, payload, session_path)
-    if args.metrics_cmd == "insights":
-        return _insights(args, payload)
-    if args.metrics_cmd == "query":
-        return _query(args, payload, session_path)
-    if args.metrics_cmd == "integrity":
-        database = integrity(session_path / "archive.sqlite3")
-        objects = verify_objects(session_path)
-        result = {"ok": database["ok"] and objects["ok"],
-                  "database": database, "objects": objects}
-        _emit(result, args.json, [json.dumps(result, sort_keys=True)])
-        return 0 if result["ok"] else 1
-    if args.metrics_cmd == "report":
-        output = Path(args.out).resolve() if args.out else session_path / "report.html"
-        output.parent.mkdir(parents=True, exist_ok=True)
-        output.write_text(render_metrics_html(payload))
-        _emit({"report": str(output)}, args.json, [str(output)])
-        return 0
-    if args.metrics_cmd == "export":
-        return _export(args, payload, session_path)
-    return 2
+    payload_handlers = {
+        "show": lambda: _show(args, payload),
+        "analyze": lambda: _analyze(args, payload, session_path),
+        "insights": lambda: _insights(args, payload),
+        "query": lambda: _query(args, payload, session_path),
+        "integrity": lambda: _integrity(args, session_path),
+        "report": lambda: _report(args, payload, session_path),
+        "export": lambda: _export(args, payload, session_path),
+    }
+    handler = payload_handlers.get(args.metrics_cmd)
+    return handler() if handler is not None else 2
+
+
+def _integrity(args, session_path: Path) -> int:
+    database = integrity(session_path / "archive.sqlite3")
+    objects = verify_objects(session_path)
+    result = {
+        "ok": database["ok"] and objects["ok"],
+        "database": database,
+        "objects": objects,
+    }
+    _emit(result, args.json, [json.dumps(result, sort_keys=True)])
+    return 0 if result["ok"] else 1
+
+
+def _report(args, payload, session_path: Path) -> int:
+    output = Path(args.out).resolve() if args.out else session_path / "report.html"
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text(render_metrics_html(payload))
+    _emit({"report": str(output)}, args.json, [str(output)])
+    return 0

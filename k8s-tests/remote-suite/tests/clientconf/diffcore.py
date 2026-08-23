@@ -32,6 +32,15 @@ import subprocess
 
 from . import divergence
 
+def _guard_run_client_1(path, which, tool):
+    if path is None:
+        raise FileNotFoundError("%s binary for %r not found" % (which, tool))
+
+def _guard_run_client_2(env_extra, env):
+    if env_extra:
+        env.update(env_extra)
+
+
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 OUR_BIN_DIR = os.path.join(REPO, "client", "bin")
 
@@ -191,12 +200,10 @@ def run_client(which, tool, argv, endpoint, *, env_extra=None, stdin=None,
     Returns a ``Result``; a timeout is a *recorded failure*, never a hang.
     """
     path = binary(which, tool)
-    if path is None:
-        raise FileNotFoundError("%s binary for %r not found" % (which, tool))
+    _guard_run_client_1(path, which, tool)
 
     env = endpoint.auth_env()
-    if env_extra:
-        env.update(env_extra)
+    _guard_run_client_2(env_extra, env)
 
     # Capture BYTES (text=False) so binary stdout never crashes the run; the
     # Result decodes for text comparison and keeps the raw bytes for cat.

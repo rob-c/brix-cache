@@ -111,7 +111,7 @@ DEFAULT_FILE    = "load_1g.bin"
 DEFAULT_WORKERS = [1, 8, 32, 64, 128, 200]
 
 
-def main():
+def _parser():
     ap = argparse.ArgumentParser(
         description="Load test nginx-xrootd vs xrootd native",
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -140,63 +140,78 @@ def main():
                     help="sleep this many seconds between concurrency levels "
                          "when --target both; reduces CPU thermal noise "
                          "(default: 0)")
-    args = ap.parse_args()
+    return ap
 
-    concurrency = [int(c) for c in args.concurrency.split(",")]
 
-    print(f"\n  nginx-xrootd / xrootd load test")
+def _print_run_settings(args, concurrency):
+    print("\n  nginx-xrootd / xrootd load test")
     print(f"  target={args.target}  file={args.file}"
           f"  concurrency={concurrency}  mode={args.mode}"
           f"  suite={args.suite}  read_sink={args.read_sink}")
 
-    all_results: dict[str, list[Suite]] = {}
 
+def _build_target_suites(target, args, concurrency):
+    return build_suites(target, args.file, concurrency, args.mode,
+                        args.suite, args.read_sink)
+
+
+def _run_interleaved(nginx_suites, xrd_suites, concurrency, cooldown):
+    for worker_count in concurrency:
+        _run_suite_level("nginx", nginx_suites, worker_count)
+        _run_suite_level("xrootd", xrd_suites, worker_count)
+        _cooldown(cooldown, worker_count, concurrency[-1])
+
+
+def _run_suite_level(target, suites, worker_count):
+    for suite in suites:
+        print(f"\n  {target:<7} {suite.label}", flush=True)
+        suite.run_one(worker_count)
+
+
+def _cooldown(seconds, worker_count, final_count):
+    if seconds <= 0 or worker_count == final_count:
+        return
+    print(f"\n  [cooldown {seconds}s between concurrency levels...]", flush=True)
+    time.sleep(seconds)
+
+
+def _save_both(args, nginx_suites, xrd_suites):
+    if not args.json:
+        return
+    save_json(nginx_suites, args.json.replace(".json", "_nginx.json"), "nginx")
+    save_json(xrd_suites, args.json.replace(".json", "_xrootd.json"), "xrootd")
+
+
+def _run_both(args, concurrency):
+    nginx_suites = _build_target_suites("nginx", args, concurrency)
+    xrd_suites = _build_target_suites("xrootd", args, concurrency)
+    _run_interleaved(nginx_suites, xrd_suites, concurrency, args.cooldown)
+    _save_both(args, nginx_suites, xrd_suites)
+    return {"nginx": nginx_suites, "xrootd": xrd_suites}
+
+
+def _run_single(args, concurrency):
+    suites = _build_target_suites(args.target, args, concurrency)
+    for suite in suites:
+        suite.run()
+    if args.json:
+        save_json(suites, args.json, args.target)
+    return {args.target: suites}
+
+
+def _execute(args, concurrency):
     if args.target == "both":
-        # Build both suite lists up front so we can interleave at each
-        # concurrency level.  This ensures nginx and xrootd are benchmarked
-        # under the same thermal conditions (both start cool at n=1,
-        # both are warm at n=32) instead of nginx always getting the
-        # cool CPU and xrootd always getting the throttled one.
-        nginx_suites = build_suites("nginx",   args.file, concurrency,
-                                    args.mode, args.suite, args.read_sink)
-        xrd_suites   = build_suites("xrootd",  args.file, concurrency,
-                                    args.mode, args.suite, args.read_sink)
+        return _run_both(args, concurrency)
+    return _run_single(args, concurrency)
 
-        for n in concurrency:
-            for ns in nginx_suites:
-                print(f"\n  nginx   {ns.label}", flush=True)
-                ns.run_one(n)
-            for xs in xrd_suites:
-                print(f"\n  xrootd  {xs.label}", flush=True)
-                xs.run_one(n)
-            if args.cooldown > 0 and n != concurrency[-1]:
-                print(f"\n  [cooldown {args.cooldown}s between concurrency levels...]",
-                      flush=True)
-                time.sleep(args.cooldown)
 
-        all_results["nginx"]  = nginx_suites
-        all_results["xrootd"] = xrd_suites
-
-        if args.json:
-            save_json(nginx_suites,
-                      args.json.replace(".json", "_nginx.json"), "nginx")
-            save_json(xrd_suites,
-                      args.json.replace(".json", "_xrootd.json"), "xrootd")
-
-    else:
-        target_name = args.target
-        suites = build_suites(target_name, args.file, concurrency, args.mode,
-                              args.suite, args.read_sink)
-        for s in suites:
-            s.run()
-        all_results[target_name] = suites
-        if args.json:
-            save_json(suites, args.json, target_name)
-
+def main():
+    args = _parser().parse_args()
+    concurrency = [int(c) for c in args.concurrency.split(",")]
+    _print_run_settings(args, concurrency)
+    all_results = _execute(args, concurrency)
     if args.target == "both":
-        # Pair up by position — assumes same suite ordering
         print_comparison(all_results["nginx"], all_results["xrootd"])
-
     print("\n  Done.\n")
 
 

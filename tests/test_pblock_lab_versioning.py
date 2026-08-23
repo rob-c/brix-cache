@@ -50,6 +50,16 @@ import pytest
 from cmdscripts.live_common import LiveRun, random_file, sha256
 from cmdscripts.pblock_live import XRDCP, pblock_lab_spec
 
+def _check_test_versioning_trash_roundtrip_1(run, v3, url):
+    assert run.curl_bytes(f"{url}/f") == v3.read_bytes(), "live /f not v3"
+
+def _check_test_versioning_trash_roundtrip_2(run, url):
+    assert run.curl_status(f"{url}/f", "-I") == 404, "deleted /f still visible"
+
+def _check_test_versioning_trash_roundtrip_3(run, v3, url):
+    assert run.curl_bytes(f"{url}/f") == v3.read_bytes(), "undelete not byte-exact"
+
+
 pytestmark = [pytest.mark.uses_lifecycle_harness,
               pytest.mark.xdist_group("lc-pblock-versioning")]
 
@@ -115,51 +125,75 @@ def test_versioning_trash_roundtrip(lifecycle, fsck: Path) -> None:
         time.sleep(1)
         # Three publishes over the SAME path: v1 creates, v2/v3 each move the
         # prior blob into `versions`. Trimmed to newest 2 ⇒ {v1, v2} retained.
-        assert run.curl_status(f"{url}/f", "-T", str(v1)) in (201, 204)
-        assert run.curl_status(f"{url}/f", "-T", str(v2)) in (201, 204)
-        assert run.curl_status(f"{url}/f", "-T", str(v3)) in (201, 204)
-        assert run.curl_status(f"{url}/g", "-T", str(g)) in (201, 204)
-        assert run.curl_bytes(f"{url}/f") == v3.read_bytes(), "live /f not v3"
+        def _assert_test_versioning_trash_roundtrip_1():
+            assert run.curl_status(f"{url}/f", "-T", str(v1)) in (201, 204)
+            assert run.curl_status(f"{url}/f", "-T", str(v2)) in (201, 204)
+
+        _assert_test_versioning_trash_roundtrip_1()
+        def _assert_test_versioning_trash_roundtrip_2():
+            assert run.curl_status(f"{url}/f", "-T", str(v3)) in (201, 204)
+            assert run.curl_status(f"{url}/g", "-T", str(g)) in (201, 204)
+
+        _assert_test_versioning_trash_roundtrip_2()
+        _check_test_versioning_trash_roundtrip_1(run, v3, url)
         lifecycle.stop("lc-pblock-ver-ok")
 
         # Offline: exactly two retained generations, and the store is balanced.
         cp = _fsck(fsck, root, "--list-versions", "/f")
-        assert cp.returncode == 0 and "VERSIONS /f n=2" in cp.stdout, cp.stdout
-        assert _fsck(fsck, root, "--verify-refs").returncode == 0, "post-put drift"
+        def _assert_test_versioning_trash_roundtrip_3():
+            assert cp.returncode == 0 and "VERSIONS /f n=2" in cp.stdout, cp.stdout
+            assert _fsck(fsck, root, "--verify-refs").returncode == 0, "post-put drift"
+
+        _assert_test_versioning_trash_roundtrip_3()
 
         # Delete both files over the wire → each moves into the trash ledger.
         lifecycle.start_registered("lc-pblock-ver-ok")
         time.sleep(1)
-        assert run.curl_status(f"{url}/f", "-X", "DELETE") == 204
-        assert run.curl_status(f"{url}/g", "-X", "DELETE") == 204
-        assert run.curl_status(f"{url}/f", "-I") == 404, "deleted /f still visible"
+        def _assert_test_versioning_trash_roundtrip_4():
+            assert run.curl_status(f"{url}/f", "-X", "DELETE") == 204
+            assert run.curl_status(f"{url}/g", "-X", "DELETE") == 204
+
+        _assert_test_versioning_trash_roundtrip_4()
+        _check_test_versioning_trash_roundtrip_2(run, url)
         lifecycle.stop("lc-pblock-ver-ok")
 
         # Offline: both trashed, recover /f, still balanced (net-zero transfer).
         cp = _fsck(fsck, root, "--list-trash")
-        assert cp.returncode == 0 and "TRASH n=2" in cp.stdout, cp.stdout
-        assert "path=/f" in cp.stdout and "path=/g" in cp.stdout, cp.stdout
+        def _assert_test_versioning_trash_roundtrip_5():
+            assert cp.returncode == 0 and "TRASH n=2" in cp.stdout, cp.stdout
+            assert "path=/f" in cp.stdout and "path=/g" in cp.stdout, cp.stdout
+
+        _assert_test_versioning_trash_roundtrip_5()
         cp = _fsck(fsck, root, "--undelete", "/f")
-        assert cp.returncode == 0 and "UNDELETE /f" in cp.stdout, cp.stderr
-        assert _fsck(fsck, root, "--verify-refs").returncode == 0, "post-undelete drift"
+        def _assert_test_versioning_trash_roundtrip_6():
+            assert cp.returncode == 0 and "UNDELETE /f" in cp.stdout, cp.stderr
+            assert _fsck(fsck, root, "--verify-refs").returncode == 0, "post-undelete drift"
+
+        _assert_test_versioning_trash_roundtrip_6()
 
         # The recovered file reads back byte-identical to its pre-delete content.
         lifecycle.start_registered("lc-pblock-ver-ok")
         time.sleep(1)
-        assert run.curl_bytes(f"{url}/f") == v3.read_bytes(), "undelete not byte-exact"
+        _check_test_versioning_trash_roundtrip_3(run, v3, url)
         lifecycle.stop("lc-pblock-ver-ok")
 
         # TTL GC purges the remaining trash (age >= 0): the ledger row goes and
         # its now-unreferenced blocks are reported+reclaimed in this pass (a
         # reclaiming --gc run reports the orphan it removes, so exit 1 here) ...
         cp = _fsck(fsck, root, "--gc", "--trash-ttl", "0")
-        assert cp.returncode in (0, 1), cp.stdout
-        assert "TRASH-PURGED" in cp.stdout, cp.stdout
+        def _assert_test_versioning_trash_roundtrip_7():
+            assert cp.returncode in (0, 1), cp.stdout
+            assert "TRASH-PURGED" in cp.stdout, cp.stdout
+
+        _assert_test_versioning_trash_roundtrip_7()
         # ... and the second pass is clean and balanced — nothing left to reclaim.
         cp = _fsck(fsck, root, "--verify-refs")
-        assert cp.returncode == 0, f"post-gc drift: {cp.stdout}"
-        assert _fsck(fsck, root, "--list-trash").stdout.strip().endswith("n=0"), \
-            "trash not purged"
+        def _assert_test_versioning_trash_roundtrip_8():
+            assert cp.returncode == 0, f"post-gc drift: {cp.stdout}"
+            assert _fsck(fsck, root, "--list-trash").stdout.strip().endswith("n=0"), \
+                "trash not purged"
+
+        _assert_test_versioning_trash_roundtrip_8()
 
 
 @pytest.mark.optin
@@ -179,8 +213,11 @@ def test_versioning_hostile_undelete_refused(lifecycle, fsck: Path) -> None:
         random_file(keep, 250_000)
 
         time.sleep(1)
-        assert run.curl_status(f"{url}/keep.bin", "-T", str(keep)) in (201, 204)
-        assert run.curl_status(f"{url}/live.bin", "-T", str(keep)) in (201, 204)
+        def _assert_test_versioning_hostile_undelete_refused_9():
+            assert run.curl_status(f"{url}/keep.bin", "-T", str(keep)) in (201, 204)
+            assert run.curl_status(f"{url}/live.bin", "-T", str(keep)) in (201, 204)
+
+        _assert_test_versioning_hostile_undelete_refused_9()
         assert run.curl_status(f"{url}/keep.bin", "-X", "DELETE") == 204
         lifecycle.stop("lc-pblock-ver-sec")
 
@@ -192,8 +229,11 @@ def test_versioning_hostile_undelete_refused(lifecycle, fsck: Path) -> None:
             assert cp.returncode == 1, f"hostile undelete accepted: {bad!r}"
         # Undelete over a live name is refused (EEXIST) — never clobbers.
         cp = _fsck(fsck, root, "--undelete", "/live.bin")
-        assert cp.returncode == 1 and "EEXIST" in cp.stderr, cp.stderr
-        assert _has_table(root / "catalog.db", "trash"), "trash table dropped"
+        def _assert_test_versioning_hostile_undelete_refused_10():
+            assert cp.returncode == 1 and "EEXIST" in cp.stderr, cp.stderr
+            assert _has_table(root / "catalog.db", "trash"), "trash table dropped"
+
+        _assert_test_versioning_hostile_undelete_refused_10()
 
         # The ledger is intact — the legitimate trashed file still recovers.
         cp = _fsck(fsck, root, "--undelete", "/keep.bin")

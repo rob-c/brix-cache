@@ -66,22 +66,20 @@ def _dry_run(directory: Path) -> str:
 
 def run(root: Path = ROOT) -> tuple[bool, list[str]]:
     """Return (ok, messages) — one message per duplicated recipe, in make's order."""
-    msgs: list[str] = []
-
-    for rel in MAKEFILES:
-        directory = root / rel
-        if not (directory / "Makefile").is_file():
-            msgs.append(f"MISSING: {rel}/Makefile — update MAKEFILES in this guard")
-            continue
-        for line in _dry_run(directory).splitlines():
-            if any(w in line for w in _WARNINGS):
-                msgs.append(
-                    f"DUPLICATE RECIPE: {rel}/{line.strip()} — one target, one "
-                    f"recipe; make keeps the last and drops the other's "
-                    f"prerequisites"
-                )
-
+    msgs = [message for rel in MAKEFILES for message in _makefile_messages(root, rel)]
     return (not msgs, msgs)
+
+
+def _makefile_messages(root, relative):
+    directory = root / relative
+    if not (directory / "Makefile").is_file():
+        return [f"MISSING: {relative}/Makefile — update MAKEFILES in this guard"]
+    return [
+        f"DUPLICATE RECIPE: {relative}/{line.strip()} — one target, one recipe; "
+        "make keeps the last and drops the other's prerequisites"
+        for line in _dry_run(directory).splitlines()
+        if any(warning in line for warning in _WARNINGS)
+    ]
 
 
 def main() -> int:

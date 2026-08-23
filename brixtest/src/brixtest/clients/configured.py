@@ -16,15 +16,125 @@ from pathlib import Path
 from typing import Callable, Dict, Mapping, Optional, Sequence, Union
 
 from brixtest.errors import SpecError
-from brixtest.runtime.commands import CommandResult, CommandRunner
 from brixtest.resources import Placement, Reference
+from brixtest.runtime.commands import CommandResult, CommandRunner
 from brixtest.runtime.executors import ToolExecutionContext, ToolExecutionRequest
-from brixtest.util.immutable import freeze_mapping
 from brixtest.util.configtext import render_cfg_strict
+from brixtest.util.immutable import freeze_mapping
 
 __all__ = ["ClientRegistry", "ClientSpec", "ConfiguredClient", "ConfiguredTool"]
 
 _NAME_RE = re.compile(r"^[a-z0-9][a-z0-9_-]*$")
+
+
+def _client_identity(name: object, command: object) -> tuple[str, ...]:
+    if not _valid_client_name(name):
+        raise SpecError(
+            "client name", name,
+            "must be lowercase [a-z0-9_-], starting alphanumeric",
+        )
+    if not _valid_client_command(command):
+        raise SpecError("client command", command, "must be a non-empty array of string arguments")
+    return tuple(command)
+
+
+def _valid_client_name(name: object) -> bool:
+    return isinstance(name, str) and bool(name) and bool(_NAME_RE.match(name))
+
+
+def _valid_client_command(command: object) -> bool:
+    return not isinstance(command, (str, bytes)) and bool(command) \
+        and all(isinstance(part, str) for part in command)
+
+
+def _client_environment(value: object) -> Mapping[str, object]:
+    if not isinstance(value, Mapping) or not all(
+        isinstance(key, str) and isinstance(item, (str, Reference))
+        for key, item in value.items()
+    ):
+        raise SpecError("client env", value, "must map strings to strings or typed references")
+    return freeze_mapping(value)
+
+
+def _client_io(spec: "ClientSpec") -> None:
+    if not _valid_client_input(spec.input):
+        raise SpecError("client input", spec.input, "must be text or None")
+    if not _valid_output_limit(spec.output_limit):
+        raise SpecError("client output limit", spec.output_limit, "must be an integer >= 1")
+    if spec.mode not in ("capture", "stream", "pty"):
+        raise SpecError("client mode", spec.mode, "must be capture, stream, or pty")
+    if not _valid_encoding(spec.encoding):
+        raise SpecError("client encoding", spec.encoding, "must be non-empty text")
+
+
+def _valid_client_input(value: object) -> bool:
+    return value is None or isinstance(value, str)
+
+
+def _valid_output_limit(value: object) -> bool:
+    return not isinstance(value, bool) and isinstance(value, int) and value >= 1
+
+
+def _valid_encoding(value: object) -> bool:
+    return isinstance(value, str) and bool(value)
+
+
+def _client_execution(spec: "ClientSpec") -> tuple[int, ...]:
+    if not _positive_timeout(spec.timeout):
+        raise SpecError("client timeout", spec.timeout, "must be > 0")
+    expected = tuple(spec.expected_exit_codes)
+    if not expected or not all(_exit_code(value) for value in expected):
+        raise SpecError("client expected exits", expected, "must contain integers")
+    if not _nonnegative_integer(spec.retries):
+        raise SpecError("client retries", spec.retries, "must be an integer >= 0")
+    return expected
+
+
+def _positive_timeout(value: object) -> bool:
+    return not isinstance(value, bool) and isinstance(value, (int, float)) and value > 0
+
+
+def _exit_code(value: object) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool)
+
+
+def _nonnegative_integer(value: object) -> bool:
+    return _exit_code(value) and value >= 0
+
+
+def _render_command(spec: "ClientSpec", values: Mapping[str, object]) -> tuple[str, ...]:
+    return tuple(
+        render_cfg_strict(part, values, template="client %s command" % spec.name)
+        for part in spec.command
+    )
+
+
+def _render_environment(spec: "ClientSpec", values: Mapping[str, object]) -> dict[str, str]:
+    return {
+        key: render_cfg_strict(
+            str(value), values, template="client %s env[%s]" % (spec.name, key),
+        )
+        for key, value in spec.env.items()
+    }
+
+
+def _render_working_directory(
+    spec: "ClientSpec", values: Mapping[str, object],
+) -> Optional[Path]:
+    if not spec.cwd:
+        return None
+    return Path(render_cfg_strict(spec.cwd, values, template="client %s cwd" % spec.name))
+
+
+def _client_placement(spec: "ClientSpec") -> tuple[str, ...]:
+    if not isinstance(spec.placement, Placement):
+        raise SpecError("client placement", spec.placement, "must be a Placement")
+    if not isinstance(spec.image, str):
+        raise SpecError("client image", spec.image, "must be text")
+    redaction = tuple(spec.log_redact)
+    if not all(isinstance(value, str) and value for value in redaction):
+        raise SpecError("client log redaction", redaction, "must contain non-empty text")
+    return redaction
 
 
 @dataclasses.dataclass(frozen=True)
@@ -47,54 +157,23 @@ class ClientSpec:
     image: str = ""
 
     def __post_init__(self) -> None:
-        if not self.name or not _NAME_RE.match(self.name):
-            raise SpecError(
-                "client name", self.name,
-                "must be lowercase [a-z0-9_-], starting alphanumeric",
-            )
-        if (
-            isinstance(self.command, (str, bytes))
-            or not self.command
-            or not all(isinstance(part, str) for part in self.command)
-        ):
-            raise SpecError(
-                "client command", self.command,
-                "must be a non-empty array of string arguments",
-            )
-        if self.timeout <= 0:
-            raise SpecError("client timeout", self.timeout, "must be > 0")
-        if not all(isinstance(key, str) and isinstance(value, (str, Reference))
-                   for key, value in self.env.items()):
-            raise SpecError(
-                "client env", self.env,
-                "must map strings to strings or typed references",
-            )
-        object.__setattr__(self, "command", tuple(self.command))
-        object.__setattr__(self, "env", freeze_mapping(self.env))
-        if self.input is not None and not isinstance(self.input, str):
-            raise SpecError("client input", self.input, "must be text or None")
-        expected = tuple(self.expected_exit_codes)
-        if not expected or not all(
-            isinstance(value, int) and not isinstance(value, bool) for value in expected
-        ):
-            raise SpecError("client expected exits", expected, "must contain integers")
-        object.__setattr__(self, "expected_exit_codes", expected)
-        if isinstance(self.output_limit, bool) or not isinstance(self.output_limit, int) or self.output_limit < 1:
-            raise SpecError("client output limit", self.output_limit, "must be an integer >= 1")
-        if self.mode not in ("capture", "stream", "pty"):
-            raise SpecError("client mode", self.mode, "must be capture, stream, or pty")
-        if isinstance(self.retries, bool) or not isinstance(self.retries, int) or self.retries < 0:
-            raise SpecError("client retries", self.retries, "must be an integer >= 0")
-        if not isinstance(self.encoding, str) or not self.encoding:
-            raise SpecError("client encoding", self.encoding, "must be non-empty text")
-        if not isinstance(self.placement, Placement):
-            raise SpecError("client placement", self.placement, "must be a Placement")
-        if not isinstance(self.image, str):
-            raise SpecError("client image", self.image, "must be text")
-        redaction = tuple(self.log_redact)
-        if not all(isinstance(value, str) and value for value in redaction):
-            raise SpecError("client log redaction", redaction, "must contain non-empty text")
-        object.__setattr__(self, "log_redact", redaction)
+        object.__setattr__(self, "command", _client_identity(self.name, self.command))
+        object.__setattr__(self, "env", _client_environment(self.env))
+        object.__setattr__(self, "expected_exit_codes", _client_execution(self))
+        _client_io(self)
+        object.__setattr__(self, "log_redact", _client_placement(self))
+
+
+@dataclasses.dataclass(frozen=True)
+class _RunOptions:
+    cwd: Optional[Union[str, Path]]
+    timeout: float
+    input: Optional[str]
+    expected: tuple[int, ...]
+    output_limit: int
+    mode: str
+    retries: int
+    encoding: str
 
 
 ClientObserver = Callable[[str, float, Optional[int], str], None]
@@ -119,34 +198,24 @@ class ConfiguredClient:
         self._result_observer = result_observer
         self._executor = executor
         self._execution_context = execution_context
-        self._executor_metadata = dict(executor_metadata or {})
-        self._archive_dir = Path(archive_dir) if archive_dir else None
-        self._command = tuple(
-            render_cfg_strict(part, values, template="client %s command" % spec.name)
-            for part in spec.command
-        )
-        self._env = {
-            key: render_cfg_strict(
-                str(value), values, template="client %s env[%s]" % (spec.name, key)
-            )
-            for key, value in spec.env.items()
-        }
-        self._cwd = (
-            Path(render_cfg_strict(
-                spec.cwd, values, template="client %s cwd" % spec.name
-            ))
-            if spec.cwd else None
-        )
+        self._executor_metadata = _mapping_copy(executor_metadata)
+        self._archive_dir = _optional_path(archive_dir)
+        self._command = _render_command(spec, values)
+        self._env = _render_environment(spec, values)
+        self._cwd = _render_working_directory(spec, values)
         self._runner = CommandRunner(
-            Path(archive_dir) if archive_dir else None,
-            cwd=self._cwd or Path.cwd(), observer=self._observe,
+            self._archive_dir, cwd=_working_path(self._cwd), observer=self._observe,
             redact=spec.log_redact,
         )
-        if self._executor is not None and self._execution_context is not None \
-                and self._execution_context.local_execute is None:
+        if self._needs_local_executor():
             self._execution_context = dataclasses.replace(
                 self._execution_context, local_execute=self._execute_local_request,
             )
+
+    def _needs_local_executor(self) -> bool:
+        if self._executor is None or self._execution_context is None:
+            return False
+        return self._execution_context.local_execute is None
 
     def _observe(self, elapsed: float, returncode: Optional[int], error: str) -> None:
         if self._observer is not None:
@@ -208,94 +277,112 @@ class ConfiguredClient:
         encoding: Optional[str] = None,
     ) -> CommandResult:
         """Run the configured argv plus ``args`` and return a rich text result."""
-        rendered_args = tuple(
+        rendered_args = self._render_arguments(args)
+        executor_name = self._executor_name()
+        merged_env = self._merged_environment(executor_name, env)
+        options = self._run_options(
+            cwd, timeout, input, expected_exit_codes, output_limit, mode, retries, encoding,
+        )
+        result = self._execute(rendered_args, merged_env, options, executor_name)
+        if self._result_observer is not None:
+            self._result_observer(self.name, result)
+        if check and result.returncode not in options.expected:
+            raise subprocess.CalledProcessError(
+                result.returncode, result.argv, output=result.stdout, stderr=result.stderr,
+            )
+        return result
+
+    def _render_arguments(self, args: Sequence[object]) -> tuple[str, ...]:
+        rendered = tuple(
             render_cfg_strict(
                 str(arg), self._values, template="client %s argument" % self.spec.name,
             )
             for arg in args
         )
-        if any(not arg or "\x00" in arg for arg in rendered_args):
+        if any(not arg or "\x00" in arg for arg in rendered):
             raise SpecError(
-                "client %s args" % self.spec.name, rendered_args,
+                "client %s args" % self.spec.name, rendered,
                 "must contain non-empty, NUL-free argv entries",
             )
-        executor_name = (
-            "local" if self.spec.placement.backend == "inherit"
-            else self.spec.placement.backend
-        )
+        return rendered
+
+    def _executor_name(self) -> str:
+        return "local" if self.spec.placement.backend == "inherit" else self.spec.placement.backend
+
+    def _merged_environment(
+        self, executor_name: str, env: Optional[Mapping[str, object]],
+    ) -> Dict[str, str]:
         # Remote/container executors receive only explicitly declared values.
         # Besides making runs reproducible, this prevents ambient host secrets
         # from being serialized into a Pod manifest or container env file.
         merged_env = dict(os.environ) if executor_name == "local" else {}
         merged_env.update(self._env)
-        if env:
-            if not isinstance(env, Mapping) or not all(
-                isinstance(key, str) and isinstance(value, (str, Reference))
-                for key, value in env.items()
-            ):
-                raise SpecError(
-                    "client environment", env,
-                    "must map strings to strings or typed references",
-                )
-            merged_env.update({
+        if not env:
+            return merged_env
+        checked = _client_environment(env)
+        merged_env.update({
                 key: render_cfg_strict(
                     str(value), self._values,
                     template="client %s invocation env[%s]" % (self.spec.name, key),
                 )
-                for key, value in env.items()
-            })
-        selected_cwd = cwd or self._cwd
-        if cwd is not None:
-            selected_cwd = Path(render_cfg_strict(
-                str(cwd), self._values,
-                template="client %s invocation cwd" % self.spec.name,
-            ))
-        selected_expected = tuple(
-            self.spec.expected_exit_codes
-            if expected_exit_codes is None else expected_exit_codes
+                for key, value in checked.items()
+        })
+        return merged_env
+
+    def _run_options(
+        self, cwd, timeout, input_value, expected, output_limit, mode, retries, encoding,
+    ) -> _RunOptions:
+        return _RunOptions(
+            self._selected_cwd(cwd), _selected(timeout, self.spec.timeout),
+            _selected(input_value, self.spec.input),
+            tuple(_selected(expected, self.spec.expected_exit_codes)),
+            _selected(output_limit, self.spec.output_limit),
+            _selected(mode, self.spec.mode), _selected(retries, self.spec.retries),
+            _selected(encoding, self.spec.encoding),
         )
-        selected_timeout = self.spec.timeout if timeout is None else timeout
-        selected_input = self.spec.input if input is None else input
-        selected_limit = self.spec.output_limit if output_limit is None else output_limit
-        selected_mode = self.spec.mode if mode is None else mode
-        selected_retries = self.spec.retries if retries is None else retries
-        selected_encoding = self.spec.encoding if encoding is None else encoding
+
+    def _selected_cwd(self, cwd) -> Optional[Path]:
+        if cwd is None:
+            return self._cwd
+        rendered = render_cfg_strict(
+            str(cwd), self._values,
+            template="client %s invocation cwd" % self.spec.name,
+        )
+        return Path(rendered)
+
+    def _execute(
+        self, args: tuple[str, ...], env: Mapping[str, str], options: _RunOptions,
+        executor_name: str,
+    ) -> CommandResult:
         if self._executor is None:
-            result = self._runner.run(
-                *self._command, *rendered_args, check=False,
-                timeout=selected_timeout, input=selected_input, env=merged_env,
-                cwd=selected_cwd, expected_exit_codes=selected_expected,
-                output_limit=selected_limit, mode=selected_mode,
-                retries=selected_retries, encoding=selected_encoding,
+            return self._runner.run(
+                *self._command, *args, check=False,
+                timeout=options.timeout, input=options.input, env=env,
+                cwd=options.cwd, expected_exit_codes=options.expected,
+                output_limit=options.output_limit, mode=options.mode,
+                retries=options.retries, encoding=options.encoding,
             )
-        else:
-            if self._execution_context is None:
-                raise SpecError("client executor", self.name, "has no execution context")
-            request = ToolExecutionRequest(
-                name=self.name, argv=(*self._command, *rendered_args), env=merged_env,
-                cwd=Path(selected_cwd) if selected_cwd is not None else None,
-                timeout=selected_timeout, input=selected_input,
-                expected_exit_codes=selected_expected, output_limit=selected_limit,
-                mode=selected_mode, retries=selected_retries,
-                encoding=selected_encoding, check=False,
-                placement=self.spec.placement, image=self.spec.image,
-                metadata=self._executor_metadata,
+        if self._execution_context is None:
+            raise SpecError("client executor", self.name, "has no execution context")
+        request = ToolExecutionRequest(
+            name=self.name, argv=(*self._command, *args), env=env,
+            cwd=Path(options.cwd) if options.cwd is not None else None,
+            timeout=options.timeout, input=options.input,
+            expected_exit_codes=options.expected, output_limit=options.output_limit,
+            mode=options.mode, retries=options.retries,
+            encoding=options.encoding, check=False,
+            placement=self.spec.placement, image=self.spec.image,
+            metadata=self._executor_metadata,
+        )
+        result = self._executor.execute(self._execution_context, request)
+        if not isinstance(result, CommandResult):
+            raise SpecError(
+                "client executor result", type(result).__name__,
+                "must return brixtest.CommandResult",
             )
-            result = self._executor.execute(self._execution_context, request)
-            if not isinstance(result, CommandResult):
-                raise SpecError(
-                    "client executor result", type(result).__name__,
-                    "must return brixtest.CommandResult",
-                )
-            if executor_name != "local":
-                self._observe(result.elapsed_seconds, result.returncode, "")
-                self._archive_execution(result)
-        if self._result_observer is not None:
-            self._result_observer(self.name, result)
-        if check and result.returncode not in selected_expected:
-            raise subprocess.CalledProcessError(
-                result.returncode, result.argv, output=result.stdout, stderr=result.stderr,
-            )
+        if executor_name != "local":
+            self._observe(result.elapsed_seconds, result.returncode, "")
+            self._archive_execution(result)
         return result
 
     def _archive_execution(self, result: CommandResult) -> None:
@@ -319,6 +406,22 @@ class ConfiguredClient:
 
 class ConfiguredTool(ConfiguredClient):
     """Bound runtime value for a first-class :class:`brixtest.Tool`."""
+
+
+def _selected(value, default):
+    return default if value is None else value
+
+
+def _mapping_copy(value) -> dict:
+    return dict(value) if value is not None else {}
+
+
+def _optional_path(value) -> Optional[Path]:
+    return Path(value) if value else None
+
+
+def _working_path(value: Optional[Path]) -> Path:
+    return value if value is not None else Path.cwd()
 
 
 class ClientRegistry:

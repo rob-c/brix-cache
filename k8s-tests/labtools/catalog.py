@@ -25,17 +25,31 @@ def scenarios(catalog):
     return yaml.safe_load(Path(catalog).read_text())["scenarios"]
 
 
+def _missing_config_problem(name, key, config_dir):
+    if not (Path(config_dir) / f"{key}.conf").exists():
+        return [f"MISSING CONFIG: scenario {name!r} -> {key}.conf"]
+    return []
+
+
+def _duplicate_port_problem(name, scenario):
+    ports = [entry["port"] for entry in scenario.get("ports", [])]
+    duplicates = sorted(port for port in set(ports) if ports.count(port) > 1)
+    if duplicates:
+        return [f"DUP PORT: scenario {name!r} repeats {duplicates}"]
+    return []
+
+
+def _scenario_problems(name, scenario, config_dir):
+    key = scenario["configKey"]
+    return (_missing_config_problem(name, key, config_dir)
+            + _duplicate_port_problem(name, scenario))
+
+
 def lint(catalog, config_dir=CONFIG_DIR):
     """Return a list of problems; empty list means the catalog is clean."""
     problems = []
-    for name, scn in scenarios(catalog).items():
-        key = scn["configKey"]
-        if not (Path(config_dir) / f"{key}.conf").exists():
-            problems.append(f"MISSING CONFIG: scenario {name!r} -> {key}.conf")
-        ports = [p["port"] for p in scn.get("ports", [])]
-        dups = sorted({p for p in ports if ports.count(p) > 1})
-        if dups:
-            problems.append(f"DUP PORT: scenario {name!r} repeats {dups}")
+    for name, scenario in scenarios(catalog).items():
+        problems.extend(_scenario_problems(name, scenario, config_dir))
     return problems
 
 
@@ -53,20 +67,28 @@ def render(catalog, name, release):
     return out
 
 
-def main(argv):
-    if argv and argv[0] == "render":
-        _, catalog, name, release, *_ = argv
-        for kv in render(catalog, name, release):
-            print(f"--set {kv}")
-        return 0
+def _render_command(argv):
+    _, catalog, name, release, *_ = argv
+    for value in render(catalog, name, release):
+        print(f"--set {value}")
+    return 0
+
+
+def _lint_command(argv):
     catalog = argv[1] if argv and argv[0] == "lint" else argv[0]
     problems = lint(catalog)
-    for p in problems:
-        print(p, file=sys.stderr)
+    for problem in problems:
+        print(problem, file=sys.stderr)
     if problems:
         return 1
     print("catalog OK")
     return 0
+
+
+def main(argv):
+    if argv and argv[0] == "render":
+        return _render_command(argv)
+    return _lint_command(argv)
 
 
 if __name__ == "__main__":

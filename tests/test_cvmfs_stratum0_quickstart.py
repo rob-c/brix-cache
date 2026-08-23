@@ -159,6 +159,22 @@ def test_personality_self_ids_and_dispatches_repo():
         assert f"repo {sub}" in blob, (sub, blob)
 
 
+def _assert_mounted_payload(mountpoint):
+    assert os.path.ismount(mountpoint), "mount did not come up"
+    for relative, (content, mode) in PAYLOAD.items():
+        path = mountpoint / relative
+        assert path.read_bytes() == content, relative
+        assert stat.S_IMODE(path.lstat().st_mode) == mode, relative
+
+
+def _assert_mounted_tools(mountpoint):
+    link = mountpoint / SYMLINK[0]
+    assert link.is_symlink() and os.readlink(link) == SYMLINK[1]
+    run = subprocess.run([str(mountpoint / "tools/hello.sh")],
+                         capture_output=True, text=True, timeout=30)
+    assert run.returncode == 0 and "hello from stratum-0" in run.stdout
+
+
 def test_published_repo_serves_and_mounts(quickstart):
     """The shared files arrive intact through nginx and a real FUSE mount."""
     _run, repo, port = quickstart
@@ -172,17 +188,8 @@ def test_published_repo_serves_and_mounts(quickstart):
 
     _need_fuse()
     with _mount(repo, port) as (mnt, _proc):
-        assert os.path.ismount(mnt), "mount did not come up"
-        for rel, (content, mode) in PAYLOAD.items():
-            got = mnt / rel
-            assert got.read_bytes() == content, rel
-            assert stat.S_IMODE(got.lstat().st_mode) == mode, rel
-        link = mnt / SYMLINK[0]
-        assert link.is_symlink() and os.readlink(link) == SYMLINK[1]
-        # the executable is genuinely runnable out of the mount
-        ran = subprocess.run([str(mnt / "tools/hello.sh")],
-                             capture_output=True, text=True, timeout=30)
-        assert ran.returncode == 0 and "hello from stratum-0" in ran.stdout
+        _assert_mounted_payload(mnt)
+        _assert_mounted_tools(mnt)
 
 
 def test_second_publish_adds_modifies_and_deletes(quickstart):

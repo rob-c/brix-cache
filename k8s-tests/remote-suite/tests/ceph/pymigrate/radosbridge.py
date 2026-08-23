@@ -250,6 +250,31 @@ def _find_or_build_shim(reasons: "list[str]") -> Optional[str]:
     return out
 
 
+def _manifest_ops(library, force_shim):
+    reasons: "list[str]" = []
+    operations = _ctypes_ops(library, force_shim, reasons)
+    if operations is not None:
+        return operations
+    shim = _find_or_build_shim(reasons)
+    if shim is None:
+        raise BridgeError(
+            "manifest ops unavailable — ctypes path and shim fallback both failed:\n- "
+            + "\n- ".join(reasons)
+        )
+    return _ShimOps(shim)
+
+
+def _ctypes_ops(library, force_shim, reasons):
+    if force_shim:
+        reasons.append("PYMIGRATE_FORCE_SHIM set")
+        return None
+    try:
+        return _CtypesOps(library)
+    except BridgeError as error:
+        reasons.append(str(error))
+        return None
+
+
 class ManifestBridge:
     """Self-contained librados connection + the C++-only manifest ops.
 
@@ -267,24 +292,7 @@ class ManifestBridge:
 
         if force_shim is None:
             force_shim = os.environ.get("PYMIGRATE_FORCE_SHIM", "") not in ("", "0")
-
-        reasons: "list[str]" = []
-        ops = None
-        if not force_shim:
-            try:
-                ops = _CtypesOps(self._lib)
-            except BridgeError as e:
-                reasons.append(str(e))
-        else:
-            reasons.append("PYMIGRATE_FORCE_SHIM set")
-        if ops is None:
-            shim = _find_or_build_shim(reasons)
-            if shim is None:
-                raise BridgeError(
-                    "manifest ops unavailable — ctypes path and shim fallback "
-                    "both failed:\n- " + "\n- ".join(reasons))
-            ops = _ShimOps(shim)
-        self._ops = ops
+        self._ops = _manifest_ops(self._lib, force_shim)
         self.backend = self._ops.name
 
         self._c_setup()

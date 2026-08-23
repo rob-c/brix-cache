@@ -1,13 +1,7 @@
-"""Readiness probes (feature F4).
+"""TCP, HTTP, command, log, and composite readiness probes.
 
-Honest finding baked into this design: the grown registry path mapped
-seven readiness aliases (``root``, ``webdav``, ``s3``, ``metrics``,
-``cms``, ``tcp``, ``none``) onto exactly one behaviour — a 10-second
-TCP poll — and real protocol probing survived only on the legacy
-launcher path.  The aliases are kept for spec compatibility, still
-resolving to ``TcpProbe`` today, but ``CommandProbe`` and ``AllOf``
-make protocol-deep readiness a first-class option instead of a
-retired one.
+Compatibility aliases resolve to ``TcpProbe``. ``CommandProbe`` and
+``AllOf`` support protocol-specific readiness checks.
 
 A probe's contract: ``wait(endpoint, timeout) -> float`` returns the
 elapsed seconds once the instance answered, or raises
@@ -17,8 +11,8 @@ the sentinel's job; readiness is only "does it answer".
 
 from __future__ import annotations
 
-import subprocess
 import ssl
+import subprocess
 import time
 import urllib.error
 import urllib.request
@@ -30,11 +24,17 @@ from brixtest.util.configtext import render_cfg
 from brixtest.util.net import tcp_answering
 
 __all__ = [
-    "AllOf", "CommandProbe", "HttpProbe", "LogProbe", "NoProbe",
-    "TcpProbe", "probe_from_alias", "probe_from_declaration", "READINESS_ALIASES",
+    "READINESS_ALIASES",
+    "AllOf",
+    "CommandProbe",
+    "HttpProbe",
+    "LogProbe",
+    "NoProbe",
+    "TcpProbe",
+    "probe_from_alias",
+    "probe_from_declaration",
 ]
 
-# every alias the grown suite accepted; all TCP-equivalent today (measured)
 READINESS_ALIASES: Tuple[str, ...] = ("root", "webdav", "s3", "metrics", "cms", "tcp")
 _POLL = 0.1
 
@@ -44,6 +44,40 @@ def _log_tail(endpoint: ServerEndpoint, lines: int = 15) -> str:
         return "\n".join(endpoint.log_path.read_text(errors="replace").splitlines()[-lines:])
     except OSError:
         return ""
+
+
+def _tls_context(enabled: bool):
+    if not enabled:
+        return None
+    context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+    context.check_hostname = False
+    context.verify_mode = ssl.CERT_NONE
+    return context
+
+
+def _http_status(url: str, timeout: float, context) -> Optional[int]:
+    try:
+        with urllib.request.urlopen(  # noqa: S310 - caller constructs HTTP(S) URL
+            url, timeout=min(2.0, timeout), context=context,
+        ) as response:
+            return response.status
+    except urllib.error.HTTPError as exc:
+        return exc.code
+    except (OSError, urllib.error.URLError, ValueError):
+        return None
+
+
+def _url_host(host: str) -> str:
+    return "[%s]" % host if ":" in host and not host.startswith("[") else host
+
+
+def _check_http_deadline(
+    endpoint: ServerEndpoint, url: str, elapsed: float, deadline: float,
+) -> None:
+    if elapsed >= deadline:
+        raise ReadinessTimeout(
+            endpoint.name, "http %s" % url, elapsed, log_tail=_log_tail(endpoint),
+        )
 
 
 class NoProbe:
@@ -82,9 +116,8 @@ class CommandProbe:
     """Ready when a client command exits 0 against the instance.
 
     ``argv`` may use ``{host}``, ``{port}``, ``{name}``, ``{workdir}``
-    placeholders, rendered per attempt.  This is the closed gap: a
-    protocol-deep check (an ``xrdfs stat``, an S3 list) instead of
-    "the socket opened".
+    placeholders, rendered per attempt. This supports protocol-level checks
+    such as ``xrdfs stat`` or an S3 list operation.
     """
 
     def __init__(
@@ -123,6 +156,7 @@ class CommandProbe:
                     stdout=subprocess.DEVNULL,
                     stderr=subprocess.DEVNULL,
                     timeout=self.attempt_timeout,
+                    check=False,
                 )
                 if proc.returncode == 0:
                     return time.monotonic() - start
@@ -157,28 +191,14 @@ class HttpProbe:
         deadline = self.timeout if timeout is None else timeout
         host, port = endpoint.address(self.port_role)
         scheme = "https" if self.tls else "http"
-        url = "%s://%s:%d%s" % (scheme, host, port, self.path)
-        context = None
-        if self.tls:
-            context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
-            context.check_hostname = False
-            context.verify_mode = ssl.CERT_NONE
+        url = "%s://%s:%d%s" % (scheme, _url_host(host), port, self.path)
+        context = _tls_context(self.tls)
         started = time.monotonic()
         while True:
-            try:
-                with urllib.request.urlopen(url, timeout=min(2.0, deadline), context=context) as response:
-                    if response.status in self.statuses:
-                        return time.monotonic() - started
-            except urllib.error.HTTPError as exc:
-                if exc.code in self.statuses:
-                    return time.monotonic() - started
-            except (OSError, urllib.error.URLError, ValueError):
-                pass
+            if _http_status(url, deadline, context) in self.statuses:
+                return time.monotonic() - started
             elapsed = time.monotonic() - started
-            if elapsed >= deadline:
-                raise ReadinessTimeout(
-                    endpoint.name, "http %s" % url, elapsed, log_tail=_log_tail(endpoint),
-                )
+            _check_http_deadline(endpoint, url, elapsed, deadline)
             time.sleep(self.interval)
 
 
@@ -245,10 +265,8 @@ class ExtensionProbe:
 
 
 def probe_from_alias(alias: str, timeout: float = 10.0):
-    """Resolve a spec's readiness string.  Unknown aliases fail at
-    registration-review time, not mid-session (the grown code raised a
-    bare ValueError from inside the start ladder)."""
-    if alias in ("none",):
+    """Resolve and validate a readiness alias during registration."""
+    if alias == "none":
         return NoProbe()
     if alias in READINESS_ALIASES:
         return TcpProbe(timeout=timeout)

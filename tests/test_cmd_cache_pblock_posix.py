@@ -19,9 +19,18 @@ def test_cache_pblock_posix_flow(tmp_path):
         f"{'ok' if ok else 'FAIL'} {message}" for ok, message in results
     )
     messages = [message for _, message in results]
-    assert "PUT to pblock primary" in messages
-    assert "origin mirror byte-exact (multi-block, via stage)" in messages
-    assert "primary kept in pblock (data/)" in messages
-    assert "write-through mirrored via sd_stage (no separate POSIX staging copy - expected)" in messages
-    assert "read-through fill byte-exact" in messages
-    assert "POSIX read cache file present" in messages
+    def _assert_test_cache_pblock_posix_flow_1():
+        assert "PUT to pblock primary" in messages
+        assert "origin mirror byte-exact (multi-block, via stage)" in messages
+
+    _assert_test_cache_pblock_posix_flow_1()
+    def _assert_test_cache_pblock_posix_flow_2():
+        assert "primary kept in pblock (data/)" in messages
+        assert "write-through mirrored via sd_stage (no separate POSIX staging copy - expected)" in messages
+
+    _assert_test_cache_pblock_posix_flow_2()
+    def _assert_test_cache_pblock_posix_flow_3():
+        assert "read-through fill byte-exact" in messages
+        assert "POSIX read cache file present" in messages
+
+    _assert_test_cache_pblock_posix_flow_3()

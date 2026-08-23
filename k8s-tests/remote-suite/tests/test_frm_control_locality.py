@@ -32,6 +32,19 @@ from settings import NGINX_BIN, HOST, BIND_HOST, free_port
 from frm_helpers import xattr_ok as _xattr_ok, res_stub_path as _fnv_stub
 
 
+def _guard_srv_1():
+    if not os.path.exists(NGINX_BIN):
+        pytest.skip("nginx binary not found")
+
+def _guard_srv_2(d):
+    if not _xattr_ok(str(d)):
+        pytest.skip("filesystem does not support user xattrs")
+
+def _guard_srv_3(chk):
+    if chk.returncode != 0:
+        pytest.skip("nginx rejected config: %s" % chk.stderr.strip()[-300:])
+
+
 def _post(http_port, path, obj, timeout=5):
     url = "http://%s:%d%s" % (HOST, http_port, path)
     req = urllib.request.Request(url, data=json.dumps(obj).encode(), method="POST")
@@ -47,11 +60,9 @@ def _post(http_port, path, obj, timeout=5):
 
 @pytest.fixture(scope="module")
 def srv(tmp_path_factory):
-    if not os.path.exists(NGINX_BIN):
-        pytest.skip("nginx binary not found")
+    _guard_srv_1()
     d = tmp_path_factory.mktemp("frmctl")
-    if not _xattr_ok(str(d)):
-        pytest.skip("filesystem does not support user xattrs")
+    _guard_srv_2(d)
 
     (d / "logs").mkdir()
     data = d / "data"; data.mkdir()
@@ -113,8 +124,7 @@ master_process off;
     cp.write_text(conf)
     chk = subprocess.run([NGINX_BIN, "-t", "-p", str(d), "-c", str(cp)],
                          capture_output=True, text=True)
-    if chk.returncode != 0:
-        pytest.skip("nginx rejected config: %s" % chk.stderr.strip()[-300:])
+    _guard_srv_3(chk)
     proc = subprocess.Popen([NGINX_BIN, "-p", str(d), "-c", str(cp)],
                             stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     deadline = time.time() + 10

@@ -67,11 +67,22 @@ jobs:
       - name: file-size ratchet (600-line cap)
         if: '!cancelled()'
         run: tools/ci/check_file_size.py
-      - name: complexity ratchet (CCN 15 cap)
+      # Two halves of one contract: CCN 15 for the native trees, and five
+      # metrics for every Python tree. Neither has a backlog, so neither can be
+      # made green by appending to a file. The Python half runs through its own
+      # CLI rather than pytest: this job is a bare checkout, and the suite's
+      # conftest starts a server fleet for any pytest run under tests/ — it
+      # would fail on the missing objs/nginx, not on the code.
+      - name: complexity gate — native, absolute CCN 15, no exemptions
         if: '!cancelled()'
         run: |
-          pip install --quiet lizard
+          pip install --quiet 'lizard>=1.17,<2'
           tools/ci/check_complexity.py
+      - name: complexity gate — Python (CCN/cognitive/NPath/Halstead/nesting)
+        if: '!cancelled()'
+        run: |
+          pip install --quiet 'lizard>=1.17,<2' 'complexipy>=6,<8' 'radon>=6,<7'
+          tools/ci/check_python_quality.py
       - name: todo/fixme ratchet (no new deferred-work markers)
         if: '!cancelled()'
         run: tools/ci/check_todo_fixme.py
@@ -117,6 +128,9 @@ jobs:
       - name: shim entry points — a CLI survives its body moving to a package
         if: '!cancelled()'
         run: tools/ci/check_shim_entrypoints.py
+      - name: shard name collisions — one composed module, one namespace
+        if: '!cancelled()'
+        run: tools/ci/check_shard_name_collisions.py
       # Guards the guards: every ratchet above compares the tree against a frozen
       # backlog, so appending to the backlog is the one way to turn any of them
       # green while making the code worse. Backlogs may shrink, never grow.

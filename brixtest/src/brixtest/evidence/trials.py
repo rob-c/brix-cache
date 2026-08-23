@@ -7,8 +7,8 @@ import uuid
 from pathlib import Path
 from typing import Callable, Mapping, Sequence
 
-from brixtest.evidence.model import stable_id
 from brixtest.evidence.journal import EvidenceJournal
+from brixtest.evidence.model import stable_id
 from brixtest.metrics import merge_metric_snapshots
 
 
@@ -54,27 +54,24 @@ def execute(
     return results
 
 
-def attempt_record(invocation: Invocation) -> dict:
-    evidence = invocation.payload.get("evidence", {})
-    observed = dict(evidence) if isinstance(evidence, Mapping) else {}
-    if not observed:
-        recovered = EvidenceJournal.recover(
-            invocation.run_root / "evidence" / "journal.jsonl"
-        )
-        fields = {
-            "metric": "metrics", "resource": "resources", "span": "spans",
-            "artifact": "artifacts", "finding": "findings",
-        }
-        for row in recovered:
-            field = fields.get(str(row.get("event", "")))
-            data = row.get("data", {})
-            if field and isinstance(data, Mapping):
-                observed.setdefault(field, []).append(dict(data))
-            if row.get("event") == "provenance" and isinstance(data, Mapping):
-                observed["provenance"] = dict(data)
-    metrics = invocation.payload.get("metrics", {})
-    snapshot = dict(metrics) if isinstance(metrics, Mapping) else {}
-    logs = [dict(row) for row in invocation.logs] + list(observed.get("logs", []))
+def _recovered_evidence(invocation: Invocation) -> dict:
+    recovered = EvidenceJournal.recover(invocation.run_root / "evidence" / "journal.jsonl")
+    observed: dict[str, object] = {}
+    fields = {
+        "metric": "metrics", "resource": "resources", "span": "spans",
+        "artifact": "artifacts", "finding": "findings",
+    }
+    for row in recovered:
+        field = fields.get(str(row.get("event", "")))
+        data = row.get("data", {})
+        if field and isinstance(data, Mapping):
+            observed.setdefault(field, []).append(dict(data))
+        if row.get("event") == "provenance" and isinstance(data, Mapping):
+            observed["provenance"] = dict(data)
+    return observed
+
+
+def _attempt_servers(observed, logs) -> list[dict]:
     servers = []
     for raw in observed.get("servers", []):
         if not isinstance(raw, Mapping):
@@ -85,6 +82,21 @@ def attempt_record(invocation: Invocation) -> dict:
         if match is not None:
             server["log_artifact"] = dict(match)
         servers.append(server)
+    return servers
+
+
+def _attempt_metrics(snapshot, observed) -> list:
+    samples = snapshot.get("samples", [])
+    if isinstance(samples, list) and samples:
+        return list(samples)
+    return list(observed.get("metrics", []))
+
+
+def attempt_record(invocation: Invocation) -> dict:
+    observed = _observed_evidence(invocation)
+    snapshot = _metric_snapshot(invocation)
+    logs = _attempt_logs(invocation, observed)
+    servers = _attempt_servers(observed, logs)
     return {
         "attempt_id": invocation.attempt_id,
         "index": invocation.index,
@@ -94,12 +106,8 @@ def attempt_record(invocation: Invocation) -> dict:
         "started_at": observed.get("started_at", ""),
         "wall_seconds": round(invocation.stopped - invocation.started, 9),
         "run_root": str(invocation.run_root),
-        "error": invocation.output if invocation.outcome == "failed" else "",
-        "metrics": (
-            list(snapshot.get("samples", []))
-            if isinstance(snapshot.get("samples", []), list) and snapshot.get("samples")
-            else list(observed.get("metrics", []))
-        ),
+        "error": _attempt_error(invocation),
+        "metrics": _attempt_metrics(snapshot, observed),
         "resources": list(observed.get("resources", [])),
         "spans": list(observed.get("spans", [])),
         "artifacts": list(observed.get("artifacts", [])),
@@ -111,15 +119,45 @@ def attempt_record(invocation: Invocation) -> dict:
     }
 
 
+def _observed_evidence(invocation: Invocation) -> dict:
+    evidence = invocation.payload.get("evidence", {})
+    observed = dict(evidence) if isinstance(evidence, Mapping) else {}
+    return observed or _recovered_evidence(invocation)
+
+
+def _metric_snapshot(invocation: Invocation) -> dict:
+    metrics = invocation.payload.get("metrics", {})
+    return dict(metrics) if isinstance(metrics, Mapping) else {}
+
+
+def _attempt_logs(invocation: Invocation, observed: Mapping[str, object]) -> list:
+    return [dict(row) for row in invocation.logs] + list(observed.get("logs", []))
+
+
+def _attempt_error(invocation: Invocation) -> str:
+    return invocation.output if invocation.outcome == "failed" else ""
+
+
 def measured_metrics(invocations: Sequence[Invocation]) -> dict:
     snapshots = []
     for invocation in invocations:
-        metrics = invocation.payload.get("metrics", {})
-        if not invocation.warmup and isinstance(metrics, Mapping):
-            snapshot = dict(metrics)
-            for sample in snapshot.get("samples", []):
-                if isinstance(sample, dict):
-                    sample.setdefault("attempt_id", invocation.attempt_id)
-                    sample.setdefault("trial", invocation.trial)
+        snapshot = _measured_snapshot(invocation)
+        if snapshot is not None:
             snapshots.append(snapshot)
     return merge_metric_snapshots(snapshots)
+
+
+def _measured_snapshot(invocation: Invocation):
+    metrics = invocation.payload.get("metrics", {})
+    if invocation.warmup or not isinstance(metrics, Mapping):
+        return None
+    snapshot = dict(metrics)
+    for sample in snapshot.get("samples", []):
+        _identify_sample(sample, invocation)
+    return snapshot
+
+
+def _identify_sample(sample: object, invocation: Invocation) -> None:
+    if isinstance(sample, dict):
+        sample.setdefault("attempt_id", invocation.attempt_id)
+        sample.setdefault("trial", invocation.trial)

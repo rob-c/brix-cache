@@ -9,8 +9,50 @@ import subprocess
 import time
 
 from cmdscripts import run
+from cmdscripts.command_results import print_results
 from fleet_ports import cmdscript_ports
 from settings import BIND_HOST, HOST, NGINX_BIN
+
+def _expression_1(origin_start):
+    return (
+        [(False, f"origin failed: {(origin_start.stderr or origin_start.stdout)[-4000:]}")]
+    )
+
+def _expression_2(node_start):
+    return (
+        [(False, f"node failed: {(node_start.stderr or node_start.stdout)[-4000:]}")]
+    )
+
+def _expression_3(results, cat, read_got, backend_read):
+    return (
+        results.append(
+                    (cat.returncode == 0 and read_got.read_bytes() == backend_read.read_bytes(),
+                     "read-through fill byte-exact")
+                )
+    )
+
+def _expression_4(results, warm, warm_got, hidden):
+    return (
+        results.append(
+                    (
+                        warm.returncode == 0 and warm_got.read_bytes() == hidden.read_bytes(),
+                        "warm hit byte-exact with the backend file hidden",
+                    )
+                )
+    )
+
+
+def _guard_run_checks_1(backend_write, results, write_payload):
+    if backend_write.exists():
+        results.append(
+            (
+                backend_write.read_bytes() == write_payload.read_bytes(),
+                "backend copy byte-exact (via pblock stage)",
+            )
+        )
+    else:
+        results.append((False, "backend file missing - stage flush did not run"))
+
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 XRDCP = REPO_ROOT / "client" / "bin" / "xrdcp"
@@ -112,11 +154,11 @@ def run_checks(
 
     origin_start = start_nginx(nginx_bin, origin, origin_conf)
     if origin_start.returncode != 0:
-        return [(False, f"origin failed: {(origin_start.stderr or origin_start.stdout)[-4000:]}")]
+        return _expression_1(origin_start)
     node_start = start_nginx(nginx_bin, node, node_conf)
     if node_start.returncode != 0:
         stop_nginx(origin)
-        return [(False, f"node failed: {(node_start.stderr or node_start.stdout)[-4000:]}")]
+        return _expression_2(node_start)
 
     try:
         time.sleep(1)
@@ -128,15 +170,7 @@ def run_checks(
         time.sleep(1)
 
         backend_write = origin / "root" / "w.bin"
-        if backend_write.exists():
-            results.append(
-                (
-                    backend_write.read_bytes() == write_payload.read_bytes(),
-                    "backend copy byte-exact (via pblock stage)",
-                )
-            )
-        else:
-            results.append((False, "backend file missing - stage flush did not run"))
+        _guard_run_checks_1(backend_write, results, write_payload)
         results.append((is_pblock(node / "stageC"), "stage tier is pblock"))
 
         backend_read = origin / "root" / "r.bin"
@@ -149,10 +183,7 @@ def run_checks(
                 stderr=subprocess.PIPE,
                 text=False,
             )
-        results.append(
-            (cat.returncode == 0 and read_got.read_bytes() == backend_read.read_bytes(),
-             "read-through fill byte-exact")
-        )
+        _expression_3(results, cat, read_got, backend_read)
         results.append((is_pblock(node / "cacheB"), "read cache is pblock"))
 
         sidecars = list((node / "cacheB").rglob("*.meta"))
@@ -171,12 +202,7 @@ def run_checks(
                 stderr=subprocess.PIPE,
                 text=False,
             )
-        results.append(
-            (
-                warm.returncode == 0 and warm_got.read_bytes() == hidden.read_bytes(),
-                "warm hit byte-exact with the backend file hidden",
-            )
-        )
+        _expression_4(results, warm, warm_got, hidden)
     finally:
         stop_nginx(node)
         stop_nginx(origin)
@@ -190,13 +216,7 @@ def entry(argv: list[str]) -> int:
 
     with tempfile.TemporaryDirectory(prefix="cache_pb.") as tmp:
         results = run_checks(Path(tmp), nginx_bin=nginx_bin)
-    for ok, message in results:
-        print(f"  {'ok  ' if ok else 'FAIL'} {message}")
-    if all(ok for ok, _ in results):
-        print("run_cache_pblock_pblock: ALL PASS")
-        return 0
-    print("run_cache_pblock_pblock: FAILURES")
-    return 1
+    return print_results(results, "run_cache_pblock_pblock")
 
 
 if __name__ == "__main__":

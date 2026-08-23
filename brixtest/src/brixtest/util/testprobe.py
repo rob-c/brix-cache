@@ -1,23 +1,13 @@
-"""Per-test resource capture (feature F21's cost columns): what each
-test itself consumed — CPU seconds (the test process plus every child
-it reaped: procworkers, spawned clients), the RSS delta of the test
-process across the test, and its RSS high-water mark.
-
-The probe runs in whichever process executes the test — the session
-process serially, the xdist worker in parallel — and hands its verdict
-to the controller on the teardown report's ``user_properties``, as
-flat ``(str, float)`` pairs because that is what execnet forwards
-losslessly.  Wall time is not measured here: the collector already
-keeps wall and per-phase durations from the report stream.
-"""
+"""Capture per-test CPU time, RSS change, and peak RSS."""
 
 from __future__ import annotations
 
+import contextlib
 import resource
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
-__all__ = ["TestResourceProbe", "PROBE_KEYS", "read_probe_properties"]
+__all__ = ["PROBE_KEYS", "TestResourceProbe", "read_probe_properties"]
 
 PROBE_KEYS = ("brixtest_cpu_s", "brixtest_rss_delta_kb", "brixtest_maxrss_kb")
 
@@ -77,8 +67,6 @@ def read_probe_properties(user_properties) -> Dict[str, float]:
         except (TypeError, IndexError, KeyError):
             continue
         if key in PROBE_KEYS:
-            try:
+            with contextlib.suppress(TypeError, ValueError):
                 out[key] = float(value)
-            except (TypeError, ValueError):
-                pass
     return out

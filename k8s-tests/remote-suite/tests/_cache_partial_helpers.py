@@ -20,6 +20,22 @@ from _test_a_robustness_helpers import (
     make_close_req,
 )
 
+def _expression_1(p):
+    return (
+        (p.stdout or "").strip()
+    )
+
+def _expression_2(out):
+    return (
+        json.loads(out) if out else {"absent": True}
+    )
+
+def _expression_3(px):
+    return (
+        (px.stdout or "").strip()
+    )
+
+
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 XRDCINFO = os.path.join(REPO, "client", "bin", "xrdcinfo")
 HOST = "127.0.0.1"
@@ -333,14 +349,14 @@ def residency(store_dir, key):
     {'absent': True} only when neither carrier holds a record."""
     cinfo = os.path.join(store_dir, key + ".cinfo")
     p = subprocess.run([XRDCINFO, cinfo], capture_output=True, text=True)
-    out = (p.stdout or "").strip()
-    parsed = json.loads(out) if out else {"absent": True}
+    out = _expression_1(p)
+    parsed = _expression_2(out)
     if not parsed.get("absent"):
         return parsed
 
     data = os.path.join(store_dir, key)
     px = subprocess.run([XRDCINFO, "--xattr", data], capture_output=True, text=True)
-    xout = (px.stdout or "").strip()
+    xout = _expression_3(px)
     if xout:
         xparsed = json.loads(xout)
         if not xparsed.get("absent"):

@@ -50,6 +50,29 @@ def _spec_names():
     return {s.name for s in fleet_specs._all_specs()}
 
 
+def _ledger_allocations(*ledgers):
+    allocated = set()
+    for ledger in ledgers:
+        for entry in ledger.values():
+            allocated.add(entry["port"])
+            allocated.update(entry.get("extra", {}).values())
+    return allocated
+
+
+def _cmdscript_allocations():
+    allocated = set()
+    for base, span in fp.CMDSCRIPTS_PORTS.values():
+        allocated.update(range(base, base + span))
+    return allocated
+
+
+def _cvmfs_allocations(blocks, matrix_base, matrix_width):
+    allocated = set(range(matrix_base, matrix_base + matrix_width))
+    for base in blocks.values():
+        allocated.update(range(base, base + 20))
+    return allocated
+
+
 def test_every_port_constant_is_owned_or_exempt():
     """No settings port constant may fall through the map."""
     allc = set(fp._port_constants())
@@ -72,12 +95,10 @@ def test_complete_port_ladder_is_contiguous_without_gaps():
     )
 
     allocated = set(fp._port_constants().values())
-    for ledger in (LIFECYCLE_SHARED_PORTS, LIFECYCLE_EXCLUSIVE_PORTS):
-        for entry in ledger.values():
-            allocated.add(entry["port"])
-            allocated.update(entry.get("extra", {}).values())
-    for base, span in fp.CMDSCRIPTS_PORTS.values():
-        allocated.update(range(base, base + span))
+    allocated.update(_ledger_allocations(
+        LIFECYCLE_SHARED_PORTS, LIFECYCLE_EXCLUSIVE_PORTS
+    ))
+    allocated.update(_cmdscript_allocations())
     from cms_mesh_lib import PORTS as cms_mesh_ports
     from hybrid_mesh_lib import PORTS as hybrid_mesh_ports
     allocated.update(cms_mesh_ports.values())
@@ -87,9 +108,7 @@ def test_complete_port_ladder_is_contiguous_without_gaps():
     # sub-range, anchored just past the fixed-fleet ladder (all within +2000).
     from cvmfs.conformance_common import (
         PORT_BLOCKS as cvmfs_blocks, _MATRIX_BASE, _MATRIX_WIDTH)
-    for base in cvmfs_blocks.values():
-        allocated.update(range(base, base + 20))
-    allocated.update(range(_MATRIX_BASE, _MATRIX_BASE + _MATRIX_WIDTH))
+    allocated.update(_cvmfs_allocations(cvmfs_blocks, _MATRIX_BASE, _MATRIX_WIDTH))
     # differential-interop per-file fixed ports (INTEROP category)
     import official_interop_lib as _oil
     allocated.update(_oil.worker_port(b) for b in _oil._INTEROP_BASES)
@@ -104,21 +123,43 @@ def test_settings_ports_are_exported_to_managed_children():
     assert os.environ["TEST_NGINX_ANON_PORT"] == str(settings.NGINX_ANON_PORT)
 
 
+def _spec_port_values(spec):
+    values = [("port", spec.port), *spec.extra_ports.items()]
+    values.extend(
+        (f"env.{key}", int(value))
+        for key, value in spec.env.items()
+        if "PORT" in key and str(value).isdigit()
+    )
+    return values
+
+
+def _outside_ladder(spec):
+    return [
+        (spec.name, key, value)
+        for key, value in _spec_port_values(spec)
+        if value is not None and not PORT_FIRST <= value <= PORT_LAST
+    ]
+
+
 def test_registry_specs_have_no_port_values_outside_the_ladder():
     """Catch literal primary, extra, and generic template-env port escapes."""
     outside = []
     for spec in fleet_specs._all_specs():
-        values = [("port", spec.port), *spec.extra_ports.items()]
-        values.extend(
-            (f"env.{key}", int(value))
-            for key, value in spec.env.items()
-            if "PORT" in key and str(value).isdigit()
-        )
-        outside.extend(
-            (spec.name, key, value) for key, value in values
-            if value is not None and not PORT_FIRST <= value <= PORT_LAST
-        )
+        outside.extend(_outside_ladder(spec))
     assert not outside, f"registry spec ports escaped TEST_PORT_START ladder: {outside}"
+
+
+def _template_listen_offenders(spec, literal):
+    if spec.kind != "nginx" or not spec.template:
+        return []
+    path = Path(__file__).parent / "configs" / spec.template
+    offenders = []
+    lines = path.read_text(encoding="utf-8").splitlines()
+    for lineno, line in enumerate(lines, 1):
+        code = line.split("#", 1)[0]
+        if literal.search(code):
+            offenders.append((spec.name, spec.template, lineno, code.strip()))
+    return offenders
 
 
 def test_registry_nginx_templates_have_no_numeric_listen_literals():
@@ -127,14 +168,23 @@ def test_registry_nginx_templates_have_no_numeric_listen_literals():
         r"\blisten\s+(?:\[[^]]+\]:|[^;\s]+:)?[1-9][0-9]{3,4}\b")
     offenders = []
     for spec in fleet_specs._all_specs():
-        if spec.kind != "nginx" or not spec.template:
-            continue
-        path = Path(__file__).parent / "configs" / spec.template
-        for lineno, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
-            code = line.split("#", 1)[0]
-            if literal.search(code):
-                offenders.append((spec.name, spec.template, lineno, code.strip()))
+        offenders.extend(_template_listen_offenders(spec, literal))
     assert not offenders, f"registry templates contain fixed listen literals: {offenders}"
+
+
+def _runtime_template_offenders(tests_root):
+    offenders = []
+    for spec in fleet_specs._all_specs():
+        if not spec.template:
+            continue
+        path = tests_root / "configs" / spec.template
+        if not path.exists():
+            continue
+        offenders.extend(
+            (path.relative_to(tests_root).as_posix(), line, port, source)
+            for line, port, source in _template_port_literals(path)
+        )
+    return offenders
 
 
 def test_no_manual_ports_in_central_registry_runtime():
@@ -151,19 +201,7 @@ def test_no_manual_ports_in_central_registry_runtime():
     may use a literal only with a same-line ``net-literal-allow: <why>`` reason.
     """
     tests_root = Path(__file__).parent
-    offenders = []
-
-    # Every template reached by the central registry is runtime configuration.
-    for spec in fleet_specs._all_specs():
-        if not spec.template:
-            continue
-        path = tests_root / "configs" / spec.template
-        if not path.exists():
-            continue
-        offenders.extend(
-            (path.relative_to(tests_root).as_posix(), line, port, source)
-            for line, port, source in _template_port_literals(path)
-        )
+    offenders = _runtime_template_offenders(tests_root)
 
     detail = "\n".join(
         f"  {path}:{line}: port {port}: {source}"
@@ -282,6 +320,29 @@ def test_every_port_constant_falls_in_a_band():
     )
 
 
+def _record_lifecycle_port(owner, label, port, band, seen, misbanded, collisions):
+    actual_band = fp.band_of(port)
+    identity = f"{owner}.{label}"
+    if actual_band != band:
+        misbanded.append((owner, label, port, band, actual_band))
+    if port in seen:
+        collisions.append((port, seen[port], identity))
+        return
+    seen[port] = identity
+
+
+def _check_lifecycle_ledger(ledger, band, seen, misbanded, collisions):
+    for name, entry in ledger.items():
+        ports = [(name, "port", entry["port"])]
+        ports.extend(
+            (name, key, value) for key, value in entry.get("extra", {}).items()
+        )
+        for owner, label, port in ports:
+            _record_lifecycle_port(
+                owner, label, port, band, seen, misbanded, collisions
+            )
+
+
 def test_lifecycle_ledgers_are_banded_and_collision_free():
     """Every Phase-4 lifecycle fixed port (primary + extras) must sit in its
     ledger's band and be globally unique across BOTH ledgers, so a mutating
@@ -305,18 +366,9 @@ def test_lifecycle_ledgers_are_banded_and_collision_free():
         (LIFECYCLE_EXCLUSIVE_PORTS, "lifecycle-exclusive"),
         (LIFECYCLE_SHARED_PORTS, "lifecycle-shared"),
     ):
-        for name, entry in ledger.items():
-            ports = [(name, "port", entry["port"])]
-            ports += [
-                (name, key, val) for key, val in entry.get("extra", {}).items()
-            ]
-            for owner, label, port in ports:
-                if fp.band_of(port) != want_band:
-                    misbanded.append((owner, label, port, want_band, fp.band_of(port)))
-                if port in seen:
-                    collisions.append((port, seen[port], f"{owner}.{label}"))
-                else:
-                    seen[port] = f"{owner}.{label}"
+        _check_lifecycle_ledger(
+            ledger, want_band, seen, misbanded, collisions
+        )
     assert not misbanded, (
         "lifecycle ledger ports outside their (want, got) band: " f"{misbanded}"
     )
@@ -377,6 +429,16 @@ def test_lifecycle_shared_halves_reject_a_duplicate_name():
         phase5.LIFECYCLE_SHARED_PORTS_PHASE5[stolen]["port"]
 
 
+def _record_cmdscript_port(stem, port, seen, misbanded, collisions):
+    band = fp.band_of(port)
+    if band != "cmdscripts":
+        misbanded.append((stem, port, band))
+    if port in seen:
+        collisions.append((port, seen[port], stem))
+        return
+    seen[port] = stem
+
+
 def test_cmdscripts_ledger_is_banded_and_collision_free():
     """Every ``CMDSCRIPTS_PORTS`` block (Phase 5) must sit wholly inside the
     ``cmdscripts`` band (29020-29999) and no two blocks may overlap — so two
@@ -387,29 +449,33 @@ def test_cmdscripts_ledger_is_banded_and_collision_free():
     collisions = []
     for stem, (base, span) in fp.CMDSCRIPTS_PORTS.items():
         for port in range(base, base + span):
-            if fp.band_of(port) != "cmdscripts":
-                misbanded.append((stem, port, fp.band_of(port)))
-            if port in seen:
-                collisions.append((port, seen[port], stem))
-            else:
-                seen[port] = stem
+            _record_cmdscript_port(stem, port, seen, misbanded, collisions)
     assert not misbanded, (
         "cmdscripts ledger ports outside the cmdscripts band: " f"{misbanded}"
     )
     assert not collisions, f"cmdscripts ledger port collisions: {collisions}"
 
 
-def test_secondary_listens_agree_with_env_injection():
-    """Where a hand-authored secondary listen is also injected through the spec's
-    ``env`` as an owned-listen key, the two must name the same spec."""
+def _env_owned_ports():
     env_owned = {}
     for spec in fleet_specs._all_specs():
         for key, value in spec.env.items():
             if key in fp.OWNED_LISTEN_ENV and str(value).isdigit():
                 env_owned.setdefault(int(value), set()).add(spec.name)
-    mism = []
-    for const, spec in fp._SECONDARY_CONSTS.items():
-        owners = env_owned.get(getattr(settings, const))
-        if owners is not None and spec not in owners:
-            mism.append((const, spec, sorted(owners)))
+    return env_owned
+
+
+def _secondary_owner_mismatches(env_owned):
+    mismatches = []
+    for constant, spec_name in fp._SECONDARY_CONSTS.items():
+        owners = env_owned.get(getattr(settings, constant))
+        if owners is not None and spec_name not in owners:
+            mismatches.append((constant, spec_name, sorted(owners)))
+    return mismatches
+
+
+def test_secondary_listens_agree_with_env_injection():
+    """Where a hand-authored secondary listen is also injected through the spec's
+    ``env`` as an owned-listen key, the two must name the same spec."""
+    mism = _secondary_owner_mismatches(_env_owned_ports())
     assert not mism, f"secondary listen disagrees with env owner {{(const, mapped, env)}}: {mism}"

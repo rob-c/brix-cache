@@ -1,4 +1,31 @@
 from split_continuation import reexport as _reexport
+def _expression_1(swarm, owner):
+    return (
+        [n for n in swarm.nodes if n is not owner][:2]
+    )
+
+def _expression_2(path, swarm):
+    return (
+        {n.nginx_port: n.count_log(path) for n in swarm.nodes}
+    )
+
+
+def _check_test_swarm_converges_and_cold_start_is_o1_origin_1(status, got, body):
+    assert status == 200 and got == body
+
+def _check_test_tampered_swarm_sibling_never_served_raises_tamper_2(owner, path):
+    assert GET(owner, path)[0] == 200
+
+def _check_test_tampered_swarm_sibling_never_served_raises_tamper_3(cached):
+    assert cached.exists(), "warmed object not in the owner's hot cache"
+
+def _check_test_tampered_swarm_sibling_never_served_raises_tamper_4(log):
+    assert "mesh-sibling object failed verification" in log
+
+def _check_test_tampered_swarm_sibling_never_served_raises_tamper_5(tamper):
+    assert tamper, "sibling tamper did not raise signal=cvmfs_tamper"
+
+
 _reexport(globals(), "_test_cvmfs_swarm_helpers")
 
 def test_swarm_converges_and_cold_start_is_o1_origin(swarm):
@@ -7,7 +34,7 @@ def test_swarm_converges_and_cold_start_is_o1_origin(swarm):
     body = body_owned_by(swarm.ring, 2, "o1_origin")
     path = put_obj(swarm.webroot, body)
     owner = swarm.by_label[swarm.ring[2]]
-    requesters = [n for n in swarm.nodes if n is not owner][:2]
+    requesters = _expression_1(swarm, owner)
     for n in swarm.nodes:
         n.reset_log()
 
@@ -15,13 +42,16 @@ def test_swarm_converges_and_cold_start_is_o1_origin(swarm):
     # the rendezvous owner, the owner origin-fills ONCE and feeds both.
     for n in requesters:
         status, _, got = GET(n, path)
-        assert status == 200 and got == body
+        _check_test_swarm_converges_and_cold_start_is_o1_origin_1(status, got, body)
 
-    counts = {n.nginx_port: n.count_log(path) for n in swarm.nodes}
-    assert sum(counts.values()) == 1, \
-        f"cold start cost the swarm {counts} origin fetches (want exactly 1)"
-    assert counts[owner.nginx_port] == 1, \
-        "the origin fetch did not come from the rendezvous owner"
+    counts = _expression_2(path, swarm)
+    def _assert_test_swarm_converges_and_cold_start_is_o1_origin_3():
+        assert sum(counts.values()) == 1, \
+            f"cold start cost the swarm {counts} origin fetches (want exactly 1)"
+        assert counts[owner.nginx_port] == 1, \
+            "the origin fetch did not come from the rendezvous owner"
+
+    _assert_test_swarm_converges_and_cold_start_is_o1_origin_3()
 
 
 # ============================================================================
@@ -67,9 +97,12 @@ def test_dead_member_detected_and_routed_around(swarm):
         a.reset_log()
         b.reset_log()
         status, _, got = GET(a, path)
-        assert status == 200 and got == body, "dead member black-holed its keys"
-        assert a.count_log(path) + b.count_log(path) == 1, \
-            "expected exactly one origin fill after the route-around"
+        def _assert_test_dead_member_detected_and_routed_around_1():
+            assert status == 200 and got == body, "dead member black-holed its keys"
+            assert a.count_log(path) + b.count_log(path) == 1, \
+                "expected exactly one origin fill after the route-around"
+
+        _assert_test_dead_member_detected_and_routed_around_1()
 
 
 # ============================================================================
@@ -88,21 +121,24 @@ def test_tampered_swarm_sibling_never_served_raises_tamper(swarm):
 
     # Warm the owner legitimately, then corrupt its cached blob in place
     # (same length, wrong hash) — the cinfo stays valid so the owner serves it.
-    assert GET(owner, path)[0] == 200
+    _check_test_tampered_swarm_sibling_never_served_raises_tamper_2(owner, path)
     cached = cache_path(swarm, owner, hx)
-    assert cached.exists(), "warmed object not in the owner's hot cache"
+    _check_test_tampered_swarm_sibling_never_served_raises_tamper_3(cached)
     cached.write_bytes(b"EVIL" + body[4:])
     requester.reset_log()
 
     status, _, got = GET(requester, path)
-    assert status == 200 and got == body, "tampered sibling bytes leaked"
-    assert requester.count_log(path) == 1, "expected exactly one origin refill"
+    def _assert_test_tampered_swarm_sibling_never_served_raises_tamper_2():
+        assert status == 200 and got == body, "tampered sibling bytes leaked"
+        assert requester.count_log(path) == 1, "expected exactly one origin refill"
+
+    _assert_test_tampered_swarm_sibling_never_served_raises_tamper_2()
 
     log = requester.error_log.read_text(encoding="utf-8", errors="replace")
-    assert "mesh-sibling object failed verification" in log
+    _check_test_tampered_swarm_sibling_never_served_raises_tamper_4(log)
     tamper = [ln for ln in log.splitlines()
               if "signal=cvmfs_tamper" in ln and path in ln]
-    assert tamper, "sibling tamper did not raise signal=cvmfs_tamper"
+    _check_test_tampered_swarm_sibling_never_served_raises_tamper_5(tamper)
 
 
 # ============================================================================

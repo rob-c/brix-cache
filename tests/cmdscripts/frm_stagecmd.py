@@ -50,73 +50,109 @@ def _load_config(script_path: str) -> dict:
         return {}
 
 
-def main(argv: list[str] | None = None, cfg: dict | None = None) -> int:
-    args = list(sys.argv[1:] if argv is None else argv)
-    if cfg is None:
-        cfg = _load_config(os.path.realpath(sys.argv[0]))
+def _arguments(argv):
+    return list(sys.argv[1:] if argv is None else argv)
 
-    verb = args[0] if len(args) > 0 else ""
-    key = args[1] if len(args) > 1 else ""
-    online = args[2] if len(args) > 2 else ""
+
+def _configuration(cfg):
+    if cfg is None:
+        return _load_config(os.path.realpath(sys.argv[0]))
+    return cfg
+
+
+def _argument(args, index):
+    if index < len(args):
+        return args[index]
+    return ""
+
+
+def _request(args, cfg):
+    verb = _argument(args, 0)
+    key = _argument(args, 1)
+    online = _argument(args, 2)
     if cfg.get("strip_slash", True) and key.startswith("/"):
         key = key[1:]
+    return verb, key, online
 
-    tape_key = f"{cfg.get('tape', '')}/{key}"
 
+def _audit_line(cfg, verb, key, online):
+    if cfg.get("audit_format", "verb_key_online") == "verb_key":
+        return f"{verb} {key}\n"
+    return f"{verb} {key} {online}\n"
+
+
+def _write_audit(cfg, verb, key, online):
     audit = cfg.get("audit")
-    if audit:
-        if cfg.get("audit_format", "verb_key_online") == "verb_key":
-            line = f"{verb} {key}\n"
-        else:
-            line = f"{verb} {key} {online}\n"
-        try:
-            with open(audit, "a") as fh:
-                fh.write(line)
-        except OSError:
-            if not cfg.get("audit_best_effort"):
-                raise
+    if not audit:
+        return
+    try:
+        with open(audit, "a") as fh:
+            fh.write(_audit_line(cfg, verb, key, online))
+    except OSError:
+        if not cfg.get("audit_best_effort"):
+            raise
+
+
+def _ensure_parent(path):
+    parent = os.path.dirname(path)
+    if parent:
+        os.makedirs(parent, exist_ok=True)
+
+
+def _recall(cfg, key, tape_key, online):
+    recall_log = cfg.get("recall_log")
+    if recall_log:
+        with open(recall_log, "a") as fh:
+            fh.write(f"recall {key}\n")
+    if cfg.get("failkey") and key == cfg["failkey"]:
+        return 1
+    try:
+        _ensure_parent(online)
+        shutil.copyfile(tape_key, online)
+    except OSError:
+        return 1
+    return 0
+
+
+def _migrate(tape_key, online):
+    try:
+        _ensure_parent(tape_key)
+        shutil.copyfile(online, tape_key)
+    except OSError:
+        return 1
+    return 0
+
+
+def _purge(online):
+    try:
+        os.unlink(online)
+    except OSError:
+        pass
+    return 0
+
+
+def _dispatch(cfg, verb, key, online, tape_key):
+    if verb == "exists":
+        return 0 if os.path.isfile(tape_key) else 1
+    if verb == "recall":
+        return _recall(cfg, key, tape_key, online)
+    if verb == "migrate":
+        return _migrate(tape_key, online)
+    if verb == "purge":
+        return _purge(online)
+    return int(cfg.get("unknown_exit", 0))
+
+
+def main(argv: list[str] | None = None, cfg: dict | None = None) -> int:
+    cfg = _configuration(cfg)
+    verb, key, online = _request(_arguments(argv), cfg)
+    tape_key = f"{cfg.get('tape', '')}/{key}"
+    _write_audit(cfg, verb, key, online)
 
     allowed = cfg.get("verbs")
     if allowed is not None and verb not in allowed:
         return int(cfg.get("unknown_exit", 0))
-
-    if verb == "exists":
-        return 0 if os.path.isfile(tape_key) else 1
-
-    if verb == "recall":
-        recall_log = cfg.get("recall_log")
-        if recall_log:
-            with open(recall_log, "a") as fh:
-                fh.write(f"recall {key}\n")
-        if cfg.get("failkey") and key == cfg["failkey"]:
-            return 1
-        try:
-            parent = os.path.dirname(online)
-            if parent:
-                os.makedirs(parent, exist_ok=True)
-            shutil.copyfile(tape_key, online)
-        except OSError:
-            return 1
-        return 0
-
-    if verb == "migrate":
-        try:
-            parent = os.path.dirname(tape_key)
-            if parent:
-                os.makedirs(parent, exist_ok=True)
-            shutil.copyfile(online, tape_key)
-        except OSError:
-            return 1
-        return 0
-
-    if verb == "purge":
-        try:
-            os.unlink(online)
-        except OSError:
-            pass
-        return 0
-
-    return int(cfg.get("unknown_exit", 0))
+    return _dispatch(cfg, verb, key, online, tape_key)
 
 
 def install(dest_dir, name: str = "stage.py", **cfg) -> str:

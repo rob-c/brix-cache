@@ -54,42 +54,66 @@ def _extract(doc: Path) -> list[str]:
     Mirrors the shell pipeline: sed range-delete, grep -oP, sed trim, grep -v,
     sort -u — the trailing-slash tolerance happens later, at check time, exactly
     as in the bash while-loop."""
-    tokens: set[str] = set()
-    skipping = False
-    for line in doc.read_text().splitlines():
-        # sed '/<!-- doc-paths:off/,/<!-- doc-paths:on/d'
-        if not skipping:
-            if "<!-- doc-paths:off" in line:
-                skipping = True
-                continue
-        else:
-            if "<!-- doc-paths:on" in line:
-                skipping = False
-            continue
-        for match in _TOKEN.findall(line):
-            trimmed = _TRAILING.sub("", match)
-            if _REJECT.search(trimmed):
-                continue
-            tokens.add(trimmed)
+    tokens = {
+        token
+        for line in _visible_lines(doc.read_text().splitlines())
+        for token in _line_tokens(line)
+    }
     return sorted(tokens)
+
+
+def _visible_lines(lines):
+    skipping = False
+    for line in lines:
+        # sed '/<!-- doc-paths:off/,/<!-- doc-paths:on/d'
+        if skipping:
+            skipping = "<!-- doc-paths:on" not in line
+            continue
+        if "<!-- doc-paths:off" in line:
+            skipping = True
+            continue
+        yield line
+
+
+def _line_tokens(line):
+    return [
+        trimmed
+        for match in _TOKEN.findall(line)
+        for trimmed in [_TRAILING.sub("", match)]
+        if not _REJECT.search(trimmed)
+    ]
 
 
 def run(root: Path = ROOT) -> tuple[bool, list[str]]:
     """Scan the navigation docs. Returns (clean, violation_lines).
 
     clean is True when every referenced path exists and is git-tracked."""
-    messages: list[str] = []
-    for rel in DOCS:
-        doc = root / rel
-        if not doc.is_file():
-            continue
-        for token in _extract(doc):
-            p = token[:-1] if token.endswith("/") else token  # ${p%/}
-            if not (root / p).exists():
-                messages.append(f"FAIL {rel} references missing path: {p}")
-            elif not _tracked(root, p):
-                messages.append(f"FAIL {rel} references untracked (gitignored?) path: {p}")
+    messages = [
+        message
+        for relative in DOCS
+        for message in _document_messages(root, relative)
+    ]
     return not messages, messages
+
+
+def _document_messages(root, relative):
+    document = root / relative
+    if not document.is_file():
+        return []
+    return [
+        message
+        for token in _extract(document)
+        for message in _path_message(root, relative, token)
+    ]
+
+
+def _path_message(root, relative, token):
+    path = token[:-1] if token.endswith("/") else token
+    if not (root / path).exists():
+        return [f"FAIL {relative} references missing path: {path}"]
+    if not _tracked(root, path):
+        return [f"FAIL {relative} references untracked (gitignored?) path: {path}"]
+    return []
 
 
 def _tracked(root: Path, path: str) -> bool:

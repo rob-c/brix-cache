@@ -142,10 +142,13 @@ class TestServerLegHostileFraming:
                 if _recv_code(sock, CMS_RR_PONG, timeout=0.5) is None:
                     break
                 pongs += 1
-            assert pongs >= 50, \
-                f"ping flood dropped frames past the fairness yield: {pongs}"
-            assert _statfs_wfree(sock, _SID | 6) == 5000, \
-                "a 200-frame ping flood stalled or disturbed the connection"
+            def _assert_test_ping_flood_survives_fairness_yield_2():
+                assert pongs >= 50, \
+                    f"ping flood dropped frames past the fairness yield: {pongs}"
+                assert _statfs_wfree(sock, _SID | 6) == 5000, \
+                    "a 200-frame ping flood stalled or disturbed the connection"
+
+            _assert_test_ping_flood_survives_fairness_yield_2()
         finally:
             sock.close()
 
@@ -242,10 +245,13 @@ class TestNodeLegHostileManager:
             if hostile_node.count_frames(CMS_RR_PONG) - base_pong >= 50:
                 break
             time.sleep(0.1)
-        assert hostile_node.count_frames(CMS_RR_PONG) - base_pong >= 50, \
-            "node did not keep answering under a ping flood"
-        assert hostile_node.count_frames(CMS_RR_LOGIN) == base_login, \
-            "a ping flood forced a reconnect"
+        def _assert_test_ping_flood_stays_connected_1():
+            assert hostile_node.count_frames(CMS_RR_PONG) - base_pong >= 50, \
+                "node did not keep answering under a ping flood"
+            assert hostile_node.count_frames(CMS_RR_LOGIN) == base_login, \
+                "a ping flood forced a reconnect"
+
+        _assert_test_ping_flood_stays_connected_1()
 
 
 # ===========================================================================

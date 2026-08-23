@@ -9,6 +9,27 @@ from collections.abc import Callable, Sequence
 from pathlib import Path
 
 
+def _argv_value(argv, flag, default=None):
+    try:
+        return argv[argv.index(flag) + 1]
+    except (ValueError, IndexError):
+        return default
+
+
+def _is_nginx_command(argv):
+    if not argv:
+        return False
+    first = str(argv[0])
+    return first == "nginx" or first.endswith("/nginx")
+
+
+def _is_nginx_start(argv):
+    probes = ("-t", "-T", "-s", "-v", "-V")
+    return _is_nginx_command(argv) and "-c" in argv and not any(
+        flag in argv for flag in probes
+    )
+
+
 def _maybe_open_tree_for_deescalated_worker(argv: list[str]) -> list[str]:
     """Open a raw nginx server launch's tree for the de-escalated worker.
 
@@ -25,23 +46,12 @@ def _maybe_open_tree_for_deescalated_worker(argv: list[str]) -> list[str]:
     Only a genuine server start is treated (has ``-c``, not a ``-t`` config-test
     / ``-s`` signal / ``-v`` version probe).
     """
-    if os.geteuid() != 0 or not argv:
+    if os.geteuid() != 0 or not _is_nginx_start(argv):
         return argv
-    first = str(argv[0])
-    if not (first == "nginx" or first.endswith("/nginx")):
+    prefix = _argv_value(argv, "-p")
+    if prefix is None:
         return argv
-    if "-c" not in argv:
-        return argv
-    if any(flag in argv for flag in ("-t", "-T", "-s", "-v", "-V")):
-        return argv
-    try:
-        prefix = argv[argv.index("-p") + 1]
-    except (ValueError, IndexError):
-        return argv
-    try:
-        conf = argv[argv.index("-c") + 1]
-    except (ValueError, IndexError):
-        conf = None
+    conf = _argv_value(argv, "-c")
     open_tree_for_worker(prefix, conf)
     return argv
 
@@ -54,19 +64,13 @@ def _prepare_nginx_config(argv: list[str]) -> list[str]:
     must receive the same ``load_module`` preamble as registry-owned servers;
     otherwise every stream/project directive is reported as unknown.
     """
-    if not argv:
+    if not _is_nginx_command(argv) or "-c" not in argv:
         return argv
-    first = str(argv[0])
-    if not (first == "nginx" or first.endswith("/nginx")) or "-c" not in argv:
+    config_value = _argv_value(argv, "-c")
+    if config_value is None:
         return argv
-    try:
-        config_arg = Path(argv[argv.index("-c") + 1])
-    except (ValueError, IndexError):
-        return argv
-    try:
-        prefix = Path(argv[argv.index("-p") + 1])
-    except (ValueError, IndexError):
-        prefix = config_arg.parent
+    config_arg = Path(config_value)
+    prefix = Path(_argv_value(argv, "-p", config_arg.parent))
     config = config_arg if config_arg.is_absolute() else prefix / config_arg
     if not config.is_file():
         return argv
@@ -79,6 +83,38 @@ def _prepare_nginx_config(argv: list[str]) -> list[str]:
     inject_nginx_load_modules(config)
     inject_nginx_runtime_paths(config, prefix)
     return argv
+
+
+def _credential_snapshot(tree):
+    snapshot = {}
+    for walk_root, _dirs, files in os.walk(tree):
+        for name in files:
+            if not name.endswith((".pem", ".key", ".p12")):
+                continue
+            path = os.path.join(walk_root, name)
+            try:
+                stat = os.stat(path)
+            except OSError:
+                continue
+            snapshot[path] = (stat.st_uid, stat.st_gid, stat.st_mode & 0o7777)
+    return snapshot
+
+
+def _restore_credentials(snapshot):
+    for path, (uid, gid, mode) in snapshot.items():
+        try:
+            os.chown(path, uid, gid)
+            os.chmod(path, mode)
+        except OSError:
+            pass
+
+
+def _open_tree_ancestors(tree):
+    parent = os.path.dirname(os.path.abspath(tree))
+    while parent not in ("/", ""):
+        subprocess.run(["chmod", "a+rx", parent], check=False,
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        parent = os.path.dirname(parent)
 
 
 def open_tree_for_worker(tree, conf=None) -> None:
@@ -96,37 +132,75 @@ def open_tree_for_worker(tree, conf=None) -> None:
     if os.geteuid() != 0:
         return
     tree = str(tree)
-    # The blanket chmod below would leave every minted client proxy/key 0666 —
-    # and XrdSecgsi refuses a group/other-accessible credential ("cannot load
-    # proxy credential"), killing the ROOT-RUN test clients. Snapshot PEM/key
-    # modes+owners first and restore them right after, so credential material
-    # keeps exactly the posture the harness gave it.
-    snap = {}
-    for walk_root, _dirs, files in os.walk(tree):
-        for name in files:
-            if name.endswith((".pem", ".key", ".p12")):
-                path = os.path.join(walk_root, name)
-                try:
-                    st = os.stat(path)
-                except OSError:
-                    continue
-                snap[path] = (st.st_uid, st.st_gid, st.st_mode & 0o7777)
+    snapshot = _credential_snapshot(tree)
     subprocess.run(["chmod", "-R", "a+rwX", tree], check=False,
                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    for path, (uid, gid, mode) in snap.items():
-        try:
-            os.chown(path, uid, gid)
-            os.chmod(path, mode)
-        except OSError:
-            pass
-    parent = os.path.dirname(os.path.abspath(tree))
-    while parent not in ("/", ""):
-        subprocess.run(["chmod", "a+rx", parent], check=False,
-                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        parent = os.path.dirname(parent)
+    _restore_credentials(snapshot)
+    _open_tree_ancestors(tree)
     _open_shared_user_proxy_for_worker()
     if conf is not None:
         _hand_conf_credentials_to_worker(conf, tree)
+
+
+def _read_config(conf):
+    try:
+        return open(conf, encoding="utf-8", errors="replace").read()
+    except OSError:
+        return None
+
+
+def _handoff_stores(text, worker):
+    import re  # noqa: PLC0415
+    stores = re.findall(r"\bbrix_storage_credential_dir\s+([^;\s]+)\s*;", text)
+    for raw_store in stores:
+        store = raw_store.strip('"')
+        if store and os.path.isdir(store):
+            subprocess.run(["chown", "-R", worker, store], check=False)
+            os.chmod(store, 0o700)
+
+
+def _worker_credential_path(path, tree, twin_dir, worker):
+    import shutil as _shutil  # noqa: PLC0415
+    path = path.strip('"')
+    if not path or not os.path.isfile(path):
+        return path
+    if os.path.abspath(path).startswith(tree + os.sep):
+        try:
+            _shutil.chown(path, worker)
+        except OSError:
+            pass
+        return path
+    twin = os.path.join(twin_dir, os.path.basename(path))
+    try:
+        os.makedirs(twin_dir, exist_ok=True)
+        os.chmod(twin_dir, 0o755)
+        _shutil.copy2(path, twin)
+        _shutil.chown(twin, worker)
+        os.chmod(twin, 0o600)
+        return twin
+    except OSError:
+        return path
+
+
+def _rewrite_worker_credentials(text, tree, worker):
+    import re  # noqa: PLC0415
+    pattern = r"\b(?:x509_proxy|x509_key|brix_certificate_key)\s+([^;\s]+)\s*;"
+    rewritten = text
+    twin_dir = os.path.join(tree, ".worker-creds")
+    for path in set(re.findall(pattern, text)):
+        twin = _worker_credential_path(path, tree, twin_dir, worker)
+        rewritten = rewritten.replace(path.strip('"'), twin)
+    return rewritten
+
+
+def _write_rewritten_config(conf, text, rewritten):
+    if rewritten == text:
+        return
+    try:
+        with open(conf, "w", encoding="utf-8") as handle:
+            handle.write(rewritten)
+    except OSError:
+        pass
 
 
 def _hand_conf_credentials_to_worker(conf, tree) -> None:
@@ -149,52 +223,16 @@ def _hand_conf_credentials_to_worker(conf, tree) -> None:
             scenario tree and rewrite the (throwaway, regenerated-per-start)
             config to point at the twin.
     """
-    import re  # noqa: PLC0415
-    import shutil as _shutil  # noqa: PLC0415
     worker = _worker_user()
     if worker is None:
         return
     tree = os.path.abspath(str(tree))
-    try:
-        text = open(conf, encoding="utf-8", errors="replace").read()
-    except OSError:
+    text = _read_config(conf)
+    if text is None:
         return
-    for store in re.findall(r"\bbrix_storage_credential_dir\s+([^;\s]+)\s*;",
-                            text):
-        store = store.strip('"')
-        if store and os.path.isdir(store):
-            subprocess.run(["chown", "-R", worker, store], check=False)
-            os.chmod(store, 0o700)
-    rewritten = text
-    twin_dir = os.path.join(tree, ".worker-creds")
-    for path in set(re.findall(
-            r"\b(?:x509_proxy|x509_key|brix_certificate_key)\s+([^;\s]+)\s*;",
-            text)):
-        path = path.strip('"')
-        if not path or not os.path.isfile(path):
-            continue
-        if os.path.abspath(path).startswith(tree + os.sep):
-            try:
-                _shutil.chown(path, worker)
-            except OSError:
-                pass
-            continue
-        twin = os.path.join(twin_dir, os.path.basename(path))
-        try:
-            os.makedirs(twin_dir, exist_ok=True)
-            os.chmod(twin_dir, 0o755)
-            _shutil.copy2(path, twin)
-            _shutil.chown(twin, worker)
-            os.chmod(twin, 0o600)
-        except OSError:
-            continue
-        rewritten = rewritten.replace(path, twin)
-    if rewritten != text:
-        try:
-            with open(conf, "w", encoding="utf-8") as fh:
-                fh.write(rewritten)
-        except OSError:
-            pass
+    _handoff_stores(text, worker)
+    rewritten = _rewrite_worker_credentials(text, tree, worker)
+    _write_rewritten_config(conf, text, rewritten)
 
 
 def _worker_user() -> str | None:
@@ -207,6 +245,37 @@ def _worker_user() -> str | None:
     return worker
 
 
+def _open_pki_directories(paths):
+    for directory in paths:
+        if os.path.isdir(directory):
+            subprocess.run(["chmod", "a+rx", directory], check=False)
+
+
+def _open_ca_files(ca_dir):
+    if not os.path.isdir(ca_dir):
+        return
+    paths = [os.path.join(ca_dir, name) for name in os.listdir(ca_dir)]
+    subprocess.run(["chmod", "a+r", *paths], check=False)
+
+
+def _open_host_certificate(server_dir):
+    certificate = os.path.join(server_dir, "hostcert.pem")
+    if os.path.isfile(certificate):
+        subprocess.run(["chmod", "a+r", certificate], check=False)
+
+
+def _handoff_host_key(server_dir, worker):
+    import shutil as _shutil  # noqa: PLC0415
+    key = os.path.join(server_dir, "hostkey.pem")
+    if not os.path.isfile(key):
+        return
+    try:
+        _shutil.chown(key, worker)
+        os.chmod(key, 0o400)
+    except OSError:
+        pass
+
+
 def _open_shared_user_proxy_for_worker() -> None:
     """Hand the shared TEST_ROOT proxy/user key to the runtime worker identity.
 
@@ -216,7 +285,6 @@ def _open_shared_user_proxy_for_worker() -> None:
     the traversal path to it) to the worker user.  0600 stays: XrdCl's GSI
     loader refuses a lax proxy, and the tests' root-run clients ignore modes.
     """
-    import shutil as _shutil  # noqa: PLC0415
     worker = _worker_user()
     if worker is None:
         return
@@ -224,28 +292,10 @@ def _open_shared_user_proxy_for_worker() -> None:
     user_dir = os.path.join(PKI_DIR, "user")
     server_dir = os.path.join(PKI_DIR, "server")
     ca_dir = os.path.join(PKI_DIR, "ca")
-    for d in (PKI_DIR, user_dir, server_dir, ca_dir):
-        if os.path.isdir(d):
-            subprocess.run(["chmod", "a+rx", d], check=False)
-    if os.path.isdir(ca_dir):
-        subprocess.run(["chmod", "a+r"] + [
-            os.path.join(ca_dir, f) for f in os.listdir(ca_dir)
-        ], check=False)
-    if os.path.isfile(os.path.join(server_dir, "hostcert.pem")):
-        subprocess.run(["chmod", "a+r", os.path.join(server_dir, "hostcert.pem")],
-                       check=False)
-    # The hostkey stays 0400 but moves to the worker identity (same treatment
-    # server_launcher._xrootd_runas_user gives the fleet's hostkey). The USER
-    # proxy is deliberately NOT touched: root-run test clients load it, and
-    # XrdSecgsi demands the file be owned by the loading euid — worker-side
-    # references get a worker-owned twin via _hand_conf_credentials_to_worker.
-    path = os.path.join(PKI_DIR, "server", "hostkey.pem")
-    if os.path.isfile(path):
-        try:
-            _shutil.chown(path, worker)
-            os.chmod(path, 0o400)
-        except OSError:
-            pass
+    _open_pki_directories((PKI_DIR, user_dir, server_dir, ca_dir))
+    _open_ca_files(ca_dir)
+    _open_host_certificate(server_dir)
+    _handoff_host_key(server_dir, worker)
 
 
 def run(argv: Sequence[str], **kwargs) -> subprocess.CompletedProcess:

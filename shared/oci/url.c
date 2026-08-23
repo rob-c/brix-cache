@@ -37,12 +37,54 @@ oci_url_authority(const char *s, size_t n, brix_oci_url_t *out)
     return end;
 }
 
+/*
+ * WHAT: Find and validate the structural end of a registry URL path prefix.
+ * WHY:  Empty and parent-like components can escape the configured namespace.
+ * HOW:  Stop at query/fragment and reject doubled slash or doubled dot bytes.
+ */
+static size_t
+oci_url_path_end(const char *s, size_t n)
+{
+    size_t len;
+
+    for (len = 0; len < n && s[len] != '?' && s[len] != '#'; len++) {
+        if (s[len] == '/' && len + 1 < n && s[len + 1] == '/') {
+            return (size_t) -1;
+        }
+        if (s[len] == '.' && len + 1 < n && s[len + 1] == '.') {
+            return (size_t) -1;
+        }
+    }
+    while (len > 1 && s[len - 1] == '/') {
+        len--;
+    }
+    return len;
+}
+
+/*
+ * WHAT: Validate every byte copied into a registry request path prefix.
+ * WHY:  Spaces and control bytes can split or smuggle an HTTP request line.
+ * HOW:  Reject C0, space, and DEL bytes across the bounded prefix.
+ */
+static int
+oci_url_path_bytes_valid(const char *s, size_t len)
+{
+    size_t i;
+
+    for (i = 0; i < len; i++) {
+        if ((unsigned char) s[i] <= 0x20 || (unsigned char) s[i] == 0x7f) {
+            return 0;
+        }
+    }
+    return 1;
+}
+
 /* Parse the path prefix. A query or fragment ends it; a trailing '/' is
  * dropped so the prefix concatenates cleanly with a leading-'/' key. */
 static int
 oci_url_path(const char *s, size_t n, brix_oci_url_t *out)
 {
-    size_t len, i;
+    size_t len;
 
     out->path[0] = '\0';
     if (n == 0) {
@@ -51,27 +93,15 @@ oci_url_path(const char *s, size_t n, brix_oci_url_t *out)
     if (s[0] != '/') {
         return -1;
     }
-
-    for (len = 0; len < n && s[len] != '?' && s[len] != '#'; len++) {
-        /* Empty and dot-dot components would each let a prefix reach outside
-         * the namespace the operator named; neither has a benign spelling. */
-        if (s[len] == '/' && len + 1 < n && s[len + 1] == '/') {
-            return -1;
-        }
-        if (s[len] == '.' && len + 1 < n && s[len + 1] == '.') {
-            return -1;
-        }
-    }
-    while (len > 1 && s[len - 1] == '/') {
-        len--;
+    len = oci_url_path_end(s, n);
+    if (len == (size_t) -1) {
+        return -1;
     }
     if (len <= 1) {
         return 0;                          /* "/" contributes no prefix */
     }
-    for (i = 0; i < len; i++) {
-        if ((unsigned char) s[i] <= 0x20 || (unsigned char) s[i] == 0x7f) {
-            return -1;                     /* CTL/space: request smuggling */
-        }
+    if (!oci_url_path_bytes_valid(s, len)) {
+        return -1;
     }
     return oci_url_field(out->path, sizeof(out->path), s, len);
 }

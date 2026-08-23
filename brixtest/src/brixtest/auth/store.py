@@ -38,6 +38,14 @@ def _is_within(path: Path, root: Path) -> bool:
         return False
 
 
+def _close_realm(name: str, realm: KerberosRealm) -> str:
+    try:
+        realm.close()
+    except Exception as exc:
+        return "%s: %s" % (name, exc)
+    return ""
+
+
 @dataclasses.dataclass(frozen=True)
 class MaterializedAuth:
     """Files, metadata, and role-specific environments for one auth stack."""
@@ -51,18 +59,10 @@ class MaterializedAuth:
     metadata: Mapping[str, object]
 
     def __post_init__(self) -> None:
-        if not isinstance(self.name, str) or not self.name:
-            raise SpecError("auth.name", self.name, "must be non-empty text")
-        if not isinstance(self.kind, str) or not self.kind:
-            raise SpecError("auth.kind", self.kind, "must be non-empty text")
-        if not isinstance(self.root, (str, Path)) or not str(self.root):
-            raise SpecError("auth.root", self.root, "must be a file-system path")
-        object.__setattr__(self, "root", Path(self.root))
-        for field in ("files", "test_env", "server_env", "client_env", "metadata"):
-            value = getattr(self, field)
-            if not isinstance(value, Mapping):
-                raise SpecError("auth.%s" % field, value, "must be a mapping")
-            object.__setattr__(self, field, freeze_mapping(value))
+        _validate_auth_text("name", self.name)
+        _validate_auth_text("kind", self.kind)
+        object.__setattr__(self, "root", _auth_root(self.root))
+        _freeze_auth_mappings(self)
 
     def path(self, name: str) -> Path:
         """Resolve one named file or raise an error listing available names."""
@@ -298,52 +298,28 @@ class AuthStore:
             raise SpecError("auth target", target, "must be test, server, or client")
         merged: Dict[str, str] = {}
         for item in self._items.values():
-            values = getattr(item, target + "_env")
-            for key, value in values.items():
-                rendered = _replace_root(value, self.root, Path(base)) if base is not None else value
-                if key in merged and merged[key] != rendered:
-                    raise SpecError("auth environment", key, "is supplied by multiple active recipes")
-                merged[key] = rendered
+            values = _environment_values(item, target, self.root, base)
+            _merge_environment(merged, values)
         return merged
 
     def values(self, base: Optional[Path] = None) -> Mapping[str, object]:
         values: Dict[str, object] = {}
         for item in self._items.values():
-            root = (Path(base) / item.name) if base is not None else item.root
-            values["auth_%s" % item.name] = root
-            for key, path in item.files.items():
-                if path.is_dir():
-                    relative = path.relative_to(item.root)
-                else:
-                    relative = path.relative_to(item.root)
-                values["auth_%s_%s" % (item.name, key)] = root / relative
-            for key, value in item.metadata.items():
-                values["auth_%s_%s" % (item.name, key)] = value
+            values.update(_auth_values(item, base))
         return values
 
     def files_for(self, target: str) -> Mapping[str, Path]:
         selected: Dict[str, Path] = {}
         for item in self._items.values():
-            environment = getattr(item, target + "_env")
-            for value in environment.values():
-                raw = value[5:] if value.startswith("FILE:") else value
-                path = Path(raw)
-                if not path.is_absolute() or not _is_within(path, item.root):
-                    continue
-                candidates = path.rglob("*") if path.is_dir() else (path,)
-                for candidate in candidates:
-                    if candidate.is_file():
-                        relative = Path(item.name) / candidate.relative_to(item.root)
-                        selected[relative.as_posix()] = candidate
+            selected.update(_auth_files(item, target))
         return selected
 
     def close(self) -> None:
-        errors = []
-        for name, realm in reversed(tuple(self._realms.items())):
-            try:
-                realm.close()
-            except Exception as exc:
-                errors.append("%s: %s" % (name, exc))
+        errors = [
+            error
+            for name, realm in reversed(tuple(self._realms.items()))
+            if (error := _close_realm(name, realm))
+        ]
         self._realms.clear()
         if errors:
             raise SpecError("auth teardown", "kerberos", "; ".join(errors))
@@ -361,3 +337,72 @@ class AuthStore:
                 "client_env": sorted(item.client_env),
             }
         (self.root / "manifest.json").write_text(json.dumps({"auth": rows}, indent=2, sort_keys=True) + "\n")
+
+
+def _validate_auth_text(field: str, value: object) -> None:
+    if not isinstance(value, str) or not value:
+        raise SpecError("auth.%s" % field, value, "must be non-empty text")
+
+
+def _auth_root(value: object) -> Path:
+    if not isinstance(value, (str, Path)) or not str(value):
+        raise SpecError("auth.root", value, "must be a file-system path")
+    return Path(value)
+
+
+def _freeze_auth_mappings(item: MaterializedAuth) -> None:
+    for field in ("files", "test_env", "server_env", "client_env", "metadata"):
+        value = getattr(item, field)
+        if not isinstance(value, Mapping):
+            raise SpecError("auth.%s" % field, value, "must be a mapping")
+        object.__setattr__(item, field, freeze_mapping(value))
+
+
+def _environment_values(item, target: str, root: Path, base: Optional[Path]) -> dict:
+    values = getattr(item, target + "_env")
+    if base is None:
+        return dict(values)
+    destination = Path(base)
+    return {
+        key: _replace_root(value, root, destination)
+        for key, value in values.items()
+    }
+
+
+def _merge_environment(merged: Dict[str, str], values: Mapping[str, str]) -> None:
+    for key, rendered in values.items():
+        if key in merged and merged[key] != rendered:
+            raise SpecError(
+                "auth environment", key, "is supplied by multiple active recipes",
+            )
+        merged[key] = rendered
+
+
+def _auth_values(item: MaterializedAuth, base: Optional[Path]) -> dict[str, object]:
+    root = item.root if base is None else Path(base) / item.name
+    values: dict[str, object] = {"auth_%s" % item.name: root}
+    for key, path in item.files.items():
+        relative = path.relative_to(item.root)
+        values["auth_%s_%s" % (item.name, key)] = root / relative
+    for key, value in item.metadata.items():
+        values["auth_%s_%s" % (item.name, key)] = value
+    return values
+
+
+def _auth_files(item: MaterializedAuth, target: str) -> dict[str, Path]:
+    selected = {}
+    environment = getattr(item, target + "_env")
+    for value in environment.values():
+        path = Path(value.removeprefix("FILE:"))
+        if path.is_absolute() and _is_within(path, item.root):
+            selected.update(_contained_files(item, path))
+    return selected
+
+
+def _contained_files(item: MaterializedAuth, path: Path) -> dict[str, Path]:
+    candidates = path.rglob("*") if path.is_dir() else (path,)
+    return {
+        (Path(item.name) / candidate.relative_to(item.root)).as_posix(): candidate
+        for candidate in candidates
+        if candidate.is_file()
+    }

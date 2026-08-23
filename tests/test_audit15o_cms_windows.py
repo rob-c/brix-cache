@@ -102,6 +102,29 @@ from test_cms_locate_have import (
     _xrd_session,
 )
 
+def _expression_1(self, hdr):
+    return (
+        self._closing or len(hdr) < 8
+    )
+
+def _expression_2(dlen, self):
+    return (
+        self._recv_exact(dlen) if dlen else b""
+    )
+
+def _expression_3(code, self):
+    return (
+        code in (CMS_RR_RM, CMS_RR_RMDIR) \
+                                and self.error_reply is not None
+    )
+
+
+def _phase_reader_1(self, code, streamid, payload):
+    with self._lock:
+        self.frames.append((time.monotonic(), code, streamid,
+                            payload))
+
+
 pytestmark = [pytest.mark.timeout(180),
               pytest.mark.uses_lifecycle_harness,
               pytest.mark.xdist_group("lc-audit15o-cmswindows")]
@@ -250,17 +273,14 @@ class _Node:
         try:
             while not self._closing:
                 hdr = self._recv_exact(8)
-                if self._closing or len(hdr) < 8:
+                if _expression_1(self, hdr):
                     return
                 streamid, code, _mod, dlen = struct.unpack(">IBBH", hdr)
-                payload = self._recv_exact(dlen) if dlen else b""
-                with self._lock:
-                    self.frames.append((time.monotonic(), code, streamid,
-                                        payload))
+                payload = _expression_2(dlen, self)
+                _phase_reader_1(self, code, streamid, payload)
                 if code == CMS_RR_PING:
                     self.sock.sendall(_build_frame(streamid, CMS_RR_PONG, 0))
-                elif code in (CMS_RR_RM, CMS_RR_RMDIR) \
-                        and self.error_reply is not None:
+                elif _expression_3(code, self):
                     ecode, text = self.error_reply
                     self.sock.sendall(_build_frame(
                         streamid, CMS_RSP_ERROR, 0,
@@ -473,18 +493,24 @@ def test_the_probe_cap_is_the_number_of_nodes_asked(cms, nodes):
 
     probed = [n for n in fan if n.of(CMS_RR_STATE, path)]
     total = sum(len(n.of(CMS_RR_STATE, path)) for n in fan)
-    assert total == FAST_STATE_FANOUT, \
-        (f"brix_cms_state_fanout {FAST_STATE_FANOUT} must put exactly "
-         f"{FAST_STATE_FANOUT} kYR_state frames on the wire, saw {total} "
-         f"across nodes {[n.dport for n in probed]}\n{_errlog(cms)[-2000:]}")
-    assert len(probed) == FAST_STATE_FANOUT, \
-        "the cap counts nodes, not frames — no node may be probed twice"
+    def _assert_test_the_probe_cap_is_the_number_of_nodes_asked_1():
+        assert total == FAST_STATE_FANOUT, \
+            (f"brix_cms_state_fanout {FAST_STATE_FANOUT} must put exactly "
+             f"{FAST_STATE_FANOUT} kYR_state frames on the wire, saw {total} "
+             f"across nodes {[n.dport for n in probed]}\n{_errlog(cms)[-2000:]}")
+        assert len(probed) == FAST_STATE_FANOUT, \
+            "the cap counts nodes, not frames — no node may be probed twice"
+
+    _assert_test_the_probe_cap_is_the_number_of_nodes_asked_1()
     # No node answers kYR_have, so the window expires into a kXR_wait.
-    assert status in (kXR_wait, kXR_error), \
-        f"an unanswered probe window must not redirect: {status}"
-    assert elapsed >= LOCATE_WINDOW * 0.5, \
-        (f"a probed locate must have PARKED for the window, "
-         f"returned in {elapsed:.3f}s")
+    def _assert_test_the_probe_cap_is_the_number_of_nodes_asked_2():
+        assert status in (kXR_wait, kXR_error), \
+            f"an unanswered probe window must not redirect: {status}"
+        assert elapsed >= LOCATE_WINDOW * 0.5, \
+            (f"a probed locate must have PARKED for the window, "
+             f"returned in {elapsed:.3f}s")
+
+    _assert_test_the_probe_cap_is_the_number_of_nodes_asked_2()
 
 
 def test_a_cap_larger_than_the_cluster_asks_every_covering_node(cms, nodes):

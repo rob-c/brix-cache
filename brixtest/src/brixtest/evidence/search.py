@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import base64
+import contextlib
 import gzip
 import hashlib
 import json
@@ -11,26 +12,39 @@ import random
 import time
 import urllib.error
 import urllib.request
+from functools import singledispatch
+from collections.abc import Mapping as MappingABC
 from typing import Iterable, Mapping
 
+from brixtest.errors import SpecError
 from brixtest.evidence.model import iter_entities, normalize_session
 from brixtest.evidence.redaction import value as redact
-from brixtest.errors import SpecError
+from brixtest.util.http import http_url
 
 _LOCAL_ONLY = frozenset({"replay", "run_root", "journal"})
 
 
+@singledispatch
 def _remote_safe(item: object) -> object:
-    if isinstance(item, Mapping):
-        return {
-            str(key): _remote_safe(value) for key, value in item.items()
-            if str(key) not in _LOCAL_ONLY
-        }
-    if isinstance(item, list):
-        return [_remote_safe(value) for value in item]
-    if isinstance(item, tuple):
-        return [_remote_safe(value) for value in item]
     return item
+
+
+@_remote_safe.register(MappingABC)
+def _remote_safe_mapping(item: Mapping) -> object:
+    return {
+        str(key): _remote_safe(value) for key, value in item.items()
+        if str(key) not in _LOCAL_ONLY
+    }
+
+
+@_remote_safe.register(list)
+def _remote_safe_list(item: list) -> object:
+    return [_remote_safe(value) for value in item]
+
+
+@_remote_safe.register(tuple)
+def _remote_safe_tuple(item: tuple) -> object:
+    return [_remote_safe(value) for value in item]
 
 
 def _name(value: str) -> str:
@@ -68,7 +82,7 @@ class SearchClient:
         self, url: str, *, timeout: float = 30.0, retries: int = 4,
         opener=None, compress: bool = True,
     ) -> None:
-        self.url = url.rstrip("/")
+        self.url = http_url(url, "search archive URL").rstrip("/")
         self.timeout = timeout
         self.retries = retries
         self.opener = opener or urllib.request.urlopen
@@ -86,31 +100,52 @@ class SearchClient:
 
     def request(self, method: str, path: str, body: object = None,
                 content_type: str = "application/json") -> bytes:
-        data = None
         headers = self._headers()
-        if body is not None:
-            raw = body if isinstance(body, bytes) else json.dumps(body).encode()
-            data = gzip.compress(raw) if self.compress else raw
-            headers["Content-Type"] = content_type
-            if self.compress:
-                headers["Content-Encoding"] = "gzip"
+        data = self._request_body(body, content_type, headers)
         last = None
         for attempt in range(self.retries + 1):
-            request = urllib.request.Request(
-                self.url + "/" + path.lstrip("/"), data=data, method=method, headers=headers
-            )
             try:
-                with self.opener(request, timeout=self.timeout) as response:
-                    return response.read()
+                return self._open(method, path, data, headers)
             except urllib.error.HTTPError as exc:
                 last = exc
-                if exc.code not in (408, 429, 500, 502, 503, 504):
+                if not self._retryable(exc):
                     break
             except OSError as exc:
                 last = exc
-            if attempt < self.retries:
-                time.sleep(min(8.0, 0.25 * (2 ** attempt)) + random.random() * 0.1)
+            self._retry_wait(attempt)
         raise SpecError("search archive", self.url, "request failed: %s" % last)
+
+    def _request_body(
+        self, body: object, content_type: str, headers: dict[str, str],
+    ) -> object:
+        if body is None:
+            return None
+        raw = body if isinstance(body, bytes) else json.dumps(body).encode()
+        headers["Content-Type"] = content_type
+        if self.compress:
+            headers["Content-Encoding"] = "gzip"
+            return gzip.compress(raw)
+        return raw
+
+    def _open(
+        self, method: str, path: str, data: object, headers: Mapping[str, str],
+    ) -> bytes:
+        request = urllib.request.Request(  # noqa: S310 - URL validated at construction
+            self.url + "/" + path.lstrip("/"),
+            data=data, method=method, headers=dict(headers),
+        )
+        with self.opener(request, timeout=self.timeout) as response:
+            return response.read()
+
+    @staticmethod
+    def _retryable(exc: urllib.error.HTTPError) -> bool:
+        return exc.code in (408, 429, 500, 502, 503, 504)
+
+    def _retry_wait(self, attempt: int) -> None:
+        if attempt >= self.retries:
+            return
+        delay = random.random() * 0.1  # noqa: S311 - retry jitter is not security-sensitive
+        time.sleep(min(8.0, 0.25 * (2 ** attempt)) + delay)
 
     def ensure_schema(self, prefix: str) -> None:
         name = _name(prefix)
@@ -124,10 +159,8 @@ class SearchClient:
                 }, {"name": "delete", "actions": [{"delete": {}}], "transitions": []}],
             }
         }
-        try:
+        with contextlib.suppress(SpecError):
             self.request("PUT", "_plugins/_ism/policies/%s-retention" % name, policy)
-        except SpecError:
-            pass
         template = {
             "index_patterns": [name + "-evidence-*"],
             "data_stream": {},
@@ -162,17 +195,33 @@ class SearchClient:
         """Post a complete bulk stream and expose the first useful item errors."""
         body = ("\n".join(lines) + "\n").encode()
         response = self.request("POST", "_bulk", body, "application/x-ndjson")
+        result = self._bulk_result(response)
+        if not isinstance(result, Mapping) or result.get("errors"):
+            raise SpecError("search archive", self.url,
+                            "bulk service reported item errors: %s"
+                            % self._bulk_failures(result))
+
+    def _bulk_result(self, response: bytes) -> object:
         try:
-            result = json.loads(response)
+            return json.loads(response)
         except (ValueError, TypeError) as exc:
             raise SpecError("search archive", self.url, "returned invalid JSON") from exc
-        if not isinstance(result, Mapping) or result.get("errors"):
-            failures = []
-            for item in result.get("items", []) if isinstance(result, Mapping) else []:
-                operation = item.get("create", {}) if isinstance(item, Mapping) else {}
-                if int(operation.get("status", 500)) >= 300:
-                    failures.append(operation.get("error", operation.get("status")))
-                if len(failures) == 5:
-                    break
-            raise SpecError("search archive", self.url,
-                            "bulk service reported item errors: %s" % failures)
+
+    @staticmethod
+    def _bulk_failure(item: object) -> object:
+        operation = item.get("create", {}) if isinstance(item, Mapping) else {}
+        if int(operation.get("status", 500)) < 300:
+            return None
+        return operation.get("error", operation.get("status"))
+
+    @classmethod
+    def _bulk_failures(cls, result: object) -> list[object]:
+        items = result.get("items", []) if isinstance(result, Mapping) else []
+        failures = []
+        for item in items:
+            failure = cls._bulk_failure(item)
+            if failure is not None:
+                failures.append(failure)
+            if len(failures) == 5:
+                break
+        return failures

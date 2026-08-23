@@ -49,13 +49,16 @@ def test_help_type_sample_order(scrapes, family):
     assert h >= 0, f"{family}: HELP missing"
     assert t >= 0, f"{family}: TYPE missing"
     assert h < t, f"{family}: TYPE before HELP"
-    firsts = [gg.first_index(lines, c + "{") for c in
-              gg.components(family, CATALOG[family])]
-    firsts += [gg.first_index(lines, c + " ") for c in
-               gg.components(family, CATALOG[family])]
-    live = [i for i in firsts if i >= 0]
+    live = _live_component_positions(lines, family)
     if live:
         assert t < min(live), f"{family}: sample precedes TYPE"
+
+
+def _live_component_positions(lines, family):
+    components = gg.components(family, CATALOG[family])
+    braced = [gg.first_index(lines, component + "{") for component in components]
+    plain = [gg.first_index(lines, component + " ") for component in components]
+    return [position for position in braced + plain if position >= 0]
 
 
 @pytest.mark.parametrize("family", FAMILIES)
@@ -81,11 +84,19 @@ def test_sample_values_finite(scrapes, family):
 @pytest.mark.parametrize("family", COUNTERS)
 def test_counter_monotonic_across_scrapes(scrapes, family):
     s1, s2 = scrapes
-    before = {k: float(v[0])
-              for k, v in gg.series(s1, family, "counter").items()}
-    after = {k: float(v[0])
-             for k, v in gg.series(s2, family, "counter").items()}
+    before = _counter_values(s1, family)
+    after = _counter_values(s2, family)
     for key, v1 in before.items():
-        assert key in after, f"{key} vanished between scrapes"
-        assert after[key] >= v1, \
-            f"{key} decreased: {v1} -> {after[key]}"
+        _assert_counter_monotonic(key, v1, after)
+
+
+def _counter_values(lines, family):
+    return {
+        key: float(values[0])
+        for key, values in gg.series(lines, family, "counter").items()
+    }
+
+
+def _assert_counter_monotonic(key, before, after):
+    assert key in after, f"{key} vanished between scrapes"
+    assert after[key] >= before, f"{key} decreased: {before} -> {after[key]}"

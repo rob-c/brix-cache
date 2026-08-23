@@ -134,104 +134,141 @@ def _encode_statinfo(si):
 
 def _encode_response(resp):
     """Convert an arbitrary XrdCl response object into a JSON-safe payload."""
-    if resp is None:
-        return None
-    if isinstance(resp, (bytes, bytearray, memoryview)):
-        return _b64(resp)
-    # Primitive scalars pass through verbatim.  This branch is essential once
-    # we recurse into containers: a bare str/int reached via a list/tuple/dict
-    # must NOT fall through to the object-scrape fallback (which would drop its
-    # value, encoding "cms" as {"__type__": "str"}).
-    if isinstance(resp, (str, bool, int, float)):
-        return resp
-    # Preserve tuple-vs-list identity: pyxrootd returns genuine tuples (e.g.
-    # get_xattr -> [(name, value, status), ...]) and tests do isinstance(x,tuple).
-    if isinstance(resp, tuple):
-        return {"__tuple__": [_encode_response(x) for x in resp]}
-    if isinstance(resp, list):
-        return {"__list__": [_encode_response(x) for x in resp]}
-    if isinstance(resp, dict):
-        return {"__dict__": {str(k): _encode_response(v)
-                             for k, v in resp.items()}}
-
+    encoder = _basic_encoder(resp)
+    if encoder:
+        return encoder(resp)
     tname = type(resp).__name__
+    encoder = _object_encoder(tname)
+    return encoder(resp) if encoder else _encode_public_object(resp, tname)
 
-    if tname == "XRootDStatus":
-        return {"__status__": _encode_status(resp)}
 
-    if tname == "StatInfo":
-        return _encode_statinfo(resp)
+def _identity(value):
+    return value
 
-    if tname == "StatInfoVFS":
-        return {
-            "__type__": "StatInfoVFS",
-            "nodes_rw": int(getattr(resp, "nodes_rw", 0) or 0),
-            "nodes_staging": int(getattr(resp, "nodes_staging", 0) or 0),
-            "free_rw": int(getattr(resp, "free_rw", 0) or 0),
-            "util_rw": int(getattr(resp, "util_rw", 0) or 0),
-            "free_staging": int(getattr(resp, "free_staging", 0) or 0),
-            "util_staging": int(getattr(resp, "util_staging", 0) or 0),
-        }
 
-    if tname == "DirectoryList":
-        entries = []
-        for e in resp:
-            entries.append({
-                "name": getattr(e, "name", None),
-                "hostaddr": getattr(e, "hostaddr", None),
-                "statinfo": (_encode_statinfo(e.statinfo)
-                             if getattr(e, "statinfo", None) is not None
-                             else None),
-            })
-        return {
-            "__type__": "DirectoryList",
-            "parent": getattr(resp, "parent", None),
-            "size": int(getattr(resp, "size", len(entries)) or len(entries)),
-            "entries": entries,
-        }
+def _encode_tuple(value):
+    return {"__tuple__": [_encode_response(item) for item in value]}
 
-    if tname == "LocationInfo":
-        locs = []
-        for loc in resp:
-            locs.append({
-                "address": getattr(loc, "address", None),
-                "type": int(getattr(loc, "type", 0) or 0),
-                "accesstype": int(getattr(loc, "accesstype", 0) or 0),
-                "is_server": bool(getattr(loc, "is_server", False)),
-                "is_manager": bool(getattr(loc, "is_manager", False)),
-            })
-        return {"__type__": "LocationInfo", "locations": locs}
 
-    if tname == "VectorReadInfo":
-        chunks = []
-        for c in resp.chunks:
-            chunks.append({
-                "offset": int(getattr(c, "offset", 0) or 0),
-                "length": int(getattr(c, "length", 0) or 0),
-                "buffer": base64.b64encode(bytes(c.buffer)).decode("ascii"),
-            })
-        return {
-            "__type__": "VectorReadInfo",
-            "size": int(getattr(resp, "size", 0) or 0),
-            "chunks": chunks,
-        }
+def _encode_list(value):
+    return {"__list__": [_encode_response(item) for item in value]}
 
-    # Fallback: scrape public, non-callable attributes.
+
+def _encode_dict(value):
+    return {"__dict__": {str(key): _encode_response(item)
+                          for key, item in value.items()}}
+
+
+def _encode_xrd_status(resp):
+    return {"__status__": _encode_status(resp)}
+
+
+def _encode_stat_vfs(resp):
+    return {
+        "__type__": "StatInfoVFS",
+        "nodes_rw": int(getattr(resp, "nodes_rw", 0) or 0),
+        "nodes_staging": int(getattr(resp, "nodes_staging", 0) or 0),
+        "free_rw": int(getattr(resp, "free_rw", 0) or 0),
+        "util_rw": int(getattr(resp, "util_rw", 0) or 0),
+        "free_staging": int(getattr(resp, "free_staging", 0) or 0),
+        "util_staging": int(getattr(resp, "util_staging", 0) or 0),
+    }
+
+
+def _directory_entry(entry):
+    statinfo = getattr(entry, "statinfo", None)
+    return {
+        "name": getattr(entry, "name", None),
+        "hostaddr": getattr(entry, "hostaddr", None),
+        "statinfo": _encode_statinfo(statinfo) if statinfo is not None else None,
+    }
+
+
+def _encode_directory(resp):
+    entries = [_directory_entry(entry) for entry in resp]
+    return {
+        "__type__": "DirectoryList",
+        "parent": getattr(resp, "parent", None),
+        "size": int(getattr(resp, "size", len(entries)) or len(entries)),
+        "entries": entries,
+    }
+
+
+def _location_entry(location):
+    return {
+        "address": getattr(location, "address", None),
+        "type": int(getattr(location, "type", 0) or 0),
+        "accesstype": int(getattr(location, "accesstype", 0) or 0),
+        "is_server": bool(getattr(location, "is_server", False)),
+        "is_manager": bool(getattr(location, "is_manager", False)),
+    }
+
+
+def _encode_locations(resp):
+    return {"__type__": "LocationInfo",
+            "locations": [_location_entry(location) for location in resp]}
+
+
+def _vector_chunk(chunk):
+    return {
+        "offset": int(getattr(chunk, "offset", 0) or 0),
+        "length": int(getattr(chunk, "length", 0) or 0),
+        "buffer": base64.b64encode(bytes(chunk.buffer)).decode("ascii"),
+    }
+
+
+def _encode_vector_read(resp):
+    return {
+        "__type__": "VectorReadInfo",
+        "size": int(getattr(resp, "size", 0) or 0),
+        "chunks": [_vector_chunk(chunk) for chunk in resp.chunks],
+    }
+
+
+def _basic_encoder(value):
+    return {
+        type(None): _identity, bytes: _b64, bytearray: _b64, memoryview: _b64,
+        str: _identity, bool: _identity, int: _identity, float: _identity,
+        tuple: _encode_tuple, list: _encode_list, dict: _encode_dict,
+    }.get(type(value))
+
+
+def _object_encoder(type_name):
+    return {
+        "XRootDStatus": _encode_xrd_status,
+        "StatInfo": _encode_statinfo,
+        "StatInfoVFS": _encode_stat_vfs,
+        "DirectoryList": _encode_directory,
+        "LocationInfo": _encode_locations,
+        "VectorReadInfo": _encode_vector_read,
+    }.get(type_name)
+
+
+def _encode_public_object(resp, tname):
+    """Fallback for binding objects without an explicit wire adapter."""
+
     out = {"__type__": tname}
-    for a in dir(resp):
-        if a.startswith("_"):
-            continue
-        try:
-            v = getattr(resp, a)
-        except Exception:
-            continue
-        if callable(v):
-            continue
-        if isinstance(v, (str, int, float, bool)) or v is None:
-            out[a] = v
-        elif isinstance(v, (bytes, bytearray, memoryview)):
-            out[a] = _b64(v)
+    for name in dir(resp):
+        present, value = _public_attribute(resp, name)
+        if present:
+            out[name] = value
     return out
+
+
+def _public_attribute(resp, name):
+    if name.startswith("_"):
+        return False, None
+    try:
+        value = getattr(resp, name)
+    except Exception:
+        return False, None
+    if callable(value):
+        return False, None
+    if isinstance(value, (str, int, float, bool)) or value is None:
+        return True, value
+    if isinstance(value, (bytes, bytearray, memoryview)):
+        return True, _b64(value)
+    return False, None
 
 
 # --------------------------------------------------------------------------
@@ -263,13 +300,28 @@ def _call_method(target, method, args, kwargs):
     # lists.  Several pyxrootd calls insist on real tuples:
     #   vector_read(chunks=[(offset, length), ...])
     #   set_xattr(path, attrs=[(name, value), ...])
-    if method == "vector_read" and args and isinstance(args[0], list):
-        args[0] = [tuple(c) for c in args[0]]
-    elif method == "set_xattr" and len(args) >= 2 and isinstance(args[1], list):
-        args[1] = [tuple(p) if isinstance(p, list) else p for p in args[1]]
+    normalizer = _arg_normalizer(method)
+    if normalizer:
+        normalizer(args)
     fn = getattr(target, method)
     result = fn(*args, **kwargs)
     return _encode_call_result(result)
+
+
+def _normalize_vector_read(args):
+    if args and isinstance(args[0], list):
+        args[0] = [tuple(chunk) for chunk in args[0]]
+
+
+def _normalize_set_xattr(args):
+    if len(args) >= 2 and isinstance(args[1], list):
+        args[1] = [tuple(pair) if isinstance(pair, list) else pair
+                   for pair in args[1]]
+
+
+def _arg_normalizer(method):
+    return {"vector_read": _normalize_vector_read,
+            "set_xattr": _normalize_set_xattr}.get(method)
 
 
 def _is_status(obj):

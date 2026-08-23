@@ -23,6 +23,19 @@ import pytest
 
 from settings import HOST, NGINX_BIN, free_port
 
+def _guard_ssi_server_1():
+    if not os.path.exists(NGINX_BIN):
+        pytest.skip(f"nginx binary not found: {NGINX_BIN}")
+
+def _guard_ssi_server_2(chk):
+    if chk.returncode != 0:
+        pytest.skip(f"ssi nginx config rejected: {chk.stderr[-300:]}")
+
+def _guard_ssi_server_3(started):
+    if started.returncode != 0:
+        pytest.skip(f"ssi nginx failed to start: {started.stderr[-300:]}")
+
+
 _DIR = os.path.join(os.environ["TMPDIR"], "xrd_ssi_wire")
 SSI_PORT = int(os.environ.get("TEST_SSI_PORT") or free_port())
 
@@ -141,8 +154,7 @@ def _parse_ssi_reply(body):
 
 @pytest.fixture(scope="module")
 def ssi_server():
-    if not os.path.exists(NGINX_BIN):
-        pytest.skip(f"nginx binary not found: {NGINX_BIN}")
+    _guard_ssi_server_1()
     base = os.path.join(_DIR, "srv")
     data = os.path.join(_DIR, "data")
     os.makedirs(os.path.join(base, "logs"), exist_ok=True)
@@ -166,11 +178,9 @@ def ssi_server():
     subprocess.run([NGINX_BIN, "-c", conf, "-s", "stop"], capture_output=True)
     time.sleep(0.3)
     chk = subprocess.run([NGINX_BIN, "-t", "-c", conf], capture_output=True, text=True)
-    if chk.returncode != 0:
-        pytest.skip(f"ssi nginx config rejected: {chk.stderr[-300:]}")
+    _guard_ssi_server_2(chk)
     started = subprocess.run([NGINX_BIN, "-c", conf], capture_output=True, text=True)
-    if started.returncode != 0:
-        pytest.skip(f"ssi nginx failed to start: {started.stderr[-300:]}")
+    _guard_ssi_server_3(started)
     # wait for the port
     for _ in range(40):
         try:

@@ -15,6 +15,20 @@ import subprocess
 
 import pytest
 
+def _guard_recon_bin_1(cc):
+    if cc is None:
+        pytest.skip("no C compiler")
+
+def _guard_recon_bin_2():
+    if not (os.path.exists(SRC) and os.path.exists(TEST)):
+        pytest.skip("diag_doctor_recon sources missing")
+
+def _guard_recon_bin_3(r):
+    if r.returncode != 0:
+        pytest.fail("diag_doctor_recon suite failed to COMPILE "
+                    f"(warnings are errors):\n{r.stderr}")
+
+
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CLIENT = os.path.join(REPO, "client")
 DIAG = os.path.join(CLIENT, "apps", "diag")
@@ -25,10 +39,8 @@ TEST = os.path.join(DIAG, "diag_doctor_recon_unittest.c")
 @pytest.fixture(scope="module")
 def recon_bin(tmp_path_factory):
     cc = shutil.which("gcc") or shutil.which("cc")
-    if cc is None:
-        pytest.skip("no C compiler")
-    if not (os.path.exists(SRC) and os.path.exists(TEST)):
-        pytest.skip("diag_doctor_recon sources missing")
+    _guard_recon_bin_1(cc)
+    _guard_recon_bin_2()
     out = str(tmp_path_factory.mktemp("reconut") / "ut")
     r = subprocess.run(
         [cc, "-std=c11", "-Wall", "-Wextra", "-Werror",
@@ -36,9 +48,7 @@ def recon_bin(tmp_path_factory):
          os.path.join("apps", "diag", "diag_doctor_recon_unittest.c"),
          "-o", out],
         cwd=CLIENT, capture_output=True, text=True)
-    if r.returncode != 0:
-        pytest.fail("diag_doctor_recon suite failed to COMPILE "
-                    f"(warnings are errors):\n{r.stderr}")
+    _guard_recon_bin_3(r)
     return out
 
 

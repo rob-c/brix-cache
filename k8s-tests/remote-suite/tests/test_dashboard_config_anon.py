@@ -28,6 +28,10 @@ import pytest
 
 from settings import HOST, BIND_HOST
 
+def _check_test_live_transfer_row_pii_redacted_for_anonymous_1(authed):
+    assert authed and "big.bin" in authed
+
+
 NGINX_BIN = os.environ.get("NGINX_BIN", "/tmp/nginx-1.28.3/objs/nginx")
 
 DASH_PW = "SECRET_DASH_PW_123"
@@ -253,16 +257,25 @@ def test_live_transfer_row_pii_redacted_for_anonymous(server):
                                     "/brix/api/v1/snapshot", cookie)
                 break
             time.sleep(0.1)
-        assert anon is not None, "no active transfer row appeared"
-        # anonymous row: PII scrubbed
-        assert '"client":"[redacted]"' in anon.replace(" ", "")
-        assert '"path":"[redacted]"' in anon.replace(" ", "")
-        # the real client IP / file path must not appear anywhere in the anon body
-        assert "127.0.0.1" not in anon
-        assert "big.bin" not in anon
-        assert server["data"] not in anon
+        def _assert_test_live_transfer_row_pii_redacted_for_anonymous_1():
+            assert anon is not None, "no active transfer row appeared"
+            # anonymous row: PII scrubbed
+            assert '"client":"[redacted]"' in anon.replace(" ", "")
+
+        _assert_test_live_transfer_row_pii_redacted_for_anonymous_1()
+        def _assert_test_live_transfer_row_pii_redacted_for_anonymous_2():
+            assert '"path":"[redacted]"' in anon.replace(" ", "")
+            # the real client IP / file path must not appear anywhere in the anon body
+            assert "127.0.0.1" not in anon
+
+        _assert_test_live_transfer_row_pii_redacted_for_anonymous_2()
+        def _assert_test_live_transfer_row_pii_redacted_for_anonymous_3():
+            assert "big.bin" not in anon
+            assert server["data"] not in anon
+
+        _assert_test_live_transfer_row_pii_redacted_for_anonymous_3()
         # authed row: full PII present
-        assert authed and "big.bin" in authed
+        _check_test_live_transfer_row_pii_redacted_for_anonymous_1(authed)
     finally:
         try:
             os.killpg(os.getpgid(reader.pid), 15)

@@ -106,21 +106,26 @@ class _Srv:
     def _tsan_module_races(self):
         if not self.tsandir or not os.path.isdir(self.tsandir):
             return ""
-        hits = []
-        for fn in os.listdir(self.tsandir):
-            try:
-                txt = open(os.path.join(self.tsandir, fn), errors="replace").read()
-            except OSError:
-                continue
-            if "data race" not in txt:
-                continue
-            if any(m in txt for m in ("/src/core/aio/", "/src/protocols/root/read/", "/src/protocols/root/write/",
-                                      "/src/fs/cache/", "/src/protocols/root/session/", "/src/protocols/root/connection/",
-                                      "/src/frm/", "_aio_thread", "_aio_done",
-                                      "read_scratch", "payload_to_free", "ctx->destroyed",
-                                      "brix_")):
-                hits.append(fn)
-        return ",".join(hits)
+        reports = (self._read_tsan_report(name) for name in os.listdir(self.tsandir))
+        return ",".join(name for name, text in reports if self._module_race(text))
+
+    def _read_tsan_report(self, name):
+        try:
+            with open(os.path.join(self.tsandir, name), errors="replace") as stream:
+                return name, stream.read()
+        except OSError:
+            return name, ""
+
+    @staticmethod
+    def _module_race(text):
+        markers = (
+            "/src/core/aio/", "/src/protocols/root/read/",
+            "/src/protocols/root/write/", "/src/fs/cache/",
+            "/src/protocols/root/session/", "/src/protocols/root/connection/",
+            "/src/frm/", "_aio_thread", "_aio_done", "read_scratch",
+            "payload_to_free", "ctx->destroyed", "brix_",
+        )
+        return "data race" in text and any(marker in text for marker in markers)
 
     def assert_no_crash(self, phase):
         """Crash/race/liveness check WITHOUT a fresh ping — safe to call mid-flight
@@ -177,8 +182,7 @@ def _gen_cert(workdir):
     return cert, key
 
 
-@pytest.fixture(scope="module")
-def srv():
+def _require_evil_actor_prerequisites():
     if REMOTE_SERVER:
         pytest.skip("self-contained; not REMOTE")
     if not os.path.exists(NGINX_BIN):
@@ -187,172 +191,256 @@ def srv():
         if shutil.which(tool) is None:
             pytest.skip("%s required" % tool)
 
-    # Our own scratch tree (data + tape + shim + tsan reports + FRM sidecars);
-    # the nginx prefix, config, pidfile and logs are owned by the registry
-    # (LifecycleHarness) under its endpoint.prefix.  We only seed/own the datadir
-    # and the sanitizer / FRM artifacts, and rmtree this tree on teardown.
+
+def _prepare_scratch():
     workdir = tempfile.mkdtemp(prefix="evil3-")
-    datadir = os.path.join(workdir, "data")
-    tapedir = os.path.join(workdir, "tape")
-    tsandir = os.path.join(workdir, "tsan")
-    for d in (datadir, tapedir, tsandir):
-        os.makedirs(d, exist_ok=True)
+    paths = {
+        "workdir": workdir,
+        "datadir": os.path.join(workdir, "data"),
+        "tapedir": os.path.join(workdir, "tape"),
+        "tsandir": os.path.join(workdir, "tsan"),
+        "audit": os.path.join(workdir, "audit.log"),
+        "queue": os.path.join(workdir, "frm.queue"),
+    }
+    for name in ("datadir", "tapedir", "tsandir"):
+        os.makedirs(paths[name], exist_ok=True)
+    paths["have_xattr"] = _xattr_ok(paths["datadir"])
+    paths["shim"] = _require_shim(workdir)
+    paths["cert"], paths["key"] = _require_certificate(workdir)
+    _seed_regular_data(paths["datadir"])
+    paths["copycmd"] = _prepare_copy_command(workdir)
+    paths["near_names"] = _seed_nearline_data(paths)
+    return paths
 
-    have_xattr = _xattr_ok(datadir)
 
-    shim, err = _build_shim(workdir)
-    if shim is None:
-        shutil.rmtree(workdir, ignore_errors=True)
-        pytest.skip("could not build race shim: %s" % err[-300:])
+def _require_shim(workdir):
+    shim, error = _build_shim(workdir)
+    if shim is not None:
+        return shim
+    shutil.rmtree(workdir, ignore_errors=True)
+    pytest.skip("could not build race shim: %s" % error[-300:])
 
+
+def _require_certificate(workdir):
     cert, key = _gen_cert(workdir)
-    if cert is None:
-        shutil.rmtree(workdir, ignore_errors=True)
-        pytest.skip("could not generate self-signed cert")
+    if cert is not None:
+        return cert, key
+    shutil.rmtree(workdir, ignore_errors=True)
+    pytest.skip("could not generate self-signed cert")
 
-    # data files
-    big = os.path.join(datadir, "big.bin")
-    chunk = bytes((i * 31 + 7) & 0xFF for i in range(65536))
-    with open(big, "wb") as f:
+
+def _seed_regular_data(datadir):
+    chunk = bytes((index * 31 + 7) & 0xFF for index in range(65536))
+    with open(os.path.join(datadir, "big.bin"), "wb") as stream:
         for _ in range(BIGFILE_MB * 16):
-            f.write(chunk)
-    for nm in ("shared.bin", "w.bin", "xp.bin"):
-        with open(os.path.join(datadir, nm), "wb") as f:
-            f.write(chunk * 8)
+            stream.write(chunk)
+    for name in ("shared.bin", "w.bin", "xp.bin"):
+        with open(os.path.join(datadir, name), "wb") as stream:
+            stream.write(chunk * 8)
 
-    # FRM nearline files (file=stub, real bytes on "tape")
-    copycmd = os.path.join(workdir, "copycmd.py")
-    shutil.copy(os.path.join(os.path.dirname(__file__), "cmdscripts", "frm_fake_mss.py"), copycmd)
-    os.chmod(copycmd, 0o755)
-    audit = os.path.join(workdir, "audit.log")
-    near_names = []
-    if have_xattr:
-        tape_content = b"TAPE-" + b"z" * 4096 + b"\n"
-        with open(os.path.join(tapedir, "near.dat"), "wb") as f:
-            f.write(tape_content)
-        open(os.path.join(datadir, "near.dat"), "wb").close()
-        os.setxattr(os.path.join(datadir, "near.dat"), "user.frm.residency", b"nearline")
-        # a pool of distinct nearline stubs for the flood phase
-        for i in range(60):
-            nm = "near%03d.dat" % i
-            with open(os.path.join(tapedir, nm), "wb") as f:
-                f.write(b"T%03d" % i + b"q" * 512)
-            open(os.path.join(datadir, nm), "wb").close()
-            os.setxattr(os.path.join(datadir, nm), "user.frm.residency", b"nearline")
-            near_names.append("/" + nm)
 
-    queue = os.path.join(workdir, "frm.queue")
-    frm_block = ""
-    if have_xattr:
-        frm_block = (
-            "        brix_frm on; brix_frm_queue_path %s;\n"
-            "        brix_frm_copycmd %s; brix_frm_copymax 4;\n"
-            "        brix_frm_async_recall on; brix_frm_stage_ttl 30s;\n"
-            "        brix_frm_xfrhold 50ms;\n"   # default 30s throttle -> fast drains for the test
-            "        brix_frm_max_inflight 64; brix_frm_max_per_source 16;\n"
-            % (queue, copycmd))
+def _prepare_copy_command(workdir):
+    destination = os.path.join(workdir, "copycmd.py")
+    source = os.path.join(os.path.dirname(__file__), "cmdscripts", "frm_fake_mss.py")
+    shutil.copy(source, destination)
+    os.chmod(destination, 0o755)
+    return destination
 
-    # Worker-gated race-shim launch environment.  A sanitizer-instrumented shim
-    # must be preceded by the sanitizer RUNTIME in LD_PRELOAD ("ASan runtime does
-    # not come first"); the real versioned .so is whatever the binary under test
-    # already links, read straight out of ldd.  Handed to the spec as ``env`` so
-    # the harness merges it onto os.environ for the launch — the shim, its delay,
-    # the FRM sidecar paths and the sanitizer options all survive the lifecycle.
-    env: dict[str, str] = {}
-    pre = os.environ.get("LD_PRELOAD", "")
-    san_rt = ""
-    if SHIM_SAN in ("address", "thread"):
-        want = "libasan.so" if SHIM_SAN == "address" else "libtsan.so"
-        try:
-            ldd = subprocess.run(["ldd", NGINX_BIN], capture_output=True, text=True).stdout
-            for line in ldd.splitlines():
-                if want in line and "=>" in line:
-                    cand = line.split("=>", 1)[1].strip().split(" ", 1)[0]
-                    if cand and os.path.exists(cand):
-                        san_rt = cand
-                    break
-        except Exception:
-            san_rt = ""
-    env["LD_PRELOAD"] = " ".join(x for x in (san_rt, pre, shim) if x)
+
+def _seed_nearline_data(paths):
+    if not paths["have_xattr"]:
+        return []
+    _write_nearline(paths, "near.dat", b"TAPE-" + b"z" * 4096 + b"\n")
+    names = []
+    for index in range(60):
+        name = "near%03d.dat" % index
+        _write_nearline(paths, name, b"T%03d" % index + b"q" * 512)
+        names.append("/" + name)
+    return names
+
+
+def _write_nearline(paths, name, body):
+    with open(os.path.join(paths["tapedir"], name), "wb") as stream:
+        stream.write(body)
+    stub = os.path.join(paths["datadir"], name)
+    open(stub, "wb").close()
+    os.setxattr(stub, "user.frm.residency", b"nearline")
+
+
+def _frm_block(paths):
+    if not paths["have_xattr"]:
+        return ""
+    return (
+        "        brix_frm on; brix_frm_queue_path %s;\n"
+        "        brix_frm_copycmd %s; brix_frm_copymax 4;\n"
+        "        brix_frm_async_recall on; brix_frm_stage_ttl 30s;\n"
+        "        brix_frm_xfrhold 50ms;\n"
+        "        brix_frm_max_inflight 64; brix_frm_max_per_source 16;\n"
+        % (paths["queue"], paths["copycmd"])
+    )
+
+
+def _sanitizer_runtime():
+    if SHIM_SAN not in ("address", "thread"):
+        return ""
+    wanted = "libasan.so" if SHIM_SAN == "address" else "libtsan.so"
+    try:
+        output = subprocess.run(
+            ["ldd", NGINX_BIN], capture_output=True, text=True
+        ).stdout
+    except Exception:
+        return ""
+    return _find_sanitizer_runtime(output, wanted)
+
+
+def _find_sanitizer_runtime(output, wanted):
+    for line in output.splitlines():
+        if wanted not in line or "=>" not in line:
+            continue
+        candidate = line.split("=>", 1)[1].strip().split(" ", 1)[0]
+        if candidate and os.path.exists(candidate):
+            return candidate
+    return ""
+
+
+def _launch_environment(paths):
+    env = {}
+    preload = os.environ.get("LD_PRELOAD", "")
+    pieces = (_sanitizer_runtime(), preload, paths["shim"])
+    env["LD_PRELOAD"] = " ".join(value for value in pieces if value)
     env["XRD_RACE_DELAY_US"] = str(SHIM_DELAY_US)
-    env.update(FRM_DATA_DIR=os.path.realpath(datadir), FRM_TAPE_DIR=tapedir,
-               FRM_LATENCY_MS=str(FRM_LATENCY_MS), FRM_AUDIT_LOG=audit)
+    env.update(
+        FRM_DATA_DIR=os.path.realpath(paths["datadir"]),
+        FRM_TAPE_DIR=paths["tapedir"],
+        FRM_LATENCY_MS=str(FRM_LATENCY_MS),
+        FRM_AUDIT_LOG=paths["audit"],
+    )
+    _configure_sanitizer(env, paths)
+    return env
+
+
+def _configure_sanitizer(env, paths):
     if SHIM_SAN == "thread":
-        supp = os.path.join(workdir, "tsan.supp")
-        open(supp, "w").write(
+        suppression = _write_tsan_suppression(paths)
+        env["TSAN_OPTIONS"] = (
+            "suppressions=%s:halt_on_error=0:exitcode=0:"
+            "history_size=4:log_path=%s/tsan"
+            % (suppression, paths["tsandir"])
+        )
+    elif SHIM_SAN == "address":
+        env["ASAN_OPTIONS"] = (
+            "detect_leaks=0:abort_on_error=1:halt_on_error=1:"
+            "verify_asan_link_order=0"
+        )
+
+
+def _write_tsan_suppression(paths):
+    suppression = os.path.join(paths["workdir"], "tsan.supp")
+    with open(suppression, "w") as stream:
+        stream.write(
             "race:ngx_atomic_\nrace:^brix_metrics_\nrace:ngx_thread_pool_cycle\n"
             "race:ngx_time_update\nrace:ngx_event_\ncalled_from_lib:libssl\n"
-            "called_from_lib:libcrypto\ncalled_from_lib:libjansson\n")
-        env["TSAN_OPTIONS"] = ("suppressions=%s:halt_on_error=0:exitcode=0:"
-                               "history_size=4:log_path=%s/tsan" % (supp, tsandir))
-    elif SHIM_SAN == "address":
-        env["ASAN_OPTIONS"] = "detect_leaks=0:abort_on_error=1:halt_on_error=1:verify_asan_link_order=0"
+            "called_from_lib:libcrypto\ncalled_from_lib:libjansson\n"
+        )
+    return suppression
 
-    # The 4-worker root:// + roots:// TLS + https(metrics/s3/webdav) + cleartext
-    # metrics planes are driven through the registry (LifecycleHarness): {PORT} is
-    # the cleartext root:// front and the other three planes arrive as extra_ports;
-    # the harness renders nginx_evil_actor_v3.conf, runs `nginx -t`, launches with
-    # the shim env, and reaps master+workers on close().  Crash/TSan detection is
-    # unchanged — it reads the master pid from endpoint.pidfile and scans
-    # endpoint.prefix/logs (+ our tsandir).
+
+def _server_spec(paths, env):
+    return NginxInstanceSpec(
+        name="evil-actor-v3",
+        template="nginx_evil_actor_v3.conf",
+        protocol="root",
+        data_root=paths["datadir"],
+        readiness="tcp",
+        template_values={
+            "WORKERS": WORKERS,
+            "BIND_HOST": BIND_HOST,
+            "CERT": paths["cert"],
+            "KEY": paths["key"],
+            "FRM_BLOCK": _frm_block(paths),
+        },
+        env=env,
+    )
+
+
+def _start_evil_server(paths):
     harness = LifecycleHarness()
     try:
-        endpoint = harness.start(NginxInstanceSpec(
-            name="evil-actor-v3",
-            template="nginx_evil_actor_v3.conf",
-            protocol="root",
-            data_root=datadir,
-            # ROOT_TLS_PORT / HTTPS_PORT / METRICS_PORT arrive from the
-            # fleet_lifecycle_ports ledger (evil-actor-v3 extras); read back
-            # post-start from endpoint.extra_ports below.
-            readiness="tcp",
-            template_values={"WORKERS": WORKERS, "BIND_HOST": BIND_HOST,
-                             "CERT": cert, "KEY": key, "FRM_BLOCK": frm_block},
-            env=env,
-        ))
-    except Exception as exc:
+        return harness, harness.start(
+            _server_spec(paths, _launch_environment(paths))
+        )
+    except Exception as error:
         harness.close()
-        shutil.rmtree(workdir, ignore_errors=True)
-        pytest.skip("nginx did not start: %s" % str(exc)[-400:])
+        shutil.rmtree(paths["workdir"], ignore_errors=True)
+        pytest.skip("nginx did not start: %s" % str(error)[-400:])
 
-    root_port = endpoint.port
-    root_tls_port = endpoint.extra_ports["ROOT_TLS_PORT"]
-    https_port = endpoint.extra_ports["HTTPS_PORT"]
-    metrics_port = endpoint.extra_ports["METRICS_PORT"]
 
-    s = _Srv(endpoint.prefix, endpoint.config, endpoint.pidfile,
-             (root_port, root_tls_port, https_port, metrics_port),
-             datadir, tsandir)
-    s.master = _master_pid(endpoint.pidfile)
-    s.have_xattr = have_xattr
-    s.near_names = near_names
-    s.audit = audit
-    s.queue = queue
-    # Determine FRM availability ONCE via the metrics endpoint (the brix_frm_*
-    # exporter is wired only when FRM is compiled + enabled) — NOT by opening a
-    # nearline file, which would trigger a real recall whose slow drain leaves the
-    # server sluggish for the first ~tens of seconds and flakes the early phases.
-    s.frm_ok = False
-    if have_xattr:
-        try:
-            with __import__("urllib.request", fromlist=["request"]).urlopen(
-                    "http://%s:%d/metrics" % (HOST, metrics_port), timeout=5) as resp:
-                s.frm_ok = b"brix_frm_" in resp.read()
-        except Exception:
-            s.frm_ok = False
-    if not s.master or not _alive(s.master):
-        harness.close()
-        shutil.rmtree(workdir, ignore_errors=True)
-        pytest.skip("master pid never appeared")
-    print("\n[evil3] master=%d root=%d roots_tls=%d https=%d metrics=%d shim=%s "
-          "delay=%dus workers=%s xattr=%s"
-          % (s.master, root_port, root_tls_port, https_port, metrics_port,
-             SHIM_SAN or "plain", SHIM_DELAY_US, _workers(s.master), have_xattr))
+def _make_service(paths, endpoint):
+    ports = (
+        endpoint.port,
+        endpoint.extra_ports["ROOT_TLS_PORT"],
+        endpoint.extra_ports["HTTPS_PORT"],
+        endpoint.extra_ports["METRICS_PORT"],
+    )
+    service = _Srv(
+        endpoint.prefix, endpoint.config, endpoint.pidfile, ports,
+        paths["datadir"], paths["tsandir"],
+    )
+    service.master = _master_pid(endpoint.pidfile)
+    service.have_xattr = paths["have_xattr"]
+    service.near_names = paths["near_names"]
+    service.audit = paths["audit"]
+    service.queue = paths["queue"]
+    service.frm_ok = _frm_available(service, ports[3])
+    return service
+
+
+def _frm_available(service, metrics_port):
+    if not service.have_xattr:
+        return False
     try:
-        yield s
+        request = __import__("urllib.request", fromlist=["request"])
+        with request.urlopen(
+            "http://%s:%d/metrics" % (HOST, metrics_port), timeout=5
+        ) as response:
+            return b"brix_frm_" in response.read()
+    except Exception:
+        return False
+
+
+def _require_live_master(service, harness, paths):
+    if service.master and _alive(service.master):
+        return
+    harness.close()
+    shutil.rmtree(paths["workdir"], ignore_errors=True)
+    pytest.skip("master pid never appeared")
+
+
+def _print_server_details(service, paths):
+    print(
+        "\n[evil3] master=%d root=%d roots_tls=%d https=%d metrics=%d shim=%s "
+        "delay=%dus workers=%s xattr=%s"
+        % (
+            service.master, service.root_port, service.root_tls_port,
+            service.https_port, service.metrics_port, SHIM_SAN or "plain",
+            SHIM_DELAY_US, _workers(service.master), paths["have_xattr"],
+        )
+    )
+
+
+@pytest.fixture(scope="module")
+def srv():
+    _require_evil_actor_prerequisites()
+    paths = _prepare_scratch()
+    harness, endpoint = _start_evil_server(paths)
+    service = _make_service(paths, endpoint)
+    _require_live_master(service, harness, paths)
+    _print_server_details(service, paths)
+    try:
+        yield service
     finally:
         harness.close()
-        shutil.rmtree(workdir, ignore_errors=True)
+        shutil.rmtree(paths["workdir"], ignore_errors=True)
 
 
 # ----------------------- A1: roots:// TLS bring-up ---------------------------

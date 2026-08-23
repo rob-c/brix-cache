@@ -25,6 +25,13 @@ import sys
 
 import pytest
 
+def _check_test_the_legacy_archives_are_inert_1(present, archives):
+    assert set(archives) <= present, sorted(set(archives) - present)
+
+def _check_test_the_legacy_archives_are_inert_2(importers):
+    assert importers == []
+
+
 TESTS = pathlib.Path(__file__).resolve().parent
 SRC = TESTS.parent / "brixtest" / "src"
 CATALOGUE = TESTS / "brix_suite" / "catalogue"
@@ -49,13 +56,20 @@ def _toplevel_defs(path: pathlib.Path) -> dict:
     source = path.read_text()
     found = {}
     for node in ast.parse(source).body:
-        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-            found[node.name] = ast.get_source_segment(source, node)
-        elif isinstance(node, ast.Assign):
-            for target in node.targets:
-                if isinstance(target, ast.Name):
-                    found[target.id] = ast.get_source_segment(source, node)
+        found.update(_definition_source(source, node))
     return found
+
+
+def _definition_source(source, node):
+    if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+        return {node.name: ast.get_source_segment(source, node)}
+    if not isinstance(node, ast.Assign):
+        return {}
+    return {
+        target.id: ast.get_source_segment(source, node)
+        for target in node.targets
+        if isinstance(target, ast.Name)
+    }
 
 
 def _flat_defs() -> dict:
@@ -237,7 +251,7 @@ def test_the_legacy_archives_are_inert():
     # checks the archives it created.
     archives = ["fleet_specs_flat", "fleet_specs_part2_flat", "fleet_values_flat"]
     present = {p.stem for p in LEGACY.glob("*_flat.py")}
-    assert set(archives) <= present, sorted(set(archives) - present)
+    _check_test_the_legacy_archives_are_inert_1(present, archives)
 
     # Spelled as import statements, not as a substring: "_flat" on its own
     # matches ``_flatten`` in a dozen unrelated tests.
@@ -245,4 +259,4 @@ def test_the_legacy_archives_are_inert():
         p.name for p in TESTS.rglob("*.py")
         if LEGACY not in p.parents
         and any(("import %s" % stem) in p.read_text() for stem in archives))
-    assert importers == []
+    _check_test_the_legacy_archives_are_inert_2(importers)

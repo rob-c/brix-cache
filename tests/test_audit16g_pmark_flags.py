@@ -202,6 +202,51 @@ from fleet_lifecycle_ports import (
 from server_registry import NginxInstanceSpec
 from settings import BIND_HOST, BIND_HOST6, HOST, HOST6, NGINX_BIN, url_host
 
+def _expression_1():
+    return (
+        [_lease(PROBE_LABEL + 0x10) for _ in range(4)]
+    )
+
+def _expression_2(exclusive):
+    return (
+        [sock for sock in exclusive if isinstance(sock, socket.socket)]
+    )
+
+def _expression_3():
+    return (
+        [_lease(PROBE_LABEL + 0x20, share=3) for _ in range(4)]
+    )
+
+def _expression_4(shared):
+    return (
+        [sock for sock in shared if isinstance(sock, socket.socket)]
+    )
+
+
+def _check_test_the_label_space_is_thirty_two_wide_per_activity_2(delta):
+    assert delta.get(FL_FAILED, 0.0) >= FL_FLOWS - FL_SPACE, \
+        f"{FL_FLOWS} concurrent flows fitted in {FL_SPACE} labels: {delta}"
+
+def _check_test_the_label_space_is_thirty_two_wide_per_activity_1(delta, pmark):
+    assert _probe_declined(pmark.log), delta
+
+def _check_test_the_kernel_admits_one_exclusive_holder_per_label_3(held, exclusive):
+    assert len(held) == 1, \
+        f"an exclusive label took {len(held)} holders: {exclusive}"
+
+def _guard_test_the_kernel_admits_one_exclusive_holder_per_label_1(sock):
+    if isinstance(sock, socket.socket):
+        sock.close()
+
+def _check_test_the_kernel_admits_one_exclusive_holder_per_label_4(held, shared):
+    assert len(held) == 4, \
+        f"a shared label refused a holder, so the cure is not the share: {shared}"
+
+def _guard_test_the_kernel_admits_one_exclusive_holder_per_label_2(sock):
+    if isinstance(sock, socket.socket):
+        sock.close()
+
+
 pytestmark = [pytest.mark.timeout(900),
               pytest.mark.uses_lifecycle_harness,
               pytest.mark.xdist_group("lc-audit16g-pmark")]
@@ -1062,19 +1107,24 @@ class TestTheFlowLabel:
                 session.close()
 
         delta = _delta(before, after)
-        assert codes == {200}, codes
-        assert delta[STARTED] == float(FL_FLOWS), delta
+        def _assert_test_the_label_space_is_thirty_two_wide_per_activity_1():
+            assert codes == {200}, codes
+            assert delta[STARTED] == float(FL_FLOWS), delta
+
+        _assert_test_the_label_space_is_thirty_two_wide_per_activity_1()
         attempted = delta.get(FL_SET, 0.0) + delta.get(FL_FAILED, 0.0)
         if attempted == 0.0:
-            assert _probe_declined(pmark.log), delta
+            _check_test_the_label_space_is_thirty_two_wide_per_activity_1(delta, pmark)
             pytest.skip("this worker's flow-label probe was refused (DEFECT "
                         "#74), so the label space cannot be exercised here")
-        assert attempted == float(FL_FLOWS), \
-            f"a marked IPv6 flow neither stamped nor failed: {delta}"
-        assert delta.get(FL_SET, 0.0) <= FL_SPACE, \
-            f"more labels than the entropy mask can spell: {delta}"
-        assert delta.get(FL_FAILED, 0.0) >= FL_FLOWS - FL_SPACE, \
-            f"{FL_FLOWS} concurrent flows fitted in {FL_SPACE} labels: {delta}"
+        def _assert_test_the_label_space_is_thirty_two_wide_per_activity_2():
+            assert attempted == float(FL_FLOWS), \
+                f"a marked IPv6 flow neither stamped nor failed: {delta}"
+            assert delta.get(FL_SET, 0.0) <= FL_SPACE, \
+                f"more labels than the entropy mask can spell: {delta}"
+
+        _assert_test_the_label_space_is_thirty_two_wide_per_activity_2()
+        _check_test_the_label_space_is_thirty_two_wide_per_activity_2(delta)
 
 
 @_needs_ipv6
@@ -1086,25 +1136,21 @@ def test_the_kernel_admits_one_exclusive_holder_per_label():
     for it to be scarce".  IPV6_FL_S_EXCL admits exactly one holder; the shares
     brix does not use admit four.
     """
-    exclusive = [_lease(PROBE_LABEL + 0x10) for _ in range(4)]
+    exclusive = _expression_1()
     try:
-        held = [sock for sock in exclusive if isinstance(sock, socket.socket)]
-        assert len(held) == 1, \
-            f"an exclusive label took {len(held)} holders: {exclusive}"
+        held = _expression_2(exclusive)
+        _check_test_the_kernel_admits_one_exclusive_holder_per_label_3(held, exclusive)
     finally:
         for sock in exclusive:
-            if isinstance(sock, socket.socket):
-                sock.close()
+            _guard_test_the_kernel_admits_one_exclusive_holder_per_label_1(sock)
 
-    shared = [_lease(PROBE_LABEL + 0x20, share=3) for _ in range(4)]  # S_USER
+    shared = _expression_3()  # S_USER
     try:
-        held = [sock for sock in shared if isinstance(sock, socket.socket)]
-        assert len(held) == 4, \
-            f"a shared label refused a holder, so the cure is not the share: {shared}"
+        held = _expression_4(shared)
+        _check_test_the_kernel_admits_one_exclusive_holder_per_label_4(held, shared)
     finally:
         for sock in shared:
-            if isinstance(sock, socket.socket):
-                sock.close()
+            _guard_test_the_kernel_admits_one_exclusive_holder_per_label_2(sock)
 
 
 # --------------------------------------------------------------------------- #

@@ -222,6 +222,58 @@ def test_ctl_connect_failure_exits_4(bfp):
 # event-log — SUCCESS                                                          #
 # --------------------------------------------------------------------------- #
 
+def _exercise_refuse(control_port, listen_port):
+    assert _ctl_raw(control_port, "block").strip() == "ok"
+    with socket.create_connection((HOST, listen_port), timeout=2) as connection:
+        connection.settimeout(1.0)
+        try:
+            assert connection.recv(16) == b""
+        except socket.timeout:
+            pass
+
+
+def _exercise_truncate(control_port, listen_port):
+    _ctl_raw(control_port, "unblock")
+    _ctl_raw(control_port, "truncate-at 4 down")
+    with socket.create_connection((HOST, listen_port), timeout=2) as connection:
+        connection.settimeout(1.0)
+        connection.sendall(b"ABCDEFGH")
+        received = bytearray()
+        try:
+            while len(received) < 8:
+                chunk = connection.recv(64)
+                if not chunk:
+                    break
+                received.extend(chunk)
+        except socket.timeout:
+            pass
+    assert bytes(received) == b"ABCD"
+
+
+def _event_kinds(events):
+    return {event["event"] for event in events}
+
+
+def _wait_for_fault_events(log):
+    deadline = time.time() + 3.0
+    events = []
+    while time.time() < deadline:
+        if log.exists():
+            events = [json.loads(line) for line in log.read_text().splitlines()
+                      if line.strip()]
+            if {"refuse", "sever"} <= _event_kinds(events):
+                return events
+        time.sleep(0.05)
+    return events
+
+
+def _assert_event_structure(events):
+    allowed = {"t", "route", "conn", "dir", "event", "reason", "at", "count"}
+    for event in events:
+        assert set(event) <= allowed
+        assert isinstance(event["conn"], int)
+
+
 def test_event_log_records_refuse_and_sever(bfp, tmp_path):
     """A configured event log records one well-formed JSONL object per discrete
     fault: a `refuse` when a blocked accept turns a client away, and a `sever`
@@ -230,57 +282,15 @@ def test_event_log_records_refuse_and_sever(bfp, tmp_path):
     echo = _StreamEcho()
     proc, listen, ctl = _spawn(bfp, echo.port, extra=["--event-log", str(log)])
     try:
-        # 1) refuse: block accepts, then a connection is turned away
-        assert _ctl_raw(ctl, "block").strip() == "ok"
-        with socket.create_connection((HOST, listen), timeout=2) as s:
-            s.settimeout(1.0)
-            try:
-                assert s.recv(16) == b""   # refused: immediate EOF
-            except socket.timeout:
-                pass
-
-        # 2) sever: unblock, arm a 4-byte truncate, drive a transfer past it
-        _ctl_raw(ctl, "unblock")
-        _ctl_raw(ctl, "truncate-at 4 down")
-        with socket.create_connection((HOST, listen), timeout=2) as s:
-            s.settimeout(1.0)
-            s.sendall(b"ABCDEFGH")
-            got = b""
-            try:
-                while len(got) < 8:
-                    chunk = s.recv(64)
-                    if not chunk:
-                        break
-                    got += chunk
-            except socket.timeout:
-                pass
-            assert got == b"ABCD"   # cut at the 4-byte boundary
-
-        # the trail: parse every line as JSON, assert both events are present
-        deadline = time.time() + 3.0
-        events = []
-        while time.time() < deadline:
-            if log.exists():
-                events = [json.loads(ln) for ln in
-                          log.read_text().splitlines() if ln.strip()]
-                if any(e["event"] == "refuse" for e in events) and \
-                   any(e["event"] == "sever" for e in events):
-                    break
-            time.sleep(0.05)
-
-        kinds = {e["event"] for e in events}
+        _exercise_refuse(ctl, listen)
+        _exercise_truncate(ctl, listen)
+        events = _wait_for_fault_events(log)
+        kinds = _event_kinds(events)
         assert "refuse" in kinds, events
         assert "sever" in kinds, events
-        sever = next(e for e in events if e["event"] == "sever")
+        sever = next(event for event in events if event["event"] == "sever")
         assert sever["reason"] == "truncate"
-        # every record is structural metadata: fixed key set, numeric conn id
-        for e in events:
-            # structural metadata only — numeric offsets/counts (at/count) are
-            # structural, never payload bytes; the security property is that no
-            # relayed byte is ever written, verified by test_log_holds_no_payload.
-            assert set(e) <= {"t", "route", "conn", "dir", "event", "reason",
-                              "at", "count"}
-            assert isinstance(e["conn"], int)
+        _assert_event_structure(events)
     finally:
         proc.terminate()
         proc.wait(timeout=5)
@@ -310,6 +320,29 @@ def test_event_log_bad_path_fails_closed(bfp, tmp_path):
 # event-log — SECURITY / NEG                                                  #
 # --------------------------------------------------------------------------- #
 
+def _drain_severed_transfer(listen_port, secret):
+    with socket.create_connection((HOST, listen_port), timeout=2) as connection:
+        connection.settimeout(1.0)
+        connection.sendall(secret)
+        try:
+            while connection.recv(64):
+                pass
+        except socket.timeout:
+            pass
+
+
+def _wait_for_raw_event(log, event):
+    deadline = time.time() + 3.0
+    raw = b""
+    while time.time() < deadline:
+        if log.exists():
+            raw = log.read_bytes()
+            if event in raw:
+                return raw
+        time.sleep(0.05)
+    return raw
+
+
 def test_event_log_never_records_payload_bytes(bfp, tmp_path):
     """The event log is provenance, not a payload capture: a known secret pushed
     through a severed transfer must appear NOWHERE in the JSONL trail."""
@@ -318,29 +351,13 @@ def test_event_log_never_records_payload_bytes(bfp, tmp_path):
     echo = _StreamEcho()
     proc, listen, ctl = _spawn(bfp, echo.port, extra=["--event-log", str(log)])
     try:
-        _ctl_raw(ctl, "truncate-at 4 down")   # sever will fire on this transfer
-        with socket.create_connection((HOST, listen), timeout=2) as s:
-            s.settimeout(1.0)
-            s.sendall(secret)
-            try:
-                while s.recv(64):
-                    pass
-            except socket.timeout:
-                pass
-
-        # wait for the sever event to land, then scan the raw bytes of the log
-        deadline = time.time() + 3.0
-        raw = b""
-        while time.time() < deadline:
-            if log.exists():
-                raw = log.read_bytes()
-                if b'"sever"' in raw:
-                    break
-            time.sleep(0.05)
+        _ctl_raw(ctl, "truncate-at 4 down")
+        _drain_severed_transfer(listen, secret)
+        raw = _wait_for_raw_event(log, b'"sever"')
         assert b'"sever"' in raw, "sever event never recorded"
         assert secret not in raw
         # not even a prefix of the payload leaks
-        assert b"TOPSECRET" not in raw and b"CANARY" not in raw
+        assert all((b"TOPSECRET" not in raw, b"CANARY" not in raw))
     finally:
         proc.terminate()
         proc.wait(timeout=5)

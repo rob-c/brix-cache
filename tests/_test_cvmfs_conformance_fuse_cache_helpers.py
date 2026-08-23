@@ -72,6 +72,63 @@ def _wait_mounted_or_dead(mnt, proc, timeout):
     return os.path.ismount(str(mnt))
 
 
+def _workspace_value(workdir, name, supplied):
+    if supplied is not None:
+        return supplied
+    path = workdir / name
+    path.mkdir(exist_ok=True)
+    return path
+
+
+def _fuse_environment(workdir, server_url, pubkey, cache, tmp, extra_env):
+    env = {**os.environ, "BRIXCVMFS_SERVER": server_url,
+           "BRIXCVMFS_PUBKEY": str(pubkey),
+           "BRIXCVMFS_TMP": str(_workspace_value(workdir, "tmp", tmp)),
+           "BRIXCVMFS_CACHE": str(_workspace_value(workdir, "cache", cache))}
+    env.update(extra_env or {})
+    return env
+
+
+def _spawn_mount(argv, env, stderr_path=None):
+    if stderr_path is None:
+        return subprocess.Popen(argv, env=env, stdout=subprocess.DEVNULL,
+                                stderr=subprocess.DEVNULL)
+    with open(stderr_path, "wb") as error_file:
+        proc = subprocess.Popen(argv, env=env, stdout=subprocess.DEVNULL,
+                                stderr=error_file)
+    proc.stderr_path = stderr_path
+    return proc
+
+
+def _reap_mount(proc):
+    if proc.poll() is not None:
+        return
+    proc.terminate()
+    try:
+        proc.wait(3)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+
+
+def _retry_mount(mnt, proc, timeout, retries, spawn):
+    for attempt in range(retries):
+        _wait_mounted_or_dead(mnt, proc, timeout)
+        if os.path.ismount(str(mnt)) or proc.poll() is None:
+            return proc
+        if attempt + 1 < retries:
+            _unmount(mnt)
+            time.sleep(min(2 ** attempt, 8))
+            proc = spawn()
+    return proc
+
+
+def _teardown_mount(workdir, mnt, proc):
+    _unmount(mnt)
+    _reap_mount(proc)
+    _unmount(mnt)
+    shutil.rmtree(workdir, ignore_errors=True)
+
+
 @contextmanager
 def fuse_mount(fqrn, server_url, pubkey, *, cache=None, tmp=None, mount_type="cvmfs",
                opts="auto_unmount", brixmount=None, extra_env=None, extra_args=(),
@@ -94,54 +151,15 @@ def fuse_mount(fqrn, server_url, pubkey, *, cache=None, tmp=None, mount_type="cv
     workdir = Path(tempfile.mkdtemp(prefix="cvmfs_mount."))
     mnt = workdir / "mnt"
     mnt.mkdir()
-    env = {
-        **os.environ,
-        "BRIXCVMFS_SERVER": server_url,
-        "BRIXCVMFS_PUBKEY": str(pubkey),
-        "BRIXCVMFS_TMP": str(tmp if tmp is not None else (workdir / "tmp")),
-    }
-    (workdir / "tmp").mkdir(exist_ok=True)
-    if cache is not None:
-        env["BRIXCVMFS_CACHE"] = str(cache)
-    else:
-        (workdir / "cache").mkdir(exist_ok=True)
-        env["BRIXCVMFS_CACHE"] = str(workdir / "cache")
-    if extra_env:
-        env.update(extra_env)
-
+    env = _fuse_environment(workdir, server_url, pubkey, cache, tmp, extra_env)
     argv = [brixmount or BRIXMOUNT, mount_type, fqrn, str(mnt), *extra_args, "-o", opts, "-f"]
     stderr_path = workdir / "brixmount.stderr"
-
-    def _spawn():
-        ef = open(stderr_path, "wb")
-        p = subprocess.Popen(argv, env=env, stdout=subprocess.DEVNULL, stderr=ef)
-        p.stderr_path = stderr_path
-        return p
-
-    def _reap(p):
-        if p.poll() is None:
-            p.terminate()
-            try:
-                p.wait(3)
-            except subprocess.TimeoutExpired:
-                p.kill()
-
-    proc = _spawn()
-    for attempt in range(bringup_retries):
-        _wait_mounted_or_dead(mnt, proc, timeout)
-        if os.path.ismount(str(mnt)) or proc.poll() is None:
-            break                        # mounted, or alive+progressing (don't thrash)
-        if attempt + 1 < bringup_retries:  # exited before mounting — transient crash, respawn
-            _unmount(mnt)
-            time.sleep(min(2 ** attempt, 8))  # backoff so respawns span a load spike, not one instant
-            proc = _spawn()
+    spawn = lambda: _spawn_mount(argv, env, stderr_path)
+    proc = _retry_mount(mnt, spawn(), timeout, bringup_retries, spawn)
     try:
         yield mnt, proc
     finally:
-        _unmount(mnt)
-        _reap(proc)
-        _unmount(mnt)          # belt-and-braces after the process is gone
-        shutil.rmtree(workdir, ignore_errors=True)
+        _teardown_mount(workdir, mnt, proc)
 from lib_py.util import wait_tcp
 from repo_forge import Dir, File, RepoForge, Symlink
 from settings import BIND_HOST, HOST
@@ -328,6 +346,29 @@ def mounted(tmp_path, make_origin, tree=None, *, cache=None, forge_kw=None,
 _TMP_DEFAULT = object()
 
 
+def _set_cache_environment(env, cache_env):
+    if cache_env is not None:
+        env["BRIXCVMFS_CACHE"] = str(cache_env)
+
+
+def _set_tmp_environment(env, workdir, tmp_env):
+    if tmp_env is _TMP_DEFAULT:
+        tmp_path = workdir / "tmp"
+        tmp_path.mkdir(exist_ok=True)
+        env["BRIXCVMFS_TMP"] = str(tmp_path)
+    elif tmp_env is not None:
+        env["BRIXCVMFS_TMP"] = str(tmp_env)
+
+
+def _own_mount_environment(workdir, url, pubkey, cache_env, tmp_env):
+    env = {key: value for key, value in os.environ.items()
+           if key not in ("BRIXCVMFS_CACHE", "BRIXCVMFS_TMP")}
+    env.update({"BRIXCVMFS_SERVER": url, "BRIXCVMFS_PUBKEY": str(pubkey)})
+    _set_cache_environment(env, cache_env)
+    _set_tmp_environment(env, workdir, tmp_env)
+    return env
+
+
 @contextmanager
 def own_mount(fqrn, url, pubkey, *, mnt=None, cache_env=None, tmp_env=_TMP_DEFAULT,
               opts="auto_unmount", extra_args=(), timeout=90, bringup_retries=4):
@@ -339,48 +380,14 @@ def own_mount(fqrn, url, pubkey, *, mnt=None, cache_env=None, tmp_env=_TMP_DEFAU
     workdir = Path(tempfile.mkdtemp(prefix="p84cache."))
     mnt = Path(mnt) if mnt is not None else workdir / "mnt"
     mnt.mkdir(exist_ok=True)
-    env = {k: v for k, v in os.environ.items()
-           if k not in ("BRIXCVMFS_CACHE", "BRIXCVMFS_TMP")}
-    env.update({"BRIXCVMFS_SERVER": url, "BRIXCVMFS_PUBKEY": str(pubkey)})
-    if cache_env is not None:
-        env["BRIXCVMFS_CACHE"] = str(cache_env)
-    if tmp_env is _TMP_DEFAULT:
-        (workdir / "tmp").mkdir(exist_ok=True)
-        env["BRIXCVMFS_TMP"] = str(workdir / "tmp")
-    elif tmp_env is not None:
-        env["BRIXCVMFS_TMP"] = str(tmp_env)
-    # tmp_env=None: leave unset -> binary default /tmp/brixcvmfs-<repo>
-
+    env = _own_mount_environment(workdir, url, pubkey, cache_env, tmp_env)
     argv = [BRIXMOUNT, "cvmfs", fqrn, str(mnt), *extra_args, "-o", opts, "-f"]
-
-    def _spawn():
-        return subprocess.Popen(argv, env=env, stdout=subprocess.DEVNULL,
-                                stderr=subprocess.DEVNULL)
-
-    def _reap(p):
-        if p.poll() is None:
-            p.terminate()
-            try:
-                p.wait(3)
-            except subprocess.TimeoutExpired:
-                p.kill()
-
-    proc = _spawn()
-    for attempt in range(bringup_retries):
-        _wait_mounted_or_dead(mnt, proc, timeout)
-        if os.path.ismount(str(mnt)) or proc.poll() is None:
-            break                        # mounted, or alive+progressing (don't thrash)
-        if attempt + 1 < bringup_retries:  # exited before mounting — transient crash, respawn
-            _unmount(mnt)
-            time.sleep(min(2 ** attempt, 8))  # backoff so respawns span a load spike, not one instant
-            proc = _spawn()
+    spawn = lambda: _spawn_mount(argv, env)
+    proc = _retry_mount(mnt, spawn(), timeout, bringup_retries, spawn)
     try:
         yield mnt, proc
     finally:
-        _unmount(mnt)
-        _reap(proc)
-        _unmount(mnt)
-        shutil.rmtree(workdir, ignore_errors=True)
+        _teardown_mount(workdir, mnt, proc)
 
 
 def wait_read(path, deadline_s: float):

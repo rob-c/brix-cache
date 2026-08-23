@@ -23,7 +23,8 @@ from brixtest.errors import SpecError
 from brixtest.runtime.artifacts import ArtifactStore
 from brixtest.runtime.commands import CommandRunner
 from brixtest.runtime.configs import ConfigStore
-from brixtest.test_policy import TestPolicyError as PolicyError, _stdlib, enforce
+from brixtest.test_policy import TestPolicyError as PolicyError
+from brixtest.test_policy import _stdlib, enforce
 from brixtest.topology.model import derive, pool_key
 
 

@@ -58,13 +58,16 @@ def filter_worklist(items: "list[str]", list_file: Optional[str],
     verbatim (C++-tool parity — rollback must be able to name files whose
     source objects no longer exist); --prefix/--match then filter whatever
     the base list is."""
-    if list_file is not None:
-        items = read_list_file(list_file)
-    if prefix is not None:
-        items = [s for s in items if s.startswith(prefix)]
-    if match is not None:
-        items = [s for s in items if fnmatch.fnmatch(s, match)]
-    return items
+    base = read_list_file(list_file) if list_file is not None else items
+    return _match_filter(_prefix_filter(base, prefix), match)
+
+
+def _prefix_filter(items, prefix):
+    return items if prefix is None else [item for item in items if item.startswith(prefix)]
+
+
+def _match_filter(items, pattern):
+    return items if pattern is None else [item for item in items if fnmatch.fnmatch(item, pattern)]
 
 
 # Site-profile config file (--config / $XRDCEPH_MIGRATE_CONF): flat
@@ -83,19 +86,25 @@ def load_tool_config(path: str) -> "dict[str, str]":
     out = {}
     with open(path, "r") as f:
         for lineno, raw in enumerate(f, 1):
-            line = raw.split("#", 1)[0].strip()
-            if not line:
-                continue
-            if "=" not in line:
-                raise ValueError("%s:%d: expected 'key = value', got %r"
-                                 % (path, lineno, raw.rstrip("\n")))
-            key, val = (s.strip() for s in line.split("=", 1))
-            if key not in CONFIG_KEYS:
-                raise ValueError("%s:%d: unknown config key %r (known: %s)"
-                                 % (path, lineno, key, ", ".join(CONFIG_KEYS)))
-            if val:
-                out[key] = val
+            entry = _config_entry(path, lineno, raw)
+            if entry is not None:
+                key, value = entry
+                out[key] = value
     return out
+
+
+def _config_entry(path, lineno, raw):
+    line = raw.split("#", 1)[0].strip()
+    if not line:
+        return None
+    if "=" not in line:
+        raise ValueError("%s:%d: expected 'key = value', got %r"
+                         % (path, lineno, raw.rstrip("\n")))
+    key, value = (item.strip() for item in line.split("=", 1))
+    if key not in CONFIG_KEYS:
+        raise ValueError("%s:%d: unknown config key %r (known: %s)"
+                         % (path, lineno, key, ", ".join(CONFIG_KEYS)))
+    return (key, value) if value else None
 
 
 def resolve_setting(cli_value: Optional[str], config: "dict[str, str]",
@@ -194,31 +203,23 @@ class Reporter:
              objects: int = 0, dest: Optional[str] = None,
              error: Optional[str] = None, detail: str = ""):
         with self._lock:
-            if result == "ok":
-                self.ok += 1
-                self.bytes += nbytes
-            elif result == "skip":
-                self.skip += 1
-            else:
-                self.fail += 1
-
+            self._count(result, nbytes)
             tag = {"ok": "OK  ", "skip": "SKIP", "fail": "FAIL"}[result]
             arrow = (" -> " + dest) if dest else ""
-            extra = " (%d bytes, %d obj%s)" % (nbytes, objects, detail) \
-                if result == "ok" else ((": " + error) if error else
-                                        ((" (" + detail + ")") if detail else ""))
+            extra = _item_extra(result, nbytes, objects, error, detail)
             self._human("%s %s%s%s" % (tag, soid, arrow, extra))
-
             if self.json_mode:
-                rec = {"soid": soid, "action": action, "result": result,
-                       "bytes": nbytes, "objects": objects}
-                if dest is not None:
-                    rec["dest"] = dest
-                if error is not None:
-                    rec["error"] = error
-                print(json.dumps(rec, sort_keys=True), flush=True)
-
+                _print_item_json(soid, action, result, nbytes, objects, dest, error)
             self._maybe_progress()
+
+    def _count(self, result, nbytes):
+        if result == "ok":
+            self.ok += 1
+            self.bytes += nbytes
+        elif result == "skip":
+            self.skip += 1
+        else:
+            self.fail += 1
 
     def warn(self, msg: str):
         with self._lock:
@@ -241,15 +242,17 @@ class Reporter:
         if not force and now - self._last_progress < PROGRESS_INTERVAL:
             return
         self._last_progress = now
-        done = self.ok + self.skip + self.fail
-        dt = max(now - self._t0, 1e-6)
-        rate = self.bytes / dt / (1024 * 1024)
-        eta = ""
-        if self.total and done and done < self.total:
-            eta = ", ETA %ds" % int((self.total - done) * dt / done)
+        done, elapsed, rate = self._progress_values(now)
+        eta = _progress_eta(self.total, done, elapsed)
         print("progress: %d/%d files, %.1f MiB, %.1f MiB/s%s"
               % (done, self.total or done, self.bytes / (1024 * 1024),
                  rate, eta), file=sys.stderr)
+
+    def _progress_values(self, now):
+        done = self.ok + self.skip + self.fail
+        elapsed = max(now - self._t0, 1e-6)
+        rate = self.bytes / elapsed / (1024 * 1024)
+        return done, elapsed, rate
 
     def summary(self) -> int:
         """Print the final totals; return the process exit code (0/1)."""
@@ -266,6 +269,32 @@ class Reporter:
                     "bytes": self.bytes, "deleted": self.deleted}},
                     sort_keys=True), flush=True)
             return 0 if self.fail == 0 else 1
+
+
+def _item_extra(result, nbytes, objects, error, detail):
+    if result == "ok":
+        return " (%d bytes, %d obj%s)" % (nbytes, objects, detail)
+    if error:
+        return ": " + error
+    return " (" + detail + ")" if detail else ""
+
+
+def _print_item_json(soid, action, result, nbytes, objects, dest, error):
+    record = {
+        "soid": soid, "action": action, "result": result,
+        "bytes": nbytes, "objects": objects,
+    }
+    if dest is not None:
+        record["dest"] = dest
+    if error is not None:
+        record["error"] = error
+    print(json.dumps(record, sort_keys=True), flush=True)
+
+
+def _progress_eta(total, done, elapsed):
+    if total and done and done < total:
+        return ", ETA %ds" % int((total - done) * elapsed / done)
+    return ""
 
 
 def run_parallel(items, fn, threads: int):

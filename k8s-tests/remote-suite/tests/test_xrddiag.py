@@ -53,15 +53,19 @@ _CLEAN_ENV.pop("X509_CERT_DIR", None)
 def xrddiag():
     if shutil.which("cc") is None and shutil.which("gcc") is None:
         pytest.skip("no C compiler to build the native client")
+    _ensure_xrddiag(force=True)
+    if not _port_up(SERVER_HOST, NGINX_ANON_PORT):
+        pytest.skip("anon server not running (start the test fleet)")
+    return NATIVE_XRDDIAG
+
+
+def _ensure_xrddiag(force=False):
+    if not force and os.path.exists(NATIVE_XRDDIAG):
+        return
     proc = subprocess.run(["make", "-C", os.path.join(REPO, "client"), "xrddiag"],
                           capture_output=True, text=True, timeout=180)
     if proc.returncode != 0 or not os.path.exists(NATIVE_XRDDIAG):
         pytest.skip(f"xrddiag build failed:\n{proc.stdout}\n{proc.stderr}")
-    # Every subcommand needs the anon server; skip cleanly when the fleet is down
-    # (e.g. between harness restarts) rather than hard-failing.
-    if not _port_up(SERVER_HOST, NGINX_ANON_PORT):
-        pytest.skip("anon server not running (start the test fleet)")
-    return NATIVE_XRDDIAG
 
 
 def _run(*args, timeout=40):
@@ -225,44 +229,12 @@ NGINX_BIN = os.environ.get("NGINX_BIN", "/tmp/nginx-1.28.3/objs/nginx")
 
 @pytest.fixture(scope="module")
 def netdiag_server(tmp_path_factory):
-    if not os.access(NGINX_BIN, os.X_OK):
-        pytest.skip(f"nginx binary not executable: {NGINX_BIN}")
-    if not os.path.exists(NATIVE_XRDDIAG):
-        proc = subprocess.run(["make", "-C", os.path.join(REPO, "client"), "xrddiag"],
-                              capture_output=True, text=True, timeout=180)
-        if proc.returncode != 0 or not os.path.exists(NATIVE_XRDDIAG):
-            pytest.skip("xrddiag build failed")
-    root = tmp_path_factory.mktemp("netdiag")
-    data = root / "data"
-    data.mkdir()
-    (data / "big.bin").write_bytes(os.urandom(1024 * 1024))
-    port = _free_port_local()
-    conf = root / "nginx.conf"
-    conf.write_text(f"""
-worker_processes 1;
-pid {root}/nginx.pid;
-error_log {root}/error.log info;
-events {{ worker_connections 256; }}
-stream {{
-    server {{
-        listen {BIND_HOST}:{port};
-        brix_root on;
-        brix_storage_backend posix:{data};
-        brix_auth none;
-    }}
-}}
-""")
-    t = subprocess.run([NGINX_BIN, "-t", "-c", str(conf)], capture_output=True, text=True)
-    if t.returncode != 0:
-        pytest.skip("nginx -t failed:\n" + t.stderr)
-    subprocess.run([NGINX_BIN, "-c", str(conf)], capture_output=True)
-    for _ in range(50):
-        if _port_up(HOST, port):
-            break
-        time.sleep(0.1)
-    yield port
-    subprocess.run([NGINX_BIN, "-c", str(conf), "-s", "quit"], capture_output=True)
-    time.sleep(0.3)
+    port, conf = _start_diagnostic_server(
+        tmp_path_factory, "netdiag", "big.bin", 1024 * 1024, False)
+    try:
+        yield port
+    finally:
+        _stop_diagnostic_server(conf)
 
 
 def _free_port_local():
@@ -294,17 +266,8 @@ def test_bench_netdiag_pii_free(netdiag_server):
     p = subprocess.run([NATIVE_XRDDIAG, "bench", f"root://{url_host(HOST)}:{port}//big.bin"],
                        capture_output=True, text=True, timeout=40)
     assert p.returncode == 0, p.stderr
-    # isolate the diagnostic block (phases + family + TCP_INFO lines)
-    block = [ln for ln in p.stdout.splitlines()
-             if any(k in ln for k in ("phases", "tcp", "tls", "login", "total",
-                                      "Connected via", "TCP_INFO", "Flow label"))]
-    joined = "\n".join(block)
-    for leak in ("BEARER", "x509", "/etc/", "PRIVATE", "subject="):
-        assert leak not in joined, f"PII/secret leaked in netdiag: {joined}"
-    # rtt is a non-negative integer
-    import re
-    m = re.search(r"rtt=(\d+) us", p.stdout)
-    assert m and int(m.group(1)) >= 0, p.stdout
+    _assert_netdiag_pii_free(p.stdout)
+    _assert_valid_rtt(p.stdout)
 
 
 # --------------------------------------------------------------------------
@@ -313,19 +276,37 @@ def test_bench_netdiag_pii_free(netdiag_server):
 
 @pytest.fixture(scope="module")
 def doctor_server(tmp_path_factory):
-    if not os.access(NGINX_BIN, os.X_OK):
-        pytest.skip(f"nginx binary not executable: {NGINX_BIN}")
-    if not os.path.exists(NATIVE_XRDDIAG):
-        proc = subprocess.run(["make", "-C", os.path.join(REPO, "client"), "xrddiag"],
-                              capture_output=True, text=True, timeout=180)
-        if proc.returncode != 0 or not os.path.exists(NATIVE_XRDDIAG):
-            pytest.skip("xrddiag build failed")
-    root = tmp_path_factory.mktemp("doctor")
+    port, conf = _start_diagnostic_server(
+        tmp_path_factory, "doctor", "obj.bin", 800000, True)
+    try:
+        yield port
+    finally:
+        _stop_diagnostic_server(conf)
+
+
+def _start_diagnostic_server(tmp_path_factory, name, filename, size, writable):
+    _require_diagnostic_tools()
+    root = tmp_path_factory.mktemp(name)
     data = root / "data"
     data.mkdir()
-    (data / "obj.bin").write_bytes(os.urandom(800000))
+    (data / filename).write_bytes(os.urandom(size))
     port = _free_port_local()
+    conf = _write_diagnostic_config(root, data, port, writable)
+    _validate_diagnostic_config(conf)
+    subprocess.run([NGINX_BIN, "-c", str(conf)], capture_output=True)
+    _wait_diagnostic_server(port)
+    return port, conf
+
+
+def _require_diagnostic_tools():
+    if not os.access(NGINX_BIN, os.X_OK):
+        pytest.skip(f"nginx binary not executable: {NGINX_BIN}")
+    _ensure_xrddiag()
+
+
+def _write_diagnostic_config(root, data, port, writable):
     conf = root / "nginx.conf"
+    allow_write = "brix_allow_write on;" if writable else ""
     conf.write_text(f"""
 worker_processes 1;
 pid {root}/nginx.pid;
@@ -337,21 +318,49 @@ stream {{
         brix_root on;
         brix_storage_backend posix:{data};
         brix_auth none;
-        brix_allow_write on;
+        {allow_write}
     }}
 }}
 """)
-    t = subprocess.run([NGINX_BIN, "-t", "-c", str(conf)], capture_output=True, text=True)
-    if t.returncode != 0:
-        pytest.skip("nginx -t failed:\n" + t.stderr)
-    subprocess.run([NGINX_BIN, "-c", str(conf)], capture_output=True)
+    return conf
+
+
+def _validate_diagnostic_config(conf):
+    result = subprocess.run(
+        [NGINX_BIN, "-t", "-c", str(conf)], capture_output=True, text=True)
+    if result.returncode != 0:
+        pytest.skip("nginx -t failed:\n" + result.stderr)
+
+
+def _wait_diagnostic_server(port):
     for _ in range(50):
         if _port_up(HOST, port):
-            break
+            return
         time.sleep(0.1)
-    yield port
+
+
+def _stop_diagnostic_server(conf):
     subprocess.run([NGINX_BIN, "-c", str(conf), "-s", "quit"], capture_output=True)
     time.sleep(0.3)
+
+
+def _netdiag_block(stdout):
+    keys = ("phases", "tcp", "tls", "login", "total",
+            "Connected via", "TCP_INFO", "Flow label")
+    return "\n".join(line for line in stdout.splitlines()
+                     if any(key in line for key in keys))
+
+
+def _assert_netdiag_pii_free(stdout):
+    block = _netdiag_block(stdout)
+    for leak in ("BEARER", "x509", "/etc/", "PRIVATE", "subject="):
+        assert leak not in block, f"PII/secret leaked in netdiag: {block}"
+
+
+def _assert_valid_rtt(stdout):
+    import re
+    match = re.search(r"rtt=(\d+) us", stdout)
+    assert match and int(match.group(1)) >= 0, stdout
 
 
 def test_check_posc_and_handle_limits(doctor_server):

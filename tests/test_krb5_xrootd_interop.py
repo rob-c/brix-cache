@@ -42,6 +42,39 @@ from settings import (
     KRB5_SERVICE_PRINCIPAL,
 )
 
+def _guard_xrootd_krb5_1(xrootd):
+    if not xrootd:
+        pytest.skip("stock xrootd not installed")
+
+def _guard_xrootd_krb5_2():
+    if not _krb5_plugin_present():
+        pytest.skip("libXrdSeckrb5 plugin not installed")
+
+def _guard_xrootd_krb5_3(seclib):
+    if not seclib:
+        pytest.skip("libXrdSec framework lib not found")
+
+def _guard_xrootd_krb5_4():
+    if shutil.which("cc") is None and shutil.which("gcc") is None:
+        pytest.skip("no C compiler to build the native client")
+
+def _guard_xrootd_krb5_5(proc):
+    if proc.returncode != 0 or not os.path.exists(XRDFS):
+        pytest.skip(f"native build failed:\n{proc.stdout}\n{proc.stderr}")
+
+def _guard_xrootd_krb5_6():
+    if not _client_has_krb5():
+        pytest.skip("client built without -DBRIX_HAVE_KRB5")
+
+def _guard_xrootd_krb5_7():
+    if not kdc_helpers.krb5_tools_available():
+        pytest.skip("MIT KDC tooling not installed (install krb5-server)")
+
+def _guard_xrootd_krb5_8():
+    if not kdc_helpers.up():
+        pytest.skip("krb5 realm could not be provisioned")
+
+
 pytestmark = pytest.mark.xdist_group("krb5-xrootd-interop")
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -93,25 +126,17 @@ def _wait_port(host, port, deadline):
 @pytest.fixture()
 def xrootd_krb5(tmp_path):
     xrootd = shutil.which("xrootd")
-    if not xrootd:
-        pytest.skip("stock xrootd not installed")
-    if not _krb5_plugin_present():
-        pytest.skip("libXrdSeckrb5 plugin not installed")
+    _guard_xrootd_krb5_1(xrootd)
+    _guard_xrootd_krb5_2()
     seclib = _find_seclib()
-    if not seclib:
-        pytest.skip("libXrdSec framework lib not found")
-    if shutil.which("cc") is None and shutil.which("gcc") is None:
-        pytest.skip("no C compiler to build the native client")
+    _guard_xrootd_krb5_3(seclib)
+    _guard_xrootd_krb5_4()
     proc = subprocess.run(["make", "-C", CLIENT_DIR, "xrdfs", "xrdcp"],
                           capture_output=True, text=True, timeout=180)
-    if proc.returncode != 0 or not os.path.exists(XRDFS):
-        pytest.skip(f"native build failed:\n{proc.stdout}\n{proc.stderr}")
-    if not _client_has_krb5():
-        pytest.skip("client built without -DBRIX_HAVE_KRB5")
-    if not kdc_helpers.krb5_tools_available():
-        pytest.skip("MIT KDC tooling not installed (install krb5-server)")
-    if not kdc_helpers.up():
-        pytest.skip("krb5 realm could not be provisioned")
+    _guard_xrootd_krb5_5(proc)
+    _guard_xrootd_krb5_6()
+    _guard_xrootd_krb5_7()
+    _guard_xrootd_krb5_8()
 
     data = tmp_path / "data"
     data.mkdir()

@@ -27,6 +27,19 @@ import pytest
 
 from settings import BIND_HOST, NGINX_BIN, PKI_DIR
 
+def _check_test_combined_gateway_config_validates_1(r):
+    assert r.returncode == 0, f"nginx -t rejected combined gateway conf:\n{r.stderr}"
+
+def _check_test_combined_gateway_config_validates_2(survivors):
+    assert not survivors, f"unrendered placeholders survived: {survivors}"
+
+def _check_test_s3_backend_leg_config_validates_3(r):
+    assert r.returncode == 0, f"nginx -t rejected s3-backend conf:\n{r.stderr}"
+
+def _check_test_s3_backend_leg_config_validates_4(survivors):
+    assert not survivors, f"unrendered placeholders survived: {survivors}"
+
+
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from cmdscripts import gridftp_interop_local as gil  # noqa: E402
 
@@ -63,24 +76,39 @@ def _plan(**over):
 def test_plan_wires_host_ports_network_and_matrix_target():
     plan = _plan(image="img:test")
     argv = plan["argv"]
-    assert argv[0] == "podman" and "--network=host" in argv
-    assert "img:test" in argv
+    def _assert_test_plan_wires_host_ports_network_and_matrix_target_5():
+        assert argv[0] == "podman" and "--network=host" in argv
+        assert "img:test" in argv
+
+    _assert_test_plan_wires_host_ports_network_and_matrix_target_5()
     # The matrix connection contract lands in the container env.
-    assert plan["container_env"]["TEST_GRIDFTP_HOST"] == "gw.local"
-    assert plan["container_env"]["TEST_GRIDFTP_GSIFTP_PORT"] == "2811"
-    assert plan["container_env"]["TEST_GRIDFTP_FTP_PORT"] == "2810"
-    assert plan["container_env"]["X509_USER_PROXY"] == "/creds/user_proxy.pem"
+    def _assert_test_plan_wires_host_ports_network_and_matrix_target_6():
+        assert plan["container_env"]["TEST_GRIDFTP_HOST"] == "gw.local"
+        assert plan["container_env"]["TEST_GRIDFTP_GSIFTP_PORT"] == "2811"
+
+    _assert_test_plan_wires_host_ports_network_and_matrix_target_6()
+    def _assert_test_plan_wires_host_ports_network_and_matrix_target_7():
+        assert plan["container_env"]["TEST_GRIDFTP_FTP_PORT"] == "2810"
+        assert plan["container_env"]["X509_USER_PROXY"] == "/creds/user_proxy.pem"
+
+    _assert_test_plan_wires_host_ports_network_and_matrix_target_7()
     # Drives exactly the phase-82 interop file (mounted alone into a clean dir),
     # with the repo pytest.ini deliberately not loaded.
     c_test = "/interop/test_gridftp_interop.py"
-    assert c_test in plan["pytest_argv"]
-    assert "/dev/null" in plan["pytest_argv"]      # -c /dev/null
+    def _assert_test_plan_wires_host_ports_network_and_matrix_target_8():
+        assert c_test in plan["pytest_argv"]
+        assert "/dev/null" in plan["pytest_argv"]      # -c /dev/null
+
+    _assert_test_plan_wires_host_ports_network_and_matrix_target_8()
     # The interop file + proxy + CA dir map to the fixed targets; the whole repo
     # is NOT mounted (avoids the repo config / conftest).
     dsts = {dst for _s, dst, _m in plan["mounts"]}
-    assert {c_test, "/creds/user_proxy.pem",
-            "/etc/grid-security/certificates"} <= dsts
-    assert "/repo" not in dsts
+    def _assert_test_plan_wires_host_ports_network_and_matrix_target_9():
+        assert {c_test, "/creds/user_proxy.pem",
+                "/etc/grid-security/certificates"} <= dsts
+        assert "/repo" not in dsts
+
+    _assert_test_plan_wires_host_ports_network_and_matrix_target_9()
     for _s, _d, mode in plan["mounts"]:
         assert mode == "ro"
 
@@ -162,16 +190,22 @@ def test_combined_gateway_config_validates(tmp_path):
     r = subprocess.run([NGINX_BIN, "-t", "-c", str(conf), "-e",
                         str(log_dir / "error.log")],
                        capture_output=True, text=True)
-    assert r.returncode == 0, f"nginx -t rejected combined gateway conf:\n{r.stderr}"
+    _check_test_combined_gateway_config_validates_1(r)
     rendered = (tmp_path / "gateway.conf").read_text()
-    assert "brix_gridftp_storage_backend pblock" in rendered
-    assert str(pblock_root) in rendered
+    def _assert_test_combined_gateway_config_validates_3():
+        assert "brix_gridftp_storage_backend pblock" in rendered
+        assert str(pblock_root) in rendered
+
+    _assert_test_combined_gateway_config_validates_3()
     # The main gateway must NOT carry the s3 leg — it stays single-worker for
     # pblock coherence; the s3 leg lives in its own 2-worker instance.
-    assert "worker_processes 1;" in rendered
-    assert "brix_s3" not in rendered
+    def _assert_test_combined_gateway_config_validates_4():
+        assert "worker_processes 1;" in rendered
+        assert "brix_s3" not in rendered
+
+    _assert_test_combined_gateway_config_validates_4()
     survivors = re.findall(r"\{[A-Z0-9_]+\}", rendered)
-    assert not survivors, f"unrendered placeholders survived: {survivors}"
+    _check_test_combined_gateway_config_validates_2(survivors)
 
 
 def test_s3_backend_leg_config_validates(tmp_path):
@@ -202,16 +236,22 @@ def test_s3_backend_leg_config_validates(tmp_path):
     r = subprocess.run([NGINX_BIN, "-t", "-c", str(conf), "-e",
                         str(log_dir / "error.log")],
                        capture_output=True, text=True)
-    assert r.returncode == 0, f"nginx -t rejected s3-backend conf:\n{r.stderr}"
+    _check_test_s3_backend_leg_config_validates_3(r)
     rendered = (tmp_path / "gateway-s3.conf").read_text()
-    assert "brix_gridftp_storage_backend    s3://" in rendered
-    assert "brix_s3 on;" in rendered
-    assert str(s3_dir) in rendered
-    # Two workers required for the co-hosted origin (self-deadlock otherwise).
-    assert "worker_processes 2;" in rendered
+    def _assert_test_s3_backend_leg_config_validates_1():
+        assert "brix_gridftp_storage_backend    s3://" in rendered
+        assert "brix_s3 on;" in rendered
+
+    _assert_test_s3_backend_leg_config_validates_1()
+    def _assert_test_s3_backend_leg_config_validates_2():
+        assert str(s3_dir) in rendered
+        # Two workers required for the co-hosted origin (self-deadlock otherwise).
+        assert "worker_processes 2;" in rendered
+
+    _assert_test_s3_backend_leg_config_validates_2()
     # No {PLACEHOLDER} token (all-caps + underscores) may survive substitution.
     survivors = re.findall(r"\{[A-Z0-9_]+\}", rendered)
-    assert not survivors, f"unrendered placeholders survived: {survivors}"
+    _check_test_s3_backend_leg_config_validates_4(survivors)
 
 
 # --- the CI guard: green on the tree, red on drift ---------------------------

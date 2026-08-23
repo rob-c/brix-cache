@@ -66,6 +66,19 @@ webdav_hex_norm_equal(const char *a, const char *b)
     return *a == '\0' && *b == '\0';
 }
 
+/*
+ * WHAT: Classify one ASCII hexadecimal digit from a checksum header.
+ * WHY:  Digest decoding should keep output sizing separate from byte grammar.
+ * HOW:  Accept decimal digits and either case of the six hexadecimal letters.
+ */
+static int
+webdav_is_hex(u_char value)
+{
+    return (value >= '0' && value <= '9') ||
+           (value >= 'a' && value <= 'f') ||
+           (value >= 'A' && value <= 'F');
+}
+
 /* Normalise a digest header value into lowercase hex in out[]. A base64 value is
  * decoded then hex-encoded; a hex value is copied lowercased. */
 static ngx_int_t
@@ -98,9 +111,7 @@ webdav_digest_value_hex(ngx_http_request_t *r, const u_char *val, size_t vlen,
         size_t i;
         for (i = 0; i < vlen; i++) {
             u_char c = val[i];
-            if (!((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f')
-                  || (c >= 'A' && c <= 'F')))
-            {
+            if (!webdav_is_hex(c)) {
                 return NGX_ERROR;   /* not a hex digit — malformed */
             }
             out[i] = (char) ngx_tolower(c);

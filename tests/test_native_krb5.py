@@ -36,6 +36,38 @@ from settings import (
     url_host,
 )
 
+def _guard_krb5_server_1():
+    if shutil.which("cc") is None and shutil.which("gcc") is None:
+        pytest.skip("no C compiler to build the native client")
+
+def _guard_krb5_server_2(proc):
+    if proc.returncode != 0 or not os.path.exists(XRDFS):
+        pytest.skip(f"native build failed:\n{proc.stdout}\n{proc.stderr}")
+
+def _guard_krb5_server_3():
+    if not os.access(NGINX_BIN, os.X_OK):
+        pytest.skip(f"nginx binary not executable: {NGINX_BIN}")
+
+def _guard_krb5_server_4():
+    if not kdc_helpers.krb5_tools_available():
+        pytest.skip("MIT KDC tooling not installed (install krb5-server)")
+
+def _guard_krb5_server_5():
+    if not kdc_helpers.up():
+        pytest.skip("krb5 realm could not be provisioned")
+
+def _guard_krb5_server_6():
+    if not _client_has_krb5():
+        kdc_helpers.down()
+        pytest.skip("client built without -DBRIX_HAVE_KRB5")
+
+def _check_test_krb5_compiled_and_clean_1(ldd):
+    assert "libXrd" not in ldd, f"must not link libXrd*:\n{ldd}"
+
+def _check_test_krb5_compiled_and_clean_2(help_txt):
+    assert "krb5" in help_txt, help_txt
+
+
 pytestmark = [pytest.mark.uses_lifecycle_harness,
               pytest.mark.xdist_group("lc-native-krb5")]
 
@@ -62,21 +94,16 @@ def _client_has_krb5():
 
 @pytest.fixture()
 def krb5_server(lifecycle, tmp_path):
-    if shutil.which("cc") is None and shutil.which("gcc") is None:
-        pytest.skip("no C compiler to build the native client")
+    _guard_krb5_server_1()
     proc = subprocess.run(["make", "-C", CLIENT_DIR, "xrdfs", "xrdcp"],
                           capture_output=True, text=True, timeout=180)
-    if proc.returncode != 0 or not os.path.exists(XRDFS):
-        pytest.skip(f"native build failed:\n{proc.stdout}\n{proc.stderr}")
-    if not os.access(NGINX_BIN, os.X_OK):
-        pytest.skip(f"nginx binary not executable: {NGINX_BIN}")
-    if not kdc_helpers.krb5_tools_available():
-        pytest.skip("MIT KDC tooling not installed (install krb5-server)")
+    _guard_krb5_server_2(proc)
+    _guard_krb5_server_3()
+    _guard_krb5_server_4()
 
     # Stand up the isolated realm (KDC + service keytab + kinit'd alice); this
     # generates the keytab + krb5.conf profile the acceptor authenticates against.
-    if not kdc_helpers.up():
-        pytest.skip("krb5 realm could not be provisioned")
+    _guard_krb5_server_5()
 
     data = tmp_path / "data"
     data.mkdir()
@@ -105,9 +132,7 @@ def krb5_server(lifecycle, tmp_path):
         kdc_helpers.down()
         raise
 
-    if not _client_has_krb5():
-        kdc_helpers.down()
-        pytest.skip("client built without -DBRIX_HAVE_KRB5")
+    _guard_krb5_server_6()
 
     try:
         yield {"port": ep.port, "payload": payload}
@@ -149,9 +174,9 @@ def test_krb5_compiled_and_clean():
     ldd = subprocess.run(["ldd", XRDFS], capture_output=True, text=True).stdout
     if "libkrb5" not in ldd:
         pytest.skip("client built without -DBRIX_HAVE_KRB5 (no libkrb5 dev)")
-    assert "libXrd" not in ldd, f"must not link libXrd*:\n{ldd}"
+    _check_test_krb5_compiled_and_clean_1(ldd)
     help_txt = subprocess.run([XRDFS, "-h"], capture_output=True, text=True).stderr
-    assert "krb5" in help_txt, help_txt
+    _check_test_krb5_compiled_and_clean_2(help_txt)
 
 
 # --------------------------------------------------------------------------

@@ -11,7 +11,7 @@ from importlib import import_module
 from brixtest._api import PUBLIC_EXPORTS
 
 __version__ = "0.15.0"
-__all__ = ["__version__", *sorted(PUBLIC_EXPORTS)]
+__all__ = ["__version__", *sorted(PUBLIC_EXPORTS)]  # noqa: PLE0604 - exports are strings
 
 
 def __getattr__(name: str) -> object:

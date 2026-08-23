@@ -1,4 +1,14 @@
 from split_continuation import reexport as _reexport
+def _check_test_list_basic_1(r):
+    assert r.status_code == 200
+
+def _check_test_list_basic_3(truncated):
+    assert not truncated
+
+def _check_test_list_basic_2(k, listed):
+    assert k in listed, f"{k} not in listing"
+
+
 _reexport(globals(), "_test_s3_helpers")
 
 def test_options_allow_methods(s3_url):
@@ -163,11 +173,11 @@ def test_list_basic(s3_url):
         requests.put(_obj_url(s3_url, k), data=b"x", timeout=10)
 
     r = requests.get(_list_url(s3_url, prefix=f"list_basic_{uid}"), timeout=10)
-    assert r.status_code == 200
+    _check_test_list_basic_1(r)
     listed, _, truncated, _ = _parse_list(r.text)
     for k in keys:
-        assert k in listed, f"{k} not in listing"
-    assert not truncated
+        _check_test_list_basic_2(k, listed)
+    _check_test_list_basic_3(truncated)
 
 
 # A GET on the bucket root that is NOT an exact `list-type=2` must not be
@@ -221,8 +231,11 @@ def test_list_max_keys_pagination(s3_url):
     )
     assert r.status_code == 200
     page1, _, truncated1, next_tok = _parse_list(r.text)
-    assert len(page1) == 2
-    assert truncated1
+    def _assert_test_list_max_keys_pagination_1():
+        assert len(page1) == 2
+        assert truncated1
+
+    _assert_test_list_max_keys_pagination_1()
     assert next_tok
 
     collected = list(page1)
@@ -240,8 +253,11 @@ def test_list_max_keys_pagination(s3_url):
         page, _, trunc, token = _parse_list(r.text)
         collected.extend(page)
 
-    assert len(collected) == total
-    assert collected == sorted(collected)
+    def _assert_test_list_max_keys_pagination_2():
+        assert len(collected) == total
+        assert collected == sorted(collected)
+
+    _assert_test_list_max_keys_pagination_2()
 
 
 def test_list_delimiter_common_prefixes(s3_url):

@@ -256,8 +256,7 @@ class _Srv:
         assert _ping_ok(self.root_port), "server not serving after %s" % phase
 
 
-@pytest.fixture(scope="module")
-def srv():
+def _require_fixture_ready():
     if REMOTE_SERVER:
         pytest.skip("self-contained; not for REMOTE mode")
     if not os.path.exists(NGINX_BIN):
@@ -265,26 +264,18 @@ def srv():
     if shutil.which("pgrep") is None:
         pytest.skip("pgrep required")
 
-    datadir = tempfile.mkdtemp(prefix="evil-data-")
 
-    # large, deterministic file so pgread/readv/write offload to the thread pool
-    # and a happy-path read can be byte-verified.
-    big = os.path.join(datadir, "big.bin")
-    with open(big, "wb") as f:
-        chunk = bytes((i * 31 + 7) & 0xFF for i in range(65536))
+def _populate_fixture_data(datadir):
+    chunk = bytes((index * 31 + 7) & 0xFF for index in range(65536))
+    with open(os.path.join(datadir, "big.bin"), "wb") as target:
         for _ in range(BIGFILE_MB * 16):
-            f.write(chunk)
-    # a small writable scratch file
+            target.write(chunk)
     open(os.path.join(datadir, "w.bin"), "wb").close()
 
-    # The 3-worker server + metrics plane is driven through the registry
-    # (LifecycleHarness): {PORT} is the root:// front, {HTTP_PORT} the metrics
-    # plane, and the harness renders nginx_evil_actor.conf, runs `nginx -t`, and
-    # reaps master+workers on close().  Crash detection is unchanged — it reads
-    # the master pid from endpoint.pidfile and scans endpoint.prefix/logs.
-    harness = LifecycleHarness()
+
+def _start_fixture_endpoint(harness, datadir):
     try:
-        endpoint = harness.start(NginxInstanceSpec(
+        return harness.start(NginxInstanceSpec(
             name="evil-actor",
             template="nginx_evil_actor.conf",
             protocol="root",
@@ -292,23 +283,49 @@ def srv():
             readiness="tcp",
             template_values={"BIND_HOST": BIND_HOST},
         ))
-    except Exception as exc:
+    except Exception as error:
         harness.close()
         shutil.rmtree(datadir, ignore_errors=True)
-        pytest.skip("nginx did not start: %s" % str(exc)[-400:])
+        pytest.skip("nginx did not start: %s" % str(error)[-400:])
 
-    root_port, http_port = endpoint.port, endpoint.extra_ports["HTTP_PORT"]
-    s = _Srv(endpoint.prefix, endpoint.config, endpoint.pidfile,
-             root_port, http_port, datadir)
-    s.master = _master_pid(endpoint.pidfile)
-    if not s.master or not _alive(s.master):
-        harness.close()
-        shutil.rmtree(datadir, ignore_errors=True)
-        pytest.skip("master pid never appeared")
-    print("\n[evil] master=%d root=%d http=%d workers=%s"
-          % (s.master, root_port, http_port, _worker_pids(s.master)))
+
+def _fixture_server(endpoint, datadir):
+    server = _Srv(
+        endpoint.prefix, endpoint.config, endpoint.pidfile,
+        endpoint.port, endpoint.extra_ports["HTTP_PORT"], datadir,
+    )
+    server.master = _master_pid(endpoint.pidfile)
+    return server
+
+
+def _require_fixture_master(server, harness, datadir):
+    if server.master and _alive(server.master):
+        return
+    harness.close()
+    shutil.rmtree(datadir, ignore_errors=True)
+    pytest.skip("master pid never appeared")
+
+
+def _report_fixture(server):
+    print(
+        "\n[evil] master=%d root=%d http=%d workers=%s"
+        % (server.master, server.root_port, server.http_port,
+           _worker_pids(server.master))
+    )
+
+
+@pytest.fixture(scope="module")
+def srv():
+    _require_fixture_ready()
+    datadir = tempfile.mkdtemp(prefix="evil-data-")
+    _populate_fixture_data(datadir)
+    harness = LifecycleHarness()
+    endpoint = _start_fixture_endpoint(harness, datadir)
+    server = _fixture_server(endpoint, datadir)
+    _require_fixture_master(server, harness, datadir)
+    _report_fixture(server)
     try:
-        yield s
+        yield server
     finally:
         harness.close()
         shutil.rmtree(datadir, ignore_errors=True)

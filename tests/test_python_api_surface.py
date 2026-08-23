@@ -271,8 +271,11 @@ class TestFileSystemSurface:
         
         items = list(listing)
         names = [entry.name for entry in items]
-        assert len(names) == 3
-        assert "f0.txt" in names
+        def _assert_test_dirlist_1():
+            assert len(names) == 3
+            assert "f0.txt" in names
+
+        _assert_test_dirlist_1()
         assert items[0].statinfo is not None # Because of DirListFlags.STAT
 
     def test_query_and_locate(self):

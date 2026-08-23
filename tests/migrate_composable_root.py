@@ -85,33 +85,56 @@ def main(argv):
     files = [a for a in argv[1:] if not a.startswith('--')]
     changed_files, skipped, total = 0, [], 0
     for path in files:
-        try:
-            with open(path, 'r') as fh:
-                text = fh.read()
-        except (OSError, UnicodeDecodeError) as e:
-            print(f"  ERR  {path}: {e}", file=sys.stderr)
+        result = _migrate_path(path, dry)
+        if result is None:
             continue
-        if is_group_b(text):
-            skipped.append(path)
-            continue
-        new, n = migrate_text(text)
-        if n == 0:
-            continue
-        total += n
-        changed_files += 1
-        if dry:
-            print(f"  would change {path} ({n} directive(s))")
-        else:
-            with open(path, 'w') as fh:
-                fh.write(new)
-            print(f"  migrated {path} ({n} directive(s))")
+        changed, count, skipped_path = result
+        changed_files += changed
+        total += count
+        if skipped_path is not None:
+            skipped.append(skipped_path)
+    _report_summary(dry, changed_files, total, skipped)
+    return 0
+
+
+def _migrate_path(path, dry):
+    text = _read_path(path)
+    if text is None:
+        return None
+    if is_group_b(text):
+        return 0, 0, path
+    new, count = migrate_text(text)
+    if count == 0:
+        return None
+    _write_migration(path, new, count, dry)
+    return 1, count, None
+
+
+def _read_path(path):
+    try:
+        with open(path, 'r') as fh:
+            return fh.read()
+    except (OSError, UnicodeDecodeError) as error:
+        print(f"  ERR  {path}: {error}", file=sys.stderr)
+        return None
+
+
+def _write_migration(path, text, count, dry):
+    if dry:
+        print(f"  would change {path} ({count} directive(s))")
+        return
+    with open(path, 'w') as fh:
+        fh.write(text)
+    print(f"  migrated {path} ({count} directive(s))")
+
+
+def _report_summary(dry, changed_files, total, skipped):
     print(f"\n{'DRY-RUN: ' if dry else ''}{changed_files} file(s), "
           f"{total} directive(s); {len(skipped)} Group-B file(s) skipped")
     if skipped:
         print("Skipped (already composable / cache-stage — migrate deliberately):")
-        for s in skipped:
-            print(f"  {s}")
-    return 0
+        for path in skipped:
+            print(f"  {path}")
 
 
 if __name__ == '__main__':

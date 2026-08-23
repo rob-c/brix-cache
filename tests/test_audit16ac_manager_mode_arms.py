@@ -290,6 +290,14 @@ def _export_roots(arms):
 # Log helpers — one config load, not the file's whole history                  #
 # --------------------------------------------------------------------------- #
 
+def _last_ready_pid(lines):
+    pids = [line.split("[notice]", 1)[1].split("#", 1)[0].strip()
+            for line in lines
+            if "[notice]" in line and "endpoint ready" in line]
+    assert pids, "no startup summary in the instance log"
+    return pids[-1]
+
+
 def _startup_summary(arms):
     """The startup banner of the load that produced the RUNNING master.
 
@@ -301,10 +309,7 @@ def _startup_summary(arms):
     to, so its lines are the one generation worth counting.
     """
     lines = arms.errlog().splitlines()
-    pids = [ln.split("[notice]", 1)[1].split("#", 1)[0].strip()
-            for ln in lines if "[notice]" in ln and "endpoint ready" in ln]
-    assert pids, f"no startup summary in the instance log:\n{arms.errlog()}"
-    last = pids[-1]
+    last = _last_ready_pid(lines)
     return [ln for ln in lines if f"[notice] {last}#" in ln]
 
 

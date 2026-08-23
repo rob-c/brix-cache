@@ -44,6 +44,37 @@ from pathlib import Path
 
 import pytest
 
+def _expression_1():
+    return (
+        {k: v for k, v in os.environ.items() if not k.startswith("BRIXCVMFS_")}
+    )
+
+def _expression_2(mnt, log):
+    return (
+        not os.path.ismount(mnt) and log.exists()
+    )
+
+
+def _guard_encode_bundle_1(data, out):
+    if data is None:
+        out.append(struct.pack("<Q", MISS))
+    else:
+        out.append(struct.pack("<Q", len(data)))
+        out.append(data)
+
+def _guard_bd_mount_2(env_extra, env):
+    if env_extra:
+        env.update(env_extra)
+
+def _guard_bd_mount_3(proc):
+    if proc.poll() is None:
+        proc.terminate()
+        try:
+            proc.wait(3)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+
+
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "cvmfs"))
 
 from conformance_common import BRIXMOUNT, _unmount, _wait_mounted  # noqa: E402
@@ -83,11 +114,7 @@ def _encode_bundle(repo_dir: Path, want: bytes, tamper_rel=None) -> bytes:
     for path, data in items:
         out.append(struct.pack("<I", len(path)))
         out.append(path)
-        if data is None:
-            out.append(struct.pack("<Q", MISS))
-        else:
-            out.append(struct.pack("<Q", len(data)))
-            out.append(data)
+        _guard_encode_bundle_1(data, out)
     return b"".join(out)
 
 
@@ -145,7 +172,7 @@ def bd_mount(pubkey, port, *, opts_extra=",bundle", env_extra=None, timeout=15):
     mnt = workdir / "mnt"
     for d in ("mnt", "tmp", "cache"):
         (workdir / d).mkdir()
-    env = {k: v for k, v in os.environ.items() if not k.startswith("BRIXCVMFS_")}
+    env = _expression_1()
     for k in ("http_proxy", "https_proxy", "all_proxy",
               "HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY"):
         env.pop(k, None)
@@ -153,8 +180,7 @@ def bd_mount(pubkey, port, *, opts_extra=",bundle", env_extra=None, timeout=15):
     env["BRIXCVMFS_TMP"] = str(workdir / "tmp")
     env["BRIXCVMFS_CACHE"] = str(workdir / "cache")
     env["BRIXCVMFS_SERVER"] = f"http://{HOST}:{port}/cvmfs/{REPO}"
-    if env_extra:
-        env.update(env_extra)
+    _guard_bd_mount_2(env_extra, env)
 
     opts = "auto_unmount,attr_timeout=0,entry_timeout=0,retries=1,prefetch=8" + opts_extra
     log = workdir / "brixmount.log"
@@ -165,17 +191,12 @@ def bd_mount(pubkey, port, *, opts_extra=",bundle", env_extra=None, timeout=15):
         _wait_mounted(mnt, timeout)
         yield mnt, proc, log, workdir / "cache"
     finally:
-        if not os.path.ismount(mnt) and log.exists():
+        if _expression_2(mnt, log):
             keep = Path(tempfile.gettempdir()) / "brixcvmfs_mount_failures"
             keep.mkdir(exist_ok=True)
             shutil.copy(log, keep / f"{workdir.name}.log")
         _unmount(mnt)
-        if proc.poll() is None:
-            proc.terminate()
-            try:
-                proc.wait(3)
-            except subprocess.TimeoutExpired:
-                proc.kill()
+        _guard_bd_mount_3(proc)
         _unmount(mnt)
         shutil.rmtree(workdir, ignore_errors=True)
 

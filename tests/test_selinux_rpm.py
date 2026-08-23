@@ -25,6 +25,17 @@ import shutil
 import subprocess
 import pytest
 
+def _expression_1(cols):
+    return (
+        cols[:2] == ["brix_port_t", "tcp"] or (cols and cols[0] == "brix_port_t" and "tcp" in cols)
+    )
+
+
+def _check_test_brix_ports_labelled_1(missing, labelled):
+    assert not missing, \
+        f"ports {sorted(missing)} not labelled brix_port_t (got {sorted(labelled)})"
+
+
 pytestmark = [pytest.mark.selinux, pytest.mark.timeout(120)]
 
 # Keep in sync with %%global brix_ports in the spec / the brix.te header.
@@ -157,22 +168,27 @@ def test_new_file_inherits_export_root_label():
 # Port labels (%post semanage scriptlet)
 # ---------------------------------------------------------------------------
 
+def _ports_in_label(line):
+    ports = set()
+    for token in re.findall(r"\d+(?:-\d+)?", line):
+        if "-" in token:
+            low, high = map(int, token.split("-"))
+            ports.update(range(low, high + 1))
+        else:
+            ports.add(int(token))
+    return ports
+
+
 def test_brix_ports_labelled():
     semanage = _need("semanage", "policycoreutils-python-utils")
     out = _run([semanage, "port", "-l"]).stdout
     labelled = set()
     for line in out.splitlines():
         cols = line.split()
-        if cols[:2] == ["brix_port_t", "tcp"] or (cols and cols[0] == "brix_port_t" and "tcp" in cols):
-            for tok in re.findall(r"\d+(?:-\d+)?", line):
-                if "-" in tok:
-                    lo, hi = map(int, tok.split("-"))
-                    labelled.update(range(lo, hi + 1))
-                else:
-                    labelled.add(int(tok))
+        if _expression_1(cols):
+            labelled.update(_ports_in_label(line))
     missing = BRIX_PORTS - labelled
-    assert not missing, \
-        f"ports {sorted(missing)} not labelled brix_port_t (got {sorted(labelled)})"
+    _check_test_brix_ports_labelled_1(missing, labelled)
 
 
 # ---------------------------------------------------------------------------

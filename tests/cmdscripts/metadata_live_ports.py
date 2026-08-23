@@ -15,6 +15,26 @@ from cmdscripts.live_common import LiveFailure, LiveRun, random_file, sha256
 from settings import BIND_HOST, HOST
 
 
+def _expression_1(fallback_log):
+    return (
+        fallback_log.read_text(errors="replace") if fallback_log.exists() else ""
+    )
+
+def _expression_2(unwritable, first, fallback_notice, explicit, explicit_error, fallback_audit, custom, node):
+    return (
+        _checks(
+                    [
+                        (first and 'path="/a.bin"' in fallback_audit, "fallback audit line beside error.log"),
+                        ("xfer: audit log at" in fallback_notice, "fallback announced with notice"),
+                        (explicit and (custom / "audit.log").exists() and 'path="/b.bin"' in (custom / "audit.log").read_text(errors="replace"), "explicit BRIX_XFER_AUDIT_LOG honored"),
+                        (unwritable, "transfer succeeds with unwritable explicit sink"),
+                        (not (node / "elog/xfer_audit.log").exists(), "explicit override does not fall back"),
+                        ("xfer: cannot open audit log" in explicit_error, "warn emitted for unwritable sink"),
+                    ]
+                )
+    )
+
+
 def _checks(items: list[tuple[bool, str]]) -> int:
     for ok, message in items:
         print(f"  {'ok  ' if ok else 'FAIL'} {message}")
@@ -215,7 +235,7 @@ stream {{ server {{
         fallback_log = node / "elog/xfer_audit.log"
         # start_node() wipes the node dir on restart — capture the audit
         # sink's state now, before the next lifecycle destroys it.
-        fallback_audit = fallback_log.read_text(errors="replace") if fallback_log.exists() else ""
+        fallback_audit = _expression_1(fallback_log)
         fallback_notice = (node / "elog/e.log").read_text(errors="replace")
         run.stop_nginx(node)
         custom = run.mkdir("custom")
@@ -225,16 +245,7 @@ stream {{ server {{
         node = start_node(f"env BRIX_XFER_AUDIT_LOG={run.root}/no-such-dir/audit.log;")
         unwritable = upload("c.bin")
         explicit_error = (node / "elog/e.log").read_text(errors="replace")
-        return _checks(
-            [
-                (first and 'path="/a.bin"' in fallback_audit, "fallback audit line beside error.log"),
-                ("xfer: audit log at" in fallback_notice, "fallback announced with notice"),
-                (explicit and (custom / "audit.log").exists() and 'path="/b.bin"' in (custom / "audit.log").read_text(errors="replace"), "explicit BRIX_XFER_AUDIT_LOG honored"),
-                (unwritable, "transfer succeeds with unwritable explicit sink"),
-                (not (node / "elog/xfer_audit.log").exists(), "explicit override does not fall back"),
-                ("xfer: cannot open audit log" in explicit_error, "warn emitted for unwritable sink"),
-            ]
-        )
+        return _expression_2(unwritable, first, fallback_notice, explicit, explicit_error, fallback_audit, custom, node)
 
 
 SCENARIOS = {

@@ -19,6 +19,29 @@ from typing import Mapping, Optional
 
 from brixtest.config.ports import PortLedger
 
+def _guard_derive_1(overrides):
+    if "port_start" in overrides and "ports" not in overrides:
+        _warn_lane_sanity(overrides["port_start"])
+        overrides["ports"] = _ladder_ledger(overrides["port_start"])
+
+def _guard_derive_2(overrides, new_root):
+    if "registry_root" not in overrides:
+        overrides["registry_root"] = os.path.join(new_root, "registry")
+
+def _guard_derive_3(overrides):
+    if "registry_manifest" not in overrides:
+        overrides["registry_manifest"] = os.path.join(
+            overrides["registry_root"], "manifest.json")
+
+def _guard_derive_4(overrides, new_root):
+    if "sanitize_log_dir" not in overrides:
+        overrides["sanitize_log_dir"] = os.path.join(new_root, "sanitize")
+
+def _guard_derive_5(overrides, new_root):
+    if "valgrind_log_dir" not in overrides:
+        overrides["valgrind_log_dir"] = os.path.join(new_root, "valgrind")
+
+
 __all__ = ["SuiteSettings", "build_suite_settings"]
 
 # One socket, two spellings (settings_values.py: davs:// call-site clarity).
@@ -262,20 +285,13 @@ class SuiteSettings:
         follow.  A new ``port_start`` rebuilds the ladder ledger; a new
         ``test_root`` recomputes the root-derived defaults — unless the
         caller overrode those fields explicitly, which always wins (C2)."""
-        if "port_start" in overrides and "ports" not in overrides:
-            _warn_lane_sanity(overrides["port_start"])
-            overrides["ports"] = _ladder_ledger(overrides["port_start"])
+        _guard_derive_1(overrides)
         if "test_root" in overrides:
             new_root = overrides["test_root"]
-            if "registry_root" not in overrides:
-                overrides["registry_root"] = os.path.join(new_root, "registry")
-            if "registry_manifest" not in overrides:
-                overrides["registry_manifest"] = os.path.join(
-                    overrides["registry_root"], "manifest.json")
-            if "sanitize_log_dir" not in overrides:
-                overrides["sanitize_log_dir"] = os.path.join(new_root, "sanitize")
-            if "valgrind_log_dir" not in overrides:
-                overrides["valgrind_log_dir"] = os.path.join(new_root, "valgrind")
+            _guard_derive_2(overrides, new_root)
+            _guard_derive_3(overrides)
+            _guard_derive_4(overrides, new_root)
+            _guard_derive_5(overrides, new_root)
         return dataclasses.replace(self, **overrides)
 
 

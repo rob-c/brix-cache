@@ -80,19 +80,31 @@ def _is_fleet_process(pid, cmd, exes):
     environment.  Keep both matches narrow: only the randomized daemon names
     and test helper command lines qualify.
     """
-    try:
-        comm = open("/proc/%s/comm" % pid, "r").read().strip()
-        if isinstance(comm, bytes):
-            comm = comm.decode("utf-8", "replace")
-        comm = comm.split("\x00", 1)[0].strip()
-    except OSError:
+    comm = _process_name(pid)
+    if comm is None:
         return False
-    if comm in exes or ("nginx" in exes and comm.startswith("nginx-")):
+    if _daemon_name_matches(comm, exes):
         return True
-    return (comm.startswith("python")
-            and "/tests/" in cmd
-            and "pytest" not in cmd
-            and bool(_environ(pid)))
+    return _helper_matches(pid, comm, cmd)
+
+
+def _process_name(pid):
+    try:
+        name = open("/proc/%s/comm" % pid, "r").read().strip()
+    except OSError:
+        return None
+    if isinstance(name, bytes):
+        name = name.decode("utf-8", "replace")
+    return name.split("\x00", 1)[0].strip()
+
+
+def _daemon_name_matches(name, exes):
+    return name in exes or ("nginx" in exes and name.startswith("nginx-"))
+
+
+def _helper_matches(pid, name, command):
+    return all((name.startswith("python"), "/tests/" in command,
+                "pytest" not in command, bool(_environ(pid))))
 
 
 def _owns(marker, blob):
@@ -120,11 +132,16 @@ def _owns(marker, blob):
         hit = blob.find(marker, start)
         if hit < 0:
             return False
-        after = blob[hit + len(marker):hit + len(marker) + 1]
-        if ((hit == 0 or blob[hit - 1:hit] in lead)
-                and (not after or after in tail)):
+        if _bounded_hit(marker, blob, hit, lead, tail):
             return True
         start = hit + 1
+
+
+def _bounded_hit(marker, blob, hit, lead, tail):
+    after = blob[hit + len(marker):hit + len(marker) + 1]
+    valid_lead = hit == 0 or blob[hit - 1:hit] in lead
+    valid_tail = not after or after in tail
+    return valid_lead and valid_tail
 
 
 def owns(test_root, text):
@@ -146,31 +163,38 @@ def find_orphans(test_root, exes=FLEET_EXES):
     ``test_root`` (own argv or parent argv references it)."""
     marker = os.path.realpath(str(test_root)).encode()
     owned = {}
-    pids = {int(entry) for entry in os.listdir("/proc") if entry.isdigit()}
-    # Keep the exact-name probe as well as the /proc sweep.  Besides making the
-    # detector cheap on hosts with a large process table, this preserves the
-    # old reaper's narrow pgrep contract for callers/tests that virtualise the
-    # daemon list; randomized nginx masters are still found by the /proc sweep.
-    for exe in exes:
-        try:
-            listed = subprocess.run(["pgrep", "-x", exe],
-                                    capture_output=True, text=True)
-            pids.update(int(line) for line in listed.stdout.split()
-                        if line.isdigit())
-        except (OSError, ValueError, AttributeError):
-            pass
+    pids = _candidate_pids(exes)
     for pid in sorted(pids):
-        cmd = _cmdline(pid)
-        if not _is_fleet_process(pid, cmd, exes):
-            continue
-        parent_cmd = _cmdline(_ppid(pid))
-        # argv is compared as bytes too: one matcher, one boundary rule, and the
-        # decode's U+FFFD replacements can never manufacture a boundary.
-        if (_owns(marker, cmd.encode("utf-8", "replace"))
-                or _owns(marker, parent_cmd.encode("utf-8", "replace"))
-                or _owns(marker, _environ(pid))):
+        cmd = _owned_command(pid, marker, exes)
+        if cmd is not None:
             owned[pid] = cmd or "<pid %d>" % pid
     return sorted(owned.items())
+
+
+def _candidate_pids(exes):
+    pids = {int(entry) for entry in os.listdir("/proc") if entry.isdigit()}
+    for executable in exes:
+        pids.update(_pgrep_pids(executable))
+    return pids
+
+
+def _pgrep_pids(executable):
+    try:
+        result = subprocess.run(["pgrep", "-x", executable],
+                                capture_output=True, text=True)
+        return {int(line) for line in result.stdout.split() if line.isdigit()}
+    except (OSError, ValueError, AttributeError):
+        return set()
+
+
+def _owned_command(pid, marker, exes):
+    command = _cmdline(pid)
+    if not _is_fleet_process(pid, command, exes):
+        return None
+    parent = _cmdline(_ppid(pid))
+    blobs = (command.encode("utf-8", "replace"),
+             parent.encode("utf-8", "replace"), _environ(pid))
+    return command if any(_owns(marker, blob) for blob in blobs) else None
 
 
 def kill_orphans(test_root, exes=FLEET_EXES, grace=1.0):
@@ -179,18 +203,18 @@ def kill_orphans(test_root, exes=FLEET_EXES, grace=1.0):
     worker re-parented in between).  Returns the list of ``(pid, cmdline)`` that
     were STILL alive after the SIGKILL pass — the empty list means a clean reap."""
     owned = find_orphans(test_root, exes)
-    for pid, _cmd in owned:
-        try:
-            os.kill(pid, signal.SIGTERM)
-        except (OSError, ValueError):
-            pass
+    _signal_processes(owned, signal.SIGTERM)
     if owned:
         time.sleep(grace)
-    for pid, _cmd in find_orphans(test_root, exes):
-        try:
-            os.kill(pid, signal.SIGKILL)
-        except (OSError, ValueError):
-            pass
+    _signal_processes(find_orphans(test_root, exes), signal.SIGKILL)
     if owned:
         time.sleep(0.3)
     return find_orphans(test_root, exes)
+
+
+def _signal_processes(processes, selected):
+    for pid, _command in processes:
+        try:
+            os.kill(pid, selected)
+        except (OSError, ValueError):
+            pass

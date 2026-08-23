@@ -47,6 +47,20 @@ from settings import (
     TEST_ROOT,
 )
 
+def _check_test_stage_noerrs_missing_file_collected_1(status, body):
+    assert status == kXR_ok, \
+        f"kXR_stage|kXR_noerrs for missing file must return ok: " \
+        f"status={status} body={body!r}"
+
+def _check_test_stage_noerrs_missing_file_collected_2():
+    assert os.path.getsize(PREPARE_CMD_LOG) > 0, \
+        "prepare_command not invoked for missing-file kXR_stage|kXR_noerrs"
+
+def _check_test_stage_noerrs_missing_file_collected_3(content):
+    assert content.endswith("/on_tape_not_disk.dat"), \
+        f"unexpected path in command args: {content!r}"
+
+
 ANON_HOST = SERVER_HOST
 ANON_PORT = 0
 
@@ -504,20 +518,16 @@ class TestPrepareStageCommand:
                                      b"/on_tape_not_disk.dat\n")
         sock.close()
 
-        assert status == kXR_ok, \
-            f"kXR_stage|kXR_noerrs for missing file must return ok: " \
-            f"status={status} body={body!r}"
+        _check_test_stage_noerrs_missing_file_collected_1(status, body)
 
         for _ in range(30):
             if os.path.getsize(PREPARE_CMD_LOG) > 0:
                 break
             time.sleep(0.1)
 
-        assert os.path.getsize(PREPARE_CMD_LOG) > 0, \
-            "prepare_command not invoked for missing-file kXR_stage|kXR_noerrs"
+        _check_test_stage_noerrs_missing_file_collected_2()
         content = open(PREPARE_CMD_LOG).read().strip()
-        assert content.endswith("/on_tape_not_disk.dat"), \
-            f"unexpected path in command args: {content!r}"
+        _check_test_stage_noerrs_missing_file_collected_3(content)
 
     @pytest.mark.requires_local_server
     def test_stage_cancel_skips_command(self):
@@ -563,4 +573,3 @@ class TestPrepareStageCommand:
         content = open(PREPARE_CMD_LOG).read()
         assert "COLOC=1" in content, f"COLOC=1 missing from log: {content!r}"
         assert "/coloc_file.dat" in content
-

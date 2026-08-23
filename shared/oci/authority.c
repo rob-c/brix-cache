@@ -63,56 +63,60 @@ oci_url_v6_host(const char *s, size_t n, char *host, size_t hostsz)
     return i + 1;                          /* past ']' */
 }
 
-int
-brix_oci_url_authority(const char *s, size_t n, char *host, size_t hostsz,
-    int *port)
+/*
+ * WHAT: Reject authority spans containing a user-information separator.
+ * WHY:  Userinfo can visually disguise the actual registry destination.
+ * HOW:  Scan the bounded authority and report whether any '@' is present.
+ */
+static int
+oci_url_has_userinfo(const char *s, size_t n)
 {
-    size_t i, host_end;
-    long   p = 0;
+    size_t i;
 
-    if (s == NULL || host == NULL || port == NULL) {
-        return -1;
-    }
-
-    /* Userinfo has no legitimate place in a registry base URL, a challenge
-     * realm or an image reference, and "https://evil.com@registry.example/"
-     * is the classic way to make a human read one host while the parser sees
-     * another. Refuse the whole authority rather than try to be clever. */
     for (i = 0; i < n; i++) {
         if (s[i] == '@') {
-            return -1;
+            return 1;
         }
     }
+    return 0;
+}
 
-    if (n > 0 && s[0] == '[') {
-        host_end = oci_url_v6_host(s, n, host, hostsz);
-        if (host_end == 0) {
-            return -1;
-        }
+/*
+ * WHAT: Parse an unbracketed registry hostname up to its optional port.
+ * WHY:  Host validation and copying are one bounded authority operation.
+ * HOW:  Validate each allowed byte, then copy through the shared field helper.
+ */
+static size_t
+oci_url_reg_host(const char *s, size_t n, char *host, size_t hostsz)
+{
+    size_t end;
 
-    } else {
-        for (host_end = 0; host_end < n && s[host_end] != ':'; host_end++) {
-            if (!oci_url_host_byte(s[host_end])) {
-                return -1;
-            }
-        }
-        if (oci_url_field(host, hostsz, s, host_end) != 0) {
-            return -1;
+    for (end = 0; end < n && s[end] != ':'; end++) {
+        if (!oci_url_host_byte(s[end])) {
+            return (size_t) -1;
         }
     }
-
-    if (host_end == n) {
-        return 0;                          /* no port: the caller's default */
+    if (oci_url_field(host, hostsz, s, end) != 0) {
+        return (size_t) -1;
     }
-    if (s[host_end] != ':') {
-        return -1;                         /* junk trailing an IPv6 literal */
-    }
+    return end;
+}
 
-    i = host_end + 1;
+/*
+ * WHAT: Parse a required decimal TCP port suffix.
+ * WHY:  Empty, zero, non-decimal, and out-of-range ports must fail closed.
+ * HOW:  Accumulate checked digits through the end of the authority span.
+ */
+static int
+oci_url_port(const char *s, size_t n, size_t offset, int *port)
+{
+    long p = 0;
+    size_t i = offset;
+
     if (i >= n) {
-        return -1;                         /* ":" with no digits */
+        return -1;
     }
-    for ( ; i < n; i++) {
+    for (; i < n; i++) {
         if (s[i] < '0' || s[i] > '9') {
             return -1;
         }
@@ -126,4 +130,45 @@ brix_oci_url_authority(const char *s, size_t n, char *host, size_t hostsz,
     }
     *port = (int) p;
     return 0;
+}
+
+int
+brix_oci_url_authority(const char *s, size_t n, char *host, size_t hostsz,
+    int *port)
+{
+    size_t host_end;
+
+    if (s == NULL || host == NULL || port == NULL) {
+        return -1;
+    }
+
+    /* Userinfo has no legitimate place in a registry base URL, a challenge
+     * realm or an image reference, and "https://evil.com@registry.example/"
+     * is the classic way to make a human read one host while the parser sees
+     * another. Refuse the whole authority rather than try to be clever. */
+    if (oci_url_has_userinfo(s, n)) {
+        return -1;
+    }
+
+    if (n > 0 && s[0] == '[') {
+        host_end = oci_url_v6_host(s, n, host, hostsz);
+        if (host_end == 0) {
+            return -1;
+        }
+
+    } else {
+        host_end = oci_url_reg_host(s, n, host, hostsz);
+        if (host_end == (size_t) -1) {
+            return -1;
+        }
+    }
+
+    if (host_end == n) {
+        return 0;                          /* no port: the caller's default */
+    }
+    if (s[host_end] != ':') {
+        return -1;                         /* junk trailing an IPv6 literal */
+    }
+
+    return oci_url_port(s, n, host_end + 1, port);
 }

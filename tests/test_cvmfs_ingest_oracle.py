@@ -34,6 +34,39 @@ from pathlib import Path
 
 import pytest
 
+def _check_podman_truth_1(r):
+    assert r.returncode == 0, r.stderr.decode()
+
+def _check_podman_truth_2(cid):
+    assert cid, "podman create produced no container id"
+
+def _check_podman_truth_3(exp):
+    assert exp.returncode == 0, exp.stderr.decode()
+
+def _guard_podman_truth_1(m, truth, name, tf):
+    if m.isdir():
+        truth[name.rstrip("/")] = ("dir", "")
+    elif m.issym():
+        truth[name] = ("link", m.linkname)
+    elif m.isfile():
+        truth[name] = ("file", hashlib.sha1(
+            tf.extractfile(m).read()).hexdigest())
+
+def _check_test_mounted_tree_diffwalks_clean_against_podman_4(truth):
+    assert "share/extra" in truth and "share/data" not in truth, \
+        f"fixture drift: podman truth {sorted(truth)}"
+
+def _check_test_mounted_tree_diffwalks_clean_against_podman_5(walk):
+    assert walk.returncode == 0 and "===OK===" in walk.stdout, \
+        (walk.stdout + walk.stderr)[-800:]
+
+def _check_test_mounted_tree_diffwalks_clean_against_podman_6(seen, truth):
+    assert seen == truth, (
+        f"only-cvmfs: {sorted(set(seen) - set(truth))[:10]}\n"
+        f"only-podman: {sorted(set(truth) - set(seen))[:10]}\n"
+        f"mismatch: {[p for p in set(seen) & set(truth) if seen[p] != truth[p]][:10]}")
+
+
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "cvmfs"))
 
 from cmdscripts.cvmfs_publish_txn import cas_path, lookup, open_catalog, parse_manifest
@@ -179,12 +212,12 @@ def _podman_truth(rt):
     """{relpath: (kind, payload)} from podman's own flatten of lab/app:v2."""
     ref = f"{HOST}:{MOCK_PORT}/lab/app:v2"
     r = _pod(rt, "pull", "--tls-verify=false", ref)
-    assert r.returncode == 0, r.stderr.decode()
+    _check_podman_truth_1(r)
     cid = _pod(rt, "create", ref).stdout.decode().strip()
-    assert cid, "podman create produced no container id"
+    _check_podman_truth_2(cid)
     try:
         exp = _pod(rt, "export", cid)
-        assert exp.returncode == 0, exp.stderr.decode()
+        _check_podman_truth_3(exp)
         # runtime files podman materializes in an exported container that are
         # not image content (exact names — image payload under etc/ must stay)
         synthetic = {"dev", "proc", "sys", "run", ".dockerenv",
@@ -198,13 +231,7 @@ def _podman_truth(rt):
                     name = name[2:]
                 if not name or name.rstrip("/") in synthetic:
                     continue
-                if m.isdir():
-                    truth[name.rstrip("/")] = ("dir", "")
-                elif m.issym():
-                    truth[name] = ("link", m.linkname)
-                elif m.isfile():
-                    truth[name] = ("file", hashlib.sha1(
-                        tf.extractfile(m).read()).hexdigest())
+                _guard_podman_truth_1(m, truth, name, tf)
         return truth
     finally:
         _pod(rt, "rm", cid)
@@ -213,8 +240,7 @@ def _podman_truth(rt):
 def test_mounted_tree_diffwalks_clean_against_podman(lab):
     rt, _repo, pubdir, _base = lab
     truth = _podman_truth(rt)
-    assert "share/extra" in truth and "share/data" not in truth, \
-        f"fixture drift: podman truth {sorted(truth)}"
+    _check_test_mounted_tree_diffwalks_clean_against_podman_4(truth)
 
     walk = _client_run(rt, pubdir, _mount_sh() + (
         f'cd "/mnt/repo{APP_ROOT}/"\n'
@@ -225,8 +251,7 @@ def test_mounted_tree_diffwalks_clean_against_podman(lab):
         "  else echo \"F|$p|$(sha1sum \"$p\" | cut -d' ' -f1)\"; fi\n"
         "done\n"
         "echo ===OK===\n"))
-    assert walk.returncode == 0 and "===OK===" in walk.stdout, \
-        (walk.stdout + walk.stderr)[-800:]
+    _check_test_mounted_tree_diffwalks_clean_against_podman_5(walk)
 
     seen = {}
     kinds = {"D": "dir", "F": "file", "L": "link"}
@@ -237,10 +262,7 @@ def test_mounted_tree_diffwalks_clean_against_podman(lab):
         if name in (".manifest.json", ".config.json"):
             continue                    # our sidecars, not image content
         seen[name] = (kinds[k], payload)
-    assert seen == truth, (
-        f"only-cvmfs: {sorted(set(seen) - set(truth))[:10]}\n"
-        f"only-podman: {sorted(set(truth) - set(seen))[:10]}\n"
-        f"mismatch: {[p for p in set(seen) & set(truth) if seen[p] != truth[p]][:10]}")
+    _check_test_mounted_tree_diffwalks_clean_against_podman_6(seen, truth)
 
 
 # ---- success 2: podman runs a container off the cvmfs mount ---------------

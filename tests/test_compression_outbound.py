@@ -130,6 +130,23 @@ def _raw_get(base, path, headers):
                          decode_content=False, preload_content=True, retries=False)
 
 
+def _require_response_encoding(response, token):
+    encoding = response.headers.get("Content-Encoding", "")
+    if not encoding and token in OPTIONAL_CODECS:
+        pytest.skip(
+            f"server build lacks optional codec '{token}' "
+            f"(returned identity for a compressible payload)")
+    assert encoding.lower() == token, f"{token}: Content-Encoding={encoding!r}"
+
+
+def _assert_compressed_payload(response, token, data, decompress):
+    assert response.status == 200, f"{token} GET status {response.status}"
+    raw = response.data
+    assert len(raw) < len(data), f"{token}: not smaller ({len(raw)})"
+    assert decompress(raw) == data, f"{token}: body mismatch"
+    assert "accept-encoding" in response.headers.get("Vary", "").lower()
+
+
 @pytest.mark.parametrize("token", list(CODECS))
 def test_get_compressed_roundtrip(base, token):
     decompress = CODECS[token]
@@ -137,18 +154,9 @@ def test_get_compressed_roundtrip(base, token):
     path = f"/out_{token.replace('/', '')}_{uuid.uuid4().hex}.bin"
     try:
         assert _put(base, path, data).status_code in (200, 201, 204)
-        r = _raw_get(base, path, {"Accept-Encoding": token})
-        assert r.status == 200, f"{token} GET status {r.status}"
-        enc = r.headers.get("Content-Encoding", "")
-        if not enc and token in OPTIONAL_CODECS:
-            pytest.skip(
-                f"server build lacks optional codec '{token}' "
-                f"(returned identity for a compressible payload)")
-        assert enc.lower() == token, f"{token}: Content-Encoding={enc!r}"
-        raw = r.data
-        assert len(raw) < len(data), f"{token}: not smaller ({len(raw)})"
-        assert decompress(raw) == data, f"{token}: body mismatch"
-        assert "accept-encoding" in r.headers.get("Vary", "").lower()
+        response = _raw_get(base, path, {"Accept-Encoding": token})
+        _require_response_encoding(response, token)
+        _assert_compressed_payload(response, token, data, decompress)
     finally:
         _delete(base, path)
 

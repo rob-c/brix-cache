@@ -44,16 +44,23 @@ _BUILTINS = frozenset(dir(builtins)) | {
 
 def infra_module_names(tests_root: Path) -> list:
     """Flat stems (non-test top-level .py) plus package submodules."""
-    flat = [p.stem for p in tests_root.glob("*.py")
-            if p.stem.isidentifier()
-            and not p.stem.startswith(("test_", "_test_"))]
-    nested = []
-    for pkg in PACKAGES:
-        pkg_dir = tests_root / pkg
-        if pkg_dir.is_dir():
-            nested += ["%s.%s" % (pkg, p.stem) for p in pkg_dir.glob("*.py")
-                       if p.stem.isidentifier() and p.stem != "__init__"]
+    flat = [path.stem for path in tests_root.glob("*.py") if _flat_infra(path)]
+    nested = [name for package in PACKAGES for name in _package_modules(tests_root, package)]
     return sorted(flat) + sorted(nested)
+
+
+def _flat_infra(path):
+    return path.stem.isidentifier() and not path.stem.startswith(("test_", "_test_"))
+
+
+def _package_modules(tests_root, package):
+    directory = tests_root / package
+    if not directory.is_dir():
+        return []
+    return [
+        f"{package}.{path.stem}" for path in directory.glob("*.py")
+        if path.stem.isidentifier() and path.stem != "__init__"
+    ]
 
 
 def _module_path(tests_root: Path, name: str) -> Path:
@@ -66,44 +73,61 @@ def public_surface(path: Path) -> dict:
            "variables": [], "shard_implicit": []}
     defined = set()
     for node in tree.body:
-        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-            out["functions"].append(node.name)
-            defined.add(node.name)
-        elif isinstance(node, ast.ClassDef):
-            out["classes"].append(node.name)
-            defined.add(node.name)
-        elif isinstance(node, (ast.Assign, ast.AnnAssign)):
-            targets = node.targets if isinstance(node, ast.Assign) else [node.target]
-            for target in targets:
-                if isinstance(target, ast.Name):
-                    bucket = "constants" if target.id.isupper() else "variables"
-                    out[bucket].append(target.id)
-                    defined.add(target.id)
-        elif isinstance(node, (ast.Import, ast.ImportFrom)):
-            for alias in node.names:
-                defined.add((alias.asname or alias.name).split(".")[0])
-    # names loaded anywhere but bound nowhere in this file: the module
-    # only works exec'd into a parent namespace (shard-implicit) — the
-    # call-time NameError class, e.g. fleet_specs_part2's `_data`
-    used, bound = set(), set(defined)
-    for sub in ast.walk(tree):
-        if isinstance(sub, ast.Name):
-            (used if isinstance(sub.ctx, ast.Load) else bound).add(sub.id)
-        elif isinstance(sub, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
-            bound.add(sub.name)
-        elif isinstance(sub, ast.arg):
-            bound.add(sub.arg)
-        elif isinstance(sub, ast.ExceptHandler) and sub.name:
-            bound.add(sub.name)
-        elif isinstance(sub, (ast.Global, ast.Nonlocal)):
-            bound.update(sub.names)
-        elif isinstance(sub, (ast.Import, ast.ImportFrom)):
-            for alias in sub.names:
-                bound.add((alias.asname or alias.name).split(".")[0])
+        _record_public_node(node, out, defined)
+    used, bound = _used_and_bound(tree, defined)
     out["shard_implicit"] = sorted(used - bound - _BUILTINS)
     for key in ("functions", "classes", "constants", "variables"):
         out[key] = sorted(set(out[key]))
     return out
+
+
+def _record_public_node(node, surface, defined):
+    if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+        surface["functions"].append(node.name)
+        defined.add(node.name)
+    elif isinstance(node, ast.ClassDef):
+        surface["classes"].append(node.name)
+        defined.add(node.name)
+    elif isinstance(node, (ast.Assign, ast.AnnAssign)):
+        _record_assignments(node, surface, defined)
+    elif isinstance(node, (ast.Import, ast.ImportFrom)):
+        defined.update(_alias_names(node.names))
+
+
+def _record_assignments(node, surface, defined):
+    targets = node.targets if isinstance(node, ast.Assign) else [node.target]
+    for target in targets:
+        if isinstance(target, ast.Name):
+            bucket = "constants" if target.id.isupper() else "variables"
+            surface[bucket].append(target.id)
+            defined.add(target.id)
+
+
+def _alias_names(aliases):
+    return {(alias.asname or alias.name).split(".")[0] for alias in aliases}
+
+
+def _used_and_bound(tree, defined):
+    used, bound = set(), set(defined)
+    for sub in ast.walk(tree):
+        _record_usage(sub, used, bound)
+    return used, bound
+
+
+def _record_usage(node, used, bound):
+    if isinstance(node, ast.Name):
+        target = used if isinstance(node.ctx, ast.Load) else bound
+        target.add(node.id)
+    elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+        bound.add(node.name)
+    elif isinstance(node, ast.arg):
+        bound.add(node.arg)
+    elif isinstance(node, ast.ExceptHandler) and node.name:
+        bound.add(node.name)
+    elif isinstance(node, (ast.Global, ast.Nonlocal)):
+        bound.update(node.names)
+    elif isinstance(node, (ast.Import, ast.ImportFrom)):
+        bound.update(_alias_names(node.names))
 
 
 def shim_target(path: Path) -> str | None:
@@ -117,25 +141,43 @@ def shim_target(path: Path) -> str | None:
         tree = ast.parse(path.read_text(), filename=str(path))
     except SyntaxError:
         return None
-    bindings: dict = {}
+    bindings = _import_bindings(tree)
     for node in ast.walk(tree):
-        if isinstance(node, ast.Import):
-            for alias in node.names:
-                bindings[alias.asname or alias.name.split(".")[0]] = alias.name
-        elif isinstance(node, ast.ImportFrom) and node.module and node.level == 0:
-            for alias in node.names:
-                bindings[alias.asname or alias.name] = \
-                    "%s.%s" % (node.module, alias.name)
-    for node in ast.walk(tree):
-        if not isinstance(node, ast.Assign):
-            continue
-        for target in node.targets:
-            if (isinstance(target, ast.Subscript)
-                    and isinstance(target.value, ast.Attribute)
-                    and target.value.attr == "modules"
-                    and isinstance(node.value, ast.Name)):
-                return bindings.get(node.value.id)
+        target = _shim_assignment(node, bindings)
+        if target:
+            return target
     return None
+
+
+def _import_bindings(tree):
+    bindings = {}
+    for node in ast.walk(tree):
+        _record_import_binding(node, bindings)
+    return bindings
+
+
+def _record_import_binding(node, bindings):
+    if isinstance(node, ast.Import):
+        for alias in node.names:
+            bindings[alias.asname or alias.name.split(".")[0]] = alias.name
+    elif isinstance(node, ast.ImportFrom) and node.module and node.level == 0:
+        for alias in node.names:
+            bindings[alias.asname or alias.name] = f"{node.module}.{alias.name}"
+
+
+def _shim_assignment(node, bindings):
+    if not isinstance(node, ast.Assign) or not isinstance(node.value, ast.Name):
+        return None
+    for target in node.targets:
+        if _is_modules_subscript(target):
+            return bindings.get(node.value.id)
+    return None
+
+
+def _is_modules_subscript(target):
+    return (isinstance(target, ast.Subscript)
+            and isinstance(target.value, ast.Attribute)
+            and target.value.attr == "modules")
 
 
 # Introspect the canonical module in a child process: its import-time side
@@ -188,33 +230,55 @@ def importers(tests_root: Path, infra: list) -> dict:
     known = set(infra) | set(PACKAGES)
     edges: dict = {}
     for path in sorted(tests_root.rglob("*.py")):
-        rel = path.relative_to(tests_root).as_posix()
-        try:
-            tree = ast.parse(path.read_text(), filename=str(path))
-        except SyntaxError:
-            continue  # importer side: unparseable files carry no edges
-        for node in ast.walk(tree):
-            if isinstance(node, ast.Import):
-                for alias in node.names:
-                    if alias.name.split(".")[0] in roots and alias.name in known:
-                        edges.setdefault(alias.name, {}).setdefault(rel, [])
-                        _add(edges[alias.name][rel], "<module>")
-            elif isinstance(node, ast.ImportFrom) and node.level == 0 and node.module:
-                root = node.module.split(".")[0]
-                if root not in roots:
-                    continue
-                target = node.module if node.module in known else None
-                if target is None and root in known:
-                    target = root
-                if target is None:
-                    continue
-                bucket = edges.setdefault(target, {}).setdefault(rel, [])
-                for alias in node.names:
-                    _add(bucket, alias.name)
-    for module in edges.values():
-        for rel in module:
-            module[rel] = sorted(set(module[rel]))
+        _record_importer(path, tests_root, roots, known, edges)
+    _sort_edges(edges)
     return edges
+
+
+def _record_importer(path, tests_root, roots, known, edges):
+    try:
+        tree = ast.parse(path.read_text(), filename=str(path))
+    except SyntaxError:
+        return
+    relative = path.relative_to(tests_root).as_posix()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            _record_direct_imports(node, relative, roots, known, edges)
+        elif isinstance(node, ast.ImportFrom):
+            _record_from_imports(node, relative, roots, known, edges)
+
+
+def _record_direct_imports(node, relative, roots, known, edges):
+    for alias in node.names:
+        if alias.name.split(".")[0] in roots and alias.name in known:
+            bucket = edges.setdefault(alias.name, {}).setdefault(relative, [])
+            _add(bucket, "<module>")
+
+
+def _record_from_imports(node, relative, roots, known, edges):
+    if node.level != 0 or not node.module:
+        return
+    root = node.module.split(".")[0]
+    if root not in roots:
+        return
+    target = _known_import_target(node.module, root, known)
+    if target is None:
+        return
+    bucket = edges.setdefault(target, {}).setdefault(relative, [])
+    for alias in node.names:
+        _add(bucket, alias.name)
+
+
+def _known_import_target(module, root, known):
+    if module in known:
+        return module
+    return root if root in known else None
+
+
+def _sort_edges(edges):
+    for module in edges.values():
+        for relative in module:
+            module[relative] = sorted(set(module[relative]))
 
 
 def _add(bucket: list, name: str) -> None:
@@ -260,19 +324,33 @@ def render_md(inventory: dict) -> str:
         "|---|---|---|---|---|---|---|---|",
     ]
     for name in sorted(surface):
-        s = surface[name]
-        module_edges = edges.get(name, {})
-        refs = sum(len(v) for v in module_edges.values())
-        lines.append("| `%s` | %d | %d | %d | %d | %s | %d | %d |" % (
-            name, len(s["functions"]), len(s["classes"]),
-            len(s["constants"]), len(s["variables"]),
-            ", ".join("`%s`" % n for n in s["shard_implicit"]) or "—",
-            len(module_edges), refs))
+        lines.append(_module_row(name, surface[name], edges.get(name, {})))
     lines.append("")
     return "\n".join(lines)
 
 
+def _module_row(name, surface, edges):
+    refs = sum(len(values) for values in edges.values())
+    implicit = ", ".join(f"`{value}`" for value in surface["shard_implicit"]) or "—"
+    return "| `%s` | %d | %d | %d | %d | %s | %d | %d |" % (
+        name, len(surface["functions"]), len(surface["classes"]),
+        len(surface["constants"]), len(surface["variables"]), implicit,
+        len(edges), refs,
+    )
+
+
 def main(argv=None) -> int:
+    parser, args = _parse_args(argv)
+    if not args.tests_root.is_dir():
+        parser.error("not a directory: %s" % args.tests_root)
+    inventory = build_inventory(args.tests_root)
+    texts = _inventory_texts(inventory)
+    if args.check:
+        return _check_inventory(args, texts)
+    return _write_inventory(args, inventory, texts)
+
+
+def _parse_args(argv):
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--tests-root", type=Path, default=REPO / "tests")
     parser.add_argument("--json", type=Path,
@@ -281,23 +359,29 @@ def main(argv=None) -> int:
                         default=REPO / "docs/refactor/testsuite-surface-inventory.md")
     parser.add_argument("--check", action="store_true",
                         help="verify on-disk outputs match a fresh run")
-    args = parser.parse_args(argv)
-    if not args.tests_root.is_dir():
-        parser.error("not a directory: %s" % args.tests_root)
-    inventory = build_inventory(args.tests_root)
-    json_text = json.dumps(inventory, indent=1, sort_keys=True) + "\n"
-    md_text = render_md(inventory)
-    if args.check:
-        stale = [str(p) for p, text in ((args.json, json_text), (args.md, md_text))
-                 if not p.exists() or p.read_text() != text]
-        if stale:
-            print("dump_suite_surface: stale inventory, re-run to refresh: %s"
-                  % ", ".join(stale))
-            return 1
-        print("dump_suite_surface: inventory up to date")
-        return 0
-    args.json.write_text(json_text)
-    args.md.write_text(md_text)
+    return parser, parser.parse_args(argv)
+
+
+def _inventory_texts(inventory):
+    return json.dumps(inventory, indent=1, sort_keys=True) + "\n", render_md(inventory)
+
+
+def _check_inventory(args, texts):
+    stale = [
+        str(path) for path, text in zip((args.json, args.md), texts)
+        if not path.exists() or path.read_text() != text
+    ]
+    if stale:
+        print("dump_suite_surface: stale inventory, re-run to refresh: %s"
+              % ", ".join(stale))
+        return 1
+    print("dump_suite_surface: inventory up to date")
+    return 0
+
+
+def _write_inventory(args, inventory, texts):
+    args.json.write_text(texts[0])
+    args.md.write_text(texts[1])
     print("dump_suite_surface: wrote %s + %s (%d modules)"
           % (args.json.name, args.md.name, len(inventory["surface"])))
     return 0

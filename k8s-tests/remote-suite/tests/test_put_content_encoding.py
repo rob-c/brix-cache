@@ -27,6 +27,15 @@ import zlib
 
 import pytest
 
+def _guard_ce_server_1():
+    if not os.path.exists(NGINX_BIN):
+        pytest.skip(f"nginx binary not found at {NGINX_BIN}")
+
+def _guard_ce_server_2():
+    if not _HAVE_REQUESTS:
+        pytest.skip("requests not available")
+
+
 try:
     import requests
     import urllib3
@@ -57,10 +66,8 @@ def _wait_port(port, timeout=10):
 
 @pytest.fixture(scope="module")
 def ce_server(tmp_path_factory):
-    if not os.path.exists(NGINX_BIN):
-        pytest.skip(f"nginx binary not found at {NGINX_BIN}")
-    if not _HAVE_REQUESTS:
-        pytest.skip("requests not available")
+    _guard_ce_server_1()
+    _guard_ce_server_2()
 
     d = tmp_path_factory.mktemp("ce")
     (d / "logs").mkdir()

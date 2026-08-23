@@ -26,6 +26,13 @@ import pytest
 
 from settings import NGINX_BIN, free_port, HOST, BIND_HOST, url_host
 
+def _phase_admin_server_1(proc):
+    try:
+        proc.wait(timeout=5)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+
+
 ROOT = Path(__file__).resolve().parents[1]
 SECRET = "phase23-admin-secret-token-value"
 
@@ -294,10 +301,7 @@ def admin_server(tmp_path):
         yield port, be_port
     finally:
         proc.terminate()
-        try:
-            proc.wait(timeout=5)
-        except subprocess.TimeoutExpired:
-            proc.kill()
+        _phase_admin_server_1(proc)
         origin.shutdown()
 
 
@@ -372,8 +376,11 @@ def test_proxy_pool_lifecycle(admin_server):
 
     # A request to the proxy location is served by the pooled origin.
     status, text = _curl(f"http://{url_host(HOST)}:{port}/dav/x.txt")
-    assert status == 200, text
-    assert "ORIGIN-OK" in text, text
+    def _assert_test_proxy_pool_lifecycle_1():
+        assert status == 200, text
+        assert "ORIGIN-OK" in text, text
+
+    _assert_test_proxy_pool_lifecycle_1()
 
     # Drain it — no new selects, state flips to draining.
     status, _ = _admin("POST", f"{backends}/{bid}/drain", token=SECRET)

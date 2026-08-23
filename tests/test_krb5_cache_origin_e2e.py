@@ -176,76 +176,107 @@ sec.protbind * krb5
     return srv, port, log_path, data, short
 
 
-@pytest.fixture()
-def cache_origin(lifecycle, tmp_path):
-    # --- toolchain / reference-server gates (skip, never fail, when absent) ---
+def _require_krb5_client():
     if shutil.which("cc") is None and shutil.which("gcc") is None:
         pytest.skip("no C compiler to build the native client")
     proc = subprocess.run(["make", "-C", CLIENT_DIR, "xrdfs", "xrdcp"],
                           capture_output=True, text=True, timeout=180)
-    if proc.returncode != 0 or not os.path.exists(XRDFS):
+    if any((proc.returncode != 0, not os.path.exists(XRDFS))):
         pytest.skip(f"native build failed:\n{proc.stdout}\n{proc.stderr}")
     if not _client_has_krb5():
         pytest.skip("client built without -DBRIX_HAVE_KRB5")
+
+
+def _require_krb5_servers():
     if shutil.which("xrootd") is None:
         pytest.skip("stock xrootd not installed")
-    if not _krb5_plugin_present() or not _find_seclib():
+    if any((not _krb5_plugin_present(), not _find_seclib())):
         pytest.skip("libXrdSeckrb5 / libXrdSec framework not installed")
     if not os.access(NGINX_BIN, os.X_OK):
         pytest.skip(f"nginx binary not executable: {NGINX_BIN}")
+
+
+def _require_krb5_realm():
     if not kdc_helpers.krb5_tools_available():
         pytest.skip("MIT KDC tooling not installed (install krb5-server)")
     if not kdc_helpers.up():
         pytest.skip("krb5 realm could not be provisioned")
 
+
+def _origin_log_tail(path):
+    return path.read_text(errors="replace")[-2000:] if path.exists() else ""
+
+
+def _start_ready_origin(tmp_path):
+    server, port, log, _data, short = _start_origin(tmp_path)
+    if not _wait_port(HOST, port, time.time() + 20):
+        pytest.skip(
+            f"reference xrootd origin did not come up:\n{_origin_log_tail(log)}")
+    return server, port, log, short
+
+
+def _start_delegating_cache(lifecycle, tmp_path, origin_port):
+    cache_store = tmp_path / "cache-store"
+    cache_store.mkdir()
+    endpoint = lifecycle.start(NginxInstanceSpec(
+        name="lc-krb5-cache-origin",
+        template="nginx_lc_krb5_cache_origin.conf",
+        protocol="root",
+        template_values={
+            "BIND_HOST": url_host(BIND_HOST),
+            "PRINCIPAL": KRB5_SERVICE_PRINCIPAL,
+            "KEYTAB": KRB5_KEYTAB,
+            "CACHE_BACKEND": f"root://{url_host(HOST)}:{origin_port}",
+            "CACHE_STORE": str(cache_store),
+        },
+        env={"KRB5_CONFIG": KRB5_CONF, "KRB5_KTNAME": KRB5_KEYTAB},
+        reason="krb5 delegated cache→origin fetch"))
+    if not _kinit_forwardable():
+        pytest.skip("KDC would not issue a forwardable TGT (kinit -f)")
+    cache_error = os.path.join(os.path.dirname(endpoint.pidfile), "error.log")
+    return {"port": endpoint.port, "cache_error_log": cache_error}
+
+
+def _stop_origin(server):
+    if server is None:
+        return
+    try:
+        os.killpg(os.getpgid(server.pid), 15)
+        server.wait(timeout=10)
+        return
+    except (OSError, subprocess.TimeoutExpired):
+        pass
+    try:
+        os.killpg(os.getpgid(server.pid), 9)
+    except OSError:
+        pass
+
+
+def _cleanup_cache_origin(server, short):
+    _stop_origin(server)
+    if short is not None:
+        shutil.rmtree(short, ignore_errors=True)
+    if os.path.exists(FWD_CCACHE):
+        os.unlink(FWD_CCACHE)
+    kdc_helpers.down()
+
+
+@pytest.fixture()
+def cache_origin(lifecycle, tmp_path):
+    _require_krb5_client()
+    _require_krb5_servers()
+    _require_krb5_realm()
+
     os.environ["KRB5_CONFIG"] = KRB5_CONF
 
     srv = short = None
     try:
-        srv, origin_port, origin_log, _data, short = _start_origin(tmp_path)
-        if not _wait_port(HOST, origin_port, time.time() + 20):
-            tail = origin_log.read_text(errors="replace")[-2000:] \
-                if origin_log.exists() else ""
-            pytest.skip(f"reference xrootd origin did not come up:\n{tail}")
-
-        cache_store = tmp_path / "cache-store"
-        cache_store.mkdir()
-
-        cache_ep = lifecycle.start(NginxInstanceSpec(
-            name="lc-krb5-cache-origin",
-            template="nginx_lc_krb5_cache_origin.conf",
-            protocol="root",
-            template_values={
-                "BIND_HOST": url_host(BIND_HOST),
-                "PRINCIPAL": KRB5_SERVICE_PRINCIPAL,
-                "KEYTAB": KRB5_KEYTAB,
-                "CACHE_BACKEND": f"root://{url_host(HOST)}:{origin_port}",
-                "CACHE_STORE": str(cache_store),
-            },
-            env={"KRB5_CONFIG": KRB5_CONF, "KRB5_KTNAME": KRB5_KEYTAB},
-            reason="krb5 delegated cache→origin fetch"))
-
-        if not _kinit_forwardable():
-            pytest.skip("KDC would not issue a forwardable TGT (kinit -f)")
-
-        cache_err = os.path.join(os.path.dirname(cache_ep.pidfile), "error.log")
-        yield {"port": cache_ep.port, "cache_error_log": cache_err,
-               "origin_log": origin_log}
+        srv, origin_port, origin_log, short = _start_ready_origin(tmp_path)
+        result = _start_delegating_cache(lifecycle, tmp_path, origin_port)
+        result["origin_log"] = origin_log
+        yield result
     finally:
-        if srv is not None:
-            try:
-                os.killpg(os.getpgid(srv.pid), 15)
-                srv.wait(timeout=10)
-            except (OSError, subprocess.TimeoutExpired):
-                try:
-                    os.killpg(os.getpgid(srv.pid), 9)
-                except OSError:
-                    pass
-        if short is not None:
-            shutil.rmtree(short, ignore_errors=True)
-        if os.path.exists(FWD_CCACHE):
-            os.unlink(FWD_CCACHE)
-        kdc_helpers.down()
+        _cleanup_cache_origin(srv, short)
 
 
 def _client_env(ccache):

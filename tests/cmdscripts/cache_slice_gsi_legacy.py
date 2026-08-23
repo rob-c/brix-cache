@@ -9,6 +9,8 @@ import subprocess
 import time
 
 from cmdscripts import run
+from cmdscripts.cache_source_helpers import start_servers, stop_servers
+from cmdscripts.command_results import print_results, selected_binary
 from fleet_ports import cmdscript_ports
 from settings import BIND_HOST, CA_CERT, CA_DIR, HOST, NGINX_BIN, SERVER_CERT, SERVER_KEY, TEST_ROOT
 
@@ -109,6 +111,24 @@ def xrdfs_cat(port: int, path: str, dest: Path, xrdfs: Path = XRDFS) -> subproce
         )
 
 
+def _read_exact(port, destination, expected, xrdfs):
+    result = xrdfs_cat(port, "/big.bin", destination, xrdfs)
+    if result.returncode != 0:
+        return False
+    return destination.read_bytes() == expected
+
+
+def _negative_succeeded(port, destination, expected, xrdfs):
+    result = xrdfs_cat(port, "/big.bin", destination, xrdfs)
+    if result.returncode != 0:
+        return False
+    if not destination.exists():
+        return False
+    if destination.stat().st_size <= 0:
+        return False
+    return destination.read_bytes() == expected
+
+
 def run_checks(base: Path, nginx_bin: str = NGINX_BIN, xrdfs: Path = XRDFS) -> list[tuple[bool, str]]:
     if not os.access(xrdfs, os.X_OK):
         return [(True, "SKIP native xrdfs not built")]
@@ -125,63 +145,47 @@ def run_checks(base: Path, nginx_bin: str = NGINX_BIN, xrdfs: Path = XRDFS) -> l
     negative_conf = write_cache_config(negative, negative_port, origin_port, with_credential=False)
     (origin / "root" / "big.bin").write_bytes(deterministic_bytes(2_600_000, 127))
 
-    started: list[Path] = []
-    for name, prefix, conf in (
+    specifications = (
         ("origin", origin, origin_conf),
         ("cache", cache, cache_conf),
         ("negative", negative, negative_conf),
-    ):
-        result = run([nginx_bin, "-p", str(prefix), "-c", str(conf)])
-        if result.returncode != 0:
-            for item in reversed(started):
-                stop_nginx(item)
-            return [(False, f"{name} start failed: {(result.stderr or result.stdout)[-4000:]}")]
-        started.append(prefix)
+    )
+    started, failure = start_servers(nginx_bin, specifications, run, stop_nginx)
+    if failure:
+        return [failure]
 
     try:
         time.sleep(1)
         expected = (origin / "root" / "big.bin").read_bytes()
         good_got = base / "slice_gsi_b.got"
-        good = xrdfs_cat(cache_port, "/big.bin", good_got, xrdfs)
         results = [
             (
-                good.returncode == 0 and good_got.read_bytes() == expected,
+                _read_exact(cache_port, good_got, expected, xrdfs),
                 "multi-slice GSI-authenticated fill byte-exact",
             )
         ]
 
         warm_got = base / "slice_gsi_b2.got"
-        warm = xrdfs_cat(cache_port, "/big.bin", warm_got, xrdfs)
-        results.append((warm.returncode == 0 and warm_got.read_bytes() == expected, "warm multi-slice byte-exact"))
+        warm_ok = _read_exact(cache_port, warm_got, expected, xrdfs)
+        results.append((warm_ok, "warm multi-slice byte-exact"))
 
         negative_got = base / "slice_gsi_n.got"
-        negative_result = xrdfs_cat(negative_port, "/big.bin", negative_got, xrdfs)
-        negative_succeeded = (
-            negative_result.returncode == 0
-            and negative_got.exists()
-            and negative_got.stat().st_size > 0
-            and negative_got.read_bytes() == expected
+        negative_succeeded = _negative_succeeded(
+            negative_port, negative_got, expected, xrdfs,
         )
         results.append((not negative_succeeded, "unauthenticated slice fill correctly failed (origin required GSI)"))
         return results
     finally:
-        for prefix in reversed(started):
-            stop_nginx(prefix)
+        stop_servers(started, stop_nginx)
 
 
 def entry(argv: list[str]) -> int:
-    nginx_bin = argv[0] if argv else NGINX_BIN
+    nginx_bin = selected_binary(argv, NGINX_BIN)
     import tempfile
 
     with tempfile.TemporaryDirectory(prefix="slice_gsi.") as tmp:
         results = run_checks(Path(tmp), nginx_bin=nginx_bin)
-    for ok, message in results:
-        print(f"  {'ok  ' if ok else 'FAIL'} {message}")
-    if all(ok for ok, _ in results):
-        print("run_cache_slice_gsi_legacy: ALL PASS")
-        return 0
-    print("run_cache_slice_gsi_legacy: FAILURES")
-    return 1
+    return print_results(results, "run_cache_slice_gsi_legacy")
 
 
 if __name__ == "__main__":

@@ -31,13 +31,18 @@ def test_cvmfs_live_ext_is_importable():
 @pytest.mark.timeout(600)
 @pytest.mark.parametrize("scenario", sorted(cvmfs_live_ext.SCENARIOS))
 def test_cvmfs_live_ext_scenario(scenario: str):
-    if os.environ.get("PHASE81_RUN_LIVE_PORTS") == "0":
-        pytest.skip("set PHASE81_RUN_LIVE_PORTS=0 to skip live cvmfs scenarios")
-    nginx = Path(os.environ.get("NGINX_BIN", "/tmp/nginx-1.28.3/objs/nginx"))
-    if not nginx.exists():
-        pytest.skip(f"nginx binary not found: {nginx}")
+    nginx = _require_live_cvmfs()
     try:
         rc = cvmfs_live_ext.SCENARIOS[scenario](nginx)
     except cvmfs_live_ext.LiveSkip as exc:
         pytest.skip(str(exc))
     assert rc == 0
+
+
+def _require_live_cvmfs():
+    if os.environ.get("PHASE81_RUN_LIVE_PORTS") == "0":
+        pytest.skip("set PHASE81_RUN_LIVE_PORTS=0 to skip live cvmfs scenarios")
+    nginx = Path(os.environ.get("NGINX_BIN", "/tmp/nginx-1.28.3/objs/nginx"))
+    if not nginx.exists():
+        pytest.skip(f"nginx binary not found: {nginx}")
+    return nginx

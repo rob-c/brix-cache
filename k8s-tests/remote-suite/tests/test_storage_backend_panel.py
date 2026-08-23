@@ -177,22 +177,32 @@ def test_capacity_and_census(server):
 
 
 def test_byte_accounting_put_get_sendfile(server):
-    before = _metrics(server)
-    w0 = _metric(before, "brix_storage_io_bytes_written", backend="posix") or 0
-    r0 = _metric(before, "brix_storage_io_bytes_read", backend="posix") or 0
-
+    written_before, read_before = _io_totals(server)
     payload = os.urandom(N)
     status, _ = _http(server["base"] + "/acct.bin", data=payload, method="PUT")
     assert status in (201, 204)
     status, got = _http(server["base"] + "/acct.bin")
-    assert status == 200 and got == payload      # zero-copy sendfile serve
+    assert status == 200
+    assert got == payload
+    written_after, read_after = _io_totals(server)
+    _assert_growth("written", written_before, written_after)
+    _assert_growth("read (sendfile seam)", read_before, read_after)
+    _assert_snapshot_io(server)
 
-    after = _metrics(server)
-    w1 = _metric(after, "brix_storage_io_bytes_written", backend="posix")
-    r1 = _metric(after, "brix_storage_io_bytes_read", backend="posix")
-    assert w1 - w0 >= N, f"written moved {w1 - w0}, want >= {N}"
-    assert r1 - r0 >= N, f"read (sendfile seam) moved {r1 - r0}, want >= {N}"
 
+def _io_totals(server):
+    metrics = _metrics(server)
+    written = _metric(metrics, "brix_storage_io_bytes_written", backend="posix")
+    read = _metric(metrics, "brix_storage_io_bytes_read", backend="posix")
+    return written or 0, read or 0
+
+
+def _assert_growth(label, before, after):
+    change = after - before
+    assert change >= N, f"{label} moved {change}, want >= {N}"
+
+
+def _assert_snapshot_io(server):
     snap = _snapshot(server)
     assert snap["storage"]["io"]["posix"]["bytes_read_total"] >= N
     assert snap["storage"]["io"]["posix"]["bytes_written_total"] >= N
@@ -209,8 +219,7 @@ def test_remote_export_census(server):
 def test_anonymous_redaction_vs_authed(server):
     snap = _snapshot(server)
     assert snap.get("anonymous") is True
-    for e in snap["storage"]["exports"]:
-        assert "root" not in e and "origin_host" not in e
+    _assert_exports_redacted(snap["storage"]["exports"])
     assert server["data"] not in json.dumps(snap["storage"])
 
     cookie = _login(server["base"])
@@ -219,3 +228,9 @@ def test_anonymous_redaction_vs_authed(server):
     assert authed.get("anonymous") is not True
     roots = [e.get("root") for e in authed["storage"]["exports"]]
     assert server["data"] in roots               # authed view carries the path
+
+
+def _assert_exports_redacted(exports):
+    for item in exports:
+        assert "root" not in item
+        assert "origin_host" not in item

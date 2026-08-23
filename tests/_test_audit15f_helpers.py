@@ -30,6 +30,12 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from settings import HOST
 
 
+def _guard_serve_object_1(matched, self, start, end, payload):
+    if matched:
+        self.send_header("Content-Range",
+                         f"bytes {start}-{end}/{len(payload)}")
+
+
 def mint_localhost_cert(tmp_path, stem="mock-source"):
     """Self-signed, CA-flagged cert SAN-bound to the loopback literal the pull
     leg dials.  It doubles as the CA file the destination is configured to
@@ -85,9 +91,7 @@ class CapturingSource(BaseHTTPRequestHandler):
                 end = int(matched.group(2))
         body = payload[start:end + 1]
         self.send_response(206 if matched else 200)
-        if matched:
-            self.send_header("Content-Range",
-                             f"bytes {start}-{end}/{len(payload)}")
+        _guard_serve_object_1(matched, self, start, end, payload)
         self.send_header("Content-Length", str(len(body)))
         self.send_header("Accept-Ranges", "bytes")
         self.end_headers()
@@ -163,12 +167,19 @@ def socket_timers(*, local_port=None, peer_port=None, timeout=6.0):
     """
     deadline = time.time() + timeout
     while time.time() < deadline:
-        for local, peer, rest in ss_established():
-            if local_port is not None and not local.endswith(f":{local_port}"):
-                continue
-            if peer_port is not None and not peer.endswith(f":{peer_port}"):
-                continue
-            return rest
+        timer = _matching_socket_timer(local_port, peer_port)
+        if timer is not None:
+            return timer
         time.sleep(0.2)
     raise AssertionError(
         f"no established socket local={local_port} peer={peer_port}")
+
+
+def _matching_socket_timer(local_port, peer_port):
+    for local, peer, timer in ss_established():
+        if local_port is not None and not local.endswith(f":{local_port}"):
+            continue
+        if peer_port is not None and not peer.endswith(f":{peer_port}"):
+            continue
+        return timer
+    return None

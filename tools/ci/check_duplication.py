@@ -76,16 +76,25 @@ def _parse_blocks(text: str) -> list[str]:
             members = []
             continue
         if inblock and line.startswith("^^^"):
-            members.sort()
-            keys.append("+".join(members))
+            keys.append(_block_key(members))
             inblock = False
             continue
-        if inblock:
-            m = _MEMBER.match(line)
-            if m:
-                path, start, end = m.group(1), m.group(2), m.group(3)
-                members.append(f"{path}:{start}-{end}")
+        member = _member_key(line) if inblock else None
+        if member:
+            members.append(member)
     return keys
+
+
+def _block_key(members):
+    return "+".join(sorted(members))
+
+
+def _member_key(line):
+    match = _MEMBER.match(line)
+    if not match:
+        return None
+    path, start, end = match.group(1), match.group(2), match.group(3)
+    return f"{path}:{start}-{end}"
 
 
 def list_duplicates(lizard: str, root: Path = ROOT) -> list[str]:

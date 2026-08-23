@@ -33,6 +33,18 @@ from settings import (
 # timeout(180): each case spawns a ProcessPoolExecutor of GSI xrdcp workers; the
 # 8-worker GSI cases can exceed the 30s default when the box is fatigued after a
 # full-suite lane, causing spurious timeouts (they complete in seconds isolated).
+def _expression_1(results):
+    return (
+        [r["mib_s"] for r in results]
+    )
+
+
+def _check_assert_and_report_1(r):
+    assert r["md5"] == LARGE_FILE_MD5, (
+        f"worker {r['id']}: md5 mismatch {r['md5']}"
+    )
+
+
 pytestmark = [pytest.mark.serial, pytest.mark.timeout(180)]
 
 # ---------------------------------------------------------------------------
@@ -82,6 +94,23 @@ READ_CHUNK = 4 * 1024 * 1024   # 4 MiB — matches BRIX_READ_MAX in module
 # Per-worker transfer function (called from threads)
 # ---------------------------------------------------------------------------
 
+def _read_transfer(file_handle, total, result):
+    digest = hashlib.md5()
+    received = 0
+    while received < total:
+        want = min(READ_CHUNK, total - received)
+        status, data = file_handle.read(offset=received, size=want)
+        if not status.ok:
+            result["error"] = f"read at {received} failed: {status.message}"
+            return None
+        if len(data) != want:
+            result["error"] = f"short read at {received}: got {len(data)}, want {want}"
+            return None
+        digest.update(data)
+        received += len(data)
+    return received, digest.hexdigest()
+
+
 def _transfer_worker(worker_id: int, base_url: str) -> dict:
     """
     Open and read LARGE_FILE entirely in READ_CHUNK-sized requests.
@@ -107,22 +136,10 @@ def _transfer_worker(worker_id: int, base_url: str) -> dict:
         total = st.size
 
         t_start = time.perf_counter()
-        md5 = hashlib.md5()
-        received = 0
-
-        while received < total:
-            want = min(READ_CHUNK, total - received)
-            status, data = f.read(offset=received, size=want)
-            if not status.ok:
-                result["error"] = f"read at {received} failed: {status.message}"
-                return result
-            if len(data) != want:
-                result["error"] = (
-                    f"short read at {received}: got {len(data)}, want {want}"
-                )
-                return result
-            md5.update(data)
-            received += len(data)
+        transfer = _read_transfer(f, total, result)
+        if transfer is None:
+            return result
+        received, digest = transfer
 
         f.close()
         t_end = time.perf_counter()
@@ -130,7 +147,7 @@ def _transfer_worker(worker_id: int, base_url: str) -> dict:
         result.update(
             ok=True,
             bytes=received,
-            md5=md5.hexdigest(),
+            md5=digest,
             t_open=t_open,
             t_start=t_start,
             t_end=t_end,
@@ -174,18 +191,19 @@ def _run_concurrent(n_workers: int, base_url: str) -> tuple[list[dict], float]:
 def _assert_and_report(results: list[dict], n: int, wall: float, label: str):
     total_bytes = 0
     for r in results:
-        assert r["ok"], f"worker {r['id']} failed: {r['error']}"
-        assert r["bytes"] == LARGE_FILE_SIZE, (
-            f"worker {r['id']}: size {r['bytes']} != {LARGE_FILE_SIZE}"
-        )
-        assert r["md5"] == LARGE_FILE_MD5, (
-            f"worker {r['id']}: md5 mismatch {r['md5']}"
-        )
+        def _assert_assert_and_report_1():
+            assert r["ok"], f"worker {r['id']} failed: {r['error']}"
+            assert r["bytes"] == LARGE_FILE_SIZE, (
+                f"worker {r['id']}: size {r['bytes']} != {LARGE_FILE_SIZE}"
+            )
+
+        _assert_assert_and_report_1()
+        _check_assert_and_report_1(r)
         total_bytes += r["bytes"]
 
     total_mib   = total_bytes / (1024**2)
     agg_mib_s   = total_mib / wall
-    per_rates   = [r["mib_s"] for r in results]
+    per_rates   = _expression_1(results)
     min_rate    = min(per_rates)
     max_rate    = max(per_rates)
     mean_rate   = sum(per_rates) / len(per_rates)

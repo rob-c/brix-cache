@@ -1,4 +1,21 @@
 from split_continuation import reexport as _reexport
+def _check_test_posc_abort_leaves_no_final_file_3(final):
+    assert not os.path.exists(final), (
+        "aborted POSC upload must NOT produce the final file")
+
+def _check_test_posc_abort_leaves_no_final_file_4(leaked):
+    assert not leaked, f"orphan POSC temp files left behind: {leaked}"
+
+def _check_test_posc_abort_leaves_no_final_file_1(status, body):
+    assert status == kXR_ok, f"POSC open failed: {_error_code(body)}"
+
+def _check_test_posc_abort_leaves_no_final_file_2(wstatus):
+    assert wstatus == kXR_ok
+
+def _check_test_posc_abort_leaves_no_final_file_5(sock2):
+    assert _ping(sock2)[1] == kXR_ok
+
+
 _reexport(globals(), "_test_open_flags_lifecycle_helpers")
 
 class TestOpenFlagSemantics:
@@ -211,10 +228,10 @@ class TestPoscLifecycle:
         sock = _session(wr_stack["host"], wr_stack["port"])
         try:
             _, status, body = _open(sock, rel, kXR_new | kXR_posc)
-            assert status == kXR_ok, f"POSC open failed: {_error_code(body)}"
+            _check_test_posc_abort_leaves_no_final_file_1(status, body)
             fh = body[:4]
             _, wstatus, _ = _write(sock, fh, 0, b"PARTIAL-UPLOAD-WILL-VANISH")
-            assert wstatus == kXR_ok
+            _check_test_posc_abort_leaves_no_final_file_2(wstatus)
         finally:
             # Abort: hard-drop the connection WITHOUT closing the handle. Done
             # in finally so an early assertion still drops the socket (which is
@@ -238,15 +255,14 @@ class TestPoscLifecycle:
                and (os.path.exists(final) or _orphan_temps())):
             time.sleep(0.05)
 
-        assert not os.path.exists(final), (
-            "aborted POSC upload must NOT produce the final file")
+        _check_test_posc_abort_leaves_no_final_file_3(final)
         leaked = _orphan_temps()
-        assert not leaked, f"orphan POSC temp files left behind: {leaked}"
+        _check_test_posc_abort_leaves_no_final_file_4(leaked)
 
         # A fresh session still works after the abort.
         sock2 = _session(wr_stack["host"], wr_stack["port"])
         try:
-            assert _ping(sock2)[1] == kXR_ok
+            _check_test_posc_abort_leaves_no_final_file_5(sock2)
         finally:
             sock2.close()
 
@@ -277,9 +293,12 @@ class TestHandleLifecycle:
             # The (MAX+1)th open must be rejected cleanly.
             _, status, body = _open(sock, rel, kXR_open_read,
                                     streamid=b"\x0f\xff")
-            assert status == kXR_error, "over-cap open should be rejected"
-            assert _error_code(body) == kXR_ServerError, (
-                f"expected kXR_ServerError, got {_error_code(body)}")
+            def _assert_test_handle_exhaustion_clean_error_1():
+                assert status == kXR_error, "over-cap open should be rejected"
+                assert _error_code(body) == kXR_ServerError, (
+                    f"expected kXR_ServerError, got {_error_code(body)}")
+
+            _assert_test_handle_exhaustion_clean_error_1()
             # Session still alive; the cap is graceful, not fatal.
             assert _ping(sock)[1] == kXR_ok
             # Free one slot -> a new open must succeed (slot reuse).

@@ -1,4 +1,10 @@
 from split_continuation import reexport as _reexport
+def _expression_1():
+    return (
+        [threading.Thread(target=make_request) for _ in range(8)]
+    )
+
+
 _reexport(globals(), "_test_xrdhttp_webdav_helpers")
 
 class TestHTTPMethodsCommon:
@@ -220,15 +226,18 @@ class TestConcurrentAccess:
             except Exception as e:
                 errors.append(str(e))
 
-        threads = [threading.Thread(target=make_request) for _ in range(8)]
+        threads = _expression_1()
         for t in threads:
             t.start()
         for t in threads:
             t.join(timeout=30)
 
-        assert len(results) >= 6, f"Expected at least 6 successful reads, got {len(results)}"
-        assert all(l == len(content) for l in results), \
-            "All responses should have same length"
+        def _assert_test_concurrent_reads_same_file_1():
+            assert len(results) >= 6, f"Expected at least 6 successful reads, got {len(results)}"
+            assert all(l == len(content) for l in results), \
+                "All responses should have same length"
+
+        _assert_test_concurrent_reads_same_file_1()
 
 
 class TestLargeFileTransfer:

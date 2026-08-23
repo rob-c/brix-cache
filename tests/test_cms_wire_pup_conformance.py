@@ -256,6 +256,19 @@ class TestIncomingDispatch:
 # Class 7 — CMS server-side frame parser (header sizing / oversize / fragments)
 # ===========================================================================
 
+def _send_fragmented(sock, frame, step=3):
+    for offset in range(0, len(frame), step):
+        sock.sendall(frame[offset:offset + step])
+        time.sleep(0.02)
+
+
+def _connection_closed(sock):
+    try:
+        return sock.recv(1) == b""
+    except (BlockingIOError, InterruptedError, OSError):
+        return False
+
+
 class TestServerFrameParser:
     """Probe the nginx CMS *server* parser (server_recv.c) directly with a
     Python data-node peer as the frame source."""
@@ -294,12 +307,7 @@ class TestServerFrameParser:
             frame = _build_frame(0, CMS_RR_LOGIN, 0, payload)
             # Dribble the frame one to five bytes at a time with tiny gaps so the
             # server's recv loop crosses the header/payload boundary repeatedly.
-            i = 0
-            step = 3
-            while i < len(frame):
-                sock.sendall(frame[i:i + step])
-                i += step
-                time.sleep(0.02)
+            _send_fragmented(sock, frame)
             # Follow with a header-only PING-equivalent (kYR_load with no payload
             # is harmless); the key assertion is the connection is still open and
             # the server did not error out on the fragmented LOGIN.
@@ -307,16 +315,7 @@ class TestServerFrameParser:
             # If the server had rejected the fragmented LOGIN it would have closed
             # the socket; a non-blocking peek must not see EOF.
             sock.setblocking(False)
-            closed = False
-            try:
-                chunk = sock.recv(1)
-                if chunk == b"":
-                    closed = True
-            except (BlockingIOError, InterruptedError):
-                closed = False
-            except OSError:
-                closed = False
-            assert not closed, \
+            assert not _connection_closed(sock), \
                 "server closed the connection after a fragmented but valid LOGIN"
         finally:
             sock.close()

@@ -64,26 +64,42 @@ def _decode_response(payload):
     if isinstance(payload, list):
         return [_decode_response(x) for x in payload]
     if isinstance(payload, dict):
-        if "__bytes__" in payload:
-            return base64.b64decode(payload["__bytes__"])
-        if "__status__" in payload:
-            return Status(payload["__status__"])
-        if "__list__" in payload:
-            return [_decode_response(x) for x in payload["__list__"]]
-        if "__tuple__" in payload:
-            return tuple(_decode_response(x) for x in payload["__tuple__"])
-        if "__dict__" in payload:
-            return {k: _decode_response(v)
-                    for k, v in payload["__dict__"].items()}
-        t = payload.get("__type__")
-        if t is not None:
-            cls = _RESP_TYPES.get(t)
-            if cls is not None:
-                return cls(payload)
-            return _Generic(payload)
-        # Plain dict with no marker — decode values.
-        return {k: _decode_response(v) for k, v in payload.items()}
+        return _decode_mapping(payload)
     return payload
+
+
+def _decode_mapping(payload):
+    marker = _response_marker(payload)
+    if marker is not None:
+        return _decode_marker(marker, payload[marker])
+    response_type = payload.get("__type__")
+    if response_type is not None:
+        return _typed_response(response_type, payload)
+    return {key: _decode_response(value) for key, value in payload.items()}
+
+
+def _response_marker(payload):
+    markers = ("__bytes__", "__status__", "__list__", "__tuple__", "__dict__")
+    return next((marker for marker in markers if marker in payload), None)
+
+
+def _decode_marker(marker, value):
+    if marker == "__bytes__":
+        return base64.b64decode(value)
+    if marker == "__status__":
+        return Status(value)
+    if marker == "__list__":
+        return [_decode_response(item) for item in value]
+    if marker == "__tuple__":
+        return tuple(_decode_response(item) for item in value)
+    return {key: _decode_response(item) for key, item in value.items()}
+
+
+def _typed_response(response_type, payload):
+    response_class = _RESP_TYPES.get(response_type)
+    if response_class is not None:
+        return response_class(payload)
+    return _Generic(payload)
 
 
 def _encode_arg(a):

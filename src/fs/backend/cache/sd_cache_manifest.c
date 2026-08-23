@@ -46,6 +46,31 @@
  * origin's memory cost. */
 #define SD_CACHE_META_MAX  65536
 
+enum {
+    META_UNSIGNED = 0,
+    META_PUBLISHED,
+    META_WHITELIST
+};
+
+/*
+ * WHAT: Classify the signed metadata names handled by the cache trust gate.
+ * WHY:  Keeping exact-name recognition separate makes the verifier linear.
+ * HOW:  Compare the already-classified relative path against both wire names.
+ */
+static int
+meta_signed_kind(const cvmfs_url_info_t *info)
+{
+    if (info->rel == NULL)
+        return META_UNSIGNED;
+    if (info->rel_len == sizeof(".cvmfspublished") - 1
+        && memcmp(info->rel, ".cvmfspublished", info->rel_len) == 0)
+        return META_PUBLISHED;
+    if (info->rel_len == sizeof(".cvmfswhitelist") - 1
+        && memcmp(info->rel, ".cvmfswhitelist", info->rel_len) == 0)
+        return META_WHITELIST;
+    return META_UNSIGNED;
+}
+
 /* Read the whole staged part at `pp` into a malloc'd buffer (cap
  * SD_CACHE_META_MAX). Returns the byte count, or -1 (oversize/unreadable). */
 static ssize_t
@@ -167,6 +192,36 @@ meta_check_whitelist(sd_cache_inst_state *st, const unsigned char *buf,
     return 0;
 }
 
+/*
+ * WHAT: Verify that a signed manifest names the repository in its request key.
+ * WHY:  A valid signature from repository A must not authorize a splice into B.
+ * HOW:  Permit an omitted name, otherwise require exact length and bytes.
+ */
+static int
+meta_manifest_repo_matches(const cvmfs_manifest_t *manifest,
+    const cvmfs_url_info_t *info)
+{
+    if (manifest->repo_name[0] == '\0')
+        return 1;
+    return strlen(manifest->repo_name) == info->repo_len
+           && strncmp(manifest->repo_name, info->repo, info->repo_len) == 0;
+}
+
+/*
+ * WHAT: Check that the manifest certificate is admitted by the whitelist.
+ * WHY:  Fingerprint calculation and membership form one trust-chain decision.
+ * HOW:  Calculate the fingerprint and require its exact whitelist presence.
+ */
+static int
+meta_certificate_allowed(const cvmfs_whitelist_t *whitelist,
+    const unsigned char *pem, size_t pem_len, char *fingerprint,
+    size_t fingerprint_cap)
+{
+    return cvmfs_cert_fingerprint(pem, pem_len, fingerprint,
+                                  fingerprint_cap) == 0
+           && cvmfs_whitelist_lists_fp(whitelist, fingerprint);
+}
+
 /* Verify a staged .cvmfspublished: parse, cross-check the repo name against
  * the fill key, fetch the live whitelist + signing cert through the source,
  * and run the full chain. 0 = verified, -1 = definitive reject (tamper),
@@ -193,10 +248,7 @@ meta_check_manifest(sd_cache_inst_state *st, const char *key,
     }
     /* The signed 'N' must name the repo the key claims — a valid manifest for
      * repo A must not publish under repo B's namespace (cross-repo splice). */
-    if (m.repo_name[0] != '\0'
-        && (strlen(m.repo_name) != info->repo_len
-            || strncmp(m.repo_name, info->repo, info->repo_len) != 0))
-    {
+    if (!meta_manifest_repo_matches(&m, info)) {
         ngx_log_error(NGX_LOG_WARN, st->log, 0,
             "sd_cache: cvmfs manifest \"%s\" names repo \"%s\" — "
             "cross-repo splice rejected", key, m.repo_name);
@@ -254,8 +306,7 @@ meta_check_manifest(sd_cache_inst_state *st, const char *key,
         cert = NULL;
     }
 
-    if (cvmfs_cert_fingerprint(pem, pemn, fp, sizeof(fp)) != 0
-        || !cvmfs_whitelist_lists_fp(&wl, fp))
+    if (!meta_certificate_allowed(&wl, pem, pemn, fp, sizeof(fp)))
     {
         ngx_log_error(NGX_LOG_WARN, st->log, 0,
             "sd_cache: cvmfs manifest \"%s\" signing cert is NOT in the "
@@ -286,7 +337,7 @@ sd_cache_verify_manifest(sd_cache_inst_state *st, const char *key,
     cvmfs_whitelist_t  wl;
     unsigned char     *buf = NULL;
     ssize_t            len;
-    size_t             rel;
+    int                kind;
     ngx_int_t          rc;
 
     if (st->policy.cvmfs_master_pub == NULL
@@ -298,16 +349,8 @@ sd_cache_verify_manifest(sd_cache_inst_state *st, const char *key,
     if (info.cls != CVMFS_URL_MANIFEST) {
         return NGX_OK;                       /* CAS/GEO — not this gate */
     }
-    rel = info.rel_len;
-    if (rel == 0 || info.rel == NULL) {
-        return NGX_OK;
-    }
-
-    if (!((rel == sizeof(".cvmfspublished") - 1
-           && memcmp(info.rel, ".cvmfspublished", rel) == 0)
-          || (rel == sizeof(".cvmfswhitelist") - 1
-              && memcmp(info.rel, ".cvmfswhitelist", rel) == 0)))
-    {
+    kind = meta_signed_kind(&info);
+    if (kind == META_UNSIGNED) {
         return NGX_OK;                       /* .cvmfsreflog etc. — unsigned */
     }
 
@@ -325,7 +368,7 @@ sd_cache_verify_manifest(sd_cache_inst_state *st, const char *key,
         return NGX_DECLINED;
     }
 
-    if (info.rel[6] == 'w') {                /* ".cvmfsWhitelist" */
+    if (kind == META_WHITELIST) {
         rc = (meta_check_whitelist(st, buf, (size_t) len, key, &wl) == 0)
            ? NGX_OK : NGX_ERROR;             /* every whitelist fail is
                                               * evaluated on the artifact

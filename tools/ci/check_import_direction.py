@@ -35,26 +35,46 @@ def _violations_in(path: Path) -> list[tuple[int, str]]:
         tree = ast.parse(path.read_text(encoding="utf-8"))
     except SyntaxError as exc:
         return [(exc.lineno or 0, f"unparseable module: {exc.msg}")]
-    out: list[tuple[int, str]] = []
-    for node in ast.walk(tree):
-        if isinstance(node, ast.Import):
-            for alias in node.names:
-                if alias.name.split(".")[0] == FORBIDDEN:
-                    out.append((node.lineno, f"import {alias.name}"))
-        elif isinstance(node, ast.ImportFrom):
-            if node.level == 0 and node.module and \
-                    node.module.split(".")[0] == FORBIDDEN:
-                out.append((node.lineno, f"from {node.module} import ..."))
-        elif isinstance(node, ast.Call):
-            func = node.func
-            name = getattr(func, "attr", None) or getattr(func, "id", None)
-            if name in ("import_module", "__import__") and node.args:
-                arg = node.args[0]
-                if isinstance(arg, ast.Constant) and \
-                        isinstance(arg.value, str) and \
-                        arg.value.split(".")[0] == FORBIDDEN:
-                    out.append((node.lineno, f"{name}({arg.value!r})"))
-    return out
+    return [violation for node in ast.walk(tree) for violation in _node_violations(node)]
+
+
+def _node_violations(node):
+    if isinstance(node, ast.Import):
+        return [
+            (node.lineno, f"import {alias.name}")
+            for alias in node.names if alias.name.split(".")[0] == FORBIDDEN
+        ]
+    if isinstance(node, ast.ImportFrom):
+        return _from_violation(node)
+    if isinstance(node, ast.Call):
+        return _call_violation(node)
+    return []
+
+
+def _from_violation(node):
+    forbidden = node.level == 0 and node.module and node.module.split(".")[0] == FORBIDDEN
+    return [(node.lineno, f"from {node.module} import ...")] if forbidden else []
+
+
+def _call_violation(node):
+    name = _dynamic_import_name(node.func)
+    if name is None or not node.args:
+        return []
+    argument = node.args[0]
+    if not _forbidden_literal(argument):
+        return []
+    return [(node.lineno, f"{name}({argument.value!r})")]
+
+
+def _dynamic_import_name(function):
+    name = getattr(function, "attr", None) or getattr(function, "id", None)
+    return name if name in ("import_module", "__import__") else None
+
+
+def _forbidden_literal(argument):
+    if not isinstance(argument, ast.Constant) or not isinstance(argument.value, str):
+        return False
+    return argument.value.split(".")[0] == FORBIDDEN
 
 
 def main() -> int:

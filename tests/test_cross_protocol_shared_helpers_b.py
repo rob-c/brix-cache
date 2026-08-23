@@ -1,4 +1,15 @@
 from split_continuation import reexport as _reexport
+def _phase_test_checksum_fs_walk_staging_and_cms_frame_helpers_are_shared_1():
+    for relpath in ("src/net/cms/send.c", "src/net/cms/server_send.c"):
+        _assert_markers(relpath, ["frame_io.h", "brix_cms_send_frame("])
+
+
+def _expression_1(relpath):
+    return (
+        _assert_markers(relpath, ['#include "s3.h"' if "s3" in relpath else "webdav.h", "brix_vfs_copy("])
+    )
+
+
 _reexport(globals(), "_test_cross_protocol_shared_helpers_helpers")
 
 def test_checksum_fs_walk_staging_and_cms_frame_helpers_are_shared():
@@ -49,10 +60,9 @@ def test_checksum_fs_walk_staging_and_cms_frame_helpers_are_shared():
         "src/protocols/s3/copy.c",
         "src/protocols/webdav/copy.c",
     ):
-        _assert_markers(relpath, ['#include "s3.h"' if "s3" in relpath else "webdav.h", "brix_vfs_copy("])
+        _expression_1(relpath)
 
-    for relpath in ("src/net/cms/send.c", "src/net/cms/server_send.c"):
-        _assert_markers(relpath, ["frame_io.h", "brix_cms_send_frame("])
+    _phase_test_checksum_fs_walk_staging_and_cms_frame_helpers_are_shared_1()
 
 
 def test_webdav_config_path_validation_is_shared():

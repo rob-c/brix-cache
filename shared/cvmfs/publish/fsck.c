@@ -204,50 +204,107 @@ static int fk_compare(pub_ctx_t *px, cvmfs_catalog_t *rd, const char *mount,
     return 0;
 }
 
+/*
+ * WHAT: Fetch a catalog object into a temporary SQLite file and open it.
+ * WHY:  Recursive fsck needs a uniform owned handle for each catalog hash.
+ * HOW:  Verify-fetch plaintext, write the work file, and report open failures.
+ */
+static cvmfs_catalog_t *fk_open_catalog(fk_ctx_t *fk, const char *mount,
+                                        const cvmfs_hash_t *hash,
+                                        char *tmp, size_t tmp_len) {
+    pub_ctx_t    *px = fk->px;
+    size_t        plain_len = 0;
+    unsigned char *plain = pub_fetch_catalog(px, hash, &plain_len);
+    cvmfs_catalog_t *catalog;
+
+    if (plain == NULL)
+        return NULL;
+    snprintf(tmp, tmp_len, "%s/fsck.%d.db", px->workdir, px->seq++);
+    catalog = pub_spit(tmp, plain, plain_len, 0) == 0 ?
+              cvmfs_catalog_open(tmp) : NULL;
+    free(plain);
+    if (catalog != NULL)
+        return catalog;
+    unlink(tmp);
+    pub_fail(px, "cannot open catalog for %s", mount[0] ? mount : "(root)");
+    return NULL;
+}
+
+/*
+ * WHAT: Recompute and validate one catalog's own counters and mountpoint list.
+ * WHY:  Child catalog recursion must start only after the parent is internally sound.
+ * HOW:  Check its root row and xattrs, walk entries, then compare self counters.
+ */
+static int fk_check_self(fk_ctx_t *fk, cvmfs_catalog_t *catalog,
+                         const char *mount, int64_t self[],
+                         fk_paths_t *mounts) {
+    cvmfs_dirent_t root;
+    int            rc = 0;
+
+    if (cvmfs_catalog_lookup(catalog, mount, &root) != 1)
+        rc = pub_fail(fk->px, "catalog root row missing for %s",
+                      mount[0] ? mount : "(root)");
+    if (rc == 0 && mount[0] != '\0')
+        self[FK_DIR]++;
+    if (rc == 0)
+        rc = fk_xattr_check(fk->px, catalog, mount, self);
+    if (rc == 0)
+        rc = fk_walk(fk, catalog, mount, self, mounts);
+    if (rc != 0)
+        return rc;
+    self[FK_NESTED] = (int64_t) mounts->n;
+    return fk_compare(fk->px, catalog, mount, "self", self);
+}
+
+static int fk_check(fk_ctx_t *fk, const char *mount,
+                    const cvmfs_hash_t *hash, int64_t total[]);
+
+/*
+ * WHAT: Validate every nested catalog and accumulate its subtree counters.
+ * WHY:  Parent subtree metadata must equal the recursively verified children.
+ * HOW:  Resolve each mount hash, recurse, and add the returned counter vector.
+ */
+static int fk_check_children(fk_ctx_t *fk, cvmfs_catalog_t *catalog,
+                             const fk_paths_t *mounts, int64_t subtree[]) {
+    for (size_t i = 0; i < mounts->n; i++) {
+        cvmfs_hash_t child_hash;
+        uint64_t     child_size = 0;
+        int64_t      child_total[PUB_NCOUNTERS];
+        int           rc;
+
+        if (cvmfs_catalog_nested(catalog, mounts->v[i], &child_hash,
+                                 &child_size) != 1)
+            return pub_fail(fk->px, "mountpoint %s has no nested_catalogs row",
+                            mounts->v[i]);
+        rc = fk_check(fk, mounts->v[i], &child_hash, child_total);
+        if (rc != 0)
+            return rc;
+        for (int counter = 0; counter < PUB_NCOUNTERS; counter++)
+            subtree[counter] += child_total[counter];
+    }
+    return 0;
+}
+
 /* Verify the catalog `hash` mounted at `mount`, recursing into its nested
  * children; on success tot[] gets its self+subtree totals. */
 static int fk_check(fk_ctx_t *fk, const char *mount, const cvmfs_hash_t *hash,
                     int64_t tot[]) {
-    pub_ctx_t *px = fk->px;
-    size_t plen = 0;
-    unsigned char *plain = pub_fetch_catalog(px, hash, &plen);
-    if (plain == NULL) return -1;
-    char tmp[PUB_PATH_MAX + 32];
-    snprintf(tmp, sizeof(tmp), "%s/fsck.%d.db", px->workdir, px->seq++);
-    int rc = pub_spit(tmp, plain, plen, 0);
-    free(plain);
-    cvmfs_catalog_t *rd = rc == 0 ? cvmfs_catalog_open(tmp) : NULL;
-    if (rd == NULL) {
-        unlink(tmp);
-        return pub_fail(px, "cannot open catalog for %s", mount[0] ? mount : "(root)");
-    }
+    pub_ctx_t      *px = fk->px;
+    char            tmp[PUB_PATH_MAX + 32] = {0};
+    cvmfs_catalog_t *rd = fk_open_catalog(fk, mount, hash, tmp, sizeof(tmp));
     int64_t self[PUB_NCOUNTERS] = { 0 }, subtree[PUB_NCOUNTERS] = { 0 };
     fk_paths_t mounts = { NULL, 0, 0 };
-    cvmfs_dirent_t de;
-    if (cvmfs_catalog_lookup(rd, mount, &de) != 1)
-        rc = pub_fail(px, "catalog root row missing for %s",
-                      mount[0] ? mount : "(root)");
-    if (rc == 0 && mount[0] != '\0')
-        self[FK_DIR]++;                  /* nested root row has name != '' */
-    if (rc == 0) rc = fk_xattr_check(px, rd, mount, self);
-    if (rc == 0) rc = fk_walk(fk, rd, mount, self, &mounts);
-    if (rc == 0) {
-        self[FK_NESTED] = (int64_t) mounts.n;
-        rc = fk_compare(px, rd, mount, "self", self);
-    }
-    for (size_t i = 0; rc == 0 && i < mounts.n; i++) {
-        cvmfs_hash_t ch;
-        uint64_t csize = 0;
-        int64_t ctot[PUB_NCOUNTERS];
-        if (cvmfs_catalog_nested(rd, mounts.v[i], &ch, &csize) != 1)
-            rc = pub_fail(px, "mountpoint %s has no nested_catalogs row",
-                          mounts.v[i]);
-        else if ((rc = fk_check(fk, mounts.v[i], &ch, ctot)) == 0)
-            for (int k = 0; k < PUB_NCOUNTERS; k++) subtree[k] += ctot[k];
-    }
-    if (rc == 0) rc = fk_compare(px, rd, mount, "subtree", subtree);
-    for (int k = 0; rc == 0 && k < PUB_NCOUNTERS; k++)
-        tot[k] = self[k] + subtree[k];
+    int        rc;
+
+    if (rd == NULL)
+        return -1;
+    rc = fk_check_self(fk, rd, mount, self, &mounts);
+    if (rc == 0)
+        rc = fk_check_children(fk, rd, &mounts, subtree);
+    if (rc == 0)
+        rc = fk_compare(px, rd, mount, "subtree", subtree);
+    for (int counter = 0; rc == 0 && counter < PUB_NCOUNTERS; counter++)
+        tot[counter] = self[counter] + subtree[counter];
     fk_paths_free(&mounts);
     cvmfs_catalog_close(rd);
     unlink(tmp);

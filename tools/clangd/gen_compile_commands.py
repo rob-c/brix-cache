@@ -45,12 +45,14 @@ def _filter_flags(tokens):
         if tok == "-o" or tok == "--param":
             skip_next = True
             continue
-        if tok in DROP_EXACT:
-            continue
-        if tok.startswith(DROP_PREFIXES) or tok.startswith("--param"):
+        if _drop_flag(tok):
             continue
         out.append(tok)
     return out
+
+
+def _drop_flag(token):
+    return token in DROP_EXACT or token.startswith(DROP_PREFIXES) or token.startswith("--param")
 
 
 def _grab_make_var(text, name):

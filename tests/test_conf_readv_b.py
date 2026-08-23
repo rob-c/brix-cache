@@ -1,4 +1,28 @@
 from split_continuation import reexport as _reexport
+def _expression_1(size):
+    return (
+        16 if size > 65536 else 4
+    )
+
+def _expression_2(our, plan):
+    return (
+        _readv_drain(our.sock, [_seg(our.fh, ln, o) for o, ln in plan])
+    )
+
+def _expression_3(dst, name, srv):
+    return (
+        L.run([L.OFF_XRDCP, "-f", f"{srv['our']}//{name}", dst],
+                                 timeout=120 if name == "big1m.bin" else 60)
+    )
+
+
+def _check_test_readv_reassembly_equals_xrdcp_1(st, name):
+    assert st == kXR_ok, f"raw readv reassembly of {name} failed"
+
+def _check_test_readv_reassembly_equals_xrdcp_2(rc, name, out, err):
+    assert rc == 0, f"xrdcp download of {name} from OUR server failed: {out}{err}"
+
+
 _reexport(globals(), "_test_conf_readv_helpers")
 
 def test_readv_empty_file(srv):
@@ -43,28 +67,30 @@ def test_interleave_read_readv_read(srv):
 def test_readv_reassembly_equals_xrdcp(srv, tmp_path, name):
     # 1) full-file via raw readv on OUR server.
     size = len(_local(srv, name))
-    n = 16 if size > 65536 else 4
+    n = _expression_1(size)
     plan = _equal_segments(size, n)
     our = _Handle(*srv["our_hp"], name)
     try:
-        st, body = _readv_drain(our.sock, [_seg(our.fh, ln, o) for o, ln in plan])
+        st, body = _expression_2(our, plan)
     finally:
         our.close()
-    assert st == kXR_ok, f"raw readv reassembly of {name} failed"
+    _check_test_readv_reassembly_equals_xrdcp_1(st, name)
     via_readv = b"".join(p for (_f, _r, _o, p) in _parse_segments(body))
 
     # 2) full-file via stock xrdcp download from OUR server.
     dst = str(tmp_path / f"dl_{name}")
-    rc, out, err = L.run([L.OFF_XRDCP, "-f", f"{srv['our']}//{name}", dst],
-                         timeout=120 if name == "big1m.bin" else 60)
-    assert rc == 0, f"xrdcp download of {name} from OUR server failed: {out}{err}"
+    rc, out, err = _expression_3(dst, name, srv)
+    _check_test_readv_reassembly_equals_xrdcp_2(rc, name, out, err)
     via_xrdcp = open(dst, "rb").read()
 
-    assert via_readv == via_xrdcp, (
-        f"OUR readv reassembly of {name} differs from the xrdcp download "
-        f"(readv={len(via_readv)}B xrdcp={len(via_xrdcp)}B)")
-    assert via_readv == _local(srv, name), (
-        f"OUR readv reassembly of {name} differs from the local source")
+    def _assert_test_readv_reassembly_equals_xrdcp_1():
+        assert via_readv == via_xrdcp, (
+            f"OUR readv reassembly of {name} differs from the xrdcp download "
+            f"(readv={len(via_readv)}B xrdcp={len(via_xrdcp)}B)")
+        assert via_readv == _local(srv, name), (
+            f"OUR readv reassembly of {name} differs from the local source")
+
+    _assert_test_readv_reassembly_equals_xrdcp_1()
 
 
 # ===========================================================================

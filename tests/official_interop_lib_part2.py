@@ -23,6 +23,41 @@ import time
 
 from settings import BIND_HOST, TEST_ROOT
 
+def _phase_chown_stock_1(path, uid, gid):
+    if _expression_2(path):
+        for dirpath, dirnames, filenames in os.walk(path):
+            for name in dirnames + filenames:
+                _chown_one(os.path.join(dirpath, name), uid, gid)
+        _chown_one(path, uid, gid)
+    else:
+        _chown_one(path, uid, gid)
+
+def _phase_harmonize_perms_2(root):
+    if os.path.isdir(root):
+        for dirpath, dirnames, filenames in os.walk(root):
+            for name in dirnames + filenames:
+                _mirror(os.path.join(dirpath, name))
+        _mirror(root)                         # the export root itself
+    else:
+        _mirror(root)                         # a single seeded file
+
+
+def _expression_1(path):
+    return (
+        not path or not os.path.exists(path)
+    )
+
+def _expression_2(path):
+    return (
+        os.path.isdir(path) and not os.path.islink(path)
+    )
+
+def _expression_3(root):
+    return (
+        not root or not os.path.exists(root)
+    )
+
+
 BIND = BIND_HOST
 
 # --------------------------------------------------------------------------- #
@@ -109,44 +144,35 @@ FLEET_OFF_DATA = os.path.join(TEST_ROOT, "data-interop-off")
 # python-test range within TEST_PORT_START+2000.
 
 
+def _chown_one(path, uid, gid):
+    try:
+        # Avoid a redundant chown: it bumps ctime and can flap another worker's
+        # stat parity check even when the ownership is already correct.
+        stat = os.stat(path, follow_symlinks=False)
+        if stat.st_uid == uid and stat.st_gid == gid:
+            return
+    except OSError:
+        pass
+    try:
+        os.chown(path, uid, gid, follow_symlinks=False)
+    except (OSError, NotImplementedError):
+        try:
+            os.chown(path, uid, gid)
+        except OSError:
+            pass
+
+
 def chown_stock(*paths):
-    """chown each path (recursively, for dirs) to `nobody` so the stock server
-    can chmod/own it. Best-effort: a no-op when not privileged or when `nobody`
-    is absent, so the harness degrades gracefully instead of erroring."""
+    """Best-effort ownership handoff to the stock server's service user."""
     ids = _nobody_ids()
     if ids is None:
         return
     uid, gid = ids
 
-    def _one(p):
-        try:
-            # Skip when already owned: chown always bumps ctime even when the
-            # ids are unchanged, and the trees are shared across xdist workers —
-            # a redundant chown here makes another worker's stat parity checks
-            # (M/CTime) flap mid-test.
-            st = os.stat(p, follow_symlinks=False)
-            if st.st_uid == uid and st.st_gid == gid:
-                return
-        except OSError:
-            pass
-        try:
-            os.chown(p, uid, gid, follow_symlinks=False)
-        except (OSError, NotImplementedError):
-            try:
-                os.chown(p, uid, gid)
-            except OSError:
-                pass
-
     for path in paths:
-        if not path or not os.path.exists(path):
+        if _expression_1(path):
             continue
-        if os.path.isdir(path) and not os.path.islink(path):
-            for dirpath, dirnames, filenames in os.walk(path):
-                for name in dirnames + filenames:
-                    _one(os.path.join(dirpath, name))
-            _one(path)
-        else:
-            _one(path)
+        _phase_chown_stock_1(path, uid, gid)
 
 
 def worker_reachable(*dirs):
@@ -206,15 +232,9 @@ def harmonize_perms(*roots):
             pass
 
     for root in roots:
-        if not root or not os.path.exists(root):
+        if _expression_3(root):
             continue
-        if os.path.isdir(root):
-            for dirpath, dirnames, filenames in os.walk(root):
-                for name in dirnames + filenames:
-                    _mirror(os.path.join(dirpath, name))
-            _mirror(root)                         # the export root itself
-        else:
-            _mirror(root)                         # a single seeded file
+        _phase_harmonize_perms_2(root)
 
 
 def _wait_both(t=15.0):

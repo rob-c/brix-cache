@@ -86,20 +86,38 @@ def test_noforce_upload_to_existing_parity(srv, tmp_path):
 # =========================================================================== #
 @pytest.mark.parametrize("flag", ["none", "-p", "--path"])
 def test_upload_missing_parent_creates_path(srv, tmp_path, flag):
-    src = str(tmp_path / f"mkpath_{flag.strip('-') or 'none'}.src")
-    payload = bytes((i * 11 + 2) & 0xff for i in range(900))
-    open(src, "wb").write(payload)
-    sub = f"mkparent_{flag.strip('-') or 'none'}"
-    remote = f"/{sub}/a/b/file.bin"
-    opts = [] if flag == "none" else [flag]
+    src, payload, sub, remote, opts = _missing_parent_case(tmp_path, flag)
     rc, out, err = _cp(L.OFF_XRDCP, "-f", *opts, src, f"{srv['our']}/{remote}",
                        timeout=90)
-    assert rc == 0, (f"xrdcp upload (flag={flag}) to a missing parent on OUR "
-                     f"server failed: {out}{err}")
+    _assert_missing_parent_upload(rc, out, err, flag)
     on_disk = os.path.join(srv["our_data"], sub, "a", "b", "file.bin")
-    assert os.path.exists(on_disk), (
+    _assert_missing_parent_file(on_disk, payload, flag)
+
+
+def _missing_parent_case(tmp_path, flag):
+    suffix = flag.strip("-") or "none"
+    source = str(tmp_path / f"mkpath_{suffix}.src")
+    payload = bytes((index * 11 + 2) & 0xff for index in range(900))
+    open(source, "wb").write(payload)
+    subdirectory = f"mkparent_{suffix}"
+    remote = f"/{subdirectory}/a/b/file.bin"
+    options = [] if flag == "none" else [flag]
+    return source, payload, subdirectory, remote, options
+
+
+def _assert_missing_parent_upload(rc, output, error, flag):
+    assert rc == 0, (f"xrdcp upload (flag={flag}) to a missing parent on OUR "
+                     f"server failed: {output}{error}")
+
+
+def _assert_missing_parent_file(path, payload, flag):
+    assert os.path.exists(path), (
         f"xrdcp upload (flag={flag}): missing-parent path was not created")
-    assert _read(on_disk) == payload, (
+    _assert_file_payload(path, payload, flag)
+
+
+def _assert_file_payload(path, payload, flag):
+    assert _read(path) == payload, (
         f"xrdcp upload (flag={flag}): bytes under created path != source")
 
 
@@ -259,48 +277,67 @@ def test_recursive_download_whole_tree(srv, tmp_path):
     on BOTH servers (confirmed: same "Invalid arguments"), so we use the form
     the stock toolchain accepts.
     """
-    expect_leaves = ["hello.txt", "data.bin", "cksum.bin", "empty.txt",
-                     os.path.join("sub", "nested.txt"),
-                     os.path.join("deep", "a", "b", "c", "leaf.txt")]
-    expect_leaves += [os.path.join("many", f"f{i:02d}.txt") for i in range(12)]
+    expected = _whole_tree_leaves()
+    found, diagnostic = _download_whole_tree(srv, tmp_path, expected)
+    _assert_whole_tree_present(found, expected, diagnostic)
+    _assert_whole_tree_digests(srv, found)
 
-    # The export root is SHARED with concurrently running tests (xdist lane):
-    # the recursive walk also picks up their transient files, whose per-job
-    # copies legitimately fail mid-mutation (deleted / staged-partial ->
-    # 3010/3011/3007).  xrdcp's exit code covers those foreign jobs too, so the
-    # verdict here is NOT rc but the documented contract: every SEEDED leaf
-    # lands byte-exact.  One retry absorbs the rarer race where a concurrent
-    # reset replaces a seeded leaf in the middle of our recursion.
-    last = None
+
+def _whole_tree_leaves():
+    leaves = ["hello.txt", "data.bin", "cksum.bin", "empty.txt",
+              os.path.join("sub", "nested.txt"),
+              os.path.join("deep", "a", "b", "c", "leaf.txt")]
+    leaves.extend(os.path.join("many", f"f{i:02d}.txt") for i in range(12))
+    return leaves
+
+
+def _download_whole_tree(srv, tmp_path, expected):
+    found, diagnostic = {}, "not attempted"
     for attempt in (1, 2):
         L.reset_to_seeded_tree(srv["our_data"], srv["off_data"])
-        dst = str(tmp_path / f"rec_root{attempt}")
-        os.makedirs(dst)
-        rc, out, err = _download(L.OFF_XRDCP, srv["our"], ".", dst, "-r", "-f",
-                                 timeout=180)
-        # locate the copied root (xrdcp may nest under a host/dir component)
-        found = {}
-        for root_dir, _dirs, files in os.walk(dst):
-            for fn in files:
-                fp = os.path.join(root_dir, fn)
-                found.setdefault(fn, []).append(fp)
-        last = f"rc={rc}: {out}{err}"
-        if all(os.path.basename(rel) in found for rel in expect_leaves):
+        destination = str(tmp_path / f"rec_root{attempt}")
+        os.makedirs(destination)
+        rc, out, err = _download(L.OFF_XRDCP, srv["our"], ".", destination,
+                                 "-r", "-f", timeout=180)
+        found = _files_by_basename(destination)
+        diagnostic = f"rc={rc}: {out}{err}"
+        if _all_leaves_present(found, expected):
             break
-    else:
-        missing = [rel for rel in expect_leaves
-                   if os.path.basename(rel) not in found]
-        assert not missing, (
-            f"whole-tree recursive copy missing {missing} after 2 attempts "
-            f"({last})")
-    # md5-verify a representative subset against the source
-    for rel in ["data.bin", "cksum.bin",
-                os.path.join("deep", "a", "b", "c", "leaf.txt")]:
-        base = os.path.basename(rel)
-        want = _md5(_src_bytes(srv, rel))
-        got = {_md5(_read(fp)) for fp in found[base]}
-        assert want in got, (
-            f"whole-tree recursive copy: {rel} md5 {want} not among {got}")
+    return found, diagnostic
+
+
+def _files_by_basename(root):
+    found = {}
+    for root_dir, _dirs, files in os.walk(root):
+        for filename in files:
+            path = os.path.join(root_dir, filename)
+            found.setdefault(filename, []).append(path)
+    return found
+
+
+def _all_leaves_present(found, expected):
+    return all(os.path.basename(relative) in found for relative in expected)
+
+
+def _assert_whole_tree_present(found, expected, diagnostic):
+    missing = [relative for relative in expected
+               if os.path.basename(relative) not in found]
+    assert not missing, (
+        f"whole-tree recursive copy missing {missing} after 2 attempts ({diagnostic})")
+
+
+def _assert_whole_tree_digests(srv, found):
+    representatives = ["data.bin", "cksum.bin",
+                       os.path.join("deep", "a", "b", "c", "leaf.txt")]
+    for relative in representatives:
+        _assert_leaf_digest(srv, found, relative)
+
+
+def _assert_leaf_digest(srv, found, relative):
+    expected = _md5(_src_bytes(srv, relative))
+    actual = {_md5(_read(path)) for path in found[os.path.basename(relative)]}
+    assert expected in actual, (
+        f"whole-tree recursive copy: {relative} md5 {expected} not among {actual}")
 
 
 # =========================================================================== #

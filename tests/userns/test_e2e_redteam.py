@@ -72,43 +72,81 @@ def _have(cmd):
 
 @pytest.mark.timeout(180)
 def test_impersonation_redteam_e2e(tmp_path):
+    _require_redteam_prerequisites()
+    launcher = _build_launcher(tmp_path)
+    password_file, group_file, work = _redteam_files(tmp_path)
+    run = _run_redteam(launcher, password_file, group_file, work)
+    _assert_redteam_result(run)
+
+
+def _require_redteam_prerequisites():
+    _require_nginx()
+    _require_compiler()
+    _require_id_maps()
+    _require_cryptography()
+    _require_user_namespaces()
+
+
+def _require_nginx():
     if not os.path.isfile(NGINX):
         pytest.skip(f"nginx binary not at {NGINX} (set TEST_NGINX_BIN)")
+
+
+def _require_compiler():
     if not _have(CC):
         pytest.skip("no C compiler")
+
+
+def _require_id_maps():
     if not (_have("newuidmap") and _have("newgidmap")):
         pytest.skip("newuidmap/newgidmap not installed (uidmap package)")
+
+
+def _require_cryptography():
     try:
         import cryptography  # noqa: F401
     except ImportError:
         pytest.skip("python 'cryptography' package not available")
-    # cheap userns pre-flight
+
+
+def _require_user_namespaces():
     r = subprocess.run(["unshare", "-Ur", "true"], capture_output=True)
     if r.returncode != 0:
         pytest.skip("unprivileged user namespaces unavailable")
 
+
+def _build_launcher(tmp_path):
     launcher = str(tmp_path / "launcher")
     build = subprocess.run(
         [CC, "-O2", "-D_GNU_SOURCE", "-Wall", "-o", launcher,
          os.path.join(HERE, "c", "userns_exec_launcher.c")],
         capture_output=True, text=True)
     assert build.returncode == 0, f"launcher compile failed:\n{build.stderr}"
+    return launcher
 
+
+def _redteam_files(tmp_path):
     pw = tmp_path / "passwd"
     gr = tmp_path / "group"
     pw.write_text(FAKE_PASSWD)
     gr.write_text(FAKE_GROUP)
     work = tmp_path / "work"
     work.mkdir()
+    return pw, gr, work
 
+
+def _run_redteam(launcher, password_file, group_file, work):
     env = dict(os.environ, TEST_NGINX_BIN=NGINX)
-    run = subprocess.run(
-        [launcher, str(pw), str(gr),
+    return subprocess.run(
+        [launcher, str(password_file), str(group_file),
          "python3", os.path.join(HERE, "e2e_redteam.py"), str(work)],
         capture_output=True, text=True, timeout=160, env=env)
+
+
+def _assert_redteam_result(run):
     out = run.stdout + "\n" + run.stderr
 
-    if "SKIP:" in run.stdout and "ALL PASSED" not in run.stdout:
+    if _redteam_skipped(run.stdout):
         pytest.skip(f"red-team prerequisites unmet:\n{out}")
 
     assert run.returncode == 0, f"red-team E2E failed:\n{out}"
@@ -117,3 +155,7 @@ def test_impersonation_redteam_e2e(tmp_path):
     assert "owned by the MAPPED user" in out
     assert "escalate to root" in out
     assert "no setfsuid leak" in out
+
+
+def _redteam_skipped(stdout):
+    return "SKIP:" in stdout and "ALL PASSED" not in stdout

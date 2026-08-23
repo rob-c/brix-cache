@@ -56,6 +56,38 @@ from cmdscripts import ceph_harness, ceph_operator
 # Standing up the cluster + building the module in-container runs for minutes,
 # well past the repo-wide 30s default; the ceiling covers the whole session
 # fixture (attributed to the first test) plus each live check.
+def _guard_ceph_lab_1():
+    if os.environ.get("PHASE81_RUN_CEPH_PORTS") == "0":
+        pytest.skip("PHASE81_RUN_CEPH_PORTS=0 set — skipping the live Ceph lab")
+
+def _guard_ceph_lab_2():
+    if not ceph_harness.have_docker():
+        pytest.skip("docker not found")
+
+def _guard_ceph_lab_3():
+    if not _image_exists(BUILD_IMAGE):
+        pytest.skip(
+            f"build image {BUILD_IMAGE} missing; build it once with: "
+            f"docker build -f tests/ceph/Dockerfile.build -t {BUILD_IMAGE} tests/ceph"
+        )
+
+def _check_ceph_lab_1():
+    assert ceph_harness.cmd_start() == 0, "demo Ceph cluster failed to start"
+
+def _guard_ceph_lab_5():
+    if os.environ.get("CEPH_LAB_TEARDOWN") == "1":
+        subprocess.run(["docker", "rm", "-f", WORK],
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        ceph_harness.cmd_stop()
+
+def _guard_ceph_lab_4(ok, msg):
+    if not ok and "exited 137" in msg:
+        pytest.skip(f"in-container build OOM-killed (host memory pressure): {msg}")
+
+def _check_ceph_lab_2(ok, msg):
+    assert ok and not msg.startswith("SKIP"), f"build_in_container: {msg}"
+
+
 pytestmark = pytest.mark.timeout(1800)
 
 BUILD_IMAGE = os.environ.get("IMAGE", "xrd-ceph-build")
@@ -120,17 +152,11 @@ def _ensure_xrootd_client() -> None:
 @pytest.fixture(scope="session")
 def ceph_lab(tmp_path_factory):
     """Bring up demo Ceph + the built work container once for the suite."""
-    if os.environ.get("PHASE81_RUN_CEPH_PORTS") == "0":
-        pytest.skip("PHASE81_RUN_CEPH_PORTS=0 set — skipping the live Ceph lab")
-    if not ceph_harness.have_docker():
-        pytest.skip("docker not found")
-    if not _image_exists(BUILD_IMAGE):
-        pytest.skip(
-            f"build image {BUILD_IMAGE} missing; build it once with: "
-            f"docker build -f tests/ceph/Dockerfile.build -t {BUILD_IMAGE} tests/ceph"
-        )
+    _guard_ceph_lab_1()
+    _guard_ceph_lab_2()
+    _guard_ceph_lab_3()
 
-    assert ceph_harness.cmd_start() == 0, "demo Ceph cluster failed to start"
+    _check_ceph_lab_1()
 
     base = tmp_path_factory.mktemp("ceph_lab")
     # The in-container module build takes minutes. It runs authoritatively every
@@ -147,18 +173,14 @@ def ceph_lab(tmp_path_factory):
         # product failure -- skip cleanly rather than erroring the whole suite.
         # (With no container memory cap and ~34G free this does not trigger; it
         # guards against transient pressure from concurrently-running fleets.)
-        if not ok and "exited 137" in msg:
-            pytest.skip(f"in-container build OOM-killed (host memory pressure): {msg}")
-        assert ok and not msg.startswith("SKIP"), f"build_in_container: {msg}"
+        _guard_ceph_lab_4(ok, msg)
+        _check_ceph_lab_2(ok, msg)
 
     _ensure_xrootd_client()
 
     yield base
 
-    if os.environ.get("CEPH_LAB_TEARDOWN") == "1":
-        subprocess.run(["docker", "rm", "-f", WORK],
-                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        ceph_harness.cmd_stop()
+    _guard_ceph_lab_5()
 
 
 def _run(ceph_lab, runner, name: str) -> None:

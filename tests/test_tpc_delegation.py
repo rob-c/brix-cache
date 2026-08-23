@@ -60,169 +60,196 @@ def _wait(port, tries=100):
 
 @pytest.fixture
 def gate(lifecycle, tmp_path_factory):
-    if not _have("xrootd", "openssl", "xrdgsiproxy") or not os.path.exists(XRDCP):
-        pytest.skip("stock xrootd / openssl / xrdgsiproxy not installed")
-
-    src_port = free_port()
+    _require_gate_tools()
     base = tmp_path_factory.mktemp("f6gate")
-    ca, certs, srv, usr, data = (
-        base / d for d in ("ca", "certs", "srv", "usr", "data"))
-    for d in (ca, certs, srv, usr, data):
-        d.mkdir(parents=True)
+    paths = _gate_paths(base)
     # Lowercase: the client lowercases the connect hostname, so the server cert CN
     # must be lowercase too — else the name check fails, the client falls back to
     # DNS, and "usedDNS" forbids proxy delegation (§F6).
     fqdn = socket.getfqdn().lower()
-
-    def osl(*a):
-        r = _run(["openssl", *a])
-        assert r.returncode == 0, f"openssl {a}: {r.stderr}"
-
-    osl("req", "-x509", "-nodes", "-newkey", "rsa:2048", "-days", "1",
-        "-subj", "/O=F6Test/CN=F6Test CA",
-        "-keyout", str(ca / "ca.key"), "-out", str(ca / "ca.pem"))
-    chash = _run(["openssl", "x509", "-in", str(ca / "ca.pem"),
-                  "-noout", "-hash"]).stdout.strip()
-    shutil.copy(ca / "ca.pem", certs / f"{chash}.0")
-    (certs / f"{chash}.signing_policy").write_text(
-        "access_id_CA      X509     '/O=F6Test/CN=F6Test CA'\n"
-        "pos_rights        globus   CA:sign\n"
-        "cond_subjects     globus   '\"/O=F6Test/*\"'\n")
-
-    # GSI X.509 proxy delegation signs a proxy request against the delegator's
-    # chain; XrdCrypto's X509SignProxyReq rejects a signing chain whose EEC lacks
-    # a keyUsage extension ("wrong extensions in request"). A real IGTF EEC always
-    # carries keyUsage(digitalSignature,keyEncipherment) — mint ours the same way,
-    # otherwise every delegation attempt fails at the crypto step regardless of the
-    # protocol wiring under test.
-    ku_ext = base / "ku.ext"
-    ku_ext.write_text(
-        "keyUsage=critical,digitalSignature,keyEncipherment\n"
-        "extendedKeyUsage=serverAuth,clientAuth\n"
-    )
-
-    def signed(cn, key, cert):
-        csr = base / (cn.replace(" ", "") + ".csr")
-        osl("req", "-nodes", "-newkey", "rsa:2048", "-subj", f"/O=F6Test/CN={cn}",
-            "-keyout", str(key), "-out", str(csr))
-        osl("x509", "-req", "-in", str(csr), "-CA", str(ca / "ca.pem"),
-            "-CAkey", str(ca / "ca.key"), "-CAcreateserial", "-days", "1",
-            "-out", str(cert), "-extfile", str(ku_ext))
-
-    signed(fqdn, srv / "hostkey.pem", srv / "hostcert.pem")
-    signed("F6 User", usr / "userkey.pem", usr / "usercert.pem")
-    signed("tpc-gateway", srv / "gwkey.pem", srv / "gwcert.pem")
-    for k in ("userkey.pem",):
-        os.chmod(usr / k, 0o600)
-    os.chmod(srv / "gwkey.pem", 0o600)
-
-    penv = dict(os.environ, X509_CERT_DIR=str(certs))
-
-    def mkproxy(cert, key, out):
-        _run(["xrdgsiproxy", "init", "-cert", str(cert), "-key", str(key),
-              "-out", str(out), "-certdir", str(certs), "-valid", "1:00"],
-             input="\n\n", env=penv)
-        return out.exists()
-
-    uproxy = usr / "proxy.pem"
-    gwproxy = srv / "gwproxy.pem"
-    if not mkproxy(usr / "usercert.pem", usr / "userkey.pem", uproxy):
-        pytest.skip("could not mint user proxy")
-    if not mkproxy(srv / "gwcert.pem", srv / "gwkey.pem", gwproxy):
-        pytest.skip("could not mint gateway proxy")
-    os.chmod(gwproxy, 0o600)
-
-    (data / "hello.txt").write_text("f6 delegation gate\n")
-
-    # Source gridmap maps BOTH the user and the gateway DN so a pull authenticates
-    # either way — the discriminator is WHICH DN the source logs for the pull.
-    me = os.environ.get("USER", "nobody")
-    gridmap = base / "grid-mapfile"
-    gridmap.write_text(f'"{USER_DN}" {me}\n"{GW_DN}" {me}\n')
-
-    # ---- stock GSI source: delegation requested + DN logged ----
-    src_cfg = base / "xrootd.cfg"
-    src_cfg.write_text(
-        f"xrd.port {src_port}\n"
-        "all.export /data\n"
-        f"oss.localroot {base}\n"
-        "xrootd.seclib libXrdSec.so\n"
-        f"sec.protocol /usr/lib64 gsi -certdir:{certs} "
-        f"-cert:{srv / 'hostcert.pem'} -key:{srv / 'hostkey.pem'} "
-        f"-gridmap:{gridmap} -d:2 -crl:0 -gmapopt:2 "
-        "-dlgpxy:request -showdn:1 -exppxy:=creds\n"
-        "sec.protbind * only gsi\n"
-        "ofs.tpc ttl 300 300 pgm /usr/bin/xrdcp\n"
-        # Keep xrootd's runtime admin/pid dirs under the test-owned base so the
-        # `-R nobody` drop (below) can create its sockets.
-        f"all.adminpath {base / 'admin'}\n"
-        f"all.pidpath {base / 'admin'}\n")
-    # xrootd -n <name> inserts the instance name as a subdir of the -l directory,
-    # so `-l base/brix.log -n src` writes to base/src/brix.log.
+    _make_gate_pki(base, paths, fqdn)
+    penv, uproxy = _make_gate_proxies(paths)
+    paths["data"].joinpath("hello.txt").write_text("f6 delegation gate\n")
+    gridmap = _write_gridmap(base)
+    src_port = free_port()
+    src_cfg = _write_gate_source_config(base, paths, gridmap, src_port)
     src_log = base / "src" / "xrootd.log"
-    _run(["bash", "-c", f"fuser -k {src_port}/tcp 2>/dev/null"])
-    argv = ["xrootd", "-c", str(src_cfg),
-            "-l", str(base / "xrootd.log"), "-n", "src"]
-    # Root-harness privilege drop: stock xrootd refuses to run as superuser, so
-    # run it via `-R nobody` and pre-open only what that user needs — traverse
-    # base, read the data tree + CA certdir + hostcert + gridmap, write admin/log,
-    # read the GSI key (nobody-only 0400). NOT usr/: XrdSecgsi rejects a
-    # group/world-writable proxy credential, which only the root client reads.
-    if os.geteuid() == 0:
-        runas = os.environ.get("REF_RUNAS_USER", "nobody")
-        (base / "admin").mkdir(parents=True, exist_ok=True)
-        (base / "src").mkdir(parents=True, exist_ok=True)
-        _run(["chmod", "a+rx", str(base)])
-        for d in (data, certs):
-            _run(["chmod", "-R", "a+rX", str(d)])
-        for d in (base / "admin", base / "src"):
-            _run(["chmod", "-R", "a+rwX", str(d)])
-        for f in (srv / "hostcert.pem", gridmap):
-            if f.exists():
-                _run(["chmod", "a+r", str(f)])
-        _run(["chmod", "a+rx", str(srv)])
-        hostkey = srv / "hostkey.pem"
-        if hostkey.exists():
-            shutil.chown(hostkey, runas)
-            os.chmod(hostkey, 0o400)
-        argv += ["-R", runas]
-    src = subprocess.Popen(argv,
-                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    if not _wait(src_port):
-        src.terminate()
-        pytest.skip("stock GSI source did not come up")
-
-    # ---- OUR nginx destination: GSI inbound + delegation (registry-managed) ----
-    dstdata = base / "dstdata"
-    dstdata.mkdir(exist_ok=True)
-    try:
-        dst = lifecycle.start(NginxInstanceSpec(
-            name="lc-tpc-delegation-dest",
-            template="nginx_tpc_delegation_dest.conf",
-            protocol="root",
-            readiness="tcp",
-            data_root=str(dstdata),
-            template_values={
-                "CERT_FILE": str(srv / "hostcert.pem"),
-                "KEY_FILE": str(srv / "hostkey.pem"),
-                "CA_FILE": str(ca / "ca.pem"),
-            },
-            reason="F6 GSI TPC delegation destination (captures + forwards proxy).",
-        ))
-    except Exception:
-        src.terminate()
-        raise
-
+    src = _start_gate_source(base, paths, gridmap, src_cfg, src_port)
+    dst = _start_gate_destination(lifecycle, base, paths, src)
     ctx = {"base": str(base), "fqdn": fqdn, "src_log": src_log,
            "src_port": src_port, "dst_port": dst.port,
            "dst_logs": os.path.join(dst.prefix, "logs"),
            "env": dict(penv, X509_USER_PROXY=str(uproxy))}
     yield ctx
-    src.terminate()
+    _stop_source(src)
+
+
+def _require_gate_tools():
+    available = _have("xrootd", "openssl", "xrdgsiproxy")
+    if not available or not os.path.exists(XRDCP):
+        pytest.skip("stock xrootd / openssl / xrdgsiproxy not installed")
+
+
+def _gate_paths(base):
+    paths = {name: base / name for name in ("ca", "certs", "srv", "usr", "data")}
+    for path in paths.values():
+        path.mkdir(parents=True)
+    return paths
+
+
+def _openssl(*args):
+    result = _run(["openssl", *args])
+    assert result.returncode == 0, f"openssl {args}: {result.stderr}"
+
+
+def _make_gate_pki(base, paths, fqdn):
+    ca = paths["ca"]
+    _openssl("req", "-x509", "-nodes", "-newkey", "rsa:2048", "-days", "1",
+             "-subj", "/O=F6Test/CN=F6Test CA", "-keyout", str(ca / "ca.key"),
+             "-out", str(ca / "ca.pem"))
+    _install_gate_ca(paths)
+    extension = base / "ku.ext"
+    extension.write_text("keyUsage=critical,digitalSignature,keyEncipherment\n"
+                         "extendedKeyUsage=serverAuth,clientAuth\n")
+    _sign_gate_cert(base, paths, extension, fqdn, "srv", "host")
+    _sign_gate_cert(base, paths, extension, "F6 User", "usr", "user")
+    _sign_gate_cert(base, paths, extension, "tpc-gateway", "srv", "gw")
+    os.chmod(paths["usr"] / "userkey.pem", 0o600)
+    os.chmod(paths["srv"] / "gwkey.pem", 0o600)
+
+
+def _install_gate_ca(paths):
+    ca_file = paths["ca"] / "ca.pem"
+    chash = _run(["openssl", "x509", "-in", str(ca_file),
+                  "-noout", "-hash"]).stdout.strip()
+    shutil.copy(ca_file, paths["certs"] / f"{chash}.0")
+    paths["certs"].joinpath(f"{chash}.signing_policy").write_text(
+        "access_id_CA      X509     '/O=F6Test/CN=F6Test CA'\n"
+        "pos_rights        globus   CA:sign\n"
+        "cond_subjects     globus   '\"/O=F6Test/*\"'\n")
+
+
+def _sign_gate_cert(base, paths, extension, common_name, directory, stem):
+    csr = base / (common_name.replace(" ", "") + ".csr")
+    key = paths[directory] / f"{stem}key.pem"
+    cert = paths[directory] / f"{stem}cert.pem"
+    _openssl("req", "-nodes", "-newkey", "rsa:2048",
+             "-subj", f"/O=F6Test/CN={common_name}", "-keyout", str(key),
+             "-out", str(csr))
+    ca = paths["ca"]
+    _openssl("x509", "-req", "-in", str(csr), "-CA", str(ca / "ca.pem"),
+             "-CAkey", str(ca / "ca.key"), "-CAcreateserial", "-days", "1",
+             "-out", str(cert), "-extfile", str(extension))
+
+
+def _make_gate_proxies(paths):
+    penv = dict(os.environ, X509_CERT_DIR=str(paths["certs"]))
+    uproxy = paths["usr"] / "proxy.pem"
+    gwproxy = paths["srv"] / "gwproxy.pem"
+    _mint_gate_proxy(paths["usr"], "user", uproxy, paths["certs"], penv)
+    _mint_gate_proxy(paths["srv"], "gw", gwproxy, paths["certs"], penv)
+    os.chmod(gwproxy, 0o600)
+    return penv, uproxy
+
+
+def _mint_gate_proxy(directory, stem, output, cert_dir, env):
+    _run(["xrdgsiproxy", "init", "-cert", str(directory / f"{stem}cert.pem"),
+          "-key", str(directory / f"{stem}key.pem"), "-out", str(output),
+          "-certdir", str(cert_dir), "-valid", "1:00"], input="\n\n", env=env)
+    if not output.exists():
+        pytest.skip(f"could not mint {stem} proxy")
+
+
+def _write_gridmap(base):
+    gridmap = base / "grid-mapfile"
+    user = os.environ.get("USER", "nobody")
+    gridmap.write_text(f'"{USER_DN}" {user}\n"{GW_DN}" {user}\n')
+    return gridmap
+
+
+def _write_gate_source_config(base, paths, gridmap, src_port):
+    certs, srv = paths["certs"], paths["srv"]
+    config = base / "xrootd.cfg"
+    config.write_text(
+        f"xrd.port {src_port}\nall.export /data\noss.localroot {base}\n"
+        "xrootd.seclib libXrdSec.so\n"
+        f"sec.protocol /usr/lib64 gsi -certdir:{certs} "
+        f"-cert:{srv / 'hostcert.pem'} -key:{srv / 'hostkey.pem'} "
+        f"-gridmap:{gridmap} -d:2 -crl:0 -gmapopt:2 "
+        "-dlgpxy:request -showdn:1 -exppxy:=creds\n"
+        "sec.protbind * only gsi\nofs.tpc ttl 300 300 pgm /usr/bin/xrdcp\n"
+        f"all.adminpath {base / 'admin'}\nall.pidpath {base / 'admin'}\n")
+    return config
+
+
+def _start_gate_source(base, paths, gridmap, config, port):
+    _run(["bash", "-c", f"fuser -k {port}/tcp 2>/dev/null"])
+    argv = ["xrootd", "-c", str(config), "-l", str(base / "xrootd.log"),
+            "-n", "src"]
+    argv = _gate_source_argv(base, paths, gridmap, argv)
+    source = subprocess.Popen(argv, stdout=subprocess.DEVNULL,
+                              stderr=subprocess.DEVNULL)
+    if not _wait(port):
+        source.terminate()
+        pytest.skip("stock GSI source did not come up")
+    return source
+
+
+def _gate_source_argv(base, paths, gridmap, argv):
+    if os.geteuid() != 0:
+        return argv
+    runas = os.environ.get("REF_RUNAS_USER", "nobody")
+    writable = (base / "admin", base / "src")
+    for directory in writable:
+        directory.mkdir(parents=True, exist_ok=True)
+    _run(["chmod", "a+rx", str(base)])
+    _chmod_trees((paths["data"], paths["certs"]), "a+rX")
+    _chmod_trees(writable, "a+rwX")
+    _make_readable(paths["srv"] / "hostcert.pem")
+    _run(["chmod", "a+rx", str(paths["srv"])])
+    _protect_for_user(paths["srv"] / "hostkey.pem", runas)
+    return argv + ["-R", runas]
+
+
+def _chmod_trees(paths, mode):
+    for path in paths:
+        _run(["chmod", "-R", mode, str(path)])
+
+
+def _make_readable(path):
+    if path.exists():
+        _run(["chmod", "a+r", str(path)])
+
+
+def _protect_for_user(path, user):
+    if path.exists():
+        shutil.chown(path, user)
+        os.chmod(path, 0o400)
+
+
+def _start_gate_destination(lifecycle, base, paths, source):
+    destination_data = base / "dstdata"
+    destination_data.mkdir(exist_ok=True)
     try:
-        src.wait(timeout=5)
+        return lifecycle.start(NginxInstanceSpec(
+            name="lc-tpc-delegation-dest",
+            template="nginx_tpc_delegation_dest.conf", protocol="root",
+            readiness="tcp", data_root=str(destination_data),
+            template_values={"CERT_FILE": str(paths["srv"] / "hostcert.pem"),
+                             "KEY_FILE": str(paths["srv"] / "hostkey.pem"),
+                             "CA_FILE": str(paths["ca"] / "ca.pem")},
+            reason="F6 GSI TPC delegation destination (captures + forwards proxy)."))
+    except Exception:
+        source.terminate()
+        raise
+
+
+def _stop_source(source):
+    source.terminate()
+    try:
+        source.wait(timeout=5)
     except subprocess.TimeoutExpired:
-        src.kill()
+        source.kill()
 
 
 def _src_log(gate):

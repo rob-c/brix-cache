@@ -240,31 +240,35 @@ def decode_fragtree(d: Denc) -> "tuple[list[int], bool]":
     nsplit = d.u32()
     if nsplit > MAX_FRAGS:
         raise DecodeError("implausible fragtree split count %d" % nsplit)
-    splits = {}
-    for _ in range(nsplit):
-        enc = d.u32()
-        nway = d.u32()
-        splits[enc] = nway
-
+    splits = {d.u32(): d.u32() for _ in range(nsplit)}
     leaves = []
     truncated = False
     stack = [0]
     while stack:
-        f = stack.pop()
-        nb = splits.get(f, 0)
-        if nb <= 0:                    # leaf
-            if len(leaves) < MAX_FRAGS:
-                leaves.append(f)
-            else:
-                truncated = True
-        else:
-            nb = min(nb, 8)            # cap fan-out at 2^8
-            for c in range(1 << nb):
-                if len(stack) < MAX_FRAGS:
-                    stack.append(_frag_child(f, nb, c))
-                else:
-                    truncated = True
+        fragment = stack.pop()
+        bits = splits.get(fragment, 0)
+        if bits <= 0:
+            truncated |= not _append_leaf(leaves, fragment)
+            continue
+        truncated |= _append_children(stack, fragment, min(bits, 8))
     return leaves, truncated
+
+
+def _append_leaf(leaves, fragment):
+    if len(leaves) >= MAX_FRAGS:
+        return False
+    leaves.append(fragment)
+    return True
+
+
+def _append_children(stack, fragment, bits):
+    truncated = False
+    for child in range(1 << bits):
+        if len(stack) < MAX_FRAGS:
+            stack.append(_frag_child(fragment, bits, child))
+        else:
+            truncated = True
+    return truncated
 
 
 def decode_xattrs(d: Denc) -> "tuple[dict[bytes, bytes], bool]":
@@ -395,31 +399,44 @@ def walk_namespace(omap_reader, stats: WalkStats, root_ino: int = ROOT_INO):
     while stack:
         dirino, frags, path = stack.pop()
         for frag in frags:
-            oid = frag_oid(dirino, frag)
-            start = b""
-            more = True
-            while more:
-                entries, more = omap_reader(oid, start)
-                if not entries:
-                    break
-                for key, val in entries:
-                    start = key
-                    if not key.endswith(b"_head"):
-                        if snap_dentry(key):
-                            stats.snap_dentries += 1
-                        continue
-                    name = key[:-5].decode("utf-8", "surrogateescape")
-                    child = path + "/" + name
-                    try:
-                        dn = decode_dentry(bytes(val))
-                    except DecodeError:
-                        stats.undecodable += 1
-                        yield WalkEntry(path=child, undecodable=True)
-                        continue
-                    kind = _classify(dn)
-                    yield WalkEntry(path=child, kind=kind, dentry=dn)
-                    if kind == "dir":
-                        stack.append((dn.inode.ino, dn.frags or [0], child))
+            yield from _walk_fragment(omap_reader, stats, stack, dirino, frag, path)
+
+
+def _walk_fragment(omap_reader, stats, stack, dirino, frag, parent):
+    object_id = frag_oid(dirino, frag)
+    start = b""
+    more = True
+    while more:
+        entries, more = omap_reader(object_id, start)
+        if not entries:
+            return
+        start = entries[-1][0]
+        yield from _walk_page(entries, parent, stats, stack)
+
+
+def _walk_page(entries, parent, stats, stack):
+    for key, value in entries:
+        entry = _walk_entry(key, value, parent, stats)
+        if entry is None:
+            continue
+        yield entry
+        if entry.kind == "dir":
+            stack.append((entry.dentry.inode.ino, entry.dentry.frags or [0], entry.path))
+
+
+def _walk_entry(key, value, parent, stats):
+    if not key.endswith(b"_head"):
+        if snap_dentry(key):
+            stats.snap_dentries += 1
+        return None
+    name = key[:-5].decode("utf-8", "surrogateescape")
+    child = parent + "/" + name
+    try:
+        dentry = decode_dentry(bytes(value))
+    except DecodeError:
+        stats.undecodable += 1
+        return WalkEntry(path=child, undecodable=True)
+    return WalkEntry(path=child, kind=_classify(dentry), dentry=dentry)
 
 
 def snaptable_last_snap(buf: bytes) -> int:

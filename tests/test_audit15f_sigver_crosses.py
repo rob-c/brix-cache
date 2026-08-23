@@ -59,6 +59,33 @@ from test_audit15c_tpc_token_exchange import _drive_pull, _sync
 from test_phase25_ratelimit import (KXR_OK, _xrd_open, _xrd_read,
                                     _xrd_recv_status, _xrd_stat)
 
+def _guard_sigx_1():
+    if not os.path.exists(NGINX_BIN):
+        pytest.skip(f"nginx binary not found at {NGINX_BIN}")
+
+def _check_test_each_connection_states_its_unsignable_posture_once_1(status, body):
+    assert status == KXR_OK, (status, body)
+
+def _check_test_each_connection_states_its_unsignable_posture_once_3(ep):
+    assert _errlog(ep).count(UNSIGNED) == 1, \
+        ("five covered requests on one connection did not produce exactly "
+         "one posture line\n" + _errlog(ep)[-4000:])
+
+def _check_test_each_connection_states_its_unsignable_posture_once_6(status, body):
+    assert status == KXR_OK, (status, body)
+
+def _check_test_each_connection_states_its_unsignable_posture_once_2(status, data):
+    assert status == KXR_OK, (status, data)
+
+def _check_test_each_connection_states_its_unsignable_posture_once_5(ep):
+    assert _errlog(ep).count(UNSIGNED) == 2, \
+        ("the bound secondary did not state its own posture exactly "
+         "once\n" + _errlog(ep)[-4000:])
+
+def _check_test_each_connection_states_its_unsignable_posture_once_4(status, data):
+    assert status == KXR_OK, (status, data)
+
+
 pytestmark = [pytest.mark.timeout(120),
               pytest.mark.uses_lifecycle_harness,
               pytest.mark.xdist_group("lc-audit15f-sigx")]
@@ -152,8 +179,7 @@ def _refused(status, body):
 
 @pytest.fixture()
 def sigx(lifecycle, tmp_path):
-    if not os.path.exists(NGINX_BIN):
-        pytest.skip(f"nginx binary not found at {NGINX_BIN}")
+    _guard_sigx_1()
 
     roots = {name: tmp_path / name for name in ("tpc", "lax", "src", "bind")}
     for path in roots.values():
@@ -419,30 +445,29 @@ def test_each_connection_states_its_unsignable_posture_once(sigx):
     primary, sessid = _login(port)
     try:
         status, body = _xrd_open(primary, "/bound.bin")
-        assert status == KXR_OK, (status, body)
+        _check_test_each_connection_states_its_unsignable_posture_once_1(status, body)
         fhandle = body[:4]
         for _ in range(3):
             status, data = _xrd_read(primary, fhandle, 0, len(BOUND))
-            assert status == KXR_OK, (status, data)
-        assert _errlog(ep).count(UNSIGNED) == 1, \
-            ("five covered requests on one connection did not produce exactly "
-             "one posture line\n" + _errlog(ep)[-4000:])
+            _check_test_each_connection_states_its_unsignable_posture_once_2(status, data)
+        _check_test_each_connection_states_its_unsignable_posture_once_3(ep)
         sec, status, body = _bind(port, sessid)
         try:
-            assert status == KXR_OK, ("bind refused", status, body)
-            # kXR_bind is exempt, so the secondary is still silent here.
-            assert _errlog(ep).count(UNSIGNED) == 1, \
-                "kXR_bind logged a posture line although it is exempt"
+            def _assert_test_each_connection_states_its_unsignable_posture_once_1():
+                assert status == KXR_OK, ("bind refused", status, body)
+                # kXR_bind is exempt, so the secondary is still silent here.
+                assert _errlog(ep).count(UNSIGNED) == 1, \
+                    "kXR_bind logged a posture line although it is exempt"
+
+            _assert_test_each_connection_states_its_unsignable_posture_once_1()
             for _ in range(2):
                 status, data = _read(sec, fhandle, 0, len(BOUND))
-                assert status == KXR_OK, (status, data)
-            assert _errlog(ep).count(UNSIGNED) == 2, \
-                ("the bound secondary did not state its own posture exactly "
-                 "once\n" + _errlog(ep)[-4000:])
+                _check_test_each_connection_states_its_unsignable_posture_once_4(status, data)
+            _check_test_each_connection_states_its_unsignable_posture_once_5(ep)
         finally:
             sec.close()
         status, body = _close_frame(primary, fhandle)
-        assert status == KXR_OK, (status, body)
+        _check_test_each_connection_states_its_unsignable_posture_once_6(status, body)
     finally:
         primary.close()
 

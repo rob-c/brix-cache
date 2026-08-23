@@ -48,6 +48,22 @@ import requests
 from server_registry import NginxInstanceSpec
 from settings import HOST
 
+def _check_test_sync_delete_controls_work_without_the_queue_4(cache):
+    assert not [p for p in (cache / "noq").rglob("*") if p.is_file()], \
+        "sync DELETE answered 204 but left a cache-tier copy behind"
+
+def _check_test_sync_delete_controls_work_without_the_queue_1(plane, r):
+    assert r.status_code in (201, 204), (plane, r.status_code, r.text)
+
+def _check_test_sync_delete_controls_work_without_the_queue_2(plane, g):
+    assert g.status_code == 200 and g.content == PAYLOAD, (
+        plane, g.status_code)
+
+def _check_test_sync_delete_controls_work_without_the_queue_3(cache):
+    assert [p for p in (cache / "noq").rglob("*") if p.is_file()], \
+        "read-through control returned bytes but nothing was cached"
+
+
 pytestmark = [pytest.mark.uses_lifecycle_harness,
               pytest.mark.xdist_group("lc-audit15e-async")]
 
@@ -100,24 +116,24 @@ def test_sync_delete_controls_work_without_the_queue(tiers):
     for plane in ("noq", "bare"):
         u = _url(port, f"/{plane}/c.bin")
         r = requests.put(u, data=PAYLOAD, timeout=30)
-        assert r.status_code in (201, 204), (plane, r.status_code, r.text)
+        _check_test_sync_delete_controls_work_without_the_queue_1(plane, r)
         g = requests.get(u, timeout=30)
-        assert g.status_code == 200 and g.content == PAYLOAD, (
-            plane, g.status_code)
+        _check_test_sync_delete_controls_work_without_the_queue_2(plane, g)
         if plane == "noq":
             # The read-through really did fill BEFORE the delete (so the
             # control exercised the same tier machinery as the defect-pinned
             # /rt/ cross — and the delete's purge of it is checked below).
-            assert [p for p in (cache / "noq").rglob("*") if p.is_file()], \
-                "read-through control returned bytes but nothing was cached"
+            _check_test_sync_delete_controls_work_without_the_queue_3(cache)
         d = requests.delete(u, timeout=30)
-        assert d.status_code == 204, (plane, d.status_code, d.text)
-        assert not (origin / plane / "c.bin").exists(), (
-            plane, "origin object survived the sync DELETE")
+        def _assert_test_sync_delete_controls_work_without_the_queue_1():
+            assert d.status_code == 204, (plane, d.status_code, d.text)
+            assert not (origin / plane / "c.bin").exists(), (
+                plane, "origin object survived the sync DELETE")
+
+        _assert_test_sync_delete_controls_work_without_the_queue_1()
     # The sync DELETE also purged the tier copy — the exact durability
     # contract the async drain fails to honour on /rt/.
-    assert not [p for p in (cache / "noq").rglob("*") if p.is_file()], \
-        "sync DELETE answered 204 but left a cache-tier copy behind"
+    _check_test_sync_delete_controls_work_without_the_queue_4(cache)
 
 
 def test_defect6_cache_cross_async_delete_404s_object_survives(tiers):

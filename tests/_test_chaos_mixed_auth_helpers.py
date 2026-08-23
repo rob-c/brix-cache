@@ -196,49 +196,63 @@ class Inst:
         self.logfile = logfile
 
 
-@pytest.fixture(scope="module")
-def mesh(tmp_path_factory):
-    # ---- preflight -------------------------------------------------------
-    if shutil.which("openssl") is None:
-        pytest.skip("openssl required")
-    if not os.path.isfile(_VOMS_FAKE):
-        pytest.skip("utils/voms_proxy_fake.py missing")
-    if not os.access(NGINX_BIN, os.X_OK):
-        pytest.skip(f"nginx binary not executable: {NGINX_BIN}")
-    b = subprocess.run(["make", "-C", CLIENT_DIR, "xrdfs", "xrdcp", "xrdsssadmin-brix"],
-                       capture_output=True, text=True, timeout=240)
-    if b.returncode != 0 or not all(os.path.exists(x)
-                                    for x in (XRDFS, XRDCP, XRDSSSADMIN)):
-        pytest.skip(f"native client build failed:\n{b.stdout}\n{b.stderr}")
-    # the temp PKI framework must be present (conftest builds it; build if absent)
-    if not (os.path.exists(f"{CA_DIR}/ca.pem") and os.path.exists(USER_CERT)
-            and os.path.exists(SERVER_CERT)):
-        try:
-            import pki_helpers
-            pki_helpers.blitz_test_pki()
-        except Exception as e:  # noqa: BLE001
-            pytest.skip(f"temp PKI unavailable: {e}")
+def _mesh_preflight():
+    _skip_unless(shutil.which("openssl") is not None, "openssl required")
+    _skip_unless(os.path.isfile(_VOMS_FAKE), "utils/voms_proxy_fake.py missing")
+    _skip_unless(os.access(NGINX_BIN, os.X_OK),
+                 f"nginx binary not executable: {NGINX_BIN}")
+    result = subprocess.run(
+        ["make", "-C", CLIENT_DIR, "xrdfs", "xrdcp", "xrdsssadmin-brix"],
+        capture_output=True, text=True, timeout=240,
+    )
+    if _client_build_failed(result):
+        pytest.skip(f"native client build failed:\n{result.stdout}\n{result.stderr}")
+    _ensure_mesh_pki()
 
-    root = tmp_path_factory.mktemp("chaos")
 
-    # ---- credentials -----------------------------------------------------
+def _skip_unless(condition, reason):
+    if not condition:
+        pytest.skip(reason)
+
+
+def _client_build_failed(result):
+    binaries = all(os.path.exists(path) for path in (XRDFS, XRDCP, XRDSSSADMIN))
+    return result.returncode != 0 or not binaries
+
+
+def _ensure_mesh_pki():
+    paths = (f"{CA_DIR}/ca.pem", USER_CERT, SERVER_CERT)
+    if all(os.path.exists(path) for path in paths):
+        return
+    try:
+        import pki_helpers
+        pki_helpers.blitz_test_pki()
+    except Exception as exc:
+        pytest.skip(f"temp PKI unavailable: {exc}")
+
+
+def _mesh_credentials(root):
     _make_voms_signing_cert()
     _make_vomsdir_lsc(CHAOS_VO)
-    proxy_pem = str(root / "proxy_chaos.pem")
-    _mint_voms_proxy(proxy_pem)
+    proxy = str(root / "proxy_chaos.pem")
+    _mint_voms_proxy(proxy)
+    keytab = str(root / "chaos.keytab")
+    wrong_keytab = str(root / "wrong.keytab")
+    _mint_keytab(keytab, "keytab mint failed")
+    _mint_keytab(wrong_keytab, "wrong keytab mint failed")
+    return proxy, keytab, wrong_keytab
 
-    kt = str(root / "chaos.keytab")            # shared by proxy + sss-origin
-    r = subprocess.run([XRDSSSADMIN, "-k", kt, "add", "--id", "1",
-                        "--user", "chaosusr", "--group", "chaosgrp",
-                        "--name", "chaoskey"], capture_output=True, text=True)
-    assert r.returncode == 0, f"keytab mint failed: {r.stdout}{r.stderr}"
-    kt_bad = str(root / "wrong.keytab")        # different secret → must be rejected
-    r = subprocess.run([XRDSSSADMIN, "-k", kt_bad, "add", "--id", "1",
-                        "--user", "chaosusr", "--group", "chaosgrp",
-                        "--name", "chaoskey"], capture_output=True, text=True)
-    assert r.returncode == 0
 
-    # ---- data ------------------------------------------------------------
+def _mint_keytab(path, failure):
+    result = subprocess.run(
+        [XRDSSSADMIN, "-k", path, "add", "--id", "1", "--user", "chaosusr",
+         "--group", "chaosgrp", "--name", "chaoskey"],
+        capture_output=True, text=True,
+    )
+    assert result.returncode == 0, f"{failure}: {result.stdout}{result.stderr}"
+
+
+def _mesh_data(root):
     payload_gsi = b"x509-upstream payload :: " + os.urandom(8).hex().encode() + b"\n"
     payload_sss = b"sss-upstream payload :: " + os.urandom(8).hex().encode() + b"\n"
     gsi_data = root / "gsi-origin-data"
@@ -247,97 +261,96 @@ def mesh(tmp_path_factory):
     sss_data.mkdir()
     (gsi_data / "probe.txt").write_bytes(payload_gsi)
     (sss_data / "probe.txt").write_bytes(payload_sss)
-    # cache-gsi's own (empty) export root + posix read-cache store live outside
-    # the launcher prefix so the seeded data stays authoritative on the origin.
-    cache_gsi_export = root / "cache-gsi-export"
-    cache_gsi_store = root / "cache-gsi-store"
-    cache_gsi_export.mkdir()
-    cache_gsi_store.mkdir()
+    cache_export = root / "cache-gsi-export"
+    cache_store = root / "cache-gsi-store"
+    cache_export.mkdir()
+    cache_store.mkdir()
+    return {"payload_gsi": payload_gsi, "payload_sss": payload_sss,
+            "gsi_data": gsi_data, "sss_data": sss_data,
+            "cache_export": cache_export, "cache_store": cache_store}
 
-    # The whole mesh is driven through the registry (LifecycleHarness): each
-    # instance renders a committed tests/configs/nginx_chaos_*.conf, runs
-    # `nginx -t`, launches, and is reaped on close().  Origins start first so the
-    # anon fronts can wire their upstream to the origin's launcher-assigned port.
-    harness = LifecycleHarness()
-    insts = {}
 
-    def _inst(name, regname, endpoint):
-        inst = Inst(name, regname, endpoint.port, endpoint.pidfile,
+def _instance(instances, name, registry_name, endpoint):
+    instance = Inst(name, registry_name, endpoint.port, endpoint.pidfile,
                     os.path.join(endpoint.prefix, "logs", "error.log"))
-        insts[name] = inst
-        return inst
+    instances[name] = instance
+    return instance
 
+
+def _start_gsi_origin(harness, instances, data):
+    endpoint = harness.start(NginxInstanceSpec(
+        name="chaos-gsi-origin", template="nginx_chaos_gsi_origin.conf",
+        protocol="root", data_root=str(data), readiness="tcp",
+        template_values={"BIND_HOST": BIND_HOST, "SERVER_CERT": SERVER_CERT,
+                         "SERVER_KEY": SERVER_KEY, "TRUSTED_CA": f"{CA_DIR}/ca.pem"},
+        reason="Chaos mixed-auth GSI origin data server.",
+    ))
+    return _instance(instances, "gsi-origin", "chaos-gsi-origin", endpoint)
+
+
+def _start_sss_origin(harness, instances, data, keytab):
+    endpoint = harness.start(NginxInstanceSpec(
+        name="chaos-sss-origin", template="nginx_chaos_sss_origin.conf",
+        protocol="root", data_root=str(data), readiness="tcp",
+        template_values={"BIND_HOST": BIND_HOST, "KEYTAB": keytab},
+        reason="Chaos mixed-auth SSS origin data server.",
+    ))
+    return _instance(instances, "sss-origin", "chaos-sss-origin", endpoint)
+
+
+def _start_cache(harness, instances, data, proxy, origin):
+    endpoint = harness.start(NginxInstanceSpec(
+        name="chaos-cache-gsi", template="nginx_chaos_cache_gsi.conf",
+        protocol="root", data_root=str(data["cache_export"]), readiness="tcp",
+        template_values={"BIND_HOST": BIND_HOST, "PROXY_PEM": proxy,
+                         "CA_DIR": CA_DIR, "GSI_ORIGIN_PORT": origin.port,
+                         "CACHE_DIR": str(data["cache_store"])},
+        reason="Chaos mixed-auth anon front, X.509 upstream to gsi-origin.",
+    ))
+    return _instance(instances, "cache-gsi", "chaos-cache-gsi", endpoint)
+
+
+def _start_sss_proxy(harness, instances, name, keytab, origin, reason):
+    registry_name = f"chaos-{name}"
+    endpoint = harness.start(NginxInstanceSpec(
+        name=registry_name, template="nginx_chaos_proxy_sss.conf",
+        protocol="root", readiness="tcp",
+        template_values={"BIND_HOST": BIND_HOST, "KEYTAB": keytab,
+                         "SSS_ORIGIN_PORT": origin.port}, reason=reason,
+    ))
+    return _instance(instances, name, registry_name, endpoint)
+
+
+def _launch_registry_mesh(harness, data, credentials):
+    proxy, keytab, wrong_keytab = credentials
+    instances = {}
+    gsi_origin = _start_gsi_origin(harness, instances, data["gsi_data"])
+    sss_origin = _start_sss_origin(harness, instances, data["sss_data"], keytab)
+    cache = _start_cache(harness, instances, data, proxy, gsi_origin)
+    proxy_sss = _start_sss_proxy(
+        harness, instances, "proxy-sss", keytab, sss_origin,
+        "Chaos mixed-auth anon front, SSS upstream to sss-origin.",
+    )
+    proxy_bad = _start_sss_proxy(
+        harness, instances, "proxy-sss-bad", wrong_keytab, sss_origin,
+        "Chaos mixed-auth negative front, wrong SSS upstream keytab.",
+    )
+    return instances, gsi_origin, sss_origin, cache, proxy_sss, proxy_bad
+
+
+@pytest.fixture(scope="module")
+def mesh(tmp_path_factory):
+    _mesh_preflight()
+    root = tmp_path_factory.mktemp("chaos")
+    credentials = _mesh_credentials(root)
+    data = _mesh_data(root)
+    harness = LifecycleHarness()
     try:
-        # gsi-origin (X.509 backend)
-        gsi_ep = harness.start(NginxInstanceSpec(
-            name="chaos-gsi-origin",
-            template="nginx_chaos_gsi_origin.conf",
-            protocol="root",
-            data_root=str(gsi_data),
-            readiness="tcp",
-            template_values={"BIND_HOST": BIND_HOST,
-                             "SERVER_CERT": SERVER_CERT,
-                             "SERVER_KEY": SERVER_KEY,
-                             "TRUSTED_CA": f"{CA_DIR}/ca.pem"},
-            reason="Chaos mixed-auth GSI origin data server.",
-        ))
-        gsi_origin = _inst("gsi-origin", "chaos-gsi-origin", gsi_ep)
-
-        # sss-origin (SSS backend)
-        sss_ep = harness.start(NginxInstanceSpec(
-            name="chaos-sss-origin",
-            template="nginx_chaos_sss_origin.conf",
-            protocol="root",
-            data_root=str(sss_data),
-            readiness="tcp",
-            template_values={"BIND_HOST": BIND_HOST, "KEYTAB": kt},
-            reason="Chaos mixed-auth SSS origin data server.",
-        ))
-        sss_origin = _inst("sss-origin", "chaos-sss-origin", sss_ep)
-
-        # cache-gsi: anon front, X.509 UPSTREAM auth to gsi-origin.
-        cache_ep = harness.start(NginxInstanceSpec(
-            name="chaos-cache-gsi",
-            template="nginx_chaos_cache_gsi.conf",
-            protocol="root",
-            data_root=str(cache_gsi_export),
-            readiness="tcp",
-            template_values={"BIND_HOST": BIND_HOST,
-                             "PROXY_PEM": proxy_pem,
-                             "CA_DIR": CA_DIR,
-                             "GSI_ORIGIN_PORT": gsi_origin.port,
-                             "CACHE_DIR": str(cache_gsi_store)},
-            reason="Chaos mixed-auth anon front, X.509 upstream to gsi-origin.",
-        ))
-        cache_gsi = _inst("cache-gsi", "chaos-cache-gsi", cache_ep)
-
-        # proxy-sss: anon front, SSS UPSTREAM auth to sss-origin.
-        proxy_ep = harness.start(NginxInstanceSpec(
-            name="chaos-proxy-sss",
-            template="nginx_chaos_proxy_sss.conf",
-            protocol="root",
-            readiness="tcp",
-            template_values={"BIND_HOST": BIND_HOST, "KEYTAB": kt,
-                             "SSS_ORIGIN_PORT": sss_origin.port},
-            reason="Chaos mixed-auth anon front, SSS upstream to sss-origin.",
-        ))
-        proxy_sss = _inst("proxy-sss", "chaos-proxy-sss", proxy_ep)
-
-        # proxy-sss-bad: SSS upstream with the WRONG keytab (negative path).
-        proxy_bad_ep = harness.start(NginxInstanceSpec(
-            name="chaos-proxy-sss-bad",
-            template="nginx_chaos_proxy_sss.conf",
-            protocol="root",
-            readiness="tcp",
-            template_values={"BIND_HOST": BIND_HOST, "KEYTAB": kt_bad,
-                             "SSS_ORIGIN_PORT": sss_origin.port},
-            reason="Chaos mixed-auth negative front, wrong SSS upstream keytab.",
-        ))
-        proxy_bad = _inst("proxy-sss-bad", "chaos-proxy-sss-bad", proxy_bad_ep)
+        launched = _launch_registry_mesh(harness, data, credentials)
     except Exception:
         harness.close()
         raise
-
+    insts, gsi_origin, sss_origin, cache_gsi, proxy_sss, proxy_bad = launched
     ctx = {
         "harness": harness,
         "insts": insts,
@@ -346,8 +359,8 @@ def mesh(tmp_path_factory):
         "proxy_bad": proxy_bad,
         "gsi_origin": gsi_origin,
         "sss_origin": sss_origin,
-        "payload_gsi": payload_gsi,
-        "payload_sss": payload_sss,
+        "payload_gsi": data["payload_gsi"],
+        "payload_sss": data["payload_sss"],
     }
     yield ctx
 

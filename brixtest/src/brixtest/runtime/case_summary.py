@@ -24,6 +24,7 @@ def write_case_summary(manager, *, error: str = "") -> None:
         "servers": {
             name: {
                 "host": item.host, "ports": dict(item.ports),
+                "hosts": dict(item.hosts),
                 "config": str(item.config), "log": str(item.log),
                 "config_filename": item.config_filename or item.config.name,
                 "instance_id": item.instance_id, "scope": item.scope,
@@ -43,6 +44,14 @@ def write_case_summary(manager, *, error: str = "") -> None:
             name: {"path": str(item.path), "sha256": item.sha256}
             for name, item in sorted(manager.binary_store._captured.items())
         },
+        "volumes": {
+            name: item.as_dict()
+            for name, item in sorted(manager._managed.volumes._items.items())
+        },
+        "tasks": {
+            name: item.as_dict()
+            for name, item in sorted(manager._managed.tasks.items())
+        },
         **manager.security.summary(),
         "error": error,
         "metrics": manager.metrics.snapshot(),
@@ -53,35 +62,59 @@ def write_case_summary(manager, *, error: str = "") -> None:
     )
 
 
-def finalize_evidence(manager) -> str:
-    configs = {
-        name: item.rendered for name, item in manager.config_store._items.items()
-    }
-    environment_names = []
+def _environment_names(variable: str) -> list[str]:
+    default = "[]" if "KEYS" in variable else "{}"
+    try:
+        raw = json.loads(os.environ.get(variable, default))
+    except (TypeError, ValueError):
+        return []
+    if isinstance(raw, list):
+        return raw
+    if isinstance(raw, dict):
+        return list(raw)
+    return []
+
+
+def _declared_environment_names() -> list[str]:
+    names = []
     for variable in (
         "BRIXTEST_TEST_ENV_KEYS_JSON", "BRIXTEST_SERVER_ENV_JSON",
         "BRIXTEST_CLIENT_ENV_JSON",
     ):
-        try:
-            raw = json.loads(os.environ.get(variable, "[]" if "KEYS" in variable else "{}"))
-        except (TypeError, ValueError):
-            raw = []
-        environment_names.extend(raw if isinstance(raw, list) else raw.keys())
+        names.extend(_environment_names(variable))
+    return names
+
+
+def _finalize_extra(manager) -> dict:
+    return {
+        "servers": sorted(manager._services),
+        "credentials": sorted(manager.definition.credentials, key=lambda item: item.name),
+        "auth_stacks": [item.name for item in manager.definition.auth],
+        "volumes": sorted(manager._managed.volumes._items),
+        "tasks": sorted(manager._managed.tasks),
+        "resource_graph": manager._resource_graph.as_dict(),
+    }
+
+
+def _evidence_error(errors: list[dict]) -> str:
+    return "; ".join(
+        str(item.get("detail", item.get("kind", "evidence error")))
+        for item in errors
+    )
+
+
+def finalize_evidence(manager) -> str:
+    configs = {name: item.rendered for name, item in manager.config_store._items.items()}
     manager.evidence.finalize(
         outcome=manager._outcome,
         binaries=manager.binary_store._captured,
         configs=configs,
-        environment_names=environment_names,
-        extra={
-            "servers": sorted(manager._services),
-            "credentials": sorted(manager.definition.credentials, key=lambda item: item.name),
-            "auth_stacks": [item.name for item in manager.definition.auth],
-        },
+        environment_names=_declared_environment_names(),
+        extra=_finalize_extra(manager),
     )
     errors = manager.evidence.error_findings()
     if manager._outcome == "passed" and errors:
         manager._outcome = "teardown-failed"
         manager.metrics.tag("outcome", manager._outcome)
-        return "; ".join(str(item.get("detail", item.get("kind", "evidence error")))
-                         for item in errors)
+        return _evidence_error(errors)
     return ""

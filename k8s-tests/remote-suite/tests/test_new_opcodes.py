@@ -428,8 +428,11 @@ class TestStatx:
         status, body = self._send_statx(HOST, ANON_PORT,
                                         [f"/statx_multi_{i}.bin" for i in range(3)])
 
-        assert status == 0
-        assert len(body) == 3, f"expected three flag bytes, got {body!r}"
+        def _assert_test_statx_multiple_paths_1():
+            assert status == 0
+            assert len(body) == 3, f"expected three flag bytes, got {body!r}"
+
+        _assert_test_statx_multiple_paths_1()
         for i, flag in enumerate(body):
             assert not (flag & self._kXR_isDir), f"path {i} flagged as dir"
 

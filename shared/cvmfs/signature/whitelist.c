@@ -47,77 +47,147 @@ static size_t find_marker(const unsigned char *b, size_t len) {
     return (size_t) -1;
 }
 
-int cvmfs_whitelist_parse(const unsigned char *buf, size_t len, cvmfs_whitelist_t *out) {
-    memset(out, 0, sizeof(*out));
+typedef struct {
+    size_t lineno;
+    long   explicit_expiry;
+    long   first_timestamp;
+} whitelist_body_state_t;
 
-    size_t marker = find_marker(buf, len);
-    if (marker == (size_t) -1) return -1;
+/*
+ * WHAT: Recognize an authoritative E-prefixed whitelist expiry line.
+ * WHY:  Certificate fingerprints can also begin with E followed by a digit.
+ * HOW:  Require E plus fourteen consecutive decimal digits before accepting it.
+ */
+static int is_expiry_line(const unsigned char *line, size_t len) {
+    size_t i;
 
-    /* Real CVMFS whitelists put the authoritative expiry on the "E<14 digits>"
-     * line; line 0 is the *creation* timestamp. Older/synthetic whitelists have
-     * only the line-0 timestamp — use it as a fallback. Fingerprint lines may
-     * carry a trailing "# comment", so only the leading token is the fingerprint. */
-    size_t i = 0, lineno = 0;
-    long   e_expiry = 0, first_ts = 0;
-    while (i < marker) {
-        size_t j = i;
-        while (j < marker && buf[j] != '\n') j++;
-        size_t n = j - i;
-        const unsigned char *L = buf + i;
+    if (len < 15 || line[0] != 'E')
+        return 0;
+    for (i = 1; i <= 14; i++)
+        if (line[i] < '0' || line[i] > '9')
+            return 0;
+    return 1;
+}
 
-        /* "E<14 digits>" authoritative-expiry line. Disambiguate from a
-         * FINGERPRINT that also starts with 'E' — not just "EA:74:..." (2nd char
-         * a hex letter) but ALSO "E8:49:..." whenever the signing cert's SHA-1
-         * first byte is 0xE0..0xE9 (~4% of certs). The old test looked at L[1]
-         * alone, so an E0..E9 fingerprint was swallowed here and never stored,
-         * and a perfectly valid mount then failed the trust gate with -9. A real
-         * expiry line is 'E' followed by 14 consecutive DECIMAL digits; a
-         * fingerprint breaks that run at its ':' (index 2). */
-        int is_e_expiry = (n >= 15 && L[0] == 'E');
-        for (size_t k = 1; is_e_expiry && k <= 14; k++) {
-            if (L[k] < '0' || L[k] > '9') is_e_expiry = 0;
-        }
-        if (is_e_expiry) {
-            long e = parse_expiry(L + 1, n - 1);
-            if (e > 0) e_expiry = e;
-        } else if (lineno == 0) {
-            first_ts = parse_expiry(L, n);
-        } else if (n >= 1 && L[0] == 'N') {
-            /* "N<fqrn>" — binds the whitelist to one repository. A fingerprint
-             * never starts with 'N' (hex alphabet is 0-9A-F), so this is
-             * unambiguous. Last write wins; kept for the client's repo check. */
-            size_t c = n - 1 < sizeof(out->repo_name) - 1 ? n - 1 : sizeof(out->repo_name) - 1;
-            memcpy(out->repo_name, L + 1, c);
-            out->repo_name[c] = '\0';
-        } else {
-            size_t t = 0;
-            while (t < n && L[t] != ' ' && L[t] != '\t' && L[t] != '#') t++;
-            if (is_fp_line(L, t) && out->n_fingerprints < 16) {
-                size_t c = t < 59 ? t : 59;
-                memcpy(out->fingerprints[out->n_fingerprints], L, c);
-                out->fingerprints[out->n_fingerprints][c] = '\0';
-                out->n_fingerprints++;
-            }
-        }
-        lineno++;
-        i = j + 1;
+/*
+ * WHAT: Store the repository binding from an N-prefixed whitelist line.
+ * WHY:  The client compares this bounded value with its requested repository.
+ * HOW:  Truncate to the destination capacity, copy, and terminate explicitly.
+ */
+static void store_repo_name(cvmfs_whitelist_t *out,
+                            const unsigned char *line, size_t len) {
+    size_t copy_len = len - 1;
+
+    if (copy_len >= sizeof(out->repo_name))
+        copy_len = sizeof(out->repo_name) - 1;
+    memcpy(out->repo_name, line + 1, copy_len);
+    out->repo_name[copy_len] = '\0';
+}
+
+/*
+ * WHAT: Store a valid leading fingerprint token from a whitelist line.
+ * WHY:  Fingerprint lines may carry whitespace and trailing comments.
+ * HOW:  Bound the first token, validate its grammar, and append within the cap.
+ */
+static void store_fingerprint(cvmfs_whitelist_t *out,
+                              const unsigned char *line, size_t len) {
+    size_t token_len = 0;
+    size_t copy_len;
+
+    while (token_len < len && line[token_len] != ' ' &&
+           line[token_len] != '\t' && line[token_len] != '#')
+        token_len++;
+    if (!is_fp_line(line, token_len) || out->n_fingerprints >= 16)
+        return;
+    copy_len = token_len < 59 ? token_len : 59;
+    memcpy(out->fingerprints[out->n_fingerprints], line, copy_len);
+    out->fingerprints[out->n_fingerprints][copy_len] = '\0';
+    out->n_fingerprints++;
+}
+
+/*
+ * WHAT: Apply one unsigned whitelist body line to parser state.
+ * WHY:  Expiry, repository, and fingerprint lines have distinct grammars.
+ * HOW:  Dispatch by unambiguous form and preserve line-zero expiry fallback.
+ */
+static void parse_body_line(cvmfs_whitelist_t *out,
+                            whitelist_body_state_t *state,
+                            const unsigned char *line, size_t len) {
+    if (is_expiry_line(line, len)) {
+        long expiry = parse_expiry(line + 1, len - 1);
+
+        if (expiry > 0)
+            state->explicit_expiry = expiry;
+    } else if (state->lineno == 0) {
+        state->first_timestamp = parse_expiry(line, len);
+    } else if (len >= 1 && line[0] == 'N') {
+        store_repo_name(out, line, len);
+    } else {
+        store_fingerprint(out, line, len);
     }
-    out->expiry_utc = e_expiry > 0 ? e_expiry : first_ts;
-    if (out->expiry_utc == 0) return -1;
+    state->lineno++;
+}
+
+/*
+ * WHAT: Parse all unsigned whitelist body lines before the signature marker.
+ * WHY:  Body field extraction must remain separate from signed-tail framing.
+ * HOW:  Walk newline-delimited spans and apply each through parse_body_line.
+ */
+static int parse_body(const unsigned char *buf, size_t marker,
+                      cvmfs_whitelist_t *out) {
+    whitelist_body_state_t state = {0};
+    size_t                 offset = 0;
+
+    while (offset < marker) {
+        size_t end = offset;
+
+        while (end < marker && buf[end] != '\n')
+            end++;
+        parse_body_line(out, &state, buf + offset, end - offset);
+        offset = end + 1;
+    }
+    out->expiry_utc = state.explicit_expiry > 0 ? state.explicit_expiry
+                                                 : state.first_timestamp;
+    return out->expiry_utc == 0 ? -1 : 0;
+}
+
+/*
+ * WHAT: Frame the signed hash line and opaque signature after the body marker.
+ * WHY:  Signature verification needs both the exact printed hash and raw bytes.
+ * HOW:  Locate the newline, parse the bounded hash, and expose remaining bytes.
+ */
+static int parse_signed_tail(const unsigned char *buf, size_t len,
+                             size_t marker, cvmfs_whitelist_t *out) {
+    size_t p;
+    size_t h;
 
     out->signed_body = buf;
     out->signed_body_len = marker + 3;
-
-    size_t p = out->signed_body_len;
-    size_t h = p;
-    while (h < len && buf[h] != '\n') h++;   /* the hash line is the signed text */
-    if (h >= len) return -1;
+    p = out->signed_body_len;
+    h = p;
+    while (h < len && buf[h] != '\n')
+        h++;
+    if (h >= len)
+        return -1;
     cvmfs_hash_parse((const char *) buf + p, h - p, &out->signed_hash);
     out->signed_hash_text = buf + p;
     out->signed_hash_text_len = h - p;
     out->signature = buf + h + 1;
     out->signature_len = len - (h + 1);
     return out->signature_len == 0 ? -1 : 0;
+}
+
+int cvmfs_whitelist_parse(const unsigned char *buf, size_t len,
+                          cvmfs_whitelist_t *out) {
+    size_t marker;
+
+    memset(out, 0, sizeof(*out));
+    marker = find_marker(buf, len);
+    if (marker == (size_t) -1)
+        return -1;
+    if (parse_body(buf, marker, out) != 0)
+        return -1;
+    return parse_signed_tail(buf, len, marker, out);
 }
 
 int cvmfs_whitelist_lists_fp(const cvmfs_whitelist_t *w, const char *fp_hex) {

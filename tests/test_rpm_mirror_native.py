@@ -460,8 +460,11 @@ def test_prefetch_warms_primary_and_filelists_before_the_client_asks(
     # point, and the only way to tell a warmed object from a lucky one.
     for name in names:
         uri = PREFIX + "repodata/" + name
-        assert get(warm.base + uri)[0] == 200
-        assert len(hits(base, method="GET", path_suffix=name)) == 1
+        def _assert_test_prefetch_warms_primary_and_filelists_before_the_client_asks_4():
+            assert get(warm.base + uri)[0] == 200
+            assert len(hits(base, method="GET", path_suffix=name)) == 1
+
+        _assert_test_prefetch_warms_primary_and_filelists_before_the_client_asks_4()
 
 
 def test_prefetch_failure_is_invisible_to_the_client(lifecycle, origin,
@@ -479,15 +482,21 @@ def test_prefetch_failure_is_invisible_to_the_client(lifecycle, origin,
     primary = [n for n in _warm_names(repo) if "-primary" in n][0]
     fault(base, "notfound", path_re=primary)
 
-    assert get(warm.base + repomd)[0] == 200
-    assert _wait_for_hit(base, primary, method=None), "the warm fill never ran"
+    def _assert_test_prefetch_failure_is_invisible_to_the_client_2():
+        assert get(warm.base + repomd)[0] == 200
+        assert _wait_for_hit(base, primary, method=None), "the warm fill never ran"
+
+    _assert_test_prefetch_failure_is_invisible_to_the_client_2()
     assert PREFIX.lstrip("/") + "repodata/" + primary not in \
         cache_files(warm.cache)
 
     fault(base, "none")
     uri = PREFIX + "repodata/" + primary
-    assert get(warm.base + uri)[0] == 200
-    assert PREFIX.lstrip("/") + "repodata/" + primary in cache_files(warm.cache)
+    def _assert_test_prefetch_failure_is_invisible_to_the_client_3():
+        assert get(warm.base + uri)[0] == 200
+        assert PREFIX.lstrip("/") + "repodata/" + primary in cache_files(warm.cache)
+
+    _assert_test_prefetch_failure_is_invisible_to_the_client_3()
 
 
 def test_prefetch_fetches_nothing_the_grammar_would_refuse(lifecycle, origin,
@@ -530,9 +539,12 @@ def test_prefetch_fetches_nothing_the_grammar_would_refuse(lifecycle, origin,
     for probe in ("passwd", "shadow", "evil.example", "filelists.xml.gz"):
         assert [r for r in hits(base) if probe in r["path"]] == [], \
             "the mirror followed a location it should have dropped: %s" % probe
-    assert [f for f in cache_files(warm.cache)
-            if "etc" in f or f.endswith("filelists.xml.gz")] == []
+    def _assert_test_prefetch_fetches_nothing_the_grammar_would_refuse_1():
+        assert [f for f in cache_files(warm.cache)
+                if "etc" in f or f.endswith("filelists.xml.gz")] == []
+    
+        # The one href that is a legal path but NOT a digest-named metadata file is
+        # the interesting drop: it is refused for what it is, and said so.
+        assert "not a digest-named metadata file" in error_log(warm.endpoint)
 
-    # The one href that is a legal path but NOT a digest-named metadata file is
-    # the interesting drop: it is refused for what it is, and said so.
-    assert "not a digest-named metadata file" in error_log(warm.endpoint)
+    _assert_test_prefetch_fetches_nothing_the_grammar_would_refuse_1()

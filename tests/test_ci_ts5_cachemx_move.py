@@ -80,27 +80,22 @@ HOPPERS = [("_cachemx", "XRDCP"), ("_cache_partial_helpers", "XRDCINFO")]
 _DEFS = (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)
 
 
+def _walk_bodies(node, prefix):
+    for child in node.body:
+        if not isinstance(child, _DEFS):
+            continue
+        name = prefix + child.name
+        blob = "".join(ast.dump(item, include_attributes=False)
+                       for item in child.body)
+        yield name, hashlib.sha256(blob.encode()).hexdigest()
+        if isinstance(child, ast.ClassDef):
+            yield from _walk_bodies(child, name + ".")
+
+
 def _bodies(path: pathlib.Path) -> dict:
-    """sha256 of every def/class body, by qualified name, position-independent.
-
-    ``include_attributes=False`` drops line numbers, which matters because the
-    archives keep the ``__file__`` hops these modules dropped: every line below
-    them differs by construction while the code does not.
-    """
-
-    def walk(node, prefix):
-        for child in node.body:
-            if not isinstance(child, _DEFS):
-                continue
-            name = prefix + child.name
-            blob = "".join(ast.dump(b, include_attributes=False)
-                           for b in child.body)
-            yield name, hashlib.sha256(blob.encode()).hexdigest()
-            if isinstance(child, ast.ClassDef):
-                yield from walk(child, name + ".")
-
+    """Hash every def/class body by its position-independent qualified name."""
     tree = ast.parse(path.read_text(encoding="utf-8"))
-    return dict(walk(tree, ""))
+    return dict(_walk_bodies(tree, ""))
 
 
 def _suite_env(extra=None):
@@ -231,22 +226,29 @@ def test_importing_the_package_does_not_start_or_import_the_stack():
         "importing the package pulled in submodules: %s" % out.stdout.strip())
 
 
+def _flat_imports(path: pathlib.Path) -> set[str]:
+    tree = ast.parse(path.read_text(encoding="utf-8"))
+    used = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            used.update(alias.name for alias in node.names if alias.name in MODULES)
+        if isinstance(node, ast.ImportFrom) and node.module in MODULES:
+            used.add(node.module)
+    return used
+
+
+def _consumer_paths():
+    current = pathlib.Path(__file__).name
+    return (path for path in sorted(TESTS.glob("*.py")) if path.name != current)
+
+
 def test_every_consumer_of_the_flat_spelling_still_imports_it():
     """The flat names the thirty-odd suites use must resolve, from ``tests/``.
 
     Enumerated from the tree rather than written down, so a suite that starts
     importing one of these is covered the day it does.
     """
-    used = set()
-    for path in sorted(TESTS.glob("*.py")):
-        if path.name == pathlib.Path(__file__).name:
-            continue
-        tree = ast.parse(path.read_text(encoding="utf-8"))
-        for node in ast.walk(tree):
-            if isinstance(node, ast.Import):
-                used |= {a.name for a in node.names if a.name in MODULES}
-            elif isinstance(node, ast.ImportFrom) and node.module in MODULES:
-                used.add(node.module)
+    used = set().union(*(_flat_imports(path) for path in _consumer_paths()))
     assert used, "no flat consumer found — this check has gone blind"
     out = _child("import importlib\n"
                  "for n in %r:\n"
@@ -352,6 +354,35 @@ def test_the_old_hop_would_have_named_a_real_but_wrong_directory(name, const):
         "this demonstration no longer demonstrates anything" % would_be)
 
 
+def _imported_names(node) -> set[str]:
+    return {(alias.asname or alias.name).split(".")[0] for alias in node.names}
+
+
+def _bound_name(node) -> set[str]:
+    if isinstance(node, (ast.Import, ast.ImportFrom)):
+        return _imported_names(node)
+    if isinstance(node, _DEFS):
+        return {node.name}
+    if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Store):
+        return {node.id}
+    if isinstance(node, ast.arg):
+        return {node.arg}
+    if isinstance(node, (ast.Global, ast.Nonlocal)):
+        return set(node.names)
+    if isinstance(node, ast.ExceptHandler) and node.name:
+        return {node.name}
+    return set()
+
+
+def _missing_names(path: pathlib.Path) -> list[str]:
+    tree = ast.parse(path.read_text(encoding="utf-8"))
+    bound = set().union(*(_bound_name(node) for node in ast.walk(tree)))
+    free = {node.id for node in ast.walk(tree)
+            if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load)}
+    implicit = {"__file__", "__name__"}
+    return sorted(free - bound - set(vars(builtins)) - implicit)
+
+
 def test_no_module_reaches_a_name_it_never_binds():
     """No free name in the moved cluster is unresolvable.
 
@@ -360,31 +391,8 @@ def test_no_module_reaches_a_name_it_never_binds():
     for names that are neither bound in the module, imported by it, nor a
     builtin catches that at rest.
     """
-    problems = {}
-    for name in MODULES:
-        path = CACHEMX / (name + ".py")
-        tree = ast.parse(path.read_text(encoding="utf-8"))
-        bound = set()
-        for node in ast.walk(tree):
-            if isinstance(node, (ast.Import, ast.ImportFrom)):
-                bound |= {(a.asname or a.name).split(".")[0] for a in node.names}
-            elif isinstance(node, _DEFS):
-                bound.add(node.name)
-            elif isinstance(node, ast.Name) and isinstance(node.ctx, ast.Store):
-                bound.add(node.id)
-            elif isinstance(node, ast.arg):
-                bound.add(node.arg)
-            elif isinstance(node, (ast.Global, ast.Nonlocal)):
-                bound |= set(node.names)
-            elif isinstance(node, ast.ExceptHandler) and node.name:
-                bound.add(node.name)
-        free = {n.id for n in ast.walk(tree)
-                if isinstance(n, ast.Name) and isinstance(n.ctx, ast.Load)}
-        # ``__builtins__`` is a dict inside an imported module, so ask the
-        # builtins module itself rather than whatever this frame happens to see.
-        missing = sorted(free - bound - set(vars(builtins)) - {"__file__", "__name__"})
-        if missing:
-            problems[name] = missing
+    found = ((name, _missing_names(CACHEMX / (name + ".py"))) for name in MODULES)
+    problems = {name: missing for name, missing in found if missing}
     assert not problems, "unbound names after the move: %s" % problems
 
 

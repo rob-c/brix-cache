@@ -1,15 +1,12 @@
-"""Settings helpers: one precedence rule, spelled out once (contract C2).
+"""Settings parsing with constructor, environment, and default precedence.
 
 Every tunable in BriXTest resolves **constructor argument > environment
 variable > coded default**, and the environment read happens exactly
 once, at construction time.  These helpers are how adapter settings
 classes implement that rule without each inventing its own parsing.
 
-``install_legacy_module`` is the migration shim machinery (charter
-§10): it publishes an object under a legacy module name in
-``sys.modules`` so grown ``import`` sites keep working while call
-sites are moved over, and records what it installed so the shim
-inventory can be printed — and eventually deleted.
+``install_legacy_module`` publishes an object under a legacy module name in
+``sys.modules`` and records it for the compatibility inventory.
 """
 
 from __future__ import annotations

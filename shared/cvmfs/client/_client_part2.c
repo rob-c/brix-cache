@@ -133,6 +133,54 @@ static void chunk_read_cb(uint64_t coff, uint64_t csize, const cvmfs_hash_t *h, 
     free(cd);
 }
 
+/*
+ * WHAT: Attempt an unchunked file read through the pinned mmap path index.
+ * WHY:  Valid index hits avoid catalog opens while corrupt hits must fail safe.
+ * HOW:  Check revision/hash/type, read CAS, and clear the index on read failure.
+ */
+static int read_from_index(cvmfs_client_t *cl, const char *path,
+                           uint64_t offset, size_t len, unsigned char *buf,
+                           size_t *outlen, long now) {
+    const cvmfs_hash_t *served;
+    cvmfs_dirent_t      entry;
+
+    if (!cl->pidx_set)
+        return 0;
+    served = cl->pin_set ? &cl->pin_root : &cl->manifest.root_catalog;
+    if (!cvmfs_hash_eq(&cl->pidx_root, served) ||
+        cvmfs_pathidx_lookup(&cl->pidx, path, &entry) != 1 ||
+        !(entry.flags & CVMFS_FLAG_FILE) ||
+        (entry.flags & CVMFS_FLAG_FILE_CHUNK) || !entry.has_hash)
+        return 0;
+    if (read_whole(cl, &entry, offset, len, buf, outlen, now) == 0)
+        return 1;
+    cvmfs_client_pathidx_clear(cl);
+    return 0;
+}
+
+/*
+ * WHAT: Read a requested range from a catalog-described chunked file.
+ * WHY:  Chunk maps live in the catalog and require the overlap callback path.
+ * HOW:  Seed callback state, enumerate chunks, and return the accumulated bytes.
+ */
+static int read_chunked(cvmfs_client_t *cl, cvmfs_catalog_t *cat,
+                        const char *path, uint64_t offset, size_t len,
+                        unsigned char *buf, size_t *outlen, long now) {
+    chunk_read_t read_state;
+
+    memset(&read_state, 0, sizeof(read_state));
+    read_state.cl = cl;
+    read_state.offset = offset;
+    read_state.len = len;
+    read_state.buf = buf;
+    read_state.now = now;
+    if (cvmfs_catalog_chunks(cat, path, chunk_read_cb, &read_state) < 0 ||
+        read_state.err)
+        return -1;
+    *outlen = read_state.got;
+    return 0;
+}
+
 int cvmfs_client_read(cvmfs_client_t *cl, const char *path, uint64_t offset,
                       size_t len, unsigned char *buf, size_t *outlen, long now) {
     /* G6: an index-resolved UNCHUNKED file reads straight from CAS with the
@@ -142,36 +190,19 @@ int cvmfs_client_read(cvmfs_client_t *cl, const char *path, uint64_t offset,
      * genuinely unfetchable object): fail SAFE, drop the whole index, take
      * the catalog path. Over-invalidating on a transient network error only
      * costs the fast path. */
-    if (cl->pidx_set) {
-        const cvmfs_hash_t *served = cl->pin_set ? &cl->pin_root
-                                                 : &cl->manifest.root_catalog;
-        cvmfs_dirent_t ie;
-        if (cvmfs_hash_eq(&cl->pidx_root, served)
-            && cvmfs_pathidx_lookup(&cl->pidx, path, &ie) == 1
-            && (ie.flags & CVMFS_FLAG_FILE)
-            && !(ie.flags & CVMFS_FLAG_FILE_CHUNK)
-            && ie.has_hash) {
-            if (read_whole(cl, &ie, offset, len, buf, outlen, now) == 0)
-                return 0;
-            cvmfs_client_pathidx_clear(cl);
-        }
-    }
+    if (read_from_index(cl, path, offset, len, buf, outlen, now) == 1)
+        return 0;
 
-    cvmfs_catalog_t *cat = NULL; int owns = 0; char tmp[512];
+    cvmfs_catalog_t *cat = NULL; int owns = 0; char tmp[512] = {0};
     cvmfs_dirent_t e;
     int found = resolve_full(cl, path, &e, &cat, &owns, tmp, sizeof(tmp), now);
     int rc = -1;
 
     if (found == 1 && (e.flags & CVMFS_FLAG_FILE)) {
-        if (e.flags & CVMFS_FLAG_FILE_CHUNK) {
-            chunk_read_t r; memset(&r, 0, sizeof(r));
-            r.cl = cl; r.offset = offset; r.len = len; r.buf = buf; r.now = now;
-            if (cvmfs_catalog_chunks(cat, path, chunk_read_cb, &r) >= 0 && !r.err) {
-                *outlen = r.got; rc = 0;
-            }
-        } else {
+        if (e.flags & CVMFS_FLAG_FILE_CHUNK)
+            rc = read_chunked(cl, cat, path, offset, len, buf, outlen, now);
+        else
             rc = read_whole(cl, &e, offset, len, buf, outlen, now);
-        }
     }
     if (owns) { cvmfs_catalog_close(cat); if (tmp[0]) unlink(tmp); }
     return rc;
@@ -185,6 +216,72 @@ static int put_val(char *out, size_t outlen, const char *val) {
     size_t n = strlen(val);
     if (outlen >= n) memcpy(out, val, n);
     return (int) n;
+}
+
+/*
+ * WHAT: Render the revision served by the pinned or current root catalog.
+ * WHY:  A pinned mount must not report an advanced manifest revision.
+ * HOW:  Prefer the pinned catalog property and fall back to manifest metadata.
+ */
+static void attr_revision(cvmfs_client_t *cl, char *val, size_t val_len) {
+    if (cl->pin_set && cl->root_catalog &&
+        cvmfs_catalog_property(cl->root_catalog, "revision", val, val_len) == 1)
+        return;
+    snprintf(val, val_len, "%ld", cl->manifest.revision);
+}
+
+/*
+ * WHAT: Render the currently selected upstream host or proxy route attribute.
+ * WHY:  Both attributes depend on the same failover selection at query time.
+ * HOW:  Select one route and format either host URL or proxy/DIRECT value.
+ */
+static int attr_route(cvmfs_client_t *cl, const char *name,
+                      char *val, size_t val_len, long now) {
+    cvmfs_fo_route_t route;
+
+    if (cvmfs_failover_select(&cl->fo, now, &route) != 0)
+        return -1;
+    if (strcmp(name, "user.host") == 0)
+        snprintf(val, val_len, "%s", cl->fo.hosts[route.host].url);
+    else
+        snprintf(val, val_len, "%s",
+                 route.proxy >= 0 ? cl->fo.proxies[route.proxy].url : "DIRECT");
+    return 0;
+}
+
+/*
+ * WHAT: Render a file's content hash or number of storage chunks.
+ * WHY:  These attributes require full path resolution and file-only metadata.
+ * HOW:  Resolve once, render the requested value, then close owned catalogs.
+ */
+static int attr_content(cvmfs_client_t *cl, const char *path,
+                        const char *name, char *val, size_t val_len, long now) {
+    cvmfs_catalog_t *cat = NULL;
+    cvmfs_dirent_t   entry;
+    char             tmp[512] = {0};
+    int              owns = 0;
+    int              rc = -1;
+    int              found;
+
+    found = resolve_full(cl, path, &entry, &cat, &owns, tmp, sizeof(tmp), now);
+    if (found == 1 && (entry.flags & CVMFS_FLAG_FILE)) {
+        if (strcmp(name, "user.hash") == 0 && entry.has_hash) {
+            cvmfs_hash_to_hex(&entry.hash, 0, val, val_len);
+            rc = 0;
+        } else if (strcmp(name, "user.nchunks") == 0) {
+            int chunks = (entry.flags & CVMFS_FLAG_FILE_CHUNK)
+                         ? cvmfs_catalog_chunks(cat, path, NULL, NULL) : 1;
+
+            snprintf(val, val_len, "%d", chunks < 0 ? 0 : chunks);
+            rc = 0;
+        }
+    }
+    if (owns) {
+        cvmfs_catalog_close(cat);
+        if (tmp[0])
+            unlink(tmp);
+    }
+    return rc;
 }
 
 int cvmfs_client_getxattr(cvmfs_client_t *cl, const char *path, const char *name,
@@ -206,39 +303,17 @@ int cvmfs_client_getxattr(cvmfs_client_t *cl, const char *path, const char *name
     } else if (strcmp(name, "user.revision") == 0) {
         /* Pinned: report the SERVED catalog's own revision, not the (possibly
          * advanced) manifest's; fall through when the catalog records none. */
-        if (!(cl->pin_set && cl->root_catalog
-                && cvmfs_catalog_property(cl->root_catalog, "revision",
-                                          val, sizeof(val)) == 1))
-            snprintf(val, sizeof(val), "%ld", cl->manifest.revision);
+        attr_revision(cl, val, sizeof(val));
     } else if (strcmp(name, "user.root_hash") == 0) {
         /* A pinned mount serves the pin, whatever the manifest advertises. */
         cvmfs_hash_to_hex(cl->pin_set ? &cl->pin_root : &cl->manifest.root_catalog,
                           0, val, sizeof(val));
     } else if (strcmp(name, "user.host") == 0 || strcmp(name, "user.proxy") == 0) {
-        cvmfs_fo_route_t r;
-        if (cvmfs_failover_select(&cl->fo, now, &r) != 0) return -1;
-        if (strcmp(name, "user.host") == 0)
-            snprintf(val, sizeof(val), "%s", cl->fo.hosts[r.host].url);
-        else
-            snprintf(val, sizeof(val), "%s",
-                     r.proxy >= 0 ? cl->fo.proxies[r.proxy].url : "DIRECT");
+        if (attr_route(cl, name, val, sizeof(val), now) != 0)
+            return -1;
     } else if (strcmp(name, "user.hash") == 0 || strcmp(name, "user.nchunks") == 0) {
-        cvmfs_catalog_t *cat = NULL; int owns = 0; char tmp[512];
-        cvmfs_dirent_t e;
-        int found = resolve_full(cl, path, &e, &cat, &owns, tmp, sizeof(tmp), now);
-        int rc = -1;
-        if (found == 1 && (e.flags & CVMFS_FLAG_FILE)) {
-            if (strcmp(name, "user.hash") == 0) {
-                if (e.has_hash) { cvmfs_hash_to_hex(&e.hash, 0, val, sizeof(val)); rc = 0; }
-            } else {
-                int n = (e.flags & CVMFS_FLAG_FILE_CHUNK)
-                        ? cvmfs_catalog_chunks(cat, path, NULL, NULL) : 1;
-                snprintf(val, sizeof(val), "%d", n < 0 ? 0 : n);
-                rc = 0;
-            }
-        }
-        if (owns) { cvmfs_catalog_close(cat); if (tmp[0]) unlink(tmp); }
-        if (rc != 0) return -1;
+        if (attr_content(cl, path, name, val, sizeof(val), now) != 0)
+            return -1;
     } else {
         return -1;   /* not a magic attribute we define */
     }

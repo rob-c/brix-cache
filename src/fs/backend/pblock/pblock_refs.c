@@ -313,62 +313,84 @@ pblock_refs_dedup_publish(pblock_state_t *st, const char *path,
     return 1;
 }
 
+/*
+ * WHAT: Populate a fresh private blob for a copy-on-write break.
+ * WHY:  Truncation needs one empty block while ordinary writes clone all blocks.
+ * HOW:  Create the object directory, then initialize or copy with rollback.
+ */
+static int
+refs_populate_private(pblock_state_t *st, const pblock_meta *meta,
+    const char *fresh, int trunc)
+{
+    if (pblock_ensure_obj_dir(st, fresh) != 0)
+        return -1;
+    if (trunc) {
+        char path[PATH_MAX];
+        int  fd;
+
+        if (pblock_block_path(st, fresh, 0, path, sizeof(path)) != 0)
+            return -1;
+        fd = open(path, O_RDWR | O_CREAT | O_EXCL, 0600);
+        if (fd < 0)
+            return -1;
+        close(fd);
+        return 0;
+    }
+    for (int64_t block = 0;
+         block <= pblock_last_block(meta->size, meta->block_size); block++) {
+        char source[PATH_MAX], destination[PATH_MAX];
+
+        if (pblock_block_path(st, meta->blob_id, block, source,
+                             sizeof(source)) != 0 ||
+            pblock_block_path(st, fresh, block, destination,
+                             sizeof(destination)) != 0 ||
+            pblock_copy_one_block(source, destination) < 0) {
+            int err = errno;
+
+            pblock_remove_blocks(st, fresh, meta->size, meta->block_size);
+            errno = err;
+            return -1;
+        }
+    }
+    return 0;
+}
+
+/*
+ * WHAT: Copy at-rest CRC rows from a shared blob to its byte-identical clone.
+ * WHY:  A private copy retains the same integrity tags when CSI is enabled.
+ * HOW:  Insert-select all source rows under the fresh blob id, best effort.
+ */
+static void
+refs_copy_csi(pblock_state_t *st, const char *source, const char *fresh)
+{
+    sqlite3_stmt *query = cat_prepare(st->cat,
+        "INSERT OR REPLACE INTO csi(blob_id, block_no, crc)"
+        " SELECT ?2, block_no, crc FROM csi WHERE blob_id = ?1;");
+
+    if (query == NULL)
+        return;
+    sqlite3_bind_text(query, 1, source, -1, SQLITE_STATIC);
+    sqlite3_bind_text(query, 2, fresh, -1, SQLITE_STATIC);
+    (void) sqlite3_step(query);
+    sqlite3_finalize(query);
+}
+
 int
 pblock_refs_break_share(pblock_state_t *st, const char *path,
     pblock_meta *meta, int trunc)
 {
-    char    fresh[PBLOCK_BLOB_ID_CAP];
-    int64_t last, i;
-    int     n;
+    char fresh[PBLOCK_BLOB_ID_CAP];
+    int  count = pblock_refs_count(st, meta->blob_id);
 
-    n = pblock_refs_count(st, meta->blob_id);
-    if (n < 0) {
-        errno = EIO;                     /* can't prove the blob is private —
-                                          * refuse the write open, never write
-                                          * through a possibly-shared blob */
+    if (count < 0) {
+        errno = EIO;
         return -1;
     }
-    if (n <= 1) {
-        return 0;                        /* already private */
-    }
-
-    if (pblock_gen_blob_id(fresh) != 0
-        || pblock_ensure_obj_dir(st, fresh) != 0)
-    {
+    if (count <= 1)
+        return 0;
+    if (pblock_gen_blob_id(fresh) != 0 ||
+        refs_populate_private(st, meta, fresh, trunc) != 0)
         return -1;
-    }
-
-    if (trunc) {
-        /* Content is being replaced: start from an empty block 0 (the open
-         * path expects the file to exist) instead of copying doomed bytes. */
-        char bp[PATH_MAX];
-        int  fd;
-
-        if (pblock_block_path(st, fresh, 0, bp, sizeof(bp)) != 0) {
-            return -1;
-        }
-        fd = open(bp, O_RDWR | O_CREAT | O_EXCL, 0600);
-        if (fd < 0) {
-            return -1;
-        }
-        close(fd);
-    } else {
-        last = pblock_last_block(meta->size, meta->block_size);
-        for (i = 0; i <= last; i++) {
-            char sp[PATH_MAX], dp[PATH_MAX];
-
-            if (pblock_block_path(st, meta->blob_id, i, sp, sizeof(sp)) != 0
-                || pblock_block_path(st, fresh, i, dp, sizeof(dp)) != 0
-                || pblock_copy_one_block(sp, dp) < 0)
-            {
-                int err = errno;
-
-                pblock_remove_blocks(st, fresh, meta->size, meta->block_size);
-                errno = err;
-                return -1;
-            }
-        }
-    }
 
     if (refs_repoint(st, path, fresh) != 0) {
         int err = errno;
@@ -377,20 +399,8 @@ pblock_refs_break_share(pblock_state_t *st, const char *path,
         errno = err;
         return -1;
     }
-    if (st->csi && !trunc) {
-        /* Carry the at-rest CRCs to the private copy (same bytes, same tags);
-         * best-effort — missing tags read as "unset", never as corruption. */
-        sqlite3_stmt *q = cat_prepare(st->cat,
-            "INSERT OR REPLACE INTO csi(blob_id, block_no, crc)"
-            " SELECT ?2, block_no, crc FROM csi WHERE blob_id = ?1;");
-
-        if (q != NULL) {
-            sqlite3_bind_text(q, 1, meta->blob_id, -1, SQLITE_STATIC);
-            sqlite3_bind_text(q, 2, fresh, -1, SQLITE_STATIC);
-            (void) sqlite3_step(q);
-            sqlite3_finalize(q);
-        }
-    }
+    if (st->csi && !trunc)
+        refs_copy_csi(st, meta->blob_id, fresh);
     (void) pblock_refs_track(st, fresh, meta->size, meta->block_size, 0, 0);
     pblock_refs_release(st, meta->blob_id, meta->size, meta->block_size);
     snprintf(meta->blob_id, sizeof(meta->blob_id), "%s", fresh);

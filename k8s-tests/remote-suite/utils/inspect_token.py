@@ -11,6 +11,11 @@ import json
 import sys
 
 
+def _guard_main_1(args):
+    if args.token:
+        print()
+
+
 def b64url_decode(part):
     padding = "=" * ((4 - len(part) % 4) % 4)
     return base64.urlsafe_b64decode(part + padding)
@@ -54,8 +59,7 @@ def main():
         print_json("Payload", payload)
 
     if args.jwks:
-        if args.token:
-            print()
+        _guard_main_1(args)
         with open(args.jwks, "r", encoding="utf-8") as f:
             jwks = json.load(f)
         key_ids = [key.get("kid", "<missing kid>") for key in jwks.get("keys", [])]

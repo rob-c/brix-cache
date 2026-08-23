@@ -1,16 +1,6 @@
-"""Per-test workspaces (feature F18): scratch space without pytest's
-basetemp.
+"""Lane-confined, uniquely named per-test workspaces.
 
-Two incidents shaped this module.  pytest's shared-basetemp rotation
-once raced under xdist — one worker's numbered-directory cleanup
-deleted another worker's live scratch tree.  And system tmp reapers
-plus concurrent lanes made bare ``tempfile.mkdtemp()`` a lottery.  So:
-every workspace lives under the **lane** (nothing outside the lane is
-ever ours to create or delete), each is named for its test so a human
-can find it from a failure message, uniqueness comes from a counter —
-never from cleanup-and-reuse — and nothing here ever deletes another
-test's directory.  Retention is explicit: ``sweep()`` removes only
-workspaces this allocator created in this process, and only when told.
+``sweep()`` removes only workspaces created by the current allocator.
 """
 
 from __future__ import annotations
@@ -33,6 +23,14 @@ def _safe_stem(test_id: str) -> str:
     """A filesystem-safe, human-recognizable stem from a pytest nodeid."""
     stem = _UNSAFE.sub("_", test_id).strip("_")
     return stem[-_MAX_STEM:] if len(stem) > _MAX_STEM else stem or "test"
+
+
+def _remove_tree(path: Path) -> bool:
+    try:
+        shutil.rmtree(path)
+    except OSError:
+        return False
+    return True
 
 
 class WorkspaceAllocator:
@@ -76,12 +74,6 @@ class WorkspaceAllocator:
         Returns how many were removed."""
         with self._lock:
             victims = self._created[: len(self._created) - keep if keep else None]
-            removed = 0
-            for path in victims:
-                try:
-                    shutil.rmtree(path)
-                    removed += 1
-                except OSError:
-                    pass
+            removed = sum(_remove_tree(path) for path in victims)
             self._created = [p for p in self._created if p.exists()]
         return removed

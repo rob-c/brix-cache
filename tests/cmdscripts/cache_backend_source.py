@@ -9,6 +9,8 @@ import subprocess
 import time
 
 from cmdscripts import run
+from cmdscripts.cache_source_helpers import exact_transfer, start_servers, stop_servers
+from cmdscripts.command_results import print_results, selected_binary
 from fleet_ports import cmdscript_ports
 from settings import BIND_HOST, HOST, NGINX_BIN
 
@@ -91,14 +93,11 @@ def run_checks(base: Path, nginx_bin: str = NGINX_BIN, xrdfs: Path = XRDFS) -> l
     (origin / "root" / "small.bin").write_bytes(deterministic_bytes(500_000, 53))
     (origin / "root" / "big.bin").write_bytes(deterministic_bytes(2_600_000, 59))
 
-    started: list[Path] = []
-    for name, prefix, conf in (("origin", origin, origin_conf), ("cache", node, node_conf)):
-        result = run([nginx_bin, "-p", str(prefix), "-c", str(conf)])
-        if result.returncode != 0:
-            for item in reversed(started):
-                stop_nginx(item)
-            return [(False, f"{name} start failed: {(result.stderr or result.stdout)[-4000:]}")]
-        started.append(prefix)
+    specifications = (("origin", origin, origin_conf),
+                      ("cache", node, node_conf))
+    started, failure = start_servers(nginx_bin, specifications, run, stop_nginx)
+    if failure:
+        return [failure]
 
     try:
         time.sleep(1)
@@ -106,42 +105,37 @@ def run_checks(base: Path, nginx_bin: str = NGINX_BIN, xrdfs: Path = XRDFS) -> l
         expected_small = (origin / "root" / "small.bin").read_bytes()
 
         cold_got = base / "cache_src_s.got"
-        cold = xrdfs_cat(cache_port, "/small.bin", cold_got, xrdfs)
         results.append(
             (
-                cold.returncode == 0 and cold_got.read_bytes() == expected_small,
+                exact_transfer(xrdfs_cat, cache_port, "/small.bin", cold_got,
+                               expected_small, xrdfs),
                 "byte-exact serve (filled from backend)",
             )
         )
         results.append(((node / "cache" / "small.bin").exists(), "object landed in the local cache (fill stored)"))
 
         warm_got = base / "cache_src_s2.got"
-        warm = xrdfs_cat(cache_port, "/small.bin", warm_got, xrdfs)
-        results.append((warm.returncode == 0 and warm_got.read_bytes() == expected_small, "warm hit byte-exact"))
+        warm_ok = exact_transfer(xrdfs_cat, cache_port, "/small.bin", warm_got,
+                                 expected_small, xrdfs)
+        results.append((warm_ok, "warm hit byte-exact"))
 
         big_got = base / "cache_src_b.got"
-        big = xrdfs_cat(cache_port, "/big.bin", big_got, xrdfs)
         expected_big = (origin / "root" / "big.bin").read_bytes()
-        results.append((big.returncode == 0 and big_got.read_bytes() == expected_big, "multi-chunk byte-exact"))
+        big_ok = exact_transfer(xrdfs_cat, cache_port, "/big.bin", big_got,
+                                expected_big, xrdfs)
+        results.append((big_ok, "multi-chunk byte-exact"))
         return results
     finally:
-        for prefix in reversed(started):
-            stop_nginx(prefix)
+        stop_servers(started, stop_nginx)
 
 
 def entry(argv: list[str]) -> int:
-    nginx_bin = argv[0] if argv else NGINX_BIN
+    nginx_bin = selected_binary(argv, NGINX_BIN)
     import tempfile
 
     with tempfile.TemporaryDirectory(prefix="cache_src.") as tmp:
         results = run_checks(Path(tmp), nginx_bin=nginx_bin)
-    for ok, message in results:
-        print(f"  {'ok  ' if ok else 'FAIL'} {message}")
-    if all(ok for ok, _ in results):
-        print("run_cache_backend_source: ALL PASS")
-        return 0
-    print("run_cache_backend_source: FAILURES")
-    return 1
+    return print_results(results, "run_cache_backend_source")
 
 
 if __name__ == "__main__":

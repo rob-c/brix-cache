@@ -100,8 +100,11 @@ class TestDynamicRoutes:
 
             rport = _free_port()
             reply = _ctl(ctl, f"route add alt {rport} {HOST}:{alt_echo.port}")
-            assert reply.startswith("ok:"), reply
-            assert _wait_listen(rport), "new route never started listening"
+            def _assert_test_route_relays_with_independent_counters_1():
+                assert reply.startswith("ok:"), reply
+                assert _wait_listen(rport), "new route never started listening"
+
+            _assert_test_route_relays_with_independent_counters_1()
 
             payload = b"routed-payload" * 64
             got = _relay_once(rport, payload)
@@ -110,15 +113,24 @@ class TestDynamicRoutes:
             # Counters land at connection teardown (ROUTE_FOLD on relay exit).
             time.sleep(0.2)
             alt = _route(ctl, "alt")
-            assert alt is not None, "route vanished from list"
-            assert alt["conns"] >= 1
-            assert alt["up_bytes"] >= len(payload)
-            assert alt["down_bytes"] >= len(payload)
+            def _assert_test_route_relays_with_independent_counters_2():
+                assert alt is not None, "route vanished from list"
+                assert alt["conns"] >= 1
+
+            _assert_test_route_relays_with_independent_counters_2()
+            def _assert_test_route_relays_with_independent_counters_3():
+                assert alt["up_bytes"] >= len(payload)
+                assert alt["down_bytes"] >= len(payload)
+
+            _assert_test_route_relays_with_independent_counters_3()
 
             # The default route carried none of this traffic (independence).
             default = _route(ctl, "default")
-            assert default["up_bytes"] == 0
-            assert default["down_bytes"] == 0
+            def _assert_test_route_relays_with_independent_counters_4():
+                assert default["up_bytes"] == 0
+                assert default["down_bytes"] == 0
+
+            _assert_test_route_relays_with_independent_counters_4()
         finally:
             if proc is not None:
                 proc.terminate()

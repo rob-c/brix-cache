@@ -97,6 +97,50 @@ sd_s3_size(sd_s3_file *f, int64_t *out_size, char *errbuf, size_t errcap)
     return 0;
 }
 
+/*
+ * WHAT: Validate the status and alignment of one ranged S3 GET response.
+ * WHY:  Ignored or shifted ranges would silently place wrong bytes at offset.
+ * HOW:  Accept EOF/200-at-zero/206-at-exact-offset and reject every other shape.
+ */
+static int
+sd_s3_validate_get(sd_s3_file *f, brix_s3_resp_t *resp, off_t off,
+    char *errbuf, size_t errcap)
+{
+    if (resp->status == 416) {
+        f->transport->resp_free(resp);
+        return 1;
+    }
+    if (resp->status != 206 && resp->status != 200) {
+        sd_s3_status_err(resp->status, "GET", f->key, errbuf, errcap);
+        f->transport->resp_free(resp);
+        return -1;
+    }
+    if (resp->status == 200 && off != 0) {
+        sd_s3_set_err(errbuf, errcap,
+            "s3 GET %s: origin ignored Range (200 for bytes=%lld-)",
+            f->key, (long long) off);
+        f->transport->resp_free(resp);
+        return -1;
+    }
+    if (resp->status == 206) {
+        char cr[128];
+        long long start = -1;
+
+        if (f->transport->resp_header(resp, "Content-Range", cr,
+                                      sizeof(cr)) == 0
+            && (sscanf(cr, "bytes %lld-", &start) != 1
+                || start != (long long) off))
+        {
+            sd_s3_set_err(errbuf, errcap,
+                "s3 GET %s: Content-Range \"%.80s\" is misaligned for %lld",
+                f->key, cr, (long long) off);
+            f->transport->resp_free(resp);
+            return -1;
+        }
+    }
+    return 0;
+}
+
 ssize_t
 sd_s3_pread(sd_s3_file *f, void *buf, size_t n, off_t off,
             char *errbuf, size_t errcap)
@@ -108,7 +152,7 @@ sd_s3_pread(sd_s3_file *f, void *buf, size_t n, off_t off,
     size_t           body_len = 0, n_capped;
     ssize_t          copied;
     int64_t          end;
-    int              cn;
+    int              cn, valid;
 
     if (n == 0) {
         return 0;
@@ -131,17 +175,9 @@ sd_s3_pread(sd_s3_file *f, void *buf, size_t n, off_t off,
                               errbuf, errcap) != 0) {
         return -1;
     }
-    if (resp.status == 416) {
-        /* Range Not Satisfiable: the offset is at/after the object end - a
-         * positional read past EOF returns 0 (the pread/copy-loop EOF signal). */
-        f->transport->resp_free(&resp);
-        return 0;
-    }
-    if (resp.status != 206 && resp.status != 200) {
-        sd_s3_status_err(resp.status, "GET", f->key, errbuf, errcap);
-        f->transport->resp_free(&resp);
-        return -1;
-    }
+    valid = sd_s3_validate_get(f, &resp, off, errbuf, errcap);
+    if (valid != 0)
+        return valid > 0 ? 0 : -1;
 
     /* Hostile / broken in-path integrity guards.  A ranged GET must come back as
      * a 206 whose Content-Range starts exactly at the byte we asked for.  Any
@@ -152,33 +188,6 @@ sd_s3_pread(sd_s3_file *f, void *buf, size_t n, off_t off,
      * the copy loop aborts rather than committing bad data.  These are the exact
      * failure modes of a flaky NIC / meddling middlebox on an uncooperative
      * network, so the check is unconditional, not gated behind a knob. */
-    if (resp.status == 200 && off != 0) {
-        /* Range ignored: a 200 body starts at object offset 0, not `off`, so it
-         * cannot be positioned at `off` without corrupting the read. */
-        sd_s3_set_err(errbuf, errcap,
-            "s3 GET %s: origin ignored Range (200 for bytes=%lld-) - refusing to "
-            "position a whole-object body at offset %lld",
-            f->key, (long long) off, (long long) off);
-        f->transport->resp_free(&resp);
-        return -1;
-    }
-    if (resp.status == 206) {
-        char      cr[128];
-        long long cr_start = -1;
-
-        if (f->transport->resp_header(&resp, "Content-Range", cr, sizeof(cr)) == 0
-            && (sscanf(cr, "bytes %lld-", &cr_start) != 1
-                || cr_start != (long long) off))
-        {
-            sd_s3_set_err(errbuf, errcap,
-                "s3 GET %s: Content-Range \"%.80s\" does not start at requested "
-                "offset %lld - refusing a misaligned/mangled range",
-                f->key, cr, (long long) off);
-            f->transport->resp_free(&resp);
-            return -1;
-        }
-    }
-
     body = f->transport->resp_body(&resp, &body_len);
     if (body == NULL || body_len == 0) {
         /* A well-formed but empty body at an offset the object provably extends

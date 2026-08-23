@@ -50,69 +50,84 @@ def test_chaos_concurrent_mixed_auth_with_restarts(mesh):
     results = []          # (route, ok, clean_error)
     results_lock = threading.Lock()
 
-    def worker(wid):
-        wrng = random.Random(wid * 7919 + 1)
-        for _ in range(8):
-            if stop.is_set():
-                break
-            route, port, payload = fronts[wrng.randrange(len(fronts))]
-            try:
-                r = _cat(port, timeout=40)
-                ok = (r.returncode == 0 and r.stdout == payload)
-                # a non-zero rc is acceptable (backend may be mid-restart) as
-                # long as the process returned cleanly rather than hanging.
-                clean = ok or (r.returncode != 0)
-            except subprocess.TimeoutExpired:
-                ok, clean = False, False
-            with results_lock:
-                results.append((route, ok, clean))
-            time.sleep(wrng.uniform(0.0, 0.05))
+    _run_chaos_threads(rng, stop, fronts, backends, harness, results, results_lock)
+    _restore_backends(backends, harness)
+    _assert_no_crashes(mesh["insts"].values())
+    _assert_clean_results(results)
+    _assert_recovered(mesh)
+    assert any(ok for _, ok, _ in results), "no request succeeded during the chaos window"
 
-    def chaos_agent():
-        # Restart each backend a few times while the workers run.
-        for _ in range(4):
-            if stop.is_set():
-                break
-            time.sleep(0.4)
-            b = backends[rng.randrange(len(backends))]
-            harness.stop(b.regname)
-            time.sleep(rng.uniform(0.1, 0.3))
-            harness.start_registered(b.regname)   # re-renders, launches, waits ready
 
-    workers = [threading.Thread(target=worker, args=(i,)) for i in range(12)]
-    agent = threading.Thread(target=chaos_agent)
-    for t in workers:
-        t.start()
+def _chaos_worker(worker_id, stop, fronts, results, results_lock):
+    rng = random.Random(worker_id * 7919 + 1)
+    for _ in range(8):
+        if stop.is_set():
+            break
+        route, port, payload = fronts[rng.randrange(len(fronts))]
+        outcome = _chaos_request(port, payload)
+        with results_lock:
+            results.append((route, *outcome))
+        time.sleep(rng.uniform(0.0, 0.05))
+
+
+def _chaos_request(port, payload):
+    try:
+        result = _cat(port, timeout=40)
+        ok = result.returncode == 0 and result.stdout == payload
+        return ok, ok or result.returncode != 0
+    except subprocess.TimeoutExpired:
+        return False, False
+
+
+def _chaos_agent(rng, stop, backends, harness):
+    for _ in range(4):
+        if stop.is_set():
+            break
+        time.sleep(0.4)
+        backend = backends[rng.randrange(len(backends))]
+        harness.stop(backend.regname)
+        time.sleep(rng.uniform(0.1, 0.3))
+        harness.start_registered(backend.regname)
+
+
+def _run_chaos_threads(rng, stop, fronts, backends, harness, results, lock):
+    workers = [threading.Thread(target=_chaos_worker,
+                                args=(index, stop, fronts, results, lock))
+               for index in range(12)]
+    agent = threading.Thread(target=_chaos_agent,
+                             args=(rng, stop, backends, harness))
+    for thread in workers:
+        thread.start()
     agent.start()
-    for t in workers:
-        t.join(timeout=120)
+    for thread in workers:
+        thread.join(timeout=120)
     stop.set()
     agent.join(timeout=30)
 
-    # Make sure the backends are up for the final assertions.
-    for b in backends:
-        if not _wait_port(b.port, tries=20):
-            harness.start_registered(b.regname)   # re-renders, launches, waits ready
 
-    # 1) Nothing crashed — every instance's master is alive, no fatal signals.
-    for inst in mesh["insts"].values():
-        ok, why = _no_crash(inst)
-        assert ok, why
+def _restore_backends(backends, harness):
+    for backend in backends:
+        if not _wait_port(backend.port, tries=20):
+            harness.start_registered(backend.regname)
 
-    # 2) Every request returned cleanly (no hangs/timeouts).
+
+def _assert_no_crashes(instances):
+    for instance in instances:
+        ok, reason = _no_crash(instance)
+        assert ok, reason
+
+
+def _assert_clean_results(results):
     assert results, "no chaos results recorded"
-    clean = sum(1 for _, _, c in results if c)
-    assert clean == len(results), \
-        f"{len(results) - clean}/{len(results)} requests hung/timed out"
+    clean = sum(1 for _, _, returned in results if returned)
+    assert clean == len(results), (
+        f"{len(results) - clean}/{len(results)} requests hung/timed out")
 
-    # 3) Recovery: after the dust settles, both routes serve correctly again.
-    rg = _cat(mesh["cache_gsi"].port, timeout=40)
-    assert rg.returncode == 0 and rg.stdout == mesh["payload_gsi"], \
-        f"x509 route did not recover: {rg.stderr}"
-    rs = _cat(mesh["proxy_sss"].port, timeout=40)
-    assert rs.returncode == 0 and rs.stdout == mesh["payload_sss"], \
-        f"sss route did not recover: {rs.stderr}"
 
-    # 4) At least some requests succeeded during the storm (sanity).
-    succeeded = sum(1 for _, ok, _ in results if ok)
-    assert succeeded > 0, "no request succeeded during the chaos window"
+def _assert_recovered(mesh):
+    x509 = _cat(mesh["cache_gsi"].port, timeout=40)
+    assert x509.returncode == 0 and x509.stdout == mesh["payload_gsi"], (
+        f"x509 route did not recover: {x509.stderr}")
+    sss = _cat(mesh["proxy_sss"].port, timeout=40)
+    assert sss.returncode == 0 and sss.stdout == mesh["payload_sss"], (
+        f"sss route did not recover: {sss.stderr}")

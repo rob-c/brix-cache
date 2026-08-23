@@ -26,16 +26,15 @@ the real `tools/ci/*.py` scripts end-to-end. Guards covered here:
   be raised only by a credential handler / session login-bind path (C-3).
 - todo_fixme — no source file gains a new TODO/FIXME/XXX/HACK marker over its
   frozen count (deferred-work ratchet, QUALITY_ROADMAP §3.7).
-- complexity — no function under ``src/``/``client/`` crosses the CCN 15 cap
-  unless grandfathered in ``complexity_backlog.txt`` (McCabe ratchet,
-  QUALITY_ROADMAP §1). Skipped when the ``lizard`` analyzer is not installed;
+- complexity — no native function under ``src/``/``client/``/``shared/``
+  crosses the absolute CCN 15 cap (QUALITY_ROADMAP §1). Skipped when the
+  ``lizard`` analyzer is not installed;
   CI pip-installs it before the run.
 """
 
 from pathlib import Path
 
 import pytest
-
 import source_guards_lib as g
 
 # Zero-arg guards asserted against the real tree.
@@ -55,10 +54,10 @@ def test_source_guard(name: str) -> None:
     assert ok, f"{name} failed:\n" + "\n".join(msgs)
 
 
-# --- complexity (CCN 15) ratchet · lizard-gated -------------------------------
+# --- complexity (absolute CCN 15 cap) · lizard-gated --------------------------
 #
-# Same lizard-backed gate the CI guards.yml step runs, so a new over-cap function
-# (or one grown past its frozen ceiling) reddens the local pytest loop too. Skip
+# Same lizard-backed gate the CI guards.yml step runs, so any over-cap function
+# reddens the local pytest loop. Skip
 # when lizard is absent rather than hard-fail — CI pip-installs it first.
 
 
@@ -66,9 +65,9 @@ def test_source_guard(name: str) -> None:
     not g.lizard_available(),
     reason="lizard not installed (pip install --user lizard)",
 )
-def test_complexity_ratchet() -> None:
+def test_complexity_limit() -> None:
     ok, msgs = g.complexity()
-    assert ok, "complexity ratchet failed:\n" + "\n".join(msgs)
+    assert ok, "complexity limit failed:\n" + "\n".join(msgs)
 
 
 # --- check_auth_verdict_sentinel · injected-tree behaviour --------------------

@@ -29,6 +29,28 @@ from cmdscripts.compile_run import REPO_ROOT
 from cmdscripts.live_common import LiveRun
 from settings import NGINX_ANON_PORT, SERVER_HOST
 
+def _exit_code(failed):
+    return (
+        0 if failed == 0 else 1
+    )
+
+
+def _guard_section_xrdfs_uring_1(dl_on):
+    if dl_on.exists():
+        dl_on.unlink()
+
+def _guard_section_xrdfs_uring_2(on_rc, s, dl_on, seed):
+    if on_rc == 0:
+        s.check("download --io-uring on: success -> byte-exact",
+                dl_on.exists() and dl_on.read_bytes() == seed.read_bytes())
+    else:
+        s.check("download --io-uring on: clean fail -> no partial output", not dl_on.exists())
+
+def _guard_run_sections_3(ok, label):
+    if not ok:
+        print(f"  FAIL: {label}")
+
+
 BIN = REPO_ROOT / "client/bin"
 USAGE_ERROR = 50
 
@@ -62,14 +84,9 @@ def section_xrdfs_uring(s: Session) -> None:
     # --io-uring on: either succeeds byte-exact, or fails cleanly with no
     # partial/corrupt output file left at the final path.
     dl_on = s.work / "dl_on.dat"
-    if dl_on.exists():
-        dl_on.unlink()
+    _guard_section_xrdfs_uring_1(dl_on)
     on_rc = s.fs("download", "--io-uring", "on", f"/tmp/{tag}", dl_on).returncode
-    if on_rc == 0:
-        s.check("download --io-uring on: success -> byte-exact",
-                dl_on.exists() and dl_on.read_bytes() == seed.read_bytes())
-    else:
-        s.check("download --io-uring on: clean fail -> no partial output", not dl_on.exists())
+    _guard_section_xrdfs_uring_2(on_rc, s, dl_on, seed)
 
     rc = s.fs("upload", "--io-uring", "off", seed, f"/tmp/{tag}-up").returncode
     s.check("upload --io-uring off: exit 0", rc == 0)
@@ -117,9 +134,8 @@ def run_sections(names: list[str], url: str | None = None) -> int:
         failed = len(session.results) - passed
         print(f"client-features: {passed} pass, {failed} fail")
         for ok, label in session.results:
-            if not ok:
-                print(f"  FAIL: {label}")
-        return 0 if failed == 0 else 1
+            _guard_run_sections_3(ok, label)
+        return _exit_code(failed)
 
 
 def _scenario(name: str):

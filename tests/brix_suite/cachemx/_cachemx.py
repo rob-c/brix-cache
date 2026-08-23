@@ -297,6 +297,21 @@ def sigv4_headers(method: str, host: str, port: int, path: str) -> dict:
 # The stack
 # --------------------------------------------------------------------------
 
+def _s3_request_headers(meta, headers, signed, method, port, key):
+    result = dict(headers or {})
+    should_sign = meta["signed"] if signed is None else signed
+    if should_sign:
+        result.update(sigv4_headers(
+            method, HOST, port, f"/{S3_BUCKET}/{key.lstrip('/')}"))
+    return result
+
+
+def _s3_tls_context(meta):
+    if meta.get("scheme") == "https":
+        return tls_context()
+    return None
+
+
 class MatrixStack:
     """Handles + drivers for the origin/matrix instance pair."""
 
@@ -410,15 +425,11 @@ class MatrixStack:
     def s3_request(self, plane: str, key: str, method="GET", data=None,
                    headers=None, signed=None):
         meta = S3_PLANES[plane]
-        headers = dict(headers or {})
-        do_sign = meta["signed"] if signed is None else signed
-        if do_sign:
-            headers.update(sigv4_headers(
-                method, HOST, self.port(meta["port_key"]),
-                f"/{S3_BUCKET}/{key.lstrip('/')}"))
+        headers = _s3_request_headers(
+            meta, headers, signed, method, self.port(meta["port_key"]), key)
         # SigV4 signs host:port, never the scheme — the TLS plane's headers are
         # byte-identical to the cleartext one's, only the transport differs.
-        ctx = tls_context() if meta.get("scheme") == "https" else None
+        ctx = _s3_tls_context(meta)
         return http_request(self.s3_url(plane, key), method=method, data=data,
                             headers=headers, ctx=ctx)
 

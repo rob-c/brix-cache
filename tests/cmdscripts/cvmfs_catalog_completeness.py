@@ -106,19 +106,35 @@ def patch_manifest_root(repo: Path, old_hex: str, new_hex: str) -> bytes:
     return original
 
 
+def _check(results, prefix, name, ok, message=""):
+    results.append((bool(ok), f"{prefix}:{name} {message}".rstrip()))
+
+
 # ---- hardlinks + xattrs + properties ---------------------------------------
 
 def check_identity(binary: Path, base: Path, results: list) -> None:
     repo = base / "s8a"
-    ck = lambda name, ok, msg="": results.append((bool(ok), f"s8a:{name} {msg}".rstrip()))
+    ck = lambda name, ok, msg="": _check(results, "s8a", name, ok, msg)
 
-    ck("mkfs", _mkfs(binary, repo).returncode == 0)
-    mk_props = props(open_catalog(repo, parse_manifest(repo)["C"], base))
-    ck("mkfs-props", mk_props.get("schema") == "2.5"
-       and mk_props.get("schema_revision") == "2"
-       and "last_modified" in mk_props, str(mk_props))
+    _identity_mkfs(binary, repo, base, ck)
+    up, cat, xattr_ok = _identity_publish(binary, repo, base, ck)
+    _identity_rows(cat, xattr_ok, ck)
+    _identity_properties(cat, xattr_ok, ck)
+    cat.close()
+    _identity_fsck_and_oversized(binary, repo, up, ck)
 
-    ck("txn", repotool(binary, "transaction", str(repo)).returncode == 0)
+
+def _identity_mkfs(binary, repo, base, check):
+    check("mkfs", _mkfs(binary, repo).returncode == 0)
+    properties = props(open_catalog(repo, parse_manifest(repo)["C"], base))
+    valid = properties.get("schema") == "2.5"
+    valid = valid and properties.get("schema_revision") == "2"
+    valid = valid and "last_modified" in properties
+    check("mkfs-props", valid, str(properties))
+
+
+def _identity_publish(binary, repo, base, check):
+    check("txn", repotool(binary, "transaction", str(repo)).returncode == 0)
     up = _upper(repo)
     (up / "a.txt").write_bytes(b"hardlinked payload\n")
     os.link(up / "a.txt", up / "b.txt")
@@ -126,75 +142,99 @@ def check_identity(binary: Path, base: Path, results: list) -> None:
     (up / "xd").mkdir()
     (up / "xd" / "inner.txt").write_bytes(b"inner\n")
     os.symlink("solo.txt", up / "ln")
-    xattr_ok = (try_setxattr(up / "a.txt", "user.k1", b"v1")
-                and try_setxattr(up / "xd", "user.tag", b"blue"))
+    file_xattr = try_setxattr(up / "a.txt", "user.k1", b"v1")
+    dir_xattr = try_setxattr(up / "xd", "user.tag", b"blue")
+    publish = repotool(binary, "publish", str(repo))
+    check("publish", publish.returncode == 0, publish.stderr)
+    manifest = parse_manifest(repo)
+    return up, open_catalog(repo, manifest["C"], base), file_xattr and dir_xattr
 
-    pub = repotool(binary, "publish", str(repo))
-    ck("publish", pub.returncode == 0, pub.stderr)
-    man = parse_manifest(repo)
-    cat = open_catalog(repo, man["C"], base)
 
+def _identity_rows(cat, xattr_ok, check):
     hl_a, x_a = row_extra(cat, "/a.txt")
     hl_b, x_b = row_extra(cat, "/b.txt")
     hl_solo, _ = row_extra(cat, "/solo.txt")
     group = hl_a >> 32
-    ck("hl-group-nonzero", group != 0, str(hl_a))
-    ck("hl-encoding", hl_a == (group << 32) | 2, str(hl_a))
-    ck("hl-pair-same", hl_a == hl_b, f"{hl_a} vs {hl_b}")
-    ck("hl-solo", hl_solo == 1, str(hl_solo))
-
-    if xattr_ok:
-        ck("xattr-file", x_a is not None
-           and unpack_xattrs(x_a).get("user.k1") == b"v1")
-        ck("xattr-hl-shared", x_b is not None
-           and unpack_xattrs(x_b).get("user.k1") == b"v1")
-        _, x_dir = row_extra(cat, "/xd")
-        ck("xattr-dir", x_dir is not None
-           and unpack_xattrs(x_dir).get("user.tag") == b"blue")
-    else:
-        ck("xattr-file", True, "skipped (fs lacks user.* xattrs)")
+    check("hl-group-nonzero", group != 0, str(hl_a))
+    check("hl-encoding", hl_a == (group << 32) | 2, str(hl_a))
+    check("hl-pair-same", hl_a == hl_b, f"{hl_a} vs {hl_b}")
+    check("hl-solo", hl_solo == 1, str(hl_solo))
+    _identity_xattrs(cat, xattr_ok, x_a, x_b, check)
     _, x_ln = row_extra(cat, "/ln")
-    ck("xattr-symlink-none", x_ln is None)
-    ck("symlink-row", (lookup(cat, "/ln") or (0,))[0] == FLAG_LINK)
+    check("xattr-symlink-none", x_ln is None)
+    check("symlink-row", (lookup(cat, "/ln") or (0,))[0] == FLAG_LINK)
 
-    p = props(cat)
-    ck("props", p.get("schema") == "2.5" and p.get("schema_revision") == "2"
-       and p.get("revision") == "2" and "last_modified" in p
-       and "previous_revision" in p, str(p))
-    st = stats(cat)
-    ck("self-counters", st.get("self_regular") == 4 and st.get("self_dir") == 1
-       and st.get("self_symlink") == 1, str(st))
+
+def _identity_xattrs(cat, available, file_blob, link_blob, check):
+    if not available:
+        check("xattr-file", True, "skipped (fs lacks user.* xattrs)")
+        return
+    check("xattr-file", _xattr_equals(file_blob, "user.k1", b"v1"))
+    check("xattr-hl-shared", _xattr_equals(link_blob, "user.k1", b"v1"))
+    _, directory_blob = row_extra(cat, "/xd")
+    check("xattr-dir", _xattr_equals(directory_blob, "user.tag", b"blue"))
+
+
+def _xattr_equals(blob, key, expected):
+    return blob is not None and unpack_xattrs(blob).get(key) == expected
+
+
+def _identity_properties(cat, xattr_ok, check):
+    properties = props(cat)
+    valid = all((properties.get("schema") == "2.5",
+                 properties.get("schema_revision") == "2",
+                 properties.get("revision") == "2",
+                 "last_modified" in properties,
+                 "previous_revision" in properties))
+    check("props", valid, str(properties))
+    counters = stats(cat)
+    valid = all((counters.get("self_regular") == 4,
+                 counters.get("self_dir") == 1,
+                 counters.get("self_symlink") == 1))
+    check("self-counters", valid, str(counters))
     if xattr_ok:
-        ck("self-xattr", st.get("self_xattr") == 3, str(st.get("self_xattr")))
-    cat.close()
+        check("self-xattr", counters.get("self_xattr") == 3,
+              str(counters.get("self_xattr")))
 
+
+def _identity_fsck_and_oversized(binary, repo, up, check):
     fsck = repotool(binary, "fsck", str(repo))
-    ck("fsck-clean", fsck.returncode == 0 and "fsck clean" in fsck.stdout,
-       fsck.stderr)
-
-    # security: an oversized xattr must fail the publish, never be dropped
-    ck("txn-2", repotool(binary, "transaction", str(repo)).returncode == 0)
+    check("fsck-clean", fsck.returncode == 0 and "fsck clean" in fsck.stdout,
+          fsck.stderr)
+    check("txn-2", repotool(binary, "transaction", str(repo)).returncode == 0)
     (up / "big.txt").write_bytes(b"big\n")
-    if try_setxattr(up / "big.txt", "user.big", b"A" * 70000):
-        bad = repotool(binary, "publish", str(repo))
-        ck("oversized-refused", bad.returncode != 0 and "xattr" in bad.stderr,
-           bad.stderr)
-        ck("oversized-rev-intact", parse_manifest(repo)["S"] == "2")
-    else:
-        ck("oversized-refused", True, "skipped (fs refuses >64KiB xattr)")
-    ck("abort", repotool(binary, "abort", str(repo)).returncode == 0)
+    _check_oversized_xattr(binary, repo, up, check)
+    check("abort", repotool(binary, "abort", str(repo)).returncode == 0)
+
+
+def _check_oversized_xattr(binary, repo, upper, check):
+    if not try_setxattr(upper / "big.txt", "user.big", b"A" * 70000):
+        check("oversized-refused", True, "skipped (fs refuses >64KiB xattr)")
+        return
+    result = repotool(binary, "publish", str(repo))
+    check("oversized-refused", result.returncode != 0 and "xattr" in result.stderr,
+          result.stderr)
+    check("oversized-rev-intact", parse_manifest(repo)["S"] == "2")
 
 
 # ---- subtree counters + markers + fsck negatives ---------------------------
 
 def check_counters_markers(binary: Path, base: Path, results: list) -> None:
     repo = base / "s8b"
-    ck = lambda name, ok, msg="": results.append((bool(ok), f"s8b:{name} {msg}".rstrip()))
+    ck = lambda name, ok, msg="": _check(results, "s8b", name, ok, msg)
+    upper = _counter_initial_publish(binary, base, repo, ck)
+    _counter_verify_nested(binary, base, repo, ck)
+    _marker_birth(binary, base, repo, upper, ck)
+    _marker_dissolve(binary, base, repo, upper, ck)
+    _fsck_negatives(binary, base, repo, ck)
+
+
+def _counter_initial_publish(binary, base, repo, check):
     dirtab = base / "dirtab8"
     dirtab.write_text("/nest\n")
 
-    ck("mkfs", _mkfs(binary, repo).returncode == 0)
-    ck("txn", repotool(binary, "transaction", str(repo)).returncode == 0)
+    check("mkfs", _mkfs(binary, repo).returncode == 0)
+    check("txn", repotool(binary, "transaction", str(repo)).returncode == 0)
     up = _upper(repo)
     (up / "nest").mkdir()
     (up / "nest" / "one.txt").write_bytes(b"one\n")
@@ -203,90 +243,112 @@ def check_counters_markers(binary: Path, base: Path, results: list) -> None:
     (up / "plain" / "two.txt").write_bytes(b"two\n")
     pub = repotool(binary, "publish", str(repo), "--dirtab", str(dirtab),
                    "--chunk-size", "4096")
-    ck("publish", pub.returncode == 0, pub.stderr)
+    check("publish", pub.returncode == 0, pub.stderr)
+    return up
 
+
+def _counter_verify_nested(binary, base, repo, check):
     man = parse_manifest(repo)
     root = open_catalog(repo, man["C"], base)
     nested = nested_rows(root)
-    ck("nest-mounted", "/nest" in nested, str(nested))
+    check("nest-mounted", "/nest" in nested, str(nested))
     child = open_catalog(repo, nested["/nest"], base)
-    cp = props(child)
-    ck("child-props", cp.get("schema") == "2.5" and cp.get("schema_revision") == "2"
-       and cp.get("revision") == "2" and "last_modified" in cp
-       and "previous_revision" not in cp, str(cp))
+    properties = props(child)
+    check("child-props", _valid_child_properties(properties), str(properties))
     cst, rst = stats(child), stats(root)
-    ck("child-self", cst.get("self_regular") == 1 and cst.get("self_chunked") == 1
-       and cst.get("self_chunks") == 3 and cst.get("self_dir") == 1, str(cst))
+    check("child-self", _valid_child_stats(cst), str(cst))
     for name in ("regular", "chunked", "chunks", "dir", "symlink", "nested",
                  "file_size", "chunked_size", "xattr"):
-        ck(f"subtree-{name}",
-           rst.get(f"subtree_{name}")
-           == cst.get(f"self_{name}", 0) + cst.get(f"subtree_{name}", 0),
-           f"root {rst.get('subtree_' + name)} vs child "
-           f"{cst.get('self_' + name, 0)}+{cst.get('subtree_' + name, 0)}")
+        _check_subtree_counter(check, name, rst, cst)
     child.close()
     root.close()
-    ck("fsck-1", repotool(binary, "fsck", str(repo)).returncode == 0)
+    check("fsck-1", repotool(binary, "fsck", str(repo)).returncode == 0)
 
-    # marker birth: a .cvmfscatalog file nests its dir without any dirtab
-    ck("txn-2", repotool(binary, "transaction", str(repo)).returncode == 0)
-    (up / "m1").mkdir()
-    (up / "m1" / ".cvmfscatalog").write_bytes(b"")
-    (up / "m1" / "blob.txt").write_bytes(b"marker-nested\n")
+
+def _valid_child_properties(properties):
+    return all((properties.get("schema") == "2.5",
+                properties.get("schema_revision") == "2",
+                properties.get("revision") == "2",
+                "last_modified" in properties,
+                "previous_revision" not in properties))
+
+
+def _valid_child_stats(counters):
+    return all((counters.get("self_regular") == 1,
+                counters.get("self_chunked") == 1,
+                counters.get("self_chunks") == 3,
+                counters.get("self_dir") == 1))
+
+
+def _check_subtree_counter(check, name, root, child):
+    actual = root.get(f"subtree_{name}")
+    direct = child.get(f"self_{name}", 0)
+    nested = child.get(f"subtree_{name}", 0)
+    check(f"subtree-{name}", actual == direct + nested,
+          f"root {actual} vs child {direct}+{nested}")
+
+
+def _marker_birth(binary, base, repo, upper, check):
+    check("txn-2", repotool(binary, "transaction", str(repo)).returncode == 0)
+    (upper / "m1").mkdir()
+    (upper / "m1" / ".cvmfscatalog").write_bytes(b"")
+    (upper / "m1" / "blob.txt").write_bytes(b"marker-nested\n")
     pub2 = repotool(binary, "publish", str(repo))
-    ck("publish-2", pub2.returncode == 0, pub2.stderr)
+    check("publish-2", pub2.returncode == 0, pub2.stderr)
     root2 = open_catalog(repo, parse_manifest(repo)["C"], base)
     nested2 = nested_rows(root2)
-    ck("marker-born", "/m1" in nested2 and "/nest" in nested2, str(nested2))
-    ck("marker-flag", (lookup(root2, "/m1") or (0,))[0]
-       == FLAG_DIR | FLAG_DIR_NESTED_MOUNT)
+    check("marker-born", {"/m1", "/nest"} <= set(nested2), str(nested2))
+    check("marker-flag", (lookup(root2, "/m1") or (0,))[0]
+          == FLAG_DIR | FLAG_DIR_NESTED_MOUNT)
     m1 = open_catalog(repo, nested2["/m1"], base)
-    ck("marker-file-in-child",
-       (lookup(m1, "/m1/.cvmfscatalog") or (0,))[0] == FLAG_FILE
-       and (lookup(m1, "/m1/blob.txt") or (0,))[0] == FLAG_FILE)
+    marker_file = (lookup(m1, "/m1/.cvmfscatalog") or (0,))[0] == FLAG_FILE
+    payload_file = (lookup(m1, "/m1/blob.txt") or (0,))[0] == FLAG_FILE
+    check("marker-file-in-child", all((marker_file, payload_file)))
     m1.close()
     root2.close()
-    ck("fsck-2", repotool(binary, "fsck", str(repo)).returncode == 0)
+    check("fsck-2", repotool(binary, "fsck", str(repo)).returncode == 0)
 
-    # marker whiteout: dissolve back into the parent
-    ck("txn-3", repotool(binary, "transaction", str(repo)).returncode == 0)
-    (up / "m1").mkdir()
-    (up / "m1" / ".brix.wh..cvmfscatalog").write_bytes(b"")
+
+def _marker_dissolve(binary, base, repo, upper, check):
+    check("txn-3", repotool(binary, "transaction", str(repo)).returncode == 0)
+    (upper / "m1").mkdir()
+    (upper / "m1" / ".brix.wh..cvmfscatalog").write_bytes(b"")
     pub3 = repotool(binary, "publish", str(repo))
-    ck("publish-3", pub3.returncode == 0, pub3.stderr)
+    check("publish-3", pub3.returncode == 0, pub3.stderr)
     root3 = open_catalog(repo, parse_manifest(repo)["C"], base)
-    ck("dissolved", "/m1" not in nested_rows(root3)
-       and (lookup(root3, "/m1") or (0,))[0] == FLAG_DIR)
-    ck("dissolved-inline", (lookup(root3, "/m1/blob.txt") or (0,))[0] == FLAG_FILE)
-    ck("marker-row-gone", lookup(root3, "/m1/.cvmfscatalog") is None)
+    inline = (lookup(root3, "/m1") or (0,))[0] == FLAG_DIR
+    check("dissolved", "/m1" not in nested_rows(root3) and inline)
+    check("dissolved-inline", (lookup(root3, "/m1/blob.txt") or (0,))[0] == FLAG_FILE)
+    check("marker-row-gone", lookup(root3, "/m1/.cvmfscatalog") is None)
     root3.close()
     fsck3 = repotool(binary, "fsck", str(repo))
-    ck("fsck-3", fsck3.returncode == 0, fsck3.stderr)
+    check("fsck-3", fsck3.returncode == 0, fsck3.stderr)
 
-    # error: counter drift in a re-stored root catalog is reported
+
+def _fsck_negatives(binary, base, repo, check):
     man3 = parse_manifest(repo)
     drift_hex = restore_catalog(repo, man3["C"], lambda db: db.execute(
         "UPDATE statistics SET value = value + 5 WHERE counter='self_regular'"))
     original = patch_manifest_root(repo, man3["C"], drift_hex)
     drift = repotool(binary, "fsck", str(repo))
-    ck("drift-detected", drift.returncode != 0 and "counter drift" in drift.stderr
-       and "self_regular" in drift.stderr, drift.stderr)
+    drift_found = drift.returncode != 0 and "counter drift" in drift.stderr
+    check("drift-detected", drift_found and "self_regular" in drift.stderr,
+          drift.stderr)
     (repo / ".cvmfspublished").write_bytes(original)
-
-    # security: a malformed xattr BLOB in a re-stored catalog is flagged
-    def bad_xattr(db: sqlite3.Connection) -> None:
-        from repo_forge import md5path
-        m1_, m2_ = md5path("/plain/two.txt")
-        db.execute("UPDATE catalog SET xattr=? WHERE md5path_1=? AND md5path_2=?",
-                   (b"\x01\x02\x05", m1_, m2_))   # count 2, truncated
-
-    bad_hex = restore_catalog(repo, man3["C"], bad_xattr)
+    bad_hex = restore_catalog(repo, man3["C"], _write_bad_xattr)
     original = patch_manifest_root(repo, man3["C"], bad_hex)
     bad = repotool(binary, "fsck", str(repo))
-    ck("malformed-xattr-flagged", bad.returncode != 0
-       and "malformed xattr" in bad.stderr, bad.stderr)
+    check("malformed-xattr-flagged", bad.returncode != 0
+          and "malformed xattr" in bad.stderr, bad.stderr)
     (repo / ".cvmfspublished").write_bytes(original)
-    ck("fsck-restored", repotool(binary, "fsck", str(repo)).returncode == 0)
+    check("fsck-restored", repotool(binary, "fsck", str(repo)).returncode == 0)
+
+
+def _write_bad_xattr(db: sqlite3.Connection) -> None:
+    from repo_forge import md5path
+    m1_, m2_ = md5path("/plain/two.txt")
+    db.execute("UPDATE catalog SET xattr=? WHERE md5path_1=? AND md5path_2=?",
+               (b"\x01\x02\x05", m1_, m2_))
 
 
 def run_checks(base: Path) -> list[tuple[bool, str]]:

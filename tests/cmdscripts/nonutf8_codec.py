@@ -72,8 +72,43 @@ def _hexval(c: int) -> int:
     return -1
 
 
+def _percent_byte(src: bytes, index: int) -> int | None:
+    if src[index] != 0x25 or index + 2 >= len(src):
+        return None
+    high = _hexval(src[index + 1])
+    low = _hexval(src[index + 2])
+    if high < 0 or low < 0:
+        return None
+    return (high << 4) | low
+
+
+def _decoded_token(src: bytes, index: int, flags: int) -> tuple[int, int, int]:
+    decoded = _percent_byte(src, index)
+    if decoded is not None:
+        if decoded == 0 and flags & REJECT_NUL:
+            return DEC_NUL_BYTE, 0, 0
+        return DEC_OK, decoded, 3
+    if src[index] == 0x2B and flags & PLUS_TO_SPACE:
+        return DEC_OK, 0x20, 1
+    return DEC_OK, src[index], 1
+
+
+def _decode_bytes(src: bytes, dst_sz: int, flags: int) -> tuple[int, bytes]:
+    output = bytearray()
+    index = 0
+    while index < len(src):
+        if len(output) + 1 >= dst_sz:
+            return DEC_OVERFLOW, b""
+        status, value, consumed = _decoded_token(src, index, flags)
+        if status != DEC_OK:
+            return status, b""
+        output.append(value)
+        index += consumed
+    return DEC_OK, bytes(output).split(b"\x00", 1)[0]
+
+
 def dec_ref(src: bytes, dst_sz: int, flags: int) -> tuple[int, bytes]:
-    """Reference percent-decoder mirroring brix_http_urldecode's contract.
+    """Reference percent-decoder matching brix_http_urldecode's contract.
 
     Returns (rc, view) where view is the C-string view of the decoded output
     (truncated at the first embedded NUL — exactly what strlen-based callers
@@ -81,55 +116,31 @@ def dec_ref(src: bytes, dst_sz: int, flags: int) -> tuple[int, bytes]:
     harness emits no bytes, so view is b"".
     """
     if dst_sz < 2:
-        return (DEC_BADARG, b"")
-    out = bytearray()
-    di = 0
-    si = 0
-    n = len(src)
-    while si < n:
-        if di + 1 >= dst_sz:
-            return (DEC_OVERFLOW, b"")
-        c = src[si]
-        if c == 0x25 and si + 2 < n:  # '%'
-            hi = _hexval(src[si + 1])
-            lo = _hexval(src[si + 2])
-            if hi >= 0 and lo >= 0:
-                dec = (hi << 4) | lo
-                if dec == 0 and (flags & REJECT_NUL):
-                    return (DEC_NUL_BYTE, b"")
-                out.append(dec)
-                di += 1
-                si += 3
-                continue
-        if c == 0x2B and (flags & PLUS_TO_SPACE):  # '+'
-            out.append(0x20)
-            di += 1
-            si += 1
-            continue
-        out.append(c)
-        di += 1
-        si += 1
-    return (DEC_OK, bytes(out).split(b"\x00", 1)[0])
+        return DEC_BADARG, b""
+    return _decode_bytes(src, dst_sz, flags)
+
+
+def _encoded_token(value: int, safe: bytes) -> bytes:
+    if value in UNRESERVED or value in safe:
+        return bytes((value,))
+    return b"%%%02X" % value
+
+
+def _encode_bytes(src: bytes, dst_sz: int, safe: bytes) -> tuple[int, bytes]:
+    output = bytearray()
+    for value in src:
+        token = _encoded_token(value, safe)
+        if len(output) + len(token) >= dst_sz:
+            return -1, b""
+        output.extend(token)
+    return len(output), bytes(output)
 
 
 def enc_ref(src: bytes, dst_sz: int, safe: bytes) -> tuple[int, bytes]:
     """Reference RFC 3986 encoder mirroring brix_http_urlencode's contract."""
     if dst_sz < 1:
-        return (-1, b"")
-    out = bytearray()
-    di = 0
-    for c in src:
-        if c in UNRESERVED or c in safe:
-            if di + 1 >= dst_sz:
-                return (-1, b"")
-            out.append(c)
-            di += 1
-        else:
-            if di + 3 >= dst_sz:
-                return (-1, b"")
-            out += b"%%%02X" % c
-            di += 3
-    return (di, bytes(out))
+        return -1, b""
+    return _encode_bytes(src, dst_sz, safe)
 
 
 def opaque_ref(data: bytes) -> tuple[int, int]:
@@ -142,28 +153,37 @@ def opaque_ref(data: bytes) -> tuple[int, int]:
     return (0, -1)
 
 
+def _schema_key_value(segment: bytes) -> tuple[bytes, bytes]:
+    separator = segment.find(b"=")
+    if separator < 0:
+        return segment, b""
+    return segment[:separator], segment[separator + 1:]
+
+
+def _asize_verdict(value: bytes) -> tuple[int, bytes]:
+    if value and all(0x30 <= byte <= 0x39 for byte in value):
+        return SCHEMA_OK, b""
+    return SCHEMA_BAD_TYPE, b"oss.asize"
+
+
+def _known_schema_key(key: bytes) -> bool:
+    for namespace in SCHEMA_NAMESPACES:
+        if key.startswith(namespace):
+            return True
+    return key in SCHEMA_BARE_KEYS
+
+
 def _schema_segment(seg: bytes) -> tuple[int, bytes]:
     """Verdict + offending-key for one '&'-delimited key=value segment
     (mirrors brix_opaque_check_segment)."""
     if not seg:
-        return (SCHEMA_OK, b"")
-    eq = seg.find(b"=")
-    if eq < 0:
-        key, val, has_val = seg, b"", False
-    else:
-        key, val, has_val = seg[:eq], seg[eq + 1:], True
-    _ = has_val  # value presence is implicit in val/key split; kept for parity
+        return SCHEMA_OK, b""
+    key, value = _schema_key_value(seg)
     if key == b"oss.asize":
-        if len(val) > 0 and all(0x30 <= c <= 0x39 for c in val):
-            return (SCHEMA_OK, b"")
-        return (SCHEMA_BAD_TYPE, key)
-    for ns in SCHEMA_NAMESPACES:
-        # has_prefix: key must begin with ns (and be at least as long).
-        if len(key) >= len(ns) and key[:len(ns)] == ns:
-            return (SCHEMA_OK, b"")
-    if key in SCHEMA_BARE_KEYS:
-        return (SCHEMA_OK, b"")
-    return (SCHEMA_UNKNOWN_KEY, key)
+        return _asize_verdict(value)
+    if _known_schema_key(key):
+        return SCHEMA_OK, b""
+    return SCHEMA_UNKNOWN_KEY, key
 
 
 def schema_ref(data: bytes) -> tuple[int, bytes]:
@@ -199,18 +219,12 @@ def internal_name_ref(path: bytes) -> int:
     is NUL-terminated, so an embedded NUL truncates the name (a real change of
     verdict worth asserting). Suffix/infix matching is byte-agnostic on the stem,
     so a non-UTF8 filename ending in a reserved suffix is still hidden."""
-    s = path.split(b"\x00", 1)[0]              # NUL-terminated C string
-    slash = s.rfind(b"/")
-    name = s[slash + 1:] if slash >= 0 else s  # basename
-    if len(name) == 0:
+    name = path.split(b"\x00", 1)[0].rsplit(b"/", 1)[-1]
+    if not name:
         return 0
-    for suf in INTERNAL_SUFFIXES:
-        if len(name) >= len(suf) and name[len(name) - len(suf):] == suf:
-            return 1
-    for infix in INTERNAL_INFIXES:
-        if infix in name:
-            return 1
-    return 0
+    if name.endswith(INTERNAL_SUFFIXES):
+        return 1
+    return int(any(infix in name for infix in INTERNAL_INFIXES))
 
 
 # --- vector model -----------------------------------------------------------

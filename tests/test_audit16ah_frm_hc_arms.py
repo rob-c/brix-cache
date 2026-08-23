@@ -100,6 +100,11 @@ from server_launcher import LifecycleHarness
 from server_registry import NginxInstanceSpec
 from settings import BIND_HOST, HOST, NGINX_BIN
 
+def _guard_fleet_1():
+    if not os.access(NGINX_BIN, os.X_OK):
+        pytest.skip(f"nginx binary not executable: {NGINX_BIN}")
+
+
 PLAIN = "lc-audit16ah-frmhc"
 REGISTRY = "lc-audit16ah-frmreg"
 _P = LIFECYCLE_SHARED_PORTS[PLAIN]
@@ -295,8 +300,7 @@ def fleet(tmp_path_factory):
     twelve ports are fixed by the ledger, so a per-test start/stop races the OS
     releasing them.  The registry journal only ever grows, so tests that count
     take their own baseline instead of expecting an empty store."""
-    if not os.access(NGINX_BIN, os.X_OK):
-        pytest.skip(f"nginx binary not executable: {NGINX_BIN}")
+    _guard_fleet_1()
 
     base = tmp_path_factory.mktemp("audit16ah")
     plain_root = base / "plain"

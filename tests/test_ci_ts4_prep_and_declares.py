@@ -33,6 +33,45 @@ import sys
 
 import pytest
 
+def _expression_1(before, after, changed_ok):
+    return (
+        sorted(name for name in before
+                             if name in after and before[name] != after[name]
+                             and name not in changed_ok)
+    )
+
+def _expression_2(changed_ok, before, after):
+    return (
+        sorted(name for name in changed_ok
+                           if name in before and name in after
+                           and before[name] == after[name])
+    )
+
+
+def _check_move_complaints_1(before):
+    assert before, "the archive is empty; the comparison would prove nothing"
+
+def _guard_move_complaints_1(lost, out, module):
+    if lost:
+        out.append("%s dropped %r on the way across" % (module, lost))
+
+def _guard_move_complaints_2(added, out, module):
+    if added:
+        out.append("%s grew %r since the move — add it to _ADDED_SINCE_MOVE "
+                   "with the reason, or take it back out" % (module, added))
+
+def _guard_move_complaints_3(changed, out, module):
+    if changed:
+        out.append("%s edited %r after the move — add it to "
+                   "_CHANGED_SINCE_MOVE with what changed, or restore it"
+                   % (module, changed))
+
+def _guard_move_complaints_4(stale, out, module):
+    if stale:
+        out.append("%s lists %r in _CHANGED_SINCE_MOVE but it still matches "
+                   "the archive" % (module, stale))
+
+
 TESTS = pathlib.Path(__file__).resolve().parent
 SRC = TESTS.parent / "brixtest" / "src"
 LEGACY = TESTS / "brix_suite" / "_legacy"
@@ -119,30 +158,18 @@ def _move_complaints(before: dict, after: dict, module: str) -> list:
     reimplementing a looser comparison — the failure mode this whole file
     exists to catch, one level up.
     """
-    assert before, "the archive is empty; the comparison would prove nothing"
+    _check_move_complaints_1(before)
     added_ok = _ADDED_SINCE_MOVE.get(module, set())
     changed_ok = _CHANGED_SINCE_MOVE.get(module, set())
     out = []
     lost = sorted(set(before) - set(after))
-    if lost:
-        out.append("%s dropped %r on the way across" % (module, lost))
+    _guard_move_complaints_1(lost, out, module)
     added = sorted(set(after) - set(before) - added_ok)
-    if added:
-        out.append("%s grew %r since the move — add it to _ADDED_SINCE_MOVE "
-                   "with the reason, or take it back out" % (module, added))
-    changed = sorted(name for name in before
-                     if name in after and before[name] != after[name]
-                     and name not in changed_ok)
-    if changed:
-        out.append("%s edited %r after the move — add it to "
-                   "_CHANGED_SINCE_MOVE with what changed, or restore it"
-                   % (module, changed))
-    stale = sorted(name for name in changed_ok
-                   if name in before and name in after
-                   and before[name] == after[name])
-    if stale:
-        out.append("%s lists %r in _CHANGED_SINCE_MOVE but it still matches "
-                   "the archive" % (module, stale))
+    _guard_move_complaints_2(added, out, module)
+    changed = _expression_1(before, after, changed_ok)
+    _guard_move_complaints_3(changed, out, module)
+    stale = _expression_2(changed_ok, before, after)
+    _guard_move_complaints_4(stale, out, module)
     return out
 
 
@@ -308,16 +335,22 @@ def test_editing_one_generator_restamps_every_step(prep, tmp_path, monkeypatch):
     gen_a.write_text("a = 2  # changed\n")
     after = [s.stamp() for s in steps]
 
-    assert all(b != a for b, a in zip(before, after))
-    assert len(set(after)) == 1, "the stamp is shared, not per-step"
+    def _assert_test_editing_one_generator_restamps_every_step_1():
+        assert all(b != a for b, a in zip(before, after))
+        assert len(set(after)) == 1, "the stamp is shared, not per-step"
+
+    _assert_test_editing_one_generator_restamps_every_step_1()
     #: One key per generator, and the key names the generator.  Keys carry the
     #: parent directory since TS-5: the sources stopped being siblings when
     #: `tokenforge` became a package, and two packages may each hold a
     #: `mint.py`.  Asserted as a property rather than as the literal spelling
     #: so the next move does not have to come back and edit this line.
     keys = json.loads(after[0]).keys()
-    assert len(keys) == 2
-    assert {k.rsplit("/", 1)[-1] for k in keys} == {"gen_a.py", "gen_b.py"}
+    def _assert_test_editing_one_generator_restamps_every_step_2():
+        assert len(keys) == 2
+        assert {k.rsplit("/", 1)[-1] for k in keys} == {"gen_a.py", "gen_b.py"}
+
+    _assert_test_editing_one_generator_restamps_every_step_2()
 
 
 def test_the_session_steps_are_never_snapshotted():

@@ -35,6 +35,33 @@ import pytest
 
 from settings import HOST, BIND_HOST
 
+def _guard_servers_1():
+    if shutil.which("cc") is None and shutil.which("gcc") is None:
+        pytest.skip("no C compiler")
+
+def _guard_servers_2():
+    if subprocess.run(["make", "-C", CLIENT_DIR, "xrddiag"],
+                      capture_output=True, text=True, timeout=180).returncode != 0 \
+            or not os.path.exists(XRDDIAG):
+        pytest.skip("xrddiag build failed")
+
+def _guard_servers_3():
+    if not os.access(NGINX_BIN, os.X_OK):
+        pytest.skip(f"nginx not executable: {NGINX_BIN}")
+
+def _guard_servers_4():
+    if shutil.which("openssl") is None:
+        pytest.skip("openssl needed to mint a self-signed cert")
+
+def _guard_servers_5(r):
+    if r.returncode != 0:
+        pytest.skip("openssl cert generation failed")
+
+def _guard_servers_6(t):
+    if t.returncode != 0:
+        pytest.skip("nginx -t failed:\n" + t.stderr)
+
+
 pytestmark = pytest.mark.timeout(120)
 
 NGINX_BIN = os.environ.get("NGINX_BIN", "/tmp/nginx-1.28.3/objs/nginx")
@@ -67,16 +94,10 @@ def _port_up(host, port):
 @pytest.fixture(scope="module")
 def servers(tmp_path_factory):
     """One nginx serving the same data over root / http / https / davs / s3."""
-    if shutil.which("cc") is None and shutil.which("gcc") is None:
-        pytest.skip("no C compiler")
-    if subprocess.run(["make", "-C", CLIENT_DIR, "xrddiag"],
-                      capture_output=True, text=True, timeout=180).returncode != 0 \
-            or not os.path.exists(XRDDIAG):
-        pytest.skip("xrddiag build failed")
-    if not os.access(NGINX_BIN, os.X_OK):
-        pytest.skip(f"nginx not executable: {NGINX_BIN}")
-    if shutil.which("openssl") is None:
-        pytest.skip("openssl needed to mint a self-signed cert")
+    _guard_servers_1()
+    _guard_servers_2()
+    _guard_servers_3()
+    _guard_servers_4()
 
     root = tmp_path_factory.mktemp("mproto")
     data = root / "data"
@@ -87,8 +108,7 @@ def servers(tmp_path_factory):
     r = subprocess.run(["openssl", "req", "-x509", "-newkey", "rsa:2048", "-nodes",
                         "-keyout", key, "-out", cert, "-days", "2",
                         "-subj", "/CN=localhost"], capture_output=True)
-    if r.returncode != 0:
-        pytest.skip("openssl cert generation failed")
+    _guard_servers_5(r)
 
     pr, ph, ps, p3 = _free_port(), _free_port(), _free_port(), _free_port()
     conf = root / "nginx.conf"
@@ -117,8 +137,7 @@ http {{
 }}
 """)
     t = subprocess.run([NGINX_BIN, "-t", "-c", str(conf)], capture_output=True, text=True)
-    if t.returncode != 0:
-        pytest.skip("nginx -t failed:\n" + t.stderr)
+    _guard_servers_6(t)
     subprocess.run([NGINX_BIN, "-c", str(conf)], capture_output=True)
     for _ in range(50):
         if _port_up(HOST, pr) and _port_up(HOST, ph) and _port_up(HOST, ps) \

@@ -31,6 +31,7 @@ from __future__ import annotations   # PEP 563: lazy annotations so the PEP 604
                                       # `X | None` hints parse on Python 3.9 too
 
 import base64
+import argparse
 import json
 import os
 import sys
@@ -258,9 +259,7 @@ class TokenIssuer:
 # CLI
 # ---------------------------------------------------------------------------
 
-def main():
-    import argparse
-
+def _build_parser():
     parser = argparse.ArgumentParser(
         description="WLCG token signing authority for nginx-xrootd testing"
     )
@@ -296,65 +295,98 @@ def main():
                            "no-scope",
                        ],
                        help="Token variant to generate")
+    return parser
+
+
+def _groups(args):
+    if args.groups:
+        return args.groups.split(",")
+    return None
+
+
+def _token_kwargs(args, groups):
+    kwargs = {"sub": args.sub, "scope": args.scope}
+    if groups:
+        kwargs["groups"] = groups
+    if args.audience:
+        kwargs["audience"] = args.audience
+    if args.issuer:
+        kwargs["issuer"] = args.issuer
+    return kwargs
+
+
+def _valid_token(issuer, args, kwargs, _groups_value):
+    return issuer.generate(lifetime=args.lifetime, **kwargs)
+
+
+def _expired_token(issuer, _args, kwargs, _groups_value):
+    return issuer.generate_expired(**kwargs)
+
+
+def _bad_signature_token(issuer, args, kwargs, _groups_value):
+    return issuer.generate_bad_signature(lifetime=args.lifetime, **kwargs)
+
+
+def _wrong_issuer_token(issuer, args, _kwargs, groups):
+    options = {}
+    if args.audience:
+        options["audience"] = args.audience
+    return issuer.generate_wrong_issuer(
+        sub=args.sub, scope=args.scope, groups=groups,
+        lifetime=args.lifetime, **options)
+
+
+def _wrong_audience_token(issuer, args, _kwargs, groups):
+    options = {}
+    if args.issuer:
+        options["issuer"] = args.issuer
+    return issuer.generate_wrong_audience(
+        sub=args.sub, scope=args.scope, groups=groups,
+        lifetime=args.lifetime, **options)
+
+
+def _no_scope_token(issuer, args, _kwargs, _groups_value):
+    return issuer.generate_no_scope(sub=args.sub)
+
+
+def _generate_token(issuer, args, kwargs, groups):
+    generators = {
+        "valid": _valid_token,
+        "expired": _expired_token,
+        "bad-signature": _bad_signature_token,
+        "wrong-issuer": _wrong_issuer_token,
+        "wrong-audience": _wrong_audience_token,
+        "no-scope": _no_scope_token,
+    }
+    return generators[args.kind](issuer, args, kwargs, groups)
+
+
+def _emit_token(token, output):
+    if not output:
+        print(token)
+        return
+    with open(output, "w") as handle:
+        handle.write(token)
+    print(f"Token written to {output}")
+
+
+def _generate_command(args):
+    issuer = TokenIssuer(args.token_dir)
+    groups = _groups(args)
+    token = _generate_token(issuer, args, _token_kwargs(args, groups), groups)
+    _emit_token(token, args.output)
+
+
+def main():
+    parser = _build_parser()
 
     args = parser.parse_args()
 
     if args.command == "init":
         issuer = TokenIssuer(args.token_dir)
         issuer.init_keys()
-
     elif args.command == "gen":
-        issuer = TokenIssuer(args.token_dir)
-        groups = args.groups.split(",") if args.groups else None
-        kwargs = {
-            "sub": args.sub,
-            "scope": args.scope,
-        }
-        if groups:
-            kwargs["groups"] = groups
-        if args.audience:
-            kwargs["audience"] = args.audience
-        if args.issuer:
-            kwargs["issuer"] = args.issuer
-
-        if args.kind == "valid":
-            token = issuer.generate(
-                lifetime=args.lifetime,
-                **kwargs,
-            )
-        elif args.kind == "expired":
-            token = issuer.generate_expired(**kwargs)
-        elif args.kind == "bad-signature":
-            token = issuer.generate_bad_signature(
-                lifetime=args.lifetime,
-                **kwargs,
-            )
-        elif args.kind == "wrong-issuer":
-            token = issuer.generate_wrong_issuer(
-                sub=args.sub,
-                scope=args.scope,
-                groups=groups,
-                lifetime=args.lifetime,
-                **({"audience": args.audience} if args.audience else {}),
-            )
-        elif args.kind == "wrong-audience":
-            token = issuer.generate_wrong_audience(
-                sub=args.sub,
-                scope=args.scope,
-                groups=groups,
-                lifetime=args.lifetime,
-                **({"issuer": args.issuer} if args.issuer else {}),
-            )
-        elif args.kind == "no-scope":
-            token = issuer.generate_no_scope(sub=args.sub)
-
-        if args.output:
-            with open(args.output, "w") as f:
-                f.write(token)
-            print(f"Token written to {args.output}")
-        else:
-            print(token)
-
+        _generate_command(args)
     else:
         parser.print_help()
 

@@ -198,6 +198,41 @@ cache_fill_acquire(sd_cache_inst_state *st, const char *key,
     return NGX_OK;
 }
 
+/*
+ * WHAT: Release every resource owned by an in-progress cache fill.
+ * WHY: Keep all error paths consistent and prevent partial staged objects.
+ * HOW: Free the transfer buffer, abort the staged object, and release source.
+ */
+static void
+cache_fill_abort(sd_cache_fill_state_t *fs)
+{
+    free(fs->buf);
+    fs->buf = NULL;
+    brix_cstore_fill_abort(fs->staged);
+    brix_sd_obj_release(fs->so);
+    fs->so = NULL;
+}
+
+
+/*
+ * WHAT: Finish a failed origin fill while preserving its causal errno.
+ * WHY: Cleanup and stale probing can overwrite network/read errors with ENOENT.
+ * HOW: Abort resources, serve bounded stale data only for direct-origin fills,
+ *      otherwise restore the supplied errno and report an error.
+ */
+static ngx_int_t
+cache_fill_fail(sd_cache_inst_state *st, const char *key,
+    sd_cache_fill_state_t *fs, int error)
+{
+    cache_fill_abort(fs);
+    if (!fs->from_cold && !fs->from_peer && sd_cache_stale_serve_ok(st, key)) {
+        return NGX_DONE;
+    }
+    errno = error;
+    return NGX_ERROR;
+}
+
+
 /* Pump the source object's bytes into the staged store object.
  *
  * WHAT: The origin read loop — pread from the source, fill_write to the staged
@@ -225,22 +260,7 @@ cache_fill_pump(sd_cache_inst_state *st, const char *key,
             if (read_err == EINTR) {
                 continue;
             }
-            free(fs->buf);
-            brix_cstore_fill_abort(fs->staged);
-            brix_sd_obj_release(fs->so);
-            if (!fs->from_cold && !fs->from_peer
-                && sd_cache_stale_serve_ok(st, key))
-            {
-                return NGX_DONE;        /* bounded stale-if-error (phase-68) */
-            }
-            /* Restore the READ's errno. sd_cache_stale_serve_ok() (and the
-             * cleanup calls) stat the absent cache entry and leave errno
-             * ENOENT — propagating that would make the fill layer classify a
-             * merely-broken origin connection (EIO/ETIMEDOUT) as the origin's
-             * definitive 404, turning a transient network fault into a
-             * cached, client-poisoning "not found" instead of a retry. */
-            errno = read_err;
-            return NGX_ERROR;
+            return cache_fill_fail(st, key, fs, read_err);
         }
         if (r == 0) {
             /* Clean EOF. If the source declared its size, an EOF short of that
@@ -258,25 +278,14 @@ cache_fill_pump(sd_cache_inst_state *st, const char *key,
                     "sd_cache: origin truncated fill for \"%s\" at %O of %O "
                     "bytes - not caching the short object", key,
                     (off_t) fs->off, (off_t) fs->snap.size);
-                free(fs->buf);
-                brix_cstore_fill_abort(fs->staged);
-                brix_sd_obj_release(fs->so);
-                if (!fs->from_cold && !fs->from_peer
-                    && sd_cache_stale_serve_ok(st, key))
-                {
-                    return NGX_DONE;    /* bounded stale-if-error (phase-68) */
-                }
-                errno = EIO;
-                return NGX_ERROR;
+                return cache_fill_fail(st, key, fs, EIO);
             }
             break;
         }
         if (brix_cstore_fill_write(fs->staged, fs->buf, (size_t) r,
                                    fs->off) < 0)
         {
-            free(fs->buf);
-            brix_cstore_fill_abort(fs->staged);
-            brix_sd_obj_release(fs->so);
+            cache_fill_abort(fs);
             return NGX_ERROR;
         }
         fs->off += r;

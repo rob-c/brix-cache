@@ -180,7 +180,7 @@ def apply_fault(fp, fault, level, reorder_ms):
         fp.set_reorder(int(level), reorder_ms)
 
 
-def main():
+def _parser():
     ap = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--fault", choices=["loss", "reorder", "jitter"], default="loss",
@@ -199,8 +199,10 @@ def main():
                     help="per-op watchdog seconds (0=auto: 3x max-stall, min 90)")
     ap.add_argument("--gsi", action="store_true",
                     help="use the GSI nginx + X509 proxy env (default: anonymous)")
-    args = ap.parse_args()
+    return ap
 
+
+def _check_binaries():
     if not os.path.isfile(XROOTDFS):
         sys.exit(f"xrootdfs not built: {XROOTDFS}  (make -C client xrootdfs)")
     if not os.path.isfile(servers.FAULT_PROXY):
@@ -208,31 +210,40 @@ def main():
     if not os.path.isfile(servers.NGINX_BIN):
         sys.exit(f"nginx not built: {servers.NGINX_BIN}")
 
+
+def _run_settings(args):
     levels = [float(x) for x in args.levels.split(",") if x.strip() != ""]
     read_bytes = args.read_mib * 1024 * 1024
     write_payload = os.urandom(args.write_mib * 1024 * 1024)
-    read_name = "/sw/read.bin"
     op_timeout = args.op_timeout or max(90, 3 * args.max_stall // 1000)
     unit = "ms" if args.fault == "jitter" else "%"
+    return levels, read_bytes, write_payload, op_timeout, unit
 
+
+def _server_context(args):
+    if args.gsi:
+        servers.ensure_pki()
+        return servers.NginxGsi(), servers.gsi_env()
+    mount_env = dict(os.environ)
+    mount_env.pop("X509_USER_PROXY", None)
+    mount_env.pop("LD_LIBRARY_PATH", None)
+    return servers.NginxAnon(), mount_env
+
+
+def _print_setup(args, levels, op_timeout, unit):
     auth = "GSI" if args.gsi else "anon"
     print(f"[setup] auth={auth}  fault={args.fault}  levels={levels}{unit}  "
           f"read={args.read_mib}MiB write={args.write_mib}MiB reps={args.reps}  "
           f"max-stall={args.max_stall}ms op-timeout={op_timeout}s")
+    return auth
 
-    if args.gsi:
-        servers.ensure_pki()
-        server_cm = servers.NginxGsi()
-        mount_env = servers.gsi_env()
-    else:
-        server_cm = servers.NginxAnon()
-        mount_env = dict(os.environ)
-        mount_env.pop("X509_USER_PROXY", None)
-        mount_env.pop("LD_LIBRARY_PATH", None)
 
+def _run_sweep(server_cm, args, settings, mount_env, auth):
+    levels, read_bytes, write_payload, op_timeout, unit = settings
     rows = []
     with server_cm as nginx:
         print(f"[up] nginx {auth} :{nginx.port}")
+        read_name = "/sw/read.bin"
         seeded = servers.seed_file(nginx.data, read_name, read_bytes)
         read_md5 = _md5_file(seeded)
         print(f"[seed] {args.read_mib}MiB read file (md5={read_md5[:12]}…)\n")
@@ -242,7 +253,17 @@ def main():
                 rows.extend(run_one(nginx, args, level, rep, mount_env,
                                     write_payload, read_name, read_md5, read_bytes,
                                     op_timeout, unit))
+    return rows
 
+
+def main():
+    args = _parser().parse_args()
+    _check_binaries()
+    settings = _run_settings(args)
+    levels, _, _, op_timeout, unit = settings
+    auth = _print_setup(args, levels, op_timeout, unit)
+    server_cm, mount_env = _server_context(args)
+    rows = _run_sweep(server_cm, args, settings, mount_env, auth)
     print_summary(rows, levels, args, unit)
 
 
@@ -256,36 +277,62 @@ def run_one(nginx, args, level, rep, mount_env, write_payload, read_name,
         mnt, proc = mount(url, args.max_stall, mount_env)
         if mnt is None:
             print(f"{tag}: MOUNT FAILED")
-            return [dict(level=level, rep=rep, op=op, ok=False, secs=0.0,
-                         reason="mount-failed") for op in ("write", "read")]
+            return _mount_failure_rows(level, rep)
 
         apply_fault(fp, args.fault, level, args.reorder_ms)
-
-        w_done, w = with_timeout(
-            lambda: write_roundtrip(mnt, nginx.data, write_payload), op_timeout)
-        w_ok, w_s, w_why = w if (w_done and w) else (False, op_timeout, "watchdog-timeout")
-
-        if w_done:
-            r_done, r = with_timeout(
-                lambda: read_roundtrip(mnt, read_name, read_md5, read_bytes),
-                op_timeout)
-            r_ok, r_s, r_why = r if (r_done and r) else (False, op_timeout, "watchdog-timeout")
-        else:
-            r_ok, r_s, r_why = (False, 0.0, "skipped-after-write-hang")
-            r_done = True
-
+        write, read, done = _run_mount_operations(
+            mnt, nginx.data, write_payload, read_name, read_md5, read_bytes, op_timeout
+        )
         fp.set_loss(0)  # clear before unmount
-        unmount(mnt, proc, lazy=not (w_done and r_done))
+        unmount(mnt, proc, lazy=not all(done))
 
-    w_mbps = (len(write_payload) / w_s / 1e6) if w_ok and w_s > 0 else 0
-    r_mbps = (read_bytes / r_s / 1e6) if r_ok and r_s > 0 else 0
+    _print_run_result(tag, write_payload, read_bytes, write, read)
+    return _operation_rows(level, rep, write, read)
+
+
+def _mount_failure_rows(level, rep):
+    return [dict(level=level, rep=rep, op=op, ok=False, secs=0.0,
+                 reason="mount-failed") for op in ("write", "read")]
+
+
+def _timed_result(done, result, timeout):
+    return result if done and result else (False, timeout, "watchdog-timeout")
+
+
+def _run_mount_operations(mnt, data, payload, name, digest, size, timeout):
+    w_done, w = with_timeout(lambda: write_roundtrip(mnt, data, payload), timeout)
+    write = _timed_result(w_done, w, timeout)
+    if not w_done:
+        return write, (False, 0.0, "skipped-after-write-hang"), (w_done, True)
+    r_done, r = with_timeout(lambda: read_roundtrip(mnt, name, digest, size), timeout)
+    return write, _timed_result(r_done, r, timeout), (w_done, r_done)
+
+
+def _throughput(byte_count, result):
+    ok, seconds, _ = result
+    return byte_count / seconds / 1e6 if ok and seconds > 0 else 0
+
+
+def _print_run_result(tag, write_payload, read_bytes, write, read):
+    w_ok, w_s, w_why = write
+    r_ok, r_s, r_why = read
+    w_mbps = _throughput(len(write_payload), write)
+    r_mbps = _throughput(read_bytes, read)
+
     print(f"{tag}: "
           f"WRITE {'OK ' if w_ok else 'FAIL'} {w_s:7.2f}s {w_mbps:6.1f}MB/s ({w_why})  "
           f"READ {'OK ' if r_ok else 'FAIL'} {r_s:7.2f}s {r_mbps:6.1f}MB/s ({r_why})")
-    return [dict(level=level, rep=rep, op="write", ok=w_ok, secs=round(w_s, 3),
-                 reason=w_why),
-            dict(level=level, rep=rep, op="read", ok=r_ok, secs=round(r_s, 3),
-                 reason=r_why)]
+
+
+def _operation_rows(level, rep, write, read):
+    return [_operation_row(level, rep, "write", write),
+            _operation_row(level, rep, "read", read)]
+
+
+def _operation_row(level, rep, operation, result):
+    ok, seconds, reason = result
+    return dict(level=level, rep=rep, op=operation, ok=ok,
+                secs=round(seconds, 3), reason=reason)
 
 
 def print_summary(rows, levels, args, unit):
@@ -298,15 +345,23 @@ def print_summary(rows, levels, args, unit):
     sizes = {"write": args.write_mib * 1024 * 1024, "read": args.read_mib * 1024 * 1024}
     for level in levels:
         for op in ("write", "read"):
-            cell = [r for r in rows if r["level"] == level and r["op"] == op]
-            good = sorted(r["secs"] for r in cell if r["ok"])
-            okn = len(good)
-            if good:
-                med = good[len(good) // 2]
-                mbps = sizes[op] / med / 1e6 if med > 0 else 0
-                print(f"{level:>9g} {op:>5s} {okn:3d}/{len(cell):<2d} {med:8.2f} {mbps:8.1f}")
-            else:
-                print(f"{level:>9g} {op:>5s} {okn:3d}/{len(cell):<2d} {'-':>8s} {'-':>8s}")
+            _print_summary_cell(rows, level, op, sizes[op])
+
+
+def _print_summary_cell(rows, level, operation, size):
+    cell = list(filter(lambda row: _matches_cell(row, level, operation), rows))
+    good = sorted(map(lambda row: row["secs"], filter(lambda row: row["ok"], cell)))
+    if not good:
+        print(f"{level:>9g} {operation:>5s} {0:3d}/{len(cell):<2d} {'-':>8s} {'-':>8s}")
+        return
+    median = good[len(good) // 2]
+    speed = size / median / 1e6 if median > 0 else 0
+    print(f"{level:>9g} {operation:>5s} {len(good):3d}/{len(cell):<2d} "
+          f"{median:8.2f} {speed:8.1f}")
+
+
+def _matches_cell(row, level, operation):
+    return row["level"] == level and row["op"] == operation
 
 
 if __name__ == "__main__":

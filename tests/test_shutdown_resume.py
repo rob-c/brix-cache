@@ -67,6 +67,27 @@ def _alive(pid):
         return False
 
 
+def _require(condition, message):
+    if not condition:
+        raise AssertionError(message)
+
+
+def _wait_workers_exit(lifecycle, name, workers, timeout=15):
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        if all(not _alive(pid) for pid in workers):
+            return True
+        time.sleep(0.1)
+    return all(not _alive(pid) for pid in workers)
+
+
+def _wait_fresh_worker(lifecycle, name):
+    for _ in range(50):
+        if _worker_pids(lifecycle, name):
+            return
+        time.sleep(0.1)
+
+
 DUAL_NAME = "lc-shutdown-resume-dual"
 
 
@@ -96,7 +117,7 @@ def test_idle_connection_does_not_block_fast_teardown(srv):
     timeout (which is unset here = would otherwise hang indefinitely)."""
     lc, name = srv["lc"], srv["name"]
     old = _worker_pids(lc, name)
-    assert old, "no worker running"
+    _require(old, "no worker running")
 
     # Park an idle root:// connection (handshake then sit).
     s = socket.create_connection((HOST, srv["rport"]))
@@ -104,21 +125,16 @@ def test_idle_connection_does_not_block_fast_teardown(srv):
 
     try:
         lc.reload(name)
-        deadline = time.time() + 15
-        while time.time() < deadline:
-            if all(not _alive(p) for p in old):
-                break
-            time.sleep(0.1)
+        exited = _wait_workers_exit(lc, name, old)
         elapsed = "alive" if any(_alive(p) for p in old) else "exited"
-        assert all(not _alive(p) for p in old), \
-            f"old worker(s) {old} still {elapsed} 15s after reload"
+        _require(
+            exited,
+            f"old worker(s) {old} still {elapsed} 15s after reload",
+        )
     finally:
         s.close()
     # let a fresh worker come up for the next test
-    for _ in range(50):
-        if _worker_pids(lc, name):
-            break
-        time.sleep(0.1)
+    _wait_fresh_worker(lc, name)
 
 
 def _wait_progress(glob_pat, timeout=15.0):
@@ -136,6 +152,37 @@ def _wait_progress(glob_pat, timeout=15.0):
                 pass
         time.sleep(0.05)
     return False
+
+
+def _kill_serving_workers(lifecycle, name):
+    kills = 0
+    for worker in _worker_pids(lifecycle, name):
+        try:
+            os.kill(worker, 9)
+            kills += 1
+        except OSError:
+            pass
+    return kills
+
+
+def _run_transfer_chaos(process, lifecycle, name, n_kills, spacing):
+    kills = 0
+    while process.poll() is None and kills < n_kills:
+        kills += _kill_serving_workers(lifecycle, name)
+        time.sleep(spacing)
+    return kills
+
+
+def _verify_transfer(process, verify_path, want_md5, kills):
+    return_code = process.wait()
+    log = process.stdout.read() if process.stdout else ""
+    _require(return_code == 0, f"xrdcp failed rc={return_code} kills={kills}\n{log}")
+    _require(verify_path.exists(), "no output file")
+    actual_md5 = hashlib.md5(verify_path.read_bytes()).hexdigest()
+    _require(
+        actual_md5 == want_md5,
+        f"byte mismatch after {kills} mid-transfer kills",
+    )
 
 
 def _xrdcp_under_chaos(srv, argv, verify_path, want_md5,
@@ -156,21 +203,8 @@ def _xrdcp_under_chaos(srv, argv, verify_path, want_md5,
                             text=True, env=env)
     if warmup_glob is not None:
         _wait_progress(warmup_glob)
-    kills = 0
-    while proc.poll() is None and kills < n_kills:
-        for w in _worker_pids(lc, name):  # force a true TCP sever (master respawns)
-            try:
-                os.kill(w, 9)
-                kills += 1
-            except OSError:
-                pass
-        time.sleep(spacing)               # let the respawned worker serve a chunk
-    rc = proc.wait()                      # finish uninterrupted after n_kills
-    log = proc.stdout.read() if proc.stdout else ""
-    assert rc == 0, f"xrdcp failed rc={rc} kills={kills}\n{log}"
-    assert verify_path.exists(), "no output file"
-    got = hashlib.md5(verify_path.read_bytes()).hexdigest()
-    assert got == want_md5, f"byte mismatch after {kills} mid-transfer kills"
+    kills = _run_transfer_chaos(proc, lc, name, n_kills, spacing)
+    _verify_transfer(proc, verify_path, want_md5, kills)
     return kills
 
 
@@ -241,6 +275,27 @@ def test_webdav_upload_resumes_across_restart(srv, tmp_path):
     assert not leftover, f"uncommitted resume partial left behind: {leftover}"
 
 
+def _stage_directory(tmp_path, prefix):
+    shared_memory = "/dev/shm"
+    if os.path.isdir(shared_memory) and os.access(shared_memory, os.W_OK):
+        return os.path.join(shared_memory, f"{prefix}-{os.getpid()}")
+    return str(tmp_path / "stage")
+
+
+def _prepare_stage(path):
+    os.makedirs(path, exist_ok=True)
+    if os.geteuid() == 0:
+        os.chmod(path, 0o777)
+
+
+def _wait_for_path(path):
+    for _ in range(50):
+        if path.exists():
+            return True
+        time.sleep(0.2)
+    return path.exists()
+
+
 def test_upload_resume_stage_dir(lifecycle, tmp_path):
     """Uploads stage on a CONFIGURABLE directory (brix_stage_dir) — typically a
     fast caching device — then commit to the storage.  Prefers /dev/shm (tmpfs, a
@@ -248,17 +303,8 @@ def test_upload_resume_stage_dir(lifecycle, tmp_path):
     in the stage dir during transfer, survives worker-kills, lands byte-exact on
     storage, and the stage dir is emptied on commit."""
     _require_xrdcp()
-    shm = "/dev/shm"
-    if os.path.isdir(shm) and os.access(shm, os.W_OK):
-        stage = os.path.join(shm, f"xrd-stage-{os.getpid()}")  # tmpfs => cross-device
-    else:
-        stage = str(tmp_path / "stage")
-    os.makedirs(stage, exist_ok=True)
-    if os.geteuid() == 0:
-        # Under the root harness the nginx worker drops to `nobody`; it must be
-        # able to WRITE staged partials into brix_stage_dir. A default 0755-root
-        # dir makes the staged-open fail and the client sees rc=54 NotAuthorized.
-        os.chmod(stage, 0o777)
+    stage = _stage_directory(tmp_path, "xrd-stage")
+    _prepare_stage(stage)
     name = "lc-shutdown-resume-stage"
     try:
         ep = lifecycle.start(NginxInstanceSpec(
@@ -282,11 +328,13 @@ def test_upload_resume_stage_dir(lifecycle, tmp_path):
         kills = _xrdcp_under_chaos(srv, [str(src), url], dst, src_md5,
                                    spacing=1.0,
                                    warmup_glob=os.path.join(stage, "*.part"))
-        assert kills >= 1
+        _require(kills >= 1, "the transfer completed without a worker kill")
         # commit moved the partial off the stage device onto storage and removed
         # the pending-commit marker (.part and .part.commit both gone)
-        assert not glob.glob(os.path.join(stage, "*.xrdresume*")), \
-            "staged partial/marker left on the stage device after commit"
+        _require(
+            not glob.glob(os.path.join(stage, "*.xrdresume*")),
+            "staged partial/marker left on the stage device after commit",
+        )
     finally:
         shutil.rmtree(stage, ignore_errors=True)
 
@@ -299,14 +347,8 @@ def test_stage_reaper_recovers_stranded_upload(lifecycle, tmp_path):
         pytest.skip("nginx unavailable")
     data = tmp_path / "data"
     data.mkdir(parents=True)
-    shm = "/dev/shm"
-    stage = os.path.join(shm, f"xrd-reap-{os.getpid()}") \
-        if os.path.isdir(shm) and os.access(shm, os.W_OK) else str(tmp_path / "stage")
-    os.makedirs(stage, exist_ok=True)
-    if os.geteuid() == 0:
-        # `nobody` worker must write staged partials into brix_stage_dir (see
-        # test_upload_resume_stage_dir); a 0755-root dir 503/NotAuthorizes the open.
-        os.chmod(stage, 0o777)
+    stage = _stage_directory(tmp_path, "xrd-reap")
+    _prepare_stage(stage)
 
     # Seed a stranded COMPLETE partial + its pending-commit marker.  The final
     # path lives under a test-owned export, so pin it as the instance data_root.
@@ -328,15 +370,14 @@ def test_stage_reaper_recovers_stranded_upload(lifecycle, tmp_path):
             template_values={"BIND_HOST": BIND_HOST, "STAGE_DIR": stage},
             reason="startup stage-out reaper recovers a stranded upload",
         ))
-        # reaper first tick ~1s after startup
-        for _ in range(50):
-            if final.exists():
-                break
-            time.sleep(0.2)
-        assert final.exists(), "reaper did not recover the stranded upload"
-        assert hashlib.md5(final.read_bytes()).hexdigest() == src_md5, \
-            "recovered file is not byte-exact"
-        assert not glob.glob(os.path.join(stage, "*.xrdresume*")), \
-            "cache not cleared after stage-out recovery"
+        _require(_wait_for_path(final), "reaper did not recover the stranded upload")
+        _require(
+            hashlib.md5(final.read_bytes()).hexdigest() == src_md5,
+            "recovered file is not byte-exact",
+        )
+        _require(
+            not glob.glob(os.path.join(stage, "*.xrdresume*")),
+            "cache not cleared after stage-out recovery",
+        )
     finally:
         shutil.rmtree(stage, ignore_errors=True)

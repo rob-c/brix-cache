@@ -163,10 +163,16 @@ def test_full_trace_replays_to_identical_namespace(fsck, tmp_path):
     src.close()
 
     proc = _replay(fsck, tmp_path / "fresh", src.path)
-    assert proc.returncode == 0, f"replay diverged:\n{proc.stdout}{proc.stderr}"
-    assert "FINDINGS 0" in proc.stdout
-    assert "REPLAY applied=6 noop=2 skipped=0 unknown=0" in proc.stdout
-    assert _namespace(tmp_path / "fresh/catalog.db") == _namespace(src.path)
+    def _assert_test_full_trace_replays_to_identical_namespace_1():
+        assert proc.returncode == 0, f"replay diverged:\n{proc.stdout}{proc.stderr}"
+        assert "FINDINGS 0" in proc.stdout
+
+    _assert_test_full_trace_replays_to_identical_namespace_1()
+    def _assert_test_full_trace_replays_to_identical_namespace_2():
+        assert "REPLAY applied=6 noop=2 skipped=0 unknown=0" in proc.stdout
+        assert _namespace(tmp_path / "fresh/catalog.db") == _namespace(src.path)
+
+    _assert_test_full_trace_replays_to_identical_namespace_2()
 
 
 def test_failed_and_readonly_ops_change_nothing(fsck, tmp_path):

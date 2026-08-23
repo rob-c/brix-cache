@@ -121,6 +121,50 @@ static void chk_cb(uint64_t off, uint64_t sz, const cvmfs_hash_t *h, void *ud) {
     c->last_off = off; c->n++;
 }
 
+/* WHAT: Check point lookup and directory enumeration semantics.
+ * WHY: Keep row-level assertions separate from metadata table assertions.
+ * HOW: Query fixture entries, one miss, and the /soft child set. */
+static void test_entries(cvmfs_catalog_t *c) {
+    cvmfs_dirent_t e;
+    dircnt_t       d;
+    int            n;
+
+    CHECK(cvmfs_catalog_lookup(c, "/soft/app", &e) == 1, "lookup file found");
+    CHECK((e.flags & CVMFS_FLAG_FILE) && e.size == 1234, "file flags+size");
+    CHECK(e.has_hash && e.hash.len == 20
+          && memcmp(e.hash.bytes, APP_HASH, 20) == 0, "file content hash");
+    CHECK(cvmfs_catalog_lookup(c, "/soft/lnk", &e) == 1
+          && (e.flags & CVMFS_FLAG_LINK) && strcmp(e.symlink, "app") == 0,
+          "symlink target");
+    CHECK(cvmfs_catalog_lookup(c, "/does/not/exist", &e) == 0, "absent path");
+    memset(&d, 0, sizeof(d));
+    n = cvmfs_catalog_readdir(c, "/soft", dir_cb, &d);
+    CHECK(n == 4 && d.saw_app && d.saw_lnk && d.saw_big && d.saw_nested,
+          "readdir lists all children");
+}
+
+
+/* WHAT: Check nested, chunk, and property auxiliary tables.
+ * WHY: Validate non-dirent catalog APIs independently.
+ * HOW: Query known/missing nested rows, ordered chunks, and revision property. */
+static void test_metadata(cvmfs_catalog_t *c) {
+    cvmfs_hash_t nh;
+    uint64_t     nsz = 0;
+    chkcnt_t     ck;
+    char         rev[32];
+
+    CHECK(cvmfs_catalog_nested(c, "/soft/nested", &nh, &nsz) == 1
+          && nh.bytes[0] == 0xab && nsz == 1234, "nested catalog descent");
+    CHECK(cvmfs_catalog_nested(c, "/soft", &nh, &nsz) == 0,
+          "non-mountpoint → no nested");
+    memset(&ck, 0, sizeof(ck));
+    ck.ordered = 1;
+    CHECK(cvmfs_catalog_chunks(c, "/soft/big", chk_cb, &ck) == 2 && ck.ordered,
+          "chunk list ordered by offset");
+    CHECK(cvmfs_catalog_property(c, "revision", rev, sizeof(rev)) == 1
+          && strcmp(rev, "42") == 0, "property lookup");
+}
+
 int main(void) {
     char db[] = "/tmp/brix_cat_ut.XXXXXX";
     int fd = mkstemp(db); if (fd >= 0) close(fd);
@@ -130,35 +174,8 @@ int main(void) {
     cvmfs_catalog_t *c = cvmfs_catalog_open(db);
     CHECK(c != NULL, "catalog opens");
 
-    cvmfs_dirent_t e;
-    CHECK(cvmfs_catalog_lookup(c, "/soft/app", &e) == 1, "lookup file found");
-    CHECK((e.flags & CVMFS_FLAG_FILE) && e.size == 1234, "file flags+size");
-    CHECK(e.has_hash && e.hash.len == 20 && memcmp(e.hash.bytes, APP_HASH, 20) == 0,
-          "file content hash");
-
-    CHECK(cvmfs_catalog_lookup(c, "/soft/lnk", &e) == 1
-          && (e.flags & CVMFS_FLAG_LINK) && strcmp(e.symlink, "app") == 0,
-          "symlink target");
-
-    CHECK(cvmfs_catalog_lookup(c, "/does/not/exist", &e) == 0, "absent path"); /* neg */
-
-    dircnt_t d; memset(&d, 0, sizeof(d));
-    int n = cvmfs_catalog_readdir(c, "/soft", dir_cb, &d);
-    CHECK(n == 4 && d.saw_app && d.saw_lnk && d.saw_big && d.saw_nested,
-          "readdir lists all children");
-
-    cvmfs_hash_t nh; uint64_t nsz = 0;
-    CHECK(cvmfs_catalog_nested(c, "/soft/nested", &nh, &nsz) == 1
-          && nh.bytes[0] == 0xab && nsz == 1234, "nested catalog descent");
-    CHECK(cvmfs_catalog_nested(c, "/soft", &nh, &nsz) == 0, "non-mountpoint → no nested");
-
-    chkcnt_t ck; memset(&ck, 0, sizeof(ck)); ck.ordered = 1;
-    CHECK(cvmfs_catalog_chunks(c, "/soft/big", chk_cb, &ck) == 2 && ck.ordered,
-          "chunk list ordered by offset");
-
-    char rev[32];
-    CHECK(cvmfs_catalog_property(c, "revision", rev, sizeof(rev)) == 1
-          && strcmp(rev, "42") == 0, "property lookup");
+    test_entries(c);
+    test_metadata(c);
 
     cvmfs_catalog_close(c);
     unlink(db);

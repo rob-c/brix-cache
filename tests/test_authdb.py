@@ -6,6 +6,7 @@ based on user identity and VO membership.
 """
 
 import os
+import signal
 import subprocess
 import sys
 import time
@@ -28,6 +29,11 @@ from settings import (
 )
 
 from settings import TEST_ROOT as _TEST_ROOT
+
+def _guard_authdb_nginx_1(reachable):
+    if not reachable:
+        pytest.skip(f"Dedicated authdb nginx not running on port {AUTHDB_PORT}")
+
 
 pytestmark = pytest.mark.xdist_group("authdb")
 
@@ -177,6 +183,40 @@ def authdb_setup():
     yield AUTHDB_FILE
 
 
+def _authdb_pidfile():
+    candidates = (
+        os.path.join(_TEST_ROOT, "registry", "authdb", "logs", "nginx.pid"),
+        os.path.join(_TEST_ROOT, "dedicated", "authdb", "logs", "nginx.pid"),
+    )
+    for path in candidates:
+        if os.path.exists(path):
+            return path
+    return None
+
+
+def _reload_authdb(pidfile):
+    if pidfile is None:
+        return
+    try:
+        pid = int(open(pidfile).read().strip())
+        os.kill(pid, signal.SIGHUP)
+        time.sleep(0.5)
+    except (ValueError, ProcessLookupError):
+        pass
+
+
+def _wait_authdb(env):
+    for _ in range(20):
+        result = subprocess.run(
+            ["xrdfs", AUTHDB_URL, "stat", "/public/seed.txt"],
+            env=env, capture_output=True, timeout=5,
+        )
+        if result.returncode == 0:
+            return True
+        time.sleep(0.5)
+    return False
+
+
 @pytest.fixture(scope="session")
 def authdb_nginx(authdb_setup):
     """Use the pre-started dedicated authdb nginx instance.
@@ -185,7 +225,6 @@ def authdb_nginx(authdb_setup):
     port AUTHDB_PORT=11114 with nginx_authdb.conf.  authdb_setup already wrote
     the authdb rules file to {DATA_DIR}/authdb; we SIGHUP nginx so it reloads.
     """
-    import signal
     import socket
 
     # Skip if the dedicated server is not up.
@@ -193,8 +232,7 @@ def authdb_nginx(authdb_setup):
     s.settimeout(2)
     reachable = s.connect_ex((HOST, AUTHDB_PORT)) == 0
     s.close()
-    if not reachable:
-        pytest.skip(f"Dedicated authdb nginx not running on port {AUTHDB_PORT}")
+    _guard_authdb_nginx_1(reachable)
 
     # SIGHUP so nginx reloads the authdb rules written by authdb_setup.
     # The registry framework writes the master pidfile under
@@ -202,35 +240,14 @@ def authdb_nginx(authdb_setup):
     # logs/. Try both (registry first) — pointing at the stale bash path silently
     # skipped the reload, so the rules never loaded and every "denied" assertion
     # saw an empty allow-all ruleset.
-    pidfile = next(
-        (p for p in (
-            os.path.join(_TEST_ROOT, "registry", "authdb", "logs", "nginx.pid"),
-            os.path.join(_TEST_ROOT, "dedicated", "authdb", "logs", "nginx.pid"),
-        ) if os.path.exists(p)),
-        None,
-    )
-    if pidfile:
-        try:
-            pid = int(open(pidfile).read().strip())
-            os.kill(pid, signal.SIGHUP)
-            time.sleep(0.5)
-        except (ValueError, ProcessLookupError):
-            pass
+    _reload_authdb(_authdb_pidfile())
 
     env = {**os.environ,
            "X509_CERT_DIR":   CA_DIR,
            "X509_USER_PROXY": PROXY_STD,
            "XrdSecPROTOCOL":  "gsi"}
 
-    for _ in range(20):
-        r = subprocess.run(
-            ["xrdfs", AUTHDB_URL, "stat", "/public/seed.txt"],
-            env=env, capture_output=True, timeout=5,
-        )
-        if r.returncode == 0:
-            break
-        time.sleep(0.5)
-    else:
+    if not _wait_authdb(env):
         pytest.skip(f"Authdb nginx not ready on port {AUTHDB_PORT}")
 
     yield {}  # server is pre-started; nothing to stop

@@ -41,28 +41,39 @@ def run(root: Path = ROOT) -> tuple[bool, list[str]]:
     """Return (ok, violations). Each violation is a `path:line:text` string,
     ROOT-relative, mirroring `grep -rn … | sed | grep -v | grep -vE`."""
     src = root / "src"
-    hits: list[str] = []
+    hits = [
+        hit
+        for path in _source_files(src)
+        for hit in _file_hits(root, path)
+    ]
+    return (not hits, hits)
+
+
+def _source_files(src):
+    paths = []
     for dirpath, dirnames, filenames in os.walk(src):
         dirnames.sort()
-        for name in sorted(filenames):
-            if not (name.endswith(".c") or name.endswith(".h")):
-                continue
-            path = Path(dirpath) / name
-            rel = path.relative_to(root).as_posix()
-            try:
-                text = path.read_text(errors="replace")
-            except OSError:
-                continue
-            for lineno, line in enumerate(text.splitlines(), start=1):
-                if not _CALL.search(line):
-                    continue
-                entry = f"{rel}:{lineno}:{line}"
-                if rel == ALLOW:
-                    continue
-                if _COMMENT.search(entry):
-                    continue
-                hits.append(entry)
-    return (not hits, hits)
+        paths.extend(
+            Path(dirpath) / name for name in sorted(filenames)
+            if name.endswith((".c", ".h"))
+        )
+    return paths
+
+
+def _file_hits(root, path):
+    relative = path.relative_to(root).as_posix()
+    if relative == ALLOW:
+        return []
+    try:
+        text = path.read_text(errors="replace")
+    except OSError:
+        return []
+    return [
+        entry
+        for lineno, line in enumerate(text.splitlines(), start=1)
+        for entry in [f"{relative}:{lineno}:{line}"]
+        if _CALL.search(line) and not _COMMENT.search(entry)
+    ]
 
 
 def main() -> int:

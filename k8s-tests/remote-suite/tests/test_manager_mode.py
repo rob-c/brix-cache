@@ -996,13 +996,16 @@ class TestRegistryFullCounter:
                 counter_value = float(line.split()[1])
                 break
 
-        assert counter_value is not None, (
-            "brix_registry_full_total not present in Prometheus output"
-        )
-        assert counter_value > 0, (
-            f"brix_registry_full_total is {counter_value}; "
-            "expected > 0 after 4 servers tried to register into 3 slots"
-        )
+        def _assert_test_registry_full_counter_nonzero_1():
+            assert counter_value is not None, (
+                "brix_registry_full_total not present in Prometheus output"
+            )
+            assert counter_value > 0, (
+                f"brix_registry_full_total is {counter_value}; "
+                "expected > 0 after 4 servers tried to register into 3 slots"
+            )
+
+        _assert_test_registry_full_counter_nonzero_1()
 
     def test_registry_accepts_up_to_slot_limit(self, cluster_full_registry):
         """At most 3 slots filled → at least one server's locate succeeds."""

@@ -103,14 +103,19 @@ def test_prepush_hook_does_not_pattern_match_guard_filenames() -> None:
     assert "guard_set.py" in body, "pre-push no longer invokes tools/ci/guard_set.py"
 
 
+def _assert_executable_guard(path: Path) -> None:
+    assert path.is_file() and os.access(path, os.X_OK), \
+        f"{path} is not an executable guard"
+
+
 def test_prepush_guard_set_is_not_empty() -> None:
     """A resolver that returns nothing is the bug, not a clean tree."""
     rc, out = _run("guard_set")
     assert rc == 0, f"tools/ci/guard_set.py failed (exit {rc}):\n{out}"
     resolved = [Path(line) for line in out.splitlines() if line.strip()]
     assert resolved, "guard_set.py resolved an empty pre-push set"
-    for p in resolved:
-        assert p.is_file() and os.access(p, os.X_OK), f"{p} is not an executable guard"
+    for path in resolved:
+        _assert_executable_guard(path)
 
 
 def test_prepush_skips_are_ci_guards_with_a_reason() -> None:

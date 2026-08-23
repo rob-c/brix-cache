@@ -50,6 +50,41 @@ from settings import (
     url_host,
 )
 
+def _expression_1(n_clients):
+    return (
+        [tempfile.mktemp(suffix=f"_par{i}.bin") for i in range(n_clients)]
+    )
+
+def _expression_2(n_clients, out_files, cluster, name):
+    return (
+        [
+                subprocess.Popen(
+                    [XRDCP_BIN, "-f",
+                     _redir_url(cluster["redir_port"], f"//{name}"),
+                     out_files[i]],
+                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                )
+                for i in range(n_clients)
+            ]
+    )
+
+
+def _check_test_large_file_round_trip_through_redirector_1(rc):
+    assert rc == 0, "Large file download through redirector failed"
+
+def _check_test_large_file_round_trip_through_redirector_2(known_md5, h):
+    assert h.hexdigest() == known_md5, "Large file MD5 mismatch through redirector"
+
+def _check_test_xrdfs_ls_through_redirector_3(res):
+    assert res.returncode == 0, f"xrdfs ls failed: {res.stderr}"
+
+def _check_test_xrdfs_ls_through_redirector_4(n, res):
+    assert n in res.stdout, f"{n} not found in ls output"
+
+def _check_test_parallel_downloads_through_redirector_5(expected_md5, i, out):
+    assert _md5(open(out, "rb").read()) == expected_md5, f"Client {i} content mismatch"
+
+
 pytestmark = pytest.mark.e2e
 
 
@@ -203,12 +238,12 @@ def test_large_file_round_trip_through_redirector(cluster):
             _redir_url(cluster["redir_port"], "//large200.bin"), out.name,
             timeout=240,
         )
-    assert rc == 0, "Large file download through redirector failed"
+    _check_test_large_file_round_trip_through_redirector_1(rc)
     h = hashlib.md5()
     with open(out.name, "rb") as f:
         for chunk in iter(lambda: f.read(65536), b""):
             h.update(chunk)
-    assert h.hexdigest() == known_md5, "Large file MD5 mismatch through redirector"
+    _check_test_large_file_round_trip_through_redirector_2(known_md5, h)
 
 
 # ---------------------------------------------------------------------------
@@ -254,9 +289,9 @@ def test_xrdfs_ls_through_redirector(cluster):
         [XRDFS_BIN, _redir_url(cluster["redir_port"], ""), "ls", "/"],
         capture_output=True, text=True, timeout=15,
     )
-    assert res.returncode == 0, f"xrdfs ls failed: {res.stderr}"
+    _check_test_xrdfs_ls_through_redirector_3(res)
     for n in names:
-        assert n in res.stdout, f"{n} not found in ls output"
+        _check_test_xrdfs_ls_through_redirector_4(n, res)
 
 
 # ---------------------------------------------------------------------------
@@ -272,25 +307,20 @@ def test_parallel_downloads_through_redirector(cluster):
     _write_file(os.path.join(cluster["data_root"], name), payload)
 
     n_clients = 5
-    out_files = [tempfile.mktemp(suffix=f"_par{i}.bin") for i in range(n_clients)]
-    procs = [
-        subprocess.Popen(
-            [XRDCP_BIN, "-f",
-             _redir_url(cluster["redir_port"], f"//{name}"),
-             out_files[i]],
-            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-        )
-        for i in range(n_clients)
-    ]
+    out_files = _expression_1(n_clients)
+    procs = _expression_2(n_clients, out_files, cluster, name)
 
     for p in procs:
         p.wait(timeout=60)
 
     expected_md5 = _md5(payload)
     for i, (p, out) in enumerate(zip(procs, out_files)):
-        assert p.returncode == 0, f"Client {i} xrdcp failed"
-        assert os.path.exists(out), f"Client {i} output file missing"
-        assert _md5(open(out, "rb").read()) == expected_md5, f"Client {i} content mismatch"
+        def _assert_test_parallel_downloads_through_redirector_1():
+            assert p.returncode == 0, f"Client {i} xrdcp failed"
+            assert os.path.exists(out), f"Client {i} output file missing"
+
+        _assert_test_parallel_downloads_through_redirector_1()
+        _check_test_parallel_downloads_through_redirector_5(expected_md5, i, out)
         os.unlink(out)
 
 

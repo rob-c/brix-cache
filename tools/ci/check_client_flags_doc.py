@@ -156,16 +156,23 @@ def claims(root: Path, path: Path) -> Iterator[tuple[int, str]]:
     for number, line in logical_lines(path):
         if ALLOW in line:
             continue
-        #: A fenced block is command text throughout and carries no backticks;
-        #: anywhere else, the spans ARE the commands and the prose between them
-        #: is not one.
-        spans = _CODE.findall(line) or [line]
-        for segment in (s for span in spans for s in _SEPARATOR.split(span)):
-            words = _LEAD.sub("", segment).split()
-            if not words or words[0].strip("`'\"") not in known:
-                continue
+        yield from _line_claims(number, line, known)
+
+
+def _line_claims(number, line, known):
+    #: A fenced block is command text throughout and carries no backticks;
+    #: anywhere else, the spans ARE the commands and the prose between them
+    #: is not one.
+    spans = _CODE.findall(line) or [line]
+    for segment in (value for span in spans for value in _SEPARATOR.split(span)):
+        if _client_segment(segment, known):
             for flag in _FLAG.findall(segment):
                 yield number, flag
+
+
+def _client_segment(segment, known):
+    words = _LEAD.sub("", segment).split()
+    return bool(words) and words[0].strip("`'\"") in known
 
 
 def findings(root: Path) -> list[tuple[str, str, int]]:

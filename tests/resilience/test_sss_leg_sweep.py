@@ -59,6 +59,32 @@ import sys
 
 import pytest
 
+def _expression_1(keytab, self):
+    return (
+        self.keytab if keytab is ... else keytab
+    )
+
+def _expression_2(dst):
+    return (
+        os.path.getsize(dst) if os.path.exists(dst) else 0
+    )
+
+def _expression_3(got, proc, dst, self):
+    return (
+        proc.returncode == 0 and got == SIZE
+                             and _md5(dst) == self.want
+    )
+
+
+def _guard_download_1(kt, env):
+    if kt:
+        env["XrdSecSSSKT"] = kt
+
+def _guard_download_2(dst):
+    if os.path.exists(dst):
+        os.unlink(dst)
+
+
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import servers  # noqa: E402
 from settings import HOST  # noqa: E402
@@ -124,21 +150,18 @@ class SssLeg:
         for key in ("LD_LIBRARY_PATH", "X509_USER_PROXY", "BEARER_TOKEN",
                     "BEARER_TOKEN_FILE", "XrdSecSSSKT", "XrdSecsssKT"):
             env.pop(key, None)
-        kt = self.keytab if keytab is ... else keytab
-        if kt:
-            env["XrdSecSSSKT"] = kt
+        kt = _expression_1(keytab, self)
+        _guard_download_1(kt, env)
         url = f"root://{HOST}:{self.fp.listen}//{NAME}"
         try:
             proc = subprocess.run(
                 [servers.XRDCP, "-f", "--auth", "sss", url, dst],
                 env=env, capture_output=True, timeout=180)
-            got = os.path.getsize(dst) if os.path.exists(dst) else 0
-            exact = (proc.returncode == 0 and got == SIZE
-                     and _md5(dst) == self.want)
+            got = _expression_2(dst)
+            exact = (_expression_3(got, proc, dst, self))
             return proc.returncode, exact, got
         finally:
-            if os.path.exists(dst):
-                os.unlink(dst)
+            _guard_download_2(dst)
 
 
 @pytest.fixture(scope="module")

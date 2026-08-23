@@ -40,30 +40,7 @@ def api_contract() -> Mapping[str, object]:
         for name in members
     }
     names = ("__version__", *sorted(PUBLIC_EXPORTS))
-    symbols = []
-    for name in names:
-        if name in PUBLIC_CALL_SHAPES:
-            kind = "function"
-        elif name in PUBLIC_METHODS:
-            kind = "class"
-        else:
-            kind = "constant"
-        symbols.append({
-            "name": name,
-            "group": group_by_name.get(name, "package"),
-            "module": PUBLIC_EXPORTS.get(name, "brixtest"),
-            "kind": kind,
-            "call_shape": list(
-                PUBLIC_CALL_SHAPES.get(name, PUBLIC_CLASS_CALL_SHAPES.get(name, ()))
-            ) if kind != "constant" else None,
-            "members": list(PUBLIC_METHODS.get(name, ())),
-            "attributes": list(PUBLIC_ATTRIBUTES.get(name, ())),
-            "member_call_shapes": {
-                member: list(PUBLIC_MEMBER_CALL_SHAPES[name + "." + member])
-                for member in PUBLIC_METHODS.get(name, ())
-            },
-            "properties": list(PUBLIC_PROPERTIES.get(name, ())),
-        })
+    symbols = [_api_symbol(name, group_by_name) for name in names]
 
     groups = {"package": ["__version__"]}
     groups.update({
@@ -84,6 +61,43 @@ def api_contract() -> Mapping[str, object]:
             "hooks": sorted(PUBLIC_PYTEST_HOOKS),
         },
     })
+
+
+def _api_symbol(name: str, group_by_name: Mapping[str, str]) -> dict[str, object]:
+    kind = _symbol_kind(name)
+    return {
+        "name": name,
+        "group": group_by_name.get(name, "package"),
+        "module": PUBLIC_EXPORTS.get(name, "brixtest"),
+        "kind": kind,
+        "call_shape": _call_shape(name, kind),
+        "members": list(PUBLIC_METHODS.get(name, ())),
+        "attributes": list(PUBLIC_ATTRIBUTES.get(name, ())),
+        "member_call_shapes": _member_shapes(name),
+        "properties": list(PUBLIC_PROPERTIES.get(name, ())),
+    }
+
+
+def _symbol_kind(name: str) -> str:
+    if name in PUBLIC_CALL_SHAPES:
+        return "function"
+    if name in PUBLIC_METHODS:
+        return "class"
+    return "constant"
+
+
+def _call_shape(name: str, kind: str):
+    if kind == "constant":
+        return None
+    shape = PUBLIC_CALL_SHAPES.get(name, PUBLIC_CLASS_CALL_SHAPES.get(name, ()))
+    return list(shape)
+
+
+def _member_shapes(name: str) -> dict[str, list[str]]:
+    return {
+        member: list(PUBLIC_MEMBER_CALL_SHAPES[name + "." + member])
+        for member in PUBLIC_METHODS.get(name, ())
+    }
 
 
 __all__ = ["api_contract"]

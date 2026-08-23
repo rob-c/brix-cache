@@ -19,6 +19,26 @@ import pytest
 
 from settings import NGINX_BIN, free_port, free_ports, HOST, BIND_HOST
 
+def _phase_test_disabled_by_default_no_timer_log_1(proc):
+    try:
+        proc.wait(timeout=5)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+
+def _phase_test_enabled_starts_manager_2(proc):
+    try:
+        proc.wait(timeout=5)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+
+
+def _check_test_disabled_by_default_no_timer_log_1(log):
+    assert "health check manager started" not in log, log
+
+def _check_test_enabled_starts_manager_2(log):
+    assert "health check manager started" in log, log
+
+
 ROOT = Path(__file__).resolve().parents[1]
 
 # All ports below are bound by this file's own nginx instances, so allocate
@@ -174,12 +194,9 @@ def test_disabled_by_default_no_timer_log(tmp_path):
         time.sleep(1.0)
     finally:
         proc.terminate()
-        try:
-            proc.wait(timeout=5)
-        except subprocess.TimeoutExpired:
-            proc.kill()
+        _phase_test_disabled_by_default_no_timer_log_1(proc)
     log = (logs / "error.log").read_text(errors="replace")
-    assert "health check manager started" not in log, log
+    _check_test_disabled_by_default_no_timer_log_1(log)
 
 
 def test_enabled_starts_manager(tmp_path):
@@ -219,12 +236,9 @@ def test_enabled_starts_manager(tmp_path):
         time.sleep(0.5)
     finally:
         proc.terminate()
-        try:
-            proc.wait(timeout=5)
-        except subprocess.TimeoutExpired:
-            proc.kill()
+        _phase_test_enabled_starts_manager_2(proc)
     log = (logs / "error.log").read_text(errors="replace")
-    assert "health check manager started" in log, log
+    _check_test_enabled_starts_manager_2(log)
 
 
 # --------------------------------------------------------------------------- #

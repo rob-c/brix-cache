@@ -158,17 +158,28 @@ def _client_link_libs() -> list[str]:
                 "bzip2", "liburing")
     libs: list[str] = []
     for package in packages:
-        result = subprocess.run(["pkg-config", "--libs", package],
-                                capture_output=True, text=True)
-        if result.returncode == 0:
-            for lib in result.stdout.split():
-                if lib not in libs:
-                    libs.append(lib)
-    # client/Makefile uses this exact soname when liblz4 is detected.
-    lz4 = subprocess.run(["pkg-config", "--exists", "liblz4"], capture_output=True)
-    if lz4.returncode == 0:
+        _extend_unique(libs, _package_libraries(package))
+    if _package_exists("liblz4"):
         libs.append("-l:liblz4.so.1")
     return libs
+
+
+def _package_libraries(package):
+    result = subprocess.run(["pkg-config", "--libs", package],
+                            capture_output=True, text=True)
+    return result.stdout.split() if result.returncode == 0 else []
+
+
+def _package_exists(package):
+    result = subprocess.run(["pkg-config", "--exists", package],
+                            capture_output=True)
+    return result.returncode == 0
+
+
+def _extend_unique(target, values):
+    for value in values:
+        if value not in target:
+            target.append(value)
 
 
 def _umbrella_link_deps() -> tuple[list[str], list[str], list[str], list[str]]:
@@ -196,44 +207,49 @@ def _build_brixcvmfs(run: LiveRun, *, no_main_frontends: list[str] | None = None
     cflags, libs = _fuse3_flags()
     includes = list(extra_includes or [])
     sources = list(extra_sources or [])
-    defines: list = []
-    archives: list = []
-    syslibs: list = []
+    defines, archives, syslibs = _link_dependencies(
+        no_main_frontends, includes, sources
+    )
+    args = _compiler_arguments(
+        includes, defines, cflags, no_main_frontends, sources, archives,
+        libs, syslibs,
+    )
+    return _gcc(run, run.root / name, args)
 
-    # The brixMount umbrella (main() owned by brixmount.c) needs the prebuilt
-    # client archives + their include/define/source deps; the standalone
-    # brixcvmfs binary does not.
-    is_umbrella = bool(no_main_frontends) and any("brixmount.c" in f for f in no_main_frontends)
-    if is_umbrella:
-        u_includes, defines, u_sources, archives = _umbrella_link_deps()
-        for inc in u_includes:
-            if inc not in includes:
-                includes.append(inc)
-        for src in u_sources:
-            if src not in sources:
-                sources.append(src)
-        syslibs = ["-lssl", "-pthread", *_client_link_libs()]
-    else:
-        # Standalone brixcvmfs: no client archive, so compile the brix_cpool
-        # stack directly and add the ngx-free proto shim + its include roots.
-        defines = ["-DXRDPROTO_NO_NGX"]
-        for inc in ("client/lib", "src"):
-            if inc not in includes:
-                includes.append(inc)
-        for src in CPOOL_STANDALONE_DEPS:
-            if src not in sources:
-                sources.append(src)
 
-    args: list = ["-Wall", "-Wextra", "-Werror", "-I", "shared"]
+def _link_dependencies(frontends, includes, sources):
+    if _is_umbrella(frontends):
+        return _prepare_umbrella_dependencies(includes, sources)
+    _extend_unique(includes, ("client/lib", "src"))
+    _extend_unique(sources, CPOOL_STANDALONE_DEPS)
+    return ["-DXRDPROTO_NO_NGX"], [], []
+
+
+def _is_umbrella(frontends):
+    if not frontends:
+        return False
+    return any("brixmount.c" in frontend for frontend in frontends)
+
+
+def _prepare_umbrella_dependencies(includes, sources):
+    umbrella_includes, defines, umbrella_sources, archives = _umbrella_link_deps()
+    _extend_unique(includes, umbrella_includes)
+    _extend_unique(sources, umbrella_sources)
+    return defines, archives, ["-lssl", "-pthread", *_client_link_libs()]
+
+
+def _compiler_arguments(includes, defines, cflags, frontends, sources,
+                        archives, libs, syslibs):
+    args = ["-Wall", "-Wextra", "-Werror", "-I", "shared"]
     for include in includes:
         args += ["-I", include]
     args += defines
     args += cflags
-    if no_main_frontends:
-        args += ["-DBRIXCVMFS_NO_MAIN", *no_main_frontends]
+    if frontends:
+        args += ["-DBRIXCVMFS_NO_MAIN", *frontends]
     args += ["client/apps/fs/brixcvmfs.c", *BRIXCVMFS_APP_SPLIT, *sources, *BRIXCVMFS_CORE, *archives,
              *libs, "-lcurl", "-lsqlite3", "-lcrypto", "-lz", "-lzstd", *syslibs]
-    return _gcc(run, run.root / name, args)
+    return args
 
 
 def _make_repo(run: LiveRun, mkrepo: Path, web: Path, pub: Path) -> str:

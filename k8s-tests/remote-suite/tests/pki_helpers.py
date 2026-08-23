@@ -47,11 +47,7 @@ def blitz_test_pki() -> None:
     server_dir = Path(SERVER_CERT).parent
     user_dir = Path(USER_CERT).parent
 
-    if pki_dir.exists():
-        shutil.rmtree(pki_dir)
-
-    for subdir in ("ca", "server", "user", "voms", "vomsdir"):
-        (pki_dir / subdir).mkdir(parents=True, exist_ok=True)
+    _reset_pki_tree(pki_dir)
 
     # CA certificate, hash links, and signing-policy files.
     _run(["openssl", "genrsa", "-out", CA_KEY, "4096"])
@@ -96,9 +92,7 @@ def blitz_test_pki() -> None:
         ),
     )
 
-    for hash_name in {new_hash, old_hash}:
-        _symlink("ca.pem", ca_dir / f"{hash_name}.0")
-        _symlink("signing-policy", ca_dir / f"{hash_name}.signing_policy")
+    _link_ca_hashes(ca_dir, new_hash, old_hash)
 
     # Host certificate and compatibility symlink for older helper scripts.
     _run(["openssl", "genrsa", "-out", SERVER_KEY, "2048"])
@@ -209,5 +203,22 @@ def blitz_test_pki() -> None:
 
     _run([sys.executable, str(MAKE_PROXY), PKI_DIR])
 
+    _make_crl_if_available()
+
+
+def _reset_pki_tree(pki_dir: Path) -> None:
+    if pki_dir.exists():
+        shutil.rmtree(pki_dir)
+    for subdir in ("ca", "server", "user", "voms", "vomsdir"):
+        (pki_dir / subdir).mkdir(parents=True, exist_ok=True)
+
+
+def _link_ca_hashes(ca_dir: Path, new_hash: str, old_hash: str) -> None:
+    for hash_name in {new_hash, old_hash}:
+        _symlink("ca.pem", ca_dir / f"{hash_name}.0")
+        _symlink("signing-policy", ca_dir / f"{hash_name}.signing_policy")
+
+
+def _make_crl_if_available() -> None:
     if MAKE_CRL.exists():
         _run([sys.executable, str(MAKE_CRL), PKI_DIR])

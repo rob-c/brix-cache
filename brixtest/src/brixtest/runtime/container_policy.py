@@ -19,28 +19,43 @@ _UNSAFE = {
 _NETWORK = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$")
 
 
+def _unsafe_runtime_arg(item: str) -> bool:
+    if item in _UNSAFE:
+        return True
+    if any(item.startswith(prefix + "=") for prefix in _UNSAFE):
+        return True
+    short = ("-d", "-e", "-h", "-p", "-u", "-v", "-w")
+    return any(item.startswith(prefix) and len(item) > len(prefix) for prefix in short)
+
+
 def validate_runtime_args(value: object, field: str) -> tuple[str, ...]:
     """Return safe argv values or reject options that bypass declarations."""
+    selected = _runtime_arguments(value, field)
+    _validate_argument_values(selected, value, field)
+    _reject_unsafe_arguments(selected, field)
+    return selected
+
+
+def _runtime_arguments(value: object, field: str) -> tuple[str, ...]:
     if isinstance(value, (str, bytes)) or not isinstance(value, Sequence):
         raise SpecError(field, value, "must be an argv sequence")
-    selected = tuple(str(item) for item in value)
+    return tuple(str(item) for item in value)
+
+
+def _validate_argument_values(
+    selected: Sequence[str], original: object, field: str,
+) -> None:
     if not all(item and "\x00" not in item for item in selected):
-        raise SpecError(field, value, "must contain non-empty NUL-free argv values")
-    unsafe = [
-        item for item in selected
-        if item in _UNSAFE
-        or any(item.startswith(prefix + "=") for prefix in _UNSAFE)
-        or any(
-            item.startswith(prefix) and len(item) > len(prefix)
-            for prefix in ("-d", "-e", "-h", "-p", "-u", "-v", "-w")
-        )
-    ]
+        raise SpecError(field, original, "must contain non-empty NUL-free argv values")
+
+
+def _reject_unsafe_arguments(selected: Sequence[str], field: str) -> None:
+    unsafe = [item for item in selected if _unsafe_runtime_arg(item)]
     if unsafe:
         raise SpecError(
             field, unsafe,
             "cannot override privilege, namespace, mount, or environment boundaries",
         )
-    return selected
 
 
 def validate_network(value: object, field: str, *, host_only: bool = False) -> str:

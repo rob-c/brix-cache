@@ -57,14 +57,21 @@ def _client_env() -> dict[str, str]:
     return env
 
 
+def _failed_labels(items):
+    return [text for ok, text in items if not ok]
+
+
+def _print_failed_labels(failed):
+    for text in failed:
+        print(f"    - FAIL {text}")
+
+
 def _checks(items: list[tuple[bool, str]]) -> int:
-    passed = sum(1 for ok, _ in items if ok)
-    failed = len(items) - passed
-    print(f"  results: {passed} passed, {failed} failed")
-    for ok, text in items:
-        if not ok:
-            print(f"    - FAIL {text}")
-    return 0 if failed == 0 else 1
+    failed = _failed_labels(items)
+    passed = len(items) - len(failed)
+    print(f"  results: {passed} passed, {len(failed)} failed")
+    _print_failed_labels(failed)
+    return int(bool(failed))
 
 
 class _Suite:
@@ -108,10 +115,49 @@ def _tag(kind: str) -> str:
 # --------------------------------------------------------------------------- #
 # noauth: file upload/download + checksum (adapted from tests/XRootD/noauth.sh)
 # --------------------------------------------------------------------------- #
-def noauth() -> int:
+def _clients_available() -> bool:
     missing = _missing_tools()
-    if missing:
-        print(f"SKIP: missing client tools: {', '.join(missing)}")
+    if not missing:
+        return True
+    print(f"SKIP: missing client tools: {', '.join(missing)}")
+    return False
+
+
+def _noauth_create_files(local, names):
+    print(f"Creating {len(names)} random test files ...")
+    for name in names:
+        (local / f"{name}.ref").write_bytes(os.urandom(_random_size(1024)))
+
+
+def _noauth_transfer(suite, host, remote, local, names):
+    for name in names:
+        suite.subtest(f"noauth: xrdcp upload {name}",
+                      ["xrdcp", "-np", local / f"{name}.ref",
+                       f"{host}{remote}/{name}.ref"])
+    suite.subtest("noauth: xrdfs ls -l",
+                  ["xrdfs", host, "ls", "-l", f"{remote}/"])
+    for name in names:
+        suite.subtest(f"noauth: xrdcp download {name}",
+                      ["xrdcp", "-np", f"{host}{remote}/{name}.ref",
+                       local / f"{name}.dat"])
+
+
+def _noauth_checksums(suite, local, names):
+    for name in names:
+        ref = _adler32(local / f"{name}.ref", suite.env)
+        got = _adler32(local / f"{name}.dat", suite.env)
+        suite.record(f"noauth: adler32 verify {name}", bool(ref) and ref == got)
+
+
+def _noauth_cleanup(suite, host, remote, names):
+    for name in names:
+        suite.subtest(f"noauth: rm {name}",
+                      ["xrdfs", host, "rm", f"{remote}/{name}.ref"])
+    suite.subtest("noauth: rmdir", ["xrdfs", host, "rmdir", remote])
+
+
+def noauth() -> int:
+    if not _clients_available():
         return 0
     host = _host_url()
     tag = _tag("noauth")
@@ -126,28 +172,15 @@ def noauth() -> int:
         suite.subtest("noauth: mkdir -p", ["xrdfs", host, "mkdir", "-p", remote])
 
         names = [f"{i:02d}" for i in range(1, 6)]
-        print(f"Creating {len(names)} random test files ...")
-        for name in names:
-            (local / f"{name}.ref").write_bytes(os.urandom(_random_size(1024)))
-        for name in names:
-            suite.subtest(f"noauth: xrdcp upload {name}",
-                          ["xrdcp", "-np", local / f"{name}.ref", f"{host}{remote}/{name}.ref"])
-        suite.subtest("noauth: xrdfs ls -l", ["xrdfs", host, "ls", "-l", f"{remote}/"])
-        for name in names:
-            suite.subtest(f"noauth: xrdcp download {name}",
-                          ["xrdcp", "-np", f"{host}{remote}/{name}.ref", local / f"{name}.dat"])
-        for name in names:
-            ref = _adler32(local / f"{name}.ref", suite.env)
-            got = _adler32(local / f"{name}.dat", suite.env)
-            suite.record(f"noauth: adler32 verify {name}", bool(ref) and ref == got)
+        _noauth_create_files(local, names)
+        _noauth_transfer(suite, host, remote, local, names)
+        _noauth_checksums(suite, local, names)
 
         suite.subtest("noauth: ls -R /", ["xrdfs", host, "ls", "-R", "/"])
         target = f"{remote}/{names[0]}.ref"
         suite.subtest("noauth: stat file", ["xrdfs", host, "stat", target])
         suite.subtest("noauth: truncate", ["xrdfs", host, "truncate", target, "64"])
-        for name in names:
-            suite.subtest(f"noauth: rm {name}", ["xrdfs", host, "rm", f"{remote}/{name}.ref"])
-        suite.subtest("noauth: rmdir", ["xrdfs", host, "rmdir", remote])
+        _noauth_cleanup(suite, host, remote, names)
         return _checks(suite.results)
 
 
@@ -183,10 +216,48 @@ def host() -> int:
 # --------------------------------------------------------------------------- #
 # stress: parallel bulk round-trip (inspired by noauth + stress patterns)
 # --------------------------------------------------------------------------- #
+def _parallel(argvs, env):
+    procs = [subprocess.Popen([str(arg) for arg in argv], env=env,
+                              stdout=subprocess.DEVNULL,
+                              stderr=subprocess.DEVNULL)
+             for argv in argvs]
+    return [proc.wait() for proc in procs]
+
+
+def _stress_files(local, names):
+    for name in names:
+        (local / f"{name}.ref").write_bytes(os.urandom(_random_size(4096)))
+
+
+def _checksum_mismatches(local, names, env):
+    bad = 0
+    for name in names:
+        ref = _adler32(local / f"{name}.ref", env)
+        dat = local / f"{name}.dat"
+        got = _adler32(dat, env) if dat.exists() else ""
+        if not ref or ref != got:
+            bad += 1
+            print(f"  MISMATCH: file {name} ref={ref} got={got}")
+    return bad
+
+
+def _stress_upload_commands(local, host_url, remote, names):
+    return [["xrdcp", "-np", local / f"{name}.ref",
+             f"{host_url}{remote}/{name}.ref"] for name in names]
+
+
+def _stress_download_commands(local, host_url, remote, names):
+    return [["xrdcp", "-np", f"{host_url}{remote}/{name}.ref",
+             local / f"{name}.dat"] for name in names]
+
+
+def _stress_remove_commands(host_url, remote, names):
+    return [["xrdfs", host_url, "rm", f"{remote}/{name}.ref"]
+            for name in names]
+
+
 def stress() -> int:
-    missing = _missing_tools()
-    if missing:
-        print(f"SKIP: missing client tools: {', '.join(missing)}")
+    if not _clients_available():
         return 0
     host_url = _host_url()
     tag = _tag("stress")
@@ -200,29 +271,14 @@ def stress() -> int:
         run.call(["xrdfs", host_url, "mkdir", "-p", remote], env=suite.env, check=False)
 
         print(f"Stress: uploading {nfiles} files in parallel ...")
-        for name in names:
-            (local / f"{name}.ref").write_bytes(os.urandom(_random_size(4096)))
+        _stress_files(local, names)
+        _parallel(_stress_upload_commands(local, host_url, remote, names), env)
+        _parallel(_stress_download_commands(local, host_url, remote, names), env)
 
-        def _parallel(argvs: list[list[str]]) -> list[int]:
-            procs = [subprocess.Popen([str(a) for a in argv], env=env,
-                                      stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                     for argv in argvs]
-            return [proc.wait() for proc in procs]
-
-        _parallel([["xrdcp", "-np", local / f"{n}.ref", f"{host_url}{remote}/{n}.ref"] for n in names])
-        _parallel([["xrdcp", "-np", f"{host_url}{remote}/{n}.ref", local / f"{n}.dat"] for n in names])
-
-        bad = 0
-        for name in names:
-            ref = _adler32(local / f"{name}.ref", suite.env)
-            dat = local / f"{name}.dat"
-            got = _adler32(dat, suite.env) if dat.exists() else ""
-            if not ref or ref != got:
-                bad += 1
-                print(f"  MISMATCH: file {name} ref={ref} got={got}")
+        bad = _checksum_mismatches(local, names, suite.env)
         suite.record(f"stress: {nfiles - bad}/{nfiles} round-trip checksums match", bad == 0)
 
-        _parallel([["xrdfs", host_url, "rm", f"{remote}/{n}.ref"] for n in names])
+        _parallel(_stress_remove_commands(host_url, remote, names), env)
         run.call(["xrdfs", host_url, "rmdir", remote], env=suite.env, check=False)
         return _checks(suite.results)
 
@@ -272,21 +328,28 @@ def _run_backend(backend: str, files: list[str], extra: list[str]) -> int:
     )
 
 
-def cross_compatible(extra: list[str] | None = None) -> int:
-    extra = list(extra or [])
-    # Native XRootD protocol (root://) lanes — failures are authoritative.
+def _native_cross_lanes(extra):
     failed = 0
     for backend in ("nginx", "xrootd"):
         if _run_backend(backend, NATIVE_TESTS, extra) != 0:
             failed = 1
-    # XrdHttp/WebDAV lanes — best-effort per file, like the shell `|| true`.
+    return failed
+
+
+def _http_cross_lane(rel, extra):
+    if not (REPO_ROOT / rel).is_file():
+        print(f"SKIP: {rel} not found")
+        return
+    for backend in ("nginx", "xrootd"):
+        _run_backend(backend, [rel], extra)
+
+
+def cross_compatible(extra: list[str] | None = None) -> int:
+    extra = list(extra or [])
+    failed = _native_cross_lanes(extra)
     print("\n== Running XrdHttp/WebDAV cross-compatible tests ==")
     for rel in XRDHTTP_TESTS:
-        if not (REPO_ROOT / rel).is_file():
-            print(f"SKIP: {rel} not found")
-            continue
-        for backend in ("nginx", "xrootd"):
-            _run_backend(backend, [rel], extra)
+        _http_cross_lane(rel, extra)
     return failed
 
 

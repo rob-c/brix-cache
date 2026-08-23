@@ -81,25 +81,34 @@ def measure_root(url: str, path: str, op: str, *, principal=None) -> Verdict:
 # --------------------------------------------------------------------------- #
 
 def measure_webdav(url: str, path: str, op: str, *, principal=None) -> Verdict:
-    kw: dict = {"timeout": 30, "verify": os.path.join(ports.MU.CA_DIR, "ca.pem")}
-    if principal is not None and getattr(principal, "token", ""):
-        kw["headers"] = {"Authorization": "Bearer " + open(principal.token).read().strip()}
-        kw["verify"] = False
-    elif principal is not None and getattr(principal, "proxy", ""):
-        kw["cert"] = principal.proxy
-        kw["verify"] = False
+    kw = _webdav_options(principal)
     method = {"read": "GET", "stat": "HEAD", "list": "PROPFIND"}.get(op, "GET")
     try:
         resp = requests.request(method, url + path, **kw)
     except requests.exceptions.RequestException as e:
         return Verdict.deny(f"request-failed: {e}")
-    if resp.status_code in (200, 206, 207):
+    return _webdav_verdict(resp)
+
+
+def _webdav_options(principal):
+    options: dict = {"timeout": 30, "verify": os.path.join(ports.MU.CA_DIR, "ca.pem")}
+    if principal is not None and getattr(principal, "token", ""):
+        options["headers"] = {"Authorization": "Bearer " + open(principal.token).read().strip()}
+        options["verify"] = False
+    elif principal is not None and getattr(principal, "proxy", ""):
+        options["cert"] = principal.proxy
+        options["verify"] = False
+    return options
+
+
+def _webdav_verdict(response):
+    if response.status_code in (200, 206, 207):
         return Verdict.allow()
-    if resp.status_code in (401, 403):
-        return Verdict.deny((resp.reason or "") + " " + resp.text[:200])
-    if resp.status_code == 404:
+    if response.status_code in (401, 403):
+        return Verdict.deny((response.reason or "") + " " + response.text[:200])
+    if response.status_code == 404:
         return Verdict.deny("not found")
-    return Verdict.deny(f"http {resp.status_code}")
+    return Verdict.deny(f"http {response.status_code}")
 
 
 # --------------------------------------------------------------------------- #
@@ -110,14 +119,26 @@ def measure_s3(url: str, path: str, op: str, *, principal=None) -> Verdict:
     from .s3sig import signed_headers
     host = url.split("://", 1)[1]
     method = {"read": "GET", "stat": "HEAD", "list": "GET"}.get(op, "GET")
-    headers = {}
-    if principal is not None and getattr(principal, "s3_key", ""):
-        headers = signed_headers(method, path, principal.s3_key, principal.s3_secret, host=host)
+    headers = _s3_headers(signed_headers, method, path, principal, host)
     try:
         resp = requests.request(method, url + path, headers=headers, timeout=30)
     except requests.exceptions.RequestException as e:
         return Verdict.deny(f"request-failed: {e}")
-    if resp.status_code == 200:
+    return _s3_verdict(resp)
+
+
+def _s3_headers(signer, method, path, principal, host):
+    if principal is None:
+        return {}
+    if not getattr(principal, "s3_key", ""):
+        return {}
+    return signer(method, path, principal.s3_key, principal.s3_secret, host=host)
+
+
+def _s3_verdict(response):
+    if response.status_code == 200:
         return Verdict.allow()
-    m = re.search(r"<Code>([^<]+)</Code>", resp.text or "")
-    return Verdict.deny(m.group(1) if m else f"http {resp.status_code}")
+    match = re.search(r"<Code>([^<]+)</Code>", response.text or "")
+    if match:
+        return Verdict.deny(match.group(1))
+    return Verdict.deny(f"http {response.status_code}")

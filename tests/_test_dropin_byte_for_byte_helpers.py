@@ -36,6 +36,25 @@ from ephemeral_port import free_port
 from server_launcher import LifecycleHarness
 from server_registry import NginxInstanceSpec
 
+def _expression_1(code, msg):
+    return (
+        code == kXR_NotFound or "no such" in msg or "not found" in msg \
+                    or "does not exist" in msg or "doesn't exist" in msg
+    )
+
+def _expression_2(code, msg):
+    return (
+        code == kXR_NotAuthorized or "permission" in msg \
+                    or "not authoriz" in msg or "denied" in msg
+    )
+
+def _expression_3(code, msg):
+    return (
+        code == kXR_isDirectory or "is a directory" in msg \
+                    or "is directory" in msg or "directory" in msg and "not" not in msg
+    )
+
+
 pytestmark = [pytest.mark.uses_lifecycle_harness,
               pytest.mark.xdist_group("lc-dropin-front")]
 
@@ -329,14 +348,11 @@ def _error_family(status, body):
         return "ok"
     code = _error_code(body)
     msg = _error_msg(body).lower()
-    if code == kXR_NotFound or "no such" in msg or "not found" in msg \
-            or "does not exist" in msg or "doesn't exist" in msg:
+    if _expression_1(code, msg):
         return "not_found"
-    if code == kXR_NotAuthorized or "permission" in msg \
-            or "not authoriz" in msg or "denied" in msg:
+    if _expression_2(code, msg):
         return "permission"
-    if code == kXR_isDirectory or "is a directory" in msg \
-            or "is directory" in msg or "directory" in msg and "not" not in msg:
+    if _expression_3(code, msg):
         return "is_directory"
     return "error"
 

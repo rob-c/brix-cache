@@ -48,6 +48,23 @@ import pytest
 
 from settings import DATA_ROOT, NGINX_ANON_PORT, SERVER_HOST
 
+def _guard_built_1():
+    if shutil.which("cc") is None and shutil.which("gcc") is None:
+        pytest.skip("no C compiler to build the native client")
+
+def _guard_built_2():
+    if not _FUSE_OK:
+        pytest.skip("no /dev/fuse or fusermount3")
+
+def _guard_built_3(proc):
+    if proc.returncode != 0:
+        pytest.skip(f"native build failed:\n{proc.stdout}\n{proc.stderr}")
+
+def _guard_built_4():
+    if not _port_up(SERVER_HOST, NGINX_ANON_PORT):
+        pytest.skip("anon server not running")
+
+
 pytestmark = pytest.mark.timeout(180)
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -78,16 +95,12 @@ def _md5(b):
 
 @pytest.fixture(scope="module")
 def built():
-    if shutil.which("cc") is None and shutil.which("gcc") is None:
-        pytest.skip("no C compiler to build the native client")
-    if not _FUSE_OK:
-        pytest.skip("no /dev/fuse or fusermount3")
+    _guard_built_1()
+    _guard_built_2()
     proc = subprocess.run(["make", "-C", CLIENT_DIR, os.path.basename(XROOTDFS)],
                           capture_output=True, text=True, timeout=300)
-    if proc.returncode != 0:
-        pytest.skip(f"native build failed:\n{proc.stdout}\n{proc.stderr}")
-    if not _port_up(SERVER_HOST, NGINX_ANON_PORT):
-        pytest.skip("anon server not running")
+    _guard_built_3(proc)
+    _guard_built_4()
     return True
 
 

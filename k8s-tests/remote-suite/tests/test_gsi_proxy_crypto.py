@@ -13,6 +13,22 @@ import subprocess
 
 import pytest
 
+def _guard_crypto_bin_1(cc):
+    if cc is None:
+        pytest.skip("no C compiler")
+
+def _guard_crypto_bin_2():
+    if not (os.path.exists(SRC) and os.path.exists(TEST)):
+        pytest.skip("proxy_req sources missing")
+
+def _guard_crypto_bin_3(r):
+    if r.returncode != 0:
+        if "openssl" in r.stderr.lower() or "x509v3.h" in r.stderr.lower():
+            pytest.skip(f"OpenSSL headers unavailable: {r.stderr[-200:]}")
+        pytest.fail(f"proxy_req crypto suite failed to COMPILE (warnings are "
+                    f"errors):\n{r.stderr}")
+
+
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SRC = os.path.join(REPO, "src", "auth", "gsi", "proxy_req.c")
 TEST = os.path.join(REPO, "src", "auth", "gsi", "proxy_req_unittest.c")
@@ -21,10 +37,8 @@ TEST = os.path.join(REPO, "src", "auth", "gsi", "proxy_req_unittest.c")
 @pytest.fixture(scope="module")
 def crypto_bin(tmp_path_factory):
     cc = shutil.which("gcc") or shutil.which("cc")
-    if cc is None:
-        pytest.skip("no C compiler")
-    if not (os.path.exists(SRC) and os.path.exists(TEST)):
-        pytest.skip("proxy_req sources missing")
+    _guard_crypto_bin_1(cc)
+    _guard_crypto_bin_2()
     out = str(tmp_path_factory.mktemp("gsixp") / "pxr")
     r = subprocess.run(
         [cc, "-Wall", "-Wextra", "-Werror",
@@ -32,11 +46,7 @@ def crypto_bin(tmp_path_factory):
          "-I", os.path.join(REPO, "src"),
          SRC, TEST, "-lcrypto", "-o", out],
         capture_output=True, text=True)
-    if r.returncode != 0:
-        if "openssl" in r.stderr.lower() or "x509v3.h" in r.stderr.lower():
-            pytest.skip(f"OpenSSL headers unavailable: {r.stderr[-200:]}")
-        pytest.fail(f"proxy_req crypto suite failed to COMPILE (warnings are "
-                    f"errors):\n{r.stderr}")
+    _guard_crypto_bin_3(r)
     return out
 
 

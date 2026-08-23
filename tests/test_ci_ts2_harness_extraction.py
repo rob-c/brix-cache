@@ -22,6 +22,20 @@ from pathlib import Path
 
 import pytest
 
+def _check_test_conftest_reexports_are_the_harness_module_objects_2(dup, kill_tracer):
+    assert dup._CURRENT_NODEID is kill_tracer._CURRENT_NODEID
+
+def _check_test_conftest_reexports_are_the_harness_module_objects_4(fixtures):
+    assert (hasattr(fixtures.test_env, "_pytestfixturefunction")
+            or type(fixtures.test_env).__module__.startswith("_pytest"))
+
+def _check_test_conftest_reexports_are_the_harness_module_objects_1(name, dup, sentinel):
+    assert getattr(dup, name) is getattr(sentinel, name), name
+
+def _check_test_conftest_reexports_are_the_harness_module_objects_3(name, dup, fixtures):
+    assert getattr(dup, name) is getattr(fixtures, name), name
+
+
 _TESTS = Path(__file__).resolve().parent
 _REPO = _TESTS.parent
 
@@ -49,20 +63,22 @@ def test_conftest_reexports_are_the_harness_module_objects():
                  "_require_fleet_startup_stability", "_start_sentinel_watchdog",
                  "_stop_sentinel_watchdog", "_check_server_reachable",
                  "pytest_runtest_setup", "pytest_runtest_teardown"):
-        assert getattr(dup, name) is getattr(sentinel, name), name
+        _check_test_conftest_reexports_are_the_harness_module_objects_1(name, dup, sentinel)
     # mutable sentinel state is shared by identity, not copied
-    assert dup._sentinel is sentinel._sentinel
-    assert dup._sentinel_watchdog is sentinel._sentinel_watchdog
-    assert dup._CURRENT_NODEID is kill_tracer._CURRENT_NODEID
+    def _assert_test_conftest_reexports_are_the_harness_module_objects_1():
+        assert dup._sentinel is sentinel._sentinel
+        assert dup._sentinel_watchdog is sentinel._sentinel_watchdog
+
+    _assert_test_conftest_reexports_are_the_harness_module_objects_1()
+    _check_test_conftest_reexports_are_the_harness_module_objects_2(dup, kill_tracer)
     for name in ("registry", "registry_server", "lifecycle", "command_runner",
                  "matrix_node", "test_env", "ref_xrootd", "ref_brix_gsi",
                  "ref_brix_gsi_shared", "pytest_generate_tests"):
-        assert getattr(dup, name) is getattr(fixtures, name), name
+        _check_test_conftest_reexports_are_the_harness_module_objects_3(name, dup, fixtures)
     # the fixture objects still carry their pytest registration, so collection
     # from the conftest namespace keeps finding them (pytest < 8.4 tags the
     # function; 8.4+ replaces it with a _pytest.fixtures wrapper object)
-    assert (hasattr(fixtures.test_env, "_pytestfixturefunction")
-            or type(fixtures.test_env).__module__.startswith("_pytest"))
+    _check_test_conftest_reexports_are_the_harness_module_objects_4(fixtures)
 
 
 @pytest.mark.parametrize("first", ["conftest_mu", "brix_suite.harness_ext"])

@@ -101,6 +101,38 @@ sd_pblock_pread(brix_sd_obj_t *obj, void *buf, size_t len, off_t off)
     }
 }
 
+/*
+ * WHAT: Fold a completed write into the handle's metadata and observability.
+ * WHY:  The write admission path should not also carry every accounting branch.
+ * HOW:  Advance size/mtime, verification extents, CSI extents, and audit totals.
+ */
+static void
+pblock_record_write(pblock_obj_t *os, const void *buf, off_t off, ssize_t n)
+{
+    os->meta.mtime = pblock_now();
+    if ((int64_t) off + n > os->meta.size)
+        os->meta.size = (int64_t) off + n;
+    os->dirty = 1;
+    if (os->wv != NULL)
+        (void) brix_wverify_update(os->wv, buf, off, (size_t) n);
+    if (os->st->csi) {
+        int64_t fb = off / os->block_size;
+        int64_t lb = (off + n - 1) / os->block_size;
+
+        if (fb < os->csi_dlo)
+            os->csi_dlo = fb;
+        if (lb + 1 > os->csi_dhi)
+            os->csi_dhi = lb + 1;
+    }
+    if (os->st->audit) {
+        int64_t last = pblock_last_block(off + n, os->block_size) + 1;
+
+        os->a_wbytes += n;
+        if (last > os->a_maxblock)
+            os->a_maxblock = last;
+    }
+}
+
 ssize_t
 sd_pblock_pwrite(brix_sd_obj_t *obj, const void *buf, size_t len, off_t off)
 {
@@ -132,33 +164,7 @@ sd_pblock_pwrite(brix_sd_obj_t *obj, const void *buf, size_t len, off_t off)
     n = pblock_write_blocks(os->st, os->blob_id, os->block_size, obj->fd,
                             buf, len, off);
     if (n > 0) {
-        os->meta.mtime = pblock_now();
-        if ((int64_t) off + n > os->meta.size) {
-            os->meta.size = (int64_t) off + n;
-        }
-        os->dirty = 1;
-        if (os->wv != NULL) {                        /* F10: grow the dedup CRC */
-            (void) brix_wverify_update(os->wv, buf, off, (size_t) n);
-        }
-        if (os->st->csi) {                           /* F3: widen written extent */
-            int64_t fb = off / os->block_size;
-            int64_t lb = (off + n - 1) / os->block_size;
-
-            if (fb < os->csi_dlo) {
-                os->csi_dlo = fb;
-            }
-            if (lb + 1 > os->csi_dhi) {
-                os->csi_dhi = lb + 1;
-            }
-        }
-        if (os->st->audit) {                         /* F17: fold into close */
-            int64_t last = pblock_last_block(off + n, os->block_size) + 1;
-
-            os->a_wbytes += n;
-            if (last > os->a_maxblock) {
-                os->a_maxblock = last;
-            }
-        }
+        pblock_record_write(os, buf, off, n);
         pblock_lab_crash(os->st->lab, "after_block_write");   /* F7 */
     }
     return n;
@@ -272,6 +278,57 @@ sd_pblock_read_sendfile_fd(brix_sd_obj_t *obj, off_t off, size_t len,
     return NGX_INVALID_FILE;
 }
 
+/*
+ * WHAT: Remove every block strictly after the retained boundary block.
+ * WHY:  Raw and transformed truncation share identical tail cleanup.
+ * HOW:  Resolve each block path and unlink entries that can be named.
+ */
+static void
+pblock_drop_tail(pblock_obj_t *os, int64_t keep, int64_t old_last)
+{
+    int64_t i;
+
+    for (i = keep + 1; i <= old_last; i++) {
+        char bp[PATH_MAX];
+
+        if (pblock_block_path(os->st, os->blob_id, i, bp, sizeof(bp)) == 0)
+            unlink(bp);
+    }
+}
+
+/*
+ * WHAT: Truncate an object whose blocks use compression or encryption.
+ * WHY:  Transformed blocks must be decoded and re-encoded, never raw-truncated.
+ * HOW:  Rewrite the boundary block, delete its successors, and mark metadata.
+ */
+static ngx_int_t
+pblock_truncate_transformed(pblock_obj_t *os, off_t len, int64_t keep,
+    int64_t boundary, int64_t old_last)
+{
+    unsigned char *scratch = malloc((size_t) os->block_size);
+    char           bp[PATH_MAX];
+    uint32_t       logical_len;
+
+    if (scratch == NULL)
+        return NGX_ERROR;
+    if (pblock_block_path(os->st, os->blob_id, keep, bp, sizeof(bp)) != 0
+        || pblock_xform_block_load(&os->st->xform, keep, bp, scratch,
+                                   os->block_size, &logical_len) != 0
+        || pblock_xform_block_store(&os->st->xform, keep, bp, scratch,
+                                    (uint32_t) boundary,
+                                    os->block_size) != 0)
+    {
+        free(scratch);
+        return NGX_ERROR;
+    }
+    free(scratch);
+    pblock_drop_tail(os, keep, old_last);
+    os->meta.size = (int64_t) len;
+    os->meta.mtime = pblock_now();
+    os->dirty = 1;
+    return NGX_OK;
+}
+
 ngx_int_t
 sd_pblock_ftruncate(brix_sd_obj_t *obj, off_t len)
 {
@@ -280,38 +337,12 @@ sd_pblock_ftruncate(brix_sd_obj_t *obj, off_t len)
     int64_t       old_last = pblock_last_block(os->meta.size, bs);
     int64_t       keep = pblock_last_block(len, bs);
     int64_t       boundary = (int64_t) len - keep * bs;   /* bytes kept in `keep` */
-    int64_t       i;
     int           fd, transient = 0;
 
     /* F12/F13: transformed blocks carry a header — trim the boundary block by
      * re-encoding its surviving logical prefix, not a raw ftruncate. */
     if (pblock_xform_active(&os->st->xform)) {
-        unsigned char *scratch = malloc((size_t) bs);
-        char           bp[PATH_MAX];
-        uint32_t       llen;
-
-        if (scratch == NULL) {
-            return NGX_ERROR;
-        }
-        if (pblock_block_path(os->st, os->blob_id, keep, bp, sizeof(bp)) != 0
-            || pblock_xform_block_load(&os->st->xform, keep, bp, scratch, bs,
-                                       &llen) != 0
-            || pblock_xform_block_store(&os->st->xform, keep, bp, scratch,
-                                        (uint32_t) boundary, bs) != 0)
-        {
-            free(scratch);
-            return NGX_ERROR;
-        }
-        free(scratch);
-        for (i = keep + 1; i <= old_last; i++) {
-            if (pblock_block_path(os->st, os->blob_id, i, bp, sizeof(bp)) == 0) {
-                unlink(bp);
-            }
-        }
-        os->meta.size  = (int64_t) len;
-        os->meta.mtime = pblock_now();
-        os->dirty      = 1;
-        return NGX_OK;
+        return pblock_truncate_transformed(os, len, keep, boundary, old_last);
     }
 
     /* trim the boundary block to its surviving length */
@@ -340,13 +371,7 @@ sd_pblock_ftruncate(brix_sd_obj_t *obj, off_t len)
     }
 
     /* drop whole blocks past the new size */
-    for (i = keep + 1; i <= old_last; i++) {
-        char bp[PATH_MAX];
-
-        if (pblock_block_path(os->st, os->blob_id, i, bp, sizeof(bp)) == 0) {
-            unlink(bp);
-        }
-    }
+    pblock_drop_tail(os, keep, old_last);
 
     os->meta.size  = (int64_t) len;
     os->meta.mtime = pblock_now();

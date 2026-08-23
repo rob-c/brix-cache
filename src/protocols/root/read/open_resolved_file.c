@@ -246,6 +246,32 @@ brix_open_resume_diverted(ngx_stream_brix_srv_conf_t *conf, ngx_connection_t *c)
 }
 
 /*
+ * WHAT: Initialize the mutable state for one resolved-file open pipeline.
+ * WHY:  Staging and response flags should be derived once before orchestration.
+ * HOW:  Copy request context, derive POSC/resume/stat/cache flags, and set fd.
+ */
+static void
+brix_open_args_init(brix_open_args_t *a, brix_ctx_t *ctx,
+	ngx_connection_t *c, ngx_stream_brix_srv_conf_t *conf,
+	const brix_open_request_t *req, struct stat *st)
+{
+	ngx_memzero(a, sizeof(*a));
+	a->ctx = ctx;
+	a->c = c;
+	a->conf = conf;
+	a->resolved = req->resolved;
+	a->options = req->options;
+	a->is_write = req->is_write;
+	a->codec = req->codec;
+	a->fd = -1;
+	a->st = st;
+	a->use_posc = req->is_write && (req->options & kXR_posc);
+	a->use_resume = req->is_write && conf->upload_resume;
+	a->want_stat = (req->options & kXR_retstat) != 0;
+	a->from_cache = brix_open_is_from_cache(conf, req->resolved);
+}
+
+/*
  *
  * WHAT: Opens the actual file on disk and allocates a file handle (fhandle). Called after path resolution.
  *       This function performs the POSIX open(2) call with proper security guarantees including:
@@ -285,18 +311,7 @@ brix_open_resolved_file(brix_ctx_t *ctx, ngx_connection_t *c,
 	/* Gather the per-open pipeline state (POSC/resume staging semantics are
 	 * documented on brix_open_args_t; posc_temp_path is the actual filesystem
 	 * target of the staged open(2) below). */
-	ngx_memzero(&a, sizeof(a));
-	a.ctx        = ctx;
-	a.c          = c;
-	a.conf       = conf;
-	a.resolved   = resolved;
-	a.options    = options;
-	a.is_write   = is_write;
-	a.codec      = req->codec;
-	a.fd         = -1;
-	a.st         = &st;
-	a.use_posc   = (is_write && (options & kXR_posc)) ? 1 : 0;
-	a.use_resume = (is_write && conf->upload_resume) ? 1 : 0;
+	brix_open_args_init(&a, ctx, c, conf, req, &st);
 
 	/* Driver-backed export → the local resume skeleton is the wrong storage
 	 * domain; rationale on brix_open_resume_diverted(). */
@@ -304,9 +319,7 @@ brix_open_resolved_file(brix_ctx_t *ctx, ngx_connection_t *c,
 		a.use_resume = 0;
 	}
 
-	a.stage      = a.use_posc || a.use_resume;
-	a.want_stat  = (options & kXR_retstat) ? 1 : 0;
-	a.from_cache = brix_open_is_from_cache(conf, resolved);
+	a.stage = a.use_posc || a.use_resume;
 
 	/* Pre-open staging preflight: write-target reject, backpressure, exclusive-
 	 * create, temp-path build, resume-in-place decision, read-dir reject (split

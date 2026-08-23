@@ -179,8 +179,11 @@ def test_proxyabuse_guard_signal_on_disallowed_authority(psrv):
     # also emits proxyabuse lines), so select this probe's line by authority
     line = next((ln for ln in log.splitlines()
                  if "signal=proxyabuse" in ln and "ssrf.invalid" in ln), None)
-    assert line is not None, "no proxyabuse guard line emitted"
-    assert "proto=cvmfs" in line and "op=read" in line
+    def _assert_test_proxyabuse_guard_signal_on_disallowed_authority_1():
+        assert line is not None, "no proxyabuse guard line emitted"
+        assert "proto=cvmfs" in line and "op=read" in line
+
+    _assert_test_proxyabuse_guard_signal_on_disallowed_authority_1()
     # the attempted authority (host[:port]) rides the path field
     assert 'path="ssrf.invalid:' in line, line
 

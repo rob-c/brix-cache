@@ -398,17 +398,8 @@ class TestProtocolFuzzing:
         """
         s = _connect()
         _handshake_and_protocol(s)
-        for i in range(200):
-            sid = struct.pack(">H", (i % 0xFFFE) + 1)
-            s.sendall(make_protocol_req(streamid=sid))
-        ok_count = 0
-        for _ in range(200):
-            try:
-                status, _ = _recv_response(s)
-                if status == kXR_ok:
-                    ok_count += 1
-            except (socket.timeout, ConnectionError):
-                break
+        _send_protocol_requests(s, 200)
+        ok_count = _count_ok_responses(s, 200)
         s.close()
         assert ok_count > 0, "No kXR_protocol responses received at all"
         assert_healthy()
@@ -429,150 +420,22 @@ class TestProtocolFuzzing:
         assert_healthy()
 
 
-# ============================================================================
-# 4. Resource exhaustion
-#    Single clients must not exhaust server-side resources.
-# ============================================================================
-
-class TestResourceExhaustion:
-
-    def test_connection_storm_50(self):
-        """
-        50 connections opened simultaneously.  Each performs the handshake +
-        protocol negotiation, then is closed.  The server must survive and
-        remain responsive; some connection resets under load are tolerated.
-        """
-        assert_healthy()   # ensure we start from a clean state
-        sockets = []
-        failures = 0
-        for _ in range(50):
-            try:
-                s = _connect()
-                hs_st, pr_st = _handshake_and_protocol(s)
-                if hs_st == kXR_ok and pr_st == kXR_ok:
-                    sockets.append(s)
-                else:
-                    s.close()
-                    failures += 1
-            except OSError:
-                failures += 1
-        # Close all before asserting health so the server can drain its backlog.
-        for s in sockets:
-            try:
-                s.close()
-            except OSError:
-                pass
-        # Under load some resets are expected (nginx event loop, WSL2 limits).
-        # What matters is that the server recovers fully afterwards.
-        assert failures <= 25, f"Too many failures ({failures}/50) in connection storm"
-        assert_healthy(retries=6)
-
-    def test_rapid_connect_disconnect_50(self):
-        """50 rapid connect-then-immediately-close cycles."""
-        assert_healthy(retries=6)   # wait for any prior storm to drain
-        for _ in range(50):
-            try:
-                s = _connect()
-                s.close()
-            except OSError:
-                pass
-        assert_healthy(retries=6)
-
-    def test_ping_flood_1000(self):
-        """
-        1000 pings on one authenticated connection.
-        Every ping must return kXR_ok (99% success threshold).
-        """
-        assert_healthy(retries=6)   # wait for any prior storm to drain
-        s = _connect()
-        _full_anon_login(s)
-        n = 1000
-        for i in range(n):
-            sid = struct.pack(">H", (i % 0xFFFE) + 1)
-            s.sendall(make_ping_req(streamid=sid))
-        ok_count = 0
-        for _ in range(n):
-            try:
-                s.settimeout(10.0)
-                status, _ = _recv_response(s)
-                if status == kXR_ok:
-                    ok_count += 1
-            except (socket.timeout, ConnectionError):
-                break
-        s.close()
-        assert ok_count >= int(n * 0.99), \
-            f"Ping flood: only {ok_count}/{n} pings returned kXR_ok"
-        assert_healthy()
-
-    def test_open_16_handles_and_close_cleanly(self):
-        """Open 16 file handles and close each one in sequence."""
-        assert_healthy(retries=6)
-        test_path = os.path.join(DATA_DIR, "robustness_handles.bin")
-        with open(test_path, "wb") as f:
-            f.write(b'x' * 1024)
-        s = _connect()
-        _full_anon_login(s)
-
-        handles = []
-        for i in range(16):
-            sid = struct.pack(">H", 0x0100 + i)
-            s.sendall(make_open_req(b'/robustness_handles.bin', streamid=sid))
-            try:
-                status, body = _recv_response(s)
-                if status == kXR_ok and len(body) >= 4:
-                    handles.append(body[:4])
-            except (socket.timeout, ConnectionError):
-                break
-
-        assert len(handles) >= 8, \
-            f"Expected to open at least 8 handles, got {len(handles)}"
-
-        for i, handle in enumerate(handles):
-            sid = struct.pack(">H", 0x0180 + i)
-            s.sendall(make_close_req(handle, streamid=sid))
-            try:
-                _recv_response(s)
-            except (socket.timeout, ConnectionError):
-                break
-
-        s.close()
-        os.unlink(test_path)
-        assert_healthy()
-
-    def test_open_beyond_handle_limit_returns_error(self):
-        """Opening more than 16 files must return an error, not crash."""
-        assert_healthy(retries=6)
-        test_path = os.path.join(DATA_DIR, "robustness_overlimit.bin")
-        with open(test_path, "wb") as f:
-            f.write(b'y' * 1024)
-        s = _connect()
-        _full_anon_login(s)
-
-        open_count   = 0
-        first_err_at = None
-        for i in range(20):
-            sid = struct.pack(">H", 0x0200 + i)
-            s.sendall(make_open_req(b'/robustness_overlimit.bin', streamid=sid))
-            try:
-                status, _ = _recv_response(s)
-                if status == kXR_ok:
-                    open_count += 1
-                elif first_err_at is None:
-                    first_err_at = i
-            except (socket.timeout, ConnectionError):
-                break
-
-        s.close()
-        os.unlink(test_path)
-
-        assert open_count <= 16, \
-            f"Server allowed {open_count} simultaneous handles (limit is 16)"
-        assert first_err_at is not None, \
-            "Server never returned an error after exceeding handle limit"
-        assert_healthy()
+def _send_protocol_requests(sock, count):
+    for index in range(count):
+        stream_id = struct.pack(">H", (index % 0xFFFE) + 1)
+        sock.sendall(make_protocol_req(streamid=stream_id))
 
 
-# ============================================================================
-# 5. State machine attacks
-#    Protocol must be enforced regardless of operation ordering.
-# ============================================================================
+def _count_ok_responses(sock, count):
+    successes = 0
+    for _ in range(count):
+        try:
+            status, _ = _recv_response(sock)
+        except (socket.timeout, ConnectionError):
+            break
+        if status == kXR_ok:
+            successes += 1
+    return successes
+
+from split_continuation import load as _load_continuations
+_load_continuations(globals(), __file__, "_test_a_robustness_part2.py")

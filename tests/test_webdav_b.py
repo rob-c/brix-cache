@@ -1,4 +1,29 @@
 from split_continuation import reexport as _reexport
+def _expression_1(propstats, ns):
+    return (
+        [ps.findtext("D:status", namespaces=ns) for ps in propstats]
+    )
+
+def _expression_2(ps, ns):
+    return (
+        ps.findtext("D:status", namespaces=ns) or ""
+    )
+
+def _expression_3(props):
+    return (
+        [p.tag.split("}")[-1] if "}" in p.tag else p.tag for p in props]
+    )
+
+
+def _check_test_propfind_prop_unknown_property_in_404_propstat_1(statuses):
+    assert any("404" in (s or "") for s in statuses), \
+        f"prop: unknown property not in 404 propstat; statuses={statuses}"
+
+def _check_test_propfind_prop_unknown_property_in_404_propstat_2(names):
+    assert "no-such-prop" in names, \
+        f"prop: D:no-such-prop not found in 404 propstat; names={names}"
+
+
 _reexport(globals(), "_test_webdav_helpers")
 
 pytestmark = pytest.mark.registry_server("main")
@@ -294,18 +319,16 @@ class TestPropfindBody:
 
         # Find propstat elements; one should have 200, one should have 404
         propstats = root.findall(".//D:propstat", ns)
-        statuses = [ps.findtext("D:status", namespaces=ns) for ps in propstats]
-        assert any("404" in (s or "") for s in statuses), \
-            f"prop: unknown property not in 404 propstat; statuses={statuses}"
+        statuses = _expression_1(propstats, ns)
+        _check_test_propfind_prop_unknown_property_in_404_propstat_1(statuses)
 
         # The 404 propstat should contain D:no-such-prop
         for ps in propstats:
-            status = ps.findtext("D:status", namespaces=ns) or ""
+            status = _expression_2(ps, ns)
             if "404" in status:
                 props = ps.findall(".//D:prop/*", ns)
-                names = [p.tag.split("}")[-1] if "}" in p.tag else p.tag for p in props]
-                assert "no-such-prop" in names, \
-                    f"prop: D:no-such-prop not found in 404 propstat; names={names}"
+                names = _expression_3(props)
+                _check_test_propfind_prop_unknown_property_in_404_propstat_2(names)
 
     def test_propfind_prop_only_unknown_gives_404_propstat(self, scratch_file):
         """Requesting only unknown properties must still produce a 207 with 404 propstat."""

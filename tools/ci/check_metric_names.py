@@ -172,12 +172,30 @@ def _emit_calls(text: str, lits: list[tuple[str, int]]) -> Iterator[tuple[str, s
     """
     offsets = [off for _, off in lits]
     for call in _EMIT_CALL.finditer(text):
-        first = bisect_left(offsets, call.end())
-        args = [lit for lit, _ in lits[first:first + 3]]
-        if not args or not args[0].startswith("brix_"):
-            continue
-        labelled = call.group(1) == "labeled" and len(args) >= 3
-        yield args[0], args[2] if labelled else None
+        emitted = _emit_call(call, offsets, lits)
+        if emitted:
+            yield emitted
+
+
+def _emit_call(call, offsets, literals_):
+    first = bisect_left(offsets, call.end())
+    arguments = [literal for literal, _offset in literals_[first:first + 3]]
+    if not arguments:
+        return None
+    return _emitted_arguments(call, arguments)
+
+
+def _emitted_arguments(call, arguments):
+    if not arguments[0].startswith("brix_"):
+        return None
+    label = _emitted_label(call, arguments)
+    return arguments[0], label
+
+
+def _emitted_label(call, arguments):
+    if call.group(1) != "labeled" or len(arguments) < 3:
+        return None
+    return arguments[2]
 
 
 def exposition(root: Path) -> dict[str, set[str]]:
@@ -189,47 +207,76 @@ def exposition(root: Path) -> dict[str, set[str]]:
     home: dict[str, str] = {}
     templates: dict[str, set[str]] = {}
 
+    state = families, kinds, home, templates
     for path in sorted((root / "src").rglob("*.[ch]")):
-        key = str(path)
-        in_exposition = expo_dir in path.parents
-        text = path.read_text(errors="ignore")
-        lits = literals(text)
+        _scan_exposition_file(path, expo_dir, directive_names, state)
+    _add_histogram_series(families, kinds, home)
+    return _resolve_templates(families, home, templates)
 
-        for lit, _ in lits:
-            for match in _HELP.finditer(lit):
-                families.setdefault(match.group(1), set())
-                home.setdefault(match.group(1), key)
-            for match in _TYPE.finditer(lit):
-                kinds[match.group(1)] = match.group(2)
-            for match in _ROW.finditer(lit):
-                families.setdefault(match.group(1), set()).update(
-                    _EMITTED_KEY.findall(match.group(2)))
-                home.setdefault(match.group(1), key)
-            if not in_exposition:
-                continue
-            for match in _TEMPLATE.finditer(lit):
-                templates.setdefault(key, set()).update(
-                    _EMITTED_KEY.findall(match.group(1)))
-            if _BARE.match(lit) and lit not in directive_names:
-                families.setdefault(lit, set())
-                home.setdefault(lit, key)
 
-        for name, label in _emit_calls(text, lits):
-            families.setdefault(name, set())
-            home.setdefault(name, key)
-            if label:
-                families[name].add(label)
+def _scan_exposition_file(path, expo_dir, directive_names, state):
+    key = str(path)
+    text = path.read_text(errors="ignore")
+    literals_ = literals(text)
+    for literal, _offset in literals_:
+        _scan_literal(literal, key, expo_dir in path.parents, directive_names, state)
+    _record_emit_calls(text, literals_, key, state)
 
+
+def _scan_literal(literal, key, in_exposition, directive_names, state):
+    _scan_base_literal(literal, key, state)
+    if in_exposition:
+        _scan_exposition_literal(literal, key, directive_names, state)
+
+
+def _scan_base_literal(literal, key, state):
+    families, kinds, home, templates = state
+    for match in _HELP.finditer(literal):
+        _declare_family(match.group(1), key, families, home)
+    for match in _TYPE.finditer(literal):
+        kinds[match.group(1)] = match.group(2)
+    for match in _ROW.finditer(literal):
+        name = match.group(1)
+        families.setdefault(name, set()).update(_EMITTED_KEY.findall(match.group(2)))
+        home.setdefault(name, key)
+
+
+def _declare_family(name, key, families, home):
+    families.setdefault(name, set())
+    home.setdefault(name, key)
+
+
+def _scan_exposition_literal(literal, key, directive_names, state):
+    families, _kinds, home, templates = state
+    for match in _TEMPLATE.finditer(literal):
+        templates.setdefault(key, set()).update(_EMITTED_KEY.findall(match.group(1)))
+    if _BARE.match(literal) and literal not in directive_names:
+        _declare_family(literal, key, families, home)
+
+
+def _record_emit_calls(text, literals_, key, state):
+    families, _kinds, home, _templates = state
+    for name, label in _emit_calls(text, literals_):
+        _declare_family(name, key, families, home)
+        if label:
+            families[name].add(label)
+
+
+def _add_histogram_series(families, kinds, home):
     for name, kind in kinds.items():
-        if kind != "histogram":
-            continue
-        for suffix in ("_bucket", "_count", "_sum"):
-            families.setdefault(name + suffix, set(families.get(name, ())))
-            home.setdefault(name + suffix, home.get(name, ""))
-        families[name + "_bucket"].add("le")
-        families[name] |= families[name + "_count"]
+        if kind == "histogram":
+            _add_histogram(name, families, home)
 
-    # Rows emitted through a name-by-variable template carry that file's labels.
+
+def _add_histogram(name, families, home):
+    for suffix in ("_bucket", "_count", "_sum"):
+        families.setdefault(name + suffix, set(families.get(name, ())))
+        home.setdefault(name + suffix, home.get(name, ""))
+    families[name + "_bucket"].add("le")
+    families[name] |= families[name + "_count"]
+
+
+def _resolve_templates(families, home, templates):
     return {
         name: labels or templates.get(home.get(name, ""), set())
         for name, labels in families.items()
@@ -297,27 +344,41 @@ def findings(root: Path) -> list[tuple[str, str, int]]:
     """Every unproven metric reference: (entry, human message, line)."""
     families = exposition(root)
     known = directives(root)
-    out: list[tuple[str, str, int]] = []
-
+    out = []
     for path in doc_files(root):
-        if not path.exists():
-            continue
-        rel = path.relative_to(root).as_posix()
-        for number, name, labels, strict in references(path):
-            if name not in families:
-                if strict and name not in known:
-                    out.append((f"{rel}\t{name}",
-                                f"unknown metric family {name}", number))
-                continue
-            if labels is None:
-                continue
-            unknown = labels - families[name] - UNIVERSAL_LABELS
-            for label in sorted(unknown):
-                out.append((f"{rel}\t{name}{{{label}}}",
-                            f"{name} carries no label {label!r} "
-                            f"(it has {sorted(families[name]) or 'none'})",
-                            number))
+        out.extend(_path_findings(path, root, families, known))
     return out
+
+
+def _path_findings(path, root, families, known):
+    if not path.exists():
+        return []
+    relative = path.relative_to(root).as_posix()
+    out = []
+    for number, name, labels, strict in references(path):
+        out.extend(_reference_findings(
+            relative, number, name, labels, strict, families, known,
+        ))
+    return out
+
+
+def _reference_findings(relative, number, name, labels, strict, families, known):
+    if name not in families:
+        return _unknown_family(relative, number, name, strict, known)
+    if labels is None:
+        return []
+    return [
+        (f"{relative}\t{name}{{{label}}}",
+         f"{name} carries no label {label!r} "
+         f"(it has {sorted(families[name]) or 'none'})", number)
+        for label in sorted(labels - families[name] - UNIVERSAL_LABELS)
+    ]
+
+
+def _unknown_family(relative, number, name, strict, known):
+    if not strict or name in known:
+        return []
+    return [(f"{relative}\t{name}", f"unknown metric family {name}", number)]
 
 
 def run(root: Path) -> tuple[bool, list[str]]:

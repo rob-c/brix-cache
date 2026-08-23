@@ -108,9 +108,12 @@ def test_ledger_covers_every_named_port_and_keeps_the_alias():
     named = dict(ledger.iter_named_ports())
     for name, port in named.items():
         assert getattr(settings, name) == port, name
-    assert len(named) >= 178
-    # one socket, two spellings — not two allocations
-    assert named["XRDHTTP_HTTPS_PORT"] == named["XRDHTTP_HTTP_PORT"]
+    def _assert_test_ledger_covers_every_named_port_and_keeps_the_alias_1():
+        assert len(named) >= 178
+        # one socket, two spellings — not two allocations
+        assert named["XRDHTTP_HTTPS_PORT"] == named["XRDHTTP_HTTP_PORT"]
+
+    _assert_test_ledger_covers_every_named_port_and_keeps_the_alias_1()
     # every ledger port is unique apart from that alias
     ports = [p for n, p in named.items() if n != "XRDHTTP_HTTPS_PORT"]
     assert len(set(ports)) == len(ports)

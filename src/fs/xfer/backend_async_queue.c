@@ -434,51 +434,73 @@ baq_reconcile_one(const char *path, ngx_log_t *log)
     return 0;
 }
 
-void
-brix_baq_reconcile(void)
+/*
+ * WHAT: Snapshot bounded asynchronous-journal request names before replay.
+ * WHY:  Reconciliation unlinks entries, so directory iteration cannot drive it live.
+ * HOW:  Copy only well-formed .req basenames into the caller's fixed table.
+ */
+static ngx_uint_t
+baq_snapshot_names(char names[][256], ngx_uint_t capacity)
 {
-    char           names[1024][256];
     DIR           *d;
     struct dirent *de;
-    ngx_uint_t     ncount = 0, i, replayed = 0, kept = 0, dropped = 0;
-    ngx_log_t     *log;
+    ngx_uint_t     count = 0;
 
-    if (baq_journal_dir[0] == '\0' || ngx_cycle == NULL) {
-        return;
-    }
-    log = ngx_cycle->log;
-
-    /* Snapshot the *.req names first (we unlink while driving). */
     d = opendir(baq_journal_dir);
-    if (d == NULL) {
-        return;
-    }
-    while ((de = readdir(d)) != NULL && ncount < 1024) {
+    if (d == NULL)
+        return 0;
+    while ((de = readdir(d)) != NULL && count < capacity) {
         size_t nlen = strlen(de->d_name);
 
-        if (nlen > 4 && nlen < 256
-            && strcmp(de->d_name + nlen - 4, ".req") == 0)
-        {
-            memcpy(names[ncount], de->d_name, nlen + 1);
-            ncount++;
-        }
+        if (nlen <= 4 || nlen >= 256 ||
+            strcmp(de->d_name + nlen - 4, ".req") != 0)
+            continue;
+        memcpy(names[count], de->d_name, nlen + 1);
+        count++;
     }
     closedir(d);
+    return count;
+}
 
-    for (i = 0; i < ncount; i++) {
+/*
+ * WHAT: Replay a snapshot of asynchronous journal requests and count outcomes.
+ * WHY:  Startup reporting distinguishes successful, corrupt, and retryable records.
+ * HOW:  Build bounded paths, reconcile each record, and increment its result bucket.
+ */
+static void
+baq_replay_names(char names[][256], ngx_uint_t count, ngx_log_t *log,
+    ngx_uint_t *replayed, ngx_uint_t *kept, ngx_uint_t *dropped)
+{
+    for (ngx_uint_t i = 0; i < count; i++) {
         char path[1400];
-        int  r;
+        int  result;
 
         if ((size_t) snprintf(path, sizeof(path), "%s/%s",
                               baq_journal_dir, names[i]) >= sizeof(path))
-        {
             continue;
-        }
-        r = baq_reconcile_one(path, log);
-        if (r > 0)      { replayed++; }
-        else if (r < 0) { dropped++;  }
-        else            { kept++;     }
+        result = baq_reconcile_one(path, log);
+        if (result > 0)
+            (*replayed)++;
+        else if (result < 0)
+            (*dropped)++;
+        else
+            (*kept)++;
     }
+}
+
+void
+brix_baq_reconcile(void)
+{
+    char       names[1024][256];
+    ngx_uint_t count;
+    ngx_uint_t replayed = 0, kept = 0, dropped = 0;
+    ngx_log_t *log;
+
+    if (baq_journal_dir[0] == '\0' || ngx_cycle == NULL)
+        return;
+    log = ngx_cycle->log;
+    count = baq_snapshot_names(names, 1024);
+    baq_replay_names(names, count, log, &replayed, &kept, &dropped);
 
     if (replayed > 0 || kept > 0 || dropped > 0) {
         ngx_log_error(NGX_LOG_NOTICE, log, 0,

@@ -26,18 +26,24 @@ def cache_is_resident(rel_path: str) -> dict:
     _ensure_tool()
     cache_file = os.path.join(ports.MU.CACHE_ROOT, rel_path)
     for args in ([cache_file + ".cinfo"], ["--xattr", cache_file]):
-        if args[-1] == cache_file and not os.path.exists(cache_file):
-            continue
-        p = subprocess.run([XRDCINFO, *args], capture_output=True, text=True)
-        out = p.stdout.strip()
-        if out:
-            try:
-                rec = json.loads(out)
-            except json.JSONDecodeError:
-                continue
-            if not rec.get("absent"):
-                return rec
+        record = _probe_cache_record(cache_file, args)
+        if record is not None:
+            return record
     return {"absent": True}
+
+
+def _probe_cache_record(cache_file: str, args: list[str]) -> dict | None:
+    if args[-1] == cache_file and not os.path.exists(cache_file):
+        return None
+    process = subprocess.run([XRDCINFO, *args], capture_output=True, text=True)
+    output = process.stdout.strip()
+    if not output:
+        return None
+    try:
+        record = json.loads(output)
+    except json.JSONDecodeError:
+        return None
+    return None if record.get("absent") else record
 
 
 def force_cold(rel_path: "str | None" = None) -> None:

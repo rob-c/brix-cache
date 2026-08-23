@@ -183,11 +183,14 @@ def test_delete_x3_evicts_3x(mx):
         assert mx.dav_request("dav", f"/{n}", method="DELETE")[0] == 204
     cx.settle()
     after = cx.mfetch(mx.metrics)
-    assert s.delta("brix_io_ops_total",
-                   {"proto": "webdav", "op": "delete", "status": "ok"},
-                   after) == N
-    assert s.delta("brix_cache_bytes_evicted_total", {"proto": "webdav"},
-                   after) == N * size
+    def _assert_test_delete_x3_evicts_3x_1():
+        assert s.delta("brix_io_ops_total",
+                       {"proto": "webdav", "op": "delete", "status": "ok"},
+                       after) == N
+        assert s.delta("brix_cache_bytes_evicted_total", {"proto": "webdav"},
+                       after) == N * size
+
+    _assert_test_delete_x3_evicts_3x_1()
 
 
 def test_mkcol_x3_linear(mx):

@@ -236,18 +236,27 @@ def test_every_file_offset_decompresses_to_its_own_bytes(stargz_ut, tmp_path):
 
     for name, body in bodies.items():
         e = ent[name]
-        assert e["type"] == "reg" and e["size"] == len(body)
-        assert blob[e["offset"]:e["offset"] + 2] == b"\x1f\x8b"
+        def _assert_test_every_file_offset_decompresses_to_its_own_bytes_3():
+            assert e["type"] == "reg" and e["size"] == len(body)
+            assert blob[e["offset"]:e["offset"] + 2] == b"\x1f\x8b"
+
+        _assert_test_every_file_offset_decompresses_to_its_own_bytes_3()
         assert _member_at(blob, e["offset"])[:len(body)] == body
         dig = "sha256:" + hashlib.sha256(body).hexdigest()
         assert e["digest"] == dig and e["chunkDigest"] == dig
 
     # a zero-length file gets no member and no offset: there is nothing to
     # fetch lazily, and an offset would point at the NEXT file's payload
-    assert "offset" not in ent["etc/empty"]
-    assert ent["etc/empty"]["size"] == 0
-    assert ent["usr/bin"]["type"] == "dir" and "offset" not in ent["usr/bin"]
-    assert ent["usr/bin/alias"]["type"] == "symlink"
+    def _assert_test_every_file_offset_decompresses_to_its_own_bytes_1():
+        assert "offset" not in ent["etc/empty"]
+        assert ent["etc/empty"]["size"] == 0
+
+    _assert_test_every_file_offset_decompresses_to_its_own_bytes_1()
+    def _assert_test_every_file_offset_decompresses_to_its_own_bytes_2():
+        assert ent["usr/bin"]["type"] == "dir" and "offset" not in ent["usr/bin"]
+        assert ent["usr/bin/alias"]["type"] == "symlink"
+
+    _assert_test_every_file_offset_decompresses_to_its_own_bytes_2()
     assert ent["usr/bin/alias"]["linkName"] == "tool"
 
 

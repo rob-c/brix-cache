@@ -99,6 +99,18 @@ def _ensure_fill_data():
                 fh.write(body)
 
 
+def _clean_fill_dir(directory):
+    if not os.path.isdir(directory):
+        return
+    for name in os.listdir(directory):
+        if not name.startswith("wg_fill_"):
+            continue
+        try:
+            os.unlink(os.path.join(directory, name))
+        except OSError:
+            pass
+
+
 @pytest.fixture(autouse=True)
 def _provision(request):
     """Idempotently provision fixtures before every test; clean up write targets after.
@@ -113,15 +125,8 @@ def _provision(request):
     # Remove write-test artefacts from the WebDAV data root.
     atlas_dir = os.path.join(_FILL_DATA_ROOT, "atlas")
     cms_dir = os.path.join(_FILL_DATA_ROOT, "cms")
-    for d in (atlas_dir, cms_dir, _FILL_DATA_ROOT):
-        if not os.path.isdir(d):
-            continue
-        for name in os.listdir(d):
-            if name.startswith("wg_fill_"):
-                try:
-                    os.unlink(os.path.join(d, name))
-                except OSError:
-                    pass
+    for directory in (atlas_dir, cms_dir, _FILL_DATA_ROOT):
+        _clean_fill_dir(directory)
 
 
 def _forge():

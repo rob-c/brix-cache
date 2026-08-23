@@ -24,6 +24,24 @@ import pytest
 
 from settings import HOST, BIND_HOST
 
+def _guard_rc_env_1():
+    if shutil.which("cc") is None and shutil.which("gcc") is None:
+        pytest.skip("no C compiler")
+
+def _guard_rc_env_2():
+    if not (os.path.exists(XRDFS) and os.path.exists(XRDCP)):
+        pytest.skip("client build failed")
+
+def _guard_rc_env_3():
+    if not os.access(NGINX_BIN, os.X_OK):
+        pytest.skip(f"nginx not executable: {NGINX_BIN}")
+
+def _guard_rc_env_4(conf):
+    if subprocess.run([NGINX_BIN, "-t", "-c", str(conf)],
+                      capture_output=True, text=True).returncode != 0:
+        pytest.skip("nginx -t failed")
+
+
 pytestmark = pytest.mark.timeout(120)
 
 NGINX_BIN = os.environ.get("NGINX_BIN", "/tmp/nginx-1.28.3/objs/nginx")
@@ -51,14 +69,11 @@ def _port_up(host, port):
 
 @pytest.fixture(scope="module")
 def rc_env(tmp_path_factory):
-    if shutil.which("cc") is None and shutil.which("gcc") is None:
-        pytest.skip("no C compiler")
+    _guard_rc_env_1()
     subprocess.run(["make", "-C", CLIENT_DIR, "xrdfs", "xrdcp"],
                    capture_output=True, text=True, timeout=240)
-    if not (os.path.exists(XRDFS) and os.path.exists(XRDCP)):
-        pytest.skip("client build failed")
-    if not os.access(NGINX_BIN, os.X_OK):
-        pytest.skip(f"nginx not executable: {NGINX_BIN}")
+    _guard_rc_env_2()
+    _guard_rc_env_3()
 
     root = tmp_path_factory.mktemp("xrdrc")
     data = root / "data"
@@ -76,9 +91,7 @@ stream {{
              brix_auth none; brix_allow_write on; }}
 }}
 """)
-    if subprocess.run([NGINX_BIN, "-t", "-c", str(conf)],
-                      capture_output=True, text=True).returncode != 0:
-        pytest.skip("nginx -t failed")
+    _guard_rc_env_4(conf)
     subprocess.run([NGINX_BIN, "-c", str(conf)], capture_output=True)
     for _ in range(50):
         if _port_up(HOST, port):

@@ -25,6 +25,40 @@
 #include <unistd.h>
 
 
+/*
+ * WHAT: Copy one hot cache object into an already-open cold staged object.
+ * WHY: Separate the streaming state machine from tier/resource acquisition.
+ * HOW: Retry interrupted reads, write each chunk at its source offset, and
+ *      commit only after a clean EOF; the caller retains cleanup ownership.
+ */
+static ngx_int_t
+sd_cache_demote_copy(brix_sd_obj_t *source, brix_sd_staged_t *staged,
+    u_char *buf)
+{
+    off_t off = 0;
+
+    for ( ;; ) {
+        ssize_t n = source->driver->pread(source, buf, SD_CACHE_CHUNK, off);
+
+        if (n < 0) {
+            if (errno == EINTR) {
+                continue;
+            }
+            return NGX_ERROR;
+        }
+        if (n == 0) {
+            return staged->inst->driver->staged_commit(staged, 0);
+        }
+        if (staged->inst->driver->staged_write(staged, buf, (size_t) n,
+                                                off) < 0)
+        {
+            return NGX_ERROR;
+        }
+        off += n;
+    }
+}
+
+
 /* Demote the HOT cached object `key` into the cold store tier (phase-85 F7):
  * copy its bytes from the cache store into the cold store via the cold
  * driver's staged spine (write + commit — never a torn cold object). Called by
@@ -42,7 +76,7 @@ brix_sd_cache_demote(brix_sd_instance_t *inst, const char *key)
     brix_sd_obj_t        *so;
     brix_sd_staged_t     *sg;
     u_char               *buf;
-    off_t                 off = 0;
+    ngx_int_t             rc;
     int                   err = 0;
 
     if (!brix_sd_cache_instance_is(inst) || key == NULL) {
@@ -84,34 +118,15 @@ brix_sd_cache_demote(brix_sd_instance_t *inst, const char *key)
         errno = ENOMEM;
         return NGX_ERROR;
     }
-    for ( ;; ) {
-        ssize_t r = so->driver->pread(so, buf, SD_CACHE_CHUNK, off);
-
-        if (r < 0) {
-            if (errno == EINTR) {
-                continue;
-            }
-            break;
-        }
-        if (r == 0) {                                   /* clean EOF */
-            free(buf);
-            brix_sd_obj_release(so);
-            if (sg->inst->driver->staged_commit(sg, 0) != NGX_OK) {
-                /* Failed commit keeps the handle valid — abort to release it. */
-                sg->inst->driver->staged_abort(sg);
-                return NGX_ERROR;
-            }
-            return NGX_OK;
-        }
-        if (sg->inst->driver->staged_write(sg, buf, (size_t) r, off) < 0) {
-            break;
-        }
-        off += r;
-    }
+    rc = sd_cache_demote_copy(so, sg, buf);
     err = errno;
     free(buf);
-    sg->inst->driver->staged_abort(sg);
     brix_sd_obj_release(so);
+    if (rc == NGX_OK) {
+        return NGX_OK;
+    }
+    /* Failed writes/commits keep the staged handle valid for explicit abort. */
+    sg->inst->driver->staged_abort(sg);
     errno = err ? err : EIO;
     return NGX_ERROR;
 }

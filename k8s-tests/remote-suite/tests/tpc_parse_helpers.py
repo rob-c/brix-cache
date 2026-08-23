@@ -59,36 +59,25 @@ def parse_tpc_opaque(opaque: str) -> TpcOpaqueResult:
     # Split on '&' to get tokens
     tokens = opaque.split('&')
     for token in tokens:
-        if '=' not in token:
-            continue
-
-        key_part, _, value_part = token.partition('=')
-        if not key_part.startswith('tpc.'):
-            continue
-
-        key = key_part[4:]  # strip 'tpc.' prefix
-        value = value_part
-
-        if key == 'src':
-            out.src = _copy_value(512, value)
-            out.has_src = True
-        elif key == 'dst':
-            out.dst = _copy_value(512, value)
-            out.has_dst = True
-        elif key == 'key':
-            out.key = _copy_value(128, value)
-            out.has_key = True
-        elif key == 'lfn':
-            out.lfn = _copy_value(4096, value)
-            out.has_lfn = True
-        elif key == 'org':
-            out.org = _copy_value(256, value)
-            out.has_org = True
-        elif key == 'stage':
-            out.stage = _copy_value(64, value)
-            out.has_stage = True
-        elif key == 'token_mode':
-            out.token_mode = _copy_value(32, value)
-            out.has_token_mode = True
+        pair = _tpc_pair(token)
+        if pair is not None:
+            _store_tpc_value(out, *pair)
 
     return out
+
+
+def _tpc_pair(token):
+    key_part, separator, value = token.partition('=')
+    if not separator or not key_part.startswith('tpc.'):
+        return None
+    return key_part[4:], value
+
+
+def _store_tpc_value(result, key, value):
+    limits = {'src': 512, 'dst': 512, 'key': 128, 'lfn': 4096,
+              'org': 256, 'stage': 64, 'token_mode': 32}
+    limit = limits.get(key)
+    if limit is None:
+        return
+    setattr(result, key, _copy_value(limit, value))
+    setattr(result, 'has_' + key, True)

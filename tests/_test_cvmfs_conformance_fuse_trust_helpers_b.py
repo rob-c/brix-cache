@@ -54,6 +54,49 @@ from concurrent.futures import ThreadPoolExecutor
 import pytest
 
 # conftest chdir()s into a scratch dir — anchor imports on this file's dir.
+def _phase_matrix_1_next(futs, results):
+    for fut, cid in _expression_2(futs):
+        results[cid] = fut.result()
+
+def _phase_matrix_2():
+    with _LOCK:
+        for p in _PROCS:
+            _guard_matrix_2(p)
+        for p in _PROCS:
+            _phase_matrix_1(p)
+        for d in _WORKDIRS:
+            shutil.rmtree(d, ignore_errors=True)
+        _PROCS.clear()
+        _WORKDIRS.clear()
+
+
+def _expression_1(ex):
+    return (
+        {ex.submit(fn): cid for cid, _kind, fn in _CASES}
+    )
+
+def _expression_2(futs):
+    return (
+        [(f, futs[f]) for f in futs]
+    )
+
+
+def _phase_matrix_1(p):
+    try:
+        p.wait(3)
+    except subprocess.TimeoutExpired:
+        p.kill()
+
+
+def _guard_matrix_1(binary):
+    if binary is None:
+        pytest.skip(f"cannot build brixcvmfs --check binary: {_BUILD_ERR}")
+
+def _guard_matrix_2(p):
+    if p.poll() is None:
+        p.terminate()
+
+
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "cvmfs"))
 
 from conformance_common import (BRIXMOUNT, MOCK, _unmount, _wait_mounted,  # noqa: E402
@@ -86,31 +129,17 @@ _LOCK = threading.Lock()
 def matrix() -> dict[str, tuple[int, str, str]]:
     """Run every registered --check tamper case concurrently; yield {cid: result}."""
     binary = _build_brixcvmfs()
-    if binary is None:
-        pytest.skip(f"cannot build brixcvmfs --check binary: {_BUILD_ERR}")
+    _guard_matrix_1(binary)
     os.environ["BRIXCVMFS_BIN"] = binary
 
     results: dict[str, tuple[int, str, str]] = {}
     try:
         with ThreadPoolExecutor(max_workers=12) as ex:
-            futs = {ex.submit(fn): cid for cid, _kind, fn in _CASES}
-            for fut, cid in [(f, futs[f]) for f in futs]:
-                results[cid] = fut.result()
+            futs = _expression_1(ex)
+            _phase_matrix_1_next(futs, results)
         yield results
     finally:
-        with _LOCK:
-            for p in _PROCS:
-                if p.poll() is None:
-                    p.terminate()
-            for p in _PROCS:
-                try:
-                    p.wait(3)
-                except subprocess.TimeoutExpired:
-                    p.kill()
-            for d in _WORKDIRS:
-                shutil.rmtree(d, ignore_errors=True)
-            _PROCS.clear()
-            _WORKDIRS.clear()
+        _phase_matrix_2()
 
 
 # ---------------------------------------------------------------------------

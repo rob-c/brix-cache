@@ -1,4 +1,4 @@
-"""Examples 9-10: the contract kit (F14) and the process-worker RPC.
+"""Compatibility tests for kind contracts and process-worker RPC.
 
 The kind contract is how a project proves its adapter registrations
 against the core's expectations without booting anything; the worker
@@ -16,6 +16,7 @@ import pytest
 from brixtest.clients import WorkerRunner
 from brixtest.fleet.kinds import get_kind
 from brixtest.testing import check_kind_contract
+
 
 def test_09_the_process_kind_honours_the_kind_contract():
     assert check_kind_contract(get_kind("process")) == []

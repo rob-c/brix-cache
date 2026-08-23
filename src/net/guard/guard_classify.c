@@ -143,6 +143,30 @@ is_http_line(const unsigned char *buf, size_t len)
     return 0;
 }
 
+/*
+ * WHAT: Classify the kXR zero-prefix portion of a fresh handshake.
+ * WHY:  Separating protocol recognition keeps alternate-protocol labels flat.
+ * HOW:  Return root, junk, or -1 when a seen byte rules out the kXR prefix.
+ */
+static int
+classify_root_prefix(const unsigned char *buf, size_t len, int *need_more)
+{
+    size_t lead = len < 12 ? len : 12;
+    size_t i;
+
+    for (i = 0; i < lead; i++) {
+        if (buf[i] != 0)
+            return -1;
+    }
+    if (len < 16) {
+        *need_more = 1;
+        return GUARD_WIRE_ROOT;
+    }
+    if (buf[12] == 0 && buf[13] == 0 && buf[14] == 0 && buf[15] == 4)
+        return GUARD_WIRE_ROOT;
+    return GUARD_WIRE_JUNK;
+}
+
 /* ---- Wire-level handshake classifier ----
  *
  * WHAT: inspects the first bytes of a fresh connection on a root:// port and
@@ -167,7 +191,7 @@ is_http_line(const unsigned char *buf, size_t len)
 guard_wire_t
 guard_classify_handshake(const unsigned char *buf, size_t len, int *need_more)
 {
-    size_t lead, i;
+    int root_wire;
 
     *need_more = 0;
 
@@ -175,25 +199,9 @@ guard_classify_handshake(const unsigned char *buf, size_t len, int *need_more)
         return GUARD_WIRE_EMPTY;
     }
 
-    /* Step 1+2: is the opening consistent with the kXR zero-prefix? */
-    lead = len < 12 ? len : 12;
-    for (i = 0; i < lead; i++) {
-        if (buf[i] != 0) {
-            break;                      /* zero-prefix broken -> not root */
-        }
-    }
-    if (i == lead) {                    /* every leading byte zero so far */
-        if (len < 16) {
-            *need_more = 1;             /* zero-prefix, fourth not yet in */
-            return GUARD_WIRE_ROOT;
-        }
-        /* fourth is now present; fifth is deliberately unchecked, so the
-         * 16-byte prefix is the whole verdict — final either way. */
-        if (buf[12] == 0 && buf[13] == 0 && buf[14] == 0 && buf[15] == 4) {
-            return GUARD_WIRE_ROOT;     /* genuine kXR ClientInitHandShake */
-        }
-        return GUARD_WIRE_JUNK;         /* 16+ zero-led bytes, fourth != 4 */
-    }
+    root_wire = classify_root_prefix(buf, len, need_more);
+    if (root_wire >= 0)
+        return (guard_wire_t) root_wire;
 
     /* Step 3: name the non-root client for the operator. */
     if (buf[0] == 0x16 && len >= 2 && buf[1] == 0x03) {

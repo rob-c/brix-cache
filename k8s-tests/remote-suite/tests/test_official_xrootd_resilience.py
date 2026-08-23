@@ -35,6 +35,29 @@ import time
 
 import pytest
 
+def _guard_server_1():
+    if XROOTD is None:
+        pytest.skip("official `xrootd` not installed")
+
+def _guard_server_2(proc, log):
+    if proc.poll() is not None:
+        pytest.skip(f"xrootd failed to start:\n{log.read_text()[-600:]}")
+
+def _guard_mount_3():
+    if not _FUSE_OK:
+        pytest.skip("no /dev/fuse or fusermount3")
+
+def _guard_mount_4():
+    if not (os.path.exists(AIO) and os.path.exists(FAULT_PROXY)):
+        pytest.skip("xrootdfs / fault_proxy not built")
+
+def _guard_mount_5(ready, proxy, mnt):
+    if not ready:
+        subprocess.run(["fusermount3", "-u", "-z", str(mnt)], capture_output=True)
+        proxy.terminate()
+        pytest.skip("mount did not come up")
+
+
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CLIENT_DIR = os.path.join(REPO, "client")
 AIO = os.path.join(CLIENT_DIR, "bin", "xrootdfs")
@@ -87,8 +110,7 @@ def _ctl(port, cmd):
 @pytest.fixture(scope="module")
 def server(tmp_path_factory):
     """A real official xrootd serving a random 8 MiB file at /data/med.bin."""
-    if XROOTD is None:
-        pytest.skip("official `xrootd` not installed")
+    _guard_server_1()
     root = tmp_path_factory.mktemp("xrdsrv")
     data = root / "data"
     data.mkdir()
@@ -115,8 +137,7 @@ def server(tmp_path_factory):
         for _ in range(50):
             if _port_up(port):
                 break
-            if proc.poll() is not None:
-                pytest.skip(f"xrootd failed to start:\n{log.read_text()[-600:]}")
+            _guard_server_2(proc, log)
             time.sleep(0.2)
         else:
             pytest.skip("xrootd did not start listening in time")
@@ -133,14 +154,12 @@ def server(tmp_path_factory):
 def mount(server, tmp_path_factory):
     """fault_proxy in front of the server + this repo's xrootdfs mounted on it.
     Yields (mountfile_path, ctl) where ctl(cmd) drives the fault levers."""
-    if not _FUSE_OK:
-        pytest.skip("no /dev/fuse or fusermount3")
+    _guard_mount_3()
     # Build the FUSE driver + fault proxy (best-effort; skip if the link can't be
     # satisfied in this environment).
     subprocess.run(["make", "xrootdfs", "fault-proxy"], cwd=CLIENT_DIR, env=ENV,
                    stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=300)
-    if not (os.path.exists(AIO) and os.path.exists(FAULT_PROXY)):
-        pytest.skip("xrootdfs / fault_proxy not built")
+    _guard_mount_4()
 
     listen, ctlp = _free_port(), _free_port()
     mnt = tmp_path_factory.mktemp("mnt")
@@ -162,10 +181,7 @@ def mount(server, tmp_path_factory):
             break
         if fs.poll() is not None:
             break
-    if not ready:
-        subprocess.run(["fusermount3", "-u", "-z", str(mnt)], capture_output=True)
-        proxy.terminate()
-        pytest.skip("mount did not come up")
+    _guard_mount_5(ready, proxy, mnt)
 
     def ctl(cmd):
         return _ctl(ctlp, cmd)

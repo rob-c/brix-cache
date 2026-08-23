@@ -68,15 +68,29 @@ def _find_audit_line(token, kind="stage", timeout=5.0):
              "/var/log/brix/logs/xfer_audit.log", "/var/log/brix/xfer_audit.log"]
     deadline = time.time() + timeout
     while time.time() < deadline:
-        for p in audit:
-            try:
-                data = klib.svc_read("mega", p).decode("utf-8", "replace")
-            except Exception:
-                continue
-            for line in data.splitlines():
-                if token in line and f"kind={kind}" in line:
-                    return line
+        line = _scan_remote_audits(audit, token, kind)
+        if line is not None:
+            return line
         time.sleep(0.3)
+    return None
+
+
+def _scan_remote_audits(paths, token, kind):
+    for path in paths:
+        line = _scan_remote_audit(path, token, kind)
+        if line is not None:
+            return line
+    return None
+
+
+def _scan_remote_audit(path, token, kind):
+    try:
+        data = klib.svc_read("mega", path).decode("utf-8", "replace")
+    except Exception:
+        return None
+    for line in data.splitlines():
+        if token in line and f"kind={kind}" in line:
+            return line
     return None
 
 

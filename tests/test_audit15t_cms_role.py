@@ -470,17 +470,23 @@ class TestTheTokenSelectsTheDispatchClass:
         peer.send_to_node(0x15700004, CMS_RR_MKDIR, 0,
                           _fwd_a_payload(b"mgr", b"755", b"/../pwned_by_server"))
         err = peer.collect_reply(CMS_RSP_ERROR, timeout=8.0)
-        assert err is not None, "the escaping op must be refused with kYR_error"
-        assert not os.path.exists(escape), (
-            "confinement breach: the op landed outside the export root")
+        def _assert_test_a_failed_forwarded_op_is_logged_as_a_success_1():
+            assert err is not None, "the escaping op must be refused with kYR_error"
+            assert not os.path.exists(escape), (
+                "confinement breach: the op landed outside the export root")
+
+        _assert_test_a_failed_forwarded_op_is_logged_as_a_success_1()
         assert _wait_log_contains(peer.ep, _ACTION_MKDIR + b" peer="), \
             "the refused op left no audit line at all"
         log = _errlog(peer, limit=200000)
         action = [ln for ln in log.splitlines() if "cmsd-action op=mkdir" in ln]
-        assert action, log[-2000:]
-        assert "result=ok" in action[-1], (
-            "defect candidate #51 appears to be fixed — the audit line now "
-            f"reports the op's own outcome: {action[-1]}")
+        def _assert_test_a_failed_forwarded_op_is_logged_as_a_success_2():
+            assert action, log[-2000:]
+            assert "result=ok" in action[-1], (
+                "defect candidate #51 appears to be fixed — the audit line now "
+                f"reports the op's own outcome: {action[-1]}")
+
+        _assert_test_a_failed_forwarded_op_is_logged_as_a_success_2()
 
 
 # --------------------------------------------------------------------------- #

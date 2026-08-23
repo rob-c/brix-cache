@@ -69,6 +69,39 @@ import sys
 
 import pytest
 
+def _expression_1(token, self):
+    return (
+        self.token if token is ... else token
+    )
+
+def _expression_2(scheme, self):
+    return (
+        scheme or ("roots" if self.kind == "tls" else "root")
+    )
+
+def _expression_3(dst):
+    return (
+        os.path.getsize(dst) if os.path.exists(dst) else 0
+    )
+
+def _expression_4(size, proc, dst, self):
+    return (
+        proc.returncode == 0 and size > 0
+                             and _md5(dst) == self.want
+    )
+
+
+def _guard_run_1(tok, env):
+    if tok:
+        env["BEARER_TOKEN"] = tok
+    else:
+        env.pop("BEARER_TOKEN", None)
+
+def _guard_run_2(dst):
+    if os.path.exists(dst):
+        os.unlink(dst)
+
+
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import servers  # noqa: E402
 from settings import HOST  # noqa: E402
@@ -142,23 +175,18 @@ class Leg:
         env.pop("LD_LIBRARY_PATH", None)
         env.pop("X509_USER_PROXY", None)
         env["X509_CERT_DIR"] = servers.CA_DIR
-        tok = self.token if token is ... else token
-        if tok:
-            env["BEARER_TOKEN"] = tok
-        else:
-            env.pop("BEARER_TOKEN", None)
-        scheme = scheme or ("roots" if self.kind == "tls" else "root")
+        tok = _expression_1(token, self)
+        _guard_run_1(tok, env)
+        scheme = _expression_2(scheme, self)
         url = f"{scheme}://{HOST}:{self.fp.listen}/{NAME}"
         try:
             proc = subprocess.run([servers.XRDCP, "-f", *extra, url, dst],
                                   env=env, capture_output=True, timeout=120)
-            size = os.path.getsize(dst) if os.path.exists(dst) else 0
-            exact = (proc.returncode == 0 and size > 0
-                     and _md5(dst) == self.want)
+            size = _expression_3(dst)
+            exact = (_expression_4(size, proc, dst, self))
             return proc.returncode, exact, size
         finally:
-            if os.path.exists(dst):
-                os.unlink(dst)
+            _guard_run_2(dst)
 
 
 @pytest.fixture(scope="module")

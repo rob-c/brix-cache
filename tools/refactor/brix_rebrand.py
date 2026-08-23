@@ -55,10 +55,14 @@ def iter_files(paths):
     for p in paths:
         if os.path.isfile(p):
             yield p
-        else:
-            for root, _dirs, files in os.walk(p):
-                for name in files:
-                    yield os.path.join(root, name)
+            continue
+        yield from _tree_files(p)
+
+
+def _tree_files(path):
+    for root, _dirs, files in os.walk(path):
+        for name in files:
+            yield os.path.join(root, name)
 
 
 def rewrite_text(text, rules):
@@ -82,41 +86,53 @@ def main():
     args = ap.parse_args()
     rules = rules_for(args.scope)
 
-    total_files = total_lines = 0
     mapping = {}
     token_re = re.compile(r'"(xrootd_[a-z0-9_]+|XROOTD_[A-Z0-9_]+)"')
-
+    results = []
     for path in iter_files(args.paths):
-        rel = os.path.relpath(path)
-        if rel in EXCLUDE or is_binary(path):
-            continue
-        with open(path, 'r', encoding='utf-8', errors='surrogateescape') as fh:
-            original = fh.read()
-        new_text, changed = rewrite_text(original, rules)
-        if changed == 0:
-            continue
-        total_files += 1
-        total_lines += changed
-        if args.emit_map:
-            for m in token_re.finditer(original):
-                old = m.group(1)
-                new, _ = rewrite_text(old, rules)
-                mapping[old] = new
-        if args.dry_run:
-            print(f'--- {rel}  ({changed} lines)')
-        else:
-            with open(path, 'w', encoding='utf-8', errors='surrogateescape') as fh:
-                fh.write(new_text)
-
-    if args.emit_map and mapping:
-        with open(args.emit_map, 'w', encoding='utf-8') as fh:
-            fh.write('# BriX rename migration map (old -> new)\n')
-            for old in sorted(mapping):
-                fh.write(f'{old}\t{mapping[old]}\n')
-
+        result = _process_file(path, args, rules, token_re, mapping)
+        if result:
+            results.append(result)
+    _emit_mapping(args.emit_map, mapping)
+    total_lines = sum(changed for _path, changed in results)
+    total_files = len(results)
     verb = 'would change' if args.dry_run else 'changed'
     print(f'{verb} {total_lines} lines in {total_files} files (scope={args.scope})',
           file=sys.stderr)
+
+
+def _process_file(path, args, rules, token_re, mapping):
+    rel = os.path.relpath(path)
+    if rel in EXCLUDE or is_binary(path):
+        return None
+    with open(path, 'r', encoding='utf-8', errors='surrogateescape') as fh:
+        original = fh.read()
+    new_text, changed = rewrite_text(original, rules)
+    if changed == 0:
+        return None
+    if args.emit_map:
+        _update_mapping(mapping, original, token_re, rules)
+    if args.dry_run:
+        print(f'--- {rel}  ({changed} lines)')
+    else:
+        with open(path, 'w', encoding='utf-8', errors='surrogateescape') as fh:
+            fh.write(new_text)
+    return rel, changed
+
+
+def _update_mapping(mapping, original, token_re, rules):
+    for match in token_re.finditer(original):
+        old = match.group(1)
+        mapping[old] = rewrite_text(old, rules)[0]
+
+
+def _emit_mapping(path, mapping):
+    if not path or not mapping:
+        return
+    with open(path, 'w', encoding='utf-8') as fh:
+        fh.write('# BriX rename migration map (old -> new)\n')
+        for old in sorted(mapping):
+            fh.write(f'{old}\t{mapping[old]}\n')
 
 
 if __name__ == '__main__':

@@ -39,6 +39,15 @@ from settings import HOST, BIND_HOST, NGINX_BIN
 
 # Same doctrine as test_cache_partial_fill.py: every test stands up dedicated
 # throwaway instances, and the slice-cache origin read path is serial-only.
+def _phase_test_webdav_range_get_warms_successor_blocks_1(front):
+    with pytest.raises(urllib.error.HTTPError) as ei:
+        _get_range(front, "/f.bin", 7 * BLK, 8 * BLK - 1)
+
+
+def _check_test_webdav_range_get_warms_successor_blocks_1(metrics):
+    assert _metric(metrics, "brix_cache_prefetch_blocks_total") > 0
+
+
 pytestmark = [pytest.mark.serial, pytest.mark.uses_lifecycle_harness]
 
 BLK = 1024 * 1024               # 1 MiB slice granule (multiple-of-1m rule)
@@ -177,9 +186,12 @@ def test_random_access_disables_prefetch(lifecycle, tmp_path):
             f"sequential window missing: {_present(node.store_dir, 'f.bin')}"
         time.sleep(1.0)                       # grace: random jump stays bare
         present = set(_present(node.store_dir, "f.bin"))
-        assert present & {9, 10, 11} == set(), \
-            f"random access must not speculate: {sorted(present)}"
-        assert 8 in present                   # the foreground-read block itself
+        def _assert_test_random_access_disables_prefetch_1():
+            assert present & {9, 10, 11} == set(), \
+                f"random access must not speculate: {sorted(present)}"
+            assert 8 in present                   # the foreground-read block itself
+
+        _assert_test_random_access_disables_prefetch_1()
 
 
 def test_default_off_no_speculative_origin_reads(lifecycle, tmp_path):
@@ -322,21 +334,29 @@ def test_webdav_range_get_warms_successor_blocks(lifecycle, tmp_path):
     data = _seed_http(doc_root, "f.bin", 8 * BLK)
     jobs0 = _metric(metrics, "brix_cache_prefetch_jobs_total") or 0
     status, body = _get_range(front, "/f.bin", 0, 2 * BLK - 1)
-    assert status == 206 and body == data[:2 * BLK]
-    assert _poll(lambda: set(_present(cache_dir, "f.bin"))
-                 >= {0, 1, 2, 3, 4, 5}), \
-        f"successor blocks not warmed: {_present(cache_dir, 'f.bin')}"
+    def _assert_test_webdav_range_get_warms_successor_blocks_2():
+        assert status == 206 and body == data[:2 * BLK]
+        assert _poll(lambda: set(_present(cache_dir, "f.bin"))
+                     >= {0, 1, 2, 3, 4, 5}), \
+            f"successor blocks not warmed: {_present(cache_dir, 'f.bin')}"
+
+    _assert_test_webdav_range_get_warms_successor_blocks_2()
     time.sleep(1.0)                           # grace: window bound holds
-    assert set(_present(cache_dir, "f.bin")) & {6, 7} == set()
-    assert _metric(metrics, "brix_cache_prefetch_jobs_total") > jobs0
-    assert _metric(metrics, "brix_cache_prefetch_blocks_total") > 0
+    def _assert_test_webdav_range_get_warms_successor_blocks_3():
+        assert set(_present(cache_dir, "f.bin")) & {6, 7} == set()
+        assert _metric(metrics, "brix_cache_prefetch_jobs_total") > jobs0
+
+    _assert_test_webdav_range_get_warms_successor_blocks_3()
+    _check_test_webdav_range_get_warms_successor_blocks_1(metrics)
     # ERROR leg: an absent block with the origin gone fails cleanly (5xx, not
     # a hang or crash) and the front keeps answering /metrics.
     lifecycle.stop(HTTP_ORIGIN_NAME)
-    with pytest.raises(urllib.error.HTTPError) as ei:
-        _get_range(front, "/f.bin", 7 * BLK, 8 * BLK - 1)
-    assert ei.value.code >= 500
-    assert _metric(metrics, "brix_cache_prefetch_jobs_total") is not None
+    _phase_test_webdav_range_get_warms_successor_blocks_1(front)
+    def _assert_test_webdav_range_get_warms_successor_blocks_4():
+        assert ei.value.code >= 500
+        assert _metric(metrics, "brix_cache_prefetch_jobs_total") is not None
+
+    _assert_test_webdav_range_get_warms_successor_blocks_4()
 
 
 def test_webdav_default_off_no_speculation(lifecycle, tmp_path):

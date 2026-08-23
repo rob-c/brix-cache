@@ -11,6 +11,32 @@ from cmdscripts.live_common import LiveFailure, LiveRun, random_file, sha256
 from settings import BIND_HOST, HOST
 
 
+def _expression_1(status, digest, got, directory):
+    return (
+        status == 201 and (directory / "backend/m.bin").exists() and sha256(got) == digest
+    )
+
+def _expression_2(driver, status, passed):
+    return (
+        print(f"  {'ok  ' if passed else 'FAIL'} {driver} stage_store: PUT {status} -> backend -> GET byte-exact")
+    )
+
+def _expression_3(passed):
+    return (
+        "PASS" if passed else "FAIL"
+    )
+
+def _expression_4(passed):
+    return (
+        "PASS" if passed else "FAIL"
+    )
+
+def _expression_5(results):
+    return (
+        1 if "FAIL" in results.values() else 0
+    )
+
+
 BASE_PORT = 8520
 
 
@@ -64,8 +90,8 @@ def test_stage_store(run: LiveRun, driver: str, port: int, store_url: str, remot
     body = run.curl_bytes(f"http://{HOST}:{backend_port}/m.bin")
     got = directory / "got.bin"
     got.write_bytes(body)
-    passed = status == 201 and (directory / "backend/m.bin").exists() and sha256(got) == digest
-    print(f"  {'ok  ' if passed else 'FAIL'} {driver} stage_store: PUT {status} -> backend -> GET byte-exact")
+    passed = _expression_1(status, digest, got, directory)
+    _expression_2(driver, status, passed)
     run.stop_nginx(directory)
     return passed, port + 2
 
@@ -80,12 +106,12 @@ def run_port(nginx: Path | None = None) -> int:
             ("xroot", "", True),
         ):
             passed, port = test_stage_store(run, driver, port, url, remote)
-            results[driver] = "PASS" if passed else "FAIL"
+            results[driver] = _expression_3(passed)
         pool = os.environ.get("BRIX_TEST_RADOS_POOL")
         if pool:
             run.call(["rados", "-p", pool, "rm", "/m.bin"], check=False)
             passed, port = test_stage_store(run, "rados", port, f"rados://{pool}")
-            results["rados"] = "PASS" if passed else "FAIL"
+            results["rados"] = _expression_4(passed)
             run.call(["rados", "-p", pool, "rm", "/m.bin"], check=False)
         else:
             results["rados"] = "SKIP"
@@ -93,7 +119,7 @@ def run_port(nginx: Path | None = None) -> int:
     print("== stage_store driver matrix ==")
     for driver in ("posix", "pblock", "xroot", "rados"):
         print(f"  {driver:<8} {results[driver]}")
-    return 1 if "FAIL" in results.values() else 0
+    return _expression_5(results)
 
 
 def main(argv: list[str] | None = None) -> int:

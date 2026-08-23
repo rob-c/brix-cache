@@ -241,24 +241,31 @@ def test_budget_gauges_exported_and_release():
     until the connection actually closes (release-on-disconnect is exercised by
     the connection teardown path, not by File.close()).
     """
-    import urllib.request
+    _assert_budget_metric_names(_scrape_budget_metrics())
+    _drive_budget_read()
+    after = _scrape_budget_metrics()
+    high_water = _budget_gauge(after, "brix_xfer_heap_high_water_bytes")
+    in_use = _budget_gauge(after, "brix_xfer_heap_bytes")
+    _assert_budget_gauges(in_use, high_water)
 
+
+def _scrape_budget_metrics():
+    import urllib.request
     from settings import NGINX_METRICS_PORT
 
-    def scrape():
-        url = f"http://{SERVER_HOST}:{NGINX_METRICS_PORT}/metrics"
-        with urllib.request.urlopen(url, timeout=10) as resp:
-            return resp.read().decode("utf-8", "replace")
+    url = f"http://{SERVER_HOST}:{NGINX_METRICS_PORT}/metrics"
+    with urllib.request.urlopen(url, timeout=10) as response:
+        return response.read().decode("utf-8", "replace")
 
-    body = scrape()
-    # All three W4 series must be present.
-    for name in ("brix_xfer_heap_bytes",
-                 "brix_xfer_heap_high_water_bytes",
-                 "brix_budget_waits_total"):
+
+def _assert_budget_metric_names(body):
+    names = ("brix_xfer_heap_bytes", "brix_xfer_heap_high_water_bytes",
+             "brix_budget_waits_total")
+    for name in names:
         assert name in body, f"missing budget metric {name}"
 
-    # Drive a memory-backed read (readv is served from read_scratch even on the
-    # cleartext port), then close.  After close, in-use bytes must be ~0.
+
+def _drive_budget_read():
     payload = _deterministic(8 * 1024 * 1024)
     remote = "/test_phase31_budget.bin"
     w = client.File()
@@ -279,22 +286,20 @@ def test_budget_gauges_exported_and_release():
     assert s.ok, s.message
     f.close()
 
-    # High-water must reflect that the transfer held heap at some point.
-    def gauge(text, name, port_label):
-        for line in text.splitlines():
-            if line.startswith(name + "{") and f'port="{port_label}"' in line:
-                return int(line.rsplit(" ", 1)[1])
-        return None
 
-    after = scrape()
-    hw = gauge(after, "brix_xfer_heap_high_water_bytes", str(NGINX_ANON_PORT))
-    in_use = gauge(after, "brix_xfer_heap_bytes", str(NGINX_ANON_PORT))
-    # Charge happened: high-water rose above zero.
-    assert hw is not None and hw > 0, "high-water never rose (charge not wired)"
-    # Accounting is sane: live usage never exceeds the peak and never underflows
-    # (a double-release / negative drift would show as a huge unsigned value).
-    assert in_use is not None and 0 <= in_use <= hw, \
-        f"budget accounting drifted: in_use={in_use} high_water={hw}"
+def _budget_gauge(text, name):
+    port_label = str(NGINX_ANON_PORT)
+    for line in text.splitlines():
+        if line.startswith(name + "{") and f'port="{port_label}"' in line:
+            return int(line.rsplit(" ", 1)[1])
+    return None
+
+
+def _assert_budget_gauges(in_use, high_water):
+    assert high_water is not None and high_water > 0, (
+        "high-water never rose (charge not wired)")
+    assert in_use is not None and 0 <= in_use <= high_water, (
+        f"budget accounting drifted: in_use={in_use} high_water={high_water}")
 
 
 @anon_only

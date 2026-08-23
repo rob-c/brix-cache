@@ -90,6 +90,19 @@ from test_phase25_ratelimit import (KXR_OK, _xrd_login, _xrd_open,
                                     _xrd_recv_status)
 from _test_gsi_handshake_helpers import _ca_hash_link, _make_ca, _mint_proxy, _signed
 
+def _guard_pki_1():
+    if not shutil.which("openssl"):
+        pytest.skip("openssl not installed")
+
+def _guard_pki_2():
+    if not shutil.which("xrdgsiproxy"):
+        pytest.skip("xrdgsiproxy not installed (cannot mint a dest proxy)")
+
+def _guard_pki_3(dest_cert, dest_key, dest_proxy, env, certs):
+    if not _mint_proxy(dest_cert, dest_key, dest_proxy, str(certs), env):
+        pytest.skip("could not mint the destination proxy")
+
+
 pytestmark = [pytest.mark.timeout(600),
               pytest.mark.uses_lifecycle_harness,
               pytest.mark.xdist_group("lc-audit15h-tpcgsitls")]
@@ -129,10 +142,8 @@ def _knobs(*lines):
 def pki(tmp_path_factory):
     """Trusted CA + source host credential + a destination proxy, plus a rogue
     CA directory that signed neither of them."""
-    if not shutil.which("openssl"):
-        pytest.skip("openssl not installed")
-    if not shutil.which("xrdgsiproxy"):
-        pytest.skip("xrdgsiproxy not installed (cannot mint a dest proxy)")
+    _guard_pki_1()
+    _guard_pki_2()
 
     base = tmp_path_factory.mktemp("tpcgsitls")
     ca, rogue, certs, rogue_certs, srv = (
@@ -154,8 +165,7 @@ def pki(tmp_path_factory):
 
     dest_proxy = str(srv / "destproxy.pem")
     env = dict(os.environ, X509_CERT_DIR=str(certs))
-    if not _mint_proxy(dest_cert, dest_key, dest_proxy, str(certs), env):
-        pytest.skip("could not mint the destination proxy")
+    _guard_pki_3(dest_cert, dest_key, dest_proxy, env, certs)
     os.chmod(dest_proxy, 0o600)
     os.chmod(certs, 0o755)
     os.chmod(rogue_certs, 0o755)

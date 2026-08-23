@@ -38,28 +38,51 @@ def have_cmd(name: str) -> bool:
 def find_xrd_library(*names: str) -> Path | None:
     """Find an XRootD library across RPM, Debian multiarch, and ldconfig layouts."""
     for name in names:
-        requested = Path(name)
-        if requested.is_absolute() and requested.is_file():
-            return requested.resolve()
-        for root in (Path("/usr/lib64"), Path("/usr/lib"),
-                     Path("/lib64"), Path("/lib")):
-            candidate = root / name
-            if candidate.is_file():
-                return candidate.resolve()
-            for multiarch in root.glob(f"*/{name}"):
-                if multiarch.is_file():
-                    return multiarch.resolve()
+        found = _direct_xrd_library(name)
+        if found:
+            return found
+    return _ldconfig_xrd_library(names)
 
-    if shutil.which("ldconfig"):
-        proc = run(["ldconfig", "-p"])
-        wanted = set(names)
-        for line in proc.stdout.splitlines():
-            fields = line.strip().split()
-            if fields and fields[0] in wanted and "=>" in fields:
-                candidate = Path(fields[-1])
-                if candidate.is_file():
-                    return candidate.resolve()
+
+def _direct_xrd_library(name):
+    requested = Path(name)
+    if requested.is_absolute() and requested.is_file():
+        return requested.resolve()
+    roots = (Path("/usr/lib64"), Path("/usr/lib"), Path("/lib64"), Path("/lib"))
+    for root in roots:
+        found = _library_below(root, name)
+        if found:
+            return found
     return None
+
+
+def _library_below(root, name):
+    candidate = root / name
+    if candidate.is_file():
+        return candidate.resolve()
+    for multiarch in root.glob(f"*/{name}"):
+        if multiarch.is_file():
+            return multiarch.resolve()
+    return None
+
+
+def _ldconfig_xrd_library(names):
+    if not shutil.which("ldconfig"):
+        return None
+    wanted = set(names)
+    for line in run(["ldconfig", "-p"]).stdout.splitlines():
+        found = _ldconfig_line_library(line, wanted)
+        if found:
+            return found
+    return None
+
+
+def _ldconfig_line_library(line, wanted):
+    fields = line.strip().split()
+    if not fields or fields[0] not in wanted or "=>" not in fields:
+        return None
+    candidate = Path(fields[-1])
+    return candidate.resolve() if candidate.is_file() else None
 
 
 def find_xrd_sec_lib() -> Path | None:
@@ -68,19 +91,30 @@ def find_xrd_sec_lib() -> Path | None:
 
 def pids_on_port(port: int | str) -> list[int]:
     if have_cmd("ss"):
-        proc = run(["ss", "-ltnp", f"( sport = :{port} )"])
-        pids = set()
-        for part in proc.stdout.replace(",", " ").split():
-            if part.startswith("pid="):
-                try:
-                    pids.add(int(part.split("=", 1)[1]))
-                except ValueError:
-                    pass
-        return sorted(pids)
+        output = run(["ss", "-ltnp", f"( sport = :{port} )"]).stdout
+        return sorted(_pids_in_text(output))
     if have_cmd("lsof"):
-        proc = run(["lsof", "-t", f"-iTCP:{port}", "-sTCP:LISTEN"])
-        return sorted({int(p) for p in proc.stdout.split() if p.isdigit()})
+        output = run(["lsof", "-t", f"-iTCP:{port}", "-sTCP:LISTEN"]).stdout
+        return sorted({int(value) for value in output.split() if value.isdigit()})
     return []
+
+
+def _pids_in_text(text):
+    pids = set()
+    for part in text.replace(",", " ").split():
+        pid = _pid_field(part)
+        if pid is not None:
+            pids.add(pid)
+    return pids
+
+
+def _pid_field(part):
+    if not part.startswith("pid="):
+        return None
+    try:
+        return int(part.split("=", 1)[1])
+    except ValueError:
+        return None
 
 
 def listening_port_pids() -> dict[int, set[int]] | None:
@@ -99,20 +133,18 @@ def listening_port_pids() -> dict[int, set[int]] | None:
     proc = run(["ss", "-ltnp"])
     listeners: dict[int, set[int]] = {}
     for line in proc.stdout.splitlines():
-        fields = line.split()
-        if len(fields) < 4:
-            continue
-        endpoint = fields[3].rsplit(":", 1)[-1]
-        if not endpoint.isdigit():
-            continue
-        pids = listeners.setdefault(int(endpoint), set())
-        for part in line.replace(",", " ").split():
-            if part.startswith("pid="):
-                try:
-                    pids.add(int(part.split("=", 1)[1]))
-                except ValueError:
-                    pass
+        port = _listener_port(line)
+        if port is not None:
+            listeners.setdefault(port, set()).update(_pids_in_text(line))
     return listeners
+
+
+def _listener_port(line):
+    fields = line.split()
+    if len(fields) < 4:
+        return None
+    endpoint = fields[3].rsplit(":", 1)[-1]
+    return int(endpoint) if endpoint.isdigit() else None
 
 
 def pids_in_port_range(start: int, end: int) -> list[int]:

@@ -18,8 +18,14 @@ import sys
 import brix_suite.mesh.hybrid_mesh_lib as lib
 
 
+def _expression_1(argv):
+    return (
+        argv[1] if len(argv) > 1 else "start"
+    )
+
+
 def main(argv):
-    cmd = argv[1] if len(argv) > 1 else "start"
+    cmd = _expression_1(argv)
 
     if cmd == "stop":
         lib.stop_all()

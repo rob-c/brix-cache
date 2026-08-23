@@ -191,6 +191,32 @@ def _http_session(port):
     return s
 
 
+def _recv_http_headers(sock):
+    buffer = b""
+    while b"\r\n\r\n" not in buffer:
+        chunk = sock.recv(4096)
+        if not chunk:
+            return None
+        buffer += chunk
+    return buffer.split(b"\r\n\r\n", 1)
+
+
+def _content_length(header):
+    for line in header.split(b"\r\n")[1:]:
+        if line[:15].lower() == b"content-length:":
+            return int(line.split(b":", 1)[1].strip())
+    return None
+
+
+def _recv_http_body(sock, body, content_length):
+    while len(body) < content_length:
+        chunk = sock.recv(content_length - len(body))
+        if not chunk:
+            return False
+        body += chunk
+    return True
+
+
 def _op_propfind_ka(s, path="/dir"):
     """Keep-alive PROPFIND: reuse a persistent connection, framing the response
     by Content-Length so the socket can serve the next request.  This removes
@@ -199,27 +225,16 @@ def _op_propfind_ka(s, path="/dir"):
     Returns the status code, or None to make the hammer re-establish the conn."""
     s.sendall((f"PROPFIND {path} HTTP/1.1\r\nHost: x\r\nDepth: 0\r\n"
                "Content-Length: 0\r\nConnection: keep-alive\r\n\r\n").encode())
-    buf = b""
-    while b"\r\n\r\n" not in buf:
-        c = s.recv(4096)
-        if not c:
-            return None
-        buf += c
-    head, rest = buf.split(b"\r\n\r\n", 1)
+    response = _recv_http_headers(s)
+    if response is None:
+        return None
+    head, rest = response
     status = int(head.split(b"\r\n", 1)[0].split()[1])
-    cl = None
-    for line in head.split(b"\r\n")[1:]:
-        if line[:15].lower() == b"content-length:":
-            cl = int(line.split(b":", 1)[1].strip())
-            break
-    if cl is None:
+    content_length = _content_length(head)
+    if content_length is None:
         return None          # chunked / close-delimited — can't safely reuse
-    body = rest
-    while len(body) < cl:
-        c = s.recv(cl - len(body))
-        if not c:
-            return None
-        body += c
+    if not _recv_http_body(s, rest, content_length):
+        return None
     return status
 
 
@@ -245,6 +260,103 @@ def _classify_http(st):
     return "errored"          # None (dropped) or 5xx
 
 
+def _session_or_none(make_session):
+    try:
+        return make_session()
+    except Exception:
+        return None
+
+
+def _close_session_quietly(close_session, session):
+    if close_session is None or session is None:
+        return
+    try:
+        close_session(session)
+    except Exception:
+        pass
+
+
+def _scheduled_tick(start, deadline, step, workers, worker_id, iteration):
+    target = start + (worker_id + iteration * workers) * step
+    now = time.perf_counter()
+    if now >= deadline or target >= deadline:
+        return False
+    if target > now:
+        time.sleep(target - now)
+    return True
+
+
+def _timed_operation(do_op, session):
+    started = time.perf_counter()
+    try:
+        status = do_op(session)
+    except Exception:
+        status = None
+    return status, time.perf_counter() - started
+
+
+def _empty_hammer_result():
+    return {"dispatched": 0, "served": 0, "throttled": 0, "errored": 0,
+            "lat": []}
+
+
+def _record_hammer_outcome(result, kind, elapsed):
+    result["dispatched"] += 1
+    if kind == "served":
+        result["served"] += 1
+        result["lat"].append(elapsed)
+        return False
+    if kind == "throttled":
+        result["throttled"] += 1
+        return False
+    result["errored"] += 1
+    return True
+
+
+def _hammer_worker(context, worker_id):
+    session = _session_or_none(context["make_session"])
+    result = _empty_hammer_result()
+    iteration = 0
+    while _scheduled_tick(
+        context["start"], context["deadline"], context["step"],
+        context["workers"], worker_id, iteration,
+    ):
+        iteration += 1
+        session = session or _session_or_none(context["make_session"])
+        if session is None:
+            _record_hammer_outcome(result, "errored", 0.0)
+            continue
+        status, elapsed = _timed_operation(context["do_op"], session)
+        kind = context["classify"](status)
+        if _record_hammer_outcome(result, kind, elapsed):
+            _close_session_quietly(context["close_session"], session)
+            session = None
+    _close_session_quietly(context["close_session"], session)
+    context["results"][worker_id] = result
+
+
+def _run_hammer_workers(context):
+    threads = [
+        threading.Thread(target=_hammer_worker, args=(context, worker_id))
+        for worker_id in range(context["workers"])
+    ]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+
+
+def _merge_hammer_results(results):
+    merged = _empty_hammer_result()
+    for result in results:
+        if result is None:
+            continue
+        for key in ("dispatched", "served", "throttled", "errored"):
+            merged[key] += result[key]
+        merged["lat"].extend(result["lat"])
+    return merged
+
+
 def _paced_hammer(make_session, do_op, classify, close_session=None,
                   rate=RATE, secs=SECS, workers=WORKERS):
     """Dispatch do_op(session) at ~`rate` ops/sec (aggregate) for `secs`, spread
@@ -260,81 +372,20 @@ def _paced_hammer(make_session, do_op, classify, close_session=None,
 
     A session that errors is transparently re-created so one dead socket doesn't
     snowball.  Returns {dispatched, served, throttled, errored, lat:[...]}."""
-    step = 1.0 / rate
     start = time.perf_counter()
-    deadline = start + secs
-    locals_ = [None] * workers
-
-    def worker(wid):
-        try:
-            sess = make_session()
-        except Exception:
-            sess = None
-        disp = served = throttled = errored = 0
-        lat = []
-        j = 0
-        while True:
-            target = start + (wid + j * workers) * step
-            now = time.perf_counter()
-            if now >= deadline:
-                break
-            if target > now:
-                if target >= deadline:
-                    break
-                time.sleep(target - now)
-            j += 1
-            if sess is None:
-                try:
-                    sess = make_session()
-                except Exception:
-                    disp += 1
-                    errored += 1
-                    continue
-            t0 = time.perf_counter()
-            try:
-                st = do_op(sess)
-            except Exception:
-                st = None
-            dt = time.perf_counter() - t0
-            kind = classify(st)
-            disp += 1
-            if kind == "served":
-                served += 1
-                lat.append(dt)
-            elif kind == "throttled":
-                throttled += 1
-            else:
-                errored += 1
-                if close_session and sess is not None:
-                    try:
-                        close_session(sess)
-                    except Exception:
-                        pass
-                sess = None
-        if close_session and sess is not None:
-            try:
-                close_session(sess)
-            except Exception:
-                pass
-        locals_[wid] = (disp, served, throttled, errored, lat)
-
-    threads = [threading.Thread(target=worker, args=(w,)) for w in range(workers)]
-    for t in threads:
-        t.start()
-    for t in threads:
-        t.join()
-
-    res = {"dispatched": 0, "served": 0, "throttled": 0, "errored": 0, "lat": []}
-    for tup in locals_:
-        if tup is None:
-            continue
-        d, s, th, e, la = tup
-        res["dispatched"] += d
-        res["served"] += s
-        res["throttled"] += th
-        res["errored"] += e
-        res["lat"].extend(la)
-    return res
+    context = {
+        "make_session": make_session,
+        "do_op": do_op,
+        "classify": classify,
+        "close_session": close_session,
+        "start": start,
+        "deadline": start + secs,
+        "step": 1.0 / rate,
+        "workers": workers,
+        "results": [None] * workers,
+    }
+    _run_hammer_workers(context)
+    return _merge_hammer_results(context["results"])
 
 
 def _pct(values, p):

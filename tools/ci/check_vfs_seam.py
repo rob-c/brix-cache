@@ -205,21 +205,19 @@ def current_raw_tier1():
 
 def current_raw_tier3():
     """RAW namespace/metadata syscalls outside the allowed/excluded layers."""
-    kept = []
-    for line in _grep(["src"], TIER3_RE):
-        if "vfs-seam-allow" in line:
-            continue
-        if TIER3_ALLOW_RE.search(line):
-            continue
-        if TIER3_EXCL_RE.search(line):
-            continue
-        stripped = _strip_comments_strings(line)
-        if not TIER3_RE.search(stripped):
-            continue
-        if COMMENT_DROP_RE.search(stripped):
-            continue
-        kept.append(stripped)
+    kept = filter(None, map(_raw_tier3_violation, _grep(["src"], TIER3_RE)))
     return sorted(set(kept))
+
+
+def _raw_tier3_violation(line):
+    if "vfs-seam-allow" in line:
+        return None
+    if TIER3_ALLOW_RE.search(line) or TIER3_EXCL_RE.search(line):
+        return None
+    stripped = _strip_comments_strings(line)
+    if not TIER3_RE.search(stripped) or COMMENT_DROP_RE.search(stripped):
+        return None
+    return stripped
 
 
 def current_raw_client():
@@ -262,15 +260,21 @@ _WS_HASH_RE = re.compile(_SP + r"*#")
 def _subtract_backlog(violations, backlog_path):
     """`current | grep -vFf <(grep -vE '^[[:space:]]*#' backlog)` — drop any
     violation line that CONTAINS a (non-comment) backlog entry as a substring."""
-    try:
-        with open(backlog_path, "r", encoding="utf-8") as fh:
-            data = fh.read()
-    except OSError:
+    patterns = _backlog_patterns(backlog_path)
+    if patterns is None:
         return list(violations)
-    patterns = [line for line in data.splitlines() if not _WS_HASH_RE.match(line)]
     if not patterns:
         return list(violations)
     return [v for v in violations if not any(p in v for p in patterns)]
+
+
+def _backlog_patterns(path):
+    try:
+        with open(path, "r", encoding="utf-8") as fh:
+            data = fh.read()
+    except OSError:
+        return None
+    return [line for line in data.splitlines() if not _WS_HASH_RE.match(line)]
 
 
 def regen():
@@ -312,69 +316,96 @@ def check():
     if not os.path.isfile(BACKLOG):
         print(f"check_vfs_seam: missing {BACKLOG} (run with --regen to seed it)", file=sys.stderr)
         return 2
+    for checker in (_check_raw_tier1, _check_bypasses, _check_raw_tier3,
+                    _check_raw_client):
+        result = checker()
+        if result:
+            return result
+    _print_success()
+    return 0
 
-    # Tier-1 (HARD rule, no backlog): raw positional file syscalls outside the backend.
+
+def _check_raw_tier1():
     raw_violations = current_raw_tier1()
-    if raw_violations:
-        print("ERROR: raw data-plane POSIX outside the storage backend (src/fs/backend/).", file=sys.stderr)
-        print("       Route file byte I/O through the SD driver (obj->driver-><op>) so the", file=sys.stderr)
-        print("       syscall stays in the backend and a non-POSIX driver can serve it:", file=sys.stderr)
-        for line in raw_violations:
-            print("    " + line, file=sys.stderr)
-        print("", file=sys.stderr)
-        print("If a hit is genuinely NOT export data (IPC pipe/socket, a control/marker", file=sys.stderr)
-        print("file, or a standalone test outside the module build), add its path prefix to", file=sys.stderr)
-        print("RAW_ALLOW in this script with a one-line justification.", file=sys.stderr)
-        return 1
+    if not raw_violations:
+        return 0
+    _print_violation(
+        raw_violations,
+        "ERROR: raw data-plane POSIX outside the storage backend (src/fs/backend/).",
+        ("       Route file byte I/O through the SD driver (obj->driver-><op>) so the",
+         "       syscall stays in the backend and a non-POSIX driver can serve it:"),
+        ("If a hit is genuinely NOT export data (IPC pipe/socket, a control/marker",
+         "file, or a standalone test outside the module build), add its path prefix to",
+         "RAW_ALLOW in this script with a one-line justification."),
+    )
+    return 1
 
-    # Subtract the grandfathered files (fixed-string 'path:' prefixes; comments ignored).
+
+def _check_bypasses():
     violations = _subtract_backlog(current_bypasses(), BACKLOG)
-    if violations:
-        print("ERROR: new VFS-seam bypass — route export data/namespace ops through brix_vfs_*", file=sys.stderr)
-        print("       (see docs/refactor/phase-56-vfs-storage-driver-perf-audit.md §9):", file=sys.stderr)
-        for line in violations:
-            print("    " + line, file=sys.stderr)
-        print("", file=sys.stderr)
-        print("If this is a deliberate, reviewed addition to an already-bypassing file, run", file=sys.stderr)
-        print("    tools/ci/check_vfs_seam.py --regen", file=sys.stderr)
-        print("and justify it in the PR. New files should call brix_vfs_* instead.", file=sys.stderr)
-        return 1
+    if not violations:
+        return 0
+    _print_violation(
+        violations,
+        "ERROR: new VFS-seam bypass — route export data/namespace ops through brix_vfs_*",
+        ("       (see docs/refactor/phase-56-vfs-storage-driver-perf-audit.md §9):",),
+        ("If this is a deliberate, reviewed addition to an already-bypassing file, run",
+         "    tools/ci/check_vfs_seam.py --regen",
+         "and justify it in the PR. New files should call brix_vfs_* instead."),
+    )
+    return 1
 
-    # Tier-3: new RAW namespace/metadata syscall in a file not already grandfathered.
+
+def _check_raw_tier3():
     if not os.path.isfile(BACKLOG_NS):
         print(f"check_vfs_seam: missing {BACKLOG_NS} (run with --regen to seed it)", file=sys.stderr)
         return 2
     ns_violations = _subtract_backlog(current_raw_tier3(), BACKLOG_NS)
-    if ns_violations:
-        print("ERROR: new RAW namespace/metadata syscall — route export open/stat/opendir/", file=sys.stderr)
-        print("       unlink/rename/mkdir/xattr through brix_vfs_* (phase-2 full VFS seam):", file=sys.stderr)
-        for line in ns_violations:
-            print("    " + line, file=sys.stderr)
-        print("", file=sys.stderr)
-        print("If this touches a SEPARATE storage domain (cache/stage/journal) or a", file=sys.stderr)
-        print("non-export file (config/cert/token/tmp/socket), add a per-line", file=sys.stderr)
-        print("'/* vfs-seam-allow: <reason> */' marker. For a reviewed addition to an", file=sys.stderr)
-        print("already-bypassing file, run: tools/ci/check_vfs_seam.py --regen", file=sys.stderr)
-        return 1
+    if not ns_violations:
+        return 0
+    _print_violation(
+        ns_violations,
+        "ERROR: new RAW namespace/metadata syscall — route export open/stat/opendir/",
+        ("       unlink/rename/mkdir/xattr through brix_vfs_* (phase-2 full VFS seam):",),
+        ("If this touches a SEPARATE storage domain (cache/stage/journal) or a",
+         "non-export file (config/cert/token/tmp/socket), add a per-line",
+         "'/* vfs-seam-allow: <reason> */' marker. For a reviewed addition to an",
+         "already-bypassing file, run: tools/ci/check_vfs_seam.py --regen"),
+    )
+    return 1
 
-    # CLIENT tier: new raw positional byte syscall in a client file not already
-    # grandfathered (and not carrying a per-line vfs-seam-allow marker).
+
+def _check_raw_client():
     if not os.path.isfile(BACKLOG_CLIENT):
         print(f"check_vfs_seam: missing {BACKLOG_CLIENT} (run with --regen to seed it)", file=sys.stderr)
         return 2
     client_violations = _subtract_backlog(current_raw_client(), BACKLOG_CLIENT)
-    if client_violations:
-        print("ERROR: new raw data-plane POSIX in the native client — route a copy/transfer", file=sys.stderr)
-        print("       endpoint's bytes through xrdc_vfs_* (client/lib/vfs.h), which dispatches", file=sys.stderr)
-        print("       to the shared SD driver, instead of a raw pread/pwrite on a local file:", file=sys.stderr)
-        for line in client_violations:
-            print("    " + line, file=sys.stderr)
-        print("", file=sys.stderr)
-        print("If this is NOT export storage (an anonymous temp / diagnostic / non-export", file=sys.stderr)
-        print("container file), add a per-line '/* vfs-seam-allow: <reason> */' marker. For a", file=sys.stderr)
-        print("reviewed addition to an already-bypassing file, run --regen and justify it.", file=sys.stderr)
-        return 1
+    if not client_violations:
+        return 0
+    _print_violation(
+        client_violations,
+        "ERROR: new raw data-plane POSIX in the native client — route a copy/transfer",
+        ("       endpoint's bytes through xrdc_vfs_* (client/lib/vfs.h), which dispatches",
+         "       to the shared SD driver, instead of a raw pread/pwrite on a local file:"),
+        ("If this is NOT export storage (an anonymous temp / diagnostic / non-export",
+         "container file), add a per-line '/* vfs-seam-allow: <reason> */' marker. For a",
+         "reviewed addition to an already-bypassing file, run --regen and justify it."),
+    )
+    return 1
 
+
+def _print_violation(violations, heading, explanation, guidance):
+    print(heading, file=sys.stderr)
+    for line in explanation:
+        print(line, file=sys.stderr)
+    for line in violations:
+        print("    " + line, file=sys.stderr)
+    print("", file=sys.stderr)
+    for line in guidance:
+        print(line, file=sys.stderr)
+
+
+def _print_success():
     allow_n = _noncomment_lines(BACKLOG, _WS_HASH_RE)
     ns_allow_n = _noncomment_lines(BACKLOG_NS, _WS_HASH_RE)
     client_allow_n = _noncomment_lines(BACKLOG_CLIENT, _WS_HASH_RE)
@@ -382,7 +413,6 @@ def check():
           f"tier-2/1.5 bypass ({allow_n} files on the migration backlog), no new "
           f"tier-3 raw namespace/metadata syscall ({ns_allow_n} files on the ns backlog), "
           f"and no new raw client data POSIX ({client_allow_n} files on the client backlog)")
-    return 0
 
 
 def main():

@@ -37,9 +37,34 @@ from pathlib import Path
 
 TESTS = Path(__file__).resolve().parents[2] / "tests"
 
-#: `split_continuation.load(globals(), __file__, "a_part2.py", ...)`
-_LOAD = re.compile(r"_load_continuations\(\s*globals\(\)\s*,\s*__file__\s*,(.*?)\)",
-                   re.S)
+#: Composition is spelled through a local alias, and the tree uses THIRTEEN of
+#: them -- `_load_continuations` (36 call sites), `_load_continuation` (7), and
+#: bespoke ones like `_load_webdav_state` and `_load_pblock_meta`.  Matching a
+#: hardcoded alias sees only the first family and is blind to the rest, which is
+#: how a shard carrying a live `__main__` guard read as orphaned.  So resolve the
+#: alias from the import that created it, then look for calls to THAT name --
+#: ask the tree, not the name.
+_IMPORT_ALIAS = re.compile(
+    r"^\s*from\s+split_continuation\s+import\s+(load|load_numbered)\s+as\s+(\w+)",
+    re.M,
+)
+
+
+def _load_re(alias: str) -> "re.Pattern":
+    """`<alias>(globals(), __file__, "a_part2.py", ...)`"""
+    return re.compile(re.escape(alias) + r"\(\s*globals\(\)\s*,\s*__file__\s*,(.*?)\)",
+                      re.S)
+
+
+def _numbered_load_re(alias: str) -> "re.Pattern":
+    """Compact spelling for mechanically numbered suites.  The final two
+    arguments are inclusive, so ``("suite_part", 2, 4)`` owns suite_part2.py
+    .. part4.py."""
+    return re.compile(
+        re.escape(alias) + r'\(\s*globals\(\)\s*,\s*__file__\s*,'
+        r'\s*"([^"]+)"\s*,\s*(\d+)\s*,\s*(\d+)\s*\)',
+        re.S,
+    )
 #: `cmdscripts/operator_runtime.py` predates the shared helper and open-codes
 #: the same composition: a loop over shard names feeding `exec(..., globals())`.
 #: Semantically identical, so it counts.  Matching the whole statement with one
@@ -55,30 +80,58 @@ _MAIN = re.compile(r'^if\s+__name__\s*==\s*["\']__main__["\']\s*:', re.M)
 #: to be diffed against, never imported, so their `__main__` guards are history
 #: rather than a live entry point.
 #:
-#: `userns/` is a true positive that predates this guard: `e2e_redteam_part77`
-#: is reached by `from e2e_redteam_part77 import *`, a real import, so its
-#: entry point already cannot fire.  That whole suite is separately recorded as
-#: inert -- 78 files that never execute -- and repairing it is its own piece of
-#: work, tracked outside TS-5.  It is listed here so the finding stays visible
-#: instead of being silently dropped.
-_NOT_COMPOSED = ("brix_suite/_legacy/", "userns/")
+_NOT_COMPOSED = ("brix_suite/_legacy/",)
 
 
 def _composed_shards(tree_root: Path) -> dict:
     """Map shard path -> the parent that exec-composes it."""
     owners = {}
     for parent in sorted(tree_root.rglob("*.py")):
-        text = parent.read_text(errors="replace")
-        match = _LOAD.search(text)
-        if match:
-            names = _SHARD.findall(match.group(1))
-        elif _INLINE_EXEC.search(text):
-            names = [n for n in _SHARD.findall(text) if "_part" in n]
-        else:
-            continue
-        for name in names:
+        for name in _parent_shards(parent):
             owners[(parent.parent / name).resolve()] = parent
     return owners
+
+
+def _numbered_shards(alias, text):
+    """`<alias>(globals(), __file__, "suite_part", 2, 4)` -> the four names it
+    owns.  The bounds are inclusive."""
+    match = _numbered_load_re(alias).search(text)
+    if match is None:
+        return []
+    stem, first, last = match.groups()
+    return [f"{stem}{index}.py" for index in range(int(first), int(last) + 1)]
+
+
+def _named_shards(alias, text):
+    """Every shard named through one alias.  A module may compose more than
+    once through the same alias, so this walks all of them."""
+    names = []
+    for match in _load_re(alias).finditer(text):
+        names += _SHARD.findall(match.group(1))
+    return names
+
+
+def _alias_shards(text):
+    """Shards composed through the `split_continuation` helper, whichever local
+    alias the module imported it under."""
+    names = []
+    for imported, alias in _IMPORT_ALIAS.findall(text):
+        reader = _numbered_shards if imported == "load_numbered" else _named_shards
+        names += reader(alias, text)
+    return names
+
+
+def _inline_exec_shards(text):
+    """The open-coded `exec(compile(...), globals())` spelling that predates the
+    helper: it names its shards as plain string literals."""
+    if not _INLINE_EXEC.search(text):
+        return []
+    return [name for name in _SHARD.findall(text) if "_part" in name]
+
+
+def _parent_shards(parent):
+    text = parent.read_text(errors="replace")
+    return _alias_shards(text) or _inline_exec_shards(text)
 
 
 def main(argv=None) -> int:
@@ -91,26 +144,10 @@ def main(argv=None) -> int:
     root = args.root.resolve()
 
     owners = _composed_shards(root)
-    orphaned = []
-    for path in sorted(root.rglob("*_part*.py")):
-        rel = path.relative_to(root).as_posix()
-        if rel.startswith(_NOT_COMPOSED):
-            continue
-        text = path.read_text(errors="replace")
-        if not _MAIN.search(text):
-            continue
-        if path.resolve() not in owners:
-            orphaned.append(path)
+    orphaned = _orphaned_shards(root, owners)
 
     if orphaned:
-        print("check_shard_entrypoints: FAIL — a shard holds a `__main__` "
-              "guard but is no longer exec-composed, so its entry point can "
-              "never run:")
-        for path in orphaned:
-            print(f"  {path.relative_to(root.parent)}")
-        print("Move the entry point into a named `main()` the new owner "
-              "exports, and call it from every spelling that used to be a "
-              "script.  See this file's docstring.")
+        _report_orphaned(root, orphaned)
         return 1
 
     # A parent may still name shards that the move relocated; those paths are
@@ -120,6 +157,29 @@ def main(argv=None) -> int:
     print(f"check_shard_entrypoints: OK ({guarded} shard entry point(s) still "
           f"exec-composed, {len(owners)} shard(s) scanned)")
     return 0
+
+
+def _orphaned_shards(root, owners):
+    return [
+        path for path in sorted(root.rglob("*_part*.py"))
+        if _live_guarded_shard(root, path) and path.resolve() not in owners
+    ]
+
+
+def _live_guarded_shard(root, path):
+    relative = path.relative_to(root).as_posix()
+    return not relative.startswith(_NOT_COMPOSED) and bool(
+        _MAIN.search(path.read_text(errors="replace"))
+    )
+
+
+def _report_orphaned(root, orphaned):
+    print("check_shard_entrypoints: FAIL — a shard holds a `__main__` guard but "
+          "is no longer exec-composed, so its entry point can never run:")
+    for path in orphaned:
+        print(f"  {path.relative_to(root.parent)}")
+    print("Move the entry point into a named `main()` the new owner exports, and "
+          "call it from every spelling that used to be a script.  See this file's docstring.")
 
 
 if __name__ == "__main__":

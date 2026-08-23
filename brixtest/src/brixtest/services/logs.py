@@ -1,10 +1,6 @@
-"""Service log views (feature F17): logs as an addressed service.
+"""Addressed, rotation-aware service log views.
 
-The grown suite's tests opened ``/tmp/xrd-test/logs/<server>.log`` by
-hand-built path and grepped it — every test file re-invented "read the
-log since my request started", and half of them read the *whole* log,
-matching lines from tests that ran minutes earlier.  A ``LogView``
-makes the two honest operations first-class:
+Use a mark to restrict reads to output produced after an operation::
 
     view = fleet.log_view("webdav")
     mark = view.mark()                    # before acting
@@ -12,11 +8,10 @@ makes the two honest operations first-class:
     line = view.wait_for("PUT /x", since=mark, timeout=5.0)
 
 ``mark()`` captures the current end of the log; ``since=mark`` scopes
-every read to *what this test caused*.  Rotation-aware: if the file
+every read to what this test caused. If the file
 shrank below the mark (the server rotated or truncated), the view
 reads from the top of the new file rather than silently returning
-nothing.  A failed ``wait_for`` is a C1 error carrying the tail, so
-the assertion message IS the debugging session.
+nothing. A failed ``wait_for`` includes the current tail.
 """
 
 from __future__ import annotations
@@ -46,8 +41,6 @@ class LogView:
         self.name = name
         self.path = Path(path)
 
-    # -- positions -------------------------------------------------------
-
     def mark(self) -> LogMark:
         try:
             return LogMark(self.path.stat().st_size)
@@ -63,8 +56,6 @@ class LogView:
         if offset > len(data):
             offset = 0  # rotation/truncation: the mark outlived the file
         return data[offset:].decode(errors="replace")
-
-    # -- reads -----------------------------------------------------------
 
     def text(self, since: Optional[LogMark] = None) -> str:
         return self._read_since(since)
@@ -84,8 +75,6 @@ class LogView:
         for line in self.lines(since):
             if matcher(line):
                 yield line
-
-    # -- the wait --------------------------------------------------------
 
     @staticmethod
     def _matcher(pattern: Union[str, Pattern[str]]):
@@ -107,14 +96,24 @@ class LogView:
         start = time.monotonic()
         scan_from = since or LogMark(0)
         while True:
-            for line in self.lines(scan_from):
-                if matcher(line):
-                    return line
+            found = _first_match(self.lines(scan_from), matcher)
+            if found is not None:
+                return found
             waited = time.monotonic() - start
             if waited >= timeout:
-                shown = pattern if isinstance(pattern, str) else pattern.pattern
-                raise LogWaitTimeout(self.name, shown, waited, log_tail=self.tail())
+                self._raise_timeout(pattern, waited)
             time.sleep(poll)
+
+    def _raise_timeout(self, pattern, waited: float) -> None:
+        shown = pattern if isinstance(pattern, str) else pattern.pattern
+        raise LogWaitTimeout(self.name, shown, waited, log_tail=self.tail())
 
     def __repr__(self) -> str:
         return "LogView(%r, %s)" % (self.name, self.path)
+
+
+def _first_match(lines, matcher):
+    for line in lines:
+        if matcher(line):
+            return line
+    return None

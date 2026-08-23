@@ -1,5 +1,16 @@
 from _test_conf_pgio_helpers import *  # noqa: F401,F403  (Phase-38 split shared header)
 
+def _check_test_pgread_crc_self_consistent_both_1(st_o, st_f, off, rlen):
+    assert st_o == st_f == kXR_ok, f"crc matrix @{off}+{rlen}: ours={st_o} stock={st_f}"
+
+def _check_test_pgread_crc_self_consistent_both_2(crc, page, po):
+    assert crc == crc32c(page), (
+        f"OUR pgread CRC32c WRONG @page {po} (len {len(page)})")
+
+def _check_test_pgread_crc_self_consistent_both_3(crc, page, po):
+    assert crc == crc32c(page), f"stock pgread CRC32c wrong @page {po}"
+
+
 def test_crc32c_known_vector():
     """The headline integrity primitive must match the published test vector;
     every per-page CRC assertion in this file depends on it being correct."""
@@ -26,14 +37,23 @@ def test_pgread_single_page_off0(srv, name):
         off_h.close()
     assert st_o == st_f == kXR_ok, f"pgread {name}@0+{rlen}: ours={st_o} stock={st_f}"
     want = _local(srv, name)[0:rlen]
-    assert pgread_bytes(pg_o) == want, f"OUR pgread {name} bytes wrong"
-    assert len(pg_o) == 1, f"OUR pgread {name}: expected 1 page, got {len(pg_o)}"
+    def _assert_test_pgread_single_page_off0_3():
+        assert pgread_bytes(pg_o) == want, f"OUR pgread {name} bytes wrong"
+        assert len(pg_o) == 1, f"OUR pgread {name}: expected 1 page, got {len(pg_o)}"
+
+    _assert_test_pgread_single_page_off0_3()
     off, page, crc = pg_o[0]
-    assert off == 0, f"OUR pgread page offset {off} != 0"
-    assert crc == crc32c(page), f"OUR pgread {name} per-page CRC32c wrong"
-    assert crc == crc32c(want), "OUR pgread CRC32c != crc of source bytes"
-    # Differential: stock must carry identical bytes + identical CRC.
-    assert pgread_bytes(pg_f) == want, "stock pgread bytes diverge from source"
+    def _assert_test_pgread_single_page_off0_4():
+        assert off == 0, f"OUR pgread page offset {off} != 0"
+        assert crc == crc32c(page), f"OUR pgread {name} per-page CRC32c wrong"
+
+    _assert_test_pgread_single_page_off0_4()
+    def _assert_test_pgread_single_page_off0_5():
+        assert crc == crc32c(want), "OUR pgread CRC32c != crc of source bytes"
+        # Differential: stock must carry identical bytes + identical CRC.
+        assert pgread_bytes(pg_f) == want, "stock pgread bytes diverge from source"
+
+    _assert_test_pgread_single_page_off0_5()
     assert pg_o == pg_f, f"pgread {name}@0 diverges from stock (page+CRC)"
 
 
@@ -193,14 +213,16 @@ def test_pgread_crc_self_consistent_both(srv, off, rlen):
     finally:
         our.close()
         off_h.close()
-    assert st_o == st_f == kXR_ok, f"crc matrix @{off}+{rlen}: ours={st_o} stock={st_f}"
+    _check_test_pgread_crc_self_consistent_both_1(st_o, st_f, off, rlen)
     for (po, page, crc) in pg_o:
-        assert crc == crc32c(page), (
-            f"OUR pgread CRC32c WRONG @page {po} (len {len(page)})")
+        _check_test_pgread_crc_self_consistent_both_2(crc, page, po)
     for (po, page, crc) in pg_f:
-        assert crc == crc32c(page), f"stock pgread CRC32c wrong @page {po}"
-    assert pgread_bytes(pg_o) == src[off:off + rlen], "OUR bytes != source slice"
-    assert pg_o == pg_f, f"pgread @{off}+{rlen} diverges from stock"
+        _check_test_pgread_crc_self_consistent_both_3(crc, page, po)
+    def _assert_test_pgread_crc_self_consistent_both_1():
+        assert pgread_bytes(pg_o) == src[off:off + rlen], "OUR bytes != source slice"
+        assert pg_o == pg_f, f"pgread @{off}+{rlen} diverges from stock"
+
+    _assert_test_pgread_crc_self_consistent_both_1()
 
 
 # ===========================================================================
@@ -269,9 +291,12 @@ def test_pgwrite_single_page(srv, size):
     finally:
         our.close()
         off_h.close()
-    assert st_o == st_f == kXR_ok, (
-        f"pgwrite single {size}: ours={st_o} stock={st_f}")
-    assert cse_o == b"" == cse_f, "clean pgwrite must report no CRC errors"
+    def _assert_test_pgwrite_single_page_2():
+        assert st_o == st_f == kXR_ok, (
+            f"pgwrite single {size}: ours={st_o} stock={st_f}")
+        assert cse_o == b"" == cse_f, "clean pgwrite must report no CRC errors"
+
+    _assert_test_pgwrite_single_page_2()
     assert ofo == off_off, (
         f"pgwrite info offset diverges from stock: ours={ofo} stock={off_off}")
     # On-disk content + size, byte-exact on our server.

@@ -1,4 +1,14 @@
 from split_continuation import reexport as _reexport
+def _guard_test_native_tpc_ipv6_v6_to_v6_round_trip_1():
+    if not os.path.isdir(IPV6_STREAM_DATA_ROOT):
+        pytest.skip("ipv6-stream data root not locally visible")
+
+def _check_test_native_tpc_ipv6_v6_to_v6_round_trip_1(got):
+    assert got == b"hello from nginx-xrootd\n", (
+        f"v6→v6 TPC content mismatch: {got!r}"
+    )
+
+
 _reexport(globals(), "_test_ipv6_tpc_helpers")
 
 class TestNativeTpcIpv6BracketRoundTrip:
@@ -66,8 +76,7 @@ class TestNativeTpcIpv6BracketRoundTrip:
         # the bytes.  Best-effort filesystem check (skip if the data root is not
         # locally visible, e.g. remote-server mode).
         dst = os.path.join(IPV6_STREAM_DATA_ROOT, dst_name)
-        if not os.path.isdir(IPV6_STREAM_DATA_ROOT):
-            pytest.skip("ipv6-stream data root not locally visible")
+        _guard_test_native_tpc_ipv6_v6_to_v6_round_trip_1()
         try:
             with open(dst, "rb") as f:
                 got = f.read()
@@ -78,9 +87,7 @@ class TestNativeTpcIpv6BracketRoundTrip:
                 os.unlink(dst)
             except OSError:
                 pass
-        assert got == b"hello from nginx-xrootd\n", (
-            f"v6→v6 TPC content mismatch: {got!r}"
-        )
+        _check_test_native_tpc_ipv6_v6_to_v6_round_trip_1(got)
 
 
 # ===========================================================================

@@ -23,11 +23,19 @@ def value(item: object, *, key: str = "") -> object:
     if key and _SECRET_KEY.search(key):
         return "[REDACTED]"
     if isinstance(item, Mapping):
-        return {str(name): value(found, key=str(name)) for name, found in item.items()}
+        return _mapping(item)
     if isinstance(item, list):
-        return [value(found) for found in item]
+        return _sequence(item)
     if isinstance(item, tuple):
-        return [value(found) for found in item]
+        return _sequence(item)
     if isinstance(item, str):
         return text(item)
     return item
+
+
+def _mapping(item: Mapping) -> dict:
+    return {str(name): value(found, key=str(name)) for name, found in item.items()}
+
+
+def _sequence(item) -> list:
+    return [value(found) for found in item]

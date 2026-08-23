@@ -23,6 +23,16 @@ import pytest
 from server_registry import NginxInstanceSpec
 from settings import BIND_HOST
 
+def _check_test_19_read_raw_data_2(data):
+    assert len(data) == 1024, f"read returned {len(data)} bytes (want 1024)"
+
+def _check_test_19_read_raw_data_3(data, expect):
+    assert data == expect, "read data does not match file content"
+
+def _check_test_19_read_raw_data_1(st, body):
+    assert st in (kXR_ok, kXR_oksofar), f"read status={st} err={_err(body)}"
+
+
 BIND = BIND_HOST
 PORT = None  # bound to the harness-assigned dynamic port by the `server` fixture
 
@@ -431,13 +441,13 @@ def test_19_read_raw_data(server):
         data = b""
         while True:
             _, st, body = _resp(s)
-            assert st in (kXR_ok, kXR_oksofar), f"read status={st} err={_err(body)}"
+            _check_test_19_read_raw_data_1(st, body)
             data += body
             if st == kXR_ok:
                 break
-        assert len(data) == 1024, f"read returned {len(data)} bytes (want 1024)"
+        _check_test_19_read_raw_data_2(data)
         expect = bytes((i * 31 + 7) & 0xff for i in range(1024))
-        assert data == expect, "read data does not match file content"
+        _check_test_19_read_raw_data_3(data, expect)
     finally:
         s.close()
 

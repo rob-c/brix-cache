@@ -139,11 +139,16 @@ def _billion_laughs():
     lines = ['<?xml version="1.0"?>', '<!DOCTYPE lolz [',
              '<!ENTITY a0 "' + ("A" * 64) + '">']
     for i in range(1, 10):
-        lines.append('<!ENTITY a%d "&a%d;&a%d;&a%d;&a%d;&a%d;&a%d;&a%d;&a%d;&a%d;&a%d;">'
-                     % (i, i - 1, i - 1, i - 1, i - 1, i - 1, i - 1, i - 1, i - 1, i - 1, i - 1))
+        lines.append(_laugh_entity(i))
     lines.append(']>')
     lines.append('<D:propfind xmlns:D="DAV:"><D:prop><D:x>&a9;</D:x></D:prop></D:propfind>')
     return "".join(lines).encode()
+
+
+def _laugh_entity(index):
+    previous = index - 1
+    references = "".join(f"&a{previous};" for _ in range(10))
+    return f'<!ENTITY a{index} "{references}">'
 
 
 @_HTTP_SKIP
@@ -348,18 +353,8 @@ class TestHeaderInjection:
                b"Origin: https://evil.example\r\nX-Injected: pwned\r\n"
                b"Access-Control-Request-Method: GET\r\n"
                b"Connection: close\r\n\r\n")
-        try:
-            s = socket.create_connection((SERVER_HOST, NGINX_HTTP_WEBDAV_PORT),
-                                         timeout=8)
-            s.sendall(raw)
-            resp = b""
-            while True:
-                chunk = s.recv(4096)
-                if not chunk:
-                    break
-                resp += chunk
-            s.close()
-        except OSError:
+        resp = _raw_http_response(raw)
+        if resp is None:
             pytest.skip("connection failed")
         # Split the status line + header block (before the body).
         head = resp.split(b"\r\n\r\n", 1)[0].lower()
@@ -367,9 +362,34 @@ class TestHeaderInjection:
         # (It is free to treat the literal CRLF as a second *request* header and
         # ignore it — what matters is it never appears in the response head as
         # access-control-allow-origin: ...evil... with our injected token.)
-        for line in head.split(b"\r\n"):
-            if line.startswith(b"access-control-allow-origin:"):
-                assert b"x-injected" not in line
+        _assert_no_injected_origin(head)
+
+
+def _raw_http_response(request):
+    try:
+        sock = socket.create_connection((SERVER_HOST, NGINX_HTTP_WEBDAV_PORT),
+                                        timeout=8)
+        sock.sendall(request)
+        response = _receive_all(sock)
+        sock.close()
+        return response
+    except OSError:
+        return None
+
+
+def _receive_all(sock):
+    response = b""
+    while True:
+        chunk = sock.recv(4096)
+        if not chunk:
+            return response
+        response += chunk
+
+
+def _assert_no_injected_origin(head):
+    for line in head.split(b"\r\n"):
+        if line.startswith(b"access-control-allow-origin:"):
+            assert b"x-injected" not in line
 
 
 # ===========================================================================

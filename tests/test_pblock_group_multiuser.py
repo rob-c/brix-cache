@@ -61,6 +61,22 @@ from settings import BIND_HOST
 from cryptography import x509 as _x509
 from cryptography.hazmat.primitives import serialization as _ser
 
+def _expression_1(ca, proxies_dir):
+    return (
+        {u: _mint_proxy(ca, CN[u], proxies_dir, 200001 + i)
+                       for i, u in enumerate(USERS)}
+    )
+
+
+def _guard_server_1(f):
+    if not os.path.exists(f):
+        pytest.skip(f"GSI PKI not provisioned ({f} missing)")
+
+def _guard_server_2(cat):
+    if not os.path.exists(cat):
+        _seed_world_writable_dirs(cat, ["/phys", "/eng"])
+
+
 pytestmark = [
     pytest.mark.privileged,  # conftest auto-marks privileged tests serial
     pytest.mark.skipif(os.geteuid() != 0,
@@ -240,8 +256,7 @@ def _wait_tcp(host: str, port: int, deadline: float = 15.0) -> None:
 def server(_accounts):
     for f in (settings.CA_CERT, settings.CA_KEY, settings.SERVER_CERT,
               settings.SERVER_KEY, settings.CA_DIR):
-        if not os.path.exists(f):
-            pytest.skip(f"GSI PKI not provisioned ({f} missing)")
+        _guard_server_1(f)
 
     root = os.path.join(BASE, "srv")
     data = os.path.join(root, "data")
@@ -251,8 +266,7 @@ def server(_accounts):
         os.makedirs(d, exist_ok=True)
 
     ca = _load_ca()
-    proxies = {u: _mint_proxy(ca, CN[u], proxies_dir, 200001 + i)
-               for i, u in enumerate(USERS)}
+    proxies = _expression_1(ca, proxies_dir)
     proxies["unmapped"] = _mint_proxy(ca, CN_UNMAPPED, proxies_dir, 200099)
 
     # gridmap: mapped principals only — CN_UNMAPPED is deliberately absent.
@@ -294,8 +308,7 @@ def server(_accounts):
         harness.launcher.render_nginx(unique)   # writes conf, creates prefix
         # render may have created a fresh data dir; re-seed if the catalog got wiped.
         cat = os.path.join(data, "catalog.db")
-        if not os.path.exists(cat):
-            _seed_world_writable_dirs(cat, ["/phys", "/eng"])
+        _guard_server_2(cat)
         harness.nginx_test(unique.name)
         launch_fleet_nginx(ep.config, prefix=ep.prefix)
         _wait_tcp(BIND, ep.port)

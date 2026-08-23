@@ -131,17 +131,25 @@ def ensure_traversable(path):
 def http(method, path, port, token=None, data=None, hdrs=None):
     url = f"http://{HOST}:{port}{path}"
     req = urllib.request.Request(url, method=method, data=data)
+    _add_request_headers(req, token, hdrs)
+    return _open_http(req)
+
+
+def _add_request_headers(request, token, headers):
     if token:
-        req.add_header("Authorization", f"Bearer {token}")
-    for k, v in (hdrs or {}).items():
-        req.add_header(k, v)
+        request.add_header("Authorization", f"Bearer {token}")
+    for key, value in (headers or {}).items():
+        request.add_header(key, value)
+
+
+def _open_http(request):
     try:
-        with urllib.request.urlopen(req, timeout=6) as r:
-            return r.status, r.read()
-    except urllib.error.HTTPError as e:
-        return e.code, e.read()
-    except Exception as e:  # noqa: BLE001
-        return -1, str(e).encode()
+        with urllib.request.urlopen(request, timeout=6) as response:
+            return response.status, response.read()
+    except urllib.error.HTTPError as error:
+        return error.code, error.read()
+    except Exception as error:  # noqa: BLE001
+        return -1, str(error).encode()
 
 
 def http_keepalive(reqs, port):
@@ -174,25 +182,32 @@ def raw_http(raw, port, read_timeout=4.0):
     running a smuggled request under the wrong identity."""
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     s.settimeout(read_timeout)
-    buf = b""
     try:
         s.connect((HOST, port))
         s.sendall(raw if isinstance(raw, bytes) else raw.encode())
-        while True:
-            chunk = s.recv(65536)
-            if not chunk:
-                break
-            buf += chunk
-            if len(buf) > 1 << 20:
-                break
+        return _read_socket(s)
     except (OSError, socket.timeout):
-        pass
+        return b""
     finally:
-        try:
-            s.close()
-        except OSError:
-            pass
-    return buf
+        _close_socket(s)
+
+
+def _read_socket(sock):
+    buf = b""
+    while True:
+        chunk = sock.recv(65536)
+        if not chunk:
+            return buf
+        buf += chunk
+        if len(buf) > 1 << 20:
+            return buf
+
+
+def _close_socket(sock):
+    try:
+        sock.close()
+    except OSError:
+        pass
 
 
 def s3_presign(method, key, port, expires=300, access_key="alice", when=None,
@@ -359,40 +374,53 @@ def raw_send_steps(steps, port, read_timeout=3.0):
     the bytes received (may be partial/empty)."""
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     s.settimeout(read_timeout)
-    buf = b""
     reset = False
     try:
         s.connect((HOST, port))
-        for item in steps:
-            chunk, pause = item[0], item[1]
-            if len(item) > 2 and item[2]:
-                reset = True
-            if chunk:
-                s.sendall(chunk if isinstance(chunk, bytes) else chunk.encode())
-            if pause:
-                time.sleep(pause)
+        reset = _send_steps(s, steps)
         try:
-            while True:
-                d = s.recv(65536)
-                if not d:
-                    break
-                buf += d
-                if len(buf) > 1 << 20:
-                    break
+            return _read_socket(s)
         except (OSError, socket.timeout):
-            pass
+            return b""
     except (OSError, socket.timeout):
-        pass
+        return b""
     finally:
-        try:
-            if reset:
-                import struct as _st
-                s.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER,
-                             _st.pack("ii", 1, 0))   # hard RST on close
-            s.close()
-        except OSError:
-            pass
-    return buf
+        _close_step_socket(s, reset)
+
+
+def _send_steps(sock, steps):
+    reset = False
+    for item in steps:
+        chunk, pause = item[0], item[1]
+        reset = reset or _step_requests_reset(item)
+        _send_chunk(sock, chunk)
+        _pause(pause)
+    return reset
+
+
+def _step_requests_reset(item):
+    return len(item) > 2 and bool(item[2])
+
+
+def _send_chunk(sock, chunk):
+    if chunk:
+        sock.sendall(chunk if isinstance(chunk, bytes) else chunk.encode())
+
+
+def _pause(seconds):
+    if seconds:
+        time.sleep(seconds)
+
+
+def _close_step_socket(sock, reset):
+    try:
+        if reset:
+            import struct as _st
+            linger = _st.pack("ii", 1, 0)
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER, linger)
+        sock.close()
+    except OSError:
+        pass
 
 
 def xrd_fs_token(args, token_str, timeout=15):
@@ -436,4 +464,9 @@ def _forged_tokens(key):
         ("empty",          ""),
     ]
 
-from e2e_redteam_part2 import *  # noqa: F401,F403
+from split_continuation import load_numbered as _load_numbered_continuations
+
+
+_load_numbered_continuations(
+    globals(), __file__, "e2e_redteam_part", 2, 77
+)

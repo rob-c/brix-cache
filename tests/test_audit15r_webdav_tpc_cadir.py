@@ -78,6 +78,15 @@ from fleet_lifecycle_ports import LIFECYCLE_SHARED_PORTS
 from server_registry import NginxInstanceSpec
 from settings import NGINX_BIN, HOST, BIND_HOST
 
+def _guard_tpccadir_1():
+    if not os.path.exists(NGINX_BIN):
+        pytest.skip(f"nginx binary not found at {NGINX_BIN}")
+
+def _guard_tpccadir_2():
+    if shutil.which("openssl") is None:
+        pytest.skip("openssl not found — cannot mint the trust material")
+
+
 pytestmark = [pytest.mark.timeout(120),
               pytest.mark.uses_lifecycle_harness,
               pytest.mark.xdist_group("lc-audit15r-tpccadir")]
@@ -124,10 +133,8 @@ def _hashed_capath(directory, cert):
 
 @pytest.fixture()
 def tpccadir(lifecycle, tmp_path):
-    if not os.path.exists(NGINX_BIN):
-        pytest.skip(f"nginx binary not found at {NGINX_BIN}")
-    if shutil.which("openssl") is None:
-        pytest.skip("openssl not found — cannot mint the trust material")
+    _guard_tpccadir_1()
+    _guard_tpccadir_2()
 
     cert, key = mint_localhost_cert(tmp_path, stem="source-ca")
     # Same subject, different key: the wrong directory is a hash HIT that fails

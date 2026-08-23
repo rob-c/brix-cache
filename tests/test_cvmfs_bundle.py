@@ -45,6 +45,34 @@ import zlib
 import pytest
 
 # conftest chdir()s into a scratch dir — anchor imports on this file's dir.
+def _expression_1():
+    return (
+        ["over_cap.bin"] + [f"mid{i}.bin" for i in range(5)]
+    )
+
+def _expression_2(budget, blob):
+    return (
+        len(blob) > CAP or len(blob) > budget
+    )
+
+def _expression_3(expect):
+    return (
+        [rel for rel, blob in expect.items() if blob is None]
+    )
+
+def _expression_4(srv, rels, order):
+    return (
+        post_bundle(srv, [rels[n] for n in order])
+    )
+
+
+def _check_test_bundle_budget_exhaustion_spares_later_members_1(misses):
+    assert len(misses) == 2, "corpus must trip the cap once and the budget once"
+
+def _check_test_bundle_budget_exhaustion_spares_later_members_2(rel, srv):
+    assert srv.count_log(rel) == 0, "budget/cap misses must not origin-fill"
+
+
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "cvmfs"))
 
 from conformance_common import NGINX_BIN, PortBlock, request, srv_instance
@@ -303,7 +331,7 @@ def test_bundle_member_over_stored_cap_stays_miss(bigsrv):
 
 def test_bundle_budget_exhaustion_spares_later_members(bigsrv):
     srv, stored, rels = bigsrv
-    order = ["over_cap.bin"] + [f"mid{i}.bin" for i in range(5)]
+    order = _expression_1()
     for name in order:
         _warm(srv, rels[name], stored[name])
 
@@ -312,17 +340,20 @@ def test_bundle_budget_exhaustion_spares_later_members(bigsrv):
     budget, expect = TOTAL, {}
     for name in order:
         blob = stored[name]
-        if len(blob) > CAP or len(blob) > budget:
+        if _expression_2(budget, blob):
             expect[rels[name]] = None
         else:
             expect[rels[name]] = blob
             budget -= len(blob)
-    misses = [rel for rel, blob in expect.items() if blob is None]
-    assert len(misses) == 2, "corpus must trip the cap once and the budget once"
+    misses = _expression_3(expect)
+    _check_test_bundle_budget_exhaustion_spares_later_members_1(misses)
 
     srv.reset_log()
-    st, _, body = post_bundle(srv, [rels[n] for n in order])
-    assert st == 200
-    assert dict(parse_bundle(body)) == expect
+    st, _, body = _expression_4(srv, rels, order)
+    def _assert_test_bundle_budget_exhaustion_spares_later_members_1():
+        assert st == 200
+        assert dict(parse_bundle(body)) == expect
+
+    _assert_test_bundle_budget_exhaustion_spares_later_members_1()
     for rel in misses:
-        assert srv.count_log(rel) == 0, "budget/cap misses must not origin-fill"
+        _check_test_bundle_budget_exhaustion_spares_later_members_2(rel, srv)

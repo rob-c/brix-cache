@@ -9,6 +9,78 @@ import tempfile
 
 from cmdscripts.compile_run import REPO_ROOT, result, run
 
+# These four are the parent's share of the helpers the complexity burndown
+# hoisted out of the runners below.  They carry real names because every shard
+# of this module is exec-composed into THESE globals: a generic `_expression_N`
+# in a shard silently rebinds the parent's helper of the same name, and the
+# parent's call site -- resolved at call time -- then reaches the shard's
+# function.  That is not hypothetical; it is how `run_deleg_gate` came to call a
+# one-argument helper with three arguments.  Guard #12 now fails the build on
+# any duplicate top-level name within one composed unit.
+def _find_objs(needed):
+    return (
+        [find_obj(n) for n in needed]
+    )
+
+def _missing_objs(needed, objs):
+    return (
+        [n for n, o in zip(needed, objs) if o is None]
+    )
+
+def _deleg_forge_failure(forged):
+    return (
+        [result(False, f"forge deleg fixtures failed: {(forged.stderr or forged.stdout)[-3000:]}")]
+    )
+
+def _compile_deleg_gate(base, fixtures, objs):
+    return (
+        compile_and_run(
+                    base / "test_deleg_gate",
+                    [
+                        "-O",
+                        "-Wall",
+                        "-I",
+                        "src",
+                        "-I",
+                        "shared",
+                        "-I",
+                        str(NGX_SRC / "src/core"),
+                        "-I",
+                        str(NGX_SRC / "src/event"),
+                        "-I",
+                        str(NGX_SRC / "src/os/unix"),
+                        "-I",
+                        str(NGX_SRC / "src/stream"),
+                        "-I",
+                        str(OBJS),
+                        "tests/c/deleg_gate_test.c",
+                        *[str(o) for o in objs],
+                        *X509_POLICY_SOURCES,
+                        "-lssl",
+                        "-lcrypto",
+                    ],
+                    env={"BRIX_DELEG_FIXTURES": str(fixtures)},
+                )
+    )
+
+
+def _guard_sanitizer_link_flags_1(syms, flags):
+    if "__asan_" in syms:
+        flags.append("-fsanitize=address")
+
+def _guard_sanitizer_link_flags_2(syms, flags):
+    if "__ubsan_" in syms or "__ubsan" in syms:
+        flags.append("-fsanitize=undefined")
+
+def _guard_sanitizer_link_flags_3(syms, flags):
+    if "__tsan_" in syms:
+        flags.append("-fsanitize=thread")
+
+def _guard_run_deleg_gate_4(owned):
+    if owned:
+        shutil.rmtree(owned, ignore_errors=True)
+
+
 NGX_SRC = Path(os.environ.get(
     "NGX_SRC",
     "/tmp/nginx-1.28.3" if Path("/tmp/nginx-1.28.3/src/core/ngx_config.h").exists()
@@ -67,12 +139,9 @@ def _sanitizer_link_flags(args: list[str]) -> list[str]:
     proc = run(["nm", *objs], cwd=REPO_ROOT)
     syms = proc.stdout if proc.returncode == 0 else ""
     flags = []
-    if "__asan_" in syms:
-        flags.append("-fsanitize=address")
-    if "__ubsan_" in syms or "__ubsan" in syms:
-        flags.append("-fsanitize=undefined")
-    if "__tsan_" in syms:
-        flags.append("-fsanitize=thread")
+    _guard_sanitizer_link_flags_1(syms, flags)
+    _guard_sanitizer_link_flags_2(syms, flags)
+    _guard_sanitizer_link_flags_3(syms, flags)
     return flags
 
 
@@ -293,8 +362,8 @@ def run_deleg_gate(base: Path) -> list[tuple[bool, str]]:
     # the file-size burndown; without it the harness link fails on that symbol.
     needed = ["vfs_deleg.o", "vfs_deleg_bind.o", "vfs_deleg_x509.o",
               "gsi_verify.o", "gsi_upstream.o", "cred_stage.o"]
-    objs = [find_obj(n) for n in needed]
-    missing = [n for n, o in zip(needed, objs) if o is None]
+    objs = _find_objs(needed)
+    missing = _missing_objs(needed, objs)
     if missing:
         return [result(True, f"SKIP build {' '.join(missing)} first")]
     fixtures, owned = x509_fixture_dir("deleg_gate")
@@ -305,38 +374,11 @@ def run_deleg_gate(base: Path) -> list[tuple[bool, str]]:
             env={"PYTHONPATH": "tests", **HERMETIC_ENV},
         )
         if forged.returncode != 0:
-            return [result(False, f"forge deleg fixtures failed: {(forged.stderr or forged.stdout)[-3000:]}")]
-        ok, message = compile_and_run(
-            base / "test_deleg_gate",
-            [
-                "-O",
-                "-Wall",
-                "-I",
-                "src",
-                "-I",
-                "shared",
-                "-I",
-                str(NGX_SRC / "src/core"),
-                "-I",
-                str(NGX_SRC / "src/event"),
-                "-I",
-                str(NGX_SRC / "src/os/unix"),
-                "-I",
-                str(NGX_SRC / "src/stream"),
-                "-I",
-                str(OBJS),
-                "tests/c/deleg_gate_test.c",
-                *[str(o) for o in objs],
-                *X509_POLICY_SOURCES,
-                "-lssl",
-                "-lcrypto",
-            ],
-            env={"BRIX_DELEG_FIXTURES": str(fixtures)},
-        )
+            return _deleg_forge_failure(forged)
+        ok, message = _compile_deleg_gate(base, fixtures, objs)
         return [result(ok, f"deleg_gate {message}")]
     finally:
-        if owned:
-            shutil.rmtree(owned, ignore_errors=True)
+        _guard_run_deleg_gate_4(owned)
 
 
 # Forge the EEC-normalization corpus (P80.11): one trusted CA -> EEC -> two

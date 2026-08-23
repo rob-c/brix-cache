@@ -17,6 +17,11 @@ import pytest
 
 from settings import DATA_ROOT, NGINX_ANON_PORT, SERVER_HOST
 
+def _guard_tools_1():
+    if shutil.which("cc") is None and shutil.which("gcc") is None:
+        pytest.skip("no C compiler")
+
+
 pytestmark = pytest.mark.timeout(120)
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -47,8 +52,7 @@ def _crc32c(data):
 
 @pytest.fixture(scope="module")
 def tools():
-    if shutil.which("cc") is None and shutil.which("gcc") is None:
-        pytest.skip("no C compiler")
+    _guard_tools_1()
     proc = subprocess.run(["make", "-C", os.path.join(REPO, "client")],
                           capture_output=True, text=True, timeout=180)
     paths = {t: os.path.join(REPO, "client", "bin", t) for t in TOOLS}

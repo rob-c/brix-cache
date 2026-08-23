@@ -22,6 +22,24 @@ import pytest
 
 from settings import HOST, BIND_HOST
 
+def _guard_tree_root_1():
+    if shutil.which("cc") is None and shutil.which("gcc") is None:
+        pytest.skip("no C compiler")
+
+def _guard_tree_root_2():
+    if not os.path.exists(XRDFS):
+        pytest.skip("xrdfs build failed")
+
+def _guard_tree_root_3():
+    if not os.access(NGINX_BIN, os.X_OK):
+        pytest.skip(f"nginx not executable: {NGINX_BIN}")
+
+def _guard_tree_root_4(conf):
+    if subprocess.run([NGINX_BIN, "-t", "-c", str(conf)],
+                      capture_output=True, text=True).returncode != 0:
+        pytest.skip("nginx -t failed")
+
+
 pytestmark = pytest.mark.timeout(120)
 
 NGINX_BIN = os.environ.get("NGINX_BIN", "/tmp/nginx-1.28.3/objs/nginx")
@@ -48,14 +66,11 @@ def _port_up(host, port):
 
 @pytest.fixture(scope="module")
 def tree_root(tmp_path_factory):
-    if shutil.which("cc") is None and shutil.which("gcc") is None:
-        pytest.skip("no C compiler")
+    _guard_tree_root_1()
     subprocess.run(["make", "-C", CLIENT_DIR, "xrdfs"],
                    capture_output=True, text=True, timeout=240)
-    if not os.path.exists(XRDFS):
-        pytest.skip("xrdfs build failed")
-    if not os.access(NGINX_BIN, os.X_OK):
-        pytest.skip(f"nginx not executable: {NGINX_BIN}")
+    _guard_tree_root_2()
+    _guard_tree_root_3()
 
     # Nest test data under /t so a server-created dotfile at the data root
     # (e.g. .nginx-xrootd-ckp-recovery.lock) can't pollute the recursive walks.
@@ -81,9 +96,7 @@ stream {{
              brix_auth none; }}
 }}
 """)
-    if subprocess.run([NGINX_BIN, "-t", "-c", str(conf)],
-                      capture_output=True, text=True).returncode != 0:
-        pytest.skip("nginx -t failed")
+    _guard_tree_root_4(conf)
     subprocess.run([NGINX_BIN, "-c", str(conf)], capture_output=True)
     for _ in range(50):
         if _port_up(HOST, port):

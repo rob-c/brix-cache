@@ -36,17 +36,24 @@ def list_runs(root: Optional[Path] = None) -> List[dict[str, object]]:
 
 
 def load_run(name: str = "latest", root: Optional[Path] = None) -> Mapping[str, object]:
-    rows = list_runs(root)
     if name == "latest":
-        if rows:
-            return rows[0]
-        raise SpecError("summary", name, "no retained BriXTest runs were found")
+        return _latest_run(list_runs(root))
     base = Path(root or default_runs_root())
-    path = Path(name)
-    if not path.is_absolute():
-        path = base / path
-    summary = path if path.name == "summary.json" else path / "summary.json"
+    summary = _summary_path(name, base)
     try:
         return json.loads(summary.read_text())
     except (OSError, ValueError, TypeError) as exc:
         raise SpecError("summary", name, "cannot read %s: %s" % (summary, exc)) from exc
+
+
+def _latest_run(rows):
+    if rows:
+        return rows[0]
+    raise SpecError("summary", "latest", "no retained BriXTest runs were found")
+
+
+def _summary_path(name: str, base: Path) -> Path:
+    path = Path(name)
+    if not path.is_absolute():
+        path = base / path
+    return path if path.name == "summary.json" else path / "summary.json"

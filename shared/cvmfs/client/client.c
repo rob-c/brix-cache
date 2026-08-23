@@ -205,7 +205,7 @@ int cvmfs_client_resolve(cvmfs_client_t *cl, const char *path, cvmfs_dirent_t *o
         }
     }
 
-    cvmfs_catalog_t *cat = NULL; int owns = 0; char tmp[512];
+    cvmfs_catalog_t *cat = NULL; int owns = 0; char tmp[512] = {0};
     int rc = resolve_full(cl, path, out, &cat, &owns, tmp, sizeof(tmp), now);
     if (owns) { cvmfs_catalog_close(cat); if (tmp[0]) unlink(tmp); }
     return rc;
@@ -255,95 +255,8 @@ int cvmfs_client_readdir(cvmfs_client_t *cl, const char *path,
 
 /* ---- mount ------------------------------------------------------------- */
 
-/* Verify the trust chain (whitelist → manifest → cert) into the caller's STAGED
- * manifest buffer, then fetch + open the root catalog into a fresh temp file.
- * Installs NOTHING into cl — the caller commits (mount installs; refresh swaps)
- * only after the whole chain has verified, so a failed refresh can never leave
- * half-committed metadata (xattrs reporting a revision that is not being served,
- * or a wedge where old_root already equals the new root). Shared by mount and
- * refresh. Returns 0 with *out_cat/out_tmp/m/mlen set, or a negative code. */
-static int load_trust_and_catalog(cvmfs_client_t *cl, long now,
-                                  unsigned char *mbuf, size_t mbuf_cap, size_t *mlen,
-                                  cvmfs_manifest_t *m,
-                                  char *out_tmp, size_t out_tmp_sz,
-                                  cvmfs_catalog_t **out_cat) {
-    /* 1. whitelist: fetch raw, verify vs master key, check expiry. */
-    unsigned char wlbuf[65536]; size_t wln = 0;
-    if (raw_fetch(cl, ".cvmfswhitelist", wlbuf, sizeof(wlbuf), &wln, now) != 0) return -3;
-    cvmfs_whitelist_t wl;
-    if (cvmfs_whitelist_parse(wlbuf, wln, &wl) != 0) return -4;
-    if (cvmfs_verify_whitelist(&wl, cl->master_pub, cl->master_pub_len) != 0) return -5;
-    /* Expiry is a WALL-CLOCK judgement: the whitelist's "YYYYMMDDhhmmss" parses to
-     * a UTC epoch, so it must be compared against real time — NOT `now`, which is
-     * CLOCK_MONOTONIC (seconds-since-boot) and is used only for TTL/refresh gating.
-     * Feeding mono here made expiry unenforceable (mono ≪ epoch, never trips). */
-    if (cvmfs_whitelist_expired(&wl, (long) time(NULL))) return -6;
-    /* The whitelist 'N<fqrn>' line binds this trust anchor to one repository.
-     * A validly-signed whitelist minted for a different (or unnamed) repo must
-     * not authorize this mount — otherwise a master-key holder for repo A could
-     * have their whitelist replayed against repo B. Case-sensitive per fqrn. */
-    if (wl.repo_name[0] == '\0' || strcmp(wl.repo_name, cl->config.name) != 0) return -12;
-
-    /* 2. manifest: fetch raw into the STAGING buffer, parse. */
-    if (raw_fetch(cl, ".cvmfspublished", mbuf, mbuf_cap, mlen, now) != 0) return -3;
-    if (cvmfs_manifest_parse(mbuf, *mlen, m) != 0) return -7;
-    /* NOTE: the manifest 'N<fqrn>' field is NOT gated against the served repo.
-     * Stock CVMFS authenticates the manifest by cert-fingerprint ∈ whitelist +
-     * signature body-binding, and binds repository identity through the
-     * whitelist 'N' line (checked above, -12) — not the manifest's N. Real
-     * publishers routinely serve one signed manifest under several fqrns (our
-     * whitelist conformance harness reproduces this), so gating on manifest-N
-     * here would refuse legitimate mounts. Identity is the whitelist's job. */
-
-    /* 3. signing cert: fetch CAS object ('X'), check fingerprint ∈ whitelist. */
-    size_t certn = 0;
-    unsigned char *cert = fetch_cas(cl, &m->certificate, 'X', 0 /*small*/, &certn, now);
-    if (cert == NULL) return -8;
-    char fp[64];
-    int fp_ok = cvmfs_cert_fingerprint(cert, certn, fp, sizeof(fp)) == 0
-             && cvmfs_whitelist_lists_fp(&wl, fp);
-    int sig_ok = fp_ok && cvmfs_verify_manifest(m, cert, certn) == 0;
-    free(cert);
-    if (!sig_ok) return -9;
-
-    /* 4. root catalog: fetch + open. A pinned client opens the PIN hash instead
-     * of the manifest's — the CAS fetch is hash-verified, so a tampered pin
-     * target is refused right here — and records whether the verified upstream
-     * manifest has drifted away from the pin. */
-    const cvmfs_hash_t *want = cl->pin_set ? &cl->pin_root : &m->root_catalog;
-    cvmfs_catalog_t *cat = open_catalog_by_hash(cl, want,
-                                                cl->catalog_tmp, out_tmp, out_tmp_sz, now);
-    if (cat == NULL) return -10;
-    if (cl->pin_set) {
-        cl->pin_drift = !cvmfs_hash_eq(&cl->pin_root, &m->root_catalog);
-        if (cl->pin_drift)
-            cvmfs_hash_to_hex(&m->root_catalog, 0,
-                              cl->pin_drift_hex, sizeof(cl->pin_drift_hex));
-    }
-
-    /* 5. revision consistency: the manifest 'S' must equal the root catalog's own
-     * recorded revision. The catalog is content-addressed by the (now body-bound,
-     * hence authentic) manifest 'C', so its 'revision' property is authenticated
-     * transitively — a rollback that edits only the unsigned-looking manifest 'S'
-     * without rebuilding the catalog is caught here. Tolerant of a catalog with no
-     * 'revision' property (older/hand-built repos) and of a manifest that omits 'S'
-     * entirely (revision defaults to 0): enforce only when BOTH sides carry a
-     * revision and they disagree, so we never reject a legitimate repo that omits
-     * either. Body-binding (see cvmfs_verify_manifest) already prevents an attacker
-     * from stripping a signed 'S', so a revision of 0 here can only be a genuinely
-     * S-less publish, which has no prior revision to roll back to. */
-    /* Skipped for a pinned client: a pin to an older publish legitimately
-     * disagrees with the (advanced) manifest 'S'. */
-    char revbuf[32];
-    if (!cl->pin_set && m->revision != 0
-            && cvmfs_catalog_property(cat, "revision", revbuf, sizeof(revbuf)) == 1
-            && atol(revbuf) != m->revision) {
-        cvmfs_catalog_close(cat);
-        return -11;
-    }
-    *out_cat = cat;
-    return 0;
-}
+#define __CLIENT_C_COMPILED__
+#include "client_trust.c"
 
 /* Install a fully-verified staged manifest as the client's current one. The
  * manifest struct holds pointers into its backing buffer, so commit = copy the
@@ -467,5 +380,4 @@ void cvmfs_client_reap_tick(cvmfs_client_t *cl, long now) {
     brix_cas_enforce_quota(&cl->cache);
 }
 
-#define __CLIENT_C_COMPILED__
 #include "_client_part2.c"

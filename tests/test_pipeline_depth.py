@@ -43,6 +43,20 @@ from _test_a_robustness_helpers import (
 )
 from _perf_ab_helpers import _read_whole_file, kXR_oksofar
 
+def _expression_1(sent, in_flight, offsets):
+    return (
+        sent < len(offsets) and sent < in_flight
+    )
+
+
+def _check_pipelined_read_all_2(got, done, offsets):
+    assert got, f"empty pipelined read #{done} @ {offsets[done]}"
+
+def _check_pipelined_read_all_1(st, done, offsets):
+    assert st in (kXR_ok, kXR_oksofar), (
+        f"pipelined read #{done} @ {offsets[done]} failed: st={st}")
+
+
 pytestmark = [pytest.mark.netfault, pytest.mark.serial,
               pytest.mark.uses_lifecycle_harness,
               pytest.mark.xdist_group("lc-pipeline-depth-stream"),
@@ -106,7 +120,7 @@ def _pipelined_read_all(sock, handle, size, chunk, in_flight):
     sent = 0
     done = 0
     # Prime the pipe.
-    while sent < len(offsets) and sent < in_flight:
+    while _expression_1(sent, in_flight, offsets):
         off = offsets[sent]
         sock.sendall(make_read_req(handle, off, min(chunk, size - off)))
         sent += 1
@@ -114,13 +128,12 @@ def _pipelined_read_all(sock, handle, size, chunk, in_flight):
         got = 0
         while True:
             st, data = _recv_response(sock)
-            assert st in (kXR_ok, kXR_oksofar), (
-                f"pipelined read #{done} @ {offsets[done]} failed: st={st}")
+            _check_pipelined_read_all_1(st, done, offsets)
             out += data
             got += len(data)
             if st == kXR_ok:
                 break
-        assert got, f"empty pipelined read #{done} @ {offsets[done]}"
+        _check_pipelined_read_all_2(got, done, offsets)
         done += 1
         if sent < len(offsets):
             off = offsets[sent]

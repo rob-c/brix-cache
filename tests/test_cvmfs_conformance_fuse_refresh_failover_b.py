@@ -1,4 +1,17 @@
 from split_continuation import reexport as _reexport
+def _check_scn_1(mnt):
+    assert os.path.ismount(mnt), "mount failed"
+
+def _check_scn_2(mnt):
+    assert os.path.ismount(mnt), "mount failed"
+
+def _check_scn_3(mnt):
+    assert os.path.ismount(mnt), "mount failed"
+
+def _check_scn_4(mnt):
+    assert os.path.ismount(mnt), "mount failed"
+
+
 _reexport(globals(), "_test_cvmfs_conformance_fuse_refresh_failover_helpers")
 
 @pytest.mark.timeout(90)
@@ -242,7 +255,7 @@ class TestRetryBudget:
             # -- resets within budget: N=2 faults, retries=3 → success ---------
             origin.set_fault("refuse", 2, path_re=cas_needle(obj_a))
             with conf_mount(REPO, pub, server_env=_url(P_RETRY), retries=3) as (mnt, _):
-                assert os.path.ismount(mnt), "mount failed"
+                _check_scn_1(mnt)
                 obs["a"] = (mnt / "a.bin").read_bytes()
             obs["a_attempts"] = len(origin.requests(cas_needle(obj_a)))
             origin.clear_faults()
@@ -250,7 +263,7 @@ class TestRetryBudget:
             # -- resets beyond budget: retries=1 → clean error, then recovery --
             origin.set_fault("refuse", 5, path_re=cas_needle(obj_b))
             with conf_mount(REPO, pub, server_env=_url(P_RETRY), retries=1) as (mnt, _):
-                assert os.path.ismount(mnt), "mount failed"
+                _check_scn_2(mnt)
                 try:
                     (mnt / "b.bin").read_bytes()
                     obs["b_exc"] = None
@@ -264,14 +277,14 @@ class TestRetryBudget:
             # -- retries=0 falls back to the built-in default budget (6) -------
             origin.set_fault("refuse", 4, path_re=cas_needle(obj_c))
             with conf_mount(REPO, pub, server_env=_url(P_RETRY), retries=0) as (mnt, _):
-                assert os.path.ismount(mnt), "mount failed"
+                _check_scn_3(mnt)
                 obs["c"] = (mnt / "c.bin").read_bytes()
             origin.clear_faults()
 
             # -- progress does NOT consume budget: 1KiB sever per response,
             #    ~6 resumes needed, but retries=1 still succeeds ---------------
             with conf_mount(REPO, pub, server_env=_url(P_RETRY), retries=1) as (mnt, _):
-                assert os.path.ismount(mnt), "mount failed"
+                _check_scn_4(mnt)
                 origin.reset_counters()
                 origin.sever_after = 1024
                 obs["p"] = (mnt / "payload.bin").read_bytes()

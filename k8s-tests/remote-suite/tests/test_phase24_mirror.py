@@ -30,6 +30,18 @@ import pytest
 
 from settings import NGINX_BIN, free_ports, HOST, BIND_HOST
 
+def _expression_1(primary_port, shadow_port, metrics_port):
+    return (
+        not (_wait_port(primary_port) and _wait_port(shadow_port)
+                    and _wait_port(metrics_port))
+    )
+
+def _expression_2(proc):
+    return (
+        proc.stderr.read().decode(errors="replace") if proc.stderr else ""
+    )
+
+
 ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -323,30 +335,38 @@ def _wait_port(port, timeout=10):
     return False
 
 
-def _read_status_and_body(s):
-    """Read an HTTP response far enough to know status + full body.
-
-    A background mirror subrequest keeps the client connection open until it
-    finishes, so the trailing FIN is deferred; we must NOT block on close.
-    We read headers, then exactly Content-Length body bytes, then return."""
-    s.settimeout(4)
+def _read_headers(s):
     data = b""
     while b"\r\n\r\n" not in data:
-        c = s.recv(4096)
-        if not c:
+        chunk = s.recv(4096)
+        if not chunk:
             break
-        data += c
-    head, _, rest = data.partition(b"\r\n\r\n")
-    status = int(head.split(b"\r\n", 1)[0].split()[1])
-    clen = 0
-    for line in head.split(b"\r\n")[1:]:
+        data += chunk
+    return data.partition(b"\r\n\r\n")
+
+
+def _content_length(headers):
+    for line in headers.split(b"\r\n")[1:]:
         if line.lower().startswith(b"content-length:"):
-            clen = int(line.split(b":", 1)[1])
-    while len(rest) < clen:
-        c = s.recv(4096)
-        if not c:
+            return int(line.split(b":", 1)[1])
+    return 0
+
+
+def _read_body(s, body, length):
+    while len(body) < length:
+        chunk = s.recv(4096)
+        if not chunk:
             break
-        rest += c
+        body += chunk
+    return body
+
+
+def _read_status_and_body(s):
+    """Read through Content-Length without waiting for a mirror-delayed FIN."""
+    s.settimeout(4)
+    headers, _, body = _read_headers(s)
+    status = int(headers.split(b"\r\n", 1)[0].split()[1])
+    _read_body(s, body, _content_length(headers))
     return status
 
 
@@ -639,9 +659,8 @@ def _start_stream_pair(tmp_path, primary_port, shadow_port, metrics_port,
     conf_path.write_text(conf + "daemon off;\nmaster_process off;\n")
     proc = subprocess.Popen([NGINX_BIN, "-p", str(tmp_path), "-c", str(conf_path)],
                             stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    if not (_wait_port(primary_port) and _wait_port(shadow_port)
-            and _wait_port(metrics_port)):
-        err = proc.stderr.read().decode(errors="replace") if proc.stderr else ""
+    if _expression_1(primary_port, shadow_port, metrics_port):
+        err = _expression_2(proc)
         proc.terminate()
         pytest.skip(f"stream pair did not start: {err}")
     return proc

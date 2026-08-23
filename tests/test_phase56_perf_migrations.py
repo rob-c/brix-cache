@@ -42,6 +42,21 @@ import pytest
 from settings import DATA_ROOT, HOST, NGINX_ANON_PORT
 from metrics_helpers import xrdcp, xrdfs
 
+def _guard_grep_c_sources_1(pat, text, needle, rel, hits):
+    if pat.search(text) if pat else needle in text:
+        hits.append(rel)
+
+def _check_test_live_dirlist_distinguishes_dir_from_file_1(r):
+    assert r.returncode == 0, r.stderr
+
+def _check_test_live_dirlist_distinguishes_dir_from_file_2(file_line):
+    assert not file_line[0].lstrip().startswith("d"), file_line[0]
+
+def _guard_test_live_dirlist_distinguishes_dir_from_file_2(f):
+    if os.path.exists(f):
+        os.unlink(f)
+
+
 pytestmark = pytest.mark.timeout(120)
 
 _REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -71,8 +86,7 @@ def _grep_c_sources(needle, root="src", word=False):
                 continue
             rel = os.path.relpath(os.path.join(dirpath, f), _REPO)
             text = _read(rel)
-            if pat.search(text) if pat else needle in text:
-                hits.append(rel)
+            _guard_grep_c_sources_1(pat, text, needle, rel, hits)
     return sorted(hits)
 
 
@@ -315,15 +329,17 @@ def test_live_dirlist_distinguishes_dir_from_file():
         with open(f, "wb") as fh:
             fh.write(b"k" * 16)
         r = xrdfs(f"root://{HOST}:{NGINX_ANON_PORT}", "ls", "-l", "/")
-        assert r.returncode == 0, r.stderr
+        _check_test_live_dirlist_distinguishes_dir_from_file_1(r)
         dir_line = [l for l in r.stdout.splitlines()
                     if l.rstrip().endswith("/" + tag + "_dir")]
         file_line = [l for l in r.stdout.splitlines()
                      if l.rstrip().endswith("/" + tag + ".dat")]
-        assert dir_line and file_line, r.stdout
-        assert dir_line[0].lstrip().startswith("d"), dir_line[0]
-        assert not file_line[0].lstrip().startswith("d"), file_line[0]
+        def _assert_test_live_dirlist_distinguishes_dir_from_file_1():
+            assert dir_line and file_line, r.stdout
+            assert dir_line[0].lstrip().startswith("d"), dir_line[0]
+
+        _assert_test_live_dirlist_distinguishes_dir_from_file_1()
+        _check_test_live_dirlist_distinguishes_dir_from_file_2(file_line)
     finally:
-        if os.path.exists(f):
-            os.unlink(f)
+        _guard_test_live_dirlist_distinguishes_dir_from_file_2(f)
         os.rmdir(d)

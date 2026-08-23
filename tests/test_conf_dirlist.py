@@ -1,6 +1,43 @@
 from split_continuation import reexport as _reexport
 _reexport(globals(), "_test_conf_dirlist_helpers")
 
+
+def _assert_expected_names(actual, expected, label):
+    assert actual == expected, f"{label}: got {actual!r}, expected {expected!r}"
+
+
+def _assert_contains_names(actual, expected, label):
+    assert expected <= actual, f"{label}: got {actual!r}, expected at least {expected!r}"
+
+
+def _assert_dstat_size(name, actual, stock, real):
+    assert actual == real, f"our dstat /many {name} size={actual} real={real}"
+    assert actual == stock, (
+        f"dstat /many {name} size divergence: ours={actual} stock={stock}"
+    )
+
+
+def _assert_directory_flag(name, our_flags, stock_flags):
+    assert our_flags.get(name) is not None and our_flags[name] & kXR_isDir, (
+        f"our dstat /mixed {name} not IsDir: {our_flags.get(name)}"
+    )
+    assert stock_flags.get(name) is not None and stock_flags[name] & kXR_isDir, (
+        f"stock dstat /mixed {name} not IsDir: {stock_flags.get(name)}"
+    )
+
+
+def _assert_regular_file_flag(name, our_flags, stock_flags):
+    assert not (our_flags.get(name, 0) & kXR_isDir), (
+        f"our dstat /mixed {name} wrongly IsDir: {our_flags.get(name)}"
+    )
+    assert not (stock_flags.get(name, 0) & kXR_isDir), (
+        f"stock dstat /mixed {name} wrongly IsDir: {stock_flags.get(name)}"
+    )
+
+
+def _flag_map(entries):
+    return {name: flags for name, _size, flags, _checksum in entries}
+
 @pytest.mark.parametrize("path", [
     pytest.param(WROOT, id="wroot"), "/sub", "/empty_dir", "/many", "/deep",
     "/bigdir", "/special", "/mixed", "/nest", "/nest/x/y/z", "/deep/a/b/c",
@@ -106,9 +143,9 @@ def test_ls_special_names_match(srv):
     our = _ls_set(fs(srv["our"], "ls", "/special")[1])
     off = _ls_set(fs(srv["off"], "ls", "/special")[1])
     expected = set(SPECIAL_NAMES)
-    assert our == expected, f"our /special set wrong: missing={expected - our} extra={our - expected}"
-    assert off == expected, f"stock /special set wrong: {off ^ expected}"
-    assert our == off, f"/special divergence vs stock: {our ^ off}"
+    _assert_expected_names(our, expected, "our /special set")
+    _assert_expected_names(off, expected, "stock /special set")
+    _assert_expected_names(our, off, "/special parity")
 
 
 @pytest.mark.parametrize("name", SPECIAL_NAMES)
@@ -268,9 +305,9 @@ def test_wire_plain_root_includes_baseline(srv):
     concurrent worker's files under the shared '/' can't perturb the equality."""
     our = _wire_plain_names(OUR_PORT, WROOT)
     off = _wire_plain_names(OFF_PORT, WROOT)
-    assert WROOT_BASELINE <= our, f"our wire {WROOT} missing baseline: {WROOT_BASELINE - our}"
-    assert WROOT_BASELINE <= off, f"stock wire {WROOT} missing baseline: {WROOT_BASELINE - off}"
-    assert our == off, f"wire {WROOT} set divergence: {our ^ off}"
+    _assert_contains_names(our, WROOT_BASELINE, f"our wire {WROOT}")
+    _assert_contains_names(off, WROOT_BASELINE, f"stock wire {WROOT}")
+    _assert_expected_names(our, off, f"wire {WROOT} parity")
 
 
 # =========================================================================== #
@@ -309,10 +346,7 @@ def test_wire_dstat_sizes_match(srv):
     off_sz = {n: sz for n, sz, *_ in off_e}
     for name in sorted(our_sz):
         real = os.path.getsize(os.path.join(srv["our_data"], "many", name))
-        assert our_sz[name] == real, \
-            f"our dstat /many {name} size={our_sz[name]} real={real}"
-        assert our_sz[name] == off_sz.get(name), \
-            f"dstat /many {name} size divergence: ours={our_sz[name]} stock={off_sz.get(name)}"
+        _assert_dstat_size(name, our_sz[name], off_sz.get(name), real)
 
 
 @pytest.mark.parametrize("name,size", [
@@ -335,18 +369,12 @@ def test_wire_dstat_isdir_flag(srv):
     """In /mixed dstat, subA/subB are flagged IsDir and files are not, on both."""
     _, our_e = _wire_dstat(OUR_PORT, "/mixed")
     _, off_e = _wire_dstat(OFF_PORT, "/mixed")
-    our_fl = {n: fl for n, _sz, fl, _ck in our_e}
-    off_fl = {n: fl for n, _sz, fl, _ck in off_e}
-    for d in ("subA", "subB"):
-        assert our_fl.get(d) is not None and our_fl[d] & kXR_isDir, \
-            f"our dstat /mixed {d} not flagged IsDir: flags={our_fl.get(d)}"
-        assert off_fl.get(d) is not None and off_fl[d] & kXR_isDir, \
-            f"stock dstat /mixed {d} not flagged IsDir: flags={off_fl.get(d)}"
-    for fil in ("file1.txt", "file2.bin"):
-        assert not (our_fl.get(fil, 0) & kXR_isDir), \
-            f"our dstat /mixed {fil} wrongly flagged IsDir: {our_fl.get(fil)}"
-        assert not (off_fl.get(fil, 0) & kXR_isDir), \
-            f"stock dstat /mixed {fil} wrongly flagged IsDir: {off_fl.get(fil)}"
+    our_fl = _flag_map(our_e)
+    off_fl = _flag_map(off_e)
+    for directory in ("subA", "subB"):
+        _assert_directory_flag(directory, our_fl, off_fl)
+    for file_name in ("file1.txt", "file2.bin"):
+        _assert_regular_file_flag(file_name, our_fl, off_fl)
 
 
 # =========================================================================== #

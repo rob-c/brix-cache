@@ -111,37 +111,58 @@ def test_dedup_identical_puts_share_blob(lifecycle, fsck: Path) -> None:
         src = run.root / "src.bin"
         random_file(src, 500_000)
 
-        assert run.call([XRDCP, "-f", src, f"{host}/a.bin"],
-                        check=False).returncode == 0
-        assert run.call([XRDCP, "-f", src, f"{host}/b.bin"],
-                        check=False).returncode == 0
+        def _assert_test_dedup_identical_puts_share_blob_1():
+            assert run.call([XRDCP, "-f", src, f"{host}/a.bin"],
+                            check=False).returncode == 0
+            assert run.call([XRDCP, "-f", src, f"{host}/b.bin"],
+                            check=False).returncode == 0
+
+        _assert_test_dedup_identical_puts_share_blob_1()
 
         ba, bb = _blob_id(catalog, "/a.bin"), _blob_id(catalog, "/b.bin")
-        assert ba and ba == bb, "identical PUTs did not share a blob"
-        assert _refcount(catalog, ba) == 2, "shared blob refcount != 2"
+        def _assert_test_dedup_identical_puts_share_blob_2():
+            assert ba and ba == bb, "identical PUTs did not share a blob"
+            assert _refcount(catalog, ba) == 2, "shared blob refcount != 2"
+
+        _assert_test_dedup_identical_puts_share_blob_2()
 
         got = run.root / "got.bin"
         for name in ("a.bin", "b.bin"):
-            assert run.call([XRDCP, "-f", f"{host}/{name}", got],
+            def _assert_test_dedup_identical_puts_share_blob_7():
+                assert run.call([XRDCP, "-f", f"{host}/{name}", got],
+                                check=False).returncode == 0
+                assert sha256(got) == sha256(src)
+
+            _assert_test_dedup_identical_puts_share_blob_7()
+
+        def _assert_test_dedup_identical_puts_share_blob_3():
+            assert _run_fsck(fsck, root).returncode == 0, "clean export shows drift"
+    
+            # Remove one sharer → the blob loses a reference, never its blocks.
+            assert run.call([XRDFS, host, "rm", "/a.bin"],
                             check=False).returncode == 0
-            assert sha256(got) == sha256(src)
 
-        assert _run_fsck(fsck, root).returncode == 0, "clean export shows drift"
+        _assert_test_dedup_identical_puts_share_blob_3()
+        def _assert_test_dedup_identical_puts_share_blob_4():
+            assert _refcount(catalog, bb) == 1, "refcount != 1 after one unlink"
+            assert run.call([XRDCP, "-f", f"{host}/b.bin", got],
+                            check=False).returncode == 0
 
-        # Remove one sharer → the blob loses a reference, never its blocks.
-        assert run.call([XRDFS, host, "rm", "/a.bin"],
-                        check=False).returncode == 0
-        assert _refcount(catalog, bb) == 1, "refcount != 1 after one unlink"
-        assert run.call([XRDCP, "-f", f"{host}/b.bin", got],
-                        check=False).returncode == 0
-        assert sha256(got) == sha256(src), "survivor content lost"
-        assert _run_fsck(fsck, root).returncode == 0, "drift after unlink"
+        _assert_test_dedup_identical_puts_share_blob_4()
+        def _assert_test_dedup_identical_puts_share_blob_5():
+            assert sha256(got) == sha256(src), "survivor content lost"
+            assert _run_fsck(fsck, root).returncode == 0, "drift after unlink"
+
+        _assert_test_dedup_identical_puts_share_blob_5()
 
         # Remove the last sharer → gone entirely.
-        assert run.call([XRDFS, host, "rm", "/b.bin"],
-                        check=False).returncode == 0
-        assert run.call([XRDCP, "-f", f"{host}/b.bin", got],
-                        check=False).returncode != 0, "blob outlived last ref"
+        def _assert_test_dedup_identical_puts_share_blob_6():
+            assert run.call([XRDFS, host, "rm", "/b.bin"],
+                            check=False).returncode == 0
+            assert run.call([XRDCP, "-f", f"{host}/b.bin", got],
+                            check=False).returncode != 0, "blob outlived last ref"
+
+        _assert_test_dedup_identical_puts_share_blob_6()
         assert _run_fsck(fsck, root).returncode == 0, "drift after final unlink"
 
 
@@ -216,10 +237,13 @@ def test_dedup_forged_hash_cannot_alias_and_gate_off(lifecycle, fsck: Path) -> N
         random_file(victim, 500_000)
         random_file(attack, 500_000)      # same size, different bytes
 
-        assert run.call([XRDCP, "-f", victim, f"{host}/victim.bin"],
-                        check=False).returncode == 0
-        assert run.call([XRDCP, "-f", attack, f"{host}/attack.bin"],
-                        check=False).returncode == 0
+        def _assert_test_dedup_forged_hash_cannot_alias_and_gate_off_8():
+            assert run.call([XRDCP, "-f", victim, f"{host}/victim.bin"],
+                            check=False).returncode == 0
+            assert run.call([XRDCP, "-f", attack, f"{host}/attack.bin"],
+                            check=False).returncode == 0
+
+        _assert_test_dedup_forged_hash_cannot_alias_and_gate_off_8()
         bvictim = _blob_id(catalog, "/victim.bin")
         battack = _blob_id(catalog, "/attack.bin")
         assert bvictim != battack, "different content shared a blob"
@@ -246,12 +270,18 @@ def test_dedup_forged_hash_cannot_alias_and_gate_off(lifecycle, fsck: Path) -> N
         bprobe = _blob_id(catalog, "/probe.bin")
         assert bprobe != battack, "probe aliased the forged attacker blob"
         got = run.root / "got.bin"
-        assert run.call([XRDCP, "-f", f"{host}/probe.bin", got],
-                        check=False).returncode == 0
-        assert sha256(got) == sha256(victim), "probe content corrupted"
-        assert run.call([XRDCP, "-f", f"{host}/attack.bin", got],
-                        check=False).returncode == 0
-        assert sha256(got) == sha256(attack), "attacker content changed"
+        def _assert_test_dedup_forged_hash_cannot_alias_and_gate_off_9():
+            assert run.call([XRDCP, "-f", f"{host}/probe.bin", got],
+                            check=False).returncode == 0
+            assert sha256(got) == sha256(victim), "probe content corrupted"
+
+        _assert_test_dedup_forged_hash_cannot_alias_and_gate_off_9()
+        def _assert_test_dedup_forged_hash_cannot_alias_and_gate_off_10():
+            assert run.call([XRDCP, "-f", f"{host}/attack.bin", got],
+                            check=False).returncode == 0
+            assert sha256(got) == sha256(attack), "attacker content changed"
+
+        _assert_test_dedup_forged_hash_cannot_alias_and_gate_off_10()
 
         # --verify-refs catches a hand-corrupted refcount ledger.
         assert _run_fsck(fsck, root).returncode == 0, "unexpected pre-corrupt drift"
@@ -275,17 +305,26 @@ def test_dedup_forged_hash_cannot_alias_and_gate_off(lifecycle, fsck: Path) -> N
         src = run.root / "src.bin"
         random_file(src, 400_000)
 
-        assert run.call([XRDCP, "-f", src, f"{host}/g1.bin"],
-                        check=False).returncode == 0
-        assert run.call([XRDCP, "-f", src, f"{host}/g2.bin"],
-                        check=False).returncode == 0
+        def _assert_test_dedup_forged_hash_cannot_alias_and_gate_off_11():
+            assert run.call([XRDCP, "-f", src, f"{host}/g1.bin"],
+                            check=False).returncode == 0
+            assert run.call([XRDCP, "-f", src, f"{host}/g2.bin"],
+                            check=False).returncode == 0
+
+        _assert_test_dedup_forged_hash_cannot_alias_and_gate_off_11()
         b1, b2 = _blob_id(catalog, "/g1.bin"), _blob_id(catalog, "/g2.bin")
-        assert b1 and b1 != b2, "gate-off export deduplicated identical PUTs"
-        assert _refcount(catalog, b1) == -1, "gate-off export tracked a blob row"
+        def _assert_test_dedup_forged_hash_cannot_alias_and_gate_off_12():
+            assert b1 and b1 != b2, "gate-off export deduplicated identical PUTs"
+            assert _refcount(catalog, b1) == -1, "gate-off export tracked a blob row"
+
+        _assert_test_dedup_forged_hash_cannot_alias_and_gate_off_12()
 
         got = run.root / "got.bin"
-        assert run.call([XRDFS, host, "rm", "/g1.bin"],
-                        check=False).returncode == 0
-        assert run.call([XRDCP, "-f", f"{host}/g2.bin", got],
-                        check=False).returncode == 0
+        def _assert_test_dedup_forged_hash_cannot_alias_and_gate_off_13():
+            assert run.call([XRDFS, host, "rm", "/g1.bin"],
+                            check=False).returncode == 0
+            assert run.call([XRDCP, "-f", f"{host}/g2.bin", got],
+                            check=False).returncode == 0
+
+        _assert_test_dedup_forged_hash_cannot_alias_and_gate_off_13()
         assert sha256(got) == sha256(src), "gate-off unlink corrupted sibling"

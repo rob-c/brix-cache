@@ -1,5 +1,23 @@
 from _test_conf_prepfattr_helpers import *  # noqa: F401,F403  (Phase-38 split shared header)
 
+def _check_test_prepare_stage_returns_host_qualified_id_1(rc_o, rc_f):
+    assert rc_o == 0 and rc_f == 0, "stage prepare should succeed on both"
+
+def _check_test_prepare_stage_returns_host_qualified_id_2(stock_ok, stock):
+    assert stock_ok, f"stock stage id is not host-qualified: {stock!r}"
+
+def _check_test_prepare_stage_returns_host_qualified_id_3(ours_ok):
+    assert ours_ok
+
+def _check_test_raw_prepare_empty_path_list_parity_4(st_o, st_f, raw):
+    assert (st_o == kXR_ok) == (st_f == kXR_ok), \
+        f"raw empty-path prepare success differs:{raw}"
+
+def _check_test_raw_prepare_empty_path_list_parity_5(st_f, raw, st_o, b_o, b_f):
+    assert _category(st_o, b_o) == _category(st_f, b_f) or _rejected(st_f), \
+        f"raw empty-path prepare error category differs:{raw}"
+
+
 @pytest.mark.parametrize("path", PREP_EXISTING)
 def test_prepare_nostage_rc_parity(srv, path):
     """`xrdfs prepare <path>` (no -s) on an existing file -> rc/category parity.
@@ -47,10 +65,10 @@ def test_prepare_stage_returns_host_qualified_id(srv, path):
     must match (it currently returns the literal "0")."""
     rc_o, o_o, _ = L.run([L.OFF_XRDFS, srv["our"], "prepare", "-s", path])
     rc_f, o_f, _ = L.run([L.OFF_XRDFS, srv["off"], "prepare", "-s", path])
-    assert rc_o == 0 and rc_f == 0, "stage prepare should succeed on both"
+    _check_test_prepare_stage_returns_host_qualified_id_1(rc_o, rc_f)
     ours, stock = o_o.strip(), o_f.strip()
     stock_ok = stock.count(":") >= 2 and stock != "0"
-    assert stock_ok, f"stock stage id is not host-qualified: {stock!r}"
+    _check_test_prepare_stage_returns_host_qualified_id_2(stock_ok, stock)
     ours_ok = ours.count(":") >= 2 and ours != "0"
     if not ours_ok:
         pytest.xfail(
@@ -58,7 +76,7 @@ def test_prepare_stage_returns_host_qualified_id(srv, path):
             f"request-id. OURS={ours!r}, STOCK={stock!r}. The reference sends a "
             "host-qualified id '<hexhost>:<id>:<seq>' (Response.Send(reqid,...), "
             "Xeq:2029 / PrepID->ID, Xeq:1912); ours returns the literal '0'.")
-    assert ours_ok
+    _check_test_prepare_stage_returns_host_qualified_id_3(ours_ok)
 
 
 @pytest.mark.parametrize("opt,path", PREP_OPT_VARIANTS)
@@ -220,13 +238,11 @@ def test_raw_prepare_empty_path_list_parity(srv):
         so.close()
         sf.close()
     raw = f"\n  OURS cat={_category(st_o, b_o)}\n  STOCK cat={_category(st_f, b_f)}"
-    assert (st_o == kXR_ok) == (st_f == kXR_ok), \
-        f"raw empty-path prepare success differs:{raw}"
+    _check_test_raw_prepare_empty_path_list_parity_4(st_o, st_f, raw)
     if st_o != kXR_ok and st_f != kXR_ok and not _rejected(st_o) is False:
         pass  # category compared below
     if st_o != kXR_ok:
-        assert _category(st_o, b_o) == _category(st_f, b_f) or _rejected(st_f), \
-            f"raw empty-path prepare error category differs:{raw}"
+        _check_test_raw_prepare_empty_path_list_parity_5(st_f, raw, st_o, b_o, b_f)
 
 
 @pytest.mark.parametrize("optX", [0x0001])  # kXR_evict

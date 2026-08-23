@@ -76,6 +76,110 @@ def _run(cmd, env=None, cwd=None):
     return subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env, cwd=cwd)
 
 
+def _require(program):
+    if shutil.which(program) is None:
+        pytest.skip(f"{program} not found on PATH")
+
+
+def _xrd_env():
+    env = os.environ.copy()
+    env["X509_USER_PROXY"] = PROXY_PEM
+    env["X509_CERT_DIR"] = CA_DIR
+    return env
+
+
+def _assert_success(result):
+    assert result.returncode == 0, (
+        result.returncode, result.stderr.decode(errors="replace")
+    )
+
+
+def _assert_path_content(path, expected):
+    with open(path, "rb") as stream:
+        actual = stream.read()
+    assert actual == expected
+
+
+def _xrd_download(remote_url, output, env, cwd=None):
+    result = _run([XRDCP_BIN, "--allow-http", "--verbose", remote_url, output],
+                  env=env, cwd=cwd)
+    _assert_success(result)
+    return result
+
+
+def _wait_for_response(url, timeout):
+    response = None
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        try:
+            response = requests.get(url, cert=PROXY_PEM, verify=False, timeout=2)
+            if response.status_code == 200:
+                return response
+        except Exception:
+            pass
+        time.sleep(0.1)
+    return response
+
+
+def _assert_response(response, expected):
+    status = response.status_code if response else "no response"
+    assert response is not None and response.status_code == 200, f"expected 200, got {status}"
+    assert response.content == expected
+
+
+def _log_tail():
+    try:
+        with open(os.path.join(LOG_DIR, "error.log"), encoding="utf-8",
+                  errors="replace") as stream:
+            return stream.read()[-4096:]
+    except Exception:
+        return "(could not read log)"
+
+
+def _fallback_xrd(upload, local, remote_url, url_base, remote_name, env, cwd, content):
+    seed = _run(["curl", "-k", "--cert", PROXY_PEM, "-T", local,
+                 f"{url_base}/{remote_name}"])
+    _assert_success(seed)
+    output = local + ".from_xrdcp"
+    download = _run([XRDCP_BIN, "--allow-http", "--verbose", remote_url, output],
+                    env=env, cwd=cwd)
+    if download.returncode != 0:
+        pytest.fail(_xrd_failure_message(upload, download, _log_tail()))
+    _assert_path_content(output, content)
+
+
+def _xrd_failure_message(upload, download, log_tail):
+    return (
+        "xrdcp upload not observed in nginx log and xrdcp download failed\n"
+        f"xrdcp upload stdout:\n{upload.stdout.decode(errors='replace')}\n"
+        f"xrdcp upload stderr:\n{upload.stderr.decode(errors='replace')}\n"
+        f"xrdcp download stdout:\n{download.stdout.decode(errors='replace')}\n"
+        f"xrdcp download stderr:\n{download.stderr.decode(errors='replace')}\n"
+        f"nginx log tail:\n{log_tail}"
+    )
+
+
+def _xrd_upload(local, remote_url, env, cwd):
+    result = _run([XRDCP_BIN, "--allow-http", "--verbose", local, remote_url],
+                  env=env, cwd=cwd)
+    _assert_success(result)
+    return result
+
+
+def _wait_for_log(remote_name, timeout):
+    log_path = os.path.join(LOG_DIR, "error.log")
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        try:
+            with open(log_path, encoding="utf-8", errors="ignore") as stream:
+                if remote_name in stream.read():
+                    return True
+        except FileNotFoundError:
+            pass
+        time.sleep(0.2)
+    return False
+
+
 def _webdav_modes():
     return (
         {
@@ -123,8 +227,7 @@ def _wait_for_file_content(remote_name: str, expected: bytes, timeout: float) ->
 
 
 def test_xrdcp_upload_and_download():
-    if shutil.which(XRDCP_BIN) is None:
-        pytest.skip(f"{XRDCP_BIN} not found on PATH")
+    _require(XRDCP_BIN)
 
     port = WEBDAV_GSI_PORT
     url_base = WEBDAV_GSI_URL
@@ -134,9 +237,7 @@ def test_xrdcp_upload_and_download():
     remote_name = "xrdcp-upload.bin"
     remote_url = f"davs://{SERVER_HOST}:{port}//{remote_name}"
 
-    env = os.environ.copy()
-    env["X509_USER_PROXY"] = PROXY_PEM
-    env["X509_CERT_DIR"] = CA_DIR
+    env = _xrd_env()
 
     # Run xrdcp from a temp dir so that if XrdClHttp plugin is missing and
     # xrdcp falls back to treating davs:// as a local path, the artifacts
@@ -144,60 +245,19 @@ def test_xrdcp_upload_and_download():
     xrdcp_cwd = tempfile.mkdtemp()
 
     # Upload with xrdcp using HTTP (davs)
-    r = _run([XRDCP_BIN, "--allow-http", "--verbose", local, remote_url], env=env, cwd=xrdcp_cwd)
-    assert r.returncode == 0, (r.returncode, r.stderr.decode())
+    upload = _xrd_upload(local, remote_url, env, xrdcp_cwd)
 
     if not _wait_for_file_content(remote_name, content, timeout=8):
-        # Upload not observed. Try to seed the file via curl, then verify
-        # that xrdcp can download it (exercise xrdcp as a davs client).
-        seed = _run(["curl", "-k", "--cert", PROXY_PEM, "-T", local, f"{url_base}/{remote_name}"])
-        assert seed.returncode == 0, (seed.returncode, seed.stderr.decode(errors="replace"))
-
-        out_local = local + ".from_xrdcp"
-        r2 = _run([XRDCP_BIN, "--allow-http", "--verbose", f"davs://{SERVER_HOST}:{port}//{remote_name}", out_local],
-                  env=env, cwd=xrdcp_cwd)
-        if r2.returncode != 0:
-            # Collect diagnostics for debugging failures
-            log_tail = ""
-            log_path = os.path.join(LOG_DIR, "error.log")
-            try:
-                with open(log_path, encoding="utf-8", errors="replace") as fh:
-                    log_tail = fh.read()[-4096:]
-            except Exception:
-                log_tail = "(could not read log)"
-            pytest.fail(
-                "xrdcp upload not observed in nginx log and xrdcp download failed\n"
-                f"xrdcp upload stdout:\n{r.stdout.decode(errors='replace')}\n"
-                f"xrdcp upload stderr:\n{r.stderr.decode(errors='replace')}\n"
-                f"xrdcp download stdout:\n{r2.stdout.decode(errors='replace')}\n"
-                f"xrdcp download stderr:\n{r2.stderr.decode(errors='replace')}\n"
-                f"nginx log tail:\n{log_tail}"
-            )
-
-        with open(out_local, "rb") as fh:
-            assert fh.read() == content
+        _fallback_xrd(upload, local, remote_url, url_base, remote_name,
+                      env, xrdcp_cwd, content)
         return
 
-    # Download via requests using the client proxy cert (verify disabled).
-    resp = None
-    deadline = time.time() + 5
-    while time.time() < deadline:
-        try:
-            resp = requests.get(f"{url_base}/{remote_name}", cert=PROXY_PEM, verify=False, timeout=2)
-            if resp.status_code == 200:
-                break
-        except Exception:
-            pass
-        time.sleep(0.1)
-    assert resp is not None and resp.status_code == 200, f"expected 200, got {resp.status_code if resp else 'no response'}"
-    assert resp.content == content
+    response = _wait_for_response(f"{url_base}/{remote_name}", 5)
+    _assert_response(response, content)
 
-    # Now download with xrdcp back to a different local path
     out_local = local + ".out"
-    r2 = _run([XRDCP_BIN, "--allow-http", remote_url, out_local], env=env)
-    assert r2.returncode == 0, (r2.returncode, r2.stderr.decode())
-    with open(out_local, "rb") as fh:
-        assert fh.read() == content
+    _xrd_download(remote_url, out_local, env)
+    _assert_path_content(out_local, content)
 
 
 def test_curl_upload_and_download(webdav_mode):
@@ -228,8 +288,7 @@ def test_curl_upload_and_download(webdav_mode):
 
 @pytest.mark.timeout(45)
 def test_xrdcp_large_upload_and_download():
-    if shutil.which(XRDCP_BIN) is None:
-        pytest.skip(f"{XRDCP_BIN} not found on PATH")
+    _require(XRDCP_BIN)
 
     port = WEBDAV_GSI_PORT
     url_base = WEBDAV_GSI_URL
@@ -239,42 +298,22 @@ def test_xrdcp_large_upload_and_download():
     remote_name = "xrdcp-large.bin"
     remote_url = f"davs://{SERVER_HOST}:{port}//{remote_name}"
 
-    env = os.environ.copy()
-    env["X509_USER_PROXY"] = PROXY_PEM
-    env["X509_CERT_DIR"] = CA_DIR
+    env = _xrd_env()
 
     xrdcp_cwd = tempfile.mkdtemp()
 
-    r = _run([XRDCP_BIN, "--allow-http", "--verbose", local, remote_url], env=env, cwd=xrdcp_cwd)
-    assert r.returncode == 0, (r.returncode, r.stderr.decode(errors="replace"))
+    _xrd_upload(local, remote_url, env, xrdcp_cwd)
 
     if not _wait_for_file_content(remote_name, content, timeout=15):
-        # seed with curl and then verify xrdcp can download the seeded file
         seed = _run(["curl", "-k", "--cert", PROXY_PEM, "-T", local, f"{url_base}/{remote_name}"])
-        assert seed.returncode == 0, (seed.returncode, seed.stderr.decode(errors="replace"))
-
+        _assert_success(seed)
         out_local = local + ".from_xrdcp"
-        r2 = _run([XRDCP_BIN, "--allow-http", "--verbose", f"davs://{SERVER_HOST}:{port}//{remote_name}", out_local],
-                  env=env, cwd=xrdcp_cwd)
-        assert r2.returncode == 0, (r2.returncode, r2.stderr.decode(errors="replace"))
-        with open(out_local, "rb") as fh:
-            assert fh.read() == content
+        _xrd_download(remote_url, out_local, env, xrdcp_cwd)
+        _assert_path_content(out_local, content)
         return
 
-    # If upload was observed, GET and verify
-    resp = None
-    deadline = time.time() + 10
-    while time.time() < deadline:
-        try:
-            resp = requests.get(f"{url_base}/{remote_name}", cert=PROXY_PEM, verify=False, timeout=5)
-            if resp.status_code == 200:
-                break
-        except Exception:
-            pass
-        time.sleep(0.2)
-
-    assert resp is not None and resp.status_code == 200, f"expected 200, got {resp.status_code if resp else 'no response'}"
-    assert resp.content == content
+    response = _wait_for_response(f"{url_base}/{remote_name}", 10)
+    _assert_response(response, content)
 
 
 @pytest.mark.timeout(45)
@@ -294,22 +333,7 @@ def test_curl_large_upload_and_download(webdav_mode):
     r = _run(["curl", "-k", *curl_auth, "-T", local, upload_url])
     assert r.returncode == 0, (r.returncode, r.stderr.decode(errors="replace"))
 
-    # Wait for nginx to log the upload
-    log_path = os.path.join(LOG_DIR, "error.log")
-    seen = False
-    deadline = time.time() + 15
-    while time.time() < deadline:
-        try:
-            with open(log_path, encoding="utf-8", errors="ignore") as fh:
-                data = fh.read()
-            if remote_name in data:
-                seen = True
-                break
-        except FileNotFoundError:
-            pass
-        time.sleep(0.2)
-
-    assert seen, "curl upload not observed in nginx log"
+    assert _wait_for_log(remote_name, 15), "curl upload not observed in nginx log"
 
     # Download with curl and capture stdout
     r2 = subprocess.run(

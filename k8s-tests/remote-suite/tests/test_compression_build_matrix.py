@@ -46,8 +46,7 @@ def test_codec_nolib_graceful_degrade(tmp_path):
     """Compile + run the no-optional-lib codec build and assert every optional
     codec degrades to available=0 / open()->NULL while zlib stays live."""
     src = os.path.join(CDIR, "codec_nolib_test.c")
-    if not os.path.isfile(src):
-        pytest.skip("codec_nolib_test.c not present")
+    _require_source(src, "codec_nolib_test.c not present")
 
     binp = str(tmp_path / "codec_nolib_test")
     # zlib backend compiled in (-DBRIX_HAVE_ZLIB, -lz); the 5 optional backends
@@ -65,16 +64,29 @@ def test_codec_nolib_graceful_degrade(tmp_path):
         "-o", binp, "-lz",
     ]
     cc = subprocess.run(cmd, capture_output=True, text=True)
-    if cc.returncode != 0:
-        # A missing compiler/zlib header is an environment problem, not a failure.
-        if "zlib.h" in cc.stderr or "cc:" in cc.stderr.lower():
-            pytest.skip(f"toolchain/zlib unavailable:\n{cc.stderr[:400]}")
-        pytest.fail(f"no-lib codec build failed to COMPILE:\n{cc.stderr[:1500]}")
+    _check_nolib_compile(cc)
 
     run = subprocess.run([binp], capture_output=True, text=True, timeout=60)
     assert run.returncode == 0, (
         f"graceful-degrade matrix FAILED:\n{run.stdout}\n{run.stderr}")
     assert "ALL PASSED" in run.stdout, run.stdout
+
+
+def _require_source(path, reason):
+    if not os.path.isfile(path):
+        pytest.skip(reason)
+
+
+def _check_nolib_compile(result):
+    if result.returncode == 0:
+        return
+    if _missing_zlib_toolchain(result.stderr):
+        pytest.skip(f"toolchain/zlib unavailable:\n{result.stderr[:400]}")
+    pytest.fail(f"no-lib codec build failed to COMPILE:\n{result.stderr[:1500]}")
+
+
+def _missing_zlib_toolchain(stderr):
+    return "zlib.h" in stderr or "cc:" in stderr.lower()
 
 
 # Per-codec drop matrix: (codec, HAVE-flag, link-libs). zlib is always kept.
@@ -99,33 +111,8 @@ def test_codec_per_codec_drop_independence(tmp_path, dropped):
     codecs are independent — removing one never disables another nor leaves a
     table hole — which the all-absent codec_nolib_test cannot show."""
     probe = os.path.join(CDIR, "codec_avail_probe.c")
-    if not os.path.isfile(probe):
-        pytest.skip("codec_avail_probe.c not present")
-
-    # lz4's header may live off the default include path (env hint mirrors config).
-    extra_cflags = []
-    lz4_inc = os.environ.get("BRIX_LZ4_CFLAGS", "")
-    if not lz4_inc:
-        for inc in ("/usr/include", os.path.expanduser("~/miniconda3/include"),
-                    "/opt/conda/include"):
-            if os.path.isfile(os.path.join(inc, "lz4frame.h")):
-                lz4_inc = "" if inc == "/usr/include" else f"-I{inc}"
-                break
-    if lz4_inc:
-        extra_cflags.append(lz4_inc)
-
-    cmd = [_cc(), "-std=c11", "-O2", "-Wall", "-Wextra", "-DBRIX_HAVE_ZLIB",
-           *extra_cflags, "-I", CM, probe,
-           os.path.join(CM, "codec_core.c"), os.path.join(CM, "codec_zlib.c")]
-    libs = ["-lz"]
-    kept = []
-    for name, flag, clibs in _OPT_CODECS:
-        cmd.append(os.path.join(CM, _CODEC_SRC[name]))   # always compile the TU
-        if name == dropped:
-            continue                                     # ...but WITHOUT its flag/lib
-        cmd.append(f"-D{flag}")
-        libs += clibs
-        kept.append(name)
+    _require_source(probe, "codec_avail_probe.c not present")
+    cmd, libs, kept = _drop_build_inputs(probe, dropped)
 
     binp = str(tmp_path / f"probe_drop_{dropped}")
     cc = subprocess.run([*cmd, "-o", binp, *libs], capture_output=True, text=True)
@@ -135,13 +122,47 @@ def test_codec_per_codec_drop_independence(tmp_path, dropped):
     run = subprocess.run([binp], capture_output=True, text=True, timeout=30)
     assert run.returncode == 0, run.stderr
     avail = dict(line.split() for line in run.stdout.split("\n") if line.strip())
+    _assert_drop_matrix(avail, kept, dropped, run.stdout)
 
-    assert avail.get("gzip") == "1", f"gzip must stay available: {run.stdout}"
-    assert avail.get(dropped) == "0", \
-        f"dropped codec {dropped} must be unavailable: {run.stdout}"
+
+def _drop_build_inputs(probe, dropped):
+    cmd = [_cc(), "-std=c11", "-O2", "-Wall", "-Wextra", "-DBRIX_HAVE_ZLIB",
+           *_lz4_cflags(), "-I", CM, probe,
+           os.path.join(CM, "codec_core.c"), os.path.join(CM, "codec_zlib.c")]
+    libs, kept = ["-lz"], []
+    for name, flag, codec_libs in _OPT_CODECS:
+        cmd.append(os.path.join(CM, _CODEC_SRC[name]))
+        if name != dropped:
+            cmd.append(f"-D{flag}")
+            libs.extend(codec_libs)
+            kept.append(name)
+    return cmd, libs, kept
+
+
+def _lz4_cflags():
+    configured = os.environ.get("BRIX_LZ4_CFLAGS", "")
+    if configured:
+        return [configured]
+    include = _find_lz4_include()
+    if include and include != "/usr/include":
+        return [f"-I{include}"]
+    return []
+
+
+def _find_lz4_include():
+    candidates = ("/usr/include", os.path.expanduser("~/miniconda3/include"),
+                  "/opt/conda/include")
+    return next((path for path in candidates
+                 if os.path.isfile(os.path.join(path, "lz4frame.h"))), None)
+
+
+def _assert_drop_matrix(available, kept, dropped, stdout):
+    assert available.get("gzip") == "1", f"gzip must stay available: {stdout}"
+    assert available.get(dropped) == "0", (
+        f"dropped codec {dropped} must be unavailable: {stdout}")
     for name in kept:
-        assert avail.get(name) == "1", \
-            f"kept codec {name} must stay available when {dropped} is dropped: {run.stdout}"
+        assert available.get(name) == "1", (
+            f"kept codec {name} must stay available when {dropped} is dropped: {stdout}")
 
 
 @pytest.mark.timeout(900)   # full nginx + dynamic-module build is ~90s+, far over the 30s default

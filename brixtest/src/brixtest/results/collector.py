@@ -1,18 +1,15 @@
-"""The result collector (feature F21): full per-test capture, on disk
-and in the store.
+"""Collect per-test reports, output, resource use, and service logs.
 
 The plugin drives it from the pytest report stream: ``start_test``
-opens a record (and marks every relevant server log so the slice a
-test gets is *its* slice, not the whole file — the F17 scoping rule),
+opens a record and marks every relevant server log so each test gets
+only the log slice produced during that test,
 ``record_report`` folds in each phase as pytest produces it, and
 ``finish_test`` writes the test's output directory and the store row.
 
 Open records are keyed by nodeid, never held as "the" current test:
 under xdist the controller receives the workers' logstart/logreport/
 logfinish streams *interleaved*, so at any moment one record per
-worker is open — a single-current-record collector silently drops
-whichever test another worker started over (found by counting store
-rows against the run: 11 of 13).
+worker may be open concurrently.
 
 The output directory is the full account —
 
@@ -22,9 +19,8 @@ The output directory is the full account —
         stderr.txt      captured stderr, all phases, complete
         logs/<name>.log what each of its servers logged DURING the test
 
-— nothing truncated: the failure text in the record is pytest's whole
-longrepr, and the directory name is derived from the nodeid plus a
-short hash so two parametrized cousins can never share a directory.
+The failure text is the complete pytest long representation. Directory
+names combine the node ID with a short hash to avoid collisions.
 """
 
 from __future__ import annotations
@@ -51,7 +47,7 @@ def new_run_id() -> str:
 
 
 def _safe_dir(nodeid: str) -> str:
-    digest = hashlib.sha1(nodeid.encode()).hexdigest()[:8]
+    digest = hashlib.sha256(nodeid.encode()).hexdigest()[:8]
     stem = _SAFE_RE.sub("-", nodeid.rsplit("/", 1)[-1]).strip("-")[:80]
     return "%s-%s" % (stem or "test", digest)
 
@@ -81,12 +77,7 @@ class ResultCollector:
         self._counts: Dict[str, int] = {}
         self._run_started = time.monotonic()
         self._open: Dict[str, _OpenTest] = {}
-        # note_* callers (workspace fixture, artifact observer) carry no
-        # nodeid; serially exactly one test is open, so "latest started"
-        # is exact there and best-effort under xdist.
         self._current = ""
-
-    # -- run lifecycle ---------------------------------------------------
 
     def begin_run(self) -> None:
         (self.run_dir / "tests").mkdir(parents=True, exist_ok=True)
@@ -99,8 +90,6 @@ class ResultCollector:
         self.store.finish_run(self.info)
         (self.run_dir / "run.json").write_text(self.info.to_json() + "\n")
         return self.info
-
-    # -- test lifecycle --------------------------------------------------
 
     def start_test(
         self,
@@ -141,6 +130,29 @@ class ResultCollector:
         if open_test is not None and name not in open_test.record.artifacts:
             open_test.record.artifacts.append(name)
 
+    @staticmethod
+    def _teardown_metrics(record, report) -> None:
+        properties = getattr(report, "user_properties", ())
+        _apply_probe_metrics(record, read_probe_properties(properties))
+        for pair in properties or ():
+            _apply_dynamic_servers(record, pair)
+
+    @staticmethod
+    def _captured_output(open_test, report, stdout: str, stderr: str) -> None:
+        if stdout:
+            open_test.stdout.append("----- %s -----\n%s" % (report.when, stdout))
+        if stderr:
+            open_test.stderr.append("----- %s -----\n%s" % (report.when, stderr))
+
+    @staticmethod
+    def _report_outcome(record, report) -> None:
+        if report.outcome == "failed" and not record.failure:
+            record.failure = getattr(report, "longreprtext", "") or str(
+                getattr(report, "longrepr", "")
+            )
+        if hasattr(report, "wasxfail"):
+            record.outcome = "xpassed" if report.outcome == "passed" else "xfailed"
+
     def record_report(self, report) -> None:
         """Fold one pytest ``TestReport`` (setup | call | teardown) in."""
         open_test = self._open.get(report.nodeid)
@@ -157,32 +169,9 @@ class ResultCollector:
             stderr_chars=len(stderr),
         ))
         if report.when == "teardown":
-            # the probe's verdict rides the last report (works over xdist)
-            properties = getattr(report, "user_properties", ())
-            probed = read_probe_properties(properties)
-            if probed:
-                record.cpu_seconds = probed.get("brixtest_cpu_s", 0.0)
-                record.rss_delta_kb = int(probed.get("brixtest_rss_delta_kb", 0))
-                record.maxrss_kb = int(probed.get("brixtest_maxrss_kb", 0))
-            for pair in properties or ():
-                # dynamic servers requested on an xdist worker arrive as
-                # names only; their logs stay in the lane, unsliced
-                if pair[0] == "brixtest_dynamic":
-                    for name in str(pair[1]).split(","):
-                        if name and name not in record.dynamic_servers:
-                            record.dynamic_servers.append(name)
-        if stdout:
-            open_test.stdout.append("----- %s -----\n%s" % (report.when, stdout))
-        if stderr:
-            open_test.stderr.append("----- %s -----\n%s" % (report.when, stderr))
-        if report.outcome == "failed" and not record.failure:
-            record.failure = getattr(report, "longreprtext", "") or str(
-                getattr(report, "longrepr", "")
-            )
-        if hasattr(report, "wasxfail"):
-            record.outcome = (
-                "xpassed" if report.outcome == "passed" else "xfailed"
-            )
+            self._teardown_metrics(record, report)
+        self._captured_output(open_test, report, stdout, stderr)
+        self._report_outcome(record, report)
 
     def finish_test(self, nodeid: str) -> Optional[TestRecord]:
         open_test = self._open.pop(nodeid, None)
@@ -196,8 +185,6 @@ class ResultCollector:
         self._write_output_dir(open_test)
         self.store.add_test(record)
         return record
-
-    # -- the output directory --------------------------------------------
 
     def _write_output_dir(self, open_test: _OpenTest) -> None:
         record = open_test.record
@@ -214,6 +201,22 @@ class ResultCollector:
                 logs_dir.mkdir(exist_ok=True)
                 (logs_dir / ("%s.log" % name)).write_text(slice_text)
         (out / "record.json").write_text(record.to_json() + "\n")
+
+
+def _apply_probe_metrics(record, probed) -> None:
+    if not probed:
+        return
+    record.cpu_seconds = probed.get("brixtest_cpu_s", 0.0)
+    record.rss_delta_kb = int(probed.get("brixtest_rss_delta_kb", 0))
+    record.maxrss_kb = int(probed.get("brixtest_maxrss_kb", 0))
+
+
+def _apply_dynamic_servers(record, pair) -> None:
+    if pair[0] != "brixtest_dynamic":
+        return
+    for name in str(pair[1]).split(","):
+        if name and name not in record.dynamic_servers:
+            record.dynamic_servers.append(name)
 
 
 def _utc_now() -> str:

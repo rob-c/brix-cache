@@ -1,4 +1,25 @@
 from split_continuation import reexport as _reexport
+def _expression_1(count):
+    return (
+        [(f"user.mv{i}", f"VAL-{i}") for i in range(count)]
+    )
+
+def _expression_2(o_map):
+    return (
+        {bare(k): _as_text(v) for k, v in o_map.items()}
+    )
+
+def _expression_3(f_map):
+    return (
+        {bare(k): _as_text(v) for k, v in f_map.items()}
+    )
+
+
+def _check_test_bindings_multi_set_list_value_parity_1(o_by_bare, f_by_bare):
+    assert o_by_bare == f_by_bare, \
+        f"list values (by bare name) differ: ours={o_by_bare} stock={f_by_bare}"
+
+
 _reexport(globals(), "_test_conf_fattr_helpers")
 
 @needs_bindings
@@ -195,9 +216,12 @@ def test_bindings_multi_set_list_count_parity(srv, count):
         _set(url, rel, pairs)
     o_st, o_map = _list(srv["our"], rel)
     f_st, f_map = _list(srv["off"], rel)
-    assert o_st.ok and f_st.ok, "multi-list should succeed on both"
-    assert len(f_map) == count, \
-        f"stock list count {len(f_map)} != {count} ({sorted(f_map)})"
+    def _assert_test_bindings_multi_set_list_count_parity_1():
+        assert o_st.ok and f_st.ok, "multi-list should succeed on both"
+        assert len(f_map) == count, \
+            f"stock list count {len(f_map)} != {count} ({sorted(f_map)})"
+
+    _assert_test_bindings_multi_set_list_count_parity_1()
     assert len(o_map) == len(f_map), \
         f"list count our-vs-stock differs: ours={sorted(o_map)} " \
         f"stock={sorted(f_map)}"
@@ -210,7 +234,7 @@ def test_bindings_multi_set_list_value_parity(srv, count):
     stock when keyed by the bare attribute name (tail after the last
     namespace component), independent of any leaked prefix."""
     rel = _scratch(srv)
-    pairs = [(f"user.mv{i}", f"VAL-{i}") for i in range(count)]
+    pairs = _expression_1(count)
     for url in (srv["our"], srv["off"]):
         _set(url, rel, pairs)
     _, o_map = _list(srv["our"], rel)
@@ -220,10 +244,9 @@ def test_bindings_multi_set_list_value_parity(srv, count):
         # strip any leading "U." internal prefix and keep the user.<tail> form
         return name[2:] if name.startswith("U.") else name
 
-    o_by_bare = {bare(k): _as_text(v) for k, v in o_map.items()}
-    f_by_bare = {bare(k): _as_text(v) for k, v in f_map.items()}
-    assert o_by_bare == f_by_bare, \
-        f"list values (by bare name) differ: ours={o_by_bare} stock={f_by_bare}"
+    o_by_bare = _expression_2(o_map)
+    f_by_bare = _expression_3(f_map)
+    _check_test_bindings_multi_set_list_value_parity_1(o_by_bare, f_by_bare)
 
 
 @needs_bindings

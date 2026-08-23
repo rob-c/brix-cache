@@ -1,4 +1,60 @@
 from split_continuation import reexport as _reexport
+def _expression_1_next(msg):
+    return (
+        any(k in msg for k in ("no such", "not found", "doesn't exist", "does not exist"))
+    )
+
+def _expression_2_next(msg):
+    return (
+        any(k in msg for k in ("permission", "not authoriz", "denied"))
+    )
+
+def _expression_3_next(msg):
+    return (
+        any(k in msg for k in ("is a directory", "isdirectory", "is directory"))
+    )
+
+def _expression_4(msg):
+    return (
+        any(k in msg for k in ("path", "invalid", "illegal"))
+    )
+
+
+def _expression_1(n_listing):
+    return (
+        {e.name: e.statinfo.size for e in n_listing if e.statinfo}
+    )
+
+def _expression_2(r_listing):
+    return (
+        {e.name: e.statinfo.size for e in r_listing if e.statinfo}
+    )
+
+def _expression_3(status):
+    return (
+        (status.message or "").lower()
+    )
+
+
+def _phase_test_dstat_per_entry_sizes_match_individual_stat_1(name):
+    try:
+        _fs(NGINX_URL).rm(f"/{name}")
+    except Exception:
+        pass
+
+
+def _check_test_dstat_per_entry_sizes_match_individual_stat_1(n_st, r_st):
+    assert n_st.ok and r_st.ok, (
+        f"dirlist failed (nginx={n_st.message!r}, ref={r_st.message!r})"
+    )
+
+def _check_test_dstat_per_entry_sizes_match_individual_stat_2(expected_size, n_sizes, name, r_sizes):
+    assert n_sizes[name] == r_sizes[name] == expected_size, (
+        f"{name}: size mismatch nginx={n_sizes[name]} "
+        f"ref={r_sizes[name]} expected={expected_size}"
+    )
+
+
 _reexport(globals(), "_test_interop_query_helpers")
 
 class TestErrorCodeFamilies:
@@ -8,15 +64,15 @@ class TestErrorCodeFamilies:
     """
 
     def _error_family(self, status):
-        msg = (status.message or "").lower()
+        msg = _expression_3(status)
         if not status.ok:
-            if any(k in msg for k in ("no such", "not found", "doesn't exist", "does not exist")):
+            if _expression_1_next(msg):
                 return "not_found"
-            if any(k in msg for k in ("permission", "not authoriz", "denied")):
+            if _expression_2_next(msg):
                 return "permission"
-            if any(k in msg for k in ("is a directory", "isdirectory", "is directory")):
+            if _expression_3_next(msg):
                 return "is_directory"
-            if any(k in msg for k in ("path", "invalid", "illegal")):
+            if _expression_4(msg):
                 return "invalid_path"
             return "error"
         return "ok"
@@ -147,26 +203,21 @@ class TestDirlistFlagsConformance:
 
             n_st, n_listing = _dirlist_retry(_fs(NGINX_URL), "//")
             r_st, r_listing = _dirlist_retry(_fs(REF_URL  ), "//")
-            assert n_st.ok and r_st.ok, (
-                f"dirlist failed (nginx={n_st.message!r}, ref={r_st.message!r})"
-            )
+            _check_test_dstat_per_entry_sizes_match_individual_stat_1(n_st, r_st)
 
-            n_sizes = {e.name: e.statinfo.size for e in n_listing if e.statinfo}
-            r_sizes = {e.name: e.statinfo.size for e in r_listing if e.statinfo}
+            n_sizes = _expression_1(n_listing)
+            r_sizes = _expression_2(r_listing)
 
             for name, expected_size in names:
-                assert name in n_sizes, f"nginx dirlist missing {name}"
-                assert name in r_sizes, f"ref dirlist missing {name}"
-                assert n_sizes[name] == r_sizes[name] == expected_size, (
-                    f"{name}: size mismatch nginx={n_sizes[name]} "
-                    f"ref={r_sizes[name]} expected={expected_size}"
-                )
+                def _assert_test_dstat_per_entry_sizes_match_individual_stat_1():
+                    assert name in n_sizes, f"nginx dirlist missing {name}"
+                    assert name in r_sizes, f"ref dirlist missing {name}"
+
+                _assert_test_dstat_per_entry_sizes_match_individual_stat_1()
+                _check_test_dstat_per_entry_sizes_match_individual_stat_2(expected_size, n_sizes, name, r_sizes)
         finally:
             for name, _ in names:
-                try:
-                    _fs(NGINX_URL).rm(f"/{name}")
-                except Exception:
-                    pass
+                _phase_test_dstat_per_entry_sizes_match_individual_stat_1(name)
 
     def test_dirlist_without_dstat_agrees_on_names(self):
         n_st, n_listing = _dirlist_retry(_fs(NGINX_URL), "//", DirListFlags.NONE)

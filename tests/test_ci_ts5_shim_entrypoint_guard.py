@@ -24,6 +24,13 @@ import sys
 
 import pytest
 
+def _check_test_the_guard_never_writes_to_the_tree_it_checks_1(root):
+    assert _run(root).returncode == 0
+
+def _check_test_the_guard_never_writes_to_the_tree_it_checks_2(before, after):
+    assert before == after, "the guard modified the tree it was asked to inspect"
+
+
 TESTS = pathlib.Path(__file__).resolve().parent
 GUARD = TESTS.parent / "tools" / "ci" / "check_shim_entrypoints.py"
 
@@ -266,6 +273,6 @@ def test_the_guard_never_writes_to_the_tree_it_checks(tmp_path):
     """A read-only guard, proven read-only — it is pointed at the real tree in CI."""
     root = _tree(tmp_path)
     before = {p: p.stat().st_mtime_ns for p in sorted(root.rglob("*")) if p.is_file()}
-    assert _run(root).returncode == 0
+    _check_test_the_guard_never_writes_to_the_tree_it_checks_1(root)
     after = {p: p.stat().st_mtime_ns for p in sorted(root.rglob("*")) if p.is_file()}
-    assert before == after, "the guard modified the tree it was asked to inspect"
+    _check_test_the_guard_never_writes_to_the_tree_it_checks_2(before, after)

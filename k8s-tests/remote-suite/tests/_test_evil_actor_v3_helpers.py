@@ -65,6 +65,22 @@ from settings import NGINX_BIN, REMOTE_SERVER, HOST, BIND_HOST
 BIGFILE_MB = 32
 SHIM_DELAY_US = int(os.environ.get("XRD_RACE_DELAY_US", "15000"))
 SHIM_SAN = os.environ.get("TEST_EVIL_SHIM_SAN", "")          # ""|address|thread
+
+
+def _constrained_environment():
+    names = ("CI", "TEST_HOST_CONSTRAINED", "WSL_INTEROP", "WSL_DISTRO_NAME")
+    return any(os.environ.get(name) for name in names)
+
+
+def _proc_version_is_wsl():
+    try:
+        with open("/proc/version") as source:
+            version = source.read().lower()
+    except OSError:
+        return False
+    return "microsoft" in version or "wsl" in version
+
+
 def _host_is_constrained():
     """True on hosts that are slow at the socket connect/RST churn these
     adversarial loops generate (WSL2, CI runners).
@@ -78,19 +94,11 @@ def _host_is_constrained():
     of rounds, so fewer rounds keeps the coverage that matters while staying
     inside the timeout.  An explicit TEST_EVIL_V3_ROUNDS always overrides this.
     """
-    if (os.environ.get("CI") or os.environ.get("TEST_HOST_CONSTRAINED")
-            or os.environ.get("WSL_INTEROP") or os.environ.get("WSL_DISTRO_NAME")):
+    if _constrained_environment():
         return True
     if os.path.isdir("/run/WSL"):                  # WSL interop socket dir
         return True
-    try:
-        with open("/proc/version") as f:
-            v = f.read().lower()
-            if "microsoft" in v or "wsl" in v:     # WSL1 / WSL2 (incl. custom kernels)
-                return True
-    except OSError:
-        pass
-    return False
+    return _proc_version_is_wsl()
 
 
 _CONSTRAINED = _host_is_constrained()
@@ -410,355 +418,11 @@ def _https_get(port, path, abort_after=None, timeout=5):
         return None, b""
 
 
-# ------------------------------- the server ---------------------------------
-
-class _Srv:
-    def __init__(self, prefix, conf, pidfile, ports, datadir, tsandir):
-        self.prefix = prefix; self.conf = conf; self.pidfile = pidfile
-        (self.root_port, self.root_tls_port,
-         self.https_port, self.metrics_port) = ports
-        self.datadir = datadir; self.tsandir = tsandir
-        self.master: "int | None" = None
-        self._mark = 0
-        self.have_xattr = False
-        self.frm_ok = False
-        self.near_names: "list[str]" = []
-        self.audit = ""
-        self.queue = ""
-
-    @property
-    def logfile(self):
-        return os.path.join(self.prefix, "logs", "error.log")
-
-    def mark(self):
-        try:
-            self._mark = os.path.getsize(self.logfile)
-        except OSError:
-            self._mark = 0
-
-    def _delta(self):
-        try:
-            with open(self.logfile, errors="replace") as f:
-                f.seek(self._mark); return f.read()
-        except OSError:
-            return ""
-
-    def _tsan_module_races(self):
-        if not self.tsandir or not os.path.isdir(self.tsandir):
-            return ""
-        hits = []
-        for fn in os.listdir(self.tsandir):
-            try:
-                txt = open(os.path.join(self.tsandir, fn), errors="replace").read()
-            except OSError:
-                continue
-            if "data race" not in txt:
-                continue
-            if any(m in txt for m in ("/src/core/aio/", "/src/protocols/root/read/", "/src/protocols/root/write/",
-                                      "/src/fs/cache/", "/src/protocols/root/session/", "/src/protocols/root/connection/",
-                                      "/src/frm/", "_aio_thread", "_aio_done",
-                                      "read_scratch", "payload_to_free", "ctx->destroyed",
-                                      "brix_")):
-                hits.append(fn)
-        return ",".join(hits)
-
-    def assert_no_crash(self, phase):
-        """Crash/race/liveness check WITHOUT a fresh ping — safe to call mid-flight
-        while attack threads saturate the listeners (a fresh ping would race the
-        load and false-positive)."""
-        delta = self._delta()
-        for pat in CRASH_PATTERNS:
-            assert pat not in delta, (
-                "WORKER BROKE during %s — %r in error log:\n%s"
-                % (phase, pat, delta[-2000:]))
-        races = self._tsan_module_races()
-        assert not races, "TSan module-frame DATA RACE during %s: %s" % (phase, races)
-        assert _alive(self.master), "master died during %s" % phase
-        assert _workers(self.master), "no workers after %s" % phase
-
-    def assert_healthy(self, phase):
-        self.assert_no_crash(phase)
-        assert _ping_ok_retry(self.root_port), "server not serving after %s" % phase
+def _load_continuation(filename):
+    path = os.path.join(os.path.dirname(__file__), filename)
+    with open(path, encoding="utf-8") as source:
+        exec(compile(source.read(), path, "exec"), globals())
 
 
-def _build_shim(workdir):
-    src = os.path.join(os.path.dirname(__file__), "race_shim.c")
-    so = os.path.join(workdir, "librace.so")
-    cmd = ["cc", "-shared", "-fPIC", "-O0", "-g", "-o", so, src, "-ldl", "-lpthread"]
-    if SHIM_SAN in ("address", "thread"):
-        cmd[1:1] = ["-fsanitize=" + SHIM_SAN]
-    r = subprocess.run(cmd, capture_output=True, text=True)
-    if r.returncode != 0:
-        return None, r.stderr
-    return so, ""
+_load_continuation("_test_evil_actor_v3_runtime.py")
 
-
-def _xattr_ok(tmp):
-    try:
-        p = os.path.join(tmp, ".xattrprobe")
-        open(p, "w").close()
-        os.setxattr(p, "user.frm.test", b"1")
-        os.remove(p)
-        return True
-    except Exception:
-        return False
-
-
-def _gen_cert(prefix):
-    cert = os.path.join(prefix, "cert.pem")
-    key = os.path.join(prefix, "key.pem")
-    r = subprocess.run(
-        ["openssl", "req", "-x509", "-newkey", "rsa:2048", "-keyout", key,
-         "-out", cert, "-days", "1", "-nodes", "-subj", "/CN=127.0.0.1",
-         "-addext", "subjectAltName=IP:127.0.0.1"],
-        capture_output=True, text=True)
-    if r.returncode != 0 or not os.path.exists(cert):
-        return None, None
-    return cert, key
-
-
-@pytest.fixture(scope="module")
-def srv(tmp_path_factory):
-    if REMOTE_SERVER:
-        pytest.skip("self-contained; not REMOTE")
-    if not os.path.exists(NGINX_BIN):
-        pytest.skip("nginx not built at %s" % NGINX_BIN)
-    for tool in ("pgrep", "cc", "openssl"):
-        if shutil.which(tool) is None:
-            pytest.skip("%s required" % tool)
-
-    prefix = tempfile.mkdtemp(prefix="evil3-")
-    datadir = os.path.join(prefix, "data")
-    tapedir = os.path.join(prefix, "tape")
-    tsandir = os.path.join(prefix, "tsan")
-    for d in (os.path.join(prefix, "logs"), datadir, tapedir, tsandir):
-        os.makedirs(d, exist_ok=True)
-
-    have_xattr = _xattr_ok(datadir)
-
-    shim, err = _build_shim(prefix)
-    if shim is None:
-        shutil.rmtree(prefix, ignore_errors=True)
-        pytest.skip("could not build race shim: %s" % err[-300:])
-
-    cert, key = _gen_cert(prefix)
-    if cert is None:
-        shutil.rmtree(prefix, ignore_errors=True)
-        pytest.skip("could not generate self-signed cert")
-
-    # data files
-    big = os.path.join(datadir, "big.bin")
-    chunk = bytes((i * 31 + 7) & 0xFF for i in range(65536))
-    with open(big, "wb") as f:
-        for _ in range(BIGFILE_MB * 16):
-            f.write(chunk)
-    for nm in ("shared.bin", "w.bin", "xp.bin"):
-        with open(os.path.join(datadir, nm), "wb") as f:
-            f.write(chunk * 8)
-
-    # FRM nearline files (file=stub, real bytes on "tape")
-    copycmd = os.path.join(prefix, "copycmd.sh")
-    shutil.copy(os.path.join(os.path.dirname(__file__), "frm_fake_mss.sh"), copycmd)
-    os.chmod(copycmd, 0o755)
-    audit = os.path.join(prefix, "audit.log")
-    near_names = []
-    if have_xattr:
-        tape_content = b"TAPE-" + b"z" * 4096 + b"\n"
-        with open(os.path.join(tapedir, "near.dat"), "wb") as f:
-            f.write(tape_content)
-        open(os.path.join(datadir, "near.dat"), "wb").close()
-        os.setxattr(os.path.join(datadir, "near.dat"), "user.frm.residency", b"nearline")
-        # a pool of distinct nearline stubs for the flood phase
-        for i in range(60):
-            nm = "near%03d.dat" % i
-            with open(os.path.join(tapedir, nm), "wb") as f:
-                f.write(b"T%03d" % i + b"q" * 512)
-            open(os.path.join(datadir, nm), "wb").close()
-            os.setxattr(os.path.join(datadir, nm), "user.frm.residency", b"nearline")
-            near_names.append("/" + nm)
-
-    queue = os.path.join(prefix, "frm.queue")
-    frm_block = ""
-    if have_xattr:
-        frm_block = (
-            "        brix_frm on; brix_frm_queue_path %s;\n"
-            "        brix_frm_copycmd %s; brix_frm_copymax 4;\n"
-            "        brix_frm_async_recall on; brix_frm_stage_ttl 30s;\n"
-            "        brix_frm_xfrhold 50ms;\n"   # default 30s throttle -> fast drains for the test
-            "        brix_frm_max_inflight 64; brix_frm_max_per_source 16;\n"
-            % (queue, copycmd))
-
-    root_port, root_tls_port, https_port, metrics_port = _free_ports(4)
-    for p in (root_port, root_tls_port, https_port, metrics_port):
-        if _reachable(p):
-            shutil.rmtree(prefix, ignore_errors=True)
-            pytest.skip("port %d in use" % p)
-
-    conf = ("""
-worker_processes %d;
-daemon on;
-master_process on;
-pid %s/logs/nginx.pid;
-error_log %s/logs/error.log info;
-thread_pool aiopool threads=4 max_queue=8192;
-env FRM_DATA_DIR; env FRM_TAPE_DIR; env FRM_LATENCY_MS; env FRM_AUDIT_LOG; env FRM_FAIL_MODE;
-events { worker_connections 1024; }
-stream {
-    server {
-        listen %s:%d reuseport;
-        brix_root on; brix_storage_backend posix:%s; brix_auth none; brix_allow_write on;
-        brix_thread_pool aiopool; brix_memory_budget 6m;
-%s    }
-    server {
-        listen %s:%d reuseport;
-        brix_root on; brix_storage_backend posix:%s; brix_auth none; brix_allow_write on;
-        brix_thread_pool aiopool; brix_memory_budget 6m;
-        brix_tls on; brix_certificate %s; brix_certificate_key %s;
-    }
-}
-http {
-    access_log off;
-    client_body_temp_path %s/logs/cbt; proxy_temp_path %s/logs/pt;
-    fastcgi_temp_path %s/logs/ft; uwsgi_temp_path %s/logs/ut; scgi_temp_path %s/logs/st;
-    server {
-        listen %s:%d ssl;
-        ssl_certificate %s; ssl_certificate_key %s;
-        location = /metrics { brix_metrics on; }
-        location /s3b/ { brix_s3 on; brix_storage_backend posix:%s; brix_s3_bucket s3b;
-                         brix_s3_region us-east-1; }
-        location / { brix_webdav on; brix_storage_backend posix:%s; brix_webdav_auth none;
-                     brix_allow_write on; }
-    }
-    server {
-        listen %s:%d;
-        location = /metrics { brix_metrics on; }
-    }
-}
-""" % (WORKERS, prefix, prefix,
-       BIND_HOST, root_port, datadir, frm_block,
-       BIND_HOST, root_tls_port, datadir, cert, key,
-       prefix, prefix, prefix, prefix, prefix,
-       BIND_HOST, https_port, cert, key, datadir, datadir,
-       BIND_HOST, metrics_port))
-    conf_path = os.path.join(prefix, "nginx.conf")
-    open(conf_path, "w").write(conf)
-    pidfile = os.path.join(prefix, "logs", "nginx.pid")
-
-    env = dict(os.environ)
-    pre = env.get("LD_PRELOAD", "")
-    san_rt = ""
-    if SHIM_SAN in ("address", "thread"):
-        want = "libasan.so" if SHIM_SAN == "address" else "libtsan.so"
-        try:
-            ldd = subprocess.run(["ldd", NGINX_BIN], capture_output=True, text=True).stdout
-            for line in ldd.splitlines():
-                if want in line and "=>" in line:
-                    cand = line.split("=>", 1)[1].strip().split(" ", 1)[0]
-                    if cand and os.path.exists(cand):
-                        san_rt = cand
-                    break
-        except Exception:
-            san_rt = ""
-    env["LD_PRELOAD"] = " ".join(x for x in (san_rt, pre, shim) if x)
-    env["XRD_RACE_DELAY_US"] = str(SHIM_DELAY_US)
-    env.update(FRM_DATA_DIR=os.path.realpath(datadir), FRM_TAPE_DIR=tapedir,
-               FRM_LATENCY_MS=str(FRM_LATENCY_MS), FRM_AUDIT_LOG=audit)
-    if SHIM_SAN == "thread":
-        supp = os.path.join(prefix, "tsan.supp")
-        open(supp, "w").write(
-            "race:ngx_atomic_\nrace:^brix_metrics_\nrace:ngx_thread_pool_cycle\n"
-            "race:ngx_time_update\nrace:ngx_event_\ncalled_from_lib:libssl\n"
-            "called_from_lib:libcrypto\ncalled_from_lib:libjansson\n")
-        env["TSAN_OPTIONS"] = ("suppressions=%s:halt_on_error=0:exitcode=0:"
-                               "history_size=4:log_path=%s/tsan" % (supp, tsandir))
-    elif SHIM_SAN == "address":
-        env["ASAN_OPTIONS"] = "detect_leaks=0:abort_on_error=1:halt_on_error=1:verify_asan_link_order=0"
-
-    chk = subprocess.run([NGINX_BIN, "-t", "-p", prefix, "-c", conf_path],
-                         capture_output=True, text=True, env=env)
-    if chk.returncode != 0:
-        tail = (chk.stderr or chk.stdout).strip()[-500:]
-        shutil.rmtree(prefix, ignore_errors=True)
-        pytest.skip("nginx rejected config: %s" % tail)
-    run = subprocess.run([NGINX_BIN, "-p", prefix, "-c", conf_path],
-                         capture_output=True, text=True, env=env)
-    if run.returncode != 0 or not _wait_port(root_port):
-        tail = (run.stderr or run.stdout).strip()[-500:]
-        subprocess.run([NGINX_BIN, "-p", prefix, "-c", conf_path, "-s", "stop"],
-                       capture_output=True, env=env)
-        shutil.rmtree(prefix, ignore_errors=True)
-        pytest.skip("nginx did not start: %s" % tail)
-
-    s = _Srv(prefix, conf_path, pidfile, (root_port, root_tls_port, https_port, metrics_port),
-             datadir, tsandir)
-    s.master = _master_pid(pidfile)
-    s.have_xattr = have_xattr
-    s.near_names = near_names
-    s.audit = audit
-    s.queue = queue
-    # Determine FRM availability ONCE via the metrics endpoint (the brix_frm_*
-    # exporter is wired only when FRM is compiled + enabled) — NOT by opening a
-    # nearline file, which would trigger a real recall whose slow drain leaves the
-    # server sluggish for the first ~tens of seconds and flakes the early phases.
-    s.frm_ok = False
-    if have_xattr:
-        try:
-            with __import__("urllib.request", fromlist=["request"]).urlopen(
-                    "http://%s:%d/metrics" % (HOST, metrics_port), timeout=5) as resp:
-                s.frm_ok = b"brix_frm_" in resp.read()
-        except Exception:
-            s.frm_ok = False
-    if not s.master or not _alive(s.master):
-        subprocess.run([NGINX_BIN, "-p", prefix, "-c", conf_path, "-s", "stop"],
-                       capture_output=True, env=env)
-        shutil.rmtree(prefix, ignore_errors=True)
-        pytest.skip("master pid never appeared")
-    print("\n[evil3] master=%d root=%d roots_tls=%d https=%d metrics=%d shim=%s "
-          "delay=%dus workers=%s xattr=%s"
-          % (s.master, root_port, root_tls_port, https_port, metrics_port,
-             SHIM_SAN or "plain", SHIM_DELAY_US, _workers(s.master), have_xattr))
-    try:
-        yield s
-    finally:
-        subprocess.run([NGINX_BIN, "-p", prefix, "-c", conf_path, "-s", "stop"],
-                       capture_output=True, env=env)
-        time.sleep(0.3)
-        if s.master and _alive(s.master):
-            try: os.kill(s.master, 9)
-            except OSError: pass
-        shutil.rmtree(prefix, ignore_errors=True)
-
-
-# ----------------------- A1: roots:// TLS bring-up ---------------------------
-
-def _tls_available(srv):
-    try:
-        t = _roots_tls_connect(srv.root_tls_port)
-        t.close()
-        return True
-    except Exception:
-        return False
-
-
-# ----------------------- A2: TLS disconnect-mid-AIO --------------------------
-
-# ----------------------- B6: cross-worker bind -------------------------------
-
-# ----------------- B7: bind-vs-teardown TOCTOU + handle ABA ------------------
-
-# ------------- C1: FRM async asynresp deliver-into-recycled-conn -------------
-
-def _frm_skip(srv):
-    if not srv.have_xattr:
-        pytest.skip("filesystem lacks user xattrs (FRM residency)")
-    if not srv.frm_ok:
-        pytest.skip("FRM not compiled/enabled (nearline open not intercepted)")
-
-
-# ------------- C2: FRM reqid forgery — owner check ---------------------------
-
-# ------------------------- C3: FRM admission flood ---------------------------
-
-# --------------------------- D: chaos capstone -------------------------------
-
-__all__ = [n for n in dir() if not n.startswith('__')]

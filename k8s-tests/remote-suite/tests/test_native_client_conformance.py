@@ -159,6 +159,14 @@ def test_conformance_stat_missing(label, url, droot):
 # ls
 # --------------------------------------------------------------------------
 
+def _assert_ls_parity(native, system, label):
+    assert _ok(native.returncode) and _ok(system.returncode), \
+        f"[{label}] ls rc native={native.returncode} system={system.returncode}"
+    assert _ls_set(native.stdout) == _ls_set(system.stdout), (
+        f"[{label}] ls set differs:\n"
+        f"native={_ls_set(native.stdout)}\nsystem={_ls_set(system.stdout)}"
+    )
+
 @pytest.mark.parametrize("label,url,droot", ENDPOINTS, ids=EP_IDS)
 def test_conformance_ls_set(label, url, droot):
     uid = f"{os.getpid()}_{int(time.time()*1000)}"
@@ -169,12 +177,7 @@ def test_conformance_ls_set(label, url, droot):
     try:
         n = _run([XRDFS_BIN, url, "ls", f"/{sub}"])
         s = _run([SYS_XRDFS, url, "ls", f"/{sub}"])
-        assert _ok(n.returncode) and _ok(s.returncode), \
-            f"[{label}] ls rc native={n.returncode} system={s.returncode}"
-        assert _ls_set(n.stdout) == _ls_set(s.stdout), (
-            f"[{label}] ls set differs:\n"
-            f"native={_ls_set(n.stdout)}\nsystem={_ls_set(s.stdout)}"
-        )
+        _assert_ls_parity(n, s, label)
     finally:
         shutil.rmtree(os.path.join(droot, sub), ignore_errors=True)
 

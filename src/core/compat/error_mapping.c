@@ -34,63 +34,38 @@
 uint16_t
 brix_kxr_from_errno(int err)
 {
-    switch (err) {
-    case ENOENT:
-        return kXR_NotFound;
-
-    case EACCES:
-    case EPERM:
-    case EXDEV:    /* openat2 RESOLVE_BENEATH ".." path-escape */
-    case ELOOP:    /* RESOLVE_BENEATH/NO_MAGICLINKS rejecting an escaping symlink */
-        return kXR_NotAuthorized;
-
-    case ENOTEMPTY:
-    case EEXIST:
-        /* Reference mapError() returns kXR_ItExists for BOTH EEXIST and
-         * ENOTEMPTY (XProtocol.hh: a non-empty directory removal reports
-         * kXR_ItExists "until the next major release", not a generic FS error).
-         * Stock `xrdfs rm/rmdir` of a populated directory returns 3018 — match. */
-        return kXR_ItExists;
-
-    case ENOTDIR:
-        /* A non-directory in a path prefix (e.g. stat "/file/under/it") — the
-         * reference maps ENOTDIR to kXR_FSError ("Unable to locate ...; not a
-         * directory"), NOT kXR_NotFile.  Match it for stat/statx/rmdir parity. */
-        return kXR_FSError;
-
-    case ENOMEM:
-        return kXR_NoMemory;
-
-    case ENOSPC:
+    static const struct {
+        int      err;
+        uint16_t kxr;
+    } table[] = {
+        { ENOENT,    kXR_NotFound },
+        { EACCES,    kXR_NotAuthorized },
+        { EPERM,     kXR_NotAuthorized },
+        { EXDEV,     kXR_NotAuthorized },
+        { ELOOP,     kXR_NotAuthorized },
+        { ENOTEMPTY, kXR_ItExists },
+        { EEXIST,    kXR_ItExists },
+        { ENOTDIR,   kXR_FSError },
+        { ENOMEM,    kXR_NoMemory },
+        { ENOSPC,    kXR_NoSpace },
 #ifdef EDQUOT
-    case EDQUOT:
+        { EDQUOT,    kXR_NoSpace },
 #endif
-        return kXR_NoSpace;
-
-    case EINVAL:
-        return kXR_ArgInvalid;
-
-    case EBUSY:
-        /* A mandatory lease/lock refusal (pblock F15, cache fill lock): the
-         * honest "try again once the holder releases" code. NOT EAGAIN — on a
-         * read open EAGAIN means "nearline recall in flight" and is answered
-         * with kXR_wait, which a lock refusal must never be (the client would
-         * retry a lock that may never clear on its own schedule). */
-        return kXR_FileLocked;
-
-    case ENOTSUP:      /* backend has no such op (VFS NULL-slot, object stores) */
-    case ENOSYS:
+        { EINVAL,    kXR_ArgInvalid },
+        { EBUSY,     kXR_FileLocked },
+        { ENOTSUP,   kXR_Unsupported },
+        { ENOSYS,    kXR_Unsupported },
 #if defined(EOPNOTSUPP) && (EOPNOTSUPP != ENOTSUP)
-    case EOPNOTSUPP:
+        { EOPNOTSUPP, kXR_Unsupported },
 #endif
-        /* Honest "this server cannot do that" instead of a generic I/O error —
-         * the reverse table (kXR_Unsupported → ENOSYS) already existed, this
-         * makes the pair symmetric. */
-        return kXR_Unsupported;
+    };
+    size_t i;
 
-    default:
-        return kXR_IOError;
+    for (i = 0; i < sizeof(table) / sizeof(table[0]); i++) {
+        if (table[i].err == err)
+            return table[i].kxr;
     }
+    return kXR_IOError;
 }
 
 /*

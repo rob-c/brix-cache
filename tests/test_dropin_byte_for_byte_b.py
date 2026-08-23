@@ -1,4 +1,18 @@
 from split_continuation import reexport as _reexport
+def _check_test_clone_empty_list_clean_error_4(n):
+    assert _ping(n)[1] == kXR_ok
+
+def _check_test_clone_empty_list_clean_error_1(o_status, o_body):
+    assert o_status == kXR_ok, f"dst open failed: {_error_msg(o_body)}"
+
+def _check_test_clone_empty_list_clean_error_2(c_status):
+    assert c_status in (kXR_error, kXR_status, kXR_ok), \
+        f"unexpected nginx clone status {c_status}"
+
+def _check_test_clone_empty_list_clean_error_3(c_body):
+    assert _error_code(c_body) != 0
+
+
 _reexport(globals(), "_test_dropin_byte_for_byte_helpers")
 
 class TestCloneOpcodeParity:
@@ -37,16 +51,15 @@ class TestCloneOpcodeParity:
             os.chmod(full, 0o666)
         try:
             sid, o_status, o_body = _open(n, dst, kXR_open_updt)
-            assert o_status == kXR_ok, f"dst open failed: {_error_msg(o_body)}"
+            _check_test_clone_empty_list_clean_error_1(o_status, o_body)
             fh = o_body[:4]
             try:
                 sid, c_status, c_body = _clone(n, fh, items=b"")
                 # Documented: empty/absent clone list -> clean error, NOT a hang
                 # or a crash.  Accept Unsupported too in case clone is disabled.
-                assert c_status in (kXR_error, kXR_status, kXR_ok), \
-                    f"unexpected nginx clone status {c_status}"
+                _check_test_clone_empty_list_clean_error_2(c_status)
                 if c_status == kXR_error:
-                    assert _error_code(c_body) != 0
+                    _check_test_clone_empty_list_clean_error_3(c_body)
             finally:
                 _close(n, fh)
         finally:
@@ -54,7 +67,7 @@ class TestCloneOpcodeParity:
                 os.unlink(full)
             except FileNotFoundError:
                 pass
-        assert _ping(n)[1] == kXR_ok
+        _check_test_clone_empty_list_clean_error_4(n)
 
 
 # ===========================================================================

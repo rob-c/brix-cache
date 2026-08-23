@@ -45,6 +45,19 @@ import sys
 
 import pytest
 
+def _check_test_verified_fill_records_checksum_for_xrdckverify_2(data, cache_dir):
+    assert data, f"no cached data file of {FILE_BYTES}B under {cache_dir}"
+
+def _check_test_verified_fill_records_checksum_for_xrdckverify_3(r):
+    assert r.returncode == 0 and "adler32" in (r.stdout + r.stderr), (
+        f"xrdckverify --cache failed (rc={r.returncode}):\n"
+        f"{r.stdout}\n{r.stderr}")
+
+def _check_test_verified_fill_records_checksum_for_xrdckverify_1(rc, out, ref, err):
+    assert _delivered(rc, out, ref), (
+        f"verified fill did not deliver (rc={rc}): {err[-300:]}")
+
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "resilience"))
 from resilience.servers import XrootdAnon, FaultProxy, seed_file, FAULT_PROXY, XRDCP  # noqa: E402
 from server_registry import NginxInstanceSpec  # noqa: E402
@@ -247,19 +260,16 @@ def test_verified_fill_records_checksum_for_xrdckverify(lifecycle, tmp_path):
                     f"root://{HOST}:{origin.port}", "require", "ckv") as url:
             out = str(tmp_path / "ckv.bin")
             rc, err = _xrdcp(url, out)
-            assert _delivered(rc, out, ref), (
-                f"verified fill did not deliver (rc={rc}): {err[-300:]}")
+            _check_test_verified_fill_records_checksum_for_xrdckverify_1(rc, out, ref, err)
 
         cache_dir = tmp_path / "cache_ckv"
         data = [p for p in cache_dir.rglob("*")
                 if p.is_file()
                 and not p.name.endswith((".cinfo", ".meta", ".lock"))
                 and p.stat().st_size == FILE_BYTES]
-        assert data, f"no cached data file of {FILE_BYTES}B under {cache_dir}"
+        _check_test_verified_fill_records_checksum_for_xrdckverify_2(data, cache_dir)
 
         ckv = os.path.join(os.path.dirname(XRDCP), "xrdckverify")
         r = subprocess.run([ckv, "--cache", str(data[0])],
                            capture_output=True, text=True, timeout=120)
-        assert r.returncode == 0 and "adler32" in (r.stdout + r.stderr), (
-            f"xrdckverify --cache failed (rc={r.returncode}):\n"
-            f"{r.stdout}\n{r.stderr}")
+        _check_test_verified_fill_records_checksum_for_xrdckverify_3(r)

@@ -21,6 +21,39 @@ import time
 
 import pytest
 
+def _phase_gsi_server_1(proc):
+    try:
+        proc.wait(timeout=5)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+
+
+def _guard_gsi_server_1():
+    if not _have("xrootd", "xrdgsiproxy", "openssl", STOCK_XRDFS):
+        pytest.skip("stock xrootd / xrdgsiproxy / openssl / xrdfs not installed")
+
+def _guard_gsi_server_2():
+    if not os.path.exists(NATIVE_XRDFS):
+        pytest.skip("native client/xrdfs not built")
+
+def _guard_gsi_server_3(proxy, mk):
+    if not proxy.exists():
+        pytest.skip(f"could not mint a test proxy: {mk.stdout}{mk.stderr}")
+
+def _guard_gsi_server_4(up, proc):
+    if not up:
+        proc.terminate()
+        pytest.skip("stock xrootd GSI server did not come up")
+
+def _guard_spawn_nginx_gsi_5():
+    if not os.path.exists(NGINX_BIN):
+        pytest.skip(f"nginx binary not built at {NGINX_BIN}")
+
+def _guard_spawn_nginx_gsi_6(proc):
+    if proc.poll() is not None:
+        pytest.skip("nginx GSI server exited (could not bind / config error)")
+
+
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 NATIVE_XRDFS = os.path.join(REPO, "client", "bin", "xrdfs")
 STOCK_XRDFS = "/usr/bin/xrdfs"
@@ -54,10 +87,8 @@ def _free_port(port):
 
 @pytest.fixture(scope="module")
 def gsi_server(tmp_path_factory):
-    if not _have("xrootd", "xrdgsiproxy", "openssl", STOCK_XRDFS):
-        pytest.skip("stock xrootd / xrdgsiproxy / openssl / xrdfs not installed")
-    if not os.path.exists(NATIVE_XRDFS):
-        pytest.skip("native client/xrdfs not built")
+    _guard_gsi_server_1()
+    _guard_gsi_server_2()
 
     base = tmp_path_factory.mktemp("gsi")
     ca, srv, usr, certs, data = (base / d for d in
@@ -94,8 +125,7 @@ def gsi_server(tmp_path_factory):
     mk = _run(["xrdgsiproxy", "init", "-cert", str(usr / "usercert.pem"),
                "-key", str(usr / "userkey.pem"), "-out", str(proxy),
                "-certdir", str(certs), "-valid", "1:00"], input="\n\n", env=env)
-    if not proxy.exists():
-        pytest.skip(f"could not mint a test proxy: {mk.stdout}{mk.stderr}")
+    _guard_gsi_server_3(proxy, mk)
 
     (data / "hello.txt").write_text("hello-gsi\n")
     cfg = base / "xrootd.cfg"
@@ -121,9 +151,7 @@ def gsi_server(tmp_path_factory):
             up = True
             break
         time.sleep(0.1)
-    if not up:
-        proc.terminate()
-        pytest.skip("stock xrootd GSI server did not come up")
+    _guard_gsi_server_4(up, proc)
 
     ctx = {"host": fqdn, "port": PORT, "env": env,
            "url": f"root://{fqdn}:{PORT}", "certs": str(certs),
@@ -132,10 +160,7 @@ def gsi_server(tmp_path_factory):
            "base": str(base)}
     yield ctx
     proc.terminate()
-    try:
-        proc.wait(timeout=5)
-    except subprocess.TimeoutExpired:
-        proc.kill()
+    _phase_gsi_server_1(proc)
 
 
 def test_stock_client_gsi_auth_succeeds(gsi_server):
@@ -186,8 +211,7 @@ def _spawn_nginx_gsi(gsi_server, port, signed_dh=None, tag="nginx_gsi"):
     "off"/"auto"/"require" to exercise the phase-48 signed-DH server path.
     Returns (proc, url); the caller owns proc and must terminate it.  Skips
     (returning (None, None)) when the binary is missing or fails to bind."""
-    if not os.path.exists(NGINX_BIN):
-        pytest.skip(f"nginx binary not built at {NGINX_BIN}")
+    _guard_spawn_nginx_gsi_5()
     base = gsi_server["base"]
     os.makedirs(os.path.join(base, "logs"), exist_ok=True)  # nginx default pid dir
     cfg = os.path.join(base, f"{tag}.conf")
@@ -221,8 +245,7 @@ def _spawn_nginx_gsi(gsi_server, port, signed_dh=None, tag="nginx_gsi"):
     for _ in range(50):
         # Our master must be alive AND the port listening — a dead master with a
         # stale listener (different CA) would otherwise pass and corrupt the test.
-        if proc.poll() is not None:
-            pytest.skip("nginx GSI server exited (could not bind / config error)")
+        _guard_spawn_nginx_gsi_6(proc)
         if _run(["bash", "-c", f"ss -tln | grep -q ':{port} '"]).returncode == 0:
             return proc, f"root://{gsi_server['host']}:{port}"
         time.sleep(0.1)

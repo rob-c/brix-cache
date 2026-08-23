@@ -370,10 +370,13 @@ def test_the_ownership_view_sees_the_worker_the_command_line_never_names(lane):
     named = [(pid, cmd) for pid, cmd in owned if LANE_ROOT in cmd]
     unnamed = [(pid, cmd) for pid, cmd in owned if LANE_ROOT not in cmd]
 
-    assert named, "no process names the lane; ownership cannot be established"
-    assert unnamed, (
-        "expected at least one inherited process (the nginx worker) whose own "
-        "command line never mentions the lane")
+    def _assert_test_the_ownership_view_sees_the_worker_the_command_line_never_names_1():
+        assert named, "no process names the lane; ownership cannot be established"
+        assert unnamed, (
+            "expected at least one inherited process (the nginx worker) whose own "
+            "command line never mentions the lane")
+
+    _assert_test_the_ownership_view_sees_the_worker_the_command_line_never_names_1()
 
 
 # --- security-negative -----------------------------------------------------
@@ -405,8 +408,11 @@ def test_the_refused_session_left_the_foreign_listener_running(lane):
     _probe_session(SIBLING_ROOT)
     after = {pid for pid, _ in find_orphans(LANE_ROOT)}
 
-    assert before and before == after, "the refused session touched the lane"
-    assert pids_on_port(lane["ports"]["NGINX_ANON_PORT"])
+    def _assert_test_the_refused_session_left_the_foreign_listener_running_2():
+        assert before and before == after, "the refused session touched the lane"
+        assert pids_on_port(lane["ports"]["NGINX_ANON_PORT"])
+
+    _assert_test_the_refused_session_left_the_foreign_listener_running_2()
 
 
 def test_lane_ownership_does_not_leak_to_a_sibling_root(lane):

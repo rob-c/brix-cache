@@ -23,6 +23,30 @@ def test_ls_contains_seeded_file(native_xrdfs, seeded_file, label, endpoint):
     assert name in _ls_basenames(out), f"[{label}] {name} not in ls:\n{out}"
 
 
+def _require_system_xrdfs():
+    if shutil.which("xrdfs") is None:
+        pytest.skip("system xrdfs not installed")
+
+
+def _seed_ls_directory(subdir):
+    os.makedirs(subdir, exist_ok=True)
+    for filename in ("alpha.bin", "beta.txt", "gamma.dat"):
+        with open(os.path.join(subdir, filename), "wb") as handle:
+            handle.write(os.urandom(64))
+    os.makedirs(os.path.join(subdir, "nested"), exist_ok=True)
+
+
+def _assert_native_ls_matches(label, native_result, system_result):
+    rc_n, out_n, _ = native_result
+    rc_s, out_s, _ = system_result
+    assert (rc_n, rc_s) == (0, 0), \
+        f"[{label}] native rc={rc_n} system rc={rc_s}"
+    assert _ls_basenames(out_n) == _ls_basenames(out_s), (
+        f"[{label}] entry set differs:\nnative={_ls_basenames(out_n)}\n"
+        f"system={_ls_basenames(out_s)}"
+    )
+
+
 @pytest.mark.parametrize("label,endpoint", ENDPOINTS)
 def test_ls_matches_system_xrdfs(native_xrdfs, label, endpoint):
     """The native client and the system xrdfs see the same directory entries.
@@ -33,23 +57,14 @@ def test_ls_matches_system_xrdfs(native_xrdfs, label, endpoint):
     is inherently racy (the entry set changes between the native and the system
     call).  A private subdirectory that only this test populates is stable, so any
     difference is a genuine native-vs-stock divergence rather than a timing flake."""
-    if shutil.which("xrdfs") is None:
-        pytest.skip("system xrdfs not installed")
+    _require_system_xrdfs()
     sub = f"_native_lsmatch_{os.getpid()}_{int(time.time() * 1000)}"
     subdir = os.path.join(DATA_ROOT, sub)
-    os.makedirs(subdir, exist_ok=True)
+    _seed_ls_directory(subdir)
     try:
-        for fn in ("alpha.bin", "beta.txt", "gamma.dat"):
-            with open(os.path.join(subdir, fn), "wb") as fh:
-                fh.write(os.urandom(64))
-        os.makedirs(os.path.join(subdir, "nested"), exist_ok=True)
-        rc_n, out_n, _ = _run(native_xrdfs, endpoint, "ls", f"/{sub}")
-        rc_s, out_s, _ = _run("xrdfs", endpoint, "ls", f"/{sub}")
-        assert rc_n == 0 and rc_s == 0, f"[{label}] native rc={rc_n} system rc={rc_s}"
-        assert _ls_basenames(out_n) == _ls_basenames(out_s), (
-            f"[{label}] entry set differs:\nnative={_ls_basenames(out_n)}\n"
-            f"system={_ls_basenames(out_s)}"
-        )
+        native = _run(native_xrdfs, endpoint, "ls", f"/{sub}")
+        system = _run("xrdfs", endpoint, "ls", f"/{sub}")
+        _assert_native_ls_matches(label, native, system)
     finally:
         shutil.rmtree(subdir, ignore_errors=True)
 

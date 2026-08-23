@@ -87,9 +87,12 @@ def test_throttle_open_files_cap_is_still_wired():
 
     callers = {hit.split(":", 1)[0] for hit in inc + dec
                if "throttle_compat" not in hit}
-    assert any("open_resolved_file_finalize.c" in c for c in callers), \
-        f"open-files cap is no longer charged at open: {sorted(callers)}"
-    assert any("close.c" in c for c in callers), \
-        f"open-files cap is no longer released on close: {sorted(callers)}"
+    def _assert_test_throttle_open_files_cap_is_still_wired_1():
+        assert any("open_resolved_file_finalize.c" in c for c in callers), \
+            f"open-files cap is no longer charged at open: {sorted(callers)}"
+        assert any("close.c" in c for c in callers), \
+            f"open-files cap is no longer released on close: {sorted(callers)}"
+
+    _assert_test_throttle_open_files_cap_is_still_wired_1()
     assert any("disconnect.c" in c for c in callers), \
         f"open-files cap is no longer released on disconnect: {sorted(callers)}"

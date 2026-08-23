@@ -43,6 +43,22 @@ import xml.etree.ElementTree as ET
 
 import pytest
 
+def _expression_1(coll):
+    return (
+        [f"{coll}/m{i}.txt" for i in range(3)]
+    )
+
+
+def _check_test_ipv6_webdav_propfind_depth_1_1(r):
+    assert r.status_code == 207, f"PROPFIND failed: {r.status_code} {r.text}"
+
+def _check_test_ipv6_webdav_propfind_depth_1_2(hrefs):
+    assert len(hrefs) >= 4, f"expected collection + 3 members, got {hrefs}"
+
+def _check_test_ipv6_webdav_propfind_depth_1_3(i, hrefs):
+    assert any(h.endswith(f"m{i}.txt") for h in hrefs), f"m{i}.txt missing"
+
+
 try:
     import requests
     _HAVE_REQUESTS = True
@@ -459,21 +475,21 @@ def test_ipv6_webdav_propfind_depth_1():
     uid = _uid()
     coll = f"/ipv6_pf1_{uid}"
     _mkcol(coll)
-    members = [f"{coll}/m{i}.txt" for i in range(3)]
+    members = _expression_1(coll)
     for m in members:
         _put(m, b"member")
 
     r = _propfind(coll, depth="1")
-    assert r.status_code == 207, f"PROPFIND failed: {r.status_code} {r.text}"
+    _check_test_ipv6_webdav_propfind_depth_1_1(r)
 
     hrefs = _hrefs(r.text)
     # collection + 3 members.
-    assert len(hrefs) >= 4, f"expected collection + 3 members, got {hrefs}"
+    _check_test_ipv6_webdav_propfind_depth_1_2(hrefs)
     for href in hrefs:
         _assert_href_has_no_host_literal(href)
     # Each member name appears in some href.
     for i in range(3):
-        assert any(h.endswith(f"m{i}.txt") for h in hrefs), f"m{i}.txt missing"
+        _check_test_ipv6_webdav_propfind_depth_1_3(i, hrefs)
 
 
 def test_ipv6_webdav_propfind_href_no_host_literal():

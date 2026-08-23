@@ -81,69 +81,110 @@ def run_lizard(lizard: str, paths: list[str]) -> Iterator[dict[str, Any]]:
 
 
 def main():
-    args = sys.argv[1:]
+    paths, top, mode = _parse_args(sys.argv[1:])
+    funcs = list(run_lizard(find_lizard(), paths))
+    if mode["gate"]:
+        _print_gate(funcs)
+        return
+    rows, columns = _ranked_rows(funcs, top, mode["funcs"])
+    _print(rows, columns, mode["csv"])
+
+
+def _parse_args(argv):
+    args = list(argv)
     top = 30
-    mode_funcs = "--funcs" in args
-    mode_csv = "--csv" in args
-    mode_gate = "--gate-csv" in args
     if "--top" in args:
         i = args.index("--top")
         top = int(args[i + 1])
         del args[i : i + 2]
     paths = [a for a in args if not a.startswith("--")] or ["src", "client"]
+    mode = {
+        "funcs": "--funcs" in args,
+        "csv": "--csv" in args,
+        "gate": "--gate-csv" in args,
+    }
+    return paths, top, mode
 
-    funcs = list(run_lizard(find_lizard(), paths))
 
-    if mode_gate:
-        # Stable, weight-free ratchet feed: one row per function over the CCN cap,
-        # sorted by identity so diffs are deterministic. See check_complexity.py.
-        rows = sorted(
-            ((f["file"], f["func"], f["ccn"]) for f in funcs if f["ccn"] > CCN_MAX),
-            key=lambda r: (r[0], r[1], -r[2]),
-        )
-        w = csv.writer(sys.stdout, lineterminator="\n")  # no \r into the ratchet
-        for file, func, ccn in rows:
-            w.writerow([file, func, ccn])
-        return
+def _print_gate(funcs):
+    rows = sorted(
+        ((f["file"], f["func"], f["ccn"]) for f in funcs if f["ccn"] > CCN_MAX),
+        key=lambda row: (row[0], row[1], -row[2]),
+    )
+    writer = csv.writer(sys.stdout, lineterminator="\n")
+    writer.writerows(rows)
 
+
+def _ranked_rows(funcs, top, mode_funcs):
     if mode_funcs:
         rows = sorted((f for f in funcs if f["score"] > 0), key=lambda x: -x["score"])[:top]
-        _print(rows, ["score", "ccn", "len", "param", "dens", "func", "file"], mode_csv)
-        return
+        return rows, ["score", "ccn", "len", "param", "dens", "func", "file"]
+    rows = _rank_files(funcs, top)
+    return rows, ["score", "hot", "funcs", "worst_ccn", "worst", "file"]
 
+
+def _rank_files(funcs, top):
     files = {}
     for f in funcs:
-        d = files.setdefault(f["file"], {"file": f["file"], "score": 0.0, "hot": 0,
-                                         "funcs": 0, "worst_ccn": 0, "worst": ""})
-        d["funcs"] += 1
-        d["score"] += f["score"]
-        if f["score"] > 0:
-            d["hot"] += 1
-        if f["ccn"] > d["worst_ccn"]:
-            d["worst_ccn"] = f["ccn"]
-            d["worst"] = f["func"]
-    rows = sorted((d for d in files.values() if d["score"] > 0),
-                  key=lambda x: -x["score"])[:top]
-    for d in rows:
-        d["score"] = round(d["score"], 1)
-    _print(rows, ["score", "hot", "funcs", "worst_ccn", "worst", "file"], mode_csv)
+        _add_function(files, f)
+    rows = sorted(
+        (item for item in files.values() if item["score"] > 0),
+        key=lambda item: -item["score"],
+    )[:top]
+    for item in rows:
+        item["score"] = round(item["score"], 1)
+    return rows
+
+
+def _add_function(files, function):
+    item = files.setdefault(
+        function["file"],
+        {"file": function["file"], "score": 0.0, "hot": 0,
+         "funcs": 0, "worst_ccn": 0, "worst": ""},
+    )
+    item["funcs"] += 1
+    item["score"] += function["score"]
+    if function["score"] > 0:
+        item["hot"] += 1
+    if function["ccn"] > item["worst_ccn"]:
+        item["worst_ccn"] = function["ccn"]
+        item["worst"] = function["func"]
 
 
 def _print(rows, cols, as_csv):
     if as_csv:
-        w = csv.writer(sys.stdout, lineterminator="\n")
-        w.writerow(cols)
-        for r in rows:
-            w.writerow([r[c] for c in cols])
+        _print_csv(rows, cols)
         return
     if not rows:
         print("No hotspots — everything is within readability budgets.")
         return
-    widths = {c: max(len(c), *(len(str(r[c])) for r in rows)) for c in cols}
-    print("  ".join(c.ljust(widths[c]) for c in cols))
-    print("  ".join("-" * widths[c] for c in cols))
-    for r in rows:
-        print("  ".join(str(r[c]).ljust(widths[c]) for c in cols))
+    _print_table(rows, cols)
+
+
+def _print_csv(rows, cols):
+    writer = csv.writer(sys.stdout, lineterminator="\n")
+    writer.writerow(cols)
+    for row in rows:
+        writer.writerow([row[column] for column in cols])
+
+
+def _print_table(rows, cols):
+    widths = _column_widths(rows, cols)
+    print(_table_row(cols, cols, widths))
+    print("  ".join("-" * widths[column] for column in cols))
+    for row in rows:
+        print(_table_row(row, cols, widths))
+
+
+def _column_widths(rows, columns):
+    return {
+        column: max(len(column), *(len(str(row[column])) for row in rows))
+        for column in columns
+    }
+
+
+def _table_row(row, columns, widths):
+    return "  ".join(str(row[column]).ljust(widths[column]) for column in columns)
 
 
 if __name__ == "__main__":

@@ -25,6 +25,24 @@ import sys
 
 import pytest
 
+def _expression_1(tree):
+    return (
+        {p: p.read_bytes() for p in sorted(tree.rglob("*"))
+                      if p.is_file()}
+    )
+
+def _expression_2(tree):
+    return (
+        {p: p.read_bytes() for p in sorted(tree.rglob("*"))
+                          if p.is_file()}
+    )
+
+def _expression_3(tree):
+    return (
+        {p: p.read_bytes() for p in sorted(tree.rglob("*")) if p.is_file()}
+    )
+
+
 TESTS = pathlib.Path(__file__).resolve().parent
 GUARD = TESTS.parent / "tools" / "ci" / "check_shard_entrypoints.py"
 
@@ -103,6 +121,63 @@ def test_a_shard_without_an_entry_point_is_not_flagged(tree):
     assert proc.returncode == 0, proc.stdout + proc.stderr
 
 
+def test_a_bespoke_import_alias_still_reads_as_composition(tmp_path):
+    """The alias is local, and the tree spells it thirteen different ways.
+
+    `_load_continuations` (36 call sites) is only the largest family; there are
+    also `_load_continuation` (7) and one-off names like `_load_webdav_state`
+    and `_load_pblock_meta`.  A guard keyed on one hardcoded alias is blind to
+    the other twelve, which is how `cvmfs_matrix_part2.py` read as orphaned
+    while its parent was composing it on the line above.
+    """
+    (tmp_path / "thing.py").write_text(
+        '"""A composed parent that renames the helper."""\n'
+        "from split_continuation import load as _load_matrix_cells\n"
+        '_load_matrix_cells(globals(), __file__, "thing_part2.py")\n'
+    )
+    (tmp_path / "thing_part2.py").write_text(_SHARD_WITH_CLI)
+    proc = _run(tmp_path)
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+    assert "1 shard entry point(s) still exec-composed" in proc.stdout
+
+
+def test_a_bespoke_alias_that_stops_composing_still_fails(tmp_path):
+    """Resolving the alias must not become a way to never fire.
+
+    The security-negative twin of the case above: same bespoke spelling, but the
+    parent no longer calls it, so the entry point is genuinely dead and the
+    guard has to say so.
+    """
+    (tmp_path / "thing.py").write_text(
+        '"""Imports the helper but composes nothing."""\n'
+        "from split_continuation import load as _load_matrix_cells  # noqa: F401\n"
+        "from thing_part2 import run  # noqa: F401\n"
+    )
+    (tmp_path / "thing_part2.py").write_text(_SHARD_WITH_CLI)
+    proc = _run(tmp_path)
+    assert proc.returncode == 1, proc.stdout + proc.stderr
+    assert "thing_part2.py" in proc.stdout
+
+
+def test_two_compositions_through_one_alias_are_both_seen(tmp_path):
+    """A parent may compose more than once through the same name.
+
+    `finditer` rather than `search`: stopping at the first call would leave
+    every later shard looking unowned.
+    """
+    (tmp_path / "thing.py").write_text(
+        '"""Two separate composition statements, one alias."""\n'
+        "from split_continuation import load as _load_continuation\n"
+        '_load_continuation(globals(), __file__, "thing_part2.py")\n'
+        '_load_continuation(globals(), __file__, "thing_part3.py")\n'
+    )
+    (tmp_path / "thing_part2.py").write_text(_SHARD_WITH_CLI)
+    (tmp_path / "thing_part3.py").write_text(_SHARD_WITH_CLI)
+    proc = _run(tmp_path)
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+    assert "2 shard entry point(s) still exec-composed" in proc.stdout
+
+
 def test_the_inline_exec_idiom_counts_as_composition(tmp_path):
     """``operator_runtime.py`` predates ``split_continuation`` and open-codes it.
 
@@ -132,17 +207,18 @@ def test_the_guard_never_writes_to_the_tree_it_scans(tree):
     It is also handed a path from the command line, so a write would be a write
     wherever it is pointed — including a tracked tree during a bad CI run.
     """
-    before = {p: p.read_bytes() for p in sorted(tree.rglob("*"))
-              if p.is_file()}
+    before = _expression_1(tree)
     (tree / "thing.py").write_text('"""Now a real package facade."""\n')
-    after_edit = {p: p.read_bytes() for p in sorted(tree.rglob("*"))
-                  if p.is_file()}
+    after_edit = _expression_2(tree)
 
     _run(tree)
 
-    now = {p: p.read_bytes() for p in sorted(tree.rglob("*")) if p.is_file()}
-    assert now == after_edit, "the guard modified the tree it was pointed at"
-    assert set(now) == set(before), "the guard added or removed files"
+    now = _expression_3(tree)
+    def _assert_test_the_guard_never_writes_to_the_tree_it_scans_1():
+        assert now == after_edit, "the guard modified the tree it was pointed at"
+        assert set(now) == set(before), "the guard added or removed files"
+
+    _assert_test_the_guard_never_writes_to_the_tree_it_scans_1()
 
 
 def test_a_root_outside_the_repository_is_scanned_not_assumed(tmp_path):

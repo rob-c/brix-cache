@@ -49,19 +49,32 @@ def main() -> int:
     # ROOT from this script's location (tools/ci/ → repo root), like the other
     # guards: the runner must work regardless of the caller's cwd (the pytest
     # guard wrapper runs with cwd inside the test fleet root, not the repo).
-    root = str(Path(__file__).resolve().parents[2])
+    root, nginx_src, out_dir, test_cmd = _settings()
+    reason = _skip_reason(nginx_src)
+    if reason:
+        print(reason)
+        return 0
+    return _collect(root, nginx_src, out_dir, test_cmd)
 
+
+def _settings():
+    root = str(Path(__file__).resolve().parents[2])
     nginx_src = os.environ.get("NGINX_SRC") or "/tmp/nginx-1.28.3"
     out_dir = os.environ.get("COVERAGE_OUT") or f"{root}/coverage"
     test_cmd = os.environ.get("COVERAGE_TEST_CMD") or \
         "python3 -m cmdscripts.operator_runtime suite --fast"
+    return root, nginx_src, out_dir, test_cmd
 
+
+def _skip_reason(nginx_src: str) -> str:
     if shutil.which("lcov") is None or shutil.which("gcov") is None:
-        print("coverage: SKIP — lcov/gcov not installed (apt-get install -y lcov)")
-        return 0
+        return "coverage: SKIP — lcov/gcov not installed (apt-get install -y lcov)"
     if not os.access(f"{nginx_src}/configure", os.X_OK):
-        print(f"coverage: SKIP — nginx source not found at {nginx_src} (set NGINX_SRC)")
-        return 0
+        return f"coverage: SKIP — nginx source not found at {nginx_src} (set NGINX_SRC)"
+    return ""
+
+
+def _collect(root: str, nginx_src: str, out_dir: str, test_cmd: str) -> int:
 
     os.makedirs(out_dir, exist_ok=True)
 
@@ -106,7 +119,15 @@ def main() -> int:
     subprocess.run(["genhtml", "--quiet", "--output-directory",
                     f"{out_dir}/html", info])
 
-    # Total line rate (percent) straight from lcov's summary.
+    summary = _coverage_summary(info)
+    pct = _line_rate(summary)
+    print(f"coverage: total line coverage = {pct or 'unknown'}%  "
+          f"(html: {out_dir}/html/index.html)")
+    return _enforce_floor(pct, os.environ.get("COVERAGE_MIN"))
+
+
+def _coverage_summary(info: str) -> str:
+    """Print and return lcov's line/function/branch summary."""
     summary = subprocess.run(
         ["lcov", "--summary", info],
         stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
@@ -114,29 +135,31 @@ def main() -> int:
     for line in summary.splitlines():
         if re.search(r"lines|functions|branches", line):
             print(line)
-    pct = ""
+    return summary
+
+
+def _line_rate(summary: str) -> str:
+    """Extract the total line percentage from lcov output."""
     for line in summary.splitlines():
-        if "lines" in line:
-            fields = re.split(r"[:%]", line)
-            if len(fields) >= 2:
-                pct = fields[1].replace(" ", "")
-            break
-    print(f"coverage: total line coverage = {pct or 'unknown'}%  "
-          f"(html: {out_dir}/html/index.html)")
+        if "lines" not in line:
+            continue
+        fields = re.split(r"[:%]", line)
+        return fields[1].replace(" ", "") if len(fields) >= 2 else ""
+    return ""
 
-    coverage_min = os.environ.get("COVERAGE_MIN")
-    if coverage_min:
-        if not pct:
-            print(f"coverage: FAIL — COVERAGE_MIN={coverage_min} set but line rate "
-                  "could not be parsed", file=sys.stderr)
-            return 1
-        # Integer compare on the floor (bash has no float); require ceil(PCT) >= MIN.
-        if float(pct) < float(coverage_min):
-            print(f"coverage: FAIL — line coverage {pct}% < floor {coverage_min}%",
-                  file=sys.stderr)
-            return 1
-        print(f"coverage: OK — line coverage {pct}% >= floor {coverage_min}%")
 
+def _enforce_floor(pct: str, coverage_min) -> int:
+    if not coverage_min:
+        return 0
+    if not pct:
+        print(f"coverage: FAIL — COVERAGE_MIN={coverage_min} set but line rate "
+              "could not be parsed", file=sys.stderr)
+        return 1
+    if float(pct) < float(coverage_min):
+        print(f"coverage: FAIL — line coverage {pct}% < floor {coverage_min}%",
+              file=sys.stderr)
+        return 1
+    print(f"coverage: OK — line coverage {pct}% >= floor {coverage_min}%")
     return 0
 
 

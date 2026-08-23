@@ -14,6 +14,20 @@ import subprocess
 
 import pytest
 
+def _guard_spawn_bin_1(cc):
+    if cc is None:
+        pytest.skip("no C compiler")
+
+def _guard_spawn_bin_2():
+    if not (os.path.exists(SRC) and os.path.exists(TEST)):
+        pytest.skip("xfer_spawn sources missing")
+
+def _guard_spawn_bin_3(r):
+    if r.returncode != 0:
+        pytest.fail(f"xfer_spawn suite failed to COMPILE (warnings are errors):"
+                    f"\n{r.stderr}")
+
+
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SRC = os.path.join(REPO, "src", "fs", "xfer", "xfer_spawn.c")
 TEST = os.path.join(REPO, "src", "fs", "xfer", "xfer_spawn_unittest.c")
@@ -22,18 +36,14 @@ TEST = os.path.join(REPO, "src", "fs", "xfer", "xfer_spawn_unittest.c")
 @pytest.fixture(scope="module")
 def spawn_bin(tmp_path_factory):
     cc = shutil.which("gcc") or shutil.which("cc")
-    if cc is None:
-        pytest.skip("no C compiler")
-    if not (os.path.exists(SRC) and os.path.exists(TEST)):
-        pytest.skip("xfer_spawn sources missing")
+    _guard_spawn_bin_1(cc)
+    _guard_spawn_bin_2()
     out = str(tmp_path_factory.mktemp("xferspawn") / "ut")
     r = subprocess.run(
         [cc, "-Wall", "-Wextra", "-Werror", "-I", os.path.join(REPO, "src"),
          SRC, TEST, "-o", out],
         capture_output=True, text=True)
-    if r.returncode != 0:
-        pytest.fail(f"xfer_spawn suite failed to COMPILE (warnings are errors):"
-                    f"\n{r.stderr}")
+    _guard_spawn_bin_3(r)
     return out
 
 

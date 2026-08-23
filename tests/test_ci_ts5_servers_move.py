@@ -41,8 +41,6 @@ file consumes and must not be read as fleet constants.
 from __future__ import annotations
 
 import ast
-import builtins
-import hashlib
 import json
 import os
 import pathlib
@@ -56,6 +54,14 @@ import urllib.request
 import pytest
 
 from settings import HOST
+from ts5_ast_checks import (
+    binding_problem,
+    body_hashes,
+    missing_names,
+    move_problem,
+    server_bindings,
+    settings_import_problem,
+)
 
 TESTS = pathlib.Path(__file__).resolve().parent
 REPO = TESTS.parent
@@ -102,19 +108,17 @@ def _bodies(path: pathlib.Path) -> dict:
     differing tells you where to look.
     """
 
-    def walk(node, prefix):
-        for child in node.body:
-            if not isinstance(child, _DEFS):
-                continue
-            name = prefix + child.name
-            blob = "".join(ast.dump(b, include_attributes=False)
-                           for b in child.body)
-            yield name, hashlib.sha256(blob.encode()).hexdigest()
-            if isinstance(child, ast.ClassDef):
-                yield from walk(child, name + ".")
+    return body_hashes(path)
 
-    tree = ast.parse(path.read_text(encoding="utf-8"))
-    return dict(walk(tree, ""))
+
+def _server_move_maps():
+    before, after = {}, {}
+    for name, _is_process in MODULES:
+        old = _bodies(LEGACY / f"{name}_flat.py")
+        new = _bodies(SERVERS / f"{name}.py")
+        before.update({(name, key): digest for key, digest in old.items()})
+        after.update({(name, key): digest for key, digest in new.items()})
+    return before, after
 
 
 def _suite_env(extra=None):
@@ -213,21 +217,9 @@ def test_every_definition_moved_verbatim():
     replaced wholesale would change neither count on its own — which is
     what the hashes are for.
     """
-    before, after = {}, {}
-    for name, _ in MODULES:
-        for key, digest in _bodies(LEGACY / ("%s_flat.py" % name)).items():
-            before[(name, key)] = digest
-        for key, digest in _bodies(SERVERS / ("%s.py" % name)).items():
-            after[(name, key)] = digest
-
-    top_level = sum(1 for _, key in before if "." not in key)
-    assert (len(before), top_level) == (57, 36), (
-        "the archive set changed shape: %d definitions, %d top-level"
-        % (len(before), top_level))
-    assert sorted(set(before) - set(after)) == [], "definitions lost in the move"
-    assert sorted(set(after) - set(before)) == [], "definitions invented by the move"
-    differing = sorted(k for k in before if before[k] != after[k])
-    assert differing == [], "bodies changed: %s" % differing
+    before, after = _server_move_maps()
+    problem = move_problem(before, after, expected_shape=(57, 36))
+    assert problem is None, problem
 
 
 def test_a_moved_stub_serves_its_contract_under_the_module_spelling():
@@ -285,45 +277,16 @@ def test_no_module_reaches_a_name_it_never_binds():
     ``import os`` (or ``import sys``).  Dropping the wrong one is a NameError
     the moment the stub is started, which is exactly when nobody is watching.
     """
-    problems = []
-    for path in sorted(SERVERS.glob("*.py")):
-        tree = ast.parse(path.read_text(encoding="utf-8"))
-        bound = {"__file__", "__name__", "__doc__"}
-        for node in ast.walk(tree):
-            if isinstance(node, (ast.Import, ast.ImportFrom)):
-                for alias in node.names:
-                    bound.add(alias.asname or alias.name.split(".")[0])
-            elif isinstance(node, ast.Name) and isinstance(node.ctx, ast.Store):
-                bound.add(node.id)
-            elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef,
-                                   ast.ClassDef)):
-                bound.add(node.name)
-            elif isinstance(node, ast.arg):
-                bound.add(node.arg)
-            elif isinstance(node, ast.ExceptHandler) and node.name:
-                bound.add(node.name)
-
-        for node in ast.walk(tree):
-            if (isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load)
-                    and node.id not in bound
-                    and not hasattr(builtins, node.id)):
-                problems.append("%s:%d %s" % (path.name, node.lineno, node.id))
-    assert problems == [], problems
+    problems = missing_names(sorted(SERVERS.glob("*.py")))
+    assert not problems, problems
 
 
 def test_the_moved_modules_name_the_package_settings():
     """The self-locate is gone, so the import has to be the dotted one."""
-    named = {}
-    for path in sorted(SERVERS.glob("*.py")):
-        tree = ast.parse(path.read_text(encoding="utf-8"))
-        for node in ast.walk(tree):
-            if isinstance(node, ast.ImportFrom) and node.module:
-                if node.module.endswith("settings"):
-                    named[path.name] = node.module
-    assert named, "no module imports settings — the scan is looking wrong"
-    assert set(named.values()) == {"brix_suite.settings"}, named
-    for path in sorted(SERVERS.glob("*.py")):
-        assert "sys.path.insert" not in path.read_text(encoding="utf-8"), path.name
+    problem = settings_import_problem(
+        sorted(SERVERS.glob("*.py")), "brix_suite.settings"
+    )
+    assert problem is None, problem
 
 
 # ---------------------------------------------------------------------------
@@ -394,31 +357,10 @@ def test_no_moved_stub_binds_a_wildcard_address():
     and anything else on the network — into one stub's hit counter, which is
     the state several of these suites assert on.
     """
-    literals = []
-    for path in sorted(SERVERS.glob("*.py")):
-        tree = ast.parse(path.read_text(encoding="utf-8"))
-        for node in ast.walk(tree):
-            if not isinstance(node, ast.Call):
-                continue
-            func = node.func
-            name = getattr(func, "attr", getattr(func, "id", ""))
-            if not name.endswith("HTTPServer"):
-                continue
-            addr = node.args[0] if node.args else None
-            if isinstance(addr, ast.Tuple) and addr.elts:
-                host = addr.elts[0]
-                if isinstance(host, ast.Constant):
-                    literals.append((path.name, host.value))
-                elif isinstance(host, ast.Name):
-                    literals.append((path.name, host.id))
-                elif isinstance(host, ast.Attribute):
-                    literals.append((path.name, host.attr))
-    assert literals, "no server construction found — the scan is looking wrong"
-    for path_name, host in literals:
-        # The bind host read out of the stubs' own source is what this scan is
-        # about; naming it any other way would test nothing.
-        assert host in ("127.0.0.1",  # net-literal-allow: the bind literal under scan
-                        "BIND_HOST", "bind", "args"), (path_name, host)
+    bindings = server_bindings(sorted(SERVERS.glob("*.py")))
+    allowed = {"127.0.0.1", "BIND_HOST", "bind", "args"}  # net-literal-allow
+    problem = binding_problem(bindings, allowed)
+    assert problem is None, problem
 
 
 def test_the_designed_base_refuses_to_bind_outside_its_lane():

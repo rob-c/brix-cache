@@ -32,6 +32,31 @@ from pathlib import Path
 
 import pytest
 
+def _phase_import_refs_1(names, path, refs):
+    for name in names:
+        for cand in (ROOT / "tools" / f"{name}.py", path.parent / f"{name}.py"):
+            _guard_import_refs_1(cand, refs)
+
+
+def _expression_1(workflow):
+    return (
+        {m for m in _PATH_REF.findall(workflow) if m.endswith(".py")}
+    )
+
+def _expression_2(node):
+    return (
+        isinstance(node, ast.ImportFrom) and node.level == 0 and node.module
+    )
+
+
+def _guard_import_refs_1(cand, refs):
+    if cand.is_file():
+        refs.add(cand.relative_to(ROOT).as_posix())
+
+def _check_test_ci_enforced_guards_are_themselves_committed_1(named):
+    assert named, "guards.yml names no guard scripts — the wiring regressed"
+
+
 ROOT = Path(__file__).resolve().parents[1]
 
 # Repo-relative path literals: how the hook, the workflow and the path-loading
@@ -75,14 +100,11 @@ def _import_refs(path: Path) -> set[str]:
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
             names.update(a.name.split(".")[0] for a in node.names)
-        elif isinstance(node, ast.ImportFrom) and node.level == 0 and node.module:
+        elif _expression_2(node):
             names.add(node.module.split(".")[0])
 
     refs = set()
-    for name in names:
-        for cand in (ROOT / "tools" / f"{name}.py", path.parent / f"{name}.py"):
-            if cand.is_file():
-                refs.add(cand.relative_to(ROOT).as_posix())
+    _phase_import_refs_1(names, path, refs)
     return refs
 
 
@@ -158,16 +180,19 @@ def test_ci_enforced_guards_are_themselves_committed() -> None:
     """
     tracked = _tracked()
     workflow = (ROOT / ".github/workflows/guards.yml").read_text(encoding="utf-8")
-    named = {m for m in _PATH_REF.findall(workflow) if m.endswith(".py")}
-    assert named, "guards.yml names no guard scripts — the wiring regressed"
+    named = _expression_1(workflow)
+    _check_test_ci_enforced_guards_are_themselves_committed_1(named)
 
     absent = sorted(p for p in named if not (ROOT / p).is_file())
     untracked = sorted(p for p in named if (ROOT / p).is_file() and p not in tracked)
-    assert not absent, f"guards.yml runs guards that do not exist: {absent}"
-    assert not untracked, (
-        "guards.yml runs guards that were never committed, so CI cannot run "
-        f"them at all: {untracked}"
-    )
+    def _assert_test_ci_enforced_guards_are_themselves_committed_1():
+        assert not absent, f"guards.yml runs guards that do not exist: {absent}"
+        assert not untracked, (
+            "guards.yml runs guards that were never committed, so CI cannot run "
+            f"them at all: {untracked}"
+        )
+
+    _assert_test_ci_enforced_guards_are_themselves_committed_1()
 
 
 def test_untracked_dependency_is_reported_with_its_users() -> None:

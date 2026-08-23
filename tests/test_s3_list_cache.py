@@ -28,6 +28,25 @@ import requests
 from settings import BIND_HOST, HOST as _HOST, NGINX_BIN  # noqa: F401  (NGINX_BIN: harness gate)
 from server_registry import NginxInstanceSpec
 
+def _expression_1(root):
+    return (
+        [e.text for e in root.findall(".//s3:Contents/s3:Key", NS)]
+    )
+
+def _expression_2(nxt):
+    return (
+        nxt.text if nxt is not None and nxt.text else None
+    )
+
+
+def _check_test_cached_listing_is_correct_and_ordered_1(got, expected):
+    assert got == expected           # every key once, lexicographic, no dups
+
+def _guard_test_cached_listing_is_correct_and_ordered_1(token, params):
+    if token:
+        params["continuation-token"] = token
+
+
 pytestmark = [pytest.mark.uses_lifecycle_harness,
               pytest.mark.xdist_group("lc-s3-list-cache")]
 
@@ -94,16 +113,15 @@ def test_cached_listing_is_correct_and_ordered(cache_server):
     token = None
     for _ in range(20):
         params = {"prefix": prefix, "max-keys": "10"}
-        if token:
-            params["continuation-token"] = token
+        _guard_test_cached_listing_is_correct_and_ordered_1(token, params)
         root = ET.fromstring(_list(**params))
-        got += [e.text for e in root.findall(".//s3:Contents/s3:Key", NS)]
+        got += _expression_1(root)
         nxt = root.find("s3:NextContinuationToken", NS)
-        token = nxt.text if nxt is not None and nxt.text else None
+        token = _expression_2(nxt)
         if not token:
             break
 
-    assert got == expected           # every key once, lexicographic, no dups
+    _check_test_cached_listing_is_correct_and_ordered_1(got, expected)
 
 
 def test_cache_serves_stale_then_refreshes_on_ttl(cache_server):

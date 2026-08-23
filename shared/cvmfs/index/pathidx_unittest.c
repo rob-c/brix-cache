@@ -103,20 +103,14 @@ static void dl_cb(const cvmfs_dirent_t *e, void *ud) {
     if (d->n < 16) snprintf(d->names[d->n++], 256, "%s", e->name);
 }
 
-/* ---- success ------------------------------------------------------------- */
-
-static void test_roundtrip(int dfd) {
-    cvmfs_hash_t root = test_root();
-    CHECK(write_corpus(dfd, &root) == 0, "write sidecar");
-
-    cvmfs_pathidx_t ix;
-    CHECK(cvmfs_pathidx_open(&ix, dfd, SIDECAR) == 0, "open sidecar");
-    CHECK(cvmfs_hash_eq(cvmfs_pathidx_root(&ix), &root), "root recorded");
-
+/* WHAT: Compare every indexed corpus entry with its source specification.
+ * WHY: Keep per-field round-trip validation separate from directory behavior.
+ * HOW: Lookup each path and compare names, metadata, link, and optional hash. */
+static void check_corpus_entries(cvmfs_pathidx_t *ix) {
     for (size_t i = 0; i < NSPEC; i++) {
         cvmfs_dirent_t want, got;
         spec_dirent(&SPECS[i], &want);
-        CHECK(cvmfs_pathidx_lookup(&ix, SPECS[i].path, &got) == 1, "lookup hit");
+        CHECK(cvmfs_pathidx_lookup(ix, SPECS[i].path, &got) == 1, "lookup hit");
         CHECK(strcmp(got.name, want.name) == 0, "name");
         CHECK(got.flags == want.flags && got.mode == want.mode
               && got.size == want.size && got.mtime == want.mtime
@@ -127,28 +121,49 @@ static void test_roundtrip(int dfd) {
         if (want.has_hash)
             CHECK(cvmfs_hash_eq(&got.hash, &want.hash), "content hash");
     }
+}
+
+/* WHAT: Check sorted directory enumeration and invalid-directory responses.
+ * WHY: Directory spans are independent of point-lookup serialization.
+ * HOW: Collect root/subdir/empty listings and probe absent/file paths. */
+static void check_directories(cvmfs_pathidx_t *ix) {
+    dl_t d;
+
+    memset(&d, 0, sizeof(d));
+    CHECK(cvmfs_pathidx_readdir(ix, "", dl_cb, &d) == 4, "root child count");
+    CHECK(d.n == 4 && strcmp(d.names[0], "bin") == 0
+          && strcmp(d.names[1], "data") == 0 && strcmp(d.names[2], "link") == 0
+          && strcmp(d.names[3], "zz") == 0, "root children sorted, no self");
+    memset(&d, 0, sizeof(d));
+    CHECK(cvmfs_pathidx_readdir(ix, "/data", dl_cb, &d) == 2, "subdir count");
+    CHECK(d.n == 2 && strcmp(d.names[0], "big") == 0
+          && strcmp(d.names[1], "blob") == 0, "subdir children sorted");
+    memset(&d, 0, sizeof(d));
+    CHECK(cvmfs_pathidx_readdir(ix, "/zz", dl_cb, &d) == 0, "empty dir lists 0");
+    CHECK(cvmfs_pathidx_readdir(ix, "/nosuch", dl_cb, &d) == -1,
+          "absent dir cannot be listed");
+    CHECK(cvmfs_pathidx_readdir(ix, "/bin/sh", dl_cb, &d) == -1,
+          "a file cannot be listed");
+}
+
+/* ---- success ------------------------------------------------------------- */
+
+static void test_roundtrip(int dfd) {
+    cvmfs_hash_t root = test_root();
+    CHECK(write_corpus(dfd, &root) == 0, "write sidecar");
+
+    cvmfs_pathidx_t ix;
+    CHECK(cvmfs_pathidx_open(&ix, dfd, SIDECAR) == 0, "open sidecar");
+    CHECK(cvmfs_hash_eq(cvmfs_pathidx_root(&ix), &root), "root recorded");
+
+    check_corpus_entries(&ix);
 
     cvmfs_dirent_t miss;
     CHECK(cvmfs_pathidx_lookup(&ix, "/absent", &miss) == 0,
           "complete set: absent is authoritative");
     CHECK(cvmfs_pathidx_lookup(&ix, "/bin/shh", &miss) == 0, "near-miss absent");
 
-    dl_t d;
-    memset(&d, 0, sizeof(d));
-    CHECK(cvmfs_pathidx_readdir(&ix, "", dl_cb, &d) == 4, "root child count");
-    CHECK(d.n == 4 && strcmp(d.names[0], "bin") == 0
-          && strcmp(d.names[1], "data") == 0 && strcmp(d.names[2], "link") == 0
-          && strcmp(d.names[3], "zz") == 0, "root children sorted, no self");
-    memset(&d, 0, sizeof(d));
-    CHECK(cvmfs_pathidx_readdir(&ix, "/data", dl_cb, &d) == 2, "subdir count");
-    CHECK(d.n == 2 && strcmp(d.names[0], "big") == 0
-          && strcmp(d.names[1], "blob") == 0, "subdir children sorted");
-    memset(&d, 0, sizeof(d));
-    CHECK(cvmfs_pathidx_readdir(&ix, "/zz", dl_cb, &d) == 0, "empty dir lists 0");
-    CHECK(cvmfs_pathidx_readdir(&ix, "/nosuch", dl_cb, &d) == -1,
-          "absent dir cannot be listed");
-    CHECK(cvmfs_pathidx_readdir(&ix, "/bin/sh", dl_cb, &d) == -1,
-          "a file cannot be listed");
+    check_directories(&ix);
 
     cvmfs_pathidx_close(&ix);
 

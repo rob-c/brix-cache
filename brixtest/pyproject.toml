@@ -47,6 +47,9 @@ dev = [
     "pytest-cov>=5,<8",
     "mypy>=1.10,<2",
     "ruff>=0.8,<1",
+    "lizard>=1.17,<2",
+    "radon>=6,<7",
+    "complexipy>=6,<8",
     "tox>=4.15,<5",
     "build>=1,<2",
 ]
@@ -76,6 +79,25 @@ markers = [
 [tool.ruff]
 target-version = "py39"
 line-length = 100
+
+[tool.ruff.lint]
+select = [
+    "B", "C401", "C420", "E4", "E7", "E9", "F", "FURB110", "FURB171",
+    "FURB188", "FURB192", "I", "ICN001", "ISC004", "PERF", "PLE0604",
+    "PLR0124", "PLR0402", "PLR0911", "PLR0912", "PLR0915", "PLR1711",
+    "PLR1714", "PLR5501", "PLW", "PTH105", "PTH115", "PTH123", "PTH201",
+    "PYI021", "PYI035", "Q004", "RUF", "S104", "S310", "S311", "S324",
+    "S608", "UP028",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"compat_tests/**/*.py" = ["S310"]
+"examples/**/*.py" = ["S310"]
+
+[tool.complexipy]
+paths = ["src", "tests", "examples", "compat_tests", "tools"]
+max-complexity-allowed = 10
+no-ignore = true
 
 [tool.mypy]
 python_version = "3.9"

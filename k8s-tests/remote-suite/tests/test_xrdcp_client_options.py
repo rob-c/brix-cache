@@ -159,6 +159,12 @@ def test_xrdcp_streams_uses_secondary_bind_and_round_trips(test_env, tmp_path):
     )
 
 
+def _assert_uploaded(source, destination_dir):
+    destination = destination_dir / source.name
+    assert destination.exists(), f"{destination} was not uploaded"
+    assert _sha256(destination) == _sha256(source)
+
+
 def test_xrdcp_parallel_multi_file_uploads(test_env, tmp_path):
     """xrdcp --parallel should upload several files in one client invocation."""
     _require_xrdcp()
@@ -185,10 +191,8 @@ def test_xrdcp_parallel_multi_file_uploads(test_env, tmp_path):
     )
     _assert_xrdcp_ok(result)
 
-    for src in sources:
-        dest = remote_disk_dir / src.name
-        assert dest.exists(), f"{dest} was not uploaded"
-        assert _sha256(dest) == _sha256(src)
+    for source in sources:
+        _assert_uploaded(source, remote_disk_dir)
 
 
 def test_xrdcp_posc_upload_with_adler32_checksum_verification(test_env, tmp_path):

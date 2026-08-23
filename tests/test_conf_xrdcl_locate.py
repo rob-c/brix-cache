@@ -1,4 +1,40 @@
 from split_continuation import reexport as _reexport
+def _expression_1(text_o):
+    return (
+        text_o.strip().splitlines()[0].strip() if text_o.strip() else ""
+    )
+
+def _expression_2(text_f):
+    return (
+        text_f.strip().splitlines()[0].strip() if text_f.strip() else ""
+    )
+
+def _expression_3(line_f):
+    return (
+        line_f.split()[0] if line_f.split() else ""
+    )
+
+def _expression_4(line_o):
+    return (
+        line_o.split()[0] if line_o.split() else ""
+    )
+
+
+def _phase_test_qconfig_shape_parity_1(f_first, key, line_f, line_o, o_first):
+    if f_first.lstrip("-").isdigit():
+        _check_test_qconfig_shape_parity_2(key, line_f, line_o, o_first)
+
+
+def _check_test_qconfig_shape_parity_1(key, line_o):
+    assert not line_o.startswith(f"{key}="), \
+        f"OUR config {key} uses key= but stock does not: {line_o!r}"
+
+def _check_test_qconfig_shape_parity_2(key, line_f, line_o, o_first):
+    assert o_first.lstrip("-").isdigit(), (
+        f"stock config {key} is integer ({line_f!r}) but OUR is not "
+        f"({line_o!r})")
+
+
 _reexport(globals(), "_test_conf_xrdcl_locate_helpers")
 
 @pytest.mark.parametrize("path", TREE_FILES)
@@ -219,18 +255,17 @@ def test_qconfig_shape_parity(srv, fs_our, fs_off, key):
     The literal value may legitimately differ (build/site/role)."""
     st_o, text_o = _q(fs_our, key)
     st_f, text_f = _q(fs_off, key)
-    assert st_o.ok, f"OUR query config {key} failed"
-    assert st_f.ok, f"stock did not answer required config key {key}"
-    line_o = text_o.strip().splitlines()[0].strip() if text_o.strip() else ""
-    line_f = text_f.strip().splitlines()[0].strip() if text_f.strip() else ""
-    assert not line_o.startswith(f"{key}="), \
-        f"OUR config {key} uses key= but stock does not: {line_o!r}"
-    f_first = line_f.split()[0] if line_f.split() else ""
-    o_first = line_o.split()[0] if line_o.split() else ""
-    if f_first.lstrip("-").isdigit():
-        assert o_first.lstrip("-").isdigit(), (
-            f"stock config {key} is integer ({line_f!r}) but OUR is not "
-            f"({line_o!r})")
+    def _assert_test_qconfig_shape_parity_1():
+        assert st_o.ok, f"OUR query config {key} failed"
+        assert st_f.ok, f"stock did not answer required config key {key}"
+
+    _assert_test_qconfig_shape_parity_1()
+    line_o = _expression_1(text_o)
+    line_f = _expression_2(text_f)
+    _check_test_qconfig_shape_parity_1(key, line_o)
+    f_first = _expression_3(line_f)
+    o_first = _expression_4(line_o)
+    _phase_test_qconfig_shape_parity_1(f_first, key, line_f, line_o, o_first)
 
 
 def test_qconfig_version_v_prefixed(srv, fs_our):
@@ -279,10 +314,13 @@ def test_qconfig_multikey_one_line_per_key(srv, fs_our):
     assert st.ok, "OUR multi-key query config failed"
     body = (r or b"").rstrip(b"\x00").decode("latin-1")
     lines = [l for l in body.split("\n") if l != ""]
-    assert len(lines) == 3, \
-        f"OUR multi-key expected 3 lines, got {len(lines)}: {body!r}"
-    assert lines[0].split()[0].lstrip("-").isdigit(), \
-        f"bind_max line not integer-first: {lines[0]!r}"
+    def _assert_test_qconfig_multikey_one_line_per_key_2():
+        assert len(lines) == 3, \
+            f"OUR multi-key expected 3 lines, got {len(lines)}: {body!r}"
+        assert lines[0].split()[0].lstrip("-").isdigit(), \
+            f"bind_max line not integer-first: {lines[0]!r}"
+
+    _assert_test_qconfig_multikey_one_line_per_key_2()
     assert lines[1].split()[0].lstrip("-").isdigit(), \
         f"readv_iov_max line not integer-first: {lines[1]!r}"
 

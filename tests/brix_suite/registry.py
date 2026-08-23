@@ -26,6 +26,12 @@ from typing import Any
 from brix_suite.settings import HOST, REGISTRY_MANIFEST, REGISTRY_ROOT, TEST_ROOT
 
 
+def _expression_1(closure):
+    return (
+        [spec for spec in registered_specs() if spec.name in closure]
+    )
+
+
 @dataclass(frozen=True)
 class InstanceSpec:
     name: str
@@ -246,6 +252,15 @@ def dependency_closure(names) -> set[str]:
     return closure
 
 
+def _marked_specs(item):
+    requested = set()
+    for marker_name in ("registry_server", "registry_servers"):
+        marker = item.get_closest_marker(marker_name)
+        if marker:
+            requested.update(str(arg) for arg in marker.args)
+    return requested
+
+
 def selected_specs(pytest_items, always_on=()) -> list[InstanceSpec]:
     """Return dependency-ordered specs requested by collected pytest items.
 
@@ -261,16 +276,13 @@ def selected_specs(pytest_items, always_on=()) -> list[InstanceSpec]:
     """
     requested: set[str] = set(always_on)
     for item in pytest_items:
-        for marker_name in ("registry_server", "registry_servers"):
-            marker = item.get_closest_marker(marker_name)
-            if marker:
-                requested.update(str(arg) for arg in marker.args)
+        requested.update(_marked_specs(item))
 
     if not requested:
         return registered_specs()
 
     closure = dependency_closure(requested)
-    return [spec for spec in registered_specs() if spec.name in closure]
+    return _expression_1(closure)
 
 
 def endpoint_for(spec: InstanceSpec) -> ServerEndpoint:

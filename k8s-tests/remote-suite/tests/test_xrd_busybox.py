@@ -55,26 +55,52 @@ def _port_up(host, port):
         return False
 
 
-@pytest.fixture(scope="module")
-def rw(tmp_path_factory):
-    if shutil.which("cc") is None and shutil.which("gcc") is None:
+def _require_compiler():
+    compiler = shutil.which("cc") or shutil.which("gcc")
+    if compiler is None:
         pytest.skip("no C compiler")
+
+
+def _build_busybox_clients():
     subprocess.run(["make", "-C", CLIENT_DIR, "xrd", "xrdfs", "xrdcp"],
                    capture_output=True, text=True, timeout=240)
-    for b in ("xrd", "xrdfs"):
-        if not os.path.exists(os.path.join(CLIENT_DIR, "bin", b)):
-            pytest.skip(f"{b} build failed")
+    missing = [
+        name for name in ("xrd", "xrdfs")
+        if not os.path.exists(os.path.join(CLIENT_DIR, "bin", name))
+    ]
+    if missing:
+        pytest.skip(f"{missing[0]} build failed")
+
+
+def _require_nginx():
     if not os.access(NGINX_BIN, os.X_OK):
         pytest.skip(f"nginx not executable: {NGINX_BIN}")
 
-    root = tmp_path_factory.mktemp("xrdbb")
+
+def _require_busybox_build():
+    _require_compiler()
+    _build_busybox_clients()
+    _require_nginx()
+
+
+def _require_tls_endpoint():
+    if not os.path.exists(XRD):
+        pytest.skip("xrd not built")
+    if not _port_up(HOST, 11096):
+        pytest.skip("no TLS server on :11096")
+
+
+def _busybox_tree(root):
     data = root / "data"
     data.mkdir()
     (data / "lines.txt").write_text("".join(f"line{i}\n" for i in range(1, 21)))
     (data / "small.txt").write_text("abcdefghij")
-    port = _free_port()
-    conf = root / "nginx.conf"
-    conf.write_text(f"""
+    return data
+
+
+def _busybox_config(root, data, port):
+    config = root / "nginx.conf"
+    config.write_text(f"""
 worker_processes 1;
 pid {root}/nginx.pid;
 error_log {root}/error.log info;
@@ -84,14 +110,30 @@ stream {{
              brix_auth none; brix_allow_write on; }}
 }}
 """)
-    if subprocess.run([NGINX_BIN, "-t", "-c", str(conf)],
-                      capture_output=True, text=True).returncode != 0:
+    return config
+
+
+def _start_busybox_server(config, port):
+    tested = subprocess.run(
+        [NGINX_BIN, "-t", "-c", str(config)], capture_output=True, text=True
+    )
+    if tested.returncode != 0:
         pytest.skip("nginx -t failed")
-    subprocess.run([NGINX_BIN, "-c", str(conf)], capture_output=True)
+    subprocess.run([NGINX_BIN, "-c", str(config)], capture_output=True)
     for _ in range(50):
         if _port_up(HOST, port):
-            break
+            return
         time.sleep(0.1)
+
+
+@pytest.fixture(scope="module")
+def rw(tmp_path_factory):
+    _require_busybox_build()
+    root = tmp_path_factory.mktemp("xrdbb")
+    data = _busybox_tree(root)
+    port = _free_port()
+    conf = _busybox_config(root, data, port)
+    _start_busybox_server(conf, port)
     yield {"port": port, "data": data}
     subprocess.run([NGINX_BIN, "-c", str(conf), "-s", "quit"], capture_output=True)
     time.sleep(0.3)
@@ -104,6 +146,35 @@ def _url(rw, path=""):
 def _run(*args, **kw):
     return subprocess.run([XRD, *args], capture_output=True, text=True,
                           timeout=kw.pop("timeout", 30), **kw)
+
+
+def _contains_all(text, values):
+    return all(value in text for value in values)
+
+
+def _contains_none(text, values):
+    return all(value not in text for value in values)
+
+
+def _df_data_rows(text):
+    return [row for row in text.splitlines() if row and "Size" not in row]
+
+
+def _first_row_has_digit(rows):
+    return bool(rows) and any(char.isdigit() for char in rows[0])
+
+
+def _protocol_test(document, protocols):
+    matches = [row for row in document["tests"] if row["protocol"] in protocols]
+    assert matches, document
+    assert matches[0]["reachable"] is True
+    return matches[0]
+
+
+def _assert_check_statuses(test, expected):
+    statuses = {check["name"]: check["status"] for check in test["checks"]}
+    actual = {name: statuses.get(name) for name in expected}
+    assert actual == dict.fromkeys(expected, "pass"), statuses
 
 
 # ----------------------------- head -----------------------------------------
@@ -166,10 +237,8 @@ def test_tail_empty_file(rw):
 def test_df_columns(rw):
     p = _run("df", _url(rw, "/"))
     assert p.returncode == 0, p.stderr
-    assert "Size" in p.stdout and "Avail" in p.stdout and "Use%" in p.stdout
-    # second (data) row should carry digits
-    rows = [r for r in p.stdout.splitlines() if r and "Size" not in r]
-    assert rows and any(ch.isdigit() for ch in rows[0]), p.stdout
+    assert _contains_all(p.stdout, ("Size", "Avail", "Use%"))
+    assert _first_row_has_digit(_df_data_rows(p.stdout)), p.stdout
 
 
 def test_df_human(rw):
@@ -282,10 +351,10 @@ def test_mount_list_parses_fixture(tmp_path):
     p = subprocess.run([XRD, "mount"], capture_output=True, text=True,
                        env=env, timeout=10)
     assert p.returncode == 0, p.stderr
-    assert "root://store//data" in p.stdout and "/mnt/data" in p.stdout and "aio" in p.stdout
+    assert _contains_all(p.stdout, ("root://store//data", "/mnt/data", "aio"))
     # octal-escaped space decoded; ext4 row filtered out
     assert "/mnt/legacy space" in p.stdout
-    assert "ext4" not in p.stdout and "/dev/sdb1" not in p.stdout
+    assert _contains_none(p.stdout, ("ext4", "/dev/sdb1"))
 
 
 def test_mount_list_empty(tmp_path):
@@ -549,15 +618,12 @@ def test_certinfo_cleartext_is_clean(rw):
 
 def test_certinfo_tls_when_available():
     """If the shared GSI+TLS server (:11096) is up, exercise real cert parsing."""
-    if not os.path.exists(XRD):
-        pytest.skip("xrd not built")
-    if not _port_up(HOST, 11096):
-        pytest.skip("no TLS server on :11096")
+    _require_tls_endpoint()
     p = subprocess.run([XRD, "certinfo", f"roots://{HOST}:11096//"],
                        capture_output=True, text=True, timeout=30)
     assert p.returncode in (0, 1), p.stderr      # 0 valid, 1 expired/not-yet
     assert "server certificate for" in p.stdout
-    assert "validity:" in p.stdout and "issuer:" in p.stdout
+    assert _contains_all(p.stdout, ("validity:", "issuer:"))
 
 
 def _clean_cred_env(tmp_path):
@@ -638,11 +704,8 @@ def test_doctor_also_webdav_when_available(rw):
                         "--also", f"https://{HOST}:8443/", "--json"],
                        capture_output=True, text=True, timeout=60)
     doc = json.loads(p.stdout)
-    web = [t for t in doc["tests"] if t["protocol"] in ("http", "https")]
-    assert web and web[0]["reachable"] is True
-    names = {c["name"]: c["status"] for c in web[0]["checks"]}
-    assert names.get("OPTIONS") == "pass" and names.get("PUT") == "pass"
-    assert names.get("GET-verify") == "pass"
+    web = _protocol_test(doc, ("http", "https"))
+    _assert_check_statuses(web, ("OPTIONS", "PUT", "GET-verify"))
 
 
 def test_doctor_also_s3_when_available(rw):
@@ -655,11 +718,8 @@ def test_doctor_also_s3_when_available(rw):
                         "--also", f"s3://{HOST}:9001/testbucket", "--json"],
                        capture_output=True, text=True, env=env, timeout=60)
     doc = json.loads(p.stdout)
-    s3 = [t for t in doc["tests"] if t["protocol"] == "s3"]
-    assert s3 and s3[0]["reachable"] is True
-    names = {c["name"]: c["status"] for c in s3[0]["checks"]}
-    assert names.get("list-objects") == "pass"
-    assert names.get("PUT") == "pass" and names.get("GET-verify") == "pass"
+    s3 = _protocol_test(doc, ("s3",))
+    _assert_check_statuses(s3, ("list-objects", "PUT", "GET-verify"))
 
 
 def test_sync_uploads_tree(rw, tmp_path):

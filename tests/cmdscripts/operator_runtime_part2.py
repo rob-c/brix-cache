@@ -23,7 +23,7 @@ from port_ladder import PORT_COUNT
 TESTS = REPO_ROOT / "tests"
 
 
-def run_suite(argv: list[str]) -> int:
+def _suite_parser():
     parser = argparse.ArgumentParser(prog="operator_runtime.py suite")
     parser.add_argument("--fast", action="store_true")
     parser.add_argument("--pr", action="store_true")
@@ -53,107 +53,142 @@ def run_suite(argv: list[str]) -> int:
         help="load a dynamic nginx module in this order; repeat for multiple modules",
     )
     parser.add_argument("extra", nargs=argparse.REMAINDER)
-    ns = parser.parse_args(argv)
-    extra = ns.extra[1:] if ns.extra[:1] == ["--"] else ns.extra
+    return parser
 
-    env = {"PYTHONPATH": f"tests{os.pathsep}{os.environ.get('PYTHONPATH', '')}", "TEST_OWN_FLEET": "1"}
+
+def _suite_prepare_environment(ns):
+    env = {"PYTHONPATH": f"tests{os.pathsep}{os.environ.get('PYTHONPATH', '')}",
+           "TEST_OWN_FLEET": "1"}
     os.environ.update(env)
-    # Publish a provided ASan nginx the same way as the plain fleet binary, so the
-    # sanitizer lane (tools/ci/asan.py) and any sanitized-server test use it
-    # instead of building one.  A relative path is resolved against the caller cwd.
     if ns.asan_nginx_bin:
-        os.environ["TEST_ASAN_NGINX_BIN"] = str(Path(ns.asan_nginx_bin).expanduser().resolve())
+        path = Path(ns.asan_nginx_bin).expanduser().resolve()
+        os.environ["TEST_ASAN_NGINX_BIN"] = str(path)
     if not _configure_suite_binaries(ns.nginx_bin, ns.xrootd_bin):
-        return 2
+        return None
     if not _configure_nginx_modules(os.environ["TEST_NGINX_BIN"], ns.nginx_load_module):
-        return 2
+        return None
     test_root = Path(os.environ.get("TEST_ROOT", "/tmp/xrd-test")).expanduser().resolve()
     os.environ["TEST_ROOT"] = str(test_root)
-    if not _prepare_test_root(test_root):
-        return 2
-    teardown_test_fleet(test_root)
-    # A prior aborted run may have left a fleet-sentinel marker on disk; drop it
-    # so this fresh suite is not halted before it starts.  A lane that trips the
-    # sentinel mid-run re-creates it, and the driver halts the remaining lanes.
-    clear_sentinel_marker(test_root)
+    return test_root if _prepare_test_root(test_root) else None
+
+
+def _suite_arguments(ns):
+    extra = ns.extra[1:] if ns.extra[:1] == ["--"] else ns.extra
     destructive = _existing(DESTRUCTIVE)
     clientconf = _existing(CLIENTCONF)
     ignore = [f"--ignore={REPO_ROOT / 'tests/userns'}"]
     ignore += [f"--ignore={REPO_ROOT / rel}" for rel in [*destructive, *clientconf]]
     common = ["-ra", "-q", "-p", "no:randomly", "-p", "no:rerunfailures",
               "-o", "addopts=", "--color=no", *extra]
-    tests_root = str(REPO_ROOT / "tests")
+    return destructive, clientconf, ignore, common, str(REPO_ROOT / "tests")
+
+
+def _suite_fast(ns, test_root, tests_root, ignore, common):
+    selection = [tests_root, *ignore, "-m", "not slow and not serial"]
+    parallel = ["-n", str(ns.n), "--dist", "load"]
+    return 0 if _suite_lane(test_root, selection, parallel, common) else 1
+
+
+def _suite_pr(ns, test_root, tests_root, ignore, common):
     rc = 0
+    selection = [tests_root, *ignore, "-m", "not slow and not serial"]
+    if not _suite_lane(test_root, selection, ["-n", str(ns.n), "--dist", "load"], common):
+        rc = 1
+    serial = [tests_root, f"--ignore={REPO_ROOT / 'tests/userns'}", "-m", "serial and not slow"]
+    if not _suite_serial_lane(test_root, serial, common):
+        rc = 1
+    return rc
+
+
+def _optional_serial_lane(test_root, paths, common):
+    if not paths:
+        return 0
+    selection = [str(REPO_ROOT / rel) for rel in paths]
+    return 0 if _suite_serial_lane(test_root, selection, common) else 1
+
+
+def _optional_parallel_lane(test_root, paths, common, distribution):
+    if not paths:
+        return 0
+    selection = [str(REPO_ROOT / rel) for rel in paths]
+    parallel = ["-n", "2", "--dist", distribution]
+    return 0 if _suite_lane(test_root, selection, parallel, common) else 1
+
+
+def _suite_nightly(ns, test_root, tests_root, ignore, common, destructive, clientconf):
+    rc = 0
+    slow = [tests_root, *ignore, "-m", "slow and not serial"]
+    if not _suite_lane(test_root, slow, ["-n", str(ns.n), "--dist", "load"], common):
+        rc = 1
+    serial = [tests_root, f"--ignore={REPO_ROOT / 'tests/userns'}", "-m", "slow and serial"]
+    if not _suite_serial_lane(test_root, serial, common):
+        rc = 1
+    extra = _optional_serial_lane(test_root, destructive, common)
+    clients = _optional_parallel_lane(test_root, clientconf, common, "load")
+    return max(rc, extra, clients)
+
+
+def _suite_sample(ns, test_root, tests_root, common):
+    sample_common = ["-q", "--tb=short", *common[2:]]
+    selection = [tests_root, f"--first-percent={ns.first_percent:g}"]
+    parallel = ["-n", str(ns.n), "--dist", "loadgroup"]
+    return 0 if _suite_lane(test_root, selection, parallel, sample_common) else 1
+
+
+def _suite_full(ns, test_root, tests_root, ignore, common, destructive, clientconf):
+    rc = 0
+    selection = [tests_root, *ignore, "-m", "not serial"]
+    parallel = ["-n", str(ns.n), "--dist", "loadgroup"]
+    if not _suite_lane(test_root, selection, parallel, common):
+        rc = 1
+    serial = [tests_root, f"--ignore={REPO_ROOT / 'tests/userns'}", "-m", "serial"]
+    if not _suite_serial_lane(test_root, serial, common):
+        rc = 1
+    extra = _optional_serial_lane(test_root, destructive, common)
+    clients = _optional_parallel_lane(test_root, clientconf, common, "loadgroup")
+    return max(rc, extra, clients)
+
+
+def _suite_selected_mode(ns, test_root, arguments):
+    destructive, clientconf, ignore, common, tests_root = arguments
+    if ns.fast:
+        return _suite_fast(ns, test_root, tests_root, ignore, common)
+    if ns.pr:
+        return _suite_pr(ns, test_root, tests_root, ignore, common)
+    if ns.nightly:
+        return _suite_nightly(
+            ns, test_root, tests_root, ignore, common, destructive, clientconf
+        )
+    if ns.first_percent is not None:
+        return _suite_sample(ns, test_root, tests_root, common)
+    return _suite_full(
+        ns, test_root, tests_root, ignore, common, destructive, clientconf
+    )
+
+
+def _report_sentinel_abort(abort):
+    sys.stdout.write(str(abort).rstrip("\n") + "\n")
+    sys.stdout.write(
+        "SUITE HALTED by fleet sentinel — fix the offending test before "
+        "re-running (set BRIX_FLEET_SENTINEL=0 to override).\n")
+    sys.stdout.flush()
+
+
+def run_suite(argv: list[str]) -> int:
+    ns = _suite_parser().parse_args(argv)
+    test_root = _suite_prepare_environment(ns)
+    if test_root is None:
+        return 2
+    teardown_test_fleet(test_root)
+    clear_sentinel_marker(test_root)
+    arguments = _suite_arguments(ns)
 
     try:
-        if ns.fast:
-            ok = _suite_lane(test_root, [tests_root, *ignore, "-m", "not slow and not serial"], ["-n", str(ns.n), "--dist", "load"], common)
-            return 0 if ok else 1
-        if ns.pr:
-            if not _suite_lane(test_root, [tests_root, *ignore, "-m", "not slow and not serial"], ["-n", str(ns.n), "--dist", "load"], common):
-                rc = 1
-            if not _suite_serial_lane(test_root, [tests_root, f"--ignore={REPO_ROOT / 'tests/userns'}", "-m", "serial and not slow"], common):
-                rc = 1
-            return rc
-        if ns.nightly:
-            if not _suite_lane(test_root, [tests_root, *ignore, "-m", "slow and not serial"], ["-n", str(ns.n), "--dist", "load"], common):
-                rc = 1
-            if not _suite_serial_lane(test_root, [tests_root, f"--ignore={REPO_ROOT / 'tests/userns'}", "-m", "slow and serial"], common):
-                rc = 1
-            if destructive and not _suite_serial_lane(test_root, [str(REPO_ROOT / rel) for rel in destructive], common):
-                rc = 1
-            if clientconf and not _suite_lane(test_root, [str(REPO_ROOT / rel) for rel in clientconf], ["-n", "2", "--dist", "load"], common):
-                rc = 1
-            return rc
-
-        # An explicitly requested sample is a single deterministic collection. Keep
-        # it byte-for-byte equivalent to the documented direct pytest command:
-        # one collection (so 10% means 10% globally, not 10% of several lanes),
-        # loadgroup scheduling, and no retry plugin. A failure is reported once
-        # and must be fixed rather than re-executed automatically.
-        if ns.first_percent is not None:
-            sample_common = ["-q", "--tb=short", *common[2:]]
-            ok = _suite_lane(
-                test_root,
-                [tests_root, f"--first-percent={ns.first_percent:g}"],
-                ["-n", str(ns.n), "--dist", "loadgroup"],
-                sample_common,
-            )
-            return 0 if ok else 1
-
-        # Full default: parallel-safe tests, serial tests, destructive resilience
-        # tests, then client-configuration tests. Every lane is single-pass.
-        if not _suite_lane(test_root,
-                           [tests_root, *ignore, "-m", "not serial"],
-                           ["-n", str(ns.n), "--dist", "loadgroup"], common):
-            rc = 1
-        if not _suite_serial_lane(
-                test_root,
-                [tests_root, f"--ignore={REPO_ROOT / 'tests/userns'}", "-m", "serial"],
-                common):
-            rc = 1
-        if destructive and not _suite_serial_lane(
-                test_root, [str(REPO_ROOT / rel) for rel in destructive], common):
-            rc = 1
-        if clientconf and not _suite_lane(
-                test_root, [str(REPO_ROOT / rel) for rel in clientconf],
-                ["-n", "2", "--dist", "loadgroup"], common):
-            rc = 1
-        return rc
-
+        return _suite_selected_mode(ns, test_root, arguments)
     except FleetSentinelAbort as abort:
-        # A test killed or crashed a shared fleet server: halt the whole suite
-        # here rather than run the remaining lanes against a damaged fleet.  The
-        # banner (with the culprit test) already went to the lane's output; echo
-        # it once more so it is the last thing the operator sees.
-        sys.stdout.write(str(abort).rstrip("\n") + "\n")
-        sys.stdout.write(
-            "SUITE HALTED by fleet sentinel — fix the offending test before "
-            "re-running (set BRIX_FLEET_SENTINEL=0 to override).\n")
-        sys.stdout.flush()
+        _report_sentinel_abort(abort)
         return 1
     finally:
-        # Covers KeyboardInterrupt between lanes and exceptions in lane setup.
         teardown_test_fleet(test_root)
 
 
@@ -209,110 +244,197 @@ def _wait_port_or_raise(host: str, port: int, label: str) -> None:
         raise RuntimeError(f"{label} did not come up on {host}:{port}")
 
 
-def run_load(argv: list[str]) -> int:
-    target = argv[0] if argv and not argv[0].startswith("-") else "nginx"
-    extra = argv[1:] if argv and not argv[0].startswith("-") else argv
+def _load_target(argv):
+    if argv and not argv[0].startswith("-"):
+        return argv[0], argv[1:]
+    return "nginx", argv
+
+
+def _consume_data_tls(extra, index):
+    item = extra[index]
+    if item == "--data-tls":
+        next_index = index + 1
+        value = extra[next_index] if next_index < len(extra) else "off"
+        return value, next_index + 1
+    if item.startswith("--data-tls="):
+        return item.split("=", 1)[1], index + 1
+    return None, index + 1
+
+
+def _load_options(argv):
+    target, extra = _load_target(argv)
     data_tls = "off"
     forwarded: list[str] = []
     idx = 0
     while idx < len(extra):
-        item = extra[idx]
-        if item == "--data-tls":
-            idx += 1
-            data_tls = extra[idx] if idx < len(extra) else "off"
-        elif item.startswith("--data-tls="):
-            data_tls = item.split("=", 1)[1]
+        value, next_index = _consume_data_tls(extra, idx)
+        if value is None:
+            forwarded.append(extra[idx])
         else:
-            forwarded.append(item)
-        idx += 1
+            data_tls = value
+        idx = next_index
+    return target, data_tls, forwarded
+
+
+def _load_paths(test_root):
+    perf_root = test_root / "artifacts" / "load"
+    return {
+        "perf": perf_root,
+        "fixtures": perf_root / "fixtures",
+        "nginx": perf_root / "nginx",
+        "xrd": perf_root / "xrootd",
+        "anon": perf_root / "xrootd-anon",
+    }
+
+
+def _prepare_load_paths(paths):
+    directories = (
+        paths["nginx"] / "logs", paths["nginx"] / "tmp",
+        paths["xrd"] / "logs", paths["xrd"] / "admin", paths["xrd"] / "run",
+        paths["anon"] / "logs", paths["anon"] / "admin", paths["anon"] / "run",
+    )
+    for directory in directories:
+        directory.mkdir(parents=True, exist_ok=True)
+
+
+def _render_load_configs(paths, data_tls):
+    load_root = paths["fixtures"]
+    nginx_conf = paths["nginx"] / "nginx.gen.conf"
+    xrd_conf = paths["xrd"] / "brix.gen.conf"
+    anon_conf = paths["anon"] / "brix.anon.gen.conf"
+    nginx_text = (TESTS / "nginx.perf.conf").read_text()
+    nginx_text = nginx_text.replace("{NGINX_DIR}", str(paths["nginx"]))
+    nginx_text = nginx_text.replace("{LOAD_ROOT}", str(load_root))
+    nginx_conf.write_text(nginx_text.replace("brix_tls on;", f"brix_tls {data_tls};"))
+    xrd_text = (TESTS / "brix.perf.conf").read_text()
+    xrd_text = xrd_text.replace("{XRD_DIR}", str(paths["xrd"]))
+    xrd_conf.write_text(xrd_text.replace("{LOAD_ROOT}", str(load_root)))
+    _append_load_tls(xrd_conf, load_root, data_tls)
+    _write_anon_load_config(anon_conf, paths["anon"], load_root)
+    return nginx_conf, xrd_conf, anon_conf
+
+
+def _append_load_tls(config, load_root, data_tls):
+    if data_tls != "on":
+        return
+    config.write_text(
+        config.read_text()
+        + f"\nxrd.tls {load_root}/pki/server/hostcert.pem "
+        f"{load_root}/pki/server/hostkey.pem\n"
+        f"xrd.tlsca certdir {load_root}/pki/ca\nxrootd.tls data\n"
+    )
+
+
+def _write_anon_load_config(config, anon_dir, load_root):
+    config.write_text(
+        f"all.adminpath {anon_dir}/admin\n"
+        f"all.pidpath {anon_dir}/run\n"
+        f"oss.localroot {load_root}/data\nall.export /\nxrd.port 12093\n"
+        "xrd.network nodnr\nxrd.allow host *\nxrd.sched mint 8 avlt 16 maxt 256 idle 780\n"
+    )
+
+
+def _start_load_nginx(paths, nginx_bin, config):
+    nginx_dir = paths["nginx"]
+    clean_test_fleet(nginx_dir)
+    argv = [str(nginx_bin), "-c", str(config), "-p", str(nginx_dir)]
+    tested = run([*argv, "-t"], cwd=REPO_ROOT)
+    if tested.returncode != 0:
+        print(_tail(tested), file=sys.stderr)
+        return False
+    started = run(argv, cwd=REPO_ROOT)
+    if started.returncode != 0:
+        print(_tail(started), file=sys.stderr)
+        return False
+    _wait_port_or_raise(BIND_HOST, 12795, "nginx XRootD+GSI")
+    _wait_port_or_raise(BIND_HOST, 12796, "nginx XRootD+TLS")
+    _wait_port_or_raise(BIND_HOST, 12792, "nginx WebDAV+GSI")
+    return True
+
+
+def _start_xrootd_process(binary, config, log, name):
+    return _popen(
+        [str(binary), "-c", str(config), "-l", str(log), "-n", name, "-b"],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+
+
+def _start_load_xrootd(paths, xrootd_bin, configs, children):
+    if not xrootd_bin.exists():
+        print(f"xrootd binary not found: {xrootd_bin}", file=sys.stderr)
+        return False
+    xrd_dir, anon_dir = paths["xrd"], paths["anon"]
+    (xrd_dir / "data").mkdir(parents=True, exist_ok=True)
+    link = xrd_dir / "data/xrd-test"
+    if not link.exists():
+        link.symlink_to(paths["fixtures"] / "data")
+    (xrd_dir / "authdb").write_text("all.allow host any\nu * / rwld\n")
+    children.append(_start_xrootd_process(
+        xrootd_bin, configs[1], xrd_dir / "logs/brix.log", "perf"
+    ))
+    _wait_port_or_raise(BIND_HOST, 12094, "xrootd GSI")
+    children.append(_start_xrootd_process(
+        xrootd_bin, configs[2], anon_dir / "logs/brix.log", "perfanon"
+    ))
+    _wait_port_or_raise(BIND_HOST, 12093, "xrootd anon")
+    return True
+
+
+def _start_load_targets(target, paths, binaries, configs, children):
+    nginx_bin, xrootd_bin = binaries
+    if target in {"nginx", "both"} and not _start_load_nginx(paths, nginx_bin, configs[0]):
+        return False
+    if target in {"xrootd", "both"} and not _start_load_xrootd(
+            paths, xrootd_bin, configs, children):
+        return False
+    return True
+
+
+def _stop_load_nginx(paths, nginx_bin, config):
+    nginx_dir = paths["nginx"]
+    run([str(nginx_bin), "-c", str(config), "-p", str(nginx_dir), "-s", "quit"],
+        cwd=REPO_ROOT)
+    pidfile = nginx_dir / "logs/nginx.pid"
+    if not pidfile.exists():
+        return
+    try:
+        os.killpg(int(pidfile.read_text().strip()), signal.SIGKILL)
+    except (OSError, ValueError):
+        pass
+
+
+def _stop_load_processes(target, paths, nginx_bin, nginx_conf, children):
+    if target in {"nginx", "both"}:
+        _stop_load_nginx(paths, nginx_bin, nginx_conf)
+    for child in children:
+        child.terminate()
+    run(["pkill", "-f", "xrootd.*-n perf"], cwd=REPO_ROOT)
+
+
+def run_load(argv: list[str]) -> int:
+    target, data_tls, forwarded = _load_options(argv)
     if data_tls not in {"on", "off"}:
         print(f"bad --data-tls {data_tls}", file=sys.stderr)
         return 2
 
     test_root = Path(os.environ.get("TEST_ROOT", "/tmp/xrd-test")).resolve()
-    perf_root = test_root / "artifacts" / "load"
-    load_root = perf_root / "fixtures"
-    nginx_dir = perf_root / "nginx"
-    xrd_dir = perf_root / "xrootd"
-    xrd_anon_dir = perf_root / "xrootd-anon"
+    paths = _load_paths(test_root)
     nginx_bin = Path(os.environ.get("NGINX_BIN", "/tmp/nginx-1.28.3/objs/nginx"))
     xrootd_bin = Path(os.environ.get("REF_BIN", os.environ.get("BRIX_BIN", "/usr/bin/xrootd")))
-    _setup_load_data(load_root)
-    for path in (nginx_dir / "logs", nginx_dir / "tmp", xrd_dir / "logs", xrd_dir / "admin", xrd_dir / "run", xrd_anon_dir / "logs", xrd_anon_dir / "admin", xrd_anon_dir / "run"):
-        path.mkdir(parents=True, exist_ok=True)
-
-    nginx_conf = nginx_dir / "nginx.gen.conf"
-    xrd_conf = xrd_dir / "brix.gen.conf"
-    xrd_anon_conf = xrd_anon_dir / "brix.anon.gen.conf"
-    ntls = "on" if data_tls == "on" else "off"
-    nginx_text = (TESTS / "nginx.perf.conf").read_text()
-    nginx_text = nginx_text.replace("{NGINX_DIR}", str(nginx_dir))
-    nginx_text = nginx_text.replace("{LOAD_ROOT}", str(load_root))
-    nginx_conf.write_text(nginx_text.replace("brix_tls on;", f"brix_tls {ntls};"))
-    xrd_text = (TESTS / "brix.perf.conf").read_text()
-    xrd_text = xrd_text.replace("{XRD_DIR}", str(xrd_dir))
-    xrd_text = xrd_text.replace("{LOAD_ROOT}", str(load_root))
-    xrd_conf.write_text(xrd_text)
-    if data_tls == "on":
-        xrd_conf.write_text(
-            xrd_conf.read_text()
-            + f"\nxrd.tls {load_root}/pki/server/hostcert.pem "
-            f"{load_root}/pki/server/hostkey.pem\n"
-            f"xrd.tlsca certdir {load_root}/pki/ca\nxrootd.tls data\n"
-        )
-    xrd_anon_conf.write_text(
-        f"all.adminpath {xrd_anon_dir}/admin\n"
-        f"all.pidpath {xrd_anon_dir}/run\n"
-        f"oss.localroot {load_root}/data\nall.export /\nxrd.port 12093\n"
-        "xrd.network nodnr\nxrd.allow host *\nxrd.sched mint 8 avlt 16 maxt 256 idle 780\n"
-    )
-
+    _setup_load_data(paths["fixtures"])
+    _prepare_load_paths(paths)
+    configs = _render_load_configs(paths, data_tls)
     children: list[subprocess.Popen] = []
     try:
-        if target in {"nginx", "both"}:
-            clean_test_fleet(nginx_dir)
-            tested = run([str(nginx_bin), "-c", str(nginx_conf), "-p", str(nginx_dir), "-t"], cwd=REPO_ROOT)
-            if tested.returncode != 0:
-                print(_tail(tested), file=sys.stderr)
-                return 1
-            started = run([str(nginx_bin), "-c", str(nginx_conf), "-p", str(nginx_dir)], cwd=REPO_ROOT)
-            if started.returncode != 0:
-                print(_tail(started), file=sys.stderr)
-                return 1
-            _wait_port_or_raise(BIND_HOST, 12795, "nginx XRootD+GSI")
-            _wait_port_or_raise(BIND_HOST, 12796, "nginx XRootD+TLS")
-            _wait_port_or_raise(BIND_HOST, 12792, "nginx WebDAV+GSI")
-        if target in {"xrootd", "both"}:
-            if not xrootd_bin.exists():
-                print(f"xrootd binary not found: {xrootd_bin}", file=sys.stderr)
-                return 1
-            (xrd_dir / "data").mkdir(parents=True, exist_ok=True)
-            link = xrd_dir / "data/xrd-test"
-            if not link.exists():
-                link.symlink_to(load_root / "data")
-            (xrd_dir / "authdb").write_text("all.allow host any\nu * / rwld\n")
-            children.append(_popen([str(xrootd_bin), "-c", str(xrd_conf), "-l", str(xrd_dir / "logs/brix.log"), "-n", "perf", "-b"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL))
-            _wait_port_or_raise(BIND_HOST, 12094, "xrootd GSI")
-            children.append(_popen([str(xrootd_bin), "-c", str(xrd_anon_conf), "-l", str(xrd_anon_dir / "logs/brix.log"), "-n", "perfanon", "-b"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL))
-            _wait_port_or_raise(BIND_HOST, 12093, "xrootd anon")
+        if not _start_load_targets(target, paths, (nginx_bin, xrootd_bin), configs, children):
+            return 1
         return _run_stream([
             sys.executable, str(TESTS / "load_test.py"), "--target", target,
-            "--json", str(perf_root / "load_test_results.json"), *forwarded,
+            "--json", str(paths["perf"] / "load_test_results.json"), *forwarded,
         ])
     except RuntimeError as exc:
         print(str(exc), file=sys.stderr)
         return 1
     finally:
-        if target in {"nginx", "both"}:
-            run([str(nginx_bin), "-c", str(nginx_conf), "-p", str(nginx_dir), "-s", "quit"], cwd=REPO_ROOT)
-            pidfile = nginx_dir / "logs/nginx.pid"
-            if pidfile.exists():
-                try:
-                    os.killpg(int(pidfile.read_text().strip()), signal.SIGKILL)
-                except (OSError, ValueError):
-                    pass
-        for child in children:
-            child.terminate()
-        run(["pkill", "-f", "xrootd.*-n perf"], cwd=REPO_ROOT)
-
-
+        _stop_load_processes(target, paths, nginx_bin, configs[0], children)

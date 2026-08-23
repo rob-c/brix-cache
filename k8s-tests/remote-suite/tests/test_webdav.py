@@ -52,6 +52,47 @@ import urllib.request
 import ssl
 from settings import CA_CERT, DATA_ROOT as DEFAULT_DATA_ROOT, PROXY_STD, TOKENS_DIR
 
+def _expression_1(propstats, ns):
+    return (
+        [ps.findtext("D:status", namespaces=ns) for ps in propstats]
+    )
+
+def _expression_2(ps, ns):
+    return (
+        ps.findtext("D:status", namespaces=ns) or ""
+    )
+
+def _expression_3(props):
+    return (
+        [p.tag.split("}")[-1] if "}" in p.tag else p.tag for p in props]
+    )
+
+
+def _guard_test_mkcol_rejects_double_encoded_traversal_segments_1(parent_path):
+    if klib.svc_exists(SERVER_SVC, parent_path):
+        klib.svc_rmtree(SERVER_SVC, parent_path)
+
+def _guard_test_mkcol_rejects_double_encoded_traversal_segments_2(target_path):
+    if klib.svc_exists(SERVER_SVC, target_path):
+        klib.svc_rmtree(SERVER_SVC, target_path)
+
+def _guard_test_mkcol_rejects_double_encoded_traversal_segments_3(parent_path):
+    if klib.svc_exists(SERVER_SVC, parent_path):
+        klib.svc_rmtree(SERVER_SVC, parent_path)
+
+def _guard_test_mkcol_rejects_double_encoded_traversal_segments_4(target_path):
+    if klib.svc_exists(SERVER_SVC, target_path):
+        klib.svc_rmtree(SERVER_SVC, target_path)
+
+def _check_test_propfind_prop_unknown_property_in_404_propstat_1(statuses):
+    assert any("404" in (s or "") for s in statuses), \
+        f"prop: unknown property not in 404 propstat; statuses={statuses}"
+
+def _check_test_propfind_prop_unknown_property_in_404_propstat_2(names):
+    assert "no-such-prop" in names, \
+        f"prop: D:no-such-prop not found in 404 propstat; names={names}"
+
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from utils.make_token import TokenIssuer
 import klib  # remote: server-side setup
@@ -567,10 +608,8 @@ class TestPathHardening:
         parent_path = _data_path(parent)
         target_path = _data_path(target)
 
-        if klib.svc_exists(SERVER_SVC, parent_path):
-            klib.svc_rmtree(SERVER_SVC, parent_path)
-        if klib.svc_exists(SERVER_SVC, target_path):
-            klib.svc_rmtree(SERVER_SVC, target_path)
+        _guard_test_mkcol_rejects_double_encoded_traversal_segments_1(parent_path)
+        _guard_test_mkcol_rejects_double_encoded_traversal_segments_2(target_path)
 
         klib.svc_mkdir(SERVER_SVC, parent_path)
 
@@ -580,15 +619,16 @@ class TestPathHardening:
                 "-X", "MKCOL",
                 f"{BASE_URL}/{parent}%252F..%252F{target}",
             )
-            assert code == 403, f"Expected 403 for traversal path, got {code}"
-            assert not klib.svc_exists(SERVER_SVC, target_path), (
-                "double-encoded traversal unexpectedly created a sibling directory"
-            )
+            def _assert_test_mkcol_rejects_double_encoded_traversal_segments_1():
+                assert code == 403, f"Expected 403 for traversal path, got {code}"
+                assert not klib.svc_exists(SERVER_SVC, target_path), (
+                    "double-encoded traversal unexpectedly created a sibling directory"
+                )
+
+            _assert_test_mkcol_rejects_double_encoded_traversal_segments_1()
         finally:
-            if klib.svc_exists(SERVER_SVC, parent_path):
-                klib.svc_rmtree(SERVER_SVC, parent_path)
-            if klib.svc_exists(SERVER_SVC, target_path):
-                klib.svc_rmtree(SERVER_SVC, target_path)
+            _guard_test_mkcol_rejects_double_encoded_traversal_segments_3(parent_path)
+            _guard_test_mkcol_rejects_double_encoded_traversal_segments_4(target_path)
 
 
 # ---------------------------------------------------------------------------
@@ -885,18 +925,16 @@ class TestPropfindBody:
 
         # Find propstat elements; one should have 200, one should have 404
         propstats = root.findall(".//D:propstat", ns)
-        statuses = [ps.findtext("D:status", namespaces=ns) for ps in propstats]
-        assert any("404" in (s or "") for s in statuses), \
-            f"prop: unknown property not in 404 propstat; statuses={statuses}"
+        statuses = _expression_1(propstats, ns)
+        _check_test_propfind_prop_unknown_property_in_404_propstat_1(statuses)
 
         # The 404 propstat should contain D:no-such-prop
         for ps in propstats:
-            status = ps.findtext("D:status", namespaces=ns) or ""
+            status = _expression_2(ps, ns)
             if "404" in status:
                 props = ps.findall(".//D:prop/*", ns)
-                names = [p.tag.split("}")[-1] if "}" in p.tag else p.tag for p in props]
-                assert "no-such-prop" in names, \
-                    f"prop: D:no-such-prop not found in 404 propstat; names={names}"
+                names = _expression_3(props)
+                _check_test_propfind_prop_unknown_property_in_404_propstat_2(names)
 
     def test_propfind_prop_only_unknown_gives_404_propstat(self, scratch_file):
         """Requesting only unknown properties must still produce a 207 with 404 propstat."""

@@ -71,6 +71,18 @@ from settings import (
 # Paths
 # ---------------------------------------------------------------------------
 
+def _guard_vo_nginx_1():
+    if not VOMS_PROXY_FAKE:
+        pytest.skip("voms-proxy-fake not found — skipping VO ACL tests")
+
+def _guard_vo_nginx_2():
+    if not _proxy_is_valid(PROXY_STD):
+        subprocess.run(
+            ["python3", os.path.join(os.path.dirname(__file__), "..", "utils", "make_proxy.py")],
+            check=True, capture_output=True,
+        )
+
+
 VO_URL      = f"root://{url_host(HOST)}:{VO_PORT}"
 
 
@@ -207,8 +219,7 @@ def vo_nginx():
 
     Skips the whole module if voms-proxy-fake is not on PATH.
     """
-    if not VOMS_PROXY_FAKE:
-        pytest.skip("voms-proxy-fake not found — skipping VO ACL tests")
+    _guard_vo_nginx_1()
 
     # ---- VOMS signing cert
     _make_voms_signing_cert()
@@ -217,11 +228,7 @@ def vo_nginx():
     _make_vomsdir()
 
     # ---- Plain GSI proxy (recreate if expired or absent)
-    if not _proxy_is_valid(PROXY_STD):
-        subprocess.run(
-            ["python3", os.path.join(os.path.dirname(__file__), "..", "utils", "make_proxy.py")],
-            check=True, capture_output=True,
-        )
+    _guard_vo_nginx_2()
 
     # ---- VOMS proxies — ALWAYS regenerate.
     # conftest wipes pki/ every session and the VOMS signing cert + vomsdir are

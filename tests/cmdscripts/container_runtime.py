@@ -34,18 +34,34 @@ from cmdscripts.compile_run import REPO_ROOT, run
 
 # docker first so an operator who has both keeps the historical behaviour; a
 # forced $BRIX_CONTAINER_RUNTIME overrides the order and the probe list alike.
+def _expression_1(candidates):
+    return (
+        candidates if candidates is not None else _CANDIDATES
+    )
+
+def _expression_2(candidates, forced):
+    return (
+        candidates is not None and forced not in candidates
+    )
+
+def _expression_3(name):
+    return (
+        name and shutil.which(name) and run([name, "info"], cwd=REPO_ROOT).returncode == 0
+    )
+
+
 _CANDIDATES = ("docker", "podman")
 
 
 def container_runtime(candidates: Sequence[str] | None = None) -> str | None:
     """First working docker-compatible runtime, or None if none is usable."""
     forced = os.environ.get("BRIX_CONTAINER_RUNTIME")
-    probe: Sequence[str] = candidates if candidates is not None else _CANDIDATES
+    probe: Sequence[str] = _expression_1(candidates)
     if forced:
-        if candidates is not None and forced not in candidates:
+        if _expression_2(candidates, forced):
             return None
         probe = (forced,)
     for name in probe:
-        if name and shutil.which(name) and run([name, "info"], cwd=REPO_ROOT).returncode == 0:
+        if _expression_3(name):
             return name
     return None

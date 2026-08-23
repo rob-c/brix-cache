@@ -19,6 +19,15 @@ from cryptography.hazmat.primitives import hashes, serialization
 from brix_suite.security.tokens.jose import _b64url, _seg
 
 
+def _guard_sign_generic_1(kid, hdr):
+    if kid is not None:
+        hdr["kid"] = kid
+
+def _guard_sign_generic_2(header_extra, hdr):
+    if header_extra:
+        hdr.update(header_extra)
+
+
 class _TokenForgeMint:
     """Base claims, simple header/alg tampering, and alternate signing keys."""
 
@@ -329,10 +338,8 @@ class _TokenForgeMint:
                                tests like alg_variant/alg_unsupported).
         """
         hdr = {"alg": alg, "typ": "JWT"}
-        if kid is not None:
-            hdr["kid"] = kid
-        if header_extra:
-            hdr.update(header_extra)
+        _guard_sign_generic_1(kid, hdr)
+        _guard_sign_generic_2(header_extra, hdr)
         if payload is None:
             payload = self._base_claims()
         signing_input = (_seg(hdr) + "." + _seg(payload)).encode("ascii")

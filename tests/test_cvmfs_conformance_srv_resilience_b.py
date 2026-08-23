@@ -112,13 +112,18 @@ def test_unhealable_partial_never_truncated_200_never_rst(srv1, alloc, mode):
         assert not (status == 200 and body_len < len(body))
     finally:
         _clear_fault(srv1)
-    deadline = time.monotonic() + 20                 # outlive the zombie fill
+    status, got = _poll_until_available(srv1, path)
+    assert status == 200
+    assert got == body
+
+
+def _poll_until_available(server, path):
+    deadline = time.monotonic() + 20
     while True:
-        status, got = _get(srv1.nginx_port, path)    # nothing partial retained
+        status, got = _get(server.nginx_port, path)
         if status == 200 or time.monotonic() > deadline:
-            break
+            return status, got
         time.sleep(1)
-    assert status == 200 and got == body
 
 
 # =========================================================================== #
@@ -151,16 +156,21 @@ def test_fill_max_life_expires_wedged_detached_fill(srv1, alloc):
     # by stall detection + backoff: poll (each GET may briefly join the dying
     # fill and 504) — but a healthy 200 must arrive well before the deadline,
     # and the successful fill itself must be fast (fresh, not queued).
+    status, got, elapsed = _poll_fresh_fill(srv1, path)
+    assert status == 200
+    assert got == body, "object wedged after max_life expiry"
+    assert elapsed < 5, f"successful fill took {elapsed:.1f}s — served by a queue, not fresh"
+
+
+def _poll_fresh_fill(server, path):
     deadline = time.monotonic() + 25
     while True:
         t0 = time.monotonic()
-        status, got = _get(srv1.nginx_port, path)
-        dt = time.monotonic() - t0
+        status, got = _get(server.nginx_port, path)
+        elapsed = time.monotonic() - t0
         if status == 200 or time.monotonic() > deadline:
-            break
+            return status, got, elapsed
         time.sleep(1)
-    assert status == 200 and got == body, "object wedged after max_life expiry"
-    assert dt < 5, f"successful fill took {dt:.1f}s — served by a queue, not fresh"
 
 
 # =========================================================================== #

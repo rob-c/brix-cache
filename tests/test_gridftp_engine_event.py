@@ -40,6 +40,17 @@ from settings import BIND_HOST, NGINX_BIN, SERVER_HOST
 from server_launcher import LifecycleHarness
 from server_registry import NginxInstanceSpec
 
+def _expression_1(text):
+    return (
+        [ln for ln in text.split("\r\n") if ln]
+    )
+
+def _expression_2(ln):
+    return (
+        len(ln) >= 4 and ln[3] == " " and ln[:3].isdigit()
+    )
+
+
 pytestmark = [pytest.mark.serial, pytest.mark.timeout(180),
               pytest.mark.uses_lifecycle_harness,
               pytest.mark.xdist_group("lc-gridftp-ev")]
@@ -89,19 +100,22 @@ class _Ctrl:
             assert self.cmd("USER anonymous").startswith("331 ")
             assert self.cmd("PASS x").startswith("230 ")
 
+    def _complete_reply(self):
+        if self.buf.find(b"\n") < 0:
+            return None
+        text = self.buf.decode(errors="replace")
+        for line in _expression_1(text):
+            if _expression_2(line):
+                self.buf = b""
+                return text.strip()
+        return None
+
     def recv(self):
         """Read one reply (final line = 'ddd <text>', not 'ddd-...')."""
         while True:
-            nl = self.buf.find(b"\n")
-            if nl >= 0:
-                # Accumulate a full multi-line reply: keep reading until a line
-                # whose 4th char is a space (RFC 959 terminal line) is present.
-                text = self.buf.decode(errors="replace")
-                lines = [ln for ln in text.split("\r\n") if ln]
-                for ln in lines:
-                    if len(ln) >= 4 and ln[3] == " " and ln[:3].isdigit():
-                        self.buf = b""
-                        return text.strip()
+            reply = self._complete_reply()
+            if reply is not None:
+                return reply
             chunk = self.sock.recv(65536)
             if not chunk:
                 out = self.buf.decode(errors="replace").strip()
@@ -249,20 +263,32 @@ def test_port_eprt_parse_replies(ev_gateway):
 
         # success: control-peer target satisfies the anti-bounce pin
         classic = "%s,%d,%d" % (",".join(octs), port >> 8, port & 0xFF)
-        assert c.cmd("PORT " + classic) == "200 PORT command successful"
-        assert c.cmd("EPRT |1|%s|%d|" % (peer_ip, port)) \
-            == "200 EPRT command successful"
+        def _assert_test_port_eprt_parse_replies_1():
+            assert c.cmd("PORT " + classic) == "200 PORT command successful"
+            assert c.cmd("EPRT |1|%s|%d|" % (peer_ip, port)) \
+                == "200 EPRT command successful"
+
+        _assert_test_port_eprt_parse_replies_1()
 
         # classic malformed / out-of-range octet
-        assert c.cmd("PORT 1,2,3") == "501 Bad PORT argument"
-        assert c.cmd("PORT 1,2,3,4,5,999") == "501 Bad PORT argument"
-        # valid tuple, illegal data port 0 → shared range check
-        assert c.cmd("PORT %s,0,0" % ",".join(octs)) == "501 Bad data port"
+        def _assert_test_port_eprt_parse_replies_2():
+            assert c.cmd("PORT 1,2,3") == "501 Bad PORT argument"
+            assert c.cmd("PORT 1,2,3,4,5,999") == "501 Bad PORT argument"
 
-        # extended malformed / unsupported family / bad address
-        assert c.cmd("EPRT |1|127.0.0.1") == "501 Bad EPRT argument"  # net-literal-allow: malformed EPRT argument under test
-        assert c.cmd("EPRT |2|::1|%d|" % port) == "522 Only IPv4 (|1|) supported"  # net-literal-allow: IPv6 EPRT form the parser must refuse
-        assert c.cmd("EPRT |1|999.1.2.3|%d|" % port) == "501 Bad EPRT address"
+        _assert_test_port_eprt_parse_replies_2()
+        # valid tuple, illegal data port 0 → shared range check
+        def _assert_test_port_eprt_parse_replies_3():
+            assert c.cmd("PORT %s,0,0" % ",".join(octs)) == "501 Bad data port"
+    
+            # extended malformed / unsupported family / bad address
+            assert c.cmd("EPRT |1|127.0.0.1") == "501 Bad EPRT argument"  # net-literal-allow: malformed EPRT argument under test
+
+        _assert_test_port_eprt_parse_replies_3()
+        def _assert_test_port_eprt_parse_replies_4():
+            assert c.cmd("EPRT |2|::1|%d|" % port) == "522 Only IPv4 (|1|) supported"  # net-literal-allow: IPv6 EPRT form the parser must refuse
+            assert c.cmd("EPRT |1|999.1.2.3|%d|" % port) == "501 Bad EPRT address"
+
+        _assert_test_port_eprt_parse_replies_4()
 
         # anti-FTP-bounce: an off-peer target is refused (no DCAU-A leg)
         assert c.cmd("EPRT |1|127.0.0.2|%d|" % port) \

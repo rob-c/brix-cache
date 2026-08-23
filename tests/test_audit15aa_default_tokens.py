@@ -166,6 +166,24 @@ from test_ssi_async import _submit, kXR_waitresp
 from test_ssi_cta import CTA_RSP_SUCCESS, _collect_pushed_response, build_request
 from test_ssi_wire import _handshake_login, _open_ssi
 
+def _expression_1(stripped):
+    return (
+        "offsetof(" in stripped or 'ngx_string("' in stripped
+                                or "NGX_CONF_UNSET_UINT" in stripped
+    )
+
+
+def _check_test_an_unknown_token_is_refused_1(result, directive):
+    assert result.returncode != 0, \
+        f"{directive} accepted the token 'nosuchtoken'"
+
+def _check_test_an_unknown_token_is_refused_2(result, out, directive):
+    assert "invalid" in out or directive in out, _output(result)
+
+def _check_test_nothing_else_reads_the_merged_field_3(hits):
+    assert len(hits["src/protocols/webdav/config_merge.c"]) == 4, hits
+
+
 pytestmark = [pytest.mark.timeout(300),
               pytest.mark.uses_lifecycle_harness,
               pytest.mark.xdist_group("lc-audit15aa-default")]
@@ -454,10 +472,9 @@ class TestTheTokensParse:
         indent = 8 if where == "stream" else 12
         result = _parse(tmp_path,
                         **{where: _line(directive, "nosuchtoken", indent)})
-        assert result.returncode != 0, \
-            f"{directive} accepted the token 'nosuchtoken'"
+        _check_test_an_unknown_token_is_refused_1(result, directive)
         out = _output(result).lower()
-        assert "invalid" in out or directive in out, _output(result)
+        _check_test_an_unknown_token_is_refused_2(result, out, directive)
 
     @pytest.mark.parametrize("directive,token", [(t[0], t[1]) for t in TOKENS],
                              ids=TOKEN_IDS)
@@ -773,6 +790,18 @@ class TestTheXattrFormatCannotBeRestored:
             "config_merge.c has grown an else on the xattr-format guard, which "
             "is the fix — delete DEFECT CANDIDATE #62 from this docstring")
 
+    def _field_hits(self, path):
+        hits = []
+        for line in path.read_text(errors="replace").splitlines():
+            if "checksum_xattr_format" not in line:
+                continue
+            stripped = line.lstrip()
+            if stripped.startswith(("*", "/*", "//")):
+                continue
+            if not _expression_1(stripped):
+                hits.append(stripped)
+        return hits
+
     def test_nothing_else_reads_the_merged_field(self):
         """conf->checksum_xattr_format is initialised, merged, addressed by a
         directive table — and read by exactly one statement, the one that
@@ -781,22 +810,14 @@ class TestTheXattrFormatCannotBeRestored:
         survive an unrelated edit above it."""
         hits = {}
         for path in ROOT.joinpath("src").rglob("*.[ch]"):
-            for line in path.read_text(errors="replace").splitlines():
-                if "checksum_xattr_format" not in line:
-                    continue
-                stripped = line.lstrip()
-                if stripped.startswith(("*", "/*", "//")):
-                    continue
-                if ("offsetof(" in stripped or 'ngx_string("' in stripped
-                        or "NGX_CONF_UNSET_UINT" in stripped):
-                    continue    # the directive table's name+offset, and the
-                                # NGX_CONF_UNSET_UINT init in config.c
-                hits.setdefault(str(path.relative_to(ROOT)), []).append(stripped)
+            found = self._field_hits(path)
+            if found:
+                hits[str(path.relative_to(ROOT))] = found
         assert sorted(hits) == ["src/protocols/webdav/config_merge.c",
                                 "src/protocols/webdav/webdav_loc_conf.h"], hits
         assert len(hits["src/protocols/webdav/webdav_loc_conf.h"]) == 1, hits
         # The merge macro (two lines), the guard, and the setter call.
-        assert len(hits["src/protocols/webdav/config_merge.c"]) == 4, hits
+        _check_test_nothing_else_reads_the_merged_field_3(hits)
 
 
 # --------------------------------------------------------------------------- #

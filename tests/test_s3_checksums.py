@@ -64,20 +64,40 @@ def _find_audit_line(token, kind="stage", timeout=5.0):
     # Ledger sinks live in the session logs dir and each registry spec's logs
     # dir; never glob TEST_ROOT/** — TEST_ROOT/tmp holds live-test FUSE mounts
     # and walking into one hangs the test.
-    audit = set(glob.glob(os.path.join(TEST_ROOT, "registry", "*", "logs",
-                                       "xfer_audit.log")))
-    audit.add(os.path.join(TEST_ROOT, "logs", "xfer_audit.log"))
+    audit = _audit_paths()
     deadline = time.time() + timeout
     while time.time() < deadline:
-        for p in audit:
-            try:
-                with open(p, "r", errors="replace") as fh:
-                    for line in fh:
-                        if token in line and f"kind={kind}" in line:
-                            return line
-            except OSError:
-                pass
+        line = _scan_audit_paths(audit, token, kind)
+        if line is not None:
+            return line
         time.sleep(0.2)
+    return None
+
+
+def _audit_paths():
+    paths = set(glob.glob(os.path.join(
+        TEST_ROOT, "registry", "*", "logs", "xfer_audit.log"
+    )))
+    paths.add(os.path.join(TEST_ROOT, "logs", "xfer_audit.log"))
+    return paths
+
+
+def _scan_audit_paths(paths, token, kind):
+    for path in paths:
+        line = _scan_audit_file(path, token, kind)
+        if line is not None:
+            return line
+    return None
+
+
+def _scan_audit_file(path, token, kind):
+    try:
+        with open(path, "r", errors="replace") as audit:
+            for line in audit:
+                if token in line and f"kind={kind}" in line:
+                    return line
+    except OSError:
+        return None
     return None
 
 

@@ -317,6 +317,37 @@ void brix_tpc_pull_done(ngx_event_t *ev);
  * launch.c — nginx event-thread entry points.
  */
 /*
+ * A queued response is not a return value. brix_send_error() returns NGX_OK once
+ * the kXR_error is on the wire, so a function that ends `return
+ * brix_send_error(...)` reports SUCCESS to whoever called it. At a protocol entry
+ * point that is exactly right: NGX_OK there means "request handled" and nothing
+ * runs afterwards. One call deep it is a gate bypass — the caller reads NGX_OK as
+ * "the check passed, carry on" and carries on past a refusal it has already
+ * answered, allocating the handle and queueing a second, contradictory response.
+ * The TPC prepare path therefore says TPC_ANSWERED — "refused, and the client has
+ * been told" — and only brix_tpc_prepare_pull, the entry point where the
+ * distinction stops mattering, folds it back into the wire contract's NGX_OK.
+ */
+#define TPC_ANSWERED  NGX_DONE
+
+/* Log, count and answer one refusal on the TPC prepare path. Returns
+ * TPC_ANSWERED once the kXR_error is queued, NGX_ERROR if it could not be. */
+ngx_int_t brix_tpc_refuse(brix_ctx_t *ctx, ngx_connection_t *c,
+    const char *dst_path, uint16_t code, const char *msg);
+
+/*
+ * Open the destination of a pull through the identity-bound VFS and classify it:
+ * a random-write handle when the selected storage leaf supports pwrite, a staged
+ * whole-object writer otherwise. Fills file->fd/writer/sd_obj and *st. Returns
+ * NGX_OK, TPC_ANSWERED when the failure was answered on the wire (the fhandle at
+ * idx is freed by then), or NGX_ERROR. Defined in launch_dest.c.
+ */
+ngx_int_t brix_tpc_open_destination(brix_ctx_t *ctx, ngx_connection_t *c,
+    ngx_stream_brix_srv_conf_t *conf, const char *dst_path,
+    uint16_t options, uint16_t mode_bits, int idx,
+    brix_file_t *file, struct stat *st);
+
+/*
  * Handle the kXR_open leg of a TPC pull: require a configured thread pool,
  * validate the source, apply the SSRF source-policy gate, allocate an fhandle,
  * open the confined destination (dst_path is the root_canon-prefixed absolute

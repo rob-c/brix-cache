@@ -89,34 +89,36 @@ def run(root: Path = ROOT) -> tuple[bool, list[str]]:
     config_files = _config_files(root)
     config_set = set(config_files)
     allow_set = set(ALLOWLIST)
-    msgs: list[str] = []
-
-    # forward: tree file missing from ./config and not allowlisted
-    for f in tree_files:
-        if f not in config_set and f not in allow_set:
-            msgs.append(
-                f"NOT BUILT: {f} — add it to ./config, or allowlist it here with a reason"
-            )
-
-    # allowlist hygiene: entry no longer needed (file gone or now in config)
-    for a in ALLOWLIST:
-        if not (root / a).is_file():
-            msgs.append(
-                f"STALE ALLOWLIST: {a} no longer exists — remove it from this script"
-            )
-        elif a in config_set:
-            msgs.append(
-                f"STALE ALLOWLIST: {a} is now in ./config — remove it from this script"
-            )
-
-    # reverse: ./config references a file that does not exist
-    for f in config_files:
-        if not (root / f).is_file():
-            msgs.append(
-                f"STALE CONFIG: ./config lists {f} but the file does not exist"
-            )
-
+    msgs = _unbuilt_messages(tree_files, config_set, allow_set)
+    msgs.extend(_allowlist_messages(root, config_set))
+    msgs.extend(_stale_config_messages(root, config_files))
     return (not msgs, msgs)
+
+
+def _unbuilt_messages(tree_files, config_set, allow_set):
+    return [
+        f"NOT BUILT: {path} — add it to ./config, or allowlist it here with a reason"
+        for path in tree_files if path not in config_set and path not in allow_set
+    ]
+
+
+def _allowlist_messages(root, config_set):
+    return [message for path in ALLOWLIST for message in _allowlist_status(root, config_set, path)]
+
+
+def _allowlist_status(root, config_set, path):
+    if not (root / path).is_file():
+        return [f"STALE ALLOWLIST: {path} no longer exists — remove it from this script"]
+    if path in config_set:
+        return [f"STALE ALLOWLIST: {path} is now in ./config — remove it from this script"]
+    return []
+
+
+def _stale_config_messages(root, config_files):
+    return [
+        f"STALE CONFIG: ./config lists {path} but the file does not exist"
+        for path in config_files if not (root / path).is_file()
+    ]
 
 
 def main() -> int:

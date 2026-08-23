@@ -4,10 +4,11 @@ import json
 import os
 import sys
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
 
 
 def main() -> None:
-    with open(sys.argv[1], encoding="utf-8") as handle:
+    with Path(sys.argv[1]).open(encoding="utf-8") as handle:
         config = json.load(handle)
     body = os.environ.get("BRIXTEST_EXAMPLE_BODY", config["message"]).encode()
 

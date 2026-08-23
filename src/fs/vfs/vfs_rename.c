@@ -60,6 +60,59 @@ brix_vfs_rename_path(brix_sd_instance_t *sd, ngx_log_t *log,
     return NGX_ERROR;
 }
 
+/*
+ * WHAT: Rename two keys through a non-POSIX storage-driver namespace.
+ * WHY:  Credential dispatch and cache eviction are distinct from POSIX rename.
+ * HOW:  Gate capability/credentials, call the leaf driver, wipe, evict, observe.
+ */
+static ngx_int_t
+brix_vfs_rename_driver(brix_vfs_ctx_t *ctx, const brix_path_result_t *dst,
+    const char *path, uint64_t start, const brix_sd_driver_t *drv)
+{
+    brix_sd_instance_t *leaf = brix_vfs_ns_leaf(ctx->sd);
+    brix_sd_ucred_t store;
+    brix_sd_cred_t cred;
+    ngx_int_t rc;
+    int use_cred = 0, cred_err = 0;
+    int saved_errno;
+    const char *src_key;
+    const char *dst_key;
+
+    ngx_memzero(&store, sizeof(store));
+    ngx_memzero(&cred, sizeof(cred));
+    if (!(drv->caps & BRIX_SD_CAP_DIRS_WRITE)) {
+        errno = EPERM;
+        brix_vfs_observe_ctx_op(ctx, path, BRIX_METRIC_OP_RENAME, NULL, 0,
+                                NGX_ERROR, EPERM, start);
+        return NGX_ERROR;
+    }
+    if (brix_vfs_cred_gate_active(ctx)
+        && brix_vfs_ns_cred(ctx, &store, &cred, &use_cred, &cred_err) != NGX_OK)
+    {
+        saved_errno = cred_err ? cred_err : EACCES;
+        errno = saved_errno;
+        brix_vfs_observe_ctx_op(ctx, path, BRIX_METRIC_OP_RENAME, NULL, 0,
+                                NGX_ERROR, saved_errno, start);
+        return NGX_ERROR;
+    }
+    src_key = brix_vfs_export_relative(ctx, path);
+    dst_key = brix_vfs_export_relative(ctx, (const char *) dst->resolved.data);
+    rc = drv->rename != NULL
+         ? brix_sd_rename_maybe_cred(leaf, src_key, dst_key, 0,
+                                    use_cred ? &cred : NULL)
+         : (errno = ENOTSUP, NGX_ERROR);
+    saved_errno = errno;
+    brix_sd_ucred_wipe(&store);
+    if (rc == NGX_OK) {
+        brix_metric_cache_evicted(brix_vfs_metrics_proto(ctx),
+            brix_sd_cache_evict(ctx->sd, src_key)
+            + brix_sd_cache_evict(ctx->sd, dst_key));
+    }
+    brix_vfs_observe_ctx_op(ctx, path, BRIX_METRIC_OP_RENAME, NULL, 0,
+                            rc, saved_errno, start);
+    return rc;
+}
+
 /* Move the resolved ctx source path to the confined destination `dst`.
  * Write-gated; both endpoints must be confined. Metered as OP_RENAME.
  * `overwrite_dirs` lets the rename replace an existing directory destination
@@ -100,64 +153,8 @@ brix_vfs_rename(brix_vfs_ctx_t *ctx, const brix_path_result_t *dst,
      * Dispatch on the leaf instance so brix_sd_rename_maybe_cred finds the
      * leaf driver's rename_cred slot (decorators have only plain relays). */
     drv = brix_vfs_ctx_driver(ctx);
-    if (drv != NULL) {
-        brix_sd_instance_t *leaf = brix_vfs_ns_leaf(ctx->sd);
-        brix_sd_ucred_t     store;
-        brix_sd_cred_t      cred;
-        ngx_int_t           rc;
-        int                 use_cred = 0, cred_err = 0;
-
-        /* Zero before the gate: it fills only the active credential kind; an
-         * unzeroed cred hands a garbage inactive pointer to the driver's
-         * cred slot (bearer PASSTHROUGH would leave x509_proxy dangling). */
-        ngx_memzero(&cred, sizeof(cred));
-
-        /* phase-71: catalog-mutation capability gate — a read-only catalog
-         * (CAP_DIRS without CAP_DIRS_WRITE) rejects rename uniformly. */
-        if (!(drv->caps & BRIX_SD_CAP_DIRS_WRITE)) {
-            saved_errno = EPERM;
-            errno = saved_errno;
-            brix_vfs_observe_ctx_op(ctx, path, BRIX_METRIC_OP_RENAME, NULL, 0,
-                                      NGX_ERROR, saved_errno, start);
-            return NGX_ERROR;
-        }
-        if (brix_vfs_cred_gate_active(ctx)) {
-            if (brix_vfs_ns_cred(ctx, &store, &cred, &use_cred, &cred_err)
-                != NGX_OK)
-            {
-                saved_errno = cred_err ? cred_err : EACCES;
-                errno = saved_errno;
-                brix_vfs_observe_ctx_op(ctx, path, BRIX_METRIC_OP_RENAME,
-                                          NULL, 0, NGX_ERROR, saved_errno,
-                                          start);
-                return NGX_ERROR;
-            }
-        }
-
-        const char *src_key = brix_vfs_export_relative(ctx, path);
-        const char *dst_key = brix_vfs_export_relative(ctx,
-                                  (const char *) dst->resolved.data);
-
-        rc = (drv->rename != NULL)
-            ? brix_sd_rename_maybe_cred(leaf, src_key, dst_key, 0,
-                  use_cred ? &cred : NULL)
-            : (errno = ENOTSUP, NGX_ERROR);
-
-        saved_errno = errno;
-        brix_sd_ucred_wipe(&store);   /* secret consumed by rename; erase (A-4/T4) */
-
-        /* The leaf dispatch above skips the cache decorator's own rename evict,
-         * so drop both endpoints from the store here to keep it coherent. */
-        if (rc == NGX_OK) {
-            brix_metric_cache_evicted(brix_vfs_metrics_proto(ctx),
-                brix_sd_cache_evict(ctx->sd, src_key)
-                + brix_sd_cache_evict(ctx->sd, dst_key));
-        }
-
-        brix_vfs_observe_ctx_op(ctx, path, BRIX_METRIC_OP_RENAME, NULL, 0,
-                                  rc, saved_errno, start);
-        return rc;
-    }
+    if (drv != NULL)
+        return brix_vfs_rename_driver(ctx, dst, path, start, drv);
 
     res = brix_ns_rename(ctx->log, ctx->root_canon,
                            brix_vfs_ctx_path(ctx),

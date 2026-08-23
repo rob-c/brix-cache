@@ -1,4 +1,78 @@
 from split_continuation import reexport as _reexport
+def _expression_1(body):
+    return (
+        [n for n in body.split(b"\n") if n]
+    )
+
+def _expression_2(names):
+    return (
+        [n for n in names if n in _DIR_ENTRIES]
+    )
+
+def _expression_3(body):
+    return (
+        [n for n in body.split(b"\n") if n]
+    )
+
+def _expression_4(names):
+    return (
+        [n for n in names if n in _DIR_ENTRIES]
+    )
+
+def _expression_5(body):
+    return (
+        [n for n in body.split(b"\n") if n]
+    )
+
+def _expression_6(names):
+    return (
+        [n for n in names if n in _DIR_ENTRIES]
+    )
+
+
+def _phase_test_oksofar_interrupted_by_wait_midstream_1(survivor):
+    try:
+        _check_test_oksofar_interrupted_by_wait_midstream_6(survivor)
+    finally:
+        survivor.close()
+
+
+def _check_test_oksofar_streaming_dirlist_reassembled_1(status):
+    assert status == kXR_ok, f"final dirlist frame should be ok, got {status}"
+
+def _check_test_oksofar_streaming_dirlist_reassembled_2(names):
+    assert len(names) >= 2, \
+        f"expected a multi-frame reassembled listing, got {names!r}"
+
+def _check_test_oksofar_streaming_dirlist_reassembled_4(delivered):
+    assert delivered == _DIR_ENTRIES, \
+        f"streamed entries out of order: {delivered!r}"
+
+def _check_test_oksofar_streaming_dirlist_reassembled_3(entry, names):
+    assert entry in names, f"missing dirlist entry {entry!r}"
+
+def _check_test_oksofar_interrupted_by_wait_midstream_5(terminal):
+    assert terminal in (kXR_ok, kXR_error), \
+        f"stream did not terminate with a clean frame, got {terminal}"
+
+def _check_test_oksofar_interrupted_by_wait_midstream_6(survivor):
+    assert _ping(survivor)[1] == kXR_ok, \
+        "proxy worker did not survive a mid-stream wait"
+
+def _check_test_path_rewrite_returns_dirlist_names_verbatim_7(status):
+    assert status == kXR_ok
+
+def _check_test_path_rewrite_returns_dirlist_names_verbatim_8(names):
+    assert names, "no dirlist names relayed"
+
+def _check_test_path_rewrite_returns_dirlist_names_verbatim_10(delivered):
+    assert delivered == _DIR_ENTRIES, \
+        f"dirlist names not verbatim/in-order: {delivered!r}"
+
+def _check_test_path_rewrite_returns_dirlist_names_verbatim_9(n):
+    assert n in _DIR_ALL, f"relayed name {n!r} was rewritten/mangled"
+
+
 _reexport(globals(), "_test_proxy_protocol_edges_helpers")
 
 def test_oksofar_streaming_dirlist_reassembled(oksofar_stack):
@@ -12,17 +86,15 @@ def test_oksofar_streaming_dirlist_reassembled(oksofar_stack):
     try:
         _dirlist(sock, "/dir", sid=b"\x00\x71")
         status, body = _read_dirlist_all(sock)
-        assert status == kXR_ok, f"final dirlist frame should be ok, got {status}"
-        names = [n for n in body.split(b"\n") if n]
+        _check_test_oksofar_streaming_dirlist_reassembled_1(status)
+        names = _expression_5(body)
         # Multiple streamed frames were reassembled, in upstream order.
-        assert len(names) >= 2, \
-            f"expected a multi-frame reassembled listing, got {names!r}"
+        _check_test_oksofar_streaming_dirlist_reassembled_2(names)
         for entry in _DIR_ENTRIES:
-            assert entry in names, f"missing dirlist entry {entry!r}"
+            _check_test_oksofar_streaming_dirlist_reassembled_3(entry, names)
         # Order is preserved across the streamed frames.
-        delivered = [n for n in names if n in _DIR_ENTRIES]
-        assert delivered == _DIR_ENTRIES, \
-            f"streamed entries out of order: {delivered!r}"
+        delivered = _expression_6(names)
+        _check_test_oksofar_streaming_dirlist_reassembled_4(delivered)
     finally:
         sock.close()
 
@@ -58,24 +130,22 @@ def test_oksofar_interrupted_by_wait_midstream(oksofar_wait_stack):
         # Real assertion (passes): the stream terminates with a frame (clean ok
         # or clean error), and the chunks delivered BEFORE the wait are
         # byte-exact and in order — the proxy never returned corrupt/wrong data.
-        assert terminal in (kXR_ok, kXR_error), \
-            f"stream did not terminate with a clean frame, got {terminal}"
-        names = [n for n in body.split(b"\n") if n]
-        delivered = [n for n in names if n in _DIR_ENTRIES]
-        assert delivered == _DIR_ENTRIES[:len(delivered)], \
-            f"pre-wait entries corrupted/out of order: {delivered!r}"
-        assert len(delivered) >= 1, "no streamed entries relayed before the wait"
+        _check_test_oksofar_interrupted_by_wait_midstream_5(terminal)
+        names = _expression_3(body)
+        delivered = _expression_4(names)
+        def _assert_test_oksofar_interrupted_by_wait_midstream_1():
+            assert delivered == _DIR_ENTRIES[:len(delivered)], \
+                f"pre-wait entries corrupted/out of order: {delivered!r}"
+            assert len(delivered) >= 1, "no streamed entries relayed before the wait"
+
+        _assert_test_oksofar_interrupted_by_wait_midstream_1()
     finally:
         sock.close()
 
     # Conformance expectation: the proxy worker must survive the illegal
     # mid-stream sequence so a brand-new session through the same front works.
     survivor = _connect_login(H, port)
-    try:
-        assert _ping(survivor)[1] == kXR_ok, \
-            "proxy worker did not survive a mid-stream wait"
-    finally:
-        survivor.close()
+    _phase_test_oksofar_interrupted_by_wait_midstream_1(survivor)
 
 
 def test_path_rewrite_returns_dirlist_names_verbatim(path_rewrite_stack):
@@ -89,17 +159,16 @@ def test_path_rewrite_returns_dirlist_names_verbatim(path_rewrite_stack):
     try:
         _dirlist(sock, "/some/deep/path", sid=b"\x00\x73")
         status, body = _read_dirlist_all(sock)
-        assert status == kXR_ok
-        names = [n for n in body.split(b"\n") if n]
+        _check_test_path_rewrite_returns_dirlist_names_verbatim_7(status)
+        names = _expression_1(body)
         # Whatever subset the proxy relays, every name is byte-for-byte verbatim
         # (no truncation, suffixing, or rewriting of the entry strings).
-        assert names, "no dirlist names relayed"
+        _check_test_path_rewrite_returns_dirlist_names_verbatim_8(names)
         for n in names:
-            assert n in _DIR_ALL, f"relayed name {n!r} was rewritten/mangled"
+            _check_test_path_rewrite_returns_dirlist_names_verbatim_9(n)
         # The reliably-relayed entries are present verbatim and in order.
-        delivered = [n for n in names if n in _DIR_ENTRIES]
-        assert delivered == _DIR_ENTRIES, \
-            f"dirlist names not verbatim/in-order: {delivered!r}"
+        delivered = _expression_2(names)
+        _check_test_path_rewrite_returns_dirlist_names_verbatim_10(delivered)
     finally:
         sock.close()
 

@@ -9,6 +9,60 @@ said before the lift, and diffed by
 move.  Nothing imports it.
 """
 
+from __future__ import annotations
+
+def _guard_run_1(tolerate, proc, argv):
+    if proc.returncode != 0 and not tolerate:
+        raise RuntimeError(
+            f"{' '.join(map(str, argv))} exited {proc.returncode}\n{proc.stderr}"
+        )
+
+def _guard_run_2(quiet, proc, argv):
+    if proc.returncode != 0 and not quiet:
+        _warn(f"{argv[0]} rc={proc.returncode}: {proc.stderr.strip()[:200]}")
+
+def _guard_prepare_3(test_root, tokens_dir, pki_dir, env, jwks_refresh_dir):
+    if not _restore_session_artifacts(test_root, Path(pki_dir), tokens_dir):
+        # 1) PKI + user proxies.
+        regenerate_pki(pki_dir, env)
+    
+        # 2) jwks-refresh signing authority (separate key from the main tokens key).
+        _make_token(str(jwks_refresh_dir), "init", str(jwks_refresh_dir), env=env)
+    
+        # 3) main tokens signing key (only if absent — reuse across sessions).
+        if not (tokens_dir / "signing_key.pem").exists():
+            _make_token(str(tokens_dir), "init", str(tokens_dir), env=env)
+    
+        # 4) multi-key JWKS + scitokens.cfg (tolerant: needs `cryptography`).
+        _run([sys.executable, str(TESTS_DIR / "tokenforge.py"), "fleet-artifacts", str(tokens_dir)],
+             env=env, tolerate=True, quiet=True)
+    
+        # 5) issued JWTs: upstream bridge token + chaos identity-shift token.
+        _make_token(str(tokens_dir), "gen", str(tokens_dir),
+                    "--sub", "nginx-bridge",
+                    "--scope", "storage.read:/ storage.modify:/",
+                    "--lifetime", "86400",
+                    "--output", str(tokens_dir / "upstream.jwt"), env=env)
+        _make_token(str(tokens_dir), "gen", str(tokens_dir),
+                    "--sub", "chaos-test-user",
+                    "--scope", "storage.read:/ storage.modify:/",
+                    "--lifetime", "86400",
+                    "--output", str(Path(pki_dir) / "wlcg_token.txt"), env=env)
+    
+        _store_session_artifacts(test_root, Path(pki_dir), tokens_dir)
+
+def _guard_prepare_4(user_crl, crl_dir):
+    if user_crl.exists():
+        (crl_dir / "ca.r0").write_bytes(user_crl.read_bytes())
+
+def _guard_prepare_5(authdb_file):
+    if not authdb_file.exists():
+        authdb_file.write_text(
+            "# placeholder written by fleet_prep; authdb_setup fixture overwrites\n",
+            encoding="utf-8",
+        )
+
+
 """Session artifact generation for the registry-native fleet.
 
 Pure-Python successor to the top of bash ``start_all_dedicated`` (in
@@ -35,8 +89,6 @@ regeneration.  Per-session artifacts (CRL drops, authdb, stage hook) are cheap
 and always rebuilt, and each session still starts from a wiped tree — the
 snapshot is the pristine post-generation state, never a mutated mid-run one.
 """
-
-from __future__ import annotations
 
 import hashlib
 import json
@@ -75,12 +127,8 @@ def _run(argv, *, cwd=None, env=None, tolerate=False, quiet=False):
             _warn(f"{argv[0]}: {exc}")
             return None
         raise
-    if proc.returncode != 0 and not tolerate:
-        raise RuntimeError(
-            f"{' '.join(map(str, argv))} exited {proc.returncode}\n{proc.stderr}"
-        )
-    if proc.returncode != 0 and not quiet:
-        _warn(f"{argv[0]} rc={proc.returncode}: {proc.stderr.strip()[:200]}")
+    _guard_run_1(tolerate, proc, argv)
+    _guard_run_2(quiet, proc, argv)
     return proc
 
 
@@ -252,34 +300,7 @@ def prepare(env=None) -> dict:
 
     # 1-5) Crypto artifacts: restored from the per-lane snapshot when fresh,
     # regenerated (then re-snapshotted) otherwise — see the module docstring.
-    if not _restore_session_artifacts(test_root, Path(pki_dir), tokens_dir):
-        # 1) PKI + user proxies.
-        regenerate_pki(pki_dir, env)
-
-        # 2) jwks-refresh signing authority (separate key from the main tokens key).
-        _make_token(str(jwks_refresh_dir), "init", str(jwks_refresh_dir), env=env)
-
-        # 3) main tokens signing key (only if absent — reuse across sessions).
-        if not (tokens_dir / "signing_key.pem").exists():
-            _make_token(str(tokens_dir), "init", str(tokens_dir), env=env)
-
-        # 4) multi-key JWKS + scitokens.cfg (tolerant: needs `cryptography`).
-        _run([sys.executable, str(TESTS_DIR / "tokenforge.py"), "fleet-artifacts", str(tokens_dir)],
-             env=env, tolerate=True, quiet=True)
-
-        # 5) issued JWTs: upstream bridge token + chaos identity-shift token.
-        _make_token(str(tokens_dir), "gen", str(tokens_dir),
-                    "--sub", "nginx-bridge",
-                    "--scope", "storage.read:/ storage.modify:/",
-                    "--lifetime", "86400",
-                    "--output", str(tokens_dir / "upstream.jwt"), env=env)
-        _make_token(str(tokens_dir), "gen", str(tokens_dir),
-                    "--sub", "chaos-test-user",
-                    "--scope", "storage.read:/ storage.modify:/",
-                    "--lifetime", "86400",
-                    "--output", str(Path(pki_dir) / "wlcg_token.txt"), env=env)
-
-        _store_session_artifacts(test_root, Path(pki_dir), tokens_dir)
+    _guard_prepare_3(test_root, tokens_dir, pki_dir, env, jwks_refresh_dir)
 
     # 6) CRL drop directories: seed crls/ca.r0 from the generated user CRL.
     crl_dir = test_root / "crls"
@@ -289,18 +310,13 @@ def prepare(env=None) -> dict:
         for stale in d.iterdir():
             stale.unlink()
     user_crl = Path(pki_dir) / "ca" / "test-user.crl.pem"
-    if user_crl.exists():
-        (crl_dir / "ca.r0").write_bytes(user_crl.read_bytes())
+    _guard_prepare_4(user_crl, crl_dir)
 
     # 7) authdb placeholder so nginx_authdb.conf can start (fixture overwrites).
     authdb_root = test_root / "data-authdb"
     authdb_root.mkdir(parents=True, exist_ok=True)
     authdb_file = authdb_root / "authdb"
-    if not authdb_file.exists():
-        authdb_file.write_text(
-            "# placeholder written by fleet_prep; authdb_setup fixture overwrites\n",
-            encoding="utf-8",
-        )
+    _guard_prepare_5(authdb_file)
 
     # 8) kXR_prepare stage hook — a committed self-contained Python script
     # (cmdscripts.prepare_stage_hook) copied in with its log-path sidecar;

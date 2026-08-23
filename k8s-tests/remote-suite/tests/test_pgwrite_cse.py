@@ -42,6 +42,13 @@ from settings import (
 # --------------------------------------------------------------------------- #
 # Protocol constants
 # --------------------------------------------------------------------------- #
+def _check_test_cse_and_close_gate_through_proxy_1(st):
+    assert st == kXR_status, f"proxy must pass the CSE frame, got {st}"
+
+def _check_test_cse_and_close_gate_through_proxy_2(st, err):
+    assert st == kXR_error and err == kXR_ChkSumErr, (st, err)
+
+
 kXR_protocol  = 3006
 kXR_login     = 3007
 kXR_open      = 3010
@@ -625,12 +632,15 @@ class TestProxyPassthrough:
             data = os.urandom(kXR_pgPageSZ * 2)
             st, _o, cse = send_pgwrite(sock, fh, 0,
                                        build_payload(data, 0, corrupt_crc=[0, 1]))
-            assert st == kXR_status, f"proxy must pass the CSE frame, got {st}"
+            _check_test_cse_and_close_gate_through_proxy_1(st)
             _c, _f, _l, offs, ok = parse_cse(cse)
-            assert ok, "cseCRC must survive the proxy intact"
-            assert offs == [0, kXR_pgPageSZ], offs
+            def _assert_test_cse_and_close_gate_through_proxy_1():
+                assert ok, "cseCRC must survive the proxy intact"
+                assert offs == [0, kXR_pgPageSZ], offs
+
+            _assert_test_cse_and_close_gate_through_proxy_1()
             # The close gate must propagate through the proxy.
             st, err = _close(sock, fh)
-            assert st == kXR_error and err == kXR_ChkSumErr, (st, err)
+            _check_test_cse_and_close_gate_through_proxy_2(st, err)
         finally:
             sock.close()

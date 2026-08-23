@@ -1,4 +1,21 @@
 from split_continuation import reexport as _reexport
+def _check_test_quota_fill_past_watermark_reaps_to_75pct_1(expect):
+    assert len(expect) == 8 and all(len(v) == 300_000 for v in expect.values())
+
+def _check_test_quota_fill_past_watermark_reaps_to_75pct_2(du):
+    assert du <= QUOTA, f"cache {du}B exceeded the hard quota"
+
+def _check_test_quota_fill_past_watermark_reaps_to_75pct_3(du):
+    assert du <= (QUOTA * 3) // 4 + 300_000, \
+        f"cache {du}B more than one object above the 75% reap target"
+
+def _check_test_quota_fill_past_watermark_reaps_to_75pct_4(du):
+    assert du < 8 * 300_000, "reap must have evicted something (cache < full 2.4MB)"
+
+def _check_test_quota_fill_past_watermark_reaps_to_75pct_5(du):
+    assert du > 0, "reap must not empty the cache entirely"
+
+
 _reexport(globals(), "_test_cvmfs_conformance_fuse_cache_helpers")
 
 @pytest.mark.timeout(240)
@@ -39,7 +56,7 @@ def test_quota_fill_past_watermark_reaps_to_75pct(tmp_path, make_origin):
     with mounted(tmp_path, make_origin, tree=_quota_tree(),
                  extra_args=("-o", f"quota={QUOTA_MB}")) as m:
         expect = read_tree(m.mnt)
-        assert len(expect) == 8 and all(len(v) == 300_000 for v in expect.values())
+        _check_test_quota_fill_past_watermark_reaps_to_75pct_1(expect)
         du = cache_du(m.cache)
         # The reap fires when a fill would cross the hard quota, evicting LRU down
         # to the 75% low-watermark. The final resting size therefore depends on
@@ -48,11 +65,10 @@ def test_quota_fill_past_watermark_reaps_to_75pct(tmp_path, make_origin):
         # watermark. Both outcomes are correct; the invariant under test is that
         # the cache stays bounded near 75% and never exceeds the hard quota — not
         # that it always lands at-or-below the low watermark on the final fill.
-        assert du <= QUOTA, f"cache {du}B exceeded the hard quota"
-        assert du <= (QUOTA * 3) // 4 + 300_000, \
-            f"cache {du}B more than one object above the 75% reap target"
-        assert du < 8 * 300_000, "reap must have evicted something (cache < full 2.4MB)"
-        assert du > 0, "reap must not empty the cache entirely"
+        _check_test_quota_fill_past_watermark_reaps_to_75pct_2(du)
+        _check_test_quota_fill_past_watermark_reaps_to_75pct_3(du)
+        _check_test_quota_fill_past_watermark_reaps_to_75pct_4(du)
+        _check_test_quota_fill_past_watermark_reaps_to_75pct_5(du)
 
 
 @pytest.mark.timeout(180)

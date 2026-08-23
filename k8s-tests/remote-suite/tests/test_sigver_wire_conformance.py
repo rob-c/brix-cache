@@ -237,29 +237,34 @@ def sess():
         sock.close()
 
 
-def _gsi_session():
-    """Open a *signing-active* GSI session via raw wire, or skip.
-
-    A signing key is only established once the GSI Diffie-Hellman handshake
-    completes, which the raw-socket helpers here do not implement.  We instead
-    let the high-level XRootD client perform the GSI handshake to confirm the
-    assets work, then skip the raw signing-active assertions — the verification
-    code paths require a live DH-derived key we cannot reproduce on the wire.
-    """
+def _require_gsi_assets():
     if not CA_DIR or not PROXY_STD or not os.path.exists(PROXY_STD):
         pytest.skip("GSI proxy/CA assets unavailable; signing-active path "
                     "needs a live DH signing key")
+
+
+def _require_xrootd_client():
     try:
         from XRootD import client  # noqa: F401
     except Exception as exc:  # pragma: no cover
         pytest.skip(f"XRootD python client unavailable: {exc}")
-    os.environ["X509_CERT_DIR"] = CA_DIR
-    os.environ["X509_USER_PROXY"] = PROXY_STD
+
+
+def _require_gsi_endpoint():
     try:
-        s = socket.create_connection((SERVER_HOST, NGINX_GSI_PORT), timeout=3)
-        s.close()
+        sock = socket.create_connection((SERVER_HOST, NGINX_GSI_PORT), timeout=3)
+        sock.close()
     except OSError as exc:
         pytest.skip(f"GSI endpoint {SERVER_HOST}:{NGINX_GSI_PORT} unreachable: {exc}")
+
+
+def _gsi_session():
+    """Validate GSI prerequisites before skipping unsupported raw DH setup."""
+    _require_gsi_assets()
+    _require_xrootd_client()
+    os.environ["X509_CERT_DIR"] = CA_DIR
+    os.environ["X509_USER_PROXY"] = PROXY_STD
+    _require_gsi_endpoint()
     # Raw GSI DH key derivation is out of scope for this wire-level suite; the
     # verification scenarios are documented as requiring it, so skip cleanly.
     pytest.skip("raw-wire GSI DH key derivation not implemented; "

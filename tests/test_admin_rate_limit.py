@@ -32,6 +32,11 @@ from settings import NGINX_BIN, HOST, BIND_HOST, url_host
 # The four live admin-API instances (lc-admin-rl-*) draw fixed ports from the
 # fleet_lifecycle_ports ledger; xdist_group serialises the file so no fixed port
 # ever has two concurrent drivers.
+def _phase_test_write_flood_throttled_and_reads_survive_1(line):
+    if line.lower().startswith("retry-after:"):
+        retry_after = line.split(":", 1)[1].strip()
+
+
 pytestmark = [pytest.mark.uses_lifecycle_harness,
               pytest.mark.xdist_group("lc-admin-rl")]
 
@@ -118,24 +123,32 @@ def test_write_flood_throttled_and_reads_survive(lifecycle, tmp_path):
         statuses.append(status)
         if status == 429:
             for line in headers.splitlines():
-                if line.lower().startswith("retry-after:"):
-                    retry_after = line.split(":", 1)[1].strip()
+                _phase_test_write_flood_throttled_and_reads_survive_1(line)
             break
 
     # The burst floor (10 requests) passes first, then the bucket overflows.
-    assert statuses[0] == 400, "first write must reach the validator"
-    assert 429 in statuses, f"write flood never throttled: {statuses}"
-    assert retry_after is not None and int(retry_after) >= 1, \
-        "429 must carry Retry-After"
-    assert set(statuses) <= {400, 429}, statuses
+    def _assert_test_write_flood_throttled_and_reads_survive_1():
+        assert statuses[0] == 400, "first write must reach the validator"
+        assert 429 in statuses, f"write flood never throttled: {statuses}"
+
+    _assert_test_write_flood_throttled_and_reads_survive_1()
+    def _assert_test_write_flood_throttled_and_reads_survive_2():
+        assert retry_after is not None and int(retry_after) >= 1, \
+            "429 must carry Retry-After"
+        assert set(statuses) <= {400, 429}, statuses
+
+    _assert_test_write_flood_throttled_and_reads_survive_2()
 
     # Separate read bucket: querying still works while writes are exhausted.
     status, _, body = srv.request("GET", "/proxy/backends")
-    assert status == 200, f"read starved by write throttle: {status} {body}"
+    def _assert_test_write_flood_throttled_and_reads_survive_3():
+        assert status == 200, f"read starved by write throttle: {status} {body}"
+    
+        # The throttle event is audit-logged.
+        assert "result=throttled" in srv.error_log.read_text(
+            encoding="utf-8", errors="replace")
 
-    # The throttle event is audit-logged.
-    assert "result=throttled" in srv.error_log.read_text(
-        encoding="utf-8", errors="replace")
+    _assert_test_write_flood_throttled_and_reads_survive_3()
 
 
 # --------------------------------------------------------------------------- #

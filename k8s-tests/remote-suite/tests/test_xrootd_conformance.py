@@ -24,6 +24,25 @@ import pytest
 
 from settings import NGINX_BIN
 
+def _guard_server_1():
+    if not os.path.exists(NGINX_BIN):
+        pytest.skip(f"nginx not built at {NGINX_BIN}")
+
+def _guard_server_2(p):
+    if not _wait(PORT):
+        p.terminate()
+        pytest.skip("conformance server did not start")
+
+def _check_test_19_read_raw_data_2(data):
+    assert len(data) == 1024, f"read returned {len(data)} bytes (want 1024)"
+
+def _check_test_19_read_raw_data_3(data, expect):
+    assert data == expect, "read data does not match file content"
+
+def _check_test_19_read_raw_data_1(st, body):
+    assert st in (kXR_ok, kXR_oksofar), f"read status={st} err={_err(body)}"
+
+
 BIND = "127.0.0.1"
 PORT = 13980
 
@@ -153,8 +172,7 @@ def _err(body):
 # --------------------------------------------------------------------------- #
 @pytest.fixture(scope="module")
 def server(tmp_path_factory):
-    if not os.path.exists(NGINX_BIN):
-        pytest.skip(f"nginx not built at {NGINX_BIN}")
+    _guard_server_1()
     base = tmp_path_factory.mktemp("conf")
     data = base / "data"
     (data / "sub").mkdir(parents=True)
@@ -173,9 +191,7 @@ def server(tmp_path_factory):
     # wait for readiness.
     p = subprocess.Popen([NGINX_BIN, "-c", str(cfg), "-p", str(base)],
                          stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    if not _wait(PORT):
-        p.terminate()
-        pytest.skip("conformance server did not start")
+    _guard_server_2(p)
     yield {"data": str(data)}
     p.terminate()
     try:
@@ -465,13 +481,13 @@ def test_19_read_raw_data(server):
         data = b""
         while True:
             _, st, body = _resp(s)
-            assert st in (kXR_ok, kXR_oksofar), f"read status={st} err={_err(body)}"
+            _check_test_19_read_raw_data_1(st, body)
             data += body
             if st == kXR_ok:
                 break
-        assert len(data) == 1024, f"read returned {len(data)} bytes (want 1024)"
+        _check_test_19_read_raw_data_2(data)
         expect = bytes((i * 31 + 7) & 0xff for i in range(1024))
-        assert data == expect, "read data does not match file content"
+        _check_test_19_read_raw_data_3(data, expect)
     finally:
         s.close()
 

@@ -163,6 +163,24 @@ def netem_lab(nginx: Path | None = None) -> int:
 # --- spike-cas-hash (port of tests/cvmfs/spike_cas_hash.sh) -----------------
 
 
+def _inflated_sha1(raw: bytes) -> str:
+    try:
+        value = hashlib.sha1(zlib.decompress(raw)).hexdigest()
+        print(f"inflated sha1: {value}")
+        return value
+    except zlib.error as exc:
+        print(f"inflate failed: {exc}")
+        return ""
+
+
+def _hash_convention(expected: str, raw: str, inflated: str) -> str | None:
+    if inflated == expected:
+        return "inflated"
+    if raw == expected:
+        return "raw"
+    return None
+
+
 def spike_cas_hash(nginx: Path | None = None) -> int:
     """Determine the CVMFS CAS hashing convention empirically against a real
     Stratum-1: fetch the root catalog object and hash it raw and inflated."""
@@ -184,15 +202,10 @@ def spike_cas_hash(nginx: Path | None = None) -> int:
         url = f"{stratum1}/data/{root[:2]}/{root[2:]}C"
         raw = run.curl_bytes(url, "-f")
         raw_sha1 = hashlib.sha1(raw).hexdigest()
-        try:
-            inflated_sha1 = hashlib.sha1(zlib.decompress(raw)).hexdigest()
-            print(f"inflated sha1: {inflated_sha1}")
-        except zlib.error as exc:
-            inflated_sha1 = ""
-            print(f"inflate failed: {exc}")
+        inflated_sha1 = _inflated_sha1(raw)
         print(f"raw sha1:      {raw_sha1}")
         print(f"expected:      {root}")
-        convention = "inflated" if inflated_sha1 == root else "raw" if raw_sha1 == root else None
+        convention = _hash_convention(root, raw_sha1, inflated_sha1)
         print(f"VERDICT: {convention or 'NO'} hashing convention matches the CAS name")
         return _checks([(convention is not None, f"CAS name matches a hashing convention ({convention})")])
 
@@ -200,64 +213,66 @@ def spike_cas_hash(nginx: Path | None = None) -> int:
 # --- baselines (port of tests/cvmfs/run_baselines.sh) -----------------------
 
 
-def run_baseline(run: LiveRun, name: str, port: int, origin: str, out_dir: Path) -> tuple[bool, str]:
-    """Run the harness against a squid or varnish baseline; SKIP when the proxy
-    binary is not installed. Writes <out_dir>/baseline_<name>.json."""
+def _start_squid(run, port, origin_host, origin, work):
+    if shutil.which("squid") is None:
+        return None
+    (work / "cache").mkdir(exist_ok=True)
+    squid_conf = (
+        (BASELINES_DIR / "squid.conf").read_text()
+        .replace("@PORT@", str(port))
+        .replace("@CACHEDIR@", f"{work}/cache")
+        .replace("@ORIGINHOST@", origin_host)
+    ) + (
+        f"\npid_filename {work}/squid.pid\n"
+        f"access_log {work}/access.log\n"
+        f"cache_log {work}/cache.log\n"
+        f"coredump_dir {work}/cache\n"
+    )
+    conf = run.write(work / "squid.conf", squid_conf)
+    run.root.chmod(0o755)
+    work.chmod(0o777)
+    (work / "cache").chmod(0o777)
+    run.call(["squid", "-f", conf, "-z"], check=False)
+    run.call(["squid", "-f", conf])
+    return (["squid", "-f", str(conf), "-k", "shutdown"],
+            f"http://{origin}", {"http_proxy": f"http://{HOST}:{port}"})
+
+
+def _start_varnish(run, port, origin_host, origin_port, work):
+    if shutil.which("varnishd") is None:
+        return None
+    vcl = run.write(
+        work / "default.vcl",
+        (BASELINES_DIR / "varnish.vcl").read_text()
+        .replace("@ORIGINHOST@", origin_host)
+        .replace("@ORIGINPORT@", origin_port),
+    )
+    run.root.chmod(0o755)
+    work.chmod(0o755)
+    vcl.chmod(0o644)
+    run.call(["varnishd", "-a", f"{BIND_HOST}:{port}", "-f", vcl,
+              "-n", work / "vn", "-s", "malloc,256m"])
+    return (["pkill", "-f", f"varnishd .*{work}/vn"],
+            f"http://{HOST}:{port}", {})
+
+
+def _start_baseline(run, name, port, origin, work):
     origin_host, origin_port = origin.rsplit(":", 1)
+    if name == "squid":
+        return _start_squid(run, port, origin_host, origin, work)
+    if name == "varnish":
+        return _start_varnish(run, port, origin_host, origin_port, work)
+    raise LiveFailure(f"unknown baseline: {name}")
+
+
+def run_baseline(run: LiveRun, name: str, port: int, origin: str, out_dir: Path) -> tuple[bool, str]:
+    """Run the harness against squid or varnish when the proxy is installed."""
     work = run.mkdir(f"baseline_{name}")
     out = out_dir / f"baseline_{name}.json"
-    harness_env: dict[str, str] = {}
-    if name == "squid":
-        if shutil.which("squid") is None:
-            return True, "SKIP: squid not installed"
-        (work / "cache").mkdir(exist_ok=True)
-        # The baseline conf follows WLCG guidance whose default pid/log/coredump
-        # paths (/run/squid.pid, /var/log/squid) are only writable by root. Pin
-        # them into the per-run work dir so the baseline stands up unprivileged.
-        squid_conf = (
-            (BASELINES_DIR / "squid.conf").read_text()
-            .replace("@PORT@", str(port))
-            .replace("@CACHEDIR@", f"{work}/cache")
-            .replace("@ORIGINHOST@", origin_host)
-        ) + (
-            f"\npid_filename {work}/squid.pid\n"
-            f"access_log {work}/access.log\n"
-            f"cache_log {work}/cache.log\n"
-            f"coredump_dir {work}/cache\n"
-        )
-        conf = run.write(work / "squid.conf", squid_conf)
-        # squid drops to the unprivileged "squid" user, which must traverse the
-        # 0700 mkdtemp run root and write pid/log/swap files into the work dir.
-        # Open the chain (root o+rx, work + cache o+rwx) so it stands up as root.
-        run.root.chmod(0o755)
-        work.chmod(0o777)
-        (work / "cache").chmod(0o777)
-        run.call(["squid", "-f", conf, "-z"], check=False)
-        run.call(["squid", "-f", conf])
-        stop = ["squid", "-f", str(conf), "-k", "shutdown"]
-        # squid is a forward proxy: harness must use proxy-style URLs
-        harness_env["http_proxy"] = f"http://{HOST}:{port}"
-        cache_base = f"http://{origin}"
-    elif name == "varnish":
-        if shutil.which("varnishd") is None:
-            return True, "SKIP: varnishd not installed"
-        vcl = run.write(
-            work / "default.vcl",
-            (BASELINES_DIR / "varnish.vcl").read_text()
-            .replace("@ORIGINHOST@", origin_host)
-            .replace("@ORIGINPORT@", origin_port),
-        )
-        # varnishd jails the VCL compiler under the unprivileged "varnish" user,
-        # which cannot traverse the 0700 mkdtemp run root nor read the VCL. Open
-        # the path chain so the compiler can read -f (dirs o+rx, file o+r).
-        run.root.chmod(0o755)
-        work.chmod(0o755)
-        vcl.chmod(0o644)
-        run.call(["varnishd", "-a", f"{BIND_HOST}:{port}", "-f", vcl, "-n", work / "vn", "-s", "malloc,256m"])
-        stop = ["pkill", "-f", f"varnishd .*{work}/vn"]
-        cache_base = f"http://{HOST}:{port}"
-    else:
-        raise LiveFailure(f"unknown baseline: {name}")
+    runtime = _start_baseline(run, name, port, origin, work)
+    if runtime is None:
+        return True, f"SKIP: {name} not installed"
+    stop, cache_base, harness_env = runtime
     try:
         if not wait_tcp(BIND_HOST, port, 10):
             return False, f"{name} did not listen on {port}"
@@ -295,178 +310,6 @@ def cvmfs_baselines(nginx: Path | None = None) -> int:
         return _checks(checks)
 
 
-# --- matrix (port of tests/cvmfs/run_matrix.sh) ------------------------------
 
-
-def _module_conf_body(listen_port: int, location: str, directives: str, work: Path) -> str:
-    return f"""daemon on; error_log {work}/e.log warn; pid {work}/nginx.pid;
-thread_pool default threads=4;
-events {{ worker_connections 512; }}
-http {{ access_log off;
-    keepalive_timeout 3600s; keepalive_requests 1000000;
-    send_timeout 300s; client_header_timeout 300s;
-    reset_timedout_connection off;
-    server {{
-    listen {BIND_HOST}:{listen_port} so_keepalive=60s:10s:6 backlog=2048;
-    location {location} {{
-{directives}
-    }}
-}} }}
-"""
-
-
-def _stop_pidfile(pidfile: Path) -> None:
-    try:
-        os.kill(int(pidfile.read_text().strip()), signal.SIGTERM)
-    except (OSError, ValueError):
-        pass
-
-
-def matrix(nginx: Path | None = None) -> int:
-    """The phase-68 comparison matrix: each cache implementation x each netem
-    profile gets a fresh lab, a mock origin inside the impaired ns, one harness
-    run, one JSON. Renders RESULTS.md rows at the end. Requires root (netem);
-    squid/varnish cells are skipped when not installed."""
-    _require_root_netem()
-    out_dir = Path(os.environ.get("CVMFS_MATRIX_OUT", BASELINES_DIR))
-    out_dir.mkdir(parents=True, exist_ok=True)
-    rows_path = out_dir / "matrix_rows.tsv"
-    rows_path.write_text("")
-    with LiveRun("cvmfs_matrix", nginx) as run:
-        if not run.nginx.exists():
-            raise LiveSkip(f"nginx binary not found: {run.nginx}")
-        mock_port, cache_port, proxy_port = _PORTS[3:6]  # was free_ports(3)
-        netns = ["ip", "netns", "exec", NS]
-        try:
-            for cache in MATRIX_CACHES:
-                for profile in MATRIX_PROFILES:
-                    lab_down()
-                    lab_up()
-                    lab_profile(profile)
-                    mock = _start_mock(run, netns, NS_IP, mock_port)
-                    work = run.mkdir(f"w_{cache}_{profile}")
-                    result_json = _matrix_cell(run, cache, profile, work, out_dir, mock_port, cache_port, proxy_port)
-                    if result_json:
-                        with rows_path.open("a") as rows:
-                            rows.write(f"{cache}\t{profile}\t{result_json}\n")
-                    mock.terminate()
-        finally:
-            lab_down()
-        appended = _render_results(out_dir)
-        print(f"appended {appended} rows to RESULTS.md")
-        return 0 if appended else 1
-
-
-def _matrix_cell(run: LiveRun, cache: str, profile: str, work: Path, out_dir: Path, mock_port: int, cache_port: int, proxy_port: int) -> str:
-    """Run one cache x profile cell; return the result JSON path ('' on failure)."""
-    origin = f"{NS_IP}:{mock_port}"
-    harness_env: dict[str, str] = {}
-    pidfile = work / "nginx.pid"
-    if cache == "module-reverse":
-        config = run.write(work / "nginx.conf", _module_conf_body(cache_port, "/cvmfs/", f"""        brix_storage_backend http://{origin};
-        brix_cache_store posix:{work}/cache;
-        brix_cache_verify cvmfs-cas;
-        brix_cvmfs on;
-        brix_cvmfs_client_hold 25;""", work))
-        (work / "cache").mkdir(exist_ok=True)
-        (work / "logs").mkdir(exist_ok=True)
-        run.call([run.nginx, "-c", config, "-p", work])
-        cache_base = f"http://{HOST}:{cache_port}"
-    elif cache == "module-proxy":
-        config = run.write(work / "nginx.conf", _module_conf_body(proxy_port, "/", f"""        brix_cache_store posix:{work}/cache;
-        brix_cache_verify cvmfs-cas;
-        brix_cvmfs on;
-        brix_cvmfs_client_hold 25;
-        brix_cvmfs_upstream_allow {NS_IP};""", work))
-        (work / "cache").mkdir(exist_ok=True)
-        (work / "logs").mkdir(exist_ok=True)
-        run.call([run.nginx, "-c", config, "-p", work])
-        harness_env["http_proxy"] = f"http://{HOST}:{proxy_port}"
-        cache_base = f"http://{origin}"
-    elif cache == "stock-nginx":
-        template = (REPO_ROOT / "deploy/cvmfs/nginx-proxy-cache.conf").read_text()
-        config = run.write(
-            work / "nginx.conf",
-            template.replace("@PORT@", str(cache_port))
-            .replace("@PPORT@", str(proxy_port))
-            .replace("@CACHEDIR@", str(work))
-            .replace("@ORIGIN@", origin)
-            .replace("@ORIGINHOST@", NS_IP)
-            .replace("@ORIGINPORT@", str(mock_port)),
-        )
-        (work / "store").mkdir(exist_ok=True)
-        (work / "logs").mkdir(exist_ok=True)
-        run.call([run.nginx, "-c", config, "-p", work])
-        cache_base = f"http://{HOST}:{cache_port}"
-    elif cache in ("squid", "varnish"):
-        # delegate to the baseline runner; it sets its own proxy env/base
-        ok, message = run_baseline(run, cache, cache_port, origin, out_dir)
-        print(f"  {'ok  ' if ok else 'FAIL'} baseline {cache}/{profile}: {message}")
-        if ok and not message.startswith("SKIP"):
-            return str(out_dir / f"baseline_{cache}.json")
-        return ""
-    else:
-        raise LiveFailure(f"unknown cache implementation: {cache}")
-
-    result_json = out_dir / f"results_{cache}_{profile}.json"
-    harness = run.call(
-        [sys.executable, CVMFS_DIR / "harness.py", "--cache", cache_base, "--mock", f"http://{origin}", "--out", result_json],
-        env=harness_env,
-        check=False,
-    )
-    _stop_pidfile(pidfile)
-    if harness.returncode != 0:
-        print(f"  FAIL harness {cache}/{profile}: {(harness.stderr or harness.stdout)[-1000:]}")
-        return ""
-    return str(result_json)
-
-
-def _render_results(out_dir: Path) -> int:
-    rows = [line.split("\t") for line in (out_dir / "matrix_rows.tsv").read_text().splitlines() if line]
-    today = datetime.date.today().isoformat()
-    lines = []
-    for cache, profile, path in rows:
-        candidate = Path(path)
-        if not candidate.is_absolute():
-            candidate = out_dir / path
-        try:
-            data = json.loads(candidate.read_text())
-        except (OSError, ValueError):
-            continue
-        cells = [
-            f"{data.get(key, ''):.1f}" if isinstance(data.get(key), float) else str(data.get(key, ""))
-            for key in RESULT_KEYS
-        ]
-        note = f"conn_failures={data.get('conn_failures', '?')}"
-        lines.append(f"| {cache} | {profile} | " + " | ".join(cells) + f" | {today} | {note} |")
-    if lines:
-        with (out_dir / "RESULTS.md").open("a") as results:
-            results.write("\n".join(lines) + "\n")
-    return len(lines)
-
-
-SCENARIOS = {
-    "matrix": matrix,
-    "cvmfs-baselines": cvmfs_baselines,
-    "spike-cas-hash": spike_cas_hash,
-    "netem-lab": netem_lab,
-}
-
-
-def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("scenario", choices=SCENARIOS)
-    parser.add_argument("nginx", nargs="?", type=Path)
-    ns = parser.parse_args(argv)
-    try:
-        return SCENARIOS[ns.scenario](ns.nginx)
-    except LiveSkip as exc:
-        print(f"SKIP: {exc}")
-        return 0
-    except LiveFailure as exc:
-        print(f"CVMFS matrix scenario failed: {exc}", file=sys.stderr)
-        return 2
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())
+from split_continuation import load as _load_continuation
+_load_continuation(globals(), __file__, "cvmfs_matrix_part2.py")

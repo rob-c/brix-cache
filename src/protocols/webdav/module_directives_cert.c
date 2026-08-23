@@ -239,6 +239,36 @@ extern ngx_module_t  ngx_http_proxy_module;
 
 
 /*
+ * WHAT: Recognize an OpenSSL hashed CA certificate filename.
+ * WHY: Exclude CRLs and policy files when selecting the proxy CA seed.
+ * HOW: Require eight lowercase hexadecimal digits, a dot, and a non-empty
+ *      decimal collision suffix consuming the remainder of the name.
+ */
+static ngx_int_t
+webdav_conf_is_ca_name(const u_char *name, size_t len)
+{
+    size_t i;
+
+    if (len < sizeof("00000000.0") - 1 || name[8] != '.') {
+        return 0;
+    }
+    for (i = 0; i < 8; i++) {
+        if (!((name[i] >= '0' && name[i] <= '9')
+              || (name[i] >= 'a' && name[i] <= 'f')))
+        {
+            return 0;
+        }
+    }
+    for (i = 9; i < len; i++) {
+        if (name[i] < '0' || name[i] > '9') {
+            return 0;
+        }
+    }
+    return 1;
+}
+
+
+/*
  * Pick one CA certificate file (<8-hex-hash>.<digits> — the OpenSSL hashed
  * layout; CRLs are <hash>.r<N> and never match) out of `folder`, returning
  * the lexicographically smallest match as a pool-allocated, NUL-terminated
@@ -251,7 +281,7 @@ webdav_conf_pick_ca_file(ngx_conf_t *cf, ngx_str_t *folder, ngx_str_t *picked)
     ngx_dir_t   dir;
     ngx_str_t   best;
     u_char     *name, *p;
-    size_t      len, i;
+    size_t      len;
 
     if (ngx_open_dir(folder, &dir) != NGX_OK) {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, ngx_errno,
@@ -270,26 +300,8 @@ webdav_conf_pick_ca_file(ngx_conf_t *cf, ngx_str_t *folder, ngx_str_t *picked)
         name = ngx_de_name(&dir);
         len = ngx_de_namelen(&dir);
 
-        if (len < sizeof("00000000.0") - 1 || name[8] != '.') {
+        if (!webdav_conf_is_ca_name(name, len)) {
             continue;
-        }
-        for (i = 0; i < 8; i++) {
-            if (!((name[i] >= '0' && name[i] <= '9')
-                  || (name[i] >= 'a' && name[i] <= 'f')))
-            {
-                break;
-            }
-        }
-        if (i < 8) {
-            continue;
-        }
-        for (i = 9; i < len; i++) {
-            if (name[i] < '0' || name[i] > '9') {
-                break;
-            }
-        }
-        if (i < len) {
-            continue;                     /* .r0 CRLs, .signing_policy, ... */
         }
 
         if (best.data == NULL

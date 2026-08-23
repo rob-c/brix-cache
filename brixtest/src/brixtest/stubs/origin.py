@@ -1,16 +1,10 @@
-"""A plain HTTP origin stub (F12) — files out of its working directory.
-
-The generic member of the measured stub inventory (the grown suite's
-``static_origin_server.py``): cache, proxy, and transfer tests need
-*something* upstream that serves bytes, and this is that something.
-The backend starts it with the instance workdir as cwd, so a test
-seeds content simply by writing files there.
+"""HTTP origin stub serving files from its working directory.
 
 Routes on top of the base's ``/health``:
 
-* ``GET/HEAD /<path>`` — the file at ``<workdir>/<path>`` (traversal
+* ``GET/HEAD /<path>``: the file at ``<workdir>/<path>`` (traversal
   is refused, not resolved);
-* ``POST /echo``       — the request body straight back, for
+* ``POST /echo``: the request body, for
   round-trip checks that need no fixture file at all.
 
 Run as ``python -m brixtest.stubs.origin`` under a spec whose env sets

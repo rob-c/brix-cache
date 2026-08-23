@@ -12,26 +12,26 @@ def test_create_write_fstat_read_close_stat_reopen(srv, n):
             fh = _open_handle(s, wire, WRITE_NEW)
             if n:
                 st, body = _write(s, fh, 0, payload)
-                assert st == kXR_ok, f"{who} write n={n} err={_err(body)}"
+                _require(st == kXR_ok, f"{who} write n={n} err={_err(body)}")
             # fstat on the OPEN handle must report the written size
             st, body = _fstat(s, fh)
-            fstat_sz = _stat_size(body) if st == kXR_ok else None
+            fstat_sz = _stat_size_if_ok(st, body)
             # read-back through the same handle
             rb = b""
             if n:
                 st_r, rb = _read(s, fh, 0, n)
-                assert st_r == kXR_ok, f"{who} read-back n={n} st={st_r}"
-            assert _close(s, fh)[0] == kXR_ok, f"{who} close n={n}"
+                _require(st_r == kXR_ok, f"{who} read-back n={n} st={st_r}")
+            _require(_close(s, fh)[0] == kXR_ok, f"{who} close n={n}")
             # stat(path) after close
             st, body = _stat_path(s, wire)
-            assert st == kXR_ok, f"{who} stat(path) n={n}"
+            _require(st == kXR_ok, f"{who} stat(path) n={n}")
             path_sz = _stat_size(body)
             # reopen(read) and read it all again
             fh2 = _open_handle(s, wire, kXR_open_read)
             rb2 = b""
             if n:
                 st_r, rb2 = _read(s, fh2, 0, n)
-                assert st_r == kXR_ok, f"{who} reopen-read n={n}"
+                _require(st_r == kXR_ok, f"{who} reopen-read n={n}")
             _close(s, fh2)
         finally:
             s.close()
@@ -41,18 +41,24 @@ def test_create_write_fstat_read_close_stat_reopen(srv, n):
         results[who] = dict(fstat=fstat_sz, path=path_sz, rb=rb, rb2=rb2,
                             disk=disk)
         # per-server invariants
-        assert fstat_sz == n, f"{who} fstat size {fstat_sz} != {n}"
-        assert path_sz == n, f"{who} stat(path) size {path_sz} != {n}"
-        assert rb == payload, f"{who} same-handle read-back != written (n={n})"
-        assert rb2 == payload, f"{who} reopen read-back != written (n={n})"
-        assert disk == payload, f"{who} on-disk bytes != written (n={n})"
+        _require(fstat_sz == n, f"{who} fstat size {fstat_sz} != {n}")
+        _require(path_sz == n, f"{who} stat(path) size {path_sz} != {n}")
+        _require(rb == payload, f"{who} same-handle read-back != written (n={n})")
+        _require(rb2 == payload, f"{who} reopen read-back != written (n={n})")
+        _require(disk == payload, f"{who} on-disk bytes != written (n={n})")
     # cross-server: identical at every checkpoint
-    assert results["our"]["fstat"] == results["off"]["fstat"], \
-        f"fstat size differs our vs stock (n={n})"
-    assert results["our"]["path"] == results["off"]["path"], \
-        f"stat(path) size differs our vs stock (n={n})"
-    assert md5(results["our"]["disk"]) == md5(results["off"]["disk"]), \
-        f"on-disk bytes differ our vs stock (n={n})"
+    _require(
+        results["our"]["fstat"] == results["off"]["fstat"],
+        f"fstat size differs our vs stock (n={n})",
+    )
+    _require(
+        results["our"]["path"] == results["off"]["path"],
+        f"stat(path) size differs our vs stock (n={n})",
+    )
+    _require(
+        md5(results["our"]["disk"]) == md5(results["off"]["disk"]),
+        f"on-disk bytes differ our vs stock (n={n})",
+    )
 
 
 # =========================================================================== #
@@ -220,16 +226,17 @@ def test_readv_multiseg_matches(srv, idx, segs):
         s = _session(url)
         try:
             fh = _open_handle(s, wire, WRITE_NEW)
-            assert _write(s, fh, 0, payload)[0] == kXR_ok, f"{who} write"
-            assert _close(s, fh)[0] == kXR_ok, f"{who} close"
+            _require(_write(s, fh, 0, payload)[0] == kXR_ok, f"{who} write")
+            _require(_close(s, fh)[0] == kXR_ok, f"{who} close")
             fh2 = _open_handle(s, wire, kXR_open_read)
             st, parts = _readv(s, [(fh2, o, l) for o, l in segs])
-            assert st == kXR_ok, f"{who} readv st={st}"
-            assert len(parts) == len(segs), \
-                f"{who} readv returned {len(parts)} segs, want {len(segs)}"
+            _require(st == kXR_ok, f"{who} readv st={st}")
+            _require(
+                len(parts) == len(segs),
+                f"{who} readv returned {len(parts)} segs, want {len(segs)}",
+            )
             for (o, l), got in zip(segs, parts):
-                assert got == payload[o:o + l], \
-                    f"{who} readv seg @{o}+{l} mismatch"
+                _require(got == payload[o:o + l], f"{who} readv seg @{o}+{l} mismatch")
             _close(s, fh2)
         finally:
             s.close()
@@ -340,15 +347,17 @@ def test_rename_preserves_content_and_checksum(srv, n):
         try:
             fh = _open_handle(s, src_w, WRITE_NEW)
             if n:
-                assert _write(s, fh, 0, payload)[0] == kXR_ok, f"{who} write"
-            assert _close(s, fh)[0] == kXR_ok, f"{who} close"
+                _require(_write(s, fh, 0, payload)[0] == kXR_ok, f"{who} write")
+            _require(_close(s, fh)[0] == kXR_ok, f"{who} close")
         finally:
             s.close()
         # rename via the stock client (mv) against THIS server
         rc, o, e = fs(url, "mv", src_w, dst_w)
-        assert rc == 0, f"{who} mv failed: {o}{e}"
-        assert not os.path.exists(disk_for(srv, url, src_w)), \
-            f"{who} source still present after mv"
+        _require(rc == 0, f"{who} mv failed: {o}{e}")
+        _require(
+            not os.path.exists(disk_for(srv, url, src_w)),
+            f"{who} source still present after mv",
+        )
         # reopen the new name and verify byte content
         s = _session(url)
         try:
@@ -356,14 +365,13 @@ def test_rename_preserves_content_and_checksum(srv, n):
             rb = b""
             if n:
                 st, rb = _read(s, fh2, 0, n)
-                assert st == kXR_ok, f"{who} read after rename st={st}"
-            assert rb == payload, \
-                f"{who} content changed across rename"
+                _require(st == kXR_ok, f"{who} read after rename st={st}")
+            _require(rb == payload, f"{who} content changed across rename")
             _close(s, fh2)
         finally:
             s.close()
         with open(disk_for(srv, url, dst_w), "rb") as f:
-            assert f.read() == payload, f"{who} on-disk content wrong after mv"
+            _require(f.read() == payload, f"{who} on-disk content wrong after mv")
 
 
 # =========================================================================== #

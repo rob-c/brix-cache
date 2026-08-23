@@ -36,6 +36,33 @@ from _test_a_robustness_helpers import (
 # kXR_error errcodes this tranche discriminates between.  A missing object and
 # a refused one are both status 4003 on the wire, and a test that accepted
 # either would pass on a seeding slip.
+def _expression_1(self):
+    return (
+        re.match(r"bytes=(\d+)-(\d*)", self.headers.get("Range") or "")
+    )
+
+def _expression_2(self, matched):
+    return (
+        self.send_response(206 if matched else 200)
+    )
+
+def _expression_3(at, self):
+    return (
+        self.server.truncate_at is not None
+                                and at >= self.server.truncate_at
+    )
+
+
+def _guard_do_GET_1(matched, self, start, end, payload):
+    if matched:
+        self.send_header("Content-Range",
+                         f"bytes {start}-{end}/{len(payload)}")
+
+def _guard_do_GET_2(self):
+    if self.server.delay:
+        time.sleep(self.server.delay)
+
+
 KXR_ERROR = 4003
 KXR_OKSOFAR = 4000
 XERR_NOT_FOUND = 3011
@@ -314,23 +341,20 @@ class PacedSource(BaseHTTPRequestHandler):
             return
         payload = self._body_of()
         start, end = 0, len(payload) - 1
-        matched = re.match(r"bytes=(\d+)-(\d*)", self.headers.get("Range") or "")
+        matched = _expression_1(self)
         if matched:
             start = int(matched.group(1))
             if matched.group(2):
                 end = int(matched.group(2))
         body = payload[start:end + 1]
-        self.send_response(206 if matched else 200)
-        if matched:
-            self.send_header("Content-Range",
-                             f"bytes {start}-{end}/{len(payload)}")
+        _expression_2(self, matched)
+        _guard_do_GET_1(matched, self, start, end, payload)
         self.send_header("Content-Length", str(len(body)))
         self.send_header("Accept-Ranges", "bytes")
         self.end_headers()
         try:
             for at in range(0, len(body), self.server.chunk):
-                if (self.server.truncate_at is not None
-                        and at >= self.server.truncate_at):
+                if (_expression_3(at, self)):
                     # Hang up owing bytes we advertised: a premature EOF, not a
                     # short Content-Length, so only the puller can catch it.
                     self.close_connection = True
@@ -340,8 +364,7 @@ class PacedSource(BaseHTTPRequestHandler):
                 self.server.hold.wait()
                 self.wfile.write(body[at:at + self.server.chunk])
                 self.wfile.flush()
-                if self.server.delay:
-                    time.sleep(self.server.delay)
+                _guard_do_GET_2(self)
         except OSError:
             pass                        # the puller hung up mid-body
 

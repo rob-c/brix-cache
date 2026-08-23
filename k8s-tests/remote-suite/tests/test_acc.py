@@ -23,6 +23,22 @@ import pytest
 
 from settings import BIND_HOST, HOST, free_port, url_host
 
+def _guard_acc_server_1():
+    if not _have_tools():
+        pytest.skip("xrdfs/xrdcp or nginx binary unavailable")
+
+def _check_acc_server_1(t):
+    assert t.returncode == 0, f"nginx -t failed: {t.stderr}"
+
+def _guard_acc_server_3():
+    if not _port_up(ACC_PORT):
+        pytest.skip("xrdacc nginx did not start")
+
+def _guard_acc_server_2(syms):
+    if "brix_acc_access" not in syms.stdout:
+        pytest.skip("nginx binary not built with the xrdacc engine")
+
+
 NGINX_BIN = os.environ.get("TEST_NGINX_BIN", "/tmp/nginx-1.28.3/objs/nginx")
 ACC_PORT = int(os.environ.get("TEST_ACC_PORT") or free_port())
 ROOT = os.path.join(os.environ["TMPDIR"], "xrdacc-pytest")
@@ -50,13 +66,11 @@ def _port_up(port, timeout=5.0):
 
 @pytest.fixture(scope="module")
 def acc_server():
-    if not _have_tools():
-        pytest.skip("xrdfs/xrdcp or nginx binary unavailable")
+    _guard_acc_server_1()
     # The binary must be built with the module (acc engine linked).
     try:
         syms = subprocess.run(["nm", NGINX_BIN], capture_output=True, text=True)
-        if "brix_acc_access" not in syms.stdout:
-            pytest.skip("nginx binary not built with the xrdacc engine")
+        _guard_acc_server_2(syms)
     except Exception:
         pass
 
@@ -91,10 +105,9 @@ stream {{
 
     conf = f"{ROOT}/conf/nginx.conf"
     t = subprocess.run([NGINX_BIN, "-t", "-c", conf], capture_output=True, text=True)
-    assert t.returncode == 0, f"nginx -t failed: {t.stderr}"
+    _check_acc_server_1(t)
     subprocess.run([NGINX_BIN, "-c", conf], capture_output=True)
-    if not _port_up(ACC_PORT):
-        pytest.skip("xrdacc nginx did not start")
+    _guard_acc_server_3()
 
     yield URL
 

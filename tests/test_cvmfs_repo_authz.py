@@ -114,11 +114,19 @@ def _srv(gate, cfg, tls=None, **kw):
 def _fetch(port, path, *, https, token=None):
     scheme = "https" if https else "http"
     req = urllib.request.Request(f"{scheme}://{HOST}:{port}{path}")
+    _add_bearer(req, token)
+    return _open_fetch(req, https)
+
+
+def _add_bearer(request, token):
     if token is not None:
-        req.add_header("Authorization", f"Bearer {token}")
-    kw = {"context": ssl._create_unverified_context()} if https else {}
+        request.add_header("Authorization", f"Bearer {token}")
+
+
+def _open_fetch(request, https):
+    options = {"context": ssl._create_unverified_context()} if https else {}
     try:
-        with urllib.request.urlopen(req, timeout=15, **kw) as r:
+        with urllib.request.urlopen(request, timeout=15, **options) as r:
             return r.status, r.read()
     except urllib.error.HTTPError as e:
         return e.code, e.read()

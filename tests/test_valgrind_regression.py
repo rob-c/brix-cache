@@ -28,6 +28,19 @@ import pytest
 
 from settings import NGINX_BIN
 
+def _check_test_harness_reports_module_clean_1(results_path):
+    assert results_path.exists(), "harness produced no results.txt"
+
+def _check_test_harness_reports_module_clean_2(results):
+    assert "gsi usercert=" in results, f"request mix did not run:\n{results}"
+
+def _check_test_harness_reports_module_clean_3(marker, results):
+    assert marker in results, f"harness did not run to triage:\n{results}"
+
+def _check_test_harness_reports_module_clean_4(section):
+    assert section == "(none)", f"valgrind found module-frame issues:\n{section}"
+
+
 ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -139,15 +152,18 @@ def test_harness_reports_module_clean(tmp_path):
     )
 
     results_path = work / "results.txt"
-    assert results_path.exists(), "harness produced no results.txt"
+    _check_test_harness_reports_module_clean_1(results_path)
     results = results_path.read_text(encoding="utf-8")
-    assert "FINISHED" not in results or "DONE" in results, results
-    # Guard against a silent under-exercise (e.g. the worker never bound): the
-    # request mix must have actually run against the GSI/TLS plane.
-    assert "up after" in results, f"harness worker never came up:\n{results}"
-    assert "gsi usercert=" in results, f"request mix did not run:\n{results}"
+    def _assert_test_harness_reports_module_clean_1():
+        assert "FINISHED" not in results or "DONE" in results, results
+        # Guard against a silent under-exercise (e.g. the worker never bound): the
+        # request mix must have actually run against the GSI/TLS plane.
+        assert "up after" in results, f"harness worker never came up:\n{results}"
+
+    _assert_test_harness_reports_module_clean_1()
+    _check_test_harness_reports_module_clean_2(results)
 
     marker = "MODULE-FRAME HITS (should be empty) ----"
-    assert marker in results, f"harness did not run to triage:\n{results}"
+    _check_test_harness_reports_module_clean_3(marker, results)
     section = results.split(marker, 1)[1].split("DONE", 1)[0].strip()
-    assert section == "(none)", f"valgrind found module-frame issues:\n{section}"
+    _check_test_harness_reports_module_clean_4(section)

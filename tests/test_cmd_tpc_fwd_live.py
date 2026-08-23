@@ -28,6 +28,11 @@ def test_tpc_fwd_live_is_importable():
 @pytest.mark.timeout(600)
 @pytest.mark.parametrize("scenario", sorted(tpc_fwd_live.SCENARIOS))
 def test_tpc_fwd_live_scenario(scenario: str):
+    nginx = _require_live_tpc()
+    assert tpc_fwd_live.SCENARIOS[scenario](nginx) == 0
+
+
+def _require_live_tpc():
     if os.environ.get("PHASE81_RUN_LIVE_PORTS") == "0":
         pytest.skip("set PHASE81_RUN_LIVE_PORTS=0 to skip live TPC forwarding scenarios")
     nginx = Path(os.environ.get("NGINX_BIN", "/tmp/nginx-1.28.3/objs/nginx"))
@@ -35,4 +40,4 @@ def test_tpc_fwd_live_scenario(scenario: str):
         pytest.skip(f"nginx binary not found: {nginx}")
     if not os.access(tpc_fwd_live.BRIX_XRDCP, os.X_OK):
         pytest.skip(f"repo xrdcp not built: {tpc_fwd_live.BRIX_XRDCP}")
-    assert tpc_fwd_live.SCENARIOS[scenario](nginx) == 0
+    return nginx

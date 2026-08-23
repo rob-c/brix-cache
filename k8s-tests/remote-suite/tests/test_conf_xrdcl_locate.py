@@ -47,6 +47,58 @@ import official_interop_lib as L
 # The bindings are reached through the in-repo shadow XRootD package (proxy to
 # an out-of-process real-libXrdCl worker). If neither the shadow nor the real
 # package import, skip the whole module rather than ERROR.
+def _expression_1(text_o):
+    return (
+        text_o.strip().splitlines()[0].strip() if text_o.strip() else ""
+    )
+
+def _expression_2(text_f):
+    return (
+        text_f.strip().splitlines()[0].strip() if text_f.strip() else ""
+    )
+
+def _expression_3(line_f):
+    return (
+        line_f.split()[0] if line_f.split() else ""
+    )
+
+def _expression_4(line_o):
+    return (
+        line_o.split()[0] if line_o.split() else ""
+    )
+
+
+def _phase_test_qconfig_shape_parity_1(f_first, key, line_f, line_o, o_first):
+    if f_first.lstrip("-").isdigit():
+        _check_test_qconfig_shape_parity_3(key, line_f, line_o, o_first)
+
+
+def _check_test_qconfig_shape_parity_1(st_o, key):
+    assert st_o.ok, f"OUR query config {key} failed"
+
+def _guard_test_qconfig_shape_parity_1(st_f, key):
+    if not st_f.ok:
+        pytest.skip(f"stock did not answer config {key}")
+
+def _check_test_qconfig_shape_parity_2(key, line_o):
+    assert not line_o.startswith(f"{key}="), \
+        f"OUR config {key} uses key= but stock does not: {line_o!r}"
+
+def _check_test_qconfig_shape_parity_3(key, line_f, line_o, o_first):
+    assert o_first.lstrip("-").isdigit(), (
+        f"stock config {key} is integer ({line_f!r}) but OUR is not "
+        f"({line_o!r})")
+
+def _guard_test_xattr_key_set_parity_2(st_o, st_f):
+    if not (st_o.ok and st_f.ok):
+        pytest.skip("xattr not answered by one server")
+
+def _check_test_xattr_key_set_parity_4(keys_o, common, keys_f):
+    assert (keys_o & common) == (keys_f & common), (
+        f"xattr core key set differs: our={keys_o & common} "
+        f"stock={keys_f & common}")
+
+
 try:
     from XRootD import client
     from XRootD.client.flags import OpenFlags, QueryCode
@@ -396,19 +448,14 @@ def test_qconfig_shape_parity(srv, fs_our, fs_off, key):
     The literal value may legitimately differ (build/site/role)."""
     st_o, text_o = _q(fs_our, key)
     st_f, text_f = _q(fs_off, key)
-    assert st_o.ok, f"OUR query config {key} failed"
-    if not st_f.ok:
-        pytest.skip(f"stock did not answer config {key}")
-    line_o = text_o.strip().splitlines()[0].strip() if text_o.strip() else ""
-    line_f = text_f.strip().splitlines()[0].strip() if text_f.strip() else ""
-    assert not line_o.startswith(f"{key}="), \
-        f"OUR config {key} uses key= but stock does not: {line_o!r}"
-    f_first = line_f.split()[0] if line_f.split() else ""
-    o_first = line_o.split()[0] if line_o.split() else ""
-    if f_first.lstrip("-").isdigit():
-        assert o_first.lstrip("-").isdigit(), (
-            f"stock config {key} is integer ({line_f!r}) but OUR is not "
-            f"({line_o!r})")
+    _check_test_qconfig_shape_parity_1(st_o, key)
+    _guard_test_qconfig_shape_parity_1(st_f, key)
+    line_o = _expression_1(text_o)
+    line_f = _expression_2(text_f)
+    _check_test_qconfig_shape_parity_2(key, line_o)
+    f_first = _expression_3(line_f)
+    o_first = _expression_4(line_o)
+    _phase_test_qconfig_shape_parity_1(f_first, key, line_f, line_o, o_first)
 
 
 def test_qconfig_version_v_prefixed(srv, fs_our):
@@ -457,10 +504,13 @@ def test_qconfig_multikey_one_line_per_key(srv, fs_our):
     assert st.ok, "OUR multi-key query config failed"
     body = (r or b"").rstrip(b"\x00").decode("latin-1")
     lines = [l for l in body.split("\n") if l != ""]
-    assert len(lines) == 3, \
-        f"OUR multi-key expected 3 lines, got {len(lines)}: {body!r}"
-    assert lines[0].split()[0].lstrip("-").isdigit(), \
-        f"bind_max line not integer-first: {lines[0]!r}"
+    def _assert_test_qconfig_multikey_one_line_per_key_1():
+        assert len(lines) == 3, \
+            f"OUR multi-key expected 3 lines, got {len(lines)}: {body!r}"
+        assert lines[0].split()[0].lstrip("-").isdigit(), \
+            f"bind_max line not integer-first: {lines[0]!r}"
+
+    _assert_test_qconfig_multikey_one_line_per_key_1()
     assert lines[1].split()[0].lstrip("-").isdigit(), \
         f"readv_iov_max line not integer-first: {lines[1]!r}"
 
@@ -781,14 +831,11 @@ def test_xattr_key_set_parity(srv, fs_our, fs_off):
     these by name); values differ (cgroup/mtime) but keys must not."""
     st_o, text_o = _xattr(fs_our, "/data.bin")
     st_f, text_f = _xattr(fs_off, "/data.bin")
-    if not (st_o.ok and st_f.ok):
-        pytest.skip("xattr not answered by one server")
+    _guard_test_xattr_key_set_parity_2(st_o, st_f)
     keys_o = {p.split("=", 1)[0] for p in text_o.split("&") if "=" in p}
     keys_f = {p.split("=", 1)[0] for p in text_f.split("&") if "=" in p}
     common = {"oss.type", "oss.used", "oss.cgroup"}
-    assert (keys_o & common) == (keys_f & common), (
-        f"xattr core key set differs: our={keys_o & common} "
-        f"stock={keys_f & common}")
+    _check_test_xattr_key_set_parity_4(keys_o, common, keys_f)
 
 
 # =========================================================================== #

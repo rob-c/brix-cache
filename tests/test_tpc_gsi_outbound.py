@@ -66,183 +66,190 @@ def _wait_listen(port, tries=60):
 
 @pytest.fixture
 def gsi_tpc(lifecycle, tmp_path_factory):
+    _require_gsi_tools()
+    base = tmp_path_factory.mktemp("tpcgsi")
+    paths = _gsi_paths(base)
+    fqdn = socket.getfqdn()
+    _make_gsi_pki(base, paths, fqdn)
+    penv = _make_gsi_proxies(paths)
+    paths["srcdata"].joinpath("hello.txt").write_text("hello-tpc-gsi\n")
+    src_port = free_port()
+    config = _write_gsi_source_config(base, paths, src_port)
+    src = _start_gsi_source(base, paths, config, src_port)
+    dst = _start_gsi_destination(lifecycle, paths, src)
+    ctx = {"fqdn": fqdn, "src_port": src_port, "dst_port": dst.port,
+           "env": penv, "certs": str(paths["certs"]), "base": str(base),
+           "dst_data": str(paths["dstdata"]),
+           "logs": os.path.join(dst.prefix, "logs"),
+           "src_url": f"root://127.0.0.1:{src_port}",
+           "dst_url": f"root://127.0.0.1:{dst.port}"}
+    yield ctx
+    _stop_gsi_source(src)
+
+
+def _require_gsi_tools():
     if not _have("xrootd", "openssl", "xrdgsiproxy"):
         pytest.skip("stock xrootd / openssl / xrdgsiproxy not installed")
     if not os.path.exists(XRDCP):
         pytest.skip("native xrdcp not built")
 
-    base = tmp_path_factory.mktemp("tpcgsi")
-    ca, srv, certs, src_data, dst_data, logs = (
-        base / d for d in ("ca", "server", "certs", "srcdata", "dstdata", "logs"))
-    for d in (ca, srv, certs, src_data, dst_data, logs):
-        d.mkdir(parents=True, exist_ok=True)
-    fqdn = socket.getfqdn()
 
-    # The rendezvous on the stock source is a raw strcmp (XrdOfsTPCInfo::Match):
-    # the grant's org host is the source's reverse-name of the CLIENT connection
-    # and must equal the nginx destination's reverse-name of that same client on
-    # ITS leg.  Every leg must therefore ride the SAME address family on the
-    # same loopback address: numeric 127.0.0.1 forces IPv4 everywhere, so both
-    # sides derive the identical string (the "[::ffff:127.0.0.1]" literal where
-    # glibc cannot name the v4-MAPPED form, "localhost" where it can).  Anything
-    # else splits the horizon: getfqdn() routes via the public NIC (its PTR name
-    # is unreachable from a loopback leg), and a "localhost" URL lets the client
-    # reach the dual-stack source over ::1 ("localhost") while the v4-only nginx
-    # dest names the same client "[::ffff:127.0.0.1]".
-    loop = "127.0.0.1"  # net-literal-allow: numeric IPv4 loopback deliberately forces IPv4 for both TPC legs (see comment)
+def _gsi_paths(base):
+    names = ("ca", "server", "certs", "srcdata", "dstdata", "logs", "user")
+    paths = {name: base / name for name in names}
+    for path in paths.values():
+        path.mkdir(parents=True, exist_ok=True)
+    return paths
 
-    def osl(*a):
-        r = _run(["openssl", *a])
-        assert r.returncode == 0, f"openssl {a}: {r.stderr}"
 
-    # Test CA + hashed link.
-    osl("req", "-x509", "-nodes", "-newkey", "rsa:2048", "-days", "1",
-        "-subj", "/O=XrdTpcTest/CN=XrdTpcTest CA",
-        "-keyout", str(ca / "ca.key"), "-out", str(ca / "ca.pem"))
+def _openssl(*args):
+    result = _run(["openssl", *args])
+    assert result.returncode == 0, f"openssl {args}: {result.stderr}"
+
+
+def _make_gsi_pki(base, paths, fqdn):
+    ca = paths["ca"]
+    _openssl("req", "-x509", "-nodes", "-newkey", "rsa:2048", "-days", "1",
+             "-subj", "/O=XrdTpcTest/CN=XrdTpcTest CA",
+             "-keyout", str(ca / "ca.key"), "-out", str(ca / "ca.pem"))
     chash = _run(["openssl", "x509", "-in", str(ca / "ca.pem"),
                   "-noout", "-hash"]).stdout.strip()
-    shutil.copy(ca / "ca.pem", certs / f"{chash}.0")
+    shutil.copy(ca / "ca.pem", paths["certs"] / f"{chash}.0")
+    _sign_gsi_cert(base, paths, fqdn, "server", "host")
+    _sign_gsi_cert(base, paths, "tpc-dest", "server", "dest")
+    _sign_gsi_cert(base, paths, "Test User", "user", "user")
+    os.chmod(paths["server"] / "destkey.pem", 0o600)
+    os.chmod(paths["user"] / "userkey.pem", 0o600)
 
-    def signed(cn, key, cert):
-        csr = base / (cn.replace(" ", "") + ".csr")
-        osl("req", "-nodes", "-newkey", "rsa:2048",
-            "-subj", f"/O=XrdTpcTest/CN={cn}", "-keyout", str(key), "-out", str(csr))
-        osl("x509", "-req", "-in", str(csr), "-CA", str(ca / "ca.pem"),
-            "-CAkey", str(ca / "ca.key"), "-CAcreateserial", "-days", "1",
-            "-out", str(cert))
 
-    # Source host cert; the nginx dest presents its own CA-signed cert outbound;
-    # the client gets a user EEC + proxy to open the GSI source for the rendezvous.
-    signed(fqdn, srv / "hostkey.pem", srv / "hostcert.pem")
-    signed("tpc-dest", srv / "destkey.pem", srv / "destcert.pem")
-    os.chmod(srv / "destkey.pem", 0o600)
-    usr = base / "user"
-    usr.mkdir(parents=True, exist_ok=True)
-    signed("Test User", usr / "userkey.pem", usr / "usercert.pem")
-    os.chmod(usr / "userkey.pem", 0o600)
-    proxy = usr / "proxy.pem"
-    penv = dict(os.environ, X509_CERT_DIR=str(certs), X509_USER_PROXY=str(proxy))
-    mk = _run(["xrdgsiproxy", "init", "-cert", str(usr / "usercert.pem"),
-               "-key", str(usr / "userkey.pem"), "-out", str(proxy),
-               "-certdir", str(certs), "-valid", "1:00"], input="\n\n", env=penv)
+def _sign_gsi_cert(base, paths, common_name, directory, stem):
+    csr = base / (common_name.replace(" ", "") + ".csr")
+    key = paths[directory] / f"{stem}key.pem"
+    cert = paths[directory] / f"{stem}cert.pem"
+    _openssl("req", "-nodes", "-newkey", "rsa:2048",
+             "-subj", f"/O=XrdTpcTest/CN={common_name}", "-keyout", str(key),
+             "-out", str(csr))
+    ca = paths["ca"]
+    _openssl("x509", "-req", "-in", str(csr), "-CA", str(ca / "ca.pem"),
+             "-CAkey", str(ca / "ca.key"), "-CAcreateserial", "-days", "1",
+             "-out", str(cert))
+
+
+def _make_gsi_proxies(paths):
+    proxy = paths["user"] / "proxy.pem"
+    env = dict(os.environ, X509_CERT_DIR=str(paths["certs"]),
+               X509_USER_PROXY=str(proxy))
+    result = _mint_gsi_proxy(paths["user"], "user", proxy, paths["certs"], env)
     if not proxy.exists():
-        pytest.skip(f"could not mint a test proxy: {mk.stdout}{mk.stderr}")
-
-    # The nginx destination authenticates to the GSI source with a PROXY chain
-    # (proxy + EEC = >= 2 certs in the kXGC_cert bucket); stock XrdSecgsi rejects a
-    # bare single-cert bucket ("expected: >= 2"). Mint a dest proxy from its EEC.
-    dest_proxy = srv / "destproxy.pem"
-    _run(["xrdgsiproxy", "init", "-cert", str(srv / "destcert.pem"),
-          "-key", str(srv / "destkey.pem"), "-out", str(dest_proxy),
-          "-certdir", str(certs), "-valid", "1:00"], input="\n\n", env=penv)
-    if not dest_proxy.exists():
+        pytest.skip(f"could not mint a test proxy: {result.stdout}{result.stderr}")
+    destination = paths["server"] / "destproxy.pem"
+    _mint_gsi_proxy(paths["server"], "dest", destination, paths["certs"], env)
+    if not destination.exists():
         pytest.skip("could not mint the destination proxy")
-    os.chmod(dest_proxy, 0o600)
+    os.chmod(destination, 0o600)
+    return env
 
-    (src_data / "hello.txt").write_text("hello-tpc-gsi\n")
 
-    # ---- GSI source: stock xrootd, GSI required ----
-    src_port = free_port()
-    src_cfg = base / "xrootd.cfg"
-    src_cfg.write_text(
-        f"xrd.port {src_port}\n"
-        "all.export /gsidata\n"
-        f"oss.localroot {base}\n"
+def _mint_gsi_proxy(directory, stem, output, certs, env):
+    return _run(["xrdgsiproxy", "init", "-cert", str(directory / f"{stem}cert.pem"),
+                 "-key", str(directory / f"{stem}key.pem"), "-out", str(output),
+                 "-certdir", str(certs), "-valid", "1:00"],
+                input="\n\n", env=env)
+
+
+def _write_gsi_source_config(base, paths, port):
+    server = paths["server"]
+    config = base / "xrootd.cfg"
+    config.write_text(
+        f"xrd.port {port}\nall.export /gsidata\noss.localroot {base}\n"
         "xrootd.seclib libXrdSec.so\n"
-        f"sec.protocol /usr/lib64 gsi -certdir:{certs} "
-        f"-cert:{srv / 'hostcert.pem'} -key:{srv / 'hostkey.pem'} "
-        "-crl:0 -gmapopt:10 -dlgpxy:0\n"
-        "sec.protbind * only gsi\n"
-        # Enable third-party-copy on the source so the rendezvous (tpc.dst/key)
-        # and the destination's pull (tpc.org/key) are accepted; without this the
-        # stock source rejects the TPC open with "tpc not supported".
-        # Generous rendezvous TTL: the GSI handshake + async wait can exceed a
-        # short default, yielding "tpc authorization expired".
+        f"sec.protocol /usr/lib64 gsi -certdir:{paths['certs']} "
+        f"-cert:{server / 'hostcert.pem'} -key:{server / 'hostkey.pem'} "
+        "-crl:0 -gmapopt:10 -dlgpxy:0\nsec.protbind * only gsi\n"
         "ofs.tpc ttl 300 300 pgm /usr/bin/xrdcp\n"
-        # Keep xrootd's runtime admin/pid dirs under the test-owned base so the
-        # `-R nobody` drop (below) can create its sockets — the default location
-        # is root-owned and unwritable to the dropped user.
-        f"all.adminpath {base / 'admin'}\n"
-        f"all.pidpath {base / 'admin'}\n")
-    shutil.move(str(src_data), str(base / "gsidata"))
-    _free_port(src_port)
-    argv = ["xrootd", "-c", str(src_cfg), "-l", str(logs / "xrd.log"),
-            "-n", "tpcgsisrc"]
-    # Root-harness privilege drop: stock xrootd refuses to run as superuser, so
-    # run it via `-R nobody` and pre-open every path that user must touch — the
-    # test-owned tree (a+rwX), the admin dir, and the GSI key (nobody-only 0400).
-    if os.geteuid() == 0:
-        runas = os.environ.get("REF_RUNAS_USER", "nobody")
-        (base / "admin").mkdir(parents=True, exist_ok=True)
-        # Open ONLY what the dropped source needs: traverse base, read the data
-        # tree + CA certdir + hostcert, write admin/log. Deliberately do NOT
-        # touch usr/ — XrdSecgsi refuses a group/world-writable proxy credential
-        # ("cannot load proxy credential"), and only the root client/nginx dest
-        # (not the -R nobody source) ever read it.
-        _run(["chmod", "a+rx", str(base)])
-        for d in (base / "gsidata", certs):
-            _run(["chmod", "-R", "a+rX", str(d)])
-        for d in (base / "admin", logs):
-            _run(["chmod", "-R", "a+rwX", str(d)])
-        hostcert = srv / "hostcert.pem"
-        if hostcert.exists():
-            _run(["chmod", "a+r", str(hostcert)])
-            _run(["chmod", "a+rx", str(srv)])
-        hostkey = srv / "hostkey.pem"
-        if hostkey.exists():
-            shutil.chown(hostkey, runas)
-            os.chmod(hostkey, 0o400)
-        # The nginx dest's DE-ESCALATED worker (also `nobody` by default) must
-        # traverse the 0700 pytest tmp chain to reach this tree, and it reads
-        # the outbound proxy chain at TPC time — hand it the proxy (owner-only:
-        # the GSI loader refuses a lax credential; the root-run harness ignores
-        # modes).  Without this the pull dies rc=54 NotAuthorized.
-        parent = base.parent
-        while str(parent) not in ("/", ""):
-            _run(["chmod", "a+rx", str(parent)])
-            parent = parent.parent
-        _run(["chmod", "a+rx", str(srv)])
-        if dest_proxy.exists():
-            shutil.chown(dest_proxy, runas)
-            os.chmod(dest_proxy, 0o600)
-        argv += ["-R", runas]
-    src = subprocess.Popen(argv,
-                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    if not _wait_listen(src_port):
-        src.terminate()
-        pytest.skip("stock xrootd GSI source did not come up")
+        f"all.adminpath {base / 'admin'}\nall.pidpath {base / 'admin'}\n")
+    shutil.move(str(paths["srcdata"]), str(base / "gsidata"))
+    return config
 
-    # ---- TPC destination: nginx-xrootd, native TPC + outbound GSI cert ----
+
+def _start_gsi_source(base, paths, config, port):
+    _free_port(port)
+    argv = ["xrootd", "-c", str(config), "-l", str(paths["logs"] / "xrd.log"),
+            "-n", "tpcgsisrc"]
+    argv = _gsi_source_argv(base, paths, argv)
+    source = subprocess.Popen(argv, stdout=subprocess.DEVNULL,
+                              stderr=subprocess.DEVNULL)
+    if not _wait_listen(port):
+        source.terminate()
+        pytest.skip("stock xrootd GSI source did not come up")
+    return source
+
+
+def _gsi_source_argv(base, paths, argv):
+    if os.geteuid() != 0:
+        return argv
+    runas = os.environ.get("REF_RUNAS_USER", "nobody")
+    admin = base / "admin"
+    admin.mkdir(parents=True, exist_ok=True)
+    _run(["chmod", "a+rx", str(base)])
+    _chmod_gsi_trees((base / "gsidata", paths["certs"]), "a+rX")
+    _chmod_gsi_trees((admin, paths["logs"]), "a+rwX")
+    _prepare_gsi_server_files(paths["server"], runas)
+    _open_parent_chain(base.parent)
+    _handoff_destination_proxy(paths["server"] / "destproxy.pem", runas)
+    return argv + ["-R", runas]
+
+
+def _chmod_gsi_trees(paths, mode):
+    for path in paths:
+        _run(["chmod", "-R", mode, str(path)])
+
+
+def _prepare_gsi_server_files(server, runas):
+    hostcert = server / "hostcert.pem"
+    if hostcert.exists():
+        _run(["chmod", "a+r", str(hostcert)])
+        _run(["chmod", "a+rx", str(server)])
+    hostkey = server / "hostkey.pem"
+    if hostkey.exists():
+        shutil.chown(hostkey, runas)
+        os.chmod(hostkey, 0o400)
+
+
+def _open_parent_chain(parent):
+    while str(parent) not in ("/", ""):
+        _run(["chmod", "a+rx", str(parent)])
+        parent = parent.parent
+
+
+def _handoff_destination_proxy(proxy, runas):
+    if proxy.exists():
+        shutil.chown(proxy, runas)
+        os.chmod(proxy, 0o600)
+
+
+def _start_gsi_destination(lifecycle, paths, source):
+    server = paths["server"]
     try:
-        dst = lifecycle.start(NginxInstanceSpec(
+        return lifecycle.start(NginxInstanceSpec(
             name="lc-tpc-gsi-outbound-dest",
-            template="nginx_tpc_gsi_outbound_dest.conf",
-            protocol="root",
-            readiness="tcp",
-            data_root=str(dst_data),
-            template_values={
-                "CERT_FILE": str(srv / "destproxy.pem"),
-                "KEY_FILE": str(srv / "destproxy.pem"),
-                "CA_DIR": str(certs),
-            },
-            reason="TPC outbound-GSI dest; auths to stock GSI source with its proxy.",
-        ))
+            template="nginx_tpc_gsi_outbound_dest.conf", protocol="root",
+            readiness="tcp", data_root=str(paths["dstdata"]),
+            template_values={"CERT_FILE": str(server / "destproxy.pem"),
+                             "KEY_FILE": str(server / "destproxy.pem"),
+                             "CA_DIR": str(paths["certs"])},
+            reason="TPC outbound-GSI dest; auths to stock GSI source with its proxy."))
     except Exception:
-        src.terminate()
+        source.terminate()
         raise
 
-    dst_logs = os.path.join(dst.prefix, "logs")
-    ctx = {"fqdn": fqdn, "src_port": src_port, "dst_port": dst.port,
-           "env": penv, "certs": str(certs), "base": str(base),
-           "dst_data": str(dst_data), "logs": dst_logs,
-           "src_url": f"root://{loop}:{src_port}",
-           "dst_url": f"root://{loop}:{dst.port}"}
-    yield ctx
-    src.terminate()
+
+def _stop_gsi_source(source):
+    source.terminate()
     try:
-        src.wait(timeout=5)
+        source.wait(timeout=5)
     except subprocess.TimeoutExpired:
-        src.kill()
+        source.kill()
 
 
 def test_tpc_pull_over_gsi(gsi_tpc):

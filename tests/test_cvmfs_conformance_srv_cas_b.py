@@ -1,4 +1,20 @@
 from split_continuation import reexport as _reexport
+def _expression_1():
+    return (
+        [missing_path(f"slots-{i}") for i in range(8)]
+    )
+
+
+def _check_test_distinct_missing_uris_each_absorbed_independently_1(srv, p):
+    assert GET(srv, p)[0] == 404
+
+def _check_test_distinct_missing_uris_each_absorbed_independently_2(srv, p):
+    assert GET(srv, p)[0] == 404
+
+def _check_test_distinct_missing_uris_each_absorbed_independently_3(srv, p):
+    assert count_heads(srv, p) == 1
+
+
 _reexport(globals(), "_test_cvmfs_conformance_srv_cas_helpers")
 
 def test_negative_ttl_expiry_reconsults_origin(srv):
@@ -25,14 +41,14 @@ def test_absorbed_404_has_no_origin_traffic_at_all(srv):
 
 
 def test_distinct_missing_uris_each_absorbed_independently(srv):
-    paths = [missing_path(f"slots-{i}") for i in range(8)]
+    paths = _expression_1()
     srv.reset_log()
     for p in paths:                        # first pass: 8 origin 404s
-        assert GET(srv, p)[0] == 404
+        _check_test_distinct_missing_uris_each_absorbed_independently_1(srv, p)
     for p in paths:                        # second pass: all absorbed
-        assert GET(srv, p)[0] == 404
+        _check_test_distinct_missing_uris_each_absorbed_independently_2(srv, p)
     for p in paths:
-        assert count_heads(srv, p) == 1
+        _check_test_distinct_missing_uris_each_absorbed_independently_3(srv, p)
 
 
 def test_object_appearing_within_ttl_still_absorbed(web):

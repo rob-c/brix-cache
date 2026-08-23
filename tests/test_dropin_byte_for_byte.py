@@ -1,4 +1,22 @@
 from split_continuation import reexport as _reexport
+def _check_test_statx_field_format_matches_2(n, x):
+    assert _ping(n)[1] == kXR_ok and _ping(x)[1] == kXR_ok
+
+def _check_test_statx_field_format_matches_1(x_body, n_body):
+    assert (x_body[0] & 0x02) == (n_body[0] & 0x02), \
+        "isDir flag disagrees between nginx and official statx"
+
+def _guard_test_qspace_values_are_numeric_1(status, label):
+    if status != kXR_ok:
+        if label == "xrootd":
+            pytest.skip("official Qspace unsupported")
+        pytest.fail("nginx Qspace failed")
+
+def _check_test_eacces_family_matches_3(n_status, x_status):
+    assert n_status == kXR_error and x_status == kXR_error, \
+        f"expected error on both: nginx={n_status} xrootd={x_status}"
+
+
 _reexport(globals(), "_test_dropin_byte_for_byte_helpers")
 
 class TestStatParity:
@@ -80,14 +98,16 @@ class TestStatParity:
         _, x_st, x_body = _statx(x, [PLAIN_NAME])
         if n_st != kXR_ok:
             pytest.skip(f"statx not supported on nginx (status={n_st})")
-        assert len(n_body) == 1, f"nginx statx must be one flag byte: {n_body!r}"
-        assert not (n_body[0] & 0x02), "nginx flagged a regular file as a dir"
+        def _assert_test_statx_field_format_matches_1():
+            assert len(n_body) == 1, f"nginx statx must be one flag byte: {n_body!r}"
+            assert not (n_body[0] & 0x02), "nginx flagged a regular file as a dir"
+
+        _assert_test_statx_field_format_matches_1()
         # The official server returns the same one-byte-per-path body; cross-check
         # when it answers (some builds reply empty for a single path).
         if x_st == kXR_ok and len(x_body) == 1:
-            assert (x_body[0] & 0x02) == (n_body[0] & 0x02), \
-                "isDir flag disagrees between nginx and official statx"
-        assert _ping(n)[1] == kXR_ok and _ping(x)[1] == kXR_ok
+            _check_test_statx_field_format_matches_1(x_body, n_body)
+        _check_test_statx_field_format_matches_2(n, x)
 
 
 # ===========================================================================
@@ -131,10 +151,7 @@ class TestQspaceParity:
         n, x = both
         for sock, label in ((n, "nginx"), (x, "xrootd")):
             sid, status, body = _query(sock, kXR_Qspace, b"/")
-            if status != kXR_ok:
-                if label == "xrootd":
-                    pytest.skip("official Qspace unsupported")
-                pytest.fail("nginx Qspace failed")
+            _guard_test_qspace_values_are_numeric_1(status, label)
             text = body.split(b"\x00")[0].decode(errors="replace")
             for pair in text.split("&"):
                 if "=" not in pair:
@@ -330,14 +347,16 @@ class TestErrorFamilyParity:
             pytest.skip("noperm file is readable in this environment")
         sid, n_status, n_body = _open(n, NOPERM_NAME, kXR_open_read)
         sid, x_status, x_body = _open(x, NOPERM_NAME, kXR_open_read)
-        assert n_status == kXR_error and x_status == kXR_error, \
-            f"expected error on both: nginx={n_status} xrootd={x_status}"
+        _check_test_eacces_family_matches_3(n_status, x_status)
         n_fam = _error_family(n_status, n_body)
         x_fam = _error_family(x_status, x_body)
-        assert n_fam == x_fam == "permission", \
-            f"EACCES family mismatch nginx={n_fam}({_error_msg(n_body)!r}) " \
-            f"xrootd={x_fam}({_error_msg(x_body)!r})"
-        assert _ping(n)[1] == kXR_ok and _ping(x)[1] == kXR_ok
+        def _assert_test_eacces_family_matches_2():
+            assert n_fam == x_fam == "permission", \
+                f"EACCES family mismatch nginx={n_fam}({_error_msg(n_body)!r}) " \
+                f"xrootd={x_fam}({_error_msg(x_body)!r})"
+            assert _ping(n)[1] == kXR_ok and _ping(x)[1] == kXR_ok
+
+        _assert_test_eacces_family_matches_2()
 
     def test_eisdir_open_family_matches(self, both):
         """Opening a directory as a file must error the same way on both."""

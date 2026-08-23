@@ -56,6 +56,17 @@ from port_ladder import PORT_LAST  # noqa: E402
 # same fixed listen.  One xdist_group here (propagated to both files via __all__)
 # serialises them; each module tears its fixtures down before the next starts, so
 # the shared ledger ports are reused rather than contended.
+def _expression_1(proxy, pki):
+    return (
+        _split_for_curl(proxy, pki["base"], "wc") if proxy else (None, None)
+    )
+
+def _expression_2(cf, kf):
+    return (
+        cf and kf
+    )
+
+
 pytestmark = [pytest.mark.uses_lifecycle_harness,
               pytest.mark.xdist_group("gsihs")]
 
@@ -104,9 +115,9 @@ def _rejected(http_code):
 
 def _curl(pki, webdav, proxy, *args, method=None, upload=None):
     """Run the curl probe shared by both handshake split modules."""
-    cf, kf = _split_for_curl(proxy, pki["base"], "wc") if proxy else (None, None)
+    cf, kf = _expression_1(proxy, pki)
     cmd = ["curl", "-sk", "-o", "/dev/null", "-w", "%{http_code}"]
-    if cf and kf:
+    if _expression_2(cf, kf):
         cmd += ["--cert", cf, "--key", kf]
     if method:
         cmd += ["-X", method]

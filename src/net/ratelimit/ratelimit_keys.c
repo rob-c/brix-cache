@@ -48,6 +48,25 @@ brix_rl_key_sub_hash(const u_char *sub, size_t sub_len, char *out, size_t out_sz
 }
 
 /*
+ * WHAT: Derive a shared-volume rate-limit key after exact prefix matching.
+ * WHY:  Stream and HTTP key builders must apply identical volume policy.
+ * HOW:  Decline absent/mismatched paths and otherwise format the configured prefix.
+ */
+static ngx_int_t
+rl_key_volume(const ngx_str_t *match, const char *path, char *out,
+    size_t out_sz)
+{
+    if (path == NULL || match->len == 0) {
+        return NGX_DECLINED;
+    }
+    if (ngx_strncmp(path, match->data, match->len) != 0) {
+        return NGX_DECLINED;
+    }
+    ngx_snprintf((u_char *) out, out_sz, "vol:%V%Z", match);
+    return NGX_OK;
+}
+
+/*
  * Stream-plane key builder: derive the "<type>:<value>" rbtree key for `rule`
  * from the connection's brix_ctx_t identity.  Each branch implements the
  * Phase 25 invariant-5 fallback: when the principal lacks the requested
@@ -105,13 +124,7 @@ brix_rl_key_stream(brix_rl_rule_t *rule, brix_ctx_t *ctx,
         /* Prefix match: the rule limits aggregate traffic under one storage
          * path (e.g. "/store/tape").  All requests below the prefix share the
          * single "vol:<prefix>" bucket; non-matching paths decline the rule. */
-        if (path == NULL || rule->key_match.len == 0
-            || ngx_strncmp(path, rule->key_match.data, rule->key_match.len) != 0)
-        {
-            return NGX_DECLINED;   /* rule does not apply to this path */
-        }
-        ngx_snprintf((u_char *) out, out_sz, "vol:%V%Z", &rule->key_match);
-        break;
+        return rl_key_volume(&rule->key_match, path, out, out_sz);
 
     default:
         return NGX_ERROR;
@@ -212,14 +225,7 @@ rl_key_http_derive(brix_rl_rule_t *rule, const rl_key_req_t *req,
         return NGX_OK;
 
     case BRIX_RL_KEY_VOLUME:
-        if (req->path == NULL || rule->key_match.len == 0
-            || ngx_strncmp(req->path, rule->key_match.data,
-                           rule->key_match.len) != 0)
-        {
-            return NGX_DECLINED;
-        }
-        ngx_snprintf((u_char *) out, out_sz, "vol:%V%Z", &rule->key_match);
-        return NGX_OK;
+        return rl_key_volume(&rule->key_match, req->path, out, out_sz);
 
     default:
         return NGX_ERROR;

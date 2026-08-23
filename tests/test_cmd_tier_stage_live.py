@@ -5,6 +5,10 @@ import pytest
 
 from cmdscripts import tier_stage_live
 
+def _check_test_tier_stage_live_scenario_1(nginx, scenario):
+    assert tier_stage_live.SCENARIOS[scenario](nginx) == 0
+
+
 pytestmark = pytest.mark.xdist_group("cmd-tier_stage_live")
 
 
@@ -29,4 +33,4 @@ def test_tier_stage_live_scenario(scenario: str):
     for client in tier_stage_live.CLIENT_REQUIREMENTS[scenario]:
         if not client.exists():
             pytest.skip(f"client binary not built: {client}")
-    assert tier_stage_live.SCENARIOS[scenario](nginx) == 0
+    _check_test_tier_stage_live_scenario_1(nginx, scenario)

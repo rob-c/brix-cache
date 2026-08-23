@@ -31,6 +31,31 @@ import pytest
 
 from settings import DATA_ROOT, NGINX_ANON_PORT, SERVER_HOST
 
+def _guard_built_1():
+    if shutil.which("cc") is None and shutil.which("gcc") is None:
+        pytest.skip("no C compiler to build the native client")
+
+def _guard_built_2(targets):
+    if _FUSE_OK:
+        targets.append(os.path.basename(XROOTDFS))
+
+def _guard_built_3(proc):
+    if proc.returncode != 0:
+        pytest.skip(f"native build failed:\n{proc.stdout}\n{proc.stderr}")
+
+def _guard_built_4():
+    if not os.path.exists(PRELOAD):
+        pytest.skip("preload .so not built (fuse3 missing is fine; .so is not)")
+
+def _guard_built_5():
+    if not _port_up(SERVER_HOST, NGINX_ANON_PORT):
+        pytest.skip("anon server not running")
+
+def _check_test_fuse_concurrent_reads_1(results, want):
+    assert len(results) == 16 and all(r == want for r in results), \
+        "concurrent reads through the mount diverged"
+
+
 pytestmark = pytest.mark.timeout(120)
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -60,20 +85,15 @@ def _md5(b):
 
 @pytest.fixture(scope="module")
 def built():
-    if shutil.which("cc") is None and shutil.which("gcc") is None:
-        pytest.skip("no C compiler to build the native client")
+    _guard_built_1()
     # Build the preload .so always; the selected FUSE driver when fuse3 is present.
     targets = ["libbrixposix_preload.so"]
-    if _FUSE_OK:
-        targets.append(os.path.basename(XROOTDFS))
+    _guard_built_2(targets)
     proc = subprocess.run(["make", "-C", CLIENT_DIR, *targets],
                           capture_output=True, text=True, timeout=180)
-    if proc.returncode != 0:
-        pytest.skip(f"native build failed:\n{proc.stdout}\n{proc.stderr}")
-    if not os.path.exists(PRELOAD):
-        pytest.skip("preload .so not built (fuse3 missing is fine; .so is not)")
-    if not _port_up(SERVER_HOST, NGINX_ANON_PORT):
-        pytest.skip("anon server not running")
+    _guard_built_3(proc)
+    _guard_built_4()
+    _guard_built_5()
     return True
 
 
@@ -249,8 +269,7 @@ def test_fuse_concurrent_reads(built, remote_file):
             t.start()
         for t in threads:
             t.join()
-    assert len(results) == 16 and all(r == want for r in results), \
-        "concurrent reads through the mount diverged"
+    _check_test_fuse_concurrent_reads_1(results, want)
 
 
 @pytest.mark.skipif(not _FUSE_OK, reason="no /dev/fuse or fusermount3")

@@ -290,29 +290,37 @@ SCENARIOS = {
 
 
 def cmd_test(argv):
-    from . import catalog
     scenario = argv[0] if argv else ""
     if not scenario:
         print("error: test requires a <scenario>", file=sys.stderr)
         return 2
-    if scenario == "authorities":
-        lines = scenario_authorities(argv[1] if len(argv) > 1 else "gsi")
-    elif scenario in ("suite", "remote-suite", "s3fwd", "s3gsi", "s3voms", "pbgsi", "gridftp"):
-        from . import lab_suite
-        lines = lab_suite.run(scenario, argv[1:])
-    elif scenario in ("ceph-docker", "ceph-rpmbuild"):
-        from . import ceph_docker
-        lines = ceph_docker.run(scenario)
-    elif scenario in SCENARIOS:
-        lines = SCENARIOS[scenario]()
-    elif catalog.scenarios(LAB / "scenarios" / "catalog.yaml").get(scenario) is not None:
-        lines = scenario_dedicated(scenario)
-    else:
+    lines = _scenario_lines(scenario, argv[1:])
+    if lines is None:
         print(f"error: unknown scenario {scenario!r}", file=sys.stderr)
         return 2
     for line in lines:
         print(line)
     return 0
+
+
+def _scenario_lines(scenario, args):
+    if scenario == "authorities":
+        return scenario_authorities(args[0] if args else "gsi")
+    if scenario in ("suite", "remote-suite", "s3fwd", "s3gsi", "s3voms", "pbgsi", "gridftp"):
+        from . import lab_suite
+        return lab_suite.run(scenario, args)
+    if scenario in ("ceph-docker", "ceph-rpmbuild"):
+        from . import ceph_docker
+        return ceph_docker.run(scenario)
+    if scenario in SCENARIOS:
+        return SCENARIOS[scenario]()
+    return _dedicated_scenario_lines(scenario)
+
+
+def _dedicated_scenario_lines(scenario):
+    from . import catalog
+    known = catalog.scenarios(LAB / "scenarios" / "catalog.yaml")
+    return scenario_dedicated(scenario) if scenario in known else None
 
 
 USAGE = """Usage: xrd-lab <command> [args]
@@ -324,33 +332,47 @@ USAGE = """Usage: xrd-lab <command> [args]
 Env: XRD_LAB_K8S_VERSION XRD_LAB_NODES XRD_LAB_DRIVER XRD_LAB_OS_TARGET XRD_LAB_DRY_RUN"""
 
 
+def _run_command_plan(plan):
+    _run_plan(plan())
+    return 0
+
+
+def _run_profile_command(rest, command, plan, *, check=True):
+    if not rest:
+        print(f"error: {command} requires a <profile> argument", file=sys.stderr)
+        print(USAGE, file=sys.stderr)
+        return 2
+    _run_plan(plan(rest[0]), check=check)
+    return 0
+
+
+def _show_help(_rest):
+    print(USAGE, file=sys.stderr)
+    return 0
+
+
+def _command_handlers():
+    return {
+        "up": lambda _rest: _run_command_plan(plan_up),
+        "deploy": lambda rest: _run_profile_command(rest, "deploy", plan_deploy),
+        "down": lambda rest: _run_profile_command(
+            rest, "down", plan_down, check=False),
+        "status": lambda _rest: _run_command_plan(plan_status),
+        "test": cmd_test,
+        "help": _show_help,
+        "-h": _show_help,
+        "--help": _show_help,
+    }
+
+
 def main(argv):
     cmd, rest = (argv[0] if argv else "help"), argv[1:]
-    if cmd == "up":
-        _run_plan(plan_up())
-    elif cmd == "deploy":
-        if not rest:
-            print("error: deploy requires a <profile> argument", file=sys.stderr)
-            print(USAGE, file=sys.stderr)
-            return 2
-        _run_plan(plan_deploy(rest[0]))
-    elif cmd == "down":
-        if not rest:
-            print("error: down requires a <profile> argument", file=sys.stderr)
-            print(USAGE, file=sys.stderr)
-            return 2
-        _run_plan(plan_down(rest[0]), check=False)   # cleanup is idempotent
-    elif cmd == "status":
-        _run_plan(plan_status())
-    elif cmd == "test":
-        return cmd_test(rest)
-    elif cmd in ("help", "-h", "--help"):
-        print(USAGE, file=sys.stderr)
-    else:
+    handler = _command_handlers().get(cmd)
+    if handler is None:
         print(f"error: unknown command {cmd!r}", file=sys.stderr)
         print(USAGE, file=sys.stderr)
         return 2
-    return 0
+    return handler(rest)
 
 
 if __name__ == "__main__":

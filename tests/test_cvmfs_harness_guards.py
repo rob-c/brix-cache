@@ -17,6 +17,15 @@ import ast
 import sys
 from pathlib import Path
 
+def _check_test_fuse_suites_consume_single_truth_compile_list_1(text, name):
+    assert "BRIXCVMFS_CORE_DEPS" in text, \
+        f"{name} no longer imports the single-truth compile list"
+
+def _check_test_fuse_suites_consume_single_truth_compile_list_2(literal_lists, name):
+    assert not literal_lists, \
+        f"{name}:{literal_lists} regrew a private literal shared-core list"
+
+
 TESTS = Path(__file__).resolve().parent
 REPO_ROOT = TESTS.parent
 sys.path.insert(0, str(TESTS / "cvmfs"))
@@ -55,15 +64,13 @@ def test_fuse_suites_consume_single_truth_compile_list():
         helper_stem = "_" + facade.stem + "_helpers"
         sources = [facade, *sorted(TESTS.glob(helper_stem + "*.py"))]
         text = "\n".join(path.read_text() for path in sources)
-        assert "BRIXCVMFS_CORE_DEPS" in text, \
-            f"{name} no longer imports the single-truth compile list"
+        _check_test_fuse_suites_consume_single_truth_compile_list_1(text, name)
         literal_lists = [n.lineno for n in ast.walk(ast.parse(text))
                          if isinstance(n, (ast.List, ast.Tuple))
                          and any(isinstance(e, ast.Constant)
                                  and e.value == "shared/cvmfs/client/client.c"
                                  for e in n.elts)]
-        assert not literal_lists, \
-            f"{name}:{literal_lists} regrew a private literal shared-core list"
+        _check_test_fuse_suites_consume_single_truth_compile_list_2(literal_lists, name)
 
 
 def test_conformance_suites_free_of_canonical_port_literals():

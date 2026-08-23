@@ -94,25 +94,31 @@ def test_recursive_download_tree_manifest(clientconf_env, tmp_path):  # noqa: F8
     # multiset as a backstop.
     from collections import Counter
 
-    def manifest(root):
-        m = {}
-        for base, _dirs, files in os.walk(root):
-            for f in files:
-                p = os.path.join(base, f)
-                rel = os.path.relpath(p, root)
-                # normalize away the leading source-dir component stock adds
-                if rel.startswith(corpus.PREFIX + os.sep):
-                    rel = rel[len(corpus.PREFIX) + 1:]
-                m[rel] = _md5(p)
-        return m
-
-    ms, mo = manifest(os_dir), manifest(ou_dir)
+    ms, mo = _manifest(os_dir), _manifest(ou_dir)
     assert ms == mo, (
         "recursive tree content differs after layout-normalization:\n"
         "only-stock=%s\nonly-ours=%s"
         % (sorted(set(ms) - set(mo)), sorted(set(mo) - set(ms))))
     assert Counter(ms.values()) == Counter(mo.values()), \
         "recursive copy did not preserve identical file contents"
+
+
+def _manifest(root):
+    manifest = {}
+    for base, _directories, files in os.walk(root):
+        for filename in files:
+            path = os.path.join(base, filename)
+            relative = _normalized_manifest_path(path, root)
+            manifest[relative] = _md5(path)
+    return manifest
+
+
+def _normalized_manifest_path(path, root):
+    relative = os.path.relpath(path, root)
+    prefix = corpus.PREFIX + os.sep
+    if relative.startswith(prefix):
+        return relative[len(prefix):]
+    return relative
 
 
 # --------------------------------------------------------------------------- #
@@ -140,37 +146,60 @@ def test_xrdfs_namespace_lifecycle(clientconf_env, tmp_path):  # noqa: F811
     env = clientconf_env
     ep = _ep(env)
     ctx = _ctx(env, tmp_path)
-    stock_fs = diffcore.binary(STOCK, "xrdfs")
-    our_fs = diffcore.binary(OURS, "xrdfs")
-    our_cp = diffcore.binary(OURS, "xrdcp")
-    if not all((stock_fs, our_fs, our_cp)):
-        pytest.skip("missing client binaries")
-
-    d = ctx.remote("life", "ours")
-    f = d + "/file.bin"
-    moved = d + "/moved.bin"
+    _require_lifecycle_clients()
+    d, f, moved = _lifecycle_paths(ctx)
     src = os.path.join(str(tmp_path), "life_src.bin")
     with open(src, "wb") as fh:
         fh.write(corpus.local_bytes(corpus.BY_REL["page.bin"]))
+    _exercise_lifecycle(ep, src, d, f, moved)
 
-    def ours(fs_args):
-        return diffcore.run_client(OURS, "xrdfs", [ep.url()] + fs_args, ep,
-                                   timeout=60)
 
-    def stock_stat(path):
-        return diffcore.run_client(STOCK, "xrdfs", [ep.url(), "stat", path], ep,
-                                   timeout=60)
+def _exercise_lifecycle(endpoint, source, directory, path, moved):
+    _assert_lifecycle_created(endpoint, source, directory, path)
+    _assert_lifecycle_moved(endpoint, path, moved)
+    _assert_lifecycle_removed(endpoint, directory, moved)
 
-    assert ours(["mkdir", "-p", d]).rc == 0
-    up = diffcore.run_client(OURS, "xrdcp", ["-f", src, ep.url(f)], ep,
-                             timeout=90)
-    assert up.rc == 0, "upload failed: %s" % up.stderr
-    assert stock_stat(f).rc == 0, "stock cannot see file ours created"
 
-    assert ours(["mv", f, moved]).rc == 0
-    assert stock_stat(moved).rc == 0, "stock cannot see moved file"
-    assert stock_stat(f).rc != 0, "old path still present after mv"
+def _assert_lifecycle_created(endpoint, source, directory, path):
+    assert _ours_fs(endpoint, ["mkdir", "-p", directory]).rc == 0
+    upload = diffcore.run_client(OURS, "xrdcp",
+                                 ["-f", source, endpoint.url(path)], endpoint,
+                                 timeout=90)
+    assert upload.rc == 0, "upload failed: %s" % upload.stderr
+    assert _stock_stat(endpoint, path).rc == 0, (
+        "stock cannot see file ours created")
 
-    assert ours(["rm", moved]).rc == 0
-    assert stock_stat(moved).rc != 0, "file present after rm"
-    ours(["rmdir", d])
+
+def _assert_lifecycle_moved(endpoint, original, moved):
+    assert _ours_fs(endpoint, ["mv", original, moved]).rc == 0
+    assert _stock_stat(endpoint, moved).rc == 0, "stock cannot see moved file"
+    assert _stock_stat(endpoint, original).rc != 0, "old path still present after mv"
+
+
+def _assert_lifecycle_removed(endpoint, directory, moved):
+    assert _ours_fs(endpoint, ["rm", moved]).rc == 0
+    assert _stock_stat(endpoint, moved).rc != 0, "file present after rm"
+    _ours_fs(endpoint, ["rmdir", directory])
+
+
+def _require_lifecycle_clients():
+    binaries = (diffcore.binary(STOCK, "xrdfs"),
+                diffcore.binary(OURS, "xrdfs"), diffcore.binary(OURS, "xrdcp"))
+    if not all(binaries):
+        pytest.skip("missing client binaries")
+
+
+def _lifecycle_paths(ctx):
+    directory = ctx.remote("life", "ours")
+    return directory, directory + "/file.bin", directory + "/moved.bin"
+
+
+def _ours_fs(endpoint, arguments):
+    return diffcore.run_client(OURS, "xrdfs", [endpoint.url()] + arguments,
+                               endpoint, timeout=60)
+
+
+def _stock_stat(endpoint, path):
+    return diffcore.run_client(STOCK, "xrdfs",
+                               [endpoint.url(), "stat", path], endpoint,
+                               timeout=60)

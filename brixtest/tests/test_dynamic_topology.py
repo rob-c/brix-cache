@@ -40,7 +40,7 @@ def test_server_scope_defaults_to_case_and_supports_pytest_lifetimes(tmp_path):
         "shared", command=["true"], config=static_config(tmp_path / "x"),
         scope="module",
     ).scope == "module"
-    with pytest.raises(SpecError, match="server.scope"):
+    with pytest.raises(SpecError, match=r"server\.scope"):
         server("bad", command=["true"], config=static_config(tmp_path / "x"), scope="worker")
 
 
@@ -234,45 +234,77 @@ def _run_shared_suite(tmp_path: Path) -> subprocess.CompletedProcess:
 
 def test_shared_server_end_to_end_has_one_log_and_two_links(tmp_path):
     result = _run_shared_suite(tmp_path)
-    assert result.returncode == 0, result.stdout + result.stderr
+    assert (result.returncode, "multi-threaded, use of fork()" in result.stderr) == (0, False), (
+        result.stdout + result.stderr
+    )
     session_path = next((tmp_path / "runs" / "metrics").glob("*/session.json"))
     session = json.loads(session_path.read_text())
-    assert session["counts"] == {"passed": 2}
-    assert len(session["topology"]["pools"]) == 1
+    assert (session["counts"], len(session["topology"]["pools"])) == ({"passed": 2}, 1)
     pool = session["topology"]["pools"][0]
     service = pool["services"]["origin"]
-    assert service["config_filename"] == "server.conf"
-    assert len(service["config_source_sha256"]) == 64
-    assert len(service["config_declared_sha256"]) == 64
-    assert service["config_sha256"] == service["config_artifact"]["sha256"]
-    config_object = session_path.parent / service["config_artifact"]["object"]
-    assert config_object.read_text() == (
-        '{"host":"127.0.0.1","port":%d,"message":"shared"}\n'
-        % service["ports"]["http"]
-    )
+    _assert_service_metadata(session_path, service)
     attempts = [case_row["attempts"][0] for case_row in session["tests"]]
-    assert {row["servers"][0]["instance_id"] for row in attempts} == {service["instance_id"]}
-    assert {row["servers"][0]["log_artifact"]["relative"] for row in attempts} == {
-        service["log_artifact"]["relative"]
-    }
+    _assert_shared_attempts(attempts, service)
     log = session_path.parent / service["log_artifact"]["relative"]
-    assert log.is_file() and "/one" in log.read_text() and "/two" in log.read_text()
+    assert (log.is_file(), "/one" in log.read_text(), "/two" in log.read_text()) == (
+        True, True, True,
+    )
     with socket.socket() as connection_test:
         assert connection_test.connect_ex((service["host"], service["ports"]["http"])) != 0
+    _assert_shared_archive(session_path, service)
+    _assert_shared_report(session_path, service)
+
+
+def _assert_service_metadata(session_path, service):
+    observed = (
+        service["config_filename"], len(service["config_source_sha256"]),
+        len(service["config_declared_sha256"]), service["config_sha256"],
+    )
+    expected = ("server.conf", 64, 64, service["config_artifact"]["sha256"])
+    assert observed == expected
+    config_object = session_path.parent / service["config_artifact"]["object"]
+    expected_text = '{"host":"127.0.0.1","port":%d,"message":"shared"}\n' % (
+        service["ports"]["http"]
+    )
+    assert config_object.read_text() == expected_text
+
+
+def _assert_shared_attempts(attempts, service):
+    instance_ids = {row["servers"][0]["instance_id"] for row in attempts}
+    log_paths = {row["servers"][0]["log_artifact"]["relative"] for row in attempts}
+    assert (instance_ids, log_paths) == (
+        {service["instance_id"]}, {service["log_artifact"]["relative"]},
+    )
+
+
+def _assert_shared_archive(session_path, service):
     connection = sqlite3.connect(str(session_path.parent / "archive.sqlite3"))
     try:
-        assert connection.execute("select count(*) from evidence_server_pools").fetchone()[0] == 1
-        assert connection.execute("select count(*) from evidence_server_instances").fetchone()[0] == 1
+        pool_count = connection.execute("select count(*) from evidence_server_pools").fetchone()[0]
+        instance_count = connection.execute(
+            "select count(*) from evidence_server_instances"
+        ).fetchone()[0]
         port_json, filename, config_hash = connection.execute(
             "select ports, config_filename, config_sha256 from evidence_server_instances"
         ).fetchone()
-        assert json.loads(port_json) == service["ports"]
-        assert (filename, config_hash) == ("server.conf", service["config_sha256"])
-        assert connection.execute("select count(*) from evidence_test_server_links").fetchone()[0] == 2
-        assert connection.execute("select count(*) from logs where nodeid like '@shared/%'").fetchone()[0] == 1
+        link_count = connection.execute(
+            "select count(*) from evidence_test_server_links"
+        ).fetchone()[0]
+        log_count = connection.execute(
+            "select count(*) from logs where nodeid like '@shared/%'"
+        ).fetchone()[0]
+        assert (
+            pool_count, instance_count, json.loads(port_json), (filename, config_hash),
+            link_count, log_count,
+        ) == (1, 1, service["ports"], ("server.conf", service["config_sha256"]), 2, 1)
     finally:
         connection.close()
+
+
+def _assert_shared_report(session_path, service):
     report = (session_path.parent / "report.html").read_text()
-    assert "Server instances" in report
-    assert "http=%d" % service["ports"]["http"] in report
-    assert service["config_sha256"][:16] in report
+    assert (
+        "Server instances" in report,
+        "http=%d" % service["ports"]["http"] in report,
+        service["config_sha256"][:16] in report,
+    ) == (True, True, True)

@@ -22,23 +22,37 @@ def is_protected(path):
         return f.readline().strip() in MARKERS
 
 
-def sync(repo=REPO, dest=DEST, subs=("tests", "utils")):
-    """Copy repo <subs> into <dest>, skipping protected files + caches."""
-    repo, dest = Path(repo), Path(dest)
-    for sub in subs:
-        for f in (repo / sub).rglob("*"):
-            rel = f.relative_to(repo)
-            if not f.is_file() or f.suffix == ".pyc" or _SKIP_PARTS & set(rel.parts):
-                continue
-            out = dest / rel
-            if is_protected(out):
-                continue
-            out.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(f, out)
+def _copy_candidate(source, repo, dest):
+    relative = source.relative_to(repo)
+    if not source.is_file() or source.suffix == ".pyc":
+        return
+    if _SKIP_PARTS & set(relative.parts):
+        return
+    output = dest / relative
+    if is_protected(output):
+        return
+    output.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(source, output)
+
+
+def _copy_subtree(repo, dest, sub):
+    for source in (repo / sub).rglob("*"):
+        _copy_candidate(source, repo, dest)
+
+
+def _remove_caches(dest):
     for cache in dest.rglob("__pycache__"):
         shutil.rmtree(cache, ignore_errors=True)
     for pyc in dest.rglob("*.pyc"):
         pyc.unlink(missing_ok=True)
+
+
+def sync(repo=REPO, dest=DEST, subs=("tests", "utils")):
+    """Copy repo <subs> into <dest>, skipping protected files + caches."""
+    repo, dest = Path(repo), Path(dest)
+    for sub in subs:
+        _copy_subtree(repo, dest, sub)
+    _remove_caches(dest)
 
 
 def main(argv):

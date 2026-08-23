@@ -87,6 +87,22 @@ from settings import HOST, NGINX_BIN
 from _test_gsi_handshake_helpers import (_ca_hash_link, _make_ca, _mint_proxy,
                                          _signed, _split_for_curl)
 
+def _expression_1(handle):
+    return (
+        [m.groupdict() for m in _LINE.finditer(handle.read())]
+    )
+
+def _expression_2(seen, uri, method):
+    return (
+        [h for h in seen
+                         if h["uri"] == uri and h["method"] == method]
+    )
+
+
+def _check_copy_1(done):
+    assert done.returncode == 0, f"curl failed: {done.stderr.strip()}"
+
+
 pytestmark = [pytest.mark.timeout(600),
               pytest.mark.uses_lifecycle_harness,
               pytest.mark.xdist_group("lc-audit15h-wdpush")]
@@ -239,6 +255,10 @@ def wdpush(lifecycle, tmp_path, pki):
 # --------------------------------------------------------------------------- #
 # Driving and observing
 # --------------------------------------------------------------------------- #
+def _header_option(value, header):
+    return [] if value is None else ["-H", header]
+
+
 def _copy(creds, port, uri, *, source=None, dest=None, who="user",
           delegate=None, extra=()):
     """One WebDAV COPY as an X.509 user; returns (http_code, body).
@@ -251,17 +271,15 @@ def _copy(creds, port, uri, *, source=None, dest=None, who="user",
     cmd = ["curl", "-sS", "-k", "--max-time", "60", "-w", "\n%{http_code}",
            "--cert", cert, "--key", key, "-X", "COPY",
            "-H", "Credential: none"]
-    if source is not None:
-        cmd += ["-H", f"Source: {source}"]
-    if dest is not None:
-        cmd += ["-H", f"Destination: {dest}"]
-    if delegate is not None:
-        cmd += ["-H", f"X-Brix-Delegate-Proxy: {creds[delegate][2]}"]
+    cmd += _header_option(source, f"Source: {source}")
+    cmd += _header_option(dest, f"Destination: {dest}")
+    delegated = creds[delegate][2] if delegate is not None else None
+    cmd += _header_option(delegate, f"X-Brix-Delegate-Proxy: {delegated}")
     for header in extra:
         cmd += ["-H", header]
     cmd.append(f"https://{HOST}:{port}{uri}")
     done = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
-    assert done.returncode == 0, f"curl failed: {done.stderr.strip()}"
+    _check_copy_1(done)
     text, _, code = done.stdout.rpartition("\n")
     return code.strip(), text
 
@@ -288,11 +306,10 @@ def _peer_hit(endpoint, uri, method, timeout=30):
     while time.time() < deadline:
         try:
             with open(path, "r", errors="replace") as handle:
-                seen = [m.groupdict() for m in _LINE.finditer(handle.read())]
+                seen = _expression_1(handle)
         except OSError:
             seen = []
-        match = [h for h in seen
-                 if h["uri"] == uri and h["method"] == method]
+        match = _expression_2(seen, uri, method)
         if match:
             return match[-1]
         time.sleep(0.2)

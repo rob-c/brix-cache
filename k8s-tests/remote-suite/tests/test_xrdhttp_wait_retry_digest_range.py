@@ -59,6 +59,17 @@ import zlib
 
 import pytest
 
+def _check_test_put_then_get_byte_exact_1(put):
+    assert put.status_code in (200, 201, 204), \
+        f"PUT failed: {put.status_code}"
+
+def _check_test_put_then_get_byte_exact_2(on_disk):
+    assert os.path.exists(on_disk), "PUT did not create the backing file"
+
+def _check_test_put_then_get_byte_exact_3(payload, fh):
+    assert fh.read() == payload, "on-disk bytes diverge from PUT payload"
+
+
 try:
     import requests
 except Exception:  # pragma: no cover - requests is a hard dep of the suite
@@ -202,8 +213,11 @@ def test_rate_limit_emits_429_and_retry_after(server):
         # No inter-request sleep: a tight burst so the leaky bucket cannot
         # refill mid-loop and the throttle is forced to fire.
 
-    assert 200 in statuses, f"expected some 200s, got {statuses}"
-    assert 429 in statuses, f"rate limit never fired: {statuses}"
+    def _assert_test_rate_limit_emits_429_and_retry_after_2():
+        assert 200 in statuses, f"expected some 200s, got {statuses}"
+        assert 429 in statuses, f"rate limit never fired: {statuses}"
+
+    _assert_test_rate_limit_emits_429_and_retry_after_2()
     assert retry_after_seen, \
         f"429 responses must carry Retry-After: {statuses}"
 
@@ -317,24 +331,28 @@ def test_want_digest_md5_echoed(server):
 # 5. Overlapping multi-range: merged / multipart / full file — never wrong.
 # ---------------------------------------------------------------------------
 
+def _multipart_part(chunk):
+    if b"\r\n\r\n" not in chunk:
+        return None
+    head, _, data = chunk.partition(b"\r\n\r\n")
+    content_range = None
+    for line in head.split(b"\r\n"):
+        if line.lower().startswith(b"content-range:"):
+            content_range = line.split(b":", 1)[1].strip().decode()
+    if content_range is None:
+        return None
+    if data.endswith(b"\r\n"):
+        data = data[:-2]
+    return content_range, data
+
+
 def _parse_multipart_byteranges(body, boundary):
     """Return a list of (content_range, data) tuples from a multipart body."""
     parts = []
-    sep = ("--" + boundary).encode()
-    for chunk in body.split(sep):
-        if b"\r\n\r\n" not in chunk:
-            continue
-        head, _, data = chunk.partition(b"\r\n\r\n")
-        cr = None
-        for line in head.split(b"\r\n"):
-            if line.lower().startswith(b"content-range:"):
-                cr = line.split(b":", 1)[1].strip().decode()
-        if cr is None:
-            continue
-        # Strip the trailing CRLF that precedes the next boundary.
-        if data.endswith(b"\r\n"):
-            data = data[:-2]
-        parts.append((cr, data))
+    for chunk in body.split(("--" + boundary).encode()):
+        part = _multipart_part(chunk)
+        if part is not None:
+            parts.append(part)
     return parts
 
 
@@ -475,17 +493,19 @@ def test_put_then_get_byte_exact(server):
     if put.status_code in (403, 405):
         pytest.skip(f"writes not permitted in this build (PUT -> "
                     f"{put.status_code})")
-    assert put.status_code in (200, 201, 204), \
-        f"PUT failed: {put.status_code}"
+    _check_test_put_then_get_byte_exact_1(put)
 
     _sleep_off_throttle()
     get = _unthrottled(lambda: requests.get(_url(name), timeout=10))
-    assert get.status_code == 200, get.status_code
-    assert get.content == payload, "GET did not round-trip the PUT bytes"
+    def _assert_test_put_then_get_byte_exact_1():
+        assert get.status_code == 200, get.status_code
+        assert get.content == payload, "GET did not round-trip the PUT bytes"
+
+    _assert_test_put_then_get_byte_exact_1()
 
     on_disk = os.path.join(server["data_dir"], name)
-    assert os.path.exists(on_disk), "PUT did not create the backing file"
+    _check_test_put_then_get_byte_exact_2(on_disk)
     with open(on_disk, "rb") as fh:
-        assert fh.read() == payload, "on-disk bytes diverge from PUT payload"
+        _check_test_put_then_get_byte_exact_3(payload, fh)
 
     _sanity_ok()

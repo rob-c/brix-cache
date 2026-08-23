@@ -86,21 +86,29 @@ def _wait_port(port, timeout=10):
     return False
 
 
-@pytest.fixture()
-def ns_server(lifecycle, tmp_path):
+def _require_namespace_server():
     if not os.access(NGINX_BIN, os.X_OK):
         pytest.skip(f"nginx not executable: {NGINX_BIN}")
     if not _HAVE_REQUESTS:
         pytest.skip("requests not available")
 
+
+def _namespace_origin(tmp_path):
+    origin = tmp_path / "origin"
+    origin.mkdir()
+    (origin / BUCKET).mkdir()
+    if os.geteuid() == 0:
+        os.chmod(origin, 0o777)
+        os.chmod(origin / BUCKET, 0o777)
+    return origin
+
+
+@pytest.fixture()
+def ns_server(lifecycle, tmp_path):
+    _require_namespace_server()
     global FRONT_PORT, ORIGIN_PORT
 
-    oroot = tmp_path / "origin"
-    oroot.mkdir()
-    (oroot / BUCKET).mkdir()
-    if os.geteuid() == 0:
-        os.chmod(oroot, 0o777)
-        os.chmod(oroot / BUCKET, 0o777)
+    oroot = _namespace_origin(tmp_path)
 
     ep = lifecycle.start(NginxInstanceSpec(
         name="lc-s3-driver-ns",

@@ -36,6 +36,24 @@ from pathlib import Path
 
 import pytest
 
+def _check_test_no_module_reaches_a_name_it_never_binds_1(dangling):
+    assert dangling == [], f"reaches names it never binds: {dangling}"
+
+def _guard_test_no_module_reaches_a_name_it_never_binds_1(node, bound):
+    if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+        bound.add(node.name)
+    elif isinstance(node, ast.Name) and isinstance(node.ctx, ast.Store):
+        bound.add(node.id)
+    elif isinstance(node, ast.arg):
+        bound.add(node.arg)
+    elif isinstance(node, ast.ExceptHandler) and node.name:
+        bound.add(node.name)
+    elif isinstance(node, (ast.Global, ast.Nonlocal)):
+        bound.update(node.names)
+    elif isinstance(node, ast.alias):
+        bound.add((node.asname or node.name).split(".")[0])
+
+
 TESTS = Path(__file__).resolve().parent
 ROOT = TESTS.parent
 SRC = ROOT / "brixtest" / "src"
@@ -77,22 +95,28 @@ def test_every_definition_moved_verbatim():
     Position-independent, so the archive's prepended header cannot make an
     unchanged body read as changed.
     """
-    def bodies(path: Path) -> dict[str, str]:
-        tree = ast.parse(path.read_text(encoding="utf-8"))
-        out = {}
-        for node in tree.body:
-            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
-                dumped = "".join(
-                    ast.dump(b, include_attributes=False) for b in node.body)
-                out[node.name] = hashlib.sha256(dumped.encode()).hexdigest()
-        return out
-
-    old, new = bodies(ARCHIVE), bodies(MOVED)
+    old, new = _definition_bodies(ARCHIVE), _definition_bodies(MOVED)
     assert old, "archive parsed to nothing — wrong path?"
     assert set(old) == set(new), f"missing={set(old)-set(new)} extra={set(new)-set(old)}"
     differing = [n for n in old if old[n] != new[n]]
     assert differing == [], f"bodies changed in the move: {differing}"
     assert len(old) == 4
+
+
+def _definition_bodies(path: Path) -> dict[str, str]:
+    tree = ast.parse(path.read_text(encoding="utf-8"))
+    bodies = {}
+    for node in tree.body:
+        if _is_definition(node):
+            dumped = "".join(
+                ast.dump(body, include_attributes=False) for body in node.body
+            )
+            bodies[node.name] = hashlib.sha256(dumped.encode()).hexdigest()
+    return bodies
+
+
+def _is_definition(node):
+    return isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))
 
 
 def test_the_settings_values_did_not_fork():
@@ -144,22 +168,11 @@ def test_no_module_reaches_a_name_it_never_binds():
     bound = set(dir(builtins)) | {"__file__", "__name__", "__doc__",
                                   "__package__", "__spec__", "__loader__"}
     for node in ast.walk(tree):
-        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
-            bound.add(node.name)
-        elif isinstance(node, ast.Name) and isinstance(node.ctx, ast.Store):
-            bound.add(node.id)
-        elif isinstance(node, ast.arg):
-            bound.add(node.arg)
-        elif isinstance(node, ast.ExceptHandler) and node.name:
-            bound.add(node.name)
-        elif isinstance(node, (ast.Global, ast.Nonlocal)):
-            bound.update(node.names)
-        elif isinstance(node, ast.alias):
-            bound.add((node.asname or node.name).split(".")[0])
+        _guard_test_no_module_reaches_a_name_it_never_binds_1(node, bound)
     dangling = sorted({n.id for n in ast.walk(tree)
                        if isinstance(n, ast.Name) and isinstance(n.ctx, ast.Load)
                        and n.id not in bound})
-    assert dangling == [], f"reaches names it never binds: {dangling}"
+    _check_test_no_module_reaches_a_name_it_never_binds_1(dangling)
 
 
 def test_the_generator_is_stamped_by_its_canonical_path(tmp_path):

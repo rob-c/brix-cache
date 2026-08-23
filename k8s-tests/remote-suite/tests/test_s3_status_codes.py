@@ -22,6 +22,20 @@ import pytest
 import requests
 from settings import NGINX_S3_PORT, SERVER_HOST
 
+def _check_test_list_uploaded_key_appears_1(r):
+    assert r.status_code == 200
+
+def _check_test_list_uploaded_key_appears_2(k, r):
+    assert k in r.text
+
+def _guard_test_list_max_keys_pagination_collects_all_1(token, params):
+    if token:
+        params["continuation-token"] = token
+
+def _check_test_list_max_keys_pagination_collects_all_3(r):
+    assert r.status_code == 200
+
+
 BUCKET = "testbucket"
 S3_NS  = "http://s3.amazonaws.com/doc/2006-03-01/"
 _PFX   = "s3sc_"
@@ -320,9 +334,9 @@ class TestListObjectsV2:
         for k in keys:
             _put(k, b"x")
         r = _list(prefix=prefix)
-        assert r.status_code == 200
+        _check_test_list_uploaded_key_appears_1(r)
         for k in keys:
-            assert k in r.text
+            _check_test_list_uploaded_key_appears_2(k, r)
 
     def test_list_prefix_filter_excludes_others(self):
         uid = _uid()
@@ -366,18 +380,20 @@ class TestListObjectsV2:
         token = None
         while True:
             params = {"prefix": prefix, **{"max-keys": "2"}}
-            if token:
-                params["continuation-token"] = token
+            _guard_test_list_max_keys_pagination_collects_all_1(token, params)
             r = _list(**params)
-            assert r.status_code == 200
+            _check_test_list_max_keys_pagination_collects_all_3(r)
             root = ET.fromstring(r.content)
             collected.extend(el.text for el in root.findall(f".//{{{S3_NS}}}Key"))
             trunc = root.findtext(f"{{{S3_NS}}}IsTruncated")
             if trunc != "true":
                 break
             token = root.findtext(f"{{{S3_NS}}}NextContinuationToken")
-        assert len(collected) == total
-        assert collected == sorted(collected)
+        def _assert_test_list_max_keys_pagination_collects_all_1():
+            assert len(collected) == total
+            assert collected == sorted(collected)
+
+        _assert_test_list_max_keys_pagination_collects_all_1()
 
     def test_list_delimiter_groups_common_prefixes(self):
         uid = _uid()

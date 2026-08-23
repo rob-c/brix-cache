@@ -27,6 +27,19 @@ import pytest
 
 from settings import NGINX_BIN, HOST, BIND_HOST
 
+def _guard_srv_1():
+    if not os.path.exists(NGINX_BIN):
+        pytest.skip("nginx binary not found")
+
+def _guard_srv_2(d):
+    if not _xattr_ok(str(d)):
+        pytest.skip("filesystem does not support user xattrs")
+
+def _guard_srv_3(chk):
+    if chk.returncode != 0:
+        pytest.skip("nginx rejected config: %s" % chk.stderr.strip()[-300:])
+
+
 STREAM_PORT = int(os.environ.get("TEST_TAPE_STREAM", "11227"))
 HTTP_PORT = int(os.environ.get("TEST_TAPE_HTTP", "11228"))
 
@@ -36,16 +49,22 @@ from frm_helpers import xattr_ok as _xattr_ok
 
 def _req(method, path, obj=None, raw=None, timeout=5):
     url = "http://%s:%d%s" % (HOST, HTTP_PORT, path)
-    data = None
-    if obj is not None:
-        data = json.dumps(obj).encode()
-    elif raw is not None:
-        data = raw
-    r = urllib.request.Request(url, data=data, method=method)
+    data = _request_data(obj, raw)
+    request = urllib.request.Request(url, data=data, method=method)
     if data is not None:
-        r.add_header("Content-Type", "application/json")
+        request.add_header("Content-Type", "application/json")
+    return _open_request(request, timeout)
+
+
+def _request_data(obj, raw):
+    if obj is not None:
+        return json.dumps(obj).encode()
+    return raw
+
+
+def _open_request(request, timeout):
     try:
-        with urllib.request.urlopen(r, timeout=timeout) as resp:
+        with urllib.request.urlopen(request, timeout=timeout) as resp:
             return resp.status, dict(resp.headers), resp.read()
     except urllib.error.HTTPError as e:
         return e.code, dict(e.headers), e.read()
@@ -62,11 +81,9 @@ def _jbody(b):
 
 @pytest.fixture(scope="module")
 def srv(tmp_path_factory):
-    if not os.path.exists(NGINX_BIN):
-        pytest.skip("nginx binary not found")
+    _guard_srv_1()
     d = tmp_path_factory.mktemp("taperest")
-    if not _xattr_ok(str(d)):
-        pytest.skip("filesystem does not support user xattrs")
+    _guard_srv_2(d)
 
     (d / "logs").mkdir()
     data = d / "data"; data.mkdir()
@@ -119,8 +136,7 @@ master_process off;
     cp.write_text(conf)
     chk = subprocess.run([NGINX_BIN, "-t", "-p", str(d), "-c", str(cp)],
                          capture_output=True, text=True)
-    if chk.returncode != 0:
-        pytest.skip("nginx rejected config: %s" % chk.stderr.strip()[-300:])
+    _guard_srv_3(chk)
     proc = subprocess.Popen([NGINX_BIN, "-p", str(d), "-c", str(cp)],
                             stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     deadline = time.time() + 10

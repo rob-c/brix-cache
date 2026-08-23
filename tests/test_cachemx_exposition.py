@@ -135,13 +135,16 @@ def test_metrics_scrape_is_complete_families(scrape):
 
 def test_help_and_type_counts_match(scrape):
     """Every family gets exactly one HELP and one TYPE comment."""
-    helps = [l.split()[2] for l in scrape.splitlines()
-             if l.startswith("# HELP ")]
-    types = [l.split()[2] for l in scrape.splitlines()
-             if l.startswith("# TYPE ")]
+    helps = _comment_families(scrape, "# HELP ")
+    types = _comment_families(scrape, "# TYPE ")
     assert len(helps) == len(set(helps)), "duplicate HELP lines"
     assert sorted(helps) == sorted(types)
     assert len(helps) >= 190     # full family catalogue compiled in
+
+
+def _comment_families(scrape, prefix):
+    return [line.split()[2] for line in scrape.splitlines()
+            if line.startswith(prefix)]
 
 
 # -- family catalogue --------------------------------------------------------
@@ -261,9 +264,7 @@ MONOTONIC = ["brix_io_ops_total", "brix_requests_total", "brix_bytes_tx_total",
 
 def test_counters_monotonic_under_traffic(mx):
     """Drive one op on every protocol plane; no counter may decrease."""
-    before = {(n, tuple(sorted(l.items()))): v
-              for n, l, v in parse_samples(cx.mfetch(mx.metrics))
-              if n in MONOTONIC}
+    before = _monotonic_values(mx)
     name = cx.unique_name("mono")
     mx.seed_origin(name, 1024)
     mx.seed_local(name, 1024)
@@ -274,22 +275,22 @@ def test_counters_monotonic_under_traffic(mx):
     mx.dav_request("dav", f"/{name}")
     mx.s3_request("s3", name)
     cx.settle()
-    after = {(n, tuple(sorted(l.items()))): v
-             for n, l, v in parse_samples(cx.mfetch(mx.metrics))
-             if n in MONOTONIC}
+    after = _monotonic_values(mx)
     for key, vb in before.items():
         assert after.get(key, vb) >= vb, f"counter went backwards: {key}"
+
+
+def _monotonic_values(mx):
+    return {(name, tuple(sorted(labels.items()))): value
+            for name, labels, value in parse_samples(cx.mfetch(mx.metrics))
+            if name in MONOTONIC}
 
 
 def test_scrape_is_side_effect_free(mx):
     """Scraping /metrics twice with no traffic in between must not move any
     op/auth/cache counter (the scrape-time ledger fold is idempotent)."""
-    a = {(n, tuple(sorted(l.items()))): v
-         for n, l, v in parse_samples(cx.mfetch(mx.metrics))
-         if n in MONOTONIC}
-    b = {(n, tuple(sorted(l.items()))): v
-         for n, l, v in parse_samples(cx.mfetch(mx.metrics))
-         if n in MONOTONIC}
+    a = _monotonic_values(mx)
+    b = _monotonic_values(mx)
     assert a == b
 
 
@@ -306,8 +307,12 @@ def test_stream_plane_ledger_rows_exported(mx):
 
 
 def test_storage_backend_info_rows(scrape):
-    infos = [l for n, l, v in parse_samples(scrape)
-             if n == "brix_storage_backend_info" and v == 1]
-    backends = {l["backend"] for l in infos}
+    backends = _storage_backends(scrape)
     assert "xroot" in backends     # stream planes' remote origin
     assert "posix" in backends     # HTTP/S3 planes' local tier
+
+
+def _storage_backends(scrape):
+    infos = [labels for name, labels, value in parse_samples(scrape)
+             if name == "brix_storage_backend_info" and value == 1]
+    return {labels["backend"] for labels in infos}

@@ -1252,6 +1252,19 @@ class TestTheCompanionKnobsAreNotCrossValidated:
 CONFIGS = Path(__file__).resolve().parent / "configs"
 
 
+def _balanced_server_block(body, match):
+    depth, index = 0, match.end() - 1
+    while index < len(body):
+        if body[index] == "{":
+            depth += 1
+        elif body[index] == "}":
+            depth -= 1
+            if depth == 0:
+                break
+        index += 1
+    return body[match.start():index + 1]
+
+
 def _server_block(body, needle):
     """The `server { ... }` whose text contains `needle`, brace-counted.
 
@@ -1259,16 +1272,7 @@ def _server_block(body, needle):
     `[^}]*` stops at `{RO_PORT}` rather than at the block's end.
     """
     for match in re.finditer(r"\bserver\s*\{", body):
-        depth, i = 0, match.end() - 1
-        while i < len(body):
-            if body[i] == "{":
-                depth += 1
-            elif body[i] == "}":
-                depth -= 1
-                if depth == 0:
-                    break
-            i += 1
-        block = body[match.start():i + 1]
+        block = _balanced_server_block(body, match)
         if needle in block:
             return block
     return None

@@ -35,6 +35,27 @@ import pytest
 from settings import (DATA_ROOT, NGINX_ANON_PORT, SERVER_HOST, HOST, BIND_HOST,
                       LOG_DIR)
 
+def _guard_built_1():
+    if shutil.which("cc") is None and shutil.which("gcc") is None:
+        pytest.skip("no C compiler")
+
+def _guard_built_2():
+    if not _FUSE_OK:
+        pytest.skip("FUSE unavailable (/dev/fuse or fusermount3 missing)")
+
+def _guard_built_3(proc):
+    if proc.returncode != 0 or not os.path.exists(XROOTDFS):
+        pytest.skip(f"xrootdfs build failed:\n{proc.stdout}\n{proc.stderr}")
+
+def _guard_built_4(proc):
+    if proc.returncode != 0:
+        pytest.skip(f"fault_proxy build failed:\n{proc.stderr}")
+
+def _guard_built_5():
+    if not _port_up(SERVER_HOST, NGINX_ANON_PORT):
+        pytest.skip("anon server not running")
+
+
 pytestmark = pytest.mark.timeout(180)
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -86,21 +107,16 @@ def _compressible(n):
 
 @pytest.fixture(scope="module")
 def built():
-    if shutil.which("cc") is None and shutil.which("gcc") is None:
-        pytest.skip("no C compiler")
-    if not _FUSE_OK:
-        pytest.skip("FUSE unavailable (/dev/fuse or fusermount3 missing)")
+    _guard_built_1()
+    _guard_built_2()
     proc = subprocess.run(["make", "-C", CLIENT_DIR, "xrootdfs"],
                           capture_output=True, text=True, timeout=240)
-    if proc.returncode != 0 or not os.path.exists(XROOTDFS):
-        pytest.skip(f"xrootdfs build failed:\n{proc.stdout}\n{proc.stderr}")
+    _guard_built_3(proc)
     cc = shutil.which("cc") or shutil.which("gcc")
     proc = subprocess.run([cc, "-O2", "-pthread", FAULT_PROXY_SRC, "-o", FAULT_PROXY],
                           capture_output=True, text=True, timeout=60)
-    if proc.returncode != 0:
-        pytest.skip(f"fault_proxy build failed:\n{proc.stderr}")
-    if not _port_up(SERVER_HOST, NGINX_ANON_PORT):
-        pytest.skip("anon server not running")
+    _guard_built_4(proc)
+    _guard_built_5()
     return True
 
 

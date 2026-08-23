@@ -51,17 +51,26 @@ def load_map():
 
 def file_map_for(entries):
     """Expand dir entries to per-file old->new using the current tree."""
-    fmap = {}
+    return _expanded_file_map(entries, applied=False)
+
+
+def _expanded_file_map(entries, applied):
+    mapping = {}
     for kind, old, new in entries:
         if kind == "file":
-            fmap[old] = new
+            mapping[old] = new
         else:
-            root = os.path.join(REPO, old)
-            for dirpath, _, files in os.walk(root):
-                for fn in files:
-                    op = os.path.relpath(os.path.join(dirpath, fn), REPO)
-                    fmap[op] = os.path.join(new, os.path.relpath(os.path.join(dirpath, fn), root))
-    return fmap
+            _map_directory(mapping, old, new, applied)
+    return mapping
+
+
+def _map_directory(mapping, old, new, applied):
+    source = new if applied else old
+    root = os.path.join(REPO, source)
+    for dirpath, _, files in os.walk(root):
+        for filename in files:
+            relative = os.path.relpath(os.path.join(dirpath, filename), root)
+            mapping[os.path.join(old, relative)] = os.path.join(new, relative)
 
 
 def iter_src_files(exts=(".c", ".h")):
@@ -112,16 +121,9 @@ def do_normalize():
     unresolved = []
     n_changed = 0
 
-    def transform(includer, inc):
-        d = os.path.dirname(includer)
-        cand1 = os.path.normpath(os.path.join(d, inc))
-        cand2 = os.path.normpath(os.path.join(SRC, inc))
-        if os.path.isfile(cand1) and cand1.startswith(SRC):
-            return canonical_include(includer, cand1)
-        if os.path.isfile(cand2):
-            return canonical_include(includer, cand2)
-        unresolved.append((os.path.relpath(includer, REPO), inc))
-        return None
+    transform = lambda includer, include: _normalized_include(
+        includer, include, unresolved,
+    )
 
     for path in iter_src_files():
         if rewrite_includes_in_file(path, transform):
@@ -131,6 +133,18 @@ def do_normalize():
         print(f"normalize: {len(unresolved)} unresolved quoted includes (left untouched):")
         for f, inc in sorted(set(unresolved)):
             print(f"  {f}: \"{inc}\"")
+
+
+def _normalized_include(includer, include, unresolved):
+    directory = os.path.dirname(includer)
+    local = os.path.normpath(os.path.join(directory, include))
+    rooted = os.path.normpath(os.path.join(SRC, include))
+    if os.path.isfile(local) and local.startswith(SRC):
+        return canonical_include(includer, local)
+    if os.path.isfile(rooted):
+        return canonical_include(includer, rooted)
+    unresolved.append((os.path.relpath(includer, REPO), include))
+    return None
 
 
 # ---------------------------------------------------------------- step apply
@@ -149,132 +163,162 @@ def tracked_text_files():
         full = os.path.join(REPO, extra_dir)
         if os.path.isdir(full):
             rels += [os.path.join(extra_dir, fn) for fn in os.listdir(full)]
-    for rel in rels:
-        if rel.startswith("src/") and rel.endswith((".c", ".h")):
-            continue
-        if rel in TEXT_EXCLUDE or rel == os.path.relpath(MAP_TSV, REPO):
-            continue
-        base = os.path.basename(rel)
-        if rel.endswith(TEXT_EXTS) or base in TEXT_NAMES:
-            yield os.path.join(REPO, rel)
+    for relative in rels:
+        if _tracked_text(relative):
+            yield os.path.join(REPO, relative)
+
+
+def _tracked_text(relative):
+    if relative.startswith("src/") and relative.endswith((".c", ".h")):
+        return False
+    if relative in TEXT_EXCLUDE or relative == os.path.relpath(MAP_TSV, REPO):
+        return False
+    return relative.endswith(TEXT_EXTS) or os.path.basename(relative) in TEXT_NAMES
 
 
 def file_map_applied(entries):
     """Per-file old->new for entries whose mv already happened (walk NEW dirs)."""
-    fmap = {}
-    for kind, old, new in entries:
-        if kind == "file":
-            fmap[old] = new
-        else:
-            root = os.path.join(REPO, new)
-            for dirpath, _, files in os.walk(root):
-                for fn in files:
-                    np = os.path.relpath(os.path.join(dirpath, fn), REPO)
-                    fmap[os.path.join(old, os.path.relpath(os.path.join(dirpath, fn), root))] = np
-    return fmap
+    return _expanded_file_map(entries, applied=True)
 
 
 def do_step(step, dry_run=False, fixup=False):
+    entries, file_map = _step_inputs(step, fixup)
+    if not fixup:
+        _move_entries(step, entries, dry_run)
+        if dry_run:
+            return
+    fixed = _fix_includes(file_map)
+    print(f"step {step}: includes fixed in {fixed} files")
+    rewritten = _rewrite_text_paths(entries)
+    print(f"step {step}: path strings rewritten in {rewritten} text files")
+
+
+def _step_inputs(step, fixup):
     steps = load_map()
     if step not in steps:
         sys.exit(f"step {step}: not in {os.path.relpath(MAP_TSV, REPO)} "
                  f"(available: {', '.join(sorted(steps))})")
     entries = steps[step]
-    if fixup:
-        fmap = file_map_applied(entries)
-    else:
-        fmap = file_map_for(entries)  # must run BEFORE the mv (walks old dirs)
-    if not fmap:
+    file_map = file_map_applied(entries) if fixup else file_map_for(entries)
+    if not file_map:
         sys.exit(f"step {step}: empty file map — already applied?")
+    return entries, file_map
 
-    # 1. git mv
-    if not fixup:
-        for kind, old, new in entries:
-            if not os.path.exists(os.path.join(REPO, old)):
-                sys.exit(f"step {step}: {old} does not exist — already applied?")
-            if dry_run:
-                print(f"git mv {old} {new}")
-                continue
-            os.makedirs(os.path.dirname(os.path.join(REPO, new)), exist_ok=True)
-            subprocess.run(["git", "mv", old, new], cwd=REPO, check=True)
+
+def _move_entries(step, entries, dry_run):
+    for _kind, old, new in entries:
+        if not os.path.exists(os.path.join(REPO, old)):
+            sys.exit(f"step {step}: {old} does not exist — already applied?")
         if dry_run:
-            return
+            print(f"git mv {old} {new}")
+            continue
+        os.makedirs(os.path.dirname(os.path.join(REPO, new)), exist_ok=True)
+        subprocess.run(["git", "mv", old, new], cwd=REPO, check=True)
 
-    # 2. include fixups across src/ + cross-tree C files
-    moved = {old: new for old, new in fmap.items()}          # repo-relative
-    rmoved = {new: old for old, new in fmap.items()}
-    n_fixed = 0
 
-    def transform(includer, inc):
-        d = os.path.dirname(includer)
-        inc_repo = None
-        if "/" not in inc:
-            if os.path.isfile(os.path.join(d, inc)):
-                return None                                   # still resolves
-            # bare include broken by this step: where did it live before?
-            # (a) next to the includer's OLD location, or (b) src-rooted —
-            # a file at the src root itself, e.g. "ngx_xrootd_module.h".
-            includer_rel = os.path.relpath(includer, REPO)
-            old_includer = rmoved.get(includer_rel, includer_rel)
-            inc_repo = os.path.join(os.path.dirname(old_includer), inc)
-            if inc_repo not in moved:
-                if "src/" + inc in moved:
-                    inc_repo = "src/" + inc
-                elif os.path.isfile(os.path.join(REPO, inc_repo)):
-                    # includer moved, neighbor stayed behind: src-rooted old home
-                    return os.path.relpath(os.path.join(REPO, inc_repo), SRC)
-        elif "src/" in inc:                                   # cross-tree ../../src/... form
-            tail = inc.split("src/", 1)[1]
-            if "src/" + tail in moved:
-                return inc.split("src/", 1)[0] + "src/" + moved["src/" + tail][len("src/"):]
-            return None
-        else:
-            # src-rooted (post step-0). Skip if it resolves includer-relative
-            # (client -Ilib locals) or still resolves under src/.
-            if os.path.isfile(os.path.join(d, inc)) or os.path.isfile(os.path.join(SRC, inc)):
-                return None
-            inc_repo = "src/" + inc
-        if inc_repo in moved:
-            new_abs = os.path.join(REPO, moved[inc_repo])
-            if includer.startswith(SRC):
-                return canonical_include(includer, new_abs)
-            return None if "/" in inc else os.path.relpath(new_abs, SRC)
-        return None
-
-    targets = list(iter_src_files()) + cross_tree_c_files()
-    # client sources use src-rooted includes with -I$(REPO)/src
-    for dirpath, _, files in os.walk(os.path.join(REPO, "client")):
-        for fn in files:
-            if fn.endswith((".c", ".h")):
-                targets.append(os.path.join(dirpath, fn))
+def _fix_includes(file_map):
+    moved = dict(file_map)
+    reverse = {new: old for old, new in file_map.items()}
+    transform = lambda includer, include: _moved_include(
+        includer, include, moved, reverse,
+    )
+    fixed = 0
     seen = set()
-    for path in targets:
+    for path in _include_targets():
         if path in seen or not os.path.isfile(path):
             continue
         seen.add(path)
         if rewrite_includes_in_file(path, transform):
-            n_fixed += 1
-    print(f"step {step}: includes fixed in {n_fixed} files")
+            fixed += 1
+    return fixed
 
-    # 3. path-string substitution in build/guard/doc/text files
-    pats = []
-    for kind, old, new in sorted(entries, key=lambda e: -len(e[1])):
-        pats.append((re.compile(re.escape(old) + r"(?![a-zA-Z0-9_])"), new))
-    n_text = 0
-    for path in tracked_text_files():
-        try:
-            with open(path, encoding="utf-8", errors="surrogateescape") as f:
-                body = f.read()
-        except (OSError, UnicodeError):
-            continue
-        orig = body
-        for rx, new in pats:
-            body = rx.sub(new, body)
-        if body != orig:
-            with open(path, "w", encoding="utf-8", errors="surrogateescape") as f:
-                f.write(body)
-            n_text += 1
-    print(f"step {step}: path strings rewritten in {n_text} text files")
+
+def _include_targets():
+    targets = list(iter_src_files()) + cross_tree_c_files()
+    for dirpath, _, files in os.walk(os.path.join(REPO, "client")):
+        targets.extend(
+            os.path.join(dirpath, filename)
+            for filename in files if filename.endswith((".c", ".h"))
+        )
+    return targets
+
+
+def _moved_include(includer, include, moved, reverse):
+    if "/" not in include:
+        repo_path, replacement = _bare_include(includer, include, moved, reverse)
+        if replacement is not None:
+            return replacement
+    elif "src/" in include:
+        return _cross_tree_include(include, moved)
+    else:
+        repo_path = _rooted_include(includer, include)
+    return _mapped_include(includer, include, repo_path, moved)
+
+
+def _bare_include(includer, include, moved, reverse):
+    directory = os.path.dirname(includer)
+    if os.path.isfile(os.path.join(directory, include)):
+        return None, None
+    includer_rel = os.path.relpath(includer, REPO)
+    old_includer = reverse.get(includer_rel, includer_rel)
+    repo_path = os.path.join(os.path.dirname(old_includer), include)
+    if repo_path in moved:
+        return repo_path, None
+    rooted = "src/" + include
+    if rooted in moved:
+        return rooted, None
+    if os.path.isfile(os.path.join(REPO, repo_path)):
+        replacement = os.path.relpath(os.path.join(REPO, repo_path), SRC)
+        return None, replacement
+    return repo_path, None
+
+
+def _cross_tree_include(include, moved):
+    prefix, tail = include.split("src/", 1)
+    source = "src/" + tail
+    if source not in moved:
+        return None
+    return prefix + "src/" + moved[source][len("src/"):]
+
+
+def _rooted_include(includer, include):
+    directory = os.path.dirname(includer)
+    local = os.path.isfile(os.path.join(directory, include))
+    rooted = os.path.isfile(os.path.join(SRC, include))
+    return None if local or rooted else "src/" + include
+
+
+def _mapped_include(includer, include, repo_path, moved):
+    if repo_path not in moved:
+        return None
+    target = os.path.join(REPO, moved[repo_path])
+    if includer.startswith(SRC):
+        return canonical_include(includer, target)
+    return None if "/" in include else os.path.relpath(target, SRC)
+
+
+def _rewrite_text_paths(entries):
+    patterns = [
+        (re.compile(re.escape(old) + r"(?![a-zA-Z0-9_])"), new)
+        for _kind, old, new in sorted(entries, key=lambda entry: -len(entry[1]))
+    ]
+    return sum(_rewrite_text_file(path, patterns) for path in tracked_text_files())
+
+
+def _rewrite_text_file(path, patterns):
+    try:
+        with open(path, encoding="utf-8", errors="surrogateescape") as stream:
+            original = stream.read()
+    except (OSError, UnicodeError):
+        return 0
+    body = original
+    for pattern, replacement in patterns:
+        body = pattern.sub(replacement, body)
+    if body == original:
+        return 0
+    with open(path, "w", encoding="utf-8", errors="surrogateescape") as stream:
+        stream.write(body)
+    return 1
 
 
 # ---------------------------------------------------------------- verify
@@ -282,21 +326,25 @@ def do_step(step, dry_run=False, fixup=False):
 def do_verify():
     out = subprocess.run(["git", "diff", "HEAD", "--", "*.c", "*.h"],
                          cwd=REPO, capture_output=True, text=True)
-    bad = []
-    for line in out.stdout.splitlines():
-        if not line or line[0] not in "+-" or line.startswith(("+++", "---")):
-            continue
-        if re.match(r'^[+-]\s*#\s*include\s+"', line):
-            continue
-        if line[1:].strip() == "":
-            continue  # blank line folded into a changed run — content-identical
-        bad.append(line)
+    bad = [line for line in out.stdout.splitlines() if _non_include_change(line)]
     if bad:
-        print("verify: NON-INCLUDE content changes in .c/.h files:")
-        for line in bad[:40]:
-            print(" ", line)
-        sys.exit(1)
+        _fail_verification(bad)
     print("verify: OK — .c/.h diffs touch only #include lines")
+
+
+def _non_include_change(line):
+    if not line or line[0] not in "+-" or line.startswith(("+++", "---")):
+        return False
+    if re.match(r'^[+-]\s*#\s*include\s+"', line):
+        return False
+    return bool(line[1:].strip())
+
+
+def _fail_verification(lines):
+    print("verify: NON-INCLUDE content changes in .c/.h files:")
+    for line in lines[:40]:
+        print(" ", line)
+    sys.exit(1)
 
 
 def main():

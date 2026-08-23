@@ -355,22 +355,37 @@ def _assert_subtree(mnt_dir: Path, spec: dict) -> int:
         p = mnt_dir / name
         st = os.lstat(p)
         if isinstance(node, Dir):
-            assert st_mod.S_ISDIR(st.st_mode) and st.st_nlink == 2
-            assert st_mod.S_IMODE(st.st_mode) == node.mode
+            def _assert_assert_subtree_1():
+                assert st_mod.S_ISDIR(st.st_mode) and st.st_nlink == 2
+                assert st_mod.S_IMODE(st.st_mode) == node.mode
+
+            _assert_assert_subtree_1()
             assert st.st_mtime == node.mtime
             checked += 1 + _assert_subtree(p, node.entries)
         elif isinstance(node, File):
-            assert st_mod.S_ISREG(st.st_mode)
-            assert st.st_size == len(node.content)
-            assert st_mod.S_IMODE(st.st_mode) == node.mode
-            assert st.st_mtime == node.mtime
-            assert st.st_nlink == node.linkcount
-            assert st.st_uid == (node.uid or os.getuid())
+            def _assert_assert_subtree_2():
+                assert st_mod.S_ISREG(st.st_mode)
+                assert st.st_size == len(node.content)
+
+            _assert_assert_subtree_2()
+            def _assert_assert_subtree_3():
+                assert st_mod.S_IMODE(st.st_mode) == node.mode
+                assert st.st_mtime == node.mtime
+
+            _assert_assert_subtree_3()
+            def _assert_assert_subtree_4():
+                assert st.st_nlink == node.linkcount
+                assert st.st_uid == (node.uid or os.getuid())
+
+            _assert_assert_subtree_4()
             assert st.st_gid == (node.gid or os.getgid())
             checked += 1
         elif isinstance(node, Symlink):
-            assert st_mod.S_ISLNK(st.st_mode)
-            assert os.readlink(p) == node.target
+            def _assert_assert_subtree_5():
+                assert st_mod.S_ISLNK(st.st_mode)
+                assert os.readlink(p) == node.target
+
+            _assert_assert_subtree_5()
             checked += 1
         else:  # pragma: no cover — main tree has no Chunked nodes
             raise AssertionError(f"unexpected node {node!r}")

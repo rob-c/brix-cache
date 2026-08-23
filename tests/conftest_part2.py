@@ -12,8 +12,6 @@ REMOTE mode (TEST_SERVER_HOST=<host>):
 """
 
 import os
-import shutil
-import random
 import socket
 import subprocess
 import sys
@@ -23,6 +21,7 @@ from pathlib import Path
 
 import pytest
 import fleet_declares
+from conftest_session_setup import setup_local_session, setup_remote_session
 from server_launcher import LifecycleHarness, RegistryLauncher
 from server_registry import fleet_ready_for_test_root, manifest_owns_test_root
 from server_registry import (
@@ -119,21 +118,15 @@ def _setup_session(*, chdir: bool = True):
     except under xdist, where the controller never collects and boots the full
     fleet from pytest_sessionstart instead.
     """
-    import subprocess
-
     if REMOTE_SERVER:
-        # Verify connectivity before the test suite begins.
-        if not _check_server_reachable(SERVER_HOST, NGINX_ANON_PORT):
+        reachable = setup_remote_session(
+            _check_server_reachable, SERVER_HOST, NGINX_ANON_PORT
+        )
+        if not reachable:
             raise pytest.UsageError(
                 f"Remote server at {SERVER_HOST}:{NGINX_ANON_PORT} is not reachable. "
                 "Check TEST_SERVER_HOST and that the server is running."
             )
-        # PKI dirs still needed locally for cert-based tests (they read certs,
-        # but do NOT regenerate them — operator must pre-provision).
-        os.makedirs(LOG_DIR, exist_ok=True)
-        os.makedirs(TMP_DIR, exist_ok=True)
-        os.environ.setdefault("X509_CERT_DIR", CA_DIR)
-        os.environ.setdefault("X509_USER_PROXY", PROXY_STD)
         return
 
     # A fleet started out of band owns its own lifecycle: never wipe the tree or
@@ -143,97 +136,7 @@ def _setup_session(*, chdir: bool = True):
     # silently bypassed.
     if _external_fleet_attached():
         return
-
-    # ---- LOCAL mode ----
-
-    # MANDATED CLEAN SLATE: clean suite-owned state without removing TEST_ROOT or
-    # TMP_DIR themselves.  pytest/xdist creates its basetemp below TMP_DIR before
-    # all sessionstart hooks have completed; removing the parent here invalidates
-    # popen-gw*/tmp_path paths that live workers already hold.  The data and PKI
-    # trees are rebuilt explicitly below, while registry/log/artifact state is
-    # safe to discard.  TMP_DIR is deliberately preserved for pytest ownership.
-    _reset_session_tree_once()
-    os.makedirs(TEST_ROOT, exist_ok=True)
-    if chdir:
-        _chdir_scratch()
-
-    # Clear data and pki folders before each test session
-    if os.path.exists(DATA_ROOT):
-        shutil.rmtree(DATA_ROOT)
-    os.makedirs(DATA_ROOT, exist_ok=True)
-
-    if os.path.exists(PKI_DIR):
-        shutil.rmtree(PKI_DIR)
-    os.makedirs(PKI_DIR, exist_ok=True)
-
-    # Create subdirectories for PKI
-    for subdir in ["ca", "server", "user", "voms", "vomsdir"]:
-        os.makedirs(os.path.join(PKI_DIR, subdir), exist_ok=True)
-
-    # Create logs and tmp directories
-    os.makedirs(LOG_DIR, exist_ok=True)
-    os.makedirs(TMP_DIR, exist_ok=True)
-    os.makedirs(os.path.join(TEST_ROOT, "artifacts"), exist_ok=True)
-
-    # Create data-gsi-bridge directory for cross-server GSI tests (test_gsi_bridge.py)
-    gsi_bridge_data = os.path.join(TEST_ROOT, "data-gsi-bridge")
-    if os.path.exists(gsi_bridge_data):
-        shutil.rmtree(gsi_bridge_data)
-    os.makedirs(gsi_bridge_data, exist_ok=True)
-
-    # Create required test files in data directory
-    with open(os.path.join(DATA_ROOT, "test.txt"), "wb") as f:
-        f.write(b"hello from nginx-xrootd\n")
-
-    # Generate random.bin (5MB of random data). randbytes() fills the buffer in
-    # one C call — the byte-at-a-time getrandbits() generator it replaces took
-    # ~0.2s here and ~11s for the 200 MiB file below, on every (wiped) session.
-    with open(os.path.join(DATA_ROOT, "random.bin"), "wb") as f:
-        f.write(random.randbytes(5242880))
-
-    # Generate large200.bin (200 MiB) — MD5 exposed via env var for tests that need it.
-    LARGE_FILE_SIZE = 200 * 1024 * 1024
-    LARGE_FILE_PATH = os.path.join(DATA_ROOT, "large200.bin")
-    import hashlib as _hashlib
-    h = _hashlib.md5()
-    seed_val = int(os.environ.get("LARGE_FILE_SEED", "42"))
-    rng = random.Random(seed_val)
-    if (not os.path.exists(LARGE_FILE_PATH)
-            or os.path.getsize(LARGE_FILE_PATH) != LARGE_FILE_SIZE):
-        with open(LARGE_FILE_PATH, "wb") as f:
-            # Write in 16 MiB chunks to limit memory pressure
-            chunk_size = 16 * 1024 * 1024
-            remaining = LARGE_FILE_SIZE
-            while remaining > 0:
-                n = min(chunk_size, remaining)
-                chunk = rng.randbytes(n)   # vectorized; ~15x faster than per-byte
-                f.write(chunk)
-                h.update(chunk)
-                remaining -= n
-        os.environ["LARGE_FILE_MD5"] = h.hexdigest()
-    else:
-        # File exists from prior run — recompute MD5 to stay consistent.
-        with open(LARGE_FILE_PATH, "rb") as f:
-            for chunk in iter(lambda: f.read(65536), b""):
-                h.update(chunk)
-        os.environ["LARGE_FILE_MD5"] = h.hexdigest()
-
-    os.environ["X509_CERT_DIR"] = CA_DIR
-    os.environ["X509_USER_PROXY"] = PROXY_STD
-
-    # Generate every pre-instance session artifact (PKI + proxies, token signing
-    # keys + issued JWTs, JWKS, CRL drops, authdb, stage hook) — the fleet-wide
-    # setup the retired bash bridge performed at the top of start-all.
-    import fleet_prep  # noqa: PLC0415 — pure-Python session artifact generator
-    fleet_prep.prepare()
-
-    # Freeze the ONE session-shared nginx binary now — after the tree wipe and
-    # before any server starts — so every fleet spawn and every xdist worker
-    # execs the same immutable copy (never a per-process private one, never the
-    # relinkable live objs/nginx).  Later callers reuse this copy.
-    from cmdscripts.live_common import freeze_nginx  # noqa: PLC0415
-    from settings import NGINX_BIN  # noqa: PLC0415
-    freeze_nginx(NGINX_BIN)
+    setup_local_session(chdir, _reset_session_tree_once, _chdir_scratch)
 
 
 def _reap_leaked_test_servers():
@@ -295,8 +198,7 @@ def _start_all_resilient(specs=None):
     # with ConnectionRefused (the fleet-availability cascade).  Reuse the running
     # fleet instead: the marker proves this root completed a start-all and the
     # main endpoint answering proves it is actually live.
-    if (fleet_ready_for_test_root()
-            and _check_server_reachable(HOST, NGINX_ANON_PORT, timeout=2.0)):
+    if _fleet_already_ready():
         return
 
     for attempt in (1, 2):
@@ -345,6 +247,12 @@ def _start_all_resilient(specs=None):
     )
 
 
+def _fleet_already_ready():
+    if not fleet_ready_for_test_root():
+        return False
+    return _check_server_reachable(HOST, NGINX_ANON_PORT, timeout=2.0)
+
+
 def _stop_owned_fleet(specs=None) -> None:
     """Stop this lane even when the xdist controller registry is empty.
 
@@ -386,20 +294,35 @@ def _validate_requested_paths(config) -> None:
     Rootdir stays as a fallback for pytest builds without
     ``invocation_params``.
     """
-    invocation = getattr(getattr(config, "invocation_params", None), "dir", None)
-    root = Path(str(invocation if invocation is not None else config.rootpath))
-    missing = []
-    for argument in config.args:
-        path_text = str(argument).split("::", 1)[0]
-        path = Path(path_text)
-        candidate = path if path.is_absolute() else root / path
-        if not candidate.exists():
-            missing.append(path_text)
+    root = _invocation_root(config)
+    missing = _missing_requested_paths(config.args, root)
     if missing:
         raise pytest.UsageError(
             "test path(s) do not exist; refusing to start managed servers: "
             + ", ".join(missing)
         )
+
+
+def _invocation_root(config):
+    parameters = getattr(config, "invocation_params", None)
+    invocation = getattr(parameters, "dir", None)
+    selected = invocation if invocation is not None else config.rootpath
+    return Path(str(selected))
+
+
+def _missing_requested_paths(arguments, root):
+    missing = []
+    for argument in arguments:
+        path_text = str(argument).split("::", 1)[0]
+        candidate = _requested_path(path_text, root)
+        if not candidate.exists():
+            missing.append(path_text)
+    return missing
+
+
+def _requested_path(path_text, root):
+    path = Path(path_text)
+    return path if path.is_absolute() else root / path
 
 
 def pytest_sessionstart(session):

@@ -89,6 +89,28 @@ def cached_data_files(s, hx):
                   and not p.name.endswith((".cinfo", ".gclnk")))
 
 
+def _fill_and_assert(srv, path, body, repository):
+    status, _headers, received = GET(srv, path)
+    assert status == 200 and received == body, f"{repository} fill failed"
+
+
+def _dedup_files(srv, digest):
+    files = cached_data_files(srv, digest)
+    assert len(files) == 3, (
+        f"expected 2 per-repo keys + 1 canonical, found: {files}")
+    canonical = [path for path in files if ".gcas" in path.parts]
+    assert len(canonical) == 1, f"canonical /.gcas name missing: {files}"
+    return files
+
+
+def _assert_shared_inode(files):
+    stats = [path.stat() for path in files]
+    assert len({stat.st_ino for stat in stats}) == 1, (
+        "cross-repo copies did not collapse onto one inode")
+    assert stats[0].st_nlink == 3, (
+        f"expected st_nlink==3 (2 keys + canonical), got {stats[0].st_nlink}")
+
+
 # ============================================================================
 # 1. success: byte-identical objects in two repos collapse onto one inode
 # ============================================================================
@@ -100,26 +122,14 @@ def test_cross_repo_dedup_one_inode(srv):
     path_b = put_obj(srv, REPO_B, body)
 
     srv.reset_log()
-    status, _, got = GET(srv, path_a)
-    assert status == 200 and got == body, "repo-A fill failed"
-    status, _, got = GET(srv, path_b)
-    assert status == 200 and got == body, "repo-B fill failed"
+    _fill_and_assert(srv, path_a, body, "repo-A")
+    _fill_and_assert(srv, path_b, body, "repo-B")
 
     # Dedup is honest, not a shortcut: repo B still fetched through ITS origin.
     assert srv.count_log(f"/cvmfs/{REPO_B}/data/") >= 1, \
         "repo-B fill did not go through repo-B's own origin path"
 
-    files = cached_data_files(srv, hx)
-    assert len(files) == 3, \
-        f"expected 2 per-repo keys + 1 canonical, found: {files}"
-    canon = [p for p in files if ".gcas" in p.parts]
-    assert len(canon) == 1, f"canonical /.gcas name missing: {files}"
-
-    stats = [p.stat() for p in files]
-    assert len({st.st_ino for st in stats}) == 1, \
-        "cross-repo copies did not collapse onto one inode"
-    assert stats[0].st_nlink == 3, \
-        f"expected st_nlink==3 (2 keys + canonical), got {stats[0].st_nlink}"
+    _assert_shared_inode(_dedup_files(srv, hx))
 
 
 # ============================================================================
@@ -157,41 +167,49 @@ def _fs_usage_percent(path: Path) -> int:
     return int((u.used * 100) / u.total)
 
 
-def test_evict_gc_reaps_canonical_stream(lifecycle, tmp_path):
-    used = _fs_usage_percent(tmp_path)
-    if used < 10 or used > 96:
-        pytest.skip(f"filesystem usage {used}% outside testable 10-96% band")
-
+def _prepare_worker_cache(tmp_path):
     cache = tmp_path / "cache"
     cache.mkdir()
     if os.geteuid() == 0:
-        # Root harness: the DE-ESCALATED worker (`nobody`) must unlink the
-        # planted victims and traverse the 0700 pytest tmp chain to reach them.
         from cmdscripts import open_tree_for_worker
         open_tree_for_worker(tmp_path)
+    return cache
 
-    # Plant the exact post-dedup structure: two per-repo CAS keys and the
-    # canonical /.gcas name, all hardlinks of ONE inode, backdated to be LRU
-    # victims. The reaper evicts the keys; the gcas GC must reap the canonical
-    # once the last data link is gone — whichever order the walk picks.
-    body = bytes((7 + i) % 251 for i in range(65_536))
-    hx = hashlib.sha1(body).hexdigest()
-    key_a = cache / "cvmfs" / REPO_A / "data" / hx[:2] / hx[2:]
-    key_b = cache / "cvmfs" / REPO_B / "data" / hx[:2] / hx[2:]
-    canon = cache / ".gcas" / hx[:2] / hx[2:]
+
+def _plant_canonical_links(cache):
+    body = bytes((7 + index) % 251 for index in range(65_536))
+    digest = hashlib.sha1(body).hexdigest()
+    key_a = cache / "cvmfs" / REPO_A / "data" / digest[:2] / digest[2:]
+    key_b = cache / "cvmfs" / REPO_B / "data" / digest[:2] / digest[2:]
+    canonical = cache / ".gcas" / digest[:2] / digest[2:]
     key_a.parent.mkdir(parents=True)
     key_a.write_bytes(body)
-    for p in (key_b, canon):
-        p.parent.mkdir(parents=True)
-        os.link(key_a, p)
-    stamp = time.time() - 9 * 3600
-    for p in (key_a, key_b, canon):
-        os.utime(p, (stamp, stamp))
-    if os.geteuid() == 0:
-        from cmdscripts import open_tree_for_worker
-        open_tree_for_worker(tmp_path)
+    _link_canonical_copies(key_a, key_b, canonical)
+    _age_cache_entries(key_a, key_b, canonical)
     assert key_a.stat().st_nlink == 3
+    return key_a, key_b, canonical
 
+
+def _link_canonical_copies(source, *copies):
+    for path in copies:
+        path.parent.mkdir(parents=True)
+        os.link(source, path)
+
+
+def _age_cache_entries(*paths):
+    stamp = time.time() - 9 * 3600
+    for path in paths:
+        os.utime(path, (stamp, stamp))
+
+
+def _open_cache_for_worker(tmp_path):
+    if os.geteuid() != 0:
+        return
+    from cmdscripts import open_tree_for_worker
+    open_tree_for_worker(tmp_path)
+
+
+def _start_global_cas_gc(lifecycle, cache, used):
     lifecycle.start(NginxInstanceSpec(
         name="lc-cvmfs-gcas-evict",
         template="nginx_cvmfs_gcas_evict.conf",
@@ -204,20 +222,36 @@ def test_evict_gc_reaps_canonical_stream(lifecycle, tmp_path):
         reason="CVMFS G13 evict-GC of the canonical hardlink",
     ))
 
-    deadline = time.time() + 25
-    while time.time() < deadline and (key_a.exists() or key_b.exists()):
+
+def _wait_for_absence(paths, timeout):
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        if not any(path.exists() for path in paths):
+            return
         time.sleep(1)
 
-    assert not key_a.exists() and not key_b.exists(), \
-        "watermark reaper did not purge the planted per-repo keys"
-    # The canonical must not survive as an orphan inode holding the bytes.
-    deadline = time.time() + 10
-    while time.time() < deadline and canon.exists():
-        time.sleep(1)
-    assert not canon.exists(), \
-        "gcas GC left the canonical behind after its last data link was evicted"
-    leftovers = [p for p in cache.rglob("*") if p.is_file()]
+
+def _assert_cache_drained(cache, key_a, key_b, canonical):
+    assert not key_a.exists() and not key_b.exists(), (
+        "watermark reaper did not purge the planted per-repo keys")
+    assert not canonical.exists(), (
+        "gcas GC left the canonical behind after its last data link was evicted")
+    leftovers = [path for path in cache.rglob("*") if path.is_file()]
     assert not leftovers, f"cache store did not drain fully: {leftovers}"
+
+
+def test_evict_gc_reaps_canonical_stream(lifecycle, tmp_path):
+    used = _fs_usage_percent(tmp_path)
+    if used < 10 or used > 96:
+        pytest.skip(f"filesystem usage {used}% outside testable 10-96% band")
+
+    cache = _prepare_worker_cache(tmp_path)
+    key_a, key_b, canonical = _plant_canonical_links(cache)
+    _open_cache_for_worker(tmp_path)
+    _start_global_cas_gc(lifecycle, cache, used)
+    _wait_for_absence((key_a, key_b), 25)
+    _wait_for_absence((canonical,), 10)
+    _assert_cache_drained(cache, key_a, key_b, canonical)
 
 
 # ============================================================================

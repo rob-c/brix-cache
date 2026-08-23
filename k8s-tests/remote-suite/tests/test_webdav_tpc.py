@@ -49,6 +49,41 @@ from settings import (
 # push (404) when the endpoints were up. Pin to the isolated serial lane, like
 # the other stateful mesh/topology suites. (In environments without the stock
 # XrdHttp reference endpoint the whole module skips via its autouse fixture.)
+def _expression_1(data_root):
+    return (
+        {
+                name: data_root / name
+                for name in (
+                    "source_required",
+                    "source_open",
+                    "dest_cafile",
+                    "dest_cadir",
+                    "dest_no_service_cert",
+                    "dest_disabled",
+                    "dest_readonly",
+                )
+            }
+    )
+
+def _expression_2(log_path):
+    return (
+        log_path.read_text(errors="replace") if log_path.exists() else ""
+    )
+
+
+def _guard_tpc_nginx_1(root):
+    if root.exists():
+        shutil.rmtree(root)
+
+def _guard_tpc_nginx_2(ok, port):
+    if not ok:
+        pytest.fail(f"nginx WebDAV TPC fixture did not start on port {port}.")
+
+def _guard_reference_xrd_http_3(path):
+    if not path.exists():
+        pytest.skip(f"test PKI file not found: {path}")
+
+
 pytestmark = [pytest.mark.serial]
 
 PKI_DIR = Path(PKI_DIR_STR)
@@ -179,21 +214,9 @@ def tpc_nginx():
     workdir = Path(TEST_ROOT) / "dedicated" / "webdav-tpc"
     data_root = Path(TEST_ROOT) / "data-webdav-tpc"
 
-    roots = {
-        name: data_root / name
-        for name in (
-            "source_required",
-            "source_open",
-            "dest_cafile",
-            "dest_cadir",
-            "dest_no_service_cert",
-            "dest_disabled",
-            "dest_readonly",
-        )
-    }
+    roots = _expression_1(data_root)
     for root in roots.values():
-        if root.exists():
-            shutil.rmtree(root)
+        _guard_tpc_nginx_1(root)
         root.mkdir(parents=True, exist_ok=True)
 
     ports = {
@@ -225,8 +248,7 @@ def tpc_nginx():
                 ok = True
                 break
             time.sleep(0.2)
-        if not ok:
-            pytest.fail(f"nginx WebDAV TPC fixture did not start on port {port}.")
+        _guard_tpc_nginx_2(ok, port)
 
     yield TpcNginx(
         workdir=workdir,
@@ -250,8 +272,7 @@ def tpc_nginx():
 @pytest.fixture(scope="session", autouse=True)
 def reference_xrd_http():
     for path in (CA_PEM, SERVER_CERT, SERVER_KEY):
-        if not path.exists():
-            pytest.skip(f"test PKI file not found: {path}")
+        _guard_reference_xrd_http_3(path)
 
     workdir = Path(TEST_ROOT) / "xrdhttp"
     data_root = Path(TEST_ROOT) / "data-xrdhttp"
@@ -274,7 +295,7 @@ def reference_xrd_http():
         time.sleep(0.25)
     if not ready:
         log_path = workdir / "xrdhttp.log"
-        log = log_path.read_text(errors="replace") if log_path.exists() else ""
+        log = _expression_2(log_path)
         pytest.skip(
             "reference XrdHttp endpoint did not start; "
             f"log tail:\n{log[-3000:]}"

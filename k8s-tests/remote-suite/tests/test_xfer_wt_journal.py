@@ -52,18 +52,25 @@ def _scan_wt_record(queue_path, name):
     return None
 
 
-@pytest.fixture(scope="module")
-def wtj_server(tmp_path_factory):
+def _wait_for_failed_record(queue_path, name):
+    deadline = time.time() + 15
+    while time.time() < deadline:
+        record = _scan_wt_record(queue_path, name)
+        if record is not None and record[0] == FRM_ST_FAILED:
+            return record
+        time.sleep(0.3)
+    return None
+
+
+def _require_wtj_dependencies():
     if not os.path.exists(NGINX_BIN):
         pytest.skip("nginx binary not found")
     if XRDCP is None:
         pytest.skip("xrdcp not available")
 
-    d = tmp_path_factory.mktemp("wtjournal")
-    (d / "logs").mkdir()
-    data = d / "data"; data.mkdir()
-    queue = d / "wt.queue"
 
+def _write_wtj_config(d, data, queue):
+    (d / "logs").mkdir()
     conf = f"""
 worker_processes 1;
 error_log {d}/logs/error.log info;
@@ -90,32 +97,48 @@ master_process off;
 """
     cp = d / "nginx.conf"
     cp.write_text(conf)
+    return cp
+
+
+def _start_wtj_server(d, cp):
     proc = subprocess.Popen([NGINX_BIN, "-p", str(d), "-c", str(cp)],
                             stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     deadline = time.time() + 10
-    up = False
     while time.time() < deadline:
         try:
             socket.create_connection((HOST, PORT), timeout=0.5).close()
-            up = True
-            break
+            return proc
         except OSError:
             time.sleep(0.1)
-    if not up:
-        err = proc.stderr.read().decode(errors="replace")
-        proc.terminate()
-        pytest.skip(f"wt-journal server did not start: {err}")
+    err = proc.stderr.read().decode(errors="replace")
+    proc.terminate()
+    pytest.skip(f"wt-journal server did not start: {err}")
+
+
+def _stop_wtj_server(proc):
+    proc.terminate()
+    try:
+        proc.wait(timeout=5)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+
+
+@pytest.fixture(scope="module")
+def wtj_server(tmp_path_factory):
+    _require_wtj_dependencies()
+    d = tmp_path_factory.mktemp("wtjournal")
+    data = d / "data"
+    data.mkdir()
+    queue = d / "wt.queue"
+    cp = _write_wtj_config(d, data, queue)
+    proc = _start_wtj_server(d, cp)
 
     class S:
         pass
     s = S()
     s.queue = str(queue)
     yield s
-    proc.terminate()
-    try:
-        proc.wait(timeout=5)
-    except subprocess.TimeoutExpired:
-        proc.kill()
+    _stop_wtj_server(proc)
 
 
 def test_failed_async_flush_leaves_wt_journal_record(wtj_server, tmp_path):
@@ -132,13 +155,7 @@ def test_failed_async_flush_leaves_wt_journal_record(wtj_server, tmp_path):
 
     # The background flush to the dead origin fails; the producer marks the
     # journal record FAILED. Poll for it.
-    found = None
-    deadline = time.time() + 15
-    while time.time() < deadline:
-        found = _scan_wt_record(wtj_server.queue, name)
-        if found is not None and found[0] == FRM_ST_FAILED:
-            break
-        time.sleep(0.3)
+    found = _wait_for_failed_record(wtj_server.queue, name)
 
     assert found is not None, "no kind=wt journal record for the async flush"
     status, lfn = found

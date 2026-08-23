@@ -144,8 +144,11 @@ class TestReadvCorrectness:
         f.close()
 
         for (rv_off, rv_data), (sc_off, sc_data) in zip(rv_result, scalar):
-            assert rv_off == sc_off
-            assert rv_data == sc_data, f"readv vs read mismatch at {rv_off}"
+            def _assert_test_matches_scalar_read_1():
+                assert rv_off == sc_off
+                assert rv_data == sc_data, f"readv vs read mismatch at {rv_off}"
+
+            _assert_test_matches_scalar_read_1()
 
     def test_unordered_segments(self, pattern_file):
         """Segments do not need to be in file order."""

@@ -1,21 +1,13 @@
-"""The artifact catalog (feature F16): artifacts by NAME, not by path.
+"""Resolve test artifacts by stable name instead of filesystem layout.
 
-The grown suite reached CA certs, JWT keys, and data trees by
-assembling paths from settings constants — every consumer hard-coded
-the tree's shape, and the fleet-key-desync incident happened exactly
-because a consumer's idea of "the key" and the fleet's could drift
-apart silently.  Here prep steps **publish** what they build under a
-stable name, and every consumer — test, CLI, adapter — resolves the
-name through one catalog:
+Preparation steps publish files under names consumed by tests and tools::
 
     ca_cert = fleet.artifacts.path("ca.cert")
     $ brixtest artifacts path ca.cert
 
 The catalog file lives *inside* the artifact tree (``catalog.json``),
 so the snapshot cache restores names and files as one unit: whatever
-generation of the tree you hold, its names resolve to that
-generation's files, never a mix.  A miss is a named finding listing
-every published name (C1), not a FileNotFoundError three calls later.
+generation of the tree you hold, its names resolve to the matching files.
 """
 
 from __future__ import annotations
@@ -36,15 +28,11 @@ class ArtifactCatalog:
     def __init__(self, root: Path) -> None:
         self.root = Path(root)
         self._lock = threading.Lock()
-        # The result collector (F21) hooks this to learn which artifacts
-        # a test resolved; None costs nothing.
         self.observer: Optional[Callable[[str], None]] = None
 
     @property
     def catalog_path(self) -> Path:
         return self.root / _CATALOG
-
-    # -- storage ---------------------------------------------------------
 
     def _load(self) -> Dict[str, Dict[str, str]]:
         try:
@@ -57,8 +45,6 @@ class ArtifactCatalog:
         self.root.mkdir(parents=True, exist_ok=True)
         payload = {"published": published}
         self.catalog_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n")
-
-    # -- publishing (prep steps call this) -------------------------------
 
     def publish(self, name: str, path: Path, *, note: str = "") -> Path:
         """Bind ``name`` to a file or directory inside the artifact tree.
@@ -84,8 +70,6 @@ class ArtifactCatalog:
             published[name] = entry
             self._store(published)
         return path
-
-    # -- resolving (everyone else calls these) ---------------------------
 
     def path(self, name: str) -> Path:
         published = self._load()

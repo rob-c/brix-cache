@@ -35,6 +35,26 @@ from fleet_ports import cmdscript_ports
 from settings import BIND_HOST, CA_CERT, CA_DIR, HOST, PROXY_STD, SERVER_CERT, SERVER_KEY
 
 
+def _phase_counters_1(front):
+    for name in ("logs", "export", "stage", "journal"):
+        (front / name).mkdir(exist_ok=True)
+
+def _phase_counters_2(sample):
+    for line in _expression_2(sample):
+        print(line)
+
+
+def _expression_1(after):
+    return (
+        [line for line in after.splitlines() if line.startswith("brix_cred_select_")]
+    )
+
+def _expression_2(sample):
+    return (
+        sample or ["  (no cred_select_ lines)"]
+    )
+
+
 def _metric_sum(family: str, text: str) -> int:
     total = 0.0
     for line in text.splitlines():
@@ -91,52 +111,66 @@ http {{
     return conf
 
 
+def _start_metrics_front(run, front, cmfp, cmmp, cmop, creds, fallback, url):
+    conf = _front_conf(front, cmfp, cmmp, cmop, creds, fallback)
+    started, detail = _start_prefixed(run, front, conf)
+    if not started:
+        print(f"SKIP: frontend start failed ({fallback}): {detail}")
+        return False
+    time.sleep(0.5)
+    _wait_ready(url)
+    return True
+
+
+def _scrape_metrics(port):
+    return _quiet([
+        "curl", "-s", "--max-time", "5", f"http://{HOST}:{port}/metrics"
+    ]).stdout
+
+
+def _metric_paths(run):
+    origin, front = run.mkdir("o"), run.mkdir("f")
+    for name in ("logs", "root"):
+        (origin / name).mkdir(exist_ok=True)
+    _phase_counters_1(front)
+    creds = run.mkdir("creds")
+    creds.chmod(0o777)
+    return origin, front, creds
+
+
+def _prepare_metrics(run):
+    skip = _ensure_pki(run)
+    if skip:
+        return None, _skip(skip)
+    origin, front, creds = _metric_paths(run)
+    minted = _mint_ee(
+        run, run.mkdir("b"), "/DC=test/DC=xrootd/CN=Cred Metrics User B/CN=99998")
+    if minted is None:
+        return None, _skip("user-B cert mint failed")
+    payload = run.root / "ucredm_payload.bin"
+    payload.write_bytes(os.urandom(4096))
+    cmop, cmfp, cmmp = cmdscript_ports("cred_metrics")
+    started, detail = _start_prefixed(run, origin, _origin_conf(origin, cmop))
+    if not started:
+        return None, _skip(f"origin start failed: {detail}")
+    time.sleep(0.5)
+    context = (origin, front, creds, *minted, payload, cmop, cmfp, cmmp)
+    return context, None
+
+
 def counters(nginx: Path | None = None) -> int:
     suite = Suite("run_cred_metrics")
     with LiveRun("ucredm", nginx) as run:
-        skip = _ensure_pki(run)
-        if skip:
-            return _skip(skip)
-        origin, front = run.mkdir("o"), run.mkdir("f")
-        for name in ("logs", "root"):
-            (origin / name).mkdir(exist_ok=True)
-        for name in ("logs", "export", "stage", "journal"):
-            (front / name).mkdir(exist_ok=True)
-        creds = run.mkdir("creds")
-        creds.chmod(0o777)
-
-        minted = _mint_ee(run, run.mkdir("b"), "/DC=test/DC=xrootd/CN=Cred Metrics User B/CN=99998")
-        if minted is None:
-            return _skip("user-B cert mint failed")
-        b_cert, b_key = minted
-
-        payload = run.root / "ucredm_payload.bin"
-        payload.write_bytes(os.urandom(4096))
-
-        cmop, cmfp, cmmp = cmdscript_ports("cred_metrics")
-        started, detail = _start_prefixed(run, origin, _origin_conf(origin, cmop))
-        if not started:
-            return _skip(f"origin start failed: {detail}")
-        time.sleep(0.5)
+        context, preparation = _prepare_metrics(run)
+        if context is None:
+            return preparation
+        origin, front, creds, b_cert, b_key, payload, cmop, cmfp, cmmp = context
         flog = front / "logs/e.log"
         urlf = f"https://{HOST}:{cmfp}"
 
-        def front_start(fallback: str) -> bool:
-            conf = _front_conf(front, cmfp, cmmp, cmop, creds, fallback)
-            started, detail = _start_prefixed(run, front, conf)
-            if not started:
-                print(f"SKIP: frontend start failed ({fallback}): {detail}")
-                return False
-            time.sleep(0.5)
-            _wait_ready(urlf)
-            return True
-
-        def scrape() -> str:
-            return _quiet(["curl", "-s", "--max-time", "5", f"http://{HOST}:{cmmp}/metrics"]).stdout
-
         # ---- step 0: learn the derived key for user A ---------------------------
         print("--- step 0: learning derived key for user A ---")
-        if not front_start("deny"):
+        if not _start_metrics_front(run, front, cmfp, cmmp, cmop, creds, "deny", urlf):
             return SKIP
         _curl_code(f"{urlf}/probe_key.bin", "-T", payload, cert=Path(PROXY_STD))
         time.sleep(0.3)
@@ -150,9 +184,9 @@ def counters(nginx: Path | None = None) -> int:
 
         # ---- assertion 1: user A with cred → cred_select_user_total++ ------------
         print("--- assertion 1: user A with cred → cred_select_user_total increments ---")
-        if not front_start("deny"):
+        if not _start_metrics_front(run, front, cmfp, cmmp, cmop, creds, "deny", urlf):
             return SKIP
-        before = scrape()
+        before = _scrape_metrics(cmmp)
         if not re.search(r"^brix_cred_select_user_total", before, re.MULTILINE):
             suite.bad("1: brix_cred_select_user_total family absent from /metrics (expected before implementation)")
             suite.bad("2: brix_cred_select_fallback_total family absent")
@@ -165,7 +199,7 @@ def counters(nginx: Path | None = None) -> int:
         suite.check(code in ("201", "204"), f"1a: A PUT accepted (code={code})",
                     f"1a: A PUT → {code} (want 201/204)")
         time.sleep(0.3)
-        after = scrape()
+        after = _scrape_metrics(cmmp)
         user_after = _metric_sum("brix_cred_select_user_total", after)
         suite.check(user_after > user_before,
                     f"1b: cred_select_user_total incremented ({user_before} → {user_after})",
@@ -174,16 +208,16 @@ def counters(nginx: Path | None = None) -> int:
 
         # ---- assertion 2: user B, no cred, allow → cred_select_fallback_total++ --
         print("--- assertion 2: user B (no cred), allow → cred_select_fallback_total increments ---")
-        if not front_start("allow"):
+        if not _start_metrics_front(run, front, cmfp, cmmp, cmop, creds, "allow", urlf):
             return SKIP
-        before = scrape()
+        before = _scrape_metrics(cmmp)
         fallback_before = _metric_sum("brix_cred_select_fallback_total", before)
         code = _curl_code(f"{urlf}/cm2.bin", "-T", payload, cert=b_cert, key=b_key)
         suite.check(code in ("201", "204"),
                     f"2a: B PUT allowed via fallback (code={code})",
                     f"2a: B PUT fallback → {code} (want 201/204)")
         time.sleep(0.3)
-        after = scrape()
+        after = _scrape_metrics(cmmp)
         fallback_after = _metric_sum("brix_cred_select_fallback_total", after)
         suite.check(fallback_after > fallback_before,
                     f"2b: cred_select_fallback_total incremented ({fallback_before} → {fallback_after})",
@@ -192,14 +226,14 @@ def counters(nginx: Path | None = None) -> int:
 
         # ---- assertion 3: user B, no cred, deny → cred_select_deny_total++ -------
         print("--- assertion 3: user B (no cred), deny → cred_select_deny_total increments ---")
-        if not front_start("deny"):
+        if not _start_metrics_front(run, front, cmfp, cmmp, cmop, creds, "deny", urlf):
             return SKIP
-        before = scrape()
+        before = _scrape_metrics(cmmp)
         deny_before = _metric_sum("brix_cred_select_deny_total", before)
         code = _curl_code(f"{urlf}/cm3.bin", "-T", payload, cert=b_cert, key=b_key)
         suite.check(code == "403", "3a: B PUT denied (403)", f"3a: B PUT → {code} (want 403)")
         time.sleep(0.3)
-        after = scrape()
+        after = _scrape_metrics(cmmp)
         deny_after = _metric_sum("brix_cred_select_deny_total", after)
         suite.check(deny_after > deny_before,
                     f"3b: cred_select_deny_total incremented ({deny_before} → {deny_after})",
@@ -207,9 +241,8 @@ def counters(nginx: Path | None = None) -> int:
 
         print("")
         print("--- sample /metrics output ---")
-        sample = [line for line in after.splitlines() if line.startswith("brix_cred_select_")]
-        for line in sample or ["  (no cred_select_ lines)"]:
-            print(line)
+        sample = _expression_1(after)
+        _phase_counters_2(sample)
         _stop_prefixed(front)
 
         return suite.finish()

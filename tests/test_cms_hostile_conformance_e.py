@@ -1,4 +1,18 @@
 from split_continuation import reexport as _reexport
+def _phase_test_per_ip_connection_cap_bounds_concurrency_1(s):
+    try:
+        s.sendall(_build_frame(_SID | 0x0F, CMS_RR_PING, 0))
+        if _recv_code(s, CMS_RR_PONG, timeout=2) is not None:
+            admitted += 1
+    except OSError:
+        pass
+
+
+def _check_test_per_ip_connection_cap_bounds_concurrency_1(hardened_server):
+    assert _server_alive(hardened_server.port), \
+        "the server did not resume service after cap enforcement"
+
+
 _reexport(globals(), "_test_cms_hostile_conformance_helpers")
 
 class TestNodeStateProbeAndRelayDepth:
@@ -238,22 +252,19 @@ class TestServerLegResilienceLimits:
             time.sleep(0.6)   # let the worker accept all + apply the cap
             admitted = 0
             for s in socks:
-                try:
-                    s.sendall(_build_frame(_SID | 0x0F, CMS_RR_PING, 0))
-                    if _recv_code(s, CMS_RR_PONG, timeout=2) is not None:
-                        admitted += 1
-                except OSError:
-                    pass
-            assert 1 <= admitted <= 8, \
-                f"per-IP cap not enforced: {admitted} conns serviced (cap 8)"
-            assert len(socks) - admitted >= 1, \
-                "no connection was refused despite exceeding the per-IP cap"
+                _phase_test_per_ip_connection_cap_bounds_concurrency_1(s)
+            def _assert_test_per_ip_connection_cap_bounds_concurrency_1():
+                assert 1 <= admitted <= 8, \
+                    f"per-IP cap not enforced: {admitted} conns serviced (cap 8)"
+                assert len(socks) - admitted >= 1, \
+                    "no connection was refused despite exceeding the per-IP cap"
+
+            _assert_test_per_ip_connection_cap_bounds_concurrency_1()
         finally:
             for s in socks:
                 s.close()
         time.sleep(0.4)   # let the finalized sessions decrement the IP count
-        assert _server_alive(hardened_server.port), \
-            "the server did not resume service after cap enforcement"
+        _check_test_per_ip_connection_cap_bounds_concurrency_1(hardened_server)
 
     def test_slow_reader_does_not_block_others(self, hostile_server):
         """The canonical hostile-network wedge: a peer floods kYR_ping but NEVER

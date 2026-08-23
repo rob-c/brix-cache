@@ -1,4 +1,47 @@
 from split_continuation import reexport as _reexport
+def _expression_1(count):
+    return (
+        [f"user.multi{i}" for i in range(count)]
+    )
+
+def _expression_2(count):
+    return (
+        [f"v{i}" for i in range(count)]
+    )
+
+def _expression_3(l_o):
+    return (
+        {n for n in _fattr_list_names(l_o[1]) if "multi" in n}
+    )
+
+def _expression_4(l_f):
+    return (
+        {n for n in _fattr_list_names(l_f[1]) if "multi" in n}
+    )
+
+
+def _guard_test_raw_fattr_multi_attr_set_then_list_1(st_o):
+    if st_o != kXR_ok:
+        pytest.skip("multi-attr set not accepted; covered by single-attr tests")
+
+def _check_test_raw_fattr_multi_attr_set_then_list_2(count, set_f):
+    assert len(set_f) == count, f"stock multi-list count {set_f} != {count}"
+
+def _check_test_raw_fattr_multi_attr_set_then_list_3(set_o, set_f, count):
+    assert set_o == set_f or len(set_o) == count
+
+def _check_test_raw_fattr_multi_attr_set_then_list_1(st_o, st_f):
+    assert (st_o == kXR_ok) == (st_f == kXR_ok), \
+        "multi-attr fattrSet success differs"
+
+def _guard_test_raw_fattr_multi_attr_set_then_list_2(tails, set_o, set_f):
+    if tails(set_o) != tails(set_f):
+        pytest.xfail(
+            "OUR-SERVER BUG: RAW multi-attr kXR_fattrList name-set differs "
+            f"from stock. OURS {sorted(set_o)}, STOCK {sorted(set_f)} "
+            "(likely the FATTR_NAMESPACE prefix leak, XeqFALsd Xeq:474).")
+
+
 _reexport(globals(), "_test_conf_prepfattr_helpers")
 
 @pytest.mark.parametrize("name,value", XATTR_CASES)
@@ -71,6 +114,15 @@ def test_xattr_set_lands_on_disk(srv, idx, name, value):
 # =========================================================================== #
 # H. STOCK xrdfs xattr list — internal namespace prefix MUST NOT leak
 # =========================================================================== #
+def _listed_xattrs(output):
+    names = set()
+    for line in output.splitlines():
+        line = line.strip()
+        if line and not line.startswith("#"):
+            names.add(line.split("=", 1)[0])
+    return names
+
+
 @pytest.mark.parametrize("name", [
     "user.la", "user.lb", "user.lc.dotted", "user.l_underscore",
 ])
@@ -86,16 +138,7 @@ def test_xattr_list_no_namespace_leak(srv, name):
     rc_o, o_o, _ = L.run([L.OFF_XRDFS, srv["our"], "xattr", "/cksum.bin", "list"])
     rc_f, o_f, _ = L.run([L.OFF_XRDFS, srv["off"], "xattr", "/cksum.bin", "list"])
     assert rc_o == 0 and rc_f == 0, "xattr list should succeed on both"
-    # the names listed (strip "# file:" header and ="value" suffix)
-    def names(out):
-        s = set()
-        for ln in out.splitlines():
-            ln = ln.strip()
-            if not ln or ln.startswith("#"):
-                continue
-            s.add(ln.split("=", 1)[0])
-        return s
-    no, nf = names(o_o), names(o_f)
+    no, nf = _listed_xattrs(o_o), _listed_xattrs(o_f)
     assert name in nf, f"stock list missing {name}: {nf}"
     if name not in no:
         leaked = {n for n in no if n.endswith(name) and n != name}
@@ -395,37 +438,31 @@ def test_raw_fattr_set_get_determinism(srv):
 def test_raw_fattr_multi_attr_set_then_list(srv, count):
     """RAW kXR_fattrSet of several attrs in one request -> a subsequent
     kXR_fattrList shows all of them, with the SAME name-set as stock."""
-    names = [f"user.multi{i}" for i in range(count)]
-    values = [f"v{i}" for i in range(count)]
+    names = _expression_1(count)
+    values = _expression_2(count)
     fpath = f"/many/f{4 + count:02d}.txt"
     so, sf = _both()
     try:
         st_o, _ = _fattr(so, fpath, kXR_fattrSet, count, names=names, values=values)
         st_f, _ = _fattr(sf, fpath, kXR_fattrSet, count, names=names, values=values)
-        assert (st_o == kXR_ok) == (st_f == kXR_ok), \
-            "multi-attr fattrSet success differs"
+        _check_test_raw_fattr_multi_attr_set_then_list_1(st_o, st_f)
         l_o = _fattr(so, fpath, kXR_fattrList, 0)
         l_f = _fattr(sf, fpath, kXR_fattrList, 0)
     finally:
         so.close()
         sf.close()
-    if st_o != kXR_ok:
-        pytest.skip("multi-attr set not accepted; covered by single-attr tests")
-    set_o = {n for n in _fattr_list_names(l_o[1]) if "multi" in n}
-    set_f = {n for n in _fattr_list_names(l_f[1]) if "multi" in n}
+    _guard_test_raw_fattr_multi_attr_set_then_list_1(st_o)
+    set_o = _expression_3(l_o)
+    set_f = _expression_4(l_f)
     # stock should list exactly the `count` set attrs
-    assert len(set_f) == count, f"stock multi-list count {set_f} != {count}"
+    _check_test_raw_fattr_multi_attr_set_then_list_2(count, set_f)
     if set_o != set_f:
         # if ours leaks the namespace prefix, the bare-name set still differs;
         # compare on the stripped tail.
         def tails(s):
             return {n.split("user.", 1)[-1] if "user." in n else n for n in s}
-        if tails(set_o) != tails(set_f):
-            pytest.xfail(
-                "OUR-SERVER BUG: RAW multi-attr kXR_fattrList name-set differs "
-                f"from stock. OURS {sorted(set_o)}, STOCK {sorted(set_f)} "
-                "(likely the FATTR_NAMESPACE prefix leak, XeqFALsd Xeq:474).")
-    assert set_o == set_f or len(set_o) == count
+        _guard_test_raw_fattr_multi_attr_set_then_list_2(tails, set_o, set_f)
+    _check_test_raw_fattr_multi_attr_set_then_list_3(set_o, set_f, count)
 
 
 # =========================================================================== #

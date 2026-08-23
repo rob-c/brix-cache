@@ -175,19 +175,25 @@ def test_redirect_invalidates_handles_on_new_upstream(redirect_stack):
     front worker survives for a fresh session.  An endless loop or a crash would
     fail both branches."""
     port = redirect_stack
+    result = _redirect_open_result(port)
+    _assert_proxy_survives(port)
+    _assert_redirect_result(result)
+
+
+def _redirect_open_result(port):
     sock = _connect_login(H, port)
     sock.settimeout(8)
-    result = None
     try:
         try:
             _s, status, body = _open(sock, "/afterredir", sid=b"\x00\x23")
-            result = (status, body)
+            return status, body
         except (ConnectionError, OSError):
-            result = None
+            return None
     finally:
         sock.close()
 
-    # Worker survival after the redirect-follow + upstream teardown.
+
+def _assert_proxy_survives(port):
     survivor = _connect_login(H, port)
     try:
         assert _ping(survivor)[1] == kXR_ok, \
@@ -195,6 +201,8 @@ def test_redirect_invalidates_handles_on_new_upstream(redirect_stack):
     finally:
         survivor.close()
 
+
+def _assert_redirect_result(result):
     if result is None:
         pytest.skip("redirect-follow re-issue to the new upstream does not "
                     "surface a response in this stub topology; upstream "

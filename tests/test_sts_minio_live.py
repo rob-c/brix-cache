@@ -47,6 +47,73 @@ from settings import HOST         # env-overridable host (the sanctioned idiom)
 # real MinIO on a fixed port, so it belongs in the nightly/full tier, not the
 # minutes-long `-m "not slow"` PR gate. (Before the podman seam it silently
 # skipped on the docker-only gate, so no marker was needed.)
+def _expression_1():
+    return (
+        [find_obj(n) for n in STS_OBJS]
+    )
+
+def _expression_2(objs):
+    return (
+        [n for n, o in zip(STS_OBJS, objs) if o is None]
+    )
+
+def _expression_3(ngx_string, binary, objs):
+    return (
+        [
+                "gcc", "-O", "-Wall",
+                "-I", "src",
+                "-I", str(NGX_SRC / "src/core"),
+                "-I", str(NGX_SRC / "src/event"),
+                "-I", str(NGX_SRC / "src/os/unix"),
+                "-I", str(OBJS),
+                *pkg_config(["--cflags", "libxml-2.0"]),
+                "tests/c/sts_live_assume.c",
+                *[str(o) for o in objs],
+                str(ngx_string),
+                *pkg_config(["--libs", "libxml-2.0"], ["-lxml2"]),
+                *pkg_config(["--libs", "libcurl"], ["-lcurl"]),
+                "-lcrypto",
+                "-o", str(binary),
+            ]
+    )
+
+def _expression_4(built):
+    return (
+        None, f"harness compile failed: {(built.stderr or built.stdout)[-2000:]}"
+    )
+
+
+def _guard_minio_sts_lab_1():
+    if os.environ.get("STS_MINIO_LIVE") == "0":
+        pytest.skip("STS_MINIO_LIVE=0 set — skipping the live MinIO STS lab")
+
+def _guard_minio_sts_lab_2(runtime):
+    if runtime is None:
+        pytest.skip("no working container runtime (docker or rootless podman)")
+
+def _guard_minio_sts_lab_3(image):
+    if image is None:
+        pytest.skip("no local minio image (expected one of: "
+                    + ", ".join(MINIO_IMAGES) + ")")
+
+def _guard_minio_sts_lab_4(harness, reason):
+    if harness is None:
+        pytest.skip(reason)
+
+def _guard_minio_sts_lab_5(cid):
+    if not cid:
+        pytest.skip("failed to launch minio container")
+
+def _check_minio_sts_lab_1(healthy):
+    assert healthy, "MinIO never became healthy"
+
+def _check_minio_sts_lab_2(hdr, uri):
+    assert _http("PUT", ENDPOINT + uri, hdr, b"")[0] == 200, "bucket create"
+
+def _check_minio_sts_lab_3(hdr, uri):
+    assert _http("PUT", ENDPOINT + uri, hdr, BODY)[0] == 200, "object put"
+
+
 pytestmark = [pytest.mark.timeout(300), pytest.mark.slow]
 
 # A minio image is present locally under one of these tags (see `docker images`).
@@ -155,51 +222,31 @@ def _pick_image(runtime: str) -> str | None:
 def _build_harness(dst: Path) -> tuple[Path | None, str]:
     """Compile tests/c/sts_live_assume.c against the prebuilt production objects.
     Returns (binary, "") on success, or (None, reason) to skip."""
-    objs = [find_obj(n) for n in STS_OBJS]
-    missing = [n for n, o in zip(STS_OBJS, objs) if o is None]
+    objs = _expression_1()
+    missing = _expression_2(objs)
     if missing:
         return None, f"build nginx first (missing {' '.join(missing)})"
     ngx_string = OBJS / "src/core/ngx_string.o"
     if not ngx_string.exists():
         return None, "build nginx first (ngx_string.o)"
     binary = dst / "sts_live_assume"
-    cmd = [
-        "gcc", "-O", "-Wall",
-        "-I", "src",
-        "-I", str(NGX_SRC / "src/core"),
-        "-I", str(NGX_SRC / "src/event"),
-        "-I", str(NGX_SRC / "src/os/unix"),
-        "-I", str(OBJS),
-        *pkg_config(["--cflags", "libxml-2.0"]),
-        "tests/c/sts_live_assume.c",
-        *[str(o) for o in objs],
-        str(ngx_string),
-        *pkg_config(["--libs", "libxml-2.0"], ["-lxml2"]),
-        *pkg_config(["--libs", "libcurl"], ["-lcurl"]),
-        "-lcrypto",
-        "-o", str(binary),
-    ]
+    cmd = _expression_3(ngx_string, binary, objs)
     built = run(cmd, cwd=REPO_ROOT, env={"TMPDIR": "/tmp"})
     if built.returncode != 0:
-        return None, f"harness compile failed: {(built.stderr or built.stdout)[-2000:]}"
+        return _expression_4(built)
     return binary, ""
 
 
 @pytest.fixture(scope="module")
 def minio_sts_lab(tmp_path_factory):
-    if os.environ.get("STS_MINIO_LIVE") == "0":
-        pytest.skip("STS_MINIO_LIVE=0 set — skipping the live MinIO STS lab")
+    _guard_minio_sts_lab_1()
     runtime = container_runtime()
-    if runtime is None:
-        pytest.skip("no working container runtime (docker or rootless podman)")
+    _guard_minio_sts_lab_2(runtime)
     image = _pick_image(runtime)
-    if image is None:
-        pytest.skip("no local minio image (expected one of: "
-                    + ", ".join(MINIO_IMAGES) + ")")
+    _guard_minio_sts_lab_3(image)
 
     harness, reason = _build_harness(tmp_path_factory.mktemp("sts_harness"))
-    if harness is None:
-        pytest.skip(reason)
+    _guard_minio_sts_lab_4(harness, reason)
 
     cid = run(
         [runtime, "run", "-d", "--rm", "-p", f"{PORT}:9000",
@@ -208,8 +255,7 @@ def minio_sts_lab(tmp_path_factory):
          image, "server", "/data"],
         cwd=REPO_ROOT,
     ).stdout.strip()
-    if not cid:
-        pytest.skip("failed to launch minio container")
+    _guard_minio_sts_lab_5(cid)
 
     try:
         healthy = False
@@ -221,12 +267,12 @@ def minio_sts_lab(tmp_path_factory):
             except OSError:
                 pass
             time.sleep(0.5)
-        assert healthy, "MinIO never became healthy"
+        _check_minio_sts_lab_1(healthy)
 
         uri, hdr = _sign_put(ROOT_USER, ROOT_PW, BUCKET, "", b"")
-        assert _http("PUT", ENDPOINT + uri, hdr, b"")[0] == 200, "bucket create"
+        _check_minio_sts_lab_2(hdr, uri)
         uri, hdr = _sign_put(ROOT_USER, ROOT_PW, BUCKET, KEY, BODY)
-        assert _http("PUT", ENDPOINT + uri, hdr, BODY)[0] == 200, "object put"
+        _check_minio_sts_lab_3(hdr, uri)
 
         yield harness
     finally:

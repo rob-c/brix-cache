@@ -327,12 +327,15 @@ class TestTheNestedPair:
 
         lines = [ln for ln in _audit(auditmodes)
                  if ln["path"].startswith("/outer/")]
-        assert len(lines) == 4, (
-            f"expected 4 lines from the nested trio, got {len(lines)}:\n"
-            f"{_errlog(auditmodes)[-4000:]}")
-        assert {ln["path"] for ln in lines} == {
-            f"/outer/{GRANTED}", f"/outer/{REFUSED}",
-            f"/outer/loud/{GRANTED}", f"/outer/loud/{REFUSED}"}
+        def _assert_test_the_three_nested_faces_are_judged_independently_1():
+            assert len(lines) == 4, (
+                f"expected 4 lines from the nested trio, got {len(lines)}:\n"
+                f"{_errlog(auditmodes)[-4000:]}")
+            assert {ln["path"] for ln in lines} == {
+                f"/outer/{GRANTED}", f"/outer/{REFUSED}",
+                f"/outer/loud/{GRANTED}", f"/outer/loud/{REFUSED}"}
+
+        _assert_test_the_three_nested_faces_are_judged_independently_1()
 
 
 # --------------------------------------------------------------------------- #

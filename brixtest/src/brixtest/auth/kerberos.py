@@ -9,7 +9,7 @@ import stat
 import subprocess
 import time
 from pathlib import Path
-from typing import Dict, Mapping, Optional, Tuple
+from typing import Dict, Mapping, Optional, TextIO, Tuple
 
 from brixtest.auth.models import KerberosAuth
 from brixtest.errors import SpecError
@@ -113,16 +113,9 @@ def _configs(root: Path, recipe: KerberosAuth, port: int) -> Tuple[str, str]:
     return krb5, kdc
 
 
-def create_realm(root: Path, recipe: KerberosAuth) -> KerberosRealm:
-    root = Path(root)
-    root.mkdir(parents=True, exist_ok=False)
-    port, reservation = _free_port(recipe.port)
-    krb5_path, kdc_path = root / "krb5.conf", root / "kdc.conf"
-    krb5_text, kdc_text = _configs(root, recipe, port)
-    krb5_path.write_text(krb5_text)
-    kdc_path.write_text(kdc_text)
-    (root / "kadm5.acl").write_text("*/admin@%s *\n" % recipe.realm)
-    env = {"KRB5_CONFIG": str(krb5_path), "KRB5_KDC_PROFILE": str(kdc_path)}
+def _provision_principals(
+    root: Path, recipe: KerberosAuth, env: Mapping[str, str],
+) -> tuple[str, str, Path]:
     _run([
         _tool("kdb5_util"), "create", "-s", "-r", recipe.realm,
         "-P", recipe.master_password,
@@ -135,49 +128,92 @@ def create_realm(root: Path, recipe: KerberosAuth) -> KerberosRealm:
     keytab = root / "service.keytab"
     _run([admin, "-r", recipe.realm, "-q", "ktadd -k %s %s" % (keytab, service_principal)], env)
     keytab.chmod(stat.S_IRUSR | stat.S_IWUSR)
-    process = None
-    log_handle = None
+    return user_principal, service_principal, keytab
+
+
+def _wait_for_kdc(process: subprocess.Popen, recipe: KerberosAuth, port: int) -> None:
+    deadline = time.monotonic() + 10.0
+    while time.monotonic() < deadline:
+        if process.poll() is not None:
+            raise SpecError(
+                "Kerberos KDC", recipe.realm,
+                "exited before accepting connections",
+            )
+        try:
+            with socket.create_connection(("127.0.0.1", port), timeout=0.2):
+                return
+        except OSError:
+            time.sleep(0.05)
+    raise SpecError("Kerberos KDC", recipe.realm, "did not become ready")
+
+
+def _start_kdc(
+    root: Path,
+    recipe: KerberosAuth,
+    port: int,
+    env: Mapping[str, str],
+    user_principal: str,
+    reservation: socket.socket,
+) -> tuple[subprocess.Popen, TextIO, Path]:
+    reservation.close()
+    log_handle = (root / "kdc-process.log").open("w")
+    try:
+        process = subprocess.Popen(
+            [_tool("krb5kdc"), "-n", "-r", recipe.realm],
+            env={**os.environ, **env}, stdout=log_handle, stderr=subprocess.STDOUT,
+            text=True, start_new_session=True,
+        )
+    except OSError as exc:
+        log_handle.close()
+        raise SpecError("Kerberos KDC", recipe.realm, str(exc)) from exc
     cache = root / "user.ccache"
-    if recipe.start_kdc:
-        reservation.close()
-        log_handle = (root / "kdc-process.log").open("w")
-        try:
-            process = subprocess.Popen(
-                [_tool("krb5kdc"), "-n", "-r", recipe.realm],
-                env={**os.environ, **env}, stdout=log_handle, stderr=subprocess.STDOUT,
-                text=True, start_new_session=True,
-            )
-        except OSError as exc:
-            log_handle.close()
-            raise SpecError("Kerberos KDC", recipe.realm, str(exc)) from exc
-        try:
-            deadline = time.monotonic() + 10.0
-            while time.monotonic() < deadline:
-                if process.poll() is not None:
-                    raise SpecError(
-                        "Kerberos KDC", recipe.realm,
-                        "exited before accepting connections",
-                    )
-                try:
-                    with socket.create_connection(("127.0.0.1", port), timeout=0.2):
-                        break
-                except OSError:
-                    time.sleep(0.05)
-            else:
-                raise SpecError("Kerberos KDC", recipe.realm, "did not become ready")
-            _run(
-                [_tool("kinit"), "-c", str(cache), user_principal], env,
-                input_text=recipe.password + "\n",
-            )
-            cache.chmod(stat.S_IRUSR | stat.S_IWUSR)
-        except Exception:
-            _stop_process(process)
-            log_handle.close()
-            raise
-    else:
-        reservation.close()
-        cache.write_bytes(b"")
+    try:
+        _wait_for_kdc(process, recipe, port)
+        _run(
+            [_tool("kinit"), "-c", str(cache), user_principal], env,
+            input_text=recipe.password + "\n",
+        )
         cache.chmod(stat.S_IRUSR | stat.S_IWUSR)
+    except Exception:
+        _stop_process(process)
+        log_handle.close()
+        raise
+    return process, log_handle, cache
+
+
+def _empty_cache(root: Path, reservation: socket.socket) -> Path:
+    reservation.close()
+    cache = root / "user.ccache"
+    cache.write_bytes(b"")
+    cache.chmod(stat.S_IRUSR | stat.S_IWUSR)
+    return cache
+
+
+def create_realm(root: Path, recipe: KerberosAuth) -> KerberosRealm:
+    root = Path(root)
+    root.mkdir(parents=True, exist_ok=False)
+    port, reservation = _free_port(recipe.port)
+    krb5_path, kdc_path = root / "krb5.conf", root / "kdc.conf"
+    krb5_text, kdc_text = _configs(root, recipe, port)
+    krb5_path.write_text(krb5_text)
+    kdc_path.write_text(kdc_text)
+    (root / "kadm5.acl").write_text("*/admin@%s *\n" % recipe.realm)
+    env = {"KRB5_CONFIG": str(krb5_path), "KRB5_KDC_PROFILE": str(kdc_path)}
+    try:
+        user_principal, service_principal, keytab = _provision_principals(
+            root, recipe, env,
+        )
+    except Exception:
+        reservation.close()
+        raise
+    process: Optional[subprocess.Popen] = None
+    log_handle: Optional[TextIO] = None
+    if recipe.start_kdc:
+        process, log_handle, cache = _start_kdc(
+            root, recipe, port, env, user_principal, reservation,
+        )
+    else:
+        cache = _empty_cache(root, reservation)
     files: Dict[str, Path] = {
         "config": krb5_path, "kdc_config": kdc_path, "keytab": keytab,
         "cache": cache, "database": root / "principal",

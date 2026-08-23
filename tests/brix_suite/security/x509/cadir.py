@@ -57,20 +57,29 @@ def write_hashed_ca_dir(ca_dir: Path, ca: Cert, *, policy_text: str | None = Non
     new_hash, old_hash = _openssl_hashes(ca_pem)
     chosen = {"both": {new_hash, old_hash}, "new": {new_hash},
               "old": {old_hash}}[links]
+    policy_file = _write_policy(ca_dir, policy_text)
+    _write_hash_links(ca_dir, chosen, policy_file)
+    _write_crls(ca_dir, new_hash, crls)
 
-    policy_file = None
-    if policy_text is not None:
-        policy_file = ca_dir / "signing-policy"
-        policy_file.write_text(policy_text, encoding="utf-8")
 
-    for hh in chosen:
-        _symlink("ca.pem", ca_dir / f"{hh}.0")
+def _write_policy(ca_dir, policy_text):
+    if policy_text is None:
+        return None
+    policy_file = ca_dir / "signing-policy"
+    policy_file.write_text(policy_text, encoding="utf-8")
+    return policy_file
+
+
+def _write_hash_links(ca_dir, hashes, policy_file):
+    for cert_hash in hashes:
+        _symlink("ca.pem", ca_dir / f"{cert_hash}.0")
         if policy_file is not None:
-            _symlink("signing-policy", ca_dir / f"{hh}.signing_policy")
+            _symlink("signing-policy", ca_dir / f"{cert_hash}.signing_policy")
 
-    if crls:
-        for suffix, pem in crls.items():
-            (ca_dir / f"{new_hash}.{suffix}").write_bytes(pem)
+
+def _write_crls(ca_dir, cert_hash, crls):
+    for suffix, pem in (crls or {}).items():
+        (ca_dir / f"{cert_hash}.{suffix}").write_bytes(pem)
 
 
 def _symlink(target: str, link: Path) -> None:

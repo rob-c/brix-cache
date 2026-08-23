@@ -47,6 +47,28 @@ from pathlib import Path
 import pytest
 
 # conftest chdir()s into a scratch dir — anchor imports on this file's dir.
+def _expression_1(body_lines):
+    return (
+        "".join(l + "\n" for l in body_lines)
+    )
+
+
+def _guard_compose_1(flip_sig, sig):
+    if flip_sig:
+        sig[10] ^= 0xFF
+
+def _guard_env_2():
+    if not (_FUSE3 and shutil.which("openssl")):
+        pytest.skip("fuse3 / openssl toolchain unavailable")
+
+def _guard_env_3(spec, repo_dir, ctx):
+    if spec.get("delete"):
+        (repo_dir / ".cvmfswhitelist").unlink()
+    else:
+        spec.setdefault("sign_key", ctx.master)
+        _compose(repo_dir, **spec)
+
+
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "cvmfs"))
 
 from cmdscripts.cvmfs_driver_units import (  # noqa: E402
@@ -83,6 +105,29 @@ def _sign_pkcs1(key: str, msg: bytes) -> bytes:
                           input=msg, check=True, stdout=subprocess.PIPE).stdout
 
 
+def _whitelist_body(body_lines, marker):
+    body = _expression_1(body_lines)
+    return body + "--\n" if marker else body
+
+
+def _whitelist_hash(body, hash_text):
+    if hash_text is not None:
+        return hash_text
+    return hashlib.sha1(body.encode()).hexdigest()
+
+
+def _whitelist_bytes(body, hash_text, sign_key, hash_line, signature, flip_sig):
+    raw = bytearray(body.encode())
+    signed = hash_text.encode()
+    if hash_line:
+        raw += signed + b"\n"
+    if signature:
+        sig = bytearray(_sign_pkcs1(sign_key, signed))
+        _guard_compose_1(flip_sig, sig)
+        raw += sig
+    return bytes(raw)
+
+
 def _compose(dest_dir: Path, body_lines: list, *, hash_text: str | None = None,
              sign_key: str, marker: bool = True, hash_line: bool = True,
              signature: bool = True, flip_sig: bool = False) -> None:
@@ -91,22 +136,12 @@ def _compose(dest_dir: Path, body_lines: list, *, hash_text: str | None = None,
     By default the signed hash-line is the REAL sha1 of the body (what official
     publishers emit, and what the body-bound verifier demands); pass `hash_text`
     to forge a mismatched/freeform hash-line instead."""
-    body = "".join(l + "\n" for l in body_lines)
-    if hash_text is None:
-        # Stock CVMFS hashes the body up to but EXCLUDING the "--\n" separator.
-        hash_text = hashlib.sha1(body.encode()).hexdigest()
-    if marker:
-        body += "--\n"
-    raw = bytearray(body.encode())
-    signed = hash_text.encode()
-    if hash_line:
-        raw += signed + b"\n"
-    if signature:
-        sig = bytearray(_sign_pkcs1(sign_key, signed))
-        if flip_sig:
-            sig[10] ^= 0xFF
-        raw += sig
-    (dest_dir / ".cvmfswhitelist").write_bytes(bytes(raw))
+    unsigned_body = _expression_1(body_lines)
+    hash_text = _whitelist_hash(unsigned_body, hash_text)
+    body = _whitelist_body(body_lines, marker)
+    raw = _whitelist_bytes(
+        body, hash_text, sign_key, hash_line, signature, flip_sig)
+    (dest_dir / ".cvmfswhitelist").write_bytes(raw)
 
 
 def _decoy(i: int) -> str:
@@ -302,8 +337,7 @@ def _compile_brixcvmfs(dst: Path) -> None:
 @pytest.fixture(scope="module")
 def env(tmp_path_factory):
     """Build one signed repo, stamp every case's whitelist, run all --checks."""
-    if not (_FUSE3 and shutil.which("openssl")):
-        pytest.skip("fuse3 / openssl toolchain unavailable")
+    _guard_env_2()
 
     work = tmp_path_factory.mktemp("fuse_whitelist")
     binary = work / "brixcvmfs"
@@ -334,11 +368,7 @@ def env(tmp_path_factory):
         repo_dir = webroot / "cvmfs" / fqrn
         shutil.copytree(base_repo_dir, repo_dir)
         spec = case["make"](ctx, fqrn)
-        if spec.get("delete"):
-            (repo_dir / ".cvmfswhitelist").unlink()
-        else:
-            spec.setdefault("sign_key", ctx.master)
-            _compose(repo_dir, **spec)
+        _guard_env_3(spec, repo_dir, ctx)
 
     # One threaded webroot mock serves every case subtree.
     port = BLOCK.mock()

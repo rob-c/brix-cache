@@ -48,26 +48,33 @@ def _traversable(path: str) -> None:
             pass
 
 
+def _parent_pid(entry):
+    try:
+        with open(f"/proc/{entry}/stat", encoding="utf-8") as stream:
+            return int(stream.read().rpartition(")")[2].split()[1])
+    except (OSError, IndexError, ValueError):
+        return None
+
+
+def _seccomp_mode(entry):
+    try:
+        with open(f"/proc/{entry}/status", encoding="utf-8") as stream:
+            for line in stream:
+                if line.startswith("Seccomp:"):
+                    return line.split()[1]
+    except OSError:
+        pass
+    return None
+
+
 def _worker_seccomp(prefix: str) -> "str | None":
     with open(os.path.join(prefix, "logs", "nginx.pid"), encoding="utf-8") as fh:
         master = int(fh.read().strip())
     for entry in os.listdir("/proc"):
         if not entry.isdigit():
             continue
-        try:
-            with open(f"/proc/{entry}/stat", encoding="utf-8") as fh:
-                ppid = int(fh.read().rpartition(")")[2].split()[1])
-        except (OSError, IndexError, ValueError):
-            continue
-        if ppid != master:
-            continue
-        try:
-            with open(f"/proc/{entry}/status", encoding="utf-8") as fh:
-                for line in fh:
-                    if line.startswith("Seccomp:"):
-                        return line.split()[1]
-        except OSError:
-            continue
+        if _parent_pid(entry) == master:
+            return _seccomp_mode(entry)
     return None
 
 

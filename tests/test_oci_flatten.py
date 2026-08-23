@@ -36,13 +36,18 @@ SRC = [os.path.join(SHARED, "oci", f)
        os.path.join(SHARED, "cvmfs", "grammar", "hash.c")]
 
 
-@pytest.fixture(scope="module")
-def flatten_ut(tmp_path_factory):
+def _compiler():
     cc = shutil.which("gcc") or shutil.which("cc")
     if cc is None:
         pytest.skip("no C compiler")
     if not all(os.path.exists(s) for s in SRC):
         pytest.skip("flattener sources missing")
+    return cc
+
+
+@pytest.fixture(scope="module")
+def flatten_ut(tmp_path_factory):
+    cc = _compiler()
     out = str(tmp_path_factory.mktemp("bin") / "flatten_ut")
     comp = subprocess.run(
         [cc, "-Wall", "-Wextra", "-Werror", "-I", SHARED, "-o", out,
@@ -96,6 +101,39 @@ def _refused(r, needle):
     assert needle in r.stdout, r.stdout
 
 
+def _assert_three_layer_tree(upper):
+    assert (upper / "etc/conf").read_bytes() == b"v2\n"
+    assert not (upper / "etc/oldfile").exists()
+    assert (upper / "etc/.brix.wh.oldfile").exists()
+    assert not (upper / "var/cache/old1").exists()
+    assert (upper / "var/cache/.brix.opq").exists()
+    assert (upper / "var/cache/newfile").read_bytes() == b"fresh"
+
+
+def _assert_three_layer_links(upper):
+    hello = upper / "usr/bin/hello"
+    assert hello.read_bytes().startswith(b"#!/bin/sh")
+    assert (hello.stat().st_mode & 0o7777) == 0o755
+    assert os.readlink(upper / "usr/bin/h") == "hello"
+    assert (upper / "usr/bin/hello2").stat().st_ino == hello.stat().st_ino
+    assert (upper / "srv/data.bin").stat().st_size == 1000
+    return hello
+
+
+def _assert_three_layer_stats(stats):
+    assert (stats["files"], stats["dirs"], stats["links"]) == (7, 5, 2)
+    assert (stats["wh"], stats["opq"], stats["skip"]) == (1, 1, 0)
+    assert stats["bytes"] == 3 + 3 + 18 + 5 + 3 + 5 + 1000
+
+
+def _assert_xattr(hello):
+    try:
+        assert os.getxattr(hello, "user.color") == b"red"
+    except OSError as error:
+        if error.errno != errno.ENOTSUP:
+            raise
+
+
 # ---- success: a 3-layer image lands as the expected tree ------------------
 
 def test_three_layer_image(flatten_ut, tmp_path):
@@ -134,29 +172,10 @@ def test_three_layer_image(flatten_ut, tmp_path):
                _layer(tmp_path / "l3.tar", top))
     st = _stats(r)
 
-    assert (upper / "etc" / "conf").read_bytes() == b"v2\n"
-    assert not (upper / "etc" / "oldfile").exists()
-    assert (upper / "etc" / ".brix.wh.oldfile").exists()
-    assert not (upper / "var" / "cache" / "old1").exists()
-    assert (upper / "var" / "cache" / ".brix.opq").exists()
-    assert (upper / "var" / "cache" / "newfile").read_bytes() == b"fresh"
-    hello = upper / "usr" / "bin" / "hello"
-    assert hello.read_bytes().startswith(b"#!/bin/sh")
-    assert (hello.stat().st_mode & 0o7777) == 0o755
-    assert os.readlink(upper / "usr" / "bin" / "h") == "hello"
-    assert (upper / "usr" / "bin" / "hello2").stat().st_ino == \
-        hello.stat().st_ino
-    assert (upper / "srv" / "data.bin").stat().st_size == 1000
-
-    assert st["files"] == 7 and st["dirs"] == 5 and st["links"] == 2
-    assert st["wh"] == 1 and st["opq"] == 1 and st["skip"] == 0
-    assert st["bytes"] == 3 + 3 + 18 + 5 + 3 + 5 + 1000
-
-    try:
-        assert os.getxattr(hello, "user.color") == b"red"
-    except OSError as e:
-        if e.errno != errno.ENOTSUP:      # scratch fs without user xattrs
-            raise
+    _assert_three_layer_tree(upper)
+    hello = _assert_three_layer_links(upper)
+    _assert_three_layer_stats(st)
+    _assert_xattr(hello)
 
 
 def test_hardlink_across_layers_shares_the_inode(flatten_ut, tmp_path):
@@ -315,6 +334,22 @@ def _shape_from_tar(path):
     return shape, {frozenset(v) for v in groups.values()}
 
 
+def _record_tree_entry(shape, inodes, rel, full, stat_result):
+    mode = stat_result.st_mode & 0o7777
+    if stat.S_ISDIR(stat_result.st_mode):
+        shape[rel] = ("dir", mode, None)
+        return
+    if stat.S_ISLNK(stat_result.st_mode):
+        shape[rel] = ("sym", None, os.readlink(full))
+        return
+    if stat.S_ISREG(stat_result.st_mode):
+        shape[rel] = ("reg", mode, open(full, "rb").read())
+        if stat_result.st_nlink > 1:
+            inodes.setdefault(stat_result.st_ino, set()).add(rel)
+        return
+    shape[rel] = ("other", mode, None)
+
+
 def _shape_from_tree(root):
     """The same shape, read off the flattened upper tree.
 
@@ -330,19 +365,26 @@ def _shape_from_tree(root):
             if name.startswith(".brix."):
                 markers.add(rel)
                 continue
-            st = os.lstat(full)
-            mode = st.st_mode & 0o7777
-            if stat.S_ISDIR(st.st_mode):
-                shape[rel] = ("dir", mode, None)
-            elif stat.S_ISLNK(st.st_mode):
-                shape[rel] = ("sym", None, os.readlink(full))
-            elif stat.S_ISREG(st.st_mode):
-                shape[rel] = ("reg", mode, open(full, "rb").read())
-                if st.st_nlink > 1:
-                    inodes.setdefault(st.st_ino, set()).add(rel)
-            else:
-                shape[rel] = ("other", mode, None)
+            _record_tree_entry(shape, inodes, rel, full, os.lstat(full))
     return shape, {frozenset(v) for v in inodes.values()}, markers
+
+
+def _assert_same_shape(ours, theirs):
+    assert sorted(ours) == sorted(theirs), (
+        "only ours: %s\nonly theirs: %s"
+        % (sorted(set(ours) - set(theirs)), sorted(set(theirs) - set(ours))))
+    for path in sorted(ours):
+        assert ours[path] == theirs[path], "%s: %r != %r" % (
+            path, ours[path], theirs[path])
+
+
+def _assert_oracle_bookkeeping(markers, theirs, our_groups, their_groups):
+    expected = {os.path.join("etc", ".brix.wh.gone"),
+                os.path.join("var", "cache", ".brix.opq")}
+    assert markers == expected
+    assert "etc/gone" not in theirs and "var/cache/stale" not in theirs
+    expected_links = {frozenset({"bin/busybox", "bin/sh"})}
+    assert our_groups == their_groups == expected_links
 
 
 @pytest.mark.timeout(300)          # a cold container store pulls and unpacks
@@ -404,161 +446,10 @@ def test_podman_export_diff_clean(flatten_ut, tmp_path):
     theirs, their_groups = _shape_from_tar(
         _podman_rootfs(rt, layout, tmp_path / "rootfs.tar"))
 
-    assert sorted(ours) == sorted(theirs), (
-        "only ours: %s\nonly theirs: %s"
-        % (sorted(set(ours) - set(theirs)), sorted(set(theirs) - set(ours))))
-    for path in sorted(ours):
-        assert ours[path] == theirs[path], "%s: %r != %r" % (
-            path, ours[path], theirs[path])
-
-    # A deletion is a name in our tree and an absence in theirs — the one
-    # place the two representations are supposed to differ.
-    assert markers == {os.path.join("etc", ".brix.wh.gone"),
-                       os.path.join("var", "cache", ".brix.opq")}
-    assert "etc/gone" not in theirs and "var/cache/stale" not in theirs
-
-    assert our_groups == their_groups == {frozenset({"bin/busybox", "bin/sh"})}
+    _assert_same_shape(ours, theirs)
+    _assert_oracle_bookkeeping(markers, theirs, our_groups, their_groups)
 
 
-# ---- eStargz-shaped layers ----------------------------------------------
-# An eStargz layer is an ordinary tar in a chain of gzip members, plus three
-# entries of the format's own: the TOC and the two prefetch landmarks. A lazy
-# snapshotter consumes those; a publisher that materializes the whole rootfs
-# must drop them, or the published tree differs from the original image's.
 
-_STARGZ_META = ("stargz.index.json", ".prefetch.landmark",
-                ".no.prefetch.landmark")
-
-
-def _estargz(path, build, meta=_STARGZ_META):
-    """The same layer an eStargz converter would emit: content, then the
-    format's own entries, packed as a chain of gzip members."""
-    plain = io.BytesIO()
-    with tarfile.open(fileobj=plain, mode="w", format=tarfile.PAX_FORMAT) as tf:
-        build(tf)
-        for name in meta:
-            _add(tf, name, b'{"version":1}' if name.endswith(".json") else b"")
-    blob = plain.getvalue()
-    step = ((len(blob) // 3) // 512) * 512 or 512
-    with open(str(path), "wb") as fh:
-        for i in range(0, len(blob), step):
-            co = zlib.compressobj(6, zlib.DEFLATED, 16 + zlib.MAX_WBITS)
-            fh.write(co.compress(blob[i:i + step]) + co.flush())
-    return path
-
-
-def test_estargz_layer_flattens_like_its_original(flatten_ut, tmp_path):
-    def content(tf):
-        _add(tf, "usr", typ=tarfile.DIRTYPE, mode=0o755)
-        _add(tf, "usr/bin", typ=tarfile.DIRTYPE, mode=0o755)
-        _add(tf, "usr/bin/tool", b"#!/bin/sh\nexec true\n", mode=0o755)
-        _add(tf, "etc/conf", b"key = value\n")
-        _add(tf, "usr/bin/alias", typ=tarfile.SYMTYPE, link="tool")
-
-    plain = _layer(tmp_path / "plain.tar", content)
-    st = _stats(_apply(flatten_ut, tmp_path / "want", plain))
-    assert st["toc"] == 0
-
-    lay = _estargz(tmp_path / "estargz.tar.gz", content)
-    st = _stats(_apply(flatten_ut, tmp_path / "got", lay))
-    assert st["toc"] == len(_STARGZ_META)
-    assert st["files"] == 2 and st["links"] == 1   # meta counted as none
-
-    want, _, _ = _shape_from_tree(tmp_path / "want")
-    got, _, _ = _shape_from_tree(tmp_path / "got")
-    assert got == want, (got, want)
-
-
-def test_stargz_meta_is_dropped_before_it_can_plant_anything(flatten_ut,
-                                                             tmp_path):
-    """Security-negative: the reserved names are matched at the archive ROOT
-    and dropped before any syscall, so a layer cannot use one to plant a
-    symlink — and cannot use one deeper in the tree to make real content
-    disappear from the published rootfs either."""
-    def hostile(tf):
-        _add(tf, "stargz.index.json", typ=tarfile.SYMTYPE, link="/etc/passwd")
-        _add(tf, ".prefetch.landmark", typ=tarfile.SYMTYPE, link="../../root")
-        _add(tf, "usr", typ=tarfile.DIRTYPE, mode=0o755)
-        _add(tf, "usr/stargz.index.json", b"ordinary content")
-
-    lay = _layer(tmp_path / "hostile.tar", hostile)
-    upper = tmp_path / "upper"
-    st = _stats(_apply(flatten_ut, upper, lay))
-    assert st["toc"] == 2 and st["links"] == 0
-    assert not (upper / "stargz.index.json").exists(follow_symlinks=False)
-    assert not (upper / ".prefetch.landmark").exists(follow_symlinks=False)
-    assert (upper / "usr" / "stargz.index.json").read_bytes() == \
-        b"ordinary content"
-
-
-def test_special_files_counted_when_not_strict(flatten_ut, tmp_path):
-    lay = _layer(tmp_path / "dev.tar", lambda tf: (
-        _add(tf, "dev", typ=tarfile.DIRTYPE, mode=0o755),
-        _add(tf, "dev/null", typ=tarfile.CHRTYPE, mode=0o666,
-             devmajor=1, devminor=3)))
-    st = _stats(_apply(flatten_ut, tmp_path / "upper", lay))
-    assert st["skip"] == 1
-    assert not (tmp_path / "upper" / "dev" / "null").exists()
-
-
-# ---- error ---------------------------------------------------------------
-
-def test_strict_refuses_device(flatten_ut, tmp_path):
-    lay = _layer(tmp_path / "dev.tar", lambda tf: _add(
-        tf, "dev/null", typ=tarfile.CHRTYPE, mode=0o666,
-        devmajor=1, devminor=3))
-    _refused(_apply(flatten_ut, tmp_path / "upper", lay,
-                    flags=("--strict",)), "--strict")
-
-def test_byte_budget_enforced(flatten_ut, tmp_path):
-    lay = _layer(tmp_path / "big.tar", lambda tf: _add(
-        tf, "big.bin", b"A" * 10240))
-    _refused(_apply(flatten_ut, tmp_path / "upper", lay,
-                    flags=("--max-bytes", "1024")), "byte budget")
-
-def test_entry_budget_enforced(flatten_ut, tmp_path):
-    def five(tf):
-        for i in range(5):
-            _add(tf, "f%d" % i, b"x")
-    lay = _layer(tmp_path / "many.tar", five)
-    _refused(_apply(flatten_ut, tmp_path / "upper", lay,
-                    flags=("--max-entries", "3")), "entry budget")
-
-
-# ---- security-negative ---------------------------------------------------
-
-def test_dotdot_member_refused(flatten_ut, tmp_path):
-    lay = _layer(tmp_path / "dd.tar", lambda tf: _add(
-        tf, "a/../../evil", b"pwn"))
-    _refused(_apply(flatten_ut, tmp_path / "upper", lay), "'..'")
-    assert not (tmp_path / "evil").exists()
-
-def test_absolute_path_confined_to_upper(flatten_ut, tmp_path):
-    lay = _layer(tmp_path / "abs.tar", lambda tf: _add(
-        tf, "/abs/x", b"contained"))
-    st = _stats(_apply(flatten_ut, tmp_path / "upper", lay))
-    assert st["files"] == 1
-    assert (tmp_path / "upper" / "abs" / "x").read_bytes() == b"contained"
-
-def test_marker_smuggling_refused(flatten_ut, tmp_path):
-    lay = _layer(tmp_path / "smug.tar", lambda tf: _add(
-        tf, "d/.brix.wh.x", b""))
-    _refused(_apply(flatten_ut, tmp_path / "upper", lay), "smuggles")
-
-def test_symlink_escape_refused_at_component(flatten_ut, tmp_path):
-    outside = tmp_path / "outside"
-    outside.mkdir()
-    l1 = _layer(tmp_path / "plant.tar", lambda tf: _add(
-        tf, "esc", typ=tarfile.SYMTYPE, link="../outside"))
-    l2 = _layer(tmp_path / "write.tar", lambda tf: _add(
-        tf, "esc/pwn", b"gotcha"))
-    upper = tmp_path / "upper"
-    assert _apply(flatten_ut, upper, l1).returncode == 0
-    _refused(_apply(flatten_ut, upper, l2), "containment")
-    assert os.listdir(outside) == []
-
-def test_whiteout_of_dotdot_refused(flatten_ut, tmp_path):
-    lay = _layer(tmp_path / "wdd.tar", lambda tf: _add(
-        tf, "d/.wh...", b""))
-    _refused(_apply(flatten_ut, tmp_path / "upper", lay),
-             "refusing whiteout")
+from split_continuation import load as _load_continuation
+_load_continuation(globals(), __file__, "_oci_flatten_part2.py")

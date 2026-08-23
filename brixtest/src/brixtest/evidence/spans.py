@@ -25,8 +25,7 @@ class SpanRecorder:
 
     @contextlib.contextmanager
     def span(self, name: str, **attributes: object):
-        if not isinstance(name, str) or not name.strip() or len(name) > 128:
-            raise SpecError("span name", name, "must be 1-128 characters")
+        _validate_name(name)
         span_id = uuid.uuid4().hex[:16]
         parent_id = self.active_id
         started = time.perf_counter()
@@ -39,19 +38,30 @@ class SpanRecorder:
             raise
         finally:
             _ACTIVE.reset(token)
-            row = {
-                "span_id": span_id,
-                "parent_id": parent_id,
-                "name": name,
-                "start_seconds": round(started - self._started, 9),
-                "duration_seconds": round(time.perf_counter() - started, 9),
-                "status": "error" if error else "ok",
-                "error": error,
-                "attributes": {str(key): value for key, value in attributes.items()},
-            }
+            row = self._row(span_id, parent_id, name, started, error, attributes)
             self._rows.append(row)
-            if self._sink:
-                self._sink("span", row)
+            self._emit(row)
+
+    def _row(self, span_id, parent_id, name, started, error, attributes):
+        return {
+            "span_id": span_id,
+            "parent_id": parent_id,
+            "name": name,
+            "start_seconds": round(started - self._started, 9),
+            "duration_seconds": round(time.perf_counter() - started, 9),
+            "status": "error" if error else "ok",
+            "error": error,
+            "attributes": {str(key): value for key, value in attributes.items()},
+        }
+
+    def _emit(self, row: dict) -> None:
+        if self._sink:
+            self._sink("span", row)
 
     def snapshot(self) -> list[dict]:
         return [dict(row) for row in self._rows]
+
+
+def _validate_name(name: object) -> None:
+    if not isinstance(name, str) or not name.strip() or len(name) > 128:
+        raise SpecError("span name", name, "must be 1-128 characters")

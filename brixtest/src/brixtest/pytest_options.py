@@ -13,8 +13,10 @@ from typing import Dict, Mapping, Sequence
 import pytest
 
 from brixtest.errors import SpecError
-from brixtest.isolation import Isolation, docker, nsenter, podman, process, runc
+from brixtest.isolation import Isolation
 from brixtest.metrics import metric_sessions_root
+from brixtest.pytest_profile import load_profile as _load_profile
+from brixtest.pytest_profile import validate_profile as _validate_profile
 from brixtest.pytest_state import METRICS_SESSION
 from brixtest.summary import default_runs_root
 
@@ -205,35 +207,8 @@ def _profile(config) -> Mapping[str, object]:
     path = Path(raw_path)
     if not path.is_absolute():
         path = Path(config.rootpath) / path
-    try:
-        value = json.loads(path.read_text())
-    except (OSError, ValueError) as exc:
-        raise SpecError("suite profile", str(path), "cannot load JSON: %s" % exc) from exc
-    if not isinstance(value, Mapping):
-        raise SpecError("suite profile", str(path), "must contain a JSON object")
-    allowed = {
-        "backend", "isolation", "binaries", "sanitizer",
-        "test_env", "server_env", "client_env",
-    }
-    unexpected = sorted(set(value) - allowed)
-    if unexpected:
-        raise SpecError("suite profile", unexpected, "contains unknown fields")
-    for field in ("binaries", "test_env", "server_env", "client_env"):
-        selected = value.get(field, {})
-        if not isinstance(selected, Mapping) or not all(
-            isinstance(key, str) and isinstance(item, str)
-            for key, item in selected.items()
-        ):
-            raise SpecError("suite profile.%s" % field, selected, "must map strings to strings")
-    if value.get("sanitizer") not in (None, "asan", "ubsan", "asan-ubsan"):
-        raise SpecError("suite profile.sanitizer", value.get("sanitizer"), "has an unknown sanitizer")
-    if value.get("backend") is not None and (
-        not isinstance(value["backend"], str) or _BINARY_NAME.fullmatch(value["backend"]) is None
-    ):
-        raise SpecError("suite profile.backend", value.get("backend"), "has an invalid backend name")
-    isolation_value = value.get("isolation")
-    if isolation_value is not None and not isinstance(isolation_value, Mapping):
-        raise SpecError("suite profile.isolation", isolation_value, "must be an isolation object")
+    value = _load_profile(path)
+    _validate_profile(value)
     result = dict(value)
     result["_path"] = str(path.resolve())
     return result
@@ -248,6 +223,21 @@ def _profile_environment(profile: Mapping[str, object], field: str) -> Dict[str,
 
 
 def _configure_overrides(config, profile: Mapping[str, object]) -> None:
+    test_env, server_env, client_env = _environment_overrides(config, profile)
+    _sanitizer_environment(
+        config.getoption("--brixtest-sanitizer") or profile.get("sanitizer"),
+        (test_env, server_env, client_env),
+    )
+    binaries = _binary_overrides(config, profile)
+    if not is_helper(config) or test_env or server_env or client_env or binaries:
+        os.environ.update(test_env)
+        os.environ[TEST_KEYS_ENV] = json.dumps(sorted(test_env), separators=(",", ":"))
+        _serialize(SERVER_ENV, server_env)
+        _serialize(CLIENT_ENV, client_env)
+        _serialize(BINARY_ENV, binaries)
+
+
+def _environment_overrides(config, profile):
     test_env = _profile_environment(profile, "test_env")
     test_env.update(_assignments(
         config.getoption("--brixtest-env"), "test environment", _ENV_NAME
@@ -260,81 +250,100 @@ def _configure_overrides(config, profile: Mapping[str, object]) -> None:
     client_env.update(_assignments(
         config.getoption("--brixtest-client-env"), "client environment", _ENV_NAME
     ))
-    sanitizer = config.getoption("--brixtest-sanitizer") or profile.get("sanitizer")
+    return test_env, server_env, client_env
+
+
+def _sanitizer_environment(sanitizer, environments) -> None:
     if sanitizer in ("asan", "asan-ubsan"):
-        for values in (test_env, server_env, client_env):
+        for values in environments:
             values.setdefault("ASAN_OPTIONS", "abort_on_error=1:halt_on_error=1:detect_leaks=1")
     if sanitizer in ("ubsan", "asan-ubsan"):
-        for values in (test_env, server_env, client_env):
+        for values in environments:
             values.setdefault("UBSAN_OPTIONS", "halt_on_error=1:print_stacktrace=1")
+
+
+def _binary_overrides(config, profile) -> Dict[str, str]:
     binaries = dict(profile.get("binaries", {}))
-    invalid_binary_names = sorted(name for name in binaries if _BINARY_NAME.fullmatch(name) is None)
+    invalid_binary_names = sorted(
+        name for name in binaries if _BINARY_NAME.fullmatch(name) is None
+    )
     if invalid_binary_names:
         raise SpecError("suite profile.binaries", invalid_binary_names, "has invalid binary names")
     binaries.update(_assignments(
         config.getoption("--brixtest-binary"), "binary override", _BINARY_NAME
     ))
     for name, raw in binaries.items():
-        path = Path(raw).expanduser()
-        if not path.is_absolute() and name in profile.get("binaries", {}):
-            path = Path(str(profile["_path"])).parent / path
-        path = path.resolve()
-        if not path.is_file() or not os.access(str(path), os.X_OK):
-            raise SpecError("binary override", raw, "must be an executable regular file")
-        binaries[name] = str(path)
-    if not is_helper(config) or test_env or server_env or client_env or binaries:
-        os.environ.update(test_env)
-        os.environ[TEST_KEYS_ENV] = json.dumps(sorted(test_env), separators=(",", ":"))
-        _serialize(SERVER_ENV, server_env)
-        _serialize(CLIENT_ENV, client_env)
-        _serialize(BINARY_ENV, binaries)
+        binaries[name] = str(_binary_override_path(name, raw, profile))
+    return binaries
 
 
-def pytest_configure(config) -> None:
-    try:
-        profile = _profile(config)
-    except SpecError as exc:
-        raise pytest.UsageError("brixtest: %s" % exc) from exc
-    setattr(config, "_brixtest_profile", profile)
-    backend = (
-        config.getoption("--brixtest-backend") or profile.get("backend")
+def _binary_override_path(name: str, raw: str, profile: Mapping[str, object]) -> Path:
+    path = Path(raw).expanduser()
+    profile_binaries = profile.get("binaries", {})
+    if not path.is_absolute() and name in profile_binaries:
+        path = Path(str(profile["_path"])).parent / path
+    path = path.resolve()
+    if not path.is_file() or not os.access(str(path), os.X_OK):
+        raise SpecError("binary override", raw, "must be an executable regular file")
+    return path
+
+
+def _selected_backend(config, profile: Mapping[str, object]):
+    return (
+        config.getoption("--brixtest-backend")
+        or profile.get("backend")
         or config.getini("brixtest_backend")
     )
-    runs = config.getoption("--brixtest-runs") or config.getini("brixtest_runs")
-    if backend:
-        if _BINARY_NAME.fullmatch(backend) is None:
-            raise pytest.UsageError(
-                "brixtest: backend name must match [a-z][a-z0-9_-]*"
-            )
-        os.environ["BRIXTEST_BACKEND"] = backend
-    if runs:
-        os.environ["BRIXTEST_RUNS"] = str(Path(runs).resolve())
-    attachment_limit = config.getoption("--brixtest-attachment-max-bytes")
-    if attachment_limit < 1:
-        raise pytest.UsageError("brixtest: --brixtest-attachment-max-bytes must be >= 1")
-    os.environ["BRIXTEST_ATTACHMENT_MAX_BYTES"] = str(attachment_limit)
-    helper_log_limit = config.getoption("--brixtest-helper-log-max-bytes")
-    if helper_log_limit < 1:
-        raise pytest.UsageError("brixtest: --brixtest-helper-log-max-bytes must be >= 1")
-    try:
-        _configure_overrides(config, profile)
-    except SpecError as exc:
-        raise pytest.UsageError("brixtest: %s" % exc) from exc
-    if config.getoption("brixtest_fail_fast") and not config.option.maxfail:
-        config.option.maxfail = 1
 
+
+def _apply_backend(backend: object) -> None:
+    if not backend:
+        return
+    if not isinstance(backend, str) or _BINARY_NAME.fullmatch(backend) is None:
+        raise pytest.UsageError("brixtest: backend name must match [a-z][a-z0-9_-]*")
+    os.environ["BRIXTEST_BACKEND"] = backend
+
+
+def _apply_runs(runs: object) -> None:
+    if runs:
+        os.environ["BRIXTEST_RUNS"] = str(Path(str(runs)).resolve())
+
+
+def _apply_size_option(config, option: str, environment: object) -> None:
+    value = config.getoption(option)
+    if value < 1:
+        raise pytest.UsageError("brixtest: %s must be >= 1" % option)
+    if environment:
+        os.environ[str(environment)] = str(value)
+
+
+def _configure_runtime(config, profile) -> None:
+    _apply_backend(_selected_backend(config, profile))
+    runs = config.getoption("--brixtest-runs") or config.getini("brixtest_runs")
+    _apply_runs(runs)
+    for option, environment in (
+        ("--brixtest-attachment-max-bytes", "BRIXTEST_ATTACHMENT_MAX_BYTES"),
+        ("--brixtest-helper-log-max-bytes", None),
+    ):
+        _apply_size_option(config, option, environment)
+
+
+def _configure_session(config) -> Path:
     session_value = os.environ.get(SESSION_ENV)
     inherited = is_helper(config) or hasattr(config, "workerinput")
     if not inherited or not session_value:
         parent_option = config.getoption("--brixtest-metrics-dir")
-        parent = (Path(parent_option).resolve() if parent_option
-                  else metric_sessions_root(default_runs_root()))
+        parent = Path(parent_option).resolve() if parent_option \
+            else metric_sessions_root(default_runs_root())
         session_id = "%s-%s" % (
-            time.strftime("%Y%m%dT%H%M%SZ", time.gmtime()), uuid.uuid4().hex[:10]
+            time.strftime("%Y%m%dT%H%M%SZ", time.gmtime()), uuid.uuid4().hex[:10],
         )
         session_value = str(parent / session_id)
         os.environ[SESSION_ENV] = session_value
-    config.stash[METRICS_SESSION] = Path(session_value).resolve()
+    return Path(session_value).resolve()
+
+
+def _configure_markers(config) -> None:
     config.addinivalue_line("markers", "brixtest: case runs in a supervised helper")
     config.addinivalue_line(
         "markers", "brixtest_budget(name, min=None, max=None, aggregate='last', "
@@ -342,103 +351,32 @@ def pytest_configure(config) -> None:
     )
 
 
+def pytest_configure(config) -> None:
+    try:
+        profile = _profile(config)
+    except SpecError as exc:
+        raise pytest.UsageError("brixtest: %s" % exc) from exc
+    config._brixtest_profile = profile
+    _configure_runtime(config, profile)
+    try:
+        _configure_overrides(config, profile)
+    except SpecError as exc:
+        raise pytest.UsageError("brixtest: %s" % exc) from exc
+    if config.getoption("brixtest_fail_fast") and not config.option.maxfail:
+        config.option.maxfail = 1
+
+    config.stash[METRICS_SESSION] = _configure_session(config)
+    _configure_markers(config)
+
+
 def selected_isolation(config, definition) -> Isolation:
-    kind = config.getoption("--brixtest-isolation") or config.getini("brixtest_isolation")
-    profile = getattr(config, "_brixtest_profile", {})
-    profile_isolation = profile.get("isolation") if isinstance(profile, Mapping) else None
-    if not kind and isinstance(profile_isolation, Mapping):
-        try:
-            values = dict(profile_isolation)
-            bundle = values.get("bundle")
-            if bundle and not Path(str(bundle)).is_absolute() and profile.get("_path"):
-                values["bundle"] = Path(str(profile["_path"])).parent / str(bundle)
-            return Isolation(**values).resolved(definition.source.parent)
-        except TypeError as exc:
-            raise SpecError(
-                "suite profile.isolation", profile_isolation,
-                "contains unknown constructor fields: %s" % exc,
-            ) from exc
-    if not kind:
-        related = (
-            config.getoption("--brixtest-isolation-image"),
-            config.getoption("--brixtest-nsenter-target"),
-            config.getoption("--brixtest-nsenter-namespace"),
-            config.getoption("--brixtest-runc-bundle"),
-            config.getoption("--brixtest-isolation-arg"),
-            config.getoption("--brixtest-allow-mutable-image"),
-            config.getoption("--brixtest-container-python") != "python3",
-        )
-        if any(related):
-            raise SpecError(
-                "isolation override", related,
-                "runtime-specific options require --brixtest-isolation",
-            )
-        return definition.isolation.resolved(definition.source.parent)
-    extra = tuple(config.getoption("--brixtest-isolation-arg"))
-    python = config.getoption("--brixtest-container-python")
-    image = config.getoption("--brixtest-isolation-image")
-    target = config.getoption("--brixtest-nsenter-target")
-    namespaces = config.getoption("--brixtest-nsenter-namespace")
-    bundle = config.getoption("--brixtest-runc-bundle")
-    if image and kind not in ("docker", "podman"):
-        raise SpecError("isolation.image", image, "is valid only for docker or podman")
-    if config.getoption("--brixtest-allow-mutable-image") and kind not in ("docker", "podman"):
-        raise SpecError("mutable image opt-out", kind, "is valid only for docker or podman")
-    if (target or namespaces) and kind != "nsenter":
-        raise SpecError("nsenter options", kind, "require --brixtest-isolation=nsenter")
-    if bundle and kind != "runc":
-        raise SpecError("runc bundle", bundle, "requires --brixtest-isolation=runc")
-    if extra and kind not in ("docker", "podman", "runc"):
-        raise SpecError("isolation arguments", extra, "are valid only for container runtimes")
-    if kind == "process":
-        return process()
-    if kind == "nsenter":
-        return nsenter(
-            target or 0,
-            namespaces=tuple(namespaces) if namespaces else (
-                "mount", "uts", "ipc", "net", "pid", "cgroup"
-            ),
-        )
-    if kind == "docker":
-        return docker(image or "", python=python,
-                      extra_args=extra,
-                      allow_mutable=config.getoption("--brixtest-allow-mutable-image"))
-    if kind == "podman":
-        return podman(image or "", python=python,
-                      extra_args=extra,
-                      allow_mutable=config.getoption("--brixtest-allow-mutable-image"))
-    if not bundle:
-        raise SpecError("isolation.bundle", bundle, "--brixtest-runc-bundle is required")
-    return runc(Path(bundle), python=python, extra_args=extra).resolved(
-        definition.source.parent
-    )
+    from brixtest.pytest_isolation import selected_isolation as select
+
+    return select(config, definition)
 
 
 def replay_options(config, isolation: Isolation) -> list[str]:
     """Return stable, non-secret pytest arguments for a repeatable case run."""
-    args = ["-p", "brixtest.pytest_plugin", "-x", "--tb=long"]
-    args.extend((
-        "--brixtest-helper-log-max-bytes",
-        str(config.getoption("--brixtest-helper-log-max-bytes")),
-    ))
-    backend = config.getoption("--brixtest-backend")
-    runs = config.getoption("--brixtest-runs")
-    if backend:
-        args.extend(("--brixtest-backend", backend))
-    if runs:
-        args.extend(("--brixtest-runs", str(Path(runs).resolve())))
-    profile = getattr(config, "_brixtest_profile", {})
-    if isinstance(profile, Mapping) and profile.get("_path"):
-        args.extend(("--brixtest-profile", str(profile["_path"])))
-    sanitizer = config.getoption("--brixtest-sanitizer")
-    if sanitizer:
-        args.extend(("--brixtest-sanitizer", sanitizer))
-    args.extend(isolation.cli_args())
-    for option in (
-        "--brixtest-binary", "--brixtest-env", "--brixtest-server-env",
-        "--brixtest-client-env", "--brixtest-helper-plugin",
-        "--brixtest-safe-import",
-    ):
-        for value in config.getoption(option):
-            args.extend((option, value))
-    return args
+    from brixtest.pytest_isolation import replay_options as replay
+
+    return replay(config, isolation)

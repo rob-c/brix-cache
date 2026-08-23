@@ -116,37 +116,9 @@ def read_var(name: str) -> str:
 def main() -> int:
     cc = resolve_cc()
     regen, flt = parse_args(sys.argv[1:])
-
-    if shutil.which(cc) is None and not (os.path.isfile(cc) and os.access(cc, os.X_OK)):
-        fail("CodeChecker not found (pip install --user codechecker); also needs clang + clang-tidy")
-    if shutil.which("clang") is None:
-        fail("clang not found (clangsa backend)")
-    if not os.path.isfile(MK):
-        fail(f"no configured build at {NGX_BUILD} (need objs/Makefile; run ./configure first)")
-
-    # --- flags straight from the build Makefile, -Werror stripped (as run_fanalyzer.sh) ---
-    cflags = read_var("CFLAGS")
-    all_incs = read_var("ALL_INCS")
-    if not cflags:
-        fail(f"could not read CFLAGS from {MK}")
-    cflags = re.sub(r"-Werror(=[a-z-]+)?", "", cflags)
-
-    # --- addon sources actually compiled into this build ---
-    mk_text = Path(MK).read_text()
-    srcs = sorted(set(re.findall(rf"{re.escape(str(REPO))}/src/[^ \n]+\.c", mk_text)))
-    if not srcs:
-        fail(f"no addon sources found in {MK}")
-
-    # Apply --filter (prefix under repo root). A filtered run analyses only a subset,
-    # so it CANNOT gate against the full baseline (absent files would look "fixed").
-    selected = []
-    for src in srcs:
-        if flt and not src.startswith(f"{REPO}/{flt}"):
-            continue
-        selected.append(src)
-    if not selected:
-        fail(f"no sources selected (filter='{flt}')")
-
+    _validate_environment(cc)
+    cflags, all_incs = _compiler_flags()
+    selected = _selected_sources(flt)
     work = tempfile.mkdtemp()
     try:
         return run(cc, regen, flt, cflags, all_incs, selected, work)
@@ -154,42 +126,108 @@ def main() -> int:
         shutil.rmtree(work, ignore_errors=True)
 
 
+def _validate_environment(cc):
+    if not _codechecker_available(cc):
+        fail("CodeChecker not found (pip install --user codechecker); also needs clang + clang-tidy")
+    _validate_clang()
+    _validate_makefile()
+
+
+def _codechecker_available(cc):
+    return shutil.which(cc) is not None or (
+        os.path.isfile(cc) and os.access(cc, os.X_OK)
+    )
+
+
+def _validate_clang():
+    if shutil.which("clang") is None:
+        fail("clang not found (clangsa backend)")
+
+
+def _validate_makefile():
+    if not os.path.isfile(MK):
+        fail(f"no configured build at {NGX_BUILD} (need objs/Makefile; run ./configure first)")
+
+
+def _compiler_flags():
+    cflags = read_var("CFLAGS")
+    all_incs = read_var("ALL_INCS")
+    if not cflags:
+        fail(f"could not read CFLAGS from {MK}")
+    cflags = re.sub(r"-Werror(=[a-z-]+)?", "", cflags)
+    return cflags, all_incs
+
+
+def _selected_sources(flt):
+    mk_text = Path(MK).read_text()
+    srcs = sorted(set(re.findall(rf"{re.escape(str(REPO))}/src/[^ \n]+\.c", mk_text)))
+    if not srcs:
+        fail(f"no addon sources found in {MK}")
+    selected = [source for source in srcs if _selected(source, flt)]
+    if not selected:
+        fail(f"no sources selected (filter='{flt}')")
+    return selected
+
+
+def _selected(source, flt):
+    return not flt or source.startswith(f"{REPO}/{flt}")
+
+
 def run(cc: str, regen: int, flt: str, cflags: str, all_incs: str,
         selected: list[str], work: str) -> int:
-    # --- synthesize compile_commands.json (directory = build tree; ALL_INCS is build-relative) ---
-    ccj = f"{work}/compile_commands.json"
+    ccj = _write_compile_database(work, cflags, all_incs, selected)
+    skip = _write_skip_file(work)
+    disable_args = _disable_args()
+    reports, analyze_log = _analyze(cc, ccj, skip, disable_args, selected, work)
+    _check_failed_reports(reports, analyze_log)
+    current, current_txt = _parse_current(cc, reports, work)
+    print(f"== {len(current)} finding(s) (baseline + new) ==")
+    if regen == 1:
+        return _regenerate(current, flt)
+    if flt:
+        return _report_filter(cc, reports, current_txt, flt)
+    return _gate_current(current)
+
+
+def _write_compile_database(work, cflags, all_incs, selected):
+    path = f"{work}/compile_commands.json"
     db = [{"directory": NGX_BUILD,
            "command": f"clang -c {cflags} {all_incs} {s} -o /dev/null",
            "file": s} for s in selected]
-    with open(ccj, "w") as fh:
+    with open(path, "w") as fh:
         json.dump(db, fh)
     print(f"compile_commands.json: {len(db)} entrie(s)")
+    return path
 
-    # Skip the nginx build tree + system headers so only repo/src findings are gated.
-    skip = f"{work}/skip.txt"
-    Path(skip).write_text(
+
+def _write_skip_file(work):
+    path = f"{work}/skip.txt"
+    Path(path).write_text(
         f"-{NGX_BUILD}/*\n"
         "-/usr/*\n"
         f"+{REPO}/src/*\n"
         "-*\n"
     )
+    return path
 
+
+def _disable_args():
     disable_args = []
-    for c in CC_DISABLE:
-        if c:
-            disable_args += ["--disable", c]
+    for checker in CC_DISABLE:
+        if checker:
+            disable_args += ["--disable", checker]
+    return disable_args
 
+
+def _analyze(cc, compile_db, skip, disable_args, selected, work):
     print(f"== analyzing {len(selected)} source file(s) with: {ANALYZERS} (-j {JOBS}) ==")
     if disable_args:
         print(f"   disabled by policy: {' '.join(CC_DISABLE)}")
-
-    # CodeChecker analyze exits non-zero when any TU has findings OR fails to compile;
-    # we inspect the report dir ourselves, so tolerate its exit code here.
     analyze_log = f"{work}/analyze.log"
     reports = f"{work}/reports"
     with open(analyze_log, "wb") as log:
         subprocess.run(
-            [cc, "analyze", ccj,
+            [cc, "analyze", compile_db,
              "--analyzers", *ANALYZERS.split(),
              *disable_args,
              "-i", skip,
@@ -197,22 +235,24 @@ def run(cc: str, regen: int, flt: str, cflags: str, all_incs: str,
              "-o", reports],
             stdout=log, stderr=subprocess.STDOUT,
         )
+    return reports, analyze_log
 
-    # --- compile-error hard stop: a clean result is only meaningful if analysis RAN ---
-    # CodeChecker parks TUs it could not compile under <reports>/failed/.
+
+def _check_failed_reports(reports, analyze_log):
     failed_dir = f"{reports}/failed"
-    if os.path.isdir(failed_dir):
-        entries = sorted(os.listdir(failed_dir))
-        if entries:
-            fc = len(entries)
-            print(f"---- {fc} translation unit(s) FAILED to compile — analysis did NOT run on them ----")
-            for name in entries[:20]:
-                print(name)
-            print(f"(see {analyze_log}; likely a clang-incompatible flag or missing header / bad NGX_BUILD)",
-                  file=sys.stderr)
-            fail(f"{fc} TU(s) failed under the analyzer flags — fix flag extraction before trusting a clean gate")
+    entries = sorted(os.listdir(failed_dir)) if os.path.isdir(failed_dir) else []
+    if not entries:
+        return
+    count = len(entries)
+    print(f"---- {count} translation unit(s) FAILED to compile — analysis did NOT run on them ----")
+    for name in entries[:20]:
+        print(name)
+    print(f"(see {analyze_log}; likely a clang-incompatible flag or missing header / bad NGX_BUILD)",
+          file=sys.stderr)
+    fail(f"{count} TU(s) failed under the analyzer flags — fix flag extraction before trusting a clean gate")
 
-    # --- normalise findings to a churn-stable key: relpath │ checker │ report_hash ---
+
+def _parse_current(cc, reports, work):
     parse_json = f"{work}/parse.json"
     with open(parse_json, "wb") as out:
         subprocess.run([cc, "parse", reports, "-e", "json"],
@@ -220,70 +260,90 @@ def run(cc: str, regen: int, flt: str, cflags: str, all_incs: str,
     current = collect_current(parse_json)
     current_txt = f"{work}/current.txt"
     Path(current_txt).write_text("".join(k + "\n" for k in current))
-    cur = len(current)
-    print(f"== {cur} finding(s) (baseline + new) ==")
+    return current, current_txt
 
-    if regen == 1:
-        if flt:
-            fail("--regen must run over the FULL tree (drop --filter)")
-        with open(BASELINE, "w") as fh:
-            fh.write("# codechecker baseline — clangsa + clang-tidy findings, keyed by content hash.\n")
-            fh.write("# Format: <repo-relative path> │ <checker> │ <report_hash>\n")
-            fh.write("# Regenerate with: tools/ci/run_codechecker.py --regen   (review the diff!)\n")
-            fh.write("".join(k + "\n" for k in current))
-        print(f"run_codechecker: baseline rewritten ({cur} findings) → {BASELINE}")
-        return 0
 
+def _regenerate(current, flt):
     if flt:
-        print(f"run_codechecker: filter run (no gate). Findings under '{flt}':")
-        # Human-readable view for the subset.
-        cp = subprocess.run([cc, "parse", reports], stderr=subprocess.DEVNULL)
-        if cp.returncode != 0:
-            sys.stdout.write(Path(current_txt).read_text())
-        return 0
+        fail("--regen must run over the FULL tree (drop --filter)")
+    with open(BASELINE, "w") as stream:
+        stream.write("# codechecker baseline — clangsa + clang-tidy findings, keyed by content hash.\n")
+        stream.write("# Format: <repo-relative path> │ <checker> │ <report_hash>\n")
+        stream.write("# Regenerate with: tools/ci/run_codechecker.py --regen   (review the diff!)\n")
+        stream.write("".join(key + "\n" for key in current))
+    print(f"run_codechecker: baseline rewritten ({len(current)} findings) → {BASELINE}")
+    return 0
 
+
+def _report_filter(cc, reports, current_txt, flt):
+    print(f"run_codechecker: filter run (no gate). Findings under '{flt}':")
+    result = subprocess.run([cc, "parse", reports], stderr=subprocess.DEVNULL)
+    if result.returncode != 0:
+        sys.stdout.write(Path(current_txt).read_text())
+    return 0
+
+
+def _gate_current(current):
+    baseline = _baseline()
+    new = _new_findings(current, baseline)
+    if new:
+        return _report_new_findings(new)
+    print(f"run_codechecker: OK — no new findings beyond the {len(current)}-entry baseline")
+    return 0
+
+
+def _baseline():
     if not os.path.isfile(BASELINE):
         fail(f"no baseline at {BASELINE} — create it with --regen")
-    baseline = load_baseline(BASELINE)
+    return load_baseline(BASELINE)
 
-    new = [k for k in current if k not in baseline]   # comm -23 current baseline
-    if new:
-        print(f"---- NEW findings not in baseline ({len(new)}) ----")
-        for k in new:
-            print(k)
-        print(f"run_codechecker: FAIL — {len(new)} new finding(s). For a human view of one file, run:",
-              file=sys.stderr)
-        print("               tools/ci/run_codechecker.py --filter <path-prefix>", file=sys.stderr)
-        print("               Fix them, or if false-positive, review and re-baseline with --regen",
-              file=sys.stderr)
-        return 1
-    print(f"run_codechecker: OK — no new findings beyond the {cur}-entry baseline")
-    return 0
+
+def _new_findings(current, baseline):
+    return [key for key in current if key not in baseline]
+
+
+def _report_new_findings(new):
+    print(f"---- NEW findings not in baseline ({len(new)}) ----")
+    for key in new:
+        print(key)
+    print(f"run_codechecker: FAIL — {len(new)} new finding(s). For a human view of one file, run:",
+          file=sys.stderr)
+    print("               tools/ci/run_codechecker.py --filter <path-prefix>", file=sys.stderr)
+    print("               Fix them, or if false-positive, review and re-baseline with --regen",
+          file=sys.stderr)
+    return 1
 
 
 def collect_current(parse_json: str) -> list[str]:
     """Normalise the CodeChecker JSON report dump to sorted churn-stable keys."""
     repo = str(REPO).rstrip("/") + "/"
+    doc = _load_report(parse_json)
+    reports = _report_list(doc)
+    keys = filter(None, (_report_key(report, repo) for report in reports))
+    return sorted(set(keys))
+
+
+def _load_report(path):
     try:
-        doc = json.load(open(parse_json))
+        with open(path) as stream:
+            return json.load(stream)
     except Exception:
-        doc = {}
-    if isinstance(doc, dict):
-        reports = doc.get("reports", [])
-    elif isinstance(doc, list):
-        reports = doc
-    else:
-        reports = []
-    seen = set()
-    for r in reports:
-        f = r.get("file")
-        fp = f.get("path") if isinstance(f, dict) else f
-        fp = (fp or "").replace(repo, "")
-        if not fp.startswith("src/"):
-            continue
-        key = f"{fp} │ {r.get('checker_name', '?')} │ {r.get('report_hash', '')}"
-        seen.add(key)
-    return sorted(seen)
+        return {}
+
+
+def _report_list(document):
+    if isinstance(document, dict):
+        return document.get("reports", [])
+    return document if isinstance(document, list) else []
+
+
+def _report_key(report, repo):
+    file_value = report.get("file")
+    path = file_value.get("path") if isinstance(file_value, dict) else file_value
+    path = (path or "").replace(repo, "")
+    if not path.startswith("src/"):
+        return None
+    return f"{path} │ {report.get('checker_name', '?')} │ {report.get('report_hash', '')}"
 
 
 def load_baseline(path: str) -> set[str]:

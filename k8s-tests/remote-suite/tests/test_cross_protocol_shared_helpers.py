@@ -1,5 +1,27 @@
 from _test_cross_protocol_shared_helpers_helpers import *  # noqa: F401,F403  (Phase-38 split shared header)
 
+def _phase_test_token_fs_usage_and_shm_slot_helpers_are_shared_1():
+    for relpath in (
+        "src/net/manager/pending.c",
+        "src/tpc/engine/key_registry.c",
+    ):
+        _assert_markers(relpath, ["core/compat/shm_slots.h", "brix_shm_"])
+
+def _phase_test_phase5_tpc_common_layer_is_shared_2():
+    for relpath in ("src/tpc/outbound/tpc_token.c", "src/protocols/webdav/tpc_cred.c"):
+        _assert_markers(relpath, ["brix_tpc_credential_parse("])
+
+def _phase_test_checksum_fs_walk_staging_and_cms_frame_helpers_are_shared_3():
+    for relpath in ("src/net/cms/send.c", "src/net/cms/server_send.c"):
+        _assert_markers(relpath, ["frame_io.h", "brix_cms_send_frame("])
+
+
+def _expression_1(relpath):
+    return (
+        _assert_markers(relpath, ['#include "s3.h"' if "s3" in relpath else "webdav.h", "brix_vfs_copy("])
+    )
+
+
 def test_copy_and_http_file_response_helpers_are_shared():
     # Phase 55: local-object copy moved behind the shared VFS copy entry point
     # (brix_vfs_copy → brix_ns_local_copy in src/fs/vfs/vfs_copy.c).  The S3
@@ -144,11 +166,7 @@ def test_token_fs_usage_and_shm_slot_helpers_are_shared():
     ):
         _assert_markers(relpath, ["brix_fs_usage_"])
 
-    for relpath in (
-        "src/net/manager/pending.c",
-        "src/tpc/engine/key_registry.c",
-    ):
-        _assert_markers(relpath, ["core/compat/shm_slots.h", "brix_shm_"])
+    _phase_test_token_fs_usage_and_shm_slot_helpers_are_shared_1()
 
     # Phase 16: WebDAV lock state migrated off the SHM slot table onto xattrs
     # (the unified prop store).  lock.c must no longer reference shm_slots and
@@ -193,8 +211,7 @@ def test_phase5_tpc_common_layer_is_shared():
         _assert_markers(relpath, ["brix_tpc_registry_add("])
     for relpath in ("src/tpc/outbound/source.c", "src/protocols/webdav/tpc_curl_pmark.c", "src/protocols/webdav/tpc_marker.c"):
         _assert_markers(relpath, ["brix_tpc_progress_emit("])
-    for relpath in ("src/tpc/outbound/tpc_token.c", "src/protocols/webdav/tpc_cred.c"):
-        _assert_markers(relpath, ["brix_tpc_credential_parse("])
+    _phase_test_phase5_tpc_common_layer_is_shared_2()
     # dashboard api was split: registry include in dashboard_api_internal.h, the
     # snapshot call in api_transfers.c.
     _assert_markers("src/observability/dashboard/dashboard_api_internal.h",
@@ -353,10 +370,9 @@ def test_checksum_fs_walk_staging_and_cms_frame_helpers_are_shared():
         "src/protocols/s3/copy.c",
         "src/protocols/webdav/copy.c",
     ):
-        _assert_markers(relpath, ['#include "s3.h"' if "s3" in relpath else "webdav.h", "brix_vfs_copy("])
+        _expression_1(relpath)
 
-    for relpath in ("src/net/cms/send.c", "src/net/cms/server_send.c"):
-        _assert_markers(relpath, ["frame_io.h", "brix_cms_send_frame("])
+    _phase_test_checksum_fs_walk_staging_and_cms_frame_helpers_are_shared_3()
 
 
 def test_webdav_config_path_validation_is_shared():

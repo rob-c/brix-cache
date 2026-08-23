@@ -1,13 +1,13 @@
-"""LocalBackend: unprivileged-port processes on this host (charter §8.2).
+"""Run server processes on the local host using unprivileged ports.
 
 The only place in BriXTest that spawns, signals, or ``/proc``-walks.
 Everything an instance is — its config, argv, pidfile, stop strategy —
-comes from its spec and its kind profile; the backend just carries
-them out inside the lane.
+comes from its specification and kind profile.
 """
 
 from __future__ import annotations
 
+import contextlib
 import os
 import signal
 import subprocess
@@ -47,8 +47,6 @@ class LocalBackend:
         self._log_pumps: Dict[str, BoundedLogPump] = {}
         self._artifacts: Optional[ArtifactSet] = None
 
-    # -- DeployBackend ---------------------------------------------------
-
     def prepare(self, lane: Lane, artifacts: Optional[ArtifactSet]) -> None:
         for path in (lane.log_dir, lane.instances_dir, lane.artifacts_dir, lane.tmp_dir):
             path.mkdir(parents=True, exist_ok=True)
@@ -71,9 +69,9 @@ class LocalBackend:
         return port_holders(declared)
 
     def process_pids(self) -> Dict[str, int]:
-        """name → pid for every process this backend spawned and has not
+        """Return PIDs for processes this backend spawned and has not
         stopped.  A dead child of a non-daemonizing kind stays claimed:
-        the F25 crash detector works by asking whether a vanished /proc
+        the crash detector works by asking whether a vanished /proc
         pid is *still claimed*, so filtering the dead here would hide
         every backend-spawned crash (``poll()`` also reaps the zombie,
         which is what makes the /proc vanish observable).  Children of
@@ -116,8 +114,6 @@ class LocalBackend:
         except subprocess.TimeoutExpired:
             return None
 
-    # -- start -----------------------------------------------------------
-
     def _template_values(self, spec: InstanceSpec, endpoint: ServerEndpoint) -> Dict[str, object]:
         values: Dict[str, object] = {
             "name": spec.name,
@@ -129,6 +125,8 @@ class LocalBackend:
         }
         for role, port in spec.ports.items():
             values["port" if role == "primary" else "%s_port" % role] = port
+        for role, host in spec.hosts.items():
+            values["host" if role == "primary" else "%s_host" % role] = host
         values.update(self.extra_values)
         values.update(spec.config_values)
         return values
@@ -147,7 +145,7 @@ class LocalBackend:
                 log_tail="template %s unreadable: %s" % (template_path, exc),
             ) from exc
         rendered = endpoint.workdir / template_path.name
-        if self.strict_templates:   # F13: fail at the cause, not two steps later
+        if self.strict_templates:
             rendered.write_text(
                 render_cfg_strict(text, values, template=str(template_path))
             )
@@ -188,8 +186,7 @@ class LocalBackend:
         config_path = self._render_config(spec, endpoint, values)
         argv = self._argv(spec, profile, values, config_path)
         env = dict(os.environ)
-        # the lane env contract (F12): every spawned process can prove it is
-        # binding inside its lane; the StubServer base refuses when it isn't
+        # Stub servers use these values to validate their binding lane.
         env["BRIXTEST_LANE_ROOT"] = str(self.lane.root)
         env["BRIXTEST_PORT_BASE"] = str(self.lane.port_base)
         env["BRIXTEST_PORT_SPAN"] = str(self.lane.port_span)
@@ -221,46 +218,58 @@ class LocalBackend:
         return endpoint
 
     def _wait_ready(self, spec, profile, endpoint, proc, argv) -> None:
-        probe = (
-            probe_from_declaration(spec.probe)
-            if spec.probe is not None
-            else probe_from_alias(
-                spec.readiness or profile.default_probe, timeout=spec.readiness_timeout
-            )
-        )
-        if isinstance(probe, TcpProbe) and spec.primary_port is None:
-            probe = NoProbe()  # nothing to poll; spawned == ready
+        probe = self._readiness_probe(spec, profile)
         if not spec.background:
-            try:
-                returncode = proc.wait(timeout=spec.readiness_timeout)
-            except subprocess.TimeoutExpired as exc:
-                raise StartError(
-                    spec.name, "startup", command=argv,
-                    log_tail="foreground command did not exit within %.3fs"
-                    % spec.readiness_timeout,
-                ) from exc
-            if returncode != 0:
-                raise StartError(
-                    spec.name, "startup", command=argv, returncode=returncode,
-                    log_tail=self._log_tail(endpoint),
-                )
+            self._wait_foreground(spec, endpoint, proc, argv)
             return
+        self._wait_background(spec, endpoint, proc, argv, probe)
+
+    @staticmethod
+    def _readiness_probe(spec, profile):
+        if spec.probe is not None:
+            probe = probe_from_declaration(spec.probe)
+        else:
+            probe = probe_from_alias(
+                spec.readiness or profile.default_probe,
+                timeout=spec.readiness_timeout,
+            )
+        if isinstance(probe, TcpProbe) and spec.primary_port is None:
+            return NoProbe()
+        return probe
+
+    def _wait_background(self, spec, endpoint, proc, argv, probe) -> None:
         try:
             probe.wait(endpoint, spec.readiness_timeout)
         except Exception:
-            returncode = proc.poll()
-            if returncode is not None:
-                if spec.expected_exit and returncode == 0:
-                    return
-                # it died, it did not merely dawdle — report the death
-                raise StartError(
-                    spec.name, "startup",
-                    command=argv, returncode=returncode,
-                    log_tail=self._log_tail(endpoint),
-                ) from None
+            if self._handle_early_exit(spec, endpoint, proc, argv):
+                return
             raise
 
-    # -- stop ------------------------------------------------------------
+    def _wait_foreground(self, spec, endpoint, proc, argv) -> None:
+        try:
+            returncode = proc.wait(timeout=spec.readiness_timeout)
+        except subprocess.TimeoutExpired as exc:
+            raise StartError(
+                spec.name, "startup", command=argv,
+                log_tail="foreground command did not exit within %.3fs"
+                % spec.readiness_timeout,
+            ) from exc
+        if returncode != 0:
+            raise StartError(
+                spec.name, "startup", command=argv, returncode=returncode,
+                log_tail=self._log_tail(endpoint),
+            )
+
+    def _handle_early_exit(self, spec, endpoint, proc, argv) -> bool:
+        returncode = proc.poll()
+        if returncode is None:
+            return False
+        if spec.expected_exit and returncode == 0:
+            return True
+        raise StartError(
+            spec.name, "startup", command=argv, returncode=returncode,
+            log_tail=self._log_tail(endpoint),
+        ) from None
 
     @staticmethod
     def _pid_running(pid: int) -> bool:
@@ -282,22 +291,24 @@ class LocalBackend:
         reimplementing the escalation — or reaching into a private name
         to reuse it.  Same reason for ``pidfile_pid`` below.
         """
+        self._signal_pids(pids, signal.SIGTERM)
+        pending = self._wait_running(pids, timeout)
+        self._signal_pids(pending, signal.SIGKILL)
+
+    @staticmethod
+    def _signal_pids(pids: Set[int], selected: signal.Signals) -> None:
         for pid in pids:
-            try:
-                os.kill(pid, signal.SIGTERM)
-            except OSError:
-                pass
+            with contextlib.suppress(OSError):
+                os.kill(pid, selected)
+
+    def _wait_running(self, pids: Set[int], timeout: float) -> Set[int]:
         deadline = time.monotonic() + timeout
         pending = set(pids)
         while pending and time.monotonic() < deadline:
             pending = {pid for pid in pending if self._pid_running(pid)}
             if pending:
                 time.sleep(0.1)
-        for pid in pending:
-            try:
-                os.kill(pid, signal.SIGKILL)
-            except OSError:
-                pass
+        return pending
 
     def pidfile_pid(self, endpoint: ServerEndpoint) -> Optional[int]:
         if endpoint.pidfile is None:
@@ -306,6 +317,74 @@ class LocalBackend:
             return int(endpoint.pidfile.read_text().strip())
         except (OSError, ValueError):
             return None
+
+    def _shutdown_command(self, spec: InstanceSpec, endpoint: ServerEndpoint) -> None:
+        if not spec.shutdown_command:
+            return
+        env = dict(os.environ)
+        env.update(spec.env)
+        try:
+            with endpoint.log_path.open("ab") as log:
+                subprocess.run(
+                    list(spec.shutdown_command), cwd=str(endpoint.workdir), env=env,
+                    stdout=log, stderr=subprocess.STDOUT, check=False,
+                    timeout=spec.stop_timeout,
+                )
+        except (OSError, subprocess.TimeoutExpired):
+            pass
+
+    def _stop_process_group(self, spec: InstanceSpec, proc: subprocess.Popen) -> None:
+        selected = {
+            "TERM": signal.SIGTERM, "INT": signal.SIGINT,
+            "QUIT": signal.SIGQUIT, "KILL": signal.SIGKILL,
+        }.get(spec.shutdown_signal)
+        if selected is not None:
+            with contextlib.suppress(OSError):
+                os.killpg(proc.pid, selected)
+        try:
+            proc.wait(timeout=spec.stop_timeout)
+        except subprocess.TimeoutExpired:
+            with contextlib.suppress(OSError):
+                os.killpg(proc.pid, signal.SIGKILL)
+
+    def _stop_strategy(self, strategy, spec, endpoint, proc) -> None:
+        if callable(strategy):
+            strategy(self, spec)
+            return
+        handlers = {
+            "signal-pidfile": self._stop_pidfile,
+            "process-group": self._stop_group,
+            "port-kill": self._stop_ports,
+        }
+        handler = handlers.get(strategy)
+        if handler is not None:
+            handler(spec, endpoint, proc)
+
+    def _stop_pidfile(self, spec, endpoint, proc) -> None:
+        pid = self.pidfile_pid(endpoint)
+        if pid is not None:
+            self.term_then_kill({pid}, spec.stop_timeout)
+
+    def _stop_group(self, spec, endpoint, proc) -> None:
+        if proc is not None:
+            self._stop_process_group(spec, proc)
+
+    def _stop_ports(self, spec, endpoint, proc) -> None:
+        pids: Set[int] = set()
+        for holders in port_holders(spec.ports.values()).values():
+            pids |= holders
+        pids.discard(os.getpid())
+        if pids:
+            self.term_then_kill(pids, spec.stop_timeout)
+
+    def _reap_process(self, proc, timeout: float) -> None:
+        if proc is None:
+            return
+        try:
+            proc.wait(timeout=timeout)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            proc.wait()
 
     def stop(self, name: str) -> None:
         spec = self.registry.get_spec(name)
@@ -316,59 +395,9 @@ class LocalBackend:
         # deliberate stop must stop claiming first or a resource sweep
         # racing this window reads the kill as a crash.
         proc = self._procs.pop(name, None)
-        if spec.shutdown_command:
-            env = dict(os.environ)
-            env.update(spec.env)
-            try:
-                with endpoint.log_path.open("ab") as log:
-                    subprocess.run(
-                        list(spec.shutdown_command), cwd=str(endpoint.workdir), env=env,
-                        stdout=log, stderr=subprocess.STDOUT, check=False,
-                        timeout=spec.stop_timeout,
-                    )
-            except (OSError, subprocess.TimeoutExpired):
-                pass
-        strategy = profile.stop
-        if callable(strategy):
-            strategy(self, spec)
-        elif strategy == "never":
-            pass
-        elif strategy == "signal-pidfile":
-            pid = self.pidfile_pid(endpoint)
-            if pid is not None:
-                self.term_then_kill({pid}, spec.stop_timeout)
-        elif strategy == "process-group" and proc is not None:
-            selected_signal = {
-                "TERM": signal.SIGTERM,
-                "INT": signal.SIGINT,
-                "QUIT": signal.SIGQUIT,
-                "KILL": signal.SIGKILL,
-            }.get(spec.shutdown_signal)
-            if selected_signal is not None:
-                try:
-                    os.killpg(proc.pid, selected_signal)
-                except OSError:
-                    pass
-            try:
-                proc.wait(timeout=spec.stop_timeout)
-            except subprocess.TimeoutExpired:
-                try:
-                    os.killpg(proc.pid, signal.SIGKILL)
-                except OSError:
-                    pass
-        elif strategy == "port-kill":
-            pids: Set[int] = set()
-            for holders in port_holders(spec.ports.values()).values():
-                pids |= holders
-            pids.discard(os.getpid())
-            if pids:
-                self.term_then_kill(pids, spec.stop_timeout)
-        if proc is not None:
-            try:
-                proc.wait(timeout=spec.stop_timeout)  # reap; no zombie rows in ps
-            except subprocess.TimeoutExpired:
-                proc.kill()
-                proc.wait()
+        self._shutdown_command(spec, endpoint)
+        self._stop_strategy(profile.stop, spec, endpoint, proc)
+        self._reap_process(proc, spec.stop_timeout)
         pump = self._log_pumps.pop(name, None)
         if pump is not None:
             pump.join(timeout=min(1.0, spec.stop_timeout))

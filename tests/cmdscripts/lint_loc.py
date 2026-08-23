@@ -13,8 +13,8 @@ BASELINE = REPO_ROOT / "tests" / "loc_baseline.txt"
 COMMENT_RE = re.compile(r"^\s*$|^\s*//|^\s*/?\*")
 
 
-def in_scope() -> list[Path]:
-    patterns = [
+def _patterns():
+    return [
         "src/*.c",
         "src/*.h",
         "client/*.c",
@@ -25,27 +25,36 @@ def in_scope() -> list[Path]:
         "tests/*.py",
         "utils/*.py",
     ]
+
+
+def _walk_patterns(patterns):
+    lines = []
+    for pattern in patterns:
+        top, glob = pattern.split("/", 1)
+        lines.extend(
+            str(path.relative_to(REPO_ROOT))
+            for path in (REPO_ROOT / top).rglob(glob)
+        )
+    return lines
+
+
+def _listed_paths(patterns):
     proc = run(["git", "-C", str(REPO_ROOT), "ls-files", *patterns], cwd=REPO_ROOT)
     if proc.returncode == 0:
-        lines = proc.stdout.splitlines()
-    elif "not a git repository" in (proc.stderr or proc.stdout):
-        # Synced checkout without .git (the unprivileged runner's rsync copy):
-        # walk the tree with the same pathspecs (git's * matches across slashes).
-        lines = []
-        for pattern in patterns:
-            top, glob = pattern.split("/", 1)
-            for p in (REPO_ROOT / top).rglob(glob):
-                lines.append(str(p.relative_to(REPO_ROOT)))
-    else:
-        raise RuntimeError(proc.stderr or proc.stdout)
-    paths = []
-    for line in sorted(set(lines)):
-        if line.startswith("shared/xrdproto/"):
-            continue
-        path = REPO_ROOT / line
-        if path.is_file():
-            paths.append(path)
-    return paths
+        return proc.stdout.splitlines()
+    if "not a git repository" in (proc.stderr or proc.stdout):
+        return _walk_patterns(patterns)
+    raise RuntimeError(proc.stderr or proc.stdout)
+
+
+def _accepted_path(line):
+    path = REPO_ROOT / line
+    return None if line.startswith("shared/xrdproto/") or not path.is_file() else path
+
+
+def in_scope() -> list[Path]:
+    paths = [_accepted_path(line) for line in sorted(set(_listed_paths(_patterns())))]
+    return list(filter(None, paths))
 
 
 def is_exempt(path: Path) -> bool:
@@ -77,11 +86,21 @@ def read_baseline() -> dict[str, int]:
     return out
 
 
+def _loc_tier(loc):
+    if loc <= 500:
+        return "ideal"
+    if loc <= 650:
+        return "watch"
+    if loc <= 800:
+        return "should"
+    return "must"
+
+
 def render_report(items: list[tuple[int, str]]) -> str:
     counts: Counter[str] = Counter()
     lines = ["== file-size tiers (logical LoC) =="]
     for loc, path in items:
-        tier = "ideal" if loc <= 500 else "watch" if loc <= 650 else "should" if loc <= 800 else "must"
+        tier = _loc_tier(loc)
         counts[tier] += 1
         if tier in {"should", "must"}:
             lines.append(f"  {tier.upper():<6} {loc:5d}  {path}")
@@ -94,18 +113,14 @@ def render_report(items: list[tuple[int, str]]) -> str:
     return "\n".join(lines)
 
 
-def run_checks(mode: str = "report") -> tuple[int, str]:
-    if mode not in {"report", "strict", "baseline"}:
-        return 2, "usage: lint_loc.py [--report|--strict|--baseline]"
-    items = measurements()
-    if mode == "baseline":
-        offenders = [f"{path}\t{loc}" for loc, path in items if loc > HARD]
-        BASELINE.write_text("\n".join(offenders) + ("\n" if offenders else ""), encoding="utf-8")
-        return 0, f"wrote {len(offenders)} baselined offender(s) to tests/loc_baseline.txt"
-    report = render_report(items)
-    if mode == "report":
-        return 0, report
-    baseline = read_baseline()
+def _write_baseline(items):
+    offenders = [f"{path}\t{loc}" for loc, path in items if loc > HARD]
+    suffix = "\n" if offenders else ""
+    BASELINE.write_text("\n".join(offenders) + suffix, encoding="utf-8")
+    return 0, f"wrote {len(offenders)} baselined offender(s) to tests/loc_baseline.txt"
+
+
+def _strict_failures(items, baseline):
     failures = []
     for loc, path in items:
         recorded = baseline.get(path)
@@ -113,8 +128,25 @@ def run_checks(mode: str = "report") -> tuple[int, str]:
             failures.append(f"NEW over-threshold: {path} ({loc} > {HARD})")
         elif recorded is not None and loc > recorded:
             failures.append(f"baselined file grew: {path} ({loc} > recorded {recorded})")
+    return failures
+
+
+def _strict_result(items, report):
+    failures = _strict_failures(items, read_baseline())
     status = "lint_loc: ratchet OK" if not failures else "lint_loc: ratchet FAILED"
     return (1 if failures else 0), "\n".join([report, *failures, status])
+
+
+def run_checks(mode: str = "report") -> tuple[int, str]:
+    if mode not in {"report", "strict", "baseline"}:
+        return 2, "usage: lint_loc.py [--report|--strict|--baseline]"
+    items = measurements()
+    if mode == "baseline":
+        return _write_baseline(items)
+    report = render_report(items)
+    if mode == "report":
+        return 0, report
+    return _strict_result(items, report)
 
 
 def entry(argv: list[str]) -> int:

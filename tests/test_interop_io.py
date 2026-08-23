@@ -1,6 +1,11 @@
 from split_continuation import reexport as _reexport
 _reexport(globals(), "_test_interop_io_helpers")
 
+def _assert_full_readv(native_data, reference_data, expected):
+    assert native_data == reference_data == expected, \
+        f"full readv: nginx_md5={_md5(native_data)} ref_md5={_md5(reference_data)}"
+
+
 class TestVectorReadConformance:
 
     def test_readv_matches_sequential_reads_on_both(self):
@@ -67,8 +72,7 @@ class TestVectorReadConformance:
 
             n_data = b"".join(c.buffer for c in n_vri.chunks)
             r_data = b"".join(c.buffer for c in r_vri.chunks)
-            assert n_data == r_data == content, \
-                f"full readv: nginx_md5={_md5(n_data)} ref_md5={_md5(r_data)}"
+            _assert_full_readv(n_data, r_data, content)
         finally:
             _fs(NGINX_URL).rm(path)
 

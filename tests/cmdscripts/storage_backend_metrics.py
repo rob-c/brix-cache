@@ -9,6 +9,7 @@ import subprocess
 import time
 
 from cmdscripts import run
+from cmdscripts.command_results import print_results
 from fleet_ports import cmdscript_ports
 from settings import BIND_HOST, HOST, NGINX_BIN
 
@@ -91,13 +92,7 @@ def entry(argv: list[str]) -> int:
 
     with tempfile.TemporaryDirectory(prefix="sb_metrics.") as tmp:
         results = run_checks(Path(tmp), nginx_bin=nginx_bin)
-    for ok, message in results:
-        print(f"  {'ok  ' if ok else 'FAIL'} {message}")
-    if all(ok for ok, _ in results):
-        print("run_storage_backend_metrics: ALL PASS")
-        return 0
-    print("run_storage_backend_metrics: FAILURES")
-    return 1
+    return print_results(results, "run_storage_backend_metrics")
 
 
 if __name__ == "__main__":

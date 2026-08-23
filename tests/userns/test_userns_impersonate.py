@@ -25,6 +25,30 @@ import subprocess
 
 import pytest
 
+def _guard_test_userns_impersonation_end_to_end_1():
+    if not shutil.which(CC):
+        pytest.skip("no C compiler")
+
+def _guard_test_userns_impersonation_end_to_end_2():
+    if not os.path.isfile(os.path.join(NGINX_SRC, "src/core/ngx_config.h")):
+        pytest.skip(f"nginx source tree not at {NGINX_SRC} (set TEST_NGINX_SRC)")
+
+def _guard_test_userns_impersonation_end_to_end_3():
+    if not (shutil.which("newuidmap") and shutil.which("newgidmap")):
+        pytest.skip("newuidmap/newgidmap not installed (uidmap package)")
+
+def _guard_test_userns_impersonation_end_to_end_4():
+    if not _userns_supported():
+        pytest.skip("unprivileged user namespaces unavailable on this host")
+
+def _check_test_userns_impersonation_end_to_end_1(build):
+    assert build.returncode == 0, f"compile failed:\n{build.stderr}"
+
+def _guard_test_userns_impersonation_end_to_end_5(run, combined):
+    if "SKIP:" in run.stdout and "ALL PASSED" not in run.stdout:
+        pytest.skip(f"userns prerequisites unmet:\n{combined}")
+
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(os.path.dirname(HERE))
 NGINX_SRC = os.environ.get("TEST_NGINX_SRC", "/tmp/nginx-1.28.3")
@@ -73,30 +97,31 @@ def _userns_supported():
 
 @pytest.mark.timeout(120)
 def test_userns_impersonation_end_to_end():
-    if not shutil.which(CC):
-        pytest.skip("no C compiler")
-    if not os.path.isfile(os.path.join(NGINX_SRC, "src/core/ngx_config.h")):
-        pytest.skip(f"nginx source tree not at {NGINX_SRC} (set TEST_NGINX_SRC)")
-    if not (shutil.which("newuidmap") and shutil.which("newgidmap")):
-        pytest.skip("newuidmap/newgidmap not installed (uidmap package)")
-    if not _userns_supported():
-        pytest.skip("unprivileged user namespaces unavailable on this host")
+    _guard_test_userns_impersonation_end_to_end_1()
+    _guard_test_userns_impersonation_end_to_end_2()
+    _guard_test_userns_impersonation_end_to_end_3()
+    _guard_test_userns_impersonation_end_to_end_4()
 
     out_bin = "/tmp/userns_broker_test.bin"
     cmd = [CC, "-O2", "-D_GNU_SOURCE", "-Wall", *_inc_flags(),
            "-o", out_bin, *SRCS]
     build = subprocess.run(cmd, capture_output=True, text=True)
-    assert build.returncode == 0, f"compile failed:\n{build.stderr}"
+    _check_test_userns_impersonation_end_to_end_1(build)
 
     run = subprocess.run([out_bin], capture_output=True, text=True, timeout=90)
     combined = run.stdout + "\n" + run.stderr
 
     # The driver self-skips (exit 0 + "SKIP:") when in-ns prerequisites are unmet.
-    if "SKIP:" in run.stdout and "ALL PASSED" not in run.stdout:
-        pytest.skip(f"userns prerequisites unmet:\n{combined}")
+    _guard_test_userns_impersonation_end_to_end_5(run, combined)
 
-    assert run.returncode == 0, f"userns broker test failed:\n{combined}"
-    assert "ALL PASSED" in run.stdout, combined
+    def _assert_test_userns_impersonation_end_to_end_1():
+        assert run.returncode == 0, f"userns broker test failed:\n{combined}"
+        assert "ALL PASSED" in run.stdout, combined
+
+    _assert_test_userns_impersonation_end_to_end_1()
     # Sanity: the security-critical assertions actually executed.
-    assert "DAC enforced" in combined
-    assert "no setfsuid credential leak" in combined
+    def _assert_test_userns_impersonation_end_to_end_2():
+        assert "DAC enforced" in combined
+        assert "no setfsuid credential leak" in combined
+
+    _assert_test_userns_impersonation_end_to_end_2()

@@ -89,44 +89,64 @@ CRASH_PATTERNS = ("signal 11", "signal 6", "signal 4", "signal 7", "signal 8",
 # process / liveness helpers (lifted from test_shm_fork_safety.py)
 # ---------------------------------------------------------------------------
 
+def _aio_readv_segments(handle, offset):
+    return b"".join(
+        struct.pack("!4siq", handle, 1 << 20, offset + index * (1 << 20))
+        for index in range(16)
+    )
+
+
+def _aio_write_handle(connection, fallback):
+    try:
+        return _open_w(connection)
+    except Exception:
+        return fallback
+
+
+def _send_aio_operation(connection, operation, handle, offset, length):
+    if operation == "pgread":
+        connection.sendall(_frame(
+            kXR_pgread, struct.pack("!4sqi", handle, offset, length)
+        ))
+        return
+    if operation == "read":
+        connection.sendall(_frame(
+            kXR_read, struct.pack("!4sqi", handle, offset, length)
+        ))
+        return
+    if operation == "readv":
+        connection.sendall(_frame(
+            kXR_readv, b"", _aio_readv_segments(handle, offset)
+        ))
+        return
+    write_handle = _aio_write_handle(connection, handle)
+    request = struct.pack("!4sqB3s", write_handle, 0, 0, b"\x00" * 3)
+    connection.sendall(_frame(kXR_write, request, b"Z" * (1 << 20)))
+
+
+def _aio_rst_round(port, rng):
+    connection = None
+    try:
+        connection = _connect(port, timeout=4)
+        _login(connection)
+        handle = _open_big(connection)
+        operation = rng.choice(("pgread", "readv", "read", "write"))
+        limit = max(1, BIGFILE_MB * 1024 * 1024 - (32 << 20))
+        offset = rng.randrange(0, limit)
+        length = rng.choice((8 << 20, 24 << 20, 48 << 20))
+        _send_aio_operation(connection, operation, handle, offset, length)
+    except Exception:
+        pass
+    finally:
+        if connection is not None:
+            delay = rng.choice((0, 0, 0.0005, 0.002, 0.008))
+            if delay:
+                time.sleep(delay)
+            _rst_close(connection)
+
+
 def _aio_rst_worker(port, rounds, stop_at, counter):
     rng = random.Random(threading.get_ident())
     while time.time() < stop_at and counter[0] < rounds:
         counter[0] += 1
-        s = None
-        try:
-            s = _connect(port, timeout=4)
-            _login(s)
-            fh = _open_big(s)
-        except Exception:
-            if s is not None:
-                _rst_close(s)
-            continue
-        # pick a large-offload op and a big range so the worker thread is mid
-        # pread/CRC-encode when the RST lands.
-        op = rng.choice(("pgread", "readv", "read", "write"))
-        off = rng.randrange(0, max(1, BIGFILE_MB * 1024 * 1024 - (32 << 20)))
-        rlen = rng.choice((8 << 20, 24 << 20, 48 << 20))
-        try:
-            if op == "pgread":
-                s.sendall(_frame(kXR_pgread, struct.pack("!4sqi", fh, off, rlen)))
-            elif op == "read":
-                s.sendall(_frame(kXR_read, struct.pack("!4sqi", fh, off, rlen)))
-            elif op == "readv":
-                segs = b"".join(struct.pack("!4siq", fh, 1 << 20, off + i * (1 << 20))
-                                for i in range(16))
-                s.sendall(_frame(kXR_readv, b"", segs))
-            else:  # write: detached-payload pwrite from a buffer freed on RST
-                try:
-                    fw = _open_w(s)
-                except Exception:
-                    fw = fh
-                s.sendall(_frame(kXR_write, struct.pack("!4sqB3s", fw, 0, 0, b"\x00" * 3),
-                                 b"Z" * (1 << 20)))
-        except OSError:
-            pass
-        # RST after a jittered delay spanning the post→pread window
-        d = rng.choice((0, 0, 0.0005, 0.002, 0.008))
-        if d:
-            time.sleep(d)
-        _rst_close(s)
+        _aio_rst_round(port, rng)

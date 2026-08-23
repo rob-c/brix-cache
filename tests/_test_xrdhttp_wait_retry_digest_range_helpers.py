@@ -200,22 +200,26 @@ def server():
 #    (The HTTP analogue of the stream-plane X-Xrootd-Wait.)
 # ---------------------------------------------------------------------------
 
+def _multipart_part(chunk):
+    if b"\r\n\r\n" not in chunk:
+        return None
+    head, _, data = chunk.partition(b"\r\n\r\n")
+    content_range = None
+    for line in head.split(b"\r\n"):
+        if line.lower().startswith(b"content-range:"):
+            content_range = line.split(b":", 1)[1].strip().decode()
+    if content_range is None:
+        return None
+    if data.endswith(b"\r\n"):
+        data = data[:-2]
+    return content_range, data
+
+
 def _parse_multipart_byteranges(body, boundary):
     """Return a list of (content_range, data) tuples from a multipart body."""
     parts = []
-    sep = ("--" + boundary).encode()
-    for chunk in body.split(sep):
-        if b"\r\n\r\n" not in chunk:
-            continue
-        head, _, data = chunk.partition(b"\r\n\r\n")
-        cr = None
-        for line in head.split(b"\r\n"):
-            if line.lower().startswith(b"content-range:"):
-                cr = line.split(b":", 1)[1].strip().decode()
-        if cr is None:
-            continue
-        # Strip the trailing CRLF that precedes the next boundary.
-        if data.endswith(b"\r\n"):
-            data = data[:-2]
-        parts.append((cr, data))
+    for chunk in body.split(("--" + boundary).encode()):
+        part = _multipart_part(chunk)
+        if part is not None:
+            parts.append(part)
     return parts

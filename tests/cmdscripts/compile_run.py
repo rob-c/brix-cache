@@ -7,6 +7,36 @@ import os
 import subprocess
 
 
+def _expression_1(args):
+    return (
+        [a for a in args if str(a).endswith(".o")
+                    and Path(a if os.path.isabs(str(a)) else REPO_ROOT / a).exists()]
+    )
+
+def _expression_2(objs):
+    return (
+        run(["nm", *[str(o) for o in objs]])
+    )
+
+def _expression_3(proc):
+    return (
+        proc.stdout if proc.returncode == 0 else ""
+    )
+
+
+def _guard_sanitizer_link_flags_1(syms, flags):
+    if "__asan_" in syms:
+        flags.append("-fsanitize=address")
+
+def _guard_sanitizer_link_flags_2(syms, flags):
+    if "__ubsan_" in syms or "__ubsan" in syms:
+        flags.append("-fsanitize=undefined")
+
+def _guard_sanitizer_link_flags_3(syms, flags):
+    if "__tsan_" in syms:
+        flags.append("-fsanitize=thread")
+
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
@@ -31,19 +61,15 @@ def sanitizer_link_flags(args: list[str]) -> list[str]:
     runtime dies at LD time with `undefined reference to __asan_*` — exactly the
     contaminated-nginx-object case (a tree built with -fsanitize whose objs/ the
     object-linked units reuse).  One nm pass picks the right flags."""
-    objs = [a for a in args if str(a).endswith(".o")
-            and Path(a if os.path.isabs(str(a)) else REPO_ROOT / a).exists()]
+    objs = _expression_1(args)
     if not objs:
         return []
-    proc = run(["nm", *[str(o) for o in objs]])
-    syms = proc.stdout if proc.returncode == 0 else ""
+    proc = _expression_2(objs)
+    syms = _expression_3(proc)
     flags = []
-    if "__asan_" in syms:
-        flags.append("-fsanitize=address")
-    if "__ubsan_" in syms or "__ubsan" in syms:
-        flags.append("-fsanitize=undefined")
-    if "__tsan_" in syms:
-        flags.append("-fsanitize=thread")
+    _guard_sanitizer_link_flags_1(syms, flags)
+    _guard_sanitizer_link_flags_2(syms, flags)
+    _guard_sanitizer_link_flags_3(syms, flags)
     return flags
 
 

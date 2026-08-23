@@ -55,122 +55,118 @@ brix_tls_ctx_enable_verify(ngx_conf_t *cf, SSL_CTX *ctx, const ngx_str_t *host)
 }
 #endif
 
+#if (NGX_SSL)
+/*
+ * WHAT: Build and configure the proxy leg's outbound TLS context.
+ * WHY:  Proxy and redirector TLS are independent configuration lifecycles.
+ * HOW:  Create the context, load its CA, enforce requested verification, log.
+ */
+static ngx_int_t
+brix_server_setup_proxy_tls(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *xcf)
+{
+    if (!xcf->proxy.enable || !xcf->proxy.upstream_tls)
+        return NGX_OK;
+    xcf->proxy.tls_ctx = ngx_pcalloc(cf->pool, sizeof(ngx_ssl_t));
+    if (xcf->proxy.tls_ctx == NULL)
+        return NGX_ERROR;
+    xcf->proxy.tls_ctx->log = cf->log;
+    if (ngx_ssl_create(xcf->proxy.tls_ctx,
+                       NGX_SSL_TLSv1_2 | NGX_SSL_TLSv1_3, NULL) != NGX_OK)
+        return NGX_ERROR;
+    if (xcf->proxy.upstream_tls_ca.len > 0) {
+        if (ngx_ssl_trusted_certificate(cf, xcf->proxy.tls_ctx,
+                                        &xcf->proxy.upstream_tls_ca, 5)
+            != NGX_OK)
+            return NGX_ERROR;
+        if (xcf->proxy.upstream_ssl_verify) {
+            const ngx_str_t *host = xcf->proxy.upstream_tls_name.len > 0
+                                  ? &xcf->proxy.upstream_tls_name
+                                  : &xcf->proxy.host;
+
+            if (brix_tls_ctx_enable_verify(cf, xcf->proxy.tls_ctx->ctx, host)
+                != NGX_OK)
+                return NGX_ERROR;
+            ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
+                "brix: proxy upstream TLS CA loaded from \"%V\" — peer "
+                "verification (chain + host) enabled", &xcf->proxy.upstream_tls_ca);
+        } else {
+            ngx_conf_log_error(NGX_LOG_WARN, cf, 0,
+                "brix: proxy upstream TLS CA loaded from \"%V\" but "
+                "verification is off — the peer is UNVERIFIED",
+                &xcf->proxy.upstream_tls_ca);
+        }
+        return NGX_OK;
+    }
+    if (xcf->proxy.upstream_ssl_verify) {
+        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            "brix: proxy upstream TLS verification requires an upstream CA");
+        return NGX_ERROR;
+    }
+    ngx_conf_log_error(NGX_LOG_WARN, cf, 0,
+        "brix: proxy upstream TLS is explicitly UNVERIFIED");
+    return NGX_OK;
+}
+
+/*
+ * WHAT: Build and configure the redirector leg's outbound TLS context.
+ * WHY:  Redirector trust policy must fail independently from proxy setup.
+ * HOW:  Create the context, load its CA, enforce requested verification, log.
+ */
+static ngx_int_t
+brix_server_setup_redirect_tls(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *xcf)
+{
+    if (!xcf->upstream_tls)
+        return NGX_OK;
+    xcf->upstream_tls_ctx = ngx_pcalloc(cf->pool, sizeof(ngx_ssl_t));
+    if (xcf->upstream_tls_ctx == NULL)
+        return NGX_ERROR;
+    xcf->upstream_tls_ctx->log = cf->log;
+    if (ngx_ssl_create(xcf->upstream_tls_ctx,
+                       NGX_SSL_TLSv1_2 | NGX_SSL_TLSv1_3, NULL) != NGX_OK)
+        return NGX_ERROR;
+    if (xcf->upstream_tls_ca.len > 0) {
+        if (ngx_ssl_trusted_certificate(cf, xcf->upstream_tls_ctx,
+                                        &xcf->upstream_tls_ca, 5) != NGX_OK)
+            return NGX_ERROR;
+        if (xcf->upstream_ssl_verify) {
+            const ngx_str_t *host = xcf->upstream_tls_name.len > 0
+                                  ? &xcf->upstream_tls_name : &xcf->upstream_host;
+
+            if (brix_tls_ctx_enable_verify(cf, xcf->upstream_tls_ctx->ctx, host)
+                != NGX_OK)
+                return NGX_ERROR;
+            ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
+                "brix: redirector TLS CA loaded from \"%V\" — peer "
+                "verification (chain + host) enabled", &xcf->upstream_tls_ca);
+        } else {
+            ngx_conf_log_error(NGX_LOG_WARN, cf, 0,
+                "brix: redirector TLS CA loaded from \"%V\" but verification "
+                "is off — the peer is UNVERIFIED", &xcf->upstream_tls_ca);
+        }
+    } else if (xcf->upstream_ssl_verify) {
+        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            "brix: redirector TLS verification requires an upstream CA");
+        return NGX_ERROR;
+    } else {
+        ngx_conf_log_error(NGX_LOG_WARN, cf, 0,
+            "brix: redirector TLS is explicitly UNVERIFIED");
+    }
+    ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
+        "brix: upstream redirector TLS enabled (kXR_gotoTLS support)");
+    return NGX_OK;
+}
+#endif
+
 ngx_int_t
 brix_server_setup_tls(ngx_conf_t *cf, ngx_stream_brix_srv_conf_t *xcf)
 {
 #if (NGX_SSL)
-    if (xcf->proxy.enable && xcf->proxy.upstream_tls) {
-        xcf->proxy.tls_ctx = ngx_pcalloc(cf->pool, sizeof(ngx_ssl_t));
-        if (xcf->proxy.tls_ctx == NULL) {
-            return NGX_ERROR;
-        }
-        xcf->proxy.tls_ctx->log = cf->log;
-        if (ngx_ssl_create(xcf->proxy.tls_ctx,
-                           NGX_SSL_TLSv1_2 | NGX_SSL_TLSv1_3,
-                           NULL) != NGX_OK)
-        {
-            return NGX_ERROR;
-        }
-        if (xcf->proxy.upstream_tls_ca.len > 0) {
-            if (ngx_ssl_trusted_certificate(cf, xcf->proxy.tls_ctx,
-                                             &xcf->proxy.upstream_tls_ca,
-                                             5) != NGX_OK)
-            {
-                return NGX_ERROR;
-            }
-            if (xcf->proxy.upstream_ssl_verify) {
-                if (brix_tls_ctx_enable_verify(cf, xcf->proxy.tls_ctx->ctx,
-                        (xcf->proxy.upstream_tls_name.len > 0)
-                            ? &xcf->proxy.upstream_tls_name : &xcf->proxy.host)
-                    != NGX_OK)
-                {
-                    return NGX_ERROR;
-                }
-                ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
-                    "brix: proxy upstream TLS CA loaded from \"%V\" — peer "
-                    "verification (chain + host) enabled",
-                    &xcf->proxy.upstream_tls_ca);
-            } else {
-                ngx_conf_log_error(NGX_LOG_WARN, cf, 0,
-                    "brix: proxy upstream TLS CA loaded from \"%V\" but "
-                    "brix_tap_proxy_upstream_tls_verify is off — the peer is "
-                    "UNVERIFIED and the hop is MITM-able",
-                    &xcf->proxy.upstream_tls_ca);
-            }
-        } else if (xcf->proxy.upstream_ssl_verify) {
-            /* A-1: fail closed — an unauthenticated TLS upstream re-sends the
-             * client's kXR_login over an attacker-controllable channel. */
-            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                "brix: brix_tap_proxy_upstream_tls is on but no "
-                "brix_tap_proxy_upstream_tls_ca is set — refusing an "
-                "unauthenticated, MITM-able TLS upstream (set the CA, or "
-                "brix_tap_proxy_upstream_tls_verify off to opt out)");
-            return NGX_ERROR;
-        } else {
-            ngx_conf_log_error(NGX_LOG_WARN, cf, 0,
-                "brix: brix_tap_proxy_upstream_tls is on with verification "
-                "explicitly off and no CA — the upstream TLS peer is UNVERIFIED "
-                "and the hop is MITM-able");
-        }
-    }
-    if (xcf->upstream_tls) {
-        xcf->upstream_tls_ctx = ngx_pcalloc(cf->pool, sizeof(ngx_ssl_t));
-        if (xcf->upstream_tls_ctx == NULL) {
-            return NGX_ERROR;
-        }
-        xcf->upstream_tls_ctx->log = cf->log;
-        if (ngx_ssl_create(xcf->upstream_tls_ctx,
-                           NGX_SSL_TLSv1_2 | NGX_SSL_TLSv1_3,
-                           NULL) != NGX_OK)
-        {
-            return NGX_ERROR;
-        }
-        if (xcf->upstream_tls_ca.len > 0) {
-            if (ngx_ssl_trusted_certificate(cf, xcf->upstream_tls_ctx,
-                                             &xcf->upstream_tls_ca,
-                                             5) != NGX_OK)
-            {
-                return NGX_ERROR;
-            }
-            if (xcf->upstream_ssl_verify) {
-                if (brix_tls_ctx_enable_verify(cf, xcf->upstream_tls_ctx->ctx,
-                        (xcf->upstream_tls_name.len > 0)
-                            ? &xcf->upstream_tls_name : &xcf->upstream_host)
-                    != NGX_OK)
-                {
-                    return NGX_ERROR;
-                }
-                ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
-                    "brix: upstream redirector TLS CA loaded from \"%V\" — peer "
-                    "verification (chain + host) enabled",
-                    &xcf->upstream_tls_ca);
-            } else {
-                ngx_conf_log_error(NGX_LOG_WARN, cf, 0,
-                    "brix: upstream redirector TLS CA loaded from \"%V\" but "
-                    "brix_upstream_tls_verify is off — the peer is UNVERIFIED "
-                    "and the hop is MITM-able",
-                    &xcf->upstream_tls_ca);
-            }
-        } else if (xcf->upstream_ssl_verify) {
-            /* A-1: fail closed — see the proxy-leg rationale above. */
-            ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                "brix: brix_upstream_tls (redirector) is on but no "
-                "brix_upstream_tls_ca is set — refusing an unauthenticated, "
-                "MITM-able TLS upstream (set the CA, or brix_upstream_tls_verify "
-                "off to opt out)");
-            return NGX_ERROR;
-        } else {
-            ngx_conf_log_error(NGX_LOG_WARN, cf, 0,
-                "brix: brix_upstream_tls (redirector) is on with verification "
-                "explicitly off and no CA — the upstream TLS peer is UNVERIFIED "
-                "and the hop is MITM-able");
-        }
-        ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
-            "brix: upstream redirector TLS enabled (kXR_gotoTLS support)");
-    }
+    if (brix_server_setup_proxy_tls(cf, xcf) != NGX_OK)
+        return NGX_ERROR;
+    return brix_server_setup_redirect_tls(cf, xcf);
 #else
     (void) cf;
     (void) xcf;
-#endif
     return NGX_OK;
+#endif
 }

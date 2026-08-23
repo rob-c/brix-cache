@@ -58,6 +58,31 @@ from settings import HOST6, IPV6_STREAM_DATA_ROOT, IPV6_STREAM_PORT
 # local run is byte-identical; set TEST_HOST6 to split client/server nodes.
 # ---------------------------------------------------------------------------
 
+def _phase_test_ipv6_concurrent_streams_isolation_1_next(socks):
+    for s in socks:
+        _phase_test_ipv6_concurrent_streams_isolation_1(s)
+
+
+def _expression_1():
+    return (
+        [_session() for _ in range(3)]
+    )
+
+
+def _phase_test_ipv6_concurrent_streams_isolation_1(s):
+    try:
+        s.close()
+    except OSError:
+        pass
+
+
+def _check_test_ipv6_concurrent_streams_isolation_1(status, body):
+    assert status == kXR_ok, f"open failed: {_error_code(body)}"
+
+def _check_test_ipv6_concurrent_streams_isolation_2(s):
+    assert _ping(s)[1] == kXR_ok
+
+
 IPV6_HOST = HOST6
 IPV6_PORT = IPV6_STREAM_PORT
 
@@ -430,8 +455,11 @@ class TestIpv6Write:
             fh = body[:4]
 
             _, wstatus, wbody = _write(sock, fh, 0, WRITE_BODY)
-            assert wstatus == kXR_ok, f"write failed: {_error_code(wbody)}"
-            assert _close(sock, fh)[1] == kXR_ok
+            def _assert_test_ipv6_write_open_new_byte_exact_3():
+                assert wstatus == kXR_ok, f"write failed: {_error_code(wbody)}"
+                assert _close(sock, fh)[1] == kXR_ok
+
+            _assert_test_ipv6_write_open_new_byte_exact_3()
         finally:
             sock.close()
 
@@ -590,31 +618,33 @@ class TestIpv6Concurrency:
         """Three simultaneous IPv6 sessions each open+read the same file
         byte-exact; closing one leaves the others usable.  Proves per-stream
         state isolation holds over the IPv6 transport."""
-        socks = [_session() for _ in range(3)]
+        socks = _expression_1()
         try:
             handles = []
             for s in socks:
                 _, status, body = _open(s, HELLO_NAME, kXR_open_read)
-                assert status == kXR_ok, f"open failed: {_error_code(body)}"
+                _check_test_ipv6_concurrent_streams_isolation_1(status, body)
                 handles.append(body[:4])
 
             # Read on every stream — all byte-exact and independent.
             for s, fh in zip(socks, handles):
                 _, rstatus, rbody = _read(s, fh, 0, HELLO_LEN)
-                assert rstatus == kXR_ok, f"read failed: {_error_code(rbody)}"
-                assert rbody == HELLO_BODY
+                def _assert_test_ipv6_concurrent_streams_isolation_1():
+                    assert rstatus == kXR_ok, f"read failed: {_error_code(rbody)}"
+                    assert rbody == HELLO_BODY
+
+                _assert_test_ipv6_concurrent_streams_isolation_1()
 
             # Close the first stream entirely; the rest must keep working.
             _close(socks[0], handles[0])
             socks[0].close()
             for s, fh in zip(socks[1:], handles[1:]):
                 _, rstatus, rbody = _read(s, fh, 0, HELLO_LEN)
-                assert rstatus == kXR_ok, "surviving stream broke after a peer closed"
-                assert rbody == HELLO_BODY
-                assert _ping(s)[1] == kXR_ok
+                def _assert_test_ipv6_concurrent_streams_isolation_2():
+                    assert rstatus == kXR_ok, "surviving stream broke after a peer closed"
+                    assert rbody == HELLO_BODY
+
+                _assert_test_ipv6_concurrent_streams_isolation_2()
+                _check_test_ipv6_concurrent_streams_isolation_2(s)
         finally:
-            for s in socks:
-                try:
-                    s.close()
-                except OSError:
-                    pass
+            _phase_test_ipv6_concurrent_streams_isolation_1_next(socks)

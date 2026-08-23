@@ -11,6 +11,7 @@ import time
 import requests
 
 from cmdscripts import run
+from cmdscripts.command_results import print_results
 from fleet_ports import cmdscript_ports
 from settings import BIND_HOST, HOST, NGINX_BIN
 
@@ -124,13 +125,7 @@ def entry(argv: list[str]) -> int:
 
     with tempfile.TemporaryDirectory(prefix="s3wr.") as tmp:
         results = run_checks(Path(tmp), nginx_bin=nginx_bin)
-    for ok, message in results:
-        print(f"  {'ok  ' if ok else 'FAIL'} {message}")
-    if all(ok for ok, _ in results):
-        print("run_s3_store_writable: ALL PASS")
-        return 0
-    print("run_s3_store_writable: FAILURES")
-    return 1
+    return print_results(results, "run_s3_store_writable")
 
 
 if __name__ == "__main__":

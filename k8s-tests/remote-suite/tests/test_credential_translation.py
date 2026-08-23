@@ -202,16 +202,19 @@ class TestCredentialTranslationBridge:
                 full_log = fh.read()
         except FileNotFoundError:
             full_log = ""
-        assert "AUTH - nginx-bridge" in full_log, (
-            "Token backend access log does not contain 'AUTH - nginx-bridge' — "
-            "bridge may not be injecting a JWT token"
-        )
-        # Verify no raw GSI proxy DN (GSI DNs contain /DC= or /CN= prefixes)
-        # in the entries after the transfer (the file-access entries).
-        assert "/DC=" not in chunk_new and "/CN=" not in chunk_new, (
-            "New log entries contain a GSI DN — bridge may be forwarding the "
-            "proxy cert directly instead of a JWT token"
-        )
+        def _assert_test_backend_receives_bearer_token_not_proxy_1():
+            assert "AUTH - nginx-bridge" in full_log, (
+                "Token backend access log does not contain 'AUTH - nginx-bridge' — "
+                "bridge may not be injecting a JWT token"
+            )
+            # Verify no raw GSI proxy DN (GSI DNs contain /DC= or /CN= prefixes)
+            # in the entries after the transfer (the file-access entries).
+            assert "/DC=" not in chunk_new and "/CN=" not in chunk_new, (
+                "New log entries contain a GSI DN — bridge may be forwarding the "
+                "proxy cert directly instead of a JWT token"
+            )
+
+        _assert_test_backend_receives_bearer_token_not_proxy_1()
 
     def test_gsi_client_rejected_by_token_only_backend_directly(self, tmp_path):
         """Section 4C security: GSI client connecting directly to the token-only

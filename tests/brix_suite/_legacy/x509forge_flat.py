@@ -9,6 +9,8 @@ directory and so cannot succeed here -- reconstruct the trio in a scratch
 directory under their original names to run the flat stack.
 """
 
+from __future__ import annotations
+
 """x509forge — manufacture hostile PKI scenario trees for WLCG conformance.
 
 Each scenario materialises a complete hashed CA directory (CA certs with both
@@ -25,8 +27,6 @@ A scenario spec is a plain dict; forge_scenario(root, name, spec) turns it into
 a Scenario.  See BASELINE_SPEC and the *_SPECS tables for the catalogue used by
 the test suite.
 """
-
-from __future__ import annotations
 
 import functools
 import datetime
@@ -47,6 +47,12 @@ from cryptography.x509 import (
     RevokedCertificateBuilder,
 )
 from cryptography.x509.oid import NameOID
+from brix_suite.security.x509.primitive_operations import (
+    encode_oid as _encode_oid_operation,
+    make_crl as _make_crl_operation,
+    make_eec as _make_eec_operation,
+    make_proxy as _make_proxy_operation,
+)
 
 # A fixed epoch keeps validity windows reproducible without Date.now(); tests
 # that need "expired" pass explicit deltas relative to this.
@@ -65,21 +71,7 @@ OID_GLOBUS_LIMITED = "1.3.6.1.4.1.3536.1.1.1.9"
 # --------------------------------------------------------------------------
 
 def _encode_oid(oid_str: str) -> bytes:
-    parts = [int(x) for x in oid_str.split(".")]
-    out = [40 * parts[0] + parts[1]]
-    for part in parts[2:]:
-        if part == 0:
-            out.append(0)
-            continue
-        chunks = []
-        while part > 0:
-            chunks.append(part & 0x7F)
-            part >>= 7
-        chunks.reverse()
-        for i in range(len(chunks) - 1):
-            chunks[i] |= 0x80
-        out.extend(chunks)
-    return bytes(out)
+    return _encode_oid_operation(oid_str)
 
 
 def _der_len(n: int) -> bytes:
@@ -281,61 +273,12 @@ def make_eec(issuer: Cert, dn=None, *, subject_name=None, key_bits: int = 2048,
     encodings). extra_ext is a list of (x509.ExtensionType, critical) OR
     (ObjectIdentifier, der_bytes, critical) tuples.
     """
-    # cryptography's signer rejects MD5/SHA-1 and sub-1024-bit RSA; for those
-    # weak-crypto conformance cases fall back to the openssl CLI.
-    if (digest_name in ("sha1", "md5") or (key_type == "rsa" and key_bits < 1024)) \
-            and subject_name is None and eku is None and extra_ext is None \
-            and name_constraints is None:
-        return _make_eec_openssl(issuer, dn, key_bits=key_bits,
-                                 digest_name=digest_name,
-                                 not_after_days=not_after_days,
-                                 not_before_days=not_before_days,
-                                 ca_true=ca_true)
-
-    key = _make_key(key_type, bits=key_bits, curve=curve)
-    digest = digest or _digest(digest_name)
-    subj = subject_name if subject_name is not None else _name(dn)
-    b = (
-        CertificateBuilder()
-        .subject_name(subj)
-        .issuer_name(issuer.cert.subject)
-        .public_key(key.public_key())
-        .serial_number(x509.random_serial_number())
-        .not_valid_before(_EPOCH + not_before_days * _DAY)
-        .not_valid_after(_EPOCH + not_after_days * _DAY)
-        .add_extension(
-            x509.BasicConstraints(ca=ca_true, path_length=path_length),
-            critical=True)
+    return _make_eec_operation(
+        issuer, dn, subject_name, key_bits, not_after_days, not_before_days,
+        ca_true, keycert_sign, path_length, with_key_usage, key_usage, eku,
+        name_constraints, extra_ext, skid, digest, key_type, curve, digest_name,
+        globals(),
     )
-    if skid:
-        b = b.add_extension(
-            x509.SubjectKeyIdentifier.from_public_key(key.public_key()),
-            critical=False)
-    if with_key_usage:
-        ku = dict(digital_signature=True, content_commitment=False,
-                  key_encipherment=True, data_encipherment=False,
-                  key_agreement=False, key_cert_sign=(ca_true and keycert_sign),
-                  crl_sign=(ca_true and keycert_sign),
-                  encipher_only=False, decipher_only=False)
-        if key_usage:
-            ku.update(key_usage)
-        b = b.add_extension(x509.KeyUsage(**ku), critical=True)
-    if eku is not None:
-        b = b.add_extension(
-            x509.ExtendedKeyUsage([x509.ObjectIdentifier(o) for o in eku]),
-            critical=False)
-    if name_constraints is not None:
-        b = b.add_extension(name_constraints, critical=True)
-    for item in (extra_ext or []):
-        if len(item) == 2:
-            ext, crit = item
-            b = b.add_extension(ext, critical=crit)
-        else:
-            oid, der, crit = item
-            b = b.add_extension(
-                x509.UnrecognizedExtension(x509.ObjectIdentifier(oid), der),
-                critical=crit)
-    return Cert(b.sign(issuer.key, digest), key)
 
 
 def make_proxy(parent: Cert, *, kind: str = "rfc3820", path_len: int | None = None,
@@ -354,64 +297,10 @@ def make_proxy(parent: Cert, *, kind: str = "rfc3820", path_len: int | None = No
     consumer reads chain[0] — authorityInfoAccess, which is where an OCSP
     responder URL comes from — has to be settable HERE and not just on the EEC.
     """
-    key = _key()
-    parent_attrs = list(parent.cert.subject)
-
-    if kind in ("legacy", "legacy-limited"):
-        cn = "limited proxy" if kind == "legacy-limited" else "proxy"
-        subject = Name(parent_attrs + [NameAttribute(NameOID.COMMON_NAME, cn)])
-    else:
-        subject = Name(parent_attrs
-                       + [NameAttribute(NameOID.COMMON_NAME, str(serial))])
-
-    b = (
-        CertificateBuilder()
-        .subject_name(subject)
-        .issuer_name(parent.cert.subject)
-        .public_key(key.public_key())
-        .serial_number(serial)
-        .not_valid_before(_EPOCH + not_before_days * _DAY)
-        .not_valid_after(_EPOCH + not_after_days * _DAY)
+    return _make_proxy_operation(
+        parent, kind, path_len, pci_critical, policy_oid, ca_true, with_san,
+        not_after_days, not_before_days, serial, extra_ext, globals(),
     )
-
-    if kind not in ("legacy", "legacy-limited"):
-        oid = policy_oid
-        if oid is None:
-            oid = {
-                "rfc3820": OID_PPL_INHERIT_ALL,
-                "limited": OID_GLOBUS_LIMITED,
-                "independent": OID_PPL_INDEPENDENT,
-            }[kind]
-        pci = proxy_cert_info_der(oid, path_len)
-        b = b.add_extension(
-            x509.UnrecognizedExtension(
-                x509.ObjectIdentifier(OID_PROXY_CERT_INFO), pci),
-            critical=pci_critical)
-
-    b = b.add_extension(
-        x509.BasicConstraints(ca=ca_true, path_length=None), critical=True)
-    b = b.add_extension(
-        x509.KeyUsage(
-            digital_signature=True, content_commitment=False,
-            key_encipherment=False, data_encipherment=False,
-            key_agreement=False, key_cert_sign=ca_true, crl_sign=False,
-            encipher_only=False, decipher_only=False),
-        critical=True)
-    if with_san:
-        b = b.add_extension(
-            x509.SubjectAlternativeName([x509.DNSName("evil.example.org")]),
-            critical=False)
-    for item in (extra_ext or []):
-        if len(item) == 2:
-            ext, crit = item
-            b = b.add_extension(ext, critical=crit)
-        else:
-            oid, der, crit = item
-            b = b.add_extension(
-                x509.UnrecognizedExtension(x509.ObjectIdentifier(oid), der),
-                critical=crit)
-
-    return Cert(b.sign(parent.key, hashes.SHA256()), key)
 
 
 def make_crl(ca: Cert, *, revoked: list[Cert] | None = None,
@@ -423,29 +312,10 @@ def make_crl(ca: Cert, *, revoked: list[Cert] | None = None,
     crl_number sets the CRLNumber; delta_indicator sets DeltaCRLIndicator (base
     CRL number); reason is a CRLReason name (e.g. 'key_compromise',
     'remove_from_crl')."""
-    revoked = revoked or []
-    signer = signer or ca
-    b = (
-        CertificateRevocationListBuilder()
-        .issuer_name(ca.cert.subject)
-        .last_update(_EPOCH + this_update_days * _DAY)
-        .next_update(_EPOCH + next_update_days * _DAY)
+    return _make_crl_operation(
+        ca, revoked, next_update_days, this_update_days, signer, crl_number,
+        delta_indicator, reason, digest_name, globals(),
     )
-    if crl_number is not None:
-        b = b.add_extension(x509.CRLNumber(crl_number), critical=False)
-    if delta_indicator is not None:
-        b = b.add_extension(x509.DeltaCRLIndicator(delta_indicator),
-                            critical=True)
-    for c in revoked:
-        rb = (RevokedCertificateBuilder()
-              .serial_number(c.cert.serial_number)
-              .revocation_date(_EPOCH))
-        if reason is not None:
-            rb = rb.add_extension(
-                x509.CRLReason(getattr(x509.ReasonFlags, reason)), critical=False)
-        b = b.add_revoked_certificate(rb.build())
-    crl = b.sign(signer.key, _digest(digest_name))
-    return crl.public_bytes(serialization.Encoding.PEM)
 
 
 # --------------------------------------------------------------------------

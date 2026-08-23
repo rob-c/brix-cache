@@ -13,6 +13,50 @@ def _bind_status(port, sessid):
         sec.close()
 
 
+def _collect_sessids(port, count):
+    sockets = []
+    sessids = []
+    try:
+        for _index in range(count):
+            sock, sessid = _session(port)
+            sockets.append(sock)
+            assert len(sessid) == 16
+            sessids.append(bytes(sessid))
+    finally:
+        for sock in sockets:
+            sock.close()
+    return sessids
+
+
+def _assert_sessid_entropy(sessids):
+    count = len(sessids)
+    assert len(set(sessids)) == count, "sessids repeated — not unique per connection"
+    prefixes = {sessid[0:8] for sessid in sessids}
+    assert len(prefixes) >= count - 1, (
+        f"only {len(prefixes)}/{count} distinct sessid prefixes — the first 8 "
+        "bytes look structured, not CSPRNG-minted")
+
+
+def _assert_variable_sessid_bytes(sessids):
+    for position in range(16):
+        values = {sessid[position] for sessid in sessids}
+        assert len(values) > 1, (
+            f"sessid byte {position} is constant across {len(sessids)} conns")
+
+
+def _send_pings(sock, streamids):
+    for streamid in streamids:
+        _ping(sock, sid=streamid)
+
+
+def _assert_ping_responses(sock, streamids, who):
+    for index, streamid in enumerate(streamids):
+        response_id, status, body = _resp(sock)
+        assert status == kXR_ok and body == b"", f"{who} pipelined ping {index} bad"
+        assert response_id == streamid, (
+            f"{who} pipelined order broke at {index}: {response_id!r}")
+
+
 
 def test_handshake_dataserver_type_parity(srv):
     """Correct 20-byte init -> 8-byte body = protover + server type. Both servers
@@ -214,30 +258,9 @@ def test_d4_sessid_unpredictable_csprng(srv):
     sample of sessids must be fully distinct AND their 8-byte prefix must carry
     real entropy.  Both assertions FAIL loudly under the old packing (the prefix
     would collapse to one value per worker) and hold under a CSPRNG."""
-    port = srv["our_port"]
-    N = 32
-    socks, sessids = [], []
-    try:
-        for _ in range(N):
-            s, sess = _session(port)
-            socks.append(s)
-            assert len(sess) == 16
-            sessids.append(bytes(sess))
-    finally:
-        for s in socks:
-            s.close()
-
-    assert len(set(sessids)) == N, "sessids repeated — not unique per connection"
-
-    # The former time|pid words lived in bytes 0..8; a CSPRNG makes them vary.
-    prefixes = {sid[0:8] for sid in sessids}
-    assert len(prefixes) >= N - 1, (
-        f"only {len(prefixes)}/{N} distinct sessid prefixes — the first 8 bytes "
-        "look structured (embedded time/pid), not CSPRNG-minted")
-    # No single byte position may be constant across the whole sample.
-    for pos in range(16):
-        assert len({sid[pos] for sid in sessids}) > 1, \
-            f"sessid byte {pos} is constant across {N} conns — not random"
+    sessids = _collect_sessids(srv["our_port"], 32)
+    _assert_sessid_entropy(sessids)
+    _assert_variable_sessid_bytes(sessids)
 
 
 @pytest.mark.parametrize("op,mk", [
@@ -368,12 +391,8 @@ def test_pipelined_pings_streamid_order_parity(srv):
         s, _ = _session(port)
         try:
             sids = [struct.pack("!H", 0x5000 + i) for i in range(n)]
-            for sid in sids:
-                _ping(s, sid=sid)
-            for i, sid in enumerate(sids):
-                rsid, st, body = _resp(s)
-                assert st == kXR_ok and body == b"", f"{who} pipelined ping {i} bad"
-                assert rsid == sid, f"{who} pipelined order broke at {i}: {rsid!r}"
+            _send_pings(s, sids)
+            _assert_ping_responses(s, sids, who)
         finally:
             s.close()
 

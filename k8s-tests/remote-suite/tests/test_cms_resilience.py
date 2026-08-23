@@ -35,6 +35,22 @@ import pytest
 
 from settings import HOST, NGINX_BIN, free_port
 
+def _guard_read_loop_1(code, self):
+    if code == CMS_RR_LOGIN:
+        with self._lock:
+            self.logins += 1
+
+def _guard_silent_manager_node_2(ok, peer, err):
+    if not ok:
+        peer.close()
+        pytest.skip(f"node config rejected (CMS client unsupported?): {err}")
+
+def _guard_silent_manager_node_3(node_port, peer):
+    if not _wait_port(node_port):
+        peer.close()
+        pytest.skip("data-node nginx did not come up")
+
+
 H = HOST
 _DIR = os.path.join(os.environ.get("TMPDIR", "/tmp"), "xrd_cms_resilience")
 
@@ -371,19 +387,20 @@ class ManagerPeer:
             threading.Thread(target=self._read_loop, args=(conn,),
                              daemon=True).start()
 
+    def _drain_frames(self, buf):
+        while len(buf) >= CMS_HDR_LEN:
+            _sid, code, _mod, dlen = struct.unpack(
+                ">IBBH", bytes(buf[:CMS_HDR_LEN]))
+            if len(buf) < CMS_HDR_LEN + dlen:
+                return
+            del buf[:CMS_HDR_LEN + dlen]
+            _guard_read_loop_1(code, self)
+
     def _read_loop(self, conn):
         conn.settimeout(0.5)
         buf = bytearray()
         while not self._stop:
-            while len(buf) >= CMS_HDR_LEN:
-                _sid, code, _mod, dlen = struct.unpack(
-                    ">IBBH", bytes(buf[:CMS_HDR_LEN]))
-                if len(buf) < CMS_HDR_LEN + dlen:
-                    break
-                del buf[:CMS_HDR_LEN + dlen]
-                if code == CMS_RR_LOGIN:
-                    with self._lock:
-                        self.logins += 1
+            self._drain_frames(buf)
             try:
                 chunk = conn.recv(4096)
             except socket.timeout:
@@ -454,13 +471,9 @@ def silent_manager_node():
         f"    }}\n")
     conf = _write_conf("node", body)
     ok, err = _start_nginx(conf)
-    if not ok:
-        peer.close()
-        pytest.skip(f"node config rejected (CMS client unsupported?): {err}")
+    _guard_silent_manager_node_2(ok, peer, err)
     try:
-        if not _wait_port(node_port):
-            peer.close()
-            pytest.skip("data-node nginx did not come up")
+        _guard_silent_manager_node_3(node_port, peer)
         yield peer
     finally:
         _stop_nginx(conf)

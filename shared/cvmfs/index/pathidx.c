@@ -17,6 +17,14 @@
 
 #define PIDX_MAX_BYTES (1u << 30)   /* refuse absurd sidecars outright */
 
+typedef struct {
+    cvmfs_pathidx_ent_t *ents;
+    uint32_t            *buckets;
+    char                *blob;
+    size_t               blob_len;
+    uint64_t             nbuckets;
+} pathidx_image_t;
+
 /* Same canonical FNV-1a-64 as cas_pack.c's key table (local per sibling
  * idiom — the standalone unit lanes compile with -I shared only). */
 static uint64_t fnv1a(const char *k, size_t n) {
@@ -106,101 +114,231 @@ static int write_all(int fd, const void *buf, size_t len) {
     return 0;
 }
 
-int cvmfs_pathidx_write(cvmfs_pathidx_build_t *b, const cvmfs_hash_t *root,
-                        int dfd, const char *name) {
-    if (b->oom || b->n == 0) return -1;
-    qsort(b->v, b->n, sizeof(*b->v), bent_cmp);
+/*
+ * WHAT: Release all transient buffers used to construct a path-index image.
+ * WHY:  Every allocation and I/O failure must share the same complete cleanup.
+ * HOW:  Free entries, buckets, and string blob independently, then clear state.
+ */
+static void image_free(pathidx_image_t *image) {
+    free(image->ents);
+    free(image->buckets);
+    free(image->blob);
+    memset(image, 0, sizeof(*image));
+}
 
-    /* Layout: header · entries (8-aligned) · buckets · blob. */
-    size_t blob_len = 0;
-    for (size_t i = 0; i < b->n; i++) {
-        blob_len += strlen(b->v[i].path) + 1;
-        if (b->v[i].link != NULL) blob_len += strlen(b->v[i].link) + 1;
+/*
+ * WHAT: Allocate the entries, hash buckets, and string blob for one index.
+ * WHY:  Image sizing and allocation are independent from entry serialization.
+ * HOW:  Sum string storage, choose a power-of-two table, and allocate all parts.
+ */
+static int image_alloc(const cvmfs_pathidx_build_t *b,
+                       pathidx_image_t *image) {
+    size_t i;
+
+    memset(image, 0, sizeof(*image));
+    for (i = 0; i < b->n; i++) {
+        image->blob_len += strlen(b->v[i].path) + 1;
+        if (b->v[i].link != NULL)
+            image->blob_len += strlen(b->v[i].link) + 1;
     }
-    uint64_t nbuckets = 8;
-    while (nbuckets < 2 * (uint64_t) b->n) nbuckets *= 2;
-
-    cvmfs_pathidx_ent_t *ents = calloc(b->n, sizeof(*ents));
-    uint32_t *buckets = calloc(nbuckets, sizeof(*buckets));
-    char *blob = malloc(blob_len ? blob_len : 1);
-    if (ents == NULL || buckets == NULL || blob == NULL) {
-        free(ents); free(buckets); free(blob);
+    image->nbuckets = 8;
+    while (image->nbuckets < 2 * (uint64_t) b->n)
+        image->nbuckets *= 2;
+    image->ents = calloc(b->n, sizeof(*image->ents));
+    image->buckets = calloc(image->nbuckets, sizeof(*image->buckets));
+    image->blob = malloc(image->blob_len ? image->blob_len : 1);
+    if (image->ents == NULL || image->buckets == NULL || image->blob == NULL) {
+        image_free(image);
         return -1;
     }
+    return 0;
+}
 
-    size_t boff = 0;
-    for (size_t i = 0; i < b->n; i++) {
-        const cvmfs_pathidx_bent_t *be = &b->v[i];
-        cvmfs_pathidx_ent_t *e = &ents[i];
-        size_t plen = strlen(be->path);
-        e->path_off = boff;
-        e->path_len = (uint32_t) plen;
-        e->dlen = bent_dlen(be);
-        memcpy(blob + boff, be->path, plen + 1);
-        boff += plen + 1;
-        if (be->link != NULL) {
-            size_t llen = strlen(be->link);
-            e->link_off = boff;
-            e->link_len = (uint32_t) llen;
-            memcpy(blob + boff, be->link, llen + 1);
-            boff += llen + 1;
-        }
-        e->size = be->size;
-        e->mtime = be->mtime;
-        e->mode = be->mode;
-        e->flags = be->flags;
-        e->uid = be->uid;
-        e->gid = be->gid;
-        e->linkcount = be->linkcount;
-        e->has_hash = be->has_hash;
-        e->hash = be->hash;
+/*
+ * WHAT: Serialize one builder entry into the in-memory index image.
+ * WHY:  String layout and fixed metadata copying form one repeatable operation.
+ * HOW:  Append path/link bytes, copy scalars, and install one hash-table slot.
+ */
+static void image_add_entry(const cvmfs_pathidx_bent_t *be, size_t index,
+                            pathidx_image_t *image, size_t *blob_offset) {
+    cvmfs_pathidx_ent_t *entry = &image->ents[index];
+    size_t               path_len = strlen(be->path);
+    uint64_t             slot;
 
-        uint64_t slot = fnv1a(be->path, plen) & (nbuckets - 1);
-        while (buckets[slot] != 0) slot = (slot + 1) & (nbuckets - 1);
-        buckets[slot] = (uint32_t) i + 1;
+    entry->path_off = *blob_offset;
+    entry->path_len = (uint32_t) path_len;
+    entry->dlen = bent_dlen(be);
+    memcpy(image->blob + *blob_offset, be->path, path_len + 1);
+    *blob_offset += path_len + 1;
+    if (be->link != NULL) {
+        size_t link_len = strlen(be->link);
+
+        entry->link_off = *blob_offset;
+        entry->link_len = (uint32_t) link_len;
+        memcpy(image->blob + *blob_offset, be->link, link_len + 1);
+        *blob_offset += link_len + 1;
     }
+    entry->size = be->size;
+    entry->mtime = be->mtime;
+    entry->mode = be->mode;
+    entry->flags = be->flags;
+    entry->uid = be->uid;
+    entry->gid = be->gid;
+    entry->linkcount = be->linkcount;
+    entry->has_hash = be->has_hash;
+    entry->hash = be->hash;
 
-    cvmfs_pathidx_hdr_t h;
-    memset(&h, 0, sizeof(h));
-    h.magic = CVMFS_PATHIDX_MAGIC;
-    h.version = CVMFS_PATHIDX_VERSION;
-    h.hash_sz = (uint32_t) sizeof(cvmfs_hash_t);
-    h.ent_sz = (uint32_t) sizeof(cvmfs_pathidx_ent_t);
-    h.root = *root;
-    h.count = b->n;
-    h.nbuckets = nbuckets;
-    h.ents_off = sizeof(h);
-    h.buckets_off = h.ents_off + (uint64_t) b->n * sizeof(*ents);
-    h.blob_off = h.buckets_off + nbuckets * sizeof(*buckets);
-    h.blob_len = boff;
-    h.file_len = h.blob_off + boff;
-    h.hdr_crc = hdr_crc(&h);
+    slot = fnv1a(be->path, path_len) & (image->nbuckets - 1);
+    while (image->buckets[slot] != 0)
+        slot = (slot + 1) & (image->nbuckets - 1);
+    image->buckets[slot] = (uint32_t) index + 1;
+}
 
+/*
+ * WHAT: Populate a newly allocated image from sorted builder entries.
+ * WHY:  The image must keep entry order while independently indexing paths.
+ * HOW:  Serialize each entry and return the exact used string-blob length.
+ */
+static size_t image_fill(const cvmfs_pathidx_build_t *b,
+                         pathidx_image_t *image) {
+    size_t blob_offset = 0;
+    size_t i;
+
+    for (i = 0; i < b->n; i++)
+        image_add_entry(&b->v[i], i, image, &blob_offset);
+    return blob_offset;
+}
+
+/*
+ * WHAT: Construct a checksummed on-disk header for an in-memory index image.
+ * WHY:  Geometry and ABI values must describe exactly the payload being written.
+ * HOW:  Fill fixed fields, derive contiguous offsets, then calculate header CRC.
+ */
+static void header_build(cvmfs_pathidx_hdr_t *h,
+                         const cvmfs_pathidx_build_t *b,
+                         const cvmfs_hash_t *root,
+                         const pathidx_image_t *image, size_t blob_len) {
+    memset(h, 0, sizeof(*h));
+    h->magic = CVMFS_PATHIDX_MAGIC;
+    h->version = CVMFS_PATHIDX_VERSION;
+    h->hash_sz = (uint32_t) sizeof(cvmfs_hash_t);
+    h->ent_sz = (uint32_t) sizeof(cvmfs_pathidx_ent_t);
+    h->root = *root;
+    h->count = b->n;
+    h->nbuckets = image->nbuckets;
+    h->ents_off = sizeof(*h);
+    h->buckets_off = h->ents_off + (uint64_t) b->n * sizeof(*image->ents);
+    h->blob_off = h->buckets_off + image->nbuckets * sizeof(*image->buckets);
+    h->blob_len = blob_len;
+    h->file_len = h->blob_off + blob_len;
+    h->hdr_crc = hdr_crc(h);
+}
+
+/*
+ * WHAT: Write one complete path-index payload to an already open temporary fd.
+ * WHY:  Atomic publication is separate from ordered, exact-length serialization.
+ * HOW:  Write header, entries, buckets, and used blob bytes in layout order.
+ */
+static int image_write_fd(int fd, const cvmfs_pathidx_hdr_t *h,
+                          const pathidx_image_t *image) {
+    if (write_all(fd, h, sizeof(*h)) != 0)
+        return -1;
+    if (write_all(fd, image->ents, h->count * sizeof(*image->ents)) != 0)
+        return -1;
+    if (write_all(fd, image->buckets,
+                  h->nbuckets * sizeof(*image->buckets)) != 0)
+        return -1;
+    return write_all(fd, image->blob, (size_t) h->blob_len);
+}
+
+/*
+ * WHAT: Atomically publish a fully constructed path-index image.
+ * WHY:  Readers must observe either the old complete sidecar or the new one.
+ * HOW:  Write and close a sibling temporary file, rename on success, unlink else.
+ */
+static int image_publish(int dfd, const char *name,
+                         const cvmfs_pathidx_hdr_t *h,
+                         const pathidx_image_t *image) {
     char tmp[300];
-    int tn = snprintf(tmp, sizeof(tmp), "%s.tmp", name);
-    int rc = -1;
-    if (tn > 0 && (size_t) tn < sizeof(tmp)) {
-        int fd = openat(dfd, tmp, O_CREAT | O_TRUNC | O_WRONLY | O_CLOEXEC, 0644);
-        if (fd >= 0) {
-            if (write_all(fd, &h, sizeof(h)) == 0
-                && write_all(fd, ents, b->n * sizeof(*ents)) == 0
-                && write_all(fd, buckets, nbuckets * sizeof(*buckets)) == 0
-                && write_all(fd, blob, boff) == 0
-                && close(fd) == 0) {
-                fd = -1;
-                rc = renameat(dfd, tmp, dfd, name) == 0 ? 0 : -1;
-            }
-            if (fd >= 0) close(fd);
-            if (rc != 0) unlinkat(dfd, tmp, 0);
-        }
+    int  name_len = snprintf(tmp, sizeof(tmp), "%s.tmp", name);
+    int  fd;
+    int  rc = -1;
+
+    if (name_len <= 0 || (size_t) name_len >= sizeof(tmp))
+        return -1;
+    fd = openat(dfd, tmp, O_CREAT | O_TRUNC | O_WRONLY | O_CLOEXEC, 0644);
+    if (fd < 0)
+        return -1;
+    if (image_write_fd(fd, h, image) == 0 && close(fd) == 0) {
+        fd = -1;
+        rc = renameat(dfd, tmp, dfd, name) == 0 ? 0 : -1;
     }
-    free(ents);
-    free(buckets);
-    free(blob);
+    if (fd >= 0)
+        close(fd);
+    if (rc != 0)
+        unlinkat(dfd, tmp, 0);
+    return rc;
+}
+
+int cvmfs_pathidx_write(cvmfs_pathidx_build_t *b, const cvmfs_hash_t *root,
+                        int dfd, const char *name) {
+    pathidx_image_t    image;
+    cvmfs_pathidx_hdr_t header;
+    size_t              blob_len;
+    int                 rc;
+
+    if (b->oom || b->n == 0)
+        return -1;
+    qsort(b->v, b->n, sizeof(*b->v), bent_cmp);
+    if (image_alloc(b, &image) != 0)
+        return -1;
+    blob_len = image_fill(b, &image);
+    header_build(&header, b, root, &image, blob_len);
+    rc = image_publish(dfd, name, &header, &image);
+    image_free(&image);
     return rc;
 }
 
 /* ---- mmap reader --------------------------------------------------------- */
+
+/*
+ * WHAT: Validate path-index identity, ABI, checksum, and declared file size.
+ * WHY:  Foreign or corrupt headers must be refused before geometry is trusted.
+ * HOW:  Compare fixed fields only against compiled types and mapped length.
+ */
+static int header_identity_valid(const cvmfs_pathidx_hdr_t *h, size_t len) {
+    return h->magic == CVMFS_PATHIDX_MAGIC &&
+           h->version == CVMFS_PATHIDX_VERSION &&
+           h->hash_sz == sizeof(cvmfs_hash_t) &&
+           h->ent_sz == sizeof(cvmfs_pathidx_ent_t) &&
+           h->hdr_crc == hdr_crc(h) && h->file_len == len;
+}
+
+/*
+ * WHAT: Validate entry and bucket counts against mapped-file capacity.
+ * WHY:  Counts drive pointer arithmetic and hash probing after open succeeds.
+ * HOW:  Require non-empty bounded entries and a bounded power-of-two table.
+ */
+static int header_counts_valid(const cvmfs_pathidx_hdr_t *h, size_t len) {
+    return h->count > 0 &&
+           h->count <= len / sizeof(cvmfs_pathidx_ent_t) &&
+           h->nbuckets > 0 && (h->nbuckets & (h->nbuckets - 1)) == 0 &&
+           h->nbuckets <= len / sizeof(uint32_t);
+}
+
+/*
+ * WHAT: Validate that every serialized section is contiguous and in bounds.
+ * WHY:  Mmap pointers are derived directly from these attacker-readable offsets.
+ * HOW:  Recompute each successor offset and require the blob to end at EOF.
+ */
+static int header_layout_valid(const cvmfs_pathidx_hdr_t *h, size_t len) {
+    uint64_t ents_bytes = h->count * sizeof(cvmfs_pathidx_ent_t);
+
+    return h->ents_off == sizeof(*h) &&
+           h->buckets_off == h->ents_off + ents_bytes &&
+           h->blob_off == h->buckets_off + h->nbuckets * sizeof(uint32_t) &&
+           h->blob_off + h->blob_len == len;
+}
 
 int cvmfs_pathidx_open(cvmfs_pathidx_t *ix, int dfd, const char *name) {
     memset(ix, 0, sizeof(*ix));
@@ -218,23 +356,8 @@ int cvmfs_pathidx_open(cvmfs_pathidx_t *ix, int dfd, const char *name) {
     if (map == NULL) return -1;
 
     const cvmfs_pathidx_hdr_t *h = map;
-    uint64_t ents_bytes = h->count * sizeof(cvmfs_pathidx_ent_t);
-    int ok = h->magic == CVMFS_PATHIDX_MAGIC
-        && h->version == CVMFS_PATHIDX_VERSION
-        && h->hash_sz == sizeof(cvmfs_hash_t)      /* foreign ABI → refuse */
-        && h->ent_sz == sizeof(cvmfs_pathidx_ent_t)
-        && h->hdr_crc == hdr_crc(h)
-        && h->file_len == len
-        && h->count > 0
-        && h->count <= len / sizeof(cvmfs_pathidx_ent_t)
-        && h->nbuckets > 0
-        && (h->nbuckets & (h->nbuckets - 1)) == 0
-        && h->nbuckets <= len / sizeof(uint32_t)
-        && h->ents_off == sizeof(*h)
-        && h->buckets_off == h->ents_off + ents_bytes
-        && h->blob_off == h->buckets_off + h->nbuckets * sizeof(uint32_t)
-        && h->blob_off + h->blob_len == len;
-    if (!ok) {
+    if (!header_identity_valid(h, len) || !header_counts_valid(h, len) ||
+        !header_layout_valid(h, len)) {
         brix_plat_unmap(map, len);
         return -1;
     }

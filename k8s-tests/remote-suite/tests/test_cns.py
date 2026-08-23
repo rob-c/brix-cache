@@ -23,6 +23,24 @@ import time
 
 import pytest
 
+def _expression_1(mgr_port, cms_port, ds_port):
+    return (
+        not (up(mgr_port) and up(cms_port) and up(ds_port))
+    )
+
+
+def _phase_cluster_1(p):
+    try:
+        p.wait(timeout=5)
+    except subprocess.TimeoutExpired:
+        p.kill()
+
+
+def _guard_cluster_1():
+    if not os.path.exists(NGINX_BIN):
+        pytest.skip("nginx binary not found")
+
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "."))
 from settings import NGINX_BIN, free_port, BIND_HOST  # noqa: E402
 
@@ -94,8 +112,7 @@ def _render(tmpl, **kw):
 
 @pytest.fixture(scope="module")
 def cluster(tmp_path_factory):
-    if not os.path.exists(NGINX_BIN):
-        pytest.skip("nginx binary not found")
+    _guard_cluster_1()
     base = tmp_path_factory.mktemp("cns")
     mgr_log = base / "mgr"; mgr_log.mkdir()
     ds_log = base / "ds"; ds_log.mkdir()
@@ -144,7 +161,7 @@ stream {{
                 time.sleep(0.1)
         return False
 
-    if not (up(mgr_port) and up(cms_port) and up(ds_port)):
+    if _expression_1(mgr_port, cms_port, ds_port):
         for p in procs:
             p.terminate()
         pytest.skip("cluster did not start")
@@ -154,10 +171,7 @@ stream {{
     yield mgr_port, ds_port
     for p in procs:
         p.terminate()
-        try:
-            p.wait(timeout=5)
-        except subprocess.TimeoutExpired:
-            p.kill()
+        _phase_cluster_1(p)
 
 
 def test_manager_stats_written_file_from_cns(cluster):

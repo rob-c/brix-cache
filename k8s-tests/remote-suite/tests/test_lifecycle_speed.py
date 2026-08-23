@@ -74,6 +74,15 @@ def _wait_for(elog, pattern, timeout=15.0):
     return None
 
 
+def _keypool_knobs(size, seed):
+    lines = ""
+    if size is not None:
+        lines += f"        brix_gsi_keypool_size {size};\n"
+    if seed is not None:
+        lines += f"        brix_gsi_keypool_seed {seed};\n"
+    return lines
+
+
 class Instance:
     """A throwaway nginx-xrootd instance built from a template."""
 
@@ -99,11 +108,7 @@ class Instance:
         )
         pool_line = ("thread_pool default threads=4 max_queue=512;"
                      if with_pool else "")
-        knobs = ""
-        if size is not None:
-            knobs += f"        brix_gsi_keypool_size {size};\n"
-        if seed is not None:
-            knobs += f"        brix_gsi_keypool_seed {seed};\n"
+        knobs = _keypool_knobs(size, seed)
         with open(self.conf, "w") as fh:
             fh.write(f"""\
 worker_processes {workers};

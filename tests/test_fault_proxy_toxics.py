@@ -77,21 +77,36 @@ class TestNamedToxics:
         echo = _StreamEcho()
         proc, _, ctl = _spawn(bfp, echo.port)
         try:
-            assert "added slowdl" in _ctl(ctl, "toxic add slowdl latency 40 down")
-            assert "added garble" in _ctl(ctl, "toxic add garble corrupt 5 down")
+            def _assert_test_add_list_remove_lifecycle_1():
+                assert "added slowdl" in _ctl(ctl, "toxic add slowdl latency 40 down")
+                assert "added garble" in _ctl(ctl, "toxic add garble corrupt 5 down")
+
+            _assert_test_add_list_remove_lifecycle_1()
             assert _toxic_count(ctl) == 2
 
             doc = json.loads(_ctl(ctl, "toxic list json").strip())
             names = {t["name"]: t for t in doc["toxics"]}
-            assert set(names) == {"slowdl", "garble"}
-            assert names["slowdl"]["type"] == "latency"
-            assert names["garble"]["type"] == "corrupt"
-            assert names["garble"]["dir"] == "down"
+            def _assert_test_add_list_remove_lifecycle_2():
+                assert set(names) == {"slowdl", "garble"}
+                assert names["slowdl"]["type"] == "latency"
 
-            assert "removed slowdl" in _ctl(ctl, "toxic remove slowdl")
-            assert _toxic_count(ctl) == 1
-            assert _ctl(ctl, "clear").strip() == "ok"
-            assert _toxic_count(ctl) == 0
+            _assert_test_add_list_remove_lifecycle_2()
+            def _assert_test_add_list_remove_lifecycle_3():
+                assert names["garble"]["type"] == "corrupt"
+                assert names["garble"]["dir"] == "down"
+
+            _assert_test_add_list_remove_lifecycle_3()
+
+            def _assert_test_add_list_remove_lifecycle_4():
+                assert "removed slowdl" in _ctl(ctl, "toxic remove slowdl")
+                assert _toxic_count(ctl) == 1
+
+            _assert_test_add_list_remove_lifecycle_4()
+            def _assert_test_add_list_remove_lifecycle_5():
+                assert _ctl(ctl, "clear").strip() == "ok"
+                assert _toxic_count(ctl) == 0
+
+            _assert_test_add_list_remove_lifecycle_5()
         finally:
             proc.terminate(); proc.wait(); echo.close()
 

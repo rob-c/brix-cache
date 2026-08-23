@@ -41,6 +41,45 @@ from settings import SERVER_HOST, HOST, free_port
 # co-execution with other suites contended the shared backends and flaked
 # TestMirrorFrontServes (passes in isolation), so pin the module to the isolated
 # serial lane — the pattern the other mesh/topology suites already use.
+def _guard_stack_1():
+    if not os.path.exists(NGINX_BIN):
+        pytest.skip(f"nginx binary not found at {NGINX_BIN}")
+
+def _guard_stack_2():
+    if not os.path.exists(BRIX_BIN):
+        pytest.skip(f"official xrootd binary not found at {BRIX_BIN}")
+
+def _guard_stack_3():
+    if not _wait_port(UP_CKS_PORT):
+        pytest.skip("upstream xrootd did not come up")
+
+def _guard_stack_4():
+    if not _wait_port(FRONT_PORT):
+        pytest.skip("mirror front did not come up")
+
+def _guard_test_qcksum_graceful_against_no_checksum_upstream_5():
+    if not os.path.exists(NGINX_BIN) or not os.path.exists(BRIX_BIN):
+        pytest.skip("nginx or xrootd binary missing")
+
+def _guard_test_qcksum_graceful_against_no_checksum_upstream_6():
+    if not _wait_port(UP_BARE_PORT):
+        pytest.skip("bare upstream xrootd did not come up")
+
+def _guard_test_qcksum_graceful_against_no_checksum_upstream_7():
+    if not _wait_port(FRONT_BARE_PORT):
+        pytest.skip("bare mirror front did not come up")
+
+def _check_test_qcksum_graceful_against_no_checksum_upstream_1(st_up):
+    assert not st_up.ok, "bare upstream unexpectedly supports checksum"
+
+def _check_test_qcksum_graceful_against_no_checksum_upstream_2(st):
+    assert st.ok, f"front checksum failed: {st.message}"
+
+def _check_test_qcksum_graceful_against_no_checksum_upstream_3(log, off):
+    assert _divergences_since(log, off) == [], \
+        "Qcksum to a no-checksum upstream must be benign, not a divergence"
+
+
 pytestmark = [pytest.mark.serial]
 
 NGINX_BIN  = os.environ.get("TEST_NGINX_BIN", "/tmp/nginx-1.28.3/objs/nginx")
@@ -172,10 +211,8 @@ def _divergences_since(log_path, offset):
 
 @pytest.fixture(scope="module")
 def stack():
-    if not os.path.exists(NGINX_BIN):
-        pytest.skip(f"nginx binary not found at {NGINX_BIN}")
-    if not os.path.exists(BRIX_BIN):
-        pytest.skip(f"official xrootd binary not found at {BRIX_BIN}")
+    _guard_stack_1()
+    _guard_stack_2()
 
     front_data = os.path.join(_DIR, "front_data")
     up_data    = os.path.join(_DIR, "up_data")
@@ -195,11 +232,9 @@ def stack():
     front_conf = _front_conf("front", FRONT_PORT, front_data, UP_CKS_PORT)
     started = {"up": up_cfg, "front": front_conf}
     try:
-        if not _wait_port(UP_CKS_PORT):
-            pytest.skip("upstream xrootd did not come up")
+        _guard_stack_3()
         _start_front(front_conf)
-        if not _wait_port(FRONT_PORT):
-            pytest.skip("mirror front did not come up")
+        _guard_stack_4()
         yield {
             "front_url": f"root://{H}:{FRONT_PORT}",
             "up_url":    f"root://{H}:{UP_CKS_PORT}",
@@ -327,8 +362,7 @@ class TestMirrorGracefulUnsupported:
         """Mirroring Qcksum to an upstream xrootd with NO checksum configured
         must NOT be flagged as a divergence — the mirror 'just works' even when
         the official server supports fewer features than nginx."""
-        if not os.path.exists(NGINX_BIN) or not os.path.exists(BRIX_BIN):
-            pytest.skip("nginx or xrootd binary missing")
+        _guard_test_qcksum_graceful_against_no_checksum_upstream_5()
 
         front_data = os.path.join(_DIR, "front_bare_data")
         up_data    = os.path.join(_DIR, "up_bare_data")
@@ -341,11 +375,9 @@ class TestMirrorGracefulUnsupported:
         front_conf = _front_conf("front_bare", FRONT_BARE_PORT, front_data,
                                   UP_BARE_PORT)
         try:
-            if not _wait_port(UP_BARE_PORT):
-                pytest.skip("bare upstream xrootd did not come up")
+            _guard_test_qcksum_graceful_against_no_checksum_upstream_6()
             _start_front(front_conf)
-            if not _wait_port(FRONT_BARE_PORT):
-                pytest.skip("bare mirror front did not come up")
+            _guard_test_qcksum_graceful_against_no_checksum_upstream_7()
 
             log = _front_log("front_bare")
             off = os.path.getsize(log) if os.path.exists(log) else 0
@@ -353,16 +385,15 @@ class TestMirrorGracefulUnsupported:
             # Sanity: the bare upstream really does NOT support checksum.
             st_up, _ = client.FileSystem(f"root://{H}:{UP_BARE_PORT}").query(
                 QueryCode.CHECKSUM, "/common.bin")
-            assert not st_up.ok, "bare upstream unexpectedly supports checksum"
+            _check_test_qcksum_graceful_against_no_checksum_upstream_1(st_up)
 
             # Front serves the checksum fine; the mirror replays it to the bare
             # upstream (which returns kXR_Unsupported) — must be benign.
             st, _ = client.FileSystem(f"root://{H}:{FRONT_BARE_PORT}").query(
                 QueryCode.CHECKSUM, "/common.bin")
-            assert st.ok, f"front checksum failed: {st.message}"
+            _check_test_qcksum_graceful_against_no_checksum_upstream_2(st)
             time.sleep(1.5)
-            assert _divergences_since(log, off) == [], \
-                "Qcksum to a no-checksum upstream must be benign, not a divergence"
+            _check_test_qcksum_graceful_against_no_checksum_upstream_3(log, off)
         finally:
             _stop_front(front_conf)
             _stop_xrootd(up_cfg)

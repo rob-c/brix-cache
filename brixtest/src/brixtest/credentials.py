@@ -6,12 +6,13 @@ import base64
 import dataclasses
 import hashlib
 import hmac
+import operator
 import json
 import re
 import shutil
 from collections.abc import Iterable as IterableABC
 from pathlib import Path
-from typing import Dict, IO, Iterable, Mapping, Optional, Sequence, Tuple, Union
+from typing import IO, Dict, Iterable, Mapping, Optional, Tuple, Union
 
 from brixtest.design import Artifact, _name
 from brixtest.errors import SpecError
@@ -28,6 +29,54 @@ _KINDS = frozenset({"text", "file", "checksum", "signed"})
 _TARGETS = frozenset({"test", "server", "client"})
 _ENV_VALUES = frozenset({"path", "content"})
 _HASHES = frozenset(hashlib.algorithms_guaranteed - {"shake_128", "shake_256"})
+
+
+def _credential_kind(value: object) -> None:
+    if not isinstance(value, str) or value not in _KINDS:
+        raise SpecError("credential.kind", value, "must be text, file, checksum, or signed")
+
+
+def _credential_source(spec: "Credential") -> None:
+    if spec.kind == "file" and spec.source is None:
+        raise SpecError("credential.source", spec.source, "is required for file credentials")
+    if spec.kind == "checksum" and not isinstance(spec.artifact, Artifact):
+        raise SpecError("credential.artifact", spec.artifact, "must be an Artifact declaration")
+    if spec.kind == "signed" and not spec.secret:
+        raise SpecError("credential.secret", spec.secret, "is required for signed credentials")
+
+
+def _credential_exposure(env: object, env_value: object) -> None:
+    if env is not None and (not isinstance(env, str) or _ENV_NAME.fullmatch(env) is None):
+        raise SpecError("credential.env", env, "must be a valid environment name")
+    if not isinstance(env_value, str) or env_value not in _ENV_VALUES:
+        raise SpecError("credential.env_value", env_value, "must be path or content")
+
+
+def _credential_targets(value: object) -> Tuple[str, ...]:
+    if isinstance(value, (str, bytes)) or not isinstance(value, IterableABC):
+        raise SpecError("credential.targets", value, "must be a target sequence")
+    raw = tuple(value)
+    if not raw or not all(isinstance(target, str) for target in raw):
+        raise SpecError("credential.targets", value, "must select test, server, or client")
+    targets = tuple(dict.fromkeys(raw))
+    if set(targets) - _TARGETS:
+        raise SpecError("credential.targets", value, "must select test, server, or client")
+    return targets
+
+
+def _credential_mode(value: object) -> None:
+    if isinstance(value, bool) or not isinstance(value, int) or not 0 <= value <= 0o777:
+        raise SpecError("credential.mode", value, "must be an integer file mode")
+    if value & 0o022:
+        raise SpecError("credential.mode", oct(value), "must not be group/world writable")
+
+
+def _sha256_valid(value: object) -> bool:
+    return (
+        isinstance(value, str)
+        and len(value) == 64
+        and all(char in "0123456789abcdefABCDEF" for char in value)
+    )
 
 
 def _destination(value: str) -> str:
@@ -62,39 +111,17 @@ class Credential:
 
     def __post_init__(self) -> None:
         _name(self.name, "credential.name")
-        if not isinstance(self.kind, str) or self.kind not in _KINDS:
-            raise SpecError("credential.kind", self.kind, "must be text, file, checksum, or signed")
-        if self.kind == "file" and self.source is None:
-            raise SpecError("credential.source", self.source, "is required for file credentials")
-        if self.kind == "checksum" and not isinstance(self.artifact, Artifact):
-            raise SpecError("credential.artifact", self.artifact, "must be an Artifact declaration")
-        if self.kind == "signed" and not self.secret:
-            raise SpecError("credential.secret", self.secret, "is required for signed credentials")
+        _credential_kind(self.kind)
+        _credential_source(self)
         if not isinstance(self.value, str) or not isinstance(self.secret, str):
             raise SpecError("credential content", self.name, "value and secret must be text")
         if not isinstance(self.algorithm, str) or self.algorithm not in _HASHES:
             raise SpecError("credential.algorithm", self.algorithm, "must be a fixed-length secure hash")
         destination = self.destination or "credentials/%s.cred" % self.name
         object.__setattr__(self, "destination", _destination(destination))
-        if self.env is not None and (
-            not isinstance(self.env, str) or _ENV_NAME.fullmatch(self.env) is None
-        ):
-            raise SpecError("credential.env", self.env, "must be a valid environment name")
-        if not isinstance(self.env_value, str) or self.env_value not in _ENV_VALUES:
-            raise SpecError("credential.env_value", self.env_value, "must be path or content")
-        if isinstance(self.targets, (str, bytes)) or not isinstance(self.targets, IterableABC):
-            raise SpecError("credential.targets", self.targets, "must be a target sequence")
-        raw_targets = tuple(self.targets)
-        if not raw_targets or not all(isinstance(target, str) for target in raw_targets):
-            raise SpecError("credential.targets", self.targets, "must select test, server, or client")
-        targets = tuple(dict.fromkeys(raw_targets))
-        if set(targets) - _TARGETS:
-            raise SpecError("credential.targets", self.targets, "must select test, server, or client")
-        object.__setattr__(self, "targets", targets)
-        if isinstance(self.mode, bool) or not isinstance(self.mode, int) or not 0 <= self.mode <= 0o777:
-            raise SpecError("credential.mode", self.mode, "must be an integer file mode")
-        if self.mode & 0o022:
-            raise SpecError("credential.mode", oct(self.mode), "must not be group/world writable")
+        _credential_exposure(self.env, self.env_value)
+        object.__setattr__(self, "targets", _credential_targets(self.targets))
+        _credential_mode(self.mode)
 
 
 def credential(
@@ -167,6 +194,14 @@ def _signed(payload: str, secret: str, algorithm: str) -> str:
     return "%s.%s" % (body, encoded)
 
 
+def _non_empty_text(value: object) -> bool:
+    return isinstance(value, str) and bool(value)
+
+
+def _valid_path(value: object) -> bool:
+    return isinstance(value, (str, Path)) and bool(str(value))
+
+
 @dataclasses.dataclass(frozen=True)
 class MaterializedCredential:
     """A confined credential file available to the current helper role."""
@@ -180,27 +215,23 @@ class MaterializedCredential:
     targets: Tuple[str, ...]
 
     def __post_init__(self) -> None:
-        if not isinstance(self.name, str) or not self.name:
+        if not _non_empty_text(self.name):
             raise SpecError("credential.name", self.name, "must be non-empty text")
-        if not isinstance(self.path, (str, Path)) or not str(self.path):
+        if not _valid_path(self.path):
             raise SpecError("credential.path", self.path, "must be a file-system path")
-        if not isinstance(self.sha256, str) or len(self.sha256) != 64 \
-                or any(char not in "0123456789abcdefABCDEF" for char in self.sha256):
+        if not _sha256_valid(self.sha256):
             raise SpecError("credential.sha256", self.sha256, "must be a SHA-256 hex digest")
-        if not isinstance(self.kind, str) or not self.kind:
+        if not _non_empty_text(self.kind):
             raise SpecError("credential.kind", self.kind, "must be non-empty text")
-        if not isinstance(self.destination, str) or not self.destination:
+        if not _non_empty_text(self.destination):
             raise SpecError("credential.destination", self.destination, "must be non-empty text")
         if self.env is not None and not isinstance(self.env, str):
             raise SpecError("credential.env", self.env, "must be text or None")
-        if not isinstance(self.env_value, str) or self.env_value not in _ENV_VALUES:
+        if self.env_value not in _ENV_VALUES:
             raise SpecError("credential.env_value", self.env_value, "must be path or content")
-        if isinstance(self.targets, (str, bytes)) or not isinstance(self.targets, Sequence) or not all(
-            isinstance(target, str) and target in _TARGETS for target in self.targets
-        ) or not self.targets:
-            raise SpecError("credential.targets", self.targets, "must select consumer roles")
+        targets = _credential_targets(self.targets)
         object.__setattr__(self, "path", Path(self.path))
-        object.__setattr__(self, "targets", tuple(self.targets))
+        object.__setattr__(self, "targets", targets)
 
     def __fspath__(self) -> str:
         return str(self.path)
@@ -240,6 +271,10 @@ class MaterializedCredential:
             return False
 
 
+def _duplicates(values) -> list:
+    return sorted(value for value in set(values) if values.count(value) > 1)
+
+
 class CredentialStore:
     """Own credentials beneath one run and expose only declared targets."""
 
@@ -251,12 +286,10 @@ class CredentialStore:
 
     def materialize_all(self, declarations: Iterable[Credential]) -> Mapping[str, MaterializedCredential]:
         declared = tuple(declarations)
-        names = [item.name for item in declared]
-        destinations = [item.destination for item in declared]
-        duplicate_names = sorted({name for name in names if names.count(name) > 1})
-        duplicate_destinations = sorted({
-            path for path in destinations if destinations.count(path) > 1
-        })
+        names = list(map(operator.attrgetter("name"), declared))
+        destinations = list(map(operator.attrgetter("destination"), declared))
+        duplicate_names = _duplicates(names)
+        duplicate_destinations = _duplicates(destinations)
         if duplicate_names:
             raise SpecError("credential", duplicate_names, "is declared more than once")
         if duplicate_destinations:

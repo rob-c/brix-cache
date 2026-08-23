@@ -1,4 +1,4 @@
-"""The instance registry (feature F1).
+"""Validated registry of server and long-lived process specifications.
 
 An ``InstanceSpec`` is a validated description of one server or
 long-lived process; a ``Registry`` is the checked catalogue of them.
@@ -6,9 +6,7 @@ Validation happens at **registration**, not at start: a bad spec fails
 the moment it is declared, with the field and the rule named, instead
 of as a dead process twenty seconds into a session.
 
-``kind`` is required.  The grown catalogue defaulted it to ``nginx``
-because 109 of its 126 entries were nginx; a generic core has no
-business having a favourite server.
+``kind`` is required; the generic core does not assume a server type.
 """
 
 from __future__ import annotations
@@ -32,6 +30,114 @@ PRIMARY = "primary"
 
 def _freeze_mapping(value: Optional[Mapping]) -> Mapping:
     return freeze_mapping(value or {})
+
+
+def _instance_identity(spec: "InstanceSpec") -> None:
+    _validate_instance_name(spec.name)
+    _validate_instance_kind(spec.kind)
+    for role, port in dict(spec.ports).items():
+        _validate_instance_port(role, port)
+    if not isinstance(spec.hosts, Mapping):
+        raise SpecError("hosts", spec.hosts, "must map endpoint roles to host names")
+    for role, host in spec.hosts.items():
+        _validate_instance_host(role, host)
+    if spec.name in spec.depends_on:
+        raise SpecError("depends_on", spec.name, "an instance cannot depend on itself")
+
+
+def _validate_instance_name(name: object) -> None:
+    if not isinstance(name, str) or not name or not _NAME_RE.match(name):
+        raise SpecError("name", name, "must be lowercase [a-z0-9_-], starting alphanumeric")
+
+
+def _validate_instance_kind(kind: object) -> None:
+    if not kind:
+        raise SpecError("kind", kind, "is required — the core has no default kind")
+
+
+def _validate_instance_port(role: str, port: object) -> None:
+    if not isinstance(port, int) or isinstance(port, bool) or not 0 < port < 65536:
+        raise SpecError("ports[%s]" % role, port, "must be a TCP port (1-65535)")
+
+
+def _validate_instance_host(role: object, host: object) -> None:
+    if not isinstance(role, str) or not role:
+        raise SpecError("hosts role", role, "must be non-empty text")
+    if not isinstance(host, str) or not host or "\x00" in host:
+        raise SpecError("hosts[%s]" % role, host, "must be non-empty NUL-free text")
+
+
+def _lane_port_findings(spec: "InstanceSpec", lane: Lane) -> List[str]:
+    findings = []
+    for role, port in sorted(spec.ports.items()):
+        if not lane.owns_port(port):
+            findings.append(
+                "%s: ports[%s]=%d is outside the lane's range %d-%d"
+                % (spec.name, role, port, lane.port_base, lane.port_base + lane.port_span - 1)
+            )
+    return findings
+
+
+def _kind_findings(spec: "InstanceSpec") -> List[str]:
+    try:
+        get_kind(spec.kind)
+    except Exception:
+        return ["%s: kind %r is not registered" % (spec.name, spec.kind)]
+    return []
+
+
+def _config_findings(spec: "InstanceSpec") -> List[str]:
+    if spec.config_template is None or Path(spec.config_template).is_file():
+        return []
+    return [
+        "%s: config_template %s does not exist" % (spec.name, spec.config_template)
+    ]
+
+
+def _readiness_findings(spec: "InstanceSpec") -> List[str]:
+    if not spec.readiness:
+        return []
+    from brixtest.fleet.probes import probe_from_alias
+
+    try:
+        probe_from_alias(spec.readiness)
+    except Exception:
+        return [
+            "%s: readiness alias %r does not resolve" % (spec.name, spec.readiness)
+        ]
+    return []
+
+
+def _spec_findings(spec: "InstanceSpec", lane: Lane) -> List[str]:
+    return [
+        *_lane_port_findings(spec, lane),
+        *_kind_findings(spec),
+        *_config_findings(spec),
+        *_readiness_findings(spec),
+    ]
+
+
+def _instance_lifecycle(spec: "InstanceSpec") -> None:
+    if spec.readiness_timeout <= 0:
+        raise SpecError("readiness_timeout", spec.readiness_timeout, "must be > 0")
+    if spec.stop_timeout <= 0:
+        raise SpecError("stop_timeout", spec.stop_timeout, "must be > 0")
+    if spec.shutdown_signal not in ("TERM", "INT", "QUIT", "KILL", "NONE"):
+        raise SpecError("shutdown_signal", spec.shutdown_signal, "must be TERM, INT, QUIT, KILL, or NONE")
+    if not isinstance(spec.expected_exit, bool) or not isinstance(spec.background, bool):
+        raise SpecError("lifecycle", spec, "expected_exit and background must be boolean")
+    if isinstance(spec.log_max_bytes, bool) or not isinstance(spec.log_max_bytes, int) \
+            or spec.log_max_bytes < 1:
+        raise SpecError("log_max_bytes", spec.log_max_bytes, "must be an integer >= 1")
+
+
+def _freeze_instance(spec: "InstanceSpec") -> None:
+    for field in ("ports", "config_values", "env", "hosts"):
+        object.__setattr__(spec, field, _freeze_mapping(getattr(spec, field)))
+    for field in ("depends_on", "tags", "shutdown_command"):
+        object.__setattr__(spec, field, tuple(getattr(spec, field)))
+    if spec.command is not None:
+        object.__setattr__(spec, "command", tuple(spec.command))
 
 
 @dataclasses.dataclass(frozen=True)
@@ -59,46 +165,12 @@ class InstanceSpec:
     expected_exit: bool = False
     background: bool = True
     log_max_bytes: int = 64 << 20
+    hosts: Mapping[str, str] = dataclasses.field(default_factory=dict)
 
     def __post_init__(self) -> None:
-        if not self.name or not _NAME_RE.match(self.name):
-            raise SpecError(
-                "name", self.name,
-                "must be lowercase [a-z0-9_-], starting alphanumeric",
-            )
-        if not self.kind:
-            raise SpecError("kind", self.kind, "is required — the core has no default kind")
-        for role, port in dict(self.ports).items():
-            if not isinstance(port, int) or not (0 < port < 65536):
-                raise SpecError("ports[%s]" % role, port, "must be a TCP port (1-65535)")
-        if self.name in self.depends_on:
-            raise SpecError("depends_on", self.name, "an instance cannot depend on itself")
-        if self.readiness_timeout <= 0:
-            raise SpecError("readiness_timeout", self.readiness_timeout, "must be > 0")
-        if self.stop_timeout <= 0:
-            raise SpecError("stop_timeout", self.stop_timeout, "must be > 0")
-        if self.shutdown_signal not in ("TERM", "INT", "QUIT", "KILL", "NONE"):
-            raise SpecError(
-                "shutdown_signal", self.shutdown_signal,
-                "must be TERM, INT, QUIT, KILL, or NONE",
-            )
-        if not isinstance(self.expected_exit, bool) or not isinstance(self.background, bool):
-            raise SpecError("lifecycle", self, "expected_exit and background must be boolean")
-        if (
-            isinstance(self.log_max_bytes, bool)
-            or not isinstance(self.log_max_bytes, int)
-            or self.log_max_bytes < 1
-        ):
-            raise SpecError("log_max_bytes", self.log_max_bytes, "must be an integer >= 1")
-        # normalise the mutable-ish fields so hashing and equality behave
-        object.__setattr__(self, "ports", _freeze_mapping(self.ports))
-        object.__setattr__(self, "config_values", _freeze_mapping(self.config_values))
-        object.__setattr__(self, "env", _freeze_mapping(self.env))
-        object.__setattr__(self, "depends_on", tuple(self.depends_on))
-        object.__setattr__(self, "tags", tuple(self.tags))
-        if self.command is not None:
-            object.__setattr__(self, "command", tuple(self.command))
-        object.__setattr__(self, "shutdown_command", tuple(self.shutdown_command))
+        _instance_identity(self)
+        _instance_lifecycle(self)
+        _freeze_instance(self)
 
     @property
     def primary_port(self) -> Optional[int]:
@@ -135,7 +207,7 @@ class InstanceSpec:
 
 @dataclasses.dataclass(frozen=True)
 class ServerEndpoint:
-    """Where a (possibly running) instance lives — spec × kind × lane."""
+    """Location derived from an instance specification, kind, and lane."""
 
     name: str
     kind: str
@@ -144,6 +216,7 @@ class ServerEndpoint:
     workdir: Path
     log_path: Path
     pidfile: Optional[Path]
+    hosts: Mapping[str, str] = dataclasses.field(default_factory=dict)
 
     @property
     def primary_port(self) -> Optional[int]:
@@ -151,7 +224,7 @@ class ServerEndpoint:
 
     def address(self, role: str = PRIMARY) -> Tuple[str, int]:
         try:
-            return (self.host, self.ports[role])
+            return (self.hosts.get(role, self.host), self.ports[role])
         except KeyError:
             raise SpecError("port role", role, "%r declares no such port" % self.name) from None
 
@@ -161,7 +234,8 @@ class ServerEndpoint:
         host, port = self.address(role)
         if not path.startswith("/"):
             path = "/" + path
-        return "%s://%s:%d%s" % (scheme, host, port, path)
+        rendered_host = "[%s]" % host if ":" in host and not host.startswith("[") else host
+        return "%s://%s:%d%s" % (scheme, rendered_host, port, path)
 
 
 def endpoint_for(spec: InstanceSpec, lane: Lane) -> ServerEndpoint:
@@ -176,6 +250,7 @@ def endpoint_for(spec: InstanceSpec, lane: Lane) -> ServerEndpoint:
         workdir=workdir,
         log_path=lane.log_dir / ("%s.log" % spec.name),
         pidfile=pidfile,
+        hosts=dict(spec.hosts),
     )
 
 
@@ -245,39 +320,13 @@ class Registry:
         return out
 
     def validate(self, lane: Lane) -> List[str]:
-        """Warn-only strict validation (F1): findings a spec constructor
-        cannot see because they need the lane or the kind table.  Ships
-        as warnings; the harness's ``spec_validation="refuse"`` promotes
-        them to a hard error once a catalogue has proven warn-clean."""
-        from brixtest.fleet.probes import probe_from_alias  # cycle-free at call time
-        findings: List[str] = []
+        """Return findings that require the lane or registered kind table.
+
+        The harness can report these as warnings or promote them to errors.
+        """
+        findings = []
         for spec in self.all_specs():
-            for role, port in sorted(spec.ports.items()):
-                if not lane.owns_port(port):
-                    findings.append(
-                        "%s: ports[%s]=%d is outside the lane's range %d-%d"
-                        % (spec.name, role, port, lane.port_base,
-                           lane.port_base + lane.port_span - 1)
-                    )
-            try:
-                get_kind(spec.kind)
-            except Exception:
-                findings.append(
-                    "%s: kind %r is not registered" % (spec.name, spec.kind)
-                )
-            if spec.config_template is not None and not Path(spec.config_template).is_file():
-                findings.append(
-                    "%s: config_template %s does not exist"
-                    % (spec.name, spec.config_template)
-                )
-            if spec.readiness:
-                try:
-                    probe_from_alias(spec.readiness)
-                except Exception:
-                    findings.append(
-                        "%s: readiness alias %r does not resolve"
-                        % (spec.name, spec.readiness)
-                    )
+            findings.extend(_spec_findings(spec, lane))
         for port, first, second in self.port_conflicts():
             findings.append(
                 "port %d is claimed by both %r and %r" % (port, first, second)

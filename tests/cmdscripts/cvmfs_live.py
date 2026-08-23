@@ -15,6 +15,26 @@ from cmdscripts.live_common import LiveFailure, LiveRun, REPO_ROOT
 from settings import BIND_HOST, HOST
 
 
+def _phase_keepalive_1(connections):
+    for connection in connections:
+        connection.close()
+
+
+def _expression_1(durable, client):
+    return (
+        durable and client.getresponse().status in (403, 405)
+    )
+
+def _expression_2(durable, client):
+    return (
+        durable and client.getresponse().status == 200
+    )
+
+
+def _check_keepalive_1(objects):
+    assert isinstance(objects, list)
+
+
 def _mock(run: LiveRun, port: int, objects: int, seed: int, *, keepalive: bool = False) -> subprocess.Popen[str]:
     argv = [sys.executable, REPO_ROOT / "tests/cvmfs/mock_stratum1.py", "--port", str(port), "--objects", str(objects), "--seed", str(seed)]
     if keepalive:
@@ -264,7 +284,7 @@ http {{
         )
         run.start_nginx(run.root, config, keepalive_port)
         objects = _ctl(run, mock_port, "objects")
-        assert isinstance(objects, list)
+        _check_keepalive_1(objects)
         obj = objects[0]
         connections = []
         for port in (keepalive_port, control_port):
@@ -284,15 +304,14 @@ http {{
                     durable = False
                     break
             client.request("GET", "/etc/passwd")
-            durable = durable and client.getresponse().status in (403, 405)
+            durable = _expression_1(durable, client)
             client.request("GET", obj)
-            durable = durable and client.getresponse().status == 200
+            durable = _expression_2(durable, client)
         except (OSError, http.client.HTTPException):
             durable = False
         finally:
             client.close()
-            for connection in connections:
-                connection.close()
+            _phase_keepalive_1(connections)
         return _checks([
             ("timer:(keepalive" in ss_keepalive, "keepalive timer armed on configured listener"),
             ("timer:(keepalive" not in ss_control, "negative-control listener has no keepalive timer"),

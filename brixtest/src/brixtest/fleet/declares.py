@@ -1,4 +1,4 @@
-"""Declared-usage analysis (feature F5, first half).
+"""Static analysis of the server instances used by each test module.
 
 Four channels tell BriXTest which instances a test file needs, in
 priority order:
@@ -12,10 +12,8 @@ priority order:
    ``WEBDAV_PORT`` needs that server even without a marker.
 4. **backbone**  — specs every session needs regardless (``backbone``).
 
-The core does the source analysis (channels 1 and the raw name usage
-feeding 2–3); the adapter supplies the three maps, because only the
-adapter knows what its fixtures and constants mean.  Analysis is AST
-only — the test file is **never imported** — and cached per file on
+The adapter supplies the maps for project-specific fixtures and constants.
+Analysis uses the AST without importing the test file and is cached on
 ``(st_mtime_ns, st_size)`` plus a schema stamp so an analyzer upgrade
 invalidates every cached row at once.
 """
@@ -28,7 +26,7 @@ import threading
 from pathlib import Path
 from typing import Dict, FrozenSet, Mapping, Sequence, Set, Tuple
 
-__all__ = ["DECLARE_MARKERS", "TestUsage", "DeclarationMap", "analyze_source"]
+__all__ = ["DECLARE_MARKERS", "DeclarationMap", "TestUsage", "analyze_source"]
 
 DECLARE_MARKERS: Tuple[str, ...] = ("registry_server", "registry_servers")
 _ANALYSIS_SCHEMA = 1
@@ -51,13 +49,20 @@ class TestUsage:
 def _marker_names(call: ast.Call) -> Set[str]:
     names: Set[str] = set()
     for arg in call.args:
-        if isinstance(arg, ast.Constant) and isinstance(arg.value, str):
-            names.add(arg.value)
-        elif isinstance(arg, (ast.List, ast.Tuple)):
-            for element in arg.elts:
-                if isinstance(element, ast.Constant) and isinstance(element.value, str):
-                    names.add(element.value)
+        names.update(_literal_names(arg))
     return names
+
+
+def _literal_names(node: ast.AST) -> Set[str]:
+    if isinstance(node, ast.Constant):
+        return {node.value} if isinstance(node.value, str) else set()
+    if isinstance(node, (ast.List, ast.Tuple)):
+        return {value.value for value in node.elts if _is_string_literal(value)}
+    return set()
+
+
+def _is_string_literal(node: ast.AST) -> bool:
+    return isinstance(node, ast.Constant) and isinstance(node.value, str)
 
 
 def _is_declare_marker(node: ast.expr) -> bool:
@@ -92,7 +97,6 @@ class _Visitor(ast.NodeVisitor):
         self.generic_visit(node)
 
     def visit_Assign(self, node: ast.Assign) -> None:
-        # pytestmark = [pytest.mark.registry_server("x"), ...]
         targets = [t.id for t in node.targets if isinstance(t, ast.Name)]
         if "pytestmark" in targets:
             for candidate in ast.walk(node.value):
@@ -165,7 +169,7 @@ class DeclarationMap:
         return needed
 
     def undeclared(self, usage: TestUsage) -> Set[str]:
-        """Specs reached through channels 2–3 but not declared via markers.
+        """Specs reached through channels 2-3 but not declared via markers.
 
         This is what the gate reports: the test *touches* the server
         (fixture or port constant) yet never declared it, so a

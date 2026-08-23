@@ -50,6 +50,67 @@ from server_launcher import LifecycleHarness
 from server_registry import NginxInstanceSpec
 from gridftp_client_env import gsi_client_env
 
+def _phase_init_1(cfg, self):
+    with open(cfg, "w") as fh:
+        fh.write(
+            f"xrd.port {self.port}\n"
+            "all.export /\n"
+            f"oss.localroot {self.data}\n"
+            "xrootd.seclib libXrdSec.so\n"
+            f"sec.protocol gsi -certdir:{CA_DIR} "
+            f"-cert:{SERVER_CERT} -key:{SERVER_KEY} "
+            "-gridmap:none -gmapopt:10 -crl:0 -dlgpxy:0\n"
+            "sec.protbind * only gsi\n"
+            # Trace the authenticated login so the test can assert the
+            # forwarded user DN reached the upstream (default xrootd does not
+            # log successful GSI logins).
+            "sec.trace 2\n"
+            "xrootd.trace login auth\n")
+
+def _phase_init_2(base, self):
+    for d in (base, self.data):
+        _run(["chmod", "-R", "a+rwX", d])
+
+def _phase_init_3():
+    for sub in (PKI_DIR, CA_DIR, os.path.join(PKI_DIR, "server")):
+        _guard_init_5(sub)
+
+def _phase_init_4():
+    for pem in (SERVER_CERT, *glob.glob(
+            os.path.join(CA_DIR, "*.pem"))):
+        _guard_init_6(pem)
+
+
+def _guard_require_1():
+    if GUC is None:
+        pytest.skip("globus-url-copy not on PATH")
+
+def _guard_require_2():
+    if not (shutil.which("xrootd") and shutil.which("xrdgsiproxy")):
+        pytest.skip("stock xrootd / xrdgsiproxy not installed")
+
+def _guard_require_3():
+    if not os.access(NGINX_BIN, os.X_OK):
+        pytest.skip(f"nginx not executable: {NGINX_BIN}")
+
+def _guard_require_4(p):
+    if not os.path.exists(p):
+        pytest.skip(f"test PKI incomplete: missing {p}")
+
+def _guard_init_7(runas):
+    if os.path.exists(SERVER_KEY):
+        shutil.chown(SERVER_KEY, runas)
+        os.chmod(SERVER_KEY, 0o400)
+
+def _guard_init_5(sub):
+    if os.path.isdir(sub):
+        _run(["chmod", "a+rx", sub])
+
+def _guard_init_6(pem):
+    if os.path.exists(pem):
+        _run(["chmod", "a+r", pem])
+
+
 pytestmark = [pytest.mark.slow, pytest.mark.serial,
               pytest.mark.timeout(300), pytest.mark.uses_lifecycle_harness,
               pytest.mark.xdist_group("gridftp-deleg")]
@@ -71,15 +132,11 @@ def _run(cmd, **kw):
 
 
 def _require():
-    if GUC is None:
-        pytest.skip("globus-url-copy not on PATH")
-    if not (shutil.which("xrootd") and shutil.which("xrdgsiproxy")):
-        pytest.skip("stock xrootd / xrdgsiproxy not installed")
-    if not os.access(NGINX_BIN, os.X_OK):
-        pytest.skip(f"nginx not executable: {NGINX_BIN}")
+    _guard_require_1()
+    _guard_require_2()
+    _guard_require_3()
     for p in (SERVER_CERT, SERVER_KEY, CA_DIR, USER_PROXY):
-        if not os.path.exists(p):
-            pytest.skip(f"test PKI incomplete: missing {p}")
+        _guard_require_4(p)
 
 
 class _Xrootd:
@@ -94,21 +151,7 @@ class _Xrootd:
         self.log = os.path.join(base, "xrootd.log")
         os.makedirs(self.data, exist_ok=True)
         cfg = os.path.join(base, "xrootd.cfg")
-        with open(cfg, "w") as fh:
-            fh.write(
-                f"xrd.port {self.port}\n"
-                "all.export /\n"
-                f"oss.localroot {self.data}\n"
-                "xrootd.seclib libXrdSec.so\n"
-                f"sec.protocol gsi -certdir:{CA_DIR} "
-                f"-cert:{SERVER_CERT} -key:{SERVER_KEY} "
-                "-gridmap:none -gmapopt:10 -crl:0 -dlgpxy:0\n"
-                "sec.protbind * only gsi\n"
-                # Trace the authenticated login so the test can assert the
-                # forwarded user DN reached the upstream (default xrootd does not
-                # log successful GSI logins).
-                "sec.trace 2\n"
-                "xrootd.trace login auth\n")
+        _phase_init_1(cfg, self)
         # No `-n <instance>`: it relocates the `-l` file into an instance
         # subdirectory, hiding the log from log_text().
         argv = ["xrootd", "-c", cfg, "-l", self.log]
@@ -120,20 +163,12 @@ class _Xrootd:
         # otherwise fails GSI init and the port never opens).
         if os.geteuid() == 0:
             runas = os.environ.get("REF_RUNAS_USER", "nobody")
-            for d in (base, self.data):
-                _run(["chmod", "-R", "a+rwX", d])
+            _phase_init_2(base, self)
             open(self.log, "w").close()
             shutil.chown(self.log, runas)
-            for sub in (PKI_DIR, CA_DIR, os.path.join(PKI_DIR, "server")):
-                if os.path.isdir(sub):
-                    _run(["chmod", "a+rx", sub])
-            for pem in (SERVER_CERT, *glob.glob(
-                    os.path.join(CA_DIR, "*.pem"))):
-                if os.path.exists(pem):
-                    _run(["chmod", "a+r", pem])
-            if os.path.exists(SERVER_KEY):
-                shutil.chown(SERVER_KEY, runas)
-                os.chmod(SERVER_KEY, 0o400)
+            _phase_init_3()
+            _phase_init_4()
+            _guard_init_7(runas)
             argv += ["-R", runas]
         self._proc = subprocess.Popen(
             argv, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)

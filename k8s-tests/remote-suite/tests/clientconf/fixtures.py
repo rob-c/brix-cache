@@ -25,6 +25,19 @@ from . import endpoints as E
 from . import diffcore
 
 
+def _guard_clientconf_env_1():
+    if not _build_our_clients():
+        pytest.skip("project clients could not be built")
+
+def _guard_clientconf_env_3(healthy):
+    if not healthy:
+        pytest.skip("no client-conformance endpoint is reachable")
+
+def _guard_clientconf_env_2(stock, ep, healthy):
+    if ep.healthy(stock, probe=corpus.ROOT):
+        healthy.add(ep.key)
+
+
 def _worker_id():
     return os.environ.get("PYTEST_XDIST_WORKER", "main")
 
@@ -44,8 +57,7 @@ def _build_our_clients():
 @pytest.fixture(scope="session")
 def clientconf_env():
     """Seed corpus + discover healthy endpoints once per session."""
-    if not _build_our_clients():
-        pytest.skip("project clients could not be built")
+    _guard_clientconf_env_1()
 
     # Seed the corpus into the shared export (visible on every endpoint).
     try:
@@ -56,11 +68,9 @@ def clientconf_env():
     stock = E.stock_xrdfs()
     healthy = set()
     for ep in E.ENDPOINTS:
-        if ep.healthy(stock, probe=corpus.ROOT):
-            healthy.add(ep.key)
+        _guard_clientconf_env_2(stock, ep, healthy)
 
-    if not healthy:
-        pytest.skip("no client-conformance endpoint is reachable")
+    _guard_clientconf_env_3(healthy)
 
     return {
         "healthy": healthy,

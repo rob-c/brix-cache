@@ -14,6 +14,75 @@ from brixtest.errors import SpecError
 __all__ = ["decode_token", "issue_token", "verify_token"]
 
 
+def _required_text(field: str, value: object) -> str:
+    if not isinstance(value, str) or not value:
+        raise SpecError(field, value, "must be non-empty text")
+    return value
+
+
+def _token_time(lifetime: object, now: object) -> int:
+    if not _positive_integer(lifetime):
+        raise SpecError("token.lifetime", lifetime, "must be a positive integer")
+    if not _optional_integer(now):
+        raise SpecError("token.now", now, "must be an integer timestamp")
+    return int(time.time()) if now is None else int(now)
+
+
+def _positive_integer(value: object) -> bool:
+    return not isinstance(value, bool) and isinstance(value, int) and value > 0
+
+
+def _optional_integer(value: object) -> bool:
+    return value is None or (not isinstance(value, bool) and isinstance(value, int))
+
+
+def _extra_claims(value: object) -> dict[str, object]:
+    if value is not None and not isinstance(value, Mapping):
+        raise SpecError("token.claims", value, "must be a mapping")
+    extra = dict(value or {})
+    if not _string_keys(extra):
+        raise SpecError("token.claims", value, "claim names must be strings")
+    protected = {"iss", "aud", "sub", "iat", "exp", "scope"}
+    conflicts = sorted(protected.intersection(extra))
+    if conflicts:
+        raise SpecError("token.claims", conflicts, "cannot override standard claims")
+    return extra
+
+
+def _string_keys(value: Mapping[object, object]) -> bool:
+    return all(isinstance(key, str) for key in value)
+
+
+def _scopes(value: object) -> Sequence[str]:
+    if isinstance(value, (str, bytes)) or not all(
+        isinstance(scope, str) and scope for scope in value
+    ):
+        raise SpecError("token.scopes", value, "must contain non-empty strings")
+    return value
+
+
+def _signature(secret: str, signing_input: str) -> str:
+    digest = hmac.new(secret.encode(), signing_input.encode(), hashlib.sha256).digest()
+    return base64.urlsafe_b64encode(digest).rstrip(b"=").decode()
+
+
+def _verify_times(payload: Mapping[str, object], instant: int) -> None:
+    expires, issued = payload.get("exp"), payload.get("iat")
+    if isinstance(expires, bool) or not isinstance(expires, int) or expires <= instant:
+        raise SpecError("token.exp", expires, "token is expired or invalid")
+    if isinstance(issued, bool) or not isinstance(issued, int) or issued > instant:
+        raise SpecError("token.iat", issued, "token was issued in the future")
+
+
+def _verify_identity(
+    payload: Mapping[str, object], issuer: Optional[str], audience: Optional[str],
+) -> None:
+    if issuer is not None and payload.get("iss") != issuer:
+        raise SpecError("token.iss", payload.get("iss"), "does not match the expected issuer")
+    if audience is not None and payload.get("aud") != audience:
+        raise SpecError("token.aud", payload.get("aud"), "does not match the expected audience")
+
+
 def _encode(value: object) -> str:
     try:
         raw = json.dumps(value, separators=(",", ":"), sort_keys=True).encode()
@@ -36,41 +105,20 @@ def issue_token(
     lifetime: int = 3600, now: Optional[int] = None,
 ) -> str:
     """Issue a deterministic-time-capable HS256 JWT for test infrastructure."""
-    if not isinstance(secret, str) or not secret:
-        raise SpecError("token.secret", secret, "must not be empty")
+    _required_text("token.secret", secret)
     for field, value in (
         ("token.issuer", issuer), ("token.audience", audience), ("token.subject", subject),
     ):
-        if not isinstance(value, str) or not value:
-            raise SpecError(field, value, "must be non-empty text")
-    if isinstance(lifetime, bool) or not isinstance(lifetime, int) or lifetime <= 0:
-        raise SpecError("token.lifetime", lifetime, "must be a positive integer")
-    if now is not None and (isinstance(now, bool) or not isinstance(now, int)):
-        raise SpecError("token.now", now, "must be an integer timestamp")
-    if isinstance(scopes, (str, bytes)) or not all(
-        isinstance(scope, str) and scope for scope in scopes
-    ):
-        raise SpecError("token.scopes", scopes, "must contain non-empty strings")
-    if claims is not None and not isinstance(claims, Mapping):
-        raise SpecError("token.claims", claims, "must be a mapping")
-    extra = dict(claims or {})
-    if not all(isinstance(key, str) for key in extra):
-        raise SpecError("token.claims", claims, "claim names must be strings")
-    protected = {"iss", "aud", "sub", "iat", "exp", "scope"}
-    conflicts = sorted(protected.intersection(extra))
-    if conflicts:
-        raise SpecError("token.claims", conflicts, "cannot override standard claims")
-    issued = int(time.time()) if now is None else int(now)
+        _required_text(field, value)
+    issued = _token_time(lifetime, now)
+    extra = _extra_claims(claims)
     payload = {
         "iss": issuer, "aud": audience, "sub": subject, "iat": issued,
-        "exp": issued + lifetime, "scope": " ".join(scopes), **extra,
+        "exp": issued + lifetime, "scope": " ".join(_scopes(scopes)), **extra,
     }
     header = {"alg": "HS256", "typ": "JWT"}
     signing_input = "%s.%s" % (_encode(header), _encode(payload))
-    signature = hmac.new(secret.encode(), signing_input.encode(), hashlib.sha256).digest()
-    return "%s.%s" % (
-        signing_input, base64.urlsafe_b64encode(signature).rstrip(b"=").decode()
-    )
+    return "%s.%s" % (signing_input, _signature(secret, signing_input))
 
 
 def decode_token(token: str) -> Tuple[Mapping[str, object], Mapping[str, object]]:
@@ -91,28 +139,15 @@ def verify_token(
     audience: Optional[str] = None, now: Optional[int] = None,
 ) -> Mapping[str, object]:
     """Verify signature, time bounds, and optional issuer/audience constraints."""
-    if not isinstance(secret, str) or not secret:
-        raise SpecError("token.secret", secret, "must not be empty")
-    if now is not None and (isinstance(now, bool) or not isinstance(now, int)):
-        raise SpecError("token.now", now, "must be an integer timestamp")
+    _required_text("token.secret", secret)
+    instant = _token_time(1, now)
     header, payload = decode_token(token)
     if header.get("alg") != "HS256" or header.get("typ") != "JWT":
         raise SpecError("token.header", header, "must declare HS256 JWT")
     signing_input, encoded_signature = token.rsplit(".", 1)
-    expected = base64.urlsafe_b64encode(
-        hmac.new(secret.encode(), signing_input.encode(), hashlib.sha256).digest()
-    ).rstrip(b"=").decode()
+    expected = _signature(secret, signing_input)
     if not hmac.compare_digest(encoded_signature, expected):
         raise SpecError("token.signature", "invalid", "does not match the configured secret")
-    instant = int(time.time()) if now is None else int(now)
-    expires = payload.get("exp")
-    issued = payload.get("iat")
-    if isinstance(expires, bool) or not isinstance(expires, int) or expires <= instant:
-        raise SpecError("token.exp", expires, "token is expired or invalid")
-    if isinstance(issued, bool) or not isinstance(issued, int) or issued > instant:
-        raise SpecError("token.iat", issued, "token was issued in the future")
-    if issuer is not None and payload.get("iss") != issuer:
-        raise SpecError("token.iss", payload.get("iss"), "does not match the expected issuer")
-    if audience is not None and payload.get("aud") != audience:
-        raise SpecError("token.aud", payload.get("aud"), "does not match the expected audience")
+    _verify_times(payload, instant)
+    _verify_identity(payload, issuer, audience)
     return payload

@@ -148,8 +148,13 @@ def test_the_duplicated_encoders_became_one():
         "_tokenforge_part2_mixind_flat.py")]
     for helper in ("_b64url", "_seg"):
         assert sum(_defines(p, helper) for p in archives) == 5
-        homes = [p.name for p in sorted(TOKENS.glob("*.py")) if _defines(p, helper)]
+        homes = _encoder_homes(helper)
         assert homes == ["jose.py"], "%s also defined in %s" % (helper, homes)
+
+
+def _encoder_homes(helper):
+    return [path.name for path in sorted(TOKENS.glob("*.py"))
+            if _defines(path, helper)]
 
 
 # ---------------------------------------------------------------------------
@@ -295,6 +300,63 @@ def test_the_module_spelling_of_the_cli_writes_the_same_artifacts():
     assert "scitokens.cfg" in files.split() and "jwks_multi.json" in files.split()
 
 
+def _declared_name(node):
+    if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+        return {node.name}
+    return None
+
+
+def _imported_names(node):
+    if isinstance(node, ast.Import):
+        return {alias.asname or alias.name.split(".")[0] for alias in node.names}
+    if isinstance(node, ast.ImportFrom):
+        return {alias.asname or alias.name for alias in node.names}
+    return None
+
+
+def _stored_names(node):
+    if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Store):
+        return {node.id}
+    if isinstance(node, ast.arg):
+        return {node.arg}
+    if isinstance(node, ast.ExceptHandler) and node.name:
+        return {node.name}
+    if isinstance(node, ast.Global):
+        return set(node.names)
+    return None
+
+
+def _names_bound_by(node):
+    for resolver in (_declared_name, _imported_names, _stored_names):
+        names = resolver(node)
+        if names is not None:
+            return names
+    return set()
+
+
+def _bound_names(tree):
+    import builtins
+
+    bound = set(dir(builtins)) | {"__file__", "__name__", "__doc__"}
+    for node in ast.walk(tree):
+        bound.update(_names_bound_by(node))
+    return bound
+
+
+def _dangling_names(tree, bound):
+    return {
+        node.id for node in ast.walk(tree)
+        if all((isinstance(node, ast.Name),
+                isinstance(getattr(node, "ctx", None), ast.Load),
+                getattr(node, "id", None) not in bound))
+    }
+
+
+def _module_dangling(path):
+    tree = ast.parse(path.read_text())
+    return _dangling_names(tree, _bound_names(tree))
+
+
 def test_no_module_reaches_a_name_it_never_binds():
     """The defect class the ``exec`` composition hid, checked statically.
 
@@ -305,33 +367,11 @@ def test_no_module_reaches_a_name_it_never_binds():
     imports turn every such reference into a ``NameError`` at call time, which
     is only better if something looks for them before a fleet does.
     """
-    import builtins
-
-    dangling = {}
-    for path in sorted(TOKENS.glob("*.py")):
-        tree = ast.parse(path.read_text())
-        bound = set(dir(builtins)) | {"__file__", "__name__", "__doc__"}
-        for node in ast.walk(tree):
-            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef,
-                                 ast.ClassDef)):
-                bound.add(node.name)
-            elif isinstance(node, ast.Import):
-                bound.update(a.asname or a.name.split(".")[0]
-                             for a in node.names)
-            elif isinstance(node, ast.ImportFrom):
-                bound.update(a.asname or a.name for a in node.names)
-            elif isinstance(node, ast.Name) and isinstance(node.ctx, ast.Store):
-                bound.add(node.id)
-            elif isinstance(node, ast.arg):
-                bound.add(node.arg)
-            elif isinstance(node, ast.ExceptHandler) and node.name:
-                bound.add(node.name)
-            elif isinstance(node, ast.Global):
-                bound.update(node.names)
-        for node in ast.walk(tree):
-            if (isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load)
-                    and node.id not in bound):
-                dangling.setdefault(path.name, set()).add(node.id)
+    dangling = {
+        path.name: names
+        for path in sorted(TOKENS.glob("*.py"))
+        if (names := _module_dangling(path))
+    }
 
     assert not dangling, f"names used but never bound: {dangling}"
 

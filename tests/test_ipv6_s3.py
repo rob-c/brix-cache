@@ -29,6 +29,40 @@ import xml.etree.ElementTree as ET
 
 import pytest
 
+def _expression_1_next(keys):
+    return (
+        "".join(f"<Object><Key>{k}</Key></Object>" for k in keys)
+    )
+
+
+def _expression_1(uid):
+    return (
+        [f"ipv6_delmulti_{uid}_{i}.txt" for i in range(3)]
+    )
+
+
+def _check_test_s3_ipv6_list_objects_v2_2(r):
+    assert r.status_code == 200
+
+def _check_test_s3_ipv6_list_objects_v2_4(truncated):
+    assert not truncated
+
+def _check_test_s3_ipv6_list_objects_v2_1(r):
+    assert r.status_code == 200
+
+def _check_test_s3_ipv6_list_objects_v2_3(k, listed):
+    assert k in listed, f"{k} not in listing {listed}"
+
+def _check_test_s3_ipv6_delete_objects_batch_5(r):
+    assert r.status_code == 200
+
+def _check_test_s3_ipv6_delete_objects_batch_6(k, r):
+    assert k in r.text, f"key {k} not in DeleteResult"
+
+def _check_test_s3_ipv6_delete_objects_batch_7(r2, k):
+    assert r2.status_code == 404, f"key {k} should be deleted"
+
+
 try:
     import requests
     _HAVE_REQUESTS = True
@@ -243,14 +277,14 @@ def test_s3_ipv6_list_objects_v2():
     keys = [f"ipv6_list_{uid}_{i}.txt" for i in range(3)]
     for k in keys:
         r = requests.put(_obj_url(k), data=b"x", timeout=10)
-        assert r.status_code == 200
+        _check_test_s3_ipv6_list_objects_v2_1(r)
 
     r = requests.get(_list_url(prefix=f"ipv6_list_{uid}"), timeout=10)
-    assert r.status_code == 200
+    _check_test_s3_ipv6_list_objects_v2_2(r)
     listed, truncated, _ = _parse_list(r.text)
     for k in keys:
-        assert k in listed, f"{k} not in listing {listed}"
-    assert not truncated
+        _check_test_s3_ipv6_list_objects_v2_3(k, listed)
+    _check_test_s3_ipv6_list_objects_v2_4(truncated)
 
 
 # ---------------------------------------------------------------------------
@@ -288,12 +322,12 @@ def test_s3_ipv6_copy_object():
 def test_s3_ipv6_delete_objects_batch():
     """REGRESSION: batch DeleteObjects removes every listed key over IPv6."""
     uid = uuid.uuid4().hex
-    keys = [f"ipv6_delmulti_{uid}_{i}.txt" for i in range(3)]
+    keys = _expression_1(uid)
     for k in keys:
         r = requests.put(_obj_url(k), data=b"x", timeout=10)
-        assert r.status_code == 200
+        _check_test_s3_ipv6_delete_objects_batch_5(r)
 
-    objects_xml = "".join(f"<Object><Key>{k}</Key></Object>" for k in keys)
+    objects_xml = _expression_1_next(keys)
     body = (
         '<?xml version="1.0" encoding="UTF-8"?>'
         '<Delete xmlns="http://s3.amazonaws.com/doc/2006-03-01/">'
@@ -307,14 +341,17 @@ def test_s3_ipv6_delete_objects_batch():
         headers={"Content-Type": "application/xml"},
         timeout=10,
     )
-    assert r.status_code == 200, f"DeleteObjects failed: {r.status_code} {r.text}"
-    assert "DeleteResult" in r.text
+    def _assert_test_s3_ipv6_delete_objects_batch_1():
+        assert r.status_code == 200, f"DeleteObjects failed: {r.status_code} {r.text}"
+        assert "DeleteResult" in r.text
+
+    _assert_test_s3_ipv6_delete_objects_batch_1()
     for k in keys:
-        assert k in r.text, f"key {k} not in DeleteResult"
+        _check_test_s3_ipv6_delete_objects_batch_6(k, r)
 
     for k in keys:
         r2 = requests.get(_obj_url(k), timeout=10)
-        assert r2.status_code == 404, f"key {k} should be deleted"
+        _check_test_s3_ipv6_delete_objects_batch_7(r2, k)
 
 
 # ---------------------------------------------------------------------------

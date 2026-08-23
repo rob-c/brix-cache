@@ -36,6 +36,12 @@ from server_launcher import launch_fleet_nginx
 # Binaries / constants
 # --------------------------------------------------------------------------- #
 
+def _phase_build_all_1(big):
+    if not os.path.exists(big):
+        with open(big, "wb") as f:
+            f.write(os.urandom(16 * 1024 * 1024))
+
+
 BRIX_BIN = shutil.which(os.environ.get("TEST_BRIX_BIN", "xrootd"))
 CMSD_BIN = shutil.which(os.environ.get("TEST_CMSD_BIN", "cmsd"))
 XRDFS_BIN = shutil.which(os.environ.get("TEST_XRDFS_BIN", "xrdfs"))
@@ -297,9 +303,7 @@ def build_all():
     m.nginx("lg-mgr", cfg_manager(p["lg_mgr"], p["lg_mgr_cms"]))
     d = m.datadir("lg-rds")
     big = os.path.join(d, "big.bin")
-    if not os.path.exists(big):
-        with open(big, "wb") as f:
-            f.write(os.urandom(16 * 1024 * 1024))
+    _phase_build_all_1(big)
     m.brix_node("lg-rds", "server", p["lg_rds"], p["lg_rds_cms"], d, "/",
                   f"{HOST}:{p['lg_mgr_cms']}")
 
@@ -393,5 +397,3 @@ def _kill_pidfile_group(pidfile):
         os.remove(pidfile)
     except OSError:
         pass
-
-

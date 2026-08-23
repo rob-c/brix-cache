@@ -6,6 +6,24 @@ from the *flat* location, so from ``_legacy/`` it would name ``tests/docs/``.
 The live module is ``brix_suite.security.x509_vectors``.
 """
 
+from __future__ import annotations
+
+def _expression_1(name, sc):
+    return (
+        str(sc.ca_dir) if name.startswith("crl") else ""
+    )
+
+def _expression_2(rows):
+    return (
+        [r for r in rows if r[4] not in ("unavailable", r[2])]
+    )
+
+
+def _guard_run_1(ours, spec, mismatches, name, cred):
+    if ours != spec:
+        mismatches.append((name, cred, spec, ours))
+
+
 """x509_differential — replay forge scenarios against our module and stock XRootD.
 
 For every davs-surface scenario the forge produces, this computes:
@@ -24,8 +42,6 @@ leg is best-effort: if no `xrootd` binary is present, or XrdHttp cannot be stood
 up for a scenario, that cell is recorded as "unavailable" and the run still
 succeeds as long as ours == spec everywhere.
 """
-
-from __future__ import annotations
 
 import json
 import os
@@ -162,7 +178,7 @@ def run(root: Path) -> int:
     for name in DAVS_SCENARIOS:
         sc = x509forge.forge_scenario(root / name, name)
         manifest = json.loads((sc.dir / "manifest.json").read_text())
-        crl = str(sc.ca_dir) if name.startswith("crl") else ""
+        crl = _expression_1(name, sc)
         for m in manifest:
             if m["surface"] not in ("davs", "both"):
                 continue
@@ -172,8 +188,7 @@ def run(root: Path) -> int:
                                 crl=crl)
             xrd = _xrootd_verdict(root / f"{name}-{cred}-xrd", sc, cred)
             rows.append((name, cred, spec, ours, xrd, m["reason"]))
-            if ours != spec:
-                mismatches.append((name, cred, spec, ours))
+            _guard_run_1(ours, spec, mismatches, name, cred)
 
     _write_findings(rows)
 
@@ -183,7 +198,7 @@ def run(root: Path) -> int:
             print(f"  {name}/{cred}: spec={spec} ours={ours}")
         return 1
 
-    diverged = [r for r in rows if r[4] not in ("unavailable", r[2])]
+    diverged = _expression_2(rows)
     print(f"differential OK: {len(rows)} scenarios, ours==spec everywhere; "
           f"{len(diverged)} stock-XRootD divergence(s) recorded in {FINDINGS}")
     return 0

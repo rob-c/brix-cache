@@ -21,6 +21,15 @@ import time
 import pytest
 from settings import HOST
 
+def _guard_serve_1(d, self):
+    if d:
+        self.first.append(d)
+
+def _guard_serve_2(d, conn):
+    if d:
+        conn.sendall(d)
+
+
 pytestmark = pytest.mark.timeout(120)
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -78,27 +87,34 @@ class _Server:
                 continue
             threading.Thread(target=self._serve, args=(conn,), daemon=True).start()
 
+    def _echo(self, conn, data):
+        _guard_serve_2(data, conn)
+        while not self._stop:
+            data = conn.recv(65536)
+            if not data:
+                return
+            conn.sendall(data)
+
+    def _drain(self, conn):
+        conn.sendall(self.canned)
+        while not self._stop:
+            if not conn.recv(65536):
+                return
+
+    def _serve_mode(self, conn, data):
+        if self.mode == "echo":
+            self._echo(conn, data)
+        elif self.mode == "canned":
+            self._drain(conn)
+        elif self.mode == "canned-close":
+            conn.sendall(self.canned)
+
     def _serve(self, conn):
         conn.settimeout(3.0)
         try:
             d = conn.recv(65536)
-            if d:
-                self.first.append(d)
-            if self.mode == "echo":
-                if d:
-                    conn.sendall(d)
-                while not self._stop:
-                    d = conn.recv(65536)
-                    if not d:
-                        break
-                    conn.sendall(d)
-            elif self.mode == "canned":
-                conn.sendall(self.canned)
-                while not self._stop:
-                    if not conn.recv(65536):
-                        break
-            elif self.mode == "canned-close":
-                conn.sendall(self.canned)
+            _guard_serve_1(d, self)
+            self._serve_mode(conn, d)
         except OSError:
             pass
         finally:

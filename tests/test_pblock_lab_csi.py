@@ -163,10 +163,13 @@ def test_csi_flipped_block_fails_closed(lifecycle, fsck: Path) -> None:
         src = run.root / "src.bin"
         random_file(src, 2_500_000)
 
-        assert run.call([XRDCP, "-f", src, f"{hub}bad.bin"],
-                        check=False).returncode == 0
-        assert run.call([XRDCP, "-f", src, f"{hub}ok.bin"],
-                        check=False).returncode == 0
+        def _assert_test_csi_flipped_block_fails_closed_1():
+            assert run.call([XRDCP, "-f", src, f"{hub}bad.bin"],
+                            check=False).returncode == 0
+            assert run.call([XRDCP, "-f", src, f"{hub}ok.bin"],
+                            check=False).returncode == 0
+
+        _assert_test_csi_flipped_block_fails_closed_1()
 
         # Corrupt block 1 of bad.bin directly on disk (data path, not the tag).
         bad_blob = _blob_id(catalog, "/bad.bin")
@@ -180,24 +183,33 @@ def test_csi_flipped_block_fails_closed(lifecycle, fsck: Path) -> None:
             f"fsck did not flag the flip: rc={report.returncode} {report.stdout}"
         csi_lines = [ln for ln in report.stdout.splitlines()
                      if ln.startswith("CSI ")]
-        assert any("/bad.bin" in ln and "block=1" in ln for ln in csi_lines), \
-            f"oracle missed bad.bin block 1: {report.stdout}"
-        assert not any("/ok.bin" in ln for ln in csi_lines), \
-            f"oracle wrongly flagged the clean sibling: {report.stdout}"
+        def _assert_test_csi_flipped_block_fails_closed_2():
+            assert any("/bad.bin" in ln and "block=1" in ln for ln in csi_lines), \
+                f"oracle missed bad.bin block 1: {report.stdout}"
+            assert not any("/ok.bin" in ln for ln in csi_lines), \
+                f"oracle wrongly flagged the clean sibling: {report.stdout}"
+
+        _assert_test_csi_flipped_block_fails_closed_2()
 
         # The GET must fail — never hand back the corrupted stream.
         got = run.root / "got.bin"
         rc = run.call([XRDCP, "-f", f"{hub}bad.bin", got], check=False).returncode
-        assert rc != 0, "GET of a corrupted block succeeded (served bad bytes!)"
-        assert not (got.exists() and sha256(got) == sha256(src)), \
-            "corrupted GET produced a byte-exact copy — verify did not fire"
+        def _assert_test_csi_flipped_block_fails_closed_3():
+            assert rc != 0, "GET of a corrupted block succeeded (served bad bytes!)"
+            assert not (got.exists() and sha256(got) == sha256(src)), \
+                "corrupted GET produced a byte-exact copy — verify did not fire"
+
+        _assert_test_csi_flipped_block_fails_closed_3()
 
         # The untouched sibling still round-trips: failure is per-block.
         good = run.root / "good.bin"
-        assert run.call([XRDCP, "-f", f"{hub}ok.bin", good],
-                        check=False).returncode == 0
-        assert good.exists() and sha256(good) == sha256(src), \
-            "unrelated file broke — CSI failure was not scoped to the bad block"
+        def _assert_test_csi_flipped_block_fails_closed_4():
+            assert run.call([XRDCP, "-f", f"{hub}ok.bin", good],
+                            check=False).returncode == 0
+            assert good.exists() and sha256(good) == sha256(src), \
+                "unrelated file broke — CSI failure was not scoped to the bad block"
+
+        _assert_test_csi_flipped_block_fails_closed_4()
 
 
 @pytest.mark.optin

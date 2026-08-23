@@ -49,40 +49,62 @@ def scrape(mx):
 @pytest.mark.parametrize("family", FAMILIES)
 def test_label_values_well_formed(scrape, family):
     for key in gg.series(scrape, family, CATALOG[family]):
-        block = key[key.index("{"):] if "{" in key else ""
-        for k, v in gg.label_pairs(block):
-            if not v:
-                assert (family, k) in EMPTY_ALLOWED, \
-                    f"{key}: empty value for label {k}"
-                continue
-            if k in TIGHT:
-                assert TIGHT[k].match(v), f"{key}: {k}={v!r}"
-            elif k in ENUM_KEYS:
-                assert ENUM_SHAPE.match(v), f"{key}: {k}={v!r}"
-            else:
-                assert PRINTABLE.match(v), f"{key}: {k}={v!r}"
-                assert v == v.strip(), f"{key}: {k}={v!r} edge whitespace"
+        _assert_series_labels(key, family)
+
+
+def _assert_series_labels(series_key, family):
+    block = series_key[series_key.index("{"):] if "{" in series_key else ""
+    for label, value in gg.label_pairs(block):
+        _assert_label_value(series_key, family, label, value)
+
+
+def _assert_label_value(series_key, family, label, value):
+    if not value:
+        assert (family, label) in EMPTY_ALLOWED, \
+            f"{series_key}: empty value for label {label}"
+        return
+    if label in TIGHT:
+        assert TIGHT[label].match(value), f"{series_key}: {label}={value!r}"
+        return
+    if label in ENUM_KEYS:
+        assert ENUM_SHAPE.match(value), f"{series_key}: {label}={value!r}"
+        return
+    assert PRINTABLE.match(value), f"{series_key}: {label}={value!r}"
+    assert value == value.strip(), \
+        f"{series_key}: {label}={value!r} edge whitespace"
 
 
 def _hist_rows(scrape, family):
     """{base-labelset-tuple: {'buckets': [(le, val)], 'count': v, 'sum': v}}"""
     out = {}
     for key, vals in gg.series(scrape, family, "histogram").items():
-        name = key.split("{", 1)[0]
-        block = key[key.index("{"):] if "{" in key else ""
-        pairs = gg.label_pairs(block)
-        base = tuple(sorted((k, v) for k, v in pairs if k != "le"))
-        slot = out.setdefault(base, {"buckets": [], "count": None,
-                                     "sum": None})
-        if name.endswith("_bucket"):
-            le = dict(pairs)["le"]
-            lef = math.inf if le == "+Inf" else float(le)
-            slot["buckets"].append((lef, float(vals[0])))
-        elif name.endswith("_count"):
-            slot["count"] = float(vals[0])
-        elif name.endswith("_sum"):
-            slot["sum"] = float(vals[0])
+        _add_histogram_row(out, key, vals)
     return out
+
+
+def _histogram_base(pairs):
+    return tuple(sorted((key, value) for key, value in pairs if key != "le"))
+
+
+def _bucket_limit(value):
+    return math.inf if value == "+Inf" else float(value)
+
+
+def _add_histogram_row(rows, series_key, values):
+    name = series_key.split("{", 1)[0]
+    block = series_key[series_key.index("{"):] if "{" in series_key else ""
+    pairs = gg.label_pairs(block)
+    slot = rows.setdefault(
+        _histogram_base(pairs), {"buckets": [], "count": None, "sum": None})
+    value = float(values[0])
+    if name.endswith("_bucket"):
+        slot["buckets"].append((_bucket_limit(dict(pairs)["le"]), value))
+        return
+    if name.endswith("_count"):
+        slot["count"] = value
+        return
+    if name.endswith("_sum"):
+        slot["sum"] = value
 
 
 @pytest.mark.parametrize("family", HISTOGRAMS)

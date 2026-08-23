@@ -37,12 +37,140 @@
 #define CLONE_ITEM_LEN   32u      /* sizeof(clone_item) */
 #define CLONE_MAX_ITEMS  1024u    /* maxClonesz from XProtocol.hh */
 
+typedef struct {
+    int       src_idx;
+    uint64_t  src_off_raw;
+    uint64_t  len_raw;
+    uint64_t  dst_off_raw;
+    off_t     src_off;
+    off_t     dst_off;
+    size_t    len;
+} brix_clone_span_t;
+
+
+/*
+ * WHAT: Decode one wire clone item into host-order copy coordinates.
+ * WHY: Keep endian conversion and signed-range validation at the protocol edge.
+ * HOW: Copy potentially unaligned fields, convert big endian values, and reject
+ *      any span which cannot be represented safely by off_t/ssize_t operations.
+ */
+static ngx_int_t
+brix_clone_decode(const clone_item *item, brix_clone_span_t *span)
+{
+    span->src_idx = (int) (unsigned char) item->src_fhandle[0];
+    ngx_memcpy(&span->src_off_raw, &item->src_offset, 8);
+    ngx_memcpy(&span->len_raw, &item->src_len, 8);
+    ngx_memcpy(&span->dst_off_raw, &item->dst_offset, 8);
+    span->src_off_raw = be64toh(span->src_off_raw);
+    span->len_raw = be64toh(span->len_raw);
+    span->dst_off_raw = be64toh(span->dst_off_raw);
+    span->src_off = (off_t) span->src_off_raw;
+    span->dst_off = (off_t) span->dst_off_raw;
+    span->len = (size_t) span->len_raw;
+
+    if (span->src_off < 0 || span->dst_off < 0
+        || span->len_raw > (uint64_t) SSIZE_MAX
+        || span->src_off_raw > (uint64_t) SSIZE_MAX - span->len_raw
+        || span->dst_off_raw > (uint64_t) SSIZE_MAX - span->len_raw)
+    {
+        return NGX_ERROR;
+    }
+    return NGX_OK;
+}
+
+
+/*
+ * WHAT: Refresh destination CSI state for a successfully cloned range.
+ * WHY: Clone bypasses the normal write path's per-block checksum folding.
+ * HOW: Read the copied destination in one-block windows and feed each readable
+ *      segment to the existing CSI update helper; allocation is best-effort.
+ */
+static void
+brix_clone_fold_csi(brix_ctx_t *ctx, ngx_connection_t *c, int dst_idx,
+    off_t dst_off, size_t copy_len)
+{
+    enum { CLONE_FOLD_WIN = 1 << 20 };
+    u_char *buf;
+    off_t   offset;
+    size_t  left;
+
+    if (ctx->files[dst_idx].csi == NULL) {
+        return;
+    }
+    buf = ngx_alloc(CLONE_FOLD_WIN, c->log);
+    if (buf == NULL) {
+        return;
+    }
+    offset = dst_off;
+    left = copy_len;
+    while (left > 0) {
+        size_t  chunk = left < CLONE_FOLD_WIN ? left : CLONE_FOLD_WIN;
+        ssize_t n = pread(ctx->files[dst_idx].fd, buf, chunk, offset);
+
+        if (n <= 0) {
+            break;
+        }
+        (void) brix_csi_write_update(
+            (brix_csi_t *) ctx->files[dst_idx].csi, buf, offset, (size_t) n);
+        offset += n;
+        left -= (size_t) n;
+    }
+    ngx_free(buf);
+}
+
+
+/*
+ * WHAT: Validate and execute one decoded clone range.
+ * WHY: Give each source handle/range an independent fail-fast boundary.
+ * HOW: Validate read access, decode bounded offsets, copy through the shared
+ *      range helper, update CSI and accounting, then return bytes copied.
+ */
+static ngx_int_t
+brix_clone_one(brix_ctx_t *ctx, ngx_connection_t *c, int dst_idx,
+    const clone_item *item, uint64_t *copied)
+{
+    brix_clone_span_t span;
+    ngx_int_t         rc;
+
+    span.src_idx = (int) (unsigned char) item->src_fhandle[0];
+    if (!brix_validate_read_handle(ctx, c, span.src_idx, "CLONE",
+                                   BRIX_OP_CLONE, &rc))
+    {
+        return rc;
+    }
+    if (brix_clone_decode(item, &span) != NGX_OK) {
+        BRIX_RETURN_ERR(ctx, c, BRIX_OP_CLONE, "CLONE",
+                        ctx->files[span.src_idx].path,
+                        ctx->files[dst_idx].path, kXR_ArgInvalid,
+                        "clone offset/length out of range");
+    }
+    if (span.len == 0) {
+        *copied = 0;
+        return NGX_OK;
+    }
+    if (brix_copy_range(c->log, ctx->files[span.src_idx].fd, span.src_off,
+                        ctx->files[dst_idx].fd, span.dst_off, span.len,
+                        ctx->files[span.src_idx].path,
+                        ctx->files[dst_idx].path) != NGX_OK)
+    {
+        BRIX_RETURN_ERR(ctx, c, BRIX_OP_CLONE, "CLONE",
+                        ctx->files[span.src_idx].path,
+                        ctx->files[dst_idx].path, kXR_IOError,
+                        "clone copy failed");
+    }
+    brix_clone_fold_csi(ctx, c, dst_idx, span.dst_off, span.len);
+    ctx->files[dst_idx].bytes_written += span.len;
+    ctx->totals.bytes += span.len;
+    *copied = span.len;
+    return NGX_OK;
+}
+
+
 ngx_int_t
 brix_handle_clone(brix_ctx_t *ctx, ngx_connection_t *c)
 {
     xrdw_clone_req_t    req;
     int                 dst_idx;
-    int                 dst_fd;
     const u_char       *p;
     const u_char       *end;
     uint32_t            n_items;
@@ -76,100 +204,18 @@ brix_handle_clone(brix_ctx_t *ctx, ngx_connection_t *c)
                           kXR_ArgTooLong, "too many clone items");
     }
 
-    dst_fd = ctx->files[dst_idx].fd;
-
     p   = ctx->recv.payload;
     end = ctx->recv.payload + ctx->recv.cur_dlen;
 
     while (p < end) {
         const clone_item *item = (const clone_item *) p;
-        int               src_idx;
-        uint64_t          src_off_raw, src_len_raw, dst_off_raw;
-        off_t             src_off, dst_off;
-        size_t            copy_len;
+        uint64_t          copied = 0;
 
-        src_idx = (int)(unsigned char) item->src_fhandle[0];
-
-        if (!brix_validate_read_handle(ctx, c, src_idx, "CLONE",
-                                         BRIX_OP_CLONE, &rc)) {
+        rc = brix_clone_one(ctx, c, dst_idx, item, &copied);
+        if (rc != NGX_OK) {
             return rc;
         }
-
-        /* All fields are big-endian uint64. */
-        ngx_memcpy(&src_off_raw, &item->src_offset, 8);
-        ngx_memcpy(&src_len_raw, &item->src_len,    8);
-        ngx_memcpy(&dst_off_raw, &item->dst_offset, 8);
-
-        src_off_raw = be64toh(src_off_raw);
-        src_len_raw = be64toh(src_len_raw);
-        dst_off_raw = be64toh(dst_off_raw);
-
-        src_off  = (off_t)  src_off_raw;
-        dst_off  = (off_t)  dst_off_raw;
-        copy_len = (size_t) src_len_raw;
-
-        if (copy_len == 0) {
-            p += CLONE_ITEM_LEN;
-            continue;
-        }
-
-        /* Reject offsets/lengths that overflow a signed off_t before handing
-         * them to copy_file_range/pread — a wire uint64 with the high bit set
-         * casts to a negative off_t. Fail loudly with kXR_ArgInvalid rather than
-         * relying on a downstream kernel EINVAL, matching the read path's
-         * explicit negative-offset guard (src/protocols/root/read/read.c). */
-        if (src_off < 0 || dst_off < 0 || src_len_raw > (uint64_t) SSIZE_MAX
-            || src_off_raw > (uint64_t) SSIZE_MAX - src_len_raw
-            || dst_off_raw > (uint64_t) SSIZE_MAX - src_len_raw)
-        {
-            BRIX_RETURN_ERR(ctx, c, BRIX_OP_CLONE, "CLONE",
-                              ctx->files[src_idx].path,
-                              ctx->files[dst_idx].path,
-                              kXR_ArgInvalid, "clone offset/length out of range");
-        }
-
-        if (brix_copy_range(c->log, ctx->files[src_idx].fd, src_off,
-                              dst_fd, dst_off, copy_len,
-                              ctx->files[src_idx].path,
-                              ctx->files[dst_idx].path) != NGX_OK)
-        {
-            BRIX_RETURN_ERR(ctx, c, BRIX_OP_CLONE, "CLONE",
-                              ctx->files[src_idx].path,
-                              ctx->files[dst_idx].path,
-                              kXR_IOError, "clone copy failed");
-        }
-
-        /* Integrity: clone writes bytes with copy_file_range/pread-pwrite,
-         * bypassing the write path's per-block CRC fold. A csi-tracked dst
-         * would otherwise keep its pre-clone block CRCs, and a later read of
-         * the (now different) data fails verification with EIO. Fold the copied
-         * region into the handle's csi engine so the record flushed at close
-         * carries the cloned data's CRCs (edge blocks are recomputed at flush). */
-        if (ctx->files[dst_idx].csi != NULL) {
-            enum { CLONE_FOLD_WIN = 1 << 20 };   /* one csi block */
-            u_char *fb = ngx_alloc(CLONE_FOLD_WIN, c->log);
-            if (fb != NULL) {
-                off_t  fo   = dst_off;
-                size_t left = copy_len;
-                while (left > 0) {
-                    size_t  chunk = left < CLONE_FOLD_WIN ? left : CLONE_FOLD_WIN;
-                    ssize_t n     = pread(dst_fd, fb, chunk, fo);
-                    if (n <= 0) {
-                        break;
-                    }
-                    (void) brix_csi_write_update(
-                        (brix_csi_t *) ctx->files[dst_idx].csi, fb, fo,
-                        (size_t) n);
-                    fo   += n;
-                    left -= (size_t) n;
-                }
-                ngx_free(fb);
-            }
-        }
-
-        total_bytes += copy_len;
-        ctx->files[dst_idx].bytes_written += copy_len;
-        ctx->totals.bytes += copy_len;
+        total_bytes += copied;
 
         p += CLONE_ITEM_LEN;
     }

@@ -15,6 +15,20 @@ import subprocess
 
 import pytest
 
+def _guard_cns_inv_bin_1(cc):
+    if cc is None:
+        pytest.skip("no C compiler")
+
+def _guard_cns_inv_bin_2():
+    if not (os.path.exists(SRC) and os.path.exists(TEST)):
+        pytest.skip("cns_inventory sources missing")
+
+def _guard_cns_inv_bin_3(r):
+    if r.returncode != 0:
+        pytest.fail("cns_inventory suite failed to COMPILE (warnings are errors):"
+                    f"\n{r.stderr}")
+
+
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CMS = os.path.join(REPO, "src", "net", "cms")
 SRC = os.path.join(CMS, "cns_inventory.c")
@@ -24,17 +38,13 @@ TEST = os.path.join(CMS, "cns_inventory_unittest.c")
 @pytest.fixture(scope="module")
 def cns_inv_bin(tmp_path_factory):
     cc = shutil.which("gcc") or shutil.which("cc")
-    if cc is None:
-        pytest.skip("no C compiler")
-    if not (os.path.exists(SRC) and os.path.exists(TEST)):
-        pytest.skip("cns_inventory sources missing")
+    _guard_cns_inv_bin_1(cc)
+    _guard_cns_inv_bin_2()
     out = str(tmp_path_factory.mktemp("cnsinv") / "ut")
     r = subprocess.run(
         [cc, "-Wall", "-Wextra", "-Werror", "-I", CMS, SRC, TEST, "-o", out],
         capture_output=True, text=True)
-    if r.returncode != 0:
-        pytest.fail("cns_inventory suite failed to COMPILE (warnings are errors):"
-                    f"\n{r.stderr}")
+    _guard_cns_inv_bin_3(r)
     return out
 
 

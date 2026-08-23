@@ -105,6 +105,10 @@ from server_registry import NginxInstanceSpec
 from settings import HOST, NGINX_BIN
 from utils.make_token import TokenIssuer
 
+def _check_test_no_s3_translation_unit_can_reach_a_webdav_loc_conf_1(hits):
+    assert hits == [], f"{DEFECT36} S3 now references the WebDAV conf at {hits}"
+
+
 pytestmark = [pytest.mark.timeout(180),
               pytest.mark.uses_lifecycle_harness,
               pytest.mark.xdist_group("lc-audit15k-s3cores")]
@@ -444,7 +448,7 @@ class TestWebdavDirectivesAreInertInAnS3Location:
                 if ("webdav_loc_conf_t" in line
                         or "ngx_http_brix_webdav_module" in line):
                     hits.append(f"{path.relative_to(ROOT)}:{i}")
-        assert hits == [], f"{DEFECT36} S3 now references the WebDAV conf at {hits}"
+        _check_test_no_s3_translation_unit_can_reach_a_webdav_loc_conf_1(hits)
 
     @pytest.mark.parametrize("directive,field", [
         ("brix_webdav_auth", "auth"),
@@ -599,9 +603,12 @@ class TestXrdAccOverASigV4Principal:
         endpoint = s3cores[0]
         _signed(endpoint, "GET", "/acc/keyed/seed.txt")
         lines = [ln for ln in _authz_lines(endpoint) if "/acc/keyed" in ln]
-        assert lines, f"the xrdacc audit tier logged nothing: {_errlog(endpoint)[-2000:]}"
-        assert all(ACCESS_KEY not in ln for ln in lines), \
-            f"{DEFECT37} the audit line now names the key: {lines}"
+        def _assert_test_the_denial_is_attributed_to_an_empty_principal_1():
+            assert lines, f"the xrdacc audit tier logged nothing: {_errlog(endpoint)[-2000:]}"
+            assert all(ACCESS_KEY not in ln for ln in lines), \
+                f"{DEFECT37} the audit line now names the key: {lines}"
+
+        _assert_test_the_denial_is_attributed_to_an_empty_principal_1()
         assert any(re.search(r"xrootd authz: @\S+ deny ", ln) for ln in lines), \
             f"{DEFECT37} the principal is no longer empty: {lines}"
 

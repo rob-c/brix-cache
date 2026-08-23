@@ -8,6 +8,22 @@ Logs each request so tests can assert the proxy was actually used.
 """
 import socket, threading, select, sys
 
+def _expression_1(method, target):
+    return (
+        method == "GET" and target.startswith("http://")
+    )
+
+def _expression_2(ps):
+    return (
+        int(ps) if ps else 80
+    )
+
+
+def _phase_handle_1(client):
+    try: client.close()
+    except OSError: pass
+
+
 LOG = open(sys.argv[2], "a") if len(sys.argv) > 2 else sys.stderr
 def log(m): LOG.write(m + "\n"); LOG.flush()
 
@@ -25,47 +41,66 @@ def pipe(a, b):
     except OSError:
         pass
 
+
+def _request(client):
+    stream = client.makefile("rb")
+    line = stream.readline().decode("latin1").strip()
+    if not line:
+        return None
+    fields = line.split()
+    while stream.readline() not in (b"\r\n", b"\n", b""):
+        pass
+    return fields[0], fields[1]
+
+
+def _connect(client, target):
+    host, port_text = target.split(":")
+    port = int(port_text)
+    log("CONNECT %s:%d" % (host, port))
+    try:
+        upstream = socket.create_connection((host, port), 10)
+    except OSError:
+        client.sendall(b"HTTP/1.1 502 Bad Gateway\r\n\r\n")
+        return
+    client.sendall(b"HTTP/1.1 200 Connection Established\r\n\r\n")
+    pipe(client, upstream)
+    upstream.close()
+
+
+def _forward(client, target):
+    hostport, _, path = target[7:].partition("/")
+    host, _, port_text = hostport.partition(":")
+    port = _expression_2(port_text)
+    path = "/" + path
+    log("GET-forward %s:%d %s" % (host, port, path))
+    upstream = socket.create_connection((host, port), 10)
+    upstream.sendall(("GET %s HTTP/1.0\r\nHost: %s\r\nConnection: close\r\n\r\n"
+                      % (path, hostport)).encode())
+    while True:
+        data = upstream.recv(65536)
+        if not data:
+            break
+        client.sendall(data)
+    upstream.close()
+
+
+def _dispatch(client, request):
+    if request is None:
+        return
+    method, target = request
+    if method == "CONNECT":
+        _connect(client, target)
+    elif _expression_1(method, target):
+        _forward(client, target)
+
+
 def handle(client):
     try:
-        f = client.makefile("rb")
-        line = f.readline().decode("latin1").strip()
-        if not line:
-            client.close(); return
-        method, target = line.split()[0], line.split()[1]
-        while True:                                   # drain request headers
-            h = f.readline()
-            if h in (b"\r\n", b"\n", b""):
-                break
-        if method == "CONNECT":
-            host, port = target.split(":"); port = int(port)
-            log("CONNECT %s:%d" % (host, port))
-            try:
-                up = socket.create_connection((host, port), 10)
-            except OSError:
-                client.sendall(b"HTTP/1.1 502 Bad Gateway\r\n\r\n"); client.close(); return
-            client.sendall(b"HTTP/1.1 200 Connection Established\r\n\r\n")
-            pipe(client, up); up.close(); client.close()
-        elif method == "GET" and target.startswith("http://"):
-            rest = target[7:]
-            hostport, _, path = rest.partition("/")
-            path = "/" + path
-            host, _, ps = hostport.partition(":")
-            port = int(ps) if ps else 80
-            log("GET-forward %s:%d %s" % (host, port, path))
-            up = socket.create_connection((host, port), 10)
-            up.sendall(("GET %s HTTP/1.0\r\nHost: %s\r\nConnection: close\r\n\r\n"
-                        % (path, hostport)).encode())
-            while True:
-                d = up.recv(65536)
-                if not d:
-                    break
-                client.sendall(d)
-            up.close(); client.close()
-        else:
-            client.close()
+        _dispatch(client, _request(client))
     except OSError:
-        try: client.close()
-        except OSError: pass
+        pass
+    finally:
+        _phase_handle_1(client)
 
 def main():
     port = int(sys.argv[1])

@@ -56,48 +56,57 @@ _R2_EXEMPT = frozenset()
 # C source preprocessing
 # ---------------------------------------------------------------------------
 
+def _code_step(char, following):
+    if char == "/" and following == "/":
+        return "  ", "line", 2
+    if char == "/" and following == "*":
+        return "  ", "block", 2
+    if char == '"':
+        return char, "str", 1
+    if char == "'":
+        return char, "char", 1
+    return char, "code", 1
+
+
+def _line_comment_step(char):
+    if char == "\n":
+        return "\n", "code", 1
+    return ("\t" if char == "\t" else " "), "line", 1
+
+
+def _block_comment_step(char, following):
+    if char == "*" and following == "/":
+        return "  ", "code", 2
+    return ("\n" if char == "\n" else " "), "block", 1
+
+
+def _literal_step(char, following, state, quote):
+    if char == "\\" and following:
+        return char + following, state, 2
+    return char, ("code" if char == quote else state), 1
+
+
+def _comment_step(state, char, following):
+    if state == "code":
+        return _code_step(char, following)
+    if state == "line":
+        return _line_comment_step(char)
+    if state == "block":
+        return _block_comment_step(char, following)
+    quote = '"' if state == "str" else "'"
+    return _literal_step(char, following, state, quote)
+
+
 def _strip_c_comments(text):
-    """Blank out // and /* */ comments while preserving every newline (so line
-    numbers stay accurate) and string/char literal contents."""
-    out = []
-    i, n = 0, len(text)
-    state = "code"
-    while i < n:
-        c = text[i]
-        nxt = text[i + 1] if i + 1 < n else ""
-        if state == "code":
-            if c == "/" and nxt == "/":
-                state = "line"; out.append("  "); i += 2; continue
-            if c == "/" and nxt == "*":
-                state = "block"; out.append("  "); i += 2; continue
-            if c == '"':
-                state = "str"; out.append(c); i += 1; continue
-            if c == "'":
-                state = "char"; out.append(c); i += 1; continue
-            out.append(c); i += 1; continue
-        if state == "line":
-            if c == "\n":
-                state = "code"; out.append("\n"); i += 1; continue
-            out.append("\t" if c == "\t" else " "); i += 1; continue
-        if state == "block":
-            if c == "*" and nxt == "/":
-                state = "code"; out.append("  "); i += 2; continue
-            out.append("\n" if c == "\n" else " "); i += 1; continue
-        if state == "str":
-            out.append(c)
-            if c == "\\" and nxt:
-                out.append(nxt); i += 2; continue
-            if c == '"':
-                state = "code"
-            i += 1; continue
-        if state == "char":
-            out.append(c)
-            if c == "\\" and nxt:
-                out.append(nxt); i += 2; continue
-            if c == "'":
-                state = "code"
-            i += 1; continue
-    return "".join(out)
+    """Blank comments while preserving newlines and literal contents."""
+    output = []
+    index, state = 0, "code"
+    while index < len(text):
+        following = text[index + 1] if index + 1 < len(text) else ""
+        chunk, state, width = _comment_step(state, text[index], following)
+        output.append(chunk)
+        index += width
+    return "".join(output)
 
 
 def _iter_repo_sources():
@@ -141,69 +150,81 @@ def _rule1_clobber_violations(sources, exempt=frozenset()):
     return viol
 
 
+def _balanced_body(text, brace):
+    depth = 0
+    for index in range(brace, len(text)):
+        if text[index] == "{":
+            depth += 1
+        elif text[index] == "}":
+            depth -= 1
+            if depth == 0:
+                return text[brace:index + 1]
+    return text[brace:]
+
+
+def _matching_init_body(text, pattern):
+    match = pattern.search(text)
+    if match is None:
+        return None
+    brace = text.find("{", match.end())
+    return None if brace == -1 else _balanced_body(text, brace)
+
+
 def _find_init_body(stripped_by_path, name):
-    """Body ({...}) of a zone-init function `name(ngx_shm_zone_t ...)`, searched
-    across all sources. Returns the brace-balanced body text, or None."""
-    pat = re.compile(r"\b" + re.escape(name) + r"\s*\(\s*ngx_shm_zone_t")
-    for t in stripped_by_path.values():
-        m = pat.search(t)
-        if not m:
-            continue
-        brace = t.find("{", m.end())
-        if brace == -1:
-            continue
-        depth = 0
-        for j in range(brace, len(t)):
-            if t[j] == "{":
-                depth += 1
-            elif t[j] == "}":
-                depth -= 1
-                if depth == 0:
-                    return t[brace:j + 1]
-        return t[brace:]
+    """Find a zone-init function's brace-balanced body across sources."""
+    pattern = re.compile(r"\b" + re.escape(name) + r"\s*\(\s*ngx_shm_zone_t")
+    for text in stripped_by_path.values():
+        body = _matching_init_body(text, pattern)
+        if body is not None:
+            return body
     return None
 
 
 _SAFE_ALLOC = ("brix_shm_table_alloc", "ngx_slab_alloc")
 
 
-def _rule2_unsafe_registrars(sources, exempt=frozenset()):
-    """Flag any ngx_shared_memory_add registrar that never reaches a slab-safe
-    allocator (in the file or in a registered ->init callback)."""
-    stripped = {p: _strip_c_comments(raw) for p, raw in sources}
-    viol = []
-    for path, t in stripped.items():
-        if path in exempt:
-            continue
-        if "ngx_shared_memory_add" not in t:
-            continue
+def _init_safety(stripped, name):
+    body = _find_init_body(stripped, name)
+    if body is None:
+        return False, "init %s(): definition not found" % name
+    if any(allocator in body for allocator in _SAFE_ALLOC):
+        return True, ""
+    if "shm.addr" not in body:
+        return True, ""
+    detail = "init %s(): touches shm.addr without a slab-safe allocator" % name
+    return False, detail
 
-        if any(a in t for a in _SAFE_ALLOC):
-            continue  # allocates safely in this very file
 
-        inits = set(re.findall(r"(?:->|\.)init\s*=\s*([A-Za-z_]\w*)", t))
-        detail = []
-        safe = False
-        for name in inits:
-            body = _find_init_body(stripped, name)
-            if body is None:
-                detail.append("init %s(): definition not found" % name)
-                continue
-            if any(a in body for a in _SAFE_ALLOC):
-                safe = True
-                break
-            if "shm.addr" not in body:
-                safe = True  # pure stub / no-op init cannot clobber
-                break
-            detail.append("init %s(): touches shm.addr without a slab-safe "
-                          "allocator" % name)
+def _init_problem(stripped, inits):
+    details = []
+    for name in inits:
+        safe, detail = _init_safety(stripped, name)
         if safe:
-            continue
-        if not inits:
-            detail.append("registers a zone but has no resolvable ->init "
-                          "assignment and no slab-safe allocator")
-        viol.append((path, "; ".join(detail) or "no slab-safe allocator found"))
-    return viol
+            return None
+        details.append(detail)
+    if not inits:
+        details.append("registers a zone without a resolvable ->init assignment")
+    return "; ".join(details) or "no slab-safe allocator found"
+
+
+def _registrar_problem(path, text, stripped, exempt):
+    if path in exempt or "ngx_shared_memory_add" not in text:
+        return None
+    if any(allocator in text for allocator in _SAFE_ALLOC):
+        return None
+    inits = set(re.findall(r"(?:->|\.)init\s*=\s*([A-Za-z_]\w*)", text))
+    detail = _init_problem(stripped, inits)
+    return None if detail is None else (path, detail)
+
+
+def _rule2_unsafe_registrars(sources, exempt=frozenset()):
+    """Flag registrars that never reach a slab-safe allocator."""
+    stripped = {path: _strip_c_comments(raw) for path, raw in sources}
+    rows = [
+        _registrar_problem(path, text, stripped, exempt)
+        for path, text in stripped.items()
+    ]
+    return list(filter(None, rows))
 
 
 # ---------------------------------------------------------------------------

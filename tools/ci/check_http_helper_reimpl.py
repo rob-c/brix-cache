@@ -97,19 +97,21 @@ def _is_comment_line(code: str) -> bool:
 
 def _scan(root: Path, rx: re.Pattern) -> list[tuple[str, int, str]]:
     """grep -rnE rx across SCOPE --include='*.c'; raw (file, lineno, line) hits."""
-    hits: list[tuple[str, int, str]] = []
-    for base in SCOPE:
-        d = root / base
-        if not d.is_dir():
-            continue
-        for path in sorted(d.rglob("*.c")):
-            rel = str(path.relative_to(root))
-            for lineno, line in enumerate(
-                path.read_text(errors="ignore").splitlines(), 1
-            ):
-                if rx.search(line):
-                    hits.append((rel, lineno, line))
-    return hits
+    return [
+        hit
+        for base in SCOPE if (root / base).is_dir()
+        for path in sorted((root / base).rglob("*.c"))
+        for hit in _file_hits(root, path, rx)
+    ]
+
+
+def _file_hits(root, path, pattern):
+    relative = str(path.relative_to(root))
+    return [
+        (relative, lineno, line)
+        for lineno, line in enumerate(path.read_text(errors="ignore").splitlines(), 1)
+        if pattern.search(line)
+    ]
 
 
 def run(root: Path = ROOT) -> tuple[bool, list[str]]:

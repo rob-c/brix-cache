@@ -1,4 +1,24 @@
 from split_continuation import reexport as _reexport
+def _check_test_subwritten_file_checksum_matches_single_stream_1(r_sub):
+    assert r_sub.returncode == 0, f"sub-written upload failed: {r_sub.stderr}"
+
+def _check_test_subwritten_file_checksum_matches_single_stream_2(dbg, r_sub):
+    assert dbg, f"no upload diagnostic: {r_sub.stderr}"
+
+def _check_test_subwritten_file_checksum_matches_single_stream_3(on_sec):
+    assert on_sec > 0, "parity test vacuous: no chunks landed on a secondary"
+
+def _check_test_subwritten_file_checksum_matches_single_stream_4(content, one_name):
+    assert _read_export_file(one_name) == content
+
+def _check_test_subwritten_file_checksum_matches_single_stream_5(ck_sub, content):
+    assert ck_sub == format(zlib.adler32(content) & 0xffffffff, "08x")
+
+def _check_test_subwritten_file_checksum_matches_single_stream_6(ck_sub, algo_sub, content):
+    assert ck_sub == format(zlib.crc32(content) & 0xffffffff, "08x") \
+        or algo_sub == "crc32c"   # crc32c differs from zlib crc32; parity above suffices
+
+
 _reexport(globals(), "_test_data_substreams_parallel_helpers")
 
 class TestClientDownloadFanout:
@@ -89,33 +109,38 @@ class TestSubwrittenChecksumParity:
         r_sub = subprocess.run(
             [_XRDCP, "-f", str(src), f"root://{host}:{port}//{sub_name}"],
             capture_output=True, text=True, env=env, timeout=120)
-        assert r_sub.returncode == 0, f"sub-written upload failed: {r_sub.stderr}"
+        _check_test_subwritten_file_checksum_matches_single_stream_1(r_sub)
         dbg = [l for l in r_sub.stderr.splitlines() if "upload substreams=" in l]
-        assert dbg, f"no upload diagnostic: {r_sub.stderr}"
+        _check_test_subwritten_file_checksum_matches_single_stream_2(dbg, r_sub)
         on_sec = int(dbg[-1].split("chunks-on-secondaries=")[1].split()[0])
-        assert on_sec > 0, "parity test vacuous: no chunks landed on a secondary"
+        _check_test_subwritten_file_checksum_matches_single_stream_3(on_sec)
 
         # (2) single-stream reference: -S 1 forces one connection
         r_one = subprocess.run(
             [_XRDCP, "-f", "-S", "1", str(src), f"root://{host}:{port}//{one_name}"],
             capture_output=True, text=True, timeout=120)
-        assert r_one.returncode == 0, f"single-stream upload failed: {r_one.stderr}"
+        def _assert_test_subwritten_file_checksum_matches_single_stream_1():
+            assert r_one.returncode == 0, f"single-stream upload failed: {r_one.stderr}"
+    
+            # both landed byte-exact on disk
+            assert _read_export_file(sub_name) == content
 
-        # both landed byte-exact on disk
-        assert _read_export_file(sub_name) == content
-        assert _read_export_file(one_name) == content
+        _assert_test_subwritten_file_checksum_matches_single_stream_1()
+        _check_test_subwritten_file_checksum_matches_single_stream_4(content, one_name)
 
         # the SERVER's checksum of the sub-written file equals the single-stream one
         algo_sub, ck_sub = _server_checksum(host, port, sub_name)
         algo_one, ck_one = _server_checksum(host, port, one_name)
-        assert algo_sub == algo_one, f"algo mismatch {algo_sub} vs {algo_one}"
-        assert ck_sub == ck_one, (
-            f"sub-written checksum {ck_sub} != single-stream {ck_one} "
-            f"({algo_sub}) — out-of-order substream writes corrupted the digest")
+        def _assert_test_subwritten_file_checksum_matches_single_stream_2():
+            assert algo_sub == algo_one, f"algo mismatch {algo_sub} vs {algo_one}"
+            assert ck_sub == ck_one, (
+                f"sub-written checksum {ck_sub} != single-stream {ck_one} "
+                f"({algo_sub}) — out-of-order substream writes corrupted the digest")
+
+        _assert_test_subwritten_file_checksum_matches_single_stream_2()
 
         # and it matches an independent computation of the source bytes
         if algo_sub == "adler32":
-            assert ck_sub == format(zlib.adler32(content) & 0xffffffff, "08x")
+            _check_test_subwritten_file_checksum_matches_single_stream_5(ck_sub, content)
         elif algo_sub in ("crc32", "crc32c"):
-            assert ck_sub == format(zlib.crc32(content) & 0xffffffff, "08x") \
-                or algo_sub == "crc32c"   # crc32c differs from zlib crc32; parity above suffices
+            _check_test_subwritten_file_checksum_matches_single_stream_6(ck_sub, algo_sub, content)

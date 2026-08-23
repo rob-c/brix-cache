@@ -1,6 +1,73 @@
 from split_continuation import reexport as _reexport
 _reexport(globals(), "_test_a_robustness_helpers")
 
+
+def _count_ok_responses(connection, count, timeout=None):
+    successes = 0
+    for _ in range(count):
+        try:
+            if timeout is not None:
+                connection.settimeout(timeout)
+            status, _body = _recv_response(connection)
+        except (socket.timeout, ConnectionError):
+            break
+        if status == kXR_ok:
+            successes += 1
+    return successes
+
+
+def _open_storm_connections(count):
+    connections = []
+    failures = 0
+    for _ in range(count):
+        try:
+            connection = _connect()
+            handshake, protocol = _handshake_and_protocol(connection)
+        except OSError:
+            failures += 1
+            continue
+        if handshake == kXR_ok and protocol == kXR_ok:
+            connections.append(connection)
+        else:
+            connection.close()
+            failures += 1
+    return connections, failures
+
+
+def _close_connections(connections):
+    for connection in connections:
+        try:
+            connection.close()
+        except OSError:
+            pass
+
+
+def _open_handles(connection, count):
+    handles = []
+    for index in range(count):
+        stream = struct.pack(">H", 0x0100 + index)
+        connection.sendall(
+            make_open_req(b'/robustness_handles.bin', streamid=stream)
+        )
+        try:
+            status, body = _recv_response(connection)
+        except (socket.timeout, ConnectionError):
+            break
+        if status == kXR_ok and len(body) >= 4:
+            handles.append(body[:4])
+    return handles
+
+
+def _close_handles(connection, handles):
+    for index, handle in enumerate(handles):
+        stream = struct.pack(">H", 0x0180 + index)
+        connection.sendall(make_close_req(handle, streamid=stream))
+        try:
+            _recv_response(connection)
+        except (socket.timeout, ConnectionError):
+            break
+
+
 class TestProtocolFuzzing:
 
     def _logged_in(self) -> socket.socket:
@@ -178,14 +245,7 @@ class TestProtocolFuzzing:
         for i in range(200):
             sid = struct.pack(">H", (i % 0xFFFE) + 1)
             s.sendall(make_protocol_req(streamid=sid))
-        ok_count = 0
-        for _ in range(200):
-            try:
-                status, _ = _recv_response(s)
-                if status == kXR_ok:
-                    ok_count += 1
-            except (socket.timeout, ConnectionError):
-                break
+        ok_count = _count_ok_responses(s, 200)
         s.close()
         assert ok_count > 0, "No kXR_protocol responses received at all"
         assert_healthy()
@@ -220,25 +280,9 @@ class TestResourceExhaustion:
         remain responsive; some connection resets under load are tolerated.
         """
         assert_healthy()   # ensure we start from a clean state
-        sockets = []
-        failures = 0
-        for _ in range(50):
-            try:
-                s = _connect()
-                hs_st, pr_st = _handshake_and_protocol(s)
-                if hs_st == kXR_ok and pr_st == kXR_ok:
-                    sockets.append(s)
-                else:
-                    s.close()
-                    failures += 1
-            except OSError:
-                failures += 1
+        sockets, failures = _open_storm_connections(50)
         # Close all before asserting health so the server can drain its backlog.
-        for s in sockets:
-            try:
-                s.close()
-            except OSError:
-                pass
+        _close_connections(sockets)
         # Under load some resets are expected (nginx event loop, WSL2 limits).
         # What matters is that the server recovers fully afterwards.
         assert failures <= 25, f"Too many failures ({failures}/50) in connection storm"
@@ -267,15 +311,7 @@ class TestResourceExhaustion:
         for i in range(n):
             sid = struct.pack(">H", (i % 0xFFFE) + 1)
             s.sendall(make_ping_req(streamid=sid))
-        ok_count = 0
-        for _ in range(n):
-            try:
-                s.settimeout(10.0)
-                status, _ = _recv_response(s)
-                if status == kXR_ok:
-                    ok_count += 1
-            except (socket.timeout, ConnectionError):
-                break
+        ok_count = _count_ok_responses(s, n, timeout=10.0)
         s.close()
         assert ok_count >= int(n * 0.99), \
             f"Ping flood: only {ok_count}/{n} pings returned kXR_ok"
@@ -290,27 +326,12 @@ class TestResourceExhaustion:
         s = _connect()
         _full_anon_login(s)
 
-        handles = []
-        for i in range(16):
-            sid = struct.pack(">H", 0x0100 + i)
-            s.sendall(make_open_req(b'/robustness_handles.bin', streamid=sid))
-            try:
-                status, body = _recv_response(s)
-                if status == kXR_ok and len(body) >= 4:
-                    handles.append(body[:4])
-            except (socket.timeout, ConnectionError):
-                break
+        handles = _open_handles(s, 16)
 
         assert len(handles) >= 8, \
             f"Expected to open at least 8 handles, got {len(handles)}"
 
-        for i, handle in enumerate(handles):
-            sid = struct.pack(">H", 0x0180 + i)
-            s.sendall(make_close_req(handle, streamid=sid))
-            try:
-                _recv_response(s)
-            except (socket.timeout, ConnectionError):
-                break
+        _close_handles(s, handles)
 
         s.close()
         os.unlink(test_path)

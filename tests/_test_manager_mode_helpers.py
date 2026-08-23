@@ -72,6 +72,12 @@ from settings import (
     url_host,
 )
 
+def _expression_1(status, body):
+    return (
+        status == 4004 and len(body) >= 4
+    )
+
+
 kXR_ok = 0
 kXR_redirect = 4004
 kXR_mkdir = 3008
@@ -144,7 +150,7 @@ def _wait_for_redirect(redir_port, path, expected_ds_ports,
             try:
                 status, body = _send_locate_and_recv(sock, path)
                 last_status = status
-                if status == 4004 and len(body) >= 4:
+                if _expression_1(status, body):
                     redirect_port = struct.unpack(">I", body[:4])[0]
                     if redirect_port in expected_ds_ports:
                         return

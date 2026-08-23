@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
+import contextlib
 import dataclasses
 import hashlib
 import json
 import shutil
 from pathlib import Path
-from typing import Dict, IO, Iterable, Mapping, Optional
+from typing import IO, Dict, Iterable, Mapping, Optional
 
 from brixtest.design import Artifact
 from brixtest.errors import SpecError
@@ -57,6 +58,24 @@ def _source(path: object, base: Path) -> Path:
     return resolved
 
 
+def _sha256(value: object) -> bool:
+    return (
+        isinstance(value, str)
+        and len(value) == 64
+        and all(char in "0123456789abcdefABCDEF" for char in value)
+    )
+
+
+def _non_empty_text(value: object) -> bool:
+    return isinstance(value, str) and bool(value)
+
+
+def _integer(value: object, *, minimum: Optional[int] = None) -> bool:
+    if isinstance(value, bool) or not isinstance(value, int):
+        return False
+    return minimum is None or value >= minimum
+
+
 @dataclasses.dataclass(frozen=True)
 class MaterializedArtifact:
     """A checksum-backed run-local artifact with direct IO conveniences."""
@@ -68,18 +87,19 @@ class MaterializedArtifact:
     seed: int = 0
 
     def __post_init__(self) -> None:
-        if not isinstance(self.name, str) or not self.name:
+        if not _non_empty_text(self.name):
             raise SpecError("artifact.name", self.name, "must be non-empty text")
-        if not isinstance(self.path, (str, Path)) or not str(self.path):
+        if not isinstance(self.path, (str, Path)):
             raise SpecError("artifact.path", self.path, "must be a file-system path")
-        if isinstance(self.size, bool) or not isinstance(self.size, int) or self.size < 0:
+        if not str(self.path):
+            raise SpecError("artifact.path", self.path, "must be a file-system path")
+        if not _integer(self.size, minimum=0):
             raise SpecError("artifact.size", self.size, "must be an integer >= 0")
-        if not isinstance(self.sha256, str) or len(self.sha256) != 64 \
-                or any(char not in "0123456789abcdefABCDEF" for char in self.sha256):
+        if not _sha256(self.sha256):
             raise SpecError("artifact.sha256", self.sha256, "must be a SHA-256 hex digest")
-        if not isinstance(self.kind, str) or not self.kind:
+        if not _non_empty_text(self.kind):
             raise SpecError("artifact.kind", self.kind, "must be non-empty text")
-        if isinstance(self.seed, bool) or not isinstance(self.seed, int):
+        if not _integer(self.seed):
             raise SpecError("artifact.seed", self.seed, "must be an integer")
         object.__setattr__(self, "path", Path(self.path))
 
@@ -180,21 +200,28 @@ class ArtifactStore:
 
 def _provider_result(result: object, destination: Path, root: Path) -> Path:
     """Normalize provider output while keeping the selected file confined."""
+    selected = _selected_provider_path(result, destination, root)
+    return _confined_provider_path(selected, root)
+
+
+def _selected_provider_path(result: object, destination: Path, root: Path) -> Path:
     if isinstance(result, bytes):
         destination.write_bytes(result)
-        selected = destination
-    elif isinstance(result, str):
+        return destination
+    if isinstance(result, str):
         destination.write_text(result)
-        selected = destination
-    elif result is None:
-        selected = destination
-    elif isinstance(result, Path):
-        selected = result if result.is_absolute() else root / result
-    else:
-        raise SpecError(
-            "artifact provider result", type(result).__name__,
-            "must be bytes, text, a confined Path, or None",
-        )
+        return destination
+    if result is None:
+        return destination
+    if isinstance(result, Path):
+        return result if result.is_absolute() else root / result
+    raise SpecError(
+        "artifact provider result", type(result).__name__,
+        "must be bytes, text, a confined Path, or None",
+    )
+
+
+def _confined_provider_path(selected: Path, root: Path) -> Path:
     try:
         resolved = selected.resolve()
         resolved.relative_to(root.resolve())
@@ -256,10 +283,8 @@ class _FileProvider:
 for _provider_name, _provider in (
     ("noise", _NoiseProvider()), ("text", _TextProvider()), ("file", _FileProvider()),
 ):
-    try:
+    with contextlib.suppress(SpecError):
         register_extension(
             "provider", _provider_name, _provider, origin="brixtest",
             capabilities=("checksum", "confined", "provenance"),
         )
-    except SpecError:
-        pass

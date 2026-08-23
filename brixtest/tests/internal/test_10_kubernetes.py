@@ -95,13 +95,15 @@ def test_099_minikube_profile_is_docker_driven_and_digest_pinned():
 
 def test_100_internal_catalogue_contains_exactly_one_hundred_numbered_tests():
     root = Path(__file__).parent
-    names = []
-    for path in sorted(root.glob("test_*.py")):
-        tree = ast.parse(path.read_text(), filename=str(path))
-        names.extend(
-            node.name for node in tree.body
-            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
-            and node.name.startswith("test_")
-        )
-    assert len(names) == 100
-    assert sorted(int(name.split("_", 2)[1]) for name in names) == list(range(1, 101))
+    names = [name for path in sorted(root.glob("test_*.py")) for name in _test_names(path)]
+    numbers = sorted(int(name.split("_", 2)[1]) for name in names)
+    assert (len(names), numbers) == (100, list(range(1, 101)))
+
+
+def _test_names(path):
+    tree = ast.parse(path.read_text(), filename=str(path))
+    return [
+        node.name for node in tree.body
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+        and node.name.startswith("test_")
+    ]

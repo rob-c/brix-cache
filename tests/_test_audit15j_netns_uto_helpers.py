@@ -66,6 +66,35 @@ from _test_cms_wire_pup_conformance_helpers import (  # noqa: E402
 )
 
 # Exit code a child uses to signal "prerequisite absent" (mirrors autotools).
+def _expression_1(r):
+    return (
+        {"available": False,
+                            "reason": r.stderr.strip() or "child skip"}
+    )
+
+def _expression_2(r):
+    return (
+        {"available": False,
+                            "reason": f"child exit {r.returncode}: "
+                                      f"{(r.stderr or r.stdout).strip()[-500:]}"}
+    )
+
+
+def _guard_run_arm_1(arm, node_port):
+    if arm["drop"]:
+        _nft(f"add rule inet brixuto input tcp dport {node_port} drop")
+
+def _guard_run_arm_2(node):
+    if node is not None:
+        node.close()
+
+def _guard_run_arm_3(arm):
+    if arm["drop"]:
+        # Flush rather than track handles: each arm owns the whole chain.
+        _sh("nft", "flush", "chain", "inet", "brixuto", "input",
+            check=False)
+
+
 SKIP_EXIT = 77
 
 # Verbatim from _perf_netem_helpers: podman's full rootless uid map (so the
@@ -154,6 +183,38 @@ def write_conf(workdir, name, port, dataroot, uto, idle="600s"):
 # Parent — stage files, run the child in the namespace, read the result back.
 # --------------------------------------------------------------------------- #
 
+def _uto_spec(nginx_bin, workdir, dataroot, arms):
+    spec = {"nginx_bin": nginx_bin, "workdir": workdir,
+            "dataroot": dataroot, "arms": []}
+    for index, arm in enumerate(arms):
+        port = PORT_BASE + index
+        arm_dir = os.path.join(workdir, arm["name"])
+        os.makedirs(arm_dir, exist_ok=True)
+        os.chmod(arm_dir, 0o755)
+        spec["arms"].append({
+            **arm, "port": port,
+            "conf": write_conf(workdir, arm["name"], port, dataroot, arm["uto"]),
+        })
+    return spec
+
+
+def _run_uto_child(spec_path, workdir, arms, env):
+    budget = 90 + sum(arm["watch_s"] for arm in arms)
+    try:
+        result = subprocess.run(
+            _NS_LAUNCH + [sys.executable, os.path.abspath(__file__),
+                          "--inside", spec_path],
+            capture_output=True, text=True, env=env, timeout=budget)
+    except subprocess.TimeoutExpired:
+        return {"available": False, "reason": f"child exceeded {budget}s"}
+    if result.returncode == SKIP_EXIT:
+        return _expression_1(result)
+    if result.returncode != 0:
+        return _expression_2(result)
+    with open(os.path.join(workdir, "result.json")) as stream:
+        return json.load(stream)
+
+
 def run_uto_matrix(nginx_bin, workdir, arms):
     """Run every arm in one private namespace and return a result dict.
 
@@ -172,18 +233,7 @@ def run_uto_matrix(nginx_bin, workdir, arms):
     dataroot = tempfile.mkdtemp(prefix="brixuto-", dir="/tmp")
     os.chmod(dataroot, 0o755)
     try:
-        spec = {"nginx_bin": nginx_bin, "workdir": workdir,
-                "dataroot": dataroot, "arms": []}
-        for i, arm in enumerate(arms):
-            port = PORT_BASE + i
-            os.makedirs(os.path.join(workdir, arm["name"]), exist_ok=True)
-            os.chmod(os.path.join(workdir, arm["name"]), 0o755)
-            spec["arms"].append({
-                **arm,
-                "port": port,
-                "conf": write_conf(workdir, arm["name"], port, dataroot,
-                                   arm["uto"]),
-            })
+        spec = _uto_spec(nginx_bin, workdir, dataroot, arms)
         spec_path = os.path.join(workdir, "spec.json")
         with open(spec_path, "w") as fh:
             json.dump(spec, fh)
@@ -195,23 +245,7 @@ def run_uto_matrix(nginx_bin, workdir, arms):
             [os.path.dirname(os.path.abspath(__file__)),
              env.get("PYTHONPATH", "")]).strip(os.pathsep)
 
-        budget = 90 + sum(a["watch_s"] for a in arms)
-        try:
-            r = subprocess.run(
-                _NS_LAUNCH + [sys.executable, os.path.abspath(__file__),
-                              "--inside", spec_path],
-                capture_output=True, text=True, env=env, timeout=budget)
-        except subprocess.TimeoutExpired:
-            return {"available": False, "reason": f"child exceeded {budget}s"}
-        if r.returncode == SKIP_EXIT:
-            return {"available": False,
-                    "reason": r.stderr.strip() or "child skip"}
-        if r.returncode != 0:
-            return {"available": False,
-                    "reason": f"child exit {r.returncode}: "
-                              f"{(r.stderr or r.stdout).strip()[-500:]}"}
-        with open(os.path.join(workdir, "result.json")) as fh:
-            return json.load(fh)
+        return _run_uto_child(spec_path, workdir, arms, env)
     finally:
         shutil.rmtree(dataroot, ignore_errors=True)
 
@@ -277,8 +311,7 @@ def _run_arm(spec, arm):
             time.sleep(0.2)
         pre = len(_read(log))
 
-        if arm["drop"]:
-            _nft(f"add rule inet brixuto input tcp dport {node_port} drop")
+        _guard_run_arm_1(arm, node_port)
 
         torn, t0 = None, time.time()
         while time.time() - t0 < arm["watch_s"]:
@@ -293,12 +326,8 @@ def _run_arm(spec, arm):
                 "etimedout": "Connection timed out" in tail,
                 "watch_s": arm["watch_s"], "log_tail": tail[-2000:]}
     finally:
-        if node is not None:
-            node.close()
-        if arm["drop"]:
-            # Flush rather than track handles: each arm owns the whole chain.
-            _sh("nft", "flush", "chain", "inet", "brixuto", "input",
-                check=False)
+        _guard_run_arm_2(node)
+        _guard_run_arm_3(arm)
         _sh(spec["nginx_bin"], "-p", workdir, "-c", arm["conf"], "-s", "stop",
             check=False)
 

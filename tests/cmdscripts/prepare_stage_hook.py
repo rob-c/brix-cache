@@ -27,13 +27,17 @@ def main(argv: list[str] | None = None, log: str | None = None) -> int:
     args = list(sys.argv[1:] if argv is None else argv)
     if log is None:
         log = _log_path(os.path.realpath(sys.argv[0]))
+    _append_entries(log, args)
+    return 0
+
+
+def _append_entries(log: str, args: list[str]) -> None:
     with open(log, "a") as fh:
         coloc = os.environ.get("BRIX_PREPARE_COLOC")
         if coloc:
             fh.write(f"COLOC={coloc}\n")
         for path in args:
             fh.write(f"{path}\n")
-    return 0
 
 
 def install(dest_dir, name: str = "stage_hook.py", *, log: str) -> str:

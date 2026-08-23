@@ -31,6 +31,14 @@ import pytest
 
 from settings import HOST
 
+def _check_test_socket_levers_reflected_in_status_2(ctl):
+    assert "chaos=0" in [l for l in _ctl(ctl, "clear").splitlines()] or \
+        "chaos=0" in _ctl(ctl, "status")   # clear stops chaos
+
+def _check_test_socket_levers_reflected_in_status_1(ctl, cmd):
+    assert "ok" in _ctl(ctl, cmd)
+
+
 pytestmark = pytest.mark.timeout(120)
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -224,13 +232,15 @@ def test_socket_levers_reflected_in_status(bfp):
     try:
         for cmd in ("mss 200", "rcvbuf 2048", "sndbuf 4096", "stall up",
                     "max-lifetime 5000", "chaos 50"):
-            assert "ok" in _ctl(ctl, cmd)
+            _check_test_socket_levers_reflected_in_status_1(ctl, cmd)
         ext = [l for l in _ctl(ctl, "status").splitlines()
                if l.startswith("ext")][0]
-        assert "mss=200" in ext and "rcvbuf=2048" in ext and "sndbuf=4096" in ext
-        assert "stall=1/0" in ext and "maxlife=5000ms" in ext and "chaos=1" in ext
-        assert "chaos=0" in [l for l in _ctl(ctl, "clear").splitlines()] or \
-            "chaos=0" in _ctl(ctl, "status")   # clear stops chaos
+        def _assert_test_socket_levers_reflected_in_status_1():
+            assert "mss=200" in ext and "rcvbuf=2048" in ext and "sndbuf=4096" in ext
+            assert "stall=1/0" in ext and "maxlife=5000ms" in ext and "chaos=1" in ext
+
+        _assert_test_socket_levers_reflected_in_status_1()
+        _check_test_socket_levers_reflected_in_status_2(ctl)
     finally:
         proc.terminate(); proc.wait(timeout=5); echo.close()
 

@@ -48,6 +48,13 @@ from settings import (
     SERVER_HOST,
 )
 import klib  # remote: server-side setup
+def _check_test_max_segments_ok_1(status, body):
+    assert status == kXR_ok, _error_code(body)
+
+def _check_test_max_segments_ok_2(payload, expect):
+    assert payload == expect
+
+
 SERVER_SVC="mega"; SERVER_DATA="/data/xrootd"
 
 try:
@@ -428,10 +435,10 @@ class TestReadvOOBRaw:
         chunks = [((i * 64) % (DATA_SIZE - seg), seg)
                   for i in range(READV_MAXSEGS)]
         _, status, body = _readv(sock, [_seg(fh, n, o) for o, n in chunks])
-        assert status == kXR_ok, _error_code(body)
+        _check_test_max_segments_ok_1(status, body)
         payload = _readv_payload_bytes(body, READV_MAXSEGS)
         expect = b"".join(PATTERN[o:o + n] for o, n in chunks)
-        assert payload == expect
+        _check_test_max_segments_ok_2(payload, expect)
 
     def test_total_response_size_cap(self, rd_handle):
         """Requested total over 256 MiB is rejected before any I/O.
@@ -671,8 +678,11 @@ class TestCrossProtocolReadvOOB:
             remote = "/test_readv_security_gsi.bin"
             self._upload(url, remote, PATTERN)
             past, huge = _client_oob(url, remote)
-            assert not past.ok
-            assert not huge.ok
+            def _assert_test_gsi_client_oob_1():
+                assert not past.ok
+                assert not huge.ok
+
+            _assert_test_gsi_client_oob_1()
         finally:
             for k in ("X509_CERT_DIR", "X509_USER_PROXY"):
                 os.environ.pop(k, None)

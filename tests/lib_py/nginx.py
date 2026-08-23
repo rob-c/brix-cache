@@ -10,6 +10,19 @@ from .util import kill_pid_list, pids_on_port, run, wait_ready_xrdfs
 from settings import SERVER_HOST
 
 
+def _guard_start_nginx_1(main_conf, configs):
+    if os.environ.get("NGINX_CONF_PREGENERATED") != "1":
+        substitute_config(configs / "nginx_shared.conf", main_conf)
+
+def _guard_start_nginx_2(started):
+    if started.returncode != 0:
+        raise RuntimeError(started.stderr or started.stdout)
+
+def _guard_start_nginx_3():
+    if not os.environ.get("SKIP_XRDFS_CHECK"):
+        wait_ready_xrdfs(f"root://{SERVER_HOST}:{os.environ.get('NGINX_PORT', '11094')}")
+
+
 FIXED_NGINX_PORTS = [
     11094, 11095, 11096, 11097, 11099, 11100, 11101, 11102, 11103, 11104,
     11105, 11106, 11107, 11108, 11109, 11110, 11112, 11113, 11114, 11115,
@@ -42,8 +55,7 @@ def start_nginx() -> bool:
     main_conf = prefix / conf_rel
     for path in (log_dir, data_dir, tmp_dir, main_conf.parent):
         path.mkdir(parents=True, exist_ok=True)
-    if os.environ.get("NGINX_CONF_PREGENERATED") != "1":
-        substitute_config(configs / "nginx_shared.conf", main_conf)
+    _guard_start_nginx_1(main_conf, configs)
     pid = log_dir / "nginx.pid"
     if pid.exists():
         try:
@@ -52,10 +64,8 @@ def start_nginx() -> bool:
         except (OSError, ValueError):
             pass
     started = run([str(nginx_bin), "-p", str(prefix), "-c", conf_rel])
-    if started.returncode != 0:
-        raise RuntimeError(started.stderr or started.stdout)
-    if not os.environ.get("SKIP_XRDFS_CHECK"):
-        wait_ready_xrdfs(f"root://{SERVER_HOST}:{os.environ.get('NGINX_PORT', '11094')}")
+    _guard_start_nginx_2(started)
+    _guard_start_nginx_3()
     return True
 
 
@@ -85,4 +95,3 @@ def force_stop_nginx() -> None:
     for port in FIXED_NGINX_PORTS:
         pids.extend(pids_on_port(port))
     kill_pid_list(sorted(set(pids)))
-

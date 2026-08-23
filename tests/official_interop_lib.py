@@ -24,6 +24,26 @@ import time
 from settings import BIND_HOST, TEST_ROOT, TEST_PORT_START
 from port_ladder import INTEROP_WORKER_OFFSET
 
+def _phase_reset_to_seeded_tree_1(path):
+    try:
+        _guard_reset_to_seeded_tree_2(path)
+    except OSError:
+        pass
+
+
+def _guard_wipe_stale_working_files_1(p):
+    if os.path.islink(p) or os.path.isfile(p):
+        os.remove(p)
+    else:
+        shutil.rmtree(p, ignore_errors=True)
+
+def _guard_reset_to_seeded_tree_2(path):
+    if os.path.islink(path) or os.path.isfile(path):
+        os.remove(path)
+    else:
+        shutil.rmtree(path, ignore_errors=True)
+
+
 BIND = BIND_HOST
 
 # --------------------------------------------------------------------------- #
@@ -401,12 +421,23 @@ def _wipe_stale_working_files(root):
         if not _entry_is_stale(p):
             continue
         try:
-            if os.path.islink(p) or os.path.isfile(p):
-                os.remove(p)
-            else:
-                shutil.rmtree(p, ignore_errors=True)
+            _guard_wipe_stale_working_files_1(p)
         except OSError:
             pass                              # racing teardown / already gone
+
+
+def _reset_one_tree(root):
+    try:
+        entries = os.listdir(root)
+    except OSError:
+        return
+    for name in entries:
+        if name in _SEEDED_TOPLEVEL:
+            continue
+        path = os.path.join(root, name)
+        if _entry_is_stale(path):
+            _phase_reset_to_seeded_tree_1(path)
+    make_rich_tree(root)
 
 
 def reset_to_seeded_tree(*roots):
@@ -428,25 +459,7 @@ def reset_to_seeded_tree(*roots):
     them costs nothing; only genuinely stale prior-run hazards are removed.
     """
     for root in roots:
-        try:
-            entries = os.listdir(root)
-        except OSError:
-            continue
-        for name in entries:
-            if name in _SEEDED_TOPLEVEL:
-                continue
-            path = os.path.join(root, name)
-            if not _entry_is_stale(path):
-                continue                  # this run's (possibly another
-                                          # worker's) live file — keep
-            try:
-                if os.path.islink(path) or os.path.isfile(path):
-                    os.remove(path)
-                else:
-                    shutil.rmtree(path, ignore_errors=True)
-            except OSError:
-                pass
-        make_rich_tree(root)
+        _reset_one_tree(root)
     harmonize_perms(*roots)
 
 

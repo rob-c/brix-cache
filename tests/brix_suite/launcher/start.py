@@ -19,6 +19,12 @@ import subprocess
 import pytest
 
 from brix_suite.launcher.errors import RegistryCommandFailure
+from brix_suite.launcher.start_operations import (
+    quiescent as _launcher_quiescent,
+    start_nginx as _launcher_start_nginx,
+    start_xrdhttp as _launcher_start_xrdhttp,
+    start_xrootd as _launcher_start_xrootd,
+)
 from brix_suite.kinds import LAUNCHER_KINDS
 from brix_suite.registry import (
     NginxInstanceSpec,
@@ -117,8 +123,38 @@ class _LauncherStart:
         return min(16, ((os.cpu_count() or 4) * 2))
 
     @staticmethod
+    def _required_names(spec, by_name, seen):
+        return [
+            name
+            for name in (getattr(spec, "requires", ()) or ())
+            if name in by_name and name not in seen
+        ]
+
+    @classmethod
+    def _required_depth(cls, required, by_name, depth_memo, seen):
+        if not required:
+            return 0
+        depths = (
+            cls._dependency_depth(name, by_name, depth_memo, seen)
+            for name in required
+        )
+        return 1 + max(depths)
+
+    @classmethod
+    def _dependency_depth(cls, name, by_name, depth_memo, seen=frozenset()):
+        if name in depth_memo:
+            return depth_memo[name]
+        spec = by_name.get(name)
+        required = cls._required_names(spec, by_name, seen)
+        value = cls._required_depth(
+            required, by_name, depth_memo, seen | {name}
+        )
+        depth_memo[name] = value
+        return value
+
+    @classmethod
     def _dependency_levels(
-        selected: Sequence[NginxInstanceSpec],
+        cls, selected: Sequence[NginxInstanceSpec],
     ) -> list[list[NginxInstanceSpec]]:
         # Partition specs into dependency levels: level N holds specs whose deepest
         # `requires` chain (restricted to specs present in this selection) is N.
@@ -127,24 +163,20 @@ class _LauncherStart:
         # preserved within each level for deterministic launch ordering.
         by_name = {spec.name: spec for spec in selected}
         depth_memo: dict[str, int] = {}
-
-        def depth(name: str, seen: frozenset[str] = frozenset()) -> int:
-            if name in depth_memo:
-                return depth_memo[name]
-            spec = by_name.get(name)
-            reqs = [
-                r
-                for r in (getattr(spec, "requires", ()) or ())
-                if r in by_name and r not in seen
-            ]
-            value = 0 if not reqs else 1 + max(depth(r, seen | {name}) for r in reqs)
-            depth_memo[name] = value
-            return value
-
         levels: dict[int, list[NginxInstanceSpec]] = {}
         for spec in selected:
-            levels.setdefault(depth(spec.name), []).append(spec)
+            depth = cls._dependency_depth(spec.name, by_name, depth_memo)
+            levels.setdefault(depth, []).append(spec)
         return [levels[key] for key in sorted(levels)]
+
+    def _stop_selected_spec(self, spec, listeners):
+        if self._quiescent(spec, listeners):
+            return None
+        try:
+            self.stop(spec.name)
+        except Exception as exc:  # noqa: BLE001 — report every teardown failure
+            return f"{spec.name}: {exc}"
+        return None
 
     def stop_registered(self, specs: Sequence[NginxInstanceSpec] | None = None) -> None:
         selected = list(specs) if specs is not None else registered_specs()
@@ -158,246 +190,24 @@ class _LauncherStart:
         failures: list[str] = []
         listeners = listening_port_pids()
         for spec in reversed(selected):
-            if self._quiescent(spec, listeners):
-                continue
-            try:
-                self.stop(spec.name)
-            except Exception as exc:  # noqa: BLE001 — teardown must visit every spec
-                failures.append(f"{spec.name}: {exc}")
+            failure = self._stop_selected_spec(spec, listeners)
+            if failure is not None:
+                failures.append(failure)
         self._owned.clear()
         if failures:
             raise RuntimeError("fleet teardown failures: " + "; ".join(failures))
 
-    def _quiescent(
-        self,
-        spec: NginxInstanceSpec,
-        listeners: dict[int, set[int]] | None,
-    ) -> bool:
-        """Proof from ONE fleet-wide listener snapshot that stop() would be a
-        pure no-op for this spec: no in-memory handle, no on-disk pidfile, and
-        nobody listening on any declared port.
-
-        stop() on an already-down spec still walks its full teardown chain —
-        per-port `ss` scans (~50-100ms of subprocess spawn each) in
-        _reap_orphan_nginx_workers/_stop_from_disk — so an idle-fleet stop-all
-        (every pytest session runs one at start AND finish) burned ~15s doing
-        nothing. Ports listed in the snapshot, live handles, `external` specs
-        (their stop CLI owns state we cannot see), and hosts without `ss`
-        (snapshot is None) all keep today's exact stop() path. Workers orphaned
-        by a dead master still hold their LISTEN socket, so they show in the
-        snapshot and are never skipped.
-        """
-        if listeners is None:
-            return False
-        if spec.name in self._external_stops or spec.name in self._xrootd_procs:
-            return False
-        row = LAUNCHER_KINDS.get(spec.kind)
-        quiescence = row.quiescence if row is not None else "pidfile"
-        if quiescence == "never":
-            return False
-        if any(port in listeners for port in declared_ports(spec)):
-            return False
-        try:
-            endpoint = endpoint_for(spec)
-        except ValueError:
-            return False
-        if quiescence == "ports-only":
-            return True  # port-tracked only; _stop_from_disk would just re-scan the port
-        relpath = row.pidfile if row is not None else None
-        pidfile = (os.path.join(endpoint.prefix, relpath) if relpath
-                   else endpoint.pidfile)
-        return not os.path.exists(pidfile)
+    def _quiescent(self, spec: NginxInstanceSpec, listeners: dict[int, set[int]] | None) -> bool:
+        return _launcher_quiescent(self, spec, listeners, globals())
 
     def start(self, spec: NginxInstanceSpec) -> None:
-        # Which method spawns this kind is a row in ``brix_suite.kinds``, not a
-        # ladder here: the same row names the pidfile that ``_quiescent`` looks
-        # for and the strategy ``_stop_from_disk`` uses, so a kind cannot be
-        # taught to start without also being taught to stop.  An unlisted kind
-        # falls through to the nginx path exactly as it did before the flip.
-        row = LAUNCHER_KINDS.get(spec.kind)
-        if row is not None and row.start_method is not None:
-            getattr(self, row.start_method)(spec)
-            return
-        endpoint = self.render_nginx(spec)
-        # Root-harness export shim (bash _open_export_for_worker): the configs
-        # carry no `user` directive, so nginx drops workers to `nobody`; make the
-        # export the worker owns writable. No-op when unprivileged.
-        if os.geteuid() == 0 and os.path.isdir(endpoint.data_root):
-            self._chmod_r(endpoint.data_root, 0o777, add_only=True)
-        # The logs dir is created 0755-root by the launcher and nginx's master
-        # opens error.log there, but the `nobody` worker lazily creates NEW files
-        # in it — the unified transfer ledger's xfer_audit.log — and gets EACCES on
-        # a root-owned dir, silently disabling auditing. Open the dir for the
-        # worker so the ledger sink can be created. No-op when unprivileged.
-        if os.geteuid() == 0:
-            logs_dir = os.path.join(endpoint.prefix, "logs")
-            if os.path.isdir(logs_dir):
-                self._chmod_add(logs_dir, 0o777)
-        self.nginx_test(spec)
-        try:
-            self._nginx(["-p", endpoint.prefix, "-c", "conf/nginx.conf"],
-                        spec=spec, env=spec.env)
-        except RegistryCommandFailure:
-            # xdist's controller/worker hand-off can overlap a second registry
-            # launch with the first one.  If the pidfile still names a live
-            # master whose argv proves this exact prefix, EADDRINUSE is the
-            # duplicate launch losing the race—not a missing fleet server.
-            master = self._read_pid(endpoint.pidfile)
-            owned = False
-            if master is not None:
-                try:
-                    os.kill(master, 0)
-                    with open(f"/proc/{master}/cmdline", "rb") as proc_cmd:
-                        cmdline = proc_cmd.read().replace(b"\0", b" ")
-                    owned = endpoint.prefix.encode() in cmdline
-                except (OSError, ValueError):
-                    owned = False
-            if not owned:
-                raise
-            self._wait_ready(endpoint.host, endpoint.port, spec.readiness)
-        self._wait_ready(endpoint.host, endpoint.port, spec.readiness)
-        self._owned.append(spec)
+        _launcher_start_nginx(self, spec, globals())
 
     def _start_xrootd(self, spec: NginxInstanceSpec) -> None:
-        """Spawn a STOCK XRootD data server as a registry-managed instance.
-
-        The registry otherwise models only our nginx; the differential-conformance
-        fleet also needs the reference xrootd on the same tree. It renders the
-        spec's cfg template exactly like the nginx path (same PORT/DATA_ROOT/…
-        substitutions, plus an ADMIN_DIR for xrootd's admin/pid unix sockets),
-        launches ``xrootd -c cfg -l log`` in its own session (so the whole process
-        group is reaped on stop), and tracks the handle for lifecycle teardown.
-        """
-        xrootd = shutil.which(BRIX_BIN)
-        if not xrootd:
-            pytest.skip(f"selected xrootd binary is unavailable: {BRIX_BIN}")
-        endpoint = endpoint_for(spec)
-        prefix = Path(endpoint.prefix)
-        (prefix / "conf").mkdir(parents=True, exist_ok=True)
-        (prefix / "logs").mkdir(parents=True, exist_ok=True)
-        admin = prefix / "admin"
-        run_dir = prefix / "run"
-        admin.mkdir(parents=True, exist_ok=True)
-        run_dir.mkdir(parents=True, exist_ok=True)
-        Path(endpoint.data_root).mkdir(parents=True, exist_ok=True)
-        log_path = prefix / "logs" / "xrootd.log"
-        values = {
-            **self._session_values(spec),
-            "PORT": endpoint.port,
-            # xrootd templates address the export as {DATA_DIR}; alias it to the
-            # per-instance endpoint root so a spec's data_root wins over the
-            # session default (bash passed DATA_DIR=$data_dir per instance).
-            "DATA_ROOT": endpoint.data_root,
-            "DATA_DIR": endpoint.data_root,
-            "LOG_DIR": str(prefix / "logs"),
-            "TMP_DIR": str(prefix / "tmp"),
-            "ADMIN_DIR": str(admin),
-            "RUN_DIR": str(run_dir),
-            **endpoint.extra_ports,
-            **self._endpoint_template_values(),
-            **spec.template_values,
-        }
-        # GSI xrootd templates need the XrdSec lib path; supply it generically so
-        # a spec need not hard-code the platform libdir. A spec value still wins.
-        sec_lib = self._find_xrd_library("libXrdSec-5.so", "libXrdSec.so")
-        if sec_lib and "SECLIB" not in values:
-            values["SECLIB"] = str(sec_lib)
-        cfg = prefix / "conf" / "xrootd.cfg"
-        render_config_to_path(spec.template, str(cfg), strict=REGISTRY_STRICT_TEMPLATES, **values)
-        merged_env = os.environ.copy()
-        if spec.env:
-            merged_env.update(spec.env)
-        argv = [xrootd, "-c", str(cfg), "-l", str(log_path)]
-        # Root-harness privilege drop: xrootd refuses to run as superuser, so
-        # open the paths the -R user must touch and hand it off with -R. Ports
-        # <11024 are irrelevant here (test range is 11xxx). Non-root: no-op.
-        runas = self._xrootd_runas_user(cfg.read_text(encoding="utf-8"), str(log_path))
-        if runas:
-            argv += ["-R", runas]
-        proc = subprocess.Popen(
-            argv,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            start_new_session=True,
-            env=merged_env,
-        )
-        self._xrootd_procs[spec.name] = proc
-        try:
-            self._wait_ready(endpoint.host, endpoint.port, spec.readiness)
-        except Exception:
-            self._kill_xrootd(spec.name)
-            raise
-        self._owned.append(spec)
+        _launcher_start_xrootd(self, spec, globals())
 
     def _start_xrdhttp(self, spec: NginxInstanceSpec) -> None:
-        """Spawn a stock XRootD server with the XrdHttp gateway loaded.
-
-        Modelled on bash ``start_xrdhttp``: probe for the XrdHttp/XrdHttpTPC libs
-        (skip cleanly if absent — an optional daemon must not fail the fleet),
-        give ``http.cadir`` a PUBLIC-only view of the CA (never the private key,
-        which XrdHttpTPC's TempCA would try to open and fail on), render, launch
-        through the same root-mode xrootd machinery, and probe readiness with an
-        HTTPS curl (fallback TCP).
-        """
-        xrootd = shutil.which(BRIX_BIN)
-        if not xrootd:
-            pytest.skip(f"selected xrootd binary is unavailable: {BRIX_BIN}")
-        http_lib = self._find_xrd_library("libXrdHttp-5.so", "libXrdHttp.so")
-        tpc_lib = self._find_xrd_library("libXrdHttpTPC-5.so", "libXrdHttpTPC.so")
-        sec_lib = self._find_xrd_library("libXrdSec-5.so", "libXrdSec.so")
-        if not http_lib or not tpc_lib:
-            pytest.skip("XrdHttp/XrdHttpTPC libraries not installed")
-        endpoint = endpoint_for(spec)
-        prefix = Path(endpoint.prefix)
-        admin = prefix / "admin"
-        run_dir = prefix / "run"
-        for d in (prefix / "conf", prefix / "logs", admin, run_dir, Path(endpoint.data_root)):
-            d.mkdir(parents=True, exist_ok=True)
-        ca_public = prefix / "ca-public"
-        # Default to the canonical test PKI root (TEST_ROOT/pki) like the rest of
-        # the suite — NOT a blank fallback.  manage_test_servers start-all does not
-        # export PKI_DIR, so a blank left http.cadir empty and the gateway rejected
-        # every client cert ("self-signed certificate in certificate chain", rc=56).
-        self._public_cadir(os.environ.get("PKI_DIR") or str(PKI_DIR), str(ca_public))
-        log_path = prefix / "logs" / "xrdhttp.log"
-        values = {
-            **self._session_values(spec),
-            "PORT": endpoint.port,
-            "DATA_ROOT": endpoint.data_root,
-            "DATA_DIR": endpoint.data_root,
-            "LOG_DIR": str(prefix / "logs"),
-            "TMP_DIR": str(prefix / "tmp"),
-            "ADMIN_DIR": str(admin),
-            "RUN_DIR": str(run_dir),
-            "HTTP_LIB": str(http_lib),
-            "TPC_LIB": str(tpc_lib),
-            "SECLIB": str(sec_lib) if sec_lib else "/usr/lib64/libXrdSec-5.so",
-            "CA_DIR": str(ca_public),
-            **endpoint.extra_ports,
-            **self._endpoint_template_values(),
-            **spec.template_values,
-        }
-        cfg = prefix / "conf" / "xrdhttp.cfg"
-        render_config_to_path(spec.template, str(cfg), strict=REGISTRY_STRICT_TEMPLATES, **values)
-        merged_env = {**os.environ, **spec.env}
-        argv = [xrootd, "-c", str(cfg), "-l", str(log_path)]
-        runas = self._xrootd_runas_user(cfg.read_text(encoding="utf-8"), str(log_path))
-        if runas:
-            argv += ["-R", runas]
-        proc = subprocess.Popen(
-            argv,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            start_new_session=True,
-            env=merged_env,
-        )
-        self._xrootd_procs[spec.name] = proc
-        try:
-            self._wait_ready(endpoint.host, endpoint.port, spec.readiness)
-        except Exception:
-            self._kill_xrootd(spec.name)
-            raise
-        self._owned.append(spec)
+        _launcher_start_xrdhttp(self, spec, globals())
 
     def _start_haproxy(self, spec: NginxInstanceSpec) -> None:
         """Launch haproxy for the failover-map fleet member (skip if absent)."""

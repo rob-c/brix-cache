@@ -83,15 +83,15 @@ pwd_from_hex(const char *hex, size_t hexlen, uint8_t *out, size_t outcap)
     return (int) (hexlen / 2);
 }
 
-/* Parse one "user:salthex:hashhex[:vo1,vo2]" line for `user`.  Returns 1 on a
- * match (salt + hash filled; vos filled with the optional comma-separated VO
- * list, or "" when the legacy 3-field form is used), 0 otherwise. */
+/*
+ * WHAT: Split a password-file record and confirm its username matches.
+ * WHY:  Field grammar is independent from salt/hash decoding and VO copying.
+ * HOW:  Trim record endings, split the required colons, and expose optional VO.
+ */
 static int
-pwd_parse_line(char *line, const char *user, uint8_t *salt, size_t *saltlen,
-    uint8_t *hash, size_t *hashlen, char *vos, size_t voscap)
+pwd_fields(char *line, const char *user, char **salt, char **hash, char **vos)
 {
-    char  *colon1, *colon2, *colon3, *nl;
-    int    n;
+    char *colon1, *colon2, *colon3, *newline;
 
     while (*line == ' ' || *line == '\t') {
         line++;
@@ -99,9 +99,9 @@ pwd_parse_line(char *line, const char *user, uint8_t *salt, size_t *saltlen,
     if (*line == '#' || *line == '\n' || *line == '\0') {
         return 0;
     }
-    nl = strpbrk(line, "\r\n");
-    if (nl != NULL) {
-        *nl = '\0';
+    newline = strpbrk(line, "\r\n");
+    if (newline != NULL) {
+        *newline = '\0';
     }
     colon1 = strchr(line, ':');
     if (colon1 == NULL) {
@@ -123,25 +123,41 @@ pwd_parse_line(char *line, const char *user, uint8_t *salt, size_t *saltlen,
     if (colon3 != NULL) {
         *colon3 = '\0';
     }
+    *salt = colon1 + 1;
+    *hash = colon2 + 1;
+    *vos = colon3 != NULL ? colon3 + 1 : "";
+    return 1;
+}
 
-    n = pwd_from_hex(colon1 + 1, strlen(colon1 + 1), salt, BRIX_PWD_MAX_SALT);
+/* Parse one "user:salthex:hashhex[:vo1,vo2]" line for `user`.  Returns 1 on a
+ * match (salt + hash filled; vos filled with the optional comma-separated VO
+ * list, or "" when the legacy 3-field form is used), 0 otherwise. */
+static int
+pwd_parse_line(char *line, const char *user, uint8_t *salt, size_t *saltlen,
+    uint8_t *hash, size_t *hashlen, char *vos, size_t voscap)
+{
+    char *salt_text, *hash_text, *vo_text;
+    int   n;
+
+    if (!pwd_fields(line, user, &salt_text, &hash_text, &vo_text)) {
+        return 0;
+    }
+    n = pwd_from_hex(salt_text, strlen(salt_text), salt, BRIX_PWD_MAX_SALT);
     if (n <= 0) {
         return 0;
     }
     *saltlen = (size_t) n;
-    n = pwd_from_hex(colon2 + 1, strlen(colon2 + 1), hash, BRIX_PWD_HASH_LEN);
+    n = pwd_from_hex(hash_text, strlen(hash_text), hash, BRIX_PWD_HASH_LEN);
     if (n <= 0) {
         return 0;
     }
     *hashlen = (size_t) n;
 
     if (vos != NULL && voscap > 0) {
-        const char *v = (colon3 != NULL) ? colon3 + 1 : "";
-
-        if (strlen(v) >= voscap) {
+        if (strlen(vo_text) >= voscap) {
             return 0;   /* over-long VO list: reject the entry outright */
         }
-        strcpy(vos, v);
+        strcpy(vos, vo_text);
     }
     return 1;
 }

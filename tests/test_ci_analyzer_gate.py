@@ -39,25 +39,32 @@ def _triggers(doc: dict) -> dict:
 
 def test_gates_are_blocking_and_pinned():
     for path, (job_name, runner) in GATES.items():
-        doc = _load(path)
-        job = doc["jobs"][job_name]
+        _assert_gate(path, job_name, runner)
 
-        # 1. blocking
-        assert "continue-on-error" not in job, f"{path}: gate is still advisory"
 
-        # 2. per-PR
-        trig = _triggers(doc)
-        assert "pull_request" in trig, f"{path}: missing pull_request trigger"
-        assert "push" in trig, f"{path}: missing push trigger"
+def _assert_gate(path: str, job_name: str, runner: str) -> None:
+    doc = _load(path)
+    job = doc["jobs"][job_name]
+    assert "continue-on-error" not in job, f"{path}: gate is still advisory"
+    _assert_triggers(path, doc)
+    assert "almalinux:9" in str(_container_image(job)), (
+        f"{path}: toolchain not pinned to almalinux:9"
+    )
+    steps = " ".join(str(step.get("run", "")) for step in job["steps"])
+    assert runner in steps, f"{path}: no longer invokes the ratchet runner {runner}"
 
-        # 3. pinned toolchain — the dev distro container makes the baseline reproducible
-        container = job.get("container")
-        image = container if isinstance(container, str) else (container or {}).get("image", "")
-        assert "almalinux:9" in str(image), f"{path}: toolchain not pinned to almalinux:9"
 
-        # 4. ratchet kept
-        steps = " ".join(str(s.get("run", "")) for s in job["steps"])
-        assert runner in steps, f"{path}: no longer invokes the ratchet runner {runner}"
+def _assert_triggers(path: str, doc: dict) -> None:
+    triggers = _triggers(doc)
+    assert "pull_request" in triggers, f"{path}: missing pull_request trigger"
+    assert "push" in triggers, f"{path}: missing push trigger"
+
+
+def _container_image(job: dict) -> str:
+    container = job.get("container")
+    if isinstance(container, str):
+        return container
+    return (container or {}).get("image", "")
 
 
 def test_baselines_still_present():

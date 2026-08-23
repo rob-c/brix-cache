@@ -210,109 +210,8 @@ static int idx_compact(brix_cas_pack_t *p) {
 
 /* ---- open: replay + orphan-tail adoption -------------------------------- */
 
-/* Replay the journal into the table; stop at the first torn/corrupt record
- * and truncate the tail. `hwm` returns the active segment's journal-covered
- * high-water mark (max record END ever referenced, including deleted ones —
- * the adoption floor that keeps deleted records from resurrecting). */
-static int replay(brix_cas_pack_t *p, const uint64_t *segsz, uint64_t *hwm) {
-    struct stat st;
-    *hwm = 0;
-    if (fstat(p->idxfd, &st) != 0) return -1;
-    size_t sz = (size_t) st.st_size, pos = 0, good = 0;
-    unsigned char *buf = malloc(sz ? sz : 1);
-    if (buf == NULL) return -1;
-    if (sz > 0 && pread_full(p->idxfd, buf, sz, 0) != 0) { free(buf); return -1; }
-
-    while (pos + IDX_HDR <= sz) {
-        unsigned char *r = buf + pos;
-        size_t klen = (size_t) r[6] | ((size_t) r[7] << 8);
-        if (get32(r) != IDX_MAGIC || klen == 0 || klen > BRIX_PACK_KMAX
-            || pos + IDX_HDR + klen > sz) break;
-        uint32_t want = get32(r + 12);
-        put32(r + 12, 0);
-        uint32_t have = crc_of(r, IDX_HDR + klen);
-        put32(r + 12, want);
-        if (want != have) break;
-        good = pos + IDX_HDR + klen;
-        pos = good;
-
-        int      op     = r[4];
-        uint8_t  fmt    = r[5];
-        uint32_t seg    = get32(r + 8);
-        uint64_t off    = get64(r + 16);
-        uint64_t stored = get64(r + 24);
-        uint64_t raw    = get64(r + 32);
-        const char *key = (const char *) r + IDX_HDR;
-        uint64_t end    = off + SEG_HDR + klen + stored;
-
-        if (seg < p->seg_lo || seg > p->seg_hi || end > segsz[seg - p->seg_lo])
-            continue;                     /* stale ref (e.g. torn compaction) */
-        if (seg == p->seg_hi && end > *hwm) *hwm = end;
-
-        if (op == OP_PUT) {
-            int existed = 0;
-            brix_pack_ent_t *e = tab_insert(p, key, klen, &existed);
-            if (e == NULL) { free(buf); return -1; }
-            if (existed) p->live_bytes -= (long) e->stored_len;
-            e->seg = seg; e->off = off; e->fmt = fmt;
-            e->stored_len = stored; e->raw_len = raw;
-            p->live_bytes += (long) stored;
-        } else if (op == OP_DEL) {
-            brix_pack_ent_t *e = tab_find(p, key, klen);
-            if (e != NULL) {
-                p->live_bytes -= (long) e->stored_len;
-                e->state = 2; p->tab_live--;
-            }
-        }
-    }
-    free(buf);
-    if (good < sz && ftruncate(p->idxfd, (off_t) good) != 0) return -1;
-    return lseek(p->idxfd, (off_t) good, SEEK_SET) < 0 ? -1 : 0;
-}
-
-/* Adopt intact records the journal never saw (crash between data append and
- * journal append) from the ACTIVE segment's tail; truncate the first torn
- * one and everything after it. */
-static int adopt_tail(brix_cas_pack_t *p, uint64_t hwm) {
-    struct stat st;
-    if (fstat(p->segfd, &st) != 0) return -1;
-    uint64_t fsz = (uint64_t) st.st_size, pos = hwm;
-
-    while (pos + SEG_HDR <= fsz) {
-        unsigned char hdr[SEG_HDR + BRIX_PACK_KMAX];
-        if (pread_full(p->segfd, hdr, SEG_HDR, pos) != 0) break;
-        size_t   klen   = (size_t) hdr[4] | ((size_t) hdr[5] << 8);
-        uint8_t  fmt    = hdr[6];
-        uint32_t crc    = get32(hdr + 8);
-        uint64_t stored = get64(hdr + 12);
-        uint64_t raw    = get64(hdr + 20);
-        if (get32(hdr) != SEG_MAGIC || klen == 0 || klen > BRIX_PACK_KMAX
-            || fmt > 1 || pos + SEG_HDR + klen + stored > fsz) break;
-        if (pread_full(p->segfd, hdr + SEG_HDR, klen, pos + SEG_HDR) != 0) break;
-
-        unsigned char *data = malloc(stored ? (size_t) stored : 1);
-        if (data == NULL) return -1;
-        int ok = pread_full(p->segfd, data, (size_t) stored,
-                            pos + SEG_HDR + klen) == 0
-                 && crc_of(data, (size_t) stored) == crc;
-        free(data);
-        if (!ok) break;
-
-        int existed = 0;
-        brix_pack_ent_t *e = tab_insert(p, (const char *) hdr + SEG_HDR, klen,
-                                        &existed);
-        if (e == NULL) return -1;
-        if (existed) p->live_bytes -= (long) e->stored_len;
-        e->seg = p->seg_hi; e->off = pos; e->fmt = fmt;
-        e->stored_len = stored; e->raw_len = raw;
-        p->live_bytes += (long) stored;
-        if (idx_append(p, OP_PUT, e, ent_key(p, e)) != 0) return -1;
-        pos += SEG_HDR + klen + stored;
-    }
-    if (pos < fsz && ftruncate(p->segfd, (off_t) pos) != 0) return -1;
-    p->seg_off = pos;
-    return lseek(p->segfd, (off_t) pos, SEEK_SET) < 0 ? -1 : 0;
-}
+#define __CAS_PACK_C_COMPILED__
+#include "cas_pack_recovery.c"
 
 /* Resolve + own the base fd and ensure pack/ exists. */
 static int open_base(brix_cas_pack_t *p, const char *root, int dirfd) {
@@ -487,5 +386,4 @@ int brix_cas_pack_has(brix_cas_pack_t *p, const char *key) {
     return hit;
 }
 
-#define __CAS_PACK_C_COMPILED__
 #include "_cas_pack_part2.c"

@@ -12,8 +12,39 @@ import time
 import requests
 
 from cmdscripts import run
+from cmdscripts.command_results import print_results
 from fleet_ports import cmdscript_ports
 from settings import BIND_HOST, HOST, NGINX_BIN
+
+def _phase_run_checks_1(started):
+    for item in reversed(started):
+        stop_nginx(item)
+
+def _phase_run_checks_2(started):
+    for prefix in reversed(started):
+        stop_nginx(prefix)
+
+
+def _expression_1(results, expected, r):
+    return (
+        results.append(
+                    (
+                        r.status_code == 200 and r.content == expected,
+                        f"GET byte-exact from the composable backend (code={r.status_code})",
+                    )
+                )
+    )
+
+def _expression_2(results, secure_expected, secure):
+    return (
+        results.append(
+                    (
+                        secure.status_code == 200 and secure.content == secure_expected,
+                        f"GET byte-exact (ztn-authenticated S3 source, code={secure.status_code})",
+                    )
+                )
+    )
+
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 MAKE_TOKEN = REPO_ROOT / "utils" / "make_token.py"
@@ -148,20 +179,14 @@ def run_checks(base: Path, nginx_bin: str = NGINX_BIN) -> list[tuple[bool, str]]
     for name, prefix, conf in (("O", anon_origin, anon_origin_conf), ("S", anon_s3, anon_s3_conf)):
         ok, message = start(nginx_bin, name, prefix, conf, started)
         if not ok:
-            for item in reversed(started):
-                stop_nginx(item)
+            _phase_run_checks_1(started)
             return [(False, message)]
 
     try:
         time.sleep(1)
         r = requests.get(f"http://{HOST}:{s3_port}/testbucket/obj.bin", timeout=30)
         expected = (anon_origin / "root" / "obj.bin").read_bytes()
-        results.append(
-            (
-                r.status_code == 200 and r.content == expected,
-                f"GET byte-exact from the composable backend (code={r.status_code})",
-            )
-        )
+        _expression_1(results, expected, r)
 
         token_ok, token_msg = make_token(base)
         if not token_ok:
@@ -181,16 +206,10 @@ def run_checks(base: Path, nginx_bin: str = NGINX_BIN) -> list[tuple[bool, str]]
         time.sleep(1)
         secure = requests.get(f"http://{HOST}:{cred_s3_port}/testbucket/sec.bin", timeout=30)
         secure_expected = (token_origin / "root" / "sec.bin").read_bytes()
-        results.append(
-            (
-                secure.status_code == 200 and secure.content == secure_expected,
-                f"GET byte-exact (ztn-authenticated S3 source, code={secure.status_code})",
-            )
-        )
+        _expression_2(results, secure_expected, secure)
         return results
     finally:
-        for prefix in reversed(started):
-            stop_nginx(prefix)
+        _phase_run_checks_2(started)
 
 
 def entry(argv: list[str]) -> int:
@@ -199,13 +218,7 @@ def entry(argv: list[str]) -> int:
 
     with tempfile.TemporaryDirectory(prefix="s3_be.") as tmp:
         results = run_checks(Path(tmp), nginx_bin=nginx_bin)
-    for ok, message in results:
-        print(f"  {'ok  ' if ok else 'FAIL'} {message}")
-    if all(ok for ok, _ in results):
-        print("run_s3_storage_backend: ALL PASS")
-        return 0
-    print("run_s3_storage_backend: FAILURES")
-    return 1
+    return print_results(results, "run_s3_storage_backend")
 
 
 if __name__ == "__main__":

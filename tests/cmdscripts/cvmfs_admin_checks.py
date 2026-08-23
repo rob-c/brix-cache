@@ -123,30 +123,37 @@ def check_gc_success(binary: Path, base: Path, results: list) -> None:
     ck("build", repo is not None, err)
     if repo is None:
         return
+    cats, manifest = _check_gc_reflog(repo, base, ck)
+    _check_gc_sweep(binary, repo, base, cats, manifest, ck)
 
-    cats = reflog_catalogs(repo)
-    ck("s10-reflog-count", len(cats) == 6, f"{len(cats)} refs")  # mkfs + 5
-    man = parse_manifest(repo)
-    ck("s10-newest-is-root", cats[0] == man["C"])
-    ck("s10-manifest-Y", man.get("Y") == hashlib.sha1(
-        (repo / ".cvmfsreflog").read_bytes()).hexdigest())
 
+def _check_gc_reflog(repo, base, check):
+    catalogs = reflog_catalogs(repo)
+    check("s10-reflog-count", len(catalogs) == 6, f"{len(catalogs)} refs")
+    manifest = parse_manifest(repo)
+    check("s10-newest-is-root", catalogs[0] == manifest["C"])
+    digest = hashlib.sha1((repo / ".cvmfsreflog").read_bytes()).hexdigest()
+    check("s10-manifest-Y", manifest.get("Y") == digest)
+    return catalogs, manifest
+
+
+def _check_gc_sweep(binary, repo, base, catalogs, manifest, check):
     before = cas_names(repo)
-    expected_mark = (reachable(repo, cats[0], base)
-                     | reachable(repo, cats[1], base)
+    expected_mark = (reachable(repo, catalogs[0], base)
+                     | reachable(repo, catalogs[1], base)
                      | reflog_noncatalog(repo)
-                     | {man["X"] + "X"})
+                     | {manifest["X"] + "X"})
     gc = repotool(binary, "gc", str(repo), "--keep", "2", "--grace", "0")
-    ck("run", gc.returncode == 0, gc.stderr)
-
+    check("run", gc.returncode == 0, gc.stderr)
     after = cas_names(repo)
-    ck("exact-sweep", after == before & expected_mark,
-       f"unexpected {sorted(after ^ (before & expected_mark))[:4]}")
-    ck("kept-fetchable", expected_mark & before <= after)
-    ck("reflog-pruned", reflog_catalogs(repo) == cats[:2])
-    ck("manifest-Y-refreshed", parse_manifest(repo)["Y"] == hashlib.sha1(
-        (repo / ".cvmfsreflog").read_bytes()).hexdigest())
-    ck("fsck-clean", repotool(binary, "fsck", str(repo)).returncode == 0)
+    expected = before & expected_mark
+    check("exact-sweep", after == expected,
+          f"unexpected {sorted(after ^ expected)[:4]}")
+    check("kept-fetchable", expected_mark & before <= after)
+    check("reflog-pruned", reflog_catalogs(repo) == catalogs[:2])
+    digest = hashlib.sha1((repo / ".cvmfsreflog").read_bytes()).hexdigest()
+    check("manifest-Y-refreshed", parse_manifest(repo)["Y"] == digest)
+    check("fsck-clean", repotool(binary, "fsck", str(repo)).returncode == 0)
 
 
 def check_gc_refusals(binary: Path, base: Path, results: list) -> None:
@@ -156,34 +163,39 @@ def check_gc_refusals(binary: Path, base: Path, results: list) -> None:
     ck("build", repo is not None, err)
     if repo is None:
         return
+    _check_gc_basic_refusals(binary, repo, ck)
+    before, reflog = _check_missing_reflog(binary, repo, ck)
+    _check_tampered_reflog(binary, repo, before, reflog, ck)
 
-    # error: refused while a transaction holds the lock
+
+def _check_gc_basic_refusals(binary, repo, check):
     assert repotool(binary, "transaction", str(repo)).returncode == 0
     gc = repotool(binary, "gc", str(repo), "--keep", "1")
-    ck("txn-refused", gc.returncode != 0 and "gc refused" in gc.stderr, gc.stderr)
+    check("txn-refused", gc.returncode != 0 and "gc refused" in gc.stderr, gc.stderr)
     assert repotool(binary, "abort", str(repo)).returncode == 0
-
-    # error: no retention spec at all
     gc = repotool(binary, "gc", str(repo))
-    ck("no-spec-refused", gc.returncode != 0, gc.stderr)
+    check("no-spec-refused", gc.returncode != 0, gc.stderr)
 
-    # S10 error: reflog missing → "reflog required"
+
+def _check_missing_reflog(binary, repo, check):
     before = cas_names(repo)
     reflog = (repo / ".cvmfsreflog").read_bytes()
     (repo / ".cvmfsreflog").unlink()
     gc = repotool(binary, "gc", str(repo), "--keep", "1", "--grace", "0")
-    ck("missing-reflog-refused",
-       gc.returncode != 0 and "reflog required" in gc.stderr, gc.stderr)
-    ck("missing-reflog-no-sweep", cas_names(repo) == before)
+    check("missing-reflog-refused",
+          gc.returncode != 0 and "reflog required" in gc.stderr, gc.stderr)
+    check("missing-reflog-no-sweep", cas_names(repo) == before)
+    return before, reflog
 
-    # S10 security-neg: checksum mismatch vs manifest 'Y' → refuse, no sweep
+
+def _check_tampered_reflog(binary, repo, before, reflog, check):
     tampered = bytearray(reflog)
     tampered[600] ^= 0x01
     (repo / ".cvmfsreflog").write_bytes(bytes(tampered))
     gc = repotool(binary, "gc", str(repo), "--keep", "1", "--grace", "0")
-    ck("tamper-refused",
-       gc.returncode != 0 and "checksum mismatch" in gc.stderr, gc.stderr)
-    ck("tamper-no-sweep", cas_names(repo) == before)
+    check("tamper-refused",
+          gc.returncode != 0 and "checksum mismatch" in gc.stderr, gc.stderr)
+    check("tamper-no-sweep", cas_names(repo) == before)
     (repo / ".cvmfsreflog").write_bytes(reflog)
 
 
@@ -199,19 +211,24 @@ def check_gc_mutation_guard(binary: Path, base: Path, results: list) -> None:
         return
     twin = base / "gc-mut-twin"
     shutil.copytree(repo, twin)
-
     chunks = {n for n in cas_names(repo) if n.endswith("P")}
     ck("has-chunks", len(chunks) > 0, f"{len(chunks)}")
+    _check_clean_gc(binary, repo, chunks, ck)
+    _check_sabotaged_gc(binary, twin, chunks, ck)
 
-    ok = repotool(binary, "gc", str(repo), "--keep", "3", "--grace", "0")
-    ck("clean-run", ok.returncode == 0, ok.stderr)
-    ck("clean-chunks-survive", chunks <= cas_names(repo))
 
-    bad = repotool(binary, "gc", str(twin), "--keep", "3", "--grace", "0",
-                   env={"BRIX_CVMFS_GC_MUTATION": "skip-chunk-mark"})
-    ck("sabotaged-run", bad.returncode == 0, bad.stderr)
-    ck("guard-catches-sabotage", not (chunks & cas_names(twin)),
-       "chunks survived a skipped mark phase — guard is toothless")
+def _check_clean_gc(binary, repo, chunks, check):
+    result = repotool(binary, "gc", str(repo), "--keep", "3", "--grace", "0")
+    check("clean-run", result.returncode == 0, result.stderr)
+    check("clean-chunks-survive", chunks <= cas_names(repo))
+
+
+def _check_sabotaged_gc(binary, twin, chunks, check):
+    result = repotool(binary, "gc", str(twin), "--keep", "3", "--grace", "0",
+                      env={"BRIX_CVMFS_GC_MUTATION": "skip-chunk-mark"})
+    check("sabotaged-run", result.returncode == 0, result.stderr)
+    check("guard-catches-sabotage", not chunks & cas_names(twin),
+          "chunks survived a skipped mark phase — guard is toothless")
 
 
 def check_gc_tag_pinning(binary: Path, base: Path, results: list) -> None:
@@ -243,31 +260,36 @@ def check_tag_success(binary: Path, base: Path, results: list) -> None:
     ck("build", repo is not None, err)
     if repo is None:
         return
-
     tagged_man = parse_manifest(repo)
+    _check_tag_add_list(binary, repo, tagged_man, ck)
+    _check_tag_rollback(binary, repo, base, tagged_man, ck)
+
+
+def _check_tag_add_list(binary, repo, tagged_manifest, check):
     add = repotool(binary, "tag", "add", str(repo), "good", "-m", "known good")
-    ck("add", add.returncode == 0, add.stderr)
+    check("add", add.returncode == 0, add.stderr)
     lst = repotool(binary, "tag", "list", str(repo))
-    ck("list", lst.returncode == 0 and "good" in lst.stdout
-       and tagged_man["C"] in lst.stdout, lst.stdout)
-    ck("manifest-H", "H" in parse_manifest(repo))
+    listed = lst.returncode == 0 and "good" in lst.stdout
+    check("list", listed and tagged_manifest["C"] in lst.stdout, lst.stdout)
+    check("manifest-H", "H" in parse_manifest(repo))
 
+
+def _check_tag_rollback(binary, repo, base, tagged_manifest, check):
     code, err = publish_rev(binary, repo, {"bad.txt": b"regression\n"})
-    ck("later-publish", code == 0, err)
-
+    check("later-publish", code == 0, err)
     rb = repotool(binary, "tag", "rollback", str(repo), "good")
-    ck("rollback", rb.returncode == 0, rb.stderr)
-    man = parse_manifest(repo)
-    ck("revision-never-rewinds",
-       int(man["S"]) == int(tagged_man["S"]) + 2, man["S"])
-    ck("new-root-object", man["C"] != tagged_man["C"])
-    ck("tree-matches-tagged",
-       catalog_rows(repo, man["C"], base)
-       == catalog_rows(repo, tagged_man["C"], base))
-    ck("catalog-revision-consistent", any(
-        v == man["S"] for (v,) in open_catalog(repo, man["C"], base).execute(
+    check("rollback", rb.returncode == 0, rb.stderr)
+    manifest = parse_manifest(repo)
+    check("revision-never-rewinds",
+          int(manifest["S"]) == int(tagged_manifest["S"]) + 2, manifest["S"])
+    check("new-root-object", manifest["C"] != tagged_manifest["C"])
+    current_rows = catalog_rows(repo, manifest["C"], base)
+    check("tree-matches-tagged",
+          current_rows == catalog_rows(repo, tagged_manifest["C"], base))
+    check("catalog-revision-consistent", any(
+        value == manifest["S"] for (value,) in open_catalog(repo, manifest["C"], base).execute(
             "SELECT value FROM properties WHERE key='revision'")))
-    ck("fsck-clean", repotool(binary, "fsck", str(repo)).returncode == 0)
+    check("fsck-clean", repotool(binary, "fsck", str(repo)).returncode == 0)
 
 
 def check_tag_refusals(binary: Path, base: Path, results: list) -> None:
@@ -277,14 +299,18 @@ def check_tag_refusals(binary: Path, base: Path, results: list) -> None:
     ck("build", repo is not None, err)
     if repo is None:
         return
+    _check_unknown_tag(binary, repo, ck)
+    _check_tampered_history(binary, repo, ck)
 
-    # error: rollback to a tag that does not exist
+
+def _check_unknown_tag(binary, repo, check):
     assert repotool(binary, "tag", "add", str(repo), "real").returncode == 0
     rb = repotool(binary, "tag", "rollback", str(repo), "nosuch")
-    ck("unknown-refused",
-       rb.returncode != 0 and "unknown tag" in rb.stderr, rb.stderr)
+    check("unknown-refused",
+          rb.returncode != 0 and "unknown tag" in rb.stderr, rb.stderr)
 
-    # security-neg: history object tamper → CAS hash mismatch → refused
+
+def _check_tampered_history(binary, repo, check):
     hist = cas_path(repo, parse_manifest(repo)["H"], "H")
     original = hist.read_bytes()
     tampered = bytearray(original)
@@ -292,12 +318,13 @@ def check_tag_refusals(binary: Path, base: Path, results: list) -> None:
     hist.write_bytes(bytes(tampered))
     for verb in (("tag", "list"), ("tag", "rollback")):
         args = (*verb, str(repo)) + (("real",) if verb[1] == "rollback" else ())
-        r = repotool(binary, *args)
-        ck(f"tamper-{verb[1]}-refused",
-           r.returncode != 0 and "CAS verification" in r.stderr, r.stderr)
+        result = repotool(binary, *args)
+        check(f"tamper-{verb[1]}-refused",
+              result.returncode != 0 and "CAS verification" in result.stderr,
+              result.stderr)
     hist.write_bytes(original)
-    ck("restore-works",
-       repotool(binary, "tag", "rollback", str(repo), "real").returncode == 0)
+    check("restore-works",
+          repotool(binary, "tag", "rollback", str(repo), "real").returncode == 0)
 
 
 # ---- entry ------------------------------------------------------------------

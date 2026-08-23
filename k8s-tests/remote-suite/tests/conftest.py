@@ -253,108 +253,90 @@ def _setup_session():
     In REMOTE mode: verify the server is reachable; skip all local lifecycle.
     In LOCAL mode: wipe data dirs, regenerate PKI, start servers.
     """
-    import subprocess
-
     if REMOTE_SERVER:
-        # Verify connectivity before the test suite begins.
-        if not _check_server_reachable(SERVER_HOST, NGINX_ANON_PORT):
-            raise pytest.UsageError(
-                f"Remote server at {SERVER_HOST}:{NGINX_ANON_PORT} is not reachable. "
-                "Check TEST_SERVER_HOST and that the server is running."
-            )
-        # PKI dirs still needed locally for cert-based tests (they read certs,
-        # but do NOT regenerate them — operator must pre-provision).
-        os.makedirs(LOG_DIR, exist_ok=True)
-        os.makedirs(TMP_DIR, exist_ok=True)
-        os.environ.setdefault("X509_CERT_DIR", CA_DIR)
-        os.environ.setdefault("X509_USER_PROXY", PROXY_STD)
+        _setup_remote_session()
         return
-
-    # A fleet started out of band owns its own lifecycle: never wipe the tree or
-    # start-all on top of it.  pytest_sessionstart already pre-checks and skips
-    # this call in that case; this self-guard makes the destructive setup safe for
-    # any other caller too (defense-in-depth) so the attach guarantee cannot be
-    # silently bypassed.
     if _external_fleet_attached():
         return
+    _prepare_local_tree()
+    _seed_local_data()
+    _write_large_file()
+    os.environ["X509_CERT_DIR"] = CA_DIR
+    os.environ["X509_USER_PROXY"] = PROXY_STD
+    _start_local_fleet()
 
-    # ---- LOCAL mode ----
 
-    # MANDATED CLEAN SLATE: destroy the entire temp tree so every run regenerates
-    # all artifacts (data, PKI, tokens, server configs) from scratch — no stale
-    # files are ever carried between runs.  Then chdir into a scratch dir inside
-    # the (recreated) tree so the whole session — including every server the
-    # harness spawns below — runs with a CWD under /tmp, never the repo.
+def _setup_remote_session():
+    if not _check_server_reachable(SERVER_HOST, NGINX_ANON_PORT):
+        raise pytest.UsageError(
+            f"Remote server at {SERVER_HOST}:{NGINX_ANON_PORT} is not reachable. "
+            "Check TEST_SERVER_HOST and that the server is running."
+        )
+    os.makedirs(LOG_DIR, exist_ok=True)
+    os.makedirs(TMP_DIR, exist_ok=True)
+    os.environ.setdefault("X509_CERT_DIR", CA_DIR)
+    os.environ.setdefault("X509_USER_PROXY", PROXY_STD)
+
+
+def _prepare_local_tree():
     global _test_tree_wiped
     if not _test_tree_wiped:
         shutil.rmtree(TEST_ROOT, ignore_errors=True)
         _test_tree_wiped = True
     os.makedirs(TEST_ROOT, exist_ok=True)
     _chdir_scratch()
-
-    # Clear data and pki folders before each test session
-    if os.path.exists(DATA_ROOT):
-        shutil.rmtree(DATA_ROOT)
-    os.makedirs(DATA_ROOT, exist_ok=True)
-
-    if os.path.exists(PKI_DIR):
-        shutil.rmtree(PKI_DIR)
-    os.makedirs(PKI_DIR, exist_ok=True)
-
-    # Create subdirectories for PKI
+    _recreate_directory(DATA_ROOT)
+    _recreate_directory(PKI_DIR)
     for subdir in ["ca", "server", "user", "voms", "vomsdir"]:
         os.makedirs(os.path.join(PKI_DIR, subdir), exist_ok=True)
-
-    # Create logs and tmp directories
     os.makedirs(LOG_DIR, exist_ok=True)
     os.makedirs(TMP_DIR, exist_ok=True)
-
-    # Create data-gsi-bridge directory for cross-server GSI tests (test_gsi_bridge.py)
     gsi_bridge_data = os.path.join(TEST_ROOT, "data-gsi-bridge")
-    if os.path.exists(gsi_bridge_data):
-        shutil.rmtree(gsi_bridge_data)
-    os.makedirs(gsi_bridge_data, exist_ok=True)
+    _recreate_directory(gsi_bridge_data)
 
-    # Create required test files in data directory
+
+def _recreate_directory(path):
+    if os.path.exists(path):
+        shutil.rmtree(path)
+    os.makedirs(path, exist_ok=True)
+
+
+def _seed_local_data():
     with open(os.path.join(DATA_ROOT, "test.txt"), "wb") as f:
         f.write(b"hello from nginx-xrootd\n")
-
-    # Generate random.bin (5MB of random data). randbytes() fills the buffer in
-    # one C call — the byte-at-a-time getrandbits() generator it replaces took
-    # ~0.2s here and ~11s for the 200 MiB file below, on every (wiped) session.
     with open(os.path.join(DATA_ROOT, "random.bin"), "wb") as f:
         f.write(random.randbytes(5242880))
 
-    # Generate large200.bin (200 MiB) — MD5 exposed via env var for tests that need it.
-    LARGE_FILE_SIZE = 200 * 1024 * 1024
-    LARGE_FILE_PATH = os.path.join(DATA_ROOT, "large200.bin")
+
+def _write_large_file():
+    size = 200 * 1024 * 1024
+    path = os.path.join(DATA_ROOT, "large200.bin")
     import hashlib as _hashlib
     h = _hashlib.md5()
     seed_val = int(os.environ.get("LARGE_FILE_SEED", "42"))
     rng = random.Random(seed_val)
-    if (not os.path.exists(LARGE_FILE_PATH)
-            or os.path.getsize(LARGE_FILE_PATH) != LARGE_FILE_SIZE):
-        with open(LARGE_FILE_PATH, "wb") as f:
-            # Write in 16 MiB chunks to limit memory pressure
-            chunk_size = 16 * 1024 * 1024
-            remaining = LARGE_FILE_SIZE
-            while remaining > 0:
-                n = min(chunk_size, remaining)
-                chunk = rng.randbytes(n)   # vectorized; ~15x faster than per-byte
-                f.write(chunk)
-                h.update(chunk)
-                remaining -= n
-        os.environ["LARGE_FILE_MD5"] = h.hexdigest()
+    if not os.path.exists(path) or os.path.getsize(path) != size:
+        _create_large_file(path, size, rng, h)
     else:
-        # File exists from prior run — recompute MD5 to stay consistent.
-        with open(LARGE_FILE_PATH, "rb") as f:
+        with open(path, "rb") as f:
             for chunk in iter(lambda: f.read(65536), b""):
                 h.update(chunk)
-        os.environ["LARGE_FILE_MD5"] = h.hexdigest()
+    os.environ["LARGE_FILE_MD5"] = h.hexdigest()
 
-    os.environ["X509_CERT_DIR"] = CA_DIR
-    os.environ["X509_USER_PROXY"] = PROXY_STD
 
+def _create_large_file(path, size, rng, digest):
+    with open(path, "wb") as handle:
+        remaining = size
+        while remaining > 0:
+            length = min(16 * 1024 * 1024, remaining)
+            chunk = rng.randbytes(length)
+            handle.write(chunk)
+            digest.update(chunk)
+            remaining -= length
+
+
+def _start_local_fleet():
+    import subprocess
     subprocess.run(
         [
             os.path.join(os.path.dirname(__file__), "manage_test_servers.sh"),
@@ -385,306 +367,5 @@ def pytest_sessionstart(session):
         return
     _setup_session()
 
-
-def pytest_configure(config):
-    """Register custom markers and confine all scratch under TEST_ROOT.
-
-    Many tests (and the servers/clients they spawn) create scratch via
-    ``tempfile.mkdtemp/mkstemp/TemporaryDirectory`` or a ``TMPDIR``-honoring
-    subprocess.  Left at the default they litter bare ``/tmp`` (e.g.
-    ``/tmp/xrd-jwks-test-*``).  Point Python's tempdir AND the inherited
-    ``$TMPDIR`` at ``TEST_ROOT/tmp`` so every such artifact lands under the one
-    test tree that the session wipes and recreates — nothing leaks into /tmp.
-    Runs on the controller and on every xdist worker, before any test executes.
-    """
-    os.makedirs(TMP_DIR, exist_ok=True)
-    os.environ["TMPDIR"] = TMP_DIR
-    tempfile.tempdir = TMP_DIR
-
-    config.addinivalue_line(
-        "markers",
-        "requires_local_server: test writes directly to the server filesystem "
-        "and cannot run against a remote server (skipped when TEST_SERVER_HOST is set)",
-    )
-
-
-# Module-name substrings that identify the multi-minute "slow" families: the
-# destructive/resilience suites, multi-node meshes, differential client suites,
-# conformance/interop batches, and throughput/perf runs.  Tests in these modules
-# are auto-marked `slow` so a fast iteration check can deselect them with
-# `-m "not slow"` (see tests/run_suite.sh --fast).  Over-inclusion is safe: the
-# full run (run_suite.sh) covers everything regardless of this marker.
-_SLOW_MODULE_HINTS = (
-    "resilien", "chaos", "evil_actor", "evil_paths", "netfault", "net_resilience",
-    "topolog", "conformance", "official", "clientconf", "hybrid", "throughput",
-    "performance", "stress", "redteam", "gfal", "busybox", "xrootdfs",
-    "fuse", "concurrent", "proxy_large", "large_read", "_mesh", "cms_mesh",
-    "interop", "_load", "_e2e",
-    # build/compile matrices — a single test can rebuild+dlopen a module (~73s),
-    # which has no place in a minutes-long iteration check (full run still runs it).
-    "build_matrix",
-)
-
-
-def _is_slow_module(name):
-    """True if a test module's basename marks it a slow-family test."""
-    stem = name[:-3] if name.endswith(".py") else name
-    return any(h in stem for h in _SLOW_MODULE_HINTS)
-
-
-_remote_skip_cache = {}
-
-
-def _is_remote_skip(path):
-    """True if <path>'s first line is the brix-remote-skip marker (cached)."""
-    hit = _remote_skip_cache.get(path)
-    if hit is None:
-        try:
-            with open(path, encoding="utf-8") as fh:
-                hit = fh.readline().strip() == "# brix-remote-skip"
-        except Exception:
-            hit = False
-        _remote_skip_cache[path] = hit
-    return hit
-
-
-def pytest_collection_modifyitems(config, items):
-    """Skip requires_local_server tests in remote mode; order CMS tests last;
-    auto-mark the slow families so `-m "not slow"` yields a fast iteration set."""
-    cms_items = []
-    other_items = []
-
-    for item in items:
-        name = os.path.basename(str(item.fspath))
-
-        # Auto-tag slow families (idempotent — a hand-placed @slow still counts).
-        # The <5min PR gate runs `-m "not slow"`; --nightly runs the slow set.
-        if _is_slow_module(name):
-            item.add_marker(pytest.mark.slow)
-
-        if item.get_closest_marker("requires_local_server") and REMOTE_SERVER:
-            item.add_marker(
-                pytest.mark.skip(
-                    reason=f"requires_local_server: test writes to server filesystem "
-                    f"(remote: {SERVER_HOST})"
-                )
-            )
-
-        # brix-remote: skip files marked "# brix-remote-skip" in remote mode
-        # (multi-server topologies the single mega server does not provide). This
-        # catches explicitly-named files that pytest_ignore_collect bypasses.
-        if REMOTE_SERVER and _is_remote_skip(str(item.fspath)):
-            item.add_marker(
-                pytest.mark.skip(
-                    reason="brix-remote-skip: multi-server topology not served "
-                    "by the remote mega server"
-                )
-            )
-
-        # Honor the `serial` marker under pytest-xdist: assign every serial test
-        # to one xdist group so they land on a single worker and never run
-        # concurrently with each other.  Effective only with `--dist loadgroup`
-        # (the project's canonical parallel invocation); a harmless no-op under the
-        # default `--dist load` or serial runs.  Stateful suites (e.g. the chaos
-        # meshes) mark themselves `serial` precisely because parallel co-execution
-        # corrupts their shared mesh/port state.
-        if item.get_closest_marker("serial"):
-            item.add_marker(pytest.mark.xdist_group("serial"))
-
-        if name == "test_cms.py":
-            cms_items.append(item)
-        else:
-            other_items.append(item)
-
-    if cms_items:
-        items[:] = other_items + cms_items
-
-
-def pytest_sessionfinish(session, exitstatus):
-    """Stop local servers when the session ends (no-op in remote mode or xdist workers)."""
-    import subprocess
-
-    # xdist workers must not call stop-all: the controller owns server lifecycle.
-    # A worker finishing early would kill servers other workers still need.
-    if hasattr(session.config, "workerinput"):
-        return
-
-    if REMOTE_SERVER or _should_skip_local_lifecycle(session.config):
-        return
-
-    try:
-        subprocess.run(
-            [
-                os.path.join(os.path.dirname(__file__), "manage_test_servers.sh"),
-                "stop-all",
-            ],
-            capture_output=True,
-            timeout=30,
-        )
-    except Exception:
-        pass  # best-effort cleanup
-
-    # MANDATED CLEANUP: leave nothing behind.  Restore the original CWD first
-    # (we are currently inside CWD_DIR, which is about to be deleted), then
-    # destroy the whole temp tree so the next run starts from a clean slate and
-    # regenerates every file.  Only reached on the controller in local mode
-    # (remote/skip/no-server returned above).
-    try:
-        os.chdir(_ORIG_CWD)
-    except OSError:
-        pass
-    shutil.rmtree(TEST_ROOT, ignore_errors=True)
-
-
-@pytest.fixture(scope="session")
-def _test_session_setup():
-    """Session-scoped fixture that ensures servers are running.
-
-    In remote mode: verifies connectivity; does not start/stop any process.
-    In local mode: starts servers and tears them down when the session ends.
-    """
-    _setup_session()
-    yield
-    if REMOTE_SERVER or _external_fleet_attached():
-        return
-    import subprocess
-
-    try:
-        subprocess.run(
-            [
-                os.path.join(os.path.dirname(__file__), "manage_test_servers.sh"),
-                "stop-all",
-            ],
-            capture_output=True,
-            timeout=30,
-        )
-    except Exception:
-        pass
-
-
-@pytest.fixture(scope="session")
-def test_env():
-    h = SERVER_HOST
-    ports = {
-        "anon_port": NGINX_ANON_PORT,
-        "gsi_port": NGINX_GSI_PORT,
-        "gsi_tls_port": NGINX_GSI_TLS_PORT,
-        "token_port": NGINX_TOKEN_PORT,
-        "krb5_port": NGINX_KRB5_PORT,
-        "metrics_port": NGINX_METRICS_PORT,
-        "webdav_port": NGINX_WEBDAV_PORT,
-        "webdav_gsi_tls_port": NGINX_WEBDAV_GSI_TLS_PORT,
-        "http_webdav_port": NGINX_HTTP_WEBDAV_PORT,
-        "s3_port": NGINX_S3_PORT,
-        "jwks_refresh_port": NGINX_JWKS_REFRESH_PORT,
-        "readonly_port": READONLY_PORT,
-        "vo_port": VO_PORT,
-        "webdav_auth_cache_manual_port": WEBDAV_AUTH_CACHE_MANUAL_PORT,
-        "webdav_auth_cache_nginx_port": WEBDAV_AUTH_CACHE_NGINX_PORT,
-        "webdav_tpc_source_required_port": WEBDAV_TPC_SOURCE_REQUIRED_PORT,
-        "webdav_tpc_source_open_port": WEBDAV_TPC_SOURCE_OPEN_PORT,
-        "webdav_tpc_dest_cafile_port": WEBDAV_TPC_DEST_CAFILE_PORT,
-        "webdav_tpc_dest_cadir_port": WEBDAV_TPC_DEST_CADIR_PORT,
-        "webdav_tpc_dest_no_service_cert_port": WEBDAV_TPC_DEST_NO_SERVICE_CERT_PORT,
-        "webdav_tpc_dest_disabled_port": WEBDAV_TPC_DEST_DISABLED_PORT,
-        "webdav_tpc_dest_readonly_port": WEBDAV_TPC_DEST_READONLY_PORT,
-        "upstream_redirect_nginx_port": UPSTREAM_REDIRECT_NGINX_PORT,
-        "upstream_wait_nginx_port": UPSTREAM_WAIT_NGINX_PORT,
-        "upstream_waitresp_nginx_port": UPSTREAM_WAITRESP_NGINX_PORT,
-        "upstream_error_nginx_port": UPSTREAM_ERROR_NGINX_PORT,
-        "upstream_auth_nginx_port": UPSTREAM_AUTH_NGINX_PORT,
-        "upstream_auth_nofile_nginx_port": UPSTREAM_AUTH_NOFILE_NGINX_PORT,
-        "upstream_gotorls_notls_nginx_port": UPSTREAM_GOTORLS_NOTLS_NGINX_PORT,
-        "upstream_redirect_backend_port": UPSTREAM_REDIRECT_BACKEND_PORT,
-        "upstream_wait_backend_port": UPSTREAM_WAIT_BACKEND_PORT,
-        "upstream_waitresp_backend_port": UPSTREAM_WAITRESP_BACKEND_PORT,
-        "upstream_error_backend_port": UPSTREAM_ERROR_BACKEND_PORT,
-        "upstream_auth_backend_port": UPSTREAM_AUTH_BACKEND_PORT,
-        "upstream_auth_nofile_backend_port": UPSTREAM_AUTH_NOFILE_BACKEND_PORT,
-        "upstream_gotorls_notls_backend_port": UPSTREAM_GOTORLS_NOTLS_BACKEND_PORT,
-    }
-
-    return {
-        **ports,
-        "server_host": h,
-        "anon_url": f"root://{h}:{ports['anon_port']}",
-        "gsi_url": f"root://{h}:{ports['gsi_port']}",
-        "gsi_tls_url": f"roots://{h}:{ports['gsi_tls_port']}",
-        "token_url": f"root://{h}:{ports['token_port']}",
-        "krb5_url": f"root://{h}:{ports['krb5_port']}",
-        "metrics_url": f"http://{h}:{ports['metrics_port']}/metrics",
-        "webdav_url": f"https://{h}:{ports['webdav_port']}",
-        "webdav_gsi_tls_url": f"https://{h}:{ports['webdav_gsi_tls_port']}",
-        "http_webdav_url": f"http://{h}:{ports['http_webdav_port']}",
-        "s3_url": f"http://{h}:{ports['s3_port']}",
-        "data_dir": DATA_ROOT,
-        "ca_dir": CA_DIR,
-        "ca_pem": CA_CERT,
-        "proxy_pem": PROXY_STD,
-        "token_dir": TOKENS_DIR,
-        "log_dir": LOG_DIR,
-    }
-
-
-@pytest.fixture(scope="session")
-def ref_xrootd(test_env):
-    return {
-        "url": f"root://{HOST}:{REF_BRIX_PORT}",
-        "port": REF_BRIX_PORT,
-        "data_dir": test_env["data_dir"],
-    }
-
-
-@pytest.fixture(scope="session")
-def ref_brix_gsi(test_env):
-    return {
-        "url": f"root://{HOST}:{REF_BRIX_GSI_PORT}",
-        "port": REF_BRIX_GSI_PORT,
-        "data_dir": os.path.join(TEST_ROOT, "data-gsi-bridge"),
-    }
-
-
-@pytest.fixture(scope="session")
-def ref_brix_gsi_shared(test_env):
-    return {
-        "url": f"root://{HOST}:{REF_BRIX_GSI_SHARED_PORT}",
-        "port": REF_BRIX_GSI_SHARED_PORT,
-        "data_dir": test_env["data_dir"],
-    }
-
-
-# ---------------------------------------------------------------------------
-# brix-remote: in REMOTE mode (TEST_SERVER_HOST set), skip test files marked
-# with a "# brix-remote-skip" first line — multi-server topologies (cache tiers,
-# clusters, upstream chains, ipv6 tiers) the single remote "mega" server does not
-# provide. Local runs (REMOTE_SERVER False) are unaffected.
-# ---------------------------------------------------------------------------
-def pytest_ignore_collect(collection_path, config):
-    if not REMOTE_SERVER:
-        return None
-    try:
-        p = str(collection_path)
-        if p.endswith(".py"):
-            with open(p, encoding="utf-8") as fh:
-                if fh.readline().strip() == "# brix-remote-skip":
-                    return True
-    except Exception:
-        pass
-    return None
-
-
-# ---------------------------------------------------------------------------
-# brix-remote: the local fleet ships standard test files (/test.txt) in every
-# server's data root. In REMOTE mode seed them once per session on the mega so
-# adapted tests that assume they exist pass without per-file boilerplate.
-# ---------------------------------------------------------------------------
-@pytest.fixture(scope="session", autouse=True)
-def _brix_remote_seed_standard_files():
-    if REMOTE_SERVER:
-        try:
-            import klib
-            klib.svc_write("mega", "/data/xrootd/test.txt",
-                           b"hello from nginx-xrootd\n")
-        except Exception:
-            pass
-    yield
+from split_continuation import load as _load_continuations
+_load_continuations(globals(), __file__, "conftest_part2.py")

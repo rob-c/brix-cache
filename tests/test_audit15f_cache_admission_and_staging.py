@@ -55,6 +55,42 @@ from server_registry import NginxInstanceSpec
 from settings import NGINX_BIN, BIND_HOST
 from _cache_partial_helpers import read_range
 
+def _phase_cacheadm_1(tmp_path, origin_root, stores, exports):
+    for path in (tmp_path, origin_root, *stores.values(), *exports.values()):
+        os.chmod(path, 0o777)
+
+def _phase_cacheadm_2(origin_root):
+    for sub in origin_root.iterdir():
+        os.chmod(sub, 0o777)
+
+def _phase_test_the_staged_backend_instance_still_has_no_consumer_3(full, hits):
+    with open(full, errors="ignore") as fh:
+        for lineno, line in enumerate(fh, 1):
+            _guard_test_the_staged_backend_instance_still_has_no_consumer_4(line, hits, lineno, full)
+
+
+def _guard_stage_body_1(state_root, lines, root):
+    if state_root:
+        lines.append(f"    brix_cache_state_root {root}/state;")
+
+def _guard_stage_body_2(stage_root, lines, root):
+    if stage_root:
+        lines.append(f"    brix_cache_wt_stage_root {root}/stage;")
+
+def _guard_cacheadm_3():
+    if not os.path.exists(NGINX_BIN):
+        pytest.skip(f"nginx binary not found at {NGINX_BIN}")
+
+def _check_test_the_staged_backend_instance_still_has_no_consumer_1(hits):
+    assert sorted(hits) == ["src/fs/cache/cache_storage.c:265",
+                            "src/fs/cache/cache_storage.h:61"], (
+        f"brix_cache_wt_stage() references changed: {sorted(hits)}")
+
+def _guard_test_the_staged_backend_instance_still_has_no_consumer_4(line, hits, lineno, full):
+    if "brix_cache_wt_stage(" in line:
+        hits.append(f"{os.path.relpath(full, REPO)}:{lineno}")
+
+
 pytestmark = [pytest.mark.timeout(120),
               pytest.mark.uses_lifecycle_harness,
               pytest.mark.xdist_group("lc-audit15f-cacheadm")]
@@ -110,10 +146,8 @@ def _stage_body(root, *, cache_on, stage_root=True, state_root=True):
                   f"    brix_cache_export {root}/export;"]
     else:
         lines += [f"    brix_export {root}/export;"]
-    if state_root:
-        lines.append(f"    brix_cache_state_root {root}/state;")
-    if stage_root:
-        lines.append(f"    brix_cache_wt_stage_root {root}/stage;")
+    _guard_stage_body_1(state_root, lines, root)
+    _guard_stage_body_2(stage_root, lines, root)
     lines += [f"    brix_cache_wt_stage_backend posix:{root}/back;",
               "    brix_cache_wt_stage_block_size 64k;"]
     return "\n".join(lines)
@@ -124,8 +158,7 @@ def cacheadm(lifecycle, tmp_path):
     """An origin plus the two tiered cache planes over it.  The origin is its
     own registry instance so a test can stop it and see what the store alone
     can still answer."""
-    if not os.path.exists(NGINX_BIN):
-        pytest.skip(f"nginx binary not found at {NGINX_BIN}")
+    _guard_cacheadm_3()
 
     origin_root = tmp_path / "origin"
     stores = {"admit": tmp_path / "admit-store", "l1": tmp_path / "l1-store"}
@@ -153,10 +186,8 @@ def cacheadm(lifecycle, tmp_path):
     for path in (*stores.values(), *exports.values()):
         path.mkdir()
     # The master may run as root while the worker drops privilege.
-    for path in (tmp_path, origin_root, *stores.values(), *exports.values()):
-        os.chmod(path, 0o777)
-    for sub in origin_root.iterdir():
-        os.chmod(sub, 0o777)
+    _phase_cacheadm_1(tmp_path, origin_root, stores, exports)
+    _phase_cacheadm_2(origin_root)
 
     origin = lifecycle.start(NginxInstanceSpec(
         name="lc-audit15f-cacheorigin",
@@ -350,11 +381,6 @@ def test_the_staged_backend_instance_still_has_no_consumer():
                 if not name.endswith((".c", ".h")):
                     continue
                 full = os.path.join(dirpath, name)
-                with open(full, errors="ignore") as fh:
-                    for lineno, line in enumerate(fh, 1):
-                        if "brix_cache_wt_stage(" in line:
-                            hits.append(f"{os.path.relpath(full, REPO)}:{lineno}")
+                _phase_test_the_staged_backend_instance_still_has_no_consumer_3(full, hits)
 
-    assert sorted(hits) == ["src/fs/cache/cache_storage.c:265",
-                            "src/fs/cache/cache_storage.h:61"], (
-        f"brix_cache_wt_stage() references changed: {sorted(hits)}")
+    _check_test_the_staged_backend_instance_still_has_no_consumer_1(hits)

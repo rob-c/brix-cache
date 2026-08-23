@@ -22,6 +22,15 @@ import time
 
 import pytest
 
+def _guard_aud_server_1():
+    if not os.path.exists(NGINX_BIN):
+        pytest.skip(f"nginx binary not found at {NGINX_BIN}")
+
+def _guard_aud_server_2():
+    if not _HAVE_REQUESTS:
+        pytest.skip("requests not available")
+
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from utils.make_token import TokenIssuer        # noqa: E402
 
@@ -52,10 +61,8 @@ def _wait_port(port, timeout=10):
 
 @pytest.fixture(scope="module")
 def aud_server(tmp_path_factory):
-    if not os.path.exists(NGINX_BIN):
-        pytest.skip(f"nginx binary not found at {NGINX_BIN}")
-    if not _HAVE_REQUESTS:
-        pytest.skip("requests not available")
+    _guard_aud_server_1()
+    _guard_aud_server_2()
 
     d = tmp_path_factory.mktemp("aud")
     (d / "logs").mkdir()

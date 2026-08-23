@@ -14,6 +14,45 @@ from __future__ import annotations
 import os
 
 
+def _expression_1(shared):
+    return (
+        LIFECYCLE_SHARED_OFFSET if shared else LIFECYCLE_EXCLUSIVE_OFFSET
+    )
+
+def _expression_2(shared):
+    return (
+        LIFECYCLE_SHARED_WIDTH if shared else LIFECYCLE_EXCLUSIVE_WIDTH
+    )
+
+def _expression_3(shared):
+    return (
+        "shared" if shared else "exclusive"
+    )
+
+def _expression_4(namespace):
+    return (
+        [
+                name for name, value in namespace.items()
+                if "_PORT" in name
+                and name != "TEST_PORT_START"
+                and isinstance(value, int)
+            ]
+    )
+
+def _expression_5(names, aliases):
+    return (
+        [name for name in names if name not in aliases]
+    )
+
+
+def _guard_rebase_settings_1(owners):
+    if len(owners) != SETTINGS_WIDTH:
+        raise RuntimeError(
+            f"settings port ladder expected {SETTINGS_WIDTH} allocations, "
+            f"found {len(owners)}; update port_ladder.py intentionally"
+        )
+
+
 PORT_START = int(os.environ.get("TEST_PORT_START", "10000"))
 
 # Stable category offsets.  Width changes are intentional compatibility events:
@@ -624,19 +663,10 @@ def rebase_settings(namespace: dict) -> None:
     ``XRDHTTP_HTTP_PORT`` (original port 11113) and remains an alias rather than
     consuming a second socket slot.
     """
-    names = [
-        name for name, value in namespace.items()
-        if "_PORT" in name
-        and name != "TEST_PORT_START"
-        and isinstance(value, int)
-    ]
+    names = _expression_4(namespace)
     aliases = {"XRDHTTP_HTTPS_PORT": "XRDHTTP_HTTP_PORT"}
-    owners = [name for name in names if name not in aliases]
-    if len(owners) != SETTINGS_WIDTH:
-        raise RuntimeError(
-            f"settings port ladder expected {SETTINGS_WIDTH} allocations, "
-            f"found {len(owners)}; update port_ladder.py intentionally"
-        )
+    owners = _expression_5(names, aliases)
+    _guard_rebase_settings_1(owners)
     for index, name in enumerate(owners):
         namespace[name] = _port(SETTINGS_OFFSET, index)
     for alias, owner in aliases.items():
@@ -653,14 +683,14 @@ def rebase_settings(namespace: dict) -> None:
 
 def rebase_lifecycle_ledger(ledger: dict, *, shared: bool) -> None:
     """Rebase a lifecycle ledger while preserving its insertion order."""
-    offset = LIFECYCLE_SHARED_OFFSET if shared else LIFECYCLE_EXCLUSIVE_OFFSET
-    expected = LIFECYCLE_SHARED_WIDTH if shared else LIFECYCLE_EXCLUSIVE_WIDTH
+    offset = _expression_1(shared)
+    expected = _expression_2(shared)
     slots = []
     for entry in ledger.values():
         slots.append((entry, "port"))
         slots.extend((entry["extra"], key) for key in entry.get("extra", {}))
     if len(slots) != expected:
-        kind = "shared" if shared else "exclusive"
+        kind = _expression_3(shared)
         raise RuntimeError(
             f"{kind} lifecycle ladder expected {expected} allocations, "
             f"found {len(slots)}; update port_ladder.py intentionally"

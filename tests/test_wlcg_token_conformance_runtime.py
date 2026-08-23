@@ -31,6 +31,58 @@ import sys
 
 import pytest
 
+def _expression_1(forge):
+    return (
+        [
+                forge.generate(sub=f"rt-user-{i}", scope="storage.read:/")
+                for i in range(10)
+            ]
+    )
+
+def _expression_2(forge):
+    return (
+        [forge.alg_none() for _ in range(10)]
+    )
+
+def _expression_3(valid_tokens, invalid_tokens):
+    return (
+        [(tok, "accept") for tok in valid_tokens]
+                + [(tok, "reject") for tok in invalid_tokens]
+    )
+
+def _expression_4(tasks, ex):
+    return (
+        [ex.submit(_probe, t) for t in tasks]
+    )
+
+def _expression_5(futures):
+    return (
+        [f.result() for f in concurrent.futures.as_completed(futures)]
+    )
+
+def _expression_6(results):
+    return (
+        [
+                (exp, obs) for exp, obs in results if exp != obs
+            ]
+    )
+
+
+def _check_test_rt_01_concurrent_same_token_all_accept_1(rejects):
+    assert not rejects, (
+        f"RT-01 FAIL: {len(rejects)}/20 calls returned unexpected verdict(s): "
+        f"{rejects!r}. Cache-consistency bug under concurrent same-token access."
+    )
+
+def _check_test_rt_02_concurrent_distinct_token_isolation_2(mismatches):
+    assert not mismatches, (
+        f"RT-02 FAIL: {len(mismatches)}/20 verdict mismatches: "
+        f"{mismatches!r}. "
+        "Cache cross-contamination bug: a valid-token entry was returned for "
+        "an invalid-token lookup or vice versa."
+    )
+
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__)))
 
 from settings import NGINX_TOKEN_PORT, TOKENS_DIR
@@ -86,10 +138,7 @@ def test_rt_01_concurrent_same_token_all_accept():
         results = [f.result() for f in concurrent.futures.as_completed(futures)]
 
     rejects = [r for r in results if r != "accept"]
-    assert not rejects, (
-        f"RT-01 FAIL: {len(rejects)}/20 calls returned unexpected verdict(s): "
-        f"{rejects!r}. Cache-consistency bug under concurrent same-token access."
-    )
+    _check_test_rt_01_concurrent_same_token_all_accept_1(rejects)
 
 
 @pytest.mark.tokenconf
@@ -111,16 +160,12 @@ def test_rt_02_concurrent_distinct_token_isolation():
     """
     forge = _forge()
     # 10 distinct valid tokens (varied sub so they are different JWT strings)
-    valid_tokens = [
-        forge.generate(sub=f"rt-user-{i}", scope="storage.read:/")
-        for i in range(10)
-    ]
+    valid_tokens = _expression_1(forge)
     # 10 invalid tokens (alg=none — no signature)
-    invalid_tokens = [forge.alg_none() for _ in range(10)]
+    invalid_tokens = _expression_2(forge)
 
     tasks = (
-        [(tok, "accept") for tok in valid_tokens]
-        + [(tok, "reject") for tok in invalid_tokens]
+        _expression_3(valid_tokens, invalid_tokens)
     )
 
     def _probe(tok_expected):
@@ -129,18 +174,11 @@ def test_rt_02_concurrent_distinct_token_isolation():
         return expected, observed
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=10) as ex:
-        futures = [ex.submit(_probe, t) for t in tasks]
-        results = [f.result() for f in concurrent.futures.as_completed(futures)]
+        futures = _expression_4(tasks, ex)
+        results = _expression_5(futures)
 
-    mismatches = [
-        (exp, obs) for exp, obs in results if exp != obs
-    ]
-    assert not mismatches, (
-        f"RT-02 FAIL: {len(mismatches)}/20 verdict mismatches: "
-        f"{mismatches!r}. "
-        "Cache cross-contamination bug: a valid-token entry was returned for "
-        "an invalid-token lookup or vice versa."
-    )
+    mismatches = _expression_6(results)
+    _check_test_rt_02_concurrent_distinct_token_isolation_2(mismatches)
 
 
 @pytest.mark.tokenconf

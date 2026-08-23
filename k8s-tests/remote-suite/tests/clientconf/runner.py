@@ -96,24 +96,35 @@ def run_case(tool, case, endpoint, ctx):
     _require(tool, OURS)
     _require(tool, STOCK)
 
-    results = {}
-    for which in (STOCK, OURS):
-        argv = case.argv(endpoint, ctx, which)
-        produces = case.produces(ctx, which) if case.produces else None
-        results[which] = diffcore.run_client(
-            which, tool, argv, endpoint,
-            stdin=case.stdin, produces=produces, timeout=case.timeout)
-
-    # A mid-run server death is infra, not a client divergence — skip.
-    if results[STOCK].unreachable or results[OURS].unreachable:
-        pytest.skip("server unreachable mid-run (infra)")
-
+    results = {which: _run_case_client(which, tool, case, endpoint, ctx)
+               for which in (STOCK, OURS)}
+    _skip_unreachable(results[STOCK], results[OURS])
     diffcore.assert_parity(results[STOCK], results[OURS], case.parity,
                            tool=tool, case_id=case.id)
+    _assert_case_bytes(case, results)
+    _run_case_post(case, endpoint, ctx, results)
+
+
+def _run_case_client(which, tool, case, endpoint, ctx):
+    argv = case.argv(endpoint, ctx, which)
+    produces = case.produces(ctx, which) if case.produces else None
+    return diffcore.run_client(which, tool, argv, endpoint, stdin=case.stdin,
+                               produces=produces, timeout=case.timeout)
+
+
+def _skip_unreachable(*results):
+    if any(result.unreachable for result in results):
+        pytest.skip("server unreachable mid-run (infra)")
+
+
+def _assert_case_bytes(case, results):
     if "bytes" in case.parity:
         diffcore.assert_bytes_identical(
             results[STOCK].produced, results[OURS].produced,
             what="%s bytes" % case.id)
+
+
+def _run_case_post(case, endpoint, ctx, results):
     if case.post:
         case.post(endpoint, ctx, results)
 
@@ -124,26 +135,26 @@ def run_knob(tool, case, endpoint, ctx):
     knob = case.knob
 
     # Knob-off baseline (ours), for the bytes invariant.
-    base_argv = case.argv(endpoint, ctx, "ours")
-    base_prod = case.produces(ctx, "ours") if case.produces else None
-    base = diffcore.run_client(OURS, tool, base_argv, endpoint,
-                               stdin=case.stdin, produces=base_prod,
-                               timeout=case.timeout)
+    base = _run_knob_client(tool, case, endpoint, ctx, "ours")
 
     # Knob on: prepend the global flag (+ any extra args) to a fresh argv whose
     # produces path is distinct so the two artefacts can be compared.
-    on_argv = [knob.flag] + list(knob.extra_args) + \
-        case.argv(endpoint, ctx, "ours_knob")
-    on_prod = case.produces(ctx, "ours_knob") if case.produces else None
-    on = diffcore.run_client(OURS, tool, on_argv, endpoint,
-                             stdin=case.stdin, produces=on_prod,
-                             timeout=case.timeout)
-
-    if base.unreachable or on.unreachable:
-        pytest.skip("server unreachable mid-run (infra)")
-
+    on = _run_knob_client(tool, case, endpoint, ctx, "ours_knob", knob)
+    _skip_unreachable(base, on)
     knob.behavioral(on, base, ctx)
+    _assert_knob_bytes(case, knob, base, on)
 
+
+def _run_knob_client(tool, case, endpoint, ctx, variant, knob=None):
+    argv = case.argv(endpoint, ctx, variant)
+    if knob is not None:
+        argv = [knob.flag] + list(knob.extra_args) + argv
+    produces = case.produces(ctx, variant) if case.produces else None
+    return diffcore.run_client(OURS, tool, argv, endpoint, stdin=case.stdin,
+                               produces=produces, timeout=case.timeout)
+
+
+def _assert_knob_bytes(case, knob, base, on):
     if knob.invariant_bytes and base.produced and on.produced:
         diffcore.assert_bytes_identical(
             base.produced, on.produced,

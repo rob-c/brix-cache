@@ -103,43 +103,105 @@ int brix_cas_open(const brix_cas_store_t *s, const char *key) {
     return openat(cas_base(s), rel, O_RDONLY);
 }
 
-int brix_cas_put(brix_cas_store_t *s, const char *key, const void *data, size_t len) {
-    char obj[640], dir[640];
-    if (s->pack != NULL) return brix_cas_pack_put(s->pack, key, data, len);
-    if (cas_obj_rel(s, key, obj, sizeof(obj)) < 0
-        || cas_dir_rel(s, key, dir, sizeof(dir)) < 0) { errno = EINVAL; return -1; }
-    if (brix_cas_has(s, key)) return 0;                 /* immutable: present */
+/*
+ * WHAT: Create a collision-resistant temporary object in one fan-out directory.
+ * WHY:  CAS publication needs an exclusive sibling file before atomic rename.
+ * HOW:  Try sixteen pid/random names, retry only collisions, and return its fd.
+ */
+static int cas_temp_open(int base, const char *dir, char *tmp, size_t tmp_len) {
+    int attempt;
 
-    int base = cas_base(s);
-    if (mkdirat_ok(base, dir) != 0) return -1;
+    for (attempt = 0; attempt < 16; attempt++) {
+        int fd;
 
-    /* atomic put: O_EXCL temp in the fan-out dir + fsync + renameat. */
-    char tmp[680];
-    int  fd = -1;
-    for (int attempt = 0; attempt < 16 && fd < 0; attempt++) {
-        snprintf(tmp, sizeof(tmp), "%s/.tmp.%d.%x", dir, (int) getpid(),
+        snprintf(tmp, tmp_len, "%s/.tmp.%d.%x", dir, (int) getpid(),
                  (unsigned) (rand() ^ (attempt << 8)));
         fd = openat(base, tmp, O_CREAT | O_EXCL | O_WRONLY, 0644);
-        if (fd < 0 && errno != EEXIST) return -1;
+        if (fd >= 0 || errno != EEXIST)
+            return fd;
     }
-    if (fd < 0) return -1;
+    return -1;
+}
 
-    const char *p = data; size_t off = 0; int rc = 0;
-    while (off < len) {
-        ssize_t w = write(fd, p + off, len - off);
-        if (w < 0) { if (errno == EINTR) continue; rc = -1; break; }
-        off += (size_t) w;
+/*
+ * WHAT: Write and durably close one temporary CAS object.
+ * WHY:  Short writes, interruptions, fsync, and close errors share one contract.
+ * HOW:  Complete the byte loop, optionally fsync, close, and preserve failure.
+ */
+static int cas_temp_write(int fd, const void *data, size_t len, int no_fsync) {
+    const char *bytes = data;
+    size_t      offset = 0;
+    int         rc = 0;
+
+    while (offset < len) {
+        ssize_t written = write(fd, bytes + offset, len - offset);
+
+        if (written < 0) {
+            if (errno == EINTR)
+                continue;
+            rc = -1;
+            break;
+        }
+        offset += (size_t) written;
     }
-    if (rc == 0 && !s->no_fsync && fsync(fd) != 0) rc = -1;
-    if (close(fd) != 0) rc = -1;
-    if (rc != 0) { unlinkat(base, tmp, 0); return -1; }
+    if (rc == 0 && !no_fsync && fsync(fd) != 0)
+        rc = -1;
+    if (close(fd) != 0)
+        rc = -1;
+    return rc;
+}
 
-    if (renameat(base, tmp, base, obj) != 0) {
-        int e = errno;
+/*
+ * WHAT: Rename a completed temporary object into its immutable CAS name.
+ * WHY:  A concurrent successful writer is equivalent to our own publication.
+ * HOW:  Rename, remove a failed temp, and accept an already-present target.
+ */
+static int cas_temp_publish(brix_cas_store_t *s, const char *key,
+                            int base, const char *tmp, const char *obj) {
+    int saved_errno;
+
+    if (renameat(base, tmp, base, obj) == 0)
+        return 0;
+    saved_errno = errno;
+    unlinkat(base, tmp, 0);
+    if (brix_cas_has(s, key))
+        return 1;
+    errno = saved_errno;
+    return -1;
+}
+
+int brix_cas_put(brix_cas_store_t *s, const char *key, const void *data, size_t len) {
+    char obj[640];
+    char dir[640];
+    char tmp[680];
+    int  base;
+    int  fd;
+    int  published;
+
+    if (s->pack != NULL)
+        return brix_cas_pack_put(s->pack, key, data, len);
+    if (cas_obj_rel(s, key, obj, sizeof(obj)) < 0
+        || cas_dir_rel(s, key, dir, sizeof(dir)) < 0) {
+        errno = EINVAL;
+        return -1;
+    }
+    if (brix_cas_has(s, key))
+        return 0;
+    base = cas_base(s);
+    if (mkdirat_ok(base, dir) != 0)
+        return -1;
+    fd = cas_temp_open(base, dir, tmp, sizeof(tmp));
+    if (fd < 0)
+        return -1;
+    if (cas_temp_write(fd, data, len, s->no_fsync) != 0) {
         unlinkat(base, tmp, 0);
-        if (brix_cas_has(s, key)) return 0;             /* racing writer won */
-        errno = e; return -1;
+        return -1;
     }
+    published = cas_temp_publish(s, key, base, tmp, obj);
+    if (published < 0)
+        return -1;
+    if (published > 0)
+        return 0;
     s->cur_bytes += (long) len;
     brix_cas_enforce_quota(s);
     return 0;
@@ -210,65 +272,100 @@ long brix_cas_size(const brix_cas_store_t *s) {
 /* ---- LRU reap ----------------------------------------------------------- */
 
 typedef struct { int sub_fd; char name[256]; long size; time_t atime; } cas_ent_t;
-typedef struct { cas_ent_t *v; size_t n, cap; long total; } cas_list_t;
+typedef struct { cas_ent_t *v; size_t n, cap; long total; int oom; } cas_list_t;
 
 static int by_atime(const void *a, const void *b) {
     const cas_ent_t *x = a, *y = b;
     return (x->atime < y->atime) ? -1 : (x->atime > y->atime) ? 1 : 0;
 }
 
+/*
+ * WHAT: Append one walked object to an LRU-reap snapshot.
+ * WHY:  The existing fd walk already handles both path and supplied-dirfd stores.
+ * HOW:  Grow the vector, duplicate its directory fd, and accumulate byte size.
+ */
+static void reap_collect_cb(int sub_fd, const char *name,
+                            const struct stat *st, void *ud) {
+    cas_list_t *list = ud;
+    cas_ent_t  *entry;
+
+    if (list->oom)
+        return;
+    if (list->n == list->cap) {
+        size_t     capacity = list->cap ? list->cap * 2 : 256;
+        cas_ent_t *entries = realloc(list->v, capacity * sizeof(*entries));
+
+        if (entries == NULL) {
+            list->oom = 1;
+            return;
+        }
+        list->v = entries;
+        list->cap = capacity;
+    }
+    entry = &list->v[list->n];
+    entry->sub_fd = dup(sub_fd);
+    if (entry->sub_fd < 0) {
+        list->oom = 1;
+        return;
+    }
+    list->n++;
+    snprintf(entry->name, sizeof(entry->name), "%s", name);
+    entry->size = (long) st->st_size;
+    entry->atime = st->st_atime;
+    list->total += entry->size;
+}
+
+/*
+ * WHAT: Close and release a partially or fully collected reap snapshot.
+ * WHY:  Duplicated directory descriptors must survive the walk but never leak.
+ * HOW:  Close every recorded fd, free the vector, and clear its bookkeeping.
+ */
+static void reap_list_free(cas_list_t *list) {
+    size_t i;
+
+    for (i = 0; i < list->n; i++)
+        close(list->v[i].sub_fd);
+    free(list->v);
+    memset(list, 0, sizeof(*list));
+}
+
+/*
+ * WHAT: Remove oldest snapshot entries until the requested byte target is met.
+ * WHY:  Reap policy should be separate from filesystem discovery and cleanup.
+ * HOW:  Sort by access time, unlink while over target, and close each held fd.
+ */
+static int reap_oldest(cas_list_t *list, long target_bytes, long *remaining) {
+    long   total = list->total;
+    int    removed = 0;
+    size_t i;
+
+    qsort(list->v, list->n, sizeof(list->v[0]), by_atime);
+    for (i = 0; i < list->n; i++) {
+        if (total > target_bytes &&
+            unlinkat(list->v[i].sub_fd, list->v[i].name, 0) == 0) {
+            total -= list->v[i].size;
+            removed++;
+        }
+        close(list->v[i].sub_fd);
+        list->v[i].sub_fd = -1;
+    }
+    *remaining = total;
+    return removed;
+}
+
 int brix_cas_reap(brix_cas_store_t *s, long target_bytes) {
-    if (s->pack != NULL) return brix_cas_pack_reap(s->pack, target_bytes);
-    /* Snapshot every object (dup'ing each fan-out dir fd so it stays unlinkable
-     * after the walk closes it), sort by atime, then evict oldest-first until at
-     * or below target_bytes. */
-    cas_list_t l; memset(&l, 0, sizeof(l));
+    cas_list_t list = {0};
+    long       total;
+    int        removed;
 
-    int top_fd = cas_open_top(s);
-    if (top_fd < 0) return -1;
-    DIR *top = fdopendir(top_fd);
-    if (top == NULL) { close(top_fd); return -1; }
-    struct dirent *de;
-    while ((de = readdir(top)) != NULL) {
-        if (de->d_name[0] == '.') continue;
-        int sub_fd = openat(top_fd, de->d_name, O_RDONLY | O_DIRECTORY);
-        if (sub_fd < 0) continue;
-        DIR *sub = fdopendir(sub_fd);
-        if (sub == NULL) { close(sub_fd); continue; }
-        struct dirent *fe;
-        while ((fe = readdir(sub)) != NULL) {
-            if (fe->d_name[0] == '.') continue;
-            struct stat st;
-            if (fstatat(sub_fd, fe->d_name, &st, 0) != 0 || !S_ISREG(st.st_mode)) continue;
-            if (l.n == l.cap) {
-                size_t nc = l.cap ? l.cap * 2 : 256;
-                cas_ent_t *nv = realloc(l.v, nc * sizeof(*nv));
-                if (nv == NULL) break;
-                l.v = nv; l.cap = nc;
-            }
-            cas_ent_t *e = &l.v[l.n++];
-            e->sub_fd = dup(sub_fd);       /* keep openable after sub closes */
-            snprintf(e->name, sizeof(e->name), "%s", fe->d_name);
-            e->size = (long) st.st_size;
-            e->atime = st.st_atime;
-            l.total += e->size;
-        }
-        closedir(sub);
+    if (s->pack != NULL)
+        return brix_cas_pack_reap(s->pack, target_bytes);
+    if (cas_walk(s, reap_collect_cb, &list) != 0 || list.oom) {
+        reap_list_free(&list);
+        return -1;
     }
-    closedir(top);
-
-    qsort(l.v, l.n, sizeof(l.v[0]), by_atime);   /* oldest first */
-
-    int  removed = 0;
-    long total   = l.total;
-    for (size_t i = 0; i < l.n; i++) {
-        if (total > target_bytes
-            && unlinkat(l.v[i].sub_fd, l.v[i].name, 0) == 0) {
-            total -= l.v[i].size; removed++;
-        }
-        close(l.v[i].sub_fd);
-    }
-    free(l.v);
+    removed = reap_oldest(&list, target_bytes, &total);
+    free(list.v);
     s->cur_bytes = total;
     return removed;
 }

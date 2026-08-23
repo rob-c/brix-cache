@@ -1,6 +1,116 @@
 from split_continuation import reexport as _reexport
 _reexport(globals(), "_test_chaos_mesh_helpers")
 
+
+def _run_conflict_tpc(tier1_port, filename, done, local_paths, errors):
+    import subprocess
+    import tempfile
+
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".bin") as handle:
+        local_path = handle.name
+    result = subprocess.run(
+        [
+            "xrdcp", "-f", "-s",
+            f"root://{SERVER_HOST}:{tier1_port}/{filename}", local_path,
+        ],
+        capture_output=True,
+        timeout=120,
+    )
+    done.append(result.returncode)
+    local_paths.append(local_path)
+    if result.returncode != 0:
+        errors.append(result.stderr.decode("utf-8", errors="replace"))
+
+
+def _probe_conflicting_open(tier2_port, filename):
+    try:
+        sock = _connect(SERVER_HOST, tier2_port)
+        _send_open_only(sock, f"/{filename}", flags=kXR_new | kXR_open_updt)
+        raw = sock.recv(4096)
+        sock.close()
+    except Exception:
+        return True, None
+    if not raw or len(raw) < 8:
+        return False, None
+    status = struct.unpack_from(">H", raw, 4)[0]
+    return status != 0, status
+
+
+def _verify_conflict_transfer(done, local_paths, payload):
+    if not done or done[0] != 0 or not local_paths:
+        return
+    with open(local_paths[0], "rb") as handle:
+        received = handle.read()
+    _require(
+        received == payload,
+        "Read via Tier1 returned content that does not match the source",
+    )
+    os.unlink(local_paths[0])
+
+
+def _warn_unrejected_conflict(conflict_ok, status):
+    if conflict_ok:
+        return
+    import warnings
+
+    warnings.warn(
+        "Conflicting kXR_open(kXR_new) was not explicitly rejected "
+        f"(status={status!r}); corruption guard relies on content integrity.",
+        stacklevel=2,
+    )
+
+
+def _run_sighup_xrdcp(tier1_port, filename, tmp_path, results):
+    import subprocess
+
+    destination = str(tmp_path / filename)
+    result = subprocess.run(
+        [
+            "xrdcp", "-f", "-s",
+            f"root://{SERVER_HOST}:{tier1_port}/{filename}", destination,
+        ],
+        capture_output=True,
+        timeout=180,
+    )
+    results.append(
+        (
+            result.returncode,
+            destination,
+            result.stderr.decode("utf-8", errors="replace"),
+        )
+    )
+
+
+def _part_size(path):
+    try:
+        return path.stat().st_size
+    except FileNotFoundError:
+        return 0
+
+
+def _wait_reload_watermark(cache_path):
+    deadline = time.monotonic() + 20.0
+    part_file = Path(str(cache_path) + ".ngx-xrootd-part")
+    while time.monotonic() < deadline:
+        if _part_size(part_file) >= RELOAD_AFTER_BYTES:
+            return
+        time.sleep(0.1)
+
+
+def _reload_tier2_or_skip(port):
+    try:
+        _reload_nginx_instance("chaos-tier2", port)
+    except Exception as error:
+        pytest.skip(f"Could not send SIGHUP to Tier2: {error}")
+
+
+def _file_md5(path):
+    digest = hashlib.md5()
+    with open(path, "rb") as handle:
+        while chunk := handle.read(1024 * 1024):
+            digest.update(chunk)
+    return digest.hexdigest()
+
 class TestChaosMeshStep4SynchronousConflict:
     """Step 4 — Synchronous conflict during TPC (kXR_open on active TPC dest).
 
@@ -17,7 +127,6 @@ class TestChaosMeshStep4SynchronousConflict:
 
         Roadmap Section 12B Step 4: Synchronous conflict during TPC.
         """
-        import subprocess
         import threading
 
         fname = f"tpc_conflict_{uuid.uuid4().hex[:8]}.bin"
@@ -30,29 +139,11 @@ class TestChaosMeshStep4SynchronousConflict:
         tpc_error = []
         tpc_local = []
 
-        def run_tpc():
-            # Read via Tier1 (triggers Tier2 cache fill from Tier3).
-            # This creates .ngx-xrootd-part activity in Tier2's cache dir.
-            import tempfile as _tf
-            with _tf.NamedTemporaryFile(delete=False, suffix=".bin") as f:
-                local_dst = f.name
-            r = subprocess.run(
-                [
-                    "xrdcp",
-                    "-f",
-                    "-s",
-                    f"root://{SERVER_HOST}:{chaos_mesh['tier1']}/{fname}",
-                    local_dst,
-                ],
-                capture_output=True,
-                timeout=120,
-            )
-            tpc_done.append(r.returncode)
-            tpc_local.append(local_dst)
-            if r.returncode != 0:
-                tpc_error.append(r.stderr.decode("utf-8", errors="replace"))
-
-        t = threading.Thread(target=run_tpc, daemon=True)
+        t = threading.Thread(
+            target=_run_conflict_tpc,
+            args=(chaos_mesh["tier1"], fname, tpc_done, tpc_local, tpc_error),
+            daemon=True,
+        )
         t.start()
 
         # Wait for TPC to start (cache .part file appears at Tier2).
@@ -64,45 +155,20 @@ class TestChaosMeshStep4SynchronousConflict:
 
         # While TPC is in-flight, attempt a conflicting exclusive-write open.
         # A read-only cache server (no brix_allow_write) must reject this.
-        conflict_ok = False
-        conflict_status = None
-        try:
-            sock = _connect(SERVER_HOST, chaos_mesh["tier2"])
-            _send_open_only(sock, f"/{fname}", flags=kXR_new | kXR_open_updt)
-            raw = sock.recv(4096)
-            if raw and len(raw) >= 8:
-                status = struct.unpack_from(">H", raw, 4)[0]
-                conflict_status = status
-                if status != 0:
-                    conflict_ok = True
-            sock.close()
-        except Exception:
-            conflict_ok = True  # Connection-level error also counts
+        conflict_ok, conflict_status = _probe_conflicting_open(
+            chaos_mesh["tier2"], fname
+        )
 
         t.join(timeout=120)
 
         # If the read completed, verify that the locally downloaded file is intact.
-        if tpc_done and tpc_done[0] == 0 and tpc_local:
-            with open(tpc_local[0], "rb") as fh:
-                got = fh.read()
-            assert got == payload, (
-                "Read via Tier1 returned content that does not match the source"
-            )
-            import os as _os
-            _os.unlink(tpc_local[0])
+        _verify_conflict_transfer(tpc_done, tpc_local, payload)
 
         # The content integrity check above is the primary guard.
         # A non-zero conflict status means the server rejected the conflicting
         # open (ideal), but even if it returned 0 (forwarded to origin), the
         # cache-read path must still deliver correct content.
-        if not conflict_ok:
-            import warnings as _w
-            _w.warn(
-                f"Conflicting kXR_open(kXR_new) was not explicitly rejected "
-                f"(status={conflict_status!r}); corruption guard relies on "
-                "content integrity check above.",
-                stacklevel=2,
-            )
+        _warn_unrejected_conflict(conflict_ok, conflict_status)
 
         src_path.unlink(missing_ok=True)
         _unlink_cache_artifacts(cache_path)
@@ -133,26 +199,11 @@ class TestChaosMeshStep5SIGHUPDuringTPC:
         sighup_sent = []
         result_holder = []
 
-        def run_xrdcp():
-            import subprocess as sp
-
-            dst = str(tmp_path / fname)
-            r = sp.run(
-                [
-                    "xrdcp",
-                    "-f",
-                    "-s",
-                    f"root://{SERVER_HOST}:{chaos_mesh['tier1']}/{fname}",
-                    dst,
-                ],
-                capture_output=True,
-                timeout=180,
-            )
-            result_holder.append(
-                (r.returncode, dst, r.stderr.decode("utf-8", errors="replace"))
-            )
-
-        t = threading.Thread(target=run_xrdcp, daemon=True)
+        t = threading.Thread(
+            target=_run_sighup_xrdcp,
+            args=(chaos_mesh["tier1"], fname, tmp_path, result_holder),
+            daemon=True,
+        )
         t.start()
 
         # Wait until the Tier2 cache fill is in-progress.
@@ -163,49 +214,32 @@ class TestChaosMeshStep5SIGHUPDuringTPC:
             pytest.skip("TPC did not start within 30 s — SIGHUP test skipped")
 
         # Wait until enough bytes are buffered before reloading.
-        deadline = time.monotonic() + 20.0
-        part_file = Path(str(cache_path) + ".ngx-xrootd-part")
-        while time.monotonic() < deadline:
-            if part_file.exists():
-                try:
-                    if part_file.stat().st_size >= RELOAD_AFTER_BYTES:
-                        break
-                except FileNotFoundError:
-                    pass
-            time.sleep(0.1)
+        _wait_reload_watermark(cache_path)
 
         # Send SIGHUP to Tier2 (graceful reload).
-        try:
-            _reload_nginx_instance("chaos-tier2", chaos_mesh["tier2"])
-            sighup_sent.append(True)
-        except Exception as e:
-            pytest.skip(f"Could not send SIGHUP to Tier2: {e}")
+        _reload_tier2_or_skip(chaos_mesh["tier2"])
+        sighup_sent.append(True)
 
         t.join(timeout=180)
 
-        assert result_holder, "xrdcp thread did not complete"
+        _require(result_holder, "xrdcp thread did not complete")
         returncode, dst, stderr = result_holder[0]
 
-        assert returncode == 0, (
+        _require(returncode == 0, (
             f"xrdcp failed after SIGHUP to Tier2.\n"
             f"stderr: {stderr}\n"
             "Expected: graceful reload preserves in-flight proxy handles."
-        )
-        assert sighup_sent, "SIGHUP was not actually sent to Tier2"
+        ))
+        _require(sighup_sent, "SIGHUP was not actually sent to Tier2")
 
         # Verify content integrity.
-        digest = hashlib.md5()
-        with open(dst, "rb") as fh:
-            while chunk := fh.read(1024 * 1024):
-                digest.update(chunk)
-
-        assert os.path.getsize(dst) == expected_size, (
+        _require(os.path.getsize(dst) == expected_size, (
             f"Size mismatch after SIGHUP: expected {expected_size}, "
             f"got {os.path.getsize(dst)}"
-        )
-        assert digest.hexdigest() == expected_md5, (
+        ))
+        _require(_file_md5(dst) == expected_md5, (
             "MD5 mismatch after SIGHUP — TPC data was corrupted by Tier2 reload"
-        )
+        ))
 
         tier3_path.unlink(missing_ok=True)
         _unlink_cache_artifacts(cache_path)

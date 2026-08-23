@@ -23,6 +23,31 @@ import pytest
 # Each TPC test may run xrdcp with up to 40 s timeout; give the test wrapper
 # 60 s so subprocess.TimeoutExpired fires before the pytest-timeout kills the
 # test process.
+def _guard_nginx_root_1():
+    if shutil.which(XRDFS_BIN) is None:
+        pytest.skip("xrdfs not found")
+
+def _guard_nginx_root_2():
+    if shutil.which(XRDCP_BIN) is None:
+        pytest.skip("xrdcp not found")
+
+def _guard_reference_root_tpc_3(xrdcp):
+    if xrdcp is None:
+        pytest.skip("xrdcp not found")
+
+def _guard_reference_root_tpc_4(ready):
+    if not ready:
+        pytest.skip("dedicated reference root:// TPC endpoint is not ready")
+
+def _guard_reference_root_tpc_5(query):
+    if query.returncode != 0 or not _reports_tpc_enabled(query):
+        pytest.skip(
+            "reference xrootd did not advertise native TPC support; "
+            f"stdout={query.stdout.decode(errors='replace')!r} "
+            f"stderr={query.stderr.decode(errors='replace')!r}"
+        )
+
+
 pytestmark = pytest.mark.timeout(60)
 
 import os
@@ -147,10 +172,8 @@ def _reports_tpc_disabled(result) -> bool:
 
 @pytest.fixture(scope="session", autouse=True)
 def nginx_root():
-    if shutil.which(XRDFS_BIN) is None:
-        pytest.skip("xrdfs not found")
-    if shutil.which(XRDCP_BIN) is None:
-        pytest.skip("xrdcp not found")
+    _guard_nginx_root_1()
+    _guard_nginx_root_2()
 
     workdir = Path(TEST_ROOT) / "dedicated" / "root-tpc"
     data_root = Path(TEST_ROOT) / "data-root-tpc"
@@ -191,8 +214,7 @@ def nginx_root():
 @pytest.fixture(scope="session", autouse=True)
 def reference_root_tpc():
     xrdcp = shutil.which(XRDCP_BIN)
-    if xrdcp is None:
-        pytest.skip("xrdcp not found")
+    _guard_reference_root_tpc_3(xrdcp)
 
     workdir = Path(TEST_ROOT) / "ref"
     data_root = Path(TEST_ROOT) / "data-root-tpc-ref"
@@ -212,16 +234,10 @@ def reference_root_tpc():
             ready = True
             break
         time.sleep(0.5)
-    if not ready:
-        pytest.skip("dedicated reference root:// TPC endpoint is not ready")
+    _guard_reference_root_tpc_4(ready)
 
     query = _query_tpc(url)
-    if query.returncode != 0 or not _reports_tpc_enabled(query):
-        pytest.skip(
-            "reference xrootd did not advertise native TPC support; "
-            f"stdout={query.stdout.decode(errors='replace')!r} "
-            f"stderr={query.stderr.decode(errors='replace')!r}"
-        )
+    _guard_reference_root_tpc_5(query)
 
     yield ReferenceRootTPC(workdir=workdir, data_root=data_root, url=url)
 

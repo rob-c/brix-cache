@@ -91,42 +91,61 @@ def parse_args(argv):
     ap.add_argument("--match")
     ap.add_argument("--progress", action="store_true")
     args = ap.parse_args(argv)
+    cfg = _load_config(ap, args.config)
+    _resolve_arguments(ap, args, cfg)
+    _validate_arguments(ap, args)
+    return args
 
-    # Site profile: explicit CLI > config file > built-in default; full
-    # positional arity or none (see the forward tool for the rationale).
+
+def _load_config(parser, path):
     try:
-        cfg = common.load_tool_config(args.config) if args.config else {}
-    except (OSError, ValueError) as e:
-        ap.error("--config: %s" % e)
-    given = [p is not None for p in
-             (args.meta_pool, args.cephfs_data_pool, args.striper_pool)]
-    if any(given) and not all(given):
-        ap.error("give all three positionals (<meta_pool> <cephfs_data_pool> "
-                 "<striper_pool>) or none (with --config)")
-    args.meta_pool = common.resolve_setting(args.meta_pool, cfg, "meta_pool")
-    args.cephfs_data_pool = common.resolve_setting(args.cephfs_data_pool, cfg,
-                                                   "data_pool")
-    args.striper_pool = common.resolve_setting(args.striper_pool, cfg,
-                                               "striper_pool")
-    for key, val in (("meta_pool", args.meta_pool),
-                     ("data_pool", args.cephfs_data_pool),
-                     ("striper_pool", args.striper_pool)):
-        if not val:
-            ap.error("missing %s: pass positionals or set it in --config" % key)
-    args.strip = common.resolve_setting(args.strip, cfg, "strip", "")
-    args.conf = common.resolve_setting(
-        args.conf, cfg, "conf",
-        os.environ.get("CEPH_CONF", "/etc/ceph/ceph.conf"))
-    args.client = common.resolve_setting(None, cfg, "client", "admin")
+        return common.load_tool_config(path) if path else {}
+    except (OSError, ValueError) as error:
+        parser.error("--config: %s" % error)
 
+
+def _resolve_arguments(parser, args, config):
+    _validate_positionals(parser, args)
+    args.meta_pool = common.resolve_setting(args.meta_pool, config, "meta_pool")
+    args.cephfs_data_pool = common.resolve_setting(args.cephfs_data_pool, config,
+                                                   "data_pool")
+    args.striper_pool = common.resolve_setting(args.striper_pool, config,
+                                               "striper_pool")
+    _require_settings(parser, (
+        ("meta_pool", args.meta_pool), ("data_pool", args.cephfs_data_pool),
+        ("striper_pool", args.striper_pool),
+    ))
+    args.strip = common.resolve_setting(args.strip, config, "strip", "")
+    args.conf = common.resolve_setting(
+        args.conf, config, "conf",
+        os.environ.get("CEPH_CONF", "/etc/ceph/ceph.conf"))
+    args.client = common.resolve_setting(None, config, "client", "admin")
+
+
+def _validate_positionals(parser, args):
+    given = [
+        value is not None
+        for value in (args.meta_pool, args.cephfs_data_pool, args.striper_pool)
+    ]
+    if any(given) and not all(given):
+        parser.error("give all three positionals (<meta_pool> <cephfs_data_pool> "
+                     "<striper_pool>) or none (with --config)")
+
+
+def _require_settings(parser, values):
+    for key, value in values:
+        if not value:
+            parser.error("missing %s: pass positionals or set it in --config" % key)
+
+
+def _validate_arguments(parser, args):
     if not args.quiesced:
-        ap.error("refusing to run: pass --assume-quiesced (CephFS MUST be "
-                 "unmounted / fs failed, journal flushed)")
+        parser.error("refusing to run: pass --assume-quiesced (CephFS MUST be "
+                     "unmounted / fs failed, journal flushed)")
     if args.delete_source and not args.finalize:
-        ap.error("--delete-source is only valid with --finalize")
+        parser.error("--delete-source is only valid with --finalize")
     if args.threads < 1:
         args.threads = 1
-    return args
 
 
 @dataclass
@@ -241,66 +260,87 @@ class Migrator:
 
     def walk(self):
         """Collect migratable regular files + the classification counters."""
-        cls = self.cls
-        for e in cephfs_meta.walk_namespace(self._omap_reader, stats=cls.stats):
-            if e.undecodable:
-                self.rep.warn("WARN undecodable dentry, skipped: " + e.path)
-                continue
-            dn = e.dentry
-            if e.kind == "remote":
-                cls.hardlink_aliases += 1
-                self.rep.warn("HARDLINK-ALIAS (UNVERIFIED, NOT migrated): "
-                              "%s -> ino 0x%x" % (e.path, dn.remote_ino))
-                continue
-            if e.kind == "dir":
-                cls.dirs += 1
-                if dn.frags_truncated:
-                    cls.frag_trunc += 1
-                    self.rep.warn("WARN directory fragtree truncated "
-                                  "(listing may be partial): " + e.path)
-                continue
-            if e.kind == "symlink":
-                cls.symlinks += 1
-                self.rep.warn("SYMLINK (skipped — XrdCeph has no symlinks): "
-                              + e.path)
-                continue
-            if e.kind == "special":
-                cls.special += 1
-                self.rep.warn("SPECIAL FILE (type 0%o, skipped — no data "
-                              "objects): %s"
-                              % (dn.inode.mode & cephfs_meta.S_IFMT, e.path))
-                continue
+        for entry in cephfs_meta.walk_namespace(self._omap_reader, stats=self.cls.stats):
+            file_entry = self._file_entry(entry)
+            if file_entry is not None:
+                self.files.append(file_entry)
+                self.cls.files += 1
 
-            # regular file
-            if self.data_pool_id >= 0 \
-                    and dn.inode.layout.pool_id != self.data_pool_id:
-                cls.otherpool += 1
-                self.rep.warn("OTHER-POOL file (skipped — data in pool id %d, "
-                              "not the target data pool): %s"
-                              % (dn.inode.layout.pool_id, e.path))
-                continue
-            if dn.xattrs_truncated:
-                cls.xattr_trunc += 1
-                self.rep.warn("WARN inode xattr set truncated (some xattrs "
-                              "not carried): " + e.path)
-            if dn.inode.nlink > 1:
-                cls.hardlink_files += 1
-                self.rep.warn("HARDLINKED FILE nlink=%d (UNVERIFIED: primary "
-                              "path migrates, the other %d name(s) will be "
-                              "ABSENT in XrdCeph): %s"
-                              % (dn.inode.nlink, dn.inode.nlink - 1, e.path))
+    def _file_entry(self, entry):
+        if entry.undecodable:
+            self.rep.warn("WARN undecodable dentry, skipped: " + entry.path)
+            return None
+        if entry.kind != "file":
+            self._note_non_file(entry)
+            return None
+        if self._wrong_pool(entry):
+            return None
+        self._note_file_limits(entry)
+        return self._regular_file(entry)
 
-            soid = e.path[1:]                       # drop leading '/'
-            if self.args.strip and soid.startswith(self.args.strip):
-                soid = soid[len(self.args.strip):]
-            self.files.append(FileEnt(
-                soid=soid, ino=dn.inode.ino,
-                object_size=dn.inode.layout.object_size,
-                stripe_unit=dn.inode.layout.stripe_unit,
-                stripe_count=dn.inode.layout.stripe_count,
-                size=dn.inode.size,
-                cksum=dn.xattrs.get(b"user.XrdCks.adler32", b"")))
-            cls.files += 1
+    def _note_non_file(self, entry):
+        handlers = {
+            "remote": self._note_remote, "dir": self._note_directory,
+            "symlink": self._note_symlink, "special": self._note_special,
+        }
+        handlers[entry.kind](entry)
+
+    def _note_remote(self, entry):
+        self.cls.hardlink_aliases += 1
+        self.rep.warn("HARDLINK-ALIAS (UNVERIFIED, NOT migrated): %s -> ino 0x%x"
+                      % (entry.path, entry.dentry.remote_ino))
+
+    def _note_directory(self, entry):
+        self.cls.dirs += 1
+        if entry.dentry.frags_truncated:
+            self.cls.frag_trunc += 1
+            self.rep.warn("WARN directory fragtree truncated (listing may be partial): "
+                          + entry.path)
+
+    def _note_symlink(self, entry):
+        self.cls.symlinks += 1
+        self.rep.warn("SYMLINK (skipped — XrdCeph has no symlinks): " + entry.path)
+
+    def _note_special(self, entry):
+        self.cls.special += 1
+        mode = entry.dentry.inode.mode & cephfs_meta.S_IFMT
+        self.rep.warn("SPECIAL FILE (type 0%o, skipped — no data objects): %s"
+                      % (mode, entry.path))
+
+    def _wrong_pool(self, entry):
+        pool_id = entry.dentry.inode.layout.pool_id
+        if self.data_pool_id < 0 or pool_id == self.data_pool_id:
+            return False
+        self.cls.otherpool += 1
+        self.rep.warn("OTHER-POOL file (skipped — data in pool id %d, not the target "
+                      "data pool): %s" % (pool_id, entry.path))
+        return True
+
+    def _note_file_limits(self, entry):
+        dentry = entry.dentry
+        if dentry.xattrs_truncated:
+            self.cls.xattr_trunc += 1
+            self.rep.warn("WARN inode xattr set truncated (some xattrs not carried): "
+                          + entry.path)
+        if dentry.inode.nlink > 1:
+            self.cls.hardlink_files += 1
+            self.rep.warn("HARDLINKED FILE nlink=%d (UNVERIFIED: primary path migrates, "
+                          "the other %d name(s) will be ABSENT in XrdCeph): %s"
+                          % (dentry.inode.nlink, dentry.inode.nlink - 1, entry.path))
+
+    def _regular_file(self, entry):
+        dentry = entry.dentry
+        soid = entry.path[1:]
+        if self.args.strip and soid.startswith(self.args.strip):
+            soid = soid[len(self.args.strip):]
+        return FileEnt(
+            soid=soid, ino=dentry.inode.ino,
+            object_size=dentry.inode.layout.object_size,
+            stripe_unit=dentry.inode.layout.stripe_unit,
+            stripe_count=dentry.inode.layout.stripe_count,
+            size=dentry.inode.size,
+            cksum=dentry.xattrs.get(b"user.XrdCks.adler32", b""),
+        )
 
     def report_classification(self):
         c = self.cls
@@ -443,49 +483,59 @@ class Migrator:
 
     def process(self, fe):
         args = self.args
-        objnos = self.objs.get(fe.ino)
-        if objnos is None and fe.size > 0:
-            self.rep.item(fe.soid, self.action, "fail",
-                          error="no data objects for ino 0x%x" % fe.ino)
-            self.state.record(fe.soid, self.action, self.mode, "fail")
+        objnos = self._object_numbers(fe)
+        if objnos is None:
             return
-        objnos = objnos or []
         first = fe.soid + FIRST_SUFFIX
-
-        if args.rollback:
-            self._rollback_overlay(fe, objnos, first)
+        if self._skip_process(fe, objnos, first):
             return
-
-        if self._already_stamped(fe, first):
-            self.rep.item(fe.soid, self.action, "skip",
-                          detail="already present")
-            return
-
-        if args.dry_run:
-            self.rep.item(fe.soid, self.action, "skip",
-                          detail="DRY-RUN %s %d bytes, %d obj"
-                                 % ("finalize" if args.finalize else "redirect",
-                                    fe.size, len(objnos)))
-            return
-
         if not self._map_objects(fe, objnos):
             return
         self._stamp(first, fe)
-
         if not self._verify_or_fail(fe):
             return
+        self._complete_process(fe, objnos)
 
-        deleted = 0
-        if args.finalize and args.delete_source:
-            deleted = self._delete_cephfs_source(fe, objnos)
+    def _object_numbers(self, fe):
+        objnos = self.objs.get(fe.ino)
+        if objnos is not None or fe.size <= 0:
+            return objnos or []
+        self.rep.item(fe.soid, self.action, "fail",
+                      error="no data objects for ino 0x%x" % fe.ino)
+        self.state.record(fe.soid, self.action, self.mode, "fail")
+        return None
 
-        detail = (" finalize" if args.finalize else " redirect") \
-            + (", verified" if args.verify else "") \
-            + (", cephfs data deleted" if deleted else "")
+    def _skip_process(self, fe, objnos, first):
+        if self.args.rollback:
+            self._rollback_overlay(fe, objnos, first)
+            return True
+        if self._already_stamped(fe, first):
+            self.rep.item(fe.soid, self.action, "skip", detail="already present")
+            return True
+        if not self.args.dry_run:
+            return False
+        mode = "finalize" if self.args.finalize else "redirect"
+        self.rep.item(fe.soid, self.action, "skip",
+                      detail="DRY-RUN %s %d bytes, %d obj" % (mode, fe.size, len(objnos)))
+        return True
+
+    def _complete_process(self, fe, objnos):
+        deleted = self._delete_if_requested(fe, objnos)
+        detail = self._process_detail(deleted)
         self.rep.item(fe.soid, self.action, "ok", nbytes=fe.size,
                       objects=len(objnos), detail=detail)
         self.state.record(fe.soid, self.action, self.mode, "ok",
                           bytes=fe.size)
+
+    def _delete_if_requested(self, fe, objnos):
+        if self.args.finalize and self.args.delete_source:
+            return self._delete_cephfs_source(fe, objnos)
+        return 0
+
+    def _process_detail(self, deleted):
+        return (" finalize" if self.args.finalize else " redirect") \
+            + (", verified" if self.args.verify else "") \
+            + (", cephfs data deleted" if deleted else "")
 
 
 def main(argv=None):
@@ -495,56 +545,75 @@ def main(argv=None):
                           progress=args.progress or sys.stderr.isatty())
     mig = Migrator(args, rep, state)
     try:
-        mig.warn_pool_snapshots()
-        mig.check_snaptable()
-        rep.note("indexing CephFS data pool...")
-        mig.index_data_pool()
-        rep.note("walking CephFS namespace...")
-        mig.walk()
-        mig.report_classification()
-        if args.report_only:
-            rep.note("--report-only: inventory complete, nothing migrated.")
-            return 0
-
-        by_soid = {fe.soid: fe for fe in mig.files}
-        soids = common.filter_worklist(sorted(by_soid.keys()), args.list_file,
-                                       args.prefix, args.match)
-        work = [by_soid[s] for s in soids]
-        rep.total = len(work)
-
-        action = mig.action
-        rep.note("xrdceph_cephfs_to_striper: %d file(s) (%s, %d worker(s), "
-                 "bridge=%s%s%s)"
-                 % (len(work),
-                    action.upper() if action != "migrate"
-                    else "redirect(zero-move)",
-                    args.threads, mig.bridge.backend,
-                    ", DRY-RUN" if args.dry_run else "",
-                    ", verify" if args.verify else ""))
-
-        # prove the redirect chain works before any real migration write
-        if not args.dry_run and action in ("migrate", "finalize") and work:
-            mig.bridge.self_test(args.striper_pool)
-
-        def worker(fe):
-            if state.done_ok(fe.soid, action, mig.mode):
-                rep.item(fe.soid, action, "skip", detail="state manifest: ok")
-                return
-            try:
-                mig.process(fe)
-            except (rados.Error, BridgeError, OSError) as e:
-                rep.item(fe.soid, action, "fail",
-                         error="%s: %s" % (type(e).__name__, e))
-                state.record(fe.soid, action, mig.mode, "fail")
-
-        errors = common.run_parallel(work, worker, args.threads)
-        for fe, exc in errors:
-            rep.item(getattr(fe, "soid", str(fe)), action, "fail",
-                     error="unhandled %s: %s" % (type(exc).__name__, exc))
-        return rep.summary()
+        return _run(args, mig, rep, state)
     finally:
         state.close()
         mig.close()
+
+
+def _run(args, mig, reporter, state):
+    work = _prepare_work(args, mig, reporter)
+    if work is None:
+        return 0
+    _announce_work(args, mig, reporter, work)
+    _self_test(args, mig, work)
+    worker = lambda entry: _process_entry(entry, mig, reporter, state)
+    errors = common.run_parallel(work, worker, args.threads)
+    _report_parallel_errors(errors, mig.action, reporter)
+    return reporter.summary()
+
+
+def _prepare_work(args, mig, reporter):
+    mig.warn_pool_snapshots()
+    mig.check_snaptable()
+    reporter.note("indexing CephFS data pool...")
+    mig.index_data_pool()
+    reporter.note("walking CephFS namespace...")
+    mig.walk()
+    mig.report_classification()
+    if args.report_only:
+        reporter.note("--report-only: inventory complete, nothing migrated.")
+        return None
+    by_soid = {entry.soid: entry for entry in mig.files}
+    names = common.filter_worklist(
+        sorted(by_soid), args.list_file, args.prefix, args.match,
+    )
+    work = [by_soid[name] for name in names]
+    reporter.total = len(work)
+    return work
+
+
+def _announce_work(args, mig, reporter, work):
+    action = mig.action.upper() if mig.action != "migrate" else "redirect(zero-move)"
+    reporter.note("xrdceph_cephfs_to_striper: %d file(s) (%s, %d worker(s), "
+                  "bridge=%s%s%s)" % (
+                      len(work), action, args.threads, mig.bridge.backend,
+                      ", DRY-RUN" if args.dry_run else "",
+                      ", verify" if args.verify else "",
+                  ))
+
+
+def _self_test(args, mig, work):
+    if not args.dry_run and mig.action in ("migrate", "finalize") and work:
+        mig.bridge.self_test(args.striper_pool)
+
+
+def _process_entry(entry, mig, reporter, state):
+    if state.done_ok(entry.soid, mig.action, mig.mode):
+        reporter.item(entry.soid, mig.action, "skip", detail="state manifest: ok")
+        return
+    try:
+        mig.process(entry)
+    except (rados.Error, BridgeError, OSError) as error:
+        reporter.item(entry.soid, mig.action, "fail",
+                      error="%s: %s" % (type(error).__name__, error))
+        state.record(entry.soid, mig.action, mig.mode, "fail")
+
+
+def _report_parallel_errors(errors, action, reporter):
+    for entry, error in errors:
+        reporter.item(getattr(entry, "soid", str(entry)), action, "fail",
+                      error="unhandled %s: %s" % (type(error).__name__, error))
 
 
 if __name__ == "__main__":

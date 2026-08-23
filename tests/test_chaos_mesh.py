@@ -1,6 +1,81 @@
 from split_continuation import reexport as _reexport
 _reexport(globals(), "_test_chaos_mesh_helpers")
 
+
+def _next_chaos_read(sock, handle, offset, size, reloaded, tier2_port):
+    if not reloaded and offset >= RELOAD_AFTER_BYTES:
+        _send_read_only(sock, handle, offset, size)
+        _reload_nginx_instance("chaos-tier2", tier2_port)
+        status, data = _read_resp_all(sock)
+        return status, data, True
+    status, data = _read(sock, handle, offset, size)
+    return status, data, reloaded
+
+
+def _stream_chaos_file(sock, handle, expected_size, expected_md5, tier2_port):
+    digest = hashlib.md5()
+    total = 0
+    reloaded = False
+    while total < expected_size:
+        size = min(READ_CHUNK, expected_size - total)
+        status, data, reloaded = _next_chaos_read(
+            sock, handle, total, size, reloaded, tier2_port
+        )
+        _require(
+            status == kXR_ok,
+            f"read at offset {total} failed after reload: status={status}",
+        )
+        _require(
+            len(data) == size,
+            f"short read at offset {total}: got {len(data)}, want {size}",
+        )
+        digest.update(data)
+        total += len(data)
+    _require(total == expected_size, "Chaos Mesh read ended at the wrong size")
+    _require(digest.hexdigest() == expected_md5, "Chaos Mesh read changed content")
+    _require(reloaded, "Tier2 reload was not injected")
+
+
+def _jwt_token():
+    token_file = Path(TEST_ROOT) / "pki" / "wlcg_token.txt"
+    if not token_file.exists():
+        pytest.skip("wlcg_token.txt not present — identity-shifting test needs JWT")
+    return token_file.read_text(encoding="utf-8").strip()
+
+
+def _identity_read(port, filename, destination, token):
+    import subprocess
+
+    environment = os.environ.copy()
+    environment["XrdSecTOKEN"] = token
+    result = subprocess.run(
+        ["xrdcp", "-f", "-s", f"root://{SERVER_HOST}:{port}/{filename}", destination],
+        env=environment,
+        capture_output=True,
+        timeout=60,
+    )
+    if result.returncode != 0:
+        error = result.stderr.decode("utf-8", errors="replace")
+        pytest.skip(f"Tier1 JWT read failed (server may not use JWT): {error}")
+    with open(destination, "rb") as handle:
+        return handle.read()
+
+
+def _assert_sss_access_log(filename):
+    tier2_log = _instance_prefix("chaos-tier2") / "logs" / "brix_access.log"
+    if not tier2_log.exists():
+        return
+    log_text = tier2_log.read_text(encoding="utf-8", errors="replace")
+    relevant_lines = [line for line in log_text.splitlines() if filename in line]
+    if not relevant_lines:
+        return
+    last = relevant_lines[-1]
+    _require(
+        "sss" in last.lower(),
+        "Tier2 access log did not record SSS auth for identity-shifted "
+        f"request.\nLine: {last}",
+    )
+
 class TestChaosMeshDiscovery:
     @pytest.mark.registry_servers("chaos-discovery-ds", "chaos-discovery-redir", "chaos-tier1", "chaos-tier2", "chaos-tier3")
     def test_delayed_cms_start_registers_data_server(self, chaos_mesh):
@@ -75,52 +150,19 @@ class TestChaosMeshReload:
 
             _send_open_only(sock, remote_path)
             activity = _wait_for_cache_activity(cache_path)
-            assert activity != "not-started", (
+            _require(activity != "not-started", (
                 "Tier2 cache fill did not start for Chaos Mesh transfer"
-            )
+            ))
 
             status, body = _read_resp(sock)
-            assert status == kXR_ok, f"open failed after Tier2 cache fill: {status}"
+            _require(status == kXR_ok, f"open failed after Tier2 cache fill: {status}")
             fhandle = _fh(body)
-
-            digest = hashlib.md5()
-            total = 0
-            reloaded_during_read = False
-
-            while total < expected_size:
-                want = min(READ_CHUNK, expected_size - total)
-                if (
-                    not reloaded_during_read
-                    and total >= RELOAD_AFTER_BYTES
-                ):
-                    _send_read_only(sock, fhandle, total, want)
-                    _reload_nginx_instance("chaos-tier2", chaos_mesh["tier2"])
-                    status, data = _read_resp_all(sock)
-                    reloaded_during_read = True
-                else:
-                    status, data = _read(sock, fhandle, total, want)
-
-                # A graceful reload keeps the old worker alive to finish this
-                # in-flight cache-fill, so the read must complete byte-exact.
-                # (The WSL pinned-connection variant, where the draining
-                # worker's background fill halts, is screened out by the
-                # _host_is_wsl skip at the top of this test.)
-                assert status == kXR_ok, (
-                    f"read at offset {total} failed after reload: status={status}"
-                )
-                assert len(data) == want, (
-                    f"short read at offset {total}: got {len(data)}, want {want}"
-                )
-
-                digest.update(data)
-                total += len(data)
-
-            assert total == expected_size
-            assert digest.hexdigest() == expected_md5
-            assert reloaded_during_read, "Tier2 reload was not injected"
+            _stream_chaos_file(
+                sock, fhandle, expected_size, expected_md5, chaos_mesh["tier2"]
+            )
 
             status, _ = _close(sock, fhandle)
-            assert status == kXR_ok, f"close failed after Chaos Mesh read: {status}"
+            _require(status == kXR_ok, f"close failed after Chaos Mesh read: {status}")
 
         finally:
             if sock is not None:
@@ -167,64 +209,16 @@ class TestChaosMeshStep1IdentityShifting:
         - Tier2 access log records 'sss' (not 'jwt' or 'bearer').
         - File content is delivered correctly end-to-end.
         """
-        import subprocess
-
         fname = f"chaos_identity_{uuid.uuid4().hex[:8]}.bin"
         payload = os.urandom(4 * 1024)
         tier3_path = Path(CHAOS_TIER3_DATA_ROOT) / fname
         tier3_path.parent.mkdir(parents=True, exist_ok=True)
         tier3_path.write_bytes(payload)
 
-        # Locate a valid JWT token for Tier1 (same path as other token tests).
-        token_file = Path(TEST_ROOT) / "pki" / "wlcg_token.txt"
-        if not token_file.exists():
-            pytest.skip("wlcg_token.txt not present — identity-shifting test needs JWT")
-
-        token = token_file.read_text(encoding="utf-8").strip()
-
-        # Read through Tier1 using Bearer JWT.
         dst = str(tmp_path / fname)
-        env = os.environ.copy()
-        env["XrdSecTOKEN"] = token
-
-        result = subprocess.run(
-            [
-                "xrdcp",
-                "-f",
-                "-s",
-                f"root://{SERVER_HOST}:{chaos_mesh['tier1']}/{fname}",
-                dst,
-            ],
-            env=env,
-            capture_output=True,
-            timeout=60,
-        )
-
-        if result.returncode != 0:
-            pytest.skip(
-                f"Tier1 JWT read failed (server may not be configured for JWT): "
-                f"{result.stderr.decode('utf-8', errors='replace')}"
-            )
-
-        with open(dst, "rb") as fh:
-            got = fh.read()
-
-        assert got == payload, "Identity-shifted read returned wrong content"
-
-        # Verify Tier2 access log shows SSS, not JWT/bearer.
-        tier2_log = (
-            _instance_prefix("chaos-tier2") / "logs" / "brix_access.log"
-        )
-        if tier2_log.exists():
-            log_text = tier2_log.read_text(encoding="utf-8", errors="replace")
-            relevant_lines = [ln for ln in log_text.splitlines() if fname in ln]
-            if relevant_lines:
-                last = relevant_lines[-1]
-                assert "sss" in last.lower() or "SSS" in last, (
-                    f"Tier2 access log did not record SSS auth for identity-shifted request.\n"
-                    f"Line: {last}"
-                )
-
+        got = _identity_read(chaos_mesh["tier1"], fname, dst, _jwt_token())
+        _require(got == payload, "Identity-shifted read returned wrong content")
+        _assert_sss_access_log(fname)
         tier3_path.unlink(missing_ok=True)
 
 
@@ -312,7 +306,7 @@ class TestChaosMeshStep3MultiStreamTPC:
         with open(dst, "rb") as fh:
             got = fh.read()
 
-        assert got == payload, (
+        _require(got == payload, (
             f"TPC bridge content mismatch: "
             f"expected {len(payload)} bytes, got {len(got)} bytes"
-        )
+        ))

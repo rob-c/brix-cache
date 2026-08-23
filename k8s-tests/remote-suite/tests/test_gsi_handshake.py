@@ -1,5 +1,16 @@
 from _test_gsi_handshake_helpers import *  # noqa: F401,F403  (Phase-38 split shared header)
 
+def _expression_1(proxy, pki):
+    return (
+        _split_for_curl(proxy, pki["base"], "wc") if proxy else (None, None)
+    )
+
+def _expression_2(cf, kf):
+    return (
+        cf and kf
+    )
+
+
 class TestRootStockClient:
     def test_ls(self, pki, nginx_root):
         r = _run([STOCK_XRDFS, nginx_root["url"], "ls", "/"], env=pki["env"])
@@ -310,9 +321,9 @@ def _rejected(http_code):
 
 
 def _curl(pki, webdav, proxy, *args, method=None, upload=None):
-    cf, kf = _split_for_curl(proxy, pki["base"], "wc") if proxy else (None, None)
+    cf, kf = _expression_1(proxy, pki)
     cmd = ["curl", "-sk", "-o", "/dev/null", "-w", "%{http_code}"]
-    if cf and kf:
+    if _expression_2(cf, kf):
         cmd += ["--cert", cf, "--key", kf]
     if method:
         cmd += ["-X", method]

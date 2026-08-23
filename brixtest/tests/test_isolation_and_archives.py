@@ -6,6 +6,8 @@ import zlib
 from argparse import Namespace
 
 import pytest
+
+from brixtest import binary, case, client, docker, nsenter, podman, runc
 from brixtest.archive import (
     archive_case_logs,
     post_search_archive,
@@ -16,8 +18,6 @@ from brixtest.cli.rerun import run_command as rerun
 from brixtest.errors import SpecError
 from brixtest.isolation import Isolation, build_launch
 from brixtest.runtime.manager import CaseManager
-
-from brixtest import binary, case, client, docker, nsenter, podman, runc
 
 
 def _launch(tmp_path, isolation):
@@ -60,13 +60,16 @@ def test_runc_derives_a_private_oci_config(tmp_path):
     launch = _launch(tmp_path, runc(bundle))
     derived = tmp_path / "runc-control" / "oci-bundle" / "config.json"
     spec = json.loads(derived.read_text())
-    assert launch.argv[0] == "runc"
-    assert spec["process"]["args"][:3] == ["python3", "-m", "pytest"]
-    assert "PATH=/bin" in spec["process"]["env"]
-    assert spec["root"]["path"] == str((bundle / "rootfs").resolve())
-    assert spec["root"]["readonly"] is True
-    assert spec["process"]["noNewPrivileges"] is True
-    assert all(not values for values in spec["process"]["capabilities"].values())
+    observed = (
+        launch.argv[0], spec["process"]["args"][:3],
+        "PATH=/bin" in spec["process"]["env"], spec["root"]["path"],
+        spec["root"]["readonly"], spec["process"]["noNewPrivileges"],
+        all(not values for values in spec["process"]["capabilities"].values()),
+    )
+    assert observed == (
+        "runc", ["python3", "-m", "pytest"], True,
+        str((bundle / "rootfs").resolve()), True, True, True,
+    )
 
 
 def test_runc_refuses_bundle_that_shares_host_namespaces(tmp_path):

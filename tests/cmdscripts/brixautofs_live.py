@@ -35,6 +35,35 @@ from cmdscripts.brixcvmfs_live import (
 from cmdscripts.live_common import LiveFailure, LiveRun
 
 
+def _expression_1(checks, cachebase):
+    return (
+        checks.append((set(os.listdir(cachebase)) <= {".mnt"}
+                                   and not os.listdir(cachebase / ".mnt"),
+                                   "no child cache dir or farm mountpoint created"))
+    )
+
+def _expression_2(repo_farm):
+    return (
+        _mountinfo_opts(repo_farm) or ""
+    )
+
+def _expression_3(checks, opts):
+    return (
+        checks.append(("nosuid" in opts and "nodev" in opts,
+                                   "child mount hardened with nosuid,nodev"))
+    )
+
+def _expression_4(rc, name, cachebase):
+    return (
+        rc != errno.ENOENT or _mountinfo_opts(cachebase / ".mnt" / name) is not None
+    )
+
+def _expression_5(checks, spurious):
+    return (
+        checks.append((not spurious, f"no spurious child cache dirs ({spurious or '{}'})"))
+    )
+
+
 def _mountinfo_opts(path: Path) -> str | None:
     """Per-mount option string (field 6) for `path`, or None if not mounted."""
     for line in Path("/proc/self/mountinfo").read_text().splitlines():
@@ -114,10 +143,9 @@ def automount(nginx: Path | None = None) -> int:
             checks.append((got == expect, "content byte-exact through the automount"))
             checks.append((os.readlink(repo_link) == str(repo_farm),
                            "symlink points into the mount farm"))
-            opts = _mountinfo_opts(repo_farm) or ""
+            opts = _expression_2(repo_farm)
             print(f"   child mount opts: {opts}")
-            checks.append(("nosuid" in opts and "nodev" in opts,
-                           "child mount hardened with nosuid,nodev"))
+            _expression_3(checks, opts)
 
             print("== junk lookup names: fast ENOENT, no child spawned ==")
             start = time.monotonic()
@@ -126,14 +154,14 @@ def automount(nginx: Path | None = None) -> int:
             junk_ok = True
             for name in junk:
                 rc = _stat_errno(mnt / name)
-                if rc != errno.ENOENT or _mountinfo_opts(cachebase / ".mnt" / name) is not None:
+                if _expression_4(rc, name, cachebase):
                     print(f"FAIL: {name!r} -> errno {rc}")
                     junk_ok = False
             elapsed = time.monotonic() - start
             checks.append((junk_ok, "invalid names all ENOENT with no mount"))
             checks.append((elapsed < 5.0, f"rejection is fast ({elapsed:.2f}s)"))
             spurious = set(os.listdir(cachebase)) - {REPO, ".mnt"}
-            checks.append((not spurious, f"no spurious child cache dirs ({spurious or '{}'})"))
+            _expression_5(checks, spurious)
             farm_entries = set(os.listdir(cachebase / ".mnt"))
             checks.append((farm_entries == {REPO},
                            f"farm holds only the mounted repo ({farm_entries})"))
@@ -196,9 +224,7 @@ def automount_strict(nginx: Path | None = None) -> int:
             checks.append((rc == errno.ENOENT, f"unlisted repo -> ENOENT (errno {rc})"))
             checks.append((elapsed < 5.0, f"strict refusal is fast ({elapsed:.2f}s)"))
             checks.append((_mountinfo_opts(repo_farm) is None, "no child mount appeared"))
-            checks.append((set(os.listdir(cachebase)) <= {".mnt"}
-                           and not os.listdir(cachebase / ".mnt"),
-                           "no child cache dir or farm mountpoint created"))
+            _expression_1(checks, cachebase)
         finally:
             _unmount(repo_farm)
             _unmount(mnt)

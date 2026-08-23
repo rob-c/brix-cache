@@ -5,8 +5,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Mapping
 
-from brixtest.runtime.commands import CommandResult
 from brixtest.runtime.api import Run
+from brixtest.runtime.commands import CommandResult
 from brixtest.runtime.launchers import ServerLaunchPlan
 
 
@@ -14,39 +14,41 @@ def check_case_backend_contract(
     backend: object, declaration: object, context: object,
 ) -> list[str]:
     """Exercise the complete v1 case-backend lifecycle on a disposable context."""
-    violations = []
-    try:
-        backend.validate(declaration)
-    except Exception as exc:
-        violations.append("validate: %s" % exc)
-        return violations
-    try:
-        plan = backend.plan(context)
-        if not isinstance(plan, Mapping):
-            violations.append("plan: must return a mapping")
-    except Exception as exc:
-        violations.append("plan: %s" % exc)
-    try:
-        backend.prepare(context)
-    except Exception as exc:
-        violations.append("prepare: %s" % exc)
-    try:
-        started = backend.start(context)
-        if not isinstance(started, Run):
-            violations.append("start: must return brixtest.Run")
-    except Exception as exc:
-        violations.append("start: %s" % exc)
-    try:
-        backend.stop(context)
-    except Exception as exc:
-        violations.append("stop: %s" % exc)
-    try:
-        collected = backend.collect(context)
-        if not isinstance(collected, Mapping):
-            violations.append("collect: must return a mapping")
-    except Exception as exc:
-        violations.append("collect: %s" % exc)
+    validation = _operation_error("validate", lambda: backend.validate(declaration))
+    if validation:
+        return validation
+    violations = _typed_operation(
+        "plan", lambda: backend.plan(context), Mapping, "must return a mapping",
+    )
+    violations.extend(_operation_error("prepare", lambda: backend.prepare(context)))
+    violations.extend(_typed_operation(
+        "start", lambda: backend.start(context), Run, "must return brixtest.Run",
+    ))
+    violations.extend(_operation_error("stop", lambda: backend.stop(context)))
+    violations.extend(_typed_operation(
+        "collect", lambda: backend.collect(context), Mapping, "must return a mapping",
+    ))
     return violations
+
+
+def _operation_error(label: str, operation) -> list[str]:
+    try:
+        operation()
+    except Exception as exc:
+        return ["%s: %s" % (label, exc)]
+    return []
+
+
+def _typed_operation(
+    label: str, operation, expected: object, message: str,
+) -> list[str]:
+    try:
+        value = operation()
+    except Exception as exc:
+        return ["%s: %s" % (label, exc)]
+    if not isinstance(value, expected):
+        return ["%s: %s" % (label, message)]
+    return []
 
 
 def check_executor_contract(
@@ -78,23 +80,31 @@ def check_provider_contract(
         return ["validate: %s" % exc]
     try:
         result = provider.materialize(declaration, destination, context)
-        selected = Path(result) if isinstance(result, Path) else destination
-        if isinstance(result, bytes):
-            destination.write_bytes(result)
-        elif isinstance(result, str):
-            destination.write_text(result)
-        if result is None:
-            selected = destination
-        root = Path(getattr(context, "root", destination.parent)).resolve()
-        candidate = selected if selected.is_absolute() else root / selected
-        try:
-            candidate.resolve().relative_to(root)
-        except ValueError:
-            violations.append("materialize: result escaped its confined root")
-        if candidate.is_symlink() or not candidate.is_file():
-            violations.append("materialize: must create or return a regular file")
+        selected = _provider_result(result, destination)
+        violations.extend(_provider_path_violations(selected, destination, context))
     except Exception as exc:
         violations.append("materialize: %s" % exc)
+    return violations
+
+
+def _provider_result(result: object, destination: Path) -> Path:
+    if isinstance(result, bytes):
+        destination.write_bytes(result)
+    elif isinstance(result, str):
+        destination.write_text(result)
+    return Path(result) if isinstance(result, Path) else destination
+
+
+def _provider_path_violations(selected: Path, destination: Path, context: object) -> list[str]:
+    violations = []
+    root = Path(getattr(context, "root", destination.parent)).resolve()
+    candidate = selected if selected.is_absolute() else root / selected
+    try:
+        candidate.resolve().relative_to(root)
+    except ValueError:
+        violations.append("materialize: result escaped its confined root")
+    if candidate.is_symlink() or not candidate.is_file():
+        violations.append("materialize: must create or return a regular file")
     return violations
 
 

@@ -19,6 +19,32 @@ import pytest
 from cmdscripts.live_common import LiveRun, REPO_ROOT, random_file
 from cmdscripts.pblock_live import XRDCP, _ctl_set, pblock_lab_spec
 
+def _check_test_crash_point_orphan_and_fsck_gc_1(run, src, hub):
+    assert run.call([XRDCP, "-f", src, f"{hub}clean.bin"], check=False).returncode == 0
+
+def _check_test_crash_point_orphan_and_fsck_gc_2(base):
+    assert base.returncode == 0, f"clean store not quiet: {base.stdout}{base.stderr}"
+
+def _check_test_crash_point_orphan_and_fsck_gc_3(base):
+    assert "FINDINGS 0" in base.stdout
+
+def _check_test_crash_point_orphan_and_fsck_gc_4(rc):
+    assert rc != 0, "PUT should fail when the worker crashes mid-write"
+
+def _check_test_crash_point_orphan_and_fsck_gc_5(dirty):
+    assert dirty.returncode == 1, f"expected findings, got: {dirty.stdout}"
+
+def _check_test_crash_point_orphan_and_fsck_gc_6(dirty):
+    assert dirty.stdout.count("\n") >= 1
+
+def _check_test_crash_point_orphan_and_fsck_gc_7(after, fix):
+    assert after.returncode == 0 and "FINDINGS 0" in after.stdout, \
+        f"fsck did not converge: fix={fix.stdout} after={after.stdout}"
+
+def _check_test_crash_point_orphan_and_fsck_gc_8(run, src, hub):
+    assert run.call([XRDCP, "-f", src, f"{hub}recovered.bin"], check=False).returncode == 0
+
+
 pytestmark = [pytest.mark.uses_lifecycle_harness,
               pytest.mark.xdist_group("lc-pblock-crash")]
 
@@ -70,32 +96,31 @@ def test_crash_point_orphan_and_fsck_gc(lifecycle, fsck: Path) -> None:
         random_file(src, 700000)
 
         # Clean baseline transfer, then fsck must report zero findings.
-        assert run.call([XRDCP, "-f", src, f"{hub}clean.bin"], check=False).returncode == 0
+        _check_test_crash_point_orphan_and_fsck_gc_1(run, src, hub)
         base = _fsck(fsck, root)
-        assert base.returncode == 0, f"clean store not quiet: {base.stdout}{base.stderr}"
-        assert "FINDINGS 0" in base.stdout
+        _check_test_crash_point_orphan_and_fsck_gc_2(base)
+        _check_test_crash_point_orphan_and_fsck_gc_3(base)
 
         # Arm the crash point; the next write dies mid-flight → non-zero xrdcp.
         _ctl_set(catalog, "crash.at", "after_block_write", 1)
         rc = run.call([XRDCP, "-f", src, f"{hub}victim.bin"], check=False).returncode
-        assert rc != 0, "PUT should fail when the worker crashes mid-write"
+        _check_test_crash_point_orphan_and_fsck_gc_4(rc)
         time.sleep(1)   # let the master respawn the worker
 
         # Residue is present; fsck classifies it (a half-written victim leaves
         # either an orphan blob or a catalog/blocks size disagreement).
         dirty = _fsck(fsck, root)
-        assert dirty.returncode == 1, f"expected findings, got: {dirty.stdout}"
-        assert dirty.stdout.count("\n") >= 1
+        _check_test_crash_point_orphan_and_fsck_gc_5(dirty)
+        _check_test_crash_point_orphan_and_fsck_gc_6(dirty)
 
         # --gc (orphans) + --repair (size truth) converge to a clean store.
         fix = _fsck(fsck, root, "--gc", "--repair")
         after = _fsck(fsck, root)
-        assert after.returncode == 0 and "FINDINGS 0" in after.stdout, \
-            f"fsck did not converge: fix={fix.stdout} after={after.stdout}"
+        _check_test_crash_point_orphan_and_fsck_gc_7(after, fix)
 
         # Disarm and prove I/O recovered.
         _ctl_set(catalog, "crash.at", "", 2)
-        assert run.call([XRDCP, "-f", src, f"{hub}recovered.bin"], check=False).returncode == 0
+        _check_test_crash_point_orphan_and_fsck_gc_8(run, src, hub)
 
 
 @pytest.mark.optin

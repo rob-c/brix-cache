@@ -111,31 +111,40 @@ def _parse(text):
     out_pids = set()                 # worker PIDs of dir=out (outbound) actions
     login_out = 0                    # count of op=login dir=out lines
     for line in text.splitlines():
-        m = _ROLE_RE.search(line)
-        if m:
-            roles[int(m["port"])] = (m["role"], m["up"])
-        m = _REGISTER_RE.search(line)
-        if m:
-            child = int(m["peer"].split(":")[1])
-            parent = int(m["server"].split(":")[1])
-            edges_in.add((child, parent))
-        m = _LOGIN_RE.search(line)
-        if m:
-            # peer is the PARENT the child dialed; the detail is the child's
-            # self-classification (sub-manager vs leaf/client).  The login line
-            # does NOT name the child (multiple children share one parent) — the
-            # per-child edge is pinned by the register lines instead.
-            parent_port = int(m["peer"].split(":")[1])
-            logins.add((parent_port, m["detail"].strip()))
-        m = _PID_RE.search(line)
-        if m:
-            action_pids.add(m.group(1))
-        m = _OUT_PID_RE.search(line)
-        if m:
-            out_pids.add(m.group(1))
-        if _LOGIN_OUT_RE.search(line):
-            login_out += 1
+        _parse_role(line, roles)
+        _parse_register(line, edges_in)
+        _parse_login(line, logins)
+        _parse_pid(line, _PID_RE, action_pids)
+        _parse_pid(line, _OUT_PID_RE, out_pids)
+        login_out += int(bool(_LOGIN_OUT_RE.search(line)))
     return roles, edges_in, logins, action_pids, out_pids, login_out
+
+
+def _parse_role(line, roles):
+    match = _ROLE_RE.search(line)
+    if match:
+        roles[int(match["port"])] = (match["role"], match["up"])
+
+
+def _parse_register(line, edges):
+    match = _REGISTER_RE.search(line)
+    if match:
+        child = int(match["peer"].split(":")[1])
+        parent = int(match["server"].split(":")[1])
+        edges.add((child, parent))
+
+
+def _parse_login(line, logins):
+    match = _LOGIN_RE.search(line)
+    if match:
+        parent = int(match["peer"].split(":")[1])
+        logins.add((parent, match["detail"].strip()))
+
+
+def _parse_pid(line, pattern, pids):
+    match = pattern.search(line)
+    if match:
+        pids.add(match.group(1))
 
 
 # --------------------------------------------------------------------------- #
@@ -159,29 +168,10 @@ def _tier(harness):
     ))
     # The template's listens ARE the topology: the primary port is the root
     # manager, the rest come from the ledger entry's extra ports by node key.
-    nodes_by_name = {
-        n["name"]: {**n, "port": endpoint.port if n["port_key"] is None
-                    else int(endpoint.extra_ports[n["port_key"]])}
-        for n in NODES
-    }
+    nodes_by_name = _resolved_nodes(endpoint)
     workdir = Path(endpoint.prefix) / "logs"
     logpath = workdir / "error.log"
-    expected_roles = len(NODES)
-    expected_edges = sum(1 for n in NODES if n["upstream"] is not None)   # 5
-
-    # Poll until the tree has fully registered (all role lines + all edges), or
-    # time out.  Register edges appear together with the child's upward login, so
-    # roles-complete + edges-complete implies the whole tree has wired up.
-    deadline = time.time() + 25
-    parsed = ({}, set(), set(), set(), set(), 0)
-    while time.time() < deadline:
-        text = logpath.read_text(errors="replace") if logpath.exists() else ""
-        parsed = _parse(text)
-        roles, edges_in = parsed[0], parsed[1]
-        if (len(roles) >= expected_roles
-                and len(edges_in) >= expected_edges):
-            break
-        time.sleep(0.5)
+    _wait_for_tier(logpath, len(NODES), _edge_count())
     text = logpath.read_text(errors="replace")
     parsed = _parse(text)
     # Zero role lines after a full settle window means this binary parses the
@@ -196,6 +186,40 @@ def _tier(harness):
         "parsed": parsed,
         "workdir": workdir,
     }
+
+
+def _resolved_nodes(endpoint):
+    return {node["name"]: {**node, "port": _node_port(endpoint, node)}
+            for node in NODES}
+
+
+def _node_port(endpoint, node):
+    if node["port_key"] is None:
+        return endpoint.port
+    return int(endpoint.extra_ports[node["port_key"]])
+
+
+def _edge_count():
+    return sum(map(lambda node: node["upstream"] is not None, NODES))
+
+
+def _wait_for_tier(logpath, expected_roles, expected_edges):
+    deadline = time.time() + 25
+    while time.time() < deadline:
+        parsed = _parse(_read_optional(logpath))
+        if _tier_settled(parsed, expected_roles, expected_edges):
+            return
+        time.sleep(0.5)
+
+
+def _read_optional(logpath):
+    if logpath.exists():
+        return logpath.read_text(errors="replace")
+    return ""
+
+
+def _tier_settled(parsed, expected_roles, expected_edges):
+    return len(parsed[0]) >= expected_roles and len(parsed[1]) >= expected_edges
 
 
 # --------------------------------------------------------------------------- #

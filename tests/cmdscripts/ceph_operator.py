@@ -13,6 +13,33 @@ import tempfile
 from cmdscripts.compile_run import REPO_ROOT, result, run
 
 
+def _step_build_in_container_1(tar_path, work):
+    with tar_path.open("rb") as fh:
+        copied = _docker(["exec", "-i", work, "tar", "xzf", "-", "-C", "/work/repo"], input_bytes=fh.read())
+    return copied
+
+
+def _expression_1(dirs, prune_dirs):
+    return (
+        [d for d in dirs if d not in prune_dirs]
+    )
+
+def _expression_2(work, demo):
+    return (
+        not _container_running(work) or not _container_running(demo)
+    )
+
+def _expression_3():
+    return (
+        ["bob", "readonly", *[f"u{i}" for i in range(10)]]
+    )
+
+
+def _guard_sd_ceph_cred_live_1(cat, work, name):
+    if cat.returncode == 0:
+        _docker(["exec", "-i", work, "tee", f"/etc/ceph/ceph.client.{name}.keyring"], input_bytes=cat.stdout.encode())
+
+
 CEPH = REPO_ROOT / "tests" / "ceph"
 
 
@@ -56,6 +83,56 @@ def _cp_many(work: str, files: Iterable[str]) -> subprocess.CompletedProcess | N
     return None
 
 
+def _prepare_build_container(image, work, ceph_dir):
+    inspected = _docker_text(["image", "inspect", image])
+    if inspected.returncode != 0:
+        return result(True, f"SKIP: build Docker image first: docker build -f tests/ceph/Dockerfile.build -t {image} tests/ceph")
+    if not (ceph_dir / "ceph.conf").exists():
+        return result(True, "SKIP: start Ceph harness first")
+    _docker_text(["rm", "-f", work])
+    started = _docker_text([
+        "run", "-d", "--name", work, "--network", "host", image,
+        "-c", "sleep infinity",
+    ])
+    if started.returncode != 0:
+        return result(False, f"docker run failed: {_tail(started)}")
+    _docker_text(["exec", work, "mkdir", "-p", "/work/repo"])
+    return None
+
+
+def _pack_source(tar_path, prune_dirs, skip_ext):
+    with tarfile.open(tar_path, "w:gz") as tar:
+        for root, dirs, filenames in os.walk(REPO_ROOT):
+            dirs[:] = _expression_1(dirs, prune_dirs)
+            for name in filenames:
+                if name.endswith(skip_ext):
+                    continue
+                path = Path(root) / name
+                tar.add(path, arcname=str(path.relative_to(REPO_ROOT)),
+                        recursive=False)
+
+
+def _archive_source(work, prune_dirs, skip_ext):
+    tar_dir = Path(tempfile.mkdtemp(prefix="xrd-ceph-src-"))
+    tar_path = tar_dir / "xrd-src.tgz"
+    try:
+        _pack_source(tar_path, prune_dirs, skip_ext)
+        return _step_build_in_container_1(tar_path, work)
+    finally:
+        shutil.rmtree(tar_dir, ignore_errors=True)
+
+
+def _copy_build_credentials(ceph_dir, work):
+    pairs = ((ceph_dir / "ceph.conf", "/etc/ceph/ceph.conf"),
+             (ceph_dir / "ceph.client.admin.keyring",
+              "/etc/ceph/ceph.client.admin.keyring"))
+    for src, dst in pairs:
+        proc = _docker_text(["cp", str(src), f"{work}:{dst}"])
+        if proc.returncode != 0:
+            return result(False, f"docker cp {src} failed: {_tail(proc)}")
+    return None
+
+
 def build_in_container(base: Path) -> tuple[bool, str]:
     ok, msg = _need_docker()
     if not ok:
@@ -63,16 +140,9 @@ def build_in_container(base: Path) -> tuple[bool, str]:
     image = os.environ.get("IMAGE", "xrd-ceph-build")
     work = os.environ.get("WORK", "xrd-ceph-work")
     ceph_dir = Path(os.environ.get("CEPH_DIR", "/tmp/ceph-harness"))
-    inspected = _docker_text(["image", "inspect", image])
-    if inspected.returncode != 0:
-        return result(True, f"SKIP: build Docker image first: docker build -f tests/ceph/Dockerfile.build -t {image} tests/ceph")
-    if not (ceph_dir / "ceph.conf").exists():
-        return result(True, "SKIP: start Ceph harness first")
-    _docker_text(["rm", "-f", work])
-    started = _docker_text(["run", "-d", "--name", work, "--network", "host", image, "-c", "sleep infinity"])
-    if started.returncode != 0:
-        return result(False, f"docker run failed: {_tail(started)}")
-    _docker_text(["exec", work, "mkdir", "-p", "/work/repo"])
+    preparation = _prepare_build_container(image, work, ceph_dir)
+    if preparation is not None:
+        return preparation
     # Pack ONLY the source tree into the module build context. The in-container
     # build runs its own configure+make in /opt/nginx-src with
     # --add-module=/work/repo, so it needs the repo's sources and root ./config --
@@ -91,27 +161,12 @@ def build_in_container(base: Path) -> tuple[bool, str]:
     # concurrent sessions rotate+rm_rf those roots, and the repo-wide gzip walk
     # takes long enough to lose the race (the file vanished between write and
     # reopen). A private mkdtemp is outside the rotation blast radius.
-    tar_dir = Path(tempfile.mkdtemp(prefix="xrd-ceph-src-"))
-    tar_path = tar_dir / "xrd-src.tgz"
-    try:
-        with tarfile.open(tar_path, "w:gz") as tar:
-            for root, dirs, filenames in os.walk(REPO_ROOT):
-                dirs[:] = [d for d in dirs if d not in prune_dirs]
-                for name in filenames:
-                    if name.endswith(skip_ext):
-                        continue
-                    path = Path(root) / name
-                    tar.add(path, arcname=str(path.relative_to(REPO_ROOT)), recursive=False)
-        with tar_path.open("rb") as fh:
-            copied = _docker(["exec", "-i", work, "tar", "xzf", "-", "-C", "/work/repo"], input_bytes=fh.read())
-    finally:
-        shutil.rmtree(tar_dir, ignore_errors=True)
+    copied = _archive_source(work, prune_dirs, skip_ext)
     if copied.returncode != 0:
         return result(False, f"source tar copy failed: {_tail(copied)}")
-    for src, dst in ((ceph_dir / "ceph.conf", "/etc/ceph/ceph.conf"), (ceph_dir / "ceph.client.admin.keyring", "/etc/ceph/ceph.client.admin.keyring")):
-        proc = _docker_text(["cp", str(src), f"{work}:{dst}"])
-        if proc.returncode != 0:
-            return result(False, f"docker cp {src} failed: {_tail(proc)}")
+    credential_error = _copy_build_credentials(ceph_dir, work)
+    if credential_error is not None:
+        return credential_error
     built = _docker_text([
         "exec",
         work,
@@ -168,7 +223,7 @@ def sd_ceph_cred_live(base: Path) -> tuple[bool, str]:
     work = os.environ.get("WORK", "xrd-ceph-work")
     demo = os.environ.get("DEMO", "xrd-ceph-demo")
     pool = os.environ.get("CEPH_POOL", "xrdtest")
-    if not _container_running(work) or not _container_running(demo):
+    if _expression_2(work, demo):
         return result(True, "SKIP: Ceph work/demo containers not running")
     provision = (
         f"ceph auth get-or-create client.bob mon 'allow r' osd 'allow rwx pool={pool}' -o /tmp/ceph.client.bob.keyring && "
@@ -179,10 +234,9 @@ def sd_ceph_cred_live(base: Path) -> tuple[bool, str]:
     prov = _docker_text(["exec", demo, "bash", "-lc", provision])
     if prov.returncode != 0:
         return result(False, f"CephX provisioning failed: {_tail(prov)}")
-    for name in ["bob", "readonly", *[f"u{i}" for i in range(10)]]:
+    for name in _expression_3():
         cat = _docker(["exec", demo, "cat", f"/tmp/ceph.client.{name}.keyring"])
-        if cat.returncode == 0:
-            _docker(["exec", "-i", work, "tee", f"/etc/ceph/ceph.client.{name}.keyring"], input_bytes=cat.stdout.encode())
+        _guard_sd_ceph_cred_live_1(cat, work, name)
     files = [
         "src/fs/backend/rados/sd_ceph.c", "src/fs/backend/rados/sd_ceph_io.c",
         "src/fs/backend/rados/sd_ceph_object.c", "src/fs/backend/rados/sd_ceph_cred.c",

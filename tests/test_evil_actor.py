@@ -1,28 +1,87 @@
 from split_continuation import reexport as _reexport
 _reexport(globals(), "_test_evil_actor_helpers")
 
+
+def _consume_attack_response(connection):
+    try:
+        connection.settimeout(2.0)
+        _read_response(connection)
+    except Exception:
+        pass
+
+
+def _close_connection(connection):
+    try:
+        connection.close()
+    except OSError:
+        pass
+
+
+def _fire_hostile_frame(srv, raw):
+    try:
+        connection = _session(srv.root_port)
+    except Exception:
+        return
+    try:
+        connection.sendall(raw)
+        _consume_attack_response(connection)
+    finally:
+        _close_connection(connection)
+
+
+def _exhaust_handle_table(srv):
+    connection = _session(srv.root_port)
+    try:
+        for _ in range(64):
+            _open(connection, "/big.bin", flags=0x0010)
+    except Exception:
+        pass
+    finally:
+        _close_connection(connection)
+
+
+def _resource_flood(srv):
+    try:
+        connection = _session(srv.root_port)
+        handle = _open_big(connection)
+        request = struct.pack("!4sqi", handle, 0, 48 << 20)
+        for _ in range(20):
+            connection.sendall(_frame(kXR_pgread, request))
+        try:
+            connection.settimeout(1.0)
+            _read_response(connection)
+        except Exception:
+            pass
+        _rst_close(connection)
+    except Exception:
+        pass
+
+
+def _run_resource_flood(srv):
+    threads = [threading.Thread(target=_resource_flood, args=(srv,))
+               for _ in range(24)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(timeout=60)
+
+
+def _connection_storm(srv, count=300):
+    for _ in range(count):
+        try:
+            connection = _connect(srv.root_port, timeout=2)
+            _rst_close(connection)
+        except Exception:
+            pass
+
+
 def test_a_hostile_frame_barrage(srv):
     """Fire every hostile frame from fresh sessions, repeatedly; no worker may
     crash and the server must keep serving."""
     srv.mark_log()
     for _ in range(FUZZ_REPEAT):
-        for name, raw in _build_attacks(srv):
-            try:
-                s = _session(srv.root_port)
-            except Exception:
-                continue                 # transient; server liveness checked below
-            try:
-                s.sendall(raw)
-                s.settimeout(2.0)
-                try:
-                    _read_response(s)    # consume a reply if any (rejection)
-                except Exception:
-                    pass                 # clean close / no reply = a valid rejection
-            finally:
-                try:
-                    s.close()
-                except OSError:
-                    pass
+        for _name, raw in _build_attacks(srv):
+            _fire_hostile_frame(srv, raw)
     srv.assert_healthy("Phase A hostile-frame barrage")
 
 
@@ -79,40 +138,9 @@ def test_c_endsess_pipelined_then_rst(srv):
 
 def test_d_resource_exhaustion(srv):
     srv.mark_log()
-    # 1) exhaust the 16-slot handle table on one session, then keep opening
-    s = _session(srv.root_port)
-    try:
-        for _ in range(64):
-            _open(s, "/big.bin", flags=0x0010)   # >16 opens → must return errors
-    except Exception:
-        pass
-    finally:
-        try: s.close()
-        except OSError: pass
-
-    # 2) many concurrent sessions each flooding huge pgreads (budget shedding)
-    def flood():
-        try:
-            s = _session(srv.root_port)
-            fh = _open_big(s)
-            for _ in range(20):
-                s.sendall(_frame(kXR_pgread, struct.pack("!4sqi", fh, 0, 48 << 20)))
-            try: s.settimeout(1.0); _read_response(s)
-            except Exception: pass
-            _rst_close(s)
-        except Exception:
-            pass
-    ts = [threading.Thread(target=flood) for _ in range(24)]
-    for t in ts: t.start()
-    for t in ts: t.join(timeout=60)
-
-    # 3) connect/disconnect storm (session registry churn)
-    for _ in range(300):
-        try:
-            s = _connect(srv.root_port, timeout=2)
-            _rst_close(s)
-        except Exception:
-            pass
+    _exhaust_handle_table(srv)
+    _run_resource_flood(srv)
+    _connection_storm(srv)
     srv.assert_healthy("Phase D resource exhaustion")
 
 

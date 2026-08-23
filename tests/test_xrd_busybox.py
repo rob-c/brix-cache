@@ -1,6 +1,22 @@
 from split_continuation import reexport as _reexport
 _reexport(globals(), "_test_xrd_busybox_helpers")
 
+
+def _contains_all(text, values):
+    return all(value in text for value in values)
+
+
+def _contains_none(text, values):
+    return all(value not in text for value in values)
+
+
+def _df_data_rows(text):
+    return [row for row in text.splitlines() if row and "Size" not in row]
+
+
+def _first_row_has_digit(rows):
+    return bool(rows) and any(char.isdigit() for char in rows[0])
+
 def test_head_lines(rw):
     p = _run("head", "-n", "3", _url(rw, "/lines.txt"))
     assert p.returncode == 0, p.stderr
@@ -59,10 +75,8 @@ def test_tail_empty_file(rw):
 def test_df_columns(rw):
     p = _run("df", _url(rw, "/"))
     assert p.returncode == 0, p.stderr
-    assert "Size" in p.stdout and "Avail" in p.stdout and "Use%" in p.stdout
-    # second (data) row should carry digits
-    rows = [r for r in p.stdout.splitlines() if r and "Size" not in r]
-    assert rows and any(ch.isdigit() for ch in rows[0]), p.stdout
+    assert _contains_all(p.stdout, ("Size", "Avail", "Use%"))
+    assert _first_row_has_digit(_df_data_rows(p.stdout)), p.stdout
 
 
 def test_df_human(rw):
@@ -175,10 +189,10 @@ def test_mount_list_parses_fixture(tmp_path):
     p = subprocess.run([XRD, "mount"], capture_output=True, text=True,
                        env=env, timeout=10)
     assert p.returncode == 0, p.stderr
-    assert "root://store//data" in p.stdout and "/mnt/data" in p.stdout and "aio" in p.stdout
+    assert _contains_all(p.stdout, ("root://store//data", "/mnt/data", "aio"))
     # octal-escaped space decoded; ext4 row filtered out
     assert "/mnt/legacy space" in p.stdout
-    assert "ext4" not in p.stdout and "/dev/sdb1" not in p.stdout
+    assert _contains_none(p.stdout, ("ext4", "/dev/sdb1"))
 
 
 def test_mount_list_empty(tmp_path):

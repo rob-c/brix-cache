@@ -40,6 +40,16 @@ from _test_a_robustness_helpers import (
 )
 
 # 4 MiB — matches BRIX_READ_MAX (the per-vector element cap).
+def _check_measure_read_throughput_1(st, path):
+    assert st == kXR_ok, f"open({path!r}) failed: st={st}"
+
+def _check_measure_read_throughput_2(got, size):
+    assert got == size, f"warmup short read: {got} != {size}"
+
+def _check_measure_read_throughput_3(served, size):
+    assert served == size, f"short read: {served} != {size}"
+
+
 READ_CHUNK = 4 * 1024 * 1024
 
 # A read the server streams across sendfile boundaries comes back as one or more
@@ -134,12 +144,12 @@ def measure_read_throughput(host, port, path, size, runs=3, warmup=1,
     try:
         s.sendall(make_open_req(path))
         st, body = _recv_response(s)
-        assert st == kXR_ok, f"open({path!r}) failed: st={st}"
+        _check_measure_read_throughput_1(st, path)
         handle = body[:4]
 
         for _ in range(max(0, warmup)):
             got = _read_whole_file(s, handle, size)
-            assert got == size, f"warmup short read: {got} != {size}"
+            _check_measure_read_throughput_2(got, size)
 
         samples = []
         served = 0
@@ -147,7 +157,7 @@ def measure_read_throughput(host, port, path, size, runs=3, warmup=1,
             t0 = time.perf_counter()
             served = _read_whole_file(s, handle, size)
             dt = time.perf_counter() - t0
-            assert served == size, f"short read: {served} != {size}"
+            _check_measure_read_throughput_3(served, size)
             samples.append((size / (1024 * 1024)) / dt if dt > 0 else 0.0)
 
         s.sendall(make_close_req(handle))

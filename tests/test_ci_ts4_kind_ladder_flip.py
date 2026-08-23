@@ -24,6 +24,7 @@ from __future__ import annotations
 import ast
 import os
 import pathlib
+import re
 
 import pytest
 
@@ -46,12 +47,10 @@ def _body(method: str) -> str:
     path = TESTS / _FLIPPED[method]
     source = path.read_text()
     tree = ast.parse(source)
-    for node in ast.walk(tree):
-        if isinstance(node, ast.ClassDef):
-            for item in node.body:
-                if isinstance(item, ast.FunctionDef) and item.name == method:
-                    return ast.get_source_segment(source, item)
-    raise AssertionError("%s not found in %s" % (method, path.name))
+    match = next(filter(lambda node: getattr(node, "name", None) == method,
+                        ast.walk(tree)), None)
+    assert match is not None, "%s not found in %s" % (method, path.name)
+    return ast.get_source_segment(source, match)
 
 
 def _spec(name: str, kind: str, port: int) -> NginxInstanceSpec:
@@ -131,13 +130,21 @@ def test_start_dispatches_every_kind_to_the_method_its_row_names():
     launcher = _Recorder()
     for offset, (kind, row) in enumerate(sorted(LAUNCHER_KINDS.items())):
         spec = _spec("ts4-flip-start-%s" % kind, kind, 29500 + offset)
-        try:
-            launcher.start(spec)
-        except _Stop:
-            pass
+        _record_start(launcher, spec)
     taken = dict((kind, method) for method, kind in launcher.calls)
     for kind, row in LAUNCHER_KINDS.items():
-        assert taken[kind] == (row.start_method or "render_nginx"), kind
+        assert taken[kind] == _start_method(row), kind
+
+
+def _start_method(row):
+    return row.start_method if row.start_method else "render_nginx"
+
+
+def _record_start(launcher, spec):
+    try:
+        launcher.start(spec)
+    except _Stop:
+        pass
 
 
 def test_quiescent_reads_the_pidfile_the_row_names(prefixes):
@@ -181,31 +188,48 @@ def test_stop_from_disk_uses_the_row_pidfile_and_its_kill_grace(prefixes, monkey
     launcher = _Recorder()
     launcher.exits_on_term = False  # force the grace to elapse, if there is one
     for offset, kind in enumerate(("haproxy", "xrootd")):
-        row = LAUNCHER_KINDS[kind]
-        if row.kill_grace:
-            monkeypatch.setitem(LAUNCHER_KINDS, kind,
-                                dataclasses.replace(row, kill_grace=0.05))
-            row = LAUNCHER_KINDS[kind]
-        spec = _spec("ts4-flip-disk-%s" % kind, kind, 29560 + offset)
-        pidfile = prefixes(spec, row.pidfile, pid=os.getpid())
-        launcher.calls.clear()
-        launcher._stop_from_disk(spec, endpoint_for(spec))
-        assert [call[1] for call in launcher.calls] == [pidfile] * len(launcher.calls)
-        signals = [call[2] for call in launcher.calls]
-        assert signals == ([signal.SIGTERM] if not row.kill_grace
-                           else [signal.SIGTERM, signal.SIGKILL]), kind
+        _assert_disk_stop(launcher, prefixes, monkeypatch, dataclasses,
+                          signal, kind, offset)
+
+
+def _assert_disk_stop(launcher, prefixes, monkeypatch, dataclasses,
+                      signal, kind, offset):
+    row = _short_grace(monkeypatch, dataclasses, kind)
+    spec = _spec("ts4-flip-disk-%s" % kind, kind, 29560 + offset)
+    pidfile = prefixes(spec, row.pidfile, pid=os.getpid())
+    launcher.calls.clear()
+    launcher._stop_from_disk(spec, endpoint_for(spec))
+    assert list(map(lambda call: call[1], launcher.calls)) == [pidfile] * len(launcher.calls)
+    signals = list(map(lambda call: call[2], launcher.calls))
+    assert signals == _expected_signals(signal, row), kind
+
+
+def _short_grace(monkeypatch, dataclasses, kind):
+    row = LAUNCHER_KINDS[kind]
+    if not row.kill_grace:
+        return row
+    replacement = dataclasses.replace(row, kill_grace=0.05)
+    monkeypatch.setitem(LAUNCHER_KINDS, kind, replacement)
+    return replacement
+
+
+def _expected_signals(signal, row):
+    if row.kill_grace:
+        return [signal.SIGTERM, signal.SIGKILL]
+    return [signal.SIGTERM]
 
 
 def test_no_flipped_body_still_names_a_kind():
     """The literals are the ladder.  If one comes back, so has the drift."""
-    offenders = {}
-    for method in _FLIPPED:
-        body = _body(method)
-        named = sorted(kind for kind in LAUNCHER_KINDS
-                       if '"%s"' % kind in body or "'%s'" % kind in body)
-        if named:
-            offenders[method] = named
+    offenders = dict(filter(lambda pair: pair[1],
+                     ((_method, _named_kinds(_body(_method)))
+                      for _method in _FLIPPED)))
     assert offenders == {}
+
+
+def _named_kinds(body):
+    literals = set(re.findall(r"['\"]([^'\"]+)['\"]", body))
+    return sorted(literals.intersection(LAUNCHER_KINDS))
 
 
 # ---------------------------------------------------------------------------

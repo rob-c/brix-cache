@@ -97,10 +97,16 @@ def test_file_size_guard_scans_client_and_excludes_client_tests(tmp_path) -> Non
         p.write_text(content)
 
     listed = {path for path, _ in cfs.list_oversized(root=tmp_path)}
-    assert "client/apps/big_client.c" in listed, "guard must now scan client/"
-    assert "src/core/big_src.c" in listed, "guard must still scan src/"
-    assert "client/lib/small_client.c" not in listed
-    assert "client/tests/c/big_test.c" not in listed, "client/tests/ must be carved out"
+    def _assert_test_file_size_guard_scans_client_and_excludes_client_tests_1():
+        assert "client/apps/big_client.c" in listed, "guard must now scan client/"
+        assert "src/core/big_src.c" in listed, "guard must still scan src/"
+
+    _assert_test_file_size_guard_scans_client_and_excludes_client_tests_1()
+    def _assert_test_file_size_guard_scans_client_and_excludes_client_tests_2():
+        assert "client/lib/small_client.c" not in listed
+        assert "client/tests/c/big_test.c" not in listed, "client/tests/ must be carved out"
+
+    _assert_test_file_size_guard_scans_client_and_excludes_client_tests_2()
     assert "client/tests/big_test.h" not in listed, "client/tests/ must be carved out"
 
 

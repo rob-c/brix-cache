@@ -44,5 +44,8 @@ def test_gsi_cipher_unit():
     assert build.returncode == 0, f"compile failed:\n{build.stderr}"
 
     run = subprocess.run([out_bin], capture_output=True, text=True, timeout=30)
-    assert run.returncode == 0, f"cipher unit test failed:\n{run.stdout}\n{run.stderr}"
-    assert "ALL PASSED" in run.stdout, run.stdout
+    def _assert_test_gsi_cipher_unit_1():
+        assert run.returncode == 0, f"cipher unit test failed:\n{run.stdout}\n{run.stderr}"
+        assert "ALL PASSED" in run.stdout, run.stdout
+
+    _assert_test_gsi_cipher_unit_1()

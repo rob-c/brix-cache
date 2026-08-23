@@ -154,7 +154,13 @@ def test_stat_full_surface_agrees(fs_our, fs_off, path):
         # files) — so 32768 vs 28672 for "/" is expected divergence, not a stat
         # bug. The isDir flag + status parity below still pin the surface.
         assert sio.size == sif.size
-    assert sio.flags == sif.flags
-    assert _decode_flags(sio.flags) == _decode_flags(sif.flags)
-    assert _id_is_clean_int(sio.id) and _id_is_clean_int(sif.id)
-    assert sio.modtime > 0 and sif.modtime > 0
+    _assert_stat_fields(sio, sif)
+
+
+def _assert_stat_fields(ours, stock):
+    assert ours.flags == stock.flags
+    assert _decode_flags(ours.flags) == _decode_flags(stock.flags)
+    assert _id_is_clean_int(ours.id)
+    assert _id_is_clean_int(stock.id)
+    assert ours.modtime > 0
+    assert stock.modtime > 0

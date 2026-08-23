@@ -43,6 +43,47 @@ from pathlib import Path
 # MUST ship all three; tools/ci/check_gridftp_interop_image.py imports these
 # lists so a Dockerfile edit that drops a stack reddens the gate instead of
 # silently degrading a matrix cell to a skip.
+def _phase_run_1(log_dir, s3_log_dir, data_root, pblock_root, s3_export, s3_dir, tmp_dir):
+    for d in (log_dir, s3_log_dir, data_root, pblock_root, s3_export, s3_dir,
+              tmp_dir):
+        shutil.rmtree(d, ignore_errors=True)
+        d.mkdir(parents=True, exist_ok=True)
+
+def _phase_run_2(pidfiles):
+    for pf in pidfiles:
+        _stop_pidfile(pf)
+
+
+def _expression_1(pki):
+    return (
+        str(pki["voms"]) if pki["voms"].exists() else None
+    )
+
+
+def _guard_build_interop_run_plan_1(voms_proxy, env, mounts):
+    if voms_proxy is not None:
+        mounts.append((os.path.abspath(voms_proxy), _C_VOMS, "ro"))
+        env["TEST_GRIDFTP_VOMS_PROXY"] = _C_VOMS
+
+def _guard_build_interop_run_plan_2(pblock_port, env):
+    if pblock_port is not None:
+        # The pblock-backed gsiftp listener the runner boots alongside the posix
+        # export — the interop matrix's non-posix backend cell drives it and
+        # self-skips when this is unset.
+        env["TEST_GRIDFTP_BACKEND_PBLOCK_PORT"] = str(pblock_port)
+
+def _guard_build_interop_run_plan_3(s3_port, env):
+    if s3_port is not None:
+        # The s3://-backed gsiftp listener (export routes through the embedded
+        # brix_s3 origin) — the interop matrix's object-store backend cell drives
+        # it and self-skips when this is unset.
+        env["TEST_GRIDFTP_BACKEND_S3_PORT"] = str(s3_port)
+
+def _guard_build_interop_run_plan_4(bulk_n, env):
+    if bulk_n is not None:
+        env["TEST_GRIDFTP_BULK_N"] = str(bulk_n)
+
+
 INTEROP_CLIENT_PACKAGES = (
     "globus-gass-copy-progs",   # -> globus-url-copy (primary GridFTP client)
     "gfal2-util-scripts",       # -> gfal-copy       (independent 2nd stack; EL9
@@ -124,21 +165,10 @@ def build_interop_run_plan(
         "X509_USER_PROXY": _C_PROXY,
         "X509_CERT_DIR": _C_CADIR,
     }
-    if voms_proxy is not None:
-        mounts.append((os.path.abspath(voms_proxy), _C_VOMS, "ro"))
-        env["TEST_GRIDFTP_VOMS_PROXY"] = _C_VOMS
-    if pblock_port is not None:
-        # The pblock-backed gsiftp listener the runner boots alongside the posix
-        # export — the interop matrix's non-posix backend cell drives it and
-        # self-skips when this is unset.
-        env["TEST_GRIDFTP_BACKEND_PBLOCK_PORT"] = str(pblock_port)
-    if s3_port is not None:
-        # The s3://-backed gsiftp listener (export routes through the embedded
-        # brix_s3 origin) — the interop matrix's object-store backend cell drives
-        # it and self-skips when this is unset.
-        env["TEST_GRIDFTP_BACKEND_S3_PORT"] = str(s3_port)
-    if bulk_n is not None:
-        env["TEST_GRIDFTP_BULK_N"] = str(bulk_n)
+    _guard_build_interop_run_plan_1(voms_proxy, env, mounts)
+    _guard_build_interop_run_plan_2(pblock_port, env)
+    _guard_build_interop_run_plan_3(s3_port, env)
+    _guard_build_interop_run_plan_4(bulk_n, env)
 
     # pytest inside the container: the interop file only, no repo config
     # (`-c /dev/null` — the repo pytest.ini is deliberately not mounted), tmp
@@ -257,6 +287,43 @@ def build_image(image: str) -> int:
     return p.returncode
 
 
+def _missing_pki(pki):
+    for key in ("cert", "key", "ca", "proxy"):
+        if not pki[key].exists():
+            return key
+    return None
+
+
+def _runtime_problem(dry_run, image, nginx, pki):
+    if dry_run:
+        return None
+    missing = _missing_pki(pki)
+    checks = (
+        (not _image_present(image),
+         f"image {image!r} absent — run `gridftp_interop_local build-image` first (one network-fed podman build)"),
+        (not os.access(nginx, os.X_OK), f"nginx not executable: {nginx}"),
+        (missing is not None, f"test PKI incomplete: missing {missing}"),
+    )
+    for failed, message in checks:
+        if failed:
+            return message
+    return None
+
+
+def _start_gateways(nginx, instances):
+    pidfiles = []
+    for label, config, log_dir in instances:
+        start = subprocess.run(
+            [str(nginx), "-c", str(config), "-e", str(log_dir / "error.log")],
+            capture_output=True, text=True)
+        if start.returncode != 0:
+            for pidfile in pidfiles:
+                _stop_pidfile(pidfile)
+            return pidfiles, f"{label} failed to start: {start.stderr.strip()}"
+        pidfiles.append(log_dir / "nginx.pid")
+    return pidfiles, None
+
+
 def run(image: str, *, dry_run: bool, bulk_n: int | None) -> int:
     root = _repo_root()
     sys.path.insert(0, str(root / "tests"))
@@ -266,22 +333,16 @@ def run(image: str, *, dry_run: bool, bulk_n: int | None) -> int:
     pki = _pki_paths(Path(settings.PKI_DIR))
     template = root / "tests/configs/nginx_gridftp_interop.conf"
 
-    if not dry_run:
-        if not _image_present(image):
-            return _skip(f"image {image!r} absent — run `gridftp_interop_local "
-                         f"build-image` first (one network-fed podman build)")
-        if not os.access(nginx, os.X_OK):
-            return _skip(f"nginx not executable: {nginx}")
-        for key in ("cert", "key", "ca", "proxy"):
-            if not pki[key].exists():
-                return _skip(f"test PKI incomplete: missing {pki[key]}")
+    problem = _runtime_problem(dry_run, image, nginx, pki)
+    if problem is not None:
+        return _skip(problem)
 
     gsiftp_port = int(os.environ.get("TEST_GRIDFTP_GSIFTP_PORT", "2811"))
     ftp_port = int(os.environ.get("TEST_GRIDFTP_FTP_PORT", "2810"))
     pblock_port = int(os.environ.get("TEST_GRIDFTP_BACKEND_PBLOCK_PORT", "2812"))
     s3_port = int(os.environ.get("TEST_GRIDFTP_BACKEND_S3_PORT", "2813"))
     s3_origin_port = int(os.environ.get("TEST_GRIDFTP_S3_ORIGIN_PORT", "2814"))
-    voms = str(pki["voms"]) if pki["voms"].exists() else None
+    voms = _expression_1(pki)
 
     plan = build_interop_run_plan(
         host=settings.SERVER_HOST, gsiftp_port=gsiftp_port, ftp_port=ftp_port,
@@ -304,10 +365,7 @@ def run(image: str, *, dry_run: bool, bulk_n: int | None) -> int:
     s3_export = work / "export-s3"          # gateway staging root for the s3 leg
     s3_dir = work / "s3-origin"             # embedded brix_s3 object root
     tmp_dir = work / "http-tmp"             # http body/proxy temp paths
-    for d in (log_dir, s3_log_dir, data_root, pblock_root, s3_export, s3_dir,
-              tmp_dir):
-        shutil.rmtree(d, ignore_errors=True)
-        d.mkdir(parents=True, exist_ok=True)
+    _phase_run_1(log_dir, s3_log_dir, data_root, pblock_root, s3_export, s3_dir, tmp_dir)
     conf = _render_gateway_conf(
         template=template, out=work / "gateway.conf", log_dir=log_dir,
         data_root=data_root, bind_host=settings.BIND_HOST,
@@ -320,24 +378,16 @@ def run(image: str, *, dry_run: bool, bulk_n: int | None) -> int:
         s3_origin_port=s3_origin_port, s3_dir=s3_dir, s3_export=s3_export,
         tmp_dir=tmp_dir)
 
-    pidfiles = []
-    for label, cfg, ldir in (("gateway", conf, log_dir),
-                             ("s3-leg", s3_conf, s3_log_dir)):
-        start = subprocess.run([str(nginx), "-c", str(cfg), "-e",
-                                str(ldir / "error.log")],
-                               capture_output=True, text=True)
-        if start.returncode != 0:
-            for pf in pidfiles:
-                _stop_pidfile(pf)
-            return _skip(f"{label} failed to start: {start.stderr.strip()}")
-        pidfiles.append(ldir / "nginx.pid")
+    instances = (("gateway", conf, log_dir), ("s3-leg", s3_conf, s3_log_dir))
+    pidfiles, start_error = _start_gateways(nginx, instances)
+    if start_error is not None:
+        return _skip(start_error)
     time.sleep(1.0)
     try:
         print("running interop matrix:", " ".join(plan["argv"]))
         return subprocess.run(plan["argv"]).returncode
     finally:
-        for pf in pidfiles:
-            _stop_pidfile(pf)
+        _phase_run_2(pidfiles)
 
 
 def main(argv: list[str] | None = None) -> int:

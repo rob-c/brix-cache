@@ -222,6 +222,80 @@ _KNOBS = {
 }
 
 
+def _port_block(value: str | PortBlock) -> PortBlock:
+    return value if isinstance(value, PortBlock) else PortBlock(value)
+
+
+def _start_mocks(run, block, count, webroot, objects, seed, repo, keepalive):
+    ports = [block.mock() for _ in range(count)]
+    for index, port in enumerate(ports):
+        _spawn_mock(run, port, webroot=webroot, objects=objects,
+                    seed=seed + index, repo=repo, keepalive=keepalive)
+    return ports
+
+
+def _backend_directives(mock_ports, proxy_mode, origins):
+    if not proxy_mode:
+        backend = origins or "|".join(f"http://{HOST}:{port}" for port in mock_ports)
+        return [f'brix_storage_backend "{backend}";']
+    return []
+
+
+def _allow_directives(proxy_mode, upstream_allow):
+    if upstream_allow:
+        return [f"brix_cvmfs_upstream_allow {upstream_allow};"]
+    return [f"brix_cvmfs_upstream_allow {HOST};"] if proxy_mode else []
+
+
+def _knob_directives(knobs):
+    return [f"{directive} {knobs[key]};"
+            for key, directive in _KNOBS.items() if knobs.get(key) is not None]
+
+
+def _location_directives(cache, mock_ports, proxy_mode, origins,
+                         upstream_allow, scvmfs, extra_directives, knobs):
+    lines = ["brix_cvmfs on;", f"brix_cache_store posix:{cache};"]
+    lines.extend(_backend_directives(mock_ports, proxy_mode, origins))
+    lines.extend(_allow_directives(proxy_mode, upstream_allow))
+    lines.extend(["brix_scvmfs on;"] if scvmfs else [])
+    lines.extend(_knob_directives(knobs))
+    lines.extend([extra_directives] if extra_directives else [])
+    return lines
+
+
+def _ssl_config(port, ssl_cert, ssl_key, ssl_client_ca, ssl_verify_client):
+    listen = f"listen {BIND_HOST}:{port}"
+    if not ssl_cert:
+        return listen, ""
+    listen += " ssl"
+    directives = f"ssl_certificate {ssl_cert}; ssl_certificate_key {ssl_key};"
+    if ssl_client_ca:
+        directives += f" ssl_client_certificate {ssl_client_ca};"
+    if ssl_verify_client:
+        directives += f" ssl_verify_client {ssl_verify_client};"
+    return listen, directives
+
+
+def _write_server_config(run, port, location, directives, worker_threads,
+                         ssl_cert, ssl_key, ssl_client_ca, ssl_verify_client):
+    listen, ssl_lines = _ssl_config(
+        port, ssl_cert, ssl_key, ssl_client_ca, ssl_verify_client)
+    error_log = run.root / "logs/e.log"
+    user_line = "user root;\n" if os.geteuid() == 0 else ""
+    config = run.write(
+        run.root / "nginx.conf",
+        f"""{user_line}daemon on; error_log {error_log} info; pid {run.root}/nginx.pid;
+worker_processes 1; thread_pool default threads={worker_threads};
+events {{ worker_connections 256; }}
+http {{ access_log off; server {{ {listen}; {ssl_lines}
+    location {location} {{
+        {' '.join(directives)}
+    }}
+}} }}
+""")
+    return config, error_log
+
+
 @contextmanager
 def srv_instance(port_block: str | PortBlock, *, webroot=None, objects=8, seed=1,
                  repo="test.cern.ch", n_mocks=1, keepalive=False, origins=None,
@@ -236,63 +310,20 @@ def srv_instance(port_block: str | PortBlock, *, webroot=None, objects=8, seed=1
     absolute-form requests with brix_cvmfs_upstream_allow (no storage backend).
     Unrecognised **knobs** map through _KNOBS to brix_cvmfs* directives.
     """
-    block = port_block if isinstance(port_block, PortBlock) else PortBlock(port_block)
+    block = _port_block(port_block)
     loc = location or ("/" if proxy_mode else "/cvmfs/")
     with LiveRun("cvmfs_conf", nginx or NGINX_BIN) as run:
         cache = run.mkdir("cache")
         run.mkdir("logs")
-        mock_ports = [block.mock() for _ in range(n_mocks)]
-        for i, p in enumerate(mock_ports):
-            _spawn_mock(run, p, webroot=webroot, objects=objects, seed=seed + i,
-                        repo=repo, keepalive=keepalive)
-
-        lines = ["brix_cvmfs on;", f"brix_cache_store posix:{cache};"]
-        if not proxy_mode:
-            backend = origins or "|".join(f"http://{HOST}:{p}" for p in mock_ports)
-            lines.append(f'brix_storage_backend "{backend}";')
-        if upstream_allow:
-            lines.append(f"brix_cvmfs_upstream_allow {upstream_allow};")
-        elif proxy_mode:
-            lines.append(f"brix_cvmfs_upstream_allow {HOST};")
-        if scvmfs:
-            lines.append("brix_scvmfs on;")
-        for key, directive in _KNOBS.items():
-            if knobs.get(key) is not None:
-                lines.append(f"{directive} {knobs[key]};")
-        if extra_directives:
-            lines.append(extra_directives)
-
+        mock_ports = _start_mocks(
+            run, block, n_mocks, webroot, objects, seed, repo, keepalive)
+        lines = _location_directives(
+            cache, mock_ports, proxy_mode, origins, upstream_allow,
+            scvmfs, extra_directives, knobs)
         nginx_port = block.nginx()
-        listen = f"listen {BIND_HOST}:{nginx_port}"
-        if ssl_cert:
-            listen += " ssl"
-        ssl_lines = (f"ssl_certificate {ssl_cert}; ssl_certificate_key {ssl_key};"
-                     if ssl_cert else "")
-        # ssl_verify_client / ssl_client_certificate are http|server context
-        # (never location) — inject into the server block alongside the cert.
-        if ssl_client_ca:
-            ssl_lines += f" ssl_client_certificate {ssl_client_ca};"
-        if ssl_verify_client:
-            ssl_lines += f" ssl_verify_client {ssl_verify_client};"
-        error_log = run.root / "logs/e.log"
-        # Under a root harness nginx drops workers to `nobody`, which cannot
-        # traverse the 0700 mkdtemp root nor write the root-owned cache store —
-        # the cache fill then fails EACCES and every .cvmfspublished/data GET
-        # returns 403/502. Keep workers as root (the §4b posture) so they can
-        # read/write this throwaway tree; unprivileged (euid!=0, the §5a runner)
-        # the invoking user already owns it, so no directive is injected.
-        user_line = "user root;\n" if os.geteuid() == 0 else ""
-        config = run.write(
-            run.root / "nginx.conf",
-            f"""{user_line}daemon on; error_log {error_log} info; pid {run.root}/nginx.pid;
-worker_processes 1; thread_pool default threads={worker_threads};
-events {{ worker_connections 256; }}
-http {{ access_log off; server {{ {listen}; {ssl_lines}
-    location {loc} {{
-        {' '.join(lines)}
-    }}
-}} }}
-""")
+        config, error_log = _write_server_config(
+            run, nginx_port, loc, lines, worker_threads, ssl_cert, ssl_key,
+            ssl_client_ca, ssl_verify_client)
         run.start_nginx(run.root, config, nginx_port)
         yield Server(run, nginx_port, mock_ports, cache, error_log, run.root, repo, loc)
 
@@ -320,47 +351,52 @@ def _wait_mounted(mnt: Path, timeout: float) -> bool:
     return os.path.ismount(str(mnt))
 
 
+def _workspace_path(workdir, name, supplied):
+    if supplied is not None:
+        return supplied
+    path = workdir / name
+    path.mkdir(exist_ok=True)
+    return path
+
+
+def _mount_environment(workdir, server_url, pubkey, cache, tmp, extra_env):
+    tmp_path = _workspace_path(workdir, "tmp", tmp)
+    cache_path = _workspace_path(workdir, "cache", cache)
+    env = {**os.environ, "BRIXCVMFS_SERVER": server_url,
+           "BRIXCVMFS_PUBKEY": str(pubkey), "BRIXCVMFS_TMP": str(tmp_path),
+           "BRIXCVMFS_CACHE": str(cache_path)}
+    env.update(extra_env or {})
+    return env
+
+
+def _terminate_mount(proc, mnt):
+    _unmount(mnt)
+    if proc.poll() is not None:
+        return
+    proc.terminate()
+    try:
+        proc.wait(3)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+
+
 @contextmanager
 def fuse_mount(fqrn: str, server_url: str, pubkey: str | os.PathLike, *,
                cache=None, tmp=None, mount_type="cvmfs", opts="auto_unmount",
                brixmount=None, extra_env=None, extra_args=(), timeout=15):
-    """Mount `fqrn` via brixMount with env pinning; ALWAYS unmount on exit.
-
-    Yields (mnt_path, proc). The mount may not come up (bad trust chain, etc.) —
-    check os.path.ismount(mnt); teardown unmounts unconditionally either way.
-    """
+    """Mount through brixMount and always unmount and remove its workspace."""
     workdir = Path(tempfile.mkdtemp(prefix="cvmfs_mount."))
     mnt = workdir / "mnt"
     mnt.mkdir()
-    env = {
-        **os.environ,
-        "BRIXCVMFS_SERVER": server_url,
-        "BRIXCVMFS_PUBKEY": str(pubkey),
-        "BRIXCVMFS_TMP": str(tmp if tmp is not None else (workdir / "tmp")),
-    }
-    (workdir / "tmp").mkdir(exist_ok=True)
-    if cache is not None:
-        env["BRIXCVMFS_CACHE"] = str(cache)
-    else:
-        (workdir / "cache").mkdir(exist_ok=True)
-        env["BRIXCVMFS_CACHE"] = str(workdir / "cache")
-    if extra_env:
-        env.update(extra_env)
-
+    env = _mount_environment(workdir, server_url, pubkey, cache, tmp, extra_env)
     argv = [brixmount or BRIXMOUNT, mount_type, fqrn, str(mnt), *extra_args, "-o", opts, "-f"]
     proc = subprocess.Popen(argv, env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     try:
         _wait_mounted(mnt, timeout)
         yield mnt, proc
     finally:
+        _terminate_mount(proc, mnt)
         _unmount(mnt)
-        if proc.poll() is None:
-            proc.terminate()
-            try:
-                proc.wait(3)
-            except subprocess.TimeoutExpired:
-                proc.kill()
-        _unmount(mnt)          # belt-and-braces after the process is gone
         shutil.rmtree(workdir, ignore_errors=True)
 
 
@@ -372,51 +408,66 @@ def check_repo(fqrn: str, server_url: str, pubkey: str | os.PathLike, *,
     binary = brixcvmfs or os.environ.get("BRIXCVMFS_BIN")
     if binary is None:
         raise RuntimeError("no brixcvmfs binary; pass brixcvmfs= or set BRIXCVMFS_BIN")
-    env = {**os.environ, "BRIXCVMFS_SERVER": server_url, "BRIXCVMFS_PUBKEY": str(pubkey)}
-    if cache is not None:
-        env["BRIXCVMFS_CACHE"] = str(cache)
-    if tmp is not None:
-        env["BRIXCVMFS_TMP"] = str(tmp)
-    if extra_env:
-        env.update(extra_env)
+    env = _check_environment(server_url, pubkey, cache, tmp, extra_env)
     return subprocess.run([binary, "--check", fqrn], env=env, capture_output=True,
                           text=True, timeout=timeout)
 
 
+def _check_environment(server_url, pubkey, cache, tmp, extra_env):
+    env = {**os.environ, "BRIXCVMFS_SERVER": server_url,
+           "BRIXCVMFS_PUBKEY": str(pubkey)}
+    optional = {"BRIXCVMFS_CACHE": cache, "BRIXCVMFS_TMP": tmp}
+    env.update({key: str(value) for key, value in optional.items()
+                if value is not None})
+    env.update(extra_env or {})
+    return env
+
+
 # ---- raw-socket HTTP helpers ----------------------------------------------
 
-def raw_http(host: str, port: int, request_line: str, headers: dict | None = None,
-             body: bytes = b"", timeout: float = 15) -> tuple[int, dict, bytes]:
-    """Send a hand-built request line (e.g. 'GET /path HTTP/1.1' or an
-    absolute-form 'GET http://origin/x HTTP/1.1') and return (status, headers, body)."""
+def _request_blob(host, port, request_line, headers, body):
     hdrs = {"Host": f"{host}:{port}", "Connection": "close", **(headers or {})}
     if body:
         hdrs.setdefault("Content-Length", str(len(body)))
     blob = request_line.encode() + b"\r\n"
     blob += "".join(f"{k}: {v}\r\n" for k, v in hdrs.items()).encode()
-    blob += b"\r\n" + body
+    return blob + b"\r\n" + body
 
+
+def _receive_response(sock):
+    chunks = []
+    while True:
+        try:
+            part = sock.recv(65536)
+        except socket.timeout:
+            break
+        if not part:
+            break
+        chunks.append(part)
+    return b"".join(chunks)
+
+
+def _parse_response(raw):
+    head, _, payload = raw.partition(b"\r\n\r\n")
+    lines = head.split(b"\r\n")
+    fields = lines[0].split(b" ")
+    status = int(fields[1]) if len(fields) > 1 else 0
+    headers = {}
+    for line in lines[1:]:
+        key, _, value = line.partition(b":")
+        headers[key.decode().strip().lower()] = value.decode().strip()
+    return status, headers, payload
+
+
+def raw_http(host: str, port: int, request_line: str, headers: dict | None = None,
+             body: bytes = b"", timeout: float = 15) -> tuple[int, dict, bytes]:
+    """Send a hand-built request and return its status, headers, and body."""
+    blob = _request_blob(host, port, request_line, headers, body)
     with socket.create_connection((host, port), timeout=timeout) as s:
         s.settimeout(timeout)
         s.sendall(blob)
-        chunks = []
-        while True:
-            try:
-                part = s.recv(65536)
-            except socket.timeout:
-                break
-            if not part:
-                break
-            chunks.append(part)
-    raw = b"".join(chunks)
-    head, _, payload = raw.partition(b"\r\n\r\n")
-    lines = head.split(b"\r\n")
-    status = int(lines[0].split(b" ")[1]) if len(lines[0].split(b" ")) > 1 else 0
-    resp_headers = {}
-    for line in lines[1:]:
-        k, _, v = line.partition(b":")
-        resp_headers[k.decode().strip().lower()] = v.decode().strip()
-    return status, resp_headers, payload
+        raw = _receive_response(s)
+    return _parse_response(raw)
 
 
 def request(host: str, port: int, method: str, path: str, headers: dict | None = None,

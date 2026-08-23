@@ -70,6 +70,50 @@ from cmdscripts.container_runtime import container_runtime
 
 # Adjust import path for the token issuer utility (mirrors test_token_auth.py).
 import sys
+def _expression_1(st, body):
+    return (
+        st != kXR_ok or len(body) < 4
+    )
+
+
+def _phase_try_read_1(sock, fh):
+    with contextlib.suppress(OSError):
+        sock.sendall(struct.pack("!2sH4s12sI", b"\x00\x0e", kXR_close, fh,
+                                 b"\x00" * 12, 0))
+        _resp(sock)
+
+
+def _guard_minio_store_1():
+    if os.environ.get("STS_MINIO_LIVE") == "0":
+        pytest.skip("STS_MINIO_LIVE=0 set — skipping the live MinIO STS lab")
+
+def _guard_minio_store_2():
+    if not os.access(NGINX_BIN, os.X_OK):
+        pytest.skip(f"nginx not executable: {NGINX_BIN}")
+
+def _guard_minio_store_3(runtime):
+    if runtime is None:
+        pytest.skip("no working container runtime (docker or rootless podman)")
+
+def _guard_minio_store_4(image):
+    if image is None:
+        pytest.skip("no local minio image (expected one of: "
+                    + ", ".join(MINIO_IMAGES) + ")")
+
+def _guard_minio_store_5(cid):
+    if not cid:
+        pytest.skip("failed to launch minio container")
+
+def _check_minio_store_1(healthy):
+    assert healthy, "MinIO never became healthy"
+
+def _check_minio_store_2(hdr, uri):
+    assert _http("PUT", ENDPOINT + uri, hdr, b"")[0] == 200, "bucket create"
+
+def _check_minio_store_3(hdr, uri):
+    assert _http("PUT", ENDPOINT + uri, hdr, BODY)[0] == 200, "object put"
+
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from utils.make_token import TokenIssuer
 
@@ -126,17 +170,12 @@ def _sign_put_at(host_port: str, ak: str, sk: str, bucket: str, key: str,
 @pytest.fixture(scope="module")
 def minio_store():
     """A live MinIO (S3 + STS) seeded with one object; yields its authority."""
-    if os.environ.get("STS_MINIO_LIVE") == "0":
-        pytest.skip("STS_MINIO_LIVE=0 set — skipping the live MinIO STS lab")
-    if not os.access(NGINX_BIN, os.X_OK):
-        pytest.skip(f"nginx not executable: {NGINX_BIN}")
+    _guard_minio_store_1()
+    _guard_minio_store_2()
     runtime = container_runtime()
-    if runtime is None:
-        pytest.skip("no working container runtime (docker or rootless podman)")
+    _guard_minio_store_3(runtime)
     image = _pick_image(runtime)
-    if image is None:
-        pytest.skip("no local minio image (expected one of: "
-                    + ", ".join(MINIO_IMAGES) + ")")
+    _guard_minio_store_4(image)
 
     cid = run(
         [runtime, "run", "-d", "--rm", "-p", f"{MINIO_PORT}:9000",
@@ -145,8 +184,7 @@ def minio_store():
          image, "server", "/data"],
         cwd=REPO_ROOT,
     ).stdout.strip()
-    if not cid:
-        pytest.skip("failed to launch minio container")
+    _guard_minio_store_5(cid)
 
     host_port = f"{HOST}:{MINIO_PORT}"
     try:
@@ -159,12 +197,12 @@ def minio_store():
             except OSError:
                 pass
             time.sleep(0.5)
-        assert healthy, "MinIO never became healthy"
+        _check_minio_store_1(healthy)
 
         uri, hdr = _sign_put_at(host_port, ROOT_USER, ROOT_PW, BUCKET, "", b"")
-        assert _http("PUT", ENDPOINT + uri, hdr, b"")[0] == 200, "bucket create"
+        _check_minio_store_2(hdr, uri)
         uri, hdr = _sign_put_at(host_port, ROOT_USER, ROOT_PW, BUCKET, KEY, BODY)
-        assert _http("PUT", ENDPOINT + uri, hdr, BODY)[0] == 200, "object put"
+        _check_minio_store_3(hdr, uri)
 
         yield host_port
     finally:
@@ -257,38 +295,43 @@ def _read(sock, fhandle, offset, rlen):
     return _resp(sock)
 
 
+def _authenticated(sock, token_str):
+    sock.sendall(struct.pack("!IIIII", 0, 0, 0, 4, 2012))
+    if _resp(sock)[0] != kXR_ok:
+        return False
+    if _login(sock)[0] != kXR_ok:
+        return False
+    return _auth_ztn(sock, token_str)[0] == kXR_ok
+
+
+def _read_all(sock, file_handle):
+    data = bytearray()
+    while True:
+        status, chunk = _read(sock, file_handle, len(data), 65536)
+        data.extend(chunk)
+        if status == kXR_ok:
+            return True, bytes(data)
+        if status != kXR_oksofar:
+            return False, bytes(data)
+        if not chunk:
+            return True, bytes(data)
+
+
 def _try_read(port, token_str, path):
     """Full ztn session -> open(path) -> read.  Returns (ok, data): ok=True only
     when the whole chain succeeds and bytes came back."""
     sock = socket.create_connection((HOST, port), timeout=10)
     sock.settimeout(10)
     try:
-        sock.sendall(struct.pack("!IIIII", 0, 0, 0, 4, 2012))
-        if _resp(sock)[0] != kXR_ok:
-            return False, b""
-        if _login(sock)[0] != kXR_ok:
-            return False, b""
-        if _auth_ztn(sock, token_str)[0] != kXR_ok:
+        if not _authenticated(sock, token_str):
             return False, b""
         st, body = _open(sock, path)
-        if st != kXR_ok or len(body) < 4:
+        if _expression_1(st, body):
             return False, b""
         fh = body[:4]
-        data = bytearray()
-        while True:
-            st, chunk = _read(sock, fh, len(data), 65536)
-            data.extend(chunk)
-            if st == kXR_ok:
-                break
-            if st != kXR_oksofar:
-                return False, bytes(data)
-            if not chunk:
-                break
-        with contextlib.suppress(OSError):
-            sock.sendall(struct.pack("!2sH4s12sI", b"\x00\x0e", kXR_close, fh,
-                                     b"\x00" * 12, 0))
-            _resp(sock)
-        return True, bytes(data)
+        ok, data = _read_all(sock, fh)
+        _phase_try_read_1(sock, fh)
+        return ok, data
     finally:
         sock.close()
 

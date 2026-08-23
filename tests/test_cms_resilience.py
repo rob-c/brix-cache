@@ -36,6 +36,17 @@ from server_registry import NginxInstanceSpec
 from settings import HOST
 from ephemeral_port import free_port
 
+def _phase_read_loop_1(self, code):
+    with self._lock:
+        self.frame_codes.append(code)
+        _guard_read_loop_1(code, self)
+
+
+def _guard_read_loop_1(code, self):
+    if code == CMS_RR_LOGIN:
+        self.logins += 1
+
+
 pytestmark = [pytest.mark.uses_lifecycle_harness,
               pytest.mark.xdist_group("lc-cms-resilience")]
 
@@ -301,20 +312,20 @@ class ManagerPeer:
             threading.Thread(target=self._read_loop, args=(conn,),
                              daemon=True).start()
 
+    def _drain_frames(self, buf):
+        while len(buf) >= CMS_HDR_LEN:
+            _sid, code, _mod, dlen = struct.unpack(
+                ">IBBH", bytes(buf[:CMS_HDR_LEN]))
+            if len(buf) < CMS_HDR_LEN + dlen:
+                return
+            del buf[:CMS_HDR_LEN + dlen]
+            _phase_read_loop_1(self, code)
+
     def _read_loop(self, conn):
         conn.settimeout(0.5)
         buf = bytearray()
         while not self._stop:
-            while len(buf) >= CMS_HDR_LEN:
-                _sid, code, _mod, dlen = struct.unpack(
-                    ">IBBH", bytes(buf[:CMS_HDR_LEN]))
-                if len(buf) < CMS_HDR_LEN + dlen:
-                    break
-                del buf[:CMS_HDR_LEN + dlen]
-                with self._lock:
-                    self.frame_codes.append(code)
-                    if code == CMS_RR_LOGIN:
-                        self.logins += 1
+            self._drain_frames(buf)
             try:
                 chunk = conn.recv(4096)
             except socket.timeout:

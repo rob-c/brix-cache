@@ -37,6 +37,12 @@ from pathlib import Path
 
 import pytest
 
+def _expression_1(dlen, conn):
+    return (
+        _recv_exact(conn, dlen) if dlen > 0 else b""
+    )
+
+
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 NGINX = "/tmp/nginx-1.28.3/objs/nginx"
 XRDCP = os.path.join(REPO, "client", "bin", "xrdcp")
@@ -122,32 +128,38 @@ class MockSource(threading.Thread):
             streamid = hdr[0:2]
             reqid = struct.unpack(">H", hdr[2:4])[0]
             dlen = struct.unpack(">i", hdr[20:24])[0]
-            payload = _recv_exact(conn, dlen) if dlen > 0 else b""
+            payload = _expression_1(dlen, conn)
             if payload is None:
                 return
+            open_count, served_data = self._serve_request(
+                conn, streamid, reqid, payload, open_count, served_data)
 
-            if reqid == kXR_protocol:
-                conn.sendall(_resp(streamid, kXR_ok, struct.pack(">ii", 0x520, 1)))
-            elif reqid == kXR_login:
-                # 16-byte session id, NO security token → anonymous (dest skips auth)
-                conn.sendall(_resp(streamid, kXR_ok, b"\x00" * 16))
-            elif reqid == kXR_open:
-                is_pull = b"tpc.org" in payload    # dest pull vs client rendezvous
-                if not is_pull:
-                    conn.sendall(_resp(streamid, kXR_ok, b"\x00\x00\x00\x01"))
-                    continue
-                open_count += 1
-                self._answer_pull_open(conn, streamid, open_count)
-            elif reqid == kXR_read:
-                if not served_data:
-                    served_data = True
-                    conn.sendall(_resp(streamid, kXR_ok, PAYLOAD))
-                else:
-                    conn.sendall(_resp(streamid, kXR_ok, b""))   # EOF
-            elif reqid == kXR_close:
-                conn.sendall(_resp(streamid, kXR_ok))
-            else:
-                conn.sendall(_resp(streamid, kXR_ok))            # lenient
+    def _serve_request(self, conn, streamid, reqid, payload,
+                       open_count, served_data):
+        if reqid == kXR_protocol:
+            conn.sendall(_resp(streamid, kXR_ok, struct.pack(">ii", 0x520, 1)))
+        elif reqid == kXR_login:
+            # 16-byte session id, NO security token → anonymous (dest skips auth)
+            conn.sendall(_resp(streamid, kXR_ok, b"\x00" * 16))
+        elif reqid == kXR_open:
+            if b"tpc.org" not in payload:
+                conn.sendall(_resp(streamid, kXR_ok, b"\x00\x00\x00\x01"))
+                return open_count, served_data
+            open_count += 1
+            self._answer_pull_open(conn, streamid, open_count)
+        elif reqid == kXR_read:
+            served_data = self._answer_read(conn, streamid, served_data)
+        else:
+            conn.sendall(_resp(streamid, kXR_ok))
+        return open_count, served_data
+
+    @staticmethod
+    def _answer_read(conn, streamid, served_data):
+        if served_data:
+            conn.sendall(_resp(streamid, kXR_ok, b""))
+            return True
+        conn.sendall(_resp(streamid, kXR_ok, PAYLOAD))
+        return True
 
     def _answer_pull_open(self, conn, streamid, open_count):
         """Answer the destination's pull open asynchronously, then mark served."""

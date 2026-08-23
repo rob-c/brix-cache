@@ -361,6 +361,36 @@ def test_third_party_realm_is_refused_and_never_contacted(mocks, lifecycle,
     assert "signal=oci_realm_refused" in error_log(mirror.endpoint)
 
 
+def test_token_redirect_loop_is_bounded_and_reported_as_ours(mocks, lifecycle,
+                                                            tmp_path):
+    """A token endpoint that redirects to itself ends at OUR hop budget.
+
+    The redirect stays on the upstream's own host, so the realm allowlist has
+    nothing to refuse and every hop is legitimately followed; only the budget
+    can stop it. Three things are asserted, and the middle one is why this test
+    exists: the walk TERMINATES (a bounded number of requests reach the mock,
+    not an unbounded spin), the client is told 502 rather than handed the last
+    3xx as though it were the token endpoint's answer, and the refusal names
+    itself in the log so the operator sees a loop rather than a generic
+    upstream failure.
+    """
+    upstream = mocks(MOCK_PORT, "--auth", "--token-redirect-loop")
+    mirror = front(lifecycle, tmp_path)
+
+    status, headers, body = get(mirror.base + MANIFEST)
+
+    assert status == 502
+    assert err_code(body) == "UNAVAILABLE"
+    assert "WWW-Authenticate" not in headers
+    # OCI_TOKEN_MAX_HOPS is 3, so the budget admits hops 0..3 — four requests
+    # and no more. Pinning the exact count is what distinguishes "the loop is
+    # bounded" from "the loop happened to end".
+    token_hits = [h for h in hits(upstream)
+                  if h["path"].split("?")[0] == "/token"]
+    assert len(token_hits) == 4, token_hits
+    assert "signal=oci_token_redirect_loop" in error_log(mirror.endpoint)
+
+
 def test_basic_credentials_reach_only_the_token_endpoint(mocks, lifecycle,
                                                          tmp_path):
     """Basic authenticates US to the token service, and to nothing else.

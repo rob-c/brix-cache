@@ -56,6 +56,12 @@ from port_ladder import PORT_LAST  # noqa: E402
 # same fixed listen.  One xdist_group here (propagated to both files via __all__)
 # serialises them; each module tears its fixtures down before the next starts, so
 # the shared ledger ports are reused rather than contended.
+def _expression_1(cpub, kpub):
+    return (
+        not cpub or cpub != kpub
+    )
+
+
 pytestmark = [pytest.mark.uses_lifecycle_harness,
               pytest.mark.xdist_group("gsihs")]
 
@@ -166,8 +172,11 @@ def pki(tmp_path_factory):
     os.chmod(both_ca, 0o755)
 
     # Required for the negative tests — these must exist, not be skipped over.
-    assert untrusted_proxy, "could not mint the untrusted-CA proxy"
-    assert expired_proxy, "could not build the expired credential (openssl ca)"
+    def _assert_pki_1():
+        assert untrusted_proxy, "could not mint the untrusted-CA proxy"
+        assert expired_proxy, "could not build the expired credential (openssl ca)"
+
+    _assert_pki_1()
 
     with open(os.path.join(data, "hello.txt"), "w") as f:
         f.write("hello-gsi-handshake\n")
@@ -410,6 +419,39 @@ def _pki_cache_paths(cache):
     }
 
 
+def _pki_files_complete(paths):
+    required = (value for key, value in paths.items() if key != "certs")
+    return all(os.path.exists(path) for path in required)
+
+
+def _pki_certs_current(paths):
+    for cert in (paths["ca"], paths["hostcert"], paths["usercert"]):
+        result = _run(["openssl", "x509", "-in", cert, "-noout",
+                       "-checkend", "3600"])
+        if result.returncode != 0:
+            return False
+    return True
+
+
+def _pki_chains_verify(paths):
+    for cert in (paths["hostcert"], paths["usercert"]):
+        result = _run(["openssl", "verify", "-CAfile", paths["ca"], cert])
+        if result.returncode != 0:
+            return False
+    return True
+
+
+def _pki_keys_match(paths):
+    pairs = ((paths["hostcert"], paths["hostkey"]),
+             (paths["usercert"], paths["userkey"]))
+    for cert, key in pairs:
+        cpub = _run(["openssl", "x509", "-in", cert, "-noout", "-pubkey"]).stdout
+        kpub = _run(["openssl", "pkey", "-in", key, "-pubout"]).stdout
+        if _expression_1(cpub, kpub):
+            return False
+    return True
+
+
 def _pki_cache_valid(cache, fqdn):
     """True iff the cached RSA-4096 material is safe to reuse: complete, each
     cert chains to the cached CA and is INSIDE its validity window in both
@@ -418,22 +460,9 @@ def _pki_cache_valid(cache, fqdn):
     life left (headroom for the run), each key matches its cert, and the host
     cert was issued for THIS host's fqdn."""
     p = _pki_cache_paths(cache)
-    if not all(os.path.exists(v) for k, v in p.items() if k != "certs"):
+    if not (_pki_files_complete(p) and _pki_certs_current(p)
+            and _pki_chains_verify(p) and _pki_keys_match(p)):
         return False
-    for cert in (p["ca"], p["hostcert"], p["usercert"]):
-        if _run(["openssl", "x509", "-in", cert, "-noout",
-                 "-checkend", "3600"]).returncode != 0:
-            return False
-    for cert in (p["hostcert"], p["usercert"]):
-        if _run(["openssl", "verify", "-CAfile", p["ca"],
-                 cert]).returncode != 0:
-            return False
-    for cert, key in ((p["hostcert"], p["hostkey"]),
-                      (p["usercert"], p["userkey"])):
-        cpub = _run(["openssl", "x509", "-in", cert, "-noout", "-pubkey"]).stdout
-        kpub = _run(["openssl", "pkey", "-in", key, "-pubout"]).stdout
-        if not cpub or cpub != kpub:
-            return False
     subj = _run(["openssl", "x509", "-in", p["hostcert"], "-noout",
                  "-subject"]).stdout
     return fqdn in subj

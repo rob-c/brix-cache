@@ -47,21 +47,28 @@ def main():
     args = parser.parse_args()
 
     if args.token:
-        token = sys.stdin.read().strip() if args.token == "-" else args.token
-        header, payload = decode_token(token)
-        print_json("Header", header)
-        print()
-        print_json("Payload", payload)
+        _print_token(args.token)
 
     if args.jwks:
-        if args.token:
-            print()
-        with open(args.jwks, "r", encoding="utf-8") as f:
-            jwks = json.load(f)
-        key_ids = [key.get("kid", "<missing kid>") for key in jwks.get("keys", [])]
-        print("JWKS key IDs:")
-        for key_id in key_ids:
-            print(f"  {key_id}")
+        _print_jwks(args.jwks, leading_blank=bool(args.token))
+
+
+def _print_token(argument):
+    token = sys.stdin.read().strip() if argument == "-" else argument
+    header, payload = decode_token(token)
+    print_json("Header", header)
+    print()
+    print_json("Payload", payload)
+
+
+def _print_jwks(path, *, leading_blank):
+    if leading_blank:
+        print()
+    with open(path, "r", encoding="utf-8") as handle:
+        jwks = json.load(handle)
+    print("JWKS key IDs:")
+    for key in jwks.get("keys", []):
+        print(f"  {key.get('kid', '<missing kid>')}")
 
 
 if __name__ == "__main__":

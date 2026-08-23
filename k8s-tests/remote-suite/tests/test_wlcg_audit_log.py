@@ -261,6 +261,15 @@ class TestWebDAVWLCGAuditLog:
 # Section 9 — S3 WLCG audit fields
 # ---------------------------------------------------------------------------
 
+def _has_s3_request_id(chunk):
+    patterns = (
+        r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}",
+        r"reqid=[0-9a-f]{32}",
+    )
+    return any(re.search(pattern, chunk) for pattern in patterns) or \
+        "amz" in chunk.lower()
+
+
 class TestS3WLCGAuditLog:
     """Verifies that the S3 access log contains WLCG-required fields."""
 
@@ -299,10 +308,7 @@ class TestS3WLCGAuditLog:
 
         # Look for a UUID-shaped token (Requuid), x-amz-request-id, or
         # nginx's $request_id logged as "reqid=<hex32>" by the s3_audit format.
-        has_uuid = bool(re.search(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}", chunk))
-        has_amz_id = "x-amz-request-id" in chunk or "amz" in chunk.lower()
-        has_reqid = bool(re.search(r"reqid=[0-9a-f]{32}", chunk))
-        assert has_uuid or has_amz_id or has_reqid, (
+        assert _has_s3_request_id(chunk), (
             f"No request UUID (Requuid / x-amz-request-id / reqid) in S3 audit log:\n{chunk[:300]}"
         )
 

@@ -14,6 +14,22 @@ import subprocess
 
 import pytest
 
+def _guard_test_idmap_unit_1():
+    if not shutil.which(CC):
+        pytest.skip("no C compiler")
+
+def _guard_test_idmap_unit_2():
+    if not os.path.isfile(os.path.join(NGINX_SRC, "src/core/ngx_config.h")):
+        pytest.skip(f"nginx source tree not at {NGINX_SRC} (set TEST_NGINX_SRC)")
+
+def _check_test_idmap_unit_1(build):
+    assert build.returncode == 0, f"compile failed:\n{build.stderr}"
+
+def _guard_test_idmap_unit_3(run):
+    if "SKIP:" in run.stdout:
+        pytest.skip(run.stdout.strip())
+
+
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # The nginx source tree (for ngx_config.h / ngx_core.h). Mirrors TEST_NGINX_BIN.
 NGINX_SRC = os.environ.get("TEST_NGINX_SRC", "/tmp/nginx-1.28.3")
@@ -31,10 +47,8 @@ def _inc_flags():
 
 @pytest.mark.timeout(60)
 def test_idmap_unit():
-    if not shutil.which(CC):
-        pytest.skip("no C compiler")
-    if not os.path.isfile(os.path.join(NGINX_SRC, "src/core/ngx_config.h")):
-        pytest.skip(f"nginx source tree not at {NGINX_SRC} (set TEST_NGINX_SRC)")
+    _guard_test_idmap_unit_1()
+    _guard_test_idmap_unit_2()
 
     # The C test's happy-path checks resolve the CURRENT user through the idmap,
     # which (correctly, for security) REFUSES any user that is a member of a
@@ -66,11 +80,13 @@ def test_idmap_unit():
     cmd = [CC, "-O2", "-D_GNU_SOURCE", *_inc_flags(),
            "-o", out_bin, test_c, idmap_c]
     build = subprocess.run(cmd, capture_output=True, text=True)
-    assert build.returncode == 0, f"compile failed:\n{build.stderr}"
+    _check_test_idmap_unit_1(build)
 
     run = subprocess.run([out_bin], capture_output=True, text=True, timeout=30)
     # The harness self-skips (rc 0, "SKIP:") when run as a sub-1000 uid.
-    if "SKIP:" in run.stdout:
-        pytest.skip(run.stdout.strip())
-    assert run.returncode == 0, f"idmap test failed:\n{run.stdout}\n{run.stderr}"
-    assert "ALL PASSED" in run.stdout, run.stdout
+    _guard_test_idmap_unit_3(run)
+    def _assert_test_idmap_unit_1():
+        assert run.returncode == 0, f"idmap test failed:\n{run.stdout}\n{run.stderr}"
+        assert "ALL PASSED" in run.stdout, run.stdout
+
+    _assert_test_idmap_unit_1()

@@ -1,4 +1,21 @@
 from split_continuation import reexport as _reexport
+def _guard_test_mkcol_rejects_double_encoded_traversal_segments_1(parent_path):
+    if os.path.exists(parent_path):
+        shutil.rmtree(parent_path)
+
+def _guard_test_mkcol_rejects_double_encoded_traversal_segments_2(target_path):
+    if os.path.exists(target_path):
+        shutil.rmtree(target_path)
+
+def _guard_test_mkcol_rejects_double_encoded_traversal_segments_3(parent_path):
+    if os.path.exists(parent_path):
+        shutil.rmtree(parent_path)
+
+def _guard_test_mkcol_rejects_double_encoded_traversal_segments_4(target_path):
+    if os.path.exists(target_path):
+        shutil.rmtree(target_path)
+
+
 _reexport(globals(), "_test_webdav_helpers")
 
 # The split helper owns the autouse fixture, so the static declaration scanner
@@ -346,10 +363,8 @@ class TestPathHardening:
         parent_path = _data_path(parent)
         target_path = _data_path(target)
 
-        if os.path.exists(parent_path):
-            shutil.rmtree(parent_path)
-        if os.path.exists(target_path):
-            shutil.rmtree(target_path)
+        _guard_test_mkcol_rejects_double_encoded_traversal_segments_1(parent_path)
+        _guard_test_mkcol_rejects_double_encoded_traversal_segments_2(target_path)
 
         os.makedirs(parent_path, exist_ok=True)
 
@@ -359,15 +374,16 @@ class TestPathHardening:
                 "-X", "MKCOL",
                 f"{BASE_URL}/{parent}%252F..%252F{target}",
             )
-            assert code == 403, f"Expected 403 for traversal path, got {code}"
-            assert not os.path.exists(target_path), (
-                "double-encoded traversal unexpectedly created a sibling directory"
-            )
+            def _assert_test_mkcol_rejects_double_encoded_traversal_segments_1():
+                assert code == 403, f"Expected 403 for traversal path, got {code}"
+                assert not os.path.exists(target_path), (
+                    "double-encoded traversal unexpectedly created a sibling directory"
+                )
+
+            _assert_test_mkcol_rejects_double_encoded_traversal_segments_1()
         finally:
-            if os.path.exists(parent_path):
-                shutil.rmtree(parent_path)
-            if os.path.exists(target_path):
-                shutil.rmtree(target_path)
+            _guard_test_mkcol_rejects_double_encoded_traversal_segments_3(parent_path)
+            _guard_test_mkcol_rejects_double_encoded_traversal_segments_4(target_path)
 
 
 # ---------------------------------------------------------------------------

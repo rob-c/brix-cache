@@ -59,6 +59,38 @@ from fleet_lifecycle_ports import LIFECYCLE_SHARED_PORTS
 from server_registry import NginxInstanceSpec
 from settings import NGINX_BIN, HOST, BIND_HOST
 
+def _phase_tpctune_1(export):
+    for plane in PLANES:
+        _plane_dir(export, plane).mkdir(parents=True)
+
+def _phase_tpctune_2(source, idp):
+    for server in (source, idp):
+        server.shutdown()
+        server.server_close()
+
+
+def _guard_tpctune_1():
+    if not os.path.exists(NGINX_BIN):
+        pytest.skip(f"nginx binary not found at {NGINX_BIN}")
+
+def _guard_tpctune_2():
+    if shutil.which("openssl") is None:
+        pytest.skip("openssl not found — cannot mint the mock source's cert")
+
+def _check_test_max_streams_splits_the_object_into_ranges_1(source):
+    assert len(heads(source, "/obj.bin")) == 1, source
+
+def _check_test_max_streams_splits_the_object_into_ranges_2(ranges):
+    assert len(ranges) == 4, ranges
+
+def _check_test_max_streams_splits_the_object_into_ranges_3(spans):
+    assert spans[0][0] == 0 and spans[-1][1] == len(PAYLOAD) - 1, spans
+
+def _check_test_max_streams_splits_the_object_into_ranges_4(s1, spans, e0):
+    assert s1 == e0 + 1, ("the range split left a hole or overlapped",
+                          spans)
+
+
 pytestmark = [pytest.mark.timeout(120),
               pytest.mark.uses_lifecycle_harness,
               pytest.mark.xdist_group("lc-audit15f-tpctune")]
@@ -102,10 +134,8 @@ class _IdpHandler(BaseHTTPRequestHandler):
 
 @pytest.fixture()
 def tpctune(lifecycle, tmp_path):
-    if not os.path.exists(NGINX_BIN):
-        pytest.skip(f"nginx binary not found at {NGINX_BIN}")
-    if shutil.which("openssl") is None:
-        pytest.skip("openssl not found — cannot mint the mock source's cert")
+    _guard_tpctune_1()
+    _guard_tpctune_2()
 
     cert, key = mint_localhost_cert(tmp_path)
     ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
@@ -124,8 +154,7 @@ def tpctune(lifecycle, tmp_path):
     fake_curl.chmod(0o755)
 
     export = tmp_path / "export"
-    for plane in PLANES:
-        _plane_dir(export, plane).mkdir(parents=True)
+    _phase_tpctune_1(export)
     for path in (tmp_path, export, *(export / p for p in PLANES),
                  *(_plane_dir(export, p) for p in PLANES)):
         os.chmod(path, 0o777)
@@ -144,9 +173,7 @@ def tpctune(lifecycle, tmp_path):
             reason="audit-15f webdav TPC tuning knobs"))
         yield ep, export, source.recorded, idp.recorded, curl_log
     finally:
-        for server in (source, idp):
-            server.shutdown()
-            server.server_close()
+        _phase_tpctune_2(source, idp)
 
 
 def _copy(ep, plane, name, obj="/obj.bin", headers=None, timeout=60):
@@ -240,19 +267,21 @@ def test_max_streams_splits_the_object_into_ranges(tpctune):
     (tpc_curl_multi.c tpc_ms_setup_stream)."""
     ep, export, source, _idp, _log = tpctune
     r = _copy(ep, "multi", "split.bin", headers={"X-Number-Of-Streams": "4"})
-    assert r.status_code == 201, (r.status_code, r.text[:400])
-    assert _landed(export, "multi", "split.bin") == PAYLOAD, \
-        "the reassembled multi-stream object differs from the source"
-    assert len(heads(source, "/obj.bin")) == 1, source
+    def _assert_test_max_streams_splits_the_object_into_ranges_1():
+        assert r.status_code == 201, (r.status_code, r.text[:400])
+        assert _landed(export, "multi", "split.bin") == PAYLOAD, \
+            "the reassembled multi-stream object differs from the source"
+
+    _assert_test_max_streams_splits_the_object_into_ranges_1()
+    _check_test_max_streams_splits_the_object_into_ranges_1(source)
     ranges = [r["range"] for r in gets(source, "/obj.bin")]
-    assert len(ranges) == 4, ranges
+    _check_test_max_streams_splits_the_object_into_ranges_2(ranges)
     spans = sorted(tuple(int(v) for v in re.match(r"bytes=(\d+)-(\d+)", rng)
                          .groups())
                    for rng in ranges)
-    assert spans[0][0] == 0 and spans[-1][1] == len(PAYLOAD) - 1, spans
+    _check_test_max_streams_splits_the_object_into_ranges_3(spans)
     for (_s0, e0), (s1, _e1) in zip(spans, spans[1:]):
-        assert s1 == e0 + 1, ("the range split left a hole or overlapped",
-                              spans)
+        _check_test_max_streams_splits_the_object_into_ranges_4(s1, spans, e0)
 
 
 def test_client_cannot_exceed_the_configured_stream_cap(tpctune):

@@ -80,8 +80,16 @@ def entry(argv: list[str]) -> int:
 
     with tempfile.TemporaryDirectory(prefix="cred_dup.") as tmp:
         results = run_checks(Path(tmp), nginx_bin=nginx_bin)
+    _print_results(results)
+    return _report_status(results)
+
+
+def _print_results(results: list[tuple[bool, str]]) -> None:
     for ok, message in results:
         print(f"  {'ok  ' if ok else 'FAIL'} {message}")
+
+
+def _report_status(results: list[tuple[bool, str]]) -> int:
     if all(ok for ok, _ in results):
         print("run_credential_dup_warn: ALL PASS")
         return 0

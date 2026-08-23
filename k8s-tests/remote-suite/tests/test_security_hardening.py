@@ -365,10 +365,16 @@ def test_dirlist_stat_skips_control_byte_names():
         status, listing = fs.dirlist(f"/{dirname}", DirListFlags.STAT)
         assert status.ok, f"dirlist failed: {status.message}"
         names = {entry.name for entry in listing}
-        assert safe_name in names
-        assert bad_name not in names
-        assert "evil_dirlist" not in names
-        assert "shadow.txt" not in names
+        def _assert_test_dirlist_stat_skips_control_byte_names_1():
+            assert safe_name in names
+            assert bad_name not in names
+
+        _assert_test_dirlist_stat_skips_control_byte_names_1()
+        def _assert_test_dirlist_stat_skips_control_byte_names_2():
+            assert "evil_dirlist" not in names
+            assert "shadow.txt" not in names
+
+        _assert_test_dirlist_stat_skips_control_byte_names_2()
     finally:
         for name in (safe_name, bad_name):
             try:

@@ -30,6 +30,11 @@ from settings import (
 
 from settings import TEST_ROOT as _TEST_ROOT
 
+def _guard_authdb_nginx_1(reachable):
+    if not reachable:
+        pytest.skip(f"Dedicated authdb nginx not running on port {AUTHDB_PORT}")
+
+
 AUTHDB_URL  = f"root://{url_host(HOST)}:{AUTHDB_PORT}"
 AUTHDB_DATA = os.path.join(_TEST_ROOT, "data-authdb")
 AUTHDB_FILE = os.path.join(AUTHDB_DATA, "authdb")
@@ -192,8 +197,7 @@ def authdb_nginx(authdb_setup):
     s.settimeout(2)
     reachable = s.connect_ex((HOST, AUTHDB_PORT)) == 0
     s.close()
-    if not reachable:
-        pytest.skip(f"Dedicated authdb nginx not running on port {AUTHDB_PORT}")
+    _guard_authdb_nginx_1(reachable)
 
     # SIGHUP so nginx reloads the authdb rules written by authdb_setup.
     pidfile = os.path.join(_TEST_ROOT, "dedicated", "authdb", "logs", "nginx.pid")

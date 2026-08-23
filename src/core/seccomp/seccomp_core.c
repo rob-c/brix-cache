@@ -196,23 +196,52 @@ brix_seccomp_core_add(scmp_filter_ctx ctx, uint32_t action, const char *name,
     return -1;
 }
 
+/*
+ * WHAT: Add every syscall name in one policy group to a seccomp filter.
+ * WHY:  Deny, optional-exec, and allow groups share identical fail-closed loops.
+ * HOW:  Resolve and add each rule through the canonical tolerant rule helper.
+ */
+static int
+brix_seccomp_add_group(scmp_filter_ctx ctx, uint32_t action,
+    const char *const *names, size_t count, brix_seccomp_err_fn err_fn,
+    void *ud, unsigned *added)
+{
+    size_t i;
+
+    for (i = 0; i < count; i++) {
+        if (brix_seccomp_core_add(ctx, action, names[i], err_fn, ud,
+                                  added) != 0)
+            return -1;
+    }
+    return 0;
+}
+
+/*
+ * WHAT: Publish final seccomp rule counts to optional caller outputs.
+ * WHY:  Counter reporting is independent from filter construction and loading.
+ * HOW:  Assign each count only when its output pointer is present.
+ */
+static void
+brix_seccomp_store_counts(unsigned *out_allow, unsigned *out_deny,
+    unsigned n_allow, unsigned n_deny)
+{
+    if (out_allow != NULL)
+        *out_allow = n_allow;
+    if (out_deny != NULL)
+        *out_deny = n_deny;
+}
+
 int
 brix_seccomp_core_apply(unsigned mode, unsigned allow_exec,
     brix_seccomp_err_fn err_fn, void *ud, unsigned *out_allow, unsigned *out_deny)
 {
     scmp_filter_ctx  ctx;
     uint32_t         def_action;
-    unsigned         i;
     unsigned         n_allow = 0;
     unsigned         n_deny = 0;
     int              rc;
 
-    if (out_allow != NULL) {
-        *out_allow = 0;
-    }
-    if (out_deny != NULL) {
-        *out_deny = 0;
-    }
+    brix_seccomp_store_counts(out_allow, out_deny, 0, 0);
 
     if (mode == BRIX_SECCOMP_CORE_OFF) {
         return BRIX_SECCOMP_CORE_OK;
@@ -238,25 +267,18 @@ brix_seccomp_core_apply(unsigned mode, unsigned allow_exec,
      * killed unless the operator opted into allow_exec (then it is allowlisted
      * below instead). */
     if (mode == BRIX_SECCOMP_CORE_ENFORCE) {
-        for (i = 0; i < BRIX_SECCOMP_N(brix_seccomp_deny_hard); i++) {
-            if (brix_seccomp_core_add(ctx, SCMP_ACT_KILL_PROCESS,
-                                      brix_seccomp_deny_hard[i], err_fn, ud,
-                                      &n_deny) != 0)
-            {
-                seccomp_release(ctx);
-                return BRIX_SECCOMP_CORE_ERR;
-            }
-        }
-        if (!allow_exec) {
-            for (i = 0; i < BRIX_SECCOMP_N(brix_seccomp_deny_exec); i++) {
-                if (brix_seccomp_core_add(ctx, SCMP_ACT_KILL_PROCESS,
-                                          brix_seccomp_deny_exec[i], err_fn, ud,
-                                          &n_deny) != 0)
-                {
-                    seccomp_release(ctx);
-                    return BRIX_SECCOMP_CORE_ERR;
-                }
-            }
+        if (brix_seccomp_add_group(ctx, SCMP_ACT_KILL_PROCESS,
+                                   brix_seccomp_deny_hard,
+                                   BRIX_SECCOMP_N(brix_seccomp_deny_hard),
+                                   err_fn, ud, &n_deny) != 0
+            || (!allow_exec
+                && brix_seccomp_add_group(ctx, SCMP_ACT_KILL_PROCESS,
+                                          brix_seccomp_deny_exec,
+                                          BRIX_SECCOMP_N(brix_seccomp_deny_exec),
+                                          err_fn, ud, &n_deny) != 0))
+        {
+            seccomp_release(ctx);
+            return BRIX_SECCOMP_CORE_ERR;
         }
     }
 
@@ -264,24 +286,22 @@ brix_seccomp_core_apply(unsigned mode, unsigned allow_exec,
      * (the enforce default action is EPERM, so not-killed is not enough). No-op
      * under audit (default already logs+allows) — harmless. */
     if (allow_exec) {
-        for (i = 0; i < BRIX_SECCOMP_N(brix_seccomp_deny_exec); i++) {
-            if (brix_seccomp_core_add(ctx, SCMP_ACT_ALLOW,
-                                      brix_seccomp_deny_exec[i], err_fn, ud,
-                                      &n_allow) != 0)
-            {
-                seccomp_release(ctx);
-                return BRIX_SECCOMP_CORE_ERR;
-            }
-        }
-    }
-
-    for (i = 0; i < BRIX_SECCOMP_N(brix_seccomp_allow); i++) {
-        if (brix_seccomp_core_add(ctx, SCMP_ACT_ALLOW, brix_seccomp_allow[i],
-                                  err_fn, ud, &n_allow) != 0)
+        if (brix_seccomp_add_group(ctx, SCMP_ACT_ALLOW,
+                                   brix_seccomp_deny_exec,
+                                   BRIX_SECCOMP_N(brix_seccomp_deny_exec),
+                                   err_fn, ud, &n_allow) != 0)
         {
             seccomp_release(ctx);
             return BRIX_SECCOMP_CORE_ERR;
         }
+    }
+
+    if (brix_seccomp_add_group(ctx, SCMP_ACT_ALLOW, brix_seccomp_allow,
+                               BRIX_SECCOMP_N(brix_seccomp_allow), err_fn, ud,
+                               &n_allow) != 0)
+    {
+        seccomp_release(ctx);
+        return BRIX_SECCOMP_CORE_ERR;
     }
 
     /* seccomp_load sets PR_SET_NO_NEW_PRIVS itself (SCMP_FLTATR_CTL_NNP defaults
@@ -296,12 +316,7 @@ brix_seccomp_core_apply(unsigned mode, unsigned allow_exec,
         return BRIX_SECCOMP_CORE_ERR;
     }
 
-    if (out_allow != NULL) {
-        *out_allow = n_allow;
-    }
-    if (out_deny != NULL) {
-        *out_deny = n_deny;
-    }
+    brix_seccomp_store_counts(out_allow, out_deny, n_allow, n_deny);
     return BRIX_SECCOMP_CORE_OK;
 }
 

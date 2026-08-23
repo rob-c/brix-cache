@@ -23,6 +23,35 @@ from pathlib import Path
 import pytest
 
 # conftest chdir()s into a scratch dir — anchor imports on this file's dir.
+def _phase_test_demote_on_evict_stream_1(deadline, cache):
+    while time.time() < deadline and list(cache.glob("plain_*.bin")):
+        time.sleep(1)
+
+
+def _check_tier_1(status, got, probe):
+    assert status == 200 and got == probe, "layout probe fill failed"
+
+def _check_tier_2(found):
+    assert len(found) == 1, f"probe object not found uniquely in hot cache: {found}"
+
+def _guard_test_demote_on_evict_stream_1(used):
+    if used < 10 or used > 96:
+        pytest.skip(f"filesystem usage {used}% outside testable 10-96% band")
+
+def _guard_test_demote_on_evict_stream_2(tmp_path):
+    if os.geteuid() == 0:
+        # Root harness: these dirs are template values, not the lifecycle
+        # data_root, so nothing else opens them — but the DE-ESCALATED worker
+        # (`nobody`) must unlink the planted victims from `cache` and write
+        # `cold`, and traverse the 0700 pytest tmp chain to reach them.
+        from cmdscripts import open_tree_for_worker
+        open_tree_for_worker(tmp_path)
+
+def _check_test_demote_on_evict_stream_3(cache):
+    assert not list(cache.glob("plain_*.bin")), \
+        "watermark reaper did not purge the planted files"
+
+
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "cvmfs"))
 
 from config_parse import nginx_t
@@ -69,10 +98,10 @@ def tier():
         hx = hashlib.sha1(probe).hexdigest()
         path = put_obj(s, probe)
         status, _, got = GET(s, path)
-        assert status == 200 and got == probe, "layout probe fill failed"
+        _check_tier_1(status, got, probe)
         found = [p for p in s.cache.rglob("*")
                  if p.is_file() and hx[2:] in p.name]
-        assert len(found) == 1, f"probe object not found uniquely in hot cache: {found}"
+        _check_tier_2(found)
         s.probe_hex = hx
         s.rel_template = str(found[0].relative_to(s.cache))
         yield s
@@ -225,20 +254,13 @@ def _fs_usage_percent(path: Path) -> int:
 
 def test_demote_on_evict_stream(lifecycle, tmp_path):
     used = _fs_usage_percent(tmp_path)
-    if used < 10 or used > 96:
-        pytest.skip(f"filesystem usage {used}% outside testable 10-96% band")
+    _guard_test_demote_on_evict_stream_1(used)
 
     cache = tmp_path / "cache"
     cold = tmp_path / "cold"
     for d in (cache, cold):
         d.mkdir()
-    if os.geteuid() == 0:
-        # Root harness: these dirs are template values, not the lifecycle
-        # data_root, so nothing else opens them — but the DE-ESCALATED worker
-        # (`nobody`) must unlink the planted victims from `cache` and write
-        # `cold`, and traverse the 0700 pytest tmp chain to reach them.
-        from cmdscripts import open_tree_for_worker
-        open_tree_for_worker(tmp_path)
+    _guard_test_demote_on_evict_stream_2(tmp_path)
 
     planted = {}
     for idx in range(1, 5):
@@ -267,12 +289,13 @@ def test_demote_on_evict_stream(lifecycle, tmp_path):
     ))
 
     deadline = time.time() + 25
-    while time.time() < deadline and list(cache.glob("plain_*.bin")):
-        time.sleep(1)
+    _phase_test_demote_on_evict_stream_1(deadline, cache)
 
-    assert not list(cache.glob("plain_*.bin")), \
-        "watermark reaper did not purge the planted files"
+    _check_test_demote_on_evict_stream_3(cache)
     for name, body in planted.items():
         demoted = cold / name
-        assert demoted.exists(), f"evicted {name} was not demoted to cold"
-        assert demoted.read_bytes() == body, f"demoted {name} bytes differ"
+        def _assert_test_demote_on_evict_stream_1():
+            assert demoted.exists(), f"evicted {name} was not demoted to cold"
+            assert demoted.read_bytes() == body, f"demoted {name} bytes differ"
+
+        _assert_test_demote_on_evict_stream_1()

@@ -300,63 +300,74 @@ def main():
     args = parser.parse_args()
 
     if args.command == "init":
-        issuer = TokenIssuer(args.token_dir)
-        issuer.init_keys()
+        TokenIssuer(args.token_dir).init_keys()
+        return
+    if args.command == "gen":
+        _generate_from_args(args)
+        return
+    parser.print_help()
 
-    elif args.command == "gen":
-        issuer = TokenIssuer(args.token_dir)
-        groups = args.groups.split(",") if args.groups else None
-        kwargs = {
-            "sub": args.sub,
-            "scope": args.scope,
-        }
-        if groups:
-            kwargs["groups"] = groups
-        if args.audience:
-            kwargs["audience"] = args.audience
-        if args.issuer:
-            kwargs["issuer"] = args.issuer
 
-        if args.kind == "valid":
-            token = issuer.generate(
-                lifetime=args.lifetime,
-                **kwargs,
-            )
-        elif args.kind == "expired":
-            token = issuer.generate_expired(**kwargs)
-        elif args.kind == "bad-signature":
-            token = issuer.generate_bad_signature(
-                lifetime=args.lifetime,
-                **kwargs,
-            )
-        elif args.kind == "wrong-issuer":
-            token = issuer.generate_wrong_issuer(
-                sub=args.sub,
-                scope=args.scope,
-                groups=groups,
-                lifetime=args.lifetime,
-                **({"audience": args.audience} if args.audience else {}),
-            )
-        elif args.kind == "wrong-audience":
-            token = issuer.generate_wrong_audience(
-                sub=args.sub,
-                scope=args.scope,
-                groups=groups,
-                lifetime=args.lifetime,
-                **({"issuer": args.issuer} if args.issuer else {}),
-            )
-        elif args.kind == "no-scope":
-            token = issuer.generate_no_scope(sub=args.sub)
+def _generate_from_args(args):
+    issuer = TokenIssuer(args.token_dir)
+    groups = args.groups.split(",") if args.groups else None
+    token = _issue_variant(issuer, args, groups)
+    _write_generated_token(token, args.output)
 
-        if args.output:
-            with open(args.output, "w") as f:
-                f.write(token)
-            print(f"Token written to {args.output}")
-        else:
-            print(token)
 
-    else:
-        parser.print_help()
+def _common_token_kwargs(args, groups):
+    values = {"sub": args.sub, "scope": args.scope}
+    if groups:
+        values["groups"] = groups
+    if args.audience:
+        values["audience"] = args.audience
+    if args.issuer:
+        values["issuer"] = args.issuer
+    return values
+
+
+def _issue_variant(issuer, args, groups):
+    kwargs = _common_token_kwargs(args, groups)
+    if args.kind == "valid":
+        return issuer.generate(lifetime=args.lifetime, **kwargs)
+    if args.kind == "expired":
+        return issuer.generate_expired(**kwargs)
+    if args.kind == "bad-signature":
+        return issuer.generate_bad_signature(lifetime=args.lifetime, **kwargs)
+    if args.kind == "wrong-issuer":
+        return issuer.generate_wrong_issuer(**_wrong_issuer_kwargs(args, groups))
+    if args.kind == "wrong-audience":
+        return issuer.generate_wrong_audience(**_wrong_audience_kwargs(args, groups))
+    return issuer.generate_no_scope(sub=args.sub)
+
+
+def _wrong_issuer_kwargs(args, groups):
+    values = {
+        "sub": args.sub, "scope": args.scope, "groups": groups,
+        "lifetime": args.lifetime,
+    }
+    if args.audience:
+        values["audience"] = args.audience
+    return values
+
+
+def _wrong_audience_kwargs(args, groups):
+    values = {
+        "sub": args.sub, "scope": args.scope, "groups": groups,
+        "lifetime": args.lifetime,
+    }
+    if args.issuer:
+        values["issuer"] = args.issuer
+    return values
+
+
+def _write_generated_token(token, output):
+    if not output:
+        print(token)
+        return
+    with open(output, "w") as handle:
+        handle.write(token)
+    print(f"Token written to {output}")
 
 
 if __name__ == "__main__":

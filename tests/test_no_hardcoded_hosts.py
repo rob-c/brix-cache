@@ -55,6 +55,37 @@ import re
 import sys
 from pathlib import Path
 
+def _expression_1(docstrings, node):
+    return (
+        not isinstance(node, ast.Constant) or id(node) in docstrings
+    )
+
+def _expression_2(node):
+    return (
+        getattr(node, "lineno", 0) or 0
+    )
+
+def _expression_3(lineno, node):
+    return (
+        getattr(node, "end_lineno", lineno) or lineno
+    )
+
+def _expression_4(lines, end, lineno):
+    return (
+        "\n".join(lines[max(lineno - 1, 0):end]) if lines else ""
+    )
+
+def _expression_5(lineno, lines):
+    return (
+        lines[lineno - 1].strip() if 0 < lineno <= len(lines) else ""
+    )
+
+
+def _guard_docstring_ids_1(v, out):
+    if isinstance(v, ast.Constant) and isinstance(v.value, str):
+        out.add(id(v))
+
+
 TESTS = Path(__file__).resolve().parent
 
 # ---------------------------------------------------------------------------
@@ -139,8 +170,7 @@ def _docstring_ids(tree: ast.AST) -> set[int]:
             body = getattr(node, "body", None) or []
             if body and isinstance(body[0], ast.Expr):
                 v = body[0].value
-                if isinstance(v, ast.Constant) and isinstance(v.value, str):
-                    out.add(id(v))
+                _guard_docstring_ids_1(v, out)
     return out
 
 
@@ -174,17 +204,17 @@ def scan_source(source: str, filename: str = "<src>"):
     docstrings = _docstring_ids(tree)
     viols = []
     for node in ast.walk(tree):
-        if not isinstance(node, ast.Constant) or id(node) in docstrings:
+        if _expression_1(docstrings, node):
             continue
         token = _token_in(node.value)
         if token is None:
             continue
-        lineno = getattr(node, "lineno", 0) or 0
-        end = getattr(node, "end_lineno", lineno) or lineno
-        span = "\n".join(lines[max(lineno - 1, 0):end]) if lines else ""
+        lineno = _expression_2(node)
+        end = _expression_3(lineno, node)
+        span = _expression_4(lines, end, lineno)
         if _ALLOW_MARKER.search(span):
             continue
-        raw = lines[lineno - 1].strip() if 0 < lineno <= len(lines) else ""
+        raw = _expression_5(lineno, lines)
         viols.append((lineno, token, raw))
     return viols
 

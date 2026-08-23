@@ -1,4 +1,18 @@
 from split_continuation import reexport as _reexport
+def _check_test_stage_noerrs_missing_file_collected_1(status, body):
+    assert status == kXR_ok, \
+        f"kXR_stage|kXR_noerrs for missing file must return ok: " \
+        f"status={status} body={body!r}"
+
+def _check_test_stage_noerrs_missing_file_collected_2():
+    assert os.path.getsize(PREPARE_CMD_LOG) > 0, \
+        "prepare_command not invoked for missing-file kXR_stage|kXR_noerrs"
+
+def _check_test_stage_noerrs_missing_file_collected_3(content):
+    assert content.endswith("/on_tape_not_disk.dat"), \
+        f"unexpected path in command args: {content!r}"
+
+
 _reexport(globals(), "_test_prepare_staging_helpers")
 
 class TestPrepareStageCommand:
@@ -107,20 +121,16 @@ class TestPrepareStageCommand:
                                      b"/on_tape_not_disk.dat\n")
         sock.close()
 
-        assert status == kXR_ok, \
-            f"kXR_stage|kXR_noerrs for missing file must return ok: " \
-            f"status={status} body={body!r}"
+        _check_test_stage_noerrs_missing_file_collected_1(status, body)
 
         for _ in range(30):
             if os.path.getsize(PREPARE_CMD_LOG) > 0:
                 break
             time.sleep(0.1)
 
-        assert os.path.getsize(PREPARE_CMD_LOG) > 0, \
-            "prepare_command not invoked for missing-file kXR_stage|kXR_noerrs"
+        _check_test_stage_noerrs_missing_file_collected_2()
         content = open(PREPARE_CMD_LOG).read().strip()
-        assert content.endswith("/on_tape_not_disk.dat"), \
-            f"unexpected path in command args: {content!r}"
+        _check_test_stage_noerrs_missing_file_collected_3(content)
 
     @pytest.mark.requires_local_server
     @pytest.mark.registry_server("prepare-command")

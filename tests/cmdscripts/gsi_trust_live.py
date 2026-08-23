@@ -21,6 +21,44 @@ from cmdscripts.live_common import LiveFailure, LiveRun, REPO_ROOT
 from settings import BIND_HOST, CA_CERT, CA_DIR, HOST, SERVER_CERT, SERVER_HOST, SERVER_KEY, TEST_ROOT
 from fleet_ports import cmdscript_ports
 
+def _proxy_make_failure(proxy_make):
+    return (
+        _skip("make_proxy.py failed: " + (proxy_make.stderr or "")[-300:])
+    )
+
+def _expression_2(checks, stored, src):
+    return (
+        checks.append(
+                    (
+                        stored.exists() and stored.read_bytes() == src.read_bytes(),
+                        "stock xrdcp wrote byte-exact through GSI (was: unknown CA / kXGS_init abort)",
+                    )
+                )
+    )
+
+def _expression_3(checks, cp_log, adv_inter_root, adv_root_inter):
+    return (
+        checks.append(
+                    (
+                        _grep(cp_log, adv_inter_root) or _grep(cp_log, adv_root_inter),
+                        f"sec token advertises {adv_inter_root} (either order)",
+                    )
+                )
+    )
+
+def _expression_4(checks, verify_got, src):
+    return (
+        checks.append((verify_got.exists() and verify_got.read_bytes() == src.read_bytes(), "verify GET byte-exact"))
+    )
+
+def _expression_5(checks, trust_got, root):
+    return (
+        checks.append(
+                    (trust_got.exists() and trust_got.read_bytes() == (root / "f.bin").read_bytes(), "trust GET matches on-disk bytes")
+                )
+    )
+
+
 XRDCP = REPO_ROOT / "client" / "bin" / "xrdcp"
 
 _PORTS = cmdscript_ports("gsi_trust_live")
@@ -151,7 +189,7 @@ def csi_trust(nginx: Path | None = None) -> int:
         checks.append((not (root / ".xrdt").exists(), "no .xrdt tag tree (retired)"))
         verify_got = run.root / "v.bin"
         checks.append((cp_down(p_ver, "f.bin", verify_got) == 0, "GET via verify server passes"))
-        checks.append((verify_got.exists() and verify_got.read_bytes() == src.read_bytes(), "verify GET byte-exact"))
+        _expression_4(checks, verify_got, src)
 
         # stale tags: verify fails, trust serves
         corrupted = bytearray((root / "f.bin").read_bytes())
@@ -161,9 +199,7 @@ def csi_trust(nginx: Path | None = None) -> int:
         checks.append((got != 0, f"verify server rejects corrupt page (rc={got})"))
         trust_got = run.root / "t.bin"
         checks.append((cp_down(p_tru, "f.bin", trust_got) == 0, "trust server serves it"))
-        checks.append(
-            (trust_got.exists() and trust_got.read_bytes() == (root / "f.bin").read_bytes(), "trust GET matches on-disk bytes")
-        )
+        _expression_5(checks, trust_got, root)
 
         # csi_require vs trust_fs on an untagged file
         (root / "untagged.bin").write_bytes(os.urandom(8192))
@@ -291,7 +327,7 @@ def gsi_intermediate_ca(nginx: Path | None = None) -> int:
         # RFC 3820 proxy for the stock client (it refuses bare EEC credentials)
         proxy_make = run.call(["python3", REPO_ROOT / "utils" / "make_proxy.py", pki], check=False)
         if proxy_make.returncode != 0:
-            return _skip("make_proxy.py failed: " + (proxy_make.stderr or "")[-300:])
+            return _proxy_make_failure(proxy_make)
 
         # Hashed CA DIRECTORY (grid /etc/grid-security/certificates shape): both CAs
         hashes: dict[str, str] = {}
@@ -341,12 +377,7 @@ stream {{ server {{
         checks: list[tuple[bool, str]] = []
         stock_cp(cadir, pki / "user" / "proxy_std.pem", "stock.bin", "cp.log")
         stored = root / "stock.bin"
-        checks.append(
-            (
-                stored.exists() and stored.read_bytes() == src.read_bytes(),
-                "stock xrdcp wrote byte-exact through GSI (was: unknown CA / kXGS_init abort)",
-            )
-        )
+        _expression_2(checks, stored, src)
         cp_log = logs / "cp.log"
         # The server enumerates the hashed CA dir with readdir() (pki_load.c), so
         # the two CA subject-hashes are advertised in filesystem order, which is
@@ -355,12 +386,7 @@ stream {{ server {{
         # already proves the client accepted the chain).
         adv_inter_root = f"ca:{hashes['inter']}|{hashes['root']}"
         adv_root_inter = f"ca:{hashes['root']}|{hashes['inter']}"
-        checks.append(
-            (
-                _grep(cp_log, adv_inter_root) or _grep(cp_log, adv_root_inter),
-                f"sec token advertises {adv_inter_root} (either order)",
-            )
-        )
+        _expression_3(checks, cp_log, adv_inter_root, adv_root_inter)
         checks.append((not _grep(cp_log, "ca:00000000"), "no 00000000 placeholder"))
 
         # MITM negative: client with an EMPTY CA dir must refuse the server

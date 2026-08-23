@@ -30,6 +30,17 @@ import pytest
 import settings
 
 
+def _phase_port_owners_1():
+    for key, port in hybrid_mesh_lib.PORTS.items():
+        claim(port, f"hybrid-mesh:{key}")
+
+
+def _expression_1(owners):
+    return (
+        {port: sorted(who) for port, who in owners.items() if len(who) > 1}
+    )
+
+
 def test_test_sources_never_request_kernel_assigned_ports():
     """Every test listener must consume a TEST_PORT_START-assigned port.
 
@@ -88,10 +99,9 @@ def _port_owners() -> dict[int, list[str]]:
             claim(port, f"fleet:{spec.name}")
     for key, port in cms_mesh_lib.PORTS.items():
         claim(port, f"cms-mesh:{key}")
-    for key, port in hybrid_mesh_lib.PORTS.items():
-        claim(port, f"hybrid-mesh:{key}")
+    _phase_port_owners_1()
 
-    return {port: sorted(who) for port, who in owners.items() if len(who) > 1}
+    return _expression_1(owners)
 
 
 def test_fleet_and_mesh_ports_are_globally_unique():

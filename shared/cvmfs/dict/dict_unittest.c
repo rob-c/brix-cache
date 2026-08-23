@@ -44,6 +44,42 @@ static size_t make_sample(unsigned i, char *out) {
         i, i % 10, i * 7 % 100, i % 5, i, i * 2654435761u, i, i * 40503u);
 }
 
+/* WHAT: Round-trip the corpus and accumulate dictionary/no-dictionary sizes.
+ * WHY: Isolate the streaming comparison from training and negative tests.
+ * HOW: Compress/decompress every packed sample, compare bytes, then compress
+ *      without a dictionary and return failure at the first codec defect. */
+static int roundtrip_corpus(const char *samples, const size_t *sizes,
+                            const unsigned char *dict, size_t dictlen,
+                            unsigned char *wire, size_t wire_cap,
+                            unsigned char *back, size_t back_cap,
+                            size_t *with_dict, size_t *without_dict) {
+    size_t off = 0;
+
+    for (unsigned i = 0; i < NSAMPLES; i++) {
+        size_t n, m;
+
+        if (cvmfs_dict_compress(dict, dictlen,
+                                (const unsigned char *) samples + off, sizes[i],
+                                wire, wire_cap, &n) != 0
+            || cvmfs_dict_decompress(dict, dictlen, wire, n,
+                                     back, back_cap, &m) != 0
+            || m != sizes[i] || memcmp(back, samples + off, m) != 0)
+        {
+            return -1;
+        }
+        *with_dict += n;
+        if (cvmfs_dict_compress(NULL, 0,
+                                (const unsigned char *) samples + off, sizes[i],
+                                wire, wire_cap, &n) != 0)
+        {
+            return -1;
+        }
+        *without_dict += n;
+        off += sizes[i];
+    }
+    return 0;
+}
+
 int main(void) {
     static char   samples[NSAMPLES * SAMPLE_CAP];
     static size_t sizes[NSAMPLES];
@@ -54,7 +90,6 @@ int main(void) {
     char   id[CVMFS_DICT_ID_HEXLEN + 1], id2[CVMFS_DICT_ID_HEXLEN + 1];
     size_t off = 0, with_dict = 0, without_dict = 0;
     unsigned i;
-    int    ok;
 
     /* samples packed back-to-back — ZDICT wants one contiguous buffer */
     for (i = 0; i < NSAMPLES; i++) {
@@ -76,29 +111,9 @@ int main(void) {
           "dict id is deterministic");
 
     /* ---- success: exact roundtrip + trained-beats-dictless ratio ---- */
-    ok = 1;
-    off = 0;
-    for (i = 0; i < NSAMPLES; i++) {
-        if (cvmfs_dict_compress(dict, dictlen,
-                                (unsigned char *) samples + off, sizes[i],
-                                wire, sizeof(wire), &n) != 0
-            || cvmfs_dict_decompress(dict, dictlen, wire, n,
-                                     back, sizeof(back), &m) != 0
-            || m != sizes[i] || memcmp(back, samples + off, m) != 0) {
-            ok = 0;
-            break;
-        }
-        with_dict += n;
-        if (cvmfs_dict_compress(NULL, 0,
-                                (unsigned char *) samples + off, sizes[i],
-                                wire, sizeof(wire), &n) != 0) {
-            ok = 0;
-            break;
-        }
-        without_dict += n;
-        off += sizes[i];
-    }
-    CHECK(ok, "every sample roundtrips exactly through the dict");
+    CHECK(roundtrip_corpus(samples, sizes, dict, dictlen, wire, sizeof(wire),
+                           back, sizeof(back), &with_dict, &without_dict) == 0,
+          "every sample roundtrips exactly through the dict");
     CHECK(with_dict < without_dict,
           "trained dict beats dictless zstd on the corpus");
 

@@ -18,12 +18,24 @@ def test_dashboard_vfs_browse_flow(tmp_path):
         f"{'ok' if ok else 'FAIL'} {message}" for ok, message in results
     )
     messages = [message for _, message in results]
-    assert "config parses (brix_dashboard_vfs_browse)" in messages
-    assert any(message.startswith("pblock seeded via WebDAV PUT") for message in messages)
-    assert "census lists posix + pblock exports" in messages
-    assert "posix export lists via VFS (size+kind)" in messages
-    assert "pblock export shows the LOGICAL namespace" in messages
-    assert "pblock download byte-exact through VFS" in messages
-    assert "unauthenticated -> 401" in messages
-    assert "traversal path rejected (400)" in messages
+    def _assert_test_dashboard_vfs_browse_flow_1():
+        assert "config parses (brix_dashboard_vfs_browse)" in messages
+        assert any(message.startswith("pblock seeded via WebDAV PUT") for message in messages)
+
+    _assert_test_dashboard_vfs_browse_flow_1()
+    def _assert_test_dashboard_vfs_browse_flow_2():
+        assert "census lists posix + pblock exports" in messages
+        assert "posix export lists via VFS (size+kind)" in messages
+
+    _assert_test_dashboard_vfs_browse_flow_2()
+    def _assert_test_dashboard_vfs_browse_flow_3():
+        assert "pblock export shows the LOGICAL namespace" in messages
+        assert "pblock download byte-exact through VFS" in messages
+
+    _assert_test_dashboard_vfs_browse_flow_3()
+    def _assert_test_dashboard_vfs_browse_flow_4():
+        assert "unauthenticated -> 401" in messages
+        assert "traversal path rejected (400)" in messages
+
+    _assert_test_dashboard_vfs_browse_flow_4()
     assert "feature off -> 404" in messages

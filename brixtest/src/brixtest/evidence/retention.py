@@ -29,22 +29,40 @@ class RetentionPolicy:
 def candidates(root: Path, policy: RetentionPolicy, *, now: float = 0.0) -> list[Path]:
     base = Path(root).resolve()
     current = now or time.time()
-    sessions = sorted((path for path in base.iterdir() if path.is_dir()),
-                      key=lambda path: path.stat().st_mtime, reverse=True) if base.is_dir() else []
+    sessions = _sessions(base)
     selected = []
     for index, path in enumerate(sessions):
-        if index < policy.keep_latest:
-            continue
-        try:
-            payload = json.loads((path / "session.json").read_text())
-        except (OSError, ValueError, TypeError):
-            continue
-        failed = bool(payload.get("counts", {}).get("failed", 0))
-        age_days = (current - path.stat().st_mtime) / 86400.0
-        threshold = policy.keep_failures_days if failed else policy.keep_days
-        if age_days > threshold:
+        if _expired(path, index, policy, current):
             selected.append(path)
     return selected
+
+
+def _sessions(base: Path) -> list[Path]:
+    if not base.is_dir():
+        return []
+    rows = [path for path in base.iterdir() if path.is_dir()]
+    return sorted(rows, key=lambda path: path.stat().st_mtime, reverse=True)
+
+
+def _session_payload(path: Path) -> object:
+    try:
+        return json.loads((path / "session.json").read_text())
+    except (OSError, ValueError, TypeError):
+        return None
+
+
+def _expired(
+    path: Path, index: int, policy: RetentionPolicy, current: float,
+) -> bool:
+    if index < policy.keep_latest:
+        return False
+    payload = _session_payload(path)
+    if not isinstance(payload, dict):
+        return False
+    failed = bool(payload.get("counts", {}).get("failed", 0))
+    age_days = (current - path.stat().st_mtime) / 86400.0
+    threshold = policy.keep_failures_days if failed else policy.keep_days
+    return age_days > threshold
 
 
 def prune(root: Path, paths: Sequence[Path]) -> int:

@@ -42,6 +42,28 @@ from server_registry import NginxInstanceSpec
 # registry (LifecycleHarness); the marker keeps this suite out of the
 # registry-lint direct-launch scope.  The rest of the module drives the
 # session fleet.
+def _guard_xrddiag_1():
+    if shutil.which("cc") is None and shutil.which("gcc") is None:
+        pytest.skip("no C compiler to build the native client")
+
+def _guard_xrddiag_2(proc):
+    if proc.returncode != 0 or not os.path.exists(NATIVE_XRDDIAG):
+        pytest.skip(f"xrddiag build failed:\n{proc.stdout}\n{proc.stderr}")
+
+def _guard_xrddiag_3():
+    if not _port_up(SERVER_HOST, NGINX_ANON_PORT):
+        pytest.skip("anon server not running (start the test fleet)")
+
+def _check_test_bench_netdiag_pii_free_1(p):
+    assert p.returncode == 0, p.stderr
+
+def _check_test_bench_netdiag_pii_free_3(m, p):
+    assert m and int(m.group(1)) >= 0, p.stdout
+
+def _check_test_bench_netdiag_pii_free_2(leak, joined):
+    assert leak not in joined, f"PII/secret leaked in netdiag: {joined}"
+
+
 pytestmark = [pytest.mark.timeout(120), pytest.mark.uses_lifecycle_harness,
               pytest.mark.xdist_group("xrddiag")]
 
@@ -57,16 +79,13 @@ _CLEAN_ENV.pop("X509_CERT_DIR", None)
 
 @pytest.fixture(scope="module")
 def xrddiag():
-    if shutil.which("cc") is None and shutil.which("gcc") is None:
-        pytest.skip("no C compiler to build the native client")
+    _guard_xrddiag_1()
     proc = subprocess.run(["make", "-C", os.path.join(REPO, "client"), "xrddiag"],
                           capture_output=True, text=True, timeout=180)
-    if proc.returncode != 0 or not os.path.exists(NATIVE_XRDDIAG):
-        pytest.skip(f"xrddiag build failed:\n{proc.stdout}\n{proc.stderr}")
+    _guard_xrddiag_2(proc)
     # Every subcommand needs the anon server; skip cleanly when the fleet is down
     # (e.g. between harness restarts) rather than hard-failing.
-    if not _port_up(SERVER_HOST, NGINX_ANON_PORT):
-        pytest.skip("anon server not running (start the test fleet)")
+    _guard_xrddiag_3()
     return NATIVE_XRDDIAG
 
 
@@ -280,18 +299,18 @@ def test_bench_netdiag_pii_free(netdiag_server):
     port = netdiag_server
     p = subprocess.run([NATIVE_XRDDIAG, "bench", f"root://{url_host(HOST)}:{port}//big.bin"],
                        capture_output=True, text=True, timeout=40)
-    assert p.returncode == 0, p.stderr
+    _check_test_bench_netdiag_pii_free_1(p)
     # isolate the diagnostic block (phases + family + TCP_INFO lines)
     block = [ln for ln in p.stdout.splitlines()
              if any(k in ln for k in ("phases", "tcp", "tls", "login", "total",
                                       "Connected via", "TCP_INFO", "Flow label"))]
     joined = "\n".join(block)
     for leak in ("BEARER", "x509", "/etc/", "PRIVATE", "subject="):
-        assert leak not in joined, f"PII/secret leaked in netdiag: {joined}"
+        _check_test_bench_netdiag_pii_free_2(leak, joined)
     # rtt is a non-negative integer
     import re
     m = re.search(r"rtt=(\d+) us", p.stdout)
-    assert m and int(m.group(1)) >= 0, p.stdout
+    _check_test_bench_netdiag_pii_free_3(m, p)
 
 
 # --------------------------------------------------------------------------

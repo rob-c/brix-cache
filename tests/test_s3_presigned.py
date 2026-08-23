@@ -173,6 +173,46 @@ def _header_auth(base: str, key: str, request_time: dt.datetime,
     return headers
 
 
+def _post_policy(request_time, credential, policy_key, data_len, content_type):
+    policy = {
+        "expiration": (
+            request_time + dt.timedelta(hours=1)
+        ).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "conditions": [
+            {"bucket": BUCKET},
+            ["eq", "$key", policy_key],
+            {"x-amz-algorithm": "AWS4-HMAC-SHA256"},
+            {"x-amz-credential": credential},
+            {"x-amz-date": request_time.strftime("%Y%m%dT%H%M%SZ")},
+            ["content-length-range", 0, data_len + 16],
+        ],
+    }
+    if content_type is not None:
+        policy["conditions"].append(["eq", "$Content-Type", content_type])
+    return policy
+
+
+def _post_signature(policy_b64, date, signature_override):
+    if signature_override is not None:
+        return signature_override
+    return hmac.new(
+        _signing_key(SECRET_KEY, date, REGION),
+        policy_b64.encode(), hashlib.sha256).hexdigest()
+
+
+def _post_form_fields(key, policy_b64, credential, amz_date, signature,
+                      content_type):
+    fields = {
+        "key": key, "policy": policy_b64,
+        "x-amz-algorithm": "AWS4-HMAC-SHA256",
+        "x-amz-credential": credential, "x-amz-date": amz_date,
+        "x-amz-signature": signature, "success_action_status": "201",
+    }
+    if content_type is not None:
+        fields["Content-Type"] = content_type
+    return fields
+
+
 def _post_policy_fields(key: str, data_len: int, *,
                         request_time: dt.datetime,
                         content_type: str | None = None,
@@ -182,43 +222,14 @@ def _post_policy_fields(key: str, data_len: int, *,
     date = request_time.strftime("%Y%m%d")
     credential = f"{ACCESS_KEY}/{date}/{REGION}/s3/aws4_request"
     effective_policy_key = policy_key if policy_key is not None else key
-    policy = {
-        "expiration": (
-            request_time + dt.timedelta(hours=1)
-        ).strftime("%Y-%m-%dT%H:%M:%SZ"),
-        "conditions": [
-            {"bucket": BUCKET},
-            ["eq", "$key", effective_policy_key],
-            {"x-amz-algorithm": "AWS4-HMAC-SHA256"},
-            {"x-amz-credential": credential},
-            {"x-amz-date": amz_date},
-            ["content-length-range", 0, data_len + 16],
-        ],
-    }
-    if content_type is not None:
-        policy["conditions"].append(["eq", "$Content-Type", content_type])
+    policy = _post_policy(request_time, credential, effective_policy_key,
+                          data_len, content_type)
     policy_b64 = base64.b64encode(
         json.dumps(policy, separators=(",", ":")).encode()
     ).decode()
-    signature = hmac.new(
-        _signing_key(SECRET_KEY, date, REGION),
-        policy_b64.encode(),
-        hashlib.sha256,
-    ).hexdigest()
-    if signature_override is not None:
-        signature = signature_override
-    fields = {
-        "key": key,
-        "policy": policy_b64,
-        "x-amz-algorithm": "AWS4-HMAC-SHA256",
-        "x-amz-credential": credential,
-        "x-amz-date": amz_date,
-        "x-amz-signature": signature,
-        "success_action_status": "201",
-    }
-    if content_type is not None:
-        fields["Content-Type"] = content_type
-    return fields
+    signature = _post_signature(policy_b64, date, signature_override)
+    return _post_form_fields(key, policy_b64, credential, amz_date, signature,
+                             content_type)
 
 
 @pytest.mark.registry_server("s3-presigned")

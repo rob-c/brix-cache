@@ -31,6 +31,25 @@ import sys
 
 import pytest
 
+def _guard_defs_1(item, out, source):
+    if isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef)):
+        out[item.name] = ast.get_source_segment(source, item)
+
+def _guard_defs_2(item, out, source):
+    if isinstance(item, ast.FunctionDef):
+        out[item.name] = ast.get_source_segment(source, item)
+
+def _check_test_every_moved_body_is_byte_identical_1(flat, source):
+    assert flat, source
+
+def _check_test_every_moved_body_is_byte_identical_2(missing, module):
+    assert missing == [], "%s lost %s" % (module, missing)
+
+def _check_test_every_moved_body_is_byte_identical_3(changed, module):
+    assert changed <= _DEVIATIONS, (
+        "%s: unannounced rewrite of %s" % (module, sorted(changed - _DEVIATIONS)))
+
+
 TESTS = pathlib.Path(__file__).resolve().parent
 SRC = TESTS.parent / "brixtest" / "src"
 LEGACY = TESTS / "brix_suite" / "_legacy"
@@ -71,11 +90,9 @@ def _defs(path: pathlib.Path) -> dict:
     for node in ast.walk(tree):
         if isinstance(node, ast.ClassDef):
             for item in node.body:
-                if isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                    out[item.name] = ast.get_source_segment(source, item)
+                _guard_defs_1(item, out, source)
     for item in tree.body:
-        if isinstance(item, ast.FunctionDef):
-            out[item.name] = ast.get_source_segment(source, item)
+        _guard_defs_2(item, out, source)
     return out
 
 
@@ -100,14 +117,13 @@ def test_the_package_composes_the_same_class():
 def test_every_moved_body_is_byte_identical(source, module):
     flat = _defs(TESTS / source)
     moved = _defs(PKG / module)
-    assert flat, source
+    _check_test_every_moved_body_is_byte_identical_1(flat, source)
 
     missing = sorted(name for name in flat if name not in moved)
-    assert missing == [], "%s lost %s" % (module, missing)
+    _check_test_every_moved_body_is_byte_identical_2(missing, module)
 
     changed = {name for name, text in flat.items() if moved[name] != text}
-    assert changed <= _DEVIATIONS, (
-        "%s: unannounced rewrite of %s" % (module, sorted(changed - _DEVIATIONS)))
+    _check_test_every_moved_body_is_byte_identical_3(changed, module)
 
 
 def test_the_facade_carries_the_bodies_the_flat_assembly_carried():

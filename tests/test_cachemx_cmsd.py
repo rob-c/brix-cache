@@ -107,17 +107,22 @@ def test_data_server_registers(cms):
                     "brix_cluster_servers_registered") == 1
 
 
+def _single_metric_value(text, prefix):
+    rows = [line for line in text.splitlines() if line.startswith(prefix)]
+    assert len(rows) == 1
+    return float(rows[0].rsplit(" ", 1)[1])
+
+
 def test_per_server_gauges_exported(cms):
     """The manager exports utilization and last-seen gauges keyed by the
     data-server's address; last-seen stays fresh (heartbeats flowing)."""
     text = cx.mfetch(cms.redir_metrics)
-    util = [l for l in text.splitlines()
-            if l.startswith("brix_cluster_server_utilization_percent{")]
-    seen = [l for l in text.splitlines()
-            if l.startswith("brix_cluster_server_last_seen_seconds{")]
-    assert len(util) == 1 and len(seen) == 1
-    assert 0 <= float(util[0].rsplit(" ", 1)[1]) <= 100
-    assert float(seen[0].rsplit(" ", 1)[1]) < 60
+    util = _single_metric_value(
+        text, "brix_cluster_server_utilization_percent{")
+    seen = _single_metric_value(
+        text, "brix_cluster_server_last_seen_seconds{")
+    assert 0 <= util <= 100
+    assert seen < 60
 
 
 def test_redirected_read_exact_payload(cms):
@@ -167,11 +172,23 @@ def test_manager_books_login_ledger(cms):
     redirected — at least the logins and stats seen so far."""
     text = cx.mfetch(cms.redir_metrics)
     lbl = f'port="{cms.redir.port}",auth="anon"'
-    logins = [l for l in text.splitlines()
-              if l.startswith("brix_requests_total{")
-              and lbl in l and 'op="login"' in l and 'status="ok"' in l]
+    logins = _manager_login_rows(text, lbl)
     assert logins, "manager exported no login ledger row"
     assert int(logins[0].rsplit(" ", 1)[1]) >= 3
+
+
+def _manager_login_rows(text, label):
+    rows = []
+    for line in text.splitlines():
+        if not line.startswith("brix_requests_total{"):
+            continue
+        if label not in line:
+            continue
+        if 'op="login"' not in line:
+            continue
+        if 'status="ok"' in line:
+            rows.append(line)
+    return rows
 
 
 def test_manager_holds_no_cache_counters(cms):

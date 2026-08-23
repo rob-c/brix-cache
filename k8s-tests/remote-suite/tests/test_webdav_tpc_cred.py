@@ -32,6 +32,10 @@ from settings import (
     url_host,
 )
 
+def _check_copy_pull_1(result):
+    assert result.returncode == 0, result.stderr.decode(errors="replace")
+
+
 PKI_DIR = Path(PKI_DIR_STR)
 CA_PEM = PKI_DIR / "ca" / "ca.pem"
 CLIENT_CERT = PKI_DIR / "user" / "usercert.pem"
@@ -84,7 +88,7 @@ def _copy_pull(dest_port, dest_path, source_url, *extra_headers, timeout=30):
             args.extend(["-H", h])
     args.extend(["-w", "%{http_code}", "-o", "/dev/null"])
     result = _curl(*args, timeout=timeout)
-    assert result.returncode == 0, result.stderr.decode(errors="replace")
+    _check_copy_pull_1(result)
     return int(result.stdout.strip())
 
 

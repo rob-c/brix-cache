@@ -9,8 +9,8 @@ import shutil
 from pathlib import Path
 from typing import Dict, Mapping, Optional, Sequence
 
-from brixtest.design import ConfigFile, Server
 from brixtest.config.material import material
+from brixtest.design import ConfigFile, Server
 from brixtest.errors import SpecError
 from brixtest.util.configtext import render_cfg_strict
 
@@ -79,14 +79,13 @@ class ConfigStore:
                 ),
             )
         rendered.write_text(text)
-        item = CapturedConfig(
+        return CapturedConfig(
             server=server.name, source=source, snapshot=snapshot, rendered=rendered,
             source_sha256=selected.source_sha256,
             declared_sha256=selected.declared_sha256,
             rendered_sha256=_sha256(rendered), template=config.template,
             filename=config.destination,
         )
-        return item
 
     def capture_all(
         self, server: Server, values: Mapping[str, object],

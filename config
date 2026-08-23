@@ -1055,10 +1055,12 @@ ngx_module_srcs="\
     $ngx_addon_dir/src/tpc/outbound/source.c \
     $ngx_addon_dir/src/tpc/outbound/source_open.c \
     $ngx_addon_dir/src/tpc/outbound/source_stream.c \
+    $ngx_addon_dir/src/tpc/outbound/source_verify.c \
     $ngx_addon_dir/src/tpc/outbound/thread.c \
     $ngx_addon_dir/src/tpc/engine/done.c \
     $ngx_addon_dir/src/tpc/engine/launch.c \
     $ngx_addon_dir/src/tpc/engine/launch_prepare.c \
+    $ngx_addon_dir/src/tpc/engine/launch_dest.c \
     $ngx_addon_dir/src/tpc/outbound/tpc_token.c \
     $ngx_addon_dir/src/tpc/outbound/tpc_token_exchange.c \
     $ngx_addon_dir/src/auth/token/jwks.c \

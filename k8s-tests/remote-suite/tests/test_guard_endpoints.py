@@ -38,6 +38,33 @@ import pytest
 from guard_http_lib import NGINX_BIN, AuditLog, GuardServer, free_port
 from settings import HOST, BIND_HOST
 
+def _phase_fleet_1(dav_root, s3_root, xrd_root):
+    for d in (dav_root, s3_root, xrd_root):
+        d.mkdir()
+
+
+def _expression_1():
+    return (
+        {name: free_port() for name in ("dav", "s3", "ops", "xrd", "cms")}
+    )
+
+def _expression_2(root):
+    return (
+        {name: root / f"{name}-audit.log" for name in ("dav", "s3", "ops")}
+    )
+
+
+def _guard_fleet_1():
+    if not os.access(NGINX_BIN, os.X_OK):
+        pytest.skip(f"nginx not executable: {NGINX_BIN}")
+
+def _check_fleet_1(rc):
+    assert rc.returncode == 0, f"nginx -t failed: {rc.stderr}"
+
+def _check_fleet_2(rc):
+    assert rc.returncode == 0, f"nginx start failed: {rc.stderr}"
+
+
 REPO = pathlib.Path(__file__).resolve().parents[1]
 XRDFS = str(REPO / "client" / "bin" / "xrdfs")
 FILTER_DIR = REPO / "deploy" / "fail2ban" / "filter.d"
@@ -80,23 +107,21 @@ def _port_alive(port):
 
 @pytest.fixture(scope="module")
 def fleet(tmp_path_factory):
-    if not os.access(NGINX_BIN, os.X_OK):
-        pytest.skip(f"nginx not executable: {NGINX_BIN}")
+    _guard_fleet_1()
 
     root = tmp_path_factory.mktemp("guardendp")
     (root / "logs").mkdir()
     dav_root = root / "dav_export"
     s3_root = root / "s3_export"
     xrd_root = root / "xrd_export"
-    for d in (dav_root, s3_root, xrd_root):
-        d.mkdir()
+    _phase_fleet_1(dav_root, s3_root, xrd_root)
     (dav_root / "hello.txt").write_bytes(b"dav-hello\n")
     (s3_root / "bucket").mkdir()
     (s3_root / "bucket" / "obj.bin").write_bytes(b"s3-object\n")
     (xrd_root / "f.bin").write_bytes(os.urandom(4096))
 
-    ports = {name: free_port() for name in ("dav", "s3", "ops", "xrd", "cms")}
-    audits = {name: root / f"{name}-audit.log" for name in ("dav", "s3", "ops")}
+    ports = _expression_1()
+    audits = _expression_2(root)
 
     conf = root / "nginx.conf"
     conf.write_text(f"""
@@ -157,10 +182,10 @@ stream {{
 """)
     rc = subprocess.run([NGINX_BIN, "-t", "-p", str(root), "-c", str(conf)],
                         capture_output=True, text=True)
-    assert rc.returncode == 0, f"nginx -t failed: {rc.stderr}"
+    _check_fleet_1(rc)
     rc = subprocess.run([NGINX_BIN, "-p", str(root), "-c", str(conf)],
                         capture_output=True, text=True)
-    assert rc.returncode == 0, f"nginx start failed: {rc.stderr}"
+    _check_fleet_2(rc)
     deadline = time.time() + 10
     while time.time() < deadline and not all(
             _port_alive(p) for p in ports.values()):

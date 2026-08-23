@@ -39,6 +39,15 @@ from server_registry import NginxInstanceSpec
 import impersonation_gridmap_helpers as H
 from settings import BIND_HOST
 
+def _check_test_pblock_blobs_and_db_never_root_owned_1(r):
+    assert r.status_code in (200, 201, 204), r.text
+
+def _check_test_pblock_blobs_and_db_never_root_owned_2(content):
+    assert ('dropped to "nobody"' in content                        # pblock drop
+            or 'dropped a root-capable worker to "nobody"' in content), \
+        "expected the worker root->nobody drop to be logged"
+
+
 pytestmark = [
     pytest.mark.privileged,
     pytest.mark.skipif(os.geteuid() != 0,
@@ -131,12 +140,15 @@ def test_pblock_blobs_and_db_never_root_owned(harness):
     url, prefix = _start(harness, "pb-owned", export)
 
     r = requests.put(f"{url}/object.dat", data=b"pblock-body-xyz", timeout=30)
-    assert r.status_code in (200, 201, 204), r.text
+    _check_test_pblock_blobs_and_db_never_root_owned_1(r)
 
     blocks = _block_files(export)
     cats = _catalog_files(export)
-    assert blocks, "the object must have produced at least one block file on disk"
-    assert cats, "the pblock catalog.db must exist on disk"
+    def _assert_test_pblock_blobs_and_db_never_root_owned_1():
+        assert blocks, "the object must have produced at least one block file on disk"
+        assert cats, "the pblock catalog.db must exist on disk"
+
+    _assert_test_pblock_blobs_and_db_never_root_owned_1()
     for path, st in blocks:
         _assert_unprivileged(st, f"blob {path}")
     for c in cats:
@@ -150,9 +162,7 @@ def test_pblock_blobs_and_db_never_root_owned(harness):
     if os.path.exists(log):
         with open(log, encoding="utf-8", errors="replace") as fh:
             content = fh.read()
-        assert ('dropped to "nobody"' in content                        # pblock drop
-                or 'dropped a root-capable worker to "nobody"' in content), \
-            "expected the worker root->nobody drop to be logged"
+        _check_test_pblock_blobs_and_db_never_root_owned_2(content)
 
 
 def test_pblock_large_object_stripes_into_multiple_unprivileged_blocks(harness):

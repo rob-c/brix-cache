@@ -5,6 +5,10 @@ import pytest
 
 from cmdscripts import cache_passthrough
 
+def _check_test_cache_passthrough_scenario_1(nginx, scenario):
+    assert cache_passthrough.SCENARIOS[scenario](nginx) == 0
+
+
 pytestmark = pytest.mark.xdist_group("cmd-cache_passthrough")
 
 
@@ -24,4 +28,4 @@ def test_cache_passthrough_scenario(scenario: str):
     for client in cache_passthrough.CLIENT_REQUIREMENTS[scenario]:
         if not client.exists():
             pytest.skip(f"client binary not built: {client}")
-    assert cache_passthrough.SCENARIOS[scenario](nginx) == 0
+    _check_test_cache_passthrough_scenario_1(nginx, scenario)

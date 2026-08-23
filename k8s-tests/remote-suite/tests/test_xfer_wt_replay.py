@@ -20,6 +20,27 @@ import pytest
 
 from settings import NGINX_BIN, free_port, HOST, BIND_HOST
 
+def _guard_test_durable_flush_replayed_after_restart_1():
+    if not os.path.exists(NGINX_BIN):
+        pytest.skip("nginx binary not found")
+
+def _guard_test_durable_flush_replayed_after_restart_2():
+    if XRDCP is None:
+        pytest.skip("xrdcp not available")
+
+def _check_test_durable_flush_replayed_after_restart_1(r):
+    assert r.returncode == 0, r.stderr.decode(errors="replace")
+
+def _check_test_durable_flush_replayed_after_restart_2(rec):
+    assert rec is not None and rec[0] == FRM_ST_FAILED, \
+        "expected a FAILED wt record after the dead-origin flush"
+
+def _check_test_durable_flush_replayed_after_restart_3(attempts_after, attempts_before, rec):
+    assert attempts_after > attempts_before, (
+        f"replay did not re-drive the record: attempts stayed "
+        f"{attempts_before} (record={rec})")
+
+
 PORT = int(os.environ.get("TEST_XFER_WTR_PORT") or free_port())
 import shutil
 XRDCP = shutil.which("xrdcp")
@@ -121,10 +142,8 @@ def _poll_failed(queue, name, timeout=15):
 
 
 def test_durable_flush_replayed_after_restart(tmp_path_factory):
-    if not os.path.exists(NGINX_BIN):
-        pytest.skip("nginx binary not found")
-    if XRDCP is None:
-        pytest.skip("xrdcp not available")
+    _guard_test_durable_flush_replayed_after_restart_1()
+    _guard_test_durable_flush_replayed_after_restart_2()
 
     d = tmp_path_factory.mktemp("wtreplay")
     (d / "logs").mkdir()
@@ -140,10 +159,9 @@ def test_durable_flush_replayed_after_restart(tmp_path_factory):
         r = subprocess.run(
             [XRDCP, "-f", str(src), f"root://{HOST}:{PORT}//{name}"],
             capture_output=True, timeout=30)
-        assert r.returncode == 0, r.stderr.decode(errors="replace")
+        _check_test_durable_flush_replayed_after_restart_1(r)
         rec = _poll_failed(queue, name)
-        assert rec is not None and rec[0] == FRM_ST_FAILED, \
-            "expected a FAILED wt record after the dead-origin flush"
+        _check_test_durable_flush_replayed_after_restart_2(rec)
         attempts_before = rec[1]
     finally:
         _stop(proc)
@@ -159,8 +177,6 @@ def test_durable_flush_replayed_after_restart(tmp_path_factory):
                 attempts_after = rec[1]
                 break
             time.sleep(0.3)
-        assert attempts_after > attempts_before, (
-            f"replay did not re-drive the record: attempts stayed "
-            f"{attempts_before} (record={rec})")
+        _check_test_durable_flush_replayed_after_restart_3(attempts_after, attempts_before, rec)
     finally:
         _stop(proc)

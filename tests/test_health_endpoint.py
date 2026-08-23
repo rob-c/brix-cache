@@ -29,6 +29,35 @@ import requests
 
 # The version /healthz reports is BRIX_SERVER_VERSION (src/core/ident.h) — read
 # it from the source of truth so a release bump cannot silently stale this test.
+def _expression_1(endpoints, test_env):
+    return (
+        [e for e in endpoints if e["port"] == test_env["metrics_port"]]
+    )
+
+def _expression_2(endpoints, test_env):
+    return (
+        [e for e in endpoints if e["port"] == test_env["anon_port"]]
+    )
+
+
+def _check_test_healthz_verbose_endpoint_map_1(endpoints):
+    assert isinstance(endpoints, list) and endpoints
+
+def _check_test_healthz_verbose_endpoint_map_2(metrics_rows):
+    assert metrics_rows and all(
+        e["layer"] == "http" and e["open"] for e in metrics_rows
+    )
+
+def _check_test_healthz_verbose_endpoint_map_3(anon_rows):
+    assert anon_rows, "anon stream listener missing from endpoint map"
+
+def _check_test_healthz_verbose_endpoint_map_4(anon):
+    assert isinstance(anon["connections_total"], int)
+
+def _check_test_healthz_verbose_endpoint_map_5(exports):
+    assert isinstance(exports, list)
+
+
 _IDENT_H = pathlib.Path(__file__).parent.parent / "src" / "core" / "ident.h"
 _VERSION_MATCH = re.search(
     r'#define BRIX_SERVER_VERSION_BARE\s+"([^"]+)"', _IDENT_H.read_text()
@@ -106,35 +135,48 @@ def test_healthz_verbose_endpoint_map(test_env):
     body = json.loads(requests.get(url, params={"verbose": ""}, timeout=5).text)
 
     endpoints = body["endpoints"]
-    assert isinstance(endpoints, list) and endpoints
+    _check_test_healthz_verbose_endpoint_map_1(endpoints)
     for row in endpoints:
-        assert row["layer"] in ("http", "stream", "other")
-        assert isinstance(row["port"], int)
-        assert isinstance(row["open"], bool)
-        assert row["addr"]
+        def _assert_test_healthz_verbose_endpoint_map_3():
+            assert row["layer"] in ("http", "stream", "other")
+            assert isinstance(row["port"], int)
+
+        _assert_test_healthz_verbose_endpoint_map_3()
+        def _assert_test_healthz_verbose_endpoint_map_4():
+            assert isinstance(row["open"], bool)
+            assert row["addr"]
+
+        _assert_test_healthz_verbose_endpoint_map_4()
 
     # The metrics/health port itself must be an open http listener.
-    metrics_rows = [e for e in endpoints if e["port"] == test_env["metrics_port"]]
-    assert metrics_rows and all(
-        e["layer"] == "http" and e["open"] for e in metrics_rows
-    )
+    metrics_rows = _expression_1(endpoints, test_env)
+    _check_test_healthz_verbose_endpoint_map_2(metrics_rows)
 
     # The anon root:// port (first stream server block => always owns an SHM
     # slot) must be a stream listener joined with auth + counters.
-    anon_rows = [e for e in endpoints if e["port"] == test_env["anon_port"]]
-    assert anon_rows, "anon stream listener missing from endpoint map"
+    anon_rows = _expression_2(endpoints, test_env)
+    _check_test_healthz_verbose_endpoint_map_3(anon_rows)
     anon = anon_rows[0]
-    assert anon["layer"] == "stream" and anon["open"]
-    assert anon["proto"] == "root"
-    assert anon["auth"] == "anon"
-    assert isinstance(anon["connections_active"], int)
-    assert isinstance(anon["connections_total"], int)
+    def _assert_test_healthz_verbose_endpoint_map_1():
+        assert anon["layer"] == "stream" and anon["open"]
+        assert anon["proto"] == "root"
+
+    _assert_test_healthz_verbose_endpoint_map_1()
+    def _assert_test_healthz_verbose_endpoint_map_2():
+        assert anon["auth"] == "anon"
+        assert isinstance(anon["connections_active"], int)
+
+    _assert_test_healthz_verbose_endpoint_map_2()
+    _check_test_healthz_verbose_endpoint_map_4(anon)
 
     exports = body["exports"]
-    assert isinstance(exports, list)
+    _check_test_healthz_verbose_endpoint_map_5(exports)
     for row in exports:
-        assert row["path"].startswith("/")
-        assert row["backend"]
+        def _assert_test_healthz_verbose_endpoint_map_5():
+            assert row["path"].startswith("/")
+            assert row["backend"]
+
+        _assert_test_healthz_verbose_endpoint_map_5()
 
 
 def test_healthz_verbose_leaks_no_secrets(test_env):

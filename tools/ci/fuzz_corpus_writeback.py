@@ -70,30 +70,34 @@ def minimize_one(target: str, build_args: list[str], write: bool = False) -> tup
     built = _run(build_args, cwd=FUZZ_DIR)
     if built.returncode != 0:
         return False, False, f"build {target} failed: {(built.stderr or built.stdout)[-800:]}"
-
     corpus = _corpus_dir(target)
     corpus.mkdir(exist_ok=True)
     before = {p.name for p in corpus.iterdir() if p.is_file()}
-
     with tempfile.TemporaryDirectory(prefix=f"merge_{target}.") as tmp:
-        merged = Path(tmp)
-        # `-merge=1 DEST SRC` keeps only the SRC inputs that add coverage in DEST.
-        # Merging the committed corpus into an empty DEST yields the minimal set.
-        run = _run([str(FUZZ_DIR / target), "-merge=1", str(merged), str(corpus)], cwd=FUZZ_DIR)
-        if run.returncode != 0:
-            return False, False, f"merge {target} failed: {(run.stderr or run.stdout)[-800:]}"
+        result = _merge_corpus(target, corpus, Path(tmp), before, write)
+    return result
 
-        after = {p.name for p in merged.iterdir() if p.is_file()}
-        changed = after != before
-        # Persist the minimized set over the committed corpus only when writing
-        # back; a dry run leaves the working tree untouched.
-        if write:
-            _replace_corpus(corpus, merged)
 
+def _merge_corpus(target, corpus, merged, before, write):
+    run = _run(
+        [str(FUZZ_DIR / target), "-merge=1", str(merged), str(corpus)],
+        cwd=FUZZ_DIR,
+    )
+    if run.returncode != 0:
+        message = f"merge {target} failed: {(run.stderr or run.stdout)[-800:]}"
+        return False, False, message
+    after = {path.name for path in merged.iterdir() if path.is_file()}
+    changed = after != before
+    if write:
+        _replace_corpus(corpus, merged)
+    return True, changed, _merge_message(target, before, after, changed)
+
+
+def _merge_message(target, before, after, changed):
     added = len(after - before)
     dropped = len(before - after)
-    msg = f"{target}: {len(after)} inputs (+{added}/-{dropped}){' [changed]' if changed else ''}"
-    return True, changed, msg
+    suffix = " [changed]" if changed else ""
+    return f"{target}: {len(after)} inputs (+{added}/-{dropped}){suffix}"
 
 
 def _replace_corpus(corpus: Path, minimized: Path) -> None:
@@ -119,18 +123,30 @@ def commit_corpora(changed_targets: list[str]) -> str:
     """
     if not changed_targets:
         return "no corpus changes — nothing to commit"
+    _stage_corpora(changed_targets)
+    staged = _validated_staged_paths()
+    if not staged:
+        return "no corpus changes after staging — nothing to commit"
+    _commit(staged, changed_targets)
+    _push()
+    return f"committed + pushed {len(staged)} corpus file change(s)"
 
+
+def _stage_corpora(changed_targets):
     for target in changed_targets:
         _run(["git", "add", "--", str(_corpus_dir(target).relative_to(REPO_ROOT))], cwd=REPO_ROOT)
 
+
+def _validated_staged_paths():
     staged = _staged_paths()
     stray = [p for p in staged if not p.startswith("tests/fuzz/corpus_")]
     if stray:
         _run(["git", "reset", "-q"], cwd=REPO_ROOT)
         raise SystemExit(f"refusing to commit: non-corpus paths staged: {stray}")
-    if not staged:
-        return "no corpus changes after staging — nothing to commit"
+    return staged
 
+
+def _commit(staged, changed_targets):
     msg = (
         "chore(fuzz): auto-minimize libFuzzer corpora\n\n"
         "Coverage-minimal corpora from the nightly -merge=1 pass "
@@ -144,37 +160,47 @@ def commit_corpora(changed_targets: list[str]) -> str:
     )
     if commit.returncode != 0:
         raise SystemExit(f"commit failed: {(commit.stderr or commit.stdout)[-800:]}")
+
+
+def _push():
     push = _run(["git", "push"], cwd=REPO_ROOT)
     if push.returncode != 0:
         raise SystemExit(f"push failed: {(push.stderr or push.stdout)[-800:]}")
-    return f"committed + pushed {len(staged)} corpus file change(s)"
 
 
 def entry(argv: list[str]) -> int:
     commit = "--commit" in argv
-    results: list[tuple[bool, str]] = []
-    changed_targets: list[str] = []
+    results, changed_targets = _minimize_all(commit)
+    _print_results(results)
+    if not all(ok for ok, _ in results):
+        return 1
+    print(_completion_message(commit, changed_targets))
+    return 0
 
+
+def _minimize_all(write):
+    results = []
+    changed_targets = []
     for target, build_args in BUILD_ARGS.items():
-        ok, changed, msg = minimize_one(target, build_args, write=commit)
+        ok, changed, msg = minimize_one(target, build_args, write=write)
         results.append((ok, msg))
         if ok and changed:
             changed_targets.append(target)
+    return results, changed_targets
 
+
+def _print_results(results):
     for ok, msg in results:
         print(f"  {'ok  ' if ok else 'FAIL'} {msg}")
 
-    if not all(ok for ok, _ in results):
-        return 1
 
+def _completion_message(commit, changed_targets):
     if commit:
-        print(commit_corpora(changed_targets))
-    else:
-        print(
-            f"dry run: {len(changed_targets)} target(s) would change corpus "
-            f"({', '.join(changed_targets) or 'none'}); pass --commit to write back"
-        )
-    return 0
+        return commit_corpora(changed_targets)
+    return (
+        f"dry run: {len(changed_targets)} target(s) would change corpus "
+        f"({', '.join(changed_targets) or 'none'}); pass --commit to write back"
+    )
 
 
 if __name__ == "__main__":

@@ -417,11 +417,14 @@ class TestWhatTheOriginIsShown:
         text = _await(endpoint, 'principal="delegwitness"')
         lines = [ln for ln in text.splitlines()
                  if 'principal="delegwitness"' in ln]
-        assert lines, f"the delegate leg logged nothing at all\n{text[-2000:]}"
-        assert all(FALLBACK_LINE in ln for ln in lines), (
-            "the delegate leg now says something other than the plain "
-            "service-credential fallback — pin the new wording here\n"
-            + "\n".join(lines))
+        def _assert_test_a_dropping_mode_logs_what_a_plain_export_logs_1():
+            assert lines, f"the delegate leg logged nothing at all\n{text[-2000:]}"
+            assert all(FALLBACK_LINE in ln for ln in lines), (
+                "the delegate leg now says something other than the plain "
+                "service-credential fallback — pin the new wording here\n"
+                + "\n".join(lines))
+
+        _assert_test_a_dropping_mode_logs_what_a_plain_export_logs_1()
         assert not any("delegat" in _message(ln) for ln in lines), (
             "the log now names the delegation mode; #56(a) is diagnosable and "
             "this assertion should become the pin for the new line\n"
@@ -750,9 +753,12 @@ class TestPerCallerIsolation:
         del origin.recorded[:]
         _get(endpoint, PASSTHROUGH, bob)
         headers = [rec.get("authorization") or "" for rec in origin.recorded]
-        assert headers, "bob's request never reached the origin"
-        assert all(bob in value for value in headers), \
-            "bob's request did not carry bob's token"
+        def _assert_test_a_second_callers_token_is_never_the_first_callers_2():
+            assert headers, "bob's request never reached the origin"
+            assert all(bob in value for value in headers), \
+                "bob's request did not carry bob's token"
+
+        _assert_test_a_second_callers_token_is_never_the_first_callers_2()
         assert not any(alice in value for value in headers), (
             "alice's bearer was replayed on bob's request — the forwarded "
             "credential is being cached across callers")

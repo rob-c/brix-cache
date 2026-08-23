@@ -102,44 +102,58 @@ def clean_test_fleet(test_root: Path = Path("/tmp/xrd-test")) -> None:
     # (best-effort: unprivileged we may not own it, but then the pre-existing
     # skip guards apply).
     shutil.rmtree("/dev/shm/brix-creds", ignore_errors=True)
-    owned: set[int] = set()
+    _kill_root_processes(test_root)
+    _kill_stale_listeners()
+
+
+def _kill_root_processes(test_root):
     root_marker = str(test_root.resolve())
+    owned = _signal_root_processes(root_marker)
+    owned = _wait_for_processes(owned)
+    _kill_remaining_processes(owned, root_marker)
+
+
+def _signal_root_processes(root_marker):
+    owned = set()
     for name in ("nginx", "xrootd", "cmsd", "krb5kdc", "kadmind", "haproxy"):
         for pid in _pgrep_name(name):
             if root_marker in _process_cmdline(pid):
                 owned.add(pid)
                 _safe_kill(pid, signal.SIGTERM)
+    return owned
+
+
+def _wait_for_processes(owned):
     deadline = time.monotonic() + 3
     while owned and time.monotonic() < deadline:
         owned = {pid for pid in owned if Path(f"/proc/{pid}").exists()}
         if owned:
             time.sleep(0.05)
+    return owned
+
+
+def _kill_remaining_processes(owned, root_marker):
     for pid in owned:
         if root_marker in _process_cmdline(pid):
             _safe_kill(pid, signal.SIGKILL)
 
-    # A killed nginx master can leave workers whose rewritten process title no
-    # longer contains TEST_ROOT. Likewise, an interrupted earlier invocation may
-    # have used another root with this same explicitly-selected port ladder.
-    # Those listeners make the new suite fail hundreds of tests with EADDRINUSE.
-    # The configured ladder is exclusive to this invocation, so reap only known
-    # test-server executables that are actually listening inside that exact band.
-    from lib_py.util import kill_pid_list, pids_in_port_range  # noqa: PLC0415
 
+def _kill_stale_listeners():
+    from lib_py.util import kill_pid_list, pids_in_port_range  # noqa: PLC0415
     listeners = pids_in_port_range(TEST_PORT_START, TEST_PORT_START + PORT_COUNT)
-    stale = []
-    for pid in listeners:
-        cmdline = _process_cmdline(pid).strip()
-        executable = Path(f"/proc/{pid}/exe")
-        try:
-            exe_name = executable.resolve().name
-        except OSError:
-            continue
-        if exe_name in {"nginx", "xrootd", "cmsd", "haproxy"} or \
-                cmdline.startswith("nginx: worker process"):
-            stale.append(pid)
+    stale = [pid for pid in listeners if _is_test_server(pid)]
     if stale:
         kill_pid_list(stale)
+
+
+def _is_test_server(pid):
+    cmdline = _process_cmdline(pid).strip()
+    try:
+        executable = Path(f"/proc/{pid}/exe").resolve().name
+    except OSError:
+        return False
+    return executable in {"nginx", "xrootd", "cmsd", "haproxy"} or \
+        cmdline.startswith("nginx: worker process")
 
 
 def teardown_test_fleet(test_root: Path) -> None:
@@ -214,35 +228,56 @@ def _nginx_modules_path(nginx_bin: str) -> Path | None:
 
 def _configure_nginx_modules(nginx_bin: str, requested: list[str]) -> bool:
     """Validate modules and discover the distro's dynamic stream dependency."""
+    candidates = _module_candidates(nginx_bin, requested)
+    resolved = _resolve_modules(candidates)
+    if resolved is None:
+        return False
+    _publish_modules(resolved)
+    return True
+
+
+def _module_candidates(nginx_bin, requested):
     candidates = list(requested)
-    if candidates and not any(Path(value).name == "ngx_stream_module.so"
-                              for value in candidates):
-        module_dir = _nginx_modules_path(nginx_bin)
-        stream_module = module_dir / "ngx_stream_module.so" if module_dir else None
-        if stream_module is not None and stream_module.is_file():
-            candidates.insert(0, str(stream_module))
-    if not candidates:
-        module_dir = _nginx_modules_path(nginx_bin)
-        if module_dir is not None:
-            candidates = [
-                str(module_dir / "ngx_stream_module.so"),
-                str(module_dir / "ngx_stream_brix_module.so"),
-                str(module_dir / "ngx_http_brix_xrdhttp_filter_module.so"),
-            ]
-            if not all(Path(path).is_file() for path in candidates):
-                candidates = []
+    module_dir = _nginx_modules_path(nginx_bin)
+    if candidates:
+        _insert_stream_dependency(candidates, module_dir)
+        return candidates
+    return _default_modules(module_dir)
+
+
+def _insert_stream_dependency(candidates, module_dir):
+    if any(Path(value).name == "ngx_stream_module.so" for value in candidates):
+        return
+    stream_module = module_dir / "ngx_stream_module.so" if module_dir else None
+    if stream_module is not None and stream_module.is_file():
+        candidates.insert(0, str(stream_module))
+
+
+def _default_modules(module_dir):
+    if module_dir is None:
+        return []
+    candidates = [str(module_dir / "ngx_stream_module.so"),
+                  str(module_dir / "ngx_stream_brix_module.so"),
+                  str(module_dir / "ngx_http_brix_xrdhttp_filter_module.so")]
+    return candidates if all(Path(path).is_file() for path in candidates) else []
+
+
+def _resolve_modules(candidates):
     resolved: list[str] = []
     for value in candidates:
         path = Path(value).expanduser().resolve()
         if not path.is_file():
             print(f"ERROR: --nginx-load-module is not a file: {value}", file=sys.stderr)
-            return False
+            return None
         resolved.append(str(path))
+    return resolved
+
+
+def _publish_modules(resolved):
     if resolved:
         os.environ["TEST_NGINX_LOAD_MODULES"] = os.pathsep.join(resolved)
     else:
         os.environ.pop("TEST_NGINX_LOAD_MODULES", None)
-    return True
 
 
 def _existing(paths: Iterable[str]) -> list[str]:

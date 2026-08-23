@@ -143,97 +143,135 @@ def _sanitizer_env(base: dict, log_dir: str, supp: str) -> dict:
 def main() -> int:
     # ROOT from this script's location (tools/ci/ → repo root), like coverage.py:
     # the runner must work regardless of the caller's cwd.
+    settings = _settings()
+    reason = _missing_prerequisite(settings["nginx_src"])
+    if reason:
+        return skip_or_fail(reason)
+    log_dir = settings["log_dir"]
+    os.makedirs(log_dir, exist_ok=True)
+    _clear_reports(log_dir)
+    provided_asan = _prepare_binary(settings)
+    san_env = _fleet_env(settings, provided_asan)
+    if not _boot_fleet(settings["tests"], san_env):
+        return skip_or_fail("sanitized fleet failed to boot on this runner")
+    suite_rc = _run_workloads(settings, san_env)
+    _stop_fleet(settings["tests"], san_env)
+    return _verdict(log_dir, suite_rc)
+
+
+def _settings():
     root = str(Path(__file__).resolve().parents[2])
     tests = f"{root}/tests"
-
     nginx_src = os.environ.get("NGINX_SRC") or "/tmp/nginx-1.28.3"
     test_root = os.environ.get("TEST_ROOT") or "/tmp/xrd-test"
-    log_dir = os.environ.get("SANITIZE_LOG_DIR") or f"{test_root}/sanitize"
-    supp = f"{tests}/lsan.supp"
-    test_cmd = os.environ.get("ASAN_TEST_CMD") or \
-        "python3 -m pytest test_sanitizer_smoke.py -v"
+    return {
+        "root": root,
+        "tests": tests,
+        "nginx_src": nginx_src,
+        "test_root": test_root,
+        "log_dir": os.environ.get("SANITIZE_LOG_DIR") or f"{test_root}/sanitize",
+        "supp": f"{tests}/lsan.supp",
+        "test_cmd": os.environ.get("ASAN_TEST_CMD") or
+        "python3 -m pytest test_sanitizer_smoke.py -v",
+    }
 
+
+def _missing_prerequisite(nginx_src):
     if not os.access(f"{nginx_src}/configure", os.X_OK):
-        return skip_or_fail(f"nginx source not found at {nginx_src} (set NGINX_SRC)")
-    if shutil.which("cc") is None and shutil.which("gcc") is None and shutil.which("clang") is None:
-        return skip_or_fail("no C compiler on PATH")
+        return f"nginx source not found at {nginx_src} (set NGINX_SRC)"
+    compilers = (shutil.which(name) for name in ("cc", "gcc", "clang"))
+    if not any(compilers):
+        return "no C compiler on PATH"
+    return ""
 
-    os.makedirs(log_dir, exist_ok=True)
-    # Clear stale reports so the verdict reflects THIS run only.
+
+def _clear_reports(log_dir):
     for stale in glob.glob(os.path.join(log_dir, "asan.*")):
         try:
             os.remove(stale)
         except OSError:
             pass
 
-    # A caller may PROVIDE a prebuilt ASan nginx (operator --asan-nginx-bin /
-    # TEST_ASAN_NGINX_BIN) instead of having the lane build one — same as pointing
-    # the fleet at a specific --nginx-bin.  When given and runnable, skip the build
-    # and boot the fleet against it.
-    provided_asan = os.environ.get("TEST_ASAN_NGINX_BIN") or ""
-    use_provided = bool(provided_asan) and os.access(provided_asan, os.X_OK)
-    if use_provided:
-        print(f"asan: 1/4 using provided ASan nginx {provided_asan} (skipping build)")
-    else:
-        if provided_asan:
-            print(f"asan: TEST_ASAN_NGINX_BIN={provided_asan} not executable — building instead")
-        print("asan: 1/4 building ASan+UBSan nginx + client…")
-        run_or_abort(
-            ["python3", "-m", "cmdscripts.operator_build", "build_sanitizer"],
-            cwd=tests, env={**os.environ, "NGINX_SRC": nginx_src},
-        )
 
-    san_env = _sanitizer_env(os.environ, log_dir, supp)
-    san_env["TEST_ROOT"] = test_root
-    san_env["NGINX_SRC"] = nginx_src
-    if use_provided:
-        san_env["NGINX_BIN"] = provided_asan
-        san_env["TEST_NGINX_BIN"] = provided_asan
+def _prepare_binary(settings):
+    provided = os.environ.get("TEST_ASAN_NGINX_BIN") or ""
+    if provided and os.access(provided, os.X_OK):
+        print(f"asan: 1/4 using provided ASan nginx {provided} (skipping build)")
+        return provided
+    if provided:
+        print(f"asan: TEST_ASAN_NGINX_BIN={provided} not executable — building instead")
+    print("asan: 1/4 building ASan+UBSan nginx + client…")
+    run_or_abort(
+        ["python3", "-m", "cmdscripts.operator_build", "build_sanitizer"],
+        cwd=settings["tests"],
+        env={**os.environ, "NGINX_SRC": settings["nginx_src"]},
+    )
+    return ""
 
+
+def _fleet_env(settings, provided):
+    env = _sanitizer_env(os.environ, settings["log_dir"], settings["supp"])
+    env["TEST_ROOT"] = settings["test_root"]
+    env["NGINX_SRC"] = settings["nginx_src"]
+    if provided:
+        env["NGINX_BIN"] = provided
+        env["TEST_NGINX_BIN"] = provided
+    return env
+
+
+def _boot_fleet(tests, san_env):
     print("asan: 2/4 booting the sanitized fleet (SANITIZE=1)…")
     boot = subprocess.run(
         ["python3", "-m", "cmdscripts.manage_test_servers", "restart"],
         cwd=tests, env=san_env,
     )
-    if boot.returncode != 0:
-        # Fleet-boot capacity is runner-dependent, so an interactive run treats
-        # this as infrastructure and skips.  Under BRIX_CI_STRICT the lane is a
-        # required check: a fleet that will not boot means nothing was
-        # sanitized, and the runner has been shown to host all 126 instances.
-        # Tear down whatever came up either way.
-        subprocess.run(
-            ["python3", "-m", "cmdscripts.manage_test_servers", "stop-all"],
-            cwd=tests, env=san_env,
-        )
-        return skip_or_fail("sanitized fleet failed to boot on this runner")
+    if boot.returncode == 0:
+        return True
+    _stop_process(tests, san_env)
+    return False
 
+
+def _run_workloads(settings, san_env):
+    tests = settings["tests"]
+    test_cmd = settings["test_cmd"]
     print("asan: 3/4 driving I/O through the sanitized fleet…")
     print(f"          $ASAN_TEST_CMD = {test_cmd}")
-    run_env = dict(san_env)
-    run_env["BRIX_SANITIZER_LANE"] = "1"              # un-skips test_sanitizer_smoke
-    run_env["PYTHONPATH"] = f"{tests}{os.pathsep}{run_env.get('PYTHONPATH', '')}"
-    run_env.pop("TEST_OWN_FLEET", None)               # ATTACH, don't reboot uninstrumented
-    # Point the smoke at the sanitizer-built client unless the operator overrode it.
-    if "TEST_XRDCP_BIN" not in run_env and os.access(f"{root}/client/bin/xrdcp", os.X_OK):
-        run_env["TEST_XRDCP_BIN"] = f"{root}/client/bin/xrdcp"
+    run_env = _workload_env(settings, san_env)
     suite_rc = subprocess.run(test_cmd, shell=True, cwd=tests, env=run_env).returncode
-
-    # Optional second driver leg (e.g. the SERIAL write-mirror disconnect suite,
-    # which the "not serial" fast tier drops). Same sanitized+attached fleet;
-    # its reports land in the same log_dir and are scanned below. A non-zero exit
-    # from either leg fails the job — max() keeps the first failure visible.
     test_cmd2 = os.environ.get("ASAN_TEST_CMD2")
     if test_cmd2:
         print(f"          $ASAN_TEST_CMD2 = {test_cmd2}")
         rc2 = subprocess.run(test_cmd2, shell=True, cwd=tests, env=run_env).returncode
         suite_rc = suite_rc or rc2
+    return suite_rc
 
+
+def _workload_env(settings, san_env):
+    run_env = dict(san_env)
+    tests = settings["tests"]
+    root = settings["root"]
+    run_env["BRIX_SANITIZER_LANE"] = "1"
+    run_env["PYTHONPATH"] = f"{tests}{os.pathsep}{run_env.get('PYTHONPATH', '')}"
+    run_env.pop("TEST_OWN_FLEET", None)
+    client = f"{root}/client/bin/xrdcp"
+    if "TEST_XRDCP_BIN" not in run_env and os.access(client, os.X_OK):
+        run_env["TEST_XRDCP_BIN"] = client
+    return run_env
+
+
+def _stop_fleet(tests, san_env):
     print("asan: 4/4 stopping the fleet (LSan fires at exit) + scanning reports…")
+    _stop_process(tests, san_env)
+
+
+def _stop_process(tests, san_env):
     subprocess.run(
         ["python3", "-m", "cmdscripts.manage_test_servers", "stop-all"],
         cwd=tests, env=san_env,
     )
 
+
+def _verdict(log_dir, suite_rc):
     hits = _reports_with_findings(log_dir)
     if hits:
         print(f"asan: FAIL — {len(hits)} sanitizer report(s) with findings:", file=sys.stderr)

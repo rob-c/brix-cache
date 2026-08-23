@@ -23,6 +23,57 @@ from pathlib import Path
 
 import pytest
 
+def _phase_gsi_nginx_1_next(ca, certs, srv, usr, sdata, ddata):
+    for d in (ca, certs, srv, usr, sdata, ddata):
+        d.mkdir(parents=True, exist_ok=True)
+
+def _phase_gsi_nginx_2():
+    for port in (SRC, DST):
+        _run(["bash", "-c", f"fuser -k {port}/tcp 2>/dev/null"])
+
+def _phase_gsi_nginx_3(procs):
+    for p in procs:
+        p.terminate()
+        _phase_gsi_nginx_1(p)
+
+
+def _expression_1(src_cfg, dst_cfg, base):
+    return (
+        [subprocess.Popen([NGINX, "-c", str(c), "-p", str(base)],
+                                      stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                     for c in (src_cfg, dst_cfg)]
+    )
+
+def _expression_2():
+    return (
+        not _wait(SRC) or not _wait(DST)
+    )
+
+
+def _phase_gsi_nginx_1(p):
+    try:
+        p.wait(timeout=5)
+    except subprocess.TimeoutExpired:
+        p.kill()
+
+
+def _guard_gsi_nginx_1():
+    if not _have("openssl", "xrdgsiproxy"):
+        pytest.skip("openssl / xrdgsiproxy not installed")
+
+def _guard_gsi_nginx_2():
+    if not (os.path.exists(NGINX) and os.path.exists(XRDCP)):
+        pytest.skip("nginx / xrdcp not built")
+
+def _guard_gsi_nginx_3(proxy, uproxy, usr):
+    if not proxy(usr / "usercert.pem", usr / "userkey.pem", uproxy):
+        pytest.skip("could not mint user proxy")
+
+def _guard_gsi_nginx_4(proxy, dproxy, srv):
+    if not proxy(srv / "destcert.pem", srv / "destkey.pem", dproxy):
+        pytest.skip("could not mint dest proxy")
+
+
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 NGINX = "/tmp/nginx-1.28.3/objs/nginx"
 XRDCP = os.path.join(REPO, "client", "bin", "xrdcp")
@@ -47,16 +98,13 @@ def _wait(port, tries=80):
 
 @pytest.fixture(scope="module")
 def gsi_nginx(tmp_path_factory):
-    if not _have("openssl", "xrdgsiproxy"):
-        pytest.skip("openssl / xrdgsiproxy not installed")
-    if not (os.path.exists(NGINX) and os.path.exists(XRDCP)):
-        pytest.skip("nginx / xrdcp not built")
+    _guard_gsi_nginx_1()
+    _guard_gsi_nginx_2()
 
     base = tmp_path_factory.mktemp("gsinginx")
     ca, certs, srv, usr, sdata, ddata = (
         base / d for d in ("ca", "certs", "srv", "usr", "srcdata", "dstdata"))
-    for d in (ca, certs, srv, usr, sdata, ddata):
-        d.mkdir(parents=True, exist_ok=True)
+    _phase_gsi_nginx_1_next(ca, certs, srv, usr, sdata, ddata)
     fqdn = socket.getfqdn()
 
     def osl(*a):
@@ -94,10 +142,8 @@ def gsi_nginx(tmp_path_factory):
 
     uproxy = usr / "proxy.pem"
     dproxy = srv / "destproxy.pem"
-    if not proxy(usr / "usercert.pem", usr / "userkey.pem", uproxy):
-        pytest.skip("could not mint user proxy")
-    if not proxy(srv / "destcert.pem", srv / "destkey.pem", dproxy):
-        pytest.skip("could not mint dest proxy")
+    _guard_gsi_nginx_3(proxy, uproxy, usr)
+    _guard_gsi_nginx_4(proxy, dproxy, srv)
     os.chmod(dproxy, 0o600)
 
     (sdata / "hello.txt").write_text("nginx-GSI-source native tpc pull\n")
@@ -131,12 +177,9 @@ def gsi_nginx(tmp_path_factory):
         f"    brix_trusted_ca {certs};\n"
         f"    brix_access_log {base}/dst-acc.log;\n  }}\n}}\n")
 
-    for port in (SRC, DST):
-        _run(["bash", "-c", f"fuser -k {port}/tcp 2>/dev/null"])
-    procs = [subprocess.Popen([NGINX, "-c", str(c), "-p", str(base)],
-                              stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-             for c in (src_cfg, dst_cfg)]
-    if not _wait(SRC) or not _wait(DST):
+    _phase_gsi_nginx_2()
+    procs = _expression_1(src_cfg, dst_cfg, base)
+    if _expression_2():
         for p in procs:
             p.terminate()
         pytest.skip("nginx GSI src/dst did not come up")
@@ -144,12 +187,7 @@ def gsi_nginx(tmp_path_factory):
     ctx = {"base": str(base), "ddata": str(ddata), "fqdn": fqdn,
            "env": dict(penv, X509_USER_PROXY=str(uproxy))}
     yield ctx
-    for p in procs:
-        p.terminate()
-        try:
-            p.wait(timeout=5)
-        except subprocess.TimeoutExpired:
-            p.kill()
+    _phase_gsi_nginx_3(procs)
 
 
 def test_tpc_pull_nginx_dest_from_nginx_gsi_source(gsi_nginx):

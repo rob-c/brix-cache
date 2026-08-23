@@ -49,6 +49,24 @@ from settings import (BIND_HOST, CA_DIR, HOST, NGINX_BIN, SERVER_CERT,
 from server_launcher import LifecycleHarness
 from server_registry import NginxInstanceSpec
 
+def _guard_node_1():
+    if not os.access(NGINX_BIN, os.X_OK):
+        pytest.skip(f"nginx not executable: {NGINX_BIN}")
+
+def _guard_node_2():
+    if shutil.which(XRDCP_BIN) is None and not os.path.isabs(XRDCP_BIN):
+        pytest.skip("xrdcp not found")
+
+def _guard_node_3():
+    if not (os.path.exists(SERVER_CERT) and os.path.isdir(CA_DIR)):
+        pytest.skip("harness PKI missing; TLS is mandatory for a ztn client")
+
+def _guard_node_4(issuer):
+    if not (os.path.exists(issuer.key_path)
+            and os.path.exists(issuer.jwks_path)):
+        issuer.init_keys()
+
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from utils.make_token import TokenIssuer                       # noqa: E402
 
@@ -141,17 +159,12 @@ def _access_subjects(log_path):
 
 @pytest.fixture(scope="module")
 def node(tmp_path_factory):
-    if not os.access(NGINX_BIN, os.X_OK):
-        pytest.skip(f"nginx not executable: {NGINX_BIN}")
-    if shutil.which(XRDCP_BIN) is None and not os.path.isabs(XRDCP_BIN):
-        pytest.skip("xrdcp not found")
-    if not (os.path.exists(SERVER_CERT) and os.path.isdir(CA_DIR)):
-        pytest.skip("harness PKI missing; TLS is mandatory for a ztn client")
+    _guard_node_1()
+    _guard_node_2()
+    _guard_node_3()
 
     issuer = TokenIssuer(TOKENS_DIR)
-    if not (os.path.exists(issuer.key_path)
-            and os.path.exists(issuer.jwks_path)):
-        issuer.init_keys()
+    _guard_node_4(issuer)
 
     creds = tmp_path_factory.mktemp("tpc_token_creds")
     client_token = _write_token(

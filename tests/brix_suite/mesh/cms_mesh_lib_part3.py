@@ -79,37 +79,60 @@ def stop_all():
     then xrootd/cmsd by their config path, then sweep any survivor still holding
     one of our ports, then block until the manager front doors are actually free
     so a relaunch cannot race a lingering listener."""
-    # 1. nginx masters + their worker groups, via the pid files we wrote.
+    _kill_mesh_pidfiles()
+    _kill_configured_daemons()
+    _kill_mesh_listeners()
+    _wait_manager_ports_closed()
+
+
+def _kill_mesh_pidfiles():
     for pidfile in glob.glob(os.path.join(MESH_DIR, "*", "run", "*.pid")):
         _kill_pidfile_group(pidfile)
 
-    # 2. xrootd + cmsd: command line carries `-c <MESH_DIR>/<topo>/cfg/<file>`.
-    #    Deliberately NOT a bare `-f MESH_DIR`: that also matches the launcher
-    #    process whose cmdline carries CMS_MESH_DIR=<MESH_DIR>, killing ourselves.
+
+def _kill_configured_daemons():
     subprocess.run(["pkill", "-9", "-f", f"{MESH_DIR}/[^ ]*/cfg/"], check=False)
-    # 3. nginx masters whose pid file was missing/stale (matched by their .conf).
     subprocess.run(["pkill", "-9", "-f", f"{MESH_DIR}/[^ ]*/cfg/[^ ]*\\.conf"],
                    check=False)
 
-    # 4. Single ss sweep: SIGKILL anything still listening on one of our ports.
-    try:
-        out = subprocess.run(["ss", "-tlnp"], capture_output=True, text=True).stdout
-    except Exception:
-        out = ""
-    for line in out.splitlines():
-        if "pid=" not in line:
-            continue
-        for port in range(PORT_MIN, PORT_MAX + 1):
-            if f":{port} " in line:
-                pid = line.split("pid=")[1].split(",")[0]
-                subprocess.run(["kill", "-9", pid], check=False)
-                break
 
-    # 5. Wait for the front doors to clear (≤10s) so a relaunch starts clean.
+def _list_listeners():
+    try:
+        return subprocess.run(
+            ["ss", "-tlnp"], capture_output=True, text=True
+        ).stdout.splitlines()
+    except Exception:
+        return []
+
+
+def _mesh_listener_pid(line):
+    if "pid=" not in line:
+        return None
+    for port in range(PORT_MIN, PORT_MAX + 1):
+        if f":{port} " in line:
+            return line.split("pid=")[1].split(",")[0]
+    return None
+
+
+def _kill_mesh_listeners():
+    for line in _list_listeners():
+        pid = _mesh_listener_pid(line)
+        if pid:
+            subprocess.run(["kill", "-9", pid], check=False)
+
+
+def _wait_manager_ports_closed():
     for _ in range(40):
-        if not any(port_open(p) for p in MANAGER_PORTS):
+        if _manager_ports_closed():
             return
         time.sleep(0.25)
+
+
+def _manager_ports_closed():
+    for port in MANAGER_PORTS:
+        if port_open(port):
+            return False
+    return True
 
 
 # Per-round readiness probe budget.  A still-forming manager answers a locate
@@ -165,19 +188,27 @@ def wait_ready(timeout=120):
     last_progress = start
     with ThreadPoolExecutor(max_workers=max(len(pending), 1)) as pool:
         while pending:
-            ready = pool.map(_probe_ready, pending)
-            still = [p for p, ok in zip(pending, ready) if not ok]
+            still = _pending_after_probe(pool, pending)
             if len(still) < len(pending):
-                last_progress = time.time()   # a topology just registered
+                last_progress = time.time()
             pending = still
             now = time.time()
-            if not pending or now >= deadline:
-                break
-            # A steadily-forming cluster keeps shrinking `pending`, refreshing
-            # last_progress, so it never trips this; only a truly stuck laggard
-            # (no progress past real formation) bails early instead of blocking
-            # the whole `timeout`.
-            if now - start >= _READY_MIN_WAIT and now - last_progress >= _READY_STALL:
+            if _ready_wait_finished(pending, now, deadline, start, last_progress):
                 break
             time.sleep(_READY_POLL_INTERVAL)
     return total - len(pending), total, pending
+
+
+def _pending_after_probe(pool, pending):
+    readiness = pool.map(_probe_ready, pending)
+    return [probe for probe, ready in zip(pending, readiness) if not ready]
+
+
+def _ready_wait_finished(pending, now, deadline, start, last_progress):
+    if not pending:
+        return True
+    if now >= deadline:
+        return True
+    if now - start < _READY_MIN_WAIT:
+        return False
+    return now - last_progress >= _READY_STALL

@@ -88,87 +88,126 @@ static int gz_more_members(brix_tar_t *t) {
            && t->inbuf[t->in_off] == 0x1f && t->inbuf[t->in_off + 1] == 0x8b;
 }
 
-/* Produce up to `cap` decompressed bytes into dst. >0 produced, 0 stream
- * end, -1 corrupt input (t->err set). */
-static int src_produce(brix_tar_t *t, unsigned char *dst, size_t cap) {
-    if (t->comp == TAR_COMP_RAW) {
-        size_t n;
+/*
+ * WHAT: Copy raw archive bytes from the buffered input into the caller window.
+ * WHY:  Raw input has no codec state and should not share decompressor control
+ *       flow.
+ * HOW:  Top up once, cap the available span, copy it, and advance the offset.
+ */
+static int src_produce_raw(brix_tar_t *t, unsigned char *dst, size_t cap) {
+    size_t n;
+
+    if (src_topup(t, 1) != 0)
+        return -1;
+    if (t->in_off == t->in_len)
+        return 0;
+    n = t->in_len - t->in_off;
+    if (n > cap)
+        n = cap;
+    memcpy(dst, t->inbuf + t->in_off, n);
+    t->in_off += n;
+    return (int) n;
+}
+
+/*
+ * WHAT: Finish one gzip member and prepare the decoder for a following member.
+ * WHY:  eStargz and concatenated gzip layers contain multiple members.
+ * HOW:  Sniff the next member marker, mark final completion, or reset inflate.
+ */
+static int src_gzip_member_end(brix_tar_t *t) {
+    int more = gz_more_members(t);
+
+    if (more < 0)
+        return -1;
+    if (!more) {
+        t->z_done = 1;
+        return 0;
+    }
+    if (inflateReset(&t->zs) != Z_OK)
+        return brix_tar_fail(t, "gzip: cannot start next member");
+    return 1;
+}
+
+/*
+ * WHAT: Produce decompressed bytes from a possibly concatenated gzip stream.
+ * WHY:  A single output request may cross gzip member and input boundaries.
+ * HOW:  Feed inflate until output appears or the final member terminates.
+ */
+static int src_produce_gzip(brix_tar_t *t, unsigned char *dst, size_t cap) {
+    if (t->z_done)
+        return 0;
+    t->zs.next_out  = dst;
+    t->zs.avail_out = (uInt) cap;
+    while (t->zs.avail_out == cap) {
+        int zrc;
 
         if (src_topup(t, 1) != 0)
             return -1;
-        if (t->in_off == t->in_len)
-            return 0;
-        n = t->in_len - t->in_off;
-        if (n > cap)
-            n = cap;
-        memcpy(dst, t->inbuf + t->in_off, n);
-        t->in_off += n;
-        return (int) n;
-    }
+        t->zs.next_in  = t->inbuf + t->in_off;
+        t->zs.avail_in = (uInt) (t->in_len - t->in_off);
+        if (t->zs.avail_in == 0 && t->in_eof)
+            return brix_tar_fail(t, "gzip: truncated stream");
+        zrc = inflate(&t->zs, Z_NO_FLUSH);
+        t->in_off = t->in_len - t->zs.avail_in;
+        if (zrc == Z_STREAM_END) {
+            int member = src_gzip_member_end(t);
 
-    if (t->comp == TAR_COMP_GZ) {
-        if (t->z_done)
-            return 0;                           /* the member ended already */
-        t->zs.next_out  = dst;
-        t->zs.avail_out = (uInt) cap;
-        while (t->zs.avail_out == cap) {
-            int zrc;
-
-            if (src_topup(t, 1) != 0)
+            if (member < 0)
                 return -1;
-            t->zs.next_in  = t->inbuf + t->in_off;
-            t->zs.avail_in = (uInt) (t->in_len - t->in_off);
-            if (t->zs.avail_in == 0 && t->in_eof)
-                return brix_tar_fail(t, "gzip: truncated stream");
-            zrc = inflate(&t->zs, Z_NO_FLUSH);
-            t->in_off = t->in_len - t->zs.avail_in;
-            if (zrc == Z_STREAM_END) {
-                int more = gz_more_members(t);
-
-                if (more < 0)
-                    return -1;
-                if (!more) {
-                    t->z_done = 1;              /* the last member ended */
-                    break;
-                }
-                if (inflateReset(&t->zs) != Z_OK)
-                    return brix_tar_fail(t, "gzip: cannot start next member");
-                continue;
-            }
-            if (zrc != Z_OK && zrc != Z_BUF_ERROR)
-                return brix_tar_fail(t, "gzip: corrupt stream (zlib %d)", zrc);
+            if (member == 0)
+                break;
+            continue;
         }
-        return (int) (cap - t->zs.avail_out);
+        if (zrc != Z_OK && zrc != Z_BUF_ERROR)
+            return brix_tar_fail(t, "gzip: corrupt stream (zlib %d)", zrc);
     }
+    return (int) (cap - t->zs.avail_out);
+}
 
 #ifdef BRIX_HAVE_ZSTD
-    {
-        ZSTD_outBuffer zo = { dst, cap, 0 };
+/*
+ * WHAT: Produce bytes across all frames in a zstd archive stream.
+ * WHY:  zstd:chunked layers use independent data and metadata frames.
+ * HOW:  Refill and drive the streaming decoder until it yields output or EOF.
+ */
+static int src_produce_zstd(brix_tar_t *t, unsigned char *dst, size_t cap) {
+    ZSTD_outBuffer zo = { dst, cap, 0 };
 
-        while (zo.pos == 0) {
-            ZSTD_inBuffer zi;
-            size_t        zrc;
+    while (zo.pos == 0) {
+        ZSTD_inBuffer zi;
+        size_t        zrc;
 
-            if (src_topup(t, 1) != 0)
-                return -1;
-            zi.src  = t->inbuf + t->in_off;
-            zi.size = t->in_len - t->in_off;
-            zi.pos  = 0;
-            if (zi.size == 0 && t->in_eof)
-                return 0;                        /* clean frame end at EOF */
-            zrc = ZSTD_decompressStream(t->zds, &zo, &zi);
-            t->in_off += zi.pos;
-            if (ZSTD_isError(zrc))
-                return brix_tar_fail(t, "zstd: %s", ZSTD_getErrorName(zrc));
-            /* zrc == 0 ends a FRAME, not the source: a zstd:chunked layer
-             * is one frame per file plus trailing skippable frames carrying
-             * its TOC, so the loop continues into whatever follows and only
-             * EOF with an empty window ends the stream. */
-            if (zi.pos == 0 && zo.pos == 0)
-                return brix_tar_fail(t, "zstd: decoder made no progress");
-        }
-        return (int) zo.pos;
+        if (src_topup(t, 1) != 0)
+            return -1;
+        zi.src  = t->inbuf + t->in_off;
+        zi.size = t->in_len - t->in_off;
+        zi.pos  = 0;
+        if (zi.size == 0 && t->in_eof)
+            return 0;
+        zrc = ZSTD_decompressStream(t->zds, &zo, &zi);
+        t->in_off += zi.pos;
+        if (ZSTD_isError(zrc))
+            return brix_tar_fail(t, "zstd: %s", ZSTD_getErrorName(zrc));
+        /* A zero return ends one frame, not a zstd:chunked source. */
+        if (zi.pos == 0 && zo.pos == 0)
+            return brix_tar_fail(t, "zstd: decoder made no progress");
     }
+    return (int) zo.pos;
+}
+#endif
+
+/*
+ * WHAT: Produce up to cap uncompressed archive bytes into dst.
+ * WHY:  Tar framing must be independent of the layer compression format.
+ * HOW:  Dispatch to the isolated raw, gzip, or zstd source implementation.
+ */
+static int src_produce(brix_tar_t *t, unsigned char *dst, size_t cap) {
+    if (t->comp == TAR_COMP_RAW)
+        return src_produce_raw(t, dst, cap);
+    if (t->comp == TAR_COMP_GZ)
+        return src_produce_gzip(t, dst, cap);
+#ifdef BRIX_HAVE_ZSTD
+    return src_produce_zstd(t, dst, cap);
 #else
     return brix_tar_fail(t, "zstd: reader built without zstd support");
 #endif
@@ -221,43 +260,62 @@ static int tar_discard(brix_tar_t *t, int64_t n) {
 
 /* ---- header field parsing ------------------------------------------------ */
 
-/* NUL/space-terminated octal, or GNU base-256 (first byte 0x80). 0 ok / -1. */
-static int tar_num(const unsigned char *f, size_t n, int64_t *out) {
-    if (n > 0 && (f[0] & 0x80)) {
-        uint64_t v   = f[0] & 0x7f;
-        int      neg = (f[0] & 0x40) != 0;
-        size_t   i;
+/*
+ * WHAT: Decode a GNU base-256 signed tar number.
+ * WHY:  GNU writers use this representation for values outside octal fields.
+ * HOW:  Sign-extend the high byte and reject positive int64 overflow.
+ */
+static int tar_num_binary(const unsigned char *f, size_t n, int64_t *out) {
+    uint64_t v   = f[0] & 0x7f;
+    int      neg = (f[0] & 0x40) != 0;
+    size_t   i;
 
-        if (neg)
-            v |= ~(uint64_t) 0x7f;               /* sign-extend */
-        for (i = 1; i < n; i++) {
-            if (!neg && v > (uint64_t) INT64_MAX >> 8)
-                return -1;                       /* would exceed int64 */
-            v = (v << 8) | f[i];
-        }
-        if (!neg && (int64_t) v < 0)
+    if (neg)
+        v |= ~(uint64_t) 0x7f;
+    for (i = 1; i < n; i++) {
+        if (!neg && v > (uint64_t) INT64_MAX >> 8)
             return -1;
-        *out = (int64_t) v;
-        return 0;
+        v = (v << 8) | f[i];
     }
-    {
-        uint64_t v = 0;
-        size_t   i = 0;
+    if (!neg && (int64_t) v < 0)
+        return -1;
+    *out = (int64_t) v;
+    return 0;
+}
 
-        while (i < n && f[i] == ' ')
-            i++;
-        for (; i < n && f[i] >= '0' && f[i] <= '7'; i++) {
-            if (v > (uint64_t) INT64_MAX >> 3)
-                return -1;
-            v = (v << 3) | (uint64_t) (f[i] - '0');
-        }
-        while (i < n && (f[i] == ' ' || f[i] == '\0'))
-            i++;
-        if (i != n)
-            return -1;                           /* garbage in the field */
-        *out = (int64_t) v;
-        return 0;
+/*
+ * WHAT: Decode a space/NUL-padded POSIX octal tar number.
+ * WHY:  Standard tar fields permit leading spaces and two trailing paddings.
+ * HOW:  Skip the prefix, accumulate checked octal digits, then validate tail.
+ */
+static int tar_num_octal(const unsigned char *f, size_t n, int64_t *out) {
+    uint64_t v = 0;
+    size_t   i = 0;
+
+    while (i < n && f[i] == ' ')
+        i++;
+    for (; i < n && f[i] >= '0' && f[i] <= '7'; i++) {
+        if (v > (uint64_t) INT64_MAX >> 3)
+            return -1;
+        v = (v << 3) | (uint64_t) (f[i] - '0');
     }
+    while (i < n && (f[i] == ' ' || f[i] == '\0'))
+        i++;
+    if (i != n)
+        return -1;
+    *out = (int64_t) v;
+    return 0;
+}
+
+/*
+ * WHAT: Decode either standard octal or GNU base-256 header numbers.
+ * WHY:  Callers need one strict numeric-field contract for both tar dialects.
+ * HOW:  Detect GNU's high-bit marker and delegate to the matching decoder.
+ */
+static int tar_num(const unsigned char *f, size_t n, int64_t *out) {
+    if (n > 0 && (f[0] & 0x80))
+        return tar_num_binary(f, n, out);
+    return tar_num_octal(f, n, out);
 }
 
 /* Verify the header checksum: unsigned byte sum with the chksum field read
@@ -328,12 +386,13 @@ static int entry_path(brix_tar_t *t, int posix_magic, brix_tar_entry_t *e) {
     return 0;
 }
 
-/* Map a verified header + overrides onto *e. 0 ok / -1 (t->err). */
-static int entry_build(brix_tar_t *t, unsigned char typeflag, brix_tar_entry_t *e) {
-    int     posix_magic = memcmp(t->hdr + 257, "ustar\0", 6) == 0;
-    int64_t v;
-
-    memset(e, 0, sizeof(*e));
+/*
+ * WHAT: Map a supported tar typeflag onto the public entry type.
+ * WHY:  Entry assembly should not mix type dispatch with field parsing.
+ * HOW:  Translate every POSIX real-entry flag and reject metadata flags.
+ */
+static int entry_type(brix_tar_t *t, unsigned char typeflag,
+                      brix_tar_entry_t *e) {
     switch (typeflag) {
     case '0': case '\0': case '7': e->type = BRIX_TAR_REG;      break;
     case '1':                      e->type = BRIX_TAR_HARDLINK; break;
@@ -345,69 +404,145 @@ static int entry_build(brix_tar_t *t, unsigned char typeflag, brix_tar_entry_t *
     default:
         return brix_tar_fail(t, "internal: unmapped typeflag %d", typeflag);
     }
+    return 0;
+}
 
-    if (entry_path(t, posix_magic, e) != 0)
-        return -1;
-
-    if (t->next.have_link) {
+/*
+ * WHAT: Resolve a link target from per-file, global, or raw-header metadata.
+ * WHY:  Pax and GNU overrides have defined precedence over the ustar field.
+ * HOW:  Copy the highest-precedence available representation into the entry.
+ */
+static void entry_link(brix_tar_t *t, brix_tar_entry_t *e) {
+    if (t->next.have_link)
         memcpy(e->linkname, t->next.linkname, sizeof(e->linkname));
-    } else if (t->glob.have_link) {
+    else if (t->glob.have_link)
         memcpy(e->linkname, t->glob.linkname, sizeof(e->linkname));
-    } else {
+    else
         tar_str(t->hdr + 157, 100, e->linkname, sizeof(e->linkname));
-    }
+}
+
+/*
+ * WHAT: Decode mode, uid, and gid into a tar entry.
+ * WHY:  Ownership fields share override precedence but require distinct errors.
+ * HOW:  Apply per-file/global values first and parse raw numeric fields last.
+ */
+static int entry_permissions(brix_tar_t *t, brix_tar_entry_t *e) {
+    int64_t v;
 
     if (tar_num(t->hdr + 100, 8, &v) != 0)
         return brix_tar_fail(t, "bad mode field on %s", e->path);
     e->mode = (mode_t) (v & 07777);
 
-    if (t->next.have_uid)      e->uid = (uid_t) t->next.uid;
-    else if (t->glob.have_uid) e->uid = (uid_t) t->glob.uid;
-    else if (tar_num(t->hdr + 108, 8, &v) == 0) e->uid = (uid_t) v;
-    else return brix_tar_fail(t, "bad uid field on %s", e->path);
+    if (t->next.have_uid)
+        e->uid = (uid_t) t->next.uid;
+    else if (t->glob.have_uid)
+        e->uid = (uid_t) t->glob.uid;
+    else if (tar_num(t->hdr + 108, 8, &v) == 0)
+        e->uid = (uid_t) v;
+    else
+        return brix_tar_fail(t, "bad uid field on %s", e->path);
 
-    if (t->next.have_gid)      e->gid = (gid_t) t->next.gid;
-    else if (t->glob.have_gid) e->gid = (gid_t) t->glob.gid;
-    else if (tar_num(t->hdr + 116, 8, &v) == 0) e->gid = (gid_t) v;
-    else return brix_tar_fail(t, "bad gid field on %s", e->path);
+    if (t->next.have_gid)
+        e->gid = (gid_t) t->next.gid;
+    else if (t->glob.have_gid)
+        e->gid = (gid_t) t->glob.gid;
+    else if (tar_num(t->hdr + 116, 8, &v) == 0)
+        e->gid = (gid_t) v;
+    else
+        return brix_tar_fail(t, "bad gid field on %s", e->path);
+    return 0;
+}
 
-    if (t->next.have_mtime)      e->mtime = t->next.mtime;
-    else if (t->glob.have_mtime) e->mtime = t->glob.mtime;
-    else if (tar_num(t->hdr + 136, 12, &v) == 0) e->mtime = v;
-    else return brix_tar_fail(t, "bad mtime field on %s", e->path);
+/*
+ * WHAT: Resolve entry modification time and effective body size.
+ * WHY:  Pax overrides and non-regular size semantics must be applied together.
+ * HOW:  Resolve fields by precedence, reject negatives, then set body padding.
+ */
+static int entry_extent(brix_tar_t *t, brix_tar_entry_t *e) {
+    int64_t v;
 
-    if (t->next.have_size)      v = t->next.size;
-    else if (t->glob.have_size) v = t->glob.size;
+    if (t->next.have_mtime)
+        e->mtime = t->next.mtime;
+    else if (t->glob.have_mtime)
+        e->mtime = t->glob.mtime;
+    else if (tar_num(t->hdr + 136, 12, &v) == 0)
+        e->mtime = v;
+    else
+        return brix_tar_fail(t, "bad mtime field on %s", e->path);
+
+    if (t->next.have_size)
+        v = t->next.size;
+    else if (t->glob.have_size)
+        v = t->glob.size;
     else if (tar_num(t->hdr + 124, 12, &v) != 0)
         return brix_tar_fail(t, "bad size field on %s", e->path);
     if (v < 0)
         return brix_tar_fail(t, "negative size on %s", e->path);
 
-    /* Only regular entries carry body bytes; the size field of other types
-     * is metadata noise some writers emit and POSIX says to ignore. */
+    /* POSIX ignores size metadata on non-regular entries. */
     e->size      = (e->type == BRIX_TAR_REG) ? v : 0;
     t->remaining = e->size;
     t->pad       = (size_t) ((512 - (e->size % 512)) % 512);
+    return 0;
+}
 
-    if (e->type == BRIX_TAR_CHR || e->type == BRIX_TAR_BLK) {
-        int64_t maj, min;
+/*
+ * WHAT: Decode device numbers for character and block entries.
+ * WHY:  Other entry types must ignore device fields that writers may populate.
+ * HOW:  Parse major/minor only for device types and combine them with makedev.
+ */
+static int entry_device(brix_tar_t *t, brix_tar_entry_t *e) {
+    int64_t maj;
+    int64_t min;
 
-        if (tar_num(t->hdr + 329, 8, &maj) != 0 ||
-            tar_num(t->hdr + 337, 8, &min) != 0)
-            return brix_tar_fail(t, "bad device numbers on %s", e->path);
-        e->rdev = makedev((unsigned) maj, (unsigned) min);
-    }
+    if (e->type != BRIX_TAR_CHR && e->type != BRIX_TAR_BLK)
+        return 0;
+    if (tar_num(t->hdr + 329, 8, &maj) != 0 ||
+        tar_num(t->hdr + 337, 8, &min) != 0)
+        return brix_tar_fail(t, "bad device numbers on %s", e->path);
+    e->rdev = makedev((unsigned) maj, (unsigned) min);
+    return 0;
+}
 
-    if (t->xcount > 0) {
-        int packed = cvmfs_xattr_pack(t->xkeys, t->xvals, t->xlens, t->xcount,
-                                      t->xblob, sizeof(t->xblob));
+/*
+ * WHAT: Pack accumulated pax extended attributes onto an entry.
+ * WHY:  Consumers require one bounded stable blob rather than parser arrays.
+ * HOW:  Pack only non-empty sets and expose the resulting internal buffer.
+ */
+static int entry_xattrs(brix_tar_t *t, brix_tar_entry_t *e) {
+    int packed;
 
-        if (packed < 0)
-            return brix_tar_fail(t, "xattr set on %s exceeds pack bounds",
-                                 e->path);
-        e->xattr     = (const char *) t->xblob;
-        e->xattr_len = (size_t) packed;
-    }
+    if (t->xcount == 0)
+        return 0;
+    packed = cvmfs_xattr_pack(t->xkeys, t->xvals, t->xlens, t->xcount,
+                              t->xblob, sizeof(t->xblob));
+    if (packed < 0)
+        return brix_tar_fail(t, "xattr set on %s exceeds pack bounds",
+                             e->path);
+    e->xattr     = (const char *) t->xblob;
+    e->xattr_len = (size_t) packed;
+    return 0;
+}
+
+/*
+ * WHAT: Map one verified real-entry header and its overrides onto an entry.
+ * WHY:  Callers need fully resolved metadata before any body bytes are exposed.
+ * HOW:  Assemble type, path, link, ownership, extent, device, and xattrs.
+ */
+static int entry_build(brix_tar_t *t, unsigned char typeflag,
+                       brix_tar_entry_t *e) {
+    int posix_magic = memcmp(t->hdr + 257, "ustar\0", 6) == 0;
+
+    memset(e, 0, sizeof(*e));
+    if (entry_type(t, typeflag, e) != 0)
+        return -1;
+
+    if (entry_path(t, posix_magic, e) != 0)
+        return -1;
+    entry_link(t, e);
+    if (entry_permissions(t, e) != 0 || entry_extent(t, e) != 0 ||
+        entry_device(t, e) != 0 || entry_xattrs(t, e) != 0)
+        return -1;
     return 0;
 }
 
@@ -443,73 +578,131 @@ static int gnu_long(brix_tar_t *t, int64_t size, int is_link) {
     return 0;
 }
 
-int brix_tar_next(brix_tar_t *t, brix_tar_entry_t *e) {
+/*
+ * WHAT: Close the previously returned entry before reading another header.
+ * WHY:  The API requires callers to consume bodies while tar padding is ours.
+ * HOW:  Reject unread body bytes, discard padding, and clear entry state.
+ */
+static int entry_finish(brix_tar_t *t) {
     if (t->have_entry && t->remaining > 0)
         return brix_tar_fail(t, "API misuse: current body not fully consumed "
                              "(%lld bytes left)", (long long) t->remaining);
-    if (t->have_entry) {
-        if (tar_discard(t, (int64_t) t->pad) != 0)
-            return -1;
-        t->pad        = 0;
-        t->have_entry = 0;
+    if (!t->have_entry)
+        return 0;
+    if (tar_discard(t, (int64_t) t->pad) != 0)
+        return -1;
+    t->pad        = 0;
+    t->have_entry = 0;
+    return 0;
+}
+
+/*
+ * WHAT: Read and validate the next non-terminal 512-byte tar header.
+ * WHY:  End markers and checksums must be settled before type dispatch.
+ * HOW:  Read one block, validate the optional second zero block, then checksum.
+ */
+static int header_next(brix_tar_t *t) {
+    int rc = brix_tar_fill(t, t->hdr, 512);
+
+    if (rc <= 0)
+        return rc;
+    if (!hdr_is_zero(t->hdr)) {
+        if (tar_cksum_ok(t->hdr) != 0)
+            return brix_tar_fail(t, "header checksum mismatch");
+        return 1;
     }
+    rc = brix_tar_fill(t, t->hdr, 512);
+    if (rc < 0)
+        return -1;
+    if (rc == 0 || hdr_is_zero(t->hdr))
+        return 0;
+    return brix_tar_fail(t, "data after end-of-archive marker");
+}
+
+/*
+ * WHAT: Consume and apply a pax per-file or global metadata entry.
+ * WHY:  Pax records affect the following real header but are not entries.
+ * HOW:  Parse its size, read its padded body, and apply the selected scope.
+ */
+static int metadata_pax(brix_tar_t *t, unsigned char typeflag) {
+    int64_t size;
+
+    if (tar_num(t->hdr + 124, 12, &size) != 0)
+        return brix_tar_fail(t, "bad pax header size");
+    if (meta_body(t, size, sizeof(t->pax)) != 0)
+        return -1;
+    return brix_tar_pax_apply(t, (size_t) size, typeflag == 'g');
+}
+
+/*
+ * WHAT: Consume a GNU long-name or long-link metadata entry.
+ * WHY:  GNU tar stores oversized text fields immediately before real entries.
+ * HOW:  Parse the body size and install it as the matching per-file override.
+ */
+static int metadata_gnu_long(brix_tar_t *t, unsigned char typeflag) {
+    int64_t size;
+
+    if (tar_num(t->hdr + 124, 12, &size) != 0)
+        return brix_tar_fail(t, "bad GNU long-header size");
+    return gnu_long(t, size, typeflag == 'K');
+}
+
+/*
+ * WHAT: Determine whether a typeflag represents a supported real entry.
+ * WHY:  Metadata and extension records must never surface as filesystem data.
+ * HOW:  Accept the NUL regular-file flag or a POSIX real-entry digit.
+ */
+static int typeflag_is_entry(unsigned char typeflag) {
+    return typeflag == '\0' || strchr("01234567", typeflag) != NULL;
+}
+
+/*
+ * WHAT: Consume an unsupported extension entry without surfacing it.
+ * WHY:  Unknown records may be followed by valid entries and cannot end a walk.
+ * HOW:  Validate size, discard body plus padding, and clear per-file overrides.
+ */
+static int metadata_unknown(brix_tar_t *t, unsigned char typeflag) {
+    int64_t size;
+
+    if (tar_num(t->hdr + 124, 12, &size) != 0 || size < 0)
+        return brix_tar_fail(t, "bad size on unknown typeflag %d", typeflag);
+    if (tar_discard(t, size + (512 - (size % 512)) % 512) != 0)
+        return -1;
+    brix_tar_pax_reset_next(t);
+    return 0;
+}
+
+int brix_tar_next(brix_tar_t *t, brix_tar_entry_t *e) {
+    if (entry_finish(t) != 0)
+        return -1;
 
     for (;;) {
         unsigned char typeflag;
-        int64_t       size;
-        int           rc = brix_tar_fill(t, t->hdr, 512);
+        int           rc = header_next(t);
 
-        if (rc < 0)
-            return -1;
-        if (rc == 0)
-            return 0;                    /* EOF at boundary: sloppy writer */
-        if (hdr_is_zero(t->hdr)) {
-            rc = brix_tar_fill(t, t->hdr, 512);
-            if (rc < 0)
-                return -1;
-            if (rc == 0 || hdr_is_zero(t->hdr))
-                return 0;                /* proper end (or single-zero+EOF) */
-            return brix_tar_fail(t, "data after end-of-archive marker");
-        }
-        if (tar_cksum_ok(t->hdr) != 0)
-            return brix_tar_fail(t, "header checksum mismatch");
+        if (rc <= 0)
+            return rc;
 
         typeflag = t->hdr[156];
-        switch (typeflag) {
-        case 'x':
-        case 'g':
-            if (tar_num(t->hdr + 124, 12, &size) != 0)
-                return brix_tar_fail(t, "bad pax header size");
-            if (meta_body(t, size, sizeof(t->pax)) != 0)
-                return -1;
-            if (brix_tar_pax_apply(t, (size_t) size, typeflag == 'g') != 0)
+        if (typeflag == 'x' || typeflag == 'g') {
+            if (metadata_pax(t, typeflag) != 0)
                 return -1;
             continue;
-        case 'L':
-        case 'K':
-            if (tar_num(t->hdr + 124, 12, &size) != 0)
-                return brix_tar_fail(t, "bad GNU long-header size");
-            if (gnu_long(t, size, typeflag == 'K') != 0)
+        }
+        if (typeflag == 'L' || typeflag == 'K') {
+            if (metadata_gnu_long(t, typeflag) != 0)
                 return -1;
             continue;
-        case '0': case '\0': case '1': case '2': case '3': case '4':
-        case '5': case '6': case '7':
+        }
+        if (typeflag_is_entry(typeflag)) {
             if (entry_build(t, typeflag, e) != 0)
                 return -1;
             brix_tar_pax_reset_next(t);
             t->have_entry = 1;
             return 1;
-        default:
-            /* Unknown typeflag: skip its body, emit nothing. Truncating the
-             * stream over a flag we don't know would be wrong (D6.2). */
-            if (tar_num(t->hdr + 124, 12, &size) != 0 || size < 0)
-                return brix_tar_fail(t, "bad size on unknown typeflag %d",
-                                     typeflag);
-            if (tar_discard(t, size + (512 - (size % 512)) % 512) != 0)
-                return -1;
-            brix_tar_pax_reset_next(t);
-            continue;
         }
+        if (metadata_unknown(t, typeflag) != 0)
+            return -1;
     }
 }
 

@@ -137,6 +137,17 @@ from test_audit16j_root_caps_flags import _diagnostics
 from test_pgwrite_cse import _handshake_login, kXR_ok
 from test_unix_auth_wire import _auth, _open_read
 
+def _expression_1(path):
+    return (
+        path.suffix not in CORPUS_SUFFIXES or not path.is_file()
+    )
+
+
+def _guard_corpus_writes_1(token, path, hits):
+    if token in path.read_text(errors="replace"):
+        hits.append(str(path.relative_to(ROOT)))
+
+
 pytestmark = [pytest.mark.timeout(900),
               pytest.mark.uses_lifecycle_harness,
               pytest.mark.xdist_group("lc-audit16q-acc-engine")]
@@ -548,8 +559,11 @@ class TestTheEncodingArms:
                        if verdict == GRANTED}
         on_granted = {rule for rule, verdict in three.verdicts("B").items()
                       if verdict == GRANTED}
-        assert off_granted - on_granted == {"escaped"}
-        assert on_granted - off_granted == {"space"}
+        def _assert_test_an_operator_turning_it_on_loses_the_escaped_path_3():
+            assert off_granted - on_granted == {"escaped"}
+            assert on_granted - off_granted == {"space"}
+
+        _assert_test_an_operator_turning_it_on_loses_the_escaped_path_3()
 
 
 # --------------------------------------------------------------------------- #
@@ -914,21 +928,24 @@ CORPUS_ROOTS = (ROOT / "tests", ROOT / "docs", ROOT / "k8s-tests")
 CORPUS_SUFFIXES = (".py", ".conf", ".md")
 
 
+def _corpus_root_writes(root, token, here):
+    hits = []
+    for path in root.rglob("*"):
+        if _expression_1(path) or path.resolve() == here:
+            continue
+        try:
+            _guard_corpus_writes_1(token, path, hits)
+        except OSError:
+            continue
+    return hits
+
+
 def _corpus_writes(token):
     """Every file OUTSIDE this one that spells `token` literally."""
     here = Path(__file__).resolve()
     hits = []
     for root in CORPUS_ROOTS:
-        for path in root.rglob("*"):
-            if path.suffix not in CORPUS_SUFFIXES or not path.is_file():
-                continue
-            if path.resolve() == here:
-                continue
-            try:
-                if token in path.read_text(errors="replace"):
-                    hits.append(str(path.relative_to(ROOT)))
-            except OSError:                      # pragma: no cover - diagnostic
-                continue
+        hits.extend(_corpus_root_writes(root, token, here))
     return sorted(hits)
 
 
@@ -1018,10 +1035,16 @@ class TestTheDeclarationsAndTheCorpus:
             assert slot in text, slot
         squashed = " ".join(text.split())
         for directive in SUBJECTS:
-            assert f"{directive} on;" not in squashed, directive
-            assert f"{directive} off;" not in squashed, directive
-        assert squashed.count("brix_root on;") == 3
-        assert squashed.count("brix_auth unix;") == 3
+            def _assert_test_the_template_carries_four_engine_slots_and_writes_no_arm_2():
+                assert f"{directive} on;" not in squashed, directive
+                assert f"{directive} off;" not in squashed, directive
+
+            _assert_test_the_template_carries_four_engine_slots_and_writes_no_arm_2()
+        def _assert_test_the_template_carries_four_engine_slots_and_writes_no_arm_1():
+            assert squashed.count("brix_root on;") == 3
+            assert squashed.count("brix_auth unix;") == 3
+
+        _assert_test_the_template_carries_four_engine_slots_and_writes_no_arm_1()
 
     def test_the_ledger_owns_one_port_per_listener(self):
         """Four sockets, four ledger allocations, all distinct.  Two root://

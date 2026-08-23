@@ -42,6 +42,17 @@ from test_cms_locate_have import (
     _recv_response,
 )
 
+def _expression_1(self, hdr):
+    return (
+        self._closing or len(hdr) < 8
+    )
+
+def _expression_2(dlen, self):
+    return (
+        self._recv_exact(dlen) if dlen else b""
+    )
+
+
 pytestmark = [pytest.mark.uses_lifecycle_harness,
               pytest.mark.xdist_group("lc-cms-fanout")]
 
@@ -95,10 +106,10 @@ class _FanNode:
         try:
             while not self._closing:
                 hdr = self._recv_exact(8)
-                if self._closing or len(hdr) < 8:
+                if _expression_1(self, hdr):
                     return
                 streamid, code, _mod, dlen = struct.unpack(">IBBH", hdr)
-                payload = self._recv_exact(dlen) if dlen else b""
+                payload = _expression_2(dlen, self)
                 if code in (CMS_RR_RM, CMS_RR_RMDIR):
                     self.forwards.append((code, streamid, payload))
                     if self.error_reply is not None:

@@ -26,6 +26,28 @@ import pytest
 from cmdscripts.live_common import LiveRun, random_file, sha256
 from cmdscripts.pblock_live import XRDCP, XRDFS, pblock_lab_spec, pblock_worker_own
 
+def _check_test_anomaly_fresh_create_lags_then_converges_1(run, src, host):
+    assert run.call([XRDCP, "-f", src, f"{host}/f.bin"],
+                    check=False).returncode == 0, \
+        "the writer's own PUT must never see its visibility lag"
+
+def _check_test_anomaly_fresh_create_lags_then_converges_2(run, got, host):
+    assert run.call([XRDCP, "-f", f"{host}/f.bin", got],
+                    check=False).returncode != 0, \
+        "fresh create was immediately visible despite visibility lag"
+
+def _check_test_anomaly_fresh_create_lags_then_converges_4(got, src):
+    assert sha256(got) == sha256(src), "converged bytes differ"
+
+def _check_test_anomaly_fresh_create_lags_then_converges_3(deadline):
+    assert time.monotonic() < deadline, \
+        "object never became visible after the window"
+
+def _check_test_anomaly_fresh_create_lags_then_converges_5(deadline):
+    assert time.monotonic() < deadline, \
+        "object never appeared in the listing after the window"
+
+
 pytestmark = [pytest.mark.uses_lifecycle_harness,
               pytest.mark.xdist_group("lc-pblock-anomaly")]
 
@@ -102,34 +124,31 @@ def test_anomaly_fresh_create_lags_then_converges(lifecycle) -> None:
         _ctl_set(catalog, "anomaly.visibility_ms", "2500")
         _ctl_set(catalog, "anomaly.list_lag_ms", "2500")
 
-        assert run.call([XRDCP, "-f", src, f"{host}/f.bin"],
-                        check=False).returncode == 0, \
-            "the writer's own PUT must never see its visibility lag"
+        _check_test_anomaly_fresh_create_lags_then_converges_1(run, src, host)
 
         got = run.root / "got.bin"
-        assert run.call([XRDCP, "-f", f"{host}/f.bin", got],
-                        check=False).returncode != 0, \
-            "fresh create was immediately visible despite visibility lag"
+        _check_test_anomaly_fresh_create_lags_then_converges_2(run, got, host)
         ls = run.call([XRDFS, host, "ls", "/"], check=False)
-        assert ls.returncode == 0
-        assert "f.bin" not in ls.stdout, \
-            "fresh create was immediately listed despite list lag"
+        def _assert_test_anomaly_fresh_create_lags_then_converges_1():
+            assert ls.returncode == 0
+            assert "f.bin" not in ls.stdout, \
+                "fresh create was immediately listed despite list lag"
+
+        _assert_test_anomaly_fresh_create_lags_then_converges_1()
 
         # Convergence is anchored to the server-side event stamp, not this
         # process's clock — poll to a deadline instead of a fixed sleep.
         deadline = time.monotonic() + 8
         while run.call([XRDCP, "-f", f"{host}/f.bin", got],
                        check=False).returncode != 0:
-            assert time.monotonic() < deadline, \
-                "object never became visible after the window"
+            _check_test_anomaly_fresh_create_lags_then_converges_3(deadline)
             time.sleep(0.3)
-        assert sha256(got) == sha256(src), "converged bytes differ"
+        _check_test_anomaly_fresh_create_lags_then_converges_4(got, src)
         while True:
             ls = run.call([XRDFS, host, "ls", "/"], check=False)
             if ls.returncode == 0 and "f.bin" in ls.stdout:
                 break
-            assert time.monotonic() < deadline, \
-                "object never appeared in the listing after the window"
+            _check_test_anomaly_fresh_create_lags_then_converges_5(deadline)
             time.sleep(0.3)
 
 

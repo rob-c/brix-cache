@@ -74,6 +74,23 @@ from settings import (
 from test_min_sec_level import KXR_ERROR, _errcode, _send_initial
 from _test_phase25_ratelimit_helpers import _xrd_recv_status, _xrd_stat
 
+def _guard_krb5tls_1():
+    if SYS_XRDFS is None or SYS_XRDCP is None:
+        pytest.skip("stock xrdfs/xrdcp not on PATH")
+
+def _guard_krb5tls_2():
+    if not os.access(NGINX_BIN, os.X_OK):
+        pytest.skip(f"nginx binary not executable: {NGINX_BIN}")
+
+def _guard_krb5tls_3():
+    if not kdc_helpers.krb5_tools_available():
+        pytest.skip("MIT KDC tooling not installed (install krb5-server)")
+
+def _guard_krb5tls_4():
+    if not kdc_helpers.up():
+        pytest.skip("krb5 realm could not be provisioned")
+
+
 pytestmark = [pytest.mark.timeout(240),
               pytest.mark.uses_lifecycle_harness,
               pytest.mark.xdist_group("lc-audit15h-krb5tls")]
@@ -180,14 +197,10 @@ def pki(tmp_path_factory):
 
 @pytest.fixture
 def krb5tls(lifecycle, tmp_path, pki):
-    if SYS_XRDFS is None or SYS_XRDCP is None:
-        pytest.skip("stock xrdfs/xrdcp not on PATH")
-    if not os.access(NGINX_BIN, os.X_OK):
-        pytest.skip(f"nginx binary not executable: {NGINX_BIN}")
-    if not kdc_helpers.krb5_tools_available():
-        pytest.skip("MIT KDC tooling not installed (install krb5-server)")
-    if not kdc_helpers.up():
-        pytest.skip("krb5 realm could not be provisioned")
+    _guard_krb5tls_1()
+    _guard_krb5tls_2()
+    _guard_krb5tls_3()
+    _guard_krb5tls_4()
 
     data = tmp_path / "data"
     data.mkdir()

@@ -7,6 +7,22 @@ import os
 
 from cmdscripts.compile_run import REPO_ROOT, result, run
 
+def _expression_1(fuzz_time):
+    return (
+        fuzz_time or os.environ.get("FUZZ_TIME", "60")
+    )
+
+def _expression_2(results, target, built):
+    return (
+        results.append(result(False, f"build {target} failed: {excerpt(built.stderr or built.stdout)}"))
+    )
+
+def _expression_3(ran):
+    return (
+        excerpt(ran.stderr or ran.stdout)
+    )
+
+
 FUZZ_DIR = REPO_ROOT / "tests" / "fuzz"
 ARTIFACT_DIR = FUZZ_DIR / "artifacts"
 SAN = ["-O1", "-g", "-fsanitize=fuzzer,address,undefined"]
@@ -206,12 +222,12 @@ def excerpt(text: str, head: int = 1800, tail: int = 2000) -> str:
 
 
 def run_checks(base: Path, fuzz_time: str | None = None) -> list[tuple[bool, str]]:
-    seconds = fuzz_time or os.environ.get("FUZZ_TIME", "60")
+    seconds = _expression_1(fuzz_time)
     results: list[tuple[bool, str]] = []
     for target, build_args in BUILD_ARGS.items():
         built = run(build_args, cwd=FUZZ_DIR)
         if built.returncode != 0:
-            results.append(result(False, f"build {target} failed: {excerpt(built.stderr or built.stdout)}"))
+            _expression_2(results, target, built)
             continue
         corpus = FUZZ_DIR / f"corpus_{target.removeprefix('fuzz_')}"
         corpus.mkdir(exist_ok=True)
@@ -229,7 +245,7 @@ def run_checks(base: Path, fuzz_time: str | None = None) -> list[tuple[bool, str
             ],
             cwd=FUZZ_DIR,
         )
-        detail = excerpt(ran.stderr or ran.stdout)
+        detail = _expression_3(ran)
         reproducers = sorted(p for p in artifacts.iterdir() if p.is_file())
         if reproducers:
             detail += "\nreproducers: " + ", ".join(str(p) for p in reproducers)

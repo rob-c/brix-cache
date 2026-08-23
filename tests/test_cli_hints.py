@@ -173,15 +173,21 @@ class TestNoteNoControlBytes:
             # (0x0d >= 0x0d — actually 0x0d < 0x20 so strip it first).
             clean = line_bytes.rstrip(b"\r")
             bad_bytes = [b for b in clean if b < 0x20]
-            assert not bad_bytes, (
-                f"note line contains control bytes {bad_bytes!r}:\n"
-                f"  {clean!r}"
-            )
-            # The evil values must not appear literally in the note.
-            assert b"\x1b" not in clean, "ESC in note line"
-            assert b"\x07" not in clean, "BEL in note line"
-            # The note contains only the NAMES, not the values.
-            assert b"secret" not in clean, "value leaked into note line"
+            def _assert_test_control_bytes_in_values_do_not_appear_in_note_1():
+                assert not bad_bytes, (
+                    f"note line contains control bytes {bad_bytes!r}:\n"
+                    f"  {clean!r}"
+                )
+                # The evil values must not appear literally in the note.
+                assert b"\x1b" not in clean, "ESC in note line"
+
+            _assert_test_control_bytes_in_values_do_not_appear_in_note_1()
+            def _assert_test_control_bytes_in_values_do_not_appear_in_note_2():
+                assert b"\x07" not in clean, "BEL in note line"
+                # The note contains only the NAMES, not the values.
+                assert b"secret" not in clean, "value leaked into note line"
+
+            _assert_test_control_bytes_in_values_do_not_appear_in_note_2()
             assert b"garbage" not in clean, "value leaked into note line"
 
 

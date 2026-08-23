@@ -53,6 +53,16 @@ from settings import (
 # Opcodes / status / error codes (src/protocols/root/protocol/opcodes.h, XProtocol.hh)
 # ---------------------------------------------------------------------------
 
+def _expression_1(first, abs_off):
+    return (
+        first and (abs_off % PG_PAGESZ)
+    )
+
+
+def _check_decode_pages_1(crc, page):
+    assert crc32c(page) == crc, "pgread per-page CRC32c mismatch"
+
+
 kXR_login   = 3007
 kXR_open    = 3010
 kXR_ping    = 3011
@@ -246,13 +256,13 @@ def _decode_pages(pages, first_offset=0):
     while pos + 4 <= len(pages):
         crc = struct.unpack("!I", pages[pos:pos + 4])[0]
         pos += 4
-        if first and (abs_off % PG_PAGESZ):
+        if _expression_1(first, abs_off):
             cap = PG_PAGESZ - (abs_off % PG_PAGESZ)
         else:
             cap = PG_PAGESZ
         page = pages[pos:pos + cap]
         pos += len(page)
-        assert crc32c(page) == crc, "pgread per-page CRC32c mismatch"
+        _check_decode_pages_1(crc, page)
         out.extend(page)
         abs_off += len(page)
         first = False

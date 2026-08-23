@@ -1,4 +1,17 @@
 from split_continuation import reexport as _reexport
+def _check_test_combined_lifecycle_on_our_server_1(rc, o, e):
+    assert rc == 0, f"lifecycle mkdir: {o}{e}"
+
+def _check_test_combined_lifecycle_on_our_server_2(rc, o, e):
+    assert rc == 0, f"lifecycle put: {o}{e}"
+
+def _check_test_combined_lifecycle_on_our_server_3(rc, lout):
+    assert rc == 0 and "life.bin" in _names(lout), f"lifecycle ls: {lout!r}"
+
+def _check_test_combined_lifecycle_on_our_server_4(rc, o, e):
+    assert rc == 0, f"lifecycle rm: {o}{e}"
+
+
 _reexport(globals(), "_test_conf_xrdfs_helpers")
 
 @pytest.mark.parametrize("size", [0, 10])
@@ -40,24 +53,30 @@ def test_spaceinfo_field_keys_match(srv):
 def test_combined_lifecycle_on_our_server(srv, tmp_path):
     d = "/x_life_dir"
     rc, o, e = fs(srv["our"], "mkdir", d)
-    assert rc == 0, f"lifecycle mkdir: {o}{e}"
+    _check_test_combined_lifecycle_on_our_server_1(rc, o, e)
     src = str(tmp_path / "life.bin")
     payload = bytes((i * 13 + 1) & 0xff for i in range(2048))
     with open(src, "wb") as f:
         f.write(payload)
     rc, o, e = L.run([L.OFF_XRDCP, "-f", src, f"{srv['our']}/{d}/life.bin"])
-    assert rc == 0, f"lifecycle put: {o}{e}"
+    _check_test_combined_lifecycle_on_our_server_2(rc, o, e)
     rc, lout, _ = fs(srv["our"], "ls", d)
-    assert rc == 0 and "life.bin" in _names(lout), f"lifecycle ls: {lout!r}"
+    _check_test_combined_lifecycle_on_our_server_3(rc, lout)
     st = _fields(fs(srv["our"], "stat", f"{d}/life.bin")[1])
-    assert st.get("Size") == "2048", f"lifecycle stat size: {st.get('Size')}"
-    assert _read(_ondisk(srv, "our", f"{d}/life.bin")) == payload, \
-        "lifecycle on-disk bytes mismatch"
+    def _assert_test_combined_lifecycle_on_our_server_1():
+        assert st.get("Size") == "2048", f"lifecycle stat size: {st.get('Size')}"
+        assert _read(_ondisk(srv, "our", f"{d}/life.bin")) == payload, \
+            "lifecycle on-disk bytes mismatch"
+
+    _assert_test_combined_lifecycle_on_our_server_1()
     rc, o, e = fs(srv["our"], "rm", f"{d}/life.bin")
-    assert rc == 0, f"lifecycle rm: {o}{e}"
+    _check_test_combined_lifecycle_on_our_server_4(rc, o, e)
     rc, o, e = fs(srv["our"], "rmdir", d)
-    assert rc == 0, f"lifecycle rmdir: {o}{e}"
-    assert not os.path.exists(_ondisk(srv, "our", d)), "lifecycle dir not removed"
+    def _assert_test_combined_lifecycle_on_our_server_2():
+        assert rc == 0, f"lifecycle rmdir: {o}{e}"
+        assert not os.path.exists(_ondisk(srv, "our", d)), "lifecycle dir not removed"
+
+    _assert_test_combined_lifecycle_on_our_server_2()
 
 
 # =========================================================================== #

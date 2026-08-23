@@ -41,6 +41,58 @@ from lib_py.util import wait_tcp
 from fleet_ports import cmdscript_ports
 from settings import BIND_HOST, HOST
 
+def _expression_1(built, run, unit_bin):
+    return (
+        built.returncode == 0 and run.call([unit_bin], check=False).returncode == 0
+    )
+
+def _expression_2(checks, na, nb):
+    return (
+        checks.append((na == 1 and nb == 0, f"static: first-listed served (A={na} B={nb})"))
+    )
+
+def _expression_3(checks, error_log, rtt_log, nb1, nb0):
+    return (
+        checks.append((_grep(error_log, rtt_log, regex=True) and nb1 - nb0 == 1,
+                               f"rtt: probe pre-ranked live origin first (fills={nb1 - nb0})"))
+    )
+
+def _expression_4(checks, error_log, rtt_log, nb1, nb0):
+    return (
+        checks.append((_grep(error_log, rtt_log, regex=True) and nb1 - nb0 == 1,
+                               f"default: rtt active — probe pre-ranked live origin first (fills={nb1 - nb0})"))
+    )
+
+def _expression_5(checks, log):
+    return (
+        checks.append((_grep(log, "xrootd-fill: event=done") and _grep(log, "attempts=1"),
+                               "clean fill logs event=done attempts=1"))
+    )
+
+def _expression_6(checks, log):
+    return (
+        checks.append((_grep(log, "xrootd-fill: event=hold-expired") and _grep(log, "held_ms="),
+                               "hold expiry logs event=hold-expired with held_ms"))
+    )
+
+def _expression_7(checks, log):
+    return (
+        checks.append((_grep(log, "xrootd-fill: event=client-gone") and _grep(log, "parked_ms="),
+                               "client abort mid-fill logs event=client-gone with parked_ms"))
+    )
+
+def _expression_8(line):
+    return (
+        re.search(r"xrootd-fill:|cvmfs-neg:|cvmfs-client:", line) \
+                            and not re.search(r"client=|key=", line)
+    )
+
+
+def _phase_logging_1(run, cport, bogus):
+    for _ in range(3):
+        run.curl_status(f"http://{HOST}:{cport}{bogus}")
+
+
 MOCK_STRATUM1 = REPO_ROOT / "tests/cvmfs/mock_stratum1.py"
 
 _PORTS = cmdscript_ports("cvmfs_live_ext")
@@ -77,8 +129,7 @@ http {{
         # 1: healthy cold fill logs a clean done
         run.curl_status(f"http://{HOST}:{cport}{objects[0]}")
         time.sleep(0.3)
-        checks.append((_grep(log, "xrootd-fill: event=done") and _grep(log, "attempts=1"),
-                       "clean fill logs event=done attempts=1"))
+        _expression_5(checks, log)
 
         # 2: reset the origin repeatedly -> retry + recovered
         _fault(run, mport, "reset", 3)
@@ -98,8 +149,7 @@ http {{
         code = run.curl_status(f"http://{HOST}:{cport}{objects[4]}", timeout=10)
         time.sleep(0.3)
         checks.append((code == 504, f"stalled origin -> client gets 504 (kept-alive) ({code})"))
-        checks.append((_grep(log, "xrootd-fill: event=hold-expired") and _grep(log, "held_ms="),
-                       "hold expiry logs event=hold-expired with held_ms"))
+        _expression_6(checks, log)
         _fault(run, mport, "none", 0)
 
         # 5: client abandons mid-fill -> client-gone
@@ -107,14 +157,12 @@ http {{
         run.call(["curl", "-s", "--max-time", "1",
                   f"http://{HOST}:{cport}{objects[6]}", "-o", os.devnull], check=False)
         time.sleep(1)
-        checks.append((_grep(log, "xrootd-fill: event=client-gone") and _grep(log, "parked_ms="),
-                       "client abort mid-fill logs event=client-gone with parked_ms"))
+        _expression_7(checks, log)
         _fault(run, mport, "none", 0)
 
         # 6: 404 hammering -> absorbed-404
         bogus = "/cvmfs/test.cern.ch/data/aa/" + "bc" * 19
-        for _ in range(3):
-            run.curl_status(f"http://{HOST}:{cport}{bogus}")
+        _phase_logging_1(run, cport, bogus)
         time.sleep(0.2)
         neg_lines = log.read_text(errors="replace").count("cvmfs-neg: event=absorbed-404")
         checks.append((neg_lines >= 1, f"repeated 404s log cvmfs-neg absorbed-404 ({neg_lines})"))
@@ -122,8 +170,7 @@ http {{
         # 7: every emitted line carries a client= or key= locator
         bad_line = ""
         for line in log.read_text(errors="replace").splitlines():
-            if re.search(r"xrootd-fill:|cvmfs-neg:|cvmfs-client:", line) \
-                    and not re.search(r"client=|key=", line):
+            if _expression_8(line):
                 bad_line = line
                 break
         checks.append((not bad_line, f"every cvmfs event line has a client= or key= locator {bad_line!r}"))
@@ -165,7 +212,7 @@ def select(nginx: Path | None = None) -> int:
         unit_bin = run.root / "u"
         built = run.call(["gcc", "-Wall", "-Werror", "-I", REPO_ROOT / "src", "-o", unit_bin,
                           unit_c, REPO_ROOT / "src/protocols/cvmfs/origin_geo.c", "-lm"], check=False)
-        unit_ok = built.returncode == 0 and run.call([unit_bin], check=False).returncode == 0
+        unit_ok = _expression_1(built, run, unit_bin)
         checks.append((unit_ok, "unit: haversine+argsort"))
 
         _mock(run, ma, 4, 31)
@@ -196,7 +243,7 @@ http {{ access_log off; server {{
         run.curl_status(f"http://{HOST}:{cport}{obj}")
         na = _count_log(run, ma, obj)
         nb = _count_log(run, mb, obj)
-        checks.append((na == 1 and nb == 0, f"static: first-listed served (A={na} B={nb})"))
+        _expression_2(checks, na, nb)
 
         # 2: geo — nearer origin (B=Edinburgh) wins although listed second
         config = mkconf(f"""        brix_cvmfs_origin_select geo;
@@ -217,8 +264,7 @@ http {{ access_log off; server {{
         nb0 = _count_log(run, mb, obj)
         run.curl_status(f"http://{HOST}:{cport}{obj}")
         nb1 = _count_log(run, mb, obj)
-        checks.append((_grep(error_log, rtt_log, regex=True) and nb1 - nb0 == 1,
-                       f"rtt: probe pre-ranked live origin first (fills={nb1 - nb0})"))
+        _expression_3(checks, error_log, rtt_log, nb1, nb0)
 
         # 4: config-error negatives
         config = mkconf("        brix_cvmfs_origin_select geo;",
@@ -234,8 +280,7 @@ http {{ access_log off; server {{
         nb0 = _count_log(run, mb, obj)
         run.curl_status(f"http://{HOST}:{cport}{obj}")
         nb1 = _count_log(run, mb, obj)
-        checks.append((_grep(error_log, rtt_log, regex=True) and nb1 - nb0 == 1,
-                       f"default: rtt active — probe pre-ranked live origin first (fills={nb1 - nb0})"))
+        _expression_4(checks, error_log, rtt_log, nb1, nb0)
 
         return _checks(checks)
 
@@ -335,4 +380,3 @@ http {{ access_log off; server {{
 # ---------------------------------------------------------------------------
 # evict — eviction on the unified cache-store surface
 # ---------------------------------------------------------------------------
-

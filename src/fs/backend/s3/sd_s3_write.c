@@ -391,6 +391,69 @@ sd_s3_put_upgrade_mpu(sd_s3_file *f, char *errbuf, size_t errcap)
     return 0;
 }
 
+/*
+ * WHAT: Append one sequential write to an active multipart upload buffer.
+ * WHY:  Part assembly and flushing are independent from write-mode selection.
+ * HOW:  Verify offset, fill fixed-size parts, flush full parts, advance cursor.
+ */
+static int
+sd_s3_pwrite_mpu(sd_s3_file *f, const void *buf, size_t n, off_t off,
+    char *errbuf, size_t errcap)
+{
+    const char *src = buf;
+    size_t rem = n;
+
+    if (sd_s3_check_sequential((int64_t) off, f->mpu_write_off,
+                               errbuf, errcap) != 0)
+        return -1;
+    while (rem > 0) {
+        size_t space = (size_t) f->part_size - f->part_buf_len;
+        size_t copy = rem < space ? rem : space;
+
+        memcpy((char *) f->part_buf + f->part_buf_len, src, copy);
+        f->part_buf_len += copy;
+        src += copy;
+        rem -= copy;
+        if (f->part_buf_len == (size_t) f->part_size
+            && sd_s3_mpu_flush(f, errbuf, errcap) != 0)
+            return -1;
+    }
+    f->mpu_write_off = (int64_t) off + (int64_t) n;
+    return 0;
+}
+
+/*
+ * WHAT: Append one sequential write to the lazy single-PUT buffer.
+ * WHY:  Buffer growth is a distinct storage path from multipart assembly.
+ * HOW:  Verify offset, geometrically grow storage, copy, and advance cursor.
+ */
+static int
+sd_s3_pwrite_buffered(sd_s3_file *f, const void *buf, size_t n, off_t off,
+    char *errbuf, size_t errcap)
+{
+    if (sd_s3_check_sequential((int64_t) off, f->put_write_off,
+                               errbuf, errcap) != 0)
+        return -1;
+    if (f->put_len + n > f->put_cap) {
+        size_t cap = f->put_cap ? f->put_cap * 2 : SD_S3_PUT_BUF_INIT;
+        void *grown;
+
+        while (cap < f->put_len + n)
+            cap *= 2;
+        grown = realloc(f->put_buf, cap);
+        if (grown == NULL) {
+            sd_s3_set_err(errbuf, errcap, "s3 single-put: out of memory");
+            return -1;
+        }
+        f->put_buf = grown;
+        f->put_cap = cap;
+    }
+    memcpy((char *) f->put_buf + f->put_len, buf, n);
+    f->put_len += n;
+    f->put_write_off = (int64_t) off + (int64_t) n;
+    return 0;
+}
+
 int
 sd_s3_pwrite(sd_s3_file *f, const void *buf, size_t n, off_t off,
              char *errbuf, size_t errcap)
@@ -409,49 +472,11 @@ sd_s3_pwrite(sd_s3_file *f, const void *buf, size_t n, off_t off,
         return -1;
     }
     if (f->is_mpu) {
-        const char *src = (const char *) buf;
-        size_t      rem = n;
-        if (sd_s3_check_sequential((int64_t) off, f->mpu_write_off,
-                                   errbuf, errcap) != 0) {
-            return -1;
-        }
-        while (rem > 0) {
-            size_t space  = (size_t) f->part_size - f->part_buf_len;
-            size_t tocopy = (rem < space) ? rem : space;
-            memcpy((char *) f->part_buf + f->part_buf_len, src, tocopy);
-            f->part_buf_len += tocopy;
-            src += tocopy;
-            rem -= tocopy;
-            if (f->part_buf_len == (size_t) f->part_size
-                && sd_s3_mpu_flush(f, errbuf, errcap) != 0) {
-                return -1;
-            }
-        }
-        f->mpu_write_off = (int64_t) off + (int64_t) n;
-        return 0;
+        return sd_s3_pwrite_mpu(f, buf, n, off, errbuf, errcap);
     }
 
     /* single buffered PUT */
-    if (sd_s3_check_sequential((int64_t) off, f->put_write_off,
-                               errbuf, errcap) != 0) {
-        return -1;
-    }
-    if (f->put_len + n > f->put_cap) {
-        size_t nc = f->put_cap ? f->put_cap * 2 : SD_S3_PUT_BUF_INIT;
-        void  *nb;
-        while (nc < f->put_len + n) { nc *= 2; }
-        nb = realloc(f->put_buf, nc);
-        if (nb == NULL) {
-            sd_s3_set_err(errbuf, errcap, "s3 single-put: out of memory");
-            return -1;
-        }
-        f->put_buf = nb;
-        f->put_cap = nc;
-    }
-    memcpy((char *) f->put_buf + f->put_len, buf, n);
-    f->put_len += n;
-    f->put_write_off = (int64_t) off + (int64_t) n;
-    return 0;
+    return sd_s3_pwrite_buffered(f, buf, n, off, errbuf, errcap);
 }
 
 int

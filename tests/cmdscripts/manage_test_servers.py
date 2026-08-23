@@ -23,6 +23,22 @@ import argparse
 import os
 import sys
 
+def _expression_1(specs):
+    return (
+        {spec.name: spec for spec in specs}
+    )
+
+def _expression_2(port):
+    return (
+        port and pids_on_port(int(port))
+    )
+
+
+def _guard_start_dedicated_1(name, by_name):
+    if name not in by_name:
+        raise SystemExit(f"start-dedicated: unknown instance '{name}'")
+
+
 TEST_ROOT = Path(os.environ.get("TEST_ROOT", "/tmp/xrd-test"))
 
 
@@ -92,9 +108,8 @@ def stop_all() -> int:
 def start_dedicated(name: str) -> int:
     """Start a single named instance (and any specs it ``requires``) in order."""
     specs = _register()
-    by_name = {spec.name: spec for spec in specs}
-    if name not in by_name:
-        raise SystemExit(f"start-dedicated: unknown instance '{name}'")
+    by_name = _expression_1(specs)
+    _guard_start_dedicated_1(name, by_name)
 
     wanted: set[str] = set()
 
@@ -120,7 +135,7 @@ def start_dedicated(name: str) -> int:
         if spec.name not in wanted:
             continue
         port = endpoint_for(spec).port
-        if port and pids_on_port(int(port)):
+        if _expression_2(port):
             continue
         launcher.start(spec)
         started += 1

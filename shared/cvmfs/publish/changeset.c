@@ -330,52 +330,82 @@ static int ch_prefix_validate(ch_scan_t *sc, const char *prefix, size_t plen) {
     return 0;
 }
 
+/*
+ * WHAT: Move every changeset path below an already validated prefix.
+ * WHY:  Path relocation is independent from synthesizing prefix ancestors.
+ * HOW:  Allocate prefix-plus-path strings and replace each owned path in order.
+ */
+static int ch_prefix_paths(ch_scan_t *scan, const char *prefix, size_t prefix_len) {
+    cvmfs_changeset_t *changeset = scan->cs;
+
+    for (size_t i = 0; i < changeset->n; i++) {
+        cvmfs_change_t *change = &changeset->v[i];
+        size_t          path_len = strlen(change->path);
+        char           *path;
+
+        if (prefix_len + path_len >= CH_PATH_MAX)
+            return ch_fail(scan, "reprefixed path too long: %s", change->path);
+        path = malloc(prefix_len + path_len + 1);
+        if (path == NULL)
+            return ch_fail(scan, "out of memory near %s", change->path);
+        memcpy(path, prefix, prefix_len);
+        memcpy(path + prefix_len, change->path, path_len + 1);
+        free(change->path);
+        change->path = path;
+    }
+    return 0;
+}
+
+/*
+ * WHAT: Add no-clobber directory changes for every component of a prefix.
+ * WHY:  Publishing below a new prefix requires its complete ancestor chain.
+ * HOW:  Walk slash boundaries, append directory records, and stamp ownership.
+ */
+static int ch_prefix_ancestors(ch_scan_t *scan, const char *prefix,
+                               size_t prefix_len) {
+    int64_t now = (int64_t) time(NULL);
+
+    for (size_t pos = 1; pos <= prefix_len; pos++) {
+        cvmfs_change_t *change;
+        char           *ancestor;
+
+        if (pos != prefix_len && prefix[pos] != '/')
+            continue;
+        change = ch_new(scan->cs);
+        ancestor = change != NULL ? strndup(prefix, pos) : NULL;
+        if (ancestor == NULL)
+            return ch_fail(scan, "out of memory near %s", prefix);
+        change->op = CVMFS_CH_ADD_DIR;
+        change->path = ancestor;
+        change->mode = S_IFDIR | 0755;
+        change->uid = (uint32_t) getuid();
+        change->gid = (uint32_t) getgid();
+        change->mtime = now;
+        change->no_clobber = 1;
+    }
+    return 0;
+}
+
 int cvmfs_changeset_reprefix(cvmfs_changeset_t *cs, const char *prefix,
                              char *err, size_t errlen) {
     ch_scan_t sc = { cs, NULL, err, errlen };
+    size_t    plen;
+
     if (prefix == NULL || prefix[0] != '/')
         return ch_fail(&sc, "prefix must be absolute: %s",
                        prefix != NULL ? prefix : "(null)");
-    size_t plen = strlen(prefix);
-    while (plen > 1 && prefix[plen - 1] == '/') plen--;
+    plen = strlen(prefix);
+    while (plen > 1 && prefix[plen - 1] == '/')
+        plen--;
     if (plen >= CH_PATH_MAX)
         return ch_fail(&sc, "prefix too long: %s", prefix);
-    if (plen == 1) return 0;                 /* "/" — already rooted */
+    if (plen == 1)
+        return 0;
     if (ch_prefix_validate(&sc, prefix, plen) != 0)
         return -1;
-
-    for (size_t i = 0; i < cs->n; i++) {
-        cvmfs_change_t *c = &cs->v[i];
-        size_t l = strlen(c->path);
-        if (plen + l >= CH_PATH_MAX)
-            return ch_fail(&sc, "reprefixed path too long: %s", c->path);
-        char *np = malloc(plen + l + 1);
-        if (np == NULL)
-            return ch_fail(&sc, "out of memory near %s", c->path);
-        memcpy(np, prefix, plen);
-        memcpy(np + plen, c->path, l + 1);
-        free(c->path);
-        c->path = np;
-    }
-
-    /* the ancestor chain, "/a", "/a/b", …, prefix itself — upserts that a
-     * published non-dir fails (no_clobber), so a foreign file is never
-     * silently retyped into a directory */
-    int64_t now = (int64_t) time(NULL);
-    for (size_t p = 1; p <= plen; p++) {
-        if (p != plen && prefix[p] != '/') continue;
-        cvmfs_change_t *c = ch_new(cs);
-        char *ancestor = c != NULL ? strndup(prefix, p) : NULL;
-        if (ancestor == NULL)
-            return ch_fail(&sc, "out of memory near %s", prefix);
-        c->op = CVMFS_CH_ADD_DIR;
-        c->path = ancestor;
-        c->mode = S_IFDIR | 0755;
-        c->uid = (uint32_t) getuid();
-        c->gid = (uint32_t) getgid();
-        c->mtime = now;
-        c->no_clobber = 1;
-    }
+    if (ch_prefix_paths(&sc, prefix, plen) != 0 ||
+        ch_prefix_ancestors(&sc, prefix, plen) != 0)
+        return -1;
     qsort(cs->v, cs->n, sizeof(*cs->v), ch_cmp);
     return 0;
 }

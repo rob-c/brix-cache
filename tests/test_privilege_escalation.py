@@ -1,5 +1,123 @@
 from split_continuation import reexport as _reexport
+def _phase_test_mutating_opcode_rejected_by_readonly_listener_1(self):
+    with open(self.chmod_disk, "wb") as fh:
+        fh.write(b"do not chmod\n")
+
+
+def _check_test_mutating_opcode_rejected_by_readonly_listener_1(self):
+    assert not os.path.exists(self.open_write_disk)
+
+def _check_test_mutating_opcode_rejected_by_readonly_listener_2(status):
+    assert status == kXR_OK
+
+def _check_test_mutating_opcode_rejected_by_readonly_listener_3(self):
+    assert os.path.getsize(self.truncate_disk) == len(b"do not truncate\n")
+
+def _check_test_mutating_opcode_rejected_by_readonly_listener_4(self):
+    assert not os.path.exists(self.mkdir_disk)
+
+def _check_test_mutating_opcode_rejected_by_readonly_listener_5(fh):
+    assert fh.read() == b"keep me\n"
+
+def _check_test_mutating_opcode_rejected_by_readonly_listener_6(self):
+    assert (os.stat(self.chmod_disk).st_mode & 0o777) == 0o644
+
+def _assert_rmdir_preserved(test):
+    assert os.path.isdir(test.rmdir_disk)
+    assert os.path.exists(test.rmdir_child)
+
+def _assert_move_refused(test):
+    assert os.path.exists(test.mv_src_disk)
+    assert not os.path.exists(test.mv_dst_disk)
+
+
 _reexport(globals(), "_test_privilege_escalation_helpers")
+
+def _reject_handle_write_case(self, sock, case):
+    if case == "open_write":
+        payload = b"/_priv_ro_open_write.txt"
+        req = struct.pack(
+            "!2sHHH2s6s4sI",
+            b"\x00\x03", kXR_open,
+            0o644,
+            kXR_open_wrto | kXR_new,
+            b"\x00\x00",
+            b"\x00" * 6,
+            b"\x00" * 4,
+            len(payload),
+        )
+        sock.sendall(req + payload)
+        status, body = _read_response(sock)
+        _assert_readonly_response(status, body)
+        _check_test_mutating_opcode_rejected_by_readonly_listener_1(self)
+        return True
+
+    if case == "write":
+        data = b"blocked"
+        req = struct.pack(
+            "!2sH4sq1s3sI",
+            b"\x00\x03", kXR_write,
+            b"\x00" * 4,
+            0,
+            b"\x00",
+            b"\x00" * 3,
+            len(data),
+        )
+        sock.sendall(req + data)
+        status, body = _read_response(sock)
+        _assert_readonly_response(status, body)
+        return True
+
+    if case == "pgwrite":
+        data = b"\x00\x00\x00\x00blocked"
+        req = struct.pack(
+            "!2sH4sq1s1s2sI",
+            b"\x00\x03", kXR_pgwrite,
+            b"\x00" * 4,
+            0,
+            b"\x00",
+            b"\x00",
+            b"\x00" * 2,
+            len(data),
+        )
+        sock.sendall(req + data)
+        status, body = _read_response(sock)
+        _assert_readonly_response(status, body)
+        return True
+
+    if case == "writev":
+        req = struct.pack(
+            "!2sH16sI",
+            b"\x00\x03", kXR_writev,
+            b"\x00" * 16,
+            0,
+        )
+        sock.sendall(req)
+        status, body = _read_response(sock)
+        _assert_readonly_response(status, body)
+        return True
+
+    if case == "sync":
+        status, body = _open_file_raw(
+            sock, self.read_remote.encode(), kXR_open_read,
+            streamid=b"\x00\x03",
+        )
+        _check_test_mutating_opcode_rejected_by_readonly_listener_2(status)
+        fhandle = body[:4]
+        req = struct.pack(
+            "!2sH4s12sI",
+            b"\x00\x04", kXR_sync,
+            fhandle,
+            b"\x00" * 12,
+            0,
+        )
+        sock.sendall(req)
+        status, body = _read_response(sock)
+        _assert_readonly_response(status, body)
+        _close_handle_raw(sock, fhandle, streamid=b"\x00\x05")
+        return True
+    return False
+
 
 class TestReadOnlyServer:
     """A listener without brix_allow_write must permit reads and block mutations."""
@@ -125,88 +243,9 @@ class TestReadOnlyServer:
             self, readonly_nginx, case):
         """Every mutating opcode should fail with kXR_fsReadOnly before side effects."""
         with self._readonly_session() as sock:
-            if case == "open_write":
-                payload = b"/_priv_ro_open_write.txt"
-                req = struct.pack(
-                    "!2sHHH2s6s4sI",
-                    b"\x00\x03", kXR_open,
-                    0o644,
-                    kXR_open_wrto | kXR_new,
-                    b"\x00\x00",
-                    b"\x00" * 6,
-                    b"\x00" * 4,
-                    len(payload),
-                )
-                sock.sendall(req + payload)
-                status, body = _read_response(sock)
-                _assert_readonly_response(status, body)
-                assert not os.path.exists(self.open_write_disk)
+            if _reject_handle_write_case(self, sock, case):
                 return
 
-            if case == "write":
-                data = b"blocked"
-                req = struct.pack(
-                    "!2sH4sq1s3sI",
-                    b"\x00\x03", kXR_write,
-                    b"\x00" * 4,
-                    0,
-                    b"\x00",
-                    b"\x00" * 3,
-                    len(data),
-                )
-                sock.sendall(req + data)
-                status, body = _read_response(sock)
-                _assert_readonly_response(status, body)
-                return
-
-            if case == "pgwrite":
-                data = b"\x00\x00\x00\x00blocked"
-                req = struct.pack(
-                    "!2sH4sq1s1s2sI",
-                    b"\x00\x03", kXR_pgwrite,
-                    b"\x00" * 4,
-                    0,
-                    b"\x00",
-                    b"\x00",
-                    b"\x00" * 2,
-                    len(data),
-                )
-                sock.sendall(req + data)
-                status, body = _read_response(sock)
-                _assert_readonly_response(status, body)
-                return
-
-            if case == "writev":
-                req = struct.pack(
-                    "!2sH16sI",
-                    b"\x00\x03", kXR_writev,
-                    b"\x00" * 16,
-                    0,
-                )
-                sock.sendall(req)
-                status, body = _read_response(sock)
-                _assert_readonly_response(status, body)
-                return
-
-            if case == "sync":
-                status, body = _open_file_raw(
-                    sock, self.read_remote.encode(), kXR_open_read,
-                    streamid=b"\x00\x03",
-                )
-                assert status == kXR_OK
-                fhandle = body[:4]
-                req = struct.pack(
-                    "!2sH4s12sI",
-                    b"\x00\x04", kXR_sync,
-                    fhandle,
-                    b"\x00" * 12,
-                    0,
-                )
-                sock.sendall(req)
-                status, body = _read_response(sock)
-                _assert_readonly_response(status, body)
-                _close_handle_raw(sock, fhandle, streamid=b"\x00\x05")
-                return
 
             if case == "truncate":
                 with open(self.truncate_disk, "wb") as fh:
@@ -223,7 +262,7 @@ class TestReadOnlyServer:
                 sock.sendall(req + payload)
                 status, body = _read_response(sock)
                 _assert_readonly_response(status, body)
-                assert os.path.getsize(self.truncate_disk) == len(b"do not truncate\n")
+                _check_test_mutating_opcode_rejected_by_readonly_listener_3(self)
                 return
 
             if case == "mkdir":
@@ -239,7 +278,7 @@ class TestReadOnlyServer:
                 sock.sendall(req + payload)
                 status, body = _read_response(sock)
                 _assert_readonly_response(status, body)
-                assert not os.path.exists(self.mkdir_disk)
+                _check_test_mutating_opcode_rejected_by_readonly_listener_4(self)
                 return
 
             if case == "rm":
@@ -256,7 +295,7 @@ class TestReadOnlyServer:
                 status, body = _read_response(sock)
                 _assert_readonly_response(status, body)
                 with open(self.rm_disk, "rb") as fh:
-                    assert fh.read() == b"keep me\n"
+                    _check_test_mutating_opcode_rejected_by_readonly_listener_5(fh)
                 return
 
             if case == "rmdir":
@@ -273,8 +312,7 @@ class TestReadOnlyServer:
                 sock.sendall(req + payload)
                 status, body = _read_response(sock)
                 _assert_readonly_response(status, body)
-                assert os.path.isdir(self.rmdir_disk)
-                assert os.path.exists(self.rmdir_child)
+                _assert_rmdir_preserved(self)
                 return
 
             if case == "mv":
@@ -293,13 +331,11 @@ class TestReadOnlyServer:
                 sock.sendall(req + payload)
                 status, body = _read_response(sock)
                 _assert_readonly_response(status, body)
-                assert os.path.exists(self.mv_src_disk)
-                assert not os.path.exists(self.mv_dst_disk)
+                _assert_move_refused(self)
                 return
 
             if case == "chmod":
-                with open(self.chmod_disk, "wb") as fh:
-                    fh.write(b"do not chmod\n")
+                _phase_test_mutating_opcode_rejected_by_readonly_listener_1(self)
                 os.chmod(self.chmod_disk, 0o644)
                 payload = b"/_priv_ro_chmod.txt"
                 req = struct.pack(
@@ -312,7 +348,7 @@ class TestReadOnlyServer:
                 sock.sendall(req + payload)
                 status, body = _read_response(sock)
                 _assert_readonly_response(status, body)
-                assert (os.stat(self.chmod_disk).st_mode & 0o777) == 0o644
+                _check_test_mutating_opcode_rejected_by_readonly_listener_6(self)
                 return
 
         pytest.fail(f"unhandled read-only test case: {case}")

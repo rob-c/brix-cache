@@ -69,6 +69,12 @@ from _test_audit15f_helpers import SS_BIN, socket_timers
 from _test_cms_parity_wave_helpers import (StubManager, CMS_RR_LOAD,
                                            CMS_RR_LOGIN)
 
+def _expression_1(code, payload):
+    return (
+        code == CMS_RR_LOAD and len(payload) >= 8
+    )
+
+
 pytestmark = [pytest.mark.uses_lifecycle_harness,
               pytest.mark.timeout(120),
               pytest.mark.xdist_group("lc-audit15f-clnode")]
@@ -124,7 +130,7 @@ def _wait_load(stub, pred, start=0, timeout=15.0):
     deadline = time.time() + timeout
     while time.time() < deadline:
         for code, _mod, payload in stub.frames[start:]:
-            if code == CMS_RR_LOAD and len(payload) >= 8:
+            if _expression_1(code, payload):
                 vals = _load_bytes(payload)
                 if pred(vals):
                     return vals

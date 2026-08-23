@@ -71,24 +71,40 @@ def _read_text(rel):
 @pytest.mark.parametrize("name", CLIENT_BINARIES)
 def test_client_binary_is_cleanroom(name):
     binpath = os.path.join(REPO, "client", "bin", name)
-    if not os.access(binpath, os.X_OK):
-        pytest.skip(f"client binary not built/executable: {binpath}")
-    ldd = shutil.which("ldd")
-    if ldd is None:
-        pytest.skip("ldd not available on this host")
-
+    _require_executable(binpath)
+    ldd = _require_ldd()
     r = subprocess.run([ldd, binpath], capture_output=True, text=True, timeout=60)
     # `ldd` returns non-zero for a static / non-dynamic binary; that is itself a
     # clean-room pass (nothing dynamically linked => certainly no libXrd*).
     out = (r.stdout or "") + (r.stderr or "")
-    if "not a dynamic executable" in out or "statically linked" in out:
+    if _is_static_binary(out):
         return
     assert r.returncode == 0, f"ldd failed for {name}: {out[:300]}"
 
-    offenders = [ln.strip() for ln in r.stdout.splitlines() if "libXrd" in ln]
+    offenders = _xrootd_dependencies(r.stdout)
     assert not offenders, (
         f"{name} links XRootD libraries (clean-room violation): {offenders}"
     )
+
+
+def _require_executable(path):
+    if not os.access(path, os.X_OK):
+        pytest.skip(f"client binary not built/executable: {path}")
+
+
+def _require_ldd():
+    path = shutil.which("ldd")
+    if path is None:
+        pytest.skip("ldd not available on this host")
+    return path
+
+
+def _is_static_binary(output):
+    return "not a dynamic executable" in output or "statically linked" in output
+
+
+def _xrootd_dependencies(output):
+    return [line.strip() for line in output.splitlines() if "libXrd" in line]
 
 
 # ---------------------------------------------------------------------------
@@ -108,13 +124,22 @@ def test_phase42_source_has_no_goto(rel):
 # ---------------------------------------------------------------------------
 @pytest.mark.parametrize("rel", PHASE42_SOURCES)
 def test_phase42_source_has_docblock(rel):
-    text = _read_text(rel)
-    if text is None:
-        pytest.skip(f"source file absent: {rel}")
+    text = _require_source_text(rel)
     head = "\n".join(text.splitlines()[:40])
-    has_what_why = ("WHAT" in head) or ("WHY" in head)
-    has_block_comment = ("/*" in head) and ("*/" in head)
-    assert has_what_why or has_block_comment, (
+    assert _has_docblock(head), (
         f"{rel} is missing a top-of-file docblock (no WHAT/WHY and no /* ... */ "
         f"in the first 40 lines)"
     )
+
+
+def _require_source_text(relative):
+    text = _read_text(relative)
+    if text is None:
+        pytest.skip(f"source file absent: {relative}")
+    return text
+
+
+def _has_docblock(head):
+    named = "WHAT" in head or "WHY" in head
+    block = "/*" in head and "*/" in head
+    return named or block

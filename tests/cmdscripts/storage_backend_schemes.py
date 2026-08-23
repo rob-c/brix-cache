@@ -175,28 +175,62 @@ stream {{ server {{ listen {BIND_HOST}:{port}; brix_root on; brix_auth none; bri
     results: list[tuple[bool, str]] = []
     try:
         time.sleep(1)
-        got = base / "b.got"
-        cp = run([str(xrdcp), f"root://{HOST}:{port}//0", str(got), "-f"])
-        results.append((
-            cp.returncode == 0 and got.exists() and got.read_bytes() == payload,
-            "block: GET /0 byte-exact (whole-device extent)",
-        ))
-        st = run([str(xrdfs), f"root://{HOST}:{port}", "stat", "/0"])
-        results.append((
-            st.returncode == 0 and "250000" in (st.stdout or ""),
-            "block: stat /0 reports the device capacity",
-        ))
-        oob = run([str(xrdcp), f"root://{HOST}:{port}//1", str(base / "b.no"), "-f"])
-        results.append((oob.returncode != 0, "block: GET /1 (out-of-range extent) fails"))
-        bad = run([str(xrdcp), f"root://{HOST}:{port}//etc", str(base / "b.no2"), "-f"])
-        results.append((
-            bad.returncode != 0,
-            "block: GET non-numeric name rejected (namespace exposes only /N)",
-        ))
+        _block_transfer_results(base, port, payload, xrdcp, xrdfs, results)
         return results
     finally:
         stop_pidfile(base / "b.pid")
         time.sleep(0.2)
+
+
+def _block_transfer_results(base, port, payload, xrdcp, xrdfs, results):
+    output = base / "b.got"
+    copied = run([str(xrdcp), f"root://{HOST}:{port}//0", str(output), "-f"])
+    results.append((
+        all((copied.returncode == 0, output.exists(),
+             output.read_bytes() == payload)),
+        "block: GET /0 byte-exact (whole-device extent)"))
+    stat = run([str(xrdfs), f"root://{HOST}:{port}", "stat", "/0"])
+    results.append((
+        all((stat.returncode == 0, "250000" in (stat.stdout or ""))),
+        "block: stat /0 reports the device capacity"))
+    outside = run(
+        [str(xrdcp), f"root://{HOST}:{port}//1", str(base / "b.no"), "-f"])
+    results.append((outside.returncode != 0,
+                    "block: GET /1 (out-of-range extent) fails"))
+    invalid = run(
+        [str(xrdcp), f"root://{HOST}:{port}//etc", str(base / "b.no2"), "-f"])
+    results.append((
+        invalid.returncode != 0,
+        "block: GET non-numeric name rejected (namespace exposes only /N)"))
+
+
+def _frm_cat(xrdfs, port, output):
+    try:
+        with output.open("wb") as stream:
+            return subprocess.run(
+                [str(xrdfs), f"root://{HOST}:{port}", "cat", "/f.bin"],
+                stdout=stream, stderr=subprocess.PIPE, timeout=60)
+    except subprocess.TimeoutExpired:
+        return None
+
+
+def _sha256_if_present(path):
+    if not path.exists():
+        return ""
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def _frm_recall_result(base, xrdfs, port, expected_sha):
+    stat = run([str(xrdfs), f"root://{HOST}:{port}", "stat", "/f.bin"])
+    if "Offline" not in (stat.stdout or ""):
+        return False, "frm:// nearline object reports Offline"
+    output = base / "f.got"
+    result = _frm_cat(xrdfs, port, output)
+    if result is None:
+        return False, "frm:// cat timed out after 60s (recall stalled)"
+    matched = all((result.returncode == 0,
+                   _sha256_if_present(output) == expected_sha))
+    return matched, "frm:// cat byte-exact (recall via sd_frm+sd_cache)"
 
 
 def frm_data_plane(base: Path, nginx_bin: str, xrdfs: Path = XRDFS) -> tuple[bool, str]:
@@ -229,22 +263,7 @@ stream {{ server {{ listen {BIND_HOST}:{port}; brix_root on; brix_export {fexpor
         return False, "frm:// node start"
     try:
         time.sleep(1)
-        stat = run([str(xrdfs), f"root://{HOST}:{port}", "stat", "/f.bin"])
-        if "Offline" not in (stat.stdout or ""):
-            return False, "frm:// nearline object reports Offline"
-        got = base / "f.got"
-        try:
-            with got.open("wb") as out:
-                cat = subprocess.run(
-                    [str(xrdfs), f"root://{HOST}:{port}", "cat", "/f.bin"],
-                    stdout=out,
-                    stderr=subprocess.PIPE,
-                    timeout=60,
-                )
-        except subprocess.TimeoutExpired:
-            return False, "frm:// cat timed out after 60s (recall stalled)"
-        got_sha = hashlib.sha256(got.read_bytes()).hexdigest() if got.exists() else ""
-        return cat.returncode == 0 and got_sha == expected_sha, "frm:// cat byte-exact (recall via sd_frm+sd_cache)"
+        return _frm_recall_result(base, xrdfs, port, expected_sha)
     finally:
         stop_pidfile(base / "f.pid")
 
@@ -269,12 +288,7 @@ def run_checks(base: Path, nginx_bin: str = NGINX_BIN) -> list[tuple[bool, str]]
     return results
 
 
-def entry(argv: list[str]) -> int:
-    nginx_bin = argv[0] if argv else NGINX_BIN
-    import tempfile
-
-    with tempfile.TemporaryDirectory(prefix="sbschemes.") as tmp:
-        results = run_checks(Path(tmp), nginx_bin=nginx_bin)
+def _report_results(results):
     for ok, message in results:
         print(f"  {'ok  ' if ok else 'FAIL'} {message}")
     if all(ok for ok, _ in results):
@@ -282,6 +296,15 @@ def entry(argv: list[str]) -> int:
         return 0
     print("run_storage_backend_schemes: FAILURES")
     return 1
+
+
+def entry(argv: list[str]) -> int:
+    nginx_bin = argv[0] if argv else NGINX_BIN
+    import tempfile
+
+    with tempfile.TemporaryDirectory(prefix="sbschemes.") as tmp:
+        results = run_checks(Path(tmp), nginx_bin=nginx_bin)
+    return _report_results(results)
 
 
 if __name__ == "__main__":

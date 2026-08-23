@@ -20,6 +20,54 @@ import sys
 import tempfile
 from pathlib import Path
 
+def _phase_spec_text_1(s, out):
+    for p in s["provides"]:
+        out.insert(3, f"Provides:       {p}\n")
+
+def _phase_spec_text_2(s, out):
+    for r in s["requires"]:
+        out.insert(3, f"Requires:       {r}\n")
+
+def _phase_build_3(top):
+    for sub in ("SPECS", "BUILD", "RPMS", "SRPMS", "BUILDROOT"):
+        (top / sub).mkdir()
+
+def _phase_build_4(top, out_dir):
+    for built in top.glob("RPMS/*/*.rpm"):
+        shutil.copy2(built, out_dir / built.name)
+
+
+def _expression_1(out_dir):
+    return (
+        {n: out_dir / rpm_name(n, s) for n, s in SPECS.items()}
+    )
+
+def _expression_2(want):
+    return (
+        [str(p) for p in want.values() if not p.exists()]
+    )
+
+def _expression_3(path):
+    return (
+        "%config(noreplace) " if path.startswith("/etc/") else ""
+    )
+
+
+def _guard_spec_text_1(s, out):
+    if s["epoch"] is not None:
+        out.append(f"Epoch:          {s['epoch']}\n")
+
+def _guard_spec_text_2(s, out):
+    if s["changelog"]:
+        out.append("\n%changelog\n"
+                   "* Mon Jan 06 2025 BriX <brix@example.invalid> - 0.9-4\n"
+                   "- corpus entry with an <escaped> & ampersand\n")
+
+def _guard_build_3(missing):
+    if missing:
+        raise RuntimeError(f"rpmbuild did not produce: {missing}")
+
+
 FIXTURES = Path(__file__).resolve().parent / "fixtures"
 
 # name -> (spec body, produced file name). Kept deliberately tiny; every byte
@@ -84,14 +132,11 @@ def _spec_text(name: str, s: dict) -> str:
     out = [f"Name:           {name}\n",
            f"Version:        {s['version']}\n",
            f"Release:        {s['release']}\n"]
-    if s["epoch"] is not None:
-        out.append(f"Epoch:          {s['epoch']}\n")
+    _guard_spec_text_1(s, out)
     out.append(_COMMON % dict(arch=s["arch"], summary=s["summary"],
                               desc=s["desc"]))
-    for p in s["provides"]:
-        out.insert(3, f"Provides:       {p}\n")
-    for r in s["requires"]:
-        out.insert(3, f"Requires:       {r}\n")
+    _phase_spec_text_1(s, out)
+    _phase_spec_text_2(s, out)
 
     out.append("\n%install\nrm -rf %{buildroot}\n")
     for path, _mode, body in s["files"]:
@@ -101,13 +146,10 @@ def _spec_text(name: str, s: dict) -> str:
     out.append("\n%files\n")
     for path, mode, _body in s["files"]:
         attr = mode.split("=")[1]
-        cfg = "%config(noreplace) " if path.startswith("/etc/") else ""
+        cfg = _expression_3(path)
         out.append(f"%attr({attr},root,root) {cfg}{path}\n")
 
-    if s["changelog"]:
-        out.append("\n%changelog\n"
-                   "* Mon Jan 06 2025 BriX <brix@example.invalid> - 0.9-4\n"
-                   "- corpus entry with an <escaped> & ampersand\n")
+    _guard_spec_text_2(s, out)
     return "".join(out)
 
 
@@ -118,14 +160,13 @@ def rpm_name(name: str, s: dict) -> str:
 def build(out_dir: Path = FIXTURES, force: bool = False) -> list[Path]:
     """Build (or reuse) the corpus in out_dir; return the .rpm paths."""
     out_dir.mkdir(parents=True, exist_ok=True)
-    want = {n: out_dir / rpm_name(n, s) for n, s in SPECS.items()}
+    want = _expression_1(out_dir)
     if not force and all(p.exists() for p in want.values()):
         return sorted(want.values())
 
     with tempfile.TemporaryDirectory(prefix="brixrpm-fixtures-") as td:
         top = Path(td)
-        for sub in ("SPECS", "BUILD", "RPMS", "SRPMS", "BUILDROOT"):
-            (top / sub).mkdir()
+        _phase_build_3(top)
         for name, s in SPECS.items():
             spec = top / "SPECS" / f"{name}.spec"
             spec.write_text(_spec_text(name, s))
@@ -133,11 +174,9 @@ def build(out_dir: Path = FIXTURES, force: bool = False) -> list[Path]:
                 ["rpmbuild", "-bb", "--define", f"_topdir {top}",
                  "--define", "_build_id_links none", str(spec)],
                 check=True, capture_output=True, text=True)
-        for built in top.glob("RPMS/*/*.rpm"):
-            shutil.copy2(built, out_dir / built.name)
-    missing = [str(p) for p in want.values() if not p.exists()]
-    if missing:
-        raise RuntimeError(f"rpmbuild did not produce: {missing}")
+        _phase_build_4(top, out_dir)
+    missing = _expression_2(want)
+    _guard_build_3(missing)
     return sorted(want.values())
 
 

@@ -31,24 +31,42 @@ def _clean(line):
     return re.sub(r"^(tests/)?test_[\w-]+\.py\s*[—-]+\s*", "", line).strip()
 
 
-def describe(text, stem):
+def _first_description(lines, minimum=1):
+    for raw in lines:
+        description = _clean(raw)
+        if len(description) >= minimum and not FNAME.match(description):
+            return description
+    return None
+
+
+def _comment_description(text):
+    for raw in text.splitlines():
+        candidate = raw.strip()
+        if candidate.startswith("#") and "brix-remote" not in candidate \
+                and len(candidate) > 6:
+            return _clean(candidate.lstrip("# "))
+    return None
+
+
+def _doc_lines(text):
     try:
         doc = ast.get_docstring(ast.parse(text))
     except SyntaxError:
         doc = None
-    lines = doc.splitlines() if doc else []
-    for raw in lines:
-        s = _clean(raw)
-        if len(s) >= 12 and not FNAME.match(s):
-            return s
-    for raw in lines:
-        s = _clean(raw)
-        if s and not FNAME.match(s):
-            return s
-    for raw in text.splitlines():
-        s = raw.strip()
-        if s.startswith("#") and "brix-remote" not in s and len(s) > 6:
-            return _clean(s.lstrip("# "))
+    return doc.splitlines() if doc else []
+
+
+def describe(text, stem):
+    lines = _doc_lines(text)
+    description = _first_description(lines, 12)
+    if description:
+        return description
+    description = _first_description(lines)
+    if description:
+        return description
+    description = _comment_description(text)
+    if description:
+        return description
     return stem[len("test_"):].replace("_", " ")
 
 
@@ -68,11 +86,24 @@ def rows():
         yield f.name, len(DEF.findall(text)), describe(text, f.stem), status(FORK / f.name)
 
 
-def render(data):
-    files = len(data)
-    tests = sum(r[1] for r in data)
-    counts = Counter(r[3] for r in data)
-    lines = [
+def _registry_row(index, row):
+    name, tests, description, status_name = row
+    description = description.replace("|", "\\|").replace("`", "")
+    if len(description) > 96:
+        description = description[:93] + "…"
+    return (f"| {index} | `{name}` | {tests} | {description} | `{name}` | "
+            f"`{status_name}` |")
+
+
+def _status_summary(counts):
+    statuses = ("pure-remote", "adapted", "verified-ok", "remote-skip",
+                "server-local")
+    return " · ".join(f"`{status}` {counts[status]}" for status in statuses
+                      if counts.get(status))
+
+
+def _registry_header(files, tests, counts):
+    return [
         "# nginx-xrootd Test Registry", "",
         "Flat registry of every test file in the module's suite (`tests/`): its test-function count, "
         "what it exercises, and the file in the k8s test lab that replicates it. The k8s lab runs a 1:1 "
@@ -85,19 +116,19 @@ def render(data):
         "- `adapted` — edited to run remotely; server-side files reached via `klib.svc_*` (`# brix-remote-adapted`).",
         "- `verified-ok` — runs remotely as-is, verified (`# brix-remote-ok`).",
         "- `remote-skip` — needs a multi-server topology the single mega server can't provide (`# brix-remote-skip`).",
-        "",
-        "**Status counts:** " + " · ".join(
-            f"`{k}` {counts[k]}" for k in
-            ("pure-remote", "adapted", "verified-ok", "remote-skip", "server-local") if counts.get(k)),
-        "",
+        "", "**Status counts:** " + _status_summary(counts), "",
         "| # | Test file (`tests/`) | Tests | What it tests | k8s lab file (`remote-suite/tests/`) | Status |",
         "|---|---|------:|---|---|---|",
     ]
-    for i, (name, n, desc, st) in enumerate(data, 1):
-        desc = desc.replace("|", "\\|").replace("`", "")
-        if len(desc) > 96:
-            desc = desc[:93] + "…"
-        lines.append(f"| {i} | `{name}` | {n} | {desc} | `{name}` | `{st}` |")
+
+
+def render(data):
+    files = len(data)
+    tests = sum(r[1] for r in data)
+    counts = Counter(r[3] for r in data)
+    lines = _registry_header(files, tests, counts)
+    for index, row in enumerate(data, 1):
+        lines.append(_registry_row(index, row))
     return "\n".join(lines) + "\n"
 
 

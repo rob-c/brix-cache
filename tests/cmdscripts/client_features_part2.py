@@ -39,9 +39,13 @@ def section_xrdfs_rm(s: Session) -> None:
         s.skip(f"fleet rm -r tests (no fleet at {s.url})")
         return
 
-    # xrdfs one-shot connects before dispatch — exit-50 validation needs a live server.
+    _rm_basic(s)
+    _rm_verbose(s)
+    _rm_symlink(s)
+
+
+def _rm_basic(s):
     s.check("rm: no path exits 50", s.fs("rm").returncode == USAGE_ERROR)
-    # Security: rm -r / must exit 50 (export root guard).
     s.check("rm -r /: exits 50 (export root guard)", s.fs("rm", "-r", "/").returncode == USAGE_ERROR)
 
     base = f"/tmp/{s.tag}-rm"
@@ -62,6 +66,8 @@ def section_xrdfs_rm(s: Session) -> None:
     s.check("rm -r plain file: exit 0", s.fs("rm", "-r", fbase).returncode == 0)
     s.check("rm -r plain file: gone", not s.fs_stat_ok(fbase))
 
+
+def _rm_verbose(s):
     vbase = f"/tmp/{s.tag}-rmv"
     s.fs("mkdir", "-p", f"{vbase}/d")
     s.put("v\n", f"{vbase}/d/f")
@@ -70,7 +76,8 @@ def section_xrdfs_rm(s: Session) -> None:
     s.check("rm -r -v: prints removed lines",
             any(line.startswith("removed ") for line in (proc.stdout or "").splitlines()))
 
-    # Symlink guard: rm -r must remove the LINK, not the target's contents.
+
+def _rm_symlink(s):
     sbase = f"/tmp/{s.tag}-rmsym"
     sa, sd = f"{sbase}/A", f"{sbase}/D"
     s.fs("mkdir", "-p", sa)
@@ -106,33 +113,44 @@ def section_xrdfs_json(s: Session) -> None:
     s.fs("mkdir", "-p", base)
     s.put("hello\n", f"{base}/sample.txt")
 
-    # stat -j: valid JSON with is_dir key (and octal mode when present).
     doc = _valid_json(s.fs("stat", "-j", f"{base}/sample.txt").stdout)
-    ok = (isinstance(doc, dict) and doc.get("is_dir") in (True, False)
-          and ("mode" not in doc or re.match(r"^0[0-7]{3}$", str(doc["mode"])) is not None))
-    s.check("stat -j: valid JSON with is_dir", ok)
+    s.check("stat -j: valid JSON with is_dir", _valid_stat_json(doc))
 
     arr = _valid_json(s.fs("ls", "-j", base).stdout)
     s.check("ls -j: valid JSON array", isinstance(arr, list))
 
     arr = _valid_json(s.fs("du", "-j", base).stdout)
-    ok = (isinstance(arr, list) and len(arr) > 0
-          and all(key in arr[0] for key in ("bytes", "files", "dirs")))
-    s.check("du -j: valid JSON array with bytes/files/dirs", ok)
+    s.check("du -j: valid JSON array with bytes/files/dirs", _valid_du_json(arr))
 
     # security: hostile filename (double-quote) must not break ls -j JSON.
     weird = f'{base}/we"ird.txt'
     s.put("weird\n", weird)
-    if s.fs_stat_ok(weird):
-        parsed = _valid_json(s.fs("ls", "-j", base).stdout)
-        s.check("ls -j: hostile filename (double-quote) produces valid JSON", parsed is not None)
-    else:
-        print("  skip: server rejects quote-in-name; hostile-name JSON check not exercisable")
+    _check_hostile_json(s, base, weird)
 
     # error path: stat -j on a missing path — nonzero exit AND no JSON on stdout.
     proc = s.fs("stat", "-j", f"{base}/no-such-file")
     s.check("stat -j missing: nonzero exit", proc.returncode != 0)
     s.check("stat -j missing: no output on stdout", not (proc.stdout or "").strip())
+
+
+def _valid_stat_json(document):
+    if not isinstance(document, dict) or document.get("is_dir") not in (True, False):
+        return False
+    return "mode" not in document or re.match(r"^0[0-7]{3}$", str(document["mode"])) is not None
+
+
+def _valid_du_json(document):
+    if not isinstance(document, list) or not document:
+        return False
+    return all(key in document[0] for key in ("bytes", "files", "dirs"))
+
+
+def _check_hostile_json(s, base, weird):
+    if not s.fs_stat_ok(weird):
+        print("  skip: server rejects quote-in-name; hostile-name JSON check not exercisable")
+        return
+    parsed = _valid_json(s.fs("ls", "-j", base).stdout)
+    s.check("ls -j: hostile filename (double-quote) produces valid JSON", parsed is not None)
 
 
 # --------------------------------------------------------------------------- #
@@ -218,72 +236,98 @@ def section_cksum_tree(s: Session) -> None:
     (t / "src" / "sub" / "c.dat").write_text("charlie\n")
     manifest = t / "manifest"
 
-    rc = s.call([s.xrdcksum, "tree", t / "src", "-o", manifest]).returncode
+    _check_local_tree(s, t, manifest)
+    _check_newline_name(s)
+    _check_remote_tree(s, t)
+
+
+def _manifest_lines(path, missing):
+    return path.read_text().splitlines() if path.exists() else missing
+
+
+def _check_local_tree(s, tree, manifest):
+    source = tree / "src"
+    _check_manifest_creation(s, source, manifest)
+    _check_manifest_tamper(s, source, manifest)
+    _check_manifest_escape(s, tree, source, manifest)
+    _check_manifest_algorithm(s, tree, source)
+
+
+def _check_manifest_creation(s, source, manifest):
+    rc = s.call([s.xrdcksum, "tree", source, "-o", manifest]).returncode
     s.check("tree: exit 0 on clean local tree", rc == 0)
-    lines = manifest.read_text().splitlines() if manifest.exists() else []
+    lines = _manifest_lines(manifest, [])
     s.check("tree: manifest has 3 lines", len(lines) == 3)
     s.check("tree: each line has two-space separator",
             any(re.match(r"^[0-9a-f]+  [^/]", line) for line in lines))
 
-    rc = s.call([s.xrdcksum, "check", manifest, t / "src"]).returncode
+    rc = s.call([s.xrdcksum, "check", manifest, source]).returncode
     s.check("check: exit 0 when all match", rc == 0)
 
-    # tamper one file -> exit 1 and FAILED names the rel path.
-    (t / "src" / "a.dat").write_text("TAMPERED\n")
-    proc = s.call([s.xrdcksum, "check", manifest, t / "src"])
+
+def _check_manifest_tamper(s, source, manifest):
+    (source / "a.dat").write_text("TAMPERED\n")
+    proc = s.call([s.xrdcksum, "check", manifest, source])
     out_lines = (proc.stdout or "").splitlines()
     s.check("check: exit 1 on mismatch", proc.returncode == 1)
     s.check("check: FAILED line names the file", any(line.startswith("FAILED a.dat") for line in out_lines))
     s.check("check: two OK lines for untampered", sum(1 for line in out_lines if line.startswith("OK ")) == 2)
 
-    # security-negative: escaping rel path -> malformed, exit 2, guard untouched.
+
+def _check_manifest_escape(s, tree, source, manifest):
     guard = s.work / f"guard_{os.getpid()}"
     guard.write_text("canary")
-    bad_manifest = t / "bad_manifest"
+    bad_manifest = tree / "bad_manifest"
     bad_manifest.write_text(manifest.read_text() + f"03e51f2a  ../../guard_{os.getpid()}\n")
-    rc = s.call([s.xrdcksum, "check", bad_manifest, t / "src"]).returncode
+    rc = s.call([s.xrdcksum, "check", bad_manifest, source]).returncode
     s.check("check: exit 2 on malformed manifest line", rc == 2)
     s.check("security: escape line rejected, guard file untouched", guard.read_text() == "canary")
 
-    # e2e --algo: generate manifest with crc32c, verify with same algo.
-    (t / "src" / "a.dat").write_text("alpha\n")
-    algo_manifest = t / "algo_manifest"
-    rc = s.call([s.xrdcksum, "tree", t / "src", "--algo", "crc32c", "-o", algo_manifest]).returncode
+
+def _check_manifest_algorithm(s, tree, source):
+    (source / "a.dat").write_text("alpha\n")
+    algo_manifest = tree / "algo_manifest"
+    rc = s.call([s.xrdcksum, "tree", source, "--algo", "crc32c", "-o", algo_manifest]).returncode
     s.check("tree --algo crc32c: exit 0", rc == 0)
-    algo_lines = algo_manifest.read_text().splitlines() if algo_manifest.exists() else []
+    algo_lines = _manifest_lines(algo_manifest, [])
     s.check("tree --algo crc32c: manifest has 3 lines", len(algo_lines) == 3)
-    rc = s.call([s.xrdcksum, "check", algo_manifest, t / "src", "--algo", "crc32c"]).returncode
+    rc = s.call([s.xrdcksum, "check", algo_manifest, source, "--algo", "crc32c"]).returncode
     s.check("check --algo crc32c: exit 0 on clean tree", rc == 0)
 
-    # security-negative: newline-embedding filename must be skipped, not forged.
+
+def _create_newline_name(path):
+    try:
+        path.write_text("x\n")
+        return path.exists()
+    except OSError:
+        return False
+
+
+def _check_newline_name(s):
     nl = s.work / "cknl"
     (nl / "src").mkdir(parents=True, exist_ok=True)
     (nl / "src" / "good.dat").write_text("ok\n")
     badname = "evil\n0000  hack"
-    created = False
-    try:
-        (nl / "src" / badname).write_text("x\n")
-        created = (nl / "src" / badname).exists()
-    except OSError:
-        created = False
-    if created:
-        nl_manifest = nl / "manifest"
-        rc = s.call([s.xrdcksum, "tree", nl / "src", "-o", nl_manifest]).returncode
-        s.check("tree: newline-name run exits 2", rc == 2)
-        nl_text = nl_manifest.read_text() if nl_manifest.exists() else ""
-        s.check("tree: forged name not in manifest", "hack" not in nl_text)
-        s.check("tree: manifest parses cleanly line-by-line",
-                all(_MANIFEST_LINE.match(line) for line in nl_text.splitlines()))
-    else:
+    if not _create_newline_name(nl / "src" / badname):
         s.skip("newline-name test (filesystem rejected the name)")
+        return
+    nl_manifest = nl / "manifest"
+    rc = s.call([s.xrdcksum, "tree", nl / "src", "-o", nl_manifest]).returncode
+    s.check("tree: newline-name run exits 2", rc == 2)
+    nl_text = nl_manifest.read_text() if nl_manifest.exists() else ""
+    s.check("tree: forged name not in manifest", "hack" not in nl_text)
+    s.check("tree: manifest parses cleanly line-by-line",
+            all(_MANIFEST_LINE.match(line) for line in nl_text.splitlines()))
 
+
+def _check_remote_tree(s, tree):
     print("== xrdcksum tree (fleet, remote) ==")
     if not s.have_fleet():
         s.skip(f"remote tree tests (no fleet at {s.url})")
         return
 
     rdir = f"/tmp/{s.tag}-cktree"
-    orig = t / "orig"
+    orig = tree / "orig"
     (orig / "sub").mkdir(parents=True, exist_ok=True)
     (orig / "a.dat").write_text("alpha\n")
     (orig / "sub" / "b.dat").write_text("bravo\n")
@@ -291,21 +335,21 @@ def section_cksum_tree(s: Session) -> None:
     rc = s.cp("-r", f"{orig}/", f"{s.url}//{rdir}/").returncode
     s.check("fleet tree: upload succeeded", rc == 0)
 
-    remote_manifest = t / "remote_manifest"
+    remote_manifest = tree / "remote_manifest"
     rc = s.call([s.xrdcksum, "tree", f"{s.url}//{rdir}", "-o", remote_manifest]).returncode
     s.check("fleet tree: remote tree exits 0", rc == 0)
 
-    local_manifest = t / "local_manifest"
+    local_manifest = tree / "local_manifest"
     s.call([s.xrdcksum, "tree", orig, "-o", local_manifest])
-    remote_sorted = sorted(remote_manifest.read_text().splitlines()) if remote_manifest.exists() else ["remote"]
-    local_sorted = sorted(local_manifest.read_text().splitlines()) if local_manifest.exists() else ["local"]
+    remote_sorted = sorted(_manifest_lines(remote_manifest, ["remote"]))
+    local_sorted = sorted(_manifest_lines(local_manifest, ["local"]))
     s.check("fleet tree: remote manifest matches local", remote_sorted == local_sorted)
 
     # Trailing-slash root must produce the SAME manifest as the no-slash form.
-    slash_manifest = t / "remote_slash_manifest"
+    slash_manifest = tree / "remote_slash_manifest"
     rc = s.call([s.xrdcksum, "tree", f"{s.url}//{rdir}/", "-o", slash_manifest]).returncode
     s.check("fleet tree: trailing-slash root exits 0", rc == 0)
-    slash_sorted = sorted(slash_manifest.read_text().splitlines()) if slash_manifest.exists() else ["slash"]
+    slash_sorted = sorted(_manifest_lines(slash_manifest, ["slash"]))
     s.check("fleet tree: trailing slash == no slash", slash_sorted == remote_sorted)
 
     s.rm_remote(rdir, recursive=True)
@@ -327,8 +371,11 @@ def _write_fixture(path: Path, *, m_record: bool = True, f_record: bytes | None 
 
 def section_diag_json(s: Session) -> None:
     print("== xrddiag --json ==")
+    _check_diag_fixtures(s)
+    _check_diag_fleet(s)
 
-    # Replay fixture tests (no fleet needed: pure file decode).
+
+def _check_diag_fixtures(s):
     fix = s.work / "fix.xrdcap"
     wire = bytes(24)  # one zeroed 24-byte request header
     _write_fixture(fix, f_record=b"F" + b">" + b"\x01" + struct.pack(">HHI", 1, 3000, len(wire)) + wire)
@@ -352,6 +399,8 @@ def section_diag_json(s: Session) -> None:
     s.check("check --json unreachable: nonzero exit", proc.returncode != 0)
     s.check("check --json unreachable: no stdout on error", not (proc.stdout or "").strip())
 
+
+def _check_diag_fleet(s):
     print("== xrddiag --json (fleet) ==")
     if not s.have_fleet():
         s.skip(f"xrddiag fleet JSON tests (no fleet at {s.url})")

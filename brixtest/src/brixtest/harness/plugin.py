@@ -1,26 +1,4 @@
-"""The pytest plugin (feature F11) — the only core module that imports
-pytest besides the testing kits.
-
-An adapter builds a ``HarnessConfig`` (its catalogue, kinds, prep
-steps, declaration maps) and calls ``activate(pytest_config, hc)``
-from its ``conftest.py``'s ``pytest_configure``.  The session then
-follows the charter's §7.9 timeline: lane → catalogue → prep → gate →
-selective start → sentinel → tests → conservation → release.  The
-fleet is **left running** at session end — the next session's start is
-idempotent, which is what makes back-to-back runs cost ~nothing.
-
-Run intelligence rides the same timeline (F21–F25): the controller
-opens a run in the store at session start, captures every test's
-reports through the ``logstart``/``logreport``/``logfinish`` stream
-(which xdist forwards, so capture works in both modes), samples every
-fleet pid — static and dynamic — through the resource watch, and at
-session end folds the run into the store, the static report, and the
-runs index.
-
-Under xdist only the controller manages the fleet; workers see servers
-that already answer.  Double activation is a hard error: two harnesses
-in one process means two lane owners, and that never ends well.
-"""
+"""Pytest integration for fleet lifecycle, evidence, and test services."""
 
 from __future__ import annotations
 
@@ -37,7 +15,9 @@ from brixtest import events
 from brixtest.config.lanes import Lane
 from brixtest.deploy.local import LocalBackend
 from brixtest.errors import (
-    ConservationError, GateViolation, PluginActivationError, QuiescenceError,
+    GateViolation,
+    PluginActivationError,
+    QuiescenceError,
     SpecError,
 )
 from brixtest.fleet.declares import DECLARE_MARKERS, DeclarationMap
@@ -48,51 +28,67 @@ from brixtest.fleet.registry import Registry, ServerEndpoint
 from brixtest.harness.gate import UndeclaredServerGate
 from brixtest.harness.resources import ResourcePolicy, ResourceWatch
 from brixtest.harness.sentinel import FleetSentinel, StabilityPolicy
+from brixtest.harness.plugin_reporting import BrixTestReportingMixin
 from brixtest.results.collector import ResultCollector, new_run_id
 from brixtest.results.model import RunInfo
-from brixtest.results.report import write_index, write_report
 from brixtest.results.store import ResultStore
-from brixtest.evidence.legacy import publish as publish_evidence
 from brixtest.services.artifacts import ArtifactCatalog
 from brixtest.services.logs import LogView
 from brixtest.services.workspace import WorkspaceAllocator
 from brixtest.util.net import pids_on_port
 from brixtest.util.testprobe import TestResourceProbe
 
-__all__ = ["HarnessConfig", "FleetHandle", "activate"]
+__all__ = ["FleetHandle", "HarnessConfig", "activate"]
 
 _ACTIVATION_ATTR = "_brixtest_plugin"
 
 
+def _pidfile_pid(endpoint: ServerEndpoint) -> Optional[int]:
+    if endpoint.pidfile is None:
+        return None
+    try:
+        return int(endpoint.pidfile.read_text().strip())
+    except (OSError, ValueError):
+        return None
+
+
+def _port_holder_pid(endpoint: ServerEndpoint) -> Optional[int]:
+    if endpoint.primary_port is None:
+        return None
+    holders = pids_on_port(endpoint.primary_port) - {os.getpid()}
+    return min(holders) if holders else None
+
+
+def _endpoint_pid(endpoint: ServerEndpoint) -> Optional[int]:
+    return _pidfile_pid(endpoint) or _port_holder_pid(endpoint)
+
+
 @dataclasses.dataclass
 class HarnessConfig:
-    """Everything the adapter tells the core.  Constructor > env > default
-    is the adapter's job to honour inside these callables (contract C2)."""
+    """Adapter configuration consumed by the core harness."""
 
     lane: Lane
     register_kinds: Callable[[], None]
     register_catalogue: Callable[[Registry], None]
     prep_steps: Callable[[Lane], Sequence[PrepStep]] = lambda lane: ()
     declaration_map: Callable[[], DeclarationMap] = DeclarationMap
-    stability: StabilityPolicy = StabilityPolicy()
+    stability: StabilityPolicy = dataclasses.field(default_factory=StabilityPolicy)
     gate_mode: str = "enforce"
-    manage_fleet: bool = True     # start what the selection needs; leave it up
+    manage_fleet: bool = True
     workers: Optional[int] = None
     session_name: str = ""
-    capture_results: bool = True          # F21/F22: record every test's run
-    watch_resources: bool = True          # F25: sample fleet pids all run
-    resources: ResourcePolicy = ResourcePolicy()
-    dynamic_port_offset: int = DEFAULT_DYNAMIC_OFFSET   # F24 block start
-    spec_validation: str = "warn"         # F1 strict validation: off|warn|refuse
-    strict_templates: bool = False        # F13: unresolved placeholder = error
-    file_linear: bool = True              # each file's tests = one ordered stream
-                                          # (xdist: loadfile scheduling)
+    capture_results: bool = True
+    watch_resources: bool = True
+    resources: ResourcePolicy = dataclasses.field(default_factory=ResourcePolicy)
+    dynamic_port_offset: int = DEFAULT_DYNAMIC_OFFSET
+    spec_validation: str = "warn"
+    strict_templates: bool = False
+    file_linear: bool = True
 
 
 @dataclasses.dataclass
 class FleetHandle:
-    """What the ``fleet`` fixture hands to a test — one addressed surface
-    for every service a test consumes (F16–F18 and F24 ride along)."""
+    """Services exposed through the ``fleet`` fixture."""
 
     registry: Registry
     backend: LocalBackend
@@ -123,7 +119,7 @@ class FleetHandle:
         return self.endpoint(name).url(scheme, role=role, path=path)
 
     def request_server(self, kind: str, **kwargs) -> ServerEndpoint:
-        """Launch a dynamic server with this test's config (F24); the
+        """Launch a dynamic server with this test's configuration. The
         framework allocates its port, proves readiness, watches it, and
         tears it down when its scope ends."""
         endpoint = self.dynamic.request(kind, **kwargs)
@@ -132,7 +128,7 @@ class FleetHandle:
         return endpoint
 
 
-class BrixTestPlugin:
+class BrixTestPlugin(BrixTestReportingMixin):
     def __init__(self, hc: HarnessConfig) -> None:
         self.hc = hc
         hc.register_kinds()
@@ -181,21 +177,14 @@ class BrixTestPlugin:
         self._file_servers: Dict[Path, List[str]] = {}
         self._dynamic_leaks: List[str] = []
         self._report_path: Optional[Path] = None
-        self._probe = TestResourceProbe()   # runs in the test's own process
+        self._probe = TestResourceProbe()
         self._file_linear_note = ""
         self._pending_dynamic: List[str] = []
-        # dynamic requests are noted wherever they happen: straight into
-        # the collector serially, or held for the teardown report's
-        # user_properties on an xdist worker (no collector there)
         self.handle.on_dynamic = self._note_dynamic
-
-    # -- role ------------------------------------------------------------
 
     @staticmethod
     def is_controller() -> bool:
         return "PYTEST_XDIST_WORKER" not in os.environ
-
-    # -- run intelligence helpers ----------------------------------------
 
     def _open_run(self) -> None:
         self.store = ResultStore(self.lane.root / "results" / "brixtest.db")
@@ -224,23 +213,12 @@ class BrixTestPlugin:
         backends spawned themselves, dynamic servers included."""
         pids: Dict[str, int] = {}
         for name in sorted(self._booted):
-            endpoint = self.backend.endpoint(name)
-            pid: Optional[int] = None
-            if endpoint.pidfile is not None:
-                try:
-                    pid = int(endpoint.pidfile.read_text().strip())
-                except (OSError, ValueError):
-                    pid = None
-            if pid is None and endpoint.primary_port is not None:
-                holders = pids_on_port(endpoint.primary_port) - {os.getpid()}
-                pid = min(holders) if holders else None
+            pid = _endpoint_pid(self.backend.endpoint(name))
             if pid is not None:
                 pids[name] = pid
         pids.update(self.backend.process_pids())
         pids.update(self.handle.dynamic.process_pids())
         return pids
-
-    # -- hooks -----------------------------------------------------------
 
     def pytest_sessionstart(self, session: pytest.Session) -> None:
         events.configure(self.lane.log_dir, lane=str(self.lane.port_base))
@@ -254,13 +232,12 @@ class BrixTestPlugin:
         """Warnings, the gate verdict, and the per-file boot map — the
         controller-side work every run shape shares."""
         writer = config.get_terminal_writer()
-        for warning in self._spec_warnings:   # F1 warn-only strict validation
+        for warning in self._spec_warnings:
             writer.line("brixtest spec warning: %s" % warning)
         try:
             gate_lines = self.gate.check(files)   # raises in enforce mode
         except GateViolation as exc:
-            # UsageError, not a traceback: the message already names the
-            # files and ends with the marker to add (C1)
+            # The message already names the files and marker to add.
             raise pytest.UsageError(str(exc)) from None
         for line in gate_lines:
             writer.line("brixtest: %s" % line)
@@ -273,6 +250,13 @@ class BrixTestPlugin:
         self.backend.prepare(self.lane, artifacts)
         needed = self.gate.specs_to_boot(files)
         self.start_report = self.launcher.start_registered(needed)
+        self._check_start_report()
+        self._booted = self._booted_names()
+        self.sentinel.start(self._booted)
+        self._start_resource_watch()
+
+    def _check_start_report(self) -> None:
+        assert self.start_report is not None
         if not self.start_report.ok:
             failed = ", ".join(o.name for o in self.start_report.by_status("failed"))
             pytest.exit(
@@ -280,11 +264,15 @@ class BrixTestPlugin:
                 % (failed, self.lane.log_dir),
                 returncode=1,
             )
-        self._booted = {
+
+    def _booted_names(self) -> Set[str]:
+        assert self.start_report is not None
+        return {
             o.name for o in self.start_report.outcomes
             if o.status in ("started", "already-running")
         }
-        self.sentinel.start(self._booted)   # watch what booted, not the catalogue
+
+    def _start_resource_watch(self) -> None:
         if self.hc.watch_resources and self.collector is not None:
             self.resources = ResourceWatch(
                 self._pid_provider, self.store, self.collector.info.run_id,
@@ -292,24 +280,49 @@ class BrixTestPlugin:
             )
             self.resources.start()
 
+    @staticmethod
+    def _collection_files(session: pytest.Session) -> List[Path]:
+        return sorted({Path(str(item.fspath)) for item in session.items})
+
+    @staticmethod
+    def _item_metadata(item) -> Dict[str, object]:
+        callspec = getattr(item, "callspec", None)
+        params = {}
+        if callspec is not None:
+            params = {key: repr(value) for key, value in callspec.params.items()}
+        return {
+            "markers": sorted({mark.name for mark in item.iter_markers()}),
+            "params": params,
+            "file": Path(str(item.fspath)),
+        }
+
+    def _record_item_metadata(self, items: Sequence[object]) -> None:
+        for item in items:
+            self._item_meta[item.nodeid] = self._item_metadata(item)
+
     def pytest_collection_finish(self, session: pytest.Session) -> None:
         if not self.is_controller():
             return
         if session.config.pluginmanager.hasplugin("dsession"):
             return  # xdist controller never collects; see the node hook below
-        files = sorted({Path(str(item.fspath)) for item in session.items})
+        files = self._collection_files(session)
         self._controller_prepare(files, session.config)
-        for item in session.items:
-            callspec = getattr(item, "callspec", None)
-            self._item_meta[item.nodeid] = {
-                "markers": sorted({mark.name for mark in item.iter_markers()}),
-                "params": {key: repr(value) for key, value in callspec.params.items()}
-                if callspec is not None else {},
-                "file": Path(str(item.fspath)),
-            }
+        self._record_item_metadata(session.items)
         if not self.hc.manage_fleet or not session.items:
             return
         self._controller_boot(files)
+
+    def _prepare_xdist_collection(self) -> bool:
+        if not self.is_controller() or self._xdist_prepared:
+            return False
+        self._xdist_prepared = True
+        return True
+
+    def _record_xdist_metadata(self, ids: Sequence[str], rootpath: Path) -> None:
+        for nodeid in ids:
+            self._item_meta[nodeid] = {
+                "file": rootpath / nodeid.split("::", 1)[0],
+            }
 
     @pytest.hookimpl(optionalhook=True)
     def pytest_xdist_node_collection_finished(self, node, ids) -> None:
@@ -318,16 +331,12 @@ class BrixTestPlugin:
         pytest_collection_finish sees no items), so the first worker's
         report drives the same prepare→gate→boot path a serial run takes.
         Item markers/params are not reconstructible from bare ids — those
-        capture columns stay empty under xdist (noted in charter §7.12)."""
-        if not self.is_controller() or self._xdist_prepared:
+        capture columns stay empty under xdist."""
+        if not self._prepare_xdist_collection():
             return
-        self._xdist_prepared = True
         rootpath = Path(str(node.config.rootpath))
         files = sorted({rootpath / nodeid.split("::", 1)[0] for nodeid in ids})
-        for nodeid in ids:
-            self._item_meta[nodeid] = {
-                "file": rootpath / nodeid.split("::", 1)[0],
-            }
+        self._record_xdist_metadata(ids, rootpath)
         self._controller_prepare(files, node.config)
         if self.hc.manage_fleet and ids:
             self._controller_boot(files)
@@ -371,12 +380,12 @@ class BrixTestPlugin:
 
     @pytest.hookimpl(optionalhook=True)
     def pytest_xdist_make_scheduler(self, config, log):
-        """File-linearity under xdist (the charter's stream semantics):
-        every file's tests stay one ordered stream on one worker, so
-        state an earlier test built is present for the later ones.  Only
-        the implicit default ``--dist load`` is upgraded — an explicit
-        operator choice of dist mode wins, and serial runs are already
-        file-ordered by collection."""
+        """Keep each file's tests on one ordered xdist worker stream.
+
+        This preserves state created by earlier tests in the same file. Only
+        the implicit ``--dist load`` default is changed; explicit scheduler
+        choices and serial collection order are preserved.
+        """
         if not self.hc.file_linear or config.getoption("dist", "no") != "load":
             return None
         from xdist.scheduler import LoadFileScheduling
@@ -400,65 +409,13 @@ class BrixTestPlugin:
         except QuiescenceError as exc:
             self._dynamic_leaks.append("%s: %s" % (nodeid, exc))
 
-    def pytest_sessionfinish(self, session: pytest.Session) -> None:
-        if self.resources is not None:   # stop sampling BEFORE teardown,
-            self.resources.stop()        # or releases read as crashes
-        try:
-            self.handle.dynamic.release_all()
-        except QuiescenceError as exc:
-            self._dynamic_leaks.append("session: %s" % exc)
-        if not self.is_controller():
-            return
-        self.sentinel.stop()
-        try:
-            if self.start_report is not None:
-                self.sentinel.conservation_check()
-        except ConservationError as exc:
-            self._conservation_delta = str(exc)
-            # F6: the delta is also a write-only artifact + an event, so a
-            # leaked listener survives scrollback and lands in dashboards
-            report = self.lane.log_dir / "conservation-report.txt"
-            report.write_text(self._conservation_delta + "\n")
-            events.emit("conservation.delta", detail=self._conservation_delta)
-        if self.collector is not None and self.store is not None:
-            info = self.collector.finish_run()
-            publish_evidence(self.store, info, self.collector.run_dir)
-            self._report_path = write_report(
-                self.store, info.run_id, self.collector.run_dir / "report.html"
-            )
-            write_index(self.store, self.lane.root / "results" / "index.html")
-            self.store.close()
-        self.lane.release()
-        events.emit("session.finished", exitstatus=int(getattr(session, "exitstatus", 0)))
-
-    def pytest_terminal_summary(self, terminalreporter) -> None:
-        if self.start_report is not None:
-            terminalreporter.line("brixtest fleet: %s" % self.start_report.summary())
-        if self._file_linear_note:
-            terminalreporter.line("brixtest: %s" % self._file_linear_note)
-        if self._conservation_delta:
-            terminalreporter.line("brixtest WARNING: %s" % self._conservation_delta)
-        if self.resources is not None:
-            for finding in self.resources.findings:
-                terminalreporter.line(
-                    "brixtest FINDING [%s] %s: %s"
-                    % (finding.kind, finding.instance, finding.detail)
-                )
-        for leak in self._dynamic_leaks:
-            terminalreporter.line("brixtest WARNING: dynamic server leak — %s" % leak)
-        if self._report_path is not None:
-            terminalreporter.line("brixtest report: %s" % self._report_path)
-
-    # -- fixtures --------------------------------------------------------
-
     @pytest.fixture(scope="session", name="fleet")
     def fleet_fixture(self) -> FleetHandle:
         return self.handle
 
     @pytest.fixture(name="workspace")
     def workspace_fixture(self, request: pytest.FixtureRequest) -> Path:
-        """A fresh lane-scoped scratch directory named for this test —
-        never pytest basetemp, never /tmp (F18)."""
+        """Return a fresh lane-scoped scratch directory for this test."""
         path = self.handle.workspaces.for_test(request.node.nodeid)
         if self.collector is not None:
             self.collector.note_workspace(path)

@@ -63,8 +63,15 @@ OPAQUE_ALLOWED = frozenset(
 
 # --- independent oracles ----------------------------------------------------
 def build_vectors() -> list[Vec]:
-    vecs: list[Vec] = []
+    """Build every independent codec, schema, and internal-name vector."""
+    vectors: list[Vec] = []
+    for builder in _VECTOR_BUILDERS:
+        vectors.extend(builder())
+    return vectors
 
+
+def _vectors_01_02() -> list[Vec]:
+    vecs: list[Vec] = []
     # 1. decode "%XX" -> byte, every non-NUL byte (byte-transparent decode).
     for b in range(0x01, 0x100):
         src = b"%%%02X" % b
@@ -77,6 +84,11 @@ def build_vectors() -> list[Vec]:
         vecs.append(_codec(f"dec-pctlc-{b:02x}", "d", "0", 512, src,
                            dec_ref(src, 512, 0)))
 
+    return vecs
+
+
+def _vectors_03_04() -> list[Vec]:
+    vecs: list[Vec] = []
     # 3. literal high byte copied through untouched.
     for b in range(0x80, 0x100):
         src = bytes([b])
@@ -89,6 +101,11 @@ def build_vectors() -> list[Vec]:
         vecs.append(_codec(f"dec-rn-{b:02x}", "d", str(REJECT_NUL), 512, src,
                            dec_ref(src, 512, REJECT_NUL)))
 
+    return vecs
+
+
+def _vectors_05_07() -> list[Vec]:
+    vecs: list[Vec] = []
     # 5. NUL handling + malformed-'%' preserved-verbatim (nginx-lenient).
     curated_dec = [
         ("nul-pct-plain", b"%00", 0),                 # -> embedded NUL, view empty
@@ -152,6 +169,11 @@ def build_vectors() -> list[Vec]:
         vecs.append(_codec(f"plus-{vid}", "d", str(fl), 512, src,
                            dec_ref(src, 512, fl)))
 
+    return vecs
+
+
+def _vectors_08_09() -> list[Vec]:
+    vecs: list[Vec] = []
     # 8. encode every byte 0x00-0xFF vs the RFC 3986 oracle (safe_extra = none).
     for b in range(0x00, 0x100):
         src = bytes([b])
@@ -178,6 +200,11 @@ def build_vectors() -> list[Vec]:
         vecs.append(_codec(f"enc-blob-{name}", "e", "-", 4096, blob,
                            enc_ref(blob, 4096, b"")))
 
+    return vecs
+
+
+def _vectors_10_11() -> list[Vec]:
+    vecs: list[Vec] = []
     # 10. round-trip: encode-then-decode is the identity for every non-NUL byte.
     for b in range(0x01, 0x100):
         src = bytes([b])
@@ -190,6 +217,11 @@ def build_vectors() -> list[Vec]:
         vecs.append(_codec(f"rt-blob-{name}", "r", "0", 8192, blob,
                            (DEC_OK, view)))
 
+    return vecs
+
+
+def _vectors_12_13() -> list[Vec]:
+    vecs: list[Vec] = []
     # 12. opaque gate: exhaustive 0x01-0xFF verdict + offending byte.
     for b in range(0x01, 0x100):
         vecs.append(_opaque(f"opq-byte-{b:02x}", bytes([b])))
@@ -221,6 +253,11 @@ def build_vectors() -> list[Vec]:
     for vid, data in curated_opq:
         vecs.append(_opaque(f"opq-{vid}", data))
 
+    return vecs
+
+
+def _vectors_14_15() -> list[Vec]:
+    vecs: list[Vec] = []
     # 14. schema gate — offending-key echo byte-transparency: every non-NUL byte
     # as a lone (unrecognized) bare key must be reported verbatim in the copied
     # key, so a non-UTF8 key can be named in a rejection log without mojibake or
@@ -234,6 +271,11 @@ def build_vectors() -> list[Vec]:
     for b in range(0x01, 0x100):
         vecs.append(_schema(f"sch-val-{b:02x}", b"oss.asize=" + bytes([b])))
 
+    return vecs
+
+
+def _vectors_16_17() -> list[Vec]:
+    vecs: list[Vec] = []
     # 16. schema gate — a recognized-namespace value is schema-orthogonal to byte
     # hygiene (Tier-1's job), so an arbitrary high byte in a tpc.src value is
     # accepted here. Confirms strict mode does not over-reject non-UTF8 values.
@@ -273,6 +315,11 @@ def build_vectors() -> list[Vec]:
     for vid, data in curated_sch:
         vecs.append(_schema(f"sch-{vid}", data))
 
+    return vecs
+
+
+def _vectors_18_19() -> list[Vec]:
+    vecs: list[Vec] = []
     # 18. internal-name gate — no lone byte (control/high/metachar) may be
     # misclassified as an internal sidecar/temp. Exhaustive negative over
     # 0x01-0xFF: a one-byte basename is never a reserved name.
@@ -285,6 +332,11 @@ def build_vectors() -> list[Vec]:
     for b in range(0x80, 0x100):
         vecs.append(_name(f"nam-stem-{b:02x}", bytes([b]) * 3 + b".cinfo"))
 
+    return vecs
+
+
+def _vectors_20_21() -> list[Vec]:
+    vecs: list[Vec] = []
     # 20. internal-name gate — a reserved suffix POLLUTED by a trailing non-UTF8
     # byte no longer matches (suffix must be exactly at the end): a real file that
     # merely resembles ".cinfo" stays visible. Confirms no over-hiding.
@@ -298,6 +350,11 @@ def build_vectors() -> list[Vec]:
         vecs.append(_name(f"nam-infix-{b:02x}",
                           bytes([b]) + b".xrd-tmp." + bytes([b])))
 
+    return vecs
+
+
+def _vectors_22_22() -> list[Vec]:
+    vecs: list[Vec] = []
     # 22. internal-name gate — structure, basename extraction, NUL truncation
     # (which can both hide AND reveal), near-misses, and non-UTF8 stems/infixes.
     curated_nam = [
@@ -331,6 +388,21 @@ def build_vectors() -> list[Vec]:
         vecs.append(v)
 
     return vecs
+
+
+_VECTOR_BUILDERS = (
+    _vectors_01_02,
+    _vectors_03_04,
+    _vectors_05_07,
+    _vectors_08_09,
+    _vectors_10_11,
+    _vectors_12_13,
+    _vectors_14_15,
+    _vectors_16_17,
+    _vectors_18_19,
+    _vectors_20_21,
+    _vectors_22_22,
+)
 
 
 VECTORS: list[Vec] = build_vectors()
@@ -376,31 +448,49 @@ def _parse(kind: str, out_line: str) -> tuple:
     parts = out_line.split()
     if not parts or parts[0] == "ERR":
         raise AssertionError(f"harness error line: {out_line!r}")
-    if kind == "name":
-        return int(parts[0])
-    if kind == "opaque":
-        return (int(parts[0]), int(parts[1]))
+    parser = {"name": _parse_name, "opaque": _parse_opaque}.get(kind, _parse_codec)
+    return parser(parts, out_line)
+
+
+def _parse_name(parts: list[str], _out_line: str) -> int:
+    return int(parts[0])
+
+
+def _parse_opaque(parts: list[str], _out_line: str) -> tuple[int, int]:
+    return int(parts[0]), int(parts[1])
+
+
+def _parse_codec(parts: list[str], out_line: str) -> tuple[int, bytes]:
     rc = int(parts[0])
     hexout = parts[2] if len(parts) > 2 else "."
     data = b"" if hexout == "." else bytes.fromhex(hexout)
-    # cross-check the length field the harness reports against the bytes it sent
     assert int(parts[1]) == len(data), f"len mismatch in {out_line!r}"
-    return (rc, data)
+    return rc, data
 
 
 def run_all(workdir: Path) -> dict[str, tuple]:
     """Run every vector through the harness in one pass; return {vid: actual}."""
     binary = build_harness(workdir)
     stdin = "\n".join(v.line for v in VECTORS) + "\n"
+    proc = _run_harness(binary, stdin)
+    lines = _validated_output_lines(proc.stdout)
+    return {v.vid: _parse(v.kind, line) for v, line in zip(VECTORS, lines)}
+
+
+def _run_harness(binary: Path, stdin: str) -> subprocess.CompletedProcess[str]:
     proc = subprocess.run(
         [str(binary)], input=stdin, capture_output=True, text=True,
         cwd=REPO_ROOT, timeout=60,
     )
     if proc.returncode != 0:
         raise RuntimeError(f"harness exited {proc.returncode}: {proc.stderr}")
-    lines = [ln for ln in proc.stdout.splitlines() if ln != ""]
+    return proc
+
+
+def _validated_output_lines(stdout: str) -> list[str]:
+    lines = [line for line in stdout.splitlines() if line]
     if len(lines) != len(VECTORS):
         raise RuntimeError(
             f"harness produced {len(lines)} lines for {len(VECTORS)} vectors"
         )
-    return {v.vid: _parse(v.kind, ln) for v, ln in zip(VECTORS, lines)}
+    return lines

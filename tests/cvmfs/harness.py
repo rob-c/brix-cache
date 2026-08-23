@@ -4,6 +4,12 @@
 # squid/varnish/stock-nginx/module runs.
 import argparse, concurrent.futures, hashlib, json, time, urllib.error, urllib.request
 
+def _expression_1(samples):
+    return (
+        [s for s in samples if s["ok"]]
+    )
+
+
 def percentile(vals, p):
     xs = sorted(vals)
     if not xs:
@@ -35,7 +41,7 @@ def fetch(url, expect_sha1, timeout=20):
                 "expect_sha1": expect_sha1, "conn_fail": True}
 
 def summarize(samples):
-    oks = [s for s in samples if s["ok"]]
+    oks = _expression_1(samples)
     return {
         "error_rate": (len(samples) - len(oks)) / len(samples) if samples else 0,
         "conn_failures": sum(1 for s in samples if s.get("conn_fail")),

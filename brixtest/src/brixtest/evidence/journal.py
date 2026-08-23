@@ -50,19 +50,18 @@ class EvidenceJournal:
     def recover(path: Path) -> list[dict]:
         rows = []
         try:
-            handle = Path(path).open("rb")
+            with Path(path).open("rb") as handle:
+                for line in handle:
+                    if not line.endswith(b"\n"):
+                        break
+                    try:
+                        value = json.loads(line)
+                    except (UnicodeDecodeError, ValueError, TypeError):
+                        continue
+                    if isinstance(value, dict):
+                        rows.append(value)
         except OSError:
             return rows
-        with handle:
-            for line in handle:
-                if not line.endswith(b"\n"):
-                    break
-                try:
-                    value = json.loads(line)
-                except (UnicodeDecodeError, ValueError, TypeError):
-                    continue
-                if isinstance(value, dict):
-                    rows.append(value)
         return rows
 
     def events(self, event: Optional[str] = None) -> Iterable[dict]:

@@ -24,6 +24,46 @@ import pytest
 from settings import NGINX_BIN
 from server_registry import NginxInstanceSpec
 
+def _phase_gsi_server_1_next(base):
+    for d in (base / "admin", base / "gsitest"):
+        _run(["chmod", "-R", "a+rwX", str(d)])
+
+
+def _phase_gsi_server_1(proc):
+    try:
+        proc.wait(timeout=5)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+
+
+def _guard_gsi_server_1():
+    if not _have("xrootd", "xrdgsiproxy", "openssl", STOCK_XRDFS):
+        pytest.skip("stock xrootd / xrdgsiproxy / openssl / xrdfs not installed")
+
+def _guard_gsi_server_2():
+    if not os.path.exists(NATIVE_XRDFS):
+        pytest.skip("native client/xrdfs not built")
+
+def _guard_gsi_server_3(proxy, mk):
+    if not proxy.exists():
+        pytest.skip(f"could not mint a test proxy: {mk.stdout}{mk.stderr}")
+
+def _guard_gsi_server_6(up, proc):
+    if not up:
+        proc.terminate()
+        pytest.skip("stock xrootd GSI server did not come up")
+
+def _guard_gsi_server_4(hostcert, srv):
+    if hostcert.exists():
+        _run(["chmod", "a+r", str(hostcert)])
+        _run(["chmod", "a+rx", str(srv)])
+
+def _guard_gsi_server_5(hostkey, runas):
+    if hostkey.exists():
+        shutil.chown(hostkey, runas)
+        os.chmod(hostkey, 0o400)
+
+
 pytestmark = [pytest.mark.uses_lifecycle_harness,
               pytest.mark.xdist_group("lc-native-gsi")]
 
@@ -58,41 +98,70 @@ def _free_port(port):
         time.sleep(0.1)
 
 
+def _openssl(*args):
+    assert _run(["openssl", *args]).returncode == 0, args
+
+
+def _signed_cert(base, ca, common_name, key, cert):
+    csr = base / (common_name.replace(" ", "") + ".csr")
+    _openssl("req", "-nodes", "-newkey", "rsa:2048", "-subj",
+             f"/O=XrdTest/CN={common_name}", "-keyout", str(key), "-out", str(csr))
+    _openssl("x509", "-req", "-in", str(csr), "-CA", str(ca / "ca.pem"),
+             "-CAkey", str(ca / "ca.key"), "-CAcreateserial", "-days", "1",
+             "-out", str(cert))
+
+
+def _create_directories(*directories):
+    for directory in directories:
+        directory.mkdir(parents=True, exist_ok=True)
+
+
+def _root_server_args(base, certs, server):
+    if os.geteuid() != 0:
+        return []
+    runas = os.environ.get("REF_RUNAS_USER", "nobody")
+    _create_directories(base / "admin", base / "gsitest")
+    _run(["chmod", "a+rx", str(base)])
+    for directory in (base / "gsidata", certs):
+        _run(["chmod", "-R", "a+rX", str(directory)])
+    _phase_gsi_server_1_next(base)
+    hostcert = server / "hostcert.pem"
+    _guard_gsi_server_4(hostcert, server)
+    hostkey = server / "hostkey.pem"
+    _guard_gsi_server_5(hostkey, runas)
+    return ["-R", runas]
+
+
+def _listener_ready():
+    for _ in range(50):
+        result = _run(["bash", "-c", f"ss -tln | grep -q ':{PORT}'"])
+        if result.returncode == 0:
+            return True
+        time.sleep(0.1)
+    return False
+
+
 @pytest.fixture(scope="module")
 def gsi_server(tmp_path_factory):
-    if not _have("xrootd", "xrdgsiproxy", "openssl", STOCK_XRDFS):
-        pytest.skip("stock xrootd / xrdgsiproxy / openssl / xrdfs not installed")
-    if not os.path.exists(NATIVE_XRDFS):
-        pytest.skip("native client/xrdfs not built")
+    _guard_gsi_server_1()
+    _guard_gsi_server_2()
 
     base = tmp_path_factory.mktemp("gsi")
     ca, srv, usr, certs, data = (base / d for d in
                                  ("ca", "server", "user", "certs", "data"))
-    for d in (ca, srv, usr, certs, data, data / "sub"):
-        d.mkdir(parents=True, exist_ok=True)
+    _create_directories(ca, srv, usr, certs, data, data / "sub")
     fqdn = socket.getfqdn()
 
-    def osl(*a):
-        assert _run(["openssl", *a]).returncode == 0, a
-
     # Test CA + hashed link, host cert (CN=fqdn), user EEC — all RSA, unencrypted.
-    osl("req", "-x509", "-nodes", "-newkey", "rsa:2048", "-days", "1",
-        "-subj", "/O=XrdTest/CN=XrdTest CA",
-        "-keyout", str(ca / "ca.key"), "-out", str(ca / "ca.pem"))
+    _openssl("req", "-x509", "-nodes", "-newkey", "rsa:2048", "-days", "1",
+             "-subj", "/O=XrdTest/CN=XrdTest CA",
+             "-keyout", str(ca / "ca.key"), "-out", str(ca / "ca.pem"))
     chash = _run(["openssl", "x509", "-in", str(ca / "ca.pem"),
                   "-noout", "-hash"]).stdout.strip()
     shutil.copy(ca / "ca.pem", certs / f"{chash}.0")
 
-    def signed(cn, key, cert):
-        csr = base / (cn.replace(" ", "") + ".csr")
-        osl("req", "-nodes", "-newkey", "rsa:2048", "-subj", f"/O=XrdTest/CN={cn}",
-            "-keyout", str(key), "-out", str(csr))
-        osl("x509", "-req", "-in", str(csr), "-CA", str(ca / "ca.pem"),
-            "-CAkey", str(ca / "ca.key"), "-CAcreateserial", "-days", "1",
-            "-out", str(cert))
-
-    signed(fqdn, srv / "hostkey.pem", srv / "hostcert.pem")
-    signed("Test User", usr / "userkey.pem", usr / "usercert.pem")
+    _signed_cert(base, ca, fqdn, srv / "hostkey.pem", srv / "hostcert.pem")
+    _signed_cert(base, ca, "Test User", usr / "userkey.pem", usr / "usercert.pem")
     os.chmod(usr / "userkey.pem", 0o600)
 
     proxy = usr / "proxy.pem"
@@ -100,8 +169,7 @@ def gsi_server(tmp_path_factory):
     mk = _run(["xrdgsiproxy", "init", "-cert", str(usr / "usercert.pem"),
                "-key", str(usr / "userkey.pem"), "-out", str(proxy),
                "-certdir", str(certs), "-valid", "1:00"], input="\n\n", env=env)
-    if not proxy.exists():
-        pytest.skip(f"could not mint a test proxy: {mk.stdout}{mk.stderr}")
+    _guard_gsi_server_3(proxy, mk)
 
     (data / "hello.txt").write_text("hello-gsi\n")
     cfg = base / "xrootd.cfg"
@@ -124,37 +192,12 @@ def gsi_server(tmp_path_factory):
     # drop it to `nobody` via `-R` and pre-open ONLY the paths the dropped user
     # touches.  The user proxy dir (usr/) is deliberately left untouched: XrdSecgsi
     # refuses a group/world-writable proxy, and only the root client reads it.
-    if os.geteuid() == 0:
-        runas = os.environ.get("REF_RUNAS_USER", "nobody")
-        (base / "admin").mkdir(parents=True, exist_ok=True)
-        # `-n gsitest` makes xrootd create/write a <logdir>/gsitest instance dir.
-        (base / "gsitest").mkdir(parents=True, exist_ok=True)
-        _run(["chmod", "a+rx", str(base)])
-        for d in (base / "gsidata", certs):
-            _run(["chmod", "-R", "a+rX", str(d)])
-        for d in (base / "admin", base / "gsitest"):
-            _run(["chmod", "-R", "a+rwX", str(d)])
-        hostcert = srv / "hostcert.pem"
-        if hostcert.exists():
-            _run(["chmod", "a+r", str(hostcert)])
-            _run(["chmod", "a+rx", str(srv)])
-        hostkey = srv / "hostkey.pem"
-        if hostkey.exists():
-            shutil.chown(hostkey, runas)
-            os.chmod(hostkey, 0o400)
-        argv += ["-R", runas]
+    argv += _root_server_args(base, certs, srv)
     proc = subprocess.Popen(argv,
                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     # Wait for the listener.
-    up = False
-    for _ in range(50):
-        if _run(["bash", "-c", f"ss -tln | grep -q ':{PORT}'"]).returncode == 0:
-            up = True
-            break
-        time.sleep(0.1)
-    if not up:
-        proc.terminate()
-        pytest.skip("stock xrootd GSI server did not come up")
+    up = _listener_ready()
+    _guard_gsi_server_6(up, proc)
 
     ctx = {"host": fqdn, "port": PORT, "env": env,
            "url": f"root://{fqdn}:{PORT}", "certs": str(certs),
@@ -163,10 +206,7 @@ def gsi_server(tmp_path_factory):
            "base": str(base)}
     yield ctx
     proc.terminate()
-    try:
-        proc.wait(timeout=5)
-    except subprocess.TimeoutExpired:
-        proc.kill()
+    _phase_gsi_server_1(proc)
 
 
 def test_stock_client_gsi_auth_succeeds(gsi_server):

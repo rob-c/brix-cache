@@ -28,6 +28,19 @@ from pathlib import Path
 
 import pytest
 
+def _guard_opt_mount_1(env_extra, env):
+    if env_extra:
+        env.update(env_extra)
+
+def _guard_opt_mount_2(proc):
+    if proc.poll() is None:
+        proc.terminate()
+        try:
+            proc.wait(3)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+
+
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "cvmfs"))
 
 from conformance_common import BRIXMOUNT, _unmount, _wait_mounted  # noqa: E402
@@ -84,8 +97,7 @@ def opt_mount(repo, opts, *, env_extra=None, timeout=15):
     env["BRIXCVMFS_TMP"] = str(workdir / "tmp")
     env["BRIXCVMFS_CACHE"] = str(workdir / "cache")
     env["BRIXCVMFS_SERVER"] = f"http://{HOST}:{repo['port']}/cvmfs/{REPO}"
-    if env_extra:
-        env.update(env_extra)
+    _guard_opt_mount_1(env_extra, env)
 
     log = workdir / "brixmount.log"
     with open(log, "wb") as lf:
@@ -96,12 +108,7 @@ def opt_mount(repo, opts, *, env_extra=None, timeout=15):
         yield mnt, log
     finally:
         _unmount(mnt)
-        if proc.poll() is None:
-            proc.terminate()
-            try:
-                proc.wait(3)
-            except subprocess.TimeoutExpired:
-                proc.kill()
+        _guard_opt_mount_2(proc)
         _unmount(mnt)
         shutil.rmtree(workdir, ignore_errors=True)
 

@@ -1,6 +1,28 @@
 # brix-remote-ok
 from _test_conf_client2_helpers import *  # noqa: F401,F403  (Phase-38 split shared header)
 
+def _phase_test_xrdcp_recursive_upload_lands_bytes_1(base, found):
+    for dp, _, files in os.walk(base):
+        for fn in files:
+            found.setdefault(fn, os.path.join(dp, fn))
+
+
+def _expression_1(base, name):
+    return (
+        [os.path.join(dp, fn)
+                              for dp, _, files in os.walk(base)
+                              for fn in files if fn == name]
+    )
+
+
+def _check_test_xrdcp_recursive_upload_lands_bytes_1(rc, o, e):
+    assert rc == 0, f"OUR xrdcp -r upload failed: {o}{e}"
+
+def _check_test_xrdcp_recursive_upload_lands_bytes_2(rel, data, candidates):
+    assert any(_read(c) == data for c in candidates), \
+        f"OUR xrdcp -r upload: no byte-exact landed copy of {rel}"
+
+
 def test_mv_rename_on_stock(srv):
     a, b = "/c2_mv_a.txt", "/c2_mv_b.txt"
     with open(_ondisk(srv, "off", a), "w") as f:
@@ -327,9 +349,12 @@ def test_xrdcp_recursive_leaf_bytes_present(srv, tmp_path):
                         for dp, _, fs_ in os.walk(dst) for fn in fs_)}
     for i in range(12):
         name = f"f{i:02d}.txt"
-        assert name in landed, f"OUR xrdcp -r missing {name} (landed={sorted(landed)})"
-        assert _read(landed[name]) == _read(_ondisk(srv, "off", f"many/{name}")), \
-            f"OUR xrdcp -r {name} content mismatch vs source"
+        def _assert_test_xrdcp_recursive_leaf_bytes_present_1():
+            assert name in landed, f"OUR xrdcp -r missing {name} (landed={sorted(landed)})"
+            assert _read(landed[name]) == _read(_ondisk(srv, "off", f"many/{name}")), \
+                f"OUR xrdcp -r {name} content mismatch vs source"
+
+        _assert_test_xrdcp_recursive_leaf_bytes_present_1()
 
 
 def test_xrdcp_recursive_upload_lands_bytes(srv, tmp_path):
@@ -347,21 +372,16 @@ def test_xrdcp_recursive_upload_lands_bytes(srv, tmp_path):
     (local / "x" / "leaf.bin").write_bytes(deep)
     payloads["x/leaf.bin"] = deep
     rc, o, e = ourcp("-r", "-f", str(local), f"{srv['off']}//c2_uptree")
-    assert rc == 0, f"OUR xrdcp -r upload failed: {o}{e}"
+    _check_test_xrdcp_recursive_upload_lands_bytes_1(rc, o, e)
     # Find each payload under the stock data dir regardless of the exact prefix.
     base = srv["off_data"]
     found = {}
-    for dp, _, files in os.walk(base):
-        for fn in files:
-            found.setdefault(fn, os.path.join(dp, fn))
+    _phase_test_xrdcp_recursive_upload_lands_bytes_1(base, found)
     for rel, data in payloads.items():
         name = os.path.basename(rel)
         # locate a landed copy that matches by content (robust to layout)
-        candidates = [os.path.join(dp, fn)
-                      for dp, _, files in os.walk(base)
-                      for fn in files if fn == name]
-        assert any(_read(c) == data for c in candidates), \
-            f"OUR xrdcp -r upload: no byte-exact landed copy of {rel}"
+        candidates = _expression_1(base, name)
+        _check_test_xrdcp_recursive_upload_lands_bytes_2(rel, data, candidates)
 
 
 # =========================================================================== #

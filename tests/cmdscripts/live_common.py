@@ -25,21 +25,60 @@ class LiveFailure(RuntimeError):
     """A failed external command with its captured diagnostic output."""
 
 
+def _configured_nginx_modules() -> list[str]:
+    value = os.environ.get("TEST_NGINX_LOAD_MODULES", "")
+    return [path for path in value.split(os.pathsep) if path]
+
+
+def _missing_module_directives(body: str, modules: list[str]) -> list[str]:
+    directives = [f"load_module {json.dumps(path)};" for path in modules]
+    existing = set(body.splitlines())
+    return [directive for directive in directives if directive not in existing]
+
+
 def inject_nginx_load_modules(config: str | Path) -> None:
     """Apply runner-selected dynamic modules to any generated nginx config."""
-    modules = [
-        path for path in os.environ.get("TEST_NGINX_LOAD_MODULES", "").split(os.pathsep)
-        if path
-    ]
+    modules = _configured_nginx_modules()
     if not modules:
         return
     target = Path(config)
     body = target.read_text(encoding="utf-8")
-    directives = [f"load_module {json.dumps(path)};" for path in modules]
-    existing = set(body.splitlines())
-    missing = [directive for directive in directives if directive not in existing]
+    missing = _missing_module_directives(body, modules)
     if missing:
         target.write_text("\n".join(missing) + "\n\n" + body, encoding="utf-8")
+
+
+def _main_runtime_directives(body: str, logs: Path, pid_path: str | Path | None):
+    directives = []
+    if not re.search(r"\bpid\s+", body):
+        selected = Path(pid_path) if pid_path is not None else logs / "nginx.pid"
+        directives.append(f"pid {json.dumps(str(selected))};")
+    if not re.search(r"\berror_log\s+", body):
+        directives.append(f"error_log {json.dumps(str(logs / 'error.log'))} notice;")
+    return directives
+
+
+def _http_runtime_directives(body: str, logs: Path, tmp: Path) -> list[str]:
+    paths = {
+        "access_log": logs / "access.log",
+        "client_body_temp_path": tmp / "client-body",
+        "proxy_temp_path": tmp / "proxy",
+        "fastcgi_temp_path": tmp / "fastcgi",
+        "uwsgi_temp_path": tmp / "uwsgi",
+        "scgi_temp_path": tmp / "scgi",
+    }
+    return [
+        f"    {name} {json.dumps(str(path))};"
+        for name, path in paths.items()
+        if not re.search(rf"\b{name}\s+", body)
+    ]
+
+
+def _inject_http_runtime_directives(body: str, directives: list[str]) -> str:
+    if not directives or not re.search(r"\bhttp\s*\{", body):
+        return body
+    addition = "\n" + "\n".join(directives)
+    return re.sub(r"(\bhttp\s*\{)", rf"\1{addition}", body, count=1)
 
 
 def inject_nginx_runtime_paths(
@@ -56,33 +95,11 @@ def inject_nginx_runtime_paths(
     logs.mkdir(parents=True, exist_ok=True)
     tmp.mkdir(parents=True, exist_ok=True)
     body = target.read_text(encoding="utf-8")
-    main: list[str] = []
-    if not re.search(r"\bpid\s+", body):
-        selected_pid = Path(pid_path) if pid_path is not None else logs / "nginx.pid"
-        main.append(f"pid {json.dumps(str(selected_pid))};")
-    if not re.search(r"\berror_log\s+", body):
-        main.append(f"error_log {json.dumps(str(logs / 'error.log'))} notice;")
+    main = _main_runtime_directives(body, logs, pid_path)
     if main:
         body = "\n".join(main) + "\n\n" + body
-
-    http_directives = {
-        "access_log": logs / "access.log",
-        "client_body_temp_path": tmp / "client-body",
-        "proxy_temp_path": tmp / "proxy",
-        "fastcgi_temp_path": tmp / "fastcgi",
-        "uwsgi_temp_path": tmp / "uwsgi",
-        "scgi_temp_path": tmp / "scgi",
-    }
-    missing = [
-        f"    {name} {json.dumps(str(path))};"
-        for name, path in http_directives.items()
-        if not re.search(rf"\b{name}\s+", body)
-    ]
-    if missing and re.search(r"\bhttp\s*\{", body):
-        addition = "\n" + "\n".join(missing)
-        body = re.sub(
-            r"(\bhttp\s*\{)", rf"\1{addition}", body, count=1,
-        )
+    missing = _http_runtime_directives(body, logs, tmp)
+    body = _inject_http_runtime_directives(body, missing)
     target.write_text(body, encoding="utf-8")
 
 
@@ -126,6 +143,59 @@ def _nginx_validates(binary: Path) -> bool:
         return False
 
 
+def _ensure_freeze_cache() -> bool:
+    global _FROZEN_NGINX
+    was_reset = _FROZEN_NGINX is None
+    if was_reset:
+        _FROZEN_NGINX = {}
+    return was_reset
+
+
+def _cached_frozen_binary(real: str) -> Path | None:
+    cached = _FROZEN_NGINX.get(real)
+    if cached is None or not cached.exists():
+        return None
+    return cached
+
+
+def _matches_source(frozen: Path, source_stat: os.stat_result) -> bool:
+    if not frozen.exists():
+        return False
+    frozen_stat = frozen.stat()
+    same_size = frozen_stat.st_size == source_stat.st_size
+    same_time = int(frozen_stat.st_mtime) == int(source_stat.st_mtime)
+    return same_size and same_time and _nginx_validates(frozen)
+
+
+def _remove_if_present(path: Path) -> None:
+    try:
+        path.unlink()
+    except OSError:
+        pass
+
+
+def _copy_frozen_binary(source: Path, temporary: Path, frozen: Path, real: str) -> bool:
+    try:
+        shutil.copy2(source, temporary)
+        temporary.chmod(0o755)
+        if not _nginx_validates(temporary):
+            temporary.unlink()
+            return False
+        os.replace(temporary, frozen)
+        _FROZEN_NGINX[real] = frozen
+        return True
+    except OSError:
+        return False
+
+
+def _retry_frozen_copy(source: Path, temporary: Path, frozen: Path, real: str) -> bool:
+    for _ in range(6):
+        if _copy_frozen_binary(source, temporary, frozen, real):
+            return True
+        time.sleep(0.5)
+    return False
+
+
 def freeze_nginx(src: str | Path) -> Path:
     """Return the session's single immutable copy of the nginx binary.
 
@@ -150,16 +220,14 @@ def freeze_nginx(src: str | Path) -> Path:
     failing every server's ``nginx -t``.  Distinct source -> distinct frozen file,
     so the two never collide or race.
     """
+    global _FROZEN_NGINX
     src = Path(src)
     if not src.exists():
         return src
-    global _FROZEN_NGINX
-    cache_was_reset = _FROZEN_NGINX is None
-    if cache_was_reset:
-        _FROZEN_NGINX = {}
+    cache_was_reset = _ensure_freeze_cache()
     real = os.path.realpath(src)
-    cached = _FROZEN_NGINX.get(real)
-    if cached is not None and cached.exists():
+    cached = _cached_frozen_binary(real)
+    if cached is not None:
         return cached
     srctag = hashlib.sha1(real.encode()).hexdigest()[:8]
     frozen = _session_freeze_dir() / f"nginx-{srctag}"
@@ -167,33 +235,13 @@ def freeze_nginx(src: str | Path) -> Path:
     sstat = src.stat()
     # Reuse a copy an earlier process (the controller, another xdist worker)
     # already froze of THIS source — the common path once the session is warm.
-    if frozen.exists():
-        fstat = frozen.stat()
-        if (fstat.st_size == sstat.st_size
-                and int(fstat.st_mtime) == int(sstat.st_mtime)
-                and _nginx_validates(frozen)):
-            _FROZEN_NGINX[real] = frozen
-            return frozen
+    if _matches_source(frozen, sstat):
+        _FROZEN_NGINX[real] = frozen
+        return frozen
     tmp = frozen.with_name(f".{frozen.name}.{os.getpid()}.tmp")
-    for _ in range(6):
-        try:
-            shutil.copy2(src, tmp)
-            tmp.chmod(0o755)
-            if _nginx_validates(tmp):
-                # Atomic swap: rename over a binary another worker is exec'ing is
-                # safe — the running process keeps its open inode; new execs get
-                # the fresh file.
-                os.replace(tmp, frozen)
-                _FROZEN_NGINX[real] = frozen
-                return frozen
-            tmp.unlink()
-        except OSError:
-            pass  # source mid-relink (EACCES/ETXTBSY/short read) — retry
-        time.sleep(0.5)
-    try:
-        tmp.unlink()
-    except OSError:
-        pass
+    if _retry_frozen_copy(src, tmp, frozen, real):
+        return frozen
+    _remove_if_present(tmp)
     if cache_was_reset:
         _FROZEN_NGINX = None
     return src
@@ -212,6 +260,49 @@ def _fuse_mounts_under(prefix: str) -> list[str]:
     return points
 
 
+def _unmount_fuse_points(points: list[str]) -> None:
+    fusermount = shutil.which("fusermount3") or shutil.which("fusermount")
+    if not fusermount:
+        return
+    for point in points:
+        subprocess.run(
+            [fusermount, "-uz", point],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            check=False,
+        )
+
+
+def _referencing_pids(prefix: str) -> list[int]:
+    survey = subprocess.run(
+        ["pgrep", "-f", prefix], stdout=subprocess.PIPE, text=True, check=False
+    )
+    pids = []
+    for value in survey.stdout.split():
+        try:
+            pids.append(int(value))
+        except ValueError:
+            pass
+    return pids
+
+
+def _kill_other_processes(pids: list[int]) -> None:
+    current = os.getpid()
+    for pid in pids:
+        if pid == current:
+            continue
+        try:
+            os.kill(pid, signal.SIGKILL)
+        except OSError:
+            pass
+
+
+def _wait_for_fuse_unmount(prefix: str) -> None:
+    deadline = time.monotonic() + 3
+    while _fuse_mounts_under(prefix) and time.monotonic() < deadline:
+        time.sleep(0.1)
+
+
 def _reap_fuse_mounts(root: Path) -> None:
     """Tear down any FUSE mount left under root, whatever killed its scenario.
 
@@ -226,278 +317,75 @@ def _reap_fuse_mounts(root: Path) -> None:
     points = _fuse_mounts_under(prefix)
     if not points:
         return
-    fusermount = shutil.which("fusermount3") or shutil.which("fusermount")
-    for point in points:
-        if fusermount:
-            subprocess.run([fusermount, "-uz", point], stdout=subprocess.DEVNULL,
-                           stderr=subprocess.DEVNULL, check=False)
-    survey = subprocess.run(["pgrep", "-f", prefix], stdout=subprocess.PIPE,
-                            text=True, check=False)
-    for pid_text in survey.stdout.split():
-        try:
-            pid = int(pid_text)
-        except ValueError:
-            continue
-        if pid != os.getpid():
-            try:
-                os.kill(pid, signal.SIGKILL)
-            except OSError:
-                pass
-    deadline = time.monotonic() + 3
-    while _fuse_mounts_under(prefix) and time.monotonic() < deadline:
-        time.sleep(0.1)
+    _unmount_fuse_points(points)
+    _kill_other_processes(_referencing_pids(prefix))
+    _wait_for_fuse_unmount(prefix)
 
 
-class LiveRun(AbstractContextManager["LiveRun"]):
-    """Own a temporary live-test topology and every process it starts."""
-
-    def __init__(self, label: str, nginx: str | Path | None = None) -> None:
-        self.root = Path(tempfile.mkdtemp(prefix=f"{label}."))
-        self.nginx = freeze_nginx(nginx or os.environ.get("NGINX_BIN", "/tmp/nginx-1.28.3/objs/nginx"))
-        self.processes: list[subprocess.Popen[str]] = []
-        self.pidfiles: list[Path] = []
-
-    def __enter__(self) -> "LiveRun":
-        return self
-
-    def __exit__(self, *_: object) -> None:
-        self.close()
-
-    def close(self) -> None:
-        for pidfile in reversed(self.pidfiles):
-            try:
-                os.kill(int(pidfile.read_text().strip()), signal.SIGTERM)
-            except (OSError, ValueError):
-                pass
-        for proc in reversed(self.processes):
-            if proc.poll() is None:
-                proc.terminate()
-        deadline = time.monotonic() + 2
-        for proc in reversed(self.processes):
-            remaining = max(0, deadline - time.monotonic())
-            try:
-                proc.wait(remaining)
-            except subprocess.TimeoutExpired:
-                proc.kill()
-        _reap_fuse_mounts(self.root)
-        if os.environ.get("BRIX_LIVE_KEEP_TREE"):
-            # Debug aid: preserve the ephemeral LiveRun tree (nginx configs +
-            # error/access logs) for post-mortem instead of rmtree'ing it.
-            sys.stderr.write(f"[LiveRun] KEEP_TREE: {self.root}\n")
-            return
-        shutil.rmtree(self.root, ignore_errors=True)
-
-    def mkdir(self, *parts: str) -> Path:
-        path = self.root.joinpath(*parts)
-        path.mkdir(parents=True, exist_ok=True)
-        # Root harness: a dir made after start_nginx's tree-wide chmod is
-        # root-owned 0755, unwritable by the de-escalated worker — open it.
-        if os.geteuid() == 0:
-            for p in [path, *path.parents]:
-                if p == self.root or not str(p).startswith(str(self.root)):
-                    break
-                os.chmod(p, 0o777)
-        return path
-
-    def write(self, path: Path, text: str) -> Path:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(text)
-        return path
-
-    def call(
-        self,
-        argv: Iterable[str | Path],
-        *,
-        cwd: Path | None = None,
-        input: str | bytes | None = None,
-        env: dict[str, str] | None = None,
-        check: bool = True,
-        binary: bool = False,
-    ) -> subprocess.CompletedProcess[str]:
-        command = [str(item) for item in argv]
-        # Text mode is inferred from `input`, which is wrong for a command that
-        # WRITES binary (xrdfs cat of a random payload): decoding then raises
-        # UnicodeDecodeError inside communicate() and the caller never sees a
-        # return code.  `binary=True` opts the streams out explicitly.
-        text = not binary and not isinstance(input, bytes)
-        proc = subprocess.Popen(
-            command,
-            cwd=str(cwd) if cwd else None,
-            env={**os.environ, **(env or {})},
-            stdin=subprocess.PIPE if input is not None else None,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=text,
-        )
-        stdout, stderr = proc.communicate(input)
-        result = subprocess.CompletedProcess(command, proc.returncode, stdout, stderr)
-        if check and result.returncode:
-            raise LiveFailure(f"{' '.join(command)} failed ({result.returncode}): {stderr or stdout}")
-        return result
-
-    def spawn(
-        self,
-        argv: Iterable[str | Path],
-        *,
-        cwd: Path | None = None,
-        env: dict[str, str] | None = None,
-    ) -> subprocess.Popen[str]:
-        proc = subprocess.Popen(
-            [str(item) for item in argv],
-            cwd=str(cwd) if cwd else None,
-            env={**os.environ, **(env or {})},
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            text=True,
-        )
-        self.processes.append(proc)
-        return proc
-
-    def start_nginx(self, prefix: Path, config: Path, port: int, *, timeout: float = 10) -> None:
-        prefix.mkdir(parents=True, exist_ok=True)
-        inject_nginx_load_modules(config)
-        inject_nginx_runtime_paths(config, prefix, pid_path=prefix / "nginx.pid")
-        # Self-heal against a LEAKED live nginx squatting this port: if a prior
-        # test's teardown was skipped (crash, kill, xdist worker death) its master
-        # keeps the fixed port bound and every later run of the same test dies with
-        # "bind() ... Address already in use". Live-cmd ports (11600-11999) are a
-        # dedicated range disjoint from the standing fleet (<=~11251), so reaping
-        # whatever holds this exact port cannot touch a fleet server.
-        stale = pids_on_port(port)
-        if stale:
-            kill_pid_list(stale)
-            for _ in range(30):
-                if not pids_on_port(port):
-                    break
-                time.sleep(0.1)
-        cmd = [self.nginx, "-p", prefix, "-c", config]
-        # Root harness: worker de-escalation is ALWAYS-ON and fail-closed
-        # (brix_imp_worker_deescalate) — a root-launched worker is forced to a
-        # confined account (brix_worker_user, default `nobody`) in every mode;
-        # `user root;` / `-g` cannot keep it root, and root worker accounts are
-        # refused by design.  That confined worker cannot traverse the 0700
-        # mkdtemp LiveRun tree nor read/write its backends and cache store, so
-        # export-root opens fail the worker and every cache fill 504s.  Open the
-        # whole ephemeral tree (plus in-tree keys, the shared PKI and any
-        # credential store in the config) for the de-escalated worker
-        # (unprivileged the invoking user already owns the tree — no-op).
-        from cmdscripts import open_tree_for_worker  # noqa: PLC0415 — cycle
-        open_tree_for_worker(self.root, config)
-        result = self.call(cmd, check=False)
-        if result.returncode:
-            raise LiveFailure(result.stderr or result.stdout or f"nginx failed to start for {config}")
-        pidfile = prefix / "nginx.pid"
-        self.pidfiles.append(pidfile)
-        if not wait_tcp(BIND_HOST, port, timeout):
-            error_log = prefix / "logs/e.log"
-            detail = error_log.read_text(errors="replace") if error_log.exists() else ""
-            raise LiveFailure(f"nginx was not ready on {port}: {detail}")
-
-    def stop_nginx(self, prefix: Path) -> None:
-        pidfile = prefix / "nginx.pid"
+def _terminate_pidfiles(pidfiles: list[Path]) -> None:
+    for pidfile in reversed(pidfiles):
         try:
             os.kill(int(pidfile.read_text().strip()), signal.SIGTERM)
         except (OSError, ValueError):
-            return
-        deadline = time.monotonic() + 3
-        while pidfile.exists() and time.monotonic() < deadline:
-            time.sleep(0.05)
-
-    def curl_status(self, url: str, *extra: str, timeout: int = 25) -> int:
-        result = self.call(
-            ["curl", "-sS", "--max-time", str(timeout), "-o", os.devnull, "-w", "%{http_code}", *extra, url],
-            check=False,
-        )
-        return int(result.stdout.strip() or 0) if result.stdout.strip().isdigit() else 0
-
-    def curl_bytes(self, url: str, *extra: str, timeout: int = 25) -> bytes:
-        proc = subprocess.Popen(
-            ["curl", "-sS", "--max-time", str(timeout), *extra, url],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-        )
-        stdout, stderr = proc.communicate()
-        if proc.returncode:
-            raise LiveFailure(stderr.decode(errors="replace"))
-        return stdout
-
-
-def random_file(path: Path, size: int) -> str:
-    path.write_bytes(os.urandom(size))
-    return sha256(path)
-
-
-def sha256(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as stream:
-        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
-
-
-def nginx_binary_from_args(argv: list[str] | None = None) -> tuple[Path | None, list[str]]:
-    values = list(argv or [])
-    if values and not values[0].startswith("-"):
-        return Path(values.pop(0)), values
-    return None, values
-
-
-def refresh_shared_pki(log_dir: Path | str | None = None, *, want_proxy: bool = True) -> tuple[bool, str]:
-    """Ensure the shared TEST_ROOT/pki has a fresh user proxy WITHOUT churning the CA.
-
-    ``pki_helpers.blitz_test_pki()`` rmtree's and regenerates the ENTIRE PKI — a
-    brand-new CA and hostcert. The standing fleet loads its certs once at startup,
-    so a mid-run blitz desyncs it: the fleet keeps serving the OLD CA while a
-    freshly-minted client proxy chains to the NEW CA, and EVERY concurrent
-    TLS/GSI/HTTPS handshake across all xdist workers then fails (this was the
-    fast-lane's biggest flakiness source — a stale proxy in one gsi cmd scenario
-    would blow up ~130 unrelated TLS tests).
-
-    So: full-blitz ONLY when the CA/hostcert are genuinely absent (first-time
-    provisioning, before any fleet exists). When they are present but the proxy is
-    merely stale, refresh ONLY the proxy via ``utils/make_proxy.py`` (it reads the
-    existing usercert/userkey and rewrites proxy_std.pem) — the CA and hostcert,
-    and therefore the fleet, are left untouched. Returns ``(ok, err_message)``.
-    """
-    from settings import CA_CERT, SERVER_CERT, TEST_ROOT  # noqa: PLC0415 — avoid import cycle
-
-    pki_dir = os.path.join(TEST_ROOT, "pki")
-    proxy = os.path.join(pki_dir, "user", "proxy_std.pem")
-
-    def _proxy_fresh() -> bool:
-        if not os.path.isfile(proxy):
-            return False
-        return subprocess.run(
-            ["openssl", "x509", "-in", proxy, "-noout", "-checkend", "300"],
-            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-        ).returncode == 0
-
-    ca_ok = os.path.isfile(CA_CERT) and os.path.isfile(SERVER_CERT)
-    if ca_ok and (not want_proxy or _proxy_fresh()):
-        return True, ""
-
-    if ca_ok:
-        # CA/hostcert intact — refresh ONLY the proxy; never touch the fleet's CA.
-        argv = ["python3", str(REPO_ROOT / "utils" / "make_proxy.py"), pki_dir]
-    else:
-        # No CA yet: safe to build the whole PKI (no fleet is up to desync).
-        argv = ["python3", "-c", "import pki_helpers; pki_helpers.blitz_test_pki()"]
-
-    result = subprocess.run(
-        argv,
-        cwd=str(REPO_ROOT / "tests"),
-        env={**os.environ, "PYTHONPATH": "."},
-        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
-    )
-    if log_dir is not None:
-        try:
-            Path(log_dir).mkdir(parents=True, exist_ok=True)
-            (Path(log_dir) / "pki.log").write_text(result.stdout or "", encoding="utf-8")
-        except OSError:
             pass
-    if result.returncode != 0:
-        return False, "PKI provisioning failed: " + (result.stdout or "")[-1000:]
-    return True, ""
 
 
-__all__ = ["LiveFailure", "LiveRun", "REPO_ROOT", "nginx_binary_from_args", "random_file", "sha256"]
+def _terminate_processes(processes: list[subprocess.Popen[str]]) -> None:
+    for process in reversed(processes):
+        if process.poll() is None:
+            process.terminate()
+
+
+def _wait_processes(processes: list[subprocess.Popen[str]]) -> None:
+    deadline = time.monotonic() + 2
+    for process in reversed(processes):
+        remaining = max(0, deadline - time.monotonic())
+        try:
+            process.wait(remaining)
+        except subprocess.TimeoutExpired:
+            process.kill()
+
+
+def _call_text_mode(input_data: str | bytes | None, binary: bool) -> bool:
+    return not binary and not isinstance(input_data, bytes)
+
+
+def _call_cwd(cwd: Path | None) -> str | None:
+    return str(cwd) if cwd else None
+
+
+def _call_stdin(input_data: str | bytes | None):
+    return subprocess.PIPE if input_data is not None else None
+
+
+def _call_environment(environment: dict[str, str] | None) -> dict[str, str]:
+    return {**os.environ, **(environment or {})}
+
+
+def _raise_call_failure(result: subprocess.CompletedProcess[str]) -> None:
+    output = result.stderr or result.stdout
+    command = " ".join(result.args)
+    raise LiveFailure(f"{command} failed ({result.returncode}): {output}")
+
+
+def _reap_port(port: int) -> None:
+    stale = pids_on_port(port)
+    if not stale:
+        return
+    kill_pid_list(stale)
+    for _ in range(30):
+        if not pids_on_port(port):
+            return
+        time.sleep(0.1)
+
+
+def _nginx_error_detail(prefix: Path) -> str:
+    error_log = prefix / "logs/e.log"
+    if not error_log.exists():
+        return ""
+    return error_log.read_text(errors="replace")
+
+
+from split_continuation import load as _load_continuation
+_load_continuation(globals(), __file__, "live_common_runtime.py")
+

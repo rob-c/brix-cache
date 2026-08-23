@@ -26,6 +26,10 @@ from server_registry import NginxInstanceSpec
 from ephemeral_port import free_port          # firefly UDP sink (in-process mock)
 from fleet_lifecycle_ports import PARSE_PLACEHOLDER_PORT
 
+def _check_test_firefly_scitag_override_1(states):
+    assert "start" in states and "end" in states
+
+
 FF_PORT = int(os.environ.get("TEST_PMARK_FF_PORT") or free_port())
 
 
@@ -107,15 +111,24 @@ def test_firefly_scitag_override(lifecycle, tmp_path):
         cap.close()
 
     states = [f["flow-lifecycle"]["state"] for f in flies]
-    assert "start" in states and "end" in states
+    _check_test_firefly_scitag_override_1(states)
     for f in flies:
-        assert f["context"]["experiment-id"] == 2   # 129 >> 6
-        assert f["context"]["activity-id"] == 1      # 129 & 0x3f
-        assert f["context"]["application"] == "pmark-test"
-        assert f["flow-id"]["protocol"] == "tcp"
+        def _assert_test_firefly_scitag_override_2():
+            assert f["context"]["experiment-id"] == 2   # 129 >> 6
+            assert f["context"]["activity-id"] == 1      # 129 & 0x3f
+
+        _assert_test_firefly_scitag_override_2()
+        def _assert_test_firefly_scitag_override_3():
+            assert f["context"]["application"] == "pmark-test"
+            assert f["flow-id"]["protocol"] == "tcp"
+
+        _assert_test_firefly_scitag_override_3()
     end = [f for f in flies if f["flow-lifecycle"]["state"] == "end"][0]
-    assert "end-time" in end["flow-lifecycle"]
-    assert end["usage"]["sent"] > 0                  # TCP_INFO byte counts present
+    def _assert_test_firefly_scitag_override_1():
+        assert "end-time" in end["flow-lifecycle"]
+        assert end["usage"]["sent"] > 0                  # TCP_INFO byte counts present
+
+    _assert_test_firefly_scitag_override_1()
 
 
 def test_firefly_defsfile_mapping(lifecycle, tmp_path):

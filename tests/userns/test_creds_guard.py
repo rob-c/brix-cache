@@ -29,13 +29,16 @@ def _inc_flags():
     return [f"-I{os.path.join(NGINX_SRC, s)}" for s in subs] + [f"-I{IMP}", f"-I{os.path.join(REPO, 'src')}"]
 
 
-@pytest.mark.timeout(60)
-def test_reserved_id_guard_predicate():
+def _require_guard_build_inputs():
     if not shutil.which(CC):
         pytest.skip("no C compiler")
     if not os.path.isfile(os.path.join(NGINX_SRC, "src/core/ngx_config.h")):
         pytest.skip(f"nginx source tree not at {NGINX_SRC} (set TEST_NGINX_SRC)")
 
+
+@pytest.mark.timeout(60)
+def test_reserved_id_guard_predicate():
+    _require_guard_build_inputs()
     out_bin = "/tmp/creds_guard_test.bin"
     # idmap.c was split (phase impersonation-hardening): the reserved-id predicate
     # brix_imp_creds_privileged() + idmap_creds_allowed()/idmap_resolve_user() now

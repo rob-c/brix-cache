@@ -1,4 +1,15 @@
 from split_continuation import reexport as _reexport
+def _expression_1(proxy, pki):
+    return (
+        _split_for_curl(proxy, pki["base"], "wc") if proxy else (None, None)
+    )
+
+def _expression_2(cf, kf):
+    return (
+        cf and kf
+    )
+
+
 _reexport(globals(), "_test_gsi_handshake_helpers")
 
 def _rejected(http_code):
@@ -10,9 +21,9 @@ def _rejected(http_code):
 
 
 def _curl(pki, webdav, proxy, *args, method=None, upload=None):
-    cf, kf = _split_for_curl(proxy, pki["base"], "wc") if proxy else (None, None)
+    cf, kf = _expression_1(proxy, pki)
     cmd = ["curl", "-sk", "-o", "/dev/null", "-w", "%{http_code}"]
-    if cf and kf:
+    if _expression_2(cf, kf):
         cmd += ["--cert", cf, "--key", kf]
     if method:
         cmd += ["-X", method]

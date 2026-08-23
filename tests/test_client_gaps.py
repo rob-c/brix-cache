@@ -40,13 +40,27 @@ XRDDIAG = os.path.join(CLIENT_DIR, "bin", "xrddiag")
 
 
 def _build(*targets):
-    if shutil.which("cc") is None and shutil.which("gcc") is None:
-        pytest.skip("no C compiler")
+    _require_compiler()
     r = subprocess.run(["make", "-C", CLIENT_DIR, *targets],
                        capture_output=True, text=True, timeout=240)
+    _require_targets(targets, r)
+    _require_nginx()
+
+
+def _require_compiler():
+    if shutil.which("cc") is not None:
+        return
+    if shutil.which("gcc") is None:
+        pytest.skip("no C compiler")
+
+
+def _require_targets(targets, result):
     for t in targets:
         if not os.path.exists(os.path.join(CLIENT_DIR, "bin", t)):
-            pytest.skip(f"{t} build failed:\n{r.stdout}\n{r.stderr}")
+            pytest.skip(f"{t} build failed:\n{result.stdout}\n{result.stderr}")
+
+
+def _require_nginx():
     if not os.access(NGINX_BIN, os.X_OK):
         pytest.skip(f"nginx not executable: {NGINX_BIN}")
 

@@ -23,36 +23,61 @@ def _number(value: object) -> str:
 def _rows(session: Mapping[str, object]) -> tuple[str, str, str]:
     cases, findings, artifacts = [], [], []
     for case in session["tests"]:
-        attempts = case.get("attempts", [])
-        measured = sum(not bool(row.get("warmup")) for row in attempts)
-        resources = sum(len(row.get("resources", [])) for row in attempts)
-        spans = sum(len(row.get("spans", [])) for row in attempts)
-        cases.append(
-            "<tr data-key='%s'><td>%s</td><td class='%s'>%s</td><td>%s</td>"
-            "<td class=n>%s</td><td class=n>%s</td><td class=n>%s</td>"
-            "<td class=n>%s</td></tr>" % (
-                _escape(str(case.get("nodeid", "")).lower()), _escape(case.get("nodeid", "")),
-                _escape(case.get("outcome", "")), _escape(case.get("outcome", "")),
-                _escape(case.get("backend", "")), measured, _number(case.get("wall_seconds", 0)),
-                resources, spans,
-            )
-        )
-        for attempt in attempts:
-            for finding in attempt.get("findings", []):
-                findings.append("<tr><td>%s</td><td>%s</td><td class='%s'>%s</td><td>%s</td></tr>" % (
-                    _escape(case.get("nodeid", "")), _escape(finding.get("kind", "")),
-                    _escape(finding.get("severity", "warning")),
-                    _escape(finding.get("severity", "warning")),
-                    _escape(finding.get("detail", finding)),
-                ))
-            for item in attempt.get("artifacts", []):
-                artifacts.append("<tr><td>%s</td><td>%s</td><td>%s</td><td class=n>%s</td>"
-                                 "<td><code>%s</code></td></tr>" % (
-                    _escape(case.get("nodeid", "")), _escape(item.get("name", "")),
-                    _escape(item.get("media_type", "")), _number(item.get("size", 0)),
-                    _escape(str(item.get("sha256", ""))[:16]),
-                ))
+        cases.append(_case_row(case))
+        attempt_findings, attempt_artifacts = _attempt_rows(case)
+        findings.extend(attempt_findings)
+        artifacts.extend(attempt_artifacts)
     return "".join(cases), "".join(findings), "".join(artifacts)
+
+
+def _case_row(case: Mapping[str, object]) -> str:
+    attempts = case.get("attempts", [])
+    measured = sum(not bool(row.get("warmup")) for row in attempts)
+    resources = sum(len(row.get("resources", [])) for row in attempts)
+    spans = sum(len(row.get("spans", [])) for row in attempts)
+    return (
+        "<tr data-key='%s'><td>%s</td><td class='%s'>%s</td><td>%s</td>"
+        "<td class=n>%s</td><td class=n>%s</td><td class=n>%s</td>"
+        "<td class=n>%s</td></tr>" % (
+            _escape(str(case.get("nodeid", "")).lower()),
+            _escape(case.get("nodeid", "")),
+            _escape(case.get("outcome", "")), _escape(case.get("outcome", "")),
+            _escape(case.get("backend", "")), measured,
+            _number(case.get("wall_seconds", 0)), resources, spans,
+        )
+    )
+
+
+def _attempt_rows(case: Mapping[str, object]) -> tuple[list[str], list[str]]:
+    findings, artifacts = [], []
+    for attempt in case.get("attempts", []):
+        findings.extend(_finding_rows(case, attempt))
+        artifacts.extend(_artifact_rows(case, attempt))
+    return findings, artifacts
+
+
+def _finding_rows(case: Mapping[str, object], attempt) -> list[str]:
+    return [
+        "<tr><td>%s</td><td>%s</td><td class='%s'>%s</td><td>%s</td></tr>" % (
+            _escape(case.get("nodeid", "")), _escape(finding.get("kind", "")),
+            _escape(finding.get("severity", "warning")),
+            _escape(finding.get("severity", "warning")),
+            _escape(finding.get("detail", finding)),
+        )
+        for finding in attempt.get("findings", [])
+    ]
+
+
+def _artifact_rows(case: Mapping[str, object], attempt) -> list[str]:
+    return [
+        "<tr><td>%s</td><td>%s</td><td>%s</td><td class=n>%s</td>"
+        "<td><code>%s</code></td></tr>" % (
+            _escape(case.get("nodeid", "")), _escape(item.get("name", "")),
+            _escape(item.get("media_type", "")), _number(item.get("size", 0)),
+            _escape(str(item.get("sha256", ""))[:16]),
+        )
+        for item in attempt.get("artifacts", [])
+    ]
 
 
 def _metric_rows(session: Mapping[str, object]) -> str:
@@ -107,51 +132,93 @@ def _provenance_rows(session: Mapping[str, object]) -> str:
     return "".join(rows)
 
 
-def _server_rows(session: Mapping[str, object]) -> str:
+def _server_instances(session) -> tuple[dict, dict]:
     instances, links = {}, {}
     for case in session["tests"]:
-        for attempt in case.get("attempts", []):
-            for server in attempt.get("servers", []):
-                instance_id = str(server.get("instance_id", ""))
-                if not instance_id:
-                    continue
-                instances[instance_id] = dict(server)
-                links.setdefault(instance_id, set()).add(str(case.get("nodeid", "")))
+        _attempt_servers(case, instances, links)
+    _topology_servers(session, instances)
+    return instances, links
+
+
+def _attempt_servers(case, instances: dict, links: dict) -> None:
+    for attempt in case.get("attempts", []):
+        for server in attempt.get("servers", []):
+            instance_id = str(server.get("instance_id", ""))
+            if not instance_id:
+                continue
+            instances[instance_id] = dict(server)
+            links.setdefault(instance_id, set()).add(str(case.get("nodeid", "")))
+
+
+def _topology_servers(session, instances: dict) -> None:
     topology = session.get("topology", {})
-    pools = topology.get("pools", []) if isinstance(topology, Mapping) else []
-    for pool in pools if isinstance(pools, list) else []:
-        services = pool.get("services", {}) if isinstance(pool, Mapping) else {}
-        for server in services.values() if isinstance(services, Mapping) else []:
-            if isinstance(server, Mapping) and server.get("instance_id"):
-                instances[str(server["instance_id"])] = dict(server)
+    if not isinstance(topology, Mapping):
+        return
+    pools = topology.get("pools", [])
+    if not isinstance(pools, list):
+        return
+    for pool in pools:
+        _add_pool_servers(pool, instances)
+
+
+def _add_pool_servers(pool, instances: dict) -> None:
+    if not isinstance(pool, Mapping):
+        return
+    services = pool.get("services", {})
+    if not isinstance(services, Mapping):
+        return
+    for server in services.values():
+        _add_topology_server(server, instances)
+
+
+def _add_topology_server(server, instances: dict) -> None:
+    if not isinstance(server, Mapping) or not server.get("instance_id"):
+        return
+    instances[str(server["instance_id"])] = dict(server)
+
+
+def _server_row(instance_id: str, server, links) -> str:
+    artifact = server.get("log_artifact", {})
+    artifact = artifact if isinstance(artifact, Mapping) else {}
+    ports = server.get("ports", {})
+    ports = ports if isinstance(ports, Mapping) else {}
+    return (
+        "<tr><td>%s</td><td>%s</td><td><code>%s</code></td><td>%s</td>"
+        "<td>%s</td><td><code>%s</code></td><td class=n>%s</td>"
+        "<td>%s</td><td><code>%s</code></td></tr>" % (
+            _escape(server.get("name", "")), _escape(server.get("scope", "")),
+            _escape(instance_id[:16]),
+            _escape(", ".join("%s=%s" % item for item in sorted(ports.items()))),
+            _escape(server.get("config_filename", "")),
+            _escape(str(server.get("config_sha256", ""))[:16]),
+            len(links.get(instance_id, set())),
+            _escape(", ".join(sorted(links.get(instance_id, set())))),
+            _escape(str(artifact.get("sha256", ""))[:16]),
+        )
+    )
+
+
+def _server_rows(session: Mapping[str, object]) -> str:
+    instances, links = _server_instances(session)
     rows = []
     for instance_id, server in sorted(instances.items(), key=lambda item: (
         str(item[1].get("scope", "")), str(item[1].get("name", "")), item[0]
     )):
-        artifact = server.get("log_artifact", {})
-        artifact = artifact if isinstance(artifact, Mapping) else {}
-        ports = server.get("ports", {})
-        ports = ports if isinstance(ports, Mapping) else {}
-        rows.append(
-            "<tr><td>%s</td><td>%s</td><td><code>%s</code></td><td>%s</td>"
-            "<td>%s</td><td><code>%s</code></td><td class=n>%s</td>"
-            "<td>%s</td><td><code>%s</code></td></tr>" % (
-                _escape(server.get("name", "")), _escape(server.get("scope", "")),
-                _escape(instance_id[:16]),
-                _escape(", ".join("%s=%s" % item for item in sorted(ports.items()))),
-                _escape(server.get("config_filename", "")),
-                _escape(str(server.get("config_sha256", ""))[:16]),
-                len(links.get(instance_id, set())),
-                _escape(", ".join(sorted(links.get(instance_id, set())))),
-                _escape(str(artifact.get("sha256", ""))[:16]),
-            )
-        )
+        rows.append(_server_row(instance_id, server, links))
     return "".join(rows)
 
 
 def _insight_rows(session: Mapping[str, object]) -> tuple[str, str, str]:
     raw = session.get("analysis", {})
     analysis = raw if isinstance(raw, Mapping) else {}
+    return (
+        _correlation_rows(analysis),
+        _outlier_rows(analysis),
+        _coverage_rows(analysis),
+    )
+
+
+def _correlation_rows(analysis: Mapping[str, object]) -> str:
     correlations = []
     for row in analysis.get("correlations", []):
         if not isinstance(row, Mapping):
@@ -164,6 +231,10 @@ def _insight_rows(session: Mapping[str, object]) -> tuple[str, str, str]:
                 _number(row.get("pearson", 0)), _number(row.get("spearman", 0)),
             )
         )
+    return "".join(correlations)
+
+
+def _outlier_rows(analysis: Mapping[str, object]) -> str:
     outliers = []
     for row in analysis.get("outliers", []):
         if not isinstance(row, Mapping):
@@ -176,6 +247,10 @@ def _insight_rows(session: Mapping[str, object]) -> tuple[str, str, str]:
                 _number(row.get("score", 0)), _escape(row.get("method", "")),
             )
         )
+    return "".join(outliers)
+
+
+def _coverage_rows(analysis: Mapping[str, object]) -> str:
     evidence = analysis.get("evidence", {})
     coverage = []
     if isinstance(evidence, Mapping):
@@ -196,7 +271,7 @@ def _insight_rows(session: Mapping[str, object]) -> tuple[str, str, str]:
                     )),
                 )
             )
-    return "".join(correlations), "".join(outliers), "".join(coverage)
+    return "".join(coverage)
 
 
 def render(payload: Mapping[str, object]) -> str:

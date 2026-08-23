@@ -5,6 +5,10 @@ import pytest
 
 from cmdscripts import tape_live
 
+def _check_test_tape_live_scenario_1(nginx, scenario):
+    assert tape_live.SCENARIOS[scenario](nginx) == 0
+
+
 pytestmark = pytest.mark.xdist_group("cmd-tape_live")
 
 
@@ -29,4 +33,4 @@ def test_tape_live_scenario(scenario: str):
     for client in tape_live.CLIENT_REQUIREMENTS[scenario]:
         if not client.exists():
             pytest.skip(f"client binary not built: {client}")
-    assert tape_live.SCENARIOS[scenario](nginx) == 0
+    _check_test_tape_live_scenario_1(nginx, scenario)

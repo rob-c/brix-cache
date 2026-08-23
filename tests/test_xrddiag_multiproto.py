@@ -35,6 +35,29 @@ import pytest
 from server_registry import NginxInstanceSpec
 from settings import HOST
 
+def _guard_servers_1():
+    if shutil.which("cc") is None and shutil.which("gcc") is None:
+        pytest.skip("no C compiler")
+
+def _guard_servers_2():
+    if subprocess.run(["make", "-C", CLIENT_DIR, "xrddiag"],
+                      capture_output=True, text=True, timeout=180).returncode != 0 \
+            or not os.path.exists(XRDDIAG):
+        pytest.skip("xrddiag build failed")
+
+def _guard_servers_3():
+    if not os.access(NGINX_BIN, os.X_OK):
+        pytest.skip(f"nginx not executable: {NGINX_BIN}")
+
+def _guard_servers_4():
+    if shutil.which("openssl") is None:
+        pytest.skip("openssl needed to mint a self-signed cert")
+
+def _guard_servers_5(r):
+    if r.returncode != 0:
+        pytest.skip("openssl cert generation failed")
+
+
 pytestmark = [pytest.mark.timeout(120), pytest.mark.uses_lifecycle_harness,
               pytest.mark.xdist_group("lc-xrddiag-multiproto")]
 
@@ -60,16 +83,10 @@ def _port_up(host, port):
 @pytest.fixture
 def servers(lifecycle, tmp_path_factory):
     """One nginx serving the same data over root / http / https / davs / s3."""
-    if shutil.which("cc") is None and shutil.which("gcc") is None:
-        pytest.skip("no C compiler")
-    if subprocess.run(["make", "-C", CLIENT_DIR, "xrddiag"],
-                      capture_output=True, text=True, timeout=180).returncode != 0 \
-            or not os.path.exists(XRDDIAG):
-        pytest.skip("xrddiag build failed")
-    if not os.access(NGINX_BIN, os.X_OK):
-        pytest.skip(f"nginx not executable: {NGINX_BIN}")
-    if shutil.which("openssl") is None:
-        pytest.skip("openssl needed to mint a self-signed cert")
+    _guard_servers_1()
+    _guard_servers_2()
+    _guard_servers_3()
+    _guard_servers_4()
 
     root = tmp_path_factory.mktemp("mproto")
     data = root / "data"
@@ -80,8 +97,7 @@ def servers(lifecycle, tmp_path_factory):
     r = subprocess.run(["openssl", "req", "-x509", "-newkey", "rsa:2048", "-nodes",
                         "-keyout", key, "-out", cert, "-days", "2",
                         "-subj", "/CN=localhost"], capture_output=True)  # net-literal-allow: throwaway TLS cert subject CN
-    if r.returncode != 0:
-        pytest.skip("openssl cert generation failed")
+    _guard_servers_5(r)
 
     ep = lifecycle.start(NginxInstanceSpec(
         name="lc-xrddiag-multiproto",

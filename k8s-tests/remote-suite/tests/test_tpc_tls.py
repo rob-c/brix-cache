@@ -21,6 +21,49 @@ from pathlib import Path
 
 import pytest
 
+def _phase_tls_nginx_1_next(ca, certs, srv, sdata, ddata):
+    for d in (ca, certs, srv, sdata, ddata):
+        d.mkdir(parents=True, exist_ok=True)
+
+def _phase_tls_nginx_2():
+    for port in (SRC, DST):
+        _run(["bash", "-c", f"fuser -k {port}/tcp 2>/dev/null"])
+
+def _phase_tls_nginx_3(procs):
+    for p in procs:
+        p.terminate()
+        _phase_tls_nginx_1(p)
+
+
+def _expression_1(src_cfg, dst_cfg, base):
+    return (
+        [subprocess.Popen([NGINX, "-c", str(c), "-p", str(base)],
+                                      stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                     for c in (src_cfg, dst_cfg)]
+    )
+
+def _expression_2():
+    return (
+        not _wait(SRC) or not _wait(DST)
+    )
+
+
+def _phase_tls_nginx_1(p):
+    try:
+        p.wait(timeout=5)
+    except subprocess.TimeoutExpired:
+        p.kill()
+
+
+def _guard_tls_nginx_1():
+    if not _have("openssl"):
+        pytest.skip("openssl not installed")
+
+def _guard_tls_nginx_2():
+    if not (os.path.exists(NGINX) and os.path.exists(XRDCP)):
+        pytest.skip("nginx / xrdcp not built")
+
+
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 NGINX = "/tmp/nginx-1.28.3/objs/nginx"
 XRDCP = os.path.join(REPO, "client", "bin", "xrdcp")
@@ -45,16 +88,13 @@ def _wait(port, tries=80):
 
 @pytest.fixture(scope="module")
 def tls_nginx(tmp_path_factory):
-    if not _have("openssl"):
-        pytest.skip("openssl not installed")
-    if not (os.path.exists(NGINX) and os.path.exists(XRDCP)):
-        pytest.skip("nginx / xrdcp not built")
+    _guard_tls_nginx_1()
+    _guard_tls_nginx_2()
 
     base = tmp_path_factory.mktemp("tpctls")
     ca, certs, srv, sdata, ddata = (
         base / d for d in ("ca", "certs", "srv", "srcdata", "dstdata"))
-    for d in (ca, certs, srv, sdata, ddata):
-        d.mkdir(parents=True, exist_ok=True)
+    _phase_tls_nginx_1_next(ca, certs, srv, sdata, ddata)
     fqdn = socket.getfqdn()
 
     def osl(*a):
@@ -106,12 +146,9 @@ def tls_nginx(tmp_path_factory):
         f"    brix_trusted_ca {certs};\n"
         f"    brix_access_log {base}/dst-acc.log;\n  }}\n}}\n")
 
-    for port in (SRC, DST):
-        _run(["bash", "-c", f"fuser -k {port}/tcp 2>/dev/null"])
-    procs = [subprocess.Popen([NGINX, "-c", str(c), "-p", str(base)],
-                              stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-             for c in (src_cfg, dst_cfg)]
-    if not _wait(SRC) or not _wait(DST):
+    _phase_tls_nginx_2()
+    procs = _expression_1(src_cfg, dst_cfg, base)
+    if _expression_2():
         for p in procs:
             p.terminate()
         pytest.skip("nginx TLS src/dst did not come up")
@@ -119,12 +156,7 @@ def tls_nginx(tmp_path_factory):
     ctx = {"base": str(base), "ddata": str(ddata), "fqdn": fqdn,
            "env": dict(os.environ, X509_CERT_DIR=str(certs))}
     yield ctx
-    for p in procs:
-        p.terminate()
-        try:
-            p.wait(timeout=5)
-        except subprocess.TimeoutExpired:
-            p.kill()
+    _phase_tls_nginx_3(procs)
 
 
 def test_tpc_pull_over_tls(tls_nginx):

@@ -35,6 +35,59 @@ from cmdscripts.cvmfs_repo_cli import (
     REPO_CLI_LIBS, REPO_CLI_SOURCES, _build_repotool,
 )
 
+def _expression_1(ck, wh):
+    return (
+        ck("whiteout-refused", wh.returncode == 5 and ".brix.wh" in wh.stderr,
+               wh.stderr)
+    )
+
+def _expression_2(ck, opq):
+    return (
+        ck("opaque-refused", opq.returncode == 5 and ".brix.opq" in opq.stderr,
+               opq.stderr)
+    )
+
+def _expression_3(ck, col):
+    return (
+        ck("collision-refused", col.returncode == 5
+               and "not a directory" in col.stderr, col.stderr)
+    )
+
+def _expression_4(ck, heal):
+    return (
+        ck("stale-lock-heals", heal.returncode == 0
+               and "breaking stale lock" in heal.stderr, heal.stderr)
+    )
+
+def _expression_5(ck, prune):
+    return (
+        ck("prune-noop", prune.returncode == 0
+               and "nothing to prune" in prune.stdout, prune.stdout)
+    )
+
+def _expression_6(ck, dry):
+    return (
+        ck("dry-run-ok", dry.returncode == 0 and "dry-run:" in dry.stdout,
+               dry.stdout + dry.stderr)
+    )
+
+def _expression_7(ck, path, row):
+    return (
+        ck(f"dir{path}", row is not None and row[0] & FLAG_DIR)
+    )
+
+def _expression_8(ck, row):
+    return (
+        ck("file-row", row is not None and row[0] & FLAG_FILE and row[1] == 6)
+    )
+
+def _expression_9(ck, row):
+    return (
+        ck("symlink-verbatim", row is not None and row[0] & FLAG_LINK
+               and row[2] == "a.txt", repr(row))
+    )
+
+
 FQRN = "ingest.brix.io"
 PREFIX = "/sw/demo/1.0"
 
@@ -103,8 +156,7 @@ def check_i1(ingest: Path, repotool: Path, base: Path, results: list) -> None:
     ck("mkfs", run_tool(repotool, "mkfs", FQRN, str(repo)).returncode == 0)
 
     dry = _ingest(ingest, src, repo, "--dry-run")
-    ck("dry-run-ok", dry.returncode == 0 and "dry-run:" in dry.stdout,
-       dry.stdout + dry.stderr)
+    _expression_6(ck, dry)
     ck("dry-run-publishes-nothing", _revision(repo) == "1")
 
     pub = _ingest(ingest, src, repo)
@@ -115,15 +167,14 @@ def check_i1(ingest: Path, repotool: Path, base: Path, results: list) -> None:
     for path in ("/sw", "/sw/demo", PREFIX, f"{PREFIX}/sub",
                  f"{PREFIX}/hollow"):
         row = lookup(cat, path)
-        ck(f"dir{path}", row is not None and row[0] & FLAG_DIR)
+        _expression_7(ck, path, row)
     row = lookup(cat, f"{PREFIX}/a.txt")
-    ck("file-row", row is not None and row[0] & FLAG_FILE and row[1] == 6)
+    _expression_8(ck, row)
     if row is not None:
         stored = cas_path(repo, row[3].hex()).read_bytes()
         ck("file-bytes", zlib.decompress(stored) == b"alpha\n")
     row = lookup(cat, f"{PREFIX}/ln")
-    ck("symlink-verbatim", row is not None and row[0] & FLAG_LINK
-       and row[2] == "a.txt", repr(row))
+    _expression_9(ck, row)
     cat.close()
 
 
@@ -177,13 +228,11 @@ def check_i3(ingest: Path, repotool: Path, base: Path, results: list) -> None:
     evil.mkdir()
     (evil / ".brix.wh.x").write_bytes(b"")
     wh = _ingest(ingest, evil, repo)
-    ck("whiteout-refused", wh.returncode == 5 and ".brix.wh" in wh.stderr,
-       wh.stderr)
+    _expression_1(ck, wh)
     (evil / ".brix.wh.x").unlink()
     (evil / ".brix.opq").write_bytes(b"")
     opq = _ingest(ingest, evil, repo)
-    ck("opaque-refused", opq.returncode == 5 and ".brix.opq" in opq.stderr,
-       opq.stderr)
+    _expression_2(ck, opq)
 
     # prefix grammar is validated before any scan
     for bad in ("../escape", "relative", "/sw/../up", "/sw/.brix.evil", "/."):
@@ -194,8 +243,7 @@ def check_i3(ingest: Path, repotool: Path, base: Path, results: list) -> None:
     # a prefix colliding with a published FILE fails the publish (no_clobber)
     col = run_tool(ingest, "dir", str(src), "--repo", str(repo),
                    "--prefix", f"{PREFIX}/ok.txt")
-    ck("collision-refused", col.returncode == 5
-       and "not a directory" in col.stderr, col.stderr)
+    _expression_3(ck, col)
 
     # a missing src fails cleanly
     gone = _ingest(ingest, base / "i3nosrc", repo)
@@ -213,13 +261,11 @@ def check_i3(ingest: Path, repotool: Path, base: Path, results: list) -> None:
     ck("crash-exit-66", crash.returncode == 66, str(crash.returncode))
     ck("crash-rev-intact", _revision(repo) == rev)
     heal = _ingest(ingest, src, repo)
-    ck("stale-lock-heals", heal.returncode == 0
-       and "breaking stale lock" in heal.stderr, heal.stderr)
+    _expression_4(ck, heal)
 
     # prune with an empty ledger is a clean no-op
     prune = run_tool(ingest, "prune", "--repo", str(repo))
-    ck("prune-noop", prune.returncode == 0
-       and "nothing to prune" in prune.stdout, prune.stdout)
+    _expression_5(ck, prune)
 
 
 # ---- I4: scale budget --------------------------------------------------------

@@ -46,27 +46,32 @@ def list_oversized(root: Path = ROOT) -> list[tuple[str, int]]:
     code and carry the same test exemption src's own tests live under elsewhere.
     brixtest/src/ (the packaged framework tree, testsuite-modernization-plan
     §7.4) is under the cap from day one: it carries no grandfathered backlog."""
-    rows: list[tuple[str, int]] = []
-    # src/: the nginx module tree — every .c/.h counts.
-    for f in (root / "src").rglob("*"):
-        if f.suffix in (".c", ".h") and f.is_file():
-            rows.append((f.relative_to(root).as_posix(), _wc_l(f)))
-    # client/: the ngx-free CLI tools + libbrix, minus the test tree.
-    client = root / "client"
-    client_tests = client / "tests"
-    for f in client.rglob("*"):
-        if (
-            f.suffix in (".c", ".h")
-            and f.is_file()
-            and client_tests not in f.parents
-        ):
-            rows.append((f.relative_to(root).as_posix(), _wc_l(f)))
-    # brixtest/src/: the packaged Python test framework.
-    for f in (root / "brixtest" / "src").rglob("*.py"):
-        if f.is_file():
-            rows.append((f.relative_to(root).as_posix(), _wc_l(f)))
+    rows = _source_sizes(root)
+    rows.extend(_client_sizes(root))
+    rows.extend(_brixtest_sizes(root))
     rows = [(path, loc) for path, loc in rows if loc > CAP]
     return sorted(rows, key=lambda r: f"{r[0]}\t{r[1]}")
+
+
+def _source_sizes(root):
+    return [_size_row(root, path) for path in _c_files(root / "src")]
+
+
+def _client_sizes(root):
+    tests = root / "client" / "tests"
+    return [_size_row(root, path) for path in _c_files(root / "client") if tests not in path.parents]
+
+
+def _brixtest_sizes(root):
+    return [_size_row(root, path) for path in (root / "brixtest" / "src").rglob("*.py") if path.is_file()]
+
+
+def _c_files(base):
+    return [path for path in base.rglob("*") if path.suffix in (".c", ".h") and path.is_file()]
+
+
+def _size_row(root, path):
+    return path.relative_to(root).as_posix(), _wc_l(path)
 
 
 def read_backlog() -> dict[str, int]:

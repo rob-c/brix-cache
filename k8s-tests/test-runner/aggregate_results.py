@@ -19,6 +19,63 @@ from datetime import datetime, timezone
 from xml.etree import ElementTree as ET
 
 
+def _expression_1_next(results):
+    return (
+        sum(r["tests"] for r in results)
+    )
+
+def _expression_2_next(results):
+    return (
+        sum(r["passed"] for r in results)
+    )
+
+def _expression_3_next(results):
+    return (
+        sum(r["failed"] for r in results)
+    )
+
+def _expression_4(results):
+    return (
+        sum(r["errors"] for r in results)
+    )
+
+def _expression_5(results):
+    return (
+        sum(r["skipped"] for r in results)
+    )
+
+def _expression_6(results):
+    return (
+        max((r["duration"] for r in results), default=0)
+    )
+
+
+def _expression_1(total_tests, total_passed, total_failed, total_errors, total_skipped, results, max_duration):
+    return (
+        {
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "total_jobs": len(results),
+                "total_tests": total_tests,
+                "passed": total_passed,
+                "failed": total_failed,
+                "errors": total_errors,
+                "skipped": total_skipped,
+                "duration_seconds": round(max_duration, 2),
+                "status": "PASS" if (total_failed == 0 and total_errors == 0) else "FAIL",
+            }
+    )
+
+def _expression_2(xml_files):
+    return (
+        [parse_junit_xml(f) for f in xml_files]
+    )
+
+def _expression_3(summary):
+    return (
+        0 if summary["status"] == "PASS" else 1
+    )
+
+
 def parse_junit_xml(file_path):
     """Parse a single pytest-junit XML file and return structured results."""
     tree = ET.parse(file_path)
@@ -127,24 +184,14 @@ def collect_s3_results(bucket_name, prefix="test-xml/"):
 
 def summarize(results):
     """Generate a human-readable summary of all test results."""
-    total_tests = sum(r["tests"] for r in results)
-    total_passed = sum(r["passed"] for r in results)
-    total_failed = sum(r["failed"] for r in results)
-    total_errors = sum(r["errors"] for r in results)
-    total_skipped = sum(r["skipped"] for r in results)
-    max_duration = max((r["duration"] for r in results), default=0)
+    total_tests = _expression_1_next(results)
+    total_passed = _expression_2_next(results)
+    total_failed = _expression_3_next(results)
+    total_errors = _expression_4(results)
+    total_skipped = _expression_5(results)
+    max_duration = _expression_6(results)
 
-    return {
-        "timestamp": datetime.now(timezone.utc).isoformat(),
-        "total_jobs": len(results),
-        "total_tests": total_tests,
-        "passed": total_passed,
-        "failed": total_failed,
-        "errors": total_errors,
-        "skipped": total_skipped,
-        "duration_seconds": round(max_duration, 2),
-        "status": "PASS" if (total_failed == 0 and total_errors == 0) else "FAIL",
-    }
+    return _expression_1(total_tests, total_passed, total_failed, total_errors, total_skipped, results, max_duration)
 
 
 def main():
@@ -178,7 +225,7 @@ def main():
         return 1
 
     # Parse and aggregate
-    results = [parse_junit_xml(f) for f in xml_files]
+    results = _expression_2(xml_files)
     summary = summarize(results)
 
     output = json.dumps(summary, indent=2)
@@ -188,7 +235,7 @@ def main():
     else:
         print(output)
 
-    return 0 if summary["status"] == "PASS" else 1
+    return _expression_3(summary)
 
 
 if __name__ == "__main__":

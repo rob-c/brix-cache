@@ -16,6 +16,25 @@ import requests
 
 from settings import S3_BUCKET
 
+def _expression_1(uid):
+    return (
+        [f"del_multi_{uid}_{i}.txt" for i in range(3)]
+    )
+
+
+def _check_test_list_basic_1(r):
+    assert r.status_code == 200
+
+def _check_test_list_basic_3(truncated):
+    assert not truncated
+
+def _check_test_list_basic_2(k, listed):
+    assert k in listed, f"{k} not in listing"
+
+def _check_test_delete_objects_success_4(r2, k):
+    assert r2.status_code == 404, f"key {k} should be deleted"
+
+
 BUCKET = S3_BUCKET
 S3_NS = "http://s3.amazonaws.com/doc/2006-03-01/"
 
@@ -223,11 +242,11 @@ def test_list_basic(s3_url):
         requests.put(_obj_url(s3_url, k), data=b"x", timeout=10)
 
     r = requests.get(_list_url(s3_url, prefix=f"list_basic_{uid}"), timeout=10)
-    assert r.status_code == 200
+    _check_test_list_basic_1(r)
     listed, _, truncated, _ = _parse_list(r.text)
     for k in keys:
-        assert k in listed, f"{k} not in listing"
-    assert not truncated
+        _check_test_list_basic_2(k, listed)
+    _check_test_list_basic_3(truncated)
 
 
 # A GET on the bucket root that is NOT an exact `list-type=2` must not be
@@ -287,8 +306,11 @@ def test_list_max_keys_pagination(s3_url):
     )
     assert r.status_code == 200
     page1, _, truncated1, next_tok = _parse_list(r.text)
-    assert len(page1) == 2
-    assert truncated1
+    def _assert_test_list_max_keys_pagination_1():
+        assert len(page1) == 2
+        assert truncated1
+
+    _assert_test_list_max_keys_pagination_1()
     assert next_tok
 
     collected = list(page1)
@@ -306,8 +328,11 @@ def test_list_max_keys_pagination(s3_url):
         page, _, trunc, token = _parse_list(r.text)
         collected.extend(page)
 
-    assert len(collected) == total
-    assert collected == sorted(collected)
+    def _assert_test_list_max_keys_pagination_2():
+        assert len(collected) == total
+        assert collected == sorted(collected)
+
+    _assert_test_list_max_keys_pagination_2()
 
 
 def test_list_delimiter_common_prefixes(s3_url):
@@ -504,7 +529,7 @@ def _delete_objects_body(*keys):
 
 def test_delete_objects_success(s3_url):
     uid = uuid.uuid4().hex
-    keys = [f"del_multi_{uid}_{i}.txt" for i in range(3)]
+    keys = _expression_1(uid)
     for k in keys:
         requests.put(_obj_url(s3_url, k), data=b"x", timeout=10)
 
@@ -514,15 +539,21 @@ def test_delete_objects_success(s3_url):
         headers={"Content-Type": "application/xml"},
         timeout=10,
     )
-    assert r.status_code == 200, f"DeleteObjects failed: {r.status_code} {r.text}"
-    assert "DeleteResult" in r.text
+    def _assert_test_delete_objects_success_3():
+        assert r.status_code == 200, f"DeleteObjects failed: {r.status_code} {r.text}"
+        assert "DeleteResult" in r.text
+
+    _assert_test_delete_objects_success_3()
     for k in keys:
-        assert k in r.text, f"key {k} not in DeleteResult"
-        assert "Deleted" in r.text
+        def _assert_test_delete_objects_success_4():
+            assert k in r.text, f"key {k} not in DeleteResult"
+            assert "Deleted" in r.text
+
+        _assert_test_delete_objects_success_4()
 
     for k in keys:
         r2 = requests.get(_obj_url(s3_url, k), timeout=10)
-        assert r2.status_code == 404, f"key {k} should be deleted"
+        _check_test_delete_objects_success_4(r2, k)
 
 
 def test_delete_objects_xml_entity_key(s3_url):

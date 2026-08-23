@@ -108,8 +108,11 @@ def test_corrupt_down_directional_and_counters(bfp):
         # Corrupt only the download path; the request path stays intact.
         assert _ctl(ctl, "corrupt 100 down").strip() == "ok"
         st = _ctl(ctl, "status")
-        assert "down[" in st and "corrupt=100.0000%" in st.split("down[")[1]
-        assert "corrupt=0.0000%" in st.split("down[")[0]  # up side untouched
+        def _assert_test_corrupt_down_directional_and_counters_1():
+            assert "down[" in st and "corrupt=100.0000%" in st.split("down[")[1]
+            assert "corrupt=0.0000%" in st.split("down[")[0]  # up side untouched
+
+        _assert_test_corrupt_down_directional_and_counters_1()
 
         payload = b"A" * 20000
         with socket.create_connection((HOST, listen), timeout=3) as s:
@@ -120,8 +123,11 @@ def test_corrupt_down_directional_and_counters(bfp):
         assert flipped > 0, "download must be corrupted"
 
         st2 = _ctl(ctl, "status")
-        assert "corrupt=0 " not in st2  # the corruption counter advanced
-        assert f"up={len(payload)}B" in st2 and f"down={len(payload)}B" in st2
+        def _assert_test_corrupt_down_directional_and_counters_2():
+            assert "corrupt=0 " not in st2  # the corruption counter advanced
+            assert f"up={len(payload)}B" in st2 and f"down={len(payload)}B" in st2
+
+        _assert_test_corrupt_down_directional_and_counters_2()
     finally:
         proc.terminate()
         proc.wait(timeout=5)

@@ -23,6 +23,16 @@ from server_launcher import LifecycleHarness
 from server_registry import NginxInstanceSpec
 from settings import BIND_HOST, HOST
 
+def _check_test_usage_ratio_sample_renders_1(rows):
+    assert len(rows) == 1
+
+def _check_test_usage_ratio_sample_renders_2(val):
+    assert 0.0 <= val <= 1.0
+
+def _check_test_purge_counters_stable_after_settle_3(va, vb, fam):
+    assert va == vb, f"{fam} moved with no cache activity"
+
+
 pytestmark = [pytest.mark.uses_lifecycle_harness,
               pytest.mark.xdist_group("lc-cachemx")]
 
@@ -162,9 +172,9 @@ def test_usage_ratio_sample_renders(ev):
     text = ev.after or cx.mfetch(ev.metrics)
     rows = [l for l in text.splitlines()
             if l.startswith("brix_cache_usage_ratio")]
-    assert len(rows) == 1
+    _check_test_usage_ratio_sample_renders_1(rows)
     val = float(rows[0].rsplit(" ", 1)[1])
-    assert 0.0 <= val <= 1.0
+    _check_test_usage_ratio_sample_renders_2(val)
 
 
 def test_eviction_threshold_gauge_absent(ev):
@@ -189,4 +199,4 @@ def test_purge_counters_stable_after_settle(ev):
                 "brix_cache_watermark_evicted_bytes_total"):
         va = [l for l in a.splitlines() if l.startswith(fam + " ")]
         vb = [l for l in b.splitlines() if l.startswith(fam + " ")]
-        assert va == vb, f"{fam} moved with no cache activity"
+        _check_test_purge_counters_stable_after_settle_3(va, vb, fam)

@@ -124,44 +124,56 @@ def check(root: Path) -> int:
     if not legacy.is_dir():
         print("check_shim_entrypoints: no %s — nothing to check" % legacy)
         return 0
+    return _check_legacy(root, legacy)
 
-    checked, violations = 0, []
-    for archive in sorted(legacy.glob("*_flat.py")):
-        if _main_block(archive) is None:
-            continue
-        flat = archive.name[:-len("_flat.py")]
-        live = _stack_head(flat, root)
-        head = live.relative_to(root).as_posix()[:-len(".py")]
-        checked += 1
-        if not live.is_file():
-            violations.append(
-                f"{archive.name} carried a CLI, but its stack head "
-                f"tests/{head}.py no longer exists — the entry point has "
-                f"nowhere left to live")
-            continue
-        body = _main_block(live)
-        if body is None:
-            violations.append(
-                f"{archive.name} carried a CLI; tests/{head}.py does not. "
-                f"Running that path now exits 0 without doing the work")
-        elif not _calls_something(body):
-            violations.append(
-                f"tests/{head}.py has a __main__ guard that calls nothing — "
-                f"{archive.name}'s entry point did work this one does not")
 
+def _check_legacy(root, legacy):
+    archives = [path for path in sorted(legacy.glob("*_flat.py")) if _main_block(path)]
+    violations = [
+        violation for archive in archives
+        for violation in _archive_violation(archive, root)
+    ]
+    return _report_result(archives, violations)
+
+
+def _report_result(archives, violations):
     if violations:
-        print("check_shim_entrypoints: %d shim CLI(s) stranded by a move:"
-              % len(violations))
-        for v in violations:
-            print("  - %s" % v)
-        print("\nGive the entry point a named main() in the module that owns "
-              "the body now, and call it from the shim's __main__ block "
-              "(before the sys.modules self-replacement).")
+        _report_violations(violations)
         return 1
-
     print("check_shim_entrypoints: OK (%d archived CLI(s), every stack head "
-          "still runs one)" % checked)
+          "still runs one)" % len(archives))
     return 0
+
+
+def _archive_violation(archive, root):
+    flat = archive.name[:-len("_flat.py")]
+    live = _stack_head(flat, root)
+    head = live.relative_to(root).as_posix()[:-len(".py")]
+    if not live.is_file():
+        return [
+            f"{archive.name} carried a CLI, but its stack head tests/{head}.py "
+            "no longer exists — the entry point has nowhere left to live"
+        ]
+    body = _main_block(live)
+    if body is None:
+        return [
+            f"{archive.name} carried a CLI; tests/{head}.py does not. Running "
+            "that path now exits 0 without doing the work"
+        ]
+    if not _calls_something(body):
+        return [
+            f"tests/{head}.py has a __main__ guard that calls nothing — "
+            f"{archive.name}'s entry point did work this one does not"
+        ]
+    return []
+
+
+def _report_violations(violations):
+    print("check_shim_entrypoints: %d shim CLI(s) stranded by a move:" % len(violations))
+    for violation in violations:
+        print("  - %s" % violation)
+    print("\nGive the entry point a named main() in the module that owns the body now, "
+          "and call it from the shim's __main__ block (before the sys.modules self-replacement).")
 
 
 def main(argv=None) -> int:

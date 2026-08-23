@@ -5,20 +5,33 @@ import pytest
 from cmdscripts.delegation_twostep import run_checks
 from settings import NGINX_BIN
 
+def _guard_test_delegation_twostep_flow_1():
+    if not os.access(NGINX_BIN, os.X_OK):
+        pytest.skip(f"nginx binary not executable: {NGINX_BIN}")
+
+def _guard_test_delegation_twostep_flow_2(results):
+    if results and results[0][1].startswith("SKIP"):
+        pytest.skip(results[0][1])
+
+def _check_test_delegation_twostep_flow_1(results):
+    assert all(ok for ok, _ in results), "\n".join(
+        f"{'ok' if ok else 'FAIL'} {message}" for ok, message in results
+    )
+
+def _check_test_delegation_twostep_flow_2(expected, messages):
+    assert any(message.startswith(expected) for message in messages)
+
+
 pytestmark = pytest.mark.xdist_group("cmd-delegation_twostep")
 
 
 def test_delegation_twostep_flow(tmp_path):
-    if not os.access(NGINX_BIN, os.X_OK):
-        pytest.skip(f"nginx binary not executable: {NGINX_BIN}")
+    _guard_test_delegation_twostep_flow_1()
 
     results = run_checks(tmp_path, nginx_bin=NGINX_BIN)
-    if results and results[0][1].startswith("SKIP"):
-        pytest.skip(results[0][1])
+    _guard_test_delegation_twostep_flow_2(results)
 
-    assert all(ok for ok, _ in results), "\n".join(
-        f"{'ok' if ok else 'FAIL'} {message}" for ok, message in results
-    )
+    _check_test_delegation_twostep_flow_1(results)
     messages = [message for _, message in results]
     for expected in (
         "a1: getProxyReq accepted",
@@ -32,4 +45,4 @@ def test_delegation_twostep_flow(tmp_path):
         "f1: untrusted-EEC signed proxy rejected (403)",
         "g3: no credential file written while endpoint is off",
     ):
-        assert any(message.startswith(expected) for message in messages)
+        _check_test_delegation_twostep_flow_2(expected, messages)

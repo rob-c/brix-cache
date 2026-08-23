@@ -255,6 +255,27 @@ mv_make_dst_parents(ngx_connection_t *c, ngx_stream_brix_srv_conf_t *conf,
 }
 
 /*
+ * WHAT: Map non-special rename errno values onto the XRootD namespace taxonomy.
+ * WHY:  The shared errno mapping differs for several namespace-specific failures.
+ * HOW:  Preserve the established one-to-one status cases, then use the fallback.
+ */
+static int
+mv_errno_kxr(int err)
+{
+    switch (err) {
+    case ENOENT:       return kXR_NotFound;
+    case ENOTDIR:      return kXR_FSError;
+    case ENOTEMPTY:    return kXR_ItExists;
+    case ENOSPC:       return kXR_NoSpace;
+#ifdef EDQUOT
+    case EDQUOT:       return kXR_NoSpace;
+#endif
+    case ENAMETOOLONG: return kXR_ArgTooLong;
+    default:           return brix_kxr_from_errno(err);
+    }
+}
+
+/*
  * mv_execute — perform the confined rename and map failure to a kXR error.
  *
  * WHAT: Renames src_resolved → dst_resolved through the ctx-bound VFS
@@ -324,18 +345,7 @@ mv_execute(brix_ctx_t *ctx, ngx_connection_t *c,
 		msg = was_dir ? "destination is a directory"
 		              : "destination already exists";
 	} else {
-		/* Mirror brix_kxr_map_ns_status exactly via the 1:1 errno. */
-		switch (e) {
-		case ENOENT:       kxr = kXR_NotFound;   break; /* NOT_FOUND  */
-		case ENOTDIR:      kxr = kXR_FSError;    break; /* CONFLICT   */
-		case ENOTEMPTY:    kxr = kXR_ItExists;   break; /* NOT_EMPTY  */
-		case ENOSPC:       kxr = kXR_NoSpace;    break; /* NO_SPACE   */
-#ifdef EDQUOT
-		case EDQUOT:       kxr = kXR_NoSpace;    break; /* NO_SPACE   */
-#endif
-		case ENAMETOOLONG: kxr = kXR_ArgTooLong; break; /* TOO_LONG   */
-		default:           kxr = brix_kxr_from_errno(e); break;
-		}
+		kxr = mv_errno_kxr(e);
 		msg = strerror(e);
 	}
 	return mv_fail(ctx, c, mv->src_resolved, kxr, msg);

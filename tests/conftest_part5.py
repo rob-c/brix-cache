@@ -125,10 +125,7 @@ def pytest_xdist_node_collection_finished(node, ids):
     del ids
     global _xdist_fleet_started
     config = node.config
-    if (_xdist_fleet_started
-            or getattr(config.option, "collectonly", False)
-            or REMOTE_SERVER
-            or os.environ.get("TEST_SKIP_SERVER_SETUP") == "1"):
+    if _skip_xdist_fleet_start(config):
         return
     _xdist_collected_nodes.add(node.gateway.id)
     worker_count = _xdist_worker_count(config)
@@ -139,7 +136,25 @@ def pytest_xdist_node_collection_finished(node, ids):
             "xdist fleet startup needs an explicit -n worker count so it can "
             "wait for collection from every worker"
         )
+    specs, stable_path = _start_xdist_fleet()
+    node.config._nginx_xrootd_selected_registry_specs = specs
+    stable_path.parent.mkdir(parents=True, exist_ok=True)
+    stable_path.write_text("stable\n", encoding="utf-8")
+    _xdist_fleet_started = True
 
+
+def _skip_xdist_fleet_start(config) -> bool:
+    """Return whether this controller must leave the shared fleet untouched."""
+    return any((
+        _xdist_fleet_started,
+        getattr(config.option, "collectonly", False),
+        REMOTE_SERVER,
+        os.environ.get("TEST_SKIP_SERVER_SETUP") == "1",
+    ))
+
+
+def _start_xdist_fleet():
+    """Start the shared fleet and return its specs and stability marker."""
     error_path = Path(REGISTRY_ROOT) / ".xdist-fleet-error"
     stable_path = Path(REGISTRY_ROOT) / ".xdist-fleet-stable"
     error_path.unlink(missing_ok=True)
@@ -153,10 +168,7 @@ def pytest_xdist_node_collection_finished(node, ids):
         error_path.parent.mkdir(parents=True, exist_ok=True)
         error_path.write_text(str(exc), encoding="utf-8")
         raise
-    node.config._nginx_xrootd_selected_registry_specs = specs
-    stable_path.parent.mkdir(parents=True, exist_ok=True)
-    stable_path.write_text("stable\n", encoding="utf-8")
-    _xdist_fleet_started = True
+    return specs, stable_path
 
 
 def pytest_collection_finish(session):
@@ -168,36 +180,9 @@ def pytest_collection_finish(session):
     session owns the local lifecycle.  ``--collect-only`` starts nothing."""
     config = session.config
     if hasattr(config, "workerinput"):
-        if (getattr(config.option, "collectonly", False)
-                or REMOTE_SERVER
-                or os.environ.get("TEST_SKIP_SERVER_SETUP") == "1"
-                or not session.items):
-            return
-        _chdir_scratch()
-        error_path = Path(REGISTRY_ROOT) / ".xdist-fleet-error"
-        stable_path = Path(REGISTRY_ROOT) / ".xdist-fleet-stable"
-        deadline = time.time() + _xdist_fleet_wait_seconds()
-        while time.time() < deadline:
-            if stable_path.exists():
-                break
-            if error_path.exists():
-                raise pytest.UsageError(
-                    "xdist fleet coordinator failed: "
-                    + error_path.read_text(encoding="utf-8"))
-            time.sleep(0.1)
-        else:
-            raise pytest.UsageError(
-                "timed out waiting for the xdist controller to start the "
-                "complete test fleet")
-        read_manifest()
+        _finish_worker_collection(session)
         return
-    if _xdist_requested(config):
-        return
-    if getattr(config.option, "collectonly", False):
-        return
-    if REMOTE_SERVER or _should_skip_local_lifecycle(config):
-        return
-    if not session.items:
+    if _skip_controller_collection(session):
         return
     specs = _specs_to_boot(session.items)
     config._nginx_xrootd_selected_registry_specs = specs
@@ -206,89 +191,132 @@ def pytest_collection_finish(session):
     _capture_fleet_baseline()           # snapshot the freshly-launched fleet
 
 
+def _finish_worker_collection(session) -> None:
+    """Join a worker to the fleet after the controller's collection barrier."""
+    if any((
+        getattr(session.config.option, "collectonly", False),
+        REMOTE_SERVER,
+        os.environ.get("TEST_SKIP_SERVER_SETUP") == "1",
+        not session.items,
+    )):
+        return
+    _chdir_scratch()
+    _wait_for_xdist_fleet()
+    read_manifest()
+
+
+def _wait_for_xdist_fleet() -> None:
+    """Wait for the controller's stable marker or propagate its failure."""
+    error_path = Path(REGISTRY_ROOT) / ".xdist-fleet-error"
+    stable_path = Path(REGISTRY_ROOT) / ".xdist-fleet-stable"
+    deadline = time.time() + _xdist_fleet_wait_seconds()
+    while time.time() < deadline:
+        if stable_path.exists():
+            return
+        if error_path.exists():
+            message = error_path.read_text(encoding="utf-8")
+            raise pytest.UsageError(f"xdist fleet coordinator failed: {message}")
+        time.sleep(0.1)
+    raise pytest.UsageError(
+        "timed out waiting for the xdist controller to start the complete test fleet"
+    )
+
+
+def _skip_controller_collection(session) -> bool:
+    """Return whether controller collection should avoid fleet startup."""
+    config = session.config
+    return any((
+        _xdist_requested(config),
+        getattr(config.option, "collectonly", False),
+        REMOTE_SERVER,
+        _should_skip_local_lifecycle(config),
+        not session.items,
+    ))
+
+
 def pytest_sessionfinish(session, exitstatus):
     """Stop local servers when the session ends (no-op in remote mode or xdist workers)."""
-    import subprocess
-
-    # xdist workers must not call stop-all: the controller owns server lifecycle.
-    # A worker finishing early would kill servers other workers still need.
-    if hasattr(session.config, "workerinput"):
+    del exitstatus
+    if _skip_session_finish(session):
         return
-
-    # Collection-only sessions started nothing (pytest_sessionstart and
-    # pytest_collection_finish carry the same gate): no fleet to conserve, no
-    # stop sweep to run, no scratch tree to destroy.
-    if getattr(session.config.option, "collectonly", False):
-        return
-
-    # The watchdog protects the fleet while tests execute.  Session teardown is
-    # the one deliberate full-fleet stop, after which its probes must be silent.
     _stop_sentinel_watchdog()
-
-    # Fleet health conservation guard — runs BEFORE any teardown, whether this
-    # session owns the fleet or merely attached to a harness-managed one.  A
-    # server missing at session end means a test stopped/crashed it; fail loudly
-    # so the run is red and the culprit fleet server is named.
-    ok, message = _verify_fleet_conservation()
-    if not ok:
-        sys.stderr.write(message)
-        session.exitstatus = 1
-        try:
-            session.config._fleet_health_failure = message
-        except Exception:
-            pass
-
+    _record_fleet_conservation(session)
     if REMOTE_SERVER or _should_skip_local_lifecycle(session.config):
         return
+    _stop_session_fleet(session)
+    _record_orphans(session)
+    _remove_test_root()
 
+
+def _skip_session_finish(session) -> bool:
+    """Return whether this process has no session fleet to finish."""
+    return any((
+        hasattr(session.config, "workerinput"),
+        getattr(session.config.option, "collectonly", False),
+    ))
+
+
+def _record_fleet_conservation(session) -> None:
+    """Make a fleet-health failure visible to pytest and its summary."""
+    ok, message = _verify_fleet_conservation()
+    if ok:
+        return
+    sys.stderr.write(message)
+    session.exitstatus = 1
+    try:
+        session.config._fleet_health_failure = message
+    except Exception:
+        pass
+
+
+def _stop_session_fleet(session) -> None:
+    """Best-effort stop of the fleet selected by this session."""
     try:
         specs = getattr(session.config, "_nginx_xrootd_selected_registry_specs", None)
         _stop_owned_fleet(specs)
     except Exception:
         pass  # best-effort cleanup
 
-    # POST-TEARDOWN ORPHAN ALARM: teardown just ran (_stop_owned_fleet ->
-    # kill_orphans).  If ANY fleet process owned by this TEST_ROOT is STILL alive
-    # now, teardown FAILED to reap it — the exact condition that leaks fixed
-    # ports and strands cmsd/nginx-worker orphans across runs.  Scream: red
-    # banner to stderr, name every survivor, fail the session, and surface it in
-    # the terminal summary so it cannot be lost in the scrollback.
+
+def _record_orphans(session) -> None:
+    """Detect and report processes that survived the fleet stop sweep."""
     try:
         from fleet_orphans import find_orphans  # noqa: PLC0415
-
         survivors = find_orphans(TEST_ROOT)
-        if survivors:
-            listing = "\n".join(
-                "    pid %d: %s" % (pid, cmd) for pid, cmd in survivors
-            )
-            banner = (
-                "\n"
-                "################################################################\n"
-                "##  FLEET TEARDOWN FAILED -- %3d ORPHAN(S) SURVIVED THE REAP  ##\n"
-                "################################################################\n"
-                "TEST_ROOT: %s\n"
-                "These processes were NOT reaped by teardown and are leaking\n"
-                "their fixed ports into the next run:\n"
-                "%s\n"
-                "################################################################\n"
-                % (len(survivors), os.path.realpath(str(TEST_ROOT)), listing)
-            )
-            sys.stderr.write(banner)
-            sys.stderr.flush()
-            session.exitstatus = 1
-            try:
-                prior = getattr(session.config, "_fleet_health_failure", "") or ""
-                session.config._fleet_health_failure = prior + banner
-            except Exception:
-                pass
     except Exception:
         pass  # detection must never itself break teardown
+    else:
+        if survivors:
+            _report_orphans(session, survivors)
 
-    # MANDATED CLEANUP: leave nothing behind.  Restore the original CWD first
-    # (we are currently inside CWD_DIR, which is about to be deleted), then
-    # destroy the whole temp tree so the next run starts from a clean slate and
-    # regenerates every file.  Only reached on the controller in local mode
-    # (remote/skip/no-server returned above).
+
+def _report_orphans(session, survivors) -> None:
+    """Write the post-teardown orphan alarm and fail the session."""
+    listing = "\n".join("    pid %d: %s" % entry for entry in survivors)
+    banner = (
+        "\n"
+        "################################################################\n"
+        "##  FLEET TEARDOWN FAILED -- %3d ORPHAN(S) SURVIVED THE REAP  ##\n"
+        "################################################################\n"
+        "TEST_ROOT: %s\n"
+        "These processes were NOT reaped by teardown and are leaking\n"
+        "their fixed ports into the next run:\n"
+        "%s\n"
+        "################################################################\n"
+        % (len(survivors), os.path.realpath(str(TEST_ROOT)), listing)
+    )
+    sys.stderr.write(banner)
+    sys.stderr.flush()
+    session.exitstatus = 1
+    try:
+        prior = getattr(session.config, "_fleet_health_failure", "") or ""
+        session.config._fleet_health_failure = prior + banner
+    except Exception:
+        pass
+
+
+def _remove_test_root() -> None:
+    """Restore the original directory and remove the session scratch tree."""
     try:
         os.chdir(_ORIG_CWD)
     except OSError:

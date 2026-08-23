@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from pathlib import Path
 import hashlib
 import os
@@ -28,7 +29,7 @@ def stop_nginx(prefix: Path) -> None:
 
 
 def ensure_pki(base: Path) -> tuple[bool, str]:
-    if Path(CA_CERT).is_file() and Path(CA_KEY).is_file():
+    if _pki_available():
         return True, ""
     result = subprocess.run(
         ["python3", "-c", "import pki_helpers; pki_helpers.blitz_test_pki()"],
@@ -46,6 +47,10 @@ def ensure_pki(base: Path) -> tuple[bool, str]:
     return True, ""
 
 
+def _pki_available():
+    return all((Path(CA_CERT).is_file(), Path(CA_KEY).is_file()))
+
+
 def mint_certs(base: Path) -> tuple[bool, str, dict[str, str]]:
     certs = base / "certs"
     certs.mkdir(parents=True, exist_ok=True)
@@ -58,16 +63,26 @@ def mint_certs(base: Path) -> tuple[bool, str, dict[str, str]]:
         text=True,
     )
     (base / "mint.log").write_text((result.stdout or "") + (result.stderr or ""), encoding="utf-8")
-    if result.returncode != 0 or not (certs / "a_eec_cert.pem").is_file():
+    if _mint_failed(result, certs):
         return False, "SKIP: cert minting failed: " + (result.stderr or result.stdout)[-1000:], {}
-    parsed: dict[str, str] = {}
-    for line in result.stdout.splitlines():
-        if "=" in line:
-            key, value = line.split("=", 1)
-            parsed[key] = value
-    if "A_DN" not in parsed or "B_DN" not in parsed:
+    parsed = _parse_assignments(result.stdout)
+    if not {"A_DN", "B_DN"} <= set(parsed):
         return False, "SKIP: could not parse minted DNs", {}
     return True, "", parsed
+
+
+def _parse_assignments(output):
+    parsed = {}
+    for line in output.splitlines():
+        if "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        parsed[key] = value
+    return parsed
+
+
+def _mint_failed(result, certs):
+    return result.returncode != 0 or not (certs / "a_eec_cert.pem").is_file()
 
 
 def key_for_dn(dn: str) -> str:
@@ -223,127 +238,214 @@ def start_front(base: Path, nginx_bin: str, origin_port: int, front_port: int, d
     return ok, message
 
 
-def run_checks(base: Path, nginx_bin: str = NGINX_BIN) -> list[tuple[bool, str]]:
-    pki_ok, pki_message = ensure_pki(base)
-    if not pki_ok:
-        return [(True, pki_message)]
-    mint_ok, mint_message, dns = mint_certs(base)
-    if not mint_ok:
-        return [(True, mint_message)]
+@dataclass(frozen=True)
+class _Context:
+    base: Path
+    nginx_bin: str
+    origin_port: int
+    front_port: int
+    a_cert: Path
+    a_key: Path
+    b_cert: Path
+    b_key: Path
+    credential_name: str
 
-    origin_port, front_port = cmdscript_ports("delegation_twostep")
-    origin = base / "o"
-    creds = base / "creds"
-    certs = base / "certs"
-    a_cert, a_key = certs / "a_eec_cert.pem", certs / "a_eec_key.pem"
-    b_cert, b_key = certs / "b_eec_cert.pem", certs / "b_eec_key.pem"
-    a_key_name = key_for_dn(dns["A_DN"])
+    @property
+    def url(self):
+        return f"https://{HOST}:{self.front_port}"
 
-    ok, msg = start_nginx(nginx_bin, origin, write_origin_config(origin, origin_port))
+    @property
+    def request_url(self):
+        return self.url + "/.well-known/brix-delegation/request"
+
+    @property
+    def creds(self):
+        return self.base / "creds"
+
+
+class _FrontendStartError(RuntimeError):
+    pass
+
+
+def _start_frontend(context, delegation="on"):
+    ok, message = start_front(context.base, context.nginx_bin, context.origin_port,
+                              context.front_port, delegation)
     if not ok:
-        return [(True, "SKIP: origin start failed: " + msg)]
+        raise _FrontendStartError(message)
 
-    results: list[tuple[bool, str]] = []
-    url = f"https://{HOST}:{front_port}"
-    req_url = url + "/.well-known/brix-delegation/request"
+
+def _stop_frontend(context):
+    stop_nginx(context.base / "f")
+
+
+def _request(context, suffix):
+    headers = context.base / f"hdrs_{suffix}.txt"
+    csr = context.base / f"csr_{suffix}.pem"
+    code, _ = curl(context.request_url, context.a_cert, context.a_key,
+                   output=csr, headers=headers)
+    return code, delegation_id(headers), csr
+
+
+def _scenario_sign_and_put(context):
+    _start_frontend(context)
+    code, delegation, csr = _request(context, "a")
+    results = [
+        (code == "200", f"a1: getProxyReq accepted (code={code})"),
+        (bool(delegation), "a2: X-Brix-Delegation-Id header present"),
+        ("BEGIN CERTIFICATE REQUEST" in csr.read_text(encoding="utf-8", errors="replace"),
+         "a3: response body is a PEM CSR"),
+    ]
+    signed = context.base / "signed_a.pem"
+    credential = context.creds / f"{context.credential_name}.pem"
+    credential.unlink(missing_ok=True)
+    signed_ok = bool(delegation) and sign_csr(csr, context.a_cert, context.a_key, signed)
+    results.append((signed_ok, "b1: A signed its own CSR"))
+    if signed_ok:
+        results.extend(_put_signed_proxy(context, delegation, signed, credential))
+    else:
+        results.extend([(False, "b2: skipped (no signed proxy to PUT)"),
+                        (False, "b3: skipped (no signed proxy to PUT)")])
+    _stop_frontend(context)
+    return results
+
+
+def _put_signed_proxy(context, delegation, signed, credential):
+    body = context.base / "body_a.pem"
+    body.write_bytes(signed.read_bytes() + context.a_cert.read_bytes())
+    code, _ = curl(context.url + f"/.well-known/brix-delegation/{delegation}",
+                   context.a_cert, context.a_key, output=context.base / "resp_b.txt",
+                   upload=body)
+    return [(code in ("200", "201"), f"b2: putProxy accepted (code={code})"),
+            (credential.is_file(),
+             f"b3: {context.credential_name}.pem now exists in credential dir")]
+
+
+def _scenario_cross_identity(context):
+    _start_frontend(context)
+    code, delegation, _ = _request(context, "c")
+    credential = context.creds / f"{context.credential_name}.pem"
+    if code == "200" and delegation:
+        credential.unlink(missing_ok=True)
+        code, _ = curl(context.url + f"/.well-known/brix-delegation/{delegation}",
+                       context.b_cert, context.b_key, output=context.base / "resp_c.txt",
+                       upload=context.a_cert)
+        results = [(code == "403", "c1: B's putProxy to A's id rejected (403)"),
+                   (not credential.exists(),
+                    "c2: A's credential file NOT created by B's attempt")]
+    else:
+        results = [(False, f"c1: skipped (could not obtain a fresh id, code={code})"),
+                   (False, "c2: skipped (could not obtain a fresh id)")]
+    _stop_frontend(context)
+    return results
+
+
+def _scenario_unknown_id(context):
+    _start_frontend(context)
+    path = "/.well-known/brix-delegation/0000000000000000000000000000dead"
+    code, _ = curl(context.url + path, context.a_cert, context.a_key,
+                   output=context.base / "resp_d.txt", upload=context.a_cert)
+    _stop_frontend(context)
+    return [(code == "404", "d: unknown id rejected (404)")]
+
+
+def _scenario_garbage(context):
+    _start_frontend(context)
+    code, delegation, _ = _request(context, "e")
+    if code == "200" and delegation:
+        garbage = context.base / "garbage.txt"
+        garbage.write_text("this is not a PEM certificate, just garbage bytes\n",
+                           encoding="utf-8")
+        code, _ = curl(context.url + f"/.well-known/brix-delegation/{delegation}",
+                       context.a_cert, context.a_key, output=context.base / "resp_e.txt",
+                       upload=garbage)
+        results = [(code == "400", "e: garbage body rejected (400)")]
+    else:
+        results = [(False, f"e: skipped (could not obtain a fresh id, code={code})")]
+    _stop_frontend(context)
+    return results
+
+
+def _scenario_untrusted(context):
+    _start_frontend(context)
+    code, delegation, csr = _request(context, "f")
+    if code != "200" or not delegation:
+        results = [(False, f"f1: skipped (could not obtain a fresh id, code={code})"),
+                   (False, "f2: skipped (could not obtain a fresh id)")]
+    else:
+        results = _untrusted_proxy_results(context, delegation, csr)
+    _stop_frontend(context)
+    return results
+
+
+def _untrusted_proxy_results(context, delegation, csr):
+    credential = context.creds / f"{context.credential_name}.pem"
+    credential.unlink(missing_ok=True)
+    signed = context.base / "signed_f.pem"
+    rogue_cert = context.base / "certs" / "a_eec_wrongca_cert.pem"
+    rogue_key = context.base / "certs" / "a_eec_wrongca_key.pem"
+    if not sign_csr(csr, rogue_cert, rogue_key, signed):
+        return [(False, "f1: could not sign CSR with rogue EEC"),
+                (False, "f2: skipped (no signed proxy to PUT)")]
+    body = context.base / "body_f.pem"
+    body.write_bytes(signed.read_bytes() + rogue_cert.read_bytes())
+    code, _ = curl(context.url + f"/.well-known/brix-delegation/{delegation}",
+                   context.a_cert, context.a_key, output=context.base / "resp_f.txt",
+                   upload=body)
+    return [(code == "403", "f1: untrusted-EEC signed proxy rejected (403)"),
+            (not credential.exists(), "f2: no credential file written for the untrusted proxy")]
+
+
+def _scenario_disabled(context):
+    credential = context.creds / f"{context.credential_name}.pem"
+    credential.unlink(missing_ok=True)
+    _start_frontend(context, "off")
+    code, _ = curl(context.request_url, context.a_cert, context.a_key,
+                   output=context.base / "resp_g1.txt", timeout=2)
+    results = [(code in ("403", "404"),
+                f"g1: GET .../request -> {code} (endpoint off, not special)")]
+    path = "/.well-known/brix-delegation/somefakeid0000000000000000000000"
+    code, _ = curl(context.url + path, context.a_cert, context.a_key,
+                   output=context.base / "resp_g2.txt", upload=context.a_cert)
+    results.append((code not in ("200", "201"),
+                    f"g2: PUT .../<id> not accepted as a delegation (code={code})"))
+    results.append((not credential.exists(),
+                    "g3: no credential file written while endpoint is off"))
+    return results
+
+
+def _make_context(base, nginx_bin, ports, dns):
+    origin_port, front_port = ports
+    certs = base / "certs"
+    return _Context(base, nginx_bin, origin_port, front_port,
+                    certs / "a_eec_cert.pem", certs / "a_eec_key.pem",
+                    certs / "b_eec_cert.pem", certs / "b_eec_key.pem",
+                    key_for_dn(dns["A_DN"]))
+
+
+def run_checks(base: Path, nginx_bin: str = NGINX_BIN) -> list[tuple[bool, str]]:
+    pki_ok, message = ensure_pki(base)
+    if not pki_ok:
+        return [(True, message)]
+    mint_ok, message, dns = mint_certs(base)
+    if not mint_ok:
+        return [(True, message)]
+    context = _make_context(base, nginx_bin, cmdscript_ports("delegation_twostep"), dns)
+    origin = base / "o"
+    ok, message = start_nginx(nginx_bin, origin,
+                              write_origin_config(origin, context.origin_port))
+    if not ok:
+        return [(True, "SKIP: origin start failed: " + message)]
     try:
-        ok, msg = start_front(base, nginx_bin, origin_port, front_port, "on")
-        if not ok:
-            return [(True, "SKIP: frontend start failed: " + msg)]
-        hdrs = base / "hdrs_a.txt"
-        csr = base / "csr_a.pem"
-        code, _ = curl(req_url, a_cert, a_key, output=csr, headers=hdrs)
-        did = delegation_id(hdrs)
-        results.append((code == "200", f"a1: getProxyReq accepted (code={code})"))
-        results.append((bool(did), "a2: X-Brix-Delegation-Id header present"))
-        results.append(("BEGIN CERTIFICATE REQUEST" in csr.read_text(encoding="utf-8", errors="replace"), "a3: response body is a PEM CSR"))
-
-        signed = base / "signed_a.pem"
-        body = base / "body_a.pem"
-        (creds / f"{a_key_name}.pem").unlink(missing_ok=True)
-        signed_ok = bool(did) and sign_csr(csr, a_cert, a_key, signed)
-        results.append((signed_ok, "b1: A signed its own CSR"))
-        if signed_ok:
-            body.write_bytes(signed.read_bytes() + a_cert.read_bytes())
-            code, _ = curl(url + f"/.well-known/brix-delegation/{did}", a_cert, a_key, output=base / "resp_b.txt", upload=body)
-            results.append((code in ("200", "201"), f"b2: putProxy accepted (code={code})"))
-            results.append(((creds / f"{a_key_name}.pem").is_file(), f"b3: {a_key_name}.pem now exists in credential dir"))
-        else:
-            results.extend([(False, "b2: skipped (no signed proxy to PUT)"), (False, "b3: skipped (no signed proxy to PUT)")])
-        stop_nginx(base / "f")
-
-        ok, msg = start_front(base, nginx_bin, origin_port, front_port, "on")
-        if not ok:
-            return [(False, "frontend restart failed: " + msg)]
-        hdrs_c, csr_c = base / "hdrs_c.txt", base / "csr_c.pem"
-        code, _ = curl(req_url, a_cert, a_key, output=csr_c, headers=hdrs_c)
-        did_c = delegation_id(hdrs_c)
-        if code == "200" and did_c:
-            (creds / f"{a_key_name}.pem").unlink(missing_ok=True)
-            code, _ = curl(url + f"/.well-known/brix-delegation/{did_c}", b_cert, b_key, output=base / "resp_c.txt", upload=a_cert)
-            results.append((code == "403", "c1: B's putProxy to A's id rejected (403)"))
-            results.append((not (creds / f"{a_key_name}.pem").exists(), "c2: A's credential file NOT created by B's attempt"))
-        else:
-            results.extend([(False, f"c1: skipped (could not obtain a fresh id, code={code})"), (False, "c2: skipped (could not obtain a fresh id)")])
-        stop_nginx(base / "f")
-
-        ok, msg = start_front(base, nginx_bin, origin_port, front_port, "on")
-        if not ok:
-            return [(False, "frontend restart failed: " + msg)]
-        code, _ = curl(url + "/.well-known/brix-delegation/0000000000000000000000000000dead", a_cert, a_key, output=base / "resp_d.txt", upload=a_cert)
-        results.append((code == "404", "d: unknown id rejected (404)"))
-        stop_nginx(base / "f")
-
-        ok, msg = start_front(base, nginx_bin, origin_port, front_port, "on")
-        if not ok:
-            return [(False, "frontend restart failed: " + msg)]
-        hdrs_e, csr_e = base / "hdrs_e.txt", base / "csr_e.pem"
-        code, _ = curl(req_url, a_cert, a_key, output=csr_e, headers=hdrs_e)
-        did_e = delegation_id(hdrs_e)
-        if code == "200" and did_e:
-            garbage = base / "garbage.txt"
-            garbage.write_text("this is not a PEM certificate, just garbage bytes\n", encoding="utf-8")
-            code, _ = curl(url + f"/.well-known/brix-delegation/{did_e}", a_cert, a_key, output=base / "resp_e.txt", upload=garbage)
-            results.append((code == "400", "e: garbage body rejected (400)"))
-        else:
-            results.append((False, f"e: skipped (could not obtain a fresh id, code={code})"))
-        stop_nginx(base / "f")
-
-        ok, msg = start_front(base, nginx_bin, origin_port, front_port, "on")
-        if not ok:
-            return [(False, "frontend restart failed: " + msg)]
-        hdrs_f, csr_f = base / "hdrs_f.txt", base / "csr_f.pem"
-        code, _ = curl(req_url, a_cert, a_key, output=csr_f, headers=hdrs_f)
-        did_f = delegation_id(hdrs_f)
-        if code == "200" and did_f:
-            (creds / f"{a_key_name}.pem").unlink(missing_ok=True)
-            signed_f = base / "signed_f.pem"
-            rogue_cert = certs / "a_eec_wrongca_cert.pem"
-            rogue_key = certs / "a_eec_wrongca_key.pem"
-            if sign_csr(csr_f, rogue_cert, rogue_key, signed_f):
-                body_f = base / "body_f.pem"
-                body_f.write_bytes(signed_f.read_bytes() + rogue_cert.read_bytes())
-                code, _ = curl(url + f"/.well-known/brix-delegation/{did_f}", a_cert, a_key, output=base / "resp_f.txt", upload=body_f)
-                results.append((code == "403", "f1: untrusted-EEC signed proxy rejected (403)"))
-                results.append((not (creds / f"{a_key_name}.pem").exists(), "f2: no credential file written for the untrusted proxy"))
-            else:
-                results.extend([(False, "f1: could not sign CSR with rogue EEC"), (False, "f2: skipped (no signed proxy to PUT)")])
-        else:
-            results.extend([(False, f"f1: skipped (could not obtain a fresh id, code={code})"), (False, "f2: skipped (could not obtain a fresh id)")])
-        stop_nginx(base / "f")
-
-        (creds / f"{a_key_name}.pem").unlink(missing_ok=True)
-        ok, msg = start_front(base, nginx_bin, origin_port, front_port, "off")
-        if not ok:
-            return [(False, "frontend restart failed: " + msg)]
-        code, _ = curl(req_url, a_cert, a_key, output=base / "resp_g1.txt", timeout=2)
-        results.append((code in ("403", "404"), f"g1: GET .../request -> {code} (endpoint off, not special)"))
-        code, _ = curl(url + "/.well-known/brix-delegation/somefakeid0000000000000000000000", a_cert, a_key, output=base / "resp_g2.txt", upload=a_cert)
-        results.append((code not in ("200", "201"), f"g2: PUT .../<id> not accepted as a delegation (code={code})"))
-        results.append((not (creds / f"{a_key_name}.pem").exists(), "g3: no credential file written while endpoint is off"))
+        results = []
+        for scenario in (_scenario_sign_and_put, _scenario_cross_identity,
+                         _scenario_unknown_id, _scenario_garbage,
+                         _scenario_untrusted, _scenario_disabled):
+            results.extend(scenario(context))
         return results
+    except _FrontendStartError as exc:
+        return [(False, "frontend restart failed: " + str(exc))]
     finally:
-        stop_nginx(base / "f")
+        _stop_frontend(context)
         stop_nginx(origin)
 
 
@@ -353,8 +455,16 @@ def entry(argv: list[str]) -> int:
 
     with tempfile.TemporaryDirectory(prefix="deleg2.") as tmp:
         results = run_checks(Path(tmp), nginx_bin=nginx_bin)
+    _print_results(results)
+    return _result_code(results)
+
+
+def _print_results(results):
     for ok, message in results:
         print(f"  {'ok  ' if ok else 'FAIL'} {message}")
+
+
+def _result_code(results):
     if all(ok for ok, _ in results):
         print("run_delegation_twostep: ALL PASS")
         return 0

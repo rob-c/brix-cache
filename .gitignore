@@ -162,6 +162,13 @@ opencode.json
 # crash/leak/timeout reproducers dropped by a failing fuzz run (CI uploads them
 # as a build artifact; locally they are throwaway — the corpus is what persists)
 tests/fuzz/artifacts/
+# ...and the same reproducers when the run forgot `-artifact_prefix` and dropped
+# them beside the harnesses instead. A `crash-*` file in the tree reads as an
+# open finding; the real ones belong in artifacts/ with the run that found them.
+tests/fuzz/crash-*
+tests/fuzz/leak-*
+tests/fuzz/timeout-*
+tests/fuzz/oom-*
 
 # compiled wire-protocol fuzz harnesses (corpus_* seed dirs ARE committed)
 tests/fuzz/fuzz_gsi_bucket
@@ -186,3 +193,8 @@ k8s-tests/rpms/
 /testlogs*.log
 /thistest*.log
 /full_suite.log
+
+# patch/merge-tool leftovers from the mechanical refactor passes — the ONLY
+# copy of a module is the one in the tree, never a *.orig beside it
+*.orig
+*.rej

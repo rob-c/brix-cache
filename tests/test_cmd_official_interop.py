@@ -30,6 +30,11 @@ def _fleet_anon_listening() -> bool:
 @pytest.mark.timeout(600)
 @pytest.mark.parametrize("scenario", ["noauth", "host", "stress"])
 def test_official_interop_scenario(scenario: str):
+    _require_official_interop()
+    assert official_interop.SCENARIOS[scenario]() == 0
+
+
+def _require_official_interop():
     if os.environ.get("PHASE81_RUN_LIVE_PORTS") == "0":
         pytest.skip("set PHASE81_RUN_LIVE_PORTS=0 to skip official interop live scenarios")
     missing = official_interop._missing_tools()
@@ -37,7 +42,6 @@ def test_official_interop_scenario(scenario: str):
         pytest.skip(f"XRootD client tools missing: {', '.join(missing)}")
     if not _fleet_anon_listening():
         pytest.skip(f"no nginx anon listener on :{official_interop.anon_port()}")
-    assert official_interop.SCENARIOS[scenario]() == 0
 
 
 @pytest.mark.optin

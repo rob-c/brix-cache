@@ -1,13 +1,7 @@
-"""The results portal (feature F23): a run rendered as one HTML file.
+"""Render and serve self-contained HTML reports from stored test runs.
 
-``write_report`` turns a catalogued run into a single self-contained
-page — inline CSS and JS, no external assets, no framework — so the
-report can be opened from the lane, attached to a ticket, or dropped
-on any static host and still work.  ``write_index`` renders the list
-of runs the store knows.  ``serve`` puts the whole results directory
-behind stdlib ``http.server`` for the "advertise the results" case;
-it serves files, it computes nothing, so there is nothing on the
-portal that is not already on disk.
+Reports use inline assets and contain only data already present in the result
+store. The HTTP server exposes the result directory without modifying it.
 """
 
 from __future__ import annotations
@@ -25,7 +19,7 @@ from brixtest.results.mapping import matrix_html, observed_rows
 from brixtest.results.model import TestRecord
 from brixtest.results.store import ResultStore
 
-__all__ = ["write_report", "write_index", "serve"]
+__all__ = ["serve", "write_index", "write_report"]
 
 _OUTCOME_ORDER = ("failed", "error", "xpassed", "xfailed", "skipped", "passed")
 
@@ -122,19 +116,29 @@ def _page(title: str, body: str) -> str:
 
 
 def _tiles(counts: dict) -> str:
-    cells = []
-    for outcome in _OUTCOME_ORDER:
-        if counts.get(outcome):
-            cells.append("<div class='tile %s'><b>%d</b>%s</div>"
-                         % (outcome, counts[outcome], outcome))
+    cells = [
+        "<div class='tile %s'><b>%d</b>%s</div>"
+        % (outcome, counts[outcome], outcome)
+        for outcome in _OUTCOME_ORDER
+        if counts.get(outcome)
+    ]
     cells.append("<div class='tile'><b>%d</b>total</div>" % sum(counts.values()))
     return "<div class='tiles'>%s</div>" % "".join(cells)
 
 
 def _detail(record: TestRecord) -> str:
-    parts: List[str] = []
-    kv = []
-    for label, value in (
+    parts = [
+        _detail_value(label, value)
+        for label, value in _detail_pairs(record)
+        if value
+    ]
+    if record.failure:
+        parts.append("<pre>%s</pre>" % html.escape(record.failure))
+    return "".join(parts) or "<span class='kv'>no captured detail</span>"
+
+
+def _detail_pairs(record: TestRecord):
+    return (
         ("servers", ", ".join(record.servers)),
         ("dynamic", ", ".join(record.dynamic_servers)),
         ("test ΔRSS kB", "%+d" % record.rss_delta_kb if record.rss_delta_kb else ""),
@@ -144,14 +148,11 @@ def _detail(record: TestRecord) -> str:
         ("params", json.dumps(record.params) if record.params else ""),
         ("workspace", record.workspace),
         ("output dir", record.output_dir),
-    ):
-        if value:
-            kv.append("<div class='kv'>%s: <code>%s</code></div>"
-                      % (label, html.escape(value)))
-    parts.extend(kv)
-    if record.failure:
-        parts.append("<pre>%s</pre>" % html.escape(record.failure))
-    return "".join(parts) or "<span class='kv'>no captured detail</span>"
+    )
+
+
+def _detail_value(label: str, value: str) -> str:
+    return "<div class='kv'>%s: <code>%s</code></div>" % (label, html.escape(value))
 
 
 def _tests_table(records: List[TestRecord]) -> str:

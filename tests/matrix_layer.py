@@ -96,25 +96,55 @@ def supported(cell):
     Every entry is a product constraint, not a harness limitation — read it
     before adding a cell to a matrix mark and finding it skipped.
     """
-    if cell.protocol not in PROTOCOLS:
-        return f"unknown protocol {cell.protocol!r}"
-    if cell.auth not in AUTHS:
-        return f"unknown auth {cell.auth!r}"
-    if cell.backend not in BACKENDS:
-        return f"unknown backend {cell.backend!r}"
+    for check in _SUPPORT_CHECKS:
+        reason = check(cell)
+        if reason:
+            return reason
+    return None
+
+
+def _known_axis(cell):
+    axes = (("protocol", PROTOCOLS), ("auth", AUTHS), ("backend", BACKENDS))
+    for name, values in axes:
+        value = getattr(cell, name)
+        if value not in values:
+            return f"unknown {name} {value!r}"
+    return None
+
+
+def _s3_auth(cell):
     if cell.protocol == "s3" and cell.auth not in ("none", "sigv4"):
         return "S3 authenticates with SigV4, never a bearer or a proxy (INVARIANT 6)"
     if cell.protocol != "s3" and cell.auth == "sigv4":
         return "SigV4 is the S3 request-signing scheme; no other plane offers it"
+    return None
+
+
+def _secure_transport(cell):
+    return _root_token_transport(cell) or _webdav_gsi_transport(cell)
+
+
+def _root_token_transport(cell):
     if cell.protocol == "root" and cell.auth == "token" and not cell.tls:
         return ("XrdCl refuses to send a bearer over a cleartext wire, so a "
                 "root:// token plane is only drivable with brix_tls on")
+    return None
+
+
+def _webdav_gsi_transport(cell):
     if cell.protocol == "webdav" and cell.auth == "gsi" and not cell.tls:
         return "WebDAV GSI is a client certificate, which requires TLS"
+    return None
+
+
+def _s3_http_origin(cell):
     if cell.backend == "http" and cell.protocol == "s3":
         return ("the S3 front over an http:// origin needs a co-hosted origin "
                 "and worker_processes 2 — see test_s3_nested_gateway.py")
     return None
+
+
+_SUPPORT_CHECKS = (_known_axis, _s3_auth, _secure_transport, _s3_http_origin)
 
 
 def expand(protocols=PROTOCOLS, auths=("none",), tls=(False,),
@@ -256,44 +286,49 @@ class Node:
     def _read_root(self, name, authenticated, tmp):
         dst_dir = str(tmp or self.store)
         dst = os.path.join(dst_dir, f".matrix-out-{os.getpid()}")
+        env = self._root_environment(authenticated)
+        scheme = "roots" if self.cell.tls else "root"
+        url = f"{scheme}://{HOST}:{self.port}/{name}"
+        try:
+            return _run_root_client(url, dst, env)
+        finally:
+            _remove_output(dst)
+
+    def _root_environment(self, authenticated):
         env = dict(os.environ)
         env.pop("LD_LIBRARY_PATH", None)
         env.pop("BEARER_TOKEN", None)
         env.pop("X509_USER_PROXY", None)
         env["X509_CERT_DIR"] = CA_DIR
-        if authenticated:
-            if self.cell.auth == "gsi":
-                env["X509_USER_PROXY"] = PROXY_STD
-            elif self.cell.auth == "token":
-                env["BEARER_TOKEN"] = self.token
-        scheme = "roots" if self.cell.tls else "root"
-        url = f"{scheme}://{HOST}:{self.port}/{name}"
-        try:
-            proc = subprocess.run([XRDCP, "-f", url, dst],
-                                  env=env, capture_output=True, timeout=120)
-            if proc.returncode != 0:
-                raise Refused(proc.returncode,
-                              proc.stderr.decode("utf-8", "replace")[-300:])
-            with open(dst, "rb") as fh:
-                return fh.read()
-        finally:
-            if os.path.exists(dst):
-                os.unlink(dst)
+        if not authenticated:
+            return env
+        credential = {
+            "gsi": ("X509_USER_PROXY", PROXY_STD),
+            "token": ("BEARER_TOKEN", self.token),
+        }.get(self.cell.auth)
+        if credential:
+            env[credential[0]] = credential[1]
+        return env
 
     def _read_http(self, name, authenticated):
         key = f"{BUCKET}/{name}" if self.cell.protocol == "s3" else name
         scheme = "https" if self.cell.tls else "http"
         url = f"{scheme}://{HOST}:{self.port}/{key}"
-        headers = {}
-        if authenticated:
-            if self.cell.auth == "token":
-                headers["Authorization"] = f"Bearer {self.token}"
-            elif self.cell.auth == "sigv4":
-                headers.update(sigv4_headers("GET", HOST, self.port, f"/{key}"))
+        headers = self._http_headers(key, authenticated)
         status, body = _http_get(url, headers, self.cell)
         if status != 200:
             raise Refused(status, body[:300].decode("utf-8", "replace"))
         return body
+
+    def _http_headers(self, key, authenticated):
+        headers = {}
+        if not authenticated:
+            return headers
+        if self.cell.auth == "token":
+            headers["Authorization"] = f"Bearer {self.token}"
+        elif self.cell.auth == "sigv4":
+            headers.update(sigv4_headers("GET", HOST, self.port, f"/{key}"))
+        return headers
 
 
 class Refused(Exception):
@@ -304,6 +339,22 @@ class Refused(Exception):
         super().__init__(f"refused: code={code} {detail}")
         self.code = code
         self.detail = detail
+
+
+def _run_root_client(url, dst, env):
+    proc = subprocess.run(
+        [XRDCP, "-f", url, dst], env=env, capture_output=True, timeout=120
+    )
+    if proc.returncode != 0:
+        detail = proc.stderr.decode("utf-8", "replace")[-300:]
+        raise Refused(proc.returncode, detail)
+    with open(dst, "rb") as handle:
+        return handle.read()
+
+
+def _remove_output(path):
+    if os.path.exists(path):
+        os.unlink(path)
 
 
 def _http_get(url, headers, cell):

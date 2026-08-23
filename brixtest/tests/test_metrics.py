@@ -7,9 +7,9 @@ import sys
 from pathlib import Path
 
 import pytest
-from brixtest.errors import SpecError
 
 from brixtest import MetricRecorder, case
+from brixtest.errors import SpecError
 
 
 @pytest.mark.brixtest_budget("transfer.throughput", min=100, max=200)

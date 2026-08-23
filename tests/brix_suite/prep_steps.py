@@ -60,6 +60,28 @@ from brix_suite.settings import TESTS_DIR as _TESTS_DIR
 
 #: `settings.TESTS_DIR` is a str; the flat module's was a Path and every use
 #: below is a `/` join, so it is re-wrapped rather than rewritten at each site.
+def _guard_run_1(tolerate, proc, argv):
+    if proc.returncode != 0 and not tolerate:
+        raise RuntimeError(
+            f"{' '.join(map(str, argv))} exited {proc.returncode}\n{proc.stderr}"
+        )
+
+def _guard_run_2(quiet, proc, argv):
+    if proc.returncode != 0 and not quiet:
+        _warn(f"{argv[0]} rc={proc.returncode}: {proc.stderr.strip()[:200]}")
+
+def _guard_regenerate_pki_3(root, pki_helpers):
+    if str(Path(pki_helpers.PKI_DIR)) != str(root):
+        _warn(f"PKI target mismatch: asked for {root}, "
+              f"blitz_test_pki writes {pki_helpers.PKI_DIR}")
+
+def _guard_regenerate_pki_4(prev):
+    if prev is None:
+        os.environ.pop("PKI_DIR", None)
+    else:
+        os.environ["PKI_DIR"] = prev
+
+
 TESTS_DIR = Path(_TESTS_DIR)
 REPO_ROOT = TESTS_DIR.parent
 UTILS_DIR = REPO_ROOT / "utils"
@@ -112,12 +134,8 @@ def _run(argv, *, cwd=None, env=None, tolerate=False, quiet=False):
             _warn(f"{argv[0]}: {exc}")
             return None
         raise
-    if proc.returncode != 0 and not tolerate:
-        raise RuntimeError(
-            f"{' '.join(map(str, argv))} exited {proc.returncode}\n{proc.stderr}"
-        )
-    if proc.returncode != 0 and not quiet:
-        _warn(f"{argv[0]} rc={proc.returncode}: {proc.stderr.strip()[:200]}")
+    _guard_run_1(tolerate, proc, argv)
+    _guard_run_2(quiet, proc, argv)
     return proc
 
 
@@ -147,18 +165,13 @@ def regenerate_pki(pki_dir: str, env: dict) -> None:
         import pki_helpers  # noqa: PLC0415 — imported for its side-effecting generator
 
         importlib.reload(pki_helpers)
-        if str(Path(pki_helpers.PKI_DIR)) != str(root):
-            _warn(f"PKI target mismatch: asked for {root}, "
-                  f"blitz_test_pki writes {pki_helpers.PKI_DIR}")
+        _guard_regenerate_pki_3(root, pki_helpers)
         try:
             pki_helpers.blitz_test_pki()
         except Exception as exc:  # bash: "WARNING: PKI regeneration failed, continuing"
             _warn(f"PKI regeneration failed, continuing: {exc}")
     finally:
-        if prev is None:
-            os.environ.pop("PKI_DIR", None)
-        else:
-            os.environ["PKI_DIR"] = prev
+        _guard_regenerate_pki_4(prev)
     _run([sys.executable, str(UTILS_DIR / "make_proxy.py"), pki_dir],
          env=env, tolerate=True)
 

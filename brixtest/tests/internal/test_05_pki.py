@@ -15,18 +15,29 @@ class FakeOpenSSL:
 
     def run(self, *args, input_text=""):
         self.calls.append(args)
-        if "-keyout" in args:
-            Path(args[args.index("-keyout") + 1]).write_text("PRIVATE KEY")
-        if "-out" in args:
-            output = Path(args[args.index("-out") + 1])
-            output.write_text("CERTIFICATE OR CRL")
-        if args[0] == "x509" and "-hash" in args:
+        self._write_key(args)
+        self._write_output(args)
+        if self._hash_requested(args, "x509"):
             return "cafebabe"
-        if args[0] == "crl" and "-hash" in args:
+        if self._hash_requested(args, "crl"):
             return "cafebabe"
         if "-subject" in args:
             return "subject=/CN=BriXTest Test"
         return ""
+
+    @staticmethod
+    def _write_key(args):
+        if "-keyout" in args:
+            Path(args[args.index("-keyout") + 1]).write_text("PRIVATE KEY")
+
+    @staticmethod
+    def _write_output(args):
+        if "-out" in args:
+            Path(args[args.index("-out") + 1]).write_text("CERTIFICATE OR CRL")
+
+    @staticmethod
+    def _hash_requested(args, command):
+        return args[0] == command and "-hash" in args
 
 
 def test_041_openssl_configuration_has_ca_crl_and_san_sections(tmp_path):
@@ -41,7 +52,7 @@ def test_042_safe_subject_accepts_plain_common_name():
 
 
 def test_043_safe_subject_rejects_subject_injection():
-    with pytest.raises(SpecError, match="safe X.509"):
+    with pytest.raises(SpecError, match=r"safe X\.509"):
         _safe_subject("name/CN=attacker", "ca")
 
 

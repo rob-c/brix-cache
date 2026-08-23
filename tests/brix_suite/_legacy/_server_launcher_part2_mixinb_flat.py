@@ -39,6 +39,13 @@ from server_registry import (
 )
 from settings import BRIX_BIN, PKI_DIR, REGISTRY_STRICT_TEMPLATES
 from server_launcher_errors import RegistryCommandFailure
+from brix_suite.kinds import LAUNCHER_KINDS
+from brix_suite.launcher.control_operations import (
+    process_snapshot as _launcher_process_snapshot,
+    public_cadir as _launcher_public_cadir,
+    reap_orphan_nginx_workers as _launcher_reap_workers,
+    stop as _launcher_stop,
+)
 
 
 from brix_suite.nginx_tools import (  # noqa: F401 — re-exported for importers
@@ -109,40 +116,7 @@ class _RegistryLauncherMixinB:
 
     @staticmethod
     def _public_cadir(src: str, dst: str) -> None:
-        """Public-only CA view for XrdHttp's http.cadir (no private key / *.srl)."""
-        src_dir = Path(src) / "ca" if src else None
-        dest = Path(dst)
-        dest.mkdir(parents=True, exist_ok=True)
-        # A prior start locked dest to 0o555 and every copy to 0o444, so a plain
-        # re-copy here silently fails (copyfile can't open a 0o444 target) and the
-        # stale CA survives a PKI regen — the exact cause of XrdHttp "unable to get
-        # local issuer certificate" after a restart.  Reopen dest for writing and
-        # drop the old entries before repopulating from the fresh CA.
-        try:
-            os.chmod(dest, 0o755)
-        except OSError:
-            pass
-        for stale in dest.iterdir():
-            try:
-                os.chmod(stale, 0o644)
-                stale.unlink()
-            except OSError:
-                pass
-        if not src_dir or not src_dir.is_dir():
-            return
-        for entry in src_dir.iterdir():
-            if entry.suffix in (".key", ".srl"):
-                continue
-            try:
-                # follow symlinks so <hash>.0 -> ca.pem lands as a real file
-                shutil.copyfile(entry.resolve(), dest / entry.name)
-                os.chmod(dest / entry.name, 0o444)
-            except OSError:
-                pass
-        try:
-            os.chmod(dest, 0o555)
-        except OSError:
-            pass
+        _launcher_public_cadir(src, dst)
 
     def render_nginx(self, spec: NginxInstanceSpec):
         endpoint = endpoint_for(spec)
@@ -225,97 +199,10 @@ class _RegistryLauncherMixinB:
         self.stop(name)
 
     def stop(self, name: str) -> None:
-        if name in self._external_stops:
-            stop_argv, env = self._external_stops.pop(name)
-            subprocess.run(
-                stop_argv, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, env=env
-            )
-            self._owned = [item for item in self._owned if item.name != name]
-            return
-        if name in self._xrootd_procs:
-            self._kill_xrootd(name)
-            self._owned = [item for item in self._owned if item.name != name]
-            return
-        spec = next((item for item in registered_specs() if item.name == name), None)
-        if spec is None:
-            return
-        endpoint = endpoint_for(spec)
-        # Cross-process teardown (a fresh `stop-all` did not start these, so the
-        # in-memory handles above are empty): daemon kinds other than nginx have
-        # no nginx pidfile — reap them from their own on-disk state / stop CLI.
-        if spec.kind in ("xrootd", "xrdhttp", "haproxy", "proc", "external"):
-            self._stop_from_disk(spec, endpoint)
-            self._owned = [item for item in self._owned if item.name != name]
-            return
-        master = self._read_pid(endpoint.pidfile)
-        # The binary used to launch the fleet may have been rebuilt, moved, or
-        # explicitly supplied only to the previous runner process.  A pidfile is
-        # sufficient for teardown; the friendly `nginx -s quit` path is optional.
-        if master is not None:
-            try:
-                self._nginx(
-                    ["-p", endpoint.prefix, "-c", "conf/nginx.conf", "-s", "quit"],
-                    spec=spec,
-                    check=False,
-                )
-            except OSError:
-                pass
-        self._kill_pidfile(endpoint.pidfile, signal.SIGTERM, process_group=True)
-        # Wait for the master to actually exit: a dying master unlinks its
-        # pidfile on the way out, which would race a successor started at the
-        # same prefix (the next test reusing this name).
-        if master is not None:
-            deadline = time.time() + 10
-            while time.time() < deadline:
-                try:
-                    os.kill(master, 0)
-                except OSError:
-                    break
-                time.sleep(0.05)
-            else:
-                # Deadline hit with the master still alive — force it down.
-                try:
-                    os.kill(master, signal.SIGKILL)
-                except OSError:
-                    pass
-        self._reap_orphan_nginx_workers(spec)
-        # Master exit unlinks the pidfile, but the kernel may not have released
-        # the LISTEN socket yet — a worker still draining, or the master's own
-        # close lagging the process death. Under the fixed-port ledger the very
-        # next test rebinds this exact port, so a stop that returns before the
-        # socket is free hands the successor an intermittent EADDRINUSE (the
-        # stop/start reuse race the dynamic-port model used to mask). Wait until
-        # the port is actually bindable before returning.
-        self._wait_ports_released(spec)
-
+        _launcher_stop(self, name, globals())
     @staticmethod
     def _reap_orphan_nginx_workers(spec: NginxInstanceSpec) -> None:
-        """Kill worker-only survivors still holding this spec's ledger ports.
-
-        An interrupted master can unlink its pidfile and exit while workers are
-        stuck in shutdown. Their process title no longer contains TEST_ROOT, so
-        cmdline-scoped reapers cannot identify them; the registered fixed ports
-        plus the exact nginx worker title provide the remaining ownership proof.
-        """
-        from lib_py.util import kill_pid_list, pids_on_port  # noqa: PLC0415
-
-        candidates: set[int] = set()
-        for port in declared_ports(spec):
-            candidates.update(pids_on_port(port))
-        workers = []
-        for pid in candidates:
-            try:
-                import server_launcher as _launcher
-                path_cls = getattr(_launcher, "Path", Path)
-                title = path_cls(f"/proc/{pid}/cmdline").read_bytes().replace(
-                    b"\0", b" ")
-            except OSError:
-                continue
-            if title.strip().startswith(b"nginx: worker process"):
-                workers.append(pid)
-        if workers:
-            kill_pid_list(workers)
-
+        _launcher_reap_workers(spec, declared_ports)
     def reload(self, name: str, check: bool = True) -> subprocess.CompletedProcess:
         return self._signal(name, "reload", check=check)
 
@@ -336,28 +223,7 @@ class _RegistryLauncherMixinB:
         return workers[0]
 
     def process_snapshot(self, name: str) -> list[tuple[int, str]]:
-        endpoint = endpoint_for(next(item for item in registered_specs() if item.name == name))
-        pidfile = Path(endpoint.pidfile)
-        if not pidfile.exists():
-            return []
-        master = pidfile.read_text(encoding="utf-8").strip()
-        if not master:
-            return []
-        out = subprocess.run(
-            ["ps", "-o", "pid=,ppid=,command=", "-e"],
-            capture_output=True,
-            text=True,
-            check=False,
-        ).stdout
-        rows: list[tuple[int, str]] = []
-        for line in out.splitlines():
-            parts = line.strip().split(None, 2)
-            if len(parts) != 3:
-                continue
-            pid, ppid, command = parts
-            if pid == master or ppid == master:
-                rows.append((int(pid), command))
-        return rows
+        return _launcher_process_snapshot(name, globals())
 
     def expect_config_failure(self, spec: NginxInstanceSpec) -> subprocess.CompletedProcess:
         endpoint = endpoint_for(spec)

@@ -146,25 +146,39 @@ def test_ingest_publishes_flat_layout(registry, tmp_path):
     root = image_root(repo, "lab/app:v1")
     hexd = root.rsplit("/", 1)[1]
     cat = root_cat(repo, tmp_path)
+    _assert_flat_directories(cat, root)
+    _assert_flat_files(cat, root)
+    _assert_manifest_binding(repo, cat, root, hexd)
+    assert lookup(cat, f"{root}/.config.json") is not None
+    _assert_tag_link(cat, hexd)
+    cat.close()
+
+
+def _assert_flat_directories(cat, root):
     for d in (PREFIX, f"{PREFIX}/.images", f"{PREFIX}/.images/sha256",
               root, f"{root}/bin"):
         row = lookup(cat, d)
         assert row is not None and row[0] & FLAG_DIR, d
+
+
+def _assert_flat_files(cat, root):
     for p, size in ((f"{root}/bin/tool", 3000), (f"{root}/etc/conf", 200),
                     (f"{root}/share/data", 8000)):
         row = lookup(cat, p)
         assert row is not None and row[0] & FLAG_FILE and row[1] == size, p
-    # the manifest sidecar's bytes hash back to the digest-root dirname
+
+
+def _assert_manifest_binding(repo, cat, root, hexd):
     row = lookup(cat, f"{root}/.manifest.json")
     assert row is not None and row[0] & FLAG_FILE
     body = zlib.decompress(cas_path(repo, row[3].hex()).read_bytes())
     assert hashlib.sha256(body).hexdigest() == hexd
-    assert lookup(cat, f"{root}/.config.json") is not None
-    # tag symlink is RELATIVE into the flat namespace
+
+
+def _assert_tag_link(cat, hexd):
     row = lookup(cat, f"{PREFIX}/{HOSTDIR}/lab/app:v1")
     assert row is not None and row[0] & FLAG_LINK
     assert row[2] == f"../../.images/sha256/{hexd}"
-    cat.close()
 
 
 def test_ingest_v2_applies_whiteouts(registry, tmp_path):
@@ -442,17 +456,28 @@ def test_layered_reuses_a_published_base_layer(registry, tmp_path):
     assert r.returncode == 0, r.stderr
     # the whole point: the shared base is never pulled a second time
     fetched = [e["path"] for e in _blob_hits(registry)]
-    assert fetched and not any(basedig[7:] in p for p in fetched), fetched
+    _assert_base_not_fetched(fetched, basedig)
 
     cat = root_cat(repo, tmp_path)
     root = image_root(repo, "lab/stack:childa")
     digs = layer_digests(repo, cat, root)
-    assert len(digs) == 2 and digs[0] == basedig
-    desc = cat_bytes(repo, cat, f"{root}/.layers").decode().split()
-    assert len(desc) == 2 and desc[0].endswith(basedig[7:])
-    assert lookup(cat, f"{PREFIX}/.layers/sha256/{basedig[7:]}/bin/base")
-    assert lookup(cat, f"{PREFIX}/.layers/sha256/{digs[1][7:]}/opt/a")
+    _assert_layer_reuse(cat, repo, root, digs, basedig)
     cat.close()
+
+
+def _assert_base_not_fetched(fetched, base_digest):
+    assert fetched, fetched
+    assert not any(base_digest[7:] in path for path in fetched), fetched
+
+
+def _assert_layer_reuse(cat, repo, root, digests, base_digest):
+    assert len(digests) == 2
+    assert digests[0] == base_digest
+    desc = cat_bytes(repo, cat, f"{root}/.layers").decode().split()
+    assert len(desc) == 2
+    assert desc[0].endswith(base_digest[7:])
+    assert lookup(cat, f"{PREFIX}/.layers/sha256/{base_digest[7:]}/bin/base")
+    assert lookup(cat, f"{PREFIX}/.layers/sha256/{digests[1][7:]}/opt/a")
 
 
 def test_layered_verify_diffids_still_covers_a_reused_layer(registry,
@@ -577,37 +602,53 @@ def test_zstd_chunked_layer_publishes_the_original_rootfs(registry, tmp_path):
 
 def test_prune_old_then_prune_verb(registry, tmp_path):
     repo = mkrepo(tmp_path)
-    assert ingest(repo, f"{REFHOST}/lab/app:v1", home=tmp_path).returncode == 0
-    assert ingest(repo, f"{REFHOST}/lab/app:v2", home=tmp_path).returncode == 0
+    d1, d2 = _ingest_prune_roots(repo, tmp_path)
+    _retag_and_prune_old(registry, repo, tmp_path, d1, d2)
+    _remove_prune_tags(repo)
+    _run_prune_modes(repo, tmp_path)
+    _assert_pruned_root_absent(repo, tmp_path, d2)
+
+
+def _ingest_prune_roots(repo, home):
+    assert ingest(repo, f"{REFHOST}/lab/app:v1", home=home).returncode == 0
+    assert ingest(repo, f"{REFHOST}/lab/app:v2", home=home).returncode == 0
     d1 = memo_digest(repo, "lab/app:v1")
     d2 = memo_digest(repo, "lab/app:v2")
     assert d1 != d2
+    return d1, d2
 
-    # the shared v1 tag now points at v2's manifest (permanent for the module)
+
+def _retag_and_prune_old(registry, repo, home, old_digest, new_digest):
     _ctl_post(registry, "/ctl/retag",
-              {"name": "lab/app", "tag": "v1", "digest": d2})
-    r = ingest(repo, f"{REFHOST}/lab/app:v1", "--prune-old", home=tmp_path)
+              {"name": "lab/app", "tag": "v1", "digest": new_digest})
+    r = ingest(repo, f"{REFHOST}/lab/app:v1", "--prune-old", home=home)
     assert r.returncode == 0, r.stderr
     assert "pruned old root" in r.stdout and "0 layers" in r.stdout
-    cat = root_cat(repo, tmp_path)
-    assert lookup(cat, f"{PREFIX}/.images/sha256/{d1[7:]}") is None
+    cat = root_cat(repo, home)
+    assert lookup(cat, f"{PREFIX}/.images/sha256/{old_digest[7:]}") is None
     row = lookup(cat, f"{PREFIX}/{HOSTDIR}/lab/app:v1")
-    assert row is not None and row[2].endswith(d2[7:])
+    assert row is not None and row[2].endswith(new_digest[7:])
     cat.close()
 
-    # untag everything (what `brixoci rm` does upstream) → the root is
-    # unreferenced; --keep spares it, plain prune reaps it
+
+def _remove_prune_tags(repo):
     for tag in ("app:v1", "app:v2"):
         (repo / ".brix-ingest" / f"memo{PREFIX}" / HOSTDIR / "lab" / tag).unlink()
+
+
+def _run_prune_modes(repo, home):
     r = brix("ingest", "prune", "--repo", repo, "--prefix", PREFIX,
-             "--keep", "1", home=tmp_path)
+             "--keep", "1", home=home)
     assert r.returncode == 0 and "nothing to prune" in r.stdout, r.stdout
     r = brix("ingest", "prune", "--repo", repo, "--prefix", PREFIX,
-             "--dry-run", home=tmp_path)
+             "--dry-run", home=home)
     assert r.returncode == 0 and "would prune" in r.stdout, r.stdout
     r = brix("ingest", "prune", "--repo", repo, "--prefix", PREFIX,
-             home=tmp_path)
+             home=home)
     assert r.returncode == 0 and "pruned 1 root(s)" in r.stdout, r.stdout
-    cat = root_cat(repo, tmp_path)
-    assert lookup(cat, f"{PREFIX}/.images/sha256/{d2[7:]}") is None
+
+
+def _assert_pruned_root_absent(repo, home, digest):
+    cat = root_cat(repo, home)
+    assert lookup(cat, f"{PREFIX}/.images/sha256/{digest[7:]}") is None
     cat.close()

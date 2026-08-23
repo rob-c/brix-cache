@@ -9,6 +9,8 @@ import subprocess
 import time
 
 from cmdscripts import run
+from cmdscripts.cache_source_helpers import start_servers, stop_servers
+from cmdscripts.command_results import print_results, selected_binary
 from fleet_ports import cmdscript_ports
 from settings import BIND_HOST, HOST, NGINX_BIN
 
@@ -111,6 +113,46 @@ def client_detail(result: subprocess.CompletedProcess) -> str:
     return stderr.strip().splitlines()[-1] if stderr.strip() else f"rc={result.returncode}"
 
 
+def _transfer_check(port, source, destination, expected, label, xrdfs):
+    result = xrdfs_cat(port, source, destination, xrdfs)
+    passed = _successful_content(result, destination, expected)
+    message = label if result.returncode == 0 else f"{label}: {client_detail(result)}"
+    return passed, message
+
+
+def _successful_content(result, destination, expected):
+    if result.returncode != 0:
+        return False
+    return destination.read_bytes() == expected
+
+
+def _unauthenticated_fill_succeeded(port, destination, expected, xrdfs):
+    xrdfs_cat(port, "/small.bin", destination, xrdfs)
+    if not destination.exists():
+        return False
+    if destination.stat().st_size <= 0:
+        return False
+    return destination.read_bytes() == expected
+
+
+def _token_file_check(base, nginx_bin, bearer, port, origin_port,
+                      token_file, started, expected, xrdfs):
+    stop_nginx(bearer)
+    started.remove(bearer)
+    time.sleep(0.3)
+    config = write_node_config(bearer, port, origin_port, f"token_file {token_file}")
+    process = start_nginx(nginx_bin, bearer, config)
+    if process.returncode != 0:
+        output = process.stderr or process.stdout
+        return False, f"B(token_file) start failed: {output[-4000:]}"
+    started.append(bearer)
+    time.sleep(1)
+    return _transfer_check(
+        port, "/small.bin", base / "cred_http_tf.got", expected,
+        "token_file credential authenticated fill byte-exact", xrdfs,
+    )
+
+
 def run_checks(
     base: Path,
     nginx_bin: str = NGINX_BIN,
@@ -130,100 +172,48 @@ def run_checks(
     (origin / "root" / "small.bin").write_bytes(deterministic_bytes(500_000, 11))
     (origin / "root" / "big.bin").write_bytes(deterministic_bytes(2_600_000, 19))
 
-    started: list[Path] = []
-    for name, prefix, conf in (
+    specifications = (
         ("O", origin, origin_conf),
         ("B", bearer, bearer_conf),
         ("N", negative, negative_conf),
-    ):
-        proc = start_nginx(nginx_bin, prefix, conf)
-        if proc.returncode != 0:
-            for item in reversed(started):
-                stop_nginx(item)
-            return [(False, f"{name} start failed: {(proc.stderr or proc.stdout)[-4000:]}")]
-        started.append(prefix)
+    )
+    started, failure = start_servers(nginx_bin, specifications, run, stop_nginx)
+    if failure:
+        return [failure]
 
     try:
         time.sleep(1)
-        small_got = base / "cred_http_s.got"
-        small = xrdfs_cat(bearer_port, "/small.bin", small_got, xrdfs)
-        results.append(
-            (
-                small.returncode == 0
-                and small_got.read_bytes() == (origin / "root" / "small.bin").read_bytes(),
-                "byte-exact serve (authenticated fill)"
-                if small.returncode == 0
-                else f"byte-exact serve (authenticated fill): {client_detail(small)}",
-            )
-        )
-
-        big_got = base / "cred_http_b.got"
-        big = xrdfs_cat(bearer_port, "/big.bin", big_got, xrdfs)
-        results.append(
-            (
-                big.returncode == 0
-                and big_got.read_bytes() == (origin / "root" / "big.bin").read_bytes(),
-                "multi-chunk authenticated fill byte-exact"
-                if big.returncode == 0
-                else f"multi-chunk authenticated fill byte-exact: {client_detail(big)}",
-            )
-        )
-
-        negative_got = base / "cred_http_n.got"
-        xrdfs_cat(negative_port, "/small.bin", negative_got, xrdfs)
-        unauth_succeeded = (
-            negative_got.exists()
-            and negative_got.stat().st_size > 0
-            and negative_got.read_bytes() == (origin / "root" / "small.bin").read_bytes()
+        expected_small = (origin / "root" / "small.bin").read_bytes()
+        expected_big = (origin / "root" / "big.bin").read_bytes()
+        results.append(_transfer_check(
+            bearer_port, "/small.bin", base / "cred_http_s.got",
+            expected_small, "byte-exact serve (authenticated fill)", xrdfs,
+        ))
+        results.append(_transfer_check(
+            bearer_port, "/big.bin", base / "cred_http_b.got", expected_big,
+            "multi-chunk authenticated fill byte-exact", xrdfs,
+        ))
+        unauth_succeeded = _unauthenticated_fill_succeeded(
+            negative_port, base / "cred_http_n.got", expected_small, xrdfs,
         )
         results.append((not unauth_succeeded, "unauthenticated fill correctly failed"))
-
-        stop_nginx(bearer)
-        started.remove(bearer)
-        time.sleep(0.3)
-        bearer_token_file_conf = write_node_config(
-            bearer,
-            bearer_port,
-            origin_port,
-            f"token_file {token_file}",
-        )
-        proc = start_nginx(nginx_bin, bearer, bearer_token_file_conf)
-        if proc.returncode != 0:
-            results.append((False, f"B(token_file) start failed: {(proc.stderr or proc.stdout)[-4000:]}"))
-        else:
-            started.append(bearer)
-            time.sleep(1)
-            token_file_got = base / "cred_http_tf.got"
-            token_file_read = xrdfs_cat(bearer_port, "/small.bin", token_file_got, xrdfs)
-            results.append(
-                (
-                    token_file_read.returncode == 0
-                    and token_file_got.read_bytes() == (origin / "root" / "small.bin").read_bytes(),
-                    "token_file credential authenticated fill byte-exact"
-                    if token_file_read.returncode == 0
-                    else f"token_file credential authenticated fill byte-exact: {client_detail(token_file_read)}",
-                )
-            )
+        results.append(_token_file_check(
+            base, nginx_bin, bearer, bearer_port, origin_port, token_file,
+            started, expected_small, xrdfs,
+        ))
     finally:
-        for prefix in reversed(started):
-            stop_nginx(prefix)
+        stop_servers(started, stop_nginx)
 
     return results
 
 
 def entry(argv: list[str]) -> int:
-    nginx_bin = argv[0] if argv else NGINX_BIN
+    nginx_bin = selected_binary(argv, NGINX_BIN)
     import tempfile
 
     with tempfile.TemporaryDirectory(prefix="cred_http.") as tmp:
         results = run_checks(Path(tmp), nginx_bin=nginx_bin)
-    for ok, message in results:
-        print(f"  {'ok  ' if ok else 'FAIL'} {message}")
-    if all(ok for ok, _ in results):
-        print("run_credential_http_bearer: ALL PASS")
-        return 0
-    print("run_credential_http_bearer: FAILURES")
-    return 1
+    return print_results(results, "run_credential_http_bearer")
 
 
 if __name__ == "__main__":

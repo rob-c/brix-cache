@@ -19,6 +19,13 @@ import pytest
 import _cachemx as cx
 from _cachemx import mx  # noqa: F401
 
+def _check_test_total_suffix_families_are_counters_1(offenders):
+    assert offenders == set()
+
+def _check_test_total_suffix_families_are_counters_2(types, f):
+    assert types[f] == ["gauge"]
+
+
 pytestmark = [pytest.mark.uses_lifecycle_harness,
               pytest.mark.xdist_group("lc-cachemx")]
 
@@ -297,9 +304,9 @@ def test_total_suffix_families_are_counters(expo):
     offenders = {f for f, t in types.items()
                  if f.endswith("_total") and t != ["counter"]
                  and f not in TOTAL_SUFFIX_GAUGES}
-    assert offenders == set()
+    _check_test_total_suffix_families_are_counters_1(offenders)
     for f in TOTAL_SUFFIX_GAUGES:
-        assert types[f] == ["gauge"]
+        _check_test_total_suffix_families_are_counters_2(types, f)
 
 
 def test_ratio_families_are_gauges(expo):

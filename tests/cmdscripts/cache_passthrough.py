@@ -25,6 +25,40 @@ from cmdscripts.live_common import LiveFailure, LiveRun, random_file, sha256
 from fleet_ports import cmdscript_ports
 from settings import BIND_HOST, HOST
 
+def _expression_1(small_status, small, digests):
+    return (
+        small_status == 200 and small.exists() and sha256(small) == digests["small.bin"]
+    )
+
+def _expression_2(mid_status, mid, digests):
+    return (
+        mid_status == 200 and mid.exists() and sha256(mid) == digests["mid.bin"]
+    )
+
+def _expression_3(small_ok, mid_ok, huge_status, small_status, mid_status, log, node):
+    return (
+        _checks([
+                    (small_ok, f"small GET 200 byte-exact (got {small_status})"),
+                    ((node / "cache/small.bin").exists(),
+                     "small object RETAINED in the cache store (normal admission)"),
+                    (mid_ok, f"mid GET 200 byte-exact via passthrough (got {mid_status})"),
+                    (not (node / "cache/mid.bin").exists(),
+                     "mid object NOT retained — store-then-evict after serve"),
+                    ("event=passthrough-evict" in log and "mid.bin" in log,
+                     "passthrough-evict logged for the served mid object"),
+                    (huge_status != 200,
+                     f"huge object OVER the spool cap refused (got {huge_status}, want !=200)"),
+                    (not (node / "cache/huge.bin").exists(),
+                     "huge object never spooled beyond the passthrough cap"),
+                ])
+    )
+
+
+def _guard_serve_evict_1(mid_ok, node):
+    if not (mid_ok and not (node / "cache/mid.bin").exists()):
+        _tail_log(node / "logs/e.log", r"passthrough|cache|fill|error")
+
+
 _PORTS = cmdscript_ports("cache_passthrough")
 
 CLIENT_REQUIREMENTS = {
@@ -127,35 +161,21 @@ def serve_evict(nginx: Path | None = None) -> int:
         # 1) small <= max_object -> normal admission, RETAINED in the store.
         small = run.root / "small.got"
         small_status = _get(run, f"{url}/small.bin", small)
-        small_ok = small_status == 200 and small.exists() and sha256(small) == digests["small.bin"]
+        small_ok = _expression_1(small_status, small, digests)
 
         # 2) mid > max_object, <= pt_max -> passthrough serves byte-exact + EVICTS.
         mid = run.root / "mid.got"
         mid_status = _get(run, f"{url}/mid.bin", mid)
-        mid_ok = mid_status == 200 and mid.exists() and sha256(mid) == digests["mid.bin"]
+        mid_ok = _expression_2(mid_status, mid, digests)
         time.sleep(0.7)  # let brix_http_cache_fill_done run the post-serve evict
         log = (node / "logs/e.log").read_text(errors="replace")
-        if not (mid_ok and not (node / "cache/mid.bin").exists()):
-            _tail_log(node / "logs/e.log", r"passthrough|cache|fill|error")
+        _guard_serve_evict_1(mid_ok, node)
 
         # 3) huge > pt_max -> refused (no unbounded spool).
         huge = run.root / "huge.got"
         huge_status = _get(run, f"{url}/huge.bin", huge)
 
-        return _checks([
-            (small_ok, f"small GET 200 byte-exact (got {small_status})"),
-            ((node / "cache/small.bin").exists(),
-             "small object RETAINED in the cache store (normal admission)"),
-            (mid_ok, f"mid GET 200 byte-exact via passthrough (got {mid_status})"),
-            (not (node / "cache/mid.bin").exists(),
-             "mid object NOT retained — store-then-evict after serve"),
-            ("event=passthrough-evict" in log and "mid.bin" in log,
-             "passthrough-evict logged for the served mid object"),
-            (huge_status != 200,
-             f"huge object OVER the spool cap refused (got {huge_status}, want !=200)"),
-            (not (node / "cache/huge.bin").exists(),
-             "huge object never spooled beyond the passthrough cap"),
-        ])
+        return _expression_3(small_ok, mid_ok, huge_status, small_status, mid_status, log, node)
 
 
 def disabled_declines(nginx: Path | None = None) -> int:

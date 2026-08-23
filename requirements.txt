@@ -9,7 +9,7 @@
 #
 #   requirements.txt           this file — required
 #   requirements-optional.txt  feature-gated; tests importorskip them
-#   requirements-dev.txt       guard/analysis tooling (lizard, CodeChecker)
+#   requirements-dev.txt       external analysis tooling (CodeChecker)
 #   k8s-tests/pytests/requirements.txt   cluster lab only
 #
 # System packages (ceph's python3-rados / python3-cephfs) are deliberately
@@ -40,3 +40,9 @@ cryptography>=3.0,<49
 
 # --- YAML: CI-workflow assertions, clientconf surface, lab catalogues --------
 PyYAML>=5.4,<7
+
+# --- repository-wide Python quality contract -------------------------------
+# tests/test_python_quality.py imports these analyzers for every full run.
+lizard>=1.17,<2
+complexipy>=6,<8
+radon>=6,<7

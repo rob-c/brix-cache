@@ -222,8 +222,11 @@ def test_flap_toggles_service_and_json_status(bfp):
             time.sleep(0.02)
         assert served > 0 and blocked > 0, f"served={served} blocked={blocked}"
         j = _ctl(ctl, "status json").strip()
-        assert j.startswith("{") and j.endswith("}")
-        assert '"flap":1' in j and '"triggered":' in j
+        def _assert_test_flap_toggles_service_and_json_status_1():
+            assert j.startswith("{") and j.endswith("}")
+            assert '"flap":1' in j and '"triggered":' in j
+
+        _assert_test_flap_toggles_service_and_json_status_1()
     finally:
         proc.terminate(); proc.wait(timeout=5); echo.close()
 

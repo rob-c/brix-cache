@@ -36,6 +36,34 @@ from pathlib import Path
 
 import pytest
 
+def _check_test_no_module_reaches_a_name_it_never_binds_1(dangling):
+    assert dangling == [], f"reaches names it never binds: {dangling}"
+
+def _guard_test_no_module_reaches_a_name_it_never_binds_1(node, bound):
+    if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+        bound.add(node.name)
+    elif isinstance(node, ast.Name) and isinstance(node.ctx, ast.Store):
+        bound.add(node.id)
+    elif isinstance(node, ast.arg):
+        bound.add(node.arg)
+    elif isinstance(node, ast.ExceptHandler) and node.name:
+        bound.add(node.name)
+    elif isinstance(node, (ast.Global, ast.Nonlocal)):
+        bound.update(node.names)
+    elif isinstance(node, ast.alias):
+        bound.add((node.asname or node.name).split(".")[0])
+
+def _guard_test_a_real_provision_writes_a_realm_that_names_only_itself_2(kdc):
+    if not kdc.krb5_tools_available():
+        pytest.skip("MIT KDC tooling not installed")
+
+def _check_test_a_real_provision_writes_a_realm_that_names_only_itself_2(tmp_path, conf):
+    assert Path(conf).is_relative_to(tmp_path), "the provision escaped its lane"
+
+def _check_test_a_real_provision_writes_a_realm_that_names_only_itself_3(klist):
+    assert klist.returncode == 0, klist.stderr
+
+
 TESTS = Path(__file__).resolve().parent
 ROOT = TESTS.parent
 FLAT = TESTS / "kdc_helpers.py"
@@ -132,22 +160,11 @@ def test_no_module_reaches_a_name_it_never_binds():
     bound = set(dir(builtins)) | {"__file__", "__name__", "__doc__",
                                   "__package__", "__spec__", "__loader__"}
     for node in ast.walk(tree):
-        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
-            bound.add(node.name)
-        elif isinstance(node, ast.Name) and isinstance(node.ctx, ast.Store):
-            bound.add(node.id)
-        elif isinstance(node, ast.arg):
-            bound.add(node.arg)
-        elif isinstance(node, ast.ExceptHandler) and node.name:
-            bound.add(node.name)
-        elif isinstance(node, (ast.Global, ast.Nonlocal)):
-            bound.update(node.names)
-        elif isinstance(node, ast.alias):
-            bound.add((node.asname or node.name).split(".")[0])
+        _guard_test_no_module_reaches_a_name_it_never_binds_1(node, bound)
     dangling = sorted({n.id for n in ast.walk(tree)
                        if isinstance(n, ast.Name) and isinstance(n.ctx, ast.Load)
                        and n.id not in bound})
-    assert dangling == [], f"reaches names it never binds: {dangling}"
+    _check_test_no_module_reaches_a_name_it_never_binds_1(dangling)
 
 
 # ---------------------------------------------------------------------------
@@ -189,8 +206,7 @@ def test_a_real_provision_writes_a_realm_that_names_only_itself(tmp_path):
     """
     import brix_suite.security.kdc as kdc
 
-    if not kdc.krb5_tools_available():
-        pytest.skip("MIT KDC tooling not installed")
+    _guard_test_a_real_provision_writes_a_realm_that_names_only_itself_2(kdc)
 
     out = _probe(
         "import brix_suite.security.kdc as k, json; "
@@ -200,17 +216,23 @@ def test_a_real_provision_writes_a_realm_that_names_only_itself(tmp_path):
         env={"TEST_ROOT": str(tmp_path / "lane")},
     )
     conf, keytab, realm, service = json.loads(out.splitlines()[-1])
-    assert Path(conf).is_relative_to(tmp_path), "the provision escaped its lane"
+    _check_test_a_real_provision_writes_a_realm_that_names_only_itself_2(tmp_path, conf)
 
     text = Path(conf).read_text(encoding="utf-8")
-    assert f"default_realm = {realm}" in text
-    assert "dns_lookup_kdc = false" in text, "DNS realm discovery would reach the site KDC"
+    def _assert_test_a_real_provision_writes_a_realm_that_names_only_itself_1():
+        assert f"default_realm = {realm}" in text
+        assert "dns_lookup_kdc = false" in text, "DNS realm discovery would reach the site KDC"
+
+    _assert_test_a_real_provision_writes_a_realm_that_names_only_itself_1()
 
     klist = subprocess.run([kdc._find_tool("klist") or "klist", "-k", keytab],
                            capture_output=True, text=True)
-    assert klist.returncode == 0, klist.stderr
+    _check_test_a_real_provision_writes_a_realm_that_names_only_itself_3(klist)
     principals = {ln.split()[-1] for ln in klist.stdout.splitlines()
                   if "@" in ln and not ln.startswith("Keytab")}
-    assert service in principals, f"service principal missing: {principals}"
-    assert all(p.endswith(f"@{realm}") for p in principals), \
-        f"a principal from another realm reached the keytab: {principals}"
+    def _assert_test_a_real_provision_writes_a_realm_that_names_only_itself_2():
+        assert service in principals, f"service principal missing: {principals}"
+        assert all(p.endswith(f"@{realm}") for p in principals), \
+            f"a principal from another realm reached the keytab: {principals}"
+
+    _assert_test_a_real_provision_writes_a_realm_that_names_only_itself_2()

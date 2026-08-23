@@ -1,4 +1,13 @@
 from split_continuation import reexport as _reexport
+def _check_test_xattr_key_set_parity_1(st_o, st_f):
+    assert st_o.ok and st_f.ok, "xattr must be answered by both servers"
+
+def _check_test_xattr_key_set_parity_2(keys_o, common, keys_f):
+    assert (keys_o & common) == (keys_f & common), (
+        f"xattr core key set differs: our={keys_o & common} "
+        f"stock={keys_f & common}")
+
+
 _reexport(globals(), "_test_conf_xrdcl_locate_helpers")
 
 CKSUM_FILES = ["/cksum.bin", "/data.bin", "/hello.txt"]
@@ -214,13 +223,11 @@ def test_xattr_key_set_parity(srv, fs_our, fs_off):
     these by name); values differ (cgroup/mtime) but keys must not."""
     st_o, text_o = _xattr(fs_our, "/data.bin")
     st_f, text_f = _xattr(fs_off, "/data.bin")
-    assert st_o.ok and st_f.ok, "xattr must be answered by both servers"
+    _check_test_xattr_key_set_parity_1(st_o, st_f)
     keys_o = {p.split("=", 1)[0] for p in text_o.split("&") if "=" in p}
     keys_f = {p.split("=", 1)[0] for p in text_f.split("&") if "=" in p}
     common = {"oss.type", "oss.used", "oss.cgroup"}
-    assert (keys_o & common) == (keys_f & common), (
-        f"xattr core key set differs: our={keys_o & common} "
-        f"stock={keys_f & common}")
+    _check_test_xattr_key_set_parity_2(keys_o, common, keys_f)
 
 
 # =========================================================================== #

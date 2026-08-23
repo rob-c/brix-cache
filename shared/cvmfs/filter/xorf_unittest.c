@@ -35,6 +35,27 @@ static void absent_path(char *buf, size_t cap, int i) {
     snprintf(buf, cap, "/sw/pkg%d/include/missing-%d.h", i % 977, i);
 }
 
+/* WHAT: Measure member correctness and absent-key false positives.
+ * WHY: Keep the two large query loops out of serialization checks.
+ * HOW: Regenerate deterministic paths, query the filter, and assert bounds. */
+static void check_query_quality(const cvmfs_xorf_t *filter) {
+    char path[128];
+    int  false_negatives = 0;
+    int  false_positives = 0;
+
+    for (int i = 0; i < NPATHS; i++) {
+        member_path(path, sizeof(path), i);
+        if (!cvmfs_xorf_query(filter, cvmfs_xorf_key(path))) false_negatives++;
+    }
+    CHECK(false_negatives == 0, "zero false negatives over the member set");
+    for (int i = 0; i < NPATHS; i++) {
+        absent_path(path, sizeof(path), i);
+        if (cvmfs_xorf_query(filter, cvmfs_xorf_key(path))) false_positives++;
+    }
+    CHECK(false_positives > 0 && false_positives < 3 * NPATHS / 256,
+          "false-positive rate ~1/256");
+}
+
 int main(void) {
     char path[128];
     uint64_t *keys = malloc((NPATHS + 1) * sizeof(*keys));
@@ -51,20 +72,7 @@ int main(void) {
     CHECK(f.nkeys == NPATHS, "duplicate key deduped");
 
     /* ---- success: no false negatives, sane false-positive rate ---------- */
-    int fneg = 0;
-    for (int i = 0; i < NPATHS; i++) {
-        member_path(path, sizeof(path), i);
-        if (!cvmfs_xorf_query(&f, cvmfs_xorf_key(path))) fneg++;
-    }
-    CHECK(fneg == 0, "zero false negatives over the member set");
-
-    int fpos = 0;
-    for (int i = 0; i < NPATHS; i++) {
-        absent_path(path, sizeof(path), i);
-        if (cvmfs_xorf_query(&f, cvmfs_xorf_key(path))) fpos++;
-    }
-    /* expectation ~n/256 ≈ 195; 3x headroom keeps the check deterministic-safe */
-    CHECK(fpos > 0 && fpos < 3 * NPATHS / 256, "false-positive rate ~1/256");
+    check_query_quality(&f);
 
     /* ---- round-trip with root-hash binding ------------------------------ */
     cvmfs_hash_t root, root2;

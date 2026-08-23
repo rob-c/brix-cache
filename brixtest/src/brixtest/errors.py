@@ -1,10 +1,9 @@
-"""The BriXTest error taxonomy (design contract C1).
+"""Structured exceptions used across BriXTest.
 
 One base, ``BriXTestError``; every exception carries the structured
 fields its handler needs, and every message names the subject, the
 rule that was violated, and — where one exists — the next command to
-run.  A bare ``RuntimeError`` with a string is not an acceptable
-failure anywhere in this package.
+run.
 """
 
 from __future__ import annotations
@@ -12,32 +11,32 @@ from __future__ import annotations
 from typing import Mapping, Optional, Sequence, Tuple
 
 __all__ = [
-    "BrixTestError",
+    "ArtifactNotFound",
+    "BackendError",
     "BriXTestError",
-    "SpecError",
-    "RegistrationError",
-    "UnknownKindError",
-    "StartError",
+    "BrixTestError",
+    "CaseRunError",
+    "ConservationError",
+    "FleetDiedError",
+    "GateViolation",
+    "HelperProcessError",
+    "LaneOwnershipError",
+    "LogWaitTimeout",
+    "PluginActivationError",
+    "PortCollisionError",
+    "PortExhaustedError",
+    "PrepStepError",
     "QuiescenceError",
     "ReadinessTimeout",
-    "GateViolation",
-    "FleetDiedError",
-    "ConservationError",
-    "LaneOwnershipError",
-    "PortCollisionError",
-    "PrepStepError",
-    "PluginActivationError",
-    "WorkerTimeout",
-    "WorkerCrash",
-    "TemplateError",
-    "BackendError",
-    "ArtifactNotFound",
-    "LogWaitTimeout",
-    "WaitTimeout",
-    "PortExhaustedError",
+    "RegistrationError",
     "RunStoreError",
-    "CaseRunError",
-    "HelperProcessError",
+    "SpecError",
+    "StartError",
+    "TemplateError",
+    "UnknownKindError",
+    "WaitTimeout",
+    "WorkerCrash",
+    "WorkerTimeout",
 ]
 
 

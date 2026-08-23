@@ -14,6 +14,22 @@ import time
 from settings import NGINX_WEBDAV_PORT, SERVER_HOST
 
 
+def _expression_1(plen, pos, data):
+    return (
+        plen < 4 or pos + plen > len(data)
+    )
+
+
+def _guard_decode_packets_1(space, packets, field):
+    if space >= 0:
+        packets.append((field[:space].decode(), field[space + 1 :]))
+
+def _check_test_hmac_chain_depends_on_key_1(sig_new, sig_old):
+    assert sig_new != sig_old, (
+        "Different HMAC root keys must produce different signatures"
+    )
+
+
 def make_packet(key, value):
     if isinstance(value, str):
         value = value.encode()
@@ -121,14 +137,13 @@ def decode_packets(token):
     pos = 0
     while pos + 4 <= len(data):
         plen = int(data[pos : pos + 4], 16)
-        if plen < 4 or pos + plen > len(data):
+        if _expression_1(plen, pos, data):
             break
         field = data[pos + 4 : pos + plen]
         if field.endswith(b"\n"):
             field = field[:-1]
         space = field.find(b" ")
-        if space >= 0:
-            packets.append((field[:space].decode(), field[space + 1 :]))
+        _guard_decode_packets_1(space, packets, field)
         pos += plen
     return packets
 
@@ -250,9 +265,7 @@ def test_hmac_chain_depends_on_key(macaroon_secret, old_macaroon_secret):
         make_macaroon(old_macaroon_secret, "sub", caveats)
     ) if k == "signature"]
 
-    assert sig_new != sig_old, (
-        "Different HMAC root keys must produce different signatures"
-    )
+    _check_test_hmac_chain_depends_on_key_1(sig_new, sig_old)
 
 
 def test_path_caveat_disjoint_from_activity(macaroon_secret):

@@ -22,20 +22,23 @@ def _stdlib() -> set[str]:
         path.stem if path.is_file() else path.name
         for path in root.iterdir() if path.suffix == ".py" or path.is_dir()
     }
-    # Python 3.10 added ``sys.stdlib_module_names``. On the supported 3.9
-    # floor, modules such as zlib live only as ABI-suffixed shared objects in
-    # ``lib-dynload`` and must still be recognized as standard library.
-    shared = sysconfig.get_config_var("DESTSHARED")
-    if shared:
-        shared_root = Path(str(shared))
-        if shared_root.is_dir():
-            suffixes = tuple(importlib.machinery.EXTENSION_SUFFIXES)
-            modules.update(
-                path.name.partition(".")[0]
-                for path in shared_root.iterdir()
-                if path.is_file() and path.name.endswith(suffixes)
-            )
+    modules.update(_shared_stdlib_modules())
     return modules
+
+
+def _shared_stdlib_modules() -> set[str]:
+    shared = sysconfig.get_config_var("DESTSHARED")
+    if not shared:
+        return set()
+    shared_root = Path(str(shared))
+    if not shared_root.is_dir():
+        return set()
+    suffixes = tuple(importlib.machinery.EXTENSION_SUFFIXES)
+    return {
+        path.name.partition(".")[0]
+        for path in shared_root.iterdir()
+        if path.is_file() and path.name.endswith(suffixes)
+    }
 
 
 _ALLOWED_IMPORTS = _stdlib() | {"__future__", "brixtest", "pytest"}
@@ -61,25 +64,53 @@ def _call_name(node: ast.Call) -> str:
 
 
 def _managed(tree: ast.Module) -> bool:
+    direct, modules = _case_imports(tree)
+    return any(_managed_function(node, direct, modules) for node in ast.walk(tree))
+
+
+def _case_imports(tree: ast.Module) -> tuple[set[str], set[str]]:
     direct = set()
     modules = set()
     for node in ast.walk(tree):
-        if isinstance(node, ast.ImportFrom) and node.module \
-                and node.module.split(".", 1)[0] == "brixtest":
-            direct.update(alias.asname or alias.name for alias in node.names if alias.name == "case")
-        elif isinstance(node, ast.Import):
-            modules.update(alias.asname or alias.name for alias in node.names if alias.name == "brixtest")
-    for node in ast.walk(tree):
-        if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-            continue
-        for decorator in node.decorator_list:
-            target = decorator.func if isinstance(decorator, ast.Call) else decorator
-            if isinstance(target, ast.Name) and target.id in direct:
-                return True
-            if isinstance(target, ast.Attribute) and target.attr == "case" \
-                    and isinstance(target.value, ast.Name) and target.value.id in modules:
-                return True
-    return False
+        direct.update(_direct_case_imports(node))
+        modules.update(_module_case_imports(node))
+    return direct, modules
+
+
+def _direct_case_imports(node: ast.AST) -> set[str]:
+    if not isinstance(node, ast.ImportFrom) or not node.module:
+        return set()
+    if node.module.split(".", 1)[0] != "brixtest":
+        return set()
+    return {alias.asname or alias.name for alias in node.names if alias.name == "case"}
+
+
+def _module_case_imports(node: ast.AST) -> set[str]:
+    if not isinstance(node, ast.Import):
+        return set()
+    return {alias.asname or alias.name for alias in node.names if alias.name == "brixtest"}
+
+
+def _managed_function(node: ast.AST, direct: set[str], modules: set[str]) -> bool:
+    if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+        return False
+    return any(_managed_decorator(decorator, direct, modules) for decorator in node.decorator_list)
+
+
+def _managed_decorator(node: ast.expr, direct: set[str], modules: set[str]) -> bool:
+    target = node.func if isinstance(node, ast.Call) else node
+    if isinstance(target, ast.Name):
+        return target.id in direct
+    return _module_case_decorator(target, modules)
+
+
+def _module_case_decorator(target: ast.expr, modules: set[str]) -> bool:
+    return (
+        isinstance(target, ast.Attribute)
+        and target.attr == "case"
+        and isinstance(target.value, ast.Name)
+        and target.value.id in modules
+    )
 
 
 class _ModulePolicy(ast.NodeVisitor):

@@ -33,6 +33,24 @@ from settings import BIND_HOST, HOST
 
 # --- Layout ------------------------------------------------------------------
 
+def _guard_enter_1():
+    if not BRIX_BIN:
+        raise RuntimeError("official `xrootd` daemon not found on PATH")
+
+def _guard_enter_2(seclib):
+    if not seclib:
+        raise RuntimeError("libXrdSec not found; cannot run GSI xrootd")
+
+def _guard_enter_3():
+    if os.path.isfile(SERVER_CERT):
+        _chmod(["chmod", "a+r", SERVER_CERT])
+
+def _guard_enter_4(runas):
+    if os.path.isfile(SERVER_KEY):
+        shutil.chown(SERVER_KEY, runas)
+        os.chmod(SERVER_KEY, 0o400)
+
+
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 CLIENT_BIN = os.path.join(REPO, "client", "bin")
 XRDFS = os.path.join(CLIENT_BIN, "xrdfs")
@@ -219,11 +237,9 @@ class XrootdGsi:
         self.proc = None
 
     def __enter__(self):
-        if not BRIX_BIN:
-            raise RuntimeError("official `xrootd` daemon not found on PATH")
+        _guard_enter_1()
         seclib = find_sec_lib()
-        if not seclib:
-            raise RuntimeError("libXrdSec not found; cannot run GSI xrootd")
+        _guard_enter_2(seclib)
         for d in (self.data, self.admin, self.run, self.logs):
             os.makedirs(d, exist_ok=True)
         with open(self.cfg, "w") as fh:
@@ -252,11 +268,8 @@ class XrootdGsi:
                       os.path.dirname(SERVER_CERT)):
                 _chmod(["chmod", "a+rx", d])
             _chmod(["chmod", "-R", "a+rX", CA_DIR])
-            if os.path.isfile(SERVER_CERT):
-                _chmod(["chmod", "a+r", SERVER_CERT])
-            if os.path.isfile(SERVER_KEY):
-                shutil.chown(SERVER_KEY, runas)
-                os.chmod(SERVER_KEY, 0o400)
+            _guard_enter_3()
+            _guard_enter_4(runas)
             # Same stale-state hazard as XrootdAnon: a prior unprivileged lane's
             # admin/.xrd under this fixed prefix blocks xrootd-as-`runas`.
             _chmod(["chown", "-R", runas, self.prefix])
@@ -396,4 +409,3 @@ class XrootdAnon:
 
 
 # --- fault proxy --------------------------------------------------------------
-

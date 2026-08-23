@@ -150,29 +150,39 @@ def _xrd_cfg(role, data_port, cms_port, manager, run, export,
     # Optional blocks (each a run of complete, newline-terminated directive lines,
     # or empty) substituted into mesh_hybrid_xrootd_node.cfg — keeps the node's
     # config skeleton on disk while the role-dependent inserts stay explicit here.
-    localroot_blk = f"oss.localroot {localroot}\n" if localroot is not None else ""
-    # Clustered proxy server: byte I/O is satisfied by forwarding to the tier-2
-    # redirector, which in turn locates the holding data server.
-    pss_blk = ""
-    if pss_origin is not None:
-        pss_blk = (f"ofs.osslib libXrdPss-5.so\n"
-                   f"pss.origin {pss_origin}\n"
-                   f"pss.setopt DebugLevel 1\n")
-    delay_blk = ("cms.delay startup 5 servers 1 lookup 2\n"
-                 if role in ("manager", "supervisor") else "")
-    http_blk = ""
-    if http_port is not None:
-        http_blk = (f"if exec xrootd\n"
-                    f"  xrd.protocol http:{http_port} libXrdHttp-5.so\n"
-                    f"  http.cert {cert}\n"
-                    f"  http.key {key}\n"
-                    f"  http.selfhttps2http no\n"
-                    f"fi\n")
     return render("mesh_hybrid_xrootd_node.cfg",
                   ROLE=role, MANAGER=manager, DATA_PORT=data_port,
                   CMS_PORT=cms_port, EXPORT=export, RUN=run,
-                  LOCALROOT=localroot_blk, PSS=pss_blk,
-                  DELAY=delay_blk, HTTP=http_blk)
+                  LOCALROOT=_localroot_block(localroot),
+                  PSS=_pss_block(pss_origin), DELAY=_delay_block(role),
+                  HTTP=_http_block(http_port, cert, key))
+
+
+def _localroot_block(localroot):
+    return f"oss.localroot {localroot}\n" if localroot is not None else ""
+
+
+def _pss_block(origin):
+    if origin is None:
+        return ""
+    return ("ofs.osslib libXrdPss-5.so\n"
+            f"pss.origin {origin}\n"
+            "pss.setopt DebugLevel 1\n")
+
+
+def _delay_block(role):
+    return "cms.delay startup 5 servers 1 lookup 2\n" if role in ("manager", "supervisor") else ""
+
+
+def _http_block(port, cert, key):
+    if port is None:
+        return ""
+    return ("if exec xrootd\n"
+            f"  xrd.protocol http:{port} libXrdHttp-5.so\n"
+            f"  http.cert {cert}\n"
+            f"  http.key {key}\n"
+            "  http.selfhttps2http no\n"
+            "fi\n")
 
 
 def launch_xrootd(m, label, cfg_text):
@@ -338,21 +348,36 @@ def stop_all():
     for pidfile in glob.glob(os.path.join(MESH_DIR, "*", "run", "*.pid")):
         _kill_pidfile_group(pidfile)
     subprocess.run(["pkill", "-9", "-f", f"{MESH_DIR}/[^ ]*/cfg/"], check=False)
+    _kill_bound_processes(_socket_table())
+    _wait_ports_closed()
 
+
+def _socket_table():
     try:
-        out = subprocess.run(["ss", "-tlnp"], capture_output=True,
-                             text=True).stdout
+        return subprocess.run(["ss", "-tlnp"], capture_output=True,
+                              text=True).stdout
     except Exception:
-        out = ""
-    for line in out.splitlines():
-        if "pid=" not in line:
-            continue
-        for port in range(PORT_MIN, PORT_MAX + 1):
-            if f":{port} " in line:
-                pid = line.split("pid=")[1].split(",")[0]
-                subprocess.run(["kill", "-9", pid], check=False)
-                break
+        return ""
 
+
+def _kill_bound_processes(table):
+    for line in table.splitlines():
+        pid = _bound_pid(line)
+        if pid is not None:
+            subprocess.run(["kill", "-9", pid], check=False)
+
+
+def _bound_pid(line):
+    if "pid=" not in line or not _line_uses_mesh_port(line):
+        return None
+    return line.split("pid=")[1].split(",")[0]
+
+
+def _line_uses_mesh_port(line):
+    return any(f":{port} " in line for port in range(PORT_MIN, PORT_MAX + 1))
+
+
+def _wait_ports_closed():
     for _ in range(40):
         if not any(port_open(p) for p in MANAGER_PORTS):
             return
@@ -367,20 +392,20 @@ def wait_ready(timeout=120):
     total = len(pending)
     deadline = time.time() + timeout
     while pending:
-        still = []
-        for mgr, path in pending:
-            # A still-forming cluster answers locate with kXR_wait, so the probe
-            # can hit its own timeout — that just means "not ready yet", not an
-            # error, so swallow it and re-probe next round.
-            try:
-                rc, stdout, _ = cml.xrdfs_locate(mgr, path, timeout=3, retries=1)
-                ok = rc == 0 and bool(cml.located_port(stdout))
-            except Exception:
-                ok = False
-            if not ok:
-                still.append((mgr, path))
-        pending = still
+        pending = _pending_probes(pending)
         if not pending or time.time() >= deadline:
             break
         time.sleep(0.4)
     return total - len(pending), total, pending
+
+
+def _pending_probes(probes):
+    return [probe for probe in probes if not _probe_ready(*probe)]
+
+
+def _probe_ready(manager, path):
+    try:
+        rc, stdout, _ = cml.xrdfs_locate(manager, path, timeout=3, retries=1)
+        return rc == 0 and bool(cml.located_port(stdout))
+    except Exception:
+        return False

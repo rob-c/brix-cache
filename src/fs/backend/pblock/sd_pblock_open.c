@@ -197,14 +197,27 @@ pblock_open_create(brix_sd_instance_t *inst, const char *path, mode_t mode,
     return obj;
 }
 
-/* pblock_open_existing — open an existing file's block 0; honours O_TRUNC on
- * write via the block-aware truncate. Returns the object or NULL/errno. */
-static brix_sd_obj_t *
-pblock_open_existing(brix_sd_instance_t *inst, const char *path,
+/*
+ * WHAT: Store an open-path failure in the caller's optional errno output.
+ * WHY:  Optional error reporting should not obscure each lifecycle branch.
+ * HOW:  Assign only when the caller supplied storage.
+ */
+static void
+pblock_open_set_error(int *err_out, int err)
+{
+    if (err_out != NULL)
+        *err_out = err;
+}
+
+/*
+ * WHAT: Prepare block zero for an existing object open.
+ * WHY:  Transform, copy-on-write, path, and fd checks precede object creation.
+ * HOW:  Validate the transform, privatize write intent, resolve, and open.
+ */
+static int
+pblock_prepare_existing_fd(pblock_state_t *st, const char *path,
     pblock_meta *meta, int sd_flags, int *err_out)
 {
-    pblock_state_t  *st = inst->state;
-    brix_sd_obj_t *obj;
     char             block0[PATH_MAX];
     int              want_write = sd_flags & BRIX_SD_O_WRITE;
     int              fd;
@@ -213,8 +226,8 @@ pblock_open_existing(brix_sd_instance_t *inst, const char *path,
      * export's configured one (wrong key/codec ⇒ garbage). A config error, not a
      * data error — fail the open rather than hand back undecodable bytes. */
     if (pblock_xform_kind_from_name(meta->xform) != st->xform.kind) {
-        if (err_out != NULL) { *err_out = EIO; }
-        return NULL;
+        pblock_open_set_error(err_out, EIO);
+        return -1;
     }
 
     /* F10: never write through a shared blob — a write-intent open first gives
@@ -223,25 +236,32 @@ pblock_open_existing(brix_sd_instance_t *inst, const char *path,
         && pblock_refs_break_share(st, path, meta,
                                    (sd_flags & BRIX_SD_O_TRUNC) != 0) != 0)
     {
-        if (err_out != NULL) { *err_out = errno; }
-        return NULL;
+        pblock_open_set_error(err_out, errno);
+        return -1;
     }
 
     if (pblock_block_path(st, meta->blob_id, 0, block0, sizeof(block0)) != 0) {
-        if (err_out != NULL) { *err_out = errno; }
-        return NULL;
+        pblock_open_set_error(err_out, errno);
+        return -1;
     }
     fd = open(block0, want_write ? O_RDWR : O_RDONLY);
     if (fd < 0) {
-        if (err_out != NULL) { *err_out = errno; }
-        return NULL;
+        pblock_open_set_error(err_out, errno);
+        return -1;
     }
+    return fd;
+}
 
-    obj = pblock_make_obj(inst, path, fd, meta);
-    if (obj == NULL) {
-        if (err_out != NULL) { *err_out = errno; }
-        return NULL;
-    }
+/*
+ * WHAT: Apply O_TRUNC and initialize whole-write verification after open.
+ * WHY:  Both operations require a live object and are separate from fd setup.
+ * HOW:  Truncate non-empty files, close on failure, then arm CRC accumulation.
+ */
+static int
+pblock_finish_existing_open(brix_sd_obj_t *obj, pblock_state_t *st,
+    const pblock_meta *meta, int sd_flags, int *err_out)
+{
+    int want_write = sd_flags & BRIX_SD_O_WRITE;
 
     if (want_write && (sd_flags & BRIX_SD_O_TRUNC) && meta->size > 0) {
         if (sd_pblock_ftruncate(obj, 0) != NGX_OK) {
@@ -249,8 +269,8 @@ pblock_open_existing(brix_sd_instance_t *inst, const char *path,
 
             obj->driver->close(obj);   /* frees state + closes fd */
             free(obj);                 /* … and the malloc'd shell */
-            if (err_out != NULL) { *err_out = err; }
-            return NULL;
+            pblock_open_set_error(err_out, err);
+            return -1;
         }
     }
     if (st->refs && want_write && (sd_flags & BRIX_SD_O_TRUNC)) {
@@ -258,6 +278,29 @@ pblock_open_existing(brix_sd_instance_t *inst, const char *path,
          * an honest whole-object CRC, making the blob a dedup candidate. */
         ((pblock_obj_t *) obj->state)->wv = brix_wverify_begin();
     }
+    return 0;
+}
+
+/* pblock_open_existing — open an existing file's block 0; honours O_TRUNC on
+ * write via the block-aware truncate. Returns the object or NULL/errno. */
+static brix_sd_obj_t *
+pblock_open_existing(brix_sd_instance_t *inst, const char *path,
+    pblock_meta *meta, int sd_flags, int *err_out)
+{
+    pblock_state_t *st = inst->state;
+    brix_sd_obj_t  *obj;
+    int             fd;
+
+    fd = pblock_prepare_existing_fd(st, path, meta, sd_flags, err_out);
+    if (fd < 0)
+        return NULL;
+    obj = pblock_make_obj(inst, path, fd, meta);
+    if (obj == NULL) {
+        pblock_open_set_error(err_out, errno);
+        return NULL;
+    }
+    if (pblock_finish_existing_open(obj, st, meta, sd_flags, err_out) != 0)
+        return NULL;
     return obj;
 }
 
@@ -419,6 +462,72 @@ sd_pblock_open(brix_sd_instance_t *inst, const char *path, int sd_flags,
     return sd_pblock_open_as(inst, path, sd_flags, mode, 0, 0, err_out);
 }
 
+/*
+ * WHAT: Publish dirty handle metadata and its optional stale-read observation.
+ * WHY:  Catalog mutation is one close phase with its own crash boundaries.
+ * HOW:  Snapshot old metadata, admit quota, touch, and notify the anomaly lab.
+ */
+static ngx_int_t
+pblock_close_dirty(pblock_obj_t *os)
+{
+    pblock_meta old;
+    int have_old = 0;
+    ngx_int_t rc = NGX_OK;
+
+    if (os->st->lab != NULL)
+        have_old = pblock_catalog_lookup(os->st->cat, os->path, &old) == 0;
+    pblock_lab_crash(os->st->lab, "before_catalog_update");
+    if (pblock_quota_touch_admit(os->st, os->path, os->meta.uid,
+                                 os->meta.size) != 0
+        || pblock_catalog_touch(os->st->cat, os->path, os->meta.size,
+                                os->meta.mtime) != 0)
+        rc = NGX_ERROR;
+    pblock_lab_crash(os->st->lab, "after_catalog_update");
+    if (rc == NGX_OK && have_old)
+        pblock_anomaly_updated(os->st, os->path, old.size, old.mtime);
+    os->dirty = 0;
+    return rc;
+}
+
+/*
+ * WHAT: Flush close-time audit, integrity, dedup, and snapshot observations.
+ * WHY:  Resource teardown should not intermingle independent optional systems.
+ * HOW:  Record each enabled observer, then release all per-handle allocations.
+ */
+static void
+pblock_close_observers(pblock_obj_t *os, ngx_int_t rc)
+{
+    if (os->st->audit) {
+        char aux[64];
+
+        snprintf(aux, sizeof(aux), "r=%lld w=%lld mb=%lld",
+                 (long long) os->a_rbytes, (long long) os->a_wbytes,
+                 (long long) os->a_maxblock);
+        pblock_audit_log(os->st->cat, "close", os->path, aux,
+                         os->meta.uid, os->meta.gid, rc == NGX_OK ? 0 : -1, 0);
+    }
+    if (os->st->csi)
+        (void) pblock_csi_flush(os->st, os->blob_id, os->meta.size,
+                                os->block_size, os->csi_dlo, os->csi_dhi);
+    if (os->wv != NULL) {
+        if (os->st->refs && rc == NGX_OK) {
+            uint32_t crc = 0;
+            off_t total = 0;
+            int ok = brix_wverify_expected(os->wv, &crc, &total) == 0
+                     && (int64_t) total == os->meta.size;
+
+            (void) pblock_refs_dedup_publish(os->st, os->path, &os->meta,
+                                             crc, ok);
+        }
+        brix_wverify_free(os->wv);
+    }
+    if (os->st->snap && !os->meta.is_dir)
+        __atomic_sub_fetch(&os->st->open_files, 1, __ATOMIC_RELEASE);
+    free(os->csi_crc);
+    free(os->lock_rng);
+    pblock_lab_obj_free(os->lab);
+}
+
 ngx_int_t
 sd_pblock_close(brix_sd_obj_t *obj)
 {
@@ -430,71 +539,16 @@ sd_pblock_close(brix_sd_obj_t *obj)
     }
     os = obj->state;
 
-    if (os != NULL && os->dirty) {
-        pblock_meta old;
-        int         have_old = 0;
-
-        /* F9: the pre-update row is what a stale stat will serve — capture it
-         * before the touch publishes the new size/mtime. */
-        if (os->st->lab != NULL) {
-            have_old = pblock_catalog_lookup(os->st->cat, os->path, &old) == 0;
-        }
-        pblock_lab_crash(os->st->lab, "before_catalog_update");   /* F7 */
-        if (pblock_quota_touch_admit(os->st, os->path, os->meta.uid,
-                                     os->meta.size) != 0             /* F5 */
-            || pblock_catalog_touch(os->st->cat, os->path, os->meta.size,
-                                 os->meta.mtime) != 0)
-        {
-            rc = NGX_ERROR;
-        }
-        pblock_lab_crash(os->st->lab, "after_catalog_update");    /* F7 */
-        if (rc == NGX_OK && have_old) {
-            pblock_anomaly_updated(os->st, os->path, old.size,
-                                   old.mtime);                    /* F9 */
-        }
-        os->dirty = 0;
-    }
+    if (os != NULL && os->dirty)
+        rc = pblock_close_dirty(os);
     if (obj->fd != NGX_INVALID_FILE) {
         if (close(obj->fd) != 0) {
             rc = NGX_ERROR;
         }
         obj->fd = NGX_INVALID_FILE;
     }
-    if (os != NULL) {
-        if (os->st->audit) {                 /* F17: fold per-I/O totals here */
-            char aux[64];
-
-            snprintf(aux, sizeof(aux), "r=%lld w=%lld mb=%lld",
-                     (long long) os->a_rbytes, (long long) os->a_wbytes,
-                     (long long) os->a_maxblock);
-            pblock_audit_log(os->st->cat, "close", os->path, aux,
-                             os->meta.uid, os->meta.gid,
-                             rc == NGX_OK ? 0 : -1, 0);
-        }
-        if (os->st->csi) {              /* F3: persist CRCs for written blocks */
-            (void) pblock_csi_flush(os->st, os->blob_id, os->meta.size,
-                                    os->block_size, os->csi_dlo, os->csi_dhi);
-        }
-        if (os->wv != NULL) {           /* F10: publish-time dedup fold */
-            if (os->st->refs && rc == NGX_OK) {
-                uint32_t crc   = 0;
-                off_t    total = 0;
-                int      ok;
-
-                ok = brix_wverify_expected(os->wv, &crc, &total) == 0
-                         && (int64_t) total == os->meta.size;
-                (void) pblock_refs_dedup_publish(os->st, os->path, &os->meta,
-                                                 crc, ok);
-            }
-            brix_wverify_free(os->wv);
-        }
-        if (os->st->snap && !os->meta.is_dir) {   /* F6: release the handle count */
-            __atomic_sub_fetch(&os->st->open_files, 1, __ATOMIC_RELEASE);
-        }
-        free(os->csi_crc);
-        free(os->lock_rng);             /* F15 per-open lease snapshot */
-        pblock_lab_obj_free(os->lab);   /* Phase-83 per-open snapshot */
-    }
+    if (os != NULL)
+        pblock_close_observers(os, rc);
     free(os);
     obj->state = NULL;
     /* The obj shell is NOT freed here: it may be embedded in the adopter's

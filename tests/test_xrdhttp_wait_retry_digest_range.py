@@ -1,4 +1,15 @@
 from split_continuation import reexport as _reexport
+def _check_test_put_then_get_byte_exact_1(put):
+    assert put.status_code in (200, 201, 204), \
+        f"PUT failed: {put.status_code}"
+
+def _check_test_put_then_get_byte_exact_2(on_disk):
+    assert os.path.exists(on_disk), "PUT did not create the backing file"
+
+def _check_test_put_then_get_byte_exact_3(payload, fh):
+    assert fh.read() == payload, "on-disk bytes diverge from PUT payload"
+
+
 _reexport(globals(), "_test_xrdhttp_wait_retry_digest_range_helpers")
 
 @pytest.mark.registry_server("xrdhttp-digest")
@@ -26,8 +37,11 @@ def test_rate_limit_emits_429_and_retry_after(server):
         # No inter-request sleep: a tight burst so the leaky bucket cannot
         # refill mid-loop and the throttle is forced to fire.
 
-    assert 200 in statuses, f"expected some 200s, got {statuses}"
-    assert 429 in statuses, f"rate limit never fired: {statuses}"
+    def _assert_test_rate_limit_emits_429_and_retry_after_2():
+        assert 200 in statuses, f"expected some 200s, got {statuses}"
+        assert 429 in statuses, f"rate limit never fired: {statuses}"
+
+    _assert_test_rate_limit_emits_429_and_retry_after_2()
     assert retry_after_seen, \
         f"429 responses must carry Retry-After: {statuses}"
 
@@ -289,17 +303,19 @@ def test_put_then_get_byte_exact(server):
     if put.status_code in (403, 405):
         pytest.skip(f"writes not permitted in this build (PUT -> "
                     f"{put.status_code})")
-    assert put.status_code in (200, 201, 204), \
-        f"PUT failed: {put.status_code}"
+    _check_test_put_then_get_byte_exact_1(put)
 
     _sleep_off_throttle()
     get = _unthrottled(lambda: requests.get(_url(name), timeout=10))
-    assert get.status_code == 200, get.status_code
-    assert get.content == payload, "GET did not round-trip the PUT bytes"
+    def _assert_test_put_then_get_byte_exact_1():
+        assert get.status_code == 200, get.status_code
+        assert get.content == payload, "GET did not round-trip the PUT bytes"
+
+    _assert_test_put_then_get_byte_exact_1()
 
     on_disk = os.path.join(server["data_dir"], name)
-    assert os.path.exists(on_disk), "PUT did not create the backing file"
+    _check_test_put_then_get_byte_exact_2(on_disk)
     with open(on_disk, "rb") as fh:
-        assert fh.read() == payload, "on-disk bytes diverge from PUT payload"
+        _check_test_put_then_get_byte_exact_3(payload, fh)
 
     _sanity_ok()

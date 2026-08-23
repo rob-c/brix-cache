@@ -37,6 +37,22 @@ from server_registry import (
 )
 
 
+def _check_test_lifecycle_harness_drives_throwaway_instance_1(endpoint):
+    assert Path(endpoint.pidfile).exists()
+
+def _check_test_lifecycle_harness_drives_throwaway_instance_2(endpoint):
+    assert Path(endpoint.pidfile).exists()
+
+def _check_test_lifecycle_harness_drives_throwaway_instance_3(endpoint):
+    assert not Path(endpoint.pidfile).exists()
+
+def _check_test_ipv6_fleet_specs_declare_host6_4(v6):
+    assert len(v6) >= 6, "ipv6 tier missing from the fleet catalogue"
+
+def _check_test_ipv6_fleet_specs_declare_host6_5(wrong):
+    assert not wrong, f"ipv6 specs probing the wrong family: {wrong}"
+
+
 def test_registry_manifest_round_trip(tmp_path, monkeypatch):
     clear_registry()
     monkeypatch.setattr("server_registry.REGISTRY_ROOT", str(tmp_path / "registry"))
@@ -477,23 +493,26 @@ def test_lifecycle_harness_drives_throwaway_instance(lifecycle, tmp_path):
             reason="lifecycle harness smoke",
         )
     )
-    assert Path(endpoint.pidfile).exists()
+    _check_test_lifecycle_harness_drives_throwaway_instance_1(endpoint)
 
     snapshot = lifecycle.process_snapshot("lc-smoke")
-    assert any("master" in command for _, command in snapshot)
-    assert any("worker" in command for _, command in snapshot)
+    def _assert_test_lifecycle_harness_drives_throwaway_instance_1():
+        assert any("master" in command for _, command in snapshot)
+        assert any("worker" in command for _, command in snapshot)
+
+    _assert_test_lifecycle_harness_drives_throwaway_instance_1()
 
     lifecycle.reconfigure("lc-smoke")
     lifecycle.reload("lc-smoke")
     lifecycle.reopen("lc-smoke")
     lifecycle.restart("lc-smoke")
-    assert Path(endpoint.pidfile).exists()
+    _check_test_lifecycle_harness_drives_throwaway_instance_2(endpoint)
 
     lifecycle.stop("lc-smoke")
     deadline = time.time() + 10
     while Path(endpoint.pidfile).exists() and time.time() < deadline:
         time.sleep(0.1)
-    assert not Path(endpoint.pidfile).exists()
+    _check_test_lifecycle_harness_drives_throwaway_instance_3(endpoint)
 
 
 def test_registry_settings_exports_phase_env_knobs():
@@ -532,6 +551,6 @@ def test_ipv6_fleet_specs_declare_host6():
     from fleet_specs import dedicated_specs
 
     v6 = [s for s in dedicated_specs() if s.name.startswith("ipv6-")]
-    assert len(v6) >= 6, "ipv6 tier missing from the fleet catalogue"
+    _check_test_ipv6_fleet_specs_declare_host6_4(v6)
     wrong = [s.name for s in v6 if s.host != settings.HOST6]
-    assert not wrong, f"ipv6 specs probing the wrong family: {wrong}"
+    _check_test_ipv6_fleet_specs_declare_host6_5(wrong)

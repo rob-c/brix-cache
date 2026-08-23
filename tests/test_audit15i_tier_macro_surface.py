@@ -50,6 +50,14 @@ from _test_phase25_ratelimit_helpers import (
 )
 from settings import NGINX_BIN
 
+def _check_test_no_other_construct_pastes_a_directive_name_together_1(stray):
+    assert [s for s in stray if "BRIX_SOURCE_URL" not in s] == [], stray
+
+def _guard_test_no_other_construct_pastes_a_directive_name_together_1(match, stray, path):
+    if match.group(1) != "pfx":
+        stray.append(f"{path.relative_to(REPO)}: {match.group(1)}")
+
+
 REPO = Path(__file__).resolve().parent.parent
 SRC = REPO / "src"
 TIER_HEADER = SRC / "core" / "config" / "tier_directives.h"
@@ -184,10 +192,9 @@ def test_no_other_construct_pastes_a_directive_name_together():
         text = path.read_text(encoding="utf-8", errors="replace")
         for match in re.finditer(r'ngx_string\(\s*([A-Za-z_][A-Za-z0-9_]*)\s+"',
                                  text):
-            if match.group(1) != "pfx":
-                stray.append(f"{path.relative_to(REPO)}: {match.group(1)}")
+            _guard_test_no_other_construct_pastes_a_directive_name_together_1(match, stray, path)
     # BRIX_SOURCE_URL builds the Server header, not a directive name.
-    assert [s for s in stray if "BRIX_SOURCE_URL" not in s] == [], stray
+    _check_test_no_other_construct_pastes_a_directive_name_together_1(stray)
 
 
 def test_the_factories_are_invoked_only_with_the_brix_prefix():

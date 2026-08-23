@@ -252,8 +252,11 @@ def test_deep_recon_json_shape(anon):
               "conns_total", "ops", "logins", "tpc", "oss", "http",
               "roots", "roots_more"):
         assert k in rec, rec
-    assert rec["cfg_probed"] >= 1 and rec["cfg_supported"] >= 1, rec
-    assert isinstance(rec["roots"], list) and isinstance(rec["roots_more"], bool), rec
+    def _assert_test_deep_recon_json_shape_1():
+        assert rec["cfg_probed"] >= 1 and rec["cfg_supported"] >= 1, rec
+        assert isinstance(rec["roots"], list) and isinstance(rec["roots_more"], bool), rec
+
+    _assert_test_deep_recon_json_shape_1()
     # nested planes carry the -1 sentinel or a real >=0 count, never garbage
     for plane in ("ops", "oss", "http"):
         for v in rec[plane].values():

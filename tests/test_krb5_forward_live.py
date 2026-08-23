@@ -42,6 +42,44 @@ from cmdscripts.c_auth_units import NGX_SRC, OBJS
 from cmdscripts.compile_run import REPO_ROOT, run
 from settings import HOST         # env-overridable host (the sanctioned idiom)
 
+def _expression_1(kdc):
+    return (
+        kdc.poll() is not None and kdc.stdout
+    )
+
+
+def _phase_krb5_lab_1(kdc):
+    try:
+        kdc.wait(timeout=5)
+    except subprocess.TimeoutExpired:
+        kdc.kill()
+
+
+def _guard_krb5_lab_1():
+    if os.environ.get("KRB5_LIVE") == "0":
+        pytest.skip("KRB5_LIVE=0 set — skipping the live krb5 KDC lab")
+
+def _guard_krb5_lab_2(reason):
+    if reason:
+        pytest.skip(reason)
+
+def _guard_krb5_lab_3():
+    if not _userns_works():
+        pytest.skip("unprivileged user namespaces (unshare -Ur) unavailable")
+
+def _guard_krb5_lab_4():
+    if _port_open(KDC_PORT):
+        pytest.skip(f"port {KDC_PORT} already in use — a KDC may be running")
+
+def _guard_krb5_lab_5(harness, hreason):
+    if harness is None:
+        pytest.skip(hreason)
+
+def _guard_krb5_lab_6(prov):
+    if prov.returncode != 0:
+        pytest.skip(f"KDC provisioning failed: {(prov.stderr or prov.stdout)[-2000:]}")
+
+
 pytestmark = pytest.mark.timeout(300)
 
 REALM = "BRIX.TEST"
@@ -215,25 +253,19 @@ def _build_harness(dst: Path) -> tuple[Path | None, str]:
 
 @pytest.fixture(scope="module")
 def krb5_lab(tmp_path_factory):
-    if os.environ.get("KRB5_LIVE") == "0":
-        pytest.skip("KRB5_LIVE=0 set — skipping the live krb5 KDC lab")
+    _guard_krb5_lab_1()
     reason = _tools_present()
-    if reason:
-        pytest.skip(reason)
-    if not _userns_works():
-        pytest.skip("unprivileged user namespaces (unshare -Ur) unavailable")
-    if _port_open(KDC_PORT):
-        pytest.skip(f"port {KDC_PORT} already in use — a KDC may be running")
+    _guard_krb5_lab_2(reason)
+    _guard_krb5_lab_3()
+    _guard_krb5_lab_4()
 
     lab = tmp_path_factory.mktemp("krb5_lab")
     harness, hreason = _build_harness(lab)
-    if harness is None:
-        pytest.skip(hreason)
+    _guard_krb5_lab_5(harness, hreason)
 
     env = _write_configs(lab)
     prov = _provision(lab, env)
-    if prov.returncode != 0:
-        pytest.skip(f"KDC provisioning failed: {(prov.stderr or prov.stdout)[-2000:]}")
+    _guard_krb5_lab_6(prov)
 
     kdc = _boot_kdc(env)
     try:
@@ -247,7 +279,7 @@ def krb5_lab(tmp_path_factory):
             time.sleep(0.25)
         if not healthy:
             out = ""
-            if kdc.poll() is not None and kdc.stdout:
+            if _expression_1(kdc):
                 out = kdc.stdout.read()[-2000:]
             pytest.skip(f"KDC never came up on {KDC_PORT}: {out}")
 
@@ -260,10 +292,7 @@ def krb5_lab(tmp_path_factory):
         }
     finally:
         kdc.terminate()
-        try:
-            kdc.wait(timeout=5)
-        except subprocess.TimeoutExpired:
-            kdc.kill()
+        _phase_krb5_lab_1(kdc)
 
 
 def _forward(lab: dict, keytab: Path, password: str,

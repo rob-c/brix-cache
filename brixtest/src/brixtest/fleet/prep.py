@@ -1,13 +1,10 @@
-"""Fleet preparation and the artifact snapshot cache (feature F6).
+"""Fleet preparation and artifact snapshot caching.
 
 Prep builds everything instances need before any process starts: CA
 material, rendered secrets, data trees — each an adapter-registered
-``PrepStep``.  The expensive path runs once; afterwards a **snapshot**
-of the artifact tree is restored instead (measured on the grown suite:
-11 s cold, 0.02 s warm).
+``PrepStep``. After a successful build, later runs can restore a snapshot.
 
-Cache honesty rules, all four inherited from the grown implementation
-because they were earned there:
+Cache validity rules:
 
 - a snapshot is stamped with ``_CACHE_VERSION`` and every step's
   ``stamp()``; any mismatch rejects it (ground: *stamps*),
@@ -15,8 +12,8 @@ because they were earned there:
 - unreadable/incoherent metadata rejects it (ground: *corrupt*),
 - a restore that fails mid-copy rejects it (ground: *copy*),
 
-and rejection is **never fatal** — every ground falls back to the
-cold build.  ``explain()`` narrates the decision for ``prep --explain``.
+and rejection is not fatal: every condition falls back to a cold build.
+``explain()`` reports the decision for ``prep --explain``.
 """
 
 from __future__ import annotations
@@ -32,7 +29,7 @@ from brixtest.errors import PrepStepError
 from brixtest.events import emit
 from brixtest.services.artifacts import ArtifactCatalog
 
-__all__ = ["PrepStep", "ArtifactSet", "FleetPrep"]
+__all__ = ["ArtifactSet", "FleetPrep", "PrepStep"]
 
 _CACHE_VERSION = 1
 _TTL_SECONDS = 4 * 3600
@@ -52,8 +49,8 @@ class PrepStep(Protocol):
 
 class ArtifactSet:
     """The lane's artifact tree, handed to every step.  Steps that build
-    something consumers need should ``publish`` it — the catalog is how
-    tests and the CLI address artifacts by name (F16)."""
+    something consumers need should ``publish`` it so tests and the CLI
+    can address the artifact by name."""
 
     def __init__(self, root: Path) -> None:
         self.root = Path(root)
@@ -86,12 +83,8 @@ class FleetPrep:
         self.ttl_seconds = ttl_seconds
         self._last_decision: List[str] = []
 
-    # -- stamps ----------------------------------------------------------
-
     def _stamps(self) -> Dict[str, str]:
         return {step.name: step.stamp() for step in self.steps}
-
-    # -- snapshot verdict ------------------------------------------------
 
     def _snapshot_verdict(self) -> Tuple[bool, str]:
         """(usable, reason).  Reasons name the rejection ground."""
@@ -117,10 +110,8 @@ class FleetPrep:
             return False, "stamps: changed steps %s" % ", ".join(changed)
         return True, "fresh: %.0fs old, %d step stamps match" % (age, len(current))
 
-    # -- the run ---------------------------------------------------------
-
     def run(self) -> ArtifactSet:
-        """Restore the snapshot if honest, else cold-build and re-snapshot."""
+        """Restore a valid snapshot or rebuild and save one."""
         self._last_decision = []
         artifacts = ArtifactSet(self.lane.artifacts_dir)
         usable, reason = self._snapshot_verdict()
@@ -174,8 +165,7 @@ class FleetPrep:
             self._last_decision.append("snapshot save skipped: %s" % exc)
 
     def explain(self) -> str:
-        """The narrated decision from the most recent ``run()`` — or, if
-        none ran yet, the verdict a run would start from."""
+        """Return the latest preparation decision or current cache verdict."""
         if self._last_decision:
             return "\n".join(self._last_decision)
         _, reason = self._snapshot_verdict()

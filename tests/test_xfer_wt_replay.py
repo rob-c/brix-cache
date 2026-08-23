@@ -29,6 +29,33 @@ from fleet_lifecycle_ports import lifecycle_ports_for
 # Bucket-2 lifecycle subject: one fixed-port `lc-xfer-wt-replay` instance the
 # test restart()s; xdist_group serialises it so the fixed exclusive-band port
 # never has two concurrent drivers.
+def _expression_1(name, rec):
+    return (
+        name in _cstr(rec[F_DST_KEY]) or name in _cstr(rec[F_SRC_KEY])
+    )
+
+
+def _guard_test_durable_flush_replayed_after_restart_1():
+    if not os.path.exists(NGINX_BIN):
+        pytest.skip("nginx binary not found")
+
+def _guard_test_durable_flush_replayed_after_restart_2():
+    if XRDCP is None:
+        pytest.skip("xrdcp not available")
+
+def _check_test_durable_flush_replayed_after_restart_1(r):
+    assert r.returncode == 0, r.stderr.decode(errors="replace")
+
+def _check_test_durable_flush_replayed_after_restart_2(rec):
+    assert rec is not None and rec[0] == BRIX_SREQ_FAILED, \
+        "expected a FAILED flush record after the dead-origin flush"
+
+def _check_test_durable_flush_replayed_after_restart_3(attempts_after, attempts_before, rec):
+    assert attempts_after > attempts_before, (
+        f"replay did not re-drive the record: attempts stayed "
+        f"{attempts_before} (record={rec})")
+
+
 pytestmark = [pytest.mark.uses_lifecycle_harness,
               pytest.mark.xdist_group("lc-xfer-wt-replay")]
 
@@ -51,6 +78,19 @@ def _cstr(b):
     return b.split(b"\x00", 1)[0].decode("utf-8", "replace")
 
 
+def _flush_record(path, name):
+    try:
+        data = open(path, "rb").read()
+    except OSError:
+        return None
+    if len(data) < struct.calcsize(SREQ_FMT):
+        return None
+    record = struct.unpack_from(SREQ_FMT, data, 0)
+    if record[F_KIND] != BRIX_STAGE_FLUSH or not _expression_1(name, record):
+        return None
+    return record[F_STATE], record[F_ATTEMPTS]
+
+
 def _scan_flush(journal_dir, name):
     """Return (state, attempts) for the first kind=FLUSH .req record matching name."""
     try:
@@ -60,17 +100,9 @@ def _scan_flush(journal_dir, name):
     for fn in entries:
         if not fn.endswith(".req"):
             continue
-        try:
-            data = open(os.path.join(journal_dir, fn), "rb").read()
-        except OSError:
-            continue
-        if len(data) < struct.calcsize(SREQ_FMT):
-            continue
-        rec = struct.unpack_from(SREQ_FMT, data, 0)
-        if rec[F_KIND] != BRIX_STAGE_FLUSH:
-            continue
-        if name in _cstr(rec[F_DST_KEY]) or name in _cstr(rec[F_SRC_KEY]):
-            return rec[F_STATE], rec[F_ATTEMPTS]
+        record = _flush_record(os.path.join(journal_dir, fn), name)
+        if record is not None:
+            return record
     return None
 
 
@@ -86,10 +118,8 @@ def _poll_failed(journal, name, timeout=15):
 
 
 def test_durable_flush_replayed_after_restart(lifecycle, tmp_path):
-    if not os.path.exists(NGINX_BIN):
-        pytest.skip("nginx binary not found")
-    if XRDCP is None:
-        pytest.skip("xrdcp not available")
+    _guard_test_durable_flush_replayed_after_restart_1()
+    _guard_test_durable_flush_replayed_after_restart_2()
 
     data = tmp_path / "data"; data.mkdir()
     stage = tmp_path / "stage"; stage.mkdir()
@@ -121,10 +151,9 @@ def test_durable_flush_replayed_after_restart(lifecycle, tmp_path):
     r = subprocess.run(
         [XRDCP, "-f", str(src), f"root://{HOST}:{ep.port}//{name}"],
         capture_output=True, timeout=30)
-    assert r.returncode == 0, r.stderr.decode(errors="replace")
+    _check_test_durable_flush_replayed_after_restart_1(r)
     rec = _poll_failed(journal, name)
-    assert rec is not None and rec[0] == BRIX_SREQ_FAILED, \
-        "expected a FAILED flush record after the dead-origin flush"
+    _check_test_durable_flush_replayed_after_restart_2(rec)
     attempts_before = rec[1]
 
     # --- run 2: restart; the reconcile must re-drive the record and bump attempts ---
@@ -137,6 +166,4 @@ def test_durable_flush_replayed_after_restart(lifecycle, tmp_path):
             attempts_after = rec[1]
             break
         time.sleep(0.3)
-    assert attempts_after > attempts_before, (
-        f"replay did not re-drive the record: attempts stayed "
-        f"{attempts_before} (record={rec})")
+    _check_test_durable_flush_replayed_after_restart_3(attempts_after, attempts_before, rec)

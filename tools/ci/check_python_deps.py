@@ -122,23 +122,30 @@ def _sources(root: Path) -> list[Path]:
     ignores `tools/*`, which shelters half-written scratch scripts that must not
     gate a push. Falls back to a plain walk when git is unavailable (tarball)."""
     try:
-        out = subprocess.run(
+        return _git_sources(root)
+    except Exception:
+        return _walk_sources(root)
+
+
+def _git_sources(root):
+    out = subprocess.run(
             ["git", "-C", str(root), "ls-files", "--cached", "--others",
              "--exclude-standard", "-z", "--", *SCAN, *SCAN_FILES],
             capture_output=True,
             check=True,
         )
-        listed = [f for f in out.stdout.decode().split("\0") if f.endswith(".py")]
-        # ``git ls-files --cached`` also reports tracked paths deleted in the
-        # current working tree.  They have no imports to audit in this tree and
-        # attempting to parse them turns an intentional deletion into a guard
-        # crash rather than a dependency verdict.
-        return sorted({root / f for f in listed if (root / f).is_file()})
-    except Exception:
-        found = [p for tree in SCAN for p in (root / tree).rglob("*.py")
-                 if (root / tree).exists()]
-        found += [root / n for n in SCAN_FILES if (root / n).exists()]
-        return sorted(set(found))
+    listed = [name for name in out.stdout.decode().split("\0") if name.endswith(".py")]
+    return sorted({root / name for name in listed if (root / name).is_file()})
+
+
+def _walk_sources(root):
+    found = []
+    for tree in SCAN:
+        base = root / tree
+        if base.exists():
+            found.extend(base.rglob("*.py"))
+    found.extend(root / name for name in SCAN_FILES if (root / name).exists())
+    return sorted(set(found))
 
 
 def _imports(tree: ast.AST, check_importorskip: bool):
@@ -153,39 +160,69 @@ def _imports(tree: ast.AST, check_importorskip: bool):
     # Retain the exact parent-derived guard semantics while walking only nested
     # statements. Except handlers and match cases are containers, not statements,
     # so their body lists need their small explicit bridge below.
-    guard_nodes = (ast.Try, ast.FunctionDef, ast.AsyncFunctionDef)
+    yield from _syntax_imports(tree)
+    if check_importorskip:
+        yield from _importorskip_calls(tree)
+
+
+def _syntax_imports(tree):
     stack = [(tree, False)]
     while stack:
         node, guarded = stack.pop()
-        inner = guarded or isinstance(node, guard_nodes)
-        if isinstance(node, ast.Import):
-            for alias in node.names:
-                yield alias.name.split(".")[0], node.lineno, guarded
-        elif isinstance(node, ast.ImportFrom) and node.level == 0 and node.module:
-            yield node.module.split(".")[0], node.lineno, guarded
-        for _field, value in ast.iter_fields(node):
-            if isinstance(value, ast.stmt):
-                stack.append((value, inner))
-            elif isinstance(value, list):
-                for child in value:
-                    if isinstance(child, ast.stmt):
-                        stack.append((child, inner))
-                    elif isinstance(child, (ast.ExceptHandler, ast.match_case)):
-                        for statement in child.body:
-                            stack.append((statement, inner))
+        inner = guarded or _guards_import(node)
+        yield from _node_imports(node, guarded)
+        stack.extend(_child_statements(node, inner))
 
-    if not check_importorskip:
+
+def _guards_import(node):
+    return isinstance(node, (ast.Try, ast.FunctionDef, ast.AsyncFunctionDef))
+
+
+def _node_imports(node, guarded):
+    if isinstance(node, ast.Import):
+        for alias in node.names:
+            yield alias.name.split(".")[0], node.lineno, guarded
         return
+    if isinstance(node, ast.ImportFrom) and node.level == 0 and node.module:
+        yield node.module.split(".")[0], node.lineno, guarded
+
+
+def _child_statements(node, guarded):
+    children = []
+    for _field, value in ast.iter_fields(node):
+        if isinstance(value, ast.stmt):
+            children.append((value, guarded))
+        elif isinstance(value, list):
+            children.extend(_statement_list(value, guarded))
+    return children
+
+
+def _statement_list(values, guarded):
+    children = []
+    for child in values:
+        if isinstance(child, ast.stmt):
+            children.append((child, guarded))
+        elif isinstance(child, (ast.ExceptHandler, ast.match_case)):
+            children.extend((statement, guarded) for statement in child.body)
+    return children
+
+
+def _importorskip_calls(tree):
     for node in ast.walk(tree):
-        if (
-            isinstance(node, ast.Call)
-            and isinstance(node.func, ast.Attribute)
-            and node.func.attr == "importorskip"
-            and node.args
-            and isinstance(node.args[0], ast.Constant)
-            and isinstance(node.args[0].value, str)
-        ):
-            yield node.args[0].value.split(".")[0], node.lineno, True
+        name = _importorskip_name(node)
+        if name:
+            yield name, node.lineno, True
+
+
+def _importorskip_name(node):
+    if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Attribute):
+        return None
+    if node.func.attr != "importorskip" or not node.args:
+        return None
+    value = node.args[0]
+    if not isinstance(value, ast.Constant) or not isinstance(value.value, str):
+        return None
+    return value.value.split(".")[0]
 
 
 def _set_lane(lanes: dict[str, str], dist: str, lane: str) -> None:
@@ -195,15 +232,26 @@ def _set_lane(lanes: dict[str, str], dist: str, lane: str) -> None:
 
 
 def _check_bounds(findings: list[str], where: str, name: str, spec: str) -> None:
-    has_lower = ">=" in spec or "==" in spec or "~=" in spec
-    has_upper = "<" in spec or "==" in spec or "~=" in spec
-    if not (has_lower and has_upper):
-        missing = "upper" if has_lower else "lower" if has_upper else "both"
-        findings.append(
-            f"{where}: {name}{' ' + spec if spec else ''} — "
-            f"{missing} bound missing; use `name>=X,<Y` so a new major "
-            f"cannot enter CI unreviewed"
-        )
+    lower, upper = _bound_flags(spec)
+    if lower and upper:
+        return
+    missing = _missing_bound(lower, upper)
+    suffix = " " + spec if spec else ""
+    findings.append(
+        f"{where}: {name}{suffix} — {missing} bound missing; use "
+        f"`name>=X,<Y` so a new major cannot enter CI unreviewed"
+    )
+
+
+def _bound_flags(spec):
+    exact = "==" in spec or "~=" in spec
+    return ">=" in spec or exact, "<" in spec or exact
+
+
+def _missing_bound(lower, upper):
+    if lower:
+        return "upper"
+    return "lower" if upper else "both"
 
 
 def _parse_pyproject(path: Path) -> list[tuple[str, str, str]]:
@@ -213,17 +261,19 @@ def _parse_pyproject(path: Path) -> list[tuple[str, str, str]]:
         project = tomllib.loads(path.read_text()).get("project", {})
     except ModuleNotFoundError:  # pre-3.11 lane: the requirement strings are
         return _parse_pyproject_naive(path)  # flat enough for a line parser
-    out = []
-    for req in project.get("dependencies", []):
-        m = _NAME_RE.match(req)
-        if m:
-            out.append((m.group(1), m.group(2).strip(), "required"))
+    out = _project_requirements(project.get("dependencies", []), "required")
     for group, reqs in project.get("optional-dependencies", {}).items():
         lane = "dev" if group == "dev" else "optional"
-        for req in reqs:
-            m = _NAME_RE.match(req)
-            if m:
-                out.append((m.group(1), m.group(2).strip(), lane))
+        out.extend(_project_requirements(reqs, lane))
+    return out
+
+
+def _project_requirements(requirements, lane):
+    out = []
+    for requirement in requirements:
+        match = _NAME_RE.match(requirement)
+        if match:
+            out.append((match.group(1), match.group(2).strip(), lane))
     return out
 
 
@@ -231,105 +281,144 @@ def _parse_pyproject_naive(path: Path) -> list[tuple[str, str, str]]:
     out, lane = [], None
     for raw in path.read_text().splitlines():
         line = raw.split("#", 1)[0].strip()
-        if line.startswith("["):
-            lane = None
-        if line.startswith("dependencies"):
-            lane = "required"
-        elif line.startswith("[project.optional-dependencies]"):
-            lane = "optional"
-        elif lane and line.startswith('"'):
-            m = _NAME_RE.match(line.strip('",'))
-            if m:
-                out.append((m.group(1), m.group(2).strip(), lane))
-        elif lane == "required" and line.endswith("]"):
-            lane = None
+        lane, requirement = _naive_project_line(line, lane)
+        if requirement:
+            out.append(requirement)
     return out
+
+
+def _naive_project_line(line, lane):
+    if line.startswith("dependencies"):
+        return "required", None
+    if line.startswith("[project.optional-dependencies]"):
+        return "optional", None
+    if line.startswith("["):
+        return None, None
+    if lane and line.startswith('"'):
+        match = _NAME_RE.match(line.strip('",'))
+        requirement = _matched_requirement(match, lane)
+        return lane, requirement
+    if lane == "required" and line.endswith("]"):
+        return None, None
+    return lane, None
+
+
+def _matched_requirement(match, lane):
+    if not match:
+        return None
+    return match.group(1), match.group(2).strip(), lane
 
 
 def _declared(root: Path) -> tuple[dict[str, str], list[str]]:
     """(normalized dist name -> lane, R2 findings)."""
     lanes: dict[str, str] = {}
     findings: list[str] = []
-    for rel, lane in REQ_FILES.items():
-        path = root / rel
+    _declare_requirements(root, lanes, findings)
+    _declare_projects(root, lanes, findings)
+    return lanes, findings
+
+
+def _declare_requirements(root, lanes, findings):
+    for relative, lane in REQ_FILES.items():
+        path = root / relative
         if not path.exists():
-            findings.append(f"{rel}: missing — declared in REQ_FILES but not on disk")
+            findings.append(f"{relative}: missing — declared in REQ_FILES but not on disk")
             continue
         for name, spec, lineno in _parse_requirements(path):
             _set_lane(lanes, _norm(name), lane)
-            _check_bounds(findings, f"{rel}:{lineno}", name, spec)
-    for rel in PYPROJECT_FILES:
-        path = root / rel
+            _check_bounds(findings, f"{relative}:{lineno}", name, spec)
+
+
+def _declare_projects(root, lanes, findings):
+    for relative in PYPROJECT_FILES:
+        path = root / relative
         if not path.exists():
-            findings.append(f"{rel}: missing — declared in PYPROJECT_FILES but not on disk")
+            findings.append(f"{relative}: missing — declared in PYPROJECT_FILES but not on disk")
             continue
         for name, spec, lane in _parse_pyproject(path):
             _set_lane(lanes, _norm(name), lane)
-            _check_bounds(findings, rel, name, spec)
-    return lanes, findings
+            _check_bounds(findings, relative, name, spec)
 
 
 def run(root: Path = ROOT) -> tuple[bool, list[str]]:
     lanes, findings = _declared(root)
     local = _local_module_names(root)
     stdlib = set(sys.stdlib_module_names)
-    surface: dict[str, bool] = {}  # import name -> seen at module scope
-
+    surface = {}
     for path in _sources(root):
-        try:
-            text = path.read_text(errors="replace")
-            tree = ast.parse(text)
-        except SyntaxError as exc:
-            findings.append(f"{path.relative_to(root)}: unparseable — {exc}")
-            continue
-        for mod, lineno, guarded in _imports(tree, "importorskip" in text):
-            if mod in stdlib or mod in local or mod in SYSTEM_MODULES:
-                continue
-            surface[mod] = surface.get(mod, False) or not guarded
-            dist = _norm(IMPORT_TO_DIST.get(mod, mod))
-            lane = lanes.get(dist)
-            rel = path.relative_to(root)
-            if lane is None:
-                findings.append(
-                    f"{rel}:{lineno}: imports `{mod}` ({dist}), which no "
-                    f"requirements file declares — add it with bounds, or map "
-                    f"it in IMPORT_TO_DIST/SYSTEM_MODULES"
-                )
-            elif lane == "optional" and not guarded:
-                findings.append(
-                    f"{rel}:{lineno}: `{mod}` is declared optional but imported "
-                    f"at module scope — collection fails without it. Use "
-                    f"`{mod} = pytest.importorskip(\"{mod}\")`, or promote it to "
-                    f"requirements.txt"
-                )
-            elif lane == "dev":
-                findings.append(
-                    f"{rel}:{lineno}: `{mod}` is dev tooling; the test tree must "
-                    f"not import it"
-                )
+        _audit_source(path, root, lanes, local, stdlib, surface, findings)
     return not findings, sorted(set(findings))
+
+
+def _audit_source(path, root, lanes, local, stdlib, surface, findings):
+    parsed = _parse_source(path, root, findings)
+    if parsed is None:
+        return
+    text, tree = parsed
+    for module, lineno, guarded in _imports(tree, "importorskip" in text):
+        if module in stdlib or module in local or module in SYSTEM_MODULES:
+            continue
+        surface[module] = surface.get(module, False) or not guarded
+        finding = _import_finding(path, root, module, lineno, guarded, lanes)
+        if finding:
+            findings.append(finding)
+
+
+def _parse_source(path, root, findings=None):
+    try:
+        text = path.read_text(errors="replace")
+        return text, ast.parse(text)
+    except SyntaxError as error:
+        if findings is not None:
+            findings.append(f"{path.relative_to(root)}: unparseable — {error}")
+        return None
+
+
+def _import_finding(path, root, module, lineno, guarded, lanes):
+    dist = _norm(IMPORT_TO_DIST.get(module, module))
+    lane = lanes.get(dist)
+    relative = path.relative_to(root)
+    if lane is None:
+        return (f"{relative}:{lineno}: imports `{module}` ({dist}), which no "
+                f"requirements file declares — add it with bounds, or map "
+                f"it in IMPORT_TO_DIST/SYSTEM_MODULES")
+    if lane == "optional" and not guarded:
+        return (f"{relative}:{lineno}: `{module}` is declared optional but imported "
+                f"at module scope — collection fails without it. Use "
+                f"`{module} = pytest.importorskip(\"{module}\")`, or promote it "
+                f"to requirements.txt")
+    if lane == "dev":
+        return (f"{relative}:{lineno}: `{module}` is dev tooling; the test tree "
+                f"must not import it")
+    return None
 
 
 def _list(root: Path) -> None:
     lanes, _ = _declared(root)
     local = _local_module_names(root)
     stdlib = set(sys.stdlib_module_names)
-    surface: dict[str, bool] = {}
+    surface = {}
     for path in _sources(root):
-        try:
-            text = path.read_text(errors="replace")
-            tree = ast.parse(text)
-        except SyntaxError:
-            continue
-        for mod, _lineno, guarded in _imports(tree, "importorskip" in text):
-            if mod in stdlib or mod in local:
-                continue
-            surface[mod] = surface.get(mod, False) or not guarded
+        _collect_surface(path, root, local, stdlib, surface)
     for mod in sorted(surface):
-        dist = _norm(IMPORT_TO_DIST.get(mod, mod))
-        lane = SYSTEM_MODULES.get(mod) or lanes.get(dist, "UNDECLARED")
-        scope = "module-scope" if surface[mod] else "guarded"
-        print(f"{mod:22s} {scope:13s} {lane}")
+        _print_surface_module(mod, surface[mod], lanes)
+
+
+def _collect_surface(path, root, local, stdlib, surface):
+    parsed = _parse_source(path, root)
+    if parsed is None:
+        return
+    text, tree = parsed
+    for module, _lineno, guarded in _imports(tree, "importorskip" in text):
+        if module not in stdlib and module not in local:
+            surface[module] = surface.get(module, False) or not guarded
+
+
+def _print_surface_module(module, at_module_scope, lanes):
+    dist = _norm(IMPORT_TO_DIST.get(module, module))
+    lane = SYSTEM_MODULES.get(module) or lanes.get(dist, "UNDECLARED")
+    scope = "module-scope" if at_module_scope else "guarded"
+    print(f"{module:22s} {scope:13s} {lane}")
 
 
 def main() -> int:

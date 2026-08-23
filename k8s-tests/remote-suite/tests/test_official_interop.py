@@ -19,6 +19,17 @@ import pytest
 
 import official_interop_lib as L
 
+def _guard_srv_1(ours):
+    if not ours:
+        pytest.skip("our nginx server did not start")
+
+def _guard_srv_2(off, ours):
+    if not off:
+        if ours:
+            ours.terminate()
+        pytest.skip("stock xrootd server did not start")
+
+
 pytestmark = [pytest.mark.timeout(120),
               pytest.mark.skipif(not L.have_official(),
                                  reason="stock xrootd/xrdfs/xrdcp not installed")]
@@ -33,12 +44,8 @@ def srv(tmp_path_factory):
     L.make_tree(our_data); L.make_tree(off_data)
     ours = L.start_our_server(str(base), our_data)
     off = L.start_official_server(str(base), off_data)
-    if not ours:
-        pytest.skip("our nginx server did not start")
-    if not off:
-        if ours:
-            ours.terminate()
-        pytest.skip("stock xrootd server did not start")
+    _guard_srv_1(ours)
+    _guard_srv_2(off, ours)
     ctx = {"our": L.our_url(), "off": L.off_url(),
            "our_data": our_data, "off_data": off_data}
     yield ctx

@@ -7,6 +7,27 @@ from pathlib import Path
 from cmdscripts.compile_run import REPO_ROOT, compile_binary, result, run
 
 
+def _expression_1(scope_build):
+    return (
+        [result(False, f"compile token_scope_unittest failed: {(scope_build.stderr or scope_build.stdout)[-2000:]}")]
+    )
+
+def _expression_2(results, scope_run):
+    return (
+        results.append(result(scope_run.returncode == 0, f"token_scope_unittest exited {scope_run.returncode}: {(scope_run.stderr or scope_run.stdout)[-2000:]}"))
+    )
+
+def _expression_3(results, conf_build):
+    return (
+        [*results, result(False, f"compile token_conformance_test failed: {(conf_build.stderr or conf_build.stdout)[-2000:]}")]
+    )
+
+def _expression_4(results, conf_run):
+    return (
+        results.append(result(conf_run.returncode == 0, f"token_conformance_test exited {conf_run.returncode}: {(conf_run.stderr or conf_run.stdout)[-2000:]}"))
+    )
+
+
 def run_checks(base: Path) -> list[tuple[bool, str]]:
     results: list[tuple[bool, str]] = []
     scope_bin = base / "token_scope_ut"
@@ -25,9 +46,9 @@ def run_checks(base: Path) -> list[tuple[bool, str]]:
         cwd=REPO_ROOT,
     )
     if scope_build.returncode != 0:
-        return [result(False, f"compile token_scope_unittest failed: {(scope_build.stderr or scope_build.stdout)[-2000:]}")]
+        return _expression_1(scope_build)
     scope_run = run([str(scope_bin)], cwd=REPO_ROOT)
-    results.append(result(scope_run.returncode == 0, f"token_scope_unittest exited {scope_run.returncode}: {(scope_run.stderr or scope_run.stdout)[-2000:]}"))
+    _expression_2(results, scope_run)
 
     conf_bin = base / "token_conformance_ut"
     conf_build = compile_binary(
@@ -47,9 +68,9 @@ def run_checks(base: Path) -> list[tuple[bool, str]]:
         cwd=REPO_ROOT,
     )
     if conf_build.returncode != 0:
-        return [*results, result(False, f"compile token_conformance_test failed: {(conf_build.stderr or conf_build.stdout)[-2000:]}")]
+        return _expression_3(results, conf_build)
     conf_run = run([str(conf_bin)], cwd=REPO_ROOT)
-    results.append(result(conf_run.returncode == 0, f"token_conformance_test exited {conf_run.returncode}: {(conf_run.stderr or conf_run.stdout)[-2000:]}"))
+    _expression_4(results, conf_run)
     return results
 
 

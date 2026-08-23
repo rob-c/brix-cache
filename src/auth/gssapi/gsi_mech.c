@@ -394,11 +394,79 @@ brix_gssapi_srv_create(ngx_pool_t *pool, ngx_log_t *log, SSL_CTX *ssl_ctx,
 }
 
 
+/*
+ * WHAT: Advance the TLS handshake state by one ADAT token.
+ * WHY: Keep transport negotiation separate from the public state dispatcher.
+ * HOW: Run SSL_accept, verify the completed peer, drain the response flight,
+ *      and select either delegation or the terminal state.
+ */
+static brix_gss_status_e
+gss_step_tls(brix_gssapi_srv_t *g, ngx_str_t *out)
+{
+    int r;
+    int error;
+
+    r = SSL_accept(g->ssl);
+    if (r == 1) {
+        if (gss_verify_peer(g) != NGX_OK || gss_drain(g, out) != NGX_OK) {
+            g->state = ST_FAIL;
+            return BRIX_GSS_FAILED;
+        }
+        if (g->accept_deleg) {
+            g->state = ST_WAIT_D;
+            return BRIX_GSS_CONTINUE;
+        }
+        g->state = ST_DONE;
+        return BRIX_GSS_COMPLETE;
+    }
+
+    error = SSL_get_error(g->ssl, r);
+    if (error == SSL_ERROR_WANT_READ || error == SSL_ERROR_WANT_WRITE) {
+        if (gss_drain(g, out) == NGX_OK) {
+            return BRIX_GSS_CONTINUE;
+        }
+    } else {
+        ngx_log_error(NGX_LOG_ERR, g->log, 0,
+                      "brix gsi_mech: TLS handshake failed (SSL_error=%d)",
+                      error);
+    }
+    g->state = ST_FAIL;
+    return BRIX_GSS_FAILED;
+}
+
+
+/*
+ * WHAT: Consume the GSI delegation marker and emit the proxy request.
+ * WHY: Make the marker sub-protocol an isolated state-machine operation.
+ * HOW: Read decrypted bytes, require the leading 'D', then delegate request
+ *      construction and transition to gss_send_proxy_req.
+ */
+static brix_gss_status_e
+gss_step_delegation_marker(brix_gssapi_srv_t *g, ngx_str_t *out)
+{
+    ngx_str_t dbuf;
+
+    if (gss_read_all(g, 8, &dbuf) != NGX_OK || dbuf.len == 0
+        || dbuf.data[0] != 'D')
+    {
+        ngx_log_error(NGX_LOG_ERR, g->log, 0,
+                      "brix gsi_mech: expected delegation 'D' marker");
+        g->state = ST_FAIL;
+        return BRIX_GSS_FAILED;
+    }
+    if (gss_send_proxy_req(g, out) != BRIX_GSS_CONTINUE) {
+        g->state = ST_FAIL;
+        return BRIX_GSS_FAILED;
+    }
+    return BRIX_GSS_CONTINUE;
+}
+
+
 brix_gss_status_e
 brix_gssapi_srv_step(brix_gssapi_srv_t *g, const u_char *in, size_t in_len,
     ngx_str_t *out)
 {
-    int  r, e;
+    brix_gss_status_e status;
 
     out->len = 0;
     out->data = NULL;
@@ -413,60 +481,19 @@ brix_gssapi_srv_step(brix_gssapi_srv_t *g, const u_char *in, size_t in_len,
     }
 
     if (g->state == ST_TLS) {
-        r = SSL_accept(g->ssl);
-        if (r == 1) {
-            if (gss_verify_peer(g) != NGX_OK) {
-                g->state = ST_FAIL;
-                return BRIX_GSS_FAILED;
-            }
-            if (gss_drain(g, out) != NGX_OK) {   /* server's final flight */
-                g->state = ST_FAIL;
-                return BRIX_GSS_FAILED;
-            }
-            if (g->accept_deleg) {
-                g->state = ST_WAIT_D;
-                return BRIX_GSS_CONTINUE;         /* 335: deliver flight, await 'D' */
-            }
-            g->state = ST_DONE;
-            return BRIX_GSS_COMPLETE;
-        }
-        e = SSL_get_error(g->ssl, r);
-        if (e == SSL_ERROR_WANT_READ || e == SSL_ERROR_WANT_WRITE) {
-            if (gss_drain(g, out) != NGX_OK) {
-                g->state = ST_FAIL;
-                return BRIX_GSS_FAILED;
-            }
-            return BRIX_GSS_CONTINUE;
-        }
-        ngx_log_error(NGX_LOG_ERR, g->log, 0,
-                      "brix gsi_mech: TLS handshake failed (SSL_error=%d)", e);
-        g->state = ST_FAIL;
-        return BRIX_GSS_FAILED;
+        return gss_step_tls(g, out);
     }
 
     if (g->state == ST_WAIT_D) {
-        ngx_str_t  dbuf;
-        if (gss_read_all(g, 8, &dbuf) != NGX_OK || dbuf.len == 0
-            || dbuf.data[0] != 'D')
-        {
-            ngx_log_error(NGX_LOG_ERR, g->log, 0,
-                          "brix gsi_mech: expected delegation 'D' marker");
-            g->state = ST_FAIL;
-            return BRIX_GSS_FAILED;
-        }
-        if (gss_send_proxy_req(g, out) != BRIX_GSS_CONTINUE) {
-            g->state = ST_FAIL;
-            return BRIX_GSS_FAILED;
-        }
-        return BRIX_GSS_CONTINUE;
+        return gss_step_delegation_marker(g, out);
     }
 
     if (g->state == ST_WAIT_SIGNED) {
-        brix_gss_status_e s = gss_recv_signed(g, out);
-        if (s != BRIX_GSS_COMPLETE) {
+        status = gss_recv_signed(g, out);
+        if (status != BRIX_GSS_COMPLETE) {
             g->state = ST_FAIL;
         }
-        return s;
+        return status;
     }
 
     g->state = ST_FAIL;

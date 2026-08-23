@@ -10,6 +10,8 @@ import sys
 import time
 
 from cmdscripts import run
+from cmdscripts.cache_source_helpers import start_servers, stop_servers
+from cmdscripts.command_results import print_results, selected_binary
 from fleet_ports import cmdscript_ports
 from settings import BIND_HOST, HOST, NGINX_BIN
 
@@ -124,6 +126,24 @@ def xrdfs_cat(port: int, path: str, dest: Path, xrdfs: Path = XRDFS) -> subproce
         )
 
 
+def _read_exact(port, source, destination, expected, xrdfs):
+    result = xrdfs_cat(port, source, destination, xrdfs)
+    if result.returncode != 0:
+        return False
+    return destination.read_bytes() == expected
+
+
+def _negative_succeeded(port, destination, expected, xrdfs):
+    result = xrdfs_cat(port, "/small.bin", destination, xrdfs)
+    if result.returncode != 0:
+        return False
+    if not destination.exists():
+        return False
+    if destination.stat().st_size <= 0:
+        return False
+    return destination.read_bytes() == expected
+
+
 def run_checks(base: Path, nginx_bin: str = NGINX_BIN, xrdfs: Path = XRDFS) -> list[tuple[bool, str]]:
     if not os.access(xrdfs, os.X_OK):
         return [(True, "SKIP native xrdfs not built")]
@@ -143,60 +163,47 @@ def run_checks(base: Path, nginx_bin: str = NGINX_BIN, xrdfs: Path = XRDFS) -> l
     (origin / "root" / "small.bin").write_bytes(deterministic_bytes(500_000, 131))
     (origin / "root" / "big.bin").write_bytes(deterministic_bytes(2_600_000, 137))
 
-    started: list[Path] = []
-    for name, prefix, conf in (
+    specifications = (
         ("origin", origin, origin_conf),
         ("cache", cache, cache_conf),
         ("negative", negative, negative_conf),
-    ):
-        proc = run([nginx_bin, "-p", str(prefix), "-c", str(conf)])
-        if proc.returncode != 0:
-            for item in reversed(started):
-                stop_nginx(item)
-            return [(False, f"{name} start failed: {(proc.stderr or proc.stdout)[-4000:]}")]
-        started.append(prefix)
+    )
+    started, failure = start_servers(nginx_bin, specifications, run, stop_nginx)
+    if failure:
+        return [failure]
 
     try:
         time.sleep(1)
         results: list[tuple[bool, str]] = []
         expected_small = (origin / "root" / "small.bin").read_bytes()
         small_got = base / "cred_ztn_s.got"
-        small = xrdfs_cat(cache_port, "/small.bin", small_got, xrdfs)
-        results.append((small.returncode == 0 and small_got.read_bytes() == expected_small, "byte-exact serve (ztn-authenticated fill)"))
+        small_ok = _read_exact(
+            cache_port, "/small.bin", small_got, expected_small, xrdfs,
+        )
+        results.append((small_ok, "byte-exact serve (ztn-authenticated fill)"))
 
         expected_big = (origin / "root" / "big.bin").read_bytes()
         big_got = base / "cred_ztn_b.got"
-        big = xrdfs_cat(cache_port, "/big.bin", big_got, xrdfs)
-        results.append((big.returncode == 0 and big_got.read_bytes() == expected_big, "multi-chunk ztn-authenticated fill byte-exact"))
+        big_ok = _read_exact(cache_port, "/big.bin", big_got, expected_big, xrdfs)
+        results.append((big_ok, "multi-chunk ztn-authenticated fill byte-exact"))
 
         negative_got = base / "cred_ztn_n.got"
-        negative_read = xrdfs_cat(negative_port, "/small.bin", negative_got, xrdfs)
-        negative_succeeded = (
-            negative_read.returncode == 0
-            and negative_got.exists()
-            and negative_got.stat().st_size > 0
-            and negative_got.read_bytes() == expected_small
+        negative_succeeded = _negative_succeeded(
+            negative_port, negative_got, expected_small, xrdfs,
         )
         results.append((not negative_succeeded, "unauthenticated fill correctly failed (origin required a token)"))
         return results
     finally:
-        for prefix in reversed(started):
-            stop_nginx(prefix)
+        stop_servers(started, stop_nginx)
 
 
 def entry(argv: list[str]) -> int:
-    nginx_bin = argv[0] if argv else NGINX_BIN
+    nginx_bin = selected_binary(argv, NGINX_BIN)
     import tempfile
 
     with tempfile.TemporaryDirectory(prefix="cred_ztn.") as tmp:
         results = run_checks(Path(tmp), nginx_bin=nginx_bin)
-    for ok, message in results:
-        print(f"  {'ok  ' if ok else 'FAIL'} {message}")
-    if all(ok for ok, _ in results):
-        print("run_credential_xroot_ztn: ALL PASS")
-        return 0
-    print("run_credential_xroot_ztn: FAILURES")
-    return 1
+    return print_results(results, "run_credential_xroot_ztn")
 
 
 if __name__ == "__main__":

@@ -45,6 +45,11 @@ from cmdscripts.live_common import (
 )
 
 # conftest chdir()s into a scratch dir — anchor imports on this file's dir.
+def _guard_fetch_1(token, req):
+    if token is not None:
+        req.add_header("Authorization", f"Bearer {token}")
+
+
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "cvmfs"))
 
 from conformance_common import NGINX_BIN, PortBlock, srv_instance
@@ -104,8 +109,7 @@ def _forge_webroot(tmp: Path) -> tuple[Path, str, bytes, str, bytes]:
 def _fetch(port, path, *, https=False, token=None):
     scheme = "https" if https else "http"
     req = urllib.request.Request(f"{scheme}://{HOST}:{port}{path}")
-    if token is not None:
-        req.add_header("Authorization", f"Bearer {token}")
+    _guard_fetch_1(token, req)
     kw = {"context": ssl._create_unverified_context()} if https else {}
     try:
         with urllib.request.urlopen(req, timeout=15, **kw) as r:
@@ -194,8 +198,11 @@ def test_member_5xx_surfaces_and_never_advances(tmp_path):
         assert 500 <= st < 600, f"member 5xx did not surface (got {st})"
         # member[0] was attempted; member[1] was NEVER consulted
         probed = [h["path"] for h in srv.get_heads()]
-        assert f"/cvmfs/{MEMBER_A}/{rel}" in probed
-        assert f"/cvmfs/{MEMBER_B}/{rel}" not in probed
+        def _assert_test_member_5xx_surfaces_and_never_advances_1():
+            assert f"/cvmfs/{MEMBER_A}/{rel}" in probed
+            assert f"/cvmfs/{MEMBER_B}/{rel}" not in probed
+
+        _assert_test_member_5xx_surfaces_and_never_advances_1()
         assert srv.count_log(f"/cvmfs/{MEMBER_B}/{rel}") == 0, \
             "a non-404 member error advanced the walk"
 

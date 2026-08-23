@@ -72,53 +72,74 @@ _B_TOKEN_GAP = ("stock xrootd v5.9.6 does not forward the client WLCG token to t
 
 def _run_cell_b(h: ForwardHarness, wire: str, cred: str) -> None:
     key = f"B {wire} {cred}"
-    verdict, why = h.feasibility_probe("B", h.hop2(wire), cred)
-    if verdict != "SUPPORTED":
-        h.record(key, verdict, why)
+    if not _cell_b_supported(h, wire, cred, key):
         return
-    # Token forwarding through a stock xrootd front is a PROVEN stock blocker
-    # (XrdPssConfig: "We don't support credential forwarding, yet").
-    if cred == "token":
-        h.record(key, "GAP", _B_TOKEN_GAP)
-        return
-    if SYS_XRDCP is None:
-        h.record(key, "SKIP", "system xrdcp absent — cannot drive the stock pss front")
-        return
-
     bport, fport = free_ports(2)
-    if cred == "gsi":
-        bextra = (f"brix_auth gsi;\n        brix_certificate     {SERVER_CERT};\n"
-                  f"        brix_certificate_key {SERVER_KEY};\n"
-                  f"        brix_trusted_ca      {CA_CERT};")
-    else:
-        bextra = (f"brix_auth token;\n        brix_token_jwks     {h.tok_jwks};\n"
-                  f"        brix_token_issuer   {h.tok_issuer};\n"
-                  f"        brix_token_audience {TOK_AUD};")
+    bextra = _cell_b_backend_auth(h, cred)
     blog = h.spawn_brix_node(f"bbk_{wire}_{cred}", "root", bport, "", bextra)
     if blog is None:
         h.record(key, "FAIL", "brix backend start failed")
         return
     bexport = h.prefix / f"bbk_{wire}_{cred}/export"
     h.spawn_xrootd_node(f"bfront_{wire}_{cred}", "pss", fport, f"{HOST}:{bport}", cred)
+    _drive_cell_b(h, wire, cred, fport, blog)
+    _record_cell_b_result(h, key, wire, blog, bexport)
 
+
+def _cell_b_supported(h, wire, cred, key):
+    verdict, why = h.feasibility_probe("B", h.hop2(wire), cred)
+    if verdict != "SUPPORTED":
+        h.record(key, verdict, why)
+        return False
+    if cred == "token":
+        h.record(key, "GAP", _B_TOKEN_GAP)
+        return False
+    if SYS_XRDCP is None:
+        h.record(key, "SKIP", "system xrdcp absent")
+        return False
+    return True
+
+
+def _cell_b_backend_auth(h, cred):
+    if cred == "gsi":
+        return (f"brix_auth gsi;\n        brix_certificate     {SERVER_CERT};\n"
+                f"        brix_certificate_key {SERVER_KEY};\n"
+                f"        brix_trusted_ca      {CA_CERT};")
+    return (f"brix_auth token;\n        brix_token_jwks     {h.tok_jwks};\n"
+            f"        brix_token_issuer   {h.tok_issuer};\n"
+            f"        brix_token_audience {TOK_AUD};")
+
+
+def _drive_cell_b(h, wire, cred, front_port, blog):
     blog.write_text("")
     payload = h.prefix / "payloadB_A.bin"
     payload.write_bytes(os.urandom(65536))
-    if cred == "gsi":
-        env = h.gsi_env(h.proxy_a)
-    else:
-        env = {"BEARER_TOKEN": h.token_a.read_text().strip()}
-    _call([SYS_XRDCP, "-f", payload, f"root://{HOST}:{fport}//posB_{wire}.bin"],
+    env = h.gsi_env(h.proxy_a) if cred == "gsi" else {
+        "BEARER_TOKEN": h.token_a.read_text().strip()
+    }
+    _call([SYS_XRDCP, "-f", payload, f"root://{HOST}:{front_port}//posB_{wire}.bin"],
           env_add=env, timeout=60)
     time.sleep(0.5)
 
+
+def _record_cell_b_result(h, key, wire, blog, bexport):
     blog_text = blog.read_text(errors="replace") if blog.is_file() else ""
-    if h.assert_backend_identity("brix", blog, A_CN) or h.assert_backend_identity("brix", blog, A_SUB):
-        if (bexport / f"posB_{wire}.bin").is_file():
-            h.record(key, "PASS", "stock pss forwarded userA identity to brix-back")
-        else:
-            h.record(key, "GAP", "userA authenticated at brix-back but no bytes (pss delegated auth only)")
+    user_seen = h.assert_backend_identity("brix", blog, A_CN)
+    user_seen = user_seen or h.assert_backend_identity("brix", blog, A_SUB)
+    if user_seen:
+        _record_cell_b_user(h, key, wire, bexport)
         return
+    _record_cell_b_gap(h, key, blog_text)
+
+
+def _record_cell_b_user(h, key, wire, bexport):
+    if (bexport / f"posB_{wire}.bin").is_file():
+        h.record(key, "PASS", "stock pss forwarded userA identity to brix-back")
+    else:
+        h.record(key, "GAP", "userA authenticated but no bytes landed")
+
+
+def _record_cell_b_gap(h, key, blog_text):
     if re.search(r"GSI auth OK dn=|valid token sub=", blog_text):
         h.record(key, "GAP", "stock pss forwarded its own service identity, not userA (documented stock limitation)")
     elif not blog_text.strip() or not re.search(r"auth|login|token", blog_text):
@@ -213,26 +234,32 @@ def _grep_tail(log: Path, pattern: str, count: int) -> list[str]:
 
 
 def _probe_variant(h: ForwardHarness, variant: str, probe_results: list[tuple[str, str, str]]) -> None:
-    def rec(status: str, detail: str) -> None:
-        probe_results.append((variant, status, detail))
-        print(f"  [{status}] {variant:<26} {detail}")
-
     bport, fport = free_ports(2)
     bextra = (f"brix_auth token;\n        brix_token_jwks     {h.tok_jwks};\n"
               f"        brix_token_issuer   {h.tok_issuer};\n"
               f"        brix_token_audience {TOK_AUD};")
     blog = h.spawn_brix_node("bbk_tok_" + variant, "roots", bport, "", bextra)
     if blog is None:
-        rec("SKIP", "brix token backend failed to start")
+        _record_probe(probe_results, variant, "SKIP", "brix token backend failed to start")
         return
     bexport = h.prefix / f"bbk_tok_{variant}/export"
     front_log = _probe_spawn_front(h, f"sf_{variant}", variant, fport, f"{HOST}:{bport}")
-
     if not wait_tcp(HOST, fport, 2):
         why = ";".join(_grep_tail(front_log, r"Config|error|persona|unsupported|unable", 3))
-        rec("BLOCKED", f"front did not listen: {why or f'see {front_log}'}")
+        _record_probe(probe_results, variant, "BLOCKED",
+                      f"front did not listen: {why or f'see {front_log}'}")
         return
+    _drive_token_probe(h, variant, fport, blog)
+    _classify_token_probe(h, variant, blog, bexport, probe_results)
+    _print_probe_logs(variant, blog, front_log)
 
+
+def _record_probe(results, variant, status, detail):
+    results.append((variant, status, detail))
+    print(f"  [{status}] {variant:<26} {detail}")
+
+
+def _drive_token_probe(h, variant, front_port, blog):
     blog.write_text("")
     payload = h.prefix / f"pl_{variant}.bin"
     payload.write_bytes(os.urandom(65536))
@@ -241,24 +268,28 @@ def _probe_variant(h: ForwardHarness, variant: str, probe_results: list[tuple[st
            "XRD_CONNECTIONWINDOW": "8", "XRD_CONNECTIONRETRY": "1",
            "XRD_REQUESTTIMEOUT": "12", "XRD_STREAMTIMEOUT": "12",
            "XRD_TIMEOUTRESOLUTION": "1"}
-    _call([SYS_XRDCP, "-f", payload, f"roots://{HOST}:{fport}//probe_{variant}.bin"],
+    _call([SYS_XRDCP, "-f", payload, f"roots://{HOST}:{front_port}//probe_{variant}.bin"],
           env_add=env, timeout=40)
     time.sleep(0.8)
 
+
+def _classify_token_probe(h, variant, blog, bexport, results):
     blog_text = blog.read_text(errors="replace") if blog.is_file() else ""
     if re.search(r'valid token sub="?fwd-user-a"?', blog_text):
         if (bexport / f"probe_{variant}.bin").is_file():
-            rec("PASS", "brix-back authenticated END USER (sub=fwd-user-a) AND bytes landed")
+            _record_probe(results, variant, "PASS", "end user authenticated and bytes landed")
         else:
-            rec("PARTIAL", "brix-back authenticated sub=fwd-user-a but no bytes")
+            _record_probe(results, variant, "PARTIAL", "end user authenticated but no bytes")
     elif re.search(r"valid token sub=", blog_text):
         sub = re.findall(r'valid token sub="?[^" ]+', blog_text)[-1]
-        rec("WRONG_ID", f"brix-back authenticated a NON-userA token: {sub}")
+        _record_probe(results, variant, "WRONG_ID", f"non-userA token: {sub}")
     elif re.search(r"token|auth|login|Auth", blog_text):
-        rec("NO_FWD", "brix-back saw auth activity but NOT userA's token (see below)")
+        _record_probe(results, variant, "NO_FWD", "auth activity without userA token")
     else:
-        rec("NO_FWD", "brix-back authenticated NOBODY — token NOT forwarded (anonymous)")
+        _record_probe(results, variant, "NO_FWD", "token not forwarded")
 
+
+def _print_probe_logs(variant, blog, front_log):
     print(f"    --- brix-back auth-relevant log ({variant}) ---")
     for line in _grep_tail(blog, r"token|auth|login|ztn|handshake|anonymous|entity|sub=", 8):
         print(f"      {line}")
@@ -304,6 +335,14 @@ def transparent_relay(nginx: Path | None = None) -> int:
         return 0
     with LiveRun("relay", nginx) as run:
         origin_port, relay_port = free_ports(2)
+        context = _prepare_relay(run, origin_port, relay_port)
+        if not _start_relay(run, context, origin_port, relay_port):
+            return 2
+        time.sleep(1)
+        return _exercise_relay(run, context, relay_port)
+
+
+def _prepare_relay(run, origin_port, relay_port):
         origin, relay = run.mkdir("o"), run.mkdir("n")
         (origin / "root").mkdir()
         (origin / "logs").mkdir()
@@ -319,39 +358,50 @@ stream {{ server {{
     brix_transparent_proxy {HOST}:{origin_port};
 }} }}
 """)
-        # Root harness: these configs pin no `user`, so the always-on
-        # de-escalation drops workers to `nobody`, which cannot traverse the
-        # 0700 mkdtemp tree — the export's confined-ops open EACCESes and the
-        # node never serves. Open the tree for that worker (this direct launch
-        # bypasses ForwardHarness._start_nginx, so the opening is repeated here).
-        from cmdscripts import open_tree_for_worker  # noqa: PLC0415
-        for prefix, conf, port in ((origin, origin_conf, origin_port), (relay, relay_conf, relay_port)):
-            open_tree_for_worker(run.root, conf)
-            result = _call([run.nginx, "-p", prefix, "-c", conf],
-                           env_drop=("NGINX",))
-            if result.returncode:
-                print(f"start failed: {result.stderr.strip()}")
-                return 2
-            run.pidfiles.append(prefix / "pid")
-        time.sleep(1)
-        payload = origin / "root/f.bin"
-        payload.write_bytes(os.urandom(300000))
+        return {"origin": origin, "relay": relay,
+                "origin_conf": origin_conf, "relay_conf": relay_conf}
 
-        got = run.root / "relay_a.got"
-        _call([BRIX_XRDFS, f"root://{HOST}:{relay_port}", "cat", "/f.bin"],
+
+def _start_relay(run, context, origin_port, relay_port):
+    from cmdscripts import open_tree_for_worker  # noqa: PLC0415
+    nodes = ((context["origin"], context["origin_conf"], origin_port),
+             (context["relay"], context["relay_conf"], relay_port))
+    for prefix, conf, _port in nodes:
+        open_tree_for_worker(run.root, conf)
+        result = _call([run.nginx, "-p", prefix, "-c", conf], env_drop=("NGINX",))
+        if result.returncode:
+            print(f"start failed: {result.stderr.strip()}")
+            return False
+        run.pidfiles.append(prefix / "pid")
+    return True
+
+
+def _exercise_relay(run, context, relay_port):
+    payload = context["origin"] / "root/f.bin"
+    payload.write_bytes(os.urandom(300000))
+    got = run.root / "relay_a.got"
+    _call([BRIX_XRDFS, f"root://{HOST}:{relay_port}", "cat", "/f.bin"],
               stdout_to=got, timeout=60)
-        stat = _call([BRIX_XRDFS, f"root://{HOST}:{relay_port}", "stat", "/f.bin"], timeout=60)
-        time.sleep(0.5)
-        relay_log = (relay / "logs/e.log").read_text(errors="replace")
-        checks = [
-            (got.is_file() and got.read_bytes() == payload.read_bytes(), "relay passthrough byte-exact"),
+    stat = _call([BRIX_XRDFS, f"root://{HOST}:{relay_port}", "stat", "/f.bin"], timeout=60)
+    time.sleep(0.5)
+    relay_log = (context["relay"] / "logs/e.log").read_text(errors="replace")
+    checks = _relay_checks(got, payload, stat, relay_log)
+    return _print_relay_results(checks)
+
+
+def _relay_checks(got, payload, stat, relay_log):
+    exact = got.is_file() and got.read_bytes() == payload.read_bytes()
+    return [(exact, "relay passthrough byte-exact"),
             (stat.returncode == 0, "stat via relay"),
             ('"op":"open"' in relay_log, "tap logged open"),
-            ('"op":"stat"' in relay_log, "tap logged stat"),
-        ]
-        for passed, message in checks:
-            print(f"  {'ok  ' if passed else 'FAIL'} {message}")
-        return 0 if all(passed for passed, _ in checks) else 1
+            ('"op":"stat"' in relay_log, "tap logged stat")]
+
+
+def _print_relay_results(checks):
+    for passed, message in checks:
+        label = "ok  " if passed else "FAIL"
+        print(f"  {label} {message}")
+    return 0 if all(passed for passed, _ in checks) else 1
 
 
 SCENARIOS = {

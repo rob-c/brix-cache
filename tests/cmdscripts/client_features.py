@@ -29,6 +29,42 @@ from cmdscripts.compile_run import REPO_ROOT
 from cmdscripts.live_common import LiveRun
 from settings import NGINX_ANON_PORT, SERVER_HOST
 
+def _phase_section_mirror_delete_1(s, rdst_rel, rdst2_rel, rdst3_rel):
+    for rel in (f"/tmp/{s.tag}-mdsrc", rdst_rel, rdst2_rel, rdst3_rel):
+        s.rm_remote(rel, recursive=True)
+
+def _phase_section_journal_2(j):
+    for name, text in (("a.txt", "alpha\n"), ("b.txt", "bravo\n"), ("c.txt", "charlie\n")):
+        (j / "src" / name).write_text(text)
+
+
+def _proc_output(proc):
+    return (
+        (proc.stdout or "") + (proc.stderr or "")
+    )
+
+def _expression_2(proc):
+    return (
+        (proc.stdout or "") + (proc.stderr or "")
+    )
+
+def _expression_3(proc):
+    return (
+        (proc.stdout or "") + (proc.stderr or "")
+    )
+
+def _expression_4(s, dl_out):
+    return (
+        s.check("--remove-source download: local dst has content",
+                    dl_out.exists() and dl_out.read_text() == "download-move\n")
+    )
+
+def _expression_5(proc):
+    return (
+        (proc.stdout or "") + (proc.stderr or "")
+    )
+
+
 BIN = REPO_ROOT / "client/bin"
 USAGE_ERROR = 50
 
@@ -216,11 +252,7 @@ def section_sync_modes(s: Session) -> None:
 
 
 # --------------------------------------------------------------------------- #
-def section_mirror_delete(s: Session) -> None:
-    print("== mirror delete (--delete) ==")
-    src = _seed_src_tree(s.work)
-    dst = s.work / "dst"
-
+def _mirror_delete_usage(s, src, dst):
     rc = s.cp("-r", "--delete", f"{src}/", f"{dst}/").returncode
     s.check("--delete without --sync exits 50", rc == USAGE_ERROR)
 
@@ -230,6 +262,13 @@ def section_mirror_delete(s: Session) -> None:
     # --delete (mirror) and --remove-source (move) are contradictory.
     rc = s.cp("-r", "--sync", "--delete", "--remove-source", f"{src}/", f"{dst}/").returncode
     s.check("--delete + --remove-source exits 50", rc == USAGE_ERROR)
+
+
+def section_mirror_delete(s: Session) -> None:
+    print("== mirror delete (--delete) ==")
+    src = _seed_src_tree(s.work)
+    dst = s.work / "dst"
+    _mirror_delete_usage(s, src, dst)
 
     print("== mirror delete (fleet) ==")
     if not s.have_fleet():
@@ -266,8 +305,7 @@ def section_mirror_delete(s: Session) -> None:
     s.check("--dry-run --delete: prints delete line", "[dry-run] delete" in dry_out)
     s.check("--dry-run --delete: phantom file unchanged", s.fs_stat_ok(f"{rdst3_rel}/phantom.root"))
 
-    for rel in (f"/tmp/{s.tag}-mdsrc", rdst_rel, rdst2_rel, rdst3_rel):
-        s.rm_remote(rel, recursive=True)
+    _phase_section_mirror_delete_1(s, rdst_rel, rdst2_rel, rdst3_rel)
 
 
 # --------------------------------------------------------------------------- #
@@ -305,8 +343,7 @@ def section_remove_source(s: Session) -> None:
     s.cp("-s", "-f", rs / "dl_seed.txt", f"{s.url}//{rsbase}/dl.txt")
     s.cp("-s", "--remove-source", f"{s.url}//{rsbase}/dl.txt", rs / "dl_out.txt")
     dl_out = rs / "dl_out.txt"
-    s.check("--remove-source download: local dst has content",
-            dl_out.exists() and dl_out.read_text() == "download-move\n")
+    _expression_4(s, dl_out)
     s.check("--remove-source download: remote src removed", not s.fs_stat_ok(f"{rsbase}/dl.txt"))
 
     # Recursive move: local tree gone, remote files exist, no spurious warning.
@@ -316,7 +353,7 @@ def section_remove_source(s: Session) -> None:
     (rmvtree / "f2.txt").write_text("file-2\n")
     (rmvtree / "sub" / "f_sub.txt").write_text("file-sub\n")
     proc = s.cp("-r", "-s", "--remove-source", f"{rmvtree}/", f"{s.url}//{rsbase}/rmvtree/")
-    rmverr = (proc.stdout or "") + (proc.stderr or "")
+    rmverr = _expression_5(proc)
     s.check("-r --remove-source: local tree removed", not rmvtree.is_dir())
     s.check("-r --remove-source: remote file 1 exists", s.fs_stat_ok(f"{rsbase}/rmvtree/f1.txt"))
     s.check("-r --remove-source: no spurious warning", "could not remove source" not in rmverr)
@@ -325,6 +362,13 @@ def section_remove_source(s: Session) -> None:
 
 
 # --------------------------------------------------------------------------- #
+def _journal_ok_count(journal):
+    if not journal.exists():
+        return 0
+    return sum(1 for line in journal.read_text().splitlines()
+               if line.startswith("ok "))
+
+
 def section_journal(s: Session) -> None:
     print("== --journal / --resume ==")
     j = s.work / "jrn"
@@ -343,31 +387,30 @@ def section_journal(s: Session) -> None:
     rdst = f"{s.url}/{jbase}"
     s.fs("mkdir", jbase)
 
-    for name, text in (("a.txt", "alpha\n"), ("b.txt", "bravo\n"), ("c.txt", "charlie\n")):
-        (j / "src" / name).write_text(text)
+    _phase_section_journal_2(j)
     manifest = j / "manifest.txt"
     journal = j / "j.journal"
     manifest.write_text("".join(f"{j}/src/{n}\n" for n in ("a.txt", "b.txt", "c.txt")))
 
     # (a) first run: 3 files copied, journal written with 3 "ok " lines.
     proc = s.cp("--from", manifest, "--journal", journal, f"{rdst}/")
-    out = (proc.stdout or "") + (proc.stderr or "")
+    out = _proc_output(proc)
     s.check("journal (a): 3 copied, 0 skipped", "3 copied, 0 skipped, 0 failed" in out)
-    ok_lines = sum(1 for line in journal.read_text().splitlines() if line.startswith("ok ")) if journal.exists() else 0
+    ok_lines = _journal_ok_count(journal)
     s.check("journal (a): journal has 3 ok lines", ok_lines == 3)
 
     # (b) add 4th file; rerun with the same journal -> 1 copied, 3 skipped.
     (j / "src" / "d.txt").write_text("delta\n")
     manifest.write_text("".join(f"{j}/src/{n}\n" for n in ("a.txt", "b.txt", "c.txt", "d.txt")))
     proc = s.cp("--from", manifest, "--journal", journal, f"{rdst}/")
-    out = (proc.stdout or "") + (proc.stderr or "")
+    out = _expression_2(proc)
     s.check("journal (b): 1 copied, 3 skipped", "1 copied, 3 skipped, 0 failed" in out)
     s.check("journal (b): d.txt was uploaded", s.fs_stat_ok(f"{jbase}/d.txt"))
 
     # (c) hostile/malformed journal line must be silently ignored (never crash).
     journal.write_text("garbage-not-an-ok-line\n" + journal.read_text())
     proc = s.cp("--from", manifest, "--journal", journal, f"{rdst}/")
-    out = (proc.stdout or "") + (proc.stderr or "")
+    out = _expression_3(proc)
     s.check("journal (c): 0 copied, 4 skipped (corrupt line tolerated)",
             "0 copied, 4 skipped, 0 failed" in out)
 

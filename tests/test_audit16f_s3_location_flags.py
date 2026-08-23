@@ -136,6 +136,43 @@ from server_registry import NginxInstanceSpec
 from settings import BIND_HOST, HOST, NGINX_BIN, url_host
 from utils.make_token import TokenIssuer
 
+def _expression_1(forge_seed, seed):
+    return (
+        "0" * 64 if forge_seed else seed
+    )
+
+def _expression_2(tamper, index):
+    return (
+        tamper is not None and index == tamper
+    )
+
+def _expression_3(amz_date, decoded_len, scope, signed, forge_seed, seed):
+    return (
+        {
+                "x-amz-date": amz_date,
+                "x-amz-content-sha256": STREAMING,
+                "x-amz-decoded-content-length": str(decoded_len),
+                "Content-Encoding": "aws-chunked",
+                "Authorization": (
+                    f"AWS4-HMAC-SHA256 Credential={ACCESS_KEY}/{scope}, "
+                    f"SignedHeaders={signed}, "
+                    f"Signature={'0' * 64 if forge_seed else seed}")}
+    )
+
+
+def _guard_sign_1(session_token, sign_session_token, headers):
+    if session_token and sign_session_token:
+        headers.append(("x-amz-security-token", session_token))
+
+def _guard_sign_2(session_token, out):
+    if session_token:
+        out["x-amz-security-token"] = session_token
+
+def _guard_s3flags_3():
+    if not os.access(NGINX_BIN, os.X_OK):
+        pytest.skip(f"nginx binary not executable: {NGINX_BIN}")
+
+
 pytestmark = [pytest.mark.timeout(600),
               pytest.mark.uses_lifecycle_harness,
               pytest.mark.xdist_group("lc-audit16f-s3flags")]
@@ -225,8 +262,7 @@ def _sign(port, method, path, *, query=None, session_token=None,
     date = now.strftime("%Y%m%d")
 
     headers = [("host", _host_header(port)), ("x-amz-date", amz_date)]
-    if session_token and sign_session_token:
-        headers.append(("x-amz-security-token", session_token))
+    _guard_sign_1(session_token, sign_session_token, headers)
     headers.sort()
     signed = ";".join(name for name, _ in headers)
     canonical_headers = "".join(f"{name}:{value}\n" for name, value in headers)
@@ -244,8 +280,7 @@ def _sign(port, method, path, *, query=None, session_token=None,
                "AWS4-HMAC-SHA256 "
                f"Credential={ACCESS_KEY}/{date}/{REGION}/s3/aws4_request, "
                f"SignedHeaders={signed}, Signature={signature}")}
-    if session_token:
-        out["x-amz-security-token"] = session_token
+    _guard_sign_2(session_token, out)
     return out
 
 
@@ -282,7 +317,7 @@ def _streaming_put(port, bucket, key, chunks, *, tamper=None, forge_seed=False):
     # Each chunk signs its own payload over the PREVIOUS signature, so the seed
     # is the first link of the chain even when the request carries a forged one.
     body = b""
-    previous = "0" * 64 if forge_seed else seed
+    previous = _expression_1(forge_seed, seed)
     for index, payload in enumerate(list(chunks) + [b""]):
         chunk_sts = (f"AWS4-HMAC-SHA256-PAYLOAD\n{amz_date}\n{scope}\n"
                      f"{previous}\n{EMPTY_SHA256}\n"
@@ -290,20 +325,12 @@ def _streaming_put(port, bucket, key, chunks, *, tamper=None, forge_seed=False):
         signature = hmac.new(key_material, chunk_sts.encode(),
                              hashlib.sha256).hexdigest()
         previous = signature
-        if tamper is not None and index == tamper:
+        if _expression_2(tamper, index):
             signature = "0" * 64
         body += b"%x;chunk-signature=%s\r\n%s\r\n" % (
             len(payload), signature.encode(), payload)
 
-    headers = {
-        "x-amz-date": amz_date,
-        "x-amz-content-sha256": STREAMING,
-        "x-amz-decoded-content-length": str(decoded_len),
-        "Content-Encoding": "aws-chunked",
-        "Authorization": (
-            f"AWS4-HMAC-SHA256 Credential={ACCESS_KEY}/{scope}, "
-            f"SignedHeaders={signed}, "
-            f"Signature={'0' * 64 if forge_seed else seed}")}
+    headers = _expression_3(amz_date, decoded_len, scope, signed, forge_seed, seed)
     return requests.put(f"http://{_host_header(port)}{uri}", headers=headers,
                         data=body, timeout=30)
 
@@ -400,8 +427,7 @@ def s3flags(lifecycle, tmp_path):
     as well: the whole question §E asks is what a second listing says after
     something changed underneath.
     """
-    if not os.access(NGINX_BIN, os.X_OK):
-        pytest.skip(f"nginx binary not executable: {NGINX_BIN}")
+    _guard_s3flags_3()
 
     data = tmp_path / "data"
     for bucket in BUCKETS:

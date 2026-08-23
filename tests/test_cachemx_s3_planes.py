@@ -65,6 +65,23 @@ def cached_copies(mx, name):
     return [p for p in mx.cache_root.rglob(name) if p.is_file()]
 
 
+def _assert_put_io_metrics(snapshot, after, labels, size):
+    assert snapshot.delta(
+        "brix_io_ops_total", {**labels, "op": "write", "status": "ok"},
+        after) == 1
+    assert snapshot.delta("brix_io_bytes_written", labels, after) == size
+    assert snapshot.delta(
+        "brix_io_latency_usec_count", {**labels, "op": "write"}, after) == 1
+
+
+def _assert_put_protocol_metrics(snapshot, after):
+    assert snapshot.delta(
+        "brix_s3_put_bodies_total", {"mode": "memory"}, after) == 1
+    assert snapshot.delta(
+        "brix_s3_responses_total",
+        {"method": "PUT", "status_class": "2xx"}, after) == 1
+
+
 # --------------------------------------------------------------------------
 # Read path — both planes
 # --------------------------------------------------------------------------
@@ -164,15 +181,8 @@ def test_put_exact_accounting(mx, plane):
     assert st == 200
     assert (mx.local_data / name).read_bytes() == payload
     io = {"proto": "s3"}
-    assert s.delta("brix_io_ops_total", {**io, "op": "write", "status": "ok"},
-                   after) == 1
-    assert s.delta("brix_io_bytes_written", io, after) == size
-    assert s.delta("brix_s3_put_bodies_total", {"mode": "memory"},
-                   after) == 1
-    assert s.delta("brix_s3_responses_total",
-                   {"method": "PUT", "status_class": "2xx"}, after) == 1
-    assert s.delta("brix_io_latency_usec_count", {**io, "op": "write"},
-                   after) == 1
+    _assert_put_io_metrics(s, after, io, size)
+    _assert_put_protocol_metrics(s, after)
 
 
 def test_delete_cached_evicts_exact(mx):

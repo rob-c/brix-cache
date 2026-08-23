@@ -187,16 +187,26 @@ def _query_cases():
 
 def _post_cksum_token(ep, ctx, results):
     """Compare the checksum VALUE (first hex token), ignoring echoed path/URL."""
-    def tok(text):
-        for line in text.splitlines():
-            for w in line.split():
-                if all(c in "0123456789abcdefABCDEF" for c in w) and len(w) >= 8:
-                    return w.lower()
-        return None
-    s, o = tok(results[STOCK].stdout), tok(results[OURS].stdout)
+    s = _checksum_token(results[STOCK].stdout)
+    o = _checksum_token(results[OURS].stdout)
     if s is None and o is None:
         return
     assert s == o, "checksum value differs: stock=%r ours=%r" % (s, o)
+
+
+def _checksum_token(text):
+    for line in text.splitlines():
+        token = _line_checksum_token(line)
+        if token is not None:
+            return token
+    return None
+
+
+def _line_checksum_token(line):
+    for word in line.split():
+        if len(word) >= 8 and all(char in "0123456789abcdefABCDEF" for char in word):
+            return word.lower()
+    return None
 
 
 def _write_cases():

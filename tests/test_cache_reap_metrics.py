@@ -33,6 +33,34 @@ import pytest
 
 from server_registry import NginxInstanceSpec
 
+def _phase_test_cache_reap_reason_metrics_1(deadline, abandoned):
+    while time.time() < deadline and (os.path.exists(abandoned)
+                                      or _has_cinfo_record(abandoned)):
+        time.sleep(0.5)
+
+
+def _guard_sanitizer_flags_1(syms, flags):
+    if "__gcov_init" in syms or "__gcov_merge_add" in syms:
+        flags.append("--coverage")
+
+def _guard_sanitizer_flags_2(syms, flags):
+    if "__asan_" in syms:
+        flags.append("-fsanitize=address")
+
+def _guard_sanitizer_flags_3(syms, flags):
+    if "__ubsan" in syms:
+        flags.append("-fsanitize=undefined")
+
+def _check_test_cache_reap_reason_metrics_2(keepme):
+    assert os.path.exists(keepme), "clean no-record file wrongly reaped"
+
+def _check_test_cache_reap_reason_metrics_3(reaped):
+    assert reaped.get("completed") == 1, reaped
+
+def _check_test_cache_reap_reason_metrics_1(_has_cinfo_record, f):
+    assert _has_cinfo_record(f), "planted cinfo record missing for " + f
+
+
 try:
     from settings import NGINX_BIN, BIND_HOST
 except Exception:  # noqa: BLE001 — settings import optional outside the harness
@@ -137,12 +165,9 @@ def _sanitizer_flags(objects):
     proc = subprocess.run(["nm", *objects], capture_output=True, text=True)
     syms = proc.stdout if proc.returncode == 0 else ""
     flags = []
-    if "__gcov_init" in syms or "__gcov_merge_add" in syms:
-        flags.append("--coverage")
-    if "__asan_" in syms:
-        flags.append("-fsanitize=address")
-    if "__ubsan" in syms:
-        flags.append("-fsanitize=undefined")
+    _guard_sanitizer_flags_1(syms, flags)
+    _guard_sanitizer_flags_2(syms, flags)
+    _guard_sanitizer_flags_3(syms, flags)
     return flags
 
 
@@ -201,7 +226,7 @@ def test_cache_reap_reason_metrics(lifecycle, tmp_path):
             return False
 
     for f in (abandoned, incomplete, completed):
-        assert _has_cinfo_record(f), "planted cinfo record missing for " + f
+        _check_test_cache_reap_reason_metrics_1(_has_cinfo_record, f)
 
     # 3. Stand up nginx (stream cache reaper + HTTP /metrics).
     ep = lifecycle.start(NginxInstanceSpec(
@@ -222,20 +247,27 @@ def test_cache_reap_reason_metrics(lifecycle, tmp_path):
     #    (the data file AND its sidecar — the reaper unlinks them back to
     #    back, so wait for both to avoid observing the in-between state).
     deadline = time.time() + 25
-    while time.time() < deadline and (os.path.exists(abandoned)
-                                      or _has_cinfo_record(abandoned)):
-        time.sleep(0.5)
+    _phase_test_cache_reap_reason_metrics_1(deadline, abandoned)
 
     # 5. The three classified files (+ their cinfo records) are gone; the
     #    clean no-record control survives.
-    assert not os.path.exists(abandoned), "abandoned file not reaped"
-    assert not os.path.exists(incomplete), "incomplete file not reaped"
-    assert not os.path.exists(completed), "completed file not reaped"
-    assert not _has_cinfo_record(abandoned), "cinfo record not reaped"
-    assert os.path.exists(keepme), "clean no-record file wrongly reaped"
+    def _assert_test_cache_reap_reason_metrics_1():
+        assert not os.path.exists(abandoned), "abandoned file not reaped"
+        assert not os.path.exists(incomplete), "incomplete file not reaped"
+
+    _assert_test_cache_reap_reason_metrics_1()
+    def _assert_test_cache_reap_reason_metrics_2():
+        assert not os.path.exists(completed), "completed file not reaped"
+        assert not _has_cinfo_record(abandoned), "cinfo record not reaped"
+
+    _assert_test_cache_reap_reason_metrics_2()
+    _check_test_cache_reap_reason_metrics_2(keepme)
 
     # 6. /metrics reports exactly one reap per reason.
     reaped = _reaped_by_reason(_scrape(mport))
-    assert reaped.get("abandoned") == 1, reaped
-    assert reaped.get("incomplete") == 1, reaped
-    assert reaped.get("completed") == 1, reaped
+    def _assert_test_cache_reap_reason_metrics_3():
+        assert reaped.get("abandoned") == 1, reaped
+        assert reaped.get("incomplete") == 1, reaped
+
+    _assert_test_cache_reap_reason_metrics_3()
+    _check_test_cache_reap_reason_metrics_3(reaped)

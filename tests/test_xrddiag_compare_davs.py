@@ -25,6 +25,19 @@ import pytest
 from server_registry import NginxInstanceSpec
 from settings import HOST
 
+def _guard_fixture_1():
+    if shutil.which("cc") is None and shutil.which("gcc") is None:
+        pytest.skip("no C compiler")
+
+def _guard_fixture_2(proc):
+    if proc.returncode != 0 or not os.path.exists(XRDDIAG):
+        pytest.skip(f"xrddiag build failed:\n{proc.stdout}\n{proc.stderr}")
+
+def _guard_fixture_3():
+    if not os.access(NGINX_BIN, os.X_OK):
+        pytest.skip(f"nginx binary not executable: {NGINX_BIN}")
+
+
 pytestmark = [pytest.mark.uses_lifecycle_harness,
               pytest.mark.xdist_group("lc-xrddiag-compare-davs")]
 
@@ -36,14 +49,11 @@ XRDDIAG = os.path.join(CLIENT_DIR, "bin", "xrddiag")
 
 @pytest.fixture
 def fixture(lifecycle, tmp_path_factory):
-    if shutil.which("cc") is None and shutil.which("gcc") is None:
-        pytest.skip("no C compiler")
+    _guard_fixture_1()
     proc = subprocess.run(["make", "-C", CLIENT_DIR, "xrddiag"],
                           capture_output=True, text=True, timeout=180)
-    if proc.returncode != 0 or not os.path.exists(XRDDIAG):
-        pytest.skip(f"xrddiag build failed:\n{proc.stdout}\n{proc.stderr}")
-    if not os.access(NGINX_BIN, os.X_OK):
-        pytest.skip(f"nginx binary not executable: {NGINX_BIN}")
+    _guard_fixture_2(proc)
+    _guard_fixture_3()
 
     root = tmp_path_factory.mktemp("davs")
     dataR = root / "dataR"

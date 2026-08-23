@@ -63,6 +63,18 @@ from settings import (
 # ADMIN_SECRET is the bearer literal shared with the cms-redirect agent: it is
 # written verbatim into nginx_ipv6_mgr.conf's brix_admin_secret file and sent
 # as ``Authorization: Bearer <ADMIN_SECRET>`` here.  Keep both in lock-step.
+def _guard_test_metrics_ipv6_label_cardinality_bounded_1(status):
+    if status == 404:
+        pytest.skip("ipv6-mgr config does not expose /metrics")
+
+def _check_test_metrics_ipv6_label_cardinality_bounded_1(status):
+    assert status == 200, status
+
+def _guard_test_metrics_ipv6_label_cardinality_bounded_2(saw_any):
+    if not saw_any:
+        pytest.skip("no labeled metrics emitted yet on the ipv6-mgr instance")
+
+
 ADMIN_SECRET = "ipv6-admin-secret"
 
 MGR_HTTP = IPV6_MGR_HTTP_PORT
@@ -699,9 +711,8 @@ def test_metrics_ipv6_label_cardinality_bounded():
     value, and the distinct label-key set stays small."""
     _skip_unless_mgr_http()
     status, _hdrs, body = _http6("GET", MGR_HTTP, "/metrics")
-    if status == 404:
-        pytest.skip("ipv6-mgr config does not expose /metrics")
-    assert status == 200, status
+    _guard_test_metrics_ipv6_label_cardinality_bounded_1(status)
+    _check_test_metrics_ipv6_label_cardinality_bounded_1(status)
     text = body.decode("utf-8", "replace")
 
     label_keys = set()
@@ -720,13 +731,15 @@ def test_metrics_ipv6_label_cardinality_bounded():
                 continue
             # No colon (would be an IPv6 literal or host:port) and no other
             # high-cardinality punctuation in any non-identity value.
-            assert ":" not in v, (
-                f"colon in metric label value {name}{{{k}=\"{v}\"}}")
-            assert not bad_char_re.search(v), (
-                f"high-cardinality char in metric label value "
-                f"{name}{{{k}=\"{v}\"}}")
-    if not saw_any:
-        pytest.skip("no labeled metrics emitted yet on the ipv6-mgr instance")
+            def _assert_test_metrics_ipv6_label_cardinality_bounded_2():
+                assert ":" not in v, (
+                    f"colon in metric label value {name}{{{k}=\"{v}\"}}")
+                assert not bad_char_re.search(v), (
+                    f"high-cardinality char in metric label value "
+                    f"{name}{{{k}=\"{v}\"}}")
+
+            _assert_test_metrics_ipv6_label_cardinality_bounded_2()
+    _guard_test_metrics_ipv6_label_cardinality_bounded_2(saw_any)
     # The label-key axis is small and *enumerable*: every key is a bounded,
     # closed-set dimension (an opcode, a status class, a listener port, a
     # histogram bucket boundary, the pipeline depth, ...), never an unbounded
@@ -759,10 +772,13 @@ def test_metrics_ipv6_label_cardinality_bounded():
         "surface",       # request surface (api/data/admin/...)
     }
     rogue = label_keys - allowed_label_keys
-    assert not rogue, (
-        "unexpected (possibly high-cardinality) metric label key(s)",
-        sorted(rogue), "all keys:", sorted(label_keys))
-    # Backstop: even within the allow-list the live key set must stay small.
-    assert len(label_keys) <= len(allowed_label_keys), (
-        "metric label-key cardinality too high",
-        sorted(label_keys))
+    def _assert_test_metrics_ipv6_label_cardinality_bounded_1():
+        assert not rogue, (
+            "unexpected (possibly high-cardinality) metric label key(s)",
+            sorted(rogue), "all keys:", sorted(label_keys))
+        # Backstop: even within the allow-list the live key set must stay small.
+        assert len(label_keys) <= len(allowed_label_keys), (
+            "metric label-key cardinality too high",
+            sorted(label_keys))
+
+    _assert_test_metrics_ipv6_label_cardinality_bounded_1()

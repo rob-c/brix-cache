@@ -2,32 +2,28 @@
 #include "fs/vfs/vfs.h"   /* brix_vfs_open_fd_at (handle-table confined open) */
 #include "core/compat/host_format.h"  /* brix_format_host_port — IPv6 bracketing */
 #include "observability/sesslog/sesslog_ngx.h"
-/* File: launch_prepare.c — TPC pull destination-side preparation for native root:// third-party copy
+/* File: launch_prepare.c — TPC pull destination-side preparation for native
+ * root:// third-party copy.
+ *
  * WHAT: The prepare pipeline (split verbatim out of launch.c on 2026-07-14 for
- * file-size). tpc_send_open_response builds the kXR_ok open response body
- * (fhandle + optional statbuf) → brix_queue_response; tpc_build_origin_id
- * constructs the origin ID string from ctx->login.user+ngx_pid+getnameinfo host;
- * tpc_destination_open_flags derives O_CREAT/O_EXCL/O_TRUNC flags from the
- * options bitmask for POSIX open; tpc_prepare_check_preconditions is the
- * security-load-bearing guard ladder (thread pool + source host/path + SSRF
- * source-policy gate); tpc_open_dst_logical strips root_canon and opens the
- * destination beneath the export root; tpc_init_dst_file populates the ctx
- * ->files[] slot; brix_tpc_prepare_pull orchestrates them into the destination
- * open. Caller: dispatch.c (kXR_open TPC opaque param path) via brix_tpc_launch_pull.
+ * file-size). tpc_refuse answers every refusal on this path;
+ * tpc_prepare_check_preconditions is the security-load-bearing guard ladder
+ * (thread pool → source host/path → source-name allowlist → SSRF range gate);
+ * tpc_open_destination opens the destination through the identity-bound VFS,
+ * random-write handle or staged writer; tpc_init_dst_file populates the
+ * ctx->files[] slot; tpc_send_open_response builds the kXR_ok body (fhandle +
+ * optional statbuf); brix_tpc_prepare_pull orchestrates them. Caller:
+ * open_tpc.c (kXR_open TPC opaque path) via brix_tpc_launch_pull.
  *
- * WHY: The destination server needs to create the local file handle before
- * connecting to the source — this ensures the write target exists with correct
- * permissions and metadata before the thread-pool worker starts pulling data.
- * The launch pipeline separates preparation (event-thread, synchronous) from
- * execution (thread-pool, blocking I/O), allowing nginx to respond immediately
- * to the client open request while the actual fetch runs asynchronously.
+ * WHY: the destination server must create the local file handle before dialing
+ * the source, so the write target exists with the right permissions and metadata
+ * before the thread-pool worker starts pulling. Preparation runs synchronously on
+ * the event thread; execution runs in the pool, so nginx answers the client's
+ * open immediately while the fetch proceeds.
  *
- * HOW: prepare_pull — conf->common.thread_pool == NULL → error; tpc->src_host/path
- * empty → error; brix_tpc_check_src_policy → error if denied; idx =
- * brix_alloc_fhandle(ctx) → fd = tpc_open_dst_logical(conf, dst_path, options,
- * create_mode) → fstat(fd, &st) → file[idx] metadata set (writable=1, readable=0,
- * tpc_destination=1, tpc_key generated or echoed from tpc->key, token_mode stored)
- * → send open response with fhandle idx + stat if kXR_retstat.
+ * HOW: preconditions → brix_alloc_fhandle → tpc_open_destination →
+ * tpc_init_dst_file → brix_set_fhandle_path → session publish → open response.
+ * Any gate that refuses returns TPC_ANSWERED and the pipeline stops there.
  * */
 #include "protocols/root/session/registry.h"
 #include "protocols/root/path/op_path.h"
@@ -47,6 +43,31 @@
 #include "net/guard/guard.h"              /* guard_audit_format — fail2ban line */
 #include "tpc/common/egress_guard.h"      /* brix_tpc_source_guard_check */
 #include "observability/metrics/metrics_macros.h" /* BRIX_SRV_METRIC_INC */
+
+/*
+ * A queued response is not a return value. brix_send_error() returns NGX_OK once
+ * the kXR_error is on the wire, so a function that ends `return
+ * brix_send_error(...)` reports SUCCESS to whoever called it. At a protocol entry
+ * point that is exactly right: NGX_OK there means "request handled" and nothing
+ * runs afterwards. One call deep it is a gate bypass - the caller reads NGX_OK as
+ * "the check passed, carry on" and carries on past a refusal it has already
+ * answered, allocating the handle and queueing a second, contradictory response.
+ * The gates below therefore return TPC_ANSWERED, "refused, and the client has
+ * been told", which only brix_tpc_prepare_pull - the entry point, where the
+ * distinction stops mattering - folds back into the wire contract's NGX_OK.
+ */
+/* Log, count and answer one refusal. Never reports success; a failed write is
+ * still NGX_ERROR, so connection teardown is unchanged. */
+ngx_int_t
+brix_tpc_refuse(brix_ctx_t *ctx, ngx_connection_t *c, const char *dst_path,
+    uint16_t code, const char *msg)
+{
+    brix_log_access(ctx, c, "OPEN", dst_path, "tpc-pull", 0, code, msg, 0);
+    BRIX_OP_ERR(ctx, BRIX_OP_OPEN_WR);
+
+    return brix_send_error(ctx, c, code, msg) == NGX_OK
+           ? TPC_ANSWERED : NGX_ERROR;
+}
 
 /* WHAT: Build kXR_ok open response body (fhandle + optional statbuf from fstat) → brix_build_resp_hdr → brix_queue_response. Returns NGX_OK or NGX_ERROR on alloc failure. Caller: brix_tpc_prepare_pull (end of pull prep pipeline). */
 static ngx_int_t
@@ -191,183 +212,6 @@ tpc_build_origin_id(brix_ctx_t *ctx, ngx_connection_t *c, char *dst,
     }
 }
 
-/* WHAT: Validate the pull preconditions before any state is allocated — a
- * configured thread pool, a non-empty TPC source host+path, and an SSRF-safe
- * source address per the loopback/private allow flags. Sends the matching kXR
- * error (and logs it) and returns non-NGX_OK on the first failure; returns
- * NGX_OK when the request may proceed to fhandle allocation.
- * WHY: prepare_pull's guard ladder is the security-load-bearing front door
- * (SSRF gate included); isolating it keeps the orchestrator a flat sequence and
- * the checks independently reviewable. Behaviour (order, codes, log strings) is
- * unchanged.
- * HOW: thread_pool NULL → kXR_ServerError; empty src host/path → kXR_ArgInvalid;
- * brix_tpc_check_src_policy != 0 → kXR_NotAuthorized with its filled err text.
- * Each failure routes through the same BRIX_RETURN_ERR / brix_send_error edges
- * the inline code used. */
-/* WHAT: Emit one fail2ban-parseable audit line for a TPC egress the source
- * allowlist refused, at WARN on the connection log (the stream side has no
- * per-location audit file). The attacker-chosen source host rides the sanitized
- * path field; the labelless metric carries the count (INVARIANT 8).
- * WHY: an un-guarded gateway is a request-forgery primitive; a client probing
- * which internal hosts a gateway will dial should be banned like any scanner,
- * so the refusal shares the guard/fail2ban contract (signal=tpc_egress).
- * HOW: copy the cached ISO-8601 clock + client IP into NUL-terminated stacks,
- * sanitize the host into the path field, format via the shared guard formatter. */
-static void
-tpc_egress_emit_signal(brix_ctx_t *ctx, ngx_connection_t *c, const char *host)
-{
-    guard_request_t req;
-    char            line[512];
-    char            ip[64];
-    char            ts[sizeof("YYYY-MM-DDThh:mm:ss+00:00")];
-    char            hostbuf[256];
-    size_t          ip_len;
-    size_t          ts_len;
-
-    ip_len = ngx_min(c->addr_text.len, sizeof(ip) - 1);
-    ngx_memcpy(ip, c->addr_text.data, ip_len);
-    ip[ip_len] = '\0';
-
-    ts_len = ngx_min(ngx_cached_http_log_iso8601.len, sizeof(ts) - 1);
-    ngx_memcpy(ts, ngx_cached_http_log_iso8601.data, ts_len);
-    ts[ts_len] = '\0';
-
-    ngx_memzero(&req, sizeof(req));
-    req.ip           = ip;
-    req.proto        = "root";
-    req.op           = GUARD_OP_WRITE;   /* a TPC pull opens a write destination */
-    req.path         = hostbuf;
-    req.path_len     = brix_sanitize_log_string(host, hostbuf, sizeof(hostbuf));
-    req.cred_present = ctx->login.dn[0] != '\0' ? 1 : 0;
-    req.outcome      = OUTCOME_AUTHFAIL;
-    req.status_code  = kXR_NotAuthorized;
-
-    if (guard_audit_format(&req, GUARD_R_TPCEGRESS, ts, line, sizeof(line)) > 0) {
-        ngx_log_error(NGX_LOG_WARN, c->log, 0, "%s", line);
-    }
-}
-
-static ngx_int_t
-tpc_prepare_check_preconditions(brix_ctx_t *ctx, ngx_connection_t *c,
-    ngx_stream_brix_srv_conf_t *conf, const brix_tpc_params_t *tpc,
-    const char *dst_path)
-{
-    char     policy_err[512];
-    char     egress_err[512];
-    uint16_t sport;
-
-    if (conf->common.thread_pool == NULL) {
-        brix_log_access(ctx, c, "OPEN", dst_path, "tpc-pull",
-                          0, kXR_ServerError, "TPC requires brix_thread_pool",
-                          0);
-        BRIX_OP_ERR(ctx, BRIX_OP_OPEN_WR);
-        return brix_send_error(ctx, c, kXR_ServerError,
-                                 "TPC pull requires brix_thread_pool "
-                                 "to be configured");
-    }
-
-    if (tpc->src_host[0] == '\0' || tpc->src_path[0] == '\0') {
-        BRIX_RETURN_ERR(ctx, c, BRIX_OP_OPEN_WR, "OPEN", dst_path,
-                          "tpc-pull", kXR_ArgInvalid,
-                          "invalid or incomplete TPC source");
-    }
-
-    /*
-     * Source-egress allowlist gate (naming policy): when the operator enabled
-     * brix_tpc_source_guard, the requested source host must appear on
-     * brix_tpc_source_allow or we refuse to originate — before the address-range
-     * check below, so a non-permitted host is rejected without a DNS lookup.
-     * This is the server-side request-forgery control the client egress
-     * self-test verifies; a refusal is banworthy, so it emits the guard signal
-     * and bumps the labelless refusal counter.
-     */
-    if (brix_tpc_source_guard_check(conf->tpc_source_guard,
-            conf->tpc_source_allow, tpc->src_host,
-            egress_err, sizeof(egress_err))
-        != 0)
-    {
-        BRIX_SRV_METRIC_INC(ctx, tpc_egress_refused_total);
-        tpc_egress_emit_signal(ctx, c, tpc->src_host);
-        BRIX_RETURN_ERR(ctx, c, BRIX_OP_OPEN_WR, "OPEN", dst_path,
-                          "tpc-pull", kXR_NotAuthorized, egress_err);
-    }
-
-    /*
-     * Source policy gate (SSRF defence): before we ever connect outbound, the
-     * resolved source host/port is checked against the loopback/private-range
-     * allow flags. A destination server must not be coercible into pulling from
-     * internal addresses unless the operator explicitly permits it.
-     */
-    sport = tpc->src_port ? tpc->src_port : 1094;
-    if (brix_tpc_check_src_policy(tpc->src_host, sport,
-            conf->tpc_allow_local, conf->tpc_allow_private,
-            policy_err, sizeof(policy_err))
-        != 0)
-    {
-        BRIX_RETURN_ERR(ctx, c, BRIX_OP_OPEN_WR, "OPEN", dst_path,
-                          "tpc-pull", kXR_NotAuthorized, policy_err);
-    }
-
-    return NGX_OK;
-}
-
-static ngx_uint_t
-tpc_destination_vfs_flags(uint16_t options)
-{
-    ngx_uint_t flags = BRIX_VFS_O_WRITE | BRIX_VFS_O_CREATE;
-
-    if (options & kXR_new) {
-        flags |= BRIX_VFS_O_EXCL;
-    }
-    if ((options & kXR_delete)
-        || !(options & (kXR_new | kXR_delete)))
-    {
-        flags |= BRIX_VFS_O_TRUNC;
-    }
-    if (options & kXR_mkpath) {
-        flags |= BRIX_VFS_O_MKDIRPATH;
-    }
-    return flags;
-}
-
-/* Build the same identity/credential/delegation-bound VFS context as a normal
- * root:// write open.  TPC used to bypass this context and open a raw fd, which
- * made cache and non-POSIX destinations silently report success without storing
- * the object in their configured namespace. */
-static void
-tpc_destination_vfs_ctx(brix_ctx_t *ctx, ngx_connection_t *c,
-    ngx_stream_brix_srv_conf_t *conf, const char *dst_path,
-    brix_vfs_ctx_t *vctx)
-{
-    const char *logical = brix_vfs_export_relative_root(
-        dst_path, conf->common.root_canon);
-
-    brix_vfs_ctx_init(vctx, c->pool, c->log, BRIX_PROTO_ROOT,
-        conf->common.root_canon, NULL, conf->common.allow_write,
-        0 /* is_tls */, ctx->identity, logical);
-    vctx->rootfd = conf->rootfd;
-    brix_vfs_ctx_bind_backend_cred(vctx,
-        &conf->common.storage_credential_dir,
-        conf->common.storage_credential_fallback);
-    brix_vfs_ctx_bind_backend_mint(vctx,
-        &conf->common.storage_credential_mint_ca_cert,
-        &conf->common.storage_credential_mint_ca_key,
-        conf->common.storage_credential_mint_ttl);
-    brix_root_vfs_bind_deleg(ctx, conf, vctx);
-}
-
-static void
-tpc_stat_from_vfs(const brix_vfs_stat_t *vst, struct stat *st)
-{
-    ngx_memzero(st, sizeof(*st));
-    st->st_mode  = (mode_t) vst->mode;
-    st->st_size  = vst->size;
-    st->st_mtime = vst->mtime;
-    st->st_ctime = vst->ctime;
-    st->st_ino   = vst->ino;
-    st->st_dev   = vst->dev;
-}
-
 /* WHAT: Populate a freshly-allocated ctx->files[] slot as a TPC destination:
  * base file metadata from the fstat result, the TPC destination flags, the
  * rendezvous key (echoed from tpc->key or freshly minted), the origin id, the
@@ -445,115 +289,117 @@ tpc_init_dst_file(brix_ctx_t *ctx, ngx_connection_t *c,
     }
 }
 
-static ngx_int_t
-tpc_try_random_destination(brix_ctx_t *ctx, ngx_connection_t *c,
-    brix_vfs_ctx_t *vctx, ngx_uint_t vflags, int idx, brix_file_t *file,
-    struct stat *st)
+/* WHAT: Emit one fail2ban-parseable audit line for a TPC egress the source
+ * allowlist refused, at WARN on the connection log (the stream side has no
+ * per-location audit file). The attacker-chosen source host rides the sanitized
+ * path field; the labelless metric carries the count (INVARIANT 8).
+ * WHY: an un-guarded gateway is a request-forgery primitive; a client probing
+ * which internal hosts a gateway will dial should be banned like any scanner,
+ * so the refusal shares the guard/fail2ban contract (signal=tpc_egress).
+ * HOW: copy the cached ISO-8601 clock + client IP into NUL-terminated stacks,
+ * sanitize the host into the path field, format via the shared guard formatter. */
+static void
+tpc_egress_emit_signal(brix_ctx_t *ctx, ngx_connection_t *c, const char *host)
 {
-    brix_sd_instance_t *leaf = brix_vfs_ns_leaf(vctx->sd);
-    brix_vfs_file_t *vfh;
-    brix_vfs_stat_t vst;
-    int fd;
+    guard_request_t req;
+    char            line[512];
+    char            ip[64];
+    char            ts[sizeof("YYYY-MM-DDThh:mm:ss+00:00")];
+    char            hostbuf[256];
+    size_t          ip_len;
+    size_t          ts_len;
 
-    if (!(vctx->sd == NULL || leaf == NULL
-          || (brix_sd_caps(leaf) & BRIX_SD_CAP_RANDOM_WRITE)
-          || (leaf->driver != NULL && leaf->driver->pwrite != NULL)))
-    {
-        return NGX_DECLINED;
-    }
+    ip_len = ngx_min(c->addr_text.len, sizeof(ip) - 1);
+    ngx_memcpy(ip, c->addr_text.data, ip_len);
+    ip[ip_len] = '\0';
 
-    vfh = brix_vfs_open(vctx, vflags, &fd);
-    if (vfh == NULL) {
-        return NGX_DECLINED;
-    }
-    if (brix_vfs_file_stat(vfh, &vst) != NGX_OK) {
-        int err = errno;
+    ts_len = ngx_min(ngx_cached_http_log_iso8601.len, sizeof(ts) - 1);
+    ngx_memcpy(ts, ngx_cached_http_log_iso8601.data, ts_len);
+    ts[ts_len] = '\0';
 
-        (void) brix_vfs_close(vfh, c->log);
-        brix_free_fhandle(ctx, idx);
-        BRIX_OP_ERR(ctx, BRIX_OP_OPEN_WR);
-        return brix_send_error(ctx, c, kXR_IOError, strerror(err));
+    ngx_memzero(&req, sizeof(req));
+    req.ip           = ip;
+    req.proto        = "root";
+    req.op           = GUARD_OP_WRITE;   /* a TPC pull opens a write destination */
+    req.path         = hostbuf;
+    req.path_len     = brix_sanitize_log_string(host, hostbuf, sizeof(hostbuf));
+    req.cred_present = ctx->login.dn[0] != '\0' ? 1 : 0;
+    req.outcome      = OUTCOME_AUTHFAIL;
+    req.status_code  = kXR_NotAuthorized;
+
+    if (guard_audit_format(&req, GUARD_R_TPCEGRESS, ts, line, sizeof(line)) > 0) {
+        ngx_log_error(NGX_LOG_WARN, c->log, 0, "%s", line);
     }
-    brix_vfs_file_sd_obj(vfh, &file->sd_obj);
-    file->fd = brix_vfs_file_fd(vfh);
-    tpc_stat_from_vfs(&vst, st);
-    return NGX_OK;
 }
 
+/* WHAT: Validate the pull preconditions before any state is allocated — a
+ *       configured thread pool, a non-empty TPC source host+path, the operator's
+ *       source-name allowlist, and an SSRF-safe source address per the
+ *       loopback/private allow flags. NGX_OK when the request may proceed;
+ *       TPC_ANSWERED once a refusal has been answered; NGX_ERROR if it could not.
+ * WHY:  this is the security-load-bearing front door, SSRF gate included;
+ *       isolating it keeps the orchestrator flat and the checks independently
+ *       reviewable.
+ * HOW:  thread_pool NULL → kXR_ServerError; empty src host/path → kXR_ArgInvalid;
+ *       brix_tpc_source_guard_check != 0 → kXR_NotAuthorized + guard signal;
+ *       brix_tpc_check_src_policy != 0 → kXR_NotAuthorized. */
 static ngx_int_t
-tpc_open_staged_destination(brix_ctx_t *ctx, ngx_connection_t *c,
-    ngx_stream_brix_srv_conf_t *conf, brix_vfs_ctx_t *vctx, ngx_uint_t vflags,
-    int idx, brix_file_t *file, struct stat *st, mode_t create_mode,
+tpc_prepare_check_preconditions(brix_ctx_t *ctx, ngx_connection_t *c,
+    ngx_stream_brix_srv_conf_t *conf, const brix_tpc_params_t *tpc,
     const char *dst_path)
 {
-    brix_sd_instance_t *leaf = brix_vfs_ns_leaf(vctx->sd);
-    brix_vfs_writer_t *writer;
-    int fd = 0;
+    char     policy_err[512];
+    char     egress_err[512];
+    uint16_t sport;
 
-    if (leaf == NULL || ((brix_sd_caps(leaf) & BRIX_SD_CAP_RANDOM_WRITE)
-                         && leaf->driver != NULL
-                         && leaf->driver->pwrite != NULL))
+    if (conf->common.thread_pool == NULL) {
+        return brix_tpc_refuse(ctx, c, dst_path, kXR_ServerError,
+                          "TPC pull requires brix_thread_pool to be configured");
+    }
+
+    if (tpc->src_host[0] == '\0' || tpc->src_path[0] == '\0') {
+        return brix_tpc_refuse(ctx, c, dst_path, kXR_ArgInvalid,
+                          "invalid or incomplete TPC source");
+    }
+
+    /*
+     * Source-egress allowlist gate (naming policy): when the operator enabled
+     * brix_tpc_source_guard, the requested source host must appear on
+     * brix_tpc_source_allow or we refuse to originate — before the address-range
+     * check below, so a non-permitted host is rejected without a DNS lookup.
+     * This is the server-side request-forgery control the client egress
+     * self-test verifies; a refusal is banworthy, so it emits the guard signal
+     * and bumps the labelless refusal counter.
+     */
+    if (brix_tpc_source_guard_check(conf->tpc_source_guard,
+            conf->tpc_source_allow, tpc->src_host,
+            egress_err, sizeof(egress_err))
+        != 0)
     {
-        int err = errno != 0 ? errno : EIO;
-
-        brix_free_fhandle(ctx, idx);
-        BRIX_RETURN_ERR(ctx, c, BRIX_OP_OPEN_WR, "OPEN", dst_path,
-                          "tpc-pull", kXR_IOError, strerror(err));
+        BRIX_SRV_METRIC_INC(ctx, tpc_egress_refused_total);
+        tpc_egress_emit_signal(ctx, c, tpc->src_host);
+        return brix_tpc_refuse(ctx, c, dst_path, kXR_NotAuthorized, egress_err);
     }
 
-    writer = brix_vfs_writer_open(vctx, vflags & BRIX_VFS_O_TRUNC,
-                                  conf->common.verify_write ? 1 : 0, &fd);
-    if (writer == NULL) {
-        int err = fd != 0 ? fd : (errno != 0 ? errno : EIO);
-
-        brix_free_fhandle(ctx, idx);
-        BRIX_RETURN_ERR(ctx, c, BRIX_OP_OPEN_WR, "OPEN", dst_path,
-                          "tpc-pull", kXR_IOError, strerror(err));
+    /*
+     * Source policy gate (SSRF defence): before we ever connect outbound, the
+     * resolved source host/port is checked against the loopback/private-range
+     * allow flags. A destination server must not be coercible into pulling from
+     * internal addresses unless the operator explicitly permits it.
+     */
+    sport = tpc->src_port ? tpc->src_port : 1094;
+    if (brix_tpc_check_src_policy(tpc->src_host, sport,
+            conf->tpc_allow_local, conf->tpc_allow_private,
+            policy_err, sizeof(policy_err))
+        != 0)
+    {
+        return brix_tpc_refuse(ctx, c, dst_path, kXR_NotAuthorized, policy_err);
     }
-    file->writer = writer;
-    file->fd = brix_vfs_writer_fd(writer);
-    ngx_memzero(st, sizeof(*st));
-    st->st_mode = S_IFREG | create_mode;
+
     return NGX_OK;
 }
 
-/* Open and classify a TPC destination through the VFS. */
-/*
- *       whole-object writer, populate the file's backend handle, and return
- *       its initial stat. Returns NGX_OK on success; on failure it frees the
- *       allocated fhandle and sends the mapped kXR error.
- *
- * WHY: POSIX/cache backends and HTTP/S3-like backends have different write
- *      handles, but both must pass through the same identity-bound VFS context.
- *      Keeping that branch out of the request orchestrator makes the security
- *      and resource transitions explicit.
- *
- * HOW: Build the bound VFS context and flags; use a random-write handle when
- *      the selected leaf supports pwrite; otherwise open the staged writer;
- *      store the resulting fd/writer and stat in the caller's file slot.
- */
-static ngx_int_t
-tpc_open_destination(brix_ctx_t *ctx, ngx_connection_t *c,
-    ngx_stream_brix_srv_conf_t *conf, const char *dst_path,
-    uint16_t options, uint16_t mode_bits, int idx,
-    brix_file_t *file, struct stat *st)
-{
-    brix_vfs_ctx_t     vctx;
-    ngx_uint_t          vflags;
-    mode_t              create_mode;
 
-    tpc_destination_vfs_ctx(ctx, c, conf, dst_path, &vctx);
-    vflags = tpc_destination_vfs_flags(options);
-    create_mode = (mode_bits & 0777) ? (mode_t) (mode_bits & 0777) : 0644;
-    if (tpc_try_random_destination(ctx, c, &vctx, vflags, idx, file, st)
-        == NGX_OK) {
-        return NGX_OK;
-    }
-    return tpc_open_staged_destination(ctx, c, conf, &vctx, vflags, idx,
-                                       file, st, create_mode, dst_path);
-}
-
-/* WHAT: Derive O_CREAT/O_EXCL/O_TRUNC flags from options bitmask — kXR_new → O_CREAT+O_EXCL, kXR_delete → O_CREAT+O_TRUNC, neither → O_CREAT+O_TRUNC (default create-new). Always includes O_RDWR|O_NOCTTY. Caller: brix_tpc_prepare_pull (open flags step). */
 ngx_int_t
 brix_tpc_prepare_pull(brix_ctx_t *ctx, ngx_connection_t *c,
     ngx_stream_brix_srv_conf_t *conf, const brix_tpc_params_t *tpc,
@@ -564,21 +410,27 @@ brix_tpc_prepare_pull(brix_ctx_t *ctx, ngx_connection_t *c,
     ngx_int_t      pre;
     int            idx;
 
+    /* TPC_ANSWERED means the gate refused and already said so on the wire; the
+     * wire contract spells "handled, nothing more to send" NGX_OK. Collapsing the
+     * two here — and only here — is what keeps a refusal from reading as consent
+     * one frame up while still ending the request. */
     pre = tpc_prepare_check_preconditions(ctx, c, conf, tpc, dst_path);
     if (pre != NGX_OK) {
-        return pre;
+        return pre == TPC_ANSWERED ? NGX_OK : pre;
     }
 
     idx = brix_alloc_fhandle(ctx);
     if (idx < 0) {
-        BRIX_RETURN_ERR(ctx, c, BRIX_OP_OPEN_WR, "OPEN", dst_path,
-                          "tpc-pull", kXR_ServerError, "too many open files");
+        pre = brix_tpc_refuse(ctx, c, dst_path, kXR_ServerError,
+                         "too many open files");
+        return pre == TPC_ANSWERED ? NGX_OK : pre;
     }
 
     file = &ctx->files[idx];
-    if (tpc_open_destination(ctx, c, conf, dst_path, options, mode_bits,
-                             idx, file, &st) != NGX_OK) {
-        return NGX_ERROR;
+    pre = brix_tpc_open_destination(ctx, c, conf, dst_path, options, mode_bits,
+                               idx, file, &st);
+    if (pre != NGX_OK) {
+        return pre == TPC_ANSWERED ? NGX_OK : NGX_ERROR;
     }
 
     tpc_init_dst_file(ctx, c, conf, file, tpc, &st);

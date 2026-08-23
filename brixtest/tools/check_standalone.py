@@ -15,30 +15,48 @@ ALLOWED_EXTERNAL = {
 }
 
 
-def main() -> int:
+def _imports(node: ast.AST) -> list[str]:
+    if isinstance(node, ast.Import):
+        return [item.name.split(".")[0] for item in node.names]
+    if isinstance(node, ast.ImportFrom) and node.level == 0 and node.module:
+        return [node.module.split(".")[0]]
+    return []
+
+
+def _path_findings(path: Path) -> list[str]:
+    text = path.read_text()
+    tree = ast.parse(text, filename=str(path))
     findings = []
-    for path in sorted(PACKAGE.rglob("*.py")):
-        tree = ast.parse(path.read_text(), filename=str(path))
-        for node in ast.walk(tree):
-            names = []
-            if isinstance(node, ast.Import):
-                names = [item.name.split(".")[0] for item in node.names]
-            elif isinstance(node, ast.ImportFrom) and node.level == 0 and node.module:
-                names = [node.module.split(".")[0]]
-            for name in names:
-                if name == "brixtest" or name in sys.stdlib_module_names:
-                    continue
-                if name not in ALLOWED_EXTERNAL:
-                    findings.append("%s:%d imports %s" % (
-                        path.relative_to(ROOT), node.lineno, name
-                    ))
-        if "brix_suite" in path.read_text():
-            findings.append("%s references repository adapter brix_suite" % path.relative_to(ROOT))
+    for node in ast.walk(tree):
+        for name in _imports(node):
+            if name == "brixtest" or name in sys.stdlib_module_names \
+                    or name in ALLOWED_EXTERNAL:
+                continue
+            findings.append("%s:%d imports %s" % (path.relative_to(ROOT), node.lineno, name))
+    if "brix_suite" in text:
+        findings.append("%s references repository adapter brix_suite" % path.relative_to(ROOT))
+    return findings
+
+
+def main() -> int:
+    findings = _all_findings()
+    _report(findings)
+    return int(bool(findings))
+
+
+def _all_findings() -> list[str]:
+    return [
+        finding
+        for path in sorted(PACKAGE.rglob("*.py"))
+        for finding in _path_findings(path)
+    ]
+
+
+def _report(findings: list[str]) -> None:
     for finding in findings:
         print("FAIL " + finding)
     if not findings:
         print("check_standalone: OK")
-    return 1 if findings else 0
 
 
 if __name__ == "__main__":

@@ -44,28 +44,10 @@ def _issuer():
 
 
 def _start(lifecycle, tmp_path, name, dig_on):
-    if not os.path.exists(NGINX_BIN):
-        pytest.skip("nginx binary not found")
-    if not _HAVE_REQUESTS:
-        pytest.skip("requests not available")
+    _require_dig_dependencies()
     iss = _issuer()
-    cadir = tmp_path / "cadir"
-    cadir.mkdir()
-    # The dig export tree + a secret OUTSIDE it + a symlink escaping the export.
-    exp = tmp_path / "export"
-    exp.mkdir()
-    (exp / "server.cfg").write_text("DIG-CONFIG-CONTENT\n")
-    (tmp_path / "outside.txt").write_text("OUTSIDE-SECRET\n")
-    try:
-        os.symlink(str(tmp_path / "outside.txt"), str(exp / "escape"))
-    except OSError:
-        pass
-    allow = tmp_path / "dig.allow"
-    allow.write_text("# principal export\ndiguser conf\n")
-
-    dig = (f"brix_webdav_dig on;\n"
-           f"            brix_webdav_dig_export conf {exp};\n"
-           f"            brix_webdav_dig_auth {allow};") if dig_on else ""
+    cadir, exp, allow = _create_dig_files(tmp_path)
+    dig = _dig_directives(exp, allow) if dig_on else ""
     endpoint = lifecycle.start(NginxInstanceSpec(
         name=name,
         template="nginx_dig.conf",
@@ -80,6 +62,41 @@ def _start(lifecycle, tmp_path, name, dig_on):
         },
         reason="XrdDig remote-diagnostics security envelope"))
     return endpoint.port, iss
+
+
+def _require_dig_dependencies():
+    if not os.path.exists(NGINX_BIN):
+        pytest.skip("nginx binary not found")
+    if not _HAVE_REQUESTS:
+        pytest.skip("requests not available")
+
+
+def _create_dig_files(tmp_path):
+    cadir = tmp_path / "cadir"
+    cadir.mkdir()
+    exp = tmp_path / "export"
+    exp.mkdir()
+    (exp / "server.cfg").write_text("DIG-CONFIG-CONTENT\n")
+    (tmp_path / "outside.txt").write_text("OUTSIDE-SECRET\n")
+    _create_escape_link(tmp_path, exp)
+    allow = tmp_path / "dig.allow"
+    allow.write_text("# principal export\ndiguser conf\n")
+    return cadir, exp, allow
+
+
+def _create_escape_link(tmp_path, export):
+    try:
+        os.symlink(str(tmp_path / "outside.txt"), str(export / "escape"))
+    except OSError:
+        pass
+
+
+def _dig_directives(export, allow):
+    return (
+        "brix_webdav_dig on;\n"
+        f"            brix_webdav_dig_export conf {export};\n"
+        f"            brix_webdav_dig_auth {allow};"
+    )
 
 
 @pytest.fixture

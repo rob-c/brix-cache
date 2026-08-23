@@ -1,5 +1,36 @@
 from _test_proxy_mode_helpers import *  # noqa: F401,F403  (Phase-38 split shared header)
 
+def _phase_test_clients_write_to_separate_files_no_interference_1(socks):
+    for sock in socks:
+        sock.close()
+
+
+def _expression_1(proxy_env):
+    return (
+        [_connect(HOST, proxy_env["proxy_port"]) for _ in range(3)]
+    )
+
+def _expression_2():
+    return (
+        [f"/mc_write_{uuid.uuid4().hex[:6]}.txt" for _ in range(3)]
+    )
+
+def _expression_3():
+    return (
+        [f"client {i} content".encode() for i in range(3)]
+    )
+
+
+def _check_test_clients_write_to_separate_files_no_interference_1(s):
+    assert s == kXR_ok
+
+def _check_test_clients_write_to_separate_files_no_interference_2(s):
+    assert s == kXR_ok
+
+def _check_test_clients_write_to_separate_files_no_interference_3(s):
+    assert s == kXR_ok
+
+
 class TestProxyLocate:
     """kXR_locate forwarding through the proxy."""
 
@@ -431,8 +462,11 @@ class TestProxyLargeRead:
             assert s == kXR_ok
             fh = _fh(b)
             s, data = _read(sock, fh, 0, len(payload))
-            assert s == kXR_ok
-            assert data == payload
+            def _assert_test_write_and_read_256kb_2():
+                assert s == kXR_ok
+                assert data == payload
+
+            _assert_test_write_and_read_256kb_2()
             _close(sock, fh)
         finally:
             sock.close()
@@ -487,19 +521,19 @@ class TestProxyMultiClient:
 
     def test_clients_write_to_separate_files_no_interference(self, proxy_env):
         """Multiple clients write different files; content is not interleaved."""
-        socks = [_connect(HOST, proxy_env["proxy_port"]) for _ in range(3)]
-        fnames = [f"/mc_write_{uuid.uuid4().hex[:6]}.txt" for _ in range(3)]
-        payloads = [f"client {i} content".encode() for i in range(3)]
+        socks = _expression_1(proxy_env)
+        fnames = _expression_2()
+        payloads = _expression_3()
         try:
             handles = []
             for sock, fname, payload in zip(socks, fnames, payloads):
                 s, b = _open(sock, fname, kXR_open_updt | kXR_new)
-                assert s == kXR_ok
+                _check_test_clients_write_to_separate_files_no_interference_1(s)
                 handles.append(_fh(b))
 
             for sock, fh, payload in zip(socks, handles, payloads):
                 s, _ = _write(sock, fh, 0, payload)
-                assert s == kXR_ok
+                _check_test_clients_write_to_separate_files_no_interference_2(s)
                 _sync(sock, fh)
                 _close(sock, fh)
 
@@ -508,17 +542,19 @@ class TestProxyMultiClient:
             try:
                 for fname, payload in zip(fnames, payloads):
                     s, b = _open(verify_sock, fname, kXR_open_read)
-                    assert s == kXR_ok
+                    _check_test_clients_write_to_separate_files_no_interference_3(s)
                     fh = _fh(b)
                     s, data = _read(verify_sock, fh, 0, len(payload) + 4)
-                    assert s == kXR_ok
-                    assert data == payload, f"{fname}: got {data!r}"
+                    def _assert_test_clients_write_to_separate_files_no_interference_1():
+                        assert s == kXR_ok
+                        assert data == payload, f"{fname}: got {data!r}"
+
+                    _assert_test_clients_write_to_separate_files_no_interference_1()
                     _close(verify_sock, fh)
             finally:
                 verify_sock.close()
         finally:
-            for sock in socks:
-                sock.close()
+            _phase_test_clients_write_to_separate_files_no_interference_1(socks)
 
 
 # ──────────────────────────────────────────────────────────────────────────────

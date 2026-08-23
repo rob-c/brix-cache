@@ -105,8 +105,11 @@ def test_no_loss_interleaved_connections(lifecycle, tmp_path):
 
     text = _read_log(logfile, lambda t: t.count("DISCONNECT") >= 2)
     # 2 connections × 4 reads = 8 READ lines, both DISCONNECTs — none lost.
-    assert text.count(' "READ ') >= 8, f"lost READ lines:\n{text}"
-    assert text.count("DISCONNECT") >= 2, f"missing DISCONNECTs:\n{text}"
+    def _assert_test_no_loss_interleaved_connections_1():
+        assert text.count(' "READ ') >= 8, f"lost READ lines:\n{text}"
+        assert text.count("DISCONNECT") >= 2, f"missing DISCONNECTs:\n{text}"
+
+    _assert_test_no_loss_interleaved_connections_1()
 
 
 def test_control_bytes_in_path_are_escaped(lifecycle, tmp_path):

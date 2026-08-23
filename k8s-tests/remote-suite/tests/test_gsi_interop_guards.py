@@ -53,12 +53,9 @@ pytestmark = pytest.mark.timeout(120)
 # --------------------------------------------------------------------------- #
 # Tier 1 — shared gsi_core wire invariants (no server, always runs in CI)
 # --------------------------------------------------------------------------- #
-def test_gsi_core_invariants_unit():
-    """Compile + run tests/c/gsi_interop_test.c against the shared gsi_core."""
+def _build_gsi_unit(out_bin):
     if not shutil.which(CC):
         pytest.skip("no C compiler")
-
-    out_bin = os.path.join(os.environ.get("TMPDIR", "/tmp"), "gsi_interop_unit.bin")
     cmd = [
         CC, "-O2", "-D_GNU_SOURCE", f"-I{os.path.join(REPO, 'src')}",
         "-o", out_bin,
@@ -77,9 +74,19 @@ def test_gsi_core_invariants_unit():
         pytest.skip("libcrypto/dev headers unavailable")
     assert build.returncode == 0, f"compile failed:\n{build.stderr}"
 
+
+def _run_gsi_unit(out_bin):
     run = subprocess.run([out_bin], capture_output=True, text=True, timeout=30)
     assert run.returncode == 0, f"gsi_core invariants failed:\n{run.stdout}\n{run.stderr}"
     assert "ALL PASSED" in run.stdout, run.stdout
+
+
+def test_gsi_core_invariants_unit():
+    """Compile + run tests/c/gsi_interop_test.c against the shared gsi_core."""
+    out_bin = os.path.join(
+        os.environ.get("TMPDIR", "/tmp"), "gsi_interop_unit.bin")
+    _build_gsi_unit(out_bin)
+    _run_gsi_unit(out_bin)
 
 
 # --------------------------------------------------------------------------- #
@@ -177,6 +184,35 @@ def _live_endpoints():
 _LIVE = _live_endpoints()
 
 
+def _live_proxy_and_target(endpoint):
+    proxy = os.environ.get("X509_USER_PROXY", f"/tmp/x509up_u{os.getuid()}")
+    if not os.path.exists(proxy):
+        pytest.skip(f"no proxy at {proxy} (voms-proxy-init first)")
+    host, port = _split_endpoint(endpoint)
+    if not _reachable(host, port):
+        pytest.skip(f"{endpoint} ({host}:{port}) not reachable")
+    return proxy
+
+
+def _assert_live_gsi_handshake(endpoint, environment):
+    result = subprocess.run(
+        [XRDGSITEST, endpoint], capture_output=True, text=True,
+        timeout=90, env=environment)
+    assert result.returncode == 0, (
+        f"GSI handshake against {endpoint} failed:\n"
+        f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}")
+
+
+def _assert_live_listing(endpoint, listdir, environment):
+    result = subprocess.run(
+        [XRDFS, endpoint, "ls", listdir], capture_output=True, text=True,
+        timeout=90, env=environment)
+    assert result.returncode == 0, (
+        f"GSI ls {listdir} on {endpoint} failed:\n"
+        f"{result.stdout}\n{result.stderr}")
+    assert result.stdout.strip(), f"empty listing from {endpoint}:{listdir}"
+
+
 @pytest.mark.skipif(not _LIVE, reason="no TEST_GSI_ENDPOINTS / TEST_EOS_ENDPOINT")
 @pytest.mark.skipif(not os.path.exists(XRDGSITEST), reason="xrdgsitest not built")
 @pytest.mark.parametrize("endpoint,listdir", _LIVE,
@@ -188,28 +224,10 @@ def test_gsi_live_interop(endpoint, listdir):
     X509_CERT_DIR unset so the client's CA-dir fallback to
     /etc/grid-security/certificates is exercised too.
     """
-    proxy = os.environ.get("X509_USER_PROXY", f"/tmp/x509up_u{os.getuid()}")
-    if not os.path.exists(proxy):
-        pytest.skip(f"no proxy at {proxy} (voms-proxy-init first)")
-    host, port = _split_endpoint(endpoint)
-    if not _reachable(host, port):
-        pytest.skip(f"{endpoint} ({host}:{port}) not reachable")
-
+    proxy = _live_proxy_and_target(endpoint)
     env = _gsi_env(proxy, None)  # ca_dir=None -> exercise grid CA fallback
-
-    # Stage A — GSI handshake must authenticate (exit 0 only on GSI success).
-    g = subprocess.run([XRDGSITEST, endpoint],
-                       capture_output=True, text=True, timeout=90, env=env)
-    assert g.returncode == 0, (
-        f"GSI handshake against {endpoint} failed — framework dropped GSI support "
-        f"for this server:\nstdout:\n{g.stdout}\nstderr:\n{g.stderr}")
-
-    # Stage B — a metadata op over the authenticated session.
-    ls = subprocess.run([XRDFS, endpoint, "ls", listdir],
-                        capture_output=True, text=True, timeout=90, env=env)
-    assert ls.returncode == 0, (
-        f"GSI ls {listdir} on {endpoint} failed:\n{ls.stdout}\n{ls.stderr}")
-    assert ls.stdout.strip(), f"empty listing from {endpoint}:{listdir}"
+    _assert_live_gsi_handshake(endpoint, env)
+    _assert_live_listing(endpoint, listdir, env)
 
 
 # --------------------------------------------------------------------------- #
@@ -220,6 +238,41 @@ def _read(rel):
         return f.read()
 
 
+def _read_gsi_core():
+    """The shared GSI round-2 kernel — read as one blob across its files.
+
+    phase-79 file-size split: gsi_core.c's kXGC_cert build
+    (brix_gsi_build_cert_response and its cipher/md/terminator wire facts) moved
+    into gsi_core_cresp.c (+ gsi_core_cresp_util.c). The wire-contract guards
+    assert against the kernel as a whole, so concatenate the cluster.
+    """
+    return "\n".join(_read(os.path.join("src/auth/gsi", f)) for f in (
+        "gsi_core.c", "gsi_core_cresp.c", "gsi_core_cresp_util.c"))
+
+
+def _assert_client_wire_contract(client_gsi, core, connection):
+    assert "brix_gsi_build_cert_response" in client_gsi, (
+        "native client no longer delegates GSI round-2 to the shared kernel")
+    assert "kXRS_md_alg" in core, (
+        "shared GSI kernel no longer emits kXRS_md_alg")
+    assert re.search(r"snprintf\(\s*cipher_field[^;]*#", core), (
+        "shared GSI kernel lost the cipher '#ivlen' suffix")
+    assert re.search(r"brix_gbuf_end\([^)]*\binner\)", core), (
+        "shared GSI kernel no longer terminates its inner bucket list")
+    assert "/etc/grid-security/certificates" in connection, (
+        "client lost the grid CA directory fallback")
+
+
+def _assert_server_wire_contract(server_parse):
+    helpers = _read("src/auth/gsi/parse_crypto_helpers.c")
+    assert "'#'" in helpers, (
+        "server cipher parser no longer strips the '#ivlen' suffix")
+    assert not re.search(
+        r"brix_gsi_cipher_decrypt\([^;]*,\s*0\s*,\s*&plain_len",
+        server_parse), (
+        "server signed-DH path decrypts an IV-bearing message with use_iv=0")
+
+
 def test_wire_contract_tripwires():
     """Fail loudly if a known interop-critical wire fact is removed from source.
 
@@ -228,61 +281,17 @@ def test_wire_contract_tripwires():
     docs/10-reference/comparison/brix-implementations.md (§5.4).
     """
     client_gsi = _read("client/lib/auth/sec/sec_gsi.c")  # phase-69 client reorg: lib/sec/ -> lib/auth/sec/
-    core = _read("src/auth/gsi/gsi_core.c")
-    conn = _read("client/lib/conn.c")
-    server_parse = _read("src/auth/gsi/parse_x509.c")
+    core = _read_gsi_core()
+    conn = _read("client/lib/net/conn.c")  # phase-69 client reorg: lib/ -> lib/net/
+    # phase-79 file-size split: parse_x509.c was split into parse_x509.c (shared
+    # helpers) + parse_x509_signed.c (signed-DH path, where the cipher_decrypt call
+    # the use_iv guard below inspects now lives) + parse_x509_unsigned.c. Read the
+    # whole cluster so the negative use_iv=0 guard keeps biting.
+    server_parse = "\n".join(_read(os.path.join("src/auth/gsi", f)) for f in (
+        "parse_x509.c", "parse_x509_signed.c", "parse_x509_unsigned.c"))
 
-    # (F4) The XrdSecgsi round-2 (kXGC_cert) now lives in ONE shared kernel,
-    # brix_gsi_build_cert_response (src/auth/gsi/gsi_core.c); both the native client
-    # and the TPC destination delegate to it so neither can grow a divergent
-    # reimplementation. Guard the client's delegation here; the wire-critical facts
-    # below are then asserted against the shared kernel that actually emits them.
-    assert "brix_gsi_build_cert_response" in client_gsi, (
-        "native client no longer delegates GSI round-2 to the shared gsi_core "
-        "kernel (brix_gsi_build_cert_response) — restore the single-source path")
-
-    # (a) the shared round-2 must emit the kXRS_md_alg digest bucket (dCache NPEs
-    #     without it).
-    assert "kXRS_md_alg" in core, (
-        "shared GSI kernel no longer emits kXRS_md_alg — dCache will NPE "
-        "(digestBucket null)")
-
-    # (b) when an IV is prepended, the cipher_alg sent to the server MUST carry a
-    #     "#ivlen" suffix. dCache reads the suffix to learn the IV is present; a
-    #     bare cipher name + prepended IV makes dCache read ivlen=0 and mis-decrypt
-    #     ("Could not decrypt encrypted client message") while EOS still passes —
-    #     the exact EOS-ok/dCache-broken split. Match any cipher_field format that
-    #     embeds '#', tolerant of formatting.
-    assert re.search(r"snprintf\(\s*cipher_field[^;]*#", core), (
-        "shared GSI kernel builds the kXRS_cipher_alg field WITHOUT a '#ivlen' "
-        "suffix while still prepending an IV (use_iv) — dCache/stock XRootD will "
-        "fail to decrypt the client message. Restore the '%s#%d' form when use_iv.")
-
-    # (c) the shared round-2 must terminate the inner encrypted bucket list with
-    #     the kXRS_none terminator (brix_gbuf_end).
-    assert "brix_gbuf_end(&x.inner)" in core, (
-        "shared GSI kernel no longer appends the kXRS_none terminator to the inner "
-        "buffer — dCache will overrun (readerIndex exceeds writerIndex)")
-
-    # (d) client CA-dir resolution must fall back to the grid trust dir.
-    assert "/etc/grid-security/certificates" in conn, (
-        "client lost the /etc/grid-security/certificates CA fallback — grid (IGTF) "
-        "server certs will fail TLS verification when X509_CERT_DIR is unset")
-
-    # (e) server must keep handling the IV for IV-advertising (stock/EOS) clients.
-    #     Two valid implementations: hardcode use_iv=1 in the signed-DH path (sound
-    #     because signed-DH ⟹ version≥10400 ⟹ stock useIV=true), or derive it from
-    #     the client's '#ivlen' suffix. Either way the signed-DH decrypt must NOT
-    #     pass use_iv=0, and the cipher-name parser must strip a stock client's
-    #     '#ivlen' suffix so the cipher still resolves.
-    helpers = _read("src/auth/gsi/parse_crypto_helpers.c")
-    assert "'#'" in helpers, (
-        "server cipher-name parser no longer strips the '#ivlen' suffix — a stock "
-        "IV-advertising client's cipher_alg ('aes-128-cbc#16') will fail to resolve")
-    assert not re.search(r"brix_gsi_cipher_decrypt\([^;]*,\s*0\s*,\s*&plain_len",
-                         server_parse), (
-        "server signed-DH path decrypts with use_iv=0 — it will mis-handle the "
-        "IV-prepended main that stock XRootD/EOS clients always send at v>=10400")
+    _assert_client_wire_contract(client_gsi, core, conn)
+    _assert_server_wire_contract(server_parse)
 
 
 # --------------------------------------------------------------------------- #
@@ -326,7 +335,7 @@ def test_tpc_outbound_uses_shared_core():
     carries the wire-critical facts.
     """
     ex = _read("src/tpc/gsi/gsi_outbound_exchange.c")
-    core = _read("src/auth/gsi/gsi_core.c")
+    core = _read_gsi_core()
     assert "brix_gsi_build_cert_response" in ex, (
         "TPC outbound GSI no longer delegates round-2 to the shared gsi_core kernel "
         "(brix_gsi_build_cert_response) — its DH/cipher math can drift from the "
@@ -358,6 +367,61 @@ def _pick_remote_file(endpoint, listdir, env):
     return None
 
 
+def _require_path(path, message):
+    if not os.path.exists(path):
+        pytest.skip(message)
+
+
+def _require_reachable_endpoint(endpoint, message):
+    host, port = _split_endpoint(endpoint)
+    if not _reachable(host, port):
+        pytest.skip(message)
+
+
+def _require_remote_file(endpoint, listdir, environment):
+    remote_file = _pick_remote_file(endpoint, listdir, environment)
+    if remote_file is None:
+        pytest.skip(f"no regular file found under {listdir} on {endpoint}")
+    return remote_file
+
+
+def _xcache_context(endpoint, listdir):
+    xrdcp = os.path.join(REPO, "client", "bin", "xrdcp")
+    _require_path(xrdcp, "xrdcp not built")
+    proxy = os.environ.get("X509_USER_PROXY", f"/tmp/x509up_u{os.getuid()}")
+    _require_path(proxy, f"no proxy at {proxy}")
+    _require_reachable_endpoint(endpoint, f"{endpoint} not reachable")
+    environment = _gsi_env(proxy, None)
+    remote_file = _require_remote_file(endpoint, listdir, environment)
+    return xrdcp, environment, remote_file
+
+
+def _fetch_origin_file(xrdcp, endpoint, remote_file, destination, environment):
+    result = subprocess.run(
+        [xrdcp, "-f", f"{endpoint}/{remote_file}", destination],
+        capture_output=True, text=True, timeout=120, env=environment)
+    assert result.returncode == 0, (
+        f"xcache origin fill from {endpoint}{remote_file} failed:\n"
+        f"{result.stdout}\n{result.stderr}")
+    assert os.path.getsize(destination) > 0, "fetched part file is empty"
+
+
+def _verify_origin_checksum(endpoint, remote_file, destination, environment):
+    import zlib
+
+    result = subprocess.run(
+        [XRDFS, endpoint, "cksum", remote_file], capture_output=True,
+        text=True, timeout=90, env=environment)
+    if result.returncode != 0 or "adler32" not in result.stdout:
+        return
+    expected = result.stdout.split()[1].lower()
+    with open(destination, "rb") as stream:
+        actual = format(zlib.adler32(stream.read()) & 0xffffffff, "08x")
+    assert actual == expected, (
+        f"xcache fill integrity mismatch for {endpoint}{remote_file}: "
+        f"origin adler32={expected} local={actual}")
+
+
 @pytest.mark.skipif(not _LIVE, reason="no TEST_GSI_ENDPOINTS / TEST_EOS_ENDPOINT")
 @pytest.mark.skipif(not os.path.exists(XRDFS), reason="xrdfs not built")
 @pytest.mark.parametrize("endpoint,listdir", _LIVE,
@@ -369,41 +433,12 @@ def test_xcache_origin_fetch_live(endpoint, listdir, tmp_path):
     This is the xcache GSI path end to end (cache/fetch.c just execs this), so it
     guards "use this module as an xcache in front of EOS/dCache".
     """
-    import zlib
-    XRDCP = os.path.join(REPO, "client", "bin", "xrdcp")
-    if not os.path.exists(XRDCP):
-        pytest.skip("xrdcp not built")
-    proxy = os.environ.get("X509_USER_PROXY", f"/tmp/x509up_u{os.getuid()}")
-    if not os.path.exists(proxy):
-        pytest.skip(f"no proxy at {proxy}")
-    host, port = _split_endpoint(endpoint)
-    if not _reachable(host, port):
-        pytest.skip(f"{endpoint} not reachable")
-
-    env = _gsi_env(proxy, None)               # grid-CA fallback exercised too
-    rfile = _pick_remote_file(endpoint, listdir, env)
-    if rfile is None:
-        pytest.skip(f"no regular file found under {listdir} on {endpoint}")
-
-    # Stage A — the cache's literal fetch command.
+    xrdcp, environment, remote_file = _xcache_context(endpoint, listdir)
     dst = str(tmp_path / "fill.part")
-    cp = subprocess.run([XRDCP, "-f", f"{endpoint}/{rfile}", dst],
-                        capture_output=True, text=True, timeout=120, env=env)
-    assert cp.returncode == 0, (
-        f"xcache origin fill (xrdcp) from {endpoint}{rfile} failed — GSI to the "
-        f"origin broke:\n{cp.stdout}\n{cp.stderr}")
-    assert os.path.getsize(dst) > 0, "fetched part file is empty"
-
-    # Stage B — integrity vs the origin's reported adler32.
-    ck = subprocess.run([XRDFS, endpoint, "cksum", rfile],
-                        capture_output=True, text=True, timeout=90, env=env)
-    if ck.returncode == 0 and "adler32" in ck.stdout:
-        want = ck.stdout.split()[1].lower()
-        with open(dst, "rb") as f:
-            got = format(zlib.adler32(f.read()) & 0xffffffff, "08x")
-        assert got == want, (
-            f"xcache fill integrity mismatch for {endpoint}{rfile}: "
-            f"origin adler32={want} local={got}")
+    _fetch_origin_file(
+        xrdcp, endpoint, remote_file, dst, environment)
+    _verify_origin_checksum(
+        endpoint, remote_file, dst, environment)
 
 
 # TPC pull from a live origin (this module as the TPC destination). Gated on a
@@ -413,6 +448,18 @@ def test_xcache_origin_fetch_live(endpoint, listdir, tmp_path):
 # unsigned-DH dialect (no kXRS_md_alg); it is proven against EOS but UNVERIFIED
 # against dCache — this test is the gold guard once a dest is available.
 _TPC_DEST = os.environ.get("TEST_TPC_DEST_ENDPOINT", "").strip()
+
+
+def _tpc_context(endpoint, listdir):
+    xrdcp = os.path.join(REPO, "client", "bin", "xrdcp")
+    proxy = os.environ.get("X509_USER_PROXY", f"/tmp/x509up_u{os.getuid()}")
+    _require_path(xrdcp, "xrdcp unavailable")
+    _require_path(proxy, "proxy unavailable")
+    _require_reachable_endpoint(endpoint, "origin not reachable")
+    _require_reachable_endpoint(_TPC_DEST, "TPC destination not reachable")
+    environment = _gsi_env(proxy, None)
+    remote_file = _require_remote_file(endpoint, listdir, environment)
+    return xrdcp, environment, remote_file
 
 
 @pytest.mark.skipif(not (_TPC_DEST and _LIVE),
@@ -427,24 +474,12 @@ def test_tpc_pull_from_origin_live(endpoint, listdir):
     performs the server-outbound GSI handshake (src/tpc/gsi/gsi_outbound_*.c) against
     the live origin. Validates the module can TPC with EOS/dCache as origins.
     """
-    XRDCP = os.path.join(REPO, "client", "bin", "xrdcp")
-    proxy = os.environ.get("X509_USER_PROXY", f"/tmp/x509up_u{os.getuid()}")
-    if not (os.path.exists(XRDCP) and os.path.exists(proxy)):
-        pytest.skip("xrdcp / proxy unavailable")
-    host, port = _split_endpoint(endpoint)
-    dhost, dport = _split_endpoint(_TPC_DEST)
-    if not (_reachable(host, port) and _reachable(dhost, dport)):
-        pytest.skip("origin or TPC dest not reachable")
-
-    env = _gsi_env(proxy, None)
-    rfile = _pick_remote_file(endpoint, listdir, env)
-    if rfile is None:
-        pytest.skip(f"no regular file under {listdir} on {endpoint}")
-
+    xrdcp, environment, remote_file = _tpc_context(endpoint, listdir)
     dst_url = f"{_TPC_DEST}/tmp/tpc_{abs(hash(endpoint)) % 100000}.bin"
-    cp = subprocess.run([XRDCP, "--tpc", "first", f"{endpoint}/{rfile}", dst_url],
-                        capture_output=True, text=True, timeout=180, env=env)
+    cp = subprocess.run(
+        [xrdcp, "--tpc", "first", f"{endpoint}/{remote_file}", dst_url],
+        capture_output=True, text=True, timeout=180, env=environment)
     assert cp.returncode == 0, (
-        f"TPC pull from {endpoint}{rfile} via dest {_TPC_DEST} failed — the module's "
+        f"TPC pull from {endpoint}{remote_file} via dest {_TPC_DEST} failed — the module's "
         f"server-outbound GSI (src/tpc/gsi/gsi_outbound_*.c) does not interoperate with "
         f"this origin:\n{cp.stdout}\n{cp.stderr}")

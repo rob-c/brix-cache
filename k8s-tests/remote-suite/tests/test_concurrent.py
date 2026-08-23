@@ -87,58 +87,55 @@ def _transfer_worker(worker_id: int, base_url: str) -> dict:
     """
     url = f"{base_url}//{LARGE_FILE}"
     result = {"id": worker_id, "url": base_url, "ok": False, "error": None}
-
     try:
-        f = client.File()
-        t_open = time.perf_counter()
-
-        status, _ = f.open(url)
-        if not status.ok:
-            result["error"] = f"open failed: {status.message}"
-            return result
-
-        status, st = f.stat()
-        if not status.ok:
-            result["error"] = f"stat failed: {status.message}"
-            return result
-        total = st.size
-
-        t_start = time.perf_counter()
-        md5 = hashlib.md5()
-        received = 0
-
-        while received < total:
-            want = min(READ_CHUNK, total - received)
-            status, data = f.read(offset=received, size=want)
-            if not status.ok:
-                result["error"] = f"read at {received} failed: {status.message}"
-                return result
-            if len(data) != want:
-                result["error"] = (
-                    f"short read at {received}: got {len(data)}, want {want}"
-                )
-                return result
-            md5.update(data)
-            received += len(data)
-
-        f.close()
-        t_end = time.perf_counter()
-
-        result.update(
-            ok=True,
-            bytes=received,
-            md5=md5.hexdigest(),
-            t_open=t_open,
-            t_start=t_start,
-            t_end=t_end,
-            elapsed_total=t_end - t_open,
-            elapsed_data=t_end - t_start,
-            mib_s=(received / (1024**2)) / (t_end - t_start),
-        )
+        handle, total, opened = _open_transfer(url)
+        received, digest, started = _read_transfer(handle, total)
+        handle.close()
+        ended = time.perf_counter()
+        result.update(_transfer_metrics(received, digest, opened, started, ended))
     except Exception as exc:
         result["error"] = str(exc)
-
     return result
+
+
+def _open_transfer(url):
+    handle = client.File()
+    opened = time.perf_counter()
+    status, _ = handle.open(url)
+    if not status.ok:
+        raise RuntimeError(f"open failed: {status.message}")
+    status, info = handle.stat()
+    if not status.ok:
+        raise RuntimeError(f"stat failed: {status.message}")
+    return handle, info.size, opened
+
+
+def _read_transfer(handle, total):
+    started = time.perf_counter()
+    digest = hashlib.md5()
+    received = 0
+    while received < total:
+        wanted = min(READ_CHUNK, total - received)
+        status, data = handle.read(offset=received, size=wanted)
+        if not status.ok:
+            raise RuntimeError(f"read at {received} failed: {status.message}")
+        if len(data) != wanted:
+            raise RuntimeError(
+                f"short read at {received}: got {len(data)}, want {wanted}"
+            )
+        digest.update(data)
+        received += len(data)
+    return received, digest.hexdigest(), started
+
+
+def _transfer_metrics(received, digest, opened, started, ended):
+    elapsed_data = ended - started
+    return {
+        "ok": True, "bytes": received, "md5": digest,
+        "t_open": opened, "t_start": started, "t_end": ended,
+        "elapsed_total": ended - opened, "elapsed_data": elapsed_data,
+        "mib_s": received / (1024**2) / elapsed_data,
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -169,17 +166,7 @@ def _run_concurrent(n_workers: int, base_url: str) -> tuple[list[dict], float]:
 
 
 def _assert_and_report(results: list[dict], n: int, wall: float, label: str):
-    total_bytes = 0
-    for r in results:
-        assert r["ok"], f"worker {r['id']} failed: {r['error']}"
-        assert r["bytes"] == LARGE_FILE_SIZE, (
-            f"worker {r['id']}: size {r['bytes']} != {LARGE_FILE_SIZE}"
-        )
-        assert r["md5"] == LARGE_FILE_MD5, (
-            f"worker {r['id']}: md5 mismatch {r['md5']}"
-        )
-        total_bytes += r["bytes"]
-
+    total_bytes = _validated_total_bytes(results)
     total_mib   = total_bytes / (1024**2)
     agg_mib_s   = total_mib / wall
     per_rates   = [r["mib_s"] for r in results]
@@ -201,6 +188,39 @@ def _assert_and_report(results: list[dict], n: int, wall: float, label: str):
         f"  max={max_rate:.0f} MiB/s"
     )
     return agg_mib_s, per_rates
+
+
+def _validated_total_bytes(results):
+    total = 0
+    for result in results:
+        _assert_transfer(result)
+        total += result["bytes"]
+    return total
+
+
+def _assert_transfer(result):
+    assert result["ok"], f"worker {result['id']} failed: {result['error']}"
+    assert result["bytes"] == LARGE_FILE_SIZE, (
+        f"worker {result['id']}: size {result['bytes']} != {LARGE_FILE_SIZE}"
+    )
+    assert result["md5"] == LARGE_FILE_MD5, (
+        f"worker {result['id']}: md5 mismatch {result['md5']}"
+    )
+
+
+def _run_mixed(left_url, right_url, count=4):
+    with _worker_pool(count * 2) as pool:
+        started = time.perf_counter()
+        futures = [pool.submit(_transfer_worker, index, left_url)
+                   for index in range(count)]
+        futures += [pool.submit(_transfer_worker, index + count, right_url)
+                    for index in range(count)]
+        results = [future.result() for future in as_completed(futures)]
+    return results, time.perf_counter() - started
+
+
+def _results_for(results, url):
+    return [result for result in results if url in result["url"]]
 
 
 # ---------------------------------------------------------------------------
@@ -263,17 +283,9 @@ class TestConcurrent:
         Verifies the server correctly multiplexes authenticated and
         unauthenticated connections in one event loop.
         """
-        with _worker_pool(8) as pool:
-            t0 = time.perf_counter()
-            futures = (
-                [pool.submit(_transfer_worker, i,   ANON_URL) for i in range(4)]
-              + [pool.submit(_transfer_worker, i+4, GSI_URL)  for i in range(4)]
-            )
-            results = [f.result() for f in as_completed(futures)]
-        wall = time.perf_counter() - t0
-
-        anon_results = [r for r in results if ANON_URL in r["url"]]
-        gsi_results  = [r for r in results if GSI_URL  in r["url"]]
+        results, wall = _run_mixed(ANON_URL, GSI_URL)
+        anon_results = _results_for(results, ANON_URL)
+        gsi_results = _results_for(results, GSI_URL)
 
         _assert_and_report(anon_results, 4, wall, "mixed → anon side")
         _assert_and_report(gsi_results,  4, wall, "mixed → gsi  side")
@@ -343,17 +355,9 @@ class TestConcurrentTLS:
         Verifies the server correctly multiplexes TLS-upgraded and plain
         connections within one event loop.
         """
-        with _worker_pool(8) as pool:
-            t0 = time.perf_counter()
-            futures = (
-                [pool.submit(_transfer_worker, i,   GSI_URL)     for i in range(4)]
-              + [pool.submit(_transfer_worker, i+4, GSI_TLS_URL) for i in range(4)]
-            )
-            results = [f.result() for f in as_completed(futures)]
-        wall = time.perf_counter() - t0
-
-        gsi_results     = [r for r in results if GSI_URL     in r["url"] and GSI_TLS_URL not in r["url"]]
-        gsi_tls_results = [r for r in results if GSI_TLS_URL in r["url"]]
+        results, wall = _run_mixed(GSI_URL, GSI_TLS_URL)
+        gsi_results = _results_for(results, GSI_URL)
+        gsi_tls_results = _results_for(results, GSI_TLS_URL)
 
         _assert_and_report(gsi_results,     4, wall, "mixed → gsi      side")
         _assert_and_report(gsi_tls_results, 4, wall, "mixed → gsi+tls  side")

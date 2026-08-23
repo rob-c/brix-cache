@@ -109,6 +109,90 @@ brix_ftp_ev_finalize(ftp_ev_t *fc, ngx_int_t rc)
 }
 
 
+/*
+ * WHAT: Drain a pending control reply and apply its terminal state.
+ * WHY: Keep write-event arming and close-after-QUIT policy out of the parser.
+ * HOW: Flush once, arm the write event on backpressure, and finalize on error
+ *      or after the closing reply; return NGX_OK only when processing may resume.
+ */
+static ngx_int_t
+ev_process_reply(ftp_ev_t *fc)
+{
+    ngx_connection_t *c = fc->c;
+    ngx_int_t          rc;
+
+    rc = brix_ftp_ev_flush(fc);
+    if (rc == NGX_AGAIN) {
+        if (ngx_handle_write_event(c->write, 0) != NGX_OK) {
+            brix_ftp_ev_finalize(fc, NGX_STREAM_INTERNAL_SERVER_ERROR);
+        }
+        ngx_add_timer(c->write, BRIX_FTP_EV_IO_TIMEO);
+        return NGX_AGAIN;
+    }
+    if (rc == NGX_ERROR || fc->state == FTP_EV_ST_CLOSING) {
+        brix_ftp_ev_finalize(fc, NGX_STREAM_OK);
+        return NGX_DONE;
+    }
+    return NGX_OK;
+}
+
+
+/*
+ * WHAT: Dispatch one complete non-empty FTP command line.
+ * WHY: Isolate command terminal-state handling from framing and socket reads.
+ * HOW: Ignore blanks, dispatch commands, finalize errors, and convert NGX_DONE
+ *      into the close-after-flush session state.
+ */
+static ngx_int_t
+ev_process_line(ftp_ev_t *fc, char *line)
+{
+    ngx_int_t rc;
+
+    if (line[0] == '\0') {
+        return NGX_OK;
+    }
+    rc = brix_ftp_ev_dispatch(fc, line);
+    if (rc == NGX_ERROR) {
+        brix_ftp_ev_finalize(fc, NGX_STREAM_OK);
+        return NGX_DONE;
+    }
+    if (rc == NGX_DONE) {
+        fc->state = FTP_EV_ST_CLOSING;
+    }
+    return NGX_OK;
+}
+
+
+/*
+ * WHAT: Read another control-channel fragment or arm the read event.
+ * WHY: Centralize nonblocking receive and peer-close behavior.
+ * HOW: Append successful reads, install the idle timer on NGX_AGAIN, and
+ *      finalize EOF/error; return NGX_OK only when the parser should loop.
+ */
+static ngx_int_t
+ev_receive_more(ftp_ev_t *fc)
+{
+    ngx_connection_t *c = fc->c;
+    ssize_t            n;
+
+    n = c->recv(c, fc->buf + fc->blen, sizeof(fc->buf) - fc->blen);
+    if (n == NGX_AGAIN) {
+        if (ngx_handle_read_event(c->read, 0) != NGX_OK) {
+            brix_ftp_ev_finalize(fc, NGX_STREAM_INTERNAL_SERVER_ERROR);
+            return NGX_DONE;
+        }
+        ngx_add_timer(c->read, BRIX_FTP_EV_IO_TIMEO);
+        return NGX_AGAIN;
+    }
+    if (n == 0 || n == NGX_ERROR) {
+        brix_ftp_ev_finalize(fc, NGX_STREAM_OK);
+        return NGX_DONE;
+    }
+    fc->blen += (size_t) n;
+    return NGX_OK;
+}
+
+
 /* The command→reply state machine.  Drives one step at a time until an operation
  * would block (arm the relevant event and return) or the session is finalized. */
 static void
@@ -119,27 +203,10 @@ brix_ftp_ev_process(ftp_ev_t *fc)
     for ( ;; ) {
         char      *line;
         int        too_long;
-        ngx_int_t  rc;
-        ssize_t    n;
 
         /* (1) Drain any queued reply before touching the next command. */
-        if (fc->ob_len > fc->ob_pos) {
-            rc = brix_ftp_ev_flush(fc);
-            if (rc == NGX_AGAIN) {
-                if (ngx_handle_write_event(c->write, 0) != NGX_OK) {
-                    brix_ftp_ev_finalize(fc, NGX_STREAM_INTERNAL_SERVER_ERROR);
-                }
-                ngx_add_timer(c->write, BRIX_FTP_EV_IO_TIMEO);
-                return;
-            }
-            if (rc == NGX_ERROR) {
-                brix_ftp_ev_finalize(fc, NGX_STREAM_OK);
-                return;
-            }
-            if (fc->state == FTP_EV_ST_CLOSING) {   /* QUIT reply delivered  */
-                brix_ftp_ev_finalize(fc, NGX_STREAM_OK);
-                return;
-            }
+        if (fc->ob_len > fc->ob_pos && ev_process_reply(fc) != NGX_OK) {
+            return;
         }
 
         /* A data transfer holds the control channel half-open: once its 150 has
@@ -159,35 +226,16 @@ brix_ftp_ev_process(ftp_ev_t *fc)
             return;
         }
         if (line != NULL) {
-            if (line[0] == '\0') {
-                continue;                            /* ignore blank line     */
-            }
-            rc = brix_ftp_ev_dispatch(fc, line);
-            if (rc == NGX_ERROR) {
-                brix_ftp_ev_finalize(fc, NGX_STREAM_OK);
+            if (ev_process_line(fc, line) != NGX_OK) {
                 return;
-            }
-            if (rc == NGX_DONE) {
-                fc->state = FTP_EV_ST_CLOSING;       /* flush, then close     */
             }
             continue;                                /* loop: flush the reply */
         }
 
         /* (3) No complete line buffered — read more. */
-        n = c->recv(c, fc->buf + fc->blen, sizeof(fc->buf) - fc->blen);
-        if (n == NGX_AGAIN) {
-            if (ngx_handle_read_event(c->read, 0) != NGX_OK) {
-                brix_ftp_ev_finalize(fc, NGX_STREAM_INTERNAL_SERVER_ERROR);
-                return;
-            }
-            ngx_add_timer(c->read, BRIX_FTP_EV_IO_TIMEO);
+        if (ev_receive_more(fc) != NGX_OK) {
             return;
         }
-        if (n == 0 || n == NGX_ERROR) {
-            brix_ftp_ev_finalize(fc, NGX_STREAM_OK);
-            return;
-        }
-        fc->blen += (size_t) n;
     }
 }
 

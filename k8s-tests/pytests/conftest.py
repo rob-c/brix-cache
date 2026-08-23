@@ -98,40 +98,70 @@ class FakeServer:
         if argv[:2] == ["sh", "-c"]:
             return self._shell(argv[2], stdin)
         cmd, rest = argv[0], argv[1:]
-        if cmd == "test":
-            ok = {"-e": self._exists, "-d": self.dirs.__contains__,
-                  "-f": self.files.__contains__}[rest[0]](rest[1])
-            return (0 if ok else 1), ""
-        if cmd == "ls":
-            p = rest[1]
-            if p not in self.dirs:
-                return 1, ""
-            kids = {q[len(p):].lstrip("/").split("/")[0]
-                    for q in [*self.files, *self.dirs, *self.links]
-                    if q.startswith(p.rstrip("/") + "/")}
-            return 0, "\n".join(sorted(k for k in kids if k))
-        if cmd == "mkdir":
-            self.dirs.add(rest[-1]); return 0, ""
-        if cmd == "rm":
-            p = rest[-1]
-            self.files.pop(p, None); self.links.pop(p, None); self.dirs.discard(p)
-            if rest[0] == "-rf":
-                for q in [*self.files, *self.dirs]:
-                    if q.startswith(p.rstrip("/") + "/"):
-                        self.files.pop(q, None); self.dirs.discard(q)
-            return 0, ""
-        if cmd == "chmod":
-            if not self._exists(rest[1]):
-                return 1, ""
-            self.modes[rest[1]] = int(rest[0], 8); return 0, ""
-        if cmd == "stat":
-            p = rest[-1]
-            return (0, "%o" % self.modes[p]) if p in self.modes else (1, "")
-        if cmd == "setfattr":
-            self.xattrs[(rest[-1], rest[1])] = rest[3].encode("latin-1"); return 0, ""
-        if cmd == "ln":
-            self.links[rest[-1]] = rest[-2]; return 0, ""
-        return 1, ""
+        handler = {
+            "test": self._cmd_test,
+            "ls": self._cmd_ls,
+            "mkdir": self._cmd_mkdir,
+            "rm": self._cmd_rm,
+            "chmod": self._cmd_chmod,
+            "stat": self._cmd_stat,
+            "setfattr": self._cmd_setfattr,
+            "ln": self._cmd_ln,
+        }.get(cmd)
+        return handler(rest) if handler else (1, "")
+
+    def _cmd_test(self, rest):
+        predicate = {"-e": self._exists, "-d": self.dirs.__contains__,
+                     "-f": self.files.__contains__}[rest[0]]
+        return (0 if predicate(rest[1]) else 1), ""
+
+    def _cmd_ls(self, rest):
+        path = rest[1]
+        if path not in self.dirs:
+            return 1, ""
+        prefix = path.rstrip("/") + "/"
+        children = {item[len(path):].lstrip("/").split("/")[0]
+                    for item in [*self.files, *self.dirs, *self.links]
+                    if item.startswith(prefix)}
+        return 0, "\n".join(sorted(child for child in children if child))
+
+    def _cmd_mkdir(self, rest):
+        self.dirs.add(rest[-1])
+        return 0, ""
+
+    def _cmd_rm(self, rest):
+        path = rest[-1]
+        self.files.pop(path, None)
+        self.links.pop(path, None)
+        self.dirs.discard(path)
+        if rest[0] == "-rf":
+            self._remove_children(path)
+        return 0, ""
+
+    def _remove_children(self, path):
+        prefix = path.rstrip("/") + "/"
+        for child in [*self.files, *self.dirs]:
+            if child.startswith(prefix):
+                self.files.pop(child, None)
+                self.dirs.discard(child)
+
+    def _cmd_chmod(self, rest):
+        if not self._exists(rest[1]):
+            return 1, ""
+        self.modes[rest[1]] = int(rest[0], 8)
+        return 0, ""
+
+    def _cmd_stat(self, rest):
+        path = rest[-1]
+        return (0, "%o" % self.modes[path]) if path in self.modes else (1, "")
+
+    def _cmd_setfattr(self, rest):
+        self.xattrs[(rest[-1], rest[1])] = rest[3].encode("latin-1")
+        return 0, ""
+
+    def _cmd_ln(self, rest):
+        self.links[rest[-1]] = rest[-2]
+        return 0, ""
 
     def _shell(self, script, stdin):
         import base64

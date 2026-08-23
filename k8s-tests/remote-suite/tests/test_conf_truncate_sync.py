@@ -37,6 +37,21 @@ import pytest
 
 import official_interop_lib as L
 
+def _check_test_truncate_sparse_huge_1(rc_o, rc_f):
+    assert (rc_o == 0) == (rc_f == 0), f"sparse truncate success differs ours={rc_o} off={rc_f}"
+
+def _check_test_truncate_sparse_huge_2(huge, stt, url):
+    assert stt.st_size == huge, f"{url} apparent size {stt.st_size} != {huge}"
+
+def _check_test_truncate_sparse_huge_3(allocated, huge, url):
+    assert allocated < huge // 2, \
+        f"{url} file is not sparse: {allocated} bytes allocated for {huge}"
+
+def _check_test_truncate_sparse_huge_4(st, data):
+    assert st == kXR_ok and data == b"\x00", \
+        f"far sparse byte not zero: st={st} data={data!r}"
+
+
 pytestmark = [pytest.mark.timeout(300),
               pytest.mark.skipif(not L.have_official(),
                                  reason="stock xrootd/xrdfs/xrdcp not installed")]
@@ -378,24 +393,22 @@ def test_truncate_sparse_huge(srv, huge):
             f.write(b"AB")        # 2 real bytes, then a giant hole
     rc_o = fs(srv["our"], "truncate", our_w, str(huge))[0]
     rc_f = fs(srv["off"], "truncate", off_w, str(huge))[0]
-    assert (rc_o == 0) == (rc_f == 0), f"sparse truncate success differs ours={rc_o} off={rc_f}"
+    _check_test_truncate_sparse_huge_1(rc_o, rc_f)
     if rc_o != 0:
         return
     for url, w in ((srv["our"], our_w), (srv["off"], off_w)):
         disk = disk_for(srv, url, w)
         stt = os.stat(disk)
-        assert stt.st_size == huge, f"{url} apparent size {stt.st_size} != {huge}"
+        _check_test_truncate_sparse_huge_2(huge, stt, url)
         # sparse: allocated blocks must be far smaller than the apparent size.
         allocated = stt.st_blocks * 512
-        assert allocated < huge // 2, \
-            f"{url} file is not sparse: {allocated} bytes allocated for {huge}"
+        _check_test_truncate_sparse_huge_3(allocated, huge, url)
     # the far byte reads as zero through the wire
     s_sock = _session(srv["our"])
     try:
         fh = _open_handle(s_sock, our_w, kXR_open_read)
         st, data = _read(s_sock, fh, huge - 1, 1)
-        assert st == kXR_ok and data == b"\x00", \
-            f"far sparse byte not zero: st={st} data={data!r}"
+        _check_test_truncate_sparse_huge_4(st, data)
         _close(s_sock, fh)
     finally:
         s_sock.close()
@@ -423,8 +436,11 @@ def test_sparse_write_at_offset(srv, offset, wlen):
     for url, w in ((srv["our"], our_w), (srv["off"], off_w)):
         with open(disk_for(srv, url, w), "rb") as f:
             b = f.read()
-        assert len(b) == offset + wlen, f"{url} size {len(b)} != {offset + wlen}"
-        assert b[:offset] == b"\x00" * offset, f"{url} sparse hole before write not zero"
+        def _assert_test_sparse_write_at_offset_1():
+            assert len(b) == offset + wlen, f"{url} size {len(b)} != {offset + wlen}"
+            assert b[:offset] == b"\x00" * offset, f"{url} sparse hole before write not zero"
+
+        _assert_test_sparse_write_at_offset_1()
         assert b[offset:] == payload, f"{url} written bytes wrong"
     # cross-check both servers produced identical files
     with open(our_disk(srv, our_w), "rb") as a, open(off_disk(srv, off_w), "rb") as b:

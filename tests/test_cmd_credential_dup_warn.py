@@ -18,7 +18,13 @@ def test_credential_dup_warn_flow(tmp_path):
         f"{'ok' if ok else 'FAIL'} {message}" for ok, message in results
     )
     messages = [message for _, message in results]
-    assert "duplicate same-name credential warned at config load" in messages
-    assert "config with the duplicate still loads (warning, not error)" in messages
-    assert "single credential block: no false warning" in messages
-    assert "distinct credential names: no false warning" in messages
+    def _assert_test_credential_dup_warn_flow_1():
+        assert "duplicate same-name credential warned at config load" in messages
+        assert "config with the duplicate still loads (warning, not error)" in messages
+
+    _assert_test_credential_dup_warn_flow_1()
+    def _assert_test_credential_dup_warn_flow_2():
+        assert "single credential block: no false warning" in messages
+        assert "distinct credential names: no false warning" in messages
+
+    _assert_test_credential_dup_warn_flow_2()

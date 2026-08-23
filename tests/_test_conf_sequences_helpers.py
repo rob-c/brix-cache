@@ -134,6 +134,17 @@ def md5(b):
     return hashlib.md5(b).hexdigest()
 
 
+def _require(condition, message):
+    if not condition:
+        raise AssertionError(message)
+
+
+def _stat_size_if_ok(status, body):
+    if status != kXR_ok:
+        return None
+    return _stat_size(body)
+
+
 def both(ctx):
     """Iterate (who, url) for the two servers, stock first is irrelevant; we run
     the identical chain on each and compare the per-step outcome."""

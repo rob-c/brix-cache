@@ -24,6 +24,36 @@ import pytest
 
 from settings import NGINX_BIN, free_port, HOST, BIND_HOST
 
+def _expression_1():
+    return (
+        int(os.environ.get("TEST_FRM_SCRATCH_PORT") or free_port())
+    )
+
+
+def _guard_start_frm_1(real_mss, copycmd):
+    if real_mss:
+        shutil.copy(os.path.join(os.path.dirname(__file__), "frm_fake_mss.sh"),
+                    str(copycmd))
+    else:
+        copycmd.write_text(FIXED_COPYCMD)
+
+def _guard_start_frm_2(oracle, oracle_cmd):
+    if oracle:
+        oracle_cmd.write_text(ORACLE)
+        os.chmod(str(oracle_cmd), 0o755)
+
+def _guard_start_frm_3(control_dir, near):
+    if control_dir:
+        # marker lives in the control mount (set by the test), NOT on the export
+        pass
+    else:
+        os.setxattr(str(near), "user.frm.residency", b"nearline")
+
+def _guard_start_frm_4(real_mss, tape):
+    if real_mss:
+        (tape / "near.dat").write_bytes(TAPE_BYTES)    # the "tape" copy
+
+
 XRDCP = shutil.which("xrdcp")
 FIXED_BYTES = b"RECALLED-VIA-SCRATCH-" + b"q" * 64 + b"\n"
 TAPE_BYTES = b"REAL-TAPE-CONTENT-" + b"t" * 200 + b"\n"
@@ -50,10 +80,36 @@ exit 1
 from frm_helpers import xattr_ok as _xattr_ok, res_stub_path as _res_stub_path
 
 
+def _scratch_directives(scratch, control, oracle_cmd,
+                        force_scratch, control_dir, oracle):
+    directives = ""
+    if force_scratch:
+        directives += (f"        brix_frm_stage_dir {scratch};\n"
+                       "        brix_frm_force_scratch on;\n")
+    if control_dir:
+        directives += f"        brix_frm_control_dir {control};\n"
+    if oracle:
+        directives += f"        brix_frm_residency_cmd {oracle_cmd};\n"
+    return directives
+
+
+def _wait_frm(proc, port):
+    deadline = time.time() + 10
+    while time.time() < deadline:
+        try:
+            socket.create_connection((HOST, port), timeout=0.5).close()
+            return
+        except OSError:
+            time.sleep(0.1)
+    err = proc.stderr.read().decode(errors="replace")
+    proc.terminate()
+    pytest.skip(f"FRM server did not start: {err}")
+
+
 def _start_frm(d, *, force_scratch=False, control_dir=False, real_mss=False,
                oracle=False):
     """Start a self-contained POSIX FRM server. Returns (proc, ctx) or skips."""
-    port = int(os.environ.get("TEST_FRM_SCRATCH_PORT") or free_port())
+    port = _expression_1()
     d.mkdir(parents=True, exist_ok=True)
     (d / "logs").mkdir()
     data = d / "data"; data.mkdir()
@@ -64,36 +120,19 @@ def _start_frm(d, *, force_scratch=False, control_dir=False, real_mss=False,
     audit = d / "audit.log"; audit.write_text("")
 
     copycmd = d / "copycmd.sh"
-    if real_mss:
-        shutil.copy(os.path.join(os.path.dirname(__file__), "frm_fake_mss.sh"),
-                    str(copycmd))
-    else:
-        copycmd.write_text(FIXED_COPYCMD)
+    _guard_start_frm_1(real_mss, copycmd)
     os.chmod(str(copycmd), 0o755)
 
     oracle_cmd = d / "oracle.sh"
-    if oracle:
-        oracle_cmd.write_text(ORACLE)
-        os.chmod(str(oracle_cmd), 0o755)
+    _guard_start_frm_2(oracle, oracle_cmd)
 
     near = data / "near.dat"
     near.write_bytes(b"")                              # 0-byte placeholder
-    if control_dir:
-        # marker lives in the control mount (set by the test), NOT on the export
-        pass
-    else:
-        os.setxattr(str(near), "user.frm.residency", b"nearline")
-    if real_mss:
-        (tape / "near.dat").write_bytes(TAPE_BYTES)    # the "tape" copy
+    _guard_start_frm_3(control_dir, near)
+    _guard_start_frm_4(real_mss, tape)
 
-    scratch_dirs = ""
-    if force_scratch:
-        scratch_dirs += (f"        brix_frm_stage_dir {scratch};\n"
-                         "        brix_frm_force_scratch on;\n")
-    if control_dir:
-        scratch_dirs += f"        brix_frm_control_dir {control};\n"
-    if oracle:
-        scratch_dirs += f"        brix_frm_residency_cmd {oracle_cmd};\n"
+    scratch_dirs = _scratch_directives(
+        scratch, control, oracle_cmd, force_scratch, control_dir, oracle)
 
     conf = f"""
 worker_processes 1;
@@ -132,17 +171,7 @@ master_process off;
 
     proc = subprocess.Popen([NGINX_BIN, "-p", str(d), "-c", str(cp)],
                             stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env)
-    deadline = time.time() + 10
-    while time.time() < deadline:
-        try:
-            socket.create_connection((HOST, port), timeout=0.5).close()
-            break
-        except OSError:
-            time.sleep(0.1)
-    else:
-        err = proc.stderr.read().decode(errors="replace")
-        proc.terminate()
-        pytest.skip(f"FRM server did not start: {err}")
+    _wait_frm(proc, port)
 
     class Ctx:
         pass
@@ -243,8 +272,11 @@ def test_residency_oracle_queried_on_lfn_not_scratch(_guard, tmp_path):
         oracle = [ln.split(" ", 1)[1] for ln in lines if ln.startswith("oracle ")]
         stage = [ln.split(" ", 1)[1] for ln in lines if ln.startswith("stage ")]
         # oracle saw the export object; copycmd was handed the scratch temp
-        assert oracle and oracle[-1] == os.path.realpath(ctx.export_near), oracle
-        assert stage and stage[-1].startswith(ctx.scratch_dir + "/"), stage
+        def _assert_test_residency_oracle_queried_on_lfn_not_scratch_1():
+            assert oracle and oracle[-1] == os.path.realpath(ctx.export_near), oracle
+            assert stage and stage[-1].startswith(ctx.scratch_dir + "/"), stage
+
+        _assert_test_residency_oracle_queried_on_lfn_not_scratch_1()
     finally:
         _stop(proc)
 

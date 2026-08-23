@@ -25,6 +25,44 @@ import urllib.request
 import pytest
 
 # conftest chdir()s into a scratch dir — anchor imports on this file's dir.
+def _manifest_hash(hash_text, marker, text, forge):
+    if hash_text is None:
+        body = text[:-3] if marker else text
+        return forge.manifest_hash or hashlib.sha1(body.encode()).hexdigest()
+    return hash_text
+
+
+def _manifest_lines(forge, fields, lines):
+    if lines is not None:
+        return lines
+    source = fields if fields is not None else _fields(forge)
+    return [f"{key}{value}" for key, value in source.items()]
+
+
+def _manifest_body(lines, marker):
+    text = "".join(line + "\n" for line in lines)
+    return text + "--\n" if marker else text
+
+
+def _manifest_text(text, digest, hashline, crlf):
+    if hashline:
+        text += digest + "\n"
+    return text.replace("\n", "\r\n") if crlf else text
+
+
+def _manifest_signature(forge, digest, sign_key, stale_sig):
+    if stale_sig:
+        return b"\x00" * 256
+    return forge._rsa_sign(sign_key or forge.cert_key, digest.encode())
+
+
+def _manifest_bytes(forge, text, digest, sign_key, stale_sig, sig):
+    raw = text.encode()
+    if sig:
+        raw += _manifest_signature(forge, digest, sign_key, stale_sig)
+    return raw
+
+
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "cvmfs"))
 
 from cmdscripts import exec_wrapper
@@ -136,30 +174,16 @@ def write_manifest(forge, *, fields=None, lines=None, hash_text=None, sign_key=N
     """Write an arbitrary .cvmfspublished. `lines` (explicit "Kvalue" strings, order
     and duplicates preserved) wins over `fields`; the signature always covers the
     printed `hash_text` with the repo cert key (the exact brix/CVMFS scheme)."""
-    if lines is None:
-        src = fields if fields is not None else _fields(forge)
-        lines = [f"{k}{v}" for k, v in src.items()]
-    text = "".join(l + "\n" for l in lines)
-    if marker:
-        text += "--\n"
+    lines = _manifest_lines(forge, fields, lines)
+    text = _manifest_body(lines, marker)
     # The signed hash-line is the manifest body's own SHA-1 digest (body-bound
     # signature): default to the real digest of the body up to but EXCLUDING the
     # "--\n" separator — exactly what an official publisher, repo_forge._write_manifest,
     # and the body-bound verifier (verify.c body_bound_to_hash) all compute.
     # `hash_text` overrides it to forge a body/hash mismatch.
-    if hash_text is None:
-        body_for_hash = text[:-3] if marker else text
-        ht = forge.manifest_hash or hashlib.sha1(body_for_hash.encode()).hexdigest()
-    else:
-        ht = hash_text
-    if hashline:
-        text += ht + "\n"
-    if crlf:
-        text = text.replace("\n", "\r\n")
-    raw = text.encode()
-    if sig:
-        raw += b"\x00" * 256 if stale_sig else forge._rsa_sign(
-            sign_key or forge.cert_key, ht.encode())
+    ht = _manifest_hash(hash_text, marker, text, forge)
+    text = _manifest_text(text, ht, hashline, crlf)
+    raw = _manifest_bytes(forge, text, ht, sign_key, stale_sig, sig)
     forge.artifact_path("manifest").write_bytes(raw)
 
 

@@ -14,6 +14,22 @@ from settings import BIND_HOST, HOST
 from cmdscripts.live_common import inject_nginx_load_modules, inject_nginx_runtime_paths
 
 
+def _expression_1(nginx):
+    return (
+        nginx or Path(os.environ.get("NGINX_BIN", "/tmp/nginx-1.28.3/objs/nginx"))
+    )
+
+def _expression_2(detail, ok):
+    return (
+        print(f"{'ok  -' if ok else 'FAIL-'} {detail}")
+    )
+
+def _expression_3(failed):
+    return (
+        0 if not failed else 1
+    )
+
+
 def _run_nginx_test(nginx: Path, prefix: Path, name: str, expect_fail: bool, body: str) -> tuple[bool, str]:
     config = prefix / "nginx.conf"
     config.write_text(
@@ -38,7 +54,7 @@ http {{ {body} }}
 
 
 def run(nginx: Path | None = None) -> int:
-    nginx_bin = nginx or Path(os.environ.get("NGINX_BIN", "/tmp/nginx-1.28.3/objs/nginx"))
+    nginx_bin = _expression_1(nginx)
     prefix = Path(tempfile.mkdtemp(prefix="unified-conf."))
     passed = 0
     failed: list[str] = []
@@ -143,13 +159,13 @@ server {{ listen {BIND_HOST}:18498;
         ]
         for name, expect_fail, body in cases:
             ok, detail = _run_nginx_test(nginx_bin, prefix, name, expect_fail, body)
-            print(f"{'ok  -' if ok else 'FAIL-'} {detail}")
+            _expression_2(detail, ok)
             if ok:
                 passed += 1
             else:
                 failed.append(detail)
         print(f"unified_conf: {passed} passed, {len(failed)} failed")
-        return 0 if not failed else 1
+        return _expression_3(failed)
     finally:
         shutil.rmtree(prefix, ignore_errors=True)
 

@@ -295,90 +295,182 @@ def _bench_cell(mnt_ok: bool, res: tuple[int, int, float] | None, total: int) ->
 # bench — cvmfs-brix vs stock cvmfs2 through failproxy.py, real Stratum-1
 # ---------------------------------------------------------------------------
 
-def bench(nginx: Path | None = None) -> int:
+def _bench_settings():
     repo = os.environ.get("REPO", "cms.cern.ch")
-    s1 = os.environ.get("ATLAS_S1", f"http://s1cern-cvmfs.openhtc.io/cvmfs/{repo}")
-    keys = "/etc/cvmfs/keys/cern.ch"
-    nfiles = int(os.environ.get("NFILES", "25"))
-    mode = os.environ.get("MODE", "loss")
-    rates = os.environ.get("RATES", "0 15 30").split()
+    return {
+        "repo": repo,
+        "s1": os.environ.get("ATLAS_S1", f"http://s1cern-cvmfs.openhtc.io/cvmfs/{repo}"),
+        "keys": "/etc/cvmfs/keys/cern.ch",
+        "nfiles": int(os.environ.get("NFILES", "25")),
+        "mode": os.environ.get("MODE", "loss"),
+        "rates": os.environ.get("RATES", "0 15 30").split(),
+    }
+
+
+def _require_bench_prerequisites(run, settings):
+    published = f"{settings['s1']}/.cvmfspublished"
+    reachable = run.call(
+        ["curl", "-fsS", "-o", os.devnull, "--max-time", "8", published],
+        check=False,
+    )
+    _require(reachable.returncode == 0,
+             f"Stratum-1 unreachable: {settings['s1']}")
+    _require(shutil.which("cvmfs2"), "no stock cvmfs2")
+    _require(shutil.which("fusermount3") or shutil.which("fusermount"),
+             "no fusermount")
+    _require(Path(settings["keys"]).exists(),
+             f"CVMFS keys missing: {settings['keys']}")
+
+
+def _bench_files(run, brix, settings):
+    print(f"== enumerate {settings['nfiles']} {settings['repo']} files (clean brix mount) ==")
+    mount = run.mkdir("emnt")
+    process = _brix_mount(
+        run, brix, settings["repo"], settings["s1"], settings["keys"],
+        run.mkdir("ecache"), run.mkdir("etmp"), mount,
+    )
+    if not _wait_mount_ready(mount):
+        print("   (enumerate mount slow)")
+    files = _enumerate_files(run, mount, settings["nfiles"])
+    print(f"   enumerated {len(files)} files")
+    _umount_wait(run, mount)
+    _terminate_if_running(process)
+    return files
+
+
+def _terminate_if_running(process):
+    if process.poll() is None:
+        process.terminate()
+
+
+def _brix_bench_result(run, brix, settings, port, rate, files):
+    cache, temporary, mount = (run.mkdir(f"bc{rate}"), run.mkdir(f"bt{rate}"),
+                               run.mkdir(f"bm{rate}"))
+    process = _brix_mount(
+        run, brix, settings["repo"], settings["s1"], settings["keys"],
+        cache, temporary, mount,
+        extra_env={"http_proxy": f"http://{HOST}:{port}"},
+    )
+    mounted = _wait_mount_ready(mount)
+    result = _read_files(mount, files, 25) if mounted else None
+    _umount_wait(run, mount)
+    _terminate_if_running(process)
+    return mounted, result
+
+
+def _stock_bench_result(run, settings, port, rate, files):
+    cache, mount = run.mkdir(f"sc{rate}"), run.mkdir(f"sm{rate}")
+    config = _stock_cvmfs2_conf(
+        run.root / f"bench_stock.{rate}.conf", settings["s1"],
+        f"http://{HOST}:{port}", settings["keys"], cache, 5,
+    )
+    process = run.spawn(
+        ["timeout", "60", "cvmfs2", "-o", f"config={config}",
+         settings["repo"], mount]
+    )
+    mounted = _wait_mount_ready(mount)
+    result = _read_files(mount, files, 25) if mounted else None
+    _umount_wait(run, mount)
+    _terminate_if_running(process)
+    return mounted, result
+
+
+def _stop_proxy(proxy):
+    proxy.terminate()
+    try:
+        proxy.wait(3)
+    except subprocess.TimeoutExpired:
+        proxy.kill()
+
+
+def _proxy_stats(log):
+    if not log.exists():
+        return 0, 0
+    matches = re.findall(r"STATS req=(\d+) fault=(\d+)",
+                         log.read_text(errors="replace"))
+    if not matches:
+        return 0, 0
+    return int(matches[-1][0]), int(matches[-1][1])
+
+
+def _bench_rate(run, brix, settings, port, rate, files):
+    log = run.root / f"failproxy.{rate}.log"
+    proxy = run.spawn([
+        sys.executable, REPO_ROOT / "tests/cvmfs/failproxy.py", str(port),
+        "--mode", settings["mode"], "--rate", str(int(rate) / 100.0),
+        "--log", log,
+    ])
+    time.sleep(1)
+    brix_ok, brix_result = _brix_bench_result(
+        run, brix, settings, port, rate, files
+    )
+    stock_ok, stock_result = _stock_bench_result(
+        run, settings, port, rate, files
+    )
+    _stop_proxy(proxy)
+    requests, faults = _proxy_stats(log)
+    total = len(files)
+    print(f"{rate:<6} | {_bench_cell(brix_ok, brix_result, total):<28} | "
+          f"{_bench_cell(stock_ok, stock_result, total):<28} | "
+          f"proxyreq={requests} faults={faults}")
+    return rate, brix_result, stock_result, requests, faults
+
+
+def _bench_results(run, brix, settings, port, files):
+    if not files:
+        return []
+    mode = settings["mode"]
+    print(f"\n{mode + '%':<6} | {'CVMFS-brix (ok/N, secs)':<28} | "
+          f"{'stock cvmfs2 (ok/N, secs)':<28}")
+    print("-------+------------------------------+------------------------------")
+    rows = [_bench_rate(run, brix, settings, port, rate, files)
+            for rate in settings["rates"]]
+    print(f"\n(mode={mode}, N={len(files)} files, {settings['repo']} via "
+          f"{settings['s1']}; both clients COLD cache)")
+    return rows
+
+
+def _bench_checks(rows, rates, file_count):
+    fault_free = next((row for row in rows if row[0] == "0"), None)
+    reads = _fault_free_reads(fault_free)
+    throughput = _fault_free_throughput(fault_free)
+    requests = _fault_free_requests(fault_free)
+    return _checks([
+        (file_count >= 1, f"enumerated at least one repository file ({file_count})"),
+        (len(rows) == len(rates),
+         f"fault-rate sweep completed ({len(rows)}/{len(rates)} rates)"),
+        (reads >= 1, "fault-free brix run read at least one file"),
+        (throughput > 0, "fault-free brix run has non-zero throughput"),
+        (requests >= 1,
+         "reads demonstrably traversed the failproxy (proxyreq>0)"),
+    ])
+
+
+def _fault_free_throughput(row):
+    if row is None or row[1] is None:
+        return 0
+    successful, _total, seconds = row[1]
+    return successful / seconds if seconds > 0 else 0
+
+
+def _fault_free_reads(row):
+    if row is None or row[1] is None:
+        return 0
+    return row[1][0]
+
+
+def _fault_free_requests(row):
+    return row[3] if row is not None else 0
+
+
+def bench(nginx: Path | None = None) -> int:
+    settings = _bench_settings()
     with LiveRun("cvmfs_bench", nginx) as run:
-        reachable = run.call(["curl", "-fsS", "-o", os.devnull, "--max-time", "8",
-                              f"{s1}/.cvmfspublished"], check=False)
-        _require(reachable.returncode == 0, f"Stratum-1 unreachable: {s1}")
-        _require(shutil.which("cvmfs2"), "no stock cvmfs2")
-        _require(shutil.which("fusermount3") or shutil.which("fusermount"), "no fusermount")
-        _require(Path(keys).exists(), f"CVMFS keys missing: {keys}")
+        _require_bench_prerequisites(run, settings)
         brix = _ensure_brixcvmfs(run)
-        (pport,) = _PORTS[0:1]  # was free_ports(1)
-
-        print(f"== enumerate {nfiles} {repo} files (clean brix mount) ==")
-        e_mnt, e_cache, e_tmp = run.mkdir("emnt"), run.mkdir("ecache"), run.mkdir("etmp")
-        enum_proc = _brix_mount(run, brix, repo, s1, keys, e_cache, e_tmp, e_mnt)
-        if not _wait_mount_ready(e_mnt):
-            print("   (enumerate mount slow)")
-        files = _enumerate_files(run, e_mnt, nfiles)
-        ngot = len(files)
-        print(f"   enumerated {ngot} files")
-        _umount_wait(run, e_mnt)
-        if enum_proc.poll() is None:
-            enum_proc.terminate()
-
-        rows: list[tuple[str, tuple[int, int, float] | None, tuple[int, int, float] | None, int, int]] = []
-        if ngot >= 1:
-            print(f"\n{mode + '%':<6} | {'CVMFS-brix (ok/N, secs)':<28} | {'stock cvmfs2 (ok/N, secs)':<28}")
-            print("-------+------------------------------+------------------------------")
-            for rate in rates:
-                plog = run.root / f"failproxy.{rate}.log"
-                fp = run.spawn([sys.executable, REPO_ROOT / "tests/cvmfs/failproxy.py", str(pport),
-                                "--mode", mode, "--rate", str(int(rate) / 100.0), "--log", plog])
-                time.sleep(1)
-
-                bc, bt, bm = run.mkdir(f"bc{rate}"), run.mkdir(f"bt{rate}"), run.mkdir(f"bm{rate}")
-                bp = _brix_mount(run, brix, repo, s1, keys, bc, bt, bm,
-                                 extra_env={"http_proxy": f"http://{HOST}:{pport}"})
-                brix_ok = _wait_mount_ready(bm)
-                brix_res = _read_files(bm, files, 25) if brix_ok else None
-                _umount_wait(run, bm)
-                if bp.poll() is None:
-                    bp.terminate()
-
-                sc, sm = run.mkdir(f"sc{rate}"), run.mkdir(f"sm{rate}")
-                conf = _stock_cvmfs2_conf(run.root / f"bench_stock.{rate}.conf", s1,
-                                          f"http://{HOST}:{pport}", keys, sc, 5)
-                sp = run.spawn(["timeout", "60", "cvmfs2", "-o", f"config={conf}", repo, sm])
-                stock_ok = _wait_mount_ready(sm)
-                stock_res = _read_files(sm, files, 25) if stock_ok else None
-                _umount_wait(run, sm)
-                if sp.poll() is None:
-                    sp.terminate()
-
-                fp.terminate()
-                try:
-                    fp.wait(3)
-                except subprocess.TimeoutExpired:
-                    fp.kill()
-                req = faults = 0
-                if plog.exists():
-                    stats = re.findall(r"STATS req=(\d+) fault=(\d+)", plog.read_text(errors="replace"))
-                    if stats:
-                        req, faults = int(stats[-1][0]), int(stats[-1][1])
-                rows.append((rate, brix_res, stock_res, req, faults))
-                print(f"{rate:<6} | {_bench_cell(brix_ok, brix_res, ngot):<28} | "
-                      f"{_bench_cell(stock_ok, stock_res, ngot):<28} | proxyreq={req} faults={faults}")
-            print(f"\n(mode={mode}, N={ngot} files, {repo} via {s1}; both clients COLD cache)")
-
-        # Bench lane: sanity/correctness only — completed, non-zero throughput.
-        rate0 = next((row for row in rows if row[0] == "0"), None)
-        return _checks([
-            (ngot >= 1, f"enumerated at least one repository file ({ngot})"),
-            (len(rows) == len(rates), f"fault-rate sweep completed ({len(rows)}/{len(rates)} rates)"),
-            (rate0 is not None and rate0[1] is not None and rate0[1][0] >= 1,
-             "fault-free brix run read at least one file"),
-            (rate0 is not None and rate0[1] is not None and rate0[1][2] > 0
-             and rate0[1][0] / rate0[1][2] > 0, "fault-free brix run has non-zero throughput"),
-            (rate0 is not None and rate0[3] >= 1, "reads demonstrably traversed the failproxy (proxyreq>0)"),
-        ])
+        files = _bench_files(run, brix, settings)
+        rows = _bench_results(run, brix, settings, _PORTS[0], files)
+        return _bench_checks(rows, settings["rates"], len(files))
 
 
 # ---------------------------------------------------------------------------

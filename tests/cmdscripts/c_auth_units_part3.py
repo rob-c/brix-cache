@@ -83,9 +83,13 @@ def entry(argv: list[str]) -> int:
     names = argv or sorted(RUNNERS)
     with tempfile.TemporaryDirectory(prefix="c_auth_units.") as tmp:
         results = run_checks(Path(tmp), names=names)
+    _print_results(results)
+    return 0 if all(ok for ok, _ in results) else 1
+
+
+def _print_results(results: list[tuple[bool, str]]) -> None:
     for ok, message in results:
         print(f"  {'ok  ' if ok else 'FAIL'} {message}")
-    return 0 if all(ok for ok, _ in results) else 1
 
 
 if __name__ == "__main__":

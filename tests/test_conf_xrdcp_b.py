@@ -113,8 +113,7 @@ def test_diff_download_same_bytes(srv, tmp_path, name, flags):
 @pytest.mark.parametrize("name", ["data.bin", "sz_65536.bin", "hello.txt",
                                   "big1m.bin"])
 def test_q2_our_client_download(srv, tmp_path, name):
-    if not os.path.exists(L.OUR_XRDCP):
-        pytest.skip("our xrdcp not built")
+    _require_our_client()
     dst = str(tmp_path / f"q2dl_{name}")
     rc, out, err = _download(L.OUR_XRDCP, srv["off"], name, dst, "-f",
                              timeout=_timeout_for(name))
@@ -125,12 +124,10 @@ def test_q2_our_client_download(srv, tmp_path, name):
 
 @pytest.mark.parametrize("mode", ["-N", "-s"])
 def test_q2_our_client_output_modes(srv, tmp_path, mode):
-    if not os.path.exists(L.OUR_XRDCP):
-        pytest.skip("our xrdcp not built")
+    _require_our_client()
     dst = str(tmp_path / f"q2mode_{mode.strip('-')}.bin")
     rc, out, err = _download(L.OUR_XRDCP, srv["off"], "data.bin", dst, mode, "-f")
-    if rc != 0 and _unsupported(out, err):
-        pytest.skip(f"OUR xrdcp lacks {mode}: {err.strip()}")
+    _skip_unsupported(rc, out, err, f"OUR xrdcp lacks {mode}: {err.strip()}")
     assert rc == 0, f"OUR xrdcp {mode} <- stock server failed: {out}{err}"
     assert _read(dst) == _src_bytes(srv, "data.bin"), (
         f"OUR xrdcp {mode}: output-mode flag altered the bytes")
@@ -138,8 +135,7 @@ def test_q2_our_client_output_modes(srv, tmp_path, mode):
 
 @pytest.mark.parametrize("size", [0, 1, 4096, 65537])
 def test_q2_our_client_upload(srv, tmp_path, size):
-    if not os.path.exists(L.OUR_XRDCP):
-        pytest.skip("our xrdcp not built")
+    _require_our_client()
     payload = bytes((i * 31 + size) & 0xff for i in range(size))
     src = str(tmp_path / f"q2up_{size}.src")
     open(src, "wb").write(payload)
@@ -154,36 +150,54 @@ def test_q2_our_client_upload(srv, tmp_path, size):
 
 
 def test_q2_our_client_recursive_download(srv, tmp_path):
-    if not os.path.exists(L.OUR_XRDCP):
-        pytest.skip("our xrdcp not built")
+    _require_our_client()
     dst = str(tmp_path / "q2_rec_many")
     os.makedirs(dst)
     rc, out, err = _download(L.OUR_XRDCP, srv["off"], "many", dst, "-r", "-f",
                              timeout=120)
-    if rc != 0 and _unsupported(out, err):
-        pytest.skip(f"OUR xrdcp lacks recursive copy: {err.strip()}")
+    _skip_unsupported(rc, out, err,
+                      f"OUR xrdcp lacks recursive copy: {err.strip()}")
     assert rc == 0, f"OUR xrdcp -r /many <- stock server failed: {out}{err}"
     # find every f??.txt that landed, anywhere under dst, and verify it
-    found = {}
-    for root_dir, _d, files in os.walk(dst):
-        for fn in files:
-            found[fn] = os.path.join(root_dir, fn)
+    found = _recursive_files(dst)
     for i in range(12):
         fn = f"f{i:02d}.txt"
-        assert fn in found, f"OUR recursive /many missing {fn}: {out}{err}"
-        assert _read(found[fn]) == _src_bytes(
-            srv, os.path.join("many", fn)), (
-            f"OUR recursive /many: {fn} content mismatch")
+        _assert_recursive_file(srv, found, fn, out, err)
 
 
 def test_q2_our_client_stdout(srv):
-    if not os.path.exists(L.OUR_XRDCP):
-        pytest.skip("our xrdcp not built")
+    _require_our_client()
     rc, out, err = _cp(L.OUR_XRDCP, "-f", f"{srv['off']}//hello.txt", "-")
-    if rc != 0 and _unsupported(out, err):
-        pytest.skip(f"OUR xrdcp lacks stdout sink: {err.strip()}")
+    _skip_unsupported(rc, out, err,
+                      f"OUR xrdcp lacks stdout sink: {err.strip()}")
     assert rc == 0, f"OUR xrdcp -> stdout from stock server failed: {err}"
     assert "hello world" in out, f"OUR stdout payload wrong: {out!r}"
+
+
+def _require_our_client():
+    if not os.path.exists(L.OUR_XRDCP):
+        pytest.skip("our xrdcp not built")
+
+
+def _skip_unsupported(returncode, stdout, stderr, message):
+    if returncode != 0 and _unsupported(stdout, stderr):
+        pytest.skip(message)
+
+
+def _recursive_files(directory):
+    found = {}
+    for root_dir, _directories, files in os.walk(directory):
+        for filename in files:
+            found[filename] = os.path.join(root_dir, filename)
+    return found
+
+
+def _assert_recursive_file(srv, found, filename, stdout, stderr):
+    assert filename in found, (
+        f"OUR recursive /many missing {filename}: {stdout}{stderr}")
+    expected = _src_bytes(srv, os.path.join("many", filename))
+    assert _read(found[filename]) == expected, (
+        f"OUR recursive /many: {filename} content mismatch")
 
 
 # =========================================================================== #

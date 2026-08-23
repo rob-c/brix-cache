@@ -160,6 +160,26 @@ TOPOLOGIES = {
 # reachability AND cluster DS CMS registration before conformance runs).
 # ---------------------------------------------------------------------------
 
+def _probe_front(front_url, probe_logical):
+    from XRootD import client
+    from XRootD.client.flags import OpenFlags
+
+    handle = client.File()
+    opened, _ = handle.open(f"{front_url}//{probe_logical.lstrip('/')}",
+                            OpenFlags.READ)
+    if opened.ok:
+        handle.close()
+    stated, _ = client.FileSystem(front_url).stat(probe_logical)
+    return opened, stated
+
+
+def _advance_probe_streak(streak, opened, stated, last):
+    if opened.ok and stated.ok:
+        return streak + 1, last
+    message = (opened.message or stated.message or "").strip()
+    return 0, message
+
+
 def _wait_front_serves(front_url, probe_logical, timeout=30.0):
     """Confirm the front reliably serves BOTH a File open AND a FileSystem stat
     (the two client-connection styles the conformance suite uses) on fresh
@@ -167,27 +187,15 @@ def _wait_front_serves(front_url, probe_logical, timeout=30.0):
     cannot do this — e.g. a backend that went down under host load — is SKIPPED,
     not failed, so transient environment issues don't masquerade as conformance
     divergences."""
-    from XRootD import client
-    from XRootD.client.flags import OpenFlags
-
     deadline = time.time() + timeout
     last = ""
     ok_streak = 0
     while time.time() < deadline:
-        f = client.File()
-        st_open, _ = f.open(f"{front_url}//{probe_logical.lstrip('/')}",
-                            OpenFlags.READ)
-        if st_open.ok:
-            f.close()
-        # Fresh FileSystem connection (separate from the File above).
-        st_stat, _ = client.FileSystem(front_url).stat(probe_logical)
-        if st_open.ok and st_stat.ok:
-            ok_streak += 1
-            if ok_streak >= 3:        # stable on consecutive fresh connections
-                return True
-        else:
-            ok_streak = 0
-            last = (st_open.message or st_stat.message or "").strip()
+        opened, stated = _probe_front(front_url, probe_logical)
+        ok_streak, last = _advance_probe_streak(
+            ok_streak, opened, stated, last)
+        if ok_streak >= 3:
+            return True
         time.sleep(0.3)
     pytest.skip(f"front {front_url} did not reliably serve {probe_logical} "
                 f"(last: {last or 'timeout'})")
@@ -234,25 +242,30 @@ def probe_file():
 # ---------------------------------------------------------------------------
 
 @pytest.mark.parametrize("topo", list(TOPOLOGIES))
-def test_full_conformance_through_topology(topo, probe_file, lifecycle):
-    _require_fleet_backends()
-    builder = TOPOLOGIES[topo]
+def _front_url(builder, lifecycle):
     front_url = builder(lifecycle)
     if isinstance(front_url, tuple):      # _build_mirror returns (url, log_dir)
-        front_url = front_url[0]
-    _wait_front_serves(front_url, probe_file)
+        return front_url[0]
+    return front_url
 
+
+def _conformance_environment(front_url):
     env = dict(os.environ)
     env["CONFORMANCE_NGINX_URL"] = front_url
     env["TEST_SKIP_SERVER_SETUP"] = "1"      # reuse the running fleet
     env["TEST_OWN_FLEET"] = "0"
-    env["PYTHONPATH"] = "tests" + (
-        os.pathsep + env["PYTHONPATH"] if env.get("PYTHONPATH") else "")
+    prior_path = env.get("PYTHONPATH")
+    env["PYTHONPATH"] = "tests" if not prior_path \
+        else "tests" + os.pathsep + prior_path
+    return env
+
+
+def _run_topology_conformance(topo, front_url, env):
+    basetemp = os.path.join(
+        TEST_ROOT, "artifacts", "conformance-topologies", topo)
 
     try:
-        basetemp = os.path.join(
-            TEST_ROOT, "artifacts", "conformance-topologies", topo)
-        proc = subprocess.run(
+        return subprocess.run(
             [sys.executable, "-m", "pytest", "tests/test_conformance.py",
              "-p", "no:xdist", "-p", "no:cacheprovider",
              "-p", "no:randomly", "-p", "no:rerunfailures",
@@ -269,6 +282,26 @@ def test_full_conformance_through_topology(topo, probe_file, lifecycle):
             f"conformance subprocess through '{topo}' ({front_url}) did not "
             f"finish within 300s — topology front wedged")
 
+
+def _assert_conformance_process(proc, passed, bad, topo, front_url, tail):
+    assert proc.returncode == 0, (
+        f"conformance through {topo} ({front_url}) exited {proc.returncode}:\n{tail}")
+    assert passed > 0, f"conformance through {topo} collected no passing tests:\n{tail}"
+    assert bad is None, f"conformance through {topo} reported {bad.group(0)}:\n{tail}"
+
+
+def _assert_conformance_breadth(passed, topo, tail):
+    assert passed >= 25, (
+        f"only {passed} conformance tests ran through '{topo}' "
+        f"(expected ~30) — suite may have been truncated:\n{tail}")
+
+
+def test_full_conformance_through_topology(topo, probe_file, lifecycle):
+    _require_fleet_backends()
+    front_url = _front_url(TOPOLOGIES[topo], lifecycle)
+    _wait_front_serves(front_url, probe_file)
+    proc = _run_topology_conformance(
+        topo, front_url, _conformance_environment(front_url))
     out = proc.stdout
     tail = out[-4000:] + ("\nSTDERR:\n" + proc.stderr[-1500:]
                           if proc.stderr.strip() else "")
@@ -279,14 +312,8 @@ def test_full_conformance_through_topology(topo, probe_file, lifecycle):
     n_pass = int(m_pass.group(1)) if m_pass else 0
     m_bad = re.search(r"(\d+) (failed|error)", out)
 
-    assert proc.returncode == 0 and n_pass > 0 and m_bad is None, (
-        f"full conformance suite did NOT cleanly pass through '{topo}' "
-        f"({front_url}): rc={proc.returncode}, passed={n_pass}, "
-        f"bad={m_bad.group(0) if m_bad else None}\n{tail}")
-    # Sanity: the topology run must cover the same breadth as a direct run.
-    assert n_pass >= 25, (
-        f"only {n_pass} conformance tests ran through '{topo}' "
-        f"(expected ~30) — suite may have been truncated:\n{tail}")
+    _assert_conformance_process(proc, n_pass, m_bad, topo, front_url, tail)
+    _assert_conformance_breadth(n_pass, topo, tail)
 
 
 # ---------------------------------------------------------------------------
@@ -294,6 +321,26 @@ def test_full_conformance_through_topology(topo, probe_file, lifecycle):
 # Self-contained (redirector + data server only) so it runs even when the
 # host's background load test has the shared fleet down.
 # ---------------------------------------------------------------------------
+
+def _wait_cluster_registered(client, front_url):
+    deadline = time.time() + 30
+    while time.time() < deadline:
+        status, _ = client.FileSystem(front_url).stat("//")
+        if status.ok:
+            return True
+        time.sleep(0.5)
+    return False
+
+
+def _assert_not_found_status(status):
+    assert not status.ok, "nonexistent path should fail"
+    message = (status.message or "").lower()
+    assert "redirect limit" not in message, (
+        f"redirect loop NOT fixed — manager still bounces the client: {status.message!r}")
+    accepted = (getattr(status, "errno", 0) == 3011,
+                "not found" in message, "no such" in message)
+    assert any(accepted), f"expected kXR_NotFound (3011), got: {status.message!r}"
+
 
 def test_cluster_nonexistent_returns_not_found(lifecycle):
     """A stat of a path no data server holds must return kXR_NotFound (3011),
@@ -309,26 +356,12 @@ def test_cluster_nonexistent_returns_not_found(lifecycle):
     front_url = _build_cluster(lifecycle)
 
     # Wait for the data server to register so redirects resolve at all.
-    deadline = time.time() + 30
-    registered = False
-    while time.time() < deadline:
-        st, _ = client.FileSystem(front_url).stat("//")
-        if st.ok:
-            registered = True
-            break
-        time.sleep(0.5)
-    if not registered:
+    if not _wait_cluster_registered(client, front_url):
         pytest.skip("cluster data server did not register in time")
 
     st, _ = client.FileSystem(front_url).stat(
         "//definitely_absent_redirect_loop_probe.bin")
-    assert not st.ok, "nonexistent path should fail"
-    msg = (st.message or "").lower()
-    assert "redirect limit" not in msg, (
-        f"redirect loop NOT fixed — manager still bounces the client: {st.message!r}")
-    assert getattr(st, "errno", 0) == 3011 \
-        or "not found" in msg or "no such" in msg, (
-        f"expected kXR_NotFound (3011), got: {st.message!r}")
+    _assert_not_found_status(st)
 
 
 # ---------------------------------------------------------------------------
@@ -338,76 +371,100 @@ def test_cluster_nonexistent_returns_not_found(lifecycle):
 # same bytes (shared DATA_ROOT) with no mirror divergence logged.
 # ---------------------------------------------------------------------------
 
+def _mirror_write(client, open_flags, front_url, relative, data):
+    handle = client.File()
+    status, _ = handle.open(
+        f"{front_url}//{relative}", open_flags.DELETE | open_flags.NEW)
+    assert status.ok, f"open(NEW) via mirror: {status.message}"
+    status, _ = handle.write(data)
+    assert status.ok, f"write via mirror: {status.message}"
+    status, _ = handle.close()
+    assert status.ok
+
+
+def _assert_scalar_read(handle, data):
+    status, received = handle.read()
+    assert status.ok
+    assert bytes(received) == data, "scalar read through mirror not byte-exact"
+
+
+def _assert_vector_read(handle, data):
+    segments = [(0, 100), (1000, 512), (len(data) - 200, 200)]
+    status, result = handle.vector_read(segments)
+    assert status.ok, f"vector_read: {status.message}"
+    for (offset, size), chunk in zip(segments, result):
+        assert bytes(chunk.buffer) == data[offset:offset + size], \
+            f"vector segment at {offset} not byte-exact through mirror"
+
+
+def _mirror_read(client, open_flags, front_url, relative, data):
+    handle = client.File()
+    status, _ = handle.open(f"{front_url}//{relative}", open_flags.READ)
+    assert status.ok, f"open(READ) via mirror: {status.message}"
+    _assert_scalar_read(handle, data)
+    _assert_vector_read(handle, data)
+    handle.close()
+
+
+def _assert_mirror_checksum(client, query_code, front_url, relative, data):
+    import zlib
+
+    status, response = client.FileSystem(front_url).query(
+        query_code.CHECKSUM, relative)
+    assert status.ok, f"checksum via mirror: {status.message}"
+    algorithm, value = response.decode().strip().split("\x00")[0].split()[:2]
+    assert algorithm == "adler32"
+    assert int(value, 16) == (zlib.adler32(data) & 0xFFFFFFFF), \
+        f"checksum through mirror wrong: {algorithm} {value}"
+
+
+def _assert_reference_read(client, open_flags, relative, data):
+    handle = client.File()
+    status, _ = handle.open(
+        f"root://{H}:{REF_BRIX_PORT}//{relative}", open_flags.READ)
+    assert status.ok, f"official xrootd open: {status.message}"
+    _, received = handle.read()
+    handle.close()
+    assert bytes(received) == data, "official xrootd read not byte-exact"
+
+
+def _assert_no_mirror_divergence(log, offset):
+    time.sleep(1.5)
+    if not os.path.exists(log):
+        return
+    with open(log, errors="replace") as handle:
+        handle.seek(offset)
+        diverged = [line for line in handle.read().splitlines()
+                    if "diverge" in line.lower()]
+    assert not diverged, (
+        "mirror reported a divergence vs the official xrootd:\n"
+        + "\n".join(diverged[:8]))
+
+
+def _remove_mirror_file(relative):
+    try:
+        os.unlink(os.path.join(DATA_ROOT, relative))
+    except FileNotFoundError:
+        pass
+
+
 def test_mirror_readwrite_against_official_xrootd(lifecycle):
     _require_fleet_backends()
     from XRootD import client
     from XRootD.client.flags import OpenFlags, QueryCode
-    import zlib
 
-    rel = f"_mirror_rw_{os.getpid()}.bin"
-    data = bytes((i * 37 + 5) & 0xFF for i in range(256 * 1024 + 123))
+    relative = f"_mirror_rw_{os.getpid()}.bin"
+    data = bytes((index * 37 + 5) & 0xFF
+                 for index in range(256 * 1024 + 123))
     try:
-        # A dedicated spec name so this never collides with the conformance
-        # [mirror] topology test.
         front_url, log_dir = _build_mirror(lifecycle, "mirror_rw")
-
-        # Remember where this run's log starts (nginx appends across runs).
         log = os.path.join(log_dir, "error.log")
-        log_off = os.path.getsize(log) if os.path.exists(log) else 0
-
-        # --- write through the mirror ---
-        f = client.File()
-        st, _ = f.open(f"{front_url}//{rel}", OpenFlags.DELETE | OpenFlags.NEW)
-        assert st.ok, f"open(NEW) via mirror: {st.message}"
-        st, _ = f.write(data); assert st.ok, f"write via mirror: {st.message}"
-        st, _ = f.close(); assert st.ok
-
-        # --- scalar read-back through the mirror ---
-        f = client.File()
-        st, _ = f.open(f"{front_url}//{rel}", OpenFlags.READ)
-        assert st.ok, f"open(READ) via mirror: {st.message}"
-        st, got = f.read(); assert st.ok
-        assert bytes(got) == data, "scalar read through mirror not byte-exact"
-
-        # --- vector read-back through the mirror ---
-        segs = [(0, 100), (1000, 512), (len(data) - 200, 200)]
-        st, vres = f.vector_read(segs); assert st.ok, f"vector_read: {st.message}"
-        for (o, n), chunk in zip(segs, vres):
-            assert bytes(chunk.buffer) == data[o:o + n], \
-                f"vector segment at {o} not byte-exact through mirror"
-        f.close()
-
-        # --- checksum through the mirror ---
-        st, resp = client.FileSystem(front_url).query(QueryCode.CHECKSUM, rel)
-        assert st.ok, f"checksum via mirror: {st.message}"
-        algo, hexval = resp.decode().strip().split("\x00")[0].split()[:2]
-        assert algo == "adler32" and int(hexval, 16) == (zlib.adler32(data) & 0xFFFFFFFF), \
-            f"checksum through mirror wrong: {algo} {hexval}"
-
-        # --- the official xrootd serves the same bytes (shared namespace) ---
-        f = client.File()
-        st, _ = f.open(f"root://{H}:{REF_BRIX_PORT}//{rel}", OpenFlags.READ)
-        assert st.ok, f"official xrootd open: {st.message}"
-        st, ref_got = f.read(); f.close()
-        assert bytes(ref_got) == data, "official xrootd read not byte-exact"
-
-        # --- the mirror must report NO divergence vs the official xrootd.
-        # Only self-contained read-path ops are replayed (handle-based reads and
-        # write opens are skipped), and a shadow "operation not supported" (e.g.
-        # the official lacks Qcksum) is treated as benign — so a clean log proves
-        # the mirror "just works" in front of the official server.  The replay is
-        # async, so allow it to land first, and inspect only THIS run's tail. ---
-        time.sleep(1.5)
-        if os.path.exists(log):
-            with open(log, errors="replace") as lf:
-                lf.seek(log_off)
-                diverged = [ln for ln in lf.read().splitlines()
-                            if "diverge" in ln.lower()]
-            assert not diverged, (
-                "mirror reported a divergence vs the official xrootd:\n"
-                + "\n".join(diverged[:8]))
+        log_offset = os.path.getsize(log) if os.path.exists(log) else 0
+        _mirror_write(client, OpenFlags, front_url, relative, data)
+        _mirror_read(client, OpenFlags, front_url, relative, data)
+        _assert_mirror_checksum(
+            client, QueryCode, front_url, relative, data)
+        _assert_reference_read(client, OpenFlags, relative, data)
+        _assert_no_mirror_divergence(log, log_offset)
     finally:
-        try:
-            os.unlink(os.path.join(DATA_ROOT, rel))
-        except FileNotFoundError:
-            pass
+        _remove_mirror_file(relative)

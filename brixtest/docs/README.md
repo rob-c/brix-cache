@@ -4,10 +4,14 @@ Start here:
 
 - [Getting started](getting-started.md) — install and run the executable example.
 - [Writing tests](writing-tests.md) — the Python declaration model and `run` API.
+- [Managed resources](managed-resources.md) — typed plans, finite tasks,
+  volumes, capability failures, and `Service.fs`.
 - [Public API reference](api-reference.md) — every stable top-level name,
   runtime convenience, fixture, and pytest integration point.
 - [Architecture](architecture.md) — pytest ownership, process safety, resource
   graphs, backend boundaries, and compatibility policy.
+- [Capability expansion plan](capability-expansion-plan.md) — tracked actions
+  for full networking, isolation, Kubernetes, authentication, and storage parity.
 - [Dynamic topology](dynamic-topology.md) — derived server lifetimes, sharing,
   monitoring, test-instance links, and deduplicated logs.
 - [Executable API examples](../examples/README.md) — the 20-test core catalogue,

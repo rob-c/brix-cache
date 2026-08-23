@@ -30,6 +30,12 @@ import pytest
 
 from settings import NGINX_ANON_PORT
 
+def _guard_cksum_hex_1(r, algo):
+    if r.returncode != 0:
+        pytest.skip(f"xrdfs cksum -a {algo} unavailable: "
+                    f"{(r.stderr or r.stdout).strip()[:200]}")
+
+
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 XRDCP = os.path.join(REPO, "client", "bin", "xrdcp")
 XRDFS = os.path.join(REPO, "client", "bin", "xrdfs")
@@ -93,9 +99,7 @@ def _cksum_hex(remote, algo):
         [XRDFS, BASE, "cksum", "-a", algo, remote],
         capture_output=True, text=True, timeout=60, env=_ENV,
     )
-    if r.returncode != 0:
-        pytest.skip(f"xrdfs cksum -a {algo} unavailable: "
-                    f"{(r.stderr or r.stdout).strip()[:200]}")
+    _guard_cksum_hex_1(r, algo)
     parts = r.stdout.split()
     # Expected layout: ["<algo>", "<hex>", "<path>"]; be tolerant of a
     # digest-only reply by falling back to the first hex-looking token.

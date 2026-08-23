@@ -46,22 +46,25 @@ def _port_up(host, port):
         return False
 
 
-@pytest.fixture(scope="module")
-def anon(tmp_path_factory):
+def _require_compiler():
     if shutil.which("cc") is None and shutil.which("gcc") is None:
         pytest.skip("no C compiler to build the native client")
+
+
+def _require_xrdmapc():
+    _require_compiler()
     proc = subprocess.run(["make", "-C", CLIENT_DIR, "xrdmapc"],
                           capture_output=True, text=True, timeout=180)
     if proc.returncode != 0 or not os.path.exists(XRDMAPC):
         pytest.skip(f"xrdmapc build failed:\n{proc.stdout}\n{proc.stderr}")
+
+
+def _require_nginx():
     if not os.access(NGINX_BIN, os.X_OK):
         pytest.skip(f"nginx binary not executable: {NGINX_BIN}")
 
-    root = tmp_path_factory.mktemp("xrdmapc")
-    data = root / "data"
-    data.mkdir()
-    (data / "probe.txt").write_bytes(b"hello\n")
-    port = _free_port()
+
+def _write_anon_config(root, data, port):
     conf = root / "nginx.conf"
     conf.write_text(f"""
 worker_processes 1;
@@ -77,17 +80,40 @@ stream {{
     }}
 }}
 """)
-    t = subprocess.run([NGINX_BIN, "-t", "-c", str(conf)], capture_output=True, text=True)
-    if t.returncode != 0:
-        pytest.skip("nginx -t failed:\n" + t.stderr)
+    return conf
+
+
+def _start_anon_server(conf, port):
+    check = subprocess.run([NGINX_BIN, "-t", "-c", str(conf)],
+                           capture_output=True, text=True)
+    if check.returncode != 0:
+        pytest.skip("nginx -t failed:\n" + check.stderr)
     subprocess.run([NGINX_BIN, "-c", str(conf)], capture_output=True)
     for _ in range(50):
         if _port_up(HOST, port):
-            break
+            return
         time.sleep(0.1)
-    yield port
-    subprocess.run([NGINX_BIN, "-c", str(conf), "-s", "quit"], capture_output=True)
+
+
+def _stop_anon_server(conf):
+    subprocess.run([NGINX_BIN, "-c", str(conf), "-s", "quit"],
+                   capture_output=True)
     time.sleep(0.3)
+
+
+@pytest.fixture(scope="module")
+def anon(tmp_path_factory):
+    _require_xrdmapc()
+    _require_nginx()
+    root = tmp_path_factory.mktemp("xrdmapc")
+    data = root / "data"
+    data.mkdir()
+    (data / "probe.txt").write_bytes(b"hello\n")
+    port = _free_port()
+    conf = _write_anon_config(root, data, port)
+    _start_anon_server(conf, port)
+    yield port
+    _stop_anon_server(conf)
 
 
 def _run(*args, timeout=40):
@@ -164,10 +190,7 @@ XRDDIAG = os.path.join(CLIENT_DIR, "bin", "xrddiag")
 def test_redirect_trace_accepted_no_op(anon):
     """--redirect-trace is a recognized flag and is a no-op on a non-redirecting
     (single) server — runnable without the cluster."""
-    if not os.path.exists(XRDFS):
-        subprocess.run(["make", "-C", CLIENT_DIR, "xrdfs"], capture_output=True, timeout=180)
-    if not os.path.exists(XRDFS):
-        pytest.skip("xrdfs not built")
+    _require_xrdfs()
     p = subprocess.run([XRDFS, "--redirect-trace", f"root://{HOST}:{anon}",
                         "stat", "/probe.txt"], capture_output=True, text=True, timeout=20)
     assert p.returncode == 0, f"{p.stdout}\n{p.stderr}"
@@ -175,6 +198,14 @@ def test_redirect_trace_accepted_no_op(anon):
     assert "Size:" in p.stdout, p.stdout
     # no redirect happened → no hop lines, and the trace never leaks onto stdout
     assert "redirect[" not in p.stdout, p.stdout
+
+
+def _require_xrdfs():
+    if not os.path.exists(XRDFS):
+        subprocess.run(["make", "-C", CLIENT_DIR, "xrdfs"],
+                       capture_output=True, timeout=180)
+    if not os.path.exists(XRDFS):
+        pytest.skip("xrdfs not built")
 
 
 def test_redirect_trace_hops_via_cluster(anon):

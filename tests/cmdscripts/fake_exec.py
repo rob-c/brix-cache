@@ -29,29 +29,46 @@ import os
 import sys
 
 
+def _phase_main_1(cfg, args):
+    if cfg.get("echo_tool_argv"):
+        sys.stdout.write("TOOL=%s\n" % os.path.basename(sys.argv[0]))
+        for a in args:
+            sys.stdout.write("ARG=%s\n" % a)
+
+def _phase_main_2(log, args):
+    if log:
+        with open(log, "w") as fh:
+            fh.write(" ".join(args) + "\n")
+
+
+def _expression_1(argv):
+    return (
+        list(sys.argv[1:] if argv is None else argv)
+    )
+
+
+def _guard_main_1(cfg):
+    if cfg.get("stdout") is not None:
+        sys.stdout.write(cfg["stdout"] + "\n")
+
+
 def _config() -> dict:
     with open(os.path.realpath(__file__) + ".json") as fh:
         return json.load(fh)
 
 
 def main(argv: list[str] | None = None, cfg: dict | None = None) -> int:
-    args = list(sys.argv[1:] if argv is None else argv)
+    args = _expression_1(argv)
     if cfg is None:
         try:
             cfg = _config()
         except OSError:
             cfg = {}
 
-    if cfg.get("echo_tool_argv"):
-        sys.stdout.write("TOOL=%s\n" % os.path.basename(sys.argv[0]))
-        for a in args:
-            sys.stdout.write("ARG=%s\n" % a)
-    if cfg.get("stdout") is not None:
-        sys.stdout.write(cfg["stdout"] + "\n")
+    _phase_main_1(cfg, args)
+    _guard_main_1(cfg)
     log = cfg.get("log_args")
-    if log:
-        with open(log, "w") as fh:
-            fh.write(" ".join(args) + "\n")
+    _phase_main_2(log, args)
 
     return int(cfg.get("exit", 0))
 

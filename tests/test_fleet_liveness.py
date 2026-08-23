@@ -52,6 +52,11 @@ END_SAMPLES = 4
 END_SAMPLE_GAP = 0.5
 
 
+def _young_listeners(listeners):
+    return {pid: age for pid, age in listeners.items()
+            if age is None or age < MIN_AGE}
+
+
 def _classify(name, start_pids, listeners):
     """Return a crash-loop reason for one server sample, or ``None`` if healthy.
 
@@ -62,8 +67,7 @@ def _classify(name, start_pids, listeners):
     """
     if not listeners:
         return "stopped listening within the window (crashed)"
-    young = {pid: age for pid, age in listeners.items()
-             if age is None or age < MIN_AGE}
+    young = _young_listeners(listeners)
     if young:
         detail = ", ".join(
             f"pid {pid} age {'gone' if age is None else f'{age:.3f}s'}"
@@ -92,10 +96,43 @@ def _live_fleet_ports() -> list[tuple[str, int]]:
     return live
 
 
-def test_no_server_is_crash_looping():
+def _sample_failures(servers, start, failures):
+    for name, port in servers:
+        if name in failures:
+            continue
+        reason = _classify(name, start[name], _listeners_with_age(port))
+        if reason:
+            failures[name] = reason
+
+
+def _require_live_servers():
     servers = _live_fleet_ports()
     if not servers:
         pytest.skip("no fleet servers listening — start-all not run for this session")
+    return servers
+
+
+def _observe_failures(servers, start):
+    failures: dict[str, str] = {}
+    for _ in range(END_SAMPLES):
+        _sample_failures(servers, start, failures)
+        if len(failures) == len(servers):
+            return failures
+        time.sleep(END_SAMPLE_GAP)
+    return failures
+
+
+def _assert_no_failures(failures):
+    detail = "\n".join(
+        f"  - {name}: {why}" for name, why in sorted(failures.items())
+    )
+    assert not failures, (
+        f"crash-looping fleet server(s) after {SETTLE:.0f}s:\n{detail}"
+    )
+
+
+def test_no_server_is_crash_looping():
+    servers = _require_live_servers()
 
     # Snapshot the listener PIDs up front so a server that flaps *during* the
     # window is caught by the PID moving out from under it, not just by age.
@@ -105,22 +142,7 @@ def test_no_server_is_crash_looping():
 
     # Sweep the end check so a flapper whose respawn misses one sample is still
     # caught by another.
-    failures: dict[str, str] = {}
-    for _ in range(END_SAMPLES):
-        for name, port in servers:
-            if name in failures:
-                continue
-            why = _classify(name, start[name], _listeners_with_age(port))
-            if why:
-                failures[name] = why
-        if len(failures) == len(servers):
-            break
-        time.sleep(END_SAMPLE_GAP)
-
-    assert not failures, "crash-looping fleet server(s) after %.0fs:\n%s" % (
-        SETTLE,
-        "\n".join(f"  - {name}: {why}" for name, why in sorted(failures.items())),
-    )
+    _assert_no_failures(_observe_failures(servers, start))
 
 
 # --- hermetic coverage of the detector itself (no live fleet, no 20s sleep) ---

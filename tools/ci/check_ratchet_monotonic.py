@@ -3,7 +3,7 @@
 # WHAT: Fail CI when a quality ratchet's own backlog file GROWS — a new
 #       grandfathered entry, or a raised allowance on an existing one.
 #
-# WHY:  check_file_size.py, check_complexity.py, check_todo_fixme.py,
+# WHY:  check_file_size.py, check_todo_fixme.py,
 #       check_vfs_seam.py, lint_loc and friends all compare the live tree
 #       against a frozen backlog. That makes each of them trivially defeatable
 #       in the one direction nobody notices: append the offending file to the
@@ -51,7 +51,6 @@ ROOT = Path(__file__).resolve().parents[2]
 # Ratchets whose backlog may only ever shrink, with the guard each one arms.
 RATCHETS = {
     "tools/ci/file_size_backlog.txt": "check_file_size.py (600-line cap)",
-    "tools/ci/complexity_backlog.txt": "check_complexity.py (CCN 15 cap)",
     "tools/ci/todo_fixme_backlog.txt": "check_todo_fixme.py (deferred-work markers)",
     "tools/ci/template_refs_backlog.txt": "check_template_refs.py (unreferenced templates)",
     "tools/ci/doc_links_backlog.txt": "check_doc_links.py (broken relative links)",
@@ -110,7 +109,7 @@ def _at(rev: str, path: str) -> str | None:
     """Read `path` as of `rev`; None when it did not exist there."""
     proc = subprocess.run(
         ["git", "show", f"{rev}:{path}"],
-        cwd=ROOT, capture_output=True, text=True,
+        cwd=ROOT, capture_output=True, text=True, check=False,
     )
     return proc.stdout if proc.returncode == 0 else None
 
@@ -120,7 +119,7 @@ def _default_base() -> str | None:
     for rev in ("origin/main", "HEAD~1"):
         probe = subprocess.run(
             ["git", "rev-parse", "--verify", "--quiet", rev],
-            cwd=ROOT, capture_output=True, text=True,
+            cwd=ROOT, capture_output=True, text=True, check=False,
         )
         if probe.returncode == 0:
             return rev

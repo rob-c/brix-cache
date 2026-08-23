@@ -25,6 +25,44 @@ from settings import (
     SERVER_HOST,
 )
 
+def _phase_cleanup_1_next(full):
+    if os.path.isdir(full):
+        # remove tree
+        for root, dirs, files in os.walk(full, topdown=False):
+            for f in files:
+                _phase_cleanup_1(root, f)
+            for d in dirs:
+                _phase_cleanup_2(root, d)
+        _phase_cleanup_3(full)
+    else:
+        _phase_cleanup_4(full)
+
+
+def _phase_cleanup_1(root, f):
+    try:
+        os.unlink(os.path.join(root, f))
+    except OSError:
+        pass
+
+def _phase_cleanup_2(root, d):
+    try:
+        os.rmdir(os.path.join(root, d))
+    except OSError:
+        pass
+
+def _phase_cleanup_3(full):
+    try:
+        os.rmdir(full)
+    except OSError:
+        pass
+
+def _phase_cleanup_4(full):
+    try:
+        os.unlink(full)
+    except OSError:
+        pass
+
+
 ANON_URL  = f"root://{SERVER_HOST}:{NGINX_ANON_PORT}"
 GSI_URL   = f"root://{SERVER_HOST}:{NGINX_GSI_PORT}"
 DATA_DIR  = DATA_ROOT
@@ -55,28 +93,7 @@ def _cleanup():
         if not name.startswith("_fstest_"):
             continue
         full = os.path.join(base, name)
-        if os.path.isdir(full):
-            # remove tree
-            for root, dirs, files in os.walk(full, topdown=False):
-                for f in files:
-                    try:
-                        os.unlink(os.path.join(root, f))
-                    except OSError:
-                        pass
-                for d in dirs:
-                    try:
-                        os.rmdir(os.path.join(root, d))
-                    except OSError:
-                        pass
-            try:
-                os.rmdir(full)
-            except OSError:
-                pass
-        else:
-            try:
-                os.unlink(full)
-            except OSError:
-                pass
+        _phase_cleanup_1_next(full)
 
 
 # ---------------------------------------------------------------------------

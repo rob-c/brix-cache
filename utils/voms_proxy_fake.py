@@ -84,18 +84,28 @@ def _der_oid_content(oid_str: str) -> bytes:
     parts = [int(x) for x in oid_str.split('.')]
     encoded = [40 * parts[0] + parts[1]]
     for part in parts[2:]:
-        if part == 0:
-            encoded.append(0)
-        else:
-            chunks = []
-            while part > 0:
-                chunks.append(part & 0x7F)
-                part >>= 7
-            chunks.reverse()
-            for i in range(len(chunks) - 1):
-                chunks[i] |= 0x80
-            encoded.extend(chunks)
+        encoded.extend(_der_oid_part(part))
     return bytes(encoded)
+
+
+def _der_oid_part(part: int) -> list[int]:
+    if part == 0:
+        return [0]
+    chunks = _oid_chunks(part)
+    chunks.reverse()
+    return _continuation_chunks(chunks)
+
+
+def _oid_chunks(part: int) -> list[int]:
+    chunks = []
+    while part > 0:
+        chunks.append(part & 0x7F)
+        part >>= 7
+    return chunks
+
+
+def _continuation_chunks(chunks: list[int]) -> list[int]:
+    return [value | 0x80 for value in chunks[:-1]] + chunks[-1:]
 
 
 def _der_oid(oid_str: str) -> bytes:

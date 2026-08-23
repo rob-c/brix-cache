@@ -30,6 +30,28 @@ import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import unquote, urlsplit
 
+def _expression_1(self):
+    return (
+        int(self.headers.get("Content-Length") or 0)
+    )
+
+def _expression_2(length, self):
+    return (
+        json.loads(self.rfile.read(length) or b"{}")
+    )
+
+
+def _phase_do_POST_1():
+    with STATE["lock"]:
+        STATE["log"] = []
+        STATE["fault"] = {"kind": "none", "path_re": None}
+
+def _phase_do_POST_2(kind, payload):
+    with STATE["lock"]:
+        STATE["fault"] = {"kind": kind,
+                          "path_re": payload.get("path_re")}
+
+
 STATE = {"log": [], "fault": {"kind": "none", "path_re": None},
          "root": None, "lock": threading.Lock()}
 
@@ -102,13 +124,11 @@ class Handler(BaseHTTPRequestHandler):
         if not self.path.startswith("/ctl/"):
             self._send(405)
             return
-        length = int(self.headers.get("Content-Length") or 0)
-        payload = json.loads(self.rfile.read(length) or b"{}")
+        length = _expression_1(self)
+        payload = _expression_2(length, self)
         route = urlsplit(self.path).path
         if route == "/ctl/reset":
-            with STATE["lock"]:
-                STATE["log"] = []
-                STATE["fault"] = {"kind": "none", "path_re": None}
+            _phase_do_POST_1()
             self._json({"ok": True})
             return
         if route == "/ctl/fault":
@@ -116,9 +136,7 @@ class Handler(BaseHTTPRequestHandler):
             if kind not in FAULTS:
                 self._json({"error": "unknown fault %r" % kind}, 400)
                 return
-            with STATE["lock"]:
-                STATE["fault"] = {"kind": kind,
-                                  "path_re": payload.get("path_re")}
+            _phase_do_POST_2(kind, payload)
             self._json({"ok": True})
             return
         self._json({"error": "no such control"}, 404)

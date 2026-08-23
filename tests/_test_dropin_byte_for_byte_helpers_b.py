@@ -36,6 +36,32 @@ from ephemeral_port import free_port
 from server_launcher import LifecycleHarness
 from server_registry import NginxInstanceSpec
 
+def _guard_stack_1():
+    if not os.path.exists(NGINX_BIN):
+        pytest.skip(f"nginx binary not found at {NGINX_BIN}")
+
+def _guard_stack_2():
+    if not os.path.exists(REF_XROOTD_BIN):
+        pytest.skip(f"official xrootd binary not found at {REF_XROOTD_BIN}")
+
+def _guard_stack_3():
+    if not _wait_port(REF_XROOTD_PORT):
+        pytest.skip("official xrootd did not come up")
+
+def _guard_stack_4():
+    if not _serves_seed(REF_XROOTD_PORT):
+        pytest.skip("official xrootd is up but not serving the seed data "
+                    "(stale listener / bind race) — skipping parity run")
+
+def _guard_stack_5(ep):
+    if not _wait_port(ep.port):
+        pytest.skip("nginx did not come up")
+
+def _guard_stack_6(ep):
+    if not _serves_seed(ep.port):
+        pytest.skip("nginx is up but not serving the seed data")
+
+
 pytestmark = [pytest.mark.uses_lifecycle_harness,
               pytest.mark.xdist_group("lc-dropin-front")]
 
@@ -129,10 +155,8 @@ for _n in range(256):
 
 @pytest.fixture(scope="module")
 def stack():
-    if not os.path.exists(NGINX_BIN):
-        pytest.skip(f"nginx binary not found at {NGINX_BIN}")
-    if not os.path.exists(REF_XROOTD_BIN):
-        pytest.skip(f"official xrootd binary not found at {REF_XROOTD_BIN}")
+    _guard_stack_1()
+    _guard_stack_2()
 
     data_dir = os.path.join(_DIR, "data")
     _seed_data(data_dir)
@@ -144,15 +168,12 @@ def stack():
     xr_cfg = _start_xrootd(data_dir)
     harness = LifecycleHarness()
     try:
-        if not _wait_port(REF_XROOTD_PORT):
-            pytest.skip("official xrootd did not come up")
+        _guard_stack_3()
         # Robustness: a TIME-WAIT/orphaned listener on the port can make a bare
         # connect succeed even though THIS xrootd failed to bind and is serving
         # the wrong (or no) data.  Prove the official server actually serves the
         # seed file before trusting it; skip otherwise rather than hard-fail.
-        if not _serves_seed(REF_XROOTD_PORT):
-            pytest.skip("official xrootd is up but not serving the seed data "
-                        "(stale listener / bind race) — skipping parity run")
+        _guard_stack_4()
         ep = harness.start(NginxInstanceSpec(
             name="lc-dropin-front",
             template="nginx_lc_dropin_front.conf",
@@ -160,10 +181,8 @@ def stack():
             template_values={"BIND_HOST": BIND_HOST, "DATA_DIR": data_dir},
             reason="drop-in byte-for-byte parity front over the shared "
                    "data root vs the official xrootd"))
-        if not _wait_port(ep.port):
-            pytest.skip("nginx did not come up")
-        if not _serves_seed(ep.port):
-            pytest.skip("nginx is up but not serving the seed data")
+        _guard_stack_5(ep)
+        _guard_stack_6(ep)
         yield {
             "data_dir": data_dir,
             "nginx": (ep.host, ep.port),

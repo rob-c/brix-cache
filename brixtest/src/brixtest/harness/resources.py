@@ -1,29 +1,4 @@
-"""The resource watch (feature F25): every server pid sampled for the
-whole run, with explicit crash / memory-leak / CPU-spike verdicts.
-
-The sentinel (F6) answers "is the fleet still *there*"; this module
-answers "is the fleet still *healthy*".  A sampling thread walks the
-pids a provider callback reports — static fleet pidfiles plus any
-dynamically requested servers — and reads ``/proc/<pid>/stat``
-(utime+stime ticks → CPU%) and ``/proc/<pid>/status`` (VmRSS).  Every
-sample is attributed to the test running at that moment and batched
-into the run store, so the portal can draw per-instance timelines and
-the benchmark can name which test made which server hot.
-
-Verdicts:
-
-* **crash** — a pid the provider still claims has vanished from
-  ``/proc``.  Reported the moment it is seen, once per instance.
-* **cpu-spike** — CPU% at or above ``cpu_spike_pct`` for
-  ``cpu_spike_samples`` consecutive samples.  Once per (instance, test).
-* **leak** — decided at ``stop()`` over the whole series: least-squares
-  RSS slope ≥ ``leak_slope_kb_per_min`` AND total growth ≥
-  ``leak_min_growth_kb``.  Both bounds must trip so a short noisy
-  series or a one-off allocation cannot fake a leak.
-
-All timing is monotonic (WSL2 backwards-clock lesson); sample ``ts`` is
-monotonic time re-anchored to the epoch once at start.
-"""
+"""Sample server resources and detect crashes, leaks, and CPU spikes."""
 
 from __future__ import annotations
 
@@ -72,14 +47,26 @@ def _read_proc(pid: int) -> Optional[Tuple[int, int]]:
 
 def _slope_kb_per_min(series: List[Tuple[float, int]]) -> float:
     """Least-squares slope of (ts, rss_kb), in kB per minute."""
-    n = len(series)
-    mean_t = sum(t for t, _ in series) / n
-    mean_r = sum(r for _, r in series) / n
-    denom = sum((t - mean_t) ** 2 for t, _ in series)
+    mean_t = _mean(item[0] for item in series)
+    mean_r = _mean(item[1] for item in series)
+    denom = _squared_distance(series, mean_t)
     if denom == 0:
         return 0.0
-    num = sum((t - mean_t) * (r - mean_r) for t, r in series)
+    num = _covariance(series, mean_t, mean_r)
     return (num / denom) * 60.0
+
+
+def _mean(values) -> float:
+    items = list(values)
+    return sum(items) / len(items)
+
+
+def _squared_distance(series, mean_t: float) -> float:
+    return sum((timestamp - mean_t) ** 2 for timestamp, _ in series)
+
+
+def _covariance(series, mean_t: float, mean_r: float) -> float:
+    return sum((timestamp - mean_t) * (rss - mean_r) for timestamp, rss in series)
 
 
 class ResourceWatch:
@@ -98,13 +85,11 @@ class ResourceWatch:
         self._epoch_anchor = time.time() - time.monotonic()
         self._stop = threading.Event()
         self._thread: Optional[threading.Thread] = None
-        self._last_ticks: Dict[str, Tuple[int, int, float]] = {}  # name → (pid, ticks, mono)
-        self._series: Dict[str, List[Tuple[float, int]]] = {}     # name → [(mono, rss_kb)]
+        self._last_ticks: Dict[str, Tuple[int, int, float]] = {}
+        self._series: Dict[str, List[Tuple[float, int]]] = {}
         self._spike_streak: Dict[str, int] = {}
-        self._reported: set = set()                               # (kind, instance[, test])
+        self._reported: set = set()
         self.findings: List[Finding] = []
-
-    # -- lifecycle -------------------------------------------------------
 
     def start(self) -> None:
         self._thread = threading.Thread(
@@ -121,8 +106,6 @@ class ResourceWatch:
 
     def note_test(self, nodeid: str) -> None:
         self.current_test = nodeid
-
-    # -- the sampling loop -----------------------------------------------
 
     def _loop(self) -> None:
         while not self._stop.is_set():
@@ -155,8 +138,6 @@ class ResourceWatch:
             return 0.0  # first sight of this pid; no interval to rate over
         hz = float(os.sysconf("SC_CLK_TCK"))
         return (ticks - prev[1]) / hz / (now - prev[2]) * 100.0
-
-    # -- detectors -------------------------------------------------------
 
     def _emit(self, finding: Finding) -> None:
         self.findings.append(finding)
@@ -215,8 +196,6 @@ class ResourceWatch:
                               self.policy.leak_slope_kb_per_min),
                     during_test="", at=_utc_now(),
                 ))
-
-    # -- benchmark -------------------------------------------------------
 
     def summary(self) -> Dict[str, Dict[str, float]]:
         """Per-instance benchmark: samples, max_rss_kb, rss_growth_kb."""

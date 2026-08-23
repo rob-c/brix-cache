@@ -9,6 +9,31 @@ import struct
 
 from cmdscripts.compile_run import REPO_ROOT, result, run
 
+def _expression_1(rc, data, output):
+    return (
+        [
+                result(rc == 0 and data is not None and data.get("flags") == ["PARTIAL"], f"PARTIAL flag ({output})"),
+                result(rc == 0 and data is not None and data.get("present_blocks") == [1, 2], "present_blocks [1,2]"),
+                result(rc == 0 and data is not None and data.get("complete") is False, "not complete"),
+            ]
+    )
+
+def _expression_2(results, rc, data, output):
+    return (
+        results.append(result(rc == 0 and data is not None and data.get("complete") is True, f"complete ({output})"))
+    )
+
+def _expression_3(results, rc, data):
+    return (
+        results.append(result(rc == 0 and data is not None and data.get("present_count") == 3, "count 3"))
+    )
+
+def _expression_4(results, data, output):
+    return (
+        results.append(result(data is not None and data.get("absent") is True, f"absent json ({output})"))
+    )
+
+
 XRDCINFO = REPO_ROOT / "client" / "bin" / "xrdcinfo"
 
 
@@ -30,18 +55,14 @@ def run_checks(base: Path) -> list[tuple[bool, str]]:
     partial = base / "p.cinfo"
     write_cinfo(partial, flags=0x2, size=300000, nblocks=5, bitmap=0b00000110)
     rc, data, output = run_json(partial)
-    results = [
-        result(rc == 0 and data is not None and data.get("flags") == ["PARTIAL"], f"PARTIAL flag ({output})"),
-        result(rc == 0 and data is not None and data.get("present_blocks") == [1, 2], "present_blocks [1,2]"),
-        result(rc == 0 and data is not None and data.get("complete") is False, "not complete"),
-    ]
+    results = _expression_1(rc, data, output)
     complete = base / "c.cinfo"
     write_cinfo(complete, flags=0x1, size=150000, nblocks=3, bitmap=0b00000111)
     rc, data, output = run_json(complete)
-    results.append(result(rc == 0 and data is not None and data.get("complete") is True, f"complete ({output})"))
-    results.append(result(rc == 0 and data is not None and data.get("present_count") == 3, "count 3"))
+    _expression_2(results, rc, data, output)
+    _expression_3(results, rc, data)
     rc, data, output = run_json(base / "nope.cinfo")
-    results.append(result(data is not None and data.get("absent") is True, f"absent json ({output})"))
+    _expression_4(results, data, output)
     return results
 
 

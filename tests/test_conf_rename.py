@@ -1,6 +1,62 @@
 from split_continuation import reexport as _reexport
 _reexport(globals(), "_test_conf_rename_helpers")
 
+
+def _write_rename_pair(srv, our_src, our_dst, off_src, off_dst,
+                       src_payload, dst_payload):
+    paths = ((our_disk(srv, our_src), src_payload),
+             (our_disk(srv, our_dst), dst_payload),
+             (off_disk(srv, off_src), src_payload),
+             (off_disk(srv, off_dst), dst_payload))
+    for path, payload in paths:
+        with open(path, "wb") as stream:
+            stream.write(payload)
+
+
+def _assert_overwrite(srv, src, dst, off_dst, expected, size, raw):
+    assert md5_file(our_disk(srv, dst)) == expected, \
+        f"OUR: overwrite did not replace dst with src content N={size}:{raw}"
+    assert md5_file(off_disk(srv, off_dst)) == expected, \
+        f"STOCK: overwrite did not replace dst with src content N={size}:{raw}"
+    assert not os.path.exists(our_disk(srv, src)), f"OUR: src remained N={size}"
+
+
+def _assert_rejected_overwrite(srv, src, dst, expected, size, raw):
+    assert md5_file(our_disk(srv, dst)) == expected, \
+        f"OUR: failed mv mutated dst content N={size}:{raw}"
+    assert os.path.exists(our_disk(srv, src)), f"OUR: failed mv lost src N={size}"
+
+
+def _assert_nonempty_refusal(srv, rc_o, rc_f, cat_o, cat_f, raw):
+    assert rc_o != 0 and rc_f != 0, \
+        f"mv-onto-nonempty-dir must fail on both:{raw}"
+    assert cat_o == cat_f, f"mv-onto-nonempty-dir category differs:{raw}"
+    assert os.path.isdir(our_disk(srv, "/rn_one_dst_our")), \
+        f"OUR: overwrote a non-empty dir with a file (DATA LOSS):{raw}"
+    assert os.path.isfile(our_disk(srv, "/rn_one_dst_our/child.txt")), \
+        f"OUR: dir child vanished:{raw}"
+
+
+def _assert_directory_moved(srv, raw):
+    assert not os.path.exists(our_disk(srv, "/rn_dir_a_our")), \
+        "OUR: old dir remained"
+    assert os.path.isdir(our_disk(srv, "/rn_dir_b_our")), "OUR: new dir missing"
+    assert md5_file(our_disk(srv, "/rn_dir_b_our/f1.txt")) == \
+        hashlib.md5(b"one").hexdigest()
+    assert md5_file(our_disk(srv, "/rn_dir_b_our/sub/f2.txt")) == \
+        hashlib.md5(b"two-deep").hexdigest(), \
+        f"OUR: deep child content lost on dir rename:{raw}"
+
+
+def _assert_subtree_refusal(srv, rc_o, rc_f, cat_o, cat_f, raw):
+    assert rc_o != 0 and rc_f != 0, \
+        f"dir-into-own-subtree must fail (EINVAL):{raw}"
+    assert cat_o == cat_f, f"dir-into-own-subtree category differs:{raw}"
+    assert os.path.isdir(our_disk(srv, "/rn_loop_our")), \
+        f"OUR: failed self-subtree mv destroyed the dir (DATA LOSS):{raw}"
+    assert md5_file(our_disk(srv, "/rn_loop_our/keep.txt")) == \
+        hashlib.md5(b"keepme").hexdigest(), f"OUR: content lost:{raw}"
+
 # =========================================================================== #
 # 1. RENAME FILE SAME DIR (a -> b) — parametrized by size.  (7 tests)
 #    dst has the content, src is gone, on BOTH servers; content byte-exact.
@@ -75,25 +131,15 @@ def test_rename_onto_existing_file(srv, n):
     dst_payload = bytes((i * 9 + 2) & 0xff for i in range(n + 7))
     our_src, our_dst = f"/rn_ov_src_our_{n}.bin", f"/rn_ov_dst_our_{n}.bin"
     off_src, off_dst = f"/rn_ov_src_off_{n}.bin", f"/rn_ov_dst_off_{n}.bin"
-    for s, d in ((our_src, our_dst), (off_src, off_dst)):
-        for disk, data in ((our_disk(srv, s) if s == our_src else off_disk(srv, s), src_payload),
-                           (our_disk(srv, d) if d == our_dst else off_disk(srv, d), dst_payload)):
-            with open(disk, "wb") as f:
-                f.write(data)
+    _write_rename_pair(srv, our_src, our_dst, off_src, off_dst,
+                       src_payload, dst_payload)
     src_md5 = hashlib.md5(src_payload).hexdigest()
     rc_o, rc_f, raw = assert_mv_parity(srv, our_src, our_dst, off_src, off_dst)
     if rc_o == 0:
-        # Overwrite happened: dst now holds the SOURCE bytes, src is gone.
-        assert md5_file(our_disk(srv, our_dst)) == src_md5, \
-            f"OUR: overwrite did not replace dst with src content N={n}:{raw}"
-        assert md5_file(off_disk(srv, off_dst)) == src_md5, \
-            f"STOCK: overwrite did not replace dst with src content N={n}:{raw}"
-        assert not os.path.exists(our_disk(srv, our_src)), f"OUR: src remained N={n}"
+        _assert_overwrite(srv, our_src, our_dst, off_dst, src_md5, n, raw)
     else:
-        # Rejected: dst keeps original content, src untouched.
-        assert md5_file(our_disk(srv, our_dst)) == hashlib.md5(dst_payload).hexdigest(), \
-            f"OUR: failed mv mutated dst content N={n}:{raw}"
-        assert os.path.exists(our_disk(srv, our_src)), f"OUR: failed mv lost src N={n}"
+        expected = hashlib.md5(dst_payload).hexdigest()
+        _assert_rejected_overwrite(srv, our_src, our_dst, expected, n, raw)
 
 
 # =========================================================================== #
@@ -111,13 +157,7 @@ def test_rename_onto_nonempty_dir(srv):
     (rc_o, cat_o), (rc_f, cat_f), raw = mv_both(
         srv, "/rn_one_src_our.txt", "/rn_one_dst_our",
         "/rn_one_src_off.txt", "/rn_one_dst_off")
-    assert rc_o != 0 and rc_f != 0, f"mv-onto-nonempty-dir must fail on both:{raw}"
-    assert cat_o == cat_f, f"mv-onto-nonempty-dir category differs:{raw}"
-    # Neither server clobbered the directory with the file.
-    assert os.path.isdir(our_disk(srv, "/rn_one_dst_our")), \
-        f"OUR: overwrote a non-empty dir with a file (DATA LOSS):{raw}"
-    assert os.path.isfile(our_disk(srv, "/rn_one_dst_our/child.txt")), \
-        f"OUR: dir child vanished:{raw}"
+    _assert_nonempty_refusal(srv, rc_o, rc_f, cat_o, cat_f, raw)
 
 
 # =========================================================================== #
@@ -157,11 +197,7 @@ def test_rename_directory_subtree(srv):
         srv, "/rn_dir_a_our", "/rn_dir_b_our",
         "/rn_dir_a_off", "/rn_dir_b_off")
     assert rc_o == 0, f"directory rename should succeed:{raw}"
-    assert not os.path.exists(our_disk(srv, "/rn_dir_a_our")), "OUR: old dir remained"
-    assert os.path.isdir(our_disk(srv, "/rn_dir_b_our")), "OUR: new dir missing"
-    assert md5_file(our_disk(srv, "/rn_dir_b_our/f1.txt")) == hashlib.md5(b"one").hexdigest()
-    assert md5_file(our_disk(srv, "/rn_dir_b_our/sub/f2.txt")) == \
-        hashlib.md5(b"two-deep").hexdigest(), "OUR: deep child content lost on dir rename"
+    _assert_directory_moved(srv, raw)
 
 
 # =========================================================================== #
@@ -294,13 +330,7 @@ def test_rename_dir_into_own_subtree(srv):
     (rc_o, cat_o), (rc_f, cat_f), raw = mv_both(
         srv, "/rn_loop_our", "/rn_loop_our/inner/loop",
         "/rn_loop_off", "/rn_loop_off/inner/loop")
-    assert rc_o != 0 and rc_f != 0, f"dir-into-own-subtree must fail (EINVAL):{raw}"
-    assert cat_o == cat_f, f"dir-into-own-subtree category differs:{raw}"
-    # The original dir + its content must be intact on OUR server.
-    assert os.path.isdir(our_disk(srv, "/rn_loop_our")), \
-        f"OUR: failed self-subtree mv destroyed the dir (DATA LOSS):{raw}"
-    assert md5_file(our_disk(srv, "/rn_loop_our/keep.txt")) == \
-        hashlib.md5(b"keepme").hexdigest(), f"OUR: content lost:{raw}"
+    _assert_subtree_refusal(srv, rc_o, rc_f, cat_o, cat_f, raw)
 
 
 # =========================================================================== #

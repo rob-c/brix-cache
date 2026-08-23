@@ -44,78 +44,163 @@
 
 #endif /* __CAS_PACK_C_COMPILED__ */
 
-int brix_cas_pack_put(brix_cas_pack_t *p, const char *key,
+typedef struct {
+    uint8_t        format;
+    const void    *bytes;
+    uint64_t       stored;
+    unsigned char *compressed;
+} pack_payload_t;
+
+/*
+ * WHAT: Select the raw or zstd representation for a new packed-CAS object.
+ * WHY:  Tiering should save space only when compression beats the source size.
+ * HOW:  Attempt bounded level-three compression and otherwise retain raw input.
+ */
+static void pack_payload_prepare(brix_cas_pack_t *pack, const void *data,
+                                 size_t len, pack_payload_t *payload) {
+    size_t bound;
+    size_t compressed_size;
+
+    payload->format = 0;
+    payload->bytes = data;
+    payload->stored = len;
+    payload->compressed = NULL;
+    if (!pack->tiering || len < TIER_MIN)
+        return;
+    bound = ZSTD_compressBound(len);
+    payload->compressed = malloc(bound);
+    if (payload->compressed == NULL)
+        return;
+    compressed_size = ZSTD_compress(payload->compressed, bound, data, len, 3);
+    if (ZSTD_isError(compressed_size) || compressed_size >= len)
+        return;
+    payload->format = 1;
+    payload->bytes = payload->compressed;
+    payload->stored = compressed_size;
+}
+
+/*
+ * WHAT: Append and journal one prepared packed-CAS object while holding its lock.
+ * WHY:  Failed data or journal writes must retract their provisional table slot.
+ * HOW:  Insert the key, append both records, account bytes, and enforce quota.
+ */
+static int pack_put_commit(brix_cas_pack_t *pack, const char *key, size_t klen,
+                           size_t raw_len, const pack_payload_t *payload) {
+    brix_pack_ent_t *entry;
+    int              existed = 0;
+
+    entry = tab_insert(pack, key, klen, &existed);
+    if (entry == NULL || existed)
+        return -1;
+    if (append_record(pack, entry, key, klen, payload->format, payload->bytes,
+                      payload->stored, raw_len) != 0 ||
+        idx_append(pack, OP_PUT, entry, key) != 0) {
+        entry->state = 2;
+        pack->tab_live--;
+        return -1;
+    }
+    pack->live_bytes += (long) payload->stored;
+    if (pack->quota_bytes > 0 && pack->live_bytes > pack->quota_bytes)
+        reap_locked(pack, (pack->quota_bytes * 3) / 4);
+    return 0;
+}
+
+int brix_cas_pack_put(brix_cas_pack_t *pack, const char *key,
                       const void *data, size_t len) {
-    size_t klen = strlen(key);
-    if (klen == 0 || klen > BRIX_PACK_KMAX) { errno = EINVAL; return -1; }
-    pthread_mutex_lock(&p->mu);
-    if (tab_find(p, key, klen) != NULL) {           /* immutable: present */
-        pthread_mutex_unlock(&p->mu);
+    pack_payload_t payload;
+    size_t         klen = strlen(key);
+    int            rc;
+
+    if (klen == 0 || klen > BRIX_PACK_KMAX) {
+        errno = EINVAL;
+        return -1;
+    }
+    pthread_mutex_lock(&pack->mu);
+    if (tab_find(pack, key, klen) != NULL) {
+        pthread_mutex_unlock(&pack->mu);
         return 0;
     }
-
-    uint8_t        fmt = 0;
-    const void    *payload = data;
-    uint64_t       stored = len;
-    unsigned char *cbuf = NULL;
-    if (p->tiering && len >= TIER_MIN) {            /* G5: pack cold as zstd */
-        size_t bound = ZSTD_compressBound(len);
-        cbuf = malloc(bound);
-        if (cbuf != NULL) {
-            size_t csz = ZSTD_compress(cbuf, bound, data, len, 3);
-            if (!ZSTD_isError(csz) && csz < len) {
-                fmt = 1; payload = cbuf; stored = csz;
-            }
-        }
-    }
-
-    int rc = -1;
-    int existed = 0;
-    brix_pack_ent_t *e = tab_insert(p, key, klen, &existed);
-    if (e != NULL && !existed
-        && append_record(p, e, key, klen, fmt, payload, stored, len) == 0
-        && idx_append(p, OP_PUT, e, key) == 0) {
-        p->live_bytes += (long) stored;
-        rc = 0;
-        if (p->quota_bytes > 0 && p->live_bytes > p->quota_bytes)
-            reap_locked(p, (p->quota_bytes * 3) / 4);
-    } else if (e != NULL && !existed) {
-        e->state = 2; p->tab_live--;                /* failed append: retract */
-    }
-    free(cbuf);
-    pthread_mutex_unlock(&p->mu);
+    pack_payload_prepare(pack, data, len, &payload);
+    rc = pack_put_commit(pack, key, klen, len, &payload);
+    free(payload.compressed);
+    pthread_mutex_unlock(&pack->mu);
     return rc;
+}
+
+/*
+ * WHAT: Validate a stored segment header against its in-memory index entry.
+ * WHY:  Index corruption must not redirect reads to unrelated segment bytes.
+ * HOW:  Compare magic, key, encoding, and lengths after a complete header read.
+ */
+static int stored_header_read(brix_cas_pack_t *pack, brix_pack_ent_t *entry,
+                              int segment_fd, unsigned char *header) {
+    if (pread_full(segment_fd, header, SEG_HDR + entry->klen, entry->off) != 0)
+        return -1;
+    if (get32(header) != SEG_MAGIC ||
+        ((size_t) header[4] | ((size_t) header[5] << 8)) != entry->klen ||
+        header[6] != entry->fmt || get64(header + 12) != entry->stored_len ||
+        memcmp(header + SEG_HDR, ent_key(pack, entry), entry->klen) != 0)
+        return -1;
+    return 0;
+}
+
+/*
+ * WHAT: Read and checksum the stored payload named by a verified header.
+ * WHY:  Serving corrupt packed bytes would violate CAS content integrity.
+ * HOW:  Allocate the recorded length, pread it fully, and compare its CRC32.
+ */
+static unsigned char *stored_payload_read(brix_pack_ent_t *entry, int segment_fd,
+                                          const unsigned char *header) {
+    unsigned char *data = malloc(entry->stored_len ?
+                                 (size_t) entry->stored_len : 1);
+
+    if (data == NULL)
+        return NULL;
+    if (pread_full(segment_fd, data, (size_t) entry->stored_len,
+                   entry->off + SEG_HDR + entry->klen) != 0 ||
+        crc_of(data, (size_t) entry->stored_len) != get32(header + 8)) {
+        free(data);
+        return NULL;
+    }
+    return data;
+}
+
+/*
+ * WHAT: Expand a zstd packed payload to the raw length recorded in the index.
+ * WHY:  Callers consume raw CAS bytes regardless of the on-disk storage tier.
+ * HOW:  Allocate the exact raw length and require an exact decompression result.
+ */
+static unsigned char *stored_payload_expand(brix_pack_ent_t *entry,
+                                            unsigned char *data) {
+    unsigned char *raw = malloc(entry->raw_len ? (size_t) entry->raw_len : 1);
+    size_t         size;
+
+    if (raw == NULL) {
+        free(data);
+        return NULL;
+    }
+    size = ZSTD_decompress(raw, (size_t) entry->raw_len, data,
+                           (size_t) entry->stored_len);
+    free(data);
+    if (ZSTD_isError(size) || size != entry->raw_len) {
+        free(raw);
+        return NULL;
+    }
+    return raw;
 }
 
 /* Header + crc + key checks against `sfd`; returns malloc'd RAW bytes. */
 static unsigned char *read_verified_fd(brix_cas_pack_t *p, brix_pack_ent_t *e,
                                        int sfd) {
     unsigned char hdr[SEG_HDR + BRIX_PACK_KMAX];
-    if (pread_full(sfd, hdr, SEG_HDR + e->klen, e->off) != 0
-        || get32(hdr) != SEG_MAGIC
-        || ((size_t) hdr[4] | ((size_t) hdr[5] << 8)) != e->klen
-        || hdr[6] != e->fmt
-        || get64(hdr + 12) != e->stored_len
-        || memcmp(hdr + SEG_HDR, ent_key(p, e), e->klen) != 0) return NULL;
+    unsigned char *data;
 
-    unsigned char *data = malloc(e->stored_len ? (size_t) e->stored_len : 1);
-    if (data == NULL) return NULL;
-    if (pread_full(sfd, data, (size_t) e->stored_len,
-                   e->off + SEG_HDR + e->klen) != 0
-        || crc_of(data, (size_t) e->stored_len) != get32(hdr + 8)) {
-        free(data);
+    if (stored_header_read(p, e, sfd, hdr) != 0)
         return NULL;
-    }
-    if (e->fmt == 0) return data;
-
-    unsigned char *raw = malloc(e->raw_len ? (size_t) e->raw_len : 1);
-    if (raw != NULL) {
-        size_t dsz = ZSTD_decompress(raw, (size_t) e->raw_len,
-                                     data, (size_t) e->stored_len);
-        if (ZSTD_isError(dsz) || dsz != e->raw_len) { free(raw); raw = NULL; }
-    }
-    free(data);
-    return raw;
+    data = stored_payload_read(e, sfd, hdr);
+    if (data == NULL || e->fmt == 0)
+        return data;
+    return stored_payload_expand(e, data);
 }
 
 /* Read + structurally verify e's record; returns malloc'd RAW bytes. */

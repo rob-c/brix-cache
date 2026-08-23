@@ -109,31 +109,39 @@ def analyze_one(src: str, cflags: list[str], all_incs: list[str],
          "-c", *cflags, *all_incs, src, "-o", "/dev/null"],
         cwd=NGX_BUILD, stderr=subprocess.PIPE, text=True,
     )
-    err = proc.stderr
-
-    # Keep only analyzer diagnostics.
-    findings = [ln for ln in err.splitlines() if re.search(r"\[-Wanalyzer-[a-z-]+\]", ln)]
-    has_analyzer = re.search(r"\[-Wanalyzer-", err) is not None
-
-    # Optional raw-trace capture for finding triage: FANALYZER_RAW=<file> keeps
-    # each file's full analyzer stderr (event paths included), not just the
-    # normalized one-liners the ratchet gates on.
-    if raw_path and has_analyzer:
-        try:
-            with open(raw_path, "a") as fh:
-                fh.write(f"==== {src} ====\n{err}")
-        except OSError:
-            pass
-
-    # A non-zero exit with NO analyzer finding means the file failed to COMPILE
-    # (bad flags / missing header) — the analysis never ran, so this must not pass
-    # as "clean". Record it as a hard error.
-    compile_error = None
-    if proc.returncode != 0 and not has_analyzer:
-        errs = [ln for ln in err.splitlines() if re.search(r": (error|fatal error):", ln)][:3]
-        compile_error = "\n".join([f"COMPILE-ERROR: {src}", *errs])
-
+    error_text = proc.stderr
+    findings = _finding_lines(error_text)
+    has_analyzer = "[-Wanalyzer-" in error_text
+    _write_raw_trace(raw_path, src, error_text, has_analyzer)
+    compile_error = _compile_error(src, error_text, proc.returncode, has_analyzer)
     return findings, compile_error
+
+
+def _finding_lines(error_text):
+    return [
+        line for line in error_text.splitlines()
+        if re.search(r"\[-Wanalyzer-[a-z-]+\]", line)
+    ]
+
+
+def _write_raw_trace(path, source, error_text, has_analyzer):
+    if not path or not has_analyzer:
+        return
+    try:
+        with open(path, "a") as stream:
+            stream.write(f"==== {source} ====\n{error_text}")
+    except OSError:
+        pass
+
+
+def _compile_error(source, error_text, returncode, has_analyzer):
+    if returncode == 0 or has_analyzer:
+        return None
+    errors = [
+        line for line in error_text.splitlines()
+        if re.search(r": (error|fatal error):", line)
+    ][:3]
+    return "\n".join([f"COMPILE-ERROR: {source}", *errors])
 
 
 def normalise(lines: list[str]) -> list[str]:
@@ -192,89 +200,103 @@ def parse_args(argv: list[str]) -> tuple[bool, str]:
 
 def main(argv: list[str]) -> int:
     regen, filt = parse_args(argv)
+    _validate_environment()
+    cflags, all_incs = _compiler_flags()
+    todo = _selected_sources(filt)
+    raw_path = os.environ.get("FANALYZER_RAW") or None
+    findings, compile_errors = _analyze(todo, cflags, all_incs, raw_path)
+    print(f"== analyzed {len(todo)} source file(s) under -fanalyzer ==")
+    _fail_compile_errors(compile_errors)
+    current = normalise(findings)
+    cur = len(current)
+    print(f"== {cur} analyzer finding(s) (baseline + new) ==")
+    if regen:
+        return _regenerate(current, filt)
+    if filt:
+        return _report_filter(current, filt)
+    return _gate_current(current, cur)
 
+
+def _validate_environment():
     if shutil.which("gcc") is None:
         fail("gcc not found")
     if not os.path.isfile(MK):
         fail(f"no configured build at {NGX_BUILD} (need objs/Makefile; run ./configure first)")
 
-    # Pull the fully-expanded flags straight from the build's Makefile, then strip
-    # the -Werror promotions so analyzer findings are collected rather than aborting.
-    cflags_str = read_var("CFLAGS")
-    all_incs_str = read_var("ALL_INCS")
-    if not cflags_str:
+
+def _compiler_flags():
+    cflags = read_var("CFLAGS")
+    includes = read_var("ALL_INCS")
+    if not cflags:
         fail(f"could not read CFLAGS from {MK}")
-    cflags_str = re.sub(r"-Werror(=[a-z-]+)?", "", cflags_str)
+    cflags = re.sub(r"-Werror(=[a-z-]+)?", "", cflags)
+    return cflags.split(), includes.split()
 
-    srcs = collect_sources()
-    if not srcs:
+
+def _selected_sources(filt):
+    sources = collect_sources()
+    if not sources:
         fail(f"no addon sources found in {MK}")
-
-    # bash word-splits the unquoted $CFLAGS / $ALL_INCS on IFS whitespace.
-    cflags = cflags_str.split()
-    all_incs = all_incs_str.split()
-
-    todo = []
-    for src in srcs:
-        if filt and not src.startswith(f"{REPO}/{filt}"):
-            continue
-        if skip_match(src):
-            continue
-        todo.append(src)
-    count = len(todo)
-    if count <= 0:
+    selected = [source for source in sources if _selected(source, filt)]
+    if not selected:
         fail(f"no sources selected (filter='{filt}')")
+    return selected
 
-    raw_path = os.environ.get("FANALYZER_RAW") or None
 
-    findings: list[str] = []
-    compile_errors: list[str] = []
+def _selected(source, filt):
+    if filt and not source.startswith(f"{REPO}/{filt}"):
+        return False
+    return not skip_match(source)
+
+
+def _analyze(todo, cflags, all_incs, raw_path):
+    findings = []
+    compile_errors = []
+    worker = lambda source: analyze_one(source, cflags, all_incs, raw_path)
     with ThreadPoolExecutor(max_workers=JOBS) as pool:
-        for finds, cerr in pool.map(
-            lambda s: analyze_one(s, cflags, all_incs, raw_path), todo
-        ):
-            findings.extend(finds)
-            if cerr is not None:
-                compile_errors.append(cerr)
+        results = pool.map(worker, todo)
+        for found, error in results:
+            findings.extend(found)
+            if error is not None:
+                compile_errors.append(error)
+    return findings, compile_errors
 
-    print(f"== analyzed {count} source file(s) under -fanalyzer ==")
 
-    # Hard stop if any file did not compile — a clean result is only meaningful
-    # when the analyzer actually ran on every file.
-    if compile_errors:
-        ce_text = "\n".join(compile_errors) + "\n"
-        ce = sum(1 for ln in ce_text.splitlines() if ln.startswith("COMPILE-ERROR:"))
-        print(f"---- compile errors ({ce}) — analysis did NOT run on these ----")
-        print("\n".join(ce_text.splitlines()[:20]))
-        fail(f"{ce} file(s) failed to compile under the analyzer flags "
-             "(bad NGX_BUILD / flag extraction?)")
+def _fail_compile_errors(errors):
+    if not errors:
+        return
+    text = "\n".join(errors) + "\n"
+    count = sum(
+        1 for line in text.splitlines() if line.startswith("COMPILE-ERROR:")
+    )
+    print(f"---- compile errors ({count}) — analysis did NOT run on these ----")
+    print("\n".join(text.splitlines()[:20]))
+    fail(f"{count} file(s) failed to compile under the analyzer flags "
+         "(bad NGX_BUILD / flag extraction?)")
 
-    current = normalise(findings)
-    cur = len(current)
-    print(f"== {cur} analyzer finding(s) (baseline + new) ==")
 
-    if regen:
-        if filt:
-            fail("--regen must run over the FULL tree (drop --filter)")
-        header = [
-            "# fanalyzer baseline — known/false-positive findings, line:col stripped.",
-            "# Regenerate with: tools/ci/run_fanalyzer.py --regen   (review the diff!)",
-        ]
-        BASELINE.write_text("".join(f"{ln}\n" for ln in [*header, *current]))
-        print(f"run_fanalyzer: baseline rewritten ({cur} findings) → {BASELINE}")
-        return 0
-
-    # A --filter run analyses only a subset, so it cannot gate against the full
-    # baseline (absent files would look "fixed"). Report only.
+def _regenerate(current, filt):
     if filt:
-        print(f"run_fanalyzer: filter run (no gate). Findings under '{filt}':")
-        if current:
-            print("\n".join(current))
-        return 0
+        fail("--regen must run over the FULL tree (drop --filter)")
+    header = [
+        "# fanalyzer baseline — known/false-positive findings, line:col stripped.",
+        "# Regenerate with: tools/ci/run_fanalyzer.py --regen   (review the diff!)",
+    ]
+    BASELINE.write_text("".join(f"{line}\n" for line in [*header, *current]))
+    print(f"run_fanalyzer: baseline rewritten ({len(current)} findings) → {BASELINE}")
+    return 0
 
+
+def _report_filter(current, filt):
+    print(f"run_fanalyzer: filter run (no gate). Findings under '{filt}':")
+    if current:
+        print("\n".join(current))
+    return 0
+
+
+def _gate_current(current, count):
     if not BASELINE.is_file():
         fail(f"no baseline at {BASELINE} — create it with --regen")
-
     baseline = read_baseline(BASELINE)
     ok, new = gate(current, baseline)
     if not ok:
@@ -285,7 +307,7 @@ def main(argv: list[str]) -> int:
         print("               review and re-baseline with: tools/ci/run_fanalyzer.py --regen",
               file=sys.stderr)
         return 1
-    print(f"run_fanalyzer: OK — no new findings beyond the {cur}-entry baseline")
+    print(f"run_fanalyzer: OK — no new findings beyond the {count}-entry baseline")
     return 0
 
 

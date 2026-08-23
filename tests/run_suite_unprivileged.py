@@ -57,6 +57,35 @@ import subprocess
 import sys
 from pathlib import Path
 
+def _guard_reap_test_servers_1(owns, root, cmdline, sig, pid):
+    if owns(root, cmdline):
+        subprocess.run(["kill", sig, pid], check=False,
+                       stderr=subprocess.DEVNULL)
+
+def _guard_run_root_handoff_2():
+    if subprocess.run(["id", BRIX_TEST_USER], stdout=subprocess.DEVNULL,
+                       stderr=subprocess.DEVNULL, check=False).returncode != 0:
+        die(f"no such user: {BRIX_TEST_USER} (create it, e.g.: "
+            f"useradd -r -m -d /var/lib/{BRIX_TEST_USER} {BRIX_TEST_USER})")
+
+def _guard_run_root_handoff_3(target_uid):
+    if target_uid == "0":
+        die("BRIX_TEST_USER must not be root")
+
+def _guard_run_root_handoff_4():
+    if shutil.which("rsync") is None:
+        die("rsync not found (needed to sync the checkout)")
+
+def _guard_run_root_handoff_5(nginx):
+    if not os.access(nginx, os.R_OK):
+        die(f"nginx not readable: {nginx}")
+
+def _guard_run_root_handoff_6(nginx):
+    if subprocess.run(["runuser", "-u", BRIX_TEST_USER, "--", "test", "-x", nginx],
+                      check=False).returncode != 0:
+        die(f"'{BRIX_TEST_USER}' cannot execute {nginx}")
+
+
 REPO = Path(__file__).resolve().parent.parent
 
 # A dedicated account, not `nobody`: nothing else on the box runs as it, so the
@@ -160,9 +189,7 @@ def _reap_test_servers(sig: str) -> None:
                 )
             except OSError:
                 continue
-            if owns(root, cmdline):
-                subprocess.run(["kill", sig, pid], check=False,
-                               stderr=subprocess.DEVNULL)
+            _guard_reap_test_servers_1(owns, root, cmdline, sig, pid)
 
 
 def _suite_argv(extra: list[str]) -> list[str]:
@@ -207,16 +234,11 @@ def _run_in_place(nginx: str, extra: list[str]) -> "int":
 
 def _run_root_handoff(nginx: str, extra: list[str]) -> None:
     # ---- root mode: sync to a neutral tree, hand over, drop ------------------ #
-    if subprocess.run(["id", BRIX_TEST_USER], stdout=subprocess.DEVNULL,
-                       stderr=subprocess.DEVNULL, check=False).returncode != 0:
-        die(f"no such user: {BRIX_TEST_USER} (create it, e.g.: "
-            f"useradd -r -m -d /var/lib/{BRIX_TEST_USER} {BRIX_TEST_USER})")
+    _guard_run_root_handoff_2()
     target_uid = subprocess.run(["id", "-u", BRIX_TEST_USER], capture_output=True,
                                 text=True, check=True).stdout.strip()
-    if target_uid == "0":
-        die("BRIX_TEST_USER must not be root")
-    if shutil.which("rsync") is None:
-        die("rsync not found (needed to sync the checkout)")
+    _guard_run_root_handoff_3(target_uid)
+    _guard_run_root_handoff_4()
 
     test_root = os.environ.get("TEST_ROOT", TEST_ROOT_DEFAULT)
     log(f"target user: {BRIX_TEST_USER} (uid {target_uid})")
@@ -248,11 +270,8 @@ def _run_root_handoff(nginx: str, extra: list[str]) -> None:
     os.chmod(test_root, 0o755)
     log(f"TEST_ROOT={test_root} owned by {BRIX_TEST_USER}")
 
-    if not os.access(nginx, os.R_OK):
-        die(f"nginx not readable: {nginx}")
-    if subprocess.run(["runuser", "-u", BRIX_TEST_USER, "--", "test", "-x", nginx],
-                      check=False).returncode != 0:
-        die(f"'{BRIX_TEST_USER}' cannot execute {nginx}")
+    _guard_run_root_handoff_5(nginx)
+    _guard_run_root_handoff_6(nginx)
     log(f"nginx={nginx}")
     log(f"dropping to '{BRIX_TEST_USER}' — test user == server user from here on")
 

@@ -79,24 +79,9 @@ def _wait_port(port, timeout=10):
 
 @pytest.fixture()
 def ce_driver_server(lifecycle, tmp_path):
-    if not os.access(NGINX_BIN, os.X_OK):
-        pytest.skip(f"nginx not executable: {NGINX_BIN}")
-    if not _HAVE_REQUESTS:
-        pytest.skip("requests not available")
-
+    _require_driver_dependencies()
     global WEBDAV_PORT, ORIGIN_PORT
-
-    # posix-backed brix_s3 origin stores objects FLAT under this root; the bucket
-    # dir must exist at config-parse time.
-    oroot = tmp_path / "origin"
-    oroot.mkdir()
-    (oroot / BUCKET).mkdir()
-    if os.geteuid() == 0:
-        # nginx workers drop to `nobody` under the root harness; make the
-        # root-owned origin tree writable so the outbound PUT commit can land.
-        os.chmod(oroot, 0o777)
-        os.chmod(oroot / BUCKET, 0o777)
-
+    oroot = _origin_root(tmp_path)
     ep = lifecycle.start(NginxInstanceSpec(
         name="lc-ce-driver-s3",
         template="nginx_ce_driver_s3.conf",
@@ -106,14 +91,30 @@ def ce_driver_server(lifecycle, tmp_path):
                          "S3_ACCESS_KEY": S3_AK,
                          "S3_SECRET_KEY": S3_SK},
         reason="Content-Encoding PUT to a driver-backed (s3://) object backend"))
-
     WEBDAV_PORT = ep.port
     ORIGIN_PORT = ep.extra_ports["ORIGIN_PORT"]
-
-    # The harness waits on the WebDAV front {PORT}; poll the origin leg too.
     if not _wait_port(ORIGIN_PORT):
         pytest.skip("ce-driver s3 origin listener did not come up")
     yield
+
+
+def _require_driver_dependencies():
+    if not os.access(NGINX_BIN, os.X_OK):
+        pytest.skip(f"nginx not executable: {NGINX_BIN}")
+    if not _HAVE_REQUESTS:
+        pytest.skip("requests not available")
+
+
+def _origin_root(tmp_path):
+    oroot = tmp_path / "origin"
+    oroot.mkdir()
+    (oroot / BUCKET).mkdir()
+    if os.geteuid() == 0:
+        # nginx workers drop to `nobody` under the root harness; make the
+        # root-owned origin tree writable so the outbound PUT commit can land.
+        os.chmod(oroot, 0o777)
+        os.chmod(oroot / BUCKET, 0o777)
+    return oroot
 
 
 def _url(key):

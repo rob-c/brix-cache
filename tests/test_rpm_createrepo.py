@@ -27,6 +27,28 @@ import xml.etree.ElementTree as ET
 
 import pytest
 
+def _expression_1(tag):
+    return (
+        [ln for ln in qp("[%%{%s}\n]" % tag).splitlines() if ln]
+    )
+
+def _expression_2(got, field):
+    return (
+        [d["name"] for d in got[field]]
+    )
+
+
+def _guard_test_inspect_agrees_with_rpm_qp_1():
+    if not _have("rpm"):
+        pytest.skip("rpm(1) not installed")
+
+def _check_test_inspect_agrees_with_rpm_qp_2(sha, got):
+    assert got["pkgid"] == sha
+
+def _check_test_inspect_agrees_with_rpm_qp_1(mine, theirs, field):
+    assert mine == theirs, "%s: %s != %s" % (field, mine, theirs)
+
+
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 BRIXRPM = os.path.join(REPO_ROOT, "client", "bin", "brixrpm")
 # conftest chdir()s into a scratch dir at session start — resolve helpers
@@ -99,8 +121,11 @@ def test_dnf_installs_from_a_generated_repo(repo, tmp_path):
     if not (_have("dnf") and _have("unshare")):
         pytest.skip("dnf and unshare(1) are required for the depsolve oracle")
 
-    assert _run("createrepo", str(repo)).returncode == 0
-    assert (repo / "repodata" / "repomd.xml").exists()
+    def _assert_test_dnf_installs_from_a_generated_repo_3():
+        assert _run("createrepo", str(repo)).returncode == 0
+        assert (repo / "repodata" / "repomd.xml").exists()
+
+    _assert_test_dnf_installs_from_a_generated_repo_3()
 
     root, cache = tmp_path / "installroot", tmp_path / "dnfcache"
     proc = subprocess.run(
@@ -119,8 +144,7 @@ def test_dnf_installs_from_a_generated_repo(repo, tmp_path):
 
 def test_inspect_agrees_with_rpm_qp(fixtures):
     """`inspect --json` vs rpm(1) on NEVRA, provides, requires and pkgid."""
-    if not _have("rpm"):
-        pytest.skip("rpm(1) not installed")
+    _guard_test_inspect_agrees_with_rpm_qp_1()
     pkg = next(p for p in fixtures if "brixtest-lib" in p.name)
 
     got = json.loads(_run("inspect", str(pkg), "--json").stdout)
@@ -130,18 +154,24 @@ def test_inspect_agrees_with_rpm_qp(fixtures):
                              capture_output=True, text=True, check=True)
         return out.stdout
 
-    assert got["name"] == "brixtest-lib"
-    assert got["epoch"] == 2
-    assert got["arch"] == "x86_64"
-    assert got["nevra"] == qp("%{NAME}-%{EPOCH}:%{VERSION}-%{RELEASE}.%{ARCH}")
+    def _assert_test_inspect_agrees_with_rpm_qp_1():
+        assert got["name"] == "brixtest-lib"
+        assert got["epoch"] == 2
+
+    _assert_test_inspect_agrees_with_rpm_qp_1()
+    def _assert_test_inspect_agrees_with_rpm_qp_2():
+        assert got["arch"] == "x86_64"
+        assert got["nevra"] == qp("%{NAME}-%{EPOCH}:%{VERSION}-%{RELEASE}.%{ARCH}")
+
+    _assert_test_inspect_agrees_with_rpm_qp_2()
     for field, tag in (("provides", "PROVIDES"), ("requires", "REQUIRES")):
-        theirs = [ln for ln in qp("[%%{%s}\n]" % tag).splitlines() if ln]
-        mine = [d["name"] for d in got[field]]
-        assert mine == theirs, "%s: %s != %s" % (field, mine, theirs)
+        theirs = _expression_1(tag)
+        mine = _expression_2(got, field)
+        _check_test_inspect_agrees_with_rpm_qp_1(mine, theirs, field)
     # pkgid is the sha256 of the whole file, not of any header region
     sha = subprocess.run(["sha256sum", str(pkg)], capture_output=True,
                          text=True, check=True).stdout.split()[0]
-    assert got["pkgid"] == sha
+    _check_test_inspect_agrees_with_rpm_qp_2(sha, got)
 
 
 def test_update_reparses_only_what_changed(repo):
@@ -377,8 +407,11 @@ def test_path_traversal_entries_are_dropped(tmp_path, fixtures):
     proc = _run("createrepo", str(tmp_path))
     assert proc.returncode == 0
     st = _stats(proc)
-    assert (st["packages"], st["skipped"]) == (1, 0)
-    assert st["paths_sanitized"] >= 1
+    def _assert_test_path_traversal_entries_are_dropped_4():
+        assert (st["packages"], st["skipped"]) == (1, 0)
+        assert st["paths_sanitized"] >= 1
+
+    _assert_test_path_traversal_entries_are_dropped_4()
 
     for kind in ("primary", "filelists"):
         path = glob.glob(str(tmp_path / "repodata" / ("*-%s.xml.gz" % kind)))[0]

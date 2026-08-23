@@ -145,10 +145,7 @@ XRDDIAG = os.path.join(CLIENT_DIR, "bin", "xrddiag")
 def test_redirect_trace_accepted_no_op(anon):
     """--redirect-trace is a recognized flag and is a no-op on a non-redirecting
     (single) server — runnable without the cluster."""
-    if not os.path.exists(XRDFS):
-        subprocess.run(["make", "-C", CLIENT_DIR, "xrdfs"], capture_output=True, timeout=180)
-    if not os.path.exists(XRDFS):
-        pytest.skip("xrdfs not built")
+    _require_xrdfs()
     p = subprocess.run([XRDFS, "--redirect-trace", f"root://{HOST}:{anon}",
                         "stat", "/probe.txt"], capture_output=True, text=True, timeout=20)
     assert p.returncode == 0, f"{p.stdout}\n{p.stderr}"
@@ -156,6 +153,14 @@ def test_redirect_trace_accepted_no_op(anon):
     assert "Size:" in p.stdout, p.stdout
     # no redirect happened → no hop lines, and the trace never leaks onto stdout
     assert "redirect[" not in p.stdout, p.stdout
+
+
+def _require_xrdfs():
+    if not os.path.exists(XRDFS):
+        subprocess.run(["make", "-C", CLIENT_DIR, "xrdfs"],
+                       capture_output=True, timeout=180)
+    if not os.path.exists(XRDFS):
+        pytest.skip("xrdfs not built")
 
 
 @pytest.mark.registry_server("cluster-redir")

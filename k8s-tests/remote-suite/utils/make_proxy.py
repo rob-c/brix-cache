@@ -31,6 +31,17 @@ from cryptography.x509 import CertificateBuilder, Name, NameAttribute
 # PKI directory — override via first CLI argument
 # ---------------------------------------------------------------------------
 
+def _phase_encode_oid_1(chunks):
+    for i in range(len(chunks) - 1):
+        chunks[i] |= 0x80
+
+
+def _expression_1(oid_str):
+    return (
+        [int(x) for x in oid_str.split(".")]
+    )
+
+
 PKI_DIR = sys.argv[1] if len(sys.argv) > 1 else "/tmp/xrd-test/pki"
 
 USER_CERT = os.path.join(PKI_DIR, "user", "usercert.pem")
@@ -85,7 +96,7 @@ now = datetime.datetime.now(datetime.timezone.utc)
 
 def encode_oid(oid_str):
     """Encode an OID string to DER content bytes."""
-    parts = [int(x) for x in oid_str.split(".")]
+    parts = _expression_1(oid_str)
     encoded = [40 * parts[0] + parts[1]]
     for part in parts[2:]:
         if part == 0:
@@ -96,8 +107,7 @@ def encode_oid(oid_str):
                 chunks.append(part & 0x7F)
                 part >>= 7
             chunks.reverse()
-            for i in range(len(chunks) - 1):
-                chunks[i] |= 0x80
+            _phase_encode_oid_1(chunks)
             encoded.extend(chunks)
     return bytes(encoded)
 

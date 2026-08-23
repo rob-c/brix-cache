@@ -43,6 +43,19 @@ from settings import (
 )
 
 # name, port, tls?
+def _phase_exchange_1(sock):
+    try:
+        sock.shutdown(socket.SHUT_WR)
+    except OSError:
+        pass
+
+def _phase_exchange_2(conn):
+    try:
+        conn.close()
+    except OSError:
+        pass
+
+
 EP_HTTP = ("http", NGINX_HTTP_WEBDAV_PORT, False)
 EP_HTTPS = ("https", NGINX_WEBDAV_PORT, True)
 EP_HTTPG = ("httpg", NGINX_WEBDAV_GSI_TLS_PORT, True)
@@ -97,10 +110,7 @@ def _exchange(port: int, tls: bool, raw: bytes) -> bytes | None:
         # the FIN and decides at once instead of blocking on a partial frame.  A
         # truncated request the server never answered draws a fatal TLS alert or
         # a clean close, either of which yields an empty read here — acceptable.
-        try:
-            sock.shutdown(socket.SHUT_WR)
-        except OSError:
-            pass
+        _phase_exchange_1(sock)
         data = bytearray()
         try:
             while len(data) < _MAX_READ:
@@ -112,10 +122,7 @@ def _exchange(port: int, tls: bool, raw: bytes) -> bytes | None:
             pass
         return bytes(data)
     finally:
-        try:
-            conn.close()
-        except OSError:
-            pass
+        _phase_exchange_2(conn)
 
 
 def _assert_liveness(port: int, tls: bool, raw: bytes):

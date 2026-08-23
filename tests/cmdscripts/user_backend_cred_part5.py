@@ -40,158 +40,218 @@ _DN_SVC_RE = r"SVC.Proxy"
 _DENY_LOG_RE = r"fallback=deny.*refusing|per-user backend credential.*fallback=deny"
 
 
-def p2(nginx: Path | None = None) -> int:
-    suite = Suite("run_user_backend_cred_p2")
-    dn_a_re = r"User.Alpha|User\\x20Alpha"
-    dn_svc_re = r"Service.Account|Service\\x20Account"
-    with LiveRun("ucred_p2", nginx) as run:
-        skip = _ensure_pki(run)
-        if skip:
-            return _skip(skip)
-        origin, front, s3 = run.mkdir("o"), run.mkdir("f"), run.mkdir("s3")
-        for name in ("logs", "root"):
-            (origin / name).mkdir(exist_ok=True)
-            (s3 / name).mkdir(exist_ok=True)
-        for name in ("logs", "export"):
-            (front / name).mkdir(exist_ok=True)
-        creds = run.mkdir("creds")
-        creds.chmod(0o777)
+class _P2Scenario:
+    def __init__(self, run):
+        self.run = run
+        self.suite = Suite("run_user_backend_cred_p2")
+        self.origin = run.mkdir("o")
+        self.front = run.mkdir("f")
+        self.s3 = run.mkdir("s3")
+        _make_p2_directories(self.origin, self.front, self.s3)
+        self.creds = run.mkdir("creds")
+        self.creds.chmod(0o777)
+        self.origin_port, self.front_port, self.s3_port = _PORTS[6:9]
+        self.origin_log = self.origin / "logs/e.log"
+        self.user_dn = r"User.Alpha|User\\x20Alpha"
+        self.service_dn = r"Service.Account|Service\\x20Account"
 
-        rand_cn = int.from_bytes(os.urandom(2), "big") + 10000
-        minted_a = _mint_ee(run, run.mkdir("a"), f"/DC=test/DC=xrootd/CN=Test User Alpha/CN={rand_cn}")
-        minted_svc = _mint_ee(run, run.mkdir("svc"), f"/DC=test/DC=xrootd/CN=Test Service Account/CN={rand_cn + 1}")
-        if minted_a is None or minted_svc is None:
-            return _skip("identity mint failed")
-        a_combined = _combine(*minted_a, run.root / "a/combined.pem")
-        svc_combined = _combine(*minted_svc, run.root / "svc/combined.pem")
+    def prepare_credentials(self):
+        random_cn = int.from_bytes(os.urandom(2), "big") + 10000
+        user = _mint_ee(
+            self.run, self.run.mkdir("a"),
+            f"/DC=test/DC=xrootd/CN=Test User Alpha/CN={random_cn}",
+        )
+        service = _mint_ee(
+            self.run, self.run.mkdir("svc"),
+            f"/DC=test/DC=xrootd/CN=Test Service Account/CN={random_cn + 1}",
+        )
+        if user is None or service is None:
+            return False
+        self.user_credential = _combine(*user, self.run.root / "a/combined.pem")
+        self.service_credential = _combine(
+            *service, self.run.root / "svc/combined.pem"
+        )
+        return True
 
-        oport, fport, s3port = _PORTS[6:9]  # was free_ports(3)
-        started, detail = _start_prefixed(run, origin, _origin_conf(origin, oport))
-        if not started:
-            return _skip(f"origin start failed: {detail}")
-        olog = origin / "logs/e.log"
-        time.sleep(0.5)
-
-        started, detail = _start_prefixed(run, front, _p2_dav_conf(front, fport, oport, creds, svc_combined))
-        if not started:
-            return _skip(f"davs frontend start failed: {detail}")
-        time.sleep(0.5)
-        furl = f"https://{HOST}:{fport}"
-        _wait_ready(furl)
-
-        # Learn A's derived credential key via a probe PUT.
-        payload = run.root / "ucred_p2_payload.bin"
-        payload.write_bytes(os.urandom(32768))
-        _curl_code(f"{furl}/probe_key.bin", "-T", payload, cert=a_combined)
-        time.sleep(0.3)
-        a_key = _learn_key(run, front / "logs/e.log", a_combined)
-        if not a_key:
-            suite.bad("could not derive credential key for user A")
-            return suite.finish()
-        print(f"  user-A credential stem: {a_key}")
-        _install_cred(a_combined, creds / f"{a_key}.pem")
-
-        # ---- (a) davs MOVE ------------------------------------------------------
-        print("--- (a) davs MOVE: origin sees user A's DN (not the frontend's SVC DN) ---")
-        _truncate(olog)
-        code = _curl_code(f"{furl}/mv_src.bin", "-T", payload, cert=a_combined)
-        suite.check(code in ("201", "204"), f"a1: seed PUT for MOVE accepted (code={code})",
-                    f"a1: seed PUT -> {code} (want 201/204)")
-        time.sleep(0.3)
-        _truncate(olog)
-        code = _curl_code(f"{furl}/mv_src.bin", "-X", "MOVE", "-H", f"Destination: {furl}/mv_dst.bin", cert=a_combined)
-        suite.check(code in ("201", "204"), f"a2: MOVE accepted (code={code})", f"a2: MOVE -> {code} (want 201/204)")
-        time.sleep(0.5)
-        last_dn = _last_line(olog, r"GSI auth OK dn=")
-        if re.search(dn_a_re, last_dn):
-            suite.ok("a3: origin's rename-op auth line carries A's DN (Test User Alpha)")
-        elif re.search(dn_svc_re, last_dn):
-            suite.bad(f"a3: LEAK — origin's rename-op auth line carries the SVC DN, not A's: {last_dn}")
-        else:
-            suite.bad(f"a3: no recognizable DN in origin auth line for MOVE: {last_dn}")
-
-        # ---- (b) davs COPY ------------------------------------------------------
-        print("--- (b) davs COPY: origin sees user A's DN (not the frontend's SVC DN) ---")
-        _truncate(olog)
-        code = _curl_code(f"{furl}/mv_dst.bin", "-X", "COPY", "-H", f"Destination: {furl}/cp_dst.bin", cert=a_combined)
-        suite.check(code in ("201", "204"), f"b1: COPY accepted (code={code})", f"b1: COPY -> {code} (want 201/204)")
-        time.sleep(0.5)
-        last_dn = _last_line(olog, r"GSI auth OK dn=")
-        if re.search(dn_a_re, last_dn):
-            suite.ok("b2: origin's copy-op auth line carries A's DN (Test User Alpha)")
-        elif re.search(dn_svc_re, last_dn):
-            suite.bad(f"b2: LEAK — origin's copy-op auth line carries the SVC DN, not A's: {last_dn}")
-        else:
-            suite.bad(f"b2: no recognizable DN in origin auth line for COPY: {last_dn}")
-        _stop_prefixed(front)
-
-        # ---- (c) S3 CopyObject --------------------------------------------------
-        print("--- (c) S3 CopyObject: origin sees user A's DN (not the frontend's SVC DN) ---")
-        cache1 = run.mkdir("s3", "cache")
+    def start_origin_and_front(self):
         started, detail = _start_prefixed(
-            run, s3, _p2_s3_conf(s3, s3port, oport, creds, svc_combined, "allow", cache1, writable=True)
+            self.run, self.origin, _origin_conf(self.origin, self.origin_port)
         )
         if not started:
-            suite.bad(f"S3 frontend start failed: {detail}")
-            return suite.finish()
+            return f"origin start failed: {detail}"
         time.sleep(0.5)
-        s3url = f"http://{HOST}:{s3port}"
-        _wait_ready(s3url)
-        (origin / "root/s3_src.bin").write_bytes(os.urandom(16384))
-
-        _truncate(olog)
-        code = _curl_code(f"{s3url}/testbucket/s3_dst.bin", "-X", "PUT",
-                          "-H", "x-amz-copy-source: /testbucket/s3_src.bin")
-        suite.check(code == "200", f"c1: S3 CopyObject accepted (code={code})",
-                    f"c1: S3 CopyObject -> {code} (want 200)")
-        time.sleep(0.5)
-        last_dn = _last_line(olog, r"GSI auth OK dn=")
-        if re.search(dn_a_re, last_dn):
-            suite.ok("c2: origin's CopyObject auth line carries A's DN (Test User Alpha)")
-        elif re.search(dn_svc_re, last_dn):
-            suite.note("c2: origin's CopyObject auth line carries the SVC DN (Test Service Account)")
-            suite.note("    S3 auth is SigV4/anonymous here; allow-fallback to the service credential")
-            suite.note("    is the CORRECT behaviour for an S3 identity with no provisioned cred file")
-            suite.note("    (see run_user_backend_cred_p2.sh (c) for the full rationale).")
-            suite.ok("c2: (documented) S3 CopyObject correctly used the allow-fallback service credential")
-        else:
-            suite.bad(f"c2: no recognizable DN in origin auth line for S3 CopyObject: {last_dn}")
-
-        # ---- (d) deny-mode GET via the serve-offload path -------------------------
-        print("--- (d) deny-mode GET (offload path): 403 and no service-cred origin hit ---")
-        _stop_prefixed(s3)
-        cache2 = run.mkdir("s3", "cache2")
-        started, detail = _start_prefixed(
-            run, s3, _p2_s3_conf(s3, s3port, oport, creds, svc_combined, "deny", cache2, writable=False)
+        config = _p2_dav_conf(
+            self.front, self.front_port, self.origin_port, self.creds,
+            self.service_credential,
         )
+        started, detail = _start_prefixed(self.run, self.front, config)
         if not started:
-            suite.bad(f"S3 frontend (deny) start failed: {detail}")
-            return suite.finish()
+            return f"davs frontend start failed: {detail}"
         time.sleep(0.5)
-        _wait_ready(s3url)
-        time.sleep(0.3)
-        baseline_auth = _count(olog, r"GSI auth OK")
+        self.front_url = f"https://{HOST}:{self.front_port}"
+        _wait_ready(self.front_url)
+        return ""
 
-        code = _curl_code(f"{s3url}/testbucket/s3_src.bin")
+    def learn_user_key(self):
+        self.payload = self.run.root / "ucred_p2_payload.bin"
+        self.payload.write_bytes(os.urandom(32768))
+        _curl_code(
+            f"{self.front_url}/probe_key.bin", "-T", self.payload,
+            cert=self.user_credential,
+        )
+        time.sleep(0.3)
+        key = _learn_key(
+            self.run, self.front / "logs/e.log", self.user_credential
+        )
+        if not key:
+            self.suite.bad("could not derive credential key for user A")
+            return False
+        print(f"  user-A credential stem: {key}")
+        _install_cred(self.user_credential, self.creds / f"{key}.pem")
+        return True
+
+    def dav_move(self):
+        _truncate(self.origin_log)
+        code = _curl_code(
+            f"{self.front_url}/mv_src.bin", "-T", self.payload,
+            cert=self.user_credential,
+        )
+        self.suite.check(
+            code in ("201", "204"), f"a1: seed PUT accepted ({code})",
+            f"a1: seed PUT -> {code}",
+        )
+        _truncate(self.origin_log)
+        code = _curl_code(
+            f"{self.front_url}/mv_src.bin", "-X", "MOVE", "-H",
+            f"Destination: {self.front_url}/mv_dst.bin",
+            cert=self.user_credential,
+        )
+        self.suite.check(
+            code in ("201", "204"), f"a2: MOVE accepted ({code})",
+            f"a2: MOVE -> {code}",
+        )
+        time.sleep(0.5)
+        self._check_origin_identity("a3", "MOVE", allow_service=False)
+
+    def dav_copy(self):
+        _truncate(self.origin_log)
+        code = _curl_code(
+            f"{self.front_url}/mv_dst.bin", "-X", "COPY", "-H",
+            f"Destination: {self.front_url}/cp_dst.bin",
+            cert=self.user_credential,
+        )
+        self.suite.check(
+            code in ("201", "204"), f"b1: COPY accepted ({code})",
+            f"b1: COPY -> {code}",
+        )
+        time.sleep(0.5)
+        self._check_origin_identity("b2", "COPY", allow_service=False)
+        _stop_prefixed(self.front)
+
+    def _check_origin_identity(self, label, operation, allow_service):
+        line = _last_line(self.origin_log, r"GSI auth OK dn=")
+        if re.search(self.user_dn, line):
+            self.suite.ok(f"{label}: {operation} origin used user A")
+        elif allow_service and re.search(self.service_dn, line):
+            self.suite.ok(f"{label}: {operation} used documented service fallback")
+        elif re.search(self.service_dn, line):
+            self.suite.bad(f"{label}: service identity leaked into {operation}: {line}")
+        else:
+            self.suite.bad(f"{label}: no recognizable origin identity: {line}")
+
+    def s3_copy(self):
+        cache = self.run.mkdir("s3", "cache")
+        config = _p2_s3_conf(
+            self.s3, self.s3_port, self.origin_port, self.creds,
+            self.service_credential, "allow", cache, writable=True,
+        )
+        started, detail = _start_prefixed(self.run, self.s3, config)
+        if not started:
+            self.suite.bad(f"S3 frontend start failed: {detail}")
+            return False
+        time.sleep(0.5)
+        self.s3_url = f"http://{HOST}:{self.s3_port}"
+        _wait_ready(self.s3_url)
+        (self.origin / "root/s3_src.bin").write_bytes(os.urandom(16384))
+        _truncate(self.origin_log)
+        code = _curl_code(
+            f"{self.s3_url}/testbucket/s3_dst.bin", "-X", "PUT",
+            "-H", "x-amz-copy-source: /testbucket/s3_src.bin",
+        )
+        self.suite.check(
+            code == "200", f"c1: S3 CopyObject accepted ({code})",
+            f"c1: S3 CopyObject -> {code}",
+        )
+        time.sleep(0.5)
+        self._check_origin_identity("c2", "S3 CopyObject", allow_service=True)
+        return True
+
+    def deny_get(self):
+        _stop_prefixed(self.s3)
+        cache = self.run.mkdir("s3", "cache2")
+        config = _p2_s3_conf(
+            self.s3, self.s3_port, self.origin_port, self.creds,
+            self.service_credential, "deny", cache, writable=False,
+        )
+        started, detail = _start_prefixed(self.run, self.s3, config)
+        if not started:
+            self.suite.bad(f"S3 deny frontend start failed: {detail}")
+            return
+        time.sleep(0.5)
+        _wait_ready(self.s3_url)
+        baseline = _count(self.origin_log, r"GSI auth OK")
+        code = _curl_code(f"{self.s3_url}/testbucket/s3_src.bin")
+        self._record_deny_status(code)
+        time.sleep(0.5)
+        current = _count(self.origin_log, r"GSI auth OK")
+        self.suite.check(
+            current == baseline, "d2: denied object never opened at origin",
+            f"d2: origin auth count changed ({baseline} -> {current})",
+        )
+        pattern = r"credential denied|per-user backend credential.*(EXPIRED|missing|fallback=deny)"
+        if _grep(self.s3 / "logs/e.log", pattern):
+            self.suite.ok("d3: deny reasoning logged")
+        else:
+            self.suite.note("d3: no explicit deny-reason log (non-fatal)")
+
+    def _record_deny_status(self, code):
         if code == "403":
-            suite.ok("d1: anonymous S3 GET on a deny-mode remote export refused (403)")
+            self.suite.ok("d1: anonymous deny-mode GET refused (403)")
         elif code == "404":
-            suite.note("d1: got 404 instead of 403 — object resolved absent before the credential gate;")
-            suite.note("    treating as a soft pass since a 404 also means no bytes were served.")
-            suite.ok("d1: (soft) anonymous S3 GET on a deny-mode remote export NOT served (404)")
+            self.suite.ok("d1: anonymous deny-mode GET not served (404)")
         else:
-            suite.bad(f"d1: anonymous S3 GET on deny-mode remote export -> {code} (want 403)")
-        time.sleep(0.5)
-        new_auth = _count(olog, r"GSI auth OK")
-        suite.check(new_auth == baseline_auth,
-                    "d2: origin recorded NO new GSI auth line — the object was never opened at the origin",
-                    f"d2: origin recorded a NEW auth line for a denied GET (baseline={baseline_auth} new={new_auth})")
-        if _grep(s3 / "logs/e.log", r"credential denied|per-user backend credential.*(EXPIRED|missing|fallback=deny)"):
-            suite.ok("d3: deny reasoning logged by the S3 frontend")
-        else:
-            suite.note("d3: no explicit deny-reason log line found (non-fatal — behaviour already verified by d1/d2)")
+            self.suite.bad(f"d1: deny-mode GET -> {code}; expected 403")
 
-        return suite.finish()
+    def execute(self):
+        self.dav_move()
+        self.dav_copy()
+        if self.s3_copy():
+            self.deny_get()
+        return self.suite.finish()
+
+
+def _make_p2_directories(origin, front, s3):
+    for name in ("logs", "root"):
+        (origin / name).mkdir(exist_ok=True)
+        (s3 / name).mkdir(exist_ok=True)
+    for name in ("logs", "export"):
+        (front / name).mkdir(exist_ok=True)
+
+
+def p2(nginx: Path | None = None) -> int:
+    with LiveRun("ucred_p2", nginx) as run:
+        missing = _ensure_pki(run)
+        if missing:
+            return _skip(missing)
+        scenario = _P2Scenario(run)
+        if not scenario.prepare_credentials():
+            return _skip("identity mint failed")
+        start_error = scenario.start_origin_and_front()
+        if start_error:
+            return _skip(start_error)
+        if not scenario.learn_user_key():
+            return scenario.suite.finish()
+        return scenario.execute()
 
 
 # ===========================================================================
@@ -199,35 +259,44 @@ def p2(nginx: Path | None = None) -> int:
 # ===========================================================================
 
 def multiuser_authz(nginx: Path | None = None, pytest_args: list[str] | None = None) -> int:
+    del nginx
     if os.geteuid() != 0:
         print("SKIP: the multi-user conformance suite requires root (real accounts + setfsuid)")
         print("Run: sudo -E env PYTHONPATH=tests python3 -m cmdscripts.user_backend_cred multiuser-authz")
         return SKIP
+    _provision_multiuser_pki()
+    _run_multiuser_c_unit()
+    return _run_multiuser_pytest(pytest_args)
 
-    # Ensure the test PKI exists before the fixtures mint per-principal creds.
+
+def _provision_multiuser_pki():
     _quiet(
         [sys.executable, "-c", "from pki_helpers import blitz_test_pki; blitz_test_pki()"],
         env={"PYTHONPATH": str(REPO_ROOT / "tests")},
     )
 
-    # Build + run the F6 mapping C unit against a clean provisioned account
-    # (best-effort). Behaviour ported from the retired tests/c/run_mu_unit.sh into
-    # cmdscripts.c_regression_units.mu_unit (idmap_collapse_test); MU_CLEAN_USER
-    # selects the collapse-SUCCESS cases the MU fleet provisions brixtest_* for.
-    if shutil.which("gcc"):
-        from cmdscripts import c_regression_units
 
-        prev = os.environ.get("MU_CLEAN_USER")
-        os.environ["MU_CLEAN_USER"] = "brixtest_alice"
-        try:
-            with tempfile.TemporaryDirectory() as mu_base:
-                c_regression_units.mu_unit(Path(mu_base))
-        finally:
-            if prev is None:
-                os.environ.pop("MU_CLEAN_USER", None)
-            else:
-                os.environ["MU_CLEAN_USER"] = prev
+def _run_multiuser_c_unit():
+    if not shutil.which("gcc"):
+        return
+    from cmdscripts import c_regression_units
+    previous = os.environ.get("MU_CLEAN_USER")
+    os.environ["MU_CLEAN_USER"] = "brixtest_alice"
+    try:
+        with tempfile.TemporaryDirectory() as mu_base:
+            c_regression_units.mu_unit(Path(mu_base))
+    finally:
+        _restore_environment("MU_CLEAN_USER", previous)
 
+
+def _restore_environment(name, previous):
+    if previous is None:
+        os.environ.pop(name, None)
+    else:
+        os.environ[name] = previous
+
+
+def _run_multiuser_pytest(pytest_args):
     mu_tests = sorted((REPO_ROOT / "tests").glob("test_mu_*.py"))
     if not mu_tests:
         print("FAIL: no tests/test_mu_*.py files found")

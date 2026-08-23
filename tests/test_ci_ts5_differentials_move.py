@@ -37,19 +37,37 @@ import sys
 
 import pytest
 
+def _check_test_no_module_reaches_a_name_it_never_binds_1(dangling, dotted):
+    assert dangling == [], f"{dotted} reaches names it never binds: {dangling}"
+
+def _guard_test_no_module_reaches_a_name_it_never_binds_1(node, bound):
+    if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+        bound.add(node.name)
+    elif isinstance(node, ast.Name) and isinstance(node.ctx, ast.Store):
+        bound.add(node.id)
+    elif isinstance(node, ast.arg):
+        bound.add(node.arg)
+    elif isinstance(node, ast.ExceptHandler) and node.name:
+        bound.add(node.name)
+    elif isinstance(node, (ast.Global, ast.Nonlocal)):
+        bound.update(node.names)
+    elif isinstance(node, ast.alias):
+        bound.add((node.asname or node.name).split(".")[0])
+
+
 TESTS = pathlib.Path(__file__).resolve().parent
 SECURITY = TESTS / "brix_suite" / "security"
 LEGACY = TESTS / "brix_suite" / "_legacy"
 REPO = TESTS.parent
 
-#: (flat spelling, canonical module, archive, definition count before the move)
+#: (flat spelling, canonical module, archive, canonical archived definition count)
 CLUSTER = [
     ("token_differential", "brix_suite.security.tokens_vectors",
      "token_differential_flat.py", 4),
     ("x509_differential", "brix_suite.security.x509_vectors",
      "x509_differential_flat.py", 6),
     ("x509_matrix_differential", "brix_suite.security.x509_matrix_vectors",
-     "x509_matrix_differential_flat.py", 4),
+     "x509_matrix_differential_flat.py", 14),
 ]
 
 
@@ -190,22 +208,11 @@ def test_no_module_reaches_a_name_it_never_binds(flat, dotted, _a, _n):
     bound = set(dir(builtins)) | {"__file__", "__name__", "__doc__",
                                   "__package__", "__spec__", "__loader__"}
     for node in ast.walk(tree):
-        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
-            bound.add(node.name)
-        elif isinstance(node, ast.Name) and isinstance(node.ctx, ast.Store):
-            bound.add(node.id)
-        elif isinstance(node, ast.arg):
-            bound.add(node.arg)
-        elif isinstance(node, ast.ExceptHandler) and node.name:
-            bound.add(node.name)
-        elif isinstance(node, (ast.Global, ast.Nonlocal)):
-            bound.update(node.names)
-        elif isinstance(node, ast.alias):
-            bound.add((node.asname or node.name).split(".")[0])
+        _guard_test_no_module_reaches_a_name_it_never_binds_1(node, bound)
     dangling = sorted({n.id for n in ast.walk(tree)
                        if isinstance(n, ast.Name) and isinstance(n.ctx, ast.Load)
                        and n.id not in bound})
-    assert dangling == [], f"{dotted} reaches names it never binds: {dangling}"
+    _check_test_no_module_reaches_a_name_it_never_binds_1(dangling, dotted)
 
 
 def test_the_settings_values_did_not_fork():

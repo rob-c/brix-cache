@@ -6,6 +6,13 @@ against the copy here.  Nothing in the live suite imports this file; it is not
 a shim and it is not composed.
 """
 
+from __future__ import annotations
+
+def _guard_write_hashed_ca_dir_1(policy_file, ca_dir, hh):
+    if policy_file is not None:
+        _symlink("signing-policy", ca_dir / f"{hh}.signing_policy")
+
+
 """x509forge — manufacture hostile PKI scenario trees for WLCG conformance.
 
 Each scenario materialises a complete hashed CA directory (CA certs with both
@@ -22,8 +29,6 @@ A scenario spec is a plain dict; forge_scenario(root, name, spec) turns it into
 a Scenario.  See BASELINE_SPEC and the *_SPECS tables for the catalogue used by
 the test suite.
 """
-
-from __future__ import annotations
 
 import functools
 import datetime
@@ -107,8 +112,7 @@ def write_hashed_ca_dir(ca_dir: Path, ca: Cert, *, policy_text: str | None = Non
 
     for hh in chosen:
         _symlink("ca.pem", ca_dir / f"{hh}.0")
-        if policy_file is not None:
-            _symlink("signing-policy", ca_dir / f"{hh}.signing_policy")
+        _guard_write_hashed_ca_dir_1(policy_file, ca_dir, hh)
 
     if crls:
         for suffix, pem in crls.items():
@@ -421,5 +425,3 @@ def _cad_sha1_only(root: Path) -> Scenario:
                     reason="CA reachable via canonical SHA-1 hash link",
                     spec_ref="CA-dir")
     return sc.finalize()
-
-

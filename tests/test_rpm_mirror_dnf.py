@@ -283,8 +283,11 @@ def test_install_through_mirror_then_survive_upstream_loss(upstream, mirror):
     # upstream goes away; a fresh install root still resolves from cache
     up.stop()
     second = _dnf(str(base), baseurl, "brixtest-app", tag="m2")
-    assert second.returncode == 0, (second.stdout + second.stderr)[-1500:]
-    assert "brixtest-app-0.9-4" in second.stdout
+    def _assert_test_install_through_mirror_then_survive_upstream_loss_1():
+        assert second.returncode == 0, (second.stdout + second.stderr)[-1500:]
+        assert "brixtest-app-0.9-4" in second.stdout
+
+    _assert_test_install_through_mirror_then_survive_upstream_loss_1()
 
 
 def test_immutable_objects_report_a_cache_hit(upstream, mirror):

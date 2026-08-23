@@ -61,9 +61,7 @@ class TestNearInt64Max:
         sock = _session()
         try:
             _, ost, obody = _open(sock, name, kXR_open_read)
-            if ost != kXR_ok:
-                pytest.skip(f"server refused open of near-max sparse file: "
-                            f"{_error_code(obody)}")
+            _require_near_max_open(ost, obody)
             fh = obody[:4]
             # Offset 1 KiB below the very end: inside the file, in a hole.
             off = size - 1024
@@ -75,9 +73,7 @@ class TestNearInt64Max:
             # A read starting one byte below INT64_MAX (past EOF) must be a
             # clean short/EOF read, not an error or a crash.
             _, est, ebody = _read(sock, fh, INT64_MAX - 1, 16)
-            assert est in (kXR_ok, kXR_error)
-            if est == kXR_ok:
-                assert ebody == b""        # past EOF -> empty
+            _assert_extreme_read(est, ebody)
             _close(sock, fh)
             assert _ping(sock)[1] == kXR_ok
         finally:
@@ -97,6 +93,18 @@ class TestNearInt64Max:
             assert _ping(sock)[1] == kXR_ok
         finally:
             sock.close()
+
+
+def _require_near_max_open(status, body):
+    if status != kXR_ok:
+        pytest.skip("server refused open of near-max sparse file: "
+                    f"{_error_code(body)}")
+
+
+def _assert_extreme_read(status, body):
+    assert status in (kXR_ok, kXR_error)
+    if status == kXR_ok:
+        assert body == b""        # past EOF -> empty
 
 
 # ===========================================================================
@@ -151,10 +159,9 @@ class TestNegativeOffsetRejected:
 
     def test_pgwrite_negative_offset(self, wr_handle):
         sock, fh, _full, writable = wr_handle
-        if not writable:
-            pytest.skip("anon server read-only; cannot open for write")
+        _require_writable(writable)
         data = b"y" * 64
-        crc = crc32c(data) if _CRC32C_OK else 0
+        crc = _test_crc(data)
         payload = struct.pack("!I", crc) + data
         _, status, body = _pgwrite(sock, fh, -32, payload)
         assert status == kXR_error, "negative pgwrite offset must error"
@@ -172,6 +179,17 @@ class TestNegativeOffsetRejected:
         assert status == kXR_error, "negative truncate offset must error"
         assert _error_code(body) in (kXR_IOError, kXR_ArgInvalid)
         assert _ping(sock)[1] == kXR_ok
+
+
+def _require_writable(writable):
+    if not writable:
+        pytest.skip("anon server read-only; cannot open for write")
+
+
+def _test_crc(data):
+    if _CRC32C_OK:
+        return crc32c(data)
+    return 0
 
 
 # ===========================================================================
@@ -240,13 +258,7 @@ class TestStatSizeAbove4GiB:
             _, status, body = _stat(sock, name)
             assert status == kXR_ok, _error_code(body)
             reported = _stat_size(body)
-            if reported != size and reported <= 0xFFFFFFFF:
-                pytest.skip("server reports stat in VFS/block mode "
-                            f"(field={reported}); logical-size check N/A")
-            assert reported == size, (
-                f"stat size {reported} != actual {size}; "
-                f"low-32-bits would be {size & 0xFFFFFFFF}")
-            assert reported > 0xFFFFFFFF, "test file must exceed 4 GiB"
+            _assert_full_stat_size(reported, size)
             assert _ping(sock)[1] == kXR_ok
         finally:
             sock.close()
@@ -272,6 +284,28 @@ class TestStatSizeAbove4GiB:
             sock.close()
 
 
+def _assert_full_stat_size(reported, expected):
+    _skip_block_stat(reported, expected)
+    low_bits = _low_32_bits(expected)
+    assert reported == expected, (
+        f"stat size {reported} != actual {expected}; low-32-bits would be {low_bits}")
+    _assert_above_4g(reported)
+
+
+def _skip_block_stat(reported, expected):
+    if reported != expected and reported <= 0xFFFFFFFF:
+        pytest.skip("server reports stat in VFS/block mode "
+                    f"(field={reported}); logical-size check N/A")
+
+
+def _low_32_bits(value):
+    return value & 0xFFFFFFFF
+
+
+def _assert_above_4g(reported):
+    assert reported > 0xFFFFFFFF, "test file must exceed 4 GiB"
+
+
 # ===========================================================================
 # Scenario 6 — truncate to a large sparse offset
 # ===========================================================================
@@ -285,10 +319,7 @@ class TestLargeTruncate:
         sock = _session()
         try:
             _, status, body = _open(sock, name, kXR_open_updt)
-            if status != kXR_ok:
-                pytest.skip(f"anon server read-only "
-                            f"(open updt -> {_error_code(body)}); "
-                            f"need brix_allow_write on")
+            _require_large_truncate_open(status, body)
             fh = body[:4]
             target = FOUR_GIB + 12345
             _, tst, tbody = _truncate(sock, fh, target)
@@ -301,17 +332,26 @@ class TestLargeTruncate:
             _, sst, sbody = _stat(sock, name)
             assert sst == kXR_ok, _error_code(sbody)
             reported = _stat_size(sbody)
-            if reported == target:
-                pass
-            elif reported <= 0xFFFFFFFF:
-                pytest.skip("server reports stat in VFS/block mode; "
-                            "on-disk truncate size already verified")
-            else:
-                pytest.fail(f"stat size {reported} != truncate target {target}")
+            _assert_truncate_stat(reported, target)
             assert _ping(sock)[1] == kXR_ok
         finally:
             sock.close()
             _unlink(full)
+
+
+def _require_large_truncate_open(status, body):
+    if status != kXR_ok:
+        pytest.skip("anon server read-only "
+                    f"(open updt -> {_error_code(body)}); need brix_allow_write on")
+
+
+def _assert_truncate_stat(reported, target):
+    if reported == target:
+        return
+    if reported <= 0xFFFFFFFF:
+        pytest.skip("server reports stat in VFS/block mode; "
+                    "on-disk truncate size already verified")
+    pytest.fail(f"stat size {reported} != truncate target {target}")
 
 
 # ===========================================================================

@@ -1,7 +1,7 @@
-"""The run store (feature F22): every run catalogued, queryable, exportable.
+"""SQLite run storage with OpenSearch-compatible export.
 
 SQLite because it is stdlib, transactional, and a single file inside
-the lane (``<lane>/results/brixtest.db``) — the portal, the CLI, and
+the lane (``<lane>/results/brixtest.db``); the portal, the CLI, and
 any ad-hoc ``sqlite3`` session all read the same catalogue.  OpenSearch
 is an **export target**, not a dependency: ``export_opensearch`` emits
 bulk-API JSONL (action line + document line) so an upload is one curl,
@@ -124,8 +124,6 @@ class ResultStore:
         with self._lock:
             self._conn.close()
 
-    # -- writes ----------------------------------------------------------
-
     def begin_run(self, info: RunInfo) -> None:
         with self._lock:
             self._conn.execute(
@@ -183,8 +181,6 @@ class ResultStore:
                  finding.during_test, finding.at),
             )
             self._conn.commit()
-
-    # -- reads -----------------------------------------------------------
 
     def runs(self) -> List[RunInfo]:
         with self._lock:
@@ -254,8 +250,6 @@ class ResultStore:
                 (run_id,),
             ).fetchall()
 
-    # -- export ----------------------------------------------------------
-
     def export_opensearch(self, run_id: str, out_path: Path,
                           index_prefix: str = "brixtest") -> int:
         """Bulk-API JSONL: `{index:{...}}` action line + document line per
@@ -264,28 +258,39 @@ class ResultStore:
         out_path = Path(out_path)
         count = 0
         with out_path.open("w") as out:
-            def doc(index: str, _id: Optional[str], body: dict) -> None:
-                nonlocal count
-                action = {"index": {"_index": "%s-%s" % (index_prefix, index)}}
-                if _id:
-                    action["index"]["_id"] = _id
-                out.write(json.dumps(action) + "\n")
-                out.write(json.dumps(body, sort_keys=True) + "\n")
+            for index, document_id, body in self._opensearch_rows(run_id):
+                _write_opensearch_document(out, index_prefix, index, document_id, body)
                 count += 1
-
-            for record in self.tests(run_id):
-                body = dataclasses.asdict(record)
-                body.pop("phases", None)
-                for phase in ("setup", "call", "teardown"):
-                    body["%s_seconds" % phase] = record.phase_seconds(phase)
-                doc("tests", "%s:%s" % (run_id, record.nodeid), body)
-            for finding in self.findings(run_id):
-                doc("findings", None, dict(dataclasses.asdict(finding), run_id=run_id))
-            for row in self.instance_stats(run_id):
-                doc("instances", "%s:%s" % (run_id, row[0]), {
-                    "run_id": run_id, "instance": row[0], "samples": row[1],
-                    "max_rss_kb": row[2], "mean_cpu_pct": round(row[3] or 0, 2),
-                    "max_cpu_pct": row[4], "first_rss_kb": row[5],
-                    "last_rss_kb": row[6],
-                })
         return count
+
+    def _opensearch_rows(self, run_id: str):
+        for record in self.tests(run_id):
+            yield "tests", "%s:%s" % (run_id, record.nodeid), _test_document(record)
+        for finding in self.findings(run_id):
+            yield "findings", None, dict(dataclasses.asdict(finding), run_id=run_id)
+        for row in self.instance_stats(run_id):
+            yield "instances", "%s:%s" % (run_id, row[0]), _instance_document(run_id, row)
+
+
+def _write_opensearch_document(out, prefix, index, document_id, body) -> None:
+    action = {"index": {"_index": "%s-%s" % (prefix, index)}}
+    if document_id:
+        action["index"]["_id"] = document_id
+    out.write(json.dumps(action) + "\n")
+    out.write(json.dumps(body, sort_keys=True) + "\n")
+
+
+def _test_document(record: TestRecord) -> dict:
+    body = dataclasses.asdict(record)
+    body.pop("phases", None)
+    for phase in ("setup", "call", "teardown"):
+        body["%s_seconds" % phase] = record.phase_seconds(phase)
+    return body
+
+
+def _instance_document(run_id: str, row) -> dict:
+    return {
+        "run_id": run_id, "instance": row[0], "samples": row[1],
+        "max_rss_kb": row[2], "mean_cpu_pct": round(row[3] or 0, 2),
+        "max_cpu_pct": row[4], "first_rss_kb": row[5], "last_rss_kb": row[6],
+    }

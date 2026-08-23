@@ -205,6 +205,43 @@ origin_cksum_split(const u_char *body, char *alg_out, size_t alg_sz,
     }
 }
 
+/*
+ * WHAT: Decode one asynchronous checksum response attention frame.
+ * WHY:  Deferred response framing should not complicate the bounded hop loop.
+ * HOW:  Validate asynresp headers, split a valid digest, and always free body.
+ */
+static int
+origin_cksum_async(const u_char *body, uint32_t dlen,
+    const brix_cache_cksum_out_t *out)
+{
+    uint32_t actnum;
+    uint16_t inner_status;
+    uint32_t inner_dlen;
+    u_char *owned = (u_char *) body;
+
+    if (body == NULL || dlen < 16) {
+        free(owned);
+        return 1;
+    }
+    actnum = xrd_get_u32_be(body);
+    if (actnum != (uint32_t) kXR_asynresp) {
+        free(owned);
+        return 0;
+    }
+    xrd_resp_hdr_unpack(body + 8, NULL, &inner_status, &inner_dlen);
+    if (inner_status != kXR_ok || inner_dlen == 0
+        || (size_t) 16 + inner_dlen > (size_t) dlen)
+    {
+        free(owned);
+        return 1;
+    }
+    owned[16 + inner_dlen] = '\0';
+    origin_cksum_split(owned + 16, out->alg, out->alg_sz,
+                       out->hex, out->hex_sz);
+    free(owned);
+    return 1;
+}
+
 /* brix_cache_origin_query_checksum — ask the origin for its stored digest of
  * t->clean_path (path-based kXR_query/kXR_Qcksum), returning "<algo> <hex>" split
  * into the caller buffers (out->alg / out->hex). Checksum-on-fill (verify.c)
@@ -264,34 +301,9 @@ brix_cache_origin_query_checksum(brix_cache_fill_t *t,
         if (status == kXR_attn) {
             /* kXR_attn asynresp body layout (opcodes.h):
              *   actnum[4] reserved[4] ServerResponseHdr[8] response[inner_dlen] */
-            uint32_t  actnum;
-            uint16_t  inner_status;
-            uint32_t  inner_dlen;
-
-            if (body == NULL || dlen < 16) {
-                free(body);
+            if (origin_cksum_async(body, dlen, out))
                 return 0;
-            }
-            actnum = xrd_get_u32_be(body);
-            if (actnum != (uint32_t) kXR_asynresp) {
-                free(body);                 /* asyncms / other push — keep going */
-                continue;
-            }
-            xrd_resp_hdr_unpack(body + 8, NULL, &inner_status, &inner_dlen);
-            if (inner_status != kXR_ok || inner_dlen == 0
-                || (size_t) 16 + inner_dlen > (size_t) dlen)
-            {
-                free(body);                 /* deferred result was not a digest */
-                return 0;
-            }
-            /* NUL-terminate the inner payload before the split (read_response
-             * over-allocated dlen+1, and 16+inner_dlen <= dlen, so this index is
-             * in bounds). */
-            body[16 + inner_dlen] = '\0';
-            origin_cksum_split(body + 16, out->alg, out->alg_sz,
-                               out->hex, out->hex_sz);
-            free(body);
-            return 0;
+            continue;
         }
 
         if (status == kXR_ok) {
@@ -400,4 +412,3 @@ brix_cache_origin_read_chunk(brix_cache_fill_t *t,
         }
     }
 }
-

@@ -103,13 +103,21 @@ def test_requirement_flows_through_module_scope_and_helpers():
     assert spec in _only(usages, "test_via_helper").required
 
 
+def _different_dedicated_spec(first):
+    for const, spec in sorted(fp.CONST_TO_SPEC.items()):
+        if spec not in BACKBONE and spec != first:
+            return const, spec
+    raise AssertionError("a second dedicated fleet spec is required")
+
+
+def _assert_distinct_method_usage(first, second, usage_a, usage_b):
+    assert first in usage_a.required and first not in usage_b.required
+    assert second in usage_b.required and second not in usage_a.required
+
+
 def test_same_named_methods_in_different_classes_attribute_independently():
     c1, s1 = _a_dedicated_const()
-    # a second dedicated spec, distinct from the first
-    c2, s2 = next(
-        (c, s) for c, s in sorted(fp.CONST_TO_SPEC.items())
-        if s not in BACKBONE and s != s1
-    )
+    c2, s2 = _different_dedicated_spec(s1)
     src = textwrap.dedent(f"""
         from settings import {c1}, {c2}
         class TestA:
@@ -122,8 +130,7 @@ def test_same_named_methods_in_different_classes_attribute_independently():
     usages = fd.analyze_source(src)
     a = next(u for u in usages if u.qualname == "TestA::test_same")
     b = next(u for u in usages if u.qualname == "TestB::test_same")
-    assert s1 in a.required and s1 not in b.required
-    assert s2 in b.required and s2 not in a.required
+    _assert_distinct_method_usage(s1, s2, a, b)
 
 
 def test_backbone_is_exactly_the_core_tagged_specs():

@@ -115,7 +115,7 @@ LIB_SRCS   := \
   lib/core/aio/aio.c lib/core/aio/aio_buffers.c lib/core/aio/aio_conn.c lib/core/aio/aio_engine.c lib/core/aio/aio_engine_cqe.c lib/core/aio/aio_io.c lib/core/aio/aio_mfile.c lib/core/aio/aio_mgr.c lib/core/aio/aio_timeouts.c lib/core/aio/uring.c lib/core/aio/uring_stub.c \
   lib/core/config/xrdrc.c lib/core/config/envalias.c \
   lib/core/types/status.c lib/core/types/units.c \
-  lib/net/conn.c lib/net/conn_bootstrap.c lib/net/conn_explain.c lib/net/cpool.c lib/net/netdiag.c lib/net/netpref.c lib/net/nettmo.c lib/net/pool.c lib/net/resilient.c lib/net/sock.c lib/net/streams.c lib/net/tls.c lib/net/url.c \
+  lib/net/conn.c lib/net/conn_bootstrap.c lib/net/conn_explain.c lib/net/cpool.c lib/net/netdiag.c lib/net/netpref.c lib/net/nettmo.c lib/net/pool.c lib/net/resilient.c lib/net/sock.c lib/net/streams.c lib/net/tls.c lib/net/tls_io.c lib/net/url.c \
   ../shared/net/proxy_env.c ../shared/net/proxy_connect.c \
   lib/auth/auth.c lib/auth/sigver.c \
   lib/auth/cred/cred.c lib/auth/cred/cred_bearer.c lib/auth/cred/cred_krb5.c lib/auth/cred/cred_s3.c lib/auth/cred/cred_sss.c lib/auth/cred/cred_x509.c lib/auth/cred/credinfo.c lib/auth/cred/credrefresh.c \

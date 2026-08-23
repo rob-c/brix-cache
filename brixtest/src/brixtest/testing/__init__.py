@@ -8,7 +8,9 @@ from brixtest.testing.backend_contract import check_backend_contract
 from brixtest.testing.extension_contract import assert_extension_contract
 from brixtest.testing.kind_contract import check_kind_contract
 from brixtest.testing.runtime_contracts import (
-    check_case_backend_contract, check_executor_contract, check_launcher_contract,
+    check_case_backend_contract,
+    check_executor_contract,
+    check_launcher_contract,
     check_provider_contract,
 )
 

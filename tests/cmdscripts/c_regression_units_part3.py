@@ -10,6 +10,7 @@ import subprocess
 import tempfile
 
 from cmdscripts.compile_run import REPO_ROOT, result, run
+from cmdscripts.command_results import print_results
 
 
 DEFAULT_NGX_SRC = Path(os.environ.get(
@@ -102,10 +103,12 @@ def sd_http_dir(base: Path, ngx_src: Path = DEFAULT_NGX_SRC) -> tuple[bool, str]
     # EVP_* -> libcrypto). The ngx logging seam is stubbed in the test (instances
     # built log=NULL, so sd_http_live_log short-circuits and nothing logs).
     # select.o also reaches the phase-104 D1.4 redirect kernel (sd_http_redirect.o),
-    # which parses the Location with shared/oci/url.c -> url.o.
+    # which parses the Location with shared/oci/url.c -> url.o, and url.c in turn
+    # calls brix_oci_url_authority() -> authority.o (host:port splitting, incl. the
+    # bracketed-IPv6 form) -- link it or the object set is one symbol short.
     names = ["sd_http.o", "sd_http_select.o", "sd_http_read.o", "sd_http_write.o",
              "sd_http_dir.o", "sd_http_mutate.o", "sd_http_redirect.o",
-             "url.o"]
+             "url.o", "authority.o"]
     objs: list[Path] = []
     for name in names:
         obj = _find_obj(ngx_src, name)
@@ -125,10 +128,12 @@ def sd_http_mutate(base: Path, ngx_src: Path = DEFAULT_NGX_SRC) -> tuple[bool, s
     # sd_http_dir (write.o pulls EVP_* -> libcrypto); the ngx logging seam is
     # stubbed in the test (instances built log=NULL, sd_http_live_log short-circuits).
     # select.o also reaches the phase-104 D1.4 redirect kernel (sd_http_redirect.o),
-    # which parses the Location with shared/oci/url.c -> url.o.
+    # which parses the Location with shared/oci/url.c -> url.o, and url.c in turn
+    # calls brix_oci_url_authority() -> authority.o (host:port splitting, incl. the
+    # bracketed-IPv6 form) -- link it or the object set is one symbol short.
     names = ["sd_http.o", "sd_http_select.o", "sd_http_read.o", "sd_http_write.o",
              "sd_http_dir.o", "sd_http_mutate.o", "sd_http_redirect.o",
-             "url.o"]
+             "url.o", "authority.o"]
     objs: list[Path] = []
     for name in names:
         obj = _find_obj(ngx_src, name)
@@ -236,6 +241,23 @@ def cvmfs_url_rewrite(base: Path, ngx_src: Path = DEFAULT_NGX_SRC) -> tuple[bool
     )
 
 
+def oci_parse(base: Path, ngx_src: Path = DEFAULT_NGX_SRC) -> tuple[bool, str]:
+    """Compile the standalone OCI challenge, URL, and authority parser contract."""
+    del ngx_src
+    oci = REPO_ROOT / "shared" / "oci"
+    return _compile_and_run(
+        base / "oci_parse_test",
+        [
+            "-std=c11", "-O2", "-Wall", "-Wextra", "-Werror",
+            "-I", str(REPO_ROOT / "shared"),
+            str(TEST_C / "oci_parse_test.c"),
+            str(oci / "challenge.c"),
+            str(oci / "url.c"),
+            str(oci / "authority.c"),
+        ],
+    )
+
+
 RUNNERS = {
     "cache_lock_reclaim": cache_lock_reclaim,
     "flush_deadletter": flush_deadletter,
@@ -265,6 +287,7 @@ RUNNERS = {
     "reservation": reservation,
     "gftp_parse": gftp_parse,
     "cvmfs_url_rewrite": cvmfs_url_rewrite,
+    "oci_parse": oci_parse,
     "frm_stage_metrics": frm_stage_metrics,
     "tpc_progress_total": tpc_progress_total,
     "tier_s3_creds": tier_s3_creds,
@@ -288,9 +311,7 @@ def entry(argv: list[str]) -> int:
     selected = argv or list(RUNNERS)
     with tempfile.TemporaryDirectory(prefix="c_regression.") as tmp:
         results = run_checks(Path(tmp), selected)
-    for ok, message in results:
-        print(f"  {'ok  ' if ok else 'FAIL'} {message}")
-    return 0 if all(ok for ok, _ in results) else 1
+    return print_results(results, "c_regression_units")
 
 
 if __name__ == "__main__":

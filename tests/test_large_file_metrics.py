@@ -45,6 +45,16 @@ from settings import (
     XRDFS_BIN,
 )
 
+def _expression_1(part, i, parts):
+    return (
+        "crc32c" in part and i + 1 < len(parts)
+    )
+
+
+def _check_test_crc32c_checksum_matches_local_computation_1(res):
+    assert res.returncode == 0, f"xrdfs query checksum failed: {res.stderr}"
+
+
 pytestmark = [
     pytest.mark.slow,
     pytest.mark.large,
@@ -271,6 +281,32 @@ def test_s3_large_putobject_byte_exact():
 # Section 12e — CRC32c checksum reported by server matches local computation
 # ---------------------------------------------------------------------------
 
+def _streaming_crc32c(crc32c):
+    value = 0
+    with open(LARGE_FILE, "rb") as stream:
+        for chunk in iter(lambda: stream.read(65536), b""):
+            value = crc32c.crc32c(chunk, value)
+    return format(value & 0xFFFFFFFF, "08x")
+
+
+def _server_crc32c(output):
+    parts = output.strip().lower().split()
+    for token in parts:
+        if token.startswith("crc32c:"):
+            return token.split(":", 1)[1]
+    for index, part in enumerate(parts):
+        if _expression_1(part, index, parts):
+            return parts[index + 1]
+    return None
+
+
+def _assert_crc32c(server_hex, expected_hex, output):
+    assert server_hex is not None, (
+        f"Could not parse crc32c value from xrdfs output: {output!r}")
+    assert server_hex == expected_hex, (
+        f"CRC32c mismatch: server={server_hex} local={expected_hex}")
+
+
 @pytest.mark.timeout(60)
 def test_crc32c_checksum_matches_local_computation():
     """xrdfs query checksum reports crc32c matching locally computed value."""
@@ -278,35 +314,14 @@ def test_crc32c_checksum_matches_local_computation():
     _skip_if_missing()
 
     # Streaming CRC32c to avoid loading 200 MiB into memory.
-    value = 0
-    with open(LARGE_FILE, "rb") as f:
-        for chunk in iter(lambda: f.read(65536), b""):
-            value = crc32c.crc32c(chunk, value)
-    expected_hex = format(value & 0xFFFFFFFF, "08x")
+    expected_hex = _streaming_crc32c(crc32c)
 
     res = subprocess.run(
         [XRDFS_BIN, ANON_URL, "query", "checksum", "crc32c //large200.bin"],
         capture_output=True, text=True, timeout=30,
     )
-    assert res.returncode == 0, f"xrdfs query checksum failed: {res.stderr}"
+    _check_test_crc32c_checksum_matches_local_computation_1(res)
 
     # Server output may be "crc32c HEXVALUE" or "crc32c:HEXVALUE".
-    output = res.stdout.strip().lower()
-    server_hex = None
-    for token in output.split():
-        if token.startswith("crc32c:"):
-            server_hex = token.split(":", 1)[1]
-            break
-    if server_hex is None:
-        parts = output.split()
-        for i, part in enumerate(parts):
-            if "crc32c" in part and i + 1 < len(parts):
-                server_hex = parts[i + 1]
-                break
-
-    assert server_hex is not None, (
-        f"Could not parse crc32c value from xrdfs output: {res.stdout!r}"
-    )
-    assert server_hex == expected_hex, (
-        f"CRC32c mismatch: server={server_hex} local={expected_hex}"
-    )
+    server_hex = _server_crc32c(res.stdout)
+    _assert_crc32c(server_hex, expected_hex, res.stdout)

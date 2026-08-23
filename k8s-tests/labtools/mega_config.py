@@ -98,16 +98,50 @@ def _listen_port(block):
     return m.group(1) if m else None
 
 
+def _injection_text(prologues, servers):
+    prologue_text = "\n".join(
+        "  " + line for prologue in prologues for line in prologue.splitlines())
+    if prologues:
+        prologue_text += "\n"
+    return prologue_text + "\n".join(servers)
+
+
 def _inject(text, kw, prologues, servers):
     if not prologues and not servers:
         return text
-    add = ("\n".join("  " + line for pr in prologues for line in pr.splitlines())
-           + ("\n" if prologues else "") + "\n".join(servers))
+    add = _injection_text(prologues, servers)
     m = re.search(kw + r"\s*\{", text)
     if not m:
         return text.rstrip() + f"\n\n{kw.strip(chr(92) + 'b')} {{\n{add}\n}}\n"
     end = _brace_end(text, m.end() - 1)
     return text[:end] + "\n" + add + "\n" + text[end:]
+
+
+def _append_prologue(prologues, keyword, prologue):
+    stripped = prologue.strip()
+    if stripped and stripped not in (item.strip() for item in prologues[keyword]):
+        prologues[keyword].append(prologue)
+
+
+def _append_servers(extra, keyword, servers, used):
+    for block in servers:
+        port = _listen_port(block)
+        if port and port in used:
+            continue
+        if port:
+            used.add(port)
+        extra[keyword].append("  " + block.strip().replace("\n", "\n  "))
+
+
+def _collect_config(cfgdir, name, port, used, extra, prologues):
+    raw = _apply((cfgdir / name).read_text(), {**SHARED_PORTS, "{PORT}": port})
+    for keyword in (r"\bstream\b", r"\bhttp\b"):
+        body = _top_block(raw, keyword)
+        if not body:
+            continue
+        prologue, servers = _split_servers(body)
+        _append_prologue(prologues, keyword, prologue)
+        _append_servers(extra, keyword, servers, used)
 
 
 def build(cfgdir=CONFIGS, extras=EXTRAS):
@@ -117,21 +151,7 @@ def build(cfgdir=CONFIGS, extras=EXTRAS):
     extra = {r"\bstream\b": [], r"\bhttp\b": []}
     prol = {r"\bstream\b": [], r"\bhttp\b": []}
     for name, port in extras.items():
-        raw = _apply((cfgdir / name).read_text(), {**SHARED_PORTS, "{PORT}": port})
-        for kw in (r"\bstream\b", r"\bhttp\b"):
-            body = _top_block(raw, kw)
-            if not body:
-                continue
-            prologue, servers = _split_servers(body)
-            if prologue.strip() and prologue.strip() not in (p.strip() for p in prol[kw]):
-                prol[kw].append(prologue)
-            for b in servers:
-                lp = _listen_port(b)
-                if lp and lp in used:
-                    continue
-                if lp:
-                    used.add(lp)
-                extra[kw].append("  " + b.strip().replace("\n", "\n  "))
+        _collect_config(cfgdir, name, port, used, extra, prol)
     merged = _inject(shared, r"\bstream\b", prol[r"\bstream\b"], extra[r"\bstream\b"])
     return _inject(merged, r"\bhttp\b", prol[r"\bhttp\b"], extra[r"\bhttp\b"])
 

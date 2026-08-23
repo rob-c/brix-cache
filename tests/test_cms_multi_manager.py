@@ -109,31 +109,45 @@ class StubManager:
         try:
             conn.settimeout(0.5)
             while not self._stop:
-                try:
-                    hdr = _recv_exact(conn, 8)
-                except socket.timeout:
-                    continue
-                streamid, opcode, _mod, dlen = struct.unpack(">IBBH", hdr)
-                if dlen:
-                    _recv_exact(conn, dlen)
-                self.frames.append((opcode, streamid))
-                if opcode == CMS_RR_LOGIN:
-                    self.logins += 1
-                    if self.rogue_select:
-                        self._send(conn, 0xDEADBEEF, CMS_RR_SELECT,
-                                   self._select_payload())
-                elif opcode == CMS_RR_LOCATE:
-                    self._send(conn, streamid, CMS_RR_SELECT,
-                               self._select_payload())
-                elif opcode == CMS_RR_PING:
-                    self._send(conn, streamid, CMS_RR_PONG)
+                frame = self._receive_frame(conn)
+                if frame is not None:
+                    self._handle_frame(conn, *frame)
         except (ConnectionResetError, OSError):
             pass
         finally:
-            try:
-                conn.close()
-            except OSError:
-                pass
+            self._close_quietly(conn)
+
+    @staticmethod
+    def _receive_frame(conn):
+        try:
+            hdr = _recv_exact(conn, 8)
+        except socket.timeout:
+            return None
+        streamid, opcode, _mod, dlen = struct.unpack(">IBBH", hdr)
+        if dlen:
+            _recv_exact(conn, dlen)
+        return streamid, opcode
+
+    def _handle_frame(self, conn, streamid, opcode):
+        self.frames.append((opcode, streamid))
+        if opcode == CMS_RR_LOGIN:
+            self._handle_login(conn)
+        elif opcode == CMS_RR_LOCATE:
+            self._send(conn, streamid, CMS_RR_SELECT, self._select_payload())
+        elif opcode == CMS_RR_PING:
+            self._send(conn, streamid, CMS_RR_PONG)
+
+    def _handle_login(self, conn):
+        self.logins += 1
+        if self.rogue_select:
+            self._send(conn, 0xDEADBEEF, CMS_RR_SELECT, self._select_payload())
+
+    @staticmethod
+    def _close_quietly(conn):
+        try:
+            conn.close()
+        except OSError:
+            pass
 
     def _select_payload(self):
         return HOST.encode() + b"\x00" + struct.pack(">H", self.redir_port)
@@ -283,23 +297,37 @@ def test_locate_fails_over_to_surviving_manager(multi_node):
     ep, a, b = multi_node
     a.stop()
 
-    got = []
-    deadline = time.time() + 15
-    i = 0
-    while time.time() < deadline and len(got) < 2:
-        i += 1
-        try:
-            status, redir = _locate(ep.port, f"/fo-{i}.dat")
-        except (ConnectionResetError, OSError):
-            continue
-        if status == kXR_redirect and redir == b.redir_port:
-            got.append(redir)
-        else:
-            got = []          # want two CONSECUTIVE survivor-only answers
+    got = _settle_on_manager(ep.port, b)
     assert len(got) == 2, "locates never settled on the survivor\n" + _read_log(ep)
     assert got == [b.redir_port, b.redir_port], (
         f"post-failover redirects {got}, expected only manager B "
         f"({b.redir_port})")
+
+
+def _settle_on_manager(port, manager):
+    got = []
+    deadline = time.time() + 15
+    i = 0
+    while time.time() < deadline:
+        if len(got) >= 2:
+            return got
+        i += 1
+        result = _locate_or_none(port, f"/fo-{i}.dat")
+        if result is None:
+            continue
+        status, redir = result
+        if (status, redir) == (kXR_redirect, manager.redir_port):
+            got.append(redir)
+        else:
+            got = []          # want two CONSECUTIVE survivor-only answers
+    return got
+
+
+def _locate_or_none(port, path):
+    try:
+        return _locate(port, path)
+    except (ConnectionResetError, OSError):
+        return None
 
 
 # ── tests: security-negative ──────────────────────────────────────────────
@@ -351,7 +379,8 @@ def test_cns_event_fans_out_to_all_managers(lifecycle, stub_pair, tmp_path):
         template_values={"MANAGER_PORT_A": a.port, "MANAGER_PORT_B": b.port},
         reason="CNS-emit data node fanning events to two stub managers.",
     ))
-    assert a.wait_login() and b.wait_login()
+    assert a.wait_login()
+    assert b.wait_login()
 
     # write+close via the raw client (same frames as test_cns.py) → CNS event.
     s = _xrd_session(ep.port)
@@ -368,13 +397,17 @@ def test_cns_event_fans_out_to_all_managers(lifecycle, stub_pair, tmp_path):
     _xrd_resp(s)
     s.close()
 
+    _wait_for_cns(a, b)
+    assert a.count(CMS_RR_CNS) >= 1, "manager A never got the CNS event"
+    assert b.count(CMS_RR_CNS) >= 1, "manager B never got the CNS event"
+
+
+def _wait_for_cns(a, b):
     deadline = time.time() + 8
     while time.time() < deadline:
         if a.count(CMS_RR_CNS) >= 1 and b.count(CMS_RR_CNS) >= 1:
-            break
+            return
         time.sleep(0.05)
-    assert a.count(CMS_RR_CNS) >= 1, "manager A never got the CNS event"
-    assert b.count(CMS_RR_CNS) >= 1, "manager B never got the CNS event"
 
 
 # ── tests: config negatives (parse-only, no boot) ─────────────────────────

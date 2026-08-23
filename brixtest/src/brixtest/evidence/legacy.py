@@ -13,7 +13,22 @@ from brixtest.metrics import aggregate_records
 
 def _case(run_id: str, record, findings, store) -> dict:
     attempt_id = stable_id(run_id, record.nodeid, 0)
-    metrics = [
+    metrics = _metric_samples(record)
+    attempt = _attempt(
+        attempt_id, run_id, record, findings, store, metrics,
+    )
+    return {
+        "schema": 2, "session_id": run_id, "nodeid": record.nodeid,
+        "outcome": record.outcome, "backend": "local", "isolation": "pytest-worker",
+        "run_root": record.workspace, "started_at": record.started_at,
+        "wall_seconds": record.wall_seconds, "metrics": {
+            "samples": metrics, "tags": {"source": "fleet"}, "rollups": []
+        }, "properties": [], "error": record.failure, "attempts": [attempt],
+    }
+
+
+def _metric_samples(record) -> list[dict]:
+    return [
         {"name": "case.wall_time", "value": record.wall_seconds, "unit": "s",
          "kind": "gauge", "labels": {}, "at_seconds": record.wall_seconds},
         {"name": "process.cpu_time", "value": record.cpu_seconds, "unit": "s",
@@ -21,6 +36,9 @@ def _case(run_id: str, record, findings, store) -> dict:
         {"name": "process.max_rss", "value": record.maxrss_kb, "unit": "KiB",
          "kind": "gauge", "labels": {}, "at_seconds": record.wall_seconds},
     ]
+
+
+def _resource_samples(run_id: str, record, store) -> list[dict]:
     resources = []
     for instance in sorted(set(record.servers + record.dynamic_servers)):
         for timestamp, rss_kb, cpu_pct in store.sample_series(run_id, instance):
@@ -30,34 +48,38 @@ def _case(run_id: str, record, findings, store) -> dict:
                 {"name": "process.cpu_percent", "value": cpu_pct, "unit": "%",
                  "labels": {"process": instance}, "timestamp": timestamp},
             ])
-    spans = [{
+    return resources
+
+
+def _span_samples(attempt_id: str, record) -> list[dict]:
+    return [{
         "span_id": stable_id(attempt_id, phase.phase)[:16], "parent_id": "",
         "name": "pytest.%s" % phase.phase, "start_seconds": 0,
         "duration_seconds": phase.seconds, "status": phase.outcome,
     } for phase in record.phases]
-    selected_findings = [{
+
+
+def _selected_findings(record, findings) -> list[dict]:
+    return [{
         "kind": finding.kind, "severity": "warning", "process": finding.instance,
         "detail": finding.detail, "at": finding.at,
     } for finding in findings if not finding.during_test or finding.during_test == record.nodeid]
-    attempt = {
+
+
+def _attempt(attempt_id: str, run_id: str, record, findings, store, metrics) -> dict:
+    return {
         "attempt_id": attempt_id, "index": 0, "trial": 0, "warmup": False,
         "outcome": record.outcome, "started_at": record.started_at,
         "wall_seconds": record.wall_seconds, "run_root": record.workspace,
-        "error": record.failure, "metrics": metrics, "resources": resources,
-        "spans": spans, "artifacts": [{"name": name, "role": "input"}
+        "error": record.failure, "metrics": metrics,
+        "resources": _resource_samples(run_id, record, store),
+        "spans": _span_samples(attempt_id, record),
+        "artifacts": [{"name": name, "role": "input"}
                                        for name in record.artifacts],
         "logs": [{"path": record.output_dir, "role": "captured-output"}],
-        "findings": selected_findings,
+        "findings": _selected_findings(record, findings),
         "provenance": {"legacy_fleet": True, "servers": record.servers,
                        "dynamic_servers": record.dynamic_servers},
-    }
-    return {
-        "schema": 2, "session_id": run_id, "nodeid": record.nodeid,
-        "outcome": record.outcome, "backend": "local", "isolation": "pytest-worker",
-        "run_root": record.workspace, "started_at": record.started_at,
-        "wall_seconds": record.wall_seconds, "metrics": {
-            "samples": metrics, "tags": {"source": "fleet"}, "rollups": []
-        }, "properties": [], "error": record.failure, "attempts": [attempt],
     }
 
 

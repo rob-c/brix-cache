@@ -136,27 +136,31 @@ def _table_rows(db_path: Path, sql: str) -> list:
 
 
 def _compare_catalogs(forge_db: Path, c_db: Path) -> list[tuple[bool, str]]:
-    results = []
-    for table, sql in [
+    tables = [
         ("catalog", "SELECT md5path_1,md5path_2,parent_1,parent_2,hardlinks,hash,"
                     "size,mode,mtime,flags,name,symlink,uid,gid,xattr FROM catalog"),
         ("nested_catalogs", "SELECT path,sha1,size FROM nested_catalogs"),
         ("chunks", "SELECT md5path_1,md5path_2,offset,size,hash FROM chunks"),
         ("properties", "SELECT key,value FROM properties"),
-    ]:
-        forge_rows, c_rows = _table_rows(forge_db, sql), _table_rows(c_db, sql)
-        results.append(result(
-            forge_rows == c_rows,
-            f"catalog table `{table}` agrees semantically "
-            f"({len(forge_rows)} rows)" if forge_rows == c_rows else
-            f"catalog table `{table}` DISAGREES: forge={forge_rows} c={c_rows}"))
-    stats = dict(_table_rows(c_db, "SELECT counter,value FROM statistics"))
-    results.append(result(
-        stats.get("self_regular") == 3 and stats.get("self_dir") == 2
-        and stats.get("self_symlink") == 1 and stats.get("self_chunked") == 1
-        and stats.get("self_chunks") == 2 and stats.get("self_nested") == 1,
-        f"C-side statistics counters match the fixture tree: {stats}"))
+    ]
+    results = [_compare_table(forge_db, c_db, table, sql) for table, sql in tables]
+    results.append(_statistics_result(c_db))
     return results
+
+
+def _compare_table(forge_db, c_db, table, sql):
+    forge_rows, c_rows = _table_rows(forge_db, sql), _table_rows(c_db, sql)
+    if forge_rows == c_rows:
+        return result(True, f"catalog table `{table}` agrees ({len(forge_rows)} rows)")
+    return result(False, f"catalog table `{table}` differs: forge={forge_rows} c={c_rows}")
+
+
+def _statistics_result(c_db):
+    stats = dict(_table_rows(c_db, "SELECT counter,value FROM statistics"))
+    expected = {"self_regular": 3, "self_dir": 2, "self_symlink": 1,
+                "self_chunked": 1, "self_chunks": 2, "self_nested": 1}
+    return result(all(stats.get(key) == value for key, value in expected.items()),
+                  f"C-side statistics counters match the fixture tree: {stats}")
 
 
 def run_checks(base: Path) -> list[tuple[bool, str]]:
@@ -168,96 +172,124 @@ def run_checks(base: Path) -> list[tuple[bool, str]]:
 
     with RepoForge(FQRN, base / "forge") as forge:
         forge.build(_tree(), base / "master.pub")
+        _check_cas_objects(base, driver, forge, results)
+        _check_manifest(base, driver, forge, results)
+        _check_whitelist(base, driver, forge, results)
+        _check_catalog(base, driver, forge, results)
+        _check_malformed_inputs(base, driver, forge, results)
+        _check_security_negatives(base, driver, forge, results)
+    return results
 
-        # -- CAS objects: byte-identical stored form + identity ---------------
-        casrepo = base / "casrepo"
-        casrepo.mkdir()
-        for label, plain, suffix, compress in [
+
+def _check_cas_objects(base, driver, forge, results):
+    casrepo = base / "casrepo"
+    casrepo.mkdir()
+    cases = [
             ("compressed content", CONTENT_TXT, "-", 1),
             ("uncompressed content", CONTENT_RAW, "-", 0),
             ("chunk (P)", CHUNK_1, "P", 1),
             ("certificate (X)", forge.cert_pem.read_bytes(), "X", 1),
-        ]:
-            src = base / "cas.in"
-            src.write_bytes(plain)
-            out = run([str(driver), "cas", str(casrepo), suffix, str(compress), str(src)])
-            hexd = out.stdout.split()[0] if out.returncode == 0 and out.stdout else ""
-            key = hexd + (suffix if suffix != "-" else "")
-            forge_obj = Path(forge.cas[key]) if key in forge.cas else None
-            c_obj = casrepo / "data" / hexd[:2] / (hexd[2:] + (suffix if suffix != "-" else ""))
-            agree = (forge_obj is not None and c_obj.is_file()
-                     and c_obj.read_bytes() == forge_obj.read_bytes())
-            results.append(result(agree, f"CAS {label}: identity + stored bytes agree ({hexd[:12]})"))
+    ]
+    for case in cases:
+        results.append(_check_cas_case(base, driver, forge, casrepo, case))
 
-        # -- manifest: byte-identical signed artifact -------------------------
-        fields = {"C": forge.root_catalog_hash, "B": str(forge.root_catalog_size),
+
+def _check_cas_case(base, driver, forge, casrepo, case):
+    label, plain, suffix, compress = case
+    source = base / "cas.in"
+    source.write_bytes(plain)
+    output = run([str(driver), "cas", str(casrepo), suffix, str(compress), str(source)])
+    digest = _cas_digest(output)
+    forge_object, c_object = _cas_objects(forge, casrepo, digest, suffix)
+    agrees = _cas_objects_agree(forge_object, c_object)
+    return result(agrees, f"CAS {label}: identity + bytes agree ({digest[:12]})")
+
+
+def _cas_digest(output):
+    if output.returncode != 0 or not output.stdout:
+        return ""
+    return output.stdout.split()[0]
+
+
+def _cas_objects(forge, casrepo, digest, suffix):
+    suffix_value = "" if suffix == "-" else suffix
+    key = digest + suffix_value
+    forge_object = Path(forge.cas[key]) if key in forge.cas else None
+    c_object = casrepo / "data" / digest[:2] / (digest[2:] + suffix_value)
+    return forge_object, c_object
+
+
+def _cas_objects_agree(forge_object, c_object):
+    if forge_object is None or not c_object.is_file():
+        return False
+    return c_object.read_bytes() == forge_object.read_bytes()
+
+
+def _check_manifest(base, driver, forge, results):
+    fields = {"C": forge.root_catalog_hash, "B": str(forge.root_catalog_size),
                   "R": _R_CONST, "X": forge.cert_hash, "G": "yes", "A": "no",
                   "S": "1", "N": FQRN, "T": "1700000000", "D": "240"}
-        forge.rewrite_manifest(fields)     # forge, driven with the product field order
-        c_manifest = base / "manifest.c-writer"
-        rc = run([str(driver), "manifest", str(forge.cert_key), str(c_manifest),
+    forge.rewrite_manifest(fields)
+    c_manifest = base / "manifest.c-writer"
+    rc = run([str(driver), "manifest", str(forge.cert_key), str(c_manifest),
                   forge.root_catalog_hash, str(forge.root_catalog_size),
                   forge.cert_hash, "1", FQRN, "1700000000", "240"])
-        results.append(result(
-            rc.returncode == 0
-            and c_manifest.read_bytes() == forge.artifact_path("manifest").read_bytes(),
-            "manifest: product writer and repo_forge agree byte-for-byte"))
+    agrees = rc.returncode == 0
+    agrees = agrees and c_manifest.read_bytes() == forge.artifact_path("manifest").read_bytes()
+    results.append(result(agrees, "manifest writers agree byte-for-byte"))
 
-        # -- whitelist: byte-identical signed artifact ------------------------
-        c_whitelist = base / "whitelist.c-writer"
-        rc = run([str(driver), "whitelist", str(forge.master_key), str(c_whitelist),
+
+def _check_whitelist(base, driver, forge, results):
+    c_whitelist = base / "whitelist.c-writer"
+    rc = run([str(driver), "whitelist", str(forge.master_key), str(c_whitelist),
                   forge.whitelist_created, forge.whitelist_expiry, FQRN,
                   forge.fingerprint])
-        results.append(result(
-            rc.returncode == 0
-            and c_whitelist.read_bytes() == forge.artifact_path("whitelist").read_bytes(),
-            "whitelist: product writer and repo_forge agree byte-for-byte"))
+    agrees = rc.returncode == 0
+    agrees = agrees and c_whitelist.read_bytes() == forge.artifact_path("whitelist").read_bytes()
+    results.append(result(agrees, "whitelist writers agree byte-for-byte"))
 
-        # -- catalog: semantic row-set agreement ------------------------------
-        forge_db = base / "forge_root.db"
-        forge_db.write_bytes(zlib.decompress(
+
+def _check_catalog(base, driver, forge, results):
+    forge_db = base / "forge_root.db"
+    forge_db.write_bytes(zlib.decompress(
             Path(forge.cas[forge.root_catalog_hash + "C"]).read_bytes()))
-        nested = _table_rows(forge_db, "SELECT path,sha1,size FROM nested_catalogs")
-        c_db = base / "c_root.db"
-        cat = subprocess.run(
-            [str(driver), "catalog", str(c_db)],
-            input=_catalog_spec(nested[0][1], nested[0][2]).encode(),
-            capture_output=True)
-        results.append(result(cat.returncode == 0,
-                              f"C catalog writer accepts the spec: {cat.stderr.decode()[-200:]}"))
-        if cat.returncode == 0:
-            results.extend(_compare_catalogs(forge_db, c_db))
+    nested = _table_rows(forge_db, "SELECT path,sha1,size FROM nested_catalogs")
+    c_db = base / "c_root.db"
+    catalog = subprocess.run(
+        [str(driver), "catalog", str(c_db)],
+        input=_catalog_spec(nested[0][1], nested[0][2]).encode(),
+        capture_output=True)
+    results.append(result(catalog.returncode == 0,
+                          f"C catalog accepts spec: {catalog.stderr.decode()[-200:]}"))
+    if catalog.returncode == 0:
+        results.extend(_compare_catalogs(forge_db, c_db))
 
-        # -- error path: malformed inputs are refused -------------------------
-        bad = run([str(driver), "manifest", str(forge.cert_key), str(base / "x"),
+
+def _check_malformed_inputs(base, driver, forge, results):
+    bad = run([str(driver), "manifest", str(forge.cert_key), str(base / "x"),
                    "nothex", "1", forge.cert_hash, "1", FQRN, "0", "240"])
-        results.append(result(bad.returncode != 0, "malformed hash argument is refused"))
-        badcat = subprocess.run([str(driver), "catalog", str(base / "bad.db")],
+    results.append(result(bad.returncode != 0, "malformed hash argument is refused"))
+    badcat = subprocess.run([str(driver), "catalog", str(base / "bad.db")],
                                 input=b"row\tonly-two-fields\n", capture_output=True)
-        results.append(result(
-            badcat.returncode != 0 and b"bad spec line" in badcat.stderr,
-            "malformed catalog spec line aborts the catalog"))
+    results.append(result(badcat.returncode != 0 and b"bad spec line" in badcat.stderr,
+                          "malformed catalog spec aborts catalog"))
 
-        # -- security-negatives: the guard must SEE disagreement --------------
-        wrongkey = base / "manifest.wrongkey"
-        rc = run([str(driver), "manifest", str(forge.master_key), str(wrongkey),
+
+def _check_security_negatives(base, driver, forge, results):
+    wrongkey = base / "manifest.wrongkey"
+    rc = run([str(driver), "manifest", str(forge.master_key), str(wrongkey),
                   forge.root_catalog_hash, str(forge.root_catalog_size),
                   forge.cert_hash, "1", FQRN, "1700000000", "240"])
-        results.append(result(
-            rc.returncode == 0
-            and wrongkey.read_bytes() != forge.artifact_path("manifest").read_bytes(),
-            "manifest signed with the WRONG key does not byte-agree (guard covers the signature)"))
-
-        drift = base / "manifest.drift"
-        rc = run([str(driver), "manifest", str(forge.cert_key), str(drift),
+    differs = rc.returncode == 0
+    differs = differs and wrongkey.read_bytes() != forge.artifact_path("manifest").read_bytes()
+    results.append(result(differs, "wrong signing key creates a different manifest"))
+    drift = base / "manifest.drift"
+    rc = run([str(driver), "manifest", str(forge.cert_key), str(drift),
                   forge.root_catalog_hash, str(forge.root_catalog_size),
                   forge.cert_hash, "1", FQRN, "1700000001", "240"])
-        results.append(result(
-            rc.returncode == 0
-            and drift.read_bytes() != forge.artifact_path("manifest").read_bytes(),
-            "one-field drift (T+1) does not byte-agree (guard covers the body)"))
-
-    return results
+    differs = rc.returncode == 0
+    differs = differs and drift.read_bytes() != forge.artifact_path("manifest").read_bytes()
+    results.append(result(differs, "one-field drift creates a different manifest"))
 
 
 def entry(argv: list[str]) -> int:
@@ -266,9 +298,14 @@ def entry(argv: list[str]) -> int:
     del argv
     with tempfile.TemporaryDirectory(prefix="cvmfs_writer_conf.") as tmp:
         results = run_checks(Path(tmp))
-    for ok, message in results:
-        print(f"  {'ok  ' if ok else 'FAIL'} {message}")
+    _print_results(results)
     return 0 if all(ok for ok, _ in results) else 1
+
+
+def _print_results(results):
+    for passed, message in results:
+        label = "ok  " if passed else "FAIL"
+        print(f"  {label} {message}")
 
 
 if __name__ == "__main__":

@@ -32,9 +32,17 @@ def test_module_so_is_relro_now():
 @pytest.mark.skipif(not CLIENT_BIN.exists(), reason="client not built")
 def test_client_binary_is_pie_relro_now_noexecstack():
     out = _readelf(CLIENT_BIN)
-    assert "Type:" in out and "DYN (" in out, "binary is not PIE (Type should be DYN)"
+    assert "Type:" in out, "ELF type is missing"
+    assert "DYN (" in out, "binary is not PIE (Type should be DYN)"
     assert "GNU_RELRO" in out, "missing RELRO segment"
-    assert "BIND_NOW" in out or "FLAGS_1" in out and "NOW" in out, "missing BIND_NOW"
+    assert _has_bind_now(out), "missing BIND_NOW"
     assert "GNU_STACK" in out, "missing GNU_STACK"
     stack_line = [l for l in out.splitlines() if "GNU_STACK" in l]
-    assert stack_line and " E " not in stack_line[0], "stack is executable"
+    assert stack_line, "GNU_STACK line is missing"
+    assert " E " not in stack_line[0], "stack is executable"
+
+
+def _has_bind_now(output):
+    if "BIND_NOW" in output:
+        return True
+    return "FLAGS_1" in output and "NOW" in output

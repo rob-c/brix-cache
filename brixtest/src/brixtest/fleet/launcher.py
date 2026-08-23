@@ -1,17 +1,14 @@
-"""The start/stop engine (feature F3).
+"""Dependency-aware fleet start and stop operations.
 
-``FleetPlan`` levels the registry's dependency graph; the launcher
-starts each level in parallel (bounded pool, default
-``min(16, 2 × cpu)`` workers — the grown suite's measured sweet spot)
-and proves readiness per instance before the next level begins.
+``FleetPlan`` levels the registry's dependency graph. The launcher starts each
+level in a bounded thread pool and verifies readiness before advancing.
 
 Start is **idempotent**: an instance already answering is reported
 ``already-running`` and left alone.  A failed *critical* instance
 aborts the remaining levels (their specs are reported ``skipped``);
 a failed non-critical one is recorded and the level continues.
 
-Stop is a **proof**, not a hope: after every stop completes, one
-listener sweep over the declared ports must come back empty, or
+After every stop completes, one listener sweep over the declared ports must be empty, or
 ``QuiescenceError`` names each survivor as (instance, port, pid).
 """
 
@@ -21,7 +18,7 @@ import dataclasses
 import os
 import time
 from concurrent.futures import ThreadPoolExecutor
-from typing import Dict, List, Optional, Sequence, Set, Tuple
+from typing import Dict, List, Mapping, Optional, Sequence, Set, Tuple
 
 from brixtest.config.lanes import Lane
 from brixtest.errors import BrixTestError, QuiescenceError, SpecError
@@ -29,7 +26,7 @@ from brixtest.events import emit
 from brixtest.fleet.registry import InstanceSpec, Registry
 from brixtest.util.net import port_holders
 
-__all__ = ["FleetPlan", "SpecOutcome", "StartReport", "FleetLauncher", "default_workers"]
+__all__ = ["FleetLauncher", "FleetPlan", "SpecOutcome", "StartReport", "default_workers"]
 
 
 def default_workers() -> int:
@@ -50,18 +47,10 @@ class FleetPlan:
         levels: List[Tuple[InstanceSpec, ...]] = []
         remaining = dict(by_name)
         while remaining:
-            level = tuple(
-                spec for spec in remaining.values()
-                # deps outside the selection are assumed already satisfied
-                if all(dep in placed or dep not in by_name for dep in spec.depends_on)
-            )
-            if not level:
-                cycle = ", ".join(sorted(remaining))
-                raise SpecError("depends_on", cycle, "dependency cycle — no startable order")
-            for spec in level:
-                placed.add(spec.name)
-                del remaining[spec.name]
-            levels.append(tuple(sorted(level, key=lambda s: s.name)))
+            level = _startable_level(remaining, placed, by_name)
+            _require_startable(level, remaining)
+            _place_level(level, placed, remaining)
+            levels.append(tuple(sorted(level, key=lambda spec: spec.name)))
         return FleetPlan(tuple(levels))
 
     def flat(self) -> Tuple[InstanceSpec, ...]:
@@ -123,8 +112,6 @@ class FleetLauncher:
         self.lane = lane
         self.workers = workers or default_workers()
 
-    # -- start -----------------------------------------------------------
-
     def _start_one(self, spec: InstanceSpec) -> SpecOutcome:
         started = time.monotonic()
         try:
@@ -142,34 +129,38 @@ class FleetLauncher:
 
     def start_registered(self, specs: Optional[Sequence[str]] = None) -> StartReport:
         """Start the named specs (default: every registered one), levelled."""
-        if specs is None:
-            selection = self.registry.all_specs()
-        else:
-            selection = [self.registry.get_spec(name) for name in specs]
+        selection = self._selection(specs)
         plan = FleetPlan.build(selection)
         emit("fleet.start.begin", count=len(selection), levels=len(plan.levels))
         outcomes: List[SpecOutcome] = []
         abort = False
         for level in plan.levels:
             if abort:
-                outcomes.extend(
-                    SpecOutcome(spec.name, "skipped", error="critical instance failed earlier")
-                    for spec in level
-                )
+                outcomes.extend(_skipped_outcomes(level))
                 continue
-            with ThreadPoolExecutor(max_workers=self.workers) as pool:
-                level_outcomes = list(pool.map(self._start_one, level))
+            level_outcomes = self._start_level(level)
             outcomes.extend(level_outcomes)
-            if any(
-                o.status == "failed" and self.registry.get_spec(o.name).critical
-                for o in level_outcomes
-            ):
+            if self._critical_failure(level_outcomes):
                 abort = True
         report = StartReport(tuple(outcomes))
         emit("fleet.start.done", summary=report.summary())
         return report
 
-    # -- stop ------------------------------------------------------------
+    def _selection(self, specs: Optional[Sequence[str]]) -> Sequence[InstanceSpec]:
+        if specs is None:
+            return self.registry.all_specs()
+        return [self.registry.get_spec(name) for name in specs]
+
+    def _start_level(self, level) -> list[SpecOutcome]:
+        with ThreadPoolExecutor(max_workers=self.workers) as pool:
+            return list(pool.map(self._start_one, level))
+
+    def _critical_failure(self, outcomes: Sequence[SpecOutcome]) -> bool:
+        return any(
+            outcome.status == "failed"
+            and self.registry.get_spec(outcome.name).critical
+            for outcome in outcomes
+        )
 
     def stop(self, specs: Optional[Sequence[str]] = None) -> None:
         """Stop the named specs (default: all), then prove quiescence."""
@@ -187,16 +178,52 @@ class FleetLauncher:
 
     def _prove_quiescence(self, selection: Sequence[InstanceSpec]) -> None:
         """One sweep: every declared port of every stopped spec is silent."""
-        port_owner: Dict[int, str] = {}
-        for spec in selection:
-            for port in spec.ports.values():
-                port_owner[port] = spec.name
+        port_owner = _port_owners(selection)
         if not port_owner:
             return
-        survivors: List[Tuple[str, int, int]] = []
-        for port, pids in port_holders(port_owner).items():
-            for pid in sorted(pids) or [-1]:
-                survivors.append((port_owner[port], port, pid))
+        survivors = _port_survivors(port_owner)
         if survivors:
             emit("fleet.stop.survivors", count=len(survivors))
             raise QuiescenceError(survivors)
+
+
+def _startable_level(remaining, placed: Set[str], by_name) -> tuple[InstanceSpec, ...]:
+    return tuple(
+        spec for spec in remaining.values()
+        if all(dep in placed or dep not in by_name for dep in spec.depends_on)
+    )
+
+
+def _require_startable(level, remaining) -> None:
+    if not level:
+        cycle = ", ".join(sorted(remaining))
+        raise SpecError("depends_on", cycle, "dependency cycle — no startable order")
+
+
+def _place_level(level, placed: Set[str], remaining: dict) -> None:
+    for spec in level:
+        placed.add(spec.name)
+        del remaining[spec.name]
+
+
+def _skipped_outcomes(level) -> list[SpecOutcome]:
+    return [
+        SpecOutcome(spec.name, "skipped", error="critical instance failed earlier")
+        for spec in level
+    ]
+
+
+def _port_owners(selection: Sequence[InstanceSpec]) -> Dict[int, str]:
+    return {
+        port: spec.name
+        for spec in selection
+        for port in spec.ports.values()
+    }
+
+
+def _port_survivors(port_owner: Mapping[int, str]) -> List[Tuple[str, int, int]]:
+    survivors = []
+    for port, pids in port_holders(port_owner).items():
+        holders = sorted(pids) or [-1]
+        survivors.extend((port_owner[port], port, pid) for pid in holders)
+    return survivors

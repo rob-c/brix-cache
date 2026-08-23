@@ -31,6 +31,15 @@ import urllib3
 
 from settings import NGINX_BIN
 
+def _guard_base_1():
+    if not os.path.isfile(NGINX_BIN) or not os.access(NGINX_BIN, os.X_OK):
+        pytest.skip(f"nginx binary not available: {NGINX_BIN}")
+
+def _guard_base_2(chk):
+    if chk.returncode != 0:
+        pytest.skip(f"standalone S3 nginx config rejected:\n{chk.stderr}")
+
+
 urllib3.disable_warnings()
 
 WORK = os.path.join(os.environ["TMPDIR"], "xrd-cmp-s3out")
@@ -76,8 +85,7 @@ http {{
 
 @pytest.fixture(scope="module")
 def base():
-    if not os.path.isfile(NGINX_BIN) or not os.access(NGINX_BIN, os.X_OK):
-        pytest.skip(f"nginx binary not available: {NGINX_BIN}")
+    _guard_base_1()
     shutil.rmtree(WORK, ignore_errors=True)
     data = os.path.join(WORK, "data")
     os.makedirs(data, exist_ok=True)
@@ -87,8 +95,7 @@ def base():
 
     chk = subprocess.run([NGINX_BIN, "-p", WORK, "-c", conf, "-t"],
                          capture_output=True, text=True)
-    if chk.returncode != 0:
-        pytest.skip(f"standalone S3 nginx config rejected:\n{chk.stderr}")
+    _guard_base_2(chk)
     proc = subprocess.Popen([NGINX_BIN, "-p", WORK, "-c", conf, "-g", "daemon off;"],
                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     url = f"http://127.0.0.1:{port}"

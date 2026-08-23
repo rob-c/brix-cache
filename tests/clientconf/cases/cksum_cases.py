@@ -25,6 +25,24 @@ from ..model import Case
 # "query chksum is not supported"), so a checksum differential is impossible
 # against it for EITHER client.  cksum conformance therefore targets the nginx
 # tiers, whose checksum support is the feature under test.
+def _guard_post_cksum_value_1(results):
+    if _unreachable(results[OURS]) or _unreachable(results[STOCK]):
+        pytest.skip("server unreachable during checksum (infra)")
+
+def _guard_post_cksum_value_2(results):
+    if _server_declined_cksum(results[OURS]) or \
+            _server_declined_cksum(results[STOCK]):
+        pytest.skip("server did not compute a checksum for this path (capability)")
+
+def _check_post_cksum_value_1(o, results):
+    assert o is not None, (
+        "our client produced no checksum for a real file (rc=%s): %s"
+        % (results[OURS].rc, results[OURS].stderr.strip()))
+
+def _check_post_cksum_value_2(s, o):
+    assert s == o, "checksum value differs: stock=%r ours=%r" % (s, o)
+
+
 CKS_EPS = frozenset({"anon", "gsi", "tls", "token"})
 
 
@@ -53,21 +71,16 @@ def _hex_token(text):
 
 
 def _post_cksum_value(ep, ctx, results):
-    if _unreachable(results[OURS]) or _unreachable(results[STOCK]):
-        pytest.skip("server unreachable during checksum (infra)")
-    if _server_declined_cksum(results[OURS]) or \
-            _server_declined_cksum(results[STOCK]):
-        pytest.skip("server did not compute a checksum for this path (capability)")
+    _guard_post_cksum_value_1(results)
+    _guard_post_cksum_value_2(results)
     o = _hex_token(results[OURS].stdout)
-    assert o is not None, (
-        "our client produced no checksum for a real file (rc=%s): %s"
-        % (results[OURS].rc, results[OURS].stderr.strip()))
+    _check_post_cksum_value_1(o, results)
     s = _hex_token(results[STOCK].stdout)
     if s is None:
         # Stock could not checksum this file against our server (known for
         # xrdcrc32c) — our client's value still stands on its own.
         return
-    assert s == o, "checksum value differs: stock=%r ours=%r" % (s, o)
+    _check_post_cksum_value_2(s, o)
 
 
 # Per-tool process exit code on a missing file, matching stock byte-for-byte:

@@ -32,6 +32,26 @@ from pathlib import Path
 import pytest
 import yaml
 
+def _expression_1(lines, helper_start, helper_end):
+    return (
+        [
+                (n, line.strip())
+                for n, line in enumerate(lines, 1)
+                if "asan: SKIP" in line and not helper_start < n < helper_end
+            ]
+    )
+
+
+def _check_test_the_workflow_sets_the_strict_flag_on_the_driver_step_1(drivers):
+    assert drivers, "no step runs tools/ci/asan.py"
+
+def _check_test_the_workflow_sets_the_strict_flag_on_the_driver_step_2(step):
+    assert str((step.get("env") or {}).get("BRIX_CI_STRICT")) == "1"
+
+def _check_test_no_skip_path_bypasses_the_helper_3(stray):
+    assert not stray, f"skip printed outside skip_or_fail(): {stray}"
+
+
 CI = Path(__file__).resolve().parents[1] / "tools" / "ci"
 ASAN_YML = Path(__file__).resolve().parents[1] / ".github/workflows/asan.yml"
 
@@ -188,9 +208,9 @@ def test_the_workflow_sets_the_strict_flag_on_the_driver_step():
         for step in job["steps"]
         if "tools/ci/asan.py" in (step.get("run") or "")
     ]
-    assert drivers, "no step runs tools/ci/asan.py"
+    _check_test_the_workflow_sets_the_strict_flag_on_the_driver_step_1(drivers)
     for step in drivers:
-        assert str((step.get("env") or {}).get("BRIX_CI_STRICT")) == "1"
+        _check_test_the_workflow_sets_the_strict_flag_on_the_driver_step_2(step)
 
 
 @pytest.mark.parametrize("value", ["", "0", "false", "yes", "TRUE", " 1"])
@@ -216,12 +236,8 @@ def test_no_skip_path_bypasses_the_helper():
          if n > helper_start and line and not line[0].isspace()),
         len(lines),
     )
-    stray = [
-        (n, line.strip())
-        for n, line in enumerate(lines, 1)
-        if "asan: SKIP" in line and not helper_start < n < helper_end
-    ]
-    assert not stray, f"skip printed outside skip_or_fail(): {stray}"
+    stray = _expression_1(lines, helper_start, helper_end)
+    _check_test_no_skip_path_bypasses_the_helper_3(stray)
 
 
 def test_no_unconditional_return_zero_guards_a_prerequisite():

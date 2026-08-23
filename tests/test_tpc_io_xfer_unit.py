@@ -21,6 +21,20 @@ import subprocess
 
 import pytest
 
+def _guard_io_xfer_bin_1(cc):
+    if cc is None:
+        pytest.skip("no C compiler")
+
+def _guard_io_xfer_bin_2():
+    if not (os.path.exists(SRC) and os.path.exists(TEST)):
+        pytest.skip("io_xfer sources missing")
+
+def _guard_io_xfer_bin_3(r):
+    if r.returncode != 0:
+        pytest.fail("io_xfer suite failed to COMPILE (warnings are errors):"
+                    f"\n{r.stderr}")
+
+
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TPC = os.path.join(REPO, "src", "tpc", "outbound")
 SRC = os.path.join(TPC, "io_xfer.c")
@@ -30,18 +44,14 @@ TEST = os.path.join(TPC, "io_xfer_unittest.c")
 @pytest.fixture(scope="module")
 def io_xfer_bin(tmp_path_factory):
     cc = shutil.which("gcc") or shutil.which("cc")
-    if cc is None:
-        pytest.skip("no C compiler")
-    if not (os.path.exists(SRC) and os.path.exists(TEST)):
-        pytest.skip("io_xfer sources missing")
+    _guard_io_xfer_bin_1(cc)
+    _guard_io_xfer_bin_2()
     out = str(tmp_path_factory.mktemp("tpcxfer") / "ut")
     r = subprocess.run(
         [cc, "-Wall", "-Wextra", "-Werror", "-I", TPC, SRC, TEST, "-o", out,
          "-lssl", "-lcrypto"],
         capture_output=True, text=True)
-    if r.returncode != 0:
-        pytest.fail("io_xfer suite failed to COMPILE (warnings are errors):"
-                    f"\n{r.stderr}")
+    _guard_io_xfer_bin_3(r)
     return out
 
 

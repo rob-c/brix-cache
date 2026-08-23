@@ -216,12 +216,18 @@ def test_privatetmp_service_warned_loudly(tmp_path):
              f"exec {nginx} -t -c {conf}"],
             capture_output=True, text=True, timeout=60)
         out = r.stdout + r.stderr
-        assert r.returncode == 0, f"nginx -t failed under private /tmp:\n{out}"
-        assert BANNER in out, \
-            f"default staging must still provision under a private /tmp:\n{out}"
-        assert "PrivateTmp DETECTED" in out, \
-            f"missing the loud PrivateTmp warning:\n{out}"
-        assert "does NOT survive a restart" in out, out
+        def _assert_test_privatetmp_service_warned_loudly_1():
+            assert r.returncode == 0, f"nginx -t failed under private /tmp:\n{out}"
+            assert BANNER in out, \
+                f"default staging must still provision under a private /tmp:\n{out}"
+
+        _assert_test_privatetmp_service_warned_loudly_1()
+        def _assert_test_privatetmp_service_warned_loudly_2():
+            assert "PrivateTmp DETECTED" in out, \
+                f"missing the loud PrivateTmp warning:\n{out}"
+            assert "does NOT survive a restart" in out, out
+
+        _assert_test_privatetmp_service_warned_loudly_2()
     finally:
         shutil.rmtree(base, ignore_errors=True)
         shutil.rmtree("/tmp/systemd-private-brixtest", ignore_errors=True)

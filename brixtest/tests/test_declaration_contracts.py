@@ -22,7 +22,7 @@ def test_error_readiness_must_name_a_declared_port():
         "origin", command=["server"], config=static_config("origin.conf"),
         ports=["http"], readiness=tcp("admin"),
     )
-    with pytest.raises(SpecError, match="readiness.port"):
+    with pytest.raises(SpecError, match=r"readiness\.port"):
         from brixtest import case
         case(servers=[item])
 

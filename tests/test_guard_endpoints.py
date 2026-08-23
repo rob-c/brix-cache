@@ -39,6 +39,30 @@ from guard_http_lib import NGINX_BIN, AuditLog, GuardServer
 from settings import HOST, BIND_HOST
 from server_registry import NginxInstanceSpec
 
+def _expression_1(tmp_path):
+    return (
+        {name: tmp_path / f"{name}-audit.log" for name in ("dav", "s3", "ops")}
+    )
+
+def _expression_2(dav_root, ports, audits):
+    return (
+        {
+                "dav": GuardServer(HOST, ports["dav"]),
+                "s3": GuardServer(HOST, ports["s3"]),
+                "ops": GuardServer(HOST, ports["ops"]),
+                "xrd_port": ports["xrd"],
+                "cms_port": ports["cms"],
+                "audits": {k: AuditLog(str(v)) for k, v in audits.items()},
+                "dav_root": dav_root,
+            }
+    )
+
+
+def _guard_fleet_1():
+    if not os.access(NGINX_BIN, os.X_OK):
+        pytest.skip(f"nginx not executable: {NGINX_BIN}")
+
+
 REPO = pathlib.Path(__file__).resolve().parents[1]
 XRDFS = str(REPO / "client" / "bin" / "xrdfs")
 FILTER_DIR = REPO / "deploy" / "fail2ban" / "filter.d"
@@ -82,8 +106,7 @@ def _port_alive(port):
 
 @pytest.fixture()
 def fleet(lifecycle, tmp_path):
-    if not os.access(NGINX_BIN, os.X_OK):
-        pytest.skip(f"nginx not executable: {NGINX_BIN}")
+    _guard_fleet_1()
 
     dav_root = tmp_path / "dav_export"
     s3_root = tmp_path / "s3_export"
@@ -95,7 +118,7 @@ def fleet(lifecycle, tmp_path):
     (s3_root / "bucket" / "obj.bin").write_bytes(b"s3-object\n")
     (xrd_root / "f.bin").write_bytes(os.urandom(4096))
 
-    audits = {name: tmp_path / f"{name}-audit.log" for name in ("dav", "s3", "ops")}
+    audits = _expression_1(tmp_path)
 
     ep = lifecycle.start(NginxInstanceSpec(
         name="lc-guard-endpoints",
@@ -119,15 +142,7 @@ def fleet(lifecycle, tmp_path):
             _port_alive(p) for p in ports.values()):
         time.sleep(0.1)
 
-    return {
-        "dav": GuardServer(HOST, ports["dav"]),
-        "s3": GuardServer(HOST, ports["s3"]),
-        "ops": GuardServer(HOST, ports["ops"]),
-        "xrd_port": ports["xrd"],
-        "cms_port": ports["cms"],
-        "audits": {k: AuditLog(str(v)) for k, v in audits.items()},
-        "dav_root": dav_root,
-    }
+    return _expression_2(dav_root, ports, audits)
 
 
 class TestWebdavEndpointGuard:
@@ -311,5 +326,8 @@ class TestAuditLinesAreBannable:
         for line in lines:
             signal = re.search(r"signal=(\w+)", line).group(1)
             match = re.search(self._failregex(signal), line)
-            assert match, f"filter {signal} missed emitted line: {line}"
-            assert match.group("host"), f"no IP extracted from: {line}"
+            def _assert_test_emitted_lines_match_filters_1():
+                assert match, f"filter {signal} missed emitted line: {line}"
+                assert match.group("host"), f"no IP extracted from: {line}"
+
+            _assert_test_emitted_lines_match_filters_1()

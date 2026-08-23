@@ -246,23 +246,30 @@ class _Srv:
         except OSError:
             return ""
 
+    @staticmethod
+    def _module_race(text):
+        markers = (
+            "/src/core/aio/", "/src/protocols/root/read/",
+            "/src/protocols/root/write/", "/src/fs/cache/",
+            "/src/protocols/root/session/", "/src/protocols/root/connection/",
+            "_aio_thread", "_aio_done", "read_scratch", "payload_to_free",
+            "ctx->destroyed", "brix_",
+        )
+        return "data race" in text and any(marker in text for marker in markers)
+
+    def _tsan_file_has_module_race(self, filename):
+        try:
+            with open(os.path.join(self.tsandir, filename), errors="replace") as source:
+                text = source.read()
+        except OSError:
+            return False
+        return self._module_race(text)
+
     def _tsan_module_races(self):
         if not self.tsandir or not os.path.isdir(self.tsandir):
             return ""
-        hits = []
-        for fn in os.listdir(self.tsandir):
-            try:
-                txt = open(os.path.join(self.tsandir, fn), errors="replace").read()
-            except OSError:
-                continue
-            if "data race" not in txt:
-                continue
-            # only fail on races whose stack names module / AIO frames
-            if any(m in txt for m in ("/src/core/aio/", "/src/protocols/root/read/", "/src/protocols/root/write/",
-                                      "/src/fs/cache/", "/src/protocols/root/session/", "/src/protocols/root/connection/",
-                                      "_aio_thread", "_aio_done", "read_scratch",
-                                      "payload_to_free", "ctx->destroyed", "brix_")):
-                hits.append(fn)
+        hits = [name for name in os.listdir(self.tsandir)
+                if self._tsan_file_has_module_race(name)]
         return ",".join(hits)
 
     def assert_healthy(self, phase):
@@ -291,6 +298,56 @@ def _build_shim(workdir):
     return so, ""
 
 
+def _sanitizer_candidate(line, wanted):
+    if wanted not in line or "=>" not in line:
+        return ""
+    candidate = line.split("=>", 1)[1].strip().split(" ", 1)[0]
+    if not candidate or not os.path.exists(candidate):
+        return ""
+    return candidate
+
+
+def _sanitizer_runtime():
+    wanted = {"address": "libasan.so", "thread": "libtsan.so"}.get(SHIM_SAN)
+    if wanted is None:
+        return ""
+    try:
+        output = subprocess.run(
+            ["ldd", NGINX_BIN], capture_output=True, text=True
+        ).stdout
+    except Exception:
+        return ""
+    for line in output.splitlines():
+        candidate = _sanitizer_candidate(line, wanted)
+        if candidate:
+            return candidate
+    return ""
+
+
+def _write_tsan_suppressions(workdir):
+    path = os.path.join(workdir, "tsan.supp")
+    with open(path, "w") as target:
+        target.write(
+            "race:ngx_atomic_\nrace:^brix_metrics_\nrace:ngx_thread_pool_cycle\n"
+            "race:ngx_time_update\nrace:ngx_event_\ncalled_from_lib:libssl\n"
+            "called_from_lib:libcrypto\ncalled_from_lib:libjansson\n"
+        )
+    return path
+
+
+def _set_sanitizer_options(environment, tsandir, workdir):
+    if SHIM_SAN == "thread":
+        suppressions = _write_tsan_suppressions(workdir)
+        environment["TSAN_OPTIONS"] = (
+            "suppressions=%s:halt_on_error=0:exitcode=0:"
+            "history_size=4:log_path=%s/tsan" % (suppressions, tsandir)
+        )
+    if SHIM_SAN == "address":
+        environment["ASAN_OPTIONS"] = (
+            "detect_leaks=0:abort_on_error=1:halt_on_error=1"
+        )
+
+
 def _shim_env(shim, tsandir, workdir):
     """Build the worker-gated race-shim launch environment for the nginx spec.
 
@@ -302,38 +359,14 @@ def _shim_env(shim, tsandir, workdir):
     stop, so the shim (and its delay/options) survive the whole lifecycle.
     """
     env: dict[str, str] = {}
-    pre = os.environ.get("LD_PRELOAD", "")
-    san_rt = ""
-    if SHIM_SAN in ("address", "thread"):
-        want = "libasan.so" if SHIM_SAN == "address" else "libtsan.so"
-        try:
-            ldd = subprocess.run(["ldd", NGINX_BIN], capture_output=True, text=True).stdout
-            for line in ldd.splitlines():
-                if want in line and "=>" in line:
-                    cand = line.split("=>", 1)[1].strip().split(" ", 1)[0]
-                    if cand and os.path.exists(cand):
-                        san_rt = cand
-                    break
-        except Exception:
-            san_rt = ""
-    env["LD_PRELOAD"] = " ".join(x for x in (san_rt, pre, shim) if x)
+    preload = (_sanitizer_runtime(), os.environ.get("LD_PRELOAD", ""), shim)
+    env["LD_PRELOAD"] = " ".join(item for item in preload if item)
     env["XRD_RACE_DELAY_US"] = str(SHIM_DELAY_US)
-    if SHIM_SAN == "thread":
-        supp = os.path.join(workdir, "tsan.supp")
-        open(supp, "w").write(
-            "race:ngx_atomic_\nrace:^brix_metrics_\nrace:ngx_thread_pool_cycle\n"
-            "race:ngx_time_update\nrace:ngx_event_\ncalled_from_lib:libssl\n"
-            "called_from_lib:libcrypto\ncalled_from_lib:libjansson\n")
-        env["TSAN_OPTIONS"] = ("suppressions=%s:halt_on_error=0:exitcode=0:"
-                               "history_size=4:log_path=%s/tsan"
-                               % (supp, tsandir))
-    elif SHIM_SAN == "address":
-        env["ASAN_OPTIONS"] = "detect_leaks=0:abort_on_error=1:halt_on_error=1"
+    _set_sanitizer_options(env, tsandir, workdir)
     return env
 
 
-@pytest.fixture(scope="module")
-def srv():
+def _require_fixture_ready():
     if REMOTE_SERVER:
         pytest.skip("self-contained; not REMOTE")
     if not os.path.exists(NGINX_BIN):
@@ -341,123 +374,107 @@ def srv():
     if shutil.which("pgrep") is None or shutil.which("cc") is None:
         pytest.skip("pgrep + cc required")
 
-    # Our own scratch tree (data + shim + tsan reports); the nginx prefix, config,
-    # pidfile and logs are owned by the registry (LifecycleHarness) under its
-    # endpoint.prefix.  We only seed/own the datadir and the sanitizer artifacts.
+
+def _fixture_workspace():
     workdir = tempfile.mkdtemp(prefix="evil2-")
     datadir = os.path.join(workdir, "data")
     tsandir = os.path.join(workdir, "tsan")
-    for d in (datadir, tsandir):
-        os.makedirs(d, exist_ok=True)
+    for path in (datadir, tsandir):
+        os.makedirs(path, exist_ok=True)
+    return workdir, datadir, tsandir
 
-    shim, err = _build_shim(workdir)
-    if shim is None:
-        shutil.rmtree(workdir, ignore_errors=True)
-        pytest.skip("could not build race shim: %s" % err[-300:])
 
-    big = os.path.join(datadir, "big.bin")
-    chunk = bytes((i * 31 + 7) & 0xFF for i in range(65536))
-    with open(big, "wb") as f:
+def _required_shim(workdir):
+    shim, error = _build_shim(workdir)
+    if shim is not None:
+        return shim
+    shutil.rmtree(workdir, ignore_errors=True)
+    pytest.skip("could not build race shim: %s" % error[-300:])
+
+
+def _populate_data(datadir):
+    chunk = bytes((index * 31 + 7) & 0xFF for index in range(65536))
+    with open(os.path.join(datadir, "big.bin"), "wb") as target:
         for _ in range(BIGFILE_MB * 16):
-            f.write(chunk)
-    for nm in ("shared.bin", "w.bin", "xp.bin"):
-        with open(os.path.join(datadir, nm), "wb") as f:
-            f.write(chunk * 8)
+            target.write(chunk)
+    for name in ("shared.bin", "w.bin", "xp.bin"):
+        with open(os.path.join(datadir, name), "wb") as target:
+            target.write(chunk * 8)
 
-    env = _shim_env(shim, tsandir, workdir)
 
-    # The 3-worker root:// server plus metrics/s3/webdav planes are driven through
-    # the registry (LifecycleHarness): {PORT} is the root:// front and the other
-    # three planes arrive as extra_ports; the harness renders nginx_evil_actor_v2.conf,
-    # runs `nginx -t` and launches with the shim env, and reaps master+workers on
-    # close().  Crash/TSan detection is unchanged — it reads the master pid from
-    # endpoint.pidfile and scans endpoint.prefix/logs (+ our tsandir).
-    harness = LifecycleHarness()
+def _start_endpoint(harness, datadir, environment, workdir):
     try:
-        endpoint = harness.start(NginxInstanceSpec(
+        return harness.start(NginxInstanceSpec(
             name="evil-actor-v2",
             template="nginx_evil_actor_v2.conf",
             protocol="root",
             data_root=datadir,
             readiness="tcp",
             template_values={"BIND_HOST": BIND_HOST},
-            env=env,
+            env=environment,
         ))
-    except Exception as exc:
+    except Exception as error:
         harness.close()
         shutil.rmtree(workdir, ignore_errors=True)
-        pytest.skip("nginx did not start: %s" % str(exc)[-400:])
+        pytest.skip("nginx did not start: %s" % str(error)[-400:])
 
-    ports = (endpoint.port, endpoint.extra_ports["METRICS_PORT"],
-             endpoint.extra_ports["S3_PORT"], endpoint.extra_ports["WEBDAV_PORT"])
-    s = _Srv(endpoint.prefix, endpoint.config, endpoint.pidfile,
-             ports, datadir, tsandir)
-    s.master = _master_pid(endpoint.pidfile)
-    if not s.master or not _alive(s.master):
-        harness.close()
-        shutil.rmtree(workdir, ignore_errors=True)
-        pytest.skip("master pid never appeared")
-    print("\n[evil2] master=%d root=%d metrics=%d s3=%d webdav=%d shim=%s delay=%dus workers=%s"
-          % (s.master, ports[0], ports[1], ports[2], ports[3],
-             SHIM_SAN or "plain", SHIM_DELAY_US,
-             _workers(s.master)))
+
+def _endpoint_ports(endpoint):
+    return (
+        endpoint.port, endpoint.extra_ports["METRICS_PORT"],
+        endpoint.extra_ports["S3_PORT"], endpoint.extra_ports["WEBDAV_PORT"],
+    )
+
+
+def _configured_server(endpoint, datadir, tsandir):
+    server = _Srv(
+        endpoint.prefix, endpoint.config, endpoint.pidfile,
+        _endpoint_ports(endpoint), datadir, tsandir,
+    )
+    server.master = _master_pid(endpoint.pidfile)
+    return server
+
+
+def _require_master(server, harness, workdir):
+    if server.master and _alive(server.master):
+        return
+    harness.close()
+    shutil.rmtree(workdir, ignore_errors=True)
+    pytest.skip("master pid never appeared")
+
+
+def _report_fixture(server):
+    ports = (
+        server.root_port, server.metrics_port,
+        server.s3_port, server.webdav_port,
+    )
+    print(
+        "\n[evil2] master=%d root=%d metrics=%d s3=%d webdav=%d "
+        "shim=%s delay=%dus workers=%s"
+        % (server.master, *ports, SHIM_SAN or "plain", SHIM_DELAY_US,
+           _workers(server.master))
+    )
+
+
+@pytest.fixture(scope="module")
+def srv():
+    _require_fixture_ready()
+    workdir, datadir, tsandir = _fixture_workspace()
+    shim = _required_shim(workdir)
+    _populate_data(datadir)
+    environment = _shim_env(shim, tsandir, workdir)
+    harness = LifecycleHarness()
+    endpoint = _start_endpoint(harness, datadir, environment, workdir)
+    server = _configured_server(endpoint, datadir, tsandir)
+    _require_master(server, harness, workdir)
+    _report_fixture(server)
     try:
-        yield s
+        yield server
     finally:
         harness.close()
         shutil.rmtree(workdir, ignore_errors=True)
 
 
-# --------------------------- P1: cross-connection bind handle races ----------
+from split_continuation import load as _load_continuation
+_load_continuation(globals(), __file__, "_test_evil_actor_v2_helpers_runtime.py")
 
-def _aio_rst_worker(port, datadir, rounds, stop_at, counter):
-    rng = random.Random(threading.get_ident())
-    while time.time() < stop_at and counter[0] < rounds:
-        counter[0] += 1
-        s = None
-        try:
-            s = _connect(port, 4)
-            _login(s)
-            st, body = _open(s, "/big.bin", flags=0x0010)
-            if st != kXR_ok or len(body) < 4:
-                if s: _rst(s)
-                continue
-            fh = body[:4]
-            op = rng.choice(("pgread", "readv", "write"))
-            off = rng.randrange(0, (BIGFILE_MB - 8) * 1024 * 1024)
-            rlen = rng.choice((8 << 20, 16 << 20))
-            if op == "pgread":
-                s.sendall(_frame(kXR_pgread, struct.pack("!4sqi", fh, off, rlen)))
-            elif op == "readv":
-                segs = b"".join(struct.pack("!4siq", fh, 1 << 20, off + i * (1 << 20))
-                                for i in range(8))
-                s.sendall(_frame(kXR_readv, b"", segs))
-            else:
-                stw, wb = _open(s, "/w.bin", flags=0x0010 | 0x0020)
-                fw = wb[:4] if (stw == kXR_ok and len(wb) >= 4) else fh
-                s.sendall(_frame(kXR_write, struct.pack("!4sqB3s", fw, 0, 0, b"\x00" * 3),
-                                 b"Z" * (1 << 20)))
-        except Exception:
-            pass
-        if s is not None:
-            d = rng.choice((0, 0.0005, 0.003))
-            if d: time.sleep(d)
-            _rst(s)
-
-
-
-def _http(method, path, body=None, timeout=4, port=None):
-    import urllib.request, urllib.error
-    url = "http://%s:%d%s" % (HOST, port or _XP_HTTP[0], path)
-    req = urllib.request.Request(url, data=body, method=method)
-    try:
-        with urllib.request.urlopen(req, timeout=timeout) as r:
-            return r.status
-    except urllib.error.HTTPError as e:
-        return e.code
-    except Exception:
-        return None
-
-
-_XP_HTTP = [0]
-_XP_S3 = [0]

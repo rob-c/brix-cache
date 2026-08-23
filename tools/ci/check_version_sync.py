@@ -92,84 +92,104 @@ def _descending(items, key):
 
 def run(root):
     root = Path(root)
-    out = []
-
-    ident_text = _read(root, IDENT)
-    if ident_text is None:
-        return False, [f"{IDENT}: missing — nothing to synchronise against"]
-    m = RE_IDENT.search(ident_text)
-    if not m:
-        return False, [f"{IDENT}: no BRIX_SERVER_VERSION_BARE define found"]
-    version = m.group(1)
-
-    spec_text = _read(root, SPEC)
-    if spec_text is None:
-        out.append(f"{SPEC}: missing")
-    else:
-        m = RE_SPEC_FALLBACK.search(spec_text)
-        if not m:
-            out.append(f"{SPEC}: no '%global upstream_version' fallback literal found")
-        elif m.group(1) != version:
-            out.append(
-                f"{SPEC}: upstream_version fallback is {m.group(1)}, "
-                f"{IDENT} says {version} — a bare rpmbuild would mislabel the RPM"
-            )
-
-        entries = _spec_changelog_entries(spec_text)
-        if not entries:
-            out.append(f"{SPEC}: %changelog has no parseable entries")
-        else:
-            if entries[0][0] != version:
-                out.append(
-                    f"{SPEC}: newest %changelog entry is {entries[0][0]}-{entries[0][1]}, "
-                    f"{IDENT} says {version} — add an entry for this release"
-                )
-            bad = _descending(entries, lambda e: (_key(e[0]), e[1]))
-            if bad is not None:
-                out.append(
-                    f"{SPEC}: %changelog is not newest-first at entry "
-                    f"{entries[bad][0]}-{entries[bad][1]} (after "
-                    f"{entries[bad - 1][0]}-{entries[bad - 1][1]})"
-                )
-
-    cl_text = _read(root, CHANGELOG)
-    if cl_text is None:
-        out.append(f"{CHANGELOG}: missing")
-    else:
-        entries = _changelog_entries(cl_text)
-        if not entries:
-            out.append(f"{CHANGELOG}: no '## vX.Y.Z' entries found")
-        else:
-            if entries[0] != version:
-                out.append(
-                    f"{CHANGELOG}: newest entry is v{entries[0]}, {IDENT} says "
-                    f"{version} — write the release notes before bumping"
-                )
-            bad = _descending(entries, _key)
-            if bad is not None:
-                out.append(
-                    f"{CHANGELOG}: entries are not newest-first at v{entries[bad]} "
-                    f"(after v{entries[bad - 1]})"
-                )
-
+    version, error = _ident_version(root)
+    if error:
+        return False, [error]
+    out = _spec_findings(_read(root, SPEC), version)
+    out.extend(_changelog_findings(_read(root, CHANGELOG), version))
     if out:
         return False, out
     return True, [f"check_version_sync: OK ({version} in ident.h, spec and CHANGELOG)"]
 
 
+def _ident_version(root):
+    text = _read(root, IDENT)
+    if text is None:
+        return None, f"{IDENT}: missing — nothing to synchronise against"
+    match = RE_IDENT.search(text)
+    if not match:
+        return None, f"{IDENT}: no BRIX_SERVER_VERSION_BARE define found"
+    return match.group(1), None
+
+
+def _spec_findings(text, version):
+    if text is None:
+        return [f"{SPEC}: missing"]
+    out = _spec_fallback_findings(text, version)
+    out.extend(_spec_entry_findings(_spec_changelog_entries(text), version))
+    return out
+
+
+def _spec_fallback_findings(text, version):
+    match = RE_SPEC_FALLBACK.search(text)
+    if not match:
+        return [f"{SPEC}: no '%global upstream_version' fallback literal found"]
+    if match.group(1) == version:
+        return []
+    return [f"{SPEC}: upstream_version fallback is {match.group(1)}, "
+            f"{IDENT} says {version} — a bare rpmbuild would mislabel the RPM"]
+
+
+def _spec_entry_findings(entries, version):
+    if not entries:
+        return [f"{SPEC}: %changelog has no parseable entries"]
+    out = []
+    if entries[0][0] != version:
+        out.append(f"{SPEC}: newest %changelog entry is "
+                   f"{entries[0][0]}-{entries[0][1]}, {IDENT} says {version} "
+                   f"— add an entry for this release")
+    bad = _descending(entries, lambda entry: (_key(entry[0]), entry[1]))
+    if bad is not None:
+        out.append(f"{SPEC}: %changelog is not newest-first at entry "
+                   f"{entries[bad][0]}-{entries[bad][1]} (after "
+                   f"{entries[bad - 1][0]}-{entries[bad - 1][1]})")
+    return out
+
+
+def _changelog_findings(text, version):
+    if text is None:
+        return [f"{CHANGELOG}: missing"]
+    entries = _changelog_entries(text)
+    if not entries:
+        return [f"{CHANGELOG}: no '## vX.Y.Z' entries found"]
+    out = []
+    if entries[0] != version:
+        out.append(f"{CHANGELOG}: newest entry is v{entries[0]}, {IDENT} says "
+                   f"{version} — write the release notes before bumping")
+    bad = _descending(entries, _key)
+    if bad is not None:
+        out.append(f"{CHANGELOG}: entries are not newest-first at v{entries[bad]} "
+                   f"(after v{entries[bad - 1]})")
+    return out
+
+
 def _show(root):
     root = Path(root)
-    ident_text = _read(root, IDENT) or ""
-    spec_text = _read(root, SPEC) or ""
-    cl_text = _read(root, CHANGELOG) or ""
-    m = RE_IDENT.search(ident_text)
-    print(f"{IDENT:<44} {m.group(1) if m else '-'}")
-    m = RE_SPEC_FALLBACK.search(spec_text)
-    print(f"{SPEC + ' (fallback)':<44} {m.group(1) if m else '-'}")
+    ident_text = _text(root, IDENT)
+    spec_text = _text(root, SPEC)
+    cl_text = _text(root, CHANGELOG)
+    print(f"{IDENT:<44} {_match_value(RE_IDENT, ident_text)}")
+    print(f"{SPEC + ' (fallback)':<44} {_match_value(RE_SPEC_FALLBACK, spec_text)}")
     entries = _spec_changelog_entries(spec_text)
-    print(f"{SPEC + ' (%changelog)':<44} {'-'.join(map(str, entries[0])) if entries else '-'}")
-    entries = _changelog_entries(cl_text)
-    print(f"{CHANGELOG:<44} {entries[0] if entries else '-'}")
+    print(f"{SPEC + ' (%changelog)':<44} {_spec_entry_value(entries)}")
+    print(f"{CHANGELOG:<44} {_first_or_dash(_changelog_entries(cl_text))}")
+
+
+def _text(root, relative):
+    return _read(root, relative) or ""
+
+
+def _match_value(pattern, text):
+    match = pattern.search(text)
+    return match.group(1) if match else "-"
+
+
+def _spec_entry_value(entries):
+    return "-" if not entries else "-".join(map(str, entries[0]))
+
+
+def _first_or_dash(entries):
+    return entries[0] if entries else "-"
 
 
 def main():

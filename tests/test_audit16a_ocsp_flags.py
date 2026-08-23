@@ -114,6 +114,24 @@ from lib_py.util import pids_on_port
 from server_registry import NginxInstanceSpec
 from settings import BIND_HOST, HOST, NGINX_BIN
 
+def _expression_1(spec):
+    return (
+        [] if spec["port"] is None else [(_aia(spec["port"]), False)]
+    )
+
+def _expression_2(ca, tag, ext):
+    return (
+        make_eec(ca, f"/O=XrdTest/CN=audit16a-{tag}", not_after_days=4000,
+                               extra_ext=ext or None)
+    )
+
+def _expression_3(eec, spec, ext):
+    return (
+        make_proxy(eec, kind="rfc3820", not_after_days=4000,
+                                   serial=spec["serial"], extra_ext=ext or None)
+    )
+
+
 pytestmark = [pytest.mark.timeout(300),
               pytest.mark.uses_lifecycle_harness,
               pytest.mark.xdist_group("lc-audit16a-ocsp")]
@@ -211,11 +229,9 @@ def pki(tmp_path_factory):
 
     creds, entries = {}, []
     for tag, spec in CREDENTIALS.items():
-        ext = [] if spec["port"] is None else [(_aia(spec["port"]), False)]
-        eec = make_eec(ca, f"/O=XrdTest/CN=audit16a-{tag}", not_after_days=4000,
-                       extra_ext=ext or None)
-        proxy = make_proxy(eec, kind="rfc3820", not_after_days=4000,
-                           serial=spec["serial"], extra_ext=ext or None)
+        ext = _expression_1(spec)
+        eec = _expression_2(ca, tag, ext)
+        proxy = _expression_3(eec, spec, ext)
         # The standard GSI proxy file: proxy, then the EEC it delegates from,
         # then the proxy key — the layout test_pblock_group_multiuser.py:162
         # feeds a live login.  It is also the order the client puts on the

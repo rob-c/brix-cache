@@ -34,6 +34,7 @@ Run:
     PYTHONPATH=tests pytest tests/test_integrity_matrix.py -v
 """
 
+import base64
 import hashlib
 import os
 import socket
@@ -223,31 +224,46 @@ class _HTTPDriver:
             raise EndpointError(f"GET {r.status_code}")
         return r.content
 
-    def read_vector(self, locator, path, size):
-        segs = [(0, 100), (1000, 512), (size - 200, 200)]
-        segs = [(o, n) for (o, n) in segs if o + n <= size]
-        rng = ", ".join(f"{o}-{o + n - 1}" for o, n in segs)
-        r = requests.get(self._url(locator, path),
-                         headers={"Range": f"bytes={rng}"},
-                         verify=self.verify, timeout=30)
-        if r.status_code == 200:
+    @staticmethod
+    def _vector_segments(size):
+        candidates = [(0, 100), (1000, 512), (size - 200, 200)]
+        return [(offset, length) for offset, length in candidates
+                if offset + length <= size]
+
+    @staticmethod
+    def _require_partial_response(response):
+        if response.status_code == 200:
             pytest.skip("server returned full body — no multi-range support")
-        assert r.status_code == 206, f"ranged GET {r.status_code}"
-        ctype = r.headers.get("Content-Type", "")
-        out = []
-        if "multipart/byteranges" in ctype:
-            boundary = ctype.split("boundary=")[1].strip()
-            msg = BytesParser(policy=email_default).parsebytes(
-                b"Content-Type: " + ctype.encode() + b"\r\n\r\n" + r.content)
-            parts = [p for p in msg.iter_parts()]
-            assert len(parts) == len(segs), \
-                f"expected {len(segs)} ranges, got {len(parts)}"
-            for (o, n), part in zip(segs, parts):
-                out.append((o, part.get_payload(decode=True)))
-        else:
-            # Single 206 covering one range only — not a true vector read.
+        assert response.status_code == 206, f"ranged GET {response.status_code}"
+
+    @staticmethod
+    def _multipart_parts(response, content_type, segments):
+        if "multipart/byteranges" not in content_type:
             pytest.skip("server collapsed multi-range to a single range")
-        return out, segs
+        message = BytesParser(policy=email_default).parsebytes(
+            b"Content-Type: " + content_type.encode() + b"\r\n\r\n"
+            + response.content)
+        parts = list(message.iter_parts())
+        assert len(parts) == len(segments), (
+            f"expected {len(segments)} ranges, got {len(parts)}")
+        return parts
+
+    @staticmethod
+    def _decoded_ranges(segments, parts):
+        return [(offset, part.get_payload(decode=True))
+                for (offset, _length), part in zip(segments, parts)]
+
+    def read_vector(self, locator, path, size):
+        segments = self._vector_segments(size)
+        ranges = ", ".join(
+            f"{offset}-{offset + length - 1}" for offset, length in segments)
+        response = requests.get(
+            self._url(locator, path), headers={"Range": f"bytes={ranges}"},
+            verify=self.verify, timeout=30)
+        self._require_partial_response(response)
+        content_type = response.headers.get("Content-Type", "")
+        parts = self._multipart_parts(response, content_type, segments)
+        return self._decoded_ranges(segments, parts), segments
 
     def checksum(self, locator, path, data):
         raise NotImplementedError
@@ -266,24 +282,43 @@ class WebDAVDriver(_HTTPDriver):
         dig = r.headers.get("Digest") or r.headers.get("Want-Digest")
         if not dig:
             return None  # server advertises no RFC-3230 digest
-        # Digest: adler32=...,md5=base64,sha-256=base64
-        import base64
         for token in dig.split(","):
-            if "=" not in token:
-                continue
-            algo, val = token.split("=", 1)
-            algo = algo.strip().lower()
-            val = val.strip()
-            if algo == "md5":
-                want = base64.b64encode(hashlib.md5(data).digest()).decode()
-                return "md5", val, want
-            if algo in ("sha-256", "sha256"):
-                want = base64.b64encode(hashlib.sha256(data).digest()).decode()
-                return "sha-256", val, want
-            if algo == "adler32":
-                return "adler32", val.lower(), \
-                    f"{zlib.adler32(data) & 0xFFFFFFFF:08x}"
+            result = self._digest_result(token, data)
+            if result is not None:
+                return result
         return None
+
+    @staticmethod
+    def _digest_result(token, data):
+        if "=" not in token:
+            return None
+        algorithm, value = token.split("=", 1)
+        name = algorithm.strip().lower()
+        handlers = {
+            "md5": WebDAVDriver._md5_digest,
+            "sha-256": WebDAVDriver._sha256_digest,
+            "sha256": WebDAVDriver._sha256_digest,
+            "adler32": WebDAVDriver._adler32_digest,
+        }
+        handler = handlers.get(name)
+        if handler is None:
+            return None
+        return handler(value.strip(), data)
+
+    @staticmethod
+    def _md5_digest(value, data):
+        expected = base64.b64encode(hashlib.md5(data).digest()).decode()
+        return "md5", value, expected
+
+    @staticmethod
+    def _sha256_digest(value, data):
+        expected = base64.b64encode(hashlib.sha256(data).digest()).decode()
+        return "sha-256", value, expected
+
+    @staticmethod
+    def _adler32_digest(value, data):
+        expected = f"{zlib.adler32(data) & 0xFFFFFFFF:08x}"
+        return "adler32", value.lower(), expected
 
 
 # CRC-64/NVME (AWS x-amz-checksum-crc64nvme): reflected in/out, init/xorout

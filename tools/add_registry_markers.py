@@ -95,17 +95,24 @@ def main() -> int:
             continue
         total_files += 1
         total_edits += len(edits)
-        rel = os.path.relpath(path)
-        for lineno, col, specs in sorted(edits):
-            print(f"{rel}:{lineno}  + {_marker_line(specs, 0).strip()}")
+        _print_edits(path, edits)
         if args.apply:
             apply_file(path, edits, source)
-
-    verb = "applied" if args.apply else "planned (dry-run)"
-    print(f"\n{verb}: {total_edits} marker(s) across {total_files} file(s)")
-    if not args.apply and total_edits:
-        print("re-run with --apply to write the declarations")
+    _print_summary(args.apply, total_edits, total_files)
     return 0
+
+
+def _print_edits(path, edits):
+    rel = os.path.relpath(path)
+    for lineno, _col, specs in sorted(edits):
+        print(f"{rel}:{lineno}  + {_marker_line(specs, 0).strip()}")
+
+
+def _print_summary(applied, total_edits, total_files):
+    verb = "applied" if applied else "planned (dry-run)"
+    print(f"\n{verb}: {total_edits} marker(s) across {total_files} file(s)")
+    if not applied and total_edits:
+        print("re-run with --apply to write the declarations")
 
 
 if __name__ == "__main__":

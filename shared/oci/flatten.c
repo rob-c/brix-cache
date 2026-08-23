@@ -311,22 +311,56 @@ static int fl_dir(fl_ctx_t *fx, int parent, const char *name,
     return 0;
 }
 
+/*
+ * WHAT: Copy a hardlink target when the filesystem refuses linkat.
+ * WHY:  Cross-device targets remain representable without leaving partial files.
+ * HOW:  Open source before destination, stream bytes, and remove failed output.
+ */
+static int fl_hardlink_copy(fl_ctx_t *fx, int target_parent,
+                            const char *target, int parent, const char *name) {
+    int     source = openat(target_parent, target,
+                            O_RDONLY | O_NOFOLLOW | O_CLOEXEC);
+    int     destination = source < 0 ? -1 :
+                          openat(parent, name, O_WRONLY | O_CREAT | O_TRUNC |
+                                 O_NOFOLLOW | O_CLOEXEC, 0600);
+    int     rc = -1;
+    ssize_t got = 0;
+
+    if (source >= 0 && destination >= 0) {
+        rc = 0;
+        while ((got = read(source, fx->copybuf, sizeof(fx->copybuf))) > 0) {
+            if (write(destination, fx->copybuf, (size_t) got) != got) {
+                rc = -1;
+                break;
+            }
+            fx->st->bytes += got;
+        }
+        if (got < 0)
+            rc = -1;
+    }
+    if (source >= 0)
+        close(source);
+    if (destination >= 0)
+        close(destination);
+    if (rc != 0 && destination >= 0)
+        (void) fl_rm(fx, parent, name);
+    return rc;
+}
+
 /* Hardlink: resolve the target through the same confined descent, then
- * linkat. A target that cannot be linked (whiteouted earlier, other device)
- * degrades to a byte copy — counted as a link all the same (D7.1). */
+ * linkat. A target that cannot be linked degrades to a byte copy. */
 static int fl_hardlink(fl_ctx_t *fx, int parent, const char *name,
                        const brix_tar_entry_t *e) {
     char        tbuf[4096];
     const char *tcomps[FL_MAX_COMPS];
     int         tn, tparent;
-    int         rc = -1;
+    int         rc;
 
     tn = fl_components(fx, e->linkname, tbuf, sizeof(tbuf), tcomps,
                        FL_MAX_COMPS);
     if (tn <= 0)
         return tn == 0 ? fl_fail(fx, "hardlink '%s' targets the root%s",
-                                 e->path, "")
-                       : -1;
+                                 e->path, "") : -1;
     tparent = fl_descend(fx, tcomps, (size_t) tn - 1);
     if (tparent < 0)
         return -1;
@@ -334,44 +368,11 @@ static int fl_hardlink(fl_ctx_t *fx, int parent, const char *name,
         close(tparent);
         return -1;
     }
-    if (linkat(tparent, tcomps[tn - 1], parent, name, 0) == 0) {
-        rc = 0;
-    } else {
-        /* Degrade to copy — but open the SOURCE first. A target that a
-         * previous layer whiteouted is unlinkable AND unopenable, and
-         * creating the destination before finding that out leaves an empty
-         * file standing where the link should be: the refusal is loud, yet
-         * the tree it leaves behind has a name that exists and does nothing. */
-        int sfd = openat(tparent, tcomps[tn - 1],
-                         O_RDONLY | O_NOFOLLOW | O_CLOEXEC);
-        int dfd = (sfd < 0) ? -1
-                            : openat(parent, name,
-                                     O_WRONLY | O_CREAT | O_TRUNC
-                                     | O_NOFOLLOW | O_CLOEXEC, 0600);
-
-        if (sfd >= 0 && dfd >= 0) {
-            ssize_t got;
-
-            rc = 0;
-            while ((got = read(sfd, fx->copybuf, sizeof(fx->copybuf))) > 0) {
-                if (write(dfd, fx->copybuf, (size_t) got) != got) {
-                    rc = -1;
-                    break;
-                }
-                fx->st->bytes += got;
-            }
-            if (got < 0)
-                rc = -1;
-        }
-        if (sfd >= 0) close(sfd);
-        if (dfd >= 0) close(dfd);
-        if (rc != 0) {
-            if (dfd >= 0)
-                (void) fl_rm(fx, parent, name);      /* no half-copied name */
-            fl_fail(fx, "hardlink '%s' → '%s': target unlinkable and copy "
-                    "failed", e->path, e->linkname);
-        }
-    }
+    rc = linkat(tparent, tcomps[tn - 1], parent, name, 0) == 0 ? 0 :
+         fl_hardlink_copy(fx, tparent, tcomps[tn - 1], parent, name);
+    if (rc != 0)
+        fl_fail(fx, "hardlink '%s' → '%s': target unlinkable and copy failed",
+                e->path, e->linkname);
     close(tparent);
     if (rc == 0) {
         int mrc = fchmodat(parent, name, e->mode, 0);
@@ -380,6 +381,64 @@ static int fl_hardlink(fl_ctx_t *fx, int parent, const char *name,
         fx->st->links++;
     }
     return rc;
+}
+
+/*
+ * WHAT: Materialize a non-whiteout tar entry in its already resolved parent.
+ * WHY:  Entry routing and individual filesystem mutations are separate concerns.
+ * HOW:  Dispatch regular, directory, symlink, hardlink, and special-file types.
+ */
+static int fl_materialize(fl_ctx_t *fx, int parent, const char *name,
+                          const brix_tar_entry_t *entry) {
+    int rc;
+
+    switch (entry->type) {
+    case BRIX_TAR_REG:
+        return fl_reg(fx, parent, name, entry);
+    case BRIX_TAR_DIR:
+        return fl_dir(fx, parent, name, entry);
+    case BRIX_TAR_SYMLINK:
+        rc = fl_rm(fx, parent, name);
+        if (rc == 0 && symlinkat(entry->linkname, parent, name) != 0)
+            rc = fl_fail(fx, "symlink '%s' failed: %s", name,
+                         strerror(errno));
+        if (rc == 0) {
+            fl_meta(fx, parent, name, entry);
+            fx->st->links++;
+        }
+        return rc;
+    case BRIX_TAR_HARDLINK:
+        return fl_hardlink(fx, parent, name, entry);
+    default:
+        if (fx->o->strict)
+            return fl_fail(fx, "special file '%s' refused under --strict%s",
+                           entry->path, "");
+        fx->st->skipped_special++;
+        return brix_tar_skip(fx->tar);
+    }
+}
+
+static int fl_whiteout(fl_ctx_t *fx, int parent, const char *target);
+static int fl_opaque(fl_ctx_t *fx, int parent);
+
+/*
+ * WHAT: Apply an OCI whiteout, opaque marker, or ordinary materialized entry.
+ * WHY:  Overlay control names take precedence over tar entry type semantics.
+ * HOW:  Match reserved basenames, skip their bodies, otherwise dispatch type.
+ */
+static int fl_named_entry(fl_ctx_t *fx, int parent, const char *name,
+                          const brix_tar_entry_t *entry) {
+    int rc;
+
+    if (strcmp(name, OCI_OPQ_NAME) == 0) {
+        rc = fl_opaque(fx, parent);
+        return rc == 0 ? brix_tar_skip(fx->tar) : rc;
+    }
+    if (strncmp(name, OCI_WH_PREFIX, sizeof(OCI_WH_PREFIX) - 1) == 0) {
+        rc = fl_whiteout(fx, parent, name + sizeof(OCI_WH_PREFIX) - 1);
+        return rc == 0 ? brix_tar_skip(fx->tar) : rc;
+    }
+    return fl_materialize(fx, parent, name, entry);
 }
 
 /* Whiteout: remove the named entry and drop the overlay marker so the
@@ -470,46 +529,7 @@ static int fl_entry(fl_ctx_t *fx, const brix_tar_entry_t *e) {
     if (parent < 0)
         return -1;
 
-    if (strcmp(name, OCI_OPQ_NAME) == 0) {
-        rc = fl_opaque(fx, parent);
-        if (rc == 0)
-            rc = brix_tar_skip(fx->tar);
-    } else if (strncmp(name, OCI_WH_PREFIX, sizeof(OCI_WH_PREFIX) - 1) == 0) {
-        rc = fl_whiteout(fx, parent, name + sizeof(OCI_WH_PREFIX) - 1);
-        if (rc == 0)
-            rc = brix_tar_skip(fx->tar);
-    } else {
-        switch (e->type) {
-        case BRIX_TAR_REG:
-            rc = fl_reg(fx, parent, name, e);
-            break;
-        case BRIX_TAR_DIR:
-            rc = fl_dir(fx, parent, name, e);
-            break;
-        case BRIX_TAR_SYMLINK:
-            rc = fl_rm(fx, parent, name);
-            if (rc == 0 && symlinkat(e->linkname, parent, name) != 0)
-                rc = fl_fail(fx, "symlink '%s' failed: %s", name,
-                             strerror(errno));
-            if (rc == 0) {
-                fl_meta(fx, parent, name, e);
-                fx->st->links++;
-            }
-            break;
-        case BRIX_TAR_HARDLINK:
-            rc = fl_hardlink(fx, parent, name, e);
-            break;
-        default:            /* CHR/BLK/FIFO */
-            if (fx->o->strict) {
-                rc = fl_fail(fx, "special file '%s' refused under "
-                             "--strict%s", e->path, "");
-            } else {
-                fx->st->skipped_special++;
-                rc = brix_tar_skip(fx->tar);
-            }
-            break;
-        }
-    }
+    rc = fl_named_entry(fx, parent, name, e);
     close(parent);
     return rc;
 }

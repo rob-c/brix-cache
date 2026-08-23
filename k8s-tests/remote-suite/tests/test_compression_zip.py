@@ -37,20 +37,29 @@ def archive(tmp_path_factory):
         pytest.skip(f"xrdcp not built: {XRDCP}")
     d = tmp_path_factory.mktemp("zip")
     zpath = str(d / "archive.zip")
-    z = zipfile.ZipFile(zpath, "w")
-    for name, (data, ctype) in MEMBERS.items():
-        z.writestr(name, data, ctype)
-    with z.open(Z64_NAME, "w", force_zip64=True) as f:
-        f.write(Z64_DATA)
-    z.close()
-
+    _build_archive(zpath)
     remote = f"/cmpzip_{uuid.uuid4().hex}.zip"
-    up = subprocess.run([XRDCP, "-f", zpath, f"{BASE}/{remote}"],
+    _upload_archive(zpath, remote)
+    yield remote, str(d)
+    _cleanup_archive(remote)
+
+
+def _build_archive(path):
+    with zipfile.ZipFile(path, "w") as archive_file:
+        for name, (data, compression) in MEMBERS.items():
+            archive_file.writestr(name, data, compression)
+        with archive_file.open(Z64_NAME, "w", force_zip64=True) as member:
+            member.write(Z64_DATA)
+
+
+def _upload_archive(path, remote):
+    up = subprocess.run([XRDCP, "-f", path, f"{BASE}/{remote}"],
                         capture_output=True, text=True, timeout=60)
     if up.returncode != 0:
         pytest.skip(f"could not upload archive to root:// server: {up.stderr[:300]}")
-    yield remote, str(d)
-    # best-effort cleanup via xrdfs if present
+
+
+def _cleanup_archive(remote):
     xrdfs = os.path.join(REPO, "client", "bin", "xrdfs")
     if os.access(xrdfs, os.X_OK):
         subprocess.run([xrdfs, BASE, "rm", remote], capture_output=True)

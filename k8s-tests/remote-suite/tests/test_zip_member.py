@@ -107,10 +107,26 @@ def _read_all(sock, fhandle, total):
     return kXR_ok, bytes(out)
 
 
-@pytest.fixture(scope="module")
-def zipsrv(tmp_path_factory):
+def _require_zip_nginx():
     if not os.path.exists(NGINX_BIN):
         pytest.skip("nginx binary not built")
+
+
+def _zip_ports_ready():
+    return all(_wait_listen(port) for port in (PORT, HTTP_PORT, S3_PORT))
+
+
+def _stop_zip_server(proc):
+    proc.terminate()
+    try:
+        proc.wait(timeout=5)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+
+
+@pytest.fixture(scope="module")
+def zipsrv(tmp_path_factory):
+    _require_zip_nginx()
     base = tmp_path_factory.mktemp("zipmember")
     data, logs = base / "data", base / "logs"
     data.mkdir(); logs.mkdir()
@@ -144,15 +160,11 @@ def zipsrv(tmp_path_factory):
     _run(["bash", "-c", f"fuser -k {PORT}/tcp 2>/dev/null"])
     proc = subprocess.Popen([NGINX_BIN, "-c", str(cfg), "-p", str(base)],
                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    if (not _wait_listen(PORT) or not _wait_listen(HTTP_PORT)
-            or not _wait_listen(S3_PORT)):
-        proc.terminate(); pytest.skip("zip nginx did not come up")
+    if not _zip_ports_ready():
+        proc.terminate()
+        pytest.skip("zip nginx did not come up")
     yield {"base": str(base), "data": str(data)}
-    proc.terminate()
-    try:
-        proc.wait(timeout=5)
-    except subprocess.TimeoutExpired:
-        proc.kill()
+    _stop_zip_server(proc)
 
 
 # ---- raw-wire tests: exercise the SERVER member path ----

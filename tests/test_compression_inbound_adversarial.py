@@ -120,6 +120,14 @@ def _payload(n=100_000):
     return rnd + structured
 
 
+def _corruption_bounds(length):
+    low = length // 4
+    high = (length * 3) // 4
+    if high <= low:
+        return low, low + 1
+    return low, high
+
+
 def _corrupt_middle(blob):
     """
     Keep the (valid) magic/header intact, then flip bytes in the middle of the
@@ -129,10 +137,7 @@ def _corrupt_middle(blob):
     b = bytearray(blob)
     if len(b) < 16:
         pytest.skip("compressed sample too small to corrupt meaningfully")
-    lo = len(b) // 4
-    hi = (len(b) * 3) // 4
-    if hi <= lo:
-        hi = lo + 1
+    lo, hi = _corruption_bounds(len(b))
     for i in range(lo, hi):
         b[i] ^= 0xFF
     # Guard: ensure we actually changed the bytes (random data could no-op

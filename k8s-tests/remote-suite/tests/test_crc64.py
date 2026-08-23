@@ -29,6 +29,21 @@ import pytest
 
 from settings import HOST, BIND_HOST
 
+def _guard_srv_1():
+    if not os.access(NGINX_BIN, os.X_OK):
+        pytest.skip(f"nginx binary not executable: {NGINX_BIN}")
+
+def _guard_srv_2(chk):
+    if chk.returncode != 0:
+        pytest.skip("nginx -t failed:\n" + chk.stderr)
+
+def _guard_srv_3(s3_port, dav_port, root_port, proc):
+    if (not _wait_port(s3_port) or not _wait_port(dav_port)
+            or not _wait_port(root_port)):
+        proc.terminate()
+        pytest.skip("crc64 test servers did not start")
+
+
 NGINX_BIN = os.environ.get("NGINX_BIN", "/tmp/nginx-1.28.3/objs/nginx")
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 XRDCRC64 = os.path.join(REPO, "client", "bin", "xrdcrc64")
@@ -84,8 +99,7 @@ def _wait_port(port, timeout=10):
 
 @pytest.fixture(scope="module")
 def srv(tmp_path_factory):
-    if not os.access(NGINX_BIN, os.X_OK):
-        pytest.skip(f"nginx binary not executable: {NGINX_BIN}")
+    _guard_srv_1()
 
     d = tmp_path_factory.mktemp("crc64")
     (d / "logs").mkdir()
@@ -142,15 +156,11 @@ http {{
 
     chk = subprocess.run([NGINX_BIN, "-t", "-p", str(d), "-c", str(cp)],
                          capture_output=True, text=True)
-    if chk.returncode != 0:
-        pytest.skip("nginx -t failed:\n" + chk.stderr)
+    _guard_srv_2(chk)
 
     proc = subprocess.Popen([NGINX_BIN, "-p", str(d), "-c", str(cp)],
                             stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    if (not _wait_port(s3_port) or not _wait_port(dav_port)
-            or not _wait_port(root_port)):
-        proc.terminate()
-        pytest.skip("crc64 test servers did not start")
+    _guard_srv_3(s3_port, dav_port, root_port, proc)
 
     yield {
         "s3": f"http://{HOST}:{s3_port}/testbucket",

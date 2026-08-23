@@ -218,9 +218,12 @@ def test_staged_writev_bad_framing_rejected(lifecycle, tmp_path):
         body = b""
         while len(body) < dlen:
             body += s.recv(dlen - len(body))
-        assert status == kXR_error
-        assert struct.unpack(">I", body[:4])[0] == kXR_ArgInvalid, \
-            f"expected kXR_ArgInvalid, got {body!r}"
+        def _assert_test_staged_writev_bad_framing_rejected_1():
+            assert status == kXR_error
+            assert struct.unpack(">I", body[:4])[0] == kXR_ArgInvalid, \
+                f"expected kXR_ArgInvalid, got {body!r}"
+
+        _assert_test_staged_writev_bad_framing_rejected_1()
     finally:
         s.close()
     assert not (origin / "badframe.bin").exists(), \

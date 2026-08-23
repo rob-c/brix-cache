@@ -46,29 +46,97 @@ MOCK_STRATUM1 = REPO_ROOT / "tests/cvmfs/mock_stratum1.py"
 _PORTS = cmdscript_ports("cvmfs_live_ext")
 
 
+def _resilience_sink(run, sink_dir):
+    if not _geo_port_available():
+        print("  SKIP geo ranking asserts: port 8000 already in use")
+        return None
+    sink = run.spawn([sys.executable, REPO_ROOT / "tests/cvmfs/probe_sink.py",
+                      sink_dir, "8000", "2222"])
+    for _ in range(50):
+        if (sink_dir / "ready").exists():
+            break
+        time.sleep(0.1)
+    return sink
+
+
+def _geo_port_available():
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
+            probe.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            probe.bind(("127.0.0.1", 8000))  # net-literal-allow: semantic geo-probe port
+        return True
+    except OSError:
+        return False
+
+
+def _resilience_stall_checks(run, origin_port, client_port):
+    obj = _objects(run, origin_port)[0]
+    original = run.curl_bytes(f"http://{HOST}:{origin_port}{obj}")
+    _fault(run, origin_port, "stall", 1)
+    received = run.root / "got.bin"
+    started = time.monotonic()
+    code = _curl_code_to(
+        run, f"http://{HOST}:{client_port}{obj}", received, timeout=15
+    )
+    elapsed = time.monotonic() - started
+    _fault(run, origin_port, "none", 0)
+    return [
+        (_successful_stall_read(code, received, original),
+         f"stalled origin forced through (code={code} in {elapsed:.1f}s, no 504/hang)"),
+        (elapsed < 12,
+         f"stall detected fast ({elapsed:.1f}s << 60s default ceiling)"),
+    ]
+
+
+def _successful_stall_read(code, received, original):
+    if code != 200:
+        return False
+    return received.read_bytes() == original
+
+
+def _compact_geo_answer(run, client_port, servers):
+    url = (f"http://{HOST}:{client_port}/cvmfs/test.cern.ch/"
+           f"api/v1.0/geo/x/{servers}")
+    return "".join(run.call(["curl", "-s", url]).stdout.split())
+
+
+def _hit_count(path):
+    return path.stat().st_size if path.exists() else 0
+
+
+def _resilience_geo_checks(run, sink, sink_dir, client_port):
+    if sink is None:
+        return []
+    first = "192.0.2.2:8000,127.0.0.1:8000,127.0.0.1:2222"  # net-literal-allow: geo-order payload
+    answer = _compact_geo_answer(run, client_port, first)
+    hits_8000 = _hit_count(sink_dir / "8000.hits")
+    hits_2222 = _hit_count(sink_dir / "2222.hits")
+    second = "127.0.0.1:2222,127.0.0.1:8000,192.0.2.2:8000,127.0.0.1:22,127.0.0.1:8000"  # net-literal-allow: geo-order payload
+    answer2 = _compact_geo_answer(run, client_port, second)
+    ordered = ",".join(sorted(answer2.split(","), key=_numeric_geo_item))
+    return [
+        (answer == "2,1,3",
+         f"geo RTT rank: reachable<unreachable<disallowed ({answer!r})"),
+        (hits_8000 >= 1,
+         f"guard: allowed port 8000 was probed ({hits_8000})"),
+        (hits_2222 == 0,
+         f"guard: disallowed port 2222 never connected ({hits_2222} connects)"),
+        (ordered == "1,2,3,4,5",
+         f"geo answer is a complete permutation of 1..5 ({answer2!r})"),
+    ]
+
+
+def _numeric_geo_item(item):
+    return int(item) if item else 0
+
+
 def resilience(nginx: Path | None = None) -> int:
     mport, cport = _PORTS[11:13]  # was free_ports(2)
     # Ports 8000/2222 are semantic: the geo probe guard allows the standard
     # CVMFS port (8000) and must never touch a disallowed one (2222).
     with LiveRun("cvmfs_res", nginx) as run:
         cache, logs, sink_dir = run.mkdir("cache"), run.mkdir("logs"), run.mkdir("sink")
-        sink = None
-        try:
-            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
-                probe.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-                probe.bind(("127.0.0.1", 8000))  # net-literal-allow: geo-probe sink bind coupled to the 127.0.0.1:8000 geo payload under test
-            port_free = True
-        except OSError:
-            port_free = False
-        if port_free:
-            sink = run.spawn([sys.executable, REPO_ROOT / "tests/cvmfs/probe_sink.py",
-                              sink_dir, "8000", "2222"])
-            for _ in range(50):
-                if (sink_dir / "ready").exists():
-                    break
-                time.sleep(0.1)
-        else:
-            print("  SKIP geo ranking asserts: port 8000 already in use")
+        sink = _resilience_sink(run, sink_dir)
 
         config = run.write(run.root / "nginx.conf", f"""daemon on; error_log {logs}/e.log info; pid {run.root}/nginx.pid;
 thread_pool default threads=4;
@@ -100,44 +168,11 @@ http {{
 
         checks: list[tuple[bool, str]] = [(parses, "new resilience+geo directives parse")]
 
-        # Part A: stuck-before-data origin -> force-through, not a stall
-        obj = _objects(run, mport)[0]
-        orig = run.curl_bytes(f"http://{HOST}:{mport}{obj}")
-        _fault(run, mport, "stall", 1)
-        got = run.root / "got.bin"
-        t0 = time.monotonic()
-        code = _curl_code_to(run, f"http://{HOST}:{cport}{obj}", got, timeout=15)
-        dt = time.monotonic() - t0
-        checks.append((code == 200 and got.read_bytes() == orig,
-                       f"stalled origin forced through (code={code} in {dt:.1f}s, no 504/hang)"))
-        checks.append((dt < 12, f"stall detected fast ({dt:.1f}s << 60s default ceiling)"))
-        _fault(run, mport, "none", 0)
-
-        # Part B: RTT-ranked geo answer + probe guard
-        if sink is not None:
-            geo_list = "192.0.2.2:8000,127.0.0.1:8000,127.0.0.1:2222"  # net-literal-allow: geo-order RTT ranking payload under test
-            answer = run.call(["curl", "-s",
-                               f"http://{HOST}:{cport}/cvmfs/test.cern.ch/api/v1.0/geo/x/{geo_list}"]).stdout
-            answer = "".join(answer.split())
-            checks.append((answer == "2,1,3",
-                           f"geo RTT rank: reachable<unreachable<disallowed ({answer!r})"))
-            hits_8000 = (sink_dir / "8000.hits").stat().st_size if (sink_dir / "8000.hits").exists() else 0
-            hits_2222 = (sink_dir / "2222.hits").stat().st_size if (sink_dir / "2222.hits").exists() else 0
-            checks.append((hits_8000 >= 1, f"guard: allowed port 8000 was probed ({hits_8000})"))
-            checks.append((hits_2222 == 0,
-                           f"guard: disallowed port 2222 never connected ({hits_2222} connects)"))
-            geo_list2 = "127.0.0.1:2222,127.0.0.1:8000,192.0.2.2:8000,127.0.0.1:22,127.0.0.1:8000"  # net-literal-allow: geo-order RTT ranking payload under test
-            answer2 = run.call(["curl", "-s",
-                                f"http://{HOST}:{cport}/cvmfs/test.cern.ch/api/v1.0/geo/x/{geo_list2}"]).stdout
-            answer2 = "".join(answer2.split())
-            ordered = ",".join(sorted(answer2.split(","), key=lambda item: int(item or "0")))
-            checks.append((ordered == "1,2,3,4,5",
-                           f"geo answer is a complete permutation of 1..5 ({answer2!r})"))
+        checks.extend(_resilience_stall_checks(run, mport, cport))
+        checks.extend(_resilience_geo_checks(run, sink, sink_dir, cport))
 
         # robustness: unresolvable-hostname list still yields a well-formed answer
-        fallback = run.call(["curl", "-s",
-                             f"http://{HOST}:{cport}/cvmfs/test.cern.ch/api/v1.0/geo/x/a,b"]).stdout
-        fallback = "".join(fallback.split())
+        fallback = _compact_geo_answer(run, cport, "a,b")
         checks.append((len(fallback) > 0,
                        f"geo answer/fallback returns non-empty for name list ({fallback!r})"))
         return _checks(checks)
@@ -304,12 +339,12 @@ http {{ access_log off;
         requests = _mval(metrics, f'brix_cvmfs_upstream_requests_total{{upstream="{ral}"}}')
         fills = _mval(metrics, f'brix_cvmfs_upstream_fills_total{{upstream="{ral}"}}')
         origin_bytes = _mval(metrics, f'brix_cvmfs_upstream_origin_bytes_total{{upstream="{ral}"}}')
-        checks.append((requests >= 1 and fills >= 1 and origin_bytes >= 1,
+        checks.append((min(requests, fills, origin_bytes) >= 1,
                        f"fill attributed to upstream RAL (req={requests:g} fills={fills:g} bytes={origin_bytes:g})"))
         hist_count = _mval(metrics, f'brix_cvmfs_upstream_fill_duration_seconds_count{{upstream="{ral}"}}')
         hist_inf = _mval(metrics, f'brix_cvmfs_upstream_fill_duration_seconds_bucket{{upstream="{ral}",le="+Inf"}}')
         hist_sum = f'brix_cvmfs_upstream_fill_duration_seconds_sum{{upstream="{ral}"}}' in metrics
-        checks.append((hist_sum and hist_count >= 1 and hist_inf >= 1,
+        checks.append((_histogram_present(hist_sum, hist_count, hist_inf),
                        f"fill-duration histogram present (count={hist_count:g} +Inf={hist_inf:g})"))
 
         # 3: cardinality — the upstream label is host:port only, no path/repo
@@ -324,7 +359,7 @@ http {{ access_log off;
         metrics = _metrics(run, xport)
         failovers = _mval(metrics, f'brix_cvmfs_upstream_failovers_total{{upstream="{alt}"}}')
         alt_fills = _mval(metrics, f'brix_cvmfs_upstream_fills_total{{upstream="{alt}"}}')
-        checks.append((failovers >= 1 and alt_fills >= 1,
+        checks.append((min(failovers, alt_fills) >= 1,
                        f"failover fill attributed to the fallback upstream (failovers={failovers:g})"))
 
         # 4: trace ON -> client + upstream lines at INFO
@@ -352,13 +387,24 @@ http {{ access_log off;
         _restart_nginx(run, config, cport, cache)
         run.curl_status(f"http://{HOST}:{cport}{obj0}")
         time.sleep(0.3)
-        checks.append((_grep(error_log, "cvmfs-trace: client ") and _grep(error_log, "cvmfs-trace: upstream GET"),
+        checks.append((_both_trace_lines(error_log),
                        "trace off + error_log debug: both lines at DEBUG"))
 
         return _checks(checks)
 
 
+def _histogram_present(has_sum, count, infinite_bucket):
+    if not has_sum:
+        return False
+    return min(count, infinite_bucket) >= 1
+
+
+def _both_trace_lines(error_log):
+    if not _grep(error_log, "cvmfs-trace: client "):
+        return False
+    return _grep(error_log, "cvmfs-trace: upstream GET")
+
+
 # ---------------------------------------------------------------------------
 # logging — the cvmfs operational-logging contract
 # ---------------------------------------------------------------------------
-

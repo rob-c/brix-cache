@@ -108,31 +108,16 @@ def _stop(pidfile: Path):
 
 @pytest.fixture()
 def gateway_rig():
-    if not _HAVE:
-        pytest.skip("gateway rig needs nginx + stream/brix modules + brix-xrdcp")
-    base = Path(ARTIFACTS_DIR) / f"brix_subs_gw_{os.getpid()}"
-    subprocess.run(["rm", "-rf", str(base)], check=False)
-    for sub in ("origin/root", "origin/logs", "gw/gw", "gw/stage", "gw/logs"):
-        (base / sub).mkdir(parents=True, exist_ok=True)
-    # workers drop to a service uid; make the whole tree world-usable so the
-    # dropped worker can traverse+write (mirrors the standalone rig).
-    subprocess.run(["chmod", "-R", "0777", str(base)], check=False)
-
+    _require_gateway_rig()
+    base = _prepare_gateway_tree()
     oconf, gconf = base / "origin.conf", base / "gw.conf"
     _origin_conf(base, oconf)
     _gateway_conf(base, gconf)
-
     started = []
     try:
-        for conf in (oconf, gconf):
-            r = subprocess.run([_NGINX, "-c", str(conf)],
-                               capture_output=True, text=True, timeout=30)
-            # nginx forks a daemon; a non-zero rc with only the cred-store [warn]
-            # is fine, a real config error is not.
-            if r.returncode != 0 and "emerg" in (r.stderr + r.stdout):
-                pytest.skip(f"gateway nginx failed to start: {r.stderr[-400:]}")
+        _start_gateway_servers(oconf, gconf)
         started = [base / "origin/nginx.pid", base / "gw/nginx.pid"]
-        if not (_wait_listen(_OPORT) and _wait_listen(_GPORT)):
+        if not _gateway_ports_ready():
             pytest.skip("origin/gateway did not come up on the expected ports")
         yield base
     finally:
@@ -140,6 +125,36 @@ def gateway_rig():
             _stop(pf)
         time.sleep(0.3)
         subprocess.run(["rm", "-rf", str(base)], check=False)
+
+
+def _require_gateway_rig():
+    if not _HAVE:
+        pytest.skip("gateway rig needs nginx + stream/brix modules + brix-xrdcp")
+
+
+def _prepare_gateway_tree():
+    base = Path(ARTIFACTS_DIR) / f"brix_subs_gw_{os.getpid()}"
+    subprocess.run(["rm", "-rf", str(base)], check=False)
+    for sub in ("origin/root", "origin/logs", "gw/gw", "gw/stage", "gw/logs"):
+        (base / sub).mkdir(parents=True, exist_ok=True)
+    # workers drop to a service uid; make the whole tree world-usable so the
+    # dropped worker can traverse+write (mirrors the standalone rig).
+    subprocess.run(["chmod", "-R", "0777", str(base)], check=False)
+    return base
+
+
+def _start_gateway_servers(*configs):
+    for config in configs:
+        result = subprocess.run([_NGINX, "-c", str(config)],
+                                capture_output=True, text=True, timeout=30)
+        if result.returncode != 0 and "emerg" in (result.stderr + result.stdout):
+            pytest.skip(f"gateway nginx failed to start: {result.stderr[-400:]}")
+
+
+def _gateway_ports_ready():
+    if not _wait_listen(_OPORT):
+        return False
+    return _wait_listen(_GPORT)
 
 
 @pytest.mark.requires_local_server
@@ -156,20 +171,25 @@ class TestGatewayBoundWriteFanout:
             [_XRDCP, "-f", "--streams", "4", str(src),
              f"root://{HOST}:{_GPORT}//gwup.bin"],
             capture_output=True, text=True, env=env, timeout=180)
-        assert res.returncode == 0, f"gateway upload failed: {res.stderr[-800:]}"
-
-        # the client genuinely carried chunks on the bound secondaries
-        dbg = [l for l in res.stderr.splitlines() if "upload substreams=" in l]
-        assert dbg, f"no upload diagnostic emitted: {res.stderr[-400:]}"
-        on_sec = int(dbg[-1].split("chunks-on-secondaries=")[1].split()[0])
-        assert on_sec > 0, (
-            "gateway upload did not fan out across secondaries "
-            f"(silent single-stream fallback): {dbg[-1]}")
+        _assert_gateway_upload(res)
 
         # the bytes are byte-exact ON THE ORIGIN's own storage (the gateway
         # flushed the fanned-out .part — incl. cross-worker bound writes — to
         # the remote origin at close).
         origin_file = base / "origin/root/gwup.bin"
         assert origin_file.exists(), "object never reached the origin"
-        assert origin_file.read_bytes() == content, (
-            "gateway fan-out not byte-exact on the remote origin")
+        actual = origin_file.read_bytes()
+        assert actual == content, "gateway fan-out not byte-exact on the remote origin"
+
+
+def _assert_gateway_upload(result):
+    assert result.returncode == 0, f"gateway upload failed: {result.stderr[-800:]}"
+    diagnostics = [
+        line for line in result.stderr.splitlines() if "upload substreams=" in line
+    ]
+    assert diagnostics, f"no upload diagnostic emitted: {result.stderr[-400:]}"
+    chunks = int(diagnostics[-1].split("chunks-on-secondaries=")[1].split()[0])
+    assert chunks > 0, (
+        "gateway upload did not fan out across secondaries "
+        f"(silent single-stream fallback): {diagnostics[-1]}"
+    )

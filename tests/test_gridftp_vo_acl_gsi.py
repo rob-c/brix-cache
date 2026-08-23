@@ -54,6 +54,23 @@ from server_launcher import LifecycleHarness
 from server_registry import NginxInstanceSpec
 from gridftp_client_env import gsi_client_env
 
+def _guard_require_1():
+    if GUC is None:
+        pytest.skip("globus-url-copy not on PATH")
+
+def _guard_require_2():
+    if not os.access(NGINX_BIN, os.X_OK):
+        pytest.skip(f"nginx not executable: {NGINX_BIN}")
+
+def _guard_require_3():
+    if not os.path.isfile(_VOMS_PROXY_FAKE):
+        pytest.skip("voms_proxy_fake.py not found")
+
+def _guard_require_4(p):
+    if not os.path.exists(p):
+        pytest.skip(f"test PKI incomplete: missing {p}")
+
+
 pytestmark = [pytest.mark.slow, pytest.mark.serial,
               pytest.mark.timeout(300), pytest.mark.uses_lifecycle_harness]
 
@@ -70,15 +87,11 @@ PROXY_CMS = os.path.join(PKI_DIR, "user", "proxy_vo_cms.pem")
 
 
 def _require():
-    if GUC is None:
-        pytest.skip("globus-url-copy not on PATH")
-    if not os.access(NGINX_BIN, os.X_OK):
-        pytest.skip(f"nginx not executable: {NGINX_BIN}")
-    if not os.path.isfile(_VOMS_PROXY_FAKE):
-        pytest.skip("voms_proxy_fake.py not found")
+    _guard_require_1()
+    _guard_require_2()
+    _guard_require_3()
     for p in (SERVER_CERT, SERVER_KEY, CA_DIR, USER_CERT, USER_KEY):
-        if not os.path.exists(p):
-            pytest.skip(f"test PKI incomplete: missing {p}")
+        _guard_require_4(p)
 
 
 # ---------------------------------------------------------------------------

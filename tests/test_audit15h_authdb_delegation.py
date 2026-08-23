@@ -89,6 +89,26 @@ from _test_gsi_handshake_helpers import (_ca_hash_link, _make_ca,
                                          _make_voms_signing_cert, _mint_proxy,
                                          _signed)
 
+def _check_test_the_counted_identity_disagrees_with_the_authorized_one_2(leaves):
+    assert len(leaves) == RENEWALS, \
+        f"the renewals share leaf DNs; nothing was re-delegated: {leaves}"
+
+def _check_test_the_counted_identity_disagrees_with_the_authorized_one_4(delta):
+    assert delta == RENEWALS, (
+        f"expected the defect's {RENEWALS} (one per delegation), saw {delta}; "
+        f"if this is now 1 the counter has been keyed on the EEC DN — flip "
+        f"the expectation and remove DEFECT CANDIDATE #24 from the audit")
+
+def _check_test_the_counted_identity_disagrees_with_the_authorized_one_1(out, env, pki, index):
+    assert _mint_proxy(pki["granted_cert"], pki["granted_key"], out,
+                       pki["certs"], env), f"could not mint renewal {index}"
+
+def _check_test_the_counted_identity_disagrees_with_the_authorized_one_3(result, index):
+    assert result.returncode == 0, \
+        (f"renewal {index} was not authorized, so the counter reading "
+         f"below would not be about one authorized identity: {result.stderr}")
+
+
 pytestmark = [pytest.mark.timeout(300),
               pytest.mark.uses_lifecycle_harness,
               pytest.mark.xdist_group("lc-audit15h-authdeleg")]
@@ -550,22 +570,15 @@ def test_the_counted_identity_disagrees_with_the_authorized_one(authdeleg,
     for index in range(RENEWALS):
         out = os.path.join(pki["base"], f"renew{index}.pem")
         env = dict(os.environ, X509_CERT_DIR=pki["certs"], X509_USER_PROXY=out)
-        assert _mint_proxy(pki["granted_cert"], pki["granted_key"], out,
-                           pki["certs"], env), f"could not mint renewal {index}"
+        _check_test_the_counted_identity_disagrees_with_the_authorized_one_1(out, env, pki, index)
         fresh.append(out)
 
     leaves = {_subject(proxy) for proxy in fresh}
-    assert len(leaves) == RENEWALS, \
-        f"the renewals share leaf DNs; nothing was re-delegated: {leaves}"
+    _check_test_the_counted_identity_disagrees_with_the_authorized_one_2(leaves)
 
     for index, proxy in enumerate(fresh):
         result = _cat(pki, endpoint.port, f"{RO_DIR}/seed.txt", proxy=proxy)
-        assert result.returncode == 0, \
-            (f"renewal {index} was not authorized, so the counter reading "
-             f"below would not be about one authorized identity: {result.stderr}")
+        _check_test_the_counted_identity_disagrees_with_the_authorized_one_3(result, index)
 
     delta = _metric(endpoint, "brix_unique_users_total") - before
-    assert delta == RENEWALS, (
-        f"expected the defect's {RENEWALS} (one per delegation), saw {delta}; "
-        f"if this is now 1 the counter has been keyed on the EEC DN — flip "
-        f"the expectation and remove DEFECT CANDIDATE #24 from the audit")
+    _check_test_the_counted_identity_disagrees_with_the_authorized_one_4(delta)

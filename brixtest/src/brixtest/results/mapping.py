@@ -1,14 +1,7 @@
-"""The test ↔ server map — the operator's "who uses what" view.
+"""Render declared or observed test-to-server relationships.
 
-Two sources, one shape.  The **declared** map reads the contract: the
-gate's per-file analysis (markers, fixtures, port names) closed over
-``depends_on`` — what a selective boot would start, computed without
-running anything.  The **observed** map reads a catalogued run: which
-servers each test actually rode, dynamic requests included.  Both
-collapse to ``file → servers`` rows plus a per-file dynamic-request
-count, and every view renders from those rows — an ASCII matrix for
-the terminal, a Mermaid graph for docs and tickets, and the HTML
-matrix embedded in the run report.
+Both sources produce file-to-server rows and optional dynamic-request counts.
+Terminal, Mermaid, and HTML renderers consume that common representation.
 """
 
 from __future__ import annotations
@@ -16,11 +9,15 @@ from __future__ import annotations
 import html
 import re
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional, Set, Tuple
+from typing import Dict, Iterable, List, Optional, Sequence, Set, Tuple
 
 __all__ = [
-    "declared_rows", "observed_rows", "matrix_lines", "mermaid_lines",
-    "matrix_html", "as_payload",
+    "as_payload",
+    "declared_rows",
+    "matrix_html",
+    "matrix_lines",
+    "mermaid_lines",
+    "observed_rows",
 ]
 
 Rows = Dict[str, List[str]]
@@ -57,39 +54,79 @@ def matrix_lines(rows: Rows, dynamic: Optional[Dict[str, int]] = None) -> List[s
     columns = _columns(rows)
     file_width = max(len(_short(path)) for path in rows)
     widths = [max(len(name), 3) for name in columns]
+    lines = [_matrix_header(columns, widths, file_width, dynamic is not None)]
+    lines.extend(
+        _matrix_row(path, names, columns, widths, file_width, dynamic)
+        for path, names in rows.items()
+    )
+    return lines
+
+
+def _matrix_header(columns, widths, file_width: int, include_dynamic: bool) -> str:
     header = "%-*s" % (file_width, "FILE")
     for name, width in zip(columns, widths):
         header += "  %-*s" % (width, name)
-    if dynamic is not None:
+    if include_dynamic:
         header += "  DYNAMIC"
-    lines = [header]
-    for path, names in rows.items():
-        line = "%-*s" % (file_width, _short(path))
-        used = set(names)
-        for name, width in zip(columns, widths):
-            line += "  %-*s" % (width, "●" if name in used else "·")
-        if dynamic is not None:
-            count = dynamic.get(path, 0)
-            line += "  %s" % (count if count else "·")
-        lines.append(line)
-    return lines
+    return header
+
+
+def _matrix_row(path, names, columns, widths, file_width: int, dynamic) -> str:
+    line = "%-*s" % (file_width, _short(path))
+    used = set(names)
+    for name, width in zip(columns, widths):
+        line += "  %-*s" % (width, "●" if name in used else "·")
+    if dynamic is not None:
+        count = dynamic.get(path, 0)
+        line += "  %s" % (count or "·")
+    return line
 
 
 def mermaid_lines(rows: Rows, dynamic: Optional[Dict[str, int]] = None) -> List[str]:
-    """The same map as a Mermaid graph — paste-ready for docs/tickets."""
-    lines = ["graph LR"]
-    for index, path in enumerate(rows):
-        lines.append('  F%d["%s"]' % (index, _short(path)))
-    for name in _columns(rows):
-        lines.append('  S_%s(("%s"))' % (_mermaid_id(name), name))
-    if dynamic and any(dynamic.values()):
-        lines.append('  DYN(("dynamic"))')
-    for index, (path, names) in enumerate(rows.items()):
-        for name in names:
-            lines.append("  F%d --> S_%s" % (index, _mermaid_id(name)))
-        if dynamic and dynamic.get(path):
-            lines.append('  F%d -- "%d requested" --> DYN' % (index, dynamic[path]))
+    """Render the map as a Mermaid graph."""
+    lines = ["graph LR", *_mermaid_files(rows), *_mermaid_servers(rows)]
+    lines.extend(_mermaid_dynamic_node(dynamic))
+    lines.extend(_mermaid_edges(rows))
+    lines.extend(_mermaid_dynamic_edges(rows, dynamic))
     return lines
+
+
+def _mermaid_files(rows: Rows) -> list[str]:
+    return ['  F%d["%s"]' % (index, _short(path)) for index, path in enumerate(rows)]
+
+
+def _mermaid_servers(rows: Rows) -> list[str]:
+    return [
+        '  S_%s(("%s"))' % (_mermaid_id(name), name)
+        for name in _columns(rows)
+    ]
+
+
+def _mermaid_dynamic_node(dynamic: Optional[Dict[str, int]]) -> list[str]:
+    if dynamic and any(dynamic.values()):
+        return ['  DYN(("dynamic"))']
+    return []
+
+
+def _mermaid_edges(rows: Rows) -> list[str]:
+    lines = []
+    for index, (path, names) in enumerate(rows.items()):
+        lines.extend(
+            "  F%d --> S_%s" % (index, _mermaid_id(name)) for name in names
+        )
+    return lines
+
+
+def _mermaid_dynamic_edges(
+    rows: Rows, dynamic: Optional[Dict[str, int]],
+) -> list[str]:
+    if not dynamic:
+        return []
+    return [
+        '  F%d -- "%d requested" --> DYN' % (index, dynamic[path])
+        for index, path in enumerate(rows)
+        if dynamic.get(path)
+    ]
 
 
 def matrix_html(rows: Rows, dynamic: Optional[Dict[str, int]] = None) -> str:
@@ -101,26 +138,37 @@ def matrix_html(rows: Rows, dynamic: Optional[Dict[str, int]] = None) -> str:
         "".join("<th class='rot'>%s</th>" % html.escape(c) for c in columns),
         "<th class='rot'>dynamic</th>" if dynamic is not None else "",
     )
-    body = []
-    for path, names in rows.items():
-        used = set(names)
-        cells = "".join(
-            "<td class='dot %s'>%s</td>"
-            % (("on", "●") if name in used else ("off", "·"))
-            for name in columns
-        )
-        if dynamic is not None:
-            count = dynamic.get(path, 0)
-            cells += "<td class='dot %s'>%s</td>" % (
-                ("dyn", count) if count else ("off", "·")
-            )
-        body.append(
-            "<tr><td title='%s'>%s</td>%s</tr>"
-            % (html.escape(path), html.escape(_short(path)), cells)
-        )
+    body = [_html_row(path, names, columns, dynamic) for path, names in rows.items()]
     return (
         "<div class='scroller'><table class='map'><thead>%s</thead>"
         "<tbody>%s</tbody></table></div>" % (head, "".join(body))
+    )
+
+
+def _server_cells(names: Sequence[str], columns: Sequence[str]) -> str:
+    used = set(names)
+    return "".join(
+        "<td class='dot %s'>%s</td>"
+        % (("on", "●") if name in used else ("off", "·"))
+        for name in columns
+    )
+
+
+def _dynamic_cell(path: str, dynamic: Optional[Dict[str, int]]) -> str:
+    if dynamic is None:
+        return ""
+    count = dynamic.get(path, 0)
+    style, value = ("dyn", count) if count else ("off", "·")
+    return "<td class='dot %s'>%s</td>" % (style, value)
+
+
+def _html_row(
+    path: str, names: Sequence[str], columns: Sequence[str],
+    dynamic: Optional[Dict[str, int]],
+) -> str:
+    cells = _server_cells(names, columns) + _dynamic_cell(path, dynamic)
+    return "<tr><td title='%s'>%s</td>%s</tr>" % (
+        html.escape(path), html.escape(_short(path)), cells,
     )
 
 

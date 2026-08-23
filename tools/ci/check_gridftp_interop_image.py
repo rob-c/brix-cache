@@ -46,79 +46,85 @@ def _load_runner(runner: Path):
 
 
 def check(root: Path = ROOT) -> list[str]:
-    RUNNER = root / RUNNER_REL
-    DOCKERFILE = root / DOCKERFILE_REL
-    GATEWAY_CONF = root / GATEWAY_CONF_REL
-    S3_CONF = root / S3_CONF_REL
-
-    problems: list[str] = []
-    if not RUNNER.exists():
-        return [f"missing interop runner: {RUNNER}"]
-    r = _load_runner(RUNNER)
-
-    # 1. Dockerfile ships every reference client stack + the pytest runtime.
-    if not DOCKERFILE.exists():
-        problems.append(f"missing grid-client Dockerfile: {DOCKERFILE}")
-    else:
-        df = DOCKERFILE.read_text()
-        for pkg in r.INTEROP_CLIENT_PACKAGES:
-            if pkg not in df:
-                problems.append(
-                    f"{DOCKERFILE.name} no longer installs {pkg!r} — the matrix "
-                    f"cell driven by it would silently skip")
-        if "pytest" not in df:
-            problems.append(f"{DOCKERFILE.name} does not install pytest — the "
-                            f"image cannot host the interop matrix")
-
-    # 2. The combined local gateway config keeps both listeners (both ports).
-    if not GATEWAY_CONF.exists():
-        problems.append(f"missing combined gateway config: {GATEWAY_CONF}")
-    else:
-        conf = GATEWAY_CONF.read_text()
-        for ph in ("{GSIFTP_PORT}", "{FTP_PORT}", "{PBLOCK_GSIFTP_PORT}"):
-            if ph not in conf:
-                problems.append(f"{GATEWAY_CONF.name} dropped the {ph} listener "
-                                f"— the matrix needs gsiftp, ftp AND a pblock "
-                                f"backend export")
-        # The non-posix backend leg must actually register pblock, else the
-        # P82.6 backend interop cell degrades to a posix round-trip.
-        if "brix_gridftp_storage_backend pblock" not in conf:
-            problems.append(f"{GATEWAY_CONF.name} no longer wires "
-                            f"brix_gridftp_storage_backend pblock — the "
-                            f"non-posix backend interop cell would test posix")
-
-    # 2b. The separate s3-backend instance keeps its embedded origin + s3://
-    #     listener (it lives apart because pblock needs 1 worker, s3 needs 2).
-    if not S3_CONF.exists():
-        problems.append(f"missing s3-backend gateway config: {S3_CONF}")
-    else:
-        s3conf = S3_CONF.read_text()
-        for ph in ("{S3_GSIFTP_PORT}", "{S3_ORIGIN_PORT}"):
-            if ph not in s3conf:
-                problems.append(f"{S3_CONF.name} dropped the {ph} listener — the "
-                                f"object-store backend interop cell needs the "
-                                f"gsiftp leg AND its embedded brix_s3 origin")
-        if "brix_gridftp_storage_backend    s3://" not in s3conf:
-            problems.append(f"{S3_CONF.name} no longer wires an s3:// gridftp "
-                            f"storage backend — the object-store backend interop "
-                            f"cell would test posix (or silently skip)")
-        if "brix_s3 on;" not in s3conf:
-            problems.append(f"{S3_CONF.name} no longer embeds a brix_s3 origin — "
-                            f"the s3 leg would have no object store to target")
-
-    # 3. Runner and the containerised matrix agree on every env-var name.
-    test_file = root / r.INTEROP_TEST
-    if not test_file.exists():
-        problems.append(f"interop matrix test missing: {test_file}")
-    else:
-        matrix = test_file.read_text()
-        for var in r.INTEROP_ENV_VARS:
-            if var not in matrix:
-                problems.append(
-                    f"env var {var!r} is in the runner contract but the matrix "
-                    f"test never reads it — runner/matrix wiring drifted")
-
+    runner = root / RUNNER_REL
+    if not runner.exists():
+        return [f"missing interop runner: {runner}"]
+    contract = _load_runner(runner)
+    problems = _dockerfile_problems(root / DOCKERFILE_REL, contract)
+    problems.extend(_gateway_problems(root / GATEWAY_CONF_REL))
+    problems.extend(_s3_gateway_problems(root / S3_CONF_REL))
+    problems.extend(_matrix_problems(root, contract))
     return problems
+
+
+def _dockerfile_problems(path: Path, contract) -> list[str]:
+    if not path.exists():
+        return [f"missing grid-client Dockerfile: {path}"]
+    text = path.read_text()
+    problems = []
+    for package in contract.INTEROP_CLIENT_PACKAGES:
+        if package not in text:
+            problems.append(
+                f"{path.name} no longer installs {package!r} — the matrix "
+                f"cell driven by it would silently skip"
+            )
+    if "pytest" not in text:
+        problems.append(f"{path.name} does not install pytest — the "
+                        f"image cannot host the interop matrix")
+    return problems
+
+
+def _gateway_problems(path: Path) -> list[str]:
+    if not path.exists():
+        return [f"missing combined gateway config: {path}"]
+    text = path.read_text()
+    problems = _missing_listener_problems(
+        path, text, ("{GSIFTP_PORT}", "{FTP_PORT}", "{PBLOCK_GSIFTP_PORT}"),
+        "the matrix needs gsiftp, ftp AND a pblock backend export",
+    )
+    if "brix_gridftp_storage_backend pblock" not in text:
+        problems.append(f"{path.name} no longer wires "
+                        f"brix_gridftp_storage_backend pblock — the "
+                        f"non-posix backend interop cell would test posix")
+    return problems
+
+
+def _missing_listener_problems(path, text, placeholders, impact):
+    return [
+        f"{path.name} dropped the {placeholder} listener — {impact}"
+        for placeholder in placeholders if placeholder not in text
+    ]
+
+
+def _s3_gateway_problems(path: Path) -> list[str]:
+    if not path.exists():
+        return [f"missing s3-backend gateway config: {path}"]
+    text = path.read_text()
+    problems = _missing_listener_problems(
+        path, text, ("{S3_GSIFTP_PORT}", "{S3_ORIGIN_PORT}"),
+        "the object-store backend interop cell needs the gsiftp leg AND its "
+        "embedded brix_s3 origin",
+    )
+    if "brix_gridftp_storage_backend    s3://" not in text:
+        problems.append(f"{path.name} no longer wires an s3:// gridftp "
+                        f"storage backend — the object-store backend interop "
+                        f"cell would test posix (or silently skip)")
+    if "brix_s3 on;" not in text:
+        problems.append(f"{path.name} no longer embeds a brix_s3 origin — "
+                        f"the s3 leg would have no object store to target")
+    return problems
+
+
+def _matrix_problems(root: Path, contract) -> list[str]:
+    test_file = root / contract.INTEROP_TEST
+    if not test_file.exists():
+        return [f"interop matrix test missing: {test_file}"]
+    matrix = test_file.read_text()
+    return [
+        f"env var {var!r} is in the runner contract but the matrix "
+        f"test never reads it — runner/matrix wiring drifted"
+        for var in contract.INTEROP_ENV_VARS if var not in matrix
+    ]
 
 
 def main() -> int:

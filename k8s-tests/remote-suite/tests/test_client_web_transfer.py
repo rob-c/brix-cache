@@ -24,6 +24,23 @@ import pytest
 
 from settings import HOST, BIND_HOST
 
+def _guard_web_servers_1(shutil):
+    if shutil.which("cc") is None and shutil.which("gcc") is None:
+        pytest.skip("no C compiler")
+
+def _guard_web_servers_2(r):
+    if not os.path.exists(XRDCP):
+        pytest.skip(f"xrdcp build failed:\n{r.stdout}\n{r.stderr}")
+
+def _guard_web_servers_3():
+    if not os.access(NGINX_BIN, os.X_OK):
+        pytest.skip(f"nginx not executable: {NGINX_BIN}")
+
+def _guard_web_servers_4(chk):
+    if chk.returncode != 0:
+        pytest.skip(f"nginx -t failed:\n{chk.stderr}")
+
+
 pytestmark = pytest.mark.timeout(120)
 
 NGINX_BIN = os.environ.get("NGINX_BIN", "/tmp/nginx-1.28.3/objs/nginx")
@@ -71,14 +88,11 @@ def _build_tree(root):
 @pytest.fixture(scope="module")
 def web_servers(tmp_path_factory):
     import shutil
-    if shutil.which("cc") is None and shutil.which("gcc") is None:
-        pytest.skip("no C compiler")
+    _guard_web_servers_1(shutil)
     r = subprocess.run(["make", "-C", CLIENT_DIR, "xrdcp"],
                        capture_output=True, text=True, timeout=240)
-    if not os.path.exists(XRDCP):
-        pytest.skip(f"xrdcp build failed:\n{r.stdout}\n{r.stderr}")
-    if not os.access(NGINX_BIN, os.X_OK):
-        pytest.skip(f"nginx not executable: {NGINX_BIN}")
+    _guard_web_servers_2(r)
+    _guard_web_servers_3()
 
     root = tmp_path_factory.mktemp("webxfer")
     dav_data = root / "dav"
@@ -128,8 +142,7 @@ http {{
 """)
     chk = subprocess.run([NGINX_BIN, "-t", "-c", str(conf)],
                          capture_output=True, text=True)
-    if chk.returncode != 0:
-        pytest.skip(f"nginx -t failed:\n{chk.stderr}")
+    _guard_web_servers_4(chk)
     subprocess.run([NGINX_BIN, "-c", str(conf)], capture_output=True)
     for _ in range(50):
         if _port_up(HOST, dav_port) and _port_up(HOST, s3_port):
@@ -264,8 +277,11 @@ def test_s3_recursive_download(web_servers, tmp_path):
                        capture_output=True, text=True, timeout=90)
     assert r.returncode == 0, f"{r.stdout}\n{r.stderr}"
     got = list(out.rglob("*")) if out.exists() else []
-    assert (out / "a.txt").exists(), f"out={got}\nSTDOUT={r.stdout}\nSTDERR={r.stderr}"
-    assert (out / "a.txt").read_bytes() == b"s3-top\n"
+    def _assert_test_s3_recursive_download_1():
+        assert (out / "a.txt").exists(), f"out={got}\nSTDOUT={r.stdout}\nSTDERR={r.stderr}"
+        assert (out / "a.txt").read_bytes() == b"s3-top\n"
+
+    _assert_test_s3_recursive_download_1()
     assert (out / "sub" / "b.bin").read_bytes() == b"s3-nested\n"
 
 

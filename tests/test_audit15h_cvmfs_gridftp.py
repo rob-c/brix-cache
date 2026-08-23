@@ -59,6 +59,11 @@ import pytest
 
 # conftest chdir()s into a scratch dir — anchor the cvmfs helper import on this
 # file's directory, exactly as the Stratum-0 quickstart lane does.
+def _guard_workers_1(master, kids, entry, line):
+    if int(line.split()[1]) == master:
+        kids.append(int(entry))
+
+
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "cvmfs"))
 
 from conformance_common import request                     # noqa: E402
@@ -209,8 +214,7 @@ def _workers(pidfile):
             with open(f"/proc/{entry}/status") as fh:
                 for line in fh:
                     if line.startswith("PPid:"):
-                        if int(line.split()[1]) == master:
-                            kids.append(int(entry))
+                        _guard_workers_1(master, kids, entry, line)
                         break
         except OSError:
             continue                              # the process exited under us

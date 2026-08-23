@@ -27,6 +27,19 @@ import time
 
 import pytest
 
+def _check_test_sigint_leaves_no_partial_or_temp_4(caught, dest):
+    assert caught or os.path.exists(dest)
+
+def _check_test_sigint_leaves_no_partial_or_temp_1(dest):
+    assert _temps(dest) == [], "SIGINT left an orphan .xrdcp-tmp file"
+
+def _check_test_sigint_leaves_no_partial_or_temp_2(full, dest):
+    assert os.path.getsize(dest) == full, "SIGINT left a PARTIAL destination"
+
+def _check_test_sigint_leaves_no_partial_or_temp_3(rc):
+    assert rc != 0
+
+
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 XRDCP = os.path.join(REPO, "client", "bin", "xrdcp")
 
@@ -149,8 +162,11 @@ def test_parallel_batch_same_basename_not_corrupt(tmp_path):
             out = destdir / "f.dat"
             assert out.exists(), "batch produced no output file"
             got = hashlib.md5(out.read_bytes()).hexdigest()
-            assert got in md5s, "parallel batch produced a CORRUPT (interleaved) file"
-            assert [f for f in os.listdir(destdir) if ".xrdcp-tmp." in f] == []
+            def _assert_test_parallel_batch_same_basename_not_corrupt_1():
+                assert got in md5s, "parallel batch produced a CORRUPT (interleaved) file"
+                assert [f for f in os.listdir(destdir) if ".xrdcp-tmp." in f] == []
+
+            _assert_test_parallel_batch_same_basename_not_corrupt_1()
     finally:
         import shutil
         shutil.rmtree(a_dir, ignore_errors=True)
@@ -179,13 +195,13 @@ def test_sigint_leaves_no_partial_or_temp(tmp_path):
         p.send_signal(signal.SIGINT)
         rc = p.wait(timeout=60)
         # Invariant 1: never an orphan temp sibling.
-        assert _temps(dest) == [], "SIGINT left an orphan .xrdcp-tmp file"
+        _check_test_sigint_leaves_no_partial_or_temp_1(dest)
         # Invariant 2: the final path is either absent or byte-complete.
         if os.path.exists(dest):
-            assert os.path.getsize(dest) == full, "SIGINT left a PARTIAL destination"
+            _check_test_sigint_leaves_no_partial_or_temp_2(full, dest)
         else:
             caught = True  # interrupted before commit → cleanly removed
-            assert rc != 0
+            _check_test_sigint_leaves_no_partial_or_temp_3(rc)
     # At least one of the three attempts should have been interrupted mid-flight
     # on a normally-paced host; if all completed first, the invariant still held.
-    assert caught or os.path.exists(dest)
+    _check_test_sigint_leaves_no_partial_or_temp_4(caught, dest)

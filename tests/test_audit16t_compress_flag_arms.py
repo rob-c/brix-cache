@@ -104,6 +104,27 @@ from test_compression_root_invariant import (
     kXR_open_read,
 )
 
+def _expression_1(verb, line, base):
+    return (
+        verb in line and base in line
+    )
+
+def _expression_2(seen, deadline):
+    return (
+        seen or time.monotonic() >= deadline
+    )
+
+def _expression_3(path):
+    return (
+        not path.is_file() or path.suffix not in CORPUS_SUFFIXES
+    )
+
+
+def _guard_corpus_writers_1(text, directive, value, found, path):
+    if _writes(text, directive, value):
+        found.append(path.name)
+
+
 pytestmark = [pytest.mark.timeout(900),
               pytest.mark.uses_lifecycle_harness,
               pytest.mark.xdist_group("lc-audit16t-compress")]
@@ -159,22 +180,26 @@ def _writes(text, directive, value):
                      re.MULTILINE) is not None
 
 
+def _writers_in_root(base, directive, value):
+    if not base.exists():
+        return []
+    found = []
+    for path in base.rglob("*"):
+        if _expression_3(path):
+            continue
+        try:
+            text = path.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        _guard_corpus_writers_1(text, directive, value, found, path)
+    return found
+
+
 def _corpus_writers(directive, value):
     """Every corpus file that spells ``<directive> <value>;`` as a whole line."""
     found = []
     for rel in CORPUS_ROOTS:
-        base = ROOT / rel
-        if not base.exists():
-            continue
-        for path in base.rglob("*"):
-            if not path.is_file() or path.suffix not in CORPUS_SUFFIXES:
-                continue
-            try:
-                text = path.read_text(encoding="utf-8", errors="replace")
-            except OSError:
-                continue
-            if _writes(text, directive, value):
-                found.append(path.name)
+        found.extend(_writers_in_root(ROOT / rel, directive, value))
     return sorted(found)
 
 
@@ -248,6 +273,15 @@ class _Planes:
         except FileNotFoundError:
             return ""
 
+    def _matching_log(self, plane, basename, verb):
+        seen = False
+        for line in self.accesslog(plane).splitlines():
+            if _expression_1(verb, line, basename):
+                seen = True
+                if "z=" in line:
+                    return True, True
+        return seen, False
+
     def logged(self, plane, remote, verb, timeout=15.0):
         """Whether this plane logged ``verb`` for ``remote``, and with the
         compression marker.  Returns (seen, compressed).
@@ -265,13 +299,10 @@ class _Planes:
         base = os.path.basename(remote)
         deadline = time.monotonic() + timeout
         while True:
-            seen = False
-            for line in self.accesslog(plane).splitlines():
-                if verb in line and base in line:
-                    seen = True
-                    if "z=" in line:
-                        return True, True
-            if seen or time.monotonic() >= deadline:
+            seen, compressed = self._matching_log(plane, base, verb)
+            if compressed:
+                return True, True
+            if _expression_2(seen, deadline):
                 return seen, False
             time.sleep(0.1)
 

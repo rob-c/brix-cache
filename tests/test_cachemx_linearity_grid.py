@@ -58,11 +58,14 @@ def test_get_linearity(mx, flow, n):
         assert st == 200 and body == payload
     cx.settle()
     after = cx.mfetch(mx.metrics)
-    assert s.delta("brix_io_ops_total",
-                   {"proto": proto, "op": "read", "status": "ok"},
-                   after) == n
-    assert s.delta("brix_io_bytes_read", {"proto": proto},
-                   after) == n * SIZE
+    def _assert_test_get_linearity_3():
+        assert s.delta("brix_io_ops_total",
+                       {"proto": proto, "op": "read", "status": "ok"},
+                       after) == n
+        assert s.delta("brix_io_bytes_read", {"proto": proto},
+                       after) == n * SIZE
+
+    _assert_test_get_linearity_3()
     assert s.delta(f"brix_{proto}_bytes_tx_total", after=after) == n * SIZE
 
 
@@ -85,13 +88,19 @@ def test_put_overwrite_linearity(mx, flow, n):
             assert st in (200, 201, 204)
     cx.settle()
     after = cx.mfetch(mx.metrics)
-    assert s.delta("brix_io_ops_total",
-                   {"proto": proto, "op": "write", "status": "ok"},
-                   after) == n
-    assert s.delta("brix_io_bytes_written", {"proto": proto},
-                   after) == n * SIZE
-    assert s.delta(f"brix_{proto}_bytes_rx_total", after=after) == n * SIZE
-    assert (mx.local_data / name).read_bytes() == payload
+    def _assert_test_put_overwrite_linearity_1():
+        assert s.delta("brix_io_ops_total",
+                       {"proto": proto, "op": "write", "status": "ok"},
+                       after) == n
+        assert s.delta("brix_io_bytes_written", {"proto": proto},
+                       after) == n * SIZE
+
+    _assert_test_put_overwrite_linearity_1()
+    def _assert_test_put_overwrite_linearity_2():
+        assert s.delta(f"brix_{proto}_bytes_rx_total", after=after) == n * SIZE
+        assert (mx.local_data / name).read_bytes() == payload
+
+    _assert_test_put_overwrite_linearity_2()
 
 
 @pytest.mark.parametrize("n", NS)

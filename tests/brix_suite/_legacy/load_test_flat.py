@@ -257,10 +257,7 @@ def _webdav_read_worker(args: dict) -> dict:
     cmd = ["curl", "-s", "-S", "-o", "/dev/null", "-w", "%{size_download}",
            "--insecure",   # test PKI; remove for production
            "--http2"]      # negotiate HTTP/2 via ALPN when server supports it
-    if proxy:
-        cmd += ["--cert", proxy, "--key", proxy]
-    if token:
-        cmd += ["-H", f"Authorization: Bearer {token}"]
+    _add_webdav_auth(cmd, proxy, token)
     cmd.append(url)
 
     t0 = time.perf_counter()
@@ -284,6 +281,13 @@ def _webdav_read_worker(args: dict) -> dict:
     return result
 
 
+def _add_webdav_auth(command, proxy, token):
+    if proxy:
+        command.extend(["--cert", proxy, "--key", proxy])
+    if token:
+        command.extend(["-H", f"Authorization: Bearer {token}"])
+
+
 def _webdav_write_worker(args: dict) -> dict:
     """curl-based WebDAV PUT."""
     worker_id   = args["id"]
@@ -300,10 +304,7 @@ def _webdav_write_worker(args: dict) -> dict:
            "--upload-file", src,
            "-w", "%{http_code}",
            "-o", "/dev/null"]
-    if proxy:
-        cmd += ["--cert", proxy, "--key", proxy]
-    if token:
-        cmd += ["-H", f"Authorization: Bearer {token}"]
+    _add_webdav_auth(cmd, proxy, token)
     cmd.append(url)
 
     t0 = time.perf_counter()

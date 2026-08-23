@@ -1,4 +1,11 @@
 from split_continuation import reexport as _reexport
+def _check_test_doctor_also_webdav_when_available_1(web):
+    assert web and web[0]["reachable"] is True
+
+def _check_test_doctor_also_s3_when_available_2(s3):
+    assert s3 and s3[0]["reachable"] is True
+
+
 _reexport(globals(), "_test_xrd_busybox_helpers")
 
 def test_download_roundtrip_and_default_name(rw, tmp_path):
@@ -72,8 +79,11 @@ def test_certinfo_tls_when_available():
         pytest.skip("no TLS server on :11096")
     p = subprocess.run([XRD, "certinfo", f"roots://{HOST}:11096//"],
                        capture_output=True, text=True, timeout=30)
-    assert p.returncode in (0, 1), p.stderr      # 0 valid, 1 expired/not-yet
-    assert "server certificate for" in p.stdout
+    def _assert_test_certinfo_tls_when_available_1():
+        assert p.returncode in (0, 1), p.stderr      # 0 valid, 1 expired/not-yet
+        assert "server certificate for" in p.stdout
+
+    _assert_test_certinfo_tls_when_available_1()
     assert "validity:" in p.stdout and "issuer:" in p.stdout
 
 
@@ -148,10 +158,13 @@ def test_doctor_also_webdav_when_available(rw):
                        capture_output=True, text=True, timeout=60)
     doc = json.loads(p.stdout)
     web = [t for t in doc["tests"] if t["protocol"] in ("http", "https")]
-    assert web and web[0]["reachable"] is True
+    _check_test_doctor_also_webdav_when_available_1(web)
     names = {c["name"]: c["status"] for c in web[0]["checks"]}
-    assert names.get("OPTIONS") == "pass" and names.get("PUT") == "pass"
-    assert names.get("GET-verify") == "pass"
+    def _assert_test_doctor_also_webdav_when_available_3():
+        assert names.get("OPTIONS") == "pass" and names.get("PUT") == "pass"
+        assert names.get("GET-verify") == "pass"
+
+    _assert_test_doctor_also_webdav_when_available_3()
 
 
 def test_doctor_also_s3_when_available(rw):
@@ -165,10 +178,13 @@ def test_doctor_also_s3_when_available(rw):
                        capture_output=True, text=True, env=env, timeout=60)
     doc = json.loads(p.stdout)
     s3 = [t for t in doc["tests"] if t["protocol"] == "s3"]
-    assert s3 and s3[0]["reachable"] is True
+    _check_test_doctor_also_s3_when_available_2(s3)
     names = {c["name"]: c["status"] for c in s3[0]["checks"]}
-    assert names.get("list-objects") == "pass"
-    assert names.get("PUT") == "pass" and names.get("GET-verify") == "pass"
+    def _assert_test_doctor_also_s3_when_available_2():
+        assert names.get("list-objects") == "pass"
+        assert names.get("PUT") == "pass" and names.get("GET-verify") == "pass"
+
+    _assert_test_doctor_also_s3_when_available_2()
 
 
 def test_sync_uploads_tree(rw, tmp_path):

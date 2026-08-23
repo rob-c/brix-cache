@@ -12,6 +12,35 @@ import tempfile
 from cmdscripts.compile_run import REPO_ROOT, result, run
 
 
+def _expression_1():
+    return (
+        run(["pkg-config", "--exists", "sqlite3"], cwd=REPO_ROOT).returncode == 0 or Path("/usr/include/sqlite3.h").exists()
+    )
+
+def _expression_2(libs_proc):
+    return (
+        libs_proc.stdout.split() if libs_proc.returncode == 0 and libs_proc.stdout.strip() else ["-lsqlite3"]
+    )
+
+def _expression_3(drv):
+    return (
+        drv if not drv[0] else result(True, "run_pblock_tests: ALL PASS")
+    )
+
+
+def _guard_sanitizer_flags_1(syms, flags):
+    if "__asan_" in syms:
+        flags.append("-fsanitize=address")
+
+def _guard_sanitizer_flags_2(syms, flags):
+    if "__ubsan_" in syms or "__ubsan" in syms:
+        flags.append("-fsanitize=undefined")
+
+def _guard_sanitizer_flags_3(syms, flags):
+    if "__tsan_" in syms:
+        flags.append("-fsanitize=thread")
+
+
 DEFAULT_NGX_SRC = Path(os.environ.get(
     "NGX_SRC",
     "/tmp/nginx-1.28.3" if Path("/tmp/nginx-1.28.3/src/core/ngx_config.h").exists()
@@ -93,12 +122,9 @@ def _sanitizer_flags(objects: Iterable[Path]) -> list[str]:
     proc = run(["nm", *[str(o) for o in objs]], cwd=REPO_ROOT)
     syms = proc.stdout if proc.returncode == 0 else ""
     flags = []
-    if "__asan_" in syms:
-        flags.append("-fsanitize=address")
-    if "__ubsan_" in syms or "__ubsan" in syms:
-        flags.append("-fsanitize=undefined")
-    if "__tsan_" in syms:
-        flags.append("-fsanitize=thread")
+    _guard_sanitizer_flags_1(syms, flags)
+    _guard_sanitizer_flags_2(syms, flags)
+    _guard_sanitizer_flags_3(syms, flags)
     return flags
 
 
@@ -258,12 +284,12 @@ def delegation_store(base: Path, ngx_src: Path = DEFAULT_NGX_SRC) -> tuple[bool,
 
 
 def pblock(base: Path) -> tuple[bool, str]:
-    have_sqlite = run(["pkg-config", "--exists", "sqlite3"], cwd=REPO_ROOT).returncode == 0 or Path("/usr/include/sqlite3.h").exists()
+    have_sqlite = _expression_1()
     if not have_sqlite:
         return result(True, "SKIP run_pblock_tests: libsqlite3 development headers not found")
     cflags = run(["pkg-config", "--cflags", "sqlite3"], cwd=REPO_ROOT).stdout.split()
     libs_proc = run(["pkg-config", "--libs", "sqlite3"], cwd=REPO_ROOT)
-    libs = libs_proc.stdout.split() if libs_proc.returncode == 0 and libs_proc.stdout.strip() else ["-lsqlite3"]
+    libs = _expression_2(libs_proc)
     backend = REPO_ROOT / "src/fs/backend"
     cat = _compile_and_run(
         base / "pb_cat_ut",
@@ -341,7 +367,7 @@ def pblock(base: Path) -> tuple[bool, str]:
             "-lz",
         ],
     )
-    return drv if not drv[0] else result(True, "run_pblock_tests: ALL PASS")
+    return _expression_3(drv)
 
 
 def staged_commit_contract(base: Path, ngx_src: Path = DEFAULT_NGX_SRC) -> tuple[bool, str]:

@@ -48,6 +48,12 @@ from server_launcher import LifecycleHarness
 from settings import BIND_HOST, HOST
 
 # conftest chdir()s into a scratch dir — anchor imports on this file's dir.
+def _check_instantiate_1(text):
+    assert "@" not in "".join(
+        line for line in text.splitlines() if not line.lstrip().startswith("#")
+    ), "an example config still has an unsubstituted placeholder"
+
+
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                 "cvmfs"))
 
@@ -491,9 +497,7 @@ def _instantiate(text, tmp_path, pki, issuers_cfg):
     }
     for key_, value in values.items():
         text = text.replace(key_, value)
-    assert "@" not in "".join(
-        line for line in text.splitlines() if not line.lstrip().startswith("#")
-    ), "an example config still has an unsubstituted placeholder"
+    _check_instantiate_1(text)
     return text
 
 

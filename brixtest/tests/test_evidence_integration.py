@@ -51,13 +51,7 @@ def test_warmups_trials_spans_attachments_and_resources_share_one_record(tmp_pat
     assert result.returncode == 0, result.stdout + result.stderr
     session_dir, payload = _session(tmp_path)
     record = payload["tests"][0]
-    assert len(record["attempts"]) == 4
-    assert [row["warmup"] for row in record["attempts"]] == [True, False, False, False]
-    assert [row["index"] for row in record["attempts"]] == [0, 1, 2, 3]
-    assert len([sample for sample in record["metrics"]["samples"]
-                if sample["name"] == "operation.seconds"]) == 3
-    assert all(row["spans"][0]["name"] == "operation" for row in record["attempts"])
-    assert all(row["artifacts"][0]["name"] == "result.json" for row in record["attempts"])
+    _assert_attempt_record(record)
     assert list((session_dir / "objects" / "sha256").glob("*/*"))
     database = sqlite3.connect(str(session_dir / "archive.sqlite3"))
     try:
@@ -65,6 +59,40 @@ def test_warmups_trials_spans_attachments_and_resources_share_one_record(tmp_pat
         assert database.execute("select count(*) from evidence_metrics where name='operation.seconds'").fetchone()[0] == 4
     finally:
         database.close()
+
+
+def _assert_attempt_record(record):
+    attempts = record["attempts"]
+    observed = _attempt_observation(record, attempts)
+    expected = (
+        4, [True, False, False, False], [0, 1, 2, 3], 3,
+        ["operation"] * 4, ["result.json"] * 4,
+    )
+    assert observed == expected
+
+
+def _attempt_observation(record, attempts):
+    return (
+        len(attempts), _attempt_values(attempts, "warmup"),
+        _attempt_values(attempts, "index"), _operation_sample_count(record),
+        _nested_attempt_values(attempts, "spans", "name"),
+        _nested_attempt_values(attempts, "artifacts", "name"),
+    )
+
+
+def _attempt_values(attempts, name):
+    return [row[name] for row in attempts]
+
+
+def _nested_attempt_values(attempts, collection, name):
+    return [row[collection][0][name] for row in attempts]
+
+
+def _operation_sample_count(record):
+    return sum(
+        sample["name"] == "operation.seconds"
+        for sample in record["metrics"]["samples"]
+    )
 
 
 def test_trial_sequence_stops_after_first_failure_and_is_directly_rerunnable(tmp_path):

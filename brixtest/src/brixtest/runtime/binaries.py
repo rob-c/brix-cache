@@ -31,19 +31,25 @@ def _sha256(path: Path) -> str:
 
 def _resolve(path: object, base: Path, *, executable: bool) -> Path:
     raw = str(path)
+    candidate = _binary_candidate(raw, base, executable)
+    resolved = candidate.resolve()
+    _validate_binary_path(resolved, raw, executable)
+    return resolved
+
+
+def _binary_candidate(raw: str, base: Path, executable: bool) -> Path:
     if executable and os.sep not in raw:
         found = shutil.which(raw)
-        candidate = Path(found) if found else base / raw
-    else:
-        candidate = Path(raw)
-        if not candidate.is_absolute():
-            candidate = base / candidate
-    resolved = candidate.resolve()
+        return Path(found) if found else base / raw
+    candidate = Path(raw)
+    return candidate if candidate.is_absolute() else base / candidate
+
+
+def _validate_binary_path(resolved: Path, raw: str, executable: bool) -> None:
     if not resolved.is_file():
         raise SpecError("binary path", raw, "does not resolve to a regular file")
     if executable and not os.access(str(resolved), os.X_OK):
         raise SpecError("binary path", raw, "is not executable")
-    return resolved
 
 
 def _ldd_libraries(executable: Path) -> Tuple[Path, ...]:
@@ -69,6 +75,137 @@ def _ldd_libraries(executable: Path) -> Tuple[Path, ...]:
     return tuple(sorted(set(paths)))
 
 
+def _captured_path(value: object, field: str) -> Path:
+    if not isinstance(value, (str, Path)) or not str(value):
+        raise SpecError("binary.%s" % field, value, "must be a file-system path")
+    return Path(value)
+
+
+def _captured_digest(value: object, *, required: bool) -> None:
+    if not _valid_digest(value):
+        raise SpecError("binary.sha256", value, "must be empty or a SHA-256 digest")
+    if required and not value:
+        raise SpecError("binary.sha256", value, "is required for a local capture")
+
+
+def _valid_digest(value: object) -> bool:
+    if not isinstance(value, str):
+        return False
+    if not value:
+        return True
+    return len(value) == 64 and all(char in "0123456789abcdefABCDEF" for char in value)
+
+
+def _captured_libraries(value: object) -> Tuple[Path, ...]:
+    if isinstance(value, (str, bytes)) or not isinstance(value, Sequence) \
+            or not all(isinstance(path, (str, Path)) for path in value):
+        raise SpecError("binary.libraries", value, "must contain paths")
+    return tuple(Path(path) for path in value)
+
+
+def _captured_metadata(item: "CapturedBinary") -> None:
+    if item.image is not None and not isinstance(item.image, str):
+        raise SpecError("binary.image", item.image, "must be text or None")
+    if item.image_path is not None and not isinstance(item.image_path, str):
+        raise SpecError("binary.image_path", item.image_path, "must be text or None")
+    if not isinstance(item.overridden, bool):
+        raise SpecError("binary.overridden", item.overridden, "must be boolean")
+
+
+def _binary_overrides() -> Mapping[str, object]:
+    try:
+        value = json.loads(os.environ.get("BRIXTEST_BINARY_OVERRIDES_JSON", "{}"))
+    except (TypeError, ValueError):
+        return {}
+    return value if isinstance(value, dict) else {}
+
+
+def _file_identity(stat: os.stat_result) -> tuple[int, int, int, int]:
+    return stat.st_dev, stat.st_ino, stat.st_size, stat.st_mtime_ns
+
+
+def _verify_stable(path: Path, before: os.stat_result, digest: str, field: str) -> None:
+    if _file_identity(before) != _file_identity(path.stat()) or _sha256(path) != digest:
+        raise SpecError(field, str(path), "changed while being captured or its copy hash differs")
+
+
+def _library_sources(declaration: Binary, source: Path, source_root: Path) -> List[Path]:
+    declared = [_resolve(path, source_root, executable=False) for path in declaration.libraries]
+    sources = list(declared)
+    if not declaration.discover_libraries:
+        return sources
+    pending = [source, *declared]
+    inspected = set()
+    while pending:
+        owner = pending.pop()
+        if owner in inspected:
+            continue
+        inspected.add(owner)
+        discovered = _ldd_libraries(owner)
+        pending.extend(_new_libraries(discovered, inspected))
+        sources.extend(discovered)
+        _validate_graph_size(declaration.name, inspected, pending)
+    return sources
+
+
+def _new_libraries(discovered: Sequence[Path], inspected: set[Path]) -> list[Path]:
+    return [library for library in discovered if library not in inspected]
+
+
+def _validate_graph_size(name: str, inspected: set, pending: Sequence[Path]) -> None:
+    if len(inspected) + len(pending) > 4096:
+        raise SpecError(
+            "binary libraries", name,
+            "dependency graph exceeds the 4096-file safety bound",
+        )
+
+
+def _copy_library(library: Path, destination: Path, digest: str) -> None:
+    before = library.stat()
+    shutil.copy2(library, destination)
+    _verify_stable(library, before, digest, "binary library")
+    if _sha256(destination) != digest:
+        raise SpecError("binary library", str(library), "copy hash differs from its source")
+
+
+def _capture_libraries(sources: Iterable[Path], lib_dir: Path) -> List[Path]:
+    captured: List[Path] = []
+    seen: Dict[str, str] = {}
+    for library in sorted(set(sources)):
+        digest = _sha256(library)
+        previous = seen.get(library.name)
+        if previous is not None and previous != digest:
+            raise SpecError(
+                "binary libraries", library.name,
+                "two different libraries have the same basename",
+            )
+        if previous is not None:
+            continue
+        destination = lib_dir / library.name
+        _copy_library(library, destination, digest)
+        captured.append(destination)
+        seen[library.name] = digest
+    return captured
+
+
+def _validate_captured_name(value: object) -> None:
+    if not isinstance(value, str) or not value:
+        raise SpecError("binary.name", value, "must be non-empty text")
+
+
+def _captured_source(value: object) -> Optional[Path]:
+    if value is None:
+        return None
+    return _captured_path(value, "source")
+
+
+def _library_digests(libraries: Sequence[Path]) -> dict[str, str]:
+    return {
+        str(path): _sha256(path) if path.is_file() else ""
+        for path in libraries
+    }
+
+
 @dataclasses.dataclass(frozen=True)
 class CapturedBinary:
     """An immutable executable snapshot and its captured shared libraries."""
@@ -83,39 +220,14 @@ class CapturedBinary:
     overridden: bool = False
 
     def __post_init__(self) -> None:
-        if not isinstance(self.name, str) or not self.name:
-            raise SpecError("binary.name", self.name, "must be non-empty text")
+        _validate_captured_name(self.name)
         for field in ("path", "library_dir"):
-            value = getattr(self, field)
-            if not isinstance(value, (str, Path)) or not str(value):
-                raise SpecError("binary.%s" % field, value, "must be a file-system path")
-            object.__setattr__(self, field, Path(value))
-        if self.source is not None:
-            if not isinstance(self.source, (str, Path)) or not str(self.source):
-                raise SpecError("binary.source", self.source, "must be a file-system path")
-            object.__setattr__(self, "source", Path(self.source))
-        if not isinstance(self.sha256, str) or self.sha256 and (
-            len(self.sha256) != 64
-            or any(char not in "0123456789abcdefABCDEF" for char in self.sha256)
-        ):
-            raise SpecError("binary.sha256", self.sha256, "must be empty or a SHA-256 digest")
-        if not self.sha256 and not self.image:
-            raise SpecError("binary.sha256", self.sha256, "is required for a local capture")
-        if isinstance(self.libraries, (str, bytes)) or not isinstance(self.libraries, Sequence) or not all(
-            isinstance(path, (str, Path)) for path in self.libraries
-        ):
-            raise SpecError("binary.libraries", self.libraries, "must contain paths")
-        object.__setattr__(self, "libraries", tuple(Path(path) for path in self.libraries))
-        object.__setattr__(self, "_library_sha256", {
-            str(path): _sha256(path) if path.is_file() else ""
-            for path in self.libraries
-        })
-        if self.image is not None and not isinstance(self.image, str):
-            raise SpecError("binary.image", self.image, "must be text or None")
-        if self.image_path is not None and not isinstance(self.image_path, str):
-            raise SpecError("binary.image_path", self.image_path, "must be text or None")
-        if not isinstance(self.overridden, bool):
-            raise SpecError("binary.overridden", self.overridden, "must be boolean")
+            object.__setattr__(self, field, _captured_path(getattr(self, field), field))
+        object.__setattr__(self, "source", _captured_source(self.source))
+        _captured_digest(self.sha256, required=not bool(self.image))
+        object.__setattr__(self, "libraries", _captured_libraries(self.libraries))
+        object.__setattr__(self, "_library_sha256", _library_digests(self.libraries))
+        _captured_metadata(self)
 
     def __fspath__(self) -> str:
         return str(self.path)
@@ -173,18 +285,14 @@ class BinaryStore:
                     "same name was declared with different capture settings",
                 )
             return held
-        try:
-            raw_overrides = json.loads(os.environ.get("BRIXTEST_BINARY_OVERRIDES_JSON", "{}"))
-            overrides = raw_overrides if isinstance(raw_overrides, dict) else {}
-        except (TypeError, ValueError):
-            overrides = {}
+        overrides = _binary_overrides()
         source_value = overrides.get(declaration.name, declaration.path)
         overridden = declaration.name in overrides
         if source_value is None:
             captured = CapturedBinary(
                 name=declaration.name,
                 path=Path(declaration.image_path or declaration.name),
-                library_dir=Path("."), sha256="", libraries=(),
+                library_dir=Path(), sha256="", libraries=(),
                 image=declaration.image, image_path=declaration.image_path,
             )
             self._captured[declaration.name] = captured
@@ -203,69 +311,12 @@ class BinaryStore:
         shutil.copy2(source, target)
         target.chmod(target.stat().st_mode | 0o111)
 
-        libraries: List[Path] = []
-        declared_sources = [
-            _resolve(path, self.source_root, executable=False)
-            for path in declaration.libraries
-        ]
-        sources = list(declared_sources)
-        if declaration.discover_libraries:
-            pending = [source, *declared_sources]
-            inspected = set()
-            while pending:
-                dependency_owner = pending.pop()
-                if dependency_owner in inspected:
-                    continue
-                inspected.add(dependency_owner)
-                discovered = _ldd_libraries(dependency_owner)
-                for library in discovered:
-                    if library not in inspected:
-                        pending.append(library)
-                    sources.append(library)
-                if len(inspected) + len(pending) > 4096:
-                    raise SpecError(
-                        "binary libraries", declaration.name,
-                        "dependency graph exceeds the 4096-file safety bound",
-                    )
-        seen: Dict[str, str] = {}
-        for library in sorted(set(sources)):
-            library_before = library.stat()
-            digest = _sha256(library)
-            previous = seen.get(library.name)
-            if previous is not None and previous != digest:
-                raise SpecError(
-                    "binary libraries", library.name,
-                    "two different libraries have the same basename",
-                )
-            if previous is None:
-                destination = lib_dir / library.name
-                shutil.copy2(library, destination)
-                library_after = library.stat()
-                before_identity = (
-                    library_before.st_dev, library_before.st_ino,
-                    library_before.st_size, library_before.st_mtime_ns,
-                )
-                after_identity = (
-                    library_after.st_dev, library_after.st_ino,
-                    library_after.st_size, library_after.st_mtime_ns,
-                )
-                if (
-                    before_identity != after_identity
-                    or _sha256(library) != digest
-                    or _sha256(destination) != digest
-                ):
-                    raise SpecError(
-                        "binary library", str(library),
-                        "changed while being captured or its copy hash differs",
-                    )
-                libraries.append(destination)
-                seen[library.name] = digest
+        sources = _library_sources(declaration, source, self.source_root)
+        libraries = _capture_libraries(sources, lib_dir)
 
         after = source.stat()
         after_hash = _sha256(source)
-        identity_before = (before.st_dev, before.st_ino, before.st_size, before.st_mtime_ns)
-        identity_after = (after.st_dev, after.st_ino, after.st_size, after.st_mtime_ns)
-        if identity_before != identity_after or before_hash != after_hash:
+        if _file_identity(before) != _file_identity(after) or before_hash != after_hash:
             raise SpecError(
                 "binary path", str(source),
                 "changed while it was being captured; retry after the build is stable",

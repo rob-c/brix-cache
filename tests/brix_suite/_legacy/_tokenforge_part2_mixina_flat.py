@@ -25,6 +25,15 @@ from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.x509.oid import NameOID
 
 import sys
+def _guard_sign_generic_1(kid, hdr):
+    if kid is not None:
+        hdr["kid"] = kid
+
+def _guard_sign_generic_2(header_extra, hdr):
+    if header_extra:
+        hdr.update(header_extra)
+
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from utils.make_token import TokenIssuer
 
@@ -348,10 +357,8 @@ class _TokenForgeMixinA:
                                tests like alg_variant/alg_unsupported).
         """
         hdr = {"alg": alg, "typ": "JWT"}
-        if kid is not None:
-            hdr["kid"] = kid
-        if header_extra:
-            hdr.update(header_extra)
+        _guard_sign_generic_1(kid, hdr)
+        _guard_sign_generic_2(header_extra, hdr)
         if payload is None:
             payload = self._base_claims()
         signing_input = (_seg(hdr) + "." + _seg(payload)).encode("ascii")

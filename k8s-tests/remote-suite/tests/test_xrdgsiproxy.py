@@ -29,6 +29,19 @@ from settings import (
     USER_KEY,
 )
 
+def _guard_built_1():
+    if shutil.which("cc") is None and shutil.which("gcc") is None:
+        pytest.skip("no C compiler")
+
+def _guard_built_2(proc):
+    if proc.returncode != 0 or not os.path.exists(XRDGSIPROXY):
+        pytest.skip(f"build failed:\n{proc.stdout}\n{proc.stderr}")
+
+def _guard_built_3():
+    if not (os.path.exists(USER_CERT) and os.path.exists(USER_KEY)):
+        pytest.skip("harness PKI (usercert/userkey) not present")
+
+
 pytestmark = pytest.mark.timeout(120)
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -43,14 +56,11 @@ for _k in ("X509_USER_PROXY", "X509_CERT_DIR", "X509_USER_CERT", "X509_USER_KEY"
 
 @pytest.fixture(scope="module")
 def built():
-    if shutil.which("cc") is None and shutil.which("gcc") is None:
-        pytest.skip("no C compiler")
+    _guard_built_1()
     proc = subprocess.run(["make", "-C", os.path.join(REPO, "client")],
                           capture_output=True, text=True, timeout=180)
-    if proc.returncode != 0 or not os.path.exists(XRDGSIPROXY):
-        pytest.skip(f"build failed:\n{proc.stdout}\n{proc.stderr}")
-    if not (os.path.exists(USER_CERT) and os.path.exists(USER_KEY)):
-        pytest.skip("harness PKI (usercert/userkey) not present")
+    _guard_built_2(proc)
+    _guard_built_3()
     return XRDGSIPROXY
 
 

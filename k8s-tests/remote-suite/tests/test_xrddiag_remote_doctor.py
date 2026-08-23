@@ -34,6 +34,32 @@ import pytest
 
 from settings import HOST, BIND_HOST, HOST6, BIND_HOST6, url_host
 
+def _guard_doctor_1():
+    if shutil.which("cc") is None and shutil.which("gcc") is None:
+        pytest.skip("no C compiler to build the native client")
+
+def _guard_doctor_2(proc):
+    if proc.returncode != 0 or not os.path.exists(XRDDIAG):
+        pytest.skip(f"xrddiag build failed:\n{proc.stdout}\n{proc.stderr}")
+
+def _guard_doctor_3():
+    if not os.access(NGINX_BIN, os.X_OK):
+        pytest.skip(f"nginx binary not executable: {NGINX_BIN}")
+
+def _guard_sss_server_4():
+    if subprocess.run(["make", "-C", CLIENT_DIR, "xrdsssadmin-brix"],
+                      capture_output=True).returncode != 0 or not os.path.exists(_SSSADMIN):
+        pytest.skip("xrdsssadmin build failed")
+
+def _guard_sss_server_5(r):
+    if r.returncode != 0:
+        pytest.skip(f"xrdsssadmin add failed: {r.stdout}{r.stderr}")
+
+def _guard_sss_server_6(t):
+    if t.returncode != 0:
+        pytest.skip("nginx -t failed (sss):\n" + t.stderr)
+
+
 pytestmark = pytest.mark.timeout(120)
 
 NGINX_BIN = os.environ.get("NGINX_BIN", "/tmp/nginx-1.28.3/objs/nginx")
@@ -110,14 +136,11 @@ def _stop_nginx(conf):
 @pytest.fixture(scope="module")
 def doctor():
     """Build xrddiag once; skip cleanly without a compiler / nginx."""
-    if shutil.which("cc") is None and shutil.which("gcc") is None:
-        pytest.skip("no C compiler to build the native client")
+    _guard_doctor_1()
     proc = subprocess.run(["make", "-C", CLIENT_DIR, "xrddiag"],
                           capture_output=True, text=True, timeout=180)
-    if proc.returncode != 0 or not os.path.exists(XRDDIAG):
-        pytest.skip(f"xrddiag build failed:\n{proc.stdout}\n{proc.stderr}")
-    if not os.access(NGINX_BIN, os.X_OK):
-        pytest.skip(f"nginx binary not executable: {NGINX_BIN}")
+    _guard_doctor_2(proc)
+    _guard_doctor_3()
     return XRDDIAG
 
 
@@ -432,9 +455,7 @@ def _authsuite_diag(blob):
 @pytest.fixture(scope="module")
 def sss_server(doctor, tmp_path_factory):
     """An auth-REQUIRED (SSS) server — used to prove anonymous access is denied."""
-    if subprocess.run(["make", "-C", CLIENT_DIR, "xrdsssadmin-brix"],
-                      capture_output=True).returncode != 0 or not os.path.exists(_SSSADMIN):
-        pytest.skip("xrdsssadmin build failed")
+    _guard_sss_server_4()
     root = tmp_path_factory.mktemp("rd_sss")
     data = root / "data"
     data.mkdir()
@@ -443,8 +464,7 @@ def sss_server(doctor, tmp_path_factory):
     r = subprocess.run([_SSSADMIN, "-k", kt, "add", "--id", "1", "--user",
                         "anybody", "--group", "anygroup", "--name", "testhost"],
                        capture_output=True, text=True)
-    if r.returncode != 0:
-        pytest.skip(f"xrdsssadmin add failed: {r.stdout}{r.stderr}")
+    _guard_sss_server_5(r)
     port = _free_port()
     conf = root / "nginx.conf"
     conf.write_text(f"""
@@ -463,8 +483,7 @@ stream {{
 }}
 """)
     t = subprocess.run([NGINX_BIN, "-t", "-c", str(conf)], capture_output=True, text=True)
-    if t.returncode != 0:
-        pytest.skip("nginx -t failed (sss):\n" + t.stderr)
+    _guard_sss_server_6(t)
     subprocess.run([NGINX_BIN, "-c", str(conf)], capture_output=True)
     for _ in range(50):
         if _port_up(HOST, port):

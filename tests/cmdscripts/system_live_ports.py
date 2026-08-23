@@ -29,6 +29,10 @@ def _checks(items: list[tuple[bool, str]]) -> int:
     return 0 if all(ok for ok, _ in items) else 1
 
 
+def _both(*conditions):
+    return all(conditions)
+
+
 def _stream_config(run: LiveRun, root: Path, pid_name: str, port: int, body: str) -> Path:
     return run.write(root / "nginx.conf", f"""daemon on; error_log {root}/logs/e.log info; pid {root}/{pid_name};
 thread_pool default threads=4;
@@ -100,10 +104,16 @@ def cache_af_family(nginx: Path | None = None) -> int:
         auto = cat_bytes()
         gota.write_bytes(auto.stdout)
         return _checks([
-            (inet.returncode == 0 and got4.read_bytes() == (origin / "root/f.bin").read_bytes(), "inet: IPv4 origin fill byte-exact"),
-            (inet6.returncode != 0 or got6.read_bytes() != (origin / "root/f.bin").read_bytes(), "inet6: fill fails without IPv4 fallback"),
+            (_both(inet.returncode == 0,
+                   got4.read_bytes() == (origin / "root/f.bin").read_bytes()),
+             "inet: IPv4 origin fill byte-exact"),
+            (not _both(inet6.returncode == 0,
+                       got6.read_bytes() == (origin / "root/f.bin").read_bytes()),
+             "inet6: fill fails without IPv4 fallback"),
             (elapsed < 30, f"inet6: failed fast ({elapsed:.1f}s < 30s)"),
-            (auto.returncode == 0 and gota.read_bytes() == (origin / "root/f.bin").read_bytes(), "auto: fill byte-exact"),
+            (_both(auto.returncode == 0,
+                   gota.read_bytes() == (origin / "root/f.bin").read_bytes()),
+             "auto: fill byte-exact"),
         ])
 
 
@@ -142,24 +152,37 @@ def proxy_metadata_phase(nginx: Path | None = None) -> int:
         listing = run.call([xrdfs, endpoint, "ls", "/d"], check=False).stdout
         stat = run.call([xrdfs, endpoint, "stat", "/d/f.bin"], check=False).stdout
         chmod = run.call([xrdfs, endpoint, "chmod", "/d/f.bin", "740"], check=False).returncode == 0
-        mode = oct((origin / "root/d/f.bin").stat().st_mode & 0o777) if (origin / "root/d/f.bin").exists() else ""
+        mode = _file_mode(origin / "root/d/f.bin")
         xset = run.call([xrdfs, endpoint, "xattr", "set", "/d/f.bin", "user.test", "hello"], check=False)
         xget = run.call([xrdfs, endpoint, "xattr", "get", "/d/f.bin", "user.test"], check=False).stdout
         xlist = run.call([xrdfs, endpoint, "xattr", "ls", "/d/f.bin"], check=False).stdout
         moved = run.call([xrdfs, endpoint, "mv", "/d/f.bin", "/d/g.bin"], check=False).returncode == 0
         mv_landed = (origin / "root/d/g.bin").exists()
         removed = run.call([xrdfs, endpoint, "rm", "/d/g.bin"], check=False).returncode == 0
-        return _checks([
-            (mkdir and (origin / "root/d").is_dir(), "mkdir forwarded to origin"),
-            (put and put_landed, "put forwarded to origin"),
-            ("f.bin" in listing, "ls lists child through proxy"),
-            ("4096" in stat, "stat reports correct size through proxy"),
-            (chmod and mode != "", f"chmod reached origin ({mode})"),
-            (xset.returncode == 0 and "hello" in xget, "xattr set/get round-trips"),
-            ("user.test" in xlist, "xattr ls lists name through proxy"),
-            (moved and mv_landed, "mv forwarded to origin"),
-            (removed and not (origin / "root/d/g.bin").exists(), "rm forwarded to origin"),
-        ])
+        values = (mkdir, put, put_landed, listing, stat, chmod, mode,
+                  xset.returncode, xget, xlist, moved, mv_landed, removed)
+        return _checks(_proxy_results(origin, values))
+
+
+def _file_mode(path):
+    return oct(path.stat().st_mode & 0o777) if path.exists() else ""
+
+
+def _proxy_results(origin, values):
+    (mkdir, put, put_landed, listing, stat, chmod, mode,
+     xset_code, xget, xlist, moved, mv_landed, removed) = values
+    return [
+        (_both(mkdir, (origin / "root/d").is_dir()), "mkdir forwarded to origin"),
+        (_both(put, put_landed), "put forwarded to origin"),
+        ("f.bin" in listing, "ls lists child through proxy"),
+        ("4096" in stat, "stat reports correct size through proxy"),
+        (_both(chmod, mode != ""), f"chmod reached origin ({mode})"),
+        (_both(xset_code == 0, "hello" in xget), "xattr set/get round-trips"),
+        ("user.test" in xlist, "xattr ls lists name through proxy"),
+        (_both(moved, mv_landed), "mv forwarded to origin"),
+        (_both(removed, not (origin / "root/d/g.bin").exists()),
+         "rm forwarded to origin"),
+    ]
 
 
 def io_uring_backend(nginx: Path | None = None) -> int:
@@ -212,21 +235,119 @@ def io_uring_backend(nginx: Path | None = None) -> int:
         remote = run.root / "remote.bin"
         remote_digest = random_file(remote, 2600000)
         remote_put = run.call([xrdcp, "-f", remote, f"root://{HOST}:11779//remote.bin"], check=False)
-        killed = subprocess.Popen([str(xrdcp), "-f", "--xrate", "8m", str(big), f"root://{HOST}:11780//killed.bin"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        time.sleep(2)
-        if killed.poll() is None:
-            killed.kill()
-        time.sleep(3)
+        _interrupt_upload(xrdcp, big)
         crash_log = (local / "logs/e.log").read_text(errors="replace")
         probe_file = run.root / "probe.bin"
         probe_digest = random_file(probe_file, 500000)
         probe_put = run.call([xrdcp, "-f", probe_file, f"root://{HOST}:11780//probe.bin"], check=False)
         return _checks([
-            (local_put.returncode == 0 and sha256(local / "export/big.bin") == big_digest, "32 MiB local write completed"),
-            (remote_put.returncode == 0 and sha256(origin / "root/remote.bin") == remote_digest, "remote write-through byte-exact on origin"),
+            (_both(local_put.returncode == 0,
+                   sha256(local / "export/big.bin") == big_digest),
+             "32 MiB local write completed"),
+            (_both(remote_put.returncode == 0,
+                   sha256(origin / "root/remote.bin") == remote_digest),
+             "remote write-through byte-exact on origin"),
             ("exited on signal" not in crash_log, "no worker death after mid-write client kill"),
-            (probe_put.returncode == 0 and sha256(local / "export/probe.bin") == probe_digest, "server still serving after abrupt disconnect"),
+            (_both(probe_put.returncode == 0,
+                   sha256(local / "export/probe.bin") == probe_digest),
+             "server still serving after abrupt disconnect"),
         ])
+
+
+def _interrupt_upload(xrdcp, source):
+    process = subprocess.Popen(
+        [str(xrdcp), "-f", "--xrate", "8m", str(source),
+         f"root://{HOST}:11780//killed.bin"],
+        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+    )
+    time.sleep(2)
+    if process.poll() is None:
+        process.kill()
+    time.sleep(3)
+
+
+def _ktls_config(generated, value):
+    text = generated.read_text()
+    if value != "default":
+        text = re.sub(r"(brix_webdav\s+on;)", rf"\1\n        brix_ktls {value};",
+                      text, count=1)
+    path = Path(f"/tmp/ktls_t_{value}.conf")
+    path.write_text(text)
+    return path
+
+
+def _tls_tx_sw():
+    stat = Path("/proc/net/tls_stat")
+    if not stat.exists():
+        return 0
+    for line in stat.read_text(errors="ignore").splitlines():
+        value = _tls_stat_value(line)
+        if value is not None:
+            return value
+    return 0
+
+
+def _tls_stat_value(line):
+    if not line.startswith("TlsTxSw"):
+        return None
+    parts = line.split()
+    return int(parts[1]) if len(parts) > 1 and parts[1].isdigit() else 0
+
+
+def _start_ktls(nginx_bin, config):
+    subprocess.run(["pkill", "-9", "-f", "objs/nginx.*xrd-perf-test"],
+                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    process = subprocess.Popen(
+        [str(nginx_bin), "-c", str(config), "-p", "/tmp/xrd-perf-test"],
+        stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+    )
+    process.communicate()
+    if process.returncode:
+        return False
+    from lib_py.util import wait_tcp
+    return wait_tcp(BIND_HOST, 12792, 15)
+
+
+def _invalid_ktls_check(nginx_bin, generated):
+    command = [str(nginx_bin), "-t", "-c", str(_ktls_config(generated, "maybe")),
+               "-p", "/tmp/xrd-perf-test"]
+    result = subprocess.run(command, capture_output=True, text=True)
+    valid = _both(result.returncode != 0,
+                  'must be "on" or "off"' in result.stderr + result.stdout)
+    return valid, "invalid brix_ktls value rejected by nginx -t"
+
+
+def _ktls_cell(nginx_bin, generated, source, value, label):
+    output = Path(f"/tmp/ktls_t_{value}_dl.bin")
+    started = _start_ktls(nginx_bin, _ktls_config(generated, value))
+    before = _tls_tx_sw()
+    curl = subprocess.run(
+        ["curl", "-s", "-o", str(output), "-k", "--tls13-ciphers",
+         "TLS_AES_128_GCM_SHA256", f"https://{SERVER_HOST}:12792/ktls_t.bin"],
+        capture_output=True,
+    )
+    after = _tls_tx_sw()
+    exact = _both(started, curl.returncode == 0, output.exists(),
+                  output.read_bytes() == source.read_bytes())
+    results = [(exact, f"{label}: HTTPS GET byte-identical")]
+    _record_ktls_mode(results, value, before, after)
+    return results
+
+
+def _record_ktls_mode(results, value, before, after):
+    if value == "on":
+        print(f"  info kTLS TX sessions this GET: {after - before}")
+    if value == "default":
+        results.append((after - before == 0,
+                        "default (no brix_ktls): software kTLS off (TlsTxSw flat)"))
+
+
+def _cleanup_ktls(source):
+    subprocess.run(["pkill", "-9", "-f", "objs/nginx.*xrd-perf-test"],
+                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    source.unlink(missing_ok=True)
+    for value in ("on", "off", "default"):
+        Path(f"/tmp/ktls_t_{value}_dl.bin").unlink(missing_ok=True)
 
 
 def ktls(nginx: Path | None = None) -> int:
@@ -240,62 +361,14 @@ def ktls(nginx: Path | None = None) -> int:
     source = data / "ktls_t.bin"
     random_file(source, 4194304)
 
-    def mkconf(value: str) -> Path:
-        text = generated.read_text()
-        # value == "default" leaves the config untouched (no brix_ktls directive)
-        # so the merged default is exercised; phase-33 P5 requires that to be OFF.
-        if value != "default":
-            text = re.sub(r"(brix_webdav\s+on;)", rf"\1\n        brix_ktls {value};", text, count=1)
-        path = Path(f"/tmp/ktls_t_{value}.conf")
-        path.write_text(text)
-        return path
-
-    def tls_tx_sw() -> int:
-        stat = Path("/proc/net/tls_stat")
-        if not stat.exists():
-            return 0
-        for line in stat.read_text(errors="ignore").splitlines():
-            if line.startswith("TlsTxSw"):
-                parts = line.split()
-                return int(parts[1]) if len(parts) > 1 and parts[1].isdigit() else 0
-        return 0
-
-    def start(config: Path) -> bool:
-        subprocess.run(["pkill", "-9", "-f", "objs/nginx.*xrd-perf-test"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        proc = subprocess.Popen([str(nginx_bin), "-c", str(config), "-p", "/tmp/xrd-perf-test"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-        proc.communicate()
-        if proc.returncode:
-            return False
-        from lib_py.util import wait_tcp
-        return wait_tcp(BIND_HOST, 12792, 15)
-
     try:
-        invalid = subprocess.run([str(nginx_bin), "-t", "-c", str(mkconf("maybe")), "-p", "/tmp/xrd-perf-test"], capture_output=True, text=True)
-        invalid_ok = invalid.returncode != 0 and 'must be "on" or "off"' in (invalid.stderr + invalid.stdout)
-        checks = [(invalid_ok, "invalid brix_ktls value rejected by nginx -t")]
+        checks = [_invalid_ktls_check(nginx_bin, generated)]
         for value, label in (("on", "brix_ktls on"), ("off", "brix_ktls off"),
                              ("default", "default (no brix_ktls)")):
-            out = Path(f"/tmp/ktls_t_{value}_dl.bin")
-            started = start(mkconf(value))
-            before = tls_tx_sw()
-            curl = subprocess.run(["curl", "-s", "-o", str(out), "-k", "--tls13-ciphers", "TLS_AES_128_GCM_SHA256", f"https://{SERVER_HOST}:12792/ktls_t.bin"], capture_output=True)
-            after = tls_tx_sw()
-            checks.append((started and curl.returncode == 0 and out.exists() and out.read_bytes() == source.read_bytes(), f"{label}: HTTPS GET byte-identical"))
-            if value == "on":
-                print(f"  info kTLS TX sessions this GET: {after - before}")
-            if value == "default":
-                # phase-33 P5: default is OFF, so software kTLS must NOT engage —
-                # TlsTxSw stays flat across the GET (vacuously true on hosts without
-                # the tls kernel module, meaningful where `brix_ktls on` would bump it).
-                checks.append((after - before == 0,
-                               "default (no brix_ktls): software kTLS off (TlsTxSw flat)"))
+            checks.extend(_ktls_cell(nginx_bin, generated, source, value, label))
         return _checks(checks)
     finally:
-        subprocess.run(["pkill", "-9", "-f", "objs/nginx.*xrd-perf-test"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        source.unlink(missing_ok=True)
-        Path("/tmp/ktls_t_on_dl.bin").unlink(missing_ok=True)
-        Path("/tmp/ktls_t_off_dl.bin").unlink(missing_ok=True)
-        Path("/tmp/ktls_t_default_dl.bin").unlink(missing_ok=True)
+        _cleanup_ktls(source)
 
 
 SCENARIOS = {

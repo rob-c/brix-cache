@@ -3,6 +3,29 @@ from _test_conf_client2_helpers import *  # noqa: F401,F403  (Phase-38 split sha
 # =========================================================================== #
 # OUR xrdfs ls — name-set parity with the stock client on the stock server     #
 # =========================================================================== #
+def _phase_test_ls_long_size_column_value_parity_1(o, f):
+    for name in ("hello.txt", "data.bin", "big1m.bin", "cksum.bin", "empty.txt"):
+        _check_test_ls_long_size_column_value_parity_1(name, o, f)
+
+
+def _check_test_ls_long_size_column_value_parity_1(name, o, f):
+    assert o.get(name) == f.get(name), \
+        f"ls -l size for {name}: ours={o.get(name)} stock={f.get(name)}"
+
+def _check_test_ls_recursive_leaf_set_matches_stock_2(orc, frc):
+    assert orc == 0 and frc == 0, "ls -R should succeed on both clients"
+
+def _check_test_ls_recursive_leaf_set_matches_stock_3(leaves, our):
+    assert leaves <= our, f"OUR ls -R missing {leaves - our}"
+
+def _check_test_ls_recursive_leaf_set_matches_stock_4(leaves, off):
+    assert leaves <= off, f"stock ls -R missing {leaves - off}"
+
+def _check_test_ls_recursive_leaf_set_matches_stock_5(our, off):
+    assert our == off, \
+        f"OUR ls -R leaf-set != stock: only-ours={our-off} only-stock={off-our}"
+
+
 @pytest.mark.parametrize("path,expect", [
     ("/", {"hello.txt", "data.bin", "sub", "many", "deep", "cksum.bin",
            "empty.txt", "empty_dir", "big1m.bin", "with space.txt"}),
@@ -49,39 +72,37 @@ def test_ls_long_carries_sizes_like_stock(srv):
             f"stock ls -l lost {name} size {sz}"
 
 
+def _listing_sizes(output):
+    sizes = {}
+    for line in output.splitlines():
+        tokens = line.split()
+        if not tokens:
+            continue
+        name = os.path.basename(tokens[-1].rstrip("/"))
+        digits = [token for token in tokens if token.isdigit()]
+        if name and digits:
+            sizes[name] = digits[-1]
+    return sizes
+
+
 def test_ls_long_size_column_value_parity(srv):
-    """The size column value our client emits must equal the stock client's for
-    every listed file (column layout may differ, the numeric size may not)."""
-    def sizes(out):
-        m = {}
-        for line in out.splitlines():
-            toks = line.split()
-            if not toks:
-                continue
-            name = os.path.basename(toks[-1].rstrip("/"))
-            digits = [t for t in toks if t.isdigit()]
-            if name and digits:
-                m[name] = digits[-1]   # last numeric col == size in both forms
-        return m
-    o = sizes(ourfs(srv["off"], "ls", "-l", "/")[1])
-    f = sizes(fs(srv["off"], "ls", "-l", "/")[1])
-    for name in ("hello.txt", "data.bin", "big1m.bin", "cksum.bin", "empty.txt"):
-        assert o.get(name) == f.get(name), \
-            f"ls -l size for {name}: ours={o.get(name)} stock={f.get(name)}"
+    """Require the same numeric size values despite differing column layouts."""
+    o = _listing_sizes(ourfs(srv["off"], "ls", "-l", "/")[1])
+    f = _listing_sizes(fs(srv["off"], "ls", "-l", "/")[1])
+    _phase_test_ls_long_size_column_value_parity_1(o, f)
 
 
 def test_ls_recursive_leaf_set_matches_stock(srv):
     orc, oout, _ = ourfs(srv["off"], "ls", "-R", "/")
     frc, fout, _ = fs(srv["off"], "ls", "-R", "/")
-    assert orc == 0 and frc == 0, "ls -R should succeed on both clients"
+    _check_test_ls_recursive_leaf_set_matches_stock_2(orc, frc)
     leaves = {"hello.txt", "nested.txt", "leaf.txt", "data.bin", "cksum.bin",
               "big1m.bin", "empty.txt"}
     leaves |= {f"f{i:02d}.txt" for i in range(12)}
     our, off = _names(oout), _names(fout)
-    assert leaves <= our, f"OUR ls -R missing {leaves - our}"
-    assert leaves <= off, f"stock ls -R missing {leaves - off}"
-    assert our == off, \
-        f"OUR ls -R leaf-set != stock: only-ours={our-off} only-stock={off-our}"
+    _check_test_ls_recursive_leaf_set_matches_stock_3(leaves, our)
+    _check_test_ls_recursive_leaf_set_matches_stock_4(leaves, off)
+    _check_test_ls_recursive_leaf_set_matches_stock_5(our, off)
 
 
 # =========================================================================== #
@@ -158,11 +179,14 @@ def test_statvfs_values_match_stock(srv):
     # layout — a divergence in any metric is a client bug.
     our_nums = [t for t in o[1].replace(":", " ").split() if t.lstrip("-").isdigit()]
     off_nums = [t for t in f[1].replace(":", " ").split() if t.lstrip("-").isdigit()]
-    assert len(our_nums) >= 6 and len(off_nums) >= 6, \
-        f"statvfs <6 metrics: ours={o[1]!r} stock={f[1]!r}"
-    # Pin the RW-node count (first stock metric) since it is deterministic (==1).
-    assert "1" in our_nums and "1" in off_nums, \
-        f"statvfs missing RW-node count 1: ours={o[1]!r} stock={f[1]!r}"
+    def _assert_test_statvfs_values_match_stock_1():
+        assert len(our_nums) >= 6 and len(off_nums) >= 6, \
+            f"statvfs <6 metrics: ours={o[1]!r} stock={f[1]!r}"
+        # Pin the RW-node count (first stock metric) since it is deterministic (==1).
+        assert "1" in our_nums and "1" in off_nums, \
+            f"statvfs missing RW-node count 1: ours={o[1]!r} stock={f[1]!r}"
+
+    _assert_test_statvfs_values_match_stock_1()
 
 
 # =========================================================================== #

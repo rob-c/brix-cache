@@ -30,6 +30,41 @@ from lib_py.util import wait_tcp
 from settings import BIND_HOST, CA_CERT, CA_DIR, CA_KEY, HOST, SERVER_CERT, SERVER_KEY
 from ephemeral_port import free_ports
 
+def _expression_1(backend):
+    return (
+        f"brix_storage_backend {backend};" if backend else ""
+    )
+
+def _expression_2(proto):
+    return (
+        f"brix_certificate {SERVER_CERT}; brix_certificate_key {SERVER_KEY};" if proto == "roots" else ""
+    )
+
+
+def _phase_kill_pidfiles_1(pids, pidfile):
+    try:
+        pids.append(int(pidfile.read_text().strip()))
+    except (OSError, ValueError):
+        pass
+
+def _phase_kill_pidfiles_2(pid):
+    try:
+        os.kill(pid, signal.SIGTERM)
+    except OSError:
+        pass
+
+def _phase_kill_pidfiles_3(pid):
+    try:
+        os.kill(pid, signal.SIGKILL)
+    except OSError:
+        pass
+
+
+def _guard_kill_pidfiles_1(pids):
+    if pids:
+        time.sleep(0.4)
+
+
 BRIX_XRDCP = REPO_ROOT / "client/bin/xrdcp"
 BRIX_XRDFS = REPO_ROOT / "client/bin/xrdfs"
 XROOTD_BIN = Path(os.environ.get("XROOTD_BIN", os.environ.get("BRIX_BIN", "/usr/bin/xrootd")))
@@ -109,22 +144,12 @@ class _ForwardHarnessMixinA:
     def _kill_pidfiles(pidfiles: list[Path]) -> None:
         pids = []
         for pidfile in pidfiles:
-            try:
-                pids.append(int(pidfile.read_text().strip()))
-            except (OSError, ValueError):
-                pass
+            _phase_kill_pidfiles_1(pids, pidfile)
         for pid in pids:
-            try:
-                os.kill(pid, signal.SIGTERM)
-            except OSError:
-                pass
-        if pids:
-            time.sleep(0.4)
+            _phase_kill_pidfiles_2(pid)
+        _guard_kill_pidfiles_1(pids)
         for pid in pids:
-            try:
-                os.kill(pid, signal.SIGKILL)
-            except OSError:
-                pass
+            _phase_kill_pidfiles_3(pid)
 
     @contextmanager
     def cell(self) -> Iterator[None]:
@@ -251,9 +276,9 @@ class _ForwardHarnessMixinA:
         for sub in ("export", "logs", "cache"):
             (d / sub).mkdir(exist_ok=True)
         log = d / "logs/e.log"
-        backend_line = f"brix_storage_backend {backend};" if backend else ""
+        backend_line = _expression_1(backend)
         if proto in ("root", "roots"):
-            tls = f"brix_certificate {SERVER_CERT}; brix_certificate_key {SERVER_KEY};" if proto == "roots" else ""
+            tls = _expression_2(proto)
             conf = self.run.write(d / "nginx.conf", f"""daemon on;
 error_log {log} info;
 pid {d}/nginx.pid;

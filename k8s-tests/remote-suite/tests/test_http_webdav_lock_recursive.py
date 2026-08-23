@@ -141,36 +141,42 @@ def test_delete_collection_with_locked_member_fails():
 
 def test_copy_preserves_xattrs():
     """COPY should preserve XRootD-mapped extended attributes."""
-    import os
+    xattr = _require_xattr()
+    src = f"/{_PFX}src_xattr_{_uid()}.txt"
+    _put(src, b"content")
+    src_phys = _physical_path(src)
+    xattr_name = "user.U.testkey"
+    xattr_val = b"testvalue"
+    _set_test_xattr(xattr, src_phys, xattr_name, xattr_val)
+
+    dst = f"/{_PFX}dst_xattr_{_uid()}.txt"
+    response = _copy(src, dst)
+    assert response.status_code == 201
+    _assert_xattr(xattr, _physical_path(dst), xattr_name, xattr_val)
+
+
+def _require_xattr():
     try:
         import xattr
     except ImportError:
         pytest.skip("python-xattr not installed")
+    return xattr
 
-    src = f"/{_PFX}src_xattr_{_uid()}.txt"
-    _put(src, b"content")
-    
-    # Map virtual path to physical path
-    # TEST_ROOT is /tmp/xrd-test, export root is /tmp/xrd-test/data
-    src_phys = os.path.join("/tmp/xrd-test/data", src.lstrip("/"))
-    
-    # Set an XRootD-mapped xattr: user.U.testkey
-    xattr_name = "user.U.testkey"
-    xattr_val = b"testvalue"
-    try:
-        xattr.setxattr(src_phys, xattr_name, xattr_val)
-    except OSError as e:
-        pytest.skip(f"Filesystem does not support xattrs: {e}")
 
-    dst = f"/{_PFX}dst_xattr_{_uid()}.txt"
-    r = _copy(src, dst)
-    assert r.status_code == 201
-    
-    dst_phys = os.path.join("/tmp/xrd-test/data", dst.lstrip("/"))
-    
-    # Verify xattr was copied
+def _physical_path(path):
+    return os.path.join("/tmp/xrd-test/data", path.lstrip("/"))
+
+
+def _set_test_xattr(xattr, path, name, value):
     try:
-        val = xattr.getxattr(dst_phys, xattr_name)
-        assert val == xattr_val
-    except OSError as e:
-        pytest.fail(f"xattr was not copied or inaccessible: {e}")
+        xattr.setxattr(path, name, value)
+    except OSError as error:
+        pytest.skip(f"Filesystem does not support xattrs: {error}")
+
+
+def _assert_xattr(xattr, path, name, expected):
+    try:
+        value = xattr.getxattr(path, name)
+    except OSError as error:
+        pytest.fail(f"xattr was not copied or inaccessible: {error}")
+    assert value == expected

@@ -31,6 +31,19 @@ from settings import NGINX_BIN, HOST, BIND_HOST
 from server_registry import NginxInstanceSpec
 from server_launcher import RegistryCommandFailure
 
+def _guard_srv_1():
+    if not os.path.exists(NGINX_BIN):
+        pytest.skip("nginx binary not found")
+
+def _guard_srv_2():
+    if not _HAVE_REQUESTS or not _HAVE_CRYPTO:
+        pytest.skip("requests + cryptography required")
+
+def _guard_srv_3(d):
+    if not _xattr_ok(str(d)):
+        pytest.skip("filesystem does not support user xattrs")
+
+
 pytestmark = [pytest.mark.uses_lifecycle_harness,
               pytest.mark.xdist_group("lc-frm-owner")]
 
@@ -67,13 +80,10 @@ from frm_helpers import xattr_ok as _xattr_ok
 
 @pytest.fixture
 def srv(lifecycle, tmp_path):
-    if not os.path.exists(NGINX_BIN):
-        pytest.skip("nginx binary not found")
-    if not _HAVE_REQUESTS or not _HAVE_CRYPTO:
-        pytest.skip("requests + cryptography required")
+    _guard_srv_1()
+    _guard_srv_2()
     d = tmp_path
-    if not _xattr_ok(str(d)):
-        pytest.skip("filesystem does not support user xattrs")
+    _guard_srv_3(d)
 
     cadir = d / "cadir"; cadir.mkdir()
     data = d / "data"; data.mkdir()

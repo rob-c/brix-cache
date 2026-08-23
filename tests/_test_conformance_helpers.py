@@ -43,6 +43,32 @@ from settings import (
     url_host,
 )
 
+def _expression_1(status):
+    return (
+        (status.message or "").lower()
+    )
+
+def _expression_2(msg):
+    return (
+        "no such" in msg or "not found" in msg or "doesn't exist" in msg
+    )
+
+def _expression_3(msg):
+    return (
+        "permission" in msg or "not authoriz" in msg
+    )
+
+def _expression_4(msg):
+    return (
+        "is a directory" in msg or "isdirectory" in msg or "is directory" in msg
+    )
+
+def _expression_5(msg):
+    return (
+        "path" in msg and "invalid" in msg
+    )
+
+
 pytestmark = [
     pytest.mark.registry_servers("main", "ref-anon"),
     pytest.mark.xdist_group("interop-central"),
@@ -117,15 +143,15 @@ def _md5(data: bytes) -> str:
 
 def _error_family(status) -> str:
     """Map an XRootD error status to a coarse family string for comparison."""
-    msg = (status.message or "").lower()
+    msg = _expression_1(status)
     if not status.ok:
-        if "no such" in msg or "not found" in msg or "doesn't exist" in msg:
+        if _expression_2(msg):
             return "not_found"
-        if "permission" in msg or "not authoriz" in msg:
+        if _expression_3(msg):
             return "permission"
-        if "is a directory" in msg or "isdirectory" in msg or "is directory" in msg:
+        if _expression_4(msg):
             return "is_directory"
-        if "path" in msg and "invalid" in msg:
+        if _expression_5(msg):
             return "invalid_path"
         return "error"          # generic — both failed, details differ
     return "ok"

@@ -1,4 +1,14 @@
 from split_continuation import reexport as _reexport
+def _check_test_dirlist_file_sizes_match_1(n_st, r_st):
+    assert n_st.ok and r_st.ok
+
+def _check_test_dirlist_file_sizes_match_2(content, n_entry, r_entry):
+    assert n_entry.statinfo.size == r_entry.statinfo.size == len(content), (
+        f"dirlist size mismatch: nginx={n_entry.statinfo.size}, "
+        f"ref={r_entry.statinfo.size}, actual={len(content)}"
+    )
+
+
 _reexport(globals(), "_test_conformance_helpers")
 
 class TestPing:
@@ -231,17 +241,17 @@ class TestDirlistConformance:
         # list the parent dir (root) and find our file
         n_st, n_listing = _dirlist_retry(NGINX_URL, "//")
         r_st, r_listing = _dirlist_retry(REF_URL, "//")
-        assert n_st.ok and r_st.ok
+        _check_test_dirlist_file_sizes_match_1(n_st, r_st)
 
         fname = os.path.basename(path)
         n_entry = next((e for e in n_listing if e.name == fname), None)
         r_entry = next((e for e in r_listing if e.name == fname), None)
-        assert n_entry is not None, f"nginx dirlist missing {fname}"
-        assert r_entry is not None, f"ref   dirlist missing {fname}"
-        assert n_entry.statinfo.size == r_entry.statinfo.size == len(content), (
-            f"dirlist size mismatch: nginx={n_entry.statinfo.size}, "
-            f"ref={r_entry.statinfo.size}, actual={len(content)}"
-        )
+        def _assert_test_dirlist_file_sizes_match_1():
+            assert n_entry is not None, f"nginx dirlist missing {fname}"
+            assert r_entry is not None, f"ref   dirlist missing {fname}"
+
+        _assert_test_dirlist_file_sizes_match_1()
+        _check_test_dirlist_file_sizes_match_2(content, n_entry, r_entry)
 
     def test_dirlist_nonexistent_both_fail(self):
         path = "//_no_such_dir_xyzzy/"

@@ -202,43 +202,63 @@ def _run_probe(url, send_fn, prelogin=False):
 
     send_fn may itself raise on a broken pipe mid-send (peer already closed) —
     that is also a rejection, normalized to EOF."""
-    try:
-        s = _connect(url) if prelogin else _session(url)
-    except (socket.timeout, EOFError, ConnectionError, OSError) as e:
-        # A clean refusal/close before we even probe is still "rejected", but a
-        # timeout connecting is a hang.
-        if isinstance(e, socket.timeout):
-            return (HANG, None)
-        return (EOF, None)
+    s, outcome = _open_probe(url, prelogin)
+    if outcome is not None:
+        return outcome
     if prelogin:
-        try:
-            _, st0, _ = _resp(s)   # handshake reply
-            if st0 != kXR_ok:
-                s.close()
-                return (st0, None)
-        except (socket.timeout,):
-            s.close()
-            return (HANG, None)
-        except EOFError:
-            s.close()
-            return (EOF, None)
+        outcome = _prelogin_outcome(s)
+        if outcome is not None:
+            return outcome
     try:
-        try:
-            send_fn(s)
-        except (BrokenPipeError, ConnectionError, OSError):
-            return (EOF, None)
-        try:
-            _, st, body = _resp(s)
-        except socket.timeout:
-            return (HANG, None)
-        except (EOFError, ConnectionError, OSError):
-            return (EOF, None)
-        return (st, _err(body))
+        return _exchange_probe(s, send_fn)
     finally:
-        try:
-            s.close()
-        except OSError:
-            pass
+        _close_probe(s)
+
+
+def _open_probe(url, prelogin):
+    try:
+        sock = _connect(url) if prelogin else _session(url)
+        return sock, None
+    except socket.timeout:
+        return None, (HANG, None)
+    except (EOFError, ConnectionError, OSError):
+        return None, (EOF, None)
+
+
+def _prelogin_outcome(sock):
+    try:
+        _, status, _ = _resp(sock)
+    except socket.timeout:
+        _close_probe(sock)
+        return (HANG, None)
+    except EOFError:
+        _close_probe(sock)
+        return (EOF, None)
+    if status != kXR_ok:
+        _close_probe(sock)
+        return (status, None)
+    return None
+
+
+def _exchange_probe(sock, send_fn):
+    try:
+        send_fn(sock)
+    except (BrokenPipeError, ConnectionError, OSError):
+        return (EOF, None)
+    try:
+        _, status, body = _resp(sock)
+    except socket.timeout:
+        return (HANG, None)
+    except (EOFError, ConnectionError, OSError):
+        return (EOF, None)
+    return (status, _err(body))
+
+
+def _close_probe(sock):
+    try:
+        sock.close()
+    except OSError:
+        pass
 
 
 def _run_pair(srv, fn):
@@ -337,18 +357,26 @@ def _assert_reject_parity(srv, label, send_fn, want_code=None, prelogin=False):
         f"[{label}] OUR server did NOT reject (status={st_o!r} errnum={en_o}); "
         f"stock rejected (status={st_f!r} errnum={en_f}) (BUG).")
     if want_code is not None:
-        if st_o == kXR_error:
-            assert en_o == want_code or en_o == en_f, (
-                f"[{label}] OUR errnum={en_o} != reference {want_code} "
-                f"(stock={en_f}) (BUG).")
+        _assert_exact_reject(label, st_o, en_o, en_f, want_code)
         return
-    if st_o == kXR_error and en_o is not None:
-        assert en_o in _REJECT_CLASS, (
-            f"[{label}] OUR framing-reject code {en_o} is not a request-reject "
-            f"code (stock={en_f}) (BUG).")
-    if st_f == kXR_error and en_f is not None:
-        assert en_f in _REJECT_CLASS, (
-            f"[{label}] oracle: STOCK framing-reject code {en_f} unexpected.")
+    _assert_framing_reject(label, "OUR", st_o, en_o, en_f)
+    _assert_framing_reject(label, "STOCK", st_f, en_f, en_o)
+
+
+def _assert_exact_reject(label, status, code, stock_code, expected):
+    if status != kXR_error:
+        return
+    assert code == expected or code == stock_code, (
+        f"[{label}] OUR errnum={code} != reference {expected} "
+        f"(stock={stock_code}) (BUG).")
+
+
+def _assert_framing_reject(label, server, status, code, peer_code):
+    if status != kXR_error or code is None:
+        return
+    assert code in _REJECT_CLASS, (
+        f"[{label}] {server} framing-reject code {code} is not a "
+        f"request-reject code (peer={peer_code}).")
 
 
 def _assert_class_parity(srv, label, send_fn, prelogin=False):

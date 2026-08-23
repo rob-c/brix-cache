@@ -73,17 +73,25 @@ def run(root: Path = ROOT) -> tuple[bool, list[str], list[str]]:
     unreferenced = [t for t in _templates() if t not in mentioned]
     allowed = set(_backlog())
 
-    messages = []
-    for name in unreferenced:
-        if name not in allowed:
-            messages.append(
-                f"FAIL new unreferenced template: tests/configs/{name} — wire it "
-                "up from a test, or delete it (do NOT add it to the backlog)")
-    for name in sorted(allowed - set(unreferenced)):
-        messages.append(
-            f"FAIL stale backlog entry: {name} is referenced or gone — rerun "
-            "with --regen to shrink the backlog")
+    messages = _new_template_messages(unreferenced, allowed)
+    messages.extend(_stale_template_messages(unreferenced, allowed))
     return not messages, messages, unreferenced
+
+
+def _new_template_messages(unreferenced, allowed):
+    return [
+        f"FAIL new unreferenced template: tests/configs/{name} — wire it up from "
+        "a test, or delete it (do NOT add it to the backlog)"
+        for name in unreferenced if name not in allowed
+    ]
+
+
+def _stale_template_messages(unreferenced, allowed):
+    return [
+        f"FAIL stale backlog entry: {name} is referenced or gone — rerun with "
+        "--regen to shrink the backlog"
+        for name in sorted(allowed - set(unreferenced))
+    ]
 
 
 def main() -> int:

@@ -1,4 +1,19 @@
 from split_continuation import reexport as _reexport
+def _check_test_rename_dir_preserves_child_count_1(rc_o, raw):
+    assert rc_o == 0, f"many-child dir rename should succeed:{raw}"
+
+def _check_test_rename_dir_preserves_child_count_2(moved):
+    assert sorted(os.listdir(moved)) == sorted(f"c{i:02d}.txt" for i in range(20)), \
+        "OUR: dir rename changed the child set"
+
+def _check_test_wire_mv_cross_depth_ok_4(depth, srv, sub):
+    assert md5_file(our_disk(srv, f"/{sub}/landed.txt")) == \
+        hashlib.md5(b"wirecross").hexdigest(), f"OUR: wire depth-{depth} mv lost content"
+
+def _check_test_wire_mv_cross_depth_ok_3(st, url):
+    assert st == kXR_ok, f"wire cross-depth mv rejected (st={st}) on {url}"
+
+
 _reexport(globals(), "_test_conf_rename_helpers")
 
 def test_confinement_mv_doubled_slash_dotdot(srv):
@@ -23,12 +38,18 @@ def test_rename_dir_onto_existing_file(srv):
     (rc_o, cat_o), (rc_f, cat_f), raw = mv_both(
         srv, "/rn_dof_dir_our", "/rn_dof_file_our.txt",
         "/rn_dof_dir_off", "/rn_dof_file_off.txt")
-    assert rc_o != 0 and rc_f != 0, f"mv-dir-onto-file must fail:{raw}"
-    assert cat_o == cat_f, f"mv-dir-onto-file category differs:{raw}"
-    assert os.path.isfile(our_disk(srv, "/rn_dof_file_our.txt")), \
-        f"OUR: dir clobbered a file (DATA LOSS):{raw}"
-    assert os.path.isdir(our_disk(srv, "/rn_dof_dir_our")), \
-        f"OUR: failed mv consumed the source dir:{raw}"
+    def _assert_test_rename_dir_onto_existing_file_1():
+        assert rc_o != 0 and rc_f != 0, f"mv-dir-onto-file must fail:{raw}"
+        assert cat_o == cat_f, f"mv-dir-onto-file category differs:{raw}"
+
+    _assert_test_rename_dir_onto_existing_file_1()
+    def _assert_test_rename_dir_onto_existing_file_2():
+        assert os.path.isfile(our_disk(srv, "/rn_dof_file_our.txt")), \
+            f"OUR: dir clobbered a file (DATA LOSS):{raw}"
+        assert os.path.isdir(our_disk(srv, "/rn_dof_dir_our")), \
+            f"OUR: failed mv consumed the source dir:{raw}"
+
+    _assert_test_rename_dir_onto_existing_file_2()
 
 
 def test_rename_file_onto_existing_dir(srv):
@@ -112,10 +133,9 @@ def test_rename_dir_preserves_child_count(srv):
     rc_o, rc_f, raw = assert_mv_parity(
         srv, "/rn_many_our", "/rn_many_moved_our",
         "/rn_many_off", "/rn_many_moved_off")
-    assert rc_o == 0, f"many-child dir rename should succeed:{raw}"
+    _check_test_rename_dir_preserves_child_count_1(rc_o, raw)
     moved = our_disk(srv, "/rn_many_moved_our")
-    assert sorted(os.listdir(moved)) == sorted(f"c{i:02d}.txt" for i in range(20)), \
-        "OUR: dir rename changed the child set"
+    _check_test_rename_dir_preserves_child_count_2(moved)
 
 
 def test_rename_long_name(srv):
@@ -360,11 +380,10 @@ def test_wire_mv_cross_depth_ok(srv, depth):
         try:
             s.sendall(_mv_frame(buf, len(old)))
             st, _ = _resp(s)
-            assert st == kXR_ok, f"wire cross-depth mv rejected (st={st}) on {url}"
+            _check_test_wire_mv_cross_depth_ok_3(st, url)
         finally:
             s.close()
-    assert md5_file(our_disk(srv, f"/{sub}/landed.txt")) == \
-        hashlib.md5(b"wirecross").hexdigest(), f"OUR: wire depth-{depth} mv lost content"
+    _check_test_wire_mv_cross_depth_ok_4(depth, srv, sub)
 
 
 # --- arg1len=0 self-split on first space -> OK parity (positive control) ---- #

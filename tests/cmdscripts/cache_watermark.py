@@ -175,95 +175,149 @@ def run_checks(base: Path, nginx_bin: str = NGINX_BIN, objs_dir: Path | None = N
     cinfo_o = objs / "addon" / "cache" / "cinfo.o"
     if not cinfo_o.is_file():
         return [(True, f"SKIP cinfo.o not found at {cinfo_o}")]
-
-    used = filesystem_usage_percent(base)
-    if used < 10 or used > 96:
-        return [(True, f"SKIP filesystem usage {used}% outside testable 10-96% band")]
-    high_purge = used - 2
-    low_purge = max(1, used - 5)
-    high_calm = min(99, used + 2)
-    low_calm = high_calm - 3
-
+    watermarks = _watermarks(base)
+    if isinstance(watermarks, list):
+        return watermarks
     built, build_error, dirty_marker = build_dirty_marker(base, cinfo_o)
     if not built:
         return [(False, f"failed to build dirty marker: {build_error}")]
-
     purge_port, calm_port, metrics_port = cmdscript_ports("cache_watermark")
-    started: list[Path] = []
-    for name, port, high, low, maybe_metrics_port in (
+    specifications = _instance_specs(
+        purge_port, calm_port, metrics_port, watermarks
+    )
+    started, error = _start_instances(base, specifications, dirty_marker, nginx_bin)
+    if error:
+        return [(False, error)]
+    try:
+        _wait_for_purge(base)
+        return _collect_results(base, metrics_port)
+    finally:
+        _stop_instances(started)
+
+
+def _watermarks(base):
+    used = filesystem_usage_percent(base)
+    if used < 10 or used > 96:
+        return [(True, f"SKIP filesystem usage {used}% outside testable 10-96% band")]
+    high_calm = min(99, used + 2)
+    return used - 2, max(1, used - 5), high_calm, high_calm - 3
+
+
+def _instance_specs(purge_port, calm_port, metrics_port, watermarks):
+    high_purge, low_purge, high_calm, low_calm = watermarks
+    return (
         ("purge", purge_port, high_purge, low_purge, metrics_port),
         ("calm", calm_port, high_calm, low_calm, None),
-    ):
-        ok, message, prefix = start_instance(
-            base,
-            name,
-            port,
-            high,
-            low,
-            dirty_marker,
-            nginx_bin,
-            maybe_metrics_port,
+    )
+
+
+def _start_instances(base, specifications, dirty_marker, nginx_bin):
+    started = []
+    for name, port, high, low, metrics_port in specifications:
+        succeeded, message, prefix = start_instance(
+            base, name, port, high, low, dirty_marker, nginx_bin, metrics_port
         )
-        if not ok:
-            for item in reversed(started):
-                stop_nginx(item)
-            return [(False, message)]
+        if not succeeded:
+            _stop_instances(started)
+            return [], message
         started.append(prefix)
+    return started, ""
 
+
+def _stop_instances(prefixes):
+    for prefix in reversed(prefixes):
+        stop_nginx(prefix)
+
+
+def _wait_for_purge(base):
+    deadline = time.time() + 25
+    pattern = base / "purge" / "cache"
+    while time.time() < deadline and list(pattern.glob("plain_*.bin")):
+        time.sleep(1)
+
+
+def _collect_results(base, metrics_port):
+    results = []
+    _append_purge_results(results, base)
+    _append_metric_results(results, metrics_port)
+    _append_calm_results(results, base)
+    return results
+
+
+def _read_log(path):
+    if not path.exists():
+        return ""
+    return path.read_text(encoding="utf-8", errors="replace")
+
+
+def _append_purge_results(results, base):
+    cache = base / "purge" / "cache"
+    dirty = (cache / "keep_dirty.bin").is_file()
+    results.append((not list(cache.glob("plain_*.bin")),
+                    "purge: all plain files reaped (timer drove watermark purge)"))
+    results.append((dirty, "purge: DIRTY write-back file survived (never reaped)"))
+    results.append((dirty, "purge: dirty metadata protection persisted"))
+    log = _read_log(base / "purge" / "logs" / "e.log")
+    results.append(("watermark reaper purged" in log,
+                    "purge: watermark NOTICE logged"))
+
+
+def _fetch_metrics(results, metrics_port):
     try:
-        deadline = time.time() + 25
-        while time.time() < deadline and list((base / "purge" / "cache").glob("plain_*.bin")):
-            time.sleep(1)
+        with urllib.request.urlopen(
+            f"http://{HOST}:{metrics_port}/metrics", timeout=5
+        ) as response:
+            return response.read().decode("utf-8", errors="replace")
+    except OSError as error:
+        results.append((False, f"metrics fetch failed: {error}"))
+        return ""
 
-        results: list[tuple[bool, str]] = []
-        purge_cache = base / "purge" / "cache"
-        calm_cache = base / "calm" / "cache"
-        purge_log = base / "purge" / "logs" / "e.log"
-        calm_log = base / "calm" / "logs" / "e.log"
 
-        results.append((not list(purge_cache.glob("plain_*.bin")), "purge: all plain files reaped (timer drove watermark purge)"))
-        results.append(((purge_cache / "keep_dirty.bin").is_file(), "purge: DIRTY write-back file survived (never reaped)"))
-        results.append(((purge_cache / "keep_dirty.bin").is_file(), "purge: dirty metadata protection persisted"))
-        purge_log_text = purge_log.read_text(encoding="utf-8", errors="replace") if purge_log.exists() else ""
-        results.append(("watermark reaper purged" in purge_log_text, "purge: watermark NOTICE logged"))
+def _append_metric_results(results, metrics_port):
+    metrics = _fetch_metrics(results, metrics_port)
+    usage = metric_value(metrics, "brix_cache_usage_ratio")
+    evicted = metric_value(metrics, "brix_cache_watermark_evicted_files_total")
+    purges = metric_value(metrics, "brix_cache_watermark_purges_total")
+    results.append((usage is not None, "metrics: cache_usage_ratio gauge present"))
+    results.append((evicted is not None and evicted > 0,
+                    "metrics: watermark_evicted_files_total > 0"))
+    results.append((purges is not None and purges > 0,
+                    "metrics: watermark_purges_total > 0"))
 
-        try:
-            with urllib.request.urlopen(f"http://{HOST}:{metrics_port}/metrics", timeout=5) as response:
-                metrics = response.read().decode("utf-8", errors="replace")
-        except OSError as exc:
-            metrics = ""
-            results.append((False, f"metrics fetch failed: {exc}"))
-        usage_ratio = metric_value(metrics, "brix_cache_usage_ratio")
-        evicted = metric_value(metrics, "brix_cache_watermark_evicted_files_total")
-        purges = metric_value(metrics, "brix_cache_watermark_purges_total")
-        results.append((usage_ratio is not None, "metrics: cache_usage_ratio gauge present"))
-        results.append((evicted is not None and evicted > 0, "metrics: watermark_evicted_files_total > 0"))
-        results.append((purges is not None and purges > 0, "metrics: watermark_purges_total > 0"))
 
-        calm_plain = list(calm_cache.glob("plain_*.bin"))
-        results.append((len(calm_plain) == 4, "calm: all 4 plain files survived (below HIGH - no purge)"))
-        calm_log_text = calm_log.read_text(encoding="utf-8", errors="replace") if calm_log.exists() else ""
-        results.append(("watermark reaper purged" not in calm_log_text, "calm: no purge below HIGH watermark"))
-        return results
-    finally:
-        for prefix in reversed(started):
-            stop_nginx(prefix)
+def _append_calm_results(results, base):
+    cache = base / "calm" / "cache"
+    results.append((len(list(cache.glob("plain_*.bin"))) == 4,
+                    "calm: all 4 plain files survived (below HIGH - no purge)"))
+    log = _read_log(base / "calm" / "logs" / "e.log")
+    results.append(("watermark reaper purged" not in log,
+                    "calm: no purge below HIGH watermark"))
 
 
 def entry(argv: list[str]) -> int:
-    nginx_bin = argv[0] if argv else NGINX_BIN
-    objs_dir = Path(argv[1]) if len(argv) > 1 else None
+    nginx_bin, objs_dir = _entry_arguments(argv)
     import tempfile
 
     with tempfile.TemporaryDirectory(prefix="cache_wm.") as tmp:
         results = run_checks(Path(tmp), nginx_bin=nginx_bin, objs_dir=objs_dir)
-    for ok, message in results:
-        print(f"  {'ok  ' if ok else 'FAIL'} {message}")
+    _print_results(results)
     if all(ok for ok, _ in results):
         print("run_cache_watermark: ALL PASS")
         return 0
     print("run_cache_watermark: FAILURES")
     return 1
+
+
+def _entry_arguments(argv):
+    nginx_bin = argv[0] if argv else NGINX_BIN
+    objects = Path(argv[1]) if len(argv) > 1 else None
+    return nginx_bin, objects
+
+
+def _print_results(results):
+    for succeeded, message in results:
+        label = "ok  " if succeeded else "FAIL"
+        print(f"  {label} {message}")
 
 
 if __name__ == "__main__":

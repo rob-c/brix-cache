@@ -64,63 +64,70 @@ def test_no_sanitizer_reports_after_basic_io(tmp_path):
     for the download leg.  A unique per-PID name avoids collisions with
     parallel sessions.
     """
+    xrdcp = _require_xrdcp()
+    src_path, payload = _write_source_payload()
+    try:
+        _clear_sanitizer_reports()
+        output = _download_payload(xrdcp, src_path.name, tmp_path)
+        _assert_payload(payload, output)
+        _assert_no_sanitizer_reports()
+    finally:
+        src_path.unlink(missing_ok=True)
+
+
+def _require_xrdcp():
     xrdcp = shutil.which(XRDCP_BIN)
     if xrdcp is None:
         pytest.skip(
             f"xrdcp not found on PATH (XRDCP_BIN={XRDCP_BIN!r}); "
             "install xrootd-client or build client/ first"
         )
+    return xrdcp
 
-    # Place a uniquely named file in the server's export root so xrdcp can
-    # pull it without needing write authentication.
-    fname = f"sanitizer_smoke_{os.getpid()}.bin"
-    src_path = pathlib.Path(DATA_ROOT) / fname
+
+def _write_source_payload():
+    source = pathlib.Path(DATA_ROOT) / f"sanitizer_smoke_{os.getpid()}.bin"
     payload = b"xrootd-sanitizer-smoke\n" + os.urandom(64)
-    src_path.write_bytes(payload)
+    source.write_bytes(payload)
+    return source, payload
 
-    try:
-        # Remove reports that pre-date this test (e.g. written during fleet
-        # startup) so the final assertion catches only errors triggered by our
-        # transfer, not earlier noise.
-        for stale in glob.glob(os.path.join(SANITIZE_LOG_DIR, "asan.*")):
-            os.remove(stale)
 
-        # Drive bytes through the sanitized nginx module on the root:// path.
-        # This exercises: TCP accept → XRootD handshake → login → kXR_open →
-        # kXR_read → kXR_close on the ASan-instrumented server.
-        out = tmp_path / "got.bin"
-        url = f"{_ANON_BASE}//{fname}"
-        result = subprocess.run(
-            [xrdcp, "-f", url, str(out)],
-            capture_output=True,
-            text=True,
-            timeout=30,
-        )
-        assert result.returncode == 0, (
-            f"xrdcp exited {result.returncode} — transfer failed\n"
-            f"stdout: {result.stdout}\nstderr: {result.stderr}"
-        )
+def _clear_sanitizer_reports():
+    for stale in glob.glob(os.path.join(SANITIZE_LOG_DIR, "asan.*")):
+        os.remove(stale)
 
-        # Verify byte identity; confirms real data traversed the module, not
-        # just that the handshake succeeded and xrdcp returned 0.
-        expected_md5 = hashlib.md5(payload).hexdigest()
-        got_md5 = hashlib.md5(out.read_bytes()).hexdigest()
-        assert expected_md5 == got_md5, (
-            f"content mismatch after transfer — "
-            f"expected md5={expected_md5}, got {got_md5}"
-        )
 
-        # The primary CI assertion: no asan.<pid> report files were written
-        # during the transfer.  A file here means the instrumented server hit a
-        # heap error or undefined behaviour on the open/read path.
-        reports = sorted(glob.glob(os.path.join(SANITIZE_LOG_DIR, "asan.*")))
-        assert not reports, (
-            "ASan/UBSan reports written during basic I/O — "
-            "the sanitized server detected memory or undefined-behaviour errors:\n"
-            + "\n".join(
-                f"  {p}:\n{pathlib.Path(p).read_text(errors='replace')[:1000]}"
-                for p in reports
-            )
-        )
-    finally:
-        src_path.unlink(missing_ok=True)
+def _download_payload(xrdcp, filename, tmp_path):
+    output = tmp_path / "got.bin"
+    result = subprocess.run(
+        [xrdcp, "-f", f"{_ANON_BASE}//{filename}", str(output)],
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    assert result.returncode == 0, (
+        f"xrdcp exited {result.returncode} — transfer failed\n"
+        f"stdout: {result.stdout}\nstderr: {result.stderr}"
+    )
+    return output
+
+
+def _assert_payload(expected, output):
+    expected_md5 = hashlib.md5(expected).hexdigest()
+    got_md5 = hashlib.md5(output.read_bytes()).hexdigest()
+    assert expected_md5 == got_md5, (
+        f"content mismatch after transfer — expected md5={expected_md5}, got {got_md5}"
+    )
+
+
+def _assert_no_sanitizer_reports():
+    reports = sorted(glob.glob(os.path.join(SANITIZE_LOG_DIR, "asan.*")))
+    details = "\n".join(
+        f"  {path}:\n{pathlib.Path(path).read_text(errors='replace')[:1000]}"
+        for path in reports
+    )
+    assert not reports, (
+        "ASan/UBSan reports written during basic I/O — "
+        "the sanitized server detected memory or undefined-behaviour errors:\n"
+        + details
+    )

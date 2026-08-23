@@ -120,6 +120,29 @@ def test_member_joins_mesh_and_serves_data(srr_member):
     assert _read_through(ep.port) == SEED
 
 
+def _assert_srr_share(share, data):
+    assert share["name"] == "meshdata"
+    assert share["path"] == [str(data)], share["path"]
+    assert share["vos"] == ["atlas"]
+    assert isinstance(share["totalsize"], int) and share["totalsize"] > 0
+    assert isinstance(share["usedsize"], int) and 0 <= share["usedsize"] \
+        <= share["totalsize"]
+
+
+def _assert_srr_capacity(service, share):
+    online = service["storagecapacity"]["online"]
+    assert online["totalsize"] == share["totalsize"]
+    assert online["usedsize"] == share["usedsize"]
+
+
+def _assert_srr_endpoint(service, port):
+    endpoints = service["storageendpoints"]
+    assert len(endpoints) == 1
+    assert endpoints[0]["interfacetype"] == "xroot"
+    assert "meshdata" in endpoints[0]["assignedshares"]
+    assert str(port) in endpoints[0]["endpointurl"], endpoints[0]["endpointurl"]
+
+
 def test_srr_reports_the_member_share(srr_member):
     ep, srr_port, data = srr_member
     assert _wait_registered(ep) is not None
@@ -129,21 +152,9 @@ def test_srr_reports_the_member_share(srr_member):
     shares = svc["storageshares"]
     assert len(shares) == 1
     sh = shares[0]
-    assert sh["name"] == "meshdata"
-    assert sh["path"] == [str(data)], sh["path"]
-    assert sh["vos"] == ["atlas"]
-    assert isinstance(sh["totalsize"], int) and sh["totalsize"] > 0
-    assert isinstance(sh["usedsize"], int) and 0 <= sh["usedsize"] \
-        <= sh["totalsize"]
-
-    online = svc["storagecapacity"]["online"]
-    assert online["totalsize"] == sh["totalsize"]
-    assert online["usedsize"] == sh["usedsize"]
-
-    eps = svc["storageendpoints"]
-    assert len(eps) == 1 and eps[0]["interfacetype"] == "xroot"
-    assert "meshdata" in eps[0]["assignedshares"]
-    assert str(ep.port) in eps[0]["endpointurl"], eps[0]["endpointurl"]
+    _assert_srr_share(sh, data)
+    _assert_srr_capacity(svc, sh)
+    _assert_srr_endpoint(svc, ep.port)
 
 
 def test_srr_stays_coherent_under_mesh_and_data_activity(srr_member):

@@ -4,11 +4,14 @@ from __future__ import annotations
 
 from pathlib import Path
 import os
+import re
 import signal
 import subprocess
 import time
 
 from cmdscripts import run
+from cmdscripts.cache_source_helpers import start_servers, stop_servers
+from cmdscripts.command_results import print_results, selected_binary
 from fleet_ports import cmdscript_ports
 from settings import BIND_HOST, CA_CERT, CA_DIR, HOST, NGINX_BIN, SERVER_CERT, SERVER_KEY, TEST_ROOT
 
@@ -50,29 +53,25 @@ def ensure_pki(base: Path) -> tuple[bool, str]:
 
 def split_proxy(proxy: Path, cert_part: Path, key_part: Path) -> tuple[bool, str]:
     text = proxy.read_text(encoding="utf-8")
-    cert_lines: list[str] = []
-    key_lines: list[str] = []
-    in_cert = False
-    in_key = False
-    for line in text.splitlines():
-        if line == "-----BEGIN CERTIFICATE-----":
-            in_cert = True
-        if in_cert:
-            cert_lines.append(line)
-        if line == "-----END CERTIFICATE-----":
-            in_cert = False
-        if line.startswith("-----BEGIN") and line.endswith("PRIVATE KEY-----"):
-            in_key = True
-        if in_key:
-            key_lines.append(line)
-        if line.startswith("-----END") and line.endswith("PRIVATE KEY-----"):
-            in_key = False
-    if not cert_lines or not key_lines:
+    certificates = _pem_blocks(text, "CERTIFICATE")
+    private_keys = _private_key_blocks(text)
+    if not certificates or not private_keys:
         return False, "proxy did not contain both certificate and private key material"
-    cert_part.write_text("\n".join(cert_lines) + "\n", encoding="utf-8")
-    key_part.write_text("\n".join(key_lines) + "\n", encoding="utf-8")
+    cert_part.write_text("\n".join(certificates) + "\n", encoding="utf-8")
+    key_part.write_text("\n".join(private_keys) + "\n", encoding="utf-8")
     key_part.chmod(0o600)
     return True, ""
+
+
+def _pem_blocks(text, label):
+    pattern = rf"-----BEGIN {label}-----.*?-----END {label}-----"
+    return re.findall(pattern, text, flags=re.DOTALL)
+
+
+def _private_key_blocks(text):
+    pattern = r"-----BEGIN ([^-\n]*PRIVATE KEY)-----.*?-----END \1-----"
+    matches = re.finditer(pattern, text, flags=re.DOTALL)
+    return [match.group(0) for match in matches]
 
 
 def write_origin_config(prefix: Path, port: int) -> Path:
@@ -148,23 +147,37 @@ def wait_for_bytes(path: Path, expected: bytes, attempts: int) -> bool:
     return path.exists() and path.read_bytes() == expected
 
 
-def run_checks(base: Path, nginx_bin: str = NGINX_BIN, xrdcp: Path = XRDCP) -> list[tuple[bool, str]]:
-    if not os.access(xrdcp, os.X_OK):
-        return [(True, "SKIP native xrdcp not built")]
+def _prepare_proxy(base, writer):
     pki_ok, pki_message = ensure_pki(base)
     if not pki_ok:
-        return [(True, pki_message)]
-
-    origin_port, write_port, negative_port = cmdscript_ports("credential_xroot_gsi_writeback")
-    origin = base / "o"
-    writer = base / "w"
-    negative = base / "n"
+        return None, None, [(True, pki_message)]
     cert_part = writer / "cert.pem"
     key_part = writer / "key.pem"
     writer.mkdir(parents=True, exist_ok=True)
     split_ok, split_message = split_proxy(PROXY_STD, cert_part, key_part)
     if not split_ok:
-        return [(False, split_message)]
+        return None, None, [(False, split_message)]
+    return cert_part, key_part, None
+
+
+def _write_landed(port, payload, destination, expected, attempts, xrdcp):
+    result = xrdcp_put(port, payload, destination.name, xrdcp)
+    if result.returncode != 0:
+        return False
+    return wait_for_bytes(destination, expected, attempts=attempts)
+
+
+def run_checks(base: Path, nginx_bin: str = NGINX_BIN, xrdcp: Path = XRDCP) -> list[tuple[bool, str]]:
+    if not os.access(xrdcp, os.X_OK):
+        return [(True, "SKIP native xrdcp not built")]
+
+    origin_port, write_port, negative_port = cmdscript_ports("credential_xroot_gsi_writeback")
+    origin = base / "o"
+    writer = base / "w"
+    negative = base / "n"
+    cert_part, key_part, preparation_failure = _prepare_proxy(base, writer)
+    if preparation_failure:
+        return preparation_failure
 
     origin_conf = write_origin_config(origin, origin_port)
     writer_conf = write_node_config(writer, write_port, origin_port, cert_part, key_part)
@@ -174,24 +187,22 @@ def run_checks(base: Path, nginx_bin: str = NGINX_BIN, xrdcp: Path = XRDCP) -> l
     payload_bytes = deterministic_bytes(400_000, 149)
     payload.write_bytes(payload_bytes)
 
-    started: list[Path] = []
-    for name, prefix, conf in (
+    specifications = (
         ("origin", origin, origin_conf),
         ("writer", writer, writer_conf),
         ("negative", negative, negative_conf),
-    ):
-        proc = run([nginx_bin, "-p", str(prefix), "-c", str(conf)])
-        if proc.returncode != 0:
-            for item in reversed(started):
-                stop_nginx(item)
-            return [(False, f"{name} start failed: {(proc.stderr or proc.stdout)[-4000:]}")]
-        started.append(prefix)
+    )
+    started, failure = start_servers(nginx_bin, specifications, run, stop_nginx)
+    if failure:
+        return [failure]
 
     try:
         time.sleep(1)
         results: list[tuple[bool, str]] = []
-        put = xrdcp_put(write_port, payload, "wb.bin", xrdcp)
-        landed = put.returncode == 0 and wait_for_bytes(origin / "root" / "wb.bin", payload_bytes, attempts=20)
+        landed = _write_landed(
+            write_port, payload, origin / "root" / "wb.bin",
+            payload_bytes, 20, xrdcp,
+        )
         results.append((landed, "flush authenticated + wrote through to the GSI origin byte-exact"))
 
         xrdcp_put(negative_port, payload, "nb.bin", xrdcp)
@@ -199,23 +210,16 @@ def run_checks(base: Path, nginx_bin: str = NGINX_BIN, xrdcp: Path = XRDCP) -> l
         results.append((not nlanded, "anonymous flush correctly rejected by the GSI origin"))
         return results
     finally:
-        for prefix in reversed(started):
-            stop_nginx(prefix)
+        stop_servers(started, stop_nginx)
 
 
 def entry(argv: list[str]) -> int:
-    nginx_bin = argv[0] if argv else NGINX_BIN
+    nginx_bin = selected_binary(argv, NGINX_BIN)
     import tempfile
 
     with tempfile.TemporaryDirectory(prefix="cred_gsi_wb.") as tmp:
         results = run_checks(Path(tmp), nginx_bin=nginx_bin)
-    for ok, message in results:
-        print(f"  {'ok  ' if ok else 'FAIL'} {message}")
-    if all(ok for ok, _ in results):
-        print("run_credential_xroot_gsi_writeback: ALL PASS")
-        return 0
-    print("run_credential_xroot_gsi_writeback: FAILURES")
-    return 1
+    return print_results(results, "run_credential_xroot_gsi_writeback")
 
 
 if __name__ == "__main__":

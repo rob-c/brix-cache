@@ -78,6 +78,29 @@ import time
 
 # Deterministic link endpoints inside the private namespace.  A /30 is plenty
 # for the two veth ends; the addresses never escape the namespace.
+def _expression_1(argv):
+    return (
+        list(sys.argv[1:] if argv is None else argv)
+    )
+
+def _expression_2(argv):
+    return (
+        argv and argv[0] == "--inside"
+    )
+
+def _expression_3(argv):
+    return (
+        argv and argv[0] == "--measure"
+    )
+
+
+def _phase_inside_1(holder_pid):
+    try:
+        os.kill(holder_pid, 15)
+    except ProcessLookupError:
+        pass
+
+
 _NET = "10.77.0"
 SRV_IP = f"{_NET}.1"
 CLI_IP = f"{_NET}.2"
@@ -399,10 +422,7 @@ def _inside(spec_path):
         # would pin its netns), then release the netns holder (a bare `sleep`).
         for tag in booted:
             _stop_nginx(workdir, tag)
-        try:
-            os.kill(holder_pid, 15)
-        except ProcessLookupError:
-            pass
+        _phase_inside_1(holder_pid)
     bdp = int(spec["rate_mbit"] * 1e6 / 8 * (2 * spec["delay_ms"] / 1000.0))
     # Compare on the MEDIAN sample, not best-of-N.  netem's rate limiter queues
     # data, so a window-limited baseline occasionally drains one run as a
@@ -436,10 +456,10 @@ def _inside(spec_path):
 # --------------------------------------------------------------------------- #
 
 def _main(argv=None):
-    argv = list(sys.argv[1:] if argv is None else argv)
-    if argv and argv[0] == "--inside":
+    argv = _expression_1(argv)
+    if _expression_2(argv):
         return _inside(argv[1])
-    if argv and argv[0] == "--measure":
+    if _expression_3(argv):
         return _measure_mode(argv[1:])
 
     import argparse

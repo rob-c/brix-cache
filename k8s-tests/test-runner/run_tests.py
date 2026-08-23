@@ -94,30 +94,36 @@ def resolve_test_urls(namespace: str | None) -> dict[str, str]:
 
 def select_test_files(tests_dir: str, scenario: str) -> list[str]:
     """Select test files based on the scenario configuration."""
-    if scenario not in SCENARIOS:
-        print(f"Unknown scenario '{scenario}', using 'all'", file=sys.stderr)
-        scenario = "all"
-
-    config = SCENARIOS[scenario]
-    patterns = config["patterns"]
-    exclude = set(config.get("exclude", []))
-
     test_dir_path = Path(tests_dir)
-    selected: list[str] = []
-
     if not test_dir_path.exists():
         print(f"Tests directory not found: {tests_dir}", file=sys.stderr)
         return []
+    config = _scenario_config(scenario)
+    return _matching_test_files(test_dir_path, config)
 
-    for pattern in patterns:
-        for fpath in sorted(test_dir_path.glob(pattern)):
-            # Skip excluded patterns
-            rel = str(fpath.relative_to(test_dir_path))
-            if any(excluded in rel for excluded in exclude):
-                continue
-            selected.append(str(fpath))
 
+def _scenario_config(scenario):
+    if scenario in SCENARIOS:
+        return SCENARIOS[scenario]
+    print(f"Unknown scenario '{scenario}', using 'all'", file=sys.stderr)
+    return SCENARIOS["all"]
+
+
+def _matching_test_files(tests_dir, config):
+    exclude = set(config.get("exclude", []))
+    selected = []
+    for pattern in config["patterns"]:
+        selected.extend(_included_matches(tests_dir, pattern, exclude))
     return selected
+
+
+def _included_matches(tests_dir, pattern, exclude):
+    matches = []
+    for path in sorted(tests_dir.glob(pattern)):
+        relative = str(path.relative_to(tests_dir))
+        if not any(item in relative for item in exclude):
+            matches.append(str(path))
+    return matches
 
 
 def setup_environment(urls: dict[str, str], auth_mode: str) -> None:
@@ -125,18 +131,29 @@ def setup_environment(urls: dict[str, str], auth_mode: str) -> None:
     os.environ["AUTH_MODE"] = auth_mode
     os.environ.setdefault("TEST_NAMESPACE", "k8s-tests-dev")
 
-    # Map K8s URLs to test framework expectations
-    if "xrootd_url" in urls:
-        os.environ["TEST_NGINX_URL"] = urls["xrootd_url"]
-    if "webdav-https_url" in urls:
-        os.environ.setdefault("TEST_DAVS_URL", urls["webdav-https_url"])
+    _set_endpoint_environment(urls)
+    _set_tpc_environment()
+    _set_pki_environment()
 
-    # TPC-specific URLs (for cross-node copy tests)
-    if "tpc_source_url" in os.environ and "tpc_dest_url" in os.environ:
-        os.environ["TPC_SOURCE"] = os.environ["tpc_source_url"]
-        os.environ["TPC_DESTINATION"] = os.environ["tpc_dest_url"]
 
-    # PKI directory (used by GSI tests)
+def _set_endpoint_environment(urls):
+    xrootd_url = urls.get("xrootd_url")
+    if xrootd_url:
+        os.environ["TEST_NGINX_URL"] = xrootd_url
+    webdav_url = urls.get("webdav-https_url")
+    if webdav_url:
+        os.environ.setdefault("TEST_DAVS_URL", webdav_url)
+
+
+def _set_tpc_environment():
+    source = os.environ.get("tpc_source_url")
+    destination = os.environ.get("tpc_dest_url")
+    if source and destination:
+        os.environ["TPC_SOURCE"] = source
+        os.environ["TPC_DESTINATION"] = destination
+
+
+def _set_pki_environment():
     pki_dir = os.environ.get("PKI_DIR", "/etc/grid-security")
     if Path(pki_dir).exists():
         os.environ["X509_CERT_DIR"] = f"{pki_dir}/certificates"
@@ -163,7 +180,7 @@ def run_tests(test_files: list[str], extra_args: list[str] | None = None) -> int
     return result.returncode
 
 
-def main():
+def _argument_parser():
     parser = argparse.ArgumentParser(description="Run nginx-xrootd K8s tests")
     parser.add_argument("--namespace", default=None, help="Kubernetes namespace (overrides TEST_NAMESPACE)")
     parser.add_argument("--profile", "-p", default=os.environ.get("TEST_PROFILE", "dev"),
@@ -181,38 +198,47 @@ def main():
                         help="Override test file patterns (space-separated globs)")
     parser.add_argument("--extra-args", "-a", nargs="+", default=None,
                         help="Additional pytest arguments")
+    return parser
 
-    args = parser.parse_args()
 
-    # Resolve URLs
+def _configure_endpoints(args):
     urls = resolve_test_urls(args.namespace)
-
-    if not urls:
-        print("WARNING: Could not discover any server endpoints.", file=sys.stderr)
-        print("Using localhost defaults. Ensure servers are accessible on ports 1094/8443.",
-              file=sys.stderr)
-        os.environ["TEST_NGINX_URL"] = "root://localhost:1094"
-        os.environ.setdefault("TEST_DAVS_URL", "davs://localhost:8443")
-    else:
+    if urls:
         setup_environment(urls, args.auth_mode)
+        return
+    print("WARNING: Could not discover any server endpoints.", file=sys.stderr)
+    print("Using localhost defaults. Ensure servers are accessible on ports 1094/8443.",
+          file=sys.stderr)
+    os.environ["TEST_NGINX_URL"] = "root://localhost:1094"
+    os.environ.setdefault("TEST_DAVS_URL", "davs://localhost:8443")
 
-    # TPC-specific URLs if provided
+
+def _configure_tpc(args):
     if args.tpc_source_url and args.tpc_dest_url:
         os.environ["tpc_source_url"] = args.tpc_source_url
         os.environ["tpc_dest_url"] = args.tpc_dest_url
 
-    # Select test files based on scenario or custom patterns
+
+def _custom_test_files(args):
+    selected = []
+    for pattern in args.test_patterns:
+        selected.extend(sorted(Path(args.tests_dir).glob(pattern)))
+    return [str(path) for path in selected]
+
+
+def _selected_test_files(args):
     if args.test_patterns:
-        from pathlib import Path as P
-        selected_files = []
-        for pattern in args.test_patterns:
-            selected_files.extend(sorted(Path(args.tests_dir).glob(pattern)))
-        test_files = [str(f) for f in selected_files]
-    elif args.scenario != "custom":
-        test_files = select_test_files(args.tests_dir, args.scenario)
-    else:
-        # Custom scenario — run everything
-        test_files = []
+        return _custom_test_files(args)
+    if args.scenario != "custom":
+        return select_test_files(args.tests_dir, args.scenario)
+    return []
+
+
+def main():
+    args = _argument_parser().parse_args()
+    _configure_endpoints(args)
+    _configure_tpc(args)
+    test_files = _selected_test_files(args)
 
     exit_code = run_tests(test_files, args.extra_args)
     sys.exit(exit_code)

@@ -16,6 +16,23 @@ import subprocess
 import pytest
 from settings import HOST, NGINX_ANON_PORT, NGINX_WEBDAV_PORT
 
+def _check_run_matrix_1(d):
+    assert _gfal("gfal-mkdir", d).returncode == 0, "mkdir failed"
+
+def _check_run_matrix_2(r):
+    assert r.returncode == 0, f"stat failed: {r.stderr}"
+
+def _check_run_matrix_3(r):
+    assert "1048576" in r.stdout, f"stat wrong size: {r.stdout}"
+
+def _check_run_matrix_4(r):
+    assert r.returncode == 0, f"gfal-sum crc32c failed: {r.stderr}"
+
+def _check_run_matrix_5(gfal_ck, oracle):
+    assert gfal_ck == oracle, \
+        f"gfal crc32c {gfal_ck} != our {oracle}"
+
+
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 NATIVE_XRDCRC32C = os.path.join(REPO, "client", "bin", "xrdcrc32c")
 
@@ -82,36 +99,44 @@ def _run_matrix(base, work, tmp_path, check_stat_size, with_crc32c):
     d = f"{base}/gfaltest_{os.getpid()}_{base.split(':')[0]}"
     up = f"{d}/up.bin"
 
-    assert _gfal("gfal-mkdir", d).returncode == 0, "mkdir failed"
+    _check_run_matrix_1(d)
     try:
         r = _gfal("gfal-copy", "-f", str(work), up)
-        assert r.returncode == 0, f"upload failed: {r.stderr}"
+        def _assert_run_matrix_1():
+            assert r.returncode == 0, f"upload failed: {r.stderr}"
+    
+            assert _gfal("gfal-ls", "-l", d).returncode == 0, "ls failed"
 
-        assert _gfal("gfal-ls", "-l", d).returncode == 0, "ls failed"
+        _assert_run_matrix_1()
 
         r = _gfal("gfal-stat", up)
-        assert r.returncode == 0, f"stat failed: {r.stderr}"
+        _check_run_matrix_2(r)
         if check_stat_size:
-            assert "1048576" in r.stdout, f"stat wrong size: {r.stdout}"
+            _check_run_matrix_3(r)
 
         dl = str(tmp_path / "dl.bin")
         r = _gfal("gfal-copy", "-f", up, dl)
-        assert r.returncode == 0, f"download failed: {r.stderr}"
-        assert open(dl, "rb").read() == work.read_bytes(), "download not byte-identical"
+        def _assert_run_matrix_2():
+            assert r.returncode == 0, f"download failed: {r.stderr}"
+            assert open(dl, "rb").read() == work.read_bytes(), "download not byte-identical"
+
+        _assert_run_matrix_2()
 
         # Checksum: gfal-sum must match our own client's crc32c for the same file.
         if with_crc32c:
             r = _gfal("gfal-sum", up, "crc32c")
-            assert r.returncode == 0, f"gfal-sum crc32c failed: {r.stderr}"
+            _check_run_matrix_4(r)
             gfal_ck = r.stdout.split()[-1].lower().lstrip("0") or "0"
             oracle = _our_crc32c(work)
             if oracle is not None:
-                assert gfal_ck == oracle, \
-                    f"gfal crc32c {gfal_ck} != our {oracle}"
+                _check_run_matrix_5(gfal_ck, oracle)
 
         r = _gfal("gfal-rename", up, f"{d}/renamed.bin")
-        assert r.returncode == 0, f"rename failed: {r.stderr}"
-        assert _gfal("gfal-rm", f"{d}/renamed.bin").returncode == 0, "rm file failed"
+        def _assert_run_matrix_3():
+            assert r.returncode == 0, f"rename failed: {r.stderr}"
+            assert _gfal("gfal-rm", f"{d}/renamed.bin").returncode == 0, "rm file failed"
+
+        _assert_run_matrix_3()
     finally:
         _gfal("gfal-rm", "-r", d)
 

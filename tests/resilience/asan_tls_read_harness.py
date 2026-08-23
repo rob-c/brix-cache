@@ -71,6 +71,28 @@ def tls_read(port, name, want, env, timeout=60, tls_flags=False):
 
 
 def main():
+    args = _parse_args()
+    if not os.path.isfile(args.nginx):
+        sys.exit(f"nginx not found: {args.nginx}")
+    servers.ensure_pki()
+    prefix, logs, data, errlog = _prepare_run_paths()
+    port = free_port()
+    _write_nginx_config(args, prefix, logs, data, errlog, port)
+    want = _create_source(args, data)
+    env = _client_environment()
+    proc, stderr_fh = _start_nginx(args, prefix, logs)
+    _wait_for_nginx(proc, port)
+    _print_run_header(args, port)
+    proxy, target_port = _start_proxy(args, port)
+    try:
+        fails, total, elapsed = _run_reads(args, target_port, want, env)
+    finally:
+        _stop_run(proxy, proc, stderr_fh)
+    san_hits = _sanitizer_hits(logs, errlog)
+    sys.exit(_report(total, elapsed, fails, san_hits))
+
+
+def _parse_args():
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--nginx", default="/tmp/nginx-asan/objs/nginx")
@@ -81,12 +103,10 @@ def main():
     ap.add_argument("--reorder", type=float, default=1.0,
                     help="reorder %% through the fault proxy (0 = direct, no proxy)")
     ap.add_argument("--reorder-ms", type=int, default=50)
-    args = ap.parse_args()
+    return ap.parse_args()
 
-    if not os.path.isfile(args.nginx):
-        sys.exit(f"nginx not found: {args.nginx}")
-    servers.ensure_pki()
 
+def _prepare_run_paths():
     prefix = os.path.join(servers.PREFIX, "asan_tls")
     logs = os.path.join(prefix, "logs")
     data = os.path.join(prefix, "data")
@@ -94,8 +114,10 @@ def main():
         os.makedirs(d, exist_ok=True)
     errlog = os.path.join(logs, "error.log")
     open(errlog, "w").close()                      # truncate
+    return prefix, logs, data, errlog
 
-    port = free_port()
+
+def _write_nginx_config(args, prefix, logs, data, errlog, port):
     conf = os.path.join(prefix, "nginx.conf")
     with open(conf, "w") as fh:
         fh.write(render_config(
@@ -109,18 +131,24 @@ def main():
             PIPELINE_DEPTH=args.depth,
         ))
 
-    name = "/r.bin"
+
+def _create_source(args, data):
     src = os.path.join(data, "r.bin")
     subprocess.run(["dd", "if=/dev/urandom", f"of={src}", "bs=1M",
                     f"count={args.size_mib}"], stdout=subprocess.DEVNULL,
                    stderr=subprocess.DEVNULL)
-    want = md5_file(src)
+    return md5_file(src)
 
+
+def _client_environment():
     env = dict(os.environ)
     env.pop("LD_LIBRARY_PATH", None)
     env.pop("X509_USER_PROXY", None)
     env["X509_CERT_DIR"] = servers.CA_DIR
+    return env
 
+
+def _start_nginx(args, prefix, logs):
     nginx_env = dict(os.environ)
     nginx_env.pop("LD_LIBRARY_PATH", None)
     nginx_env["ASAN_OPTIONS"] = ("detect_leaks=0:abort_on_error=0:halt_on_error=0:"
@@ -128,6 +156,10 @@ def main():
     stderr_fh = open(os.path.join(logs, "nginx_stderr.log"), "w")
     proc = subprocess.Popen([args.nginx, "-p", prefix, "-c", "nginx.conf"],
                             stdout=stderr_fh, stderr=stderr_fh, env=nginx_env)
+    return proc, stderr_fh
+
+
+def _wait_for_nginx(proc, port):
     for _ in range(80):
         try:
             socket.create_connection((HOST, port), timeout=0.3).close()
@@ -138,70 +170,93 @@ def main():
         proc.kill()
         sys.exit("nginx (TLS) failed to come up")
 
+
+def _print_run_header(args, port):
     asan = "ASAN" if "address" in subprocess.run(
         [args.nginx, "-V"], capture_output=True).stderr.decode() else "release"
     print(f"[up] nginx({asan}) TLS :{port}  depth={args.depth}  "
           f"{args.size_mib}MiB  conc={args.concurrency} rounds={args.rounds}  "
           f"reorder={args.reorder}%/{args.reorder_ms}ms")
 
-    fp = None
-    target_port = port
-    if args.reorder > 0:
-        fp = servers.FaultProxy(port)
-        fp.__enter__()
-        fp.set_reorder(args.reorder, args.reorder_ms)
-        target_port = fp.listen
 
+def _start_proxy(args, port):
+    if args.reorder > 0:
+        proxy = servers.FaultProxy(port)
+        proxy.__enter__()
+        proxy.set_reorder(args.reorder, args.reorder_ms)
+        return proxy, proxy.listen
+    return None, port
+
+
+def _run_reads(args, target_port, want, env):
     fails = 0
     total = 0
     t0 = time.monotonic()
+    for rnd in range(1, args.rounds + 1):
+        round_fails = _run_read_round(args, target_port, want, env, rnd)
+        fails += round_fails
+        total += args.concurrency
+        print(f"  round {rnd}/{args.rounds}: {args.concurrency} concurrent "
+              f"TLS reads done ({fails} fails so far)")
+    return fails, total, time.monotonic() - t0
+
+
+def _run_read_round(args, target_port, want, env, round_number):
+    with cf.ThreadPoolExecutor(args.concurrency) as executor:
+        futures = [executor.submit(tls_read, target_port, "/r.bin", want, env)
+                   for _ in range(args.concurrency)]
+        failures = _read_failures(futures)
+    for error in failures[:3]:
+        print(f"  [rnd {round_number}] READ FAIL: {error}")
+    return len(failures)
+
+
+def _read_failures(futures):
+    return [error for ok, error in (future.result() for future in futures)
+            if not ok]
+
+
+def _stop_run(proxy, proc, stderr_fh):
+    if proxy is not None:
+        proxy.set_reorder(0)
+        proxy.__exit__(None, None, None)
+    proc.terminate()
     try:
-        for rnd in range(1, args.rounds + 1):
-            with cf.ThreadPoolExecutor(args.concurrency) as ex:
-                futs = [ex.submit(tls_read, target_port, name, want, env)
-                        for _ in range(args.concurrency)]
-                for f in futs:
-                    ok, err = f.result()
-                    total += 1
-                    if not ok:
-                        fails += 1
-                        if fails <= 3:
-                            print(f"  [rnd {rnd}] READ FAIL: {err}")
-            print(f"  round {rnd}/{args.rounds}: {args.concurrency} concurrent "
-                  f"TLS reads done ({fails} fails so far)")
-    finally:
-        if fp is not None:
-            fp.set_reorder(0)
-            fp.__exit__(None, None, None)
-        # Graceful stop so the worker flushes any ASAN report.
-        proc.terminate()
-        try:
-            proc.wait(timeout=10)
-        except subprocess.TimeoutExpired:
-            proc.kill()
-        stderr_fh.close()
+        proc.wait(timeout=10)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+    stderr_fh.close()
 
-    elapsed = time.monotonic() - t0
-    # Scan BOTH nginx logs for ASAN reports.
-    san_hits = []
+
+def _sanitizer_hits(logs, errlog):
+    hits = []
     for lf in (os.path.join(logs, "nginx_stderr.log"), errlog):
-        try:
-            with open(lf, errors="replace") as fh:
-                for line in fh:
-                    if any(m in line for m in ASAN_MARKERS):
-                        san_hits.append(line.rstrip())
-        except OSError:
-            pass
+        hits.extend(_sanitizer_hits_in(lf))
+    return hits
 
+
+def _sanitizer_hits_in(path):
+    hits = []
+    try:
+        with open(path, errors="replace") as fh:
+            for line in fh:
+                if any(marker in line for marker in ASAN_MARKERS):
+                    hits.append(line.rstrip())
+    except OSError:
+        pass
+    return hits
+
+
+def _report(total, elapsed, fails, san_hits):
     print(f"\n=== {total} TLS reads in {elapsed:.1f}s — byte-exact fails={fails}  "
           f"ASAN reports={len(san_hits)} ===")
-    for h in san_hits[:12]:
-        print("  SAN:", h)
+    for hit in san_hits[:12]:
+        print("  SAN:", hit)
     if fails == 0 and not san_hits:
         print("RESULT: PASS (byte-exact, zero ASAN reports)")
-        sys.exit(0)
+        return 0
     print("RESULT: FAIL")
-    sys.exit(1)
+    return 1
 
 
 if __name__ == "__main__":

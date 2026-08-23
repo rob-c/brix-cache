@@ -38,6 +38,18 @@ from settings import (
     url_host,
 )
 
+def _guard_get_http_code_1(method, args):
+    if method != "GET":
+        args.extend(["-X", method])
+
+def _guard_get_http_code_2(body_file, args):
+    if body_file and Path(body_file).exists():
+        args.extend(["--data-binary", f"@{body_file}"])
+
+def _check_get_http_code_1(result):
+    assert result.returncode == 0, f"curl failed: {result.stderr.decode(errors='replace')}"
+
+
 pytestmark = pytest.mark.timeout(120)
 
 PKI_DIR = Path(PKI_DIR_STR)
@@ -110,16 +122,14 @@ def _get_http_code(url: str, method: str = "GET", headers=None,
                    body_file: Optional[str] = None, timeout: int = 30):
     """Execute a single HTTP request and return the status code."""
     args = ["-w", "%{http_code}", "-o", "/dev/null"]
-    if method != "GET":
-        args.extend(["-X", method])
+    _guard_get_http_code_1(method, args)
     if headers:
         for h in headers:
             args.extend(["-H", str(h)])
-    if body_file and Path(body_file).exists():
-        args.extend(["--data-binary", f"@{body_file}"])
+    _guard_get_http_code_2(body_file, args)
     args.append(url)
     result = _curl(*args, timeout=timeout)
-    assert result.returncode == 0, f"curl failed: {result.stderr.decode(errors='replace')}"
+    _check_get_http_code_1(result)
     return int(result.stdout.strip())
 
 

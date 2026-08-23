@@ -1,13 +1,11 @@
-"""The result data model (feature F21).
+"""Serializable models for runs, tests, samples, and findings.
 
 One test invocation produces one ``TestRecord`` — the complete,
 self-describing account of what ran: outcome per phase, durations,
 where its full captured output lives on disk, which servers it
 touched (declared static + dynamically requested), which artifacts it
-resolved, and its configuration (params, markers).  The record is the
-unit the store catalogues (F22) and the portal renders (F23); it is
-deliberately flat and JSON-faithful so exporting a run to OpenSearch
-is a serialization, not a translation.
+resolved, and its configuration (params, markers). The model remains
+JSON-compatible so storage and export use the same representation.
 """
 
 from __future__ import annotations
@@ -16,7 +14,7 @@ import dataclasses
 import json
 from typing import Dict, List
 
-__all__ = ["PhaseResult", "TestRecord", "RunInfo", "Sample", "Finding", "OUTCOMES"]
+__all__ = ["OUTCOMES", "Finding", "PhaseResult", "RunInfo", "Sample", "TestRecord"]
 
 OUTCOMES = ("passed", "failed", "skipped", "error", "xfailed", "xpassed")
 
@@ -96,7 +94,7 @@ class RunInfo:
 
 @dataclasses.dataclass(frozen=True)
 class Sample:
-    """One resource observation of one instance (F25)."""
+    """One resource observation for an instance."""
 
     instance: str
     ts: float               # monotonic-anchored epoch seconds
@@ -108,7 +106,7 @@ class Sample:
 
 @dataclasses.dataclass(frozen=True)
 class Finding:
-    """A resource verdict: crash | leak | cpu-spike (F25)."""
+    """A crash, leak, or CPU-spike verdict for an instance."""
 
     kind: str
     instance: str

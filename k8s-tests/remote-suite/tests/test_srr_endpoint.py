@@ -28,6 +28,33 @@ import time
 
 import pytest
 
+def _phase_test_srr_required_v4_fields_present_1(svc):
+    for s in svc["storageshares"]:
+        for k in ("timestamp", "totalsize", "usedsize", "vos"):
+            _check_test_srr_required_v4_fields_present_4(k, s)
+
+
+def _guard_srr_server_1():
+    if not os.path.exists(NGINX_BIN):
+        pytest.skip(f"nginx binary not found at {NGINX_BIN}")
+
+def _guard_srr_server_2():
+    if not _HAVE_REQUESTS:
+        pytest.skip("requests not available")
+
+def _check_test_srr_required_v4_fields_present_1(k, svc):
+    assert k in svc, f"missing required storageservice.{k}"
+
+def _check_test_srr_required_v4_fields_present_2(k, online):
+    assert k in online
+
+def _check_test_srr_required_v4_fields_present_3(k, e):
+    assert k in e, f"missing required endpoint.{k}"
+
+def _check_test_srr_required_v4_fields_present_4(k, s):
+    assert k in s, f"missing required share.{k}"
+
+
 try:
     import requests
     _HAVE_REQUESTS = True
@@ -54,10 +81,8 @@ def _wait_port(port, timeout=10):
 
 @pytest.fixture(scope="module")
 def srr_server(tmp_path_factory):
-    if not os.path.exists(NGINX_BIN):
-        pytest.skip(f"nginx binary not found at {NGINX_BIN}")
-    if not _HAVE_REQUESTS:
-        pytest.skip("requests not available")
+    _guard_srr_server_1()
+    _guard_srr_server_2()
 
     d = tmp_path_factory.mktemp("srr")
     (d / "logs").mkdir()
@@ -112,36 +137,57 @@ master_process off;
 def test_srr_document_is_schema_valid(srr_server):
     data_dir = srr_server
     r = requests.get(URL, timeout=10)
-    assert r.status_code == 200, f"{r.status_code} {r.text[:200]}"
-    assert r.headers.get("Content-Type", "").startswith("application/json"), \
-        r.headers.get("Content-Type")
+    def _assert_test_srr_document_is_schema_valid_1():
+        assert r.status_code == 200, f"{r.status_code} {r.text[:200]}"
+        assert r.headers.get("Content-Type", "").startswith("application/json"), \
+            r.headers.get("Content-Type")
+
+    _assert_test_srr_document_is_schema_valid_1()
 
     doc = json.loads(r.text)
     svc = doc["storageservice"]
 
     # identity
-    assert svc["implementation"] == "BriX-Cache"
-    assert svc["implementationversion"] == "3.5"
-    assert svc["name"] == "TEST-SE"
-    assert svc["qualitylevel"] == "production"
+    def _assert_test_srr_document_is_schema_valid_2():
+        assert svc["implementation"] == "BriX-Cache"
+        assert svc["implementationversion"] == "3.5"
+
+    _assert_test_srr_document_is_schema_valid_2()
+    def _assert_test_srr_document_is_schema_valid_3():
+        assert svc["name"] == "TEST-SE"
+        assert svc["qualitylevel"] == "production"
+
+    _assert_test_srr_document_is_schema_valid_3()
     assert isinstance(svc["latestupdate"], int) and svc["latestupdate"] > 0
 
     # shares — one share, live statvfs space
     shares = svc["storageshares"]
     assert isinstance(shares, list) and len(shares) == 1
     sh = shares[0]
-    assert sh["name"] == "atlasdata"
-    assert isinstance(sh["timestamp"], int) and sh["timestamp"] > 0
-    assert isinstance(sh["totalsize"], int) and sh["totalsize"] > 0
-    assert isinstance(sh["usedsize"], int) and sh["usedsize"] >= 0
-    assert sh["usedsize"] <= sh["totalsize"]
-    assert sh["vos"] == ["atlas", "cms"]
+    def _assert_test_srr_document_is_schema_valid_4():
+        assert sh["name"] == "atlasdata"
+        assert isinstance(sh["timestamp"], int) and sh["timestamp"] > 0
+
+    _assert_test_srr_document_is_schema_valid_4()
+    def _assert_test_srr_document_is_schema_valid_5():
+        assert isinstance(sh["totalsize"], int) and sh["totalsize"] > 0
+        assert isinstance(sh["usedsize"], int) and sh["usedsize"] >= 0
+
+    _assert_test_srr_document_is_schema_valid_5()
+    def _assert_test_srr_document_is_schema_valid_6():
+        assert sh["usedsize"] <= sh["totalsize"]
+        assert sh["vos"] == ["atlas", "cms"]
+
+    _assert_test_srr_document_is_schema_valid_6()
     assert sh["path"] == [data_dir]
 
     # capacity — site-wide online sum
     online = svc["storagecapacity"]["online"]
-    assert online["totalsize"] == sh["totalsize"]
-    assert online["usedsize"] == sh["usedsize"]
+    def _assert_test_srr_document_is_schema_valid_7():
+        assert online["totalsize"] == sh["totalsize"]
+        assert online["usedsize"] == sh["usedsize"]
+
+    _assert_test_srr_document_is_schema_valid_7()
 
     # endpoints — two configured doors
     eps = svc["storageendpoints"]
@@ -158,19 +204,17 @@ def test_srr_required_v4_fields_present(srr_server):
     # storageservice REQUIRED
     for k in ("implementation", "implementationversion",
               "storageendpoints", "storageshares"):
-        assert k in svc, f"missing required storageservice.{k}"
+        _check_test_srr_required_v4_fields_present_1(k, svc)
     # storagecapacity.online REQUIRED
     online = svc["storagecapacity"]["online"]
     for k in ("totalsize", "usedsize"):
-        assert k in online
+        _check_test_srr_required_v4_fields_present_2(k, online)
     # each endpoint REQUIRED
     for e in svc["storageendpoints"]:
         for k in ("name", "endpointurl", "interfacetype", "assignedshares"):
-            assert k in e, f"missing required endpoint.{k}"
+            _check_test_srr_required_v4_fields_present_3(k, e)
     # each share REQUIRED
-    for s in svc["storageshares"]:
-        for k in ("timestamp", "totalsize", "usedsize", "vos"):
-            assert k in s, f"missing required share.{k}"
+    _phase_test_srr_required_v4_fields_present_1(svc)
 
 
 def test_srr_rejects_write_method(srr_server):

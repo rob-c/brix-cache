@@ -32,6 +32,56 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 # catalog `flags` bits — mirror shared/cvmfs/catalog/catalog.h.
+def _expression_1(cursor, c):
+    return (
+        cursor if c.offset is None else c.offset
+    )
+
+def _expression_2(c):
+    return (
+        len(c.content) if c.size is None else c.size
+    )
+
+def _expression_3(last_end, node):
+    return (
+        last_end if node.size is None else node.size
+    )
+
+def _expression_4(created, expiry, repo, fingerprints, self):
+    return (
+        [created or self.whitelist_created, "E" + expiry,
+                         "N" + repo, *fingerprints]
+    )
+
+def _expression_5(hash_text, body):
+    return (
+        hashlib.sha1(body[:-3].encode()).hexdigest() if hash_text is None else hash_text
+    )
+
+def _expression_6(stale_sig, sign_key, self, ht):
+    return (
+        b"\x00" * 256 if stale_sig else self._rsa_sign(sign_key, ht.encode())
+    )
+
+
+def _guard_catalog_bytes_1(db_path):
+    if db_path.exists():
+        db_path.unlink()
+
+def _guard_catalog_bytes_2(nested, db):
+    if nested:
+        db.executemany("INSERT INTO nested_catalogs (path,sha1,size) VALUES (?,?,?)", nested)
+
+def _guard_catalog_bytes_3(chunks, db):
+    if chunks:
+        db.executemany("INSERT INTO chunks (md5path_1,md5path_2,offset,size,hash) "
+                       "VALUES (?,?,?,?,?)", chunks)
+
+def _guard_catalog_bytes_4(props, db):
+    if props:
+        db.executemany("INSERT INTO properties (key,value) VALUES (?,?)", list(props.items()))
+
+
 FLAG_DIR = 1
 FLAG_DIR_NESTED_MOUNT = 2
 FLAG_FILE = 4
@@ -214,8 +264,7 @@ class RepoForge:
 
     def _catalog_bytes(self, rows: list, nested: list, chunks: list, props: dict) -> bytes:
         db_path = self._work / f"cat.{len(self.cas)}.{os.getpid()}.db"
-        if db_path.exists():
-            db_path.unlink()
+        _guard_catalog_bytes_1(db_path)
         db = sqlite3.connect(str(db_path))
         db.executescript(_CATALOG_DDL)
         # Stock stores symlink='' (never NULL) for non-symlinks; the official
@@ -225,13 +274,9 @@ class RepoForge:
             "INSERT INTO catalog (md5path_1,md5path_2,parent_1,parent_2,hardlinks,hash,"
             "size,mode,mtime,flags,name,symlink,uid,gid,xattr) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,NULL)",
             rows)
-        if nested:
-            db.executemany("INSERT INTO nested_catalogs (path,sha1,size) VALUES (?,?,?)", nested)
-        if chunks:
-            db.executemany("INSERT INTO chunks (md5path_1,md5path_2,offset,size,hash) "
-                           "VALUES (?,?,?,?,?)", chunks)
-        if props:
-            db.executemany("INSERT INTO properties (key,value) VALUES (?,?)", list(props.items()))
+        _guard_catalog_bytes_2(nested, db)
+        _guard_catalog_bytes_3(chunks, db)
+        _guard_catalog_bytes_4(props, db)
         db.commit()
         db.close()
         data = db_path.read_bytes()
@@ -294,13 +339,13 @@ class RepoForge:
         for c in node.chunks:
             if isinstance(c, (bytes, bytearray)):
                 c = Chunk(bytes(c))
-            off = cursor if c.offset is None else c.offset
-            size = len(c.content) if c.size is None else c.size
+            off = _expression_1(cursor, c)
+            size = _expression_2(c)
             h = self._write_cas(c.content, "P", compressed=c.compressed)
             chunks.append((m1, m2, off, size, bytes.fromhex(h)))
             cursor = off + len(c.content)
             last_end = max(last_end, off + size)
-        return last_end if node.size is None else node.size
+        return _expression_3(last_end, node)
 
     # ---- artifact writers -------------------------------------------------
 
@@ -322,13 +367,12 @@ class RepoForge:
                          hash_text: str | None, sign_key, stale_sig: bool,
                          created: str | None = None) -> None:
         # Official shape: creation stamp on line 0, authoritative E<expiry> line.
-        lines = [created or self.whitelist_created, "E" + expiry,
-                 "N" + repo, *fingerprints]
+        lines = _expression_4(created, expiry, repo, fingerprints, self)
         body = "".join(l + "\n" for l in lines) + "--\n"
         # Stock CVMFS hashes the body up to but EXCLUDING the "--\n" separator.
-        ht = hashlib.sha1(body[:-3].encode()).hexdigest() if hash_text is None else hash_text
+        ht = _expression_5(hash_text, body)
         raw = body.encode() + ht.encode() + b"\n"
-        sig = b"\x00" * 256 if stale_sig else self._rsa_sign(sign_key, ht.encode())
+        sig = _expression_6(stale_sig, sign_key, self, ht)
         (self.repo_dir / ".cvmfswhitelist").write_bytes(raw + sig)
 
     # ---- top-level build --------------------------------------------------

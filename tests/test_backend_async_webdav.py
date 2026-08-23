@@ -46,6 +46,25 @@ import requests
 from settings import BIND_HOST, HOST, NGINX_BIN
 from server_registry import NginxInstanceSpec
 
+def _expression_1(srv):
+    return (
+        [srv.url(f"batch-{i}.txt") for i in range(2)]
+    )
+
+def _expression_2(urls):
+    return (
+        [threading.Thread(target=_worker, args=(i, u))
+                       for i, u in enumerate(urls)]
+    )
+
+
+def _check_test_size_trigger_releases_batch_2(t0):
+    assert time.monotonic() - t0 < 10, "batch did not flush on the size trigger"
+
+def _check_test_size_trigger_releases_batch_1(u):
+    assert requests.put(u, data=b"z", timeout=15).status_code in (200, 201)
+
+
 pytestmark = [pytest.mark.serial, pytest.mark.uses_lifecycle_harness,
               pytest.mark.xdist_group("lc-backend-async-webdav")]
 
@@ -281,9 +300,9 @@ def test_size_trigger_releases_batch(make_server):
     inside a 10s join proves the queue flushed the moment its depth hit the batch.
     """
     srv = make_server(batch="2", wait="30000ms").start()
-    urls = [srv.url(f"batch-{i}.txt") for i in range(2)]
+    urls = _expression_1(srv)
     for u in urls:
-        assert requests.put(u, data=b"z", timeout=15).status_code in (200, 201)
+        _check_test_size_trigger_releases_batch_1(u)
 
     results = {}
 
@@ -291,16 +310,18 @@ def test_size_trigger_releases_batch(make_server):
         results[tag] = requests.delete(url, timeout=15).status_code
 
     t0 = time.monotonic()
-    threads = [threading.Thread(target=_worker, args=(i, u))
-               for i, u in enumerate(urls)]
+    threads = _expression_2(urls)
     for t in threads:
         t.start()
     for t in threads:
         t.join(timeout=10)
 
-    assert not any(t.is_alive() for t in threads), "a DELETE never flushed"
-    assert results == {0: 204, 1: 204}, results
-    assert time.monotonic() - t0 < 10, "batch did not flush on the size trigger"
+    def _assert_test_size_trigger_releases_batch_1():
+        assert not any(t.is_alive() for t in threads), "a DELETE never flushed"
+        assert results == {0: 204, 1: 204}, results
+
+    _assert_test_size_trigger_releases_batch_1()
+    _check_test_size_trigger_releases_batch_2(t0)
 
 
 # --------------------------------------------------------------------------- #

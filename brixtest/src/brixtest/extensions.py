@@ -25,16 +25,30 @@ if TYPE_CHECKING:
     from brixtest.runtime.backends import BackendContext
     from brixtest.runtime.executors import ToolExecutionContext, ToolExecutionRequest
     from brixtest.runtime.launchers import (
-        ServerLaunchContext, ServerLaunchPlan, ServerLaunchRequest,
+        ServerLaunchContext,
+        ServerLaunchPlan,
+        ServerLaunchRequest,
     )
 
 EXTENSION_API_VERSION = 1
 _EXTENSION_NAME = re.compile(r"^[a-z][a-z0-9_-]*$")
 __all__ = [
-    "Analyzer", "CaseBackend", "Collector", "ENTRY_POINT_GROUPS",
-    "EXTENSION_API_VERSION", "Exporter", "ExtensionInfo", "ExtensionRegistry",
-    "ProbeDriver", "ResourceProvider", "ServerLauncher", "ToolExecutor", "extension_registry",
-    "get_extension", "installed_extensions", "register_extension",
+    "ENTRY_POINT_GROUPS",
+    "EXTENSION_API_VERSION",
+    "Analyzer",
+    "CaseBackend",
+    "Collector",
+    "Exporter",
+    "ExtensionInfo",
+    "ExtensionRegistry",
+    "ProbeDriver",
+    "ResourceProvider",
+    "ServerLauncher",
+    "ToolExecutor",
+    "extension_registry",
+    "get_extension",
+    "installed_extensions",
+    "register_extension",
 ]
 ENTRY_POINT_GROUPS: Mapping[str, str] = {
     "probe": "brixtest.probes",
@@ -159,6 +173,20 @@ def _validate_target(kind: str, target: object) -> None:
         )
 
 
+def _extension_capabilities(value: object) -> tuple[str, ...]:
+    if isinstance(value, (str, bytes)) or not isinstance(value, Sequence):
+        raise SpecError(
+            "extension capabilities", value,
+            "must be a sequence of non-empty names",
+        )
+    raw_values = tuple(value)
+    if not all(isinstance(item, str) and bool(item) for item in raw_values):
+        raise SpecError(
+            "extension capabilities", raw_values, "must contain non-empty text",
+        )
+    return tuple(sorted(set(raw_values)))
+
+
 @dataclasses.dataclass(frozen=True)
 class ExtensionInfo:
     """Secret-free metadata for one built-in, programmatic, or packaged extension."""
@@ -182,21 +210,7 @@ class ExtensionInfo:
                 "extension api_version", self.api_version,
                 "BriXTest supports version %d" % EXTENSION_API_VERSION,
             )
-        if isinstance(self.capabilities, (str, bytes)) or not isinstance(
-            self.capabilities, Sequence
-        ):
-            raise SpecError(
-                "extension capabilities", self.capabilities,
-                "must be a sequence of non-empty names",
-            )
-        raw_values = tuple(self.capabilities)
-        if not all(isinstance(value, str) and value for value in raw_values):
-            raise SpecError(
-                "extension capabilities", raw_values,
-                "must contain non-empty text",
-            )
-        values = tuple(sorted(set(raw_values)))
-        object.__setattr__(self, "capabilities", values)
+        object.__setattr__(self, "capabilities", _extension_capabilities(self.capabilities))
         if not isinstance(self.origin, str) or not self.origin:
             raise SpecError("extension origin", self.origin, "must be non-empty text")
 
@@ -233,24 +247,33 @@ class ExtensionRegistry:
         with self._lock:
             if self._discovered and not refresh:
                 return self.describe()
-            if refresh:
-                for key in tuple(self._entry_points):
-                    if key not in self._targets:
-                        self._info.pop(key, None)
-                self._entry_points.clear()
+            self._refresh_discovery(refresh)
             found = metadata.entry_points()
             for kind, group in ENTRY_POINT_GROUPS.items():
-                selected = found.select(group=group) if hasattr(found, "select") else found.get(group, ())
-                for entry in selected:
-                    key = kind, entry.name
-                    if key in self._targets:
-                        continue
-                    self._entry_points[key] = entry
-                    self._info[key] = ExtensionInfo(
-                        kind, entry.name, origin="entry-point:%s" % entry.value,
-                    )
+                self._discover_group(found, kind, group)
             self._discovered = True
             return self.describe()
+
+    def _refresh_discovery(self, refresh: bool) -> None:
+        if not refresh:
+            return
+        for key in tuple(self._entry_points):
+            if key not in self._targets:
+                self._info.pop(key, None)
+        self._entry_points.clear()
+
+    def _discover_group(self, found, kind: str, group: str) -> None:
+        for entry in _selected_entries(found, group):
+            self._record_entry(kind, entry)
+
+    def _record_entry(self, kind: str, entry: metadata.EntryPoint) -> None:
+        key = kind, entry.name
+        if key in self._targets:
+            return
+        self._entry_points[key] = entry
+        self._info[key] = ExtensionInfo(
+            kind, entry.name, origin="entry-point:%s" % entry.value,
+        )
 
     def load(self, kind: str, name: str) -> object:
         """Return a validated extension, lazily importing an entry point if needed."""
@@ -312,6 +335,12 @@ class ExtensionRegistry:
             self._info.clear()
             self._entry_points.clear()
             self._discovered = False
+
+
+def _selected_entries(found, group: str):
+    if hasattr(found, "select"):
+        return found.select(group=group)
+    return found.get(group, ())
 
 
 extension_registry = ExtensionRegistry()

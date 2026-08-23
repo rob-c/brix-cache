@@ -26,6 +26,24 @@ import pytest
 import _cachemx as cx
 from _cachemx import mx  # noqa: F401
 
+def _expression_1(plane):
+    return (
+        0 if plane == "gsi" else 1
+    )
+
+def _expression_2(expected_auth_failures, deadline, after, s, method):
+    return (
+        s.delta("brix_auth_total",
+                               {"proto": "stream", "method": method,
+                                "status": "fail"}, after) < expected_auth_failures
+                       and time.monotonic() < deadline
+    )
+
+
+def _check_test_auth_rejected_counts_only_failure_1(after, s):
+    assert s.delta("brix_io_bytes_read", {"proto": "stream"}, after) == 0
+
+
 pytestmark = [pytest.mark.uses_lifecycle_harness,
               pytest.mark.xdist_group("lc-cachemx")]
 
@@ -407,24 +425,27 @@ def test_auth_rejected_counts_only_failure(mx, plane, env_builder, tmp_path):
     # close.  Under the full cache-matrix load that fold can trail the normal
     # settle interval, so wait for the expected terminal counter before
     # asserting the exact zero-side-effect deltas below.
-    expected_auth_failures = 0 if plane == "gsi" else 1
+    expected_auth_failures = _expression_1(plane)
     if expected_auth_failures:
         deadline = time.monotonic() + 5.0
-        while (s.delta("brix_auth_total",
-                       {"proto": "stream", "method": method,
-                        "status": "fail"}, after) < expected_auth_failures
-               and time.monotonic() < deadline):
+        while (_expression_2(expected_auth_failures, deadline, after, s, method)):
             time.sleep(0.1)
             after = cx.mfetch(mx.metrics)
-    assert s.delta("brix_auth_total",
-                   {"proto": "stream", "method": method, "status": "fail"},
-                   after) == expected_auth_failures
-    assert s.delta("brix_io_ops_total",
-                   {"proto": "stream", "op": "read", "status": "ok"},
-                   after) == 0
-    assert s.delta("brix_cache_hits_total", {"proto": "stream"}, after) == 0
-    assert s.delta("brix_cache_misses_total", {"proto": "stream"}, after) == 0
-    assert s.delta("brix_io_bytes_read", {"proto": "stream"}, after) == 0
+    def _assert_test_auth_rejected_counts_only_failure_1():
+        assert s.delta("brix_auth_total",
+                       {"proto": "stream", "method": method, "status": "fail"},
+                       after) == expected_auth_failures
+        assert s.delta("brix_io_ops_total",
+                       {"proto": "stream", "op": "read", "status": "ok"},
+                       after) == 0
+
+    _assert_test_auth_rejected_counts_only_failure_1()
+    def _assert_test_auth_rejected_counts_only_failure_2():
+        assert s.delta("brix_cache_hits_total", {"proto": "stream"}, after) == 0
+        assert s.delta("brix_cache_misses_total", {"proto": "stream"}, after) == 0
+
+    _assert_test_auth_rejected_counts_only_failure_2()
+    _check_test_auth_rejected_counts_only_failure_1(after, s)
 
 
 # --------------------------------------------------------------------------

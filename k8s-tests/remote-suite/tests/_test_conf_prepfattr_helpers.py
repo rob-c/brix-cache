@@ -67,6 +67,17 @@ import pytest
 
 import official_interop_lib as L
 
+def _expression_1(name):
+    return (
+        name.split(".", 1)[1] if name.startswith("user.") else name
+    )
+
+def _expression_2(name, k, bare):
+    return (
+        k.endswith("." + bare) or k.endswith(name)
+    )
+
+
 pytestmark = [pytest.mark.timeout(300),
               pytest.mark.skipif(not L.have_official(),
                                  reason="stock xrootd/xrdfs/xrdcp not installed")]
@@ -380,7 +391,7 @@ def _disk_xattrs(path):
 def _find_attr_value(attrs, name):
     """Find the value for logical attr `name` regardless of namespace prefixing
     (stock stores user.<name> as on-disk key "user.U.<name>")."""
-    bare = name.split(".", 1)[1] if name.startswith("user.") else name
+    bare = _expression_1(name)
     candidates = (name, "user.U." + name, "user.U.user." + bare,
                   "user." + bare, "user.U." + bare)
     for c in candidates:
@@ -388,7 +399,7 @@ def _find_attr_value(attrs, name):
             return attrs[c]
     # fall back: any key ending with the bare name
     for k, v in attrs.items():
-        if k.endswith("." + bare) or k.endswith(name):
+        if _expression_2(name, k, bare):
             return v
     return None
 

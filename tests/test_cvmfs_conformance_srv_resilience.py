@@ -1,4 +1,11 @@
 from split_continuation import reexport as _reexport
+def _check_test_persistent_reset_expires_hold_504_1(dt):
+    assert 7 <= dt < 16, f"hold expiry at {dt:.1f}s with client_hold=8"
+
+def _check_test_persistent_reset_expires_hold_504_2(status, got, body):
+    assert status == 200 and got == body
+
+
 _reexport(globals(), "_test_cvmfs_conformance_srv_resilience_helpers")
 
 @pytest.mark.timeout(60)
@@ -110,9 +117,12 @@ def test_persistent_reset_expires_hold_504(srv1, alloc):
     except urllib.error.HTTPError as e:
         status, retry_after = e.code, e.headers.get("Retry-After")
     dt = time.monotonic() - t0
-    assert status == 504
-    assert retry_after is not None, "504 hold-expiry must carry Retry-After"
-    assert 7 <= dt < 16, f"hold expiry at {dt:.1f}s with client_hold=8"
+    def _assert_test_persistent_reset_expires_hold_504_1():
+        assert status == 504
+        assert retry_after is not None, "504 hold-expiry must carry Retry-After"
+
+    _assert_test_persistent_reset_expires_hold_504_1()
+    _check_test_persistent_reset_expires_hold_504_1(dt)
     _clear_fault(srv1)
     deadline = time.monotonic() + 12                 # outlive the detached fill
     while time.monotonic() < deadline:
@@ -120,7 +130,7 @@ def test_persistent_reset_expires_hold_504(srv1, alloc):
         if status == 200:
             break
         time.sleep(0.5)
-    assert status == 200 and got == body
+    _check_test_persistent_reset_expires_hold_504_2(status, got, body)
 
 
 @pytest.mark.timeout(60)

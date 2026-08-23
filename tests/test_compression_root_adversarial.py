@@ -102,16 +102,29 @@ def _log_lines_for(remote, want_marker, timeout_s=3.0):
     base = os.path.basename(remote)
     deadline = time.time() + timeout_s
     while time.time() < deadline:
-        try:
-            with open(ANON_ACCESS_LOG, "r", errors="replace") as fh:
-                for line in fh:
-                    if "READ" in line and base in line:
-                        if ("z=" in line) == want_marker:
-                            return True
-        except FileNotFoundError:
-            pass
+        if _log_has_marker(base, want_marker):
+            return True
         time.sleep(0.1)
     return False
+
+
+def _log_has_marker(remote_name, want_marker):
+    try:
+        with open(ANON_ACCESS_LOG, "r", errors="replace") as log_file:
+            return any(
+                _matching_log_line(line, remote_name, want_marker)
+                for line in log_file
+            )
+    except FileNotFoundError:
+        return False
+
+
+def _matching_log_line(line, remote_name, want_marker):
+    if "READ" not in line:
+        return False
+    if remote_name not in line:
+        return False
+    return ("z=" in line) == want_marker
 
 
 # ---------------------------------------------------------------------------
@@ -155,17 +168,13 @@ def test_small_file_gzip_byte_exact(tmp_path):
     """A 100-byte file under --compress gzip must round-trip byte-exact: the
     short-read / tiny-frame path (a frame smaller than its own header) must not
     truncate or pad."""
-    if not os.access(XRDCP, os.X_OK):
-        pytest.skip(f"xrdcp not built: {XRDCP}")
+    _require_xrdcp()
     src = str(tmp_path / "small.bin")
     with open(src, "wb") as fh:
         fh.write(SMALL_PAYLOAD)
 
     remote = f"/cmproot_adv_small_{uuid.uuid4().hex}.bin"
-    up = subprocess.run([XRDCP, "-f", src, f"{BASE}{remote}"],
-                        capture_output=True, text=True, timeout=60)
-    if up.returncode != 0:
-        pytest.skip(f"small-file upload failed: {up.stderr[:300]}")
+    _upload_small_file(src, remote)
     try:
         out = str(tmp_path / "small_gzip.out")
         r = _download(remote, out, codec="gzip", timeout=60)
@@ -173,8 +182,24 @@ def test_small_file_gzip_byte_exact(tmp_path):
         with open(out, "rb") as fh:
             assert fh.read() == SMALL_PAYLOAD, "small --compress gzip: not byte-exact"
     finally:
-        if os.access(XRDFS, os.X_OK):
-            subprocess.run([XRDFS, BASE, "rm", remote], capture_output=True)
+        _cleanup_remote(remote)
+
+
+def _require_xrdcp():
+    if not os.access(XRDCP, os.X_OK):
+        pytest.skip(f"xrdcp not built: {XRDCP}")
+
+
+def _upload_small_file(source, remote):
+    result = subprocess.run([XRDCP, "-f", source, f"{BASE}{remote}"],
+                            capture_output=True, text=True, timeout=60)
+    if result.returncode != 0:
+        pytest.skip(f"small-file upload failed: {result.stderr[:300]}")
+
+
+def _cleanup_remote(remote):
+    if os.access(XRDFS, os.X_OK):
+        subprocess.run([XRDFS, BASE, "rm", remote], capture_output=True)
 
 
 # ---------------------------------------------------------------------------
@@ -185,27 +210,34 @@ def test_qconfig_cmpread_advertises_codecs():
     codec set.  We assert the reply lists at least gzip OR equals a non-zero codec
     list (i.e. not the disabled "cmpread=0" form).  An xrdfs/server that does not
     understand the subcommand degrades to a clean skip rather than a failure."""
+    output = _query_cmpread()
+    _assert_cmpread_advertisement(output)
+
+
+def _query_cmpread():
     if not os.access(XRDFS, os.X_OK):
         pytest.skip(f"xrdfs not built: {XRDFS}")
-    r = subprocess.run(
+    result = subprocess.run(
         [XRDFS, f"{SERVER_HOST}:{NGINX_ANON_PORT}", "query", "config", "cmpread"],
         capture_output=True, text=True, timeout=30)
-    out = (r.stdout or "") + (r.stderr or "")
-    if r.returncode != 0:
-        pytest.skip(f"xrdfs query config cmpread unsupported/failed: {out[:200]}")
-    low = out.lower()
-    if "cmpread" not in low and "gzip" not in low:
-        # Older xrdfs prints just the raw value; an empty/unknown reply means the
-        # subcommand path isn't really there — degrade gracefully.
-        pytest.skip(f"no cmpread advertisement in reply: {out[:200]!r}")
+    output = (result.stdout or "") + (result.stderr or "")
+    if result.returncode != 0:
+        pytest.skip(f"xrdfs query config cmpread unsupported/failed: {output[:200]}")
+    return output
 
-    # Disabled form is exactly "cmpread=0" (or a bare "0"); anything else with a
-    # codec name in it is a non-zero list.
-    stripped = low.replace("cmpread=", "").strip()
-    has_gzip = "gzip" in low
-    nonzero_list = bool(stripped) and stripped not in ("0", "")
-    assert has_gzip or nonzero_list, (
-        f"cmpread advertised empty/disabled, expected codec list: {out[:200]!r}")
+
+def _assert_cmpread_advertisement(output):
+    lower = output.lower()
+    if "cmpread" not in lower:
+        if "gzip" not in lower:
+            pytest.skip(f"no cmpread advertisement in reply: {output[:200]!r}")
+    if "gzip" in lower:
+        return
+    value = lower.replace("cmpread=", "").strip()
+    assert value
+    assert value != "0", (
+        f"cmpread advertised empty/disabled, expected codec list: {output[:200]!r}"
+    )
 
 
 # ---------------------------------------------------------------------------

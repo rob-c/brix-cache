@@ -88,8 +88,7 @@ def test_list_v1_basic(s3_url):
     uid = uuid.uuid4().hex
     prefix = f"v1_basic_{uid}/"
     keys = [f"{prefix}a", f"{prefix}b", f"{prefix}c"]
-    for k in keys:
-        assert requests.put(_obj_url(s3_url, k), data=b"x", timeout=10).status_code == 200
+    _put_v1_keys(s3_url, keys)
 
     r = requests.get(f"{s3_url}/{BUCKET}/?prefix={prefix}", timeout=10)
     root, listed, truncated, _, marker = _parse_v1(r.text)
@@ -98,8 +97,7 @@ def test_list_v1_basic(s3_url):
     assert root.tag == _tag("ListBucketResult")
     assert root.find(_tag("KeyCount")) is None
     assert marker == "" or marker is None
-    for k in keys:
-        assert k in listed
+    _assert_v1_keys(listed, keys)
     assert not truncated
 
 
@@ -107,26 +105,45 @@ def test_list_v1_marker_pagination(s3_url):
     uid = uuid.uuid4().hex
     prefix = f"v1_page_{uid}/"
     keys = [f"{prefix}{i:02d}" for i in range(5)]
-    for k in keys:
-        assert requests.put(_obj_url(s3_url, k), data=b"x", timeout=10).status_code == 200
+    _put_v1_keys(s3_url, keys)
 
     # First page: max-keys=2 → truncated, NextMarker set.
     r1 = requests.get(
         f"{s3_url}/{BUCKET}/?prefix={prefix}&max-keys=2", timeout=10
     )
-    _, page1, trunc1, next_marker, _ = _parse_v1(r1.text)
-    assert r1.status_code == 200
-    assert trunc1 is True
-    assert len(page1) == 2
-    assert next_marker
+    page1, next_marker = _assert_first_v1_page(r1)
 
     # Second page: marker=NextMarker → the remaining keys, exclusive of marker.
     r2 = requests.get(
         f"{s3_url}/{BUCKET}/?prefix={prefix}&max-keys=2&marker={next_marker}",
         timeout=10,
     )
-    _, page2, _, _, echoed_marker = _parse_v1(r2.text)
-    assert r2.status_code == 200
+    _assert_second_v1_page(r2, page1, next_marker)
+
+
+def _put_v1_keys(s3_url, keys):
+    for key in keys:
+        response = requests.put(_obj_url(s3_url, key), data=b"x", timeout=10)
+        assert response.status_code == 200
+
+
+def _assert_v1_keys(listed, expected):
+    for key in expected:
+        assert key in listed
+
+
+def _assert_first_v1_page(response):
+    _, page, truncated, next_marker, _ = _parse_v1(response.text)
+    assert response.status_code == 200
+    assert truncated is True
+    assert len(page) == 2
+    assert next_marker
+    return page, next_marker
+
+
+def _assert_second_v1_page(response, first_page, next_marker):
+    _, page, _, _, echoed_marker = _parse_v1(response.text)
+    assert response.status_code == 200
     assert echoed_marker == next_marker
-    assert all(k > next_marker for k in page2)        # marker is exclusive
-    assert set(page1).isdisjoint(page2)               # no overlap across pages
+    assert all(key > next_marker for key in page)
+    assert set(first_page).isdisjoint(page)

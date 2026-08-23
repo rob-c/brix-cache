@@ -10,14 +10,19 @@ import pytest
 from brixtest.archive import write_bulk_archive, write_sqlite_archive
 from brixtest.errors import SpecError
 from brixtest.evidence.analysis import (
-    bootstrap_mean_ci, cliffs_delta, compare, describe, percentile,
-    session_insights, trend,
+    bootstrap_mean_ci,
+    cliffs_delta,
+    compare,
+    describe,
+    percentile,
+    session_insights,
+    trend,
 )
-from brixtest.evidence.export import otlp_payloads, package_session, write_otlp_json
+from brixtest.evidence.export import otlp_payloads, package_session, post_otlp, write_otlp_json
+from brixtest.evidence.legacy import publish as publish_legacy
 from brixtest.evidence.report import render
 from brixtest.evidence.search import SearchClient, bulk_lines, documents
 from brixtest.evidence.store import integrity, query
-from brixtest.evidence.legacy import publish as publish_legacy
 from brixtest.results.model import Finding, PhaseResult, RunInfo, Sample
 from brixtest.results.model import TestRecord as ResultTestRecord
 from brixtest.results.store import ResultStore
@@ -140,9 +145,12 @@ def test_session_insights_correlate_metrics_resources_and_artifact_sizes():
     result = session_insights(payload, correlation_threshold=0.9)
 
     pairs = {(row["left"], row["right"]) for row in result["correlations"]}
-    assert ("artifact.result.json.bytes", "metric.request.latency{route=read}") in pairs
-    assert result["evidence"]["artifacts"]["checksum_coverage"] == 1.0
-    assert result["attempts"] == 4
+    expected = ("artifact.result.json.bytes", "metric.request.latency{route=read}")
+    assert (
+        expected in pairs,
+        result["evidence"]["artifacts"]["checksum_coverage"],
+        result["attempts"],
+    ) == (True, 1.0, 4)
 
 
 @pytest.mark.parametrize(
@@ -258,6 +266,13 @@ def test_search_client_retries_transient_http_error(monkeypatch):
     SearchClient("https://search.example", retries=1, opener=opener,
                  compress=False).post(_payload("s1", [1]))
     assert len(calls) == 2
+
+
+def test_http_exporters_reject_non_http_urls():
+    with pytest.raises(SpecError, match=r"http:// or https://"):
+        SearchClient("file:///tmp/archive")
+    with pytest.raises(SpecError, match=r"http:// or https://"):
+        post_otlp({}, "file:///tmp/collector")
 
 
 def test_bulk_archive_keeps_legacy_logs_and_new_entities(tmp_path):

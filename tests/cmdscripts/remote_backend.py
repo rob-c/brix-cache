@@ -13,6 +13,24 @@ from cmdscripts.live_common import LiveFailure, LiveRun, REPO_ROOT, random_file,
 from settings import BIND_HOST, HOST
 
 
+def _expression_1(copied, xset, listing, renamed, get, origin_get, copy_status, origin_file, copied_file, origin):
+    return (
+        _checks([
+                    (copied, "xrdcp upload reached remote origin"),
+                    (xset and "blue" in get and "blue" in origin_get, "xattr set/get forwards to origin"),
+                    ("user.color" in listing, "xattr list forwards to origin"),
+                    (renamed and origin_file.exists() and not (origin / "export/f.bin").exists(), "rename forwards to origin"),
+                    (copy_status in (200, 201, 204) and copied_file.exists() and sha256(copied_file) == sha256(origin_file), "WebDAV COPY forwards byte-exact origin copy"),
+                ])
+    )
+
+
+def _guard_stage_reconcile_1(config, port, backend, run):
+    if not backend.exists():
+        run.start_nginx(run.root, config, port)
+        time.sleep(1.5)
+
+
 def _stream_config(run: LiveRun, root: Path, port: int, *, backend: int | None = None, writable: bool = False) -> Path:
     backend_line = f" brix_storage_backend root://{HOST}:{backend};" if backend else ""
     write_line = " brix_allow_write on; brix_upload_resume off;" if writable else ""
@@ -84,13 +102,21 @@ def webdav_write(nginx: Path | None = None, *, staging: bool = False) -> int:
         got.write_bytes(run.curl_bytes(f"http://{HOST}:{port}/a.bin"))
         status_two = run.curl_status(f"http://{HOST}:{port}/b.bin", "-T", str(two))
         export_empty = not any((node / "export").iterdir())
-        return _checks([
+        return _checks(_webdav_write_checks(
+            status_one, origin, first_digest, export_empty, got,
+            status_two, second_digest,
+        ))
+
+
+def _webdav_write_checks(status_one, origin, first_digest, export_empty, got,
+                         status_two, second_digest):
+    return [
             (status_one in (200, 201, 204), f"first PUT accepted ({status_one})"),
             ((origin / "export/a.bin").exists() and sha256(origin / "export/a.bin") == first_digest, "first object landed byte-exact on origin"),
             (export_empty, "no local data copy remains after remote commit"),
             (sha256(got) == first_digest, "GET reads back byte-exact"),
             (status_two in (200, 201, 204) and (origin / "export/b.bin").exists() and sha256(origin / "export/b.bin") == second_digest, "multi-chunk PUT landed byte-exact"),
-        ])
+        ]
 
 
 def stream_write(nginx: Path | None = None) -> int:
@@ -141,13 +167,7 @@ def metadata(nginx: Path | None = None) -> int:
             "-X", "COPY", "-H", f"Destination: http://{HOST}:{dav_port}/copy.bin",
         )
         origin_file, copied_file = origin / "export/g.bin", origin / "export/copy.bin"
-        return _checks([
-            (copied, "xrdcp upload reached remote origin"),
-            (xset and "blue" in get and "blue" in origin_get, "xattr set/get forwards to origin"),
-            ("user.color" in listing, "xattr list forwards to origin"),
-            (renamed and origin_file.exists() and not (origin / "export/f.bin").exists(), "rename forwards to origin"),
-            (copy_status in (200, 201, 204) and copied_file.exists() and sha256(copied_file) == sha256(origin_file), "WebDAV COPY forwards byte-exact origin copy"),
-        ])
+        return _expression_1(copied, xset, listing, renamed, get, origin_get, copy_status, origin_file, copied_file, origin)
 
 
 def stage_reconcile(nginx: Path | None = None) -> int:
@@ -173,9 +193,7 @@ http {{ client_body_temp_path {run.root}/tmp; server {{ listen {BIND_HOST}:{port
         backend = run.root / "backend/o.bin"
         journal = list((run.root / "journal").glob("*.req"))
         staged = run.root / "stage/o.bin"
-        if not backend.exists():
-            run.start_nginx(run.root, config, port)
-            time.sleep(1.5)
+        _guard_stage_reconcile_1(config, port, backend, run)
         got = run.root / "got.bin"
         get_status = run.call(["curl", "-sS", "-o", got, "-w", "%{http_code}", f"http://{HOST}:{port}/o.bin"], check=False).stdout.strip()
         return _checks([

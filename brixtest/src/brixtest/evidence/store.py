@@ -7,8 +7,8 @@ import sqlite3
 from pathlib import Path
 from typing import Mapping, Sequence
 
-from brixtest.evidence.model import SCHEMA_VERSION, iter_entities, normalize_session
 from brixtest.errors import SpecError
+from brixtest.evidence.model import SCHEMA_VERSION, iter_entities, normalize_session
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS evidence_schema (
@@ -109,92 +109,137 @@ def write_entities(connection: sqlite3.Connection, payload: Mapping[str, object]
     connection.execute("DELETE FROM evidence_server_instances WHERE session_id = ?", (session_id,))
     connection.execute("DELETE FROM evidence_test_server_links WHERE session_id = ?", (session_id,))
     for row in iter_entities(session):
-        entity = str(row.get("entity", ""))
-        case_id = str(row.get("case_id", ""))
-        attempt_id = str(row.get("attempt_id", ""))
-        ordinal = int(row.get("ordinal", 0))
-        nodeid = str(row.get("nodeid", ""))
-        timestamp = str(row.get("timestamp", row.get("started_at", "")))
-        name = str(row.get("name", ""))
-        value = row.get("value") if isinstance(row.get("value"), (int, float)) else None
-        unit = str(row.get("unit", ""))
+        _write_entity(connection, session_id, row)
+
+
+def _entity_fields(row: Mapping[str, object]) -> dict[str, object]:
+    raw_value = row.get("value")
+    return {
+        "entity": str(row.get("entity", "")),
+        "case_id": str(row.get("case_id", "")),
+        "attempt_id": str(row.get("attempt_id", "")),
+        "ordinal": int(row.get("ordinal", 0)),
+        "nodeid": str(row.get("nodeid", "")),
+        "timestamp": str(row.get("timestamp", row.get("started_at", ""))),
+        "name": str(row.get("name", "")),
+        "value": raw_value if isinstance(raw_value, (int, float)) else None,
+        "unit": str(row.get("unit", "")),
+    }
+
+
+def _write_entity(
+    connection: sqlite3.Connection, session_id: str, row: Mapping[str, object],
+) -> None:
+    fields = _entity_fields(row)
+    connection.execute(
+        "INSERT OR REPLACE INTO evidence_entities VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        (session_id, fields["entity"], fields["case_id"], fields["attempt_id"],
+         fields["ordinal"], fields["nodeid"], fields["timestamp"], fields["name"],
+         fields["value"], fields["unit"], _text(row)),
+    )
+    handlers = {
+        "attempt": _write_attempt,
+        "metric": _write_metric,
+        "server-pool": _write_server_pool,
+        "server-instance": _write_server_instance,
+    }
+    handler = handlers.get(str(fields["entity"]))
+    if handler is not None:
+        handler(connection, session_id, row, fields)
+
+
+def _write_attempt(connection, session_id, row, fields) -> None:
+    connection.execute(
+        "INSERT OR REPLACE INTO evidence_attempts VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        (session_id, fields["case_id"], fields["attempt_id"], fields["nodeid"],
+         int(row.get("trial", 0)), int(bool(row.get("warmup"))),
+         str(row.get("outcome", "")), str(row.get("started_at", "")),
+         float(row.get("wall_seconds", 0)), str(row.get("run_root", "")),
+         str(row.get("error", "")), _text(row)),
+    )
+
+
+def _write_metric(connection, session_id, row, fields) -> None:
+    connection.execute(
+        "INSERT OR REPLACE INTO evidence_metrics VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        (session_id, fields["case_id"], fields["attempt_id"], fields["nodeid"],
+         fields["ordinal"], fields["name"], float(row.get("value", 0)), fields["unit"],
+         str(row.get("kind", "")), _text(row.get("labels", {})),
+         float(row.get("at_seconds", 0)), int(row.get("trial", 0)), _text(row)),
+    )
+
+
+def _write_server_pool(connection, session_id, row, fields) -> None:
+    result = row.get("result", {})
+    result = result if isinstance(result, Mapping) else {}
+    connection.execute(
+        "INSERT OR REPLACE INTO evidence_server_pools VALUES(?, ?, ?, ?, ?, ?)",
+        (session_id, str(row.get("pool_id", "")), str(result.get("outcome", "")),
+         str(result.get("started_at", "")), str(result.get("stopped_at", "")), _text(row)),
+    )
+
+
+def _write_server_instance(connection, session_id, row, fields) -> None:
+    instance_id = str(row.get("instance_id", ""))
+    if not instance_id:
+        return
+    artifact = row.get("log_artifact", {})
+    artifact = artifact if isinstance(artifact, Mapping) else {}
+    connection.execute(
+        "INSERT OR REPLACE INTO evidence_server_instances "
+        "(session_id, instance_id, pool_id, name, scope, ports, started_at, stopped_at, "
+        "config_path, config_filename, config_source_sha256, config_declared_sha256, "
+        "config_sha256, log_path, log_sha256, payload) "
+        "VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        (session_id, instance_id, str(row.get("pool_id", "")), str(row.get("name", "")),
+         str(row.get("scope", "case")), _text(row.get("ports", {})),
+         str(row.get("started_at", "")), str(row.get("stopped_at", "")),
+         str(row.get("config", "")), str(row.get("config_filename", "")),
+         str(row.get("config_source_sha256", "")),
+         str(row.get("config_declared_sha256", "")), str(row.get("config_sha256", "")),
+         str(artifact.get("relative", row.get("log", ""))), str(artifact.get("sha256", "")),
+         _text(row)),
+    )
+    if fields["case_id"] and not str(fields["nodeid"]).startswith("@shared/"):
         connection.execute(
-            "INSERT OR REPLACE INTO evidence_entities VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            (session_id, entity, case_id, attempt_id, ordinal, nodeid, timestamp,
-             name, value, unit, _text(row)),
+            "INSERT OR REPLACE INTO evidence_test_server_links VALUES(?, ?, ?, ?, ?)",
+            (session_id, fields["case_id"], fields["attempt_id"], fields["nodeid"], instance_id),
         )
-        if entity == "attempt":
-            connection.execute(
-                "INSERT OR REPLACE INTO evidence_attempts VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                (session_id, case_id, attempt_id, nodeid, int(row.get("trial", 0)),
-                 int(bool(row.get("warmup"))), str(row.get("outcome", "")),
-                 str(row.get("started_at", "")), float(row.get("wall_seconds", 0)),
-                 str(row.get("run_root", "")), str(row.get("error", "")), _text(row)),
-            )
-        if entity == "metric":
-            connection.execute(
-                "INSERT OR REPLACE INTO evidence_metrics VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                (session_id, case_id, attempt_id, nodeid, ordinal, name,
-                 float(row.get("value", 0)), unit, str(row.get("kind", "")),
-                 _text(row.get("labels", {})), float(row.get("at_seconds", 0)),
-                 int(row.get("trial", 0)), _text(row)),
-            )
-        if entity == "server-pool":
-            result = row.get("result", {})
-            result = result if isinstance(result, Mapping) else {}
-            connection.execute(
-                "INSERT OR REPLACE INTO evidence_server_pools VALUES(?, ?, ?, ?, ?, ?)",
-                (session_id, str(row.get("pool_id", "")), str(result.get("outcome", "")),
-                 str(result.get("started_at", "")), str(result.get("stopped_at", "")),
-                 _text(row)),
-            )
-        if entity == "server-instance":
-            instance_id = str(row.get("instance_id", ""))
-            artifact = row.get("log_artifact", {})
-            artifact = artifact if isinstance(artifact, Mapping) else {}
-            if instance_id:
-                connection.execute(
-                    "INSERT OR REPLACE INTO evidence_server_instances "
-                    "(session_id, instance_id, pool_id, name, scope, ports, started_at, stopped_at, "
-                    "config_path, config_filename, config_source_sha256, config_declared_sha256, "
-                    "config_sha256, log_path, log_sha256, payload) "
-                    "VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                    (session_id, instance_id, str(row.get("pool_id", "")),
-                     str(row.get("name", "")), str(row.get("scope", "case")),
-                     _text(row.get("ports", {})),
-                     str(row.get("started_at", "")), str(row.get("stopped_at", "")),
-                     str(row.get("config", "")), str(row.get("config_filename", "")),
-                     str(row.get("config_source_sha256", "")),
-                     str(row.get("config_declared_sha256", "")),
-                     str(row.get("config_sha256", "")),
-                     str(artifact.get("relative", row.get("log", ""))),
-                     str(artifact.get("sha256", "")), _text(row)),
-                )
-                if case_id and not nodeid.startswith("@shared/"):
-                    connection.execute(
-                        "INSERT OR REPLACE INTO evidence_test_server_links VALUES(?, ?, ?, ?, ?)",
-                        (session_id, case_id, attempt_id, nodeid, instance_id),
-                    )
 
 
 def query(path: Path, sql: str, parameters: Sequence[object] = ()) -> dict:
     """Execute one read-only SELECT/CTE and return named rows."""
+    statement = _query_statement(sql)
+    return _execute_query(path, sql, statement, parameters)
+
+
+def _query_statement(sql: str) -> str:
     statement = sql.strip()
     first = statement.split(None, 1)[0].lower() if statement else ""
     if first not in ("select", "with", "pragma", "explain") or ";" in statement.rstrip(";"):
         raise SpecError("evidence query", sql, "must be one read-only SQL statement")
+    return statement
+
+
+def _execute_query(
+    path: Path, sql: str, statement: str, parameters: Sequence[object],
+) -> dict:
     uri = "file:%s?mode=ro" % Path(path).resolve()
     connection = sqlite3.connect(uri, uri=True)
     connection.row_factory = sqlite3.Row
     try:
         cursor = connection.execute(statement, tuple(parameters))
-        columns = [item[0] for item in cursor.description or ()]
+        columns = _column_names(cursor.description)
         rows = [dict(row) for row in cursor.fetchall()]
     except sqlite3.Error as exc:
         raise SpecError("evidence query", sql, str(exc)) from exc
     finally:
         connection.close()
     return {"columns": columns, "rows": rows}
+
+
+def _column_names(description) -> list[str]:
+    return [item[0] for item in (description or ())]
 
 
 def integrity(path: Path) -> dict:

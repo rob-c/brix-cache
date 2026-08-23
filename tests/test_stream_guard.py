@@ -28,6 +28,26 @@ from guard_http_lib import NGINX_BIN
 from settings import BIND_HOST
 from server_registry import NginxInstanceSpec
 
+def _check_test_junk_path_dropped_1(result):
+    assert result.returncode != 0, "junk path should not succeed"
+
+def _check_test_junk_path_dropped_2(sig):
+    assert "wp-login.php" in sig[-1]
+
+def _check_test_notfound_logged_3(result):
+    assert result.returncode != 0, "missing file should not stat"
+
+def _check_test_notfound_logged_4(lines):
+    assert any("signal=notfound" in ln and "proto=root" in ln
+               for ln in lines), f"no notfound audit line; got: {lines}"
+
+def _check_test_nonroot_client_dropped_5(dropped, wire):
+    assert dropped, f"{wire}: guard did not drop the connection"
+
+def _check_test_nonroot_client_dropped_6(nr, wire):
+    assert f'path="{wire}"' in nr[-1], nr[-1]
+
+
 REPO = pathlib.Path(__file__).resolve().parents[1]
 XRDFS = str(REPO / "client" / "bin" / "xrdfs")
 
@@ -126,7 +146,7 @@ class TestStreamGuard:
     def test_junk_path_dropped(self, relays):
         """A scanner path inside a valid frame drops the connection."""
         result = _xrdfs(relays["guarded_port"], "stat", "/wp-login.php")
-        assert result.returncode != 0, "junk path should not succeed"
+        _check_test_junk_path_dropped_1(result)
         deadline = time.time() + 5
         while time.time() < deadline:
             lines = _guard_lines(relays["guarded_prefix"])
@@ -135,14 +155,17 @@ class TestStreamGuard:
             time.sleep(0.1)
         lines = _guard_lines(relays["guarded_prefix"])
         sig = [ln for ln in lines if "signal=signature" in ln]
-        assert sig, f"no signature audit line; got: {lines}"
-        assert "proto=root" in sig[-1]
-        assert "wp-login.php" in sig[-1]
+        def _assert_test_junk_path_dropped_2():
+            assert sig, f"no signature audit line; got: {lines}"
+            assert "proto=root" in sig[-1]
+
+        _assert_test_junk_path_dropped_2()
+        _check_test_junk_path_dropped_2(sig)
 
     def test_notfound_logged(self, relays):
         """A kXR_NotFound response from the origin logs signal=notfound."""
         result = _xrdfs(relays["guarded_port"], "stat", "/does-not-exist")
-        assert result.returncode != 0, "missing file should not stat"
+        _check_test_notfound_logged_3(result)
         deadline = time.time() + 5
         while time.time() < deadline:
             if any("signal=notfound" in ln
@@ -150,8 +173,7 @@ class TestStreamGuard:
                 break
             time.sleep(0.1)
         lines = _guard_lines(relays["guarded_prefix"])
-        assert any("signal=notfound" in ln and "proto=root" in ln
-                   for ln in lines), f"no notfound audit line; got: {lines}"
+        _check_test_notfound_logged_4(lines)
 
     # ---- wire-level "not speaking root" guard (first-bytes classifier) ----
 
@@ -168,7 +190,7 @@ class TestStreamGuard:
         with one signal=notroot audit line naming the wire it spoke."""
         before = len(_guard_lines(relays["guarded_prefix"]))
         dropped = _raw_probe(relays["guarded_port"], payload)
-        assert dropped, f"{wire}: guard did not drop the connection"
+        _check_test_nonroot_client_dropped_5(dropped, wire)
         deadline = time.time() + 5
         while time.time() < deadline:
             lines = _guard_lines(relays["guarded_prefix"])[before:]
@@ -177,9 +199,12 @@ class TestStreamGuard:
             time.sleep(0.1)
         lines = _guard_lines(relays["guarded_prefix"])[before:]
         nr = [ln for ln in lines if "signal=notroot" in ln]
-        assert nr, f"{wire}: no notroot audit line; got: {lines}"
-        assert "proto=root" in nr[-1] and "op=handshake" in nr[-1]
-        assert f'path="{wire}"' in nr[-1], nr[-1]
+        def _assert_test_nonroot_client_dropped_1():
+            assert nr, f"{wire}: no notroot audit line; got: {lines}"
+            assert "proto=root" in nr[-1] and "op=handshake" in nr[-1]
+
+        _assert_test_nonroot_client_dropped_1()
+        _check_test_nonroot_client_dropped_6(nr, wire)
 
     def test_fragmented_root_handshake_not_flagged(self, relays):
         """The 20-byte kXR handshake split across TCP segments is reassembled

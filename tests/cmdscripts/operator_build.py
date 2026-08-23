@@ -20,6 +20,80 @@ def nproc() -> str:
     return str(os.cpu_count() or 4)
 
 
+def _teardown_refusal(test_root, claimants):
+    owners = ", ".join(
+        "%d %s" % (pid, command[:60]) for pid, command in claimants[:3]
+    )
+    message = "refusing brutal teardown of %s: claimed by %d live harness(es): %s"
+    return result(False, message % (test_root, len(claimants), owners))
+
+
+def _stop_registered_servers(test_root):
+    run(
+        [sys.executable, "-m", "cmdscripts.manage_test_servers", "stop-all"],
+        cwd=REPO_ROOT / "tests",
+        env={"TEST_ROOT": str(test_root)},
+    )
+
+
+def _process_cmdline(pid):
+    try:
+        raw = Path(f"/proc/{pid}/cmdline").read_bytes()
+    except OSError:
+        return None
+    return raw.replace(b"\0", b" ").decode("utf-8", "ignore")
+
+
+def _signal_process(test_root, pid):
+    command = _process_cmdline(pid)
+    if command is None or not owns(test_root, command):
+        return False
+    try:
+        os.kill(pid, signal.SIGTERM)
+    except OSError:
+        return False
+    return True
+
+
+def _process_ids(name):
+    found = run(["pgrep", "-x", name], cwd=REPO_ROOT)
+    for value in found.stdout.split():
+        try:
+            yield int(value)
+        except ValueError:
+            continue
+
+
+def _signal_owned_processes(test_root):
+    names = ("nginx", "xrootd", "krb5kdc", "kadmind", "haproxy")
+    return sum(
+        _signal_process(test_root, pid)
+        for name in names
+        for pid in _process_ids(name)
+    )
+
+
+def _remove_state_directories(test_root):
+    for child in ("data", "pki", "tokens", "logs", "tmp", "krb5"):
+        shutil.rmtree(test_root / child, ignore_errors=True)
+
+
+def _remove_data_lanes(test_root):
+    if not test_root.exists():
+        return
+    for child in test_root.glob("data-*"):
+        if child.is_dir():
+            shutil.rmtree(child, ignore_errors=True)
+
+
+def _remove_control_files(test_root):
+    if not test_root.exists():
+        return
+    for path in test_root.glob("*/*"):
+        if path.suffix in {".pid", ".conf"}:
+            path.unlink(missing_ok=True)
+
+
 def brutal_teardown(test_root: Path, force: bool = False) -> list[tuple[bool, str]]:
     """Stop-all, SIGTERM whatever survived, then wipe ``test_root``'s state.
 
@@ -43,40 +117,12 @@ def brutal_teardown(test_root: Path, force: bool = False) -> list[tuple[bool, st
     """
     claimants = [] if force else lane_harnesses(test_root)
     if claimants:
-        return [result(False, "refusing brutal teardown of %s: claimed by %d "
-                              "live harness(es): %s" % (
-                                  test_root, len(claimants),
-                                  ", ".join("%d %s" % (pid, cmd[:60])
-                                            for pid, cmd in claimants[:3])))]
-    run(
-        [sys.executable, "-m", "cmdscripts.manage_test_servers", "stop-all"],
-        cwd=REPO_ROOT / "tests",
-        env={"TEST_ROOT": str(test_root)},
-    )
-    killed = 0
-    for proc_name in ("nginx", "xrootd", "krb5kdc", "kadmind", "haproxy"):
-        pgrep = run(["pgrep", "-x", proc_name], cwd=REPO_ROOT)
-        for pid_text in pgrep.stdout.split():
-            try:
-                pid = int(pid_text)
-                cmdline = Path(f"/proc/{pid}/cmdline").read_bytes().replace(b"\0", b" ").decode("utf-8", "ignore")
-            except OSError:
-                continue
-            if owns(test_root, cmdline):
-                try:
-                    os.kill(pid, signal.SIGTERM)
-                    killed += 1
-                except OSError:
-                    pass
-    for child in ("data", "pki", "tokens", "logs", "tmp", "krb5"):
-        shutil.rmtree(test_root / child, ignore_errors=True)
-    for child in test_root.glob("data-*") if test_root.exists() else []:
-        if child.is_dir():
-            shutil.rmtree(child, ignore_errors=True)
-    if test_root.exists():
-        for path in test_root.glob("*/*"):
-            if path.suffix in {".pid", ".conf"}:
-                path.unlink(missing_ok=True)
+        return [_teardown_refusal(test_root, claimants)]
+    _stop_registered_servers(test_root)
+    killed = _signal_owned_processes(test_root)
+    _remove_state_directories(test_root)
+    _remove_data_lanes(test_root)
+    _remove_control_files(test_root)
     return [result(True, f"brutal teardown completed for {test_root}; signalled {killed} leaked process(es)")]
 
 
@@ -114,6 +160,42 @@ def build_sanitizer(nginx_src: Path) -> list[tuple[bool, str]]:
     return [result(True, f"sanitizer build complete: {nginx_src / 'objs' / 'nginx'}")]
 
 
+def _command_tail(process, limit):
+    return (process.stderr or process.stdout)[-limit:]
+
+
+def _run_build_steps(steps):
+    for command, cwd, failure_message in steps:
+        process = run(command, cwd=cwd)
+        if process.returncode != 0:
+            return result(False, f"{failure_message}: {_command_tail(process, 3000)}")
+    return None
+
+
+def _coverage_steps(nginx_src, flags):
+    configure = [
+        "./configure",
+        "--with-stream",
+        "--with-stream_ssl_module",
+        "--with-http_ssl_module",
+        "--with-http_dav_module",
+        "--with-threads",
+        f"--add-module={REPO_ROOT}",
+        f"--with-cc-opt={flags}",
+        f"--with-ld-opt={flags}",
+    ]
+    return (
+        (configure, nginx_src, "coverage configure failed"),
+        (["make", f"-j{nproc()}"], nginx_src, "coverage nginx build failed"),
+        (["make", "clean"], REPO_ROOT / "client", "coverage client clean failed"),
+        (
+            ["make", f"-j{nproc()}", f"CFLAGS={flags}", f"LDFLAGS={flags}"],
+            REPO_ROOT / "client",
+            "coverage client build failed",
+        ),
+    )
+
+
 def build_coverage(nginx_src: Path) -> list[tuple[bool, str]]:
     """Configure+build objs/nginx and the client with gcov instrumentation.
 
@@ -125,52 +207,34 @@ def build_coverage(nginx_src: Path) -> list[tuple[bool, str]]:
     configure = nginx_src / "configure"
     if not configure.is_file() or not os.access(configure, os.X_OK):
         return [result(False, f"nginx source not found at {nginx_src}")]
-    cov = "--coverage -O0 -g"
-    configured = run(
-        [
-            "./configure",
-            "--with-stream",
-            "--with-stream_ssl_module",
-            "--with-http_ssl_module",
-            "--with-http_dav_module",
-            "--with-threads",
-            f"--add-module={REPO_ROOT}",
-            f"--with-cc-opt={cov}",
-            f"--with-ld-opt={cov}",
-        ],
-        cwd=nginx_src,
-    )
-    if configured.returncode != 0:
-        return [result(False, f"coverage configure failed: {(configured.stderr or configured.stdout)[-3000:]}")]
-    built = run(["make", f"-j{nproc()}"], cwd=nginx_src)
-    if built.returncode != 0:
-        return [result(False, f"coverage nginx build failed: {(built.stderr or built.stdout)[-3000:]}")]
-    # A pre-existing up-to-date client build satisfies make, leaving ZERO
-    # instrumented objects (and the lane silently reporting no client
-    # coverage) — force a full recompile under the coverage flags.
-    cleaned = run(["make", "clean"], cwd=REPO_ROOT / "client")
-    if cleaned.returncode != 0:
-        return [result(False, f"coverage client clean failed: {(cleaned.stderr or cleaned.stdout)[-3000:]}")]
-    client = run(
-        ["make", f"-j{nproc()}", f"CFLAGS={cov}", f"LDFLAGS={cov}"],
-        cwd=REPO_ROOT / "client",
-    )
-    if client.returncode != 0:
-        return [result(False, f"coverage client build failed: {(client.stderr or client.stdout)[-3000:]}")]
+    failure = _run_build_steps(_coverage_steps(nginx_src, "--coverage -O0 -g"))
+    if failure is not None:
+        return [failure]
     return [result(True, f"coverage build complete: {nginx_src / 'objs' / 'nginx'} (gcov-instrumented)")]
 
 
-def build_dynamic_modules(nginx_src: Path, build_root: Path) -> list[tuple[bool, str]]:
+def _dynamic_prerequisite(nginx_src):
     if not (nginx_src / "configure").is_file() or not (nginx_src / "src/core/nginx.c").is_file():
-        return [result(True, f"SKIP nginx source not found at {nginx_src}")]
+        return result(True, f"SKIP nginx source not found at {nginx_src}")
     if shutil.which("rsync") is None:
-        return [result(True, "SKIP rsync not available")]
-    dst = build_root / "nginx"
+        return result(True, "SKIP rsync not available")
+    return None
+
+
+def _copy_nginx_source(nginx_src, build_root, destination):
     shutil.rmtree(build_root, ignore_errors=True)
-    dst.mkdir(parents=True)
-    copied = run(["rsync", "-a", "--exclude", "objs", "--exclude", "Makefile", f"{nginx_src}/", f"{dst}/"], cwd=REPO_ROOT)
+    destination.mkdir(parents=True)
+    copied = run(
+        ["rsync", "-a", "--exclude", "objs", "--exclude", "Makefile",
+         f"{nginx_src}/", f"{destination}/"],
+        cwd=REPO_ROOT,
+    )
     if copied.returncode != 0:
-        return [result(True, f"SKIP rsync of nginx source failed: {(copied.stderr or copied.stdout)[-2000:]}")]
+        return result(True, f"SKIP rsync of nginx source failed: {_command_tail(copied, 2000)}")
+    return None
+
+
+def _configure_dynamic(destination):
     configured = run(
         [
             "./configure",
@@ -182,28 +246,66 @@ def build_dynamic_modules(nginx_src: Path, build_root: Path) -> list[tuple[bool,
             "--with-http_dav_module",
             f"--add-dynamic-module={REPO_ROOT}",
         ],
-        cwd=dst,
+        cwd=destination,
         env={"BRIX_LZ4_LIBS": os.environ.get("BRIX_LZ4_LIBS", "-l:liblz4.so.1")},
     )
     if configured.returncode != 0:
-        return [result(True, f"SKIP configure --add-dynamic-module failed: {(configured.stderr or configured.stdout)[-3000:]}")]
-    built = run(["make", f"-j{nproc()}"], cwd=dst)
+        message = f"SKIP configure --add-dynamic-module failed: {_command_tail(configured, 3000)}"
+        return result(True, message)
+    return None
+
+
+def _compile_dynamic(destination):
+    built = run(["make", f"-j{nproc()}"], cwd=destination)
     if built.returncode != 0:
-        return [result(False, f"dynamic nginx build failed: {(built.stderr or built.stdout)[-3000:]}")]
-    modules = run(["make", "modules", f"-j{nproc()}"], cwd=dst)
+        return result(False, f"dynamic nginx build failed: {_command_tail(built, 3000)}")
+    modules = run(["make", "modules", f"-j{nproc()}"], cwd=destination)
     if modules.returncode != 0:
-        return [result(False, f"dynamic module build failed: {(modules.stderr or modules.stdout)[-3000:]}")]
-    stream_so = dst / "objs" / "ngx_stream_brix_module.so"
+        return result(False, f"dynamic module build failed: {_command_tail(modules, 3000)}")
+    return None
+
+
+def _missing_codec_dependencies(text):
+    expected = ("libz.so", "libzstd", "liblzma", "libbrotlienc", "libbrotlidec", "libbz2")
+    return [library for library in expected if library not in text]
+
+
+def _validate_dynamic(destination):
+    stream_so = destination / "objs" / "ngx_stream_brix_module.so"
     if not stream_so.is_file():
-        return [result(False, "stream module .so not produced")]
-    needed = run(["readelf", "-d", str(stream_so)], cwd=dst)
+        return result(False, "stream module .so not produced")
+    needed = run(["readelf", "-d", str(stream_so)], cwd=destination)
     text = needed.stdout + needed.stderr
-    missing = [want for want in ("libz.so", "libzstd", "liblzma", "libbrotlienc", "libbrotlidec", "libbz2") if want not in text]
+    missing = _missing_codec_dependencies(text)
     if missing:
-        return [result(False, f"codec DT_NEEDED entries missing from stream module: {', '.join(missing)}")]
-    ldd = run(["ldd", str(stream_so)], cwd=dst)
+        message = f"codec DT_NEEDED entries missing from stream module: {', '.join(missing)}"
+        return result(False, message)
+    ldd = run(["ldd", str(stream_so)], cwd=destination)
     if "not found" in (ldd.stdout + ldd.stderr):
-        return [result(False, "stream module .so has unresolved shared library")]
+        return result(False, "stream module .so has unresolved shared library")
+    return None
+
+
+def _first_failure(stages):
+    for stage in stages:
+        failure = stage()
+        if failure is not None:
+            return failure
+    return None
+
+
+def build_dynamic_modules(nginx_src: Path, build_root: Path) -> list[tuple[bool, str]]:
+    destination = build_root / "nginx"
+    stages = (
+        lambda: _dynamic_prerequisite(nginx_src),
+        lambda: _copy_nginx_source(nginx_src, build_root, destination),
+        lambda: _configure_dynamic(destination),
+        lambda: _compile_dynamic(destination),
+        lambda: _validate_dynamic(destination),
+    )
+    failure = _first_failure(stages)
+    if failure is not None:
+        return [failure]
     return [result(True, "dynamic module build produced stream module with codec deps")]
 
 
@@ -231,23 +333,31 @@ def run_checks(base: Path, names: list[str] | None = None) -> list[tuple[bool, s
     return results
 
 
-def entry(argv: list[str]) -> int:
+def _entry_results(names):
     import tempfile
 
-    names = argv or ["brutal_teardown", "build_dynamic_modules", "build_sanitizer"]
-    # The operator CLI genuinely targets the real TEST_ROOT: `brutal_teardown`
-    # is the documented way to clean a wedged fleet, so pass it as `base`.
-    # (The in-suite test drives run_checks directly with a throwaway tmp_path
-    # and never reaches here, so it can never touch the live fleet.)
     if "brutal_teardown" in names:
-        results = run_checks(
+        return run_checks(
             Path(os.environ.get("TEST_ROOT", "/tmp/xrd-test")), names=names)
-    else:
-        with tempfile.TemporaryDirectory(prefix="operator_build.") as tmp:
-            results = run_checks(Path(tmp), names=names)
-    for ok, message in results:
-        print(f"  {'ok  ' if ok else 'FAIL'} {message}")
-    return 0 if all(ok for ok, _ in results) else 1
+    with tempfile.TemporaryDirectory(prefix="operator_build.") as tmp:
+        return run_checks(Path(tmp), names=names)
+
+
+def _print_results(results):
+    for passed, message in results:
+        label = "ok  " if passed else "FAIL"
+        print(f"  {label} {message}")
+
+
+def _exit_code(results):
+    return 0 if all(passed for passed, _message in results) else 1
+
+
+def entry(argv: list[str]) -> int:
+    names = argv or ["brutal_teardown", "build_dynamic_modules", "build_sanitizer"]
+    results = _entry_results(names)
+    _print_results(results)
+    return _exit_code(results)
 
 
 if __name__ == "__main__":

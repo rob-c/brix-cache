@@ -1,4 +1,53 @@
 from split_continuation import reexport as _reexport
+def _expression_1(our_e):
+    return (
+        {n: ck for n, _s, _f, ck in our_e}
+    )
+
+def _expression_2(off_e):
+    return (
+        {n: (ck or "") for n, _s, _f, ck in off_e}
+    )
+
+def _expression_3(spot, off_map):
+    return (
+        off_map.get(spot) and ":" in off_map[spot] and \
+                   off_map[spot].split(":")[-1].strip().lower() not in ("none", "")
+    )
+
+def _expression_4(text):
+    return (
+        [l for l in text.split("\n") if l]
+    )
+
+def _expression_5(lines):
+    return (
+        2 if (len(lines) >= 2 and lines[0] == ".") else 0
+    )
+
+
+def _check_test_wire_dcksm_tokens_and_value_1(our_e):
+    assert our_e, "our dcksm dirlist returned no entries"
+
+def _check_test_wire_dcksm_tokens_and_value_3(spot, our_map):
+    assert spot in our_map, f"{spot} absent from our dcksm output"
+
+def _check_test_wire_dcksm_tokens_and_value_4(got, want, spot, got_field):
+    assert got == want, \
+        f"our dcksm /many {spot} adler32={got!r} expected {want!r} (full token {got_field!r})"
+
+def _check_test_wire_dcksm_tokens_and_value_2(ck, name):
+    assert ck, f"our dcksm /many {name} missing checksum token: {ck!r}"
+
+def _check_test_wire_dcksm_tokens_and_value_5(got, off_val, spot):
+    assert got == off_val, \
+        f"dcksm /many {spot} value divergence: ours={got!r} stock={off_val!r}"
+
+def _check_test_wire_dstat_special_names_6(real, our_sz):
+    assert our_sz.get("with space") == real, \
+        f"our dstat /special 'with space' size={our_sz.get('with space')} real={real}"
+
+
 _reexport(globals(), "_test_conf_dirlist_helpers")
 
 def test_wire_dstat_mtime_field_present(srv):
@@ -12,10 +61,10 @@ def test_wire_dstat_mtime_field_present(srv):
         finally:
             s.close()
         text = body.replace(b"\x00", b"\n").decode("utf-8", "replace")
-        lines = [l for l in text.split("\n") if l]
+        lines = _expression_4(text)
         # find the stat line for the first real entry after the sentinel
         # sentinel = lines[0]=="." , lines[1]=="0 0 0 0"
-        idx = 2 if (len(lines) >= 2 and lines[0] == ".") else 0
+        idx = _expression_5(lines)
         # entry name at idx, stat line at idx+1
         if idx + 1 >= len(lines):
             return False
@@ -39,30 +88,27 @@ def test_wire_dcksm_tokens_and_value(srv):
         _, our_e = _wire_dstat(OUR_PORT, "/many", with_cksum=True)
     except _DirlistError as e:
         pytest.fail(f"our server errored on kXR_dcksm dirlist (errnum={e.errnum})")
-    assert our_e, "our dcksm dirlist returned no entries"
+    _check_test_wire_dcksm_tokens_and_value_1(our_e)
     for name, _sz, _fl, ck in our_e:
-        assert ck, f"our dcksm /many {name} missing checksum token: {ck!r}"
+        _check_test_wire_dcksm_tokens_and_value_2(ck, name)
 
     # spot-check one entry's value against an independent adler32
     spot = "f00.txt"
-    our_map = {n: ck for n, _s, _f, ck in our_e}
-    assert spot in our_map, f"{spot} absent from our dcksm output"
+    our_map = _expression_1(our_e)
+    _check_test_wire_dcksm_tokens_and_value_3(spot, our_map)
     want = _adler32_hex(os.path.join(srv["our_data"], "many", spot))
     got_field = our_map[spot]
     # token form is "algo:value"; extract the hex value
     got = got_field.split(":")[-1].strip().lower()
-    assert got == want, \
-        f"our dcksm /many {spot} adler32={got!r} expected {want!r} (full token {got_field!r})"
+    _check_test_wire_dcksm_tokens_and_value_4(got, want, spot, got_field)
 
     # STOCK comparison if its data server supports dcksm; else just pin ours.
     try:
         _, off_e = _wire_dstat(OFF_PORT, "/many", with_cksum=True)
-        off_map = {n: (ck or "") for n, _s, _f, ck in off_e}
-        if off_map.get(spot) and ":" in off_map[spot] and \
-           off_map[spot].split(":")[-1].strip().lower() not in ("none", ""):
+        off_map = _expression_2(off_e)
+        if _expression_3(spot, off_map):
             off_val = off_map[spot].split(":")[-1].strip().lower()
-            assert got == off_val, \
-                f"dcksm /many {spot} value divergence: ours={got!r} stock={off_val!r}"
+            _check_test_wire_dcksm_tokens_and_value_5(got, off_val, spot)
     except _DirlistError:
         # stock lacks the plugin -> ours is pinned to the independent value above
         pass
@@ -121,11 +167,13 @@ def test_wire_dstat_special_names(srv):
     our_names = {n for n, *_ in our_e}
     off_names = {n for n, *_ in off_e}
     expected = set(SPECIAL_NAMES)
-    assert our_names == expected, \
-        f"our dstat /special name-set wrong: missing={expected - our_names} extra={our_names - expected}"
-    assert off_names == expected, f"stock dstat /special name-set wrong: {off_names ^ expected}"
+    def _assert_test_wire_dstat_special_names_1():
+        assert our_names == expected, \
+            f"our dstat /special name-set wrong: missing={expected - our_names} extra={our_names - expected}"
+        assert off_names == expected, f"stock dstat /special name-set wrong: {off_names ^ expected}"
+
+    _assert_test_wire_dstat_special_names_1()
     # a spaced name carries its real size on ours
     our_sz = {n: sz for n, sz, *_ in our_e}
     real = os.path.getsize(os.path.join(srv["our_data"], "special", "with space"))
-    assert our_sz.get("with space") == real, \
-        f"our dstat /special 'with space' size={our_sz.get('with space')} real={real}"
+    _check_test_wire_dstat_special_names_6(real, our_sz)

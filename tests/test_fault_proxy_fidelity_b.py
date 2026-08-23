@@ -1,4 +1,11 @@
 from split_continuation import reexport as _reexport
+def _check_test_truncate_event_logged_1(ctl):
+    assert _ctl(ctl, "truncate-at 8192 down").strip() == "ok"
+
+def _check_test_truncate_event_logged_2(trunc):
+    assert trunc[0]["dir"] == "down"
+
+
 _reexport(globals(), "_test_fault_proxy_fidelity_helpers")
 
 class TestJsonControl:
@@ -208,15 +215,18 @@ class TestEventLog:
         proc, listen, ctl = _spawn(bfp, echo.port,
                                    extra=["--event-log", str(log)])
         try:
-            assert _ctl(ctl, "truncate-at 8192 down").strip() == "ok"
+            _check_test_truncate_event_logged_1(ctl)
             self._drive_marker(listen, 20000)
             time.sleep(0.3)
             events = [json.loads(ln) for ln in
                       log.read_text().splitlines() if ln.strip()]
             trunc = [e for e in events if e.get("event") == "truncate"]
-            assert trunc, f"no truncate event in {events}"
-            assert trunc[0]["at"] == 8192
-            assert trunc[0]["dir"] == "down"
+            def _assert_test_truncate_event_logged_1():
+                assert trunc, f"no truncate event in {events}"
+                assert trunc[0]["at"] == 8192
+
+            _assert_test_truncate_event_logged_1()
+            _check_test_truncate_event_logged_2(trunc)
         finally:
             proc.terminate(); proc.wait(); echo.close()
 
@@ -257,7 +267,10 @@ class TestEventLog:
             events = [json.loads(ln) for ln in
                       blob.decode(errors="replace").splitlines() if ln.strip()]
             corr = [e for e in events if e.get("event") == "corrupt"]
-            assert corr and corr[0]["count"] > 0
-            assert "dir" in corr[0] and "count" in corr[0]
+            def _assert_test_log_holds_no_payload_bytes_2():
+                assert corr and corr[0]["count"] > 0
+                assert "dir" in corr[0] and "count" in corr[0]
+
+            _assert_test_log_holds_no_payload_bytes_2()
         finally:
             proc.terminate(); proc.wait(); echo.close()

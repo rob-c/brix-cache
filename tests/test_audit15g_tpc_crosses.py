@@ -75,6 +75,11 @@ from _test_audit15g_helpers import (
 from test_audit15c_tpc_token_exchange import _drive_pull
 from test_phase25_ratelimit import KXR_OK, _xrd_login, _xrd_open, _xrd_recv_status
 
+def _guard_tpcx_1():
+    if not os.path.exists(NGINX_BIN):
+        pytest.skip(f"nginx binary not found at {NGINX_BIN}")
+
+
 pytestmark = [pytest.mark.timeout(120),
               pytest.mark.uses_lifecycle_harness,
               pytest.mark.xdist_group("lc-audit15g-tpcx")]
@@ -97,8 +102,7 @@ HTTP_DEST = "/pulled-http.bin"
 def tpcx(lifecycle, tmp_path):
     """(endpoint, dirs, origin) — the seven planes, their directories, and the
     http origin the non-posix destination writes through."""
-    if not os.path.exists(NGINX_BIN):
-        pytest.skip(f"nginx binary not found at {NGINX_BIN}")
+    _guard_tpcx_1()
 
     names = ("src", "ctl", "cdst-export", "cdst-store", "csrc-export",
              "csrc-store", "hdst-export", "acc", "asrc")

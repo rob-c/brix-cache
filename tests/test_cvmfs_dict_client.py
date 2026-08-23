@@ -100,32 +100,41 @@ class _Handler(SimpleHTTPRequestHandler):
         srv = self.server
         offered = self.headers.get("X-Brix-Dict")
         srv.gets.append((self.path, offered))
-
-        if self.path == DICT_PATH:
-            if srv.dict_mode == "absent":
-                self.send_error(404)
-                return
-            claim = "1" * 40 if srv.dict_mode == "tampered" else DICT_ID
-            self._send(DICT_BYTES, {"X-Brix-Dict-Id": claim,
-                                    "Content-Type": "application/octet-stream"})
+        if self._serve_dictionary(srv):
             return
-
-        if (offered == DICT_ID and srv.dict_mode in ("on", "junk")
-                and self.path.startswith(f"/cvmfs/{REPO}/data/")):
-            f = srv.webroot / self.path.lstrip("/")
-            if f.is_file():
-                stored = f.read_bytes()
-                if srv.dict_mode == "junk":
-                    coded = b"JUNK" * 16          # no zstd magic — must not decode
-                else:
-                    coded = zstandard.ZstdCompressor(
-                        dict_data=_CDICT).compress(stored)
-                srv.coded.append(self.path)
-                self._send(coded, {"Content-Encoding": "zstd-dict",
-                                   "X-Brix-Dict-Id": DICT_ID})
-                return
-
+        if self._serve_coded_object(srv, offered):
+            return
         super().do_GET()
+
+    def _serve_dictionary(self, srv):
+        if self.path != DICT_PATH:
+            return False
+        if srv.dict_mode == "absent":
+            self.send_error(404)
+            return True
+        claim = "1" * 40 if srv.dict_mode == "tampered" else DICT_ID
+        self._send(DICT_BYTES, {"X-Brix-Dict-Id": claim,
+                                "Content-Type": "application/octet-stream"})
+        return True
+
+    def _serve_coded_object(self, srv, offered):
+        eligible = offered == DICT_ID and srv.dict_mode in ("on", "junk")
+        if not eligible or not self.path.startswith(f"/cvmfs/{REPO}/data/"):
+            return False
+        path = srv.webroot / self.path.lstrip("/")
+        if not path.is_file():
+            return False
+        coded = self._encode_object(srv, path.read_bytes())
+        srv.coded.append(self.path)
+        self._send(coded, {"Content-Encoding": "zstd-dict",
+                           "X-Brix-Dict-Id": DICT_ID})
+        return True
+
+    @staticmethod
+    def _encode_object(srv, stored):
+        if srv.dict_mode == "junk":
+            return b"JUNK" * 16
+        return zstandard.ZstdCompressor(dict_data=_CDICT).compress(stored)
 
 
 def _start_origin(webroot: Path, *, dict_mode="on"):
@@ -164,6 +173,20 @@ def dm_mount(pubkey, port, *, opts_extra=",dict", env_extra=None, timeout=15):
     mnt = workdir / "mnt"
     for d in ("mnt", "tmp", "cache"):
         (workdir / d).mkdir()
+    env = _mount_environment(pubkey, port, workdir, env_extra)
+    opts = "auto_unmount,attr_timeout=0,entry_timeout=0,retries=1" + opts_extra
+    log = workdir / "brixmount.log"
+    proc = _launch_mount(mnt, opts, env, log)
+    try:
+        _wait_mounted(mnt, timeout)
+        yield mnt, proc, log, workdir / "cache"
+    finally:
+        _preserve_mount_failure(mnt, log, workdir)
+        _stop_mount(mnt, proc)
+        shutil.rmtree(workdir, ignore_errors=True)
+
+
+def _mount_environment(pubkey, port, workdir, env_extra):
     env = {k: v for k, v in os.environ.items() if not k.startswith("BRIXCVMFS_")}
     for k in ("http_proxy", "https_proxy", "all_proxy",
               "HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY"):
@@ -174,29 +197,40 @@ def dm_mount(pubkey, port, *, opts_extra=",dict", env_extra=None, timeout=15):
     env["BRIXCVMFS_SERVER"] = f"http://{HOST}:{port}/cvmfs/{REPO}"
     if env_extra:
         env.update(env_extra)
+    return env
 
-    opts = "auto_unmount,attr_timeout=0,entry_timeout=0,retries=1" + opts_extra
-    log = workdir / "brixmount.log"
+
+def _launch_mount(mnt, opts, env, log):
     with open(log, "wb") as lf:
-        proc = subprocess.Popen([BRIXMOUNT, "cvmfs", REPO, str(mnt), "-o", opts, "-f"],
-                                env=env, stdout=lf, stderr=lf)
+        return subprocess.Popen(
+            [BRIXMOUNT, "cvmfs", REPO, str(mnt), "-o", opts, "-f"],
+            env=env,
+            stdout=lf,
+            stderr=lf,
+        )
+
+
+def _preserve_mount_failure(mnt, log, workdir):
+    if os.path.ismount(mnt) or not log.exists():
+        return
+    keep = Path(tempfile.gettempdir()) / "brixcvmfs_mount_failures"
+    keep.mkdir(exist_ok=True)
+    shutil.copy(log, keep / f"{workdir.name}.log")
+
+
+def _stop_mount(mnt, proc):
+    _unmount(mnt)
+    if proc.poll() is None:
+        _terminate_mount_process(proc)
+    _unmount(mnt)
+
+
+def _terminate_mount_process(proc):
+    proc.terminate()
     try:
-        _wait_mounted(mnt, timeout)
-        yield mnt, proc, log, workdir / "cache"
-    finally:
-        if not os.path.ismount(mnt) and log.exists():
-            keep = Path(tempfile.gettempdir()) / "brixcvmfs_mount_failures"
-            keep.mkdir(exist_ok=True)
-            shutil.copy(log, keep / f"{workdir.name}.log")
-        _unmount(mnt)
-        if proc.poll() is None:
-            proc.terminate()
-            try:
-                proc.wait(3)
-            except subprocess.TimeoutExpired:
-                proc.kill()
-        _unmount(mnt)
-        shutil.rmtree(workdir, ignore_errors=True)
+        proc.wait(3)
+    except subprocess.TimeoutExpired:
+        proc.kill()
 
 
 # ---- CAS identity: object key = sha1 of the STORED (zlib) form -------------
@@ -217,6 +251,47 @@ def _forge(tmp_path):
     tree = {"pkg": Dir({"a.bin": File(A_BODY), "b.bin": File(B_BODY)})}
     return RepoForge(REPO, tmp_path / "web", ttl=TTL, revision=1).build(
         tree, tmp_path / "repo.pub")
+
+
+def _assert_mounted_files(mnt, log):
+    assert (mnt / "pkg" / "a.bin").read_bytes() == A_BODY, \
+        log.read_text(errors="replace")
+    assert (mnt / "pkg" / "b.bin").read_bytes() == B_BODY
+
+
+def _data_requests(httpd):
+    prefix = f"/cvmfs/{REPO}/data/"
+    return [(path, header) for path, header in httpd.gets if path.startswith(prefix)]
+
+
+def _assert_identity_fallback(httpd, proc):
+    assert _dict_gets(httpd) == 1
+    data = _data_requests(httpd)
+    assert data
+    assert all(header is None for _path, header in data)
+    assert httpd.coded == []
+    assert proc.poll() is None
+
+
+def _assert_coded_negotiation(httpd, cache):
+    assert _dict_gets(httpd) == 1, "dict must be fetched exactly once"
+    for rel in (REL_A, REL_B):
+        assert _data_gets(httpd, rel) == [DICT_ID], \
+            f"file object {rel} must be fetched once, offering the id"
+    _assert_coded_objects(httpd, cache)
+
+
+def _assert_coded_objects(httpd, cache):
+    expected = [f"/cvmfs/{REPO}/data/{rel}" for rel in (REL_A, REL_B)]
+    assert sorted(httpd.coded) == sorted(expected)
+    assert (cache / REL_A).exists()
+    assert (cache / REL_B).exists()
+
+
+def _assert_origin_independent(mnt, proc):
+    assert (mnt / "pkg" / "a.bin").read_bytes() == A_BODY
+    assert (mnt / "pkg" / "b.bin").read_bytes() == B_BODY
+    assert proc.poll() is None
 
 
 @pytest.fixture
@@ -242,27 +317,11 @@ def test_dict_mount_decodes_coded_servings(workdir):
     try:
         with dm_mount(workdir / "repo.pub", httpd.server_address[1]) \
                 as (mnt, proc, log, cache):
-            assert (mnt / "pkg" / "a.bin").read_bytes() == A_BODY, \
-                log.read_text(errors="replace")
-            assert (mnt / "pkg" / "b.bin").read_bytes() == B_BODY
-
-            assert _dict_gets(httpd) == 1, "dict must be fetched exactly once"
-            # Plain CAS file objects offer the id; suffixed metadata objects
-            # (catalog …C, whitelist …X) stay identity by design — they exceed
-            # the dict size class and the proxy would decline anyway.
-            for rel in (REL_A, REL_B):
-                assert _data_gets(httpd, rel) == [DICT_ID], \
-                    f"file object {rel} must be fetched once, offering the id"
-            assert sorted(httpd.coded) == sorted(
-                f"/cvmfs/{REPO}/data/{r}" for r in (REL_A, REL_B)), \
-                "exactly the offered file objects should have been served coded"
-            assert (cache / REL_A).exists() and (cache / REL_B).exists()
-
+            _assert_mounted_files(mnt, log)
+            _assert_coded_negotiation(httpd, cache)
             _stop_origin(httpd)
             origin_up = False
-            assert (mnt / "pkg" / "a.bin").read_bytes() == A_BODY
-            assert (mnt / "pkg" / "b.bin").read_bytes() == B_BODY
-            assert proc.poll() is None
+            _assert_origin_independent(mnt, proc)
     finally:
         if origin_up:
             _stop_origin(httpd)
@@ -281,20 +340,10 @@ def test_dict_absent_origin_identity_fallback(workdir):
     httpd = _start_origin(workdir / "web", dict_mode="absent")
     try:
         with dm_mount(workdir / "repo.pub", httpd.server_address[1],
-                      opts_extra="", env_extra={"BRIXCVMFS_DICT": "1"}) \
+                opts_extra="", env_extra={"BRIXCVMFS_DICT": "1"}) \
                 as (mnt, proc, log, cache):
-            assert (mnt / "pkg" / "a.bin").read_bytes() == A_BODY, \
-                log.read_text(errors="replace")
-            assert (mnt / "pkg" / "b.bin").read_bytes() == B_BODY
-
-            assert _dict_gets(httpd) == 1, \
-                "a dict-less proxy costs exactly one extra GET per mount"
-            data = [(p, h) for p, h in httpd.gets
-                    if p.startswith(f"/cvmfs/{REPO}/data/")]
-            assert data and all(h is None for _, h in data), \
-                f"no data GET may offer a dict the mount doesn't hold: {data}"
-            assert httpd.coded == []
-            assert proc.poll() is None
+            _assert_mounted_files(mnt, log)
+            _assert_identity_fallback(httpd, proc)
     finally:
         _stop_origin(httpd)
         forge.close()
@@ -313,17 +362,8 @@ def test_dict_tampered_id_discarded_never_offered(workdir):
     try:
         with dm_mount(workdir / "repo.pub", httpd.server_address[1]) \
                 as (mnt, proc, log, cache):
-            assert (mnt / "pkg" / "a.bin").read_bytes() == A_BODY, \
-                log.read_text(errors="replace")
-            assert (mnt / "pkg" / "b.bin").read_bytes() == B_BODY
-
-            assert _dict_gets(httpd) == 1
-            data = [(p, h) for p, h in httpd.gets
-                    if p.startswith(f"/cvmfs/{REPO}/data/")]
-            assert data and all(h is None for _, h in data), \
-                f"a dict that fails self-certification must never be offered: {data}"
-            assert httpd.coded == []
-            assert proc.poll() is None
+            _assert_mounted_files(mnt, log)
+            _assert_identity_fallback(httpd, proc)
     finally:
         _stop_origin(httpd)
         forge.close()

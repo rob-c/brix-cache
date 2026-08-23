@@ -40,6 +40,7 @@ module skips without the stock xrootd toolchain.
 """
 
 import os
+import shutil
 import socket
 import struct
 
@@ -84,110 +85,133 @@ REG_SIZES = [0, 1, 2, 255, 511, 512, 4095, 4096, 4097, 8192, 65536]
 
 
 def _build_matrix(root):
-    """Create the type/mode matrix under `root`. Returns a list of
-    (relpath, expect_kind) describing what was actually created (the caller
-    skips probes for nodes the OS refused to make)."""
+    """Create the type/mode matrix and describe successfully created nodes."""
+    _reset_matrix(root)
     created = []
+    created.extend(_regular_mode_files(root))
+    created.extend(_regular_size_files(root))
+    created.extend(_fixed_files(root))
+    created.extend(_directories(root))
+    created.extend(_fifos(root))
+    created.extend(_symlinks(root))
+    created.extend(_special_mode_files(root))
+    return created
 
-    # Regular files at a spread of modes (owner perms govern the flags).
+
+def _reset_matrix(root):
+    types_dir = root + "/types"
+    if not os.path.isdir(types_dir):
+        return
+    for directory, _names, files in os.walk(types_dir):
+        os.chmod(directory, 0o755)
+        _make_files_writable(directory, files)
+    shutil.rmtree(types_dir)
+
+
+def _make_files_writable(directory, files):
+    for name in files:
+        path = os.path.join(directory, name)
+        if not os.path.islink(path):
+            os.chmod(path, 0o644)
+
+
+def _write_file(path, body, mode):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "wb") as stream:
+        stream.write(body)
+    os.chmod(path, mode)
+
+
+def _regular_mode_files(root):
+    created = []
     for mode in REG_MODES:
-        rel = f"/types/reg_{mode:04o}.bin"
-        p = root + rel
-        os.makedirs(os.path.dirname(p), exist_ok=True)
-        with open(p, "wb") as fh:
-            fh.write(b"\x5a" * 64)
-        os.chmod(p, mode)
-        created.append((rel, "file"))
+        relative = f"/types/reg_{mode:04o}.bin"
+        _write_file(root + relative, b"\x5a" * 64, mode)
+        created.append((relative, "file"))
+    return created
 
-    # Regular files at a spread of EXACT sizes (mode fixed 0644).
-    for sz in REG_SIZES:
-        rel = f"/types/sz_{sz}.dat"
-        p = root + rel
-        with open(p, "wb") as fh:
-            fh.write(b"\x7e" * sz)
-        os.chmod(p, 0o644)
-        created.append((rel, "file"))
 
-    # An executable regular file (0755): kXR_xset must be set.
-    rel = "/types/exec.sh"
-    p = root + rel
-    with open(p, "wb") as fh:
-        fh.write(b"#!/bin/sh\nexit 0\n")
-    os.chmod(p, 0o755)
-    created.append((rel, "file"))
+def _regular_size_files(root):
+    created = []
+    for size in REG_SIZES:
+        relative = f"/types/sz_{size}.dat"
+        _write_file(root + relative, b"\x7e" * size, 0o644)
+        created.append((relative, "file"))
+    return created
 
-    # An executable-but-not-readable-by-other file owned by us (0711): owner
-    # has rwx, so all three bits set when we run as owner.
-    rel = "/types/exec_711"
-    p = root + rel
-    with open(p, "wb") as fh:
-        fh.write(b"x")
-    os.chmod(p, 0o711)
-    created.append((rel, "file"))
 
-    # Directories at several modes.
+def _fixed_files(root):
+    files = (
+        ("/types/exec.sh", b"executable-file payload\n", 0o755),
+        ("/types/exec_711", b"x", 0o711),
+    )
+    for relative, body, mode in files:
+        _write_file(root + relative, body, mode)
+    return [(relative, "file") for relative, _body, _mode in files]
+
+
+def _directories(root):
+    created = []
     for mode in DIR_MODES:
-        rel = f"/types/dir_{mode:04o}"
-        p = root + rel
-        os.makedirs(p, exist_ok=True)
-        os.chmod(p, mode)
-        created.append((rel, "dir"))
+        relative = f"/types/dir_{mode:04o}"
+        os.makedirs(root + relative, exist_ok=True)
+        os.chmod(root + relative, mode)
+        created.append((relative, "dir"))
+    return created
 
-    # A FIFO / named pipe -> kXR_other (not file, not dir).
-    rel = "/types/fifo1"
-    p = root + rel
-    try:
-        os.mkfifo(p, 0o644)
-        created.append((rel, "other"))
-    except OSError:
-        pass  # OS refused (e.g. perms) — skip this case, never to hide a diff.
 
-    # A second FIFO at a restrictive mode.
-    rel = "/types/fifo_600"
-    p = root + rel
-    try:
-        os.mkfifo(p, 0o600)
-        created.append((rel, "other"))
-    except OSError:
-        pass
-
-    # Symlink to a regular file and to a directory (default stat follows).
-    os.makedirs(root + "/types/linkdir", exist_ok=True)
-    with open(root + "/types/linkdir/inside.txt", "wb") as fh:
-        fh.write(b"target-file-12345")           # 17 bytes
-    try:
-        os.symlink(root + "/types/linkdir/inside.txt", root + "/types/lnk_file")
-        created.append(("/types/lnk_file", "symlink->file"))
-    except OSError:
-        pass
-    try:
-        os.symlink(root + "/types/linkdir", root + "/types/lnk_dir")
-        created.append(("/types/lnk_dir", "symlink->dir"))
-    except OSError:
-        pass
-    # Broken symlink (target does not exist).
-    try:
-        os.symlink(root + "/types/nope_missing_target", root + "/types/lnk_broken")
-        created.append(("/types/lnk_broken", "symlink->broken"))
-    except OSError:
-        pass
-
-    # setuid / setgid regular files (creatable as non-root; the s-bits live in
-    # the high mode octet, do not affect StatGen's r/w/x derivation but we keep
-    # them in the matrix for completeness / parity).
-    for name, mode in (("setuid", 0o4755), ("setgid", 0o2755)):
-        rel = f"/types/{name}"
-        p = root + rel
-        with open(p, "wb") as fh:
-            fh.write(b"s")
+def _fifos(root):
+    created = []
+    for name, mode in (("fifo1", 0o644), ("fifo_600", 0o600)):
+        relative = f"/types/{name}"
         try:
-            os.chmod(p, mode)
-            if (os.stat(p).st_mode & 0o7000) == (mode & 0o7000):
-                created.append((rel, "file"))
+            os.mkfifo(root + relative, mode)
+            created.append((relative, "other"))
         except OSError:
             pass
-
     return created
+
+
+def _symlinks(root):
+    link_dir = root + "/types/linkdir"
+    os.makedirs(link_dir, exist_ok=True)
+    _write_file(link_dir + "/inside.txt", b"target-file-12345", 0o644)
+    links = (
+        (link_dir + "/inside.txt", "/types/lnk_file", "symlink->file"),
+        (link_dir, "/types/lnk_dir", "symlink->dir"),
+        (root + "/types/nope_missing_target", "/types/lnk_broken", "symlink->broken"),
+    )
+    return _create_symlinks(root, links)
+
+
+def _create_symlinks(root, links):
+    created = []
+    for target, relative, kind in links:
+        try:
+            os.symlink(target, root + relative)
+            created.append((relative, kind))
+        except OSError:
+            pass
+    return created
+
+
+def _special_mode_files(root):
+    created = []
+    for name, mode in (("setuid", 0o4755), ("setgid", 0o2755)):
+        relative = f"/types/{name}"
+        path = root + relative
+        _write_file(path, b"s", 0o644)
+        _apply_special_mode(created, relative, path, mode)
+    return created
+
+
+def _apply_special_mode(created, relative, path, mode):
+    try:
+        os.chmod(path, mode)
+        if os.stat(path).st_mode & 0o7000 == mode & 0o7000:
+            created.append((relative, "file"))
+    except OSError:
+        pass
 
 
 # --------------------------------------------------------------------------- #
@@ -205,10 +229,18 @@ def srv(tmp_path_factory):
     # OS, same code path), so we take the intersection to be safe.
     our_made = _build_matrix(ctx["our_data"])
     off_made = _build_matrix(ctx["off_data"])
+    # The fleet stock server runs as `nobody`; harmonize the just-built /types
+    # matrix (owner triad mirrored into group+other, on BOTH roots identically) so
+    # our root server's owner-match and the stock server's other-match report the
+    # SAME kXR readable/writable/xset flags. Assertions are our==off, so mirroring
+    # keeps them exact while eliminating the root-vs-nobody identity divergence.
+    L.harmonize_perms(ctx["our_data"], ctx["off_data"])
     common = [x for x in our_made if x in off_made]
     ctx["matrix"] = common
-    ctx["our_port"] = OUR_PORT
-    ctx["off_port"] = OFF_PORT
+    # Raw-wire client ports come from the fleet attach (start_pair); the module
+    # OUR_PORT/OFF_PORT are legacy worker-shift values with no live server.
+    ctx.setdefault("our_port", L.worker_port(14070))   # per-worker (was shared 20003)
+    ctx.setdefault("off_port", L.worker_port(14071))
     yield ctx
     L.stop_pair(procs)
 
@@ -335,20 +367,15 @@ def _size_int(fields):
 
 
 def _decode_flags(n):
-    parts = []
-    if n & kXR_xset:
-        parts.append("xset")
-    if n & kXR_isDir:
-        parts.append("isDir")
-    if n & kXR_other:
-        parts.append("other")
-    if n & kXR_offline:
-        parts.append("offline")
-    if n & kXR_readable:
-        parts.append("readable")
-    if n & kXR_writable:
-        parts.append("writable")
-    return "|".join(parts) or "file"
+    flags = (
+        (kXR_xset, "xset"),
+        (kXR_isDir, "isDir"),
+        (kXR_other, "other"),
+        (kXR_offline, "offline"),
+        (kXR_readable, "readable"),
+        (kXR_writable, "writable"),
+    )
+    return "|".join(name for bit, name in flags if n & bit) or "file"
 
 
 # --------------------------------------------------------------------------- #

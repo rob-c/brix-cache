@@ -1,4 +1,3 @@
-# loc-lint: exempt — a single module-scoped autouse `params=` fixture mutates module globals (e.g. BASE_URL) that every test reads directly; splitting tests into a sibling module breaks that shared mutable state (proven: webdav 120->100). Cohesive parametrize-unit; Phase-38 §4.4.
 """
 tests/test_evil_paths.py
 
@@ -179,6 +178,39 @@ def _assert_nothing_escaped(name):
 # Symlink battery — planted under the export root, cleaned up afterwards.
 # ---------------------------------------------------------------------------
 
+
+def _plant_symlink(made, name, target):
+    path = os.path.join(DATA_ROOT, name)
+    try:
+        if os.path.islink(path) or os.path.exists(path):
+            os.remove(path)
+        os.symlink(target, path)
+        made.append(path)
+        return True
+    except OSError:
+        return False
+
+
+def _record_symlink(keys, made, key, name, target, suffix=""):
+    if _plant_symlink(made, name, target):
+        keys[key] = name + suffix
+
+
+def _record_symlink_chain(keys, made):
+    if not _plant_symlink(made, "evil_chainb", "/etc"):
+        return
+    if _plant_symlink(made, "evil_chaina", "evil_chainb"):
+        keys["chain"] = "evil_chaina/passwd"
+
+
+def _remove_paths(paths):
+    for path in paths:
+        try:
+            os.remove(path)
+        except OSError:
+            pass
+
+
 @pytest.fixture(scope="module")
 def evil_symlinks():
     """Plant a battery of escaping symlinks under DATA_ROOT.
@@ -189,43 +221,17 @@ def evil_symlinks():
     """
     os.makedirs(DATA_ROOT, exist_ok=True)
     made = []
-
-    def link(name, target):
-        p = os.path.join(DATA_ROOT, name)
-        try:
-            if os.path.islink(p) or os.path.exists(p):
-                os.remove(p)
-            os.symlink(target, p)
-            made.append(p)
-            return name
-        except OSError:
-            return None
-
     keys = {}
-    # dir symlink to /etc → key "<l>/passwd"
-    if link("evil_etc", "/etc"):
-        keys["dir_to_etc"] = "evil_etc/passwd"
-    # file symlink straight to /etc/passwd
-    if link("evil_passwd", "/etc/passwd"):
-        keys["file_to_passwd"] = "evil_passwd"
-    # symlink to filesystem root
-    if link("evil_root", "/"):
-        keys["to_root"] = "evil_root/etc/passwd"
-    # relative escaping symlink
-    if link("evil_rel", "../../../../etc"):
-        keys["relative"] = "evil_rel/passwd"
-    # symlink chain a -> b -> /etc
-    if link("evil_chainb", "/etc") and link("evil_chaina", "evil_chainb"):
-        keys["chain"] = "evil_chaina/passwd"
-    # symlink loop (must not hang / must error)
-    if link("evil_loop", "evil_loop"):
-        keys["loop"] = "evil_loop"
-    # magic-link target: /proc/self/environ (info leak if followed)
-    if link("evil_proc", "/proc/self/environ"):
-        keys["proc_environ"] = "evil_proc"
-    # /proc/self/root magic link → whole host fs
-    if link("evil_procroot", "/proc/self/root"):
-        keys["proc_root"] = "evil_procroot/etc/passwd"
+    _record_symlink(keys, made, "dir_to_etc", "evil_etc", "/etc", "/passwd")
+    _record_symlink(keys, made, "file_to_passwd", "evil_passwd", "/etc/passwd")
+    _record_symlink(keys, made, "to_root", "evil_root", "/", "/etc/passwd")
+    _record_symlink(keys, made, "relative", "evil_rel", "../../../../etc", "/passwd")
+    _record_symlink_chain(keys, made)
+    _record_symlink(keys, made, "loop", "evil_loop", "evil_loop")
+    _record_symlink(keys, made, "proc_environ", "evil_proc", "/proc/self/environ")
+    _record_symlink(
+        keys, made, "proc_root", "evil_procroot", "/proc/self/root", "/etc/passwd"
+    )
 
     # NOTE on in-root symlinks: the module's confined open path uses
     # openat2(RESOLVE_BENEATH) / O_NOFOLLOW, which refuses to follow ANY symlink
@@ -238,12 +244,7 @@ def evil_symlinks():
         pytest.skip("could not plant any symlinks under the export root")
 
     yield keys
-
-    for p in made:
-        try:
-            os.remove(p)
-        except OSError:
-            pass
+    _remove_paths(made)
 
 
 # ===========================================================================
@@ -302,15 +303,15 @@ def _port_up(port):
         return False
 
 
-def _webdav_evil_suite(port, tls):
-    """Run the full WebDAV evil battery against one endpoint; returns None,
-    asserting on any breach."""
-    # --- encoded traversal GET must never leak host files ---
+def _assert_webdav_reads_confined(port, tls):
     for path in TRAVERSAL_HTTP_ENCODED:
-        st, data = _raw(port, "GET", path, tls=tls)
-        assert HOST_SECRET not in data, f"GET {path} leaked host content ({st})"
+        status, data = _raw(port, "GET", path, tls=tls)
+        assert HOST_SECRET not in data, (
+            f"GET {path} leaked host content ({status})"
+        )
 
-    # --- traversal PUT / MKCOL / DELETE must not touch outside the root ---
+
+def _assert_webdav_creates_confined(port, tls):
     name = f"evildav_{uuid.uuid4().hex}"
     for path in (f"/../{name}", f"/%2e%2e/{name}", f"/foo/%2e%2e/%2e%2e/{name}"):
         try:
@@ -320,6 +321,8 @@ def _webdav_evil_suite(port, tls):
             pass
     _assert_nothing_escaped(name)
 
+
+def _assert_webdav_delete_confined(port, tls):
     victim = _outside(f"victim_dav_{uuid.uuid4().hex}")
     with open(victim, "wb") as fh:
         fh.write(b"keep")
@@ -335,26 +338,47 @@ def _webdav_evil_suite(port, tls):
         if os.path.exists(victim):
             os.remove(victim)
 
-    # --- MOVE/COPY with an escaping Destination must not write outside the root
-    # (brix_rename_confined_canon / the COPY confined-canon path). Stage a legit
-    # in-root source, then aim the Destination out of the export both as a bare
-    # path and as a same-authority URL. Nothing may land beside the root, and the
-    # source must survive a refused MOVE.
+
+def _try_webdav_move(port, tls, source, method, header):
+    try:
+        _raw(
+            port, method, source, tls=tls,
+            headers={"Destination": header},
+        )
+    except OSError:
+        pass
+
+
+def _send_webdav_moves(port, tls, source, escaped):
+    scheme = "https" if tls else "http"
+    for method in ("MOVE", "COPY"):
+        for destination in (f"/../{escaped}", f"/%2e%2e/{escaped}"):
+            targets = (
+                destination,
+                f"{scheme}://{SERVER_HOST}:{port}{destination}",
+            )
+            for header in targets:
+                _try_webdav_move(port, tls, source, method, header)
+
+
+def _assert_webdav_moves_confined(port, tls):
     src = f"/movesrc_{uuid.uuid4().hex}"
     _raw(port, "PUT", src, tls=tls, body=b"src-bytes")
     esc = f"escaped_{uuid.uuid4().hex}"
-    scheme = "https" if tls else "http"
-    for method in ("MOVE", "COPY"):
-        for dest in (f"/../{esc}", f"/%2e%2e/{esc}"):
-            for dhdr in (dest, f"{scheme}://{SERVER_HOST}:{port}{dest}"):
-                try:
-                    _raw(port, method, src, tls=tls, headers={"Destination": dhdr})
-                except OSError:
-                    pass
+    _send_webdav_moves(port, tls, src, esc)
     _assert_nothing_escaped(esc)
-    # The source itself was never legitimately moved out, so it is still servable.
-    st, _ = _raw(port, "GET", src, tls=tls)
-    assert st in (200, 206), f"MOVE with an escaping Destination lost the source ({st})"
+    status, _ = _raw(port, "GET", src, tls=tls)
+    assert status in (200, 206), (
+        f"MOVE with an escaping Destination lost the source ({status})"
+    )
+
+
+def _webdav_evil_suite(port, tls):
+    """Run the full WebDAV path-confinement battery against one endpoint."""
+    _assert_webdav_reads_confined(port, tls)
+    _assert_webdav_creates_confined(port, tls)
+    _assert_webdav_delete_confined(port, tls)
+    _assert_webdav_moves_confined(port, tls)
 
 
 def _webdav_symlink_suite(port, tls, evil_symlinks):
@@ -397,104 +421,8 @@ def _cms_state(sock, streamid, path):
     sock.sendall(hdr + payload)
 
 
+from split_continuation import load as _load_continuation
 
-@pytest.fixture()
-def write_zone():
-    """A writable directory OUTSIDE the export root + a victim file, plus
-    symlinks planted INSIDE the root that point at them.  Yields names; on
-    teardown asserts nothing leaked and cleans up."""
-    tag = uuid.uuid4().hex[:10]
-    zone = os.path.join(OUTSIDE, f"evil_wzone_{tag}")
-    os.makedirs(zone, exist_ok=True)
-    victim = os.path.join(zone, "victim.txt")
-    with open(victim, "wb") as fh:
-        fh.write(ORIGINAL)
-
-    links = []
-
-    def link(name, target):
-        p = os.path.join(DATA_ROOT, name)
-        try:
-            if os.path.islink(p) or os.path.exists(p):
-                os.remove(p)
-            os.symlink(target, p)
-            links.append(p)
-            return name
-        except OSError:
-            return None
-
-    sl_dir = link(f"wdir_{tag}", zone)         # symlink → writable outside dir
-    sl_file = link(f"wfile_{tag}", victim)     # symlink → victim file
-    # an in-root regular file, used as a MOVE/COPY source trying to escape
-    src = os.path.join(DATA_ROOT, f"wsrc_{tag}.txt")
-    with open(src, "wb") as fh:
-        fh.write(b"in-root-source")
-
-    yield {
-        "zone": zone, "victim": victim, "zone_base": os.path.basename(zone),
-        "sl_dir": sl_dir, "sl_file": sl_file,
-        "src_key": f"wsrc_{tag}.txt",
-    }
-
-    for p in links:
-        try:
-            os.remove(p)
-        except OSError:
-            pass
-    try:
-        os.remove(src)
-    except OSError:
-        pass
-    shutil.rmtree(zone, ignore_errors=True)
+_load_continuation(globals(), __file__, "_test_evil_paths_helpers_writes.py")
 
 
-def _assert_zone_pristine(z):
-    """The outside zone must be untouched: victim present + original content,
-    and NO extra entry created."""
-    assert os.path.exists(z["victim"]), \
-        f"CONFINEMENT BREACH: victim {z['victim']} was deleted from outside the root"
-    with open(z["victim"], "rb") as fh:
-        assert fh.read() == ORIGINAL, \
-            f"CONFINEMENT BREACH: victim {z['victim']} was overwritten/truncated"
-    leftover = sorted(os.listdir(z["zone"]))
-    assert leftover == ["victim.txt"], \
-        f"CONFINEMENT BREACH: outside zone gained entries {leftover}"
-
-
-# --- WebDAV (http + https) evil writes --------------------------------------
-
-def _webdav_write_attacks(port, tls, z):
-    sd, sf, zb = z["sl_dir"], z["sl_file"], z["zone_base"]
-    body = b"PWNED"
-    attacks = []
-    # create a new file in the outside dir via a dir-symlink
-    if sd:
-        attacks += [("PUT", f"/{sd}/PWNED_{uuid.uuid4().hex}", body),
-                    ("MKCOL", f"/{sd}/pwndir_{uuid.uuid4().hex}", None),
-                    ("DELETE", f"/{sd}/victim.txt", None)]
-    # overwrite / delete the victim straight through a file-symlink
-    if sf:
-        attacks += [("PUT", f"/{sf}", body),
-                    ("DELETE", f"/{sf}", None)]
-    # pure "../" escape into the writable zone (no symlink)
-    attacks += [
-        ("PUT", f"/../{zb}/PWNED_{uuid.uuid4().hex}", body),
-        ("PUT", f"/%2e%2e/{zb}/PWNED_{uuid.uuid4().hex}", body),
-        ("DELETE", f"/../{zb}/victim.txt", None),
-        ("MKCOL", f"/../{zb}/pwndir_{uuid.uuid4().hex}", None),
-    ]
-    for method, path, b in attacks:
-        try:
-            _raw(port, method, path, tls=tls, body=b)
-        except OSError:
-            pass
-    # MOVE / COPY an in-root file out via Destination header (symlink + "..")
-    for dest in ([f"/{sd}/moved_{uuid.uuid4().hex}"] if sd else []) + \
-               [f"/../{zb}/moved_{uuid.uuid4().hex}"]:
-        for method in ("MOVE", "COPY"):
-            try:
-                _raw(port, method, "/" + z["src_key"], tls=tls,
-                     headers={"Destination": dest})
-            except OSError:
-                pass
-    _assert_zone_pristine(z)

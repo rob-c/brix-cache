@@ -138,17 +138,23 @@ def test_xform_zstd_compresses(lifecycle) -> None:
         if rc == 0:
             lifecycle.stop("lc-pblock-xform-zstd")
             pytest.skip("zstd export refused — libzstd not built in")
-        assert rc in (201, 204)
-        assert run.curl_bytes(f"{url}/z") == payload, "zstd roundtrip not exact"
+        def _assert_test_xform_zstd_compresses_1():
+            assert rc in (201, 204)
+            assert run.curl_bytes(f"{url}/z") == payload, "zstd roundtrip not exact"
+
+        _assert_test_xform_zstd_compresses_1()
         lifecycle.stop("lc-pblock-xform-zstd")
 
         blocks = _block_files(data_root)
         assert blocks, "no block file written"
         physical = sum(p.stat().st_size for p in blocks)
-        assert physical < len(payload) // 10, \
-            f"zstd block not compressed: {physical} vs {len(payload)}"
-        # The catalog keeps the LOGICAL size, not the compressed physical size.
-        assert _catalog_size(data_root, "/z") == len(payload)
+        def _assert_test_xform_zstd_compresses_2():
+            assert physical < len(payload) // 10, \
+                f"zstd block not compressed: {physical} vs {len(payload)}"
+            # The catalog keeps the LOGICAL size, not the compressed physical size.
+            assert _catalog_size(data_root, "/z") == len(payload)
+
+        _assert_test_xform_zstd_compresses_2()
 
 
 @pytest.mark.optin
@@ -176,11 +182,14 @@ def test_xform_config_errors_and_mismatch(lifecycle) -> None:
             run.curl_status(f"{url}/p", "-T", str(src))   # triggers lazy build
             lifecycle.stop(name)
             log = (Path(ep.prefix) / "logs" / "error.log").read_text(errors="replace")
-            assert "pblock backend init failed" in log, \
-                f"{tail}: bad xform spec did not fail the pblock init"
-            # The pblock store was never built: no transformed block ever landed.
-            assert not _block_files(Path(ep.data_root)), \
-                f"{tail}: a pblock object was stored despite the bad spec"
+            def _assert_test_xform_config_errors_and_mismatch_3():
+                assert "pblock backend init failed" in log, \
+                    f"{tail}: bad xform spec did not fail the pblock init"
+                # The pblock store was never built: no transformed block ever landed.
+                assert not _block_files(Path(ep.data_root)), \
+                    f"{tail}: a pblock object was stored despite the bad spec"
+
+            _assert_test_xform_config_errors_and_mismatch_3()
 
     # (security-neg) write an object under zstd, then reconfigure the SAME root
     # for a DIFFERENT transform (crypt — which overwrites the opts sidecar): the
@@ -203,15 +212,21 @@ def test_xform_config_errors_and_mismatch(lifecycle) -> None:
         if rc == 0:
             lifecycle.stop("lc-pblock-xform-shift")
             pytest.skip("zstd export refused — libzstd not built in")
-        assert rc in (201, 204)
-        assert run.curl_bytes(f"{url}/z") == payload
+        def _assert_test_xform_config_errors_and_mismatch_4():
+            assert rc in (201, 204)
+            assert run.curl_bytes(f"{url}/z") == payload
+
+        _assert_test_xform_config_errors_and_mismatch_4()
         lifecycle.stop("lc-pblock-xform-shift")
 
         # Reconfigure the same root under crypt (overwrites the opts sidecar).
         lifecycle.reconfigure("lc-pblock-xform-shift", TAIL=f"?xform=crypt:{keyfile}")
         lifecycle.start_registered("lc-pblock-xform-shift")
         time.sleep(1)
-        assert run.curl_status(f"{url}/z", "-I") == 500, \
-            "zstd object served under a crypt export — recorded-kind guard failed"
-        assert run.curl_status(f"{url}/z") == 500, "mismatched object readable"
+        def _assert_test_xform_config_errors_and_mismatch_5():
+            assert run.curl_status(f"{url}/z", "-I") == 500, \
+                "zstd object served under a crypt export — recorded-kind guard failed"
+            assert run.curl_status(f"{url}/z") == 500, "mismatched object readable"
+
+        _assert_test_xform_config_errors_and_mismatch_5()
         lifecycle.stop("lc-pblock-xform-shift")

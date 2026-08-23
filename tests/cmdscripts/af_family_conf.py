@@ -60,9 +60,13 @@ def run_checks(nginx_bin: str = NGINX_BIN, prefix: Path | None = None) -> list[t
 def entry(argv: list[str]) -> int:
     nginx_bin = argv[0] if argv else NGINX_BIN
     results = run_checks(nginx_bin)
+    _print_results(results)
+    return 0 if all(ok for ok, _ in results) else 1
+
+
+def _print_results(results: list[tuple[bool, str]]) -> None:
     for ok, message in results:
         print(f"  {'ok  ' if ok else 'FAIL'} {message}")
-    return 0 if all(ok for ok, _ in results) else 1
 
 
 if __name__ == "__main__":

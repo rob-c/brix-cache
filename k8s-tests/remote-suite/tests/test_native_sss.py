@@ -25,6 +25,26 @@ import pytest
 
 from settings import HOST, BIND_HOST
 
+def _guard_sss_server_1():
+    if shutil.which("cc") is None and shutil.which("gcc") is None:
+        pytest.skip("no C compiler to build the native client")
+
+def _guard_sss_server_2(proc):
+    if proc.returncode != 0 or not os.path.exists(XRDSSSADMIN):
+        pytest.skip(f"native build failed:\n{proc.stdout}\n{proc.stderr}")
+
+def _guard_sss_server_3():
+    if not os.access(NGINX_BIN, os.X_OK):
+        pytest.skip(f"nginx binary not executable: {NGINX_BIN}")
+
+def _check_sss_server_1(r):
+    assert r.returncode == 0, f"xrdsssadmin add failed: {r.stdout}{r.stderr}"
+
+def _guard_sss_server_4(t):
+    if t.returncode != 0:
+        pytest.skip("nginx -t failed for the SSS config:\n" + t.stderr)
+
+
 NGINX_BIN = os.environ.get("NGINX_BIN", "/tmp/nginx-1.28.3/objs/nginx")
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CLIENT_DIR = os.path.join(REPO, "client")
@@ -54,14 +74,11 @@ def _clean_env(extra=None):
 @pytest.fixture(scope="module")
 def sss_server(tmp_path_factory):
     # Build the client tools we need.
-    if shutil.which("cc") is None and shutil.which("gcc") is None:
-        pytest.skip("no C compiler to build the native client")
+    _guard_sss_server_1()
     proc = subprocess.run(["make", "-C", CLIENT_DIR, "xrdfs", "xrdcp", "xrdsssadmin-brix"],
                           capture_output=True, text=True, timeout=180)
-    if proc.returncode != 0 or not os.path.exists(XRDSSSADMIN):
-        pytest.skip(f"native build failed:\n{proc.stdout}\n{proc.stderr}")
-    if not os.access(NGINX_BIN, os.X_OK):
-        pytest.skip(f"nginx binary not executable: {NGINX_BIN}")
+    _guard_sss_server_2(proc)
+    _guard_sss_server_3()
 
     root = tmp_path_factory.mktemp("sss")
     data = root / "data"
@@ -75,7 +92,7 @@ def sss_server(tmp_path_factory):
     r = subprocess.run([XRDSSSADMIN, "-k", kt_srv, "add", "--id", "1",
                         "--user", "anybody", "--group", "anygroup", "--name", "testhost"],
                        capture_output=True, text=True)
-    assert r.returncode == 0, f"xrdsssadmin add failed: {r.stdout}{r.stderr}"
+    _check_sss_server_1(r)
 
     port = _free_port()
     conf = root / "nginx.conf"
@@ -97,8 +114,7 @@ stream {{
 """)
     t = subprocess.run([NGINX_BIN, "-t", "-c", str(conf)],
                        capture_output=True, text=True)
-    if t.returncode != 0:
-        pytest.skip("nginx -t failed for the SSS config:\n" + t.stderr)
+    _guard_sss_server_4(t)
     subprocess.run([NGINX_BIN, "-c", str(conf)], capture_output=True)
 
     # Wait for the listener.

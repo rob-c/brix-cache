@@ -9,8 +9,30 @@ import subprocess
 import time
 
 from cmdscripts import run
+from cmdscripts.command_results import print_results
 from fleet_ports import cmdscript_ports
 from settings import BIND_HOST, HOST, NGINX_BIN
+
+def _expression_1(result):
+    return (
+        [(False, f"nginx start failed: {(result.stderr or result.stdout)[-4000:]}")]
+    )
+
+def _expression_2(results, expected_hello, cold, cold_got):
+    return (
+        results.append((cold.returncode == 0 and cold_got.read_bytes() == expected_hello, "S3 origin fill byte-exact"))
+    )
+
+def _expression_3(results, expected_hello, warm, warm_got):
+    return (
+        results.append((warm.returncode == 0 and warm_got.read_bytes() == expected_hello, "warm cache hit byte-exact"))
+    )
+
+def _expression_4(results, expected_big, big, big_got):
+    return (
+        results.append((big.returncode == 0 and big_got.read_bytes() == expected_big, "multi-chunk S3 fill byte-exact"))
+    )
+
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 XRDFS = REPO_ROOT / "client" / "bin" / "xrdfs"
@@ -115,7 +137,7 @@ def run_checks(base: Path, nginx_bin: str = NGINX_BIN, xrdfs: Path = XRDFS) -> l
 
     result = run([nginx_bin, "-p", str(base), "-c", str(conf)])
     if result.returncode != 0:
-        return [(False, f"nginx start failed: {(result.stderr or result.stdout)[-4000:]}")]
+        return _expression_1(result)
 
     try:
         time.sleep(1)
@@ -124,18 +146,18 @@ def run_checks(base: Path, nginx_bin: str = NGINX_BIN, xrdfs: Path = XRDFS) -> l
 
         cold_got = base / "cache_s3_1.got"
         cold = xrdfs_cat(node_port, "/hello.bin", cold_got, xrdfs)
-        results.append((cold.returncode == 0 and cold_got.read_bytes() == expected_hello, "S3 origin fill byte-exact"))
+        _expression_2(results, expected_hello, cold, cold_got)
         results.append(((base / "cache" / "hello.bin").exists(), "object landed in the local cache"))
 
         warm_got = base / "cache_s3_2.got"
         warm = xrdfs_cat(node_port, "/hello.bin", warm_got, xrdfs)
-        results.append((warm.returncode == 0 and warm_got.read_bytes() == expected_hello, "warm cache hit byte-exact"))
+        _expression_3(results, expected_hello, warm, warm_got)
 
         (base / "s3root" / "big.bin").write_bytes(deterministic_bytes(2_750_000, 43))
         big_got = base / "cache_s3_big.got"
         big = xrdfs_cat(node_port, "/big.bin", big_got, xrdfs)
         expected_big = (base / "s3root" / "big.bin").read_bytes()
-        results.append((big.returncode == 0 and big_got.read_bytes() == expected_big, "multi-chunk S3 fill byte-exact"))
+        _expression_4(results, expected_big, big, big_got)
 
         missing = xrdfs_cat(node_port, "/nope.bin", None, xrdfs)
         missing_err = missing.stderr.decode("utf-8", errors="replace").lower()
@@ -157,13 +179,7 @@ def entry(argv: list[str]) -> int:
 
     with tempfile.TemporaryDirectory(prefix="cache_s3.") as tmp:
         results = run_checks(Path(tmp), nginx_bin=nginx_bin)
-    for ok, message in results:
-        print(f"  {'ok  ' if ok else 'FAIL'} {message}")
-    if all(ok for ok, _ in results):
-        print("run_cache_s3_origin: ALL PASS")
-        return 0
-    print("run_cache_s3_origin: FAILURES")
-    return 1
+    return print_results(results, "run_cache_s3_origin")
 
 
 if __name__ == "__main__":

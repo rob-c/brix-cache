@@ -1,4 +1,4 @@
-"""Example 8: spec round-trip and the two validation tiers (F1).
+"""Compatibility tests for specification round-trips and validation.
 
 Constructor-time checks refuse what a spec alone can prove wrong;
 ``Registry.validate(lane)`` finds what only the lane or the kind

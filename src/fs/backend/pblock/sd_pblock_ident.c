@@ -63,11 +63,59 @@
  *      checks just won't see them; 16 covers real WLCG credentials). 4. A
  *      VO-less principal gets gid = uid (user-private group).
  */
+/*
+ * WHAT: Map one trimmed VO token into the requester's synthetic group list.
+ * WHY:  Token normalization and catalog mapping are one reusable CSV step.
+ * HOW:  Trim surrounding spaces, ignore invalid lengths, and append the gid.
+ */
+static ngx_int_t
+pblock_ident_map_vo(pblock_state_t *st, const char *token, size_t len,
+    pblock_ids_t *out)
+{
+    char    name[256];
+    int64_t id;
+
+    while (len > 0 && token[0] == ' ') {
+        token++;
+        len--;
+    }
+    while (len > 0 && token[len - 1] == ' ')
+        len--;
+    if (len == 0 || len >= sizeof(name))
+        return NGX_OK;
+    memcpy(name, token, len);
+    name[len] = '\0';
+    if (pblock_catalog_id_map(st->cat, PBLOCK_ID_GROUP, name, &id) != 0)
+        return NGX_ERROR;
+    out->gids[out->ngids++] = (uint32_t) id;
+    return NGX_OK;
+}
+
+/*
+ * WHAT: Resolve the comma-separated VO claim into catalog group identifiers.
+ * WHY:  Principal and group mapping have distinct parsing and failure concerns.
+ * HOW:  Walk bounded CSV tokens and delegate normalization of each token.
+ */
+static ngx_int_t
+pblock_ident_map_vos(pblock_state_t *st, const char *vos, pblock_ids_t *out)
+{
+    const char *p;
+
+    for (p = vos; p != NULL && *p != '\0' && out->ngids < PBLOCK_MAX_GIDS;) {
+        const char *end = strchr(p, ',');
+        size_t len = end != NULL ? (size_t) (end - p) : strlen(p);
+
+        if (pblock_ident_map_vo(st, p, len, out) != NGX_OK)
+            return NGX_ERROR;
+        p = end != NULL ? end + 1 : "";
+    }
+    return NGX_OK;
+}
+
 ngx_int_t
 pblock_ident_resolve(pblock_state_t *st, const brix_sd_cred_t *cred,
     pblock_ids_t *out)
 {
-    const char *p;
     int64_t     id;
 
     memset(out, 0, sizeof(*out));
@@ -83,26 +131,8 @@ pblock_ident_resolve(pblock_state_t *st, const brix_sd_cred_t *cred,
     }
     out->uid = (uint32_t) id;
 
-    for (p = cred->vos; p != NULL && *p != '\0'
-                        && out->ngids < PBLOCK_MAX_GIDS; /* void */) {
-        const char *end = strchr(p, ',');
-        size_t      len = end != NULL ? (size_t) (end - p) : strlen(p);
-        char        name[256];
-
-        while (len > 0 && p[0] == ' ') { p++; len--; }
-        while (len > 0 && p[len - 1] == ' ') { len--; }
-        if (len > 0 && len < sizeof(name)) {
-            memcpy(name, p, len);
-            name[len] = '\0';
-            if (pblock_catalog_id_map(st->cat, PBLOCK_ID_GROUP, name,
-                                      &id) != 0)
-            {
-                return NGX_ERROR;
-            }
-            out->gids[out->ngids++] = (uint32_t) id;
-        }
-        p = end != NULL ? end + 1 : "";
-    }
+    if (pblock_ident_map_vos(st, cred->vos, out) != NGX_OK)
+        return NGX_ERROR;
 
     /* Primary gid: the first VO, else a user-private group. The id space is
      * one sequence across kinds, so uid-as-gid collides with no VO's gid. */

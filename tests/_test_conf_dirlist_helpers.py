@@ -78,44 +78,57 @@ WROOT_SUBDIRS = {"wsub": {"leaf.txt": b"leaf\n"},
 WROOT_BASELINE = set(WROOT_FILES) | set(WROOT_SUBDIRS)
 
 
-def _build_extra_dirs(root):
-    """Create the additional trees this module needs, identically on a root."""
+def _write_files(directory, files):
     j = os.path.join
-    # per-worker pseudo-root for the full-listing differentials
-    w = j(root, WROOT.lstrip("/"))
-    os.makedirs(w, exist_ok=True)
-    for name, data in WROOT_FILES.items():
-        with open(j(w, name), "wb") as f:
+    os.makedirs(directory, exist_ok=True)
+    for name, data in files.items():
+        with open(j(directory, name), "wb") as f:
             f.write(data)
+
+
+def _build_worker_root(root):
+    j = os.path.join
+    worker_root = j(root, WROOT.lstrip("/"))
+    _write_files(worker_root, WROOT_FILES)
     for d, files in WROOT_SUBDIRS.items():
-        os.makedirs(j(w, d), exist_ok=True)
-        for name, data in files.items():
-            with open(j(w, d, name), "wb") as f:
-                f.write(data)
-    # 200-entry dir (no truncation at large N)
+        _write_files(j(worker_root, d), files)
+
+
+def _build_large_directory(root):
+    j = os.path.join
     bigdir = j(root, "bigdir")
     os.makedirs(bigdir, exist_ok=True)
     for i in range(200):
         with open(j(bigdir, f"e{i:03d}"), "w") as f:
             f.write(f"entry {i}\n")
-    # special-name entries (spaces / dots / case)
+
+
+def _build_special_directory(root):
+    j = os.path.join
     spec = j(root, "special")
     os.makedirs(spec, exist_ok=True)
     for name in SPECIAL_NAMES:
         with open(j(spec, name), "w") as f:
             f.write(f"contents of {name}\n")
-    # deeper nested dirs
+
+
+def _build_nested_directories(root):
+    j = os.path.join
     os.makedirs(j(root, "nest", "x", "y", "z"), exist_ok=True)
     with open(j(root, "nest", "x", "y", "z", "bottom.txt"), "w") as f:
         f.write("bottom\n")
-    # a dir holding a MIX of files and subdirs
     mix = j(root, "mixed")
     os.makedirs(j(mix, "subA"), exist_ok=True)
     os.makedirs(j(mix, "subB"), exist_ok=True)
-    with open(j(mix, "file1.txt"), "w") as f:
-        f.write("one\n")
-    with open(j(mix, "file2.bin"), "wb") as f:
-        f.write(bytes(range(64)))
+    _write_files(mix, {"file1.txt": b"one\n", "file2.bin": bytes(range(64))})
+
+
+def _build_extra_dirs(root):
+    """Create the additional trees this module needs, identically on a root."""
+    _build_worker_root(root)
+    _build_large_directory(root)
+    _build_special_directory(root)
+    _build_nested_directories(root)
 
 
 @pytest.fixture(scope="module")
@@ -156,6 +169,31 @@ def _ls_set(out):
     return names
 
 
+def _listed_basename(path):
+    base = os.path.basename(path.rstrip("/"))
+    return None if not base or _is_artifact(base) else base
+
+
+def _last_size(tokens):
+    sizes = [int(token) for token in tokens if token.isdigit()]
+    return sizes[-1] if sizes else None
+
+
+def _ls_l_row(line):
+    tokens = line.split()
+    if len(tokens) < 2:
+        return None
+    path = tokens[-1]
+    base = _listed_basename(path)
+    if base is None:
+        return None
+    size = _last_size(tokens[:-1])
+    if size is None:
+        return None
+    is_dir = path.endswith("/") or tokens[0].startswith("d")
+    return base, (size, is_dir)
+
+
 def _ls_l_rows(out):
     """Map basename -> (size, is_dir) from `ls -l` output.
 
@@ -166,21 +204,9 @@ def _ls_l_rows(out):
     """
     rows = {}
     for line in out.splitlines():
-        toks = line.split()
-        if len(toks) < 2:
-            continue
-        path = toks[-1]
-        base = os.path.basename(path.rstrip("/"))
-        if not base or _is_artifact(base):
-            continue
-        size = None
-        for t in toks[:-1]:
-            if t.isdigit():
-                size = int(t)
-        if size is None:
-            continue
-        is_dir = path.endswith("/") or toks[0].startswith("d")
-        rows[base] = (size, is_dir)
+        row = _ls_l_row(line)
+        if row is not None:
+            rows[row[0]] = row[1]
     return rows
 
 
@@ -270,6 +296,39 @@ def _wire_plain_names(port, path):
     return names
 
 
+def _trim_empty_lines(lines):
+    while lines and lines[-1] == "":
+        lines.pop()
+
+
+def _sentinel_offset(lines):
+    expected = ["0", "0", "0", "0"]
+    present = len(lines) >= 2 and lines[0] == "." and lines[1].split() == expected
+    return present, 2 if present else 0
+
+
+def _checksum_fields(statline, with_cksum):
+    if not with_cksum or "[" not in statline:
+        return statline, None
+    prefix, _, suffix = statline.partition("[")
+    return prefix, suffix.rstrip("]").strip()
+
+
+def _integer_field(tokens, index):
+    if index >= len(tokens):
+        return None
+    value = tokens[index]
+    return int(value) if value.lstrip("-").isdigit() else None
+
+
+def _dstat_entry(lines, offset, with_cksum):
+    name = lines[offset]
+    statline, checksum = _checksum_fields(lines[offset + 1], with_cksum)
+    tokens = statline.split()
+    entry = (name, _integer_field(tokens, 1), _integer_field(tokens, 2), checksum)
+    return entry, offset + 2
+
+
 def _parse_dstat(body, with_cksum=False):
     """Parse a kXR_dstat body into (had_sentinel, [(name, size, flags, cksum)]).
 
@@ -278,36 +337,13 @@ def _parse_dstat(body, with_cksum=False):
     """
     text = body.replace(b"\x00", b"\n").decode("utf-8", "replace")
     lines = text.split("\n")
-    # strip trailing empties
-    while lines and lines[-1] == "":
-        lines.pop()
-    had_sentinel = len(lines) >= 2 and lines[0] == "." and \
-        lines[1].split() == ["0", "0", "0", "0"]
-    i = 2 if had_sentinel else 0
+    _trim_empty_lines(lines)
+    had_sentinel, offset = _sentinel_offset(lines)
     entries = []
-    while i + 1 < len(lines) + 1 and i + 1 <= len(lines):
-        if i >= len(lines):
-            break
-        name = lines[i]
-        if i + 1 >= len(lines):
-            break
-        statline = lines[i + 1]
-        i += 2
-        if _is_artifact(name):
-            continue
-        cksum = None
-        sl = statline
-        if with_cksum and "[" in sl:
-            # "<id> <size> <flags> <mtime> [ algo:value ]"
-            pre, _, post = sl.partition("[")
-            inside = post.rstrip("]").strip()
-            cksum = inside
-            sl = pre
-        toks = sl.split()
-        # robust: size is field[1], flags field[2] of the leading int quad
-        size = int(toks[1]) if len(toks) >= 2 and toks[1].lstrip("-").isdigit() else None
-        flags = int(toks[2]) if len(toks) >= 3 and toks[2].lstrip("-").isdigit() else None
-        entries.append((name, size, flags, cksum))
+    while offset + 1 < len(lines):
+        entry, offset = _dstat_entry(lines, offset, with_cksum)
+        if not _is_artifact(entry[0]):
+            entries.append(entry)
     return had_sentinel, entries
 
 

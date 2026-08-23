@@ -38,20 +38,30 @@ DEFINED = re.compile(
 
 
 def _hits(root: Path) -> list[str]:
-    out: list[str] = []
-    for tree in SCAN_TREES:
-        base = root / tree
-        if not base.is_dir():
-            continue
-        for path in sorted(base.rglob("*")):
-            if path.suffix not in (".c", ".h") or not path.is_file():
-                continue
-            text = path.read_bytes().decode("utf-8", "surrogateescape")
-            for lineno, line in enumerate(text.split("\n"), start=1):
-                if IFDEF.search(line) or DEFINED.search(line):
-                    rel = path.relative_to(root)
-                    out.append(f"{rel}:{lineno}:{line.strip()}")
-    return out
+    return [
+        hit
+        for tree in SCAN_TREES
+        for path in _source_files(root / tree)
+        for hit in _file_hits(root, path)
+    ]
+
+
+def _source_files(base):
+    if not base.is_dir():
+        return []
+    return [
+        path for path in sorted(base.rglob("*"))
+        if path.suffix in (".c", ".h") and path.is_file()
+    ]
+
+
+def _file_hits(root, path):
+    text = path.read_bytes().decode("utf-8", "surrogateescape")
+    return [
+        f"{path.relative_to(root)}:{lineno}:{line.strip()}"
+        for lineno, line in enumerate(text.split("\n"), start=1)
+        if IFDEF.search(line) or DEFINED.search(line)
+    ]
 
 
 def run(root: Path = ROOT) -> tuple[bool, list[str]]:

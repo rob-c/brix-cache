@@ -85,55 +85,76 @@ def assert_expectation(entry, stock, ours, dim):
     expect = entry.get("expect", {}) or {}
     s = stock.facet(dim)
     o = ours.facet(dim)
+    handlers = {
+        "superset": _assert_superset,
+        "replaced": _assert_replaced,
+        "extra-exit-code": _assert_extra_exit_code,
+        "format": _assert_format,
+    }
+    handler = handlers.get(kind)
+    if handler is None:
+        raise DivergenceError("unknown divergence kind %r in %s"
+                              % (kind, entry.get("id")))
+    handler(entry, expect, s, o, dim)
 
-    if kind == "superset":
-        # Every stock line must still be present in ours (compat preserved)...
-        if expect.get("stock_subset_of_ours", True) and dim in ("stdout", "stderr"):
-            s_lines = [ln for ln in str(s).splitlines() if ln.strip()]
-            o_text = str(o)
-            missing = [ln for ln in s_lines if ln not in o_text]
-            if missing:
-                raise DivergenceError(
-                    "superset %s: ours dropped stock line(s) %r\nOURS=%r"
-                    % (entry["id"], missing[:3], o))
-        # ...and the EXTRA content must match the pinned pattern, so new extras
-        # cannot sneak in unreviewed.
-        pat = expect.get("new_lines_must_match")
-        if pat and dim in ("stdout", "stderr"):
-            extra = [ln for ln in str(o).splitlines()
-                     if ln.strip() and ln not in str(s)]
-            rx = re.compile(pat)
-            bad = [ln for ln in extra if not rx.search(ln)]
-            if bad:
-                raise DivergenceError(
-                    "superset %s: extra line(s) not matching %r: %r"
-                    % (entry["id"], pat, bad[:3]))
-        return
 
-    if kind == "replaced":
-        pat = expect.get("ours_must_match")
-        if not pat:
-            raise DivergenceError("replaced %s: missing expect.ours_must_match"
-                                  % entry["id"])
-        if not re.search(pat, str(o)):
-            raise DivergenceError(
-                "replaced %s: ours %r does not match %r" % (entry["id"], o, pat))
-        return
+def _assert_superset(entry, expect, stock, ours, dim):
+    if expect.get("stock_subset_of_ours", True) and dim in ("stdout", "stderr"):
+        _assert_stock_lines_present(entry, stock, ours)
+    pattern = expect.get("new_lines_must_match")
+    if pattern and dim in ("stdout", "stderr"):
+        _assert_extra_lines_match(entry, stock, ours, pattern)
 
-    if kind == "extra-exit-code":
-        allowed = set(expect.get("ours_rc_in", []))
-        if allowed and o not in allowed:
-            raise DivergenceError(
-                "extra-exit-code %s: ours rc=%r not in %r"
-                % (entry["id"], o, sorted(allowed)))
-        return
 
-    if kind == "format":
-        pat = expect.get("ours_must_match")
-        if pat and not re.search(pat, str(o)):
-            raise DivergenceError(
-                "format %s: ours %r does not match %r" % (entry["id"], o, pat))
-        return
+def _assert_stock_lines_present(entry, stock, ours):
+    missing = _missing_stock_lines(stock, ours)
+    if missing:
+        raise DivergenceError(
+            "superset %s: ours dropped stock line(s) %r\nOURS=%r"
+            % (entry["id"], missing[:3], ours))
 
-    raise DivergenceError("unknown divergence kind %r in %s"
-                          % (kind, entry.get("id")))
+
+def _missing_stock_lines(stock, ours):
+    stock_lines = [line for line in str(stock).splitlines() if line.strip()]
+    return [line for line in stock_lines if line not in str(ours)]
+
+
+def _assert_extra_lines_match(entry, stock, ours, pattern):
+    regex = re.compile(pattern)
+    bad = [line for line in _extra_lines(stock, ours) if not regex.search(line)]
+    if bad:
+        raise DivergenceError(
+            "superset %s: extra line(s) not matching %r: %r"
+            % (entry["id"], pattern, bad[:3]))
+
+
+def _extra_lines(stock, ours):
+    return [line for line in str(ours).splitlines()
+            if line.strip() and line not in str(stock)]
+
+
+def _assert_replaced(entry, expect, _stock, ours, _dim):
+    pattern = expect.get("ours_must_match")
+    if not pattern:
+        raise DivergenceError("replaced %s: missing expect.ours_must_match"
+                              % entry["id"])
+    if not re.search(pattern, str(ours)):
+        raise DivergenceError(
+            "replaced %s: ours %r does not match %r"
+            % (entry["id"], ours, pattern))
+
+
+def _assert_extra_exit_code(entry, expect, _stock, ours, _dim):
+    allowed = set(expect.get("ours_rc_in", []))
+    if allowed and ours not in allowed:
+        raise DivergenceError(
+            "extra-exit-code %s: ours rc=%r not in %r"
+            % (entry["id"], ours, sorted(allowed)))
+
+
+def _assert_format(entry, expect, _stock, ours, _dim):
+    pattern = expect.get("ours_must_match")
+    if pattern and not re.search(pattern, str(ours)):
+        raise DivergenceError(
+            "format %s: ours %r does not match %r"
+            % (entry["id"], ours, pattern))

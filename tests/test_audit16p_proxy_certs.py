@@ -566,11 +566,14 @@ class TestTheServerScopeArms:
         grid = arms.grid()
         moved = {cred for cred in CREDS
                  if len({grid[(arm, cred)] for arm in ARMS}) > 1}
-        assert moved == {"rfc3820"}, grid
-        # And the two clear arms are not merely both "not the armed one": they
-        # answer every credential identically, which is §D's whole claim.
-        assert {c: grid[("srv-off", c)] for c in CREDS} \
-            == {c: grid[("loc-on", c)] for c in CREDS}, grid
+        def _assert_test_only_the_proxy_row_moves_between_the_arms_2():
+            assert moved == {"rfc3820"}, grid
+            # And the two clear arms are not merely both "not the armed one": they
+            # answer every credential identically, which is §D's whole claim.
+            assert {c: grid[("srv-off", c)] for c in CREDS} \
+                == {c: grid[("loc-on", c)] for c in CREDS}, grid
+
+        _assert_test_only_the_proxy_row_moves_between_the_arms_2()
 
 
 # --------------------------------------------------------------------------- #
@@ -678,9 +681,12 @@ class TestTheAbsentArmIsTheOffArm:
         before = {cred: arms.get("srv-off", cred).status_code for cred in CREDS}
         self._absent(lifecycle)
         after = {cred: arms.get("srv-off", cred).status_code for cred in CREDS}
-        assert before == after, (before, after)
-        assert before == {cred: GRID[("srv-off", cred)] for cred in CREDS}, \
-            before
+        def _assert_test_the_absent_arm_grid_is_the_off_arm_grid_1():
+            assert before == after, (before, after)
+            assert before == {cred: GRID[("srv-off", cred)] for cred in CREDS}, \
+                before
+
+        _assert_test_the_absent_arm_grid_is_the_off_arm_grid_1()
 
     def test_removing_it_leaves_the_other_two_listeners_alone(self, arms,
                                                               lifecycle):

@@ -1,4 +1,16 @@
 from split_continuation import reexport as _reexport
+def _phase_test_token_fs_usage_and_shm_slot_helpers_are_shared_1():
+    for relpath in (
+        "src/net/manager/pending.c",
+        "src/tpc/engine/key_registry.c",
+    ):
+        _assert_markers(relpath, ["core/compat/shm_slots.h", "brix_shm_"])
+
+def _phase_test_phase5_tpc_common_layer_is_shared_2():
+    for relpath in ("src/tpc/outbound/tpc_token.c", "src/protocols/webdav/tpc_cred.c"):
+        _assert_markers(relpath, ["brix_tpc_credential_parse("])
+
+
 _reexport(globals(), "_test_cross_protocol_shared_helpers_helpers")
 
 def test_copy_and_http_file_response_helpers_are_shared():
@@ -151,11 +163,7 @@ def test_token_fs_usage_and_shm_slot_helpers_are_shared():
     ):
         _assert_markers(relpath, ["brix_fs_usage_"])
 
-    for relpath in (
-        "src/net/manager/pending.c",
-        "src/tpc/engine/key_registry.c",
-    ):
-        _assert_markers(relpath, ["core/compat/shm_slots.h", "brix_shm_"])
+    _phase_test_token_fs_usage_and_shm_slot_helpers_are_shared_1()
 
     # Phase 16: WebDAV lock state migrated off the SHM slot table onto xattrs
     # (the unified prop store).  lock.c must no longer reference shm_slots and
@@ -203,8 +211,7 @@ def test_phase5_tpc_common_layer_is_shared():
     # progress samples) moved into source_stream.c.
     for relpath in ("src/tpc/outbound/source_stream.c", "src/protocols/webdav/tpc_curl_pmark.c", "src/protocols/webdav/tpc_marker.c"):
         _assert_markers(relpath, ["brix_tpc_progress_emit("])
-    for relpath in ("src/tpc/outbound/tpc_token.c", "src/protocols/webdav/tpc_cred.c"):
-        _assert_markers(relpath, ["brix_tpc_credential_parse("])
+    _phase_test_phase5_tpc_common_layer_is_shared_2()
     # dashboard api was split: registry include in dashboard_api_internal.h, the
     # snapshot call in api_transfers.c.
     _assert_markers("src/observability/dashboard/dashboard_api_internal.h",

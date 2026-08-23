@@ -1,31 +1,41 @@
-"""Composable declarations shared by servers, clients, tools, and backends.
-
-The objects in this module describe intent only.  They are immutable, safe to
-inspect during pytest collection, and deliberately contain no runtime handles.
-Backends translate them into processes, containers, pods, and evidence records.
-"""
+"""Immutable resource declarations shared by servers, clients, and backends."""
 
 from __future__ import annotations
 
 import dataclasses
 import math
 import re
-from pathlib import Path, PurePosixPath
+from pathlib import Path
 from typing import Mapping, Optional, Sequence, Union
 
+from brixtest._resource_validation import (
+    argv as _argv,
+    command_policy as _command_policy,
+    endpoint_contract,
+    probe_contract,
+    relative as _relative,
+)
 from brixtest.errors import SpecError
 from brixtest.util.immutable import freeze_mapping
 
 _NAME = re.compile(r"^[a-z][a-z0-9_-]*$")
-_SCHEME = re.compile(r"^[A-Za-z][A-Za-z0-9+.-]*$")
-_PROTOCOLS = ("tcp", "udp")
 _PROBE_KINDS = ("tcp", "http", "https", "exec", "log", "none")
-_COMMAND_MODES = ("capture", "stream", "pty")
 _REFERENCE_KINDS = (
     "artifact", "binary", "config", "credential", "mount", "parameter",
-    "run", "server", "workspace",
+    "environment", "identity", "resource", "run", "server", "task", "volume",
+    "workspace",
 )
 _REFERENCE_NAME = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+_REFERENCE_ATTRIBUTES = {
+    "artifact": ("path", "directory"), "binary": ("path", "directory"),
+    "config": ("path",), "credential": ("path", "directory"), "mount": ("path",),
+    "parameter": ("value",), "run": ("root",), "workspace": ("path",),
+    "server": ("config", "host", "log", "port", "url"),
+    "environment": ("context", "name", "namespace"),
+    "identity": ("name", "service_account"),
+    "resource": ("output",), "task": ("output",),
+    "volume": ("claim", "path"),
+}
 
 
 def _name(value: object, field: str) -> str:
@@ -45,18 +55,6 @@ def _positive(value: object, field: str) -> float:
     return float(value)
 
 
-def _argv(value: Sequence[object], field: str, *, empty: bool = False) -> tuple[object, ...]:
-    if isinstance(value, (str, bytes)) or not isinstance(value, Sequence):
-        raise SpecError(field, value, "must be an argv sequence, not shell text")
-    result = tuple(value)
-    if not empty and not result:
-        raise SpecError(field, value, "must contain at least one argv item")
-    for part in result:
-        if isinstance(part, bytes) or not str(part) or "\x00" in str(part):
-            raise SpecError(field, value, "argv entries must be non-empty and NUL-free")
-    return result
-
-
 def _strings(value: Mapping[str, object], field: str) -> Mapping[str, object]:
     if not isinstance(value, Mapping) or not all(
         isinstance(key, str)
@@ -71,15 +69,31 @@ def _strings(value: Mapping[str, object], field: str) -> Mapping[str, object]:
     return freeze_mapping(value)
 
 
-def _relative(value: str, field: str, *, allow_empty: bool = True) -> str:
-    if not isinstance(value, str) or "\x00" in value:
-        raise SpecError(field, value, "must be NUL-free text")
-    if not value and allow_empty:
-        return value
-    path = PurePosixPath(value)
-    if path.is_absolute() or value in ("", ".") or ".." in path.parts:
-        raise SpecError(field, value, "must be a confined relative path")
-    return value
+def _validate_reference_name(kind: str, name: object) -> None:
+    if kind in ("config", "mount", "parameter"):
+        if not isinstance(name, str):
+            raise SpecError("reference.name", name, "must be a runtime placeholder identifier")
+        if _REFERENCE_NAME.fullmatch(name) is None:
+            raise SpecError("reference.name", name, "must be a runtime placeholder identifier")
+        return
+    if kind in ("run", "workspace"):
+        if name:
+            raise SpecError("reference.name", name, "must be empty for run/workspace")
+        return
+    _name(name, "reference.name")
+
+
+def _validate_reference_role(kind: str, attribute: str, role: object) -> None:
+    if not role:
+        return
+    _name(role, "reference.role")
+    valid = kind == "server" and attribute in ("host", "port", "url")
+    valid = valid or (kind in ("resource", "task") and attribute == "output")
+    if not valid:
+        raise SpecError(
+            "reference.role", role,
+            "is valid for server host/port/url or task/resource output references",
+        )
 
 
 @dataclasses.dataclass(frozen=True)
@@ -94,41 +108,18 @@ class Reference:
     def __post_init__(self) -> None:
         if self.kind not in _REFERENCE_KINDS:
             raise SpecError("reference.kind", self.kind, "has an unknown resource kind")
-        if self.kind in ("config", "mount", "parameter"):
-            if not isinstance(self.name, str) or _REFERENCE_NAME.fullmatch(self.name) is None:
-                raise SpecError(
-                    "reference.name", self.name,
-                    "must be a runtime placeholder identifier",
-                )
-        elif self.kind not in ("run", "workspace"):
-            _name(self.name, "reference.name")
-        elif self.name:
-            raise SpecError("reference.name", self.name, "must be empty for run/workspace")
-        if not isinstance(self.attribute, str) or not self.attribute:
+        _validate_reference_name(self.kind, self.name)
+        if not isinstance(self.attribute, str):
             raise SpecError("reference.attribute", self.attribute, "must be non-empty text")
-        if self.role:
-            _name(self.role, "reference.role")
-        allowed = {
-            "artifact": ("path", "directory"),
-            "binary": ("path", "directory"),
-            "config": ("path",),
-            "credential": ("path", "directory"),
-            "mount": ("path",),
-            "parameter": ("value",),
-            "run": ("root",),
-            "server": ("config", "host", "log", "port", "url"),
-            "workspace": ("path",),
-        }[self.kind]
+        if not self.attribute:
+            raise SpecError("reference.attribute", self.attribute, "must be non-empty text")
+        allowed = _REFERENCE_ATTRIBUTES[self.kind]
         if self.attribute not in allowed:
             raise SpecError(
                 "reference.attribute", self.attribute,
                 "known for %s: %s" % (self.kind, ", ".join(allowed)),
             )
-        if self.role and not (self.kind == "server" and self.attribute in ("port", "url")):
-            raise SpecError(
-                "reference.role", self.role,
-                "is valid only for server port/url references",
-            )
+        _validate_reference_role(self.kind, self.attribute, self.role)
 
     @property
     def key(self) -> str:
@@ -147,15 +138,26 @@ class Reference:
             ("credential", "directory"): "credential_%s_dir" % self.name,
             ("mount", "path"): "mount_%s" % self.name,
             ("parameter", "value"): "param_%s" % self.name,
+            ("environment", "context"): "environment_%s_context" % self.name,
+            ("environment", "name"): "environment_%s_name" % self.name,
+            ("environment", "namespace"): "environment_%s_namespace" % self.name,
+            ("identity", "name"): "identity_%s_name" % self.name,
+            ("identity", "service_account"): "identity_%s_service_account" % self.name,
+            ("volume", "claim"): "volume_%s_claim" % self.name,
+            ("volume", "path"): "volume_%s_path" % self.name,
         }.get((self.kind, self.attribute))
         if suffix is not None:
             return suffix
         if self.kind == "server":
+            if self.attribute == "host" and self.role:
+                return "server_%s_%s_host" % (self.name, self.role)
             if self.attribute == "port":
                 return "server_%s_%s_port" % (self.name, self.role or "primary")
             if self.attribute == "url" and self.role:
                 return "server_%s_%s_url" % (self.name, self.role)
             return "server_%s_%s" % (self.name, self.attribute)
+        if self.kind in ("resource", "task") and self.attribute == "output":
+            return "%s_%s_%s" % (self.kind, self.name, self.role)
         raise SpecError("reference", self, "cannot be converted to a runtime key")
 
     def __str__(self) -> str:
@@ -220,6 +222,13 @@ def run_root_ref() -> Reference:
     return Reference("run", attribute="root")
 
 
+def _command_text(input_value: object, encoding: object) -> None:
+    if input_value is not None and not isinstance(input_value, str):
+        raise SpecError("command.input", input_value, "must be text or None")
+    if not isinstance(encoding, str) or not encoding:
+        raise SpecError("command.encoding", encoding, "must be non-empty text")
+
+
 @dataclasses.dataclass(frozen=True)
 class Command:
     """Reusable shell-free invocation defaults for a server or client tool."""
@@ -239,21 +248,13 @@ class Command:
         object.__setattr__(self, "argv", _argv(self.argv, "command.argv"))
         object.__setattr__(self, "env", _strings(self.env, "command.env"))
         object.__setattr__(self, "cwd", _relative(self.cwd, "command.cwd"))
-        if self.input is not None and not isinstance(self.input, str):
-            raise SpecError("command.input", self.input, "must be text or None")
-        if not isinstance(self.encoding, str) or not self.encoding:
-            raise SpecError("command.encoding", self.encoding, "must be non-empty text")
+        _command_text(self.input, self.encoding)
         object.__setattr__(self, "timeout", _positive(self.timeout, "command.timeout"))
         exits = tuple(self.expected_exit_codes)
         if not exits or not all(isinstance(value, int) and not isinstance(value, bool) for value in exits):
             raise SpecError("command.expected_exit_codes", exits, "must contain integer statuses")
         object.__setattr__(self, "expected_exit_codes", exits)
-        if isinstance(self.output_limit, bool) or not isinstance(self.output_limit, int) or self.output_limit < 1:
-            raise SpecError("command.output_limit", self.output_limit, "must be an integer >= 1")
-        if self.mode not in _COMMAND_MODES:
-            raise SpecError("command.mode", self.mode, "must be capture, stream, or pty")
-        if isinstance(self.retries, bool) or not isinstance(self.retries, int) or self.retries < 0:
-            raise SpecError("command.retries", self.retries, "must be an integer >= 0")
+        _command_policy(self.output_limit, self.mode, self.retries)
 
 
 def command(
@@ -269,10 +270,7 @@ def command(
     retries: int = 0,
 ) -> Command:
     """Declare one reusable shell-free command and its execution policy."""
-    if len(argv) == 1 and isinstance(argv[0], (list, tuple)):
-        selected = tuple(argv[0])
-    else:
-        selected = argv
+    selected = tuple(argv[0]) if len(argv) == 1 and isinstance(argv[0], (list, tuple)) else argv
     return Command(
         selected, env={} if env is None else env, cwd=cwd, input=input, encoding=encoding,
         timeout=timeout, expected_exit_codes=expected_exit_codes,
@@ -298,10 +296,7 @@ def execution(
     retries: int = 0,
 ) -> Execution:
     """Canonical alias for a reusable, shell-free execution declaration."""
-    if len(argv) == 1 and isinstance(argv[0], (list, tuple)):
-        selected = tuple(argv[0])
-    else:
-        selected = argv
+    selected = tuple(argv[0]) if len(argv) == 1 and isinstance(argv[0], (list, tuple)) else argv
     return Execution(
         selected, env={} if env is None else env, cwd=cwd, input=input,
         encoding=encoding, timeout=timeout,
@@ -319,40 +314,47 @@ class Endpoint:
     port: Optional[int] = None
     scheme: str = ""
     metadata: Mapping[str, object] = dataclasses.field(default_factory=dict)
+    family: str = "any"
+    exposure: str = "case"
 
     def __post_init__(self) -> None:
         _name(self.name, "endpoint.name")
-        if self.protocol not in _PROTOCOLS:
-            raise SpecError("endpoint.protocol", self.protocol, "must be tcp or udp")
-        if self.port is not None and (
-            isinstance(self.port, bool) or not isinstance(self.port, int) or not 0 < self.port < 65536
-        ):
-            raise SpecError("endpoint.port", self.port, "must be a port from 1 to 65535 or None")
-        if not isinstance(self.scheme, str) or (
-            self.scheme and _SCHEME.fullmatch(self.scheme) is None
-        ):
-            raise SpecError("endpoint.scheme", self.scheme, "must be a valid URI scheme")
-        if not isinstance(self.metadata, Mapping):
-            raise SpecError("endpoint.metadata", self.metadata, "must be a mapping")
-        object.__setattr__(self, "metadata", freeze_mapping(self.metadata))
+        metadata = endpoint_contract(
+            self.protocol, self.port, self.scheme, self.metadata,
+        )
+        if self.family not in ("any", "ipv4", "ipv6", "dual"):
+            raise SpecError(
+                "endpoint.family", self.family, "must be any, ipv4, ipv6, or dual",
+            )
+        if self.exposure not in ("case", "environment", "host", "external"):
+            raise SpecError(
+                "endpoint.exposure", self.exposure,
+                "must be case, environment, host, or external",
+            )
+        object.__setattr__(self, "metadata", metadata)
 
 
 def endpoint(
     name: str = "primary", *, protocol: str = "tcp", port: Optional[int] = None,
     scheme: str = "", metadata: Optional[Mapping[str, object]] = None,
+    family: str = "any", exposure: str = "case",
 ) -> Endpoint:
     """Declare a named backend-assigned TCP or UDP endpoint."""
-    return Endpoint(name, protocol, port, scheme, {} if metadata is None else metadata)
+    return Endpoint(
+        name, protocol, port, scheme, {} if metadata is None else metadata,
+        family, exposure,
+    )
 
 
 def http_endpoint(
     name: str = "http", *, port: Optional[int] = None, tls: bool = False,
-    metadata: Optional[Mapping[str, object]] = None,
+    metadata: Optional[Mapping[str, object]] = None, family: str = "any",
+    exposure: str = "case",
 ) -> Endpoint:
     """Declare an HTTP or HTTPS endpoint with a backend-assigned port."""
     return Endpoint(
         name, "tcp", port, "https" if tls else "http",
-        {} if metadata is None else metadata,
+        {} if metadata is None else metadata, family, exposure,
     )
 
 
@@ -375,18 +377,11 @@ class Probe:
         _name(self.endpoint, "probe.endpoint")
         object.__setattr__(self, "timeout", _positive(self.timeout, "probe.timeout"))
         object.__setattr__(self, "interval", _positive(self.interval, "probe.interval"))
-        if not isinstance(self.path, str) or not self.path.startswith("/"):
-            raise SpecError("probe.path", self.path, "must start with /")
-        selected = _argv(self.command, "probe.command", empty=True)
-        if self.kind == "exec" and not selected:
-            raise SpecError("probe.command", selected, "is required for an exec probe")
+        selected, statuses = probe_contract(
+            self.kind, self.path, self.command, self.statuses, self.pattern,
+        )
         object.__setattr__(self, "command", selected)
-        statuses = tuple(self.statuses)
-        if not statuses or not all(isinstance(value, int) and 100 <= value <= 599 for value in statuses):
-            raise SpecError("probe.statuses", statuses, "must contain HTTP statuses from 100 to 599")
         object.__setattr__(self, "statuses", statuses)
-        if not isinstance(self.pattern, str):
-            raise SpecError("probe.pattern", self.pattern, "must be text")
 
 
 def probe(
@@ -422,6 +417,7 @@ class Mount:
     target: str
     read_only: bool = True
     kind: str = "auto"
+    propagation: str = "none"
 
     def __post_init__(self) -> None:
         if self.source is None or isinstance(self.source, bytes):
@@ -429,15 +425,23 @@ class Mount:
         object.__setattr__(self, "target", _relative(self.target, "mount.target", allow_empty=False))
         if not isinstance(self.read_only, bool):
             raise SpecError("mount.read_only", self.read_only, "must be true or false")
-        if self.kind not in ("auto", "config", "artifact", "credential", "path", "tmp"):
+        if self.kind not in (
+            "auto", "config", "artifact", "credential", "path", "tmp", "volume",
+        ):
             raise SpecError("mount.kind", self.kind, "has an unknown resource kind")
+        if self.propagation not in ("none", "host-to-container", "bidirectional"):
+            raise SpecError(
+                "mount.propagation", self.propagation,
+                "must be none, host-to-container, or bidirectional",
+            )
 
 
 def mount(
-    source: object, target: Union[str, Path], *, read_only: bool = True, kind: str = "auto",
+    source: object, target: Union[str, Path], *, read_only: bool = True,
+    kind: str = "auto", propagation: str = "none",
 ) -> Mount:
     """Declare one confined resource mount for a server or client environment."""
-    return Mount(source, str(target), read_only, kind)
+    return Mount(source, str(target), read_only, kind, propagation)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -480,65 +484,5 @@ class ResourceLimits:
                 raise SpecError("resources.%s" % name, value, "must be an integer >= 1 or None")
 
 
-@dataclasses.dataclass(frozen=True)
-class Placement:
-    """Backend-neutral resource placement and container policy."""
-
-    backend: str = "inherit"
-    image: Optional[str] = None
-    namespace: str = ""
-    labels: Mapping[str, str] = dataclasses.field(default_factory=dict)
-    node_selector: Mapping[str, str] = dataclasses.field(default_factory=dict)
-    security_context: Mapping[str, object] = dataclasses.field(default_factory=dict)
-    resources: ResourceLimits = dataclasses.field(default_factory=ResourceLimits)
-    options: Mapping[str, object] = dataclasses.field(default_factory=dict)
-    allow_mutable_image: bool = False
-
-    def __post_init__(self) -> None:
-        _name(self.backend, "placement.backend")
-        if self.image is not None and (not isinstance(self.image, str) or not self.image):
-            raise SpecError("placement.image", self.image, "must be non-empty text or None")
-        if not isinstance(self.namespace, str):
-            raise SpecError("placement.namespace", self.namespace, "must be text")
-        object.__setattr__(self, "labels", _strings(self.labels, "placement.labels"))
-        object.__setattr__(self, "node_selector", _strings(self.node_selector, "placement.node_selector"))
-        if not isinstance(self.security_context, Mapping):
-            raise SpecError("placement.security_context", self.security_context, "must be a mapping")
-        object.__setattr__(self, "security_context", freeze_mapping(self.security_context))
-        if not isinstance(self.resources, ResourceLimits):
-            raise SpecError("placement.resources", self.resources, "must be ResourceLimits")
-        if not isinstance(self.options, Mapping) or not all(
-            isinstance(name, str) and name for name in self.options
-        ):
-            raise SpecError(
-                "placement.options", self.options,
-                "must map non-empty option names to immutable values",
-            )
-        object.__setattr__(self, "options", freeze_mapping(self.options))
-        if not isinstance(self.allow_mutable_image, bool):
-            raise SpecError(
-                "placement.allow_mutable_image", self.allow_mutable_image,
-                "must be true or false",
-            )
-
-
-@dataclasses.dataclass(frozen=True)
-class LogPolicy:
-    """Capture, retention, redaction, and failure-tail policy for one resource."""
-
-    capture: bool = True
-    max_bytes: int = 64 << 20
-    tail_lines: int = 40
-    redact: Sequence[str] = ()
-
-    def __post_init__(self) -> None:
-        if not isinstance(self.capture, bool):
-            raise SpecError("logs.capture", self.capture, "must be true or false")
-        if isinstance(self.max_bytes, bool) or not isinstance(self.max_bytes, int) or self.max_bytes < 1:
-            raise SpecError("logs.max_bytes", self.max_bytes, "must be an integer >= 1")
-        if isinstance(self.tail_lines, bool) or not isinstance(self.tail_lines, int) or self.tail_lines < 0:
-            raise SpecError("logs.tail_lines", self.tail_lines, "must be an integer >= 0")
-        patterns = tuple(self.redact)
-        if not all(isinstance(value, str) and value for value in patterns):
-            raise SpecError("logs.redact", patterns, "must contain non-empty text patterns")
-        object.__setattr__(self, "redact", patterns)
+from brixtest._resource_policies import LogPolicy as LogPolicy  # noqa: E402 - facade cycle
+from brixtest._resource_policies import Placement as Placement  # noqa: E402 - facade cycle

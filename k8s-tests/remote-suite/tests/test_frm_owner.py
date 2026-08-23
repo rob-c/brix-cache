@@ -31,6 +31,23 @@ import pytest
 
 from settings import NGINX_BIN, HOST, BIND_HOST
 
+def _guard_srv_1():
+    if not os.path.exists(NGINX_BIN):
+        pytest.skip("nginx binary not found")
+
+def _guard_srv_2():
+    if not _HAVE_REQUESTS or not _HAVE_CRYPTO:
+        pytest.skip("requests + cryptography required")
+
+def _guard_srv_3(d):
+    if not _xattr_ok(str(d)):
+        pytest.skip("filesystem does not support user xattrs")
+
+def _guard_srv_4(chk):
+    if chk.returncode != 0:
+        pytest.skip("nginx rejected config: %s" % chk.stderr.strip()[-300:])
+
+
 try:
     import requests
     import urllib3
@@ -75,13 +92,10 @@ def _wait_port(port, timeout=10):
 
 @pytest.fixture(scope="module")
 def srv(tmp_path_factory):
-    if not os.path.exists(NGINX_BIN):
-        pytest.skip("nginx binary not found")
-    if not _HAVE_REQUESTS or not _HAVE_CRYPTO:
-        pytest.skip("requests + cryptography required")
+    _guard_srv_1()
+    _guard_srv_2()
     d = tmp_path_factory.mktemp("frmowner")
-    if not _xattr_ok(str(d)):
-        pytest.skip("filesystem does not support user xattrs")
+    _guard_srv_3(d)
 
     (d / "logs").mkdir()
     (d / "t").mkdir()
@@ -146,8 +160,7 @@ master_process off;
     cp.write_text(conf)
     chk = subprocess.run([NGINX_BIN, "-t", "-p", str(d), "-c", str(cp)],
                          capture_output=True, text=True)
-    if chk.returncode != 0:
-        pytest.skip("nginx rejected config: %s" % chk.stderr.strip()[-300:])
+    _guard_srv_4(chk)
     proc = subprocess.Popen([NGINX_BIN, "-p", str(d), "-c", str(cp)],
                             stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     if not _wait_port(HTTP_PORT):

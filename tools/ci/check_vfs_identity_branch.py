@@ -40,22 +40,21 @@ DOC_COMMENT = re.compile(r'^\S+:[0-9]+: *(\*|//)')
 
 def _grep_hits(vfs: Path) -> list[str]:
     """Reproduce `grep -REn "$pattern" "$vfs"/*.c | grep -vE exempt | grep -vE doc`."""
-    hits: list[str] = []
-    for path in sorted(str(p) for p in vfs.glob("*.c")):
-        data = Path(path).read_bytes().decode("utf-8", "surrogateescape")
-        lines = data.split("\n")
-        if lines and lines[-1] == "":
-            lines.pop()
-        for lineno, content in enumerate(lines, start=1):
-            if not PATTERN.search(content):
-                continue
-            line = f"{path}:{lineno}:{content}"
-            if EXEMPT.search(line):
-                continue
-            if DOC_COMMENT.search(line):
-                continue
-            hits.append(line)
-    return hits
+    return [
+        line
+        for path in sorted(vfs.glob("*.c"))
+        for line in _identity_hits(path)
+    ]
+
+
+def _identity_hits(path):
+    data = path.read_bytes().decode("utf-8", "surrogateescape")
+    return [
+        line
+        for lineno, content in enumerate(data.splitlines(), start=1)
+        for line in [f"{path}:{lineno}:{content}"]
+        if PATTERN.search(content) and not EXEMPT.search(line) and not DOC_COMMENT.search(line)
+    ]
 
 
 def _allowed(backlog: Path) -> int:

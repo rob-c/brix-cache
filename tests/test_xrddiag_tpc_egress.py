@@ -38,6 +38,19 @@ import pytest
 from server_registry import NginxInstanceSpec
 from settings import HOST
 
+def _guard_doctor_1():
+    if shutil.which("cc") is None and shutil.which("gcc") is None:
+        pytest.skip("no C compiler to build the native client")
+
+def _guard_doctor_2(proc):
+    if proc.returncode != 0 or not os.path.exists(XRDDIAG):
+        pytest.skip(f"xrddiag build failed:\n{proc.stdout}\n{proc.stderr}")
+
+def _guard_doctor_3():
+    if not os.access(NGINX_BIN, os.X_OK):
+        pytest.skip(f"nginx binary not executable: {NGINX_BIN}")
+
+
 pytestmark = [pytest.mark.timeout(120), pytest.mark.uses_lifecycle_harness,
               pytest.mark.xdist_group("lc-tpcegress")]
 
@@ -59,14 +72,11 @@ def _closed_loopback_port():
 
 @pytest.fixture(scope="module")
 def doctor():
-    if shutil.which("cc") is None and shutil.which("gcc") is None:
-        pytest.skip("no C compiler to build the native client")
+    _guard_doctor_1()
     proc = subprocess.run(["make", "-C", CLIENT_DIR, "xrddiag"],
                           capture_output=True, text=True, timeout=180)
-    if proc.returncode != 0 or not os.path.exists(XRDDIAG):
-        pytest.skip(f"xrddiag build failed:\n{proc.stdout}\n{proc.stderr}")
-    if not os.access(NGINX_BIN, os.X_OK):
-        pytest.skip(f"nginx binary not executable: {NGINX_BIN}")
+    _guard_doctor_2(proc)
+    _guard_doctor_3()
     return XRDDIAG
 
 

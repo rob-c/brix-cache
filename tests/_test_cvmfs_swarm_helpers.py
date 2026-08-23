@@ -34,6 +34,38 @@ from pathlib import Path
 import pytest
 
 # conftest chdir()s into a scratch dir — anchor imports on this file's dir.
+def _expression_1(block):
+    return (
+        [block.base + 10 + i for i in range(5)]
+    )
+
+def _expression_2(i, ports):
+    return (
+        ports[1] if i == 0 else ports[0]
+    )
+
+def _expression_3(ports):
+    return (
+        [f"{HOST}:{p}" for p in ports]
+    )
+
+def _expression_4(hx, nodes):
+    return (
+        [p for p in nodes[0].cache.rglob("*")
+                         if p.is_file() and hx[2:] in p.name]
+    )
+
+
+def _check_swarm_2(status, got, probe):
+    assert status == 200 and got == probe, "layout probe fill failed"
+
+def _check_swarm_3(found):
+    assert len(found) == 1, f"probe object not found uniquely: {found}"
+
+def _check_swarm_1(port, s):
+    assert s.nginx_port == port, "port-block allocation drifted"
+
+
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "cvmfs"))
 
 from conformance_common import NGINX_BIN, PortBlock, request, srv_instance
@@ -210,20 +242,20 @@ def swarm():
     root = Path(tempfile.mkdtemp(prefix="cvmfs_swarm_webroot."))
     (root / "cvmfs" / REPO / "data").mkdir(parents=True)
     block = PortBlock("srv_verify")
-    ports = [block.base + 10 + i for i in range(5)]
+    ports = _expression_1(block)
     with contextlib.ExitStack() as stack:
         nodes = []
         for i, port in enumerate(ports):
-            seed = ports[1] if i == 0 else ports[0]
+            seed = _expression_2(i, ports)
             s = stack.enter_context(srv_instance(
                 block, webroot=root,
                 extra_directives=swarm_directives(port, seed)))
-            assert s.nginx_port == port, "port-block allocation drifted"
+            _check_swarm_1(port, s)
             nodes.append(s)
 
         sw = Swarm()
         sw.webroot, sw.block, sw.nodes = root, block, nodes
-        sw.labels = [f"{HOST}:{p}" for p in ports]
+        sw.labels = _expression_3(ports)
         sw.ring = sorted(sw.labels)          # the converged published ring
         sw.by_label = dict(zip(sw.labels, nodes))
 
@@ -233,10 +265,9 @@ def swarm():
         hx = hashlib.sha1(probe).hexdigest()
         path = put_obj(root, probe)
         status, _, got = GET(nodes[0], path)
-        assert status == 200 and got == probe, "layout probe fill failed"
-        found = [p for p in nodes[0].cache.rglob("*")
-                 if p.is_file() and hx[2:] in p.name]
-        assert len(found) == 1, f"probe object not found uniquely: {found}"
+        _check_swarm_2(status, got, probe)
+        found = _expression_4(hx, nodes)
+        _check_swarm_3(found)
         sw.probe_hex = hx
         sw.rel_template = str(found[0].relative_to(nodes[0].cache))
         yield sw

@@ -73,19 +73,23 @@ def _parse_rows(fs_list: Path) -> list[tuple[str, str]]:
 def _find_driver_file(sym: str) -> Path | None:
     """First *.c under fs/backend defining `brix_sd_<sym>_driver = {` (grep -rl | head -1)."""
     decl = re.compile(r'brix_sd_' + re.escape(sym) + r'_driver\s*=\s*\{')
-    matches: list[Path] = []
+    matches = [path for path in _backend_c_files() if _defines_driver(path, decl)]
+    return sorted(matches)[0] if matches else None
+
+
+def _backend_c_files():
     for dirpath, _dirs, files in os.walk(BACKEND):
         for fname in files:
-            if not fname.endswith(".c"):
-                continue
-            path = Path(dirpath) / fname
-            try:
-                text = path.read_text(errors="replace")
-            except OSError:
-                continue
-            if any(decl.search(ln) for ln in text.splitlines()):
-                matches.append(path)
-    return sorted(matches)[0] if matches else None
+            if fname.endswith(".c"):
+                yield Path(dirpath) / fname
+
+
+def _defines_driver(path: Path, declaration: re.Pattern) -> bool:
+    try:
+        text = path.read_text(errors="replace")
+    except OSError:
+        return False
+    return any(declaration.search(line) for line in text.splitlines())
 
 
 def _initializer_block(path: Path, sym: str) -> list[str]:
@@ -130,58 +134,77 @@ def run(root: Path = ROOT) -> tuple[bool, list[str]]:
     rows = _parse_rows(FS_LIST)
     if not rows:
         return False, []
+    return _render_rows(rows)
 
-    fail = False
-    out: list[str] = []
 
+def _render_rows(rows):
     header = "%-11s %-10s %-6s" % ("driver", "name", "#ops")
-    for op in MATRIX_OPS:
-        header += " %s" % op[:3]
-    out.append(header)
-
-    for sym, name in rows:
-        if not sym:
-            continue
-        path = _find_driver_file(sym)
-        if path is None:
-            out.append(
-                "FAIL driver '%s' (name=%s): registered in fs_list.h but no "
-                "brix_sd_%s_driver struct defined" % (sym, name, sym)
-            )
-            fail = True
-            continue
-
-        block = _initializer_block(path, sym)
-        slots = _slots(block)
-        nops = len(slots)
-
-        name_val = _name_val(block)
-        if not name_val:
-            namestat = "NO-NAME"
-            fail = True
-        elif name_val != name:
-            namestat = "!=%s" % name_val
-            fail = True
-        else:
-            namestat = "ok"
-
-        if not (slots & DATA_OPS):
-            out.append(
-                "FAIL driver '%s': implements no data/namespace op "
-                "(dead driver struct)" % sym
-            )
-            fail = True
-
-        line = "%-11s %-10s %-6s" % (sym, namestat, str(nops))
-        for op in MATRIX_OPS:
-            line += " %3s" % (" x" if op in slots else " .")
-        out.append(line)
-
+    header += "".join(" %s" % op[:3] for op in MATRIX_OPS)
+    results = list(_driver_reports(rows))
+    fail = _any_failed(results)
+    out = [header]
+    out.extend(_result_lines(results))
     out.append("")
-    if not fail:
-        out.append("check_sd_driver_conformance: OK (every registered driver "
-                   "has a matching struct + a data op)")
+    out.extend(_success_lines(fail))
     return (not fail), out
+
+
+def _any_failed(results):
+    return any(failed for failed, _lines in results)
+
+
+def _result_lines(results):
+    out = []
+    for _failed, lines in results:
+        out.extend(lines)
+    return out
+
+
+def _success_lines(failed):
+    if failed:
+        return []
+    return ["check_sd_driver_conformance: OK (every registered driver "
+            "has a matching struct + a data op)"]
+
+
+def _driver_reports(rows):
+    for sym, name in rows:
+        if sym:
+            yield _driver_report(sym, name)
+
+
+def _driver_report(sym: str, name: str) -> tuple[bool, list[str]]:
+    path = _find_driver_file(sym)
+    if path is None:
+        return True, [
+            "FAIL driver '%s' (name=%s): registered in fs_list.h but no "
+            "brix_sd_%s_driver struct defined" % (sym, name, sym)
+        ]
+    block = _initializer_block(path, sym)
+    slots = _slots(block)
+    name_status, name_failed = _name_status(_name_val(block), name)
+    lines = []
+    data_failed = not bool(slots & DATA_OPS)
+    if data_failed:
+        lines.append("FAIL driver '%s': implements no data/namespace op "
+                     "(dead driver struct)" % sym)
+    lines.append(_matrix_line(sym, name_status, slots))
+    return name_failed or data_failed, lines
+
+
+def _name_status(actual: str, expected: str) -> tuple[str, bool]:
+    if not actual:
+        return "NO-NAME", True
+    if actual != expected:
+        return "!=%s" % actual, True
+    return "ok", False
+
+
+def _matrix_line(sym: str, name_status: str, slots: set[str]) -> str:
+    line = "%-11s %-10s %-6s" % (sym, name_status, str(len(slots)))
+    return line + "".join(
+        " %3s" % (" x" if op in slots else " .") for op in MATRIX_OPS
+    )
 
 
 def main() -> int:

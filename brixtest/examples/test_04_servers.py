@@ -6,8 +6,17 @@ import urllib.request
 from pathlib import Path
 
 from brixtest import (
-    binary, case, client, command, configs, file_artifact, http_endpoint,
-    http_probe, load_template, server, server_config,
+    binary,
+    case,
+    client,
+    command,
+    configs,
+    file_artifact,
+    http_endpoint,
+    http_probe,
+    load_template,
+    server,
+    server_config,
 )
 
 HERE = Path(__file__).parent

@@ -44,6 +44,39 @@ import cms_mesh_lib as cml
 import hybrid_mesh_lib as hml
 from settings import ARTIFACTS_DIR
 
+def _expression_1():
+    return (
+        set().union(*(c for _, _, c, _ in USAGE))
+    )
+
+def _expression_2(comps):
+    return (
+        "".join((" ●  " if n in comps else " ·  ") for n in COMPONENTS)
+    )
+
+def _expression_3():
+    return (
+        "".join(str(sum(1 for _, _, c, _ in USAGE if n in c)).center(4)
+                              for n in COMPONENTS)
+    )
+
+
+def _phase_test_zzz_component_usage_map_1():
+    for n in COMPONENTS:
+        print(f"  {n.upper()} = {LABELS[n]}")
+
+def _phase_test_zzz_component_usage_map_2():
+    for scenario, chain, _, evidence in USAGE:
+        print(f"  - {scenario}\n      {chain}\n      evidence: {evidence}")
+
+
+def _check_test_zzz_component_usage_map_1():
+    assert USAGE, "no scenarios recorded — did the earlier tests run?"
+
+def _check_test_zzz_component_usage_map_2(missing):
+    assert not missing, f"components never exercised by any scenario: {missing}"
+
+
 P = hml.PORTS
 HOST = hml.HOST
 EXPORT = hml.EXPORT                       # "/mesh"
@@ -353,9 +386,9 @@ def test_large_file_roundtrip(tmp_path):
 def test_zzz_component_usage_map():
     """Aggregate every scenario's observed component usage into a matrix, print
     it, and assert every mesh node was exercised by at least one path."""
-    assert USAGE, "no scenarios recorded — did the earlier tests run?"
+    _check_test_zzz_component_usage_map_1()
 
-    covered = set().union(*(c for _, _, c, _ in USAGE))
+    covered = _expression_1()
 
     print("\n\n=== HYBRID MESH — COMPONENT USAGE MAP ===\n")
     header = "scenario".ljust(40) + "".join(n.upper().center(4)
@@ -364,20 +397,17 @@ def test_zzz_component_usage_map():
     print("-" * len(header))
     for scenario, chain, comps, _ in USAGE:
         row = scenario[:39].ljust(40)
-        row += "".join((" ●  " if n in comps else " ·  ") for n in COMPONENTS)
+        row += _expression_2(comps)
         print(row)
     print("-" * len(header))
     totals = "TOTAL paths touching node".ljust(40)
-    totals += "".join(str(sum(1 for _, _, c, _ in USAGE if n in c)).center(4)
-                      for n in COMPONENTS)
+    totals += _expression_3()
     print(totals)
 
     print("\nlegend:")
-    for n in COMPONENTS:
-        print(f"  {n.upper()} = {LABELS[n]}")
+    _phase_test_zzz_component_usage_map_1()
     print("\nper-scenario protocol chain + evidence:")
-    for scenario, chain, _, evidence in USAGE:
-        print(f"  - {scenario}\n      {chain}\n      evidence: {evidence}")
+    _phase_test_zzz_component_usage_map_2()
 
     missing = set(COMPONENTS) - covered
-    assert not missing, f"components never exercised by any scenario: {missing}"
+    _check_test_zzz_component_usage_map_2(missing)

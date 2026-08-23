@@ -64,6 +64,19 @@ from fleet_lifecycle_ports import LIFECYCLE_SHARED_PORTS
 from server_registry import NginxInstanceSpec
 from settings import BIND_HOST, HOST, NGINX_BIN
 
+def _guard_wdegress_1():
+    if not os.path.exists(NGINX_BIN):
+        pytest.skip(f"nginx binary not found at {NGINX_BIN}")
+
+def _guard_wdegress_2():
+    if shutil.which("openssl") is None:
+        pytest.skip("openssl not found — cannot mint the mock source's cert")
+
+def _guard_wdegress_3():
+    if not _HAVE_TOKENFORGE:
+        pytest.skip("tokenforge (cryptography) unavailable")
+
+
 try:
     from tokenforge import TokenForge, write_scitokens_cfg
     _HAVE_TOKENFORGE = True
@@ -121,12 +134,9 @@ class _SourceAndSink(CapturingSource):
 
 @pytest.fixture()
 def wdegress(lifecycle, tmp_path):
-    if not os.path.exists(NGINX_BIN):
-        pytest.skip(f"nginx binary not found at {NGINX_BIN}")
-    if shutil.which("openssl") is None:
-        pytest.skip("openssl not found — cannot mint the mock source's cert")
-    if not _HAVE_TOKENFORGE:
-        pytest.skip("tokenforge (cryptography) unavailable")
+    _guard_wdegress_1()
+    _guard_wdegress_2()
+    _guard_wdegress_3()
 
     mint = tmp_path / "mint"
     forge = TokenForge(str(mint))

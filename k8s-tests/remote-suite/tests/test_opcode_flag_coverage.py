@@ -22,6 +22,19 @@ from settings import DATA_ROOT, NGINX_ANON_PORT, SERVER_HOST
 from official_interop_lib import worker_prefix
 
 
+def _check_test_kXR_dcksm_xattr_cache_populated_and_reused_1(status1):
+    assert status1 == kXR_ok
+
+def _check_test_kXR_dcksm_xattr_cache_populated_and_reused_2(token1, algo, expected_hex):
+    assert token1 == f"{algo}:{expected_hex}".encode()
+
+def _check_test_kXR_dcksm_xattr_cache_populated_and_reused_3(status2):
+    assert status2 == kXR_ok
+
+def _check_test_kXR_dcksm_xattr_cache_populated_and_reused_4(token1, token2):
+    assert token1 == token2
+
+
 def _crc32c(data: bytes) -> int:
     """Pure-Python CRC32c (Castagnoli) — avoids requiring the crc32c package."""
     POLY = 0x82F63B78
@@ -342,17 +355,20 @@ def test_kXR_dcksm_xattr_cache_populated_and_reused(algo, hashfn):
             f"/{PREFIX}dcksm_xattr_{algo}?cks.type={algo}",
             kXR_dcksm,
         )
-    assert status1 == kXR_ok
+    _check_test_kXR_dcksm_xattr_cache_populated_and_reused_1(status1)
     token1 = _dcksm_checksum_token(body1, "f.txt")
-    assert token1 == f"{algo}:{expected_hex}".encode()
+    _check_test_kXR_dcksm_xattr_cache_populated_and_reused_2(token1, algo, expected_hex)
 
     # Verify xattr was written if the xattr module is available.
     if _has_xattr:
         xattr_key = f"user.XrdCks.{algo}"
         xattr_val = _xattr_mod.getxattr(filepath, xattr_key).decode("ascii")
         # New format is "<hex> <mtime_sec> <mtime_nsec> <size>"
-        assert xattr_val.startswith(expected_hex)
-        assert len(xattr_val.split()) == 4
+        def _assert_test_kXR_dcksm_xattr_cache_populated_and_reused_1():
+            assert xattr_val.startswith(expected_hex)
+            assert len(xattr_val.split()) == 4
+
+        _assert_test_kXR_dcksm_xattr_cache_populated_and_reused_1()
 
     # Second listing — should return the same token (cache hit).
     with _login_session() as sock:
@@ -361,9 +377,9 @@ def test_kXR_dcksm_xattr_cache_populated_and_reused(algo, hashfn):
             f"/{PREFIX}dcksm_xattr_{algo}?cks.type={algo}",
             kXR_dcksm,
         )
-    assert status2 == kXR_ok
+    _check_test_kXR_dcksm_xattr_cache_populated_and_reused_3(status2)
     token2 = _dcksm_checksum_token(body2, "f.txt")
-    assert token1 == token2
+    _check_test_kXR_dcksm_xattr_cache_populated_and_reused_4(token1, token2)
 
 
 def test_kXR_mkdirpath_creates_missing_parent_directories():

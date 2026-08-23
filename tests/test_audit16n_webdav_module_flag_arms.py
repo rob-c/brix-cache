@@ -190,6 +190,11 @@ from settings import BIND_HOST, HOST, NGINX_BIN
 # whole `nginx -t` output would match the temp directory rather than a message.
 from test_audit16j_root_caps_flags import _diagnostics
 
+def _guard_wd_1():
+    if not os.access(NGINX_BIN, os.X_OK):
+        pytest.skip(f"nginx binary not executable: {NGINX_BIN}")
+
+
 pytestmark = [pytest.mark.timeout(900),
               pytest.mark.uses_lifecycle_harness,
               pytest.mark.xdist_group("lc-audit16n-webdav")]
@@ -306,8 +311,7 @@ def wd(lifecycle, tmp_path):
     four absolute-prefix vhosts share the export root — so the shadowing readings
     in §C and §D compare four verdicts against ONE file on disk.
     """
-    if not os.access(NGINX_BIN, os.X_OK):
-        pytest.skip(f"nginx binary not executable: {NGINX_BIN}")
+    _guard_wd_1()
 
     data = tmp_path / "data"
     data.mkdir()

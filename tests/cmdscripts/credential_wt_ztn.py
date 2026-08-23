@@ -154,7 +154,19 @@ def run_checks(base: Path, nginx_bin: str = NGINX_BIN, xrdcp: Path = XRDCP) -> l
     token_ok, token_msg = make_token(base)
     if not token_ok:
         return [(True, "SKIP: " + token_msg)]
+    scenario = _prepare_scenario(base)
+    started, error = _start_services(nginx_bin, scenario["services"])
+    if error:
+        return [(False, error)]
+    try:
+        if not wait_listening(scenario["ports"]):
+            return [_listening_failure(scenario)]
+        return _exercise_write_through(scenario, xrdcp)
+    finally:
+        _stop_services(started)
 
+
+def _prepare_scenario(base):
     origin_port, writer_port, negative_port = cmdscript_ports("credential_wt_ztn")
     origin = base / "o"
     writer = base / "b"
@@ -168,63 +180,71 @@ def run_checks(base: Path, nginx_bin: str = NGINX_BIN, xrdcp: Path = XRDCP) -> l
     big = base / "cred_wt_big.bin"
     small.write_bytes(deterministic_bytes(300_000, 157))
     big.write_bytes(deterministic_bytes(2_600_000, 163))
+    services = (("origin", origin, origin_conf),
+                ("writer", writer, writer_conf),
+                ("negative", negative, negative_conf))
+    return {"origin": origin, "writer": writer, "negative": negative,
+            "small": small, "big": big, "services": services,
+            "ports": [origin_port, writer_port, negative_port],
+            "writer_port": writer_port, "negative_port": negative_port}
 
-    started: list[Path] = []
-    for name, prefix, conf in (
-        ("origin", origin, origin_conf),
-        ("writer", writer, writer_conf),
-        ("negative", negative, negative_conf),
-    ):
+
+def _start_services(nginx_bin, services):
+    started = []
+    for name, prefix, conf in services:
         proc = run([nginx_bin, "-p", str(prefix), "-c", str(conf)])
         if proc.returncode != 0:
-            for item in reversed(started):
-                stop_nginx(item)
-            return [(False, f"{name} start failed: {(proc.stderr or proc.stdout)[-4000:]}")]
+            _stop_services(started)
+            message = f"{name} start failed: {(proc.stderr or proc.stdout)[-4000:]}"
+            return [], message
         started.append(prefix)
+    return started, ""
 
-    try:
-        if not wait_listening([origin_port, writer_port, negative_port]):
-            return [(False, "ad-hoc servers never started listening"
-                     f" [origin_log: {_log_tail(origin)} writer_log: {_log_tail(writer)}]")]
-        results: list[tuple[bool, str]] = []
-        small_put = xrdcp_put(writer_port, small, "w.bin", xrdcp)
-        small_ok = (
-            small_put.returncode == 0
-            and (origin / "root" / "w.bin").exists()
-            and (origin / "root" / "w.bin").read_bytes() == small.read_bytes()
-        )
-        results.append(
-            (
-                small_ok,
-                "flushed byte-exact to token origin (ztn write-back)"
-                + ("" if small_ok else _put_diag(small_put, origin, writer)),
-            )
-        )
 
-        big_put = xrdcp_put(writer_port, big, "wbig.bin", xrdcp)
-        big_ok = (
-            big_put.returncode == 0
-            and (origin / "root" / "wbig.bin").exists()
-            and (origin / "root" / "wbig.bin").read_bytes() == big.read_bytes()
-        )
-        results.append(
-            (
-                big_ok,
-                "multi-chunk ztn write-back byte-exact"
-                + ("" if big_ok else _put_diag(big_put, origin, writer)),
-            )
-        )
+def _stop_services(prefixes):
+    for prefix in reversed(prefixes):
+        stop_nginx(prefix)
 
-        xrdcp_put(negative_port, small, "nw.bin", xrdcp)
-        negative_succeeded = (
-            (origin / "root" / "nw.bin").exists()
-            and (origin / "root" / "nw.bin").read_bytes() == small.read_bytes()
-        )
-        results.append((not negative_succeeded, "unauthenticated write-back correctly failed to reach the token origin"))
-        return results
-    finally:
-        for prefix in reversed(started):
-            stop_nginx(prefix)
+
+def _listening_failure(scenario):
+    message = "ad-hoc servers never started listening"
+    message += f" [origin_log: {_log_tail(scenario['origin'])}"
+    message += f" writer_log: {_log_tail(scenario['writer'])}]"
+    return False, message
+
+
+def _exercise_write_through(scenario, xrdcp):
+    results = []
+    results.append(_positive_write_result(
+        scenario, xrdcp, "small", "w.bin",
+        "flushed byte-exact to token origin (ztn write-back)",
+    ))
+    results.append(_positive_write_result(
+        scenario, xrdcp, "big", "wbig.bin",
+        "multi-chunk ztn write-back byte-exact",
+    ))
+    results.append(_negative_write_result(scenario, xrdcp))
+    return results
+
+
+def _positive_write_result(scenario, xrdcp, source_key, destination, message):
+    source = scenario[source_key]
+    put = xrdcp_put(scenario["writer_port"], source, destination, xrdcp)
+    target = scenario["origin"] / "root" / destination
+    succeeded = put.returncode == 0 and target.exists()
+    succeeded = succeeded and target.read_bytes() == source.read_bytes()
+    if succeeded:
+        return True, message
+    diagnostic = _put_diag(put, scenario["origin"], scenario["writer"])
+    return False, message + diagnostic
+
+
+def _negative_write_result(scenario, xrdcp):
+    source = scenario["small"]
+    xrdcp_put(scenario["negative_port"], source, "nw.bin", xrdcp)
+    target = scenario["origin"] / "root" / "nw.bin"
+    reached = target.exists() and target.read_bytes() == source.read_bytes()
+    return not reached, "unauthenticated write-back failed to reach token origin"
 
 
 def entry(argv: list[str]) -> int:
@@ -233,13 +253,18 @@ def entry(argv: list[str]) -> int:
 
     with tempfile.TemporaryDirectory(prefix="cred_wt.") as tmp:
         results = run_checks(Path(tmp), nginx_bin=nginx_bin)
-    for ok, message in results:
-        print(f"  {'ok  ' if ok else 'FAIL'} {message}")
+    _print_results(results)
     if all(ok for ok, _ in results):
         print("run_credential_wt_ztn: ALL PASS")
         return 0
     print("run_credential_wt_ztn: FAILURES")
     return 1
+
+
+def _print_results(results):
+    for succeeded, message in results:
+        label = "ok  " if succeeded else "FAIL"
+        print(f"  {label} {message}")
 
 
 if __name__ == "__main__":

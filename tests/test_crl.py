@@ -51,6 +51,11 @@ from settings import (
 )
 
 # Suppress InsecureRequestWarning — test certs have no SAN
+def _guard_crl_reload_nginx_1():
+    if not _wait_for_port(CRL_HOST, CRL_RELOAD_PORT):
+        pytest.fail("CRL reload nginx did not start.")
+
+
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # ---------------------------------------------------------------------------
@@ -224,8 +229,7 @@ def crl_reload_nginx(crl_file):
             except (OSError, ValueError):
                 pass
 
-    if not _wait_for_port(CRL_HOST, CRL_RELOAD_PORT):
-        pytest.fail("CRL reload nginx did not start.")
+    _guard_crl_reload_nginx_1()
 
     # Wait for the in-memory CRL to actually clear (reload timer re-scans the
     # now-empty dir) before the reload tests run. A fixed short sleep races the

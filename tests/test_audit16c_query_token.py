@@ -78,6 +78,11 @@ from server_registry import NginxInstanceSpec
 from settings import HOST, BIND_HOST, NGINX_BIN
 from utils.make_token import TokenIssuer
 
+def _check_test_the_two_arms_disagree_about_the_same_token_1(token, off_line):
+    assert any(token in ln for ln in off_line), (
+        "off no longer leaks the token — see #67")
+
+
 pytestmark = [pytest.mark.timeout(300),
               pytest.mark.uses_lifecycle_harness,
               pytest.mark.xdist_group("lc-audit16c-qtoken")]
@@ -395,10 +400,12 @@ class TestWhatEachArmLeavesInTheLog:
         text = _access_log(endpoint)
         on_line = [ln for ln in text.splitlines() if f"/{ON}/{SEED}" in ln]
         off_line = [ln for ln in text.splitlines() if f"/{OFF}/{SEED}" in ln]
-        assert on_line and off_line
-        assert not any(token in ln for ln in on_line), "on leaked the token"
-        assert any(token in ln for ln in off_line), (
-            "off no longer leaks the token — see #67")
+        def _assert_test_the_two_arms_disagree_about_the_same_token_1():
+            assert on_line and off_line
+            assert not any(token in ln for ln in on_line), "on leaked the token"
+
+        _assert_test_the_two_arms_disagree_about_the_same_token_1()
+        _check_test_the_two_arms_disagree_about_the_same_token_1(token, off_line)
 
     def test_a_token_the_server_refuses_is_still_redacted_when_it_was_read(
             self, qtoken):

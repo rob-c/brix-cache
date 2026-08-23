@@ -63,24 +63,36 @@ def test_get_serves_exact_and_counts_once(mx, plane):
     st, body, _ = mx.dav_request(plane, f"/{name}")
     cx.settle()
     after = cx.mfetch(mx.metrics)
-    assert st == 200
-    assert body == payload
+    def _assert_test_get_serves_exact_and_counts_once_1():
+        assert st == 200
+        assert body == payload
+
+    _assert_test_get_serves_exact_and_counts_once_1()
     io = {"proto": "webdav"}
     assert s.delta("brix_io_ops_total", {**io, "op": "read", "status": "ok"},
                    after) == 1
     for op in ("stat", "write", "delete"):
         assert s.delta("brix_io_ops_total", {**io, "op": op, "status": "ok"},
                        after) == 0, f"phantom {op} on GET"
-    assert s.delta("brix_io_bytes_read", io, after) == size
-    assert s.delta("brix_webdav_bytes_tx_total", after=after) == size
-    assert s.delta("brix_webdav_requests_total", {"method": "GET"},
-                   after) == 1
-    assert s.delta("brix_webdav_responses_total",
-                   {"method": "GET", "status_class": "2xx"}, after) == 1
-    assert s.delta("brix_webdav_range_requests_total", {"result": "full"},
-                   after) == 1
-    assert s.delta("brix_io_latency_usec_count", {**io, "op": "read"},
-                   after) == 1
+    def _assert_test_get_serves_exact_and_counts_once_2():
+        assert s.delta("brix_io_bytes_read", io, after) == size
+        assert s.delta("brix_webdav_bytes_tx_total", after=after) == size
+
+    _assert_test_get_serves_exact_and_counts_once_2()
+    def _assert_test_get_serves_exact_and_counts_once_3():
+        assert s.delta("brix_webdav_requests_total", {"method": "GET"},
+                       after) == 1
+        assert s.delta("brix_webdav_responses_total",
+                       {"method": "GET", "status_class": "2xx"}, after) == 1
+
+    _assert_test_get_serves_exact_and_counts_once_3()
+    def _assert_test_get_serves_exact_and_counts_once_4():
+        assert s.delta("brix_webdav_range_requests_total", {"result": "full"},
+                       after) == 1
+        assert s.delta("brix_io_latency_usec_count", {**io, "op": "read"},
+                       after) == 1
+
+    _assert_test_get_serves_exact_and_counts_once_4()
 
 
 @pytest.mark.parametrize("plane", PLANES)

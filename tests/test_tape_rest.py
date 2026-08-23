@@ -33,16 +33,22 @@ HTTP_PORT = None   # bound to the started endpoint's fixed port in the fixture
 
 def _req(method, path, obj=None, raw=None, timeout=5):
     url = "http://%s:%d%s" % (HOST, HTTP_PORT, path)
-    data = None
-    if obj is not None:
-        data = json.dumps(obj).encode()
-    elif raw is not None:
-        data = raw
-    r = urllib.request.Request(url, data=data, method=method)
+    data = _request_data(obj, raw)
+    request = urllib.request.Request(url, data=data, method=method)
     if data is not None:
-        r.add_header("Content-Type", "application/json")
+        request.add_header("Content-Type", "application/json")
+    return _open_request(request, timeout)
+
+
+def _request_data(obj, raw):
+    if obj is not None:
+        return json.dumps(obj).encode()
+    return raw
+
+
+def _open_request(request, timeout):
     try:
-        with urllib.request.urlopen(r, timeout=timeout) as resp:
+        with urllib.request.urlopen(request, timeout=timeout) as resp:
             return resp.status, dict(resp.headers), resp.read()
     except urllib.error.HTTPError as e:
         return e.code, dict(e.headers), e.read()
@@ -114,26 +120,46 @@ def test_archiveinfo_reports_locality(srv):
 
 
 def test_stage_submit_poll_delete(srv):
+    request_id = _submit_stage()
+    _assert_stage_poll(request_id)
+    status, _headers, _body = _req("DELETE", f"/api/v1/stage/{request_id}")
+    assert status == 204, "stage DELETE status %r" % status
+
+
+def _submit_stage():
     st, h, body = _req("POST", "/api/v1/stage",
                        obj={"files": [{"path": "/near.dat"}]})
-    if st == 503 and b"tape staging is not configured" in body:
+    _skip_unconfigured_stage(st, body)
+    assert st == 201, "stage POST status %r: %s" % (st, body[:200])
+    response = _jbody(body)
+    assert response, "no stage response: %r" % body[:200]
+    assert response.get("requestId"), "no requestId: %r" % body[:200]
+    _assert_location_header(h)
+    return response["requestId"]
+
+
+def _skip_unconfigured_stage(status, body):
+    if status != 503:
+        return
+    if b"tape staging is not configured" in body:
         pytest.skip("Tape REST stage registry is not configurable without the "
                     "retired brix_frm directive surface")
-    assert st == 201, "stage POST status %r: %s" % (st, body[:200])
-    j = _jbody(body)
-    assert j and j.get("requestId"), "no requestId: %r" % body[:200]
-    rid = j["requestId"]
-    assert "Location" in h or "location" in h, "missing Location header: %r" % h
 
-    st, _h, body = _req("GET", "/api/v1/stage/%s" % rid)
+
+def _assert_location_header(headers):
+    present = any(key.lower() == "location" for key in headers)
+    assert present, "missing Location header: %r" % headers
+
+
+def _assert_stage_poll(request_id):
+    st, _h, body = _req("GET", "/api/v1/stage/%s" % request_id)
     assert st == 200, "stage GET status %r: %s" % (st, body[:200])
     j = _jbody(body)
-    assert j and "files" in j and len(j["files"]) >= 1
+    assert j
+    assert "files" in j
+    assert len(j["files"]) >= 1
     assert j["files"][0]["state"] in (
         "SUBMITTED", "STARTED", "COMPLETED"), j["files"][0]
-
-    st, _h, _b = _req("DELETE", "/api/v1/stage/%s" % rid)
-    assert st == 204, "stage DELETE status %r" % st
 
 
 def test_errors(srv):

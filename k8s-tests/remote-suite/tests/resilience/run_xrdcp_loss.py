@@ -50,6 +50,7 @@ import servers  # noqa: E402
 REPO_XRDCP = os.path.join(servers.CLIENT_BIN, "xrdcp")
 OFFICIAL_XRDCP = shutil.which("xrdcp") or "/usr/bin/xrdcp"
 FILE_PATH = "/loss/big.bin"
+HOST = os.environ.get("TEST_HOST", "127.0.0.1")
 
 
 def _md5_file(path):
@@ -77,10 +78,10 @@ def client_env(name, max_stall_ms, repo_backoff_ms):
 
 
 def copy_once(client_bin, env, port, want_md5, expect_bytes, timeout):
-    """One `xrdcp root://127.0.0.1:<port>//path <tmp>` download through the proxy.
+    """One `xrdcp root://{HOST}:<port>//path <tmp>` download through the proxy.
     Returns (ok, secs, reason). ok = rc 0 AND byte-exact (size + md5)."""
     dst = tempfile.mktemp(suffix=".bin", dir=os.environ.get("TMPDIR", "/tmp"))
-    url = f"root://127.0.0.1:{port}/{FILE_PATH}"  # //loss/big.bin
+    url = f"root://{HOST}:{port}/{FILE_PATH}"  # //loss/big.bin
     argv = [client_bin, "-f", "-s", url, dst]
     start = time.monotonic()
     try:
@@ -112,7 +113,7 @@ def _rm(p):
         pass
 
 
-def main():
+def _parser():
     ap = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--fault", choices=["loss", "reorder"], default="loss",
@@ -133,99 +134,154 @@ def main():
     ap.add_argument("--matrix", action="store_true",
                     help="also run the cross pairs (repo-fast→xrootd, official→nginx, "
                          "repo→xrootd)")
-    args = ap.parse_args()
+    return ap
 
-    if not os.path.isfile(REPO_XRDCP):
-        sys.exit(f"repo xrdcp not built: {REPO_XRDCP}")
-    if not os.path.isfile(OFFICIAL_XRDCP):
-        sys.exit(f"official xrdcp not found: {OFFICIAL_XRDCP}")
-    if not servers.BRIX_BIN:
-        sys.exit("official xrootd daemon not on PATH")
-    if not os.path.isfile(servers.NGINX_BIN):
-        sys.exit(f"nginx not built: {servers.NGINX_BIN}")
 
-    levels = [float(x) for x in args.levels.split(",") if x.strip() != ""]
-    size_bytes = args.size_mib * 1024 * 1024
-    clients = {"repo": REPO_XRDCP, "repo-fast": REPO_XRDCP,
-               "official": OFFICIAL_XRDCP}
+def _validate_binaries():
+    requirements = [
+        (os.path.isfile(REPO_XRDCP), f"repo xrdcp not built: {REPO_XRDCP}"),
+        (os.path.isfile(OFFICIAL_XRDCP),
+         f"official xrdcp not found: {OFFICIAL_XRDCP}"),
+        (bool(servers.BRIX_BIN), "official xrootd daemon not on PATH"),
+        (os.path.isfile(servers.NGINX_BIN),
+         f"nginx not built: {servers.NGINX_BIN}"),
+    ]
+    for available, message in requirements:
+        if not available:
+            sys.exit(message)
+
+
+def _pairs(include_matrix):
     pairs = [("repo", "nginx"), ("repo-fast", "nginx"), ("official", "xrootd")]
-    if args.matrix:
+    if include_matrix:
         pairs += [("repo-fast", "xrootd"), ("official", "nginx"), ("repo", "xrootd")]
+    return pairs
 
+
+def _print_setup(args, levels):
     print(f"[setup] levels={levels}%  size={args.size_mib}MiB  reps={args.reps}  "
           f"timeout={args.timeout}s  max-stall={args.max_stall}ms  "
           f"repo-fast backoff={args.repo_backoff_ms}ms (stock=25)")
     print(f"[clients] repo/repo-fast={REPO_XRDCP}  official={OFFICIAL_XRDCP}")
 
+
+def _run_copy(args, client_name, server_name, client_bin, env, server, level,
+              rep, want, size_bytes):
+    with servers.FaultProxy(server.port) as proxy:
+        if args.fault == "reorder":
+            proxy.set_reorder(level, args.reorder_ms)
+        else:
+            proxy.set_loss(level)
+        passed, secs, reason = copy_once(
+            client_bin, env, proxy.listen, want, size_bytes, args.timeout)
+    mbps = size_bytes / secs / 1e6 if passed and secs > 0 else 0
+    verdict = "OK " if passed else "FAIL"
+    print(f"  {client_name:8s}→{server_name:6s} {args.fault}={level:>7g}% "
+          f"rep{rep}: {verdict} {secs:7.2f}s {mbps:7.1f}MB/s ({reason})")
+    return dict(client=client_name, server=server_name, level=level, rep=rep,
+                ok=passed, secs=round(secs, 3), reason=reason)
+
+
+def _run_pair(args, pair, clients, servers_by_name, levels, want, size_bytes):
+    client_name, server_name = pair
+    env = client_env(client_name, args.max_stall, args.repo_backoff_ms)
     rows = []
-    with servers.NginxAnon() as ng, servers.XrootdAnon() as xr:
-        smap = {"nginx": ng, "xrootd": xr}
-        print(f"[up] nginx anon :{ng.port}   xrootd anon :{xr.port}")
-        src = servers.seed_file(ng.data, FILE_PATH, size_bytes)
-        servers.seed_file(xr.data, FILE_PATH, size_bytes, src=src)
-        want = _md5_file(src)
+    for level in levels:
+        for rep in range(1, args.reps + 1):
+            rows.append(_run_copy(
+                args, client_name, server_name, clients[client_name], env,
+                servers_by_name[server_name], level, rep, want, size_bytes))
+    return rows
+
+
+def _run_matrix(args, pairs, levels, size_bytes):
+    clients = {"repo": REPO_XRDCP, "repo-fast": REPO_XRDCP,
+               "official": OFFICIAL_XRDCP}
+    rows = []
+    with servers.NginxAnon() as nginx, servers.XrootdAnon() as xrootd:
+        servers_by_name = {"nginx": nginx, "xrootd": xrootd}
+        print(f"[up] nginx anon :{nginx.port}   xrootd anon :{xrootd.port}")
+        source = servers.seed_file(nginx.data, FILE_PATH, size_bytes)
+        servers.seed_file(xrootd.data, FILE_PATH, size_bytes, src=source)
+        want = _md5_file(source)
         print(f"[seed] {args.size_mib}MiB into both (md5={want[:12]}…)\n")
+        for pair in pairs:
+            rows.extend(_run_pair(
+                args, pair, clients, servers_by_name, levels, want, size_bytes))
+    return rows
 
-        for cname, sname in pairs:
-            client_bin = clients[cname]
-            env = client_env(cname, args.max_stall, args.repo_backoff_ms)
-            srv = smap[sname]
-            for level in levels:
-                for rep in range(1, args.reps + 1):
-                    with servers.FaultProxy(srv.port) as fp:
-                        if args.fault == "reorder":
-                            fp.set_reorder(level, args.reorder_ms)
-                        else:
-                            fp.set_loss(level)
-                        ok, secs, why = copy_once(client_bin, env, fp.listen, want,
-                                                  size_bytes, args.timeout)
-                    mbps = (size_bytes / secs / 1e6) if ok and secs > 0 else 0
-                    print(f"  {cname:8s}→{sname:6s} {args.fault}={level:>7g}% rep{rep}: "
-                          f"{'OK ' if ok else 'FAIL'} {secs:7.2f}s {mbps:7.1f}MB/s ({why})")
-                    rows.append(dict(client=cname, server=sname, level=level, rep=rep,
-                                     ok=ok, secs=round(secs, 3), reason=why))
 
+def main():
+    args = _parser().parse_args()
+    _validate_binaries()
+    levels = [float(x) for x in args.levels.split(",") if x.strip() != ""]
+    size_bytes = args.size_mib * 1024 * 1024
+    pairs = _pairs(args.matrix)
+    _print_setup(args, levels)
+    rows = _run_matrix(args, pairs, levels, size_bytes)
     print_summary(rows, pairs, levels, size_bytes, args.reps)
+
+
+def _successful_times(rows, client_name, server_name, level):
+    return sorted(
+        row["secs"] for row in rows
+        if row["client"] == client_name
+        and row["server"] == server_name
+        and row["level"] == level
+        and row["ok"])
+
+
+def _print_cell(rows, pair, level, size_bytes, reps):
+    client_name, server_name = pair
+    good = _successful_times(rows, client_name, server_name, level)
+    if not good:
+        print(f"    {level:>8g} {0:3d}/{reps:<2d} {'-':>8s} {'-':>8s}")
+        return
+    median = good[len(good) // 2]
+    mbps = size_bytes / median / 1e6 if median > 0 else 0
+    print(f"    {level:>8g} {len(good):3d}/{reps:<2d} {median:8.2f} {mbps:8.1f}")
+
+
+def _print_pair_summary(rows, pair, levels, size_bytes, reps):
+    client_name, server_name = pair
+    print(f"\n  {client_name} → {server_name}")
+    header = f"    {'loss%':>8s} {'ok/N':>6s} {'med s':>8s} {'MB/s':>8s}"
+    print(header)
+    print("    " + "-" * (len(header) - 4))
+    for level in levels:
+        _print_cell(rows, pair, level, size_bytes, reps)
+
+
+def _median_mbps(rows, pair, level, size_bytes):
+    good = _successful_times(rows, pair[0], pair[1], level)
+    if not good:
+        return None
+    return size_bytes / good[len(good) // 2] / 1e6
+
+
+def _format_rate(value):
+    return f"{value:.1f}" if value is not None else "-"
+
+
+def _print_head_to_head(rows, levels, size_bytes):
+    print("\n  HEAD-TO-HEAD  (median MB/s of successful copies)")
+    print(f"    {'loss%':>8s} {'repo→nginx':>13s} {'repo-fast→nginx':>17s} "
+          f"{'official→xrootd':>17s}")
+    print("    " + "-" * 58)
+    head = [("repo", "nginx"), ("repo-fast", "nginx"), ("official", "xrootd")]
+    for level in levels:
+        rates = [_median_mbps(rows, pair, level, size_bytes) for pair in head]
+        values = [_format_rate(value) for value in rates]
+        print(f"    {level:>8g} {values[0]:>13} {values[1]:>17} {values[2]:>17}")
 
 
 def print_summary(rows, pairs, levels, size_bytes, reps):
     print("\n=== SUMMARY (byte-exact ok/N + median time / throughput of successes) ===")
-    for cname, sname in pairs:
-        print(f"\n  {cname} → {sname}")
-        hdr = f"    {'loss%':>8s} {'ok/N':>6s} {'med s':>8s} {'MB/s':>8s}"
-        print(hdr)
-        print("    " + "-" * (len(hdr) - 4))
-        for level in levels:
-            cell = [r for r in rows if r["client"] == cname and r["server"] == sname
-                    and r["level"] == level]
-            good = sorted(r["secs"] for r in cell if r["ok"])
-            okn = len(good)
-            if good:
-                med = good[len(good) // 2]
-                mbps = size_bytes / med / 1e6 if med > 0 else 0
-                print(f"    {level:>8g} {okn:3d}/{reps:<2d} {med:8.2f} {mbps:8.1f}")
-            else:
-                print(f"    {level:>8g} {okn:3d}/{reps:<2d} {'-':>8s} {'-':>8s}")
-
-    # Head-to-head: stock repo, tuned repo, and official side by side (MB/s).
+    for pair in pairs:
+        _print_pair_summary(rows, pair, levels, size_bytes, reps)
     head = [("repo", "nginx"), ("repo-fast", "nginx"), ("official", "xrootd")]
-    if all(p in pairs for p in head):
-        def med_mbps(cname, sname, level):
-            good = sorted(r["secs"] for r in rows if r["client"] == cname
-                          and r["server"] == sname and r["level"] == level and r["ok"])
-            return size_bytes / good[len(good) // 2] / 1e6 if good else None
-
-        print("\n  HEAD-TO-HEAD  (median MB/s of successful copies)")
-        print(f"    {'loss%':>8s} {'repo→nginx':>13s} {'repo-fast→nginx':>17s} "
-              f"{'official→xrootd':>17s}")
-        print("    " + "-" * 58)
-        for level in levels:
-            def fmt(v):
-                return f"{v:.1f}" if v is not None else "-"
-            a = med_mbps("repo", "nginx", level)
-            b = med_mbps("repo-fast", "nginx", level)
-            c = med_mbps("official", "xrootd", level)
-            print(f"    {level:>8g} {fmt(a):>13} {fmt(b):>17} {fmt(c):>17}")
+    if all(pair in pairs for pair in head):
+        _print_head_to_head(rows, levels, size_bytes)
 
 
 if __name__ == "__main__":

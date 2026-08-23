@@ -1,4 +1,4 @@
-"""Examples 3-6: the uniform test services (F16-F20).
+"""Compatibility examples for uniform test services.
 
 Nothing here touches a static server, so the file carries no
 declaration marker and the gate reads it as clean — services are

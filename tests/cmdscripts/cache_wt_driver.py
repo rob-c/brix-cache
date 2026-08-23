@@ -9,8 +9,40 @@ import subprocess
 import time
 
 from cmdscripts import run
+from cmdscripts.command_results import print_results
 from fleet_ports import cmdscript_ports
 from settings import BIND_HOST, HOST, NGINX_BIN
+
+def _expression_1(name, result):
+    return (
+        [(False, f"{name} start failed: {(result.stderr or result.stdout)[-4000:]}")]
+    )
+
+def _expression_2(results, sync_small, sync):
+    return (
+        results.append((sync_small.returncode == 0 and (sync / "export" / "s_small.bin").exists(), "write landed locally on S (write-through cache)"))
+    )
+
+def _expression_3(results, small, origin):
+    return (
+        results.append(((origin / "root" / "s_small.bin").exists() and (origin / "root" / "s_small.bin").read_bytes() == small, "flushed byte-exact to ORIGIN via driver"))
+    )
+
+def _expression_4(results, big, sync_big, origin):
+    return (
+        results.append((sync_big.returncode == 0 and (origin / "root" / "s_big.bin").exists() and (origin / "root" / "s_big.bin").read_bytes() == big, "multi-chunk flushed byte-exact via driver"))
+    )
+
+def _expression_5(small, async_small, origin):
+    return (
+        async_small.returncode == 0 and wait_for_bytes(origin / "root" / "a_small.bin", small)
+    )
+
+def _expression_6(results, small, read_back, read_got):
+    return (
+        results.append((read_back.returncode == 0 and read_got.read_bytes() == small, "read-back byte-exact"))
+    )
+
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 XRDCP = REPO_ROOT / "client" / "bin" / "xrdcp"
@@ -115,7 +147,7 @@ def run_checks(
         if result.returncode != 0:
             for item in reversed(started):
                 stop_nginx(item)
-            return [(False, f"{name} start failed: {(result.stderr or result.stdout)[-4000:]}")]
+            return _expression_1(name, result)
         started.append(prefix)
 
     try:
@@ -129,19 +161,19 @@ def run_checks(
         big_path.write_bytes(big)
 
         sync_small = xrdcp_put(sync_port, small_path, "s_small.bin", xrdcp)
-        results.append((sync_small.returncode == 0 and (sync / "export" / "s_small.bin").exists(), "write landed locally on S (write-through cache)"))
-        results.append(((origin / "root" / "s_small.bin").exists() and (origin / "root" / "s_small.bin").read_bytes() == small, "flushed byte-exact to ORIGIN via driver"))
+        _expression_2(results, sync_small, sync)
+        _expression_3(results, small, origin)
 
         sync_big = xrdcp_put(sync_port, big_path, "s_big.bin", xrdcp)
-        results.append((sync_big.returncode == 0 and (origin / "root" / "s_big.bin").exists() and (origin / "root" / "s_big.bin").read_bytes() == big, "multi-chunk flushed byte-exact via driver"))
+        _expression_4(results, big, sync_big, origin)
 
         async_small = xrdcp_put(async_port, small_path, "a_small.bin", xrdcp)
-        async_ok = async_small.returncode == 0 and wait_for_bytes(origin / "root" / "a_small.bin", small)
+        async_ok = _expression_5(small, async_small, origin)
         results.append((async_ok, "async flushed byte-exact to ORIGIN via driver"))
 
         read_got = base / "wt_drv_rb.got"
         read_back = xrdfs_cat(sync_port, "/s_small.bin", read_got, xrdfs)
-        results.append((read_back.returncode == 0 and read_got.read_bytes() == small, "read-back byte-exact"))
+        _expression_6(results, small, read_back, read_got)
         return results
     finally:
         for prefix in reversed(started):
@@ -154,13 +186,7 @@ def entry(argv: list[str]) -> int:
 
     with tempfile.TemporaryDirectory(prefix="wt_drv.") as tmp:
         results = run_checks(Path(tmp), nginx_bin=nginx_bin)
-    for ok, message in results:
-        print(f"  {'ok  ' if ok else 'FAIL'} {message}")
-    if all(ok for ok, _ in results):
-        print("run_cache_wt_driver: ALL PASS")
-        return 0
-    print("run_cache_wt_driver: FAILURES")
-    return 1
+    return print_results(results, "run_cache_wt_driver")
 
 
 if __name__ == "__main__":

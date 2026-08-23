@@ -25,6 +25,27 @@ from server_registry import NginxInstanceSpec
 from settings import BIND_HOST, HOST, TEST_ROOT
 from fleet_ports import cmdscript_ports
 
+def _expression_1(checks, small_got, small):
+    return (
+        checks.append((small_got.exists() and sha256(small_got) == sha256(small), "GET small byte-exact"))
+    )
+
+def _expression_2(checks, multi_got, multi):
+    return (
+        checks.append((multi_got.exists() and sha256(multi_got) == sha256(multi), "GET multi byte-exact"))
+    )
+
+def _expression_3(checks, ref_adler, srv_adler):
+    return (
+        checks.append((bool(ref_adler) and srv_adler == ref_adler[0], f"adler32 whole-file ({srv_adler})"))
+    )
+
+def _expression_4(checks, ref_crc, srv_crc):
+    return (
+        checks.append((bool(ref_crc) and srv_crc == ref_crc[0], f"crc32c whole-file ({srv_crc})"))
+    )
+
+
 _PORTS = cmdscript_ports("pblock_live")
 
 XRDCP = REPO_ROOT / "client/bin/xrdcp"
@@ -56,6 +77,55 @@ def _checks(values: list[tuple[bool, str]]) -> int:
     for passed, text in values:
         print(f"  {'ok  ' if passed else 'FAIL'} {text}")
     return 0 if all(passed for passed, _ in values) else 1
+
+
+def _root_transfer_checks(run, host, hub, small, multi):
+    checks = []
+    checks.append((run.call([XRDCP, "-f", small, f"{hub}s.bin"], check=False).returncode == 0, "PUT small (1 block)"))
+    checks.append((run.call([XRDCP, "-f", multi, f"{hub}m.bin"], check=False).returncode == 0, "PUT multi (3 blocks)"))
+    small_got, multi_got = run.root / "s.got", run.root / "m.got"
+    checks.append((run.call([XRDCP, "-f", f"{hub}s.bin", small_got], check=False).returncode == 0, "GET small"))
+    checks.append((run.call([XRDCP, "-f", f"{hub}m.bin", multi_got], check=False).returncode == 0, "GET multi"))
+    _expression_1(checks, small_got, small)
+    _expression_2(checks, multi_got, multi)
+    stat_out = run.call([XRDFS, host, "stat", "/m.bin"], check=False).stdout
+    size = next((line.split()[1] for line in stat_out.splitlines()
+                 if line.strip().startswith("Size:")), "")
+    checks.append((size == "2621440", f"stat size (multi) ({size})"))
+    return checks
+
+
+def _checksum_value(output, algorithm):
+    for line in output.splitlines():
+        fields = line.split()
+        if algorithm in line and len(fields) > 1:
+            return fields[1]
+    return ""
+
+
+def _root_checksum_checks(run, host, multi):
+    checks = []
+    ref_adler = run.call([XRDADLER32, multi], check=False).stdout.split()
+    srv_query = run.call([XRDFS, host, "query", "checksum", "/m.bin"], check=False).stdout
+    srv_adler = _checksum_value(srv_query, "adler32")
+    _expression_3(checks, ref_adler, srv_adler)
+    ref_crc = run.call([XRDCRC32C, multi], check=False).stdout.split()
+    crc_query = run.call([XRDFS, host, "query", "checksum", "/m.bin?cks.type=crc32c"], check=False).stdout
+    srv_crc = _checksum_value(crc_query, "crc32c")
+    _expression_4(checks, ref_crc, srv_crc)
+    return checks
+
+
+def _root_namespace_checks(run, host, hub, small):
+    checks = []
+    checks.append((run.call([XRDFS, host, "mkdir", "/d"], check=False).returncode == 0, "mkdir /d"))
+    checks.append((run.call([XRDCP, "-f", small, f"{hub}d/x.bin"], check=False).returncode == 0, "PUT /d/x.bin"))
+    listing = run.call([XRDFS, host, "ls", "/"], check=False).stdout
+    checks.append(("s.bin" in listing, "ls shows s.bin"))
+    checks.append(("/d" in listing, "ls shows /d"))
+    checks.append((run.call([XRDFS, host, "rm", "/s.bin"], check=False).returncode == 0, "rm /s.bin"))
+    checks.append((run.call([XRDFS, host, "stat", "/s.bin"], check=False).returncode != 0, "stat removed (gone)"))
+    return checks
 
 
 def pblock_root(nginx: Path | None = None) -> int:
@@ -92,37 +162,9 @@ stream {{
         small, multi = run.root / "small.bin", run.root / "multi.bin"
         random_file(small, 700000)    # < 1 block
         random_file(multi, 2621440)   # 2.5 blocks
-        checks: list[tuple[bool, str]] = []
-
-        checks.append((run.call([XRDCP, "-f", small, f"{hub}s.bin"], check=False).returncode == 0, "PUT small (1 block)"))
-        checks.append((run.call([XRDCP, "-f", multi, f"{hub}m.bin"], check=False).returncode == 0, "PUT multi (3 blocks)"))
-        small_got, multi_got = run.root / "s.got", run.root / "m.got"
-        checks.append((run.call([XRDCP, "-f", f"{hub}s.bin", small_got], check=False).returncode == 0, "GET small"))
-        checks.append((run.call([XRDCP, "-f", f"{hub}m.bin", multi_got], check=False).returncode == 0, "GET multi"))
-        checks.append((small_got.exists() and sha256(small_got) == sha256(small), "GET small byte-exact"))
-        checks.append((multi_got.exists() and sha256(multi_got) == sha256(multi), "GET multi byte-exact"))
-
-        stat_out = run.call([XRDFS, host, "stat", "/m.bin"], check=False).stdout
-        size = next((line.split()[1] for line in stat_out.splitlines() if line.strip().startswith("Size:")), "")
-        checks.append((size == "2621440", f"stat size (multi) ({size})"))
-
-        ref_adler = run.call([XRDADLER32, multi], check=False).stdout.split()
-        srv_query = run.call([XRDFS, host, "query", "checksum", "/m.bin"], check=False).stdout
-        srv_adler = next((line.split()[1] for line in srv_query.splitlines() if "adler32" in line and len(line.split()) > 1), "")
-        checks.append((bool(ref_adler) and srv_adler == ref_adler[0], f"adler32 whole-file ({srv_adler})"))
-        ref_crc = run.call([XRDCRC32C, multi], check=False).stdout.split()
-        crc_query = run.call([XRDFS, host, "query", "checksum", "/m.bin?cks.type=crc32c"], check=False).stdout
-        srv_crc = next((line.split()[1] for line in crc_query.splitlines() if "crc32c" in line and len(line.split()) > 1), "")
-        checks.append((bool(ref_crc) and srv_crc == ref_crc[0], f"crc32c whole-file ({srv_crc})"))
-
-        checks.append((run.call([XRDFS, host, "mkdir", "/d"], check=False).returncode == 0, "mkdir /d"))
-        checks.append((run.call([XRDCP, "-f", small, f"{hub}d/x.bin"], check=False).returncode == 0, "PUT /d/x.bin"))
-        listing = run.call([XRDFS, host, "ls", "/"], check=False).stdout
-        checks.append(("s.bin" in listing, "ls shows s.bin"))
-        checks.append(("/d" in listing, "ls shows /d"))
-        checks.append((run.call([XRDFS, host, "rm", "/s.bin"], check=False).returncode == 0, "rm /s.bin"))
-        checks.append((run.call([XRDFS, host, "stat", "/s.bin"], check=False).returncode != 0, "stat removed (gone)"))
-
+        checks = _root_transfer_checks(run, host, hub, small, multi)
+        checks += _root_checksum_checks(run, host, multi)
+        checks += _root_namespace_checks(run, host, hub, small)
         checks.append(((run.root / "root/catalog.db").is_file(), "catalog.db present"))
         checks.append(((run.root / "root/data").is_dir(), "data/ block dir present"))
         return _checks(checks)

@@ -58,14 +58,11 @@ def main(argv=None) -> int:
     values = list(sys.argv[1:] if argv is None else argv)
     command = values[0] if values else "status"
     config = _config()
-    if command == "start":
-        return start(config)
-    if command == "status":
-        return status(config)
-    if command == "test":
-        return test(config)
-    print("usage: minikube_cluster.py start|status|test", file=sys.stderr)
-    return 2
+    operation = {"start": start, "status": status, "test": test}.get(command)
+    if operation is None:
+        print("usage: minikube_cluster.py start|status|test", file=sys.stderr)
+        return 2
+    return operation(config)
 
 
 if __name__ == "__main__":

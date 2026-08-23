@@ -108,66 +108,80 @@ brix_crl_is_newer(X509_CRL *crl, X509_CRL *than)
  *       validity-window and extension checks of the chosen CRL still happen
  *       in OpenSSL's check_crl().
  */
+/*
+ * WHAT: Find the first issuer CRL that actively revokes a certificate serial.
+ * WHY:  Any matching full revocation must win over filesystem load order.
+ * HOW:  Walk the collected issuer CRLs and accept lookup result one only.
+ */
+static X509_CRL *
+brix_crl_find_revocation(STACK_OF(X509_CRL) *crls, X509 *cert)
+{
+    for (int i = 0; i < sk_X509_CRL_num(crls); i++) {
+        X509_CRL     *crl = sk_X509_CRL_value(crls, i);
+        X509_REVOKED *rev;
+
+        if (X509_CRL_get0_by_serial(crl, &rev,
+                                    X509_get_serialNumber(cert)) == 1)
+            return crl;
+    }
+    return NULL;
+}
+
+/*
+ * WHAT: Find a delta CRL carrying removeFromCRL for a certificate serial.
+ * WHY:  Optional CRL mode honors a delta that supersedes a base revocation.
+ * HOW:  Restrict the serial lookup-result-two search to delta CRLs.
+ */
+static X509_CRL *
+brix_crl_find_removal(STACK_OF(X509_CRL) *crls, X509 *cert)
+{
+    for (int i = 0; i < sk_X509_CRL_num(crls); i++) {
+        X509_CRL     *crl = sk_X509_CRL_value(crls, i);
+        X509_REVOKED *rev;
+
+        if (X509_CRL_get_ext_by_NID(crl, NID_delta_crl, -1) >= 0 &&
+            X509_CRL_get0_by_serial(crl, &rev,
+                                    X509_get_serialNumber(cert)) == 2)
+            return crl;
+    }
+    return NULL;
+}
+
+/*
+ * WHAT: Select the newest non-delta CRL for ordinary OpenSSL validation.
+ * WHY:  Returning a lone delta would fail its critical DeltaCRLIndicator.
+ * HOW:  Skip deltas and compare full-CRL lastUpdate values deterministically.
+ */
+static X509_CRL *
+brix_crl_newest_full(STACK_OF(X509_CRL) *crls)
+{
+    X509_CRL *best = NULL;
+
+    for (int i = 0; i < sk_X509_CRL_num(crls); i++) {
+        X509_CRL *crl = sk_X509_CRL_value(crls, i);
+
+        if (X509_CRL_get_ext_by_NID(crl, NID_delta_crl, -1) < 0 &&
+            brix_crl_is_newer(crl, best))
+            best = crl;
+    }
+    return best;
+}
+
 static int
 brix_failsafe_get_crl(X509_STORE_CTX *ctx, X509_CRL **out, X509 *x)
 {
     STACK_OF(X509_CRL) *crls;
-    X509_CRL           *chosen = NULL;
-    X509_CRL           *best = NULL;
-    int                 i;
+    X509_CRL           *chosen;
 
     crls = X509_STORE_CTX_get1_crls(ctx, X509_get_issuer_name(x));
-    if (crls == NULL) {
+    if (crls == NULL)
         return 0;
-    }
-
-    for (i = 0; i < sk_X509_CRL_num(crls) && chosen == NULL; i++) {
-        X509_CRL     *crl = sk_X509_CRL_value(crls, i);
-        X509_REVOKED *rev;
-
-        if (X509_CRL_get0_by_serial(crl, &rev, X509_get_serialNumber(x)) == 1) {
-            chosen = crl;
-        }
-    }
-
-    /*
-     * Delta un-revocation (removeFromCRL in a delta CRL) is honored only in
-     * "try" mode: a full-CRL revocation superseded by a delta's removeFromCRL
-     * entry hands OpenSSL the delta, whose ==2 lookup is non-revoking
-     * (decision CRL-074).  "require" stays fail-safe: the base revocation
-     * stands regardless of any delta (decision CRL-075).
-     */
-    if (chosen != NULL
-        && brix_store_crl_mode(ctx) != BRIX_CRL_MODE_REQUIRE
-        && X509_CRL_get_ext_by_NID(chosen, NID_delta_crl, -1) < 0)
-    {
-        for (i = 0; i < sk_X509_CRL_num(crls); i++) {
-            X509_CRL     *crl = sk_X509_CRL_value(crls, i);
-            X509_REVOKED *rev;
-
-            if (X509_CRL_get_ext_by_NID(crl, NID_delta_crl, -1) >= 0
-                && X509_CRL_get0_by_serial(crl, &rev,
-                                           X509_get_serialNumber(x)) == 2)
-            {
-                chosen = crl;
-                break;
-            }
-        }
-    }
-
-    if (chosen == NULL) {
-        for (i = 0; i < sk_X509_CRL_num(crls); i++) {
-            X509_CRL *crl = sk_X509_CRL_value(crls, i);
-
-            if (X509_CRL_get_ext_by_NID(crl, NID_delta_crl, -1) >= 0) {
-                continue;
-            }
-            if (brix_crl_is_newer(crl, best)) {
-                best = crl;
-            }
-        }
-        chosen = best;
-    }
+    chosen = brix_crl_find_revocation(crls, x);
+    if (chosen != NULL && brix_store_crl_mode(ctx) != BRIX_CRL_MODE_REQUIRE &&
+        X509_CRL_get_ext_by_NID(chosen, NID_delta_crl, -1) < 0)
+        chosen = brix_crl_find_removal(crls, x);
+    if (chosen == NULL)
+        chosen = brix_crl_newest_full(crls);
 
     if (chosen == NULL) {
         sk_X509_CRL_pop_free(crls, X509_CRL_free);

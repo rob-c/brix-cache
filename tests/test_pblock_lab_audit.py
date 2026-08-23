@@ -21,6 +21,51 @@ import pytest
 from cmdscripts.live_common import LiveRun, random_file
 from cmdscripts.pblock_live import XRDCP, pblock_lab_spec
 
+def _expression_1(rows):
+    return (
+        [r["seq"] for r in rows]
+    )
+
+def _expression_2(rows):
+    return (
+        [r["op"] for r in rows]
+    )
+
+def _expression_3(rows):
+    return (
+        [r for r in rows
+                          if r["op"] == "commit"
+                          or (r["op"] == "close" and "w=" in r["aux"]
+                              and "w=0" not in r["aux"])]
+    )
+
+def _expression_4(rows):
+    return (
+        [r for r in rows if r["op"] == "close"]
+    )
+
+
+def _check_test_audit_records_op_sequence_1(run, src, hub):
+    assert run.call([XRDCP, "-f", src, f"{hub}f.bin"],
+                    check=False).returncode == 0
+
+def _check_test_audit_records_op_sequence_2(run, got, hub):
+    assert run.call([XRDCP, "-f", f"{hub}f.bin", got],
+                    check=False).returncode == 0
+
+def _check_test_audit_records_op_sequence_3(rows):
+    assert rows, "oplog is empty — audit did not record anything"
+
+def _check_test_audit_records_op_sequence_4(seqs):
+    assert seqs == list(range(seqs[0], seqs[0] + len(seqs))), \
+        f"oplog seq has gaps: {seqs}"
+
+def _check_test_audit_records_op_sequence_5(closes):
+    assert closes and all(
+        "r=" in c["aux"] and "w=" in c["aux"] and "mb=" in c["aux"]
+        for c in closes), f"close aux missing folded totals: {[c['aux'] for c in closes]}"
+
+
 pytestmark = [pytest.mark.uses_lifecycle_harness,
               pytest.mark.xdist_group("lc-pblock-audit")]
 
@@ -59,34 +104,29 @@ def test_audit_records_op_sequence(lifecycle) -> None:
         src = run.root / "src.bin"
         random_file(src, 2_500_000)   # >1 block at 1m stripe
 
-        assert run.call([XRDCP, "-f", src, f"{hub}f.bin"],
-                        check=False).returncode == 0
+        _check_test_audit_records_op_sequence_1(run, src, hub)
         got = run.root / "got.bin"
-        assert run.call([XRDCP, "-f", f"{hub}f.bin", got],
-                        check=False).returncode == 0
+        _check_test_audit_records_op_sequence_2(run, got, hub)
 
         rows = _oplog(catalog)
-        assert rows, "oplog is empty — audit did not record anything"
+        _check_test_audit_records_op_sequence_3(rows)
 
         # seq is gap-free 1..N (AUTOINCREMENT total order across both workers).
-        seqs = [r["seq"] for r in rows]
-        assert seqs == list(range(seqs[0], seqs[0] + len(seqs))), \
-            f"oplog seq has gaps: {seqs}"
+        seqs = _expression_1(rows)
+        _check_test_audit_records_op_sequence_4(seqs)
 
-        ops = [r["op"] for r in rows]
+        ops = _expression_2(rows)
         # Write side: a commit (staged publish) or a close carrying w>0.
-        writes = [r for r in rows
-                  if r["op"] == "commit"
-                  or (r["op"] == "close" and "w=" in r["aux"]
-                      and "w=0" not in r["aux"])]
-        assert writes, f"no write-side record in oplog ops={ops}"
-        # Read side: the GET opened the file.
-        assert "open" in ops, f"no open record for the GET; ops={ops}"
+        writes = _expression_3(rows)
+        def _assert_test_audit_records_op_sequence_1():
+            assert writes, f"no write-side record in oplog ops={ops}"
+            # Read side: the GET opened the file.
+            assert "open" in ops, f"no open record for the GET; ops={ops}"
+
+        _assert_test_audit_records_op_sequence_1()
         # A close record exists and folds byte totals (r=/w=/mb= shape).
-        closes = [r for r in rows if r["op"] == "close"]
-        assert closes and all(
-            "r=" in c["aux"] and "w=" in c["aux"] and "mb=" in c["aux"]
-            for c in closes), f"close aux missing folded totals: {[c['aux'] for c in closes]}"
+        closes = _expression_4(rows)
+        _check_test_audit_records_op_sequence_5(closes)
 
 
 @pytest.mark.optin

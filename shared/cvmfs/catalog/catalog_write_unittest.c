@@ -59,16 +59,24 @@ static void nested_cb(const char *path, const char *sha1, uint64_t size, void *u
     if (strcmp(path, "dir/nested") == 0) (*(int *) ud)++;
 }
 
+/* WHAT: Insert the ordinary directory/file portion of the fixture.
+ * WHY: Keep base-tree failures distinct from special row encodings.
+ * HOW: Add the root, directories, regular files, and nested mountpoint. */
+static int build_tree(cvmfs_catwriter_t *w, const cvmfs_hash_t *fh) {
+    if (add_row(w, "", CVMFS_FLAG_DIR, 040755, 4096, NULL) != 0) return -1;
+    if (add_row(w, "dir", CVMFS_FLAG_DIR, 040755, 4096, NULL) != 0) return -1;
+    if (add_row(w, "dir/file.txt", CVMFS_FLAG_FILE, 0100644, 11, fh) != 0) return -1;
+    if (add_row(w, "dir/sub", CVMFS_FLAG_DIR, 040755, 4096, NULL) != 0) return -1;
+    if (add_row(w, "dir/sub/deep.txt", CVMFS_FLAG_FILE, 0100644, 5, fh) != 0) return -1;
+    if (add_row(w, "dir/nested", CVMFS_FLAG_DIR | CVMFS_FLAG_DIR_NESTED_MOUNT,
+                040755, 4096, NULL) != 0) return -1;
+    return 0;
+}
+
 /* Build the fixture catalog; returns 0 on success. */
 static int build(cvmfs_catwriter_t *w) {
     cvmfs_hash_t fh = mkhash(0xf1), ch1 = mkhash(0xc1), ch2 = mkhash(0xc2);
-    if (add_row(w, "", CVMFS_FLAG_DIR, 040755, 4096, NULL) != 0) return -1;
-    if (add_row(w, "dir", CVMFS_FLAG_DIR, 040755, 4096, NULL) != 0) return -1;
-    if (add_row(w, "dir/file.txt", CVMFS_FLAG_FILE, 0100644, 11, &fh) != 0) return -1;
-    if (add_row(w, "dir/sub", CVMFS_FLAG_DIR, 040755, 4096, NULL) != 0) return -1;
-    if (add_row(w, "dir/sub/deep.txt", CVMFS_FLAG_FILE, 0100644, 5, &fh) != 0) return -1;
-    if (add_row(w, "dir/nested", CVMFS_FLAG_DIR | CVMFS_FLAG_DIR_NESTED_MOUNT,
-                040755, 4096, NULL) != 0) return -1;
+    if (build_tree(w, &fh) != 0) return -1;
 
     cvmfs_catrow_t link;
     memset(&link, 0, sizeof(link));
@@ -133,6 +141,28 @@ static void check_counter(cvmfs_catalog_t *c, const char *name, int64_t want) {
     CHECK(cvmfs_catalog_counter(c, name, &got) == 1 && got == want, label);
 }
 
+/* WHAT: Verify packed xattrs and the plain-file empty result.
+ * WHY: Isolate the densest wire-format assertion from row round-trips.
+ * HOW: Fetch, count, unpack, and compare the fixture's one key/value pair. */
+static void read_back_xattr(cvmfs_catalog_t *c) {
+    unsigned char        blob[256];
+    long                 blen;
+    const char          *key = NULL;
+    const unsigned char *value = NULL;
+    size_t               key_len = 0;
+    size_t               value_len = 0;
+
+    blen = cvmfs_catalog_xattr(c, "xa.txt", blob, sizeof(blob));
+    CHECK(blen > 0 && cvmfs_xattr_count(blob, (size_t) blen) == 1
+          && cvmfs_xattr_unpack(blob, (size_t) blen, 0, &key, &key_len,
+                                &value, &value_len) == 0
+          && key_len == 9 && memcmp(key, "user.brix", 9) == 0
+          && value_len == 2 && memcmp(value, "v1", 2) == 0,
+          "xattr blob round-trips");
+    CHECK(cvmfs_catalog_xattr(c, "dir/file.txt", blob, sizeof(blob)) == 0,
+          "xattr of plain file is empty");
+}
+
 static void read_back(const char *db) {
     cvmfs_catalog_t *c = cvmfs_catalog_open(db);
     CHECK(c != NULL, "reader opens the written catalog");
@@ -176,17 +206,7 @@ static void read_back(const char *db) {
     check_counter(c, "self_xattr", 1);
     check_counter(c, "self_chunked_size", 200);
 
-    unsigned char blob[256];
-    long blen = cvmfs_catalog_xattr(c, "xa.txt", blob, sizeof(blob));
-    const char *k = NULL;
-    const unsigned char *v = NULL;
-    size_t kl = 0, vl = 0;
-    CHECK(blen > 0 && cvmfs_xattr_count(blob, (size_t) blen) == 1
-          && cvmfs_xattr_unpack(blob, (size_t) blen, 0, &k, &kl, &v, &vl) == 0
-          && kl == 9 && memcmp(k, "user.brix", 9) == 0
-          && vl == 2 && memcmp(v, "v1", 2) == 0, "xattr blob round-trips");
-    CHECK(cvmfs_catalog_xattr(c, "dir/file.txt", blob, sizeof(blob)) == 0,
-          "xattr of plain file is empty");
+    read_back_xattr(c);
     cvmfs_catalog_close(c);
 }
 

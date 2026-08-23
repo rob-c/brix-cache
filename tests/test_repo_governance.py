@@ -17,6 +17,13 @@ from pathlib import Path
 
 import pytest
 
+def _check_test_codeowners_has_a_catch_all_and_every_rule_has_an_owner_1(ownerless):
+    assert not ownerless, f"CODEOWNERS entries with no owner: {ownerless}"
+
+def _check_test_codeowners_has_a_catch_all_and_every_rule_has_an_owner_2(malformed):
+    assert not malformed, f"CODEOWNERS owners must be @handle or an email: {malformed}"
+
+
 yaml = pytest.importorskip("yaml")
 
 REPO = Path(__file__).resolve().parents[1]
@@ -79,20 +86,23 @@ def _codeowner_rules() -> list[tuple[str, list[str], int]]:
 
 def test_codeowners_has_a_catch_all_and_every_rule_has_an_owner() -> None:
     rules = _codeowner_rules()
-    assert rules, "CODEOWNERS is empty"
-    assert any(p == "*" for p, _, _ in rules), (
-        "CODEOWNERS has no `*` rule — paths not matched by any pattern get no "
-        "reviewer at all, which is the failure this file exists to prevent"
-    )
+    def _assert_test_codeowners_has_a_catch_all_and_every_rule_has_an_owner_1():
+        assert rules, "CODEOWNERS is empty"
+        assert any(p == "*" for p, _, _ in rules), (
+            "CODEOWNERS has no `*` rule — paths not matched by any pattern get no "
+            "reviewer at all, which is the failure this file exists to prevent"
+        )
+
+    _assert_test_codeowners_has_a_catch_all_and_every_rule_has_an_owner_1()
     ownerless = [(p, n) for p, owners, n in rules if not owners]
-    assert not ownerless, f"CODEOWNERS entries with no owner: {ownerless}"
+    _check_test_codeowners_has_a_catch_all_and_every_rule_has_an_owner_1(ownerless)
     malformed = [
         (p, n)
         for p, owners, n in rules
         for o in owners
         if not (o.startswith("@") or "@" in o)
     ]
-    assert not malformed, f"CODEOWNERS owners must be @handle or an email: {malformed}"
+    _check_test_codeowners_has_a_catch_all_and_every_rule_has_an_owner_2(malformed)
 
 
 def test_codeowners_paths_exist() -> None:

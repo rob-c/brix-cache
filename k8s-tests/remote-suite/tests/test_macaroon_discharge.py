@@ -66,23 +66,43 @@ def _hmac_sha256(key: bytes, data: bytes) -> bytes:
     return hmac.new(key, data, hashlib.sha256).digest()
 
 
+def _decode_field(field):
+    if field.endswith(b"\n"):
+        field = field[:-1]
+    space = field.find(b" ")
+    if space < 0:
+        return None
+    return field[:space].decode(), field[space + 1:]
+
+
+def _packet_at(data, position):
+    length = int(data[position:position + 4], 16)
+    if length < 4 or position + length > len(data):
+        return None
+    field = data[position + 4:position + length]
+    return _decode_field(field), position + length
+
+
 def decode_packets(token: str) -> list[tuple[str, bytes]]:
     """Decode a base64url Macaroon into a list of (field, value) tuples."""
     data = _b64url_decode(token)
     packets = []
-    pos = 0
-    while pos + 4 <= len(data):
-        plen = int(data[pos:pos + 4], 16)
-        if plen < 4 or pos + plen > len(data):
+    position = 0
+    while position + 4 <= len(data):
+        parsed = _packet_at(data, position)
+        if parsed is None:
             break
-        field = data[pos + 4:pos + plen]
-        if field.endswith(b"\n"):
-            field = field[:-1]
-        space = field.find(b" ")
-        if space >= 0:
-            packets.append((field[:space].decode(), field[space + 1:]))
-        pos += plen
+        packet, position = parsed
+        if packet is not None:
+            packets.append(packet)
     return packets
+
+
+def _signature(token):
+    for key, value in decode_packets(token):
+        if key == "signature":
+            return value
+    raise AssertionError("Macaroon has no signature packet")
 
 
 def make_macaroon(
@@ -347,8 +367,8 @@ class TestCryptoCorrectness:
 
     def test_root_and_discharge_have_different_final_sigs(self, root_token, discharge_token):
         """The root and discharge tokens must have independent HMAC chains."""
-        root_sig = next(v for k, v in decode_packets(root_token) if k == "signature")
-        disc_sig = next(v for k, v in decode_packets(discharge_token) if k == "signature")
+        root_sig = _signature(root_token)
+        disc_sig = _signature(discharge_token)
         assert root_sig != disc_sig
 
 
@@ -388,8 +408,8 @@ class TestPathNarrowing:
                 "path:/atlas/data",
             ],
         )
-        sig_no = next(v for k, v in decode_packets(tok_no_path) if k == "signature")
-        sig_with = next(v for k, v in decode_packets(tok_with_path) if k == "signature")
+        sig_no = _signature(tok_no_path)
+        sig_with = _signature(tok_with_path)
         assert sig_no != sig_with
 
 
@@ -438,8 +458,8 @@ class TestSecurityNegative:
         """Changing the discharge identifier invalidates the HMAC chain."""
         tok_good, _ = make_macaroon(DISCHARGE_KEY, DISCHARGE_IDENTIFIER, [])
         tok_bad, _ = make_macaroon(DISCHARGE_KEY, "different-id", [])
-        sig_good = next(v for k, v in decode_packets(tok_good) if k == "signature")
-        sig_bad = next(v for k, v in decode_packets(tok_bad) if k == "signature")
+        sig_good = _signature(tok_good)
+        sig_bad = _signature(tok_bad)
         assert sig_good != sig_bad
 
     def test_wrong_discharge_key_produces_different_signature(self):
@@ -447,8 +467,8 @@ class TestSecurityNegative:
         tok_correct, _ = make_macaroon(DISCHARGE_KEY, DISCHARGE_IDENTIFIER, [])
         wrong_key = bytes.fromhex("11223344" * 8)
         tok_wrong, _ = make_macaroon(wrong_key, DISCHARGE_IDENTIFIER, [])
-        sig_c = next(v for k, v in decode_packets(tok_correct) if k == "signature")
-        sig_w = next(v for k, v in decode_packets(tok_wrong) if k == "signature")
+        sig_c = _signature(tok_correct)
+        sig_w = _signature(tok_wrong)
         assert sig_c != sig_w
 
     def test_bundle_with_extra_spaces_is_not_two_tokens(self, root_token):

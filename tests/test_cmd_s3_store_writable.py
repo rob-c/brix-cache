@@ -18,7 +18,13 @@ def test_s3_store_writable_flow(tmp_path):
         f"{'ok' if ok else 'FAIL'} {message}" for ok, message in results
     )
     messages = [message for _, message in results]
-    assert any(message.startswith("direct PUT to A") for message in messages)
-    assert any(message.startswith("WebDAV PUT status=") for message in messages)
-    assert "object reached the posix backend byte-exact (flushed FROM the s3 stage)" in messages
-    assert "GET byte-exact" in messages
+    def _assert_test_s3_store_writable_flow_1():
+        assert any(message.startswith("direct PUT to A") for message in messages)
+        assert any(message.startswith("WebDAV PUT status=") for message in messages)
+
+    _assert_test_s3_store_writable_flow_1()
+    def _assert_test_s3_store_writable_flow_2():
+        assert "object reached the posix backend byte-exact (flushed FROM the s3 stage)" in messages
+        assert "GET byte-exact" in messages
+
+    _assert_test_s3_store_writable_flow_2()

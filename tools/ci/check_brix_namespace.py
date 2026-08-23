@@ -55,28 +55,38 @@ def _iter_files(roots):
         base = ROOT / r
         if base.is_file():
             yield base
-        elif base.is_dir():
-            for p in base.rglob("*"):
-                if p.is_file():
-                    yield p
+        if base.is_dir():
+            yield from _files_below(base)
+
+
+def _files_below(base):
+    return (path for path in base.rglob("*") if path.is_file())
 
 
 def residuals():
     engine = _load_engine()
     exclude = {str(ROOT / e) for e in engine.EXCLUDE}
-    hits = []
-    for scope, (pat, roots) in _SCOPES.items():
-        for path in _iter_files(roots):
-            if str(path) in exclude or engine.is_binary(str(path)):
-                continue
-            try:
-                text = path.read_text(errors="ignore")
-            except OSError:
-                continue
-            for lineno, line in enumerate(text.splitlines(), 1):
-                if pat.search(_KEEP.sub("", line)):
-                    hits.append((scope, str(path.relative_to(ROOT)), lineno, line.strip()))
-    return hits
+    return [
+        hit
+        for scope, (pattern, roots) in _SCOPES.items()
+        for path in _iter_files(roots)
+        for hit in _file_residuals(engine, exclude, scope, pattern, path)
+    ]
+
+
+def _file_residuals(engine, exclude, scope, pattern, path):
+    if str(path) in exclude or engine.is_binary(str(path)):
+        return []
+    try:
+        text = path.read_text(errors="ignore")
+    except OSError:
+        return []
+    relative = str(path.relative_to(ROOT))
+    return [
+        (scope, relative, lineno, line.strip())
+        for lineno, line in enumerate(text.splitlines(), 1)
+        if pattern.search(_KEEP.sub("", line))
+    ]
 
 
 def main():

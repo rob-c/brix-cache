@@ -29,6 +29,34 @@ from pathlib import Path
 
 import pytest
 
+def _guard_gsi_tpc_1():
+    if not _have("xrootd", "openssl", "xrdgsiproxy"):
+        pytest.skip("stock xrootd / openssl / xrdgsiproxy not installed")
+
+def _guard_gsi_tpc_2():
+    if not (os.path.exists(XRDCP) and os.path.exists(NGINX_BIN)):
+        pytest.skip("native xrdcp / nginx binary not built")
+
+def _guard_gsi_tpc_3(proxy, mk):
+    if not proxy.exists():
+        pytest.skip(f"could not mint a test proxy: {mk.stdout}{mk.stderr}")
+
+def _guard_gsi_tpc_4(dest_proxy):
+    if not dest_proxy.exists():
+        pytest.skip("could not mint the destination proxy")
+
+def _guard_gsi_tpc_5(src_port, src):
+    if not _wait_listen(src_port):
+        src.terminate()
+        pytest.skip("stock xrootd GSI source did not come up")
+
+def _guard_gsi_tpc_6(dst_port, dst, src):
+    if not _wait_listen(dst_port):
+        dst.terminate()
+        src.terminate()
+        pytest.skip("nginx TPC destination did not come up")
+
+
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 NGINX_BIN = "/tmp/nginx-1.28.3/objs/nginx"
 XRDCP = os.path.join(REPO, "client", "bin", "xrdcp")
@@ -61,10 +89,8 @@ def _wait_listen(port, tries=60):
 
 @pytest.fixture(scope="module")
 def gsi_tpc(tmp_path_factory):
-    if not _have("xrootd", "openssl", "xrdgsiproxy"):
-        pytest.skip("stock xrootd / openssl / xrdgsiproxy not installed")
-    if not (os.path.exists(XRDCP) and os.path.exists(NGINX_BIN)):
-        pytest.skip("native xrdcp / nginx binary not built")
+    _guard_gsi_tpc_1()
+    _guard_gsi_tpc_2()
 
     base = tmp_path_factory.mktemp("tpcgsi")
     ca, srv, certs, src_data, dst_data, logs = (
@@ -107,8 +133,7 @@ def gsi_tpc(tmp_path_factory):
     mk = _run(["xrdgsiproxy", "init", "-cert", str(usr / "usercert.pem"),
                "-key", str(usr / "userkey.pem"), "-out", str(proxy),
                "-certdir", str(certs), "-valid", "1:00"], input="\n\n", env=penv)
-    if not proxy.exists():
-        pytest.skip(f"could not mint a test proxy: {mk.stdout}{mk.stderr}")
+    _guard_gsi_tpc_3(proxy, mk)
 
     # The nginx destination authenticates to the GSI source with a PROXY chain
     # (proxy + EEC = >= 2 certs in the kXGC_cert bucket); stock XrdSecgsi rejects a
@@ -117,8 +142,7 @@ def gsi_tpc(tmp_path_factory):
     _run(["xrdgsiproxy", "init", "-cert", str(srv / "destcert.pem"),
           "-key", str(srv / "destkey.pem"), "-out", str(dest_proxy),
           "-certdir", str(certs), "-valid", "1:00"], input="\n\n", env=penv)
-    if not dest_proxy.exists():
-        pytest.skip("could not mint the destination proxy")
+    _guard_gsi_tpc_4(dest_proxy)
     os.chmod(dest_proxy, 0o600)
 
     (src_data / "hello.txt").write_text("hello-tpc-gsi\n")
@@ -146,9 +170,7 @@ def gsi_tpc(tmp_path_factory):
     src = subprocess.Popen(["xrootd", "-c", str(src_cfg), "-l", str(logs / "xrd.log"),
                             "-n", "tpcgsisrc"],
                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    if not _wait_listen(src_port):
-        src.terminate()
-        pytest.skip("stock xrootd GSI source did not come up")
+    _guard_gsi_tpc_5(src_port, src)
 
     # ---- TPC destination: nginx-xrootd, native TPC + outbound GSI cert ----
     dst_port = 21195
@@ -178,10 +200,7 @@ def gsi_tpc(tmp_path_factory):
     _free_port(dst_port)
     dst = subprocess.Popen([NGINX_BIN, "-c", str(dst_cfg), "-p", str(base)],
                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    if not _wait_listen(dst_port):
-        dst.terminate()
-        src.terminate()
-        pytest.skip("nginx TPC destination did not come up")
+    _guard_gsi_tpc_6(dst_port, dst, src)
 
     ctx = {"fqdn": fqdn, "src_port": src_port, "dst_port": dst_port,
            "env": penv, "certs": str(certs), "base": str(base),

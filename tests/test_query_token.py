@@ -21,6 +21,20 @@ import pytest
 import requests
 import urllib3
 
+def _expression_1(fn):
+    return (
+        "webdav" in fn and fn.endswith(".log")
+    )
+
+
+def _check_test_query_token_not_in_module_access_log_1(hits):
+    assert not hits, f"token leaked into module access log(s): {hits}"
+
+def _guard_test_query_token_not_in_module_access_log_1(marker, fn, fh, hits):
+    if marker in fh.read():
+        hits.append(fn)
+
+
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
@@ -108,11 +122,10 @@ def test_query_token_not_in_module_access_log():
     hits = []
     if os.path.isdir(logdir):
         for fn in os.listdir(logdir):
-            if "webdav" in fn and fn.endswith(".log"):
+            if _expression_1(fn):
                 try:
                     with open(os.path.join(logdir, fn), "r", errors="ignore") as fh:
-                        if marker in fh.read():
-                            hits.append(fn)
+                        _guard_test_query_token_not_in_module_access_log_1(marker, fn, fh, hits)
                 except OSError:
                     pass
-    assert not hits, f"token leaked into module access log(s): {hits}"
+    _check_test_query_token_not_in_module_access_log_1(hits)

@@ -19,15 +19,23 @@ def ref_launch(cfg: Path, log: Path) -> bool:
     log.parent.mkdir(parents=True, exist_ok=True)
     argv = [ref_bin, "-c", str(cfg), "-l", str(log)]
     if user:
-        for line in cfg.read_text(errors="ignore").splitlines():
-            words = line.split()
-            if len(words) >= 2 and words[0] in {"all.adminpath", "all.pidpath"}:
-                Path(words[1]).mkdir(parents=True, exist_ok=True)
-            if len(words) >= 2 and words[0] == "oss.localroot":
-                Path(words[1]).mkdir(parents=True, exist_ok=True)
+        _prepare_runas_paths(cfg)
         argv += ["-R", user]
     argv.append("-b")
     return run(argv).returncode == 0
+
+
+def _prepare_runas_paths(cfg: Path) -> None:
+    for line in cfg.read_text(errors="ignore").splitlines():
+        words = line.split()
+        if _directory_directive(words):
+            Path(words[1]).mkdir(parents=True, exist_ok=True)
+
+
+def _directory_directive(words: list[str]) -> bool:
+    if len(words) < 2:
+        return False
+    return words[0] in {"all.adminpath", "all.pidpath", "oss.localroot"}
 
 
 def write_ref_cfg(cfg: Path, port: int, data_dir: Path, admin_dir: Path, run_dir: Path, configs_dir: Path) -> None:
@@ -78,4 +86,3 @@ def stop_ref_ports(*ports: int) -> None:
     for port in ports:
         pids.extend(pids_on_port(port))
     kill_pid_list(sorted(set(pids)))
-

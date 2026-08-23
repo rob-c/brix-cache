@@ -24,6 +24,25 @@ import sys
 import pytest
 
 # conftest chdir()s into a scratch dir — anchor imports on this file's dir.
+def _check_test_stratum0_serve_success_1(status, got, repo, root_hex):
+    assert status == 200 and got == cas_path(repo, root_hex, "C").read_bytes()
+
+def _check_test_stratum0_serve_success_2(status, got, chunk):
+    assert status == 200 and got == chunk.read_bytes()
+
+def _check_test_stratum0_serve_success_3(status, got):
+    assert status == 200 and got.strip(), f"geo: {status} {got[:80]!r}"
+
+def _check_test_stratum0_serve_success_4(status, got):
+    assert status == 200 and b"Stratum-0" in got, f"marker: {status}"
+
+def _check_test_stratum0_serve_success_5(status, got):
+    assert status == 200 and got == b""
+
+def _check_test_stratum0_serve_success_6(mnt):
+    assert (mnt / "docs/guide.md").read_bytes() == FILES["docs/guide.md"]
+
+
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "cvmfs"))
 
 from conformance_common import BRIXMOUNT, NGINX_BIN, PortBlock, fuse_mount, request
@@ -98,27 +117,30 @@ def test_stratum0_serve_success(stratum0):
     # signed metadata: byte-identical to the published tree
     for name in (".cvmfspublished", ".cvmfswhitelist", ".cvmfsreflog"):
         status, _, got = _get(port, f"{base}/{name}")
-        assert status == 200, f"{name}: {status}"
-        assert got == (repo / name).read_bytes(), f"{name} bytes differ"
+        def _assert_test_stratum0_serve_success_1():
+            assert status == 200, f"{name}: {status}"
+            assert got == (repo / name).read_bytes(), f"{name} bytes differ"
+
+        _assert_test_stratum0_serve_success_1()
 
     # CAS: the root catalog and one chunk object, straight from the manifest
     man = parse_manifest(repo)
     root_hex = man["C"]
     status, _, got = _get(port, f"{base}/data/{root_hex[:2]}/{root_hex[2:]}C")
-    assert status == 200 and got == cas_path(repo, root_hex, "C").read_bytes()
+    _check_test_stratum0_serve_success_1(status, got, repo, root_hex)
     chunk = next(f for f in (repo / "data").glob("*/*P"))
     status, _, got = _get(port, f"{base}/data/{chunk.parent.name}/{chunk.name}")
-    assert status == 200 and got == chunk.read_bytes()
+    _check_test_stratum0_serve_success_2(status, got, chunk)
 
     # geo class answers locally (rtt mode — localhost probe, no upstream)
     status, _, got = _get(port, f"{base}/api/v1.0/geo/x/{HOST}")
-    assert status == 200 and got.strip(), f"geo: {status} {got[:80]!r}"
+    _check_test_stratum0_serve_success_3(status, got)
 
     # replication marker: the cvmfs_server add-replica probe (GET + HEAD)
     status, _, got = _get(port, f"{base}/.cvmfs_master_replica")
-    assert status == 200 and b"Stratum-0" in got, f"marker: {status}"
+    _check_test_stratum0_serve_success_4(status, got)
     status, _, got = _get(port, f"{base}/.cvmfs_master_replica", method="HEAD")
-    assert status == 200 and got == b""
+    _check_test_stratum0_serve_success_5(status, got)
 
     # client leg: a real brixMount FUSE mount through this nginx
     if not (os.path.exists("/dev/fuse") and os.path.exists(BRIXMOUNT)):
@@ -126,9 +148,12 @@ def test_stratum0_serve_success(stratum0):
                     "for the mount leg")
     pub = repo / "keys" / f"{FQRN}.pub"
     with fuse_mount(FQRN, f"http://{HOST}:{port}/cvmfs/{FQRN}", pub) as (mnt, _proc):
-        assert os.path.ismount(mnt), "mount did not come up"
-        assert (mnt / "hello.txt").read_bytes() == FILES["hello.txt"]
-        assert (mnt / "docs/guide.md").read_bytes() == FILES["docs/guide.md"]
+        def _assert_test_stratum0_serve_success_2():
+            assert os.path.ismount(mnt), "mount did not come up"
+            assert (mnt / "hello.txt").read_bytes() == FILES["hello.txt"]
+
+        _assert_test_stratum0_serve_success_2()
+        _check_test_stratum0_serve_success_6(mnt)
 
 
 def test_stratum0_upstream_grammar_emerg(stratum0):

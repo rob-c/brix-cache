@@ -19,33 +19,43 @@ pyright, IDE completion, and runtime introspection see the same contract.
 | `ConfigFile` | declaration | Static, template, or inline config declaration. |
 | `ConfigSet` | declaration | Ordered multi-file server config with one primary file. |
 | `ConfigTemplate` | declaration | Lazily loaded template completed with `.fill()`. |
+| `Environment` | declaration | Explicit execution realm, namespace, cluster, and DNS policy. |
 | `GB` | size | Decimal gigabyte. |
 | `GiB` | size | Binary gibibyte. |
 | `KB` | size | Decimal kilobyte. |
 | `KiB` | size | Binary kibibyte. |
 | `MB` | size | Decimal megabyte. |
 | `MiB` | size | Binary mebibyte. |
+| `Identity` | declaration | Least-privilege process, container, or Kubernetes identity. |
 | `Readiness` | declaration | Server readiness contract. |
+| `Resource` | declaration | Versioned provider-managed infrastructure. |
 | `Server` | declaration | Managed server declaration. |
+| `Task` | declaration | Supervised build, preparation, init, or finalization action. |
 | `Tool` | declaration | First-class named test tool with reusable execution policy. |
+| `Volume` | declaration | Temporary, persistent, host, device, or provider-backed storage. |
 | `artifact` | factory | Declare an input produced by a versioned provider extension. |
 | `binary` | factory | Declare a captured executable and optional image. |
 | `case` | decorator | Turn a pytest function into an isolated managed case. |
 | `client` | factory | Declare a client with `command` or `binary` + `args`. |
 | `configs` | factory | Group multiple server config files. |
 | `file_artifact` | factory | Capture and checksum an existing file. |
+| `environment` | factory | Declare an explicit execution realm. |
 | `get_case` | introspection | Return the validated contract attached by `@case`. |
 | `immediate` | factory | Declare spawn-only readiness. |
+| `identity` | factory | Declare a portable least-privilege identity. |
 | `is_case` | introspection | Check whether a function is a managed BriXTest case. |
 | `load_template` | factory | Declare a lazily loaded on-disk template. |
 | `noise` | factory | Generate deterministic high-entropy input. |
+| `resource` | factory | Declare infrastructure owned by a resource provider. |
 | `server` | factory | Declare a server with `command` or `binary` + `args`. |
 | `server_config` | factory | Supply inline config text and its filename. |
 | `static_config` | factory | Capture an on-disk config without rendering. |
+| `task` | factory | Declare a finite managed lifecycle action. |
 | `tcp` | factory | Probe a named TCP port for readiness. |
 | `template_config` | factory | Compact on-disk template declaration. |
 | `text_artifact` | factory | Materialize UTF-8 input text. |
 | `tool` | factory | Declare a named client-side tool. |
+| `volume` | factory | Declare managed storage. |
 | `Command` | resource | Reusable shell-free invocation and execution policy. |
 | `Endpoint` | resource | Backend-neutral named network endpoint. |
 | `Execution` | resource | Canonical reusable execution declaration for servers and tools. |
@@ -83,6 +93,7 @@ pyright, IDE completion, and runtime introspection see the same contract.
 | `CommandResult` | runtime | Decoded output, status, argv, and elapsed time. |
 | `Run` | runtime | Single fixture facade used by test bodies. |
 | `Service` | runtime | Backend-neutral running server endpoint. |
+| `ServiceFilesystem` | runtime | Confined binary-safe server filesystem operations. |
 | `MaterializedArtifact` | runtime | Checksum-backed artifact with direct IO helpers. |
 | `CapturedBinary` | runtime | Immutable run-local executable snapshot. |
 | `ConfiguredClient` | runtime | Bound named client with captured text output. |
@@ -167,6 +178,9 @@ The fixture deliberately groups the common workflow into discoverable verbs:
 | `run.artifact_text/bytes/json/path(name)` | Decoded content or path directly. |
 | `run.open_artifact(name, mode)` | Open artifact handle. |
 | `run.binary(name)` | `CapturedBinary`. |
+| `run.volume(name)` | Backend-local path for a declared managed volume. |
+| `run.task(name)` | Completed supervised task `CommandResult`. |
+| `run.task_output(task, name)` | Checksum-verified declared task output path. |
 | `run.credential(name)` | `MaterializedCredential`. |
 | `run.auth(name)` | `MaterializedAuth`. |
 | `run.resolve/reverse(value)` | Declared backend-neutral test DNS. |
@@ -179,7 +193,8 @@ The fixture deliberately groups the common workflow into discoverable verbs:
 `check_returncode()` follows the standard-library convention.
 
 Plural properties such as `run.servers`, `run.clients`, `run.artifacts`,
-`run.tools`, `run.binaries`, `run.credentials`, and `run.auth_stacks` return snapshot
+`run.tools`, `run.binaries`, `run.credentials`, `run.auth_stacks`,
+`run.tasks`, and `run.volumes` return snapshot
 mappings for discovery. `run.as_dict()` provides a JSON-safe, secret-free run
 catalogue. Both `run.command(...)` and `run.client(...).run(...)` return the
 same `CommandResult` API.
@@ -198,7 +213,9 @@ without relying on the decorator's private storage attribute.
 `Service.endpoint(role)` exposes a portable address record, and
 `Service.read_config(destination)` reads any captured file in a multi-config
 server. Endpoint schemes make `Service.url()` choose HTTP/HTTPS without test
-code knowing how the backend published the service.
+code knowing how the backend published the service. `Service.fs` provides
+confined binary-safe reads, writes, metadata, directory, permission, symlink,
+and `user.*` xattr operations without test-side shell or encoding workarounds.
 
 ## Pytest integration surface
 

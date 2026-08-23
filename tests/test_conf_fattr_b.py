@@ -285,6 +285,19 @@ def test_cli_xattr_set_get_on_directory_parity(srv, d):
 # =========================================================================== #
 # U. STOCK xrdfs xattr CLI — set/get/del determinism (stable across repeats)
 # =========================================================================== #
+def _assert_cli_values(current, reference, value):
+    assert (current[0], reference[0]) == (0, 0)
+    assert _cli_value(current[1]) == _cli_value(reference[1]) == value, \
+        "CLI get diverges from stock"
+
+
+def _assert_cli_repeat(current, reference, previous):
+    assert _cli_value(current[1]) == previous[0], \
+        "OUR CLI get not deterministic"
+    assert _cli_value(reference[1]) == previous[1], \
+        "STOCK CLI get not deterministic"
+
+
 def test_cli_xattr_roundtrip_determinism(srv):
     """Repeated set/get of the same attr is stable and identical to stock."""
     rel = _scratch(srv)
@@ -295,10 +308,7 @@ def test_cli_xattr_roundtrip_determinism(srv):
     for _ in range(4):
         o = _cli(srv["our"], rel, "get", name)
         f = _cli(srv["off"], rel, "get", name)
-        assert o[0] == 0 and f[0] == 0
-        assert _cli_value(o[1]) == _cli_value(f[1]) == value, \
-            "CLI get diverges from stock"
+        _assert_cli_values(o, f, value)
         if prev_o is not None:
-            assert _cli_value(o[1]) == prev_o, "OUR CLI get not deterministic"
-            assert _cli_value(f[1]) == prev_f, "STOCK CLI get not deterministic"
+            _assert_cli_repeat(o, f, (prev_o, prev_f))
         prev_o, prev_f = _cli_value(o[1]), _cli_value(f[1])

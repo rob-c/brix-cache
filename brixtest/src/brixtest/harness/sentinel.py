@@ -1,18 +1,9 @@
-"""The fleet sentinel (feature F10): liveness, not readiness.
+"""Monitor fleet liveness during a test session.
 
-A background thread polls the fleet's declared primary ports and each
-kind's pidfile.  An instance counts as *up* if its port answers **or**
-its current pidfile names a live pid — the pidfile is re-read every
-poll, which is what makes the watchdog restart-aware: an instance the
-operator bounced mid-session is not a corpse, it is a new pid.
-
-The died verdict is deliberately conservative (defaults measured off
-the grown suite's tuning): an instance must be continuously down for
-``stability_window`` seconds to count at all, and the fleet is dead
-only when at least ``min_down`` instances *and* ``fraction`` of the
-fleet are down together.  One flaky server is a test failure; half the
-fleet gone is a session-level event — the sentinel writes a diagnosis
-file naming the dead and the test running when they died.
+The sentinel polls declared ports and current pidfiles, so supervised restarts
+do not appear as stale-process failures. A session failure requires both the
+configured minimum count and fraction of instances to remain down for the
+stability window. Diagnostics identify the affected servers and active test.
 """
 
 from __future__ import annotations
@@ -32,7 +23,7 @@ from brixtest.events import emit
 from brixtest.fleet.registry import InstanceSpec, Registry, endpoint_for
 from brixtest.util.net import listening_ports
 
-__all__ = ["StabilityPolicy", "FleetSentinel"]
+__all__ = ["FleetSentinel", "StabilityPolicy"]
 
 
 @dataclasses.dataclass(frozen=True)
@@ -64,11 +55,11 @@ class FleetSentinel:
         self,
         registry: Registry,
         lane: Lane,
-        policy: StabilityPolicy = StabilityPolicy(),
+        policy: Optional[StabilityPolicy] = None,
     ) -> None:
         self.registry = registry
         self.lane = lane
-        self.policy = policy
+        self.policy = policy or StabilityPolicy()
         self._thread: Optional[threading.Thread] = None
         self._stop = threading.Event()
         self._lock = threading.Lock()
@@ -78,8 +69,6 @@ class FleetSentinel:
         self._baseline: Set[int] = set()
         self._watched: List[InstanceSpec] = []
 
-    # -- test attribution (the plugin calls this per item) ---------------
-
     def note_test(self, test_id: str) -> None:
         with self._lock:
             self._current_test = test_id
@@ -88,8 +77,6 @@ class FleetSentinel:
     def verdict(self) -> Optional[FleetDiedError]:
         with self._lock:
             return self._verdict
-
-    # -- lifecycle -------------------------------------------------------
 
     def start(self, watch: Optional[Set[str]] = None) -> None:
         """``watch`` restricts liveness to the named instances — the
@@ -111,8 +98,6 @@ class FleetSentinel:
             self._thread.join(timeout=self.policy.poll_interval * 2)
             self._thread = None
 
-    # -- the sweep -------------------------------------------------------
-
     def _sweep(self, now: float) -> List[str]:
         """Returns the names continuously down past the stability window."""
         answering = listening_ports(
@@ -120,17 +105,22 @@ class FleetSentinel:
         )
         confirmed: List[str] = []
         for spec in self._watched:
-            up = spec.primary_port in answering
-            if not up:
-                endpoint = endpoint_for(spec, self.lane)
-                up = _pid_alive(endpoint.pidfile)  # restart-aware: current pid
-            if up:
+            if self._is_up(spec, answering):
                 self._down_since.pop(spec.name, None)
                 continue
-            first_seen = self._down_since.setdefault(spec.name, now)
-            if now - first_seen >= self.policy.stability_window:
+            if self._continuously_down(spec.name, now):
                 confirmed.append(spec.name)
         return confirmed
+
+    def _is_up(self, spec: InstanceSpec, answering: Set[int]) -> bool:
+        if spec.primary_port in answering:
+            return True
+        endpoint = endpoint_for(spec, self.lane)
+        return _pid_alive(endpoint.pidfile)
+
+    def _continuously_down(self, name: str, now: float) -> bool:
+        first_seen = self._down_since.setdefault(name, now)
+        return now - first_seen >= self.policy.stability_window
 
     def _run(self) -> None:
         started = time.monotonic()
@@ -169,8 +159,6 @@ class FleetSentinel:
         except OSError:
             pass
         return diag
-
-    # -- conservation ----------------------------------------------------
 
     def conservation_check(self) -> None:
         """The session must not leak or lose lane listeners: the port set

@@ -150,15 +150,11 @@ def test_ab_socketbuf_baseline_vs_tuned(lifecycle, tmp_path):
                               "8m", "4m", _AB_MB)
     tuned = measure_read_throughput(host_t, port_t, b"/big.bin", size, runs=5)
 
-    ratio = tuned["best_mib_s"] / base["best_mib_s"] if base["best_mib_s"] else 0
+    ratio = _throughput_ratio(base, tuned)
     print(f"\n  [A/B {size // _MiB} MiB] baseline={base['best_mib_s']:.0f} "
           f"MiB/s  tuned={tuned['best_mib_s']:.0f} MiB/s  ratio={ratio:.2f}x")
 
-    out = os.environ.get("BRIX_PERF_AB_JSON")
-    if out:
-        with open(out, "w") as fh:
-            json.dump({"file_mib": size // _MiB, "baseline": base,
-                       "tuned": tuned, "ratio": ratio}, fh, indent=2)
+    _write_ab_result(size, base, tuned, ratio)
 
     # Correctness is absolute; magnitude is report-only.  On loopback there is
     # no BDP, so the tuned buffers can only ever match baseline within scheduler
@@ -167,7 +163,23 @@ def test_ab_socketbuf_baseline_vs_tuned(lifecycle, tmp_path):
     # ride out loopback's 2-3x run-to-run variance: a genuine data-path collapse
     # (wedged sendfile, broken accept path) shows up as an error/timeout or a
     # near-zero ratio, not a 0.4x.
-    assert base["bytes"] == size and tuned["bytes"] == size
+    assert base["bytes"] == size
+    assert tuned["bytes"] == size
     assert ratio > 0.25, (
         f"tuned buffers collapsed loopback throughput ({ratio:.2f}x) — "
         f"a regression, not a BDP null result")
+
+
+def _throughput_ratio(baseline, tuned):
+    if not baseline["best_mib_s"]:
+        return 0
+    return tuned["best_mib_s"] / baseline["best_mib_s"]
+
+
+def _write_ab_result(size, baseline, tuned, ratio):
+    output = os.environ.get("BRIX_PERF_AB_JSON")
+    if not output:
+        return
+    with open(output, "w") as result_file:
+        json.dump({"file_mib": size // _MiB, "baseline": baseline,
+                   "tuned": tuned, "ratio": ratio}, result_file, indent=2)

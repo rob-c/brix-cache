@@ -1364,19 +1364,37 @@ shared-memory table per worker (`src/tpc/engine/key_registry.c`), so the
 registering open may go to any listener in the instance, not necessarily the one
 the destination will pull from.
 
-**Carried out of the same session, unfixed:** on this working tree
-`test_tpc_pull_integrity.py::test_clean_pull_is_byte_exact` fails with
+**Carried out of the same session, then fixed (2026-08-22).** On that tree
+`test_tpc_pull_integrity.py::test_clean_pull_is_byte_exact` failed with
 `[3019] TPC checksum verify: cannot compute adler32 on destination`, and the
-server log names the cause — `brix: adler32 read("<dst>") failed (9: Bad file
-descriptor)`. `tpc_verify_source_checksum` (`src/tpc/outbound/source_stream.c`)
-still preads `t->dst_fd`, but the uncommitted VFS-writer rework of the TPC
-destination (`launch_prepare.c` staged/random writer, `done.c`,
-`tpc_internal.h`) can leave that fd invalid — `brix_vfs_writer_fd` returns
-`NGX_INVALID_FILE` for a driver-backed staged object. The verify has to read
-back through the writer/object (`brix_checksum_hex_obj`) or after commit. It
-reproduces on the pristine HEAD copy of the test file, so it is the tree's, not
-the suite's: `brix_tpc_verify_checksum on` currently fails closed on a clean
-copy.
+server log named the symptom — `brix: adler32 read("<dst>") failed (9: Bad file
+descriptor)`. The session's diagnosis blamed the VFS-writer rework
+(`brix_vfs_writer_fd` returning `NGX_INVALID_FILE` for a driver-backed staged
+object). Instrumenting the refusal to carry its own evidence
+(`[fd=17 writer=0 errno=9]`) showed otherwise: there was **no writer at all** and
+the fd was perfectly valid. EBADF from `read(2)` does not only mean "closed" — it
+also means **"this fd is not open for reading."** A kXR_open that asks only to
+write maps to plain `O_WRONLY` (`open_flags.h`), so `t->dst_fd` — the handle the
+pull WROTE the bytes through — can never be the handle it READS them back
+through. The gate had been fail-closed on every clean verified copy since it
+landed.
+
+`tpc_verify_dst_hex` (`src/tpc/outbound/source_verify.c`) now picks a handle that
+can actually be read: with no writer session the bytes are already fsynced at
+`dst_path`, so it takes a fresh confined `O_RDONLY` fd beneath the same
+`root_canon` that `done.c` unlinks through; with a writer session the bytes are
+still IN the session and not yet at `dst_path`, so `tpc_verify_dst_hex_writer`
+prefers the session's kernel fd and falls back to `brix_checksum_hex_obj` on the
+driver-bound object. Both arms of the original diagnosis are handled; only the
+first one was the bug.
+
+**The second lesson is about the suite.** `test_knob_on_corruption_refused_no_poison`
+— the security-negative for this very gate — stayed **green** through the whole
+outage, because it asserted only `returncode != 0`. "Cannot compute" is also a
+non-zero exit, so the test passed while the digest comparison it exists to prove
+never ran once. It now pins the *reason* (`"checksum mismatch" in stderr`), not
+just the refusal. A refusal test that does not name the refusal is a test that
+cannot tell the gate from its own breakage.
 
 ---
 
@@ -1678,3 +1696,66 @@ see what was in it.
 not only the ones that *import* what moved. Anything that decides by **path** —
 allowlists, backlogs, inventories, coverage maps — is a consumer too, and its
 input changed even though no import did.
+
+---
+
+## 17. One composed module, one namespace — what a mechanical burndown rebound (2026-08-22)
+
+The repo-wide complexity contract (absolute CCN 15 for C, and the new five-metric
+`tests/test_python_quality.py` for Python) was landed by decomposing every
+over-limit function in the tree. Most of that work is a long expression hoisted
+into a helper. The helpers were generated per FILE and numbered per file:
+`_expression_1`, `_expression_2`, and so on.
+
+`tests/split_continuation.py` composes a module from shards by compiling each
+shard into the **parent's** globals. That is one namespace, not several. A `def`
+in a shard therefore does not shadow the parent's function of the same name — it
+**rebinds** it, for the whole module. And Python resolves a function body's
+globals at *call* time, so the parent's own call sites, written and reviewed
+against the parent's definition, start reaching the shard's.
+
+Three composed units collided:
+
+| unit | what the parent asked for | what it got | how it showed |
+|---|---|---|---|
+| `cmdscripts/c_auth_units` | `_expression_4(base, fixtures, objs)` | shard's `_expression_4(needed)` | `TypeError`, whole `deleg_gate` unit red |
+| `cmdscripts/client_features` | `_expression_1(proc)` → combined stdout+stderr | shard's `_expression_1(failed)` → an exit code | **silent**: journal assertions compared substrings against an int |
+| `cmdscripts/gsi_trust_live` | `_expression_1(proxy_make)` → a skip result | shard's `_expression_1(result)` → a parsed HTTP code | **silent**: the `make_proxy.py` failure path stopped skipping |
+
+Two of the three were silent, which is why this became a guard rather than a
+review note. The loud one is the lucky case.
+
+### 17.1 Identical copies are the same defect, later
+
+`c_auth_units` carried **four** duplicated names across the parent and one
+shard. Three were byte-identical copies of the parent's helper — harmless the
+day they were written, and indistinguishable from the fourth, which had drifted
+to a different signature. There is no way to look at a duplicate-name warning
+and tell the harmless ones from the bug without reading both bodies, which is
+precisely the work a guard exists to stop a human doing. So the guard admits no
+"the bodies match" exemption, and the fix deleted the copies rather than
+renaming them: they were never meant to be separate functions.
+
+### 17.2 Guard #12
+
+`tools/ci/check_shard_name_collisions.py` parses the parent and every shard of
+each exec-composed unit and fails on any top-level name bound twice — across
+files or twice within one file. It reuses guard #10's shard resolver rather than
+re-deriving one, so it already understands all thirteen local aliases of the
+composition helper, the `load_numbered` inclusive-bounds spelling and
+`operator_runtime.py`'s open-coded `exec(compile(...), globals())`. Scope is the
+composed unit, so two unrelated modules may both define `_output`; only module
+level counts, so a nested function or a method never collides.
+
+41 composed units scan clean. `tests/test_ci_ts5_shard_name_collision_guard.py`
+carries the success, error and security-negative arms, each against a scratch
+tree passed with `--root` — proving a guard fires by damaging the live tree is
+never acceptable.
+
+**Rule.** A mechanical refactor that generates names must generate them per
+*namespace*, not per file, and the namespace of an exec-composed shard is its
+parent's. Generic generated names (`_expression_N`, `_guard_N`, `_helper_N`) are
+the failure mode's raw material: they are numbered by an algorithm that cannot
+see the other file, and they carry no meaning that would make the collision
+obvious in review. Names that say what the function does are not a style
+preference here — they are what makes a collision visible.

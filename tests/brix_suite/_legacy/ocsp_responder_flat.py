@@ -108,46 +108,64 @@ class _Responder:
         serial = request.serial_number
         entry = self.entries.get(serial)
         verdict = entry[2] if entry else "unauthorized"
+        self._record(serial, verdict)
+        if entry is None:
+            return _unauthorized_response()
+        builder = self._response_builder(entry)
+        builder = self._with_nonce(builder, request)
+        response = builder.sign(self.signer_key, hashes.SHA256())
+        return response.public_bytes(serialization.Encoding.DER)
+
+    def _record(self, serial, verdict):
         with self.lock:
             self.log.append({"serial": serial, "verdict": verdict})
-        if entry is None:
-            return ocsp.OCSPResponseBuilder.build_unsuccessful(
-                ocsp.OCSPResponseStatus.UNAUTHORIZED).public_bytes(
-                    serialization.Encoding.DER)
 
+    def _response_builder(self, entry):
         cert, issuer, _ = entry
+        verdict = entry[2]
         this_update, next_update = self._window()
-        revoked_at = (this_update - datetime.timedelta(days=1)
-                      if verdict == "revoked" else None)
-        builder = ocsp.OCSPResponseBuilder().add_response(
+        revoked_at, reason = _revocation_fields(verdict, this_update)
+        return ocsp.OCSPResponseBuilder().add_response(
             cert=cert, issuer=issuer, algorithm=hashes.SHA1(),
             cert_status=_STATUS[verdict],
             this_update=this_update, next_update=next_update,
-            revocation_time=revoked_at,
-            revocation_reason=(x509.ReasonFlags.key_compromise
-                               if verdict == "revoked" else None),
+            revocation_time=revoked_at, revocation_reason=reason,
         ).responder_id(ocsp.OCSPResponderEncoding.NAME, self.signer_cert)
-        # Echo the nonce the request carried: OCSP_check_nonce() reports a
-        # missing one as <0, which brix_ocsp_require_nonce turns into a deny.
-        if not self.omit_nonce:
-            try:
-                nonce = request.extensions.get_extension_for_class(
-                    x509.OCSPNonce).value
-            except x509.ExtensionNotFound:
-                nonce = None
-            if nonce is not None and self.wrong_nonce:
-                # The SAME LENGTH, one bit apart: OCSP_check_nonce() distinguishes
-                # missing (<0) from mismatched (0) and only the first is under the
-                # flag, so the mismatch has to differ in nothing but its value.
-                # Flipped rather than randomised — a random nonce can collide with
-                # the one it is meant to differ from, and this negative must not
-                # have a passing day.
-                nonce = x509.OCSPNonce(
-                    bytes([nonce.nonce[0] ^ 0xFF]) + nonce.nonce[1:])
-            if nonce is not None:
-                builder = builder.add_extension(nonce, critical=False)
-        response = builder.sign(self.signer_key, hashes.SHA256())
-        return response.public_bytes(serialization.Encoding.DER)
+
+    def _with_nonce(self, builder, request):
+        if self.omit_nonce:
+            return builder
+        nonce = _request_nonce(request)
+        if nonce is None:
+            return builder
+        if self.wrong_nonce:
+            nonce = _wrong_nonce(nonce)
+        return builder.add_extension(nonce, critical=False)
+
+
+def _unauthorized_response():
+    return ocsp.OCSPResponseBuilder.build_unsuccessful(
+        ocsp.OCSPResponseStatus.UNAUTHORIZED).public_bytes(
+            serialization.Encoding.DER)
+
+
+def _revocation_fields(verdict, this_update):
+    if verdict == "revoked":
+        return (this_update - datetime.timedelta(days=1),
+                x509.ReasonFlags.key_compromise)
+    return None, None
+
+
+def _request_nonce(request):
+    try:
+        return request.extensions.get_extension_for_class(x509.OCSPNonce).value
+    except x509.ExtensionNotFound:
+        return None
+
+
+def _wrong_nonce(nonce):
+    changed = bytes([nonce.nonce[0] ^ 0xFF]) + nonce.nonce[1:]
+    return x509.OCSPNonce(changed)
 
 
 class _Handler(http.server.BaseHTTPRequestHandler):

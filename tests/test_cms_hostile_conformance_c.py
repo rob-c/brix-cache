@@ -1,4 +1,17 @@
 from split_continuation import reexport as _reexport
+def _check_test_concurrent_both_leg_flood_stays_isolated_1(errors):
+    assert not errors, \
+        f"upward manager leg stalled under a downward flood on rounds {errors}"
+
+def _guard_test_concurrent_both_leg_flood_stays_isolated_1(hostile_super, i, errors):
+    if not _node_alive(hostile_super, timeout=6):
+        errors.append(i)
+
+def _check_test_concurrent_both_leg_flood_stays_isolated_2(child):
+    assert _recv_code(child, CMS_RR_PONG, timeout=6) is not None, \
+        "the accept leg would not serve a fresh child after the flood"
+
+
 _reexport(globals(), "_test_cms_hostile_conformance_helpers")
 
 class TestWireLevelHardening:
@@ -258,13 +271,11 @@ class TestDeepEsotericAndTeardown:
         t.start()
         try:
             for i in range(5):
-                if not _node_alive(hostile_super, timeout=6):
-                    errors.append(i)
+                _guard_test_concurrent_both_leg_flood_stays_isolated_1(hostile_super, i, errors)
         finally:
             stop.set()
             t.join(timeout=3)
-        assert not errors, \
-            f"upward manager leg stalled under a downward flood on rounds {errors}"
+        _check_test_concurrent_both_leg_flood_stays_isolated_1(errors)
 
         # And the accept leg itself is still healthy for a well-behaved child.
         child = _node_login_dialog(
@@ -275,8 +286,7 @@ class TestDeepEsotericAndTeardown:
             child.settimeout(6)
             time.sleep(0.3)
             child.sendall(_build_frame(_SID | 0x6A, CMS_RR_PING, 0))
-            assert _recv_code(child, CMS_RR_PONG, timeout=6) is not None, \
-                "the accept leg would not serve a fresh child after the flood"
+            _check_test_concurrent_both_leg_flood_stays_isolated_2(child)
         finally:
             child.close()
 

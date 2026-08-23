@@ -16,13 +16,17 @@ def _hostname(value: str, field: str) -> str:
     if not isinstance(value, str) or len(value) > 253 or not value:
         raise SpecError(field, value, "must be a non-empty DNS hostname")
     labels = value.rstrip(".").split(".")
-    if any(
-        not label or len(label) > 63 or not label[0].isalnum() or not label[-1].isalnum()
-        or any(not (char.isalnum() or char == "-") for char in label)
-        for label in labels
-    ):
+    if not all(_dns_label(label) for label in labels):
         raise SpecError(field, value, "must contain valid DNS labels")
     return value.rstrip(".").lower()
+
+
+def _dns_label(label: str) -> bool:
+    if not label or len(label) > 63:
+        return False
+    if not label[0].isalnum() or not label[-1].isalnum():
+        return False
+    return all(char.isalnum() or char == "-" for char in label)
 
 
 @dataclasses.dataclass(frozen=True)

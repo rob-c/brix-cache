@@ -34,7 +34,13 @@ def test_ceph_harness_lifecycle():
     if not os.environ.get("MON_IP") and not ceph_harness.detect_container_cidr():
         pytest.skip("container runtime cannot run containers as this user "
                     "(rootless subuid/subgid missing?) — Docker Ceph lab unavailable")
-    assert ceph_harness.cmd_start() == 0
-    assert ceph_harness.cmd_env() == 0
-    assert ceph_harness.cmd_status() == 0
-    assert ceph_harness.cmd_pool_reset() == 0
+    def _assert_test_ceph_harness_lifecycle_1():
+        assert ceph_harness.cmd_start() == 0
+        assert ceph_harness.cmd_env() == 0
+
+    _assert_test_ceph_harness_lifecycle_1()
+    def _assert_test_ceph_harness_lifecycle_2():
+        assert ceph_harness.cmd_status() == 0
+        assert ceph_harness.cmd_pool_reset() == 0
+
+    _assert_test_ceph_harness_lifecycle_2()

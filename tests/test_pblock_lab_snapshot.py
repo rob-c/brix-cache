@@ -103,24 +103,33 @@ def test_snapshot_take_restore_roundtrip(lifecycle, fsck: Path) -> None:
         random_file(two, 1_500_000)        # spans two 1m blocks
 
         time.sleep(1)
-        assert run.call([XRDCP, "-f", one, f"{host}/one.bin"],
-                        check=False).returncode == 0
-        assert run.call([XRDCP, "-f", two, f"{host}/two.bin"],
-                        check=False).returncode == 0
+        def _assert_test_snapshot_take_restore_roundtrip_1():
+            assert run.call([XRDCP, "-f", one, f"{host}/one.bin"],
+                            check=False).returncode == 0
+            assert run.call([XRDCP, "-f", two, f"{host}/two.bin"],
+                            check=False).returncode == 0
+
+        _assert_test_snapshot_take_restore_roundtrip_1()
         lifecycle.stop("lc-pblock-snap-ok")
 
         # Take the snapshot offline (catalog unlocked while the server is down).
         cp = _fsck(fsck, root, "--snapshot", "fix")
-        assert cp.returncode == 0 and "SNAPSHOT fix" in cp.stdout, cp.stderr
-        assert _fsck(fsck, root, "--verify-refs").returncode == 0, "post-snap drift"
+        def _assert_test_snapshot_take_restore_roundtrip_2():
+            assert cp.returncode == 0 and "SNAPSHOT fix" in cp.stdout, cp.stderr
+            assert _fsck(fsck, root, "--verify-refs").returncode == 0, "post-snap drift"
+
+        _assert_test_snapshot_take_restore_roundtrip_2()
 
         # Delete everything over the wire — snapshot-pinned blocks must survive.
         lifecycle.start_registered("lc-pblock-snap-ok")
         time.sleep(1)
-        assert run.call([XRDFS, host, "rm", "/one.bin"],
-                        check=False).returncode == 0
-        assert run.call([XRDFS, host, "rm", "/two.bin"],
-                        check=False).returncode == 0
+        def _assert_test_snapshot_take_restore_roundtrip_3():
+            assert run.call([XRDFS, host, "rm", "/one.bin"],
+                            check=False).returncode == 0
+            assert run.call([XRDFS, host, "rm", "/two.bin"],
+                            check=False).returncode == 0
+
+        _assert_test_snapshot_take_restore_roundtrip_3()
         got = run.root / "got.bin"
         assert run.call([XRDCP, "-f", f"{host}/one.bin", got],
                         check=False).returncode != 0, "file survived its delete"
@@ -128,17 +137,26 @@ def test_snapshot_take_restore_roundtrip(lifecycle, fsck: Path) -> None:
 
         # Restore and confirm byte-identical reads through the live server.
         cp = _fsck(fsck, root, "--restore", "fix")
-        assert cp.returncode == 0 and "RESTORE fix" in cp.stdout, cp.stderr
-        assert _fsck(fsck, root, "--verify-refs").returncode == 0, "post-restore drift"
+        def _assert_test_snapshot_take_restore_roundtrip_4():
+            assert cp.returncode == 0 and "RESTORE fix" in cp.stdout, cp.stderr
+            assert _fsck(fsck, root, "--verify-refs").returncode == 0, "post-restore drift"
+
+        _assert_test_snapshot_take_restore_roundtrip_4()
 
         lifecycle.start_registered("lc-pblock-snap-ok")
         time.sleep(1)
-        assert run.call([XRDCP, "-f", f"{host}/one.bin", got],
-                        check=False).returncode == 0
-        assert sha256(got) == sha256(one), "one.bin not byte-identical after restore"
-        assert run.call([XRDCP, "-f", f"{host}/two.bin", got],
-                        check=False).returncode == 0
-        assert sha256(got) == sha256(two), "two.bin not byte-identical after restore"
+        def _assert_test_snapshot_take_restore_roundtrip_5():
+            assert run.call([XRDCP, "-f", f"{host}/one.bin", got],
+                            check=False).returncode == 0
+            assert sha256(got) == sha256(one), "one.bin not byte-identical after restore"
+
+        _assert_test_snapshot_take_restore_roundtrip_5()
+        def _assert_test_snapshot_take_restore_roundtrip_6():
+            assert run.call([XRDCP, "-f", f"{host}/two.bin", got],
+                            check=False).returncode == 0
+            assert sha256(got) == sha256(two), "two.bin not byte-identical after restore"
+
+        _assert_test_snapshot_take_restore_roundtrip_6()
         lifecycle.stop("lc-pblock-snap-ok")
         assert _fsck(fsck, root).returncode == 0, "restored export inconsistent"
 

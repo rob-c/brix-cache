@@ -20,6 +20,100 @@ _REALM = re.compile(r"^[A-Z][A-Z0-9.-]*[A-Z0-9]$")
 _VO = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]*$")
 
 
+def _kind(value: str, expected: str) -> None:
+    if value != expected:
+        raise SpecError("auth.kind", value, f"{expected.title()}Auth kind must be {expected}")
+
+
+def _positive_int(value: object, field: str) -> None:
+    if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+        raise SpecError(field, value, "must be a positive integer")
+
+
+def _key_policy(days: object, key_bits: object, field: str) -> None:
+    _positive_int(days, f"{field}.days")
+    if isinstance(key_bits, bool) or key_bits not in (2048, 3072, 4096):
+        raise SpecError(f"{field}.key_bits", key_bits, "must be 2048, 3072, or 4096")
+
+
+def _tcp_port(value: object) -> bool:
+    return not isinstance(value, bool) and isinstance(value, int) and 0 < value < 65536
+
+
+def _voms_fqans(vo: str, values: object) -> Tuple[str, ...]:
+    if isinstance(values, (str, bytes)) or not isinstance(values, Sequence):
+        raise SpecError("voms.fqans", values, "must be an FQAN sequence")
+    fqans = tuple(values) or ("/%s/Role=NULL/Capability=NULL" % vo,)
+    prefix = "/%s/" % vo
+    if not all(_valid_fqan(value, prefix) for value in fqans):
+        raise SpecError("voms.fqans", fqans, "must be absolute FQANs beneath the declared VO")
+    return fqans
+
+
+def _valid_fqan(value: object, prefix: str) -> bool:
+    return isinstance(value, str) and value.startswith(prefix) and "\n" not in value
+
+
+def _common_name(value: object, field: str) -> None:
+    if not isinstance(value, str) or not value or any(char in value for char in "/\n\r"):
+        raise SpecError(field, value, "must be a safe common name")
+
+
+def _token_identity(value: object, field: str) -> None:
+    if not isinstance(value, str) or not value:
+        raise SpecError(field, value, "must be non-empty text")
+
+
+def _token_scopes(value: object) -> Tuple[str, ...]:
+    if isinstance(value, (str, bytes)) or not all(
+        isinstance(scope, str) and scope for scope in value
+    ):
+        raise SpecError("token.scopes", value, "must contain non-empty strings")
+    return tuple(value)
+
+
+def _token_claims(value: object) -> Mapping[str, object]:
+    if not isinstance(value, Mapping) or not all(isinstance(key, str) for key in value):
+        raise SpecError("token.claims", value, "claim names must be strings")
+    protected = {"iss", "aud", "sub", "iat", "exp", "scope"}
+    overlap = protected.intersection(value)
+    if overlap:
+        raise SpecError("token.claims", sorted(overlap), "cannot override standard claims")
+    return freeze_mapping(value)
+
+
+def _kerberos_principal(user: object, service: object) -> None:
+    if not _simple_principal_component(user):
+        raise SpecError("kerberos.user", user, "must be a simple principal component")
+    if not _service_principal(service):
+        raise SpecError("kerberos.service", service, "must be service/hostname without a realm")
+
+
+def _simple_principal_component(value: object) -> bool:
+    return isinstance(value, str) and bool(value) and not any(
+        char in value for char in "@/\n\r"
+    )
+
+
+def _service_principal(value: object) -> bool:
+    return isinstance(value, str) and "/" in value and not any(
+        char in value for char in "@\n\r"
+    )
+
+
+def _kerberos_secrets(password: object, master_password: object) -> None:
+    if not isinstance(password, str) or not isinstance(master_password, str) \
+            or not password or not master_password:
+        raise SpecError("kerberos.password", "", "passwords must not be empty")
+
+
+def _kerberos_runtime(port: object, start_kdc: object) -> None:
+    if isinstance(port, bool) or not isinstance(port, int) or not 0 <= port < 65536:
+        raise SpecError("kerberos.port", port, "must be zero or a TCP port")
+    if not isinstance(start_kdc, bool):
+        raise SpecError("kerberos.start_kdc", start_kdc, "must be boolean")
+
+
 @dataclasses.dataclass(frozen=True)
 class AuthRecipe:
     """Common identity for a managed authentication recipe."""
@@ -43,30 +137,16 @@ class TokenAuth(AuthRecipe):
 
     def __post_init__(self) -> None:
         super().__post_init__()
-        if self.kind != "token":
-            raise SpecError("auth.kind", self.kind, "TokenAuth kind must be token")
+        _kind(self.kind, "token")
         if not isinstance(self.issuer, str) or not self.issuer.startswith(("https://", "http://")):
             raise SpecError("token.issuer", self.issuer, "must be an HTTP(S) issuer URL")
-        if not isinstance(self.audience, str) or not isinstance(self.subject, str) \
-                or not self.audience or not self.subject:
-            raise SpecError("token", self.name, "audience and subject must not be empty")
+        _token_identity(self.audience, "token.audience")
+        _token_identity(self.subject, "token.subject")
         if not isinstance(self.secret, str):
             raise SpecError("token.secret", self.secret, "must be text")
-        if isinstance(self.lifetime, bool) or not isinstance(self.lifetime, int) or self.lifetime <= 0:
-            raise SpecError("token.lifetime", self.lifetime, "must be a positive integer")
-        if isinstance(self.scopes, (str, bytes)) or not all(
-            isinstance(scope, str) and scope for scope in self.scopes
-        ):
-            raise SpecError("token.scopes", self.scopes, "must contain non-empty strings")
-        if not isinstance(self.claims, Mapping) or not all(
-            isinstance(key, str) for key in self.claims
-        ):
-            raise SpecError("token.claims", self.claims, "claim names must be strings")
-        protected = {"iss", "aud", "sub", "iat", "exp", "scope"}
-        if protected.intersection(self.claims):
-            raise SpecError("token.claims", sorted(protected.intersection(self.claims)), "cannot override standard claims")
-        object.__setattr__(self, "scopes", tuple(self.scopes))
-        object.__setattr__(self, "claims", freeze_mapping(self.claims))
+        _positive_int(self.lifetime, "token.lifetime")
+        object.__setattr__(self, "scopes", _token_scopes(self.scopes))
+        object.__setattr__(self, "claims", _token_claims(self.claims))
 
 
 @dataclasses.dataclass(frozen=True)
@@ -80,8 +160,7 @@ class TLSAuth(AuthRecipe):
 
     def __post_init__(self) -> None:
         super().__post_init__()
-        if self.kind != "tls":
-            raise SpecError("auth.kind", self.kind, "TLSAuth kind must be tls")
+        _kind(self.kind, "tls")
         object.__setattr__(self, "hostname", _hostname(self.hostname, "tls.hostname"))
         if isinstance(self.aliases, (str, bytes)) or not isinstance(self.aliases, Sequence):
             raise SpecError("tls.aliases", self.aliases, "must be a hostname sequence")
@@ -89,12 +168,8 @@ class TLSAuth(AuthRecipe):
         if len(set(aliases)) != len(aliases) or self.hostname in aliases:
             raise SpecError("tls.aliases", self.aliases, "must be unique and exclude hostname")
         object.__setattr__(self, "aliases", aliases)
-        if not isinstance(self.client_name, str) or not self.client_name \
-                or any(char in self.client_name for char in "/\n\r"):
-            raise SpecError("tls.client_name", self.client_name, "must be a safe certificate common name")
-        if isinstance(self.days, bool) or not isinstance(self.days, int) or self.days <= 0 \
-                or isinstance(self.key_bits, bool) or self.key_bits not in (2048, 3072, 4096):
-            raise SpecError("tls", self.name, "days must be positive and key_bits must be 2048, 3072, or 4096")
+        _common_name(self.client_name, "tls.client_name")
+        _key_policy(self.days, self.key_bits, "tls")
 
 
 @dataclasses.dataclass(frozen=True)
@@ -110,28 +185,15 @@ class VOMSAuth(AuthRecipe):
 
     def __post_init__(self) -> None:
         super().__post_init__()
-        if self.kind != "voms":
-            raise SpecError("auth.kind", self.kind, "VOMSAuth kind must be voms")
+        _kind(self.kind, "voms")
         if not isinstance(self.vo, str) or _VO.fullmatch(self.vo) is None:
             raise SpecError("voms.vo", self.vo, "must be a safe VO name")
         object.__setattr__(self, "hostname", _hostname(self.hostname, "voms.hostname"))
-        if isinstance(self.fqans, (str, bytes)) or not isinstance(self.fqans, Sequence):
-            raise SpecError("voms.fqans", self.fqans, "must be an FQAN sequence")
-        fqans = tuple(self.fqans) or ("/%s/Role=NULL/Capability=NULL" % self.vo,)
-        if not all(
-            isinstance(value, str) and value.startswith("/%s/" % self.vo) and "\n" not in value
-            for value in fqans
-        ):
-            raise SpecError("voms.fqans", fqans, "must be absolute FQANs beneath the declared VO")
-        object.__setattr__(self, "fqans", fqans)
-        if not isinstance(self.user_name, str) or not self.user_name \
-                or any(char in self.user_name for char in "/\n\r"):
-            raise SpecError("voms.user_name", self.user_name, "must be a safe common name")
-        if isinstance(self.port, bool) or not isinstance(self.port, int) or not 0 < self.port < 65536:
+        object.__setattr__(self, "fqans", _voms_fqans(self.vo, self.fqans))
+        _common_name(self.user_name, "voms.user_name")
+        if not _tcp_port(self.port):
             raise SpecError("voms.port", self.port, "must be a TCP port")
-        if isinstance(self.days, bool) or not isinstance(self.days, int) or self.days <= 0 \
-                or isinstance(self.key_bits, bool) or self.key_bits not in (2048, 3072, 4096):
-            raise SpecError("voms", self.name, "invalid validity or RSA key size")
+        _key_policy(self.days, self.key_bits, "voms")
 
 
 @dataclasses.dataclass(frozen=True)
@@ -157,19 +219,9 @@ class KerberosAuth(AuthRecipe):
         hostname = _hostname(self.hostname, "kerberos.hostname")
         object.__setattr__(self, "domain", domain)
         object.__setattr__(self, "hostname", hostname)
-        if not isinstance(self.user, str) or not self.user \
-                or any(char in self.user for char in "@/\n\r"):
-            raise SpecError("kerberos.user", self.user, "must be a simple principal component")
-        if not isinstance(self.service, str) or "/" not in self.service \
-                or any(char in self.service for char in "@\n\r"):
-            raise SpecError("kerberos.service", self.service, "must be service/hostname without a realm")
-        if not isinstance(self.password, str) or not isinstance(self.master_password, str) \
-                or not self.password or not self.master_password:
-            raise SpecError("kerberos.password", "", "passwords must not be empty")
-        if isinstance(self.port, bool) or not isinstance(self.port, int) or not 0 <= self.port < 65536:
-            raise SpecError("kerberos.port", self.port, "must be zero or a TCP port")
-        if not isinstance(self.start_kdc, bool):
-            raise SpecError("kerberos.start_kdc", self.start_kdc, "must be boolean")
+        _kerberos_principal(self.user, self.service)
+        _kerberos_secrets(self.password, self.master_password)
+        _kerberos_runtime(self.port, self.start_kdc)
 
 
 def token_auth(

@@ -10,8 +10,30 @@ import sys
 import time
 
 from cmdscripts import run
+from cmdscripts.command_results import print_results
 from fleet_ports import cmdscript_ports
 from settings import BIND_HOST, HOST, NGINX_BIN
+
+def _expression_1(name, proc):
+    return (
+        [(False, f"{name} start failed: {(proc.stderr or proc.stdout)[-4000:]}")]
+    )
+
+def _expression_2(good_code, good_body, expected):
+    return (
+        [
+                    (
+                        good_code == "200" and good_body == expected,
+                        f"GET byte-exact (ztn-authenticated via http-scope credential, code={good_code})",
+                    )
+                ]
+    )
+
+def _expression_3(bad_code, bad_body, expected):
+    return (
+        bad_code == "200" and bad_body == expected
+    )
+
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 MAKE_TOKEN = REPO_ROOT / "utils" / "make_token.py"
@@ -153,22 +175,17 @@ def run_checks(base: Path, nginx_bin: str = NGINX_BIN) -> list[tuple[bool, str]]
         if proc.returncode != 0:
             for item in reversed(started):
                 stop_nginx(item)
-            return [(False, f"{name} start failed: {(proc.stderr or proc.stdout)[-4000:]}")]
+            return _expression_1(name, proc)
         started.append(prefix)
 
     try:
         time.sleep(1)
         good_code, good_body = curl_get(webdav_port, "/a.bin", base / "cred_dav_a.got")
         expected = (origin / "root" / "a.bin").read_bytes()
-        results = [
-            (
-                good_code == "200" and good_body == expected,
-                f"GET byte-exact (ztn-authenticated via http-scope credential, code={good_code})",
-            )
-        ]
+        results = _expression_2(good_code, good_body, expected)
 
         bad_code, bad_body = curl_get(negative_port, "/a.bin", base / "cred_dav_n.got")
-        unauth_succeeded = bad_code == "200" and bad_body == expected
+        unauth_succeeded = _expression_3(bad_code, bad_body, expected)
         results.append((not unauth_succeeded, f"unauthenticated GET correctly failed (code={bad_code})"))
         return results
     finally:
@@ -182,13 +199,7 @@ def entry(argv: list[str]) -> int:
 
     with tempfile.TemporaryDirectory(prefix="cred_dav.") as tmp:
         results = run_checks(Path(tmp), nginx_bin=nginx_bin)
-    for ok, message in results:
-        print(f"  {'ok  ' if ok else 'FAIL'} {message}")
-    if all(ok for ok, _ in results):
-        print("run_credential_webdav_xroot: ALL PASS")
-        return 0
-    print("run_credential_webdav_xroot: FAILURES")
-    return 1
+    return print_results(results, "run_credential_webdav_xroot")
 
 
 if __name__ == "__main__":

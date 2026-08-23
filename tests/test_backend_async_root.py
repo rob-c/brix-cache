@@ -34,6 +34,10 @@ from settings import BIND_HOST, NGINX_BIN
 from server_registry import NginxInstanceSpec
 from _cache_partial_helpers import _session, _read_frame
 
+def _check_test_size_trigger_releases_batch_1(srv):
+    assert not (srv.data / "d" / "b.txt").exists()
+
+
 pytestmark = [pytest.mark.uses_lifecycle_harness,
               pytest.mark.xdist_group("lc-backend-async")]
 
@@ -288,11 +292,17 @@ def test_size_trigger_releases_batch(make_server):
     for t in threads:
         t.join(timeout=10)
 
-    assert not any(t.is_alive() for t in threads), "a mutation never flushed"
-    assert results == {"a": kXR_ok, "b": kXR_ok}
-    assert time.monotonic() - t0 < 10, "batch did not flush on the size trigger"
-    assert not (srv.data / "d" / "a.txt").exists()
-    assert not (srv.data / "d" / "b.txt").exists()
+    def _assert_test_size_trigger_releases_batch_1():
+        assert not any(t.is_alive() for t in threads), "a mutation never flushed"
+        assert results == {"a": kXR_ok, "b": kXR_ok}
+
+    _assert_test_size_trigger_releases_batch_1()
+    def _assert_test_size_trigger_releases_batch_2():
+        assert time.monotonic() - t0 < 10, "batch did not flush on the size trigger"
+        assert not (srv.data / "d" / "a.txt").exists()
+
+    _assert_test_size_trigger_releases_batch_2()
+    _check_test_size_trigger_releases_batch_1(srv)
 
 
 # --------------------------------------------------------------------------- #

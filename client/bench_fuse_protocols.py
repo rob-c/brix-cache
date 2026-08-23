@@ -116,24 +116,22 @@ def bench_endpoint(name, url, extra, fname, iters):
 
 def _build_plan(args):
     """(name, url, driver-extra-args) per requested endpoint, in run order."""
-    common = []
-    if args.readahead:
-        common += ["--readahead", args.readahead]
+    common = _option("--readahead", args.readahead)
     web_extra = list(common)
-    if args.token:
-        web_extra += ["--token", args.token]
+    web_extra += _option("--token", args.token)
     https_extra = list(web_extra)
     if not args.verify:
         https_extra += ["--noverifyhost"]
+    return [
+        (name, url, extra) for name, url, extra in (
+            ("root", args.root, common), ("http", args.http, web_extra),
+            ("https", args.https, https_extra),
+        ) if url
+    ]
 
-    plan = []
-    if args.root:
-        plan.append(("root", args.root, common))
-    if args.http:
-        plan.append(("http", args.http, web_extra))
-    if args.https:
-        plan.append(("https", args.https, https_extra))
-    return plan
+
+def _option(name, value):
+    return [name, value] if value else []
 
 
 def _print_summary(args, results):
@@ -141,20 +139,33 @@ def _print_summary(args, results):
     md5s = {r["md5"] for r in results}
     print("\n===== summary =====")
     print(f"file={args.file}  size={results[0]['size']} bytes  iters={args.iters}")
-    print(f"cross-protocol bytes identical: {'YES' if len(md5s) == 1 else 'NO (!)'}")
+    print(f"cross-protocol bytes identical: {_identity_label(md5s)}")
     print(f"{'proto':<8}{'median':>10}{'min':>10}{'max':>10}   (MB/s)")
     for r in results:
-        rr = r["rates"]
-        print(f"{r['name']:<8}{statistics.median(rr):>10.1f}"
-              f"{min(rr):>10.1f}{max(rr):>10.1f}")
-    if len(results) >= 2:
-        base = results[0]
-        bmed = statistics.median(base["rates"])
-        for r in results[1:]:
-            rmed = statistics.median(r["rates"])
-            if bmed > 0:
-                print(f"{r['name']} vs {base['name']}: "
-                      f"{rmed / bmed:.2f}× throughput")
+        _print_rate(r)
+    _print_speedups(results)
+
+
+def _identity_label(checksums):
+    return "YES" if len(checksums) == 1 else "NO (!)"
+
+
+def _print_rate(result):
+    rates = result["rates"]
+    print(f"{result['name']:<8}{statistics.median(rates):>10.1f}"
+          f"{min(rates):>10.1f}{max(rates):>10.1f}")
+
+
+def _print_speedups(results):
+    if len(results) < 2:
+        return
+    base = results[0]
+    baseline = statistics.median(base["rates"])
+    if baseline <= 0:
+        return
+    for result in results[1:]:
+        median = statistics.median(result["rates"])
+        print(f"{result['name']} vs {base['name']}: {median / baseline:.2f}× throughput")
 
 
 def main():
@@ -179,17 +190,22 @@ def main():
     if not plan:
         sys.exit("specify at least one of --root / --http / --https")
 
-    results = []
-    for name, url, extra in plan:
-        print(f"\n== {name}: {url} ==")
-        r = bench_endpoint(name, url, extra, args.file, args.iters)
-        if r:
-            results.append(r)
+    results = _run_plan(plan, args.file, args.iters)
 
     if not results:
         sys.exit("no endpoint produced a result")
 
     _print_summary(args, results)
+
+
+def _run_plan(plan, filename, iterations):
+    results = []
+    for name, url, extra in plan:
+        print(f"\n== {name}: {url} ==")
+        result = bench_endpoint(name, url, extra, filename, iterations)
+        if result:
+            results.append(result)
+    return results
 
 
 if __name__ == "__main__":

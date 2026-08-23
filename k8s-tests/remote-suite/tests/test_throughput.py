@@ -28,6 +28,35 @@ from settings import (
 
 # All tests in this module transfer 200 MB files — give them ample time.
 # serial: measures throughput ratios — invalid under a saturated parallel pool.
+def _expression_1(url_a, RUNS):
+    return (
+        [_read_all_chunked(url_a)[1] for _ in range(RUNS)]
+    )
+
+def _expression_2(url_g, RUNS):
+    return (
+        [_read_all_chunked(url_g)[1] for _ in range(RUNS)]
+    )
+
+def _expression_3(times_anon):
+    return (
+        print(f"\n  All anon times: {[f'{t:.3f}s' for t in times_anon]}")
+    )
+
+def _expression_4(times_gsi):
+    return (
+        print(f"  All gsi  times: {[f'{t:.3f}s' for t in times_gsi]}")
+    )
+
+
+def _check_test_throughput_anon_vs_gsi_within_20pct_1(ratio, best_anon, best_gsi):
+    assert ratio < 2.5, (
+        f"GSI data throughput is {ratio:.2f}x slower than anonymous "
+        f"(threshold 2.5x). best_anon={best_anon:.3f}s "
+        f"best_gsi={best_gsi:.3f}s"
+    )
+
+
 pytestmark = [pytest.mark.timeout(240), pytest.mark.serial]
 
 # ---------------------------------------------------------------------------
@@ -241,8 +270,8 @@ class TestStreaming:
         _read_all_chunked(url_a)
         _read_all_chunked(url_g)
 
-        times_anon = [_read_all_chunked(url_a)[1] for _ in range(RUNS)]
-        times_gsi  = [_read_all_chunked(url_g)[1] for _ in range(RUNS)]
+        times_anon = _expression_1(url_a, RUNS)
+        times_gsi  = _expression_2(url_g, RUNS)
 
         best_anon = min(times_anon)
         best_gsi  = min(times_gsi)
@@ -250,12 +279,8 @@ class TestStreaming:
 
         _report("anon best-of-3", LARGE_FILE_SIZE, best_anon)
         _report("gsi  best-of-3", LARGE_FILE_SIZE, best_gsi)
-        print(f"\n  All anon times: {[f'{t:.3f}s' for t in times_anon]}")
-        print(f"  All gsi  times: {[f'{t:.3f}s' for t in times_gsi]}")
+        _expression_3(times_anon)
+        _expression_4(times_gsi)
         print(f"  GSI/anon best-of-{RUNS} ratio: {ratio:.2f}x")
 
-        assert ratio < 2.5, (
-            f"GSI data throughput is {ratio:.2f}x slower than anonymous "
-            f"(threshold 2.5x). best_anon={best_anon:.3f}s "
-            f"best_gsi={best_gsi:.3f}s"
-        )
+        _check_test_throughput_anon_vs_gsi_within_20pct_1(ratio, best_anon, best_gsi)

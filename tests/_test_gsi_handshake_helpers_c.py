@@ -56,6 +56,15 @@ from port_ladder import PORT_LAST  # noqa: E402
 # same fixed listen.  One xdist_group here (propagated to both files via __all__)
 # serialises them; each module tears its fixtures down before the next starts, so
 # the shared ledger ports are reused rather than contended.
+def _check_start_stock_gsi_1():
+    assert _have("xrootd", STOCK_XRDFS), \
+        "stock xrootd / xrdfs are required for the GSI interop tests"
+
+def _guard_start_stock_gsi_1(gsidata, pki):
+    if not os.path.isdir(gsidata):
+        shutil.copytree(pki["data"], gsidata)
+
+
 pytestmark = [pytest.mark.uses_lifecycle_harness,
               pytest.mark.xdist_group("gsihs")]
 
@@ -154,12 +163,10 @@ def _start_stock_gsi(pki, port, hostcert, hostkey, certdir, cfgname):
     """Launch a throwaway stock xrootd GSI server; return the Popen. Shared by
     the same-CA (stock_root) and foreign-CA (stock_root_foreign_ca) fixtures —
     they differ only by the host cert/key, the server's certdir and the port."""
-    assert _have("xrootd", STOCK_XRDFS), \
-        "stock xrootd / xrdfs are required for the GSI interop tests"
+    _check_start_stock_gsi_1()
     base = pki["base"]
     gsidata = os.path.join(base, "gsidata")
-    if not os.path.isdir(gsidata):
-        shutil.copytree(pki["data"], gsidata)
+    _guard_start_stock_gsi_1(gsidata, pki)
     cfg = os.path.join(base, cfgname)
     with open(cfg, "w") as f:
         f.write(

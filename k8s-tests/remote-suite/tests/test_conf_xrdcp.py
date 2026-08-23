@@ -118,6 +118,65 @@ def _make_local_tree(root):
     return files
 
 
+def _assert_success(rc, output, error, description):
+    assert rc == 0, f"{description}: {output}{error}"
+
+
+def _assert_path_bytes(path, expected, description):
+    assert os.path.exists(path), f"{description}: file is missing"
+    _assert_bytes(path, expected, description)
+
+
+def _assert_bytes(path, expected, description):
+    assert _read(path) == expected, f"{description}: byte mismatch"
+
+
+def _files_by_basename(root):
+    found = {}
+    for root_dir, _directories, files in os.walk(root):
+        for filename in files:
+            found.setdefault(filename, []).append(os.path.join(root_dir, filename))
+    return found
+
+
+def _whole_tree_leaves():
+    leaves = ["hello.txt", "data.bin", "cksum.bin", "empty.txt",
+              os.path.join("sub", "nested.txt"),
+              os.path.join("deep", "a", "b", "c", "leaf.txt")]
+    leaves.extend(os.path.join("many", f"f{i:02d}.txt") for i in range(12))
+    return leaves
+
+
+def _assert_tree_presence(found, expected):
+    for relative in expected:
+        assert os.path.basename(relative) in found, (
+            f"whole-tree recursive copy missing {relative}")
+
+
+def _assert_tree_digests(srv, found):
+    representatives = ["data.bin", "cksum.bin",
+                       os.path.join("deep", "a", "b", "c", "leaf.txt")]
+    for relative in representatives:
+        _assert_tree_digest(srv, found, relative)
+
+
+def _assert_tree_digest(srv, found, relative):
+    expected = _md5(_src_bytes(srv, relative))
+    actual = {_md5(_read(path)) for path in found[os.path.basename(relative)]}
+    assert expected in actual, (
+        f"whole-tree recursive copy: {relative} md5 {expected} not among {actual}")
+
+
+def _require_our_client():
+    if not os.path.exists(L.OUR_XRDCP):
+        pytest.skip("our xrdcp not built")
+
+
+def _skip_unsupported(rc, output, error, description):
+    if rc != 0 and _unsupported(output, error):
+        pytest.skip(f"OUR xrdcp lacks {description}: {error.strip()}")
+
+
 # =========================================================================== #
 # OPTION: -f / --force — overwrite an existing local target, byte-exact, and   #
 # do it twice to prove the overwrite path itself is correct (not a no-op).     #
@@ -207,21 +266,19 @@ def test_noforce_upload_to_existing_parity(srv, tmp_path):
 # =========================================================================== #
 @pytest.mark.parametrize("flag", ["none", "-p", "--path"])
 def test_upload_missing_parent_creates_path(srv, tmp_path, flag):
-    src = str(tmp_path / f"mkpath_{flag.strip('-') or 'none'}.src")
+    suffix = flag.strip("-") or "none"
+    src = str(tmp_path / f"mkpath_{suffix}.src")
     payload = bytes((i * 11 + 2) & 0xff for i in range(900))
     open(src, "wb").write(payload)
-    sub = f"mkparent_{flag.strip('-') or 'none'}"
+    sub = f"mkparent_{suffix}"
     remote = f"/{sub}/a/b/file.bin"
     opts = [] if flag == "none" else [flag]
     rc, out, err = _cp(L.OFF_XRDCP, "-f", *opts, src, f"{srv['our']}/{remote}",
                        timeout=90)
-    assert rc == 0, (f"xrdcp upload (flag={flag}) to a missing parent on OUR "
-                     f"server failed: {out}{err}")
+    description = f"xrdcp upload (flag={flag}) to a missing parent on OUR server"
+    _assert_success(rc, out, err, description)
     on_disk = os.path.join(srv["our_data"], sub, "a", "b", "file.bin")
-    assert os.path.exists(on_disk), (
-        f"xrdcp upload (flag={flag}): missing-parent path was not created")
-    assert _read(on_disk) == payload, (
-        f"xrdcp upload (flag={flag}): bytes under created path != source")
+    _assert_path_bytes(on_disk, payload, f"xrdcp upload (flag={flag})")
 
 
 def test_upload_missing_parent_parity_stock(srv, tmp_path):
@@ -384,29 +441,10 @@ def test_recursive_download_whole_tree(srv, tmp_path):
     os.makedirs(dst)
     rc, out, err = _download(L.OFF_XRDCP, srv["our"], ".", dst, "-r", "-f",
                              timeout=180)
-    assert rc == 0, f"xrdcp -r / (whole tree) <- OUR server failed: {out}{err}"
-    # locate the copied root (xrdcp may nest under a host/dir component)
-    expect_leaves = ["hello.txt", "data.bin", "cksum.bin", "empty.txt",
-                     os.path.join("sub", "nested.txt"),
-                     os.path.join("deep", "a", "b", "c", "leaf.txt")]
-    expect_leaves += [os.path.join("many", f"f{i:02d}.txt") for i in range(12)]
-    # build a set of downloaded basenames+sizes for membership + a few md5 checks
-    found = {}
-    for root_dir, _dirs, files in os.walk(dst):
-        for fn in files:
-            fp = os.path.join(root_dir, fn)
-            found.setdefault(fn, []).append(fp)
-    for rel in expect_leaves:
-        base = os.path.basename(rel)
-        assert base in found, f"whole-tree recursive copy missing {rel}"
-    # md5-verify a representative subset against the source
-    for rel in ["data.bin", "cksum.bin",
-                os.path.join("deep", "a", "b", "c", "leaf.txt")]:
-        base = os.path.basename(rel)
-        want = _md5(_src_bytes(srv, rel))
-        got = {_md5(_read(fp)) for fp in found[base]}
-        assert want in got, (
-            f"whole-tree recursive copy: {rel} md5 {want} not among {got}")
+    _assert_success(rc, out, err, "xrdcp -r / (whole tree) <- OUR server failed")
+    found = _files_by_basename(dst)
+    _assert_tree_presence(found, _whole_tree_leaves())
+    _assert_tree_digests(srv, found)
 
 
 # =========================================================================== #
@@ -603,65 +641,58 @@ def test_q2_our_client_download(srv, tmp_path, name):
 
 @pytest.mark.parametrize("mode", ["-N", "-s"])
 def test_q2_our_client_output_modes(srv, tmp_path, mode):
-    if not os.path.exists(L.OUR_XRDCP):
-        pytest.skip("our xrdcp not built")
+    _require_our_client()
     dst = str(tmp_path / f"q2mode_{mode.strip('-')}.bin")
     rc, out, err = _download(L.OUR_XRDCP, srv["off"], "data.bin", dst, mode, "-f")
-    if rc != 0 and _unsupported(out, err):
-        pytest.skip(f"OUR xrdcp lacks {mode}: {err.strip()}")
-    assert rc == 0, f"OUR xrdcp {mode} <- stock server failed: {out}{err}"
-    assert _read(dst) == _src_bytes(srv, "data.bin"), (
-        f"OUR xrdcp {mode}: output-mode flag altered the bytes")
+    _skip_unsupported(rc, out, err, mode)
+    _assert_success(rc, out, err, f"OUR xrdcp {mode} <- stock server failed")
+    _assert_bytes(dst, _src_bytes(srv, "data.bin"),
+                  f"OUR xrdcp {mode}: output-mode flag altered the bytes")
 
 
 @pytest.mark.parametrize("size", [0, 1, 4096, 65537])
 def test_q2_our_client_upload(srv, tmp_path, size):
-    if not os.path.exists(L.OUR_XRDCP):
-        pytest.skip("our xrdcp not built")
+    _require_our_client()
     payload = bytes((i * 31 + size) & 0xff for i in range(size))
     src = str(tmp_path / f"q2up_{size}.src")
     open(src, "wb").write(payload)
     remote = f"/q2up_{size}.bin"
     rc, out, err = _cp(L.OUR_XRDCP, "-f", src, f"{srv['off']}/{remote}",
                        timeout=120)
-    assert rc == 0, f"OUR xrdcp upload size={size} -> stock failed: {out}{err}"
+    _assert_success(rc, out, err, f"OUR xrdcp upload size={size} -> stock failed")
     on_disk = os.path.join(srv["off_data"], remote.lstrip("/"))
-    assert os.path.exists(on_disk), f"OUR upload size={size} did not land on stock"
-    assert _read(on_disk) == payload, (
-        f"OUR xrdcp upload size={size}: byte mismatch on stock disk")
+    _assert_path_bytes(on_disk, payload, f"OUR xrdcp upload size={size}")
 
 
 def test_q2_our_client_recursive_download(srv, tmp_path):
-    if not os.path.exists(L.OUR_XRDCP):
-        pytest.skip("our xrdcp not built")
+    _require_our_client()
     dst = str(tmp_path / "q2_rec_many")
     os.makedirs(dst)
     rc, out, err = _download(L.OUR_XRDCP, srv["off"], "many", dst, "-r", "-f",
                              timeout=120)
-    if rc != 0 and _unsupported(out, err):
-        pytest.skip(f"OUR xrdcp lacks recursive copy: {err.strip()}")
-    assert rc == 0, f"OUR xrdcp -r /many <- stock server failed: {out}{err}"
-    # find every f??.txt that landed, anywhere under dst, and verify it
-    found = {}
-    for root_dir, _d, files in os.walk(dst):
-        for fn in files:
-            found[fn] = os.path.join(root_dir, fn)
-    for i in range(12):
-        fn = f"f{i:02d}.txt"
-        assert fn in found, f"OUR recursive /many missing {fn}: {out}{err}"
-        assert _read(found[fn]) == _src_bytes(
-            srv, os.path.join("many", fn)), (
-            f"OUR recursive /many: {fn} content mismatch")
+    _skip_unsupported(rc, out, err, "recursive copy")
+    _assert_success(rc, out, err, "OUR xrdcp -r /many <- stock server failed")
+    _assert_q2_recursive(srv, _files_by_basename(dst), out, err)
+
+
+def _assert_q2_recursive(srv, found, output, error):
+    for index in range(12):
+        filename = f"f{index:02d}.txt"
+        assert filename in found, f"OUR recursive /many missing {filename}: {output}{error}"
+        _assert_bytes(found[filename][0], _src_bytes(srv, os.path.join("many", filename)),
+                      f"OUR recursive /many: {filename} content mismatch")
 
 
 def test_q2_our_client_stdout(srv):
-    if not os.path.exists(L.OUR_XRDCP):
-        pytest.skip("our xrdcp not built")
+    _require_our_client()
     rc, out, err = _cp(L.OUR_XRDCP, "-f", f"{srv['off']}//hello.txt", "-")
-    if rc != 0 and _unsupported(out, err):
-        pytest.skip(f"OUR xrdcp lacks stdout sink: {err.strip()}")
-    assert rc == 0, f"OUR xrdcp -> stdout from stock server failed: {err}"
-    assert "hello world" in out, f"OUR stdout payload wrong: {out!r}"
+    _skip_unsupported(rc, out, err, "stdout sink")
+    _assert_success(rc, out, err, "OUR xrdcp -> stdout from stock server failed")
+    _assert_stdout_payload(out)
+
+
+def _assert_stdout_payload(output):
+    assert "hello world" in output, f"OUR stdout payload wrong: {output!r}"
 
 
 # =========================================================================== #

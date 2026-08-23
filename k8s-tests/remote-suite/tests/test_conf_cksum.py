@@ -39,6 +39,29 @@ import pytest
 
 import official_interop_lib as L
 
+def _expression_1(line):
+    return (
+        line.startswith("d") and "adler32:" in line
+    )
+
+
+def _check_test_advertised_algo_is_answerable_1(rc2, got, algo, raw):
+    assert rc2 == 0 and got is not None, (
+        f"{algo} is advertised in `query config chksum` but querying it on "
+        f"/data.bin fails (rc={rc2}): {raw}")
+
+def _check_test_advertised_algo_is_answerable_2(got, want, algo):
+    assert got == want, f"advertised {algo} wrong: server={got} ref={want}"
+
+def _check_test_dirlist_directory_has_no_file_checksum_3(rc, out, err):
+    assert rc == 0, f"ls -l -C / failed: {out}{err}"
+
+def _check_test_dirlist_directory_has_no_file_checksum_4(line, val):
+    assert not (len(val) == 8 and all(c in "0123456789abcdef"
+                                      for c in val.lower())), (
+        f"directory entry carries a real file checksum: {line!r}")
+
+
 pytestmark = [pytest.mark.timeout(180),
               pytest.mark.skipif(not L.have_official(),
                                  reason="stock xrootd/xrdfs/xrdcp not installed")]
@@ -299,11 +322,9 @@ def test_advertised_algo_is_answerable(srv, algo):
     if algo not in advertised:
         pytest.skip(f"{algo} not advertised by this build")
     rc2, got, raw = _query_hex(srv["our"], "data.bin", algo=algo)
-    assert rc2 == 0 and got is not None, (
-        f"{algo} is advertised in `query config chksum` but querying it on "
-        f"/data.bin fails (rc={rc2}): {raw}")
+    _check_test_advertised_algo_is_answerable_1(rc2, got, algo, raw)
     want = REF[algo][0](_bytes(srv, "data.bin")).lower()
-    assert got == want, f"advertised {algo} wrong: server={got} ref={want}"
+    _check_test_advertised_algo_is_answerable_2(got, want, algo)
 
 
 # =========================================================================== #
@@ -513,18 +534,13 @@ def test_dirlist_root_matches_qcksum(srv, name):
 
 def test_dirlist_directory_has_no_file_checksum(srv):
     rc, out, err = _ourfs(srv["our"], "ls", "-l", "-C", "/")
-    assert rc == 0, f"ls -l -C / failed: {out}{err}"
-    dirline = next((l for l in out.splitlines()
-                    if l.split() and l.split()[-1].endswith("/sub")
-                    or (l.startswith("d") and "/sub" in l)), None)
+    _check_test_dirlist_directory_has_no_file_checksum_3(rc, out, err)
     # A directory entry must not advertise a real 8-hex file checksum.
     for line in out.splitlines():
-        if line.startswith("d") and "adler32:" in line:
+        if _expression_1(line):
             val = next(t for t in line.split()
                        if t.startswith("adler32:")).split(":", 1)[1]
-            assert not (len(val) == 8 and all(c in "0123456789abcdef"
-                                              for c in val.lower())), (
-                f"directory entry carries a real file checksum: {line!r}")
+            _check_test_dirlist_directory_has_no_file_checksum_4(line, val)
 
 
 # =========================================================================== #

@@ -214,23 +214,31 @@ def _wait_front_serves(front_url, probe_logical, timeout=30.0):
     last = ""
     ok_streak = 0
     while time.time() < deadline:
-        f = client.File()
-        st_open, _ = f.open(f"{front_url}//{probe_logical.lstrip('/')}",
-                            OpenFlags.READ)
-        if st_open.ok:
-            f.close()
-        # Fresh FileSystem connection (separate from the File above).
-        st_stat, _ = client.FileSystem(front_url).stat(probe_logical)
-        if st_open.ok and st_stat.ok:
+        succeeded, last_message = _probe_front(
+            client, OpenFlags, front_url, probe_logical
+        )
+        if succeeded:
             ok_streak += 1
-            if ok_streak >= 3:        # stable on consecutive fresh connections
+            if ok_streak >= 3:
                 return True
         else:
             ok_streak = 0
-            last = (st_open.message or st_stat.message or "").strip()
+            last = last_message
         time.sleep(0.3)
     pytest.skip(f"front {front_url} did not reliably serve {probe_logical} "
                 f"(last: {last or 'timeout'})")
+
+
+def _probe_front(client, open_flags, front_url, probe_logical):
+    file_handle = client.File()
+    open_status, _ = file_handle.open(
+        f"{front_url}//{probe_logical.lstrip('/')}", open_flags.READ
+    )
+    if open_status.ok:
+        file_handle.close()
+    stat_status, _ = client.FileSystem(front_url).stat(probe_logical)
+    message = (open_status.message or stat_status.message or "").strip()
+    return open_status.ok and stat_status.ok, message
 
 
 # ---------------------------------------------------------------------------
@@ -282,50 +290,59 @@ def test_full_conformance_through_topology(topo, probe_file):
     try:
         front_url, confs = builder()
         _wait_front_serves(front_url, probe_file)
-
-        env = dict(os.environ)
-        env["CONFORMANCE_NGINX_URL"] = front_url
-        env["TEST_SKIP_SERVER_SETUP"] = "1"      # reuse the running fleet
-        env["PYTHONPATH"] = "tests" + (
-            os.pathsep + env["PYTHONPATH"] if env.get("PYTHONPATH") else "")
-
-        try:
-            proc = subprocess.run(
-                [sys.executable, "-m", "pytest", "tests/test_conformance.py",
-                 "-p", "no:xdist", "-p", "no:cacheprovider",
-                 "--timeout=60", "-o", "addopts="],
-                cwd=os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-                env=env, capture_output=True, text=True, timeout=300)
-        except subprocess.TimeoutExpired:
-            # Fail cleanly rather than letting the outer pytest-timeout fire while
-            # we are blocked in communicate() (which it cannot interrupt → whole
-            # run hangs/aborts).  A 5-min nested conformance run means the topology
-            # front is wedged.
-            pytest.fail(
-                f"conformance subprocess through '{topo}' ({front_url}) did not "
-                f"finish within 300s — topology front wedged")
-
-        out = proc.stdout
-        tail = out[-4000:] + ("\nSTDERR:\n" + proc.stderr[-1500:]
-                              if proc.stderr.strip() else "")
-
-        # Parse the real pytest summary — a bare exit code is not enough: a
-        # subprocess that collected nothing or was short-circuited also exits 0.
-        m_pass = re.search(r"(\d+) passed", out)
-        n_pass = int(m_pass.group(1)) if m_pass else 0
-        m_bad = re.search(r"(\d+) (failed|error)", out)
-
-        assert proc.returncode == 0 and n_pass > 0 and m_bad is None, (
-            f"full conformance suite did NOT cleanly pass through '{topo}' "
-            f"({front_url}): rc={proc.returncode}, passed={n_pass}, "
-            f"bad={m_bad.group(0) if m_bad else None}\n{tail}")
-        # Sanity: the topology run must cover the same breadth as a direct run.
-        assert n_pass >= 25, (
-            f"only {n_pass} conformance tests ran through '{topo}' "
-            f"(expected ~30) — suite may have been truncated:\n{tail}")
+        process = _run_conformance(topo, front_url)
+        _assert_conformance_result(process, topo, front_url)
     finally:
-        for c in confs:
-            _stop(c)
+        _stop_configs(confs)
+
+
+def _conformance_environment(front_url):
+    env = dict(os.environ)
+    env["CONFORMANCE_NGINX_URL"] = front_url
+    env["TEST_SKIP_SERVER_SETUP"] = "1"
+    existing = env.get("PYTHONPATH")
+    env["PYTHONPATH"] = "tests" + (os.pathsep + existing if existing else "")
+    return env
+
+
+def _run_conformance(topo, front_url):
+    command = [sys.executable, "-m", "pytest", "tests/test_conformance.py",
+               "-p", "no:xdist", "-p", "no:cacheprovider",
+               "--timeout=60", "-o", "addopts="]
+    cwd = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    try:
+        return subprocess.run(
+            command, cwd=cwd, env=_conformance_environment(front_url),
+            capture_output=True, text=True, timeout=300,
+        )
+    except subprocess.TimeoutExpired:
+        pytest.fail(
+            f"conformance through '{topo}' ({front_url}) exceeded 300s"
+        )
+
+
+def _assert_conformance_result(process, topo, front_url):
+    output = process.stdout
+    stderr = "\nSTDERR:\n" + process.stderr[-1500:] if process.stderr.strip() else ""
+    tail = output[-4000:] + stderr
+    passed_match = re.search(r"(\d+) passed", output)
+    passed = int(passed_match.group(1)) if passed_match else 0
+    bad = re.search(r"(\d+) (failed|error)", output)
+    _assert_clean_conformance(process, passed, bad, topo, front_url, tail)
+    assert passed >= 25, f"only {passed} tests ran through '{topo}'\n{tail}"
+
+
+def _assert_clean_conformance(process, passed, bad, topo, front_url, tail):
+    clean = process.returncode == 0 and passed > 0
+    assert clean and bad is None, (
+        f"conformance failed through '{topo}' ({front_url}): "
+        f"rc={process.returncode}, passed={passed}\n{tail}"
+    )
+
+
+def _stop_configs(configs):
+    for config in configs:
+        _stop(config)
 
 
 # ---------------------------------------------------------------------------
@@ -348,39 +365,34 @@ def test_cluster_nonexistent_returns_not_found():
     confs = []
     try:
         front_url, confs = _build_cluster()
-
-        # Wait for the data server to register so redirects resolve at all.
-        deadline = time.time() + 30
-        registered = False
-        while time.time() < deadline:
-            st, _ = client.FileSystem(front_url).stat("//")
-            if st.ok:
-                registered = True
-                break
-            time.sleep(0.5)
-        if not registered:
+        if not _wait_cluster_registration(client, front_url):
             pytest.skip("cluster data server did not register in time")
-
-        st, _ = client.FileSystem(front_url).stat(
+        status, _ = client.FileSystem(front_url).stat(
             "//definitely_absent_redirect_loop_probe.bin")
-        assert not st.ok, "nonexistent path should fail"
-        msg = (st.message or "").lower()
-        assert "redirect limit" not in msg, (
-            f"redirect loop NOT fixed — manager still bounces the client: {st.message!r}")
-        assert getattr(st, "errno", 0) == 3011 \
-            or "not found" in msg or "no such" in msg, (
-            f"expected kXR_NotFound (3011), got: {st.message!r}")
+        _assert_not_found(status)
     finally:
-        for c in confs:
-            _stop(c)
+        _stop_configs(confs)
 
 
-# ---------------------------------------------------------------------------
-# Explicit read/write through the nginx+xrootd mirror in front of the official
-# xrootd: write via the mirror, read it back byte-exact (scalar + vector) and
-# by checksum through the mirror, and confirm the official xrootd serves the
-# same bytes (shared DATA_ROOT) with no mirror divergence logged.
-# ---------------------------------------------------------------------------
+def _wait_cluster_registration(client, front_url):
+    deadline = time.time() + 30
+    while time.time() < deadline:
+        status, _ = client.FileSystem(front_url).stat("//")
+        if status.ok:
+            return True
+        time.sleep(0.5)
+    return False
+
+
+def _assert_not_found(status):
+    assert not status.ok, "nonexistent path should fail"
+    message = (status.message or "").lower()
+    assert "redirect limit" not in message, \
+        f"redirect loop persists: {status.message!r}"
+    expected = getattr(status, "errno", 0) == 3011
+    expected = expected or "not found" in message or "no such" in message
+    assert expected, f"expected kXR_NotFound (3011), got: {status.message!r}"
+
 
 def test_mirror_readwrite_against_official_xrootd():
     _require_fleet_backends()
@@ -392,73 +404,96 @@ def test_mirror_readwrite_against_official_xrootd():
     rel = f"_mirror_rw_{os.getpid()}.bin"
     data = bytes((i * 37 + 5) & 0xFF for i in range(256 * 1024 + 123))
     try:
-        # Dedicated port + run-dir so this never collides with the conformance
-        # [mirror] topology test (which uses MIRROR_PORT).
         front_url, confs = _build_mirror(MIRROR_RW_PORT, "mirror_rw")
-        for _ in range(40):                       # wait for the front to listen
-            if _reachable(MIRROR_RW_PORT, 0.5):
-                break
-            time.sleep(0.25)
-
-        # Remember where this run's log starts (nginx appends across runs).
+        _wait_mirror_port()
         log = os.path.join(_DIR, "mirror_rw-run", "logs", "error.log")
         log_off = os.path.getsize(log) if os.path.exists(log) else 0
-
-        # --- write through the mirror ---
-        f = client.File()
-        st, _ = f.open(f"{front_url}//{rel}", OpenFlags.DELETE | OpenFlags.NEW)
-        assert st.ok, f"open(NEW) via mirror: {st.message}"
-        st, _ = f.write(data); assert st.ok, f"write via mirror: {st.message}"
-        st, _ = f.close(); assert st.ok
-
-        # --- scalar read-back through the mirror ---
-        f = client.File()
-        st, _ = f.open(f"{front_url}//{rel}", OpenFlags.READ)
-        assert st.ok, f"open(READ) via mirror: {st.message}"
-        st, got = f.read(); assert st.ok
-        assert bytes(got) == data, "scalar read through mirror not byte-exact"
-
-        # --- vector read-back through the mirror ---
-        segs = [(0, 100), (1000, 512), (len(data) - 200, 200)]
-        st, vres = f.vector_read(segs); assert st.ok, f"vector_read: {st.message}"
-        for (o, n), chunk in zip(segs, vres):
-            assert bytes(chunk.buffer) == data[o:o + n], \
-                f"vector segment at {o} not byte-exact through mirror"
-        f.close()
-
-        # --- checksum through the mirror ---
-        st, resp = client.FileSystem(front_url).query(QueryCode.CHECKSUM, rel)
-        assert st.ok, f"checksum via mirror: {st.message}"
-        algo, hexval = resp.decode().strip().split("\x00")[0].split()[:2]
-        assert algo == "adler32" and int(hexval, 16) == (zlib.adler32(data) & 0xFFFFFFFF), \
-            f"checksum through mirror wrong: {algo} {hexval}"
-
-        # --- the official xrootd serves the same bytes (shared namespace) ---
-        f = client.File()
-        st, _ = f.open(f"root://{H}:{REF_BRIX_PORT}//{rel}", OpenFlags.READ)
-        assert st.ok, f"official xrootd open: {st.message}"
-        st, ref_got = f.read(); f.close()
-        assert bytes(ref_got) == data, "official xrootd read not byte-exact"
-
-        # --- the mirror must report NO divergence vs the official xrootd.
-        # Only self-contained read-path ops are replayed (handle-based reads and
-        # write opens are skipped), and a shadow "operation not supported" (e.g.
-        # the official lacks Qcksum) is treated as benign — so a clean log proves
-        # the mirror "just works" in front of the official server.  The replay is
-        # async, so allow it to land first, and inspect only THIS run's tail. ---
-        time.sleep(1.5)
-        if os.path.exists(log):
-            with open(log, errors="replace") as lf:
-                lf.seek(log_off)
-                diverged = [ln for ln in lf.read().splitlines()
-                            if "diverge" in ln.lower()]
-            assert not diverged, (
-                "mirror reported a divergence vs the official xrootd:\n"
-                + "\n".join(diverged[:8]))
+        _mirror_write(client, OpenFlags, front_url, rel, data)
+        handle = _mirror_scalar_read(client, OpenFlags, front_url, rel, data)
+        _mirror_vector_read(handle, data)
+        _mirror_checksum(client, QueryCode, front_url, rel, data, zlib)
+        _official_read(client, OpenFlags, rel, data)
+        _assert_no_mirror_divergence(log, log_off)
     finally:
-        for c in confs:
-            _stop(c)
-        try:
-            os.unlink(os.path.join(DATA_ROOT, rel))
-        except FileNotFoundError:
-            pass
+        _stop_configs(confs)
+        _unlink_mirror_file(rel)
+
+
+def _wait_mirror_port():
+    for _ in range(40):
+        if _reachable(MIRROR_RW_PORT, 0.5):
+            return
+        time.sleep(0.25)
+
+
+def _mirror_write(client, open_flags, front_url, relative, data):
+    handle = client.File()
+    status, _ = handle.open(
+        f"{front_url}//{relative}", open_flags.DELETE | open_flags.NEW
+    )
+    assert status.ok, f"open(NEW) via mirror: {status.message}"
+    status, _ = handle.write(data)
+    assert status.ok, f"write via mirror: {status.message}"
+    status, _ = handle.close()
+    assert status.ok
+
+
+def _mirror_scalar_read(client, open_flags, front_url, relative, data):
+    handle = client.File()
+    status, _ = handle.open(f"{front_url}//{relative}", open_flags.READ)
+    assert status.ok, f"open(READ) via mirror: {status.message}"
+    status, received = handle.read()
+    assert status.ok
+    assert bytes(received) == data, "scalar mirror read was not byte-exact"
+    return handle
+
+
+def _mirror_vector_read(handle, data):
+    segments = [(0, 100), (1000, 512), (len(data) - 200, 200)]
+    status, results = handle.vector_read(segments)
+    assert status.ok, f"vector_read: {status.message}"
+    for (offset, length), chunk in zip(segments, results):
+        assert bytes(chunk.buffer) == data[offset:offset + length], \
+            f"vector segment at {offset} was not byte-exact"
+    handle.close()
+
+
+def _mirror_checksum(client, query_code, front_url, relative, data, zlib_module):
+    status, response = client.FileSystem(front_url).query(
+        query_code.CHECKSUM, relative
+    )
+    assert status.ok, f"checksum via mirror: {status.message}"
+    algorithm, value = response.decode().strip().split("\x00")[0].split()[:2]
+    expected = zlib_module.adler32(data) & 0xFFFFFFFF
+    assert algorithm == "adler32"
+    assert int(value, 16) == expected, f"checksum through mirror wrong: {value}"
+
+
+def _official_read(client, open_flags, relative, data):
+    handle = client.File()
+    status, _ = handle.open(
+        f"root://{H}:{REF_BRIX_PORT}//{relative}", open_flags.READ
+    )
+    assert status.ok, f"official xrootd open: {status.message}"
+    status, received = handle.read()
+    handle.close()
+    assert status.ok
+    assert bytes(received) == data, "official xrootd read was not byte-exact"
+
+
+def _assert_no_mirror_divergence(log, offset):
+    time.sleep(1.5)
+    if not os.path.exists(log):
+        return
+    with open(log, errors="replace") as stream:
+        stream.seek(offset)
+        diverged = [line for line in stream.read().splitlines()
+                    if "diverge" in line.lower()]
+    assert not diverged, "mirror divergence:\n" + "\n".join(diverged[:8])
+
+
+def _unlink_mirror_file(relative):
+    try:
+        os.unlink(os.path.join(DATA_ROOT, relative))
+    except FileNotFoundError:
+        pass

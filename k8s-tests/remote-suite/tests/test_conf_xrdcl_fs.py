@@ -688,6 +688,12 @@ def test_mv_dir_ok(pair):
 # 10. truncate
 # --------------------------------------------------------------------------- #
 @pytest.mark.parametrize("newsize", [0, 1, 5, 100, 4096])
+def _assert_truncate_result(results, newsize):
+    assert results["our"] == results["off"]
+    if results["off"][0]:
+        assert results["off"][1] == newsize
+
+
 def test_truncate_status_and_size_parity(pair, newsize):
     sub = _mk_scratch(
         pair,
@@ -700,9 +706,7 @@ def test_truncate_status_and_size_parity(pair, newsize):
         st, _ = fs.truncate(f"{sub}/f.bin", newsize)
         sst, si = fs.stat(f"{sub}/f.bin")
         res[tag] = (st.ok, si.size if (sst.ok and si) else None)
-    assert res["our"] == res["off"]
-    if res["off"][0]:
-        assert res["off"][1] == newsize
+    _assert_truncate_result(res, newsize)
     _assert_trees_match(pair, f"trunc_{newsize}")
 
 

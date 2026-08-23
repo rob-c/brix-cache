@@ -148,7 +148,6 @@ def test_the_governed_set_covers_the_ratchets_that_gate_main() -> None:
     assert SUBJECT in GUARD_MOD.RATCHETS
     for required in (
         "tools/ci/file_size_backlog.txt",
-        "tools/ci/complexity_backlog.txt",
         "tools/ci/todo_fixme_backlog.txt",
         "tests/loc_baseline.txt",
     ):

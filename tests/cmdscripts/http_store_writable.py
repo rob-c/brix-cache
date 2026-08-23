@@ -10,6 +10,27 @@ from cmdscripts.live_common import LiveFailure, LiveRun, random_file, sha256
 from settings import BIND_HOST, HOST
 
 
+def _expression_1(digest, stored):
+    return (
+        stored.exists() and sha256(stored) == digest
+    )
+
+def _expression_2(status, stored_ok):
+    return (
+        print(f"  {'ok  ' if status == 201 and stored_ok else 'FAIL'} HTTP stage PUT {status} -> sync flush to posix backend")
+    )
+
+def _expression_3(served_ok):
+    return (
+        print(f"  {'ok  ' if served_ok else 'FAIL'} GET byte-exact from backend")
+    )
+
+def _expression_4(stored_ok, served_ok, status):
+    return (
+        0 if status == 201 and stored_ok and served_ok else 1
+    )
+
+
 ORIGIN_PORT = 8552
 BACKEND_PORT = 8553
 
@@ -54,13 +75,13 @@ def run_port(nginx: Path | None = None) -> int:
         url = f"http://{HOST}:{BACKEND_PORT}/h.bin"
         status = run.curl_status(url, "-T", str(source))
         stored = backend / "backend/h.bin"
-        stored_ok = stored.exists() and sha256(stored) == digest
+        stored_ok = _expression_1(digest, stored)
         got = run.root / "got.bin"
         got.write_bytes(run.curl_bytes(url))
         served_ok = sha256(got) == digest
-        print(f"  {'ok  ' if status == 201 and stored_ok else 'FAIL'} HTTP stage PUT {status} -> sync flush to posix backend")
-        print(f"  {'ok  ' if served_ok else 'FAIL'} GET byte-exact from backend")
-        return 0 if status == 201 and stored_ok and served_ok else 1
+        _expression_2(status, stored_ok)
+        _expression_3(served_ok)
+        return _expression_4(stored_ok, served_ok, status)
 
 
 def main(argv: list[str] | None = None) -> int:

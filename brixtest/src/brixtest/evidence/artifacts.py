@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
 import mimetypes
@@ -72,7 +73,7 @@ class ContentStore:
         if not target.exists():
             temporary = target.with_name(".%s.%d" % (target.name, os.getpid()))
             shutil.copyfile(source, temporary)
-            os.replace(str(temporary), str(target))
+            temporary.replace(target)
             target.chmod(stat.S_IRUSR | stat.S_IWUSR)
         item = {
             "name": _name(name, source.name),
@@ -98,21 +99,18 @@ class ContentStore:
         self.run_root.mkdir(parents=True, exist_ok=True)
         directory = self.run_root / ".evidence-staging"
         directory.mkdir(parents=True, exist_ok=True)
-        handle = tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=str(directory),
-                                             prefix="attachment-", delete=False)
-        path = Path(handle.name)
+        descriptor, raw_path = tempfile.mkstemp(dir=str(directory), prefix="attachment-")
+        path = Path(raw_path)
         try:
-            with handle:
+            with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
                 handle.write(text)
                 handle.flush()
                 os.fsync(handle.fileno())
             return self.attach(path, name=name, media_type=media_type,
                                description=description, role=role)
         finally:
-            try:
+            with contextlib.suppress(OSError):
                 path.unlink()
-            except OSError:
-                pass
 
     def attach_json(
         self, name: str, value: object, *, description: str = "", role: str = "output",

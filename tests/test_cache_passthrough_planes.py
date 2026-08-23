@@ -58,6 +58,16 @@ import requests
 from server_launcher import LifecycleHarness, NginxInstanceSpec
 from settings import BIND_HOST, HOST, XRDCP_BIN
 
+def _expression_1():
+    return (
+        [p for p, _, _ in HTTP_PLANES] + ["rootpt"]
+    )
+
+
+def _check_planes_1(path, r):
+    assert r.status_code in (200, 201, 204), (path, r.status_code)
+
+
 pytestmark = [pytest.mark.timeout(300),
               pytest.mark.uses_lifecycle_harness,
               pytest.mark.xdist_group("lc-cache-passthrough")]
@@ -127,7 +137,7 @@ class Planes:
 def planes(tmp_path_factory):
     base = tmp_path_factory.mktemp("cache-pt")
     cache_root, export_root = base / "cache", base / "export"
-    for plane in [p for p, _, _ in HTTP_PLANES] + ["rootpt"]:
+    for plane in _expression_1():
         (cache_root / plane).mkdir(parents=True)
         (export_root / plane).mkdir(parents=True)
 
@@ -154,7 +164,7 @@ def planes(tmp_path_factory):
             requests.request("MKCOL", p.origin + cas.rsplit("/", 1)[0], timeout=30)
             for path in (cas, f"/{name}.bin", f"/{BUCKET}/{name}.bin"):
                 r = requests.put(p.origin + path, data=body, timeout=90)
-                assert r.status_code in (200, 201, 204), (path, r.status_code)
+                _check_planes_1(path, r)
         yield p
     finally:
         harness.close()

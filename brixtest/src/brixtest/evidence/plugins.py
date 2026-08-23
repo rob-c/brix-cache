@@ -21,5 +21,4 @@ def discover(kind: str) -> dict[str, object]:
 
 def load(kind: str, name: str) -> Callable:
     """Load a callable through the validated shared registry."""
-    target = get_extension(kind, name)
-    return target  # type: ignore[return-value]
+    return get_extension(kind, name)

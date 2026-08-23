@@ -33,7 +33,7 @@ def test_005_signed_credential_defaults_to_content_environment():
 
 
 def test_006_credential_names_use_public_name_contract():
-    with pytest.raises(SpecError, match="credential.name"):
+    with pytest.raises(SpecError, match=r"credential\.name"):
         credential("UpperCase", "x")
 
 

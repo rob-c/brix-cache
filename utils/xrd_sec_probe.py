@@ -145,33 +145,47 @@ def probe(name):
 def run_all():
     for name, fn in PROBES:
         print(f"\n── {name}")
-        try:
-            result = fn()
-            if result is None:
-                health = server_alive()
-                if   health == "ok":    outcome, detail, repro = "PASS",  "", ""
-                elif health == "hang":  outcome, detail, repro = "HANG",  "Server stopped responding to legitimate clients.", name
-                elif health == "crash": outcome, detail, repro = "CRASH", "Server process disappeared.", name
-                else:                   outcome, detail, repro = "ERROR", health, ""
-            else:
-                outcome, detail, repro = result
-                health = server_alive()
-                if health == "hang":
-                    outcome, detail = "HANG",  f"Server locked up. {detail}"
-                elif health == "crash":
-                    outcome, detail = "CRASH", f"Server crashed. {detail}"
-        except Exception:
-            tb = traceback.format_exc().strip().splitlines()[-1]
-            health = server_alive()
-            outcome = health if health != "ok" else "ERROR"
-            detail, repro = tb, ""
-
-        icon = ICONS.get(outcome, "·")
-        print(f"  [{icon}] {outcome:8s}  {name}")
-        if detail:
-            for line in textwrap.wrap(detail, 72):
-                print(f"           {line}")
+        outcome, detail, repro = _probe_result(name, fn)
+        _print_probe_result(name, outcome, detail)
         RESULTS.append((name, outcome, detail, repro))
+
+
+def _probe_result(name, function):
+    try:
+        result = function()
+    except Exception:
+        detail = traceback.format_exc().strip().splitlines()[-1]
+        health = server_alive()
+        return (health if health != "ok" else "ERROR"), detail, ""
+    if result is None:
+        return _healthy_probe_result(name, server_alive())
+    return _finding_probe_result(result, server_alive())
+
+
+def _healthy_probe_result(name, health):
+    if health == "ok":
+        return "PASS", "", ""
+    if health == "hang":
+        return "HANG", "Server stopped responding to legitimate clients.", name
+    if health == "crash":
+        return "CRASH", "Server process disappeared.", name
+    return "ERROR", health, ""
+
+
+def _finding_probe_result(result, health):
+    outcome, detail, repro = result
+    if health == "hang":
+        return "HANG", f"Server locked up. {detail}", repro
+    if health == "crash":
+        return "CRASH", f"Server crashed. {detail}", repro
+    return outcome, detail, repro
+
+
+def _print_probe_result(name, outcome, detail):
+    icon = ICONS.get(outcome, "·")
+    print(f"  [{icon}] {outcome:8s}  {name}")
+    for line in textwrap.wrap(detail, 72):
+        print(f"           {line}")
 
 # ══════════════════════════════════════════════════════════════════════════
 # PROBES
@@ -451,12 +465,11 @@ def _():
 
 @probe("RE-01  50-connection storm")
 def _():
-    stale = []; fails = 0
+    stale = []
+    fails = 0
     for _ in range(50):
-        try:
-            sx = connect(2); do_hs_proto(sx); stale.append(sx)
-        except OSError: fails += 1
-    for sx in stale: safe_close(sx)
+        fails += _open_stale_connection(stale)
+    _close_connections(stale)
     time.sleep(0.5)
     health = server_alive()
     if health != "ok":
@@ -464,23 +477,46 @@ def _():
                 f"Server state after 50-connection storm: {health} (connect failures: {fails})",
                 "Open 50 TCP connections each sending handshake+protocol, then close all.")
 
+
+def _open_stale_connection(stale):
+    try:
+        connection = connect(2)
+        do_hs_proto(connection)
+        stale.append(connection)
+        return 0
+    except OSError:
+        return 1
+
+
+def _close_connections(connections):
+    for connection in connections:
+        safe_close(connection)
+
 @probe("RE-02  1000-ping flood on one connection")
 def _():
     s = connect(); do_login(s)
     n = 1000
     for i in range(n):
         s.sendall(ping_req(struct.pack(">H", (i%0xFFFE)+1)))
-    ok = 0
-    for _ in range(n):
-        try:
-            s.settimeout(10); st, _ = recv_resp(s)
-            if st == kXR_ok: ok += 1
-        except: break
+    ok = _count_ok_responses(s, n)
     safe_close(s)
     if ok < int(n*0.99):
         return ("FINDING",
                 f"Only {ok}/{n} pings returned kXR_ok under flood — possible queue overflow.",
                 "Login → send 1000 kXR_ping back-to-back → read all responses")
+
+
+def _count_ok_responses(connection, count):
+    accepted = 0
+    for _ in range(count):
+        try:
+            connection.settimeout(10)
+            status, _ = recv_resp(connection)
+        except Exception:
+            break
+        if status == kXR_ok:
+            accepted += 1
+    return accepted
 
 @probe("RE-03  open 20 file handles (typical limit is 16-256)")
 def _():
@@ -564,12 +600,7 @@ def _():
     s = connect(); do_hs_proto(s)
     for i in range(200):
         s.sendall(proto_req(sid=struct.pack(">H", i+1)))
-    ok = 0
-    for _ in range(200):
-        try:
-            st, _ = recv_resp(s)
-            if st == kXR_ok: ok += 1
-        except: break
+    ok = _count_ok_responses(s, 200)
     safe_close(s)
     if ok == 0:
         return ("FINDING",
@@ -621,55 +652,69 @@ def _():
 @probe("CC-01  16 threads × 50 pings simultaneously")
 def _():
     errors = []
-    def worker(idx):
-        try:
-            s = connect(); do_login(s)
-            for i in range(50):
-                s.sendall(ping_req(struct.pack(">H", (idx*50+i)%0xFFFE+1)))
-            ok = 0
-            for _ in range(50):
-                try:
-                    st, _ = recv_resp(s)
-                    if st == kXR_ok: ok += 1
-                except: break
-            safe_close(s)
-            if ok < 50: errors.append(f"thread {idx}: {ok}/50 pings ok")
-        except Exception as e: errors.append(f"thread {idx}: {e}")
-    ts = [threading.Thread(target=worker, args=(i,)) for i in range(16)]
-    for t in ts: t.start()
-    for t in ts: t.join(30)
+    threads = [threading.Thread(target=_ping_worker, args=(errors, i)) for i in range(16)]
+    _run_threads(threads)
     if errors:
         return ("FINDING", "Concurrent ping errors: " + "; ".join(errors[:3]),
                 "16 simultaneous connections each sending 50 pings")
 
+
+def _ping_worker(errors, index):
+    try:
+        connection = connect()
+        do_login(connection)
+        for sequence in range(50):
+            stream = (index * 50 + sequence) % 0xFFFE + 1
+            connection.sendall(ping_req(struct.pack(">H", stream)))
+        accepted = _count_ok_responses(connection, 50)
+        safe_close(connection)
+        if accepted < 50:
+            errors.append(f"thread {index}: {accepted}/50 pings ok")
+    except Exception as error:
+        errors.append(f"thread {index}: {error}")
+
+
+def _run_threads(threads):
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(30)
+
 @probe("CC-02  8 ping threads + 8 stat threads concurrently")
 def _():
     errors = []
-    def ping_w():
-        try:
-            s = connect(); do_login(s)
-            for i in range(20):
-                s.sendall(ping_req(struct.pack(">H", i+1)))
-                st, _ = recv_resp(s)
-                if st != kXR_ok: errors.append(f"ping {i}→{st}")
-            safe_close(s)
-        except Exception as e: errors.append(f"ping: {e}")
-    def stat_w():
-        try:
-            s = connect(); do_login(s)
-            for i in range(20):
-                s.sendall(stat_req(b'/test.bin', sid=struct.pack(">H", i+1)))
-                st, _ = recv_resp(s)
-                if st != kXR_ok: errors.append(f"stat {i}→{st}")
-            safe_close(s)
-        except Exception as e: errors.append(f"stat: {e}")
-    ts = ([threading.Thread(target=ping_w) for _ in range(8)]
-        + [threading.Thread(target=stat_w) for _ in range(8)])
-    for t in ts: t.start()
-    for t in ts: t.join(30)
+    threads = _mixed_threads(errors)
+    _run_threads(threads)
     if errors:
         return ("FINDING", "; ".join(errors[:4]),
                 "8 ping threads + 8 stat threads simultaneously")
+
+
+def _mixed_threads(errors):
+    return (
+        [threading.Thread(target=_request_worker, args=(errors, "ping")) for _ in range(8)]
+        + [threading.Thread(target=_request_worker, args=(errors, "stat")) for _ in range(8)]
+    )
+
+
+def _request_worker(errors, kind):
+    try:
+        connection = connect()
+        do_login(connection)
+        _send_request_series(connection, errors, kind)
+        safe_close(connection)
+    except Exception as error:
+        errors.append(f"{kind}: {error}")
+
+
+def _send_request_series(connection, errors, kind):
+    for index in range(20):
+        stream = struct.pack(">H", index + 1)
+        request = ping_req(stream) if kind == "ping" else stat_req(b'/test.bin', sid=stream)
+        connection.sendall(request)
+        status, _ = recv_resp(connection)
+        if status != kXR_ok:
+            errors.append(f"{kind} {index}→{status}")
 
 # ══════════════════════════════════════════════════════════════════════════
 # MAIN

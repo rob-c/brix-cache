@@ -58,6 +58,19 @@ from _test_conf_pgio_helpers import (
 # The lc-uring instance mutates cross-worker ring state (kill switch) and takes
 # the fixed exclusive-band ledger port; serialise every test in the file onto
 # that one instance so the fixed port never has two concurrent drivers.
+def _expression_1_next(segments, fhandle):
+    return (
+        b"".join(fhandle + struct.pack(">I", len(d)) + struct.pack(">q", off)
+                             for off, d in segments)
+    )
+
+
+def _expression_1(do_sync):
+    return (
+        kXR_wv_doSync if do_sync else 0
+    )
+
+
 pytestmark = [pytest.mark.uses_lifecycle_harness,
               pytest.mark.xdist_group("lc-uring")]
 
@@ -175,9 +188,8 @@ def _writev(sock, fhandle, segments, do_sync=False, streamid=b"\x00\x05"):
     """Issue one kXR_writev; segments = [(offset, data), ...].  Returns
     (status, body).  do_sync sets kXR_wv_doSync so the server links a trailing
     FSYNC barrier after the writes (the io_uring path chains IORING_OP_FSYNC)."""
-    descs = b"".join(fhandle + struct.pack(">I", len(d)) + struct.pack(">q", off)
-                     for off, d in segments)
-    options = kXR_wv_doSync if do_sync else 0
+    descs = _expression_1_next(segments, fhandle)
+    options = _expression_1(do_sync)
     hdr = streamid + struct.pack(">H", kXR_writev) + bytes([options]) \
         + b"\x00" * 15 + struct.pack(">I", len(descs))
     sock.sendall(hdr + descs + b"".join(d for _, d in segments))
@@ -307,13 +319,19 @@ def test_admin_killswitch_quiesce_and_reenable(lifecycle, tmp_path):
 
     # Baseline: enabled.
     status, body = inst.admin("GET")
-    assert status == 200, body
-    assert json.loads(body)["disabled"] is False
+    def _assert_test_admin_killswitch_quiesce_and_reenable_1():
+        assert status == 200, body
+        assert json.loads(body)["disabled"] is False
+
+    _assert_test_admin_killswitch_quiesce_and_reenable_1()
 
     # Disable → quiesce.
     status, body = inst.admin("POST", data=json.dumps({"enabled": False}))
-    assert status == 200, body
-    assert json.loads(body)["result"] == "disabled"
+    def _assert_test_admin_killswitch_quiesce_and_reenable_2():
+        assert status == 200, body
+        assert json.loads(body)["result"] == "disabled"
+
+    _assert_test_admin_killswitch_quiesce_and_reenable_2()
 
     assert inst.wait_for_log("io_uring ring quiesced (kill switch)",
                              timeout=MAINT_SETTLE_S), \
@@ -331,8 +349,11 @@ def test_admin_killswitch_quiesce_and_reenable(lifecycle, tmp_path):
 
     # Re-enable → the maintenance timer re-brings-up the ring.
     status, body = inst.admin("POST", data=json.dumps({"enabled": True}))
-    assert status == 200, body
-    assert json.loads(body)["result"] == "enabled"
+    def _assert_test_admin_killswitch_quiesce_and_reenable_3():
+        assert status == 200, body
+        assert json.loads(body)["result"] == "enabled"
+
+    _assert_test_admin_killswitch_quiesce_and_reenable_3()
 
     assert inst.wait_for_log("io_uring disk-I/O backend active",
                              timeout=MAINT_SETTLE_S, count=2), \
@@ -346,8 +367,11 @@ def test_admin_killswitch_quiesce_and_reenable(lifecycle, tmp_path):
     st, _ = _write_file(inst, "/p44_reenabled.bin", payload2, do_sync=True)
     assert st == kXR_ok
     got2, pages = _pgread_all(inst, "/p44_reenabled.bin", 0, len(payload2))
-    assert got2 == payload2
-    assert all(crc32c(p) == c for (_o, p, c) in pages)
+    def _assert_test_admin_killswitch_quiesce_and_reenable_4():
+        assert got2 == payload2
+        assert all(crc32c(p) == c for (_o, p, c) in pages)
+
+    _assert_test_admin_killswitch_quiesce_and_reenable_4()
 
 
 def test_admin_killswitch_requires_bearer(lifecycle, tmp_path):

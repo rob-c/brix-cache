@@ -143,6 +143,71 @@ class _Server:
                 if "worker" in cmd]
 
 
+def _prepare_data(tmp_path_factory):
+    datadir = tmp_path_factory.mktemp("shmfork") / "data"
+    datadir.mkdir(parents=True, exist_ok=True)
+    os.chmod(datadir, 0o777)
+    (datadir / "probe.bin").write_bytes(
+        b"shm-fork-safety probe payload\n" * 64
+    )
+    return datadir
+
+
+def _server_spec(datadir):
+    return NginxInstanceSpec(
+        name=NAME,
+        template="nginx_shm_fork_comprehensive.conf",
+        data_root=str(datadir),
+        template_values={"WORKERS": WORKERS, "BIND_HOST": settings.BIND_HOST},
+        reason="SHM/fork slab-clobber regression needs its own master+workers",
+    )
+
+
+def _working_tier(harness):
+    tail = ""
+    candidates = (
+        ("comprehensive", None),
+        ("minimal", "nginx_shm_fork_minimal.conf"),
+    )
+    for candidate, template in candidates:
+        harness.reconfigure(NAME, template=template)
+        try:
+            harness.nginx_test(NAME)
+            return candidate
+        except RegistryCommandFailure as exc:
+            tail = (exc.stderr_tail or exc.stdout_tail).strip()[-400:]
+    pytest.skip("nginx rejected both config tiers: %s" % tail)
+
+
+def _start_registered(harness, tier):
+    try:
+        return harness.start_registered(NAME)
+    except (RegistryCommandFailure, RuntimeError) as exc:
+        pytest.skip("nginx failed to start (%s tier): %s" % (tier, exc))
+
+
+def _require_ready(srv):
+    ready = _wait_port(srv.http_port) and _wait_port(srv.root_port)
+    if not ready:
+        pytest.skip("server did not become ready (%s tier): %s"
+                    % (srv.tier, srv.error_log()[-400:]))
+    srv.master = srv.master_pid()
+    if srv.master is None or not _alive(srv.master):
+        pytest.skip("master pid never appeared")
+
+
+def _create_server(tmp_path_factory, harness):
+    datadir = _prepare_data(tmp_path_factory)
+    harness.register(_server_spec(datadir))
+    tier = _working_tier(harness)
+    endpoint = _start_registered(harness, tier)
+    srv = _Server(harness, endpoint, tier, str(datadir))
+    _require_ready(srv)
+    print("\n[shm-fork-safety] tier=%s master=%d root=%d mgr=%d http=%d"
+          % (tier, srv.master, srv.root_port, srv.mgr_port, srv.http_port))
+    return srv
+
+
 @pytest.fixture(scope="module")
 def server(tmp_path_factory):
     if REMOTE_SERVER:
@@ -150,70 +215,9 @@ def server(tmp_path_factory):
     if not os.path.exists(NGINX_BIN):
         pytest.skip("nginx binary not built at %s" % NGINX_BIN)
 
-    base = tmp_path_factory.mktemp("shmfork")
-    datadir = base / "data"
-    datadir.mkdir(parents=True, exist_ok=True)
-    # nginx master may run as root, dropping workers to 'nobody': the export
-    # must be worker-writable, like the fleet's 0777 exports.
-    os.chmod(datadir, 0o777)
-    # seed a readable probe file so GET/cat succeed
-    with open(datadir / "probe.bin", "wb") as f:
-        f.write(b"shm-fork-safety probe payload\n" * 64)
-
-    # The `lifecycle` fixture is function-scoped; this module wants ONE
-    # instance across both tests, so it owns a harness directly.  The primary +
-    # secondary (mgr/http/s3) listens come from the fixed lifecycle-exclusive
-    # ledger for "lc-shmfork" — the harness injects them by name.
     harness = LifecycleHarness()
-    spec = NginxInstanceSpec(
-        name=NAME,
-        template="nginx_shm_fork_comprehensive.conf",
-        data_root=str(datadir),
-        template_values={
-            "WORKERS": WORKERS,
-            "BIND_HOST": settings.BIND_HOST,
-        },
-        reason="SHM/fork slab-clobber regression needs its own master+workers",
-    )
-
     try:
-        # Prefer the comprehensive (all-zone) template; fall back to minimal if
-        # the build rejects an optional directive — the core invariant holds.
-        harness.register(spec)
-        tier = None
-        tail = ""
-        for candidate, template in (
-            ("comprehensive", None),
-            ("minimal", "nginx_shm_fork_minimal.conf"),
-        ):
-            harness.reconfigure(NAME, template=template)
-            try:
-                harness.nginx_test(NAME)
-                tier = candidate
-                break
-            except RegistryCommandFailure as exc:
-                tail = (exc.stderr_tail or exc.stdout_tail).strip()[-400:]
-        if tier is None:
-            pytest.skip("nginx rejected both config tiers: %s" % tail)
-
-        try:
-            endpoint = harness.start_registered(NAME)
-        except (RegistryCommandFailure, RuntimeError) as exc:
-            pytest.skip("nginx failed to start (%s tier): %s" % (tier, exc))
-
-        srv = _Server(harness, endpoint, tier, str(datadir))
-        if not _wait_port(srv.http_port) or not _wait_port(srv.root_port):
-            pytest.skip("server did not become ready (%s tier): %s"
-                        % (tier, srv.error_log()[-400:]))
-
-        srv.master = srv.master_pid()
-        if srv.master is None or not _alive(srv.master):
-            pytest.skip("master pid never appeared")
-
-        print("\n[shm-fork-safety] tier=%s master=%d root=%d mgr=%d http=%d"
-              % (tier, srv.master, srv.root_port, srv.mgr_port, srv.http_port))
-
-        yield srv
+        yield _create_server(tmp_path_factory, harness)
     finally:
         harness.close()
 
@@ -295,6 +299,64 @@ def test_protocols_serve_after_zone_init(server):
         assert pat not in log, "crash signature %r in error log after traffic" % pat
 
 
+def _wait_for_reap(server, master, victim):
+    deadline = time.time() + 5.0
+    while time.time() < deadline:
+        if not _alive(master):
+            return False
+        if victim not in server.worker_pids():
+            return True
+        time.sleep(0.05)
+    return False
+
+
+def _require_master_survived(server, master, rnd, reaped):
+    assert _alive(master), (
+        "round %d: master SIGSEGV'd reaping a worker — an SHM zone clobbered "
+        "its slab header (regression of the fork/SHM bug). Log tail:\n%s"
+        % (rnd, server.error_log()[-800:]))
+    assert reaped, "round %d: master did not reap the killed worker" % rnd
+
+
+def _require_serving(server, rnd):
+    st, _ = _http("GET", "http://%s:%d/metrics" % (HOST, server.http_port))
+    assert st == 200, "round %d: server stopped serving after a worker kill" % rnd
+
+
+def _wait_for_worker(server):
+    deadline = time.time() + 5.0
+    while time.time() < deadline:
+        if server.worker_pids():
+            return True
+        time.sleep(0.05)
+    return False
+
+
+def _run_kill_round(server, master, rnd):
+    _drive_protocols(server)
+    assert server.worker_pids(), "round %d: master has no workers to kill" % rnd
+    victim = server.harness.kill_worker(NAME, signal.SIGKILL)
+    _require_master_survived(server, master, rnd,
+                             _wait_for_reap(server, master, victim))
+    _require_serving(server, rnd)
+    assert _wait_for_worker(server), (
+        "round %d: master did not respawn a worker" % rnd)
+
+
+def _require_final_health(server, master):
+    assert _alive(master), "master not alive after all kill rounds"
+    st, _ = _http("GET", "http://%s:%d/metrics" % (HOST, server.http_port))
+    assert st == 200, "server not serving after %d kill rounds" % KILL_ROUNDS
+
+
+def _require_no_crash_signatures(server):
+    log = server.error_log()
+    for pat in CRASH_PATTERNS:
+        assert pat not in log, (
+            "crash signature %r in error log — a worker or master crashed on a "
+            "clobbered slab header. Log tail:\n%s" % (pat, log[-800:]))
+
+
 def test_master_survives_worker_sigkill(server):
     """THE regression: SIGKILL workers across several rounds (with live traffic
     through every protocol in between) so the master runs ngx_unlock_mutexes
@@ -305,48 +367,6 @@ def test_master_survives_worker_sigkill(server):
     assert _alive(master), "master not alive at test start"
 
     for rnd in range(KILL_ROUNDS):
-        _drive_protocols(server)  # vary which zones hold live entries
-
-        assert server.worker_pids(), (
-            "round %d: master has no workers to kill" % rnd)
-        victim = server.harness.kill_worker(NAME, signal.SIGKILL)
-
-        # master must remain alive through the reap (the crash point)
-        deadline = time.time() + 5.0
-        survived = False
-        while time.time() < deadline:
-            if _alive(master) and victim not in server.worker_pids():
-                survived = True
-                break
-            if not _alive(master):
-                break
-            time.sleep(0.05)
-        assert _alive(master), (
-            "round %d: master SIGSEGV'd reaping a worker — an SHM zone clobbered "
-            "its slab header (regression of the fork/SHM bug). Log tail:\n%s"
-            % (rnd, server.error_log()[-800:]))
-        assert survived, "round %d: master did not reap the killed worker" % rnd
-
-        # surviving worker(s) keep serving immediately, before respawn settles
-        st, _ = _http("GET", "http://%s:%d/metrics" % (HOST, server.http_port))
-        assert st == 200, "round %d: server stopped serving after a worker kill" % rnd
-
-        # master restores its worker count
-        deadline = time.time() + 5.0
-        while time.time() < deadline:
-            if server.worker_pids():
-                break
-            time.sleep(0.05)
-        assert server.worker_pids(), (
-            "round %d: master did not respawn a worker" % rnd)
-
-    # final: still the same master, still serving, no crash signatures logged
-    assert _alive(master), "master not alive after all kill rounds"
-    st, _ = _http("GET", "http://%s:%d/metrics" % (HOST, server.http_port))
-    assert st == 200, "server not serving after %d kill rounds" % KILL_ROUNDS
-
-    log = server.error_log()
-    for pat in CRASH_PATTERNS:
-        assert pat not in log, (
-            "crash signature %r in error log — a worker or master crashed on a "
-            "clobbered slab header. Log tail:\n%s" % (pat, log[-800:]))
+        _run_kill_round(server, master, rnd)
+    _require_final_health(server, master)
+    _require_no_crash_signatures(server)

@@ -81,24 +81,29 @@ def run(scan_dir=None, root: Path = ROOT) -> tuple[bool, list[str]]:
     ``metric-cardinality-allow`` lines and comment lines, minus APPROVED names."""
     scan = scan_dir if scan_dir is not None else DEFAULT_SCAN_DIR
     base = root / scan  # absolute scan_dir replaces root (pathlib join semantics)
-    messages: list[str] = []
     if not base.exists():
-        return (True, messages)
-
-    for path in sorted(base.rglob("*.c")):
-        loc_path = f"{scan}/{path.relative_to(base)}"
-        for lineno, line in enumerate(_read(path).splitlines(), 1):
-            if "metric-cardinality-allow" in line or _is_comment_line(line):
-                continue
-            names = _LABEL_RE.findall(line)
-            if not names:
-                continue
-            loc = f"{loc_path}:{lineno}"
-            for n in names:
-                if n not in _APPROVED:
-                    messages.append(f"{loc}: {n}")
-
+        return True, []
+    messages = [
+        message
+        for path in sorted(base.rglob("*.c"))
+        for message in _cardinality_messages(scan, base, path)
+    ]
     return (not messages, messages)
+
+
+def _cardinality_messages(scan, base, path):
+    location = f"{scan}/{path.relative_to(base)}"
+    return [
+        f"{location}:{lineno}: {name}"
+        for lineno, line in enumerate(_read(path).splitlines(), 1)
+        if _scannable_metric_line(line)
+        for name in _LABEL_RE.findall(line)
+        if name not in _APPROVED
+    ]
+
+
+def _scannable_metric_line(line):
+    return "metric-cardinality-allow" not in line and not _is_comment_line(line)
 
 
 def main() -> int:

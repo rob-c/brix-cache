@@ -30,6 +30,55 @@ from pathlib import Path
 
 import pytest
 
+def _phase_gate_1_next(ca, certs, srv, usr, data):
+    for d in (ca, certs, srv, usr, data):
+        d.mkdir(parents=True)
+
+def _phase_gate_2(usr):
+    for k in ("userkey.pem",):
+        os.chmod(usr / k, 0o600)
+
+def _phase_gate_3(dst, src):
+    for p in (dst, src):
+        p.terminate()
+        _phase_gate_1(p)
+
+
+def _phase_gate_1(p):
+    try:
+        p.wait(timeout=5)
+    except subprocess.TimeoutExpired:
+        p.kill()
+
+
+def _guard_gate_1():
+    if not _have("xrootd", "openssl", "xrdgsiproxy") or not os.path.exists(XRDCP):
+        pytest.skip("stock xrootd / openssl / xrdgsiproxy not installed")
+
+def _guard_gate_2():
+    if not os.path.exists(NGINX):
+        pytest.skip("nginx not built")
+
+def _guard_gate_3(mkproxy, uproxy, usr):
+    if not mkproxy(usr / "usercert.pem", usr / "userkey.pem", uproxy):
+        pytest.skip("could not mint user proxy")
+
+def _guard_gate_4(mkproxy, gwproxy, srv):
+    if not mkproxy(srv / "gwcert.pem", srv / "gwkey.pem", gwproxy):
+        pytest.skip("could not mint gateway proxy")
+
+def _guard_gate_5(src):
+    if not _wait(SRC_PORT):
+        src.terminate()
+        pytest.skip("stock GSI source did not come up")
+
+def _guard_gate_6(src, dst):
+    if not _wait(DST_PORT):
+        src.terminate()
+        dst.terminate()
+        pytest.skip("nginx dest did not come up")
+
+
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 NGINX = "/tmp/nginx-1.28.3/objs/nginx"
 XRDCP = "/usr/bin/xrdcp"          # STOCK client (knows GSI delegation)
@@ -56,16 +105,13 @@ def _wait(port, tries=100):
 
 @pytest.fixture(scope="module")
 def gate(tmp_path_factory):
-    if not _have("xrootd", "openssl", "xrdgsiproxy") or not os.path.exists(XRDCP):
-        pytest.skip("stock xrootd / openssl / xrdgsiproxy not installed")
-    if not os.path.exists(NGINX):
-        pytest.skip("nginx not built")
+    _guard_gate_1()
+    _guard_gate_2()
 
     base = tmp_path_factory.mktemp("f6gate")
     ca, certs, srv, usr, data = (
         base / d for d in ("ca", "certs", "srv", "usr", "data"))
-    for d in (ca, certs, srv, usr, data):
-        d.mkdir(parents=True)
+    _phase_gate_1_next(ca, certs, srv, usr, data)
     # Lowercase: the client lowercases the connect hostname, so the server cert CN
     # must be lowercase too — else the name check fails, the client falls back to
     # DNS, and "usedDNS" forbids proxy delegation (§F6).
@@ -109,8 +155,7 @@ def gate(tmp_path_factory):
     signed(fqdn, srv / "hostkey.pem", srv / "hostcert.pem")
     signed("F6 User", usr / "userkey.pem", usr / "usercert.pem")
     signed("tpc-gateway", srv / "gwkey.pem", srv / "gwcert.pem")
-    for k in ("userkey.pem",):
-        os.chmod(usr / k, 0o600)
+    _phase_gate_2(usr)
     os.chmod(srv / "gwkey.pem", 0o600)
 
     penv = dict(os.environ, X509_CERT_DIR=str(certs))
@@ -123,10 +168,8 @@ def gate(tmp_path_factory):
 
     uproxy = usr / "proxy.pem"
     gwproxy = srv / "gwproxy.pem"
-    if not mkproxy(usr / "usercert.pem", usr / "userkey.pem", uproxy):
-        pytest.skip("could not mint user proxy")
-    if not mkproxy(srv / "gwcert.pem", srv / "gwkey.pem", gwproxy):
-        pytest.skip("could not mint gateway proxy")
+    _guard_gate_3(mkproxy, uproxy, usr)
+    _guard_gate_4(mkproxy, gwproxy, srv)
     os.chmod(gwproxy, 0o600)
 
     (data / "hello.txt").write_text("f6 delegation gate\n")
@@ -157,9 +200,7 @@ def gate(tmp_path_factory):
     src = subprocess.Popen(["xrootd", "-c", str(src_cfg),
                             "-l", str(base / "xrootd.log"), "-n", "src"],
                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    if not _wait(SRC_PORT):
-        src.terminate()
-        pytest.skip("stock GSI source did not come up")
+    _guard_gate_5(src)
 
     # ---- OUR nginx destination: GSI inbound + (reserved) delegation ----
     dst_cfg = base / "dst.conf"
@@ -189,20 +230,12 @@ def gate(tmp_path_factory):
     _run(["bash", "-c", f"fuser -k {DST_PORT}/tcp 2>/dev/null"])
     dst = subprocess.Popen([NGINX, "-c", str(dst_cfg), "-p", str(base)],
                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    if not _wait(DST_PORT):
-        src.terminate()
-        dst.terminate()
-        pytest.skip("nginx dest did not come up")
+    _guard_gate_6(src, dst)
 
     ctx = {"base": str(base), "fqdn": fqdn, "src_log": src_log,
            "env": dict(penv, X509_USER_PROXY=str(uproxy))}
     yield ctx
-    for p in (dst, src):
-        p.terminate()
-        try:
-            p.wait(timeout=5)
-        except subprocess.TimeoutExpired:
-            p.kill()
+    _phase_gate_3(dst, src)
 
 
 def _src_log(gate):

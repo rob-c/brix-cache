@@ -42,12 +42,15 @@ def test_regfile_owner_bits_derivation(srv, mode):
     on, fn = _flags_int(of), _flags_int(ff)
     # mask off only the r/w/x bits for the derivation check
     rwx_mask = kXR_readable | kXR_writable | kXR_xset
-    assert (fn & rwx_mask) == want, (
-        f"stock {rel} owner-bit derivation wrong (oracle): "
-        f"flags={fn}({_decode_flags(fn)}) want r/w/x bits 0x{want:02x}")
-    assert (on & rwx_mask) == want, (
-        f"our {rel} owner-bit derivation wrong: "
-        f"flags={on}({_decode_flags(on)}) want r/w/x bits 0x{want:02x}")
+    def _assert_test_regfile_owner_bits_derivation_2():
+        assert (fn & rwx_mask) == want, (
+            f"stock {rel} owner-bit derivation wrong (oracle): "
+            f"flags={fn}({_decode_flags(fn)}) want r/w/x bits 0x{want:02x}")
+        assert (on & rwx_mask) == want, (
+            f"our {rel} owner-bit derivation wrong: "
+            f"flags={on}({_decode_flags(on)}) want r/w/x bits 0x{want:02x}")
+
+    _assert_test_regfile_owner_bits_derivation_2()
 
 
 # =========================================================================== #
@@ -133,10 +136,13 @@ def test_dir_owner_bits_derivation(srv, mode):
     if mode & 0o100:
         want |= kXR_xset
     rwx = kXR_readable | kXR_writable | kXR_xset
-    assert (_flags_int(ff) & rwx) == want, \
-        f"stock {rel} dir owner-bit derivation wrong (oracle): {_flags_int(ff)}"
-    assert (_flags_int(of) & rwx) == want, \
-        f"our {rel} dir owner-bit derivation wrong: {_flags_int(of)}"
+    def _assert_test_dir_owner_bits_derivation_1():
+        assert (_flags_int(ff) & rwx) == want, \
+            f"stock {rel} dir owner-bit derivation wrong (oracle): {_flags_int(ff)}"
+        assert (_flags_int(of) & rwx) == want, \
+            f"our {rel} dir owner-bit derivation wrong: {_flags_int(of)}"
+
+    _assert_test_dir_owner_bits_derivation_1()
 
 
 # =========================================================================== #

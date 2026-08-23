@@ -56,6 +56,15 @@ from test_audit15c_tpc_token_exchange import _drive_pull
 from test_phase25_ratelimit import (KXR_OK, _xrd_open, _xrd_read,
                                     _xrd_recv_status)
 
+def _guard_hostx_1():
+    if not os.path.exists(NGINX_BIN):
+        pytest.skip(f"nginx binary not found at {NGINX_BIN}")
+
+def _guard_hostx_2(loopback):
+    if not loopback:
+        pytest.skip("the loopback address has no reverse-DNS name on this host")
+
+
 pytestmark = [pytest.mark.timeout(120),
               pytest.mark.uses_lifecycle_harness,
               pytest.mark.xdist_group("lc-audit15f-hostx")]
@@ -202,11 +211,9 @@ def _loopback_name():
 
 @pytest.fixture()
 def hostx(lifecycle, tmp_path):
-    if not os.path.exists(NGINX_BIN):
-        pytest.skip(f"nginx binary not found at {NGINX_BIN}")
+    _guard_hostx_1()
     loopback = _loopback_name()
-    if not loopback:
-        pytest.skip("the loopback address has no reverse-DNS name on this host")
+    _guard_hostx_2(loopback)
 
     cert, key = mint_localhost_cert(tmp_path, stem="hostx-listener")
 

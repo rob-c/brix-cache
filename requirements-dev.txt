@@ -9,10 +9,5 @@
 # changing a metric's definition would move a ratchet baseline under us.
 # Bounds policy matches requirements.txt: lower AND upper, both reviewed.
 
-# --- ratchet guards: check_complexity.py (CCN) + check_duplication.py --------
-# CCN and clone-detection numbers are baseline-frozen, so the analyser version
-# is part of the contract.
-lizard>=1.17,<2
-
 # --- static analysis lane: tools/ci/run_codechecker.py (needs clang-tidy) ----
 codechecker>=6.28.2,<7

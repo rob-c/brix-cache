@@ -1,14 +1,7 @@
-"""Fleet sentinel — arbiter half, plus the fleet-health conservation guard.
+"""Fleet health conservation, watchdog, and cross-process abort handling.
 
-Moved verbatim from tests/conftest_part4.py (TS-2, testsuite-modernization-plan
-§11): the session health baseline, the pre-teardown conservation check, the
-mid-run watchdog, and the two per-test hooks that notice a cross-process abort
-marker.  ``tests/conftest.py`` re-exports every public-to-the-suite name here
-into its own namespace, which is where the exec-composed lifecycle shards and
-pytest's hook/fixture collection find them.
-
-The forensic half lives in brix_suite.harness.kill_tracer; see its docstring
-for how the two halves cooperate.
+``tests.conftest`` re-exports this module's hooks.  Signal forensics live in
+:mod:`brix_suite.harness.kill_tracer`.
 """
 
 import concurrent.futures as _cf
@@ -22,12 +15,10 @@ import time
 from pathlib import Path
 
 import pytest
-
 from server_registry import read_manifest
 from settings import HOST, REGISTRY_ROOT, REMOTE_SERVER, TEST_ROOT
 
 from brix_suite.harness.kill_tracer import _CURRENT_NODEID, _FLEET_SENTINEL_ON
-
 
 def _check_server_reachable(host: str, port: int, timeout: float = 5.0) -> bool:
     """Return True if the server is accepting TCP connections."""
@@ -38,19 +29,7 @@ def _check_server_reachable(host: str, port: int, timeout: float = 5.0) -> bool:
         return False
 
 
-# ---------------------------------------------------------------------------
-# Fleet health conservation guard.
-#
-# The central test management launches a fixed catalogue of fleet servers.  A
-# well-behaved test session must LEAVE THAT FLEET INTACT: every server that was
-# listening when the session began must still be listening when it ends (before
-# the harness tears it down), and the number of occupied fleet ports must be
-# conserved.  A server that is gone at session end was either stopped by a
-# misbehaving test (a test-isolation bug — a shared server treated as private)
-# or crashed (a server bug).  Either way it is the direct cause of the
-# ConnectionRefused cascades seen when the rest of the suite keeps hitting a
-# port that is no longer answering, so we surface it loudly and fail the run.
-# ---------------------------------------------------------------------------
+# The session must leave every inherited fleet listener intact until teardown.
 
 _FLEET_BASELINE_PATH = Path(REGISTRY_ROOT) / ".fleet-health-baseline.json"
 _fleet_baseline_captured = False   # per-process guard: capture once per session
@@ -118,23 +97,37 @@ def _require_fleet_startup_stability() -> None:
 def _fleet_manifest_endpoints():
     """[(name, host, port), ...] for every port a launched fleet server listens
     on (primary + any extra_ports), read from the session manifest."""
-    out = []
     try:
         servers = read_manifest().get("servers", {})
     except Exception:
-        return out
-    for name, rec in (servers.items() if isinstance(servers, dict) else []):
-        ep = rec.get("endpoint", {}) if isinstance(rec, dict) else {}
-        host = ep.get("host") or HOST
-        port = ep.get("port")
-        if port:
-            out.append((name, host, int(port)))
-        for _label, xport in (ep.get("extra_ports") or {}).items():
-            try:
-                out.append((name, host, int(xport)))
-            except (TypeError, ValueError):
-                continue
+        return []
+    if not isinstance(servers, dict):
+        return []
+    out = []
+    for name, record in servers.items():
+        out.extend(_record_endpoints(name, record))
     return out
+
+
+def _endpoint(name, host, port):
+    if not port:
+        return None
+    try:
+        return name, host, int(port)
+    except (TypeError, ValueError):
+        return None
+
+
+def _record_endpoints(name, record):
+    if not isinstance(record, dict):
+        return []
+    endpoint = record.get("endpoint", {})
+    host = endpoint.get("host") or HOST
+    ports = [endpoint.get("port")]
+    extra_ports = endpoint.get("extra_ports") or {}
+    ports.extend(extra_ports.values())
+    rows = [_endpoint(name, host, port) for port in ports]
+    return list(filter(None, rows))
 
 
 def _fleet_reachable_labels(endpoints):
@@ -147,14 +140,7 @@ def _fleet_reachable_labels(endpoints):
 
 
 def _capture_fleet_baseline():
-    """Snapshot the launched-and-listening fleet as this session's health
-    baseline.
-
-    Captured once per session, at session start (before any test runs), so the
-    baseline reflects the fleet THIS session inherited — the conservation check
-    then measures only the damage THIS session did, never damage a prior lane
-    left behind.  Overwrites any earlier session's snapshot.  A remote fleet is
-    managed elsewhere, so it is never guarded here."""
+    """Snapshot this session's reachable local fleet before tests run."""
     global _fleet_baseline_captured
     if REMOTE_SERVER or _fleet_baseline_captured:
         return
@@ -170,41 +156,24 @@ def _capture_fleet_baseline():
             _json.dumps({"count": len(live), "servers": sorted(live)}),
             encoding="utf-8")
         _fleet_baseline_captured = True
-        # A freshly launched-and-listening fleet is ground truth that nothing is
-        # damaged yet: drop any sentinel abort marker a PRIOR run/lane left on
-        # disk so this healthy session is not aborted at its first test, and
-        # reset the in-process sentinel so a reused interpreter starts clean.
         _clear_fleet_sentinel_marker()
     except OSError:
         pass
 
 
-def _verify_fleet_conservation():
-    """After all tests, before teardown: every server listening at the baseline
-    must STILL be listening, and the occupied-port count must be conserved.
-    Returns (ok: bool, message: str)."""
-    # Only judge conservation when THIS session captured the baseline (i.e. it
-    # actually started/attached the fleet).  A subset run with no fleet
-    # (TEST_SKIP_SERVER_SETUP=1, or a plain `pytest <file>` that skips lifecycle)
-    # must not fail on a stale baseline a previous run left on disk.
-    if REMOTE_SERVER or not _fleet_baseline_captured or not _FLEET_BASELINE_PATH.exists():
-        return True, ""
+def _load_fleet_baseline():
+    if not _fleet_baseline_captured or not _FLEET_BASELINE_PATH.exists():
+        return None
     try:
-        base = _json.loads(_FLEET_BASELINE_PATH.read_text(encoding="utf-8"))
+        return _json.loads(_FLEET_BASELINE_PATH.read_text(encoding="utf-8"))
     except (OSError, ValueError):
-        return True, ""
-    base_servers = set(base.get("servers", []))
-    if not base_servers:
-        return True, ""
-    live = _fleet_reachable_labels(_fleet_manifest_endpoints())
-    now_count = len(live & base_servers)
-    base_count = int(base.get("count", len(base_servers)))
-    down = sorted(base_servers - live)
-    if not down and now_count == base_count:
-        return True, ""
+        return None
+
+
+def _conservation_message(base_count, now_count, down):
     bar = "=" * 78
     body = "".join(f"    - {label}\n" for label in down)
-    message = (
+    return (
         f"\n{bar}\n"
         "FLEET HEALTH CHECK FAILED — server conservation (pre-teardown)\n"
         f"  occupied fleet ports before = {base_count}, after = {now_count}\n"
@@ -217,43 +186,35 @@ def _verify_fleet_conservation():
         "  in the rest of the suite.\n"
         f"{bar}\n"
     )
-    return False, message
 
 
-# ---------------------------------------------------------------------------
-# Fleet sentinel — arbiter half (fail-fast on a test that kills a shared server).
-#
-# The forensic half (kill_tracer) logs every fatal signal to a registry nginx
-# master.  This half decides whether the fleet was actually DAMAGED and aborts.
-# Per test (throttled) it checks each baseline server via its CURRENT pidfile
-# pid — restart-aware: a test that stops-and-restarts its own subject server is
-# fine, because the pidfile then holds a live pid again.  A server only counts
-# as damaged once it has stayed dead for BRIX_FLEET_SENTINEL_GRACE seconds
-# (tracked across the natural per-test cadence, no sleeps), so transient restart
-# windows never trip it.  The first confirmed death aborts the whole run with a
-# banner naming the culprit test and pointing at $TEST_ROOT/kill-diag.log for
-# the exact killer traceback — turning a fleet-wide ConnectionRefused cascade
-# into one attributable, must-fix bug.  Disable with BRIX_FLEET_SENTINEL=0.
-# ---------------------------------------------------------------------------
+def _verify_fleet_conservation():
+    """Check that every baseline listener remains reachable before teardown."""
+    if REMOTE_SERVER:
+        return True, ""
+    base = _load_fleet_baseline()
+    if base is None:
+        return True, ""
+    base_servers = set(base.get("servers", []))
+    if not base_servers:
+        return True, ""
+    live = _fleet_reachable_labels(_fleet_manifest_endpoints())
+    now_count = len(live & base_servers)
+    base_count = int(base.get("count", len(base_servers)))
+    down = sorted(base_servers - live)
+    if not down and now_count == base_count:
+        return True, ""
+    return False, _conservation_message(base_count, now_count, down)
+
+
+# The arbiter confirms prolonged fleet collapse; kill_tracer records its cause.
 
 _SENTINEL_GRACE = float(os.environ.get("BRIX_FLEET_SENTINEL_GRACE", "8"))
-# The sentinel exists to catch a CATASTROPHIC collapse — a test that tears down
-# the whole shared fleet (a mass stop-all / port-band reap) and strands the rest
-# of the suite in ConnectionRefused.  It must NOT fire on legitimate partial
-# churn: mesh/chaos/reload tests routinely stop-and-restart a handful of shared
-# nodes, and a slow restart can leave several transiently unreachable.  So the
-# trip threshold is a MAJORITY of the baseline (default 50%), floored at an
-# absolute so a tiny fleet still needs several down.  Down-for-grace AND
-# majority-of-fleet together mean "the fleet collapsed", not "a test is busy".
+# Require both prolonged failure and a fleet-wide threshold to avoid churn noise.
 _SENTINEL_MIN_DOWN = int(os.environ.get("BRIX_FLEET_SENTINEL_MIN_DOWN", "8"))
 _SENTINEL_DOWN_FRACTION = float(os.environ.get("BRIX_FLEET_SENTINEL_FRACTION", "0.5"))
 _SENTINEL_POLL = float(os.environ.get("BRIX_FLEET_SENTINEL_POLL", "2.0"))
-# The mid-run watchdog DETECTS + LOGS a suspected collapse by default but does
-# NOT halt the suite: its reachability probe false-positives under launch-load
-# (an ephemeral-port storm from many interop pairs coming up at once exhausts
-# outbound ports for the probe's own sockets, so live servers read as dead).
-# The pre-teardown conservation check is the authoritative session-end verdict.
-# Opt into hard mid-run abort with BRIX_FLEET_SENTINEL_ABORT=1.
+# Mid-run detection warns by default; session-end conservation is authoritative.
 _SENTINEL_HARD_ABORT = os.environ.get("BRIX_FLEET_SENTINEL_ABORT", "0") == "1"
 _SENTINEL_ABORT_MARKER = Path(REGISTRY_ROOT) / ".fleet-sentinel-abort"
 _sentinel = {"protected": None, "down_since": {}, "last": 0.0,
@@ -312,19 +273,7 @@ def _sentinel_probe(endpoints, timeout):
 
 
 def _sentinel_reachable_names():
-    """Names of baseline servers currently accepting TCP on any manifest port.
-
-    Reachability — not pidfile liveness — is the source of truth: it is exactly
-    how the baseline is captured and how a downstream test experiences a dead
-    server (ConnectionRefused), and it is immune to the stale-nginx.pid problem
-    (several fleet servers record a pid that no longer matches their live master
-    yet keep serving).
-
-    Two-stage so a launch-load SPIKE (many interop pairs coming up at once now
-    that the port fix lets them run instead of skip) can't be misread as a
-    collapse: a fast parallel probe, then RE-CONFIRM only the misses with a
-    generous timeout.  A truly dead server misses both; a live-but-slow one
-    (accept queue backed up under load) answers the retry and is counted up."""
+    """Probe manifest endpoints quickly, then reconfirm misses slowly."""
     endpoints = _fleet_manifest_endpoints()
     if not endpoints:
         return None                          # manifest unreadable — cannot judge
@@ -335,20 +284,43 @@ def _sentinel_reachable_names():
     return up
 
 
+def _scan_blocked():
+    return _sentinel["fired"] or _sentinel["stopping"] or REMOTE_SERVER
+
+
+def _begin_sentinel_scan(throttle, now):
+    with _sentinel_lock:
+        if throttle and now - _sentinel["last"] < throttle:
+            return None
+        _sentinel["last"] = now
+        return _sentinel_protected_names()
+
+
+def _record_unreachable(raw_down, now):
+    for name in list(_sentinel["down_since"]):
+        if name not in raw_down:
+            _sentinel["down_since"].pop(name, None)
+    for name in raw_down:
+        _sentinel["down_since"].setdefault(name, now)
+
+
+def _confirmed_unreachable(now):
+    return sorted(
+        name for name, since in _sentinel["down_since"].items()
+        if now - since >= _SENTINEL_GRACE
+    )
+
+
 def _sentinel_detect(throttle):
     """Return the list of baseline servers unreachable past the grace window.
 
     Updates the shared down-since state under the lock so the per-test hook and
     the watchdog thread can both call it safely.  ``throttle`` bounds the scan
     rate on the hot per-test path; the watchdog passes 0 (it self-paces)."""
-    if _sentinel["fired"] or _sentinel["stopping"] or REMOTE_SERVER:
+    if _scan_blocked():
         return []
     now = time.monotonic()
-    with _sentinel_lock:
-        if throttle and now - _sentinel["last"] < throttle:
-            return []
-        _sentinel["last"] = now
-        protected = _sentinel_protected_names()
+    protected = _begin_sentinel_scan(throttle, now)
     if not protected:
         return []
     reachable = _sentinel_reachable_names()   # network probe — outside the lock
@@ -359,36 +331,24 @@ def _sentinel_detect(throttle):
         if _sentinel["stopping"]:
             return []
         now = time.monotonic()
-        for name in list(_sentinel["down_since"]):
-            if name not in raw_down:          # recovered (e.g. finished restarting)
-                _sentinel["down_since"].pop(name, None)
-        for name in raw_down:
-            _sentinel["down_since"].setdefault(name, now)
-        return sorted(n for n, t in _sentinel["down_since"].items()
-                      if now - t >= _SENTINEL_GRACE)
+        _record_unreachable(raw_down, now)
+        return _confirmed_unreachable(now)
 
 
-def _sentinel_fire(nodeid, confirmed, via):
-    """Announce the collapse once, mark the run for abort, wake the process."""
-    with _sentinel_lock:
-        if _sentinel["fired"] or _sentinel["stopping"]:
-            return
-        _sentinel["fired"] = True
+def _sentinel_message(nodeid, confirmed, via):
     bar = "=" * 78
     shown = confirmed[:12]
-    body = "".join(f"    - {n}\n" for n in shown)
+    body = "".join(f"    - {name}\n" for name in shown)
     if len(confirmed) > len(shown):
         body += f"    - … and {len(confirmed) - len(shown)} more\n"
     verb = ("STOPPED or CRASHED shared fleet servers — aborting the run"
             if _SENTINEL_HARD_ABORT
             else "may have STOPPED or CRASHED shared fleet servers (warn-only)")
-    message = (
-        f"\n{bar}\n"
-        f"FLEET SENTINEL: a test {verb}.\n"
+    return (
+        f"\n{bar}\nFLEET SENTINEL: a test {verb}.\n"
         f"  detected by: {via}   around test: {nodeid}\n"
         f"  {len(confirmed)} shared server(s) unreachable for >= "
-        f"{_SENTINEL_GRACE:.0f}s and not restarted:\n"
-        f"{body}"
+        f"{_SENTINEL_GRACE:.0f}s and not restarted:\n{body}"
         "  If real, a test killed a shared server the suite depends on and\n"
         "  downstream tests fail with ConnectionRefused.  The culprit's traceback\n"
         "  + timestamp (os.kill AND subprocess stop-all / nginx -s quit) is in\n"
@@ -399,32 +359,56 @@ def _sentinel_fire(nodeid, confirmed, via):
         "  make this halt the run instead of warn.\n"
         f"{bar}\n"
     )
-    sys.stderr.write(message)
-    session = _sentinel_watchdog.get("session")
+
+
+def _record_sentinel_failure(session, message):
+    if session is None:
+        return
     try:
-        if session is not None:
-            session.config._fleet_sentinel_failure = message
+        session.config._fleet_sentinel_failure = message
     except Exception:
         pass
-    if not _SENTINEL_HARD_ABORT:
-        return                              # warn-only: detect + log, never halt
+
+
+def _request_sentinel_stop(session):
+    if session is None:
+        return
     try:
-        if session is not None:
-            session.shouldstop = "fleet sentinel: shared servers were killed"
+        session.shouldstop = "fleet sentinel: shared servers were killed"
     except Exception:
         pass
-    try:                                    # cross-process signal to peer workers
+
+
+def _write_sentinel_marker(message):
+    try:
         _SENTINEL_ABORT_MARKER.parent.mkdir(parents=True, exist_ok=True)
         _SENTINEL_ABORT_MARKER.write_text(message, encoding="utf-8")
     except OSError:
         pass
-    # Break the main thread out of any blocking dead-socket wait so the abort is
-    # honoured even when every worker is hung: pytest treats SIGINT as a graceful
-    # stop.  Harmless on the controller loop too.
+
+
+def _interrupt_main_thread():
     try:
         os.kill(os.getpid(), signal.SIGINT)
     except OSError:
         pass
+
+
+def _sentinel_fire(nodeid, confirmed, via):
+    """Announce the collapse once, mark the run for abort, wake the process."""
+    with _sentinel_lock:
+        if _sentinel["fired"] or _sentinel["stopping"]:
+            return
+        _sentinel["fired"] = True
+    message = _sentinel_message(nodeid, confirmed, via)
+    sys.stderr.write(message)
+    session = _sentinel_watchdog.get("session")
+    _record_sentinel_failure(session, message)
+    if not _SENTINEL_HARD_ABORT:
+        return                              # warn-only: detect + log, never halt
+    _request_sentinel_stop(session)
+    _write_sentinel_marker(message)
+    _interrupt_main_thread()
 
 
 def _sentinel_threshold(protected_count):

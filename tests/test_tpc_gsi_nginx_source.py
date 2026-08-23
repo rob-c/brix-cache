@@ -25,6 +25,38 @@ import pytest
 from server_registry import NginxInstanceSpec
 from settings import HOST
 
+def _phase_gsi_nginx_1(ca, certs, srv, usr, sdata, ddata):
+    for d in (ca, certs, srv, usr, sdata, ddata):
+        d.mkdir(parents=True, exist_ok=True)
+
+def _phase_gsi_nginx_2(base, srv, dproxy, uproxy, usr, certs):
+    if os.geteuid() == 0:
+        subprocess.run(["chmod", "-R", "a+rwX", str(base)], check=False)
+        for worker_key in (srv / "hostkey.pem", dproxy):
+            shutil.chown(worker_key, "nobody")
+            os.chmod(worker_key, 0o600)
+        for cred in (uproxy, usr / "userkey.pem", srv / "destkey.pem"):
+            os.chmod(cred, 0o600)   # client/root-owned — just re-close after a+rwX
+        os.chmod(certs, 0o755)
+
+
+def _guard_gsi_nginx_1():
+    if not _have("openssl", "xrdgsiproxy"):
+        pytest.skip("openssl / xrdgsiproxy not installed")
+
+def _guard_gsi_nginx_2():
+    if not os.path.exists(XRDCP):
+        pytest.skip("xrdcp not built")
+
+def _guard_gsi_nginx_3(proxy, uproxy, usr):
+    if not proxy(usr / "usercert.pem", usr / "userkey.pem", uproxy):
+        pytest.skip("could not mint user proxy")
+
+def _guard_gsi_nginx_4(proxy, dproxy, srv):
+    if not proxy(srv / "destcert.pem", srv / "destkey.pem", dproxy):
+        pytest.skip("could not mint dest proxy")
+
+
 pytestmark = [pytest.mark.uses_lifecycle_harness,
               pytest.mark.xdist_group("lc-tpc")]
 
@@ -42,16 +74,13 @@ def _run(cmd, **kw):
 
 @pytest.fixture
 def gsi_nginx(lifecycle, tmp_path_factory):
-    if not _have("openssl", "xrdgsiproxy"):
-        pytest.skip("openssl / xrdgsiproxy not installed")
-    if not os.path.exists(XRDCP):
-        pytest.skip("xrdcp not built")
+    _guard_gsi_nginx_1()
+    _guard_gsi_nginx_2()
 
     base = tmp_path_factory.mktemp("gsinginx")
     ca, certs, srv, usr, sdata, ddata = (
         base / d for d in ("ca", "certs", "srv", "usr", "srcdata", "dstdata"))
-    for d in (ca, certs, srv, usr, sdata, ddata):
-        d.mkdir(parents=True, exist_ok=True)
+    _phase_gsi_nginx_1(ca, certs, srv, usr, sdata, ddata)
     fqdn = socket.getfqdn()
 
     def osl(*a):
@@ -89,10 +118,8 @@ def gsi_nginx(lifecycle, tmp_path_factory):
 
     uproxy = usr / "proxy.pem"
     dproxy = srv / "destproxy.pem"
-    if not proxy(usr / "usercert.pem", usr / "userkey.pem", uproxy):
-        pytest.skip("could not mint user proxy")
-    if not proxy(srv / "destcert.pem", srv / "destkey.pem", dproxy):
-        pytest.skip("could not mint dest proxy")
+    _guard_gsi_nginx_3(proxy, uproxy, usr)
+    _guard_gsi_nginx_4(proxy, dproxy, srv)
     os.chmod(dproxy, 0o600)
 
     (sdata / "hello.txt").write_text("nginx-GSI-source native tpc pull\n")
@@ -104,14 +131,7 @@ def gsi_nginx(lifecycle, tmp_path_factory):
     # `nobody`. The broad open MUST be followed by 0600 + chown: XrdSecgsi rejects
     # a group/world-accessible proxy ("cannot load proxy credential"). Mirrors the
     # idiom in _test_gsi_handshake_helpers.py.
-    if os.geteuid() == 0:
-        subprocess.run(["chmod", "-R", "a+rwX", str(base)], check=False)
-        for worker_key in (srv / "hostkey.pem", dproxy):
-            shutil.chown(worker_key, "nobody")
-            os.chmod(worker_key, 0o600)
-        for cred in (uproxy, usr / "userkey.pem", srv / "destkey.pem"):
-            os.chmod(cred, 0o600)   # client/root-owned — just re-close after a+rwX
-        os.chmod(certs, 0o755)
+    _phase_gsi_nginx_2(base, srv, dproxy, uproxy, usr, certs)
 
     src = lifecycle.start(NginxInstanceSpec(
         name="lc-tpc-gsi-nginx-source",

@@ -38,22 +38,11 @@ class MinikubeConfig:
     )
 
     def __post_init__(self) -> None:
-        if not isinstance(self.profile, str) or not self.profile:
-            raise SpecError("Minikube profile", self.profile, "must be non-empty text")
-        if self.driver != "docker" or self.container_runtime != "docker":
-            raise SpecError(
-                "Minikube runtime", (self.driver, self.container_runtime),
-                "BriXTest's supported local target uses Docker for both",
-            )
-        for name in ("cpus", "memory_mb"):
-            value = getattr(self, name)
-            if isinstance(value, bool) or not isinstance(value, int) or value < 1:
-                raise SpecError("Minikube %s" % name, value, "must be an integer >= 1")
-        if "@sha256:" not in self.server_image:
-            raise SpecError(
-                "Minikube server image", self.server_image,
-                "must be digest pinned",
-            )
+        _validate_profile(self.profile)
+        _validate_runtime(self.driver, self.container_runtime)
+        _validate_capacity("cpus", self.cpus)
+        _validate_capacity("memory_mb", self.memory_mb)
+        _validate_server_image(self.server_image)
 
     @classmethod
     def from_environment(cls) -> "MinikubeConfig":
@@ -84,13 +73,49 @@ class MinikubeConfig:
         return ("minikube", "status", "--profile", self.profile, "--output=json")
 
 
+def _validate_profile(value: object) -> None:
+    if not isinstance(value, str) or not value:
+        raise SpecError("Minikube profile", value, "must be non-empty text")
+
+
+def _validate_runtime(driver: object, container_runtime: object) -> None:
+    if driver != "docker" or container_runtime != "docker":
+        raise SpecError(
+            "Minikube runtime", (driver, container_runtime),
+            "BriXTest's supported local target uses Docker for both",
+        )
+
+
+def _validate_capacity(name: str, value: object) -> None:
+    if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+        raise SpecError("Minikube %s" % name, value, "must be an integer >= 1")
+
+
+def _validate_server_image(value: object) -> None:
+    if not isinstance(value, str) or "@sha256:" not in value:
+        raise SpecError("Minikube server image", value, "must be digest pinned")
+
+
 def minikube_status(
     config: Optional[MinikubeConfig] = None,
 ) -> Mapping[str, object]:
     """Return normalized status without starting or changing a cluster."""
-    selected = config or MinikubeConfig.from_environment()
+    selected = _selected_config(config)
+    result = _run_status(selected)
+    if isinstance(result, Mapping):
+        return result
+    details = _status_details(result.stdout)
+    running = _status_is_running(details)
+    return _status_payload(selected, result, details, running)
+
+
+def _selected_config(config: Optional[MinikubeConfig]) -> MinikubeConfig:
+    return MinikubeConfig.from_environment() if config is None else config
+
+
+def _run_status(selected: MinikubeConfig):
     try:
-        result = subprocess.run(
+        return subprocess.run(
             list(selected.status_argv()), capture_output=True, text=True,
             timeout=15.0, check=False,
         )
@@ -99,12 +124,17 @@ def minikube_status(
             "ok": False, "profile": selected.profile, "driver": selected.driver,
             "error": "%s: %s" % (type(exc).__name__, exc),
         }
+
+
+def _status_details(stdout: str) -> Mapping[str, object]:
     try:
-        raw_details = json.loads(result.stdout or "{}")
+        raw_details = json.loads(stdout or "{}")
     except ValueError:
-        raw_details = {"raw": result.stdout.strip()}
-    details = raw_details if isinstance(raw_details, Mapping) else {"raw": raw_details}
-    running = _status_is_running(details)
+        raw_details = {"raw": stdout.strip()}
+    return raw_details if isinstance(raw_details, Mapping) else {"raw": raw_details}
+
+
+def _status_payload(selected, result, details, running: bool) -> dict:
     return {
         "ok": result.returncode == 0 and running,
         "running": running,
@@ -122,48 +152,56 @@ def minikube_command(
 ) -> int:
     """Run one explicit Minikube operator action and return its exit status."""
     selected = config or MinikubeConfig.from_environment()
-    if action == "start":
-        try:
-            return subprocess.run(list(selected.start_argv()), check=False).returncode
-        except OSError as exc:
-            raise SpecError(
-                "Minikube start", selected.profile, "%s: %s" % (type(exc).__name__, exc),
-            ) from exc
-    if action == "status":
-        return 0 if minikube_status(selected)["ok"] else 1
-    if action == "test":
-        status = minikube_status(selected)
-        if not status["ok"]:
-            raise SpecError(
-                "Minikube test", selected.profile,
-                "profile is not ready; run `brixtest minikube start` first",
-            )
-        try:
-            loaded = subprocess.run([
-                "minikube", "image", "load", "--profile", selected.profile,
-                selected.server_image,
-            ], check=False).returncode
-        except OSError as exc:
-            raise SpecError(
-                "Minikube image load", selected.server_image,
-                "%s: %s" % (type(exc).__name__, exc),
-            ) from exc
-        if loaded:
-            return loaded
-        env = dict(os.environ)
-        env.update({
-            "BRIXTEST_MINIKUBE": "1",
-            "BRIXTEST_MINIKUBE_PROFILE": selected.profile,
-            "BRIXTEST_BACKEND": "minikube",
-        })
-        argv = [
-            os.environ.get("PYTHON", sys.executable), "-m", "pytest",
-            *pytest_args,
-        ]
-        try:
-            return subprocess.run(argv, env=env, check=False).returncode
-        except OSError as exc:
-            raise SpecError(
-                "Minikube test", selected.profile, "%s: %s" % (type(exc).__name__, exc),
-            ) from exc
-    raise SpecError("Minikube action", action, "must be start, status, or test")
+    commands = {
+        "start": lambda: _start(selected),
+        "status": lambda: 0 if minikube_status(selected)["ok"] else 1,
+        "test": lambda: _test(selected, pytest_args),
+    }
+    command = commands.get(action)
+    if command is None:
+        raise SpecError("Minikube action", action, "must be start, status, or test")
+    return command()
+
+
+def _start(config: MinikubeConfig) -> int:
+    try:
+        return subprocess.run(list(config.start_argv()), check=False).returncode
+    except OSError as exc:
+        raise SpecError(
+            "Minikube start", config.profile, "%s: %s" % (type(exc).__name__, exc),
+        ) from exc
+
+
+def _load_image(config: MinikubeConfig) -> int:
+    try:
+        return subprocess.run([
+            "minikube", "image", "load", "--profile", config.profile, config.server_image,
+        ], check=False).returncode
+    except OSError as exc:
+        raise SpecError(
+            "Minikube image load", config.server_image, "%s: %s" % (type(exc).__name__, exc),
+        ) from exc
+
+
+def _test(config: MinikubeConfig, pytest_args: Sequence[str]) -> int:
+    if not minikube_status(config)["ok"]:
+        raise SpecError(
+            "Minikube test", config.profile,
+            "profile is not ready; run `brixtest minikube start` first",
+        )
+    loaded = _load_image(config)
+    if loaded:
+        return loaded
+    env = dict(os.environ)
+    env.update({
+        "BRIXTEST_MINIKUBE": "1",
+        "BRIXTEST_MINIKUBE_PROFILE": config.profile,
+        "BRIXTEST_BACKEND": "minikube",
+    })
+    argv = [os.environ.get("PYTHON", sys.executable), "-m", "pytest", *pytest_args]
+    try:
+        return subprocess.run(argv, env=env, check=False).returncode
+    except OSError as exc:
+        raise SpecError(
+            "Minikube test", config.profile, "%s: %s" % (type(exc).__name__, exc),
+        ) from exc

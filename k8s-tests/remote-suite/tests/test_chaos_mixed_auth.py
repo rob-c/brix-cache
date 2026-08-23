@@ -205,165 +205,166 @@ class Inst:
         self.logfile = logfile
 
 
-@pytest.fixture(scope="module")
-def mesh(tmp_path_factory):
-    # ---- preflight -------------------------------------------------------
-    if shutil.which("openssl") is None:
-        pytest.skip("openssl required")
-    if not os.path.isfile(_VOMS_FAKE):
-        pytest.skip("utils/voms_proxy_fake.py missing")
-    if not os.access(NGINX_BIN, os.X_OK):
-        pytest.skip(f"nginx binary not executable: {NGINX_BIN}")
-    b = subprocess.run(["make", "-C", CLIENT_DIR, "xrdfs", "xrdcp", "xrdsssadmin-brix"],
-                       capture_output=True, text=True, timeout=240)
-    if b.returncode != 0 or not all(os.path.exists(x)
-                                    for x in (XRDFS, XRDCP, XRDSSSADMIN)):
-        pytest.skip(f"native client build failed:\n{b.stdout}\n{b.stderr}")
-    # the temp PKI framework must be present (conftest builds it; build if absent)
-    if not (os.path.exists(f"{CA_DIR}/ca.pem") and os.path.exists(USER_CERT)
-            and os.path.exists(SERVER_CERT)):
-        try:
-            import pki_helpers
-            pki_helpers.blitz_test_pki()
-        except Exception as e:  # noqa: BLE001
-            pytest.skip(f"temp PKI unavailable: {e}")
+def _skip_unless(condition, reason):
+    if not condition:
+        pytest.skip(reason)
 
-    root = tmp_path_factory.mktemp("chaos")
 
-    # ---- credentials -----------------------------------------------------
+def _remote_preflight():
+    _skip_unless(shutil.which("openssl") is not None, "openssl required")
+    _skip_unless(os.path.isfile(_VOMS_FAKE), "utils/voms_proxy_fake.py missing")
+    _skip_unless(os.access(NGINX_BIN, os.X_OK),
+                 f"nginx binary not executable: {NGINX_BIN}")
+    result = subprocess.run(
+        ["make", "-C", CLIENT_DIR, "xrdfs", "xrdcp", "xrdsssadmin-brix"],
+        capture_output=True, text=True, timeout=240,
+    )
+    binaries = all(os.path.exists(path) for path in (XRDFS, XRDCP, XRDSSSADMIN))
+    if result.returncode != 0 or not binaries:
+        pytest.skip(f"native client build failed:\n{result.stdout}\n{result.stderr}")
+    _remote_pki()
+
+
+def _remote_pki():
+    required = (f"{CA_DIR}/ca.pem", USER_CERT, SERVER_CERT)
+    if all(os.path.exists(path) for path in required):
+        return
+    try:
+        import pki_helpers
+        pki_helpers.blitz_test_pki()
+    except Exception as exc:
+        pytest.skip(f"temp PKI unavailable: {exc}")
+
+
+def _mint_keytab(path, label):
+    result = subprocess.run(
+        [XRDSSSADMIN, "-k", path, "add", "--id", "1", "--user", "chaosusr",
+         "--group", "chaosgrp", "--name", "chaoskey"],
+        capture_output=True, text=True,
+    )
+    assert result.returncode == 0, f"{label}: {result.stdout}{result.stderr}"
+
+
+def _remote_credentials(root):
     _make_voms_signing_cert()
     _make_vomsdir_lsc(CHAOS_VO)
-    proxy_pem = str(root / "proxy_chaos.pem")
-    _mint_voms_proxy(proxy_pem)
+    proxy = str(root / "proxy_chaos.pem")
+    _mint_voms_proxy(proxy)
+    keytab, wrong = str(root / "chaos.keytab"), str(root / "wrong.keytab")
+    _mint_keytab(keytab, "keytab mint failed")
+    _mint_keytab(wrong, "wrong keytab mint failed")
+    return proxy, keytab, wrong
 
-    kt = str(root / "chaos.keytab")            # shared by proxy + sss-origin
-    r = subprocess.run([XRDSSSADMIN, "-k", kt, "add", "--id", "1",
-                        "--user", "chaosusr", "--group", "chaosgrp",
-                        "--name", "chaoskey"], capture_output=True, text=True)
-    assert r.returncode == 0, f"keytab mint failed: {r.stdout}{r.stderr}"
-    kt_bad = str(root / "wrong.keytab")        # different secret → must be rejected
-    r = subprocess.run([XRDSSSADMIN, "-k", kt_bad, "add", "--id", "1",
-                        "--user", "chaosusr", "--group", "chaosgrp",
-                        "--name", "chaoskey"], capture_output=True, text=True)
-    assert r.returncode == 0
 
-    # ---- data ------------------------------------------------------------
+def _remote_data(root):
     payload_gsi = b"x509-upstream payload :: " + os.urandom(8).hex().encode() + b"\n"
     payload_sss = b"sss-upstream payload :: " + os.urandom(8).hex().encode() + b"\n"
-    gsi_data = root / "gsi-origin-data"
-    sss_data = root / "sss-origin-data"
+    gsi_data, sss_data = root / "gsi-origin-data", root / "sss-origin-data"
     gsi_data.mkdir()
     sss_data.mkdir()
     (gsi_data / "probe.txt").write_bytes(payload_gsi)
     (sss_data / "probe.txt").write_bytes(payload_sss)
+    return gsi_data, sss_data, payload_gsi, payload_sss
 
-    insts = {}
 
-    def mk(name, body):
-        d = root / name
-        (d / "conf").mkdir(parents=True)
-        (d / "logs").mkdir(parents=True)
-        if not (d / "data").exists():
-            (d / "data").mkdir(parents=True)
-        (d / "cache").mkdir(parents=True, exist_ok=True)  # tier cache_store dir
-        port = _free_port()
-        conf = str(d / "conf" / "nginx.conf")
-        pidf = str(d / "logs" / "nginx.pid")
-        logf = str(d / "logs" / "error.log")
-        with open(conf, "w") as f:
-            f.write(body(port, d, pidf, logf))
-        insts[name] = Inst(name, port, conf, pidf, logf)
-        return insts[name]
+def _make_instance(root, instances, name, renderer):
+    directory = root / name
+    (directory / "conf").mkdir(parents=True)
+    (directory / "logs").mkdir(parents=True)
+    (directory / "data").mkdir(parents=True)
+    (directory / "cache").mkdir(parents=True, exist_ok=True)
+    port = _free_port()
+    config = str(directory / "conf/nginx.conf")
+    pidfile, logfile = str(directory / "logs/nginx.pid"), str(directory / "logs/error.log")
+    with open(config, "w") as stream:
+        stream.write(renderer(port, directory, pidfile, logfile))
+    instances[name] = Inst(name, port, config, pidfile, logfile)
+    return instances[name]
 
-    # gsi-origin (X.509 backend)
-    gsi_origin = mk("gsi-origin", lambda port, d, pidf, logf: f"""
-worker_processes 1; error_log {logf} info; pid {pidf};
+
+def _gsi_origin_config(data):
+    return lambda port, _d, pid, log: f"""
+worker_processes 1; error_log {log} info; pid {pid};
 events {{ worker_connections 128; }}
 stream {{ server {{
-    listen {BIND_HOST}:{port};
-    brix_root on;
-    brix_export {gsi_data};
-    brix_auth gsi;
-    brix_certificate     {SERVER_CERT};
-    brix_certificate_key {SERVER_KEY};
-    brix_trusted_ca      {CA_DIR}/ca.pem;
+    listen {BIND_HOST}:{port}; brix_root on; brix_export {data}; brix_auth gsi;
+    brix_certificate {SERVER_CERT}; brix_certificate_key {SERVER_KEY};
+    brix_trusted_ca {CA_DIR}/ca.pem;
 }} }}
-""")
+"""
 
-    # sss-origin (SSS backend)
-    sss_origin = mk("sss-origin", lambda port, d, pidf, logf: f"""
-worker_processes 1; error_log {logf} info; pid {pidf};
+
+def _sss_origin_config(data, keytab):
+    return lambda port, _d, pid, log: f"""
+worker_processes 1; error_log {log} info; pid {pid};
 events {{ worker_connections 128; }}
-stream {{ server {{
-    listen {BIND_HOST}:{port};
-    brix_root on;
-    brix_export {sss_data};
-    brix_auth sss;
-    brix_sss_keytab {kt};
+stream {{ server {{ listen {BIND_HOST}:{port}; brix_root on;
+    brix_export {data}; brix_auth sss; brix_sss_keytab {keytab};
 }} }}
-""")
+"""
 
-    # cache-gsi: anon front, X.509 UPSTREAM auth to gsi-origin (phase-64 tier
-    # grammar: the GSI origin is the storage backend, its credential a named
-    # brix_credential block, the local read cache a posix cache_store).
-    cache_gsi = mk("cache-gsi", lambda port, d, pidf, logf: f"""
-worker_processes 1; error_log {logf} info; pid {pidf};
+
+def _cache_config(proxy, origin):
+    return lambda port, directory, pid, log: f"""
+worker_processes 1; error_log {log} info; pid {pid};
 events {{ worker_connections 128; }}
 thread_pool chaos_cache threads=2 max_queue=8192;
-stream {{
-brix_credential chaosgsi {{ x509_proxy {proxy_pem}; ca_dir {CA_DIR}; }}
-server {{
-    listen {BIND_HOST}:{port};
-    brix_root on;
-    brix_export {d}/data;
-    brix_auth none;
-    brix_allow_write off;
-    brix_thread_pool chaos_cache;
-    brix_storage_backend root://{BIND_HOST}:{gsi_origin.port};
-    brix_storage_credential chaosgsi;
-    brix_cache_store posix:{d}/cache;
+stream {{ brix_credential chaosgsi {{ x509_proxy {proxy}; ca_dir {CA_DIR}; }}
+server {{ listen {BIND_HOST}:{port}; brix_root on; brix_export {directory}/data;
+    brix_auth none; brix_allow_write off; brix_thread_pool chaos_cache;
+    brix_storage_backend root://{BIND_HOST}:{origin.port};
+    brix_storage_credential chaosgsi; brix_cache_store posix:{directory}/cache;
     brix_cache_export /;
 }} }}
-""")
+"""
 
-    # proxy-sss: anon front, SSS UPSTREAM auth to sss-origin
-    proxy_sss = mk("proxy-sss", lambda port, d, pidf, logf: f"""
-worker_processes 1; error_log {logf} info; pid {pidf};
+
+def _proxy_config(keytab, origin):
+    return lambda port, _d, pid, log: f"""
+worker_processes 1; error_log {log} info; pid {pid};
 events {{ worker_connections 128; }}
-stream {{ server {{
-    listen {BIND_HOST}:{port};
-    brix_root on;
-    brix_auth none;
-    brix_tap_proxy on;
-    brix_tap_proxy_auth sss;
-    brix_sss_keytab {kt};
-    brix_tap_proxy_upstream {BIND_HOST}:{sss_origin.port} sss;
+stream {{ server {{ listen {BIND_HOST}:{port}; brix_root on; brix_auth none;
+    brix_tap_proxy on; brix_tap_proxy_auth sss; brix_sss_keytab {keytab};
+    brix_tap_proxy_upstream {BIND_HOST}:{origin.port} sss;
 }} }}
-""")
+"""
 
-    # proxy-sss-bad: SSS upstream with the WRONG keytab (negative path)
-    proxy_bad = mk("proxy-sss-bad", lambda port, d, pidf, logf: f"""
-worker_processes 1; error_log {logf} info; pid {pidf};
-events {{ worker_connections 128; }}
-stream {{ server {{
-    listen {BIND_HOST}:{port};
-    brix_root on;
-    brix_auth none;
-    brix_tap_proxy on;
-    brix_tap_proxy_auth sss;
-    brix_sss_keytab {kt_bad};
-    brix_tap_proxy_upstream {BIND_HOST}:{sss_origin.port} sss;
-}} }}
-""")
 
-    for inst in insts.values():
-        _start_nginx(inst.conf)
-    for inst in insts.values():
-        if not _wait_port(inst.port):
-            for i2 in insts.values():
-                _stop_nginx(i2.conf)
-            pytest.skip(f"{inst.name} never came up on {inst.port}")
+def _remote_instances(root, credentials, data):
+    proxy, keytab, wrong = credentials
+    gsi_data, sss_data, _, _ = data
+    instances = {}
+    gsi = _make_instance(root, instances, "gsi-origin", _gsi_origin_config(gsi_data))
+    sss = _make_instance(root, instances, "sss-origin", _sss_origin_config(sss_data, keytab))
+    cache = _make_instance(root, instances, "cache-gsi", _cache_config(proxy, gsi))
+    front = _make_instance(root, instances, "proxy-sss", _proxy_config(keytab, sss))
+    bad = _make_instance(root, instances, "proxy-sss-bad", _proxy_config(wrong, sss))
+    return instances, gsi, sss, cache, front, bad
 
+
+def _start_remote_instances(instances):
+    for instance in instances.values():
+        _start_nginx(instance.conf)
+    for instance in instances.values():
+        if not _wait_port(instance.port):
+            _stop_remote_instances(instances)
+            pytest.skip(f"{instance.name} never came up on {instance.port}")
+
+
+def _stop_remote_instances(instances):
+    for instance in instances.values():
+        _stop_nginx(instance.conf)
+
+
+@pytest.fixture(scope="module")
+def mesh(tmp_path_factory):
+    _remote_preflight()
+    root = tmp_path_factory.mktemp("chaos")
+    credentials = _remote_credentials(root)
+    data = _remote_data(root)
+    insts, gsi_origin, sss_origin, cache_gsi, proxy_sss, proxy_bad = \
+        _remote_instances(root, credentials, data)
+    _start_remote_instances(insts)
     ctx = {
         "insts": insts,
         "cache_gsi": cache_gsi,
@@ -371,13 +372,11 @@ stream {{ server {{
         "proxy_bad": proxy_bad,
         "gsi_origin": gsi_origin,
         "sss_origin": sss_origin,
-        "payload_gsi": payload_gsi,
-        "payload_sss": payload_sss,
+        "payload_gsi": data[2],
+        "payload_sss": data[3],
     }
     yield ctx
-
-    for inst in insts.values():
-        _stop_nginx(inst.conf)
+    _stop_remote_instances(insts)
     time.sleep(0.3)
 
 
@@ -412,123 +411,5 @@ def _no_crash(inst):
     return True, ""
 
 
-# ---------------------------------------------------------------------------
-# happy paths — each route serves byte-exact data over its upstream auth
-# ---------------------------------------------------------------------------
-
-def test_x509_upstream_route(mesh):
-    """anon -> cache-gsi -(X.509 VOMS proxy)-> gsi-origin serves byte-exact."""
-    r = _cat(mesh["cache_gsi"].port)
-    assert r.returncode == 0, r.stderr.decode(errors="replace")
-    assert r.stdout == mesh["payload_gsi"], r.stdout
-
-
-def test_sss_upstream_route(mesh):
-    """anon -> proxy-sss -(SSS keytab)-> sss-origin serves byte-exact."""
-    r = _cat(mesh["proxy_sss"].port)
-    assert r.returncode == 0, r.stderr.decode(errors="replace")
-    assert r.stdout == mesh["payload_sss"], r.stdout
-
-
-def test_both_routes_stat(mesh):
-    for inst in (mesh["cache_gsi"], mesh["proxy_sss"]):
-        r = _stat(inst.port)
-        assert r.returncode == 0 and "Size:" in r.stdout, \
-            f"{inst.name}: {r.stderr}"
-
-
-# ---------------------------------------------------------------------------
-# negative — wrong SSS upstream key is cleanly rejected, never crashes
-# ---------------------------------------------------------------------------
-
-def test_sss_wrong_upstream_key_rejected(mesh):
-    r = _cat(mesh["proxy_bad"].port, timeout=30)
-    assert r.returncode != 0, "wrong-keytab proxy must NOT serve data"
-    ok, why = _no_crash(mesh["proxy_bad"])
-    assert ok, why
-    ok, why = _no_crash(mesh["sss_origin"])
-    assert ok, why
-
-
-# ---------------------------------------------------------------------------
-# chaos — concurrent mixed load while backends restart underneath
-# ---------------------------------------------------------------------------
-
-def test_chaos_concurrent_mixed_auth_with_restarts(mesh):
-    rng = random.Random(0xC4A05)
-    fronts = [("x509", mesh["cache_gsi"].port, mesh["payload_gsi"]),
-              ("sss", mesh["proxy_sss"].port, mesh["payload_sss"])]
-    backends = [mesh["gsi_origin"], mesh["sss_origin"]]
-
-    stop = threading.Event()
-    results = []          # (route, ok, clean_error)
-    results_lock = threading.Lock()
-
-    def worker(wid):
-        wrng = random.Random(wid * 7919 + 1)
-        for _ in range(8):
-            if stop.is_set():
-                break
-            route, port, payload = fronts[wrng.randrange(len(fronts))]
-            try:
-                r = _cat(port, timeout=40)
-                ok = (r.returncode == 0 and r.stdout == payload)
-                # a non-zero rc is acceptable (backend may be mid-restart) as
-                # long as the process returned cleanly rather than hanging.
-                clean = ok or (r.returncode != 0)
-            except subprocess.TimeoutExpired:
-                ok, clean = False, False
-            with results_lock:
-                results.append((route, ok, clean))
-            time.sleep(wrng.uniform(0.0, 0.05))
-
-    def chaos_agent():
-        # Restart each backend a few times while the workers run.
-        for _ in range(4):
-            if stop.is_set():
-                break
-            time.sleep(0.4)
-            b = backends[rng.randrange(len(backends))]
-            _stop_nginx(b.conf)
-            time.sleep(rng.uniform(0.1, 0.3))
-            _start_nginx(b.conf)
-            _wait_port(b.port)
-
-    workers = [threading.Thread(target=worker, args=(i,)) for i in range(12)]
-    agent = threading.Thread(target=chaos_agent)
-    for t in workers:
-        t.start()
-    agent.start()
-    for t in workers:
-        t.join(timeout=120)
-    stop.set()
-    agent.join(timeout=30)
-
-    # Make sure the backends are up for the final assertions.
-    for b in backends:
-        if not _wait_port(b.port, tries=20):
-            _start_nginx(b.conf)
-            _wait_port(b.port)
-
-    # 1) Nothing crashed — every instance's master is alive, no fatal signals.
-    for inst in mesh["insts"].values():
-        ok, why = _no_crash(inst)
-        assert ok, why
-
-    # 2) Every request returned cleanly (no hangs/timeouts).
-    assert results, "no chaos results recorded"
-    clean = sum(1 for _, _, c in results if c)
-    assert clean == len(results), \
-        f"{len(results) - clean}/{len(results)} requests hung/timed out"
-
-    # 3) Recovery: after the dust settles, both routes serve correctly again.
-    rg = _cat(mesh["cache_gsi"].port, timeout=40)
-    assert rg.returncode == 0 and rg.stdout == mesh["payload_gsi"], \
-        f"x509 route did not recover: {rg.stderr}"
-    rs = _cat(mesh["proxy_sss"].port, timeout=40)
-    assert rs.returncode == 0 and rs.stdout == mesh["payload_sss"], \
-        f"sss route did not recover: {rs.stderr}"
-
-    # 4) At least some requests succeeded during the storm (sanity).
-    succeeded = sum(1 for _, ok, _ in results if ok)
-    assert succeeded > 0, "no request succeeded during the chaos window"
+from split_continuation import load as _load_continuation
+_load_continuation(globals(), __file__, "test_chaos_mixed_auth_part2.py")

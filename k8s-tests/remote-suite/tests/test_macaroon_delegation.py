@@ -40,50 +40,72 @@ def _b64url_decode(s: str) -> bytes:
     return base64.urlsafe_b64decode(s + pad)
 
 
+def _macaroon_packet(raw, position):
+    if position + 4 > len(raw):
+        return None
+    length = int(raw[position:position + 4], 16)
+    if length < 4 or position + length > len(raw):
+        return None
+    return raw[position + 4:position + length], position + length
+
+
+def _packet_field(data):
+    if data and data[-1] == ord('\n'):
+        data = data[:-1]
+    separator = data.find(b' ')
+    if separator < 0:
+        return None
+    return data[:separator].decode(), data[separator + 1:]
+
+
 def decode_macaroon(token: str):
     """Decode a base64url macaroon into a list of (label, value) tuples."""
     raw = _b64url_decode(token)
     packets = []
     pos = 0
     while pos < len(raw):
-        if pos + 4 > len(raw):
+        packet = _macaroon_packet(raw, pos)
+        if packet is None:
             break
-        plen = int(raw[pos:pos + 4], 16)
-        if plen < 4 or pos + plen > len(raw):
-            break
-        data = raw[pos + 4:pos + plen]
-        if data and data[-1] == ord('\n'):
-            data = data[:-1]
-        sp = data.find(b' ')
-        if sp >= 0:
-            packets.append((data[:sp].decode(), data[sp + 1:]))
-        pos += plen
+        data, pos = packet
+        field = _packet_field(data)
+        if field is not None:
+            packets.append(field)
     return packets
+
+
+def _initial_signature(packets, root_key):
+    for label, value in packets:
+        if label == "identifier":
+            return hmac.new(root_key, value, hashlib.sha256).digest()
+    return None
+
+
+def _apply_caveat(signature, value, caveats):
+    signature = hmac.new(signature, value, hashlib.sha256).digest()
+    if b":" in value:
+        key, item = value.split(b":", 1)
+        caveats[key.decode()] = item.decode()
+    return signature
+
+
+def _caveat_chain(packets, signature):
+    caveats = {}
+    provided = None
+    for label, value in packets:
+        if label == "cid":
+            signature = _apply_caveat(signature, value, caveats)
+        elif label == "signature":
+            provided = value
+    return signature, provided, caveats
 
 
 def validate_macaroon(token: str, root_key: bytes) -> dict:
     """Validate a macaroon's HMAC chain; return extracted first-party caveat values."""
     packets = decode_macaroon(token)
-    sig = None
-    caveats = {}
-    provided_sig = None
-
-    for label, value in packets:
-        if label == "identifier":
-            sig = hmac.new(root_key, value, hashlib.sha256).digest()
-            break
-
+    sig = _initial_signature(packets, root_key)
     assert sig is not None, "No identifier packet found"
-
-    for label, value in packets:
-        if label == "cid":
-            sig = hmac.new(sig, value, hashlib.sha256).digest()
-            if b":" in value:
-                k, v = value.split(b":", 1)
-                caveats[k.decode()] = v.decode()
-        elif label == "signature":
-            provided_sig = value
-
+    sig, provided_sig, caveats = _caveat_chain(packets, sig)
     assert provided_sig == sig, (
         f"HMAC mismatch: expected {sig.hex()}, got {provided_sig.hex() if provided_sig else 'None'}"
     )

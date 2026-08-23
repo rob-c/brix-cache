@@ -41,6 +41,23 @@ from settings import BIND_HOST, NGINX_BIN, SERVER_HOST
 from server_launcher import LifecycleHarness
 from server_registry import NginxInstanceSpec
 
+def _check_reassemble_1(count, payload):
+    assert len(payload) == count, "short EBLOCK payload from server"
+
+def _guard_reassemble_1(offset, count, out):
+    if offset + count > len(out):
+        out.extend(b"\x00" * (offset + count - len(out)))
+
+def _check_test_put_mode_e_parallel_streams_3(code):
+    assert code == 226, f"expected 226, got {code}"
+
+def _check_test_put_mode_e_parallel_streams_2(ftp):
+    assert ftp.getresp().startswith("150"), "expected 150 before data"
+
+def _check_test_put_mode_e_parallel_streams_4(payload, fh):
+    assert fh.read() == payload
+
+
 pytestmark = [pytest.mark.serial, pytest.mark.timeout(180),
               pytest.mark.uses_lifecycle_harness]
 
@@ -109,9 +126,8 @@ def _reassemble(blob):
         if desc & EB_EOF:
             break
         payload = blob[i:i + count]
-        assert len(payload) == count, "short EBLOCK payload from server"
-        if offset + count > len(out):
-            out.extend(b"\x00" * (offset + count - len(out)))
+        _check_reassemble_1(count, payload)
+        _guard_reassemble_1(offset, count, out)
         out[offset:offset + count] = payload
         i += count
     return bytes(out)
@@ -261,7 +277,7 @@ def test_put_mode_e_parallel_streams(ev_gateway):
                  for _ in range(nstreams)]
         try:
             ftp.putcmd("STOR par-me.bin")
-            assert ftp.getresp().startswith("150"), "expected 150 before data"
+            _check_test_put_mode_e_parallel_streams_2(ftp)
             # Stream i carries block i at offset i*chunk then its own EOD; the last
             # stream ends with a combined EOF|EOD (globus convention) declaring the
             # total EOD count, so it both terminates its own stream and announces
@@ -280,6 +296,6 @@ def test_put_mode_e_parallel_streams(ev_gateway):
                 sock.close()
     finally:
         ftp.close()
-    assert code == 226, f"expected 226, got {code}"
+    _check_test_put_mode_e_parallel_streams_3(code)
     with open(os.path.join(ev_gateway.export, "par-me.bin"), "rb") as fh:
-        assert fh.read() == payload
+        _check_test_put_mode_e_parallel_streams_4(payload, fh)

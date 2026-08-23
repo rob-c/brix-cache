@@ -23,6 +23,27 @@ import requests
 from mu_authz_lib import creds, ports, principals
 from server_registry import NginxInstanceSpec
 
+def _guard_test_inflight_resume_partial_is_private_then_publishes_1(final):
+    if os.path.exists(final):
+        os.remove(final)
+
+def _check_test_inflight_resume_partial_is_private_then_publishes_1(inflight, stage_dir):
+    assert inflight, f"could not locate the in-flight resume partial in {stage_dir}"
+
+def _check_test_inflight_resume_partial_is_private_then_publishes_3(final):
+    assert _mode(final) == 0o644, (
+        f"completed resumable object mode {oct(_mode(final))} != 0o644 (publish-intended failed)")
+
+def _guard_test_inflight_resume_partial_is_private_then_publishes_2(fn, stage_dir):
+    if ".xrdresume." in fn:
+        os.remove(os.path.join(stage_dir, fn))
+
+def _check_test_inflight_resume_partial_is_private_then_publishes_2(p):
+    assert _mode(p) == 0o600, (
+        f"in-flight resume partial {p} mode {oct(_mode(p))} != 0o600 — a peer mapped uid "
+        f"could read the in-progress upload")
+
+
 pytestmark = [pytest.mark.uses_lifecycle_harness,
               pytest.mark.xdist_group("lc-mu-stage-modes")]
 
@@ -94,40 +115,41 @@ def test_inflight_resume_partial_is_private_then_publishes(stage_env, alice_prox
     url = stage_env.url
     stage_dir = os.path.join(stage_env.data_root, "stage")
     final = os.path.join(stage_dir, "resumable.bin")
-    if os.path.exists(final):
-        os.remove(final)
+    _guard_test_inflight_resume_partial_is_private_then_publishes_1(final)
     # Clear any leftover resume partial from a prior interrupted run (identity-keyed
     # name); otherwise a stale offset yields a 409 resume conflict.
     for fn in os.listdir(stage_dir):
-        if ".xrdresume." in fn:
-            os.remove(os.path.join(stage_dir, fn))
+        _guard_test_inflight_resume_partial_is_private_then_publishes_2(fn, stage_dir)
     payload = b"R" * 4096
 
     # First chunk: bytes 0-2047/4096 — incomplete, so the server holds a persistent partial.
     r1 = requests.put(url + "/stage/resumable.bin", data=payload[:2048],
                       headers={"Content-Range": "bytes 0-2047/4096"},
                       cert=alice_proxy, verify=False, timeout=30)
-    assert r1.status_code in (200, 201, 202, 204, 308), \
-        f"partial PUT failed: {r1.status_code} {r1.text[:200]}"
-    assert not os.path.exists(final), "object committed before the upload completed"
+    def _assert_test_inflight_resume_partial_is_private_then_publishes_1():
+        assert r1.status_code in (200, 201, 202, 204, 308), \
+            f"partial PUT failed: {r1.status_code} {r1.text[:200]}"
+        assert not os.path.exists(final), "object committed before the upload completed"
+
+    _assert_test_inflight_resume_partial_is_private_then_publishes_1()
 
     # The partial lives in the stage dir (the export, no separate stage dir configured),
     # identity-keyed with a ".xrdresume." name. Scope to the stage dir + match by name so a
     # same-sized sibling elsewhere in the export cannot be mistaken for it.
     inflight = [os.path.join(stage_dir, fn) for fn in os.listdir(stage_dir)
                 if ".xrdresume." in fn]
-    assert inflight, f"could not locate the in-flight resume partial in {stage_dir}"
+    _check_test_inflight_resume_partial_is_private_then_publishes_1(inflight, stage_dir)
     for p in inflight:
-        assert _mode(p) == 0o600, (
-            f"in-flight resume partial {p} mode {oct(_mode(p))} != 0o600 — a peer mapped uid "
-            f"could read the in-progress upload")
+        _check_test_inflight_resume_partial_is_private_then_publishes_2(p)
 
     # Second chunk completes the upload → atomic commit at the client-intended mode.
     r2 = requests.put(url + "/stage/resumable.bin", data=payload[2048:],
                       headers={"Content-Range": "bytes 2048-4095/4096"},
                       cert=alice_proxy, verify=False, timeout=30)
-    assert r2.status_code in (200, 201, 204), \
-        f"completing PUT failed: {r2.status_code} {r2.text[:200]}"
-    assert os.path.exists(final), "object not committed after completion"
-    assert _mode(final) == 0o644, (
-        f"completed resumable object mode {oct(_mode(final))} != 0o644 (publish-intended failed)")
+    def _assert_test_inflight_resume_partial_is_private_then_publishes_2():
+        assert r2.status_code in (200, 201, 204), \
+            f"completing PUT failed: {r2.status_code} {r2.text[:200]}"
+        assert os.path.exists(final), "object not committed after completion"
+
+    _assert_test_inflight_resume_partial_is_private_then_publishes_2()
+    _check_test_inflight_resume_partial_is_private_then_publishes_3(final)

@@ -1,26 +1,18 @@
-"""The process-worker protocol (feature F14).
+"""JSON-lines RPC for clients that must run outside the test process.
 
-Some client libraries can't live in the test process — they fork
-badly, hold global state, or crash the interpreter.  The grown suite
-solved this with a JSON-lines RPC to a persistent helper process; this
-module is that protocol, made symmetric and typed.
-
-Wire format, one JSON object per line, both directions::
+Wire format::
 
     → {"tag": "t1", "op": "stat", "args": {"path": "/x"}}
     ← {"tag": "t1", "ok": true,  "result": {...}}
     ← {"tag": "t1", "ok": false, "error": {"type": "...", "message": "...",
                                             "stderr_tail": "..."}}
 
-Responses may arrive in **any order** — the runner correlates on
-``tag``, which is what lets one worker serve concurrent test threads.
-The per-call deadline defaults from ``BRIXTEST_WORKER_TIMEOUT``
-(seconds, default 90 — inherited from the grown suite's proxy-timeout
-tuning).  Shutdown is TERM, then KILL after a short grace.
+Responses may arrive in any order and are correlated by ``tag``.
 """
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import signal
@@ -32,7 +24,7 @@ from typing import Any, Callable, Dict, Mapping, Optional, Sequence
 
 from brixtest.errors import WorkerCrash, WorkerTimeout
 
-__all__ = ["WorkerRunner", "serve", "DEFAULT_TIMEOUT"]
+__all__ = ["DEFAULT_TIMEOUT", "WorkerRunner", "serve"]
 
 _ENV_TIMEOUT = "BRIXTEST_WORKER_TIMEOUT"
 DEFAULT_TIMEOUT = float(os.environ.get(_ENV_TIMEOUT, "") or 90.0)
@@ -78,8 +70,6 @@ class WorkerRunner:
         self._stderr_thread = threading.Thread(target=self._stderr_loop, daemon=True)
         self._stderr_thread.start()
 
-    # -- background readers ---------------------------------------------
-
     def _read_loop(self) -> None:
         assert self._proc.stdout is not None
         for line in self._proc.stdout:
@@ -103,8 +93,6 @@ class WorkerRunner:
         assert self._proc.stderr is not None
         for line in self._proc.stderr:
             self._stderr_tail = (self._stderr_tail + line)[-_STDERR_TAIL:]
-
-    # -- calls -----------------------------------------------------------
 
     def call(
         self,
@@ -148,8 +136,6 @@ class WorkerRunner:
         with self._lock:
             self._pending.pop(tag, None)
 
-    # -- lifecycle -------------------------------------------------------
-
     def close(self, grace: float = 3.0) -> None:
         if self._proc.poll() is None:
             try:
@@ -171,12 +157,8 @@ def serve(handlers: Mapping[str, Callable[..., Any]]) -> None:
     called as ``handler(**args)``, answer on stdout.  Never raises out;
     every handler failure becomes an error frame.  Run this as the
     worker script's main loop."""
-    try:
-        # worker process only — the runner never calls serve(), so importing
-        # this module never touches the test process's signal table
+    with contextlib.suppress(ValueError, OSError):
         signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
-    except (ValueError, OSError):
-        pass  # not the main thread, or an exotic platform
     out_lock = threading.Lock()
 
     def respond(payload: Mapping[str, Any]) -> None:

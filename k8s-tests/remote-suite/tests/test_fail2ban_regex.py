@@ -48,9 +48,7 @@ class TestFilterRegexPure:
     def test_failregex_extracts_host(self, signal, host):
         """The filter's failregex matches its sample line and captures the IP."""
         pattern = _load_failregex(signal).replace("<HOST>", HOST_RE)
-        matches = [re.search(pattern, line)
-                   for line in SAMPLE.read_text().splitlines()]
-        hits = [m for m in matches if m]
+        hits = _matching_lines(pattern, SAMPLE)
         assert len(hits) == 1, f"{signal}: expected exactly one sample hit"
         assert hits[0].group("host") == host
 
@@ -62,6 +60,11 @@ class TestFilterRegexPure:
             if f"signal={signal}" not in line:
                 assert not re.search(pattern, line), \
                     f"{signal} filter matched foreign line: {line}"
+
+
+def _matching_lines(pattern, sample):
+    matches = [re.search(pattern, line) for line in sample.read_text().splitlines()]
+    return [match for match in matches if match]
 
 
 @pytest.mark.skipif(not shutil.which("fail2ban-regex"),

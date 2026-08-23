@@ -132,6 +132,34 @@ def _open_tpc_pull(sock, dst_path, src_url, streamid=b"\x00\x02"):
     return _read_response(sock)
 
 
+def _drain_extra_frame(sock, wait=2.0):
+    """Return the next XRootD frame if one arrives, else None.
+
+    A refusal that is answered but not acted on leaves a SECOND frame behind:
+    the kXR_ok open response, carrying a live fhandle for the transfer the gate
+    just refused. Either a read timeout or a clean EOF means the refusal was the
+    server's last word; anything else is returned for the caller to indict.
+    """
+    sock.settimeout(wait)
+    try:
+        return _read_response(sock)
+    except (socket.timeout, ConnectionError, OSError):
+        return None
+
+
+def _open_leg(port, src_url, dst_filename):
+    """Drive handshake + login + a single kXR_open; return (sock, status, body).
+
+    Deliberately stops at the open leg — the caller owns the socket so it can ask
+    what else, if anything, the server had to say.
+    """
+    sock, hs_status = _raw_session(HOST, port)
+    assert hs_status == kXR_OK, "handshake failed: %d" % hs_status
+    assert _login(sock) == kXR_OK, "login failed"
+    status, body = _open_tpc_pull(sock, dst_filename, src_url)
+    return sock, status, body
+
+
 def _tpc_attempt(port, src_url, dst_filename="/tpc_guard_dst.dat"):
     """Connect + login + drive a TPC pull; return (status, err_text)."""
     sock, hs_status = _raw_session(HOST, port)
@@ -249,3 +277,82 @@ class TestSourceGuardDisabled:
         assert _NOT_PERMITTED not in err, (
             "guard off must not emit the naming refusal: %r" % err
         )
+
+
+# ---------------------------------------------------------------------------
+# A refusal must also STOP the request, not merely answer it
+# ---------------------------------------------------------------------------
+
+class TestRefusalStopsTheRequest:
+    """One refusal, one frame, no handle.
+
+    Every gate in tpc_prepare_check_preconditions ends by sending a kXR_error.
+    brix_send_error() reports NGX_OK once that error is on the wire, so a gate
+    that returns it verbatim tells its caller the check PASSED — and the caller
+    carries on: allocates the fhandle, opens the destination, and queues a second
+    kXR_ok response carrying a usable handle for the transfer just refused. A
+    client that reads past the error gets everything the gate denied it.
+
+    The class-level tests above all stop at the first frame, so none of them can
+    see that. These do: they assert what the server says NEXT.
+    """
+
+    @pytest.mark.registry_server("tpc-source-guard")
+    def test_naming_refusal_is_the_last_word(self, guard_on):
+        # Security-negative: the allowlist refuses, and nothing follows it.
+        sock, status, body = _open_leg(guard_on["port"],
+                                       "root://192.168.1.1//test.txt",
+                                       "/tpc_guard_lastword.dat")
+        try:
+            assert status == kXR_error, "expected kXR_error, got %d" % status
+            assert _NOT_PERMITTED in body[4:].decode("utf-8", "replace")
+            extra = _drain_extra_frame(sock)
+            assert extra is None, (
+                "the refused open was answered a second time — status=%d "
+                "body=%r; a kXR_ok here hands the client the fhandle the "
+                "egress guard just denied" % (extra[0], extra[1][:64])
+                if extra else ""
+            )
+        finally:
+            sock.close()
+
+    @pytest.mark.registry_server("tpc-ssrf-default")
+    def test_range_gate_refusal_is_the_last_word(self, guard_off):
+        # Error path, and a DIFFERENT gate: with the allowlist off, an
+        # unresolvable source falls to the SSRF range gate, which cannot classify
+        # what it cannot resolve and refuses. .invalid is reserved by RFC 2606
+        # precisely so that it never resolves anywhere. The point is that the
+        # one-frame contract is a property of the ladder, not of one rung.
+        sock, status, body = _open_leg(guard_off["port"],
+                                       "root://tpc-egress.invalid//test.txt",
+                                       "/tpc_guard_rangefail.dat")
+        try:
+            assert status == kXR_error, "expected kXR_error, got %d" % status
+            assert "DNS resolution failed" in body[4:].decode("utf-8", "replace")
+            extra = _drain_extra_frame(sock)
+            assert extra is None, (
+                "the range gate answered twice: status=%d body=%r"
+                % (extra[0], extra[1][:64]) if extra else ""
+            )
+        finally:
+            sock.close()
+
+    @pytest.mark.registry_server("tpc-source-guard")
+    def test_permitted_source_answers_exactly_once_too(self, guard_on):
+        # Success path: the same one-frame contract holds when the gates PASS.
+        # The open is accepted and the outbound connection is deferred to
+        # kXR_sync, so the accepted open is also the server's last word here —
+        # which is what makes the two assertions above a difference in kind and
+        # not just a difference in timing.
+        sock, status, _body = _open_leg(guard_on["port"],
+                                        "root://10.255.255.1//test.txt",
+                                        "/tpc_guard_permitted.dat")
+        try:
+            assert status == kXR_OK, "allowlisted source must open: %d" % status
+            extra = _drain_extra_frame(sock)
+            assert extra is None, (
+                "accepted open answered twice: status=%d body=%r"
+                % (extra[0], extra[1][:64]) if extra else ""
+            )
+        finally:
+            sock.close()

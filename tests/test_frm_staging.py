@@ -49,6 +49,14 @@ from settings import NGINX_BIN, HOST, BIND_HOST
 from server_registry import NginxInstanceSpec
 from server_launcher import RegistryCommandFailure
 
+def _check_test_concurrent_opens_dedup_to_one_recall_1(ok):
+    assert ok >= 1, "no concurrent xrdcp succeeded"
+
+def _check_test_concurrent_opens_dedup_to_one_recall_2(n):
+    assert n == 1, \
+        f"expected exactly one recall for 8 concurrent opens (cache single-flight), got {n}"
+
+
 pytestmark = [pytest.mark.uses_lifecycle_harness,
               pytest.mark.xdist_group("lc-frm-staging")]
 
@@ -240,10 +248,9 @@ def test_concurrent_opens_dedup_to_one_recall(frm_recall, tmp_path):
     for p in procs:
         p.wait(timeout=30)
     ok = sum(1 for p in procs if p.returncode == 0)
-    assert ok >= 1, "no concurrent xrdcp succeeded"
+    _check_test_concurrent_opens_dedup_to_one_recall_1(ok)
     n = _recall_count(frm_recall.recall_log)
-    assert n == 1, \
-        f"expected exactly one recall for 8 concurrent opens (cache single-flight), got {n}"
+    _check_test_concurrent_opens_dedup_to_one_recall_2(n)
 
 
 def test_failed_recall_returns_error_not_hang(frm_recall, tmp_path):

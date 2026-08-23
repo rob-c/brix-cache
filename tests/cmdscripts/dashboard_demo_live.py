@@ -86,20 +86,7 @@ def throttled_put(rate_bps: int, source, obj: str, *, limit: int | None = None,
     t0, sent = time.time(), 0
     try:
         with Path(source).open("rb") as stream:
-            remaining = limit
-            while True:
-                want = _CHUNK if remaining is None else min(_CHUNK, remaining)
-                if want == 0:
-                    break
-                block = stream.read(want)
-                if not block:
-                    break
-                proc.stdin.write(block)
-                proc.stdin.flush()
-                sent += len(block)
-                if remaining is not None:
-                    remaining -= len(block)
-                _pace(sent, rate_bps, t0)
+            _feed_upload(proc.stdin, stream, limit, rate_bps, t0)
     except BrokenPipeError:
         pass
     finally:
@@ -108,6 +95,24 @@ def throttled_put(rate_bps: int, source, obj: str, *, limit: int | None = None,
         except OSError:
             pass
     return proc.wait()
+
+
+def _feed_upload(sink, source, remaining, rate_bps, started):
+    sent = 0
+    while remaining != 0:
+        want = _CHUNK if remaining is None else min(_CHUNK, remaining)
+        block = source.read(want)
+        if not block:
+            return
+        sink.write(block)
+        sink.flush()
+        sent += len(block)
+        remaining = _remaining_bytes(remaining, len(block))
+        _pace(sent, rate_bps, started)
+
+
+def _remaining_bytes(remaining, consumed):
+    return None if remaining is None else remaining - consumed
 
 
 def throttled_get(rate_bps: int, obj: str, dest: Path | None, *,
@@ -120,20 +125,30 @@ def throttled_get(rate_bps: int, obj: str, dest: Path | None, *,
     proc = subprocess.Popen([xrdcp, "-f", f"{root_url}//{obj}", "-"],
                             stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
     t0, got = time.time(), 0
-    sink = Path(dest).open("wb") if dest is not None else None
+    sink = _open_sink(dest)
     try:
-        while True:
-            block = proc.stdout.read(_CHUNK)
-            if not block:
-                break
-            if sink is not None:
-                sink.write(block)
-            got += len(block)
-            _pace(got, rate_bps, t0)
+        _drain_download(proc.stdout, sink, rate_bps, t0)
     finally:
-        if sink is not None:
-            sink.close()
+        _close_sink(sink)
     return proc.wait()
+
+
+def _open_sink(destination):
+    return Path(destination).open("wb") if destination is not None else None
+
+
+def _close_sink(sink):
+    if sink is not None:
+        sink.close()
+
+
+def _drain_download(source, sink, rate_bps, started):
+    received = 0
+    for block in iter(lambda: source.read(_CHUNK), b""):
+        if sink is not None:
+            sink.write(block)
+        received += len(block)
+        _pace(received, rate_bps, started)
 
 
 # --------------------------------------------------------------------------- #
@@ -231,80 +246,98 @@ def _spawn_generator(minutes: float, streams: int, rate_bps: int, xfer_bytes: in
 # --------------------------------------------------------------------------- #
 # Full demo flow
 # --------------------------------------------------------------------------- #
-def demo(live_minutes: float | None = None) -> int:
-    live_minutes = float(os.environ.get("LIVE_MINUTES", "20")) if live_minutes is None else live_minutes
-    streams = int(os.environ.get("NSTREAMS", "5"))
-    rate_bps = int(os.environ.get("RATE_BPS", "100000"))
-    seed_rate_bps = int(os.environ.get("SEED_RATE_BPS", "5000000"))
-    xfer_bytes = int(os.environ.get("XFER_BYTES", str(8 * 1024 * 1024)))
+class _DemoChecks:
+    def __init__(self):
+        self.results = []
 
-    if shutil.which("xrdcp") is None:
-        print("SKIP: xrdcp not found (install xrootd-client)")
-        return 0
-
-    checks: list[tuple[bool, str]] = []
-
-    def check(ok: bool, label: str) -> bool:
+    def __call__(self, ok: bool, label: str) -> bool:
         print(f"  {'ok  ' if ok else 'FAIL'} {label}")
-        checks.append((bool(ok), label))
+        self.results.append((bool(ok), label))
         return bool(ok)
 
-    with LiveRun("dash-demo") as run:
-        # 1) Gateway (root:// + dashboard) up.
-        _ensure_gateway(run)
-        if not check(_listening(ROOT_PORT), f"root:// (:{ROOT_PORT}) listening"):
-            return 1
-        if not check(_listening(DASH_GATE_PORT), f"dashboard (:{DASH_GATE_PORT}) listening"):
-            return 1
+    def passed(self):
+        return all(ok for ok, _ in self.results)
 
-        # 2) Dashboard portal + login sanity.
-        code = run.curl_status(DASH_URL, "-k")
-        check(code != 0, f"dashboard reachable at {DASH_URL} (portal http={code})")
-        cookie = _dashboard_login_cookie(run)
-        snap = run.curl_status(f"https://{DASH_HOST_PORT}/brix/api/v1/snapshot",
+
+def _demo_settings(live_minutes):
+    minutes = float(os.environ.get("LIVE_MINUTES", "20")) if live_minutes is None else live_minutes
+    return {
+        "minutes": minutes,
+        "streams": int(os.environ.get("NSTREAMS", "5")),
+        "rate": int(os.environ.get("RATE_BPS", "100000")),
+        "seed_rate": int(os.environ.get("SEED_RATE_BPS", "5000000")),
+        "xfer_bytes": int(os.environ.get("XFER_BYTES", str(8 * 1024 * 1024))),
+    }
+
+
+def _demo_gateway(run, check):
+    _ensure_gateway(run)
+    if not check(_listening(ROOT_PORT), f"root:// (:{ROOT_PORT}) listening"):
+        return False
+    return check(_listening(DASH_GATE_PORT), f"dashboard (:{DASH_GATE_PORT}) listening")
+
+
+def _demo_dashboard(run):
+    code = run.curl_status(DASH_URL, "-k")
+    cookie = _dashboard_login_cookie(run)
+    snapshot = run.curl_status(f"https://{DASH_HOST_PORT}/brix/api/v1/snapshot",
                                "-k", "--cookie", cookie)
-        _say(f"Dashboard OK  (portal http={code}, api/v1/snapshot http={snap})")
+    _say(f"Dashboard OK  (portal http={code}, api/v1/snapshot http={snapshot})")
+    return code
 
-        # 3) 100 MB source file (persistent — the detached generator reads it).
-        if not SRC.exists() or SRC.stat().st_size == 0:
-            _say("Generating 100 MB test file...")
-            with SRC.open("wb") as stream:
-                remaining = SIZE_BYTES
-                while remaining > 0:
-                    block = os.urandom(min(1 << 20, remaining))
-                    stream.write(block)
-                    remaining -= len(block)
 
-        # 4+5) Throttled IN (PUT) + OUT (GET) round-trip over root://.
-        out = run.root / "out.bin"
-        seed_mbs = seed_rate_bps // 1000000
-        _say(f"IN   ->  throttled PUT 100 MB (~{seed_mbs} MB/s)  {SRC}  ->  {ROOT_URL}//{DEMO_OBJ}")
-        t0 = time.time()
-        if not check(throttled_put(seed_rate_bps, SRC, DEMO_OBJ) == 0, "throttled PUT succeeded"):
-            return 1
-        _say(f"OUT  <-  throttled GET 100 MB (~{seed_mbs} MB/s)  {ROOT_URL}//{DEMO_OBJ}  ->  {out}")
-        if not check(throttled_get(seed_rate_bps, DEMO_OBJ, out) == 0, "throttled GET succeeded"):
-            return 1
-        t1 = time.time()
+def _ensure_source():
+    if SRC.exists() and SRC.stat().st_size != 0:
+        return
+    _say("Generating 100 MB test file...")
+    with SRC.open("wb") as stream:
+        remaining = SIZE_BYTES
+        while remaining > 0:
+            block = os.urandom(min(1 << 20, remaining))
+            stream.write(block)
+            remaining -= len(block)
 
-        # 6) Round-trip must be byte-exact.
-        same = out.exists() and out.stat().st_size == SRC.stat().st_size and out.read_bytes() == SRC.read_bytes()
-        if not check(same, f"round-trip byte-exact (100 MB in + out in {int((t1 - t0) * 1000)} ms)"):
-            return 1
 
-        # 7) Seed the bounded read-source object all OUT streams pull from.
-        xfer_mb = xfer_bytes // 1024 // 1024
-        _say(f"Seeding read-source object ({xfer_mb} MiB, pipe-throttled, ~{seed_mbs} MB/s)...")
-        seeded = throttled_put(seed_rate_bps, SRC, "dash_read_src.bin", limit=xfer_bytes) == 0
-        if not check(seeded, "read-source object seeded"):
-            return 1
+def _demo_roundtrip(run, settings, check):
+    output = run.root / "out.bin"
+    seed_rate = settings["seed_rate"]
+    seed_mbs = seed_rate // 1000000
+    _say(f"IN   ->  throttled PUT 100 MB (~{seed_mbs} MB/s)  {SRC}  ->  {ROOT_URL}//{DEMO_OBJ}")
+    started = time.time()
+    if not check(throttled_put(seed_rate, SRC, DEMO_OBJ) == 0, "throttled PUT succeeded"):
+        return False
+    _say(f"OUT  <-  throttled GET 100 MB (~{seed_mbs} MB/s)  {ROOT_URL}//{DEMO_OBJ}  ->  {output}")
+    if not check(throttled_get(seed_rate, DEMO_OBJ, output) == 0, "throttled GET succeeded"):
+        return False
+    elapsed_ms = int((time.time() - started) * 1000)
+    exact = _same_file(output, SRC)
+    return check(exact, f"round-trip byte-exact (100 MB in + out in {elapsed_ms} ms)")
 
-        # 8) Detached sustained multi-stream traffic.
-        gen_pid = _spawn_generator(live_minutes, streams, rate_bps, xfer_bytes)
-        check(gen_pid > 0, f"stream generator detached (pid {gen_pid})")
 
-        # 9) Point the user at the LIVE portal.
-        print(f"""
+def _same_file(left, right):
+    if not left.exists() or left.stat().st_size != right.stat().st_size:
+        return False
+    return left.read_bytes() == right.read_bytes()
+
+
+def _demo_seed(settings, check):
+    count = settings["xfer_bytes"]
+    seed_rate = settings["seed_rate"]
+    size_mib = count // 1024 // 1024
+    _say(f"Seeding read-source object ({size_mib} MiB, pipe-throttled, "
+         f"~{seed_rate // 1000000} MB/s)...")
+    seeded = throttled_put(seed_rate, SRC, "dash_read_src.bin", limit=count) == 0
+    return check(seeded, "read-source object seeded")
+
+
+def _demo_announcement(settings, generator_pid):
+    streams = settings["streams"]
+    rate = settings["rate"]
+    count = settings["xfer_bytes"]
+    size_mib = count // 1024 // 1024
+    seed_mbs = settings["seed_rate"] // 1000000
+    minutes = settings["minutes"]
+    print(f"""
 ============================================================================
   THE WEB MONITORING PORTAL IS LIVE — open it in your browser now:
 
@@ -316,15 +349,37 @@ def demo(live_minutes: float | None = None) -> int:
   Every transfer is pipe-throttled for a smooth wire rate (no bursts):
     * the opening round-trip + seeding ran at ~{seed_mbs} MB/s,
     * {streams} parallel xrdcp workers (alternating in/out) now run at
-      {rate_bps // 1000} kB/s each, every transfer moving {xfer_mb} MiB
-      (~{xfer_bytes // rate_bps}s) for {live_minutes} min.
-  Stream-group leader pid: {gen_pid}
+      {rate // 1000} kB/s each, every transfer moving {size_mib} MiB
+      (~{count // rate}s) for {minutes} min.
+  Stream-group leader pid: {generator_pid}
 
-  Stop the live traffic:   kill -- -{gen_pid}    (or: kill -- -$(cat {GEN_PIDFILE}))
+  Stop the live traffic:   kill -- -{generator_pid}    (or: kill -- -$(cat {GEN_PIDFILE}))
   Stop the gateway:        tests/manage_test_servers.sh stop
 ============================================================================
 """)
-    return 0 if all(ok for ok, _ in checks) else 1
+
+
+def demo(live_minutes: float | None = None) -> int:
+    settings = _demo_settings(live_minutes)
+    if shutil.which("xrdcp") is None:
+        print("SKIP: xrdcp not found (install xrootd-client)")
+        return 0
+    check = _DemoChecks()
+    with LiveRun("dash-demo") as run:
+        if not _demo_gateway(run, check):
+            return 1
+        code = _demo_dashboard(run)
+        check(code != 0, f"dashboard reachable at {DASH_URL} (portal http={code})")
+        _ensure_source()
+        if not _demo_roundtrip(run, settings, check):
+            return 1
+        if not _demo_seed(settings, check):
+            return 1
+        generator_pid = _spawn_generator(settings["minutes"], settings["streams"],
+                                         settings["rate"], settings["xfer_bytes"])
+        check(generator_pid > 0, f"stream generator detached (pid {generator_pid})")
+        _demo_announcement(settings, generator_pid)
+    return 0 if check.passed() else 1
 
 
 SCENARIOS = {"demo": demo}

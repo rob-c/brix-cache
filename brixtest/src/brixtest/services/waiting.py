@@ -1,13 +1,9 @@
-"""Uniform waiting (feature F19): one spelling for "until X, or say why not".
+"""Bounded polling with monotonic deadlines and diagnostic failures.
 
-The grown suite had dozens of hand-rolled ``while ... sleep`` loops,
-some on the wall clock — and on hosts whose wall clock steps backwards
-(the WSL2 incident class), a wall-clock deadline can be *negative
-seconds away*.  Rules, enforced here once so no test re-decides them:
+Rules:
 
 - ``time.monotonic()`` only; the wall clock never gates a wait;
-- every wait names ``what`` it is for, so the timeout error is a
-  sentence, not a stack trace into an anonymous lambda;
+- every wait names ``what`` it is for;
 - the predicate's last observed value rides along in the error.
 """
 

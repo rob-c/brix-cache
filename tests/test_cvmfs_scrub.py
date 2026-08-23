@@ -23,6 +23,31 @@ from pathlib import Path
 import pytest
 
 # conftest chdir()s into a scratch dir — anchor imports on this file's dir.
+def _expression_1():
+    return (
+        [body_for(f"rate-{i}") for i in range(5)]
+    )
+
+def _expression_2(srv):
+    return (
+        [int(line.split("checked ")[1].split(" ")[0])
+                       for line in scrub_log(srv).splitlines()
+                       if "cvmfs scrub pass" in line and "checked " in line]
+    )
+
+
+def _check_test_scrub_rate_bounds_each_pass_2(victims):
+    assert wait_for(lambda: not any(v.exists() for v in victims), timeout=25), \
+        "scrub did not eventually evict every corrupted object"
+
+def _check_test_scrub_rate_bounds_each_pass_3(checked):
+    assert len(checked) >= 3, \
+        f"5 objects at rate 2 should take >=3 passes, saw {len(checked)}"
+
+def _check_test_scrub_rate_bounds_each_pass_1(status, got, b):
+    assert status == 200 and got == b
+
+
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "cvmfs"))
 
 from conformance_common import NGINX_BIN, PortBlock, request, srv_instance
@@ -133,28 +158,27 @@ def test_scrub_detects_and_heals_local_corruption(srv):
 # ============================================================================
 
 def test_scrub_rate_bounds_each_pass(srv):
-    bodies = [body_for(f"rate-{i}") for i in range(5)]
+    bodies = _expression_1()
     victims = []
     for b in bodies:
         path, hx = put_obj(srv, b)
         status, _, got = GET(srv, path)
-        assert status == 200 and got == b
+        _check_test_scrub_rate_bounds_each_pass_1(status, got, b)
         victims.append(cached_path(srv, hx))
     for v in victims:
         corrupt_in_place(v)
 
     # rate=2 with 5 corrupt residents needs >=3 passes — but ALL must go.
-    assert wait_for(lambda: not any(v.exists() for v in victims), timeout=25), \
-        "scrub did not eventually evict every corrupted object"
+    _check_test_scrub_rate_bounds_each_pass_2(victims)
 
-    checked = [int(line.split("checked ")[1].split(" ")[0])
-               for line in scrub_log(srv).splitlines()
-               if "cvmfs scrub pass" in line and "checked " in line]
-    assert checked, "no scrub pass summaries in the error log"
-    assert max(checked) <= 2, \
-        f"a scrub pass exceeded brix_cvmfs_scrub_rate 2: {checked}"
-    assert len(checked) >= 3, \
-        f"5 objects at rate 2 should take >=3 passes, saw {len(checked)}"
+    checked = _expression_2(srv)
+    def _assert_test_scrub_rate_bounds_each_pass_4():
+        assert checked, "no scrub pass summaries in the error log"
+        assert max(checked) <= 2, \
+            f"a scrub pass exceeded brix_cvmfs_scrub_rate 2: {checked}"
+
+    _assert_test_scrub_rate_bounds_each_pass_4()
+    _check_test_scrub_rate_bounds_each_pass_3(checked)
 
 
 # ============================================================================
@@ -174,22 +198,28 @@ def test_scrub_no_tamper_signal_and_corrupt_origin_rejected(srv):
     corrupt_in_place(victim)
     corrupt_in_place(srv.webroot / "cvmfs" / REPO / "data" / hx[:2] / hx[2:])
 
-    assert wait_for(lambda: not victim.exists(), timeout=15), \
-        "scrub did not evict the corrupted cache object"
+    def _assert_test_scrub_no_tamper_signal_and_corrupt_origin_rejected_2():
+        assert wait_for(lambda: not victim.exists(), timeout=15), \
+            "scrub did not evict the corrupted cache object"
+    
+        # The scrub saw LOCAL corruption: the tamper signal (origin-actor,
+        # instant-ban jail) must NOT have fired for it.
+        assert "cvmfs_tamper" not in scrub_log(srv), \
+            "scrub raised signal=cvmfs_tamper for local disk corruption"
 
-    # The scrub saw LOCAL corruption: the tamper signal (origin-actor,
-    # instant-ban jail) must NOT have fired for it.
-    assert "cvmfs_tamper" not in scrub_log(srv), \
-        "scrub raised signal=cvmfs_tamper for local disk corruption"
+    _assert_test_scrub_no_tamper_signal_and_corrupt_origin_rejected_2()
 
     # Heal attempt pulls the corrupt origin copy: the fill verify gate must
     # reject it — the corrupt bytes are never served as a 200.
     corrupt = bytes(b ^ (0xFF if i == 7 else 0) for i, b in enumerate(body))
     status, _, got = GET(srv, path)
-    assert not (status == 200 and got == corrupt), \
-        "corrupt origin bytes were served as a clean 200"
-    assert status >= 500, \
-        f"expected the failed-verify fill to gateway-error, got {status}"
+    def _assert_test_scrub_no_tamper_signal_and_corrupt_origin_rejected_3():
+        assert not (status == 200 and got == corrupt), \
+            "corrupt origin bytes were served as a clean 200"
+        assert status >= 500, \
+            f"expected the failed-verify fill to gateway-error, got {status}"
+
+    _assert_test_scrub_no_tamper_signal_and_corrupt_origin_rejected_3()
     assert not victim.exists(), \
         "a failed-verify fill still published a cache object"
 
@@ -212,11 +242,14 @@ def test_scrub_never_evicts_healthy_objects(srv):
     def passes() -> int:
         return sum(1 for line in scrub_log(srv).splitlines()
                    if "cvmfs scrub pass" in line)
-    assert wait_for(lambda: passes() >= 4, timeout=25), \
-        "scrub passes did not accumulate over pristine residents"
+    def _assert_test_scrub_never_evicts_healthy_objects_1():
+        assert wait_for(lambda: passes() >= 4, timeout=25), \
+            "scrub passes did not accumulate over pristine residents"
+    
+        assert "LOCAL corruption" not in scrub_log(srv), \
+            "scrub flagged corruption in pristine objects"
 
-    assert "LOCAL corruption" not in scrub_log(srv), \
-        "scrub flagged corruption in pristine objects"
+    _assert_test_scrub_never_evicts_healthy_objects_1()
     for path, hx, b in entries:
         assert cached_path(srv, hx).exists(), \
             "scrub evicted a healthy resident (false positive)"

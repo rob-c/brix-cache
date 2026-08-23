@@ -126,79 +126,135 @@ def validate_session(value: Mapping[str, object]) -> None:
     if not str(payload.get("session_id", "")):
         raise SpecError("session_id", payload.get("session_id"), "must not be empty")
     for case in payload["tests"]:
-        if not str(case.get("nodeid", "")):
-            raise SpecError("case.nodeid", case.get("nodeid"), "must not be empty")
+        _validate_case(case)
+
+
+def _validate_case(case: Mapping[str, object]) -> None:
+    if not str(case.get("nodeid", "")):
+        raise SpecError("case.nodeid", case.get("nodeid"), "must not be empty")
+    for attempt in case["attempts"]:
+        _validate_attempt(attempt)
+
+
+def _validate_attempt(attempt: Mapping[str, object]) -> None:
+    if not str(attempt.get("attempt_id", "")):
+        raise SpecError("attempt_id", attempt.get("attempt_id"), "must not be empty")
+    observations = _list(attempt.get("metrics")) + _list(attempt.get("resources"))
+    for sample in observations:
+        _validate_observation(sample)
+
+
+def _validate_observation(sample: object) -> None:
+    if not isinstance(sample, Mapping):
+        return
+    observed = _finite(sample.get("value"), float("nan"))
+    if not math.isfinite(observed):
+        raise SpecError("evidence value", sample.get("value"), "must be finite")
+
+
+def _attempt_record(base: Mapping[str, object], attempt: Mapping[str, object]) -> dict:
+    excluded = {
+        "metrics", "resources", "spans", "artifacts", "logs",
+        "findings", "provenance", "servers",
+    }
+    details = {key: value for key, value in attempt.items() if key not in excluded}
+    return {"entity": "attempt", **base, **details}
+
+
+def _attempt_rows(
+    entity: str, field: str, base: Mapping[str, object], attempt: Mapping[str, object],
+):
+    for index, row in enumerate(_list(attempt.get(field))):
+        if isinstance(row, Mapping):
+            yield {"entity": entity, **base, "ordinal": index, **dict(row)}
+
+
+def _attempt_entities(session_id: str, case, attempt):
+    base = {
+        "session_id": session_id, "case_id": case["case_id"],
+        "nodeid": case.get("nodeid", ""), "attempt_id": attempt["attempt_id"],
+    }
+    yield _attempt_record(base, attempt)
+    for entity, field in (
+        ("metric", "metrics"), ("resource", "resources"), ("span", "spans"),
+        ("artifact", "artifacts"), ("log", "logs"), ("finding", "findings"),
+        ("server-instance", "servers"),
+    ):
+        yield from _attempt_rows(entity, field, base, attempt)
+    provenance = _mapping(attempt.get("provenance"))
+    if provenance:
+        yield {"entity": "provenance", **base, **provenance}
+
+
+def _pool_services(base: Mapping[str, object], pool: Mapping[str, object]):
+    for index, service in enumerate(_mapping(pool.get("services")).values()):
+        if not isinstance(service, Mapping):
+            continue
+        yield {"entity": "server-instance", **base, "ordinal": index, **dict(service)}
+        artifact = _mapping(service.get("log_artifact"))
+        if artifact:
+            yield {"entity": "log", **base, "ordinal": index, **artifact}
+
+
+def _pool_metrics(base: Mapping[str, object], result: Mapping[str, object]):
+    metrics = _mapping(result.get("metrics"))
+    for index, row in enumerate(_list(metrics.get("samples"))):
+        if isinstance(row, Mapping):
+            yield {"entity": "metric", **base, "ordinal": index, **dict(row)}
+
+
+def _pool_evidence_rows(
+    base: Mapping[str, object], evidence: Mapping[str, object],
+):
+    for entity, field in (
+        ("resource", "resources"), ("span", "spans"),
+        ("artifact", "artifacts"), ("finding", "findings"),
+    ):
+        for index, row in enumerate(_list(evidence.get(field))):
+            if isinstance(row, Mapping):
+                yield {"entity": entity, **base, "ordinal": index, **dict(row)}
+
+
+def _pool_entities(session_id: str, pool):
+    pool_id = str(pool.get("pool_id", ""))
+    base = {
+        "session_id": session_id, "pool_id": pool_id,
+        "nodeid": "@shared/%s" % pool_id, "attempt_id": "shared-" + pool_id,
+    }
+    yield {"entity": "server-pool", **base, **dict(pool)}
+    yield from _pool_services(base, pool)
+    result = _mapping(pool.get("result"))
+    evidence = _mapping(result.get("evidence"))
+    yield from _pool_metrics(base, result)
+    yield from _pool_evidence_rows(base, evidence)
+    provenance = _mapping(evidence.get("provenance"))
+    if provenance:
+        yield {"entity": "provenance", **base, **provenance}
+
+
+def _case_entities(session_id: str, cases: Sequence[Mapping[str, object]]):
+    for case in cases:
+        case_base = {key: value for key, value in case.items() if key != "attempts"}
+        yield {"entity": "case", **case_base}
         for attempt in case["attempts"]:
-            if not str(attempt.get("attempt_id", "")):
-                raise SpecError("attempt_id", attempt.get("attempt_id"), "must not be empty")
-            for sample in _list(attempt.get("metrics")) + _list(attempt.get("resources")):
-                if isinstance(sample, Mapping):
-                    observed = _finite(sample.get("value"), float("nan"))
-                    if not math.isfinite(observed):
-                        raise SpecError("evidence value", sample.get("value"), "must be finite")
+            yield from _attempt_entities(session_id, case, attempt)
+
+
+def _topology_entities(session_id: str, topology: Mapping[str, object]):
+    for pool in _list(topology.get("pools")):
+        if isinstance(pool, Mapping):
+            yield from _pool_entities(session_id, pool)
 
 
 def iter_entities(payload: Mapping[str, object]):
     """Yield normalized entity documents suitable for stores and transports."""
     session = normalize_session(payload)
     session_id = str(session["session_id"])
-    yield {"entity": "session", **{key: value for key, value in session.items()
-                                    if key != "tests"}}
-    for case in session["tests"]:
-        case_base = {key: value for key, value in case.items() if key != "attempts"}
-        yield {"entity": "case", **case_base}
-        for attempt in case["attempts"]:
-            base = {
-                "session_id": session_id,
-                "case_id": case["case_id"],
-                "nodeid": case.get("nodeid", ""),
-                "attempt_id": attempt["attempt_id"],
-            }
-            yield {"entity": "attempt", **base, **{
-                key: value for key, value in attempt.items()
-                if key not in ("metrics", "resources", "spans", "artifacts", "logs",
-                               "findings", "provenance", "servers")
-            }}
-            for entity, field in (("metric", "metrics"), ("resource", "resources"),
-                                  ("span", "spans"), ("artifact", "artifacts"),
-                                  ("log", "logs"), ("finding", "findings"),
-                                  ("server-instance", "servers")):
-                for index, row in enumerate(_list(attempt.get(field))):
-                    if isinstance(row, Mapping):
-                        yield {"entity": entity, **base, "ordinal": index, **dict(row)}
-            provenance = _mapping(attempt.get("provenance"))
-            if provenance:
-                yield {"entity": "provenance", **base, **provenance}
+    session_record = {key: value for key, value in session.items() if key != "tests"}
+    yield {"entity": "session", **session_record}
+    yield from _case_entities(session_id, session["tests"])
     topology = _mapping(session.get("topology"))
-    for pool in _list(topology.get("pools")):
-        if not isinstance(pool, Mapping):
-            continue
-        pool_id = str(pool.get("pool_id", ""))
-        base = {"session_id": session_id, "pool_id": pool_id,
-                "nodeid": "@shared/%s" % pool_id, "attempt_id": "shared-" + pool_id}
-        yield {"entity": "server-pool", **base, **dict(pool)}
-        services = _mapping(pool.get("services"))
-        for index, service in enumerate(services.values()):
-            if not isinstance(service, Mapping):
-                continue
-            yield {"entity": "server-instance", **base, "ordinal": index, **dict(service)}
-            artifact = _mapping(service.get("log_artifact"))
-            if artifact:
-                yield {"entity": "log", **base, "ordinal": index, **artifact}
-        result = _mapping(pool.get("result"))
-        evidence = _mapping(result.get("evidence"))
-        metrics = _mapping(result.get("metrics"))
-        for index, row in enumerate(_list(metrics.get("samples"))):
-            if isinstance(row, Mapping):
-                yield {"entity": "metric", **base, "ordinal": index, **dict(row)}
-        for entity, field in (("resource", "resources"), ("span", "spans"),
-                              ("artifact", "artifacts"), ("finding", "findings")):
-            for index, row in enumerate(_list(evidence.get(field))):
-                if isinstance(row, Mapping):
-                    yield {"entity": entity, **base, "ordinal": index, **dict(row)}
-        provenance = _mapping(evidence.get("provenance"))
-        if provenance:
-            yield {"entity": "provenance", **base, **provenance}
+    yield from _topology_entities(session_id, topology)
 
 
 def canonical_json(value: object) -> str:

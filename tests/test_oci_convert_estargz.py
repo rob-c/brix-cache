@@ -254,44 +254,8 @@ def test_podman_unpacks_the_converted_image_to_the_same_rootfs(tmp_path):
     # named at the destination — podman can only pull what it can name
     _ok(_convert(tmp_path / "src", dst_root, "--tag", "v1"))
 
-    def export(layout, out):
-        img = subprocess.run([rt, "pull", "oci:%s:v1" % layout],
-                             capture_output=True, text=True, timeout=300)
-        assert img.returncode == 0, img.stdout + img.stderr
-        image = img.stdout.strip().splitlines()[-1]
-        cid = None
-        try:
-            c = subprocess.run([rt, "create", image], capture_output=True,
-                               text=True, timeout=300)
-            assert c.returncode == 0, c.stdout + c.stderr
-            cid = c.stdout.strip().splitlines()[-1]
-            with open(str(out), "wb") as fh:
-                e = subprocess.run([rt, "export", cid], stdout=fh,
-                                   stderr=subprocess.PIPE, text=True,
-                                   timeout=300)
-            assert e.returncode == 0, e.stderr
-        finally:
-            if cid:
-                subprocess.run([rt, "rm", "-f", cid], capture_output=True,
-                               timeout=120)
-            subprocess.run([rt, "rmi", "-f", image], capture_output=True,
-                           timeout=120)
-        shape = {}
-        with tarfile.open(str(out)) as tf:
-            for m in tf.getmembers():
-                # lstrip("./") would eat the leading dot of a dotfile, and
-                # one of the entries under test is named ".no.prefetch..."
-                name = m.name[2:] if m.name.startswith("./") else m.name
-                name = name.rstrip("/")
-                if not name or name.startswith(("dev/", "proc/", "sys/")):
-                    continue
-                body = tf.extractfile(m).read() if m.isfile() else b""
-                shape[name] = (m.type, m.mode & 0o777,
-                               hashlib.sha256(body).hexdigest())
-        return shape
-
-    want = export(tmp_path / "src", tmp_path / "want.tar")
-    got = export(dst_root, tmp_path / "got.tar")
+    want = _export_rootfs(rt, tmp_path / "src", tmp_path / "want.tar")
+    got = _export_rootfs(rt, dst_root, tmp_path / "got.tar")
     # A runtime with no stargz snapshotter unpacks the layer as the ordinary
     # gzip tar it also is — so the format's own entries land in the rootfs as
     # files. That is the format's documented legacy behaviour, and the reason
@@ -300,6 +264,73 @@ def test_podman_unpacks_the_converted_image_to_the_same_rootfs(tmp_path):
     assert fmt <= set(got), sorted(got)
     assert got[".no.prefetch.landmark"][2] == hashlib.sha256(b"\x0f").hexdigest()
     assert {k: v for k, v in got.items() if k not in fmt} == want
+
+
+def _export_rootfs(runtime, layout, output):
+    image = _pull_layout(runtime, layout)
+    container = None
+    try:
+        container = _create_container(runtime, image)
+        _export_container(runtime, container, output)
+    finally:
+        _remove_runtime_objects(runtime, container, image)
+    return _rootfs_shape(output)
+
+
+def _pull_layout(runtime, layout):
+    result = subprocess.run([runtime, "pull", "oci:%s:v1" % layout],
+                            capture_output=True, text=True, timeout=300)
+    assert result.returncode == 0, result.stdout + result.stderr
+    return result.stdout.strip().splitlines()[-1]
+
+
+def _create_container(runtime, image):
+    result = subprocess.run([runtime, "create", image], capture_output=True,
+                            text=True, timeout=300)
+    assert result.returncode == 0, result.stdout + result.stderr
+    return result.stdout.strip().splitlines()[-1]
+
+
+def _export_container(runtime, container, output):
+    with open(str(output), "wb") as stream:
+        result = subprocess.run([runtime, "export", container], stdout=stream,
+                                stderr=subprocess.PIPE, text=True, timeout=300)
+    assert result.returncode == 0, result.stderr
+
+
+def _remove_runtime_objects(runtime, container, image):
+    if container:
+        subprocess.run([runtime, "rm", "-f", container], capture_output=True,
+                       timeout=120)
+    subprocess.run([runtime, "rmi", "-f", image], capture_output=True,
+                   timeout=120)
+
+
+def _rootfs_shape(archive):
+    shape = {}
+    with tarfile.open(str(archive)) as stream:
+        for member in stream.getmembers():
+            item = _rootfs_item(stream, member)
+            if item is not None:
+                name, value = item
+                shape[name] = value
+    return shape
+
+
+def _rootfs_item(stream, member):
+    name = _archive_name(member.name)
+    if not name or name.startswith(("dev/", "proc/", "sys/")):
+        return None
+    body = stream.extractfile(member).read() if member.isfile() else b""
+    value = (member.type, member.mode & 0o777, hashlib.sha256(body).hexdigest())
+    return name, value
+
+
+def _archive_name(name):
+    # lstrip("./") would corrupt a leading dot in .no.prefetch.landmark.
+    if name.startswith("./"):
+        name = name[2:]
+    return name.rstrip("/")
 
 
 def test_the_destination_entry_is_named_by_tag(tmp_path):

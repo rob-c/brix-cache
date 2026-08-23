@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from cmdscripts import run
+from cmdscripts.command_results import print_results
 from fleet_ports import cmdscript_ports
 from settings import BIND_HOST, HOST, NGINX_BIN
 
@@ -199,13 +200,7 @@ def entry(argv: list[str]) -> int:
 
     with tempfile.TemporaryDirectory(prefix="wm_cfg.") as tmp:
         results = run_checks(Path(tmp), nginx_bin=nginx_bin)
-    for ok, message in results:
-        print(f"  {'ok  ' if ok else 'FAIL'} {message}")
-    if all(ok for ok, _ in results):
-        print("run_cache_watermark_config: ALL PASS")
-        return 0
-    print("run_cache_watermark_config: FAILURES")
-    return 1
+    return print_results(results, "run_cache_watermark_config")
 
 
 if __name__ == "__main__":

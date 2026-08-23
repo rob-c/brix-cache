@@ -9,6 +9,64 @@ import tempfile
 
 from cmdscripts.compile_run import REPO_ROOT, result, run
 
+# `_find_objs` / `_missing_objs` are the parent's; this shard is compiled into
+# its globals, so re-defining them here only rebound the parent's names to
+# byte-identical copies -- and, for the four-argument compile helpers, to
+# incompatible ones.
+def _compile_token_unit(base, harness, name, objs):
+    return (
+        compile_and_run(
+                base / f"test_{name}",
+                [
+                    "-O",
+                    "-Wall",
+                    "-I",
+                    "src",
+                    "-I",
+                    str(NGX_SRC / "src/core"),
+                    "-I",
+                    str(NGX_SRC / "src/event"),
+                    "-I",
+                    str(NGX_SRC / "src/os/unix"),
+                    "-I",
+                    str(OBJS),
+                    harness,
+                    *[str(o) for o in objs],
+                    "-ljansson",
+                    "-lcrypto",
+                ],
+            )
+    )
+
+def _compile_sts_units(base, ngx_string, objs):
+    return (
+        compile_and_run(
+                base / "test_sts_units",
+                [
+                    "-O",
+                    "-Wall",
+                    "-I",
+                    "src",
+                    "-I",
+                    str(NGX_SRC / "src/core"),
+                    "-I",
+                    str(NGX_SRC / "src/event"),
+                    "-I",
+                    str(NGX_SRC / "src/os/unix"),
+                    "-I",
+                    str(OBJS),
+                    *pkg_config(["--cflags", "libxml-2.0"]),
+                    "tests/c/sts_units_test.c",
+                    *[str(o) for o in objs],
+                    str(ngx_string),
+                    *pkg_config(["--libs", "libxml-2.0"], ["-lxml2"]),
+                    *pkg_config(["--libs", "libcurl"], ["-lcurl"]),
+                    "-lcrypto",
+                ],
+            )
+    )
+
+
 NGX_SRC = Path(os.environ.get(
     "NGX_SRC",
     "/tmp/nginx-1.28.3" if Path("/tmp/nginx-1.28.3/src/core/ngx_config.h").exists()
@@ -139,31 +197,11 @@ def run_deleg_find_eec(base: Path) -> list[tuple[bool, str]]:
 # the real module objects; json.o drags in jansson, b64url/crypto need OpenSSL.
 def _run_token_unit(base: Path, name: str, harness: str,
                     needed: list[str]) -> list[tuple[bool, str]]:
-    objs = [find_obj(n) for n in needed]
-    missing = [n for n, o in zip(needed, objs) if o is None]
+    objs = _find_objs(needed)
+    missing = _missing_objs(needed, objs)
     if missing:
         return [result(True, f"SKIP build {' '.join(missing)} first")]
-    ok, message = compile_and_run(
-        base / f"test_{name}",
-        [
-            "-O",
-            "-Wall",
-            "-I",
-            "src",
-            "-I",
-            str(NGX_SRC / "src/core"),
-            "-I",
-            str(NGX_SRC / "src/event"),
-            "-I",
-            str(NGX_SRC / "src/os/unix"),
-            "-I",
-            str(OBJS),
-            harness,
-            *[str(o) for o in objs],
-            "-ljansson",
-            "-lcrypto",
-        ],
-    )
+    ok, message = _compile_token_unit(base, harness, name, objs)
     return [result(ok, f"{name} {message}")]
 
 
@@ -209,37 +247,14 @@ def run_sts_units(base: Path) -> list[tuple[bool, str]]:
     sts_sign.o SigV4 builder, linked against the production ngx_snprintf and
     crypto. Needs libxml2/libcurl (transport TU) and OpenSSL (signer)."""
     needed = ["sts_http.o", "sts_sign.o", "crypto.o", "sigv4.o"]
-    objs = [find_obj(n) for n in needed]
-    missing = [n for n, o in zip(needed, objs) if o is None]
+    objs = _find_objs(needed)
+    missing = _missing_objs(needed, objs)
     if missing:
         return [result(True, f"SKIP build {' '.join(missing)} first")]
     ngx_string = OBJS / "src/core/ngx_string.o"
     if not ngx_string.exists():
         return [result(True, "SKIP build nginx (ngx_string.o) first")]
-    ok, message = compile_and_run(
-        base / "test_sts_units",
-        [
-            "-O",
-            "-Wall",
-            "-I",
-            "src",
-            "-I",
-            str(NGX_SRC / "src/core"),
-            "-I",
-            str(NGX_SRC / "src/event"),
-            "-I",
-            str(NGX_SRC / "src/os/unix"),
-            "-I",
-            str(OBJS),
-            *pkg_config(["--cflags", "libxml-2.0"]),
-            "tests/c/sts_units_test.c",
-            *[str(o) for o in objs],
-            str(ngx_string),
-            *pkg_config(["--libs", "libxml-2.0"], ["-lxml2"]),
-            *pkg_config(["--libs", "libcurl"], ["-lcurl"]),
-            "-lcrypto",
-        ],
-    )
+    ok, message = _compile_sts_units(base, ngx_string, objs)
     return [result(ok, f"sts_units {message}")]
 
 
@@ -384,5 +399,4 @@ def run_origin_krb5_dispatch(base: Path) -> list[tuple[bool, str]]:
         ],
     )
     return [result(ok, f"origin_krb5_dispatch {message}")]
-
 

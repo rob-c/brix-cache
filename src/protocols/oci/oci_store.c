@@ -76,7 +76,15 @@ brix_oci_store_init(brix_oci_store_t *st, ngx_http_brix_oci_loc_conf_t *lcf)
 }
 
 
-/* Every builder funnels through this so the overflow check exists once. */
+/* Every builder funnels through this so the overflow check exists once. The
+ * printf format attribute earns its keep twice: it type-checks fmt against the
+ * arguments at every builder callsite, and it is what tells the compiler the
+ * vsnprintf below is forwarding a checked format rather than an arbitrary
+ * runtime string (-Wformat-nonliteral). */
+static int
+oci_store_fmt(char *out, size_t outsz, const char *fmt, ...)
+    __attribute__((format(printf, 3, 4)));
+
 static int
 oci_store_fmt(char *out, size_t outsz, const char *fmt, ...)
 {

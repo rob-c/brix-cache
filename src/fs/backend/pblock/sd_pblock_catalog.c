@@ -272,6 +272,64 @@ cat_parent_gate(pblock_catalog *cat, const char *path)
 
 /* ---- open / close --------------------------------------------------------- */
 
+/*
+ * WHAT: Apply the catalog's WAL durability and checkpoint settings.
+ * WHY:  Environment parsing and PRAGMA failures are one connection phase.
+ * HOW:  Validate synchronous mode, require WAL/sync, and best-effort checkpoint.
+ */
+static int
+pblock_catalog_configure(pblock_catalog *cat)
+{
+    const char *sync_env = getenv("PBLOCK_SYNC");
+    const char *ck_env = getenv("PBLOCK_WAL_AUTOCKPT");
+    char pragma[64];
+
+    if (sync_env == NULL
+        || (strcmp(sync_env, "OFF") != 0 && strcmp(sync_env, "NORMAL") != 0
+            && strcmp(sync_env, "FULL") != 0))
+        sync_env = "NORMAL";
+    snprintf(pragma, sizeof(pragma), "PRAGMA synchronous=%s;", sync_env);
+    if (cat_exec(cat, "PRAGMA journal_mode=WAL;") != 0
+        || cat_exec(cat, pragma) != 0)
+        return -1;
+    if (ck_env != NULL) {
+        snprintf(pragma, sizeof(pragma), "PRAGMA wal_autocheckpoint=%d;",
+                 atoi(ck_env));
+        (void) cat_exec(cat, pragma);
+    }
+    return 0;
+}
+
+/*
+ * WHAT: Create the core pblock catalog tables and indexes.
+ * WHY:  Schema bootstrap is an atomic open prerequisite, not lifecycle logic.
+ * HOW:  Execute each idempotent DDL statement and stop at the first failure.
+ */
+static int
+pblock_catalog_create_schema(pblock_catalog *cat)
+{
+    if (cat_exec(cat,
+          "CREATE TABLE IF NOT EXISTS objects("
+          " path TEXT PRIMARY KEY, parent TEXT NOT NULL,"
+          " is_dir INTEGER NOT NULL, blob_id TEXT NOT NULL DEFAULT '',"
+          " size INTEGER NOT NULL DEFAULT 0, block_size INTEGER NOT NULL DEFAULT 0,"
+          " mtime INTEGER NOT NULL DEFAULT 0, ctime INTEGER NOT NULL DEFAULT 0,"
+          " mode INTEGER NOT NULL DEFAULT 0, uid INTEGER NOT NULL DEFAULT 0,"
+          " gid INTEGER NOT NULL DEFAULT 0, xform TEXT NOT NULL DEFAULT '');") != 0
+        || cat_exec(cat, "CREATE INDEX IF NOT EXISTS objects_parent"
+                         " ON objects(parent);") != 0
+        || cat_exec(cat, "CREATE TABLE IF NOT EXISTS xattrs("
+                         " path TEXT NOT NULL, name TEXT NOT NULL,"
+                         " value BLOB NOT NULL, PRIMARY KEY(path, name));") != 0
+        || cat_exec(cat, "CREATE TABLE IF NOT EXISTS ids("
+                         " kind INTEGER NOT NULL, name TEXT NOT NULL,"
+                         " id INTEGER NOT NULL, PRIMARY KEY(kind, name));") != 0
+        || cat_exec(cat, "CREATE UNIQUE INDEX IF NOT EXISTS ids_id"
+                         " ON ids(id);") != 0)
+        return -1;
+    return 0;
+}
+
 pblock_catalog *
 pblock_catalog_open(const char *db_path, int busy_timeout_ms)
 {
@@ -303,68 +361,8 @@ pblock_catalog_open(const char *db_path, int busy_timeout_ms)
      * (default NORMAL) selects the WAL fsync discipline; PBLOCK_WAL_AUTOCKPT sets
      * the WAL auto-checkpoint threshold in pages (default SQLite's 1000; 0 disables
      * auto-checkpoint). Used to characterise the metadata-throughput trade-off. */
-    {
-        const char *sync_env = getenv("PBLOCK_SYNC");
-        const char *ck_env   = getenv("PBLOCK_WAL_AUTOCKPT");
-        char        pragma[64];
-
-        if (sync_env == NULL
-            || (strcmp(sync_env, "OFF") != 0 && strcmp(sync_env, "NORMAL") != 0
-                && strcmp(sync_env, "FULL") != 0)) {
-            sync_env = "NORMAL";
-        }
-        snprintf(pragma, sizeof(pragma), "PRAGMA synchronous=%s;", sync_env);
-        if (cat_exec(cat, "PRAGMA journal_mode=WAL;") != 0
-            || cat_exec(cat, pragma) != 0) {
-            int err = errno;
-            sqlite3_close(cat->db);
-            free(cat);
-            errno = err;
-            return NULL;
-        }
-        if (ck_env != NULL) {
-            snprintf(pragma, sizeof(pragma),
-                     "PRAGMA wal_autocheckpoint=%d;", atoi(ck_env));
-            (void) cat_exec(cat, pragma);   /* best-effort */
-        }
-    }
-
-    if (cat_exec(cat,
-               "CREATE TABLE IF NOT EXISTS objects("
-               "  path TEXT PRIMARY KEY,"
-               "  parent TEXT NOT NULL,"
-               "  is_dir INTEGER NOT NULL,"
-               "  blob_id TEXT NOT NULL DEFAULT '',"
-               "  size INTEGER NOT NULL DEFAULT 0,"
-               "  block_size INTEGER NOT NULL DEFAULT 0,"
-               "  mtime INTEGER NOT NULL DEFAULT 0,"
-               "  ctime INTEGER NOT NULL DEFAULT 0,"
-               "  mode INTEGER NOT NULL DEFAULT 0,"
-               "  uid INTEGER NOT NULL DEFAULT 0,"
-               "  gid INTEGER NOT NULL DEFAULT 0,"
-               "  xform TEXT NOT NULL DEFAULT '');") != 0
-        || cat_exec(cat,
-               "CREATE INDEX IF NOT EXISTS objects_parent"
-               "  ON objects(parent);") != 0
-        || cat_exec(cat,
-               "CREATE TABLE IF NOT EXISTS xattrs("
-               "  path TEXT NOT NULL,"
-               "  name TEXT NOT NULL,"
-               "  value BLOB NOT NULL,"
-               "  PRIMARY KEY(path, name));") != 0
-        || cat_exec(cat,
-               /* Identity registry: catalog-internal synthetic uid/gid
-                * assignment (kind 0 = principal/uid, 1 = VO-group/gid). The
-                * UNIQUE index makes an id collision from a concurrent
-                * assignment a constraint failure, not silent aliasing. */
-               "CREATE TABLE IF NOT EXISTS ids("
-               "  kind INTEGER NOT NULL,"
-               "  name TEXT NOT NULL,"
-               "  id INTEGER NOT NULL,"
-               "  PRIMARY KEY(kind, name));") != 0
-        || cat_exec(cat,
-               "CREATE UNIQUE INDEX IF NOT EXISTS ids_id ON ids(id);") != 0)
-    {
+    if (pblock_catalog_configure(cat) != 0
+        || pblock_catalog_create_schema(cat) != 0) {
         int err = errno;
 
         sqlite3_close(cat->db);

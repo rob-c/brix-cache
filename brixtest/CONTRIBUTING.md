@@ -25,3 +25,12 @@ a plugin; trusted pytest integrations must be explicitly selected for helpers.
 Use `tox` to validate the built wheel against the supported Python/pytest
 matrix. Set `BRIXTEST_MINIKUBE=1` only in an environment where the dedicated
 Minikube profile may create and delete BriXTest-owned namespaces.
+
+The quality contract scans all Python source, tests, examples, compatibility
+tests, and tools. Functions are limited to CCN 10, cognitive complexity 25,
+NPath 512, Halstead effort 3000, and lexical control-flow nesting depth 5;
+files must remain below 500 lines. Run it directly with:
+
+```console
+pytest tests/test_code_quality.py -q --no-brixtest-fail-fast
+```

@@ -42,6 +42,30 @@ from pathlib import Path
 
 import pytest
 
+def _expression_1():
+    return (
+        {k: v for k, v in os.environ.items() if not k.startswith("BRIXCVMFS_")}
+    )
+
+def _expression_2(mnt, log):
+    return (
+        not os.path.ismount(mnt) and log.exists()
+    )
+
+
+def _guard_pk_mount_1(env_extra, env):
+    if env_extra:
+        env.update(env_extra)
+
+def _guard_pk_mount_2(proc):
+    if proc.poll() is None:
+        proc.terminate()
+        try:
+            proc.wait(3)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+
+
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "cvmfs"))
 
 from conformance_common import BRIXMOUNT, _unmount, _wait_mounted  # noqa: E402
@@ -96,7 +120,7 @@ def pk_mount(pubkey, port, cache, *, opts_extra=",cache_format=packed",
     mnt = workdir / "mnt"
     mnt.mkdir()
     (workdir / "tmp").mkdir()
-    env = {k: v for k, v in os.environ.items() if not k.startswith("BRIXCVMFS_")}
+    env = _expression_1()
     for k in ("http_proxy", "https_proxy", "all_proxy",
               "HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY"):
         env.pop(k, None)
@@ -105,8 +129,7 @@ def pk_mount(pubkey, port, cache, *, opts_extra=",cache_format=packed",
     env["BRIXCVMFS_CACHE"] = str(cache)
     env["BRIXCVMFS_SERVER"] = f"http://{HOST}:{port}/cvmfs/{REPO}"
     env["BRIXCVMFS_CACHE_SEG_BYTES"] = SEG_BYTES
-    if env_extra:
-        env.update(env_extra)
+    _guard_pk_mount_1(env_extra, env)
 
     opts = "auto_unmount,attr_timeout=0,entry_timeout=0,retries=1" + opts_extra
     log = workdir / "brixmount.log"
@@ -117,17 +140,12 @@ def pk_mount(pubkey, port, cache, *, opts_extra=",cache_format=packed",
         _wait_mounted(mnt, timeout)
         yield mnt, proc, log
     finally:
-        if not os.path.ismount(mnt) and log.exists():
+        if _expression_2(mnt, log):
             keep = Path(tempfile.gettempdir()) / "brixcvmfs_mount_failures"
             keep.mkdir(exist_ok=True)
             shutil.copy(log, keep / f"{workdir.name}.log")
         _unmount(mnt)
-        if proc.poll() is None:
-            proc.terminate()
-            try:
-                proc.wait(3)
-            except subprocess.TimeoutExpired:
-                proc.kill()
+        _guard_pk_mount_2(proc)
         _unmount(mnt)
         shutil.rmtree(workdir, ignore_errors=True)
 
@@ -285,15 +303,21 @@ def test_packed_bitflip_never_served_refetched(workdir):
 
         with pk_mount(workdir / "repo.pub", httpd.server_address[1], cache) \
                 as (mnt, proc, log):
-            assert (mnt / "pkg" / victim).read_bytes() == vbody, \
-                "flipped record must be detected and refetched, never served"
-            assert _data_gets(httpd, RELS[victim]) == before + 1, \
-                "detection must surface as exactly one origin refetch"
+            def _assert_test_packed_bitflip_never_served_refetched_1():
+                assert (mnt / "pkg" / victim).read_bytes() == vbody, \
+                    "flipped record must be detected and refetched, never served"
+                assert _data_gets(httpd, RELS[victim]) == before + 1, \
+                    "detection must surface as exactly one origin refetch"
+
+            _assert_test_packed_bitflip_never_served_refetched_1()
             # An untouched neighbour still replays without a refetch.
             other = "f1.bin"
-            assert (mnt / "pkg" / other).read_bytes() == BODIES[other]
-            assert _data_gets(httpd, RELS[other]) == 1, \
-                "neighbour records must be unaffected by the flip"
+            def _assert_test_packed_bitflip_never_served_refetched_2():
+                assert (mnt / "pkg" / other).read_bytes() == BODIES[other]
+                assert _data_gets(httpd, RELS[other]) == 1, \
+                    "neighbour records must be unaffected by the flip"
+
+            _assert_test_packed_bitflip_never_served_refetched_2()
             assert proc.poll() is None
     finally:
         _stop_origin(httpd)

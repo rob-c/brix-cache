@@ -100,8 +100,11 @@ def test_s3_recursive_download(web_servers, tmp_path):
                        capture_output=True, text=True, timeout=90)
     assert r.returncode == 0, f"{r.stdout}\n{r.stderr}"
     got = list(out.rglob("*")) if out.exists() else []
-    assert (out / "a.txt").exists(), f"out={got}\nSTDOUT={r.stdout}\nSTDERR={r.stderr}"
-    assert (out / "a.txt").read_bytes() == b"s3-top\n"
+    def _assert_test_s3_recursive_download_1():
+        assert (out / "a.txt").exists(), f"out={got}\nSTDOUT={r.stdout}\nSTDERR={r.stderr}"
+        assert (out / "a.txt").read_bytes() == b"s3-top\n"
+
+    _assert_test_s3_recursive_download_1()
     assert (out / "sub" / "b.bin").read_bytes() == b"s3-nested\n"
 
 

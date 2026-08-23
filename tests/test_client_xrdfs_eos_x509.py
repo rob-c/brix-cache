@@ -36,6 +36,37 @@ from settings import (
     SERVER_HOST,
 )
 
+def _guard_eos_env_1():
+    if not os.path.isdir(CA_DIR):
+        pytest.fail(f"no CA dir {CA_DIR} (set X509_CERT_DIR)")
+
+def _guard_eos_env_2():
+    if not _proxy_valid(PROXY):
+        pytest.fail(f"no valid X.509 proxy at {PROXY} (set X509_USER_PROXY)")
+
+def _guard_eos_env_3(host, port):
+    if host is None or not _reachable(host, port):
+        pytest.fail(f"GSI endpoint {ENDPOINT} ({host}:{port}) not reachable")
+
+def _guard_eos_env_4(proc):
+    if proc.returncode != 0 or not os.path.exists(XRDFS):
+        pytest.fail(f"xrdfs build failed:\n{proc.stdout}\n{proc.stderr}")
+
+def _guard_eos_env_5(prefix, env):
+    if prefix:
+        env["LD_LIBRARY_PATH"] = os.path.join(prefix, "lib") + os.pathsep + \
+            env.get("LD_LIBRARY_PATH", "")
+
+def _check_test_eos_stat_extended_fields_1(r):
+    assert r.returncode == 0, r.stderr
+
+def _check_test_eos_stat_extended_fields_2(key, d, r):
+    assert key in d, f"missing '{key}' in stat output:\n{r.stdout}"
+
+def _check_test_eos_stat_extended_fields_3(key, d, r):
+    assert key in d, f"missing '{key}' in stat output:\n{r.stdout}"
+
+
 pytestmark = pytest.mark.timeout(300)
 
 
@@ -106,25 +137,19 @@ def _proxy_valid(path):
 
 @pytest.fixture(scope="module")
 def eos_env():
-    if not os.path.isdir(CA_DIR):
-        pytest.fail(f"no CA dir {CA_DIR} (set X509_CERT_DIR)")
-    if not _proxy_valid(PROXY):
-        pytest.fail(f"no valid X.509 proxy at {PROXY} (set X509_USER_PROXY)")
+    _guard_eos_env_1()
+    _guard_eos_env_2()
     host, port = _endpoint_host(ENDPOINT)
-    if host is None or not _reachable(host, port):
-        pytest.fail(f"GSI endpoint {ENDPOINT} ({host}:{port}) not reachable")
+    _guard_eos_env_3(host, port)
     proc = subprocess.run(["make", "-C", CLIENT_DIR, "xrdfs"],
                           capture_output=True, text=True, timeout=240)
-    if proc.returncode != 0 or not os.path.exists(XRDFS):
-        pytest.fail(f"xrdfs build failed:\n{proc.stdout}\n{proc.stderr}")
+    _guard_eos_env_4(proc)
     env = dict(os.environ)
     env["X509_USER_PROXY"] = PROXY
     env["X509_CERT_DIR"] = CA_DIR
     # the native client's optional codec libs live in the conda prefix at build time
     prefix = env.get("CONDA_PREFIX")
-    if prefix:
-        env["LD_LIBRARY_PATH"] = os.path.join(prefix, "lib") + os.pathsep + \
-            env.get("LD_LIBRARY_PATH", "")
+    _guard_eos_env_5(prefix, env)
     return env
 
 
@@ -209,20 +234,23 @@ def test_eos_stat_extended_fields(eos_env):
     after the 4 mandatory fields; our xrdfs must parse and print them, and format
     times in UTC like official xrdfs (not local time)."""
     r = _run(eos_env, "stat", EOS_DIR)
-    assert r.returncode == 0, r.stderr
+    _check_test_eos_stat_extended_fields_1(r)
     d = _parse_stat(r.stdout)
     core_keys = ("path", "id", "size", "mtime", "flags")
     extended_keys = ("ctime", "atime", "mode", "owner", "group")
     for key in core_keys:
-        assert key in d, f"missing '{key}' in stat output:\n{r.stdout}"
+        _check_test_eos_stat_extended_fields_2(key, d, r)
     if USE_LIVE_EOS:
         for key in extended_keys:
-            assert key in d, f"missing '{key}' in stat output:\n{r.stdout}"
+            _check_test_eos_stat_extended_fields_3(key, d, r)
     if "mode" not in d:
         return
     # Mode is octal with a leading zero (e.g. 0750); owner/group are names.
-    assert re.fullmatch(r"0[0-7]{3,4}", d["mode"]), f"bad mode {d['mode']!r}"
-    assert d.get("owner", "") and d.get("group", "")
+    def _assert_test_eos_stat_extended_fields_2():
+        assert re.fullmatch(r"0[0-7]{3,4}", d["mode"]), f"bad mode {d['mode']!r}"
+        assert d.get("owner", "") and d.get("group", "")
+
+    _assert_test_eos_stat_extended_fields_2()
 
 
 def test_eos_stat_matches_official(eos_env):
@@ -253,7 +281,10 @@ def test_eos_stat_matches_official(eos_env):
     theirs = _parse_stat(off.stdout)
     for key in ("id", "size", "mtime", "ctime", "atime", "flags", "mode",
                 "owner", "group"):
-        assert key in theirs, f"official lacks {key}: {off.stdout}"
-        assert ours.get(key) == theirs[key], (
-            f"stat field '{key}' differs: ours={ours.get(key)!r} "
-            f"official={theirs[key]!r}")
+        def _assert_test_eos_stat_matches_official_1():
+            assert key in theirs, f"official lacks {key}: {off.stdout}"
+            assert ours.get(key) == theirs[key], (
+                f"stat field '{key}' differs: ours={ours.get(key)!r} "
+                f"official={theirs[key]!r}")
+
+        _assert_test_eos_stat_matches_official_1()

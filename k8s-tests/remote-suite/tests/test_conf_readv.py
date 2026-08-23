@@ -314,6 +314,81 @@ def _single_cases():
     return cases
 
 
+def _segment_payload(body):
+    return b"".join(segment[3] for segment in _parse_segments(body))
+
+
+def _assert_segment(segment_o, segment_f, request, source, index):
+    offset, length = request
+    _handle_o, length_o, offset_o, payload_o = segment_o
+    _handle_f, length_f, offset_f, payload_f = segment_f
+    assert (offset_o, offset_f) == (offset, offset), f"segment {index} offset"
+    assert (length_o, length_f) == (length, length), f"segment {index} length"
+    assert payload_o == source[offset:offset + length], f"segment {index} bytes"
+    assert payload_o == payload_f, f"segment {index} differs from stock"
+
+
+def _assert_segment_plan(segments_o, segments_f, plan, source):
+    assert len(segments_o) == len(plan), "OUR segment count"
+    assert len(segments_f) == len(plan), "stock segment count"
+    for index, request in enumerate(plan):
+        _assert_segment(segments_o[index], segments_f[index], request, source, index)
+
+
+def _assert_payload_pair(body_o, body_f, expected, label):
+    payload_o = _segment_payload(body_o)
+    payload_f = _segment_payload(body_f)
+    assert payload_o == expected, f"OUR {label} payload differs"
+    assert payload_o == payload_f, f"{label} payload differs from stock"
+
+
+def _readv_status_or_error(handle, chunks):
+    try:
+        return _readv(handle.sock, [_seg(handle.fh, length, offset)
+                                    for offset, length in chunks])[1]
+    except ConnectionError:
+        return kXR_error
+
+
+def _expected_payload(source, plan):
+    return b"".join(source[offset:offset + length] for offset, length in plan)
+
+
+def _positive_payload(source, plan):
+    positive = [(offset, length) for offset, length in plan if length > 0]
+    return _expected_payload(source, positive)
+
+
+def _assert_segment_offsets(segments_o, segments_f, expected):
+    assert [segment[2] for segment in segments_o] == expected, "OUR segment order"
+    assert [segment[2] for segment in segments_f] == expected, "stock segment order"
+
+
+def _assert_big_payload(payload_o, payload_f, source):
+    assert len(payload_o) == BIG_SIZE, "OUR big readv size"
+    assert hashlib.md5(payload_o).digest() == hashlib.md5(source).digest()
+    assert payload_o == payload_f, "big readv differs from stock"
+
+
+def _assert_readv_ok(status_o, status_f, label):
+    assert status_o == status_f == kXR_ok, label
+
+
+def _reassembly_segment_count(size):
+    return 16 if size > 65536 else 4
+
+
+def _download_timeout(name):
+    return 120 if name == "big1m.bin" else 60
+
+
+def _assert_download_matches(status, returncode, via_readv, via_xrdcp, source, name, output):
+    assert status == kXR_ok, f"raw readv reassembly of {name} failed"
+    assert returncode == 0, f"xrdcp download of {name} failed: {output}"
+    assert via_readv == via_xrdcp, f"readv and xrdcp differ for {name}"
+    assert via_readv == source, f"readv and source differ for {name}"
+
+
 @pytest.mark.parametrize("name,off,ln", _single_cases())
 def test_readv_single_segment(srv, name, off, ln):
     our, off_h = _open_both(srv, name)
@@ -393,19 +468,7 @@ def test_readv_multi_segment(srv, n):
     assert st_o == st_f == kXR_ok, f"multi readv n={n}: ours={st_o} stock={st_f}"
     segs_o = _parse_segments(body_o)
     segs_f = _parse_segments(body_f)
-    assert len(segs_o) == n, f"OUR segment count {len(segs_o)} != {n}"
-    assert len(segs_f) == n, f"stock segment count {len(segs_f)} != {n}"
-    src = _local(srv, name)
-    # Per-segment: framing (rlen, offset) and bytes match request + stock.
-    for i, (o, ln) in enumerate(chunks):
-        fh_o, rlen_o, roff_o, pay_o = segs_o[i]
-        fh_f, rlen_f, roff_f, pay_f = segs_f[i]
-        assert roff_o == o == roff_f, (
-            f"seg {i} offset ours={roff_o} stock={roff_f} want={o}")
-        assert rlen_o == ln == rlen_f, (
-            f"seg {i} rlen ours={rlen_o} stock={rlen_f} want={ln}")
-        assert pay_o == src[o:o + ln], f"seg {i} OUR bytes wrong"
-        assert pay_o == pay_f, f"seg {i} bytes diverge from stock"
+    _assert_segment_plan(segs_o, segs_f, chunks, _local(srv, name))
 
 
 # ===========================================================================
@@ -432,13 +495,8 @@ def test_readv_non_monotonic_order(srv, order):
     src = _local(srv, name)
     # Response order must equal request order (NOT offset-sorted).
     req_offsets = [o for o, _ in order]
-    assert [s[2] for s in segs_o] == req_offsets, (
-        f"OUR server reordered readv segments: {[s[2] for s in segs_o]} "
-        f"!= request order {req_offsets}")
-    assert [s[2] for s in segs_f] == req_offsets, "stock reordered (tooling?)"
-    for i, (o, ln) in enumerate(order):
-        assert segs_o[i][3] == src[o:o + ln], f"seg {i} OUR bytes wrong"
-        assert segs_o[i][3] == segs_f[i][3], f"seg {i} diverges from stock"
+    _assert_segment_offsets(segs_o, segs_f, req_offsets)
+    _assert_segment_plan(segs_o, segs_f, order, src)
 
 
 # ===========================================================================
@@ -515,11 +573,8 @@ def test_readv_zero_length_segment(srv, segs_plan):
     if st_o != kXR_ok:
         return
     src = _local(srv, name)
-    want = b"".join(src[o:o + ln] for o, ln in segs_plan if ln > 0)
-    pay_o = b"".join(p for (_f, _r, _o, p) in _parse_segments(body_o))
-    pay_f = b"".join(p for (_f, _r, _o, p) in _parse_segments(body_f))
-    assert pay_o == want, f"OUR zero-length-mixed payload wrong for {segs_plan}"
-    assert pay_o == pay_f, "zero-length-mixed payload diverges from stock"
+    want = _positive_payload(src, segs_plan)
+    _assert_payload_pair(body_o, body_f, want, "zero-length-mixed")
 
 
 # ===========================================================================
@@ -576,13 +631,10 @@ def test_readv_at_segment_cap_ok(srv):
     finally:
         our.close()
         off_h.close()
-    assert st_o == st_f == kXR_ok, f"cap readv: ours={st_o} stock={st_f}"
+    _assert_readv_ok(st_o, st_f, f"cap readv: ours={st_o} stock={st_f}")
     src = _local(srv, name)
-    want = b"".join(src[o:o + ln] for o, ln in chunks)
-    pay_o = b"".join(p for (_f, _r, _o, p) in _parse_segments(body_o))
-    pay_f = b"".join(p for (_f, _r, _o, p) in _parse_segments(body_f))
-    assert pay_o == want, "OUR readv at the segment cap returned wrong bytes"
-    assert pay_o == pay_f, "readv at the segment cap diverges from stock"
+    want = _expected_payload(src, chunks)
+    _assert_payload_pair(body_o, body_f, want, "segment-cap readv")
 
 
 def test_readv_over_segment_cap_error_parity(srv):
@@ -591,14 +643,8 @@ def test_readv_over_segment_cap_error_parity(srv):
     chunks = [(i % 1000, 1) for i in range(n)]
     our, off_h = _open_both(srv, name)
     try:
-        try:
-            _, st_o, _ = _readv(our.sock, [_seg(our.fh, ln, o) for o, ln in chunks])
-        except ConnectionError:
-            st_o = kXR_error
-        try:
-            _, st_f, _ = _readv(off_h.sock, [_seg(off_h.fh, ln, o) for o, ln in chunks])
-        except ConnectionError:
-            st_f = kXR_error
+        st_o = _readv_status_or_error(our, chunks)
+        st_f = _readv_status_or_error(off_h, chunks)
     finally:
         our.close()
         off_h.close()
@@ -634,12 +680,9 @@ def test_readv_big_reassembly(srv, n):
         off_h.close()
     assert st_o == st_f == kXR_ok, f"big readv n={n}: ours={st_o} stock={st_f}"
     src = _local(srv, name)
-    pay_o = b"".join(p for (_f, _r, _o, p) in _parse_segments(body_o))
-    pay_f = b"".join(p for (_f, _r, _o, p) in _parse_segments(body_f))
-    assert len(pay_o) == BIG_SIZE, f"OUR big readv reassembled {len(pay_o)} bytes"
-    assert hashlib.md5(pay_o).digest() == hashlib.md5(src).digest(), (
-        f"OUR big1m readv reassembly (n={n}) md5 mismatch vs source")
-    assert pay_o == pay_f, f"big1m readv (n={n}) diverges from stock"
+    pay_o = _segment_payload(body_o)
+    pay_f = _segment_payload(body_f)
+    _assert_big_payload(pay_o, pay_f, src)
 
 
 # ===========================================================================
@@ -809,28 +852,22 @@ def test_interleave_read_readv_read(srv):
 def test_readv_reassembly_equals_xrdcp(srv, tmp_path, name):
     # 1) full-file via raw readv on OUR server.
     size = len(_local(srv, name))
-    n = 16 if size > 65536 else 4
+    n = _reassembly_segment_count(size)
     plan = _equal_segments(size, n)
     our = _Handle(*srv["our_hp"], name)
     try:
         st, body = _readv_drain(our.sock, [_seg(our.fh, ln, o) for o, ln in plan])
     finally:
         our.close()
-    assert st == kXR_ok, f"raw readv reassembly of {name} failed"
-    via_readv = b"".join(p for (_f, _r, _o, p) in _parse_segments(body))
+    via_readv = _segment_payload(body)
 
     # 2) full-file via stock xrdcp download from OUR server.
     dst = str(tmp_path / f"dl_{name}")
     rc, out, err = L.run([L.OFF_XRDCP, "-f", f"{srv['our']}//{name}", dst],
-                         timeout=120 if name == "big1m.bin" else 60)
-    assert rc == 0, f"xrdcp download of {name} from OUR server failed: {out}{err}"
+                         timeout=_download_timeout(name))
     via_xrdcp = open(dst, "rb").read()
-
-    assert via_readv == via_xrdcp, (
-        f"OUR readv reassembly of {name} differs from the xrdcp download "
-        f"(readv={len(via_readv)}B xrdcp={len(via_xrdcp)}B)")
-    assert via_readv == _local(srv, name), (
-        f"OUR readv reassembly of {name} differs from the local source")
+    source = _local(srv, name)
+    _assert_download_matches(st, rc, via_readv, via_xrdcp, source, name, out + err)
 
 
 # ===========================================================================

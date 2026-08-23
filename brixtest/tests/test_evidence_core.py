@@ -10,19 +10,33 @@ from brixtest import case
 from brixtest.errors import SpecError
 from brixtest.evidence.artifacts import ContentStore
 from brixtest.evidence.collectors import (
-    CollectorManager, CollectorSpec, _prometheus_rows, kubernetes_events,
-    process_tree, prometheus, structured_logs,
+    CollectorManager,
+    CollectorSpec,
+    _prometheus_rows,
+    kubernetes_events,
+    process_tree,
+    prometheus,
+    structured_logs,
 )
 from brixtest.evidence.journal import EvidenceJournal
 from brixtest.evidence.model import (
-    SCHEMA_VERSION, canonical_json, iter_entities, merge_attempt_metrics,
-    migrate_case, normalize_session, stable_id, validate_session,
+    SCHEMA_VERSION,
+    canonical_json,
+    iter_entities,
+    merge_attempt_metrics,
+    migrate_case,
+    normalize_session,
+    stable_id,
+    validate_session,
 )
+from brixtest.evidence.provenance import capture, environment_contract, file_identity
 from brixtest.evidence.redaction import text as redact_text
 from brixtest.evidence.redaction import value as redact_value
-from brixtest.evidence.provenance import capture, environment_contract, file_identity
 from brixtest.evidence.retention import (
-    RetentionPolicy, candidates, prune, verify_objects,
+    RetentionPolicy,
+    candidates,
+    prune,
+    verify_objects,
 )
 from brixtest.evidence.spans import SpanRecorder
 
@@ -74,16 +88,13 @@ def test_process_collector_reports_case_relative_cgroup_cpu(monkeypatch, tmp_pat
     manager._sample(manager.specs[0])
     current.update(cpu=20002.5, throttled=300.25)
     manager._sample(manager.specs[0])
-    cpu = [
-        row[1]["value"] for row in emitted
-        if row[1]["name"] == "process.cgroup_cpu_seconds"
-    ]
-    throttled = [
-        row[1]["value"] for row in emitted
-        if row[1]["name"] == "process.cgroup_throttled_seconds"
-    ]
-    assert cpu == [0.0, 2.5]
-    assert throttled == [0.0, 0.25]
+    cpu = _metric_values(emitted, "process.cgroup_cpu_seconds")
+    throttled = _metric_values(emitted, "process.cgroup_throttled_seconds")
+    assert (cpu, throttled) == ([0.0, 2.5], [0.0, 0.25])
+
+
+def _metric_values(emitted, name):
+    return [row[1]["value"] for row in emitted if row[1]["name"] == name]
 
 
 def test_stable_id_is_deterministic_and_part_sensitive():
@@ -237,9 +248,8 @@ def test_content_store_refuses_path_like_display_name(tmp_path):
 
 def test_span_recorder_nests_and_records_attributes():
     recorder = SpanRecorder()
-    with recorder.span("outer", answer=42) as outer:
-        with recorder.span("inner"):
-            pass
+    with recorder.span("outer", answer=42) as outer, recorder.span("inner"):
+        pass
     rows = recorder.snapshot()
     assert rows[0]["parent_id"] == outer
     assert rows[1]["span_id"] == outer
@@ -248,9 +258,8 @@ def test_span_recorder_nests_and_records_attributes():
 
 def test_span_records_error_without_swallowing_it():
     recorder = SpanRecorder()
-    with pytest.raises(RuntimeError, match="boom"):
-        with recorder.span("failure"):
-            raise RuntimeError("boom")
+    with pytest.raises(RuntimeError, match="boom"), recorder.span("failure"):
+        raise RuntimeError("boom")
     assert recorder.snapshot()[0]["status"] == "error"
 
 
@@ -263,8 +272,14 @@ def test_collector_names_are_bounded(name):
 def test_collector_factories_keep_options_immutable_by_copy():
     spec = prometheus("http://127.0.0.1/metrics", allow=["requests_total"])
     assert spec.kind == "prometheus" and spec.options["allow"] == ("requests_total",)
+    assert prometheus("{server_origin_url}/metrics").options["url"].startswith("{")
     assert structured_logs("runtime/*.log").kind == "structured-logs"
     assert kubernetes_events().kind == "kubernetes"
+
+
+def test_prometheus_collector_rejects_non_http_urls():
+    with pytest.raises(SpecError, match=r"http:// or https://"):
+        prometheus("file:///tmp/metrics")
 
 
 def test_prometheus_parser_filters_and_rejects_non_finite():
@@ -279,9 +294,9 @@ def test_case_defaults_to_process_observation_and_validates_trials():
 
     definition = declared.__brixtest_case__
     assert definition.observe[0].kind == "process"
-    with pytest.raises(SpecError, match="case.trials"):
+    with pytest.raises(SpecError, match=r"case\.trials"):
         case(trials=0)
-    with pytest.raises(SpecError, match="case.warmup"):
+    with pytest.raises(SpecError, match=r"case\.warmup"):
         case(warmup=-1)
 
 

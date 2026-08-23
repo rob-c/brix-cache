@@ -43,6 +43,23 @@ from settings import (
     url_host,
 )
 
+def _guard_krb5_server_1():
+    if SYS_XRDFS is None or SYS_XRDCP is None:
+        pytest.skip("stock xrdfs/xrdcp not on PATH")
+
+def _guard_krb5_server_2():
+    if not os.access(NGINX_BIN, os.X_OK):
+        pytest.skip(f"nginx binary not executable: {NGINX_BIN}")
+
+def _guard_krb5_server_3():
+    if not kdc_helpers.krb5_tools_available():
+        pytest.skip("MIT KDC tooling not installed (install krb5-server)")
+
+def _guard_krb5_server_4():
+    if not kdc_helpers.up():
+        pytest.skip("krb5 realm could not be provisioned")
+
+
 pytestmark = [pytest.mark.uses_lifecycle_harness,
               pytest.mark.xdist_group("lc-krb5-auth")]
 
@@ -66,17 +83,13 @@ kXR_error = 4003
 
 @pytest.fixture()
 def krb5_server(lifecycle, tmp_path):
-    if SYS_XRDFS is None or SYS_XRDCP is None:
-        pytest.skip("stock xrdfs/xrdcp not on PATH")
-    if not os.access(NGINX_BIN, os.X_OK):
-        pytest.skip(f"nginx binary not executable: {NGINX_BIN}")
-    if not kdc_helpers.krb5_tools_available():
-        pytest.skip("MIT KDC tooling not installed (install krb5-server)")
+    _guard_krb5_server_1()
+    _guard_krb5_server_2()
+    _guard_krb5_server_3()
 
     # Stand up the isolated realm (KDC + service keytab + kinit'd client); this
     # generates the keytab + krb5.conf profile the acceptor authenticates against.
-    if not kdc_helpers.up():
-        pytest.skip("krb5 realm could not be provisioned")
+    _guard_krb5_server_4()
 
     data = tmp_path / "data"
     data.mkdir()

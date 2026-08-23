@@ -71,6 +71,39 @@ from ephemeral_port import free_port
 from config_templates import render_config
 from settings import BIND_HOST, HOST, SERVER_HOST
 
+def _guard_arc_ce_1(rc):
+    if rc.returncode != 0:
+        pytest.skip(f"docker run failed: {rc.stderr.strip()}")
+
+def _check_arc_ce_1(rc):
+    assert rc.returncode == 0, f"test-ca setup failed: {rc.stderr}"
+
+def _check_arc_ce_2(rc):
+    assert rc.returncode == 0, f"arex startup failed: {rc.stderr}"
+
+def _check_arc_ce_3(rc, src):
+    assert rc.returncode == 0, f"docker cp {src} failed: {rc.stderr}"
+
+def _check_test_delegated_submit_stat_get_per_user_7(rc):
+    assert rc.returncode == 0, f"arcget failed: {rc.stdout}{rc.stderr}"
+
+def _check_test_delegated_submit_stat_get_per_user_8(outs, rc):
+    assert outs, f"no stdout.txt retrieved: {rc.stdout}"
+
+def _check_test_delegated_submit_stat_get_per_user_9(stdout_txt):
+    assert "hello-from-arc" in stdout_txt, stdout_txt
+
+def _check_test_delegated_submit_stat_get_per_user_4(rc, name):
+    assert rc.returncode == 0, f"arcsub({name}): {rc.stdout}{rc.stderr}"
+
+def _check_test_delegated_submit_stat_get_per_user_5(m, rc):
+    assert m, f"no jobid in arcsub output: {rc.stdout}"
+
+def _check_test_delegated_submit_stat_get_per_user_6(jobid, front):
+    assert f":{front['port']}/arex/rest" in jobid, \
+        f"job ID does not route through the nginx front: {jobid}"
+
+
 pytestmark = [pytest.mark.slow, pytest.mark.serial,
               pytest.mark.timeout(600)]
 
@@ -140,8 +173,7 @@ def arc_ce(tmp_path_factory):
     rc = _run(["docker", "run", "-d", "--name", name, "--hostname",
                "localhost", "-p", f"{BIND_HOST}:{port}:443",  # net-literal-allow: docker --hostname container identity
                ARC_IMAGE, "sleep", "infinity"])
-    if rc.returncode != 0:
-        pytest.skip(f"docker run failed: {rc.stderr.strip()}")
+    _guard_arc_ce_1(rc)
     try:
         # The baked-in test-CA certs are expired; regenerate, then start
         # A-REX and its WS (REST) interface the way the image's systemd
@@ -151,18 +183,18 @@ def arc_ce(tmp_path_factory):
         rc = _run(["docker", "exec", name, "bash", "-c",
                    f"arcctl test-ca init -f && arcctl test-ca hostcert -f"
                    f" && {usercerts}"])
-        assert rc.returncode == 0, f"test-ca setup failed: {rc.stderr}"
+        _check_arc_ce_1(rc)
         rc = _run(["docker", "exec", name, "bash", "-c",
                    "/usr/share/arc/arc-arex-start && sleep 2 && "
                    "/usr/share/arc/arc-arex-ws-start"])
-        assert rc.returncode == 0, f"arex startup failed: {rc.stderr}"
+        _check_arc_ce_2(rc)
 
         outs = [(":/etc/grid-security/testCA-hostcert.pem", "hostcert.pem"),
                 (":/etc/grid-security/testCA-hostkey.pem", "hostkey.pem")]
         outs += [(f":/usercert-{u}.tar.gz", f"{u}.tar.gz") for u in ARC_USERS]
         for src, dst in outs:
             rc = _run(["docker", "cp", name + src, str(root / dst)])
-            assert rc.returncode == 0, f"docker cp {src} failed: {rc.stderr}"
+            _check_arc_ce_3(rc, src)
 
         _wait_tls(port)
         yield {"root": root, "port": port, "name": name}
@@ -270,12 +302,11 @@ def test_delegated_submit_stat_get_per_user(front, delegated, tmp_path):
         jobs = tmp_path / f"{name}-jobs.dat"
         rc = _run(["arcsub", "-j", str(jobs), "-C", ce, "-T", "arcrest",
                    "-Q", "NONE", str(xrsl)], env=u["env"], timeout=120)
-        assert rc.returncode == 0, f"arcsub({name}): {rc.stdout}{rc.stderr}"
+        _check_test_delegated_submit_stat_get_per_user_4(rc, name)
         m = re.search(r"jobid:\s*(\S+)", rc.stdout)
-        assert m, f"no jobid in arcsub output: {rc.stdout}"
+        _check_test_delegated_submit_stat_get_per_user_5(m, rc)
         jobid = m.group(1)
-        assert f":{front['port']}/arex/rest" in jobid, \
-            f"job ID does not route through the nginx front: {jobid}"
+        _check_test_delegated_submit_stat_get_per_user_6(jobid, front)
         _state[name] = {"jobid": jobid, "jobs": jobs}
 
     for name, u in delegated.items():
@@ -288,9 +319,12 @@ def test_delegated_submit_stat_get_per_user(front, delegated, tmp_path):
             if "Finished" in stat_out:
                 break
             time.sleep(5)
-        assert "State: Finished" in stat_out, \
-            f"{name}'s job never finished: {stat_out}"
-        assert "Exit Code: 0" in stat_out
+        def _assert_test_delegated_submit_stat_get_per_user_1():
+            assert "State: Finished" in stat_out, \
+                f"{name}'s job never finished: {stat_out}"
+            assert "Exit Code: 0" in stat_out
+
+        _assert_test_delegated_submit_stat_get_per_user_1()
 
         rc_l = _run(["arcstat", "-j", str(_state[name]["jobs"]), "-a", "-l"],
                     env=u["env"], timeout=60)
@@ -298,19 +332,22 @@ def test_delegated_submit_stat_get_per_user(front, delegated, tmp_path):
               f"\n=== arcstat -l ({name}) ===\n{rc_l.stdout}")
         # THE point of the delegation lab: the job's Owner at the ARC-CE is
         # the submitting user's own identity.
-        assert f"Owner: {u['dn']}" in rc_l.stdout, \
-            f"{name}'s job not owned by {name}: {rc_l.stdout}"
-        assert f":{front['port']}/arex" in rc_l.stdout
+        def _assert_test_delegated_submit_stat_get_per_user_2():
+            assert f"Owner: {u['dn']}" in rc_l.stdout, \
+                f"{name}'s job not owned by {name}: {rc_l.stdout}"
+            assert f":{front['port']}/arex" in rc_l.stdout
+
+        _assert_test_delegated_submit_stat_get_per_user_2()
 
     u = delegated["alice"]
     fetched = tmp_path / "fetched"
     rc = _run(["arcget", "-j", str(_state["alice"]["jobs"]), "-a",
                "-D", str(fetched), "-k"], env=u["env"], timeout=120)
-    assert rc.returncode == 0, f"arcget failed: {rc.stdout}{rc.stderr}"
+    _check_test_delegated_submit_stat_get_per_user_7(rc)
     outs = glob.glob(str(fetched / "*" / "stdout.txt"))
-    assert outs, f"no stdout.txt retrieved: {rc.stdout}"
+    _check_test_delegated_submit_stat_get_per_user_8(outs, rc)
     stdout_txt = open(outs[0]).read()
-    assert "hello-from-arc" in stdout_txt, stdout_txt
+    _check_test_delegated_submit_stat_get_per_user_9(stdout_txt)
 
 
 def test_cross_user_isolation_at_arc(front, delegated):
@@ -379,8 +416,11 @@ def test_junk_path_bounced_before_backend(front, grid_users):
         if hits:
             break
         time.sleep(0.1)
-    assert hits, "no audit line for the bounced junk path"
-    assert "signal=signature" in hits[-1] and "status=444" in hits[-1]
+    def _assert_test_junk_path_bounced_before_backend_3():
+        assert hits, "no audit line for the bounced junk path"
+        assert "signal=signature" in hits[-1] and "status=444" in hits[-1]
+
+    _assert_test_junk_path_bounced_before_backend_3()
 
 
 def test_untrusted_client_cert_rejected(front, tmp_path):

@@ -1,4 +1,51 @@
 from split_continuation import reexport as _reexport
+def _check_test_partial_read_caches_only_the_touched_slice_1(got, data, off, length):
+    assert got == data[off:off + length], "served bytes != origin range"
+
+def _check_test_partial_read_caches_only_the_touched_slice_2(wholes):
+    assert wholes == [], "cache stored a WHOLE-FILE copy: %r" % wholes
+
+def _check_test_partial_read_caches_only_the_touched_slice_3(slices):
+    assert set(slices) <= {0, 2}, \
+        "non-sparse: cached slices beyond {0,2}: %s" % sorted(slices)
+
+def _check_test_partial_read_caches_only_the_touched_slice_4(slices):
+    assert 2 in slices, "touched slice 2 not cached: %s" % sorted(slices)
+
+def _check_test_partial_read_caches_only_the_touched_slice_5(slices):
+    assert sum(slices.values()) <= 2 * _SLICE < _FILESIZE, \
+        "stored %d bytes — not sparse vs %d-byte file" % (sum(slices.values()), _FILESIZE)
+
+def _check_test_partial_read_caches_only_the_touched_slice_6(metas):
+    assert metas, "file-level .__xrds.meta sidecar missing"
+
+def _check_test_partial_read_caches_only_the_touched_slice_7(xcache, name, data):
+    assert _slice_bytes(xcache, name, 2) == data[2 * _SLICE:3 * _SLICE], \
+        "cached slice 2 bytes != origin"
+
+def _check_test_cinfo_partial_read_records_only_touched_blocks_8(fields):
+    assert fields["magic"] == _CINFO_MAGIC, "bad .cinfo magic: %#x" % fields["magic"]
+
+def _check_test_cinfo_partial_read_records_only_touched_blocks_9(fields):
+    assert fields["block_size"] == _SLICE, "block_size != slice size"
+
+def _check_test_cinfo_partial_read_records_only_touched_blocks_10(fields):
+    assert fields["size"] == _FILESIZE and fields["nblocks"] == _NSLICES, \
+        "validity wrong: %r" % fields
+
+def _check_test_cinfo_partial_read_records_only_touched_blocks_11(present):
+    assert present <= {0, 2}, "non-sparse cinfo: blocks beyond {0,2}: %s" % sorted(present)
+
+def _check_test_cinfo_partial_read_records_only_touched_blocks_12(present):
+    assert 2 in present, "touched block 2 not recorded: %s" % sorted(present)
+
+def _check_test_cinfo_partial_read_records_only_touched_blocks_13(fields):
+    assert fields["flags"] & _CINFO_F_PARTIAL, "partial fill not flagged PARTIAL"
+
+def _check_test_cinfo_partial_read_records_only_touched_blocks_14(fields):
+    assert not (fields["flags"] & _CINFO_F_COMPLETE), "partial wrongly COMPLETE"
+
+
 _reexport(globals(), "_test_slice_cache_helpers")
 
 class TestSliceLibrary:
@@ -156,18 +203,15 @@ def test_partial_read_caches_only_the_touched_slice(xcache):
     got = _read(sock, fh, off, length)
     sock.close()
 
-    assert got == data[off:off + length], "served bytes != origin range"
+    _check_test_partial_read_caches_only_the_touched_slice_1(got, data, off, length)
     slices, wholes, metas = _cached(xcache, name)
-    assert wholes == [], "cache stored a WHOLE-FILE copy: %r" % wholes
+    _check_test_partial_read_caches_only_the_touched_slice_2(wholes)
     # Only slice 0 (the open-time size probe) and slice 2 (the touched window).
-    assert set(slices) <= {0, 2}, \
-        "non-sparse: cached slices beyond {0,2}: %s" % sorted(slices)
-    assert 2 in slices, "touched slice 2 not cached: %s" % sorted(slices)
-    assert sum(slices.values()) <= 2 * _SLICE < _FILESIZE, \
-        "stored %d bytes — not sparse vs %d-byte file" % (sum(slices.values()), _FILESIZE)
-    assert metas, "file-level .__xrds.meta sidecar missing"
-    assert _slice_bytes(xcache, name, 2) == data[2 * _SLICE:3 * _SLICE], \
-        "cached slice 2 bytes != origin"
+    _check_test_partial_read_caches_only_the_touched_slice_3(slices)
+    _check_test_partial_read_caches_only_the_touched_slice_4(slices)
+    _check_test_partial_read_caches_only_the_touched_slice_5(slices)
+    _check_test_partial_read_caches_only_the_touched_slice_6(metas)
+    _check_test_partial_read_caches_only_the_touched_slice_7(xcache, name, data)
 
 
 @pytest.mark.xfail(reason=_SLICE_DEFERRED, strict=False)
@@ -203,8 +247,11 @@ def test_disjoint_reads_leave_the_gaps_uncached(xcache):
     sock.close()
 
     slices, wholes, _ = _cached(xcache, name)
-    assert wholes == [], "cache stored a WHOLE-FILE copy: %r" % wholes
-    assert set(slices) <= {0, 2, 12}, "non-sparse: %s" % sorted(slices)
+    def _assert_test_disjoint_reads_leave_the_gaps_uncached_1():
+        assert wholes == [], "cache stored a WHOLE-FILE copy: %r" % wholes
+        assert set(slices) <= {0, 2, 12}, "non-sparse: %s" % sorted(slices)
+
+    _assert_test_disjoint_reads_leave_the_gaps_uncached_1()
     assert {2, 12} <= set(slices), "touched slices not cached: %s" % sorted(slices)
     for gap in (1, 4, 7, 10, 13, 15):    # the windows we never read
         assert gap not in slices, "gap slice %d was cached (not sparse)" % gap
@@ -295,15 +342,14 @@ def test_cinfo_partial_read_records_only_touched_blocks(xcache):
     sock.close()
 
     fields, present = _wait_cinfo(xcache, name, want_block=2)
-    assert fields["magic"] == _CINFO_MAGIC, "bad .cinfo magic: %#x" % fields["magic"]
-    assert fields["block_size"] == _SLICE, "block_size != slice size"
-    assert fields["size"] == _FILESIZE and fields["nblocks"] == _NSLICES, \
-        "validity wrong: %r" % fields
+    _check_test_cinfo_partial_read_records_only_touched_blocks_8(fields)
+    _check_test_cinfo_partial_read_records_only_touched_blocks_9(fields)
+    _check_test_cinfo_partial_read_records_only_touched_blocks_10(fields)
     # Only the open-probe block 0 and the touched block 2 are recorded present.
-    assert present <= {0, 2}, "non-sparse cinfo: blocks beyond {0,2}: %s" % sorted(present)
-    assert 2 in present, "touched block 2 not recorded: %s" % sorted(present)
-    assert fields["flags"] & _CINFO_F_PARTIAL, "partial fill not flagged PARTIAL"
-    assert not (fields["flags"] & _CINFO_F_COMPLETE), "partial wrongly COMPLETE"
+    _check_test_cinfo_partial_read_records_only_touched_blocks_11(present)
+    _check_test_cinfo_partial_read_records_only_touched_blocks_12(present)
+    _check_test_cinfo_partial_read_records_only_touched_blocks_13(fields)
+    _check_test_cinfo_partial_read_records_only_touched_blocks_14(fields)
 
 
 @pytest.mark.xfail(reason=_SLICE_DEFERRED, strict=False)

@@ -378,16 +378,22 @@ class TestDashboardClusterRoundTrip:
         if cookie is None:
             pytest.skip("dashboard login did not set a session cookie")
         status, data = _dashboard_get("/brix/api/v1/cluster", cookie)
-        assert status == 200, data
-        assert isinstance(data, dict), data
+        def _assert_test_cluster_json_contains_registered_ipv6_host_1():
+            assert status == 200, data
+            assert isinstance(data, dict), data
+
+        _assert_test_cluster_json_contains_registered_ipv6_host_1()
         servers = data.get("servers", [])
         assert isinstance(servers, list), data
         match = [s for s in servers
                  if s.get("host") == IPV6_HOST and s.get("port") == DS_PORT]
-        assert match, f"registered [::1]:{DS_PORT} not found in cluster JSON: {servers}"
-        # The JSON host is stored bare (canonical); it must NOT be a bracketed
-        # literal here — bracketing happens only at wire/redirect emit time.
-        assert "[" not in match[0]["host"], match[0]
+        def _assert_test_cluster_json_contains_registered_ipv6_host_2():
+            assert match, f"registered [::1]:{DS_PORT} not found in cluster JSON: {servers}"
+            # The JSON host is stored bare (canonical); it must NOT be a bracketed
+            # literal here — bracketing happens only at wire/redirect emit time.
+            assert "[" not in match[0]["host"], match[0]
+
+        _assert_test_cluster_json_contains_registered_ipv6_host_2()
 
     def test_cluster_json_requires_auth(self):
         """REGRESSION: the read-only cluster endpoint is auth-gated (no cookie ->

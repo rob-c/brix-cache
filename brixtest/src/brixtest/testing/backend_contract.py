@@ -1,8 +1,7 @@
-"""The backend contract kit: §8.1's seven methods as obligations.
+"""Behavioral conformance checks for deployment backends.
 
 ``check_backend_contract(backend, spec, lane)`` exercises a backend
-against one disposable spec and returns violations.  It is deliberately
-behavioural, not structural — implementing the ``DeployBackend``
+against one disposable spec and returns violations. Implementing the ``DeployBackend``
 protocol's signatures is necessary but proves nothing about semantics.
 
 Obligations checked:
@@ -30,6 +29,58 @@ from brixtest.util.net import tcp_answering
 __all__ = ["check_backend_contract"]
 
 
+def _obligation(violations, number, action) -> object:
+    try:
+        return action()
+    except Exception as exc:
+        violations.append("%d: %s" % (number, exc))
+        return None
+
+
+def _prepare(backend, lane: Lane, violations: List[str]) -> None:
+    def action():
+        backend.prepare(lane, None)
+        backend.prepare(lane, None)
+    _obligation(violations, 1, action)
+    if not lane.log_dir.is_dir() or not lane.instances_dir.is_dir():
+        violations.append("1: prepare left no lane skeleton")
+
+
+def _endpoint(backend, spec: InstanceSpec, lane: Lane, violations: List[str]):
+    endpoint = _obligation(
+        violations, 2,
+        lambda: backend.endpoint(spec.name),
+    )
+    if endpoint is not None and not lane.contains_path(endpoint.workdir):
+        violations.append("2: endpoint workdir %s escapes the lane" % endpoint.workdir)
+    return endpoint
+
+
+def _passive_obligations(backend, spec: InstanceSpec, lane: Lane, violations: List[str]) -> None:
+    ready = _obligation(violations, 3, lambda: backend.is_ready(spec))
+    if ready:
+        violations.append("3: is_ready True before any start")
+    log_path = _obligation(violations, 4, lambda: backend.logs(spec.name))
+    if log_path is not None and not lane.contains_path(log_path):
+        violations.append("4: log path %s escapes the lane" % log_path)
+    snapshot = _obligation(violations, 5, backend.process_snapshot)
+    if snapshot is not None:
+        _obligation(violations, 5, lambda: dict(snapshot))
+    _obligation(violations, 6, lambda: backend.stop(spec.name))
+
+
+def _start_stop(backend, spec: InstanceSpec, violations: List[str]) -> None:
+    try:
+        backend.start(spec)
+        if not backend.is_ready(spec):
+            violations.append("7: is_ready False right after a successful start")
+        backend.stop(spec.name)
+        if spec.primary_port is not None and tcp_answering(spec.host, spec.primary_port):
+            violations.append("7: port %d still answers after stop" % spec.primary_port)
+    except Exception as exc:
+        violations.append("7: start/stop cycle failed (%s)" % exc)
+
+
 def check_backend_contract(
     backend,
     spec: InstanceSpec,
@@ -42,56 +93,10 @@ def check_backend_contract(
     only pass a spec whose command is safe and fast."""
     violations: List[str] = []
 
-    try:
-        backend.prepare(lane, None)
-        backend.prepare(lane, None)
-    except Exception as exc:
-        violations.append("1: prepare is not idempotent (%s)" % exc)
-    if not lane.log_dir.is_dir() or not lane.instances_dir.is_dir():
-        violations.append("1: prepare left no lane skeleton")
-
-    try:
-        endpoint = backend.endpoint(spec.name)
-        if not lane.contains_path(endpoint.workdir):
-            violations.append("2: endpoint workdir %s escapes the lane" % endpoint.workdir)
-    except Exception as exc:
-        violations.append("2: endpoint() failed for a registered name (%s)" % exc)
-        endpoint = None
-
-    try:
-        if backend.is_ready(spec):
-            violations.append("3: is_ready True before any start")
-    except Exception as exc:
-        violations.append("3: is_ready raised (%s)" % exc)
-
-    try:
-        log_path = backend.logs(spec.name)
-        if not lane.contains_path(log_path):
-            violations.append("4: log path %s escapes the lane" % log_path)
-    except Exception as exc:
-        violations.append("4: logs() raised (%s)" % exc)
-
-    try:
-        snapshot = backend.process_snapshot()
-        dict(snapshot)
-    except Exception as exc:
-        violations.append("5: process_snapshot raised (%s)" % exc)
-
-    try:
-        backend.stop(spec.name)
-    except Exception as exc:
-        violations.append("6: stop on a never-started instance raised (%s)" % exc)
-
+    _prepare(backend, lane, violations)
+    _endpoint(backend, spec, lane, violations)
+    _passive_obligations(backend, spec, lane, violations)
     if start_stop:
-        try:
-            backend.start(spec)
-            if not backend.is_ready(spec):
-                violations.append("7: is_ready False right after a successful start")
-            backend.stop(spec.name)
-            port = spec.primary_port
-            if port is not None and tcp_answering(spec.host, port):
-                violations.append("7: port %d still answers after stop" % port)
-        except Exception as exc:
-            violations.append("7: start/stop cycle failed (%s)" % exc)
+        _start_stop(backend, spec, violations)
 
     return violations

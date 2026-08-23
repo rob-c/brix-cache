@@ -30,6 +30,67 @@ static int write_all_to(int fd, const char *buf, size_t n, int timeout_ms) {
     return 0;
 }
 
+/*
+ * WHAT: Read one complete HTTP CONNECT response header block.
+ * WHY:  Tunnel bytes must remain unread after the proxy's header terminator.
+ * HOW:  Poll and receive into a fixed buffer until CRLF-CRLF or peer close.
+ */
+static int read_response_headers(int fd, int timeout_ms, char *response,
+                                 size_t capacity, char *err, size_t errlen) {
+    size_t length = 0;
+
+    while (length < capacity - 1) {
+        ssize_t received;
+
+        if (wait_io(fd, POLLIN, timeout_ms) != 0) {
+            if (err != NULL)
+                snprintf(err, errlen, "proxy read timeout");
+            return -1;
+        }
+        received = recv(fd, response + length, capacity - 1 - length, 0);
+        if (received < 0) {
+            if (errno == EINTR || errno == EAGAIN)
+                continue;
+            if (err != NULL)
+                snprintf(err, errlen, "proxy read failed");
+            return -1;
+        }
+        if (received == 0)
+            break;
+        length += (size_t) received;
+        response[length] = '\0';
+        if (strstr(response, "\r\n\r\n") != NULL)
+            break;
+    }
+    response[length] = '\0';
+    return 0;
+}
+
+/*
+ * WHAT: Validate the HTTP status line returned for a CONNECT request.
+ * WHY:  Only a 200 response establishes a usable byte tunnel.
+ * HOW:  Parse the status code and retain the first refusal line for diagnostics.
+ */
+static int response_accepted(char *response, char *err, size_t errlen) {
+    int code = 0;
+
+    if (sscanf(response, "HTTP/%*d.%*d %d", &code) != 1) {
+        if (err != NULL)
+            snprintf(err, errlen, "malformed proxy response");
+        return -1;
+    }
+    if (code != 200) {
+        char *end = strpbrk(response, "\r\n");
+
+        if (end != NULL)
+            *end = '\0';
+        if (err != NULL)
+            snprintf(err, errlen, "proxy CONNECT refused (%s)", response);
+        return -1;
+    }
+    return 0;
+}
+
 int brix_proxy_connect_tunnel(int fd, const char *host, int port, int timeout_ms,
                               char *err, size_t errlen) {
     char req[600];
@@ -37,42 +98,23 @@ int brix_proxy_connect_tunnel(int fd, const char *host, int port, int timeout_ms
         "CONNECT %s:%d HTTP/1.1\r\nHost: %s:%d\r\n"
         "User-Agent: brix\r\nProxy-Connection: keep-alive\r\n\r\n",
         host, port, host, port);
-    if (rl <= 0 || (size_t) rl >= sizeof(req)) { if (err) snprintf(err, errlen, "bad target"); return -1; }
+    if (rl <= 0 || (size_t) rl >= sizeof(req)) {
+        if (err != NULL)
+            snprintf(err, errlen, "bad target");
+        return -1;
+    }
 
     if (write_all_to(fd, req, (size_t) rl, timeout_ms) != 0) {
-        if (err) snprintf(err, errlen, "proxy write failed");
+        if (err != NULL)
+            snprintf(err, errlen, "proxy write failed");
         return -1;
     }
 
     /* read response headers up to the blank line (the proxy sends nothing after
      * the 200 until we write, so we won't swallow tunnel bytes). */
-    char   resp[2048];
-    size_t rn = 0;
-    while (rn < sizeof(resp) - 1) {
-        if (wait_io(fd, POLLIN, timeout_ms) != 0) { if (err) snprintf(err, errlen, "proxy read timeout"); return -1; }
-        ssize_t k = recv(fd, resp + rn, sizeof(resp) - 1 - rn, 0);
-        if (k < 0) {
-            if (errno == EINTR || errno == EAGAIN) continue;
-            if (err) snprintf(err, errlen, "proxy read failed");
-            return -1;
-        }
-        if (k == 0) break;
-        rn += (size_t) k;
-        resp[rn] = '\0';
-        if (strstr(resp, "\r\n\r\n") != NULL) break;
-    }
-    resp[rn] = '\0';
-
-    int code = 0;
-    if (sscanf(resp, "HTTP/%*d.%*d %d", &code) != 1) {
-        if (err) snprintf(err, errlen, "malformed proxy response");
+    char resp[2048];
+    if (read_response_headers(fd, timeout_ms, resp, sizeof(resp), err,
+                              errlen) != 0)
         return -1;
-    }
-    if (code != 200) {
-        char *eol = strpbrk(resp, "\r\n");
-        if (eol) *eol = '\0';
-        if (err) snprintf(err, errlen, "proxy CONNECT refused (%s)", resp);
-        return -1;
-    }
-    return 0;
+    return response_accepted(resp, err, errlen);
 }

@@ -202,11 +202,64 @@ imp_drop_to_service_user(ngx_log_t *log)
 }
 
 
-int
-brix_imp_broker_drop_caps(ngx_log_t *log)
+/*
+ * WHAT: Remove every capability except SETUID and SETGID from the bounding set.
+ * WHY: Prevent the broker from reacquiring unrelated privilege after startup.
+ * HOW: Drop each kernel-known capability, tolerating only EINVAL for capability
+ *      numbers unsupported by the running kernel.
+ */
+static int
+imp_drop_bounding_caps(ngx_log_t *log)
 {
     int cap;
 
+    for (cap = 0; cap <= CAP_LAST_CAP; cap++) {
+        if (cap == CAP_SETUID || cap == CAP_SETGID) {
+            continue;
+        }
+        if (prctl(PR_CAPBSET_DROP, cap, 0, 0, 0) != 0 && ngx_errno != EINVAL) {
+            if (log) ngx_log_error(NGX_LOG_EMERG, log, ngx_errno,
+                                   "impersonate broker: CAPBSET_DROP(%d) failed",
+                                   cap);
+            return -1;
+        }
+    }
+    return 0;
+}
+
+
+/*
+ * WHAT: Install and report the broker's syscall filter when seccomp is built.
+ * WHY: Isolate optional-platform behavior from credential transition ordering.
+ * HOW: Apply the shared broker policy and log active or best-effort fallback
+ *      status; absence or load failure does not disable the capability floor.
+ */
+static void
+imp_enable_broker_seccomp(ngx_log_t *log)
+{
+#if BRIX_HAVE_SECCOMP
+    unsigned nkill = 0;
+    int      rc;
+
+    rc = brix_seccomp_broker_apply(NULL, NULL, &nkill);
+    if (rc == BRIX_SECCOMP_CORE_OK) {
+        if (log) ngx_log_error(NGX_LOG_NOTICE, log, 0,
+            "impersonate broker: seccomp active (%ui dangerous syscalls killed)",
+            (ngx_uint_t) nkill);
+    } else if (rc == BRIX_SECCOMP_CORE_ERR && log) {
+        ngx_log_error(NGX_LOG_WARN, log, 0,
+            "impersonate broker: seccomp filter failed to load (continuing "
+            "with cap-drop + reserved-id floor)");
+    }
+#else
+    (void) log;
+#endif
+}
+
+
+int
+brix_imp_broker_drop_caps(ngx_log_t *log)
+{
     /* No new privileges (defence in depth: no setuid-binary escalation). */
     if (prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0) != 0) {
         if (log) ngx_log_error(NGX_LOG_EMERG, log, ngx_errno,
@@ -217,17 +270,8 @@ brix_imp_broker_drop_caps(ngx_log_t *log)
     /* Clear the bounding set of everything but SETUID/SETGID so the dropped caps
      * can never be re-acquired (even via a future exec).  Done while root, which
      * holds CAP_SETPCAP. */
-    for (cap = 0; cap <= CAP_LAST_CAP; cap++) {
-        if (cap == CAP_SETUID || cap == CAP_SETGID) {
-            continue;
-        }
-        if (prctl(PR_CAPBSET_DROP, cap, 0, 0, 0) != 0 && ngx_errno != EINVAL) {
-            /* EINVAL = unknown cap on this kernel; ignore. Other errors fail. */
-            if (log) ngx_log_error(NGX_LOG_EMERG, log, ngx_errno,
-                                   "impersonate broker: CAPBSET_DROP(%d) failed",
-                                   cap);
-            return -1;
-        }
+    if (imp_drop_bounding_caps(log) != 0) {
+        return -1;
     }
 
     /* Reduce permitted + effective to {SETUID, SETGID}. */
@@ -249,22 +293,7 @@ brix_imp_broker_drop_caps(ngx_log_t *log)
      * Best-effort: on load failure (or a build without libseccomp) the cap-drop +
      * reserved-id floor remain the defense, so we warn and continue rather than
      * kill impersonation entirely. */
-#if BRIX_HAVE_SECCOMP
-    {
-        unsigned nkill = 0;
-        int      src = brix_seccomp_broker_apply(NULL, NULL, &nkill);
-
-        if (src == BRIX_SECCOMP_CORE_OK) {
-            if (log) ngx_log_error(NGX_LOG_NOTICE, log, 0,
-                "impersonate broker: seccomp active (%ui dangerous syscalls killed)",
-                (ngx_uint_t) nkill);
-        } else if (src == BRIX_SECCOMP_CORE_ERR && log) {
-            ngx_log_error(NGX_LOG_WARN, log, 0,
-                "impersonate broker: seccomp filter failed to load (continuing "
-                "with cap-drop + reserved-id floor)");
-        }
-    }
-#endif
+    imp_enable_broker_seccomp(log);
 
     if (geteuid() == 0 && log) {
         ngx_log_error(NGX_LOG_WARN, log, 0,

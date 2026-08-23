@@ -34,6 +34,24 @@ from settings import NGINX_BIN, HOST, BIND_HOST
 # Binaries / constants
 # --------------------------------------------------------------------------- #
 
+def _step_stop_all_1():
+    try:
+        out = subprocess.run(["ss", "-tlnp"], capture_output=True, text=True).stdout
+    except Exception:
+        out = ""
+    return out
+
+
+def _phase_build_all_1(big):
+    if not os.path.exists(big):
+        with open(big, "wb") as f:
+            f.write(os.urandom(16 * 1024 * 1024))
+
+def _phase_stop_all_2():
+    for pidfile in glob.glob(os.path.join(MESH_DIR, "*", "run", "*.pid")):
+        _kill_pidfile_group(pidfile)
+
+
 BRIX_BIN = shutil.which(os.environ.get("TEST_BRIX_BIN", "xrootd"))
 CMSD_BIN = shutil.which(os.environ.get("TEST_CMSD_BIN", "cmsd"))
 XRDFS_BIN = shutil.which(os.environ.get("TEST_XRDFS_BIN", "xrdfs"))
@@ -626,9 +644,7 @@ def build_all():
     m.nginx("lg-mgr", cfg_manager(p["lg_mgr"], p["lg_mgr_cms"]))
     d = m.datadir("lg-rds")
     big = os.path.join(d, "big.bin")
-    if not os.path.exists(big):
-        with open(big, "wb") as f:
-            f.write(os.urandom(16 * 1024 * 1024))
+    _phase_build_all_1(big)
     m.brix_node("lg-rds", "server", p["lg_rds"], p["lg_rds_cms"], d, "/",
                   f"{HOST}:{p['lg_mgr_cms']}")
 
@@ -724,6 +740,24 @@ def _kill_pidfile_group(pidfile):
         pass
 
 
+def _kill_port_listeners(output):
+    for line in output.splitlines():
+        if "pid=" not in line:
+            continue
+        for port in range(PORT_MIN, PORT_MAX + 1):
+            if f":{port} " in line:
+                pid = line.split("pid=")[1].split(",")[0]
+                subprocess.run(["kill", "-9", pid], check=False)
+                break
+
+
+def _wait_manager_ports():
+    for _ in range(40):
+        if not any(port_open(port) for port in MANAGER_PORTS):
+            return
+        time.sleep(0.25)
+
+
 def stop_all():
     """Tear down every mesh daemon reliably (process groups + cfg match + ports).
 
@@ -732,8 +766,7 @@ def stop_all():
     one of our ports, then block until the manager front doors are actually free
     so a relaunch cannot race a lingering listener."""
     # 1. nginx masters + their worker groups, via the pid files we wrote.
-    for pidfile in glob.glob(os.path.join(MESH_DIR, "*", "run", "*.pid")):
-        _kill_pidfile_group(pidfile)
+    _phase_stop_all_2()
 
     # 2. xrootd + cmsd: command line carries `-c <MESH_DIR>/<topo>/cfg/<file>`.
     #    Deliberately NOT a bare `-f MESH_DIR`: that also matches the launcher
@@ -744,24 +777,11 @@ def stop_all():
                    check=False)
 
     # 4. Single ss sweep: SIGKILL anything still listening on one of our ports.
-    try:
-        out = subprocess.run(["ss", "-tlnp"], capture_output=True, text=True).stdout
-    except Exception:
-        out = ""
-    for line in out.splitlines():
-        if "pid=" not in line:
-            continue
-        for port in range(PORT_MIN, PORT_MAX + 1):
-            if f":{port} " in line:
-                pid = line.split("pid=")[1].split(",")[0]
-                subprocess.run(["kill", "-9", pid], check=False)
-                break
+    out = _step_stop_all_1()
+    _kill_port_listeners(out)
 
     # 5. Wait for the front doors to clear (≤10s) so a relaunch starts clean.
-    for _ in range(40):
-        if not any(port_open(p) for p in MANAGER_PORTS):
-            return
-        time.sleep(0.25)
+    _wait_manager_ports()
 
 
 # Per-round readiness probe budget.  A still-forming manager answers a locate

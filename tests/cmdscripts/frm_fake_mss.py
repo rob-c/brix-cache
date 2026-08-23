@@ -10,22 +10,41 @@ import sys
 import time
 
 
-def main(argv: list[str] | None = None) -> int:
-    args = list(sys.argv[1:] if argv is None else argv)
-    if not args or not args[0]:
-        return 64
-    dest = Path(args[0])
-    audit = os.environ.get("FRM_AUDIT_LOG")
+def _phase_main_1(audit, dest):
     if audit:
         with Path(audit).open("a") as fh:
             fh.write(f"stage {dest}\n")
+
+
+def _expression_1(argv):
+    return (
+        list(sys.argv[1:] if argv is None else argv)
+    )
+
+def _expression_2(args):
+    return (
+        not args or not args[0]
+    )
+
+
+def _guard_main_1(latency_ms):
+    if latency_ms > 0:
+        time.sleep(latency_ms / 1000.0)
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = _expression_1(argv)
+    if _expression_2(args):
+        return 64
+    dest = Path(args[0])
+    audit = os.environ.get("FRM_AUDIT_LOG")
+    _phase_main_1(audit, dest)
 
     try:
         latency_ms = int(os.environ.get("FRM_LATENCY_MS", "0"))
     except ValueError:
         latency_ms = 0
-    if latency_ms > 0:
-        time.sleep(latency_ms / 1000.0)
+    _guard_main_1(latency_ms)
 
     if os.environ.get("FRM_FAIL_MODE") == "permanent":
         return 1

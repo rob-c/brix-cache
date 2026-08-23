@@ -72,6 +72,31 @@ from server_registry import NginxInstanceSpec
 from settings import (BIND_HOST, CA_CERT, NGINX_BIN, SERVER_CERT,
                       SERVER_KEY, USER_CERT, USER_KEY)
 
+def _expression_1(arms):
+    return (
+        [n for n in arms.files("off") if not n.startswith("stg_")]
+    )
+
+def _expression_2(arms):
+    return (
+        [n for n in arms.files("abs") if not n.startswith("stg_")]
+    )
+
+
+def _check_test_the_two_stores_hold_the_same_objects_2(off, absent):
+    assert off == absent, f"off={off} absent={absent}"
+
+def _check_test_the_two_stores_hold_the_same_objects_1(call, arm):
+    assert _push_image(call, f"same/{arm}", "v1")[0] == 201
+
+def _check_test_the_guard_audit_never_hears_about_it_4(audited):
+    assert audited == [], audited
+
+def _check_test_the_guard_audit_never_hears_about_it_3(call, n):
+    assert _put_blob(call, f"forged/quiet{n}",
+                     LAYER + str(n).encode())
+
+
 try:
     from tokenforge import TokenForge, write_scitokens_cfg
     _HAVE_TOKENFORGE = True
@@ -464,11 +489,11 @@ class TestTheWrittenOffEqualsItsOmission:
         because the names are the digests of what was written."""
         for arm, port in AUTHENTICATING:
             call = _plain(port, {"Authorization": "Bearer " + arms.token()})
-            assert _push_image(call, f"same/{arm}", "v1")[0] == 201
+            _check_test_the_two_stores_hold_the_same_objects_1(call, arm)
 
-        off = [n for n in arms.files("off") if not n.startswith("stg_")]
-        absent = [n for n in arms.files("abs") if not n.startswith("stg_")]
-        assert off == absent, f"off={off} absent={absent}"
+        off = _expression_1(arms)
+        absent = _expression_2(arms)
+        _check_test_the_two_stores_hold_the_same_objects_2(off, absent)
 
     @pytest.mark.parametrize("arm,port", AUTHENTICATING)
     def test_neither_plane_says_anything_about_the_flag(self, arms, arm, port):
@@ -596,12 +621,11 @@ class TestAnIssuerTableBesideAnOpenDoor:
         call = _plain(R_BOTH,
                       {"Authorization": "Bearer " + arms.forged()})
         for n in range(3):
-            assert _put_blob(call, f"forged/quiet{n}",
-                             LAYER + str(n).encode())
+            _check_test_the_guard_audit_never_hears_about_it_3(call, n)
 
         audited = [ln for ln in arms.errlog().splitlines()
                    if "signal=authfail" in ln and f":{R_BOTH}\"" in ln]
-        assert audited == [], audited
+        _check_test_the_guard_audit_never_hears_about_it_4(audited)
 
     def test_the_open_plane_and_the_composed_plane_are_indistinguishable(
             self, arms):
@@ -953,8 +977,11 @@ class TestNoLogNamesWhoPushed:
         assert _push_image(call, "who/traced", "v1")[0] == 201
 
         named = [ln for ln in arms.errlog().splitlines() if PUSHER in ln]
-        assert named, "the token layer logged nothing either"
-        assert all("brix_token:" in ln for ln in named), named
+        def _assert_test_the_subject_only_survives_where_the_token_layer_logged_it_1():
+            assert named, "the token layer logged nothing either"
+            assert all("brix_token:" in ln for ln in named), named
+
+        _assert_test_the_subject_only_survives_where_the_token_layer_logged_it_1()
         assert not any("who/traced" in ln and "principal" in ln
                        for ln in named)
 

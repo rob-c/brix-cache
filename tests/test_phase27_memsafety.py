@@ -195,10 +195,14 @@ def test_w8_lint_runs_clean():
 # 3. W7 fuzz build + short run                                                 #
 # --------------------------------------------------------------------------- #
 
-def test_w7_fuzz_safe_size_builds_and_runs(tmp_path):
+def _require_clang():
     clang = shutil.which("clang")
     if clang is None:
         pytest.skip("clang not available")
+    return clang
+
+
+def _require_libfuzzer(clang, tmp_path):
     # Confirm libFuzzer is usable.
     probe = tmp_path / "probe.c"
     probe.write_text("int LLVMFuzzerTestOneInput(const unsigned char*d,"
@@ -207,6 +211,11 @@ def test_w7_fuzz_safe_size_builds_and_runs(tmp_path):
                        "-o", str(tmp_path / "probe")],
                       capture_output=True).returncode != 0:
         pytest.skip("clang libFuzzer/ASAN not available")
+
+
+def test_w7_fuzz_safe_size_builds_and_runs(tmp_path):
+    clang = _require_clang()
+    _require_libfuzzer(clang, tmp_path)
 
     out = tmp_path / "fuzz_safe_size"
     rc = subprocess.run(

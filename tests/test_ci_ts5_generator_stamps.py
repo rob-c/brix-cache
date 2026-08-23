@@ -22,6 +22,14 @@ import brix_suite.prep_steps as prep_steps
 
 #: The line a §10.2 shim ends on.  A file carrying it holds no logic, so its
 #: mtime says nothing about what the generator will produce.
+def _check_test_the_moved_token_generator_is_stamped_module_by_module_1(names):
+    assert names == {"__main__.py", "claims.py", "issuer_cfg.py", "jose.py",
+                     "manifest.py", "mint.py", "signing.py"}
+
+def _check_test_the_moved_token_generator_is_stamped_module_by_module_2(flat):
+    assert flat == [], "the shim is stamped again; edits to the package are invisible"
+
+
 _SHIM_MARK = "_sys.modules[__name__] = _canonical"
 
 
@@ -34,10 +42,9 @@ def test_every_generator_source_is_a_real_file():
 def test_the_moved_token_generator_is_stamped_module_by_module():
     """The whole `security/tokens` package, not the shim that fronts it."""
     names = {p.name for p in prep_steps._GENERATOR_SOURCES if p.parent.name == "tokens"}
-    assert names == {"__main__.py", "claims.py", "issuer_cfg.py", "jose.py",
-                     "manifest.py", "mint.py", "signing.py"}
+    _check_test_the_moved_token_generator_is_stamped_module_by_module_1(names)
     flat = [p for p in prep_steps._GENERATOR_SOURCES if p.name == "tokenforge.py"]
-    assert flat == [], "the shim is stamped again; edits to the package are invisible"
+    _check_test_the_moved_token_generator_is_stamped_module_by_module_2(flat)
 
 
 def test_no_generator_source_is_a_shim():

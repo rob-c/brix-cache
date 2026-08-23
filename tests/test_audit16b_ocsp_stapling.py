@@ -68,6 +68,25 @@ from pathlib import Path
 
 import pytest
 
+def _expression_1(line, pattern):
+    return (
+        not pattern.search(line) or line.lstrip().startswith("*")
+    )
+
+def _expression_2(path, line):
+    return (
+        path.name == "ocsp.c" and line.startswith(
+                                "brix_ocsp_staple_fetch")
+    )
+
+
+def _check_test_brix_ocsp_staple_fetch_is_called_from_nowhere_1(callers):
+    assert callers == [], (
+        "brix_ocsp_staple_fetch() now has a caller — defect candidate #66 "
+        "is being fixed; the wire assertions in §B must be revisited:\n"
+        + "\n".join(callers))
+
+
 try:
     from OpenSSL import SSL
 except ModuleNotFoundError:
@@ -348,18 +367,14 @@ class TestTheFetchHasNoCaller:
         for path in sorted(REPO.joinpath("src").rglob("*.c")):
             text = path.read_text(encoding="utf-8", errors="replace")
             for number, line in enumerate(text.splitlines(), 1):
-                if not pattern.search(line) or line.lstrip().startswith("*"):
+                if _expression_1(line, pattern):
                     continue
                 # The definition itself: the previous line is the return type
                 # on its own, which is how this tree writes function headers.
-                if path.name == "ocsp.c" and line.startswith(
-                        "brix_ocsp_staple_fetch"):
+                if _expression_2(path, line):
                     continue
                 callers.append(f"{path.relative_to(REPO)}:{number}: {line.strip()}")
-        assert callers == [], (
-            "brix_ocsp_staple_fetch() now has a caller — defect candidate #66 "
-            "is being fixed; the wire assertions in §B must be revisited:\n"
-            + "\n".join(callers))
+        _check_test_brix_ocsp_staple_fetch_is_called_from_nowhere_1(callers)
 
     def test_the_comments_still_claim_it_runs_at_init_process(self):
         """The other half of the defect, and the reason it survived: three

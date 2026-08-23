@@ -57,6 +57,45 @@ from settings import HOST, NGINX_ANON_PORT
 # Paths and constants
 # ---------------------------------------------------------------------------
 
+def _expression_1(needs_fleet, fleet):
+    return (
+        needs_fleet and not fleet
+    )
+
+def _expression_2(baseline):
+    return (
+        print(f"  {len([k for k in baseline if not k.startswith('_')])} entries captured")
+    )
+
+
+def _guard_test_cli_golden_1():
+    if _BASELINE is None:
+        pytest.skip(
+            "No baseline file. Run: python tests/test_cli_golden.py --capture-baseline"
+        )
+
+def _guard_test_cli_golden_2(key):
+    if key not in _BASELINE:
+        pytest.skip(f"new binary, no baseline: {key}")
+
+def _guard_test_cli_golden_3(stored, key):
+    if "skipped" in stored:
+        pytest.skip(f"baseline captured with fleet down — re-capture with fleet up: {key}")
+
+def _guard_test_cli_golden_4(stored, key):
+    if "error" in stored:
+        pytest.skip(f"baseline had capture error ({stored['error']}): {key}")
+
+def _guard_test_cli_golden_5(needs_fleet, key):
+    if needs_fleet and not _fleet_up():
+        pytest.skip(f"fleet unavailable: {key}")
+
+def _check_test_cli_golden_1(stderr_sha, stored, key):
+    assert stderr_sha == stored["stderr_sha"], (
+        f"stderr changed (SHA-256 mismatch) for {key}"
+    )
+
+
 REPO_ROOT = pathlib.Path(__file__).parent.parent
 BIN_DIR = REPO_ROOT / "client" / "bin"
 GOLDEN_DIR = pathlib.Path(__file__).parent / "golden"
@@ -255,7 +294,7 @@ def _capture_baseline() -> None:
     }
 
     for key, argv, needs_fleet, env_extra in _MATRIX:
-        if needs_fleet and not fleet:
+        if _expression_1(needs_fleet, fleet):
             print(f"  SKIP   {key}  (fleet down)")
             baseline[key] = {"skipped": "fleet_down"}
             continue
@@ -277,7 +316,7 @@ def _capture_baseline() -> None:
 
     GOLDEN_FILE.write_text(json.dumps(baseline, indent=2) + "\n")
     print(f"\nBaseline written to {GOLDEN_FILE}")
-    print(f"  {len([k for k in baseline if not k.startswith('_')])} entries captured")
+    _expression_2(baseline)
 
 
 # ---------------------------------------------------------------------------
@@ -319,39 +358,33 @@ def test_cli_golden(key: str, argv: List[str], needs_fleet: bool, env_extra: Opt
     * Baseline entry was skipped at capture time (fleet was down then).
     * Fleet-dependent entry and fleet currently unreachable.
     """
-    if _BASELINE is None:
-        pytest.skip(
-            "No baseline file. Run: python tests/test_cli_golden.py --capture-baseline"
-        )
+    _guard_test_cli_golden_1()
 
-    if key not in _BASELINE:
-        pytest.skip(f"new binary, no baseline: {key}")
+    _guard_test_cli_golden_2(key)
 
     stored = _BASELINE[key]
 
-    if "skipped" in stored:
-        pytest.skip(f"baseline captured with fleet down — re-capture with fleet up: {key}")
+    _guard_test_cli_golden_3(stored, key)
 
-    if "error" in stored:
-        pytest.skip(f"baseline had capture error ({stored['error']}): {key}")
+    _guard_test_cli_golden_4(stored, key)
 
-    if needs_fleet and not _fleet_up():
-        pytest.skip(f"fleet unavailable: {key}")
+    _guard_test_cli_golden_5(needs_fleet, key)
 
     try:
         exit_code, stdout_sha, stderr_sha = _run_entry(argv, env_extra)
     except subprocess.TimeoutExpired:
         pytest.fail(f"TIMEOUT (>{TIMEOUT_S}s): {' '.join(argv)}")
 
-    assert exit_code == stored["exit"], (
-        f"exit code changed: got {exit_code}, baseline {stored['exit']}"
-    )
-    assert stdout_sha == stored["stdout_sha"], (
-        f"stdout changed (SHA-256 mismatch) for {key}"
-    )
-    assert stderr_sha == stored["stderr_sha"], (
-        f"stderr changed (SHA-256 mismatch) for {key}"
-    )
+    def _assert_test_cli_golden_1():
+        assert exit_code == stored["exit"], (
+            f"exit code changed: got {exit_code}, baseline {stored['exit']}"
+        )
+        assert stdout_sha == stored["stdout_sha"], (
+            f"stdout changed (SHA-256 mismatch) for {key}"
+        )
+
+    _assert_test_cli_golden_1()
+    _check_test_cli_golden_1(stderr_sha, stored, key)
 
 
 # ---------------------------------------------------------------------------

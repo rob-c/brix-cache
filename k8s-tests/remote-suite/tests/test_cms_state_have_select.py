@@ -44,6 +44,29 @@ import pytest
 
 from settings import NGINX_BIN, SERVER_HOST, HOST, BIND_HOST, free_ports
 
+def _guard_client_stack_1():
+    if not os.path.exists(NGINX_BIN):
+        pytest.skip(f"nginx binary not found at {NGINX_BIN}")
+
+def _guard_client_stack_2():
+    if _reachable(MGR_PORT, 0.3) or _reachable(CLIENT_NGINX_PORT, 0.3):
+        pytest.skip("dedicated CMS-client ports already in use; another "
+                    "instance is running")
+
+def _guard_client_stack_3(escape):
+    if os.path.islink(escape) or os.path.exists(escape):
+        os.unlink(escape)
+
+def _guard_client_stack_4():
+    if not _wait_port(CLIENT_NGINX_PORT):
+        pytest.skip("CMS-client nginx did not come up")
+
+def _guard_client_stack_5(conn, peer):
+    if conn is None:
+        pytest.skip("nginx never dialled in to the CMS manager peer "
+                    f"(err={peer._err})")
+
+
 H = SERVER_HOST
 
 # ---------------------------------------------------------------------------
@@ -364,11 +387,8 @@ def _stop_nginx(conf):
 def client_stack():
     """nginx CMS-client subscribed to a python manager peer.  Yields the live
     accepted manager-side socket (after nginx LOGIN), plus the data dir."""
-    if not os.path.exists(NGINX_BIN):
-        pytest.skip(f"nginx binary not found at {NGINX_BIN}")
-    if _reachable(MGR_PORT, 0.3) or _reachable(CLIENT_NGINX_PORT, 0.3):
-        pytest.skip("dedicated CMS-client ports already in use; another "
-                    "instance is running")
+    _guard_client_stack_1()
+    _guard_client_stack_2()
 
     base = os.path.join(_DIR, "client")
     shutil.rmtree(base, ignore_errors=True)
@@ -383,8 +403,7 @@ def client_stack():
     # makes nginx stay silent rather than answering kYR_have for an outside file.
     escape = os.path.join(data_dir, "escape")
     try:
-        if os.path.islink(escape) or os.path.exists(escape):
-            os.unlink(escape)
+        _guard_client_stack_3(escape)
         os.symlink("/etc", escape)
     except OSError:
         pass  # symlink-escape test will skip if we couldn't plant it
@@ -395,12 +414,9 @@ def client_stack():
     conf = _client_conf("client", CLIENT_NGINX_PORT, data_dir, MGR_PORT)
     _start_nginx(conf)
     try:
-        if not _wait_port(CLIENT_NGINX_PORT):
-            pytest.skip("CMS-client nginx did not come up")
+        _guard_client_stack_4()
         conn = peer.wait_login()
-        if conn is None:
-            pytest.skip("nginx never dialled in to the CMS manager peer "
-                        f"(err={peer._err})")
+        _guard_client_stack_5(conn, peer)
         yield {"conn": conn, "data_dir": data_dir, "peer": peer}
     finally:
         peer.stop()

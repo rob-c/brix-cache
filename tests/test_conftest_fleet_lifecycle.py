@@ -24,6 +24,10 @@ import pytest
 # Load the *tests/* conftest by path: a bare ``import conftest`` resolves to the
 # repo-root compatibility shim (./conftest.py), not this directory's lifecycle
 # conftest, so address the file sitting next to this test explicitly.
+def _check_test_complete_boot_does_not_depend_on_autouse_discovery_1(ded_spec, boot):
+    assert {s.name for s in boot} == {ded_spec}
+
+
 _CONFTEST_PATH = os.path.join(os.path.dirname(__file__), "conftest.py")
 _spec = importlib.util.spec_from_file_location("tests_conftest_under_test", _CONFTEST_PATH)
 assert _spec is not None and _spec.loader is not None
@@ -459,7 +463,7 @@ def test_complete_boot_does_not_depend_on_autouse_discovery(monkeypatch, tmp_pat
     monkeypatch.setattr(conftest, "_register_fleet", lambda: None)
     monkeypatch.setattr(conftest, "registered_specs", lambda: [_named_spec(ded_spec)])
     boot = conftest._specs_to_boot([_Item()])
-    assert {s.name for s in boot} == {ded_spec}
+    _check_test_complete_boot_does_not_depend_on_autouse_discovery_1(ded_spec, boot)
 
 
 def test_decision_is_memoized(fleet_decision_env):

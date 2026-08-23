@@ -17,6 +17,58 @@ from brixtest.evidence.provenance import capture
 from brixtest.evidence.spans import SpanRecorder
 
 
+def _collector_pids(manager) -> dict[str, int]:
+    result = {"test-helper": os.getpid()}
+    backend = getattr(manager, "_backend", None)
+    if backend is not None:
+        result.update(backend.process_pids())
+    return result
+
+
+def _collector_namespace(manager) -> str:
+    kubernetes = getattr(manager, "_kubernetes", None)
+    return str(getattr(kubernetes, "namespace", ""))
+
+
+def _collector_values(manager, root: Path) -> dict[str, object]:
+    return {
+        "run_root": root,
+        "workspace": manager.workspace,
+        **{
+            "server_%s_url" % name: service.url()
+            for name, service in manager._services.items()
+        },
+    }
+
+
+def _resolved_collector_options(options, values) -> dict:
+    return {key: _resolved_collector_option(value, values) for key, value in options.items()}
+
+
+def _resolved_collector_option(value, values):
+    if isinstance(value, str):
+        return _format_collector_value(value, values)
+    if isinstance(value, tuple):
+        return tuple(_format_collector_value(item, values) for item in value)
+    return value
+
+
+def _format_collector_value(value, values):
+    if not isinstance(value, str):
+        return value
+    try:
+        return value.format_map(values)
+    except KeyError:
+        return value
+
+
+def _resolved_collector_specs(specs, values) -> list:
+    return [
+        dataclasses.replace(spec, options=_resolved_collector_options(spec.options, values))
+        for spec in specs
+    ]
+
+
 class EvidenceRuntime:
     """Coordinates evidence while keeping its storage out of test code."""
 
@@ -100,42 +152,12 @@ class EvidenceRuntime:
     def start_collectors(self, manager, metric) -> None:
         if not self.collector_specs or self.collectors is not None:
             return
-
-        def pids() -> dict[str, int]:
-            result = {"test-helper": os.getpid()}
-            backend = getattr(manager, "_backend", None)
-            if backend is not None:
-                result.update(backend.process_pids())
-            return result
-
-        def namespace() -> str:
-            kubernetes = getattr(manager, "_kubernetes", None)
-            return str(getattr(kubernetes, "namespace", ""))
-
-        values = {
-            "run_root": self.root, "workspace": manager.workspace,
-            **{"server_%s_url" % name: service.url()
-               for name, service in manager._services.items()},
-        }
-        resolved = []
-        for spec in self.collector_specs:
-            options = {}
-            for key, value in spec.options.items():
-                if isinstance(value, str):
-                    try:
-                        options[key] = value.format_map(values)
-                    except KeyError:
-                        options[key] = value
-                elif isinstance(value, tuple):
-                    options[key] = tuple(
-                        item.format_map(values) if isinstance(item, str) else item for item in value
-                    )
-                else:
-                    options[key] = value
-            resolved.append(dataclasses.replace(spec, options=options))
+        values = _collector_values(manager, self.root)
+        resolved = _resolved_collector_specs(self.collector_specs, values)
         self.collectors = CollectorManager(
-            resolved, root=self.root, pid_provider=pids,
-            metric=metric.record, event=self.event, namespace_provider=namespace,
+            resolved, root=self.root, pid_provider=lambda: _collector_pids(manager),
+            metric=metric.record, event=self.event,
+            namespace_provider=lambda: _collector_namespace(manager),
         )
         self.collectors.start()
 
@@ -176,7 +198,10 @@ class EvidenceRuntime:
     def _derive_resource_findings(self) -> None:
         if self.collectors is None:
             return
-        resources = self.collectors.resources
+        self._derive_rss_findings(self.collectors.resources)
+        self._derive_sanitizer_findings()
+
+    def _derive_rss_findings(self, resources) -> None:
         rss = {}
         for row in resources:
             if row.get("name") == "process.rss_bytes":
@@ -189,14 +214,15 @@ class EvidenceRuntime:
                     "kind": "possible-memory-leak", "severity": "warning",
                     "process": owner, "start_bytes": values[0], "end_bytes": values[-1],
                 })
+
+    def _derive_sanitizer_findings(self) -> None:
         signatures = {
             "AddressSanitizer": "asan-error",
             "LeakSanitizer": "asan-leak",
             "runtime error:": "ubsan-error",
         }
         for path in self.root.rglob("*"):
-            if not path.is_file() or path.is_symlink() \
-                    or not ("log" in path.name.lower() or path.suffix in (".out", ".err")):
+            if not self._diagnostic_log(path):
                 continue
             try:
                 with path.open("rb") as handle:
@@ -209,6 +235,13 @@ class EvidenceRuntime:
                         "kind": kind, "severity": "error", "path": str(path),
                         "detail": "%s reported by a managed process" % signature,
                     })
+
+    @staticmethod
+    def _diagnostic_log(path: Path) -> bool:
+        return (
+            path.is_file() and not path.is_symlink()
+            and ("log" in path.name.lower() or path.suffix in (".out", ".err"))
+        )
 
     def snapshot(self) -> dict:
         collected = self.collectors.snapshot() if self.collectors is not None else {

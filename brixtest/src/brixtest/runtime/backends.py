@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import shutil
@@ -120,7 +121,28 @@ class LocalCaseBackend:
             placement = client.placement
             selected = "local" if placement.backend == "inherit" else placement.backend
             tool_executor(selected).validate(client)
-        return None
+        for task in getattr(declaration, "tasks", ()):
+            self._validate_task(task)
+
+    @staticmethod
+    def _validate_task(task) -> None:
+        placement = task.placement
+        if placement.backend not in ("inherit", "local", "process"):
+            raise SpecError(
+                "task %s placement.backend" % task.name, placement.backend,
+                "local managed tasks require inherit, local, or process",
+            )
+        limits = placement.resources
+        scheduled = (
+            placement.image, placement.namespace, placement.labels,
+            placement.node_selector, placement.security_context, placement.options,
+            limits.cpu, limits.memory_bytes, limits.pids,
+        )
+        if any(scheduled):
+            raise SpecError(
+                "task %s placement" % task.name, placement,
+                "local tasks cannot silently ignore image, scheduling, or resource policy",
+            )
 
     def plan(self, context: object) -> Mapping[str, object]:
         return {"backend": self.name}
@@ -146,39 +168,41 @@ class KubernetesCaseBackend:
 
     def validate(self, declaration: object) -> None:
         for server in getattr(declaration, "servers", ()):
-            if server.placement.backend not in ("inherit", "kubernetes", self.name):
-                raise SpecError(
-                    "server %s placement.backend" % server.name,
-                    server.placement.backend,
-                    "the Kubernetes case backend accepts inherit or kubernetes",
-                )
-            udp = [item.name for item in server.endpoints if item.protocol == "udp"]
-            if udp:
-                raise SpecError(
-                    "server %s endpoints" % server.name, udp,
-                    "kubectl port-forward cannot publish UDP endpoints",
-                )
-            if server.probe.kind == "log":
-                raise SpecError(
-                    "server %s probe.kind" % server.name, "log",
-                    "Kubernetes logs are archived at teardown; use tcp, http, https, exec, or an extension probe",
-                )
+            self._validate_server(server)
         for client in getattr(declaration, "clients", ()):
-            placement = client.placement
-            selected = "local" if placement.backend == "inherit" else placement.backend
-            tool_executor(selected).validate(client)
-            if selected == "kubernetes" and placement.namespace:
-                requested = {
-                    server.placement.namespace for server in declaration.servers
-                    if server.placement.namespace
-                }
-                if requested and placement.namespace not in requested:
-                    raise SpecError(
-                        "client %s placement.namespace" % client.name,
-                        placement.namespace,
-                        "must match the case Kubernetes namespace prefix",
-                    )
-        return None
+            self._validate_client(client, declaration)
+
+    def _validate_server(self, server) -> None:
+        if server.placement.backend not in ("inherit", "kubernetes", self.name):
+            raise SpecError(
+                "server %s placement.backend" % server.name, server.placement.backend,
+                "the Kubernetes case backend accepts inherit or kubernetes",
+            )
+        udp = [item.name for item in server.endpoints if item.protocol == "udp"]
+        if udp:
+            raise SpecError(
+                "server %s endpoints" % server.name, udp,
+                "kubectl port-forward cannot publish UDP endpoints",
+            )
+        if server.probe.kind == "log":
+            raise SpecError(
+                "server %s probe.kind" % server.name, "log",
+                "Kubernetes logs are archived at teardown; use tcp, http, https, exec, or an extension probe",
+            )
+
+    @staticmethod
+    def _validate_client(client, declaration) -> None:
+        placement = client.placement
+        selected = _client_backend(placement.backend)
+        tool_executor(selected).validate(client)
+        if selected != "kubernetes" or not placement.namespace:
+            return
+        requested = _server_namespaces(declaration.servers)
+        if requested and placement.namespace not in requested:
+            raise SpecError(
+                "client %s placement.namespace" % client.name, placement.namespace,
+                "must match the case Kubernetes namespace prefix",
+            )
 
     def plan(self, context: object) -> Mapping[str, object]:
         return {"backend": self.name}
@@ -196,6 +220,68 @@ class KubernetesCaseBackend:
         return {"backend": self.name, "servers": tuple(sorted(context.services))}
 
 
+def _client_backend(value: str) -> str:
+    return "local" if value == "inherit" else value
+
+
+def _server_namespaces(servers) -> set[str]:
+    return {
+        server.placement.namespace
+        for server in servers
+        if server.placement.namespace
+    }
+
+
+def _minikube_tools() -> None:
+    missing = [name for name in ("docker", "minikube", "kubectl") if shutil.which(name) is None]
+    if missing:
+        raise SpecError("Minikube backend", missing, "requires Docker, minikube, and kubectl on PATH")
+
+
+def _minikube_profile(profile: str) -> Mapping[str, object]:
+    try:
+        result = subprocess.run(
+            ["minikube", "profile", "list", "--output=json"],
+            capture_output=True, text=True, timeout=10.0, check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise SpecError("Minikube backend", profile, "cannot inspect profiles: %s" % exc) from exc
+    if result.returncode:
+        raise SpecError("Minikube backend", profile, "cannot inspect profiles: %s" % result.stderr.strip())
+    try:
+        payload = json.loads(result.stdout or "{}")
+    except ValueError as exc:
+        raise SpecError("Minikube backend", profile, "profile list returned invalid JSON") from exc
+    profiles = payload.get("valid", payload.get("Valid", ()))
+    selected = next((row for row in profiles if row.get("Name") == profile), None)
+    if selected is None:
+        raise SpecError("Minikube backend", profile, "profile is not running; use `brixtest minikube start`")
+    return selected
+
+
+def _minikube_driver(selected: Mapping[str, object]) -> None:
+    config = selected.get("Config", {})
+    driver = config.get("Driver", selected.get("Driver", "")) if isinstance(config, Mapping) else ""
+    if driver != "docker":
+        raise SpecError(
+            "Minikube backend driver", driver,
+            "the first-class local target requires the Docker driver",
+        )
+
+
+def _minikube_status(profile: str) -> None:
+    try:
+        status = subprocess.run(
+            ["minikube", "status", "--profile", profile, "--output=json"],
+            capture_output=True, text=True, timeout=15.0, check=False,
+        )
+        payload = json.loads(status.stdout or "{}")
+    except (OSError, subprocess.TimeoutExpired, ValueError) as exc:
+        raise SpecError("Minikube backend", profile, "cannot verify cluster readiness: %s" % exc) from exc
+    if status.returncode or not _status_is_running(payload):
+        raise SpecError("Minikube backend", profile, "profile is not ready; use `brixtest minikube start`")
+
+
 class MinikubeCaseBackend(KubernetesCaseBackend):
     """Run the Kubernetes engine against a Docker-backed Minikube profile."""
 
@@ -210,69 +296,10 @@ class MinikubeCaseBackend(KubernetesCaseBackend):
 
     def prepare(self, context: object) -> None:
         profile = os.environ.get("BRIXTEST_MINIKUBE_PROFILE", "brixtest")
-        missing = [
-            name for name in ("docker", "minikube", "kubectl")
-            if shutil.which(name) is None
-        ]
-        if missing:
-            raise SpecError(
-                "Minikube backend", missing,
-                "requires Docker, minikube, and kubectl on PATH",
-            )
-        try:
-            result = subprocess.run(
-                ["minikube", "profile", "list", "--output=json"],
-                capture_output=True, text=True, timeout=10.0, check=False,
-            )
-        except (OSError, subprocess.TimeoutExpired) as exc:
-            raise SpecError(
-                "Minikube backend", profile,
-                "cannot inspect profiles: %s" % exc,
-            ) from exc
-        if result.returncode:
-            raise SpecError(
-                "Minikube backend", profile,
-                "cannot inspect profiles: %s" % result.stderr.strip(),
-            )
-        try:
-            payload = json.loads(result.stdout or "{}")
-        except ValueError as exc:
-            raise SpecError(
-                "Minikube backend", profile,
-                "profile list returned invalid JSON",
-            ) from exc
-        profiles = payload.get("valid", payload.get("Valid", ()))
-        selected = next(
-            (row for row in profiles if row.get("Name") == profile), None,
-        )
-        if selected is None:
-            raise SpecError(
-                "Minikube backend", profile,
-                "profile is not running; use `brixtest minikube start`",
-            )
-        config = selected.get("Config", {})
-        driver = config.get("Driver", selected.get("Driver", ""))
-        if driver != "docker":
-            raise SpecError(
-                "Minikube backend driver", driver,
-                "the first-class local target requires the Docker driver",
-            )
-        try:
-            status = subprocess.run(
-                ["minikube", "status", "--profile", profile, "--output=json"],
-                capture_output=True, text=True, timeout=15.0, check=False,
-            )
-            status_payload = json.loads(status.stdout or "{}")
-        except (OSError, subprocess.TimeoutExpired, ValueError) as exc:
-            raise SpecError(
-                "Minikube backend", profile,
-                "cannot verify cluster readiness: %s" % exc,
-            ) from exc
-        if status.returncode or not _status_is_running(status_payload):
-            raise SpecError(
-                "Minikube backend", profile,
-                "profile is not ready; use `brixtest minikube start`",
-            )
+        _minikube_tools()
+        selected = _minikube_profile(profile)
+        _minikube_driver(selected)
+        _minikube_status(profile)
         context.set_kubernetes_context(profile)
 
 
@@ -291,10 +318,8 @@ def case_backend(name: str):
 
 
 for _name, _backend in _BUILTINS.items():
-    try:
+    with contextlib.suppress(SpecError):
         register_extension(
             "backend", _name, _backend, origin="brixtest",
             capabilities=("artifacts", "logs", "metrics", "provenance"),
         )
-    except SpecError:
-        pass

@@ -183,26 +183,33 @@ _BOMB_PLAIN = b"\x00" * (6 * 1024 * 1024)
 
 
 @pytest.mark.parametrize("codec", list(RATIO_GUARDED))
-def test_bomb_rejected_413_and_not_stored(codec):
-    """A >1000:1 expansion bomb must be rejected 413 and never stored."""
-    token, compress = CODECS[codec]
-    bomb = compress(_BOMB_PLAIN)
+def _assert_bomb_payload(codec, bomb):
     assert bomb and len(bomb) > 0
-    # Sanity: the producer really achieved a bomb-grade ratio for this codec.
     ratio = len(_BOMB_PLAIN) // max(1, len(bomb))
     min_ratio = 200 if codec == "lz4" else 1000
     assert ratio > min_ratio, \
         f"{codec} producer only achieved {ratio}:1 — not above {min_ratio}:1"
+
+
+def _assert_bomb_response(codec, response, path):
+    if codec in OPTIONAL_CODECS and response.status_code == 415:
+        pytest.skip(
+            f"server build lacks inbound decoder for optional codec "
+            f"'{codec}' (415 unsupported-encoding before decode)")
+    assert response.status_code == BOMB_413, \
+        f"{codec} bomb should be 413, got {response.status_code}: {response.text[:200]}"
+    _assert_not_stored(path)
+
+
+def test_bomb_rejected_413_and_not_stored(codec):
+    """A >1000:1 expansion bomb must be rejected 413 and never stored."""
+    token, compress = CODECS[codec]
+    bomb = compress(_BOMB_PLAIN)
+    _assert_bomb_payload(codec, bomb)
     path = f"/cmp_bomb_{codec}_{uuid.uuid4().hex}.bin"
     try:
-        r = _put(path, bomb, {"Content-Encoding": token})
-        if codec in OPTIONAL_CODECS and r.status_code == 415:
-            pytest.skip(
-                f"server build lacks inbound decoder for optional codec "
-                f"'{codec}' (415 unsupported-encoding before decode)")
-        assert r.status_code == BOMB_413, \
-            f"{codec} bomb should be 413, got {r.status_code}: {r.text[:200]}"
-        _assert_not_stored(path)
+        response = _put(path, bomb, {"Content-Encoding": token})
+        _assert_bomb_response(codec, response, path)
     finally:
         _delete(path)
 

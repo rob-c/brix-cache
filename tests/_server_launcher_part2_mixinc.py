@@ -21,6 +21,14 @@ from config_templates import render_config_to_path
 from fleet_lifecycle_ports import lifecycle_ports_for
 from fleet_values import session_template_values
 from brix_suite.kinds import LAUNCHER_KINDS, external_stop
+from brix_suite.launcher.internal_operations import (
+    chmod_recursive as _launcher_chmod_recursive,
+    nginx as _launcher_nginx,
+    stop_from_disk as _launcher_stop_from_disk,
+    wait_ports_released as _launcher_wait_ports_released,
+    wait_ready as _launcher_wait_ready,
+    xrootd_runas_user as _launcher_xrootd_runas_user,
+)
 from server_registry import (
     NginxInstanceSpec,
     build_manifest,
@@ -46,59 +54,7 @@ from brix_suite.nginx_tools import (  # noqa: F401 — re-exported for importers
 
 class _RegistryLauncherMixinC:
     def _xrootd_runas_user(self, cfg_text: str, log_path: str) -> str | None:
-        """Port of bash ``_ref_launch``'s root branch: open the drop-user's paths.
-
-        xrootd terminates with "Security reasons prohibit running as superuser",
-        so under a root harness we run it via ``-R <user>`` and pre-open the
-        paths that user must then touch — its adminpath/pidpath dirs (chown), the
-        exported localroot (a+rwX, shared with the root-owned nginx fleet), the
-        log dir + file, and the GSI PKI it reads. Returns the drop user, or
-        ``None`` when unprivileged (caller omits ``-R`` and launches as-is).
-        """
-        if os.geteuid() != 0:
-            return None
-        user = os.environ.get("REF_RUNAS_USER", "nobody")
-
-        def _directive(name: str) -> str | None:
-            m = re.search(rf"^{re.escape(name)}\s+(\S+)", cfg_text, re.M)
-            return m.group(1) if m else None
-
-        for key in ("all.adminpath", "all.pidpath"):
-            path = _directive(key)
-            if path:
-                Path(path).mkdir(parents=True, exist_ok=True)
-                self._chown_r(path, user)
-        localroot = _directive("oss.localroot")
-        if localroot:
-            self._chmod_r(localroot, 0o777, add_only=True)
-        log_dir = os.path.dirname(log_path)
-        Path(log_dir).mkdir(parents=True, exist_ok=True)
-        os.chmod(log_dir, 0o777)
-        Path(log_path).write_text("", encoding="utf-8")
-        shutil.chown(log_path, user)
-        # Fall back to settings.PKI_DIR (the canonical TEST_ROOT/pki root) when the
-        # env var is unset, exactly as _start_xrdhttp does for http.cadir — the
-        # fleet's start-all does not export PKI_DIR, so gating on the env var alone
-        # skipped the whole block and left hostkey.pem 0400-root, unreadable by the
-        # -R nobody GSI/HTTPS xrootd (HTTPS init: "invalid private key").
-        pki_dir = os.environ.get("PKI_DIR") or str(PKI_DIR)
-        if pki_dir and os.path.isdir(pki_dir):
-            for sub in (pki_dir, os.path.join(pki_dir, "ca"), os.path.join(pki_dir, "server")):
-                if os.path.isdir(sub):
-                    self._chmod_add(sub, 0o555)
-            hostcert = os.path.join(pki_dir, "server", "hostcert.pem")
-            if os.path.exists(hostcert):
-                self._chmod_add(hostcert, 0o444)
-            import glob
-            for pem in glob.glob(os.path.join(pki_dir, "ca", "*.pem")):
-                self._chmod_add(pem, 0o444)
-            # Private hostkey: XrdHttp refuses a group/world-readable key, so give
-            # the -R user exclusive read (own + 0400); root nginx ignores mode.
-            hostkey = os.path.join(pki_dir, "server", "hostkey.pem")
-            if os.path.exists(hostkey):
-                shutil.chown(hostkey, user)
-                os.chmod(hostkey, 0o400)
-        return user
+        return _launcher_xrootd_runas_user(self, cfg_text, log_path, globals())
 
     @staticmethod
     def _chown_r(path: str, user: str) -> None:
@@ -117,15 +73,7 @@ class _RegistryLauncherMixinC:
             pass
 
     def _chmod_r(self, path: str, bits: int, add_only: bool = False) -> None:
-        for root, dirs, files in os.walk(path):
-            for name in [root] + [os.path.join(root, f) for f in dirs + files]:
-                if add_only:
-                    self._chmod_add(name, bits)
-                else:
-                    try:
-                        os.chmod(name, bits)
-                    except OSError:
-                        pass
+        _launcher_chmod_recursive(self, path, bits, add_only)
 
     def _session_values(self, spec: NginxInstanceSpec) -> dict[str, str]:
         """The PKI/token/directory placeholder dict, per-spec env applied.
@@ -157,45 +105,10 @@ class _RegistryLauncherMixinC:
         env: dict[str, str] | None = None,
         check: bool = True,
     ):
-        merged_env = os.environ.copy()
-        if env:
-            merged_env.update(env)
-        nginx_bin = _nginx_bin()
-        result = subprocess.run(
-            [nginx_bin, *args],
-            capture_output=True,
-            text=True,
-            env=merged_env,
-        )
-        if check and result.returncode != 0:
-            endpoint = endpoint_for(spec) if spec is not None else None
-            config_path = endpoint.config if endpoint is not None else ""
-            logs_dir = str(Path(endpoint.prefix, "logs")) if endpoint is not None else ""
-            raise RegistryCommandFailure(
-                config_path=config_path,
-                logs_dir=logs_dir,
-                command=(nginx_bin, *args),
-                returncode=result.returncode,
-                stdout_tail=result.stdout[-4000:],
-                stderr_tail=result.stderr[-4000:],
-            )
-        return result
+        return _launcher_nginx(args, spec, env, check, globals())
 
     def _wait_ready(self, host: str, port: int | None, readiness: str) -> None:
-        if port is None or readiness == "none":
-            return
-        if readiness in {"root", "webdav", "s3", "metrics", "cms", "tcp"}:
-            readiness = "tcp"
-        if readiness != "tcp":
-            raise ValueError(f"unknown registry readiness probe: {readiness}")
-        deadline = time.time() + 10
-        while time.time() < deadline:
-            try:
-                with socket.create_connection((host, port), timeout=0.5):
-                    return
-            except OSError:
-                time.sleep(0.1)
-        raise RuntimeError(f"server did not become ready on {host}:{port}")
+        _launcher_wait_ready(host, port, readiness)
 
     def _wait_ports_released(self, spec: NginxInstanceSpec, timeout: float = 8.0) -> None:
         """Block until every fixed port ``spec`` declared is bindable again.
@@ -214,24 +127,7 @@ class _RegistryLauncherMixinC:
         stuck port surfaces as the successor's own EADDRINUSE with full nginx
         diagnostics — a clearer failure than one raised from teardown.
         """
-        ports = declared_ports(spec)
-        if not ports:
-            return
-        deadline = time.time() + timeout
-        for port in ports:
-            while True:
-                probe = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                probe.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-                try:
-                    probe.bind(("0.0.0.0", port))  # net-literal-allow: wildcard bind (all interfaces) for port-availability probe
-                    return_now = True
-                except OSError:
-                    return_now = False
-                finally:
-                    probe.close()
-                if return_now or time.time() >= deadline:
-                    break
-                time.sleep(0.05)
+        _launcher_wait_ports_released(spec, timeout, declared_ports)
 
     def _stop_from_disk(self, spec: NginxInstanceSpec, endpoint) -> None:
         """Reap a non-nginx daemon kind with no in-memory handle (cross-process
@@ -243,46 +139,7 @@ class _RegistryLauncherMixinC:
           * proc            → whatever is listening on the tracked port (Python
                               stubs self-daemonize without a pidfile)
         """
-        prefix = Path(endpoint.prefix)
-        row = LAUNCHER_KINDS.get(spec.kind)
-        strategy = row.profile.stop if row is not None else None
-        # Identity against the row's own stop function rather than the kind
-        # name: a second self-daemonizing kind that points at `external_stop`
-        # gets this branch without editing anything here.
-        if strategy is external_stop:
-            stop_argv = list(spec.template_values.get("stop_argv", ()))
-            if stop_argv:
-                subprocess.run(
-                    stop_argv,
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL,
-                    env={**os.environ, **spec.env},
-                )
-            return
-        if strategy == "port-kill":
-            from lib_py.util import pids_on_port  # noqa: PLC0415
-
-            for pid in pids_on_port(int(endpoint.port)):
-                try:
-                    os.kill(pid, signal.SIGKILL)
-                except OSError:
-                    pass
-            return
-        # Everything left keeps a pidfile and the row names where: haproxy
-        # under logs/, xrootd and xrdhttp under run/.  A kind that chases a
-        # master past SIGTERM says so with a non-zero `kill_grace`; haproxy's
-        # is zero, which is the SIGTERM-and-return it has always had.
-        pidfile = prefix / row.pidfile
-        master = self._read_pid(str(pidfile))
-        self._kill_pidfile(str(pidfile), signal.SIGTERM, process_group=True)
-        if master is None or not row.kill_grace:
-            return
-        deadline = time.time() + row.kill_grace
-        while time.time() < deadline:
-            if self._process_exited(master):
-                return
-            time.sleep(0.05)
-        self._kill_pidfile(str(pidfile), signal.SIGKILL, process_group=True)
+        _launcher_stop_from_disk(self, spec, endpoint, globals())
 
     @staticmethod
     def _process_exited(pid: int) -> bool:

@@ -95,6 +95,96 @@ static void obj_rel(const cvmfs_hash_t *h, char suffix, char *out, size_t n) {
     snprintf(out, n, "data/%s", op);
 }
 
+/* WHAT: Exercise mounted-client lookup, read, xattr, and refresh APIs.
+ * WHY: Keep public data-access assertions separate from fixture construction.
+ * HOW: Resolve known/missing paths, compare full/partial reads, inspect magic
+ *      xattrs, list attributes, and cross the manifest refresh deadline.
+ */
+static void test_client_access(cvmfs_client_t *cl, long now,
+                               const unsigned char *content, size_t content_n,
+                               const cvmfs_hash_t *content_h) {
+    cvmfs_dirent_t e;
+    unsigned char  rbuf[256];
+    size_t         rn = 0, rn2 = 0;
+    char           xb[128], content_hex[64], lb[256];
+    int            xl, ll;
+
+    CHECK(cvmfs_client_resolve(cl, "/hello", &e, now) == 1
+          && (e.flags & CVMFS_FLAG_FILE) && e.size == content_n,
+          "resolve /hello");
+    CHECK(cvmfs_client_resolve(cl, "/nope", &e, now) == 0, "resolve absent → 0");
+    CHECK(cvmfs_client_read(cl, "/hello", 0, sizeof(rbuf), rbuf, &rn, now) == 0
+          && rn == content_n && memcmp(rbuf, content, content_n) == 0,
+          "read /hello byte-exact");
+    cvmfs_client_read(cl, "/hello", 6, 5, rbuf, &rn2, now);
+    CHECK(rn2 == 5 && memcmp(rbuf, content + 6, 5) == 0, "read partial range");
+
+    xl = cvmfs_client_getxattr(cl, "/", "user.fqrn", xb, sizeof(xb), now);
+    if (xl > 0 && xl < (int) sizeof(xb)) xb[xl] = 0;
+    CHECK(xl > 0 && strcmp(xb, "test.cern.ch") == 0, "xattr user.fqrn");
+    xl = cvmfs_client_getxattr(cl, "/", "user.revision", xb, sizeof(xb), now);
+    if (xl > 0) xb[xl] = 0;
+    CHECK(strcmp(xb, "1") == 0, "xattr user.revision");
+    cvmfs_hash_to_hex(content_h, 0, content_hex, sizeof(content_hex));
+    xl = cvmfs_client_getxattr(cl, "/hello", "user.hash", xb, sizeof(xb), now);
+    if (xl > 0) xb[xl] = 0;
+    CHECK(strcmp(xb, content_hex) == 0, "xattr user.hash = file content hash");
+    xl = cvmfs_client_getxattr(cl, "/hello", "user.nchunks", xb, sizeof(xb), now);
+    if (xl > 0) xb[xl] = 0;
+    CHECK(strcmp(xb, "1") == 0, "xattr user.nchunks");
+    CHECK(cvmfs_client_getxattr(cl, "/", "user.bogus", xb, sizeof(xb), now) == -1,
+          "unknown xattr → -1");
+    ll = cvmfs_client_listxattr(cl, "/", lb, sizeof(lb), now);
+    CHECK(ll > 0 && memmem(lb, ll, "user.revision", 13) != NULL,
+          "listxattr includes revision");
+    CHECK(cvmfs_client_refresh(cl, now + 10) == 0, "refresh not due before TTL");
+    CHECK(cvmfs_client_refresh(cl, now + 300) == 0,
+          "refresh due past TTL re-verifies, same revision → 0");
+}
+
+
+/* WHAT: Exercise the revision-bound negative lookup filter lifecycle.
+ * WHY: Prove filters accelerate misses without fabricating stale ENOENT results.
+ * HOW: Build/adopt filters, force a short-circuit, mutate the revision binding,
+ *      reject a foreign binding, then clear and restore catalog lookups.
+ */
+static void test_negfilter(cvmfs_client_t *cl, long now) {
+    cvmfs_dirent_t e;
+    cvmfs_hash_t   root, other;
+    cvmfs_xorf_t   decoy, wrongrev;
+    uint64_t       key;
+
+    CHECK(cvmfs_client_negfilter_build(cl, now) == 0,
+          "negfilter builds from verified paths walk");
+    CHECK(cvmfs_client_resolve(cl, "/hello", &e, now) == 1,
+          "negfilter passes member path through");
+    CHECK(cvmfs_client_resolve(cl, "/nope", &e, now) == 0,
+          "negfilter absent path → 0");
+    CHECK(cvmfs_client_negfilter(cl, &root) != NULL, "active filter exposed");
+    key = cvmfs_xorf_key("/decoy");
+    CHECK(cvmfs_xorf_build(&decoy, &key, 1) == 0
+          && cvmfs_xorf_query(&decoy, cvmfs_xorf_key("/hello")) == 0,
+          "decoy filter builds, /hello outside it");
+    CHECK(cvmfs_client_negfilter_adopt(cl, &decoy, &root) == 0,
+          "adopt accepts filter bound to served root");
+    CHECK(cvmfs_client_resolve(cl, "/hello", &e, now) == 0,
+          "filter short-circuit answers ahead of the catalog");
+    cl->manifest.root_catalog.bytes[0] ^= 0xff;
+    CHECK(cvmfs_client_resolve(cl, "/hello", &e, now) == 1,
+          "stale filter auto-deactivates on revision change");
+    cl->manifest.root_catalog.bytes[0] ^= 0xff;
+    key = cvmfs_xorf_key("/hello");
+    CHECK(cvmfs_xorf_build(&wrongrev, &key, 1) == 0, "wrong-rev filter builds");
+    other = root;
+    other.bytes[0] ^= 0xff;
+    CHECK(cvmfs_client_negfilter_adopt(cl, &wrongrev, &other) == -1,
+          "adopt refuses filter bound to another revision");
+    cvmfs_xorf_reset(&wrongrev);
+    cvmfs_client_negfilter_clear(cl);
+    CHECK(cvmfs_client_resolve(cl, "/hello", &e, now) == 1,
+          "clear restores live lookups");
+}
+
 int main(void) {
     char cache_dir[] = "/tmp/brix_cl_cache.XXXXXX";
     char tmp_dir[]   = "/tmp/brix_cl_tmp.XXXXXX";
@@ -231,99 +321,8 @@ int main(void) {
         return 1;
     }
 
-    /* ---- resolve ---- */
-    cvmfs_dirent_t e;
-    CHECK(cvmfs_client_resolve(cl, "/hello", &e, now) == 1
-          && (e.flags & CVMFS_FLAG_FILE) && e.size == content_n,
-          "resolve /hello");
-    CHECK(cvmfs_client_resolve(cl, "/nope", &e, now) == 0, "resolve absent → 0");
-
-    /* ---- read ---- */
-    unsigned char rbuf[256]; size_t rn = 0;
-    int rrc = cvmfs_client_read(cl, "/hello", 0, sizeof(rbuf), rbuf, &rn, now);
-    CHECK(rrc == 0 && rn == content_n && memcmp(rbuf, content, content_n) == 0,
-          "read /hello byte-exact");
-
-    size_t rn2 = 0;
-    cvmfs_client_read(cl, "/hello", 6, 5, rbuf, &rn2, now);
-    CHECK(rn2 == 5 && memcmp(rbuf, content + 6, 5) == 0, "read partial range");
-
-    /* ---- magic xattrs ---- */
-    char xb[128]; int xl;
-    xl = cvmfs_client_getxattr(cl, "/", "user.fqrn", xb, sizeof(xb), now);
-    if (xl > 0 && xl < (int)sizeof(xb)) xb[xl] = 0;
-    CHECK(xl > 0 && strcmp(xb, "test.cern.ch") == 0, "xattr user.fqrn");
-
-    xl = cvmfs_client_getxattr(cl, "/", "user.revision", xb, sizeof(xb), now);
-    if (xl > 0) xb[xl] = 0;
-    CHECK(strcmp(xb, "1") == 0, "xattr user.revision");
-
-    char content_hex[64]; cvmfs_hash_to_hex(&content_h, 0, content_hex, sizeof(content_hex));
-    xl = cvmfs_client_getxattr(cl, "/hello", "user.hash", xb, sizeof(xb), now);
-    if (xl > 0) xb[xl] = 0;
-    CHECK(strcmp(xb, content_hex) == 0, "xattr user.hash = file content hash");
-
-    xl = cvmfs_client_getxattr(cl, "/hello", "user.nchunks", xb, sizeof(xb), now);
-    if (xl > 0) xb[xl] = 0;
-    CHECK(strcmp(xb, "1") == 0, "xattr user.nchunks");
-
-    CHECK(cvmfs_client_getxattr(cl, "/", "user.bogus", xb, sizeof(xb), now) == -1,
-          "unknown xattr → -1");                          /* negative */
-
-    char lb[256]; int ll = cvmfs_client_listxattr(cl, "/", lb, sizeof(lb), now);
-    CHECK(ll > 0 && memmem(lb, ll, "user.revision", 13) != NULL, "listxattr includes revision");
-
-    /* ---- TTL refresh (manifest D=240) ---- */
-    CHECK(cvmfs_client_refresh(cl, now + 10) == 0, "refresh not due before TTL");
-    CHECK(cvmfs_client_refresh(cl, now + 300) == 0,
-          "refresh due past TTL re-verifies, same revision → 0");
-
-    /* ---- G1 negative-lookup filter (phase-87) ---- */
-    CHECK(cvmfs_client_negfilter_build(cl, now) == 0,
-          "negfilter builds from verified paths walk");
-    CHECK(cvmfs_client_resolve(cl, "/hello", &e, now) == 1,
-          "negfilter passes member path through");
-    CHECK(cvmfs_client_resolve(cl, "/nope", &e, now) == 0,
-          "negfilter absent path → 0");
-
-    /* Prove resolve consults the filter BEFORE the catalog: adopt a decoy
-     * filter (member set {"/decoy"} only) bound to the served root — /hello is
-     * in the catalog but must now short-circuit to absent. (Deterministic:
-     * fixed seeds, and the build check asserts /hello is not a false positive
-     * of the decoy.) */
-    cvmfs_hash_t nfroot;
-    CHECK(cvmfs_client_negfilter(cl, &nfroot) != NULL, "active filter exposed");
-    uint64_t dk = cvmfs_xorf_key("/decoy");
-    cvmfs_xorf_t decoy;
-    CHECK(cvmfs_xorf_build(&decoy, &dk, 1) == 0
-          && cvmfs_xorf_query(&decoy, cvmfs_xorf_key("/hello")) == 0,
-          "decoy filter builds, /hello outside it");
-    CHECK(cvmfs_client_negfilter_adopt(cl, &decoy, &nfroot) == 0,
-          "adopt accepts filter bound to served root");
-    CHECK(cvmfs_client_resolve(cl, "/hello", &e, now) == 0,
-          "filter short-circuit answers ahead of the catalog");
-
-    /* Revision advance ⇒ auto-deactivation: once the served root differs from
-     * the filter's bound root the stale filter must stop answering — a stale
-     * filter may never fabricate ENOENT for a path the new revision has. */
-    cl->manifest.root_catalog.bytes[0] ^= 0xff;
-    CHECK(cvmfs_client_resolve(cl, "/hello", &e, now) == 1,
-          "stale filter auto-deactivates on revision change");
-    cl->manifest.root_catalog.bytes[0] ^= 0xff;
-
-    /* security-neg: a filter bound to a DIFFERENT revision is refused */
-    uint64_t hk = cvmfs_xorf_key("/hello");
-    cvmfs_xorf_t wrongrev;
-    CHECK(cvmfs_xorf_build(&wrongrev, &hk, 1) == 0, "wrong-rev filter builds");
-    cvmfs_hash_t other = nfroot;
-    other.bytes[0] ^= 0xff;
-    CHECK(cvmfs_client_negfilter_adopt(cl, &wrongrev, &other) == -1,
-          "adopt refuses filter bound to another revision");
-    cvmfs_xorf_reset(&wrongrev);
-
-    cvmfs_client_negfilter_clear(cl);
-    CHECK(cvmfs_client_resolve(cl, "/hello", &e, now) == 1,
-          "clear restores live lookups");
+    test_client_access(cl, now, content, content_n, &content_h);
+    test_negfilter(cl, now);
 
     /* ---- tamper negative: forge the manifest signature, mount must fail ---- */
     manifest[mn - 1] ^= 0xff;

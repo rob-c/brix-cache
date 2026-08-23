@@ -11,15 +11,15 @@ import urllib.request
 from pathlib import Path
 from typing import Mapping
 
+from brixtest.errors import SpecError
 from brixtest.evidence.artifacts import upload_s3
 from brixtest.evidence.model import iter_entities, normalize_session
-from brixtest.errors import SpecError
+from brixtest.util.http import http_url
 
 
 def _flat_rows(payload: Mapping[str, object]) -> list[dict]:
-    rows = []
-    for entity in iter_entities(payload):
-        rows.append({
+    return [
+        {
             "entity": str(entity.get("entity", "")),
             "session_id": str(entity.get("session_id", payload.get("session_id", ""))),
             "case_id": str(entity.get("case_id", "")),
@@ -30,19 +30,20 @@ def _flat_rows(payload: Mapping[str, object]) -> list[dict]:
             "unit": str(entity.get("unit", "")),
             "timestamp": str(entity.get("timestamp", entity.get("started_at", ""))),
             "payload_json": json.dumps(entity, sort_keys=True, default=str),
-        })
-    return rows
+        }
+        for entity in iter_entities(payload)
+    ]
 
 
 def write_parquet(payload: Mapping[str, object], path: Path) -> Path:
     try:
-        import pyarrow as arrow
-        import pyarrow.parquet as parquet
+        import pyarrow as pa
+        from pyarrow import parquet
     except ImportError as exc:
         raise SpecError("Parquet export", str(path), "install brixtest[analytics]") from exc
     target = Path(path)
     target.parent.mkdir(parents=True, exist_ok=True)
-    table = arrow.Table.from_pylist(_flat_rows(payload))
+    table = pa.Table.from_pylist(_flat_rows(payload))
     parquet.write_table(table, target, compression="zstd")
     return target
 
@@ -106,9 +107,10 @@ def write_otlp_json(payload: Mapping[str, object], path: Path) -> Path:
 
 
 def post_otlp(payload: Mapping[str, object], endpoint: str, *, timeout: float = 30.0) -> None:
+    endpoint = http_url(endpoint, "OTLP endpoint")
     token = os.environ.get("BRIXTEST_OTLP_BEARER_TOKEN", "")
     for signal, body in otlp_payloads(payload).items():
-        request = urllib.request.Request(
+        request = urllib.request.Request(  # noqa: S310 - endpoint scheme validated above
             endpoint.rstrip("/") + "/v1/" + signal,
             data=json.dumps(body, separators=(",", ":")).encode(), method="POST",
             headers={"Content-Type": "application/json"},
@@ -116,7 +118,9 @@ def post_otlp(payload: Mapping[str, object], endpoint: str, *, timeout: float = 
         if token:
             request.add_header("Authorization", "Bearer " + token)
         try:
-            with urllib.request.urlopen(request, timeout=timeout) as response:
+            with urllib.request.urlopen(  # noqa: S310 - endpoint scheme validated above
+                request, timeout=timeout,
+            ) as response:
                 response.read()
         except (OSError, urllib.error.HTTPError) as exc:
             raise SpecError("OTLP export", endpoint, "%s upload failed: %s" % (signal, exc)) from exc

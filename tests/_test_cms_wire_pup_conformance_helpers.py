@@ -37,6 +37,11 @@ from server_registry import NginxInstanceSpec
 from settings import SERVER_HOST
 from ephemeral_port import free_port
 
+def _phase_read_loop_1(self, streamid, code, modifier, payload):
+    with self._lock:
+        self.frames.append((streamid, code, modifier, payload))
+
+
 pytestmark = [pytest.mark.uses_lifecycle_harness,
               pytest.mark.xdist_group("lc-cms-wire")]
 
@@ -262,6 +267,16 @@ class CmsManagerPeer:
                 self.conn = conn
             self._read_loop(conn)
 
+    def _drain_frames(self, buf):
+        while len(buf) >= CMS_HDR_LEN:
+            streamid, code, modifier, dlen = struct.unpack(
+                ">IBBH", bytes(buf[:CMS_HDR_LEN]))
+            if len(buf) < CMS_HDR_LEN + dlen:
+                return
+            payload = bytes(buf[CMS_HDR_LEN:CMS_HDR_LEN + dlen])
+            del buf[:CMS_HDR_LEN + dlen]
+            _phase_read_loop_1(self, streamid, code, modifier, payload)
+
     def _read_loop(self, conn):
         # Buffered, timeout-tolerant reader.  The connection carries a short
         # SO_RCVTIMEO (set in _accept_loop) only so this thread can periodically
@@ -277,15 +292,7 @@ class CmsManagerPeer:
         # are preserved in `buf` across timeouts so a split frame is never lost.
         buf = bytearray()
         while not self._stop:
-            while len(buf) >= CMS_HDR_LEN:
-                streamid, code, modifier, dlen = struct.unpack(
-                    ">IBBH", bytes(buf[:CMS_HDR_LEN]))
-                if len(buf) < CMS_HDR_LEN + dlen:
-                    break
-                payload = bytes(buf[CMS_HDR_LEN:CMS_HDR_LEN + dlen])
-                del buf[:CMS_HDR_LEN + dlen]
-                with self._lock:
-                    self.frames.append((streamid, code, modifier, payload))
+            self._drain_frames(buf)
             try:
                 chunk = conn.recv(4096)
             except socket.timeout:

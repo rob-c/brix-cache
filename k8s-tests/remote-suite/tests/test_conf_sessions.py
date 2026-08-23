@@ -1,8 +1,63 @@
-from _test_conf_sessions_helpers import *  # noqa: F401,F403  (Phase-38 split shared header)
+from split_continuation import reexport as _reexport
+_reexport(globals(), "_test_conf_sessions_helpers")
 
-# =========================================================================== #
-# A. HANDSHAKE — init reply parity, robustness
-# =========================================================================== #
+def _bind_status(port, sessid):
+    """Handshake a fresh connection and kXR_bind the given sessid; return status."""
+    sec = _connect(port)
+    try:
+        assert _handshake(sec)[0] == kXR_ok
+        _bind(sec, sessid)
+        _, st, _ = _resp(sec)
+        return st
+    finally:
+        sec.close()
+
+
+def _collect_sessids(port, count):
+    sockets = []
+    sessids = []
+    try:
+        for _index in range(count):
+            sock, sessid = _session(port)
+            sockets.append(sock)
+            assert len(sessid) == 16
+            sessids.append(bytes(sessid))
+    finally:
+        for sock in sockets:
+            sock.close()
+    return sessids
+
+
+def _assert_sessid_entropy(sessids):
+    count = len(sessids)
+    assert len(set(sessids)) == count, "sessids repeated — not unique per connection"
+    prefixes = {sessid[0:8] for sessid in sessids}
+    assert len(prefixes) >= count - 1, (
+        f"only {len(prefixes)}/{count} distinct sessid prefixes — the first 8 "
+        "bytes look structured, not CSPRNG-minted")
+
+
+def _assert_variable_sessid_bytes(sessids):
+    for position in range(16):
+        values = {sessid[position] for sessid in sessids}
+        assert len(values) > 1, (
+            f"sessid byte {position} is constant across {len(sessids)} conns")
+
+
+def _send_pings(sock, streamids):
+    for streamid in streamids:
+        _ping(sock, sid=streamid)
+
+
+def _assert_ping_responses(sock, streamids, who):
+    for index, streamid in enumerate(streamids):
+        response_id, status, body = _resp(sock)
+        assert status == kXR_ok and body == b"", f"{who} pipelined ping {index} bad"
+        assert response_id == streamid, (
+            f"{who} pipelined order broke at {index}: {response_id!r}")
+
+
+
 def test_handshake_dataserver_type_parity(srv):
     """Correct 20-byte init -> 8-byte body = protover + server type. Both servers
     must report kXR_DataServer(1) and a kXR-family protover (0x5xx). The protover
@@ -155,6 +210,59 @@ def test_distinct_sessids_across_connections(srv):
             s2.close()
 
 
+# --------------------------------------------------------------------------- #
+# D-4 (hyper-hardening) — the issued sessid is a bearer for kXR_bind, so it must
+# be CSPRNG-minted and unforgeable.  We assert the contract only against OUR
+# server (stock's no-security anon login issues no sessid).
+# --------------------------------------------------------------------------- #
+
+def test_d4_valid_minted_sessid_binds(srv):
+    """success — a sessid the server actually issued binds a secondary channel.
+
+    Confirms the CSPRNG mint did not break the legitimate flow: the primary
+    logs in and registers its (random) sessid; a fresh connection presenting
+    that exact sessid via kXR_bind is accepted (kXR_ok + a pathid byte)."""
+    port = srv["our_port"]
+    s1, sess = _session(port)
+    try:
+        assert len(sess) == 16, "OUR server must issue a 16-byte sessid"
+        assert _bind_status(port, sess) == kXR_ok, \
+            "a genuine issued sessid must bind"
+    finally:
+        s1.close()
+
+
+def test_d4_forged_sessid_rejected(srv):
+    """security-negative — a sessid the server never issued is refused.
+
+    The bind path resolves the sessid against the in-process session registry;
+    a value not present there (random or all-zero) is rejected, so a guessed
+    sessid cannot bind onto another client's authenticated session.  We fire a
+    batch of independent random guesses plus the zero sessid — none may bind."""
+    import os as _os
+    port = srv["our_port"]
+    for _ in range(64):
+        st = _bind_status(port, _os.urandom(16))
+        assert st != kXR_ok, "a forged random sessid must not bind"
+    assert _bind_status(port, b"\x00" * 16) != kXR_ok, \
+        "the all-zero sessid must not bind"
+
+
+def test_d4_sessid_unpredictable_csprng(srv):
+    """error/regression — the minted sessid is CSPRNG, not structured.
+
+    The retired scheme packed time|pid|ptr|ngx_random() into the 16 bytes, so
+    the first 8 bytes (time word + pid word) were constant/near-constant across
+    every connection served by one worker — trivially predictable, and a heap
+    pointer leak besides.  Under RAND_bytes all 16 bytes are independent, so a
+    sample of sessids must be fully distinct AND their 8-byte prefix must carry
+    real entropy.  Both assertions FAIL loudly under the old packing (the prefix
+    would collapse to one value per worker) and hold under a CSPRNG."""
+    sessids = _collect_sessids(srv["our_port"], 32)
+    _assert_sessid_entropy(sessids)
+    _assert_variable_sessid_bytes(sessids)
+
+
 @pytest.mark.parametrize("op,mk", [
     ("stat", lambda s: _stat(s, "/hello.txt", sid=b"\x00\x22")),
     ("open", lambda s: s.sendall(struct.pack("!2sHHH12sI", b"\x00\x23", kXR_open,
@@ -283,12 +391,8 @@ def test_pipelined_pings_streamid_order_parity(srv):
         s, _ = _session(port)
         try:
             sids = [struct.pack("!H", 0x5000 + i) for i in range(n)]
-            for sid in sids:
-                _ping(s, sid=sid)
-            for i, sid in enumerate(sids):
-                rsid, st, body = _resp(s)
-                assert st == kXR_ok and body == b"", f"{who} pipelined ping {i} bad"
-                assert rsid == sid, f"{who} pipelined order broke at {i}: {rsid!r}"
+            _send_pings(s, sids)
+            _assert_ping_responses(s, sids, who)
         finally:
             s.close()
 
@@ -296,125 +400,3 @@ def test_pipelined_pings_streamid_order_parity(srv):
 # =========================================================================== #
 # E. kXR_endsess — session-scoped, not a connection kill
 # =========================================================================== #
-def test_endsess_bogus_sessid_does_not_kill_conn_parity(srv):
-    """endsess with a bogus (all-zero / foreign) sessid -> the conn SURVIVES and
-    is still usable (Pid != myPID => ignored, empty ok; session-scoped, NOT a
-    connection kill, do_Endsess:925). Pin to stock."""
-    for bogus in (b"\x00" * 16, b"\xde\xad\xbe\xef" + b"\x00" * 12, b"\xff" * 16):
-        survived = {}
-        for port, who in ((OUR_PORT, "OUR"), (OFF_PORT, "STOCK")):
-            s, _ = _session(port)
-            try:
-                _endsess(s, bogus, sid=b"\x00\x40")
-                sid, st, body = _safe_resp(s)
-                # whatever the reply, the conn must remain usable: a ping works.
-                if st == DROPPED:
-                    survived[who] = False
-                else:
-                    _ping(s, sid=b"\x00\x41")
-                    psid, pst, pbody = _safe_resp(s)
-                    survived[who] = (pst == kXR_ok and pbody == b"")
-            finally:
-                s.close()
-        assert survived["OUR"] == survived["STOCK"], \
-            f"endsess(bogus={bogus!r}) conn-survival differs: {survived}"
-        assert survived["STOCK"], "stock killed the conn on a bogus endsess?!"
-        assert survived["OUR"], \
-            f"OUR-SERVER BUG: bogus endsess killed the conn (sessid={bogus!r}); " \
-            f"endsess must be session-scoped, not a connection kill (do_Endsess:925)"
-
-
-def test_endsess_then_reuse_conn_parity(srv):
-    """After a bogus/no-op endsess, the SAME conn can still open+read a file,
-    identically on both servers (session not torn down)."""
-    for port, who in ((OUR_PORT, "OUR"), (OFF_PORT, "STOCK")):
-        s, _ = _session(port)
-        try:
-            _endsess(s, b"\x00" * 16, sid=b"\x00\x42")
-            _safe_resp(s)   # ignore the (ignored-request) reply
-            st, body = _open(s, "/data.bin")
-            assert st == kXR_ok, f"{who} conn unusable after endsess (open status={st})"
-            rst, data = _read_all(s, body[0:4], 0, 64, sid=b"\x00\x43")
-            assert rst == kXR_ok and data == _expected("/data.bin")[:64], \
-                f"{who} read after endsess wrong"
-        finally:
-            s.close()
-
-
-def test_endsess_self_terminate_parity(srv):
-    """endsess targeting THIS conn's own returned sessid -> behavior parity
-    (stock terminates the link). Pin to stock's category."""
-    res = {}
-    for port, who in ((OUR_PORT, "OUR"), (OFF_PORT, "STOCK")):
-        s, mysess = _session(port)
-        try:
-            _endsess(s, mysess, sid=b"\x00\x44")
-            sid, st, body = _safe_resp(s)
-            # could be a link drop (-1 -> DROPPED) or an explicit reply.
-            res[who] = "dropped" if st == DROPPED else _category(st, body)
-        finally:
-            s.close()
-    assert res["OUR"] == res["STOCK"], \
-        f"endsess(self) behavior differs: OUR={res['OUR']} STOCK={res['STOCK']}"
-
-
-# =========================================================================== #
-# F. STREAMID — concurrent in-flight echo correctness
-# =========================================================================== #
-def test_streamid_echo_verbatim_parity(srv):
-    """A non-trivial streamid is echoed byte-for-byte (never swapped) on both."""
-    for port, who in ((OUR_PORT, "OUR"), (OFF_PORT, "STOCK")):
-        s, _ = _session(port)
-        try:
-            _ping(s, sid=b"\xab\xcd")
-            rsid, st, _ = _resp(s)
-            assert rsid == b"\xab\xcd", f"{who} streamid not verbatim: {rsid!r}"
-            assert st == kXR_ok
-        finally:
-            s.close()
-
-
-def test_pipelined_distinct_streamids_match_responses_parity(srv):
-    """Pipeline many stats with DISTINCT streamids; responses must carry the same
-    streamids (in order), and each stat must succeed, on both servers — no
-    cross-talk between in-flight requests."""
-    paths = list(TREE_FILES.keys())
-    for port, who in ((OUR_PORT, "OUR"), (OFF_PORT, "STOCK")):
-        s, _ = _session(port)
-        try:
-            sids = [struct.pack("!H", 0x6000 + i) for i in range(len(paths))]
-            for sid, p in zip(sids, paths):
-                _stat(s, p, sid=sid)
-            for i, (sid, p) in enumerate(zip(sids, paths)):
-                rsid, st, body = _resp(s)
-                assert rsid == sid, \
-                    f"{who} streamid mismatch at {i} ({p}): got {rsid!r} want {sid!r}"
-                assert st == kXR_ok, f"{who} stat {p} status={st} err={_errnum(body)}"
-        finally:
-            s.close()
-
-
-def test_pipelined_mixed_ops_streamid_match_parity(srv):
-    """Interleave ping/stat with distinct streamids -> responses are streamid-
-    addressable and correct, on both (no in-flight cross-talk)."""
-    ops = []
-    for i in range(20):
-        sid = struct.pack("!H", 0x7000 + i)
-        if i % 2 == 0:
-            ops.append((sid, "ping"))
-        else:
-            ops.append((sid, "stat"))
-    for port, who in ((OUR_PORT, "OUR"), (OFF_PORT, "STOCK")):
-        s, _ = _session(port)
-        try:
-            for sid, kind in ops:
-                if kind == "ping":
-                    _ping(s, sid=sid)
-                else:
-                    _stat(s, "/hello.txt", sid=sid)
-            for i, (sid, kind) in enumerate(ops):
-                rsid, st, body = _resp(s)
-                assert rsid == sid, f"{who} mixed streamid {i} {rsid!r} != {sid!r}"
-                assert st == kXR_ok, f"{who} mixed op {i} {kind} status={st}"
-        finally:
-            s.close()

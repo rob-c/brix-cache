@@ -1,17 +1,4 @@
-"""The undeclared-server gate (feature F5, second half).
-
-Selective fleet boot only works if every test's server needs are
-declared; the gate is what makes an omission a *named finding* instead
-of a mystery hang.  Three modes:
-
-- ``enforce`` — an undeclared reach fails collection with the report;
-- ``warn``    — the report prints, the run continues (migration mode);
-- ``off``     — analysis is skipped entirely.
-
-The report's shape is inherited from the grown suite's gate output,
-which already met the C1 bar: name the file, name the servers, name
-the channel that caught each, end with the action.
-"""
+"""Detect tests that use servers they did not declare."""
 
 from __future__ import annotations
 
@@ -42,22 +29,29 @@ class UndeclaredServerGate:
         self.mode = mode
         self._violations: Dict[str, Set[str]] = {}
 
-    # -- analysis --------------------------------------------------------
-
     def usage_for(self, path: Path) -> TestUsage:
         return analyze_source(path)
 
     def specs_to_boot(self, files: Iterable[Path]) -> List[str]:
         """The minimal fleet for this selection: every spec any file
         reaches, closed over ``depends_on``, in registry order."""
+        needed, parse_error = self._needed_specs(files)
+        if parse_error:
+            return [spec.name for spec in self.registry.all_specs()]
+        known = {spec.name for spec in self.registry.all_specs()}
+        closed = self._dependency_closure(needed & known)
+        return [spec.name for spec in self.registry.all_specs() if spec.name in closed]
+
+    def _needed_specs(self, files: Iterable[Path]) -> tuple[Set[str], bool]:
         needed: Set[str] = set()
         for path in files:
             usage = self.usage_for(path)
             if usage.parse_error:
-                # an unanalyzable file needs everything — honesty over optimism
-                return [spec.name for spec in self.registry.all_specs()]
+                return needed, True
             needed |= self.map.specs_for(usage)
-        needed &= {spec.name for spec in self.registry.all_specs()}
+        return needed, False
+
+    def _dependency_closure(self, needed: Set[str]) -> Set[str]:
         closed: Set[str] = set()
         frontier = list(needed)
         while frontier:
@@ -66,36 +60,40 @@ class UndeclaredServerGate:
                 continue
             closed.add(name)
             frontier.extend(self.registry.get_spec(name).depends_on)
-        return [spec.name for spec in self.registry.all_specs() if spec.name in closed]
-
-    # -- the gate itself -------------------------------------------------
+        return closed
 
     def check(self, files: Iterable[Path]) -> Sequence[str]:
         """Analyze the selection; returns report lines (empty = clean).
         In ``enforce`` mode a dirty selection raises ``GateViolation``."""
         if self.mode == "off":
             return ()
-        self._violations = {}
+        self._violations = self._find_violations(files)
+        if not self._violations:
+            return ()
+        report = self.report_lines()
+        self._raise_enforced(report)
+        return report
+
+    def _find_violations(self, files: Iterable[Path]) -> Dict[str, Set[str]]:
+        violations = {}
+        known = {spec.name for spec in self.registry.all_specs()}
         for path in files:
             usage = self.usage_for(path)
             if usage.parse_error:
                 continue
-            undeclared = self.map.undeclared(usage) & {
-                spec.name for spec in self.registry.all_specs()
-            }
+            undeclared = self.map.undeclared(usage) & known
             if undeclared:
-                self._violations[str(path)] = undeclared
-        if not self._violations:
-            return ()
-        report = self.report_lines()
+                violations[str(path)] = undeclared
+        return violations
+
+    def _raise_enforced(self, report: Sequence[str]) -> None:
         if self.mode == "enforce":
-            first_file = sorted(self._violations)[0]
+            first_file = min(self._violations)
             raise GateViolation(
                 first_file,
                 sorted(self._violations[first_file]),
                 "\n".join(report),
             )
-        return report
 
     def report_lines(self) -> List[str]:
         lines = ["undeclared server usage — the selective boot would strand these tests:"]
@@ -109,28 +107,34 @@ class UndeclaredServerGate:
         return lines
 
     def explain(self, path: Path) -> str:
-        """The CLI's ``gate explain <file>``: every channel, narrated."""
+        """Describe how one test file reaches server declarations."""
         usage = self.usage_for(Path(path))
         if usage.parse_error:
             return "%s: unanalyzable (%s) — treated as needing every spec" % (
                 path, usage.parse_error,
             )
         known = {spec.name for spec in self.registry.all_specs()}
-        lines = [str(path)]
-        lines.append("  declared (markers):   %s" % (", ".join(sorted(usage.declared)) or "—"))
-        via_fixture = sorted(
+        via_fixture = self._fixture_servers(usage, known)
+        via_ports = self._port_servers(usage, known)
+        undeclared = sorted(self.map.undeclared(usage) & known)
+        lines = [
+            str(path),
+            "  declared (markers):   %s" % (", ".join(sorted(usage.declared)) or "—"),
+            "  reached via fixtures: %s" % (", ".join(via_fixture) or "—"),
+            "  reached via ports:    %s" % (", ".join(via_ports) or "—"),
+            "  backbone (always):    %s" % (", ".join(sorted(self.map.backbone)) or "—"),
+            "  verdict: %s"
+            % ("undeclared: %s" % ", ".join(undeclared) if undeclared else "clean"),
+        ]
+        return "\n".join(lines)
+
+    def _fixture_servers(self, usage: TestUsage, known: Set[str]) -> List[str]:
+        return sorted(
             {s for f in usage.fixtures_used for s in self.map.fixture_specs.get(f, ())} & known
         )
-        lines.append("  reached via fixtures: %s" % (", ".join(via_fixture) or "—"))
-        via_ports = sorted(
+
+    def _port_servers(self, usage: TestUsage, known: Set[str]) -> List[str]:
+        return sorted(
             {self.map.port_name_specs[n] for n in usage.names_used
              if n in self.map.port_name_specs} & known
         )
-        lines.append("  reached via ports:    %s" % (", ".join(via_ports) or "—"))
-        lines.append("  backbone (always):    %s" % (", ".join(sorted(self.map.backbone)) or "—"))
-        undeclared = sorted(self.map.undeclared(usage) & known)
-        lines.append(
-            "  verdict: %s"
-            % ("undeclared: %s" % ", ".join(undeclared) if undeclared else "clean")
-        )
-        return "\n".join(lines)

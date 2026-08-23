@@ -1,12 +1,10 @@
-"""The deployment seam (charter §8).
+"""Protocol separating fleet declarations from deployment backends.
 
 ``DeployBackend`` is the boundary between *what the fleet is* (specs,
 kinds, probes — the fleet layer) and *where it runs*.  ``LocalBackend``
-is the only implementation today: unprivileged-port processes on this
-host.  A k8s backend later implements this same protocol with pods —
-nothing above this seam changes.
+supports unprivileged processes on the local host.
 
-Core rules the seam enforces (§8.4):
+Backend rules:
 
 1. nothing above the backend touches processes, sockets, or ``/proc``;
 2. backends never interpret spec semantics — kinds do;
@@ -31,7 +29,7 @@ __all__ = ["DeployBackend"]
 
 @runtime_checkable
 class DeployBackend(Protocol):
-    """The seven-method contract every backend implements (§8.1)."""
+    """Operations required from each deployment backend."""
 
     def prepare(self, lane: Lane, artifacts: Optional[ArtifactSet]) -> None:
         """Make the lane's directory skeleton and adopt the artifact tree."""

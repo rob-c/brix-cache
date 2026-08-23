@@ -371,67 +371,75 @@ sd_pblock_drop_dst(pblock_state_t *st, const char *dst,
     return pblock_catalog_remove(st->cat, dst) == 0 ? NGX_OK : NGX_ERROR;
 }
 
+/*
+ * WHAT: Validate source/destination state before a pblock catalog rename.
+ * WHY:  Existence, lease, no-replace, and destination removal are one gate.
+ * HOW:  Lookup both names, enforce live leases, and clear permitted replacement.
+ */
+static ngx_int_t
+pblock_rename_prepare(pblock_state_t *st, const char *src, const char *dst,
+    int noreplace)
+{
+    pblock_meta destination;
+    int rc = pblock_catalog_lookup(st->cat, src, NULL);
+
+    if (rc < 0)
+        return NGX_ERROR;
+    if (rc == 1) {
+        errno = ENOENT;
+        return NGX_ERROR;
+    }
+    if (st->locks
+        && (pblock_locks_ns_check(st, src, 0) != 0
+            || pblock_locks_ns_check(st, dst, 0) != 0))
+        return NGX_ERROR;
+    rc = pblock_catalog_lookup(st->cat, dst, &destination);
+    if (rc < 0)
+        return NGX_ERROR;
+    if (rc != 0)
+        return NGX_OK;
+    if (noreplace) {
+        errno = EEXIST;
+        return NGX_ERROR;
+    }
+    return sd_pblock_drop_dst(st, dst, &destination);
+}
+
+/*
+ * WHAT: Move all optional path-scoped records after a successful rename.
+ * WHY:  Residency, anomaly, and lease metadata must follow the catalog name.
+ * HOW:  Update enabled side tables and emit the uniform audit outcome.
+ */
+static void
+pblock_rename_observe(pblock_state_t *st, const char *src, const char *dst,
+    ngx_int_t rc)
+{
+    if (rc == NGX_OK && st->nearline)
+        pblock_nearline_rename(st, src, dst);
+    if (rc == NGX_OK && st->lab != NULL)
+        pblock_anomaly_rename(st, src, dst);
+    if (rc == NGX_OK && st->locks)
+        pblock_locks_rename(st, src, dst);
+    if (st->audit)
+        pblock_audit_log(st->cat, "rename", src, dst, 0, 0,
+                         rc == NGX_OK ? 0 : -1, rc == NGX_OK ? 0 : errno);
+}
+
 ngx_int_t
 sd_pblock_rename(brix_sd_instance_t *inst, const char *src, const char *dst,
     int noreplace)
 {
     pblock_state_t *st = inst->state;
-    pblock_meta     dmeta;
-    int             rc;
+    ngx_int_t rc;
 
-    rc = pblock_catalog_lookup(st->cat, src, NULL);
-    if (rc < 0) {
+    if (pblock_rename_prepare(st, src, dst, noreplace) != NGX_OK)
         return NGX_ERROR;
-    }
-    if (rc == 1) {
-        errno = ENOENT;
-        return NGX_ERROR;
-    }
-
-    /* F15: renaming a leased src (or over a leased dst) is the classic lock
-     * bypass — refuse while any live foreign lease exists on either name. */
-    if (st->locks
-        && (pblock_locks_ns_check(st, src, 0) != 0
-            || pblock_locks_ns_check(st, dst, 0) != 0))
-    {
-        return NGX_ERROR;
-    }
-
-    rc = pblock_catalog_lookup(st->cat, dst, &dmeta);
-    if (rc < 0) {
-        return NGX_ERROR;
-    }
-    if (rc == 0) {
-        if (noreplace) {
-            errno = EEXIST;
-            return NGX_ERROR;
-        }
-        if (sd_pblock_drop_dst(st, dst, &dmeta) != NGX_OK) {
-            return NGX_ERROR;
-        }
-    }
 
     /* Blocks are id-addressed, so moving the catalog row carries the content
      * with it (and reparents a directory subtree) without touching any bytes. */
-    {
-        ngx_int_t rc2 = pblock_catalog_rename(st->cat, src, dst) == 0
-                            ? NGX_OK : NGX_ERROR;
-
-        if (rc2 == NGX_OK && st->nearline) { /* F4: residency follows the path */
-            pblock_nearline_rename(st, src, dst);
-        }
-        if (rc2 == NGX_OK && st->lab != NULL) {  /* F9: events follow the path */
-            pblock_anomaly_rename(st, src, dst);
-        }
-        if (rc2 == NGX_OK && st->locks) {    /* F15: leases follow the path */
-            pblock_locks_rename(st, src, dst);
-        }
-        if (st->audit) {                                 /* F17 */
-            pblock_audit_log(st->cat, "rename", src, dst, 0, 0,
-                             rc2 == NGX_OK ? 0 : -1, rc2 == NGX_OK ? 0 : errno);
-        }
-        return rc2;
-    }
+    rc = pblock_catalog_rename(st->cat, src, dst) == 0 ? NGX_OK : NGX_ERROR;
+    pblock_rename_observe(st, src, dst, rc);
+    return rc;
 }
 
 /* ---- directory iteration -------------------------------------------------- */

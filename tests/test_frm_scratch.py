@@ -45,6 +45,19 @@ from server_registry import NginxInstanceSpec
 # Serialised onto one worker: every test drives a self-contained frm:// server on
 # the adapter's single fixed ledger port (lc-frm-exec / lc-frm-stub), reusing it
 # across tests since each test closes its harness at teardown.
+def _check_test_residency_probed_before_recall_1(r):
+    assert r.returncode == 0, r.stderr.decode(errors="replace")
+
+def _check_test_residency_probed_before_recall_2(verbs):
+    assert "exists" in verbs, verbs
+
+def _check_test_residency_probed_before_recall_4(exists):
+    assert exists and all(v[1] == "near.dat" for v in exists), exists
+
+def _check_test_residency_probed_before_recall_3(verbs):
+    assert verbs.index("exists") < verbs.index("recall"), verbs
+
+
 pytestmark = [pytest.mark.uses_lifecycle_harness,
               pytest.mark.xdist_group("lc-frm-scratch")]
 
@@ -155,13 +168,13 @@ def test_residency_probed_before_recall(frm, tmp_path):
     ep, audit = _start(frm, tmp_path)
     out = str(tmp_path / "o")
     r = _xrdcp(ep.port, "/near.dat", out)
-    assert r.returncode == 0, r.stderr.decode(errors="replace")
+    _check_test_residency_probed_before_recall_1(r)
     verbs = [v[0] for v in _audit(audit)]
-    assert "exists" in verbs, verbs
+    _check_test_residency_probed_before_recall_2(verbs)
     if "recall" in verbs:
-        assert verbs.index("exists") < verbs.index("recall"), verbs
+        _check_test_residency_probed_before_recall_3(verbs)
     exists = [v for v in _audit(audit) if v[0] == "exists"]
-    assert exists and all(v[1] == "near.dat" for v in exists), exists
+    _check_test_residency_probed_before_recall_4(exists)
 
 
 def test_absent_object_reports_not_found(frm, tmp_path):

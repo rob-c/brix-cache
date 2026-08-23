@@ -71,6 +71,18 @@ writer_release(brix_vfs_writer_t *w)
     }
 }
 
+/*
+ * WHAT: Store a writer-open failure in the caller's optional errno output.
+ * WHY:  Optional diagnostics should not add branches to each construction step.
+ * HOW:  Assign the supplied error only when output storage is present.
+ */
+static void
+writer_set_error(int *err_out, int err)
+{
+    if (err_out != NULL)
+        *err_out = err;
+}
+
 brix_vfs_writer_t *
 brix_vfs_writer_open(brix_vfs_ctx_t *ctx, unsigned flags, int verify,
     int *err_out)
@@ -78,21 +90,15 @@ brix_vfs_writer_open(brix_vfs_ctx_t *ctx, unsigned flags, int verify,
     brix_vfs_writer_t *w;
     int                verr = 0;
 
-    if (err_out != NULL) {
-        *err_out = 0;
-    }
+    writer_set_error(err_out, 0);
     if (ctx == NULL) {
-        if (err_out != NULL) {
-            *err_out = EINVAL;
-        }
+        writer_set_error(err_out, EINVAL);
         return NULL;
     }
 
     w = ngx_pcalloc(ctx->pool, sizeof(*w));
     if (w == NULL) {
-        if (err_out != NULL) {
-            *err_out = ENOMEM;
-        }
+        writer_set_error(err_out, ENOMEM);
         return NULL;
     }
     /* Self-contain a deep copy of ctx: a write session outlives the request that
@@ -100,9 +106,7 @@ brix_vfs_writer_open(brix_vfs_ctx_t *ctx, unsigned flags, int verify,
      * from w->ctx for the verify read-back + unlink-on-mismatch. */
     w->ctx = brix_vfs_ctx_pool_clone(ctx, ctx->pool);
     if (w->ctx == NULL) {
-        if (err_out != NULL) {
-            *err_out = ENOMEM;
-        }
+        writer_set_error(err_out, ENOMEM);
         return NULL;
     }
     w->pool   = ctx->pool;
@@ -119,18 +123,14 @@ brix_vfs_writer_open(brix_vfs_ctx_t *ctx, unsigned flags, int verify,
                         | (flags & BRIX_VFS_O_TRUNC);
         w->fh = brix_vfs_open(w->ctx, oflags, &verr);
         if (w->fh == NULL) {
-            if (err_out != NULL) {
-                *err_out = verr ? verr : EIO;
-            }
+            writer_set_error(err_out, verr ? verr : EIO);
             return NULL;
         }
     } else {
         w->st = brix_vfs_staged_open(w->ctx, NGX_FILE_DEFAULT_ACCESS,
                                      16 /* excl-name attempts */, &verr);
         if (w->st == NULL) {
-            if (err_out != NULL) {
-                *err_out = verr ? verr : EIO;
-            }
+            writer_set_error(err_out, verr ? verr : EIO);
             return NULL;
         }
     }
@@ -139,9 +139,7 @@ brix_vfs_writer_open(brix_vfs_ctx_t *ctx, unsigned flags, int verify,
         w->wv = brix_wverify_begin();
         if (w->wv == NULL) {
             writer_release(w);
-            if (err_out != NULL) {
-                *err_out = ENOMEM;
-            }
+            writer_set_error(err_out, ENOMEM);
             return NULL;
         }
     }

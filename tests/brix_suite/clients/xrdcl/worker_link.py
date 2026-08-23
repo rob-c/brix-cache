@@ -24,6 +24,34 @@ import threading
 #: at import: a wrong path here does not raise — ``_worker_python()`` simply
 #: finds no interpreter, ``real_bindings_available()`` returns False, and every
 #: XrdCl suite SKIPs.  That failure is green, so it is asserted, not assumed.
+def _guard_call_1(self):
+    if not self._alive:
+        raise XrdClWorkerError("XrdCl worker is not running")
+
+def _guard_call_3(got, self, timeout, req):
+    if not got:
+        # Hung op — destroy the worker so the deadlock cannot persist.
+        self.kill()
+        raise XrdClWorkerError(
+            "XrdCl op timed out after %ss (op=%s) — worker killed"
+            % (timeout, req.get("op")))
+
+def _guard_call_4(msg, self, req):
+    if msg is None or not self._alive and msg is None:
+        raise XrdClWorkerError("XrdCl worker died during op %s"
+                               % req.get("op"))
+
+def _guard_call_2(sig, self, req):
+    if sig != self._env_sig:
+        req["env"] = dict(os.environ)
+        self._env_sig = sig
+
+def _guard_call_5(cls, msg):
+    if isinstance(cls, type) and issubclass(cls, Exception) \
+            and cls not in (Exception, BaseException):
+        raise cls(msg.get("emsg", ""))
+
+
 WORKER_SCRIPT = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                              "worker.py")
 _WORKER = WORKER_SCRIPT
@@ -150,8 +178,7 @@ class _Worker:
 
     # -- request/response --------------------------------------------------
     def call(self, req, timeout=_CALL_TIMEOUT):
-        if not self._alive:
-            raise XrdClWorkerError("XrdCl worker is not running")
+        _guard_call_1(self)
         ev = threading.Event()
         slot = [ev, None]
         with self._lock:
@@ -173,9 +200,7 @@ class _Worker:
             # resend when something changed; the worker applies it in request
             # order, before dispatching the op.
             sig = hash(tuple(sorted(os.environ.items())))
-            if sig != self._env_sig:
-                req["env"] = dict(os.environ)
-                self._env_sig = sig
+            _guard_call_2(sig, self, req)
             with self._slots_lock:
                 self._slots[rid] = slot
             try:
@@ -187,16 +212,9 @@ class _Worker:
         got = ev.wait(timeout)
         with self._slots_lock:
             self._slots.pop(rid, None)
-        if not got:
-            # Hung op — destroy the worker so the deadlock cannot persist.
-            self.kill()
-            raise XrdClWorkerError(
-                "XrdCl op timed out after %ss (op=%s) — worker killed"
-                % (timeout, req.get("op")))
+        _guard_call_3(got, self, timeout, req)
         msg = slot[1]
-        if msg is None or not self._alive and msg is None:
-            raise XrdClWorkerError("XrdCl worker died during op %s"
-                                   % req.get("op"))
+        _guard_call_4(msg, self, req)
         if not msg.get("ok"):
             # Re-raise the binding's native exception type when it was a plain
             # builtin (ValueError, TypeError, …) so test ``except`` clauses that
@@ -204,9 +222,7 @@ class _Worker:
             # surfaces as XrdClWorkerError.
             etype = msg.get("etype")
             cls = getattr(builtins, etype, None) if etype else None
-            if isinstance(cls, type) and issubclass(cls, Exception) \
-                    and cls not in (Exception, BaseException):
-                raise cls(msg.get("emsg", ""))
+            _guard_call_5(cls, msg)
             raise XrdClWorkerError(msg.get("error", "unknown worker error"))
         return msg
 
@@ -242,4 +258,3 @@ def _shutdown_worker():
         except Exception:
             pass
         w.kill()
-

@@ -44,54 +44,88 @@ class TestRootEvilWrites:
             s = _connect(); _full_anon_login(s)
             return None, s
 
+    def _dir_targets(self, name):
+        if not name:
+            return []
+        suffix = uuid.uuid4().hex
+        return [
+            (kXR_open, f"/{name}/PWNED_{suffix}", kXR_new | kXR_open_updt),
+            (kXR_mkdir, f"/{name}/pwndir_{suffix}", None),
+            (kXR_rm, f"/{name}/victim.txt", None),
+        ]
+
+    def _file_targets(self, name):
+        if not name:
+            return []
+        return [
+            (kXR_open, f"/{name}", kXR_new | kXR_open_updt),
+            (kXR_truncate, f"/{name}", None),
+        ]
+
+    def _traversal_targets(self, zone_base):
+        suffix = uuid.uuid4().hex
+        return [
+            (kXR_open, f"/../{zone_base}/PWNED_{suffix}", kXR_new | kXR_open_updt),
+            (kXR_mkdir, f"/../{zone_base}/pwndir_{suffix}", None),
+            (kXR_rm, f"/../{zone_base}/victim.txt", None),
+            (kXR_rmdir, f"/../{zone_base}", None),
+        ]
+
+    def _assert_writes_blocked(self, connection, targets):
+        for opcode, path, options in targets:
+            status, connection = self._op(
+                connection, opcode, path, open_opts=options
+            )
+            assert status != kXR_ok, (
+                f"root write {path!r} (op {opcode}) succeeded — escape!"
+            )
+        return connection
+
+    def _remove_file_symlink(self, connection, name):
+        if not name:
+            return connection
+        status, connection = self._op(connection, kXR_rm, f"/{name}")
+        assert status == kXR_ok, f"rm of in-root symlink /{name} should remove the link"
+        return connection
+
+    def _move_destinations(self, dir_symlink, zone_base):
+        destinations = [f"/../{zone_base}/moved"]
+        if dir_symlink:
+            destinations.insert(0, f"/{dir_symlink}/moved")
+        return destinations
+
+    def _move(self, connection, zone, destination):
+        payload = (f"/{zone['src_key']}\n{destination}").encode() + b"\x00"
+        try:
+            connection.sendall(
+                make_request(
+                    b"\x00\xA0", kXR_mv, body=b"\x00" * 16, payload=payload
+                )
+            )
+            status, _ = _recv_response(connection)
+            return status, connection
+        except (socket.timeout, ConnectionError, OSError):
+            connection = _connect()
+            _full_anon_login(connection)
+            return 4003, connection
+
+    def _assert_moves_blocked(self, connection, zone, destinations):
+        for destination in destinations:
+            status, connection = self._move(connection, zone, destination)
+            assert status != kXR_ok, (
+                f"root mv to {destination!r} succeeded — escape!"
+            )
+        return connection
+
     def test_write_escapes_blocked(self, write_zone):
         z = write_zone
         sd, sf, zb = z["sl_dir"], z["sl_file"], z["zone_base"]
         s = _connect(); _full_anon_login(s)
-
-        targets = []
-        if sd:
-            targets += [
-                (kXR_open, f"/{sd}/PWNED_{uuid.uuid4().hex}", kXR_new | kXR_open_updt),
-                (kXR_mkdir, f"/{sd}/pwndir_{uuid.uuid4().hex}", None),
-                (kXR_rm, f"/{sd}/victim.txt", None),
-            ]
-        if sf:
-            targets += [
-                (kXR_open, f"/{sf}", kXR_new | kXR_open_updt),   # create/trunc victim
-                (kXR_truncate, f"/{sf}", None),
-                # NOTE: kXR_rm of the symlink itself is NOT an escape — unlink operates
-                # on the in-root link (lstat/POSIX semantics), never the external target.
-                # It legitimately succeeds; checked separately below, and
-                # _assert_zone_pristine proves the victim survived.
-            ]
-        # pure "../" escapes into the writable zone
-        targets += [
-            (kXR_open, f"/../{zb}/PWNED_{uuid.uuid4().hex}", kXR_new | kXR_open_updt),
-            (kXR_mkdir, f"/../{zb}/pwndir_{uuid.uuid4().hex}", None),
-            (kXR_rm, f"/../{zb}/victim.txt", None),
-            (kXR_rmdir, f"/../{zb}", None),
-        ]
-        for opcode, path, opts in targets:
-            st, s = self._op(s, opcode, path, open_opts=opts)
-            assert st != kXR_ok, f"root write {path!r} (op {opcode}) succeeded — escape!"
-
-        # rm of the in-root symlink-to-victim must SUCCEED (removes the link only) and
-        # must NOT delete the external victim — that is the real confinement property.
-        if sf:
-            st, s = self._op(s, kXR_rm, f"/{sf}")
-            assert st == kXR_ok, f"rm of in-root symlink /{sf} should remove the link"
-
-        # kXR_mv: move an in-root file OUT (src in root, dst escaping)
-        for dst in ([f"/{sd}/moved"] if sd else []) + [f"/../{zb}/moved"]:
-            payload = (f"/{z['src_key']}\n{dst}").encode() + b"\x00"
-            try:
-                s.sendall(make_request(b"\x00\xA0", kXR_mv,
-                                       body=b"\x00" * 16, payload=payload))
-                st, _ = _recv_response(s)
-            except (socket.timeout, ConnectionError, OSError):
-                s = _connect(); _full_anon_login(s); st = 4003
-            assert st != kXR_ok, f"root mv to {dst!r} succeeded — escape!"
-
+        targets = self._dir_targets(sd)
+        targets.extend(self._file_targets(sf))
+        targets.extend(self._traversal_targets(zb))
+        s = self._assert_writes_blocked(s, targets)
+        s = self._remove_file_symlink(s, sf)
+        s = self._assert_moves_blocked(s, z, self._move_destinations(sd, zb))
         s.close()
         _assert_zone_pristine(z)

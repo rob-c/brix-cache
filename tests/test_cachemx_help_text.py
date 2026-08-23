@@ -71,12 +71,16 @@ def test_no_samples_before_family_header(expo):
             headered.add(line.split(" ", 3)[2])
         elif line and not line.startswith("#"):
             sample = line.split("{", 1)[0].split(" ", 1)[0]
-            base = sample
-            for suffix in ("_bucket", "_sum", "_count"):
-                if sample.endswith(suffix) and sample[:-len(suffix)] in headered:
-                    base = sample[:-len(suffix)]
-                    break
+            base = _sample_family(sample, headered)
             assert base in headered, f"sample before header: {sample}"
+
+
+def _sample_family(sample, headered):
+    for suffix in ("_bucket", "_sum", "_count"):
+        candidate = sample.removesuffix(suffix)
+        if candidate != sample and candidate in headered:
+            return candidate
+    return sample
 
 
 def test_help_text_is_single_line_ascii(expo):

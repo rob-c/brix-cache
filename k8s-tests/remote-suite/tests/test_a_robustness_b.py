@@ -1,6 +1,24 @@
 # brix-remote-adapted
 from _test_a_robustness_helpers import *  # noqa: F401,F403  (Phase-38 split shared header)
 import klib  # remote: server-side setup
+def _expression_1(self, results):
+    return (
+        [
+                    threading.Thread(target=self._ping_worker, args=(50, results, i))
+                    for i in range(16)
+                ]
+    )
+
+def _expression_2(results):
+    return (
+        [r for r in results if r[2] is not None]
+    )
+
+
+def _check_test_concurrent_stat_and_ping_1(errors):
+    assert errors == [], f"Concurrent errors: {errors}"
+
+
 SERVER_SVC="mega"; SERVER_DATA="/data/xrootd"
 
 class TestStateMachineAttacks:
@@ -201,21 +219,21 @@ class TestConcurrencySafety:
     def test_16_concurrent_ping_sessions(self):
         """16 threads each send 50 pings on independent connections."""
         results = []
-        threads = [
-            threading.Thread(target=self._ping_worker, args=(50, results, i))
-            for i in range(16)
-        ]
+        threads = _expression_1(self, results)
         for t in threads:
             t.start()
         for t in threads:
             t.join(timeout=30)
 
-        errors    = [r for r in results if r[2] is not None]
+        errors    = _expression_2(results)
         total_ok  = sum(r[1] for r in results)
 
-        assert errors == [], f"Thread errors: {errors}"
-        assert total_ok == 16 * 50, \
-            f"Expected {16*50} pings ok, got {total_ok}"
+        def _assert_test_16_concurrent_ping_sessions_1():
+            assert errors == [], f"Thread errors: {errors}"
+            assert total_ok == 16 * 50, \
+                f"Expected {16*50} pings ok, got {total_ok}"
+
+        _assert_test_16_concurrent_ping_sessions_1()
         assert_healthy()
 
     def test_concurrent_stat_and_ping(self):
@@ -265,5 +283,5 @@ class TestConcurrencySafety:
             t.join(timeout=30)
 
         klib.svc_rm(SERVER_SVC, test_path)
-        assert errors == [], f"Concurrent errors: {errors}"
+        _check_test_concurrent_stat_and_ping_1(errors)
         assert_healthy()

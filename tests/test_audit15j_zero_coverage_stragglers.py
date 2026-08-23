@@ -86,6 +86,15 @@ from server_registry import NginxInstanceSpec
 from settings import HOST, NGINX_BIN
 from utils.make_token import TokenIssuer
 
+def _check_test_the_passthrough_persist_flag_is_never_read_1(readers):
+    assert readers == [], (
+        f"{DEFECT35} It is now referenced at {readers}.")
+
+def _guard_test_the_passthrough_persist_flag_is_never_read_1(line, readers, rel, i):
+    if "backend_passthrough_persist" in line:
+        readers.append(f"{rel}:{i}")
+
+
 pytestmark = [pytest.mark.timeout(180),
               pytest.mark.uses_lifecycle_harness,
               pytest.mark.xdist_group("lc-audit15j-audgate")]
@@ -359,10 +368,8 @@ def test_the_passthrough_persist_flag_is_never_read(tmp_path):
             for i, line in enumerate(
                     path.read_text(encoding="utf-8",
                                    errors="replace").splitlines(), 1):
-                if "backend_passthrough_persist" in line:
-                    readers.append(f"{rel}:{i}")
-    assert readers == [], (
-        f"{DEFECT35} It is now referenced at {readers}.")
+                _guard_test_the_passthrough_persist_flag_is_never_read_1(line, readers, rel, i)
+    _check_test_the_passthrough_persist_flag_is_never_read_1(readers)
 
 
 # --------------------------------------------------------------------------- #

@@ -111,8 +111,11 @@ def test_no_loss_interleaved_connections(tmp_path):
 
         text = _read_log(str(logfile), lambda t: t.count("DISCONNECT") >= 2)
         # 2 connections × 4 reads = 8 READ lines, both DISCONNECTs — none lost.
-        assert text.count(' "READ ') >= 8, f"lost READ lines:\n{text}"
-        assert text.count("DISCONNECT") >= 2, f"missing DISCONNECTs:\n{text}"
+        def _assert_test_no_loss_interleaved_connections_1():
+            assert text.count(' "READ ') >= 8, f"lost READ lines:\n{text}"
+            assert text.count("DISCONNECT") >= 2, f"missing DISCONNECTs:\n{text}"
+
+        _assert_test_no_loss_interleaved_connections_1()
     finally:
         _stop(proc)
 

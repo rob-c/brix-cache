@@ -126,6 +126,17 @@ def _proxy_valid(path, slack=300):
         return False
 
 
+def _pki_ready():
+    paths = (CA_CERT, SERVER_CERT, USER_PROXY)
+    return all(os.path.isfile(path) for path in paths) and _proxy_valid(USER_PROXY)
+
+
+def _require_generated_pki():
+    paths = (CA_CERT, SERVER_CERT, USER_PROXY)
+    if not all(os.path.isfile(path) for path in paths):
+        raise RuntimeError("PKI generation did not produce the expected files")
+
+
 def ensure_pki():
     """Generate a dedicated PKI (CA + host cert + RFC-3820 user proxy) under
     PREFIX/pki if it is not already present.  Reuses the repo's blitz_test_pki
@@ -137,8 +148,7 @@ def ensure_pki():
     prefix keeps serving a stale proxy and every GSI handshake fails with
     "certificate verification failed".  blitz_test_pki() wipes + rebuilds the
     whole PKI (fresh proxy), so triggering it on expiry is sufficient."""
-    if (os.path.isfile(CA_CERT) and os.path.isfile(SERVER_CERT)
-            and os.path.isfile(USER_PROXY) and _proxy_valid(USER_PROXY)):
+    if _pki_ready():
         return
     env = dict(os.environ)
     env["TEST_ROOT"] = PREFIX
@@ -148,8 +158,7 @@ def ensure_pki():
         "from pki_helpers import blitz_test_pki; blitz_test_pki()"
     )
     subprocess.run([sys.executable, "-c", code], cwd=REPO, env=env, check=True)
-    if not (os.path.isfile(CA_CERT) and os.path.isfile(SERVER_CERT) and os.path.isfile(USER_PROXY)):
-        raise RuntimeError("PKI generation did not produce the expected files")
+    _require_generated_pki()
 
 
 # --- nginx (GSI) --------------------------------------------------------------

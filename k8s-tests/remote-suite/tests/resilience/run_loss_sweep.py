@@ -45,6 +45,28 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import servers  # noqa: E402
 
 
+def _drain_ready(ready, out_fd, open_fds, stderr_buf):
+    byte_count = 0
+    for descriptor in ready:
+        chunk = os.read(descriptor, 1 << 20)
+        if not chunk:
+            open_fds.discard(descriptor)
+        elif descriptor == out_fd:
+            byte_count += len(chunk)
+        else:
+            stderr_buf.append(chunk)
+    return byte_count
+
+
+def _measurement_result(returncode, byte_count, expected, elapsed, stderr_buf):
+    if returncode == 0 and byte_count == expected:
+        return True, elapsed, byte_count, "ok"
+    if returncode == 0:
+        return False, elapsed, byte_count, "short"
+    error = b"".join(stderr_buf).decode(errors="replace").strip().replace("\n", " ")
+    return False, elapsed, byte_count, f"rc={returncode}:{error[-120:]}"
+
+
 def measure(url, file_path, expected_bytes, timeout, client_max_stall_ms=None):
     """Run one `xrdfs <url> cat <file_path>`, streaming stdout to /dev/null while
     counting bytes, bounded by a wall-clock deadline.
@@ -78,26 +100,13 @@ def measure(url, file_path, expected_bytes, timeout, client_max_stall_ms=None):
             proc.wait()
             return (False, time.monotonic() - start, n, "timeout")
         ready, _, _ = select.select(list(open_fds), [], [], min(remaining, 1.0))
-        for fd in ready:
-            buf = os.read(fd, 1 << 20)
-            if not buf:          # EOF on this pipe
-                open_fds.discard(fd)
-                continue
-            if fd == out_fd:
-                n += len(buf)
-            else:
-                stderr_buf.append(buf)
+        n += _drain_ready(ready, out_fd, open_fds, stderr_buf)
     rc = proc.wait()
     elapsed = time.monotonic() - start
-    if rc == 0 and n == expected_bytes:
-        return (True, elapsed, n, "ok")
-    if rc == 0 and n != expected_bytes:
-        return (False, elapsed, n, "short")
-    err = b"".join(stderr_buf).decode(errors="replace").strip().replace("\n", " ")
-    return (False, elapsed, n, f"rc={rc}:{err[-120:]}")
+    return _measurement_result(rc, n, expected_bytes, elapsed, stderr_buf)
 
 
-def main():
+def _argument_parser():
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--fault", choices=["loss", "jitter", "both"], default="loss",
@@ -116,7 +125,67 @@ def main():
                          "needs a wider window since each recovery re-handshakes.")
     ap.add_argument("--file-path", default="/loss/big.bin", help="server-side path")
     ap.add_argument("--out", default=os.path.join(servers.PREFIX, "loss_sweep_results.csv"))
-    args = ap.parse_args()
+    return ap
+
+
+def _seed_targets(nginx, xrootd, args, size_bytes):
+    local_src = os.path.join(servers.PREFIX, "src_big.bin")
+    servers.seed_file(os.path.dirname(local_src), os.path.basename(local_src), size_bytes)
+    servers.seed_file(nginx.data, args.file_path, size_bytes, src=local_src)
+    servers.seed_file(xrootd.data, args.file_path, size_bytes, src=local_src)
+
+
+def _sanity_targets(targets, host, args, size_bytes):
+    for name, port in targets:
+        result = measure(
+            f"root://{host}:{port}/", args.file_path, size_bytes, args.timeout,
+            client_max_stall_ms=args.client_max_stall,
+        )
+        ok, elapsed, byte_count, reason = result
+        print(f"[sanity] {name:7s} direct 0%: success={ok} "
+              f"{elapsed:6.2f}s {byte_count}B ({reason})")
+        if not ok:
+            raise RuntimeError(f"{name} failed clean 0% baseline: {reason}")
+
+
+def _sweep_rep(name, port, fault, level, rep, args, size_bytes, unit):
+    with servers.FaultProxy(port) as proxy:
+        apply_fault(proxy, fault, level)
+        result = measure(
+            proxy.url(), args.file_path, size_bytes, args.timeout,
+            client_max_stall_ms=args.client_max_stall,
+        )
+    ok, elapsed, byte_count, reason = result
+    print(f"  {name:7s} {fault}={level:2d}{unit} rep {rep}/{args.reps}: "
+          f"{'OK ' if ok else 'FAIL'} {elapsed:7.2f}s  ({reason})")
+    return dict(server=name, fault=fault, level=level, rep=rep, success=ok,
+                elapsed_s=round(elapsed, 3), bytes=byte_count, reason=reason)
+
+
+def _sweep_targets(targets, levels, args, size_bytes):
+    unit = "ms" if args.fault == "jitter" else "%"
+    return [
+        _sweep_rep(name, port, args.fault, level, rep, args, size_bytes, unit)
+        for name, port in targets
+        for level in levels
+        for rep in range(1, args.reps + 1)
+    ]
+
+
+def _write_rows(path, rows):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w", newline="") as handle:
+        writer = csv.DictWriter(
+            handle,
+            fieldnames=["server", "fault", "level", "rep", "success",
+                        "elapsed_s", "bytes", "reason"],
+        )
+        writer.writeheader()
+        writer.writerows(rows)
+
+
+def main():
+    args = _argument_parser().parse_args()
 
     levels = [int(x) for x in args.levels.split(",") if x.strip() != ""]
     size_bytes = args.size_mib * 1024 * 1024
@@ -128,45 +197,15 @@ def main():
     rows = []
     with servers.NginxGsi() as nginx, servers.XrootdGsi() as xrootd:
         print(f"[up] nginx GSI :{nginx.port}   xrootd GSI :{xrootd.port}")
-        # Seed identical content into both data roots.
-        local_src = os.path.join(servers.PREFIX, "src_big.bin")
-        servers.seed_file(os.path.dirname(local_src), os.path.basename(local_src), size_bytes)
-        servers.seed_file(nginx.data, args.file_path, size_bytes, src=local_src)
-        servers.seed_file(xrootd.data, args.file_path, size_bytes, src=local_src)
+        _seed_targets(nginx, xrootd, args, size_bytes)
         print(f"[seed] {args.size_mib}MiB into both data roots")
 
         targets = [("nginx", nginx.port), ("xrootd", xrootd.port)]
-        # 0% sanity (direct, no proxy) for each server before the sweep.
-        for name, port in targets:
-            ok, el, nb, why = measure(f"root://127.0.0.1:{port}/", args.file_path,
-                                      size_bytes, args.timeout,
-                                      client_max_stall_ms=args.client_max_stall)
-            print(f"[sanity] {name:7s} direct 0%: success={ok} {el:6.2f}s {nb}B ({why})")
-            if not ok:
-                raise RuntimeError(f"{name} failed clean 0% baseline: {why}")
-
-        unit = "ms" if args.fault == "jitter" else "%"
-        for name, port in targets:
-            for level in levels:
-                for rep in range(1, args.reps + 1):
-                    with servers.FaultProxy(port) as fp:
-                        apply_fault(fp, args.fault, level)
-                        ok, el, nb, why = measure(fp.url(), args.file_path,
-                                                  size_bytes, args.timeout,
-                                                  client_max_stall_ms=args.client_max_stall)
-                    rows.append(dict(server=name, fault=args.fault, level=level,
-                                     rep=rep, success=ok, elapsed_s=round(el, 3),
-                                     bytes=nb, reason=why))
-                    print(f"  {name:7s} {args.fault}={level:2d}{unit} rep {rep}/{args.reps}: "
-                          f"{'OK ' if ok else 'FAIL'} {el:7.2f}s  ({why})")
+        _sanity_targets(targets, "127.0.0.1", args, size_bytes)
+        rows = _sweep_targets(targets, levels, args, size_bytes)
 
     # Persist per-rep rows.
-    os.makedirs(os.path.dirname(args.out), exist_ok=True)
-    with open(args.out, "w", newline="") as fh:
-        w = csv.DictWriter(fh, fieldnames=["server", "fault", "level", "rep",
-                                           "success", "elapsed_s", "bytes", "reason"])
-        w.writeheader()
-        w.writerows(rows)
+    _write_rows(args.out, rows)
 
     print_summary(rows, args.fault, levels, args.reps)
     print(f"\n[done] per-rep CSV: {args.out}")
@@ -183,26 +222,33 @@ def apply_fault(fp, fault, level):
         fp.set_jitter(level)
 
 
+def _successful_times(rows, name, level):
+    cell = [row for row in rows if row["server"] == name and row["level"] == level]
+    return [row["elapsed_s"] for row in cell if row["success"]]
+
+
+def _print_summary_cell(name, level, reps, successful):
+    count = len(successful)
+    prefix = f"{name:8s} {level:7d} {count:3d}/{reps:<2d} "
+    if not successful:
+        print(prefix + f"{'-':>8s} {'-':>8s} {'-':>8s}")
+        return
+    minimum = min(successful)
+    median = statistics.median(successful)
+    maximum = max(successful)
+    print(prefix + f"{minimum:8.2f} {median:8.2f} {maximum:8.2f}")
+
+
 def print_summary(rows, fault, levels, reps):
-    """Per-cell summary: success count and timing of successful transfers."""
+    """Print per-cell success counts and successful-transfer timing."""
     print("\n=== SUMMARY (success-rate and timing of SUCCESSFUL transfers) ===")
     unit = "ms" if fault == "jitter" else "%"
-    lvl_hdr = f"{fault}{unit}"
-    header = f"{'server':8s} {lvl_hdr:>7s} {'ok/N':>6s} {'min s':>8s} {'med s':>8s} {'max s':>8s}"
+    header = f"{'server':8s} {fault + unit:>7s} {'ok/N':>6s} {'min s':>8s} {'med s':>8s} {'max s':>8s}"
     print(header)
     print("-" * len(header))
     for name in ("nginx", "xrootd"):
         for level in levels:
-            cell = [r for r in rows if r["server"] == name and r["level"] == level]
-            good = [r["elapsed_s"] for r in cell if r["success"]]
-            okn = len(good)
-            if good:
-                mn, md, mx = min(good), statistics.median(good), max(good)
-                print(f"{name:8s} {level:7d} {okn:3d}/{reps:<2d} "
-                      f"{mn:8.2f} {md:8.2f} {mx:8.2f}")
-            else:
-                print(f"{name:8s} {level:7d} {okn:3d}/{reps:<2d} "
-                      f"{'-':>8s} {'-':>8s} {'-':>8s}")
+            _print_summary_cell(name, level, reps, _successful_times(rows, name, level))
 
 
 if __name__ == "__main__":

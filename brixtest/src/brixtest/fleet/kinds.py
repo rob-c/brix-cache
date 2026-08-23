@@ -1,8 +1,6 @@
-"""Kind profiles (feature F2).
+"""Registered lifecycle profiles for server kinds.
 
-The grown suite dispatched on a server's kind at seven separate call
-sites with string comparisons; adding a kind meant finding all seven.
-Here a kind is **one registered row**: where its pidfile lives, how it
+A kind defines where its pidfile lives, how it
 stops, how its process is spawned, and how readiness defaults.  The
 core ships no rows — ``nginx``, ``xrootd`` and friends are adapter
 registrations — so the generic engine never needs to know what an
@@ -15,11 +13,11 @@ Stop strategies understood by the local backend:
 - ``"port-kill"``      — find the pids holding the spec's ports and
   signal those (kinds with no pidfile, e.g. bare processes).
 - ``"process-group"``  — signal only the backend-spawned process group;
-  preferred for case-owned non-daemonizing processes.
+  for case-owned non-daemonizing processes.
 - ``"never"``          — the instance is externally managed; stopping
   the fleet must not touch it.
 - a callable ``(backend, spec) -> None`` — kind-specific shutdown
-  (the adapter's nginx profile uses this for ``nginx -s quit``).
+  for kind-specific shutdown.
 """
 
 from __future__ import annotations
@@ -30,7 +28,7 @@ from typing import Callable, Dict, Optional, Sequence, Tuple, Union
 
 from brixtest.errors import RegistrationError, UnknownKindError
 
-__all__ = ["KindProfile", "register_kind", "get_kind", "known_kinds", "clear_kinds"]
+__all__ = ["KindProfile", "clear_kinds", "get_kind", "known_kinds", "register_kind"]
 
 StopStrategy = Union[str, Callable[..., None]]
 _STOP_NAMES = ("signal-pidfile", "port-kill", "process-group", "never")

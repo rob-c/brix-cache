@@ -48,6 +48,27 @@ from contextlib import contextmanager
 import pytest
 
 # conftest chdir()s into a scratch dir — anchor imports on this file's dir.
+def _expression_1(need, raw):
+    return (
+        need is None or len(raw) < need
+    )
+
+def _expression_2(need, raw):
+    return (
+        need is None and b"\r\n\r\n" in raw
+    )
+
+def _expression_3(first):
+    return (
+        int(first[1]) if len(first) > 1 else 0
+    )
+
+
+def _phase_raw_get_clean_1(m, head):
+    if m:
+        need = len(head) + 4 + int(m.group(1))
+
+
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "cvmfs"))
 
 from conformance_common import NGINX_BIN, PortBlock, _spawn_mock, srv_instance
@@ -272,16 +293,15 @@ def _raw_get_clean(port, path, timeout=15):
     s.sendall(f"GET {path} HTTP/1.1\r\nHost: x\r\nConnection: close\r\n\r\n".encode())
     raw, reset, need = b"", False, None
     try:
-        while need is None or len(raw) < need:
+        while _expression_1(need, raw):
             part = s.recv(65536)
             if not part:
                 break
             raw += part
-            if need is None and b"\r\n\r\n" in raw:
+            if _expression_2(need, raw):
                 head, _, _ = raw.partition(b"\r\n\r\n")
                 m = re.search(rb"(?im)^content-length:\s*(\d+)\s*$", head)
-                if m:
-                    need = len(head) + 4 + int(m.group(1))
+                _phase_raw_get_clean_1(m, head)
     except ConnectionResetError:
         reset = True
     except socket.timeout:
@@ -290,7 +310,7 @@ def _raw_get_clean(port, path, timeout=15):
         s.close()
     head, _, body = raw.partition(b"\r\n\r\n")
     first = head.split(b"\r\n", 1)[0].split(b" ")
-    status = int(first[1]) if len(first) > 1 else 0
+    status = _expression_3(first)
     return status, len(body), reset
 
 

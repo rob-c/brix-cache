@@ -1,4 +1,4 @@
-"""Example 7: a per-test dynamic server (F24).
+"""Compatibility example for a per-test dynamic server.
 
 No declaration marker: dynamic servers are requested, not declared,
 and their ports come from the dedicated block at the top of the lane

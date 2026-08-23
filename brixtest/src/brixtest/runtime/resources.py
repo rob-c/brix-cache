@@ -25,3 +25,15 @@ def record_materialized_sizes(manager) -> None:
     manager.metrics.gauge(
         "resources.binaries", len(manager.binary_store._captured), unit="count"
     )
+    owned_volumes = (
+        item for item in manager._managed.volumes._items.values()
+        if item.kind not in ("host", "device")
+    )
+    manager.metrics.gauge(
+        "resources.volume_bytes",
+        sum(_tree_size(item.path) for item in owned_volumes), unit="bytes",
+    )
+    manager.metrics.gauge(
+        "resources.task_outputs",
+        sum(len(item.outputs) for item in manager._managed.tasks.values()), unit="count",
+    )

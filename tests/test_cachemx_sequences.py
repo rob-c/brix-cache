@@ -258,9 +258,12 @@ def test_http_get_five_op_linearity(mx, flow):
         assert fetch()[0] == 200
     cx.settle()
     after = cx.mfetch(mx.metrics)
-    assert s.delta("brix_io_ops_total",
-                   {**io, "op": "read", "status": "ok"}, after) == 5
-    assert s.delta("brix_io_bytes_read", io, after) == 5 * size
+    def _assert_test_http_get_five_op_linearity_1():
+        assert s.delta("brix_io_ops_total",
+                       {**io, "op": "read", "status": "ok"}, after) == 5
+        assert s.delta("brix_io_bytes_read", io, after) == 5 * size
+
+    _assert_test_http_get_five_op_linearity_1()
 
 
 def test_stream_stat_five_op_linearity(mx):

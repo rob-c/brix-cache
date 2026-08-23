@@ -1,4 +1,61 @@
 from split_continuation import reexport as _reexport
+def _expression_1(out_o):
+    return (
+        out_o.strip().splitlines()[0].strip() if out_o.strip() else ""
+    )
+
+def _expression_2(out_f):
+    return (
+        out_f.strip().splitlines()[0].strip() if out_f.strip() else ""
+    )
+
+def _expression_3(line_f):
+    return (
+        line_f.split()[0] if line_f.split() else ""
+    )
+
+def _expression_4(line_o):
+    return (
+        line_o.split()[0] if line_o.split() else ""
+    )
+
+
+def _phase_test_qconfig_differential_shape_1(f_first, key, line_f, line_o, o_first):
+    if f_first.lstrip("-").isdigit():
+        _check_test_qconfig_differential_shape_3(key, line_f, line_o, o_first)
+
+
+def _check_test_qconfig_differential_shape_1(rc_o, key, raw_o):
+    assert rc_o == 0, f"OUR query config {key} failed: {raw_o!r}"
+
+def _guard_test_qconfig_differential_shape_1(rc_f, key, raw_f):
+    if rc_f != 0:
+        pytest.skip(f"stock did not answer config {key}: {raw_f!r}")
+
+def _check_test_qconfig_differential_shape_2(key, line_o):
+    assert not line_o.startswith(f"{key}="), \
+        f"OUR config {key} uses key= but stock does not: {line_o!r}"
+
+def _check_test_qconfig_differential_shape_3(key, line_f, line_o, o_first):
+    assert o_first.lstrip("-").isdigit(), (
+        f"stock config {key} is integer ({line_f!r}) but OUR is not "
+        f"({line_o!r})")
+
+def _check_test_qconfig_multi_key_matches_singletons_4(rc_m, raw_m):
+    assert rc_m == 0, f"OUR multi-key failed: {raw_m!r}"
+
+def _check_test_qconfig_multi_key_matches_singletons_5(multi, keys, out_m):
+    assert len(multi) == len(keys), f"line count mismatch: {out_m!r}"
+
+def _check_test_qconfig_multi_key_matches_singletons_6(rc_s):
+    assert rc_s == 0
+
+def _check_test_qconfig_multi_key_matches_singletons_7(single, k, ml):
+    assert ml.strip() == single, (
+        f"multi-key line for {k} ({ml.strip()!r}) != singleton "
+        f"({single!r})")
+
+
 _reexport(globals(), "_test_conf_query2_helpers")
 
 @pytest.mark.parametrize("key", QCONFIG_KEYS)
@@ -67,19 +124,14 @@ def test_qconfig_differential_shape(srv, key):
     differ (build/site), so we compare SHAPE, not the literal value."""
     rc_o, out_o, raw_o = qconfig(srv["our"], key)
     rc_f, out_f, raw_f = qconfig(srv["off"], key)
-    assert rc_o == 0, f"OUR query config {key} failed: {raw_o!r}"
-    if rc_f != 0:
-        pytest.skip(f"stock did not answer config {key}: {raw_f!r}")
-    line_o = out_o.strip().splitlines()[0].strip() if out_o.strip() else ""
-    line_f = out_f.strip().splitlines()[0].strip() if out_f.strip() else ""
-    assert not line_o.startswith(f"{key}="), \
-        f"OUR config {key} uses key= but stock does not: {line_o!r}"
-    f_first = line_f.split()[0] if line_f.split() else ""
-    o_first = line_o.split()[0] if line_o.split() else ""
-    if f_first.lstrip("-").isdigit():
-        assert o_first.lstrip("-").isdigit(), (
-            f"stock config {key} is integer ({line_f!r}) but OUR is not "
-            f"({line_o!r})")
+    _check_test_qconfig_differential_shape_1(rc_o, key, raw_o)
+    _guard_test_qconfig_differential_shape_1(rc_f, key, raw_f)
+    line_o = _expression_1(out_o)
+    line_f = _expression_2(out_f)
+    _check_test_qconfig_differential_shape_2(key, line_o)
+    f_first = _expression_3(line_f)
+    o_first = _expression_4(line_o)
+    _phase_test_qconfig_differential_shape_1(f_first, key, line_f, line_o, o_first)
 
 
 def test_qconfig_unknown_key_echoed_bare(srv):
@@ -145,16 +197,14 @@ def test_qconfig_multi_key_matches_singletons(srv):
     (the loop is just per-token concatenation; no cross-key contamination)."""
     keys = ["bind_max", "tpc", "role"]
     rc_m, out_m, raw_m = qconfig(srv["our"], *keys)
-    assert rc_m == 0, f"OUR multi-key failed: {raw_m!r}"
+    _check_test_qconfig_multi_key_matches_singletons_4(rc_m, raw_m)
     multi = [l for l in out_m.split("\n") if l != ""]
-    assert len(multi) == len(keys), f"line count mismatch: {out_m!r}"
+    _check_test_qconfig_multi_key_matches_singletons_5(multi, keys, out_m)
     for k, ml in zip(keys, multi):
         rc_s, out_s, _ = qconfig(srv["our"], k)
-        assert rc_s == 0
+        _check_test_qconfig_multi_key_matches_singletons_6(rc_s)
         single = out_s.strip().splitlines()[0].strip()
-        assert ml.strip() == single, (
-            f"multi-key line for {k} ({ml.strip()!r}) != singleton "
-            f"({single!r})")
+        _check_test_qconfig_multi_key_matches_singletons_7(single, k, ml)
 
 
 def test_qconfig_version_format(srv):

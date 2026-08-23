@@ -34,6 +34,28 @@ import pytest
 
 from settings import NGINX_BIN
 
+def _phase_servers_1_next(procs):
+    for pr in procs:
+        pr.terminate()
+        _phase_servers_1(pr)
+
+
+def _phase_servers_1(pr):
+    try:
+        pr.wait(timeout=5)
+    except subprocess.TimeoutExpired:
+        pr.kill()
+
+
+def _guard_servers_1():
+    if not os.path.exists(NGINX_BIN):
+        pytest.skip(f"nginx binary not built at {NGINX_BIN}")
+
+def _guard_servers_2(p):
+    if not _free(p):
+        pytest.skip(f"port {p} busy")
+
+
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 BIND = "127.0.0.1"
 
@@ -137,8 +159,7 @@ def _wait_listen(port, timeout=8.0):
 
 @pytest.fixture(scope="module")
 def servers(tmp_path_factory):
-    if not os.path.exists(NGINX_BIN):
-        pytest.skip(f"nginx binary not built at {NGINX_BIN}")
+    _guard_servers_1()
     base = tmp_path_factory.mktemp("gohep")
     data = base / "data"
     data.mkdir()
@@ -149,8 +170,7 @@ def servers(tmp_path_factory):
 
     anon_port, rdr_port, ds_port = 13970, 13971, 13972
     for p in (anon_port, rdr_port, ds_port):
-        if not _free(p):
-            pytest.skip(f"port {p} busy")
+        _guard_servers_2(p)
 
     common = ("daemon off;\nworker_processes 1;\n"
               f"pid {base}/PIDNAME.pid;\nerror_log {base}/ERRNAME.log info;\n"
@@ -195,12 +215,7 @@ def servers(tmp_path_factory):
     yield {"anon": anon_port, "rdr": rdr_port, "ds": ds_port,
            "data": str(data), "blob": blob}
 
-    for pr in procs:
-        pr.terminate()
-        try:
-            pr.wait(timeout=5)
-        except subprocess.TimeoutExpired:
-            pr.kill()
+    _phase_servers_1_next(procs)
 
 
 # --------------------------------------------------------------------------- #

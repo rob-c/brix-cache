@@ -68,9 +68,7 @@ def test_watch_prometheus_up(server):
     assert r.returncode == 0, f"{r.stdout}\n{r.stderr}"
     assert "# TYPE brix_probe_up gauge" in r.stdout
     assert "brix_probe_connect_seconds" in r.stdout
-    up_lines = [ln for ln in r.stdout.splitlines() if ln.startswith("brix_probe_up{")]
-    assert len(up_lines) == 2, f"expected 2 cycles, got: {up_lines}"
-    assert all(ln.strip().endswith(" 1") for ln in up_lines), up_lines
+    _assert_up_lines(r.stdout, 2, " 1")
     # PII-free: the label is host:port, never the probe path
     assert "probe.bin" not in r.stdout, "path leaked into metrics"
 
@@ -84,8 +82,7 @@ def test_watch_down_endpoint_bounded(server):
                        capture_output=True, text=True, timeout=15)
     elapsed = time.time() - t0
     assert r.returncode == 0, f"{r.stdout}\n{r.stderr}"
-    up_lines = [ln for ln in r.stdout.splitlines() if ln.startswith("brix_probe_up{")]
-    assert len(up_lines) == 1 and up_lines[0].strip().endswith(" 0"), up_lines
+    _assert_up_lines(r.stdout, 1, " 0")
     assert elapsed < 10, f"down probe should be bounded, took {elapsed:.1f}s"
 
 
@@ -97,13 +94,24 @@ def test_watch_json_multi_endpoint(server):
                         "--count", "1", "--probe-timeout", "800", "--json"],
                        capture_output=True, text=True, timeout=15)
     assert r.returncode == 0, f"{r.stdout}\n{r.stderr}"
-    objs = [jsonlib.loads(ln) for ln in r.stdout.splitlines() if ln.strip()]
+    objs = _json_lines(r.stdout)
     assert len(objs) == 2, objs
-    assert objs[0]["up"] == 1 and objs[1]["up"] == 0, objs
+    assert objs[0]["up"] == 1, objs
+    assert objs[1]["up"] == 0, objs
     assert objs[0]["connect_ms"] >= 0
     # PII-free JSON: endpoint is host:port, no path / no token / no key
     blob = r.stdout
     assert "probe.bin" not in blob
+
+
+def _assert_up_lines(output, count, suffix):
+    lines = [line for line in output.splitlines() if line.startswith("brix_probe_up{")]
+    assert len(lines) == count, f"expected {count} cycles, got: {lines}"
+    assert all(line.strip().endswith(suffix) for line in lines), lines
+
+
+def _json_lines(output):
+    return [jsonlib.loads(line) for line in output.splitlines() if line.strip()]
 
 
 def test_watch_prometheus_atomic_file(server, tmp_path):

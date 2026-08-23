@@ -20,6 +20,18 @@ import zlib
 
 import pytest
 
+def _check_test_storascan_core_unit_1(comp):
+    assert comp.returncode == 0, \
+        "storascan_core unit suite failed to COMPILE:\n%s" % comp.stderr
+
+def _check_test_bench_read_sweep_json_2(r):
+    assert r.returncode == 0, \
+        "bench rc=%d\nstdout=%s\nstderr=%s" % (r.returncode, r.stdout, r.stderr)
+
+def _check_test_bench_read_sweep_json_3(recs):
+    assert len(recs) == 4, "expected 2x2 sweep cells, got %d" % len(recs)
+
+
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 APPS = os.path.join(REPO, "client", "apps")
 CORE = os.path.join(APPS, "storascan_core.c")
@@ -40,13 +52,15 @@ def test_storascan_core_unit(tmp_path):
     comp = subprocess.run(
         [cc, "-Wall", "-Wextra", "-Werror", "-o", out, UT, CORE, "-lm"],
         capture_output=True, text=True)
-    assert comp.returncode == 0, \
-        "storascan_core unit suite failed to COMPILE:\n%s" % comp.stderr
+    _check_test_storascan_core_unit_1(comp)
     run = subprocess.run([out], capture_output=True, text=True, timeout=60)
     print(run.stdout)
-    assert run.returncode == 0, \
-        "storascan_core unit suite reported failures:\n%s\n%s" % (run.stdout, run.stderr)
-    assert "all checks passed" in run.stdout
+    def _assert_test_storascan_core_unit_1():
+        assert run.returncode == 0, \
+            "storascan_core unit suite reported failures:\n%s\n%s" % (run.stdout, run.stderr)
+        assert "all checks passed" in run.stdout
+
+    _assert_test_storascan_core_unit_1()
 
 
 # --------------------------------------------------------------------------- #
@@ -113,15 +127,20 @@ def test_bench_read_sweep_json(anon):
     r = _run(anon, "bench", anon.url(remote),
              "--op", "read", "--block", "16K,64K", "--parallel", "1,2",
              "--count", "8", "--json")
-    assert r.returncode == 0, \
-        "bench rc=%d\nstdout=%s\nstderr=%s" % (r.returncode, r.stdout, r.stderr)
+    _check_test_bench_read_sweep_json_2(r)
     recs = [json.loads(ln) for ln in r.stdout.splitlines() if ln.strip()]
-    assert len(recs) == 4, "expected 2x2 sweep cells, got %d" % len(recs)
+    _check_test_bench_read_sweep_json_3(recs)
     for rec in recs:
-        assert rec["t"] == "bench"
-        assert rec["ops"] > 0, "a cell did zero ops: %s" % rec
-        assert rec["throughput_mibps"] >= 0.0
-        assert rec["p50_ms"] >= 0.0
+        def _assert_test_bench_read_sweep_json_2():
+            assert rec["t"] == "bench"
+            assert rec["ops"] > 0, "a cell did zero ops: %s" % rec
+
+        _assert_test_bench_read_sweep_json_2()
+        def _assert_test_bench_read_sweep_json_3():
+            assert rec["throughput_mibps"] >= 0.0
+            assert rec["p50_ms"] >= 0.0
+
+        _assert_test_bench_read_sweep_json_3()
 
 
 def test_bench_bad_pattern_is_usage_error(anon):

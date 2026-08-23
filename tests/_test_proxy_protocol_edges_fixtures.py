@@ -22,6 +22,22 @@ from server_registry import NginxInstanceSpec
 # nginx proxy-front provisioning
 # ===========================================================================
 
+def _phase_stack_1(stub):
+    try:
+        stub.start()
+    except OSError as exc:
+        # A dedicated high port was genuinely unavailable (e.g. a wedged stub
+        # from a crashed prior run still holds it) — skip cleanly, never error.
+        stub.stop()
+        pytest.skip(f"stub backend could not bind a dedicated port: {exc}")
+
+
+def _guard_stack_1(upstream_port, stub):
+    if not _wait_port(upstream_port):
+        stub.stop()
+        pytest.skip(f"stub backend did not bind on {upstream_port}")
+
+
 def _reachable(port, timeout=1.0):
     try:
         socket.create_connection((HOST, port), timeout=timeout).close()
@@ -61,18 +77,10 @@ def _stack(name, front_port, scenarios, upstream_port, extra="", _retry=True):
     returns.  A rejected config surfaces as an error (a broken committed
     template must not pass silently); a front that never binds is skipped."""
     stub = _StubServer(scenarios)
-    try:
-        stub.start()
-    except OSError as exc:
-        # A dedicated high port was genuinely unavailable (e.g. a wedged stub
-        # from a crashed prior run still holds it) — skip cleanly, never error.
-        stub.stop()
-        pytest.skip(f"stub backend could not bind a dedicated port: {exc}")
+    _phase_stack_1(stub)
     # Wait for the primary upstream port (the one the front points at) before
     # the front comes up, exactly as before — the proxy connects on demand.
-    if not _wait_port(upstream_port):
-        stub.stop()
-        pytest.skip(f"stub backend did not bind on {upstream_port}")
+    _guard_stack_1(upstream_port, stub)
     harness = LifecycleHarness()
     # The pre-existing free_ports()/env-override front port is honoured verbatim
     # (spec.port pins it); the harness only appends a per-pid name suffix for

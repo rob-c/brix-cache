@@ -1,4 +1,17 @@
 from split_continuation import reexport as _reexport
+def _check_scn_1(mnt):
+    assert os.path.ismount(mnt), "mount failed"
+
+def _check_scn_2(mnt):
+    assert os.path.ismount(mnt), "mount failed"
+
+def _check_scn_3(mnt):
+    assert os.path.ismount(mnt), "mount failed"
+
+def _check_scn_4(mnt):
+    assert os.path.ismount(mnt), "mount failed"
+
+
 _reexport(globals(), "_test_cvmfs_conformance_fuse_refresh_failover_helpers")
 
 @pytest.mark.timeout(150)
@@ -247,14 +260,14 @@ class TestProxyPrecedence:
             with conf_mount(REPO, pub, server_env=_url(P_PROXY_ORIGIN),
                             env_extra={"http_proxy": purl_a,
                                        "no_proxy": HOST}) as (mnt, _):
-                assert os.path.ismount(mnt), "mount failed"
+                _check_scn_1(mnt)
                 obs["np_keep"] = (mnt / "change.txt").read_bytes()
             obs["np_new_fwd"] = len(_forwards(log_a)) - mark
 
             # config CVMFS_HTTP_PROXY, no env → proxy B
             with conf_mount(REPO, pub, server_url=_url(P_PROXY_ORIGIN),
                             proxy_conf=purl_b) as (mnt, _):
-                assert os.path.ismount(mnt), "mount failed"
+                _check_scn_2(mnt)
                 obs["cfg_keep"] = (mnt / "keep.txt").read_bytes()
             obs["cfg_fwd"] = len(_forwards(log_b))
 
@@ -263,7 +276,7 @@ class TestProxyPrecedence:
             with conf_mount(REPO, pub, server_url=_url(P_PROXY_ORIGIN),
                             proxy_conf=purl_b,
                             env_extra={"http_proxy": purl_a}) as (mnt, _):
-                assert os.path.ismount(mnt), "mount failed"
+                _check_scn_3(mnt)
                 (mnt / "sub" / "leaf.txt").read_bytes()
             obs["both_a"] = len(_forwards(log_a)) - mark_a
             obs["both_b"] = len(_forwards(log_b)) - mark_b
@@ -272,7 +285,7 @@ class TestProxyPrecedence:
             mark_a, mark_b = len(_forwards(log_a)), len(_forwards(log_b))
             with conf_mount(REPO, pub, server_url=_url(P_PROXY_ORIGIN),
                             proxy_conf="DIRECT") as (mnt, _):
-                assert os.path.ismount(mnt), "mount failed"
+                _check_scn_4(mnt)
                 obs["direct_keep"] = (mnt / "keep.txt").read_bytes()
             obs["direct_a"] = len(_forwards(log_a)) - mark_a
             obs["direct_b"] = len(_forwards(log_b)) - mark_b

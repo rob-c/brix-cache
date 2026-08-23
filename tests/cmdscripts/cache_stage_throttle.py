@@ -18,14 +18,25 @@ XRDCP = REPO_ROOT / "client" / "bin" / "xrdcp"
 XRDFS = REPO_ROOT / "client" / "bin" / "xrdfs"
 
 
+def _df_percent(result):
+    if result.returncode != 0:
+        return None
+    last_line = _last_nonempty_line(result.stdout)
+    if last_line is None:
+        return None
+    digits = "".join(filter(str.isdigit, last_line))
+    return int(digits) if digits else None
+
+
+def _last_nonempty_line(output):
+    lines = list(filter(None, map(str.strip, output.splitlines())))
+    return lines[-1] if lines else None
+
+
 def filesystem_usage_percent(path: Path) -> int:
-    result = run(["df", "--output=pcent", str(path)])
-    if result.returncode == 0:
-        lines = [line.strip() for line in result.stdout.splitlines() if line.strip()]
-        if lines:
-            digits = "".join(ch for ch in lines[-1] if ch.isdigit())
-            if digits:
-                return int(digits)
+    percent = _df_percent(run(["df", "--output=pcent", str(path)]))
+    if percent is not None:
+        return percent
     stat = os.statvfs(path)
     used = stat.f_blocks - stat.f_bfree
     return int((used * 100) / stat.f_blocks)
@@ -131,6 +142,98 @@ def xrdcp_put_bounded(xrdcp: Path, source: Path, url: str, timeout: int = 8) -> 
         return subprocess.CompletedProcess(exc.cmd, 124, exc.stdout or "", exc.stderr or "timed out")
 
 
+def _start_throttle_instances(base, nginx_bin, configurations):
+    started = []
+    for arguments in configurations:
+        ok, message, prefix = start_instance(base, *arguments, nginx_bin=nginx_bin)
+        if not ok:
+            for item in reversed(started):
+                stop_nginx(item)
+            return None, message
+        started.append(prefix)
+    return started, ""
+
+
+def _reject_results(base, xrdcp, xrdfs, payload, port, metrics_port):
+    put = xrdcp_put_bounded(xrdcp, payload, f"root://{HOST}:{port}//w.bin")
+    read = xrdfs_cat_text(port, "/readme.txt", xrdfs)
+    metrics = fetch_metrics(metrics_port)
+    return [
+        (put.returncode != 0, "reject: root:// write failed (staging full)"),
+        (not (base / "reject" / "root" / "w.bin").exists(),
+         "reject: no file created (shed before any write)"),
+        (_reject_read_ok(read), "reject: READ still works (reads never throttled)"),
+        (metric_positive(metrics, 'brix_wt_stage_throttled_total{action="reject"}'),
+         "reject: throttled_total{reject} > 0"),
+        ("brix_wt_stage_usage_ratio " in metrics,
+         "reject: wt_stage_usage_ratio gauge present"),
+    ]
+
+
+def _reject_read_ok(result):
+    return result.returncode == 0 and result.stdout.strip() == "readable-content-reject"
+
+
+def _wait_metric(process, metrics_port):
+    deadline = time.time() + 30
+    metric = 'brix_wt_stage_throttled_total{action="wait"}'
+    while time.time() < deadline:
+        if metric_positive(fetch_metrics(metrics_port), metric):
+            return True
+        if process.poll() is not None:
+            return metric_positive(fetch_metrics(metrics_port), metric)
+        time.sleep(0.5)
+    return False
+
+
+def _stop_wait_process(process):
+    if process.poll() is not None:
+        return
+    process.terminate()
+    try:
+        process.wait(timeout=2)
+    except subprocess.TimeoutExpired:
+        process.kill()
+        process.wait(timeout=2)
+
+
+def _wait_result(xrdcp, payload, port, metrics_port):
+    process = subprocess.Popen(
+        [str(xrdcp), "-f", str(payload), f"root://{HOST}:{port}//w.bin"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    try:
+        waited = _wait_metric(process, metrics_port)
+    finally:
+        _stop_wait_process(process)
+    return waited, "wait: throttled_total{wait} > 0 (server issued kXR_wait)"
+
+
+def _watermarks(used):
+    return used - 2, max(1, used - 5), min(99, used + 3), max(1, used - 3)
+
+
+def _throttle_configurations(used):
+    reject_high, reject_low, wait_high, wait_low = _watermarks(used)
+    reject_port, wait_port, reject_metrics, wait_metrics = cmdscript_ports("cache_stage_throttle")
+    configurations = (
+        ("reject", reject_port, reject_high, reject_low, reject_metrics),
+        ("wait", wait_port, wait_high, wait_low, wait_metrics),
+    )
+    return configurations, (reject_port, wait_port, reject_metrics, wait_metrics)
+
+
+def _exercise_throttles(base, clients, ports):
+    xrdcp, xrdfs = clients
+    reject_port, wait_port, reject_metrics, wait_metrics = ports
+    payload = base / "stage_thr_w.bin"
+    payload.write_bytes(deterministic_bytes(4096, 113))
+    results = _reject_results(base, xrdcp, xrdfs, payload, reject_port, reject_metrics)
+    results.append(_wait_result(xrdcp, payload, wait_port, wait_metrics))
+    return results
+
+
 def run_checks(
     base: Path,
     nginx_bin: str = NGINX_BIN,
@@ -143,74 +246,14 @@ def run_checks(
     used = filesystem_usage_percent(base)
     if used < 10 or used > 94:
         return [(True, f"SKIP filesystem usage {used}% outside testable 10-94% band")]
-    reject_high = used - 2
-    reject_low = max(1, used - 5)
-    wait_high = min(99, used + 3)
-    wait_low = max(1, used - 3)
-
-    reject_port, wait_port, reject_metrics, wait_metrics = cmdscript_ports("cache_stage_throttle")
-    started: list[Path] = []
-    for args in (
-        ("reject", reject_port, reject_high, reject_low, reject_metrics),
-        ("wait", wait_port, wait_high, wait_low, wait_metrics),
-    ):
-        ok, message, prefix = start_instance(base, *args, nginx_bin=nginx_bin)
-        if not ok:
-            for item in reversed(started):
-                stop_nginx(item)
-            return [(False, message)]
-        started.append(prefix)
+    configurations, ports = _throttle_configurations(used)
+    started, message = _start_throttle_instances(base, nginx_bin, configurations)
+    if started is None:
+        return [(False, message)]
 
     try:
         time.sleep(1)
-        payload = base / "stage_thr_w.bin"
-        payload.write_bytes(deterministic_bytes(4096, 113))
-
-        results: list[tuple[bool, str]] = []
-        reject_put = xrdcp_put_bounded(xrdcp, payload, f"root://{HOST}:{reject_port}//w.bin")
-        results.append((reject_put.returncode != 0, "reject: root:// write failed (staging full)"))
-        results.append((not (base / "reject" / "root" / "w.bin").exists(), "reject: no file created (shed before any write)"))
-
-        read = xrdfs_cat_text(reject_port, "/readme.txt", xrdfs)
-        results.append((read.returncode == 0 and read.stdout.strip() == "readable-content-reject", "reject: READ still works (reads never throttled)"))
-
-        reject_m = fetch_metrics(reject_metrics)
-        results.append((metric_positive(reject_m, 'brix_wt_stage_throttled_total{action="reject"}'), "reject: throttled_total{reject} > 0"))
-        results.append(("brix_wt_stage_usage_ratio " in reject_m, "reject: wt_stage_usage_ratio gauge present"))
-
-        wait_proc = subprocess.Popen(
-            [str(xrdcp), "-f", str(payload), f"root://{HOST}:{wait_port}//w.bin"],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-        )
-        waited = False
-        # Generous deadline: under a fully parallel suite the metric scrape and
-        # the throttled write can each lag several seconds; success exits early.
-        deadline = time.time() + 30
-        try:
-            while time.time() < deadline:
-                wait_m = fetch_metrics(wait_metrics)
-                if metric_positive(wait_m, 'brix_wt_stage_throttled_total{action="wait"}'):
-                    waited = True
-                    break
-                if wait_proc.poll() is not None:
-                    # The client may finish between polls — the counter is
-                    # already committed server-side, so scrape once more.
-                    wait_m = fetch_metrics(wait_metrics)
-                    waited = metric_positive(
-                        wait_m, 'brix_wt_stage_throttled_total{action="wait"}')
-                    break
-                time.sleep(0.5)
-        finally:
-            if wait_proc.poll() is None:
-                wait_proc.terminate()
-                try:
-                    wait_proc.wait(timeout=2)
-                except subprocess.TimeoutExpired:
-                    wait_proc.kill()
-                    wait_proc.wait(timeout=2)
-        results.append((waited, "wait: throttled_total{wait} > 0 (server issued kXR_wait)"))
-        return results
+        return _exercise_throttles(base, (xrdcp, xrdfs), ports)
     finally:
         for prefix in reversed(started):
             stop_nginx(prefix)
@@ -222,8 +265,16 @@ def entry(argv: list[str]) -> int:
 
     with tempfile.TemporaryDirectory(prefix="stage_thr.") as tmp:
         results = run_checks(Path(tmp), nginx_bin=nginx_bin)
+    _print_results(results)
+    return _result_code(results)
+
+
+def _print_results(results):
     for ok, message in results:
         print(f"  {'ok  ' if ok else 'FAIL'} {message}")
+
+
+def _result_code(results):
     if all(ok for ok, _ in results):
         print("run_cache_stage_throttle: ALL PASS")
         return 0

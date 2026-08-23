@@ -5,6 +5,16 @@ import pytest
 from cmdscripts.af_family_conf import INVALID_TOKEN, VALID_TOKENS, run_checks
 from settings import NGINX_BIN
 
+def _check_test_brix_cache_origin_family_config_tokens_1(results):
+    assert all(ok for ok, _ in results), "\n".join(message for _, message in results)
+
+def _check_test_brix_cache_origin_family_config_tokens_3(messages):
+    assert f"rejects brix_cache_origin_family {INVALID_TOKEN}" in messages
+
+def _check_test_brix_cache_origin_family_config_tokens_2(messages, token):
+    assert f"accepts brix_cache_origin_family {token}" in messages
+
+
 pytestmark = pytest.mark.xdist_group("cmd-af_family_conf")
 
 
@@ -14,8 +24,8 @@ def test_brix_cache_origin_family_config_tokens(tmp_path):
 
     results = run_checks(NGINX_BIN, tmp_path)
 
-    assert all(ok for ok, _ in results), "\n".join(message for _, message in results)
+    _check_test_brix_cache_origin_family_config_tokens_1(results)
     messages = [message for _, message in results]
     for token in VALID_TOKENS:
-        assert f"accepts brix_cache_origin_family {token}" in messages
-    assert f"rejects brix_cache_origin_family {INVALID_TOKEN}" in messages
+        _check_test_brix_cache_origin_family_config_tokens_2(messages, token)
+    _check_test_brix_cache_origin_family_config_tokens_3(messages)

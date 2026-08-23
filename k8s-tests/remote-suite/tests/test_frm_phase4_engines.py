@@ -30,6 +30,35 @@ import pytest
 
 from settings import NGINX_BIN, HOST, BIND_HOST
 
+def _guard_f3_1():
+    if not os.path.exists(NGINX_BIN):
+        pytest.skip("nginx not built")
+
+def _guard_f3_2():
+    if XRDCP is None:
+        pytest.skip("xrdcp not available")
+
+def _guard_f3_3(d):
+    if not _xattr_ok(str(d)):
+        pytest.skip("no user xattrs")
+
+def _guard_f3_4(port, proc):
+    if not _wait_port(port):
+        proc.terminate(); pytest.skip("f3 server did not start")
+
+def _guard_f5_5():
+    if not os.path.exists(NGINX_BIN):
+        pytest.skip("nginx not built")
+
+def _guard_f5_6(d):
+    if not _xattr_ok(str(d)):
+        pytest.skip("no user xattrs")
+
+def _guard_f5_7(mport, proc):
+    if not _wait_port(mport):
+        proc.terminate(); pytest.skip("f5 server did not start")
+
+
 XRDCP = shutil.which("xrdcp")
 
 
@@ -65,13 +94,10 @@ def _start(d, conf, env=None):
 # --------------------------------------------------------------------------- F3
 @pytest.fixture(scope="module")
 def f3(tmp_path_factory):
-    if not os.path.exists(NGINX_BIN):
-        pytest.skip("nginx not built")
-    if XRDCP is None:
-        pytest.skip("xrdcp not available")
+    _guard_f3_1()
+    _guard_f3_2()
     d = tmp_path_factory.mktemp("frmf3")
-    if not _xattr_ok(str(d)):
-        pytest.skip("no user xattrs")
+    _guard_f3_3(d)
     (d / "logs").mkdir()
     data = d / "data"; data.mkdir()
     tape = d / "tape"; tape.mkdir()
@@ -114,8 +140,7 @@ daemon off; master_process off;
                FRM_TAPE_DIR=str(tape), FRM_LATENCY_MS="100",
                FRM_AUDIT_LOG=str(audit))
     proc = _start(d, conf, env)
-    if not _wait_port(port):
-        proc.terminate(); pytest.skip("f3 server did not start")
+    _guard_f3_4(port, proc)
 
     class S: pass
     s = S(); s.port = port; s.audit = str(audit); s.disk_bytes = disk_bytes
@@ -143,11 +168,9 @@ def test_f3_oracle_online_skips_copy(f3, tmp_path):
 # --------------------------------------------------------------------------- F5
 @pytest.fixture(scope="module")
 def f5(tmp_path_factory):
-    if not os.path.exists(NGINX_BIN):
-        pytest.skip("nginx not built")
+    _guard_f5_5()
     d = tmp_path_factory.mktemp("frmf5")
-    if not _xattr_ok(str(d)):
-        pytest.skip("no user xattrs")
+    _guard_f5_6(d)
     (d / "logs").mkdir()
     data = d / "data"; data.mkdir()
     tape = d / "tape"; tape.mkdir()
@@ -195,8 +218,7 @@ daemon off; master_process off;
                FRM_TAPE_DIR=str(tape), FRM_LATENCY_MS="100",
                FRM_AUDIT_LOG=str(d / "audit.log"))
     proc = _start(d, conf, env)
-    if not _wait_port(mport):
-        proc.terminate(); pytest.skip("f5 server did not start")
+    _guard_f5_7(mport, proc)
 
     class S: pass
     s = S(); s.port = port; s.mport = mport; s.adler = adler

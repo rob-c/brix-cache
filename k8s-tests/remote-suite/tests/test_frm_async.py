@@ -28,6 +28,30 @@ import pytest
 
 from settings import NGINX_BIN, free_ports, HOST, BIND_HOST
 
+def _phase_srv_1(proc):
+    try:
+        proc.wait(timeout=5)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+
+
+def _guard_srv_1():
+    if not os.path.exists(NGINX_BIN):
+        pytest.skip("nginx binary not found")
+
+def _guard_srv_2():
+    if XRDCP is None:
+        pytest.skip("xrdcp not available")
+
+def _guard_srv_3(d):
+    if not _xattr_ok(str(d)):
+        pytest.skip("filesystem does not support user xattrs")
+
+def _guard_srv_4(chk):
+    if chk.returncode != 0:
+        pytest.skip("nginx rejected config: %s" % chk.stderr.strip()[-300:])
+
+
 _P_DEFAULT, _M_DEFAULT = free_ports(2)
 PORT = int(os.environ.get("TEST_FRM_ASYNC_PORT") or _P_DEFAULT)
 METRICS_PORT = int(os.environ.get("TEST_FRM_ASYNC_METRICS") or _M_DEFAULT)
@@ -50,16 +74,7 @@ def _metric(name):
     return None
 
 
-@pytest.fixture(scope="module")
-def srv(tmp_path_factory):
-    if not os.path.exists(NGINX_BIN):
-        pytest.skip("nginx binary not found")
-    if XRDCP is None:
-        pytest.skip("xrdcp not available")
-    d = tmp_path_factory.mktemp("frmasync")
-    if not _xattr_ok(str(d)):
-        pytest.skip("filesystem does not support user xattrs")
-
+def _async_tree(d):
     (d / "logs").mkdir()
     data = d / "data"; data.mkdir()
     tape = d / "tape"; tape.mkdir()
@@ -77,7 +92,10 @@ def srv(tmp_path_factory):
     # nearline file with no tape source → recall fails
     (data / "failfile.dat").write_bytes(b"")
     os.setxattr(str(data / "failfile.dat"), "user.frm.residency", b"nearline")
+    return data, tape, queue, audit, copycmd, tape_content
 
+
+def _async_config(d, data, tape, queue, audit, copycmd):
     conf = f"""
 worker_processes 1;
 error_log {d}/logs/error.log info;
@@ -113,15 +131,17 @@ master_process off;
 """
     cp = d / "nginx.conf"
     cp.write_text(conf)
-    chk = subprocess.run([NGINX_BIN, "-t", "-p", str(d), "-c", str(cp)],
-                         capture_output=True, text=True)
-    if chk.returncode != 0:
-        pytest.skip("nginx rejected config: %s" % chk.stderr.strip()[-300:])
     env = dict(os.environ)
     env.update(FRM_DATA_DIR=os.path.realpath(str(data)),
-               FRM_TAPE_DIR=str(tape),
-               FRM_LATENCY_MS="700",
+               FRM_TAPE_DIR=str(tape), FRM_LATENCY_MS="700",
                FRM_AUDIT_LOG=str(audit))
+    return cp, env
+
+
+def _start_async_server(d, cp, env):
+    chk = subprocess.run([NGINX_BIN, "-t", "-p", str(d), "-c", str(cp)],
+                         capture_output=True, text=True)
+    _guard_srv_4(chk)
     proc = subprocess.Popen([NGINX_BIN, "-p", str(d), "-c", str(cp)],
                             stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env)
     deadline = time.time() + 10
@@ -137,6 +157,18 @@ master_process off;
         err = proc.stderr.read().decode(errors="replace")
         proc.terminate()
         pytest.skip("server did not start: %s" % err[-300:])
+    return proc
+
+
+@pytest.fixture(scope="module")
+def srv(tmp_path_factory):
+    _guard_srv_1()
+    _guard_srv_2()
+    d = tmp_path_factory.mktemp("frmasync")
+    _guard_srv_3(d)
+    data, tape, queue, audit, copycmd, tape_content = _async_tree(d)
+    cp, env = _async_config(d, data, tape, queue, audit, copycmd)
+    proc = _start_async_server(d, cp, env)
 
     class S:
         pass
@@ -144,10 +176,7 @@ master_process off;
     s.tape_content = tape_content
     yield s
     proc.terminate()
-    try:
-        proc.wait(timeout=5)
-    except subprocess.TimeoutExpired:
-        proc.kill()
+    _phase_srv_1(proc)
 
 
 def _xrdcp(path, out, timeout=30):

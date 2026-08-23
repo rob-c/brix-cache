@@ -384,24 +384,33 @@ def _assert_wire_parity(srv, send_fn, want_code=None, raw=False):
         f"OUR server did not reject (status={st_o}, stock status={st_f}) (bug)"
 
     if want_code is not None:
-        # Exact-reference op: pin OUR code when OUR returned a coded error.
-        if st_o == kXR_error:
-            assert en_o == want_code, (
-                f"OUR errnum={en_o} != reference {want_code} "
-                f"(stock={en_f}) (bug)")
-        if st_o == kXR_error and st_f == kXR_error and en_f is not None:
-            assert en_f == want_code or en_o == en_f, (
-                f"kXR errnum divergence: our={en_o} stock={en_f} "
-                f"ref={want_code}")
+        _assert_exact_wire_codes(st_o, en_o, st_f, en_f, want_code)
         return
+    _assert_framing_code(st_o, en_o, "OUR")
+    _assert_framing_code(st_f, en_f, "STOCK")
 
-    # Framing reject: both must land in the common reject class (if coded).
-    if st_o == kXR_error and en_o is not None:
-        assert en_o in _REJECT_CLASS, \
-            f"OUR framing-reject code {en_o} not a request-reject code (bug)"
-    if st_f == kXR_error and en_f is not None:
-        assert en_f in _REJECT_CLASS, \
-            f"oracle: STOCK framing-reject code {en_f} unexpected"
+
+def _assert_exact_wire_codes(our_status, our_code, stock_status, stock_code,
+                             expected):
+    if our_status != kXR_error:
+        return
+    assert our_code == expected, (
+        f"OUR errnum={our_code} != reference {expected} (stock={stock_code}) (bug)")
+    _assert_stock_wire_code(stock_status, stock_code, our_code, expected)
+
+
+def _assert_stock_wire_code(status, code, our_code, expected):
+    if status != kXR_error or code is None:
+        return
+    assert code == expected or our_code == code, (
+        f"kXR errnum divergence: our={our_code} stock={code} ref={expected}")
+
+
+def _assert_framing_code(status, code, label):
+    if status != kXR_error or code is None:
+        return
+    assert code in _REJECT_CLASS, (
+        f"{label} framing-reject code {code} not a request-reject code")
 
 
 # --- unknown opcode -> rejected (request-reject class) on both ------------- #

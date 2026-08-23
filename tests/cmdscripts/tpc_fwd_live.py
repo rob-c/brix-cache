@@ -44,6 +44,76 @@ _PORTS = cmdscript_ports("tpc_fwd_live")
 TPC_HOST = SERVER_HOST
 
 
+def _token_root_tpc(harness, bearer_mode):
+    config = ("brix_tpc_allow_local on;\n        brix_tpc_allow_private on;\n"
+              "        brix_tpc_outbound_tls on;")
+    if bearer_mode == "passthrough":
+        return config + "\n        brix_tpc_outbound_passthrough on;"
+    if bearer_mode:
+        return config + f"\n        brix_tpc_outbound_bearer_file {bearer_mode};"
+    return config
+
+
+def _root_destination_blocks(harness, credential, bearer_mode):
+    if credential == "gsi":
+        auth = (f"brix_auth gsi;\n        brix_certificate     {SERVER_CERT};\n"
+                f"        brix_certificate_key {SERVER_KEY};\n"
+                f"        brix_trusted_ca      {CA_CERT};")
+        tpc = ("brix_tpc_allow_local on;\n        brix_tpc_allow_private on;\n"
+               "        brix_tpc_delegate on;\n        brix_gsi_signed_dh require;")
+        return auth, tpc
+    auth = (f"brix_auth token;\n        brix_certificate     {SERVER_CERT};\n"
+            f"        brix_certificate_key {SERVER_KEY};\n"
+            f"        brix_token_jwks      {harness.tok_jwks};\n"
+            f"        brix_token_issuer    {harness.tok_issuer};\n"
+            f"        brix_token_audience  {TOK_AUD};")
+    return auth, _token_root_tpc(harness, bearer_mode)
+
+
+def _copied_file_ok(returned, successes, destination, source):
+    if returned not in successes:
+        return False
+    return destination.is_file() and destination.read_bytes() == source.read_bytes()
+
+
+def _identity_file(user_a, user_b, who):
+    return user_a if who == "A" else user_b
+
+
+def _webdav_copy_command(harness, credential, who, source_url, destination_url):
+    if credential == "token":
+        token = _identity_file(harness.token_a, harness.token_b, who).read_text().strip()
+        return ["curl", "-sk", "-H", f"Authorization: Bearer {token}",
+                "-X", "COPY", destination_url, "-H", "Credential: none",
+                "-H", f"Source: {source_url}",
+                "-H", f"TransferHeaderAuthorization: Bearer {token}",
+                "-w", "%{http_code}", "-o", os.devnull]
+    proxy = _identity_file(harness.proxy_a, harness.proxy_b, who)
+    command = ["curl", "-sk", "--cert", str(proxy), "--key", str(proxy),
+               "-X", "COPY", destination_url, "-H", "Credential: none",
+               "-H", f"Source: {source_url}"]
+    if who == "A":
+        delegated = base64.b64encode(proxy.read_bytes()).decode()
+        command.extend(["-H", f"X-Brix-Delegate-Proxy: {delegated}"])
+    command.extend(["-w", "%{http_code}", "-o", os.devnull])
+    return command
+
+
+def _root_copy_process(harness, credential, who, source_url, destination_url):
+    command = [BRIX_XRDCP, "-f", "--tpc", "delegate", source_url, destination_url]
+    if credential != "gsi":
+        token = _identity_file(harness.token_a, harness.token_b, who)
+        return _call(command, env_add=harness.token_env(token), timeout=90)
+    proxy = _identity_file(harness.proxy_a, harness.proxy_b, who)
+    env = harness.gsi_env(proxy)
+    drop = ()
+    if who == "A":
+        env["XRDC_GSI_DELEGATE"] = "1"
+    else:
+        drop = ("XRDC_GSI_DELEGATE",)
+    return _call(command, env_add=env, env_drop=drop, timeout=90)
+
+
 class TpcResult(NamedTuple):
     copy_ok: bool
     deny_obs: str
@@ -128,24 +198,7 @@ http {{
         for sub in ("export", "logs"):
             (d / sub).mkdir(exist_ok=True)
         log = d / "logs/e.log"
-        if cred == "gsi":
-            auth = (f"brix_auth gsi;\n        brix_certificate     {SERVER_CERT};\n"
-                    f"        brix_certificate_key {SERVER_KEY};\n"
-                    f"        brix_trusted_ca      {CA_CERT};")
-            tpc = ("brix_tpc_allow_local on;\n        brix_tpc_allow_private on;\n"
-                   "        brix_tpc_delegate on;\n        brix_gsi_signed_dh require;")
-        else:
-            auth = (f"brix_auth token;\n        brix_certificate     {SERVER_CERT};\n"
-                    f"        brix_certificate_key {SERVER_KEY};\n"
-                    f"        brix_token_jwks      {self.tok_jwks};\n"
-                    f"        brix_token_issuer    {self.tok_issuer};\n"
-                    f"        brix_token_audience  {TOK_AUD};")
-            tpc = ("brix_tpc_allow_local on;\n        brix_tpc_allow_private on;\n"
-                   "        brix_tpc_outbound_tls on;")
-            if bearer_mode == "passthrough":
-                tpc += "\n        brix_tpc_outbound_passthrough on;"
-            elif bearer_mode:
-                tpc += f"\n        brix_tpc_outbound_bearer_file {bearer_mode};"
+        auth, tpc = _root_destination_blocks(self, cred, bearer_mode)
         conf = self.run.write(d / "nginx.conf", f"""daemon on;
 error_log {log} info;
 pid {d}/nginx.pid;
@@ -236,60 +289,20 @@ http {{
         src_url = f"https://{TPC_HOST}:{sport}/tpcsrc.bin"
         dst_url = f"https://{TPC_HOST}:{dport}/{obj}"
         dexport = self.prefix / "dstdav/export"
-        if cred == "token":
-            jwt = (self.token_a if who == "A" else self.token_b).read_text().strip()
-            argv = ["curl", "-sk", "-H", f"Authorization: Bearer {jwt}",
-                    "-X", "COPY", dst_url,
-                    "-H", "Credential: none", "-H", f"Source: {src_url}",
-                    "-H", f"TransferHeaderAuthorization: Bearer {jwt}",
-                    "-w", "%{http_code}", "-o", os.devnull]
-        else:
-            px = self.proxy_a if who == "A" else self.proxy_b
-            argv = ["curl", "-sk", "--cert", str(px), "--key", str(px),
-                    "-X", "COPY", dst_url,
-                    "-H", "Credential: none", "-H", f"Source: {src_url}"]
-            if who == "A":
-                # userA DELEGATES its own full proxy to the DEST (base64 PEM,
-                # one line; leaf DN bound to the client cert userA
-                # authenticates with).  The DEST presents THAT proxy to the
-                # source → source authenticates userA.
-                deleg_b64 = base64.b64encode(px.read_bytes()).decode()
-                argv += ["-H", f"X-Brix-Delegate-Proxy: {deleg_b64}"]
-            argv += ["-w", "%{http_code}", "-o", os.devnull]
+        argv = _webdav_copy_command(self, cred, who, src_url, dst_url)
         code = _call(argv, timeout=90).stdout.strip()
-        copy_ok = False
-        if code in ("200", "201", "204"):
-            dst = dexport / obj
-            copy_ok = dst.is_file() and dst.read_bytes() == (self.prefix / "tpcsrc.bin").read_bytes()
+        copy_ok = _copied_file_ok(code, ("200", "201", "204"), dexport / obj,
+                                  self.prefix / "tpcsrc.bin")
         return TpcResult(copy_ok, code)
 
     def drive_tpc_root(self, cred: str, sport: int, dport: int, obj: str, who: str) -> TpcResult:
         src_url = f"root://{TPC_HOST}:{sport}//tpcsrc.bin"
         dst_url = f"root://{TPC_HOST}:{dport}//{obj}"
         dexport = self.prefix / "dstroot/export"
-        if cred == "gsi":
-            px = self.proxy_a if who == "A" else self.proxy_b
-            env = self.gsi_env(px)
-            drop: tuple[str, ...] = ()
-            if who == "A":
-                # userA opts into delegation: the client signs the dest's
-                # proxy request and the dest pulls from the source AS userA.
-                env["XRDC_GSI_DELEGATE"] = "1"
-            else:
-                # userB does NOT opt in: XRDC_GSI_DELEGATE MUST be truly UNSET
-                # (not empty — getenv()!=NULL would still enable it).
-                drop = ("XRDC_GSI_DELEGATE",)
-            proc = _call([BRIX_XRDCP, "-f", "--tpc", "delegate", src_url, dst_url],
-                         env_add=env, env_drop=drop, timeout=90)
-        else:
-            env = self.token_env(self.token_a if who == "A" else self.token_b)
-            proc = _call([BRIX_XRDCP, "-f", "--tpc", "delegate", src_url, dst_url],
-                         env_add=env, timeout=90)
+        proc = _root_copy_process(self, cred, who, src_url, dst_url)
         (self.prefix / f"tpc_{who}.err").write_text(proc.stderr or "")
-        copy_ok = False
-        if proc.returncode == 0:
-            dst = dexport / obj
-            copy_ok = dst.is_file() and dst.read_bytes() == (self.prefix / "tpcsrc.bin").read_bytes()
+        copy_ok = _copied_file_ok(proc.returncode, (0,), dexport / obj,
+                                  self.prefix / "tpcsrc.bin")
         return TpcResult(copy_ok, f"rc={proc.returncode}")
 
     # -- assertions -------------------------------------------------------------
@@ -325,39 +338,66 @@ def _grep_last(log: Path, pattern: str) -> str:
 
 def _root_cell_bb(h: TpcHarness, cred: str) -> None:
     key = f"root bb {cred}"
-    if cred == "token" and h.tok_jwks is None:
+    if _root_token_unavailable(h, cred):
         h.record(key, "SKIP", "token authority unavailable")
         return
-    sport, dport = _PORTS[0:2]  # was free_ports(2)
-    bearer_mode = "passthrough" if cred == "token" else ""
-
-    slog = h.spawn_brix_source_root("srcroot", cred, sport)
-    if slog is None:
-        h.record(key, "FAIL", "brix root source start failed")
+    topology = _start_root_bb(h, cred, key)
+    if topology is None:
         return
-    (h.prefix / "srcroot/export/tpcsrc.bin").write_bytes((h.prefix / "tpcsrc.bin").read_bytes())
-    dlog = h.spawn_brix_dest_root("dstroot", cred, dport, bearer_mode)
-    if dlog is None:
-        h.record(key, "FAIL", "brix root dest start failed")
-        return
-
+    sport, dport, slog, dlog = topology
     slog.write_text("")
     pos = h.drive_tpc_root(cred, sport, dport, "posA.bin", "A")
     if not pos.copy_ok:
-        if cred == "token":
-            evidence = _grep_last(dlog, r"ztn|token|tls|3028|auth|passthrough")
-            h.record(key, "FAIL", f"userA passthrough token pull did not complete ({pos.deny_obs}): {evidence}")
-        else:
-            tail = (h.prefix / "tpc_A.err").read_text(errors="replace").splitlines()
-            h.record(key, "FAIL", f"userA delegated GSI pull not byte-exact ({pos.deny_obs}): {tail[-1] if tail else ''}")
+        _record_root_positive_failure(h, key, cred, pos, dlog)
         return
     time.sleep(0.3)
     if not h.assert_source_identity("brix", cred, slog):
-        who = f"userA (sub={A_SUB}) on the forwarded pull leg" if cred == "token" else f"userA (DN={A_CN}) on the pull leg"
-        h.record(key, "FAIL", f"source did not authenticate {who} — check {slog}")
+        _record_root_identity_failure(h, key, cred, slog)
         return
-    # negative: userB (wrong-issuer token / no delegation) → denied, no bytes
     neg = h.drive_tpc_root(cred, sport, dport, "negB.bin", "B")
+    _record_root_negative(h, key, cred, neg)
+
+
+def _root_token_unavailable(harness, credential):
+    return credential == "token" and harness.tok_jwks is None
+
+
+def _start_root_bb(harness, credential, key):
+    sport, dport = _PORTS[0:2]
+    source_log = harness.spawn_brix_source_root("srcroot", credential, sport)
+    if source_log is None:
+        harness.record(key, "FAIL", "brix root source start failed")
+        return None
+    source = harness.prefix / "tpcsrc.bin"
+    (harness.prefix / "srcroot/export/tpcsrc.bin").write_bytes(source.read_bytes())
+    bearer = "passthrough" if credential == "token" else ""
+    destination_log = harness.spawn_brix_dest_root("dstroot", credential, dport, bearer)
+    if destination_log is None:
+        harness.record(key, "FAIL", "brix root dest start failed")
+        return None
+    return sport, dport, source_log, destination_log
+
+
+def _record_root_positive_failure(harness, key, credential, result, destination_log):
+    if credential == "token":
+        evidence = _grep_last(destination_log, r"ztn|token|tls|3028|auth|passthrough")
+        message = f"userA passthrough token pull did not complete ({result.deny_obs}): {evidence}"
+    else:
+        lines = (harness.prefix / "tpc_A.err").read_text(errors="replace").splitlines()
+        tail = lines[-1] if lines else ""
+        message = f"userA delegated GSI pull not byte-exact ({result.deny_obs}): {tail}"
+    harness.record(key, "FAIL", message)
+
+
+def _record_root_identity_failure(harness, key, credential, source_log):
+    if credential == "token":
+        identity = f"userA (sub={A_SUB}) on the forwarded pull leg"
+    else:
+        identity = f"userA (DN={A_CN}) on the pull leg"
+    harness.record(key, "FAIL", f"source did not authenticate {identity} — check {source_log}")
+
+
+def _record_root_negative(h, key, cred, neg):
     if h.assert_tpc_denied(neg, h.prefix / "dstroot/export/negB.bin"):
         if cred == "token":
             h.record(key, "PASS", "source authenticated userA (forwarded inbound bearer, passthrough); userB (wrong-issuer) denied, no bytes")

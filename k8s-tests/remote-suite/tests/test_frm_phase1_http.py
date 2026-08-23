@@ -35,6 +35,19 @@ from settings import NGINX_BIN, HOST, BIND_HOST, free_port
 # hits "bind() to :11217 failed (Address already in use)" and the whole instance
 # fails to start — leaving /metrics unreachable.  Bind OS-assigned free ports
 # instead (overridable via env for debugging).
+def _guard_srv_1():
+    if not os.path.exists(NGINX_BIN):
+        pytest.skip("nginx binary not found")
+
+def _guard_srv_2(d):
+    if not _xattr_ok(str(d)):
+        pytest.skip("filesystem does not support user xattrs")
+
+def _guard_srv_3(chk):
+    if chk.returncode != 0:
+        pytest.skip("nginx rejected config: %s" % chk.stderr.strip()[-300:])
+
+
 STREAM_PORT = int(os.environ.get("TEST_FRM_P1_STREAM") or free_port())
 HTTP_PORT = int(os.environ.get("TEST_FRM_P1_HTTP") or free_port())
 
@@ -45,10 +58,18 @@ from frm_helpers import xattr_ok as _xattr_ok
 def _http(method, path, body=None, headers=None, timeout=5):
     url = "http://%s:%d%s" % (HOST, HTTP_PORT, path)
     req = urllib.request.Request(url, data=body, method=method)
+    _add_headers(req, headers)
+    return _open_http(req, timeout)
+
+
+def _add_headers(request, headers):
     for k, v in (headers or {}).items():
-        req.add_header(k, v)
+        request.add_header(k, v)
+
+
+def _open_http(request, timeout):
     try:
-        with urllib.request.urlopen(req, timeout=timeout) as r:
+        with urllib.request.urlopen(request, timeout=timeout) as r:
             return r.status, dict(r.headers), r.read()
     except urllib.error.HTTPError as e:
         return e.code, dict(e.headers), e.read()
@@ -58,11 +79,9 @@ def _http(method, path, body=None, headers=None, timeout=5):
 
 @pytest.fixture(scope="module")
 def srv(tmp_path_factory):
-    if not os.path.exists(NGINX_BIN):
-        pytest.skip("nginx binary not found")
+    _guard_srv_1()
     d = tmp_path_factory.mktemp("frmp1")
-    if not _xattr_ok(str(d)):
-        pytest.skip("filesystem does not support user xattrs")
+    _guard_srv_2(d)
 
     (d / "logs").mkdir()
     data = d / "data"; data.mkdir()
@@ -120,8 +139,7 @@ master_process off;
 
     chk = subprocess.run([NGINX_BIN, "-t", "-p", str(d), "-c", str(cp)],
                          capture_output=True, text=True)
-    if chk.returncode != 0:
-        pytest.skip("nginx rejected config: %s" % chk.stderr.strip()[-300:])
+    _guard_srv_3(chk)
 
     proc = subprocess.Popen([NGINX_BIN, "-p", str(d), "-c", str(cp)],
                             stdout=subprocess.PIPE, stderr=subprocess.PIPE)

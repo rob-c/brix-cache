@@ -34,6 +34,16 @@
 
 /* ---- pure core (unit-tested; no libfuse, no I/O) ------------------------ */
 
+/*
+ * WHAT: Classify one byte permitted inside a CVMFS repository DNS label.
+ * WHY:  The FQRN walker should express label structure separately from charset.
+ * HOW:  Accept lowercase ASCII letters, decimal digits, and the interior hyphen.
+ */
+static int brixautofs_label_char(char value) {
+    return (value >= 'a' && value <= 'z') ||
+           (value >= '0' && value <= '9') || value == '-';
+}
+
 int brixautofs_valid_fqrn(const char *name) {
     if (name == NULL || name[0] == '\0') return 0;
     size_t len = strlen(name);
@@ -50,8 +60,7 @@ int brixautofs_valid_fqrn(const char *name) {
             lab = 0;
             continue;
         }
-        int ok = (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '-';
-        if (!ok) return 0;                               /* '/', '_', upper, meta… */
+        if (!brixautofs_label_char(c)) return 0;          /* '/', '_', upper, meta… */
         if (lab == 0 && c == '-') return 0;              /* label starts with '-' */
         lab++;
     }

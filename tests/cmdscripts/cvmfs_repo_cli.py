@@ -81,13 +81,28 @@ def run_checks(base: Path) -> list[tuple[bool, str]]:
 
     repo = base / "web" / "cvmfs" / FQRN
     repo.parent.mkdir(parents=True)         # mkfs creates only the leaf dir
+    if not _check_mkfs(repotool, repo, results):
+        return results
+    _check_info_and_resign(repotool, repo, results)
+    _check_tamper_rejections(repotool, repo, results)
+    return results
 
+
+def _check_mkfs(repotool, repo, results):
     mkfs = run([str(repotool), "mkfs", FQRN, str(repo)])
     results.append(result(mkfs.returncode == 0, f"repo mkfs succeeds: {mkfs.stderr.strip()}"))
     for artifact in (".cvmfspublished", ".cvmfswhitelist", ".cvmfsreflog",
                      f"keys/{FQRN}.pub", f"keys/{FQRN}.masterkey", "data"):
         results.append(result((repo / artifact).exists(), f"mkfs emits {artifact}"))
+    return mkfs.returncode == 0
 
+
+def _check_info_and_resign(repotool, repo, results):
+    _check_repo_info(repotool, repo, results)
+    _check_repo_resign(repotool, repo, results)
+
+
+def _check_repo_info(repotool, repo, results):
     info = run([str(repotool), "info", str(repo)])
     results.append(result(info.returncode == 0 and "trust chain ..... OK" in info.stdout,
                           f"repo info verifies the full trust chain: {info.stdout.strip()[-200:]}"))
@@ -97,6 +112,8 @@ def run_checks(base: Path) -> list[tuple[bool, str]]:
     results.append(result(again.returncode != 0 and "already published" in again.stderr,
                           "mkfs over a published repo is refused (fail-closed)"))
 
+
+def _check_repo_resign(repotool, repo, results):
     before = (repo / ".cvmfswhitelist").read_bytes()
     time.sleep(1.1)     # signing is deterministic; expiry/timestamp move per-second
     resign = run([str(repotool), "resign", str(repo)])
@@ -107,7 +124,8 @@ def run_checks(base: Path) -> list[tuple[bool, str]]:
     results.append(result(info2.returncode == 0 and "trust chain ..... OK" in info2.stdout,
                           "trust chain still verifies after resign"))
 
-    # security-negative: one flipped byte in either signed artifact breaks info
+
+def _check_tamper_rejections(repotool, repo, results):
     for artifact in (".cvmfspublished", ".cvmfswhitelist"):
         original = _flip_byte(repo / artifact)
         broken = run([str(repotool), "info", str(repo)])
@@ -124,7 +142,6 @@ def run_checks(base: Path) -> list[tuple[bool, str]]:
 
     healthy = run([str(repotool), "info", str(repo)])
     results.append(result(healthy.returncode == 0, "repo healthy again after restores"))
-    return results
 
 
 def run_check_oracle(base: Path) -> list[tuple[bool, str]]:
@@ -137,12 +154,7 @@ def run_check_oracle(base: Path) -> list[tuple[bool, str]]:
 
     results: list[tuple[bool, str]] = []
     cflags, fuse_libs = _fuse3_flags()          # raises LiveSkip when absent
-
-    for prebuilt in ("shared/xrdproto/build/kxr_names.o",
-                     "shared/xrdproto/build/error_mapping.o"):
-        if not os.path.isfile(os.path.join(REPO_ROOT, prebuilt)):
-            raise LiveSkip(f"prebuilt {prebuilt} not present (build the client first)")
-
+    _require_prebuilt_objects(LiveSkip)
     repotool, err = _build_repotool(base)
     results.append(result(repotool is not None, f"repotool builds standalone {err}"))
     if repotool is None:
@@ -150,28 +162,15 @@ def run_check_oracle(base: Path) -> list[tuple[bool, str]]:
 
     from cmdscripts.brixcvmfs_live import (BRIXCVMFS_APP_SPLIT, BRIXCVMFS_CORE,
                                            CPOOL_STANDALONE_DEPS)
-
-    client = base / "brixcvmfs"
-    built = compile_binary(
-        client,
-        ["-Wall", "-Wextra", "-Werror", "-I", "shared", "-I", "client/lib", "-I", "src",
-         "-DXRDPROTO_NO_NGX", *cflags,
-         "client/apps/fs/brixcvmfs.c", *BRIXCVMFS_APP_SPLIT,
-         *CPOOL_STANDALONE_DEPS, *BRIXCVMFS_CORE,
-         *fuse_libs, "-lcurl", "-lsqlite3", "-lcrypto", "-lz", "-lzstd"],
-        cwd=REPO_ROOT,
+    client, built = _build_oracle_client(
+        base, cflags, fuse_libs, BRIXCVMFS_APP_SPLIT,
+        BRIXCVMFS_CORE, CPOOL_STANDALONE_DEPS,
     )
     results.append(result(built.returncode == 0,
-                          f"brixcvmfs client builds {(built.stderr or '')[-1500:] if built.returncode else ''}"))
+                          f"brixcvmfs client builds {_build_tail(built)}"))
     if built.returncode != 0:
         return results
-
-    web = base / "web"
-    repo = web / "cvmfs" / FQRN
-    repo.parent.mkdir(parents=True)         # mkfs creates only the leaf dir
-    mkfs = run([str(repotool), "mkfs", FQRN, str(repo)])
-    results.append(result(mkfs.returncode == 0, "repo mkfs for the served tree"))
-
+    web, repo = _mint_oracle_repo(base, repotool, results)
     port = cmdscript_ports("cvmfs_repo_cli")[0]
     server = subprocess.Popen(
         [sys.executable, "-m", "http.server", str(port), "--bind", BIND_HOST],
@@ -181,33 +180,71 @@ def run_check_oracle(base: Path) -> list[tuple[bool, str]]:
         if not wait_tcp(BIND_HOST, port, 10):
             results.append(result(False, f"http.server did not listen on {port}"))
             return results
-
-        env = dict(os.environ)
-        env["BRIXCVMFS_SERVER"] = f"http://{SERVER_HOST}:{port}/cvmfs/{FQRN}"
-        env["BRIXCVMFS_PUBKEY"] = str(repo / "keys" / f"{FQRN}.pub")
-        env["BRIXCVMFS_TMP"] = str(base / "tmp")
-        env["BRIXCVMFS_CACHE"] = str(base / "cache")
-        (base / "tmp").mkdir(exist_ok=True)
-        (base / "cache").mkdir(exist_ok=True)
-
-        check = run([str(client), "--check", FQRN], env=env)
-        results.append(result(check.returncode == 0,
-                              f"official read client accepts the minted repo: "
-                              f"{(check.stdout + check.stderr).strip()[-300:]}"))
-
-        # security-negative: a tampered whitelist must fail --check end-to-end
-        original = _flip_byte(repo / ".cvmfswhitelist")
-        broken = run([str(client), "--check", FQRN], env=env)
-        (repo / ".cvmfswhitelist").write_bytes(original)
-        results.append(result(broken.returncode != 0,
-                              "tampered whitelist fails --check (security-negative)"))
+        _exercise_oracle(base, client, repo, port, SERVER_HOST, results)
     finally:
-        server.terminate()
-        try:
-            server.wait(5)
-        except subprocess.TimeoutExpired:
-            server.kill()
+        _stop_server(server)
     return results
+
+
+def _require_prebuilt_objects(skip):
+    objects = ("shared/xrdproto/build/kxr_names.o",
+               "shared/xrdproto/build/error_mapping.o")
+    for prebuilt in objects:
+        if not os.path.isfile(os.path.join(REPO_ROOT, prebuilt)):
+            raise skip(f"prebuilt {prebuilt} not present (build client first)")
+
+
+def _build_oracle_client(base, cflags, fuse_libs, app_split, core, cpool):
+    client = base / "brixcvmfs"
+    built = compile_binary(
+        client,
+        ["-Wall", "-Wextra", "-Werror", "-I", "shared", "-I", "client/lib", "-I", "src",
+         "-DXRDPROTO_NO_NGX", *cflags,
+         "client/apps/fs/brixcvmfs.c", *app_split, *cpool, *core,
+         *fuse_libs, "-lcurl", "-lsqlite3", "-lcrypto", "-lz", "-lzstd"],
+        cwd=REPO_ROOT,
+    )
+    return client, built
+
+
+def _build_tail(built):
+    return (built.stderr or "")[-1500:] if built.returncode else ""
+
+
+def _mint_oracle_repo(base, repotool, results):
+    web = base / "web"
+    repo = web / "cvmfs" / FQRN
+    repo.parent.mkdir(parents=True)         # mkfs creates only the leaf dir
+    mkfs = run([str(repotool), "mkfs", FQRN, str(repo)])
+    results.append(result(mkfs.returncode == 0, "repo mkfs for the served tree"))
+    return web, repo
+
+
+def _exercise_oracle(base, client, repo, port, server_host, results):
+    env = dict(os.environ)
+    env["BRIXCVMFS_SERVER"] = f"http://{server_host}:{port}/cvmfs/{FQRN}"
+    env["BRIXCVMFS_PUBKEY"] = str(repo / "keys" / f"{FQRN}.pub")
+    env["BRIXCVMFS_TMP"] = str(base / "tmp")
+    env["BRIXCVMFS_CACHE"] = str(base / "cache")
+    (base / "tmp").mkdir(exist_ok=True)
+    (base / "cache").mkdir(exist_ok=True)
+    check = run([str(client), "--check", FQRN], env=env)
+    details = (check.stdout + check.stderr).strip()[-300:]
+    results.append(result(check.returncode == 0,
+                          f"read client accepts minted repo: {details}"))
+    original = _flip_byte(repo / ".cvmfswhitelist")
+    broken = run([str(client), "--check", FQRN], env=env)
+    (repo / ".cvmfswhitelist").write_bytes(original)
+    results.append(result(broken.returncode != 0,
+                          "tampered whitelist fails --check"))
+
+
+def _stop_server(server):
+    server.terminate()
+    try:
+        server.wait(5)
+    except subprocess.TimeoutExpired:
+        server.kill()
 
 
 def entry(argv: list[str]) -> int:
@@ -217,9 +254,14 @@ def entry(argv: list[str]) -> int:
     lane = argv[0] if argv else "units"
     with tempfile.TemporaryDirectory(prefix="cvmfs_repo_cli.") as tmp:
         results = lanes[lane](Path(tmp))
-    for ok, message in results:
-        print(f"  {'ok  ' if ok else 'FAIL'} {message}")
+    _print_results(results)
     return 0 if all(ok for ok, _ in results) else 1
+
+
+def _print_results(results):
+    for passed, message in results:
+        label = "ok  " if passed else "FAIL"
+        print(f"  {label} {message}")
 
 
 if __name__ == "__main__":

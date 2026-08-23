@@ -88,38 +88,74 @@ wv_merge_at(brix_wverify_t *w, size_t i)
     w->n--;
 }
 
+/*
+ * WHAT: Validate one write extent and calculate its exclusive upper bound.
+ * WHY:  Invalid updates must consistently degrade the accumulator fail-closed.
+ * HOW:  Check pointers, emptiness, and overflow before forming off + len.
+ */
+static int
+wv_update_bounds(brix_wverify_t *w, const void *buf, off_t off, size_t len,
+    off_t *hi)
+{
+    if (w == NULL || off < 0 || (buf == NULL && len != 0)) {
+        if (w != NULL)
+            w->degraded = 1;
+        return -1;
+    }
+    if (len == 0) {
+        *hi = off;
+        return 1;
+    }
+    if ((off_t) len < 0
+        || off > (off_t) (((uint64_t) 1 << 62)) - (off_t) len)
+    {
+        w->degraded = 1;
+        return -1;
+    }
+    *hi = off + (off_t) len;
+    return 0;
+}
+
+/*
+ * WHAT: Find the sorted insertion point for a non-overlapping write extent.
+ * WHY:  Duplicate or intersecting bytes make the expected checksum ambiguous.
+ * HOW:  Scan by lower bound and reject intersection with either neighbour.
+ */
+static int
+wv_insertion_point(brix_wverify_t *w, off_t off, off_t hi, size_t *position)
+{
+    size_t pos;
+
+    for (pos = 0; pos < w->n && w->ext[pos].lo < off; pos++) {
+        /* scan */
+    }
+    if (pos > 0 && w->ext[pos - 1].hi > off) {
+        w->degraded = 1;
+        return -1;
+    }
+    if (pos < w->n && w->ext[pos].lo < hi) {
+        w->degraded = 1;
+        return -1;
+    }
+    *position = pos;
+    return 0;
+}
+
 int
 brix_wverify_update(brix_wverify_t *w, const void *buf, off_t off, size_t len)
 {
     off_t  hi;
     size_t pos;
+    int    bounds;
 
-    if (w == NULL || off < 0 || (buf == NULL && len != 0)) {
-        if (w != NULL) { w->degraded = 1; }
-        return -1;
-    }
-    if (len == 0) {
-        return 0;
-    }
-    if ((off_t) len < 0 || off > (off_t) (((uint64_t) 1 << 62)) - (off_t) len) {
-        w->degraded = 1;
-        return -1;                          /* off + len would overflow */
-    }
-    hi = off + (off_t) len;
+    bounds = wv_update_bounds(w, buf, off, len, &hi);
+    if (bounds != 0)
+        return bounds < 0 ? -1 : 0;
 
     /* Insertion point: first extent whose lo >= off. Reject any overlap with the
      * neighbours on either side (a fresh write must not restate committed bytes). */
-    for (pos = 0; pos < w->n && w->ext[pos].lo < off; pos++) {
-        /* nothing */
-    }
-    if (pos > 0 && w->ext[pos - 1].hi > off) {
-        w->degraded = 1;
-        return -1;                          /* overlaps the extent to the left  */
-    }
-    if (pos < w->n && w->ext[pos].lo < hi) {
-        w->degraded = 1;
-        return -1;                          /* overlaps the extent to the right */
-    }
+    if (wv_insertion_point(w, off, hi, &pos) != 0)
+        return -1;
 
     if (wv_reserve(w) != 0) {
         w->degraded = 1;

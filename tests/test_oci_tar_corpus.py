@@ -17,6 +17,11 @@ import zlib
 
 import pytest
 
+def _check_tar_ut_1(comp):
+    assert comp.returncode == 0, \
+        "tar unit driver failed to COMPILE:\n%s" % comp.stderr
+
+
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SHARED = os.path.join(REPO, "shared")
 SRC = [os.path.join(SHARED, "oci", f)
@@ -44,8 +49,7 @@ def tar_ut(tmp_path_factory):
         [cc, "-Wall", "-Wextra", "-Werror", "-I", SHARED, "-o", out,
          *SRC, "-lsqlite3", "-lcrypto", "-lz", *_zstd_flags()],
         capture_output=True, text=True)
-    assert comp.returncode == 0, \
-        "tar unit driver failed to COMPILE:\n%s" % comp.stderr
+    _check_tar_ut_1(comp)
     return out
 
 
@@ -177,8 +181,11 @@ def test_system_gnu_tar_when_present(tar_ut, tmp_path):
     assert r.returncode == 0, r.stderr
     got = _entries(_dump(tar_ut, ar).stdout)
     by_path = {e["path"].lstrip("./"): e for e in got}
-    assert by_path["sub/a.txt"]["crc"] == zlib.crc32(b"alpha")
-    assert by_path["sub/s"]["type"] == "SYM"
+    def _assert_test_system_gnu_tar_when_present_1():
+        assert by_path["sub/a.txt"]["crc"] == zlib.crc32(b"alpha")
+        assert by_path["sub/s"]["type"] == "SYM"
+
+    _assert_test_system_gnu_tar_when_present_1()
     # tar stores whichever of h/a.txt it met second as the hardlink
     assert "HLNK" in {by_path["sub/h"]["type"], by_path["sub/a.txt"]["type"]}
 

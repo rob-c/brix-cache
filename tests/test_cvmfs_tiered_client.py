@@ -35,6 +35,29 @@ from pathlib import Path
 
 import pytest
 
+def _check_test_tiered_cold_pack_serves_and_replays_2(corpus, blob):
+    assert len(blob) < corpus, \
+        f"pack ({len(blob)}) must undercut the corpus ({corpus})"
+
+def _check_test_tiered_cold_pack_serves_and_replays_3(proc):
+    assert proc.poll() is None
+
+def _check_test_tiered_cold_pack_serves_and_replays_1(blob, i):
+    assert BODIES[f"t{i}.bin"][:32] not in blob, \
+        f"t{i}.bin must be cold-packed (no plaintext in the log)"
+
+def _check_test_tiered_cold_pack_serves_and_replays_5(proc):
+    assert proc.poll() is None
+
+def _check_test_tiered_cold_pack_serves_and_replays_4(httpd2, rel, name):
+    assert _data_gets(httpd2, rel) == 0, \
+        f"{name} must replay from the tiered pack, not refetch"
+
+def _guard_test_tiered_cold_pack_serves_and_replays_1(origin_up, httpd):
+    if origin_up:
+        _stop_origin(httpd)
+
+
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "cvmfs"))
 
 from conformance_common import BRIXMOUNT, _unmount, _wait_mounted  # noqa: E402, F401
@@ -108,16 +131,14 @@ def test_tiered_cold_pack_serves_and_replays(workdir):
 
             blob = _seg_blob(cache)
             for i in range(4):
-                assert BODIES[f"t{i}.bin"][:32] not in blob, \
-                    f"t{i}.bin must be cold-packed (no plaintext in the log)"
+                _check_test_tiered_cold_pack_serves_and_replays_1(blob, i)
             corpus = sum(len(b) for b in BODIES.values())
-            assert len(blob) < corpus, \
-                f"pack ({len(blob)}) must undercut the corpus ({corpus})"
+            _check_test_tiered_cold_pack_serves_and_replays_2(corpus, blob)
 
             _stop_origin(httpd)
             origin_up = False
             _read_all(mnt, log)              # decompress path serves offline
-            assert proc.poll() is None
+            _check_test_tiered_cold_pack_serves_and_replays_3(proc)
 
         httpd2 = _start_origin(workdir / "web")
         try:
@@ -125,14 +146,12 @@ def test_tiered_cold_pack_serves_and_replays(workdir):
                           cache) as (mnt, proc, log):   # packed, NO tiering
                 _read_all(mnt, log)
                 for name, rel in RELS.items():
-                    assert _data_gets(httpd2, rel) == 0, \
-                        f"{name} must replay from the tiered pack, not refetch"
-                assert proc.poll() is None
+                    _check_test_tiered_cold_pack_serves_and_replays_4(httpd2, rel, name)
+                _check_test_tiered_cold_pack_serves_and_replays_5(proc)
         finally:
             _stop_origin(httpd2)
     finally:
-        if origin_up:
-            _stop_origin(httpd)
+        _guard_test_tiered_cold_pack_serves_and_replays_1(origin_up, httpd)
         forge.close()
 
 

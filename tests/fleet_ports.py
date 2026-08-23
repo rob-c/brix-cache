@@ -80,6 +80,17 @@ from port_ladder import (
 # with ``Address already in use`` — intermittently, only when the race lands.
 # Choose TEST_PORT_START so the complete lane remains below the host's ephemeral
 # floor when possible. ``test_fleet_ports`` lints the active lane.
+def _phase_primary_const_by_spec_1(owned, value_to_const, mapping, spec):
+    for value in owned:
+        for const in value_to_const.get(value, ()):
+            mapping[const] = spec.name
+
+
+def _guard_primary_const_by_spec_1(spec, owned):
+    if spec.port is not None:
+        owned.add(spec.port)
+
+
 def _band(name, offset, width, description):
     return (name, PORT_START + offset + 1, PORT_START + offset + width, description)
 
@@ -239,12 +250,9 @@ def _primary_const_by_spec() -> dict[str, str]:
     mapping: dict[str, str] = {}
     for spec in fleet_specs._all_specs():
         owned = set()
-        if spec.port is not None:
-            owned.add(spec.port)
+        _guard_primary_const_by_spec_1(spec, owned)
         owned.update(v for v in spec.extra_ports.values() if v is not None)
-        for value in owned:
-            for const in value_to_const.get(value, ()):
-                mapping[const] = spec.name
+        _phase_primary_const_by_spec_1(owned, value_to_const, mapping, spec)
     return mapping
 
 

@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import argparse
 import base64
+import functools
 import os
 from pathlib import Path
 import re
@@ -36,6 +37,47 @@ from cmdscripts.live_common import (
 from fleet_ports import cmdscript_ports
 from lib_py.util import wait_tcp
 from settings import BIND_HOST, CA_CERT, CA_DIR, HOST, SERVER_CERT, SERVER_HOST, SERVER_KEY, TEST_ROOT
+
+def _expression_1_next(checks):
+    return (
+        any(not passed for passed, _ in checks)
+    )
+
+
+def _phase_tpc_delegation_nginx_1(src, dst):
+    for d in (src, dst):
+        (d / "root").mkdir()
+        (d / "logs").mkdir()
+
+
+def _expression_1(message, passed):
+    return (
+        print(f"  {'ok  ' if passed else 'FAIL'} {message}")
+    )
+
+def _expression_2(failed):
+    return (
+        print(f"run_tpc_delegation_nginx: {'FAILURES' if failed else 'ALL PASS'}")
+    )
+
+def _expression_3(failed):
+    return (
+        1 if failed else 0
+    )
+
+
+def _guard_tpc_delegation_nginx_1(stock_xrdcp, run_case):
+    if stock_xrdcp.is_file():
+        run_case("official", stock_xrdcp, {}, "out_official.bin", "--tpc", "delegate", "only")
+    else:
+        print("  SKIP official client (/usr/bin/xrdcp absent)")
+
+def _guard_tpc_delegation_nginx_2(our_xrdcp, run_case):
+    if os.access(our_xrdcp, os.X_OK):
+        run_case("repo", our_xrdcp, {"XRDC_GSI_DELEGATE": "1"}, "out_repo.bin", "--tpc", "delegate")
+    else:
+        print("  SKIP repo client (build: make -C client xrdcp)")
+
 
 _PORTS = cmdscript_ports("tpc_fwd_live")
 
@@ -184,6 +226,54 @@ def tpc_fwd_webdav(nginx: Path | None = None) -> int:
 # run_tpc_delegation_nginx.sh — GSI delegated TPC, nginx fileserver both ends
 # ===========================================================================
 
+def _start_delegation_servers(run, servers):
+    from cmdscripts import open_tree_for_worker
+
+    for name, config in servers:
+        inject_nginx_load_modules(config)
+        open_tree_for_worker(run.root, config)
+        proc = _call([run.nginx, "-p", run.root / name, "-c", config],
+                     env_drop=("NGINX",))
+        if proc.returncode:
+            print(f"{name}-fail\n{proc.stderr}")
+            return False
+        run.pidfiles.append(run.root / f"{name}.pid")
+    return True
+
+
+def _delegation_ports_ready(*ports):
+    for port in ports:
+        if not wait_tcp(BIND_HOST, port, 3):
+            print(f"FAIL: port {port} never listened")
+            return False
+    return True
+
+
+def _run_delegation_case(label, xrdcp, env_extra, out, *tpc_args,
+                         base_env, checks, src_log, dst_log, dst, payload,
+                         srcp, dstp):
+    src_log.write_text("")
+    copied = dst / "root" / out
+    copied.unlink(missing_ok=True)
+    proc = _call(
+        [xrdcp, "-f", *tpc_args,
+         f"root://{SERVER_HOST}:{srcp}//f.bin",
+         f"root://{SERVER_HOST}:{dstp}//{out}"],
+        env_add={**base_env, **env_extra}, timeout=120)
+    if proc.returncode != 0 or not copied.is_file() \
+            or copied.read_bytes() != payload.read_bytes():
+        tail = "\n".join((proc.stderr or proc.stdout or "").splitlines()[-6:])
+        checks.append((False, f"{label}: delegated TPC failed (rc={proc.returncode})\n{tail}"))
+        return
+    checks.append((True, f"{label}: nginx source -> nginx dest delegated TPC byte-exact"))
+    src_text = src_log.read_text(errors="replace")
+    pattern = r'GSI auth OK dn=".*CN=12345/CN=[0-9]+/CN=[0-9]+"'
+    checks.append((re.search(pattern, src_text) is not None,
+                   f"{label}: source authenticated the pull as the delegated user"))
+    if "signal 11" in dst_log.read_text(errors="replace"):
+        checks.append((False, f"{label}: dest crashed"))
+
+
 def tpc_delegation_nginx(nginx: Path | None = None) -> int:
     """Port of run_tpc_delegation_nginx.sh (official + repo xrdcp clients)."""
     test_root = Path(os.environ.get("TEST_ROOT", TEST_ROOT))
@@ -208,9 +298,7 @@ def tpc_delegation_nginx(nginx: Path | None = None) -> int:
 
         srcp, dstp = _PORTS[6:8]  # was free_ports(2)
         src, dst = run.mkdir("src"), run.mkdir("dst")
-        for d in (src, dst):
-            (d / "root").mkdir()
-            (d / "logs").mkdir()
+        _phase_tpc_delegation_nginx_1(src, dst)
         payload = src / "root/f.bin"
         payload.write_bytes(os.urandom(400000))
 
@@ -235,66 +323,32 @@ stream {{ server {{ listen {BIND_HOST}:{dstp}; brix_root on; brix_export {dst}/r
         # node never serves, and the delegated TPC pull to it times out. Open
         # the tree for that worker (this launch bypasses
         # ForwardHarness._start_nginx, so the opening is repeated here).
-        from cmdscripts import open_tree_for_worker  # noqa: PLC0415
-        for name, conf in (("src", src_conf), ("dst", dst_conf)):
-            inject_nginx_load_modules(conf)
-            open_tree_for_worker(run.root, conf)
-            proc = _call([run.nginx, "-p", run.root / name, "-c", conf],
-                         env_drop=("NGINX",))
-            if proc.returncode:
-                print(f"{name}-fail\n{proc.stderr}")
-                return 2
-            run.pidfiles.append(run.root / f"{name}.pid")
-        for port in (srcp, dstp):
-            if not wait_tcp(BIND_HOST, port, 3):
-                print(f"FAIL: port {port} never listened")
-                return 2
+        if not _start_delegation_servers(run, (("src", src_conf), ("dst", dst_conf))):
+            return 2
+        if not _delegation_ports_ready(srcp, dstp):
+            return 2
 
         base_env = {"X509_USER_PROXY": str(proxy_std), "X509_CERT_DIR": str(cadir),
                     "XrdSecGSICADIR": str(cadir)}
         checks: list[tuple[bool, str]] = []
         src_log, dst_log = src / "logs/e.log", dst / "logs/e.log"
 
-        def run_case(label: str, xrdcp: Path, env_extra: dict[str, str],
-                     out: str, *tpc_args: str) -> None:
-            src_log.write_text("")
-            (dst / "root" / out).unlink(missing_ok=True)
-            proc = _call([xrdcp, "-f", *tpc_args,
-                          f"root://{SERVER_HOST}:{srcp}//f.bin", f"root://{SERVER_HOST}:{dstp}//{out}"],
-                         env_add={**base_env, **env_extra}, timeout=120)
-            copied = dst / "root" / out
-            if proc.returncode == 0 and copied.is_file() and copied.read_bytes() == payload.read_bytes():
-                checks.append((True, f"{label}: nginx source -> nginx dest delegated TPC byte-exact"))
-            else:
-                tail = "\n".join((proc.stderr or proc.stdout or "").splitlines()[-6:])
-                checks.append((False, f"{label}: delegated TPC failed (rc={proc.returncode})\n{tail}"))
-                return
-            # the destination's pull must authenticate to the source as the
-            # delegated USER — its DN carries an EXTRA proxy layer (two trailing
-            # numeric CNs: the client's own proxy + the dest's delegated proxy).
-            src_text = src_log.read_text(errors="replace")
-            checks.append((re.search(r'GSI auth OK dn=".*CN=12345/CN=[0-9]+/CN=[0-9]+"', src_text) is not None,
-                           f"{label}: source authenticated the pull as the delegated user"))
-            if "signal 11" in dst_log.read_text(errors="replace"):
-                checks.append((False, f"{label}: dest crashed"))
+        run_case = functools.partial(
+            _run_delegation_case, base_env=base_env, checks=checks,
+            src_log=src_log, dst_log=dst_log, dst=dst, payload=payload,
+            srcp=srcp, dstp=dstp)
 
         # stock syntax: `--tpc delegate only`; this repo's xrdcp: `--tpc delegate`.
         stock_xrdcp = Path("/usr/bin/xrdcp")
-        if stock_xrdcp.is_file():
-            run_case("official", stock_xrdcp, {}, "out_official.bin", "--tpc", "delegate", "only")
-        else:
-            print("  SKIP official client (/usr/bin/xrdcp absent)")
+        _guard_tpc_delegation_nginx_1(stock_xrdcp, run_case)
         our_xrdcp = Path(os.environ.get("OUR_XRDCP", BRIX_XRDCP))
-        if os.access(our_xrdcp, os.X_OK):
-            run_case("repo", our_xrdcp, {"XRDC_GSI_DELEGATE": "1"}, "out_repo.bin", "--tpc", "delegate")
-        else:
-            print("  SKIP repo client (build: make -C client xrdcp)")
+        _guard_tpc_delegation_nginx_2(our_xrdcp, run_case)
 
         for passed, message in checks:
-            print(f"  {'ok  ' if passed else 'FAIL'} {message}")
-        failed = any(not passed for passed, _ in checks)
-        print(f"run_tpc_delegation_nginx: {'FAILURES' if failed else 'ALL PASS'}")
-        return 1 if failed else 0
+            _expression_1(message, passed)
+        failed = _expression_1_next(checks)
+        _expression_2(failed)
+        return _expression_3(failed)
 
 
 SCENARIOS = {

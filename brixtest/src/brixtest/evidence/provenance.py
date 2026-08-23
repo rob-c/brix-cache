@@ -75,7 +75,7 @@ def _memory_info() -> dict:
 def environment_contract(names: Iterable[str]) -> dict:
     """Record presence and hashes, never potentially secret values."""
     rows = {}
-    for name in sorted(set(str(item) for item in names)):
+    for name in sorted({str(item) for item in names}):
         value = os.environ.get(name)
         rows[name] = {
             "present": value is not None,
@@ -89,34 +89,44 @@ def capture(
     binaries: Mapping[str, object] = {}, configs: Mapping[str, Path] = {},
     environment_names: Iterable[str] = (), extra: Mapping[str, object] = {},
 ) -> dict:
-    binary_rows = {}
-    for name, item in sorted(binaries.items()):
-        path = getattr(item, "path", item)
-        binary_rows[name] = file_identity(Path(path))
-        libraries = getattr(item, "libraries", ())
-        if libraries:
-            binary_rows[name]["libraries"] = [file_identity(Path(value)) for value in libraries]
+    binary_rows = {name: _binary_identity(item) for name, item in sorted(binaries.items())}
     config_rows = {name: file_identity(Path(path)) for name, path in sorted(configs.items())}
     return {
         "source": source_identity(source_root),
-        "runtime": {
-            "python": platform.python_version(),
-            "implementation": platform.python_implementation(),
-            "platform": platform.platform(),
-            "kernel": platform.release(),
-            "architecture": platform.machine(),
-            "hostname": platform.node(),
-            "backend": backend,
-            "isolation": isolation,
-            "container": Path("/.dockerenv").exists(),
-        },
+        "runtime": _runtime_identity(backend, isolation),
         "hardware": {"cpu": _cpu_info(), "memory": _memory_info()},
-        "tools": {
-            name: shutil.which(name) or ""
-            for name in ("docker", "podman", "runc", "nsenter", "kubectl")
-        },
+        "tools": _tool_identity(),
         "binaries": binary_rows,
         "configs": config_rows,
         "environment": environment_contract(environment_names),
         "extra": json.loads(json.dumps(dict(extra), default=str)),
+    }
+
+
+def _binary_identity(item: object) -> dict:
+    row = file_identity(Path(getattr(item, "path", item)))
+    libraries = getattr(item, "libraries", ())
+    if libraries:
+        row["libraries"] = [file_identity(Path(value)) for value in libraries]
+    return row
+
+
+def _runtime_identity(backend: str, isolation: str) -> dict:
+    return {
+        "python": platform.python_version(),
+        "implementation": platform.python_implementation(),
+        "platform": platform.platform(),
+        "kernel": platform.release(),
+        "architecture": platform.machine(),
+        "hostname": platform.node(),
+        "backend": backend,
+        "isolation": isolation,
+        "container": Path("/.dockerenv").exists(),
+    }
+
+
+def _tool_identity() -> dict:
+    return {
+        name: shutil.which(name) or ""
+        for name in ("docker", "podman", "runc", "nsenter", "kubectl")
     }

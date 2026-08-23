@@ -63,6 +63,12 @@ from settings import DATA_ROOT, NGINX_ANON_PORT, SERVER_HOST
 # Target
 # ---------------------------------------------------------------------------
 
+def _expression_1(hs_st, pr_st):
+    return (
+        hs_st != kXR_ok or pr_st != kXR_ok
+    )
+
+
 ANON_HOST = SERVER_HOST
 ANON_PORT = NGINX_ANON_PORT
 DATA_DIR  = DATA_ROOT
@@ -270,33 +276,39 @@ def _errcode(body: bytes) -> int:
 # Health check — confirm server still serves legitimate requests
 # ---------------------------------------------------------------------------
 
-def server_healthy(host: str = None, port: int = None) -> bool:
+def _health_address(host, port):
     if host is None:
         host = ANON_HOST
     if port is None:
         port = ANON_PORT
+    return host, port
+
+
+def server_healthy(host: str = None, port: int = None) -> bool:
     """
     Connect, complete handshake + login + ping.
     Returns True if every step returns kXR_ok within short timeouts.
     """
+    host, port = _health_address(host, port)
     try:
-        s = _connect(host, port)
-        s.settimeout(4.0)
-        hs_st, pr_st = _handshake_and_protocol(s)
-        if hs_st != kXR_ok or pr_st != kXR_ok:
-            s.close()
-            return False
-        s.sendall(make_login_req())
-        lg_st, _ = _recv_response(s)
-        if lg_st != kXR_ok:
-            s.close()
-            return False
-        s.sendall(make_ping_req())
-        ping_st, _ = _recv_response(s)
-        s.close()
-        return ping_st == kXR_ok
+        with _connect(host, port) as sock:
+            return _health_probe_on_socket(sock)
     except Exception:
         return False
+
+
+def _health_probe_on_socket(s):
+    s.settimeout(4.0)
+    hs_st, pr_st = _handshake_and_protocol(s)
+    if _expression_1(hs_st, pr_st):
+        return False
+    s.sendall(make_login_req())
+    lg_st, _ = _recv_response(s)
+    if lg_st != kXR_ok:
+        return False
+    s.sendall(make_ping_req())
+    ping_st, _ = _recv_response(s)
+    return ping_st == kXR_ok
 
 
 def assert_healthy(host: str = None, port: int = None, retries: int = 3):

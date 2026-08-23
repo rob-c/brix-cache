@@ -78,100 +78,118 @@ def send_resp(s, streamid, status, body=b""):
 
 def handle(conn):
     conn.settimeout(15)
+    if not _handshake(conn):
+        return
+    open_files = {}
+    while True:
+        sid, reqid, body, payload = _request(conn)
+        dlen = len(payload)
+        print(f"req sid={sid} reqid={reqid} dlen={dlen} payload={payload!r}", flush=True)
+        if _dispatch(conn, sid, reqid, body, payload, open_files):
+            break
 
-    # Handshake
+
+def _handshake(conn):
     raw = recv_exact(conn, HANDSHAKE_LEN)
     _, _, _, fourth, fifth = struct.unpack(">iiiii", raw)
     print(f"handshake: fourth={fourth} fifth={fifth}", flush=True)
     if fourth != 4 or fifth != ROOTD_PQ:
         print("bad handshake", flush=True)
-        return
+        return False
     send_hsk(conn)
+    return True
 
-    open_files = {}
 
-    while True:
-        hdr = recv_exact(conn, 24)
-        sid_raw = hdr[0:2]
-        sid     = struct.unpack(">H", sid_raw)[0]
-        reqid   = struct.unpack(">H", hdr[2:4])[0]
-        body    = hdr[4:20]
-        dlen    = struct.unpack(">I", hdr[20:24])[0]
-        payload = recv_exact(conn, dlen) if dlen else b""
-        print(f"req sid={sid} reqid={reqid} dlen={dlen} payload={payload!r}", flush=True)
+def _request(conn):
+    header = recv_exact(conn, 24)
+    sid = struct.unpack(">H", header[0:2])[0]
+    request_id = struct.unpack(">H", header[2:4])[0]
+    body = header[4:20]
+    length = struct.unpack(">I", header[20:24])[0]
+    payload = recv_exact(conn, length) if length else b""
+    return sid, request_id, body, payload
 
-        if reqid == kXR_protocol:
-            pkt = struct.pack(">II", PROTO_VER, 1)  # pval, kXR_isServer
-            send_resp(conn, sid, kXR_ok, pkt)
 
-        elif reqid == kXR_login:
-            send_resp(conn, sid, kXR_ok, SESSION_ID)
+def _dispatch(conn, sid, reqid, body, payload, open_files):
+    if reqid == kXR_protocol:
+        send_resp(conn, sid, kXR_ok, struct.pack(">II", PROTO_VER, 1))
+    elif reqid == kXR_login:
+        send_resp(conn, sid, kXR_ok, SESSION_ID)
+    elif reqid == kXR_ping:
+        send_resp(conn, sid, kXR_ok)
+    elif reqid == kXR_endsess:
+        send_resp(conn, sid, kXR_ok)
+        return True
+    elif reqid == kXR_stat:
+        _handle_stat(conn, sid, payload)
+    elif reqid == kXR_open:
+        _handle_open(conn, sid, payload, open_files)
+    elif reqid == kXR_read:
+        _handle_read(conn, sid, body, open_files)
+    elif reqid == kXR_close:
+        _handle_close(conn, sid, body, open_files)
+    else:
+        _send_error(conn, sid, 3013, b"unsupported\0")
+    return False
 
-        elif reqid == kXR_ping:
-            send_resp(conn, sid, kXR_ok)
 
-        elif reqid == kXR_endsess:
-            send_resp(conn, sid, kXR_ok)
-            break
+def _confined_path(payload):
+    path = payload.rstrip(b"\x00").decode()
+    full = os.path.realpath(os.path.join(ROOT, path.lstrip("/")))
+    return full if full.startswith(os.path.realpath(ROOT)) else None
 
-        elif reqid == kXR_stat:
-            path = payload.rstrip(b"\x00").decode()
-            full = os.path.join(ROOT, path.lstrip("/"))
-            full = os.path.realpath(full)
-            if not full.startswith(os.path.realpath(ROOT)):
-                send_resp(conn, sid, kXR_error,
-                          struct.pack(">I", kXR_NotFound) + b"not found\0")
-                continue
-            try:
-                st = os.stat(full)
-                flags = kXR_readable
-                if stat.S_ISDIR(st.st_mode):
-                    flags |= kXR_isDirectory
-                body_s = f"{st.st_ino} {flags} {st.st_size} {int(st.st_mtime)}\0".encode()
-                send_resp(conn, sid, kXR_ok, body_s)
-            except FileNotFoundError:
-                send_resp(conn, sid, kXR_error,
-                          struct.pack(">I", kXR_NotFound) + b"not found\0")
 
-        elif reqid == kXR_open:
-            path  = payload.rstrip(b"\x00").decode()
-            full  = os.path.join(ROOT, path.lstrip("/"))
-            full  = os.path.realpath(full)
-            if not full.startswith(os.path.realpath(ROOT)):
-                send_resp(conn, sid, kXR_error,
-                          struct.pack(">I", kXR_NotFound) + b"not found\0")
-                continue
-            try:
-                fd = os.open(full, os.O_RDONLY)
-                idx = len(open_files)
-                open_files[idx] = fd
-                fhandle = struct.pack(">I", idx)
-                resp_body = fhandle + struct.pack(">I", 0) + b"\x00" * 4
-                send_resp(conn, sid, kXR_ok, resp_body)
-            except FileNotFoundError:
-                send_resp(conn, sid, kXR_error,
-                          struct.pack(">I", kXR_NotFound) + b"not found\0")
+def _send_error(conn, sid, code, detail):
+    send_resp(conn, sid, kXR_error, struct.pack(">I", code) + detail)
 
-        elif reqid == kXR_read:
-            fh, offset, rlen = struct.unpack(">4sqI", body[:16])
-            idx = struct.unpack(">I", fh)[0]
-            if idx not in open_files:
-                send_resp(conn, sid, kXR_error,
-                          struct.pack(">I", kXR_IOError) + b"bad handle\0")
-                continue
-            os.lseek(open_files[idx], offset, os.SEEK_SET)
-            data = os.read(open_files[idx], min(rlen, 4 * 1024 * 1024))
-            send_resp(conn, sid, kXR_ok, data)
 
-        elif reqid == kXR_close:
-            idx = struct.unpack(">I", body[:4])[0]
-            if idx in open_files:
-                os.close(open_files.pop(idx))
-            send_resp(conn, sid, kXR_ok)
+def _handle_stat(conn, sid, payload):
+    full = _confined_path(payload)
+    if full is None:
+        _send_error(conn, sid, kXR_NotFound, b"not found\0")
+        return
+    try:
+        value = os.stat(full)
+    except FileNotFoundError:
+        _send_error(conn, sid, kXR_NotFound, b"not found\0")
+        return
+    flags = kXR_readable | (kXR_isDirectory if stat.S_ISDIR(value.st_mode) else 0)
+    body = f"{value.st_ino} {flags} {value.st_size} {int(value.st_mtime)}\0".encode()
+    send_resp(conn, sid, kXR_ok, body)
 
-        else:
-            send_resp(conn, sid, kXR_error,
-                      struct.pack(">I", 3013) + b"unsupported\0")
+
+def _handle_open(conn, sid, payload, open_files):
+    full = _confined_path(payload)
+    if full is None:
+        _send_error(conn, sid, kXR_NotFound, b"not found\0")
+        return
+    try:
+        descriptor = os.open(full, os.O_RDONLY)
+    except FileNotFoundError:
+        _send_error(conn, sid, kXR_NotFound, b"not found\0")
+        return
+    index = len(open_files)
+    open_files[index] = descriptor
+    response = struct.pack(">I", index) + struct.pack(">I", 0) + b"\x00" * 4
+    send_resp(conn, sid, kXR_ok, response)
+
+
+def _handle_read(conn, sid, body, open_files):
+    file_handle, offset, requested = struct.unpack(">4sqI", body[:16])
+    index = struct.unpack(">I", file_handle)[0]
+    if index not in open_files:
+        _send_error(conn, sid, kXR_IOError, b"bad handle\0")
+        return
+    os.lseek(open_files[index], offset, os.SEEK_SET)
+    data = os.read(open_files[index], min(requested, 4 * 1024 * 1024))
+    send_resp(conn, sid, kXR_ok, data)
+
+
+def _handle_close(conn, sid, body, open_files):
+    index = struct.unpack(">I", body[:4])[0]
+    if index in open_files:
+        os.close(open_files.pop(index))
+    send_resp(conn, sid, kXR_ok)
 
 
 srv = socket.socket()

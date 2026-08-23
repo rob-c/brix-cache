@@ -156,6 +156,14 @@ def test_trailing_slash_rm_on_file_parity(pair):
         assert not os.path.exists(os.path.join(pair["off_data"], "tsrm.txt"))
 
 
+def _assert_failed_rm_preserves_child(result, data_root):
+    if _ok(result):
+        return
+    child = os.path.join(data_root, "tsrmdir", "child.txt")
+    assert os.path.exists(child), \
+        "DATA LOSS: failed rm '/tsrmdir/' deleted its child file"
+
+
 def test_trailing_slash_rm_dir_as_file_parity(pair):
     """rm '/tsrmdir/' (a NON-EMPTY directory via rm, with a trailing slash) — error
     category parity (rm is for files), AND no partial content deletion: if rm fails
@@ -172,11 +180,8 @@ def test_trailing_slash_rm_dir_as_file_parity(pair):
     assert _ok(o_rc) == _ok(f_rc), \
         f"DIVERGENCE rm '/tsrmdir/': our rc={o_rc} stock rc={f_rc}"
     # If a server refused the rm, it must not have silently deleted the child.
-    if not _ok(o_rc):
-        assert os.path.exists(os.path.join(pair["our_data"], "tsrmdir", "child.txt")), \
-            "DATA LOSS: our server failed rm '/tsrmdir/' but deleted its child file"
-    if not _ok(f_rc):
-        assert os.path.exists(os.path.join(pair["off_data"], "tsrmdir", "child.txt"))
+    _assert_failed_rm_preserves_child(o_rc, pair["our_data"])
+    _assert_failed_rm_preserves_child(f_rc, pair["off_data"])
 
 
 # =========================================================================== #

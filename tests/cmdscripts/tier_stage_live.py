@@ -20,6 +20,47 @@ from cmdscripts.live_common import LiveFailure, LiveRun, REPO_ROOT, random_file,
 from fleet_ports import cmdscript_ports
 from settings import BIND_HOST, HOST
 
+def _phase_stage_async_remote_flush_1(origin, node):
+    for directory, names in ((origin, ("root", "logs")), (node, ("export", "stage", "tmp", "logs"))):
+        for name in names:
+            (directory / name).mkdir(exist_ok=True)
+
+def _phase_stage_async_remote_flush_2(log):
+    for line in _expression_4(log):
+        print(f"    {line}")
+
+
+def _expression_1(log):
+    return (
+        [l for l in log.splitlines() if re.search(r"stage|flush|origin|error|write", l, re.I)][-10:]
+    )
+
+def _expression_2(uploaded, got, flushed, source):
+    return (
+        _checks([
+                    (uploaded, "upload accepted"),
+                    (flushed.exists() and sha256(flushed) == sha256(source),
+                     f"flushed object byte-exact on the backend O (got={flushed.stat().st_size if flushed.exists() else 'missing'})"),
+                    (got == source.read_bytes(), "read-back byte-exact"),
+                ])
+    )
+
+def _expression_3(landed, digest, remote):
+    return (
+        landed is not None and sha256(remote) == digest
+    )
+
+def _expression_4(log):
+    return (
+        [l for l in log.splitlines() if re.search(r"stage|flush|move|xroot|error", l, re.I) and "access_json" not in l][-8:]
+    )
+
+
+def _guard_stage_async_remote_flush_1(node):
+    if (node / "stage/o.bin").exists():
+        print("  ok   object staged on the local posix store")
+
+
 _PORTS = cmdscript_ports("tier_stage_live")
 
 XRDCP = REPO_ROOT / "client/bin/xrdcp"
@@ -122,15 +163,29 @@ stream {{ server {{
         return _checks(checks)
 
 
+def _wait_remote_flush(remote, digest):
+    for second in range(1, 13):
+        time.sleep(1)
+        if remote.exists():
+            return second, sha256(remote) == digest
+    return None, False
+
+
+def _wait_stage_drop(path):
+    for _ in range(30):
+        if not path.exists():
+            return True
+        time.sleep(0.1)
+    return False
+
+
 def stage_async_remote_flush(nginx: Path | None = None) -> int:
     """Async stage-flush mover runs on the thread pool so a flush to a REMOTE
     root:// backend works; the stage copy is dropped on completion."""
     oport, bport = _PORTS[2:4]  # was free_ports(2)
     with LiveRun("saf", nginx) as run:
         origin, node = run.mkdir("o"), run.mkdir("b")
-        for directory, names in ((origin, ("root", "logs")), (node, ("export", "stage", "tmp", "logs"))):
-            for name in names:
-                (directory / name).mkdir(exist_ok=True)
+        _phase_stage_async_remote_flush_1(origin, node)
         run.start_nginx(origin, _origin_config(run, origin, oport, level="error"), oport)
         node_conf = run.write(node / "nginx.conf", f"""daemon on; error_log {node}/logs/e.log info; pid {node}/nginx.pid;
 thread_pool default threads=2;
@@ -149,29 +204,16 @@ http {{ client_body_temp_path {node}/tmp; server {{ listen {BIND_HOST}:{bport};
         status = run.curl_status(f"http://{HOST}:{bport}/o.bin", "-T", str(source))
         # Informational in the shell (`|| true`): the async flush may already
         # have raced the stage copy away by the time we look.
-        if (node / "stage/o.bin").exists():
-            print("  ok   object staged on the local posix store")
+        _guard_stage_async_remote_flush_1(node)
 
-        landed = None
         remote = origin / "root/o.bin"
-        for second in range(1, 13):
-            time.sleep(1)
-            if remote.exists():
-                landed = second
-                break
-        flushed = landed is not None and sha256(remote) == digest
+        landed, flushed = _wait_remote_flush(remote, digest)
         # The drop of the stage copy trails the flush by a moment; give it the
         # same slack the shell's 1s poll granularity implicitly provided.
-        dropped = False
-        for _ in range(30):
-            if not (node / "stage/o.bin").exists():
-                dropped = True
-                break
-            time.sleep(0.1)
+        dropped = _wait_stage_drop(node / "stage/o.bin")
         if not flushed:
             log = (node / "logs/e.log").read_text(errors="replace")
-            for line in [l for l in log.splitlines() if re.search(r"stage|flush|move|xroot|error", l, re.I) and "access_json" not in l][-8:]:
-                print(f"    {line}")
+            _phase_stage_async_remote_flush_2(log)
         return _checks([
             (status == 201, f"PUT 201 (staged locally, flush deferred) — got {status}"),
             (flushed, f"async flush reached the REMOTE backend after ~{landed}s, byte-exact (mover ran off-loop)"),
@@ -210,16 +252,11 @@ stream {{ server {{
         uploaded = run.call([XRDCP, "-f", source, f"root://{HOST}:{bport}//m.bin"], check=False).returncode == 0
         if not uploaded:
             log = (node / "logs/e.log").read_text(errors="replace")
-            for line in [l for l in log.splitlines() if re.search(r"stage|flush|origin|error|write", l, re.I)][-10:]:
+            for line in _expression_1(log):
                 print(f"    {line}")
         flushed = origin / "root/m.bin"
         got = run.call([XRDFS, f"root://{HOST}:{bport}", "cat", "/m.bin"], input=b"", check=False).stdout
-        return _checks([
-            (uploaded, "upload accepted"),
-            (flushed.exists() and sha256(flushed) == sha256(source),
-             f"flushed object byte-exact on the backend O (got={flushed.stat().st_size if flushed.exists() else 'missing'})"),
-            (got == source.read_bytes(), "read-back byte-exact"),
-        ])
+        return _expression_2(uploaded, got, flushed, source)
 
 
 def root_slice_fill(nginx: Path | None = None) -> int:

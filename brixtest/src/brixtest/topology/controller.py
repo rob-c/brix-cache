@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import json
 import multiprocessing
 import os
@@ -21,7 +22,7 @@ def _write(path: Path, payload: object) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_name(".%s.%d" % (path.name, os.getpid()))
     temporary.write_text(json.dumps(payload, indent=2, sort_keys=True, default=str) + "\n")
-    os.replace(str(temporary), str(path))
+    temporary.replace(path)
 
 
 def _iso(epoch: float) -> str:
@@ -30,19 +31,114 @@ def _iso(epoch: float) -> str:
 
 def _health_error(manager) -> str:
     backend = getattr(manager, "_backend", None)
-    if backend is not None:
-        for name in manager._started:
-            process = backend._procs.get(name)
-            if process is not None and process.poll() is not None:
-                return "server %s exited unexpectedly with status %s" % (
-                    name, process.returncode,
-                )
+    local_error = _local_health_error(manager, backend)
+    if local_error:
+        return local_error
     kubernetes = getattr(manager, "_kubernetes", None)
-    if kubernetes is not None:
-        for name, process in kubernetes._forwards.items():
-            if process.poll() is not None:
-                return "server %s Kubernetes port-forward exited unexpectedly" % name
+    return _kubernetes_health_error(kubernetes)
+
+
+def _local_health_error(manager, backend) -> str:
+    if backend is None:
+        return ""
+    for name in manager._started:
+        process = backend._procs.get(name)
+        if process is not None and process.poll() is not None:
+            return "server %s exited unexpectedly with status %s" % (
+                name, process.returncode,
+            )
     return ""
+
+
+def _kubernetes_health_error(kubernetes) -> str:
+    if kubernetes is None:
+        return ""
+    for name, process in kubernetes._forwards.items():
+        if process.poll() is not None:
+            return "server %s Kubernetes port-forward exited unexpectedly" % name
+    return ""
+
+
+def _service_records(plan: PoolPlan, manager, run, started: float) -> dict:
+    observed = {
+        str(row.get("name", "")): row
+        for row in manager.evidence.snapshot().get("servers", [])
+    }
+    return {
+        server.name: _service_record(plan, server, run.server(server.name), observed, started)
+        for server in plan.definition.servers
+    }
+
+
+def _service_record(plan, server, service, observed, started: float) -> dict:
+    metadata = observed.get(server.name, {})
+    return {
+        "instance_id": instance_id(plan.key, server.name), "pool_id": plan.key,
+        "name": server.name, "scope": plan.scope, "host": service.host,
+        "ports": dict(service.ports), "config": str(service.config),
+        "config_filename": metadata.get(
+            "config_filename", service.config_filename or service.config.name,
+        ),
+        "config_sha256": metadata.get("config_sha256", service.config_sha256),
+        "config_source_sha256": metadata.get(
+            "config_source_sha256", service.config_source_sha256,
+        ),
+        "config_declared_sha256": metadata.get(
+            "config_declared_sha256", service.config_declared_sha256,
+        ),
+        "config_artifact": metadata.get("config_artifact", {}),
+        "configs": {name: str(path) for name, path in service.configs.items()},
+        "schemes": dict(service.schemes), "protocols": dict(service.protocols),
+        "metadata": dict(service.metadata), "log": str(service.log),
+        "workdir": str(service.workdir), "started_at": _iso(started),
+        "started_at_epoch": started,
+    }
+
+
+def _monitor(manager, plan: PoolPlan, control: Path, parent_pid: int) -> None:
+    while not (control / "stop").exists():
+        try:
+            os.kill(parent_pid, 0)
+        except OSError:
+            return
+        health_error = _health_error(manager)
+        if health_error:
+            raise CaseRunError("@shared/%s" % plan.key, "monitor", health_error)
+        time.sleep(0.1)
+
+
+def _result_payload(manager, started: float) -> dict:
+    stopped = time.time()
+    return {
+        "outcome": "passed", "started_at": _iso(started), "started_at_epoch": started,
+        "stopped_at": _iso(stopped), "stopped_at_epoch": stopped,
+        "metrics": manager.metrics.snapshot(), "evidence": manager.evidence.snapshot(),
+    }
+
+
+def _failure_payload(manager, exc: BaseException, started: float) -> dict:
+    stopped = time.time()
+    failure = {
+        "outcome": "failed", "error": "%s: %s" % (type(exc).__name__, exc),
+        "traceback": traceback.format_exc(), "started_at": _iso(started),
+        "started_at_epoch": started, "stopped_at": _iso(stopped),
+        "stopped_at_epoch": stopped,
+    }
+    if manager is not None:
+        failure.update({
+            "metrics": manager.metrics.snapshot(), "evidence": manager.evidence.snapshot(),
+        })
+    return failure
+
+
+def _close_failed_manager(manager) -> None:
+    if manager is None:
+        return
+    try:
+        manager.set_outcome("failed")
+        manager.close()
+    except Exception:
+        return
 
 
 def _serve(plan: PoolPlan, root: Path, session_dir: Path, control: Path, parent_pid: int) -> None:
@@ -56,78 +152,15 @@ def _serve(plan: PoolPlan, root: Path, session_dir: Path, control: Path, parent_
         from brixtest.runtime.manager import CaseManager
         manager = CaseManager(plan.definition, "@shared/%s" % plan.key, root=root)
         run = manager.start()
-        observed = {
-            str(row.get("name", "")): row
-            for row in manager.evidence.snapshot().get("servers", [])
-        }
-        services = {}
-        for server in plan.definition.servers:
-            service = run.server(server.name)
-            metadata = observed.get(server.name, {})
-            services[server.name] = {
-                "instance_id": instance_id(plan.key, server.name),
-                "pool_id": plan.key,
-                "name": server.name,
-                "scope": plan.scope,
-                "host": service.host,
-                "ports": dict(service.ports),
-                "config": str(service.config),
-                "config_filename": metadata.get(
-                    "config_filename", service.config_filename or service.config.name
-                ),
-                "config_sha256": metadata.get("config_sha256", service.config_sha256),
-                "config_source_sha256": metadata.get(
-                    "config_source_sha256", service.config_source_sha256
-                ),
-                "config_declared_sha256": metadata.get(
-                    "config_declared_sha256", service.config_declared_sha256
-                ),
-                "config_artifact": metadata.get("config_artifact", {}),
-                "configs": {name: str(path) for name, path in service.configs.items()},
-                "schemes": dict(service.schemes),
-                "protocols": dict(service.protocols),
-                "metadata": dict(service.metadata),
-                "log": str(service.log),
-                "workdir": str(service.workdir),
-                "started_at": _iso(started), "started_at_epoch": started,
-            }
+        services = _service_records(plan, manager, run, started)
         _write(control / "ready.json", {"pool_id": plan.key, "services": services})
-        while not (control / "stop").exists():
-            try:
-                os.kill(parent_pid, 0)
-            except OSError:
-                break
-            health_error = _health_error(manager)
-            if health_error:
-                raise CaseRunError("@shared/%s" % plan.key, "monitor", health_error)
-            time.sleep(0.1)
+        _monitor(manager, plan, control, parent_pid)
         manager.set_outcome("passed")
         manager.close()
-        _write(control / "result.json", {
-            "outcome": "passed", "started_at": _iso(started),
-            "started_at_epoch": started, "stopped_at": _iso(time.time()),
-            "stopped_at_epoch": time.time(),
-            "metrics": manager.metrics.snapshot(), "evidence": manager.evidence.snapshot(),
-        })
+        _write(control / "result.json", _result_payload(manager, started))
     except BaseException as exc:
-        if manager is not None:
-            try:
-                manager.set_outcome("failed")
-                manager.close()
-            except Exception:
-                pass
-        failure = {
-            "outcome": "failed", "error": "%s: %s" % (type(exc).__name__, exc),
-            "traceback": traceback.format_exc(), "started_at": _iso(started),
-            "started_at_epoch": started, "stopped_at": _iso(time.time()),
-            "stopped_at_epoch": time.time(),
-        }
-        if manager is not None:
-            failure.update({
-                "metrics": manager.metrics.snapshot(),
-                "evidence": manager.evidence.snapshot(),
-            })
-        _write(control / "error.json", failure)
+        _close_failed_manager(manager)
+        _write(control / "error.json", _failure_payload(manager, exc, started))
 
 
 class _Pool:
@@ -143,25 +176,39 @@ class _Pool:
     def start(self) -> None:
         if self.process is not None:
             return
-        if pool_key(
-            self.plan.definition, self.plan.scope, self.plan.domain,
-        ) != self.plan.key:
+        self._validate_plan()
+        self.control.mkdir(parents=True, exist_ok=True)
+        context = self._spawn_context()
+        self.process = self._new_process(context)
+        self.process.start()
+        self._await_ready()
+
+    def _validate_plan(self) -> None:
+        actual = pool_key(self.plan.definition, self.plan.scope, self.plan.domain)
+        if actual != self.plan.key:
             raise SpecError(
                 "shared topology", self.plan.key,
                 "a server declaration or config changed after collection",
             )
-        self.control.mkdir(parents=True, exist_ok=True)
+
+    def _spawn_context(self):
         try:
-            context = multiprocessing.get_context("fork")
+            return multiprocessing.get_context("spawn")
         except ValueError as exc:
-            raise SpecError("shared topology", self.plan.key, "requires fork-capable Python") from exc
-        self.process = context.Process(
+            raise SpecError(
+                "shared topology", self.plan.key,
+                "requires a spawn multiprocessing context",
+            ) from exc
+
+    def _new_process(self, context):
+        return context.Process(
             target=_serve,
             args=(self.plan, self.root, self.control.parent.parent.parent,
                   self.control, os.getpid()),
             name="brixtest-shared-%s" % self.plan.key, daemon=True,
         )
-        self.process.start()
+
+    def _await_ready(self) -> None:
         deadline = time.monotonic() + max(30.0, min(300.0, self.plan.definition.timeout))
         ready = self.control / "ready.json"
         error = self.control / "error.json"
@@ -170,12 +217,15 @@ class _Pool:
                 self.manifest = json.loads(ready.read_text())
                 return
             if error.is_file() or not self.process.is_alive():
-                detail = json.loads(error.read_text()) if error.is_file() else {}
-                raise CaseRunError("@shared/%s" % self.plan.key, "setup",
-                                   str(detail.get("traceback", detail.get("error", "supervisor exited"))))
+                raise self._startup_error(error)
             time.sleep(0.05)
         self.stop(force=True)
         raise CaseRunError("@shared/%s" % self.plan.key, "setup", "startup timed out")
+
+    def _startup_error(self, error: Path) -> CaseRunError:
+        detail = json.loads(error.read_text()) if error.is_file() else {}
+        message = detail.get("traceback", detail.get("error", "supervisor exited"))
+        return CaseRunError("@shared/%s" % self.plan.key, "setup", str(message))
 
     def stop(self, *, force: bool = False) -> dict:
         if self.stopped:
@@ -184,6 +234,13 @@ class _Pool:
             self.stopped = True
             return {}
         (self.control / "stop").touch()
+        self._stop_process(force)
+        result = self._read_result()
+        self.result = result
+        self.stopped = True
+        return dict(result)
+
+    def _stop_process(self, force: bool) -> None:
         self.process.join(timeout=0.5 if force else 15.0)
         if self.process.is_alive():
             self.process.terminate()
@@ -191,14 +248,14 @@ class _Pool:
         if self.process.is_alive() and self.process.pid:
             os.kill(self.process.pid, signal.SIGKILL)
             self.process.join(timeout=1.0)
+
+    def _read_result(self) -> dict:
         result_path = self.control / "result.json"
         error_path = self.control / "error.json"
         result = json.loads(result_path.read_text()) if result_path.is_file() else {}
         if error_path.is_file():
             result.update(json.loads(error_path.read_text()))
-        self.result = result
-        self.stopped = True
-        return dict(result)
+        return result
 
     def check(self) -> None:
         error_path = self.control / "error.json"
@@ -218,15 +275,10 @@ class SharedTopology:
         case_session_dir: Optional[Path] = None,
     ) -> None:
         self.session_dir = Path(session_dir)
-        self.case_session_dir = Path(case_session_dir or session_dir)
+        self.case_session_dir = _case_session_path(case_session_dir, session_dir)
         self.pools = {plan.key: _Pool(plan, session_dir) for plan in plans}
-        self._item_keys = {
-            nodeid: tuple(plan.key for plan in plans if nodeid in plan.tests)
-            for plan in plans for nodeid in plan.tests
-        }
-        self._remaining = {
-            plan.key: set(plan.tests) for plan in plans
-        }
+        self._item_keys = _item_pool_keys(plans)
+        self._remaining = _remaining_tests(plans)
         self.closed = False
 
     @classmethod
@@ -283,10 +335,8 @@ class SharedTopology:
         self.closed = True
         completed = set()
         for path in (self.case_session_dir / "cases").glob("*.json"):
-            try:
+            with contextlib.suppress(OSError, ValueError, TypeError):
                 completed.add(str(json.loads(path.read_text()).get("nodeid", "")))
-            except (OSError, ValueError, TypeError):
-                pass
         records = []
         for key, pool in reversed(tuple(self.pools.items())):
             result = pool.stop()
@@ -312,26 +362,55 @@ class SharedTopology:
         return records
 
     def _link_case_records(self, records: Sequence[Mapping[str, object]]) -> None:
-        links = {}
-        for pool in records:
-            services = list(pool.get("services", {}).values())
-            for nodeid in pool.get("tests", []):
-                links.setdefault(str(nodeid), []).extend(services)
+        links = _server_links(records)
         for path in (self.case_session_dir / "cases").glob("*.json"):
-            try:
-                record = json.loads(path.read_text())
-            except (OSError, ValueError, TypeError):
-                continue
-            shared = links.get(str(record.get("nodeid", "")), [])
-            if not shared:
-                continue
-            record["server_instances"] = shared
-            for attempt in record.get("attempts", []):
-                existing = {row.get("instance_id"): row for row in attempt.get("servers", [])}
-                for row in shared:
-                    existing[row.get("instance_id")] = row
-                attempt["servers"] = list(existing.values())
-            _write(path, record)
+            _link_case_path(path, links)
+
+
+def _case_session_path(selected: Optional[Path], fallback: Path) -> Path:
+    return Path(fallback) if selected is None else Path(selected)
+
+
+def _item_pool_keys(plans: Sequence[PoolPlan]) -> dict[str, tuple[str, ...]]:
+    nodeids = {nodeid for plan in plans for nodeid in plan.tests}
+    return {
+        nodeid: tuple(plan.key for plan in plans if nodeid in plan.tests)
+        for nodeid in nodeids
+    }
+
+
+def _remaining_tests(plans: Sequence[PoolPlan]) -> dict[str, set[str]]:
+    return {plan.key: set(plan.tests) for plan in plans}
+
+
+def _server_links(records: Sequence[Mapping[str, object]]) -> dict[str, list]:
+    links = {}
+    for pool in records:
+        services = list(pool.get("services", {}).values())
+        for nodeid in pool.get("tests", []):
+            links.setdefault(str(nodeid), []).extend(services)
+    return links
+
+
+def _link_case_path(path: Path, links: Mapping[str, list]) -> None:
+    try:
+        record = json.loads(path.read_text())
+    except (OSError, ValueError, TypeError):
+        return
+    shared = links.get(str(record.get("nodeid", "")), [])
+    if not shared:
+        return
+    record["server_instances"] = shared
+    for attempt in record.get("attempts", []):
+        _merge_attempt_servers(attempt, shared)
+    _write(path, record)
+
+
+def _merge_attempt_servers(attempt: dict, shared: Sequence[object]) -> None:
+    existing = {row.get("instance_id"): row for row in attempt.get("servers", [])}
+    for row in shared:
+        existing[row.get("instance_id")] = row
+    attempt["servers"] = list(existing.values())
 
 
 def merge_worker_topologies(session_dir: Path) -> list[dict]:
@@ -340,18 +419,29 @@ def merge_worker_topologies(session_dir: Path) -> list[dict]:
     paths = [root / "topology.json", *sorted((root / "workers").glob("*/topology.json"))]
     pools = []
     for path in paths:
-        try:
-            payload = json.loads(path.read_text())
-        except (OSError, ValueError, TypeError):
-            continue
-        if isinstance(payload, dict) and isinstance(payload.get("pools"), list):
-            pools.extend(payload["pools"])
-    unique = {
-        str(row.get("pool_id", "")): row for row in pools
-        if isinstance(row, dict) and row.get("pool_id")
-    }
+        pools.extend(_topology_pools(path))
+    unique = _unique_pools(pools)
     merged = [unique[key] for key in sorted(unique)]
     _write(root / "topology.json", {
         "generated_at": _iso(time.time()), "pools": merged,
     })
     return merged
+
+
+def _topology_pools(path: Path) -> list:
+    try:
+        payload = json.loads(path.read_text())
+    except (OSError, ValueError, TypeError):
+        return []
+    if not isinstance(payload, dict):
+        return []
+    pools = payload.get("pools")
+    return pools if isinstance(pools, list) else []
+
+
+def _unique_pools(pools: Sequence[object]) -> dict[str, dict]:
+    return {
+        str(row["pool_id"]): row
+        for row in pools
+        if isinstance(row, dict) and row.get("pool_id")
+    }

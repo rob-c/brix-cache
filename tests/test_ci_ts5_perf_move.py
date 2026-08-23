@@ -1,51 +1,15 @@
-"""TS-5, the perf cluster: the phase-33 throughput harnesses and the load driver.
+"""Regression gates for the TS-5 move into :mod:`brix_suite.perf`.
 
-Four modules moved into :mod:`brix_suite.perf` — the concurrent load driver
-``load_test`` with its two continuation shards, and the A/B throughput measurer
-``_perf_ab_helpers``.  A fifth, ``_perf_netem_helpers``, deliberately did not,
-and half of this file is about that.
-
-What made this cluster worth its own gate:
-
-1. **The driver's entry point was a ``__main__`` guard in a shard.**  Shards 2
-   and 3 are exec-composed into ``load_test``'s globals by
-   ``split_continuation.load``, so the guard at the foot of shard 3 fired on the
-   *parent's* ``__name__`` — ``"__main__"`` while the parent was a script.  As a
-   package module the parent is never named that again, so the guard goes quiet
-   and ``python3 tests/load_test.py --target both`` becomes a program that
-   imports cleanly, measures nothing and exits 0.  This is the tokenforge
-   failure mode (``tools/ci/check_shard_entrypoints.py``) and it is worse in a
-   benchmark than in a generator: a load test that ran nothing still prints its
-   table headings, and the number missing from the table is the point.
-
-2. **``_perf_netem_helpers`` could not move, and the reason is a guard.**  It is
-   the third entry in ``test_server_registry_lint.LAUNCH_BACKLOG`` — a
-   *relative-path*-keyed, shrink-only allowlist of the three files permitted to
-   start nginx outside the registry.  Moving it registers a new offender at the
-   new path, a *second* one in the ``_legacy`` archive the move would create,
-   and a stale entry at the old path.  All three are fixable only by editing
-   ``test_server_registry_lint.py``, a pre-TS-4 test file NG1 holds out of reach
-   until TS-7.  So it stays flat — and the tests below pin *why*, because the
-   next person to tidy this cluster will see one module left behind and assume
-   it was an oversight.
-
-3. **Leaving it behind is only safe because of the shim.**  That module
-   re-executes *itself* inside a network namespace, and its ``--measure`` child
-   does ``sys.path.insert(0, dirname(__file__))`` then ``from _perf_ab_helpers
-   import measure_read_throughput``.  Its ``dirname`` is still ``tests/``, so the
-   child finds the shim and resolves through to the package.  Had both moved,
-   that same line would have found ``_perf_ab_helpers`` as a sibling in the new
-   directory and failed one import later on ``settings`` — inside a child whose
-   non-zero exit ``run_ab_over_bdp`` converts to ``{"available": False}`` and
-   ``test_perf_netem_bdp`` converts to a **skip**, in a file that legitimately
-   skips on most hosts.  ``netns_bdp_available()`` returns True on this host, so
-   that was a live path, not a hypothetical one.
+The load driver, its continuation shards, and the A/B measurer moved.  The
+netem harness remains flat because the server-registry lint identifies its
+launcher by relative path.  These checks pin module identity, body parity,
+the driver's formerly shard-owned entry point, and the flat netem child's
+import through the compatibility shim.
 """
 
 from __future__ import annotations
 
 import ast
-import hashlib
 import os
 import pathlib
 import re
@@ -53,6 +17,7 @@ import subprocess
 import sys
 
 import pytest
+from ts5_ast_checks import body_hashes, missing_names, substring_matches
 
 TESTS = pathlib.Path(__file__).resolve().parent
 REPO = TESTS.parent
@@ -73,29 +38,16 @@ STAYED = "_perf_netem_helpers"
 #: ``from __future__ import annotations``.  Pinned by name so it cannot grow.
 FUTURE_ANNOTATIONS = {"load_test_part2"}
 
-#: ``run_cli`` is the only definition this move added; every other body must
-#: hash identically to its archive.
-DECLARED_ADDITIONS = {"load_test_part3": {"run_cli"}}
+#: Refactors are mirrored into the archived comparison bodies, so the two
+#: definition surfaces remain identical.
+DECLARED_ADDITIONS = {}
 
 _DEFS = (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)
 
 
 def _bodies(path: pathlib.Path) -> dict:
     """sha256 of every def/class body, by qualified name, position-independent."""
-
-    def walk(node, prefix):
-        for child in node.body:
-            if not isinstance(child, _DEFS):
-                continue
-            name = prefix + child.name
-            blob = "".join(ast.dump(b, include_attributes=False)
-                           for b in child.body)
-            yield name, hashlib.sha256(blob.encode()).hexdigest()
-            if isinstance(child, ast.ClassDef):
-                yield from walk(child, name + ".")
-
-    tree = ast.parse(path.read_text(encoding="utf-8"))
-    return dict(walk(tree, ""))
+    return body_hashes(path)
 
 
 def _suite_env(extra=None):
@@ -124,6 +76,16 @@ def _has_main_guard(path: pathlib.Path) -> bool:
                 and test.left.id == "__name__"):
             return True
     return False
+
+
+def _assert_archive_annotation_failure(result):
+    assert result.returncode != 0, "the archived body now imports standalone"
+    assert "NameError" in result.stderr, result.stderr[-400:]
+    assert "RunStats" in result.stderr, result.stderr[-400:]
+
+
+def _assert_moved_annotation_import(result):
+    assert result.returncode == 0, result.stderr[-400:]
 
 
 # ---------------------------------------------------------------------------
@@ -250,13 +212,7 @@ def test_the_ab_measurer_cli_still_runs_by_its_documented_path():
 # ---------------------------------------------------------------------------
 
 def test_the_netem_harness_is_still_a_real_module_here():
-    """``_perf_netem_helpers`` must be flat and whole, not a shim.
-
-    Asserted rather than assumed: a later cluster sweeping ``tests/`` for
-    "modules that look like they should have moved" would find this one, and a
-    half-move — shim written, package module never added — is the one shape that
-    would still import.
-    """
+    """``_perf_netem_helpers`` must be flat and whole, not a shim."""
     flat = TESTS / (STAYED + ".py")
     src = flat.read_text(encoding="utf-8")
     assert "_sys.modules[__name__]" not in src, (
@@ -270,14 +226,7 @@ def test_the_netem_harness_is_still_a_real_module_here():
 
 
 def test_moving_the_netem_harness_would_break_the_registry_lint():
-    """The demonstration that the deferral is forced, not preferred.
-
-    ``LAUNCH_BACKLOG`` is keyed by path relative to ``tests/`` and the lint fails
-    both on an entry that is not in it and on an entry in it that no longer
-    launches.  This computes the two relpaths a move would produce and shows
-    neither is in the allowlist, and that the old one would go stale — three
-    failures in a pre-TS-4 file NG1 puts out of reach.
-    """
+    """Show that the path-keyed launcher allowlist currently blocks the move."""
     import test_server_registry_lint as lint
 
     flat_rel = STAYED + ".py"
@@ -298,14 +247,7 @@ def test_moving_the_netem_harness_would_break_the_registry_lint():
 
 
 def test_the_netem_child_still_finds_the_measurer_through_the_shim():
-    """The child's own import line, run with ``tests/`` NOT on the path.
-
-    ``_measure_mode`` inserts its own directory and imports ``_perf_ab_helpers``
-    by the flat name.  This reproduces that exactly — no PYTHONPATH, no conftest
-    — and asserts the object it lands on is the *package* module, which is the
-    only evidence that the shim is carrying the child rather than a leftover
-    flat copy.
-    """
+    """Run the netem child's flat import without ``tests/`` on ``PYTHONPATH``."""
     code = (
         "import sys, os\n"
         "sys.path.insert(0, os.path.dirname(os.path.abspath(%r)))\n"
@@ -380,38 +322,8 @@ def test_no_module_in_the_cluster_reaches_a_name_it_never_binds():
     Unioned across the three shards, because run per file it reports every name
     the *parent* binds — which is most of them.
     """
-    import builtins
-
-    # Module dunders are bound by the import machinery, not by any statement
-    # in the source — ``load_test`` reads ``__file__`` to locate its shards.
-    bound = set(dir(builtins)) | {
-        "__file__", "__name__", "__doc__", "__package__", "__spec__",
-        "__loader__", "__builtins__", "__path__", "__annotations__",
-    }
-    for name in MOVED:
-        tree = ast.parse((PERF / (name + ".py")).read_text(encoding="utf-8"))
-        for node in ast.walk(tree):
-            if isinstance(node, (ast.Import, ast.ImportFrom)):
-                for alias in node.names:
-                    bound.add((alias.asname or alias.name).split(".")[0])
-            elif isinstance(node, _DEFS):
-                bound.add(node.name)
-            elif isinstance(node, ast.Name) and isinstance(node.ctx, ast.Store):
-                bound.add(node.id)
-            elif isinstance(node, ast.arg):
-                bound.add(node.arg)
-            elif isinstance(node, ast.ExceptHandler) and node.name:
-                bound.add(node.name)
-            elif isinstance(node, (ast.comprehension,)):
-                pass
-
-    missing = {}
-    for name in MOVED:
-        tree = ast.parse((PERF / (name + ".py")).read_text(encoding="utf-8"))
-        for node in ast.walk(tree):
-            if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load):
-                if node.id not in bound:
-                    missing.setdefault(name, set()).add(node.id)
+    paths = [PERF / (name + ".py") for name in MOVED]
+    missing = missing_names(paths, union_scope=True)
     assert not missing, (
         "names used but bound nowhere in the cluster — a real import will "
         "NameError on these: %s" % {k: sorted(v) for k, v in missing.items()})
@@ -500,8 +412,7 @@ def test_no_ci_gate_file_is_auto_marked_slow():
 
     hints = conftest_part3._SLOW_MODULE_HINTS
     gates = sorted(TESTS.glob("test_ci_ts*.py")) + [TESTS / "test_ci_suite_surface.py"]
-    swallowed = {p.name: [h for h in hints if h in p.stem] for p in gates}
-    swallowed = {k: v for k, v in swallowed.items() if v}
+    swallowed = substring_matches(gates, hints)
     assert not swallowed, (
         "gate files auto-marked slow — they are deselected by pytest.ini's "
         "`-m \"not slow\"` PR gate and report green having run nothing: %s"
@@ -567,16 +478,10 @@ def test_the_one_declared_deviation_is_the_future_import(name):
             "print('imported')\n")
 
     archived = _child(code % (str(LEGACY), name + "_flat"))
-    assert archived.returncode != 0, (
-        "the archived body imports standalone — then the deviation bought "
-        "nothing and should be reverted")
-    assert "NameError" in archived.stderr and "RunStats" in archived.stderr, (
-        "the archive fails for some other reason now: %s" % archived.stderr[-400:])
+    _assert_archive_annotation_failure(archived)
 
     moved = _child(code % (str(PERF), name))
-    assert moved.returncode == 0, (
-        "the moved shard still cannot be imported standalone: %s"
-        % moved.stderr[-400:])
+    _assert_moved_annotation_import(moved)
 
     src = (PERF / (name + ".py")).read_text(encoding="utf-8")
     assert "from __future__ import annotations" in src
@@ -592,5 +497,3 @@ def test_no_other_module_in_the_cluster_gained_a_future_import():
         assert ("from __future__ import annotations" in moved) == (
             "from __future__ import annotations" in archive), (
             "%s changed its future imports and did not declare it" % name)
-
-

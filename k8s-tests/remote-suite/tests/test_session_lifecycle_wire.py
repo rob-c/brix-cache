@@ -58,6 +58,17 @@ from settings import (
 #   error codes     : /tmp/brix-src/src/XProtocol/XProtocol.hh (XErrorCode)
 # ---------------------------------------------------------------------------
 
+def _check_test_bind_with_primary_sessid_3(secondary):
+    assert _ping(secondary)[1] == kXR_ok
+
+def _check_test_bind_with_primary_sessid_1(body):
+    assert len(body) >= 1, "successful bind must carry a pathid byte"
+
+def _check_test_bind_with_primary_sessid_2(pathid):
+    assert 1 <= pathid <= 253, (
+        f"bind pathid {pathid} outside reserved range 1..253")
+
+
 kXR_auth     = 3000
 kXR_query    = 3001
 kXR_chmod    = 3002
@@ -493,15 +504,17 @@ class TestBindOpcode:
                 # (src/protocols/root/session/bind.c brix_next_pathid).  Body byte 0 is the
                 # pathid (it follows the 8-byte response header stripped by
                 # _read_response).
-                assert len(body) >= 1, "successful bind must carry a pathid byte"
+                _check_test_bind_with_primary_sessid_1(body)
                 pathid = body[0]
-                assert 1 <= pathid <= 253, (
-                    f"bind pathid {pathid} outside reserved range 1..253")
+                _check_test_bind_with_primary_sessid_2(pathid)
             else:
-                assert status == kXR_error
-                assert _error_code(body) == kXR_NotAuthorized
+                def _assert_test_bind_with_primary_sessid_1():
+                    assert status == kXR_error
+                    assert _error_code(body) == kXR_NotAuthorized
+
+                _assert_test_bind_with_primary_sessid_1()
             # Either way the secondary connection is intact.
-            assert _ping(secondary)[1] == kXR_ok
+            _check_test_bind_with_primary_sessid_3(secondary)
         finally:
             secondary.close()
 
@@ -522,11 +535,17 @@ class TestBindOpcode:
         try:
             _, status, body = _bind(secondary, sessid=sessid)
             if status != kXR_ok:
-                assert status == kXR_error
-                assert _error_code(body) == kXR_NotAuthorized
+                def _assert_test_bound_pathid_zero_reserved_3():
+                    assert status == kXR_error
+                    assert _error_code(body) == kXR_NotAuthorized
+
+                _assert_test_bound_pathid_zero_reserved_3()
                 return
-            assert len(body) >= 1
-            assert body[0] != 0, "pathid 0 is reserved for the primary"
+            def _assert_test_bound_pathid_zero_reserved_2():
+                assert len(body) >= 1
+                assert body[0] != 0, "pathid 0 is reserved for the primary"
+
+            _assert_test_bound_pathid_zero_reserved_2()
         finally:
             secondary.close()
 

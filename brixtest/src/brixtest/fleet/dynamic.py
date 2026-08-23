@@ -1,13 +1,12 @@
-"""Dynamic per-test servers (feature F24).
+"""Dynamic, test-scoped server instances.
 
-A test that needs a server with *its own* config no longer builds one
-by hand: it asks the fleet — ``fleet.request_server(kind="nginx",
+A test can request a server using ``fleet.request_server(kind="nginx",
 config_template=..., config_values=...)`` — and gets back a
 ``ServerEndpoint`` on a freshly allocated port.  The framework does
 the launching, the readiness proof, the watching (the resource watch
 samples dynamic pids exactly like static ones), and the teardown.
 
-Design boundaries, deliberately:
+Design boundaries:
 
 * The dynamic fleet owns a **separate, never-frozen** ``Registry`` and
   its own ``LocalBackend`` over the same lane.  The session registry
@@ -19,9 +18,9 @@ Design boundaries, deliberately:
   something is already listening on; exhaustion is a typed error, not
   a bind failure.
 * Names are generated (``dyn-<test-stem>-<n>``), counter-unique, and
-  **never reused** within a session — the same rule workspaces follow —
+  never reused within a session, so
   so a log line or a sample row always names one launch, ever.
-* Test-scoped release is a quiescence *proof*: after stopping, the
+* Test-scoped release verifies quiescence: after stopping, the
   released ports must be silent, and a survivor is named with its pid.
 """
 
@@ -32,13 +31,13 @@ import socket
 from typing import Dict, List, Mapping, Optional, Sequence, Tuple
 
 from brixtest.config.lanes import Lane
-from brixtest.errors import PortExhaustedError, QuiescenceError, SpecError, StartError
 from brixtest.deploy.local import LocalBackend
+from brixtest.errors import PortExhaustedError, QuiescenceError, SpecError, StartError
 from brixtest.events import emit
 from brixtest.fleet.registry import InstanceSpec, Registry, ServerEndpoint
 from brixtest.util.net import listening_ports, pids_on_port
 
-__all__ = ["DynamicFleet", "DEFAULT_DYNAMIC_OFFSET"]
+__all__ = ["DEFAULT_DYNAMIC_OFFSET", "DynamicFleet"]
 
 DEFAULT_DYNAMIC_OFFSET = 700
 _SCOPES = ("test", "session")
@@ -99,8 +98,6 @@ class DynamicFleet:
         self._current_test = ""
         self._counter = 0
 
-    # -- addressing ------------------------------------------------------
-
     def note_test(self, nodeid: str) -> None:
         self._current_test = nodeid
 
@@ -118,8 +115,6 @@ class DynamicFleet:
         procs = self.backend.process_pids()
         return {name: pid for name, pid in procs.items() if name in self._live}
 
-    # -- ports -----------------------------------------------------------
-
     def _next_port(self) -> int:
         busy = listening_ports(range(self.block_start, self.block_end))
         span = self.block_end - self.block_start
@@ -131,13 +126,11 @@ class DynamicFleet:
             if candidate in self._allocated or candidate in busy:
                 continue
             if not _bindable(candidate):
-                continue    # held by a non-LISTEN socket the scan can't see
+                continue
             return candidate
         raise PortExhaustedError(
             self.block_start, self.block_end - 1, len(self._allocated)
         )
-
-    # -- request / release -----------------------------------------------
 
     def request(
         self,
@@ -156,43 +149,50 @@ class DynamicFleet:
             raise SpecError("scope", scope, "must be one of %s" % (_SCOPES,))
         last_error: Optional[StartError] = None
         for _ in range(_START_ATTEMPTS):
-            self._counter += 1
-            name = "dyn-%s-%d" % (_stem(self._current_test), self._counter)
-            ports = {role: self._next_port() for role in port_roles}
-            spec = InstanceSpec(
-                name=name,
-                kind=kind,
-                ports=ports,
-                config_template=config_template,
-                config_values=config_values or {},
-                command=command,
-                env=env or {},
-                readiness=readiness,
-                readiness_timeout=readiness_timeout,
+            spec = self._dynamic_spec(
+                kind, config_template=config_template, config_values=config_values,
+                command=command, env=env, readiness=readiness,
+                readiness_timeout=readiness_timeout, port_roles=port_roles,
             )
-            self.registry.register(spec)
-            for port in ports.values():
-                self._allocated[port] = name
-            try:
-                endpoint = self.backend.start(spec)
-            except StartError as exc:
-                self._forget(name)      # failed launch releases its ports
-                stolen = [p for p in ports.values() if not _bindable(p)]
-                if not stolen:
-                    raise               # the command failed; the port is fine
-                # an outbound socket landed on our port between allocation
-                # and the child's bind — provably not the command's fault:
-                # renumber and relaunch (names are never reused, so the
-                # failed launch keeps its own identity in logs and events)
-                emit("dynamic.port_stolen", name=name, ports=stolen)
-                last_error = exc
-                continue
-            except Exception:
-                self._forget(name)
-                raise
-            self._live[name] = scope
-            return endpoint
+            endpoint, last_error = self._start_candidate(spec, scope)
+            if endpoint is not None:
+                return endpoint
         raise last_error
+
+    def _dynamic_spec(self, kind: str, **values: object) -> InstanceSpec:
+        self._counter += 1
+        name = "dyn-%s-%d" % (_stem(self._current_test), self._counter)
+        roles = values.pop("port_roles")
+        ports = {role: self._next_port() for role in roles}
+        return InstanceSpec(
+            name=name, kind=kind, ports=ports,
+            config_template=values["config_template"],
+            config_values=values["config_values"] or {}, command=values["command"],
+            env=values["env"] or {}, readiness=values["readiness"],
+            readiness_timeout=values["readiness_timeout"],
+        )
+
+    def _start_candidate(self, spec: InstanceSpec, scope: str):
+        self.registry.register(spec)
+        for port in spec.ports.values():
+            self._allocated[port] = spec.name
+        try:
+            endpoint = self.backend.start(spec)
+        except StartError as exc:
+            return self._failed_start(spec, exc)
+        except Exception:
+            self._forget(spec.name)
+            raise
+        self._live[spec.name] = scope
+        return endpoint, None
+
+    def _failed_start(self, spec: InstanceSpec, error: StartError):
+        self._forget(spec.name)
+        stolen = [port for port in spec.ports.values() if not _bindable(port)]
+        if not stolen:
+            raise error
+        emit("dynamic.port_stolen", name=spec.name, ports=stolen)
+        return None, error
 
     def _forget(self, name: str) -> None:
         self._live.pop(name, None)
@@ -200,19 +200,22 @@ class DynamicFleet:
             del self._allocated[port]
 
     def _release(self, names: Sequence[str]) -> None:
-        released_ports: List[Tuple[str, int]] = []
-        for name in names:
-            spec = self.registry.get_spec(name)
-            released_ports.extend((name, port) for port in spec.ports.values())
-            self.backend.stop(name)
-            self._forget(name)
         survivors = [
             (name, port, min(pids_on_port(port) or {0}))
-            for name, port in released_ports
+            for name, port in self._release_names(names)
             if listening_ports([port])
         ]
         if survivors:
             raise QuiescenceError(survivors)
+
+    def _release_names(self, names: Sequence[str]) -> List[Tuple[str, int]]:
+        released: List[Tuple[str, int]] = []
+        for name in names:
+            spec = self.registry.get_spec(name)
+            released.extend((name, port) for port in spec.ports.values())
+            self.backend.stop(name)
+            self._forget(name)
+        return released
 
     def release_test_scope(self) -> None:
         self._release(self.names("test"))

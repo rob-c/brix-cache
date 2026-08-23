@@ -1,6 +1,28 @@
 from split_continuation import reexport as _reexport
 _reexport(globals(), "_test_conf_write_helpers")
 
+
+def _write_contiguous_chunks(session, handle, chunks, who, chunk_size):
+    offset = 0
+    for content in chunks:
+        status, body = _write(session, handle, offset, content)
+        assert status == kXR_ok, (
+            f"{who} seq write @{offset} (cs={chunk_size}) failed: err={_err(body)}")
+        offset += len(content)
+
+
+def _assert_expected_file(got, expected, who, detail):
+    assert len(got) == len(expected), (
+        f"{who} size {len(got)} != {len(expected)} ({detail})")
+    assert md5(got) == md5(expected), f"{who} content mismatch ({detail})"
+
+
+def _write_regions(session, handle, regions, who):
+    for offset, content in regions:
+        status, body = _write(session, handle, offset, content)
+        assert status == kXR_ok, (
+            f"{who} out-of-order write @{offset} failed: err={_err(body)}")
+
 @pytest.mark.parametrize("chunk,count", _SEQ)
 def test_sequential_contiguous_writes(srv, chunk, count):
     chunks = [det_bytes(chunk, seed=(chunk + i) & 0xff) for i in range(count)]
@@ -10,20 +32,12 @@ def test_sequential_contiguous_writes(srv, chunk, count):
         s = _session(url)
         try:
             fh = _new_handle(s, wire)
-            off = 0
-            for c in chunks:
-                st, body = _write(s, fh, off, c)
-                assert st == kXR_ok, \
-                    f"{who} seq write @{off} (cs={chunk}) failed: err={_err(body)}"
-                off += len(c)
+            _write_contiguous_chunks(s, fh, chunks, who, chunk)
             assert _close(s, fh)[0] == kXR_ok, f"{who} close"
         finally:
             s.close()
         got = read_disk(srv, url, wire)
-        assert len(got) == len(expected), \
-            f"{who} seq size {len(got)} != {len(expected)} (cs={chunk} n={count})"
-        assert md5(got) == md5(expected), \
-            f"{who} seq content mismatch (cs={chunk} n={count})"
+        _assert_expected_file(got, expected, who, f"cs={chunk} n={count}")
 
 
 # =========================================================================== #
@@ -73,16 +87,12 @@ def test_random_out_of_order_writes(srv, idx, regions):
         s = _session(url)
         try:
             fh = _new_handle(s, wire)
-            for off, data in regions:
-                st, body = _write(s, fh, off, data)
-                assert st == kXR_ok, \
-                    f"{who} ooo write @{off} failed: err={_err(body)}"
+            _write_regions(s, fh, regions, who)
             assert _close(s, fh)[0] == kXR_ok
         finally:
             s.close()
         got = read_disk(srv, url, wire)
-        assert len(got) == total, f"{who} ooo size {len(got)} != {total}"
-        assert md5(got) == md5(expected), f"{who} ooo content mismatch idx={idx}"
+        _assert_expected_file(got, expected, who, f"out-of-order idx={idx}")
 
 
 # =========================================================================== #

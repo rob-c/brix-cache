@@ -142,103 +142,129 @@ class LocalOrigin:
             return [dict(e) for e in self.log if needle in e["path"]]
 
 
-def _make_handler(origin):
-    class H(BaseHTTPRequestHandler):
-        protocol_version = "HTTP/1.1" if origin.keepalive else "HTTP/1.0"
+class _OriginHandler(BaseHTTPRequestHandler):
+    origin = None
 
-        def log_message(self, *a):
-            pass
+    def log_message(self, *args):
+        pass
 
-        def setup(self):
-            with origin.lock:
-                origin.connections += 1
-            super().setup()
+    def setup(self):
+        with self.origin.lock:
+            self.origin.connections += 1
+        super().setup()
 
-        def _reply(self, code, body, extra=None):
-            self.send_response(code)
-            self.send_header("Content-Type", "application/octet-stream")
-            self.send_header("Content-Length", str(len(body)))
-            for k, v in (extra or {}).items():
-                self.send_header(k, v)
-            self.end_headers()
-            self.wfile.write(body)
+    def _reply(self, code, body, extra=None):
+        self.send_response(code)
+        self.send_header("Content-Type", "application/octet-stream")
+        self.send_header("Content-Length", str(len(body)))
+        for key, value in (extra or {}).items():
+            self.send_header(key, value)
+        self.end_headers()
+        self.wfile.write(body)
 
-        def do_GET(self):
-            rng = self.headers.get("Range")
-            with origin.lock:
-                origin.log.append({"path": self.path, "range": rng})
+    def _record_request(self):
+        request_range = self.headers.get("Range")
+        with self.origin.lock:
+            self.origin.log.append({"path": self.path, "range": request_range})
 
-            if "/api/v1.0/geo/" in self.path:          # identity proximity order
-                n = len(self.path.rsplit("/", 1)[-1].split(","))
-                order = ",".join(str(i + 1) for i in range(n))
-                return self._reply(200, order.encode() + b"\n")
+    def _reply_geo(self):
+        if "/api/v1.0/geo/" not in self.path:
+            return False
+        count = len(self.path.rsplit("/", 1)[-1].split(","))
+        order = ",".join(str(index + 1) for index in range(count))
+        self._reply(200, order.encode() + b"\n")
+        return True
 
-            mode = origin.take_fault(self.path)
-            if mode == "refuse":                        # close before any status
-                self.close_connection = True
-                self.connection.close()
-                return
-            if mode == "http500":
-                return self._reply(500, b"origin error")
-            if mode and mode.startswith("redirect_host:"):
-                # 302 to another host:port PRESERVING the request path — a
-                # legitimate mirror redirect (http->http, allowed).
-                loc = f"http://{mode[len('redirect_host:'):]}{self.path}"
-                self.send_response(302)
-                self.send_header("Location", loc)
-                self.send_header("Content-Length", "0")
-                self.end_headers()
-                return
-            if mode and mode.startswith("redirect:"):
-                # 3xx to an attacker-chosen Location. Encodes the target in the
-                # fault string ("redirect:file:///path" / "redirect:/self/loop").
-                # Exercises the client's redirect/scheme confinement.
-                self.send_response(302)
-                self.send_header("Location", mode[len("redirect:"):])
-                self.send_header("Content-Length", "0")
-                self.end_headers()
-                return
+    def _redirect(self, location):
+        self.send_response(302)
+        self.send_header("Location", location)
+        self.send_header("Content-Length", "0")
+        self.end_headers()
 
-            full = origin.webroot / self.path.lstrip("/")
-            if not full.is_file():
-                return self._reply(404, b"not found")
-            body = full.read_bytes()
+    def _reply_fault(self, mode):
+        if mode == "refuse":
+            self.close_connection = True
+            self.connection.close()
+            return True
+        if mode == "http500":
+            self._reply(500, b"origin error")
+            return True
+        if mode and mode.startswith("redirect_host:"):
+            location = f"http://{mode[len('redirect_host:'):]}{self.path}"
+            self._redirect(location)
+            return True
+        if mode and mode.startswith("redirect:"):
+            self._redirect(mode[len("redirect:"):])
+            return True
+        return False
 
-            start, end, code, extra = 0, len(body) - 1, 200, {}
-            if rng and rng.startswith("bytes=") and not origin.ignore_range:
-                a, _, b = rng[len("bytes="):].partition("-")
-                try:
-                    start = int(a)
-                    end = int(b) if b else len(body) - 1
-                except ValueError:
-                    start, end = 0, len(body) - 1
-                if start >= len(body):
-                    return self._reply(416, b"", {"Content-Range": f"bytes */{len(body)}"})
-                end = min(end, len(body) - 1)
-                code = 206
-                extra = {"Content-Range": f"bytes {start}-{end}/{len(body)}"}
-            part = body[start:end + 1]
+    def _range_window(self, body):
+        request_range = self.headers.get("Range")
+        if not request_range or not request_range.startswith("bytes="):
+            return 0, len(body) - 1, 200, {}
+        if self.origin.ignore_range:
+            return 0, len(body) - 1, 200, {}
+        first, _, last = request_range[len("bytes="):].partition("-")
+        try:
+            start = int(first)
+            end = int(last) if last else len(body) - 1
+        except ValueError:
+            start, end = 0, len(body) - 1
+        if start >= len(body):
+            self._reply(416, b"", {"Content-Range": f"bytes */{len(body)}"})
+            return None
+        end = min(end, len(body) - 1)
+        extra = {"Content-Range": f"bytes {start}-{end}/{len(body)}"}
+        return start, end, 206, extra
 
-            sever = origin.sever_after
-            if mode == "sever_half":
-                sever = max(1, len(part) // 2)
-            if sever and sever < len(part):
-                # correct Content-Length, partial body, hard close: a true
-                # mid-transfer sever (curl: CURLE_PARTIAL_FILE, keeps the bytes).
-                self.send_response(code)
-                self.send_header("Content-Type", "application/octet-stream")
-                self.send_header("Content-Length", str(len(part)))
-                for k, v in extra.items():
-                    self.send_header(k, v)
-                self.end_headers()
-                self.wfile.write(part[:sever])
-                self.wfile.flush()
-                self.close_connection = True
-                self.connection.close()
-                return
+    def _sever_response(self, part, code, extra, mode):
+        sever = self.origin.sever_after
+        if mode == "sever_half":
+            sever = max(1, len(part) // 2)
+        if not sever or sever >= len(part):
+            return False
+        self.send_response(code)
+        self.send_header("Content-Type", "application/octet-stream")
+        self.send_header("Content-Length", str(len(part)))
+        for key, value in extra.items():
+            self.send_header(key, value)
+        self.end_headers()
+        self.wfile.write(part[:sever])
+        self.wfile.flush()
+        self.close_connection = True
+        self.connection.close()
+        return True
+
+    def _serve_file(self, mode):
+        full = self.origin.webroot / self.path.lstrip("/")
+        if not full.is_file():
+            self._reply(404, b"not found")
+            return
+        body = full.read_bytes()
+        window = self._range_window(body)
+        if window is None:
+            return
+        start, end, code, extra = window
+        part = body[start:end + 1]
+        if not self._sever_response(part, code, extra, mode):
             self._reply(code, part, extra)
 
-    return H
+    def do_GET(self):
+        self._record_request()
+        if self._reply_geo():
+            return
+        mode = self.origin.take_fault(self.path)
+        if not self._reply_fault(mode):
+            self._serve_file(mode)
+
+
+def _make_handler(origin):
+    class Handler(_OriginHandler):
+        pass
+
+    Handler.origin = origin
+    Handler.protocol_version = "HTTP/1.1" if origin.keepalive else "HTTP/1.0"
+    return Handler
 
 
 # ---- local helpers ----------------------------------------------------------
@@ -273,75 +299,117 @@ def publish_revision(forge, tree, revision, *, ttl=None):
     return forge.root_catalog_hash
 
 
-@contextmanager
-def conf_mount(fqrn, pubkey, *, server_env=None, server_url=None, proxy_conf=None,
-               env_extra=None, opts_extra="", retries=1, timeout=15):
-    """Full-control brixMount wrapper.  Unlike conformance_common.fuse_mount it
-    can leave BRIXCVMFS_SERVER UNSET (required for CVMFS_SERVER_URL mirror lists
-    — the env var pins a single host verbatim) and always strips ambient proxy
-    variables for determinism.  ALWAYS unmounts on exit."""
+def _mount_workdir():
     workdir = Path(tempfile.mkdtemp(prefix="cvmfs_rf."))
-    mnt = workdir / "mnt"
-    for d in ("mnt", "tmp", "cache"):
-        (workdir / d).mkdir()
-    env = {k: v for k, v in os.environ.items()
-           if k not in _PROXY_VARS and not k.startswith("BRIXCVMFS_")}
+    for name in ("mnt", "tmp", "cache"):
+        (workdir / name).mkdir()
+    return workdir
+
+
+def _config_text(server_url, proxy_conf):
+    lines = []
+    if server_url is not None:
+        lines.append(f'CVMFS_SERVER_URL="{server_url}"\n')
+    if proxy_conf is not None:
+        lines.append(f'CVMFS_HTTP_PROXY="{proxy_conf}"\n')
+    return "".join(lines)
+
+
+def _configure_mount_environment(workdir, env, server_url, proxy_conf):
+    if server_url is None and proxy_conf is None:
+        return
+    config_dir = workdir / "etc"
+    config_dir.mkdir()
+    (config_dir / "default.conf").write_text(_config_text(server_url, proxy_conf))
+    env["BRIXCVMFS_ETC"] = str(config_dir)
+
+
+def _apply_environment(env, extra):
+    for key, value in (extra or {}).items():
+        if value is None:
+            env.pop(key, None)
+        else:
+            env[key] = value
+
+
+def _mount_environment(workdir, pubkey, server_env, server_url, proxy_conf, extra):
+    env = {
+        key: value for key, value in os.environ.items()
+        if key not in _PROXY_VARS and not key.startswith("BRIXCVMFS_")
+    }
     env["BRIXCVMFS_PUBKEY"] = str(pubkey)
     env["BRIXCVMFS_TMP"] = str(workdir / "tmp")
     env["BRIXCVMFS_CACHE"] = str(workdir / "cache")
     if server_env is not None:
         env["BRIXCVMFS_SERVER"] = server_env
-    if server_url is not None or proxy_conf is not None:
-        etc = workdir / "etc"
-        etc.mkdir()
-        text = ""
-        if server_url is not None:
-            text += f'CVMFS_SERVER_URL="{server_url}"\n'
-        if proxy_conf is not None:
-            text += f'CVMFS_HTTP_PROXY="{proxy_conf}"\n'
-        (etc / "default.conf").write_text(text)
-        env["BRIXCVMFS_ETC"] = str(etc)
-    for k, v in (env_extra or {}).items():
-        if v is None:
-            env.pop(k, None)
-        else:
-            env[k] = v
+    _configure_mount_environment(workdir, env, server_url, proxy_conf)
+    _apply_environment(env, extra)
+    return env
 
+
+def _mount_options(retries, extra):
     opts = "auto_unmount,attr_timeout=0,entry_timeout=0"
     if retries is not None:
         opts += f",retries={retries}"
-    if opts_extra:
-        opts += "," + opts_extra
-    argv = [BRIXMOUNT, "cvmfs", fqrn, str(mnt), "-o", opts, "-f"]
-    bm_log = workdir / "brixmount.log"
-    with open(bm_log, "wb") as lf:
-        proc = subprocess.Popen(argv, env=env, stdout=lf, stderr=lf)
+    if extra:
+        opts += "," + extra
+    return opts
+
+
+def _start_mount(argv, env, log, mode):
+    with open(log, mode) as handle:
+        return subprocess.Popen(argv, env=env, stdout=handle, stderr=handle)
+
+
+def _wait_or_retry_mount(proc, argv, env, mountpoint, log, timeout):
+    _wait_mounted(mountpoint, timeout)
+    if os.path.ismount(mountpoint) or proc.poll() is None:
+        return proc
+    time.sleep(2.0)
+    proc = _start_mount(argv, env, log, "ab")
+    _wait_mounted(mountpoint, timeout)
+    return proc
+
+
+def _preserve_mount_failure(mountpoint, log, workdir):
+    if os.path.ismount(mountpoint) or not log.exists():
+        return
+    keep = Path(tempfile.gettempdir()) / "brixcvmfs_mount_failures"
+    keep.mkdir(exist_ok=True)
+    shutil.copy(log, keep / f"{workdir.name}.log")
+
+
+def _stop_mount(proc, mountpoint, workdir):
+    _unmount(mountpoint)
+    if proc.poll() is None:
+        proc.terminate()
+        try:
+            proc.wait(3)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+    _unmount(mountpoint)
+    shutil.rmtree(workdir, ignore_errors=True)
+
+
+@contextmanager
+def conf_mount(fqrn, pubkey, *, server_env=None, server_url=None, proxy_conf=None,
+               env_extra=None, opts_extra="", retries=1, timeout=15):
+    """Mount with deterministic proxy settings and always unmount on exit."""
+    workdir = _mount_workdir()
+    mountpoint = workdir / "mnt"
+    env = _mount_environment(
+        workdir, pubkey, server_env, server_url, proxy_conf, env_extra
+    )
+    options = _mount_options(retries, opts_extra)
+    argv = [BRIXMOUNT, "cvmfs", fqrn, str(mountpoint), "-o", options, "-f"]
+    log = workdir / "brixmount.log"
+    proc = _start_mount(argv, env, log, "wb")
     try:
-        _wait_mounted(mnt, timeout)
-        if not os.path.ismount(mnt) and proc.poll() is not None:
-            # rare transient full-trust-chain failure observed on this host
-            # (~1/40 mounts; brixMount exits after its 6 attempts) — one retry
-            # keeps genuinely-broken configs failing while absorbing the blip
-            time.sleep(2.0)
-            with open(bm_log, "ab") as lf:
-                proc = subprocess.Popen(argv, env=env, stdout=lf, stderr=lf)
-            _wait_mounted(mnt, timeout)
-        yield mnt, proc
+        proc = _wait_or_retry_mount(proc, argv, env, mountpoint, log, timeout)
+        yield mountpoint, proc
     finally:
-        if not os.path.ismount(mnt) and bm_log.exists():
-            # preserve diagnostics for mount failures (flake triage)
-            keep = Path(tempfile.gettempdir()) / "brixcvmfs_mount_failures"
-            keep.mkdir(exist_ok=True)
-            shutil.copy(bm_log, keep / f"{workdir.name}.log")
-        _unmount(mnt)
-        if proc.poll() is None:
-            proc.terminate()
-            try:
-                proc.wait(3)
-            except subprocess.TimeoutExpired:
-                proc.kill()
-        _unmount(mnt)
-        shutil.rmtree(workdir, ignore_errors=True)
+        _preserve_mount_failure(mountpoint, log, workdir)
+        _stop_mount(proc, mountpoint, workdir)
 
 
 def xattr(path, name):

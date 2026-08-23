@@ -195,63 +195,73 @@ def _ensure_client_x509_env():
             pass
 
 
-def _seed_canonical_data():
-    """Idempotently place the canonical seed files in the shared export.
+def _seed_text_file():
+    path = os.path.join(DATA_ROOT, "test.txt")
+    if not os.path.exists(path):
+        with open(path, "wb") as handle:
+            handle.write(b"hello from nginx-xrootd\n")
 
-    Own-fleet setup wipes + seeds DATA_ROOT; attach mode (an external fleet owns
-    the lifecycle) skips that, and neither the fleet CLI nor the launcher
-    seeds the MAIN export — so test.txt / random.bin / large200.bin can be absent
-    (and a canonical file another test deleted is never restored), which fails
-    every read / GSI / large-file test that expects them.  Runs on the xdist
-    controller only, before workers spawn, so it needs no lock; each file is
-    (re)created only when missing or the wrong size.  The large-file MD5 is
-    written to a sidecar so worker processes publish LARGE_FILE_MD5 cheaply
-    (see _ensure_client_x509_env)."""
+
+def _seed_random_file():
+    path = os.path.join(DATA_ROOT, "random.bin")
+    if not os.path.exists(path) or os.path.getsize(path) != 5242880:
+        with open(path, "wb") as handle:
+            handle.write(random.randbytes(5242880))
+
+
+def _write_large_file(path, size):
     import hashlib as _hashlib
 
-    os.makedirs(DATA_ROOT, exist_ok=True)
+    digest = _hashlib.md5()
+    rng = random.Random(int(os.environ.get("LARGE_FILE_SEED", "42")))
+    with open(path, "wb") as handle:
+        remaining = size
+        while remaining > 0:
+            count = min(16 * 1024 * 1024, remaining)
+            chunk = rng.randbytes(count)
+            handle.write(chunk)
+            digest.update(chunk)
+            remaining -= count
+    return digest.hexdigest()
 
-    tp = os.path.join(DATA_ROOT, "test.txt")
-    if not os.path.exists(tp):
-        with open(tp, "wb") as f:
-            f.write(b"hello from nginx-xrootd\n")
 
-    rp = os.path.join(DATA_ROOT, "random.bin")
-    if not os.path.exists(rp) or os.path.getsize(rp) != 5242880:
-        with open(rp, "wb") as f:
-            f.write(random.randbytes(5242880))
+def _hash_large_file(path):
+    import hashlib as _hashlib
 
-    size = 200 * 1024 * 1024
-    lp = os.path.join(DATA_ROOT, "large200.bin")
-    side = os.path.join(DATA_ROOT, ".large200.md5")
-    if not os.path.exists(lp) or os.path.getsize(lp) != size:
-        h = _hashlib.md5()
-        rng = random.Random(int(os.environ.get("LARGE_FILE_SEED", "42")))
-        with open(lp, "wb") as f:
-            remaining = size
-            while remaining > 0:
-                n = min(16 * 1024 * 1024, remaining)
-                chunk = rng.randbytes(n)
-                f.write(chunk)
-                h.update(chunk)
-                remaining -= n
-        digest = h.hexdigest()
-    elif os.path.exists(side):
-        with open(side) as f:
-            digest = f.read().strip()
-    else:
-        h = _hashlib.md5()
-        with open(lp, "rb") as f:
-            for chunk in iter(lambda: f.read(65536), b""):
-                h.update(chunk)
-        digest = h.hexdigest()
+    digest = _hashlib.md5()
+    with open(path, "rb") as handle:
+        for chunk in iter(lambda: handle.read(65536), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
 
+
+def _large_file_digest(path, sidecar, size):
+    if not os.path.exists(path) or os.path.getsize(path) != size:
+        return _write_large_file(path, size)
+    if os.path.exists(sidecar):
+        with open(sidecar) as handle:
+            return handle.read().strip()
+    return _hash_large_file(path)
+
+
+def _publish_large_digest(sidecar, digest):
     os.environ["LARGE_FILE_MD5"] = digest
     try:
-        with open(side, "w") as f:
-            f.write(digest)
+        with open(sidecar, "w") as handle:
+            handle.write(digest)
     except OSError:
         pass
+
+
+def _seed_canonical_data():
+    """Idempotently place the canonical seed files in the shared export."""
+    os.makedirs(DATA_ROOT, exist_ok=True)
+    _seed_text_file()
+    _seed_random_file()
+    size = 200 * 1024 * 1024
+    path = os.path.join(DATA_ROOT, "large200.bin")
+    sidecar = os.path.join(DATA_ROOT, ".large200.md5")
+    _publish_large_digest(sidecar, _large_file_digest(path, sidecar, size))
 
 
 # Tri-state memo for "is a fleet already running that we should attach to rather
@@ -284,6 +294,32 @@ def _reset_session_tree_once() -> None:
     _test_tree_wiped = True
 
 
+def _report_existing_fleet(reachable, owned, attached):
+    global _foreign_fleet_collision
+    if attached:
+        print(
+            f"\n[conftest] A fleet is already listening on {HOST}:{NGINX_ANON_PORT}; "
+            "attaching WITHOUT lifecycle management (no wipe / start-all / stop-all "
+            "/ rmtree) so a stray test run cannot tear down a fleet it did not "
+            "start.  Set TEST_OWN_FLEET=1 to force a clean wipe+restart.",
+            flush=True)
+        return
+    if reachable and owned:
+        print(
+            f"\n[conftest] Found stale/incomplete servers owned by "
+            f"TEST_ROOT={TEST_ROOT}; startup will reap them before cleaning "
+            "the old registry and launching the new fleet.", flush=True)
+        return
+    if reachable:
+        _foreign_fleet_collision = True
+        print(
+            f"\n[conftest] Port {HOST}:{NGINX_ANON_PORT} is occupied, but "
+            f"{REGISTRY_MANIFEST} plus its completion marker do not identify a "
+            f"fully started fleet for TEST_ROOT={TEST_ROOT}. Treating this as a "
+            "port collision or partial prior start; this session will not attach "
+            "to or clean up the listener.", flush=True)
+
+
 def _external_fleet_attached() -> bool:
     """True when a local fleet is already listening and pytest should ATTACH to
     it without taking lifecycle ownership -- no tree wipe, no start-all/stop-all,
@@ -313,31 +349,7 @@ def _external_fleet_attached() -> bool:
     ready = fleet_ready_for_test_root()
     master_alive = _fleet_main_master_alive()
     _external_fleet = reachable and owned and ready and master_alive
-    if _external_fleet:
-        print(
-            f"\n[conftest] A fleet is already listening on {HOST}:{NGINX_ANON_PORT}; "
-            "attaching WITHOUT lifecycle management (no wipe / start-all / stop-all "
-            "/ rmtree) so a stray test run cannot tear down a fleet it did not "
-            "start.  Set TEST_OWN_FLEET=1 to force a clean wipe+restart.",
-            flush=True,
-        )
-    elif reachable and owned:
-        print(
-            f"\n[conftest] Found stale/incomplete servers owned by "
-            f"TEST_ROOT={TEST_ROOT}; startup will reap them before cleaning "
-            "the old registry and launching the new fleet.",
-            flush=True,
-        )
-    elif reachable:
-        _foreign_fleet_collision = True
-        print(
-            f"\n[conftest] Port {HOST}:{NGINX_ANON_PORT} is occupied, but "
-            f"{REGISTRY_MANIFEST} plus its completion marker do not identify a "
-            f"fully started fleet for TEST_ROOT={TEST_ROOT}. Treating this as a "
-            "port collision or partial prior start; this session will not attach "
-            "to or clean up the listener.",
-            flush=True,
-        )
+    _report_existing_fleet(reachable, owned, _external_fleet)
     return _external_fleet
 
 

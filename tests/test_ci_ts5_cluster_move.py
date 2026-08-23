@@ -61,14 +61,19 @@ still hash identically, and any body that drifted cannot be argued away.
 from __future__ import annotations
 
 import ast
-import builtins
-import hashlib
 import os
 import pathlib
 import subprocess
 import sys
 
 import pytest
+from ts5_ast_checks import (
+    assigned_literal,
+    body_hashes,
+    literal_call_problems,
+    missing_name_groups,
+    substring_matches,
+)
 
 TESTS = pathlib.Path(__file__).resolve().parent
 REPO = TESTS.parent
@@ -110,19 +115,7 @@ def _bodies(path: pathlib.Path) -> dict:
     them differs by construction while the code does not.
     """
 
-    def walk(node, prefix):
-        for child in node.body:
-            if not isinstance(child, _DEFS):
-                continue
-            name = prefix + child.name
-            blob = "".join(ast.dump(b, include_attributes=False)
-                           for b in child.body)
-            yield name, hashlib.sha256(blob.encode()).hexdigest()
-            if isinstance(child, ast.ClassDef):
-                yield from walk(child, name + ".")
-
-    tree = ast.parse(path.read_text(encoding="utf-8"))
-    return dict(walk(tree, ""))
+    return body_hashes(path)
 
 
 def _suite_env(extra=None):
@@ -144,6 +137,13 @@ def _child(code, env_extra=None, cwd=None, timeout=90):
 def _run(argv, env_extra=None, cwd=None, timeout=90):
     return subprocess.run(argv, capture_output=True, text=True, timeout=timeout,
                           env=_suite_env(env_extra), cwd=cwd)
+
+
+def _mesh_module_groups():
+    composed = {"cms_mesh_lib", "cms_mesh_lib_part2", "cms_mesh_lib_part3"}
+    groups = [sorted(MESH / (name + ".py") for name in composed)]
+    groups.extend([[MESH / (name + ".py")] for name in MOVED if name not in composed])
+    return groups
 
 
 # ---------------------------------------------------------------------------
@@ -359,35 +359,7 @@ def test_no_module_reaches_a_name_it_never_binds():
     line that was its last user, which is a NameError at mesh-start time, when
     nobody is watching.
     """
-    composed = {"cms_mesh_lib", "cms_mesh_lib_part2", "cms_mesh_lib_part3"}
-    groups = [sorted(MESH / (n + ".py") for n in composed)]
-    groups += [[MESH / (n + ".py")] for n in MOVED if n not in composed]
-
-    problems = []
-    for group in groups:
-        bound = {"__file__", "__name__", "__doc__"}
-        trees = []
-        for path in group:
-            tree = ast.parse(path.read_text(encoding="utf-8"))
-            trees.append((path, tree))
-            for node in ast.walk(tree):
-                if isinstance(node, (ast.Import, ast.ImportFrom)):
-                    for alias in node.names:
-                        bound.add(alias.asname or alias.name.split(".")[0])
-                elif isinstance(node, ast.Name) and isinstance(node.ctx, ast.Store):
-                    bound.add(node.id)
-                elif isinstance(node, _DEFS):
-                    bound.add(node.name)
-                elif isinstance(node, ast.arg):
-                    bound.add(node.arg)
-                elif isinstance(node, ast.ExceptHandler) and node.name:
-                    bound.add(node.name)
-        for path, tree in trees:
-            for node in ast.walk(tree):
-                if (isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load)
-                        and node.id not in bound
-                        and node.id not in vars(builtins)):
-                    problems.append("%s:%d %s" % (path.name, node.lineno, node.id))
+    problems = missing_name_groups(_mesh_module_groups())
     assert not problems, "names used but never bound: %s" % problems
 
 
@@ -403,19 +375,7 @@ def test_every_template_a_mesh_renders_is_a_literal():
     """
     templates = {p.name for p in (TESTS / "configs" / "mesh").iterdir()}
     assert templates, "no mesh templates on disk — the locator is wrong"
-    offenders = []
-    for path in sorted(MESH.glob("*.py")):
-        for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
-            if not (isinstance(node, ast.Call)
-                    and isinstance(node.func, ast.Name)
-                    and node.func.id == "render" and node.args):
-                continue
-            first = node.args[0]
-            if not (isinstance(first, ast.Constant)
-                    and isinstance(first.value, str)
-                    and "/" not in first.value and ".." not in first.value
-                    and first.value in templates):
-                offenders.append("%s:%d" % (path.name, node.lineno))
+    offenders = literal_call_problems(sorted(MESH.glob("*.py")), "render", templates)
     assert not offenders, "render() reached a non-literal template: %s" % offenders
 
 
@@ -469,14 +429,7 @@ def test_no_ci_gate_file_is_auto_marked_slow():
     The hint tuple is read from the conftest rather than copied, so the check
     tracks the real classifier instead of a snapshot of it.
     """
-    src = (TESTS / "conftest_part3.py").read_text(encoding="utf-8")
-    tree = ast.parse(src)
-    hints = None
-    for node in tree.body:
-        if (isinstance(node, ast.Assign)
-                and any(getattr(t_, "id", None) == "_SLOW_MODULE_HINTS"
-                        for t_ in node.targets)):
-            hints = ast.literal_eval(node.value)
+    hints = assigned_literal(TESTS / "conftest_part3.py", "_SLOW_MODULE_HINTS")
     assert hints, "the slow-module classifier moved; this check is now blind"
 
     # Self-catch: the name this file had for one afternoon must still trip the
@@ -485,9 +438,7 @@ def test_no_ci_gate_file_is_auto_marked_slow():
     assert any(h in "test_ci_ts5_mesh_move" for h in hints), (
         "the predicate no longer catches the name that caused this test")
 
-    caught = {p.name: sorted(h for h in hints if h in p.stem)
-              for p in sorted(TESTS.glob("test_ci_*.py"))
-              if any(h in p.stem for h in hints)}
+    caught = substring_matches(sorted(TESTS.glob("test_ci_*.py")), hints)
     assert not caught, (
         "CI gate files auto-marked slow and dropped from `-m \"not slow\"`: %s"
         % caught)

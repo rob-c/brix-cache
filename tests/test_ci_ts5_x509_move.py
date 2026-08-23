@@ -26,14 +26,17 @@ against both, plus the properties that make the move safe to depend on:
 from __future__ import annotations
 
 import ast
-import builtins
-import hashlib
 import json
 import pathlib
 import subprocess
 import sys
 
 import pytest
+from ts5_ast_checks import (
+    missing_names,
+    move_problem,
+    top_level_body_hashes as _file_body_hashes,
+)
 
 TESTS = pathlib.Path(__file__).resolve().parent
 ROOT = TESTS.parent
@@ -65,14 +68,65 @@ def _body_hashes(paths) -> dict:
     """
     out = {}
     for path in paths:
-        for node in ast.parse(pathlib.Path(path).read_text()).body:
-            if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef,
-                                     ast.ClassDef)):
-                continue
-            out[node.name] = hashlib.sha256("".join(
-                ast.dump(b, include_attributes=False) for b in node.body
-            ).encode()).hexdigest()
+        out.update(_file_body_hashes(pathlib.Path(path)))
     return out
+
+
+def _assignment_names(node, names):
+    if not isinstance(node, ast.Assign):
+        return []
+    return [
+        target.id for target in node.targets
+        if isinstance(target, ast.Name) and target.id in names
+    ]
+
+
+def _path_constants(path, names):
+    tree = ast.parse(path.read_text())
+    return [
+        (path.name, name)
+        for node in tree.body
+        for name in _assignment_names(node, names)
+    ]
+
+
+def _assigned_constants(paths, names):
+    return [row for path in paths for row in _path_constants(path, names)]
+
+
+def _manifest_verdicts(manifest):
+    return {row["credential"]: row["expected"] for row in manifest}
+
+
+def _hash_links(ca_dir):
+    return sorted(
+        path.name for path in ca_dir.iterdir()
+        if path.suffix == ".0" or path.name.endswith(".0")
+    )
+
+
+def _hash_link_problem(links, new_hash, old_hash):
+    if f"{old_hash}.0" not in links:
+        return f"the legacy MD5 link {old_hash}.0 is missing: {links}"
+    if f"{new_hash}.0" in links:
+        return "the SHA-1 link is present, so the scenario is no longer hostile"
+    return None
+
+
+def _prelude_problem():
+    names = {"_EPOCH", "_DAY", "OID_PROXY_CERT_INFO", "OID_PPL_INHERIT_ALL",
+             "OID_PPL_INDEPENDENT", "OID_GLOBUS_LIMITED"}
+    archives = [LEGACY / name for name in _ARCHIVES]
+    archived = _assigned_constants(archives, names)
+    if len(archived) != 18:
+        return f"{len(archived)} archived prelude assignments, expected 18"
+    defining = _assigned_constants(sorted(PKG.glob("*.py")), names)
+    modules = sorted({module for module, _name in defining})
+    if modules != ["constants.py"]:
+        return f"prelude constants are defined by {modules}"
+    if len(defining) != 6:
+        return f"constants.py defines {len(defining)} prelude constants, expected 6"
+    return None
 
 
 @pytest.fixture(scope="module")
@@ -112,12 +166,13 @@ def test_every_definition_moved_verbatim():
     were pruned to what each module actually uses.
     """
     old = _body_hashes(LEGACY / a for a in _ARCHIVES)
-    new = _body_hashes(p for p in sorted(PKG.glob("*.py"))
-                       if p.name not in ("__init__.py", "__main__.py"))
-    assert set(old) - set(new) == set(), "definitions lost in the move"
-    assert set(new) - set(old) == set(), "definitions invented by the move"
-    assert [k for k in old if old[k] != new[k]] == [], "bodies changed"
-    assert len(old) == 49, f"the archives hold {len(old)} definitions, not 49"
+    support_modules = {"__init__.py", "__main__.py", "primitive_operations.py"}
+    new = _body_hashes(
+        path for path in sorted(PKG.glob("*.py"))
+        if path.name not in support_modules
+    )
+    problem = move_problem(old, new, expected_shape=(49, 49))
+    assert problem is None, problem
 
 
 def test_the_facade_still_exports_the_private_helpers():
@@ -141,28 +196,8 @@ def test_the_prelude_constants_have_one_definition_now():
     edit to one copy would have been overwritten by whichever shard loaded
     next, silently and in load order.
     """
-    names = {"_EPOCH", "_DAY", "OID_PROXY_CERT_INFO", "OID_PPL_INHERIT_ALL",
-             "OID_PPL_INDEPENDENT", "OID_GLOBUS_LIMITED"}
-    in_archives = sum(
-        1
-        for a in _ARCHIVES
-        for node in ast.parse((LEGACY / a).read_text()).body
-        if isinstance(node, ast.Assign)
-        for t in node.targets
-        if isinstance(t, ast.Name) and t.id in names
-    )
-    assert in_archives == 18, f"{in_archives} prelude assignments, expected 3×6"
-
-    defining = [
-        p.name
-        for p in sorted(PKG.glob("*.py"))
-        for node in ast.parse(p.read_text()).body
-        if isinstance(node, ast.Assign)
-        for t in node.targets
-        if isinstance(t, ast.Name) and t.id in names
-    ]
-    assert sorted(set(defining)) == ["constants.py"], defining
-    assert len(defining) == 6, defining
+    problem = _prelude_problem()
+    assert problem is None, problem
 
 
 # ---------------------------------------------------------------------------
@@ -179,31 +214,7 @@ def test_no_module_reaches_a_name_it_never_binds():
     ``_openssl_hashes``, ``_symlink``, ``_key``); this is the check that found
     them.
     """
-    dangling = {}
-    for path in sorted(PKG.glob("*.py")):
-        tree = ast.parse(path.read_text())
-        bound = set(dir(builtins)) | {"__file__", "__name__", "__doc__"}
-        for node in ast.walk(tree):
-            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef,
-                                 ast.ClassDef)):
-                bound.add(node.name)
-            elif isinstance(node, ast.Import):
-                bound.update(a.asname or a.name.split(".")[0]
-                             for a in node.names)
-            elif isinstance(node, ast.ImportFrom):
-                bound.update(a.asname or a.name for a in node.names)
-            elif isinstance(node, ast.Name) and isinstance(node.ctx, ast.Store):
-                bound.add(node.id)
-            elif isinstance(node, ast.arg):
-                bound.add(node.arg)
-            elif isinstance(node, ast.ExceptHandler) and node.name:
-                bound.add(node.name)
-            elif isinstance(node, ast.Global):
-                bound.update(node.names)
-        for node in ast.walk(tree):
-            if (isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load)
-                    and node.id not in bound):
-                dangling.setdefault(path.name, set()).add(node.id)
+    dangling = missing_names(sorted(PKG.glob("*.py")))
     assert not dangling, f"names used but never bound: {dangling}"
 
 
@@ -257,7 +268,7 @@ def test_the_revocation_scenario_actually_revokes(forged):
     """
     sc = forged / "crl_revoked_eec"
     manifest = json.loads((sc / "manifest.json").read_text())
-    verdicts = {row["credential"]: row["expected"] for row in manifest}
+    verdicts = _manifest_verdicts(manifest)
     assert verdicts == {"good": "accept", "revoked": "reject"}, verdicts
 
     crls = sorted((sc / "ca").glob("*.r0"))
@@ -281,8 +292,7 @@ def test_the_md5_only_scenario_withholds_the_sha1_link(forged):
     something the tree no longer expresses.
     """
     ca_dir = forged / "cad_md5_only" / "ca"
-    links = sorted(p.name for p in ca_dir.iterdir()
-                   if p.suffix == ".0" or p.name.endswith(".0"))
+    links = _hash_links(ca_dir)
     assert links, f"no hash links at all in {ca_dir}"
 
     out = _probe(
@@ -291,6 +301,5 @@ def test_the_md5_only_scenario_withholds_the_sha1_link(forged):
         "                   capture_output=True, text=True);"
         "print(r.stdout.strip())" % str(next(ca_dir.glob("*.pem"))))
     new_hash, old_hash = out.split()
-    assert f"{old_hash}.0" in links, (old_hash, links)
-    assert f"{new_hash}.0" not in links, (
-        "the SHA-1 link is present, so the scenario is no longer hostile")
+    problem = _hash_link_problem(links, new_hash, old_hash)
+    assert problem is None, problem

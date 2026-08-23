@@ -29,7 +29,10 @@ static void rm_rf(const char *p) {
     if (system(cmd) != 0) { /* best effort */ }
 }
 
-int main(void) {
+/* WHAT: Exercise the path-backed CAS lifecycle.
+ * WHY: Cover put/read/layout/accounting/reap independently.
+ * HOW: Create an isolated temporary store and remove it after assertions. */
+static int test_path_store(void) {
     char root[] = "/tmp/brix_cas_ut.XXXXXX";
     if (mkdtemp(root) == NULL) { perror("mkdtemp"); return 2; }
 
@@ -73,8 +76,13 @@ int main(void) {
           "LRU reap evicts oldest first");
 
     rm_rf(root);
+    return 0;
+}
 
-    /* ---- dirfd (overlay) mode ---- */
+/* WHAT: Exercise CAS operations rooted at a caller-owned directory fd.
+ * WHY: Verify overlay-style stores never depend on a pathname root.
+ * HOW: Put/read/stat a temporary dirfd store and close all descriptors. */
+static int test_dirfd_store(void) {
     char droot[] = "/tmp/brix_cas_at.XXXXXX";
     if (mkdtemp(droot) == NULL) { perror("mkdtemp"); return 2; }
     int dfd = open(droot, O_RDONLY | O_DIRECTORY);
@@ -93,8 +101,13 @@ int main(void) {
     CHECK(stat(check, &cst) == 0, "dirfd object on disk at <2>/<rest>");
     close(dfd);
     rm_rf(droot);
+    return 0;
+}
 
-    /* ---- quota fill-guard (auto-reap on put) ---- */
+/* WHAT: Exercise automatic quota enforcement during repeated puts.
+ * WHY: Ensure fill pressure evicts old content while retaining the newest.
+ * HOW: Insert six fixed-size objects into a 100-byte temporary store. */
+static int test_quota_store(void) {
     char qroot[] = "/tmp/brix_cas_q.XXXXXX";
     if (mkdtemp(qroot) == NULL) { perror("mkdtemp"); return 2; }
     brix_cas_store_t sq;
@@ -110,7 +123,15 @@ int main(void) {
     CHECK(sq.cur_bytes <= 100, "cur_bytes tracked under quota");
     CHECK(brix_cas_has(&sq, lastk) == 1, "most-recent object survives reap");
     rm_rf(qroot);
+    return 0;
+}
 
+int main(void) {
+    if (test_path_store() != 0 || test_dirfd_store() != 0
+        || test_quota_store() != 0)
+    {
+        return 2;
+    }
     printf("%d checks, %d failed\n", g_checks, g_failed);
     return g_failed ? 1 : 0;
 }

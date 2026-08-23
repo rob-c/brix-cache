@@ -14,15 +14,32 @@ def run_checks(base: Path) -> list[tuple[bool, str]]:
         return [result(True, "SKIP differential tier disabled; set TEST_TOKEN_DIFF=1 to run")]
     stock_port = os.environ.get("STOCK_XROOTD_PORT", "")
     xrootd_bin = os.environ.get("XROOTD_BIN", os.environ.get("BRIX_BIN", "/usr/bin/xrootd"))
+    stock_port = _usable_stock_port(stock_port, xrootd_bin)
+    args = _differential_args(stock_port)
+    proc = run(args, cwd=REPO_ROOT, env={"PYTHONPATH": "tests"})
+    label = _comparison_label(stock_port)
+    return [result(proc.returncode == 0, f"token differential {label} exited {proc.returncode}: {(proc.stderr or proc.stdout)[-3000:]}")]
+
+
+def _usable_stock_port(stock_port: str, xrootd_bin: str) -> str:
+    if not stock_port:
+        return ""
+    if shutil.which("xrdfs") is None:
+        return ""
+    return stock_port if os.access(xrootd_bin, os.X_OK) else ""
+
+
+def _differential_args(stock_port: str) -> list[str]:
     args = ["python3", "tests/token_differential.py"]
     if stock_port:
-        if shutil.which("xrdfs") is None or not os.access(xrootd_bin, os.X_OK):
-            stock_port = ""
-        else:
-            args.append(stock_port)
-    proc = run(args, cwd=REPO_ROOT, env={"PYTHONPATH": "tests"})
-    label = "ours-vs-spec" + (f" + stock xrootd @ {stock_port}" if stock_port else "")
-    return [result(proc.returncode == 0, f"token differential {label} exited {proc.returncode}: {(proc.stderr or proc.stdout)[-3000:]}")]
+        args.append(stock_port)
+    return args
+
+
+def _comparison_label(stock_port: str) -> str:
+    if stock_port:
+        return f"ours-vs-spec + stock xrootd @ {stock_port}"
+    return "ours-vs-spec"
 
 
 def entry(argv: list[str]) -> int:
