@@ -110,9 +110,6 @@ def _keyword_boundary(parameters):
          if parameter.kind is inspect.Parameter.KEYWORD_ONLY),
         None,
     )
-
-
-
 def test_case_decorator_produces_a_complete_immutable_definition():
     def body(run):
         return None
@@ -129,6 +126,8 @@ def test_case_decorator_produces_a_complete_immutable_definition():
     assert definition.resource_names == {
         "servers": (), "clients": (), "artifacts": (), "binaries": (),
         "credentials": (), "auth": (), "hosts": (), "observe": (),
+        "environments": (), "volumes": (), "identities": (), "tasks": (),
+        "managed_resources": (),
     }
     assert json.loads(json.dumps(definition.as_dict()))["backend"] == "local"
     with pytest.raises(dataclasses.FrozenInstanceError):
@@ -230,9 +229,10 @@ def test_isolation_factories_cover_every_supported_backend(tmp_path):
     values = (
         brixtest.process(), brixtest.nsenter(12, namespaces=("mount", "net")),
         brixtest.docker(digest), brixtest.podman(digest), brixtest.runc(tmp_path),
+        brixtest.kubernetes(digest),
     )
     assert [item.kind for item in values] == [
-        "process", "nsenter", "docker", "podman", "runc",
+        "process", "nsenter", "docker", "podman", "runc", "kubernetes",
     ]
     assert all(isinstance(item, brixtest.Isolation) for item in values)
     assert "--brixtest-isolation" in values[0].cli_args()
@@ -389,13 +389,15 @@ def test_run_facade_delegates_every_resource_and_evidence_convenience(tmp_path):
         client=lambda name: {
             "reader": client, "inspect": configured_tool,
         }[name],
-        security=SimpleNamespace(
+            security=SimpleNamespace(
             credential=lambda name: credential, auth_stack=lambda name: auth,
             resolve=lambda hostname: "127.0.0.8", reverse=lambda address: "origin.test",
             credentials=SimpleNamespace(_items={"proof": credential}),
             auth=SimpleNamespace(_items={"auth": auth}),
-        ),
-        evidence=Evidence(),
+            ),
+            _managed=SimpleNamespace(volumes=SimpleNamespace(_items={}), tasks={}),
+            _providers=SimpleNamespace(instances={}),
+            evidence=Evidence(),
     )
     run = Run(manager)
     _assert_run_commands(run)
@@ -472,11 +474,12 @@ def _assert_run_collections(run):
     observed = (
         set(run.servers), set(run.clients), set(run.tools), set(run.artifacts),
         set(run.binaries), set(run.credentials), set(run.auth_stacks),
+        set(run.volumes), set(run.tasks), set(run.resources),
         json.loads(json.dumps(run.as_dict()))["backend"],
     )
     expected = (
         {"origin"}, {"reader", "inspect"}, {"inspect"}, {"message"},
-        {"tool"}, {"proof"}, {"auth"}, "local",
+        {"tool"}, {"proof"}, {"auth"}, set(), set(), set(), "local",
     )
     assert observed == expected
     snapshot = run.servers
@@ -488,6 +491,7 @@ def _assert_invalid_run_values(run):
     for operation in (
         lambda: run.server([]), lambda: run.client(None), lambda: run.artifact(3),
         lambda: run.binary({}), lambda: run.credential(object()), lambda: run.auth(()),
+        lambda: run.volume([]), lambda: run.task(None), lambda: run.resource({}),
         lambda: run.resolve(None), lambda: run.reverse(""),
     ):
         with pytest.raises(SpecError):

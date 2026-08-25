@@ -46,99 +46,66 @@
 
 #define RF_FWD  (XRDCMS_RF_FORWARD | XRDCMS_RF_REPLIABLE | XRDCMS_RF_DELAYABLE)
 #define RF_RD   (XRDCMS_RF_REPLIABLE | XRDCMS_RF_DELAYABLE)
+#define RF_SYNC XRDCMS_RF_SYNC
+#define RF_HDR  (XRDCMS_RF_SYNC | XRDCMS_RF_NOARGS)   /* header-only status frame */
+#define RF_PUSH XRDCMS_RF_FORWARD                     /* pushed down, not local */
+#define RF_UPD  (XRDCMS_RF_SYNC | XRDCMS_RF_NOARGS | XRDCMS_RF_REPLIABLE)
 
-/* Manager role: forwardable client ops (initRDRrouting) + node status frames. */
-static const brix_cms_route_t manager_routes[] = {
-    /* forwardable / redirector client-facing ops */
-    { K_CHMOD,   "chmod",  RF_FWD },
-    { K_LOCATE,  "locate", RF_RD },
-    { K_MKDIR,   "mkdir",  RF_FWD },
-    { K_MKPATH,  "mkpath", RF_FWD },
-    { K_MV,      "mv",     RF_FWD },
-    { K_PREPADD, "prepadd",XRDCMS_RF_SYNC | RF_RD },
-    { K_PREPDEL, "prepdel",XRDCMS_RF_SYNC | RF_FWD },
-    { K_RM,      "rm",     RF_FWD },
-    { K_RMDIR,   "rmdir",  RF_FWD },
-    { K_SELECT,  "select", RF_RD },
-    { K_STATFS,  "statfs", RF_RD },
-    { K_STATS,   "stats",  RF_RD },
-    { K_TRUNC,   "trunc",  RF_FWD },
-    { K_UPDATE,  "update", XRDCMS_RF_SYNC | XRDCMS_RF_NOARGS | XRDCMS_RF_REPLIABLE },
-    /* node -> manager status / heartbeat frames (initRouter server group) */
-    { K_LOGIN,   "login",  XRDCMS_RF_SYNC },
-    { K_AVAIL,   "avail",  XRDCMS_RF_SYNC },
-    { K_DISC,    "disc",   XRDCMS_RF_SYNC | XRDCMS_RF_NOARGS },
-    { K_GONE,    "gone",   XRDCMS_RF_SYNC },
-    { K_HAVE,    "have",   XRDCMS_RF_SYNC },
-    { K_LOAD,    "load",   XRDCMS_RF_SYNC },
-    { K_PING,    "ping",   XRDCMS_RF_SYNC | XRDCMS_RF_NOARGS },
-    { K_PONG,    "pong",   XRDCMS_RF_SYNC | XRDCMS_RF_NOARGS },
-    { K_SPACE,   "space",  XRDCMS_RF_SYNC | XRDCMS_RF_NOARGS },
-    { K_STATE,   "state",  XRDCMS_RF_SYNC },
-    { K_STATUS,  "status", XRDCMS_RF_SYNC },
-    { K_TRY,     "try",    XRDCMS_RF_SYNC },
-    { K_USAGE,   "usage",  XRDCMS_RF_SYNC | XRDCMS_RF_NOARGS },
-    { K_XAUTH,   "xauth",  XRDCMS_RF_SYNC },
-};
+/*
+ * The routing matrix: one row per opcode, one column per role leg —
+ *   manager  initRDRrouting (forwardable client ops) + initRouter server
+ *            group (node -> manager status/heartbeat frames)
+ *   node     initRouter leaf: ops a data server executes when forwarded down
+ *   subman   initMANrouting/manVOps (Phase-61 W7): a meta-manager may only ask
+ *            for non-destructive service — stock cmsd "prohibit[s] a
+ *            meta-manager from requesting potentially destructive actions"
+ *   super    initSUProuting/supVOps (Phase-61 W7): namespace mutations carry
+ *            FORWARD — a supervisor pushes them DOWN to its own data nodes
+ * 0 = that role does not accept the opcode (lookup returns NULL: caller logs
+ * and drops, matching cmsd tolerance).
+ */
+#define BRIX_CMS_ROUTE_LIST(R_) \
+    /*  opcode      name      manager          node             subman           super          */ \
+    R_( K_LOGIN,   "login",   RF_SYNC,         0,               0,               0               ) \
+    R_( K_CHMOD,   "chmod",   RF_FWD,          RF_RD,           0,               RF_PUSH         ) \
+    R_( K_LOCATE,  "locate",  RF_RD,           RF_RD,           0,               0               ) \
+    R_( K_MKDIR,   "mkdir",   RF_FWD,          RF_RD,           0,               RF_PUSH         ) \
+    R_( K_MKPATH,  "mkpath",  RF_FWD,          RF_RD,           0,               RF_PUSH         ) \
+    R_( K_MV,      "mv",      RF_FWD,          RF_RD,           0,               RF_PUSH         ) \
+    R_( K_PREPADD, "prepadd", RF_SYNC | RF_RD, RF_SYNC | RF_RD, RF_SYNC,         RF_SYNC         ) \
+    R_( K_PREPDEL, "prepdel", RF_SYNC | RF_FWD,RF_SYNC | RF_RD, RF_SYNC | RF_PUSH, RF_SYNC | RF_PUSH ) \
+    R_( K_RM,      "rm",      RF_FWD,          RF_RD,           0,               RF_PUSH         ) \
+    R_( K_RMDIR,   "rmdir",   RF_FWD,          RF_RD,           0,               RF_PUSH         ) \
+    R_( K_SELECT,  "select",  RF_RD,           RF_RD,           0,               0               ) \
+    R_( K_STATS,   "stats",   RF_RD,           RF_RD,           XRDCMS_RF_NOARGS,XRDCMS_RF_NOARGS) \
+    R_( K_AVAIL,   "avail",   RF_SYNC,         0,               0,               0               ) \
+    R_( K_DISC,    "disc",    RF_HDR,          RF_HDR,          RF_HDR,          RF_HDR          ) \
+    R_( K_GONE,    "gone",    RF_SYNC,         0,               0,               0               ) \
+    R_( K_HAVE,    "have",    RF_SYNC,         0,               0,               0               ) \
+    R_( K_LOAD,    "load",    RF_SYNC,         0,               0,               0               ) \
+    R_( K_PING,    "ping",    RF_HDR,          RF_HDR,          RF_HDR,          RF_HDR          ) \
+    R_( K_PONG,    "pong",    RF_HDR,          0,               0,               0               ) \
+    R_( K_SPACE,   "space",   RF_HDR,          0,               RF_HDR,          RF_HDR          ) \
+    R_( K_STATE,   "state",   RF_SYNC,         RF_SYNC,         RF_SYNC,         RF_SYNC         ) \
+    R_( K_STATFS,  "statfs",  RF_RD,           RF_RD,           0,               0               ) \
+    R_( K_STATUS,  "status",  RF_SYNC,         0,               0,               0               ) \
+    R_( K_TRUNC,   "trunc",   RF_FWD,          RF_RD,           0,               RF_PUSH         ) \
+    R_( K_TRY,     "try",     RF_SYNC,         0,               RF_SYNC,         RF_SYNC         ) \
+    R_( K_UPDATE,  "update",  RF_UPD,          RF_UPD,          0,               0               ) \
+    R_( K_USAGE,   "usage",   RF_HDR,          0,               RF_HDR,          RF_HDR          ) \
+    R_( K_XAUTH,   "xauth",   RF_SYNC,         0,               0,               0               )
 
-/* Node role: ops a data server executes when forwarded down from its manager. */
-static const brix_cms_route_t node_routes[] = {
-    { K_CHMOD,   "chmod",  RF_RD },
-    { K_LOCATE,  "locate", RF_RD },
-    { K_MKDIR,   "mkdir",  RF_RD },
-    { K_MKPATH,  "mkpath", RF_RD },
-    { K_MV,      "mv",     RF_RD },
-    { K_PREPADD, "prepadd",XRDCMS_RF_SYNC | RF_RD },
-    { K_PREPDEL, "prepdel",XRDCMS_RF_SYNC | RF_RD },
-    { K_RM,      "rm",     RF_RD },
-    { K_RMDIR,   "rmdir",  RF_RD },
-    { K_SELECT,  "select", RF_RD },
-    { K_STATFS,  "statfs", RF_RD },
-    { K_STATS,   "stats",  RF_RD },
-    { K_TRUNC,   "trunc",  RF_RD },
-    { K_STATE,   "state",  XRDCMS_RF_SYNC },
-    { K_PING,    "ping",   XRDCMS_RF_SYNC | XRDCMS_RF_NOARGS },
-    { K_DISC,    "disc",   XRDCMS_RF_SYNC | XRDCMS_RF_NOARGS },
-    { K_UPDATE,  "update", XRDCMS_RF_SYNC | XRDCMS_RF_NOARGS | XRDCMS_RF_REPLIABLE },
-};
+/* Per-role tables generated from the matrix; a 0-flag row means "this role
+ * does not accept the opcode" and route_scan reports it as absent. */
+#define ROUTE_MANAGER(c, n, mgr, nd, sm, sp) { c, n, (mgr) },
+#define ROUTE_NODE(c, n, mgr, nd, sm, sp)    { c, n, (nd) },
+#define ROUTE_SUBMAN(c, n, mgr, nd, sm, sp)  { c, n, (sm) },
+#define ROUTE_SUPER(c, n, mgr, nd, sm, sp)   { c, n, (sp) },
 
-/* Sub-manager <- meta-manager leg (initMANrouting/manVOps, Phase-61 W7): a
- * meta-manager may only ask for non-destructive service — stock cmsd
- * "prohibit[s] a meta-manager from requesting potentially destructive
- * actions".  Anything else is dropped by the caller (logged, conn kept). */
-static const brix_cms_route_t subman_routes[] = {
-    { K_DISC,    "disc",   XRDCMS_RF_SYNC | XRDCMS_RF_NOARGS },
-    { K_PING,    "ping",   XRDCMS_RF_SYNC | XRDCMS_RF_NOARGS },
-    { K_PREPADD, "prepadd",XRDCMS_RF_SYNC },
-    { K_PREPDEL, "prepdel",XRDCMS_RF_SYNC | XRDCMS_RF_FORWARD },
-    { K_SPACE,   "space",  XRDCMS_RF_SYNC | XRDCMS_RF_NOARGS },
-    { K_STATE,   "state",  XRDCMS_RF_SYNC },
-    { K_STATS,   "stats",  XRDCMS_RF_NOARGS },
-    { K_TRY,     "try",    XRDCMS_RF_SYNC },
-    { K_USAGE,   "usage",  XRDCMS_RF_SYNC | XRDCMS_RF_NOARGS },
-};
-
-/* Supervisor <- manager leg (initSUProuting/supVOps, Phase-61 W7): namespace
- * mutations carry FORWARD — a supervisor pushes them DOWN to its own data
- * nodes rather than executing locally. */
-static const brix_cms_route_t super_routes[] = {
-    { K_CHMOD,   "chmod",  XRDCMS_RF_FORWARD },
-    { K_DISC,    "disc",   XRDCMS_RF_SYNC | XRDCMS_RF_NOARGS },
-    { K_MKDIR,   "mkdir",  XRDCMS_RF_FORWARD },
-    { K_MKPATH,  "mkpath", XRDCMS_RF_FORWARD },
-    { K_MV,      "mv",     XRDCMS_RF_FORWARD },
-    { K_PING,    "ping",   XRDCMS_RF_SYNC | XRDCMS_RF_NOARGS },
-    { K_PREPADD, "prepadd",XRDCMS_RF_SYNC },
-    { K_PREPDEL, "prepdel",XRDCMS_RF_SYNC | XRDCMS_RF_FORWARD },
-    { K_RM,      "rm",     XRDCMS_RF_FORWARD },
-    { K_RMDIR,   "rmdir",  XRDCMS_RF_FORWARD },
-    { K_SPACE,   "space",  XRDCMS_RF_SYNC | XRDCMS_RF_NOARGS },
-    { K_STATE,   "state",  XRDCMS_RF_SYNC },
-    { K_STATS,   "stats",  XRDCMS_RF_NOARGS },
-    { K_TRUNC,   "trunc",  XRDCMS_RF_FORWARD },
-    { K_TRY,     "try",    XRDCMS_RF_SYNC },
-    { K_USAGE,   "usage",  XRDCMS_RF_SYNC | XRDCMS_RF_NOARGS },
-};
+static const brix_cms_route_t manager_routes[] = { BRIX_CMS_ROUTE_LIST(ROUTE_MANAGER) };
+static const brix_cms_route_t node_routes[]    = { BRIX_CMS_ROUTE_LIST(ROUTE_NODE) };
+static const brix_cms_route_t subman_routes[]  = { BRIX_CMS_ROUTE_LIST(ROUTE_SUBMAN) };
+static const brix_cms_route_t super_routes[]   = { BRIX_CMS_ROUTE_LIST(ROUTE_SUPER) };
 
 static const brix_cms_route_t *
 route_scan(const brix_cms_route_t *tbl, size_t n, unsigned char code)
@@ -146,7 +113,7 @@ route_scan(const brix_cms_route_t *tbl, size_t n, unsigned char code)
     size_t i;
     for (i = 0; i < n; i++) {
         if (tbl[i].code == code) {
-            return &tbl[i];
+            return (tbl[i].flags != 0) ? &tbl[i] : NULL;
         }
     }
     return NULL;

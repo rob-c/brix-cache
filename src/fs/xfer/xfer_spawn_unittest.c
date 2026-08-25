@@ -29,28 +29,25 @@ check(const char *what, int got, int want)
     }
 }
 
+/* Run `cmd` under /bin/sh -c (empty env) and check the propagated exit code. */
+static void
+check_sh(const char *what, const char *cmd, int want)
+{
+    const char *argv[] = { "/bin/sh", "-c", cmd, NULL };
+
+    check(what, brix_xfer_run_reparented(argv, NULL), want);
+}
+
 int
 main(void)
 {
-    {
-        const char *argv[] = { "/bin/sh", "-c", "exit 0", NULL };
-        check("exit 0", brix_xfer_run_reparented(argv, NULL), 0);
-    }
-    {
-        const char *argv[] = { "/bin/sh", "-c", "exit 7", NULL };
-        check("exit 7", brix_xfer_run_reparented(argv, NULL), 7);
-    }
-    {
-        const char *argv[] = { "/bin/sh", "-c", "exit 42", NULL };
-        check("exit 42", brix_xfer_run_reparented(argv, NULL), 42);
-    }
+    check_sh("exit 0", "exit 0", 0);
+    check_sh("exit 7", "exit 7", 7);
+    check_sh("exit 42", "exit 42", 42);
+    check_sh("killed -> 128", "kill -TERM $$", 128);
     {
         const char *argv[] = { "/no/such/binary/xyzzy", NULL };
         check("exec failure -> 127", brix_xfer_run_reparented(argv, NULL), 127);
-    }
-    {
-        const char *argv[] = { "/bin/sh", "-c", "kill -TERM $$", NULL };
-        check("killed -> 128", brix_xfer_run_reparented(argv, NULL), 128);
     }
     {
         char *envp[] = { (char *) "XFER_UT=yes", NULL };

@@ -242,6 +242,10 @@ ngx_int_t brix_ftp_ev_data_open(ftp_ev_dc_t *dc);
 void      brix_ftp_ev_data_finish(ftp_ev_dc_t *dc, ngx_int_t rc);
 /* Wrap an open data fd in an nginx connection (shared with the MODE E receiver). */
 ngx_connection_t *brix_ftp_ev_wrap_conn(ftp_ev_t *fc, int fd);
+/* Send-side pump head shared by the stream and MODE E RETR write handlers:
+ * timeout/timer prologue + drain dc->buf to the socket.  NGX_OK = drained
+ * (refill and call again); NGX_AGAIN / NGX_ERROR = return from the handler. */
+ngx_int_t brix_ftp_ev_send_drain(ngx_event_t *wev);
 /* Implemented in ftp_ev_xfer.c, called by ftp_ev_data.c once the socket is up. */
 void      brix_ftp_ev_data_ready(ftp_ev_dc_t *dc);
 

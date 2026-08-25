@@ -15,27 +15,32 @@ CORPUS_SUFFIXES = (".py", ".conf", ".md", ".sh")
 
 
 def _corpus_writes(token):
-    """Every file OUTSIDE this one that spells `token` literally."""
+    """Every file OUTSIDE this test's own modules that spells `token`
+    literally.  The facade and its shards are one test split by TS-5, so the
+    off-arm constants the facade defines for the live negatives must not read
+    as the corpus writing the arm."""
     here = Path(__file__).resolve()
+    own = {here} | {p.resolve() for p in
+                    here.parent.glob("*test_audit16r_csi_flag_arms*.py")}
     hits = []
     for root in CORPUS_ROOTS:
-        hits.extend(_corpus_root_writes(root, token, here))
+        hits.extend(_corpus_root_writes(root, token, own))
     return sorted(hits)
 
 
-def _corpus_root_writes(root, token, here):
+def _corpus_root_writes(root, token, own):
     hits = []
     for path in root.rglob("*"):
-        hit = _corpus_hit(path, token, here)
+        hit = _corpus_hit(path, token, own)
         if hit:
             hits.append(hit)
     return hits
 
 
-def _corpus_hit(path, token, here):
+def _corpus_hit(path, token, own):
     if path.suffix not in CORPUS_SUFFIXES or not path.is_file():
         return None
-    if path.resolve() == here:
+    if path.resolve() in own:
         return None
     try:
         present = token in path.read_text(errors="replace")

@@ -15,6 +15,9 @@ SCHEMA_VERSION = 2
 ENTITY_TYPES = frozenset({
     "session", "case", "attempt", "metric", "resource", "span", "artifact",
     "log", "finding", "provenance", "server-instance", "server-pool",
+    "resource-node", "resource-link", "network-environment", "dns-record",
+    "network-route", "network-policy", "network-endpoint", "service-replica",
+    "provider-object", "storage-identity",
 })
 
 
@@ -75,7 +78,7 @@ def migrate_case(value: Mapping[str, object]) -> dict:
         raise SpecError("evidence schema", schema, "supported versions are 1 and 2")
     if schema == 1:
         record["attempts"] = [_attempt_from_v1(record)]
-        record["schema"] = SCHEMA_VERSION
+    record["schema"] = SCHEMA_VERSION
     attempts = []
     for index, raw in enumerate(_list(record.get("attempts"))):
         if not isinstance(raw, Mapping):
@@ -184,8 +187,95 @@ def _attempt_entities(session_id: str, case, attempt):
     provenance = _mapping(attempt.get("provenance"))
     if provenance:
         yield {"entity": "provenance", **base, **provenance}
+        yield from _graph_entities(base, provenance)
 
 
+def _graph_entities(base: Mapping[str, object], provenance: Mapping[str, object]):
+    extra = _mapping(provenance.get("extra"))
+    graph = _mapping(extra.get("resource_graph"))
+    fingerprint = str(graph.get("fingerprint", ""))
+    for index, raw in enumerate(_list(graph.get("nodes"))):
+        if isinstance(raw, Mapping):
+            row = dict(raw)
+            row.update({
+                "entity": "resource-node", **base, "ordinal": index,
+                "resource_id": str(raw.get("id", "")),
+                "graph_fingerprint": fingerprint,
+            })
+            yield row
+    for index, raw in enumerate(_list(graph.get("edges"))):
+        if isinstance(raw, Mapping):
+            row = dict(raw)
+            row.update({
+                "entity": "resource-link", **base, "ordinal": index,
+                "graph_fingerprint": fingerprint,
+            })
+            yield row
+    yield from _realization_entities(base, extra)
+
+
+def _named_rows(entity: str, values: object, base: Mapping[str, object]):
+    for index, raw in enumerate(_list(values)):
+        if isinstance(raw, Mapping):
+            yield {
+                "entity": entity, **base, "ordinal": index,
+                "name": str(raw.get("name", raw.get("server", ""))), **dict(raw),
+            }
+
+
+def _realization_entities(base: Mapping[str, object], extra: Mapping[str, object]):
+    network = _mapping(extra.get("network"))
+    for entity, field in (
+        ("network-environment", "environments"), ("dns-record", "dns"),
+        ("network-route", "routes"), ("network-policy", "policies"),
+    ):
+        yield from _named_rows(entity, network.get(field), base)
+    for service_index, raw in enumerate(_list(network.get("services"))):
+        if isinstance(raw, Mapping):
+            yield from _service_realization_rows(base, raw, service_index)
+    yield from _provider_realization_rows(base, extra.get("provider_resources"))
+
+
+def _service_realization_rows(base, service, service_index: int):
+    server = str(service.get("name", ""))
+    for index, raw in enumerate(_list(service.get("endpoints"))):
+        if isinstance(raw, Mapping):
+            yield {
+                "entity": "network-endpoint", **base,
+                "ordinal": service_index * 1000 + index, "name": server,
+                "server": server, **dict(raw),
+            }
+    for index, raw in enumerate(_list(service.get("replicas"))):
+        if isinstance(raw, Mapping):
+            yield {
+                "entity": "service-replica", **base,
+                "ordinal": service_index * 1000 + index, "name": server,
+                "server": server, **dict(raw),
+            }
+
+
+def _provider_realization_rows(base, value: object):
+    providers = _mapping(value)
+    ordinal = 0
+    for name, raw in sorted(providers.items()):
+        provider = _mapping(raw)
+        ownership = _mapping(provider.get("ownership"))
+        for identity in _list(ownership.get("objects")):
+            if isinstance(identity, Mapping):
+                yield {
+                    "entity": "provider-object", **base, "ordinal": ordinal,
+                    "name": str(name), "resource": str(name), **dict(identity),
+                }
+                ordinal += 1
+        metadata = _mapping(provider.get("metadata"))
+        if metadata or provider.get("output_names"):
+            yield {
+                "entity": "storage-identity", **base, "ordinal": ordinal,
+                "name": str(name), "resource": str(name),
+                "metadata": metadata,
+                "outputs": _list(provider.get("output_names")),
+            }
+            ordinal += 1
 def _pool_services(base: Mapping[str, object], pool: Mapping[str, object]):
     for index, service in enumerate(_mapping(pool.get("services")).values()):
         if not isinstance(service, Mapping):
@@ -230,6 +320,7 @@ def _pool_entities(session_id: str, pool):
     provenance = _mapping(evidence.get("provenance"))
     if provenance:
         yield {"entity": "provenance", **base, **provenance}
+        yield from _graph_entities(base, provenance)
 
 
 def _case_entities(session_id: str, cases: Sequence[Mapping[str, object]]):

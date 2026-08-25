@@ -31,6 +31,7 @@ import pytest
 
 from server_registry import NginxInstanceSpec
 from ephemeral_port import free_port
+from settings import HOST
 
 pytestmark = [pytest.mark.uses_lifecycle_harness,
               pytest.mark.xdist_group("lc-tpc")]
@@ -81,8 +82,8 @@ def gsi_tpc(lifecycle, tmp_path_factory):
            "env": penv, "certs": str(paths["certs"]), "base": str(base),
            "dst_data": str(paths["dstdata"]),
            "logs": os.path.join(dst.prefix, "logs"),
-           "src_url": f"root://127.0.0.1:{src_port}",
-           "dst_url": f"root://127.0.0.1:{dst.port}"}
+           "src_url": f"root://{HOST}:{src_port}",
+           "dst_url": f"root://{HOST}:{dst.port}"}
     yield ctx
     _stop_gsi_source(src)
 

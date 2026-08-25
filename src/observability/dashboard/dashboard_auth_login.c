@@ -1,5 +1,6 @@
 #include "dashboard_auth_internal.h"
 #include "core/ident.h"
+#include "core/http/http_file_response.h"   /* brix_http_send_single_buf */
 
 #include <openssl/crypto.h>
 #include <time.h>
@@ -88,8 +89,7 @@ static ngx_int_t
 send_html(ngx_http_request_t *r, ngx_int_t status,
     const char *html, size_t html_len)
 {
-    ngx_buf_t    *b;
-    ngx_chain_t   out;
+    ngx_buf_t *b;
 
     b = ngx_pcalloc(r->pool, sizeof(*b));
     if (b == NULL) { return NGX_HTTP_INTERNAL_SERVER_ERROR; }
@@ -104,12 +104,7 @@ send_html(ngx_http_request_t *r, ngx_int_t status,
     r->headers_out.content_type      = (ngx_str_t) ngx_string("text/html; charset=utf-8");
     r->headers_out.content_type_len  = r->headers_out.content_type.len;
 
-    ngx_int_t rc = ngx_http_send_header(r);
-    if (rc == NGX_ERROR || rc > NGX_OK || r->header_only) { return rc; }
-
-    out.buf  = b;
-    out.next = NULL;
-    return ngx_http_output_filter(r, &out);
+    return brix_http_send_single_buf(r, b);
 }
 
 /* Context for async POST body reading */

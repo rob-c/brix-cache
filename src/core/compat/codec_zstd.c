@@ -27,11 +27,11 @@ zstd_init(void **state, brix_codec_id_t id, brix_codec_dir_t dir, int level)
 {
     zstd_state *st = calloc(1, sizeof(*st));
 
-    (void) id;
     if (st == NULL) {
         return BRIX_CODEC_ERR_MEM;
     }
     st->dir = dir;
+    (void) id;
     if (dir == BRIX_CODEC_DIR_DECOMPRESS) {
         st->dctx = ZSTD_createDCtx();
         if (st->dctx == NULL) {

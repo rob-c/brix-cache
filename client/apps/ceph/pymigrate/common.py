@@ -319,3 +319,19 @@ def run_parallel(items, fn, threads: int):
     with concurrent.futures.ThreadPoolExecutor(max_workers=threads) as ex:
         list(ex.map(wrapped, items))
     return errors
+
+
+def tool_main(argv, parse_args, migrator_factory, run):
+    """Shared tool entry: parse args, wire StateManifest + Reporter + the
+    tool's Migrator together, then hand off to its run(args, mig, rep, state);
+    state and migrator are closed on every exit path."""
+    args = parse_args(argv if argv is not None else sys.argv[1:])
+    state = StateManifest(args.state_file)
+    rep = Reporter(json_mode=args.json_mode,
+                   progress=args.progress or sys.stderr.isatty())
+    mig = migrator_factory(args, rep, state)
+    try:
+        return run(args, mig, rep, state)
+    finally:
+        state.close()
+        mig.close()

@@ -76,22 +76,23 @@ def _describe_plan(terminal, definition) -> None:
         )
     )
     for node in graph.nodes:
-        available = backend_capabilities(
-            node.backend, "executor" if node.kind == "client" else (
-                "launcher" if node.kind == "server" else "backend"
-            ),
-        )
-        missing = sorted(set(node.requires) - available)
-        terminal.write_line(
-            "    node %-28s backend=%-10s requires=%s%s" % (
-                node.id, node.backend, ",".join(node.requires) or "none",
-                " missing=" + ",".join(missing) if missing else "",
-            )
-        )
+        _describe_plan_node(terminal, node)
     for edge in graph.edges:
         terminal.write_line(
             "    edge %s -[%s]-> %s" % (edge.source, edge.relation, edge.target)
         )
+
+
+def _describe_plan_node(terminal, node) -> None:
+    kind = {"client": "executor", "server": "launcher"}.get(node.kind, "backend")
+    available = backend_capabilities(node.backend, kind)
+    missing = sorted(set(node.requires) - available)
+    suffix = " missing=" + ",".join(missing) if missing else ""
+    terminal.write_line(
+        "    node %-28s backend=%-10s requires=%s%s" % (
+            node.id, node.backend, ",".join(node.requires) or "none", suffix,
+        )
+    )
 
 
 def _describe_case(terminal, item, definition) -> None:

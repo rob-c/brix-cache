@@ -12,6 +12,7 @@ from typing import Dict, Iterator, Mapping, Optional
 from brixtest.errors import SpecError
 from brixtest.runtime.commands import CommandResult
 from brixtest.runtime.filesystem import ServiceFilesystem
+from brixtest.runtime.replica import Replica
 from brixtest.util.immutable import freeze_mapping
 
 _URL_SCHEME = re.compile(r"^[A-Za-z][A-Za-z0-9+.-]*$")
@@ -89,6 +90,20 @@ def _service_hosts(value: object) -> Mapping[str, str]:
     return freeze_mapping(value)
 
 
+def _service_replicas(value: object) -> tuple[Replica, ...]:
+    if not isinstance(value, (tuple, list)):
+        raise SpecError("service.replicas", value, "must be a sequence of replica records")
+    replicas = []
+    for item in value:
+        try:
+            replicas.append(item if isinstance(item, Replica) else Replica(**dict(item)))
+        except (TypeError, ValueError) as exc:
+            raise SpecError(
+                "service.replicas", item, "contains an invalid replica record",
+            ) from exc
+    return tuple(replicas)
+
+
 def _non_empty_text(value: object) -> bool:
     return isinstance(value, str) and bool(value)
 
@@ -141,6 +156,42 @@ def _pending_log_rows(pending: str) -> tuple[str, ...]:
     return (pending,) if pending else ()
 
 
+def _controlled_log(value: "Service", encoding: str, errors: str) -> Optional[str]:
+    controller = getattr(value, "_controller", None)
+    method = getattr(controller, "_service_read_log", None)
+    return method(value.name, encoding=encoding, errors=errors) if callable(method) else None
+
+
+def _follow_remote_log(
+    value: "Service", timeout: float, interval: float, encoding: str, errors: str,
+) -> Iterator[str]:
+    cursor = len(value.read_log(encoding=encoding, errors=errors))
+    deadline = time.monotonic() + timeout
+    pending = ""
+    while time.monotonic() < deadline:
+        current = value.read_log(encoding=encoding, errors=errors)
+        cursor = cursor if cursor <= len(current) else 0
+        rows, pending = _complete_log_lines(pending + current[cursor:])
+        cursor = len(current)
+        yield from rows
+        time.sleep(min(interval, max(0.0, deadline - time.monotonic())))
+    yield from _pending_log_rows(pending)
+
+
+def _follow_file_log(
+    path: Path, timeout: float, interval: float, encoding: str, errors: str,
+) -> Iterator[str]:
+    cursor = path.stat().st_size if path.exists() else 0
+    deadline = time.monotonic() + timeout
+    pending = ""
+    while time.monotonic() < deadline:
+        chunk, cursor = _log_chunk(path, cursor, encoding, errors)
+        rows, pending = _complete_log_lines(pending + chunk)
+        yield from rows
+        time.sleep(min(interval, max(0.0, deadline - time.monotonic())))
+    yield from _pending_log_rows(pending)
+
+
 
 @dataclasses.dataclass(frozen=True)
 class Service:
@@ -166,6 +217,7 @@ class Service:
     protocols: Mapping[str, str] = dataclasses.field(default_factory=dict)
     hosts: Mapping[str, str] = dataclasses.field(default_factory=dict)
     metadata: Mapping[str, object] = dataclasses.field(default_factory=dict)
+    replicas: tuple[Replica, ...] = ()
 
     def __post_init__(self) -> None:
         if not _non_empty_text(self.name):
@@ -190,6 +242,7 @@ class Service:
         object.__setattr__(self, "protocols", _service_protocols(self.protocols))
         object.__setattr__(self, "hosts", _service_hosts(self.hosts))
         object.__setattr__(self, "metadata", freeze_mapping(self.metadata))
+        object.__setattr__(self, "replicas", _service_replicas(self.replicas))
 
     def port(self, role: str = "primary") -> int:
         """Return one named TCP port, listing valid roles on lookup failure."""
@@ -241,6 +294,11 @@ class Service:
 
     def read_log(self, *, encoding: str = "utf-8", errors: str = "replace") -> str:
         """Read the server log accumulated so far."""
+        if self.log.exists():
+            return self.log.read_text(encoding=encoding, errors=errors)
+        controlled = _controlled_log(self, encoding, errors)
+        if controlled is not None:
+            return controlled
         return self.log.read_text(encoding=encoding, errors=errors)
 
     def tail_log(
@@ -262,15 +320,10 @@ class Service:
         """Yield newly appended log lines for a strictly bounded duration."""
         for field, value in (("timeout", timeout), ("interval", interval)):
             _positive_number("service log %s" % field, value)
-        cursor = self.log.stat().st_size if self.log.exists() else 0
-        deadline = time.monotonic() + timeout
-        pending = ""
-        while time.monotonic() < deadline:
-            chunk, cursor = _log_chunk(self.log, cursor, encoding, errors)
-            rows, pending = _complete_log_lines(pending + chunk)
-            yield from rows
-            time.sleep(min(interval, max(0.0, deadline - time.monotonic())))
-        yield from _pending_log_rows(pending)
+        if not self.log.exists() and _controlled_log(self, encoding, errors) is not None:
+            yield from _follow_remote_log(self, timeout, interval, encoding, errors)
+            return
+        yield from _follow_file_log(self.log, timeout, interval, encoding, errors)
 
     def is_ready(self, role: str = "primary", *, timeout: float = 0.2) -> bool:
         """Return whether a TCP endpoint accepts a connection within ``timeout``."""
@@ -357,4 +410,5 @@ class Service:
             "schemes": dict(self.schemes), "protocols": dict(self.protocols),
             "hosts": dict(self.hosts),
             "metadata": dict(self.metadata),
+            "replicas": [item.as_dict() for item in self.replicas],
         }

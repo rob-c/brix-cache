@@ -6,6 +6,7 @@
 
 #include "brix.h"
 #include "xrootdfs_legacy_internal.h"
+#include "xrootdfs_argsplit.h"
 #include "posix/posix_map.h"
 #include "fs/iobuf.h"
 #include "posix/fuse_ops.h"
@@ -100,62 +101,74 @@ lg_xfs_getxattr(const char *path, const char *name, char *value, size_t size)
     return (int) vlen;
 }
 
+/* Shared entry for the two xattr mutators: verify xattr support, reject the
+ * read-only checksum prefix, resolve NAME → backend fattr (absent → *err =
+ * absent_errno), then check a conn out of the pool. Returns the conn with
+ * *fattr set, or NULL with *err holding the FUSE error to return. */
+static brix_conn *
+lg_xfs_xattr_begin(const char *name, int absent_errno, const char **fattr,
+                   brix_status *st, int *err)
+{
+    brix_conn *c;
+
+    if (!lg_xattr) {
+        *err = -ENOTSUP;
+        return NULL;
+    }
+    if (strncmp(name, XFS_CKS_XATTR_PFX, sizeof(XFS_CKS_XATTR_PFX) - 1) == 0) {
+        *err = -EACCES;   /* checksum xattr is read-only */
+        return NULL;
+    }
+    *fattr = lg_xfs_xattr_to_fattr(name);
+    if (*fattr == NULL) {
+        *err = absent_errno;
+        return NULL;
+    }
+    brix_status_clear(st);
+    c = brix_pool_checkout(lg_pool, st);
+    if (c == NULL) {
+        *err = lg_xfs_err(st);
+    }
+    return c;
+}
+
+/* Check the conn back in (healthy iff rc==0 or the status says so) and map the
+ * mutation's rc to a FUSE return: 0 on success, lg_xfs_err(st) otherwise. */
+static int
+lg_xfs_xattr_finish(brix_conn *c, int rc, brix_status *st)
+{
+    brix_pool_checkin(lg_pool, c, rc == 0 ? 1 : lg_xfs_conn_healthy(st));
+    return rc != 0 ? lg_xfs_err(st) : 0;
+}
+
 int
 lg_xfs_setxattr(const char *path, const char *name, const char *value,
              size_t size, int flags)
 {
     brix_status st;
-    brix_conn  *c;
-    int         rc;
     const char *fname;
+    int         err;
+    brix_conn  *c = lg_xfs_xattr_begin(name, -ENOTSUP, &fname, &st, &err);
 
-    if (!lg_xattr) {
-        return -ENOTSUP;
-    }
-    if (strncmp(name, XFS_CKS_XATTR_PFX, sizeof(XFS_CKS_XATTR_PFX) - 1) == 0) {
-        return -EACCES;   /* checksum xattr is read-only */
-    }
-    fname = lg_xfs_xattr_to_fattr(name);
-    if (fname == NULL) {
-        return -ENOTSUP;
-    }
-    brix_status_clear(&st);
-    c = brix_pool_checkout(lg_pool, &st);
     if (c == NULL) {
-        return lg_xfs_err(&st);
+        return err;
     }
-    rc = brix_fattr_set(c, path, fname, value, size,
-                        (flags & XATTR_CREATE) ? 1 : 0, &st);
-    brix_pool_checkin(lg_pool, c, rc == 0 ? 1 : lg_xfs_conn_healthy(&st));
-    return rc != 0 ? lg_xfs_err(&st) : 0;
+    return lg_xfs_xattr_finish(c, brix_fattr_set(c, path, fname, value, size,
+                               (flags & XATTR_CREATE) ? 1 : 0, &st), &st);
 }
 
 int
 lg_xfs_removexattr(const char *path, const char *name)
 {
     brix_status st;
-    brix_conn  *c;
-    int         rc;
     const char *fname;
+    int         err;
+    brix_conn  *c = lg_xfs_xattr_begin(name, -ENODATA, &fname, &st, &err);
 
-    if (!lg_xattr) {
-        return -ENOTSUP;
-    }
-    if (strncmp(name, XFS_CKS_XATTR_PFX, sizeof(XFS_CKS_XATTR_PFX) - 1) == 0) {
-        return -EACCES;
-    }
-    fname = lg_xfs_xattr_to_fattr(name);
-    if (fname == NULL) {
-        return -ENODATA;
-    }
-    brix_status_clear(&st);
-    c = brix_pool_checkout(lg_pool, &st);
     if (c == NULL) {
-        return lg_xfs_err(&st);
+        return err;
     }
-    rc = brix_fattr_del(c, path, fname, &st);
-    brix_pool_checkin(lg_pool, c, rc == 0 ? 1 : lg_xfs_conn_healthy(&st));
-    return rc != 0 ? lg_xfs_err(&st) : 0;
+    return lg_xfs_xattr_finish(c, brix_fattr_del(c, path, fname, &st), &st);
 }
 
 int
@@ -290,12 +303,8 @@ lg_xfs_parse_args(int argc, char **argv, char **fuse_argv, int *fuse_argc,
                 lg_usage();
                 return 0;
             }
-            if (*fuse_argc < 61) { fuse_argv[(*fuse_argc)++] = argv[i]; }  /* fuse opt */
-        } else if (*endpoint == NULL) {
-            *endpoint = a;   /* first non-option = the root:// URL */
-        } else if (*fuse_argc < 61) {
-            fuse_argv[(*fuse_argc)++] = argv[i];   /* mountpoint + fuse flags */
         }
+        xfs_arg_passthrough(a, a[0] == '-', fuse_argv, fuse_argc, endpoint);
     }
     return -1;
 }

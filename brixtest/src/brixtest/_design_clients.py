@@ -33,8 +33,8 @@ def _validate_client_identity(declaration: "Client") -> None:
         )
     if not _confined_cwd(declaration.cwd):
         raise SpecError("client.cwd", declaration.cwd, "must be a confined relative path")
-    if declaration.input is not None and not isinstance(declaration.input, str):
-        raise SpecError("client.input", declaration.input, "must be text or None")
+    if declaration.input is not None and not isinstance(declaration.input, (str, bytes)):
+        raise SpecError("client.input", declaration.input, "must be text, bytes, or None")
 
 
 def _validate_client_policy(declaration: "Client") -> tuple[int, ...]:
@@ -89,7 +89,7 @@ class Client:
     timeout: float = 30.0
     binaries: Sequence[Binary] = ()
     cwd: str = ""
-    input: Optional[str] = None
+    input: Optional[Union[str, bytes]] = None
     expected_exit_codes: Sequence[int] = (0,)
     output_limit: int = 1 << 20
     mode: str = "capture"
@@ -199,7 +199,8 @@ def _inherited(value, untouched, inherited):
 def client(
     name: str, *, execution: Execution, env: Optional[Mapping[str, object]] = None,
     timeout: float = 30.0, binaries: Sequence[Binary] = (), cwd: str = "",
-    input: Optional[str] = None, expected_exit_codes: Sequence[int] = (0,),
+    input: Optional[Union[str, bytes]] = None,
+    expected_exit_codes: Sequence[int] = (0,),
     output_limit: int = 1 << 20, mode: str = "capture", retries: int = 0,
     encoding: str = "utf-8", mounts: Sequence[Mount] = (),
     logs: Optional[LogPolicy] = None,
@@ -212,7 +213,8 @@ def client(
 def client(
     name: str, *, binary: Binary, args: Sequence[object] = (),
     env: Optional[Mapping[str, object]] = None, timeout: float = 30.0,
-    binaries: Sequence[Binary] = (), cwd: str = "", input: Optional[str] = None,
+    binaries: Sequence[Binary] = (), cwd: str = "",
+    input: Optional[Union[str, bytes]] = None,
     expected_exit_codes: Sequence[int] = (0,), output_limit: int = 1 << 20,
     mode: str = "capture", retries: int = 0, encoding: str = "utf-8",
     mounts: Sequence[Mount] = (), logs: Optional[LogPolicy] = None,
@@ -225,7 +227,8 @@ def client(
 def client(
     name: str, *, command: Union[Sequence[object], Command],
     env: Optional[Mapping[str, object]] = None, timeout: float = 30.0,
-    binaries: Sequence[Binary] = (), cwd: str = "", input: Optional[str] = None,
+    binaries: Sequence[Binary] = (), cwd: str = "",
+    input: Optional[Union[str, bytes]] = None,
     expected_exit_codes: Sequence[int] = (0,), output_limit: int = 1 << 20,
     mode: str = "capture", retries: int = 0, encoding: str = "utf-8",
     mounts: Sequence[Mount] = (), logs: Optional[LogPolicy] = None,
@@ -245,7 +248,7 @@ def client(
     timeout: float = 30.0,
     binaries: Sequence[Binary] = (),
     cwd: str = "",
-    input: Optional[str] = None,
+    input: Optional[Union[str, bytes]] = None,
     expected_exit_codes: Sequence[int] = (0,),
     output_limit: int = 1 << 20,
     mode: str = "capture",
@@ -291,7 +294,8 @@ class Tool(Client):
 def tool(
     name: str, *, execution: Execution, env: Optional[Mapping[str, object]] = None,
     timeout: float = 30.0, binaries: Sequence[Binary] = (), cwd: str = "",
-    input: Optional[str] = None, expected_exit_codes: Sequence[int] = (0,),
+    input: Optional[Union[str, bytes]] = None,
+    expected_exit_codes: Sequence[int] = (0,),
     output_limit: int = 1 << 20, mode: str = "capture", retries: int = 0,
     encoding: str = "utf-8", mounts: Sequence[Mount] = (),
     logs: Optional[LogPolicy] = None,
@@ -304,7 +308,8 @@ def tool(
 def tool(
     name: str, *, binary: Binary, args: Sequence[object] = (),
     env: Optional[Mapping[str, object]] = None, timeout: float = 30.0,
-    binaries: Sequence[Binary] = (), cwd: str = "", input: Optional[str] = None,
+    binaries: Sequence[Binary] = (), cwd: str = "",
+    input: Optional[Union[str, bytes]] = None,
     expected_exit_codes: Sequence[int] = (0,), output_limit: int = 1 << 20,
     mode: str = "capture", retries: int = 0, encoding: str = "utf-8",
     mounts: Sequence[Mount] = (), logs: Optional[LogPolicy] = None,
@@ -317,7 +322,8 @@ def tool(
 def tool(
     name: str, *, command: Union[Sequence[object], Command],
     env: Optional[Mapping[str, object]] = None, timeout: float = 30.0,
-    binaries: Sequence[Binary] = (), cwd: str = "", input: Optional[str] = None,
+    binaries: Sequence[Binary] = (), cwd: str = "",
+    input: Optional[Union[str, bytes]] = None,
     expected_exit_codes: Sequence[int] = (0,), output_limit: int = 1 << 20,
     mode: str = "capture", retries: int = 0, encoding: str = "utf-8",
     mounts: Sequence[Mount] = (), logs: Optional[LogPolicy] = None,
@@ -337,7 +343,7 @@ def tool(
     timeout: float = 30.0,
     binaries: Sequence[Binary] = (),
     cwd: str = "",
-    input: Optional[str] = None,
+    input: Optional[Union[str, bytes]] = None,
     expected_exit_codes: Sequence[int] = (0,),
     output_limit: int = 1 << 20,
     mode: str = "capture",

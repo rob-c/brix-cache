@@ -12,6 +12,14 @@ void brix_build_resp_hdr(const u_char *streamid, uint16_t status,
 ngx_int_t brix_send_ok(brix_ctx_t *ctx, ngx_connection_t *c,
     const void *body, uint32_t bodylen);
 
+/* Assemble a kXR_ok open-reply frame in c->pool: header + the first `hbytes`
+ * of `body` (4-byte fhandle, or the full ServerOpenBody) + the NUL-terminated
+ * `statbuf` tail when `want_stat`.  On OOM frees fhandle `idx` and returns
+ * NULL; on success returns the frame with its length in *out_total. */
+u_char *brix_open_ok_frame(brix_ctx_t *ctx, ngx_connection_t *c, int idx,
+    const ServerOpenBody *body, size_t hbytes, const char *statbuf,
+    ngx_flag_t want_stat, size_t *out_total);
+
 /* Send kXR_error (status=kXR_error) with errcode + human message. */
 ngx_int_t brix_send_error(brix_ctx_t *ctx, ngx_connection_t *c,
     uint16_t errcode, const char *msg);

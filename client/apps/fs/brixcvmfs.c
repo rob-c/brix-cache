@@ -270,17 +270,27 @@ static void negf_store_sidecar(cvmfs_client_t *cl, int dfd) {
     (void) unlinkat(dfd, NEGF_SIDECAR_TMP, 0);
 }
 
+/* Resolve the cache-dir fd a sidecar setup reads from: the caller's cache_dirfd
+ * passes through (*owned = 0), else the repo's cache dir is opened (*owned = 1,
+ * the caller closes). Returns -1 if neither is available. */
+static int brixcvmfs_sidecar_dirfd(const char *repo, const char *cache_override,
+                                   int cache_dirfd, int *owned) {
+    char cdir[512] = "";
+    if (cache_dirfd >= 0) {
+        *owned = 0;
+        return cache_dirfd;
+    }
+    brixcvmfs_prepare_cache_dir(repo, cache_override, -1, cdir, sizeof(cdir));
+    *owned = 1;
+    return open(cdir, O_RDONLY | O_DIRECTORY);
+}
+
 /* Sidecar-or-build bring-up. Runs synchronously before fuse_main (the mount
  * serves FUSE single-threaded, so no locking), once per served revision. */
 static void brixcvmfs_negfilter_setup(cvmfs_client_t *cl, const char *repo,
                                       const char *cache_override, int cache_dirfd) {
-    int dfd = cache_dirfd, owned = 0;
-    if (dfd < 0) {
-        char cdir[512] = "";
-        brixcvmfs_prepare_cache_dir(repo, cache_override, -1, cdir, sizeof(cdir));
-        dfd = open(cdir, O_RDONLY | O_DIRECTORY);
-        owned = 1;
-    }
+    int owned = 0;
+    int dfd = brixcvmfs_sidecar_dirfd(repo, cache_override, cache_dirfd, &owned);
     if (dfd >= 0 && negf_load_sidecar(cl, dfd) == 0) {
         fprintf(stderr, "brixcvmfs: negfilter loaded from sidecar\n");
     } else if (cvmfs_client_negfilter_build(cl, mono_now()) == 0) {
@@ -306,13 +316,8 @@ static void brixcvmfs_negfilter_setup(cvmfs_client_t *cl, const char *repo,
 
 static void brixcvmfs_pathidx_setup(cvmfs_client_t *cl, const char *repo,
                                     const char *cache_override, int cache_dirfd) {
-    int dfd = cache_dirfd, owned = 0;
-    if (dfd < 0) {
-        char cdir[512] = "";
-        brixcvmfs_prepare_cache_dir(repo, cache_override, -1, cdir, sizeof(cdir));
-        dfd = open(cdir, O_RDONLY | O_DIRECTORY);
-        owned = 1;
-    }
+    int owned = 0;
+    int dfd = brixcvmfs_sidecar_dirfd(repo, cache_override, cache_dirfd, &owned);
     if (dfd >= 0 && cvmfs_client_pathidx_load(cl, dfd, PIDX_SIDECAR) == 0)
         fprintf(stderr, "brixcvmfs: pathidx loaded from sidecar\n");
     else if (dfd >= 0

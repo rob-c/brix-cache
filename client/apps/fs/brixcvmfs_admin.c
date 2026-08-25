@@ -8,11 +8,10 @@
 
 #include "cvmfs/publish/admin.h"
 #include "cvmfs/grammar/hash.h"
+#include "brixcvmfs_errline.h"
 
 static int ad_err(const char *what, const char *detail) {
-    fprintf(stderr, "brixcvmfs repo: %s%s%s\n", what,
-            detail != NULL ? ": " : "", detail != NULL ? detail : "");
-    return 1;
+    return brixcvmfs_emit_err("repo", what, detail, 1);
 }
 
 static int ad_usage(void) {

@@ -4,6 +4,7 @@
   "container_runtime": "docker",
   "cpus": 2,
   "memory_mb": 4096,
+  "helper_image": "python@sha256:ffb752e139c0a19692a43af8d8523b274222dd68eebad5d583b45c2201c6e30a",
   "server_image": "alpine/socat@sha256:d85531a29ef5ba99dfb4717485c239307e2902d522a1bc010992a2728c92cfad",
   "server_image_load": "alpine/socat@sha256:d85531a29ef5ba99dfb4717485c239307e2902d522a1bc010992a2728c92cfad"
 }

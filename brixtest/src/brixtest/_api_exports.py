@@ -103,11 +103,15 @@ PUBLIC_GROUPS: Mapping[str, Mapping[str, str]] = {
         "CaseManager": "brixtest.runtime.manager",
         "BackendContext": "brixtest.runtime.backends",
         "CommandResult": "brixtest.runtime.commands",
+        "Replica": "brixtest.runtime.api",
         "Run": "brixtest.runtime.api",
         "Service": "brixtest.runtime.api",
         "ServiceFilesystem": "brixtest.runtime.api",
         "MaterializedArtifact": "brixtest.runtime.artifacts",
         "CapturedBinary": "brixtest.runtime.binaries",
+        "ProviderContext": "brixtest.runtime.providers",
+        "ProviderInstance": "brixtest.runtime.providers",
+        "ProviderPlan": "brixtest.runtime.providers",
         "ConfiguredClient": "brixtest.clients.configured",
         "ConfiguredTool": "brixtest.clients.configured",
         "ArtifactProviderContext": "brixtest.runtime.artifacts",
@@ -119,7 +123,8 @@ PUBLIC_GROUPS: Mapping[str, Mapping[str, str]] = {
     },
     "metrics": dict.fromkeys(("MetricRecorder", "MetricSample", "MetricTimer"), "brixtest.metrics"),
     "isolation": dict.fromkeys(
-        ("Isolation", "docker", "nsenter", "podman", "process", "runc"), "brixtest.isolation"
+        ("Isolation", "docker", "kubernetes", "nsenter", "podman", "process", "runc"),
+        "brixtest.isolation",
     ),
     "credentials": dict.fromkeys(
         (

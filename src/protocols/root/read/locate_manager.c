@@ -27,6 +27,7 @@
 #include "net/manager/loc_cache.h"     /* W3 dynamic location + negative cache */
 #include "net/cms/cms_internal.h"
 #include "net/cms/server.h"            /* W3: node fan-out set + kYR_state */
+#include "locate.h"
 #include "locate_internal.h"
 
 /*
@@ -44,14 +45,30 @@
 static int
 locate_try_cms_parent(locate_ctx_t *lc, ngx_int_t *out_rc)
 {
-    brix_ctx_t                  *ctx = lc->ctx;
-    ngx_connection_t            *c = lc->c;
-    ngx_stream_brix_srv_conf_t  *conf = lc->conf;
-    ngx_brix_cms_ctx_t          *cms = ngx_brix_cms_pick_ctx(conf);
-    uint32_t                     streamid;
-
-    if (cms == NULL) {
+    if (brix_cms_locate_park(lc->ctx, lc->c, lc->conf, lc->reqpath)
+        != NGX_OK)
+    {
         return 0;
+    }
+    *out_rc = NGX_AGAIN;
+    return 1;
+}
+
+/* The shared implementation behind locate_try_cms_parent — also the CMS leg
+ * of the stat and query-checksum manager paths (locate.h has the contract). */
+ngx_int_t
+brix_cms_locate_park(brix_ctx_t *ctx, ngx_connection_t *c,
+    ngx_stream_brix_srv_conf_t *conf, const char *path)
+{
+    ngx_brix_cms_ctx_t *cms;
+    uint32_t            streamid;
+
+    if (conf->cms.nctxs == 0) {
+        return NGX_DECLINED;
+    }
+    cms = ngx_brix_cms_pick_ctx(conf);
+    if (cms == NULL) {
+        return NGX_DECLINED;
     }
 
     streamid = ngx_brix_cms_next_streamid(cms);
@@ -59,22 +76,20 @@ locate_try_cms_parent(locate_ctx_t *lc, ngx_int_t *out_rc)
                               ctx->recv.cur_streamid,
                               conf->cms.locate_timeout) != NGX_OK)
     {
-        return 0;
+        return NGX_DECLINED;
     }
 
     ctx->cms_wait_streamid = streamid;
     ctx->state = XRD_ST_WAITING_CMS;
     ngx_add_timer(c->read, conf->cms.locate_timeout);
-    if (ngx_brix_cms_send_locate(cms, streamid, lc->reqpath) == NGX_OK)
-    {
-        *out_rc = NGX_AGAIN;
-        return 1;
+    if (ngx_brix_cms_send_locate(cms, streamid, path) == NGX_OK) {
+        return NGX_OK;
     }
 
     ngx_del_timer(c->read);
     ctx->state = XRD_ST_REQ_HEADER;
     brix_pending_remove(streamid, ngx_pid);
-    return 0;
+    return NGX_DECLINED;
 }
 
 /*

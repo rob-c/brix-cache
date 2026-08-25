@@ -111,6 +111,12 @@ from settings import (
     WEBDAV_TPC_SOURCE_REQUIRED_PORT,
 )
 
+# load_test.py matches pytest's default `*_test.py` collection pattern but is a
+# CLI driver, not a test module — and as a §10.2 self-replacement shim its
+# module object's __file__ points at brix_suite/perf/load_test.py, which pytest
+# rejects as an import file mismatch.  Nothing to collect there; skip it.
+collect_ignore = ["load_test.py"]
+
 # TS-2 re-exports: the sentinel arbiter (formerly conftest_part4.py) and the
 # session/service fixtures (formerly the tail of conftest_part5.py) now live in
 # brix_suite.harness.  Binding their names HERE keeps three consumers working

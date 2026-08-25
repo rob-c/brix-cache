@@ -1,0 +1,70 @@
+name: BriXTest conformance
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  python:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.9", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e '.[dev,crypto]'
+      - run: python -m pytest tests -m 'not integration'
+      - run: python tools/check_standalone.py
+
+  docker-minikube:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+      - name: Install pinned Minikube and kubectl
+        env:
+          MINIKUBE_VERSION: v1.38.1
+          KUBECTL_VERSION: v1.36.1
+        run: |
+          curl --fail --location --remote-name "https://github.com/kubernetes/minikube/releases/download/${MINIKUBE_VERSION}/minikube-linux-amd64"
+          curl --fail --location --remote-name "https://github.com/kubernetes/minikube/releases/download/${MINIKUBE_VERSION}/minikube-linux-amd64.sha256"
+          echo "$(cat minikube-linux-amd64.sha256)  minikube-linux-amd64" | sha256sum --check
+          sudo install minikube-linux-amd64 /usr/local/bin/minikube
+          curl --fail --location --remote-name "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl"
+          curl --fail --location --remote-name "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl.sha256"
+          echo "$(cat kubectl.sha256)  kubectl" | sha256sum --check
+          sudo install kubectl /usr/local/bin/kubectl
+      - run: python -m pip install -e '.[dev,crypto]'
+      - name: Start the reference cluster and preload pinned images
+        run: |
+          docker pull "$(python -c 'import json; print(json.load(open("k8s/minikube/cluster.json"))["server_image_load"])')"
+          docker pull "$(python -c 'import json; print(json.load(open("k8s/minikube/cluster.json"))["helper_image"])')"
+          python tools/minikube_cluster.py start
+      - name: Run mandatory live conformance
+        run: python tools/minikube_cluster.py test
+      - name: Verify teardown
+        run: test -z "$(kubectl get namespaces -l app.kubernetes.io/managed-by=brixtest -o name)"
+      - name: Collect cluster diagnostics
+        if: failure()
+        run: minikube logs -p brixtest --file=minikube.log
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: minikube-diagnostics
+          path: minikube.log
+      - name: Delete reference cluster
+        if: always()
+        run: minikube delete -p brixtest

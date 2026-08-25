@@ -1,4 +1,5 @@
 #include "core/ngx_brix_module.h"
+#include "core/config/config.h"
 #include "handoff.h"
 
 /*
@@ -36,49 +37,9 @@ typedef struct {
 char *
 brix_conf_set_http_handoff(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 {
-    ngx_stream_brix_srv_conf_t *xcf = conf;
-    ngx_str_t                    *value;
-    ngx_url_t                     url;
-    ngx_addr_t                   *addr;
-
-    (void) cmd;
-    value = cf->args->elts;
-
-    if (xcf->http_handoff_addr != NULL) {
-        return "is duplicate";
-    }
-
-    xcf->http_handoff_name = value[1];
-
-    ngx_memzero(&url, sizeof(url));
-    url.url = value[1];
-    url.default_port = 0;
-
-    if (ngx_parse_url(cf->pool, &url) != NGX_OK || url.no_port
-        || url.naddrs == 0 || url.addrs == NULL)
-    {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-            "brix_http_handoff: could not resolve host:port in \"%V\"",
-            &value[1]);
-        return NGX_CONF_ERROR;
-    }
-
-    addr = ngx_pcalloc(cf->pool, sizeof(ngx_addr_t));
-    if (addr == NULL) {
-        return NGX_CONF_ERROR;
-    }
-    addr->sockaddr = ngx_pnalloc(cf->pool, url.addrs[0].socklen);
-    if (addr->sockaddr == NULL) {
-        return NGX_CONF_ERROR;
-    }
-    ngx_memcpy(addr->sockaddr, url.addrs[0].sockaddr, url.addrs[0].socklen);
-    addr->socklen = url.addrs[0].socklen;
-    addr->name = url.addrs[0].name;
-    xcf->http_handoff_addr = addr;
-
-    ngx_conf_log_error(NGX_LOG_NOTICE, cf, 0,
-        "brix: HTTP handoff target configured: %V", &value[1]);
-    return NGX_CONF_OK;
+    return brix_conf_upstream_directive(cf, cmd,
+        &((ngx_stream_brix_srv_conf_t *) conf)->http_handoff_name,
+        &((ngx_stream_brix_srv_conf_t *) conf)->http_handoff_addr);
 }
 
 

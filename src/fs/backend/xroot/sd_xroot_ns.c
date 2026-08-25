@@ -159,150 +159,56 @@ sd_xroot_session(ngx_stream_brix_srv_conf_t *conf,
     return 0;
 }
 
+/* ---- plain (service-credential / anonymous) vtable ops ---------------------
+ *
+ * Each op is the credential-scoped implementation in sd_xroot_ns_cred.c run
+ * with a NULL cred: sd_xroot_session(…, NULL, …) is the anonymous / service-
+ * credential session, so the wrappers there are the single implementation and
+ * these slots delegate. */
+
 ssize_t
 sd_xroot_getxattr(brix_sd_instance_t *inst, const char *path,
     const char *name, void *buf, size_t cap)
 {
-    sd_xroot_inst_state        *is = inst->state;
-    brix_cache_origin_conn_t  oc;
-    brix_cache_fill_t        *t;
-    ssize_t                     n;
-    int                         e = 0;
-
-    if (sd_xroot_session(is->conf, NULL, &oc, &t, &e) != 0) { errno = e; return -1; }
-    n = brix_cache_origin_getfattr(t, &oc, path, sd_xroot_fattr_unmap(name),
-                                     buf, cap);
-    e = errno;
-    brix_cache_origin_close(&oc);
-    free(t);
-    errno = e;
-    return n;
+    return sd_xroot_getxattr_cred(inst, path, name, buf, cap, NULL);
 }
 
 ssize_t
 sd_xroot_listxattr(brix_sd_instance_t *inst, const char *path,
     void *buf, size_t cap)
 {
-    sd_xroot_inst_state        *is = inst->state;
-    brix_cache_origin_conn_t  oc;
-    brix_cache_fill_t        *t;
-    char                       *raw;
-    const size_t                rawcap = 65536;
-    ssize_t                     n;
-    size_t                      out = 0, i;
-    int                         e = 0;
-
-    raw = malloc(rawcap);
-    if (raw == NULL) { errno = ENOMEM; return -1; }
-    if (sd_xroot_session(is->conf, NULL, &oc, &t, &e) != 0) {
-        free(raw); errno = e; return -1;
-    }
-    /* The origin returns its user attrs as a NUL-separated list of CLIENT names
-     * (its own "user.U." stripped). Re-add the "user.U." prefix to each so the
-     * kXR_fattr list handler — which keeps "user.U.*" keys — recognizes them. */
-    n = brix_cache_origin_listfattr(t, &oc, path, raw, rawcap);
-    e = errno;
-    brix_cache_origin_close(&oc);
-    free(t);
-    if (n < 0) { free(raw); errno = e; return -1; }
-
-    for (i = 0; i < (size_t) n; ) {
-        size_t nl = strnlen(raw + i, (size_t) n - i);
-
-        if (nl == 0) { i += 1; continue; }       /* skip an empty entry */
-        if (buf != NULL && cap > 0) {
-            if (out + SD_XROOT_FATTR_PFX_LEN + nl + 1 > cap) {
-                free(raw); errno = ERANGE; return -1;
-            }
-            ngx_memcpy((char *) buf + out, SD_XROOT_FATTR_PFX,
-                       SD_XROOT_FATTR_PFX_LEN);
-            ngx_memcpy((char *) buf + out + SD_XROOT_FATTR_PFX_LEN, raw + i, nl);
-            ((char *) buf)[out + SD_XROOT_FATTR_PFX_LEN + nl] = '\0';
-        }
-        out += SD_XROOT_FATTR_PFX_LEN + nl + 1;
-        i   += nl + 1;
-    }
-    free(raw);
-    return (ssize_t) out;
+    return sd_xroot_listxattr_cred(inst, path, buf, cap, NULL);
 }
 
 ngx_int_t
 sd_xroot_setxattr(brix_sd_instance_t *inst, const char *path,
     const char *name, const void *val, size_t len, int flags)
 {
-    sd_xroot_inst_state        *is = inst->state;
-    brix_cache_origin_conn_t  oc;
-    brix_cache_fill_t        *t;
-    int                         rc, e = 0;
-
-    (void) flags;   /* XATTR_CREATE/REPLACE not distinguished on the wire here */
-    if (sd_xroot_session(is->conf, NULL, &oc, &t, &e) != 0) { errno = e; return NGX_ERROR; }
-    rc = brix_cache_origin_setfattr(t, &oc, path, sd_xroot_fattr_unmap(name),
-                                      val, len);
-    e = errno;
-    brix_cache_origin_close(&oc);
-    free(t);
-    errno = e;
-    return rc == 0 ? NGX_OK : NGX_ERROR;
+    return sd_xroot_setxattr_cred(inst, path, name, val, len, flags, NULL);
 }
 
 ngx_int_t
 sd_xroot_removexattr(brix_sd_instance_t *inst, const char *path,
     const char *name)
 {
-    sd_xroot_inst_state        *is = inst->state;
-    brix_cache_origin_conn_t  oc;
-    brix_cache_fill_t        *t;
-    int                         rc, e = 0;
-
-    if (sd_xroot_session(is->conf, NULL, &oc, &t, &e) != 0) { errno = e; return NGX_ERROR; }
-    rc = brix_cache_origin_delfattr(t, &oc, path, sd_xroot_fattr_unmap(name));
-    e = errno;
-    brix_cache_origin_close(&oc);
-    free(t);
-    errno = e;
-    return rc == 0 ? NGX_OK : NGX_ERROR;
+    return sd_xroot_removexattr_cred(inst, path, name, NULL);
 }
 
 ngx_int_t
 sd_xroot_rename(brix_sd_instance_t *inst, const char *src, const char *dst,
     int noreplace)
 {
-    sd_xroot_inst_state        *is = inst->state;
-    brix_cache_origin_conn_t  oc;
-    brix_cache_fill_t        *t;
-    int                         rc, e = 0;
-
-    (void) noreplace;   /* kXR_mv has no NOREPLACE flag; overwrite is the default */
-    if (sd_xroot_session(is->conf, NULL, &oc, &t, &e) != 0) { errno = e; return NGX_ERROR; }
-    rc = brix_cache_origin_rename(t, &oc, src, dst);
-    e = errno;
-    brix_cache_origin_close(&oc);
-    free(t);
-    errno = e;
-    return rc == 0 ? NGX_OK : NGX_ERROR;
+    return sd_xroot_rename_cred(inst, src, dst, noreplace, NULL);
 }
 
 /* Path-based truncate (kXR_truncate with a path payload): resize the origin
  * object to `len` by NAME — no write-open, so a truncate over a staged remote
  * backend never RECALLs the whole file nor takes a staged write-open that would
- * self-collide on commit. Same fresh-session pattern as sd_xroot_unlink; the
- * origin's kXR error is mapped to errno via sd_xroot_errno (ENOENT for a miss). */
+ * self-collide on commit. */
 ngx_int_t
 sd_xroot_truncate_path(brix_sd_instance_t *inst, const char *path, off_t len)
 {
-    sd_xroot_inst_state        *is = inst->state;
-    brix_cache_origin_conn_t  oc;
-    brix_cache_fill_t        *t;
-    int                         rc, e = 0;
-
-    if (sd_xroot_session(is->conf, NULL, &oc, &t, &e) != 0) { errno = e; return NGX_ERROR; }
-    rc = brix_cache_origin_truncate_path(t, &oc, path, (uint64_t) len);
-    e  = (rc == 0) ? 0 : sd_xroot_errno(t);
-    brix_cache_origin_close(&oc);
-    free(t);
-    if (rc != 0) { errno = e; return NGX_ERROR; }
-    return NGX_OK;
+    return sd_xroot_truncate_path_cred(inst, path, len, NULL);
 }
 
 /* §4.6: setattr slot — forward a chmod (attr->set_mode) to the origin via
@@ -368,48 +274,24 @@ sd_xroot_space(brix_sd_instance_t *inst, brix_sd_space_t *out)
 
 /* Delete a file or empty directory on the remote node. Required so a remote
  * xroot node can serve as a cache_store (cstore eviction) or a stage_store
- * (post-flush reclaim). Files use kXR_rm; directories use kXR_rmdir (the two
- * opcodes share the same wire shape: reserved 16-byte body + path payload).
- * Returns NGX_OK / NGX_ERROR (errno set — ENOTEMPTY if the directory is not
- * empty, ENOENT if the path is already gone). */
+ * (post-flush reclaim). Files use kXR_rm; directories use kXR_rmdir. Returns
+ * NGX_OK / NGX_ERROR (errno set — ENOTEMPTY if the directory is not empty,
+ * ENOENT if the path is already gone). */
 ngx_int_t
 sd_xroot_unlink(brix_sd_instance_t *inst, const char *path, int is_dir)
 {
-    sd_xroot_inst_state        *is = inst->state;
-    brix_cache_origin_conn_t  oc;
-    brix_cache_fill_t        *t;
-    int                         rc, e = 0;
-
-    if (sd_xroot_session(is->conf, NULL, &oc, &t, &e) != 0) { errno = e; return NGX_ERROR; }
-    rc = is_dir ? brix_cache_origin_rmdir(t, &oc, path)
-                : brix_cache_origin_rm(t, &oc, path);
-    e = errno;
-    brix_cache_origin_close(&oc);
-    free(t);
-    errno = e;
-    return rc == 0 ? NGX_OK : NGX_ERROR;
+    return sd_xroot_unlink_cred(inst, path, is_dir, NULL);
 }
 
 /* Create a directory on the remote node (kXR_mkdir). Required so an explicit
  * client MKDIR — or the mkpath prefix-walk (brix_vfs_backend_mkpath) — resolves
- * against a root:// backend instead of failing the NULL-slot path. Same session
- * pattern as sd_xroot_unlink/rename. Returns NGX_OK / NGX_ERROR (errno set —
- * EEXIST when the directory already exists, tolerated by the mkpath walk). */
+ * against a root:// backend instead of failing the NULL-slot path. Returns
+ * NGX_OK / NGX_ERROR (errno set — EEXIST when the directory already exists,
+ * tolerated by the mkpath walk). */
 ngx_int_t
 sd_xroot_mkdir(brix_sd_instance_t *inst, const char *path, mode_t mode)
 {
-    sd_xroot_inst_state        *is = inst->state;
-    brix_cache_origin_conn_t  oc;
-    brix_cache_fill_t        *t;
-    int                         rc, e = 0;
-
-    if (sd_xroot_session(is->conf, NULL, &oc, &t, &e) != 0) { errno = e; return NGX_ERROR; }
-    rc = brix_cache_origin_mkdir(t, &oc, path, mode);
-    e = errno;
-    brix_cache_origin_close(&oc);
-    free(t);
-    errno = e;
-    return rc == 0 ? NGX_OK : NGX_ERROR;
+    return sd_xroot_mkdir_cred(inst, path, mode, NULL);
 }
 
 /* Copy src→dst byte stream on an open session (read each chunk from src_fh, write
@@ -473,32 +355,5 @@ ngx_int_t
 sd_xroot_server_copy(brix_sd_instance_t *inst, const char *src,
     const char *dst, off_t *bytes_out)
 {
-    sd_xroot_inst_state        *is = inst->state;
-    brix_cache_origin_conn_t  oc;
-    brix_cache_fill_t        *t;
-    u_char                      src_fh[XRD_FHANDLE_LEN], dst_fh[XRD_FHANDLE_LEN];
-    ngx_int_t                   rc;
-    int                         e = 0;
-
-    if (sd_xroot_session(is->conf, NULL, &oc, &t, &e) != 0) { errno = e; return NGX_ERROR; }
-
-    ngx_cpystrn((u_char *) t->clean_path, (u_char *) src, sizeof(t->clean_path));
-    if (brix_cache_origin_open(t, &oc, src_fh) != 0) {
-        e = sd_xroot_errno(t);
-        brix_cache_origin_close(&oc); free(t); errno = e; return NGX_ERROR;
-    }
-    if (brix_cache_origin_open_write(t, &oc, dst, 0644, dst_fh) != 0) {
-        e = sd_xroot_errno(t);
-        brix_cache_origin_close_file(&oc, src_fh);
-        brix_cache_origin_close(&oc); free(t); errno = e; return NGX_ERROR;
-    }
-
-    rc = sd_xroot_copy_body(t, &oc, src_fh, dst_fh, bytes_out);
-    e  = errno;
-    brix_cache_origin_close_file(&oc, dst_fh);
-    brix_cache_origin_close_file(&oc, src_fh);
-    brix_cache_origin_close(&oc);
-    free(t);
-    errno = e;
-    return rc;
+    return sd_xroot_server_copy_cred(inst, src, dst, bytes_out, NULL);
 }

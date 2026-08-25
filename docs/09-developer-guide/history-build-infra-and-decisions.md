@@ -350,6 +350,53 @@ Rob Currie is a HEP (High Energy Physics) systems engineer building **nginx-xroo
 
 Rob works at the CLI level, expects concise responses, and reviews diffs rather than reading prose summaries — keep reports terse and code-forward. He runs multiple concurrent Claude sessions against the same working tree regularly (a fact that directly motivates the git-write and subagent-dispatch rules above), and he himself commits straight to `main` with no branches.
 
+## 9. The gcov link contract, and what the src reorg owed the installed tree (2026-08-23)
+
+Two families of `suite --pr` skips/failures turned out to be build-contract debt,
+not test bugs.
+
+**gcov.** The nginx build tree (`/tmp/nginx-1.28.3`) and `client/` are built
+with `--coverage`. Every object compiled that way references
+`__gcov_init`/`__gcov_exit`/`__gcov_merge_add`, so *any* link that consumes
+those objects or archives (`client/libbrix.a`, `objs/src/.../*.o`) must itself
+pass `--coverage` — which is inert when the inputs happen to be uninstrumented,
+so it is always safe to add. Three test compile sites (the cli-hints probes,
+the krb5-origin harness) were silently skipping on the undefined references;
+`tests/test_libbrix.py` now probes the installed archive with `nm` for
+`__gcov` and adds the flag conditionally. On the Makefile side,
+`client/Makefile`'s `.so` link rule was dropping `$(LDFLAGS)` entirely, and the
+coverage conditional now also fires on the presence of `.gcno` notes
+(`lib/*/*.gcno`) so a plain re-link over objects from an earlier `--coverage`
+build still resolves.
+
+**Install layout.** The `src/` reorg moved protocol headers to
+`src/protocols/root/protocol/`, but the installed tree's contract
+(`include/brix/xrdproto/protocol/protocol.h`, asserted by `test_libbrix.py`)
+did not move. The reconciliation: `client/Makefile` installs from the new
+in-tree path; `brix.h` is rewritten on install (`sed
+'s|"protocols/root/protocol/|"xrdproto/protocol/|'`) because it names headers
+by their in-tree path; `protocol.h` includes its codec header
+includer-relatively (`"codec/wire_codec.h"`) so one spelling resolves in both
+trees; and the header install list carries the *transitive* quoted-include
+closure (`_brix_net_ext.h`, `brix_net_frame.h` were missing — found by
+compiling a consumer against the installed tree, which is the only honest
+check).
+
+**The sqlite split.** `libbrix.so` links `shared/oci/tar.c`, which calls the
+cvmfs xattr BLOB packers. Those lived in `catalog_write.c`, which drags in
+sqlite — unacceptable for the .so. The trio moved verbatim to
+`shared/cvmfs/catalog/xattr_pack.c` (sqlite-free), which both the CLI objects
+and `LIB_SRCS` now link. When a shared-library link fails on a symbol from a
+"CLI-only" file, the fix is to split the file at the dependency boundary, not
+to link the heavyweight object into the .so.
+
+Also restored in the same sweep: `ftp_module_gsi.c`'s config-error message
+names the three directives it requires (`brix_gridftp_certificate`,
+`…_certificate_key`, `…_trusted_ca`) — the 7a8009af decomposition had
+shortened it to generic prose, which tests grep for and operators act on.
+Diagnostic text that names directives is part of the operator contract, not
+flavor.
+
 ---
 
 *This document synthesizes memory files spanning 2026-04-16 through 2026-07-15. Files skimmed as meta-indexes rather than transcribed in full: `archive_index_2026_07_13.md` and `INDEX-ARCHIVE.md` (both are superseded pointer-indexes of the memory system itself, not project substance — retained value was cross-checking that no build/refactor/rule item here was missing from the record). No memory file in the assigned set was empty or had literally nothing worth keeping; `code_reduction_opportunities.md` and `phase17_macro_collapse.md`/`phase27_status.md`/`phase47_operability_packaging.md` were lower-signal (superseded proposals or already covered by other landed-work entries) and are folded into single sentences above rather than given their own subsections.*

@@ -88,15 +88,15 @@ int  brix_gsi_cipher_pick(const char *offered, brix_gsi_cipher_t *out,
  * peer's XrdSecgsi HasPad (0 for pre-DHsigned <10400 peers, 1 for newer). 1/0. */
 int       brix_gsi_cipher_session_key(EVP_PKEY *mine, EVP_PKEY *peer,
                                         int padded, uint8_t *key, int key_len);
-/* Encrypt with the negotiated cipher `c`.  use_iv: 1 = a fresh random IV
- * (c->iv_len bytes) is prepended (XrdSecgsi >=DHsigned peers); 0 = zero IV,
- * nothing prepended (pre-DHsigned).  malloc'd, *outlen. */
-uint8_t  *brix_gsi_cipher_encrypt(const brix_gsi_cipher_t *c,
-                                    const uint8_t *key, const uint8_t *in,
-                                    size_t inlen, int use_iv, size_t *outlen);
-uint8_t  *brix_gsi_cipher_decrypt(const brix_gsi_cipher_t *c,
-                                    const uint8_t *key, const uint8_t *in,
-                                    size_t inlen, int use_iv, size_t *outlen);
+/* Encrypt (enc=1) or decrypt (enc=0) with the negotiated cipher `c` — one
+ * driver, EVP_CipherInit_ex-style.  use_iv: 1 = a fresh random IV (c->iv_len
+ * bytes) is prepended to the ciphertext on encrypt and read back from the
+ * input's first iv_len bytes on decrypt (XrdSecgsi >=DHsigned peers); 0 = zero
+ * IV, nothing prepended/consumed (pre-DHsigned).  malloc'd, *outlen. */
+uint8_t  *brix_gsi_cipher_apply(const brix_gsi_cipher_t *c,
+                                  const uint8_t *key, const uint8_t *in,
+                                  size_t inlen, int use_iv, int enc,
+                                  size_t *outlen);
 
 /* ---- XrdSecgsi handshake helpers (shared client/server, phase-48) ---- */
 

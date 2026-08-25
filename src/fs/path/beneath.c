@@ -304,85 +304,59 @@ brix_mkdir_beneath(int rootfd, const char *reqpath, mode_t mode)
     return rc;
 }
 
-int
-brix_rename_beneath(int rootfd, const char *src, const char *dst)
-{
-    char         sbuf[PATH_MAX], dbuf[PATH_MAX];
-    const char  *sbase, *dbase;
-    int          sfd, dfd, rc, e;
-
-    if (brix_imp_client_active()) {
-        return brix_imp_rename(src, dst);
-    }
-
-    sfd = beneath_open_parent(rootfd, src, sbuf, sizeof(sbuf), &sbase);
-    if (sfd < 0) { return -1; }
-    dfd = beneath_open_parent(rootfd, dst, dbuf, sizeof(dbuf), &dbase);
-    if (dfd < 0) { e = errno; close(sfd); errno = e; return -1; }
-    if (sbase[0] == '\0' || dbase[0] == '\0') {
-        close(sfd); close(dfd); errno = EINVAL; return -1;
-    }
-    /* phase74-fp: renameat(olddirfd, oldpath, newdirfd, newpath) — (sfd, sbase,
-     * dfd, dbase) IS the prototype order; same class as broker_ops.c. */
-    rc = renameat(sfd, sbase, dfd, dbase);  /* NOLINT(readability-suspicious-call-argument) */
-    e = errno; close(sfd); close(dfd); errno = e;
-    return rc;
-}
-
 /*
- * Atomic create-if-absent rename: renameat2(RENAME_NOREPLACE) on the final
- * components, confined under rootfd exactly like brix_rename_beneath().  On a
- * kernel/filesystem without RENAME_NOREPLACE (ENOSYS/EINVAL) it falls back to a
- * plain renameat — logged once — so behaviour degrades to the legacy
- * last-writer-wins rather than spuriously failing (callers still ran their
- * stat-based precondition, so this is no worse than before W6b on such hosts).
- * Returns 0; or -1 with errno (EEXIST when the destination already exists).
+ * renameat2(RENAME_NOREPLACE) on already-resolved parent fds + final
+ * components.  On a kernel/filesystem without RENAME_NOREPLACE
+ * (ENOSYS/EINVAL) it falls back to a plain renameat — logged once — so
+ * behaviour degrades to the legacy last-writer-wins rather than spuriously
+ * failing (callers still ran their stat-based precondition, so this is no
+ * worse than before W6b on such hosts).  Shared with the confined-parent
+ * rename in resolve_confined_ops.c.
  */
 int
-brix_rename_beneath_excl(int rootfd, const char *src, const char *dst)
+brix_renameat_noreplace_fallback(ngx_log_t *log, int sfd, const char *sbase,
+    int dfd, const char *dbase)
 {
-    char         sbuf[PATH_MAX], dbuf[PATH_MAX];
-    const char  *sbase, *dbase;
-    int          sfd, dfd, rc, e;
+    int rc = (int) syscall(SYS_renameat2, sfd, sbase, dfd, dbase,
+                           (unsigned int) RENAME_NOREPLACE);
 
-    if (brix_imp_client_active()) {
-        return brix_imp_rename_noreplace(src, dst);
-    }
-
-    sfd = beneath_open_parent(rootfd, src, sbuf, sizeof(sbuf), &sbase);
-    if (sfd < 0) { return -1; }
-    dfd = beneath_open_parent(rootfd, dst, dbuf, sizeof(dbuf), &dbase);
-    if (dfd < 0) { e = errno; close(sfd); errno = e; return -1; }
-    if (sbase[0] == '\0' || dbase[0] == '\0') {
-        close(sfd); close(dfd); errno = EINVAL; return -1;
-    }
-
-    rc = (int) syscall(SYS_renameat2, sfd, sbase, dfd, dbase,
-                       (unsigned int) RENAME_NOREPLACE);
     if (rc != 0 && (errno == ENOSYS || errno == EINVAL)) {
         static int warned = 0;
         if (!warned) {
             warned = 1;
-            ngx_log_error(NGX_LOG_WARN, ngx_cycle->log, errno,
+            ngx_log_error(NGX_LOG_WARN, log, errno,
                           "brix: renameat2(RENAME_NOREPLACE) unsupported; "
                           "create-if-absent falls back to non-atomic rename");
         }
         /* phase74-fp: prototype order (olddirfd, oldpath, newdirfd, newpath). */
         rc = renameat(sfd, sbase, dfd, dbase);  /* NOLINT(readability-suspicious-call-argument) */
     }
-    e = errno; close(sfd); close(dfd); errno = e;
     return rc;
 }
 
-int
-brix_link_beneath(int rootfd, const char *src, const char *dst)
+/* The two-path mutating ops share one confined body: impersonation dispatch,
+ * RESOLVE_BENEATH resolution of BOTH parents, empty-component rejection, the
+ * op on the final components, and fd cleanup with errno preserved. */
+typedef enum {
+    BENEATH_2P_RENAME,
+    BENEATH_2P_RENAME_EXCL,
+    BENEATH_2P_LINK,
+} beneath_two_path_op_t;
+
+static int
+beneath_two_path(beneath_two_path_op_t op, int rootfd, const char *src,
+    const char *dst)
 {
     char         sbuf[PATH_MAX], dbuf[PATH_MAX];
     const char  *sbase, *dbase;
     int          sfd, dfd, rc, e;
 
     if (brix_imp_client_active()) {
-        return brix_imp_link(src, dst);
+        switch (op) {
+        case BENEATH_2P_RENAME:      return brix_imp_rename(src, dst);
+        case BENEATH_2P_RENAME_EXCL: return brix_imp_rename_noreplace(src, dst);
+        default:                     return brix_imp_link(src, dst);
+        }
     }
 
     sfd = beneath_open_parent(rootfd, src, sbuf, sizeof(sbuf), &sbase);
@@ -392,7 +366,45 @@ brix_link_beneath(int rootfd, const char *src, const char *dst)
     if (sbase[0] == '\0' || dbase[0] == '\0') {
         close(sfd); close(dfd); errno = EINVAL; return -1;
     }
-    rc = linkat(sfd, sbase, dfd, dbase, 0);
+
+    switch (op) {
+    case BENEATH_2P_RENAME:
+        /* phase74-fp: renameat(olddirfd, oldpath, newdirfd, newpath) — (sfd,
+         * sbase, dfd, dbase) IS the prototype order; same class as
+         * broker_ops.c. */
+        rc = renameat(sfd, sbase, dfd, dbase);  /* NOLINT(readability-suspicious-call-argument) */
+        break;
+    case BENEATH_2P_RENAME_EXCL:
+        rc = brix_renameat_noreplace_fallback(ngx_cycle->log, sfd, sbase,
+                                              dfd, dbase);
+        break;
+    default:
+        rc = linkat(sfd, sbase, dfd, dbase, 0);
+        break;
+    }
     e = errno; close(sfd); close(dfd); errno = e;
     return rc;
+}
+
+int
+brix_rename_beneath(int rootfd, const char *src, const char *dst)
+{
+    return beneath_two_path(BENEATH_2P_RENAME, rootfd, src, dst);
+}
+
+/*
+ * Atomic create-if-absent rename: renameat2(RENAME_NOREPLACE) on the final
+ * components, confined under rootfd exactly like brix_rename_beneath().
+ * Returns 0; or -1 with errno (EEXIST when the destination already exists).
+ */
+int
+brix_rename_beneath_excl(int rootfd, const char *src, const char *dst)
+{
+    return beneath_two_path(BENEATH_2P_RENAME_EXCL, rootfd, src, dst);
+}
+
+int
+brix_link_beneath(int rootfd, const char *src, const char *dst)
+{
+    return beneath_two_path(BENEATH_2P_LINK, rootfd, src, dst);
 }

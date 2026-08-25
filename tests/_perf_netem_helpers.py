@@ -269,6 +269,14 @@ def _sh(cmd, check=True):
     return r
 
 
+def _wmem_cap_in_force(wmem_effective, want_cap):
+    """True when the read-back `sysctl -n net.ipv4.tcp_wmem` max equals the cap."""
+    try:
+        return int(wmem_effective.split()[-1]) == want_cap
+    except (ValueError, IndexError):
+        return False
+
+
 def _tune_netns(delay_ms, rate_mbit, wmem_cap, dev, nsenter=None):
     """Apply netem + the tcp autotuning window to one netns.
 
@@ -406,6 +414,16 @@ def _inside(spec_path):
     _wmem = subprocess.run(["sysctl", "-n", "net.ipv4.tcp_wmem"],
                            capture_output=True, text=True)
     wmem_effective = _wmem.stdout.strip()
+    if not _wmem_cap_in_force(wmem_effective, spec["wmem_cap"]):
+        # A missed cap voids the A/B premise: the baseline autotunes to the
+        # host ceiling and fills the pipe itself (observed: baseline ~27 MiB/s
+        # against the ~4 MiB/s the 128 KiB window predicts, ratio 1.2x).
+        # Surface it as an environment skip, not a magnitude failure.
+        sys.stderr.write(
+            f"tcp_wmem cap not in force in the server netns "
+            f"(want max {spec['wmem_cap']}, have {wmem_effective!r})")
+        _phase_inside_1(holder_pid)
+        return SKIP_EXIT
 
     size = spec["size"]
     results = {}

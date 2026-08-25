@@ -90,6 +90,14 @@ typedef struct {
     char                        statbuf[256];
 } brix_open_args_t;
 
+/* Local aliases for the four fields every pipeline stage reads — one shared
+ * unpack so the per-stage preambles hold only their stage-specific fields. */
+#define BRIX_OPEN_ARGS_COMMON(a)                                              \
+	brix_ctx_t                 *ctx      = (a)->ctx;                      \
+	ngx_connection_t           *c        = (a)->c;                        \
+	ngx_stream_brix_srv_conf_t *conf     = (a)->conf;                     \
+	const char                 *resolved = (a)->resolved
+
 /* ---- cross-file pipeline entry points (defined once, called across files) ----
  *
  * Each is non-static in its defining translation unit; see the WHAT/WHY/HOW doc

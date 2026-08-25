@@ -122,6 +122,7 @@ def test_binary_and_client_env_overrides_are_captured_once(tmp_path, monkeypatch
     manager = CaseManager(declared.__brixtest_case__, "test_override", root=tmp_path / "run")
     run = manager.start()
     captured = run.binary(tool)
+    replacement.write_text("#!/bin/sh\nprintf rebuilt")
     assert run.client(command).run().stdout == "replacement"
     assert captured.path != replacement and captured.source == replacement
     assert captured.overridden is True
@@ -166,6 +167,41 @@ def test_logs_sqlite_bulk_and_symlink_confinement(tmp_path):
     text = bulk.read_text()
     assert "brixtest-tests" in text and "brixtest-logs" in text
     assert '"replay"' not in text and "do not archive" not in text
+
+
+def _actor_logs(run):
+    sources = {
+        "runtime/client-logs/reader/0001.stdout.log": "client stdout",
+        "runtime/client-logs/reader/0001.stderr.log": "client stderr",
+        "runtime/tasks/prepare/task.log": "task output",
+        "runtime/logs/origin/server.log": "server output",
+        "runtime/kubernetes/origin/server-current.log": "container output",
+        "auth/kerberos/kdc.log": "authority output",
+    }
+    for relative, content in sources.items():
+        path = run / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(content)
+    return sources
+
+
+def _valid_actor_archive(rows, sources):
+    return (
+        {row["source"] for row in rows} == set(sources)
+        and all(len(row["sha256"]) == 64 and row["bytes"] > 0 for row in rows)
+        and len({row["relative"] for row in rows}) == len(sources)
+    )
+
+
+def test_every_managed_actor_log_is_individually_checksummed(tmp_path):
+    run = tmp_path / "run"
+    sources = _actor_logs(run)
+
+    rows = archive_case_logs(
+        tmp_path / "session", "tests/test_logs.py::test_all", run,
+    )
+
+    assert _valid_actor_archive(rows, sources)
 
 
 def test_rerun_replays_an_exact_record(tmp_path):

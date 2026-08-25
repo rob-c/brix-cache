@@ -123,3 +123,26 @@ def test_suite_profile_rejects_unknown_fields_before_collection(tmp_path):
     assert result.returncode != 0
     assert "unknown fields" in result.stdout + result.stderr
     assert not sentinel.exists()
+
+
+def test_project_image_settings_are_available_before_collection(tmp_path):
+    digest = "registry.test/base@sha256:" + "a" * 64
+    (tmp_path / "pytest.ini").write_text(
+        "[pytest]\n"
+        "brixtest_base_image = %s\n"
+        "brixtest_registry = registry.test/team\n" % digest
+    )
+    case_file = tmp_path / "test_image_settings.py"
+    case_file.write_text(
+        "import os\n"
+        "assert os.environ['BRIXTEST_OCI_BASE_IMAGE'] == %r\n" % digest
+        + "assert os.environ['BRIXTEST_OCI_REGISTRY'] == 'registry.test/team'\n"
+        + "def test_collected(): pass\n"
+    )
+    result = subprocess.run(
+        [sys.executable, "-m", "pytest", str(case_file),
+         "-p", "brixtest.pytest_plugin", "--collect-only", "-q"],
+        cwd=tmp_path, env=_environment(tmp_path), capture_output=True, text=True,
+        timeout=10, check=False,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr

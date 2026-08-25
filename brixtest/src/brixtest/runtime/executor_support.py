@@ -12,13 +12,14 @@ from brixtest.errors import SpecError
 from brixtest.resources import Placement
 from brixtest.runtime.commands import CommandRunner
 from brixtest.runtime.executors import ToolExecutionRequest
+from brixtest.runtime.kubernetes_identity import apply_identity
 
 DIGEST_IMAGE = re.compile(r"[^@]+@sha256:[0-9a-fA-F]{64}")
 _ENV_NAME = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
 def kubectl(
     executable: Union[str, Sequence[str]], *args: str,
-    input_text: str = "", timeout: float = 30.0,
+    input_text: Union[str, bytes] = "", timeout: float = 30.0,
     output_limit: int = 1 << 20,
 ) -> subprocess.CompletedProcess:
     prefix = [executable] if isinstance(executable, str) else list(executable)
@@ -118,6 +119,7 @@ def _tool_pod_spec(container, volumes, placement: Placement, runtime):
     host_aliases = runtime.get("host_aliases", ())
     if host_aliases:
         pod_spec["hostAliases"] = list(host_aliases)
+    apply_identity(pod_spec, container, runtime.get("identity"))
     return pod_spec
 
 
@@ -152,13 +154,23 @@ def _validate_tool_environment(environment: Mapping[str, str]) -> None:
 
 
 def _tool_container(request: ToolExecutionRequest, volume_mounts) -> dict[str, object]:
-    return {
+    container = {
         "name": "tool", "image": request.image, "imagePullPolicy": "IfNotPresent",
         "command": list(request.argv),
         "env": [{"name": key, "value": value} for key, value in sorted(request.env.items())],
         "workingDir": str(request.cwd or Path("/brixtest/workspace")),
         "volumeMounts": volume_mounts,
     }
+    container.update(_terminal_options(request))
+    return container
+
+
+def _terminal_options(request: ToolExecutionRequest) -> dict[str, bool]:
+    if request.mode == "pty":
+        return {"stdin": True, "stdinOnce": True, "tty": True}
+    if request.input is not None:
+        return {"stdin": True, "stdinOnce": True}
+    return {}
 
 
 def _apply_tool_resources(container: dict, placement: Placement) -> None:

@@ -97,6 +97,61 @@ brix_release_pending_buffer(brix_ctx_t *ctx, ngx_connection_t *c,
     *buffer_base = NULL;
 }
 
+/* How a response is being parked in its out-ring slot: an async write ack
+ * (recv loop still running — ctx->state stays untouched), a response queued
+ * behind a draining earlier slot, or a send that stalled mid-frame (resume via
+ * the posted-event path rather than the plain write event). */
+typedef enum {
+    PARK_ASYNC_ACK,
+    PARK_QUEUED,
+    PARK_STALLED,
+} park_kind_t;
+
+/* Commit the tail slot to the out-ring (advance tail, bump count). */
+static void
+out_ring_commit(brix_ctx_t *ctx)
+{
+    ctx->out.tail = (ctx->out.tail + 1) % ctx->out.pipeline_depth;
+    ctx->out.count++;
+}
+
+/* Park a memory response in the tail slot, commit it, and arm the writer.
+ * Park only — the socket is NOT touched, so force the write event
+ * (wev->ready may be a stale 0 while the socket is writable). */
+static ngx_int_t
+park_buf(brix_ctx_t *ctx, ngx_connection_t *c, u_char *buffer,
+    size_t buffer_len, u_char *owned_base, park_kind_t kind)
+{
+    brix_resp_slot_t *slot = &ctx->out.ring[ctx->out.tail];
+
+    slot->wbuf      = buffer;
+    slot->wbuf_len  = buffer_len;
+    slot->wbuf_pos  = 0;
+    slot->wbuf_base = owned_base;
+    out_ring_commit(ctx);
+    if (kind != PARK_ASYNC_ACK) {
+        ctx->state = XRD_ST_SENDING;
+    }
+    return (kind == PARK_STALLED) ? brix_schedule_write_resume(c)
+                                  : brix_ensure_write_event(c);
+}
+
+/* park_buf for a chain response (wchain slot fields; always XRD_ST_SENDING). */
+static ngx_int_t
+park_chain(brix_ctx_t *ctx, ngx_connection_t *c, ngx_chain_t *chain,
+    off_t pending, u_char *owned_base, park_kind_t kind)
+{
+    brix_resp_slot_t *slot = &ctx->out.ring[ctx->out.tail];
+
+    slot->wchain         = chain;
+    slot->wchain_pending = pending;
+    slot->wchain_base    = owned_base;
+    out_ring_commit(ctx);
+    ctx->state = XRD_ST_SENDING;
+    return (kind == PARK_STALLED) ? brix_schedule_write_resume(c)
+                                  : brix_ensure_write_event(c);
+}
+
 /* Core response-queue: place a response (memory buf or chain) on the connection's
  * out-ring and kick the writer — the shared backend of the typed helpers below. */
 ngx_int_t
@@ -104,7 +159,6 @@ brix_queue_response_base(brix_ctx_t *ctx, ngx_connection_t *c,
     u_char *buffer, size_t buffer_len, u_char *owned_base)
 {
     ssize_t bytes_sent;
-    brix_resp_slot_t *slot = &ctx->out.ring[ctx->out.tail];
 
     BRIX_SRV_METRIC_INC(ctx, response_frames_total);
 
@@ -117,18 +171,7 @@ brix_queue_response_base(brix_ctx_t *ctx, ngx_connection_t *c,
      * is enforced at the recv boundary, so the ring always has a free slot here.
      */
     if (ctx->out.resp_async) {
-        slot->wbuf      = buffer;
-        slot->wbuf_len  = buffer_len;
-        slot->wbuf_pos  = 0;
-        slot->wbuf_base = owned_base;
-        ctx->out.tail   = (ctx->out.tail + 1) % ctx->out.pipeline_depth;
-        ctx->out.count++;
-        /* Park only — did NOT touch the socket, so force the write event
-         * (wev->ready may be a stale 0 while the socket is writable). */
-        if (brix_ensure_write_event(c) != NGX_OK) {
-            return NGX_ERROR;
-        }
-        return NGX_OK;
+        return park_buf(ctx, c, buffer, buffer_len, owned_base, PARK_ASYNC_ACK);
     }
 
     /*
@@ -138,18 +181,7 @@ brix_queue_response_base(brix_ctx_t *ctx, ngx_connection_t *c,
      * to the ring; brix_flush_pending() drains slots strictly head-first.
      */
     if (ctx->out.count > 0) {
-        slot->wbuf      = buffer;
-        slot->wbuf_len  = buffer_len;
-        slot->wbuf_pos  = 0;
-        slot->wbuf_base = owned_base;
-        ctx->out.tail   = (ctx->out.tail + 1) % ctx->out.pipeline_depth;
-        ctx->out.count++;
-        ctx->state      = XRD_ST_SENDING;
-        /* Park only (socket untouched) — force the write event; see above. */
-        if (brix_ensure_write_event(c) != NGX_OK) {
-            return NGX_ERROR;
-        }
-        return NGX_OK;
+        return park_buf(ctx, c, buffer, buffer_len, owned_base, PARK_QUEUED);
     }
 
     while (buffer_len > 0) {
@@ -164,17 +196,8 @@ brix_queue_response_base(brix_ctx_t *ctx, ngx_connection_t *c,
 
         if (bytes_sent == NGX_AGAIN) {
             BRIX_SRV_METRIC_INC(ctx, response_write_stalls_total);
-            slot->wbuf      = buffer;
-            slot->wbuf_len  = buffer_len;
-            slot->wbuf_pos  = 0;
-            slot->wbuf_base = owned_base;
-            ctx->out.tail   = (ctx->out.tail + 1) % ctx->out.pipeline_depth;
-            ctx->out.count++;
-            ctx->state      = XRD_ST_SENDING;
-            if (brix_schedule_write_resume(c) != NGX_OK) {
-                return NGX_ERROR;
-            }
-            return NGX_OK;
+            return park_buf(ctx, c, buffer, buffer_len, owned_base,
+                            PARK_STALLED);
         }
 
         BRIX_SRV_METRIC_INC(ctx, response_write_errors_total);
@@ -213,17 +236,9 @@ brix_queue_response_chain(brix_ctx_t *ctx, ngx_connection_t *c,
      * will send this chain from the start once it becomes the head slot.
      */
     if (ctx->out.count > 0) {
-        slot->wchain         = chain;
-        slot->wchain_pending = (off_t) brix_chain_pending_bytes(chain);
-        slot->wchain_base    = owned_base;
-        ctx->out.tail        = (ctx->out.tail + 1) % ctx->out.pipeline_depth;
-        ctx->out.count++;
-        ctx->state           = XRD_ST_SENDING;
-        /* Park only (socket untouched) — force the write event; see above. */
-        if (brix_ensure_write_event(c) != NGX_OK) {
-            return NGX_ERROR;
-        }
-        return NGX_OK;
+        return park_chain(ctx, c, chain,
+                          (off_t) brix_chain_pending_bytes(chain), owned_base,
+                          PARK_QUEUED);
     }
 
     pending = (off_t) brix_chain_pending_bytes(unsent);
@@ -253,16 +268,7 @@ brix_queue_response_chain(brix_ctx_t *ctx, ngx_connection_t *c,
         }
 
         BRIX_SRV_METRIC_INC(ctx, response_write_stalls_total);
-        slot->wchain = unsent;
-        slot->wchain_pending = pending;
-        slot->wchain_base = owned_base;
-        ctx->out.tail = (ctx->out.tail + 1) % ctx->out.pipeline_depth;
-        ctx->out.count++;
-        ctx->state = XRD_ST_SENDING;
-        if (brix_schedule_write_resume(c) != NGX_OK) {
-            return NGX_ERROR;
-        }
-        return NGX_OK;
+        return park_chain(ctx, c, unsent, pending, owned_base, PARK_STALLED);
     }
 }
 

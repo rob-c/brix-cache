@@ -64,7 +64,7 @@ would move a frozen baseline under us.
 | `check_complexity.py` | every native function under `src/`+`client/`+`shared/` must have CCN ≤15 (lizard/McCabe) | — (no exemptions) | fix the function |
 | `check_python_quality.py` | every Python function under the pytest suite, `client/`, `shared/`, `src/`, and the remaining Python project trees must meet CCN (15), cognitive complexity (10), NPath (15), Halstead difficulty (5), and maximum nesting (10) | — (no exemptions) | fix the function |
 | `check_todo_fixme.py` | no NEW `TODO`/`FIXME`/`XXX`/`HACK` marker in `src/`+`client/`+`shared/`; frozen per-file counts may only shrink | `todo_fixme_backlog.txt` | `--regen` |
-| `check_duplication.py` | no NEW copy-pasted code block (lizard `-Eduplicate`) across `src/`+`client/`+`shared/`; frozen blocks may only be fixed out | `duplication_backlog.txt` | `--regen` |
+| `check_duplication.py` | no copy-pasted code block (lizard `-Eduplicate`) across `src/`+`client/`+`shared/`; count is zero and stays zero | none (backlog burned down + deleted 2026-08-24) | — (fix the code) |
 | `check_doc_paths.py` | CLAUDE.md / README.md / docs/index.md reference only paths that exist AND are git-tracked | `<!-- doc-paths:off/on -->` markers for deliberate dead refs | — |
 | `check_doc_links.py` | every relative markdown link in docs/ + src READMEs resolves to a git-tracked target | `doc_links_backlog.txt` (currently empty — keep it that way) | `--regen` |
 | `check_readme_coverage.py` | any depth≤2 `src/` dir with ≥2 C sources carries a README.md | — | — |
@@ -77,7 +77,7 @@ would move a frozen baseline under us.
 | `check_shard_entrypoints.py` | a shard carrying `if __name__ == "__main__"` is still exec-composed by a parent that calls `_load_continuations` — break the composition without moving the CLI and the entry point silently stops running | — | move the CLI to a named `main()` |
 | `check_shim_entrypoints.py` | a §10.2 shim keeps the CLI its flat body had, so `python3 tests/<name>.py` still does what it did before the move | — | add a `__main__` delegation |
 | `check_shard_name_collisions.py` | one composed module, one namespace: no top-level name is bound twice across a parent and the shards it execs into its own globals — a shard's `_expression_1` rebinds the parent's, and the parent's call sites (resolved at call time) reach the shard's function | — (no exemptions) | rename them to say what they do |
-| `check_ratchet_monotonic.py` | guards the guards: no ratchet backlog above may GROW vs the PR's base revision — no new grandfathered entry, no raised allowance. Analyzer baselines and `duplication_backlog.txt` are deliberately out of scope (see its header) | every other backlog in this table | — (fix the code) |
+| `check_ratchet_monotonic.py` | guards the guards: no ratchet backlog above may GROW vs the PR's base revision — no new grandfathered entry, no raised allowance. Analyzer baselines are deliberately out of scope (see its header); `check_duplication.py` needs no entry now that its backlog is gone | every other backlog in this table | — (fix the code) |
 | `smoke.py` | the built `objs/nginx` + `client/bin/xrdcp` serve one byte-exact `root://` read on an ephemeral port; fails — never skips — when an artefact is missing. Run by `.github/workflows/build.yml`, not by `guards.yml` | — | — |
 | `run_fanalyzer.py` | no NEW gcc `-fanalyzer` finding (UAF/leak/NULL-deref) vs baseline; needs a configured nginx build (`NGX_BUILD`) | `fanalyzer_baseline.txt` | `--regen` |
 | `run_codechecker.py` | no NEW Clang Static Analyzer + clang-tidy finding vs baseline; needs a configured nginx build (`NGX_BUILD`) + `CodeChecker` + clang/clang-tidy | `codechecker_baseline.txt` | `--regen` |
@@ -118,37 +118,44 @@ A file under the 800 wall can still fail the 500 ratchet. The soft cap is
 where files should live; the hard wall is where growth stops being a
 review-taste question and becomes a CI failure.
 
-## Code duplication ratchet
+## Code duplication gate
 
 `check_duplication.py` runs lizard's copy-paste detector (`-Eduplicate`)
-over `src/`, `client/` and `shared/` (per-tree — one combined invocation
-produces no duplicate output) and fails on any duplicated block whose key
-is not frozen in `duplication_backlog.txt`. Keys are the sorted member
-spans of a block (`path:start-end+path:start-end`), so they are stable
-against reordering but NOT against line-number churn: an unrelated edit
-that shifts a grandfathered block re-surfaces it as "new". Treat that as
-a prompt to either extract the shared helper (the right fix) or `--regen`
-after review. Duplicates that disappear are always OK; `--regen` ratchets
-them out of the backlog.
+over `src/`, `client/` and `shared/` and fails on any genuinely duplicated
+code block. It is a **hard gate wired into `guards.yml`**, like the two
+complexity gates: **no backlog, no per-block exemption list, no `--regen`.**
+The 484-entry grandfather backlog (`duplication_backlog.txt`) was burned
+down to zero and deleted on 2026-08-24, so the only way to turn this guard
+green is to not clone — appending to a file cannot.
 
-**What "after review" means, from the 2026-08-09 sweep.** The guard is
-advisory — deliberately not wired into `guards.yml` — because most of what
-it reports on this codebase is not extractable: an `ngx_command_t` table,
-an `ngx_conf_enum_t` name table, a `{ errno, "token" }` map, a chain of
-`ngx_strncmp` token tests and nginx's module-registration boilerplate are
-all mandatory literal forms, and a macro that collapsed them would destroy
-the grep-ability of directive names, which is worth more than the line
-count. That sweep read all 162 live blocks: **one** was genuine algorithmic
-duplication (`tpc_send_all` / `tpc_recv_exact` — the same transfer loop with
-send/recv swapped, extracted to `src/tpc/outbound/io_xfer.c` and now
-unit-tested over a socketpair), and the other 161 were the shapes above,
-self-overlaps, or grandfathered blocks that had merely shifted. So: read the
-report before regenerating, fix what is real, and regenerate the rest —
-"regen because it is red" is how a ratchet becomes decoration. One
-category is worth attacking if this file is ever revisited:
-`src/fs/backend/xroot/sd_xroot_ns_cred.c`, where five credential-scoped
-VFS entry points repeat the same session-open / call / errno / close / free
-scaffolding around a single differing `brix_cache_origin_*` call.
+lizard's detector is token-shape based, so it also reports blocks that
+merely SHARE SHAPE while holding different data: two `ngx_command_t`
+directive tables, two `{ errno, "token" }` maps, two `enum`→string
+switches, a chain of `ngx_strncmp` token tests. Those are the coding-standards
+§8.6 table-driven style ("express variation as data"), not copy-paste, and
+collapsing them into a macro would destroy the grep-ability of directive
+names — worth more than the line count. So each reported block is verified
+before it can fail the build (see the guard's header for the full grammar):
+lizard is run once over the three trees combined and once per tree (the
+union of windows is kept); each block's members are normalised; and a block
+whose members are all C/C++ declarative data — initializer, case-mapping,
+string/hex-fixture, prototype or `return shared_helper(...)` delegation rows
+— is exempt **only when the members hold DIFFERENT data** (fewer than half
+their content rows identical). A cloned table with the SAME rows is real
+duplication: it must be shared, not pasted. Everything else — cloned logic,
+renamed clones, identical tables, any non-C member — fails.
+
+Fix a real hit by extracting a shared helper (coding-standards §8), never by
+editing the guard's row grammar to make a clone look declarative. Run
+`check_duplication.py --explain` to also list the exempted shape-only blocks.
+Techniques the 2026-08-24 burndown used where a plain helper would not serve:
+a compound-literal macro instead of a builder function (a builder's parameter
+list is itself a third token-window clone of the struct); an error-message-
+parameterized helper so two near-identical entry points collapse to one; a
+stage-counter acquisition ladder so a multi-resource teardown is written once;
+and re-encoding a captured binary fixture (a VOMS AC DER blob whose internal
+RDNs repeat) as a single opaque hex string literal rather than a row-shaped
+byte array.
 
 ## Coverage (report-only lane)
 

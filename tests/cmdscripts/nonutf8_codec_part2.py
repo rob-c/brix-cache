@@ -367,8 +367,8 @@ def _vectors_22_22() -> list[Vec]:
         ("tmp-infix", b"a.xrd-tmp.4321.beef", 1),
         ("resume-infix", b"a.xrdresume.deadbeef.part", 1),
         ("path-hidden", b"/export/dir/a.cinfo", 1),
-        ("path-visible-basename", b"/export/.cinfo/realfile", 0),  # basename "realfile"
-        ("trailing-slash-empty", b"a.cinfo/", 0),                  # basename ""
+        ("path-hidden-dir", b"/export/.cinfo/realfile", 1),        # reserved dir hides the subtree
+        ("trailing-slash-dir", b"a.cinfo/", 1),                    # reserved dir, empty basename
         ("empty", b"", 0),
         ("just-slash", b"/", 0),
         ("dotfile-cinfo", b".cinfo", 1),

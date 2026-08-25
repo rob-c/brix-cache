@@ -63,9 +63,13 @@ def test_a_simple_function_passes(tree):
     assert "nesting 10" in proc.stdout, "the limits belong in the green line too"
 
 
+@pytest.mark.timeout(300)
 def test_the_real_repository_is_green():
     """The guard's own subject: the whole tree meets the contract with no
-    backlog and no exemption, which is the claim the commit makes."""
+    backlog and no exemption, which is the claim the commit makes.
+
+    ~23s serially over 224k functions; the 30s default cap starves under a
+    full parallel tier, so it carries the lizard-class 300s cap."""
     proc = subprocess.run([sys.executable, str(GUARD)], capture_output=True,
                           text=True, timeout=900)
     assert proc.returncode == 0, proc.stdout + proc.stderr

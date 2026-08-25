@@ -213,6 +213,33 @@ sd_remote_meta_store(const brix_sd_remote_cfg_t *cfg, const char *objpath,
 
 /* ---- setxattr ------------------------------------------------------------- */
 
+/* Shared set/removexattr plumbing, run after the caller's own name/value
+ * validation: derive the lowercase header name from `name5` (the xattr name
+ * past "user."), compute the object key, load the current metadata set and
+ * locate the attribute (*idx < 0 when absent). NGX_OK, or NGX_ERROR with
+ * errno (ERANGE, or meta-load's ENOENT / ENOTSUP / EIO). */
+static ngx_int_t
+sd_remote_xa_open(const brix_sd_remote_cfg_t *cfg, const char *path,
+    const char *name5, const char *ak, const char *sk, const char *region,
+    const char *session, char *objpath, size_t objcap, char *lname,
+    size_t lcap, sd_remote_meta_set *ms, int *idx)
+{
+    if (sd_remote_xa_lname(name5, lname, lcap) != 0) {
+        errno = ERANGE;
+        return NGX_ERROR;
+    }
+
+    sd_remote_s3_key(cfg, path, objpath, objcap);
+    if (sd_remote_meta_load(cfg, objpath, ak, sk, region, session, ms)
+        != NGX_OK)
+    {
+        return NGX_ERROR;                    /* ENOENT / ENOTSUP / EIO */
+    }
+
+    *idx = sd_remote_xa_find(ms, lname);
+    return NGX_OK;
+}
+
 static ngx_int_t
 sd_remote_setxattr_impl(brix_sd_instance_t *inst, const char *path,
     const char *name, const void *val, size_t len, int flags,
@@ -238,19 +265,13 @@ sd_remote_setxattr_impl(brix_sd_instance_t *inst, const char *path,
         errno = EINVAL;
         return NGX_ERROR;
     }
-    if (sd_remote_xa_lname(name + 5, lname, sizeof(lname)) != 0) {
-        errno = ERANGE;
+    if (sd_remote_xa_open(cfg, path, name + 5, ak, sk, region, session,
+                          objpath, sizeof(objpath), lname, sizeof(lname),
+                          &ms, &idx) != NGX_OK)
+    {
         return NGX_ERROR;
     }
 
-    sd_remote_s3_key(cfg, path, objpath, sizeof(objpath));
-    if (sd_remote_meta_load(cfg, objpath, ak, sk, region, session, &ms)
-        != NGX_OK)
-    {
-        return NGX_ERROR;                    /* ENOENT / ENOTSUP / EIO */
-    }
-
-    idx = sd_remote_xa_find(&ms, lname);
     if (idx >= 0 && (flags & XATTR_CREATE)) {
         errno = EEXIST;
         return NGX_ERROR;
@@ -305,27 +326,21 @@ sd_remote_removexattr_impl(brix_sd_instance_t *inst, const char *path,
 {
     const brix_sd_remote_cfg_t *cfg = inst->state;
     sd_remote_meta_set          ms;
-    char                        objpath[768];
     char                        lname[SD_REMOTE_XA_NAME];
+    char                        objpath[768];
     int                         idx;
 
     if (strncmp(name, "user.", 5) != 0 || name[5] == '\0') {
         errno = ENOTSUP;
         return NGX_ERROR;
     }
-    if (sd_remote_xa_lname(name + 5, lname, sizeof(lname)) != 0) {
-        errno = ERANGE;
-        return NGX_ERROR;
-    }
-
-    sd_remote_s3_key(cfg, path, objpath, sizeof(objpath));
-    if (sd_remote_meta_load(cfg, objpath, ak, sk, region, session, &ms)
-        != NGX_OK)
+    if (sd_remote_xa_open(cfg, path, name + 5, ak, sk, region, session,
+                          objpath, sizeof(objpath), lname, sizeof(lname),
+                          &ms, &idx) != NGX_OK)
     {
         return NGX_ERROR;
     }
 
-    idx = sd_remote_xa_find(&ms, lname);
     if (idx < 0) {
         errno = ENODATA;                     /* attribute absent */
         return NGX_ERROR;

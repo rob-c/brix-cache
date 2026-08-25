@@ -274,6 +274,6 @@ brix_vfs_file_stat(const brix_vfs_file_t *fh, brix_vfs_stat_t *stat_out)
         return NGX_ERROR;
     }
 
-    brix_vfs_sd_stat_to_vfs(&st, stat_out);
+    brix_vfs_sd_stat_fill(&st, stat_out);
     return NGX_OK;
 }

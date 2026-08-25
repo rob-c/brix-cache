@@ -16,6 +16,40 @@
 #include <stdlib.h>
 #include <jansson.h>
 
+/* json_load_object_key — the shared parse-and-lookup prologue: parse
+ * [json, json+json_len) (JSON_DECODE_INT_AS_REAL, so over-range integers such
+ * as a far-future "exp":99999999999999999999 are represented as json_real
+ * instead of aborting the whole document parse) and look up `key` in the root
+ * object.  On success returns the borrowed member value and stores the new
+ * root reference (which the caller must json_decref) in *rootp.  Returns NULL
+ * with *rootp == NULL — nothing to free — on parse failure, a non-object root,
+ * or a missing key. */
+static json_t *
+json_load_object_key(const char *json, size_t json_len, const char *key,
+    json_t **rootp)
+{
+    json_error_t  err;
+    json_t       *root;
+    json_t       *value;
+
+    *rootp = NULL;
+    root = json_loadb(json, json_len, JSON_DECODE_INT_AS_REAL, &err);
+    if (root == NULL || !json_is_object(root)) {
+        if (root != NULL) {
+            json_decref(root);
+        }
+        return NULL;
+    }
+
+    value = json_object_get(root, key);
+    if (value == NULL) {
+        json_decref(root);
+        return NULL;
+    }
+    *rootp = root;
+    return value;
+}
+
 ssize_t
 json_get_string(const char *json, size_t json_len, const char *key,
     char *out, size_t out_max)
@@ -26,7 +60,6 @@ json_get_string(const char *json, size_t json_len, const char *key,
  * json_object_get(root,key); verify value is string; extract length via json_string_length(); copy min(length, out_max-1) bytes
  * to out with null terminator; json_decref(root); return copy_len or -1 on any failure. */
 {
-    json_error_t  err;
     json_t       *root;
     json_t       *value;
     const char   *str;
@@ -36,17 +69,11 @@ json_get_string(const char *json, size_t json_len, const char *key,
         return -1;
     }
 
-    root = json_loadb(json, json_len, JSON_DECODE_INT_AS_REAL, &err);
-    if (root == NULL || !json_is_object(root)) {
+    value = json_load_object_key(json, json_len, key, &root);
+    if (!json_is_string(value)) {
         if (root != NULL) {
             json_decref(root);
         }
-        return -1;
-    }
-
-    value = json_object_get(root, key);
-    if (!json_is_string(value)) {
-        json_decref(root);
         return -1;
     }
 
@@ -73,32 +100,24 @@ json_get_string_array(const char *json, size_t json_len, const char *key,
  * json_object_get(root,key); verify array type; json_array_foreach() iterate each item, skip non-strings; extract string length;
  * copy min(length,255) bytes to out[count] with null terminator; increment count; break at max_items limit; json_decref(root); return count. */
 {
-    json_error_t  err;
     json_t       *root;
     json_t       *array;
     json_t       *item;
     size_t        index;
-    int           count;
+    int           count = 0;
 
     if (max_items <= 0 || json == NULL || key == NULL || out == NULL) {
         return 0;
     }
 
-    root = json_loadb(json, json_len, JSON_DECODE_INT_AS_REAL, &err);
-    if (root == NULL || !json_is_object(root)) {
+    array = json_load_object_key(json, json_len, key, &root);
+    if (root == NULL || !json_is_array(array)) {
         if (root != NULL) {
             json_decref(root);
         }
         return 0;
     }
 
-    array = json_object_get(root, key);
-    if (!json_is_array(array)) {
-        json_decref(root);
-        return 0;
-    }
-
-    count = 0;
     json_array_foreach(array, index, item) {
         const char *str;
         size_t      copy_len;
@@ -140,7 +159,6 @@ json_get_int64(const char *json, size_t json_len, const char *key,
  * doubles that would overflow int64_t on the cast); return 0 on success, -1 on
  * any failure. */
 {
-    json_error_t  err;
     json_t       *root;
     json_t       *value;
     double        d;
@@ -149,21 +167,7 @@ json_get_int64(const char *json, size_t json_len, const char *key,
         return -1;
     }
 
-    /*
-     * JSON_DECODE_INT_AS_REAL: parse all JSON numbers as json_real so that
-     * over-range integers (> INT64_MAX) do not cause a document parse error.
-     * This allows "exp":99999999999999999999 (far-future timestamp) to be read
-     * and accepted rather than failing the whole payload decode.
-     */
-    root = json_loadb(json, json_len, JSON_DECODE_INT_AS_REAL, &err);
-    if (root == NULL || !json_is_object(root)) {
-        if (root != NULL) {
-            json_decref(root);
-        }
-        return -1;
-    }
-
-    value = json_object_get(root, key);
+    value = json_load_object_key(json, json_len, key, &root);
     if (json_is_integer(value)) {
         /* Exact integer path (kept for completeness; JSON_DECODE_INT_AS_REAL
          * means this branch will not fire in practice, but is safe if the
@@ -185,7 +189,9 @@ json_get_int64(const char *json, size_t json_len, const char *key,
             *out = (int64_t) d;
         }
     } else {
-        json_decref(root);
+        if (root != NULL) {
+            json_decref(root);
+        }
         return -1;
     }
     json_decref(root);
@@ -203,7 +209,6 @@ json_string_or_array_contains(const char *json, size_t json_len,
  * HOW: json_loadb() parse; json_object_get(key); if string, strcmp; if array,
  * json_array_foreach + strcmp each string item; json_decref; return match. */
 {
-    json_error_t  err;
     json_t       *root;
     json_t       *value;
     json_t       *item;
@@ -214,15 +219,7 @@ json_string_or_array_contains(const char *json, size_t json_len,
         return 0;
     }
 
-    root = json_loadb(json, json_len, JSON_DECODE_INT_AS_REAL, &err);
-    if (root == NULL || !json_is_object(root)) {
-        if (root != NULL) {
-            json_decref(root);
-        }
-        return 0;
-    }
-
-    value = json_object_get(root, key);
+    value = json_load_object_key(json, json_len, key, &root);
     if (json_is_string(value)) {
         found = (strcmp(json_string_value(value), needle) == 0);
     } else if (json_is_array(value)) {
@@ -236,7 +233,9 @@ json_string_or_array_contains(const char *json, size_t json_len,
         }
     }
 
-    json_decref(root);
+    if (root != NULL) {
+        json_decref(root);
+    }
     return found;
 }
 
@@ -251,24 +250,17 @@ json_has_member(const char *json, size_t json_len, const char *key)
  * json_object_get(root, key) != NULL → member present; json_decref(root);
  * return 1 (found) or 0 (missing/parse failure). */
 {
-    json_error_t  err;
-    json_t       *root;
-    int           found;
+    json_t  *root;
+    int      found;
 
     if (json == NULL || key == NULL) {
         return 0;
     }
 
-    root = json_loadb(json, json_len, JSON_DECODE_INT_AS_REAL, &err);
-    if (root == NULL || !json_is_object(root)) {
-        if (root != NULL) {
-            json_decref(root);
-        }
-        return 0;
+    found = (json_load_object_key(json, json_len, key, &root) != NULL) ? 1 : 0;
+    if (root != NULL) {
+        json_decref(root);
     }
-
-    found = (json_object_get(root, key) != NULL) ? 1 : 0;
-    json_decref(root);
     return found;
 }
 

@@ -10,13 +10,26 @@ from pathlib import Path
 
 import pytest
 
-from brixtest import case, client, server, static_config, text_artifact
+from brixtest import (
+    Placement,
+    binary,
+    case,
+    client,
+    environment,
+    identity,
+    mount,
+    server,
+    static_config,
+    text_artifact,
+    volume,
+)
 from brixtest.archive import archive_server_log
-from brixtest.errors import SpecError
+from brixtest.errors import CaseRunError, SpecError
 from brixtest.evidence.model import iter_entities
 from brixtest.runtime.manager import Service
 from brixtest.runtime.topology import injected_services
-from brixtest.topology.model import derive, pool_key
+from brixtest.topology.model import derive, pool_definition, pool_key
+from brixtest.topology.broker import RemoteTopology, TopologyBroker
 
 
 def _declaration(config: Path, *, suffix: str = ""):
@@ -40,8 +53,12 @@ def test_server_scope_defaults_to_case_and_supports_pytest_lifetimes(tmp_path):
         "shared", command=["true"], config=static_config(tmp_path / "x"),
         scope="module",
     ).scope == "module"
+    assert server(
+        "worker_local", command=["true"], config=static_config(tmp_path / "x"),
+        scope="worker",
+    ).scope == "worker"
     with pytest.raises(SpecError, match=r"server\.scope"):
-        server("bad", command=["true"], config=static_config(tmp_path / "x"), scope="worker")
+        server("bad", command=["true"], config=static_config(tmp_path / "x"), scope="global")
 
 
 def test_collection_groups_equal_session_server_graphs(tmp_path):
@@ -107,6 +124,74 @@ def test_pool_fingerprint_includes_config_content(tmp_path):
     before = pool_key(definition)
     config.write_text("second\n")
     assert pool_key(definition) != before
+
+
+def test_pool_fingerprint_includes_binary_runtime_data(tmp_path):
+    config = tmp_path / "origin.conf"
+    config.write_text("same\n")
+    executable = tmp_path / "server"
+    executable.write_text("binary\n")
+    runtime = tmp_path / "plugin.conf"
+    runtime.write_text("first\n")
+    captured = binary(
+        "server", path=executable,
+        runtime_files={"/etc/server/plugin.conf": runtime},
+    )
+    origin = server(
+        "origin", command=(captured,), config=static_config(config),
+        scope="session",
+    )
+
+    @case(origin, captured, observe=())
+    def declared(run):
+        return None
+
+    before = pool_key(declared.__brixtest_case__)
+    runtime.write_text("second\n")
+    assert pool_key(declared.__brixtest_case__) != before
+
+
+def test_topology_broker_rejects_unauthenticated_worker(tmp_path):
+    broker = TopologyBroker(tmp_path / "session")
+    settings = broker.worker_settings("gw0", 1)
+    remote = RemoteTopology(
+        str(settings["address"]), "00" * 32, str(settings["worker"]),
+    )
+    try:
+        with pytest.raises(CaseRunError, match="digest sent was rejected"):
+            remote.register([], 1)
+    finally:
+        broker.close()
+
+
+def test_pool_fingerprint_includes_effective_identity_volume_and_environment(tmp_path):
+    config = tmp_path / "origin.conf"
+    config.write_text("same\n")
+
+    def declared(uid, size, family):
+        runner = identity("runner", uid=uid, gid=uid)
+        data = volume("data", size=size)
+        realm = environment("realm", family=family, isolated=False)
+        origin = server(
+            "origin", command=("true",), config=static_config(config),
+            scope="session", mounts=(mount(data, "data", read_only=False),),
+            placement=Placement(identity=runner, environment=realm),
+        )
+
+        @case(origin, runner, data, realm, observe=())
+        def selected(run):
+            return None
+
+        return selected.__brixtest_case__
+
+    baseline = declared(1000, 0, "ipv4")
+    assert pool_key(baseline) != pool_key(declared(1001, 0, "ipv4"))
+    assert pool_key(baseline) != pool_key(declared(1000, 4096, "ipv4"))
+    assert pool_key(baseline) != pool_key(declared(1000, 0, "ipv6"))
+    pooled = pool_definition(baseline)
+    assert pooled.identities == baseline.identities
+    assert pooled.volumes == baseline.volumes
+    assert pooled.environments == baseline.environments
 
 
 def test_pool_fingerprint_ignores_test_only_clients_and_artifacts(tmp_path):
@@ -184,7 +269,9 @@ def test_topology_entities_include_pool_instance_log_and_metrics():
     ]
 
 
-def _run_shared_suite(tmp_path: Path) -> subprocess.CompletedProcess:
+def _run_shared_suite(
+    tmp_path: Path, *, xdist: bool = False, scope: str = "session",
+) -> subprocess.CompletedProcess:
     (tmp_path / "origin.json.in").write_text(
         '{"host":"{host}","port":{port},"message":"shared"}\n'
     )
@@ -207,10 +294,10 @@ def _run_shared_suite(tmp_path: Path) -> subprocess.CompletedProcess:
         "CODE=file_artifact('server_code',HERE/'server.py')\n"
         "ORIGIN=server('origin',command=[sys.executable,'{artifact_server_code}','{config}'],"
         "config=template_config('origin.json.in'),ports=['http'],readiness=tcp('http'),"
-        "scope='session')\n"
+        f"scope={scope!r})\n"
         "@case(servers=[ORIGIN],artifacts=[CODE],keep='never')\n"
         "def test_one(run):\n"
-        " s=run.server(ORIGIN);assert s.scope=='session';assert urllib.request.urlopen(s.url(path='/one')).read()==b'shared/one'\n"
+        f" s=run.server(ORIGIN);assert s.scope=={scope!r};assert urllib.request.urlopen(s.url(path='/one')).read()==b'shared/one'\n"
         "@case(servers=[ORIGIN],artifacts=[CODE],keep='never')\n"
         "def test_two(run):\n"
         " s=run.server(ORIGIN);assert urllib.request.urlopen(s.url(path='/two')).read()==b'shared/two'\n"
@@ -225,9 +312,14 @@ def _run_shared_suite(tmp_path: Path) -> subprocess.CompletedProcess:
         "PYTHONPYCACHEPREFIX": str(tmp_path / "pycache"),
         "BRIXTEST_RUNS": str(tmp_path / "runs"),
     })
+    argv = [
+        sys.executable, "-m", "pytest", str(tmp_path / "test_shared.py"),
+        "-p", "brixtest.pytest_plugin", "-q",
+    ]
+    if xdist:
+        argv.extend(("-p", "xdist.plugin", "-n", "2"))
     return subprocess.run(
-        [sys.executable, "-m", "pytest", str(tmp_path / "test_shared.py"),
-         "-p", "brixtest.pytest_plugin", "-q"],
+        argv,
         cwd=tmp_path, env=env, capture_output=True, text=True, timeout=45, check=False,
     )
 
@@ -253,6 +345,40 @@ def test_shared_server_end_to_end_has_one_log_and_two_links(tmp_path):
         assert connection_test.connect_ex((service["host"], service["ports"]["http"])) != 0
     _assert_shared_archive(session_path, service)
     _assert_shared_report(session_path, service)
+
+
+def test_xdist_workers_consume_one_controller_owned_session_server(tmp_path):
+    pytest.importorskip("xdist")
+    result = _run_shared_suite(tmp_path, xdist=True)
+    assert result.returncode == 0, result.stdout + result.stderr
+    session_path = next((tmp_path / "runs" / "metrics").glob("*/session.json"))
+    session = json.loads(session_path.read_text())
+    assert (session["counts"], len(session["topology"]["pools"])) == (
+        {"passed": 2}, 1,
+    )
+    pool = session["topology"]["pools"][0]
+    assert sorted(pool["tests"]) == [
+        "test_shared.py::test_one", "test_shared.py::test_two",
+    ]
+    assert len({
+        row["attempts"][0]["servers"][0]["instance_id"]
+        for row in session["tests"]
+    }) == 1
+
+
+def test_explicit_worker_scope_creates_one_instance_per_consuming_xdist_worker(tmp_path):
+    pytest.importorskip("xdist")
+    result = _run_shared_suite(tmp_path, xdist=True, scope="worker")
+    assert result.returncode == 0, result.stdout + result.stderr
+    session_path = next((tmp_path / "runs" / "metrics").glob("*/session.json"))
+    session = json.loads(session_path.read_text())
+    instances = {
+        row["attempts"][0]["servers"][0]["instance_id"]
+        for row in session["tests"]
+    }
+    assert (session["counts"], len(session["topology"]["pools"]), len(instances)) == (
+        {"passed": 2}, 2, 2,
+    )
 
 
 def _assert_service_metadata(session_path, service):

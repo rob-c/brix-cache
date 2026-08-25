@@ -273,7 +273,8 @@ pwd_more(brix_conn *c, const uint8_t *sbody, uint32_t slen, uint8_t **payload,
         return -1;
     }
 
-    enc = brix_gsi_cipher_encrypt(&cipher, key, inner.p, inner.len, 0, &enc_len);
+    enc = brix_gsi_cipher_apply(&cipher, key, inner.p, inner.len, 0,
+                                  /* enc */ 1, &enc_len);
     OPENSSL_cleanse(key, sizeof(key));
     OPENSSL_cleanse(inner.p, inner.len);
     brix_gbuf_free(&inner);

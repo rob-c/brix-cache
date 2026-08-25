@@ -392,3 +392,73 @@ brix_http_send_file_range(ngx_http_request_t *r, ngx_fd_t fd,
 
     return ngx_http_output_filter(r, &out);
 }
+
+/*
+ * brix_http_send_single_buf - send headers then one prepared buffer as the body.
+ *
+ * WHAT: ngx_http_send_header() with the canonical bail guard (NGX_ERROR, a
+ *       special-response code from the header-filter chain, or a HEAD request),
+ *       then a single-link chain around the caller's buffer.
+ *
+ * WHY: Every memory-backed one-shot response (dashboard page, login form, ZIP
+ *      member payload, ...) repeats this exact dispatch tail; the caller keeps
+ *      responsibility for headers_out and for marking b->last_buf.
+ *
+ * HOW: rc = send_header; bail on rc/header_only; out = {b, NULL}; output_filter.
+ */
+ngx_int_t
+brix_http_send_single_buf(ngx_http_request_t *r, ngx_buf_t *b)
+{
+    ngx_int_t   rc;
+    ngx_chain_t out;
+
+    rc = ngx_http_send_header(r);
+    if (rc == NGX_ERROR || rc > NGX_OK || r->header_only) {
+        return rc;
+    }
+
+    out.buf = b;
+    out.next = NULL;
+    return ngx_http_output_filter(r, &out);
+}
+
+/*
+ * brix_http_finalize_memory_body - async-completion body send + finalize.
+ *
+ * WHAT: Wraps [body, body+body_len) in a memory-backed last_buf and finalizes
+ *       the request with the output-filter status, then runs posted requests.
+ *       On buffer OOM finalizes with 500 instead.
+ *
+ * WHY: Thread-task completion handlers (event-loop side) cannot return a status
+ *      to nginx; they must finalize explicitly and kick the posted-request
+ *      queue themselves. Headers are already sent by the caller.
+ *
+ * HOW: pcalloc buf; point pos/start and last/end at the caller's body (which
+ *      must outlive the request, e.g. task-ctx memory from r->pool); memory=1,
+ *      last_buf=1; finalize with ngx_http_output_filter's rc.
+ */
+void
+brix_http_finalize_memory_body(ngx_http_request_t *r, u_char *body,
+    size_t body_len)
+{
+    ngx_connection_t *c = r->connection;
+    ngx_buf_t        *b;
+    ngx_chain_t       out;
+
+    b = ngx_pcalloc(r->pool, sizeof(*b));
+    if (b == NULL) {
+        ngx_http_finalize_request(r, NGX_HTTP_INTERNAL_SERVER_ERROR);
+        ngx_http_run_posted_requests(c);
+        return;
+    }
+
+    b->pos = b->start = body;
+    b->last = b->end = body + body_len;
+    b->memory = 1;
+    b->last_buf = 1;
+    out.buf = b;
+    out.next = NULL;
+
+    ngx_http_finalize_request(r, ngx_http_output_filter(r, &out));
+    ngx_http_run_posted_requests(c);
+}

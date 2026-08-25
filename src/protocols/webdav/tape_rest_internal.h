@@ -93,13 +93,10 @@ ngx_int_t tape_stage_get(ngx_http_request_t *r, const char *id);
 /* GET /api/v1/stage - list active requests. */
 ngx_int_t tape_stage_list(ngx_http_request_t *r);
 
-/* DELETE /api/v1/stage/{id} - delete the request (owner-gated). */
-ngx_int_t tape_stage_delete(ngx_http_request_t *r,
-    ngx_http_brix_webdav_req_ctx_t *ctx, const char *id);
-
-/* POST /api/v1/stage/{id}/cancel - cancel the request (owner-gated). */
-ngx_int_t tape_stage_cancel(ngx_http_request_t *r,
-    ngx_http_brix_webdav_req_ctx_t *ctx, const char *id);
+/* DELETE /api/v1/stage/{id} (cancel=0) and POST /api/v1/stage/{id}/cancel
+ * (cancel=1) - end the request (owner-gated; both idempotent, answer 204). */
+ngx_int_t tape_stage_terminate(ngx_http_request_t *r,
+    ngx_http_brix_webdav_req_ctx_t *ctx, const char *id, int cancel);
 
 /* POST /api/v1/release (alias /unpin) - release disk pins. */
 ngx_int_t tape_release(ngx_http_request_t *r,

@@ -61,6 +61,9 @@ def test_source_guard(name: str) -> None:
 # when lizard is absent rather than hard-fail — CI pip-installs it first.
 
 
+@pytest.mark.timeout(300)   # lizard over src/client/shared is ~11s idle and
+                            # single-threaded; the 30s session default loses
+                            # under xdist load (same allowance as test_ci_guards)
 @pytest.mark.skipif(
     not g.lizard_available(),
     reason="lizard not installed (pip install --user lizard)",

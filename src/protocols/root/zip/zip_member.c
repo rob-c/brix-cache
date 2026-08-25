@@ -412,7 +412,7 @@ zip_send_open_reply(const zip_open_req_t *rq, int idx, const struct stat *ast,
     ServerOpenBody    body;
     char              statbuf[256];
     u_char           *buf;
-    size_t            hbytes, bodylen, total;
+    size_t            hbytes, total;
     ngx_flag_t        want_stat = (options & kXR_retstat) ? 1 : 0;
 
     ngx_memzero(&body, sizeof(body));
@@ -427,21 +427,12 @@ zip_send_open_reply(const zip_open_req_t *rq, int idx, const struct stat *ast,
                  (long) ast->st_mtime);
     }
 
-    hbytes  = want_stat ? sizeof(ServerOpenBody) : sizeof(body.fhandle);
-    bodylen = hbytes + (want_stat ? strlen(statbuf) + 1 : 0);
-    total   = XRD_RESPONSE_HDR_LEN + bodylen;
+    hbytes = want_stat ? sizeof(ServerOpenBody) : sizeof(body.fhandle);
 
-    buf = ngx_palloc(c->pool, total);
+    buf = brix_open_ok_frame(ctx, c, idx, &body, hbytes, statbuf,
+                               want_stat, &total);
     if (buf == NULL) {
-        brix_free_fhandle(ctx, idx);
         return NGX_ERROR;
-    }
-    brix_build_resp_hdr(ctx->recv.cur_streamid, kXR_ok, (uint32_t) bodylen,
-                          (ServerResponseHdr *) buf);
-    ngx_memcpy(buf + XRD_RESPONSE_HDR_LEN, &body, hbytes);
-    if (want_stat) {
-        ngx_memcpy(buf + XRD_RESPONSE_HDR_LEN + sizeof(ServerOpenBody),
-                   statbuf, strlen(statbuf) + 1);
     }
 
     brix_log_access(ctx, c, "OPEN", rq->archive_full, "zip", 1, 0, NULL, 0);

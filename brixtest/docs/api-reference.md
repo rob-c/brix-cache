@@ -93,13 +93,17 @@ pyright, IDE completion, and runtime introspection see the same contract.
 | `CommandResult` | runtime | Decoded output, status, argv, and elapsed time. |
 | `Run` | runtime | Single fixture facade used by test bodies. |
 | `Service` | runtime | Backend-neutral running server endpoint. |
+| `Replica` | runtime | Immutable status and direct address for one realized server replica. |
 | `ServiceFilesystem` | runtime | Confined binary-safe server filesystem operations. |
 | `MaterializedArtifact` | runtime | Checksum-backed artifact with direct IO helpers. |
 | `CapturedBinary` | runtime | Immutable run-local executable snapshot. |
+| `ProviderContext` | runtime | Confined run identity supplied to managed-resource providers. |
+| `ProviderInstance` | runtime | Owned provider resource, outputs, and provenance metadata. |
+| `ProviderPlan` | runtime | Side-effect-free typed infrastructure plan fragment. |
 | `ConfiguredClient` | runtime | Bound named client with captured text output. |
 | `ConfiguredTool` | runtime | Bound first-class tool with captured text output. |
 | `ArtifactProviderContext` | runtime | Confined paths supplied to artifact providers. |
-| `ToolExecutionContext` | runtime | Stable run context supplied to tool executors. |
+| `ToolExecutionContext` | runtime | Stable run context and immutable identity catalog supplied to tool executors. |
 | `ToolExecutionRequest` | runtime | Fully rendered shell-free executor request. |
 | `ServerLaunchContext` | runtime | Stable run identity and paths supplied to server launchers. |
 | `ServerLaunchPlan` | runtime | Supervised process plan returned by a server launcher. |
@@ -109,6 +113,7 @@ pyright, IDE completion, and runtime introspection see the same contract.
 | `MetricTimer` | metrics | Context manager for timed observations. |
 | `Isolation` | isolation | Immutable helper-isolation declaration. |
 | `docker` | isolation | Digest-pinned Docker helper. |
+| `kubernetes` | isolation | Bundled helper executed in a digest-pinned Kubernetes Job. |
 | `nsenter` | isolation | Namespace-entered helper. |
 | `podman` | isolation | Digest-pinned Podman helper. |
 | `process` | isolation | Direct supervised helper process. |
@@ -120,19 +125,19 @@ pyright, IDE completion, and runtime introspection see the same contract.
 | `signed_credential` | credentials | HMAC-signed custom payload. |
 | `AuthRecipe` | authentication | Common authentication-recipe identity. |
 | `KerberosAuth` | authentication | Kerberos realm declaration. |
-| `MaterializedAuth` | authentication | Auth files, metadata, and role environment. |
+| `MaterializedAuth` | authentication | Auth files, role environment, and controlled `issue()`, `rotate()`, and `revoke()` operations. |
 | `TLSAuth` | authentication | CA, CRL, host, and client identity declaration. |
-| `TokenAuth` | authentication | Bearer-token stack declaration. |
+| `TokenAuth` | authentication | Bearer-token stack with optional supervised OIDC/JWKS authority. |
 | `VOMSAuth` | authentication | VOMS/GSI stack declaration. |
 | `decode_token` | authentication | Decode token structure without verification. |
-| `issue_token` | authentication | Issue an HS256 test token. |
+| `issue_token` | authentication | Issue an HS256, ES256, or RS256 test token. |
 | `kerberos_auth` | authentication | Declare a Kerberos stack. |
 | `tls_auth` | authentication | Declare a TLS stack. |
-| `token_auth` | authentication | Declare a token stack. |
+| `token_auth` | authentication | Declare a static or `managed=True` token stack with optional restart rotation. |
 | `verify_token` | authentication | Verify token signature and claims. |
 | `voms_auth` | authentication | Declare a VOMS/GSI stack. |
 | `HostMapping` | network | Backend-neutral hostname declaration. |
-| `host_mapping` | network | Declare forward/reverse test DNS. |
+| `host_mapping` | network | Declare virtual DNS and optional role-scoped libc/NSS mappings. |
 | `CollectorSpec` | evidence | Evidence-collector declaration. |
 | `collector` | evidence | Third-party collector declaration. |
 | `kubernetes_events` | evidence | Kubernetes event collector. |
@@ -216,6 +221,12 @@ server. Endpoint schemes make `Service.url()` choose HTTP/HTTPS without test
 code knowing how the backend published the service. `Service.fs` provides
 confined binary-safe reads, writes, metadata, directory, permission, symlink,
 and `user.*` xattr operations without test-side shell or encoding workarounds.
+The same facade uses confined native/shared-mount operations for local and OCI
+services and a framework-managed shared-volume sidecar for Kubernetes.
+`Service.replicas` contains immutable
+`Replica` values with each realized process or Pod's direct in-environment
+address, UID, readiness, restart count, start time, and container provenance;
+the existing `Service` endpoint remains the backend's load-balanced address.
 
 ## Pytest integration surface
 

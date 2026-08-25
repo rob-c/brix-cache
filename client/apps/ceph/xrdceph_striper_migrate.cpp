@@ -297,18 +297,6 @@ std::vector<std::string> build_list()
 }
 
 static int
-parse_cli_value_option(const std::string &a, int *i, int argc, char **argv)
-{
-    if (a == "--list"   && *i + 1 < argc) { g.list = argv[++(*i)]; return 1; }
-    if (a == "--strip"  && *i + 1 < argc) { g.strip = argv[++(*i)]; return 1; }
-    if (a == "--threads" && *i + 1 < argc) { g.threads = atoi(argv[++(*i)]); return 1; }
-    if (a == "--conf"   && *i + 1 < argc) { g.conf = argv[++(*i)]; return 1; }
-    if (a == "--config" && *i + 1 < argc) { g.config = argv[++(*i)]; return 1; }
-    if (a == "--sample-mb" && *i + 1 < argc) { g.sample_mb = atol(argv[++(*i)]); return 1; }
-    return 0;
-}
-
-static int
 parse_cli_mode_option(const std::string &a, int *i, int argc, char **argv)
 {
     if (a != "--mode") { return 0; }
@@ -318,6 +306,18 @@ parse_cli_mode_option(const std::string &a, int *i, int argc, char **argv)
     if (m == "copy") { g.mode = MODE_COPY; return 1; }
     fprintf(stderr, "--mode must be redirect|copy\n");
     return -1;
+}
+
+static int
+parse_cli_value_option(const std::string &a, int *i, int argc, char **argv)
+{
+    if (a == "--list" && *i + 1 < argc) { g.list = argv[++(*i)]; return 1; }
+    if (a == "--sample-mb" && *i + 1 < argc) { g.sample_mb = atol(argv[++(*i)]); return 1; }
+    if (a == "--help") { fprintf(stderr, "see header for usage\n"); return -1; }
+    int mode_rc = parse_cli_mode_option(a, i, argc, argv);
+    if (mode_rc != 0) { return mode_rc; }
+    return xrdceph_migrate_cli_common(a, i, argc, argv,
+                                      &g.strip, &g.conf, &g.config, &g.threads);
 }
 
 static int
@@ -334,30 +334,11 @@ parse_cli_flag_option(const std::string &a)
 }
 
 static int
-parse_cli_args(int argc, char **argv, std::vector<std::string> *pos)
-{
-    for (int i = 1; i < argc; i++) {
-        std::string a = argv[i];
-        int mode_rc;
-        if (parse_cli_value_option(a, &i, argc, argv)) { continue; }
-        mode_rc = parse_cli_mode_option(a, &i, argc, argv);
-        if (mode_rc < 0) { return 2; }
-        if (mode_rc > 0) { continue; }
-        if (parse_cli_flag_option(a)) { continue; }
-        if (a == "--help") { fprintf(stderr, "see header for usage\n"); return 2; }
-        if (a.rfind("--", 0) == 0) { fprintf(stderr, "unknown option %s\n", a.c_str()); return 2; }
-        pos->push_back(a);
-    }
-    return 0;
-}
-
-static int
 resolve_required_config(const std::vector<std::string> &pos, const char *prog,
                         const xrdceph_migrate_cfg &cfg)
 {
-    if (pos.size() != 3 && pos.size() != 0) {
-        fprintf(stderr, "usage: %s <striper_pool> <cephfs_data_pool> <dest_prefix> [opts]\n"
-                "       (give all three positionals, or none with --config)\n", prog);
+    if (xrdceph_migrate_cli_arity(pos, prog,
+            "<striper_pool> <cephfs_data_pool> <dest_prefix>") != 0) {
         return 2;
     }
     if (pos.size() == 3) { g.spool = pos[0]; g.dpool = pos[1]; g.dest = pos[2]; }
@@ -367,34 +348,20 @@ resolve_required_config(const std::vector<std::string> &pos, const char *prog,
     g.strip  = xrdceph_migrate_cfg_resolve(g.strip,  cfg, "strip");
     g.client = xrdceph_migrate_cfg_resolve("", cfg, "client", "admin");
     g.fsname = xrdceph_migrate_cfg_resolve("", cfg, "fs_name");
-    for (auto req : { std::make_pair("striper_pool", &g.spool),
-                      std::make_pair("data_pool",    &g.dpool),
-                      std::make_pair("dest_prefix",  &g.dest) }) {
-        if (req.second->empty()) {
-            fprintf(stderr, "missing %s: pass positionals or set it in --config\n",
-                    req.first);
-            return 2;
-        }
-    }
-    if (g.conf.empty()) { g.conf = xrdceph_migrate_cfg_resolve("", cfg, "conf"); }
-    if (g.conf.empty()) { g.conf = getenv("CEPH_CONF") ? getenv("CEPH_CONF") : "/etc/ceph/ceph.conf"; }
-    return 0;
+    const std::pair<const char *, std::string *> req[] = {
+        { "striper_pool", &g.spool }, { "data_pool", &g.dpool },
+        { "dest_prefix", &g.dest },
+    };
+    return xrdceph_migrate_cfg_finish(req, 3, cfg, &g.conf, &g.threads);
 }
 
 static int
 resolve_config(const std::vector<std::string> &pos, const char *prog)
 {
-    if (g.config.empty() && getenv("XRDCEPH_MIGRATE_CONF") != NULL) {
-        g.config = getenv("XRDCEPH_MIGRATE_CONF");
-    }
-    xrdceph_migrate_cfg cfg;
-    if (!g.config.empty() && !xrdceph_migrate_cfg_load(g.config, &cfg)) {
-        return 2;
-    }
-    int rc = resolve_required_config(pos, prog, cfg);
-    if (rc != 0) { return rc; }
-    if (g.threads < 1) { g.threads = 1; }
     if (g.sample_mb < 1) { g.sample_mb = 1; }
+    int rc = xrdceph_migrate_cfg_resolve_with(pos, prog, &g.config,
+                                              resolve_required_config);
+    if (rc != 0) { return rc; }
     if (g.del && (g.mode == MODE_REDIRECT || g.rollback)) {
         fprintf(stderr, "--delete-source is invalid with --mode redirect / --rollback "
                 "(it would destroy the source data the redirects reference)\n");
@@ -482,7 +449,8 @@ int
 main(int argc, char **argv)
 {
     std::vector<std::string> pos;
-    int rc = parse_cli_args(argc, argv, &pos);
+    int rc = xrdceph_migrate_cli_walk(argc, argv, parse_cli_value_option,
+                                      parse_cli_flag_option, &pos);
     if (rc != 0) { return rc; }
     /* site profile: explicit CLI > config file > built-in default; full
      * positional arity or NONE (a partial mix is ambiguous and refused). */

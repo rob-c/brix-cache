@@ -29,9 +29,13 @@
  */
 
 /*
- * Build a transient VFS ctx for a confined xattr op on `path` (mirrors the
- * canonical construction in get.c).  The xattr family is not allow_write-gated,
- * so the allow_write flag passed here does not affect set/remove behaviour.
+ * Build a transient VFS ctx for a confined xattr op on `path`.  The xattr
+ * family is not allow_write-gated, so the allow_write flag threaded through
+ * does not affect set/remove behaviour.  The _ns (namespace) credential build
+ * is deliberate: minting is reserved for data-plane GET/PUT/COPY sites, so a
+ * lock xattr op that needs a credential the user doesn't already have falls
+ * back per the configured storage_credential_fallback policy, same as every
+ * other namespace-only VFS ctx in this codebase (see mv.c's probe ctxs).
  */
 static void
 webdav_lock_vfs_ctx_init(ngx_http_request_t *r, const char *path,
@@ -39,30 +43,8 @@ webdav_lock_vfs_ctx_init(ngx_http_request_t *r, const char *path,
 {
     ngx_http_brix_webdav_loc_conf_t *conf =
         ngx_http_get_module_loc_conf(r, ngx_http_brix_webdav_module);
-    ngx_http_brix_webdav_req_ctx_t *wctx =
-        ngx_http_get_module_ctx(r, ngx_http_brix_webdav_module);
-    int is_tls = 0;
 
-#if (NGX_HTTP_SSL)
-    is_tls = (r->connection->ssl != NULL) ? 1 : 0;
-#endif
-
-    brix_vfs_ctx_init(vctx, r->pool, r->connection->log,
-        BRIX_PROTO_WEBDAV, conf->common.root_canon,
-        conf->common.cache_root_canon, conf->common.allow_write, is_tls,
-        (wctx != NULL) ? wctx->identity : NULL, path);
-    /* Bind the export's per-user backend credential policy so lock-state
-     * xattr ops on a remote-backed export present the REQUESTING USER's
-     * credential (wctx->identity, already threaded above), not the shared
-     * service credential. Minting is not bound here (mint is reserved for
-     * data-plane GET/PUT sites): a lock xattr op that needs a credential the
-     * user doesn't already have falls back per the configured
-     * storage_credential_fallback policy, same as every other namespace-only
-     * VFS ctx in this codebase (see mv.c's probe ctxs). */
-    brix_vfs_ctx_bind_backend_cred(vctx,
-        &conf->common.storage_credential_dir,
-        conf->common.storage_credential_fallback);
-    webdav_vfs_bind_deleg(r, conf, vctx);
+    webdav_vfs_ctx_build_ns(r, conf, path, vctx);
     /* Phase-3 T1: route through the export's selected storage backend (NULL =
      * default POSIX) so a remote-backed export's cred gate (brix_vfs_ns_cred,
      * keyed on the leaf driver's stat_cred/setxattr_cred capability) actually

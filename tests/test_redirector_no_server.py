@@ -38,7 +38,11 @@ from _test_a_robustness_helpers import (
     make_open_req,
 )
 
-pytestmark = [pytest.mark.uses_lifecycle_harness, pytest.mark.timeout(60)]
+# The xdist group pins every test onto one worker: they all start the SAME
+# named instance, and without the group one worker's teardown rmtree's the
+# registry entry while another worker's start is mid `nginx -t` on it.
+pytestmark = [pytest.mark.uses_lifecycle_harness, pytest.mark.timeout(60),
+              pytest.mark.xdist_group("lc-redirector-no-server")]
 
 EMPTY_REDIRECTOR = "lc-redirector-no-server"
 

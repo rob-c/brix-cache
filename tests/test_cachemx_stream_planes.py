@@ -70,6 +70,18 @@ def cached_copies(mx, name):
     return [p for p in mx.cache_root.rglob(name) if p.is_file()]
 
 
+def _wait_cached(mx, name, timeout=15.0):
+    """Wait for `name`'s cached copy to exist on disk.  The cache insert is
+    asynchronous past cold_read's fixed settle(); on a loaded host a follow-up
+    mutation can win that race and find nothing under the key (e.g. a rename
+    with nothing to evict).  The on-disk copy is the same ground truth
+    test_put_over_cached asserts."""
+    deadline = time.monotonic() + timeout
+    while not cached_copies(mx, name) and time.monotonic() < deadline:
+        time.sleep(0.2)
+    assert cached_copies(mx, name), "read never populated the cache"
+
+
 def cold_read(mx, plane, size=2048):
     """Seed a fresh origin file and read it once through `plane`.
     Returns (name, payload, CompletedProcess).  The download target must be
@@ -353,6 +365,7 @@ def test_rename_over_cached_evicts_source(mx):
     size = 2600
     name, payload, r = cold_read(mx, "none", size=size)
     assert r.returncode == 0, r.stderr
+    _wait_cached(mx, name)
     dst = cx.unique_name("mvdst")
     s = snap(mx)
     rr = mx.xrdfs("none", "mv", f"/{name}", f"/{dst}")

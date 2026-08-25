@@ -23,9 +23,9 @@
  *
  * HOW:  Every string lands in the caller's ngx_pool_t via the internal
  *       brix_identity_set_cstr (NUL-terminated copy so the values can be
- *       passed to C string APIs).  CSV group lists are tokenised by
- *       brix_identity_split_csv and space-separated OAuth scopes by
- *       brix_identity_split_spaces into ngx_str_t arrays.  Any setter that
+ *       passed to C string APIs).  CSV group lists and space-separated OAuth
+ *       scopes are tokenised by brix_identity_split_list into ngx_str_t
+ *       arrays.  Any setter that
  *       records a credential ORs the matching BRIX_AUTHN_* bit into
  *       auth_method and marks is_authenticated; token claims additionally
  *       cache the parsed scope table and derive has_read_scope /
@@ -72,60 +72,28 @@ brix_identity_push_str(ngx_pool_t *pool, ngx_array_t **array,
 }
 
 /*
- * Split a comma-separated list (e.g. VO/group CSV) into individual ngx_str_t
- * elements, skipping empty fields and runs of commas.
+ * Split a single-character-delimited list into individual ngx_str_t elements,
+ * skipping empty fields and runs of the separator.  Serves both the
+ * comma-separated VO/group CSVs and the space-separated raw OAuth `scope`
+ * claim.
  */
 static ngx_int_t
-brix_identity_split_csv(ngx_pool_t *pool, ngx_array_t **array,
-    const char *csv)
+brix_identity_split_list(ngx_pool_t *pool, ngx_array_t **array,
+    const char *list, char sep)
 {
     const char *p, *start;
 
-    if (csv == NULL || csv[0] == '\0') {
+    if (list == NULL || list[0] == '\0') {
         return NGX_OK;
     }
 
-    p = csv;
+    p = list;
     while (*p != '\0') {
-        while (*p == ',') {
+        while (*p == sep) {
             p++;
         }
         start = p;
-        while (*p != '\0' && *p != ',') {
-            p++;
-        }
-        if ((size_t) (p - start) > 0
-            && brix_identity_push_str(pool, array, start,
-                                        (size_t) (p - start)) != NGX_OK)
-        {
-            return NGX_ERROR;
-        }
-    }
-
-    return NGX_OK;
-}
-
-/*
- * Split a space-separated list (the raw OAuth `scope` claim) into individual
- * ngx_str_t scope tokens, skipping empty fields and runs of spaces.
- */
-static ngx_int_t
-brix_identity_split_spaces(ngx_pool_t *pool, ngx_array_t **array,
-    const char *spaces)
-{
-    const char *p, *start;
-
-    if (spaces == NULL || spaces[0] == '\0') {
-        return NGX_OK;
-    }
-
-    p = spaces;
-    while (*p != '\0') {
-        while (*p == ' ') {
-            p++;
-        }
-        start = p;
-        while (*p != '\0' && *p != ' ') {
+        while (*p != '\0' && *p != sep) {
             p++;
         }
         if ((size_t) (p - start) > 0
@@ -282,7 +250,7 @@ brix_identity_set_vos_csv(brix_identity_t *id, ngx_pool_t *pool,
         return NGX_ERROR;
     }
 
-    return brix_identity_split_csv(pool, &id->vo_list, vo_csv);
+    return brix_identity_split_list(pool, &id->vo_list, vo_csv, ',');
 }
 
 /*
@@ -319,8 +287,8 @@ brix_identity_set_token_claims(brix_identity_t *id, ngx_pool_t *pool,
         return NGX_ERROR;
     }
 
-    if (brix_identity_split_spaces(pool, &id->scopes,
-                                     claims->scope_raw) != NGX_OK)
+    if (brix_identity_split_list(pool, &id->scopes,
+                                   claims->scope_raw, ' ') != NGX_OK)
     {
         return NGX_ERROR;
     }

@@ -308,14 +308,23 @@ brix_http_body_staged_spooled_buf(brix_vfs_staged_t *st, ngx_buf_t *b,
  * spooled (in_file) buffers are read from their temp fd in 64 KiB chunks. The
  * destination offset runs from 0 so the body lands contiguously.
  */
-ngx_int_t
-brix_http_body_write_to_staged(ngx_http_request_t *r,
-    brix_vfs_staged_t *st)
+/* body_buf_fn — emit one non-empty body buffer to the destination behind
+ * `dst`, advancing the running destination offset. NGX_OK / NGX_ERROR. */
+typedef ngx_int_t (*body_buf_fn)(void *dst, ngx_buf_t *b, off_t *off);
+
+/*
+ * brix_http_body_emit_bufs — the one request-body chain walk both driver-backed
+ * sinks (staged object, streaming writer) share: validate arguments, accept an
+ * absent body as a zero-length success, then hand every non-NULL buffer to
+ * `emit` while threading the running destination offset from 0.
+ */
+static ngx_int_t
+brix_http_body_emit_bufs(ngx_http_request_t *r, void *dst, body_buf_fn emit)
 {
     ngx_chain_t *cl;
     off_t        off = 0;
 
-    if (r == NULL || st == NULL) {
+    if (r == NULL || dst == NULL) {
         errno = EINVAL;
         return NGX_ERROR;
     }
@@ -329,75 +338,83 @@ brix_http_body_write_to_staged(ngx_http_request_t *r,
         if (b == NULL) {
             continue;
         }
-
-        if (b->in_file) {
-            if (brix_http_body_staged_spooled_buf(st, b, &off) != NGX_OK) {
-                return NGX_ERROR;
-            }
-
-        } else if (b->pos < b->last) {
-            size_t len = (size_t) (b->last - b->pos);
-
-            if (brix_vfs_staged_write(st, b->pos, len, off) != NGX_OK) {
-                return NGX_ERROR;
-            }
-            off += (off_t) len;
+        if (emit(dst, b, &off) != NGX_OK) {
+            return NGX_ERROR;
         }
     }
 
     return NGX_OK;
 }
 
+/* Staged sink: spooled (in_file) buffers go through the 64 KiB pread stager;
+ * memory buffers are forwarded to brix_vfs_staged_write directly. */
+static ngx_int_t
+brix_http_body_staged_emit(void *dst, ngx_buf_t *b, off_t *off)
+{
+    brix_vfs_staged_t *st = dst;
+
+    if (b->in_file) {
+        return brix_http_body_staged_spooled_buf(st, b, off);
+    }
+    if (b->pos < b->last) {
+        size_t len = (size_t) (b->last - b->pos);
+
+        if (brix_vfs_staged_write(st, b->pos, len, *off) != NGX_OK) {
+            return NGX_ERROR;
+        }
+        *off += (off_t) len;
+    }
+    return NGX_OK;
+}
+
+/* Writer sink: spooled buffers hand their temp fd window to write_fd (after
+ * sanity-checking the fd and window); memory buffers stream directly. */
+static ngx_int_t
+brix_http_body_writer_emit(void *dst, ngx_buf_t *b, off_t *off)
+{
+    brix_vfs_writer_t *w = dst;
+
+    if (b->in_file) {
+        if (b->file == NULL || b->file->fd == NGX_INVALID_FILE
+            || b->file_last < b->file_pos)
+        {
+            errno = EINVAL;
+            return NGX_ERROR;
+        }
+        if (b->file_last > b->file_pos) {
+            size_t len = (size_t) (b->file_last - b->file_pos);
+
+            if (brix_vfs_writer_write_fd(w, b->file->fd, b->file_pos, len,
+                                         *off) != NGX_OK)
+            {
+                return NGX_ERROR;
+            }
+            *off += (off_t) len;
+        }
+        return NGX_OK;
+    }
+    if (b->pos < b->last) {
+        size_t len = (size_t) (b->last - b->pos);
+
+        if (brix_vfs_writer_write(w, b->pos, len, *off) != NGX_OK) {
+            return NGX_ERROR;
+        }
+        *off += (off_t) len;
+    }
+    return NGX_OK;
+}
+
+ngx_int_t
+brix_http_body_write_to_staged(ngx_http_request_t *r,
+    brix_vfs_staged_t *st)
+{
+    return brix_http_body_emit_bufs(r, st, brix_http_body_staged_emit);
+}
+
 ngx_int_t
 brix_http_body_write_to_writer(ngx_http_request_t *r, brix_vfs_writer_t *w)
 {
-    ngx_chain_t *cl;
-    off_t        off = 0;
-
-    if (r == NULL || w == NULL) {
-        errno = EINVAL;
-        return NGX_ERROR;
-    }
-    if (r->request_body == NULL) {
-        return NGX_OK;
-    }
-
-    for (cl = r->request_body->bufs; cl != NULL; cl = cl->next) {
-        ngx_buf_t *b = cl->buf;
-
-        if (b == NULL) {
-            continue;
-        }
-
-        if (b->in_file) {
-            if (b->file == NULL || b->file->fd == NGX_INVALID_FILE
-                || b->file_last < b->file_pos)
-            {
-                errno = EINVAL;
-                return NGX_ERROR;
-            }
-            if (b->file_last > b->file_pos) {
-                size_t len = (size_t) (b->file_last - b->file_pos);
-
-                if (brix_vfs_writer_write_fd(w, b->file->fd, b->file_pos, len,
-                                             off) != NGX_OK)
-                {
-                    return NGX_ERROR;
-                }
-                off += (off_t) len;
-            }
-
-        } else if (b->pos < b->last) {
-            size_t len = (size_t) (b->last - b->pos);
-
-            if (brix_vfs_writer_write(w, b->pos, len, off) != NGX_OK) {
-                return NGX_ERROR;
-            }
-            off += (off_t) len;
-        }
-    }
-
-    return NGX_OK;
+    return brix_http_body_emit_bufs(r, w, brix_http_body_writer_emit);
 }
 
 /*

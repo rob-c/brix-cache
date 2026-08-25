@@ -100,7 +100,7 @@ def test_every_definition_moved_verbatim():
     assert set(old) == set(new), f"missing={set(old)-set(new)} extra={set(new)-set(old)}"
     differing = [n for n in old if old[n] != new[n]]
     assert differing == [], f"bodies changed in the move: {differing}"
-    assert len(old) == 4
+    assert len(old) == 7
 
 
 def _definition_bodies(path: Path) -> dict[str, str]:

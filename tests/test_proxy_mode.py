@@ -1,6 +1,11 @@
 from split_continuation import reexport as _reexport
 _reexport(globals(), "_test_proxy_mode_helpers")
 
+# The proxy-mode tests share one proxy instance, one upstream, and fixed
+# seeded data files; free scheduling interleaves another worker's handle
+# lifecycle with an in-flight read (b'' at a seeded offset) — one worker.
+pytestmark = pytest.mark.xdist_group("proxy-mode")
+
 class TestProxyBootstrap:
     """Proxy lazy-connect and session-opcode behaviour."""
 

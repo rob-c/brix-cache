@@ -23,11 +23,20 @@ static cta_request_t mk(cta_op_t op)
     return r;
 }
 
+/* Create a fresh queue in *qp and submit one `op` request owned by `owner`. */
+static cta_req_t *
+submit_one(brix_cta_queue_t **qp, cta_op_t op, const char *owner)
+{
+    cta_request_t r = mk(op);
+
+    *qp = cta_queue_create();
+    return cta_queue_submit(*qp, &r, owner);
+}
+
 static void test_submit_and_find(void)
 {
-    brix_cta_queue_t *q = cta_queue_create();
-    cta_request_t r = mk(CTA_OP_ARCHIVE);
-    cta_req_t *e = cta_queue_submit(q, &r, "alice");
+    brix_cta_queue_t *q;
+    cta_req_t *e = submit_one(&q, CTA_OP_ARCHIVE, "alice");
     CHECK(e != NULL);
     CHECK(e->state == CTA_ST_SUBMITTED);
     CHECK(strcmp(e->owner, "alice") == 0);
@@ -38,9 +47,8 @@ static void test_submit_and_find(void)
 
 static void test_legal_and_illegal_transitions(void)
 {
-    brix_cta_queue_t *q = cta_queue_create();
-    cta_request_t r = mk(CTA_OP_ARCHIVE);
-    cta_req_t *e = cta_queue_submit(q, &r, "u");
+    brix_cta_queue_t *q;
+    cta_req_t *e = submit_one(&q, CTA_OP_ARCHIVE, "u");
     CHECK(cta_queue_transition(e, CTA_ST_QUEUED) == 0);
     CHECK(cta_queue_transition(e, CTA_ST_ACTIVE) == 0);
     CHECK(cta_queue_transition(e, CTA_ST_COMPLETE) == 0);
@@ -52,9 +60,8 @@ static void test_legal_and_illegal_transitions(void)
 
 static void test_cancel_owner_admin_gate(void)
 {
-    brix_cta_queue_t *q = cta_queue_create();
-    cta_request_t r = mk(CTA_OP_RETRIEVE);
-    cta_req_t *e = cta_queue_submit(q, &r, "alice");
+    brix_cta_queue_t *q;
+    cta_req_t *e = submit_one(&q, CTA_OP_RETRIEVE, "alice");
 
     /* a different non-admin requester is denied */
     CHECK(cta_queue_cancel(q, e->id, "bob", 0) == CTA_QUEUE_EACCES);
@@ -70,9 +77,8 @@ static void test_cancel_owner_admin_gate(void)
 
 static void test_owner_can_cancel(void)
 {
-    brix_cta_queue_t *q = cta_queue_create();
-    cta_request_t r = mk(CTA_OP_ARCHIVE);
-    cta_req_t *e = cta_queue_submit(q, &r, "carol");
+    brix_cta_queue_t *q;
+    cta_req_t *e = submit_one(&q, CTA_OP_ARCHIVE, "carol");
     CHECK(cta_queue_cancel(q, e->id, "carol", 0) == 0);
     CHECK(e->state == CTA_ST_CANCELED);
     cta_queue_destroy(q);
@@ -80,9 +86,9 @@ static void test_owner_can_cancel(void)
 
 static void test_active_count(void)
 {
-    brix_cta_queue_t *q = cta_queue_create();
+    brix_cta_queue_t *q;
+    cta_req_t *a = submit_one(&q, CTA_OP_ARCHIVE, "u");
     cta_request_t r = mk(CTA_OP_ARCHIVE);
-    cta_req_t *a = cta_queue_submit(q, &r, "u");
     cta_req_t *b = cta_queue_submit(q, &r, "u");
     CHECK(cta_queue_active_count(q) == 2);
     cta_queue_transition(a, CTA_ST_QUEUED);

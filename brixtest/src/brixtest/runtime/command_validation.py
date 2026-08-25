@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import math
 import os
-from typing import Mapping, Optional, Sequence
+from typing import Mapping, Optional, Sequence, Union
 
 from brixtest.errors import SpecError
 
@@ -79,7 +79,8 @@ def _environment_item(key: object, value: object) -> bool:
 
 
 def command_expected(
-    input_value: Optional[str], encoding: str, expected_exit_codes: Sequence[int],
+    input_value: Optional[Union[str, bytes]], encoding: str,
+    expected_exit_codes: Sequence[int],
 ) -> tuple[int, ...]:
     _validate_input(input_value)
     _validate_encoding(encoding)
@@ -90,8 +91,8 @@ def command_expected(
 
 
 def _validate_input(value: object) -> None:
-    if value is not None and not isinstance(value, str):
-        raise SpecError("run.command input", type(value).__name__, "must be text")
+    if value is not None and not isinstance(value, (str, bytes)):
+        raise SpecError("run.command input", type(value).__name__, "must be text or bytes")
 
 
 def _validate_encoding(value: object) -> None:

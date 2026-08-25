@@ -214,6 +214,7 @@ unbounded wire data and appear in **no** label (INVARIANT #8):
 | `brix_oci_token_fetch_total` | `outcome` = cached\|fetched\|failed | is the upstream token dance working |
 | `brix_oci_verify_fail_total` | — | fills whose bytes did not hash to their digest |
 | `brix_oci_upstream_errors_total` | `status` = 401\|403\|404\|429\|5xx\|other | upstream weather |
+| `brix_oci_delegate_total` | `outcome` = cached\|granted\|denied\|error | delegated-pull (D16) authorization proofs |
 
 `class` = api\|manifest\|blob\|upload\|tags\|referrers\|bad;
 `outcome` = hit\|fill\|local\|refused\|error. Cache hit ratio is
@@ -235,6 +236,11 @@ Two `signal=` tokens, both with shipped fail2ban assets under
   ban here takes the mirror offline for everyone; the jail ships
   `enabled = false` on purpose. Nothing bad was cached either way — the
   client got a 502 and the line is the alert.
+
+Delegate-mode denials (§D16) emit the tree-wide **`authfail`** signal — one
+line per uniform 401, same shape every other authenticated surface uses, so
+an existing `authfail` jail covers credential probing against the mirror
+with no new filter.
 
 ---
 

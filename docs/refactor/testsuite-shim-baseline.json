@@ -151,7 +151,7 @@
  "cli_pty": [
   "TIMEOUT_S",
   "__all__",
-  "_drain_master",
+  "_drain",
   "run_pipe",
   "run_pty"
  ],

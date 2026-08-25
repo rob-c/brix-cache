@@ -35,18 +35,29 @@ write_all(int fd, const uint8_t *buf, size_t n, brix_status *st)
  * small enough to get through. This is what lets a one-shot xrdcp ride out loss
  * the way the FUSE driver's mfile layer does. */
 
+/* Reconnect r->c to its home endpoint (or the current one if no home is set),
+ * re-selecting a data server.  Shared prefix of the source/sink reopen paths,
+ * which then reopen the file their own way. 0 / -1 (st set). */
+static int
+pump_reconnect_home(pump_remote_t *r, brix_status *st)
+{
+    const char *host = (r->c->home_host[0] != '\0') ? r->c->home_host : r->c->host;
+    int         port = (r->c->home_port != 0) ? r->c->home_port : r->c->port;
+    return brix_reconnect(r->c, host, port, st);
+}
+
+
 /* Reconnect the session (to the original endpoint, re-selecting a data server)
  * and reopen the source file — replacing the dead handle. 0 / -1 (st set). */
 int
 pump_remote_reopen(pump_remote_t *r, brix_status *st)
 {
-    const char *host = (r->c->home_host[0] != '\0') ? r->c->home_host : r->c->host;
-    int         port = (r->c->home_port != 0) ? r->c->home_port : r->c->port;
-    if (brix_reconnect(r->c, host, port, st) != 0) {
+    brix_file nf;
+    int rc;
+    if (pump_reconnect_home(r, st) != 0) {
         return -1;
     }
-    brix_file nf;
-    int rc = (r->opaque != NULL && r->opaque[0] != '\0')
+    rc = (r->opaque != NULL && r->opaque[0] != '\0')
              ? brix_file_open_opaque(r->c, r->path, r->opaque, 0, 0, 0, &nf, st)
              : brix_file_open_read(r->c, r->path, &nf, st);
     if (rc != 0) {
@@ -136,12 +147,10 @@ pump_src_remote(void *ctx, uint8_t *buf, int64_t off, size_t cap, brix_status *s
 int
 pump_sink_reopen(pump_remote_t *r, brix_status *st)
 {
-    const char *host = (r->c->home_host[0] != '\0') ? r->c->home_host : r->c->host;
-    int         port = (r->c->home_port != 0) ? r->c->home_port : r->c->port;
-    if (brix_reconnect(r->c, host, port, st) != 0) {
+    brix_file nf;
+    if (pump_reconnect_home(r, st) != 0) {
         return -1;
     }
-    brix_file nf;
     if (brix_file_open_update(r->c, r->path, r->posc, &nf, st) != 0) {
         return -1;
     }

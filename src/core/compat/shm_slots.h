@@ -47,6 +47,26 @@ brix_shm_remember_free_slot(ngx_uint_t *free_slot, ngx_uint_t none,
 }
 
 /*
+ * WHAT: Return an SHM zone's published table pointer, or NULL when unusable.
+ *
+ * WHY: Every SHM-backed table accessor repeats the same three-way guard: the
+ *      zone may not exist (feature unconfigured), its data may still be NULL
+ *      (init callback not yet run), or data may hold the (void *) 1 placeholder
+ *      some zones publish before the real table is allocated. Callers cast the
+ *      result to their table type in a one-line wrapper.
+ *
+ * HOW: NULL for any of the three unusable states; otherwise zone->data.
+ */
+static ngx_inline void *
+brix_shm_zone_table(ngx_shm_zone_t *zone)
+{
+    if (zone == NULL || zone->data == NULL || zone->data == (void *) 1) {
+        return NULL;
+    }
+    return zone->data;
+}
+
+/*
  * Slab-safe SHM table allocation (shm_slots.c).
  *
  * CRITICAL: nginx initialises every shared_memory zone as an ngx_slab_pool_t and

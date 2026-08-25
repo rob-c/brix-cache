@@ -22,6 +22,8 @@ from brixtest.archive import archive_case_logs
 from brixtest.design import CaseDefinition
 from brixtest.errors import SpecError
 from brixtest.evidence.collectors import _add_owned_children, _process_parents
+from brixtest.helper_bundle import archive_helper_bundle
+from brixtest.helper_control import CANCEL_ENV, HEARTBEAT_ENV
 from brixtest.isolation import build_launch
 from brixtest.metrics import evaluate_budget
 from brixtest.pytest_state import METRICS_SESSION, SHARED_TOPOLOGY
@@ -70,7 +72,10 @@ def _signal_tree(proc: subprocess.Popen, signum: int) -> None:
         os.killpg(proc.pid, signum)
 
 
-def _helper_environment(item, run_root, result_path, attempt_id, trial, warmup) -> dict[str, str]:
+def _helper_environment(
+    item, run_root, result_path, attempt_id, trial, warmup,
+    heartbeat_path: Path, cancel_path: Path,
+) -> dict[str, str]:
     env = dict(os.environ)
     env.update({
         _HELPER_ENV: "1", "BRIXTEST_CONTROLLER_PID": str(os.getpid()),
@@ -78,6 +83,7 @@ def _helper_environment(item, run_root, result_path, attempt_id, trial, warmup) 
         "BRIXTEST_ATTEMPT_ID": attempt_id, "BRIXTEST_TRIAL": str(trial),
         "BRIXTEST_WARMUP": "1" if warmup else "0",
         "PYTEST_DISABLE_PLUGIN_AUTOLOAD": "1",
+        HEARTBEAT_ENV: str(heartbeat_path), CANCEL_ENV: str(cancel_path),
     })
     topology = item.config.stash.get(SHARED_TOPOLOGY, None)
     if topology is not None:
@@ -93,6 +99,7 @@ def _helper_argv(item) -> list[str]:
     argv = [
         sys.executable, "-m", "pytest", item.nodeid,
         "-p", "brixtest.pytest_plugin", "--brixtest-helper", "-q", "--tb=long",
+        "--capture=tee-sys",
     ]
     plugins = _helper_plugins(item)
     for plugin in plugins:
@@ -135,18 +142,55 @@ def _safe_import_roots(item, plugins: list[str]) -> list[str]:
     return list(dict.fromkeys(safe))
 
 
-def _wait_helper(process, timeout: float) -> bool:
-    try:
-        process.wait(timeout=timeout)
-        return False
-    except subprocess.TimeoutExpired:
-        _signal_tree(process, signal.SIGTERM)
+def _heartbeat_timeout(timeout: float) -> float:
+    raw = os.environ.get("BRIXTEST_HEARTBEAT_TIMEOUT", "")
+    if raw:
         try:
-            process.wait(timeout=2.0)
-        except subprocess.TimeoutExpired:
-            _signal_tree(process, signal.SIGKILL)
-            process.wait()
+            selected = float(raw)
+        except ValueError as exc:
+            raise SpecError("helper heartbeat timeout", raw, "must be a number > 0") from exc
+        if selected <= 0:
+            raise SpecError("helper heartbeat timeout", raw, "must be a number > 0")
+        return selected
+    return min(10.0, max(2.0, timeout / 3.0))
+
+
+def _heartbeat_expired(path: Path, silence: float) -> bool:
+    try:
+        age = time.time() - path.stat().st_mtime
+    except OSError:
         return True
+    return age > silence
+
+
+def _terminate_helper(process, cancel_path: Path, reason: str) -> None:
+    with contextlib.suppress(OSError):
+        cancel_path.write_text(json.dumps({"reason": reason, "time": time.time()}) + "\n")
+    _signal_tree(process, signal.SIGTERM)
+    try:
+        process.wait(timeout=2.0)
+    except subprocess.TimeoutExpired:
+        _signal_tree(process, signal.SIGKILL)
+        process.wait()
+
+
+def _wait_helper(
+    process, timeout: float, heartbeat_path: Path, cancel_path: Path,
+) -> str:
+    deadline = time.monotonic() + timeout
+    silence = _heartbeat_timeout(timeout)
+    while True:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            _terminate_helper(process, cancel_path, "deadline")
+            return "deadline"
+        try:
+            process.wait(timeout=min(0.25, remaining))
+            return ""
+        except subprocess.TimeoutExpired:
+            if _heartbeat_expired(heartbeat_path, silence):
+                _terminate_helper(process, cancel_path, "heartbeat")
+                return "heartbeat"
 
 
 def _cleanup_helper(launch, process, pump) -> None:
@@ -191,7 +235,13 @@ def _run_helper(
     result_path = control / "result.json"
     result_path.write_text("{}\n")
     helper_log = control / "helper.log"
-    env = _helper_environment(item, run_root, result_path, attempt_id, trial, warmup)
+    heartbeat_path = control / "heartbeat.json"
+    heartbeat_path.write_text(json.dumps({"controller": os.getpid(), "time": time.time()}))
+    cancel_path = control / "cancel.json"
+    env = _helper_environment(
+        item, run_root, result_path, attempt_id, trial, warmup,
+        heartbeat_path, cancel_path,
+    )
     argv = _helper_argv(item)
     isolation = pytest_options.selected_isolation(item.config, definition)
     env["BRIXTEST_ISOLATION_KIND"] = isolation.kind
@@ -211,10 +261,17 @@ def _run_helper(
     helper_limit = int(item.config.getoption("--brixtest-helper-log-max-bytes"))
     pump = BoundedLogPump(process.stdout, helper_log, helper_limit)
     pump.start()
-    timed_out = _wait_helper(process, definition.timeout)
+    termination = _wait_helper(
+        process, definition.timeout, heartbeat_path, cancel_path,
+    )
+    timed_out = bool(termination)
     _cleanup_helper(launch, process, pump)
     output = _helper_output(helper_log)
     payload = _helper_payload(result_path)
+    payload.update(_archived_launch_metadata(launch, item.config.stash[METRICS_SESSION]))
+    if termination:
+        payload["controller_termination"] = termination
+        output = "BriXTest helper terminated: %s\n%s" % (termination, output)
     with contextlib.suppress(OSError):
         result_path.unlink()
     logs = archive_case_logs(
@@ -226,6 +283,14 @@ def _run_helper(
         process.returncode, output, payload, timed_out, started, time.time(),
         isolation.kind, logs,
     )
+
+
+def _archived_launch_metadata(launch, session_dir: Path) -> dict[str, object]:
+    metadata = dict(launch.metadata)
+    identity = metadata.get("helper_bundle")
+    if isinstance(identity, Mapping):
+        metadata["helper_bundle"] = archive_helper_bundle(identity, session_dir)
+    return metadata
 
 
 def _record_controller_failure(
@@ -309,7 +374,12 @@ def _cleanup_timed_out_kubernetes(definition: CaseDefinition, run_root: Path) ->
     selected = os.environ.get("BRIXTEST_BACKEND", definition.backend)
     if selected not in ("kubernetes", "minikube"):
         return
-    namespace = "brixtest-%s" % run_root.name.lower().replace("_", "-")[-40:]
+    from brixtest.runtime.kubernetes_ownership import read_ownership
+
+    ownership = read_ownership(run_root)
+    if not ownership:
+        return
+    namespace = ownership["namespace"]
     kubectl = os.environ.get("BRIXTEST_KUBECTL", "kubectl")
     try:
         argv = [kubectl]
@@ -317,6 +387,13 @@ def _cleanup_timed_out_kubernetes(definition: CaseDefinition, run_root: Path) ->
             argv.extend((
                 "--context", os.environ.get("BRIXTEST_MINIKUBE_PROFILE", "brixtest"),
             ))
+        get_argv = [*argv, "get", "namespace", namespace, "-o", "json"]
+        inspected = subprocess.run(
+            get_argv, capture_output=True, text=True,
+            timeout=5.0, check=False,
+        )
+        if inspected.returncode or _namespace_uid(inspected.stdout) != ownership["uid"]:
+            return
         argv.extend(("delete", "namespace", namespace, "--wait=false"))
         subprocess.run(
             argv,
@@ -325,6 +402,15 @@ def _cleanup_timed_out_kubernetes(definition: CaseDefinition, run_root: Path) ->
         )
     except (OSError, subprocess.TimeoutExpired):
         pass
+
+
+def _namespace_uid(value: str) -> str:
+    try:
+        payload = json.loads(value)
+        uid = payload["metadata"]["uid"]
+    except (KeyError, TypeError, ValueError):
+        return ""
+    return uid if isinstance(uid, str) else ""
 
 
 def _budget_failure(marker, metrics: Mapping[str, object]) -> str:

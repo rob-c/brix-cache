@@ -1,5 +1,6 @@
 #include "core/ngx_brix_module.h"
 #include "core/compat/alloc_guard.h"
+#include "protocols/root/connection/fd_table.h"   /* brix_free_fhandle */
 
 /*
  *
@@ -61,6 +62,39 @@ brix_send_ok(brix_ctx_t *ctx, ngx_connection_t *c,
     }
 
     return brix_queue_response(ctx, c, buf, total);
+}
+
+u_char *
+brix_open_ok_frame(brix_ctx_t *ctx, ngx_connection_t *c, int idx,
+    const ServerOpenBody *body, size_t hbytes, const char *statbuf,
+    ngx_flag_t want_stat, size_t *out_total)
+{
+    size_t   bodylen;
+    u_char  *buf;
+
+    bodylen = hbytes;
+    if (want_stat) {
+        bodylen += strlen(statbuf) + 1;
+    }
+
+    buf = ngx_palloc(c->pool, XRD_RESPONSE_HDR_LEN + bodylen);
+    if (buf == NULL) {
+        brix_free_fhandle(ctx, idx);
+        return NULL;
+    }
+
+    brix_build_resp_hdr(ctx->recv.cur_streamid, kXR_ok, (uint32_t) bodylen,
+                          (ServerResponseHdr *) buf);
+    ngx_memcpy(buf + XRD_RESPONSE_HDR_LEN, body, hbytes);
+    if (want_stat) {
+        /* The stat tail sits after the FULL ServerOpenBody — hbytes only
+         * shrinks to 4 when no stat (and no codec) was requested. */
+        ngx_memcpy(buf + XRD_RESPONSE_HDR_LEN + sizeof(ServerOpenBody),
+                   statbuf, strlen(statbuf) + 1);
+    }
+
+    *out_total = XRD_RESPONSE_HDR_LEN + bodylen;
+    return buf;
 }
 
 ngx_int_t

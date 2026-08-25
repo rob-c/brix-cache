@@ -74,7 +74,10 @@ static X509 *mkcert(const char *cn, int is_ca, X509 *ca, EVP_PKEY *cakey,
     *key = k;
     X509_set_version(x, 2);
     ASN1_INTEGER_set(X509_get_serialNumber(x), (long) (rand() % 1000000 + 2));
-    X509_gmtime_adj(X509_getm_notBefore(x), 0);
+    /* Backdate notBefore: the suite verifies these certs moments after minting,
+     * and a wall clock that steps backwards in between (WSL2 chronyd vs
+     * hypervisor TimeSync) turns a fresh cert into "not yet valid". */
+    X509_gmtime_adj(X509_getm_notBefore(x), -300);
     X509_gmtime_adj(X509_getm_notAfter(x), 3600);
     X509_set_pubkey(x, k);
     n = X509_get_subject_name(x);
@@ -221,6 +224,13 @@ static void test_sign_pxyreq(suite_t *s)
                 crit_pci = X509_EXTENSION_get_critical(e);
         }
         CHECK(crit_pci, "proxy has a critical proxyCertInfo");
+        /* skew tolerance: the signer must backdate notBefore so a verifier
+         * whose clock trails the mint (or a backwards wall-clock step) does
+         * not see a fresh proxy as "not yet valid". */
+        CHECK(X509_cmp_current_time(X509_get0_notBefore(s->pxy)) < 0
+              && X509_cmp_time(X509_get0_notBefore(s->pxy),
+                               &(time_t){ time(NULL) - 60 }) < 0,
+              "proxy notBefore is backdated for clock skew");
         /* subject is the EEC subject + one extra CN RDN */
         CHECK(X509_NAME_entry_count(X509_get_subject_name(s->pxy))
               == X509_NAME_entry_count(X509_get_subject_name(s->eec)) + 1,

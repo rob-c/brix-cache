@@ -16,19 +16,28 @@
 #include <string.h>
 #include <unistd.h>
 
+/* Create a 4096-byte regular file (block-device stand-in) at the mkstemp path in
+ * dev[], open it as a block:// VFS handle for WRITE, and return the handle.
+ * Aborts via assert on any setup failure; the caller unlinks dev afterwards. */
+static brix_vfs_file *open_block_dev(char *dev, brix_status *st)
+{
+    int fd = mkstemp(dev); assert(fd >= 0);
+    assert(ftruncate(fd, 4096) == 0); close(fd);
+
+    brix_vfs_open_opts o = { .io_uring = 0, .expected_size = -1, .cred = NULL };
+    brix_vfs_file     *w = NULL;
+    char               url[256]; snprintf(url, sizeof url, "block://%s", dev);
+    assert(brix_vfs_open(url, XRDC_VFS_WRITE, &o, &w, st) == 0);
+    return w;
+}
+
 int main(void) {
     /* Test 1: in-place write — bytes appear at the same path; no .tmp sibling;
      *          ATOMIC_TEMP and TRUNCATE caps are absent. */
     {
         brix_status st = {0};
         char dev[] = "/tmp/vfs_blk_XXXXXX";
-        int fd = mkstemp(dev); assert(fd >= 0);
-        assert(ftruncate(fd, 4096) == 0); close(fd);
-
-        brix_vfs_open_opts o = { .io_uring = 0, .expected_size = -1, .cred = NULL };
-        brix_vfs_file *w = NULL;
-        char url[64]; snprintf(url, sizeof url, "block://%s", dev);
-        assert(brix_vfs_open(url, XRDC_VFS_WRITE, &o, &w, &st) == 0);
+        brix_vfs_file *w = open_block_dev(dev, &st);
         assert((brix_vfs_get_caps(w) & XRDC_VFS_CAP_ATOMIC_TEMP) == 0);   /* no temp+rename */
         assert((brix_vfs_get_caps(w) & XRDC_VFS_CAP_TRUNCATE)    == 0);   /* not truncatable */
         assert((brix_vfs_get_caps(w) & XRDC_VFS_CAP_RANDOM_WRITE) != 0);  /* random-write ok */
@@ -68,13 +77,7 @@ int main(void) {
     {
         brix_status st = {0};
         char dev[] = "/tmp/vfs_blk_trunc_XXXXXX";
-        int fd = mkstemp(dev); assert(fd >= 0);
-        assert(ftruncate(fd, 4096) == 0); close(fd);
-
-        brix_vfs_open_opts o = { .io_uring = 0, .expected_size = -1, .cred = NULL };
-        brix_vfs_file *w = NULL;
-        char url[128]; snprintf(url, sizeof url, "block://%s", dev);
-        assert(brix_vfs_open(url, XRDC_VFS_WRITE, &o, &w, &st) == 0);
+        brix_vfs_file *w = open_block_dev(dev, &st);
 
         /* truncate must reject cleanly */
         int rc = brix_vfs_truncate(w, 1024, &st);

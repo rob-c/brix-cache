@@ -6,11 +6,22 @@ import json
 import os
 import shutil
 import stat
+import sys
 from pathlib import Path
 from typing import TYPE_CHECKING, Mapping, Sequence
 
 from brixtest.errors import SpecError
-from brixtest.isolation import Isolation, LaunchSpec, _INNER_KEYS, _NAMESPACES
+from brixtest.helper_bundle import build_helper_bundle
+from brixtest.helper_transport import CHANNEL_ENV, STDIO_CHANNEL
+from brixtest.isolation import _INNER_KEYS, _NAMESPACES, Isolation, LaunchSpec
+from brixtest.kubernetes_helper_manifest import (
+    REMOTE_DONE,
+    REMOTE_RESULT,
+    REMOTE_RUN,
+    REMOTE_SESSION,
+    helper_resources,
+    write_helper_manifest,
+)
 
 if TYPE_CHECKING:
     from brixtest.network import HostMapping
@@ -274,6 +285,140 @@ def _nsenter_launch(
     return LaunchSpec(tuple(argv), cwd, dict(child_env))
 
 
+def _repeated_option(argv: Sequence[str], option: str) -> list[str]:
+    values = []
+    for index, value in enumerate(argv[:-1]):
+        if value == option:
+            values.append(argv[index + 1])
+    return values
+
+
+def _helper_nodeid(pytest_argv: Sequence[str]) -> str:
+    try:
+        marker = pytest_argv.index("pytest")
+        nodeid = pytest_argv[marker + 1]
+    except (ValueError, IndexError) as exc:
+        raise SpecError(
+            "Kubernetes helper command", pytest_argv,
+            "must use python -m pytest NODEID",
+        ) from exc
+    return nodeid
+
+
+def _remote_environment(child_env: Mapping[str, str]) -> dict[str, str]:
+    environment = dict(_inner_env(child_env))
+    environment.update({
+        "BRIXTEST_HELPER_RESULT": REMOTE_RESULT,
+        "BRIXTEST_CASE_RUN": REMOTE_RUN,
+        "BRIXTEST_METRICS_SESSION": REMOTE_SESSION,
+        "BRIXTEST_RUNS": "/brixtest/runs",
+        "BRIXTEST_HELPER_HEARTBEAT": "/brixtest/control/heartbeat.json",
+        "BRIXTEST_HELPER_CANCEL": "/brixtest/control/cancel.json",
+        "BRIXTEST_KUBERNETES_CONTEXT": "",
+        "BRIXTEST_KUBECTL": "/opt/brixtest/bin/kubectl",
+        CHANNEL_ENV: STDIO_CHANNEL,
+        "PYTHONPATH": "/workspace:/opt/brixtest/python",
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PATH": "/opt/brixtest/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+    })
+    if environment.get("BRIXTEST_BACKEND") == "minikube":
+        environment["BRIXTEST_BACKEND"] = "kubernetes"
+    return environment
+
+
+def _kubectl_prefix(isolation: Isolation, *, validate: bool) -> list[str]:
+    executable = _require_executable("kubectl") if validate else "kubectl"
+    argv = [executable]
+    if isolation.context:
+        argv.extend(("--context", isolation.context))
+    argv.extend(("--namespace", isolation.namespace))
+    return argv
+
+
+def _optional_executable(name: str) -> str:
+    return shutil.which(name) or ""
+
+
+def _bridge_spec(
+    isolation: Isolation, *, pytest_argv: Sequence[str], child_env: Mapping[str, str],
+    cwd: Path, control_dir: Path, writable_root: Path,
+    host_aliases: Sequence[HostMapping], validate: bool,
+) -> tuple[Path, tuple[tuple[str, ...], ...], Mapping[str, object]]:
+    nodeid = _helper_nodeid(pytest_argv)
+    trusted = _repeated_option(pytest_argv, "-p") + _repeated_option(
+        pytest_argv, "--brixtest-safe-import",
+    )
+    bundle = build_helper_bundle(cwd, nodeid, control_dir / "bundles", trusted_modules=trusted)
+    job = "brixtest-%s" % control_dir.name[-24:].lower()
+    secret = "%s-env" % job
+    manifest = control_dir / "kubernetes-helper.json"
+    environment = _remote_environment(child_env)
+    write_helper_manifest(
+        manifest,
+        helper_resources(
+            isolation, job=job, secret=secret, environment=environment,
+            host_aliases=host_aliases,
+        ),
+    )
+    kubectl = _kubectl_prefix(isolation, validate=validate)
+    result = Path(child_env["BRIXTEST_HELPER_RESULT"])
+    heartbeat = Path(child_env["BRIXTEST_HELPER_HEARTBEAT"])
+    session = Path(child_env["BRIXTEST_METRICS_SESSION"])
+    spec = {
+        "schema": 1, "kubectl": kubectl, "manifest": str(manifest),
+        "bundle": str(bundle.path), "bundle_identity": bundle.as_dict(),
+        "job": job, "secret": secret, "python": isolation.python,
+        "image": isolation.image,
+        "pytest": list(pytest_argv[1:]), "heartbeat": str(heartbeat),
+        "result": str(result), "journal": str(control_dir / "messages.ndjson"),
+        "run": child_env["BRIXTEST_CASE_RUN"], "session": str(session),
+        "remote_result": REMOTE_RESULT, "remote_run": REMOTE_RUN,
+        "remote_session": REMOTE_SESSION, "remote_done": REMOTE_DONE,
+        "context": isolation.context,
+        "docker": _optional_executable("docker"),
+        "minikube": _optional_executable("minikube"),
+    }
+    path = control_dir / "kubernetes-bridge.json"
+    path.write_text(json.dumps(spec, indent=2, sort_keys=True) + "\n")
+    path.chmod(stat.S_IRUSR | stat.S_IWUSR)
+    cleanup = (
+        (
+            *kubectl, "delete", "pod", "-l", "job-name=%s" % job,
+            "--ignore-not-found=true", "--grace-period=0", "--force", "--wait=false",
+        ),
+        (
+            *kubectl, "delete", "job/%s" % job, "secret/%s" % secret,
+            "--ignore-not-found=true", "--wait=false",
+        ),
+    )
+    return path, cleanup, bundle.as_dict()
+
+
+def _kubernetes_launch(
+    isolation: Isolation, pytest_argv: Sequence[str], child_env: Mapping[str, str],
+    host_env: Mapping[str, str], cwd: Path, writable_root: Path,
+    control_dir: Path, *, validate: bool,
+    host_aliases: Sequence[HostMapping] = (),
+) -> LaunchSpec:
+    spec, cleanup, identity = _bridge_spec(
+        isolation, pytest_argv=pytest_argv, child_env=child_env, cwd=cwd,
+        control_dir=control_dir, writable_root=writable_root,
+        host_aliases=host_aliases, validate=validate,
+    )
+    argv = (sys.executable, "-m", "brixtest.kubernetes_helper_bridge", str(spec))
+    return LaunchSpec(argv, cwd, dict(host_env), cleanup, {"helper_bundle": identity})
+
+
+def _physical_host_aliases(selected, values) -> tuple[HostMapping, ...]:
+    aliases = tuple(item for item in values if item.libc and "test" in item.targets)
+    if aliases and selected.kind not in ("docker", "podman", "kubernetes"):
+        raise SpecError(
+            "helper libc host mappings", selected.kind,
+            "require Docker, Podman, or Kubernetes isolation",
+        )
+    return aliases
+
+
 def build_launch(
     isolation: Isolation, pytest_argv: Sequence[str], child_env: Mapping[str, str],
     *, cwd: Path, readonly_roots: Sequence[Path], writable_root: Path,
@@ -282,6 +427,7 @@ def build_launch(
 ) -> LaunchSpec:
     """Build one shell-free helper launch and its best-effort cleanup commands."""
     selected = isolation.resolved(cwd)
+    host_aliases = _physical_host_aliases(selected, host_aliases)
     if selected.kind == "process":
         return LaunchSpec(tuple(pytest_argv), cwd, dict(child_env))
     if selected.kind == "nsenter":
@@ -293,6 +439,11 @@ def build_launch(
             selected, pytest_argv, child_env, os.environ, cwd, readonly_roots,
             writable_root, control_dir, validate=validate_executable,
             host_aliases=host_aliases,
+        )
+    if selected.kind == "kubernetes":
+        return _kubernetes_launch(
+            selected, pytest_argv, child_env, os.environ, cwd, writable_root,
+            control_dir, validate=validate_executable, host_aliases=host_aliases,
         )
     return _runc_launch(
         selected, pytest_argv, child_env, os.environ, cwd, readonly_roots,

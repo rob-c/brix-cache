@@ -172,27 +172,15 @@ static void
 brix_merge_srv_mirror(ngx_stream_brix_srv_conf_t *conf,
     ngx_stream_brix_srv_conf_t *prev)
 {
-    /* Phase 24: traffic mirror — inherit parent targets if none set locally,
-     * then derive `enabled` from the presence of at least one target. */
-    if (conf->mirror.targets == NULL) {
-        conf->mirror.targets = prev->mirror.targets;
-    }
-    ngx_conf_merge_uint_value(conf->mirror.sample_pct,  prev->mirror.sample_pct, 100);
-    /* Default: mirror ALL ops; the operator de-selects with
+    /* Phase 24: traffic mirror — stream-surface extras, then the shared knob
+     * merge (mirror.h), which inherits targets and derives `enabled`.
+     * Opcode default: mirror ALL ops; the operator de-selects with
      * brix_mirror_exclude_opcodes (or restricts with brix_mirror_opcodes). */
     ngx_conf_merge_uint_value(conf->mirror.opcode_mask, prev->mirror.opcode_mask,
                               BRIX_MIRROR_OP_ALL);
     ngx_conf_merge_uint_value(conf->mirror.opcode_exclude_mask,
                               prev->mirror.opcode_exclude_mask, 0);
-    ngx_conf_merge_uint_value(conf->mirror.method_mask, prev->mirror.method_mask,
-                              BRIX_MIRROR_M_DEFAULT);
-    ngx_conf_merge_value(conf->mirror.strip_auth,  prev->mirror.strip_auth,  1);
-    ngx_conf_merge_value(conf->mirror.log_diverge, prev->mirror.log_diverge, 1);
-    ngx_conf_merge_msec_value(conf->mirror.timeout_ms, prev->mirror.timeout_ms, 5000);
-    ngx_conf_merge_value(conf->mirror.mirror_writes,
-                         prev->mirror.mirror_writes, 0);
-    conf->mirror.enabled = (conf->mirror.targets != NULL
-                            && conf->mirror.targets->nelts > 0) ? 1 : 0;
+    brix_mirror_conf_merge_common(&conf->mirror, &prev->mirror);
 }
 
 /*

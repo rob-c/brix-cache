@@ -142,16 +142,17 @@ upload_copy_loop(const xfer_io_t *io, int64_t *off, brix_status *st)
 }
 
 
-/* Parse upload's operands: the shared bs=/rate=/-f/--io-uring flags plus the two
- * positionals <localfile|-> <remote> (x->pos1 = local, x->pos2 = remote; NULL if
- * missing).  Returns 0 on success or 50 on a bad flag value. */
+/* Parse a transfer verb's operands: the shared bs=/rate=/-f/--io-uring flags plus
+ * up to two positionals into x->pos1/x->pos2 (NULL if missing). `verb` selects the
+ * bad-flag error prefix. upload takes <localfile|-> <remote>; download takes
+ * <remote> [localfile|-]. Returns 0 on success or 50 on a bad flag value. */
 static int
-upload_parse_args(int argc, char **argv, xfer_args_t *x)
+xfer_parse_operands(const char *verb, int argc, char **argv, xfer_args_t *x)
 {
     int i;
 
     for (i = 1; i < argc; i++) {
-        int r = xfer_common_arg("upload", argv, argc, &i, x);
+        int r = xfer_common_arg(verb, argv, argc, &i, x);
         if (r < 0) { return 50; }
         if (r > 0) { continue; }
         if (x->pos1 == NULL)      { x->pos1 = argv[i]; }
@@ -178,7 +179,7 @@ do_upload(brix_conn *c, const char *cwd, int argc, char **argv)
 
     a.bs = 1 << 20; a.io_uring_mode = XRDC_IO_URING_AUTO;
 
-    rc = upload_parse_args(argc, argv, &a);
+    rc = xfer_parse_operands("upload", argc, argv, &a);
     if (rc != 0) { return rc; }
     rc = 0;
     local = a.pos1; remote = a.pos2;
@@ -345,25 +346,6 @@ download_copy_loop(const xfer_io_t *io, int64_t *off, brix_status *st)
 }
 
 
-/* Parse download's operands: the shared bs=/rate=/-f/--io-uring flags plus the two
- * positionals <remote> [localfile|-] (x->pos1 = remote, x->pos2 = local; NULL if
- * missing).  Returns 0 on success or 50 on a bad flag value. */
-static int
-download_parse_args(int argc, char **argv, xfer_args_t *x)
-{
-    int i;
-
-    for (i = 1; i < argc; i++) {
-        int r = xfer_common_arg("download", argv, argc, &i, x);
-        if (r < 0) { return 50; }
-        if (r > 0) { continue; }
-        if (x->pos1 == NULL)      { x->pos1 = argv[i]; }
-        else if (x->pos2 == NULL) { x->pos2 = argv[i]; }
-    }
-    return 0;
-}
-
-
 int
 do_download(brix_conn *c, const char *cwd, int argc, char **argv)
 {
@@ -381,7 +363,7 @@ do_download(brix_conn *c, const char *cwd, int argc, char **argv)
 
     a.bs = 1 << 20; a.io_uring_mode = XRDC_IO_URING_AUTO;
 
-    rc = download_parse_args(argc, argv, &a);
+    rc = xfer_parse_operands("download", argc, argv, &a);
     if (rc != 0) { return rc; }
     rc = 0;
     remote = a.pos1; local = a.pos2;

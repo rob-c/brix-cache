@@ -45,26 +45,39 @@ frm_adapter_is_exec_family(const char *adapter)
          || ngx_strcmp(adapter, "cta") == 0);
 }
 
-/* Resolve the stage command for an exec-family `adapter`.
+/* Resolve a per-dialect env override with a generic fallback.
  *
- * WHY: A node can front an HPSS silo (an `hsi`/`pftp` stager) and a CTA silo (an
- * `eos`/`cta-admin` stager) at once, so each dialect gets its own env override;
- * all fall back to the generic $BRIX_FRM_STAGECMD. Returns the command, or NULL
- * when neither the dialect override nor the generic var is set/non-empty. */
+ * WHY: a node can front an HPSS silo and a CTA silo at once, so each named
+ * dialect gets its own env var; an unmatched adapter, or an unset/empty
+ * override, falls back to the generic var. Returns the value, or NULL when
+ * nothing is set/non-empty. */
+static const char *
+frm_dialect_env(const char *adapter, const char *hpss_name,
+    const char *hpss_var, const char *cta_name, const char *cta_var,
+    const char *generic_var)
+{
+    const char *v = NULL;
+
+    if (ngx_strcmp(adapter, hpss_name) == 0) {
+        v = getenv(hpss_var);
+    } else if (ngx_strcmp(adapter, cta_name) == 0) {
+        v = getenv(cta_var);
+    }
+    if (v == NULL || v[0] == '\0') {
+        v = getenv(generic_var);
+    }
+    return (v != NULL && v[0] != '\0') ? v : NULL;
+}
+
+/* Resolve the stage command for an exec-family `adapter` (an `hsi`/`pftp`
+ * HPSS stager, an `eos`/`cta-admin` CTA stager, or the generic
+ * $BRIX_FRM_STAGECMD). */
 static const char *
 frm_exec_stagecmd(const char *adapter)
 {
-    const char *cmd = NULL;
-
-    if (ngx_strcmp(adapter, "hpss") == 0) {
-        cmd = getenv("BRIX_FRM_HPSS_STAGECMD");
-    } else if (ngx_strcmp(adapter, "cta") == 0) {
-        cmd = getenv("BRIX_FRM_CTA_STAGECMD");
-    }
-    if (cmd == NULL || cmd[0] == '\0') {
-        cmd = getenv("BRIX_FRM_STAGECMD");
-    }
-    return (cmd != NULL && cmd[0] != '\0') ? cmd : NULL;
+    return frm_dialect_env(adapter, "hpss", "BRIX_FRM_HPSS_STAGECMD",
+                           "cta", "BRIX_FRM_CTA_STAGECMD",
+                           "BRIX_FRM_STAGECMD");
 }
 
 /* ---- library-native MSS dialects (lib / libhpss / libcta) ----
@@ -84,25 +97,14 @@ frm_adapter_is_lib_family(const char *adapter)
          || ngx_strcmp(adapter, "libcta") == 0);
 }
 
-/* Resolve the HSM shared-object path for a library-native `adapter`.
- *
- * WHY: a node can front an HPSS silo and a CTA silo at once, so each dialect gets
- * its own env override; all fall back to the generic $BRIX_FRM_LIB. Returns the
- * path, or NULL when neither the dialect override nor the generic var is set. */
+/* Resolve the HSM shared-object path for a library-native `adapter` (a
+ * per-silo override or the generic $BRIX_FRM_LIB). */
 static const char *
 frm_lib_path(const char *adapter)
 {
-    const char *path = NULL;
-
-    if (ngx_strcmp(adapter, "libhpss") == 0) {
-        path = getenv("BRIX_FRM_HPSS_LIB");
-    } else if (ngx_strcmp(adapter, "libcta") == 0) {
-        path = getenv("BRIX_FRM_CTA_LIB");
-    }
-    if (path == NULL || path[0] == '\0') {
-        path = getenv("BRIX_FRM_LIB");
-    }
-    return (path != NULL && path[0] != '\0') ? path : NULL;
+    return frm_dialect_env(adapter, "libhpss", "BRIX_FRM_HPSS_LIB",
+                           "libcta", "BRIX_FRM_CTA_LIB",
+                           "BRIX_FRM_LIB");
 }
 
 /* ---- Select a library-native MSS adapter (lib / libhpss / libcta) ----

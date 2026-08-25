@@ -229,32 +229,9 @@ extern ngx_module_t ngx_http_brix_s3_module;
 extern const brix_http_operation_t brix_s3_operations[];
 extern const ngx_uint_t brix_s3_operations_count;
 
-/*
- * Confined filesystem operations (defined in path/resolve_confined_ops.c).
- * All take a PRE-CANONICALIZED root (root_canon) and an already-resolved
- * absolute path; they re-enforce root confinement at the kernel layer
- * (openat2 RESOLVE_BENEATH, with O_NOFOLLOW parent-fd + *at() fallback) so
- * a symlink swapped in after path resolution cannot escape root.  Each sets
- * errno on failure.
- */
-
-/* Open a file under confinement. Returns an fd (NOT pool-managed — caller
- * must close()) or -1 on error. flags/mode as for open(2). */
-int brix_open_confined_canon(ngx_log_t *log, const char *root_canon,
-    const char *resolved, int flags, mode_t mode);
-/* unlinkat() under confinement; is_dir != 0 → AT_REMOVEDIR. 0 ok, -1 error. */
-int brix_unlink_confined_canon(ngx_log_t *log, const char *root_canon,
-    const char *resolved, int is_dir);
-/* mkdirat() under confinement. Returns 0 on success, -1 on error. */
-int brix_mkdir_confined_canon(ngx_log_t *log, const char *root_canon,
-    const char *resolved, mode_t mode);
-/* renameat() with BOTH endpoints confined under the same root. 0 ok, -1 err. */
-int brix_rename_confined_canon(ngx_log_t *log, const char *root_canon,
-    const char *src_resolved, const char *dst_resolved);
-/* linkat() hard-link with BOTH endpoints confined under the same root.
- * Returns 0 on success, -1 on error. */
-int brix_link_confined_canon(ngx_log_t *log, const char *root_canon,
-    const char *src_resolved, const char *dst_resolved);
+/* Confined filesystem operations (open/unlink/mkdir/rename/link under a
+ * pre-canonicalized root) — declared by the owning header. */
+#include "fs/path/path.h"
 
 /* -------------------------------------------------------------------------
  * Handler entry points (called from module.c)

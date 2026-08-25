@@ -18,6 +18,8 @@ The `scope` on `server()` selects ownership:
   loaded templates share one supervised instance. Different effective configs, binaries, credentials,
   authentication resources, host mappings, backend, or isolation produce
   different pools.
+- `scope="worker"` deliberately creates one broker-supervised instance for
+  each xdist worker that actually consumes it.
 
 ```python
 origin = server(
@@ -77,6 +79,15 @@ OpenSearch/Elasticsearch; supervisor metrics and findings participate in the
 same session analytics as case evidence.
 
 Collection and `brixtest design` remain side-effect free. Pools start lazily
-immediately before the first managed test. Under xdist, pools are worker-local,
-matching pytest's own scoped-fixture semantics; the worker identity and exact
+immediately before the first managed test. Under xdist, class/module/package/
+session plans from every worker are merged before execution and one
+controller-supervised broker owns each physical pool. Workers receive resolved
+services through bounded, authenticated local IPC. Use `scope="worker"` only
+when a server must intentionally have one physical instance per consuming
+xdist worker; the worker identity and exact
 instance links remain visible in the topology archive.
+
+If a shared service exits, the pool monitor records its status and full trace.
+A later consumer fails during controller setup as an ordinary BriXTest attempt,
+before a helper is launched, and is linked to the same pool, instance, and
+content-addressed log as earlier consumers.

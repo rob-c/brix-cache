@@ -65,24 +65,15 @@ brix_srv_hc_claim(char *host_out, size_t host_size, uint16_t *port_out,
 void
 brix_srv_hc_pass(const char *host, uint16_t port)
 {
-    brix_srv_table_t *tbl;
     brix_srv_entry_t *e;
-    ngx_uint_t          i;
 
-    tbl = srv_table();
-    if (tbl == NULL) {
+    if (srv_table() == NULL) {
         return;
     }
 
     ngx_shmtx_lock(&brix_srv_mutex);
-
-    for (i = 0; i < tbl->capacity; i++) {
-        e = &tbl->slots[i];
-        if (!e->in_use || e->port != port
-            || ngx_strcmp(e->host, host) != 0)
-        {
-            continue;
-        }
+    e = srv_find_locked(host, port);
+    if (e != NULL) {
         /* Clear a blacklist only when it was health-check-induced (fail_count
          * was non-zero); never clear a CMS-disconnect blacklist. */
         if (e->hc_fail_count > 0) {
@@ -91,9 +82,7 @@ brix_srv_hc_pass(const char *host, uint16_t port)
         e->hc_fail_count  = 0;
         e->hc_last_ok     = ngx_current_msec;
         e->hc_in_progress = 0;
-        break;
     }
-
     ngx_shmtx_unlock(&brix_srv_mutex);
 }
 
@@ -102,25 +91,16 @@ int
 brix_srv_hc_fail(const char *host, uint16_t port, uint32_t threshold,
     ngx_msec_t blacklist_ms)
 {
-    brix_srv_table_t *tbl;
     brix_srv_entry_t *e;
-    ngx_uint_t          i;
     int                 newly_blacklisted = 0;
 
-    tbl = srv_table();
-    if (tbl == NULL) {
+    if (srv_table() == NULL) {
         return 0;
     }
 
     ngx_shmtx_lock(&brix_srv_mutex);
-
-    for (i = 0; i < tbl->capacity; i++) {
-        e = &tbl->slots[i];
-        if (!e->in_use || e->port != port
-            || ngx_strcmp(e->host, host) != 0)
-        {
-            continue;
-        }
+    e = srv_find_locked(host, port);
+    if (e != NULL) {
         e->hc_in_progress = 0;
         e->hc_fail_count++;
         if (threshold > 0 && e->hc_fail_count >= threshold) {
@@ -130,9 +110,7 @@ brix_srv_hc_fail(const char *host, uint16_t port, uint32_t threshold,
                 newly_blacklisted = 1;
             }
         }
-        break;
     }
-
     ngx_shmtx_unlock(&brix_srv_mutex);
     return newly_blacklisted;
 }

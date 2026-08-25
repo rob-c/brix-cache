@@ -44,6 +44,13 @@ static const char *brix_oci_token_names[BRIX_OCI_TOKEN_COUNT] = {
     "failed",
 };
 
+static const char *brix_oci_deleg_names[BRIX_OCI_DELEG_COUNT] = {
+    "cached",
+    "granted",
+    "denied",
+    "error",
+};
+
 static const char *brix_oci_uperr_names[BRIX_OCI_UPERR_COUNT] = {
     "401",
     "403",
@@ -119,4 +126,8 @@ brix_export_oci_metrics(metrics_writer_t *mw, ngx_brix_metrics_t *shm)
     mw_emit_labeled(mw, "brix_oci_upstream_errors_total",
         "upstream registry error responses by status bucket", "status",
         brix_oci_uperr_names, BRIX_OCI_UPERR_COUNT, o->upstream_errors_total);
+
+    mw_emit_labeled(mw, "brix_oci_delegate_total",
+        "delegated-pull authorization proofs by disposition (D16)", "outcome",
+        brix_oci_deleg_names, BRIX_OCI_DELEG_COUNT, o->delegate_total);
 }

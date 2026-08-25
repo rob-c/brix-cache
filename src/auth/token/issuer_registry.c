@@ -64,9 +64,11 @@ brix_token_strategy_parse(const char *value)
     return bits;
 }
 
-/* reg_add_list — split a comma/space list into a fixed path array */static void
-reg_add_list(char (*arr)[BRIX_SCOPE_PATH_MAX], int *count, int cap,
-    const char *csv)
+/* reg_add_strs — split a comma/space list into a fixed array of `esz`-byte
+ * strings (path arrays use BRIX_SCOPE_PATH_MAX elements, audience arrays 256;
+ * `arr` is the first element, elements are `esz` bytes apart). */
+static void
+reg_add_strs(char *arr, size_t esz, int *count, int cap, const char *csv)
 {
     char  buf[1024];
     char *tok;
@@ -76,23 +78,7 @@ reg_add_list(char (*arr)[BRIX_SCOPE_PATH_MAX], int *count, int cap,
     for (tok = strtok_r(buf, " ,", &save); tok != NULL && *count < cap;
          tok = strtok_r(NULL, " ,", &save))
     {
-        copy_z(arr[*count], BRIX_SCOPE_PATH_MAX, tok);
-        (*count)++;
-    }
-}
-
-/* reg_add_aud — split a comma/space list into the audience array */static void
-reg_add_aud(char (*arr)[256], int *count, int cap, const char *csv)
-{
-    char  buf[1024];
-    char *tok;
-    char *save = NULL;
-
-    copy_z(buf, sizeof(buf), csv);
-    for (tok = strtok_r(buf, " ,", &save); tok != NULL && *count < cap;
-         tok = strtok_r(NULL, " ,", &save))
-    {
-        copy_z(arr[*count], 256, tok);
+        copy_z(arr + (size_t) *count * esz, esz, tok);
         (*count)++;
     }
 }
@@ -171,7 +157,7 @@ reg_kv_issuer_str(brix_token_issuer_t *is, const char *key, const char *val)
  *       small while preserving the exact per-key target arrays.
  *
  * HOW:  1. Compare key against base_path / restricted_path / audience names.
- *       2. On match, call reg_add_list / reg_add_aud with that key's own
+ *       2. On match, call reg_add_strs with that key's own
  *          destination array, count, and cap, then return 1.
  *       3. If none match, return 0.
  */
@@ -179,14 +165,14 @@ static int
 reg_kv_issuer_list(brix_token_issuer_t *is, const char *key, const char *val)
 {
     if (eqi(key, "base_path")) {
-        reg_add_list(is->base_paths, &is->base_path_count,
-            BRIX_TOKEN_MAX_BASEPATHS, val);
+        reg_add_strs(is->base_paths[0], sizeof(is->base_paths[0]),
+            &is->base_path_count, BRIX_TOKEN_MAX_BASEPATHS, val);
     } else if (eqi(key, "restricted_path")) {
-        reg_add_list(is->restricted_paths, &is->restricted_path_count,
-            BRIX_TOKEN_MAX_BASEPATHS, val);
+        reg_add_strs(is->restricted_paths[0], sizeof(is->restricted_paths[0]),
+            &is->restricted_path_count, BRIX_TOKEN_MAX_BASEPATHS, val);
     } else if (eqi(key, "audience") || eqi(key, "audience_json")) {
-        reg_add_aud(is->audiences, &is->audience_count,
-            BRIX_TOKEN_MAX_AUDIENCES, val);
+        reg_add_strs(is->audiences[0], sizeof(is->audiences[0]),
+            &is->audience_count, BRIX_TOKEN_MAX_AUDIENCES, val);
     } else {
         return 0;
     }
@@ -274,8 +260,9 @@ static void
 reg_kv_global(brix_token_registry_t *reg, const char *key, const char *val)
 {
     if (eqi(key, "audience") || eqi(key, "audience_json")) {
-        reg_add_aud(reg->global_audiences, &reg->global_audience_count,
-            BRIX_TOKEN_MAX_AUDIENCES, val);
+        reg_add_strs(reg->global_audiences[0],
+            sizeof(reg->global_audiences[0]),
+            &reg->global_audience_count, BRIX_TOKEN_MAX_AUDIENCES, val);
     } else {
         ngx_log_error(NGX_LOG_WARN, reg->log, 0,
             "scitokens: unsupported [Global] key \"%s\" (ignored)", key);

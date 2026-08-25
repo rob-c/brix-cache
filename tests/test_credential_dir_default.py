@@ -46,7 +46,7 @@ def _guard_test_default_store_created_and_receives_delegation_2():
     if os.path.exists(DEFAULT_STORE) and not os.access(DEFAULT_STORE, os.W_OK):
         pytest.skip(f"{DEFAULT_STORE} exists and is not ours (shared host)")
 
-def _guard_test_default_store_created_and_receives_delegation_3(pwd):
+def _guard_test_default_store_created_and_receives_delegation_3():
     if os.geteuid() == 0 and os.path.isdir(DEFAULT_STORE):
         import pwd
         if os.stat(DEFAULT_STORE).st_uid != pwd.getpwnam("nobody").pw_uid:
@@ -138,7 +138,7 @@ def test_default_store_created_and_receives_delegation(lifecycle, pki):
     # is always true for root so the shared-host skip above never fires.  It
     # holds only throwaway test delegations; clear it so this test exercises
     # the fresh-create path it documents.
-    _guard_test_default_store_created_and_receives_delegation_3(pwd)
+    _guard_test_default_store_created_and_receives_delegation_3()
     preexisting = os.path.isdir(DEFAULT_STORE)
 
     # no brix_storage_credential_dir line -> exercises the /dev/shm default

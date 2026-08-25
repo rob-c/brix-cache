@@ -215,16 +215,20 @@ INTERNAL_INFIXES = (b".xrd-tmp.", b".xrdresume.")
 
 
 def internal_name_ref(path: bytes) -> int:
-    """Reference for brix_is_internal_name (pure lexical basename test). The C API
-    is NUL-terminated, so an embedded NUL truncates the name (a real change of
-    verdict worth asserting). Suffix/infix matching is byte-agnostic on the stem,
-    so a non-UTF8 filename ending in a reserved suffix is still hidden."""
-    name = path.split(b"\x00", 1)[0].rsplit(b"/", 1)[-1]
-    if not name:
-        return 0
-    if name.endswith(INTERNAL_SUFFIXES):
-        return 1
-    return int(any(infix in name for infix in INTERNAL_INFIXES))
+    """Reference for brix_is_internal_name (pure lexical per-component test).
+    The C API is NUL-terminated, so an embedded NUL truncates the name (a real
+    change of verdict worth asserting). EVERY '/'-separated component is tested,
+    not just the basename — a reserved DIRECTORY would otherwise vanish from
+    listings while its subtree stayed reachable by name. Suffix/infix matching
+    is byte-agnostic on the stem, so a non-UTF8 filename ending in a reserved
+    suffix is still hidden."""
+    for name in path.split(b"\x00", 1)[0].split(b"/"):
+        if not name:
+            continue
+        if name.endswith(INTERNAL_SUFFIXES) \
+                or any(infix in name for infix in INTERNAL_INFIXES):
+            return 1
+    return 0
 
 
 # --- vector model -----------------------------------------------------------

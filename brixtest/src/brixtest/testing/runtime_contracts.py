@@ -8,6 +8,7 @@ from typing import Mapping
 from brixtest.runtime.api import Run
 from brixtest.runtime.commands import CommandResult
 from brixtest.runtime.launchers import ServerLaunchPlan
+from brixtest.runtime.providers import ProviderInstance, ProviderPlan
 
 
 def check_case_backend_contract(
@@ -87,6 +88,46 @@ def check_provider_contract(
     return violations
 
 
+def check_managed_resource_provider_contract(
+    provider: object, declaration: object, context: object,
+) -> list[str]:
+    """Exercise a managed provider's complete v1 lifecycle."""
+    validation = _operation_error("validate", lambda: provider.validate(declaration))
+    if validation:
+        return validation
+    try:
+        plan = provider.plan(declaration, context)
+    except Exception as exc:
+        return ["plan: %s" % exc]
+    if not isinstance(plan, ProviderPlan):
+        return ["plan: must return brixtest.ProviderPlan"]
+    try:
+        instance = provider.create(plan, context)
+    except Exception as exc:
+        return ["create: %s" % exc]
+    if not isinstance(instance, ProviderInstance):
+        return ["create: must return brixtest.ProviderInstance"]
+    return _check_managed_instance(provider, instance, context)
+
+
+def _check_managed_instance(provider: object, instance: object, context: object) -> list[str]:
+    violations = []
+    try:
+        violations.extend(_operation_error(
+            "ready", lambda: provider.ready(instance, context, 1.0),
+        ))
+        if not violations:
+            violations.extend(_typed_operation(
+                "collect", lambda: provider.collect(instance, context),
+                Mapping, "must return a mapping",
+            ))
+    finally:
+        violations.extend(_operation_error(
+            "destroy", lambda: provider.destroy(instance, context),
+        ))
+    return violations
+
+
 def _provider_result(result: object, destination: Path) -> Path:
     if isinstance(result, bytes):
         destination.write_bytes(result)
@@ -140,5 +181,5 @@ def check_launcher_contract(
 
 __all__ = [
     "check_case_backend_contract", "check_executor_contract", "check_launcher_contract",
-    "check_provider_contract",
+    "check_managed_resource_provider_contract", "check_provider_contract",
 ]

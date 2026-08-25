@@ -233,7 +233,11 @@ sgn_verify_req_signature(sgn_ctx *x)
 
 /* Build the skeleton proxy cert in x->proxy: version 3, serial from the CN,
  * subject from the request, issuer = signer, request pubkey, validity
- * [now, now+timeleft]. 0 on success; -1 via sgn_fail on error. */
+ * [now-300, now+timeleft]. notBefore is backdated 5 minutes (matching the
+ * client-side minter in client/lib/auth/gsi/proxy.c) so a verifier whose
+ * clock trails the signer's — or a host whose wall clock steps backwards
+ * between mint and use — does not reject a fresh proxy as "not yet valid".
+ * 0 on success; -1 via sgn_fail on error. */
 static int
 sgn_populate_proxy(sgn_ctx *x, long serial, int timeleft)
 {
@@ -246,7 +250,7 @@ sgn_populate_proxy(sgn_ctx *x, long serial, int timeleft)
                                  X509_REQ_get_subject_name(x->req)) != 1
         || X509_set_issuer_name(x->proxy, X509_get_subject_name(x->signer)) != 1
         || X509_set_pubkey(x->proxy, x->reqpub) != 1
-        || X509_gmtime_adj(X509_getm_notBefore(x->proxy), 0) == NULL
+        || X509_gmtime_adj(X509_getm_notBefore(x->proxy), -300) == NULL
         || X509_gmtime_adj(X509_getm_notAfter(x->proxy), timeleft) == NULL) {
         return sgn_fail(x, "gsi sign: cannot populate proxy");
     }

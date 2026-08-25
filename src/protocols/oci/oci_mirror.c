@@ -341,9 +341,7 @@ oci_tier_get(ngx_http_request_t *r, ngx_http_brix_oci_loc_conf_t *lcf,
                               NULL);
     }
 
-#if (NGX_HTTP_SSL)
-    is_tls = (r->connection->ssl != NULL) ? 1 : 0;
-#endif
+    is_tls = brix_http_request_is_tls(r);
     brix_vfs_ctx_init(&vctx, r->pool, r->connection->log, BRIX_PROTO_OCI,
                       root, "", /* allow_write */ 0, is_tls, NULL, path);
 
@@ -360,7 +358,8 @@ oci_tier_get(ngx_http_request_t *r, ngx_http_brix_oci_loc_conf_t *lcf,
      * once the instance exists, and instances are built lazily post-fork. */
     brix_oci_bind_bearer(lcf, vctx.sd, r->connection->log);
 
-    (void) brix_dashboard_http_start_identity(r, ctx->key, "anonymous", "",
+    (void) brix_dashboard_http_start_identity(r, ctx->key,
+        (ctx->deleg_user != NULL) ? ctx->deleg_user : "anonymous", "",
         BRIX_XFER_PROTO_OCI, BRIX_XFER_DIR_READ, "GET", -1);
 
     rc = oci_serve_or_fill(r, lcf, ctx, vctx.sd, path);
@@ -449,7 +448,23 @@ ngx_http_brix_oci_handler(ngx_http_request_t *r)
         return rc;
     }
 
+    /* Delegated pull (D16): establish WHO is asking before any route is
+     * dispatched — the listing routes answered inside the gate need the
+     * identity too — then, for the object routes, require the per-
+     * (credential, repository) proof before any byte is served, hit or
+     * miss alike. Re-entries (parked fill, granted proof) pass straight
+     * through on ctx->deleg_proved. */
+    rc = brix_oci_delegate_ident(r, lcf, ctx);
+    if (rc != NGX_DECLINED) {
+        return rc;
+    }
+
     rc = brix_oci_gate(r, lcf, ctx);
+    if (rc != NGX_DECLINED) {
+        return rc;
+    }
+
+    rc = brix_oci_delegate_gate(r, lcf, ctx);
     if (rc != NGX_DECLINED) {
         return rc;
     }

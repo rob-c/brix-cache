@@ -78,11 +78,11 @@ SPELLINGS = [
 #: (label, archives, live modules, canonical definition count)
 GROUPS = [
     ("xrdcl", ["_xrdcl_proxy_flat.py", "_xrdcl_proxy_part2_flat.py"],
-     [XRDCL / "worker_link.py", XRDCL / "results.py", XRDCL / "proxies.py"], 24),
+     [XRDCL / "worker_link.py", XRDCL / "results.py", XRDCL / "proxies.py"], 33),
     ("worker", ["_xrdcl_worker_flat.py"], [XRDCL / "worker.py"], 37),
     ("http", ["guard_http_lib_flat.py"], [CLIENTS / "http.py"], 3),
     ("gridftp", ["gridftp_client_env_flat.py"], [CLIENTS / "gridftp.py"], 1),
-    ("pty", ["cli_pty_flat.py"], [CORE_PTY], 6),
+    ("pty", ["cli_pty_flat.py"], [CORE_PTY], 13),
 ]
 
 
@@ -411,12 +411,13 @@ def test_core_pty_imports_nothing_from_the_adapter():
 
 
 def test_run_pipe_hands_the_child_no_terminal_and_no_stdin():
-    """Both runners must close stdin: a CLI that prompts would hang the suite.
+    """``run_pipe`` must close stdin: a CLI that prompts would hang the suite.
 
-    ``run_pty`` additionally has to make stderr a tty *without* making stdout
-    one — that asymmetry is the entire reason it exists, and a runner that made
-    both a tty would turn every golden-output baseline into line-discipline
-    noise.
+    ``run_pty`` is the deliberate opposite — one PTY on all three streams with
+    a combined capture (its stderr slot is always empty), and stdin stays open
+    until a declared ``input`` is written and closed with EOT.  That is the
+    contract ``brixtest/tests/test_pty_transport.py`` pins from the package
+    side; this end checks the two runners have not drifted toward each other.
     """
     core = _import("brixtest.clients.pty")
     probe = ("import sys;"
@@ -424,6 +425,10 @@ def test_run_pipe_hands_the_child_no_terminal_and_no_stdin():
              " sys.stdout.write(sys.stdin.read() or 'EOF')")
     rc, out, err = core.run_pipe([sys.executable, "-c", probe], timeout=30)
     assert rc == 0 and out == b"EOF" and err == b"00"
-    rc, out, err = core.run_pty([sys.executable, "-c", probe], timeout=30)
-    assert rc == 0 and out == b"EOF"
-    assert err.replace(b"\r", b"") == b"01", err
+    rc, out, err = core.run_pty([sys.executable, "-c", probe], timeout=30,
+                                input="")
+    assert rc == 0 and err == b""
+    merged = out.replace(b"\r", b"")
+    #: stdio buffering makes the interleave order of the two writes
+    #: nondeterministic through one PTY; both must be present, nothing else.
+    assert b"11" in merged and b"EOF" in merged and len(merged) == 5, out

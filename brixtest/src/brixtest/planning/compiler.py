@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 from collections import Counter
-from typing import Iterable, Mapping
+from typing import Iterable, Mapping, Sequence
 
 from brixtest._design_inputs import Binary
 from brixtest._design_managed import Identity, Resource, Task, Volume
 from brixtest.errors import SpecError
+from brixtest._environment_transport import environment_transportable
+from brixtest.planning.auth_graph import authority_edges, authority_nodes
 from brixtest.planning.model import GraphEdge, GraphNode, ResourceGraph, digest, jsonable
+from brixtest.resources import Reference
 
 
 def _backend(value: str, fallback: str, *, client: bool = False) -> str:
@@ -51,22 +54,42 @@ def _mount_requirements(declaration: object) -> set[str]:
 
 
 def _identity_requirements(value: Identity) -> set[str]:
-    required = set()
-    if value.user_namespace or value.uid_map or value.gid_map:
-        required.add("identity.userns")
-    if value.service_account or value.permissions:
-        required.add("identity.rbac")
-    if value.uid is not None or value.gid is not None or value.groups:
-        required.add("identity.posix")
-    if value.capabilities:
-        required.add("identity.capabilities")
-    return required
+    return set(filter(None, (
+        _userns_requirement(value), _rbac_requirement(value),
+        _posix_requirement(value), _capability_requirement(value),
+    )))
+
+
+def _userns_requirement(value: Identity) -> str:
+    return "identity.userns" if value.user_namespace or value.uid_map or value.gid_map else ""
+
+
+def _rbac_requirement(value: Identity) -> str:
+    return "identity.rbac" if value.service_account or value.permissions else ""
+
+
+def _posix_requirement(value: Identity) -> str:
+    selected = value.uid is not None or value.gid is not None or bool(value.groups)
+    return "identity.posix" if selected else ""
+
+
+def _capability_requirement(value: Identity) -> str:
+    return "identity.capabilities" if value.capabilities else ""
 
 
 def _node_requirements(kind: str, declaration: object) -> set[str]:
     required = _endpoint_requirements(declaration) | _mount_requirements(declaration)
     required.update(_workload_requirements(kind, declaration))
     required.update(_resource_requirements(kind, declaration))
+    required.update(_placement_requirements(declaration))
+    return required
+
+
+def _placement_requirements(declaration: object) -> set[str]:
+    placement = getattr(declaration, "placement", None)
+    required = {"workload.group"} if getattr(placement, "group", "") else set()
+    if getattr(placement, "network_policy", "declared") == "isolated":
+        required.add("network.policy")
     return required
 
 
@@ -154,23 +177,25 @@ def _simple_node(kind: str, declaration: object, backend: str) -> GraphNode:
 
 
 def _case_nodes(definition: object, backend: str) -> list[GraphNode]:
-    nodes = []
-    for kind, declarations in (
+    simple = (
         ("environment", definition.environments), ("volume", definition.volumes),
         ("identity", definition.identities), ("resource", definition.managed_resources),
-    ):
-        nodes.extend(_simple_node(kind, item, backend) for item in declarations)
-    for kind, declarations in (
+    )
+    placed = (
         ("task", definition.tasks), ("server", definition.servers),
         ("client", definition.clients),
-    ):
-        nodes.extend(_declaration_node(kind, item, backend) for item in declarations)
-    for kind, declarations in (
+    )
+    inputs = (
         ("artifact", definition.artifacts), ("binary", definition.binaries),
-        ("credential", definition.credentials), ("authority", definition.auth),
+        ("credential", definition.credentials),
         ("host", definition.hosts), ("collector", definition.observe),
-    ):
-        nodes.extend(_simple_node(kind, item, backend) for item in declarations)
+    )
+    nodes = [
+        *_nodes(simple, backend, _simple_node),
+        *_nodes(placed, backend, _declaration_node),
+        *_nodes(inputs, backend, _simple_node),
+        *authority_nodes(definition.auth, backend),
+    ]
     if not definition.environments:
         nodes.append(GraphNode(
             "environment:default", "environment", "default", backend,
@@ -179,14 +204,29 @@ def _case_nodes(definition: object, backend: str) -> list[GraphNode]:
     return nodes
 
 
+def _nodes(groups, backend: str, factory) -> list[GraphNode]:
+    return [factory(kind, item, backend) for kind, values in groups for item in values]
+
+
 def _dependency_edges(definition: object) -> Iterable[GraphEdge]:
     for kind, declarations in (
         ("server", definition.servers), ("task", definition.tasks),
         ("resource", definition.managed_resources),
     ):
         for declaration in declarations:
-            for dependency in declaration.depends_on:
-                yield GraphEdge(_dependency_id(definition, dependency), "%s:%s" % (kind, declaration.name), "ready-before")
+            yield from _declaration_dependency_edges(definition, kind, declaration)
+
+
+def _declaration_dependency_edges(
+    definition: object, kind: str, declaration: object,
+) -> Iterable[GraphEdge]:
+    target = "%s:%s" % (kind, declaration.name)
+    for dependency in declaration.depends_on:
+        source = _dependency_id(definition, dependency)
+        yield GraphEdge(source, target, "ready-before")
+        yield GraphEdge(target, source, "tears-down-before")
+        if kind == "server" and source.startswith("server:"):
+            yield GraphEdge(target, source, "connects-to")
 
 
 def _dependency_id(definition: object, name: str) -> str:
@@ -205,19 +245,22 @@ def _placement_edges(definition: object) -> Iterable[GraphEdge]:
         ("task", definition.tasks),
     ):
         for declaration in declarations:
-            target = "%s:%s" % (kind, declaration.name)
-            placement = declaration.placement
-            yield GraphEdge(
-                "environment:%s" % (placement.environment or "default"),
-                target, "places",
-            )
-            if placement.identity:
-                yield GraphEdge("identity:%s" % placement.identity, target, "identifies")
-            for declared_mount in declaration.mounts:
-                source = declared_mount.source
-                source_kind = getattr(source, "resource_kind", "")
-                if source_kind:
-                    yield GraphEdge("%s:%s" % (source_kind, source.name), target, "mounts")
+            yield from _declaration_placement_edges(kind, declaration)
+
+
+def _declaration_placement_edges(kind: str, declaration: object) -> Iterable[GraphEdge]:
+    target = "%s:%s" % (kind, declaration.name)
+    placement = declaration.placement
+    yield GraphEdge(
+        "environment:%s" % (placement.environment or "default"), target, "places",
+    )
+    if placement.identity:
+        yield GraphEdge("identity:%s" % placement.identity, target, "identifies")
+    for declared_mount in declaration.mounts:
+        source = declared_mount.source
+        source_kind = getattr(source, "resource_kind", "")
+        if source_kind:
+            yield GraphEdge("%s:%s" % (source_kind, source.name), target, "mounts")
 
 
 def _binary_edges(definition: object) -> Iterable[GraphEdge]:
@@ -233,25 +276,63 @@ def _binary_edges(definition: object) -> Iterable[GraphEdge]:
                 yield GraphEdge("binary:%s" % binary.name, "%s:%s" % (kind, declaration.name), "consumes")
 
 
+def _generated_input_edges(definition: object) -> Iterable[GraphEdge]:
+    for kind, declarations in (
+        ("binary", definition.binaries), ("artifact", definition.artifacts),
+    ):
+        for declaration in declarations:
+            source = getattr(declaration, "path" if kind == "binary" else "source", None)
+            if isinstance(source, Reference) and source.kind == "task":
+                yield GraphEdge(
+                    "task:%s" % source.name,
+                    "%s:%s" % (kind, declaration.name), "produces",
+                )
+
+
+def _volume_provider_edges(definition: object) -> Iterable[GraphEdge]:
+    for volume in definition.volumes:
+        if not volume.provider:
+            continue
+        source, target = "resource:%s" % volume.provider, "volume:%s" % volume.name
+        yield GraphEdge(source, target, "produces")
+        yield GraphEdge(target, source, "tears-down-before")
+
+
 def _group_edges(nodes: Iterable[GraphNode]) -> Iterable[GraphEdge]:
     grouped = Counter(item.group for item in nodes if item.group)
     anchors = {}
     for node in nodes:
-        if not node.group or grouped[node.group] < 2:
-            continue
-        anchor = anchors.setdefault(node.group, node.id)
-        if anchor != node.id:
-            yield GraphEdge(anchor, node.id, "shares-runtime-with")
+        edge = _group_edge(node, grouped, anchors)
+        if edge is not None:
+            yield edge
+
+
+def _group_edge(node: GraphNode, grouped, anchors) -> object:
+    if not node.group or grouped[node.group] < 2:
+        return None
+    anchor = anchors.setdefault(node.group, node.id)
+    return GraphEdge(anchor, node.id, "shares-runtime-with") if anchor != node.id else None
 
 
 def _validate_graph(nodes: list[GraphNode], edges: list[GraphEdge]) -> None:
     node_ids = {item.id for item in nodes}
-    if len(node_ids) != len(nodes):
-        raise SpecError("resource graph", "duplicate node", "resource IDs must be unique")
-    dangling = [edge for edge in edges if edge.source not in node_ids or edge.target not in node_ids]
+    _validate_node_ids(node_ids, nodes)
+    _validate_edge_nodes(node_ids, edges)
+    _validate_dependency_cycles(node_ids, edges)
+
+
+def _validate_edge_nodes(node_ids: set[str], edges: Sequence[GraphEdge]) -> None:
+    dangling = [
+        edge for edge in edges
+        if edge.source not in node_ids or edge.target not in node_ids
+    ]
     if dangling:
         raise SpecError("resource graph edge", dangling[0], "must connect planned nodes")
-    _validate_dependency_cycles(node_ids, edges)
+
+
+def _validate_node_ids(node_ids: set[str], nodes: Sequence[GraphNode]) -> None:
+    if len(node_ids) != len(nodes):
+        raise SpecError("resource graph", "duplicate node", "resource IDs must be unique")
 
 
 def _validate_lifetimes(definition: object) -> None:
@@ -259,7 +340,15 @@ def _validate_lifetimes(definition: object) -> None:
     servers = {server.name for server in definition.servers}
     for task in definition.tasks:
         _validate_task_lifetime(task, tasks, servers)
-    for server in definition.servers:
+    _validate_server_lifetimes(definition.servers, tasks)
+    _validate_resource_lifetimes(definition.managed_resources, servers)
+    _validate_dependency_names(definition)
+    _validate_cross_environment_dependencies(definition)
+    _validate_groups(definition)
+
+
+def _validate_server_lifetimes(servers: Sequence[object], tasks: Mapping[str, object]) -> None:
+    for server in servers:
         for dependency in server.depends_on:
             selected = tasks.get(dependency)
             if selected is not None and selected.phase == "finalize":
@@ -267,7 +356,56 @@ def _validate_lifetimes(definition: object) -> None:
                     "server %s dependency" % server.name, dependency,
                     "cannot depend on a finalization task",
                 )
-    _validate_groups(definition)
+
+
+def _validate_resource_lifetimes(resources: Sequence[object], servers: set[str]) -> None:
+    for resource in resources:
+        invalid = sorted(set(resource.depends_on) & servers)
+        if invalid:
+            raise SpecError(
+                "resource %s dependency" % resource.name, invalid,
+                "provider resources must be ready before servers start",
+            )
+
+
+def _validate_dependency_names(definition: object) -> None:
+    groups = definition.servers, definition.tasks, definition.managed_resources
+    counts = _dependency_counts(groups)
+    referenced = _referenced_dependencies(groups)
+    ambiguous = sorted(name for name in referenced if counts[name] > 1)
+    if ambiguous:
+        raise SpecError(
+            "resource dependencies", ambiguous,
+            "names must identify exactly one server, task, or provider resource",
+        )
+
+
+def _dependency_counts(groups) -> Counter:
+    return Counter(item.name for values in groups for item in values)
+
+
+def _referenced_dependencies(groups) -> set[str]:
+    return {name for values in groups for item in values for name in item.depends_on}
+
+
+def _validate_cross_environment_dependencies(definition: object) -> None:
+    servers = {server.name: server for server in definition.servers}
+    for consumer in definition.servers:
+        _validate_consumer_environment(consumer, servers, definition.environments)
+
+
+def _validate_consumer_environment(consumer, servers, environments) -> None:
+    source = consumer.placement.environment or "default"
+    for name in consumer.depends_on:
+        producer = servers.get(name)
+        if producer is None:
+            continue
+        destination = producer.placement.environment or "default"
+        if not environment_transportable(source, destination, environments):
+            raise SpecError(
+                "server %s dependency" % consumer.name, name,
+                "cannot cross execution contexts without a managed transport",
+            )
 
 
 def _validate_task_lifetime(
@@ -288,19 +426,24 @@ def _validate_task_lifetime(
 
 
 def _validate_groups(definition: object) -> None:
-    groups: dict[str, set[tuple[str, str]]] = {}
-    for declaration in (*definition.tasks, *definition.servers, *definition.clients):
-        placement = declaration.placement
-        if placement.group:
-            groups.setdefault(placement.group, set()).add((
-                placement.backend, placement.environment or "default",
-            ))
+    groups = _placement_groups((*definition.tasks, *definition.servers, *definition.clients))
     conflict = next((name for name, values in groups.items() if len(values) > 1), "")
     if conflict:
         raise SpecError(
             "placement.group", conflict,
             "all members must select the same backend and environment",
         )
+
+
+def _placement_groups(declarations) -> dict[str, set[tuple[str, str]]]:
+    groups: dict[str, set[tuple[str, str]]] = {}
+    for declaration in declarations:
+        placement = declaration.placement
+        if placement.group:
+            groups.setdefault(placement.group, set()).add((
+                placement.backend, placement.environment or "default",
+            ))
+    return groups
 
 
 def _validate_dependency_cycles(node_ids: set[str], edges: list[GraphEdge]) -> None:
@@ -345,7 +488,9 @@ def compile_case(definition: object, backend: str = "") -> ResourceGraph:
     nodes = _case_nodes(definition, selected)
     edges = [
         *_dependency_edges(definition), *_placement_edges(definition),
-        *_binary_edges(definition), *_group_edges(nodes),
+        *_binary_edges(definition), *_generated_input_edges(definition),
+        *_volume_provider_edges(definition), *authority_edges(definition),
+        *_group_edges(nodes),
     ]
     _validate_graph(nodes, edges)
     return ResourceGraph(nodes, edges)

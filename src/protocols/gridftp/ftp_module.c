@@ -21,9 +21,9 @@
 static void *
 brix_ftp_create_conf(ngx_conf_t *cf)
 {
-    ngx_stream_brix_ftp_srv_conf_t *conf;
+    ngx_stream_brix_ftp_srv_conf_t *conf =
+        ngx_pcalloc(cf->pool, sizeof(*conf));
 
-    conf = ngx_pcalloc(cf->pool, sizeof(*conf));
     if (conf == NULL) {
         return NULL;
     }

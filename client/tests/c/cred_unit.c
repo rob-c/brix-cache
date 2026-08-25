@@ -34,6 +34,7 @@
 #include "cred.h"
 #include "sss_keytab.h"
 #include "brix.h"
+#include "cred_unit_common.h"
 
 #include <assert.h>
 #include <stdio.h>
@@ -65,21 +66,11 @@ test_x509_env_success(void)
     setenv("X509_USER_PROXY", tmpl, 1);
 
     brix_cred_config cfg = {0};
-    brix_cred_store *s   = brix_cred_store_new(&cfg);
-    assert(s != NULL);
 
-    assert(brix_cred_available(s, XRDC_CRED_X509_PROXY) == 1);
-
-    brix_status   st = {0};
-    brix_cred_view v  = {0};
-    int rc = brix_cred_acquire(s, XRDC_CRED_X509_PROXY, 0, &v, &st);
-    assert(rc == 0);
-    assert(v.path != NULL);
-    assert(strcmp(v.path, tmpl) == 0);
     /* empty file → not_after is best-effort zero, not an error */
-    assert(v.not_after == 0);
+    assert(cred_expect_path(brix_cred_store_new(&cfg),
+                            XRDC_CRED_X509_PROXY, tmpl) == 0);
 
-    brix_cred_store_free(s);
     unsetenv("X509_USER_PROXY");
     unlink(tmpl);
     printf("test_x509_env_success: PASS\n");
@@ -103,16 +94,8 @@ test_x509_missing(void)
     cfg.proxy_path        = "/tmp/brix_cred_unit_no_such_proxy_XXXXXX";
 
     brix_cred_store *s = brix_cred_store_new(&cfg);
-    assert(s != NULL);
 
-    assert(brix_cred_available(s, XRDC_CRED_X509_PROXY) == 0);
-
-    brix_status   st = {0};
-    brix_cred_view v  = {0};
-    int rc = brix_cred_acquire(s, XRDC_CRED_X509_PROXY, 0, &v, &st);
-    assert(rc == -1);
-    assert(st.kxr == XRDC_ENOENT);
-    assert(st.msg[0] != '\0');
+    cred_expect_refusal(s, XRDC_CRED_X509_PROXY, XRDC_ENOENT, NULL);
 
     brix_cred_store_free(s);
     printf("test_x509_missing: PASS\n");
@@ -143,20 +126,10 @@ test_x509_cfg_precedence(void)
     brix_cred_config cfg = {0};
     cfg.proxy_path       = cfg_tmpl;   /* explicit override beats env */
 
-    brix_cred_store *s = brix_cred_store_new(&cfg);
-    assert(s != NULL);
-
-    assert(brix_cred_available(s, XRDC_CRED_X509_PROXY) == 1);
-
-    brix_status   st = {0};
-    brix_cred_view v  = {0};
-    int rc = brix_cred_acquire(s, XRDC_CRED_X509_PROXY, 0, &v, &st);
-    assert(rc == 0);
-    assert(v.path != NULL);
     /* cfg->proxy_path wins over $X509_USER_PROXY */
-    assert(strcmp(v.path, cfg_tmpl) == 0);
+    (void) cred_expect_path(brix_cred_store_new(&cfg),
+                            XRDC_CRED_X509_PROXY, cfg_tmpl);
 
-    brix_cred_store_free(s);
     unsetenv("X509_USER_PROXY");
     unlink(env_tmpl);
     unlink(cfg_tmpl);
@@ -181,22 +154,11 @@ test_bearer_env_success(void)
     setenv("BEARER_TOKEN", tok, 1);
     unsetenv("BEARER_TOKEN_FILE");
 
-    brix_cred_config cfg  = {0};
-    brix_cred_store *s    = brix_cred_store_new(&cfg);
-    assert(s != NULL);
+    brix_cred_config cfg = {0};
 
-    assert(brix_cred_available(s, XRDC_CRED_BEARER) == 1);
-
-    brix_status    st = {0};
-    brix_cred_view v  = {0};
-    int rc = brix_cred_acquire(s, XRDC_CRED_BEARER, 0, &v, &st);
-    assert(rc == 0);
-    assert(v.token != NULL);
-    assert(strcmp(v.token, tok) == 0);
     /* non-JWT value → not_after is best-effort zero, not an error */
-    assert(v.not_after == 0);
+    assert(cred_expect_bearer(brix_cred_store_new(&cfg), tok) == 0);
 
-    brix_cred_store_free(s);
     unsetenv("BEARER_TOKEN");
     printf("test_bearer_env_success: PASS\n");
 }
@@ -224,16 +186,8 @@ test_bearer_missing(void)
     cfg.bearer_path = "/tmp/brix_cred_unit_no_such_bearer_XXXXXX";
 
     brix_cred_store *s = brix_cred_store_new(&cfg);
-    assert(s != NULL);
 
-    assert(brix_cred_available(s, XRDC_CRED_BEARER) == 0);
-
-    brix_status    st = {0};
-    brix_cred_view v  = {0};
-    int rc = brix_cred_acquire(s, XRDC_CRED_BEARER, 0, &v, &st);
-    assert(rc == -1);
-    assert(st.kxr == XRDC_EAUTH);
-    assert(st.msg[0] != '\0');
+    cred_expect_refusal(s, XRDC_CRED_BEARER, XRDC_EAUTH, NULL);
 
     brix_cred_store_free(s);
     printf("test_bearer_missing: PASS\n");
@@ -258,19 +212,9 @@ test_bearer_literal_precedence(void)
     brix_cred_config cfg = {0};
     cfg.bearer_literal   = lit_tok;   /* explicit override beats $BEARER_TOKEN */
 
-    brix_cred_store *s = brix_cred_store_new(&cfg);
-    assert(s != NULL);
+    /* literal wins */
+    (void) cred_expect_bearer(brix_cred_store_new(&cfg), lit_tok);
 
-    assert(brix_cred_available(s, XRDC_CRED_BEARER) == 1);
-
-    brix_status    st = {0};
-    brix_cred_view v  = {0};
-    int rc = brix_cred_acquire(s, XRDC_CRED_BEARER, 0, &v, &st);
-    assert(rc == 0);
-    assert(v.token != NULL);
-    assert(strcmp(v.token, lit_tok) == 0);   /* literal wins */
-
-    brix_cred_store_free(s);
     unsetenv("BEARER_TOKEN");
     printf("test_bearer_literal_precedence: PASS\n");
 }
@@ -295,20 +239,12 @@ test_bearer_jwt_not_after(void)
     setenv("BEARER_TOKEN", jwt, 1);
     unsetenv("BEARER_TOKEN_FILE");
 
-    brix_cred_config cfg  = {0};
-    brix_cred_store *s    = brix_cred_store_new(&cfg);
-    assert(s != NULL);
+    brix_cred_config cfg = {0};
 
-    brix_status    st = {0};
-    brix_cred_view v  = {0};
-    int rc = brix_cred_acquire(s, XRDC_CRED_BEARER, 0, &v, &st);
-    assert(rc == 0);
-    assert(v.token != NULL);
-    assert(strcmp(v.token, jwt) == 0);
     /* exp claim 9999999999 must propagate to not_after */
-    assert(v.not_after == (int64_t)9999999999LL);
+    assert(cred_expect_bearer(brix_cred_store_new(&cfg), jwt)
+           == (int64_t) 9999999999LL);
 
-    brix_cred_store_free(s);
     unsetenv("BEARER_TOKEN");
     printf("test_bearer_jwt_not_after: PASS\n");
 }
@@ -334,16 +270,8 @@ test_sss_missing_keytab(void)
     cfg.keytab_path = "/tmp/brix_cred_unit_no_such_keytab_XXXXXX";
 
     brix_cred_store *s = brix_cred_store_new(&cfg);
-    assert(s != NULL);
 
-    assert(brix_cred_available(s, XRDC_CRED_SSS) == 0);
-
-    brix_status    st = {0};
-    brix_cred_view v  = {0};
-    int rc = brix_cred_acquire(s, XRDC_CRED_SSS, 0, &v, &st);
-    assert(rc == -1);
-    assert(st.kxr == XRDC_EAUTH);
-    assert(st.msg[0] != '\0');
+    cred_expect_refusal(s, XRDC_CRED_SSS, XRDC_EAUTH, NULL);
 
     brix_cred_store_free(s);
     printf("test_sss_missing_keytab: PASS\n");
@@ -370,17 +298,9 @@ test_sss_path_resolution(void)
     brix_cred_config cfg = {0};   /* cfg->keytab_path is NULL: env wins */
 
     brix_cred_store *s = brix_cred_store_new(&cfg);
-    assert(s != NULL);
 
-    assert(brix_cred_available(s, XRDC_CRED_SSS) == 0);
-
-    brix_status    st = {0};
-    brix_cred_view v  = {0};
-    int rc = brix_cred_acquire(s, XRDC_CRED_SSS, 0, &v, &st);
-    assert(rc == -1);
-    assert(st.kxr == XRDC_EAUTH);
     /* The error message must mention the path that was actually probed. */
-    assert(strstr(st.msg, missing) != NULL);
+    cred_expect_refusal(s, XRDC_CRED_SSS, XRDC_EAUTH, missing);
 
     brix_cred_store_free(s);
     unsetenv("XrdSecSSSKT");
@@ -430,20 +350,10 @@ test_sss_positive(void)
     brix_cred_config cfg = {0};
     cfg.keytab_path = tmpl;
 
-    brix_cred_store *s = brix_cred_store_new(&cfg);
-    assert(s != NULL);
+    /* keytab has no per-use expiry → not_after stays 0 */
+    assert(cred_expect_path(brix_cred_store_new(&cfg),
+                            XRDC_CRED_SSS, tmpl) == 0);
 
-    assert(brix_cred_available(s, XRDC_CRED_SSS) == 1);
-
-    brix_status    st = {0};
-    brix_cred_view v  = {0};
-    int rc = brix_cred_acquire(s, XRDC_CRED_SSS, 0, &v, &st);
-    assert(rc == 0);
-    assert(v.path != NULL);
-    assert(strcmp(v.path, tmpl) == 0);
-    assert(v.not_after == 0);   /* keytab has no per-use expiry */
-
-    brix_cred_store_free(s);
     unlink(tmpl);
     printf("test_sss_positive: PASS\n");
 }
@@ -479,16 +389,8 @@ test_krb5_missing_ccache(void)
     brix_cred_config cfg = {0};   /* cfg->ccache is NULL: $KRB5CCNAME is used */
 
     brix_cred_store *s = brix_cred_store_new(&cfg);
-    assert(s != NULL);
 
-    assert(brix_cred_available(s, XRDC_CRED_KRB5) == 0);
-
-    brix_status    st = {0};
-    brix_cred_view v  = {0};
-    int rc = brix_cred_acquire(s, XRDC_CRED_KRB5, 0, &v, &st);
-    assert(rc == -1);
-    assert(st.kxr == XRDC_EAUTH);
-    assert(st.msg[0] != '\0');
+    cred_expect_refusal(s, XRDC_CRED_KRB5, XRDC_EAUTH, NULL);
 
     brix_cred_store_free(s);
     unsetenv("KRB5CCNAME");

@@ -9,6 +9,8 @@
 #include "zip_http.h"
 #include "zip_dir.h"
 #include "fs/vfs/vfs.h"   /* confined archive read-open via the VFS seam */
+#include "core/http/http_headers.h"   /* brix_http_request_is_tls */
+#include "core/http/http_file_response.h"   /* brix_http_send_single_buf */
 
 #include <fcntl.h>
 #include <unistd.h>
@@ -100,11 +102,7 @@ zip_http_open_archive(ngx_http_request_t *r, const char *root_canon,
     brix_vfs_ctx_t   vctx;
     brix_vfs_file_t *fh;
     int                vfs_err = 0;
-    int                is_tls  = 0;
-
-#if (NGX_HTTP_SSL)
-    is_tls = (r->connection->ssl != NULL) ? 1 : 0;
-#endif
+    int                is_tls = brix_http_request_is_tls(r);
     /* triage (review-finding fixes, 2026-07-08): this IS a remote-capable
      * data-plane read (brix_vfs_open below can reach a driver backend), so it
      * belongs on the per-user-credential list in principle. Left NULL/unbound:
@@ -315,7 +313,6 @@ brix_zip_http_serve(ngx_http_request_t *r, const char *root_canon,
     brix_zip_member_t  m;
     zip_http_span_t      sp;
     ngx_buf_t           *b;
-    ngx_chain_t          out;
     ngx_int_t            rc;
     brix_vfs_file_t   *fh = NULL;
     off_t                archive_size = 0;
@@ -364,11 +361,5 @@ brix_zip_http_serve(ngx_http_request_t *r, const char *root_canon,
 
     zip_http_set_headers(r, &sp);
 
-    rc = ngx_http_send_header(r);
-    if (rc == NGX_ERROR || rc > NGX_OK || r->header_only) {
-        return rc;
-    }
-    out.buf  = b;
-    out.next = NULL;
-    return ngx_http_output_filter(r, &out);
+    return brix_http_send_single_buf(r, b);
 }

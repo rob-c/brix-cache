@@ -285,11 +285,17 @@ class SharedTopology:
     def build(
         cls, rows: Sequence[tuple[str, object]], session_dir: Path, *,
         case_session_dir: Optional[Path] = None,
+        scopes: Optional[Sequence[str]] = None, namespace: Optional[str] = None,
     ) -> "SharedTopology":
         selected = Path(session_dir)
-        namespace = selected.name if selected.parent.name == "workers" else ""
+        selected_namespace = namespace
+        if selected_namespace is None:
+            selected_namespace = selected.name if selected.parent.name == "workers" else ""
         return cls(
-            derive(rows, namespace=namespace), selected,
+            derive(
+                rows, namespace=selected_namespace,
+                **({"scopes": scopes} if scopes is not None else {}),
+            ), selected,
             case_session_dir=case_session_dir,
         )
 
@@ -325,7 +331,7 @@ class SharedTopology:
             remaining = self._remaining[key]
             remaining.discard(nodeid)
             pool = self.pools[key]
-            if not remaining and pool.plan.scope != "session":
+            if not remaining and pool.plan.scope not in ("session", "worker"):
                 pool.stop()
 
     def close(self) -> list[dict]:

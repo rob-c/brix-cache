@@ -216,6 +216,11 @@ class TestHandleStat:
 # readv edge cases
 # ===========================================================================
 
+# One worker for the class: every test's autouse fixture creates and unlinks
+# the SAME data-root file, so split across xdist workers one test's teardown
+# unlinks the file mid-another's open ("file not found" on a file the setup
+# just wrote).
+@pytest.mark.xdist_group("shared-file-proto-readv")
 class TestReadvEdgeCases:
     """readv with edge-case segment descriptors."""
 

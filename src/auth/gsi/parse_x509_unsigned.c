@@ -5,14 +5,6 @@
 #include "parse_x509_internal.h"
 #include "auth/crypto/scoped.h"   /* W3 NULL-safe destroyers (P90-27.1) */
 
-/* Crypto helper declarations — defined in parse_crypto_helpers.c */
-extern BIGNUM *brix_gsi_parse_client_dh_public_key(ngx_connection_t *c, ngx_log_t *log,
-    const u_char *public_key_blob, size_t public_key_blob_len);
-extern void brix_gsi_select_cipher_name(const u_char *payload, size_t payload_len,
-    char *cipher_name, size_t cipher_name_size);
-extern EVP_PKEY *brix_gsi_build_peer_dh_key(ngx_log_t *log, EVP_PKEY *server_dh_key,
-    BIGNUM *client_public_bn);
-
 /*
  * gsi_unsigned_derive_secret — WHAT: agree the UNPADDED (HasPad=0) DH shared
  * secret for the unsigned kXGC_cert path. WHY: isolates the two-call

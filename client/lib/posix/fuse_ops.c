@@ -85,33 +85,33 @@ brix_fuse_run(brix_pool *pool, int max_retries, int max_stall_ms,
     }
 }
 
-/* op thunks */
+/* op thunks — each unpacks its `void *ctx` carrier and forwards to the one
+ * matching libbrix call. FUSE_CTX names the carrier struct for the thunk. */
+#define FUSE_CTX(tag)  ((struct brix_fuse_ctx_##tag *) ctx)
+
 int
 brix_fuse_op_stat(brix_conn *c, void *ctx, brix_status *st)
 {
-    struct brix_fuse_ctx_stat *a = ctx;
-    return brix_stat(c, a->path, a->si, st);
+    return brix_stat(c, FUSE_CTX(stat)->path, FUSE_CTX(stat)->si, st);
 }
 
 int
 brix_fuse_op_lstat(brix_conn *c, void *ctx, brix_status *st)
 {
-    struct brix_fuse_ctx_stat *a = ctx;
-    return brix_lstat(c, a->path, a->si, st);
+    return brix_lstat(c, FUSE_CTX(stat)->path, FUSE_CTX(stat)->si, st);
 }
 
 int
 brix_fuse_op_dirlist(brix_conn *c, void *ctx, brix_status *st)
 {
-    struct brix_fuse_ctx_dir *a = ctx;
-    return brix_dirlist(c, a->path, 1, a->ents, a->n, st);
+    return brix_dirlist(c, FUSE_CTX(dir)->path, 1, FUSE_CTX(dir)->ents,
+                        FUSE_CTX(dir)->n, st);
 }
 
 int
 brix_fuse_op_mkdir(brix_conn *c, void *ctx, brix_status *st)
 {
-    struct brix_fuse_ctx_mkdir *a = ctx;
-    return brix_mkdir(c, a->path, a->mode, 0, st);
+    return brix_mkdir(c, FUSE_CTX(mkdir)->path, FUSE_CTX(mkdir)->mode, 0, st);
 }
 
 int
@@ -129,22 +129,19 @@ brix_fuse_op_rmdir(brix_conn *c, void *ctx, brix_status *st)
 int
 brix_fuse_op_mv(brix_conn *c, void *ctx, brix_status *st)
 {
-    struct brix_fuse_ctx_mv *a = ctx;
-    return brix_mv(c, a->from, a->to, st);
+    return brix_mv(c, FUSE_CTX(mv)->from, FUSE_CTX(mv)->to, st);
 }
 
 int
 brix_fuse_op_chmod(brix_conn *c, void *ctx, brix_status *st)
 {
-    struct brix_fuse_ctx_chmod *a = ctx;
-    return brix_chmod(c, a->path, a->mode, st);
+    return brix_chmod(c, FUSE_CTX(chmod)->path, FUSE_CTX(chmod)->mode, st);
 }
 
 int
 brix_fuse_op_trunc(brix_conn *c, void *ctx, brix_status *st)
 {
-    struct brix_fuse_ctx_trunc *a = ctx;
-    return brix_truncate(c, a->path, a->size, st);
+    return brix_truncate(c, FUSE_CTX(trunc)->path, FUSE_CTX(trunc)->size, st);
 }
 
 int
@@ -158,13 +155,11 @@ brix_fuse_op_setattr(brix_conn *c, void *ctx, brix_status *st)
 int
 brix_fuse_op_symlink(brix_conn *c, void *ctx, brix_status *st)
 {
-    struct brix_fuse_ctx_link2 *a = ctx;
-    return brix_symlink(c, a->a, a->b, st);
+    return brix_symlink(c, FUSE_CTX(link2)->a, FUSE_CTX(link2)->b, st);
 }
 
 int
 brix_fuse_op_link(brix_conn *c, void *ctx, brix_status *st)
 {
-    struct brix_fuse_ctx_link2 *a = ctx;
-    return brix_link(c, a->a, a->b, st);
+    return brix_link(c, FUSE_CTX(link2)->a, FUSE_CTX(link2)->b, st);
 }

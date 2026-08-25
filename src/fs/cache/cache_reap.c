@@ -6,6 +6,7 @@
 #include "cache_reap.h"   /* + cache_internal.h: brix_cache_state_root */
 #include "cinfo.h"
 #include "cache_storage.h"
+#include "fs/meta/xmeta_path.h"   /* brix_xmeta_is_sidecar_name */
 
 #include <dirent.h>
 #include <errno.h>
@@ -14,20 +15,6 @@
 #include <sys/stat.h>
 #include <time.h>
 #include <unistd.h>
-
-/* A sidecar / slice file we drive off the data file rather than treat as one. */
-static int
-reap_is_sidecar(const char *name)
-{
-    const char *dot = strrchr(name, '.');
-
-    if (dot != NULL && (strcmp(dot, ".cinfo") == 0 || strcmp(dot, ".meta") == 0
-                        || strcmp(dot, ".part") == 0 || strcmp(dot, ".lock") == 0))
-    {
-        return 1;
-    }
-    return strstr(name, ".__xrds") != NULL;   /* slice files + slice meta */
-}
 
 /* Remove a reaped data file's sidecars (best-effort). */
 static void
@@ -106,7 +93,7 @@ reap_entry_candidate(const char *dir, const struct dirent *de,
     if (strcmp(de->d_name, ".") == 0 || strcmp(de->d_name, "..") == 0) {
         return 0;
     }
-    if (reap_is_sidecar(de->d_name)) {
+    if (brix_xmeta_is_sidecar_name(de->d_name)) {
         return 0;
     }
     if (snprintf(child, PATH_MAX, "%s/%s", dir, de->d_name) >= PATH_MAX) {

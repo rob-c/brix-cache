@@ -208,6 +208,65 @@ def _server_rows(session: Mapping[str, object]) -> str:
     return "".join(rows)
 
 
+def _attempt_graph(attempt: Mapping[str, object]) -> Mapping[str, object]:
+    provenance = attempt.get("provenance", {})
+    provenance = provenance if isinstance(provenance, Mapping) else {}
+    extra = provenance.get("extra", {})
+    extra = extra if isinstance(extra, Mapping) else {}
+    graph = extra.get("resource_graph", {})
+    return graph if isinstance(graph, Mapping) else {}
+
+
+def _resource_node_row(nodeid: str, node: Mapping[str, object]) -> str:
+    requires = node.get("requires", ())
+    requires = requires if isinstance(requires, (list, tuple)) else ()
+    return (
+        "<tr><td>%s</td><td><code>%s</code></td><td>%s</td><td>%s</td>"
+        "<td>%s</td><td>%s</td></tr>" % (
+            _escape(nodeid), _escape(node.get("id", "")),
+            _escape(node.get("kind", "")), _escape(node.get("backend", "")),
+            _escape(node.get("environment", "")),
+            _escape(", ".join(str(item) for item in requires)),
+        )
+    )
+
+
+def _resource_link_row(nodeid: str, edge: Mapping[str, object]) -> str:
+    return "<tr><td>%s</td><td><code>%s</code></td><td>%s</td><td><code>%s</code></td></tr>" % (
+        _escape(nodeid), _escape(edge.get("source", "")),
+        _escape(edge.get("relation", "")), _escape(edge.get("target", "")),
+    )
+
+
+def _case_resource_plan(case: Mapping[str, object]) -> tuple[list[str], list[str]]:
+    nodeid = str(case.get("nodeid", ""))
+    nodes, edges, seen = [], [], set()
+    for attempt in case.get("attempts", []):
+        graph = _attempt_graph(attempt)
+        fingerprint = str(graph.get("fingerprint", ""))
+        if fingerprint in seen:
+            continue
+        seen.add(fingerprint)
+        nodes.extend(
+            _resource_node_row(nodeid, row) for row in graph.get("nodes", ())
+            if isinstance(row, Mapping)
+        )
+        edges.extend(
+            _resource_link_row(nodeid, row) for row in graph.get("edges", ())
+            if isinstance(row, Mapping)
+        )
+    return nodes, edges
+
+
+def _resource_plan_rows(session: Mapping[str, object]) -> tuple[str, str]:
+    nodes, edges = [], []
+    for case in session["tests"]:
+        case_nodes, case_edges = _case_resource_plan(case)
+        nodes.extend(case_nodes)
+        edges.extend(case_edges)
+    return "".join(nodes), "".join(edges)
+
+
 def _insight_rows(session: Mapping[str, object]) -> tuple[str, str, str]:
     raw = session.get("analysis", {})
     analysis = raw if isinstance(raw, Mapping) else {}
@@ -281,6 +340,7 @@ def render(payload: Mapping[str, object]) -> str:
     timeline_rows = _timeline_rows(session)
     provenance_rows = _provenance_rows(session)
     server_rows = _server_rows(session)
+    resource_node_rows, resource_link_rows = _resource_plan_rows(session)
     correlation_rows, outlier_rows, coverage_rows = _insight_rows(session)
     counts = " · ".join("%s %s" % (value, key)
                         for key, value in sorted(session.get("counts", {}).items()))
@@ -300,6 +360,8 @@ code{font-size:.85em}</style></head><body><main><h1>BriXTest evidence</h1>
 <h2>Metric aggregates</h2><div class=scroller><table><thead><tr><th>metric</th><th>unit</th><th>n</th><th>mean</th><th>p95</th><th>max</th></tr></thead><tbody>%s</tbody></table></div>
 <h2>Cases</h2><input id=q placeholder="filter cases"><div class=scroller><table><thead><tr><th>test</th><th>outcome</th><th>backend</th><th>trials</th><th>wall s</th><th>resources</th><th>spans</th></tr></thead><tbody id=cases>%s</tbody></table></div>
 <h2>Server instances</h2><div class=scroller><table><thead><tr><th>server</th><th>scope</th><th>instance</th><th>ports</th><th>config</th><th>config sha256</th><th>tests</th><th>consumers</th><th>log sha256</th></tr></thead><tbody>%s</tbody></table></div>
+<h2>Effective resource plan</h2><div class=scroller><table><thead><tr><th>test</th><th>resource</th><th>kind</th><th>backend</th><th>environment</th><th>requirements</th></tr></thead><tbody>%s</tbody></table></div>
+<h2>Resource relationships</h2><div class=scroller><table><thead><tr><th>test</th><th>source</th><th>relation</th><th>target</th></tr></thead><tbody>%s</tbody></table></div>
 <h2>Correlated timeline</h2><div class=scroller><table><thead><tr><th>test</th><th>attempt</th><th>wall s</th><th>spans over attempt time</th></tr></thead><tbody>%s</tbody></table></div>
 <h2>Cross-signal correlations</h2><div class=scroller><table><thead><tr><th>test</th><th>left</th><th>right</th><th>n</th><th>Pearson</th><th>Spearman</th></tr></thead><tbody>%s</tbody></table></div>
 <h2>Robust outliers</h2><div class=scroller><table><thead><tr><th>test</th><th>attempt</th><th>series</th><th>value</th><th>score</th><th>method</th></tr></thead><tbody>%s</tbody></table></div>
@@ -310,7 +372,8 @@ code{font-size:.85em}</style></head><body><main><h1>BriXTest evidence</h1>
 <details><summary>machine-readable evidence</summary><pre id=data>%s</pre></details></main>
 <script>q.oninput=e=>document.querySelectorAll('#cases tr').forEach(r=>r.hidden=!r.dataset.key.includes(e.target.value.toLowerCase()))</script></body></html>""" % (
         _escape(session.get("session_id", "")), _escape(session.get("generated_at", "")),
-        len(session["tests"]), _escape(counts), metric_rows, case_rows, server_rows, timeline_rows,
+        len(session["tests"]), _escape(counts), metric_rows, case_rows, server_rows,
+        resource_node_rows, resource_link_rows, timeline_rows,
         correlation_rows, outlier_rows, coverage_rows,
         finding_rows, artifact_rows, provenance_rows, embedded,
     )

@@ -32,6 +32,7 @@ SRC = [os.path.join(SHARED, "oci", f)
        for f in ("flatten_unittest.c", "flatten.c", "tar.c", "tar_pax.c",
                  "tar_digest.c", "digest.c", "stargz.c", "stargz_toc.c")] + \
       [os.path.join(SHARED, "cvmfs", "catalog", "catalog_write.c"),
+       os.path.join(SHARED, "cvmfs", "catalog", "xattr_pack.c"),
        os.path.join(SHARED, "cvmfs", "catalog", "catalog.c"),
        os.path.join(SHARED, "cvmfs", "grammar", "hash.c")]
 

@@ -25,22 +25,36 @@
 #include <stdlib.h>
 #include <string.h>
 
+/* Algorithm-name spellings accepted by --cksum. crc64 and crc64nvme are
+ * DIFFERENT polynomials (INVARIANT 9); crc64xz is an alias for crc64. */
+static const struct {
+    const char      *name;
+    brix_cksum_algo  algo;
+} cksum_names[] = {
+    { "adler32",   XRDC_CK_ADLER32   },
+    { "crc32c",    XRDC_CK_CRC32C    },
+    { "md5",       XRDC_CK_MD5       },
+    { "crc64",     XRDC_CK_CRC64     },
+    { "crc64xz",   XRDC_CK_CRC64     },
+    { "crc64nvme", XRDC_CK_CRC64NVME },
+    { "zcrc32",    XRDC_CK_ZCRC32    },
+    { "sha1",      XRDC_CK_SHA1      },
+    { "sha256",    XRDC_CK_SHA256    },
+    { "sha512",    XRDC_CK_SHA512    },
+};
+
 int
 brix_cksum_algo_parse(const char *name, brix_cksum_algo *out)
 {
     if (name == NULL) {
         return -1;
     }
-    if (strcmp(name, "adler32")   == 0) { *out = XRDC_CK_ADLER32;   return 0; }
-    if (strcmp(name, "crc32c")    == 0) { *out = XRDC_CK_CRC32C;    return 0; }
-    if (strcmp(name, "md5")       == 0) { *out = XRDC_CK_MD5;       return 0; }
-    if (strcmp(name, "crc64")     == 0) { *out = XRDC_CK_CRC64;     return 0; }
-    if (strcmp(name, "crc64xz")   == 0) { *out = XRDC_CK_CRC64;     return 0; }
-    if (strcmp(name, "crc64nvme") == 0) { *out = XRDC_CK_CRC64NVME; return 0; }
-    if (strcmp(name, "zcrc32")    == 0) { *out = XRDC_CK_ZCRC32;    return 0; }
-    if (strcmp(name, "sha1")      == 0) { *out = XRDC_CK_SHA1;      return 0; }
-    if (strcmp(name, "sha256")    == 0) { *out = XRDC_CK_SHA256;    return 0; }
-    if (strcmp(name, "sha512")    == 0) { *out = XRDC_CK_SHA512;    return 0; }
+    for (size_t n = 0; n < sizeof(cksum_names) / sizeof(cksum_names[0]); n++) {
+        if (strcmp(name, cksum_names[n].name) == 0) {
+            *out = cksum_names[n].algo;
+            return 0;
+        }
+    }
     return -1;
 }
 

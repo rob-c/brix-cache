@@ -63,27 +63,35 @@ static const s3_cksum_desc_t s3_cksum_table[] = {
  * delegating the same confined syscall underneath.  Best-effort — the caller's
  * result code is already decided.
  */
-static void
-s3_cksum_vfs_unlink(ngx_http_request_t *r, const char *fs_path,
-    const char *root_canon)
+static brix_vfs_file_t *
+s3_cksum_vfs_op(ngx_http_request_t *r, const char *fs_path,
+    const char *root_canon, int do_unlink)
 {
     ngx_http_s3_loc_conf_t *cf =
         ngx_http_get_module_loc_conf(r, ngx_http_brix_s3_module);
     ngx_http_s3_req_ctx_t  *s3ctx =
         ngx_http_get_module_ctx(r, ngx_http_brix_s3_module);
     brix_vfs_ctx_t        vctx;
-    int                     is_tls = 0;
-
-#if (NGX_HTTP_SSL)
-    is_tls = (r->connection->ssl != NULL) ? 1 : 0;
-#endif
+    int                     is_tls = brix_http_request_is_tls(r);
 
     /* root_canon is passed by the caller; it equals cf->common.root_canon. */
     brix_vfs_ctx_init(&vctx, r->pool, r->connection->log, BRIX_PROTO_S3,
         root_canon, cf->common.cache_root_canon, cf->common.allow_write, is_tls,
         (s3ctx != NULL) ? s3ctx->identity : NULL, fs_path);
 
-    (void) brix_vfs_unlink(&vctx);
+    if (do_unlink) {
+        (void) brix_vfs_unlink(&vctx);
+        return NULL;
+    }
+
+    return brix_vfs_open(&vctx, BRIX_VFS_O_READ, NULL);
+}
+
+static void
+s3_cksum_vfs_unlink(ngx_http_request_t *r, const char *fs_path,
+    const char *root_canon)
+{
+    (void) s3_cksum_vfs_op(r, fs_path, root_canon, 1);
 }
 
 /*
@@ -95,22 +103,7 @@ static brix_vfs_file_t *
 s3_cksum_vfs_open(ngx_http_request_t *r, const char *fs_path,
     const char *root_canon)
 {
-    ngx_http_s3_loc_conf_t *cf =
-        ngx_http_get_module_loc_conf(r, ngx_http_brix_s3_module);
-    ngx_http_s3_req_ctx_t  *s3ctx =
-        ngx_http_get_module_ctx(r, ngx_http_brix_s3_module);
-    brix_vfs_ctx_t        vctx;
-    int                     is_tls = 0;
-
-#if (NGX_HTTP_SSL)
-    is_tls = (r->connection->ssl != NULL) ? 1 : 0;
-#endif
-
-    brix_vfs_ctx_init(&vctx, r->pool, r->connection->log, BRIX_PROTO_S3,
-        root_canon, cf->common.cache_root_canon, cf->common.allow_write, is_tls,
-        (s3ctx != NULL) ? s3ctx->identity : NULL, fs_path);
-
-    return brix_vfs_open(&vctx, BRIX_VFS_O_READ, NULL);
+    return s3_cksum_vfs_op(r, fs_path, root_canon, 0);
 }
 
 /*
@@ -262,27 +255,21 @@ s3_put_select_algo(ngx_http_request_t *r, ngx_table_elt_t **want_value,
  * S3_CKSUM_CONFLICT (ambiguous selection — caller answers 400 InvalidRequest),
  * or S3_CKSUM_ERROR (our own compute failed — caller proceeds without a header).
  */
-s3_cksum_result_t
-s3_put_checksum_apply(ngx_http_request_t *r, const char *fs_path,
-    const char *root_canon)
+/*
+ * s3_cksum_verify_echo — the shared tail of the header and trailer PUT paths:
+ * compute desc's b64 wire value for the just-committed object, compare it
+ * against the client-asserted value when one was supplied (removing the object
+ * and answering MISMATCH when they differ), then echo the checksum headers.
+ * `want` NULL means "no client assertion — compute and echo only".
+ */
+static s3_cksum_result_t
+s3_cksum_verify_echo(ngx_http_request_t *r, const char *fs_path,
+    const char *root_canon, const s3_cksum_desc_t *desc,
+    const u_char *want, size_t want_len)
 {
-    const s3_cksum_desc_t *desc;
-    ngx_table_elt_t       *want_value;
-    int                    conflict;
-    brix_vfs_file_t     *fh;
-    char                   b64[S3_CHECKSUM_B64_MAX];
-    ngx_int_t              rc;
-
-    desc = s3_put_select_algo(r, &want_value, &conflict);
-    if (conflict) {
-        /* The object was already committed; remove it — a malformed integrity
-         * request must not leave an object behind (AWS rejects pre-store). */
-        s3_cksum_vfs_unlink(r, fs_path, root_canon);
-        return S3_CKSUM_CONFLICT;
-    }
-    if (desc == NULL) {
-        desc = &s3_cksum_table[S3_CKSUM_DEFAULT_IDX];   /* crc64nvme default */
-    }
+    brix_vfs_file_t *fh;
+    char               b64[S3_CHECKSUM_B64_MAX];
+    ngx_int_t          rc;
 
     fh = s3_cksum_vfs_open(r, fs_path, root_canon);
     if (fh == NULL) {
@@ -295,10 +282,10 @@ s3_put_checksum_apply(ngx_http_request_t *r, const char *fs_path,
         return S3_CKSUM_ERROR;
     }
 
-    if (want_value != NULL) {
+    if (want != NULL) {
         size_t blen = ngx_strlen(b64);
-        if (want_value->value.len != blen
-            || ngx_strncmp(want_value->value.data, (u_char *) b64, blen) != 0)
+        if (want_len != blen
+            || ngx_strncmp(want, (u_char *) b64, blen) != 0)
         {
             s3_cksum_vfs_unlink(r, fs_path, root_canon);
             return S3_CKSUM_MISMATCH;
@@ -308,6 +295,30 @@ s3_put_checksum_apply(ngx_http_request_t *r, const char *fs_path,
     (void) s3_set_header(r, desc->header, b64);
     (void) s3_set_header(r, S3_HDR_CHECKSUM_TYPE, "FULL_OBJECT");
     return S3_CKSUM_OK;
+}
+
+s3_cksum_result_t
+s3_put_checksum_apply(ngx_http_request_t *r, const char *fs_path,
+    const char *root_canon)
+{
+    const s3_cksum_desc_t *desc;
+    ngx_table_elt_t       *want_value;
+    int                    conflict;
+
+    desc = s3_put_select_algo(r, &want_value, &conflict);
+    if (conflict) {
+        /* The object was already committed; remove it — a malformed integrity
+         * request must not leave an object behind (AWS rejects pre-store). */
+        s3_cksum_vfs_unlink(r, fs_path, root_canon);
+        return S3_CKSUM_CONFLICT;
+    }
+    if (desc == NULL) {
+        desc = &s3_cksum_table[S3_CKSUM_DEFAULT_IDX];   /* crc64nvme default */
+    }
+
+    return s3_cksum_verify_echo(r, fs_path, root_canon, desc,
+        (want_value != NULL) ? want_value->value.data : NULL,
+        (want_value != NULL) ? want_value->value.len : 0);
 }
 
 /*
@@ -410,9 +421,6 @@ s3_put_trailer_checksum_apply(ngx_http_request_t *r, const char *fs_path,
     const char *root_canon, const char *algo_token, const char *value)
 {
     const s3_cksum_desc_t *desc;
-    brix_vfs_file_t     *fh;
-    char                   b64[S3_CHECKSUM_B64_MAX];
-    ngx_int_t              rc;
 
     desc = s3_cksum_by_token(algo_token, ngx_strlen(algo_token));
     if (desc == NULL) {
@@ -421,30 +429,9 @@ s3_put_trailer_checksum_apply(ngx_http_request_t *r, const char *fs_path,
         return S3_CKSUM_CONFLICT;
     }
 
-    fh = s3_cksum_vfs_open(r, fs_path, root_canon);
-    if (fh == NULL) {
-        return S3_CKSUM_ERROR;
-    }
-    rc = s3_checksum_b64(r, brix_vfs_file_fd(fh), fs_path, desc->alg_name, 0,
-                         b64, sizeof(b64));
-    brix_vfs_close(fh, r->connection->log);
-    if (rc != NGX_OK) {
-        return S3_CKSUM_ERROR;
-    }
-
-    if (value != NULL && value[0] != '\0') {
-        size_t blen = ngx_strlen(b64);
-        if (ngx_strlen(value) != blen
-            || ngx_strncmp((u_char *) value, (u_char *) b64, blen) != 0)
-        {
-            s3_cksum_vfs_unlink(r, fs_path, root_canon);
-            return S3_CKSUM_MISMATCH;
-        }
-    }
-
-    (void) s3_set_header(r, desc->header, b64);
-    (void) s3_set_header(r, S3_HDR_CHECKSUM_TYPE, "FULL_OBJECT");
-    return S3_CKSUM_OK;
+    return s3_cksum_verify_echo(r, fs_path, root_canon, desc,
+        (value != NULL && value[0] != '\0') ? (const u_char *) value : NULL,
+        (value != NULL) ? ngx_strlen(value) : 0);
 }
 
 /*

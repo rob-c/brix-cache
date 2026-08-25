@@ -44,23 +44,13 @@ webdav_handle_options(ngx_http_request_t *r)
     r->headers_out.status = NGX_HTTP_OK;
     r->headers_out.content_length_n = 0;
 
-    h = ngx_list_push(&r->headers_out.headers);
-    if (h == NULL) {
+    if (brix_http_set_header(r, "DAV", "1, 2, access-control", NULL) != NGX_OK
+        || brix_http_set_header(r, "DASL", "<DAV:basicsearch>", NULL) != NGX_OK)
+    {
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
-    h->hash = 1;
-    ngx_str_set(&h->key, "DAV");
-    ngx_str_set(&h->value, "1, 2, access-control");
 
-    h = ngx_list_push(&r->headers_out.headers);
-    if (h == NULL) {
-        return NGX_HTTP_INTERNAL_SERVER_ERROR;
-    }
-    h->hash = 1;
-    ngx_str_set(&h->key, "DASL");
-    ngx_str_set(&h->value, "<DAV:basicsearch>");
-
-    h = ngx_list_push(&r->headers_out.headers);
+    h = ngx_list_push(&r->headers_out.headers);   /* Allow: computed value */
     if (h == NULL) {
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
@@ -74,13 +64,9 @@ webdav_handle_options(ngx_http_request_t *r)
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
 
-    h = ngx_list_push(&r->headers_out.headers);
-    if (h == NULL) {
+    if (brix_http_set_header(r, "MS-Author-Via", "DAV", NULL) != NGX_OK) {
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
-    h->hash = 1;
-    ngx_str_set(&h->key, "MS-Author-Via");
-    ngx_str_set(&h->value, "DAV");
 
     ngx_http_send_header(r);
     return ngx_http_send_special(r, NGX_HTTP_LAST);
@@ -174,9 +160,7 @@ webdav_head_emit_digest(ngx_http_request_t *r, const char *path,
     /* Open the same way GET does (confined VFS read open) so the Digest
      * reflects exactly the bytes a GET would serve — including an
      * in-export symlink target. Metered + impersonation-aware. */
-#if (NGX_HTTP_SSL)
-    is_tls = (r->connection->ssl != NULL) ? 1 : 0;
-#endif
+    is_tls = brix_http_request_is_tls(r);
     brix_vfs_ctx_init(&vctx, r->pool, r->connection->log,
         BRIX_PROTO_WEBDAV, conf->common.root_canon,
         conf->common.cache_root_canon, conf->common.allow_write, is_tls,

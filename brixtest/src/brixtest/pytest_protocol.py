@@ -5,6 +5,9 @@ from __future__ import annotations
 import os
 import shlex
 import sys
+from pathlib import Path
+from typing import Optional, Tuple
+from urllib.parse import unquote
 
 import pytest
 
@@ -165,9 +168,80 @@ def _case_record(
                  )],
         "cwd": str(item.config.rootpath),
     }
+    replay.update(_replay_identity(current.payload, session_dir))
     logs = [dict(log) for row in invocations for log in row.logs]
     record.update({"isolation": current.isolation, "logs": logs, "replay": replay})
+    _add_helper_bundle(record, current.payload)
     return record
+
+
+def _add_helper_bundle(record: dict, payload: dict) -> None:
+    identity = payload.get("helper_bundle")
+    if isinstance(identity, dict):
+        record["helper_bundle"] = dict(identity)
+
+
+def _replay_identity(payload, session_dir) -> dict:
+    evidence = payload.get("evidence", {})
+    if not isinstance(evidence, dict):
+        return {}
+    result = {"binaries": _replay_binaries(evidence, session_dir)}
+    fingerprint = _replay_graph_fingerprint(evidence)
+    if fingerprint:
+        result["resource_graph_fingerprint"] = fingerprint
+    return result
+
+
+def _replay_graph_fingerprint(evidence) -> str:
+    provenance = evidence.get("provenance", {})
+    extra = provenance.get("extra", {}) if isinstance(provenance, dict) else {}
+    graph = extra.get("resource_graph", {}) if isinstance(extra, dict) else {}
+    return str(graph.get("fingerprint", "")) if isinstance(graph, dict) else ""
+
+
+def _replay_binaries(evidence, session_dir) -> dict:
+    result = {}
+    rows = evidence.get("artifacts", [])
+    if not isinstance(rows, list):
+        return result
+    for row in rows:
+        _add_replay_artifact(result, row, session_dir)
+    return result
+
+
+def _add_replay_artifact(result, row, session_dir) -> None:
+    parts = _replay_artifact_parts(row)
+    if parts is None:
+        return
+    role, name, detail = parts
+    identity = {
+        "path": str(Path(session_dir) / row["object"]),
+        "sha256": str(row.get("sha256", "")),
+    }
+    selected = result.setdefault(name, {"libraries": [], "runtime_files": []})
+    if role == "replay-binary":
+        selected.update(identity)
+    elif role == "replay-library":
+        selected["libraries"].append(identity)
+    elif role == "replay-runtime" and detail:
+        selected["runtime_files"].append({
+            **identity, "destination": unquote(detail),
+        })
+
+
+def _replay_artifact_parts(row) -> Optional[Tuple[str, str, str]]:
+    if not isinstance(row, dict):
+        return None
+    role = str(row.get("role", ""))
+    if not role.startswith("replay-"):
+        return None
+    parts = role.split(":", 2)
+    if len(parts) < 2 or not parts[1]:
+        return None
+    if not isinstance(row.get("object"), str):
+        return None
+    detail = parts[2] if len(parts) == 3 else ""
+    return parts[0], parts[1], detail
 
 
 def _helper_phase(current) -> str:

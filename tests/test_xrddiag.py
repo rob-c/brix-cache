@@ -151,6 +151,11 @@ def test_bench_streams_variant(xrddiag):
 # --------------------------------------------------------------------------
 
 @pytest.mark.registry_server("cluster-redir")
+# closest-marker wins over the module's "xrddiag" group: this test reads the
+# shared cluster-redir topology, and the manager-mode family kills and
+# restarts cluster-ds mid-run — serialize with it or hit the dead-DS window
+# ("redirect loop to already-tried" while the DS re-joins the CMS).
+@pytest.mark.xdist_group("manager-mode-cluster")
 def test_topology_cluster_redirector(xrddiag):
     if not _port_up(SERVER_HOST, CLUSTER_REDIR_PORT):
         pytest.skip("cluster redirector not running")

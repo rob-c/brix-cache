@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import dataclasses
+import time
+import traceback
 import uuid
 from pathlib import Path
 from typing import Callable, Mapping, Sequence
@@ -46,12 +48,29 @@ def execute(
         trial = index if warmup else index - warmups
         attempt_id = stable_id(nodeid, index, uuid.uuid4().hex)
         root = root_factory()
-        raw = invoke(root, attempt_id=attempt_id, trial=trial, warmup=warmup)
+        raw = _invoke_safely(
+            invoke, root, attempt_id=attempt_id, trial=trial, warmup=warmup,
+        )
         result = Invocation(root, attempt_id, index, trial, warmup, *raw)
         results.append(result)
         if result.timed_out or result.returncode != 0 or result.outcome == "failed":
             break
     return results
+
+
+def _invoke_safely(invoke, root: Path, **values) -> tuple:
+    """Turn controller-side setup faults into ordinary, archived failures."""
+    started = time.time()
+    try:
+        return invoke(root, **values)
+    except Exception as exc:
+        stopped = time.time()
+        detail = "BriXTest controller invocation failed\n%s" % traceback.format_exc()
+        payload = {
+            "outcome": "failed", "when": "setup",
+            "controller_failure": "%s: %s" % (type(exc).__name__, exc),
+        }
+        return 1, detail, payload, False, started, stopped, "controller", ()
 
 
 def _recovered_evidence(invocation: Invocation) -> dict:

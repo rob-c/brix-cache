@@ -7,8 +7,9 @@
  * resource or collection.  Lock state is stored as a single xattr on each
  * resource (see prop_xattr.c); this file only reads/expires those records.
  *
- * The confined-ctx helper (webdav_lock_vfs_ctx) and the lock-null reaper
- * (webdav_lock_reap_null) are defined in lock.c and shared via lock_internal.h.
+ * The lock-null reaper (webdav_lock_reap_null) is defined in lock.c and
+ * shared via lock_internal.h; confined lock-DB ctxs come from the canonical
+ * webdav_vfs_ctx_build.
  */
 #include "webdav.h"
 #include "fs/path/path.h"
@@ -187,7 +188,7 @@ check_locks_descendants(ngx_http_request_t *r, const char *dir)
 
     /* Confined NON-metered opendir (recursive lock scan; a planted in-export
      * symlink cannot redirect it out of the export root). */
-    webdav_lock_vfs_ctx(r, dir, &vctx);
+    webdav_vfs_ctx_build(r, dir, &vctx);
     dp = brix_vfs_opendir_quiet(&vctx, NULL);
     if (dp == NULL) {
         return NGX_OK;
@@ -242,7 +243,7 @@ check_locks_descendants(ngx_http_request_t *r, const char *dir)
             brix_vfs_ctx_t  cctx;
             brix_vfs_stat_t cvst;
 
-            webdav_lock_vfs_ctx(r, child, &cctx);
+            webdav_vfs_ctx_build(r, child, &cctx);
             is_dir = (brix_vfs_probe(&cctx, 1 /* no-follow */, &cvst) == NGX_OK
                       && cvst.is_directory);
         }
@@ -276,7 +277,7 @@ webdav_check_locks_tree(ngx_http_request_t *r, const char *path)
     }
 
     /* Only recurse for a directory (confined no-follow probe). */
-    webdav_lock_vfs_ctx(r, path, &vctx);
+    webdav_vfs_ctx_build(r, path, &vctx);
     if (brix_vfs_probe(&vctx, 1 /* no-follow */, &vst) == NGX_OK
         && vst.is_directory)
     {

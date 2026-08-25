@@ -52,11 +52,7 @@ webdav_tpc_probe(ngx_http_request_t *r,
         ngx_http_get_module_ctx(r, ngx_http_brix_webdav_module);
     brix_vfs_ctx_t   vctx;
     brix_vfs_stat_t  vst;
-    int                is_tls = 0;
-
-#if (NGX_HTTP_SSL)
-    is_tls = (r->connection->ssl != NULL) ? 1 : 0;
-#endif
+    int                is_tls = brix_http_request_is_tls(r);
 
     brix_vfs_ctx_init(&vctx, r->pool, r->connection->log, BRIX_PROTO_WEBDAV,
         conf->common.root_canon, conf->common.cache_root_canon, conf->common.allow_write,
@@ -169,36 +165,37 @@ webdav_tpc_pull_start_accounting(ngx_http_request_t *r, const char *path,
                              BRIX_TPC_METRIC_STARTED, 0, r->connection->log);
 }
 
+/* Shared failure epilogue for the pull exec paths: record the dashboard error,
+ * close the accounting record, and abort (unlink) the staged temp file. */
+static void
+webdav_tpc_pull_fail(webdav_tpc_pull_ctx_t *pl, const char *msg)
+{
+    brix_dashboard_http_error(pl->r, msg);
+    brix_dashboard_http_finish(pl->r);
+    brix_staged_abort(pl->r->connection->log, pl->conf->common.root_canon,
+                      pl->staged, 1);
+}
+
 static ngx_int_t
 webdav_tpc_pull_marker_exec(webdav_tpc_pull_ctx_t *pl)
 {
-    ngx_http_request_t              *r = pl->r;
-    ngx_http_brix_webdav_loc_conf_t *conf = pl->conf;
-    const char                      *source_url = pl->source_url;
-    const char                      *path = pl->path;
-    brix_staged_file_t              *staged = pl->staged;
-    ngx_array_t                     *transfer_headers = pl->transfer_headers;
-    ngx_uint_t                       n_streams = pl->n_streams;
-    ngx_flag_t                       overwrite = pl->overwrite;
-    ngx_flag_t                       existed = pl->existed;
-    ngx_int_t rc;
-    uint64_t  transfer_id;
+    ngx_http_request_t *r = pl->r;
+    ngx_int_t           rc;
+    uint64_t            transfer_id;
 
-    if (conf->tpc_marker_interval <= 0) {
+    if (pl->conf->tpc_marker_interval <= 0) {
         return NGX_DECLINED;
     }
     transfer_id = webdav_tpc_register_transfer(r, BRIX_TPC_DIR_PULL,
-                                               source_url, path, 0);
+                                               pl->source_url, pl->path, 0);
     if (transfer_id == 0) {
-        brix_dashboard_http_error(r, "webdav TPC registry full");
-        brix_dashboard_http_finish(r);
-        brix_staged_abort(r->connection->log, conf->common.root_canon,
-                          staged, 1);
+        webdav_tpc_pull_fail(pl, "webdav TPC registry full");
         return NGX_HTTP_SERVICE_UNAVAILABLE;
     }
-    rc = webdav_tpc_marker_start(r, conf, n_streams, source_url,
-                                 staged->tmp_path, path, 1, overwrite, existed,
-                                 transfer_headers, transfer_id,
+    rc = webdav_tpc_marker_start(r, pl->conf, pl->n_streams, pl->source_url,
+                                 pl->staged->tmp_path, pl->path, 1,
+                                 pl->overwrite, pl->existed,
+                                 pl->transfer_headers, transfer_id,
                                  pl->user_cert, pl->user_key);
     if (rc == NGX_DECLINED) {
         (void) brix_tpc_registry_remove(transfer_id, r->connection->log);
@@ -206,10 +203,7 @@ webdav_tpc_pull_marker_exec(webdav_tpc_pull_ctx_t *pl)
     }
     if (rc != NGX_DONE) {
         (void) brix_tpc_registry_remove(transfer_id, r->connection->log);
-        brix_dashboard_http_error(r, "webdav TPC marker start failed");
-        brix_dashboard_http_finish(r);
-        brix_staged_abort(r->connection->log, conf->common.root_canon,
-                          staged, 1);
+        webdav_tpc_pull_fail(pl, "webdav TPC marker start failed");
         return (rc == NGX_ERROR) ? NGX_HTTP_INTERNAL_SERVER_ERROR : rc;
     }
     return NGX_DONE;
@@ -218,56 +212,35 @@ webdav_tpc_pull_marker_exec(webdav_tpc_pull_ctx_t *pl)
 static ngx_int_t
 webdav_tpc_pull_thread_exec(webdav_tpc_pull_ctx_t *pl)
 {
-    ngx_http_request_t              *r = pl->r;
-    ngx_http_brix_webdav_loc_conf_t *conf = pl->conf;
-    const char                      *source_url = pl->source_url;
-    const char                      *path = pl->path;
-    brix_staged_file_t              *staged = pl->staged;
-    ngx_array_t                     *transfer_headers = pl->transfer_headers;
-    ngx_uint_t                       n_streams = pl->n_streams;
-    ngx_flag_t                       overwrite = pl->overwrite;
-    ngx_flag_t                       existed = pl->existed;
-    ngx_int_t rc = webdav_tpc_post_thread_task(r, conf, 0, existed, overwrite,
-                                               source_url, staged->tmp_path,
-                                               path, transfer_headers,
-                                               n_streams, pl->user_cert,
+    ngx_int_t rc = webdav_tpc_post_thread_task(pl->r, pl->conf, 0, pl->existed,
+                                               pl->overwrite, pl->source_url,
+                                               pl->staged->tmp_path, pl->path,
+                                               pl->transfer_headers,
+                                               pl->n_streams, pl->user_cert,
                                                pl->user_key);
-    if (rc == NGX_DECLINED) {
-        return NGX_DECLINED;
+
+    if (rc == NGX_DONE || rc == NGX_DECLINED) {
+        return rc;
     }
-    if (rc != NGX_DONE) {
-        brix_dashboard_http_error(r, "webdav TPC pull task post failed");
-        brix_dashboard_http_finish(r);
-        brix_staged_abort(r->connection->log, conf->common.root_canon,
-                          staged, 1);
-        return (rc == NGX_ERROR) ? NGX_HTTP_INTERNAL_SERVER_ERROR : rc;
-    }
-    return NGX_DONE;
+    webdav_tpc_pull_fail(pl, "webdav TPC pull task post failed");
+    return (rc == NGX_ERROR) ? NGX_HTTP_INTERNAL_SERVER_ERROR : rc;
 }
 
 static ngx_int_t
 webdav_tpc_pull_sync_exec(webdav_tpc_pull_ctx_t *pl)
 {
-    ngx_http_request_t              *r = pl->r;
-    ngx_http_brix_webdav_loc_conf_t *conf = pl->conf;
-    const char                      *source_url = pl->source_url;
-    const char                      *path = pl->path;
-    brix_staged_file_t              *staged = pl->staged;
-    ngx_array_t                     *transfer_headers = pl->transfer_headers;
-    ngx_int_t rc;
+    ngx_http_request_t *r = pl->r;
+    ngx_int_t           rc;
 
     pl->transfer_id = webdav_tpc_register_transfer(r, BRIX_TPC_DIR_PULL,
-                                                   source_url, path, 0);
+                                                   pl->source_url, pl->path, 0);
     if (pl->transfer_id == 0) {
-        brix_dashboard_http_error(r, "webdav TPC registry full");
-        brix_dashboard_http_finish(r);
-        brix_staged_abort(r->connection->log, conf->common.root_canon,
-                          staged, 1);
+        webdav_tpc_pull_fail(pl, "webdav TPC registry full");
         return NGX_HTTP_SERVICE_UNAVAILABLE;
     }
 
-    rc = webdav_tpc_run_curl_pull(r->connection->log, conf, source_url,
-                                  staged->tmp_path, transfer_headers,
+    rc = webdav_tpc_run_curl_pull(r->connection->log, pl->conf, pl->source_url,
+                                  pl->staged->tmp_path, pl->transfer_headers,
                                   pl->transfer_id, pl->user_cert, pl->user_key);
     if (rc == NGX_OK) {
         return NGX_OK;
@@ -277,10 +250,8 @@ webdav_tpc_pull_sync_exec(webdav_tpc_pull_ctx_t *pl)
     brix_tpc_metric_transfer(BRIX_TPC_PROTO_WEBDAV, BRIX_TPC_DIR_PULL,
                              BRIX_TPC_METRIC_ERROR, 0, r->connection->log);
     (void) brix_tpc_registry_remove(pl->transfer_id, r->connection->log);
-    brix_dashboard_http_error(r, "webdav TPC pull failed");
-    brix_dashboard_http_finish(r);
-    brix_staged_abort(r->connection->log, conf->common.root_canon, staged, 1);
-    brix_xfer_finish(BRIX_XFER_TPC, "in", path, NULL, 0,
+    webdav_tpc_pull_fail(pl, "webdav TPC pull failed");
+    brix_xfer_finish(BRIX_XFER_TPC, "in", pl->path, NULL, 0,
                      BRIX_XFER_SRC_ERR, 0, r->connection->log);
     webdav_tpc_note_client_copy_xfer(r, 0, -1);
     return rc;

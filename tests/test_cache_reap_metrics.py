@@ -33,7 +33,8 @@ import pytest
 
 from server_registry import NginxInstanceSpec
 
-def _phase_test_cache_reap_reason_metrics_1(deadline, abandoned):
+def _phase_test_cache_reap_reason_metrics_1(_has_cinfo_record, deadline,
+                                            abandoned):
     while time.time() < deadline and (os.path.exists(abandoned)
                                       or _has_cinfo_record(abandoned)):
         time.sleep(0.5)
@@ -247,7 +248,8 @@ def test_cache_reap_reason_metrics(lifecycle, tmp_path):
     #    (the data file AND its sidecar — the reaper unlinks them back to
     #    back, so wait for both to avoid observing the in-between state).
     deadline = time.time() + 25
-    _phase_test_cache_reap_reason_metrics_1(deadline, abandoned)
+    _phase_test_cache_reap_reason_metrics_1(_has_cinfo_record, deadline,
+                                            abandoned)
 
     # 5. The three classified files (+ their cinfo records) are gone; the
     #    clean no-record control survives.

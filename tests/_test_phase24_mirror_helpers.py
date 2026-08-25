@@ -425,8 +425,9 @@ def _xrd_resp(s):
 # helper split (the reexport chain never carried them — pre-existing NameError
 # at HEAD, surfaced by the phase-105 W3 run); values match the sibling raw
 # helpers (_test_chkpoint_stock_framing_helpers et al.) / XProtocol.hh.
-_kXR_open       = 3010
-_OPEN_CREATE_WR = 0x0020 | 0x0008   # kXR_open_updt | kXR_new
+_kXR_open = 3010
+# open for create+truncate+write:  kXR_new | kXR_delete | kXR_open_updt
+_OPEN_CREATE_WR = 0x0008 | 0x0002 | 0x0020
 
 
 def _xrd_open_wr(s, path):

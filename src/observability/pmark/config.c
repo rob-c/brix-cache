@@ -130,92 +130,107 @@ brix_pmark_set_domain(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 }
 
 
-char *
-brix_pmark_set_map_experiment(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
+/* Both map directives are the same shape — a keyword arm choosing the rule
+ * kind, an optional <match> argument, and the mapped name as the last token —
+ * differing only in which rule struct they fill and where the keyword sits.
+ * One worker parses from a per-directive descriptor; the arm INDEX is the
+ * rule's kind (both kind enums declare their values in table order from 0). */
+
+typedef struct {
+    const char *usage;                    /* EMERG text when no arm matches   */
+    struct {
+        const char *word;                 /* arm keyword at value[k]          */
+        ngx_uint_t  nelts;                /* directive argc for this arm      */
+        unsigned    has_match;            /* arm carries a <match> argument   */
+    }           arms[3];
+    ngx_uint_t  k;                        /* keyword index in value[]         */
+    size_t      elt_size;                 /* rule struct size                 */
+    size_t      rules_off;                /* conf offset of the rule array    */
+    size_t      kind_off;                 /* rule offsets ...                 */
+    size_t      match_off;
+    size_t      name_off;                 /* exp_name / act_name              */
+    size_t      pre_off;                  /* rule field taking value[1] up    */
+}                                         /* front, or (size_t) -1 for none  */
+pmark_map_desc_t;
+
+static char *
+pmark_map_directive(ngx_conf_t *cf, void *conf, const pmark_map_desc_t *d)
 {
-    brix_pmark_conf_t     *pm = pmark_conf(conf);
-    ngx_str_t               *value = cf->args->elts;
-    brix_pmark_exp_rule_t *rule;
+    brix_pmark_conf_t  *pm = pmark_conf(conf);
+    ngx_str_t          *value = cf->args->elts;
+    ngx_array_t       **rules = (ngx_array_t **) ((char *) pm + d->rules_off);
+    u_char             *rule;
+    ngx_uint_t          i;
 
-    (void) cmd;
-
-    if (pm->exp_rules == NULL) {
-        pm->exp_rules = ngx_array_create(cf->pool, 4,
-                                         sizeof(brix_pmark_exp_rule_t));
-        if (pm->exp_rules == NULL) {
+    if (*rules == NULL) {
+        *rules = ngx_array_create(cf->pool, 4, d->elt_size);
+        if (*rules == NULL) {
             return NGX_CONF_ERROR;
         }
     }
-
-    rule = ngx_array_push(pm->exp_rules);
+    rule = ngx_array_push(*rules);
     if (rule == NULL) {
         return NGX_CONF_ERROR;
     }
-    ngx_memzero(rule, sizeof(*rule));
-
-    /* default <exp>  |  path <glob> <exp>  |  vo <name> <exp> */
-    if (ngx_strcmp(value[1].data, "default") == 0 && cf->args->nelts == 3) {
-        rule->kind     = BRIX_PMARK_EXP_DEFAULT;
-        rule->exp_name = value[2];
-    } else if (ngx_strcmp(value[1].data, "path") == 0 && cf->args->nelts == 4) {
-        rule->kind     = BRIX_PMARK_EXP_PATH;
-        rule->match    = value[2];
-        rule->exp_name = value[3];
-    } else if (ngx_strcmp(value[1].data, "vo") == 0 && cf->args->nelts == 4) {
-        rule->kind     = BRIX_PMARK_EXP_VO;
-        rule->match    = value[2];
-        rule->exp_name = value[3];
-    } else {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-            "brix_pmark_map_experiment: use "
-            "\"default <exp>\" | \"path <glob> <exp>\" | \"vo <name> <exp>\"");
-        return NGX_CONF_ERROR;
+    ngx_memzero(rule, d->elt_size);
+    if (d->pre_off != (size_t) -1) {
+        *(ngx_str_t *) (rule + d->pre_off) = value[1];
     }
-    return NGX_CONF_OK;
+    for (i = 0; i < 3; i++) {
+        if (ngx_strcmp(value[d->k].data, d->arms[i].word) != 0
+            || cf->args->nelts != d->arms[i].nelts)
+        {
+            continue;
+        }
+        *(int *) (rule + d->kind_off) = (int) i;    /* arm index == kind */
+        if (d->arms[i].has_match) {
+            *(ngx_str_t *) (rule + d->match_off) = value[d->k + 1];
+        }
+        *(ngx_str_t *) (rule + d->name_off) = value[d->arms[i].nelts - 1];
+        return NGX_CONF_OK;
+    }
+    ngx_conf_log_error(NGX_LOG_EMERG, cf, 0, "%s", d->usage);
+    return NGX_CONF_ERROR;
+}
+
+
+char *
+brix_pmark_set_map_experiment(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
+{
+    static const pmark_map_desc_t d = {
+        .usage = "brix_pmark_map_experiment: use "
+            "\"default <exp>\" | \"path <glob> <exp>\" | \"vo <name> <exp>\"",
+        .arms  = { { "default", 3, 0 }, { "path", 4, 1 }, { "vo", 4, 1 } },
+        .k         = 1,
+        .elt_size  = sizeof(brix_pmark_exp_rule_t),
+        .rules_off = offsetof(brix_pmark_conf_t, exp_rules),
+        .kind_off  = offsetof(brix_pmark_exp_rule_t, kind),
+        .match_off = offsetof(brix_pmark_exp_rule_t, match),
+        .name_off  = offsetof(brix_pmark_exp_rule_t, exp_name),
+        .pre_off   = (size_t) -1,
+    };
+
+    (void) cmd;
+    return pmark_map_directive(cf, conf, &d);
 }
 
 
 char *
 brix_pmark_set_map_activity(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 {
-    brix_pmark_conf_t     *pm = pmark_conf(conf);
-    ngx_str_t               *value = cf->args->elts;
-    brix_pmark_act_rule_t *rule;
+    static const pmark_map_desc_t d = {
+        .usage = "brix_pmark_map_activity: use \"<exp> default <act>\" | "
+            "\"<exp> role <name> <act>\" | \"<exp> user <name> <act>\"",
+        .arms  = { { "default", 4, 0 }, { "role", 5, 1 }, { "user", 5, 1 } },
+        .k         = 2,
+        .elt_size  = sizeof(brix_pmark_act_rule_t),
+        .rules_off = offsetof(brix_pmark_conf_t, act_rules),
+        .kind_off  = offsetof(brix_pmark_act_rule_t, kind),
+        .match_off = offsetof(brix_pmark_act_rule_t, match),
+        .name_off  = offsetof(brix_pmark_act_rule_t, act_name),
+        .pre_off   = offsetof(brix_pmark_act_rule_t, exp_name),
+    };
 
     (void) cmd;
-
-    if (pm->act_rules == NULL) {
-        pm->act_rules = ngx_array_create(cf->pool, 4,
-                                         sizeof(brix_pmark_act_rule_t));
-        if (pm->act_rules == NULL) {
-            return NGX_CONF_ERROR;
-        }
-    }
-
-    rule = ngx_array_push(pm->act_rules);
-    if (rule == NULL) {
-        return NGX_CONF_ERROR;
-    }
-    ngx_memzero(rule, sizeof(*rule));
-
-    /* <exp> default <act>  |  <exp> role <name> <act>  |  <exp> user <name> <act> */
-    rule->exp_name = value[1];
-    if (ngx_strcmp(value[2].data, "default") == 0 && cf->args->nelts == 4) {
-        rule->kind     = BRIX_PMARK_ACTR_DEFAULT;
-        rule->act_name = value[3];
-    } else if (ngx_strcmp(value[2].data, "role") == 0 && cf->args->nelts == 5) {
-        rule->kind     = BRIX_PMARK_ACTR_ROLE;
-        rule->match    = value[3];
-        rule->act_name = value[4];
-    } else if (ngx_strcmp(value[2].data, "user") == 0 && cf->args->nelts == 5) {
-        rule->kind     = BRIX_PMARK_ACTR_USER;
-        rule->match    = value[3];
-        rule->act_name = value[4];
-    } else {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-            "brix_pmark_map_activity: use \"<exp> default <act>\" | "
-            "\"<exp> role <name> <act>\" | \"<exp> user <name> <act>\"");
-        return NGX_CONF_ERROR;
-    }
-    return NGX_CONF_OK;
+    return pmark_map_directive(cf, conf, &d);
 }

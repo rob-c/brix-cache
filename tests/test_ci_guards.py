@@ -1,6 +1,10 @@
 from split_continuation import reexport as _reexport
 _reexport(globals(), "_test_ci_guards_helpers")
 
+# 300s, not the 30s default: most guards finish in ~1s, but the lizard-class
+# ones (check_python_quality ~23s serially, check_python_deps close behind)
+# starve past 30s when 12 xdist workers saturate the box.
+@pytest.mark.timeout(300)
 @pytest.mark.parametrize("guard", _FAST)
 def test_ci_guard_green(guard: str) -> None:
     rc, out = _run(guard)
@@ -321,13 +325,11 @@ def test_ci_guard_scripts_have_a_shebang(script_dir: Path = CI) -> None:
 
 
 # Guards that deliberately do NOT block CI. Each needs a reason: an exemption
-# without one is how a guard quietly stops mattering.
-_NOT_IN_CI = {
-    # Copy-paste detector. Its backlog ratchet is behind the tree (100+ frozen
-    # clones, several in generated/ported code), so it runs advisory-only until
-    # that backlog is burned down; wiring it in today would redden every PR.
-    "check_duplication.py",
-}
+# without one is how a guard quietly stops mattering. Currently empty — every
+# tools/ci/check_*.py is wired into guards.yml. check_duplication.py was the last
+# holdout (advisory-only while it carried a 100+ clone backlog); it joined the
+# blocking set once that backlog was burned down to zero.
+_NOT_IN_CI: set[str] = set()
 
 
 def test_workflow_runs_every_guard_script() -> None:

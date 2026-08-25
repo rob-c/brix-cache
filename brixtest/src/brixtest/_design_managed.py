@@ -56,7 +56,15 @@ def _id_map(value: object, field: str) -> tuple[tuple[int, int, int], ...]:
     rows = tuple(tuple(row) for row in value)
     if not all(_valid_id_map_row(row) for row in rows):
         raise SpecError(field, rows, "must contain non-negative IDs and positive counts")
+    _validate_id_map_ranges(rows, field)
     return rows
+
+
+def _validate_id_map_ranges(rows: tuple[tuple[int, int, int], ...], field: str) -> None:
+    for position, label in ((0, "inside"), (1, "outside")):
+        ranges = sorted((row[position], row[position] + row[2]) for row in rows)
+        if any(left[1] > right[0] for left, right in zip(ranges, ranges[1:])):
+            raise SpecError(field, rows, "%s ID ranges must not overlap" % label)
 
 
 def _valid_id_map_row(row: tuple[object, ...]) -> bool:
@@ -151,10 +159,22 @@ class Volume:
 
 def _validate_volume_source(value: Volume) -> None:
     _name(value.kind, "volume.kind")
+    _validate_volume_kind(value)
+    _validate_volume_size(value)
+    _validate_volume_path(value)
+
+
+def _validate_volume_kind(value: Volume) -> None:
     if value.kind not in _VOLUME_KINDS and not value.provider:
         raise SpecError("volume.kind", value.kind, "custom kinds require a provider")
+
+
+def _validate_volume_size(value: Volume) -> None:
     if isinstance(value.size, bool) or not isinstance(value.size, int) or value.size < 0:
         raise SpecError("volume.size", value.size, "must be an integer >= 0")
+
+
+def _validate_volume_path(value: Volume) -> None:
     if value.source is not None and not isinstance(value.source, (str, Path)):
         raise SpecError("volume.source", value.source, "must be a path or None")
     if value.kind in ("host", "device") and value.source is None:
@@ -210,6 +230,7 @@ class Identity:
         object.__setattr__(self, "groups", groups)
         object.__setattr__(self, "uid_map", _id_map(self.uid_map, "identity.uid_map"))
         object.__setattr__(self, "gid_map", _id_map(self.gid_map, "identity.gid_map"))
+        _validate_identity_map_targets(self)
         object.__setattr__(self, "capabilities", _names(self.capabilities, "identity.capabilities"))
         object.__setattr__(self, "permissions", _permissions(self.permissions))
         _text(self.service_account, "identity.service_account")
@@ -218,6 +239,28 @@ class Identity:
     def resource_kind(self) -> str:
         """Return the stable resource discriminator used by case inference."""
         return "identity"
+
+
+def _validate_identity_map_targets(value: Identity) -> None:
+    _validate_uid_map_target(value)
+    missing = _unmapped_gids(value)
+    if missing:
+        raise SpecError("identity.groups", missing, "must be covered by identity.gid_map")
+
+
+def _validate_uid_map_target(value: Identity) -> None:
+    selected = value.uid is not None and value.uid_map
+    if selected and not _mapped(value.uid, value.uid_map):
+        raise SpecError("identity.uid", value.uid, "must be covered by identity.uid_map")
+
+
+def _unmapped_gids(value: Identity) -> tuple[int, ...]:
+    gids = tuple(item for item in (value.gid, *value.groups) if item is not None)
+    return tuple(item for item in gids if value.gid_map and not _mapped(item, value.gid_map))
+
+
+def _mapped(value: int, rows: Sequence[tuple[int, int, int]]) -> bool:
+    return any(inside <= value < inside + count for inside, _outside, count in rows)
 
 
 def identity(
@@ -293,9 +336,7 @@ def _task_outputs(value: object) -> Mapping[str, str]:
 
 
 def _validate_task_policy(value: Task) -> None:
-    if isinstance(value.timeout, bool) or not isinstance(value.timeout, (int, float)):
-        raise SpecError("task.timeout", value.timeout, "must be > 0")
-    if value.timeout <= 0:
+    if not _valid_timeout(value.timeout):
         raise SpecError("task.timeout", value.timeout, "must be > 0")
     if not all(isinstance(item, Binary) for item in value.binaries):
         raise SpecError("task.binaries", value.binaries, "must contain Binary declarations")
@@ -303,6 +344,10 @@ def _validate_task_policy(value: Task) -> None:
         raise SpecError("task.mounts", value.mounts, "must contain Mount declarations")
     if not isinstance(value.placement, Placement):
         raise SpecError("task.placement", value.placement, "must be a Placement declaration")
+
+
+def _valid_timeout(value: object) -> bool:
+    return not isinstance(value, bool) and isinstance(value, (int, float)) and value > 0
 
 
 def task(

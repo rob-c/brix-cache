@@ -483,16 +483,30 @@ class TestTheAdvertisedGsiVersion:
 # --------------------------------------------------------------------------- #
 # D. brix_seccomp off — the token that cannot turn anything off
 # --------------------------------------------------------------------------- #
+def _worker_settled(endpoint):
+    """A completed login proves the worker finished init_process: the worker
+    answers requests only from its event loop, which it enters after every
+    init hook — the seccomp install and its NOTICE included — has run.  The
+    harness's TCP readiness proves only that the MASTER bound the listener,
+    so reading the error log straight after lifecycle.start races the
+    worker's first write (and loses on a warm back-to-back restart)."""
+    sock, status, _ = _login(endpoint.port)
+    sock.close()
+    assert status == KXR_OK, ("login while settling the worker", status)
+    return endpoint
+
+
 class TestTheSeccompRatchet:
 
     def test_silence_everywhere_installs_no_filter(
             self, lifecycle, tmp_path, pki):
-        endpoint = _start(lifecycle, tmp_path, pki)
+        endpoint = _worker_settled(_start(lifecycle, tmp_path, pki))
         assert _filter_lines(endpoint) == [], _errlog(endpoint)
 
     def test_off_everywhere_installs_no_filter(self, lifecycle, tmp_path, pki):
-        endpoint = _start(lifecycle, tmp_path, pki,
-                          a=("brix_seccomp off;",), b=("brix_seccomp off;",))
+        endpoint = _worker_settled(_start(
+            lifecycle, tmp_path, pki,
+            a=("brix_seccomp off;",), b=("brix_seccomp off;",)))
         assert _filter_lines(endpoint) == [], (
             "`off` must not be more than silence", _errlog(endpoint))
 
@@ -516,17 +530,17 @@ class TestTheSeccompRatchet:
         """DEFECT CANDIDATE #60, the operator-visible half: server B says off
         and gets the filter anyway, because the mode is a process-global that
         only ratchets up (0 is never greater than audit)."""
-        self._assert_one_audit_notice(_start(
+        self._assert_one_audit_notice(_worker_settled(_start(
             lifecycle, tmp_path, pki,
-            a=("brix_seccomp audit;",), b=("brix_seccomp off;",)))
+            a=("brix_seccomp audit;",), b=("brix_seccomp off;",))))
 
     def test_not_writing_off_beside_audit_is_the_same_run(
             self, lifecycle, tmp_path, pki):
         """The other half of the pair: delete server B's `off` line and nothing
         about the process changes.  The edit an operator would make to take the
         filter off their own server is inert."""
-        self._assert_one_audit_notice(_start(
-            lifecycle, tmp_path, pki, a=("brix_seccomp audit;",), b=()))
+        self._assert_one_audit_notice(_worker_settled(_start(
+            lifecycle, tmp_path, pki, a=("brix_seccomp audit;",), b=())))
 
 
 # --------------------------------------------------------------------------- #

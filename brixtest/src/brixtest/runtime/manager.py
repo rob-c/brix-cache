@@ -24,6 +24,7 @@ from brixtest.fleet.kinds import KindProfile
 from brixtest.fleet.registry import Registry
 from brixtest.metrics import MetricRecorder
 from brixtest.planning import compile_case, validate_capabilities
+from brixtest.resources import Reference
 from brixtest.runtime.api import Run, Service
 from brixtest.runtime.artifacts import ArtifactStore
 from brixtest.runtime.backends import BackendContext, case_backend
@@ -35,6 +36,7 @@ from brixtest.runtime.launchers import (
     ServerLaunchPlan,
 )
 from brixtest.runtime.managed import ManagedResourceRuntime
+from brixtest.runtime.providers import ProviderRuntime
 from brixtest.runtime.manager_local import CaseManagerLocalMixin
 from brixtest.runtime.manager_clients import CaseManagerClientsMixin
 from brixtest.runtime.manager_operations import CaseManagerOperationsMixin
@@ -86,15 +88,8 @@ class _Ports:
         self, server: str, role: str, requested: Optional[int], protocol: str = "tcp",
         family: str = "any",
     ) -> int:
-        socket_family = socket.AF_INET6 if family in ("ipv6", "dual") else socket.AF_INET
-        handle = socket.socket(
-            socket_family,
-            socket.SOCK_DGRAM if protocol == "udp" else socket.SOCK_STREAM,
-        )
-        handle.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        if socket_family == socket.AF_INET6:
-            handle.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, family != "dual")
-        host = "::" if family == "dual" else ("::1" if family == "ipv6" else "127.0.0.1")
+        handle = self._socket(protocol, family)
+        host = self._host(family)
         try:
             handle.bind((host, requested or 0))
             if protocol == "tcp":
@@ -108,6 +103,20 @@ class _Ports:
         port = int(handle.getsockname()[1])
         self._sockets[(server, role)] = handle
         return port
+
+    @staticmethod
+    def _socket(protocol: str, family: str) -> socket.socket:
+        socket_family = socket.AF_INET6 if family in ("ipv6", "dual") else socket.AF_INET
+        socket_kind = socket.SOCK_DGRAM if protocol == "udp" else socket.SOCK_STREAM
+        handle = socket.socket(socket_family, socket_kind)
+        handle.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        if socket_family == socket.AF_INET6:
+            handle.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, family != "dual")
+        return handle
+
+    @staticmethod
+    def _host(family: str) -> str:
+        return {"dual": "::", "ipv6": "::1"}.get(family, "127.0.0.1")
 
     def release_server(self, name: str) -> None:
         for key in [key for key in self._sockets if key[0] == name]:
@@ -149,6 +158,7 @@ class CaseManager(
         self._case_backend = case_backend(self.backend_name)
         self._case_backend.validate(definition)
         self._resource_graph = compile_case(definition, self.backend_name)
+        self._validate_replay_graph()
         validate_capabilities(self._resource_graph.nodes)
         self._case_plan: Mapping[str, object] = {}
         self._started: list[str] = []
@@ -178,6 +188,7 @@ class CaseManager(
             collectors=definition.observe,
         )
         self._managed = ManagedResourceRuntime(self)
+        self._providers = ProviderRuntime(self)
         self.backend_context = BackendContext(self)
         self.metrics.tag("backend", self.backend_name)
         self.metrics.gauge("resources.servers", len(definition.servers), unit="count")
@@ -188,6 +199,14 @@ class CaseManager(
         self.metrics.gauge("resources.host_mappings", len(definition.hosts), unit="count")
         self.metrics.gauge("resources.tasks", len(definition.tasks), unit="count")
         self.metrics.gauge("resources.volumes", len(definition.volumes), unit="count")
+
+    def _validate_replay_graph(self) -> None:
+        expected = os.environ.get("BRIXTEST_REPLAY_GRAPH_FINGERPRINT", "")
+        if expected and expected != self._resource_graph.fingerprint:
+            raise SpecError(
+                "rerun resource graph", self._resource_graph.fingerprint,
+                "does not match the archived fingerprint %s" % expected,
+            )
 
     def start(self) -> Run:
         """Materialize resources, start the declared fleet, and return its facade."""
@@ -206,6 +225,7 @@ class CaseManager(
                 self._case_plan = {
                     "backend": dict(planned),
                     "resource_graph": self._resource_graph.as_dict(),
+                    "providers": self._providers.plan_all(),
                 }
                 self.evidence.attach_json(
                     "resource-plan.json", self._case_plan,
@@ -230,6 +250,10 @@ class CaseManager(
                 self._managed.run_phase("finalize")
             with contextlib.suppress(Exception):
                 self._case_backend.stop(self.backend_context)
+            with contextlib.suppress(Exception):
+                self._collect_case_backend()
+            with contextlib.suppress(Exception):
+                self._providers.close()
             with contextlib.suppress(Exception):
                 self.security.close()
             self._finalize_metrics()
@@ -279,25 +303,37 @@ class CaseManager(
         found[declaration.name] = declaration
 
     def _allocate_ports(self, servers: Sequence[Server]) -> Dict[str, Dict[str, int]]:
-        allocated: Dict[str, Dict[str, int]] = {}
-        for server in servers:
-            protocols = {item.name: item.protocol for item in server.endpoints}
-            families = {item.name: item.family for item in server.endpoints}
-            roles = {
-                role: self._ports.reserve(
-                    server.name, role, requested, protocols.get(role, "tcp"),
-                    families.get(role, "any"),
-                )
-                for role, requested in server.ports.items()
-            }
-            if "primary" not in roles:
-                role = (
-                    server.probe.endpoint if server.probe.kind != "none"
-                    else next(iter(server.ports))
-                )
-                roles["primary"] = roles[role]
-            allocated[server.name] = roles
-        return allocated
+        return {
+            server.name: self._allocate_server_ports(server) for server in servers
+        }
+
+    def _allocate_server_ports(self, server: Server) -> Dict[str, int]:
+        protocols, families = self._endpoint_maps(server)
+        roles = self._reserve_roles(server, protocols, families)
+        self._ensure_primary_role(server, roles)
+        return roles
+
+    @staticmethod
+    def _endpoint_maps(server: Server) -> tuple[Dict[str, str], Dict[str, str]]:
+        return (
+            {item.name: item.protocol for item in server.endpoints},
+            {item.name: item.family for item in server.endpoints},
+        )
+
+    def _reserve_roles(self, server, protocols, families) -> Dict[str, int]:
+        return {
+            role: self._ports.reserve(
+                server.name, role, requested, protocols.get(role, "tcp"),
+                families.get(role, "any"),
+            )
+            for role, requested in server.ports.items()
+        }
+
+    @staticmethod
+    def _ensure_primary_role(server: Server, roles: Dict[str, int]) -> None:
+        if "primary" not in roles:
+            role = server.probe.endpoint if server.probe.kind != "none" else next(iter(roles))
+            roles["primary"] = roles[role]
 
     def _global_values(
         self, ports: Mapping[str, Mapping[str, int]], *,
@@ -324,17 +360,27 @@ class CaseManager(
             )
 
     def _captured_values(self, values: Dict[str, object]) -> None:
+        self._binary_values(values)
+        self._artifact_values(values)
+        values.update(self._managed.values)
+        values.update(self._providers.values)
+        self._environment_values(values)
+        self._identity_values(values)
+
+    def _binary_values(self, values: Dict[str, object]) -> None:
         for name, captured_binary in self.binary_store._captured.items():
             values["binary_%s" % name] = captured_binary.path
             values["binary_%s_dir" % name] = captured_binary.path.parent
+    def _artifact_values(self, values: Dict[str, object]) -> None:
         for name, materialized_artifact in self.artifact_store._items.items():
             values["artifact_%s" % name] = materialized_artifact.path
             values["artifact_%s_dir" % name] = materialized_artifact.path.parent
-        values.update(self._managed.values)
+    def _environment_values(self, values: Dict[str, object]) -> None:
         for declaration in self.definition.environments:
             values["environment_%s_name" % declaration.name] = declaration.name
             values["environment_%s_context" % declaration.name] = declaration.context
             values["environment_%s_namespace" % declaration.name] = declaration.namespace
+    def _identity_values(self, values: Dict[str, object]) -> None:
         for declaration in self.definition.identities:
             values["identity_%s_name" % declaration.name] = declaration.name
             values["identity_%s_service_account" % declaration.name] = (
@@ -364,12 +410,14 @@ class CaseManager(
 
     def _add_declared_server_values(
         self, values: Dict[str, object], name: str, roles: Mapping[str, int],
+        hosts: Optional[Mapping[str, str]] = None,
     ) -> None:
-        hosts = self._declared_server_hosts(name)
-        values["server_%s_host" % name] = hosts["primary"]
+        selected_hosts = dict(hosts or self._declared_server_hosts(name))
+        selected_hosts.setdefault("primary", next(iter(selected_hosts.values())))
+        values["server_%s_host" % name] = selected_hosts["primary"]
         schemes = self._declared_server_schemes(name)
         for role, port in roles.items():
-            host = hosts.get(role, hosts["primary"])
+            host = selected_hosts.get(role, selected_hosts["primary"])
             values["server_%s_%s_host" % (name, role)] = host
             values["server_%s_%s_port" % (name, role)] = port
             scheme = schemes.get(role) or "http"
@@ -377,7 +425,7 @@ class CaseManager(
                 "%s://%s:%d" % (scheme, _url_host(host), port)
             )
         values["server_%s_url" % name] = "http://%s:%d" % (
-            _url_host(hosts["primary"]), roles["primary"],
+            _url_host(selected_hosts["primary"]), roles["primary"],
         )
 
     def _service_values(self, values: Dict[str, object]) -> None:
@@ -394,6 +442,14 @@ class CaseManager(
     def _render_part(self, part: object, values: Mapping[str, object], label: str) -> str:
         if isinstance(part, Binary):
             return str(self.binary_store.get(part.name).path)
+        if isinstance(part, Reference):
+            try:
+                return str(values[part.key])
+            except KeyError:
+                raise SpecError(
+                    label, part,
+                    "has no representation in the consuming resource's environment",
+                ) from None
         return render_cfg_strict(str(part), values, template=label)
 
     def _render_value(self, value: object, *, label: str = "runtime value") -> str:

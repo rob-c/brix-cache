@@ -1,10 +1,10 @@
 from split_continuation import reexport as _reexport
-def _expression_1(swarm, owner):
+def _two_nodes_besides_owner(swarm, owner):
     return (
         [n for n in swarm.nodes if n is not owner][:2]
     )
 
-def _expression_2(path, swarm):
+def _log_counts_by_port(path, swarm):
     return (
         {n.nginx_port: n.count_log(path) for n in swarm.nodes}
     )
@@ -34,7 +34,7 @@ def test_swarm_converges_and_cold_start_is_o1_origin(swarm):
     body = body_owned_by(swarm.ring, 2, "o1_origin")
     path = put_obj(swarm.webroot, body)
     owner = swarm.by_label[swarm.ring[2]]
-    requesters = _expression_1(swarm, owner)
+    requesters = _two_nodes_besides_owner(swarm, owner)
     for n in swarm.nodes:
         n.reset_log()
 
@@ -44,7 +44,7 @@ def test_swarm_converges_and_cold_start_is_o1_origin(swarm):
         status, _, got = GET(n, path)
         _check_test_swarm_converges_and_cold_start_is_o1_origin_1(status, got, body)
 
-    counts = _expression_2(path, swarm)
+    counts = _log_counts_by_port(path, swarm)
     def _assert_test_swarm_converges_and_cold_start_is_o1_origin_3():
         assert sum(counts.values()) == 1, \
             f"cold start cost the swarm {counts} origin fetches (want exactly 1)"

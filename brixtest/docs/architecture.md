@@ -9,13 +9,29 @@ item in a supervised helper process.
 ```text
 pytest controller
   ├─ collection: @case declarations → validated, content-addressed plans
-  ├─ scoped supervisors: class/module/package/session server pools
+  ├─ authenticated topology broker: global class/module/package/session pools
+  │    └─ explicit worker-scoped pools when requested
   └─ attempt helper process
        ├─ normal pytest fixture lifecycle
        ├─ dedicated Python worker thread for the call hook
+       ├─ independent heartbeat/cancellation control thread
        ├─ case backend → servers/configs/mounts/credentials
        └─ Run facade → client/tool executors/metrics/evidence
+
+Kubernetes-isolated attempt
+  ├─ deterministic test/BriXTest/dependency bundle
+  ├─ controller-owned framed transport bridge
+  └─ non-retrying Job → normal pytest helper lifecycle in the selected pod
 ```
+
+With xdist, workers submit their complete immutable topology plans before the
+scheduler releases tests. The controller-owned broker merges identical pools,
+supervises their process trees independently of attempt helpers, and returns
+only resolved service records over size-bounded, authenticated Unix IPC. A
+worker exit cannot orphan its pools; explicit `scope="worker"` pools remain
+broker-owned and are reaped with the session. On Linux, a parent-death signal
+also unwinds the broker and lets every pool perform its normal transactional
+teardown if the pytest controller itself disappears.
 
 The controller never imports optional native libraries from a managed test
 body, never owns a server subprocess, and never waits on test code in its own
@@ -29,6 +45,25 @@ after a unique run directory exists. Effective config content, captured binary
 and library bytes, credentials, artifacts, logs, metrics, timestamps, process
 identity, and server/test relationships are checksummed and correlated in the
 evidence model.
+
+Authentication follows the same graph contract. Each declared authority owns
+role-scoped issued-material nodes for the test helper, servers, and clients;
+typed `issues`, `refreshes`, `revokes`, and `consumes` edges describe lifecycle
+and distribution before any key or credential exists. Graph serialization
+redacts secret/password fields, while runtime evidence resolves those planned
+nodes to public metadata, retained checksums, and consumer relationships.
+
+The controller initializes a per-attempt control channel before launch. The
+helper publishes liveness independently of the Python test worker; a missing
+heartbeat therefore detects a native call that wedges the helper interpreter,
+not merely a slow assertion. On heartbeat loss or the absolute case deadline,
+the controller writes a cancellation reason, terminates the complete process
+tree, and reports the retained partial logs and resource tails. Container and
+runc isolation mount the same private channel without exposing it to tests.
+Kubernetes isolation projects the protocol onto a framed byte stream, while a
+supervised local bridge applies the same heartbeat/result files and recovers
+the remote run tree. The bridge never evaluates test code and owns forceful Pod,
+Job, and Secret cleanup on cancellation or deadline.
 
 Backends implement one `validate → plan → prepare → start → stop → collect`
 contract against the public `BackendContext`. Tool executors independently own

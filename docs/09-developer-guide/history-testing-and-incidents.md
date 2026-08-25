@@ -1604,6 +1604,24 @@ check passing over a tree it no longer protects. Marking by something a file
 `fuse`, `topolog` and `_mesh` are all in there, and several are words a gate for
 that cluster would naturally use.
 
+### 15.3 The tuple element that is empty by contract (2026-08-23)
+
+A third instance of the same failure, found in `tests/test_cli_hints.py`.
+`run_pty` (brixtest `clients/pty.py`) forks the child onto a PTY, which hands
+it **one** terminal fd serving as both stdout and stderr; the function
+therefore returns `(rc, combined_pty_output, b"")` — the third element is
+empty *by contract*, always. Eleven tests unpacked it as
+`rc, _stdout, stderr = run_pty(...)` and asserted hint text against `stderr`.
+The C hint code was correct (verified by a manual `pty.fork` run); the tests
+were grepping a string that cannot ever contain anything. Positive assertions
+failed loudly ("expected exactly 1 note line, got 0"), but the
+absence-assertions — "no hint on this arm" — passed vacuously, green, proving
+nothing. The fix rebinds to the second element; `run_pipe`, which returns real
+`(rc, stdout, stderr)`, was left alone. When a helper multiplexes streams, the
+elements it can no longer populate should not exist in its return shape — and
+a test asserting *absence* against a value should first prove the value can be
+non-empty on some arm.
+
 ## 16. A path-keyed allowlist and a file that moved (2026-08-19)
 
 `tests/test_server_registry_lint.py` enforces a policy worth having: no test may
@@ -1759,3 +1777,229 @@ the failure mode's raw material: they are numbered by an algorithm that cannot
 see the other file, and they carry no meaning that would make the collision
 obvious in review. Names that say what the function does are not a style
 preference here — they are what makes a collision visible.
+
+## 18. `--dist load` ignores every xdist group — the cachemx cascade (2026-08-23)
+
+A `suite --pr` run produced ~113 failures/errors in the parallel phase:
+~103 `ConnectionRefused` across the whole cachemx family, three cvmfs cold-tier
+ERRORs, a metric-delta assertion off by exactly one (`5 == 4`), cmsd and nginx
+segfaults, and the cluster-ds fleet instance on :10070 found dead. Every one of
+those was collateral of a single latent harness bug.
+
+Fixed-port test families (cachemx, cvmfs, admin-rl, …) serialize themselves
+with `xdist_group` markers so that one module's fixture owns its server for the
+module's lifetime. That only works under `--dist loadgroup`. Four of the six
+suite lanes in `tests/cmdscripts/operator_runtime_part2.py` — `_suite_fast`,
+`_suite_pr`, the nightly slow lane, and the nightly clients lane — passed
+`--dist load`, under which xdist **ignores group markers entirely** and
+free-schedules tests across workers. A module teardown then stops the nginx
+another worker is mid-request against (the ConnectionRefused cascade), a
+concurrent family perturbs a Prometheus counter another test is delta-asserting
+(`5 == 4`), and enough concurrent open/close against one instance can kill it
+outright (the segfaults and the dead :10070 instance). `_suite_full` and
+`_suite_sample` already said `loadgroup`, which is why the full tier never
+showed it; the bug sat dormant in the `load` lanes until the cachemx family —
+new, large, fixed-port — landed in their selection.
+
+Mechanics worth keeping: `LoadGroupScheduling._split_scope` groups **only** by
+the `@group` suffix on the nodeid; it never reads markers itself. The marker
+works because each xdist worker's `pytest_collection_modifyitems` (in
+`xdist.remote`) rewrites `xdist_group` markers into nodeid suffixes before
+scheduling — so marker-only grouping is fully honored under `loadgroup` (proven
+with a synthetic test) and fully invisible under `load`. A test carrying
+several groups gets them joined with `_` into one suffix.
+
+**Rule.** Any lane that can collect fixed-port or fixture-owned-server families
+must run `--dist loadgroup`. `--dist load` is only safe for a selection proven
+free of grouped tests — and since selections drift as families are added, the
+safe default for every lane in this suite is `loadgroup`. When a wide,
+previously-green family goes uniformly `ConnectionRefused` under parallel run
+but passes serially, check the dist mode before suspecting the servers.
+
+## 19. Crash traces without cores — the preload tracer, a stale-binary trap, and the cvmfs `$cvmfs_class` worker-killer (2026-08-24)
+
+Recurring fleet nginx segfaults could not be root-caused the normal way on the
+WSL2 dev host: systemd-coredump's pipe fails, `sudo` wants a password, and
+`ptrace_scope=1` blocks gdb from attaching to non-descendants. The workaround
+that finally produced evidence is a ~60-line `LD_PRELOAD` shared object: a
+constructor reads `SEGV_TRACE_DIR`, pre-warms `backtrace()` (its first call
+lazily `dlopen`s libgcc — not safe inside a signal handler), installs
+`SA_SIGINFO` handlers for SEGV/BUS/ABRT/ILL/FPE that write
+`exe= pid= sig= si_addr= ip=` plus `backtrace_symbols_fd` to a per-pid trace
+file, then re-raises with `SIG_DFL`. The fleet launcher builds child env as
+`{**os.environ, **spec.env}`, so exporting the preload for the
+`manage_test_servers` invocation alone instruments every fleet daemon. The
+fleet nginx is non-PIE, so trace addresses are link vaddrs usable directly
+with `addr2line -e`. The tracer lives at `tools/diag/segv_trace.c`; build with
+`cc -shared -fPIC -O1 -o segv_trace.so tools/diag/segv_trace.c` and start the
+fleet with `SEGV_TRACE_DIR=<dir> LD_PRELOAD=<path>/segv_trace.so python3 -m
+cmdscripts.manage_test_servers restart`.
+
+Two traps came with it:
+
+- **Symbolize against the exact running binary.** The fleet runs a
+  content-hashed snapshot (`/tmp/brix-nginx-session-*/nginx-<hash>`), not
+  `objs/nginx`. Three early symbolizations done against a stale `objs/nginx`
+  produced confident, plausible, entirely wrong attributions (an nginx
+  variable-lookup helper, the URI parser, the upstream peer picker) that
+  suggested one heap-corruption bug wandering through innocent code. Against
+  the live snapshot the same addresses resolved to three *distinct real bugs*
+  (the cvmfs one below, a still-open `writev_try_aio` heap fault, and an OCI
+  token-path NULL deref fixed in the phase-104 lane).
+- **Never leave the preload in the pytest env.** Test-spawned ASan binaries
+  refuse to start when the tracer displaces the ASan runtime from the head of
+  the initial library list ("ASan runtime does not come first"). Preload on
+  the fleet-start env only; keep pytest invocations clean.
+
+The bug the tracer caught: `shared/cvmfs/grammar/classify.h` grew a `DICT`
+class (enum now CAS..DICT, REJECT last = 5), and the correct 6-entry name
+table with a clamped index went into `handler_finalize.c` — but
+`cvmfs_var_class` in `src/protocols/cvmfs/module.c` kept a stale 5-entry
+`names[]` with a `cls > CVMFS_URL_REJECT` guard that happily passes `cls == 5`.
+`names[5]` read the adjacent zeroed static, so `$cvmfs_class` evaluated to a
+NULL data pointer and `strlen(NULL)` fired in the access-log phase during
+`ngx_http_free_request` — killing the worker on **every rejected cvmfs URL**
+in any config that logs `$cvmfs_class`. The crash is in the log phase, so the
+offending request itself was already answered; the casualty is whatever
+requests the recycled worker was carrying. **Rule:** a name table for a shared
+enum either lives next to the enum (single source) or clamps its index like
+`handler_finalize.c` does; a range guard written as `> LAST` instead of
+`>= COUNT` is exactly how a grown enum walks off a stale table.
+
+## 20. The slow tier ate the fleet again, and the revive path was dead — two self-inflicted wounds dressed as flaky tests (2026-08-24)
+
+A 14-file serial verification batch (guards + crl + priv-esc + proxy + oci +
+cluster families) failed identically twice — 10 failed / 50 errors, with
+`FileNotFoundError: /tmp/xrd-test/pki/ca/ca.pem`, whole families skipping on
+unreachable servers, and 124 of 127 fleet nginx processes dead by session end.
+Both times a plausible external culprit was at hand (a concurrent session's
+teardown; a peer session's overlapping lane runs) and both attributions were
+wrong. Health-probe bisection (pki sentinel + registry count + fleet proc
+count between pytest invocations) pinned it to `tests/test_ci_guards.py` run
+**without** `-m "not slow"`: its slow tier drives `tools/ci/coverage.py`,
+whose nested instrumented suite run *owns* the fleet lifecycle — stop-all plus
+`rmtree(TEST_ROOT)` — and additionally leaves `/tmp/nginx-1.28.3` and
+`client/` gcov-instrumented at `-O0`. This exact failure is already written up
+in the agent guide (§ BUILD & TEST, recovery recipe included) and carried an
+imperative memory since 2026-08-10; it was re-hit anyway because the fast red
+signature (missing PKI, dead servers) pattern-matched so well to the known
+*external* wipe hazards. **Rule:** before blaming another session for a wiped
+tree, run the health-probe bisection — the wipe mechanism must be named and
+verified, and "a concurrent session did it" is subject to the same standard as
+any other environmental excuse.
+
+The second wound explains why the damage lingered across runs:
+`manage_test_servers start-dedicated` — the revive path used by the
+manager-mode module finalizer to resurrect the deliberately-killed
+`cluster-ds` — had been dead since the complexity-contract wave. The wave's
+mechanical expression extraction moved `port and pids_on_port(int(port))` into
+a module-level `_expression_2`, but `pids_on_port` was a *function-local*
+import in the caller; the extracted expression NameError'd on every
+invocation. Every consumer ran it under `subprocess.run(...,
+capture_output=True)` with no returncode check, so the failure was silent and
+`cluster-ds:10070` simply stayed down, tripping the fleet-conservation
+health check at session end. Fix: the import moved into the extracted helper.
+**Rules:** an extracted expression must not depend on names that only exist in
+a caller's local scope (the same class of break as §17's namespace collision —
+mechanical refactors change scoping, and only execution notices); and a
+teardown-side revive that swallows output needs at least a returncode log,
+because its failure mode is invisible by construction.
+
+## 21. The PR-tier burndown to zero — five distinct transient mechanisms, none of them "load" (2026-08-24)
+
+Two consecutive full PR-tier runs (15.5k tests, `-n ~12 --dist loadgroup` +
+serial phase) went from 13 red to a fully-explained set. Every red decomposed
+into one of five named mechanisms — none was left as "the host was busy":
+
+**(a) TCP-readiness ≠ worker-ready** (`test_audit15z_disable_tokens`). The
+lifecycle harness's `readiness="tcp"` passes when the MASTER binds the
+listener; a worker answers requests only from its event loop, entered after
+every `init_process` hook — the seccomp install and its NOTICE (deliberately
+last, `src/core/config/process.c`) included. Reading the error log straight
+after `lifecycle.start` races the worker's first write and *loses on a warm
+back-to-back instance restart* (pass-alone / fail-in-class). Fix: a
+`_worker_settled()` helper — one completed *login* (not a bare TCP connect;
+the kernel SYN-ACKs without accept) deterministically proves init finished.
+
+**(b) The missing-`xdist_group` defect class.** Under `--dist loadgroup`,
+UNgrouped tests free-schedule; module/class-scoped fixtures instantiate PER
+WORKER. Every fixture that owns a fixed-name resource then collides with its
+twin on another worker: fixed ports (`test_rpm_mirror_dnf`, bind conflict),
+fixed lifecycle spec names (`test_redirector_no_server`, teardown-rmtree
+during the other worker's `nginx -t`; `test_fault_proxy_corruption`, re-seeded
+`/big.bin` under the other worker's cached ref md5), fixed shared data files
+with per-test create/unlink (`test_protocol_edge_cases` readv,
+`test_privilege_escalation_d` use-after-close — teardown unlink mid-way through another
+worker's open), and fixed-name re-uploads via `OpenFlags.DELETE | NEW`
+(`test_readv` — the second worker's module fixture re-runs delete-recreate
+and a per-test open lands in the unlink window, 3011 on a file that
+"exists"). **Rule: any module/class whose fixtures register a fixed spec
+name, bind a fixed port, or create/delete a fixed-name file in a shared data
+root MUST carry an `xdist_group` marker.**
+
+**(c) A shared-capacity observability table.** The dashboard state tests
+watch ONE row of main's 512-slot SHM transfer table — shared with the whole
+lane's traffic. A full table drops the alloc *silently into the event ring*
+(`transfer_table.c`: "transfer proceeds untracked" — nothing in error.log),
+so the row being polled for may never exist. Tests asserting idle-timing
+state transitions of a shared-instance table belong in the serial phase.
+
+**(d) mtime is not a witness.** `test_cred_mint`'s C cases asserted re-mint
+via `st_mtime` inequality: second-granular, and this WSL2 host's clock steps
+backwards (known open issue), so a rewrite can land in the same or an earlier
+second. Replaced with the semantic witness — notAfter jumps from ~100s to
+~3600s out. **Rule: assert the semantic effect (content, serial, notAfter),
+never a timestamp delta, for "the file was rewritten".**
+
+**(e) A perf A/B whose premise lever silently missed.** The netem BDP A/B
+caps the baseline's `tcp_wmem` autotune ceiling with `sysctl … check=False`;
+when that write misses, the baseline fills the pipe itself (27 MiB/s where
+the 128 KiB window predicts ~4) and the ratio floor fails as a "magnitude
+regression". The child already read back `wmem_effective` as ground truth but
+didn't act on it — now a missed cap is an environment SKIP naming the
+effective value, and the test's summary line prints it. **Rule: a perf A/B
+must verify its environment lever actually engaged before comparing legs —
+and a `check=False` on premise-establishing setup needs a read-back guard.**
+
+Also fixed en route: the lizard-backed `test_complexity_limit` (~11 s
+single-threaded, legitimately over the 30 s session default under lane load —
+`timeout(300)`, same allowance as `test_ci_guards`), and the cachemx
+rename-evict race (the `mv` beat the asynchronous cache insert past the fixed
+1 s `settle()`; the test now waits on the on-disk cached copy — the same
+ground truth its sibling PUT-over-cached test asserts).
+
+The run-8 residue added three more entries, two of them recurrences of the
+classes above:
+
+**(b′) The fixture-importing module is a separate free-scheduling unit.**
+`test_ssi_wire.py` and `test_ssi_cta.py` both carried
+`xdist_group("lc-ssi-wire")`, but `test_ssi_async.py` — which *imports* the
+same module-scoped `ssi_server` fixture (fixed spec name `lc-ssi-wire`) —
+did not. Free-scheduled onto another worker, its fixture instantiation raced
+the wire module's teardown of the same registry dir: `nginx -t` hit
+`[emerg] open() …/logs/nginx.pid (No such file or directory)` on a directory
+the other worker's stop had just removed. **Corollary to rule (b): the group
+marker must follow the fixture, not the file — every module importing a
+fixed-name-spec fixture needs the owning module's `xdist_group`.**
+
+**(f) A test that asserts TCP segment boundaries.** `test_fault_proxy_mitm`'s
+`_CapEcho` captured only the FIRST `recv()` blob per connection, and three
+tests asserted injected-prefix-plus-payload inside that single blob. TCP
+preserves order, not segmentation: the proxy writes the forged PROXY header
+and the forwarded client payload separately, and a fast `recv` returns the
+header alone (`first[0]` = `PROXY TCP4 9.9.9.9 …\r\n`, payload in the next
+segment). The capture now accumulates each connection's full stream into one
+per-connection buffer. **Rule: never assert what one `recv()` returns —
+assert the accumulated stream.**
+
+**(g) A hang whose evidence dies at teardown.** The serial-phase
+`test_verified_fill_records_checksum_for_xrdckverify` hit rc=124 (xrdcp hung
+past its 60 s window on a cold 8 MiB fill) once in run 8; the module passed
+4/4 standalone immediately after, and the lifecycle teardown had already
+wiped `registry/brix-verify-*` — nothing left to triage. Unresolved as a
+mechanism; the module's `_xrdcp` timeout path now snapshots the verify
+instances' error-log tails into the failure message while the instances
+still exist. **Rule: a harness that tears down its servers must capture
+their logs into the failure artifact at the moment of failure — a red whose
+evidence is destroyed by its own cleanup can never graduate past
+"transient".**

@@ -20,17 +20,9 @@ def _phase_test_concurrent_bound_writes_threaded_5(secs):
         s.close()
 
 
-def _expression_1(n_streams):
-    return (
-        [threading.Thread(target=worker, args=(i,))
-                               for i in range(n_streams)]
-    )
-
-def _expression_2(n_streams):
-    return (
-        [threading.Thread(target=worker, args=(i,))
-                               for i in range(n_streams)]
-    )
+def _spawn_worker_threads(worker, n_streams):
+    return [threading.Thread(target=worker, args=(i,))
+            for i in range(n_streams)]
 
 
 def _check_test_concurrent_substream_reads_threaded_1(errors, i):
@@ -140,7 +132,7 @@ class TestDataSubstreamsParallel:
                 except Exception as exc:               # noqa: BLE001
                     errors[idx] = exc
 
-            threads = _expression_2(n_streams)
+            threads = _spawn_worker_threads(worker, n_streams)
             for t in threads:
                 t.start()
             _phase_test_concurrent_substream_reads_threaded_1(threads)
@@ -308,7 +300,7 @@ class TestDataSubstreamWrites:
                 except Exception as exc:               # noqa: BLE001
                     errors[idx] = exc
 
-            threads = _expression_1(n_streams)
+            threads = _spawn_worker_threads(worker, n_streams)
             for t in threads:
                 t.start()
             _phase_test_concurrent_bound_writes_threaded_3(threads)

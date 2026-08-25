@@ -33,13 +33,14 @@ MT_LAYER_ZSTD = "application/vnd.oci.image.layer.v1.tar+zstd"
 
 STATE = {"log": [], "fault": {"kind": "none", "count": 0, "path_re": None},
          "blobs": {}, "manifests": {}, "repos": {}, "uploads": {},
-         "transcript": [], "token_count": 0, "tokens": set(),
+         "transcript": [], "token_count": 0, "tokens": {},
          "saw_authorization": 0, "auth": False, "push": False,
          "realm": None, "basic": None, "token_ttl": 300, "token_key": "token",
          "blob_redirect": None, "blob_redirect_sign": False,
          "require_signature": False, "token_len": 0, "cdn": False,
          "token_redirect_loop": False,
          "page_tags": 0,
+         "users": {}, "private": {},
          "shared": {},
          "lock": threading.Lock()}
 
@@ -269,6 +270,20 @@ def build_images(seed):
                    "amd64")
 
 
+def _basic_pair(header):
+    """(user, password) out of a Basic Authorization header — ("", "") for
+    any other scheme or undecodable payload, which the account table then
+    refuses like any unknown user."""
+    if not header.startswith("Basic "):
+        return "", ""
+    try:
+        pair = base64.b64decode(header[6:]).decode()
+    except Exception:
+        return "", ""
+    user, _, pw = pair.partition(":")
+    return user, pw
+
+
 class Handler(BaseHTTPRequestHandler):
     def log_message(self, *a):
         pass
@@ -325,6 +340,56 @@ class Handler(BaseHTTPRequestHandler):
         return "none"
 
     # ---- token plane -----------------------------------------------------
+    def _token_ident(self):
+        """Resolve the presented credential to a mint identity.
+
+        (True, ident) — ident is None for an anonymous mint — or (False,
+        None) after this method has already answered 401 for a credential
+        the account table refuses.
+        """
+        if STATE["users"]:
+            # Multi-user mode (D16 lanes): a presented Basic must name a known
+            # account; anonymous mints succeed and carry no identity, exactly
+            # like DockerHub, so denial happens on the DATA plane (403) where a
+            # naive "the mint worked" client would wrongly declare victory.
+            ah = self.headers.get("Authorization")
+            if ah is None:
+                return True, None
+            user, pw = _basic_pair(ah)
+            if not user or STATE["users"].get(user) != pw:
+                self._send(401, b'{"error":"bad credentials"}',
+                           "application/json")
+                return False, None
+            return True, user
+        if STATE["basic"] is not None:
+            want = "Basic " + base64.b64encode(
+                STATE["basic"].encode()).decode()
+            if self.headers.get("Authorization") != want:
+                self._send(401, b'{"error":"bad credentials"}',
+                           "application/json")
+                return False, None
+            return True, STATE["basic"].partition(":")[0]
+        return True, None
+
+    def _token_mint(self, ident):
+        with STATE["lock"]:
+            STATE["token_count"] += 1
+            tok = "tok-%d" % STATE["token_count"]
+            # A real registry bearer is a JWT: DockerHub's is ~2.7 KB, and a
+            # client that carries a short one but clips a long one looks
+            # perfectly healthy against a mock. --token-len is how a lane makes
+            # the credential the size it is in production.
+            if STATE["token_len"] > len(tok):
+                tok += "." + "T" * (STATE["token_len"] - len(tok) - 1)
+            STATE["tokens"][tok] = ident
+        # Quay spells the field `access_token`, DockerHub `token`, and a
+        # registry may omit `expires_in` entirely (the spec's default is 60 s).
+        # All three shapes are one flag away so the client can be held to them.
+        doc = {STATE["token_key"]: tok}
+        if STATE["token_ttl"] > 0:
+            doc["expires_in"] = STATE["token_ttl"]
+        self._send(200, json.dumps(doc).encode(), "application/json")
+
     def _token(self):
         # Logged like any other request: "which credential reached WHICH plane"
         # is the whole subject of the auth-dance negatives, and a realm the
@@ -336,12 +401,9 @@ class Handler(BaseHTTPRequestHandler):
             # the realm allowlist has nothing to object to — the only thing that
             # can end this chain is the client's own hop budget.
             return self._send(302, b"", extra=[("Location", self.path)])
-        if STATE["basic"] is not None:
-            want = "Basic " + base64.b64encode(
-                STATE["basic"].encode()).decode()
-            if self.headers.get("Authorization") != want:
-                return self._send(401, b'{"error":"bad credentials"}',
-                                  "application/json")
+        ok, ident = self._token_ident()
+        if not ok:
+            return
         fault = self._take_fault()
         if fault == "corrupt":
             # A 200 the JSON parser cannot use — the failure mode a registry
@@ -349,30 +411,22 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(200, b'{"tok', "application/json")
         if self._fault_body(fault, b""):
             return
-        with STATE["lock"]:
-            STATE["token_count"] += 1
-            tok = "tok-%d" % STATE["token_count"]
-            # A real registry bearer is a JWT: DockerHub's is ~2.7 KB, and a
-            # client that carries a short one but clips a long one looks
-            # perfectly healthy against a mock. --token-len is how a lane makes
-            # the credential the size it is in production.
-            if STATE["token_len"] > len(tok):
-                tok += "." + "T" * (STATE["token_len"] - len(tok) - 1)
-            STATE["tokens"].add(tok)
-        # Quay spells the field `access_token`, DockerHub `token`, and a
-        # registry may omit `expires_in` entirely (the spec's default is 60 s).
-        # All three shapes are one flag away so the client can be held to them.
-        doc = {STATE["token_key"]: tok}
-        if STATE["token_ttl"] > 0:
-            doc["expires_in"] = STATE["token_ttl"]
-        self._send(200, json.dumps(doc).encode(), "application/json")
+        self._token_mint(ident)
 
     def _authorized(self, name, actions):
         if not STATE["auth"]:
             return True
         ah = self.headers.get("Authorization", "")
         if ah.startswith("Bearer ") and ah[7:] in STATE["tokens"]:
-            return True
+            allowed = STATE["private"].get(name)
+            if allowed is None or STATE["tokens"][ah[7:]] in allowed:
+                return True
+            # A real token that does not cover THIS repository: DockerHub
+            # answers 403, challenge-free — "the mint worked" is not
+            # "authorized", which is exactly what the D16 verify leg probes.
+            self._send(403, b'{"errors":[{"code":"DENIED"}]}',
+                       "application/json")
+            return False
         realm = STATE["realm"] or "http://%s:%d/token" % (
             self.server.server_address[0], self.server.server_address[1])
         scope = 'service="mock-registry",scope="repository:%s:%s"' % (
@@ -852,6 +906,18 @@ def main():
                          "parameter entirely")
     ap.add_argument("--basic", default=None, metavar="USER:PASS",
                     help="/token requires exactly these Basic creds")
+    ap.add_argument("--user", action="append", default=[],
+                    metavar="USER:PASS",
+                    help="account table entry (repeatable); with any --user, "
+                         "/token validates a presented Basic against the "
+                         "table, mints anonymously when none is presented, "
+                         "and binds each token to its account")
+    ap.add_argument("--private", action="append", default=[],
+                    metavar="REPO=USER[,USER...]",
+                    help="repository readable only by the named accounts "
+                         "(repeatable); an empty user list means nobody. "
+                         "Any other identity — anonymous included — gets "
+                         "401 (no token) or 403 (token outside its grant)")
     ap.add_argument("--token-ttl", type=int, default=300,
                     help="expires_in on issued tokens; 0 omits the field")
     ap.add_argument("--token-key", default="token",
@@ -884,7 +950,11 @@ def main():
                  blob_redirect_sign=args.blob_redirect_sign,
                  require_signature=args.require_signature,
                  token_len=args.token_len, page_tags=args.page_tags,
-                 token_redirect_loop=args.token_redirect_loop)
+                 token_redirect_loop=args.token_redirect_loop,
+                 users=dict(u.partition(":")[::2] for u in args.user),
+                 private={r: frozenset(filter(None, us.split(",")))
+                          for r, _, us in
+                          (spec.partition("=") for spec in args.private)})
     build_images(args.seed)
     if args.token_port is not None:
         threading.Thread(target=server_for(args.token_bind or args.bind,

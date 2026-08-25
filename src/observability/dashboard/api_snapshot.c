@@ -396,6 +396,23 @@ dashboard_new_v1_root(int64_t now_ms,
 }
 
 
+/* Every v1 endpoint opens with the versioned root plus the "anonymous" flag —
+ * the page JS keys off it to render the anonymous banner and hide the
+ * (now-redacted) PII columns. */
+static json_t *
+dashboard_new_v1_anon_root(int64_t now_ms,
+    const ngx_http_brix_dashboard_loc_conf_t *conf, ngx_uint_t redact)
+{
+    json_t *root = dashboard_new_v1_root(now_ms, conf);
+
+    if (root != NULL) {
+        json_object_set_new(root, "anonymous",
+                            redact ? json_true() : json_false());
+    }
+    return root;
+}
+
+
 json_t *
 dashboard_build_v1_snapshot(ngx_http_request_t *r,
     int64_t now_ms, const ngx_http_brix_dashboard_loc_conf_t *conf,
@@ -403,12 +420,9 @@ dashboard_build_v1_snapshot(ngx_http_request_t *r,
 {
     json_t *root, *history, *cache, *storage, *cluster, *cvmfs;
 
-    root = dashboard_new_v1_root(now_ms, conf);
+    root = dashboard_new_v1_anon_root(now_ms, conf, redact);
     if (!root) { return NULL; }
 
-    /* The page JS keys off this flag to render the anonymous banner + hide the
-     * (now-redacted) PII columns. */
-    json_object_set_new(root, "anonymous",        redact ? json_true() : json_false());
     json_object_set_new(root, "active_transfers", dashboard_build_transfer_rows(now_ms, conf, 1, redact));
     json_object_set_new(root, "tpc_transfers",    dashboard_build_tpc_registry(r->pool, redact));
     json_object_set_new(root, "protocols",        dashboard_build_protocols(now_ms, totals));
@@ -450,16 +464,51 @@ dashboard_build_v1_snapshot(ngx_http_request_t *r,
 }
 
 
+/* The single-section v1 pages differ from each other only in which payload
+ * block they hang off the shared anonymous envelope. */
+typedef enum {
+    DASH_V1_EVENTS,
+    DASH_V1_HISTORY,
+    DASH_V1_CLUSTER,
+    DASH_V1_CACHE,
+} dash_v1_page_t;
+
+static json_t *
+dashboard_build_v1_page(dash_v1_page_t page, ngx_pool_t *pool,
+    int64_t now_ms, const ngx_http_brix_dashboard_loc_conf_t *conf,
+    ngx_uint_t redact)
+{
+    json_t *root = dashboard_new_v1_anon_root(now_ms, conf, redact);
+
+    if (!root) {
+        return NULL;
+    }
+
+    switch (page) {
+    case DASH_V1_EVENTS:
+        json_object_set_new(root, "events",
+                            dashboard_build_events(pool, redact));
+        break;
+    case DASH_V1_HISTORY:
+        dashboard_fill_history(root, pool);      /* history carries no PII */
+        break;
+    case DASH_V1_CLUSTER:
+        dashboard_fill_cluster(root, pool, now_ms, conf, redact);
+        break;
+    case DASH_V1_CACHE:
+        dashboard_fill_cache(root, redact);
+        break;
+    }
+    return root;
+}
+
+
 json_t *
 dashboard_build_v1_events(ngx_http_request_t *r,
     int64_t now_ms, const ngx_http_brix_dashboard_loc_conf_t *conf,
     ngx_uint_t redact)
 {
-    json_t *root = dashboard_new_v1_root(now_ms, conf);
-    if (!root) { return NULL; }
-    json_object_set_new(root, "anonymous", redact ? json_true() : json_false());
-    json_object_set_new(root, "events", dashboard_build_events(r->pool, redact));
-    return root;
+    return dashboard_build_v1_page(DASH_V1_EVENTS, r->pool, now_ms, conf, redact);
 }
 
 
@@ -468,11 +517,7 @@ dashboard_build_v1_history(ngx_http_request_t *r,
     int64_t now_ms, const ngx_http_brix_dashboard_loc_conf_t *conf,
     ngx_uint_t redact)
 {
-    json_t *root = dashboard_new_v1_root(now_ms, conf);
-    if (!root) { return NULL; }
-    json_object_set_new(root, "anonymous", redact ? json_true() : json_false());
-    dashboard_fill_history(root, r->pool);   /* history carries no PII */
-    return root;
+    return dashboard_build_v1_page(DASH_V1_HISTORY, r->pool, now_ms, conf, redact);
 }
 
 
@@ -481,11 +526,7 @@ dashboard_build_v1_cluster(ngx_http_request_t *r,
     int64_t now_ms, const ngx_http_brix_dashboard_loc_conf_t *conf,
     ngx_uint_t redact)
 {
-    json_t *root = dashboard_new_v1_root(now_ms, conf);
-    if (!root) { return NULL; }
-    json_object_set_new(root, "anonymous", redact ? json_true() : json_false());
-    dashboard_fill_cluster(root, r->pool, now_ms, conf, redact);
-    return root;
+    return dashboard_build_v1_page(DASH_V1_CLUSTER, r->pool, now_ms, conf, redact);
 }
 
 
@@ -493,9 +534,6 @@ json_t *
 dashboard_build_v1_cache(int64_t now_ms,
     const ngx_http_brix_dashboard_loc_conf_t *conf, ngx_uint_t redact)
 {
-    json_t *root = dashboard_new_v1_root(now_ms, conf);
-    if (!root) { return NULL; }
-    json_object_set_new(root, "anonymous", redact ? json_true() : json_false());
-    dashboard_fill_cache(root, redact);
-    return root;
+    /* cache is process-global state — no request pool involved */
+    return dashboard_build_v1_page(DASH_V1_CACHE, NULL, now_ms, conf, redact);
 }

@@ -161,13 +161,12 @@ brix_storage_backend_posix_root(ngx_http_brix_shared_conf_t *common)
  * writable). Local backends (posix/pblock, or none) return 0 and keep the W_OK
  * check. Called after brix_storage_backend_posix_root (posix:/pblock:// already
  * rewritten away). */
-int
-brix_storage_backend_is_remote(const ngx_http_brix_shared_conf_t *common)
+/* 1 iff the configured storage backend starts with one of the NULL-terminated
+ * scheme prefixes — the single matcher behind the backend classifiers below. */
+static int
+backend_scheme_in(const ngx_http_brix_shared_conf_t *common,
+                  const char *const *schemes)
 {
-    static const char *const schemes[] = {
-        "root://", "roots://", "http://", "https://", "s3://",
-        "tape://", "frm://", "rados://", "ceph:", "cephfsro:", NULL
-    };
     const ngx_str_t *sb = &common->storage_backend;
     int               i;
 
@@ -181,6 +180,17 @@ brix_storage_backend_is_remote(const ngx_http_brix_shared_conf_t *common)
     return 0;
 }
 
+int
+brix_storage_backend_is_remote(const ngx_http_brix_shared_conf_t *common)
+{
+    static const char *const remote_schemes[] = {
+        "root://", "roots://", "http://", "https://", "s3://",
+        "tape://", "frm://", "rados://", "ceph:", "cephfsro:", NULL
+    };
+
+    return backend_scheme_in(common, remote_schemes);
+}
+
 /* 1 iff the storage backend is a WHOLE-OBJECT remote gateway (WebDAV or S3:
  * an upload replaces the entire object, so the remote driver cannot honour
  * random-offset writes and rejects them at the cap). root://, rados and ceph
@@ -189,19 +199,10 @@ brix_storage_backend_is_remote(const ngx_http_brix_shared_conf_t *common)
 static int
 brix_storage_backend_is_whole_object(const ngx_http_brix_shared_conf_t *common)
 {
-    static const char *const schemes[] = { "http://", "https://", "s3://",
-                                           NULL };
-    const ngx_str_t *sb = &common->storage_backend;
-    int               i;
+    static const char *const gateway_schemes[] = { "http://", "https://",
+                                                   "s3://", NULL };
 
-    for (i = 0; schemes[i] != NULL; i++) {
-        size_t n = ngx_strlen(schemes[i]);
-
-        if (sb->len >= n && ngx_strncmp(sb->data, schemes[i], n) == 0) {
-            return 1;
-        }
-    }
-    return 0;
+    return backend_scheme_in(common, gateway_schemes);
 }
 
 /*
@@ -223,17 +224,19 @@ brix_tier_validate_dependencies(ngx_conf_t *cf,
 
     if (nearline && common->cache_store.len == 0) {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-            "brix: tape/frm storage requires brix_cache_store");
+            "brix: a \"tape://\"/\"frm://\" backend is nearline and requires "
+            "brix_cache_store (the recall target); add a cache tier");
         return NGX_ERROR;
     }
     if (common->cache_cold_store.len > 0 && common->cache_store.len == 0) {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-            "brix_cache_cold_store requires brix_cache_store");
+            "brix_cache_cold_store requires brix_cache_store (the hot tier)");
         return NGX_ERROR;
     }
     if (common->cache_peers != NULL && common->cache_store.len == 0) {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-            "brix_cache_peers requires brix_cache_store");
+            "brix_cache_peers requires brix_cache_store (the mesh fills "
+            "the cache tier)");
         return NGX_ERROR;
     }
     return NGX_OK;

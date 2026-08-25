@@ -209,43 +209,6 @@ json_skip_value(const char **pp)
     return json_parse_string(pp, skip, sizeof skip);
 }
 
-static int
-json_object_get(const char *json, const char *key, char *out, size_t outsz)
-{
-    const char *p = json_skip_ws(json);
-    if (*p != '{') {
-        return -1;
-    }
-    p = json_skip_ws(p + 1);
-    if (*p == '}') {
-        return 0;                           /* empty object */
-    }
-    for (;;) {
-        char kbuf[64];
-        if (json_member_key(&p, kbuf, sizeof kbuf) != 0) {
-            return -1;
-        }
-        if (strcmp(kbuf, key) == 0) {
-            if (*p != '"') {
-                return -1;                  /* we only accept string values */
-            }
-            return json_parse_string(&p, out, outsz) == 0 ? 1 : -1;
-        }
-        if (json_skip_value(&p) != 0) {
-            return -1;
-        }
-        p = json_skip_ws(p);
-        if (*p == ',') {
-            p++;
-            continue;
-        }
-        if (*p == '}') {
-            return 0;                       /* key not found */
-        }
-        return -1;
-    }
-}
-
 /* ---- Copy a bare (non-string) JSON value verbatim ----
  *
  * WHAT: Copies the token at `*pp` up to ',' or '}' into `out`, advancing `*pp`
@@ -330,28 +293,25 @@ json_advance_member(const char **pp)
 }
 
 
-/*
- * Like json_object_get, but also accepts a NON-string value (number/bool/null):
- * a string value is decoded, a bare token is copied verbatim (so 5242880 stays
- * an integer and 0.02 stays 0.02 — never reprojected through %g).  Returns 1 and
- * fills `out` on success, 0 if the key is absent, -1 if the object is malformed.
+/* ---- Walk an object to a member's value ----
  *
- * HOW: walk the members once; on a key match take the value, otherwise step to
- *      the next member — the tri-state step is what keeps "absent" (0) and
- *      "malformed" (-1) distinct all the way to the caller.
+ * WHAT: Leaves *val on the value of the member named `key`. Returns 1 when
+ *       found, 0 if the key is absent, -1 if the object is malformed.
+ *
+ * HOW:  walk the members once; the tri-state step is what keeps "absent" (0)
+ *       and "malformed" (-1) distinct all the way to the caller.
  */
-int
-fp_json_get(const char *json, const char *key, char *out, size_t outsz)
+static int
+json_find_member(const char *json, const char *key, const char **val)
 {
-    const char  *p = json_skip_ws(json);
-    int          rc;
+    const char *p = json_skip_ws(json);
 
     if (*p != '{') {
         return -1;
     }
     p = json_skip_ws(p + 1);
     if (*p == '}') {
-        return 0;
+        return 0;                           /* empty object */
     }
 
     for (;;) {
@@ -361,14 +321,49 @@ fp_json_get(const char *json, const char *key, char *out, size_t outsz)
             return -1;
         }
         if (strcmp(kbuf, key) == 0) {
-            return json_take_member_value(&p, out, outsz);
+            *val = p;
+            return 1;
         }
 
-        rc = json_advance_member(&p);
+        int rc = json_advance_member(&p);
         if (rc <= 0) {
             return rc;   /* 0 = key absent, -1 = malformed */
         }
     }
+}
+
+
+/* String values only: 1 = found and decoded into `out`, 0 = key absent,
+ * -1 = malformed object or a non-string value. */
+static int
+json_object_get(const char *json, const char *key, char *out, size_t outsz)
+{
+    const char *p;
+    int rc = json_find_member(json, key, &p);
+
+    if (rc != 1) {
+        return rc;
+    }
+    if (*p != '"') {
+        return -1;                          /* we only accept string values */
+    }
+    return json_parse_string(&p, out, outsz) == 0 ? 1 : -1;
+}
+
+
+/*
+ * Like json_object_get, but also accepts a NON-string value (number/bool/null):
+ * a string value is decoded, a bare token is copied verbatim (so 5242880 stays
+ * an integer and 0.02 stays 0.02 — never reprojected through %g).  Returns 1 and
+ * fills `out` on success, 0 if the key is absent, -1 if the object is malformed.
+ */
+int
+fp_json_get(const char *json, const char *key, char *out, size_t outsz)
+{
+    const char *p;
+    int rc = json_find_member(json, key, &p);
+
+    return rc == 1 ? json_take_member_value(&p, out, outsz) : rc;
 }
 
 /*

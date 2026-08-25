@@ -23,10 +23,29 @@
 
 #include "xmeta.h"
 
+#include <string.h>
+
 /* The reserved xattr + the sidecar suffix (shared with xmeta_carrier.h). */
 #define BRIX_XMETA_PATH_XATTR    "user.xrd.cinfo"
 #define BRIX_XMETA_PATH_SIDECAR  ".cinfo"
 #define BRIX_XMETA_PATH_XATTR_MAX (64 * 1024)
+
+/* A sidecar / slice file that rides on a data file rather than being data of
+ * its own: the .cinfo/.meta record carriers, .part/.lock staging suffixes, and
+ * the slice files + slice meta ("<data>.__xrds..."). Shared by every tree
+ * walker that must skip them (cache reaper, CSI scrub). */
+static inline int
+brix_xmeta_is_sidecar_name(const char *name)
+{
+    const char *dot = strrchr(name, '.');
+
+    if (dot != NULL && (strcmp(dot, ".cinfo") == 0 || strcmp(dot, ".meta") == 0
+                        || strcmp(dot, ".part") == 0 || strcmp(dot, ".lock") == 0))
+    {
+        return 1;
+    }
+    return strstr(name, ".__xrds") != NULL;
+}
 
 /* Compose "<path>.cinfo" into dst[cap]. 0 on success, -1 if too long. */
 int  brix_xmeta_sidecar_path(char *dst, size_t cap, const char *path);

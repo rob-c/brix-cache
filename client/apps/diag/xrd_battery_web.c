@@ -4,6 +4,44 @@
  */
 #include "xrd_internal.h"
 
+/* Fire a bodyless HTTP/WebDAV method (MOVE/DELETE/…) and record its verdict as a
+ * battery step named `label`: 2xx => pass with "HTTP <code>", other status =>
+ * fail with the code, transport failure => fail with st.msg. */
+static void
+web_req_check(const brix_weburl *u, const char *method, const char *path,
+              const char *hdr, int tmo, int verify, const char *ca,
+              const char *label, xrd_battery *b)
+{
+    brix_http_resp resp;
+    brix_status    st;
+
+    brix_status_clear(&st);
+    if (brix_http_req(u->host, u->port, u->tls, method, path, hdr, NULL, 0,
+                      tmo, verify, ca, NULL, &resp, &st) == 0) {
+        bat_add(b, label, (resp.status >= 200 && resp.status < 300) ? 1 : 0,
+                "HTTP %d", resp.status);
+        brix_http_resp_free(&resp);
+    } else { bat_add(b, label, 0, "%s", st.msg); }
+}
+
+/* Upload `len` bytes staged in *fd and record the "PUT" verdict: 2xx => pass,
+ * other status => fail, transport failure => fail with st.msg. Leaves *fd open. */
+static void
+web_put_check(const brix_weburl *u, const char *path, const char *hdr, int *fd,
+              long long len, int verify, const char *ca, xrd_battery *b)
+{
+    brix_status st;
+    int         st_code = 0;
+
+    brix_status_clear(&st);
+    if (*fd >= 0 && brix_http_upload(u->host, u->port, u->tls, path, hdr,
+                                     bat_upload_src_fd, fd,
+                                     len, verify, ca, NULL, 10000,
+                                     &st_code, &st) == 0) {
+        bat_add(b, "PUT", (st_code >= 200 && st_code < 300) ? 1 : 0, "HTTP %d", st_code);
+    } else { bat_add(b, "PUT", 0, "%s", st.msg); }
+}
+
 /* WebDAV read probes: OPTIONS (sets b->reachable) then PROPFIND. Returns 0 on a
  * reachable endpoint, -1 if OPTIONS could not connect (b->err filled). */
 static int
@@ -58,13 +96,7 @@ web_put_get_verify(const brix_weburl *u, const char *fpath, const char *xtra,
 
     /* PUT */
     fd = tmpfile_with(payload, sizeof(payload));
-    brix_status_clear(&st);
-    if (fd >= 0 && brix_http_upload(u->host, u->port, u->tls, fpath, xtra,
-                                    bat_upload_src_fd, &fd,
-                                    (long long) sizeof(payload), verify, ca, NULL, 10000,
-                                    &st_code, &st) == 0) {
-        bat_add(b, "PUT", (st_code >= 200 && st_code < 300) ? 1 : 0, "HTTP %d", st_code);
-    } else { bat_add(b, "PUT", 0, "%s", st.msg); }
+    web_put_check(u, fpath, xtra, &fd, (long long) sizeof(payload), verify, ca, b);
     if (fd >= 0) { close(fd); }
 
     /* GET + byte-exact verify */
@@ -88,27 +120,14 @@ web_move_delete(const brix_weburl *u, const char *dir, const char *fpath,
                 xrd_battery *b)
 {
     brix_http_resp resp;
-    brix_status    st;
     char           dst[2048];
 
     snprintf(dst, sizeof(dst), "Destination: %s://%s:%d%s\r\n%s",
              u->tls ? "https" : "http", u->host, u->port, mpath, xtra ? xtra : "");
-    brix_status_clear(&st);
-    if (brix_http_req(u->host, u->port, u->tls, "MOVE", fpath, dst, NULL, 0,
-                      5000, verify, ca, NULL, &resp, &st) == 0) {
-        bat_add(b, "MOVE", (resp.status >= 200 && resp.status < 300) ? 1 : 0,
-                "HTTP %d", resp.status);
-        brix_http_resp_free(&resp);
-    } else { bat_add(b, "MOVE", 0, "%s", st.msg); }
+    web_req_check(u, "MOVE", fpath, dst, 5000, verify, ca, "MOVE", b);
 
     /* DELETE the (moved) file and the collection */
-    brix_status_clear(&st);
-    if (brix_http_req(u->host, u->port, u->tls, "DELETE", mpath, xtra, NULL, 0,
-                      5000, verify, ca, NULL, &resp, &st) == 0) {
-        bat_add(b, "DELETE", (resp.status >= 200 && resp.status < 300) ? 1 : 0,
-                "HTTP %d", resp.status);
-        brix_http_resp_free(&resp);
-    } else { bat_add(b, "DELETE", 0, "%s", st.msg); }
+    web_req_check(u, "DELETE", mpath, xtra, 5000, verify, ca, "DELETE", b);
     { brix_status rs; brix_status_clear(&rs);
       if (brix_http_req(u->host, u->port, u->tls, "DELETE", dir, xtra, NULL, 0,
                         5000, verify, ca, NULL, &resp, &rs) == 0) { brix_http_resp_free(&resp); } }
@@ -172,23 +191,16 @@ s3_put(const brix_weburl *u, const char *uri, const char *ak, const char *sk,
        const char *region, int verify, const char *ca,
        const uint8_t *payload, size_t payload_len, xrd_battery *b)
 {
-    brix_status st;
-    char        phash[80], hdrs[2048];
-    int         fd, st_code = 0;
+    char phash[80], hdrs[2048];
+    int  fd;
 
     brix_s3_sha256_hex(payload, payload_len, phash);
-    brix_status_clear(&st);
     if (brix_s3_sign_v4("PUT", u->host, uri, ak, sk, region, phash, hdrs, sizeof(hdrs)) != 0) {
         bat_add(b, "PUT", 0, "sign failed");
         return;
     }
     fd = tmpfile_with(payload, payload_len);
-    if (fd >= 0 && brix_http_upload(u->host, u->port, u->tls, uri, hdrs,
-                                    bat_upload_src_fd, &fd,
-                                    (long long) payload_len, verify, ca, NULL, 10000,
-                                    &st_code, &st) == 0) {
-        bat_add(b, "PUT", (st_code >= 200 && st_code < 300) ? 1 : 0, "HTTP %d", st_code);
-    } else { bat_add(b, "PUT", 0, "%s", st.msg); }
+    web_put_check(u, uri, hdrs, &fd, (long long) payload_len, verify, ca, b);
     if (fd >= 0) { close(fd); }
 }
 
@@ -227,24 +239,14 @@ static void
 s3_delete(const brix_weburl *u, const char *uri, const char *ak, const char *sk,
           const char *region, int verify, const char *ca, xrd_battery *b)
 {
-    brix_status st;
-    char        phash[80], hdrs[2048];
+    char phash[80], hdrs[2048];
 
     brix_s3_sha256_hex("", 0, phash);
-    brix_status_clear(&st);
     if (brix_s3_sign_v4("DELETE", u->host, uri, ak, sk, region, phash, hdrs, sizeof(hdrs)) != 0) {
         bat_add(b, "DELETE", 0, "sign failed");
         return;
     }
-    {
-        brix_http_resp resp;
-        if (brix_http_req(u->host, u->port, u->tls, "DELETE", uri, hdrs, NULL, 0,
-                          5000, verify, ca, NULL, &resp, &st) == 0) {
-            bat_add(b, "DELETE", (resp.status >= 200 && resp.status < 300) ? 1 : 0,
-                    "HTTP %d", resp.status);
-            brix_http_resp_free(&resp);
-        } else { bat_add(b, "DELETE", 0, "%s", st.msg); }
-    }
+    web_req_check(u, "DELETE", uri, hdrs, 5000, verify, ca, "DELETE", b);
 }
 
 /* Build the path-style temp-object URI for this run into `uri` (size n). */

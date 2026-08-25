@@ -55,133 +55,130 @@ stream_cache_port_str(char *buf, size_t buf_size, ngx_uint_t port)
     ngx_snprintf((u_char *) buf, buf_size, "%ui%Z", port);
 }
 
+/* The three filesystem-shape gauge families share one header + per-server loop
+ * (cache_enabled gate, optional statvfs, port label); the enum selects which
+ * family's rows the single worker below emits. */
+typedef enum {
+    STREAM_CACHE_FAM_OCCUPANCY,     /* live used/total ratio (statvfs) */
+    STREAM_CACHE_FAM_THRESHOLD,     /* configured high-water mark (no statvfs) */
+    STREAM_CACHE_FAM_BYTES,         /* total/used/available triple (statvfs) */
+} stream_cache_fs_family_t;
+
 /*
- * WHAT: Emit the occupancy-ratio gauge family (used/total, ppm scaled to 0..1).
- * WHY:  Prometheus groups all rows of a family under one HELP/TYPE block, so this
- *       helper owns both the header and the per-server fan-out for this family.
- * HOW:  Header first; then one row per cache-enabled active server that can be
- *       statted (missing/unmounted roots are skipped). ppm/1e6 gives the 0..1
- *       ratio convention Prometheus expects for a gauge.
+ * WHAT: Emit one filesystem-shape gauge family (header + per-server rows).
+ * WHY:  Prometheus groups all rows of a family under one HELP/TYPE block, and
+ *       the three families differ only in header, statvfs need, and row shape —
+ *       one parametrised worker keeps a single copy of the fan-out loop.
+ * HOW:  Emits the family's HELP/TYPE header, then per cache-enabled active
+ *       server: the THRESHOLD family renders the SHM-stored ppm config value
+ *       directly, while the statvfs-backed families skip roots that cannot be
+ *       statted (missing/unmounted) and render ppm/1e6 (the 0..1 gauge ratio
+ *       convention) or the state-labelled bytes triple.
  */
+static void
+stream_cache_emit_fs_family(metrics_writer_t *mw, ngx_brix_metrics_t *shm,
+    stream_cache_fs_family_t fam)
+{
+    static const char *const fam_header[] = {
+        "# HELP brix_cache_occupancy_ratio "
+            "Filesystem occupancy ratio for brix_cache_export.\n"
+        "# TYPE brix_cache_occupancy_ratio gauge\n",
+        "# HELP brix_cache_eviction_threshold_ratio "
+            "Configured cache eviction high-water occupancy ratio.\n"
+        "# TYPE brix_cache_eviction_threshold_ratio gauge\n",
+        "# HELP brix_cache_bytes "
+            "Cache filesystem bytes by state.\n"
+        "# TYPE brix_cache_bytes gauge\n",
+    };
+    ngx_brix_srv_metrics_t *srv;
+    ngx_uint_t              i;
+    char                    port_str[16];
+
+    mw_printf(mw, "%s", fam_header[fam]);
+    for (i = 0; i < BRIX_METRICS_MAX_SERVERS; i++) {
+        uint64_t   total = 0, used = 0, available = 0;
+        ngx_uint_t occupancy_ppm = 0;
+
+        srv = &shm->servers[i];
+        if (!srv->in_use || !srv->cache_enabled) { continue; }
+        if (fam != STREAM_CACHE_FAM_THRESHOLD
+            && brix_cache_statvfs(srv->cache_root, &total, &used,
+                                    &available, &occupancy_ppm) != NGX_OK)
+        {
+            continue;
+        }
+        stream_cache_port_str(port_str, sizeof(port_str), srv->port);
+
+        switch (fam) {
+        case STREAM_CACHE_FAM_OCCUPANCY:
+            /* ppm (parts-per-million) -> ratio for Prometheus's 0..1 gauge
+             * convention. */
+            mw_printf(mw,
+                "brix_cache_occupancy_ratio{port=\"%s\",auth=\"%s\"} %0.6f\n",
+                port_str, srv->auth, (double) occupancy_ppm / 1000000.0);
+            break;
+        case STREAM_CACHE_FAM_THRESHOLD:
+            mw_printf(mw,
+                "brix_cache_eviction_threshold_ratio"
+                    "{port=\"%s\",auth=\"%s\"} %0.6f\n",
+                port_str, srv->auth,
+                (double) srv->cache_eviction_threshold / 1000000.0);
+            break;
+        default:
+            mw_printf(mw,
+                "brix_cache_bytes{port=\"%s\",auth=\"%s\",state=\"total\"}"
+                    " %llu\n",
+                port_str, srv->auth, (unsigned long long) total);
+            mw_printf(mw,
+                "brix_cache_bytes{port=\"%s\",auth=\"%s\",state=\"used\"}"
+                    " %llu\n",
+                port_str, srv->auth, (unsigned long long) used);
+            mw_printf(mw,
+                "brix_cache_bytes{port=\"%s\",auth=\"%s\",state=\"available\"}"
+                    " %llu\n",
+                port_str, srv->auth, (unsigned long long) available);
+            break;
+        }
+    }
+}
+
 static void
 stream_cache_emit_occupancy_ratio(metrics_writer_t *mw,
     ngx_brix_metrics_t *shm)
 {
-    ngx_brix_srv_metrics_t *srv;
-    ngx_uint_t              i;
-    char                    port_str[16];
-
-    mw_printf(mw,
-        "# HELP brix_cache_occupancy_ratio "
-            "Filesystem occupancy ratio for brix_cache_export.\n"
-        "# TYPE brix_cache_occupancy_ratio gauge\n");
-    for (i = 0; i < BRIX_METRICS_MAX_SERVERS; i++) {
-        uint64_t   total = 0, used = 0, available = 0;
-        ngx_uint_t occupancy_ppm = 0;
-
-        srv = &shm->servers[i];
-        if (!srv->in_use || !srv->cache_enabled) { continue; }
-        if (brix_cache_statvfs(srv->cache_root, &total, &used,
-                                 &available, &occupancy_ppm) != NGX_OK)
-        {
-            continue;
-        }
-        stream_cache_port_str(port_str, sizeof(port_str), srv->port);
-        /* ppm (parts-per-million) -> ratio for Prometheus's 0..1 gauge convention. */
-        mw_printf(mw,
-            "brix_cache_occupancy_ratio{port=\"%s\",auth=\"%s\"} %0.6f\n",
-            port_str, srv->auth, (double) occupancy_ppm / 1000000.0);
-    }
+    stream_cache_emit_fs_family(mw, shm, STREAM_CACHE_FAM_OCCUPANCY);
 }
 
-/*
- * WHAT: Emit the eviction-threshold gauge family (the configured high-water mark).
- * WHY:  Operators compare this configured ratio against the live occupancy_ratio
- *       gauge; it is a stored config value, so no statvfs is needed.
- * HOW:  Header then one row per cache-enabled active server, rendering the
- *       SHM-stored ppm threshold as a 0..1 ratio to match the occupancy gauge.
- */
 static void
 stream_cache_emit_eviction_threshold(metrics_writer_t *mw,
     ngx_brix_metrics_t *shm)
 {
-    ngx_brix_srv_metrics_t *srv;
-    ngx_uint_t              i;
-    char                    port_str[16];
-
-    mw_printf(mw,
-        "# HELP brix_cache_eviction_threshold_ratio "
-            "Configured cache eviction high-water occupancy ratio.\n"
-        "# TYPE brix_cache_eviction_threshold_ratio gauge\n");
-    for (i = 0; i < BRIX_METRICS_MAX_SERVERS; i++) {
-        srv = &shm->servers[i];
-        if (!srv->in_use || !srv->cache_enabled) { continue; }
-        stream_cache_port_str(port_str, sizeof(port_str), srv->port);
-        mw_printf(mw,
-            "brix_cache_eviction_threshold_ratio"
-                "{port=\"%s\",auth=\"%s\"} %0.6f\n",
-            port_str, srv->auth,
-            (double) srv->cache_eviction_threshold / 1000000.0);
-    }
+    stream_cache_emit_fs_family(mw, shm, STREAM_CACHE_FAM_THRESHOLD);
 }
 
-/*
- * WHAT: Emit the cache-bytes gauge family (three rows per server: total/used/available).
- * WHY:  One family with a state="..." label carries the standard filesystem triple,
- *       keeping cardinality low while exposing all three occupancy dimensions.
- * HOW:  Header then, per cache-enabled active server that can be statted, three
- *       rows differentiated only by the state label; missing roots are skipped.
- */
 static void
 stream_cache_emit_cache_bytes(metrics_writer_t *mw,
     ngx_brix_metrics_t *shm)
 {
-    ngx_brix_srv_metrics_t *srv;
-    ngx_uint_t              i;
-    char                    port_str[16];
-
-    mw_printf(mw,
-        "# HELP brix_cache_bytes "
-            "Cache filesystem bytes by state.\n"
-        "# TYPE brix_cache_bytes gauge\n");
-    for (i = 0; i < BRIX_METRICS_MAX_SERVERS; i++) {
-        uint64_t   total = 0, used = 0, available = 0;
-        ngx_uint_t occupancy_ppm = 0;
-
-        srv = &shm->servers[i];
-        if (!srv->in_use || !srv->cache_enabled) { continue; }
-        if (brix_cache_statvfs(srv->cache_root, &total, &used,
-                                 &available, &occupancy_ppm) != NGX_OK)
-        {
-            continue;
-        }
-        stream_cache_port_str(port_str, sizeof(port_str), srv->port);
-        mw_printf(mw,
-            "brix_cache_bytes{port=\"%s\",auth=\"%s\",state=\"total\"} %llu\n",
-            port_str, srv->auth, (unsigned long long) total);
-        mw_printf(mw,
-            "brix_cache_bytes{port=\"%s\",auth=\"%s\",state=\"used\"} %llu\n",
-            port_str, srv->auth, (unsigned long long) used);
-        mw_printf(mw,
-            "brix_cache_bytes{port=\"%s\",auth=\"%s\",state=\"available\"} %llu\n",
-            port_str, srv->auth, (unsigned long long) available);
-    }
+    stream_cache_emit_fs_family(mw, shm, STREAM_CACHE_FAM_BYTES);
 }
 
 /*
- * WHAT: Emit one single-row cache-eviction counter family (cache_enabled gate).
- * WHY:  The three eviction counters (files/bytes/errors) share an identical shape
- *       — header + one atomically-read counter row per cache-enabled server — so a
- *       single parametrised helper avoids three near-duplicate loops.
+ * WHAT: Emit one single-row per-server counter family, gate selectable.
+ * WHY:  The eviction counters (cache_enabled gate) and the write-through
+ *       single-row families (in_use gate only) share an identical shape —
+ *       header + one atomically-read counter row per matching server — so a
+ *       single parametrised worker backs both wrapper families.
  * HOW:  Emits the caller-supplied HELP/TYPE header block, then one row per
- *       cache-enabled active server reading *counter via ngx_atomic_fetch_add(&x,0)
- *       (adding zero is the lock-free atomic-load idiom, not a mutation). counter
- *       is a pointer to the srv-relative offset resolved by the caller per slot.
+ *       active server (also requiring cache_enabled when require_cache is set)
+ *       reading *counter via ngx_atomic_fetch_add(&x,0) (adding zero is the
+ *       lock-free atomic-load idiom, not a mutation). counter is a pointer to
+ *       the srv-relative offset resolved by the caller per slot.
  */
 static void
-stream_cache_emit_eviction_counter(metrics_writer_t *mw,
-    ngx_brix_metrics_t *shm, const char *header, const char *metric_name,
-    size_t counter_off)
+stream_cache_emit_counter_family(metrics_writer_t *mw,
+    ngx_brix_metrics_t *shm, int require_cache, const char *header,
+    const char *metric_name, size_t counter_off)
 {
     ngx_brix_srv_metrics_t *srv;
     ngx_uint_t              i;
@@ -192,13 +189,24 @@ stream_cache_emit_eviction_counter(metrics_writer_t *mw,
         ngx_atomic_t *counter;
 
         srv = &shm->servers[i];
-        if (!srv->in_use || !srv->cache_enabled) { continue; }
+        if (!srv->in_use || (require_cache && !srv->cache_enabled)) {
+            continue;
+        }
         stream_cache_port_str(port_str, sizeof(port_str), srv->port);
         counter = (ngx_atomic_t *) ((char *) srv + counter_off);
         mw_printf(mw, "%s{port=\"%s\",auth=\"%s\"} %lu\n",
             metric_name, port_str, srv->auth,
             (unsigned long) ngx_atomic_fetch_add(counter, 0));
     }
+}
+
+static void
+stream_cache_emit_eviction_counter(metrics_writer_t *mw,
+    ngx_brix_metrics_t *shm, const char *header, const char *metric_name,
+    size_t counter_off)
+{
+    stream_cache_emit_counter_family(mw, shm, 1, header, metric_name,
+                                     counter_off);
 }
 
 /*
@@ -295,22 +303,8 @@ stream_cache_emit_wt_single(metrics_writer_t *mw,
     ngx_brix_metrics_t *shm, const char *header, const char *metric_name,
     size_t counter_off)
 {
-    ngx_brix_srv_metrics_t *srv;
-    ngx_uint_t              i;
-    char                    port_str[16];
-
-    mw_printf(mw, "%s", header);
-    for (i = 0; i < BRIX_METRICS_MAX_SERVERS; i++) {
-        ngx_atomic_t *counter;
-
-        srv = &shm->servers[i];
-        if (!srv->in_use) { continue; }
-        stream_cache_port_str(port_str, sizeof(port_str), srv->port);
-        counter = (ngx_atomic_t *) ((char *) srv + counter_off);
-        mw_printf(mw, "%s{port=\"%s\",auth=\"%s\"} %lu\n",
-            metric_name, port_str, srv->auth,
-            (unsigned long) ngx_atomic_fetch_add(counter, 0));
-    }
+    stream_cache_emit_counter_family(mw, shm, 0, header, metric_name,
+                                     counter_off);
 }
 
 /*

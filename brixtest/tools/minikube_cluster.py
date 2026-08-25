@@ -36,12 +36,12 @@ def status(config) -> int:
 
 
 def test(config) -> int:
-    loaded = _run([
-        "minikube", "image", "load", "-p", config["profile"],
-        config["server_image_load"],
-    ])
-    if loaded:
-        return loaded
+    for image in (config["server_image_load"], config["helper_image"]):
+        loaded = _run([
+            "minikube", "image", "load", "-p", config["profile"], image,
+        ])
+        if loaded:
+            return loaded
     env = dict(os.environ)
     env.update({
         "BRIXTEST_MINIKUBE": "1", "PYTHONPATH": "src",

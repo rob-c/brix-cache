@@ -1,11 +1,11 @@
 from split_continuation import reexport as _reexport
-def _expression_1(pool):
+def _submit_transfer_futures(pool):
     return (
         [pool.submit(_transfer_worker, i,   GSI_URL)     for i in range(4)]
                       + [pool.submit(_transfer_worker, i+4, GSI_TLS_URL) for i in range(4)]
     )
 
-def _expression_2(futures):
+def _gather_transfer_results(futures):
     return (
         [f.result() for f in as_completed(futures)]
     )
@@ -182,9 +182,9 @@ class TestConcurrentTLS:
         with _worker_pool(8) as pool:
             t0 = time.perf_counter()
             futures = (
-                _expression_1(pool)
+                _submit_transfer_futures(pool)
             )
-            results = _expression_2(futures)
+            results = _gather_transfer_results(futures)
         wall = time.perf_counter() - t0
 
         gsi_results     = _expression_3(results)

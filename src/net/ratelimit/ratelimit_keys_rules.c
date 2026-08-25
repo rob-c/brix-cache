@@ -242,27 +242,51 @@ rl_rule_parse_token(ngx_conf_t *cf, ngx_str_t *a, int is_bw,
  * the shared array/zone plumbing live in rl_rule_* helpers so this reads as a
  * flat token loop.
  */
-static char *
-rl_add_rule(ngx_conf_t *cf, ngx_command_t *cmd, void *conf, int is_bw)
-{
-    ngx_str_t       *value = cf->args->elts;
-    rl_rule_parse_t  st = { NULL, { 0, NULL }, 0, 0 };
-    ngx_uint_t       i;
+static char *rl_conc_parse_token(ngx_conf_t *cf, ngx_str_t *a,
+    rl_rule_parse_t *st);
 
-    if (rl_rule_push(cf, cmd, conf, &st.rule) != NGX_CONF_OK) {
+/* Shared push + token-loop + required-parameter check behind all three rule
+ * directives.  `mode` picks the token grammar: 0 request-rate, 1 bandwidth
+ * (both via rl_rule_parse_token), 2 concurrency (rl_conc_parse_token).
+ * `missing_msg` is the directive-specific emerg text for absent zone=/key=/
+ * rate-or-limit=. */
+static char *
+rl_collect_rule(ngx_conf_t *cf, ngx_command_t *cmd, void *conf, int mode,
+    const char *missing_msg, rl_rule_parse_t *st)
+{
+    ngx_str_t  *value = cf->args->elts;
+    ngx_uint_t  i;
+
+    if (rl_rule_push(cf, cmd, conf, &st->rule) != NGX_CONF_OK) {
         return NGX_CONF_ERROR;
     }
 
     for (i = 1; i < cf->args->nelts; i++) {
-        if (rl_rule_parse_token(cf, &value[i], is_bw, &st) != NGX_CONF_OK) {
-            return NGX_CONF_ERROR;
+        char *rv = (mode == 2)
+                       ? rl_conc_parse_token(cf, &value[i], st)
+                       : rl_rule_parse_token(cf, &value[i], mode, st);
+        if (rv != NGX_CONF_OK) {
+            return rv;
         }
     }
 
-    if (!st.have_key || !st.have_extra || st.zone_name.len == 0) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-            "xrootd rate limit: zone=, key= and rate= are required");
+    if (!st->have_key || !st->have_extra || st->zone_name.len == 0) {
+        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0, "%s", missing_msg);
         return NGX_CONF_ERROR;
+    }
+    return NGX_CONF_OK;
+}
+
+static char *
+rl_add_rule(ngx_conf_t *cf, ngx_command_t *cmd, void *conf, int is_bw)
+{
+    rl_rule_parse_t  st = { NULL, { 0, NULL }, 0, 0 };
+    char            *rv;
+
+    rv = rl_collect_rule(cf, cmd, conf, is_bw,
+        "xrootd rate limit: zone=, key= and rate= are required", &st);
+    if (rv != NGX_CONF_OK) {
+        return rv;
     }
     /* Apply burst defaults when the operator omitted burst=.  Bandwidth: one
      * second of rate (smooths bursty transfers); requests: 1 (strict). */
@@ -336,24 +360,13 @@ rl_conc_parse_token(ngx_conf_t *cf, ngx_str_t *a, rl_rule_parse_t *st)
 char *
 brix_rl_conc_directive(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 {
-    ngx_str_t       *value = cf->args->elts;
+    char            *rv;
     rl_rule_parse_t  st = { NULL, { 0, NULL }, 0, 0 };
-    ngx_uint_t       i;
 
-    if (rl_rule_push(cf, cmd, conf, &st.rule) != NGX_CONF_OK) {
-        return NGX_CONF_ERROR;
-    }
-
-    for (i = 1; i < cf->args->nelts; i++) {
-        if (rl_conc_parse_token(cf, &value[i], &st) != NGX_CONF_OK) {
-            return NGX_CONF_ERROR;
-        }
-    }
-
-    if (!st.have_key || !st.have_extra || st.zone_name.len == 0) {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-            "brix_concurrency_limit: zone=, key= and limit= are required");
-        return NGX_CONF_ERROR;
+    rv = rl_collect_rule(cf, cmd, conf, 2,
+        "brix_concurrency_limit: zone=, key= and limit= are required", &st);
+    if (rv != NGX_CONF_OK) {
+        return rv;
     }
 
     return rl_rule_bind_zone(cf, st.rule, &st.zone_name,

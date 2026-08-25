@@ -65,7 +65,7 @@ CLUSTER = [
     ("token_differential", "brix_suite.security.tokens_vectors",
      "token_differential_flat.py", 4),
     ("x509_differential", "brix_suite.security.x509_vectors",
-     "x509_differential_flat.py", 6),
+     "x509_differential_flat.py", 9),
     ("x509_matrix_differential", "brix_suite.security.x509_matrix_vectors",
      "x509_matrix_differential_flat.py", 14),
 ]

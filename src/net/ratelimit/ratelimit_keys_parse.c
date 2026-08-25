@@ -12,6 +12,19 @@
 
 
 /* directive parameter parsing */
+
+/* The simple key types (VOLUME is handled apart — it also captures a prefix). */
+static const struct {
+    const char          *name;
+    brix_rl_key_type_t   type;
+} rl_key_names[] = {
+    { "vo",      BRIX_RL_KEY_VO      },
+    { "issuer",  BRIX_RL_KEY_ISSUER  },
+    { "ip",      BRIX_RL_KEY_IP      },
+    { "dn",      BRIX_RL_KEY_DN      },
+    { "subject", BRIX_RL_KEY_SUBJECT },
+};
+
 /* Parse "key=<type>[:<prefix>]" into rule->key_type / rule->key_match.
  * sizeof("key=")-1 == 4 strips the literal prefix; the value tail is then split
  * on the first ':' into <type> and an optional <prefix> (used only by VOLUME). */
@@ -21,6 +34,7 @@ rl_parse_key(ngx_conf_t *cf, ngx_str_t *v, brix_rl_rule_t *rule)
     ngx_str_t  val = { v->len - (sizeof("key=") - 1),
                        v->data + sizeof("key=") - 1 };
     u_char    *colon;
+    ngx_uint_t i;
     ngx_str_t  type = val, prefix = { 0, NULL };
 
     /* If a ':' is present, narrow `type` to the part before it and point
@@ -32,26 +46,23 @@ rl_parse_key(ngx_conf_t *cf, ngx_str_t *v, brix_rl_rule_t *rule)
         prefix.len  = val.data + val.len - (colon + 1);
     }
 
-    if (type.len == 2 && ngx_strncmp(type.data, "vo", 2) == 0) {
-        rule->key_type = BRIX_RL_KEY_VO;
-    } else if (type.len == 6 && ngx_strncmp(type.data, "issuer", 6) == 0) {
-        rule->key_type = BRIX_RL_KEY_ISSUER;
-    } else if (type.len == 2 && ngx_strncmp(type.data, "ip", 2) == 0) {
-        rule->key_type = BRIX_RL_KEY_IP;
-    } else if (type.len == 2 && ngx_strncmp(type.data, "dn", 2) == 0) {
-        rule->key_type = BRIX_RL_KEY_DN;
-    } else if (type.len == 7 && ngx_strncmp(type.data, "subject", 7) == 0) {
-        rule->key_type = BRIX_RL_KEY_SUBJECT;
-    } else if (type.len == 6 && ngx_strncmp(type.data, "volume", 6) == 0) {
+    for (i = 0; i < sizeof(rl_key_names) / sizeof(rl_key_names[0]); i++) {
+        if (type.len == ngx_strlen(rl_key_names[i].name)
+            && ngx_strncmp(type.data, rl_key_names[i].name, type.len) == 0)
+        {
+            rule->key_type = rl_key_names[i].type;
+            return NGX_OK;
+        }
+    }
+    if (type.len == 6 && ngx_strncmp(type.data, "volume", 6) == 0) {
         rule->key_type  = BRIX_RL_KEY_VOLUME;
         rule->key_match = prefix;        /* points into cf->args memory (persists) */
-    } else {
-        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-            "xrootd rate limit: unknown key \"%V\" (expected"
-            " vo|issuer|ip|dn|subject|volume[:<prefix>])", &type);
-        return NGX_ERROR;
+        return NGX_OK;
     }
-    return NGX_OK;
+    ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+        "xrootd rate limit: unknown key \"%V\" (expected"
+        " vo|issuer|ip|dn|subject|volume[:<prefix>])", &type);
+    return NGX_ERROR;
 }
 
 /* Parse "<N>r/s" → requests/s (returns the integer N, or NGX_ERROR). */

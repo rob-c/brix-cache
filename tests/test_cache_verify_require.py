@@ -37,6 +37,7 @@ Run:
     PYTHONPATH=tests python3 -m pytest tests/test_cache_verify_require.py -v
 """
 import contextlib
+import glob
 import hashlib
 import os
 import shutil
@@ -44,6 +45,8 @@ import subprocess
 import sys
 
 import pytest
+
+from brix_suite.settings import REGISTRY_ROOT
 
 def _check_test_verified_fill_records_checksum_for_xrdckverify_2(data, cache_dir):
     assert data, f"no cached data file of {FILE_BYTES}B under {cache_dir}"
@@ -55,7 +58,7 @@ def _check_test_verified_fill_records_checksum_for_xrdckverify_3(r):
 
 def _check_test_verified_fill_records_checksum_for_xrdckverify_1(rc, out, ref, err):
     assert _delivered(rc, out, ref), (
-        f"verified fill did not deliver (rc={rc}): {err[-300:]}")
+        f"verified fill did not deliver (rc={rc}): {err[-2500:]}")
 
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "resilience"))
@@ -98,6 +101,19 @@ def _env():
     return e
 
 
+def _hang_evidence():
+    """A hung copy's server-side evidence dies at lifecycle teardown — snapshot
+    the verify instances' error-log tails into the failure message while the
+    instances still exist (a prior rc=124 in the serial lane left nothing to
+    triage after the run's teardown wiped the registry)."""
+    tails = []
+    for log in sorted(glob.glob(os.path.join(
+            REGISTRY_ROOT, "brix-verify-*", "logs", "error.log"))):
+        with open(log, errors="replace") as fh:
+            tails.append(f"--- {log} ---\n" + "".join(fh.readlines()[-30:]))
+    return "\n".join(tails) or "no brix-verify-* error logs present"
+
+
 def _xrdcp(url, out, timeout=60):
     """Copy through this repo's client.  A hang is a delivery FAILURE, not a test
     error — return a sentinel rc.  Fresh cold read every time."""
@@ -107,7 +123,8 @@ def _xrdcp(url, out, timeout=60):
         r = subprocess.run([XRDCP, "-f", url, out],
                            env=_env(), capture_output=True, timeout=timeout)
     except subprocess.TimeoutExpired:
-        return 124, "client hung — did not deliver within the window"
+        return 124, ("client hung — did not deliver within the window\n"
+                     + _hang_evidence())
     return r.returncode, r.stderr.decode(errors="replace")
 
 
@@ -167,10 +184,10 @@ def test_require_with_origin_digest_delivers_byte_exact(lifecycle, tmp_path):
             rc, err = _xrdcp(url, out)
             assert _delivered(rc, out, ref), (
                 f"verify=require rejected a digest-matching fill (rc={rc}): "
-                f"{err[-300:]}")
+                f"{err[-2500:]}")
             rc, err = _xrdcp(url, out)
             assert _delivered(rc, out, ref), (
-                f"warm hit after a verified fill failed (rc={rc}): {err[-300:]}")
+                f"warm hit after a verified fill failed (rc={rc}): {err[-2500:]}")
 
 
 # --- 2 TEETH ------------------------------------------------------------------
@@ -192,7 +209,7 @@ def test_require_without_origin_digest_fails_closed(lifecycle, tmp_path):
             rc, err = _xrdcp(url, out)
             assert _delivered(rc, out, ref), (
                 f"verify=best-effort must still serve an unverifiable fill "
-                f"(rc={rc}): {err[-300:]} — if this fails the verify plumbing "
+                f"(rc={rc}): {err[-2500:]} — if this fails the verify plumbing "
                 f"breaks fills unconditionally, not just under require")
 
     # require leg: no digest ⇒ must refuse.  A correct cache serves NO bytes as a
@@ -206,7 +223,7 @@ def test_require_without_origin_digest_fails_closed(lifecycle, tmp_path):
             assert not _delivered(rc, out, ref), (
                 "verify=require served an origin fill with NO advertised digest "
                 "as a good complete hit — the require knob has no teeth "
-                f"(rc={rc}): {err[-300:]}")
+                f"(rc={rc}): {err[-2500:]}")
             assert not _bad_hit_served(rc, out, ref), (
                 f"verify=require served unverifiable bytes as success (rc={rc})")
 
@@ -234,7 +251,7 @@ def test_require_never_serves_corrupted_fill(lifecycle, tmp_path):
                 rc, err = _xrdcp(url, out)
                 assert not _bad_hit_served(rc, out, ref), (
                     f"CACHE POISONED: a corrupted fill was served as a good "
-                    f"complete hit under verify=require (rc={rc}): {err[-300:]}")
+                    f"complete hit under verify=require (rc={rc}): {err[-2500:]}")
 
                 # Heal and re-read cold: a correct cache holds no complete object
                 # for the key, re-fetches clean, and delivers byte-exact.
@@ -243,7 +260,7 @@ def test_require_never_serves_corrupted_fill(lifecycle, tmp_path):
                 rc, err = _xrdcp(url, healed)
                 assert _delivered(rc, healed, ref), (
                     f"after a corrupted fill + healed link, verify=require did "
-                    f"not recover to byte-exact (rc={rc}): {err[-300:]}")
+                    f"not recover to byte-exact (rc={rc}): {err[-2500:]}")
 
 
 # --- 4 PRODUCER (phase-88 loose end: xrdckverify --cache) ----------------------

@@ -21,6 +21,7 @@
 
 #include "cvmfs/publish/changeset.h"
 #include "oci/digest.h"
+#include "brixcvmfs_errline.h"
 
 /* Exit codes — the reg_client result codes mapped per the D5/D8 table. */
 #define ING_OK        0

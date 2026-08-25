@@ -121,29 +121,30 @@ range_want(off_t len, off_t remaining, size_t bufsz)
     return (remaining < (off_t) bufsz) ? (size_t) remaining : bufsz;
 }
 
-int
-brix_cksum_u32_obj_range(int kind, brix_sd_obj_t *obj, off_t start, off_t len,
-                         uint32_t *out)
+/* ck_chunk_fn — fold one freshly read chunk into the caller's accumulator
+ * state; return 0 to keep draining, -1 to abort the walk as failed. */
+typedef int (*ck_chunk_fn)(const unsigned char *buf, size_t n, void *st);
+
+/* ---- Drain the byte extent [start, start+len) of obj through `fold` ----
+ *
+ * WHAT: The one ranged pread loop all three checksum kernels (u32/u64/digest)
+ *       share: reads BRIX_CK_BUFSZ chunks via the SD driver seam, retries
+ *       EINTR, stops at EOF or when the bounded range (len >= 0) is exhausted
+ *       (len < 0 means "to EOF"), and hands every chunk to `fold`. Returns 0,
+ *       or -1 on a read error or a failing fold.
+ *
+ * WHY:  The drain — EINTR retry, EOF stop, range bookkeeping — is where a
+ *       divergence between kernels would silently checksum different bytes;
+ *       one loop keeps the three kernels bit-identical by construction and
+ *       leaves each kernel only its arithmetic.
+ */
+static int
+ck_pread_walk(brix_sd_obj_t *obj, off_t start, off_t len, ck_chunk_fn fold,
+              void *st)
 {
     unsigned char buf[BRIX_CK_BUFSZ];
-    off_t         offset;
+    off_t         offset = start;
     off_t         remaining = len;
-    uint32_t      crc32c = 0;
-    uLong         zcrc;
-
-    /* "zcrc32" is XRootD's name for the zlib CRC-32 (== CRC32/ISO-HDLC); fold it
-     * onto the CRC32 kernel path so there is one implementation. */
-    if (kind == BRIX_CK_ZCRC32) {
-        kind = BRIX_CK_CRC32;
-    }
-
-    if (out == NULL || obj == NULL || obj->driver == NULL
-        || !u32_kind_ok(kind) || start < 0) {
-        return -1;
-    }
-
-    zcrc = u32_seed(kind);
-    offset = start;
 
     while (len < 0 || remaining > 0) {
         size_t  want = range_want(len, remaining, sizeof(buf));
@@ -161,10 +162,55 @@ brix_cksum_u32_obj_range(int kind, brix_sd_obj_t *obj, off_t start, off_t len,
         if (len >= 0) {
             remaining -= (off_t) n;
         }
-        u32_update(kind, buf, (size_t) n, &zcrc, &crc32c);
+        if (fold(buf, (size_t) n, st) != 0) {
+            return -1;
+        }
+    }
+    return 0;
+}
+
+/* u32_walk_t / u32_fold — ck_pread_walk state+fold for the u32 kernel: the
+ * selected kind plus both accumulators (zlib uLong and CRC-32c). */
+typedef struct {
+    int      kind;
+    uLong    zcrc;
+    uint32_t crc32c;
+} u32_walk_t;
+
+static int
+u32_fold(const unsigned char *buf, size_t n, void *st)
+{
+    u32_walk_t *w = st;
+
+    u32_update(w->kind, buf, n, &w->zcrc, &w->crc32c);
+    return 0;
+}
+
+int
+brix_cksum_u32_obj_range(int kind, brix_sd_obj_t *obj, off_t start, off_t len,
+                         uint32_t *out)
+{
+    u32_walk_t w;
+
+    /* "zcrc32" is XRootD's name for the zlib CRC-32 (== CRC32/ISO-HDLC); fold it
+     * onto the CRC32 kernel path so there is one implementation. */
+    if (kind == BRIX_CK_ZCRC32) {
+        kind = BRIX_CK_CRC32;
     }
 
-    *out = (kind == BRIX_CK_CRC32C) ? crc32c : (uint32_t) zcrc;
+    if (out == NULL || obj == NULL || obj->driver == NULL
+        || !u32_kind_ok(kind) || start < 0) {
+        return -1;
+    }
+
+    w.kind = kind;
+    w.zcrc = u32_seed(kind);
+    w.crc32c = 0;
+    if (ck_pread_walk(obj, start, len, u32_fold, &w) != 0) {
+        return -1;
+    }
+
+    *out = (kind == BRIX_CK_CRC32C) ? w.crc32c : (uint32_t) w.zcrc;
     return 0;
 }
 
@@ -183,49 +229,45 @@ brix_cksum_u32_fd(int kind, int fd, uint32_t *out)
     return brix_cksum_u32_obj(kind, &obj, out);
 }
 
+/* u64_walk_t / u64_fold — ck_pread_walk state+fold for the CRC-64 kernel:
+ * the resolved polynomial variant plus the running crc. */
+typedef struct {
+    brix_crc64_variant_t variant;
+    uint64_t             crc;
+} u64_walk_t;
+
+static int
+u64_fold(const unsigned char *buf, size_t n, void *st)
+{
+    u64_walk_t *w = st;
+
+    w->crc = brix_crc64_extend(w->variant, w->crc, buf, n);
+    return 0;
+}
+
 int
 brix_cksum_u64_obj_range(int kind, brix_sd_obj_t *obj, off_t start, off_t len,
                          uint64_t *out)
 {
-    unsigned char          buf[BRIX_CK_BUFSZ];
-    off_t                  offset;
-    off_t                  remaining = len;
-    uint64_t               crc = 0;
-    brix_crc64_variant_t variant;
+    u64_walk_t w;
 
     if (out == NULL || obj == NULL || obj->driver == NULL || start < 0) {
         return -1;
     }
     if (kind == BRIX_CK_CRC64) {
-        variant = BRIX_CRC64_XZ;
+        w.variant = BRIX_CRC64_XZ;
     } else if (kind == BRIX_CK_CRC64NVME) {
-        variant = BRIX_CRC64_NVME;
+        w.variant = BRIX_CRC64_NVME;
     } else {
         return -1;
     }
 
-    offset = start;
-
-    while (len < 0 || remaining > 0) {
-        size_t  want = range_want(len, remaining, sizeof(buf));
-        ssize_t n = obj->driver->pread(obj, buf, want, offset);
-        if (n < 0) {
-            if (errno == EINTR) {
-                continue;
-            }
-            return -1;
-        }
-        if (n == 0) {
-            break;
-        }
-        offset += (off_t) n;
-        if (len >= 0) {
-            remaining -= (off_t) n;
-        }
-        crc = brix_crc64_extend(variant, crc, buf, (size_t) n);
+    w.crc = 0;
+    if (ck_pread_walk(obj, start, len, u64_fold, &w) != 0) {
+        return -1;
     }
 
-    *out = crc;
+    *out = w.crc;
     return 0;
 }
 
@@ -259,35 +301,20 @@ md_for(int kind)
 /* Drive an initialised ctx over the byte extent [start, start+len) of the object
  * (len < 0 ⇒ to EOF); caller owns/frees ctx. 0/-1. */
 static int
+digest_fold(const unsigned char *buf, size_t n, void *st)
+{
+    return (EVP_DigestUpdate((EVP_MD_CTX *) st, buf, n) == 1) ? 0 : -1;
+}
+
+static int
 digest_drive(EVP_MD_CTX *ctx, const EVP_MD *md, brix_sd_obj_t *obj,
              off_t start, off_t len, unsigned char *out, unsigned int *outlen)
 {
-    unsigned char buf[BRIX_CK_BUFSZ];
-    off_t         offset = start;
-    off_t         remaining = len;
-
     if (EVP_DigestInit_ex(ctx, md, NULL) != 1) {
         return -1;
     }
-    while (len < 0 || remaining > 0) {
-        size_t  want = range_want(len, remaining, sizeof(buf));
-        ssize_t n = obj->driver->pread(obj, buf, want, offset);
-        if (n < 0) {
-            if (errno == EINTR) {
-                continue;
-            }
-            return -1;
-        }
-        if (n == 0) {
-            break;
-        }
-        offset += (off_t) n;
-        if (len >= 0) {
-            remaining -= (off_t) n;
-        }
-        if (EVP_DigestUpdate(ctx, buf, (size_t) n) != 1) {
-            return -1;
-        }
+    if (ck_pread_walk(obj, start, len, digest_fold, ctx) != 0) {
+        return -1;
     }
     return (EVP_DigestFinal_ex(ctx, out, outlen) == 1) ? 0 : -1;
 }

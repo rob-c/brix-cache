@@ -78,6 +78,14 @@ jobs:
         run: |
           pip install --quiet 'lizard>=1.17,<2'
           tools/ci/check_complexity.py
+      # Copy-paste detector over src/client/shared. No backlog: like the
+      # complexity gates it cannot be made green by appending to a file, only
+      # by not cloning. lizard is already installed by the step above.
+      - name: duplication gate — copy-paste detector, no backlog
+        if: '!cancelled()'
+        run: |
+          pip install --quiet 'lizard>=1.17,<2'
+          tools/ci/check_duplication.py
       - name: complexity gate — Python (CCN/cognitive/NPath/Halstead/nesting)
         if: '!cancelled()'
         run: |

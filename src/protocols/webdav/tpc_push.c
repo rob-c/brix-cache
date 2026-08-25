@@ -39,61 +39,6 @@
 #include <unistd.h>
 
 static ngx_int_t
-webdav_tpc_push_apply_credential(ngx_http_request_t *r,
-                                 ngx_http_brix_webdav_loc_conf_t *conf,
-                                 char *dest_url, ngx_array_t *headers)
-{
-    ngx_table_elt_t      *credential_hdr;
-    ngx_table_elt_t      *auth_hdr;
-    ngx_str_t             delegated_token;
-    ngx_int_t             rc;
-    brix_tpc_cred_mode_e  mode;
-    const char           *subject_token;
-
-    credential_hdr = webdav_tpc_find_header(r, "Credential",
-                                            sizeof("Credential") - 1);
-    if (credential_hdr == NULL) {
-        credential_hdr = webdav_tpc_find_header(r, "Credentials",
-                                                sizeof("Credentials") - 1);
-    }
-
-    if (credential_hdr == NULL
-        || webdav_tpc_header_value_equals(&credential_hdr->value, "none"))
-    {
-        return NGX_OK;
-    }
-
-    mode = webdav_tpc_cred_parse_mode(
-        (const char *) credential_hdr->value.data, credential_hdr->value.len);
-    if (mode == BRIX_TPC_CRED_UNKNOWN) {
-        ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
-                      "brix_webdav: unsupported HTTP-TPC credential "
-                      "delegation mode \"%V\"", &credential_hdr->value);
-        BRIX_WEBDAV_METRIC_INC(tpc_total[BRIX_WEBDAV_TPC_BAD_REQUEST]);
-        return NGX_HTTP_BAD_REQUEST;
-    }
-
-    auth_hdr = webdav_tpc_find_header(r, "Authorization",
-                                      sizeof("Authorization") - 1);
-    subject_token = NULL;
-    rc = webdav_tpc_extract_subject_token(r, auth_hdr, &subject_token);
-    if (rc != NGX_OK) {
-        return NGX_HTTP_INTERNAL_SERVER_ERROR;
-    }
-
-    rc = webdav_tpc_cred_obtain_token(r, mode, dest_url, subject_token,
-                                      conf->tpc_cred.token_scope.len > 0
-                                          ? (const char *) conf->tpc_cred.token_scope.data
-                                          : "storage.read",
-                                      &delegated_token);
-    if (rc != NGX_OK) {
-        return NGX_HTTP_BAD_GATEWAY;
-    }
-
-    return webdav_tpc_add_bearer_header(r, headers, &delegated_token);
-}
-
-static ngx_int_t
 webdav_tpc_push_dest_url(ngx_http_request_t *r, ngx_table_elt_t *dest_hdr,
                          char **dest_url)
 {
@@ -301,7 +246,8 @@ webdav_tpc_handle_push(ngx_http_request_t *r,
      * "oidc-agent" or "token-exchange" triggers token acquisition for the
      * remote destination.
      */
-    rc = webdav_tpc_push_apply_credential(r, conf, dest_url, transfer_headers);
+    rc = webdav_tpc_apply_credential_delegation(r, conf, dest_url,
+                                                transfer_headers);
     if (rc != NGX_OK) {
         return rc;
     }

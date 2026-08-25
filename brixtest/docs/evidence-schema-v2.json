@@ -50,7 +50,19 @@
         "logs": {"type": "array", "items": {"type": "object"}},
         "servers": {"type": "array", "items": {"$ref": "#/$defs/server"}},
         "findings": {"type": "array", "items": {"$ref": "#/$defs/finding"}},
-        "provenance": {"type": "object"}
+        "provenance": {
+          "type": "object",
+          "properties": {
+            "extra": {
+              "type": "object",
+              "properties": {
+                "resource_graph": {"$ref": "#/$defs/resource_graph"}
+              },
+              "additionalProperties": true
+            }
+          },
+          "additionalProperties": true
+        }
       },
       "additionalProperties": true
     },
@@ -119,6 +131,43 @@
         "started_at": {"type": "string"},
         "stopped_at": {"type": "string"},
         "log_artifact": {"type": "object"}
+      },
+      "additionalProperties": true
+    },
+    "resource_graph": {
+      "type": "object",
+      "required": ["schema_version", "fingerprint", "nodes", "edges"],
+      "properties": {
+        "schema_version": {"type": "integer", "minimum": 1},
+        "fingerprint": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "nodes": {"type": "array", "items": {"$ref": "#/$defs/resource_node"}},
+        "edges": {"type": "array", "items": {"$ref": "#/$defs/resource_link"}}
+      },
+      "additionalProperties": true
+    },
+    "resource_node": {
+      "type": "object",
+      "required": ["id", "kind", "name", "backend", "fingerprint"],
+      "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "kind": {"type": "string", "minLength": 1},
+        "name": {"type": "string", "minLength": 1},
+        "backend": {"type": "string", "minLength": 1},
+        "environment": {"type": "string"},
+        "group": {"type": "string"},
+        "requires": {"type": "array", "items": {"type": "string"}},
+        "fingerprint": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "attributes": {"type": "object"}
+      },
+      "additionalProperties": true
+    },
+    "resource_link": {
+      "type": "object",
+      "required": ["source", "target", "relation"],
+      "properties": {
+        "source": {"type": "string", "minLength": 1},
+        "target": {"type": "string", "minLength": 1},
+        "relation": {"type": "string", "minLength": 1}
       },
       "additionalProperties": true
     },

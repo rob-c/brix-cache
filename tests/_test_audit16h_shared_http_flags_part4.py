@@ -186,17 +186,23 @@ class TestTheDeclarationsAndTheMerge:
 
     def test_apply_read_only_is_silent_unless_it_takes_a_grant_away(self):
         """Which is why §A's log assertions count exactly one sentence: the
-        NOTICE is emitted where a write grant is being overridden, and nowhere
-        else."""
+        NOTICE is emitted where a write grant is being overridden — and, since
+        phase-104, where ``read_only_public`` implies ``read_only`` — and
+        nowhere else.  §A's live count stays at one because its configs set
+        ``read_only`` directly, never via the public posture."""
         text = SHARED_H.read_text()
         body = text[text.index("brix_shared_apply_read_only(ngx_http_brix"):]
         body = body[:body.index("\n}")]
         assert "if (common->read_only != 1) {" in body
         assert "common->allow_write = 0;" in body
-        # The sentence §A reads off the log, reassembled from the C literals it
-        # is split across — so a reword in either place is caught in both.
+        # The sentences §A reads off the log, reassembled from the C literals
+        # they are split across — so a reword in either place is caught in
+        # both.
+        implies_notice = ("brix: read_only_public on - implies read_only; the "
+                          "export is read-only and server-introspection "
+                          "queries are refused")
         assert "".join(re.findall(r'"((?:[^"\\]|\\.)*)"', body)) \
-            == READ_ONLY_NOTICE, body
+            == implies_notice + READ_ONLY_NOTICE, body
 
     def test_the_security_gate_has_exactly_three_callers(self):
         """§B's three subjects are not a sample — they are the whole set of

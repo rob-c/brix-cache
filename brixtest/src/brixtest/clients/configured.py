@@ -58,7 +58,7 @@ def _client_environment(value: object) -> Mapping[str, object]:
 
 def _client_io(spec: "ClientSpec") -> None:
     if not _valid_client_input(spec.input):
-        raise SpecError("client input", spec.input, "must be text or None")
+        raise SpecError("client input", spec.input, "must be text, bytes, or None")
     if not _valid_output_limit(spec.output_limit):
         raise SpecError("client output limit", spec.output_limit, "must be an integer >= 1")
     if spec.mode not in ("capture", "stream", "pty"):
@@ -68,7 +68,7 @@ def _client_io(spec: "ClientSpec") -> None:
 
 
 def _valid_client_input(value: object) -> bool:
-    return value is None or isinstance(value, str)
+    return value is None or isinstance(value, (str, bytes))
 
 
 def _valid_output_limit(value: object) -> bool:
@@ -146,7 +146,7 @@ class ClientSpec:
     env: Mapping[str, object] = dataclasses.field(default_factory=dict)
     cwd: Optional[str] = None
     timeout: float = 30.0
-    input: Optional[str] = None
+    input: Optional[Union[str, bytes]] = None
     expected_exit_codes: Sequence[int] = (0,)
     output_limit: int = 1 << 20
     mode: str = "capture"
@@ -168,7 +168,7 @@ class ClientSpec:
 class _RunOptions:
     cwd: Optional[Union[str, Path]]
     timeout: float
-    input: Optional[str]
+    input: Optional[Union[str, bytes]]
     expected: tuple[int, ...]
     output_limit: int
     mode: str
@@ -267,7 +267,7 @@ class ConfiguredClient:
         *args: object,
         check: bool = True,
         timeout: Optional[float] = None,
-        input: Optional[str] = None,
+        input: Optional[Union[str, bytes]] = None,
         env: Optional[Mapping[str, object]] = None,
         cwd: Optional[Union[str, Path]] = None,
         expected_exit_codes: Optional[Sequence[int]] = None,

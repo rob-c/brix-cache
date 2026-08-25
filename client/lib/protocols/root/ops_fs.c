@@ -67,43 +67,58 @@ fs_text(brix_conn *c, void *hdr24, const void *payload, uint32_t plen,
     return 0;
 }
 
+/* fs_simple on a bare-path payload (plen = strlen(path)) — every path-based
+ * mutation below runs through this. */
+static int
+fs_path(brix_conn *c, void *hdr24, const char *path, int op_class,
+        int benign_errno, brix_status *st)
+{
+    return fs_simple(c, hdr24, path, (uint32_t) strlen(path), op_class,
+                     benign_errno, st);
+}
+
+/* Declare + build the 24-byte request every fs op sends: zero `req`, stamp the
+ * request id, pack the body word via the matching xrdw_<op>_req writer (FS_REQ
+ * takes the body initializer; FS_REQ_EMPTY packs the all-zero body). One shared
+ * spelling so the build discipline cannot drift between ops. */
+#define FS_REQ(REQT, reqid, op, ...) \
+    REQT req; \
+    memset(&req, 0, sizeof(req)); \
+    req.requestid = htons(reqid); \
+    { \
+        xrdw_##op##_req_t b_ = __VA_ARGS__; \
+        xrdw_##op##_req_pack(&b_, ((ClientRequestHdr *) &req)->body); \
+    }
+
+#define FS_REQ_EMPTY(REQT, reqid) \
+    REQT req; \
+    memset(&req, 0, sizeof(req)); \
+    req.requestid = htons(reqid); \
+    xrdw_empty_req_pack(((ClientRequestHdr *) &req)->body)
+
 int
 brix_mkdir(brix_conn *c, const char *path, int mode, int parents, brix_status *st)
 {
-    ClientMkdirRequest req;
-    memset(&req, 0, sizeof(req));
-    req.requestid  = htons(kXR_mkdir);
-    {
-        xrdw_mkdir_req_t b = { .options = (uint8_t) (parents ? kXR_mkdirpath : 0),
-                               .mode = (uint16_t) mode };
-        xrdw_mkdir_req_pack(&b, ((ClientRequestHdr *) &req)->body);
-    }
+    FS_REQ(ClientMkdirRequest, kXR_mkdir, mkdir,
+           { .options = (uint8_t) (parents ? kXR_mkdirpath : 0),
+             .mode = (uint16_t) mode });
     /* A resumed mkdir whose first attempt already landed reports EEXIST → success. */
-    return fs_simple(c, &req, path, (uint32_t) strlen(path),
-                     XRDC_OP_MUTATION_NORMALIZE, EEXIST, st);
+    return fs_path(c, &req, path, XRDC_OP_MUTATION_NORMALIZE, EEXIST, st);
 }
 
 int
 brix_rm(brix_conn *c, const char *path, brix_status *st)
 {
-    ClientRmRequest req;
-    memset(&req, 0, sizeof(req));
-    req.requestid = htons(kXR_rm);
-    xrdw_empty_req_pack(((ClientRequestHdr *) &req)->body);
+    FS_REQ_EMPTY(ClientRmRequest, kXR_rm);
     /* A resumed rm whose first attempt already landed reports ENOENT → success. */
-    return fs_simple(c, &req, path, (uint32_t) strlen(path),
-                     XRDC_OP_MUTATION_NORMALIZE, ENOENT, st);
+    return fs_path(c, &req, path, XRDC_OP_MUTATION_NORMALIZE, ENOENT, st);
 }
 
 int
 brix_rmdir(brix_conn *c, const char *path, brix_status *st)
 {
-    ClientRmdirRequest req;
-    memset(&req, 0, sizeof(req));
-    req.requestid = htons(kXR_rmdir);
-    xrdw_empty_req_pack(((ClientRequestHdr *) &req)->body);
-    return fs_simple(c, &req, path, (uint32_t) strlen(path),
-                     XRDC_OP_MUTATION_NORMALIZE, ENOENT, st);
+    FS_REQ_EMPTY(ClientRmdirRequest, kXR_rmdir);
+    return fs_path(c, &req, path, XRDC_OP_MUTATION_NORMALIZE, ENOENT, st);
 }
 
 int
@@ -146,59 +161,33 @@ brix_mv(brix_conn *c, const char *src, const char *dst, brix_status *st)
 int
 brix_chmod(brix_conn *c, const char *path, int mode, brix_status *st)
 {
-    ClientChmodRequest req;
-    memset(&req, 0, sizeof(req));
-    req.requestid = htons(kXR_chmod);
-    {
-        xrdw_chmod_req_t b = { .mode = (uint16_t) mode };
-        xrdw_chmod_req_pack(&b, ((ClientRequestHdr *) &req)->body);
-    }
+    FS_REQ(ClientChmodRequest, kXR_chmod, chmod, { .mode = (uint16_t) mode });
     /* Re-applying the same mode is harmless — retry freely. */
-    return fs_simple(c, &req, path, (uint32_t) strlen(path),
-                     XRDC_OP_IDEMPOTENT, 0, st);
+    return fs_path(c, &req, path, XRDC_OP_IDEMPOTENT, 0, st);
 }
 
 int
 brix_truncate(brix_conn *c, const char *path, int64_t size, brix_status *st)
 {
-    ClientTruncateRequest req;
-    memset(&req, 0, sizeof(req));
-    req.requestid = htons(kXR_truncate);
-    {
-        xrdw_truncate_req_t b = { .offset = size };   /* fhandle 0 = path-based */
-        xrdw_truncate_req_pack(&b, ((ClientRequestHdr *) &req)->body);
-    }
+    /* offset with fhandle 0 = path-based truncate. */
+    FS_REQ(ClientTruncateRequest, kXR_truncate, truncate, { .offset = size });
     /* Truncating to the same size is idempotent — retry freely. */
-    return fs_simple(c, &req, path, (uint32_t) strlen(path),
-                     XRDC_OP_IDEMPOTENT, 0, st);
+    return fs_path(c, &req, path, XRDC_OP_IDEMPOTENT, 0, st);
 }
 
 int
 brix_query(brix_conn *c, int infotype, const char *args, char *out, size_t outsz,
            brix_status *st)
 {
-    ClientQueryRequest req;
-    size_t             alen = (args != NULL) ? strlen(args) : 0;
-    memset(&req, 0, sizeof(req));
-    req.requestid = htons(kXR_query);
-    {
-        xrdw_query_req_t b = { .infotype = (uint16_t) infotype };
-        xrdw_query_req_pack(&b, ((ClientRequestHdr *) &req)->body);
-    }
-    return fs_text(c, &req, args, (uint32_t) alen, out, outsz, st);
+    FS_REQ(ClientQueryRequest, kXR_query, query, { .infotype = (uint16_t) infotype });
+    return fs_text(c, &req, args, args ? (uint32_t) strlen(args) : 0, out, outsz, st);
 }
 
 int
 brix_statvfs(brix_conn *c, const char *path, char *out, size_t outsz,
              brix_status *st)
 {
-    ClientStatRequest req;
-    memset(&req, 0, sizeof(req));
-    req.requestid = htons(kXR_stat);
-    {
-        xrdw_stat_req_t b = { .options = (uint8_t) kXR_vfs };
-        xrdw_stat_req_pack(&b, ((ClientRequestHdr *) &req)->body);
-    }
+    FS_REQ(ClientStatRequest, kXR_stat, stat, { .options = (uint8_t) kXR_vfs });
     return fs_text(c, &req, path, (uint32_t) strlen(path), out, outsz, st);
 }
 
@@ -216,13 +205,8 @@ int
 brix_locate_opts(brix_conn *c, const char *path, unsigned options,
                  char *out, size_t outsz, brix_status *st)
 {
-    ClientLocateRequest req;
-    memset(&req, 0, sizeof(req));
-    req.requestid = htons(kXR_locate);
-    {
-        xrdw_locate_req_t b = { .options = (uint16_t) options };
-        xrdw_locate_req_pack(&b, ((ClientRequestHdr *) &req)->body);
-    }
+    FS_REQ(ClientLocateRequest, kXR_locate, locate,
+           { .options = (uint16_t) options });
     return fs_text(c, &req, path, (uint32_t) strlen(path), out, outsz, st);
 }
 

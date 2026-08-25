@@ -143,6 +143,29 @@ typedef struct {
 } brix_mirror_conf_t;
 
 /*
+ * Merge the surface-independent mirror knobs child <- parent and derive
+ * `enabled` from the presence of at least one inherited target.  Each surface
+ * merges its own extras (stream: opcode masks; HTTP: token) around this call —
+ * they are independent knobs, and `enabled` depends only on targets.
+ */
+static ngx_inline void
+brix_mirror_conf_merge_common(brix_mirror_conf_t *conf,
+    const brix_mirror_conf_t *prev)
+{
+    if (conf->targets == NULL) {
+        conf->targets = prev->targets;
+    }
+    ngx_conf_merge_uint_value(conf->sample_pct, prev->sample_pct, 100);
+    ngx_conf_merge_uint_value(conf->method_mask, prev->method_mask,
+                              BRIX_MIRROR_M_DEFAULT);
+    ngx_conf_merge_value(conf->strip_auth, prev->strip_auth, 1);
+    ngx_conf_merge_value(conf->log_diverge, prev->log_diverge, 1);
+    ngx_conf_merge_msec_value(conf->timeout_ms, prev->timeout_ms, 5000);
+    ngx_conf_merge_value(conf->mirror_writes, prev->mirror_writes, 0);
+    conf->enabled = (conf->targets != NULL && conf->targets->nelts > 0) ? 1 : 0;
+}
+
+/*
  * Per-request sampling decision.  ngx_random() is seeded per worker; a plain
  * modulo draw is adequate for traffic sampling (no cryptographic uniformity
  * needed).  pct==100 short-circuits to always-on so a fully-sampled config

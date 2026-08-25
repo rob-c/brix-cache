@@ -133,6 +133,7 @@ LIB_SRCS   := \
   lib/oci/ref.c lib/oci/reg_client.c lib/oci/reg_verbs.c lib/oci/reg_blob.c lib/oci/layout.c lib/oci/layout_index.c \
   ../shared/oci/digest.c ../shared/oci/name.c ../shared/oci/challenge.c ../shared/oci/authority.c \
   ../shared/oci/tar.c ../shared/oci/tar_pax.c ../shared/oci/tar_digest.c ../shared/oci/flatten.c \
+  ../shared/cvmfs/catalog/xattr_pack.c \
   ../shared/oci/stargz.c ../shared/oci/stargz_toc.c \
   ../shared/oci/gc.c ../shared/oci/gc_mark.c ../shared/oci/gc_sweep.c \
   ../shared/rpm/rpmhdr.c ../shared/rpm/repomd_write.c \
@@ -371,6 +372,10 @@ LDFLAGS ?= -Wl,-z,relro -Wl,-z,now -Wl,-z,noexecstack
 # exactly that), rather than leaving gcov symbols unresolved at link time.
 ifneq ($(filter --coverage -fprofile-arcs -ftest-coverage,$(CFLAGS)),)
 LDFLAGS += --coverage
+else ifneq ($(wildcard lib/*/*.gcno lib/*/*/*.gcno),)
+# Objects from an earlier --coverage build (marked by their .gcno notes) still
+# reference __gcov_*; keep plain re-links resolvable without a full rebuild.
+LDFLAGS += --coverage
 endif
 # Executables are PIE; the shared lib is already -shared (implicitly PIC).
 LDFLAGS_PIE := -pie
@@ -432,6 +437,7 @@ BRIX_CVMFS_OBJS := \
   $(SHARED_DIR)/cvmfs/fetch/fetch_bundle.o $(SHARED_DIR)/cvmfs/platform/platform.o \
   $(SHARED_DIR)/cache/cas_pack.o \
   $(SHARED_DIR)/cvmfs/signature/sign.o    $(SHARED_DIR)/cvmfs/catalog/catalog_write.o \
+  $(SHARED_DIR)/cvmfs/catalog/xattr_pack.o \
   $(SHARED_DIR)/cvmfs/object/object_write.o $(SHARED_DIR)/cvmfs/reflog/reflog.o \
   $(SHARED_DIR)/cvmfs/history/history.o \
   $(SHARED_DIR)/cvmfs/publish/changeset.o $(SHARED_DIR)/cvmfs/publish/publish.o \
@@ -703,7 +709,7 @@ lib: $(CLIENT_LIB) $(LIBBRIX_SO) libbrix.pc
 
 # Fold the (PIC, ngx-free) protocol kernels into the .so so a single -lbrix links.
 $(LIBBRIX_SO): $(PIC_OBJS) $(PROTO_LIB)
-	$(CC) -shared -Wl,-soname,$(LIBBRIX_SONAME) -o $(LIBBRIX_REAL) \
+	$(CC) -shared $(LDFLAGS) -Wl,-soname,$(LIBBRIX_SONAME) -o $(LIBBRIX_REAL) \
 	    $(PIC_OBJS) -Wl,--whole-archive $(PROTO_LIB) -Wl,--no-whole-archive $(LDLIBS)
 	ln -sf $(LIBBRIX_REAL) $(LIBBRIX_SONAME)
 	ln -sf $(LIBBRIX_SONAME) $(LIBBRIX_SO)
@@ -732,11 +738,17 @@ install: lib
 	install -m755 $(LIBBRIX_REAL) $(DESTDIR)$(LIBDIR)/
 	cp -P $(LIBBRIX_SONAME) $(LIBBRIX_SO) $(DESTDIR)$(LIBDIR)/
 	# brix.h is an umbrella that includes the split brix_net/auth/ops headers.
-	install -m644 lib/brix.h lib/brix_net.h lib/brix_auth.h lib/brix_ops.h \
+	install -m644 lib/brix_net.h lib/brix_auth.h lib/brix_ops.h \
+	              lib/_brix_net_ext.h lib/brix_net_frame.h \
 	              $(DESTDIR)$(INCLUDEDIR)/brix/
-	install -m644 $(SRC)/protocol/*.h $(DESTDIR)$(INCLUDEDIR)/brix/xrdproto/protocol/
+	# brix.h names the protocol headers by their in-tree src path (-I $(SRC));
+	# the installed tree roots them at include/brix/xrdproto/ — rewrite on install.
+	sed 's|"protocols/root/protocol/|"xrdproto/protocol/|' lib/brix.h \
+	    > $(DESTDIR)$(INCLUDEDIR)/brix/brix.h
+	chmod 644 $(DESTDIR)$(INCLUDEDIR)/brix/brix.h
+	install -m644 $(SRC)/protocols/root/protocol/*.h $(DESTDIR)$(INCLUDEDIR)/brix/xrdproto/protocol/
 	# protocol.h pulls in codec/wire_codec.h — ship the codec subdir too.
-	install -m644 $(SRC)/protocol/codec/*.h $(DESTDIR)$(INCLUDEDIR)/brix/xrdproto/protocol/codec/
+	install -m644 $(SRC)/protocols/root/protocol/codec/*.h $(DESTDIR)$(INCLUDEDIR)/brix/xrdproto/protocol/codec/
 	install -m644 libbrix.pc $(DESTDIR)$(PKGCONFDIR)/
 
 # Install the CLI binaries, optional FUSE/preload artifacts, completions, and

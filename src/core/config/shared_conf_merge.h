@@ -274,25 +274,12 @@ brix_shared_merge_net(ngx_http_brix_shared_conf_t *prev,
     ngx_conf_merge_str_value(conf->trusted_ca_dir, prev->trusted_ca_dir, "");
     ngx_conf_merge_uint_value(conf->verify_depth, prev->verify_depth, 10);
     ngx_conf_merge_str_value(conf->tcp_congestion, prev->tcp_congestion, "");
-    /* phase-105 W2: traffic-mirror settings (moved verbatim from webdav's
-     * config_proxy.c so every HTTP protocol conf carries merged values;
-     * targets inherit whole, enabled derives from them). */
-    if (conf->mirror.targets == NULL) {
-        conf->mirror.targets = prev->mirror.targets;
-    }
+    /* phase-105 W2: traffic-mirror settings (moved from webdav's
+     * config_proxy.c so every HTTP protocol conf carries merged values):
+     * the HTTP-surface token extra, then the shared knob merge (mirror.h),
+     * which inherits targets whole and derives `enabled` from them. */
     ngx_conf_merge_str_value(conf->mirror.token, prev->mirror.token, "");
-    ngx_conf_merge_uint_value(conf->mirror.sample_pct,
-                              prev->mirror.sample_pct, 100);
-    ngx_conf_merge_uint_value(conf->mirror.method_mask,
-                              prev->mirror.method_mask, BRIX_MIRROR_M_DEFAULT);
-    ngx_conf_merge_value(conf->mirror.strip_auth,  prev->mirror.strip_auth,  1);
-    ngx_conf_merge_value(conf->mirror.log_diverge, prev->mirror.log_diverge, 1);
-    ngx_conf_merge_msec_value(conf->mirror.timeout_ms,
-                              prev->mirror.timeout_ms, 5000);
-    ngx_conf_merge_value(conf->mirror.mirror_writes,
-                         prev->mirror.mirror_writes, 0);
-    conf->mirror.enabled = (conf->mirror.targets != NULL
-                            && conf->mirror.targets->nelts > 0) ? 1 : 0;
+    brix_mirror_conf_merge_common(&conf->mirror, &prev->mirror);
     /* phase-105 W1: token cache + rate limiting (were webdav-local; the
      * engine confs are location-scoped and inherit whole, exactly as the
      * old webdav merge did — plus rl_rules, which webdav never inherited

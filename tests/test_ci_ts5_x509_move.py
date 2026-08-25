@@ -159,7 +159,7 @@ def test_flat_spelling_is_the_package_object(flat):
 
 
 def test_every_definition_moved_verbatim():
-    """49 bodies, hashed against the archives.
+    """60 bodies, hashed against the archives.
 
     The move was mechanical by construction (line ranges cut out of the
     shards), and this is what proves it stayed mechanical after the imports
@@ -171,7 +171,7 @@ def test_every_definition_moved_verbatim():
         path for path in sorted(PKG.glob("*.py"))
         if path.name not in support_modules
     )
-    problem = move_problem(old, new, expected_shape=(49, 49))
+    problem = move_problem(old, new, expected_shape=(60, 60))
     assert problem is None, problem
 
 

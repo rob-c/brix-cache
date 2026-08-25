@@ -1879,6 +1879,8 @@ ngx_module_srcs="$ngx_addon_dir/src/protocols/oci/oci_module.c \
                  $ngx_addon_dir/src/protocols/oci/oci_present.c \
                  $ngx_addon_dir/src/protocols/oci/oci_tags.c \
                  $ngx_addon_dir/src/protocols/oci/oci_upstream_auth.c \
+                 $ngx_addon_dir/src/protocols/oci/oci_token_cache.c \
+                 $ngx_addon_dir/src/protocols/oci/oci_delegate.c \
                  $ngx_addon_dir/src/protocols/oci/oci_store.c \
                  $ngx_addon_dir/src/protocols/oci/oci_authz.c \
                  $ngx_addon_dir/src/protocols/oci/oci_upload.c \

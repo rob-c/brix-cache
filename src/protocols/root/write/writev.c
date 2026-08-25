@@ -142,8 +142,12 @@ writev_validate_framing(brix_ctx_t *ctx, ngx_connection_t *c,
  * all-or-nothing.  Only fhandle[0] is significant (handles are 0..255).
  * HOW: Returns NGX_OK when every handle passes.  On the first failure it emits
  * the stock error (kXR_FileNotOpen for a stale/closed slot, kXR_NotAuthorized
- * for a read-only handle) and returns its brix_send_error result for the caller
- * to propagate unchanged. */
+ * for a read-only handle) and returns NGX_DONE — the reply is already queued, so
+ * the caller must STOP (never fall through to the write).  NGX_ERROR only when
+ * emitting that error itself failed (allocation).  Note brix_send_error returns
+ * NGX_OK on a successfully queued reply, so its result cannot be propagated as-is
+ * here: an NGX_OK would be indistinguishable from "all handles passed" and let a
+ * rejected handle reach writev_try_aio (a stale fd<0 read / double response). */
 static ngx_int_t
 writev_validate_handles(brix_ctx_t *ctx, ngx_connection_t *c,
                         const write_list *wl, size_t n_segs)
@@ -152,17 +156,20 @@ writev_validate_handles(brix_ctx_t *ctx, ngx_connection_t *c,
 
 	for (i = 0; i < n_segs; i++) {
 		int idx = (int)(unsigned char) wl[i].fhandle[0];
+		ngx_int_t rc;
 
 		/* fd < 0 means the slot is closed/never-opened (stale handle). */
 		if (idx < 0 || idx >= BRIX_MAX_FILES || ctx->files[idx].fd < 0) {
 			BRIX_OP_ERR(ctx, BRIX_OP_WRITEV);
-			return brix_send_error(ctx, c, kXR_FileNotOpen,
+			rc = brix_send_error(ctx, c, kXR_FileNotOpen,
 									 "invalid file handle in writev");
+			return rc == NGX_OK ? NGX_DONE : rc;
 		}
 		if (!ctx->files[idx].writable) {
 			BRIX_OP_ERR(ctx, BRIX_OP_WRITEV);
-			return brix_send_error(ctx, c, kXR_NotAuthorized,
+			rc = brix_send_error(ctx, c, kXR_NotAuthorized,
 									 "file not open for writing");
+			return rc == NGX_OK ? NGX_DONE : rc;
 		}
 	}
 
@@ -400,8 +407,11 @@ brix_handle_writev(brix_ctx_t *ctx, ngx_connection_t *c)
 	}
 
 	rc = writev_validate_handles(ctx, c, wl, n_segs);
+	if (rc == NGX_DONE) {
+		return NGX_OK;   /* stock error already queued; handler is done */
+	}
 	if (rc != NGX_OK) {
-		return rc;
+		return rc;       /* send_error allocation failure → drop the link */
 	}
 
 	/* oss.maxsize (§3.9): refuse the whole vector if ANY segment's end offset

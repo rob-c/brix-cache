@@ -45,9 +45,9 @@ def _expression_1(srv):
         [srv.key(f"batch-{i}.txt") for i in range(2)]
     )
 
-def _expression_2(urls):
+def _expression_2(urls, worker):
     return (
-        [threading.Thread(target=_worker, args=(i, u))
+        [threading.Thread(target=worker, args=(i, u))
                        for i, u in enumerate(urls)]
     )
 
@@ -213,7 +213,7 @@ def test_size_trigger_releases_batch(make_server):
         results[tag] = requests.delete(url, timeout=15).status_code
 
     t0 = time.monotonic()
-    threads = _expression_2(urls)
+    threads = _expression_2(urls, _worker)
     for t in threads:
         t.start()
     for t in threads:

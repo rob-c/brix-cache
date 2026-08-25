@@ -22,13 +22,13 @@ cvmfs_reflog_t *cvmfs_reflog_open(const char *path) {
     cvmfs_reflog_t *r = calloc(1, sizeof(*r));
     if (r == NULL) return NULL;
     if (sqlite3_open_v2(path, &r->db,
-                        SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE, NULL) != SQLITE_OK
-        || sqlite3_exec(r->db, REFLOG_DDL, NULL, NULL, NULL) != SQLITE_OK) {
-        sqlite3_close(r->db);
-        free(r);
-        return NULL;
+                        SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE, NULL) == SQLITE_OK
+        && sqlite3_exec(r->db, REFLOG_DDL, NULL, NULL, NULL) == SQLITE_OK) {
+        return r;
     }
-    return r;
+    sqlite3_close(r->db);
+    free(r);
+    return NULL;
 }
 
 int cvmfs_reflog_close(cvmfs_reflog_t *r) {

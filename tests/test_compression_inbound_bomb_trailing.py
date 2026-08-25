@@ -182,7 +182,6 @@ def _require_server():
 _BOMB_PLAIN = b"\x00" * (6 * 1024 * 1024)
 
 
-@pytest.mark.parametrize("codec", list(RATIO_GUARDED))
 def _assert_bomb_payload(codec, bomb):
     assert bomb and len(bomb) > 0
     ratio = len(_BOMB_PLAIN) // max(1, len(bomb))
@@ -201,6 +200,7 @@ def _assert_bomb_response(codec, response, path):
     _assert_not_stored(path)
 
 
+@pytest.mark.parametrize("codec", list(RATIO_GUARDED))
 def test_bomb_rejected_413_and_not_stored(codec):
     """A >1000:1 expansion bomb must be rejected 413 and never stored."""
     token, compress = CODECS[codec]

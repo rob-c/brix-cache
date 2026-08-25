@@ -36,9 +36,7 @@
 #define TX_PATH 600
 
 static int tx_err(const char *what, const char *detail) {
-    fprintf(stderr, "brixcvmfs repo: %s%s%s\n", what,
-            detail != NULL ? ": " : "", detail != NULL ? detail : "");
-    return 1;
+    return brixcvmfs_emit_err("repo", what, detail, 1);
 }
 
 /* ---- lock ----------------------------------------------------------------- */

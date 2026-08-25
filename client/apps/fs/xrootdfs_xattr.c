@@ -90,22 +90,32 @@ int op_faset(brix_conn *c, void *v, brix_status *st)
 { struct ctx_faset *a = v;
   return brix_fattr_set(c, a->path, a->name, a->val, a->vlen, a->create_only, st); }
 
+/* Shared xattr-mutation guard: reject read-only web mounts, verify xattr
+ * support, reject the read-only checksum prefix, then resolve NAME → backend
+ * fattr. Returns 0 with *fattr set, or a negative FUSE errno (absent_errno when
+ * NAME has no fattr mapping). */
+static int
+xfs_xattr_mutate_guard(const char *name, int absent_errno, const char **fattr)
+{
+    if (g_web) { return -EROFS; }
+    if (!g_xattr) { return -ENOTSUP; }
+    if (strncmp(name, XFS_CKS_XATTR_PFX, sizeof(XFS_CKS_XATTR_PFX) - 1) == 0) {
+        return -EACCES;
+    }
+    *fattr = xfs_xattr_to_fattr(name);
+    return *fattr == NULL ? absent_errno : 0;
+}
+
 int
 xfs_setxattr(const char *path, const char *name, const char *value,
              size_t size, int flags)
 {
-    if (g_web) return -EROFS;
     brix_status st;
     const char *fname;
-    if (!g_xattr) {
-        return -ENOTSUP;
-    }
-    if (strncmp(name, XFS_CKS_XATTR_PFX, sizeof(XFS_CKS_XATTR_PFX) - 1) == 0) {
-        return -EACCES;
-    }
-    fname = xfs_xattr_to_fattr(name);
-    if (fname == NULL) {
-        return -ENOTSUP;
+    int         rc = xfs_xattr_mutate_guard(name, -ENOTSUP, &fname);
+
+    if (rc != 0) {
+        return rc;
     }
     brix_status_clear(&st);
     char pbuf[XRDC_PATH_MAX];
@@ -122,18 +132,12 @@ int op_fadel(brix_conn *c, void *v, brix_status *st)
 int
 xfs_removexattr(const char *path, const char *name)
 {
-    if (g_web) return -EROFS;
     brix_status st;
     const char *fname;
-    if (!g_xattr) {
-        return -ENOTSUP;
-    }
-    if (strncmp(name, XFS_CKS_XATTR_PFX, sizeof(XFS_CKS_XATTR_PFX) - 1) == 0) {
-        return -EACCES;
-    }
-    fname = xfs_xattr_to_fattr(name);
-    if (fname == NULL) {
-        return -ENODATA;
+    int         rc = xfs_xattr_mutate_guard(name, -ENODATA, &fname);
+
+    if (rc != 0) {
+        return rc;
     }
     brix_status_clear(&st);
     char pbuf[XRDC_PATH_MAX];

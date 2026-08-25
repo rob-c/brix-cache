@@ -8,6 +8,8 @@
 #include "webdav_module_internal.h"
 #include "core/config/credential_block.h"   /* §14 brix_credential block directive */
 #include "auth/crypto/store_policy.h"        /* BRIX_SP_MODE_*, BRIX_CRL_MODE_* */
+#include "protocols/root/stream/module_enums.h"  /* shared brix_signing_policy_modes
+                                                    + brix_crl_modes tables */
 
 ngx_conf_enum_t  webdav_auth_values[] = {
     { ngx_string("none"),     WEBDAV_AUTH_NONE     },

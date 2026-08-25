@@ -113,7 +113,7 @@ def _phase_dialogue_1(commands, fh, out):
     for cmd in commands:
         fh.write((cmd + "\r\n").encode())
         fh.flush()
-        out.append(read())
+        out.append(_read_reply(fh))
 
 
 NAME = "lc-audit16ae-ftpgates"

@@ -26,43 +26,6 @@
 
 #include "put_internal.h"
 
-/*
- * Build a transient VFS ctx for the staged-write lifecycle on the final `path`
- * (mirrors the canonical construction in get.c).  PUT is allow_write-gated at
- * the access phase, so brix_vfs_staged_open's write-gate never fires here.
- */
-static void
-webdav_put_vfs_ctx_init(ngx_http_request_t *r,
-    ngx_http_brix_webdav_loc_conf_t *conf, const char *path,
-    brix_vfs_ctx_t *vctx)
-{
-    ngx_http_brix_webdav_req_ctx_t *wctx =
-        ngx_http_get_module_ctx(r, ngx_http_brix_webdav_module);
-    int is_tls = 0;
-
-#if (NGX_HTTP_SSL)
-    is_tls = (r->connection->ssl != NULL) ? 1 : 0;
-#endif
-
-    brix_vfs_ctx_init(vctx, r->pool, r->connection->log,
-        BRIX_PROTO_WEBDAV, conf->common.root_canon,
-        conf->common.cache_root_canon, conf->common.allow_write, is_tls,
-        (wctx != NULL) ? wctx->identity : NULL, path);
-    brix_vfs_ctx_bind_backend_cred(vctx,
-        &conf->common.storage_credential_dir,
-        conf->common.storage_credential_fallback);
-    /* Phase-2 T9: opt-in minting for GSI/token identities that have no
-     * pre-provisioned proxy. No-op unless a mint CA is configured. */
-    brix_vfs_ctx_bind_backend_mint(vctx,
-        &conf->common.storage_credential_mint_ca_cert,
-        &conf->common.storage_credential_mint_ca_key,
-        conf->common.storage_credential_mint_ttl);
-    /* Phase-70: bind captured bearer/proxy for backend PASSTHROUGH (no-op on SELECT). */
-    webdav_vfs_bind_deleg(r, conf, vctx);
-    /* Route through the export's selected storage backend (NULL ⇒ default POSIX). */
-    vctx->sd = brix_webdav_backend_instance(conf, r->connection->log);
-}
-
 /* Add an "X-Upload-Offset: <off>" response header (the resumable-PUT progress
  * marker the client reads to know where to continue).  Best-effort. */
 static void
@@ -267,11 +230,7 @@ webdav_put_precheck(ngx_http_request_t *r,
             ngx_http_get_module_ctx(r, ngx_http_brix_webdav_module);
         brix_vfs_ctx_t  pctx;
         brix_vfs_stat_t pst;
-        int               is_tls = 0;
-
-#if (NGX_HTTP_SSL)
-        is_tls = (r->connection->ssl != NULL) ? 1 : 0;
-#endif
+        int               is_tls = brix_http_request_is_tls(r);
         brix_vfs_ctx_init(&pctx, r->pool, r->connection->log,
             BRIX_PROTO_WEBDAV, conf->common.root_canon, conf->common.cache_root_canon,
             conf->common.allow_write, is_tls,
@@ -317,7 +276,7 @@ webdav_put_precheck(ngx_http_request_t *r,
  *   backend shares.  Status codes unchanged.
  *
  * HOW:
- *   1. Init the staged-write ctx via webdav_put_vfs_ctx_init.
+ *   1. Init the staged-write ctx (canonical data-plane build + backend route).
  *   2. brix_vfs_writer_open(O_ATOMIC, verify_write); a non-NULL result succeeds.
  *   3. ENOENT/ENOTDIR (missing parent collection) → 409 (RFC 4918 §9.7.1).
  *   4. Otherwise map errno via brix_http_map_errno, log the path, and finalize
@@ -341,7 +300,11 @@ webdav_put_open_target(ngx_http_request_t *r,
      * on success — never exposing a partial object.  verify_write folds a
      * read-back integrity check on commit when the export opts in.
      */
-    webdav_put_vfs_ctx_init(r, conf, path, vctx);
+    webdav_vfs_ctx_build_data(r, conf, path, vctx);
+    /* Route through the export's selected storage backend (NULL ⇒ POSIX).
+     * PUT is allow_write-gated at the access phase, so the staged open's
+     * write-gate never fires here. */
+    vctx->sd = brix_webdav_backend_instance(conf, r->connection->log);
 
     writer = brix_vfs_writer_open(vctx, BRIX_VFS_O_ATOMIC,
                                     conf->common.verify_write, &staged_err);

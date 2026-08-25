@@ -37,8 +37,8 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 
-void *ngx_pcalloc(ngx_pool_t *pool, size_t size) { (void) pool; return calloc(1, size); }
-void *ngx_pnalloc(ngx_pool_t *pool, size_t size) { (void) pool; return malloc(size); }
+#define BRIX_NGX_SHIM_IMPL 1   /* this TU provides the ngx pool shims */
+#include "ngx_shim.h"
 
 static const brix_sd_driver_t *DRV;
 static brix_sd_instance_t      INST;

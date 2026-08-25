@@ -69,176 +69,139 @@ copy_str(char *dst, size_t dst_sz, const unsigned char *src, size_t n)
     dst[n] = '\0';
 }
 
-/* cta.common.Service{ name=1 } → out->instance */
-static int
-decode_service(pb_reader *r, cta_request_t *out)
-{
-    uint32_t f; int wt;
+/* ---- table-driven request decoder ---------------------------------------
+ * Every message in the pinned table is the same flat shape — match a field
+ * number, else skip — so a single generic loop walks one row table; the
+ * per-message differences live entirely in pbf_rows[]. */
 
-    while (r->p < r->end) {
-        if (pb_read_tag(r, &f, &wt) != 0) {
-            return -1;
-        }
-        if (f == F_SERVICE_NAME && wt == PB_WT_LEN) {
-            const unsigned char *d; size_t n;
-            if (pb_read_len_delim(r, &d, &n) != 0) {
-                return -1;
-            }
-            copy_str(out->instance, sizeof(out->instance), d, n);
-        } else if (pb_skip_field(r, wt) != 0) {
-            return -1;
-        }
-    }
-    return 0;
+typedef enum {
+    PBF_STR,     /* LEN    → copy_str into the cta_request_t buffer at off */
+    PBF_MSG,     /* LEN    → recurse into the rows of message `sub`        */
+    PBF_U64,     /* VARINT → raw value into the uint64_t at off            */
+    PBF_EVENT,   /* VARINT → map cta.eos.Workflow.EventType onto out->op   */
+    PBF_QUERY,   /* LEN    → consume; mark the request as CTA_OP_QUERY     */
+} pbf_kind_t;
+
+enum {
+    M_REQUEST, M_NOTIF, M_WF, M_CLIENT, M_META, M_SERVICE, M_REQUESTER,
+};
+
+static const struct {
+    unsigned char msg;     /* message this row belongs to (M_*)     */
+    uint32_t      field;   /* CTA field number                      */
+    pbf_kind_t    kind;
+    size_t        off;     /* PBF_STR / PBF_U64 destination         */
+    size_t        sz;      /* PBF_STR destination capacity          */
+    unsigned char sub;     /* PBF_MSG nested message id (M_*)       */
+} pbf_rows[] = {
+
+#define PBF_STR_ROW(m, fld, member) \
+    { m, fld, PBF_STR, offsetof(cta_request_t, member), \
+      sizeof(((cta_request_t *) 0)->member), 0 }
+
+    { M_REQUEST,   F_REQ_NOTIFICATION, PBF_MSG,   0, 0, M_NOTIF },
+    { M_REQUEST,   F_REQ_ADMINCMD,     PBF_QUERY, 0, 0, 0 },
+    { M_NOTIF,     F_NOTIF_WF,         PBF_MSG,   0, 0, M_WF },
+    { M_NOTIF,     F_NOTIF_CLI,        PBF_MSG,   0, 0, M_CLIENT },
+    { M_NOTIF,     F_NOTIF_FILE,       PBF_MSG,   0, 0, M_META },
+    { M_WF,        F_WF_EVENT,         PBF_EVENT, 0, 0, 0 },
+    { M_WF,        F_WF_INSTANCE,      PBF_MSG,   0, 0, M_SERVICE },
+    { M_CLIENT,    F_CLIENT_USER,      PBF_MSG,   0, 0, M_REQUESTER },
+    PBF_STR_ROW(M_META,      F_META_LPATH,          path),
+    PBF_STR_ROW(M_META,      F_META_REQUEST_ID,     request_id),
+    { M_META,      F_META_ARCHIVE_ID,  PBF_U64,
+      offsetof(cta_request_t, archive_id), 0, 0 },
+    PBF_STR_ROW(M_SERVICE,   F_SERVICE_NAME,        instance),
+    PBF_STR_ROW(M_REQUESTER, F_REQUESTER_USERNAME,  owner_user),
+    PBF_STR_ROW(M_REQUESTER, F_REQUESTER_GROUPNAME, owner_group),
+};
+
+#define PBF_NROWS (sizeof(pbf_rows) / sizeof(pbf_rows[0]))
+
+static int decode_msg(pb_reader *r, unsigned char msg, cta_request_t *out);
+
+/* Wire type a row's kind expects on the wire. */
+static int
+pbf_wire_type(pbf_kind_t kind)
+{
+    return (kind == PBF_U64 || kind == PBF_EVENT) ? PB_WT_VARINT : PB_WT_LEN;
 }
 
-/* cta.eos.Workflow{ event=1, instance=5 } → out->op, out->instance */
+/* Consume the value of matched row `i` from the reader into `out`. */
 static int
-decode_workflow(pb_reader *r, cta_request_t *out)
+decode_field(pb_reader *r, size_t i, cta_request_t *out)
 {
-    uint32_t f; int wt;
+    const unsigned char *d;
+    size_t               n;
+    uint64_t             ev;
+    pb_reader            sub;
 
-    while (r->p < r->end) {
-        if (pb_read_tag(r, &f, &wt) != 0) {
+    switch (pbf_rows[i].kind) {
+
+    case PBF_EVENT:
+        if (pb_read_varint(r, &ev) != 0) {
             return -1;
         }
-        if (f == F_WF_EVENT && wt == PB_WT_VARINT) {
-            uint64_t ev;
-            if (pb_read_varint(r, &ev) != 0) {
-                return -1;
-            }
-            out->op = ev == EV_CLOSEW        ? CTA_OP_ARCHIVE
-                    : ev == EV_PREPARE       ? CTA_OP_RETRIEVE
-                    : ev == EV_ABORT_PREPARE ? CTA_OP_CANCEL
-                                             : CTA_OP_UNKNOWN;
-        } else if (f == F_WF_INSTANCE && wt == PB_WT_LEN) {
-            const unsigned char *d; size_t n; pb_reader sub;
-            if (pb_read_len_delim(r, &d, &n) != 0) {
-                return -1;
-            }
-            sub.p = d; sub.end = d + n;
-            if (decode_service(&sub, out) != 0) {
-                return -1;
-            }
-        } else if (pb_skip_field(r, wt) != 0) {
-            return -1;
-        }
+        out->op = ev == EV_CLOSEW        ? CTA_OP_ARCHIVE
+                : ev == EV_PREPARE       ? CTA_OP_RETRIEVE
+                : ev == EV_ABORT_PREPARE ? CTA_OP_CANCEL
+                                         : CTA_OP_UNKNOWN;
+        return 0;
+
+    case PBF_U64:
+        return pb_read_varint(r,
+            (uint64_t *) ((char *) out + pbf_rows[i].off));
+
+    default:
+        break;
     }
-    return 0;
+
+    if (pb_read_len_delim(r, &d, &n) != 0) {
+        return -1;
+    }
+
+    switch (pbf_rows[i].kind) {
+
+    case PBF_STR:
+        copy_str((char *) out + pbf_rows[i].off, pbf_rows[i].sz, d, n);
+        return 0;
+
+    case PBF_MSG:
+        sub.p = d; sub.end = d + n;
+        return decode_msg(&sub, pbf_rows[i].sub, out);
+
+    default:
+        /* PBF_QUERY — admin command (query/listing). The full AdminCmd parse
+         * is deferred; for routing it is enough to mark the op. */
+        out->op = CTA_OP_QUERY;
+        return 0;
+    }
 }
 
-/* cta.common.RequesterId{ username=1, groupname=2 } → owner_user/group */
+/* Decode message `msg` (M_*): dispatch known fields, skip the rest. */
 static int
-decode_requester(pb_reader *r, cta_request_t *out)
+decode_msg(pb_reader *r, unsigned char msg, cta_request_t *out)
 {
     uint32_t f; int wt;
 
     while (r->p < r->end) {
+        size_t i;
+
         if (pb_read_tag(r, &f, &wt) != 0) {
             return -1;
         }
-        if (wt == PB_WT_LEN && (f == F_REQUESTER_USERNAME ||
-                                f == F_REQUESTER_GROUPNAME)) {
-            const unsigned char *d; size_t n;
-            if (pb_read_len_delim(r, &d, &n) != 0) {
-                return -1;
+        for (i = 0; i < PBF_NROWS; i++) {
+            if (pbf_rows[i].msg == msg && pbf_rows[i].field == f
+                && wt == pbf_wire_type(pbf_rows[i].kind))
+            {
+                break;
             }
-            if (f == F_REQUESTER_USERNAME) {
-                copy_str(out->owner_user, sizeof(out->owner_user), d, n);
-            } else {
-                copy_str(out->owner_group, sizeof(out->owner_group), d, n);
-            }
-        } else if (pb_skip_field(r, wt) != 0) {
-            return -1;
         }
-    }
-    return 0;
-}
-
-/* cta.eos.Client{ user=1 } → RequesterId */
-static int
-decode_client(pb_reader *r, cta_request_t *out)
-{
-    uint32_t f; int wt;
-
-    while (r->p < r->end) {
-        if (pb_read_tag(r, &f, &wt) != 0) {
-            return -1;
-        }
-        if (f == F_CLIENT_USER && wt == PB_WT_LEN) {
-            const unsigned char *d; size_t n; pb_reader sub;
-            if (pb_read_len_delim(r, &d, &n) != 0) {
+        if (i == PBF_NROWS) {
+            if (pb_skip_field(r, wt) != 0) {
                 return -1;
             }
-            sub.p = d; sub.end = d + n;
-            if (decode_requester(&sub, out) != 0) {
-                return -1;
-            }
-        } else if (pb_skip_field(r, wt) != 0) {
-            return -1;
-        }
-    }
-    return 0;
-}
-
-/* cta.eos.Metadata{ lpath=11, archive_file_id=15, request_objectstore_id=999 } */
-static int
-decode_metadata(pb_reader *r, cta_request_t *out)
-{
-    uint32_t f; int wt;
-
-    while (r->p < r->end) {
-        if (pb_read_tag(r, &f, &wt) != 0) {
-            return -1;
-        }
-        if (f == F_META_LPATH && wt == PB_WT_LEN) {
-            const unsigned char *d; size_t n;
-            if (pb_read_len_delim(r, &d, &n) != 0) {
-                return -1;
-            }
-            copy_str(out->path, sizeof(out->path), d, n);
-        } else if (f == F_META_REQUEST_ID && wt == PB_WT_LEN) {
-            const unsigned char *d; size_t n;
-            if (pb_read_len_delim(r, &d, &n) != 0) {
-                return -1;
-            }
-            copy_str(out->request_id, sizeof(out->request_id), d, n);
-        } else if (f == F_META_ARCHIVE_ID && wt == PB_WT_VARINT) {
-            if (pb_read_varint(r, &out->archive_id) != 0) {
-                return -1;
-            }
-        } else if (pb_skip_field(r, wt) != 0) {
-            return -1;
-        }
-    }
-    return 0;
-}
-
-/* cta.eos.Notification{ wf=1, cli=2, file=4 } */
-static int
-decode_notification(pb_reader *r, cta_request_t *out)
-{
-    uint32_t f; int wt;
-
-    while (r->p < r->end) {
-        if (pb_read_tag(r, &f, &wt) != 0) {
-            return -1;
-        }
-        if (wt == PB_WT_LEN && (f == F_NOTIF_WF || f == F_NOTIF_CLI ||
-                                f == F_NOTIF_FILE)) {
-            const unsigned char *d; size_t n; pb_reader sub;
-            int rc;
-            if (pb_read_len_delim(r, &d, &n) != 0) {
-                return -1;
-            }
-            sub.p = d; sub.end = d + n;
-            rc = f == F_NOTIF_WF  ? decode_workflow(&sub, out)
-               : f == F_NOTIF_CLI ? decode_client(&sub, out)
-                                  : decode_metadata(&sub, out);
-            if (rc != 0) {
-                return -1;
-            }
-        } else if (pb_skip_field(r, wt) != 0) {
+        } else if (decode_field(r, i, out) != 0) {
             return -1;
         }
     }
@@ -249,39 +212,11 @@ int
 cta_pb_decode_request(const unsigned char *buf, size_t len, cta_request_t *out)
 {
     pb_reader r;
-    uint32_t  f;
-    int       wt;
 
     memset(out, 0, sizeof(*out));
     out->op = CTA_OP_UNKNOWN;
     r.p = buf; r.end = buf + len;
-
-    while (r.p < r.end) {
-        if (pb_read_tag(&r, &f, &wt) != 0) {
-            return -1;
-        }
-        if (f == F_REQ_NOTIFICATION && wt == PB_WT_LEN) {
-            const unsigned char *d; size_t n; pb_reader sub;
-            if (pb_read_len_delim(&r, &d, &n) != 0) {
-                return -1;
-            }
-            sub.p = d; sub.end = d + n;
-            if (decode_notification(&sub, out) != 0) {
-                return -1;
-            }
-        } else if (f == F_REQ_ADMINCMD && wt == PB_WT_LEN) {
-            /* Admin command (query/listing). The full AdminCmd parse is deferred;
-             * for routing it is enough to mark the op. */
-            const unsigned char *d; size_t n;
-            if (pb_read_len_delim(&r, &d, &n) != 0) {
-                return -1;
-            }
-            out->op = CTA_OP_QUERY;
-        } else if (pb_skip_field(&r, wt) != 0) {
-            return -1;
-        }
-    }
-    return 0;
+    return decode_msg(&r, M_REQUEST, out);
 }
 
 int

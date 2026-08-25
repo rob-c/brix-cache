@@ -85,14 +85,14 @@ def _suite_arguments(ns):
 
 def _suite_fast(ns, test_root, tests_root, ignore, common):
     selection = [tests_root, *ignore, "-m", "not slow and not serial"]
-    parallel = ["-n", str(ns.n), "--dist", "load"]
+    parallel = ["-n", str(ns.n), "--dist", "loadgroup"]
     return 0 if _suite_lane(test_root, selection, parallel, common) else 1
 
 
 def _suite_pr(ns, test_root, tests_root, ignore, common):
     rc = 0
     selection = [tests_root, *ignore, "-m", "not slow and not serial"]
-    if not _suite_lane(test_root, selection, ["-n", str(ns.n), "--dist", "load"], common):
+    if not _suite_lane(test_root, selection, ["-n", str(ns.n), "--dist", "loadgroup"], common):
         rc = 1
     serial = [tests_root, f"--ignore={REPO_ROOT / 'tests/userns'}", "-m", "serial and not slow"]
     if not _suite_serial_lane(test_root, serial, common):
@@ -118,13 +118,13 @@ def _optional_parallel_lane(test_root, paths, common, distribution):
 def _suite_nightly(ns, test_root, tests_root, ignore, common, destructive, clientconf):
     rc = 0
     slow = [tests_root, *ignore, "-m", "slow and not serial"]
-    if not _suite_lane(test_root, slow, ["-n", str(ns.n), "--dist", "load"], common):
+    if not _suite_lane(test_root, slow, ["-n", str(ns.n), "--dist", "loadgroup"], common):
         rc = 1
     serial = [tests_root, f"--ignore={REPO_ROOT / 'tests/userns'}", "-m", "slow and serial"]
     if not _suite_serial_lane(test_root, serial, common):
         rc = 1
     extra = _optional_serial_lane(test_root, destructive, common)
-    clients = _optional_parallel_lane(test_root, clientconf, common, "load")
+    clients = _optional_parallel_lane(test_root, clientconf, common, "loadgroup")
     return max(rc, extra, clients)
 
 

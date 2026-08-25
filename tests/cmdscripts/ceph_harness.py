@@ -171,7 +171,7 @@ def _start_ceph_container(container):
         "run", "-d", "--name", container, "--network", "host",
         "-e", f"MON_IP={mon}", "-e", f"CEPH_PUBLIC_NETWORK={net}",
         "-e", "CEPH_DAEMON=demo", "-e", "DEMO_DAEMONS=mon,mgr,osd",
-        "-e", "RGW_NAME=localhost", ceph_image(),
+        "-e", "RGW_NAME=localhost", ceph_image(),  # net-literal-allow: RGW's own hostname inside the demo container, not a dial target
     ])
     if started.returncode != 0:
         _expression_2(started)

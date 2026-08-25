@@ -40,130 +40,19 @@
 
 #define OCI_TOKEN_TIMEOUT_MS   10000
 #define OCI_TOKEN_MAX_HOPS     3
-/* Renew this far before the upstream's own expiry, so a token minted at the
- * edge of its life is never handed to a fill that then out-lives it. */
-#define OCI_TOKEN_SKEW_S       30
-/* An upstream that reports an implausibly short life still gets a cache entry
- * — otherwise every blob of a large image re-runs the whole dance. */
-#define OCI_TOKEN_MIN_TTL_S    5
 /* The spec's default when `expires_in` is absent. */
 #define OCI_TOKEN_DEFAULT_S    60
-
-/* ---- token cache -------------------------------------------------------- */
-
-/* The cache key is sha256(base_url ‖ 0x00 ‖ scope), 32 raw bytes. The NUL
- * separator is what stops ("https://a.io/x", "y") and ("https://a.io/", "xy")
- * from colliding onto one entry — a collision here would hand one repository's
- * token to another repository's fill. */
-static int
-oci_token_cache_key(const brix_oci_upstream_t *up, const char *scope,
-    u_char key[32])
-{
-    brix_oci_digest_t  d;
-    char               buf[1024];
-    size_t             n, s;
-    int                i;
-
-    n = strlen(up->base_url);
-    s = strlen(scope);
-    if (n + 1 + s >= sizeof(buf)) {
-        return -1;
-    }
-    memcpy(buf, up->base_url, n);
-    buf[n] = '\0';
-    memcpy(buf + n + 1, scope, s);
-
-    if (brix_oci_sha256(buf, n + 1 + s, &d) != 0) {
-        return -1;
-    }
-    for (i = 0; i < 32; i++) {
-        /* d.hex is plain `char`, which is signed on x86: promote through
-         * unsigned char so the arithmetic below cannot see a negative. */
-        unsigned hi = (unsigned char) d.hex[i * 2];
-        unsigned lo = (unsigned char) d.hex[i * 2 + 1];
-
-        hi = (hi <= '9') ? hi - '0' : hi - 'a' + 10;
-        lo = (lo <= '9') ? lo - '0' : lo - 'a' + 10;
-        key[i] = (u_char) ((hi << 4) | lo);
-    }
-    return 0;
-}
-
-static int
-oci_token_from_cache(brix_oci_upstream_t *up, const char *scope,
-    char *tok, size_t toklen)
-{
-    u_char  key[32];
-    size_t  out_len = toklen - 1;
-
-    if (up->tokens == NULL || oci_token_cache_key(up, scope, key) != 0) {
-        return -1;
-    }
-    if (!brix_kv_get(up->tokens, key, sizeof(key), tok, &out_len)) {
-        return -1;
-    }
-    tok[out_len] = '\0';
-
-    BRIX_OCI_METRIC_INC(token_fetch_total[BRIX_OCI_TOKEN_CACHED]);
-    return 0;
-}
-
-static void
-oci_token_to_cache(brix_oci_upstream_t *up, const char *scope,
-    const char *tok, long expires_in)
-{
-    u_char  key[32];
-    long    ttl;
-
-    if (up->tokens == NULL || oci_token_cache_key(up, scope, key) != 0) {
-        return;
-    }
-    ttl = expires_in - OCI_TOKEN_SKEW_S;
-    if (ttl < OCI_TOKEN_MIN_TTL_S) {
-        ttl = OCI_TOKEN_MIN_TTL_S;
-    }
-    (void) brix_kv_set(up->tokens, key, sizeof(key), tok, strlen(tok),
-                       (ngx_msec_t) ttl * 1000);
-}
-
-/* ---- scope derivation --------------------------------------------------- */
-
-/* When a challenge omits `scope=`, derive the pull scope from the route being
- * fetched: "repository:<name>:pull". `path` is the canonical key, so the name
- * is everything between "/v2/" and the terminal — no parsing risk, but the
- * bound still matters because the result becomes a query parameter. */
-static int
-oci_scope_from_path(const char *path, char *out, size_t outsz)
-{
-    const char *name, *term;
-    size_t      len;
-
-    if (strncmp(path, "/v2/", 4) != 0) {
-        return -1;
-    }
-    name = path + 4;
-
-    term = strstr(name, "/manifests/");
-    if (term == NULL) {
-        term = strstr(name, "/blobs/");
-    }
-    if (term == NULL || term == name) {
-        return -1;
-    }
-    len = (size_t) (term - name);
-
-    return (snprintf(out, outsz, "repository:%.*s:pull", (int) len, name)
-            < (int) outsz) ? 0 : -1;
-}
 
 /* ---- the token GET ------------------------------------------------------ */
 
 typedef struct {
-    char  host[256];
-    int   port;
-    int   tls;
-    char  path[2048];              /* path + query                       */
-    int   send_basic;              /* 0 once a redirect crosses a host   */
+    char        host[256];
+    int         port;
+    int         tls;
+    char        path[2048];        /* path + query                       */
+    const char *basic;             /* "user:pass" this leg presents, or
+                                    * NULL for an anonymous mint         */
+    int         send_basic;        /* 0 once a redirect crosses a host   */
 } oci_token_leg_t;
 
 /* Percent-encode `s` as a single query-parameter value. ngx_escape_uri does
@@ -225,21 +114,21 @@ oci_token_follow(oci_token_leg_t *leg, const char *loc)
 }
 
 /* Build "Authorization: Basic <b64>\r\n" for the token endpoint, or "" when
- * the mirror is anonymous. The Basic credential authenticates US to the TOKEN
- * service only — it is never sent to the registry data endpoints, and never
- * survives a cross-host redirect. */
+ * the mint is anonymous. The Basic credential authenticates a principal to
+ * the TOKEN service only — it is never sent to the registry data endpoints,
+ * and never survives a cross-host redirect. */
 static void
-oci_token_basic_header(const brix_oci_upstream_t *up, char *out, size_t outsz)
+oci_token_basic_header(const char *basic, char *out, size_t outsz)
 {
     ngx_str_t  src, dst;
     u_char     b64[684];           /* base64 of the 512-byte basic buffer */
 
     out[0] = '\0';
-    if (up->basic[0] == '\0') {
+    if (basic == NULL || basic[0] == '\0') {
         return;
     }
-    src.data = (u_char *) up->basic;
-    src.len  = strlen(up->basic);
+    src.data = (u_char *) basic;
+    src.len  = strlen(basic);
     dst.data = b64;
     ngx_encode_base64(&dst, &src);
 
@@ -265,7 +154,7 @@ oci_token_leg(const brix_oci_upstream_t *up, oci_token_leg_t *leg,
 
     hdrs[0] = '\0';
     if (leg->send_basic) {
-        oci_token_basic_header(up, hdrs, sizeof(hdrs));
+        oci_token_basic_header(leg->basic, hdrs, sizeof(hdrs));
     }
 
     if (tr->request(NULL, leg->host, leg->port, leg->tls, "GET", leg->path,
@@ -311,7 +200,7 @@ oci_token_leg(const brix_oci_upstream_t *up, oci_token_leg_t *leg,
  * off-boundary (already logged). */
 static int
 oci_token_leg_init(brix_oci_upstream_t *up, const brix_oci_challenge_t *ch,
-    const char *scope, oci_token_leg_t *leg)
+    const char *scope, const char *basic, oci_token_leg_t *leg)
 {
     brix_oci_url_t  realm;
     u_char          enc_scope[1024];
@@ -351,6 +240,7 @@ oci_token_leg_init(brix_oci_upstream_t *up, const brix_oci_challenge_t *ch,
     (void) snprintf(leg->host, sizeof(leg->host), "%s", realm.host);
     leg->port       = realm.port;
     leg->tls        = realm.tls;
+    leg->basic      = basic;
     leg->send_basic = 1;
 
     return (snprintf(leg->path, sizeof(leg->path), "%s?service=%s&scope=%s",
@@ -434,17 +324,21 @@ oci_token_parse(brix_oci_upstream_t *up, const char *host, const char *body,
 
 /* Mint one bearer: build the token leg from the challenge, walk it, and read
  * the answer. Every failure path is a single counter here, so the three halves
- * above can each fail plainly and stay readable. */
+ * above can each fail plainly and stay readable. A 401/403 from the token
+ * endpoint itself sets *denied — the D16 gate needs "this credential was
+ * refused" kept apart from "the endpoint was unreachable", because only the
+ * former is a verdict about the principal. */
 static int
 oci_token_fetch(brix_oci_upstream_t *up, const brix_oci_challenge_t *ch,
-    const char *scope, char *tok, size_t toklen, long *expires_in)
+    const char *scope, const char *basic, char *tok, size_t toklen,
+    long *expires_in, int *denied)
 {
     oci_token_leg_t  leg;
     char             body[16384];
     size_t           body_len = 0;
     int              status;
 
-    if (oci_token_leg_init(up, ch, scope, &leg) != 0) {
+    if (oci_token_leg_init(up, ch, scope, basic, &leg) != 0) {
         BRIX_OCI_METRIC_INC(token_fetch_total[BRIX_OCI_TOKEN_FAILED]);
         return -1;
     }
@@ -454,6 +348,12 @@ oci_token_fetch(brix_oci_upstream_t *up, const brix_oci_challenge_t *ch,
         if (status >= 0) {
             ngx_log_error(NGX_LOG_ERR, up->log, 0,
                 "oci: token endpoint host=%s answered %d", leg.host, status);
+        }
+        if (denied != NULL
+            && (status == NGX_HTTP_UNAUTHORIZED
+                || status == NGX_HTTP_FORBIDDEN))
+        {
+            *denied = 1;
         }
         BRIX_OCI_METRIC_INC(token_fetch_total[BRIX_OCI_TOKEN_FAILED]);
         return -1;
@@ -472,13 +372,17 @@ oci_token_fetch(brix_oci_upstream_t *up, const brix_oci_challenge_t *ch,
 
 
 int
-brix_oci_token_get(brix_oci_upstream_t *up, const char *path,
-    const char *challenge, char *tok, size_t toklen)
+brix_oci_token_get_cred(brix_oci_upstream_t *up, const char *path,
+    const char *challenge, const char *basic, const u_char *cred,
+    char *tok, size_t toklen, long *expires_in, int *denied)
 {
     brix_oci_challenge_t  ch;
     char                  scope[1024];
-    long                  expires_in;
+    long                  expires = 0;
 
+    if (denied != NULL) {
+        *denied = 0;
+    }
     if (up == NULL || challenge == NULL || toklen == 0) {
         return -1;
     }
@@ -492,21 +396,43 @@ brix_oci_token_get(brix_oci_upstream_t *up, const char *path,
     if (ch.scope[0] != '\0') {
         (void) snprintf(scope, sizeof(scope), "%s", ch.scope);
 
-    } else if (oci_scope_from_path(path, scope, sizeof(scope)) != 0) {
+    } else if (brix_oci_pull_scope(path, scope, sizeof(scope)) != 0) {
         return -1;
     }
 
-    if (oci_token_from_cache(up, scope, tok, toklen) == 0) {
+    if (brix_oci_token_cache_get(up, scope, cred, tok, toklen) == 0) {
+        if (expires_in != NULL) {
+            *expires_in = -1;              /* cached: lifetime unknown here */
+        }
         return 0;
     }
 
-    if (oci_token_fetch(up, &ch, scope, tok, toklen, &expires_in) != 0) {
+    if (oci_token_fetch(up, &ch, scope, basic, tok, toklen, &expires,
+                        denied) != 0)
+    {
         return -1;
     }
 
-    oci_token_to_cache(up, scope, tok, expires_in);
+    brix_oci_token_cache_put(up, scope, cred, tok, expires);
+    if (expires_in != NULL) {
+        *expires_in = expires;
+    }
     return 0;
 }
+
+
+int
+brix_oci_token_get(brix_oci_upstream_t *up, const char *path,
+    const char *challenge, char *tok, size_t toklen)
+{
+    /* The mirror's own identity: the configured service credential, under
+     * the credential-blind cache entry the fill provider has always used. */
+    return brix_oci_token_get_cred(up, path, challenge,
+                                   (up != NULL && up->basic[0] != '\0')
+                                       ? up->basic : NULL,
+                                   NULL, tok, toklen, NULL, NULL);
+}
+
 
 /* ---- the sd_http seam --------------------------------------------------- */
 
@@ -523,6 +449,18 @@ oci_bearer_provider(void *ctx, const char *host, int port, int tls,
     (void) tls;
 
     return brix_oci_token_get(up, path, challenge, tok, toklen);
+}
+
+void
+brix_oci_up_log_ensure(ngx_http_brix_oci_loc_conf_t *lcf)
+{
+    /* bind_bearer binds this on the first fill, but a tags or delegate task
+     * can be the FIRST thread onto a cold worker, and every log call on the
+     * thread side dereferences it. Same lifetime argument as bind_bearer:
+     * config-pool upstream, cycle log, never the connection's. */
+    if (lcf->up != NULL && lcf->up->log == NULL) {
+        lcf->up->log = ngx_cycle->log;
+    }
 }
 
 void

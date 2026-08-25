@@ -12,6 +12,7 @@
  * shape asserted per format.
  */
 #define _GNU_SOURCE   /* open_memstream */
+#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -96,6 +97,29 @@ render(const doctor_ep *eps, int n, const char *format)
     return buf;
 }
 
+/* Render `format` and check each expectation token in the NULL-terminated
+ * list: a leading '!' means the token must be ABSENT from the rendering.
+ * Frees the rendering; failures name the offending token. */
+static void
+render_expect(const doctor_ep *eps, int n, const char *format, ...)
+{
+    char       *s = render(eps, n, format);
+    va_list     ap;
+    const char *tok;
+
+    va_start(ap, format);
+    while ((tok = va_arg(ap, const char *)) != NULL) {
+        int absent = tok[0] == '!';
+        if (absent ? has(s, tok + 1) : !has(s, tok)) {
+            printf("FAIL %s render: %s '%s'\n", format,
+                   absent ? "unexpected" : "missing", tok + absent);
+            g_fail++;
+        }
+    }
+    va_end(ap);
+    free(s);
+}
+
 int
 main(void)
 {
@@ -112,73 +136,61 @@ main(void)
     CHECK(doctor_map_graph_only("tree") == 0);   /* unknown → ASCII */
 
     /* ---- ASCII tree ---- */
-    s = render(eps, n, "ascii");
-    CHECK(has(s, "Mesh topology"));
-    CHECK(has(s, "CMS locate"));
-    CHECK(has(s, "3 nodes"));
-    CHECK(has(s, "manager"));
-    CHECK(has(s, "mgr.example.org:1094"));
-    CHECK(has(s, "v5.6.3"));
-    CHECK(has(s, "40% free"));            /* manager capacity */
-    CHECK(has(s, "GREEN"));
-    CHECK(has(s, "YELLOW"));              /* ds1 */
-    CHECK(has(s, "ds2.example.org:1096"));
-    CHECK(has(s, "DOWN"));                /* ds2 not connected */
-    CHECK(has(s, "\\-"));                 /* last-branch glyph */
-    CHECK(has(s, "|-"));                  /* mid-branch glyph */
-    CHECK(has(s, "5% free"));             /* ds1 near-full (50/1000) */
-    /* down node ds2 was never scraped → no version/capacity token emitted */
-    CHECK(!has(s, "ds2.example.org:1096  v"));
-    free(s);
+    render_expect(eps, n, "ascii",
+                  "Mesh topology", "CMS locate", "3 nodes", "manager",
+                  "mgr.example.org:1094", "v5.6.3",
+                  "40% free",                     /* manager capacity */
+                  "GREEN",
+                  "YELLOW",                       /* ds1 */
+                  "ds2.example.org:1096",
+                  "DOWN",                         /* ds2 not connected */
+                  "\\-",                          /* last-branch glyph */
+                  "|-",                           /* mid-branch glyph */
+                  "5% free",                      /* ds1 near-full (50/1000) */
+                  /* down node ds2 was never scraped → no version/capacity
+                   * token emitted */
+                  "!ds2.example.org:1096  v",
+                  NULL);
 
     /* ---- Graphviz DOT ---- */
-    s = render(eps, n, "dot");
-    CHECK(has(s, "digraph mesh {"));
-    CHECK(has(s, "rankdir=TB;"));
-    CHECK(has(s, "n0 [label="));
-    CHECK(has(s, "shape=box3d"));         /* root distinguished */
-    CHECK(has(s, "n0 -> n1;"));
-    CHECK(has(s, "n0 -> n2;"));
-    CHECK(has(s, "fillcolor=palegreen")); /* green node */
-    CHECK(has(s, "fillcolor=khaki"));     /* yellow node */
-    CHECK(has(s, "fillcolor=gray"));      /* down node */
-    CHECK(has(s, "}"));
-    free(s);
+    render_expect(eps, n, "dot",
+                  "digraph mesh {", "rankdir=TB;", "n0 [label=",
+                  "shape=box3d",                  /* root distinguished */
+                  "n0 -> n1;", "n0 -> n2;",
+                  "fillcolor=palegreen",          /* green node */
+                  "fillcolor=khaki",              /* yellow node */
+                  "fillcolor=gray",               /* down node */
+                  "}",
+                  NULL);
 
     /* ---- Mermaid ---- */
-    s = render(eps, n, "mermaid");
-    CHECK(has(s, "graph TD"));
-    CHECK(has(s, "n0{{\""));              /* root redirector → hexagon */
-    CHECK(has(s, "n1[\""));               /* data server → rectangle */
-    CHECK(has(s, "n0 --> n1"));
-    CHECK(has(s, "n0 --> n2"));
-    CHECK(has(s, "classDef green"));
-    CHECK(has(s, "classDef down"));
-    CHECK(has(s, "class n0 green;"));
-    CHECK(has(s, "class n1 yellow;"));
-    CHECK(has(s, "class n2 down;"));
-    CHECK(has(s, "<br/>"));               /* mermaid line separator */
-    free(s);
+    render_expect(eps, n, "mermaid",
+                  "graph TD",
+                  "n0{{\"",                       /* root redirector → hexagon */
+                  "n1[\"",                        /* data server → rectangle */
+                  "n0 --> n1", "n0 --> n2",
+                  "classDef green", "classDef down",
+                  "class n0 green;", "class n1 yellow;", "class n2 down;",
+                  "<br/>",                        /* mermaid line separator */
+                  NULL);
 
     /* ---- single-node mesh (manager only) ---- */
-    s = render(eps, 1, "ascii");
-    CHECK(has(s, "(1 node)"));            /* singular */
-    CHECK(!has(s, "|-"));                 /* no branches */
-    free(s);
+    render_expect(eps, 1, "ascii",
+                  "(1 node)",                     /* singular */
+                  "!|-",                          /* no branches */
+                  NULL);
 
     /* ---- IPv6-only skipped node: SKIP token, not DOWN; distinct fill/class ---- */
     eps[2].skipped = 1;                  /* ds2 becomes skipped (was down) */
-    s = render(eps, n, "ascii");
-    CHECK(has(s, "SKIP(no IPv6)"));
-    CHECK(!has(s, "DOWN"));              /* skipped supersedes DOWN */
-    free(s);
-    s = render(eps, n, "dot");
-    CHECK(has(s, "fillcolor=lightskyblue"));   /* skipped node fill */
-    free(s);
-    s = render(eps, n, "mermaid");
-    CHECK(has(s, "classDef skip"));
-    CHECK(has(s, "class n2 skip;"));
-    free(s);
+    render_expect(eps, n, "ascii",
+                  "SKIP(no IPv6)",
+                  "!DOWN",                        /* skipped supersedes DOWN */
+                  NULL);
+    render_expect(eps, n, "dot",
+                  "fillcolor=lightskyblue",       /* skipped node fill */
+                  NULL);
+    render_expect(eps, n, "mermaid",
+                  "classDef skip", "class n2 skip;", NULL);
     eps[2].skipped = 0;
 
     /* ---- CMS locate-plane classification: redirector vs data server, ro/rw,
@@ -187,20 +199,20 @@ main(void)
     eps[1].cms.reported = 1; eps[1].cms.role = DOC_CMS_SERVER; eps[1].cms.write = 1;
     eps[2].cms.reported = 1; eps[2].cms.role = DOC_CMS_SERVER; eps[2].cms.write = 0;
     eps[2].cms.pending  = 1; eps[2].skipped = 1;   /* skipped but still typed */
-    s = render(eps, n, "ascii");
-    CHECK(has(s, "redirector"));           /* eps[0] typed from CMS */
-    CHECK(has(s, "data server rw"));       /* eps[1] read/write */
-    CHECK(has(s, "data server ro pending"));/* eps[2] read-only, queued */
-    CHECK(has(s, "SKIP(no IPv6)"));        /* eps[2] role AND skip both shown */
-    free(s);
-    s = render(eps, n, "dot");
-    CHECK(has(s, "shape=box3d"));          /* redirector shape (root + M nodes) */
-    CHECK(has(s, "shape=box,"));           /* data-server shape */
-    free(s);
-    s = render(eps, n, "mermaid");
-    CHECK(has(s, "n0{{\""));               /* redirector hexagon */
-    CHECK(has(s, "n1[\""));                /* data server rectangle */
-    free(s);
+    render_expect(eps, n, "ascii",
+                  "redirector",                   /* eps[0] typed from CMS */
+                  "data server rw",               /* eps[1] read/write */
+                  "data server ro pending",       /* eps[2] read-only, queued */
+                  "SKIP(no IPv6)",                /* role AND skip both shown */
+                  NULL);
+    render_expect(eps, n, "dot",
+                  "shape=box3d",                  /* redirector (root + M nodes) */
+                  "shape=box,",                   /* data-server shape */
+                  NULL);
+    render_expect(eps, n, "mermaid",
+                  "n0{{\"",                       /* redirector hexagon */
+                  "n1[\"",                        /* data server rectangle */
+                  NULL);
     memset(&eps[0].cms, 0, sizeof(eps[0].cms));
     memset(&eps[1].cms, 0, sizeof(eps[1].cms));
     memset(&eps[2].cms, 0, sizeof(eps[2].cms));

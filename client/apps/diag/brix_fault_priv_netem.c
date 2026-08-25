@@ -231,29 +231,26 @@ netem_set_limit(char *rest, char *reply, size_t rsz)
 static int
 netem_arm(const char *sub, char *rest, char *reply, size_t rsz)
 {
-    if (strcmp(sub, "delay") == 0) {
-        return netem_set_delay(rest, reply, rsz);
+    static const struct { const char *verb; int slot; const char *stanza; } pct[] = {
+        { "loss",      NE_LOSS,    "loss random" },
+        { "corrupt",   NE_CORRUPT, "corrupt" },
+        { "duplicate", NE_DUP,     "duplicate" },
+        { "reorder",   NE_REORDER, "reorder" },
+    };
+    static const struct { const char *verb; int (*fn)(char *, char *, size_t); } plain[] = {
+        { "delay", netem_set_delay }, { "loss-gemodel", netem_set_gemodel },
+        { "rate",  netem_set_rate },  { "limit",        netem_set_limit },
+    };
+
+    for (size_t k = 0; k < sizeof(pct) / sizeof(pct[0]); k++) {
+        if (strcmp(sub, pct[k].verb) == 0) {
+            return netem_set_pct(pct[k].slot, pct[k].stanza, rest, reply, rsz);
+        }
     }
-    if (strcmp(sub, "loss") == 0) {
-        return netem_set_pct(NE_LOSS, "loss random", rest, reply, rsz);
-    }
-    if (strcmp(sub, "loss-gemodel") == 0) {
-        return netem_set_gemodel(rest, reply, rsz);
-    }
-    if (strcmp(sub, "corrupt") == 0) {
-        return netem_set_pct(NE_CORRUPT, "corrupt", rest, reply, rsz);
-    }
-    if (strcmp(sub, "duplicate") == 0) {
-        return netem_set_pct(NE_DUP, "duplicate", rest, reply, rsz);
-    }
-    if (strcmp(sub, "reorder") == 0) {
-        return netem_set_pct(NE_REORDER, "reorder", rest, reply, rsz);
-    }
-    if (strcmp(sub, "rate") == 0) {
-        return netem_set_rate(rest, reply, rsz);
-    }
-    if (strcmp(sub, "limit") == 0) {
-        return netem_set_limit(rest, reply, rsz);
+    for (size_t k = 0; k < sizeof(plain) / sizeof(plain[0]); k++) {
+        if (strcmp(sub, plain[k].verb) == 0) {
+            return plain[k].fn(rest, reply, rsz);
+        }
     }
     return NETEM_NO_SUB;
 }

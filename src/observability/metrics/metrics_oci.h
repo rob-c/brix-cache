@@ -74,6 +74,18 @@ typedef enum {
     BRIX_OCI_UPERR_COUNT
 } brix_oci_uperr_metric_e;
 
+/* Delegated-pull (D16) proof dispositions. `cached` is an SHM proof-cache
+ * hit; `granted` is a fresh upstream mint that verified; `denied` is the
+ * upstream's refusal (surfaced downstream as the uniform 401); `error` is an
+ * unreachable upstream (502 — the gate fails CLOSED, never open). */
+typedef enum {
+    BRIX_OCI_DELEG_CACHED = 0,
+    BRIX_OCI_DELEG_GRANTED,
+    BRIX_OCI_DELEG_DENIED,
+    BRIX_OCI_DELEG_ERROR,
+    BRIX_OCI_DELEG_COUNT
+} brix_oci_deleg_metric_e;
+
 typedef struct {
     ngx_atomic_t requests_total[BRIX_OCI_SURFACE_COUNT]
                                [BRIX_OCI_MCLASS_COUNT]
@@ -82,6 +94,7 @@ typedef struct {
     ngx_atomic_t token_fetch_total[BRIX_OCI_TOKEN_COUNT];
     ngx_atomic_t verify_fail_total;      /* digest mismatches (quarantined)  */
     ngx_atomic_t upstream_errors_total[BRIX_OCI_UPERR_COUNT];
+    ngx_atomic_t delegate_total[BRIX_OCI_DELEG_COUNT];
 } ngx_brix_oci_metrics_t;
 
 /* Map an upstream HTTP status onto its bucket (any status is accepted). */

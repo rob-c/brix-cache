@@ -533,3 +533,71 @@ webdav_vfs_bind_deleg(ngx_http_request_t *r,
      * when nothing was bound or no CA store is configured). */
     brix_vfs_deleg_set_ca_store(vctx, conf->ca_store, conf->common.verify_depth);
 }
+
+
+/*
+ * WHAT: Canonical confined-VFS-ctx constructors for WebDAV storage ops.
+ *
+ * WHY: Every method file used to hand-roll the same init + credential-binding
+ * sequence; one constructor family keeps the binding order (cred → mint →
+ * deleg) in a single place next to the deleg binder it composes.
+ *
+ * HOW: webdav_vfs_ctx_build initialises the bare confined ctx (identity from
+ * the req ctx, TLS from the connection). The _ns/_data variants add the
+ * export's per-user backend credential policy on top; only the data plane
+ * binds the opt-in mint CA — a namespace op that needs a credential the user
+ * doesn't have falls back per storage_credential_fallback (see prop_xattr.c).
+ * Callers that route through the export's storage driver assign vctx->sd
+ * themselves (brix_webdav_backend_instance).
+ */
+void
+webdav_vfs_ctx_build(ngx_http_request_t *r, const char *path,
+    brix_vfs_ctx_t *vctx)
+{
+    ngx_http_brix_webdav_loc_conf_t *conf =
+        ngx_http_get_module_loc_conf(r, ngx_http_brix_webdav_module);
+    ngx_http_brix_webdav_req_ctx_t *wctx =
+        ngx_http_get_module_ctx(r, ngx_http_brix_webdav_module);
+
+    brix_vfs_ctx_init(vctx, r->pool, r->connection->log,
+        BRIX_PROTO_WEBDAV, conf->common.root_canon,
+        conf->common.cache_root_canon, conf->common.allow_write,
+        brix_http_request_is_tls(r),
+        (wctx != NULL) ? wctx->identity : NULL, path);
+}
+
+static void
+webdav_vfs_ctx_build_bound(ngx_http_request_t *r,
+    ngx_http_brix_webdav_loc_conf_t *conf, const char *path,
+    unsigned bind_mint, brix_vfs_ctx_t *vctx)
+{
+    webdav_vfs_ctx_build(r, path, vctx);
+    brix_vfs_ctx_bind_backend_cred(vctx,
+        &conf->common.storage_credential_dir,
+        conf->common.storage_credential_fallback);
+    if (bind_mint) {
+        /* Phase-2 T9: opt-in minting for GSI/token identities that have no
+         * pre-provisioned proxy. No-op unless a mint CA is configured. */
+        brix_vfs_ctx_bind_backend_mint(vctx,
+            &conf->common.storage_credential_mint_ca_cert,
+            &conf->common.storage_credential_mint_ca_key,
+            conf->common.storage_credential_mint_ttl);
+    }
+    webdav_vfs_bind_deleg(r, conf, vctx);
+}
+
+void
+webdav_vfs_ctx_build_ns(ngx_http_request_t *r,
+    ngx_http_brix_webdav_loc_conf_t *conf, const char *path,
+    brix_vfs_ctx_t *vctx)
+{
+    webdav_vfs_ctx_build_bound(r, conf, path, 0, vctx);
+}
+
+void
+webdav_vfs_ctx_build_data(ngx_http_request_t *r,
+    ngx_http_brix_webdav_loc_conf_t *conf, const char *path,
+    brix_vfs_ctx_t *vctx)
+{
+    webdav_vfs_ctx_build_bound(r, conf, path, 1, vctx);
+}

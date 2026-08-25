@@ -58,6 +58,11 @@ def _guard_crl_reload_nginx_1():
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
+# TestCRLReload is an ordered pair (accept-before-reload, reject-after) that
+# mutates the one shared CRL-reload instance; free scheduling runs the pair
+# on different workers in either order — keep the module on one worker.
+pytestmark = pytest.mark.xdist_group("crl")
+
 # ---------------------------------------------------------------------------
 # Paths
 # ---------------------------------------------------------------------------

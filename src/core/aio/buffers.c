@@ -17,106 +17,24 @@
  */
 
 /*
- * brix_build_single_memory_chain — build a two-link chain for a kXR_ok
- * response whose data fits in one wire chunk (data_total <= BRIX_READ_CHUNK_MAX).
+ * brix_build_fast_chain — populate the slot's pre-allocated read_fast_* structs
+ * as a header(+body) response chain: an 8-byte ServerResponseHdr in hdrbuf
+ * (streamid from ctx, wire `status`, length data_total) followed, when
+ * data_total > 0, by one memory-backed data buffer over databuf.  Shared tail of
+ * the single-chunk (kXR_ok) and windowed (caller-chosen status) builders below,
+ * which differ only in where the header bytes live and which status they carry.
  *
- * WHAT: Constructs an nginx ngx_chain_t with exactly two links: a header buffer
- * containing the ServerResponseHdr (streamid, status=kXR_ok, length) followed by
- * a single data buffer pointing into databuf. Both buffers are memory-backed
- * (memory=1), enabling nginx to write via read()+write() rather than sendfile.
+ * Both buffers are memory-backed (memory=1) so nginx writes them rather than
+ * sendfile-ing; no pool allocation happens here — that is what makes the fast
+ * path zero-cost for the common (< one wire chunk) read.
  *
- * WHY: The vast majority of xrdcp reads produce responses under 16 MiB that fit
- * in one wire chunk. Allocating fresh ngx_chain_t and ngx_buf_t structures on
- * every response would waste pool memory and CPU cycles. This function uses the
- * pre-allocated slot->read_fast_* structs (hdr_chain, body_chain, hdr_buf, body_buf)
- * to avoid any pool allocation — zero-cost for the common case.
- *
- * HOW: 1) Acquires rd.read_hdr_scratch via brix_get_read_header_scratch.
- *      2) Calls brix_build_resp_hdr() to populate ServerResponseHdr with
- *         ctx->recv.cur_streamid, kXR_ok status, and data_total length.
- *      3) Memzeros the fast structs then configures hdr_buf → hdr_chain (header).
- *      4) If data_total==0 returns header-only chain; otherwise configures
- *         body_buf pointing into databuf → body_chain (data), linking them.
- *      5) Sets last_buf/last_in_chain on the final buffer to signal end-of-response.
- *
- * Precondition: data_total <= BRIX_READ_CHUNK_MAX.
+ * Returns &slot->read_fast_hdr_chain (never NULL).
  */
 static ngx_chain_t *
-brix_build_single_memory_chain(brix_ctx_t *ctx, ngx_connection_t *c,
-    u_char *databuf, size_t data_total)
+brix_build_fast_chain(brix_ctx_t *ctx, u_char *hdrbuf, u_char *databuf,
+    size_t data_total, uint16_t status)
 {
     brix_resp_slot_t *slot = &ctx->out.ring[ctx->out.tail];
-    /*
-     * Header lives in THIS slot's private buffer (not the shared
-     * rd.read_hdr_scratch), so pipelining the next memory read into another slot
-     * cannot overwrite a still-draining response's 8-byte header.  This is what
-     * makes the memory (userspace-TLS) read path safe to pipeline; the body
-     * buffer is made per-in-flight by brix_acquire_read_buffer() in read.c.
-     */
-    u_char *hdrbuf = slot->hdr_bytes;
-
-    (void) c;
-    brix_build_resp_hdr(ctx->recv.cur_streamid, kXR_ok, (uint32_t) data_total,
-                          (ServerResponseHdr *) hdrbuf);
-
-    ngx_memzero(&slot->read_fast_hdr_chain, sizeof(slot->read_fast_hdr_chain));
-    ngx_memzero(&slot->read_fast_body_chain, sizeof(slot->read_fast_body_chain));
-    ngx_memzero(&slot->read_fast_hdr_buf, sizeof(slot->read_fast_hdr_buf));
-    ngx_memzero(&slot->read_fast_body_buf, sizeof(slot->read_fast_body_buf));
-
-    slot->read_fast_hdr_buf.pos = hdrbuf;
-    slot->read_fast_hdr_buf.last = hdrbuf + XRD_RESPONSE_HDR_LEN;
-    slot->read_fast_hdr_buf.memory = 1;
-    slot->read_fast_hdr_buf.temporary = 1;
-
-    slot->read_fast_hdr_chain.buf = &slot->read_fast_hdr_buf;
-    slot->read_fast_hdr_chain.next = NULL;
-
-    if (data_total == 0) {
-        slot->read_fast_hdr_buf.last_buf = 1;
-        slot->read_fast_hdr_buf.last_in_chain = 1;
-        return &slot->read_fast_hdr_chain;
-    }
-
-    slot->read_fast_body_buf.pos = databuf;
-    slot->read_fast_body_buf.last = databuf + data_total;
-    slot->read_fast_body_buf.memory = 1;
-    slot->read_fast_body_buf.temporary = 1;
-    slot->read_fast_body_buf.last_buf = 1;
-    slot->read_fast_body_buf.last_in_chain = 1;
-
-    slot->read_fast_body_chain.buf = &slot->read_fast_body_buf;
-    slot->read_fast_body_chain.next = NULL;
-    slot->read_fast_hdr_chain.next = &slot->read_fast_body_chain;
-
-    return &slot->read_fast_hdr_chain;
-}
-
-/*
- * brix_build_window_chain — build a single memory-backed response chunk with
- * an explicit wire status (Phase 31 W2.1 windowed reads).
- *
- * Identical layout to brix_build_single_memory_chain (header + one data buf,
- * reusing the pre-allocated read_fast_* structs), but the caller chooses the
- * status: kXR_oksofar for every window except the last, kXR_ok for the final
- * window.  The client accumulates the oksofar frames (same streamid) until the
- * kXR_ok, reassembling the full read — the same wire sequence the >16 MiB
- * multi-chunk path already emits, just sourced one window at a time.
- *
- * Precondition: data_total <= BRIX_READ_CHUNK_MAX (a window is <= 2 MiB).
- */
-ngx_chain_t *
-brix_build_window_chain(brix_ctx_t *ctx, ngx_connection_t *c,
-    u_char *databuf, size_t data_total, uint16_t status)
-{
-    brix_resp_slot_t *slot = &ctx->out.ring[ctx->out.tail];
-    u_char *hdrbuf;
-
-    hdrbuf = BRIX_GET_SCRATCH(ctx, c, rd.read_hdr_scratch, rd.read_hdr_scratch_size,
-                                XRD_RESPONSE_HDR_LEN);
-    if (hdrbuf == NULL) {
-        return NULL;
-    }
 
     brix_build_resp_hdr(ctx->recv.cur_streamid, status, (uint32_t) data_total,
                           (ServerResponseHdr *) hdrbuf);
@@ -155,6 +73,72 @@ brix_build_window_chain(brix_ctx_t *ctx, ngx_connection_t *c,
     slot->read_fast_hdr_chain.next = &slot->read_fast_body_chain;
 
     return &slot->read_fast_hdr_chain;
+}
+
+/*
+ * brix_build_single_memory_chain — build a two-link chain for a kXR_ok
+ * response whose data fits in one wire chunk (data_total <= BRIX_READ_CHUNK_MAX).
+ *
+ * WHAT: Constructs an nginx ngx_chain_t with exactly two links: a header buffer
+ * containing the ServerResponseHdr (streamid, status=kXR_ok, length) followed by
+ * a single data buffer pointing into databuf. Both buffers are memory-backed
+ * (memory=1), enabling nginx to write via read()+write() rather than sendfile.
+ *
+ * WHY: The vast majority of xrdcp reads produce responses under 16 MiB that fit
+ * in one wire chunk. Allocating fresh ngx_chain_t and ngx_buf_t structures on
+ * every response would waste pool memory and CPU cycles.
+ *
+ * HOW: header bytes come from THIS slot's private hdr_bytes buffer (see the
+ * comment at the decl); everything else — header build, fast-struct wiring,
+ * data_total==0 header-only case — is brix_build_fast_chain with kXR_ok.
+ *
+ * Precondition: data_total <= BRIX_READ_CHUNK_MAX.
+ */
+static ngx_chain_t *
+brix_build_single_memory_chain(brix_ctx_t *ctx, ngx_connection_t *c,
+    u_char *databuf, size_t data_total)
+{
+    brix_resp_slot_t *slot = &ctx->out.ring[ctx->out.tail];
+    /*
+     * Header lives in THIS slot's private buffer (not the shared
+     * rd.read_hdr_scratch), so pipelining the next memory read into another slot
+     * cannot overwrite a still-draining response's 8-byte header.  This is what
+     * makes the memory (userspace-TLS) read path safe to pipeline; the body
+     * buffer is made per-in-flight by brix_acquire_read_buffer() in read.c.
+     */
+    u_char *hdrbuf = slot->hdr_bytes;
+
+    (void) c;
+    return brix_build_fast_chain(ctx, hdrbuf, databuf, data_total, kXR_ok);
+}
+
+/*
+ * brix_build_window_chain — build a single memory-backed response chunk with
+ * an explicit wire status (Phase 31 W2.1 windowed reads).
+ *
+ * Identical layout to brix_build_single_memory_chain (header + one data buf,
+ * reusing the pre-allocated read_fast_* structs), but the caller chooses the
+ * status: kXR_oksofar for every window except the last, kXR_ok for the final
+ * window.  The client accumulates the oksofar frames (same streamid) until the
+ * kXR_ok, reassembling the full read — the same wire sequence the >16 MiB
+ * multi-chunk path already emits, just sourced one window at a time.  Windowed
+ * frames drain before the next window is read, so the SHARED rd.read_hdr_scratch
+ * is safe here (unlike the pipelined single-chunk path above).
+ *
+ * Precondition: data_total <= BRIX_READ_CHUNK_MAX (a window is <= 2 MiB).
+ */
+ngx_chain_t *
+brix_build_window_chain(brix_ctx_t *ctx, ngx_connection_t *c,
+    u_char *databuf, size_t data_total, uint16_t status)
+{
+    u_char *hdrbuf;
+
+    hdrbuf = BRIX_GET_SCRATCH(ctx, c, rd.read_hdr_scratch, rd.read_hdr_scratch_size,
+                                XRD_RESPONSE_HDR_LEN);
+    if (hdrbuf == NULL) {
+        return NULL;
+    }
+    return brix_build_fast_chain(ctx, hdrbuf, databuf, data_total, status);
 }
 
 /*

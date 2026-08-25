@@ -198,6 +198,10 @@ int download_to_fd(brix_conn *c, const char *path, int fd, int64_t *out_bytes, b
 
 /* diag_topology.c */
 int resolve_target(brix_conn *c, const brix_url *u, char *target, size_t tsz, brix_statinfo *sti, brix_status *st);
+/* Parse a->url into *u and connect *c to it, reporting failures on stderr with
+ * the "xrddiag: ..." prefix. Returns 0 connected, else the process exit code
+ * the subcommand should return (50 bad URL, brix_shellcode(st) on connect). */
+int diag_dial(const diag_args *a, brix_url *u, brix_conn *c, brix_status *st);
 
 /* diag_check.c */
 int do_check(const diag_args *a);

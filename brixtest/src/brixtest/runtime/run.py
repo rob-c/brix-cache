@@ -11,13 +11,14 @@ from brixtest.auth.models import AuthRecipe
 from brixtest.auth.store import MaterializedAuth
 from brixtest.clients.configured import ConfiguredClient, ConfiguredTool
 from brixtest.credentials import Credential, MaterializedCredential
-from brixtest.design import Artifact, Binary, Client, Server, Task, Tool, Volume
+from brixtest.design import Artifact, Binary, Client, Resource, Server, Task, Tool, Volume
 from brixtest.errors import SpecError
 from brixtest.resources import Command, Reference
 from brixtest.runtime.artifacts import MaterializedArtifact
 from brixtest.runtime.binaries import CapturedBinary
 from brixtest.runtime.commands import CommandResult
 from brixtest.runtime.service import Service
+from brixtest.runtime.providers import ProviderInstance
 
 
 def _resource_name(value: object, expected: type, field: str) -> str:
@@ -117,6 +118,11 @@ class Run:
             name: item.result for name, item in self._manager._managed.tasks.items()
         }
 
+    @property
+    def resources(self) -> Mapping[str, ProviderInstance]:
+        """Snapshot of realized provider-managed infrastructure."""
+        return dict(self._manager._providers.instances)
+
     def as_dict(self) -> Dict[str, object]:
         """Return a secret-free, JSON-safe catalogue of this run's resources."""
         return {
@@ -132,11 +138,15 @@ class Run:
                 name: record.as_dict()
                 for name, record in sorted(self._manager._managed.tasks.items())
             },
+            "resources": {
+                name: value.as_dict() for name, value in sorted(self.resources.items())
+            },
         }
 
     def command(
         self, *argv: object, check: bool = True, timeout: Optional[float] = None,
-        input: Optional[str] = None, env: Optional[Mapping[str, object]] = None,
+        input: Optional[Union[str, bytes]] = None,
+        env: Optional[Mapping[str, object]] = None,
         cwd: Optional[Union[str, Path]] = None,
         encoding: str = "utf-8", expected_exit_codes: tuple[int, ...] = (0,),
         output_limit: int = 1 << 20, mode: str = "capture", retries: int = 0,
@@ -291,6 +301,17 @@ class Run:
         """Resolve a declared volume to its backend-local path."""
         name = _resource_name(value, Volume, "run.volume")
         return self._manager._managed.volumes.get(name).path
+
+    def resource(self, value: Union[str, Resource]) -> ProviderInstance:
+        """Resolve one realized provider-managed infrastructure resource."""
+        name = _resource_name(value, Resource, "run.resource")
+        try:
+            return self._manager._providers.instances[name]
+        except KeyError:
+            raise SpecError(
+                "run.resource", name,
+                "not realized — known: %s" % ", ".join(sorted(self.resources)),
+            ) from None
 
     def task(self, value: Union[str, Task]) -> CommandResult:
         """Resolve one completed managed task result."""

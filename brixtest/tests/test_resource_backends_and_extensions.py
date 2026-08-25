@@ -84,7 +84,7 @@ def test_kubernetes_resources_translate_limits_probes_and_mounts():
     }
 
 
-def test_kubernetes_backend_refuses_udp_that_port_forward_cannot_publish(tmp_path):
+def test_kubernetes_backend_accepts_udp_through_managed_gateway(tmp_path):
     declaration = server(
         "dns", command=["dns"], config=server_config("port={port}\n"),
         endpoints=[endpoint("dns", protocol="udp")], probe=probe("none"),
@@ -96,8 +96,8 @@ def test_kubernetes_backend_refuses_udp_that_port_forward_cannot_publish(tmp_pat
     def managed(run):
         pass
 
-    with pytest.raises(SpecError, match="cannot publish UDP"):
-        CaseManager(managed.__brixtest_case__, "unit::udp", root=tmp_path / "run")
+    CaseManager(managed.__brixtest_case__, "unit::udp", root=tmp_path / "run")
+    assert not (tmp_path / "run").exists()
 
 
 def test_local_backend_refuses_kubernetes_only_placement_instead_of_ignoring_it(tmp_path):
@@ -222,9 +222,23 @@ class _FullDriver:
     def wait(self, *args): return 0
     def materialize(self, *args): pass
     def redact(self, *args): return "[redacted]"
+    def cleanup(self, *args): pass
+    def create(self, *args): pass
+    def ready(self, *args): pass
+    def destroy(self, *args): pass
+    def read_bytes(self, *args): return b""
+    def write_bytes(self, *args): pass
+    def stat(self, *args): return {}
+    def list(self, *args): return ()
+    def mkdir(self, *args): pass
+    def remove(self, *args): pass
+    def build(self, *args): pass
 
 
-@pytest.mark.parametrize("kind", ["probe", "backend", "executor", "provider"])
+@pytest.mark.parametrize("kind", [
+    "probe", "backend", "executor", "provider", "launcher", "resource",
+    "volume", "identity", "transport", "image",
+])
 def test_stateful_extension_kinds_have_reusable_conformance_checks(kind):
     result = assert_extension_contract(kind, "example", _FullDriver())
     assert result["kind"] == kind and result["api_version"] == 1

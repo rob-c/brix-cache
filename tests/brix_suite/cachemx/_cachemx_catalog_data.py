@@ -193,6 +193,18 @@ HELP = {
         'Mirror requests that failed to reach the shadow.',
     'brix_mirror_requests_total':
         'Mirror requests the shadow answered.',
+    'brix_oci_delegate_total':
+        'delegated-pull authorization proofs by disposition (D16)',
+    'brix_oci_fill_bytes_total':
+        'bytes pulled from the upstream registry (WAN in)',
+    'brix_oci_requests_total':
+        'OCI distribution requests by surface, traffic class and outcome',
+    'brix_oci_token_fetch_total':
+        'upstream Bearer-token acquisitions by disposition',
+    'brix_oci_upstream_errors_total':
+        'upstream registry error responses by status bucket',
+    'brix_oci_verify_fail_total':
+        'fills whose bytes did not hash to the digest the request named (quarantined, never admitted)',
     'brix_ocsp_timeouts_total':
         'OCSP fetches that hit the socket deadline (connect/handshake/read).',
     'brix_path_depth_violations_total':
@@ -251,6 +263,14 @@ HELP = {
         'Server registrations dropped because the registry was at capacity.',
     'brix_requests_total':
         'XRootD requests completed, by operation and status.',
+    'brix_rpm_prefetch_fail_total':
+        'warm repodata fills the origin did not serve (the client pays the miss it would have paid anyway)',
+    'brix_rpm_prefetch_total':
+        'repodata objects (primary, filelists) warmed into the cache after a new repomd.xml named them, before any client asked',
+    'brix_rpm_requests_total':
+        'RPM repository mirror requests by object class and outcome',
+    'brix_rpm_verify_fail_total':
+        'repodata fills whose bytes did not hash to the checksum their own name carries (quarantined, never admitted)',
     'brix_s3_auth_total':
         'S3 SigV4 or anonymous authentication outcomes.',
     'brix_s3_bytes_rx_ipv4_total':

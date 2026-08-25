@@ -54,7 +54,10 @@ def test_078_case_rejects_ambiguous_reverse_address():
 def test_079_docker_launch_includes_canonical_and_alias_hosts(tmp_path):
     control = tmp_path / "control"
     control.mkdir()
-    mapping = host_mapping("origin", "origin.test", address="127.0.0.9", aliases=("alias.test",))
+    mapping = host_mapping(
+        "origin", "origin.test", address="127.0.0.9",
+        aliases=("alias.test",), libc=True, targets=("test",),
+    )
     launch = build_launch(
         docker("example/image@sha256:" + "a" * 64), ["python", "-m", "pytest"],
         {"BRIXTEST_HELPER": "1"}, cwd=tmp_path, readonly_roots=(tmp_path,),

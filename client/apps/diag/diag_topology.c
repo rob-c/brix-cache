@@ -6,6 +6,22 @@
 #include "cli/jsonout.h"
 
 
+/* Parse+connect prologue shared by the URL subcommands (see diag_internal.h). */
+int
+diag_dial(const diag_args *a, brix_url *u, brix_conn *c, brix_status *st)
+{
+    brix_status_clear(st);
+    if (brix_endpoint_parse(a->url, u, st) != 0) {
+        fprintf(stderr, "xrddiag: %s\n", st->msg);
+        return 50;
+    }
+    if (brix_connect(c, u, &a->conn, st) != 0) {
+        fprintf(stderr, "xrddiag: connect %s:%d: %s\n", u->host, u->port, st->msg);
+        return brix_shellcode(st);
+    }
+    return 0;
+}
+
 /* Choose a remote regular file to operate on: if the URL carried an explicit
  * path (not "/") use it; otherwise list "/" and pick the largest regular file.
  * Fills target[tsz] with the absolute path and *sti with its stat. 0 / -1. */

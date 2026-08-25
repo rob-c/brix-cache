@@ -301,9 +301,7 @@ dig_open_confined(ngx_http_request_t *r, dig_req_t *req)
     {
         return NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
-#if (NGX_HTTP_SSL)
-    is_tls = (r->connection->ssl != NULL) ? 1 : 0;
-#endif
+    is_tls = brix_http_request_is_tls(r);
     brix_vfs_ctx_init(&vctx, r->pool, r->connection->log, BRIX_PROTO_WEBDAV,
         canon, NULL, 0 /* allow_write */, is_tls, NULL, full);
 

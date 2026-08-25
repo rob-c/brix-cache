@@ -164,11 +164,7 @@ static void
 vfs_browse_ctx(ngx_http_request_t *r, const brix_vfs_backend_info_t *info,
     const char *abs, brix_vfs_ctx_t *vctx)
 {
-    int is_tls = 0;
-
-#if (NGX_HTTP_SSL)
-    is_tls = (r->connection->ssl != NULL) ? 1 : 0;
-#endif
+    int is_tls = brix_http_request_is_tls(r);
     brix_vfs_ctx_init(vctx, r->pool, r->connection->log, BRIX_PROTO_ROOT,
                         info->root_canon, "", /* allow_write */ 0, is_tls,
                         NULL, abs);

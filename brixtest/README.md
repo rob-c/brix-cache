@@ -80,7 +80,9 @@ a live HTTP assertion as well.
 Server topology is derived from the collected tests. The default
 `scope="case"` gives every attempt a fresh server; class, module, package, and
 session scopes fingerprint identical server graphs and share monitored
-instances in their pytest-familiar domains. Each attempt stores stable server-instance links, while
+instances in their pytest-familiar domains, including across xdist workers.
+Use `scope="worker"` only for intentional worker-local duplication. Each
+attempt stores stable server-instance links, while
 the shared physical log is archived once with its SHA-256. See
 [the dynamic topology guide](docs/dynamic-topology.md).
 
@@ -92,9 +94,11 @@ provide container/Kubernetes forward and reverse DNS without editing the host.
 See [the authentication guide](docs/authentication.md).
 
 Helper isolation is independent of server placement. Select `process`,
-`nsenter`, Docker, Podman, or runc in `@case(isolation=...)`, or override the
-whole suite from the command line. Docker and Podman images are digest-pinned
-by default.
+`nsenter`, Docker, Podman, runc, or a bundled Kubernetes Job in
+`@case(isolation=...)`, or override the whole suite from the command line.
+Container and Kubernetes runtime images are digest-pinned by default; remote
+helpers retain normal pytest fixtures/reporting through a supervised framed
+transport and content-addressed source/dependency bundle.
 
 Tool placement is independently selectable with `Placement(backend=...)`.
 Built-in executors cover local processes, digest-pinned Docker/Podman

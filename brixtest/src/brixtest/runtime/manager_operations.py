@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import contextlib
+import dataclasses
 import os
 import resource
 import shutil
@@ -19,6 +20,7 @@ from brixtest.runtime.api import Run, Service
 from brixtest.runtime.case_summary import finalize_evidence
 from brixtest.runtime.commands import CommandResult
 from brixtest.runtime.filesystem import NativeFilesystem, ServiceFilesystem
+from brixtest.runtime.filesystem_remote import RemoteFilesystem
 from brixtest.runtime.launchers import ServerLaunchContext
 from brixtest.runtime.topology import owned_servers
 
@@ -131,6 +133,15 @@ class CaseManagerOperationsMixin:
             )
         return self._backend.wait(name, timeout)
 
+    def _service_read_log(
+        self, name: str, *, encoding: str = "utf-8", errors: str = "replace",
+    ) -> str:
+        """Read current output through the owning backend before final archival."""
+        kubernetes = getattr(self, "_kubernetes", None)
+        if kubernetes is not None:
+            return kubernetes.read_log(name)
+        return self.service(name).log.read_text(encoding=encoding, errors=errors)
+
     def _service_restart(self, name: str) -> Service:
         """Restart one server through its original immutable launch plan."""
         if self._backend is not None:
@@ -154,7 +165,12 @@ class CaseManagerOperationsMixin:
         if kubernetes is not None:
             with self.metrics.timer("server.restart", labels={"server": name}):
                 kubernetes.restart(name)
-            return self.service(name)
+            service = dataclasses.replace(
+                self.service(name), replicas=kubernetes.refreshed_replicas(name),
+            )
+            object.__setattr__(service, "_controller", self)
+            self._services[name] = service
+            return service
         raise SpecError("server restart", name, "backend does not expose restart control")
 
     def _service_command(
@@ -174,8 +190,10 @@ class CaseManagerOperationsMixin:
             )
         kubernetes = getattr(self, "_kubernetes", None)
         if kubernetes is not None:
-            command = (*kubernetes.command_prefix(), "-n", kubernetes.namespace,
-                       "exec", "deployment/%s" % name, "--", *argv)
+            target = kubernetes._server_target(name)
+            command = (*kubernetes.command_prefix(target.context), "-n", target.namespace,
+                       "exec", kubernetes._workload_resource(name),
+                       "-c", kubernetes._container_name(name), "--", *argv)
             return self.commands.run(
                 *command, timeout=timeout, check=check, cwd=self.workspace,
             )
@@ -186,16 +204,15 @@ class CaseManagerOperationsMixin:
         )
 
     def _service_filesystem(self, name: str) -> ServiceFilesystem:
-        """Return a cached confined filesystem facade for a local/OCI service."""
-        if getattr(self, "_kubernetes", None) is not None:
-            raise SpecError(
-                "server filesystem", name,
-                "the selected Kubernetes backend has no binary-safe filesystem transport",
-            )
+        """Return a cached confined filesystem facade for any service backend."""
         held = self._filesystems.get(name)
         if held is not None:
             return held
         service = self.service(name)
+        kubernetes = getattr(self, "_kubernetes", None)
+        if kubernetes is not None:
+            transport = self._kubernetes_filesystem(name, service, kubernetes)
+            return self._cache_filesystem(name, transport)
         roots = (
             service.workdir,
             *(Path(value) for value in service.metadata.get("filesystem_roots", ())),
@@ -205,6 +222,24 @@ class CaseManagerOperationsMixin:
                 name, operation, payload,
             ),
         )
+        return self._cache_filesystem(name, transport)
+
+    def _kubernetes_filesystem(self, name, service, kubernetes) -> RemoteFilesystem:
+        roots = service.metadata.get("filesystem_roots", ())
+        target = kubernetes._server_target(name)
+        command = (
+            *kubernetes.command_prefix(target.context), "-n", target.namespace,
+            "exec", "-i", kubernetes._workload_resource(name),
+            "-c", "brixtest-filesystem", "--",
+        )
+        return RemoteFilesystem(
+            command, tuple(str(value) for value in roots),
+            observer=lambda operation, payload: self._observe_filesystem(
+                name, operation, payload,
+            ),
+        )
+
+    def _cache_filesystem(self, name: str, transport: object) -> ServiceFilesystem:
         facade = ServiceFilesystem(transport)
         self._filesystems[name] = facade
         return facade
@@ -238,8 +273,7 @@ class CaseManagerOperationsMixin:
             lambda: self._managed.run_phase("finalize"), errors,
         )
         self.evidence.close_collectors()
-        self._capture_teardown(self._stop_case_backend, errors)
-        self._capture_teardown(self._collect_case_backend, errors)
+        self._teardown_runtime_resources(errors)
         self._capture_teardown(self.security.close, errors)
         if errors:
             self._outcome = "teardown-failed"
@@ -254,6 +288,18 @@ class CaseManagerOperationsMixin:
         self._apply_retention()
         if error:
             raise CaseRunError(self.nodeid, "teardown", error)
+
+    def _teardown_runtime_resources(self, errors: list[str]) -> None:
+        kubernetes = getattr(self, "_kubernetes", None)
+        if kubernetes is None:
+            self._capture_teardown(self._stop_case_backend, errors)
+            self._capture_teardown(self._collect_case_backend, errors)
+            self._capture_teardown(self._close_providers, errors)
+            return
+        self._capture_teardown(kubernetes.quiesce, errors)
+        self._capture_teardown(self._close_providers, errors)
+        self._capture_teardown(self._stop_case_backend, errors)
+        self._capture_teardown(self._collect_case_backend, errors)
 
     @staticmethod
     def _capture_teardown(action, errors: list[str]) -> None:
@@ -276,6 +322,11 @@ class CaseManagerOperationsMixin:
                 "backend-result.json", collected, role="backend-result",
                 description="case backend collection result",
             )
+
+    def _close_providers(self) -> None:
+        errors = self._providers.close()
+        if errors:
+            raise RuntimeError("; ".join(errors))
 
     def _archive_case_logs(self) -> None:
         session = os.environ.get("BRIXTEST_METRICS_SESSION")

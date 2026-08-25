@@ -33,6 +33,12 @@ def _assert_move_refused(test):
 
 _reexport(globals(), "_test_privilege_escalation_helpers")
 
+# Both privilege-escalation split modules share fixed on-disk fixture files
+# under the readonly export (created in setup, asserted after the wire op);
+# under xdist free scheduling a sibling worker's teardown deletes them
+# mid-test — keep the whole family on one worker.
+pytestmark = pytest.mark.xdist_group("priv-esc")
+
 def _reject_handle_write_case(self, sock, case):
     if case == "open_write":
         payload = b"/_priv_ro_open_write.txt"

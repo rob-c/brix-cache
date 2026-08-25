@@ -16,6 +16,7 @@ from brixtest.errors import SpecError
 from brixtest.isolation import Isolation
 from brixtest.metrics import metric_sessions_root
 from brixtest.pytest_profile import load_profile as _load_profile
+from brixtest.pytest_profile import validate_image_settings as _validate_image_settings
 from brixtest.pytest_profile import validate_profile as _validate_profile
 from brixtest.pytest_state import METRICS_SESSION
 from brixtest.summary import default_runs_root
@@ -27,6 +28,8 @@ SERVER_ENV = "BRIXTEST_SERVER_ENV_JSON"
 CLIENT_ENV = "BRIXTEST_CLIENT_ENV_JSON"
 BINARY_ENV = "BRIXTEST_BINARY_OVERRIDES_JSON"
 TEST_KEYS_ENV = "BRIXTEST_TEST_ENV_KEYS_JSON"
+IMAGE_BASE_ENV = "BRIXTEST_OCI_BASE_IMAGE"
+IMAGE_REGISTRY_ENV = "BRIXTEST_OCI_REGISTRY"
 _ENV_NAME = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 _BINARY_NAME = re.compile(r"^[a-z][a-z0-9_-]*$")
 
@@ -35,6 +38,8 @@ PUBLIC_PYTEST_OPTIONS = frozenset({
     "--brixtest-isolation", "--brixtest-isolation-image",
     "--brixtest-nsenter-target", "--brixtest-nsenter-namespace",
     "--brixtest-runc-bundle", "--brixtest-container-python",
+    "--brixtest-kubernetes-context", "--brixtest-kubernetes-namespace",
+    "--brixtest-kubernetes-service-account",
     "--brixtest-isolation-arg", "--brixtest-allow-mutable-image",
     "--brixtest-binary", "--brixtest-sanitizer", "--brixtest-env",
     "--brixtest-server-env", "--brixtest-client-env", "--brixtest-fail-fast",
@@ -55,7 +60,7 @@ PUBLIC_PYTEST_INI = frozenset({
     "brixtest_backend", "brixtest_isolation", "brixtest_runs",
     "brixtest_helper_plugins",
     "brixtest_safe_imports",
-    "brixtest_profile",
+    "brixtest_profile", "brixtest_base_image", "brixtest_registry",
 })
 PUBLIC_PYTEST_HOOKS = frozenset({
     "pytest_brixtest_plan", "pytest_brixtest_helper_plugins",
@@ -87,6 +92,14 @@ def pytest_addoption(parser) -> None:
         "brixtest_profile", "JSON suite profile with backend, isolation, binary, and environment overrides",
         default="",
     )
+    parser.addini(
+        "brixtest_base_image", "default digest-pinned base for generated OCI images",
+        default="",
+    )
+    parser.addini(
+        "brixtest_registry", "registry/repository prefix for generated OCI images",
+        default="",
+    )
     group = parser.getgroup("brixtest")
     group.addoption("--brixtest-helper", action="store_true", default=False,
                     help="internal: execute one BriXTest case in its helper process")
@@ -111,10 +124,10 @@ def pytest_addoption(parser) -> None:
     group.addoption("--brixtest-describe", action="store_true", default=False,
                     help="describe managed cases without starting them")
     group.addoption("--brixtest-isolation",
-                    choices=("process", "nsenter", "docker", "podman", "runc"),
+                    choices=("process", "nsenter", "docker", "podman", "runc", "kubernetes"),
                     help="override helper isolation for every managed case")
     group.addoption("--brixtest-isolation-image", metavar="IMAGE",
-                    help="digest-pinned image used by Docker or Podman")
+                    help="digest-pinned image used by Docker, Podman, or Kubernetes")
     group.addoption("--brixtest-nsenter-target", type=int, metavar="PID",
                     help="namespace owner PID used by nsenter")
     group.addoption(
@@ -125,7 +138,19 @@ def pytest_addoption(parser) -> None:
     group.addoption("--brixtest-runc-bundle", metavar="PATH",
                     help="OCI bundle used as the runc template")
     group.addoption("--brixtest-container-python", default="python3", metavar="PATH",
-                    help="Python executable inside Docker, Podman, or runc")
+                    help="Python executable inside Docker, Podman, runc, or Kubernetes")
+    group.addoption(
+        "--brixtest-kubernetes-context", metavar="CONTEXT",
+        help="kubectl context used for Kubernetes helper isolation",
+    )
+    group.addoption(
+        "--brixtest-kubernetes-namespace", metavar="NAMESPACE",
+        help="existing namespace used for Kubernetes helper Jobs",
+    )
+    group.addoption(
+        "--brixtest-kubernetes-service-account", metavar="NAME",
+        help="ServiceAccount assigned to Kubernetes helper Jobs",
+    )
     group.addoption("--brixtest-isolation-arg", action="append", default=[], metavar="ARG",
                     help="additional runtime argument (repeatable)")
     group.addoption("--brixtest-allow-mutable-image", action="store_true", default=False,
@@ -321,11 +346,26 @@ def _configure_runtime(config, profile) -> None:
     _apply_backend(_selected_backend(config, profile))
     runs = config.getoption("--brixtest-runs") or config.getini("brixtest_runs")
     _apply_runs(runs)
+    _configure_images(config, profile)
     for option, environment in (
         ("--brixtest-attachment-max-bytes", "BRIXTEST_ATTACHMENT_MAX_BYTES"),
         ("--brixtest-helper-log-max-bytes", None),
     ):
         _apply_size_option(config, option, environment)
+
+
+def _configure_images(config, profile: Mapping[str, object]) -> None:
+    profile_images = dict(profile.get("images", {}))
+    values = {
+        "base_image": profile_images.get("base_image") or config.getini("brixtest_base_image"),
+        "registry": profile_images.get("registry") or config.getini("brixtest_registry"),
+    }
+    _validate_image_settings(values, "BriXTest project image settings")
+    for key, environment in (
+        ("base_image", IMAGE_BASE_ENV), ("registry", IMAGE_REGISTRY_ENV),
+    ):
+        if values[key]:
+            os.environ[environment] = str(values[key])
 
 
 def _configure_session(config) -> Path:

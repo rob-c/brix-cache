@@ -38,9 +38,7 @@
 /* ---- shared helpers (also used by the image/prune TU) --------------------- */
 
 int bci_fail(int code, const char *what, const char *detail) {
-    fprintf(stderr, "brixcvmfs ingest: %s%s%s\n", what,
-            detail != NULL ? ": " : "", detail != NULL ? detail : "");
-    return code;
+    return brixcvmfs_emit_err("ingest", what, detail, code);
 }
 
 int bci_mkdir_p(const char *path, unsigned mode) {

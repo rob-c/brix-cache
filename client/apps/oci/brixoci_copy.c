@@ -219,6 +219,23 @@ copy_one_blob(brixoci_end_t *s, brixoci_end_t *d, const char *digest,
     return copy_blob_to_reg(s, d, digest, err, errlen);
 }
 
+/* Read the "digest" string out of the JSON object [el,en) and land that blob;
+ * `what` names the object in the error message ("config"/"layer"). Returns
+ * BRIX_OCI_REG_OK, BRIX_OCI_REG_EPROTO (no digest present), or copy_one_blob's
+ * transfer error. */
+static int
+copy_digest_blob(brixoci_end_t *s, brixoci_end_t *d, const char *el, size_t en,
+                 const char *what, char *err, size_t errlen)
+{
+    char dig[BRIX_OCI_DIGEST_STRLEN];
+
+    if (!brix_json_get_str(el, en, "digest", dig, sizeof(dig))) {
+        snprintf(err, errlen, "manifest %s has no digest", what);
+        return BRIX_OCI_REG_EPROTO;
+    }
+    return copy_one_blob(s, d, dig, err, errlen);
+}
+
 /* Walk config.digest + layers[].digest and land each blob. */
 static int
 copy_blobs(brixoci_end_t *s, brixoci_end_t *d, const char *body,
@@ -226,15 +243,10 @@ copy_blobs(brixoci_end_t *s, brixoci_end_t *d, const char *body,
 {
     const char *arr, *el;
     size_t      an, en, cur = 0;
-    char        dig[BRIX_OCI_DIGEST_STRLEN];
     int         rc;
 
     if (brix_json_get_raw(body, blen, "config", &el, &en) == 1) {
-        if (!brix_json_get_str(el, en, "digest", dig, sizeof(dig))) {
-            snprintf(err, errlen, "manifest config has no digest");
-            return BRIX_OCI_REG_EPROTO;
-        }
-        rc = copy_one_blob(s, d, dig, err, errlen);
+        rc = copy_digest_blob(s, d, el, en, "config", err, errlen);
         if (rc != BRIX_OCI_REG_OK) {
             return rc;
         }
@@ -243,11 +255,7 @@ copy_blobs(brixoci_end_t *s, brixoci_end_t *d, const char *body,
         return BRIX_OCI_REG_OK;                 /* config-only artifact */
     }
     while (brix_json_arr_next(arr, an, &cur, &el, &en) == 1) {
-        if (!brix_json_get_str(el, en, "digest", dig, sizeof(dig))) {
-            snprintf(err, errlen, "manifest layer has no digest");
-            return BRIX_OCI_REG_EPROTO;
-        }
-        rc = copy_one_blob(s, d, dig, err, errlen);
+        rc = copy_digest_blob(s, d, el, en, "layer", err, errlen);
         if (rc != BRIX_OCI_REG_OK) {
             return rc;
         }

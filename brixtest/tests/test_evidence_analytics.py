@@ -20,6 +20,7 @@ from brixtest.evidence.analysis import (
 )
 from brixtest.evidence.export import otlp_payloads, package_session, post_otlp, write_otlp_json
 from brixtest.evidence.legacy import publish as publish_legacy
+from brixtest.evidence.model import iter_entities
 from brixtest.evidence.report import render
 from brixtest.evidence.search import SearchClient, bulk_lines, documents
 from brixtest.evidence.store import integrity, query
@@ -74,6 +75,35 @@ def _payload(session, values):
             "p95": max(values), "max": max(values), "sum": sum(values),
         }],
     }
+
+
+def _resource_graph_payload():
+    payload = _payload("graph-session", [1])
+    payload["tests"][0]["attempts"][0]["provenance"]["extra"] = {
+        "resource_graph": {
+            "fingerprint": "9" * 64,
+            "nodes": [
+                {
+                    "id": "server:origin", "kind": "server", "name": "origin",
+                    "backend": "kubernetes", "environment": "cluster",
+                    "group": "", "requires": ["network.tcp"],
+                    "fingerprint": "a" * 64,
+                    "attributes": {"replicas": 2, "endpoints": [{"name": "http"}]},
+                },
+                {
+                    "id": "client:reader", "kind": "client", "name": "reader",
+                    "backend": "kubernetes", "environment": "cluster",
+                    "group": "", "requires": ["execution.capture"],
+                    "fingerprint": "b" * 64, "attributes": {},
+                },
+            ],
+            "edges": [{
+                "source": "client:reader", "target": "server:origin",
+                "relation": "connects-to",
+            }],
+        },
+    }
+    return payload
 
 
 @pytest.mark.parametrize("fraction,expected", [(0, 1), (0.5, 2.5), (0.95, 3.85), (1, 4)])
@@ -191,6 +221,43 @@ def test_sqlite_archive_contains_normalized_attempt_metric_and_entities(tmp_path
             "select entity, count(*) from evidence_entities group by entity"
         ))
         assert entities["span"] == 2 and entities["resource"] == 2
+    finally:
+        connection.close()
+
+
+def test_resource_graph_is_queryable_as_normalized_entities():
+    payload = _resource_graph_payload()
+    entities = list(iter_entities(payload))
+    assert [row["resource_id"] for row in entities if row["entity"] == "resource-node"] == [
+        "server:origin", "client:reader",
+    ]
+    link = next(row for row in entities if row["entity"] == "resource-link")
+    assert (link["source"], link["target"], link["relation"]) == (
+        "client:reader", "server:origin", "connects-to",
+    )
+
+
+def test_resource_graph_is_queryable_in_search_transport():
+    search_entities = {
+        row["document"]["entity"] for row in documents(_resource_graph_payload())
+    }
+    assert {"resource-node", "resource-link"} <= search_entities
+
+
+def test_resource_graph_has_normalized_sqlite_nodes_edges_and_test_links(tmp_path):
+    payload = _resource_graph_payload()
+    database = write_sqlite_archive(payload, tmp_path, tmp_path / "archive.sqlite3")
+    connection = sqlite3.connect(str(database))
+    try:
+        assert connection.execute(
+            "select kind, backend from evidence_resource_nodes where resource_id='server:origin'"
+        ).fetchone() == ("server", "kubernetes")
+        assert connection.execute(
+            "select source, target, relation from evidence_resource_links"
+        ).fetchone() == ("client:reader", "server:origin", "connects-to")
+        assert connection.execute(
+            "select count(*) from evidence_test_resource_links"
+        ).fetchone()[0] == 2
     finally:
         connection.close()
 
@@ -316,13 +383,15 @@ def test_package_session_has_relative_safe_members(tmp_path):
 
 
 def test_report_contains_metrics_findings_attachments_and_embedded_data():
-    payload = _payload("s1", [1])
+    payload = _resource_graph_payload()
     payload["tests"][0]["attempts"][0]["findings"] = [{
         "kind": "regression", "severity": "error", "detail": "slower",
     }]
     page = render(payload)
     assert "request.latency{route=read}" in page
     assert "regression" in page and "result.json" in page
+    assert "Effective resource plan" in page and "server:origin" in page
+    assert "connects-to" in page and "client:reader" in page
     assert "machine-readable evidence" in page
 
 

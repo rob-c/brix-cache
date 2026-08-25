@@ -48,26 +48,18 @@ s3l_find(const char *hay, size_t hlen, const char *needle)
 static size_t
 s3l_utf8_put(char *out, size_t o, size_t cap, long v)
 {
-    if (v < 0x80) {
-        if (o + 1 >= cap) { return (size_t) -1; }
-        out[o++] = (char) v;
-    } else if (v < 0x800) {
-        if (o + 2 >= cap) { return (size_t) -1; }
-        out[o++] = (char) (0xC0 | (v >> 6));
-        out[o++] = (char) (0x80 | (v & 0x3F));
-    } else if (v < 0x10000) {
-        if (o + 3 >= cap) { return (size_t) -1; }
-        out[o++] = (char) (0xE0 | (v >> 12));
-        out[o++] = (char) (0x80 | ((v >> 6) & 0x3F));
-        out[o++] = (char) (0x80 | (v & 0x3F));
-    } else {
-        if (o + 4 >= cap) { return (size_t) -1; }
-        out[o++] = (char) (0xF0 | (v >> 18));
-        out[o++] = (char) (0x80 | ((v >> 12) & 0x3F));
-        out[o++] = (char) (0x80 | ((v >> 6) & 0x3F));
-        out[o++] = (char) (0x80 | (v & 0x3F));
+    static const unsigned lead[5] = { 0, 0x00, 0xC0, 0xE0, 0xF0 };
+    size_t n = (v < 0x80) ? 1 : (v < 0x800) ? 2 : (v < 0x10000) ? 3 : 4;
+    size_t i;
+
+    if (o + n >= cap) {
+        return (size_t) -1;
     }
-    return o;
+    out[o] = (char) (lead[n] | (v >> (6 * (n - 1))));
+    for (i = 1; i < n; i++) {
+        out[o + i] = (char) (0x80 | ((v >> (6 * (n - 1 - i))) & 0x3F));
+    }
+    return o + n;
 }
 
 /* The named entities an S3 ListObjects answer may carry. */

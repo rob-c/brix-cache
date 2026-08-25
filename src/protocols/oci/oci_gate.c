@@ -158,7 +158,14 @@ brix_oci_gate(ngx_http_request_t *r, ngx_http_brix_oci_loc_conf_t *lcf,
     case BRIX_OCI_REQ_TAGS_LIST:
     case BRIX_OCI_REQ_REFERRERS:
         /* Never cached: both are mutable listings whose staleness the client
-         * cannot detect. Forwarded verbatim, pagination and filters and all. */
+         * cannot detect. Forwarded verbatim, pagination and filters and all.
+         * Gated FIRST in delegate mode — a listing is exactly where a
+         * private repository's metadata would otherwise leak (D16), and
+         * ctx->req's name span is only alive inside this frame. */
+        rc = brix_oci_delegate_gate(r, lcf, ctx);
+        if (rc != NGX_DECLINED) {
+            return rc;
+        }
         return brix_oci_listing_passthrough(r, lcf, ctx);
 
     case BRIX_OCI_REQ_UPLOAD_START:

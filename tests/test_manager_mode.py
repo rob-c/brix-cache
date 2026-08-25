@@ -1,6 +1,12 @@
 from split_continuation import reexport as _reexport
 _reexport(globals(), "_test_manager_mode_helpers")
 
+# TestClusterUnregister kills the shared cluster-ds (its `cluster` fixture
+# restarts it on module teardown), so this module and its _b split must run
+# sequentially on one worker — interleaved, the DS-down window ERRORs the
+# sibling's cluster-fixture setup.
+pytestmark = pytest.mark.xdist_group("manager-mode-cluster")
+
 @pytest.mark.registry_server("manager")
 def test_locate_redirect_basic(manager_nginx):
     info = manager_nginx

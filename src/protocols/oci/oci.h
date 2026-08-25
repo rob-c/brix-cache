@@ -51,6 +51,15 @@
  * default is `oci_tokens 1m`, and a mirror must work out of the box. */
 #define BRIX_OCI_TOKEN_ZONE_DEFAULT_SIZE  (1024 * 1024)
 
+/* A downstream Basic credential, decoded: "user:pass". Sized to match the
+ * upstream descriptor's own basic buffer — the two carry the same thing. */
+#define BRIX_OCI_BASIC_MAX    512
+
+/* Default brix_oci_delegate_proof_ttl: how long one (credential, repository)
+ * authorization proof is honoured before the upstream is asked again. This is
+ * the revocation propagation bound the D16 design pins at ~5 minutes. */
+#define BRIX_OCI_DELEG_TTL_DEFAULT  300
+
 /* A resolved pull-through upstream, built once at config time from the
  * brix_oci_mirror URL. Owned by the location's config pool; strings are fixed
  * buffers because the fill thread reads them without a lock and an ngx_str_t
@@ -86,6 +95,12 @@ typedef struct {
     time_t                 manifest_ttl;    /* brix_oci_manifest_ttl         */
     ngx_flag_t             insecure;        /* brix_oci_mirror_insecure      */
 
+    /* ---- delegated pull (D16) ---- */
+    ngx_flag_t             delegate;        /* brix_oci_mirror_delegate      */
+    ngx_str_t              delegate_realm;  /* brix_oci_delegate_realm       */
+    time_t                 deleg_proof_ttl; /* brix_oci_delegate_proof_ttl   */
+    ngx_flag_t             deleg_insecure;  /* brix_oci_delegate_insecure    */
+
     /* ---- registry surface (D4, wave B) ---- */
     ngx_flag_t             registry;        /* brix_oci_registry             */
     ngx_str_t              registry_root;
@@ -118,6 +133,14 @@ typedef struct {
     unsigned                   keyed:1;
     unsigned                   counted:1;   /* the finalize observer ran     */
     unsigned                   stale:1;     /* served past TTL (J.4)         */
+
+    /* Delegated-pull identity (D16), filled by brix_oci_delegate_ident().
+     * The credential itself is request-pool text that dies with the request;
+     * the raw sha256 is the only form that ever becomes an SHM key. */
+    const char                *deleg_basic; /* "user:pass", NULL = anonymous */
+    const char                *deleg_user;  /* username half, for the log    */
+    u_char                     deleg_cred[32];  /* sha256(cred); 0s = anon   */
+    unsigned                   deleg_proved:1;  /* proof minted THIS request */
 
     /* Registry-surface per-request state (oci_upload.c / oci_manifest_put.c),
      * carried here because a body-reading handler is re-entered by nginx with
@@ -247,9 +270,55 @@ ngx_int_t brix_oci_listing_passthrough(ngx_http_request_t *r,
 void brix_oci_bind_bearer(ngx_http_brix_oci_loc_conf_t *lcf,
     brix_sd_instance_t *inst, ngx_log_t *log);
 
+/* Make up->log safe to dereference from a worker thread before any fill has
+ * run bind_bearer. Call before posting any task that speaks to the upstream. */
+void brix_oci_up_log_ensure(ngx_http_brix_oci_loc_conf_t *lcf);
+
 /* Mint (or reuse) a bearer for `challenge` against `up`. Thread-pool context.
  * 0 = token written to tok[toklen]; -1 = the dance failed (fill → 502). */
 int brix_oci_token_get(brix_oci_upstream_t *up, const char *path,
     const char *challenge, char *tok, size_t toklen);
+
+/* The credential-scoped form of the dance (D16). `basic` is the exact
+ * "user:pass" to present to the token endpoint — NULL mints anonymously, and
+ * up->basic is deliberately NOT the fallback: the caller is speaking for a
+ * downstream principal, and "no credential" must never escalate into "the
+ * mirror's own credential". `cred` (32 raw bytes, or NULL) joins the SHM
+ * cache key so one principal's bearer can never satisfy another's request.
+ * 0 = token written (*expires_in > 0 on a fresh mint, -1 on a cache hit);
+ * -1 = the dance failed; *denied = 1 when the failure was the token endpoint
+ * saying 401/403 — a verdict about the credential, not about the transport. */
+int brix_oci_token_get_cred(brix_oci_upstream_t *up, const char *path,
+    const char *challenge, const char *basic, const u_char *cred,
+    char *tok, size_t toklen, long *expires_in, int *denied);
+
+/* Derive the pull scope "repository:<name>:pull" from a canonical /v2/ route.
+ * 0 = written; -1 = the path is not an object route. */
+int brix_oci_pull_scope(const char *path, char *out, size_t outsz);
+
+/* Publish `tok` under the credential-BLIND (upstream, scope) cache key the
+ * fill-side bearer provider probes, for `ttl_s` seconds. This is how a proof
+ * minted with a delegated credential lends its bearer to the coalesced fill
+ * without the fill machinery learning anything about principals. */
+void brix_oci_token_share(brix_oci_upstream_t *up, const char *path,
+    const char *tok, long ttl_s);
+
+/* ---- oci_delegate.c — downstream Basic delegation + authorize-on-hit ----- */
+
+/* Read (and police) the downstream Authorization header on a delegate-mode
+ * mirror: decode Basic into ctx->deleg_basic/deleg_cred, refuse a credential
+ * arriving over cleartext (400, before the secret is even decoded) unless
+ * brix_oci_delegate_insecure permits it. NGX_DECLINED = carry on (with or
+ * without an identity); anything else is terminal and already answered. */
+ngx_int_t brix_oci_delegate_ident(ngx_http_request_t *r,
+    ngx_http_brix_oci_loc_conf_t *lcf, ngx_http_brix_oci_ctx_t *ctx);
+
+/* The authorize-on-hit gate for the object routes (D16): every request on a
+ * delegate-mode mirror — cache hit or miss alike — must first hold a fresh
+ * per-(credential, repository) authorization proof. NGX_DECLINED = proof
+ * held, proceed to the tier; NGX_DONE = a proof task was posted (the request
+ * re-enters on completion) or a refusal was written. */
+ngx_int_t brix_oci_delegate_gate(ngx_http_request_t *r,
+    ngx_http_brix_oci_loc_conf_t *lcf, ngx_http_brix_oci_ctx_t *ctx);
 
 #endif /* BRIX_PROTOCOLS_OCI_H */

@@ -40,6 +40,44 @@ ext_simple(brix_conn *c, void *hdr24, const void *payload, uint32_t plen,
     return 0;
 }
 
+/* Two-path vendor op (symlink / link): payload is "<p1> <p2>" and the 24-byte
+ * header carries arg1len.  brix_symlink and brix_link differ only in opcode and
+ * the range-error wording, so both build the frame here. 0 / -1 (st set). */
+static int
+ext_twopath(brix_conn *c, uint16_t requestid, const char *p1, const char *p2,
+            const char *p1_range_msg, brix_status *st)
+{
+    ClientRequestHdr req;
+    char            *payload;
+    size_t           l1 = strlen(p1), l2 = strlen(p2);
+    size_t           total = l1 + 1 + l2;
+    int              rc;
+
+    if (l1 == 0 || l1 > 0x7fff) {
+        brix_status_set(st, XRDC_EUSAGE, 0, "%s", p1_range_msg);
+        return -1;
+    }
+    payload = (char *) malloc(total);
+    if (payload == NULL) {
+        brix_status_set(st, XRDC_EPROTO, 0, "out of memory");
+        return -1;
+    }
+    memcpy(payload, p1, l1);
+    payload[l1] = ' ';
+    memcpy(payload + l1 + 1, p2, l2);
+
+    memset(&req, 0, sizeof(req));
+    req.requestid = htons(requestid);
+    {
+        xrdw_twopath_req_t b = { .arg1len = (int16_t) l1 };
+        xrdw_twopath_req_pack(&b, req.body);
+    }
+
+    rc = ext_simple(c, &req, payload, (uint32_t) total, st);
+    free(payload);
+    return rc;
+}
+
 int
 brix_setattr(brix_conn *c, const char *path, int set_times,
              const struct timespec times[2], int set_owner,
@@ -90,70 +128,16 @@ int
 brix_symlink(brix_conn *c, const char *target, const char *linkpath,
              brix_status *st)
 {
-    ClientSymlinkRequest req;
-    char                *payload;
-    size_t               tl = strlen(target), ll = strlen(linkpath);
-    size_t               total = tl + 1 + ll;
-    int                  rc;
-
-    if (tl == 0 || tl > 0x7fff) {
-        brix_status_set(st, XRDC_EUSAGE, 0, "symlink target length out of range");
-        return -1;
-    }
-    payload = (char *) malloc(total);
-    if (payload == NULL) {
-        brix_status_set(st, XRDC_EPROTO, 0, "out of memory");
-        return -1;
-    }
-    memcpy(payload, target, tl);
-    payload[tl] = ' ';
-    memcpy(payload + tl + 1, linkpath, ll);
-
-    memset(&req, 0, sizeof(req));
-    req.requestid = htons(kXR_symlink);
-    {
-        xrdw_twopath_req_t b = { .arg1len = (int16_t) tl };
-        xrdw_twopath_req_pack(&b, ((ClientRequestHdr *) &req)->body);
-    }
-
-    rc = ext_simple(c, &req, payload, (uint32_t) total, st);
-    free(payload);
-    return rc;
+    return ext_twopath(c, kXR_symlink, target, linkpath,
+                       "symlink target length out of range", st);
 }
 
 int
 brix_link(brix_conn *c, const char *oldpath, const char *newpath,
           brix_status *st)
 {
-    ClientLinkRequest req;
-    char             *payload;
-    size_t            ol = strlen(oldpath), nl = strlen(newpath);
-    size_t            total = ol + 1 + nl;
-    int               rc;
-
-    if (ol == 0 || ol > 0x7fff) {
-        brix_status_set(st, XRDC_EUSAGE, 0, "link source length out of range");
-        return -1;
-    }
-    payload = (char *) malloc(total);
-    if (payload == NULL) {
-        brix_status_set(st, XRDC_EPROTO, 0, "out of memory");
-        return -1;
-    }
-    memcpy(payload, oldpath, ol);
-    payload[ol] = ' ';
-    memcpy(payload + ol + 1, newpath, nl);
-
-    memset(&req, 0, sizeof(req));
-    req.requestid = htons(kXR_link);
-    {
-        xrdw_twopath_req_t b = { .arg1len = (int16_t) ol };
-        xrdw_twopath_req_pack(&b, ((ClientRequestHdr *) &req)->body);
-    }
-
-    rc = ext_simple(c, &req, payload, (uint32_t) total, st);
-    free(payload);
-    return rc;
+    return ext_twopath(c, kXR_link, oldpath, newpath,
+                       "link source length out of range", st);
 }
 
 ssize_t

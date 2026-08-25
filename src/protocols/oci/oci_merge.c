@@ -69,6 +69,13 @@ oci_merge_scalars(ngx_conf_t *cf, ngx_http_brix_oci_loc_conf_t *prev,
     ngx_conf_merge_sec_value(conf->manifest_ttl, prev->manifest_ttl, 60);
     ngx_conf_merge_value(conf->insecure, prev->insecure, 0);
 
+    ngx_conf_merge_value(conf->delegate, prev->delegate, 0);
+    ngx_conf_merge_str_value(conf->delegate_realm, prev->delegate_realm,
+                             "brix-oci");
+    ngx_conf_merge_sec_value(conf->deleg_proof_ttl, prev->deleg_proof_ttl,
+                             BRIX_OCI_DELEG_TTL_DEFAULT);
+    ngx_conf_merge_value(conf->deleg_insecure, prev->deleg_insecure, 0);
+
     ngx_conf_merge_value(conf->registry, prev->registry, 0);
     ngx_conf_merge_value(conf->registry_anon, prev->registry_anon, 0);
     ngx_conf_merge_str_value(conf->registry_root, prev->registry_root, "");
@@ -98,6 +105,8 @@ oci_merge_scalars(ngx_conf_t *cf, ngx_http_brix_oci_loc_conf_t *prev,
     return ngx_http_brix_shared_merge(cf, &prev->common, &conf->common, "");
 }
 
+
+static int oci_ssl_terminates(ngx_conf_t *cf);
 
 /* The §0.6.3 refusal matrix for the mirror surface. */
 static char *
@@ -132,7 +141,39 @@ oci_reject_mirror(ngx_conf_t *cf, ngx_http_brix_oci_loc_conf_t *conf,
         return NGX_CONF_ERROR;
     }
 
+    /* Delegate mode asks clients for THEIR registry password; a server that
+     * does not terminate TLS would carry that secret in cleartext, and by
+     * then it is burned. Refuse at load, where the operator is looking —
+     * the request path re-checks per connection for mixed listeners. */
+    if (conf->delegate && !conf->deleg_insecure && !oci_ssl_terminates(cf)) {
+        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+            "brix_oci_mirror_delegate on a server with no TLS certificate: "
+            "a delegated credential on cleartext is already compromised; add "
+            "ssl, or state a test fixture with brix_oci_delegate_insecure on");
+        return NGX_CONF_ERROR;
+    }
+
     return NGX_CONF_OK;
+}
+
+/* Does this server terminate TLS at all? `certificates` unset means every
+ * downstream byte — including a delegated Basic credential — rides cleartext.
+ * Same read-it-off-the-ssl-conf discipline as oci_ssl_verifies_client(). */
+static int
+oci_ssl_terminates(ngx_conf_t *cf)
+{
+#if (NGX_HTTP_SSL)
+    ngx_http_ssl_srv_conf_t *sslcf =
+        ngx_http_conf_get_module_srv_conf(cf, ngx_http_ssl_module);
+
+    return (sslcf != NULL
+            && sslcf->certificates != NGX_CONF_UNSET_PTR
+            && sslcf->certificates != NULL
+            && sslcf->certificates->nelts > 0);
+#else
+    (void) cf;
+    return 0;
+#endif
 }
 
 

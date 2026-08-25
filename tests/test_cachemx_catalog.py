@@ -29,7 +29,7 @@ def _check_test_total_suffix_families_are_counters_2(types, f):
 pytestmark = [pytest.mark.uses_lifecycle_harness,
               pytest.mark.xdist_group("lc-cachemx")]
 
-# The complete catalogue, calibrated live (196 families).  A drift in either
+# The complete catalogue, calibrated live (214 families).  A drift in either
 # direction fails test_catalogue_complete_no_drift with the offending names.
 CATALOG = {
     "brix_acc_dns_breaker_open_total": "counter",
@@ -126,6 +126,12 @@ CATALOG = {
     "brix_mirror_dropped_total": "counter",
     "brix_mirror_errors_total": "counter",
     "brix_mirror_requests_total": "counter",
+    "brix_oci_delegate_total": "counter",
+    "brix_oci_fill_bytes_total": "counter",
+    "brix_oci_requests_total": "counter",
+    "brix_oci_token_fetch_total": "counter",
+    "brix_oci_upstream_errors_total": "counter",
+    "brix_oci_verify_fail_total": "counter",
     "brix_ocsp_timeouts_total": "counter",
     "brix_path_depth_violations_total": "counter",
     "brix_pmark_firefly_dropped_total": "counter",
@@ -155,6 +161,10 @@ CATALOG = {
     "brix_rate_limit_zone_full_errors_total": "counter",
     "brix_registry_full_total": "counter",
     "brix_requests_total": "counter",
+    "brix_rpm_prefetch_fail_total": "counter",
+    "brix_rpm_prefetch_total": "counter",
+    "brix_rpm_requests_total": "counter",
+    "brix_rpm_verify_fail_total": "counter",
     "brix_s3_auth_total": "counter",
     "brix_s3_bytes_rx_ipv4_total": "counter",
     "brix_s3_bytes_rx_ipv6_total": "counter",

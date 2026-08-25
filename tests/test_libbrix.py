@@ -84,6 +84,22 @@ def _uring_link_libs():
     return []
 
 
+def _gcov_link_flags(installed):
+    """--coverage when libbrix.a came from an instrumented build.
+
+    An archive compiled with --coverage references __gcov_* from every object;
+    a static consumer must link libgcov or the build fails with undefined
+    references.  Probe the installed archive so the flag tracks the build.
+    """
+    lib = os.path.join(installed, "lib", "libbrix.a")
+    nm = shutil.which("nm")
+    if nm is not None and os.path.exists(lib):
+        out = subprocess.run([nm, lib], capture_output=True, text=True).stdout
+        if "__gcov" in out:
+            return ["--coverage"]
+    return []
+
+
 @pytest.fixture(scope="module")
 def installed(tmp_path_factory):
     if CC is None:
@@ -148,7 +164,8 @@ def _demo_command(installed, static):
                  os.path.join(installed, "lib", "libbrix.a"),
                  os.path.join(installed, "lib", "libxrdproto.a"),
                  "-lssl", "-lcrypto", "-lz"]
-                + _codec_link_libs() + _krb5_link_libs() + _uring_link_libs())
+                + _codec_link_libs() + _krb5_link_libs() + _uring_link_libs()
+                + _gcov_link_flags(installed))
 
 
 def test_shared_consumer_runs(installed, tmp_path):

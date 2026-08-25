@@ -204,6 +204,7 @@ def test_the_template_directory_is_the_one_that_holds_the_templates():
         "import brix_suite.mesh.mesh_config as m, os\n"
         "print(m.CONFIGS_DIR)\n"
         "print(os.path.isdir(m.CONFIGS_DIR))\n"
+        # net-literal-allow: render arg for a template probe; nothing binds or dials
         "print(len(m.render('mesh_cms_datanode.conf', BIND_HOST='127.0.0.1',\n"
         "      DATA_PORT=1, ROOT='/x', CMS_MGR='y', PATHS='/p')))\n")
     assert out.returncode == 0, out.stderr
@@ -257,6 +258,7 @@ def test_a_topology_can_be_configured_end_to_end_without_launching_one(tmp_path)
         "m = c.Mesh('probe')\n"
         "written = []\n"
         "written.append(m.write('mgr.conf', c.cfg_manager(21610, 21611)))\n"
+        # net-literal-allow: config-generator manager address in a render-only probe
         "written.append(m.write('sub.conf', c.cfg_submanager(21612, 21613,\n"
         "    m.datadir('sub'), '127.0.0.1:21611')))\n"
         "written.append(m.write('nds.conf', c.cfg_datanode(21614,\n"

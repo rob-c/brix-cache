@@ -288,7 +288,7 @@ def probes() -> list[Probe]:
         # A TPC destination open pulls bytes IN; on a writable server it fails
         # for want of a reachable source, so only the refusal code is asserted.
         _open_probe("open tpc-destination", kXR_open_updt | kXR_new,
-                    "/ro_tpc.dat?tpc.src=root://127.0.0.1:1//x&tpc.key=k",
+                    "/ro_tpc.dat?tpc.src=root://127.0.0.1:1//x&tpc.key=k",  # net-literal-allow: unreachable TPC source (port 1); only the refusal is asserted
                     must_succeed=False),
 
         # -- namespace mutations (dispatch_write.c path handlers) ------------

@@ -18,6 +18,7 @@
 
 #include "s3.h"
 #include "core/http/http_body.h"
+#include "core/http/http_headers.h"   /* brix_http_request_is_tls */
 #include "auth/impersonate/lifecycle.h"
 #include "fs/vfs/vfs.h"   /* per-object delete via the VFS unlink surface */
 
@@ -56,11 +57,7 @@ s3_delete_one(ngx_http_request_t *r, ngx_http_s3_loc_conf_t *cf,
     ngx_http_s3_req_ctx_t *s3ctx =
         ngx_http_get_module_ctx(r, ngx_http_brix_s3_module);
     brix_vfs_ctx_t       vctx;
-    int                    is_tls = 0;
-
-#if (NGX_HTTP_SSL)
-    is_tls = (r->connection->ssl != NULL) ? 1 : 0;
-#endif
+    int                    is_tls = brix_http_request_is_tls(r);
 
     brix_vfs_ctx_init(&vctx, r->pool, r->connection->log, BRIX_PROTO_S3,
         cf->common.root_canon, cf->common.cache_root_canon, cf->common.allow_write,

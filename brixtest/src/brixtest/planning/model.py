@@ -9,20 +9,22 @@ from pathlib import Path
 from typing import Mapping, Sequence
 
 from brixtest.util.immutable import freeze_mapping
+from brixtest.errors import SpecError
 
 GRAPH_SCHEMA_VERSION = 1
+EDGE_RELATIONS = frozenset({
+    "connects-to", "consumes", "identifies", "mounts", "places", "produces",
+    "issues", "ready-before", "refreshes", "revokes", "shares-runtime-with",
+    "tears-down-before",
+})
 
 
 def jsonable(value: object) -> object:
     """Return a deterministic, secret-conscious representation for planning."""
     if dataclasses.is_dataclass(value):
-        return {
-            field.name: jsonable(getattr(value, field.name))
-            for field in dataclasses.fields(value)
-            if field.name not in {"secret", "password", "master_password", "value"}
-        }
+        return _jsonable_dataclass(value)
     if isinstance(value, Mapping):
-        return {str(key): jsonable(item) for key, item in sorted(value.items())}
+        return _jsonable_mapping(value)
     if isinstance(value, (tuple, list, set, frozenset)):
         return [jsonable(item) for item in value]
     if isinstance(value, Path):
@@ -30,6 +32,18 @@ def jsonable(value: object) -> object:
     if isinstance(value, (str, int, float, bool, type(None))):
         return value
     return repr(value)
+
+
+def _jsonable_dataclass(value: object) -> Mapping[str, object]:
+    redacted = {"secret", "password", "master_password", "value"}
+    return {
+        field.name: jsonable(getattr(value, field.name))
+        for field in dataclasses.fields(value) if field.name not in redacted
+    }
+
+
+def _jsonable_mapping(value: Mapping[object, object]) -> Mapping[str, object]:
+    return {str(key): jsonable(item) for key, item in sorted(value.items())}
 
 
 def digest(value: object) -> str:
@@ -78,6 +92,17 @@ class GraphEdge:
     source: str
     target: str
     relation: str
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.source, str) or not self.source:
+            raise SpecError("graph edge source", self.source, "must be a resource ID")
+        if not isinstance(self.target, str) or not self.target:
+            raise SpecError("graph edge target", self.target, "must be a resource ID")
+        if self.relation not in EDGE_RELATIONS:
+            raise SpecError(
+                "graph edge relation", self.relation,
+                "known: %s" % ", ".join(sorted(EDGE_RELATIONS)),
+            )
 
     def as_dict(self) -> Mapping[str, str]:
         return dataclasses.asdict(self)

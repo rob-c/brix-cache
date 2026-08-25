@@ -8,9 +8,9 @@
  *
  * The lock-conflict walk (webdav_check_locks / _tree) lives in lock_check.c;
  * UNLOCK, the startup sweep and PROPFIND lock-discovery XML live in
- * lock_discovery.c.  The confined-ctx helper (webdav_lock_vfs_ctx) and the
- * lock-null reaper (webdav_lock_reap_null) are defined here and shared with
- * those siblings via lock_internal.h.
+ * lock_discovery.c.  The lock-null reaper (webdav_lock_reap_null) is defined
+ * here and shared with those siblings via lock_internal.h; confined lock-DB
+ * ctxs come from the canonical webdav_vfs_ctx_build.
  */
 #include "webdav.h"
 #include "fs/path/path.h"
@@ -149,28 +149,6 @@ webdav_lock_xml_response(ngx_http_request_t *r, webdav_lock_xattr_t *e)
  *       called on a path that is about to be re-locked (it would remove the file
  *       out from under a follow-up XATTR_CREATE).
  */
-/* Build a confined VFS ctx for a lock-DB namespace op on `path` (mirrors the
- * canonical webdav construction). Identity comes from the request ctx so the op
- * runs as the mapped user under impersonation. */
-void
-webdav_lock_vfs_ctx(ngx_http_request_t *r, const char *path,
-    brix_vfs_ctx_t *vctx)
-{
-    ngx_http_brix_webdav_loc_conf_t *conf =
-        ngx_http_get_module_loc_conf(r, ngx_http_brix_webdav_module);
-    ngx_http_brix_webdav_req_ctx_t  *rx =
-        ngx_http_get_module_ctx(r, ngx_http_brix_webdav_module);
-    int is_tls = 0;
-
-#if (NGX_HTTP_SSL)
-    is_tls = (r->connection->ssl != NULL) ? 1 : 0;
-#endif
-
-    brix_vfs_ctx_init(vctx, r->pool, r->connection->log, BRIX_PROTO_WEBDAV,
-        conf->common.root_canon, conf->common.cache_root_canon, conf->common.allow_write,
-        is_tls, (rx != NULL) ? rx->identity : NULL, path);
-}
-
 void
 webdav_lock_reap_null(ngx_http_request_t *r, const char *path,
                       const webdav_lock_xattr_t *e)
@@ -184,7 +162,7 @@ webdav_lock_reap_null(ngx_http_request_t *r, const char *path,
 
     /* Confined no-follow probe; only a regular, zero-length file is unlinked,
      * through the VFS. Best-effort — failures are ignored. */
-    webdav_lock_vfs_ctx(r, path, &vctx);
+    webdav_vfs_ctx_build(r, path, &vctx);
     if (brix_vfs_probe(&vctx, 1 /* no-follow */, &vst) == NGX_OK
         && vst.is_regular && vst.size == 0)
     {
@@ -236,7 +214,7 @@ webdav_lock_create_null(ngx_http_request_t *r, const char *path,
 
     *created_null = 0;
 
-    webdav_lock_vfs_ctx(r, path, &vctx);
+    webdav_vfs_ctx_build(r, path, &vctx);
     if (brix_vfs_probe(&vctx, 1 /* no-follow */, &vst) != NGX_DECLINED
         || errno != ENOENT)
     {

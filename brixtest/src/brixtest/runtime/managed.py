@@ -11,6 +11,7 @@ from brixtest._design_managed import Task, Volume
 from brixtest.errors import SpecError
 from brixtest.resources import Reference
 from brixtest.runtime.commands import CommandResult, CommandRunner
+from brixtest.runtime.launcher_identity import process_identity_argv
 from brixtest.util.configtext import render_cfg_strict
 
 
@@ -142,17 +143,25 @@ def _task_order(
     ordered = []
     available = set(completed)
     while pending:
-        ready = [
-            task for task in pending.values()
-            if all(name in available or name not in known_tasks for name in task.depends_on)
-        ]
+        ready = _ready_tasks(pending, available, known_tasks)
         if not ready:
             raise SpecError("task order", sorted(pending), "contains an unresolved dependency")
-        for task in sorted(ready, key=lambda item: item.name):
-            ordered.append(task)
-            available.add(task.name)
-            pending.pop(task.name)
+        _consume_ready_tasks(ready, pending, available, ordered)
     return tuple(ordered)
+
+
+def _ready_tasks(pending, available: set[str], known_tasks: set[str]) -> list[Task]:
+    return [
+        task for task in pending.values()
+        if all(name in available or name not in known_tasks for name in task.depends_on)
+    ]
+
+
+def _consume_ready_tasks(ready, pending, available, ordered) -> None:
+    for task in sorted(ready, key=lambda item: item.name):
+        ordered.append(task)
+        available.add(task.name)
+        pending.pop(task.name)
 
 
 class ManagedResourceRuntime:
@@ -181,13 +190,33 @@ class ManagedResourceRuntime:
             self.manager.evidence.event("managed-volume", item.as_dict())
 
     def run_phase(self, phase: str) -> None:
-        selected = tuple(
+        kubernetes = getattr(self.manager, "_kubernetes", None)
+        if kubernetes is not None:
+            kubernetes.run_task_phase(phase)
+            return
+        self.manager._providers.start_ready()
+        selected = self._phase_tasks(phase)
+        known = self._known_tasks()
+        for declaration in _task_order(selected, self._completed, known):
+            self._run(declaration)
+            self.manager._providers.start_ready()
+
+    def _phase_tasks(self, phase: str) -> tuple[Task, ...]:
+        return tuple(
             task for task in self.manager.definition.tasks
             if task.phase == phase and task.name not in self._completed
         )
-        known = {task.name for task in self.manager.definition.tasks}
-        for declaration in _task_order(selected, self._completed, known):
-            self._run(declaration)
+
+    def _known_tasks(self) -> set[str]:
+        return {task.name for task in self.manager.definition.tasks}
+
+    def record_external(self, declaration: Task, result: CommandResult) -> TaskRecord:
+        """Publish a result produced by a backend-native finite-task runner."""
+        record = TaskRecord(declaration.name, declaration.phase, result, {})
+        self.tasks[declaration.name] = record
+        self._completed.add(declaration.name)
+        self._publish(record)
+        return record
 
     def _run(self, declaration: Task) -> None:
         workdir = self.manager.root / "runtime" / "tasks" / declaration.name
@@ -204,19 +233,62 @@ class ManagedResourceRuntime:
             for value in declaration.command
         )
         env = self._environment(declaration, values, mounts)
-        runner = CommandRunner(
-            workdir / "logs", cwd=workdir,
-            observer=self.manager._observe_command,
-        )
         with self.manager.metrics.timer(
             "task.duration", labels={"task": declaration.name, "phase": declaration.phase},
         ):
-            result = runner.run(*argv, timeout=declaration.timeout, env=env)
+            result = self._execute(declaration, workdir, argv, env)
         outputs = self._outputs(declaration, workdir)
         record = TaskRecord(declaration.name, declaration.phase, result, outputs)
         self.tasks[declaration.name] = record
         self._completed.add(declaration.name)
         self._publish(record)
+
+    def _execute(self, declaration, workdir, argv, env) -> CommandResult:
+        backend = declaration.placement.backend
+        if backend not in ("docker", "podman"):
+            return self._execute_process(declaration, workdir, argv, env)
+        result = self._execute_container(declaration, workdir, argv, env)
+        self._archive_container_result(workdir, result)
+        return result
+
+    def _execute_process(self, declaration, workdir, argv, env) -> CommandResult:
+        runner = CommandRunner(
+            workdir / "logs", cwd=workdir,
+            observer=self.manager._observe_command,
+        )
+        identity = next((
+            item for item in self.manager.definition.identities
+            if item.name == declaration.placement.identity
+        ), None)
+        translated = process_identity_argv(identity, argv)
+        result = runner.run(*translated, timeout=declaration.timeout, env=env)
+        return dataclasses.replace(result, argv=tuple(argv))
+
+    def _execute_container(self, declaration, workdir, argv, env) -> CommandResult:
+        from brixtest.runtime.executors import (
+            ToolExecutionContext,
+            ToolExecutionRequest,
+            tool_executor,
+        )
+
+        placement = declaration.placement
+        context = ToolExecutionContext(
+            self.manager.nodeid, self.manager.root, workdir, placement.backend,
+            identities={item.name: item for item in self.manager.definition.identities},
+        )
+        request = ToolExecutionRequest(
+            declaration.name, argv, env, workdir, declaration.timeout, None,
+            (0,), 1 << 20, "capture", 0, "utf-8", True, placement,
+            placement.image, {"resource_kind": "task", "phase": declaration.phase},
+        )
+        return tool_executor(placement.backend).execute(context, request)
+
+    @staticmethod
+    def _archive_container_result(workdir: Path, result: CommandResult) -> None:
+        logs = workdir / "logs"
+        logs.mkdir(parents=True, exist_ok=True)
+        (logs / "0001.stdout.log").write_text(result.stdout)
+        (logs / "0001.stderr.log").write_text(result.stderr)
 
     def _environment(
         self, declaration: Task, values: Mapping[str, object],

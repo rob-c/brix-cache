@@ -61,6 +61,9 @@ ngx_http_brix_oci_create_loc_conf(ngx_conf_t *cf)
     c->gc_interval   = NGX_CONF_UNSET_MSEC;
     c->gc_grace      = NGX_CONF_UNSET;
     c->token_zone_set = NGX_CONF_UNSET;
+    c->delegate        = NGX_CONF_UNSET;
+    c->deleg_proof_ttl = NGX_CONF_UNSET;
+    c->deleg_insecure  = NGX_CONF_UNSET;
 
     return c;
 }

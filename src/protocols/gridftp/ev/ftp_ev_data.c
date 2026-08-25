@@ -339,3 +339,48 @@ brix_ftp_ev_data_finish(ftp_ev_dc_t *dc, ngx_int_t rc)
     /* Resume the control channel: flush the result and frame the next command. */
     brix_ftp_ev_resume(fc);
 }
+
+
+/* brix_ftp_ev_send_drain — shared send-side pump head for the data-channel
+ * write handlers (stream RETR and MODE E RETR): handle the idle timeout,
+ * clear a pending timer, then push dc->buf[buf_pos..buf_len) to the socket.
+ * NGX_OK: buffer fully drained — the caller refills and calls again.
+ * NGX_AGAIN: backpressure — write event re-armed + IO timer set, caller
+ * returns.  NGX_ERROR: the transfer was already finished with an error
+ * (send failure, peer EOF, or event-arm failure), caller returns. */
+ngx_int_t
+brix_ftp_ev_send_drain(ngx_event_t *wev)
+{
+    ngx_connection_t *c  = wev->data;
+    ftp_ev_dc_t      *dc = c->data;
+
+    if (wev->timedout) {
+        brix_ftp_ev_data_finish(dc, NGX_ERROR);
+        return NGX_ERROR;
+    }
+    if (wev->timer_set) {
+        ngx_del_timer(wev);
+    }
+
+    while (dc->buf_pos < dc->buf_len) {
+        ssize_t n = c->send(c, dc->buf + dc->buf_pos,
+                            dc->buf_len - dc->buf_pos);
+
+        if (n > 0) {
+            dc->buf_pos += (size_t) n;
+            continue;
+        }
+        if (n == NGX_AGAIN) {
+            if (ngx_handle_write_event(wev, 0) != NGX_OK) {
+                brix_ftp_ev_data_finish(dc, NGX_ERROR);
+                return NGX_ERROR;
+            }
+            ngx_add_timer(wev, BRIX_FTP_EV_IO_TIMEO);
+            return NGX_AGAIN;
+        }
+        brix_ftp_ev_data_finish(dc, NGX_ERROR);       /* NGX_ERROR or peer EOF */
+        return NGX_ERROR;
+    }
+
+    return NGX_OK;
+}

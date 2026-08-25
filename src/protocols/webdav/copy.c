@@ -71,11 +71,7 @@ webdav_copy_probe(ngx_http_request_t *r, const char *path, struct stat *sb)
         ngx_http_get_module_ctx(r, ngx_http_brix_webdav_module);
     brix_vfs_ctx_t   vctx;
     brix_vfs_stat_t  vst;
-    int                is_tls = 0;
-
-#if (NGX_HTTP_SSL)
-    is_tls = (r->connection->ssl != NULL) ? 1 : 0;
-#endif
+    int                is_tls = brix_http_request_is_tls(r);
 
     brix_vfs_ctx_init(&vctx, r->pool, r->connection->log, BRIX_PROTO_WEBDAV,
         conf->common.root_canon, conf->common.cache_root_canon, conf->common.allow_write,
@@ -218,45 +214,6 @@ webdav_copy_resolve_pair(ngx_http_request_t *r,
 }
 
 /*
- * WHAT: Build the VFS context for a file COPY, binding the export's per-user
- * backend credential policy, opt-in credential minting, and delegation.
- *
- * WHY: The data-plane copy must present the REQUESTING USER's credential to a
- * remote-backed export (not the shared service credential); centralising the
- * binding keeps the file-copy path readable and matches the pre-copy probe's
- * credential policy.
- *
- * HOW: Initialises the context under root_canon for the requesting identity,
- * then binds the credential dir/fallback, the mint CA cert/key/ttl, and the
- * delegation from the request — identical to the prior inline block.
- */
-static void
-webdav_copy_file_vfs_init(ngx_http_request_t *r,
-    ngx_http_brix_webdav_loc_conf_t *conf, const char *src_path,
-    brix_vfs_ctx_t *vctx)
-{
-    ngx_http_brix_webdav_req_ctx_t *wctx =
-        ngx_http_get_module_ctx(r, ngx_http_brix_webdav_module);
-    int is_tls = 0;
-
-#if (NGX_HTTP_SSL)
-    is_tls = (r->connection->ssl != NULL) ? 1 : 0;
-#endif
-
-    brix_vfs_ctx_init(vctx, r->pool, r->connection->log, BRIX_PROTO_WEBDAV,
-        conf->common.root_canon, conf->common.cache_root_canon,
-        conf->common.allow_write, is_tls,
-        (wctx != NULL) ? wctx->identity : NULL, src_path);
-    brix_vfs_ctx_bind_backend_cred(vctx, &conf->common.storage_credential_dir,
-        conf->common.storage_credential_fallback);
-    brix_vfs_ctx_bind_backend_mint(vctx,
-        &conf->common.storage_credential_mint_ca_cert,
-        &conf->common.storage_credential_mint_ca_key,
-        conf->common.storage_credential_mint_ttl);
-    webdav_vfs_bind_deleg(r, conf, vctx);
-}
-
-/*
  * WHAT: Execute a single-file COPY for a resolved request through the metered
  * VFS copy surface.
  *
@@ -282,7 +239,11 @@ webdav_copy_do_file(ngx_http_request_t *r,
                                             req->dst_path);
     }
 
-    webdav_copy_file_vfs_init(r, conf, req->src_path, &vctx);
+    /* Data-plane build so a remote-backed export sees the REQUESTING USER's
+     * credential (cred + opt-in mint + delegation), matching the pre-copy
+     * probe's policy.  The copy runs on the VFS surface directly, so no
+     * storage-driver instance is routed here. */
+    webdav_vfs_ctx_build_data(r, conf, req->src_path, &vctx);
 
     ngx_memzero(&copy_opts, sizeof(copy_opts));
     copy_opts.overwrite       = req->overwrite ? 1 : 0;

@@ -250,31 +250,57 @@ brix_http_query_copy_value(const u_char *src, size_t src_len,
  *      copy_value(val,val_len,out,outsz,flags). Return result or 0.
  */
 
+/*
+ * query_seg_t / query_seg_next — the '&'-split walk both scanners share.
+ * Callers seed p/end from args, then each query_seg_next locates the current
+ * segment's end and its '=' (NULL for a bare key) and precomputes `next`, the
+ * start of the following segment; the caller advances p = next when the
+ * segment is not accepted.  Returns 0 once p has reached end.
+ */
+typedef struct {
+    u_char *p;        /* current segment start                     */
+    u_char *end;      /* end of the whole query string             */
+    u_char *seg_end;  /* current segment end ('&' or args end)     */
+    u_char *eq;       /* '=' inside the segment, NULL for bare key */
+    u_char *next;     /* start of the following segment            */
+} query_seg_t;
+
+static int
+query_seg_next(query_seg_t *s)
+{
+    u_char *amp;
+
+    if (s->p >= s->end) {
+        return 0;
+    }
+    amp = ngx_strlchr(s->p, s->end, '&');
+    s->seg_end = amp ? amp : s->end;
+    s->eq = ngx_strlchr(s->p, s->seg_end, '=');
+    s->next = (amp != NULL) ? amp + 1 : s->end;
+    return 1;
+}
+
 int
 brix_http_query_get(ngx_str_t args, const char *key, char *out,
     size_t outsz, unsigned flags)
 {
-    u_char *p, *end;
-    size_t  key_len;
+    query_seg_t s;
+    size_t      key_len;
 
     if (args.len == 0 || key == NULL || out == NULL || outsz == 0) {
         return 0;
     }
 
     key_len = ngx_strlen(key);
-    p = args.data;
-    end = args.data + args.len;
+    s.p = args.data;
+    s.end = args.data + args.len;
 
-    while (p < end) {
-        u_char *amp = ngx_strlchr(p, end, '&');
-        u_char *seg_end = amp ? amp : end;
-        u_char *eq = ngx_strlchr(p, seg_end, '=');
-
-        if (eq != NULL && (size_t) (eq - p) == key_len
-            && brix_http_query_key_eq(p, key, key_len, flags))
+    while (query_seg_next(&s)) {
+        if (s.eq != NULL && (size_t) (s.eq - s.p) == key_len
+            && brix_http_query_key_eq(s.p, key, key_len, flags))
         {
-            u_char *val = eq + 1;
-            size_t  val_len = (size_t) (seg_end - val);
+            u_char *val = s.eq + 1;
+            size_t  val_len = (size_t) (s.seg_end - val);
 
             if (val_len == 0 && !(flags & BRIX_HTTP_QUERY_ALLOW_EMPTY)) {
                 return 0;
@@ -284,7 +310,7 @@ brix_http_query_get(ngx_str_t args, const char *key, char *out,
                                                 flags);
         }
 
-        p = (amp != NULL) ? amp + 1 : end;
+        s.p = s.next;
     }
 
     return 0;
@@ -308,32 +334,29 @@ brix_http_query_get(ngx_str_t args, const char *key, char *out,
 int
 brix_http_query_has(ngx_str_t args, const char *key, unsigned flags)
 {
-    u_char *p, *end;
-    size_t  key_len;
+    query_seg_t s;
+    size_t      key_len;
 
     if (args.len == 0 || key == NULL) {
         return 0;
     }
 
     key_len = ngx_strlen(key);
-    p = args.data;
-    end = args.data + args.len;
+    s.p = args.data;
+    s.end = args.data + args.len;
 
-    while (p < end) {
-        u_char *amp = ngx_strlchr(p, end, '&');
-        u_char *seg_end = amp ? amp : end;
-        u_char *eq = ngx_strlchr(p, seg_end, '=');
-        u_char *key_end = eq ? eq : seg_end;
+    while (query_seg_next(&s)) {
+        u_char *key_end = s.eq ? s.eq : s.seg_end;
 
-        if ((size_t) (key_end - p) == key_len
-            && brix_http_query_key_eq(p, key, key_len, flags))
+        if ((size_t) (key_end - s.p) == key_len
+            && brix_http_query_key_eq(s.p, key, key_len, flags))
         {
-            if (eq == NULL || (flags & BRIX_HTTP_QUERY_HAS_VALUE_OK)) {
+            if (s.eq == NULL || (flags & BRIX_HTTP_QUERY_HAS_VALUE_OK)) {
                 return 1;
             }
         }
 
-        p = (amp != NULL) ? amp + 1 : end;
+        s.p = s.next;
     }
 
     return 0;

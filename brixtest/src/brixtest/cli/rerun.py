@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import subprocess
 from pathlib import Path
@@ -9,6 +10,7 @@ from pathlib import Path
 from brixtest.errors import SpecError
 from brixtest.metrics import load_metric_session
 from brixtest.summary import default_runs_root
+from brixtest.runtime.binaries import REPLAY_BINARIES_ENV
 
 
 def _session_rows(payload) -> list[dict]:
@@ -31,7 +33,24 @@ def _replay(row: dict) -> int:
     argv = _replay_argv(row, replay.get("argv", []))
     cwd = replay.get("cwd", "")
     print("BriXTest rerun: %s" % row.get("nodeid"))
-    return subprocess.call(argv, cwd=str(cwd) or None, env=dict(os.environ))
+    return subprocess.call(
+        argv, cwd=str(cwd) or None, env=_replay_environment(replay),
+    )
+
+
+def _replay_environment(replay: dict) -> dict[str, str]:
+    environment = dict(os.environ)
+    binaries = replay.get("binaries", {})
+    if binaries:
+        if not isinstance(binaries, dict):
+            raise SpecError("rerun binaries", binaries, "must be an identity mapping")
+        environment[REPLAY_BINARIES_ENV] = json.dumps(binaries, sort_keys=True)
+    fingerprint = replay.get("resource_graph_fingerprint", "")
+    if fingerprint:
+        if not isinstance(fingerprint, str):
+            raise SpecError("rerun resource graph", fingerprint, "must be a fingerprint")
+        environment["BRIXTEST_REPLAY_GRAPH_FINGERPRINT"] = fingerprint
+    return environment
 
 
 def _replay_record(row: dict) -> dict:

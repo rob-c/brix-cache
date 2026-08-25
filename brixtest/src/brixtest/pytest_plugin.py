@@ -19,6 +19,8 @@ from brixtest.archive import (
 from brixtest.design import CaseDefinition, get_case, is_case
 from brixtest.errors import SpecError
 from brixtest.evidence.export import post_otlp, upload_session_s3, write_parquet
+from brixtest.helper_control import start_helper_heartbeat, stop_helper_heartbeat
+from brixtest.helper_transport import publish as publish_helper_message
 from brixtest.metrics import (
     write_session_outputs,
 )
@@ -44,10 +46,37 @@ from brixtest.topology import SharedTopology, merge_worker_topologies
 # intentional export explicit to static checkers.
 pytest_terminal_summary = _terminal_summary
 pytest_addoption = pytest_options.pytest_addoption
-pytest_configure = pytest_options.pytest_configure
 _is_helper = pytest_options.is_helper
 _HELPER_ENV = pytest_options.HELPER_ENV
 _RESULT_ENV = pytest_options.RESULT_ENV
+
+
+def pytest_configure(config) -> None:
+    pytest_options.pytest_configure(config)
+    if _is_helper(config):
+        start_helper_heartbeat()
+
+
+def pytest_unconfigure(config) -> None:
+    if _is_helper(config):
+        stop_helper_heartbeat()
+
+
+@pytest.hookimpl(optionalhook=True)
+def pytest_configure_node(node) -> None:
+    """Give each xdist worker access to one controller-owned topology broker."""
+    from brixtest.topology.broker import TopologyBroker
+
+    config = node.config
+    broker = config.stash.get(SHARED_TOPOLOGY, None)
+    if broker is None:
+        broker = TopologyBroker(config.stash[METRICS_SESSION])
+        config.stash[SHARED_TOPOLOGY] = broker
+    worker = str(node.workerinput.get("workerid", node.gateway.id))
+    expected = int(node.workerinput.get("workercount", 1))
+    node.workerinput["brixtest_topology"] = dict(
+        broker.worker_settings(worker, expected),
+    )
 
 
 def pytest_addhooks(pluginmanager) -> None:
@@ -114,13 +143,25 @@ def _prepare_managed_item(config, item):
 def _build_shared_topology(config, rows) -> None:
     try:
         session_dir = config.stash[METRICS_SESSION]
-        worker = getattr(config, "workerinput", {}).get("workerid", "")
-        topology_dir = session_dir / "workers" / worker if worker else session_dir
-        config.stash[SHARED_TOPOLOGY] = SharedTopology.build(
-            rows, topology_dir, case_session_dir=session_dir,
-        )
+        settings = getattr(config, "workerinput", {}).get("brixtest_topology")
+        if settings:
+            _register_remote_topology(config, rows, settings)
+        else:
+            config.stash[SHARED_TOPOLOGY] = SharedTopology.build(
+                rows, session_dir, case_session_dir=session_dir,
+            )
     except SpecError as exc:
         raise pytest.UsageError("brixtest: %s" % exc) from exc
+
+
+def _register_remote_topology(config, rows, settings) -> None:
+    from brixtest.topology.broker import RemoteTopology
+
+    topology = RemoteTopology(
+        str(settings["address"]), str(settings["token"]), str(settings["worker"]),
+    )
+    topology.register(rows, int(settings["expected"]))
+    config.stash[SHARED_TOPOLOGY] = topology
 
 
 def _json_safe(value: object) -> object:
@@ -155,6 +196,7 @@ def _update_helper_result(update: Mapping[str, object]) -> None:
     payload.update(values)
     with contextlib.suppress(OSError):
         path.write_text(json.dumps(payload, sort_keys=True) + "\n")
+    publish_helper_message("result", payload)
 
 
 def _helper_result_payload(path: Path) -> dict:
@@ -311,6 +353,8 @@ def _failed_pools(pools) -> list:
 
 def _close_session_topology(session, exitstatus: int) -> int:
     config = session.config
+    if hasattr(config, "workerinput"):
+        return exitstatus
     topology = config.stash.get(SHARED_TOPOLOGY, None)
     failed = _failed_pools(topology.close()) if topology is not None else []
     if not failed:
@@ -367,6 +411,7 @@ def _publish_s3(config, session_dir) -> None:
 def pytest_sessionfinish(session, exitstatus) -> None:
     config = session.config
     if _is_helper(config):
+        stop_helper_heartbeat()
         return
     session_dir = config.stash[METRICS_SESSION]
     exitstatus = _close_session_topology(session, int(exitstatus))

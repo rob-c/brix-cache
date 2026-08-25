@@ -201,31 +201,9 @@ extern ngx_module_t ngx_http_brix_webdav_module;
  * of bytes written (excluding the NUL).  Use on any wire-derived string before
  * logging. */
 size_t brix_sanitize_log_string(const char *in, char *out, size_t outsz);
-/*
- * Confined filesystem operations.  All take a pre-canonicalised root_canon
- * (from brix_get_canonical_root) and absolute `resolved` paths the caller has
- * already confirmed live under it; each enforces a second, kernel-level
- * confinement layer (openat2 RESOLVE_BENEATH, else O_NOFOLLOW fallback) so a
- * symlink swapped in after resolution still cannot escape the export root.
- * Return values mirror the underlying syscall: open returns the fd (caller MUST
- * close it — it is NOT pool-managed), the rest return 0 on success; all return
- * -1 with errno set on failure.  flags/mode follow open(2) (mode used only with
- * O_CREAT — do not pass permission bits in the flags slot).
- */
-int brix_open_confined_canon(ngx_log_t *log, const char *root_canon,
-    const char *resolved, int flags, mode_t mode);
-/* unlinkat under confinement; is_dir != 0 adds AT_REMOVEDIR (rmdir). */
-int brix_unlink_confined_canon(ngx_log_t *log, const char *root_canon,
-    const char *resolved, int is_dir);
-/* mkdirat under confinement (single level; parent must already exist). */
-int brix_mkdir_confined_canon(ngx_log_t *log, const char *root_canon,
-    const char *resolved, mode_t mode);
-/* renameat under confinement; BOTH src and dst parents are confined. */
-int brix_rename_confined_canon(ngx_log_t *log, const char *root_canon,
-    const char *src_resolved, const char *dst_resolved);
-/* linkat (hard link) under confinement; BOTH src and dst parents are confined. */
-int brix_link_confined_canon(ngx_log_t *log, const char *root_canon,
-    const char *src_resolved, const char *dst_resolved);
+/* Confined filesystem operations (open/unlink/mkdir/rename/link under a
+ * pre-canonicalised root_canon) — declared by the owning header. */
+#include "fs/path/path.h"
 
 /* Resolve (lazily, per worker) the storage-driver instance for this export: a
  * "pblock" backend is created on first use and cached on the loc conf; "posix"/

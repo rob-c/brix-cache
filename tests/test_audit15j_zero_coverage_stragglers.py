@@ -331,7 +331,7 @@ def test_the_audience_gate_has_no_second_declaration_to_fall_back_on():
                 path.read_text(encoding="utf-8", errors="replace").splitlines(), 1):
             if 'ngx_string("brix_backend_token_audience_ok")' in line:
                 hits.append(f"{path.relative_to(ROOT)}:{i}")
-    assert hits == ["src/core/config/http_common.c:153"], (
+    assert hits == ["src/core/config/http_common.c:157"], (
         f"{DEFECT34} The directive is now declared at {hits}; if one of those "
         "is a protocol module's own table the gate may be reachable — retest "
         "the live arm before trusting this pin.")

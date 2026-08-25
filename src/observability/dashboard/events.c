@@ -34,15 +34,8 @@ static ngx_shmtx_t brix_dashboard_events_mutex;
 static brix_dashboard_event_table_t *
 dashboard_events_table(void)
 {
-    if (ngx_brix_dashboard_events_shm_zone == NULL
-        || ngx_brix_dashboard_events_shm_zone->data == NULL
-        || ngx_brix_dashboard_events_shm_zone->data == (void *) 1)
-    {
-        return NULL;
-    }
-
     return (brix_dashboard_event_table_t *)
-           ngx_brix_dashboard_events_shm_zone->data;
+           brix_shm_zone_table(ngx_brix_dashboard_events_shm_zone);
 }
 
 static void

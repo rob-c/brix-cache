@@ -81,6 +81,13 @@ _FAST = [
     "check_shim_entrypoints",
     "check_shard_entrypoints",
     "check_import_direction",
+    # Complexity-contract wave (7a8009af): the shard-name collision guard and
+    # the Python quality contract.  `test_fast_lane_covers_the_prepush_guard_set`
+    # pins this list to the pre-push glob, so slow members stay HERE and the
+    # green test carries the timeout headroom instead (lizard-class guards run
+    # ~23s serially and starve under a loaded 12-worker box).
+    "check_shard_name_collisions",
+    "check_python_quality",
 ]
 
 def _load_check_file_size():

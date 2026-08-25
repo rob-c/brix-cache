@@ -159,18 +159,27 @@ tape_mint_id(char *buf, size_t sz)
 brix_stage_cstype_t
 tape_cstype_from_name(const char *name)
 {
-    if (name == NULL)                          { return BRIX_STAGE_CS_NONE; }
-    if (ngx_strcasecmp((u_char *) name, (u_char *) "adler32") == 0)
-                                               { return BRIX_STAGE_CS_ADLER32; }
-    if (ngx_strcasecmp((u_char *) name, (u_char *) "md5") == 0)
-                                               { return BRIX_STAGE_CS_MD5; }
-    if (ngx_strcasecmp((u_char *) name, (u_char *) "crc32") == 0)
-                                               { return BRIX_STAGE_CS_CRC32; }
-    if (ngx_strcasecmp((u_char *) name, (u_char *) "sha1") == 0)
-                                               { return BRIX_STAGE_CS_SHA1; }
-    if (ngx_strcasecmp((u_char *) name, (u_char *) "sha256") == 0
-        || ngx_strcasecmp((u_char *) name, (u_char *) "sha2") == 0)
-                                               { return BRIX_STAGE_CS_SHA2; }
+    static const struct {
+        const char          *name;
+        brix_stage_cstype_t  cstype;
+    } map[] = {
+        { "adler32", BRIX_STAGE_CS_ADLER32 },
+        { "md5",     BRIX_STAGE_CS_MD5     },
+        { "crc32",   BRIX_STAGE_CS_CRC32   },
+        { "sha1",    BRIX_STAGE_CS_SHA1    },
+        { "sha256",  BRIX_STAGE_CS_SHA2    },
+        { "sha2",    BRIX_STAGE_CS_SHA2    },
+    };
+    size_t  i;
+
+    if (name == NULL) {
+        return BRIX_STAGE_CS_NONE;
+    }
+    for (i = 0; i < sizeof(map) / sizeof(map[0]); i++) {
+        if (ngx_strcasecmp((u_char *) name, (u_char *) map[i].name) == 0) {
+            return map[i].cstype;
+        }
+    }
     return BRIX_STAGE_CS_NONE;
 }
 
@@ -339,7 +348,7 @@ tape_dispatch_post(ngx_http_request_t *r)
      * FTS/gfal2 clients send is not rejected with 400. */
     if (ngx_strcmp(seg[0], "stage") == 0 && nseg == 3
         && ngx_strcmp(seg[2], "cancel") == 0) {
-        return tape_stage_cancel(r, ctx, seg[1]);
+        return tape_stage_terminate(r, ctx, seg[1], 1);
     }
 
     root = tape_parse_body(r);
@@ -415,7 +424,7 @@ webdav_tape_handle(ngx_http_request_t *r)
 
     if (r->method == NGX_HTTP_DELETE) {
         if (ngx_strcmp(seg[0], "stage") == 0 && nseg == 2) {
-            return tape_stage_delete(r, ctx, seg[1]);
+            return tape_stage_terminate(r, ctx, seg[1], 0);
         }
         return tape_error(r, NGX_HTTP_NOT_FOUND, "unknown endpoint");
     }

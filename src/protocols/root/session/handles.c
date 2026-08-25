@@ -22,13 +22,8 @@ static ngx_shmtx_t  brix_handle_mutex;
 static brix_shared_handle_table_t *
 handle_table(void)
 {
-    if (brix_handle_shm_zone == NULL
-        || brix_handle_shm_zone->data == NULL
-        || brix_handle_shm_zone->data == (void *) 1)
-    {
-        return NULL;
-    }
-    return (brix_shared_handle_table_t *) brix_handle_shm_zone->data;
+    return (brix_shared_handle_table_t *)
+           brix_shm_zone_table(brix_handle_shm_zone);
 }
 
 ngx_int_t

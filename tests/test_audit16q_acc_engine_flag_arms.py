@@ -1002,10 +1002,14 @@ class TestTheDeclarationsAndTheCorpus:
         assert ('else if (ngx_strcasecmp(val->data, (u_char *) "off") == 0) '
                 "{ *wp = *sp = 0; }") in squashed
         assert ('"invalid value \\"%V\\" (expected on|off)", val);') in squashed
-        # No slot is compared against its unset marker anywhere in the file, so
-        # there is nothing that could refuse a second write.
-        assert "is duplicate" not in squashed
-        assert "NGX_CONF_UNSET" not in squashed
+        # No acc slot is compared against its unset marker, so nothing in the
+        # acc plumbing could refuse a second write.  The head of the same file
+        # also carries brix_http_set_cache_store_endpoint (phase-104), whose
+        # duplicate refusal is deliberate and not the acc engine's — the
+        # negatives apply from the first acc setter onward.
+        acc_region = squashed.split("brix_acc_http_set_authdb", 1)[1]
+        assert "is duplicate" not in acc_region
+        assert "NGX_CONF_UNSET" not in acc_region
 
     @pytest.mark.parametrize("directive", sorted(SUBJECTS))
     def test_the_corpus_writes_the_on_arm_and_never_the_off_arm(self,

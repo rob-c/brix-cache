@@ -411,11 +411,8 @@ R process(const FileEnt &fe)
 static int
 parse_cli_value_option(const std::string &a, int *i, int argc, char **argv)
 {
-    if (a=="--strip"  && *i+1<argc) { g.strip=argv[++(*i)]; return 1; }
-    if (a=="--threads"&& *i+1<argc) { g.threads=atoi(argv[++(*i)]); return 1; }
-    if (a=="--conf"   && *i+1<argc) { g.conf=argv[++(*i)]; return 1; }
-    if (a=="--config" && *i+1<argc) { g.config=argv[++(*i)]; return 1; }
-    return 0;
+    return xrdceph_migrate_cli_common(a, i, argc, argv,
+                                      &g.strip, &g.conf, &g.config, &g.threads);
 }
 
 static int
@@ -432,56 +429,31 @@ parse_cli_flag_option(const std::string &a)
 }
 
 static int
-parse_cli_args(int argc, char **argv, std::vector<std::string> *pos)
-{
-    for (int i=1;i<argc;i++){ std::string a=argv[i];
-        if (parse_cli_value_option(a, &i, argc, argv)) { continue; }
-        if (parse_cli_flag_option(a)) { continue; }
-        if (a.rfind("--",0)==0){ fprintf(stderr,"unknown option %s\n",a.c_str()); return 2; }
-        pos->push_back(a);
-    }
-    return 0;
-}
-
-static int
 resolve_required_config(const std::vector<std::string> &pos, const char *prog,
                         const xrdceph_migrate_cfg &cfg)
 {
-    if (pos.size()!=3 && pos.size()!=0){
-        fprintf(stderr,"usage: %s <meta_pool> <cephfs_data_pool> <striper_pool> [opts]\n"
-                "       (give all three positionals, or none with --config)\n",prog);
-        return 2;
-    }
+    int rc = xrdceph_migrate_cli_arity(pos, prog,
+                                       "<meta_pool> <cephfs_data_pool> <striper_pool>");
+    if (rc != 0) { return rc; }
     if (pos.size()==3){ g.meta=pos[0]; g.cdata=pos[1]; g.spool=pos[2]; }
     g.meta   = xrdceph_migrate_cfg_resolve(g.meta,  cfg, "meta_pool");
     g.cdata  = xrdceph_migrate_cfg_resolve(g.cdata, cfg, "data_pool");
     g.spool  = xrdceph_migrate_cfg_resolve(g.spool, cfg, "striper_pool");
     g.strip  = xrdceph_migrate_cfg_resolve(g.strip, cfg, "strip");
     g.client = xrdceph_migrate_cfg_resolve("", cfg, "client", "admin");
-    for (auto req : { std::make_pair("meta_pool", &g.meta),
-                      std::make_pair("data_pool", &g.cdata),
-                      std::make_pair("striper_pool", &g.spool) }) {
-        if (req.second->empty()) {
-            fprintf(stderr, "missing %s: pass positionals or set it in --config\n", req.first);
-            return 2;
-        }
-    }
-    if (g.conf.empty()) g.conf = xrdceph_migrate_cfg_resolve("", cfg, "conf");
-    if (g.conf.empty()) g.conf=getenv("CEPH_CONF")?getenv("CEPH_CONF"):"/etc/ceph/ceph.conf";
-    return 0;
+    const std::pair<const char *, std::string *> req[] = {
+        { "meta_pool", &g.meta }, { "data_pool", &g.cdata },
+        { "striper_pool", &g.spool },
+    };
+    return xrdceph_migrate_cfg_finish(req, 3, cfg, &g.conf, &g.threads);
 }
 
 static int
 resolve_config(const std::vector<std::string> &pos, const char *prog)
 {
-    if (g.config.empty() && getenv("XRDCEPH_MIGRATE_CONF") != NULL) {
-        g.config = getenv("XRDCEPH_MIGRATE_CONF");
-    }
-    xrdceph_migrate_cfg cfg;
-    if (!g.config.empty() && !xrdceph_migrate_cfg_load(g.config, &cfg)) { return 2; }
-    int rc = resolve_required_config(pos, prog, cfg);
+    int rc = xrdceph_migrate_cfg_resolve_with(pos, prog, &g.config,
+                                              resolve_required_config);
     if (rc != 0) { return rc; }
-    if (g.threads<1) g.threads=1;
     if (!g.quiesced){ fprintf(stderr,"refusing to run: pass --assume-quiesced (CephFS MUST be unmounted / fs failed, journal flushed)\n"); return 2; }
     if (g.del && !g.finalize){ fprintf(stderr,"--delete-source is only valid with --finalize\n"); return 2; }
     return 0;
@@ -513,14 +485,12 @@ int
 main(int argc, char **argv)
 {
     std::vector<std::string> pos;
-    int rc = parse_cli_args(argc, argv, &pos);
-    if (rc != 0) { return rc; }
+    int rc = xrdceph_migrate_cli_walk(argc, argv, parse_cli_value_option,
+                                      parse_cli_flag_option, &pos);
     /* site profile: explicit CLI > config file > default; full positional
      * arity or NONE (a partial mix is ambiguous and refused). */
-    rc = resolve_config(pos, argv[0]);
-    if (rc != 0) { return rc; }
-
-    rc = init_rados();
+    if (rc == 0) { rc = resolve_config(pos, argv[0]); }
+    if (rc == 0) { rc = init_rados(); }
     if (rc != 0) { return rc; }
 
     /* warn about RADOS pool-level snapshots — not a CephFS namespace object, so the

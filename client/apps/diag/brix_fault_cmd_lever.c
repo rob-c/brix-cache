@@ -327,48 +327,87 @@ heal_thread(void *arg)
     return NULL;
 }
 
+/*
+ * WHAT: One `<verb> <n> [up|down|both]` scalar lever — its target field in
+ *       lever_t and how the operand converts (plain int/long, or a percentage
+ *       scaled to ppm).
+ * WHY:  These verbs differ only in name, field and conversion, so express the
+ *       family as data rather than an else-if ladder (coding-standards §8.6),
+ *       matching fid_dir_ints above.
+ * HOW:  `field` is an offsetof into lever_t, applied by lever_store.
+ */
+typedef enum { LV_INT, LV_LONG, LV_PCT_PPM } lever_val_t;
+
+typedef struct {
+    const char  *verb;
+    size_t       field;
+    lever_val_t  kind;
+} lever_verb_t;
+
+static const lever_verb_t  lever_verbs[] = {
+    { "latency",      offsetof(lever_t, latency_ms),    LV_INT     },
+    { "jitter",       offsetof(lever_t, jitter_ms),     LV_INT     },
+    { "chunk",        offsetof(lever_t, chunk_bytes),   LV_INT     },
+    { "rate",         offsetof(lever_t, rate_kbps),     LV_INT     },
+    { "lossy",        offsetof(lever_t, lossy_ppm),     LV_PCT_PPM },
+    { "corrupt",      offsetof(lever_t, corrupt_ppm),   LV_PCT_PPM },
+    { "dup",          offsetof(lever_t, dup_ppm),       LV_PCT_PPM },
+    { "truncate-at",  offsetof(lever_t, truncate_at),   LV_LONG    },
+    { "drop-bytes",   offsetof(lever_t, drop_ppm),      LV_PCT_PPM },
+    { "repeat-bytes", offsetof(lever_t, repeat_ppm),    LV_PCT_PPM },
+    { "delay-first",  offsetof(lever_t, delayfirst_ms), LV_INT     },
+};
+
+/* Write one lever value through its offsetof on the direction(s) `d` names
+ * (0 both / 1 up / 2 down) — the field is volatile long for LV_LONG, else
+ * volatile int. */
+static void
+lever_store(int d, size_t field, long v, lever_val_t kind)
+{
+    volatile lever_t *sides[2] = { &g_up, &g_down };
+    int               skip[2]  = { d == 2, d == 1 };
+
+    for (int i = 0; i < 2; i++) {
+        if (skip[i]) {
+            continue;
+        }
+        volatile char *base = (volatile char *) sides[i];
+        if (kind == LV_LONG) {
+            *(volatile long *) (base + field) = v;
+        } else {
+            *(volatile int *) (base + field) = (int) v;
+        }
+    }
+}
+
 /* Directional traffic levers (latency/bandwidth/corruption). Each strips an
  * optional up/down/both token via dir_of() then sets the field on the selected
  * direction(s). `args` is mutated. Returns 1 if `verb` was a lever, else 0. */
 int
 cmd_set_lever(const char *verb, char *args)
 {
-    if (strcmp(verb, "latency") == 0) {
-        int d = dir_of(args); SET_DIR(d, latency_ms, atoi(args));
-    } else if (strcmp(verb, "jitter") == 0) {
-        int d = dir_of(args); SET_DIR(d, jitter_ms, atoi(args));
-    } else if (strcmp(verb, "chunk") == 0) {
-        int d = dir_of(args); SET_DIR(d, chunk_bytes, atoi(args));
-    } else if (strcmp(verb, "rate") == 0) {
-        int d = dir_of(args); SET_DIR(d, rate_kbps, atoi(args));
-    } else if (strcmp(verb, "drip") == 0) {
+    for (size_t n = 0; n < sizeof(lever_verbs) / sizeof(lever_verbs[0]); n++) {
+        if (strcmp(verb, lever_verbs[n].verb) != 0) {
+            continue;
+        }
+        int  d = dir_of(args);
+        long v = lever_verbs[n].kind == LV_PCT_PPM
+                 ? (long) (strtod(args, NULL) * 10000.0 + 0.5)
+                 : atol(args);
+        lever_store(d, lever_verbs[n].field, v, lever_verbs[n].kind);
+        return 1;
+    }
+
+    /* Compound-operand levers — each owns its own parse. */
+    if (strcmp(verb, "drip") == 0) {
         int d = dir_of(args); int b = 0, m = 0;
         sscanf(args, "%d %d", &b, &m);
         SET_DIR(d, drip_bytes, b); SET_DIR(d, drip_ms, m);
-    } else if (strcmp(verb, "lossy") == 0) {
-        int d = dir_of(args);
-        SET_DIR(d, lossy_ppm, (int) (strtod(args, NULL) * 10000.0 + 0.5));
-    } else if (strcmp(verb, "corrupt") == 0) {
-        int d = dir_of(args);
-        SET_DIR(d, corrupt_ppm, (int) (strtod(args, NULL) * 10000.0 + 0.5));
-    } else if (strcmp(verb, "dup") == 0) {
-        int d = dir_of(args);
-        SET_DIR(d, dup_ppm, (int) (strtod(args, NULL) * 10000.0 + 0.5));
     } else if (strcmp(verb, "reorder") == 0) {
         int d = dir_of(args); double p = 0; int m = -1;
         sscanf(args, "%lf %d", &p, &m);
         SET_DIR(d, reorder_ppm, (int) (p * 10000.0 + 0.5));
         if (m >= 0) { SET_DIR(d, reorder_ms, m); }
-    } else if (strcmp(verb, "truncate-at") == 0) {
-        int d = dir_of(args); SET_DIR(d, truncate_at, atol(args));
-    } else if (strcmp(verb, "drop-bytes") == 0) {
-        int d = dir_of(args);
-        SET_DIR(d, drop_ppm, (int) (strtod(args, NULL) * 10000.0 + 0.5));
-    } else if (strcmp(verb, "repeat-bytes") == 0) {
-        int d = dir_of(args);
-        SET_DIR(d, repeat_ppm, (int) (strtod(args, NULL) * 10000.0 + 0.5));
-    } else if (strcmp(verb, "delay-first") == 0) {
-        int d = dir_of(args); SET_DIR(d, delayfirst_ms, atoi(args));
     } else {
         return 0;
     }

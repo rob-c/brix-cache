@@ -1,33 +1,13 @@
-from brixtest.auth import (
-    AuthRecipe as AuthRecipe,
-)
-from brixtest.auth import (
-    KerberosAuth as KerberosAuth,
-)
-from brixtest.auth import (
-    MaterializedAuth as MaterializedAuth,
-)
-from brixtest.auth import (
-    TLSAuth as TLSAuth,
-)
-from brixtest.auth import (
-    TokenAuth as TokenAuth,
-)
-from brixtest.auth import (
-    VOMSAuth as VOMSAuth,
-)
-from brixtest.auth import (
-    decode_token as decode_token,
-)
-from brixtest.auth import (
-    issue_token as issue_token,
-)
-from brixtest.auth import (
-    kerberos_auth as kerberos_auth,
-)
-from brixtest.auth import (
-    tls_auth as tls_auth,
-)
+from brixtest.auth import AuthRecipe as AuthRecipe
+from brixtest.auth import KerberosAuth as KerberosAuth
+from brixtest.auth import MaterializedAuth as MaterializedAuth
+from brixtest.auth import TLSAuth as TLSAuth
+from brixtest.auth import TokenAuth as TokenAuth
+from brixtest.auth import VOMSAuth as VOMSAuth
+from brixtest.auth import decode_token as decode_token
+from brixtest.auth import issue_token as issue_token
+from brixtest.auth import kerberos_auth as kerberos_auth
+from brixtest.auth import tls_auth as tls_auth
 from brixtest.auth import (
     token_auth as token_auth,
 )
@@ -246,6 +226,9 @@ from brixtest.isolation import (
     docker as docker,
 )
 from brixtest.isolation import (
+    kubernetes as kubernetes,
+)
+from brixtest.isolation import (
     nsenter as nsenter,
 )
 from brixtest.isolation import (
@@ -350,6 +333,7 @@ from brixtest.resources import (
     workspace_ref as workspace_ref,
 )
 from brixtest.runtime.api import Run as Run
+from brixtest.runtime.api import Replica as Replica
 from brixtest.runtime.api import Service as Service
 from brixtest.runtime.api import ServiceFilesystem as ServiceFilesystem
 from brixtest.runtime.artifacts import (
@@ -377,6 +361,9 @@ from brixtest.runtime.launchers import (
     ServerLaunchRequest as ServerLaunchRequest,
 )
 from brixtest.runtime.manager import CaseManager as CaseManager
+from brixtest.runtime.providers import ProviderContext as ProviderContext
+from brixtest.runtime.providers import ProviderInstance as ProviderInstance
+from brixtest.runtime.providers import ProviderPlan as ProviderPlan
 
 __version__: str
 __all__ = [  # noqa: RUF022 - mirrors the runtime facade order
@@ -426,8 +413,12 @@ __all__ = [  # noqa: RUF022 - mirrors the runtime facade order
     "Mount",
     "Placement",
     "Probe",
+    "ProviderContext",
+    "ProviderInstance",
+    "ProviderPlan",
     "Readiness",
     "Reference",
+    "Replica",
     "ResourceLimits",
     "Run",
     "Server",

@@ -31,6 +31,12 @@ ANON_URL  = f"root://{SERVER_HOST}:{NGINX_ANON_PORT}"
 GSI_URL   = f"root://{SERVER_HOST}:{NGINX_GSI_PORT}"
 PROXY_PEM = PROXY_STD
 
+# One worker for the module: the module-scoped fixtures upload FIXED-name
+# shared files with OpenFlags.DELETE | NEW, so a second xdist worker's fixture
+# re-runs the delete-recreate and another worker's per-test open_rd can land in
+# the unlink window (3011 file not found on a file that "exists").
+pytestmark = pytest.mark.xdist_group("shared-file-readv")
+
 # Known data patterns ---------------------------------------------------------
 
 # 64 KiB of a deterministic repeating byte pattern

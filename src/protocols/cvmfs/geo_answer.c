@@ -26,6 +26,7 @@
 #include "origin_geo.h"
 #include "core/aio/aio.h"
 #include "core/fnv.h"
+#include "core/http/http_file_response.h"   /* brix_http_finalize_memory_body */
 
 #include <stdint.h>
 #include <stdio.h>
@@ -381,8 +382,6 @@ cvmfs_geo_done(ngx_event_t *ev)
     cvmfs_geo_task_t   *t = task->ctx;
     ngx_http_request_t *r = t->r;
     ngx_connection_t   *c = r->connection;
-    ngx_buf_t          *b;
-    ngx_chain_t         out;
 
     cvmfs_geo_render(t, ngx_time());
 
@@ -395,20 +394,7 @@ cvmfs_geo_done(ngx_event_t *ev)
         ngx_http_run_posted_requests(c);
         return;
     }
-    b = ngx_pcalloc(r->pool, sizeof(*b));
-    if (b == NULL) {
-        ngx_http_finalize_request(r, NGX_HTTP_INTERNAL_SERVER_ERROR);
-        ngx_http_run_posted_requests(c);
-        return;
-    }
-    b->pos = b->start = t->body;
-    b->last = b->end = t->body + t->body_len;
-    b->memory = 1;
-    b->last_buf = 1;
-    out.buf = b;
-    out.next = NULL;
-    ngx_http_finalize_request(r, ngx_http_output_filter(r, &out));
-    ngx_http_run_posted_requests(c);
+    brix_http_finalize_memory_body(r, t->body, t->body_len);
 }
 
 ngx_int_t

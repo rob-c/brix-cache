@@ -2,7 +2,8 @@
  * node_ops_unittest.c — standalone unit test for the forwarded-op planner.
  *
  *   gcc -Wall -Wextra -Werror -I src -o /tmp/cms_nodeops_ut \
- *       src/cms/node_ops_unittest.c src/cms/node_ops.c && /tmp/cms_nodeops_ut
+ *       src/net/cms/node_ops_unittest.c src/net/cms/node_ops.c \
+ *       && /tmp/cms_nodeops_ut
  *
  * Exit 0 = all checks pass. Pure C (no nginx, no filesystem).
  */
@@ -21,6 +22,13 @@
 #define K_TRUNC  23
 #define K_PREPADD 6
 #define K_PREPDEL 7
+
+/* short aliases for the planned actions (mirror the K_* opcode shorthands) */
+#define A_CHMOD  XRDCMS_NACT_CHMOD
+#define A_MKDIR  XRDCMS_NACT_MKDIR
+#define A_MKPATH XRDCMS_NACT_MKPATH
+#define A_MV     XRDCMS_NACT_MV
+#define A_TRUNC  XRDCMS_NACT_TRUNC
 
 static int g_fail;
 #define CHECK(cond) do { \
@@ -41,13 +49,37 @@ rr(const char *path, const char *path2, const char *mode)
     return d;
 }
 
+/* Plan `kind` over an rrdata built from C-string fields, asserting the planner
+ * verdict and the resulting action here so each test checks only its
+ * op-specific plan fields. (Returned plan pointers reference the caller's
+ * string literals, so the copy outlives the local rrdata.) */
+static brix_cms_node_plan_t
+plan_ok(int kind, const char *path, const char *path2, const char *mode,
+    int want_action)
+{
+    brix_cms_rrdata_t d = rr(path, path2, mode);
+    brix_cms_node_plan_t p;
+
+    memset(&p, 0, sizeof(p));
+    CHECK(brix_cms_node_plan(kind, &d, &p) == 0);
+    CHECK((int) p.action == want_action);
+    return p;
+}
+
+/* Planner verdict alone, for the rejection tests. */
+static int
+plan_rc(int kind, const char *path, const char *path2, const char *mode)
+{
+    brix_cms_rrdata_t d = rr(path, path2, mode);
+    brix_cms_node_plan_t p;
+
+    return brix_cms_node_plan(kind, &d, &p);
+}
+
 static void
 test_mkdir_mode(void)
 {
-    brix_cms_rrdata_t d = rr("/atlas/d", NULL, "750");
-    brix_cms_node_plan_t p;
-    CHECK(brix_cms_node_plan(K_MKDIR, &d, &p) == 0);
-    CHECK(p.action == XRDCMS_NACT_MKDIR);
+    brix_cms_node_plan_t p = plan_ok(K_MKDIR, "/atlas/d", NULL, "750", A_MKDIR);
     CHECK(p.path && strcmp(p.path, "/atlas/d") == 0);
     CHECK(p.mode == 0750);
 }
@@ -55,56 +87,42 @@ test_mkdir_mode(void)
 static void
 test_mkdir_default_mode(void)
 {
-    brix_cms_rrdata_t d = rr("/d", NULL, NULL);   /* no mode field */
-    brix_cms_node_plan_t p;
-    CHECK(brix_cms_node_plan(K_MKDIR, &d, &p) == 0);
+    /* no mode field on the wire */
+    brix_cms_node_plan_t p = plan_ok(K_MKDIR, "/d", NULL, NULL, A_MKDIR);
     CHECK(p.mode == XRDCMS_NODE_DEFAULT_DIR_MODE);
 }
 
 static void
 test_mkpath(void)
 {
-    brix_cms_rrdata_t d = rr("/a/b/c", NULL, "755");
-    brix_cms_node_plan_t p;
-    CHECK(brix_cms_node_plan(K_MKPATH, &d, &p) == 0);
-    CHECK(p.action == XRDCMS_NACT_MKPATH);
+    (void) plan_ok(K_MKPATH, "/a/b/c", NULL, "755", A_MKPATH);
 }
 
 static void
 test_chmod(void)
 {
-    brix_cms_rrdata_t d = rr("/f", NULL, "640");
-    brix_cms_node_plan_t p;
-    CHECK(brix_cms_node_plan(K_CHMOD, &d, &p) == 0);
-    CHECK(p.action == XRDCMS_NACT_CHMOD);
+    brix_cms_node_plan_t p = plan_ok(K_CHMOD, "/f", NULL, "640", A_CHMOD);
     CHECK(p.mode == 0640);
 }
 
 static void
 test_chmod_requires_mode(void)
 {
-    brix_cms_rrdata_t d = rr("/f", NULL, NULL);
-    brix_cms_node_plan_t p;
-    CHECK(brix_cms_node_plan(K_CHMOD, &d, &p) == -1);
+    CHECK(plan_rc(K_CHMOD, "/f", NULL, NULL) == -1);
 }
 
 static void
 test_trunc_size(void)
 {
-    brix_cms_rrdata_t d = rr("/big", NULL, "1048576");  /* size in Mode field */
-    brix_cms_node_plan_t p;
-    CHECK(brix_cms_node_plan(K_TRUNC, &d, &p) == 0);
-    CHECK(p.action == XRDCMS_NACT_TRUNC);
+    /* size travels in the Mode field */
+    brix_cms_node_plan_t p = plan_ok(K_TRUNC, "/big", NULL, "1048576", A_TRUNC);
     CHECK(p.size == 1048576);
 }
 
 static void
 test_mv(void)
 {
-    brix_cms_rrdata_t d = rr("/src", "/dst", NULL);
-    brix_cms_node_plan_t p;
-    CHECK(brix_cms_node_plan(K_MV, &d, &p) == 0);
-    CHECK(p.action == XRDCMS_NACT_MV);
+    brix_cms_node_plan_t p = plan_ok(K_MV, "/src", "/dst", NULL, A_MV);
     CHECK(p.path && strcmp(p.path, "/src") == 0);
     CHECK(p.path2 && strcmp(p.path2, "/dst") == 0);
 }
@@ -112,9 +130,7 @@ test_mv(void)
 static void
 test_mv_requires_two_paths(void)
 {
-    brix_cms_rrdata_t d = rr("/src", NULL, NULL);
-    brix_cms_node_plan_t p;
-    CHECK(brix_cms_node_plan(K_MV, &d, &p) == -1);
+    CHECK(plan_rc(K_MV, "/src", NULL, NULL) == -1);
 }
 
 static void
@@ -129,9 +145,7 @@ test_rm_and_rmdir(void)
 static void
 test_missing_path_rejected(void)
 {
-    brix_cms_rrdata_t d = rr(NULL, NULL, "755");
-    brix_cms_node_plan_t p;
-    CHECK(brix_cms_node_plan(K_MKDIR, &d, &p) == -1);
+    CHECK(plan_rc(K_MKDIR, NULL, NULL, "755") == -1);
 }
 
 static void
@@ -139,9 +153,7 @@ test_non_executed_opcode(void)
 {
     /* an opcode this node does not execute at all (kYR_statfs = 21 routes
      * elsewhere; use an unmapped code) */
-    brix_cms_rrdata_t d = rr("/x", NULL, "0");
-    brix_cms_node_plan_t p;
-    CHECK(brix_cms_node_plan(99, &d, &p) == -1);
+    CHECK(plan_rc(99, "/x", NULL, "0") == -1);
 }
 
 static void
@@ -164,9 +176,7 @@ test_prepadd_plan(void)
 static void
 test_prepadd_requires_reqid(void)
 {
-    brix_cms_rrdata_t d = rr("/atlas/f.root", NULL, NULL);
-    brix_cms_node_plan_t p;
-    CHECK(brix_cms_node_plan(K_PREPADD, &d, &p) == -1);
+    CHECK(plan_rc(K_PREPADD, "/atlas/f.root", NULL, NULL) == -1);
 }
 
 static void
@@ -176,17 +186,15 @@ test_prepdel_plan(void)
     brix_cms_rrdata_t d = rr(NULL, NULL, NULL);
     brix_cms_node_plan_t p;
     d.reqid = (const unsigned char *) "42.7@mgr"; d.reqid_len = 8;
-    CHECK(brix_cms_node_plan(K_PREPDEL, &d, &p) == 0);
-    CHECK(p.action == XRDCMS_NACT_PREPDEL);
+    CHECK(brix_cms_node_plan(K_PREPDEL, &d, &p) == 0
+          && p.action == XRDCMS_NACT_PREPDEL);
     CHECK(p.reqid && strcmp(p.reqid, "42.7@mgr") == 0);
 }
 
 static void
 test_prepdel_requires_reqid(void)
 {
-    brix_cms_rrdata_t d = rr(NULL, NULL, NULL);
-    brix_cms_node_plan_t p;
-    CHECK(brix_cms_node_plan(K_PREPDEL, &d, &p) == -1);
+    CHECK(plan_rc(K_PREPDEL, NULL, NULL, NULL) == -1);
 }
 
 int

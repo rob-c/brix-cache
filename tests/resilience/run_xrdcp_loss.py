@@ -50,7 +50,7 @@ import servers  # noqa: E402
 REPO_XRDCP = os.path.join(servers.CLIENT_BIN, "xrdcp")
 OFFICIAL_XRDCP = shutil.which("xrdcp") or "/usr/bin/xrdcp"
 FILE_PATH = "/loss/big.bin"
-HOST = os.environ.get("TEST_HOST", "127.0.0.1")
+HOST = os.environ.get("TEST_HOST", "127.0.0.1")  # net-literal-allow: standalone CLI driver default; TEST_HOST overrides
 
 
 def _md5_file(path):

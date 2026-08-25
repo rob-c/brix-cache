@@ -3,10 +3,13 @@
  *
  * Compiles without nginx:
  *   gcc -Wall -Wextra -Werror -I shared -o /tmp/cas_ut \
- *       shared/cache/cas_store_unittest.c shared/cache/cas_store.c && /tmp/cas_ut
+ *       shared/cache/cas_store_unittest.c shared/cache/cas_store.c \
+ *       shared/cache/cas_pack.c shared/cvmfs/platform/platform.c \
+ *       -lz -lzstd && /tmp/cas_ut
  * Exit 0 = all checks pass.
  */
 #include "cache/cas_store.h"
+#include "testkit/unit_check.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -15,19 +18,6 @@
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <utime.h>
-
-static int g_checks, g_failed;
-#define CHECK(cond, name) do {                                    \
-    g_checks++;                                                   \
-    if (cond) { printf("  ok   %s\n", name); }                    \
-    else      { printf("  FAIL %s (line %d)\n", name, __LINE__); g_failed++; } \
-} while (0)
-
-static void rm_rf(const char *p) {
-    char cmd[600];
-    snprintf(cmd, sizeof(cmd), "rm -rf '%s'", p);
-    if (system(cmd) != 0) { /* best effort */ }
-}
 
 /* WHAT: Exercise the path-backed CAS lifecycle.
  * WHY: Cover put/read/layout/accounting/reap independently.

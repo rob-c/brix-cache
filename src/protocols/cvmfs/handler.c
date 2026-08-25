@@ -324,9 +324,7 @@ cvmfs_tier_get(ngx_http_request_t *r, ngx_http_brix_cvmfs_loc_conf_t *lcf)
      * path-prefix ACL is the wrong model here — cvmfs authz belongs on the peer/
      * URI, a separate design.  (s3/webdav/root:// enforce it; see the phase doc.) */
 
-#if (NGX_HTTP_SSL)
-    is_tls = (r->connection->ssl != NULL) ? 1 : 0;
-#endif
+    is_tls = brix_http_request_is_tls(r);
     brix_vfs_ctx_init(&vctx, r->pool, r->connection->log,
         BRIX_PROTO_CVMFS, root, "", /* allow_write */ 0, is_tls, NULL,
         path);

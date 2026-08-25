@@ -1,6 +1,12 @@
 from split_continuation import reexport as _reexport
 _reexport(globals(), "_test_large_offset_wire_helpers")
 
+# The sparse-file fixtures live at fixed DATA_ROOT paths and unlink them in
+# their finalisers.  Ungrouped, xdist runs this module on several workers at
+# once, each with its own fixture instance — the first worker's teardown
+# deletes the file under the others.  One group keeps the module on one worker.
+pytestmark = pytest.mark.xdist_group("large-offset-wire")
+
 class TestFourGiBBoundary:
     """Reads (and a write) straddling the 32-bit 4 GiB wrap point must use the
     full 64-bit offset, not a truncated low-32-bit value."""

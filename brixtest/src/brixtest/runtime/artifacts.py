@@ -239,6 +239,9 @@ def _confined_provider_path(selected: Path, root: Path) -> Path:
 
 
 class _NoiseProvider:
+    brixtest_api_version = 1
+    brixtest_capabilities = ("checksum", "confined", "provenance")
+
     def validate(self, declaration: Artifact) -> None:
         return None
 
@@ -252,6 +255,9 @@ class _NoiseProvider:
 
 
 class _TextProvider:
+    brixtest_api_version = 1
+    brixtest_capabilities = ("checksum", "confined", "provenance")
+
     def validate(self, declaration: Artifact) -> None:
         return None
 
@@ -262,6 +268,9 @@ class _TextProvider:
 
 
 class _FileProvider:
+    brixtest_api_version = 1
+    brixtest_capabilities = ("checksum", "confined", "provenance")
+
     def validate(self, declaration: Artifact) -> None:
         return None
 

@@ -12,17 +12,11 @@
  * computed rules (audit_rules / cross_cluster) can be asserted by probe id.
  */
 #define _GNU_SOURCE   /* strtok_r in doctor_fanout (matches the real build) */
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-
-#include "diag_internal.h"
+#include "diag_doctor_ut_common.h"
 
 /* ---- extern stubs (never reached by the pure predicates; audit/cross-cluster
- *      reach only dx_record, which we record into the endpoint). ---- */
-void brix_status_clear(brix_status *st) { (void) st; }
-int  brix_query(brix_conn *c, int it, const char *a, char *o, size_t n, brix_status *s)
-{ (void) c; (void) it; (void) a; (void) o; (void) n; (void) s; return -1; }
+ *      reach only dx_record, which we record into the endpoint). The common
+ *      brix_status_clear / brix_query stubs come from the shared header. ---- */
 void brix_parse_qspace(const char *t, unsigned long long *tot, unsigned long long *fr)
 { (void) t; *tot = 0; *fr = 0; }
 /* Minimal host:port / [v6]:port splitter (real enough for doctor_locate_classify;

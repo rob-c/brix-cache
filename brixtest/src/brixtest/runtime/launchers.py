@@ -12,14 +12,18 @@ import dataclasses
 import hashlib
 import re
 import shutil
+import stat
 import subprocess
 from pathlib import Path
-from typing import Mapping, Sequence
+from typing import Mapping, Optional, Sequence
 
-from brixtest.design import Server
+from brixtest.design import Identity, Server, Volume
 from brixtest.errors import SpecError
 from brixtest.extensions import get_extension, register_extension
+from brixtest.network import HostMapping
+from brixtest.planning.capabilities import backend_capabilities
 from brixtest.runtime.container_policy import validate_network, validate_runtime_args
+from brixtest.runtime.launcher_identity import container_identity_argv, process_identity_argv
 from brixtest.util.immutable import freeze_mapping
 
 __all__ = [
@@ -28,6 +32,10 @@ __all__ = [
 ]
 
 _DIGEST_IMAGE = re.compile(r"^[^@\s]+@sha256:[0-9a-fA-F]{64}$")
+_PROPAGATION = {
+    "host-to-container": "rslave",
+    "bidirectional": "rshared",
+}
 
 
 def _argv(value: Sequence[str], field: str) -> tuple[str, ...]:
@@ -44,6 +52,60 @@ def _confined(context: "ServerLaunchContext", path: Path, field: str) -> Path:
     if context.root not in (selected, *selected.parents):
         raise SpecError(field, selected, "must be confined below the run root")
     return selected
+
+
+def _declared_mount_argv(argv: list[str], request: "ServerLaunchRequest") -> None:
+    for index, declaration in enumerate(request.declaration.mounts):
+        _declared_mount_item_argv(argv, request, declaration, index)
+
+
+def _declared_mount_item_argv(argv, request, declaration, index: int) -> None:
+    source = declaration.source
+    device = isinstance(source, Volume) and source.kind == "device"
+    if not device and declaration.propagation == "none":
+        return
+    if not request.mounts:
+        raise SpecError(
+            "server launch mounts", request.mounts,
+            "device and propagation mounts require realized paths",
+        )
+    path = request.mounts[index]
+    _optional_device_argv(argv, declaration, path, device)
+    _optional_propagation_argv(argv, declaration, path)
+
+
+def _optional_device_argv(argv, declaration, path: Path, enabled: bool) -> None:
+    if enabled:
+        _device_argv(argv, declaration, path)
+
+
+def _optional_propagation_argv(argv, declaration, path: Path) -> None:
+    if declaration.propagation != "none":
+        _propagation_argv(argv, declaration, path)
+
+
+def _device_argv(argv: list[str], declaration, path: Path) -> None:
+    try:
+        mode = path.stat().st_mode
+    except OSError as exc:
+        raise SpecError("device volume", str(path), "cannot be inspected: %s" % exc) from exc
+    if not (stat.S_ISCHR(mode) or stat.S_ISBLK(mode)):
+        raise SpecError("device volume", str(path), "must be a character or block device")
+    permissions = "r" if declaration.read_only else "rwm"
+    argv.extend(("--device", "%s:%s:%s" % (path, path, permissions)))
+
+
+def _propagation_argv(argv: list[str], declaration, path: Path) -> None:
+    if not path.is_dir():
+        raise SpecError(
+            "mount.propagation", str(path),
+            "requires a realized directory mount",
+        )
+    propagation = _PROPAGATION[declaration.propagation]
+    option = "type=bind,src=%s,dst=%s,bind-propagation=%s" % (
+        path, path, propagation,
+    )
+    argv.extend(("--mount", option))
 
 
 @dataclasses.dataclass(frozen=True)
@@ -74,25 +136,71 @@ class ServerLaunchRequest:
     argv: Sequence[str]
     env: Mapping[str, str]
     cwd: Path
+    mounts: Sequence[Path] = ()
+    identity: Optional[Identity] = None
+    host_aliases: Sequence[HostMapping] = ()
 
     def __post_init__(self) -> None:
-        if not isinstance(self.declaration, Server):
-            raise SpecError(
-                "server launch declaration", self.declaration,
-                "must be a brixtest.Server",
-            )
+        _validate_request_declaration(self.declaration)
         object.__setattr__(self, "argv", _argv(self.argv, "server launch argv"))
-        if not isinstance(self.env, Mapping) or not all(
-            isinstance(name, str) and name and "\x00" not in name
-            and isinstance(value, str) and "\x00" not in value
-            for name, value in self.env.items()
-        ):
-            raise SpecError(
-                "server launch env", self.env,
-                "must map non-empty NUL-free names to NUL-free text",
-            )
+        _validate_request_env(self.env)
         object.__setattr__(self, "env", freeze_mapping(self.env))
         object.__setattr__(self, "cwd", Path(self.cwd).resolve())
+        selected_mounts = _request_mounts(self.mounts, self.declaration)
+        object.__setattr__(self, "mounts", selected_mounts)
+        _validate_request_identity(self)
+        object.__setattr__(self, "host_aliases", _request_host_aliases(self.host_aliases))
+
+
+def _validate_request_declaration(value: object) -> None:
+    if not isinstance(value, Server):
+        raise SpecError(
+            "server launch declaration", value, "must be a brixtest.Server",
+        )
+
+
+def _validate_request_env(value: object) -> None:
+    valid = isinstance(value, Mapping) and all(
+        isinstance(name, str) and name and "\x00" not in name
+        and isinstance(item, str) and "\x00" not in item
+        for name, item in value.items()
+    )
+    if not valid:
+        raise SpecError(
+            "server launch env", value,
+            "must map non-empty NUL-free names to NUL-free text",
+        )
+
+
+def _request_mounts(value: Sequence[Path], declaration: Server) -> tuple[Path, ...]:
+    selected = tuple(Path(path).resolve() for path in value)
+    if selected and len(selected) != len(declaration.mounts):
+        raise SpecError(
+            "server launch mounts", selected,
+            "must align one-to-one with declared mounts",
+        )
+    return selected
+
+
+def _validate_request_identity(request: ServerLaunchRequest) -> None:
+    declared = request.declaration.placement.identity
+    if request.identity is not None and not isinstance(request.identity, Identity):
+        raise SpecError("server launch identity", request.identity, "must be an Identity or None")
+    actual = request.identity.name if request.identity is not None else ""
+    if declared != actual:
+        raise SpecError(
+            "server launch identity", actual,
+            "must resolve placement.identity %r" % declared,
+        )
+
+
+def _request_host_aliases(value: object) -> tuple[HostMapping, ...]:
+    if isinstance(value, (str, bytes)) or not isinstance(value, Sequence):
+        raise SpecError("server launch host_aliases", value, "must be a HostMapping sequence")
+    selected = tuple(value)
+    if not all(isinstance(item, HostMapping) for item in selected):
+        raise SpecError("server launch host_aliases", value, "must contain HostMapping values")
+    return selected
 
 
 @dataclasses.dataclass(frozen=True)
@@ -146,6 +254,10 @@ class ProcessServerLauncher:
     """Launch a server directly under BriXTest's process-group supervisor."""
 
     name = "process"
+    brixtest_api_version = 1
+    brixtest_capabilities = tuple(sorted(
+        backend_capabilities("process", "launcher"),
+    ))
 
     def validate(self, declaration: Server) -> None:
         placement = declaration.placement
@@ -153,6 +265,12 @@ class ProcessServerLauncher:
             raise SpecError(
                 "server %s placement.image" % declaration.name, placement.image,
                 "process placement does not consume a container image",
+            )
+        if placement.allow_mutable_image:
+            raise SpecError(
+                "server %s placement.allow_mutable_image" % declaration.name,
+                placement.allow_mutable_image,
+                "process placement does not consume mutable image policy",
             )
         if placement.options:
             raise SpecError(
@@ -166,10 +284,13 @@ class ProcessServerLauncher:
                 "process placement cannot enforce resource ceilings; this requires "
                 "Kubernetes or a Docker/Podman placement",
             )
-        if placement.namespace or placement.node_selector or placement.security_context:
+        if (
+            placement.namespace or placement.labels or placement.node_selector
+            or placement.security_context
+        ):
             raise SpecError(
                 "server %s placement" % declaration.name, placement,
-                "namespace, node_selector, and security_context require Kubernetes",
+                "labels, namespace, node_selector, and security_context require a container or Kubernetes",
             )
 
     def prepare(
@@ -177,7 +298,8 @@ class ProcessServerLauncher:
     ) -> ServerLaunchPlan:
         _confined(context, request.cwd, "server launch cwd")
         return ServerLaunchPlan(
-            request.argv, request.env, request.cwd, self.name,
+            process_identity_argv(request.identity, request.argv),
+            request.env, request.cwd, self.name,
             metadata={"isolation": "process"},
         )
 
@@ -211,15 +333,6 @@ def _validate_container_scheduling(declaration: Server) -> None:
         )
 
 
-def _validate_container_lifecycle(declaration: Server) -> None:
-    if declaration.lifecycle.shutdown_command:
-        raise SpecError(
-            "server %s lifecycle.shutdown_command" % declaration.name,
-            declaration.lifecycle.shutdown_command,
-            "container servers use shutdown_signal plus forced runtime cleanup",
-        )
-
-
 def _validate_container_options(runtime: str, declaration: Server) -> None:
     allowed = {"network", "runtime_args"}
     unknown = sorted(set(declaration.placement.options) - allowed)
@@ -235,12 +348,15 @@ class ContainerServerLauncher:
 
     def __init__(self, runtime: str) -> None:
         self.name = runtime
+        self.brixtest_api_version = 1
+        self.brixtest_capabilities = tuple(sorted(
+            backend_capabilities(runtime, "launcher"),
+        ))
 
     def validate(self, declaration: Server) -> None:
         placement = declaration.placement
         _container_image(self.name, declaration)
         _validate_container_scheduling(declaration)
-        _validate_container_lifecycle(declaration)
         _validate_container_options(self.name, declaration)
         validate_runtime_args(
             placement.options.get("runtime_args", ()),
@@ -310,6 +426,11 @@ class ContainerServerLauncher:
             "--workdir", str(request.cwd),
         ]
         self._resource_limit_argv(argv, placement.resources)
+        argv.extend(container_identity_argv(self.name, request.identity, env_file.parent))
+        _declared_mount_argv(argv, request)
+        for mapping in request.host_aliases:
+            for hostname in mapping.hostnames:
+                argv.extend(("--add-host", "%s:%s" % (hostname, mapping.address)))
         for name, value in sorted(placement.labels.items()):
             argv.extend(("--label", "%s=%s" % (name, value)))
         argv.extend(str(value) for value in placement.options.get("runtime_args", ()))
@@ -348,7 +469,12 @@ def server_launcher(name: str):
     if name in ("", "inherit"):
         name = "process"
     if name in _BUILTINS:
-        return _BUILTINS[name]
+        target = _BUILTINS[name]
+        register_extension(
+            "launcher", name, target, replace=True, origin="brixtest",
+            capabilities=tuple(sorted(backend_capabilities(name, "launcher"))),
+        )
+        return target
     return get_extension("launcher", name)
 
 
@@ -356,5 +482,5 @@ for _name, _launcher in _BUILTINS.items():
     with contextlib.suppress(SpecError):
         register_extension(
             "launcher", _name, _launcher, origin="brixtest",
-            capabilities=("logs", "readiness", "supervision"),
+            capabilities=tuple(sorted(backend_capabilities(_name, "launcher"))),
         )

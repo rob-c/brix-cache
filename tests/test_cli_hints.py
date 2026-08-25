@@ -1,6 +1,11 @@
 from split_continuation import reexport as _reexport
 _reexport(globals(), "_test_cli_hints_helpers")
 
+# run_pty returns (rc, combined_pty_output, b""): a PTY hands the child ONE
+# terminal fd for stdout+stderr, so the hint/note lines these tests assert on
+# arrive in the second element; it is bound to `stderr` below because the
+# probes print nothing to stdout.  run_pipe keeps real (stdout, stderr).
+
 class TestHintFiredOnPty:
     """Divergence note appears exactly once when stderr is a TTY."""
 
@@ -15,7 +20,7 @@ class TestHintFiredOnPty:
             TEST_ENVALIAS_CANON="canon_value",
             TEST_ENVALIAS_LEGACY="different_value",
         )
-        rc, _stdout, stderr = run_pty(
+        rc, stderr, _ = run_pty(
             [str(probe_binary), "diverge"], env=env, timeout=10
         )
         assert rc == 0, f"probe exited {rc}"
@@ -36,7 +41,7 @@ class TestHintFiredOnPty:
             TEST_ENVALIAS_CANON="shared_val",
             TEST_ENVALIAS_LEGACY="shared_val",
         )
-        rc, _stdout, stderr = run_pty(
+        rc, stderr, _ = run_pty(
             [str(probe_binary), "diverge"], env=env, timeout=10
         )
         assert rc == 0
@@ -51,7 +56,7 @@ class TestHintFiredOnPty:
         """
         env = _base_env(TEST_ENVALIAS_LEGACY="only_legacy")
         env.pop("TEST_ENVALIAS_CANON", None)
-        rc, _stdout, stderr = run_pty(
+        rc, stderr, _ = run_pty(
             [str(probe_binary), "diverge"], env=env, timeout=10
         )
         assert rc == 0
@@ -96,7 +101,7 @@ class TestHintAbsentOnPipe:
             TEST_ENVALIAS_LEGACY="different_value",
             BRIX_NO_HINTS="1",
         )
-        rc, _stdout, stderr = run_pty(
+        rc, stderr, _ = run_pty(
             [str(probe_binary), "diverge"], env=env, timeout=10
         )
         assert rc == 0
@@ -121,7 +126,7 @@ class TestHintTableFull:
               brix_cli_hint_once 17 times with distinct keys. Count the output
               lines: only 16 should appear; the 17th is dropped.
         """
-        rc, _stdout, stderr = run_pty(
+        rc, stderr, _ = run_pty(
             [str(probe_binary), "hint_table_full"], env=_base_env(), timeout=10
         )
         assert rc == 0, f"probe exited {rc}"
@@ -159,7 +164,7 @@ class TestNoteNoControlBytes:
             TEST_ENVALIAS_CANON=evil_value,
             TEST_ENVALIAS_LEGACY="other\x01garbage",
         )
-        rc, _stdout, stderr = run_pty(
+        rc, stderr, _ = run_pty(
             [str(probe_binary), "diverge"], env=env, timeout=10
         )
         assert rc == 0
@@ -213,7 +218,7 @@ class TestSuggestDidYouMeanPty:
         HOW:  suggest_probe "suggest_match" calls brix_suggest("satt", CMDS) then
               brix_cli_hint() with the result; PTY stderr captures the hint line.
         """
-        rc, _stdout, stderr = run_pty(
+        rc, stderr, _ = run_pty(
             [str(suggest_probe_binary), "suggest_match"],
             env=_base_env(),
             timeout=10,
@@ -232,7 +237,7 @@ class TestSuggestDidYouMeanPty:
         WHY:  spec WS-7: hints only fire when distance ≤ 2 (spurious suggestions
               for clearly-wrong input confuse users).
         """
-        rc, _stdout, stderr = run_pty(
+        rc, stderr, _ = run_pty(
             [str(suggest_probe_binary), "suggest_no_match"],
             env=_base_env(),
             timeout=10,
@@ -270,7 +275,7 @@ class TestSuggestDidYouMeanPty:
         """
         # suggest_probe "suggest_match" uses "satt" (clean); the result is "stat".
         # Verify the hint line in PTY output contains no control bytes < 0x20.
-        rc, _stdout, stderr = run_pty(
+        rc, stderr, _ = run_pty(
             [str(suggest_probe_binary), "suggest_match"],
             env=_base_env(),
             timeout=10,
@@ -303,7 +308,7 @@ class TestDoubleSlashHintPty:
         WHY:  spec WS-3: the 'root://host/path' vs 'root://host//path' mistake
               is extremely common; users must see the hint after a not-found failure.
         """
-        rc, _stdout, stderr = run_pty(
+        rc, stderr, _ = run_pty(
             [str(suggest_probe_binary), "double_slash"],
             env=_base_env(),
             timeout=10,
@@ -320,7 +325,7 @@ class TestDoubleSlashHintPty:
         WHY:  the hint must only fire when the URL was actually single-slash;
               it must not appear for well-formed 'root://host//path' URLs.
         """
-        rc, _stdout, stderr = run_pty(
+        rc, stderr, _ = run_pty(
             [str(suggest_probe_binary), "double_slash_off"],
             env=_base_env(),
             timeout=10,

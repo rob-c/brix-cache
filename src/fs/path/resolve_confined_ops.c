@@ -243,20 +243,19 @@ brix_mkdir_confined_canon(ngx_log_t *log, const char *root_canon,
     return rc;
 }
 
-/* Confined rename/move: renameat at the confined parents of BOTH src and dst
- * (broker-routed under impersonation) so neither side can escape the export
- * root. The shared impl backs the plain and create-if-absent variants below. */
+/* Confined two-path ops (rename / create-if-absent rename / link): the op runs
+ * at the confined parents of BOTH src and dst (broker-routed under
+ * impersonation) so neither side can escape the export root. */
 
-#ifndef RENAME_NOREPLACE
-#define RENAME_NOREPLACE (1u << 0)
-#endif
+typedef enum {
+    CONFINED_2P_RENAME,
+    CONFINED_2P_RENAME_EXCL,
+    CONFINED_2P_LINK,
+} confined_two_path_op_t;
 
-/* Shared body for the plain and create-if-absent confined renames.  When
- * `noreplace` is set, uses renameat2(RENAME_NOREPLACE) and falls back to a plain
- * renameat (logged once) on kernels/filesystems without the flag. */
 static int
-rename_confined_canon_impl(ngx_log_t *log, const char *root_canon,
-    const char *src_resolved, const char *dst_resolved, int noreplace)
+two_path_confined_canon(confined_two_path_op_t op, ngx_log_t *log,
+    const char *root_canon, const char *src_resolved, const char *dst_resolved)
 {
     char src_base[NAME_MAX + 1];
     char dst_base[NAME_MAX + 1];
@@ -274,8 +273,12 @@ rename_confined_canon_impl(ngx_log_t *log, const char *root_canon,
         {
             return -1;
         }
-        return noreplace ? brix_imp_rename_noreplace(rsrc, rdst)
-                         : brix_imp_rename(rsrc, rdst);
+        switch (op) {
+        case CONFINED_2P_RENAME:      return brix_imp_rename(rsrc, rdst);
+        case CONFINED_2P_RENAME_EXCL: return brix_imp_rename_noreplace(rsrc,
+                                                                       rdst);
+        default:                      return brix_imp_link(rsrc, rdst);
+        }
     }
 
     src_parentfd = brix_open_confined_parent_canon(log, root_canon,
@@ -293,22 +296,17 @@ rename_confined_canon_impl(ngx_log_t *log, const char *root_canon,
         return -1;
     }
 
-    if (noreplace) {
-        rc = (int) syscall(SYS_renameat2, src_parentfd, src_base,
-                           dst_parentfd, dst_base,
-                           (unsigned int) RENAME_NOREPLACE);
-        if (rc != 0 && (errno == ENOSYS || errno == EINVAL)) {
-            static int warned = 0;
-            if (!warned) {
-                warned = 1;
-                ngx_log_error(NGX_LOG_WARN, log, errno,
-                              "brix: renameat2(RENAME_NOREPLACE) unsupported; "
-                              "create-if-absent falls back to non-atomic rename");
-            }
-            rc = renameat(src_parentfd, src_base, dst_parentfd, dst_base);
-        }
-    } else {
+    switch (op) {
+    case CONFINED_2P_RENAME:
         rc = renameat(src_parentfd, src_base, dst_parentfd, dst_base);
+        break;
+    case CONFINED_2P_RENAME_EXCL:
+        rc = brix_renameat_noreplace_fallback(log, src_parentfd, src_base,
+                                              dst_parentfd, dst_base);
+        break;
+    default:
+        rc = linkat(src_parentfd, src_base, dst_parentfd, dst_base, 0);
+        break;
     }
     {
         int e = errno;
@@ -323,16 +321,18 @@ int
 brix_rename_confined_canon(ngx_log_t *log, const char *root_canon,
     const char *src_resolved, const char *dst_resolved)
 {
-    return rename_confined_canon_impl(log, root_canon, src_resolved,
-                                      dst_resolved, 0);
+    return two_path_confined_canon(CONFINED_2P_RENAME, log, root_canon,
+                                   src_resolved, dst_resolved);
 }
 
+/* Create-if-absent: renameat2(RENAME_NOREPLACE) with the once-logged
+ * plain-renameat fallback (see brix_renameat_noreplace_fallback). */
 int
 brix_rename_confined_canon_excl(ngx_log_t *log, const char *root_canon,
     const char *src_resolved, const char *dst_resolved)
 {
-    return rename_confined_canon_impl(log, root_canon, src_resolved,
-                                      dst_resolved, 1);
+    return two_path_confined_canon(CONFINED_2P_RENAME_EXCL, log, root_canon,
+                                   src_resolved, dst_resolved);
 }
 
 /* brix_link_confined_canon — linkat at the confined parents of BOTH src and
@@ -341,44 +341,8 @@ int
 brix_link_confined_canon(ngx_log_t *log, const char *root_canon,
     const char *src_resolved, const char *dst_resolved)
 {
-    char src_base[NAME_MAX + 1];
-    char dst_base[NAME_MAX + 1];
-    int  src_parentfd;
-    int  dst_parentfd;
-    int  rc;
-
-    /* Phase 40: route through the broker (as the mapped user) when active. */
-    if (brix_imp_client_active()) {
-        char rsrc[PATH_MAX], rdst[PATH_MAX];
-        if (!brix_resolved_relative_to_root(log, root_canon, src_resolved,
-                                              rsrc, sizeof(rsrc))
-            || !brix_resolved_relative_to_root(log, root_canon, dst_resolved,
-                                                 rdst, sizeof(rdst)))
-        {
-            return -1;
-        }
-        return brix_imp_link(rsrc, rdst);
-    }
-
-    src_parentfd = brix_open_confined_parent_canon(log, root_canon,
-                                                     src_resolved, src_base,
-                                                     sizeof(src_base));
-    if (src_parentfd < 0) {
-        return -1;
-    }
-
-    dst_parentfd = brix_open_confined_parent_canon(log, root_canon,
-                                                     dst_resolved, dst_base,
-                                                     sizeof(dst_base));
-    if (dst_parentfd < 0) {
-        close(src_parentfd);
-        return -1;
-    }
-
-    rc = linkat(src_parentfd, src_base, dst_parentfd, dst_base, 0);
-    close(src_parentfd);
-    close(dst_parentfd);
-    return rc;
+    return two_path_confined_canon(CONFINED_2P_LINK, log, root_canon,
+                                   src_resolved, dst_resolved);
 }
 
 /* Confined setattr/chmod/symlink/readlink → resolve_confined_ops_meta.c

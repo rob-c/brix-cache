@@ -31,6 +31,7 @@ _UNITS = {
         [
             "shared/cvmfs/catalog/catalog_write_unittest.c",
             "shared/cvmfs/catalog/catalog_write.c",
+            "shared/cvmfs/catalog/xattr_pack.c",
             "shared/cvmfs/catalog/catalog.c",
             "shared/cvmfs/grammar/hash.c",
         ],

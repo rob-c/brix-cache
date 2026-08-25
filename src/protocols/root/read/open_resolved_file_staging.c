@@ -172,10 +172,7 @@ brix_open_stage_backpressure(brix_ctx_t *ctx, ngx_connection_t *c,
 static ngx_int_t
 brix_open_check_exclusive_create(brix_open_args_t *a)
 {
-	brix_ctx_t                 *ctx      = a->ctx;
-	ngx_connection_t           *c        = a->c;
-	ngx_stream_brix_srv_conf_t *conf     = a->conf;
-	const char                 *resolved = a->resolved;
+	BRIX_OPEN_ARGS_COMMON(a);
 
 	if (a->stage && (a->options & kXR_new) && !(a->options & kXR_delete)) {
 		brix_vfs_stat_t fst;
@@ -199,10 +196,7 @@ brix_open_check_exclusive_create(brix_open_args_t *a)
 static ngx_int_t
 brix_open_build_stage_temp(brix_open_args_t *a)
 {
-	brix_ctx_t                 *ctx      = a->ctx;
-	ngx_connection_t           *c        = a->c;
-	ngx_stream_brix_srv_conf_t *conf     = a->conf;
-	const char                 *resolved = a->resolved;
+	BRIX_OPEN_ARGS_COMMON(a);
 	char                       *posc_temp_path    = a->posc_temp_path;
 	size_t                      posc_temp_path_sz = sizeof(a->posc_temp_path);
 
@@ -245,10 +239,7 @@ brix_open_build_stage_temp(brix_open_args_t *a)
 static void
 brix_open_resume_inplace_decide(brix_open_args_t *a)
 {
-	brix_ctx_t                 *ctx            = a->ctx;
-	ngx_connection_t           *c              = a->c;
-	ngx_stream_brix_srv_conf_t *conf           = a->conf;
-	const char                 *resolved       = a->resolved;
+	BRIX_OPEN_ARGS_COMMON(a);
 	const char                 *posc_temp_path = a->posc_temp_path;
 	uint16_t                    options        = a->options;
 	ngx_flag_t                  use_posc       = a->use_posc;
@@ -301,10 +292,7 @@ brix_open_resume_inplace_decide(brix_open_args_t *a)
 ngx_int_t
 brix_open_stage_preflight(brix_open_args_t *a)
 {
-	brix_ctx_t                 *ctx      = a->ctx;
-	ngx_connection_t           *c        = a->c;
-	ngx_stream_brix_srv_conf_t *conf     = a->conf;
-	const char                 *resolved = a->resolved;
+	BRIX_OPEN_ARGS_COMMON(a);
 	ngx_int_t                   rc;
 
 	/* Reject a write open onto a symlink or existing directory (split out). */

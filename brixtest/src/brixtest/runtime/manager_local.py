@@ -19,7 +19,9 @@ from brixtest.fleet.launcher import FleetPlan
 from brixtest.fleet.registry import InstanceSpec, ServerEndpoint
 from brixtest.runtime.api import Service
 from brixtest.runtime.configs import ConfigStore
+from brixtest.runtime.input_pipeline import capture_deferred, capture_immediate
 from brixtest.runtime.launchers import ServerLaunchContext, ServerLaunchRequest, server_launcher
+from brixtest.runtime.replica import Replica
 from brixtest.runtime.topology import instance_for, owned_servers
 from brixtest.util.configtext import render_cfg_strict
 
@@ -86,6 +88,49 @@ def _make_read_only(destination: Path) -> None:
             path.chmod(path.stat().st_mode & ~0o222)
 
 
+def _mount_read_only(declaration) -> bool:
+    source = declaration.source
+    return declaration.read_only or (
+        isinstance(source, Volume) and source.access == "read-only-many"
+    )
+
+
+def _device_mount(declaration) -> bool:
+    return isinstance(declaration.source, Volume) and declaration.source.kind == "device"
+
+
+def _server_identity(definition, declaration):
+    return next((
+        identity for identity in definition.identities
+        if identity.name == declaration.placement.identity
+    ), None)
+
+
+def _ordered_mount_paths(declaration, mounts: Mapping[str, Path]) -> tuple[Path, ...]:
+    return tuple(
+        mounts["mount_%d" % index] for index in range(len(declaration.mounts))
+    )
+
+
+def _project_mount_path(manager, base: Path, declaration, config_paths) -> Path:
+    destination = base / declaration.target
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    if isinstance(declaration.source, Volume):
+        source = manager._managed.volumes.get(declaration.source.name).path
+        if _device_mount(declaration):
+            return source
+        if not _mount_read_only(declaration):
+            return source
+        _copy_local_mount(source, destination, declaration.source)
+        return destination
+    if declaration.kind == "tmp":
+        destination.mkdir(parents=True, exist_ok=True)
+        return destination
+    source = _local_mount_source(manager, declaration, config_paths)
+    _copy_local_mount(source, destination, declaration.source)
+    return destination
+
+
 
 class CaseManagerLocalMixin:
     def _project_mounts(
@@ -100,20 +145,8 @@ class CaseManagerLocalMixin:
         } if configs else {}
         base = self.root / "runtime" / "mounts" / owner
         for index, declaration in enumerate(mounts):
-            destination = base / declaration.target
-            destination.parent.mkdir(parents=True, exist_ok=True)
-            if isinstance(declaration.source, Volume):
-                volume_path = self._managed.volumes.get(declaration.source.name).path
-                if declaration.read_only:
-                    _copy_local_mount(volume_path, destination, declaration.source)
-                else:
-                    destination = volume_path
-            elif declaration.kind == "tmp":
-                destination.mkdir(parents=True, exist_ok=True)
-            else:
-                source = _local_mount_source(self, declaration, config_paths)
-                _copy_local_mount(source, destination, declaration.source)
-            if declaration.read_only:
+            destination = _project_mount_path(self, base, declaration, config_paths)
+            if _mount_read_only(declaration) and not _device_mount(declaration):
                 _make_read_only(destination)
             suffix = ConfigStore.placeholder(declaration.target)
             projected["mount_%s" % suffix] = destination
@@ -146,29 +179,18 @@ class CaseManagerLocalMixin:
     def _local_launch_plan(
         self, declaration: Server, values: Mapping[str, object],
         mounts: Mapping[str, Path], library_dirs: Sequence[str], binary_dirs: Sequence[str],
+        group_anchor=None,
     ) -> tuple[object, object, tuple[str, ...]]:
-        launcher_name = _launcher_name(declaration)
-        launcher = server_launcher(launcher_name)
-        launcher.validate(declaration)
-        containerized = launcher_name in ("docker", "podman")
-        command = tuple(
-            self._server_command_part(part, declaration, values, containerized)
-            for part in declaration.command
+        from brixtest.runtime.manager_local_registration import local_launch_plan
+        return local_launch_plan(
+            self, declaration, values, mounts, library_dirs, binary_dirs, group_anchor,
         )
-        shutdown = tuple(
-            self._render_part(
-                part, values, "server %s shutdown command" % declaration.name,
-            )
-            for part in declaration.lifecycle.shutdown_command
+
+    def _server_host_aliases(self):
+        return tuple(
+            item for item in self.definition.hosts
+            if item.libc and "server" in item.targets
         )
-        env = self._local_server_environment(declaration, values, mounts)
-        self._local_server_search_paths(env, library_dirs, binary_dirs)
-        workdir = _server_workdir(self.root, declaration)
-        context = ServerLaunchContext(self.nodeid, self.root, self.workspace)
-        plan = launcher.prepare(
-            context, ServerLaunchRequest(declaration, command, env, workdir),
-        )
-        return launcher, plan, shutdown
 
     def _server_command_part(self, part, declaration, values, containerized: bool) -> str:
         if containerized and isinstance(part, Binary) and part.image_path:
@@ -211,32 +233,10 @@ class CaseManagerLocalMixin:
         self, servers: Sequence[Server], allocated: Mapping[str, Mapping[str, int]],
         common: Mapping[str, object], library_dirs: Sequence[str], binary_dirs: Sequence[str],
     ) -> None:
-        from brixtest.runtime.manager import _KIND, _server_hosts
-        names = {server.name for server in servers}
-        for declaration in servers:
-            roles = allocated[declaration.name]
-            values, mounts = self._local_server_values(declaration, roles, common)
-            self._server_mounts[declaration.name] = tuple(dict.fromkeys(mounts.values()))
-            launcher, launch_plan, shutdown = self._local_launch_plan(
-                declaration, values, mounts, library_dirs, binary_dirs,
-            )
-            self._server_launchers[declaration.name] = launcher
-            self._server_launch_plans[declaration.name] = launch_plan
-            dependencies = _local_dependencies(declaration, names)
-            self.registry.register(InstanceSpec(
-                name=declaration.name, kind=_KIND.name, ports=roles,
-                host=_server_hosts(declaration, bind=False)["primary"],
-                hosts=_server_hosts(declaration, bind=False),
-                command=launch_plan.argv, env=launch_plan.env, depends_on=dependencies,
-                readiness=declaration.readiness.kind,
-                readiness_timeout=declaration.readiness.timeout, probe=declaration.probe,
-                critical=True, stop_timeout=declaration.lifecycle.stop_timeout,
-                shutdown_signal=declaration.lifecycle.shutdown_signal,
-                shutdown_command=shutdown, expected_exit=declaration.lifecycle.expected_exit,
-                background=declaration.lifecycle.background,
-                log_max_bytes=declaration.logs.max_bytes,
-                workdir=_instance_workdir(declaration),
-            ))
+        from brixtest.runtime.manager_local_registration import register_local_servers
+        register_local_servers(
+            self, servers, allocated, common, library_dirs, binary_dirs,
+        )
 
     def _prepare_local_backend(self) -> None:
         from brixtest.runtime.manager import _KIND
@@ -281,14 +281,17 @@ class CaseManagerLocalMixin:
 
     def _start_local(self) -> None:
         servers = owned_servers(self.definition)
-        self.binary_store.capture_all(self._all_binaries())
-        self.artifact_store.materialize_all(self.definition.artifacts)
+        capture_immediate(self)
         self.security.materialize()
         self._managed.materialize_volumes()
+        self._providers.start_ready()
         allocated = self._allocate_ports(servers)
         self._allocated_ports = allocated
         self._managed.run_phase("prepare")
         self._managed.run_phase("init")
+        self._providers.start_ready()
+        self._providers.ensure_complete()
+        capture_deferred(self)
         common = self._global_values(allocated)
         captured = tuple(self.binary_store._captured.values())
         library_dirs = [str(item.library_dir) for item in captured if item.libraries]
@@ -313,13 +316,15 @@ class CaseManagerLocalMixin:
         metadata = _service_metadata(
             declaration, launch_plan, self._server_mounts.get(declaration.name, ()),
         )
+        instance_id = instance_for(self.evidence.attempt_id, endpoint.name)
+        host = _server_hosts(declaration, bind=False)["primary"]
         service = Service(
             name=endpoint.name,
-            host=_server_hosts(declaration, bind=False)["primary"],
+            host=host,
             ports=ports,
             config=config.rendered,
             log=endpoint.log_path, workdir=endpoint.workdir,
-            instance_id=instance_for(self.evidence.attempt_id, endpoint.name),
+            instance_id=instance_id,
             scope=declaration.scope, started_at=time.time(),
             config_filename=config.filename,
             config_sha256=config.rendered_sha256,
@@ -328,6 +333,11 @@ class CaseManagerLocalMixin:
             configs=captured_configs, schemes=schemes, protocols=protocols,
             hosts=_server_hosts(declaration, bind=False),
             metadata=metadata,
+            replicas=(Replica(
+                endpoint.name, host, ports, uid=instance_id,
+                phase="running", ready=True,
+                metadata={"launcher": metadata.get("launcher", "process")},
+            ),),
         )
         object.__setattr__(service, "_controller", self)
         return service
@@ -396,4 +406,8 @@ def _service_metadata(declaration: Server, launch_plan, mounts: Sequence[Path]) 
     if launch_plan is not None:
         metadata["launcher"] = launch_plan.launcher
         metadata["launch"] = dict(launch_plan.metadata)
+        metadata["filesystem_transport"] = (
+            "oci-shared-mount-v1"
+            if launch_plan.launcher in ("docker", "podman") else "native-v1"
+        )
     return metadata

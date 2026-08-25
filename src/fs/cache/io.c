@@ -3,26 +3,29 @@
 
 
 #include <errno.h>
+#include <stdint.h>
 #include <sys/socket.h>
 #include <unistd.h>
 
-/* brix_cache_io_send — blocking send of all len bytes to the origin (SSL or plain
- * TCP), retrying the same chunk on WANT_READ/WANT_WRITE/EINTR; other errors map to
- * EIO/-1 (a zero-length TCP write → EPIPE). Safe to block: runs in a fill
+/* cache_io_xfer — the one blocking full-transfer loop shared by both wire
+ * directions (send and recv drifted apart as separate copies; the TPC plane
+ * made the same extraction in tpc/outbound/io_xfer.c, whose loop is NOT
+ * reusable here: it treats SSL WANT_READ/WANT_WRITE as hard failures and maps
+ * no errno). Moves all `len` bytes over SSL or plain TCP, retrying the same
+ * chunk on WANT_READ/WANT_WRITE/EINTR; other errors map to EIO/-1, and a
+ * zero-length TCP transfer maps to `eof_errno` (EPIPE writing, ECONNRESET
+ * reading). `sending` never writes through `p`. Safe to block: runs in a fill
  * thread-pool worker, not the event loop. */
-
-int
-brix_cache_io_send(brix_cache_origin_conn_t *oc, const void *buf,
-    size_t len)
+static int
+cache_io_xfer(brix_cache_origin_conn_t *oc, u_char *p, size_t len,
+    int sending, int eof_errno)
 {
-    const u_char *p;
-
-    p = buf;
     while (len > 0) {
         ssize_t n;
 
         if (oc->ssl != NULL) {
-            n = SSL_write(oc->ssl, p, (int) len);
+            n = sending ? SSL_write(oc->ssl, p, (int) len)
+                        : SSL_read(oc->ssl, p, (int) len);
             if (n > 0) {
                 p += (size_t) n;
                 len -= (size_t) n;
@@ -39,7 +42,7 @@ brix_cache_io_send(brix_cache_origin_conn_t *oc, const void *buf,
             }
         }
 
-        n = send(oc->fd, p, len, 0);
+        n = sending ? send(oc->fd, p, len, 0) : recv(oc->fd, p, len, 0);
         if (n > 0) {
             p += (size_t) n;
             len -= (size_t) n;
@@ -51,7 +54,7 @@ brix_cache_io_send(brix_cache_origin_conn_t *oc, const void *buf,
         }
 
         if (n == 0) {
-            errno = EPIPE;
+            errno = eof_errno;
         }
 
         return -1;
@@ -60,58 +63,26 @@ brix_cache_io_send(brix_cache_origin_conn_t *oc, const void *buf,
     return 0;
 }
 
+/* brix_cache_io_send — blocking send of all len bytes to the origin (SSL or
+ * plain TCP); a zero-length TCP write → EPIPE. The const is dropped only to
+ * reach the shared loop, which never writes in the send direction. */
+
+int
+brix_cache_io_send(brix_cache_origin_conn_t *oc, const void *buf,
+    size_t len)
+{
+    return cache_io_xfer(oc, (u_char *) (uintptr_t) buf, len, 1, EPIPE);
+}
+
 /* brix_cache_io_recv_exact — blocking recv of exactly len bytes from the origin
- * (SSL or plain TCP), looping over partial reads and retrying on
- * WANT_READ/WANT_WRITE/EINTR (the XRootD wire uses fixed-size headers); other errors
- * map to EIO/-1 (a zero-length TCP read → ECONNRESET). Fill thread-pool worker only. */
+ * (SSL or plain TCP; the XRootD wire uses fixed-size headers); a zero-length
+ * TCP read → ECONNRESET. */
 
 int
 brix_cache_io_recv_exact(brix_cache_origin_conn_t *oc, void *buf,
     size_t len)
 {
-    u_char *p;
-
-    p = buf;
-    while (len > 0) {
-        ssize_t n;
-
-        if (oc->ssl != NULL) {
-            n = SSL_read(oc->ssl, p, (int) len);
-            if (n > 0) {
-                p += (size_t) n;
-                len -= (size_t) n;
-                continue;
-            }
-
-            switch (SSL_get_error(oc->ssl, (int) n)) {
-            case SSL_ERROR_WANT_READ:
-            case SSL_ERROR_WANT_WRITE:
-                continue;
-            default:
-                errno = EIO;
-                return -1;
-            }
-        }
-
-        n = recv(oc->fd, p, len, 0);
-        if (n > 0) {
-            p += (size_t) n;
-            len -= (size_t) n;
-            continue;
-        }
-
-        if (n < 0 && errno == EINTR) {
-            continue;
-        }
-
-        if (n == 0) {
-            errno = ECONNRESET;
-        }
-
-        return -1;
-    }
-
-    return 0;
+    return cache_io_xfer(oc, buf, len, 0, ECONNRESET);
 }
 
 /* brix_cache_fd_write_all — blocking write of all len bytes to a local fd (the

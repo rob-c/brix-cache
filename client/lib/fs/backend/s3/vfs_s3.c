@@ -78,6 +78,28 @@ s3_alloc_handle(void)
 
 
 /*
+ * s3_handle_from_url — allocate a handle and seed its endpoint fields from a
+ * parsed S3 URL (host/port/tls/key_path). `what` tags the OOM diagnostic
+ * ("open"/"stat"). Returns the handle, or NULL with *st set on OOM.
+ */
+static vfs_s3_file *
+s3_handle_from_url(const brix_weburl *wu, const char *what, brix_status *st)
+{
+    vfs_s3_file *sf = s3_alloc_handle();
+
+    if (sf == NULL) {
+        brix_status_set(st, XRDC_EIO, ENOMEM, "s3 %s: out of memory", what);
+        return NULL;
+    }
+    snprintf(sf->host,     sizeof(sf->host),     "%s", wu->host);
+    sf->port = wu->port;
+    sf->tls  = wu->tls;
+    snprintf(sf->key_path, sizeof(sf->key_path), "%s", wu->path);
+    return sf;
+}
+
+
+/*
  * s3_open_read — open a handle for reading.
  *
  * WHAT: sets the read-mode-specific field (lazy obj_size); common fields
@@ -149,16 +171,10 @@ s3_be_open(const brix_vfs_backend *be, const char *url, int flags,
         return -1;
     }
 
-    sf = s3_alloc_handle();
+    sf = s3_handle_from_url(&wu, "open", st);
     if (sf == NULL) {
-        brix_status_set(st, XRDC_EIO, ENOMEM,
-                        "s3 open: out of memory allocating handle");
         return -1;
     }
-    snprintf(sf->host,     sizeof(sf->host),     "%s", wu.host);
-    sf->port = wu.port;
-    sf->tls  = wu.tls;
-    snprintf(sf->key_path, sizeof(sf->key_path), "%s", wu.path);
     s3_creds_load(sf, opts);
 
     if (flags & XRDC_VFS_WRITE) {
@@ -233,16 +249,10 @@ s3_be_stat(const brix_vfs_backend *be, const char *url,
         return -1;
     }
 
-    sf = s3_alloc_handle();
+    sf = s3_handle_from_url(&wu, "stat", st);
     if (sf == NULL) {
-        brix_status_set(st, XRDC_EIO, ENOMEM,
-                        "s3 stat: out of memory");
         return -1;
     }
-    snprintf(sf->host,     sizeof(sf->host),     "%s", wu.host);
-    sf->port = wu.port;
-    sf->tls  = wu.tls;
-    snprintf(sf->key_path, sizeof(sf->key_path), "%s", wu.path);
 
     /* Use no-op open_opts for stat (no cred store yet). */
     {

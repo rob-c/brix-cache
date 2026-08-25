@@ -43,11 +43,7 @@ webdav_dead_prop_vfs_ctx_init(ngx_http_request_t *r, const char *path,
         ngx_http_get_module_loc_conf(r, ngx_http_brix_webdav_module);
     ngx_http_brix_webdav_req_ctx_t *wctx =
         ngx_http_get_module_ctx(r, ngx_http_brix_webdav_module);
-    int is_tls = 0;
-
-#if (NGX_HTTP_SSL)
-    is_tls = (r->connection->ssl != NULL) ? 1 : 0;
-#endif
+    int is_tls = brix_http_request_is_tls(r);
 
     brix_vfs_ctx_init(vctx, r->pool, r->connection->log,
         BRIX_PROTO_WEBDAV, conf->common.root_canon,

@@ -136,6 +136,21 @@ brix_transfer_slot_alloc(brix_transfer_table_t *t,
                                          now_ms);
 }
 
+/* The in-use slot at slot_idx, or NULL — the shared prologue of every slot
+ * updater: range-check the index, then re-check in_use (the slot may have been
+ * freed between the caller's tracking check and this update). */
+static brix_transfer_slot_t *
+transfer_live_slot(brix_transfer_table_t *t, int slot_idx)
+{
+    brix_transfer_slot_t *slot;
+
+    if (slot_idx < 0 || slot_idx >= BRIX_DASHBOARD_MAX_TRANSFERS) {
+        return NULL;
+    }
+    slot = &t->slots[slot_idx];
+    return (slot->in_use == 0) ? NULL : slot;
+}
+
 /* Byte / timestamp update (lock-free) */
 void
 brix_transfer_slot_update_bytes(brix_transfer_table_t *t,
@@ -143,14 +158,8 @@ brix_transfer_slot_update_bytes(brix_transfer_table_t *t,
 {
     brix_transfer_slot_t *slot;
 
-    if (slot_idx < 0 || slot_idx >= BRIX_DASHBOARD_MAX_TRANSFERS) {
+    if ((slot = transfer_live_slot(t, slot_idx)) == NULL) {
         return;
-    }
-
-    slot = &t->slots[slot_idx];
-
-    if (slot->in_use == 0) {
-        return;   /* slot was freed between the check and this update */
     }
 
     if (nbytes > 0) {
@@ -204,14 +213,9 @@ void
 brix_transfer_slot_set_state(brix_transfer_table_t *t,
     int slot_idx, uint8_t state, int64_t now_ms)
 {
-    brix_transfer_slot_t *slot;
+    brix_transfer_slot_t *slot = transfer_live_slot(t, slot_idx);
 
-    if (slot_idx < 0 || slot_idx >= BRIX_DASHBOARD_MAX_TRANSFERS) {
-        return;
-    }
-
-    slot = &t->slots[slot_idx];
-    if (slot->in_use == 0) {
+    if (slot == NULL) {
         return;
     }
 
@@ -224,14 +228,9 @@ void
 brix_transfer_slot_set_error(brix_transfer_table_t *t,
     int slot_idx, const char *reason, int64_t now_ms)
 {
-    brix_transfer_slot_t *slot;
+    brix_transfer_slot_t *slot = transfer_live_slot(t, slot_idx);
 
-    if (slot_idx < 0 || slot_idx >= BRIX_DASHBOARD_MAX_TRANSFERS) {
-        return;
-    }
-
-    slot = &t->slots[slot_idx];
-    if (slot->in_use == 0) {
+    if (slot == NULL) {
         return;
     }
 
@@ -249,14 +248,9 @@ brix_transfer_slot_set_tpc_remote(brix_transfer_table_t *t,
     int slot_idx, const char *remote_host, const char *path_hint,
     int remote_status, int curl_exit)
 {
-    brix_transfer_slot_t *slot;
+    brix_transfer_slot_t *slot = transfer_live_slot(t, slot_idx);
 
-    if (slot_idx < 0 || slot_idx >= BRIX_DASHBOARD_MAX_TRANSFERS) {
-        return;
-    }
-
-    slot = &t->slots[slot_idx];
-    if (slot->in_use == 0) {
+    if (slot == NULL) {
         return;
     }
 
@@ -272,14 +266,9 @@ void
 brix_transfer_slot_count_op(brix_transfer_table_t *t, int slot_idx,
     const char *op)
 {
-    brix_transfer_slot_t *slot;
+    brix_transfer_slot_t *slot = transfer_live_slot(t, slot_idx);
 
-    if (slot_idx < 0 || slot_idx >= BRIX_DASHBOARD_MAX_TRANSFERS) {
-        return;
-    }
-
-    slot = &t->slots[slot_idx];
-    if (slot->in_use == 0 || op == NULL) {
+    if (slot == NULL || op == NULL) {
         return;
     }
 

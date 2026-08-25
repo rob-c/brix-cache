@@ -240,21 +240,18 @@ pblock_prepare_existing_fd(pblock_state_t *st, const char *path,
     if (st->pack && !meta->is_dir) {
         if (want_write) {
             if (pblock_pack_materialize(st, meta) != 0) {
-                if (err_out != NULL) { *err_out = errno; }
-                return NULL;
+                pblock_open_set_error(err_out, errno);
+                return -1;
             }
         } else {
             int mfd = pblock_pack_open_memfd(st, meta);
 
             if (mfd >= 0) {
-                brix_sd_obj_t *obj = pblock_make_obj(inst, path, mfd, meta);
-
-                if (obj == NULL && err_out != NULL) { *err_out = errno; }
-                return obj;
+                return mfd;    /* the caller wraps it like any block fd */
             }
             if (errno != ENOENT) {
-                if (err_out != NULL) { *err_out = errno; }
-                return NULL;
+                pblock_open_set_error(err_out, errno);
+                return -1;
             }
             /* ENOENT: not packed — fall through to the striped layout. */
         }
